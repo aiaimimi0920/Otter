@@ -82,7 +82,7 @@
     "typescript-eslint": "^8.70.1",
     "vite": "^8.3.0",
     "vite-plugin-solid": "^2.11.12",
-    "vitest": "4.1.11"
+    "vitest": "4.1.12"
   },
   "overrides": {
     "@babel/core": "7.29.7",
