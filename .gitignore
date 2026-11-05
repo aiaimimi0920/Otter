@@ -16,6 +16,9 @@ node_modules/
 /src-tauri/crates/*/target/
 /src-tauri/crates/*/target-*/
 /src-tauri/crates/*/target_*/
+/native/target/
+/native/target-*/
+/native/target_*/
 # Tauri 生成的 schema 由 src-tauri/.gitignore 管理。
 
 # 本地运行状态、测试证据与打包结果。
@@ -38,6 +41,8 @@ node_modules/
 /.memsearch/
 /graphify-out/
 /.playwright-cli/
+/Microsoft/Windows/PowerShell/ModuleAnalysisCache
+/rtk/history.db
 
 # Python 辅助脚本的环境和缓存。
 /.venv/

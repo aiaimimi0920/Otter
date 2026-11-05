@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "packages": [
+    {
+      "name": "resvg",
+      "version": "0.48.1",
+      "directory": "third_party/resvg-0.48.1",
+      "manifest": "third_party/patches/resvg-0.48.1/source-manifest.json",
+      "patch": "third_party/patches/resvg-0.48.1/fix.patch"
+    },
+    {
+      "name": "roxmltree",
+      "version": "0.21.1",
+      "directory": "third_party/roxmltree-0.21.1",
+      "manifest": "third_party/patches/roxmltree-0.21.1/source-manifest.json",
+      "patch": "third_party/patches/roxmltree-0.21.1/fix.patch"
+    },
+    {
+      "name": "usvg",
+      "version": "0.48.1",
+      "directory": "third_party/usvg-0.48.1",
+      "manifest": "third_party/patches/usvg-0.48.1/source-manifest.json",
+      "patch": "third_party/patches/usvg-0.48.1/fix.patch"
+    },
+    {
+      "name": "tiny-skia",
+      "version": "0.12.0",
+      "directory": "third_party/tiny-skia-0.12.0",
+      "manifest": "third_party/patches/tiny-skia-0.12.0/source-manifest.json",
+      "patch": "third_party/patches/tiny-skia-0.12.0/fix.patch"
+    }
+  ]
+}

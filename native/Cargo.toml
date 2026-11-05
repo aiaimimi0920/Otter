@@ -1,0 +1,109 @@
+[package]
+name = "otter-native"
+version = "0.2.33"
+edition = "2021"
+license = "MIT"
+publish = false
+description = "Otter Windows native migration host"
+
+[dependencies]
+base64 = "=0.22.1"
+png = "=0.18.1"
+image-webp = "=0.2.4"
+resvg = { version = "=0.48.1", default-features = false, features = ["text"] }
+svgtypes = "=0.16.1"
+skrifa = { version = "=0.44.0", default-features = false, features = ["std"] }
+moxcms = { version = "=0.8.1", default-features = false, features = ["lut"] }
+sha2 = "=0.10.9"
+uuid = { version = "=1.26.1", default-features = false }
+rustls = { version = "=0.23.46", default-features = false, features = ["ring", "std"] }
+webpki-roots = "=1.0.11"
+ring = "=0.17.14"
+zeroize = "=1.9.1"
+tungstenite = { version = "=0.24.0", default-features = false, features = ["handshake"] }
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = { version = "=1.0.151", features = ["raw_value"] }
+url = "=2.5.8"
+ureq = { version = "=3.4.2", default-features = false }
+
+[dev-dependencies]
+rcgen = { version = "=0.13.2", default-features = false, features = ["crypto", "ring"] }
+
+[target.'cfg(windows)'.dev-dependencies]
+windows = { version = "=0.60.0", features = ["Win32_UI_Input_Pointer"] }
+
+[target.'cfg(windows)'.dependencies]
+rquickjs = { version = "=0.14.0", default-features = false, features = ["std"] }
+windows-core = "=0.60.1"
+windows = { version = "=0.60.0", features = [
+    "ApplicationModel_DataTransfer",
+    "Storage_Streams",
+    "Wdk_Storage_FileSystem",
+    "Foundation",
+    "Graphics_Capture",
+    "Graphics_DirectX_Direct3D11",
+    "Win32_Foundation",
+    "Win32_Devices_Display",
+    "Win32_Security",
+    "Win32_Security_Authorization",
+    "Win32_Security_Cryptography",
+    "Win32_Storage_FileSystem",
+    "Win32_Globalization",
+    "Win32_Graphics_Direct2D",
+    "Win32_Graphics_Direct2D_Common",
+    "Win32_Graphics_DirectWrite",
+    "Win32_Graphics_Direct3D",
+    "Win32_Graphics_Direct3D_Fxc",
+    "Win32_Graphics_Direct3D11",
+    "Win32_Graphics_Direct3D11on12",
+    "Win32_Graphics_Direct3D12",
+    "Win32_Graphics_DirectComposition",
+    "Win32_Graphics_Dxgi",
+    "Win32_Graphics_Dxgi_Common",
+    "Win32_Graphics_Gdi",
+    "Win32_Graphics_Dwm",
+    "Win32_Graphics_Imaging",
+    "Win32_Media_MediaFoundation",
+    "Win32_Networking_WinSock",
+    "Win32_System_Com",
+    "Win32_System_JobObjects",
+    "Win32_System_Variant",
+    "Win32_System_WinRT",
+    "Win32_System_WinRT_Direct3D11",
+    "Win32_System_WinRT_Graphics_Capture",
+    "Win32_System_Ole",
+    "Win32_System_SystemServices",
+    "Win32_System_SystemInformation",
+    "Win32_System_Shutdown",
+    "Win32_System_DataExchange",
+    "Win32_System_Memory",
+    "Win32_System_Registry",
+    "Win32_System_Threading",
+    "Win32_System_StationsAndDesktops",
+    "Win32_System_Diagnostics_ToolHelp",
+    "Win32_System_Pipes",
+    "Win32_System_IO",
+    "Win32_System_Com_StructuredStorage",
+    "Win32_UI_Controls_Dialogs",
+    "Win32_UI_Accessibility",
+    "Win32_System_LibraryLoader",
+    "Win32_UI_HiDpi",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_Input_Touch",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_UI_Shell",
+    "Win32_UI_Shell_Common",
+] }
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = "s"
+strip = true
+
+# 可追溯补丁及完整性门见 third_party/README.md。
+[patch.crates-io]
+resvg = { path = "../third_party/resvg-0.48.1" }
+usvg = { path = "../third_party/usvg-0.48.1" }
+tiny-skia = { path = "../third_party/tiny-skia-0.12.0" }
+roxmltree = { path = "../third_party/roxmltree-0.21.1" }

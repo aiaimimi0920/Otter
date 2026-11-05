@@ -16,3 +16,10 @@
 *.ico binary
 *.icns binary
 *.onnx binary
+
+# 固定第三方归档及可回放补丁必须保留原始字节，不能受 autocrlf 影响。
+third_party/resvg-0.48.1/** -text
+third_party/roxmltree-0.21.1/** -text
+third_party/usvg-0.48.1/** -text
+third_party/tiny-skia-0.12.0/** -text
+third_party/patches/** -text

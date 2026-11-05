@@ -47,6 +47,10 @@
     { "prefix": "target_", "reason": "Alternate Cargo target directories are generated." }
   ],
   "excludedPaths": [
+    { "path": "third_party/resvg-0.48.1", "reason": "Pinned upstream renderer with replay-verified source patches. Upstream legacy files only; every local-added module is independently measured by security-third-party-sources.test.cjs. Source manifests and verifier scripts are not exempt." },
+    { "path": "third_party/roxmltree-0.21.1", "reason": "Pinned upstream XML crate with iterative tokenizer patch, exact bytes verified by third-party-sources.cjs. New handwritten tests are separately measured; metadata and verification scripts are not exempt." },
+    { "path": "third_party/usvg-0.48.1", "reason": "Pinned upstream crate with reviewed minimal context-paint patch; all bytes verified by third-party-sources.cjs. Patch metadata and verification scripts are not exempt." },
+    { "path": "third_party/tiny-skia-0.12.0", "reason": "Pinned upstream crate with reviewed narrow-clip hairline patch; all bytes verified by third-party-sources.cjs. Patch metadata and verification scripts are not exempt." },
     { "path": "graphify-out", "reason": "The repository knowledge graph is generated from source." },
     { "path": "public/javascript-surface-bootstrap.js", "reason": "Deterministically generated from the scanned scripts/javascript-surface-bootstrap fragments and verified byte-for-byte before build." },
     { "path": "scripts/tests/fixtures/effective-code-lines", "reason": "Lexer fixture text is test data, not repository source." }

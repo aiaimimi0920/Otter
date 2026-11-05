@@ -58,6 +58,10 @@ Otter 是一款免费开源的截图工具，让截图、标注、整理与分�
 
 [**完整使用教程 →**](./docs/guide/getting-started.zh-CN.md)
 
+## Windows 原生迁移分支
+
+尚未发布的Windows原生开发分支新增`F6`端口导航、`Ctrl+Enter`键盘连线，以及公共Art参数端口的`F2`单字段原生内嵌编辑。这是开发分支操作，不表示下载页公开版已有这些键位，也不表示普通桌面验收已完成。具体操作及验证边界见[当前原生对等记录](docs/development/WINDOWS_NATIVE_PARITY.md)。
+
 ## 参与贡献
 
 欢迎反馈问题、参与翻译、改进文档或贡献代码。

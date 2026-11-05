@@ -14,6 +14,7 @@
   "maximumExceptionDays": 90,
   "lockfiles": [
     "package-lock.json",
+    "native/Cargo.lock",
     "src-tauri/Cargo.lock",
     "src-tauri/crates/drag/Cargo.lock",
     "src-tauri/crates/scap-direct3d/Cargo.lock"

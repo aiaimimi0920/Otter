@@ -7,9 +7,12 @@ $ErrorActionPreference = "Stop"
 $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $packageJsonPath = Join-Path $repoRoot "package.json"
 $packageLockPath = Join-Path $repoRoot "package-lock.json"
-$cargoManifestPath = Join-Path $repoRoot "src-tauri\Cargo.toml"
+$cargoManifestPaths = @("src-tauri\Cargo.toml", "native\Cargo.toml")
 
-$ReportPath = [System.IO.Path]::GetFullPath((Join-Path $repoRoot $ReportPath))
+if (-not [System.IO.Path]::IsPathRooted($ReportPath)) {
+    $ReportPath = Join-Path $repoRoot $ReportPath
+}
+$ReportPath = [System.IO.Path]::GetFullPath($ReportPath)
 New-Item -ItemType Directory -Force -Path (Split-Path -Parent $ReportPath) | Out-Null
 if (Test-Path -LiteralPath $ReportPath) { Remove-Item -LiteralPath $ReportPath -Force }
 $facts = New-Object System.Collections.Generic.List[object]
@@ -62,15 +65,27 @@ foreach ($fact in $npmLockFacts) {
     }
 }
 
-$cargoJson = & cargo metadata --manifest-path $cargoManifestPath --format-version 1 --locked
-if ($LASTEXITCODE -ne 0) {
-    throw "cargo metadata failed with exit code $LASTEXITCODE."
+$rustPackages = @{}
+# 本地补丁的许可证检查必须绑定经过验证的实际副本。
+& node (Join-Path $PSScriptRoot "release\third-party-sources.cjs") $repoRoot | Out-Null
+if ($LASTEXITCODE -ne 0) { throw "Third-party source integrity verification failed." }
+foreach ($relativeManifest in $cargoManifestPaths) {
+    $cargoManifestPath = Join-Path $repoRoot $relativeManifest
+    $cargoJson = & cargo metadata --manifest-path $cargoManifestPath --format-version 1 --locked
+    if ($LASTEXITCODE -ne 0) {
+        throw "cargo metadata failed for $relativeManifest with exit code $LASTEXITCODE."
+    }
+    $cargoMetadata = $cargoJson | ConvertFrom-Json
+    if ($null -eq $cargoMetadata.packages -or $cargoMetadata.packages.Count -eq 0) {
+        throw "Incomplete cargo metadata: $relativeManifest"
+    }
+    foreach ($package in $cargoMetadata.packages) {
+        $rustPackages[[string]$package.id] = $package
+    }
 }
 
-$cargoMetadata = $cargoJson | ConvertFrom-Json
-if ($null -eq $cargoMetadata.packages -or $cargoMetadata.packages.Count -eq 0) { throw "Incomplete cargo metadata." }
 $rustLicenseExpressions = New-Object System.Collections.Generic.HashSet[string]
-foreach ($package in $cargoMetadata.packages) {
+foreach ($package in ($rustPackages.Values | Sort-Object id)) {
     $licenseText = if ($null -eq $package.license) { "" } else { [string]$package.license }
     $licenseFile = if ($null -eq $package.license_file) { "" } else { [string]$package.license_file }
 
@@ -88,7 +103,7 @@ foreach ($package in $cargoMetadata.packages) {
     }
 }
 
-$report = @{ schemaVersion = 1; complete = $true; directNpmCount = $directNpmPackages.Count; rustCount = $cargoMetadata.packages.Count; facts = @($facts.ToArray()); findings = @($errors.ToArray()) }
+$report = @{ schemaVersion = 1; complete = $true; directNpmCount = $directNpmPackages.Count; rustCount = $rustPackages.Count; facts = @($facts.ToArray()); findings = @($errors.ToArray()) }
 [System.IO.File]::WriteAllText($ReportPath, ($report | ConvertTo-Json -Depth 8), (New-Object System.Text.UTF8Encoding($false)))
 if ($errors.Count -gt 0) {
     $message = "Open-source dependency audit failed:`n- " + ($errors -join "`n- ")
@@ -96,6 +111,6 @@ if ($errors.Count -gt 0) {
 }
 
 Write-Host "[otter-license-audit] Direct npm manifests checked: $($directNpmPackages.Count)"
-Write-Host "[otter-license-audit] Resolved Rust packages checked: $($cargoMetadata.packages.Count)"
+Write-Host "[otter-license-audit] Resolved Rust packages checked: $($rustPackages.Count)"
 Write-Host "[otter-license-audit] Rust license expressions observed: $($rustLicenseExpressions.Count)"
 Write-Host "[otter-license-audit] No explicit proprietary, unlicensed, or unresolved license marker was found."

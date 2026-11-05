@@ -1,5 +1,6 @@
 const fs = require("node:fs");
 const path = require("node:path");
+const { resolvedSources } = require("./third-party-sources.cjs");
 
 function npmInventory(lock) {
   if (![2, 3].includes(lock.lockfileVersion) || !lock.packages) throw new Error("Unsupported npm lockfile");
@@ -14,19 +15,34 @@ function npmInventory(lock) {
   });
 }
 
-function purl({ ecosystem, name, version }) {
+function purl({ ecosystem, name, version, sourceSha256 }) {
   const encodedName = name.split("/").map(encodeURIComponent).join("/");
-  return `pkg:${ecosystem}/${encodedName}@${encodeURIComponent(version)}`;
+  const qualifier = sourceSha256 ? `?checksum=sha256%3A${sourceSha256}` : "";
+  return `pkg:${ecosystem}/${encodedName}@${encodeURIComponent(version)}${qualifier}`;
 }
 
 function lockInventory(root) {
+  const sources = resolvedSources(root);
+  const resolved = new Set();
   const packages = npmInventory(JSON.parse(fs.readFileSync(path.join(root, "package-lock.json"), "utf8")));
-  for (const file of ["src-tauri/Cargo.lock", "src-tauri/crates/drag/Cargo.lock", "src-tauri/crates/scap-direct3d/Cargo.lock"]) {
+  for (const file of ["native/Cargo.lock", "src-tauri/Cargo.lock", "src-tauri/crates/drag/Cargo.lock", "src-tauri/crates/scap-direct3d/Cargo.lock"]) {
     const text = fs.readFileSync(path.join(root, file), "utf8");
-    const records = [...text.matchAll(/^\[\[package\]\]\s+name\s*=\s*"([^"]+)"\s+version\s*=\s*"([^"]+)"/gm)];
+    const records = text.split(/^\[\[package\]\]\s*$/m).slice(1).map(block => {
+      const record = block.match(/^\s*name\s*=\s*"([^"]+)"\s+version\s*=\s*"([^"]+)"([\s\S]*)$/);
+      if (!record) throw new Error(`Malformed Cargo package: ${file}`);
+      return record;
+    });
     if (!records.length) throw new Error(`Empty Cargo inventory: ${file}`);
-    packages.push(...records.map(([, name, version]) => ({ ecosystem: "cargo", name, version })));
+    packages.push(...records.map(([, name, version, body]) => {
+      const source = file === "native/Cargo.lock" && sources.find(s => s.name === name && s.version === version);
+      if (source) {
+        if (/^source\s*=/m.test(body)) throw new Error(`Patched dependency resolved upstream: ${name}`);
+        resolved.add(name);
+      }
+      return { ecosystem: "cargo", name, version, ...(source ? { sourceSha256: source.sourceSha256 } : {}) };
+    }));
   }
+  if (resolved.size !== sources.length) throw new Error("Missing patched dependency in native lockfile");
   return [...new Map(packages.map(p => [purl(p), { ...p, purl: purl(p) }])).values()];
 }
 

@@ -2,6 +2,7 @@ version: 2
 updates:
   - package-ecosystem: cargo
     directories:
+      - "/native"
       - "/src-tauri"
       - "/src-tauri/crates/drag"
       - "/src-tauri/crates/scap-direct3d"

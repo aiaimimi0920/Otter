@@ -1,0 +1,299 @@
+{
+  "schemaVersion": 2,
+  "name": "usvg",
+  "version": "0.48.1",
+  "archiveSha256": "977d0a4abdef933f424a99fe09f95576e089b90aebc6f016a3bc813762493e91",
+  "patchSha256": "1b71261e3d1bc188acc4efee729cc52932bb888cea7a7ecaef2cef8cfb70bb06",
+  "modified": [
+    "src/parser/converter.rs",
+    "src/parser/filter.rs",
+    "src/parser/style.rs",
+    "src/parser/text.rs",
+    "src/parser/use_node.rs",
+    "src/text/flatten.rs",
+    "src/text/layout.rs",
+    "src/tree/filter.rs",
+    "src/tree/text.rs",
+    "src/writer.rs"
+  ],
+  "added": [
+    "src/parser/text_chunk_leaf.rs",
+    "src/text/length_adjust.rs",
+    "src/text/length_fragments.rs",
+    "src/writer/length_text.rs",
+    "src/writer/text_path_ids.rs"
+  ],
+  "files": [
+    {
+      "path": ".cargo_vcs_info.json",
+      "origin": "upstream",
+      "upstreamSha256": "e50a845096c88c09fd0bdcfa71490c8829d3f1a3ffc2cba970b279805c834990",
+      "candidateSha256": "e50a845096c88c09fd0bdcfa71490c8829d3f1a3ffc2cba970b279805c834990"
+    },
+    {
+      "path": "Cargo.lock",
+      "origin": "upstream",
+      "upstreamSha256": "1dec006ca8ba7ab0d9c7fcc1a085b134aaab5c9487576b05376722a14f6a03af",
+      "candidateSha256": "1dec006ca8ba7ab0d9c7fcc1a085b134aaab5c9487576b05376722a14f6a03af"
+    },
+    {
+      "path": "Cargo.toml",
+      "origin": "upstream",
+      "upstreamSha256": "d9a518a9f070c7d882c9242baad91882eb038fa7edf3b370cdb82f0054e7de50",
+      "candidateSha256": "d9a518a9f070c7d882c9242baad91882eb038fa7edf3b370cdb82f0054e7de50"
+    },
+    {
+      "path": "Cargo.toml.orig",
+      "origin": "upstream",
+      "upstreamSha256": "6b1d809d43e770be2e56f3940a8834a285979f3f636d6de2105d8802277ca32c",
+      "candidateSha256": "6b1d809d43e770be2e56f3940a8834a285979f3f636d6de2105d8802277ca32c"
+    },
+    {
+      "path": "LICENSE-APACHE",
+      "origin": "upstream",
+      "upstreamSha256": "a6cba85bc92e0cff7a450b1d873c0eaa2e9fc96bf472df0247a26bec77bf3ff9",
+      "candidateSha256": "a6cba85bc92e0cff7a450b1d873c0eaa2e9fc96bf472df0247a26bec77bf3ff9"
+    },
+    {
+      "path": "LICENSE-MIT",
+      "origin": "upstream",
+      "upstreamSha256": "f5d934dc281b44e0003ee461ac740b18b6629a454decd872c774d34e4ee0b21d",
+      "candidateSha256": "f5d934dc281b44e0003ee461ac740b18b6629a454decd872c774d34e4ee0b21d"
+    },
+    {
+      "path": "README.md",
+      "origin": "upstream",
+      "upstreamSha256": "cd3c2aff71e5417894b51e4b5f00b2fb7e82a05eda051ea46ec0094153b6a951",
+      "candidateSha256": "cd3c2aff71e5417894b51e4b5f00b2fb7e82a05eda051ea46ec0094153b6a951"
+    },
+    {
+      "path": "docs/post-processing.md",
+      "origin": "upstream",
+      "upstreamSha256": "36c45f80a220c3616a49f44354f7316dbedf390ba21c422d9df29960fde8265e",
+      "candidateSha256": "36c45f80a220c3616a49f44354f7316dbedf390ba21c422d9df29960fde8265e"
+    },
+    {
+      "path": "docs/spec.adoc",
+      "origin": "upstream",
+      "upstreamSha256": "65ef2b08c9beec5104de17a418be7c564af537eb78db10fab0fa1490ac5c19fb",
+      "candidateSha256": "65ef2b08c9beec5104de17a418be7c564af537eb78db10fab0fa1490ac5c19fb"
+    },
+    {
+      "path": "src/lib.rs",
+      "origin": "upstream",
+      "upstreamSha256": "5660bd30e03e5e5421a58f218b3d3c18774b53a12be81d7421739547329f4f36",
+      "candidateSha256": "5660bd30e03e5e5421a58f218b3d3c18774b53a12be81d7421739547329f4f36"
+    },
+    {
+      "path": "src/main.rs",
+      "origin": "upstream",
+      "upstreamSha256": "8f18b22aaa0064dfa93124cf7b0fda50e5dbfa4589e4a6ec23e1e6e342f1d8e1",
+      "candidateSha256": "8f18b22aaa0064dfa93124cf7b0fda50e5dbfa4589e4a6ec23e1e6e342f1d8e1"
+    },
+    {
+      "path": "src/parser/clippath.rs",
+      "origin": "upstream",
+      "upstreamSha256": "7c5fe4eca5cd4913b528e11578d19a5b79ecfe5fb8983e793e389ffb3ef3094e",
+      "candidateSha256": "7c5fe4eca5cd4913b528e11578d19a5b79ecfe5fb8983e793e389ffb3ef3094e"
+    },
+    {
+      "path": "src/parser/converter.rs",
+      "origin": "upstream",
+      "upstreamSha256": "b4ad6d1abe75e0ff8a9a11cc1287afdf2ecc141c914923094f3e9465dce551d5",
+      "candidateSha256": "a2ff5ff6bfdf68f39db46406f21afdcab1b5bc49e2ad33e7b74f2b813dfa5133"
+    },
+    {
+      "path": "src/parser/filter.rs",
+      "origin": "upstream",
+      "upstreamSha256": "93b5a6517816cd9610897f9b9cd656cb959cfb43a021ff5c2e835e91fc9cfe47",
+      "candidateSha256": "fa233958c2d459b838386362aebda7fa9a6f4eb7a68c008840c1cf580a0bd9db"
+    },
+    {
+      "path": "src/parser/image.rs",
+      "origin": "upstream",
+      "upstreamSha256": "5446874aecebfe97b7d27129f43593b970387be7d4fc80ed75d75dcdd7e40c1d",
+      "candidateSha256": "5446874aecebfe97b7d27129f43593b970387be7d4fc80ed75d75dcdd7e40c1d"
+    },
+    {
+      "path": "src/parser/marker.rs",
+      "origin": "upstream",
+      "upstreamSha256": "ccb9ea94a0a0680b2836dbb477f7cb85de1b84c4b2941b8e550e6dc1cb33712f",
+      "candidateSha256": "ccb9ea94a0a0680b2836dbb477f7cb85de1b84c4b2941b8e550e6dc1cb33712f"
+    },
+    {
+      "path": "src/parser/mask.rs",
+      "origin": "upstream",
+      "upstreamSha256": "b37314f628ea325f859afd094e77519bffa0ea389b75e21bfdc2052c6352d0cd",
+      "candidateSha256": "b37314f628ea325f859afd094e77519bffa0ea389b75e21bfdc2052c6352d0cd"
+    },
+    {
+      "path": "src/parser/mod.rs",
+      "origin": "upstream",
+      "upstreamSha256": "ebf56fe3aeddfda8b230d947c00d53e0a9d0b3d90b03cf5032456311ccf4bd7c",
+      "candidateSha256": "ebf56fe3aeddfda8b230d947c00d53e0a9d0b3d90b03cf5032456311ccf4bd7c"
+    },
+    {
+      "path": "src/parser/options.rs",
+      "origin": "upstream",
+      "upstreamSha256": "d8d43effeb3092c1ff9d3f53a4b04e6c9a9a144df4325b602639e82be799a1d6",
+      "candidateSha256": "d8d43effeb3092c1ff9d3f53a4b04e6c9a9a144df4325b602639e82be799a1d6"
+    },
+    {
+      "path": "src/parser/paint_server.rs",
+      "origin": "upstream",
+      "upstreamSha256": "34c6f1f8ff3e37e3cc05e63b5f6a9e66e80a34cd948163c538dc80be7098422d",
+      "candidateSha256": "34c6f1f8ff3e37e3cc05e63b5f6a9e66e80a34cd948163c538dc80be7098422d"
+    },
+    {
+      "path": "src/parser/shapes.rs",
+      "origin": "upstream",
+      "upstreamSha256": "6c441d77c6ca2a9e574a24c2d79edcf8ab4f88de012e3b9e425ec4c4b8dc6928",
+      "candidateSha256": "6c441d77c6ca2a9e574a24c2d79edcf8ab4f88de012e3b9e425ec4c4b8dc6928"
+    },
+    {
+      "path": "src/parser/style.rs",
+      "origin": "upstream",
+      "upstreamSha256": "d2b1f038f7f88f4f778b3a8534f701981e7e9eb7e26774b63df3b92e277f496d",
+      "candidateSha256": "f175596820ef83e178c0aba22869b2fc9b0c0f8bb9711f1da073ca50de1e1829"
+    },
+    {
+      "path": "src/parser/svgtree/mod.rs",
+      "origin": "upstream",
+      "upstreamSha256": "56103facb231fb381a146cb06bfffdeab1ae68fa09cf15dd5d880496e541813f",
+      "candidateSha256": "56103facb231fb381a146cb06bfffdeab1ae68fa09cf15dd5d880496e541813f"
+    },
+    {
+      "path": "src/parser/svgtree/names.rs",
+      "origin": "upstream",
+      "upstreamSha256": "9f9d7175429f3dda9794d68d0c8176188c2e289e8e7d89eb31b4ef4e8aa1df3c",
+      "candidateSha256": "9f9d7175429f3dda9794d68d0c8176188c2e289e8e7d89eb31b4ef4e8aa1df3c"
+    },
+    {
+      "path": "src/parser/svgtree/parse.rs",
+      "origin": "upstream",
+      "upstreamSha256": "b0855f6fa14823201addb09252ac6112b186b0f2af568052dfd6ee55dc56acf6",
+      "candidateSha256": "b0855f6fa14823201addb09252ac6112b186b0f2af568052dfd6ee55dc56acf6"
+    },
+    {
+      "path": "src/parser/svgtree/text.rs",
+      "origin": "upstream",
+      "upstreamSha256": "418b73948d1a819a8f3bf09f0a7f3c139707080a8cc76ef863d7c79402b25a41",
+      "candidateSha256": "418b73948d1a819a8f3bf09f0a7f3c139707080a8cc76ef863d7c79402b25a41"
+    },
+    {
+      "path": "src/parser/switch.rs",
+      "origin": "upstream",
+      "upstreamSha256": "2b6a3f70473673189f080080f2c81a0c68c6124b398636802f39bda44ea73342",
+      "candidateSha256": "2b6a3f70473673189f080080f2c81a0c68c6124b398636802f39bda44ea73342"
+    },
+    {
+      "path": "src/parser/text.rs",
+      "origin": "upstream",
+      "upstreamSha256": "3d307c0a221629cfe28ad162cc024ab1c8d23c5c59e4b59d5c1b835d50fc315c",
+      "candidateSha256": "f49c6978032721b6eee947c10a81ef68dae1fa72be5392fe225395bce92381ce"
+    },
+    {
+      "path": "src/parser/text_chunk_leaf.rs",
+      "origin": "local-added",
+      "upstreamSha256": null,
+      "candidateSha256": "26f4c7a8be673027291e455798a153960a21445cd8b7783fee57dc3448f96ac0"
+    },
+    {
+      "path": "src/parser/units.rs",
+      "origin": "upstream",
+      "upstreamSha256": "efd72982854393e807c83ae16aef0d71af2c9a66d5778d77ed9a35bacc476688",
+      "candidateSha256": "efd72982854393e807c83ae16aef0d71af2c9a66d5778d77ed9a35bacc476688"
+    },
+    {
+      "path": "src/parser/use_node.rs",
+      "origin": "upstream",
+      "upstreamSha256": "f7723bfe02e4ba00927b7b70d81435b79cfe1711c18ba552001b6d75c1761495",
+      "candidateSha256": "f976f0b267caeb76e5915c412d75332233d03196e3d61125a19e663ff208abc3"
+    },
+    {
+      "path": "src/text/colr.rs",
+      "origin": "upstream",
+      "upstreamSha256": "51ce8d6ec262cde94276f9748ab256217dfd14d10ec0b4b8447bcf18548beb42",
+      "candidateSha256": "51ce8d6ec262cde94276f9748ab256217dfd14d10ec0b4b8447bcf18548beb42"
+    },
+    {
+      "path": "src/text/flatten.rs",
+      "origin": "upstream",
+      "upstreamSha256": "b27b10e17bcf35fbbae67198451cbc40406276ed916e2e66d45a561a253f7c3b",
+      "candidateSha256": "5ef06a351499fcf5d77c36bf4f9f04c61b2b708e6a9b543f29dc90c28dc0f508"
+    },
+    {
+      "path": "src/text/layout.rs",
+      "origin": "upstream",
+      "upstreamSha256": "b49bb51ce0266e6bc5db0ae15fe55c5aadcb0d39c45d1ee05f0c8cee06bbaad5",
+      "candidateSha256": "bdbfa0109259f0a1102258c91d3f90bd4855600ff3f8e47b40c2244491b5b03a"
+    },
+    {
+      "path": "src/text/length_adjust.rs",
+      "origin": "local-added",
+      "upstreamSha256": null,
+      "candidateSha256": "d74c1de44de4fbc6818bb06d2c6f563dce744bc71609556e4c2afcf4a6d2710e"
+    },
+    {
+      "path": "src/text/length_fragments.rs",
+      "origin": "local-added",
+      "upstreamSha256": null,
+      "candidateSha256": "12da3f90f8ef3729b3be8d925d13e6681766894b93e9cf9e58a83300153ae365"
+    },
+    {
+      "path": "src/text/mod.rs",
+      "origin": "upstream",
+      "upstreamSha256": "f7b4b012c45871a245c21aadc83dc9017d245e39174f329701b110c99614ad98",
+      "candidateSha256": "f7b4b012c45871a245c21aadc83dc9017d245e39174f329701b110c99614ad98"
+    },
+    {
+      "path": "src/text/transform.rs",
+      "origin": "upstream",
+      "upstreamSha256": "0623f88365eacc5606d667560a22d14157abd47b7e3cdd3ddbb6fa075630dbf4",
+      "candidateSha256": "0623f88365eacc5606d667560a22d14157abd47b7e3cdd3ddbb6fa075630dbf4"
+    },
+    {
+      "path": "src/tree/filter.rs",
+      "origin": "upstream",
+      "upstreamSha256": "a3126a3f62912306a850cceefbe6c313f1e66a831c828f717265caad20ca2a53",
+      "candidateSha256": "64370f93ce542386c4405ed882e220fe9a83af7c063f3004c4fb4727d7194d2d"
+    },
+    {
+      "path": "src/tree/geom.rs",
+      "origin": "upstream",
+      "upstreamSha256": "6f9668d43d5b9c95446b6a5bef6ab0e13e639da3b2f3dda28ff47281ae050a59",
+      "candidateSha256": "6f9668d43d5b9c95446b6a5bef6ab0e13e639da3b2f3dda28ff47281ae050a59"
+    },
+    {
+      "path": "src/tree/mod.rs",
+      "origin": "upstream",
+      "upstreamSha256": "7bf9efde4e1e843263f311bc2fbd1b363222fa7727fdbd93589edc98c00cf66b",
+      "candidateSha256": "7bf9efde4e1e843263f311bc2fbd1b363222fa7727fdbd93589edc98c00cf66b"
+    },
+    {
+      "path": "src/tree/text.rs",
+      "origin": "upstream",
+      "upstreamSha256": "0bca06ea94d0a4a78809c32d75c448317ad3c7d413253f99cad5a55d820802f5",
+      "candidateSha256": "66a791791c0bb5e65461fb271a5538c502bf01ef20e0a93d11c1b39d1fb990f4"
+    },
+    {
+      "path": "src/writer.rs",
+      "origin": "upstream",
+      "upstreamSha256": "6a1fa7db465374e71da1b2daaa44cf4cb73885ba04693c2079c7ab1cf69f6e17",
+      "candidateSha256": "7ece1aa182aa5df2a9c4895cb98653c00e447e55ed7b4e5ef108b194dd7130c3"
+    },
+    {
+      "path": "src/writer/length_text.rs",
+      "origin": "local-added",
+      "upstreamSha256": null,
+      "candidateSha256": "2d834e5d50b047f85cf5d0d04955e68cdabc94ee058c26038289aeb2f658fd11"
+    },
+    {
+      "path": "src/writer/text_path_ids.rs",
+      "origin": "local-added",
+      "upstreamSha256": null,
+      "candidateSha256": "af5ac0bb65ef8e321ba0ce54458ad1f61ba499b4f68f44ca5100ce1976e78459"
+    }
+  ],
+  "status": "repository-patched-source"
+}

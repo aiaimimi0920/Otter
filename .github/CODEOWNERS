@@ -10,6 +10,8 @@
 /package-lock.json @aiaimimi0920
 /src-tauri/Cargo.toml @aiaimimi0920
 /src-tauri/Cargo.lock @aiaimimi0920
+/native/Cargo.toml @aiaimimi0920
+/native/Cargo.lock @aiaimimi0920
 /src-tauri/build.rs @aiaimimi0920
 /src-tauri/windows/ @aiaimimi0920
 /docs/CODE_SIGNING_POLICY.md @aiaimimi0920

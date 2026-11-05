@@ -1,0 +1,68 @@
+--- a/src/scan/hairline.rs
++++ b/src/scan/hairline.rs
+@@ -192,10 +192,9 @@
+                 Some(v) => outset_clip = Some(v),
+                 None => return,
+             }
+-            match clip.to_int_rect().inset(1, 1) {
+-                Some(v) => inset_clip = Some(v),
+-                None => return,
+-            }
++            // A narrow clip has no quick-accept interior, but still contains drawable pixels.
++            // Keep the real clip active instead of discarding the entire hairline.
++            inset_clip = clip.to_int_rect().inset(1, 1);
+         }
+     }
+ 
+@@ -398,13 +397,9 @@
+     line_proc: LineProc,
+     blitter: &mut dyn Blitter,
+ ) {
+-    if let Some(inset_clip) = inset_clip {
+-        debug_assert!(outset_clip.is_some());
+-        let inset_clip = inset_clip.to_rect();
+-        let outset_clip = match outset_clip {
+-            Some(v) => v.to_rect(),
+-            None => return,
+-        };
++    // Preserve off-screen rejection even when a narrow clip has no quick-accept interior.
++    if let Some(outset_clip) = outset_clip {
++        let outset_clip = outset_clip.to_rect();
+ 
+         let bounds = match compute_nocheck_quad_bounds(points) {
+             Some(v) => v,
+@@ -412,7 +407,7 @@
+         };
+         if !geometric_overlap(&outset_clip, &bounds) {
+             return; // nothing to do
+-        } else if geometric_contains(&inset_clip, &bounds) {
++        } else if inset_clip.map_or(false, |r| geometric_contains(&r.to_rect(), &bounds)) {
+             clip = None;
+         }
+     }
+@@ -520,13 +515,9 @@
+     line_proc: LineProc,
+     blitter: &mut dyn Blitter,
+ ) {
+-    if let Some(inset_clip) = inset_clip {
+-        debug_assert!(outset_clip.is_some());
+-        let inset_clip = inset_clip.to_rect();
+-        let outset_clip = match outset_clip {
+-            Some(v) => v.to_rect(),
+-            None => return,
+-        };
++    // Preserve off-screen rejection even when a narrow clip has no quick-accept interior.
++    if let Some(outset_clip) = outset_clip {
++        let outset_clip = outset_clip.to_rect();
+ 
+         let bounds = match compute_nocheck_cubic_bounds(points) {
+             Some(v) => v,
+@@ -534,7 +525,7 @@
+         };
+         if !geometric_overlap(&outset_clip, &bounds) {
+             return; // noting to do
+-        } else if geometric_contains(&inset_clip, &bounds) {
++        } else if inset_clip.map_or(false, |r| geometric_contains(&r.to_rect(), &bounds)) {
+             clip = None;
+         }
+     }

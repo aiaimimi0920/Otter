@@ -1,0 +1,2047 @@
+--- a/src/parser/converter.rs
++++ b/src/parser/converter.rs
+@@ -1005,7 +1005,9 @@
+             f
+         });
+ 
+-        let stroke = stroke.clone().map(|mut s| {
++        let stroke = stroke.clone().or_else(|| {
++            super::style::resolve_context_stroke(node, has_bbox, state, cache)
++        }).map(|mut s| {
+             s.context_element = Some(ContextElement::PathNode(path_transform, bbox));
+             s
+         });
+--- a/src/parser/filter.rs
++++ b/src/parser/filter.rs
+@@ -79,6 +79,7 @@
+                     // Unlike `filter` elements, filter functions use sRGB colors by default.
+                     color_interpolation: ColorInterpolation::SRGB,
+                     result: "result".to_string(),
++                    explicit_result: false,
+                     kind,
+                 }],
+             }));
+@@ -369,6 +370,7 @@
+             rect: filter_subregion,
+             color_interpolation,
+             result: gen_result(child, &mut results),
++            explicit_result: child.attribute::<&str>(AId::Result).is_some(),
+             kind,
+         });
+     }
+@@ -456,7 +458,10 @@
+             // If `in` references an unknown `result` than fallback
+             // to previous result or `SourceGraphic`.
+             if let Input::Reference(ref name) = input {
+-                if !primitives.iter().any(|p| p.result == *name) {
++                if !primitives
++                    .iter()
++                    .any(|p| p.explicit_result && p.result == *name)
++                {
+                     return if let Some(prev) = primitives.last() {
+                         Input::Reference(prev.result.clone())
+                     } else {
+@@ -988,8 +993,8 @@
+         _ => MorphologyOperator::Erode,
+     };
+ 
+-    let mut radius_x = PositiveF32::new(scale.width()).unwrap();
+-    let mut radius_y = PositiveF32::new(scale.height()).unwrap();
++    let mut radius_x = PositiveF32::ZERO;
++    let mut radius_y = PositiveF32::ZERO;
+     if let Some(list) = fe.attribute::<Vec<f32>>(AId::Radius) {
+         let mut rx = 0.0;
+         let mut ry = 0.0;
+@@ -1001,24 +1006,19 @@
+             ry = list[0]; // The same as `rx`.
+         }
+ 
+-        if rx.approx_zero_ulps(4) && ry.approx_zero_ulps(4) {
+-            rx = 1.0;
+-            ry = 1.0;
+-        }
+-
+-        // If only one of the values is zero, reset it to 1.0
+-        // This is not specified in the spec, but this is how Chrome and Safari work.
+-        if rx.approx_zero_ulps(4) && !ry.approx_zero_ulps(4) {
+-            rx = 1.0;
+-        }
+-        if !rx.approx_zero_ulps(4) && ry.approx_zero_ulps(4) {
+-            ry = 1.0;
+-        }
+-
+-        // Both values must be positive.
++        // Zero keeps its axis unchanged; do not invent a one-pixel radius.
+         if rx.is_sign_positive() && ry.is_sign_positive() {
+-            radius_x = PositiveF32::new(rx * scale.width()).unwrap();
+-            radius_y = PositiveF32::new(ry * scale.height()).unwrap();
++            if !rx.is_finite() || !ry.is_finite() {
++                return create_dummy_primitive();
++            }
++            // Finite input can overflow f32 after bounding-box scaling. Saturate
++            // the radius, not the image allocation; morphology bounds work by pixels.
++            let scaled = |radius: f32, scale: f32| {
++                let radius = (f64::from(radius) * f64::from(scale)).min(f64::from(f32::MAX));
++                PositiveF32::new(radius as f32).unwrap()
++            };
++            radius_x = scaled(rx, scale.width());
++            radius_y = scaled(ry, scale.height());
+         }
+     }
+ 
+@@ -1059,6 +1059,10 @@
+         }
+ 
+         if x.is_sign_positive() && y.is_sign_positive() {
++            // A syntactically numeric exponent may overflow the parsed f32.
++            if !x.is_finite() || !y.is_finite() {
++                return create_dummy_primitive();
++            }
+             base_frequency_x = PositiveF32::new(x).unwrap();
+             base_frequency_y = PositiveF32::new(y).unwrap();
+         }
+--- a/src/parser/style.rs
++++ b/src/parser/style.rs
+@@ -94,6 +94,27 @@
+     state: &converter::State,
+     cache: &mut converter::Cache,
+ ) -> Option<Stroke> {
++    resolve_stroke_impl(node, has_bbox, state, cache, false)
++}
++
++// Context paint exists even when the referencing element has no drawable stroke.
++// The carrier below is consumed only as paint/context metadata, never rendered.
++pub(crate) fn resolve_context_stroke(
++    node: SvgNode,
++    has_bbox: bool,
++    state: &converter::State,
++    cache: &mut converter::Cache,
++) -> Option<Stroke> {
++    resolve_stroke_impl(node, has_bbox, state, cache, true)
++}
++
++fn resolve_stroke_impl(
++    node: SvgNode,
++    has_bbox: bool,
++    state: &converter::State,
++    cache: &mut converter::Cache,
++    context_only: bool,
++) -> Option<Stroke> {
+     if state.parent_clip_path.is_some() {
+         // A `clipPath` child cannot be stroked.
+         return None;
+@@ -117,7 +138,11 @@
+             return None;
+         };
+ 
+-    let width = node.resolve_valid_length(AId::StrokeWidth, state, 1.0)?;
++    let width = if context_only {
++        crate::StrokeWidth::new(1.0)?
++    } else {
++        node.resolve_valid_length(AId::StrokeWidth, state, 1.0)?
++    };
+ 
+     // Must be bigger than 1.
+     let miterlimit = node.find_attribute(AId::StrokeMiterlimit).unwrap_or(4.0);
+--- a/src/parser/text.rs
++++ b/src/parser/text.rs
+@@ -4,10 +4,10 @@
+ use std::sync::Arc;
+ 
+ use kurbo::{ParamCurve, ParamCurveArclen};
+-use svgtypes::{FontFamily, Length, LengthUnit, parse_font_families};
++use svgtypes::{parse_font_families, FontFamily, Length, LengthUnit};
+ 
+ use super::svgtree::{AId, EId, FromValue, SvgNode};
+-use super::{OptionLog, converter, style};
++use super::{converter, style, OptionLog};
+ use crate::*;
+ 
+ impl<'a, 'input: 'a> FromValue<'a, 'input> for TextAnchor {
+@@ -107,7 +107,8 @@
+     let rotate_list = resolve_rotate_list(text_node);
+     let writing_mode = convert_writing_mode(text_node);
+ 
+-    let chunks = collect_text_chunks(text_node, &pos_list, state, cache);
++    let (chunks, length_ranges, length_breaks) =
++        collect_text_chunks(text_node, &pos_list, state, cache);
+ 
+     let rendering_mode: TextRendering = text_node
+         .find_attribute(AId::TextRendering)
+@@ -129,7 +130,10 @@
+         dy: pos_list.iter().map(|v| v.dy.unwrap_or(0.0)).collect(),
+         rotate: rotate_list,
+         writing_mode,
++        right_to_left: text_node.find_attribute::<&str>(AId::Direction) == Some("rtl"),
+         chunks,
++        length_ranges,
++        length_breaks,
+         abs_transform: parent.abs_transform,
+         // All fields below will be reset by `text_to_paths`.
+         bounding_box: dummy,
+@@ -153,6 +157,10 @@
+     split_chunk: bool,
+     text_flow: TextFlow,
+     chunks: Vec<TextChunk>,
++    retained_bytes: usize,
++    length_ranges: Vec<TextLengthRange>,
++    length_parent: Option<usize>,
++    length_breaks: Vec<usize>,
+ }
+ 
+ fn collect_text_chunks(
+@@ -160,19 +168,30 @@
+     pos_list: &[CharacterPosition],
+     state: &converter::State,
+     cache: &mut converter::Cache,
+-) -> Vec<TextChunk> {
++) -> (Vec<TextChunk>, Vec<TextLengthRange>, Vec<usize>) {
+     let mut iter_state = IterState {
+         chars_count: 0,
+         chunk_bytes_count: 0,
+         split_chunk: false,
+         text_flow: TextFlow::Linear,
+         chunks: Vec::new(),
++        retained_bytes: 0,
++        length_ranges: Vec::new(),
++        length_parent: None,
++        length_breaks: Vec::new(),
+     };
+ 
+     collect_text_chunks_impl(text_node, pos_list, state, cache, &mut iter_state);
+ 
+-    iter_state.chunks
+-}
++    (
++        iter_state.chunks,
++        iter_state.length_ranges,
++        iter_state.length_breaks,
++    )
++}
++
++#[path = "text_chunk_leaf.rs"]
++mod text_chunk_leaf;
+ 
+ fn collect_text_chunks_impl(
+     parent: SvgNode,
+@@ -181,8 +200,27 @@
+     cache: &mut converter::Cache,
+     iter_state: &mut IterState,
+ ) {
++    // Record the source element once. A nested style or absolute position does
++    // not create a new copy of its target length.
++    let outer = iter_state.length_parent;
++    let own = parent
++        .try_convert_length(AId::TextLength, Units::UserSpaceOnUse, state)
++        .filter(|length| length.is_finite() && *length > 0.0)
++        .map(|length| {
++            let index = iter_state.length_ranges.len();
++            iter_state.length_ranges.push(TextLengthRange {
++                start: iter_state.retained_bytes,
++                end: iter_state.retained_bytes,
++                length,
++                adjust: parent.attribute(AId::LengthAdjust).unwrap_or_default(),
++                parent: outer,
++            });
++            iter_state.length_parent = Some(index);
++            index
++        });
+     for child in parent.children() {
+         if child.is_element() {
++            let outer_flow = iter_state.text_flow.clone();
+             if child.tag_name() == Some(EId::TextPath) {
+                 if parent.tag_name() != Some(EId::Text) {
+                     // `textPath` can be set only as a direct `text` element child.
+@@ -208,7 +246,8 @@
+ 
+             collect_text_chunks_impl(child, pos_list, state, cache, iter_state);
+ 
+-            iter_state.text_flow = TextFlow::Linear;
++            // A nested tspan must not end its enclosing textPath flow.
++            iter_state.text_flow = outer_flow;
+ 
+             // Next char after `textPath` should be split too.
+             if child.tag_name() == Some(EId::TextPath) {
+@@ -218,148 +257,17 @@
+             continue;
+         }
+ 
+-        if !parent.is_visible_element(state.opt) {
+-            iter_state.chars_count += child.text().chars().count();
+-            continue;
+-        }
+-
+-        let anchor = parent.find_attribute(AId::TextAnchor).unwrap_or_default();
+-
+-        // TODO: what to do when <= 0? UB?
+-        let font_size = super::units::resolve_font_size(parent, state);
+-        let font_size = match NonZeroPositiveF32::new(font_size) {
+-            Some(n) => n,
+-            None => {
+-                // Skip this span.
+-                iter_state.chars_count += child.text().chars().count();
+-                continue;
+-            }
+-        };
+-
+-        let font = convert_font(parent, state);
+-
+-        let raw_paint_order: svgtypes::PaintOrder =
+-            parent.find_attribute(AId::PaintOrder).unwrap_or_default();
+-        let paint_order = super::converter::svg_paint_order_to_usvg(raw_paint_order);
+-
+-        let mut dominant_baseline = parent
+-            .find_attribute(AId::DominantBaseline)
+-            .unwrap_or_default();
+-
+-        // `no-change` means "use parent".
+-        if dominant_baseline == DominantBaseline::NoChange {
+-            dominant_baseline = parent
+-                .parent_element()
+-                .unwrap()
+-                .find_attribute(AId::DominantBaseline)
+-                .unwrap_or_default();
+-        }
+-
+-        let mut apply_kerning = true;
+-        #[allow(clippy::if_same_then_else)]
+-        if parent.resolve_length(AId::Kerning, state, -1.0) == 0.0 {
+-            apply_kerning = false;
+-        } else if parent.find_attribute::<&str>(AId::FontKerning) == Some("none") {
+-            apply_kerning = false;
+-        }
+-
+-        let font_optical_sizing = match parent.find_attribute::<&str>(AId::FontOpticalSizing) {
+-            Some("none") => crate::FontOpticalSizing::None,
+-            _ => crate::FontOpticalSizing::Auto, // "auto" or missing (browser default)
+-        };
+-
+-        let mut text_length =
+-            parent.try_convert_length(AId::TextLength, Units::UserSpaceOnUse, state);
+-        // Negative values should be ignored.
+-        if let Some(n) = text_length {
+-            if n < 0.0 {
+-                text_length = None;
+-            }
+-        }
+-
+-        let visibility: Visibility = parent.find_attribute(AId::Visibility).unwrap_or_default();
+-
+-        let span = TextSpan {
+-            start: 0,
+-            end: 0,
+-            fill: style::resolve_fill(parent, true, state, cache),
+-            stroke: style::resolve_stroke(parent, true, state, cache),
+-            paint_order,
+-            font,
+-            font_size,
+-            small_caps: parent.find_attribute::<&str>(AId::FontVariant) == Some("small-caps"),
+-            apply_kerning,
+-            font_optical_sizing,
+-            decoration: resolve_decoration(parent, state, cache),
+-            visible: visibility == Visibility::Visible,
+-            dominant_baseline,
+-            alignment_baseline: parent
+-                .find_attribute(AId::AlignmentBaseline)
+-                .unwrap_or_default(),
+-            baseline_shift: convert_baseline_shift(parent, state),
+-            letter_spacing: parent.resolve_length(AId::LetterSpacing, state, 0.0),
+-            word_spacing: parent.resolve_length(AId::WordSpacing, state, 0.0),
+-            text_length,
+-            length_adjust: parent.find_attribute(AId::LengthAdjust).unwrap_or_default(),
+-        };
+-
+-        let mut is_new_span = true;
+-        for c in child.text().chars() {
+-            let char_len = c.len_utf8();
+-
+-            // Create a new chunk if:
+-            // - this is the first span (yes, position can be None)
+-            // - text character has an absolute coordinate assigned to it (via x/y attribute)
+-            // - `c` is the first char of the `textPath`
+-            // - `c` is the first char after `textPath`
+-            let is_new_chunk = pos_list[iter_state.chars_count].x.is_some()
+-                || pos_list[iter_state.chars_count].y.is_some()
+-                || iter_state.split_chunk
+-                || iter_state.chunks.is_empty();
+-
+-            iter_state.split_chunk = false;
+-
+-            if is_new_chunk {
+-                iter_state.chunk_bytes_count = 0;
+-
+-                let mut span2 = span.clone();
+-                span2.start = 0;
+-                span2.end = char_len;
+-
+-                iter_state.chunks.push(TextChunk {
+-                    x: pos_list[iter_state.chars_count].x,
+-                    y: pos_list[iter_state.chars_count].y,
+-                    anchor,
+-                    spans: vec![span2],
+-                    text_flow: iter_state.text_flow.clone(),
+-                    text: c.to_string(),
+-                });
+-            } else if is_new_span {
+-                // Add this span to the last text chunk.
+-                let mut span2 = span.clone();
+-                span2.start = iter_state.chunk_bytes_count;
+-                span2.end = iter_state.chunk_bytes_count + char_len;
+-
+-                if let Some(chunk) = iter_state.chunks.last_mut() {
+-                    chunk.text.push(c);
+-                    chunk.spans.push(span2);
+-                }
+-            } else {
+-                // Extend the last span.
+-                if let Some(chunk) = iter_state.chunks.last_mut() {
+-                    chunk.text.push(c);
+-                    if let Some(span) = chunk.spans.last_mut() {
+-                        debug_assert_ne!(span.end, 0);
+-                        span.end += char_len;
+-                    }
+-                }
+-            }
+-
+-            is_new_span = false;
+-            iter_state.chars_count += 1;
+-            iter_state.chunk_bytes_count += char_len;
+-        }
+-    }
++        text_chunk_leaf::collect(parent, child, pos_list, state, cache, iter_state);
++    }
++    if let Some(index) = own {
++        iter_state.length_ranges[index].end = iter_state.retained_bytes;
++        // No retained glyph can observe this constraint or any empty descendants.
++        // Drop the whole empty suffix before later siblings receive stable IDs.
++        if iter_state.length_ranges[index].start == iter_state.retained_bytes {
++            iter_state.length_ranges.truncate(index);
++        }
++    }
++    iter_state.length_parent = outer;
+ }
+ 
+ fn resolve_text_flow(node: SvgNode, state: &converter::State) -> Option<TextFlow> {
+--- /dev/null
++++ b/src/parser/text_chunk_leaf.rs
+@@ -0,0 +1,167 @@
++//! Leaf span construction stays outside recursive traversal stack frames.
++use super::*;
++
++#[inline(never)]
++pub(super) fn collect(
++    parent: SvgNode,
++    child: SvgNode,
++    pos_list: &[CharacterPosition],
++    state: &converter::State,
++    cache: &mut converter::Cache,
++    iter_state: &mut IterState,
++) {
++    if !parent.is_visible_element(state.opt) {
++        iter_state.chars_count += child.text().chars().count();
++        return;
++    }
++
++    let mut anchor: TextAnchor = parent.find_attribute(AId::TextAnchor).unwrap_or_default();
++    // Layout consumes a physical anchor; writer restores a logical anchor.
++    // This handles anchor alignment, not unicode-bidi embedding/override rules.
++    if parent.find_attribute::<&str>(AId::Direction) == Some("rtl") {
++        anchor = anchor.for_direction(true);
++    }
++
++    // TODO: what to do when <= 0? UB?
++    let font_size = crate::parser::units::resolve_font_size(parent, state);
++    let font_size = match NonZeroPositiveF32::new(font_size) {
++        Some(n) => n,
++        None => {
++            // Skip this span.
++            iter_state.chars_count += child.text().chars().count();
++            return;
++        }
++    };
++
++    let font = convert_font(parent, state);
++
++    let raw_paint_order: svgtypes::PaintOrder =
++        parent.find_attribute(AId::PaintOrder).unwrap_or_default();
++    let paint_order = super::converter::svg_paint_order_to_usvg(raw_paint_order);
++
++    let mut dominant_baseline = parent
++        .find_attribute(AId::DominantBaseline)
++        .unwrap_or_default();
++
++    // `no-change` means "use parent".
++    if dominant_baseline == DominantBaseline::NoChange {
++        dominant_baseline = parent
++            .parent_element()
++            .unwrap()
++            .find_attribute(AId::DominantBaseline)
++            .unwrap_or_default();
++    }
++
++    let mut apply_kerning = true;
++    #[allow(clippy::if_same_then_else)]
++    if parent.resolve_length(AId::Kerning, state, -1.0) == 0.0 {
++        apply_kerning = false;
++    } else if parent.find_attribute::<&str>(AId::FontKerning) == Some("none") {
++        apply_kerning = false;
++    }
++
++    let font_optical_sizing = match parent.find_attribute::<&str>(AId::FontOpticalSizing) {
++        Some("none") => crate::FontOpticalSizing::None,
++        _ => crate::FontOpticalSizing::Auto, // "auto" or missing (browser default)
++    };
++
++    let mut text_length = parent.try_convert_length(AId::TextLength, Units::UserSpaceOnUse, state);
++    // Negative values should be ignored.
++    if let Some(n) = text_length {
++        if n < 0.0 {
++            text_length = None;
++        }
++    }
++
++    let visibility: Visibility = parent.find_attribute(AId::Visibility).unwrap_or_default();
++
++    let span = TextSpan {
++        start: 0,
++        end: 0,
++        fill: style::resolve_fill(parent, true, state, cache),
++        stroke: style::resolve_stroke(parent, true, state, cache),
++        paint_order,
++        font,
++        font_size,
++        small_caps: parent.find_attribute::<&str>(AId::FontVariant) == Some("small-caps"),
++        apply_kerning,
++        font_optical_sizing,
++        decoration: resolve_decoration(parent, state, cache),
++        visible: visibility == Visibility::Visible,
++        dominant_baseline,
++        alignment_baseline: parent
++            .find_attribute(AId::AlignmentBaseline)
++            .unwrap_or_default(),
++        baseline_shift: convert_baseline_shift(parent, state),
++        letter_spacing: parent.resolve_length(AId::LetterSpacing, state, 0.0),
++        word_spacing: parent.resolve_length(AId::WordSpacing, state, 0.0),
++        text_length,
++        length_adjust: parent.find_attribute(AId::LengthAdjust).unwrap_or_default(),
++    };
++
++    let mut is_new_span = true;
++    let has_rotation = parent
++        .find_attribute::<Vec<f32>>(AId::Rotate)
++        .is_some_and(|v| !v.is_empty());
++    for c in child.text().chars() {
++        let char_len = c.len_utf8();
++        let position = pos_list[iter_state.chars_count];
++        // Explicit zero offsets/rotations still split positioning fragments.
++        if position.dx.is_some() || position.dy.is_some() || has_rotation {
++            iter_state.length_breaks.push(iter_state.retained_bytes);
++        }
++
++        // Create a new chunk if:
++        // - this is the first span (yes, position can be None)
++        // - text character has an absolute coordinate assigned to it (via x/y attribute)
++        // - `c` is the first char of the `textPath`
++        // - `c` is the first char after `textPath`
++        let is_new_chunk = pos_list[iter_state.chars_count].x.is_some()
++            || pos_list[iter_state.chars_count].y.is_some()
++            || iter_state.split_chunk
++            || iter_state.chunks.is_empty();
++
++        iter_state.split_chunk = false;
++
++        if is_new_chunk {
++            iter_state.chunk_bytes_count = 0;
++
++            let mut span2 = span.clone();
++            span2.start = 0;
++            span2.end = char_len;
++
++            iter_state.chunks.push(TextChunk {
++                x: pos_list[iter_state.chars_count].x,
++                y: pos_list[iter_state.chars_count].y,
++                anchor,
++                spans: vec![span2],
++                text_flow: iter_state.text_flow.clone(),
++                text: c.to_string(),
++            });
++        } else if is_new_span {
++            // Add this span to the last text chunk.
++            let mut span2 = span.clone();
++            span2.start = iter_state.chunk_bytes_count;
++            span2.end = iter_state.chunk_bytes_count + char_len;
++
++            if let Some(chunk) = iter_state.chunks.last_mut() {
++                chunk.text.push(c);
++                chunk.spans.push(span2);
++            }
++        } else {
++            // Extend the last span.
++            if let Some(chunk) = iter_state.chunks.last_mut() {
++                chunk.text.push(c);
++                if let Some(span) = chunk.spans.last_mut() {
++                    debug_assert_ne!(span.end, 0);
++                    span.end += char_len;
++                }
++            }
++        }
++
++        is_new_span = false;
++        iter_state.chars_count += 1;
++        iter_state.chunk_bytes_count += char_len;
++        iter_state.retained_bytes += char_len;
++    }
++}
+--- a/src/parser/use_node.rs
++++ b/src/parser/use_node.rs
+@@ -34,7 +34,7 @@
+             f.context_element = Some(ContextElement::UseNode);
+             f
+         }),
+-        style::resolve_stroke(node, true, state, cache).map(|mut s| {
++        style::resolve_context_stroke(node, true, state, cache).map(|mut s| {
+             s.context_element = Some(ContextElement::UseNode);
+             s
+         }),
+--- a/src/text/flatten.rs
++++ b/src/text/flatten.rs
+@@ -6,19 +6,19 @@
+ 
+ use crate::GlyphId;
+ use fontdb::{Database, ID};
+-use skrifa::MetadataProvider;
+-use skrifa::Tag;
+ use skrifa::bitmap::{BitmapData, BitmapFormat};
+ use skrifa::outline::{DrawSettings, OutlinePen};
+ use skrifa::prelude::LocationRef;
++use skrifa::raw::types::BoundingBox;
+ use skrifa::raw::TableProvider as _;
+-use skrifa::raw::types::BoundingBox;
++use skrifa::MetadataProvider;
++use skrifa::Tag;
+ use svgtypes::Color;
+ use tiny_skia_path::{NonZeroRect, Size, Transform};
+ use xmlwriter::XmlWriter;
+ 
++use crate::text::colr::GlyphPainter;
+ use crate::text::OPSZ;
+-use crate::text::colr::GlyphPainter;
+ use crate::*;
+ 
+ fn resolve_rendering_mode(text: &Text) -> ShapeRendering {
+@@ -93,12 +93,9 @@
+             new_children.push(Node::Path(Box::new(path)));
+         }
+ 
+-        // Instead of always processing each glyph separately, we always collect
+-        // as many outline glyphs as possible by pushing them into the span_builder
+-        // and only if we encounter a different glyph, or we reach the very end of the
+-        // span to we push the actual outline paths into new_children. This way, we don't need
+-        // to create a new path for every glyph if we have many consecutive glyphs
+-        // with just outlines (which is the most common case).
++        // Preserve glyph paint order. Combining outlines changes overlapping AA,
++        // fill-opacity and stroke compositing, even when glyph positions agree.
++        // Each outline owns a path; the caller's bounded worker limits the extra nodes.
+         let mut span_builder = tiny_skia_path::PathBuilder::new();
+ 
+         for glyph in &span.positioned_glyphs {
+@@ -173,6 +170,13 @@
+                 if let Some(outline) = outline.and_then(|p| p.transform(glyph.outline_transform()))
+                 {
+                     span_builder.push_path(&outline);
++                    push_outline_paths(
++                        span,
++                        &mut span_builder,
++                        &mut new_children,
++                        rendering_mode,
++                        abs_transform,
++                    );
+                 }
+             }
+         }
+--- a/src/text/layout.rs
++++ b/src/text/layout.rs
+@@ -8,10 +8,10 @@
+ use fontdb::{Database, ID};
+ use harfrust::ShapeOptions;
+ use kurbo::{ParamCurve, ParamCurveArclen, ParamCurveDeriv};
++use skrifa::prelude::Size;
++use skrifa::raw::TableProvider;
+ use skrifa::MetadataProvider;
+ use skrifa::Tag;
+-use skrifa::prelude::Size;
+-use skrifa::raw::TableProvider;
+ use strict_num::NonZeroPositiveF32;
+ use tiny_skia_path::{NonZeroRect, Transform};
+ use unicode_script::UnicodeScript;
+@@ -19,8 +19,8 @@
+ use crate::tree::{BBox, IsValidLength};
+ use crate::{
+     AlignmentBaseline, ApproxZeroUlps, BaselineShift, DominantBaseline, Fill, FillRule, Font,
+-    FontResolver, GlyphId, LengthAdjust, PaintOrder, Path, ShapeRendering, Stroke, Text,
+-    TextAnchor, TextChunk, TextDecorationStyle, TextFlow, TextPath, TextSpan, WritingMode,
++    FontResolver, GlyphId, PaintOrder, Path, ShapeRendering, Stroke, Text, TextAnchor, TextChunk,
++    TextDecorationStyle, TextFlow, TextPath, TextSpan, WritingMode,
+ };
+ 
+ /// A glyph that has already been positioned correctly.
+@@ -187,7 +187,12 @@
+     transform: Transform,
+     path_transform: Transform,
+     visible: bool,
+-}
++    length_shift: f32,
++    length_scale: f32,
++}
++
++#[path = "length_adjust.rs"]
++mod length_adjust;
+ 
+ impl GlyphCluster {
+     pub(crate) fn height(&self) -> f32 {
+@@ -218,28 +223,60 @@
+         }
+     }
+ 
++    let mut prepared = if text_node.length_ranges.is_empty() {
++        None
++    } else {
++        let mut chunks: Vec<_> = text_node
++            .chunks
++            .iter()
++            .map(|chunk| {
++                let mut clusters = process_chunk(
++                    chunk,
++                    text_node.right_to_left,
++                    &fonts_cache,
++                    resolver,
++                    fontdb,
++                );
++                apply_writing_mode(text_node.writing_mode, &mut clusters);
++                apply_letter_spacing(chunk, &mut clusters);
++                apply_word_spacing(chunk, &mut clusters);
++                clusters
++            })
++            .collect();
++        length_adjust::apply(text_node, &mut chunks)?;
++        Some(chunks)
++    };
+     let mut spans = vec![];
+     let mut char_offset = 0;
+     let mut last_x = 0.0;
+     let mut last_y = 0.0;
+     let mut bbox = BBox::default();
+-    for chunk in &text_node.chunks {
++    for (chunk_index, chunk) in text_node.chunks.iter().enumerate() {
+         let (x, y) = match chunk.text_flow {
+             TextFlow::Linear => (chunk.x.unwrap_or(last_x), chunk.y.unwrap_or(last_y)),
+             TextFlow::Path(_) => (0.0, 0.0),
+         };
+ 
+-        let mut clusters = process_chunk(chunk, &fonts_cache, resolver, fontdb);
++        let mut clusters = if let Some(prepared) = &mut prepared {
++            std::mem::take(&mut prepared[chunk_index])
++        } else {
++            let mut clusters = process_chunk(
++                chunk,
++                text_node.right_to_left,
++                &fonts_cache,
++                resolver,
++                fontdb,
++            );
++            apply_writing_mode(text_node.writing_mode, &mut clusters);
++            apply_letter_spacing(chunk, &mut clusters);
++            apply_word_spacing(chunk, &mut clusters);
++            clusters
++        };
+         if clusters.is_empty() {
+             char_offset += chunk.text.chars().count();
+             continue;
+         }
+ 
+-        apply_writing_mode(text_node.writing_mode, &mut clusters);
+-        apply_letter_spacing(chunk, &mut clusters);
+-        apply_word_spacing(chunk, &mut clusters);
+-
+-        apply_length_adjust(chunk, &mut clusters);
+         let mut curr_pos = resolve_clusters_positions(
+             text_node,
+             chunk,
+@@ -256,6 +293,7 @@
+             }
+         }
+ 
++        let mut cached_bbox = None;
+         for span in &chunk.spans {
+             let font = match fonts_cache.get(&span.font) {
+                 Some(v) => v,
+@@ -335,7 +373,9 @@
+                 fill.rule = FillRule::NonZero;
+             }
+ 
+-            if let Some((span_fragments, span_bbox)) = convert_span(span, &clusters, span_ts) {
++            if let Some((span_fragments, span_bbox)) =
++                convert_span(span, &clusters, span_ts, &mut cached_bbox)
++            {
+                 bbox = bbox.expand(span_bbox);
+ 
+                 let positioned_glyphs = span_fragments
+@@ -387,17 +427,27 @@
+     span: &TextSpan,
+     clusters: &[GlyphCluster],
+     text_ts: Transform,
++    cached_bbox: &mut Option<(Transform, NonZeroRect)>,
+ ) -> Option<(Vec<GlyphCluster>, NonZeroRect)> {
+     let mut span_clusters = vec![];
++    for cluster in clusters {
++        if cluster.visible && span_contains(span, cluster.byte_idx) {
++            span_clusters.push(cluster.clone());
++        }
++    }
++    // This bbox covers the whole positioned chunk, not just this style span.
++    // One-entry cache is scoped to immutable clusters and invalidates on transform.
++    if let Some((_, bbox)) = cached_bbox
++        .as_ref()
++        .filter(|(transform, _)| *transform == text_ts)
++    {
++        return Some((span_clusters, *bbox));
++    }
+     let mut bboxes_builder = tiny_skia_path::PathBuilder::new();
+ 
+     for cluster in clusters {
+         if !cluster.visible {
+             continue;
+-        }
+-
+-        if span_contains(span, cluster.byte_idx) {
+-            span_clusters.push(cluster.clone());
+         }
+ 
+         let mut advance = cluster.advance;
+@@ -416,6 +466,7 @@
+     let mut bboxes = bboxes_builder.finish()?;
+     bboxes = bboxes.transform(text_ts)?;
+     let bbox = bboxes.compute_tight_bounds()?.to_non_zero_rect()?;
++    *cached_bbox = Some((text_ts, bbox));
+ 
+     Some((span_clusters, bbox))
+ }
+@@ -553,9 +604,13 @@
+     clusters: &mut [GlyphCluster],
+ ) -> (f32, f32) {
+     let mut x = process_anchor(chunk.anchor, clusters_length(clusters));
++    if !text.length_ranges.is_empty() {
++        x = length_adjust::anchor(text, chunk, offset, clusters);
++    }
+     let mut y = 0.0;
+ 
+     for cluster in clusters {
++        x += cluster.length_shift;
+         let cp = offset + cluster.byte_idx.code_point_at(&chunk.text);
+         if let (Some(dx), Some(dy)) = (text.dx.get(cp), text.dy.get(cp)) {
+             if writing_mode == WritingMode::LeftToRight {
+@@ -576,6 +631,8 @@
+                 cluster.has_relative_shift = true;
+             }
+         }
++
++        cluster.transform = cluster.transform.pre_scale(cluster.length_scale, 1.0);
+ 
+         x += cluster.advance;
+     }
+@@ -647,8 +704,7 @@
+         WritingMode::TopToBottom => chunk.y.unwrap_or(0.0),
+     };
+ 
+-    let start_offset =
+-        chunk_offset + path.start_offset + process_anchor(chunk.anchor, clusters_length(clusters));
++    let start_offset = chunk_offset + path.start_offset;
+ 
+     let normals = collect_normals(text, chunk, clusters, &path.path, char_offset, start_offset);
+     for (cluster, normal) in clusters.iter_mut().zip(normals) {
+@@ -702,6 +758,7 @@
+ 
+         // The possible `lengthAdjust` transform should be applied after text-on-path positioning.
+         cluster.transform = cluster.transform.pre_concat(orig_ts);
++        cluster.transform = cluster.transform.pre_scale(cluster.length_scale, 1.0);
+ 
+         last_x = x + cluster.advance;
+         last_y = y;
+@@ -733,28 +790,45 @@
+     offset: f32,
+ ) -> Vec<Option<PathNormal>> {
+     let mut offsets = Vec::with_capacity(clusters.len());
+-    let mut normals = Vec::with_capacity(clusters.len());
++    let mut normals: Vec<Option<PathNormal>> = (0..clusters.len()).map(|_| None).collect();
++    let mut first = None;
++    let mut minimum = f64::INFINITY;
++    let mut maximum = f64::NEG_INFINITY;
+     {
+-        let mut advance = offset;
+-        for cluster in clusters {
++        // Keep the common path origin out of span subtraction.
++        let mut advance = 0.0_f64;
++        for (index, cluster) in clusters.iter().enumerate() {
+             // Clusters should be rotated by the x-midpoint x baseline position.
+-            let half_width = cluster.width / 2.0;
++            let half_width = cluster.width as f64 / 2.0;
+ 
+             // Include relative position.
+             let cp = char_offset + cluster.byte_idx.code_point_at(&chunk.text);
+-            advance += text.dx.get(cp).cloned().unwrap_or(0.0);
+-
+-            let offset = advance + half_width;
+-
+-            // Clusters outside the path have no normals.
+-            if offset < 0.0 {
+-                normals.push(None);
+-            }
+-
+-            offsets.push(offset as f64);
+-            advance += cluster.advance;
+-        }
+-    }
++            advance += text.dx.get(cp).cloned().unwrap_or(0.0) as f64 + cluster.length_shift as f64;
++
++            first.get_or_insert(advance);
++            minimum = minimum.min(advance).min(advance + cluster.advance as f64);
++            maximum = maximum.max(advance).max(advance + cluster.advance as f64);
++            offsets.push((advance + half_width, index));
++            advance += cluster.advance as f64;
++        }
++    }
++    // Relative shifts can reverse glyph order. Anchor the positioned span, then
++    // walk offsets in path order while retaining their original glyph indices.
++    let Some(first) = first else {
++        return normals;
++    };
++    let shift = first
++        - match chunk.anchor {
++            TextAnchor::Start => minimum,
++            TextAnchor::Middle => (minimum + maximum) / 2.0,
++            TextAnchor::End => maximum,
++        };
++    for (position, _) in &mut offsets {
++        *position += shift + offset as f64;
++    }
++    offsets.retain(|(offset, _)| offset.is_finite() && *offset >= 0.0);
++    offsets.sort_by(|a, b| a.0.total_cmp(&b.0));
++    let mut next = 0;
+ 
+     let mut prev_mx = path.points()[0].x;
+     let mut prev_my = path.points()[0].y;
+@@ -778,6 +852,10 @@
+ 
+     let mut length: f64 = 0.0;
+     for seg in path.segments() {
++        let is_line = matches!(
++            &seg,
++            tiny_skia_path::PathSegment::LineTo(_) | tiny_skia_path::PathSegment::Close
++        );
+         let curve = match seg {
+             tiny_skia_path::PathSegment::MoveTo(p) => {
+                 prev_mx = p.x;
+@@ -816,30 +894,51 @@
+             base_arclen_accuracy / (sx * sy).sqrt().max(1.0)
+         };
+ 
+-        let curve_len = curve.arclen(arclen_accuracy as f64);
+-
+-        for offset in &offsets[normals.len()..] {
++        // Lines have an exact arc-length parameterization. Curve inversion tolerances
++        // otherwise shift straight-path glyphs away from equivalent ordinary text.
++        let curve_len = if is_line {
++            (curve.p3 - curve.p0).hypot()
++        } else {
++            curve.arclen(arclen_accuracy as f64)
++        };
++        if is_line && curve_len == 0.0 {
++            continue;
++        }
++
++        for (offset, index) in &offsets[next..] {
++            if *offset > length + curve_len {
++                break;
++            }
+             if *offset >= length && *offset <= length + curve_len {
+-                let mut offset = curve.inv_arclen(offset - length, arclen_accuracy as f64);
++                let mut offset = if is_line {
++                    (offset - length) / curve_len
++                } else {
++                    curve.inv_arclen(offset - length, arclen_accuracy as f64)
++                };
+                 // some rounding error may occur, so we give offset a little tolerance
+                 debug_assert!((-1.0e-3..=1.0 + 1.0e-3).contains(&offset));
+                 offset = offset.clamp(0.0, 1.0);
+ 
+-                let pos = curve.eval(offset);
+-                let d = curve.deriv().eval(offset);
++                let pos = if is_line {
++                    curve.p0.lerp(curve.p3, offset)
++                } else {
++                    curve.eval(offset)
++                };
++                let d = if is_line {
++                    curve.p3 - curve.p0
++                } else {
++                    curve.deriv().eval(offset).to_vec2()
++                };
+                 let d = kurbo::Vec2::new(-d.y, d.x); // tangent
+                 let angle = d.atan2().to_degrees() - 90.0;
+ 
+-                normals.push(Some(PathNormal {
++                normals[*index] = Some(PathNormal {
+                     x: pos.x as f32,
+                     y: pos.y as f32,
+                     angle: angle as f32,
+-                }));
+-
+-                if normals.len() == offsets.len() {
+-                    break;
+-                }
+-            }
++                });
++            }
++            next += 1;
+         }
+ 
+         length += curve_len;
+@@ -847,10 +946,7 @@
+         prev_y = curve.p3.y as f32;
+     }
+ 
+-    // If path ended and we still have unresolved normals - set them to `None`.
+-    for _ in 0..(offsets.len() - normals.len()) {
+-        normals.push(None);
+-    }
++    // Unresolved glyph indices remain hidden without shifting another glyph's slot.
+ 
+     normals
+ }
+@@ -861,6 +957,7 @@
+ /// but not the text layouting. So all clusters are in the 0x0 position.
+ fn process_chunk(
+     chunk: &TextChunk,
++    right_to_left: bool,
+     fonts_cache: &FontsCache,
+     resolver: &FontResolver,
+     fontdb: &mut Arc<fontdb::Database>,
+@@ -902,7 +999,23 @@
+     let mut positions = HashSet::new();
+ 
+     let mut glyphs = Vec::new();
++    let mut previous_shaping_span: Option<&TextSpan> = None;
++    let mut has_overwritten_spans = false;
+     for span in &chunk.spans {
++        // Paint/length-only spans reuse the whole-chunk shaping already present.
++        // Do not cache across different font/feature runs or retain extra glyph copies.
++        if !has_overwritten_spans
++            && !glyphs.is_empty()
++            && previous_shaping_span.is_some_and(|previous| {
++                previous.font == span.font
++                    && previous.font_size == span.font_size
++                    && previous.small_caps == span.small_caps
++                    && previous.apply_kerning == span.apply_kerning
++                    && previous.font_optical_sizing == span.font_optical_sizing
++            })
++        {
++            continue;
++        }
+         let font = match fonts_cache.get(&span.font) {
+             Some(v) => v.clone(),
+             None => continue,
+@@ -910,6 +1023,7 @@
+ 
+         let tmp_glyphs = shape_text(
+             &chunk.text,
++            right_to_left,
+             font,
+             span.small_caps,
+             span.apply_kerning,
+@@ -919,6 +1033,8 @@
+             resolver,
+             fontdb,
+         );
++        has_overwritten_spans |= previous_shaping_span.is_some();
++        previous_shaping_span = Some(span);
+ 
+         // Do nothing with the first run.
+         if glyphs.is_empty() {
+@@ -981,66 +1097,6 @@
+     clusters
+ }
+ 
+-fn apply_length_adjust(chunk: &TextChunk, clusters: &mut [GlyphCluster]) {
+-    let is_horizontal = matches!(chunk.text_flow, TextFlow::Linear);
+-
+-    for span in &chunk.spans {
+-        let target_width = match span.text_length {
+-            Some(v) => v,
+-            None => continue,
+-        };
+-
+-        let mut width = 0.0;
+-        let mut cluster_indexes = Vec::new();
+-        for i in span.start..span.end {
+-            if let Some(index) = clusters.iter().position(|c| c.byte_idx.value() == i) {
+-                cluster_indexes.push(index);
+-            }
+-        }
+-        // Complex scripts can have multi-codepoint clusters therefore we have to remove duplicates.
+-        cluster_indexes.sort();
+-        cluster_indexes.dedup();
+-
+-        for i in &cluster_indexes {
+-            // Use the original cluster `width` and not `advance`.
+-            // This method essentially discards any `word-spacing` and `letter-spacing`.
+-            width += clusters[*i].width;
+-        }
+-
+-        if cluster_indexes.is_empty() {
+-            continue;
+-        }
+-
+-        if span.length_adjust == LengthAdjust::Spacing {
+-            let factor = if cluster_indexes.len() > 1 {
+-                (target_width - width) / (cluster_indexes.len() - 1) as f32
+-            } else {
+-                0.0
+-            };
+-
+-            for i in cluster_indexes {
+-                clusters[i].advance = clusters[i].width + factor;
+-            }
+-        } else {
+-            let factor = target_width / width;
+-            // Prevent multiplying by zero.
+-            if factor < 0.001 {
+-                continue;
+-            }
+-
+-            for i in cluster_indexes {
+-                clusters[i].transform = clusters[i].transform.pre_scale(factor, 1.0);
+-
+-                // Technically just a hack to support the current text-on-path algorithm.
+-                if !is_horizontal {
+-                    clusters[i].advance *= factor;
+-                    clusters[i].width *= factor;
+-                }
+-            }
+-        }
+-    }
+-}
+-
+ /// Rotates clusters according to
+ /// [Unicode Vertical_Orientation Property](https://www.unicode.org/reports/tr50/tr50-19.html).
+ fn apply_writing_mode(writing_mode: WritingMode, clusters: &mut [GlyphCluster]) {
+@@ -1200,6 +1256,8 @@
+         path_transform: Transform::default(),
+         glyphs: positioned_glyphs,
+         visible: true,
++        length_shift: 0.0,
++        length_scale: 1.0,
+     }
+ }
+ 
+@@ -1321,6 +1379,7 @@
+ /// Text shaping with font fallback.
+ pub(crate) fn shape_text(
+     text: &str,
++    right_to_left: bool,
+     font: Arc<ResolvedFont>,
+     small_caps: bool,
+     apply_kerning: bool,
+@@ -1332,6 +1391,7 @@
+ ) -> Vec<Glyph> {
+     let mut glyphs = shape_text_with_font(
+         text,
++        right_to_left,
+         font.clone(),
+         small_caps,
+         apply_kerning,
+@@ -1366,6 +1426,7 @@
+             // Shape again, using a new font.
+             let fallback_glyphs = shape_text_with_font(
+                 text,
++                right_to_left,
+                 fallback_font.clone(),
+                 small_caps,
+                 apply_kerning,
+@@ -1426,6 +1487,7 @@
+ /// This function will do the BIDI reordering and text shaping.
+ fn shape_text_with_font(
+     text: &str,
++    right_to_left: bool,
+     font: Arc<ResolvedFont>,
+     small_caps: bool,
+     apply_kerning: bool,
+@@ -1463,7 +1525,12 @@
+             }
+         }
+ 
+-        let bidi_info = unicode_bidi::BidiInfo::new(text, Some(unicode_bidi::Level::ltr()));
++        let level = if right_to_left {
++            unicode_bidi::Level::rtl()
++        } else {
++            unicode_bidi::Level::ltr()
++        };
++        let bidi_info = unicode_bidi::BidiInfo::new(text, Some(level));
+         let paragraph = &bidi_info.paragraphs[0];
+         let line = paragraph.range.clone();
+ 
+--- /dev/null
++++ b/src/text/length_adjust.rs
+@@ -0,0 +1,181 @@
++//! Experimental element-owned length adjustment over actual shaped clusters.
++use super::{GlyphCluster, Text, TextAnchor, TextChunk};
++use crate::LengthAdjust;
++
++#[path = "length_fragments.rs"]
++mod length_fragments;
++
++pub(super) fn apply(text: &Text, chunks: &mut [Vec<GlyphCluster>]) -> Option<()> {
++    let groups = length_fragments::groups(text, chunks);
++    // Direct children are disjoint source ranges. Index once instead of searching
++    // every constraint for every glyph, even when visual order is bidi-reordered.
++    let mut children = vec![Vec::new(); text.length_ranges.len()];
++    for (index, range) in text.length_ranges.iter().enumerate() {
++        if let Some(parent) = range.parent() {
++            children[parent].push(index);
++        }
++    }
++    let mut locations = Vec::new();
++    let mut bytes = Vec::new();
++    let mut positions = Vec::new();
++    let mut advances = Vec::new();
++    let (mut byte_base, mut char_base, mut pen) = (0, 0, 0.0);
++    for (chunk_index, (chunk, clusters)) in text.chunks.iter().zip(chunks.iter()).enumerate() {
++        for (index, cluster) in clusters.iter().enumerate() {
++            let cp = char_base + cluster.byte_idx.code_point_at(&chunk.text);
++            pen += f64::from(text.dx.get(cp).copied().unwrap_or(0.0));
++            locations.push((chunk_index, index));
++            bytes.push(byte_base + cluster.byte_idx.value());
++            positions.push(pen);
++            advances.push(f64::from(cluster.advance));
++            pen += f64::from(cluster.advance);
++        }
++        byte_base += chunk.text.len();
++        char_base += chunk.text.chars().count();
++    }
++    let original_positions = positions.clone();
++    let original_advances = advances.clone();
++    let mut scales = vec![1.0; positions.len()];
++    let mut resolved = vec![false; positions.len()];
++    // Source order and visual order differ for bidi text. Query a source index,
++    // then restore visual order before applying the existing adjustment rules.
++    let mut source_order: Vec<_> = bytes.iter().copied().enumerate().collect();
++    source_order.sort_unstable_by_key(|&(index, byte)| (byte, index));
++    for (id, range) in text.length_ranges.iter().enumerate().rev() {
++        let bounds = range.range();
++        let start = source_order.partition_point(|&(_, byte)| byte < bounds.start);
++        let end = source_order.partition_point(|&(_, byte)| byte < bounds.end);
++        let mut selected: Vec<_> = source_order[start..end].iter().map(|&(i, _)| i).collect();
++        selected.sort_unstable();
++        if selected.is_empty() {
++            continue;
++        }
++        let min = selected
++            .iter()
++            .map(|&i| positions[i].min(positions[i] + advances[i]))
++            .fold(f64::INFINITY, f64::min);
++        let max = selected
++            .iter()
++            .map(|&i| positions[i].max(positions[i] + advances[i]))
++            .fold(f64::NEG_INFINITY, f64::max);
++        let delta = f64::from(range.length()) - (max - min);
++        let following_shift = if range.adjustment() == LengthAdjust::Spacing {
++            let mut seen = std::collections::HashSet::new();
++            let adjustable: Vec<_> = selected
++                .iter()
++                .map(|&index| {
++                    let siblings = &children[id];
++                    let candidate = siblings.partition_point(|&child| {
++                        text.length_ranges[child].range().end <= bytes[index]
++                    });
++                    let child = siblings
++                        .get(candidate)
++                        .copied()
++                        .filter(|&child| text.length_ranges[child].range().contains(&bytes[index]));
++                    child.is_none_or(|child| seen.insert(child))
++                })
++                .collect();
++            let count = adjustable.iter().filter(|flag| **flag).count();
++            // A single typographic unit has no adjustable gap, but its range is
++            // still resolved and must be protected from ancestor glyph scaling.
++            let step = if count < 2 {
++                0.0
++            } else {
++                delta / (count - 1) as f64
++            };
++            let mut shift = 0.0;
++            for (&index, adjustable) in selected.iter().zip(adjustable) {
++                positions[index] += shift;
++                if adjustable {
++                    shift += step;
++                }
++            }
++            shift
++        } else {
++            if max <= min {
++                continue;
++            }
++            let scale = f64::from(range.length()) / (max - min);
++            if !scale.is_finite() || scale <= 0.0 {
++                continue;
++            }
++            let mut anchors = std::collections::HashMap::new();
++            for &index in &selected {
++                let position = positions[index];
++                let adjusted = min + (position - min) * scale;
++                positions[index] = if resolved[index] {
++                    let (old, new) = *anchors.entry(groups[index]).or_insert((position, adjusted));
++                    new + position - old
++                } else {
++                    adjusted
++                };
++                // Ancestors move resolved descendants without stretching their
++                // glyphs again. Position grouping needs separate shaping data.
++                if !resolved[index] {
++                    advances[index] *= scale;
++                    scales[index] *= scale;
++                }
++            }
++            delta
++        };
++        for &index in &selected {
++            resolved[index] = true;
++        }
++        if let Some(&last) = selected.last() {
++            for position in &mut positions[last + 1..] {
++                *position += following_shift;
++            }
++        }
++    }
++    let mut previous_delta = 0.0;
++    let mut previous_advance_delta = 0.0;
++    for (i, &(chunk_index, index)) in locations.iter().enumerate() {
++        let delta = positions[i] - original_positions[i];
++        let cluster = &mut chunks[chunk_index][index];
++        cluster.length_shift = if index == 0 && text.chunks[chunk_index].x.is_some() {
++            0.0
++        } else {
++            (delta - previous_delta - previous_advance_delta) as f32
++        };
++        cluster.length_scale = scales[i] as f32;
++        cluster.width *= scales[i] as f32;
++        cluster.advance = advances[i] as f32;
++        if !cluster.length_shift.is_finite()
++            || !cluster.length_scale.is_finite()
++            || !cluster.width.is_finite()
++            || !cluster.advance.is_finite()
++        {
++            return None;
++        }
++        previous_delta = delta;
++        previous_advance_delta = advances[i] - original_advances[i];
++    }
++    Some(())
++}
++
++pub(super) fn anchor(
++    text: &Text,
++    chunk: &TextChunk,
++    offset: usize,
++    clusters: &[GlyphCluster],
++) -> f32 {
++    let (mut pen, mut first, mut min, mut max) = (0.0_f64, None, f64::INFINITY, f64::NEG_INFINITY);
++    for cluster in clusters {
++        let cp = offset + cluster.byte_idx.code_point_at(&chunk.text);
++        pen += f64::from(text.dx.get(cp).copied().unwrap_or(0.0)) + f64::from(cluster.length_shift);
++        first.get_or_insert(pen);
++        min = min.min(pen).min(pen + f64::from(cluster.advance));
++        max = max.max(pen).max(pen + f64::from(cluster.advance));
++        pen += f64::from(cluster.advance);
++    }
++    first
++        .map(|first| {
++            (first
++                - match chunk.anchor {
++                    TextAnchor::Start => min,
++                    TextAnchor::Middle => (min + max) / 2.0,
++                    TextAnchor::End => max,
++                }) as f32
++        })
++        .unwrap_or(0.0)
++}
+--- /dev/null
++++ b/src/text/length_fragments.rs
+@@ -0,0 +1,35 @@
++//! Fragment boundaries retained for nested scaling, not arbitrary source ranges.
++use super::*;
++
++pub(super) fn groups(text: &Text, chunks: &[Vec<GlyphCluster>]) -> Vec<usize> {
++    let mut result = Vec::new();
++    let mut base = 0;
++    let mut group = 0;
++    for (chunk, clusters) in text.chunks.iter().zip(chunks) {
++        let mut previous = None;
++        for cluster in clusters {
++            let byte = cluster.byte_idx.value();
++            let global = base + byte;
++            let span = chunk.spans.partition_point(|span| span.end <= byte);
++            let owner = text
++                .length_ranges
++                .iter()
++                .rposition(|range| range.range().contains(&global));
++            let spacing = owner
++                .is_some_and(|id| text.length_ranges[id].adjustment() == LengthAdjust::Spacing);
++            let boundary = text.length_breaks.binary_search(&global).is_ok();
++            if spacing
++                || boundary
++                || previous.is_none_or(|(old_span, old_owner, old_byte)| {
++                    span != old_span || owner != old_owner || byte <= old_byte
++                })
++            {
++                group += 1;
++            }
++            result.push(group);
++            previous = Some((span, owner, byte));
++        }
++        base += chunk.text.len();
++    }
++    result
++}
+--- a/src/tree/filter.rs
++++ b/src/tree/filter.rs
+@@ -45,6 +45,8 @@
+     pub(crate) rect: NonZeroRect,
+     pub(crate) color_interpolation: ColorInterpolation,
+     pub(crate) result: String,
++    // Only authored result names are addressable by explicit XML inputs.
++    pub(crate) explicit_result: bool,
+     pub(crate) kind: Kind,
+ }
+ 
+--- a/src/tree/text.rs
++++ b/src/tree/text.rs
+@@ -476,6 +476,17 @@
+     }
+ }
+ 
++impl TextAnchor {
++    // Logical-to-physical and physical-to-logical use the same involution.
++    pub(crate) fn for_direction(self, right_to_left: bool) -> Self {
++        match (self, right_to_left) {
++            (Self::Start, true) => Self::End,
++            (Self::End, true) => Self::Start,
++            _ => self,
++        }
++    }
++}
++
+ /// A path used by text-on-path.
+ #[derive(Debug)]
+ pub struct TextPath {
+@@ -580,7 +591,10 @@
+     pub(crate) dy: Vec<f32>,
+     pub(crate) rotate: Vec<f32>,
+     pub(crate) writing_mode: WritingMode,
++    pub(crate) right_to_left: bool,
+     pub(crate) chunks: Vec<TextChunk>,
++    pub(crate) length_ranges: Vec<TextLengthRange>,
++    pub(crate) length_breaks: Vec<usize>,
+     pub(crate) abs_transform: Transform,
+     pub(crate) bounding_box: Rect,
+     pub(crate) abs_bounding_box: Rect,
+@@ -591,7 +605,40 @@
+     pub(crate) layouted: Vec<Span>,
+ }
+ 
++/// An element-owned length constraint over retained UTF-8 text, independent of styles.
++#[derive(Clone, Copy, Debug)]
++pub struct TextLengthRange {
++    pub(crate) start: usize,
++    pub(crate) end: usize,
++    pub(crate) length: f32,
++    pub(crate) adjust: LengthAdjust,
++    pub(crate) parent: Option<usize>,
++}
++
++impl TextLengthRange {
++    /// Retained text byte range across all chunks in source order.
++    pub fn range(&self) -> std::ops::Range<usize> {
++        self.start..self.end
++    }
++    /// Requested length in user units.
++    pub fn length(&self) -> f32 {
++        self.length
++    }
++    /// Adjustment method owned by the source element.
++    pub fn adjustment(&self) -> LengthAdjust {
++        self.adjust
++    }
++    /// Index of the containing constraint, not a style-span relationship.
++    pub fn parent(&self) -> Option<usize> {
++        self.parent
++    }
++}
++
+ impl Text {
++    /// Element-owned constraints in preorder; ranges can cross style/chunk boundaries.
++    pub fn length_ranges(&self) -> &[TextLengthRange] {
++        &self.length_ranges
++    }
+     /// Element's ID.
+     ///
+     /// Taken from the SVG itself.
+--- a/src/writer.rs
++++ b/src/writer.rs
+@@ -4,7 +4,7 @@
+ use std::fmt::Display;
+ use std::io::Write;
+ 
+-use svgtypes::{FontFamily, parse_font_families};
++use svgtypes::{parse_font_families, FontFamily};
+ use xmlwriter::XmlWriter;
+ 
+ use crate::parser::{AId, EId};
+@@ -29,6 +29,11 @@
+         *self == Self::default()
+     }
+ }
++
++#[path = "writer/length_text.rs"]
++mod length_text;
++#[path = "writer/text_path_ids.rs"]
++mod text_path_ids;
+ 
+ /// XML writing options.
+ #[derive(Clone, Debug)]
+@@ -139,6 +144,8 @@
+ }
+ 
+ pub(crate) fn convert(tree: &Tree, opt: &WriteOptions) -> String {
++    let context = text_path_ids::Context::new(tree, opt);
++    let opt = &context;
+     let mut xml = XmlWriter::new(xmlwriter::Options {
+         use_single_quote: opt.use_single_quote,
+         indent: opt.indent,
+@@ -163,7 +170,7 @@
+     xml.end_document()
+ }
+ 
+-fn write_filters(tree: &Tree, opt: &WriteOptions, xml: &mut XmlWriter) {
++fn write_filters(tree: &Tree, opt: &text_path_ids::Context<'_>, xml: &mut XmlWriter) {
+     let mut written_fe_image_nodes: Vec<String> = Vec::new();
+     for filter in tree.filters() {
+         for fe in &filter.primitives {
+@@ -488,7 +495,12 @@
+     }
+ }
+ 
+-fn write_defs(tree: &Tree, opt: &WriteOptions, xml: &mut XmlWriter, write_text_paths: bool) {
++fn write_defs(
++    tree: &Tree,
++    opt: &text_path_ids::Context<'_>,
++    xml: &mut XmlWriter,
++    write_text_paths: bool,
++) {
+     xml.start_svg_element(EId::Defs);
+     for lg in tree.linear_gradients() {
+         xml.start_svg_element(EId::LinearGradient);
+@@ -531,7 +543,7 @@
+     }
+ 
+     if write_text_paths {
+-        write_text_path_paths(&tree.root, opt, xml);
++        write_text_path_paths(opt, xml);
+     }
+ 
+     write_filters(tree, opt, xml);
+@@ -613,41 +625,41 @@
+ }
+ 
+ /// Write the `path` elements for text paths.
+-fn write_text_path_paths(parent: &Group, opt: &WriteOptions, xml: &mut XmlWriter) {
+-    for node in &parent.children {
+-        if let Node::Group(group) = node {
+-            write_text_path_paths(group, opt, xml);
+-        } else if let Node::Text(text) = node {
+-            for chunk in &text.chunks {
+-                if let TextFlow::Path(text_path) = &chunk.text_flow {
+-                    let path = Path::new(
+-                        text_path.id().to_string(),
+-                        true,
+-                        None,
+-                        None,
+-                        PaintOrder::default(),
+-                        ShapeRendering::default(),
+-                        text_path.path.clone(),
+-                        Transform::default(),
+-                    );
+-                    if let Some(path) = &path {
+-                        write_path(path, false, Transform::default(), None, opt, xml);
+-                    }
+-                }
+-            }
+-        }
+-
+-        node.subroots(|subroot| write_text_path_paths(subroot, opt, xml));
+-    }
+-}
+-
+-fn write_elements(parent: &Group, is_clip_path: bool, opt: &WriteOptions, xml: &mut XmlWriter) {
++fn write_text_path_paths(opt: &text_path_ids::Context<'_>, xml: &mut XmlWriter) {
++    for (text_path, id) in &opt.paths {
++        let path = Path::new(
++            id.clone(),
++            true,
++            None,
++            None,
++            PaintOrder::default(),
++            ShapeRendering::default(),
++            text_path.path.clone(),
++            Transform::default(),
++        );
++        if let Some(path) = &path {
++            write_path(path, false, Transform::default(), None, opt, xml);
++        }
++    }
++}
++
++fn write_elements(
++    parent: &Group,
++    is_clip_path: bool,
++    opt: &text_path_ids::Context<'_>,
++    xml: &mut XmlWriter,
++) {
+     for n in &parent.children {
+         write_element(n, is_clip_path, opt, xml);
+     }
+ }
+ 
+-fn write_element(node: &Node, is_clip_path: bool, opt: &WriteOptions, xml: &mut XmlWriter) {
++fn write_element(
++    node: &Node,
++    is_clip_path: bool,
++    opt: &text_path_ids::Context<'_>,
++    xml: &mut XmlWriter,
++) {
+     match node {
+         Node::Path(p) => {
+             write_path(p, is_clip_path, Transform::default(), None, opt, xml);
+@@ -698,6 +710,9 @@
+                 }
+ 
+                 xml.write_attribute("xml:space", "preserve");
++                if text.right_to_left {
++                    xml.write_svg_attribute(AId::Direction, "rtl");
++                }
+ 
+                 match text.writing_mode {
+                     WritingMode::LeftToRight => {}
+@@ -728,75 +743,80 @@
+ 
+                 xml.set_preserve_whitespaces(true);
+ 
+-                for chunk in &text.chunks {
+-                    if let TextFlow::Path(text_path) = &chunk.text_flow {
+-                        xml.start_svg_element(EId::TextPath);
+-
+-                        let prefix = opt.id_prefix.as_deref().unwrap_or_default();
+-                        xml.write_attribute_fmt(
+-                            "xlink:href",
+-                            format_args!("#{}{}", prefix, text_path.id()),
+-                        );
+-
+-                        if text_path.start_offset != 0.0 {
+-                            xml.write_svg_attribute(AId::StartOffset, &text_path.start_offset);
++                if !text.length_ranges.is_empty() {
++                    length_text::write(text, is_clip_path, opt, xml);
++                } else {
++                    for chunk in &text.chunks {
++                        if let TextFlow::Path(text_path) = &chunk.text_flow {
++                            xml.start_svg_element(EId::TextPath);
++
++                            let prefix = opt.id_prefix.as_deref().unwrap_or_default();
++                            xml.write_attribute_fmt(
++                                "xlink:href",
++                                format_args!("#{}{}", prefix, opt.path_id(text_path)),
++                            );
++
++                            if text_path.start_offset != 0.0 {
++                                xml.write_svg_attribute(AId::StartOffset, &text_path.start_offset);
++                            }
+                         }
+-                    }
+-
+-                    xml.start_svg_element(EId::Tspan);
+-
+-                    if let Some(x) = chunk.x {
+-                        xml.write_svg_attribute(AId::X, &x);
+-                    }
+-
+-                    if let Some(y) = chunk.y {
+-                        xml.write_svg_attribute(AId::Y, &y);
+-                    }
+-
+-                    match chunk.anchor {
+-                        TextAnchor::Start => {}
+-                        TextAnchor::Middle => xml.write_svg_attribute(AId::TextAnchor, "middle"),
+-                        TextAnchor::End => xml.write_svg_attribute(AId::TextAnchor, "end"),
+-                    }
+-
+-                    for span in &chunk.spans {
+-                        let decorations: Vec<_> = [
+-                            ("underline", &span.decoration.underline),
+-                            ("line-through", &span.decoration.line_through),
+-                            ("overline", &span.decoration.overline),
+-                        ]
+-                        .iter()
+-                        .filter_map(|&(key, option_value)| {
+-                            option_value.as_ref().map(|value| (key, value))
+-                        })
+-                        .collect();
+-
+-                        // Decorations need to be dumped BEFORE we write the actual span data
+-                        // (so that for example stroke color of span doesn't affect the text
+-                        // itself while baseline shifts need to be written after (since they are
+-                        // affected by the font size)
+-                        for (deco_name, deco) in &decorations {
+-                            xml.start_svg_element(EId::Tspan);
+-                            xml.write_svg_attribute(AId::TextDecoration, deco_name);
+-                            write_fill(&deco.fill, false, opt, xml);
+-                            write_stroke(&deco.stroke, opt, xml);
++
++                        xml.start_svg_element(EId::Tspan);
++
++                        if let Some(x) = chunk.x {
++                            xml.write_svg_attribute(AId::X, &x);
+                         }
+ 
+-                        write_span(is_clip_path, opt, xml, chunk, span);
+-
+-                        // End for each tspan we needed to create for decorations
+-                        for _ in &decorations {
++                        if let Some(y) = chunk.y {
++                            xml.write_svg_attribute(AId::Y, &y);
++                        }
++
++                        match chunk.anchor.for_direction(text.right_to_left) {
++                            TextAnchor::Start => {}
++                            TextAnchor::Middle => {
++                                xml.write_svg_attribute(AId::TextAnchor, "middle")
++                            }
++                            TextAnchor::End => xml.write_svg_attribute(AId::TextAnchor, "end"),
++                        }
++
++                        for span in &chunk.spans {
++                            let decorations: Vec<_> = [
++                                ("underline", &span.decoration.underline),
++                                ("line-through", &span.decoration.line_through),
++                                ("overline", &span.decoration.overline),
++                            ]
++                            .iter()
++                            .filter_map(|&(key, option_value)| {
++                                option_value.as_ref().map(|value| (key, value))
++                            })
++                            .collect();
++
++                            // Decorations need to be dumped BEFORE we write the actual span data
++                            // (so that for example stroke color of span doesn't affect the text
++                            // itself while baseline shifts need to be written after (since they are
++                            // affected by the font size)
++                            for (deco_name, deco) in &decorations {
++                                xml.start_svg_element(EId::Tspan);
++                                xml.write_svg_attribute(AId::TextDecoration, deco_name);
++                                write_fill(&deco.fill, false, opt, xml);
++                                write_stroke(&deco.stroke, opt, xml);
++                            }
++
++                            write_span(is_clip_path, opt, xml, chunk, span);
++
++                            // End for each tspan we needed to create for decorations
++                            for _ in &decorations {
++                                xml.end_element();
++                            }
++                        }
++                        xml.end_element();
++
++                        // End textPath element
++                        if matches!(&chunk.text_flow, TextFlow::Path(_)) {
+                             xml.end_element();
+                         }
+                     }
+-                    xml.end_element();
+-
+-                    // End textPath element
+-                    if matches!(&chunk.text_flow, TextFlow::Path(_)) {
+-                        xml.end_element();
+-                    }
+-                }
+-
++                }
+                 xml.end_element();
+                 xml.set_preserve_whitespaces(false);
+             } else {
+@@ -806,7 +826,12 @@
+     }
+ }
+ 
+-fn write_group_element(g: &Group, is_clip_path: bool, opt: &WriteOptions, xml: &mut XmlWriter) {
++fn write_group_element(
++    g: &Group,
++    is_clip_path: bool,
++    opt: &text_path_ids::Context<'_>,
++    xml: &mut XmlWriter,
++) {
+     if is_clip_path {
+         // The `clipPath` element in SVG doesn't allow groups, only shapes and text.
+         // The problem is that in `usvg` we can set a `clip-path` only on groups.
+--- /dev/null
++++ b/src/writer/length_text.rs
+@@ -0,0 +1,156 @@
++//! Preserve element-owned length constraints while serializing resolved styles.
++use super::*;
++use std::collections::{BTreeMap, BTreeSet};
++
++fn attributes(range: &TextLengthRange, xml: &mut XmlWriter) {
++    xml.write_svg_attribute(AId::TextLength, &range.length());
++    if range.adjustment() == LengthAdjust::SpacingAndGlyphs {
++        xml.write_svg_attribute(AId::LengthAdjust, "spacingAndGlyphs");
++    }
++}
++
++fn close_at(text: &Text, position: usize, stack: &mut Vec<usize>, xml: &mut XmlWriter) {
++    while stack
++        .last()
++        .is_some_and(|&id| text.length_ranges[id].range().end <= position)
++    {
++        xml.end_element();
++        stack.pop();
++    }
++}
++
++pub(super) fn write(
++    text: &Text,
++    clip: bool,
++    opt: &text_path_ids::Context<'_>,
++    xml: &mut XmlWriter,
++) {
++    let total: usize = text.chunks.iter().map(|chunk| chunk.text.len()).sum();
++    // A whole-text outer constraint belongs on text, so textPath stays a direct child.
++    let root = text
++        .length_ranges
++        .first()
++        .filter(|range| range.range() == (0..total));
++    if let Some(root) = root {
++        attributes(root, xml);
++    }
++    let mut starts: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
++    let mut boundaries = BTreeSet::new();
++    // Zero-valued positioning is observable through nested scale fragments.
++    boundaries.extend(text.length_breaks.iter().copied());
++    for (id, range) in text.length_ranges.iter().enumerate() {
++        if id == 0 && root.is_some() {
++            continue;
++        }
++        starts.entry(range.range().start).or_default().push(id);
++        boundaries.insert(range.range().start);
++        boundaries.insert(range.range().end);
++    }
++    let mut stack = Vec::new();
++    let mut base = 0;
++    let mut active_path = None;
++    for chunk in &text.chunks {
++        close_at(text, base, &mut stack, xml);
++        let next_path = match &chunk.text_flow {
++            TextFlow::Path(path) => Some(std::sync::Arc::as_ptr(path)),
++            TextFlow::Linear => None,
++        };
++        if next_path != active_path {
++            if active_path.is_some() {
++                xml.end_element();
++            }
++            if let TextFlow::Path(path) = &chunk.text_flow {
++                xml.start_svg_element(EId::TextPath);
++                let prefix = opt.id_prefix.as_deref().unwrap_or_default();
++                xml.write_attribute_fmt(
++                    "xlink:href",
++                    format_args!("#{}{}", prefix, opt.path_id(path)),
++                );
++                if path.start_offset != 0.0 {
++                    xml.write_svg_attribute(AId::StartOffset, &path.start_offset);
++                }
++            }
++            active_path = next_path;
++        }
++        for span in &chunk.spans {
++            let start = base + span.start;
++            let end = base + span.end;
++            let mut cuts: Vec<_> = boundaries.range(start..end).copied().collect();
++            if cuts.first() != Some(&start) {
++                cuts.insert(0, start);
++            }
++            cuts.push(end);
++            for piece in cuts.windows(2) {
++                let (start, end) = (piece[0], piece[1]);
++                close_at(text, start, &mut stack, xml);
++                if let Some(ids) = starts.get(&start) {
++                    for &id in ids {
++                        xml.start_svg_element(EId::Tspan);
++                        attributes(&text.length_ranges[id], xml);
++                        if text.length_ranges[id].range().is_empty() {
++                            xml.end_element();
++                        } else {
++                            stack.push(id);
++                        }
++                    }
++                }
++                let mut slice = span.clone();
++                slice.start = start - base;
++                slice.end = end - base;
++                // The range wrapper owns the constraint; never duplicate it on a style leaf.
++                slice.text_length = None;
++                slice.length_adjust = LengthAdjust::Spacing;
++                write_piece(chunk, &slice, text.right_to_left, clip, opt, xml);
++            }
++        }
++        base += chunk.text.len();
++    }
++    close_at(text, total, &mut stack, xml);
++    if active_path.is_some() {
++        xml.end_element();
++    }
++}
++
++fn write_piece(
++    chunk: &TextChunk,
++    span: &TextSpan,
++    right_to_left: bool,
++    clip: bool,
++    opt: &WriteOptions,
++    xml: &mut XmlWriter,
++) {
++    xml.start_svg_element(EId::Tspan);
++    // Repeating x/y on every style leaf would create extra anchored chunks.
++    if span.start == 0 {
++        if let Some(x) = chunk.x {
++            xml.write_svg_attribute(AId::X, &x);
++        }
++        if let Some(y) = chunk.y {
++            xml.write_svg_attribute(AId::Y, &y);
++        }
++    }
++    match chunk.anchor.for_direction(right_to_left) {
++        TextAnchor::Start => xml.write_svg_attribute(AId::TextAnchor, "start"),
++        TextAnchor::Middle => xml.write_svg_attribute(AId::TextAnchor, "middle"),
++        TextAnchor::End => xml.write_svg_attribute(AId::TextAnchor, "end"),
++    }
++    let decorations: Vec<_> = [
++        ("underline", &span.decoration.underline),
++        ("line-through", &span.decoration.line_through),
++        ("overline", &span.decoration.overline),
++    ]
++    .iter()
++    .filter_map(|&(name, value)| value.as_ref().map(|value| (name, value)))
++    .collect();
++    for (name, deco) in &decorations {
++        xml.start_svg_element(EId::Tspan);
++        xml.write_svg_attribute(AId::TextDecoration, name);
++        write_fill(&deco.fill, false, opt, xml);
++        write_stroke(&deco.stroke, opt, xml);
++    }
++    write_span(clip, opt, xml, chunk, span);
++    for _ in decorations {
++        xml.end_element();
++    }
++    xml.end_element();
++}
+--- /dev/null
++++ b/src/writer/text_path_ids.rs
+@@ -0,0 +1,85 @@
++//! Export-local path identities: source IDs need not identify resolved geometry.
++use super::*;
++use std::collections::{HashMap, HashSet};
++use std::sync::Arc;
++
++pub(super) struct Context<'a> {
++    options: &'a WriteOptions,
++    pub paths: Vec<(Arc<TextPath>, String)>,
++    indices: HashMap<usize, usize>,
++}
++
++impl std::ops::Deref for Context<'_> {
++    type Target = WriteOptions;
++    fn deref(&self) -> &Self::Target {
++        self.options
++    }
++}
++
++impl<'a> Context<'a> {
++    pub fn new(tree: &Tree, options: &'a WriteOptions) -> Self {
++        let mut context = Self {
++            options,
++            paths: Vec::new(),
++            indices: HashMap::new(),
++        };
++        if !options.preserve_text {
++            return context;
++        }
++        let mut reserved = HashSet::new();
++        for id in tree
++            .linear_gradients()
++            .iter()
++            .map(|v| v.id())
++            .chain(tree.radial_gradients().iter().map(|v| v.id()))
++            .chain(tree.patterns().iter().map(|v| v.id()))
++            .chain(tree.clip_paths().iter().map(|v| v.id()))
++            .chain(tree.masks().iter().map(|v| v.id()))
++            .chain(tree.filters().iter().map(|v| v.id()))
++        {
++            reserved.insert(id.to_owned());
++        }
++        context.collect(&tree.root, &mut reserved);
++        let mut serial = 0usize;
++        for (_, id) in &mut context.paths {
++            loop {
++                let candidate = format!("otter_text_path_{serial}");
++                serial += 1;
++                if reserved.insert(candidate.clone()) {
++                    *id = candidate;
++                    break;
++                }
++            }
++        }
++        context
++    }
++
++    fn collect(&mut self, group: &Group, reserved: &mut HashSet<String>) {
++        reserved.insert(group.id().to_owned());
++        for node in &group.children {
++            reserved.insert(node.id().to_owned());
++            match node {
++                Node::Group(group) => self.collect(group, reserved),
++                Node::Text(text) => {
++                    for chunk in &text.chunks {
++                        if let TextFlow::Path(path) = &chunk.text_flow {
++                            reserved.insert(path.id().to_owned());
++                            let key = Arc::as_ptr(path) as usize;
++                            if !self.indices.contains_key(&key) {
++                                self.indices.insert(key, self.paths.len());
++                                self.paths.push((path.clone(), String::new()));
++                            }
++                        }
++                    }
++                }
++                _ => {}
++            }
++            node.subroots(|root| self.collect(root, reserved));
++        }
++    }
++
++    pub fn path_id(&self, path: &Arc<TextPath>) -> &str {
++        // Collection and emission use the same immutable tree and Arc identity.
++        &self.paths[self.indices[&(Arc::as_ptr(path) as usize)]].1
++    }
++}

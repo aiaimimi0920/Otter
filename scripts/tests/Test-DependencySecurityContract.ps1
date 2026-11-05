@@ -26,6 +26,7 @@ Assert-True ([int]$policy.maximumExceptionDays -gt 0 -and [int]$policy.maximumEx
 
 $expectedLockfiles = @(
     "package-lock.json",
+    "native/Cargo.lock",
     "src-tauri/Cargo.lock",
     "src-tauri/crates/drag/Cargo.lock",
     "src-tauri/crates/scap-direct3d/Cargo.lock"
@@ -78,4 +79,4 @@ foreach ($scriptAndTerms in @(
         Assert-True $source.Contains($term) "Dependency script lost required control: $term"
     }
 }
-Write-Output "Otter dependency security contract passed: locks=4 exceptions=$($blocks.Count) max-days=$($policy.maximumExceptionDays)"
+Write-Output "Otter dependency security contract passed: locks=$($expectedLockfiles.Count) exceptions=$($blocks.Count) max-days=$($policy.maximumExceptionDays)"

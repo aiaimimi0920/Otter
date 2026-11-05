@@ -1,0 +1,2846 @@
+--- /dev/null
++++ b/src/checked_render.rs
+@@ -0,0 +1,72 @@
++// Copyright 2026 the Otter Authors
++// SPDX-License-Identifier: Apache-2.0 OR MIT
++//! Explicit filter-failure reporting without global state or a second render pass.
++use std::cell::Cell;
++
++/// A filter failed during rasterization; the caller must discard the destination.
++#[derive(Clone, Copy, Debug, Eq, PartialEq)]
++pub enum RenderError {
++    /// A filter region, result, or numeric operation could not be represented.
++    FilterFailed,
++    /// The cumulative filter work policy quota was exhausted.
++    FilterBudgetExceeded,
++}
++
++impl std::fmt::Display for RenderError {
++    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
++        f.write_str(match self {
++            Self::FilterFailed => "SVG filter rasterization failed",
++            Self::FilterBudgetExceeded => "SVG filter work budget exceeded",
++        })
++    }
++}
++impl std::error::Error for RenderError {}
++
++/// Renders with explicit filter failure reporting, including nested subroots.
++///
++/// On error the destination may contain partial content and must be discarded.
++/// This is not a guarantee that all unsupported SVG features or allocations are
++/// reported: it exposes filter execution failures that legacy `render` discards.
++pub fn render_checked(
++    tree: &usvg::Tree,
++    transform: tiny_skia::Transform,
++    pixmap: &mut tiny_skia::PixmapMut,
++) -> Result<(), RenderError> {
++    render_with_filter_budget(tree, transform, pixmap, u64::MAX)
++}
++
++/// Renders with a cumulative weighted filter-work quota shared by all subroots.
++///
++/// Credits account for actual filter executions and raster sizes, not XML nodes.
++/// They are policy units, not a wall-clock, total SVG work, or peak-memory bound.
++/// On any error, discard the destination. Zero permits SVGs without filters.
++pub fn render_with_filter_budget(
++    tree: &usvg::Tree,
++    transform: tiny_skia::Transform,
++    pixmap: &mut tiny_skia::PixmapMut,
++    max_filter_work: u64,
++) -> Result<(), RenderError> {
++    let filter_failed = Cell::new(false);
++    let filter_work = crate::filter::work_budget::Budget::new(max_filter_work);
++    let ctx = crate::render::Context {
++        max_bbox: crate::max_filter_bbox(pixmap.width(), pixmap.height()),
++        filter_failed: &filter_failed,
++        filter_work: &filter_work,
++    };
++    crate::render::render_nodes(tree.root(), &ctx, transform, pixmap);
++    if filter_work.exhausted() {
++        Err(RenderError::FilterBudgetExceeded)
++    } else if filter_failed.get() {
++        Err(RenderError::FilterFailed)
++    } else {
++        Ok(())
++    }
++}
++
++#[cfg(test)]
++#[path = "checked_render_tests.rs"]
++mod tests;
++
++#[cfg(test)]
++#[path = "filter_work_tests.rs"]
++mod work_tests;
+--- /dev/null
++++ b/src/checked_render_tests.rs
+@@ -0,0 +1,106 @@
++//! Filter errors must survive subroot boundaries and not leak into later calls.
++fn document(body: &str, frequency: &str) -> String {
++    format!(
++        "<svg xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' width='16' height='16'><defs><filter id='bad' x='0' y='0' width='100%' height='100%'><feTurbulence baseFrequency='{frequency}'/></filter></defs>{body}</svg>"
++    )
++}
++fn checked(source: &str) -> Result<(), crate::RenderError> {
++    let tree = crate::usvg::Tree::from_str(source, &crate::usvg::Options::default()).unwrap();
++    let mut pixels = crate::tiny_skia::Pixmap::new(16, 16).unwrap();
++    crate::render_checked(
++        &tree,
++        crate::tiny_skia::Transform::identity(),
++        &mut pixels.as_mut(),
++    )
++}
++#[test]
++fn nested_failure_and_next_request() {
++    let cases = [
++        (
++            "direct",
++            "<rect width='16' height='16' filter='url(#bad)'/>",
++        ),
++        (
++            "pattern",
++            "<defs><pattern id='p' width='16' height='16' patternUnits='userSpaceOnUse'><rect width='16' height='16' filter='url(#bad)'/></pattern></defs><rect width='16' height='16' fill='url(#p)'/>",
++        ),
++        (
++            "mask",
++            "<defs><mask id='m' maskUnits='userSpaceOnUse' x='0' y='0' width='16' height='16'><rect width='16' height='16' filter='url(#bad)'/></mask></defs><rect width='16' height='16' mask='url(#m)'/>",
++        ),
++        (
++            "feImage",
++            "<defs><rect id='r' width='16' height='16' filter='url(#bad)'/><filter id='outer' x='0' y='0' width='100%' height='100%'><feImage xlink:href='#r'/></filter></defs><rect width='16' height='16' filter='url(#outer)'/>",
++        ),
++    ];
++    for (name, body) in cases {
++        assert!(
++            checked(&document(body, "1e9 0")).is_err(),
++            "lost error in {name}"
++        );
++        assert!(
++            checked(&document(body, ".1 .2")).is_ok(),
++            "stale error in {name}"
++        );
++        println!("nested={name} rejected=true next_normal=true");
++    }
++    // Percent-encoded SVG exercises ImageKind::SVG, not feImage's reference root.
++    let inner = document("<rect width='16' height='16' filter='url(#bad)'/>", "1e9 0");
++    let encoded: String = inner.bytes().map(|b| format!("%{b:02X}")).collect();
++    let image = format!(
++        "<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16'><image width='16' height='16' href='data:image/svg+xml,{encoded}'/></svg>"
++    );
++    assert!(checked(&image).is_err(), "lost error in SVG image");
++    assert!(checked(&document("<rect width='16' height='16'/>", ".1 .2")).is_ok());
++}
++
++#[test]
++fn transformed_lattice_and_stitch_overflow_are_explicit_errors() {
++    let cases = [
++        ("1e9 0", 1, "noStitch", "", "16"),
++        ("0 1e9", 1, "noStitch", "", "16"),
++        ("1e8 .1", 1, "stitch", "", "16"),
++        ("1e6 0", 9, "stitch", "", "16"),
++        (
++            ".2 .2",
++            9,
++            "noStitch",
++            "translate(.25 .25) scale(2e-7)",
++            "8e7",
++        ),
++    ];
++    for (frequency, octaves, stitch, transform, extent) in cases {
++        let source = format!(
++            "<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16'><defs><filter id='f' x='0' y='0' width='100%' height='100%'><feTurbulence baseFrequency='{frequency}' numOctaves='{octaves}' seed='3' stitchTiles='{stitch}'/></filter></defs><g transform='{transform}'><rect width='{extent}' height='{extent}' filter='url(#f)'/></g></svg>"
++        );
++        assert_eq!(checked(&source), Err(crate::RenderError::FilterFailed));
++    }
++}
++
++fn pixel_hash(bytes: &[u8]) -> u64 {
++    // Golden normal-render pixels recorded before the arithmetic fix.
++    bytes.iter().fold(0xcbf29ce484222325, |hash, byte| {
++        (hash ^ u64::from(*byte)).wrapping_mul(0x100000001b3)
++    })
++}
++
++#[test]
++fn ordinary_pixels_are_unchanged() {
++    for (stitch, expected) in [
++        ("noStitch", 8482639151651547215u64),
++        ("stitch", 12828862321031759723u64),
++    ] {
++        let source = format!(
++            "<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16'><defs><filter id='f' x='0' y='0' width='100%' height='100%'><feTurbulence baseFrequency='.1 .2' numOctaves='9' seed='3' stitchTiles='{stitch}'/></filter></defs><rect width='16' height='16' filter='url(#f)'/></svg>"
++        );
++        let tree = crate::usvg::Tree::from_str(&source, &crate::usvg::Options::default()).unwrap();
++        let mut pixels = crate::tiny_skia::Pixmap::new(16, 16).unwrap();
++        crate::render_checked(
++            &tree,
++            crate::tiny_skia::Transform::identity(),
++            &mut pixels.as_mut(),
++        )
++        .unwrap();
++        assert_eq!(pixel_hash(pixels.data()), expected, "{stitch}");
++    }
++}
+--- a/src/clip.rs
++++ b/src/clip.rs
+@@ -5,6 +5,7 @@
+ 
+ pub fn apply(
+     clip: &usvg::ClipPath,
++    ctx: &Context,
+     transform: tiny_skia::Transform,
+     pixmap: &mut tiny_skia::Pixmap,
+ ) {
+@@ -13,13 +14,14 @@
+ 
+     draw_children(
+         clip.root(),
++        ctx,
+         tiny_skia::BlendMode::Clear,
+         transform.pre_concat(clip.transform()),
+         &mut clip_pixmap.as_mut(),
+     );
+ 
+     if let Some(clip) = clip.clip_path() {
+-        apply(clip, transform, pixmap);
++        apply(clip, ctx, transform, pixmap);
+     }
+ 
+     let mut mask = tiny_skia::Mask::from_pixmap(clip_pixmap.as_ref(), tiny_skia::MaskType::Alpha);
+@@ -29,6 +31,7 @@
+ 
+ fn draw_children(
+     parent: &usvg::Group,
++    ctx: &Context,
+     mode: tiny_skia::BlendMode,
+     transform: tiny_skia::Transform,
+     pixmap: &mut tiny_skia::PixmapMut,
+@@ -40,15 +43,16 @@
+                     continue;
+                 }
+ 
+-                // We could use any values here. They will not be used anyway.
+-                let ctx = Context {
++                // Preserve the clip-local bounds while retaining the render's error owner.
++                let local = Context {
+                     max_bbox: tiny_skia::IntRect::from_xywh(0, 0, 1, 1).unwrap(),
++                    filter_failed: ctx.filter_failed,
++                    filter_work: ctx.filter_work,
+                 };
+-
+-                crate::path::fill_path(path, mode, &ctx, transform, pixmap);
++                crate::path::fill_path(path, mode, &local, transform, pixmap);
+             }
+             usvg::Node::Text(text) => {
+-                draw_children(text.flattened(), mode, transform, pixmap);
++                draw_children(text.flattened(), ctx, mode, transform, pixmap);
+             }
+             usvg::Node::Group(group) => {
+                 let transform = transform.pre_concat(group.transform());
+@@ -57,9 +61,9 @@
+                     // If a `clipPath` child also has a `clip-path`
+                     // then we should render this child on a new canvas,
+                     // clip it, and only then draw it to the `clipPath`.
+-                    clip_group(group, clip, transform, pixmap);
++                    clip_group(group, clip, ctx, transform, pixmap);
+                 } else {
+-                    draw_children(group, mode, transform, pixmap);
++                    draw_children(group, ctx, mode, transform, pixmap);
+                 }
+             }
+             _ => {}
+@@ -70,6 +74,7 @@
+ fn clip_group(
+     children: &usvg::Group,
+     clip: &usvg::ClipPath,
++    ctx: &Context,
+     transform: tiny_skia::Transform,
+     pixmap: &mut tiny_skia::PixmapMut,
+ ) -> Option<()> {
+@@ -77,11 +82,12 @@
+ 
+     draw_children(
+         children,
++        ctx,
+         tiny_skia::BlendMode::SourceOver,
+         transform,
+         &mut clip_pixmap.as_mut(),
+     );
+-    apply(clip, transform, &mut clip_pixmap);
++    apply(clip, ctx, transform, &mut clip_pixmap);
+ 
+     let mut paint = tiny_skia::PixmapPaint::default();
+     paint.blend_mode = tiny_skia::BlendMode::Xor;
+--- a/src/filter/color_matrix.rs
++++ b/src/filter/color_matrix.rs
+@@ -1,9 +1,43 @@
+ // Copyright 2020 the Resvg Authors
+ // SPDX-License-Identifier: Apache-2.0 OR MIT
+ 
+-use super::{ImageRefMut, f32_bound};
++use super::{f32_bound, ImageRefMut};
+ use rgb::RGBA8;
+ use usvg::filter::ColorMatrixKind as ColorMatrix;
++
++/// Exact identity must not introduce a lossy color-space roundtrip. Do not use
++/// approximate equality: even small coefficients can affect later primitives.
++pub(super) fn is_identity(matrix: &ColorMatrix) -> bool {
++    matches!(matrix, ColorMatrix::Matrix(values) if values.iter().enumerate().all(|(i, v)| {
++        *v == if matches!(i, 0 | 6 | 12 | 18) { 1.0 } else { 0.0 }
++    }))
++}
++
++/// Recognize exact RGB channel selection with unchanged alpha and zero offsets.
++pub(super) fn channel_mapping(matrix: &ColorMatrix) -> Option<[usize; 3]> {
++    let ColorMatrix::Matrix(values) = matrix else {
++        return None;
++    };
++    if values.len() != 20 || values[15..] != [0.0, 0.0, 0.0, 1.0, 0.0] {
++        return None;
++    }
++    let mut mapping = [0; 3];
++    for (index, row) in values[..15].chunks_exact(5).enumerate() {
++        if row[3] != 0.0 || row[4] != 0.0 {
++            return None;
++        }
++        let selected = row[..3].iter().position(|value| *value == 1.0)?;
++        if row[..3]
++            .iter()
++            .enumerate()
++            .any(|(i, value)| i != selected && *value != 0.0)
++        {
++            return None;
++        }
++        mapping[index] = selected;
++    }
++    Some(mapping)
++}
+ 
+ /// Applies a color matrix filter.
+ ///
+@@ -108,3 +142,47 @@
+ fn from_normalized(c: f32) -> u8 {
+     (f32_bound(0.0, c, 1.0) * 255.0) as u8
+ }
++
++#[cfg(test)]
++mod identity_tests {
++    use super::*;
++
++    #[test]
++    fn mapping_requires_exact_selection_and_unchanged_alpha() {
++        for r in 0..3 {
++            for g in 0..3 {
++                for b in 0..3 {
++                    let mut values = vec![0.0; 20];
++                    values[r] = 1.0;
++                    values[5 + g] = 1.0;
++                    values[10 + b] = 1.0;
++                    values[18] = 1.0;
++                    assert_eq!(
++                        channel_mapping(&ColorMatrix::Matrix(values.clone())),
++                        Some([r, g, b])
++                    );
++                    for index in 0..20 {
++                        let mut changed = values.clone();
++                        changed[index] += f32::EPSILON;
++                        assert_eq!(channel_mapping(&ColorMatrix::Matrix(changed)), None);
++                    }
++                }
++            }
++        }
++    }
++
++    #[test]
++    fn only_exact_matrix_is_identity() {
++        let mut values = [0.0; 20];
++        for index in [0, 6, 12, 18] {
++            values[index] = 1.0;
++        }
++        assert!(is_identity(&ColorMatrix::Matrix(values.to_vec())));
++        for index in 0..20 {
++            let mut changed = values;
++            changed[index] += f32::EPSILON;
++            assert!(!is_identity(&ColorMatrix::Matrix(changed.to_vec())));
++        }
++        assert!(!is_identity(&ColorMatrix::LuminanceToAlpha));
++    }
++}
+--- /dev/null
++++ b/src/filter/color_transfer.rs
+@@ -0,0 +1,62 @@
++// SPDX-License-Identifier: Apache-2.0 OR MIT
++//! Convert premultiplied colors without quantizing intermediate straight channels.
++use rgb::RGBA8;
++
++pub(super) fn channel(straight: f64, linear: bool) -> f64 {
++    if linear {
++        if straight <= 0.04045 {
++            straight / 12.92
++        } else {
++            ((straight + 0.055) / 1.055).powf(2.4)
++        }
++    } else if straight <= 0.0031308 {
++        straight * 12.92
++    } else {
++        1.055 * straight.powf(1.0 / 2.4) - 0.055
++    }
++}
++
++pub(super) fn convert(pixels: &mut [RGBA8], linear: bool) {
++    for pixel in pixels {
++        let alpha = f64::from(pixel.a);
++        if alpha == 0.0 {
++            *pixel = RGBA8::default();
++            continue;
++        }
++        for channel in [&mut pixel.r, &mut pixel.g, &mut pixel.b] {
++            let straight = (f64::from(*channel) / alpha).clamp(0.0, 1.0);
++            let value = self::channel(straight, linear);
++            *channel = (value * alpha).round().clamp(0.0, alpha) as u8;
++        }
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn transfer_reference_values_and_transparent_sanitization() {
++        let mut pixels = [RGBA8::new(64, 0, 128, 128), RGBA8::new(12, 34, 56, 0)];
++        convert(&mut pixels, true);
++        assert_eq!(pixels, [RGBA8::new(27, 0, 128, 128), RGBA8::default()]);
++        convert(&mut pixels, false);
++        assert_eq!(pixels, [RGBA8::new(64, 0, 128, 128), RGBA8::default()]);
++    }
++
++    #[test]
++    fn transfer_preserves_alpha_and_premultiplication() {
++        for linear in [false, true] {
++            for alpha in 0..=255 {
++                let mut pixels: Vec<_> = (0..=alpha)
++                    .map(|v| RGBA8::new(v, alpha - v, v / 2, alpha))
++                    .collect();
++                convert(&mut pixels, linear);
++                assert!(pixels
++                    .iter()
++                    .all(|p| p.a == alpha && p.r <= alpha && p.g <= alpha && p.b <= alpha));
++                assert!(pixels.windows(2).all(|pair| pair[0].r <= pair[1].r));
++            }
++        }
++    }
++}
+--- a/src/filter/component_transfer.rs
++++ b/src/filter/component_transfer.rs
+@@ -1,13 +1,62 @@
+ // Copyright 2020 the Resvg Authors
+ // SPDX-License-Identifier: Apache-2.0 OR MIT
+ 
+-use super::{ImageRefMut, f32_bound};
++use super::ImageRefMut;
+ use usvg::filter::{ComponentTransfer, TransferFunction};
++
++/// Whole-image identity can skip component processing, but not the working color space.
++pub(super) fn is_identity(fe: &ComponentTransfer) -> bool {
++    [fe.func_r(), fe.func_g(), fe.func_b(), fe.func_a()]
++        .into_iter()
++        .all(identity_function)
++}
++
++fn identity_function(func: &TransferFunction) -> bool {
++    match func {
++        TransferFunction::Identity => true,
++        TransferFunction::Table(values) => values.is_empty() || values.as_slice() == [0.0, 1.0],
++        TransferFunction::Discrete(values) => values.is_empty(),
++        TransferFunction::Linear { slope, intercept } => *slope == 1.0 && *intercept == 0.0,
++        TransferFunction::Gamma {
++            amplitude,
++            exponent,
++            offset,
++        } => *amplitude == 1.0 && *exponent == 1.0 && *offset == 0.0,
++    }
++}
+ 
+ /// Applies component transfer functions for each `src` image channel.
+ ///
+ /// Input image pixels should have an **unpremultiplied alpha**.
+ pub fn apply(fe: &ComponentTransfer, src: ImageRefMut) {
++    // Fixed stack tables cap expensive evaluations at 256 per channel.
++    // Small images avoid setup that would exceed their pixel count.
++    if src.data.len() < 256 {
++        apply_direct(fe, src);
++        return;
++    }
++    let tables = [fe.func_r(), fe.func_g(), fe.func_b(), fe.func_a()].map(lookup);
++    for pixel in src.data {
++        for (channel, table) in [&mut pixel.r, &mut pixel.g, &mut pixel.b, &mut pixel.a]
++            .into_iter()
++            .zip(&tables)
++        {
++            if let Some(table) = table {
++                *channel = table[usize::from(*channel)];
++            }
++        }
++    }
++}
++
++pub(super) fn lookup(func: &TransferFunction) -> Option<[u8; 256]> {
++    if is_dummy(func) {
++        None
++    } else {
++        Some(std::array::from_fn(|i| transfer(func, i as u8)))
++    }
++}
++
++fn apply_direct(fe: &ComponentTransfer, src: ImageRefMut) {
+     for pixel in src.data {
+         if !is_dummy(fe.func_r()) {
+             pixel.r = transfer(fe.func_r(), pixel.r);
+@@ -38,35 +87,146 @@
+ }
+ 
+ fn transfer(func: &TransferFunction, c: u8) -> u8 {
+-    let c = c as f32 / 255.0;
++    // Build byte-domain tables before color conversion or premultiplication.
++    // Preserve float coefficient arithmetic for linear/discrete functions;
++    // interpolation and powers need double precision at quantization boundaries.
++    let byte = c;
++    let c = f64::from(c) / 255.0;
+     let c = match func {
+-        TransferFunction::Identity => c,
++        TransferFunction::Identity => return byte,
+         TransferFunction::Table(values) => {
+-            let n = values.len() - 1;
+-            let k = (c * (n as f32)).floor() as usize;
+-            let k = std::cmp::min(k, n);
+-            if k == n {
+-                values[k]
+-            } else {
+-                let vk = values[k];
+-                let vk1 = values[k + 1];
+-                let k = k as f32;
+-                let n = n as f32;
+-                vk + (c - k / n) * n * (vk1 - vk)
+-            }
++            let Some(n) = values.len().checked_sub(1) else {
++                return byte;
++            };
++            let position = c * n as f64;
++            let k = (position as usize).min(n);
++            let start = f64::from(values[k]);
++            let end = f64::from(values[(k + 1).min(n)]);
++            255.0 * (start + (position - k as f64) * (end - start))
+         }
+         TransferFunction::Discrete(values) => {
+-            let n = values.len();
+-            let k = (c * (n as f32)).floor() as usize;
+-            values[std::cmp::min(k, n - 1)]
+-        }
+-        TransferFunction::Linear { slope, intercept } => slope * c + intercept,
++            let Some(last) = values.len().checked_sub(1) else {
++                return byte;
++            };
++            let k = (c * values.len() as f64) as usize;
++            f64::from(255.0 * values[k.min(last)])
++        }
++        TransferFunction::Linear { slope, intercept } => {
++            f64::from(slope * f32::from(byte) + 255.0 * intercept)
++        }
+         TransferFunction::Gamma {
+             amplitude,
+             exponent,
+             offset,
+-        } => amplitude * c.powf(*exponent) + offset,
++        } => 255.0 * (f64::from(*amplitude) * c.powf(f64::from(*exponent)) + f64::from(*offset)),
+     };
+ 
+-    (f32_bound(0.0, c, 1.0) * 255.0) as u8
+-}
++    c.clamp(0.0, 255.0) as u8
++}
++
++#[cfg(test)]
++mod identity_tests {
++    use super::{identity_function, TransferFunction as F};
++
++    #[test]
++    fn exact_identity_and_empty_tables_only() {
++        for f in [
++            F::Identity,
++            F::Table(vec![]),
++            F::Discrete(vec![]),
++            F::Table(vec![0.0, 1.0]),
++            F::Linear {
++                slope: 1.0,
++                intercept: 0.0,
++            },
++            F::Gamma {
++                amplitude: 1.0,
++                exponent: 1.0,
++                offset: 0.0,
++            },
++        ] {
++            assert!(identity_function(&f));
++        }
++        for f in [
++            F::Discrete(vec![0.0, 1.0]),
++            F::Table(vec![1.0]),
++            F::Table(vec![0.0, 1.0 - f32::EPSILON]),
++            F::Linear {
++                slope: 1.0 + f32::EPSILON,
++                intercept: 0.0,
++            },
++            F::Linear {
++                slope: 1.0,
++                intercept: f32::from_bits(1),
++            },
++            F::Gamma {
++                amplitude: 1.0 + f32::EPSILON,
++                exponent: 1.0,
++                offset: 0.0,
++            },
++            F::Gamma {
++                amplitude: 1.0,
++                exponent: 1.0 + f32::EPSILON,
++                offset: 0.0,
++            },
++            F::Gamma {
++                amplitude: 1.0,
++                exponent: 1.0,
++                offset: f32::from_bits(1),
++            },
++            F::Gamma {
++                amplitude: f32::NAN,
++                exponent: 1.0,
++                offset: 0.0,
++            },
++        ] {
++            assert!(!identity_function(&f));
++        }
++    }
++}
++
++#[cfg(test)]
++mod lookup_tests {
++    use super::{lookup, transfer, TransferFunction as F};
++
++    #[test]
++    fn lookup_matches_scalar_for_every_byte() {
++        for func in [
++            F::Table(vec![0.0, 0.8, 0.2, 1.0]),
++            F::Table(vec![0.3]),
++            F::Discrete(vec![0.0, 0.8, 0.2, 1.0]),
++            F::Discrete(vec![0.3]),
++            F::Linear {
++                slope: 1.3,
++                intercept: -0.1,
++            },
++            F::Linear {
++                slope: -2.0,
++                intercept: 1.2,
++            },
++            F::Gamma {
++                amplitude: 0.8,
++                exponent: 1.7,
++                offset: 0.05,
++            },
++            F::Gamma {
++                amplitude: 1.0,
++                exponent: -1.0,
++                offset: -0.2,
++            },
++            F::Gamma {
++                amplitude: 1.0,
++                exponent: 0.0,
++                offset: 0.0,
++            },
++        ] {
++            let table = lookup(&func).unwrap();
++            for byte in 0..=255u8 {
++                assert_eq!(table[usize::from(byte)], transfer(&func, byte));
++            }
++        }
++        for func in [F::Identity, F::Table(vec![]), F::Discrete(vec![])] {
++            assert!(lookup(&func).is_none());
++        }
++    }
++}
+--- /dev/null
++++ b/src/filter/component_transfer_color.rs
+@@ -0,0 +1,113 @@
++//! Fuse component transfer while retaining sRGB premultiplied output.
++use usvg::filter::ComponentTransfer;
++
++pub(super) fn apply(fe: &ComponentTransfer, linear: bool, pixels: &mut [u8]) {
++    let tables = [fe.func_r(), fe.func_g(), fe.func_b()].map(|func| {
++        super::component_transfer::lookup(func).unwrap_or_else(|| std::array::from_fn(|i| i as u8))
++    });
++    let alpha_table = super::component_transfer::lookup(fe.func_a())
++        .unwrap_or_else(|| std::array::from_fn(|i| i as u8));
++    apply_tables(tables, alpha_table, linear, pixels);
++}
++
++fn apply_tables(tables: [[u8; 256]; 3], alpha_table: [u8; 256], linear: bool, pixels: &mut [u8]) {
++    let encoded = tables.map(|table| {
++        table.map(|value| {
++            let value = f64::from(value) / 255.0;
++            if linear {
++                super::color_transfer::channel(value, false)
++            } else {
++                value
++            }
++        })
++    });
++    // At most 64 KiB of stack indices, scoped to this call. Each observed alpha
++    // builds one row, avoiding repeated powers even for alternating alpha values.
++    let mut indices = [[0u8; 256]; 256];
++    let mut ready = [false; 256];
++    for pixel in pixels.chunks_exact_mut(4) {
++        let alpha = usize::from(pixel[3]);
++        let output_alpha = alpha_table[alpha];
++        if output_alpha == 0 {
++            pixel.fill(0);
++            continue;
++        }
++        // Transparent input has straight RGB zero even when the alpha function creates coverage.
++        if alpha != 0 && !ready[alpha] {
++            for (channel, index) in indices[alpha].iter_mut().enumerate().take(alpha + 1) {
++                let value = channel as f64 / alpha as f64;
++                let value = if linear {
++                    super::color_transfer::channel(value, true)
++                } else {
++                    value
++                };
++                *index = (value * 255.0).round().clamp(0.0, 255.0) as u8;
++            }
++            ready[alpha] = true;
++        }
++        for channel in 0..3 {
++            let index = usize::from(indices[alpha][usize::from(pixel[channel]).min(alpha)]);
++            pixel[channel] = (encoded[channel][index] * f64::from(output_alpha))
++                .round()
++                .clamp(0.0, f64::from(output_alpha)) as u8;
++        }
++        pixel[3] = output_alpha;
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn cached_alpha_rows_match_direct_evaluation() {
++        let tables = [
++            std::array::from_fn(|i| 255 - i as u8),
++            std::array::from_fn(|i| i as u8),
++            std::array::from_fn(|i| (i / 2) as u8),
++        ];
++        let mut original = Vec::new();
++        for alpha in (0..=255u8).rev() {
++            for value in 0..=alpha {
++                original.extend_from_slice(&[value, alpha - value, value / 2, alpha]);
++            }
++        }
++        for (linear, change_alpha) in [(false, false), (true, false), (false, true), (true, true)] {
++            let alpha_table = std::array::from_fn(|i| {
++                if change_alpha {
++                    (i / 2 + 32) as u8
++                } else {
++                    i as u8
++                }
++            });
++            let mut actual = original.clone();
++            apply_tables(tables, alpha_table, linear, &mut actual);
++            for (before, after) in original.chunks_exact(4).zip(actual.chunks_exact(4)) {
++                let alpha = f64::from(before[3]);
++                let output_alpha = alpha_table[usize::from(before[3])];
++                assert_eq!(output_alpha, after[3]);
++                for c in 0..3 {
++                    let straight = if alpha == 0.0 {
++                        0.0
++                    } else {
++                        f64::from(before[c]) / alpha
++                    };
++                    let straight = if linear {
++                        super::super::color_transfer::channel(straight, true)
++                    } else {
++                        straight
++                    };
++                    let index = (straight * 255.0).round() as usize;
++                    let value = f64::from(tables[c][index]) / 255.0;
++                    let value = if linear {
++                        super::super::color_transfer::channel(value, false)
++                    } else {
++                        value
++                    };
++                    assert_eq!(after[c], (value * f64::from(output_alpha)).round() as u8);
++                    assert!(after[c] <= after[3]);
++                }
++            }
++        }
++    }
++}
+--- a/src/filter/composite.rs
++++ b/src/filter/composite.rs
+@@ -1,9 +1,26 @@
+ // Copyright 2020 the Resvg Authors
+ // SPDX-License-Identifier: Apache-2.0 OR MIT
+ 
+-use super::{ImageRef, ImageRefMut, f32_bound};
++use super::{f32_bound, ImageRef, ImageRefMut};
+ use rgb::RGBA8;
+ use usvg::ApproxZeroUlps;
++
++#[derive(Debug, PartialEq)]
++pub(super) enum SelectedInput {
++    First,
++    Second,
++}
++
++/// Exact projections commute with color conversion; approximate coefficients do not.
++pub(super) fn selected_input(k: [f32; 4]) -> Option<SelectedInput> {
++    if k == [0.0, 1.0, 0.0, 0.0] {
++        Some(SelectedInput::First)
++    } else if k == [0.0, 0.0, 1.0, 0.0] {
++        Some(SelectedInput::Second)
++    } else {
++        None
++    }
++}
+ 
+ /// Performs an arithmetic composition.
+ ///
+@@ -48,3 +65,30 @@
+         i += 1;
+     }
+ }
++
++#[cfg(test)]
++mod selection_tests {
++    use super::{selected_input, SelectedInput};
++
++    #[test]
++    fn selects_only_exact_arithmetic_projections() {
++        for (k, expected) in [
++            ([0.0, 1.0, 0.0, 0.0], SelectedInput::First),
++            ([0.0, 0.0, 1.0, 0.0], SelectedInput::Second),
++        ] {
++            assert_eq!(selected_input(k), Some(expected));
++            for index in 0..4 {
++                for value in [
++                    k[index] + f32::EPSILON,
++                    f32::NAN,
++                    f32::INFINITY,
++                    f32::NEG_INFINITY,
++                ] {
++                    let mut changed = k;
++                    changed[index] = value;
++                    assert_eq!(selected_input(changed), None);
++                }
++            }
++        }
++    }
++}
+--- /dev/null
++++ b/src/filter/gaussian_blur.rs
+@@ -0,0 +1,96 @@
++// SPDX-License-Identifier: Apache-2.0 OR MIT
++//! Bounded finite Gaussian convolution for small sigmas, without the recursive
++//! approximation's edge/tail errors. Larger sigmas use bounded resampling.
++use super::{joint_gaussian, ImageRefMut};
++use rgb::RGBA8;
++
++pub fn apply(sx: f64, sy: f64, image: ImageRefMut) {
++    if sx > 8.0 || sy > 8.0 {
++        joint_gaussian::apply(sx, sy, image);
++        return;
++    }
++    if super::small_gaussian_2d::apply(
++        sx,
++        sy,
++        ImageRefMut::new(image.width, image.height, image.data),
++    ) {
++        return;
++    }
++    let mut buffer = Vec::new();
++    for (sigma, horizontal) in [(sx, true), (sy, false)] {
++        if sigma <= 0.0 {
++            continue;
++        }
++        let radius = (3.0 * sigma).ceil() as i32;
++        let mut weights: Vec<_> = (-radius..=radius)
++            .map(|x| (-f64::from(x * x) / (2.0 * sigma * sigma)).exp())
++            .collect();
++        let sum: f64 = weights.iter().sum();
++        for weight in &mut weights {
++            *weight /= sum;
++        }
++        buffer.resize(image.data.len(), RGBA8::default());
++        let width = image.width as i32;
++        let height = image.height as i32;
++        for y in 0..height {
++            for x in 0..width {
++                let mut value = [0.0; 4];
++                for (offset, weight) in (-radius..=radius).zip(&weights) {
++                    let (ix, iy) = if horizontal {
++                        (x + offset, y)
++                    } else {
++                        (x, y + offset)
++                    };
++                    // The default edge mode is transparent; don't renormalize edges.
++                    if ix < 0 || iy < 0 || ix >= width || iy >= height {
++                        continue;
++                    }
++                    let pixel = image.data[(iy * width + ix) as usize];
++                    for (sum, channel) in value.iter_mut().zip([pixel.r, pixel.g, pixel.b, pixel.a])
++                    {
++                        *sum += f64::from(channel) * weight;
++                    }
++                }
++                let [r, g, b, a] = value.map(|v| v.round().clamp(0.0, 255.0) as u8);
++                buffer[(y * width + x) as usize] = RGBA8::new(r, g, b, a);
++            }
++        }
++        image.data.copy_from_slice(&buffer);
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    #[test]
++    fn finite_kernel_preserves_zero_axis_and_transparent_edges() {
++        for (sigma, expected) in [
++            (0.0, vec![0, 0, 0, 255, 0, 0, 0]),
++            (0.5, vec![0, 0, 27, 201, 27, 0, 0]),
++            (1.0, vec![1, 14, 62, 102, 62, 14, 1]),
++        ] {
++            let mut image = vec![RGBA8::default(); 7];
++            image[3] = RGBA8::new(255, 255, 255, 255);
++            apply(sigma, 0.0, ImageRefMut::new(7, 1, &mut image));
++            assert_eq!(image.iter().map(|p| p.a).collect::<Vec<_>>(), expected);
++            assert!(image.iter().all(|p| p.r == p.a && p.g == p.a && p.b == p.a));
++        }
++        let mut image = vec![RGBA8::new(255, 255, 255, 255); 1];
++        apply(1.0, 0.0, ImageRefMut::new(1, 1, &mut image));
++        assert_eq!(image[0].a, 102, "transparent padding is not renormalized");
++    }
++
++    #[test]
++    fn finite_kernel_resource_probe() {
++        for sigma in [0.3, 2.0, 8.0] {
++            let mut pixels = vec![RGBA8::new(32, 64, 128, 255); 1024 * 1024];
++            let start = std::time::Instant::now();
++            apply(sigma, sigma, ImageRefMut::new(1024, 1024, &mut pixels));
++            assert_eq!(pixels[512 * 1024 + 512], RGBA8::new(32, 64, 128, 255));
++            println!(
++                "gaussian 1024x1024 sigma={sigma} elapsed_ms={}",
++                start.elapsed().as_millis()
++            );
++        }
++    }
++}
+--- /dev/null
++++ b/src/filter/joint_gaussian.rs
+@@ -0,0 +1,112 @@
++// SPDX-License-Identifier: Apache-2.0 OR MIT
++//! Resample both axes before convolution, then reconstruct once to avoid an
++//! intermediate full-resolution quantization between horizontal/vertical passes.
++use super::{scaled_frame::Frame, ImageRefMut};
++use rgb::RGBA8;
++
++pub fn apply(sx: f64, sy: f64, image: ImageRefMut) {
++    let sigmas = [sx, sy];
++    if sigmas
++        .iter()
++        .any(|s| !s.is_finite() || *s > f64::from(f32::MAX))
++    {
++        image.data.fill(RGBA8::default());
++        return;
++    }
++    let net = sigmas.map(|s| if s > 4.0 { 4.0 / s } else { 1.0 });
++    let mut steps = net.map(|n| {
++        let mut count = (1.0 / n).log2().ceil() as i32;
++        if count > 0 && n * 2.0f64.powi(count - 1) >= if count == 1 { 0.999 } else { 0.9 } {
++            count -= 1;
++        }
++        count
++    });
++    let mut frame = Frame {
++        width: image.width as usize,
++        height: image.height as usize,
++        origin: [0, 0],
++        // The first reduction only reads input; do not allocate a full-size copy.
++        pixels: std::borrow::Cow::Borrowed(image.data),
++    };
++    let (mut left, mut right) = ([0.0; 2], [f64::from(image.width), f64::from(image.height)]);
++    let (mut totals, mut translations) = ([1.0; 2], [0.0; 2]);
++    while steps.iter().any(|n| *n > 0) {
++        let mut scales = [1.0; 2];
++        let mut centers = [0.0; 2];
++        for i in 0..2 {
++            if steps[i] > 0 {
++                scales[i] = if steps[i] > 1 {
++                    0.5
++                } else {
++                    net[i] / totals[i]
++                };
++                centers[i] = (left[i] + right[i]) * 0.5;
++            }
++            left[i] = (left[i] - centers[i]) * scales[i];
++            right[i] = (right[i] - centers[i]) * scales[i];
++            totals[i] *= scales[i];
++            translations[i] = (translations[i] - centers[i]) * scales[i];
++            steps[i] = (steps[i] - 1).max(0);
++        }
++        frame = frame.resample(left, right, scales, centers);
++    }
++    frame = frame.blur((sx * totals[0]).min(4.0), true);
++    frame = frame.blur((sy * totals[1]).min(4.0), false);
++    let frame = frame.into_owned();
++    for y in 0..image.height as usize {
++        for x in 0..image.width as usize {
++            image.data[y * image.width as usize + x] = frame.sample([
++                (x as f64 + 0.5) * totals[0] + translations[0],
++                (y as f64 + 0.5) * totals[1] + translations[1],
++            ]);
++        }
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    #[test]
++    fn invalid_sigma_clears_before_allocating_frames() {
++        for sigma in [f64::INFINITY, f64::NAN, f64::MAX] {
++            let mut pixels = vec![RGBA8::new(1, 2, 3, 255); 4];
++            apply(sigma, 0.0, ImageRefMut::new(2, 2, &mut pixels));
++            assert!(pixels.iter().all(|p| *p == RGBA8::default()));
++        }
++    }
++    #[test]
++    fn single_axis_transposition_preserves_premultiplication() {
++        for sigma in [8.01, 9.0, 16.0, 100.0, 1e38] {
++            let input: Vec<_> = (0..64)
++                .map(|i| {
++                    let a = ((i * 71) % 256) as u8;
++                    RGBA8::new(a / 2, a / 3, a, a)
++                })
++                .collect();
++            let mut x = input.clone();
++            let mut y = input;
++            apply(sigma, 0.0, ImageRefMut::new(64, 1, &mut x));
++            apply(0.0, sigma, ImageRefMut::new(1, 64, &mut y));
++            assert_eq!(x, y, "sigma={sigma}");
++            assert!(x.iter().all(|p| p.r <= p.a && p.g <= p.a && p.b <= p.a));
++        }
++    }
++    #[test]
++    fn large_sigma_joint_resource_probe() {
++        for sigma in [9.0, 32.0, 1e9, 1e38] {
++            let mut pixels = vec![RGBA8::new(32, 64, 128, 255); 1024 * 1024];
++            let start = std::time::Instant::now();
++            apply(sigma, sigma, ImageRefMut::new(1024, 1024, &mut pixels));
++            let expected = if sigma < 100.0 {
++                RGBA8::new(32, 64, 128, 255)
++            } else {
++                RGBA8::default()
++            };
++            assert_eq!(pixels[512 * 1024 + 512], expected);
++            println!(
++                "joint-gaussian 1024x1024 sigma={sigma} elapsed_ms={}",
++                start.elapsed().as_millis()
++            );
++        }
++    }
++}
+--- /dev/null
++++ b/src/filter/matrix_premultiplied.rs
+@@ -0,0 +1,72 @@
++// SPDX-License-Identifier: Apache-2.0 OR MIT
++//! Keep straight intermediate matrix values in floating point until final output.
++use super::ImageRefMut;
++use rgb::RGBA8;
++
++pub(super) fn apply(matrix: &[f32], image: ImageRefMut, transfer: Option<bool>) {
++    for pixel in image.data {
++        let a = f64::from(pixel.a) / 255.0;
++        let mut input = if pixel.a == 0 {
++            [0.0; 4]
++        } else {
++            [
++                f64::from(pixel.r) / f64::from(pixel.a),
++                f64::from(pixel.g) / f64::from(pixel.a),
++                f64::from(pixel.b) / f64::from(pixel.a),
++                a,
++            ]
++        };
++        // Keep both color transforms in the same pixel operation. The resulting
++        // bytes retain the source color space, not the matrix's working space.
++        if let Some(linear) = transfer {
++            for value in &mut input[..3] {
++                *value = super::color_transfer::channel(*value, linear);
++            }
++        }
++        let mut output = [0.0; 4];
++        for (channel, row) in matrix.chunks_exact(5).enumerate() {
++            output[channel] = (input
++                .iter()
++                .zip(row)
++                .map(|(v, m)| v * f64::from(*m))
++                .sum::<f64>()
++                + f64::from(row[4]))
++            .clamp(0.0, 1.0);
++        }
++        if let Some(linear) = transfer {
++            for value in &mut output[..3] {
++                *value = super::color_transfer::channel(*value, !linear);
++            }
++        }
++        let alpha = output[3] * 255.0;
++        *pixel = RGBA8::new(
++            (output[0] * alpha) as u8,
++            (output[1] * alpha) as u8,
++            (output[2] * alpha) as u8,
++            alpha as u8,
++        );
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn gain_quantizes_once_and_transparent_offsets_are_clamped() {
++        let mut matrix = [0.0; 20];
++        for index in [0, 6, 12] {
++            matrix[index] = 0.5;
++        }
++        matrix[18] = 1.0;
++        let mut pixels = [RGBA8::new(1, 3, 8, 8)];
++        apply(&matrix, ImageRefMut::new(1, 1, &mut pixels), None);
++        assert_eq!(pixels[0], RGBA8::new(0, 1, 4, 8));
++        matrix[4] = 2.0;
++        matrix[9] = -1.0;
++        matrix[19] = 0.5;
++        pixels[0] = RGBA8::default();
++        apply(&matrix, ImageRefMut::new(1, 1, &mut pixels), None);
++        assert_eq!(pixels[0], RGBA8::new(127, 0, 0, 127));
++    }
++}
+--- a/src/filter/mod.rs
++++ b/src/filter/mod.rs
+@@ -7,16 +7,23 @@
+ use tiny_skia::IntRect;
+ use usvg::{ApproxEqUlps, ApproxZeroUlps};
+ 
+-mod box_blur;
+ mod color_matrix;
++mod color_transfer;
+ mod component_transfer;
++mod component_transfer_color;
+ mod composite;
+ mod convolve_matrix;
+ mod displacement_map;
+-mod iir_blur;
++mod gaussian_blur;
++mod joint_gaussian;
+ mod lighting;
++mod matrix_premultiplied;
+ mod morphology;
++mod result_liveness;
++mod scaled_frame;
++mod small_gaussian_2d;
+ mod turbulence;
++pub(crate) mod work_budget;
+ 
+ // TODO: apply single primitive filters in-place
+ 
+@@ -87,12 +94,13 @@
+ pub(crate) enum Error {
+     InvalidRegion,
+     NoResults,
++    InvalidCoordinates,
++    WorkBudgetExceeded,
+ }
+ 
+ trait PixmapExt: Sized {
+     fn try_create(width: u32, height: u32) -> Result<tiny_skia::Pixmap, Error>;
+     fn copy_region(&self, region: IntRect) -> Result<tiny_skia::Pixmap, Error>;
+-    fn clear(&mut self);
+     fn into_srgb(&mut self);
+     fn into_linear_rgb(&mut self);
+ }
+@@ -108,20 +116,12 @@
+         self.clone_rect(rect).ok_or(Error::InvalidRegion)
+     }
+ 
+-    fn clear(&mut self) {
+-        self.fill(tiny_skia::Color::TRANSPARENT);
+-    }
+-
+     fn into_srgb(&mut self) {
+-        demultiply_alpha(self.data_mut().as_rgba_mut());
+-        from_linear_rgb(self.data_mut().as_rgba_mut());
+-        multiply_alpha(self.data_mut().as_rgba_mut());
++        color_transfer::convert(self.data_mut().as_rgba_mut(), false);
+     }
+ 
+     fn into_linear_rgb(&mut self) {
+-        demultiply_alpha(self.data_mut().as_rgba_mut());
+-        into_linear_rgb(self.data_mut().as_rgba_mut());
+-        multiply_alpha(self.data_mut().as_rgba_mut());
++        color_transfer::convert(self.data_mut().as_rgba_mut(), true);
+     }
+ }
+ 
+@@ -142,98 +142,6 @@
+         p.b = (p.b as f32 / a + 0.5) as u8;
+         p.g = (p.g as f32 / a + 0.5) as u8;
+         p.r = (p.r as f32 / a + 0.5) as u8;
+-    }
+-}
+-
+-/// Precomputed sRGB to LinearRGB table.
+-///
+-/// Since we are storing the result in `u8`, there is no need to compute those
+-/// values each time. Mainly because it's very expensive.
+-///
+-/// ```text
+-/// if (C_srgb <= 0.04045)
+-///     C_lin = C_srgb / 12.92;
+-///  else
+-///     C_lin = pow((C_srgb + 0.055) / 1.055, 2.4);
+-/// ```
+-///
+-/// Thanks to librsvg for the idea.
+-#[rustfmt::skip]
+-const SRGB_TO_LINEAR_RGB_TABLE: &[u8; 256] = &[
+-    0,   0,   0,   0,   0,   0,  0,    1,   1,   1,   1,   1,   1,   1,   1,   1,
+-    1,   1,   2,   2,   2,   2,  2,    2,   2,   2,   3,   3,   3,   3,   3,   3,
+-    4,   4,   4,   4,   4,   5,  5,    5,   5,   6,   6,   6,   6,   7,   7,   7,
+-    8,   8,   8,   8,   9,   9,  9,   10,  10,  10,  11,  11,  12,  12,  12,  13,
+-    13,  13,  14,  14,  15,  15,  16,  16,  17,  17,  17,  18,  18,  19,  19,  20,
+-    20,  21,  22,  22,  23,  23,  24,  24,  25,  25,  26,  27,  27,  28,  29,  29,
+-    30,  30,  31,  32,  32,  33,  34,  35,  35,  36,  37,  37,  38,  39,  40,  41,
+-    41,  42,  43,  44,  45,  45,  46,  47,  48,  49,  50,  51,  51,  52,  53,  54,
+-    55,  56,  57,  58,  59,  60,  61,  62,  63,  64,  65,  66,  67,  68,  69,  70,
+-    71,  72,  73,  74,  76,  77,  78,  79,  80,  81,  82,  84,  85,  86,  87,  88,
+-    90,  91,  92,  93,  95,  96,  97,  99, 100, 101, 103, 104, 105, 107, 108, 109,
+-    111, 112, 114, 115, 116, 118, 119, 121, 122, 124, 125, 127, 128, 130, 131, 133,
+-    134, 136, 138, 139, 141, 142, 144, 146, 147, 149, 151, 152, 154, 156, 157, 159,
+-    161, 163, 164, 166, 168, 170, 171, 173, 175, 177, 179, 181, 183, 184, 186, 188,
+-    190, 192, 194, 196, 198, 200, 202, 204, 206, 208, 210, 212, 214, 216, 218, 220,
+-    222, 224, 226, 229, 231, 233, 235, 237, 239, 242, 244, 246, 248, 250, 253, 255,
+-];
+-
+-/// Precomputed LinearRGB to sRGB table.
+-///
+-/// Since we are storing the result in `u8`, there is no need to compute those
+-/// values each time. Mainly because it's very expensive.
+-///
+-/// ```text
+-/// if (C_lin <= 0.0031308)
+-///     C_srgb = C_lin * 12.92;
+-/// else
+-///     C_srgb = 1.055 * pow(C_lin, 1.0 / 2.4) - 0.055;
+-/// ```
+-///
+-/// Thanks to librsvg for the idea.
+-#[rustfmt::skip]
+-const LINEAR_RGB_TO_SRGB_TABLE: &[u8; 256] = &[
+-    0,  13,  22,  28,  34,  38,  42,  46,  50,  53,  56,  59,  61,  64,  66,  69,
+-    71,  73,  75,  77,  79,  81,  83,  85,  86,  88,  90,  92,  93,  95,  96,  98,
+-    99, 101, 102, 104, 105, 106, 108, 109, 110, 112, 113, 114, 115, 117, 118, 119,
+-    120, 121, 122, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136,
+-    137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147, 148, 148, 149, 150, 151,
+-    152, 153, 154, 155, 155, 156, 157, 158, 159, 159, 160, 161, 162, 163, 163, 164,
+-    165, 166, 167, 167, 168, 169, 170, 170, 171, 172, 173, 173, 174, 175, 175, 176,
+-    177, 178, 178, 179, 180, 180, 181, 182, 182, 183, 184, 185, 185, 186, 187, 187,
+-    188, 189, 189, 190, 190, 191, 192, 192, 193, 194, 194, 195, 196, 196, 197, 197,
+-    198, 199, 199, 200, 200, 201, 202, 202, 203, 203, 204, 205, 205, 206, 206, 207,
+-    208, 208, 209, 209, 210, 210, 211, 212, 212, 213, 213, 214, 214, 215, 215, 216,
+-    216, 217, 218, 218, 219, 219, 220, 220, 221, 221, 222, 222, 223, 223, 224, 224,
+-    225, 226, 226, 227, 227, 228, 228, 229, 229, 230, 230, 231, 231, 232, 232, 233,
+-    233, 234, 234, 235, 235, 236, 236, 237, 237, 238, 238, 238, 239, 239, 240, 240,
+-    241, 241, 242, 242, 243, 243, 244, 244, 245, 245, 246, 246, 246, 247, 247, 248,
+-    248, 249, 249, 250, 250, 251, 251, 251, 252, 252, 253, 253, 254, 254, 255, 255,
+-];
+-
+-/// Converts input pixel from sRGB into LinearRGB.
+-///
+-/// Provided pixels should have an **unpremultiplied alpha**.
+-///
+-/// RGB channels order of the input image doesn't matter, but alpha channel must be the last one.
+-fn into_linear_rgb(data: &mut [RGBA8]) {
+-    for p in data {
+-        p.r = SRGB_TO_LINEAR_RGB_TABLE[p.r as usize];
+-        p.g = SRGB_TO_LINEAR_RGB_TABLE[p.g as usize];
+-        p.b = SRGB_TO_LINEAR_RGB_TABLE[p.b as usize];
+-    }
+-}
+-
+-/// Converts input pixel from LinearRGB into sRGB.
+-///
+-/// Provided pixels should have an **unpremultiplied alpha**.
+-///
+-/// RGB channels order of the input image doesn't matter, but alpha channel must be the last one.
+-fn from_linear_rgb(data: &mut [RGBA8]) {
+-    for p in data {
+-        p.r = LINEAR_RGB_TO_SRGB_TABLE[p.r as usize];
+-        p.g = LINEAR_RGB_TO_SRGB_TABLE[p.g as usize];
+-        p.b = LINEAR_RGB_TO_SRGB_TABLE[p.b as usize];
+     }
+ }
+ 
+@@ -336,8 +244,9 @@
+     filter: &usvg::filter::Filter,
+     ts: tiny_skia::Transform,
+     source: &mut tiny_skia::Pixmap,
+-) {
+-    let result = apply_inner(filter, ts, source);
++    ctx: &crate::render::Context,
++) -> bool {
++    let result = apply_inner(filter, ts, source, ctx);
+     let result = result.and_then(|image| apply_to_canvas(image, source));
+ 
+     // Clear on error.
+@@ -345,24 +254,34 @@
+         source.fill(tiny_skia::Color::TRANSPARENT);
+     }
+ 
++    let success = result.is_ok();
+     match result {
+         Ok(_) => {}
+         Err(Error::InvalidRegion) => {
+             log::warn!("Filter has an invalid region.");
+         }
+         Err(Error::NoResults) => {}
+-    }
++        Err(Error::WorkBudgetExceeded) => {}
++        Err(Error::InvalidCoordinates) => {
++            log::warn!("Filter coordinates exceed the integer domain.")
++        }
++    }
++    success
+ }
+ 
+ fn apply_inner(
+     filter: &usvg::filter::Filter,
+     ts: usvg::Transform,
+     source: &mut tiny_skia::Pixmap,
+-) -> Result<Image, Error> {
++    ctx: &crate::render::Context,
++) -> Result<Image, Error> {
++    ctx.filter_work
++        .reserve(Some(4096))
++        .ok_or(Error::WorkBudgetExceeded)?;
+     let region = filter
+         .rect()
+         .transform(ts)
+-        .map(|r| r.to_int_rect())
++        .and_then(|r| r.to_rect().round_out())
+         .ok_or(Error::InvalidRegion)?;
+ 
+     // The source pixmap is clamped to `max_bbox` in `render_group`, so the filter
+@@ -373,12 +292,19 @@
+     let region = crate::geom::fit_to_rect(region, source_rect).ok_or(Error::InvalidRegion)?;
+ 
+     let mut results: Vec<FilterResult> = Vec::new();
+-
+-    for primitive in filter.primitives() {
++    let last_uses = result_liveness::LastUses::new(filter.primitives());
++
++    for (index, primitive) in filter.primitives().iter().enumerate() {
++        // SourceGraphic clones the whole source; primitive subregions clip only
++        // after execution. Reserve before input copies or algorithm allocations.
++        let cost = work_budget::cost(primitive.kind(), source.width(), source.height(), ts);
++        ctx.filter_work
++            .reserve(cost)
++            .ok_or(Error::WorkBudgetExceeded)?;
+         let mut subregion = primitive
+             .rect()
+             .transform(ts)
+-            .map(|r| r.to_int_rect())
++            .and_then(|r| r.to_rect().round_out())
+             .ok_or(Error::InvalidRegion)?;
+ 
+         // `feOffset` inherits its region from the input.
+@@ -421,7 +347,7 @@
+                 let input = get_input(fe.input(), region, source, &results)?;
+                 apply_tile(input, region)
+             }
+-            usvg::filter::Kind::Image(fe) => apply_image(fe, region, subregion, ts),
++            usvg::filter::Kind::Image(fe) => apply_image(fe, region, subregion, ts, ctx),
+             usvg::filter::Kind::ComponentTransfer(fe) => {
+                 let input = get_input(fe.input(), region, source, &results)?;
+                 apply_component_transfer(fe, cs, input)
+@@ -507,6 +433,10 @@
+             };
+         }
+ 
++        // Inputs have been consumed, including feOffset's region inheritance.
++        // Preserve named branches until their last use, and always keep the new
++        // result so the final primitive remains the filter output.
++        results.retain(|result| last_uses.needed_after(&result.name, index));
+         results.push(FilterResult {
+             name: primitive.result().to_string(),
+             image: result,
+@@ -593,14 +523,9 @@
+     let input_pixmap = input.into_color_space(cs)?.take()?;
+     let mut shadow_pixmap = input_pixmap.clone();
+ 
+-    if let Some((std_dx, std_dy, use_box_blur)) =
+-        resolve_std_dev(fe.std_dev_x().get(), fe.std_dev_y().get(), ts)
++    if let Some((std_dx, std_dy)) = resolve_std_dev(fe.std_dev_x().get(), fe.std_dev_y().get(), ts)
+     {
+-        if use_box_blur {
+-            box_blur::apply(std_dx, std_dy, shadow_pixmap.as_image_ref_mut());
+-        } else {
+-            iir_blur::apply(std_dx, std_dy, shadow_pixmap.as_image_ref_mut());
+-        }
++        gaussian_blur::apply(std_dx, std_dy, shadow_pixmap.as_image_ref_mut());
+     }
+ 
+     // flood
+@@ -648,19 +573,14 @@
+     ts: usvg::Transform,
+     input: Image,
+ ) -> Result<Image, Error> {
+-    let (std_dx, std_dy, use_box_blur) =
+-        match resolve_std_dev(fe.std_dev_x().get(), fe.std_dev_y().get(), ts) {
+-            Some(v) => v,
+-            None => return Ok(input),
+-        };
++    let (std_dx, std_dy) = match resolve_std_dev(fe.std_dev_x().get(), fe.std_dev_y().get(), ts) {
++        Some(v) => v,
++        None => return Ok(input),
++    };
+ 
+     let mut pixmap = input.into_color_space(cs)?.take()?;
+ 
+-    if use_box_blur {
+-        box_blur::apply(std_dx, std_dy, pixmap.as_image_ref_mut());
+-    } else {
+-        iir_blur::apply(std_dx, std_dy, pixmap.as_image_ref_mut());
+-    }
++    gaussian_blur::apply(std_dx, std_dy, pixmap.as_image_ref_mut());
+ 
+     Ok(Image::from_image(pixmap, cs))
+ }
+@@ -680,12 +600,13 @@
+     }
+ 
+     let mut pixmap = tiny_skia::Pixmap::try_create(input.width(), input.height())?;
++    // Keep the fractional translation for rasterization; do not truncate toward zero.
+     pixmap.draw_pixmap(
+-        dx as i32,
+-        dy as i32,
++        0,
++        0,
+         input.as_ref().as_ref(),
+         &tiny_skia::PixmapPaint::default(),
+-        tiny_skia::Transform::identity(),
++        tiny_skia::Transform::from_translate(dx, dy),
+         None,
+     );
+ 
+@@ -736,6 +657,14 @@
+     input2: Image,
+ ) -> Result<Image, Error> {
+     use usvg::filter::CompositeOperator as Operator;
++
++    if let Operator::Arithmetic { k1, k2, k3, k4 } = fe.operator() {
++        match composite::selected_input([k1, k2, k3, k4]) {
++            Some(composite::SelectedInput::First) => return Ok(input1),
++            Some(composite::SelectedInput::Second) => return Ok(input2),
++            None => {}
++        }
++    }
+ 
+     let input1 = input1.into_color_space(cs)?;
+     let input2 = input2.into_color_space(cs)?;
+@@ -821,12 +750,17 @@
+     let c = fe.color();
+ 
+     let mut pixmap = tiny_skia::Pixmap::try_create(region.width(), region.height())?;
+-    pixmap.fill(tiny_skia::Color::from_rgba8(
+-        c.red,
+-        c.green,
+-        c.blue,
+-        fe.opacity().to_u8(),
+-    ));
++    // Keep opacity unquantized until premultiplication; quantizing alpha first
++    // can perturb RGB even when the final alpha remains unchanged.
++    pixmap.fill(
++        tiny_skia::Color::from_rgba(
++            f32::from(c.red) / 255.0,
++            f32::from(c.green) / 255.0,
++            f32::from(c.blue) / 255.0,
++            fe.opacity().get(),
++        )
++        .ok_or(Error::InvalidRegion)?,
++    );
+ 
+     Ok(Image::from_image(
+         pixmap,
+@@ -863,6 +797,7 @@
+     region: IntRect,
+     subregion: IntRect,
+     ts: usvg::Transform,
++    parent: &crate::render::Context,
+ ) -> Result<Image, Error> {
+     let mut pixmap = tiny_skia::Pixmap::try_create(region.width(), region.height())?;
+ 
+@@ -877,10 +812,15 @@
+     );
+ 
+     let ctx = crate::render::Context {
++        filter_failed: parent.filter_failed,
++        filter_work: parent.filter_work,
+         max_bbox: tiny_skia::IntRect::from_xywh(0, 0, region.width(), region.height()).unwrap(),
+     };
+ 
+     crate::render::render_nodes(fe.root(), &ctx, transform, &mut pixmap.as_mut());
++    if ctx.filter_failed.get() || ctx.filter_work.exhausted() {
++        return Err(Error::InvalidCoordinates);
++    }
+ 
+     Ok(Image::from_image(
+         pixmap,
+@@ -893,6 +833,22 @@
+     cs: usvg::filter::ColorInterpolation,
+     input: Image,
+ ) -> Result<Image, Error> {
++    if component_transfer::is_identity(fe) {
++        return input.into_color_space(cs);
++    }
++    // Already-linear inputs retain their separately tested path.
++    if input.color_space == usvg::filter::ColorInterpolation::SRGB {
++        let mut pixmap = input.take()?;
++        component_transfer_color::apply(
++            fe,
++            cs == usvg::filter::ColorInterpolation::LinearRGB,
++            pixmap.data_mut(),
++        );
++        return Ok(Image::from_image(
++            pixmap,
++            usvg::filter::ColorInterpolation::SRGB,
++        ));
++    }
+     let mut pixmap = input.into_color_space(cs)?.take()?;
+ 
+     demultiply_alpha(pixmap.data_mut().as_rgba_mut());
+@@ -907,6 +863,30 @@
+     cs: usvg::filter::ColorInterpolation,
+     input: Image,
+ ) -> Result<Image, Error> {
++    if color_matrix::is_identity(fe.kind()) {
++        return Ok(input);
++    }
++    // Pure channel selection commutes with componentwise color transforms.
++    // Preserve the existing encoding and alpha instead of rounding a roundtrip.
++    if let Some(mapping) = color_matrix::channel_mapping(fe.kind()) {
++        let source_space = input.color_space;
++        let mut pixmap = input.take()?;
++        for pixel in pixmap.data_mut().as_rgba_mut() {
++            let channels = [pixel.r, pixel.g, pixel.b];
++            pixel.r = channels[mapping[0]];
++            pixel.g = channels[mapping[1]];
++            pixel.b = channels[mapping[2]];
++        }
++        return Ok(Image::from_image(pixmap, source_space));
++    }
++    if let usvg::filter::ColorMatrixKind::Matrix(matrix) = fe.kind() {
++        let source_space = input.color_space;
++        let transfer =
++            (source_space != cs).then_some(cs == usvg::filter::ColorInterpolation::LinearRGB);
++        let mut pixmap = input.take()?;
++        matrix_premultiplied::apply(matrix, pixmap.as_image_ref_mut(), transfer);
++        return Ok(Image::from_image(pixmap, source_space));
++    }
+     let mut pixmap = input.into_color_space(cs)?.take()?;
+ 
+     demultiply_alpha(pixmap.data_mut().as_rgba_mut());
+@@ -945,8 +925,7 @@
+         None => return Ok(Image::from_image(pixmap, cs)),
+     };
+ 
+-    if !(rx > 0.0 && ry > 0.0) {
+-        pixmap.clear();
++    if rx == 0.0 && ry == 0.0 {
+         return Ok(Image::from_image(pixmap, cs));
+     }
+ 
+@@ -1010,7 +989,8 @@
+         fe.stitch_tiles(),
+         fe.kind() == usvg::filter::TurbulenceKind::FractalNoise,
+         pixmap.as_image_ref_mut(),
+-    );
++    )
++    .ok_or(Error::InvalidCoordinates)?;
+ 
+     multiply_alpha(pixmap.data_mut().as_rgba_mut());
+ 
+@@ -1115,8 +1095,8 @@
+ 
+ /// Calculates Gaussian blur sigmas for the current world transform.
+ ///
+-/// If the last flag is set, then a box blur should be used. Or IIR otherwise.
+-fn resolve_std_dev(std_dx: f32, std_dy: f32, ts: usvg::Transform) -> Option<(f64, f64, bool)> {
++/// The blur implementation chooses a bounded kernel independently for each axis.
++fn resolve_std_dev(std_dx: f32, std_dy: f32, ts: usvg::Transform) -> Option<(f64, f64)> {
+     let (mut std_dx, mut std_dy) = scale_coordinates(std_dx, std_dy, ts)?;
+ 
+     // 'A negative value or a value of zero disables the effect of the given filter primitive
+@@ -1125,7 +1105,7 @@
+         return None;
+     }
+ 
+-    // Ignore tiny sigmas. In case of IIR blur it can lead to a transparent image.
++    // Preserve the existing tiny-sigma identity boundary.
+     if std_dx < 0.05 {
+         std_dx = 0.0;
+     }
+@@ -1134,11 +1114,7 @@
+         std_dy = 0.0;
+     }
+ 
+-    const BLUR_SIGMA_THRESHOLD: f32 = 2.0;
+-    // Check that the current feGaussianBlur filter can be applied using a box blur.
+-    let box_blur = std_dx >= BLUR_SIGMA_THRESHOLD || std_dy >= BLUR_SIGMA_THRESHOLD;
+-
+-    Some((std_dx as f64, std_dy as f64, box_blur))
++    Some((std_dx as f64, std_dy as f64))
+ }
+ 
+ fn scale_coordinates(x: f32, y: f32, ts: usvg::Transform) -> Option<(f32, f32)> {
+--- a/src/filter/morphology.rs
++++ b/src/filter/morphology.rs
+@@ -3,71 +3,104 @@
+ 
+ use super::ImageRefMut;
+ use rgb::RGBA8;
++use std::collections::VecDeque;
+ use usvg::filter::MorphologyOperator;
+ 
+-/// Applies a morphology filter.
+-///
+-/// `src` pixels should have a **premultiplied alpha**.
+-///
+-/// # Allocations
+-///
+-/// This method will allocate a copy of the `src` image as a back buffer.
++/// Separable rectangular min/max over premultiplied channels, with transparent
++/// pixels outside the image. One image buffer and one bounded line queue; time
++/// is linear in pixel count rather than proportional to the radius area.
+ pub fn apply(operator: MorphologyOperator, rx: f32, ry: f32, src: ImageRefMut) {
+-    // No point in making matrix larger than image.
+-    let columns = std::cmp::min(rx.ceil() as u32 * 2, src.width);
+-    let rows = std::cmp::min(ry.ceil() as u32 * 2, src.height);
+-    let target_x = (columns as f32 / 2.0).floor() as u32;
+-    let target_y = (rows as f32 / 2.0).floor() as u32;
++    let width = src.width as usize;
++    let height = src.height as usize;
++    // Beyond a full axis, dilation sees every pixel and erosion sees transparent
++    // padding. Clamp the radius, not the window width or its center.
++    let rx = (rx.round() as usize).min(width);
++    let ry = (ry.round() as usize).min(height);
++    let mut buffer = vec![RGBA8::default(); src.data.len()];
++    let mut queue = VecDeque::with_capacity(width.max(height));
++    axis(
++        src.data,
++        &mut buffer,
++        width,
++        height,
++        rx,
++        true,
++        operator,
++        &mut queue,
++    );
++    axis(
++        &buffer, src.data, width, height, ry, false, operator, &mut queue,
++    );
++}
+ 
+-    let width_max = src.width as i32 - 1;
+-    let height_max = src.height as i32 - 1;
+-
+-    let mut buf = vec![RGBA8::default(); src.data.len()];
+-    let mut buf = ImageRefMut::new(src.width, src.height, &mut buf);
+-    let mut x = 0;
+-    let mut y = 0;
+-    for _ in src.data.iter() {
+-        let mut new_p = RGBA8::default();
+-        if operator == MorphologyOperator::Erode {
+-            new_p.r = 255;
+-            new_p.g = 255;
+-            new_p.b = 255;
+-            new_p.a = 255;
+-        }
+-
+-        for oy in 0..rows {
+-            for ox in 0..columns {
+-                let tx = x as i32 - target_x as i32 + ox as i32;
+-                let ty = y as i32 - target_y as i32 + oy as i32;
+-
+-                if tx < 0 || tx > width_max || ty < 0 || ty > height_max {
+-                    continue;
++#[allow(clippy::too_many_arguments)]
++fn axis(
++    source: &[RGBA8],
++    target: &mut [RGBA8],
++    width: usize,
++    height: usize,
++    radius: usize,
++    horizontal: bool,
++    operator: MorphologyOperator,
++    queue: &mut VecDeque<(usize, u8)>,
++) {
++    let erode = operator == MorphologyOperator::Erode;
++    let (length, lines, stride) = if horizontal {
++        (width, height, 1)
++    } else {
++        (height, width, width)
++    };
++    for line in 0..lines {
++        let base = if horizontal { line * width } else { line };
++        for channel in 0..4 {
++            queue.clear();
++            let mut next = 0;
++            for center in 0..length {
++                let left = center.saturating_sub(radius);
++                let right = center.saturating_add(radius).min(length - 1);
++                while next <= right {
++                    let value = get(source[base + next * stride], channel);
++                    while queue
++                        .back()
++                        .is_some_and(|&(_, old)| if erode { old >= value } else { old <= value })
++                    {
++                        queue.pop_back();
++                    }
++                    queue.push_back((next, value));
++                    next += 1;
+                 }
+-
+-                let p = src.pixel_at(tx as u32, ty as u32);
+-                if operator == MorphologyOperator::Erode {
+-                    new_p.r = std::cmp::min(p.r, new_p.r);
+-                    new_p.g = std::cmp::min(p.g, new_p.g);
+-                    new_p.b = std::cmp::min(p.b, new_p.b);
+-                    new_p.a = std::cmp::min(p.a, new_p.a);
++                while queue.front().is_some_and(|&(index, _)| index < left) {
++                    queue.pop_front();
++                }
++                let outside = center < radius || radius > length - 1 - center;
++                let value = if erode && outside {
++                    0
+                 } else {
+-                    new_p.r = std::cmp::max(p.r, new_p.r);
+-                    new_p.g = std::cmp::max(p.g, new_p.g);
+-                    new_p.b = std::cmp::max(p.b, new_p.b);
+-                    new_p.a = std::cmp::max(p.a, new_p.a);
+-                }
++                    queue.front().unwrap().1
++                };
++                set(&mut target[base + center * stride], channel, value);
+             }
+         }
++    }
++}
+ 
+-        *buf.pixel_at_mut(x, y) = new_p;
++fn get(pixel: RGBA8, channel: usize) -> u8 {
++    match channel {
++        0 => pixel.r,
++        1 => pixel.g,
++        2 => pixel.b,
++        _ => pixel.a,
++    }
++}
++fn set(pixel: &mut RGBA8, channel: usize, value: u8) {
++    match channel {
++        0 => pixel.r = value,
++        1 => pixel.g = value,
++        2 => pixel.b = value,
++        _ => pixel.a = value,
++    }
++}
+ 
+-        x += 1;
+-        if x == src.width {
+-            x = 0;
+-            y += 1;
+-        }
+-    }
+-
+-    // Do not use `mem::swap` because `data` referenced via FFI.
+-    src.data.copy_from_slice(buf.data);
+-}
++#[cfg(test)]
++#[path = "morphology_tests.rs"]
++mod tests;
+--- /dev/null
++++ b/src/filter/morphology_tests.rs
+@@ -0,0 +1,87 @@
++//! Independent small-image rectangular oracle for the separable implementation.
++use super::*;
++
++#[test]
++fn morphology_matches_naive_transparent_padding() {
++    for width in 1..=5usize {
++        for height in 1..=5usize {
++            let input: Vec<_> = (0..width * height)
++                .map(|i| {
++                    let a = ((i * 71 + width * 31 + height * 17) % 256) as u8;
++                    RGBA8::new(a / 2, a / 3, a, a)
++                })
++                .collect();
++            for rx in 0..=6i32 {
++                for ry in 0..=6i32 {
++                    for operator in [MorphologyOperator::Erode, MorphologyOperator::Dilate] {
++                        let mut expected = Vec::new();
++                        for y in 0..height as i32 {
++                            for x in 0..width as i32 {
++                                let erode = operator == MorphologyOperator::Erode;
++                                let mut result = if erode {
++                                    RGBA8::new(255, 255, 255, 255)
++                                } else {
++                                    RGBA8::default()
++                                };
++                                for dy in -ry..=ry {
++                                    for dx in -rx..=rx {
++                                        let (sx, sy) = (x + dx, y + dy);
++                                        let value = if sx < 0
++                                            || sy < 0
++                                            || sx >= width as i32
++                                            || sy >= height as i32
++                                        {
++                                            RGBA8::default()
++                                        } else {
++                                            input[sy as usize * width + sx as usize]
++                                        };
++                                        for channel in 0..4 {
++                                            let a = get(result, channel);
++                                            let b = get(value, channel);
++                                            set(
++                                                &mut result,
++                                                channel,
++                                                if erode { a.min(b) } else { a.max(b) },
++                                            );
++                                        }
++                                    }
++                                }
++                                expected.push(result);
++                            }
++                        }
++                        let mut actual = input.clone();
++                        apply(
++                            operator,
++                            rx as f32,
++                            ry as f32,
++                            ImageRefMut::new(width as u32, height as u32, &mut actual),
++                        );
++                        assert_eq!(
++                            actual, expected,
++                            "{width}x{height} radius {rx},{ry} {operator:?}"
++                        );
++                    }
++                }
++            }
++        }
++    }
++}
++
++#[test]
++fn morphology_large_radius_has_bounded_pixel_work() {
++    for radius in [1., 256., 100000.] {
++        let mut pixels = vec![RGBA8::new(32, 64, 128, 255); 1024 * 1024];
++        let start = std::time::Instant::now();
++        apply(
++            MorphologyOperator::Dilate,
++            radius,
++            radius,
++            ImageRefMut::new(1024, 1024, &mut pixels),
++        );
++        assert!(pixels.iter().all(|p| *p == RGBA8::new(32, 64, 128, 255)));
++        println!(
++            "morphology 1024x1024 radius={radius} elapsed_ms={}",
++            start.elapsed().as_millis()
++        );
++    }
++}
+--- /dev/null
++++ b/src/filter/result_liveness.rs
+@@ -0,0 +1,57 @@
++// SPDX-License-Identifier: Apache-2.0 OR MIT
++//! Last reference positions bound retention without changing result resolution.
++use std::collections::HashMap;
++use usvg::filter::{Input, Kind, Primitive};
++
++pub(super) struct LastUses<'a>(HashMap<&'a str, usize>);
++
++impl<'a> LastUses<'a> {
++    pub fn new(primitives: &'a [Primitive]) -> Self {
++        let mut uses = HashMap::new();
++        for (index, primitive) in primitives.iter().enumerate() {
++            visit(primitive.kind(), |input| {
++                if let Input::Reference(name) = input {
++                    uses.insert(name.as_str(), index);
++                }
++            });
++        }
++        Self(uses)
++    }
++
++    pub fn needed_after(&self, name: &str, index: usize) -> bool {
++        self.0.get(name).is_some_and(|last| *last > index)
++    }
++}
++
++fn visit<'a>(kind: &'a Kind, mut input: impl FnMut(&'a Input)) {
++    match kind {
++        Kind::Blend(fe) => {
++            input(fe.input1());
++            input(fe.input2());
++        }
++        Kind::Composite(fe) => {
++            input(fe.input1());
++            input(fe.input2());
++        }
++        Kind::DisplacementMap(fe) => {
++            input(fe.input1());
++            input(fe.input2());
++        }
++        Kind::Merge(fe) => {
++            for item in fe.inputs() {
++                input(item);
++            }
++        }
++        Kind::ColorMatrix(fe) => input(fe.input()),
++        Kind::ComponentTransfer(fe) => input(fe.input()),
++        Kind::ConvolveMatrix(fe) => input(fe.input()),
++        Kind::DiffuseLighting(fe) => input(fe.input()),
++        Kind::DropShadow(fe) => input(fe.input()),
++        Kind::GaussianBlur(fe) => input(fe.input()),
++        Kind::Morphology(fe) => input(fe.input()),
++        Kind::Offset(fe) => input(fe.input()),
++        Kind::SpecularLighting(fe) => input(fe.input()),
++        Kind::Tile(fe) => input(fe.input()),
++        Kind::Flood(_) | Kind::Image(_) | Kind::Turbulence(_) => {}
++    }
++}
+--- /dev/null
++++ b/src/filter/scaled_frame.rs
+@@ -0,0 +1,143 @@
++// SPDX-License-Identifier: Apache-2.0 OR MIT
++//! Owned low-resolution frame with explicit pixel origin and transparent sampling.
++use rgb::RGBA8;
++use std::borrow::Cow;
++
++pub(super) struct Frame<'a> {
++    pub width: usize,
++    pub height: usize,
++    pub origin: [i32; 2],
++    pub pixels: Cow<'a, [RGBA8]>,
++}
++impl Frame<'_> {
++    // Release any input borrow before reconstruction writes to the input image.
++    // Reduced frames are already owned, so this transfers rather than copies them.
++    pub fn into_owned(self) -> Frame<'static> {
++        Frame {
++            width: self.width,
++            height: self.height,
++            origin: self.origin,
++            pixels: Cow::Owned(self.pixels.into_owned()),
++        }
++    }
++    fn get(&self, x: i32, y: i32) -> RGBA8 {
++        if x < 0 || y < 0 || x as usize >= self.width || y as usize >= self.height {
++            RGBA8::default()
++        } else {
++            self.pixels[y as usize * self.width + x as usize]
++        }
++    }
++    pub fn sample(&self, point: [f64; 2]) -> RGBA8 {
++        let x = point[0] - f64::from(self.origin[0]) - 0.5;
++        let y = point[1] - f64::from(self.origin[1]) - 0.5;
++        let ix = x.floor() as i32;
++        let iy = y.floor() as i32;
++        let fx = x - x.floor();
++        let fy = y - y.floor();
++        let mut values = [0.0; 4];
++        for (dy, wy) in [(0, 1.0 - fy), (1, fy)] {
++            for (dx, wx) in [(0, 1.0 - fx), (1, fx)] {
++                let p = self.get(ix + dx, iy + dy);
++                for (sum, c) in values.iter_mut().zip([p.r, p.g, p.b, p.a]) {
++                    *sum += f64::from(c) * wx * wy;
++                }
++            }
++        }
++        pixel(values)
++    }
++    pub fn resample(
++        &self,
++        left: [f64; 2],
++        right: [f64; 2],
++        scale: [f64; 2],
++        center: [f64; 2],
++    ) -> Self {
++        let origin = left.map(|v| v.floor() as i32);
++        let width = (right[0].ceil() - left[0].floor()) as usize;
++        let height = (right[1].ceil() - left[1].floor()) as usize;
++        let mut pixels = Vec::with_capacity(width * height);
++        for y in 0..height {
++            for x in 0..width {
++                pixels.push(self.sample([
++                    (f64::from(origin[0]) + x as f64 + 0.5) / scale[0] + center[0],
++                    (f64::from(origin[1]) + y as f64 + 0.5) / scale[1] + center[1],
++                ]));
++            }
++        }
++        Self {
++            width,
++            height,
++            origin,
++            pixels: Cow::Owned(pixels),
++        }
++    }
++    pub fn blur(self, sigma: f64, horizontal: bool) -> Self {
++        if sigma <= 0.0 {
++            return self;
++        }
++        let radius = (3.0 * sigma).ceil() as i32;
++        let mut weights: Vec<_> = (-radius..=radius)
++            .map(|x| (-f64::from(x * x) / (2.0 * sigma * sigma)).exp())
++            .collect();
++        let total: f64 = weights.iter().sum();
++        for weight in &mut weights {
++            *weight /= total;
++        }
++        let pad = radius + 1;
++        let px = if horizontal { pad } else { 0 };
++        let py = if horizontal { 0 } else { pad };
++        let width = self.width + 2 * px as usize;
++        let height = self.height + 2 * py as usize;
++        let origin = [self.origin[0] - px, self.origin[1] - py];
++        let mut pixels = Vec::with_capacity(width * height);
++        for y in 0..height {
++            for x in 0..width {
++                let mut values = [0.0; 4];
++                for (offset, weight) in (-radius..=radius).zip(&weights) {
++                    let p = self.get(
++                        x as i32 - px + if horizontal { offset } else { 0 },
++                        y as i32 - py + if horizontal { 0 } else { offset },
++                    );
++                    for (sum, c) in values.iter_mut().zip([p.r, p.g, p.b, p.a]) {
++                        *sum += f64::from(c) * weight;
++                    }
++                }
++                pixels.push(pixel(values));
++            }
++        }
++        Self {
++            width,
++            height,
++            origin,
++            pixels: Cow::Owned(pixels),
++        }
++    }
++}
++fn pixel(values: [f64; 4]) -> RGBA8 {
++    let [r, g, b, a] = values.map(|v| v.round().clamp(0.0, 255.0) as u8);
++    RGBA8::new(r, g, b, a)
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn first_reduction_borrows_input_then_transfers_owned_storage() {
++        let input = vec![RGBA8::new(12, 24, 48, 128); 64 * 48];
++        let frame = Frame {
++            width: 64,
++            height: 48,
++            origin: [0, 0],
++            pixels: Cow::Borrowed(&input),
++        };
++        assert_eq!(frame.pixels.as_ptr(), input.as_ptr());
++        let reduced = frame.resample([0.0, 0.0], [32.0, 24.0], [0.5, 0.5], [0.0; 2]);
++        assert!(matches!(reduced.pixels, Cow::Owned(_)));
++        assert_eq!(reduced.pixels.len(), 32 * 24);
++        let allocation = reduced.pixels.as_ptr();
++        let owned = reduced.into_owned();
++        assert_eq!(allocation, owned.pixels.as_ptr());
++        assert!(owned.pixels.iter().all(|p| *p == input[0]));
++    }
++}
+--- /dev/null
++++ b/src/filter/small_gaussian_2d.rs
+@@ -0,0 +1,62 @@
++// SPDX-License-Identifier: Apache-2.0 OR MIT
++//! Single quantization for a bounded two-dimensional Gaussian kernel.
++use super::ImageRefMut;
++use rgb::RGBA8;
++
++pub(super) fn apply(sx: f64, sy: f64, image: ImageRefMut) -> bool {
++    if !sx.is_finite() || !sy.is_finite() || sx <= 0.0 || sy <= 0.0 || sx > 4.0 || sy > 4.0 {
++        return false;
++    }
++    let rx = (3.0 * sx).ceil() as i32;
++    let ry = (3.0 * sy).ceil() as i32;
++    if (2 * rx + 1) * (2 * ry + 1) > 28 {
++        return false;
++    }
++    let mut taps = Vec::new();
++    for y in -ry..=ry {
++        for x in -rx..=rx {
++            let weight =
++                (-f64::from(x * x) / (2.0 * sx * sx) - f64::from(y * y) / (2.0 * sy * sy)).exp();
++            taps.push((x, y, weight));
++        }
++    }
++    let total: f64 = taps.iter().map(|tap| tap.2).sum();
++    for tap in &mut taps {
++        tap.2 /= total;
++    }
++    let mut output = vec![RGBA8::default(); image.data.len()];
++    let (width, height) = (image.width as i32, image.height as i32);
++    for y in 0..height {
++        for x in 0..width {
++            let mut sums = [0.0; 4];
++            for &(dx, dy, weight) in &taps {
++                let (xx, yy) = (x + dx, y + dy);
++                if xx < 0 || yy < 0 || xx >= width || yy >= height {
++                    continue;
++                }
++                let p = image.data[(yy * width + xx) as usize];
++                for (sum, channel) in sums.iter_mut().zip([p.r, p.g, p.b, p.a]) {
++                    *sum += f64::from(channel) * weight;
++                }
++            }
++            let [r, g, b, a] = sums.map(|v| v.round().clamp(0.0, 255.0) as u8);
++            output[(y * width + x) as usize] = RGBA8::new(r, g, b, a);
++        }
++    }
++    image.data.copy_from_slice(&output);
++    true
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    #[test]
++    fn bounded_kernel_and_transparent_edge() {
++        let mut p = [RGBA8::new(255, 255, 255, 255)];
++        assert!(!apply(0.0, 0.5, ImageRefMut::new(1, 1, &mut p)));
++        assert!(!apply(1.0, 1.0, ImageRefMut::new(1, 1, &mut p)));
++        assert_eq!(p[0].a, 255);
++        assert!(apply(0.5, 0.5, ImageRefMut::new(1, 1, &mut p)));
++        assert_eq!(p[0], RGBA8::new(158, 158, 158, 158));
++    }
++}
+--- a/src/filter/turbulence.rs
++++ b/src/filter/turbulence.rs
+@@ -5,6 +5,13 @@
+ 
+ use super::{ImageRefMut, f32_bound};
+ use usvg::ApproxZeroUlps;
++
++// Reject unrepresentable lattice coordinates instead of saturating float casts.
++fn coordinate(value: f64) -> Option<i32> {
++    let value = value.trunc();
++    (value.is_finite() && value >= i32::MIN as f64 && value <= i32::MAX as f64)
++        .then_some(value as i32)
++}
+ 
+ const RAND_M: i32 = 2147483647; // 2**31 - 1
+ const RAND_A: i32 = 16807; // 7**5; primitive root of m
+@@ -42,7 +49,7 @@
+     stitch_tiles: bool,
+     fractal_noise: bool,
+     dest: ImageRefMut,
+-) {
++) -> Option<()> {
+     let (lattice_selector, gradient) = init(seed);
+     let width = dest.width;
+     let height = dest.height;
+@@ -66,7 +73,7 @@
+                 stitch_tiles,
+                 &lattice_selector,
+                 &gradient,
+-            );
++            )?;
+ 
+             let n = if fractal_noise {
+                 (n * 255.0 + 255.0) / 2.0
+@@ -74,13 +81,13 @@
+                 n * 255.0
+             };
+ 
+-            (f32_bound(0.0, n as f32, 255.0) + 0.5) as u8
++            Some((f32_bound(0.0, n as f32, 255.0) + 0.5) as u8)
+         };
+ 
+-        pixel.r = turb(0);
+-        pixel.g = turb(1);
+-        pixel.b = turb(2);
+-        pixel.a = turb(3);
++        pixel.r = turb(0)?;
++        pixel.g = turb(1)?;
++        pixel.b = turb(2)?;
++        pixel.a = turb(3)?;
+ 
+         x += 1;
+         if x == dest.width {
+@@ -88,6 +95,7 @@
+             y += 1;
+         }
+     }
++    Some(())
+ }
+ 
+ fn init(mut seed: i32) -> (Vec<usize>, Vec<Vec<Vec<f64>>>) {
+@@ -95,7 +103,9 @@
+     let mut gradient = vec![vec![vec![0.0; 2]; B_LEN]; 4];
+ 
+     if seed <= 0 {
+-        seed = -seed % (RAND_M - 1) + 1;
++        // The magnitude of i32::MIN only fits unsigned arithmetic. Reduce it
++        // before converting back, preserving the specified positive seed range.
++        seed = (seed.unsigned_abs() % (RAND_M as u32 - 1)) as i32 + 1;
+     }
+ 
+     if seed > RAND_M - 1 {
+@@ -154,7 +164,7 @@
+     do_stitching: bool,
+     lattice_selector: &[usize],
+     gradient: &[Vec<Vec<f64>>],
+-) -> f64 {
++) -> Option<f64> {
+     // Adjust the base frequencies if necessary for stitching.
+     let mut stitch = if do_stitching {
+         // When stitching tiled turbulence, the frequencies must be adjusted
+@@ -180,10 +190,10 @@
+         }
+ 
+         // Set up initial stitch values.
+-        let width = (tile_width * base_freq_x + 0.5) as i32;
+-        let height = (tile_height * base_freq_y + 0.5) as i32;
+-        let wrap_x = (tile_x * base_freq_x + PERLIN_N as f64 + width as f64) as i32;
+-        let wrap_y = (tile_y * base_freq_y + PERLIN_N as f64 + height as f64) as i32;
++        let width = coordinate(tile_width * base_freq_x + 0.5)?;
++        let height = coordinate(tile_height * base_freq_y + 0.5)?;
++        let wrap_x = coordinate(tile_x * base_freq_x + PERLIN_N as f64 + width as f64)?;
++        let wrap_y = coordinate(tile_y * base_freq_y + PERLIN_N as f64 + height as f64)?;
+         Some(StitchInfo {
+             width,
+             height,
+@@ -198,11 +208,15 @@
+     x *= base_freq_x;
+     y *= base_freq_y;
+     let mut ratio = 1.0;
+-    for _ in 0..num_octaves {
++    for octave in 0..num_octaves {
+         if fractal_sum {
+-            sum += noise2(color_channel, x, y, lattice_selector, gradient, stitch) / ratio;
++            sum += noise2(color_channel, x, y, lattice_selector, gradient, stitch)? / ratio;
+         } else {
+-            sum += noise2(color_channel, x, y, lattice_selector, gradient, stitch).abs() / ratio;
++            sum += noise2(color_channel, x, y, lattice_selector, gradient, stitch)?.abs() / ratio;
++        }
++        // No next sample exists after the final octave.
++        if octave + 1 == num_octaves {
++            break;
+         }
+         x *= 2.0;
+         y *= 2.0;
+@@ -211,14 +225,14 @@
+         if let Some(ref mut stitch) = stitch {
+             // Update stitch values. Subtracting PerlinN before the multiplication and
+             // adding it afterward simplifies to subtracting it once.
+-            stitch.width *= 2;
+-            stitch.wrap_x = 2 * stitch.wrap_x - PERLIN_N;
+-            stitch.height *= 2;
+-            stitch.wrap_y = 2 * stitch.wrap_y - PERLIN_N;
+-        }
+-    }
+-
+-    sum
++            stitch.width = stitch.width.checked_mul(2)?;
++            stitch.wrap_x = stitch.wrap_x.checked_mul(2)?.checked_sub(PERLIN_N)?;
++            stitch.height = stitch.height.checked_mul(2)?;
++            stitch.wrap_y = stitch.wrap_y.checked_mul(2)?.checked_sub(PERLIN_N)?;
++        }
++    }
++
++    Some(sum)
+ }
+ 
+ fn noise2(
+@@ -228,34 +242,34 @@
+     lattice_selector: &[usize],
+     gradient: &[Vec<Vec<f64>>],
+     stitch_info: Option<StitchInfo>,
+-) -> f64 {
++) -> Option<f64> {
+     let t = x + PERLIN_N as f64;
+-    let mut bx0 = t as i32;
+-    let mut bx1 = bx0 + 1;
++    let mut bx0 = coordinate(t)?;
++    let mut bx1 = bx0.checked_add(1)?;
+     let rx0 = t - t as i64 as f64;
+     let rx1 = rx0 - 1.0;
+     let t = y + PERLIN_N as f64;
+-    let mut by0 = t as i32;
+-    let mut by1 = by0 + 1;
++    let mut by0 = coordinate(t)?;
++    let mut by1 = by0.checked_add(1)?;
+     let ry0 = t - t as i64 as f64;
+     let ry1 = ry0 - 1.0;
+ 
+     // If stitching, adjust lattice points accordingly.
+     if let Some(info) = stitch_info {
+         if bx0 >= info.wrap_x {
+-            bx0 -= info.width;
++            bx0 = bx0.checked_sub(info.width)?;
+         }
+ 
+         if bx1 >= info.wrap_x {
+-            bx1 -= info.width;
++            bx1 = bx1.checked_sub(info.width)?;
+         }
+ 
+         if by0 >= info.wrap_y {
+-            by0 -= info.height;
++            by0 = by0.checked_sub(info.height)?;
+         }
+ 
+         if by1 >= info.wrap_y {
+-            by1 -= info.height;
++            by1 = by1.checked_sub(info.height)?;
+         }
+     }
+ 
+@@ -281,7 +295,7 @@
+     let q = &gradient[color_channel][b11];
+     let v = rx1 * q[0] + ry1 * q[1];
+     let b = lerp(sx, u, v);
+-    lerp(sy, a, b)
++    Some(lerp(sy, a, b))
+ }
+ 
+ fn random(seed: i32) -> i32 {
+@@ -302,3 +316,39 @@
+ fn lerp(t: f64, a: f64, b: f64) -> f64 {
+     a + t * (b - a)
+ }
++
++#[cfg(test)]
++mod seed_tests {
++    use super::*;
++
++    #[test]
++    fn full_signed_seed_range_matches_wide_integer_normalization() {
++        for seed in [i32::MIN, i32::MIN + 1, -2, -1, 0, 1, 3, i32::MAX] {
++            let expected = if seed <= 0 {
++                (-i64::from(seed) % i64::from(RAND_M - 1) + 1) as i32
++            } else {
++                seed.min(RAND_M - 1)
++            };
++            assert_eq!(init(seed), init(expected), "seed={seed}");
++        }
++    }
++}
++
++#[cfg(test)]
++mod coordinate_tests {
++    #[test]
++    fn cast_domain_is_checked_before_conversion() {
++        for value in [
++            f64::NAN,
++            f64::INFINITY,
++            f64::NEG_INFINITY,
++            i32::MAX as f64 + 1.0,
++            i32::MIN as f64 - 1.0,
++        ] {
++            assert_eq!(super::coordinate(value), None);
++        }
++        assert_eq!(super::coordinate(i32::MAX as f64 + 0.5), Some(i32::MAX));
++        assert_eq!(super::coordinate(i32::MIN as f64 - 0.5), Some(i32::MIN));
++        assert_eq!(super::coordinate(-0.75), Some(0));
++    }
++}
+--- /dev/null
++++ b/src/filter/work_budget.rs
+@@ -0,0 +1,135 @@
++// Copyright 2026 the Otter Authors
++// SPDX-License-Identifier: Apache-2.0 OR MIT
++//! Monotonic policy credits for actual filter raster work, not a CPU-time claim.
++use std::cell::Cell;
++use usvg::filter::{EdgeMode, Kind};
++
++pub(crate) struct Budget {
++    remaining: Cell<u64>,
++    exhausted: Cell<bool>,
++}
++impl Budget {
++    pub(crate) fn new(limit: u64) -> Self {
++        Self {
++            remaining: Cell::new(limit),
++            exhausted: Cell::new(false),
++        }
++    }
++    pub(crate) fn exhausted(&self) -> bool {
++        self.exhausted.get()
++    }
++    pub(crate) fn reserve(&self, cost: Option<u64>) -> Option<()> {
++        if !self.exhausted.get() {
++            if let Some(left) = cost.and_then(|cost| self.remaining.get().checked_sub(cost)) {
++                self.remaining.set(left);
++                return Some(());
++            }
++        }
++        // Overflow is rejection, never a cheap wraparound or a refunded request.
++        self.remaining.set(0);
++        self.exhausted.set(true);
++        None
++    }
++}
++
++pub(crate) fn cost(kind: &Kind, width: u32, height: u32, ts: usvg::Transform) -> Option<u64> {
++    let (w, h) = (u64::from(width), u64::from(height));
++    if w == 0 || h == 0 {
++        return None;
++    }
++    let area = w.checked_mul(h)?;
++    // Input copies, color conversion, output, clipping, and fixed setup. These
++    // are conservative policy weights, not measured instruction counts.
++    let base = area.checked_mul(64)?.checked_add(4096)?;
++    let extra = match kind {
++        Kind::ConvolveMatrix(fe) => {
++            let matrix = fe.matrix();
++            let taps = u64::from(matrix.rows()).checked_mul(u64::from(matrix.columns()))?;
++            // Referenced inputs can be smaller than the source raster. Bound the
++            // negative-coordinate Wrap loops using a minimum axis length of one.
++            let wraps = if fe.edge_mode() == EdgeMode::Wrap {
++                u64::from(matrix.target_x()).checked_add(u64::from(matrix.target_y()))?
++            } else {
++                0
++            };
++            area.checked_mul(taps)?
++                .checked_mul(4u64.checked_add(wraps)?)?
++        }
++        Kind::Turbulence(fe) => area
++            .checked_mul(128)?
++            .checked_mul(u64::from(fe.num_octaves()))?
++            .checked_add(area.checked_mul(16)?)?
++            .checked_add(65536)?,
++        Kind::Merge(fe) => area
++            .checked_mul(64)?
++            .checked_mul(u64::try_from(fe.inputs().len()).ok()?)?,
++        Kind::Morphology(_) => area.checked_mul(32)?,
++        Kind::ComponentTransfer(_) => 262144,
++        Kind::GaussianBlur(fe) => blur(fe.std_dev_x().get(), fe.std_dev_y().get(), ts, w, h)?,
++        Kind::DropShadow(fe) => blur(fe.std_dev_x().get(), fe.std_dev_y().get(), ts, w, h)?
++            .checked_add(area.checked_mul(64)?)?,
++        Kind::DiffuseLighting(_) | Kind::SpecularLighting(_) => area.checked_mul(128)?,
++        Kind::Blend(_)
++        | Kind::Flood(_)
++        | Kind::Offset(_)
++        | Kind::Composite(_)
++        | Kind::Tile(_)
++        | Kind::Image(_)
++        | Kind::ColorMatrix(_)
++        | Kind::DisplacementMap(_) => 0,
++    };
++    base.checked_add(extra)
++}
++
++fn blur(x: f32, y: f32, ts: usvg::Transform, w: u64, h: u64) -> Option<u64> {
++    let Some((x, y)) = super::resolve_std_dev(x, y, ts) else {
++        return Some(0);
++    };
++    let area = w.checked_mul(h)?;
++    if !x.is_finite() || !y.is_finite() {
++        return area.checked_mul(400);
++    }
++    if x <= 8.0 && y <= 8.0 {
++        let taps = |sigma: f64| {
++            if sigma > 0.0 {
++                2 * (3.0 * sigma).ceil() as u64 + 1
++            } else {
++                0
++            }
++        };
++        let (kx, ky) = (taps(x), taps(y));
++        let product = kx * ky;
++        let samples = if x <= 4.0 && y <= 4.0 && kx > 0 && ky > 0 && product <= 28 {
++            product
++        } else {
++            kx + ky
++        };
++        return area.checked_mul(samples.checked_mul(4)?.checked_add(4)?);
++    }
++    // Finite f32 sigma needs <=128 reductions; each reduced extent is <= the
++    // original extent +2. Two radius<=12 blur axes each add <=26 pixels.
++    // Bound all intermediate areas by (w+28)*(h+28), including padding. This
++    // deliberately overcharges large-sigma blur rather than duplicating its
++    // geometry planner or ignoring the extra pixels on very narrow images.
++    let padded = w.checked_add(28)?.checked_mul(h.checked_add(28)?)?;
++    padded
++        .checked_mul(128 * 17 + 2 * (25 * 4 + 1))?
++        .checked_add(area.checked_mul(16)?)
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    #[test]
++    fn boundary_and_overflow_are_sticky_without_refunds() {
++        let budget = Budget::new(7);
++        assert!(budget.reserve(Some(3)).is_some());
++        assert!(budget.reserve(Some(4)).is_some());
++        assert!(!budget.exhausted());
++        assert!(budget.reserve(Some(1)).is_none());
++        assert!(budget.reserve(Some(0)).is_none());
++        let budget = Budget::new(u64::MAX);
++        assert!(budget.reserve(None).is_none());
++        assert!(budget.exhausted());
++    }
++}
+--- /dev/null
++++ b/src/filter_work_tests.rs
+@@ -0,0 +1,163 @@
++// Copyright 2026 the Otter Authors
++// SPDX-License-Identifier: Apache-2.0 OR MIT
++//! Quotas count executed instances and remain shared across nested render roots.
++use crate::{RenderError, tiny_skia, usvg};
++const FLOOD: &str =
++    "<filter id='f' x='0' y='0' width='100%' height='100%'><feFlood flood-color='red'/></filter>";
++const RECT: &str = "<rect width='16' height='16' filter='url(#f)'/>";
++fn tree(body: &str) -> usvg::Tree {
++    usvg::Tree::from_str(&format!("<svg xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' width='32' height='16'>{body}</svg>"), &usvg::Options::default()).unwrap()
++}
++fn run(tree: &usvg::Tree, limit: u64) -> Result<Vec<u8>, RenderError> {
++    let mut pixmap = tiny_skia::Pixmap::new(32, 16).unwrap();
++    crate::render_with_filter_budget(
++        tree,
++        tiny_skia::Transform::identity(),
++        &mut pixmap.as_mut(),
++        limit,
++    )?;
++    Ok(pixmap.take())
++}
++fn flood_cost() -> u64 {
++    let tree = tree(&format!("<defs>{FLOOD}</defs>{RECT}"));
++    4096 + crate::filter::work_budget::cost(
++        tree.filters()[0].primitives()[0].kind(),
++        16,
++        16,
++        tiny_skia::Transform::identity(),
++    )
++    .unwrap()
++}
++#[test]
++fn exact_limit_and_normal_pixels() {
++    let tree = tree(&format!("<defs>{FLOOD}</defs>{RECT}"));
++    let cost = flood_cost();
++    assert_eq!(run(&tree, cost - 1), Err(RenderError::FilterBudgetExceeded));
++    let normal = run(&tree, cost).unwrap();
++    assert_eq!(normal, run(&tree, u64::MAX).unwrap());
++    assert!(normal.chunks_exact(4).any(|p| p[3] != 0));
++    assert!(run(&self::tree("<rect width='16' height='16' fill='red'/>"), 0).is_ok());
++}
++#[test]
++fn repeated_definition_counts_every_execution_and_resets_per_request() {
++    let single = tree(&format!("<defs>{FLOOD}</defs>{RECT}"));
++    let repeated = tree(&format!(
++        "<defs>{FLOOD}</defs>{RECT}<g transform='translate(16)'>{RECT}</g>"
++    ));
++    // One XML definition can resolve into multiple usvg filter objects.
++    // The quota follows executions, not either representation's definition count.
++    let cost = flood_cost();
++    assert_eq!(run(&repeated, cost), Err(RenderError::FilterBudgetExceeded));
++    assert!(run(&repeated, 2 * cost).is_ok());
++    assert!(
++        run(&single, cost).is_ok(),
++        "a failed request must not poison the next request"
++    );
++}
++#[test]
++fn pattern_and_mask_share_the_outer_quota() {
++    for body in [
++        format!(
++            "<defs>{FLOOD}<pattern id='p' patternUnits='userSpaceOnUse' width='16' height='16'>{RECT}</pattern></defs><rect width='16' height='16' fill='url(#p)'/><rect x='16' width='16' height='16' fill='url(#p)'/>"
++        ),
++        format!(
++            "<defs>{FLOOD}<mask id='m' maskUnits='userSpaceOnUse' x='0' y='0' width='16' height='16'>{RECT}</mask></defs><rect width='16' height='16' mask='url(#m)'/><rect width='16' height='16' mask='url(#m)'/>"
++        ),
++    ] {
++        let tree = tree(&body);
++        assert_eq!(
++            run(&tree, flood_cost()),
++            Err(RenderError::FilterBudgetExceeded)
++        );
++        assert!(run(&tree, u64::MAX).is_ok());
++    }
++}
++#[test]
++fn svg_images_do_not_start_fresh_budgets() {
++    let svg = format!(
++        "<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16'><defs>{FLOOD}</defs>{RECT}</svg>"
++    );
++    let encoded: String = svg.bytes().map(|b| format!("%{b:02X}")).collect();
++    let image = format!("<image width='16' height='16' href='data:image/svg+xml,{encoded}'/>");
++    let tree = tree(&format!("{image}{image}"));
++    assert_eq!(
++        run(&tree, flood_cost()),
++        Err(RenderError::FilterBudgetExceeded)
++    );
++    assert!(run(&tree, 2 * flood_cost()).is_ok());
++}
++#[test]
++fn feimage_local_context_keeps_the_outer_quota() {
++    let body = format!(
++        "<defs>{FLOOD}<g id='source'>{RECT}</g><filter id='outer' x='0' y='0' width='100%' height='100%'><feImage xlink:href='#source'/><feImage xlink:href='#source'/></filter></defs><rect width='16' height='16' filter='url(#outer)'/>"
++    );
++    let tree = tree(&body);
++    let primitive = tree
++        .filters()
++        .iter()
++        .flat_map(|f| f.primitives())
++        .find(|p| matches!(p.kind(), usvg::filter::Kind::Image(_)))
++        .unwrap();
++    let image_cost = crate::filter::work_budget::cost(
++        primitive.kind(),
++        16,
++        16,
++        tiny_skia::Transform::identity(),
++    )
++    .unwrap();
++    let budget = 4096 + 2 * image_cost + flood_cost();
++    assert_eq!(run(&tree, budget), Err(RenderError::FilterBudgetExceeded));
++    assert!(run(&tree, budget + flood_cost()).is_ok());
++}
++fn primitive_cost(xml: &str, w: u32, h: u32) -> u64 {
++    let tree = tree(&format!(
++        "<defs><filter id='f' x='0' y='0' width='100%' height='100%'>{xml}</filter></defs>{RECT}"
++    ));
++    assert_eq!(tree.filters()[0].primitives().len(), 1);
++    crate::filter::work_budget::cost(
++        tree.filters()[0].primitives()[0].kind(),
++        w,
++        h,
++        tiny_skia::Transform::identity(),
++    )
++    .unwrap()
++}
++#[test]
++fn parameters_and_narrow_wrap_loops_change_cost() {
++    let turbulence = |n| {
++        primitive_cost(
++            &format!("<feTurbulence baseFrequency='.1' numOctaves='{n}'/>"),
++            16,
++            16,
++        )
++    };
++    assert!(turbulence(9) > turbulence(1));
++    let kernel = "0 0 0 0 1 0 0 0 0";
++    let conv = |edge| {
++        format!(
++            "<feConvolveMatrix order='3' kernelMatrix='{kernel}' targetX='2' targetY='2' edgeMode='{edge}'/>"
++        )
++    };
++    assert!(primitive_cost(&conv("wrap"), 1, 1) > primitive_cost(&conv("duplicate"), 1, 1));
++    let merge = |nodes| {
++        format!(
++            "<feMerge>{}</feMerge>",
++            "<feMergeNode in='SourceGraphic'/>".repeat(nodes)
++        )
++    };
++    assert!(primitive_cost(&merge(4), 16, 16) > primitive_cost(&merge(1), 16, 16));
++    assert!(
++        primitive_cost("<feGaussianBlur stdDeviation='1e30'/>", 1, 1) > 100_000,
++        "joint blur padding must not be charged as a single original pixel"
++    );
++}
++#[test]
++fn tiny_primitive_subregions_do_not_discount_whole_source_work() {
++    let tree = tree(&format!(
++        "<defs><filter id='f' x='0' y='0' width='100%' height='100%'><feFlood width='1%' height='1%'/></filter></defs>{RECT}"
++    ));
++    assert_eq!(
++        run(&tree, flood_cost() - 1),
++        Err(RenderError::FilterBudgetExceeded)
++    );
++}
+--- a/src/image.rs
++++ b/src/image.rs
+@@ -3,6 +3,7 @@
+ 
+ pub fn render(
+     image: &usvg::Image,
++    ctx: &crate::render::Context,
+     transform: tiny_skia::Transform,
+     pixmap: &mut tiny_skia::PixmapMut,
+ ) {
+@@ -10,18 +11,19 @@
+         return;
+     }
+ 
+-    render_inner(image.kind(), transform, image.rendering_mode(), pixmap);
++    render_inner(image.kind(), ctx, transform, image.rendering_mode(), pixmap);
+ }
+ 
+ pub fn render_inner(
+     image_kind: &usvg::ImageKind,
++    ctx: &crate::render::Context,
+     transform: tiny_skia::Transform,
+     #[allow(unused_variables)] rendering_mode: usvg::ImageRendering,
+     pixmap: &mut tiny_skia::PixmapMut,
+ ) {
+     match image_kind {
+         usvg::ImageKind::SVG(tree) => {
+-            render_vector(tree, transform, pixmap);
++            render_vector(tree, ctx, transform, pixmap);
+         }
+         #[cfg(feature = "raster-images")]
+         _ => {
+@@ -36,11 +38,18 @@
+ 
+ fn render_vector(
+     tree: &usvg::Tree,
++    ctx: &crate::render::Context,
+     transform: tiny_skia::Transform,
+     pixmap: &mut tiny_skia::PixmapMut,
+ ) -> Option<()> {
+     let mut sub_pixmap = tiny_skia::Pixmap::new(pixmap.width(), pixmap.height()).unwrap();
+-    crate::render(tree, transform, &mut sub_pixmap.as_mut());
++    // Preserve image-local bounds without resetting the outer render's quota.
++    let local = crate::render::Context {
++        max_bbox: crate::max_filter_bbox(pixmap.width(), pixmap.height()),
++        filter_failed: ctx.filter_failed,
++        filter_work: ctx.filter_work,
++    };
++    crate::render::render_nodes(tree.root(), &local, transform, &mut sub_pixmap.as_mut());
+     pixmap.draw_pixmap(
+         0,
+         0,
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -17,6 +17,8 @@
+ pub use tiny_skia;
+ pub use usvg;
+ 
++mod checked_render;
++pub use checked_render::{RenderError, render_checked, render_with_filter_budget};
+ mod clip;
+ mod filter;
+ mod geom;
+@@ -36,10 +38,7 @@
+     transform: tiny_skia::Transform,
+     pixmap: &mut tiny_skia::PixmapMut,
+ ) {
+-    let max_bbox = max_filter_bbox(pixmap.width(), pixmap.height());
+-
+-    let ctx = render::Context { max_bbox };
+-    render::render_nodes(tree.root(), &ctx, transform, pixmap);
++    let _ = render_checked(tree, transform, pixmap);
+ }
+ 
+ /// Renders a node onto the pixmap.
+@@ -63,7 +62,13 @@
+ 
+     transform = transform.pre_translate(-bbox.x(), -bbox.y());
+ 
+-    let ctx = render::Context { max_bbox };
++    let filter_failed = std::cell::Cell::new(false);
++    let filter_work = filter::work_budget::Budget::new(u64::MAX);
++    let ctx = render::Context {
++        max_bbox,
++        filter_failed: &filter_failed,
++        filter_work: &filter_work,
++    };
+     render::render_node(node, &ctx, transform, pixmap);
+ 
+     Some(())
+--- a/src/render.rs
++++ b/src/render.rs
+@@ -3,8 +3,11 @@
+ 
+ use crate::OptionLog;
+ 
+-pub struct Context {
++pub struct Context<'a> {
+     pub max_bbox: tiny_skia::IntRect,
++    // Shared only within this render, including pattern/mask/image subroots.
++    pub filter_failed: &'a std::cell::Cell<bool>,
++    pub filter_work: &'a crate::filter::work_budget::Budget,
+ }
+ 
+ pub fn render_nodes(
+@@ -14,6 +17,9 @@
+     pixmap: &mut tiny_skia::PixmapMut,
+ ) {
+     for node in parent.children() {
++        if ctx.filter_work.exhausted() {
++            break;
++        }
+         render_node(node, ctx, transform, pixmap);
+     }
+ }
+@@ -38,7 +44,7 @@
+             );
+         }
+         usvg::Node::Image(image) => {
+-            crate::image::render(image, transform, pixmap);
++            crate::image::render(image, ctx, transform, pixmap);
+         }
+         usvg::Node::Text(text) => {
+             render_group(text.flattened(), ctx, transform, pixmap);
+@@ -73,12 +79,7 @@
+     } else {
+         // The bounding box for groups with filters is special and should not be expanded by 2px,
+         // because it's already acting as a clipping region.
+-        let bbox = tiny_skia::IntRect::from_xywh(
+-            bbox.x().floor() as i32,
+-            bbox.y().floor() as i32,
+-            bbox.width().ceil().max(1.0) as u32,
+-            bbox.height().ceil().max(1.0) as u32,
+-        )?;
++        let bbox = bbox.to_rect().round_out()?;
+         // Make sure our filter region is not bigger than 4x the canvas size.
+         // This is required mainly to prevent huge filter regions that would tank the performance.
+         // It should not affect the final result in any way.
+@@ -110,14 +111,22 @@
+ 
+     render_nodes(group, ctx, transform, &mut sub_pixmap.as_mut());
+ 
++    if ctx.filter_work.exhausted() {
++        return None;
++    }
+     if !group.filters().is_empty() {
+         for filter in group.filters() {
+-            crate::filter::apply(filter, transform, &mut sub_pixmap);
++            if !crate::filter::apply(filter, transform, &mut sub_pixmap, ctx) {
++                ctx.filter_failed.set(true);
++                if ctx.filter_work.exhausted() {
++                    return None;
++                }
++            }
+         }
+     }
+ 
+     if let Some(clip_path) = group.clip_path() {
+-        crate::clip::apply(clip_path, transform, &mut sub_pixmap);
++        crate::clip::apply(clip_path, ctx, transform, &mut sub_pixmap);
+     }
+ 
+     if let Some(mask) = group.mask() {

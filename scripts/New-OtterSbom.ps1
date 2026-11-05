@@ -14,14 +14,9 @@ function Write-Utf8NoBom {
     param([string]$Path, [string]$Value)
     [System.IO.File]::WriteAllText($Path, $Value, [System.Text.UTF8Encoding]::new($false))
 }
-function Get-Purl {
-    param([string]$Type, [string]$Name, [string]$PackageVersion)
-    $encodedName = (($Name -split '/' | ForEach-Object { [Uri]::EscapeDataString($_) }) -join '/')
-    return "pkg:${Type}/${encodedName}@$([Uri]::EscapeDataString($PackageVersion))"
-}
 function Add-Component {
-    param([System.Collections.Specialized.OrderedDictionary]$Map, [string]$Type, [string]$Name, [string]$PackageVersion)
-    $purl = Get-Purl -Type $Type -Name $Name -PackageVersion $PackageVersion
+    param([System.Collections.Specialized.OrderedDictionary]$Map, [string]$Purl, [string]$Name, [string]$PackageVersion)
+    # 使用经源码完整性校验的身份，不能重建并丢弃本地补丁 checksum qualifier。
     if (-not $Map.Contains($purl)) {
         $Map[$purl] = [ordered]@{ type = "library"; name = $Name; version = $PackageVersion; purl = $purl; "bom-ref" = $purl }
     }
@@ -32,7 +27,7 @@ $nodeOutput = & node (Join-Path $PSScriptRoot "release\sbom-inventory.cjs") inve
 if ($LASTEXITCODE -ne 0) { throw "Failed to read authoritative lockfile inventory." }
 $inventory = ($nodeOutput -join "`n") | ConvertFrom-Json
 foreach ($entry in $inventory) {
-    Add-Component -Map $componentsByRef -Type ([string]$entry.ecosystem) -Name ([string]$entry.name) -PackageVersion ([string]$entry.version)
+    Add-Component -Map $componentsByRef -Purl ([string]$entry.purl) -Name ([string]$entry.name) -PackageVersion ([string]$entry.version)
 }
 
 $components = @($componentsByRef.Values | Sort-Object { [string]$_['bom-ref'] })

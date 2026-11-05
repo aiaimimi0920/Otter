@@ -132,6 +132,18 @@ jobs:
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-rust-tests-ci.ps1
 
+      - name: Native migration format, tests and build
+        shell: powershell
+        run: |
+          node scripts/release/third-party-sources.cjs .
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo fmt --check --manifest-path native/Cargo.toml
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo test --locked --manifest-path native/Cargo.toml
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo build --locked --release --manifest-path native/Cargo.toml
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Build portable Otter EXE
         shell: powershell
         run: |

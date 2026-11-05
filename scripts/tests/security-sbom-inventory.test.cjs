@@ -20,6 +20,13 @@ test("lock v3 derives direct, nested, scoped and alias package identities", () =
 test("both SBOM inventories must exactly cover authoritative lock identities", () => {
   const expected = lockInventory(path.resolve(__dirname, "../.."));
   assert.ok(expected.some(p => p.ecosystem === "npm" && p.name === "solid-js"));
+  assert.ok(expected.some(p => p.ecosystem === "cargo" && p.name === "otter-native"));
+  for (const name of ["resvg", "roxmltree", "usvg", "tiny-skia"]) {
+    const patched = expected.find(p => p.name === name && p.sourceSha256);
+    assert.ok(patched, `missing patched source identity: ${name}`);
+    assert.match(patched.purl, /\?checksum=sha256%3A[a-f0-9]{64}$/);
+    assert.notEqual(patched.purl, purl({ ...patched, sourceSha256: undefined }));
+  }
   assert.ok(expected.filter(p => p.ecosystem === "npm").length > 100);
   const cyclone = { components: expected.map(p => ({ name: p.name, version: p.version, purl: p.purl })) };
   const spdx = { packages: expected.map(p => ({ name: p.name, versionInfo: p.version, externalRefs: [{ referenceType: "purl", referenceLocator: p.purl }] })) };
@@ -32,4 +39,8 @@ test("both SBOM inventories must exactly cover authoritative lock identities", (
   const altered = structuredClone(spdx);
   altered.packages[0].versionInfo = "forged";
   assert.throws(() => verifyInventory(expected, cyclone, altered));
+  const stripped = structuredClone(cyclone);
+  const local = stripped.components.find(p => p.purl.includes("?checksum="));
+  local.purl = local.purl.split("?")[0];
+  assert.throws(() => verifyInventory(expected, stripped, spdx));
 });

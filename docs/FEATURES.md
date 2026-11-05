@@ -1,5 +1,15 @@
 # Otter Features and Manual Regression Matrix
 
+## Unpublished Windows-native branch: single-field parameter capsules
+
+`F2` enters the real native editor on a focused public Art parameter input; `F6` returns to the port. The workspace has one active field editor outside image pixels. It reuses the parameter transactions and widgets; linked values remain read-only and secrets are omitted. Ordinary sticker image upload is not part of this editor. These are development-branch controls, not completed ordinary desktop or IME acceptance. See [native parity](development/WINDOWS_NATIVE_PARITY.md).
+
+## Unpublished Windows-native branch: port keyboard controls
+
+`F6` enters visible ports on the focused document/Live host; `Shift+F6` starts at its last port. Within the rail, Tab/Shift+Tab and arrows navigate eligible workspace ports, Home/End select the first/last, and Enter/Space toggle name disclosure. Ctrl+Enter selects an output (or the existing source of a linked input), then commits to another node input. Escape first cancels the source, then returns focus; F6 leaves directly. Cancellation preserves the existing edge. These controls apply only to the native development branch.
+
+Manual acceptance remains open for ordinary visible Art/Live, mouse-to-keyboard takeover, IME, DPI/multiple monitors and stale-owner transitions. Isolated HWND tests are not foreground acceptance; see [native parity](development/WINDOWS_NATIVE_PARITY.md).
+
 [Documentation](README.md) · [Getting started](guide/getting-started.md) · [中文教程](guide/getting-started.zh-CN.md)
 
 This is a reference for current controls and manual regression scenarios, not a
@@ -154,9 +164,11 @@ another application has focus.
 | `Ctrl+2` | Enter live region/window capture mode. Double-click chooses a revalidated full window. A drag fully contained by one valid program window binds a fixed window-local pixel region; other drags use a screen region. | Select a 50×50 area at offset (100,100), move the source window, and confirm the view still shows that same UI area. |
 | `Ctrl+3` | Enter long-capture mode, with four-direction viewfinder movement during recording. | Capture a scrollable page, move the viewfinder horizontally and vertically, verify the final no-hole crop, then cancel and retry to confirm session cleanup. |
 | `Ctrl+E` | Toggle sticker editing, including projection invitations, device/group multiselect and opt-in two-way v1 annotation editing. Enabled Capability Plugins may contribute namespaced menus and actions. | Select overlapping targets, retry partial sends, switch source-only direction, merge separate objects and explicitly resolve same-object conflicts. Check durable restart, Escape focus and native popup clicks. Shared Loom needs no official login; account mode keeps its login requirement and does not support two-way editing. |
-| `Ctrl+Alt+Space` | Toggle the configured Talk voice session between start and stop. | Verify both edges and confirm dictated text is inserted only after a completed session. |
+| `Ctrl+Alt+Space` | Reserved Talk integration concept, not an implemented feature of the original Otter. Excluded from the current Windows-native migration. | No start/stop acceptance is required for this unimplemented concept; future implementation needs a separate scope. |
 | Three `Esc+Delete` chords, with less than 400 ms between chords | Emergency exit. Both keys must overlap, then both must be released before the next chord counts. The main process and independent watchdog share this rule. | Verify three full press/release cycles exit; repeated Esc alone, Delete alone, autorepeat, and releasing only one key must not exit. |
 | `Ctrl+Alt+Shift+F12` | Backup emergency-exit chord handled by the watchdog. | Verify it terminates Otter and restores cursor/input state. |
+
+The Windows-native v524 candidate now implements both emergency channels; its isolated tests do not replace physical-keyboard acceptance. Emergency exit bypasses saving and destructors. Its watchdog terminates only the authenticated original parent, leaving the existing Live parent-death recovery child responsible for registered sources. The native host does not alter global cursor constraints, so it does not unconditionally reset another application's cursor state.
 
 The tray currently exposes **Capture**, **Live capture**, **Long capture**,
 **Open existing image**, **Receive projection**, checkable **Autostart**, and **Quit**.

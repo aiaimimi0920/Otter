@@ -60,6 +60,10 @@ explore more possibilities for the images you capture.
 
 [**Complete usage guide →**](./docs/guide/getting-started.md)
 
+## Windows-native migration branch
+
+The unpublished Windows-native branch adds `F6` port navigation, `Ctrl+Enter` keyboard linking, and `F2` entry into a single-field native editor for public Art parameter ports. These are development-branch controls, not a claim about the downloaded public release or completed desktop acceptance. See the [current native parity and verification boundaries](docs/development/WINDOWS_NATIVE_PARITY.md).
+
 ## Contributing
 
 Bug reports, translations, documentation improvements and code contributions are welcome.

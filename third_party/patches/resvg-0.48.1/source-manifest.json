@@ -1,0 +1,307 @@
+{
+  "schemaVersion": 2,
+  "name": "resvg",
+  "version": "0.48.1",
+  "archiveSha256": "67e3803f97b999e80cbf7c6ecdd07a8102204d92e1633cf48783720c521196bd",
+  "patchSha256": "47e8c2cc9481587d99a49ae210a97eef6ff356dd762933c6220a851ff3997ee7",
+  "modified": [
+    "src/clip.rs",
+    "src/filter/color_matrix.rs",
+    "src/filter/component_transfer.rs",
+    "src/filter/composite.rs",
+    "src/filter/mod.rs",
+    "src/filter/morphology.rs",
+    "src/filter/turbulence.rs",
+    "src/image.rs",
+    "src/lib.rs",
+    "src/render.rs"
+  ],
+  "added": [
+    "src/checked_render.rs",
+    "src/checked_render_tests.rs",
+    "src/filter/color_transfer.rs",
+    "src/filter/component_transfer_color.rs",
+    "src/filter/gaussian_blur.rs",
+    "src/filter/joint_gaussian.rs",
+    "src/filter/matrix_premultiplied.rs",
+    "src/filter/morphology_tests.rs",
+    "src/filter/result_liveness.rs",
+    "src/filter/scaled_frame.rs",
+    "src/filter/small_gaussian_2d.rs",
+    "src/filter/work_budget.rs",
+    "src/filter_work_tests.rs"
+  ],
+  "files": [
+    {
+      "path": ".cargo_vcs_info.json",
+      "origin": "upstream",
+      "upstreamSha256": "2d7e07aaf53c97252c37b0c8f1f28f873382a618e7c854048f04207e2e7fac5f",
+      "candidateSha256": "2d7e07aaf53c97252c37b0c8f1f28f873382a618e7c854048f04207e2e7fac5f"
+    },
+    {
+      "path": "Cargo.lock",
+      "origin": "upstream",
+      "upstreamSha256": "68fc16937e34360a4ba4bb12dd3d5fe1d965a57b5f8b53e4ee9e5cdc4932ceb1",
+      "candidateSha256": "68fc16937e34360a4ba4bb12dd3d5fe1d965a57b5f8b53e4ee9e5cdc4932ceb1"
+    },
+    {
+      "path": "Cargo.toml",
+      "origin": "upstream",
+      "upstreamSha256": "6664ac63cb375e43127373ceb25f04c06ef363fca845e9df1bed1d9b47b6a99b",
+      "candidateSha256": "6664ac63cb375e43127373ceb25f04c06ef363fca845e9df1bed1d9b47b6a99b"
+    },
+    {
+      "path": "Cargo.toml.orig",
+      "origin": "upstream",
+      "upstreamSha256": "a57ff43f304e9dd7284ac36b7c058675e510f7268321c52d2b5238da31e5d496",
+      "candidateSha256": "a57ff43f304e9dd7284ac36b7c058675e510f7268321c52d2b5238da31e5d496"
+    },
+    {
+      "path": "LICENSE-APACHE",
+      "origin": "upstream",
+      "upstreamSha256": "a6cba85bc92e0cff7a450b1d873c0eaa2e9fc96bf472df0247a26bec77bf3ff9",
+      "candidateSha256": "a6cba85bc92e0cff7a450b1d873c0eaa2e9fc96bf472df0247a26bec77bf3ff9"
+    },
+    {
+      "path": "LICENSE-MIT",
+      "origin": "upstream",
+      "upstreamSha256": "f5d934dc281b44e0003ee461ac740b18b6629a454decd872c774d34e4ee0b21d",
+      "candidateSha256": "f5d934dc281b44e0003ee461ac740b18b6629a454decd872c774d34e4ee0b21d"
+    },
+    {
+      "path": "README.md",
+      "origin": "upstream",
+      "upstreamSha256": "2e6b214593e6a0ff609a9fe5be3fb7f8c23d729b79d5b77a3081ba347a6e3e96",
+      "candidateSha256": "2e6b214593e6a0ff609a9fe5be3fb7f8c23d729b79d5b77a3081ba347a6e3e96"
+    },
+    {
+      "path": "examples/bboxes.svg",
+      "origin": "upstream",
+      "upstreamSha256": "c3bdea9d43ca1006d146b61aad704c0c9271dc972197639cf21278036ab1a6fa",
+      "candidateSha256": "c3bdea9d43ca1006d146b61aad704c0c9271dc972197639cf21278036ab1a6fa"
+    },
+    {
+      "path": "examples/custom_href_resolver.rs",
+      "origin": "upstream",
+      "upstreamSha256": "df99856abb07c0729699b21349ed9377670d605bfdc69432fcde42e247a5e3fa",
+      "candidateSha256": "df99856abb07c0729699b21349ed9377670d605bfdc69432fcde42e247a5e3fa"
+    },
+    {
+      "path": "examples/custom_href_resolver.svg",
+      "origin": "upstream",
+      "upstreamSha256": "15cad01edccd71ed786d1d32dfb2334209e4e46778b9f3a95d2be1c37448855b",
+      "candidateSha256": "15cad01edccd71ed786d1d32dfb2334209e4e46778b9f3a95d2be1c37448855b"
+    },
+    {
+      "path": "examples/draw_bboxes.rs",
+      "origin": "upstream",
+      "upstreamSha256": "7f61e829e2b5d36bbb82eb5e97e56c092e84c802f9cf093c62890ff860cc859e",
+      "candidateSha256": "7f61e829e2b5d36bbb82eb5e97e56c092e84c802f9cf093c62890ff860cc859e"
+    },
+    {
+      "path": "examples/ferris.png",
+      "origin": "upstream",
+      "upstreamSha256": "0529d9c05718d9abde17d0d989b45d9c21dc4205e6db182f00101893e892e3bc",
+      "candidateSha256": "0529d9c05718d9abde17d0d989b45d9c21dc4205e6db182f00101893e892e3bc"
+    },
+    {
+      "path": "examples/minimal.rs",
+      "origin": "upstream",
+      "upstreamSha256": "e0da5ccf8cf7acc6c40fc6385c322edbc5dc8c446877feacfce74baf2b613f0b",
+      "candidateSha256": "e0da5ccf8cf7acc6c40fc6385c322edbc5dc8c446877feacfce74baf2b613f0b"
+    },
+    {
+      "path": "src/checked_render.rs",
+      "origin": "local-added",
+      "upstreamSha256": null,
+      "candidateSha256": "35e01258d2120a7c066f6421b4c5d6dcc9467a085a9de979a84133a5c0d2dae1"
+    },
+    {
+      "path": "src/checked_render_tests.rs",
+      "origin": "local-added",
+      "upstreamSha256": null,
+      "candidateSha256": "e83cee2fceee45191a851965dd42d40c3c31176e25c3bcdc782cb87c19dddf14"
+    },
+    {
+      "path": "src/clip.rs",
+      "origin": "upstream",
+      "upstreamSha256": "bbfece2b312ea419c8c8844d01051946b66797aeab2675c71574414ecb95a067",
+      "candidateSha256": "a3ffc6862f78687acc8e88b396e6252922de624ed734b82067b73eee7d23abcb"
+    },
+    {
+      "path": "src/filter/box_blur.rs",
+      "origin": "upstream",
+      "upstreamSha256": "a25c600532f7a7b3df9022f10c17243a24ba718d64958c566f26feade3d9c5a2",
+      "candidateSha256": "a25c600532f7a7b3df9022f10c17243a24ba718d64958c566f26feade3d9c5a2"
+    },
+    {
+      "path": "src/filter/color_matrix.rs",
+      "origin": "upstream",
+      "upstreamSha256": "5f721bd5b56bd6ceeba3e0dfce8cf788d49943dd808ea6beca2b045345f8f616",
+      "candidateSha256": "f3a34b6490f7b4e7ac04a982124ccdfeda85673556cd7213294dc62c8d28a5e3"
+    },
+    {
+      "path": "src/filter/color_transfer.rs",
+      "origin": "local-added",
+      "upstreamSha256": null,
+      "candidateSha256": "c61354bf91a0611995c5608fd18660ec7897e4d2050aace9a73e34bb957c502b"
+    },
+    {
+      "path": "src/filter/component_transfer.rs",
+      "origin": "upstream",
+      "upstreamSha256": "78c6961374d9d0829cb37dca470dee1e4a868f8597c91a2735646ab76edf562d",
+      "candidateSha256": "d471c3c9f591b7214bd5a13b07067426d400ee17292fb5d6def99adbd0bbcfae"
+    },
+    {
+      "path": "src/filter/component_transfer_color.rs",
+      "origin": "local-added",
+      "upstreamSha256": null,
+      "candidateSha256": "8c11329df1e8420cef14317136d5021fce35e2de46b468109ee0bd0f99ba9e8e"
+    },
+    {
+      "path": "src/filter/composite.rs",
+      "origin": "upstream",
+      "upstreamSha256": "391394fceb347771bb6c930882635f99e022a7b6108df66cf7616aa83d13a1af",
+      "candidateSha256": "05da30cc165204c3baf99fffa0389930b48d56f1147a08638d0abdd605d9ed95"
+    },
+    {
+      "path": "src/filter/convolve_matrix.rs",
+      "origin": "upstream",
+      "upstreamSha256": "d4e8b2e7604b93866a8d02ac1524e16c914e5803f0a05285f40cef6785631a09",
+      "candidateSha256": "d4e8b2e7604b93866a8d02ac1524e16c914e5803f0a05285f40cef6785631a09"
+    },
+    {
+      "path": "src/filter/displacement_map.rs",
+      "origin": "upstream",
+      "upstreamSha256": "e54274bb502bd7d262c6daa98b447ef2c90ee49a084e32f6892782bd9d678687",
+      "candidateSha256": "e54274bb502bd7d262c6daa98b447ef2c90ee49a084e32f6892782bd9d678687"
+    },
+    {
+      "path": "src/filter/gaussian_blur.rs",
+      "origin": "local-added",
+      "upstreamSha256": null,
+      "candidateSha256": "83ee68bd44fb885ed225a59bd4c3497bc60dd0993e278cb1a3796fb3de65c567"
+    },
+    {
+      "path": "src/filter/iir_blur.rs",
+      "origin": "upstream",
+      "upstreamSha256": "b489b4d6c905ca246b72a9d9cddb2ffd40cbef7ca2b51c15d63d13902e9cc5a4",
+      "candidateSha256": "b489b4d6c905ca246b72a9d9cddb2ffd40cbef7ca2b51c15d63d13902e9cc5a4"
+    },
+    {
+      "path": "src/filter/joint_gaussian.rs",
+      "origin": "local-added",
+      "upstreamSha256": null,
+      "candidateSha256": "91f16694b4dc50173b44506039abd95563e89e6af5502afa401b9570cf2e3407"
+    },
+    {
+      "path": "src/filter/lighting.rs",
+      "origin": "upstream",
+      "upstreamSha256": "55c68c61f27b831d81f30c62e3adf56f131d40664ce34ece4acfacfe0ddcdf71",
+      "candidateSha256": "55c68c61f27b831d81f30c62e3adf56f131d40664ce34ece4acfacfe0ddcdf71"
+    },
+    {
+      "path": "src/filter/matrix_premultiplied.rs",
+      "origin": "local-added",
+      "upstreamSha256": null,
+      "candidateSha256": "62110b77fccdec942f166b37d6a973a123fceaf80cb750444bbb182f4c2eba41"
+    },
+    {
+      "path": "src/filter/mod.rs",
+      "origin": "upstream",
+      "upstreamSha256": "b24535fa0686ebcde56bbefa42924bc90f36e0302ccba561355b6ae56dd442d2",
+      "candidateSha256": "08a99298c0f1c3ebd6a252d49100e65fc6b05c3261bf8bf80547b4c1cb5fac76"
+    },
+    {
+      "path": "src/filter/morphology.rs",
+      "origin": "upstream",
+      "upstreamSha256": "f31ad2ea03659309f544c003aeec4e0c09f0c71630e0fe9218994418e174057e",
+      "candidateSha256": "0c60bfbeccd3380e9c66e64b88b42a4956d4e6759dceabc1a43004b0f79607d4"
+    },
+    {
+      "path": "src/filter/morphology_tests.rs",
+      "origin": "local-added",
+      "upstreamSha256": null,
+      "candidateSha256": "796bb6cf659acdebcccea75e74a86b39fa7b31131f6ad36883ba9a7290f621cc"
+    },
+    {
+      "path": "src/filter/result_liveness.rs",
+      "origin": "local-added",
+      "upstreamSha256": null,
+      "candidateSha256": "55f5b022f5f1e6ae9ec2f4530325884b6c731ed84b09f24ea5b6516ea05f695c"
+    },
+    {
+      "path": "src/filter/scaled_frame.rs",
+      "origin": "local-added",
+      "upstreamSha256": null,
+      "candidateSha256": "205f7df5cefae6df6e8c75015be3cba493cd77f96df4f446a0054a020d806db6"
+    },
+    {
+      "path": "src/filter/small_gaussian_2d.rs",
+      "origin": "local-added",
+      "upstreamSha256": null,
+      "candidateSha256": "9d9d237b87de59261779606864df5b94008444dca44d483935736b09cdab21a9"
+    },
+    {
+      "path": "src/filter/turbulence.rs",
+      "origin": "upstream",
+      "upstreamSha256": "2b4c288e174664836d17f829831809bee0fc55f02e6eab8425447f2ab778d974",
+      "candidateSha256": "0c64733e6b7744d60f204796b400b7f53a887ee262ba79ea979accc564a6a6cf"
+    },
+    {
+      "path": "src/filter/work_budget.rs",
+      "origin": "local-added",
+      "upstreamSha256": null,
+      "candidateSha256": "89f54603db211c62182797ffcec22ae17fac0fdabf29b043e91a102d6385450e"
+    },
+    {
+      "path": "src/filter_work_tests.rs",
+      "origin": "local-added",
+      "upstreamSha256": null,
+      "candidateSha256": "5ba7037160a82ee51bdb0390910083287e6e180445f80101170ebdf33387a463"
+    },
+    {
+      "path": "src/geom.rs",
+      "origin": "upstream",
+      "upstreamSha256": "2231dd54f9444399f2a2c528b8c163b0a930f4861e9e32927f62fa2289fa10e3",
+      "candidateSha256": "2231dd54f9444399f2a2c528b8c163b0a930f4861e9e32927f62fa2289fa10e3"
+    },
+    {
+      "path": "src/image.rs",
+      "origin": "upstream",
+      "upstreamSha256": "41b548fc8627822cda2357c653eb86092f91eabd45ff8ed5d3f9b16fee89734e",
+      "candidateSha256": "a440d54463e8231fb63f39632523d591b750ecd453196202568a980f2cde5697"
+    },
+    {
+      "path": "src/lib.rs",
+      "origin": "upstream",
+      "upstreamSha256": "d90f2f77488c28ff6e79ce334dcffdb05eefc5fcfd718ba1d0316c023c8f19f3",
+      "candidateSha256": "3d14a85c4c2d2e062b12c3d92ac21244d90582a2a0842fde963ae68b800d7dcf"
+    },
+    {
+      "path": "src/main.rs",
+      "origin": "upstream",
+      "upstreamSha256": "6227dc655cd7ecbdaa68271fcd3f4f2ce007a3435e08dee152dc8e750ab5c299",
+      "candidateSha256": "6227dc655cd7ecbdaa68271fcd3f4f2ce007a3435e08dee152dc8e750ab5c299"
+    },
+    {
+      "path": "src/mask.rs",
+      "origin": "upstream",
+      "upstreamSha256": "dc9e0d6dd22d2dd9981ff68e27f2ac45d303f574c4ca293877dfdd5af2a3c37d",
+      "candidateSha256": "dc9e0d6dd22d2dd9981ff68e27f2ac45d303f574c4ca293877dfdd5af2a3c37d"
+    },
+    {
+      "path": "src/path.rs",
+      "origin": "upstream",
+      "upstreamSha256": "cf49f94eba8a16cc3f730f544b49fbf1928b053dc4620c485677d1500dd897c7",
+      "candidateSha256": "cf49f94eba8a16cc3f730f544b49fbf1928b053dc4620c485677d1500dd897c7"
+    },
+    {
+      "path": "src/render.rs",
+      "origin": "upstream",
+      "upstreamSha256": "9a91c2d4272b500dd4e0aeab32d00e7b465d00aeb3b575f571a6e23845dfac18",
+      "candidateSha256": "319abcac43d0ea3570923b5fa39cdf8f07539a5ee848353145a9b472a30fe418"
+    }
+  ],
+  "status": "repository-patched-source"
+}

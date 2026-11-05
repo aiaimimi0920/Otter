@@ -43,6 +43,15 @@ of truth. Documents are grouped by purpose and this index is the navigation entr
 
 ## 开发与运行时 / Development and runtime
 
+- [Windows 原生架构迁移](development/WINDOWS_NATIVE_MIGRATION.md) — 开发分支的目标、任务与验收；不是当前产品已完成的能力。
+- [Windows 原生统一修订计划](development/WINDOWS_NATIVE_REVISED_PLAN.md) — 当前有效范围、决定及有限 P1–P4 剩余交付项；不从历史未实现段落重新开工。
+- [Windows 原生开发构建](development/WINDOWS_NATIVE_BUILD.md) — 内部候选来源、构建/打包及实际运行证据与未验边界；不等于普通业务、资源长稳或正式发布已通过。
+- [Windows 原生功能对照](development/WINDOWS_NATIVE_PARITY.md) — 已实现行为、当前验收状态与历史证据的适用范围。
+- [Windows 原生最终验收清单](development/WINDOWS_NATIVE_ACCEPTANCE.md) — 全面功能复核、已通过项复用、普通 Live/资源与物理环境延期门；准备清单不代表验收通过。
+- [ANGLE 显式工具链 adapter](development/ANGLE_TOOLCHAIN.md) — 固定上游 SDK 环境消费边界；不等于 SDK 安装或完整 DLL 构建。
+- [显式本地 Shader 候选](development/SHADER_LOCAL_CANDIDATE.md) — 固定 DLL 的实际产品启动、私有路径门和开发侧 EXE 验证；不等于默认安装或发行批准。
+- [原生 Surface 图片迁移](development/SURFACE_IMAGES.md) — 图片来源授权、真实浏览器基线与待实现资源链。
+
 - [开发与验证](guide/development.zh-CN.md) · [Development and verification](guide/development.md) — requirements, commands, local builds and native acceptance boundaries.
 
 - [Technical architecture](./architecture/overview.md) — current runtime, module, capture, input, persistence and release architecture.
