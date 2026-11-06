@@ -1,7 +1,7 @@
 //! 普通固定SHA产品的系统消息→取消→继续编辑→确认结束；只操作自启PID的离屏窗口。
 use super::*;
 
-unsafe fn send(expected_pid: u32, hwnd: HWND, message: u32, value: usize) -> usize {
+pub(super) unsafe fn send(expected_pid: u32, hwnd: HWND, message: u32, value: usize) -> usize {
     let mut pid = 0;
     GetWindowThreadProcessId(hwnd, Some(&mut pid));
     assert_eq!(

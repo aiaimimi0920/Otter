@@ -22,15 +22,17 @@ fn hidden_native_region_selects_synthetic_pixels_and_cancels_without_document() 
             false,
             |hwnd| unsafe {
                 SendMessageW(hwnd, WM_LBUTTONDOWN, None, Some(LPARAM(1 | (1 << 16))));
+                if cancel {
+                    SendMessageW(hwnd, WM_KEYDOWN, Some(WPARAM(VK_ESCAPE.0 as usize)), None);
+                }
                 SendMessageW(hwnd, WM_LBUTTONUP, None, Some(LPARAM(3 | (3 << 16))));
-                SendMessageW(
-                    hwnd,
-                    WM_KEYDOWN,
-                    Some(WPARAM(
-                        if cancel { VK_ESCAPE.0 } else { VK_RETURN.0 } as usize
-                    )),
-                    None,
-                );
+                let state = &*(GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *const Selection);
+                assert!(state.done.get());
+                assert_eq!(state.accepted.get(), !cancel);
+                // 完成后收到额外输入也不能调整或再次提交已确定的矩形。
+                SendMessageW(hwnd, WM_LBUTTONDOWN, None, Some(LPARAM(0)));
+                SendMessageW(hwnd, WM_LBUTTONUP, None, Some(LPARAM(1 | (1 << 16))));
+                SendMessageW(hwnd, WM_KEYDOWN, Some(WPARAM(VK_ESCAPE.0 as usize)), None);
             },
         )
         .unwrap();
@@ -71,11 +73,18 @@ fn hidden_native_region_selects_synthetic_pixels_and_cancels_without_document() 
                     SendMessageW(hwnd, WM_LBUTTONUP, None, point);
                 }
                 SendMessageW(hwnd, WM_KEYDOWN, Some(WPARAM(VK_RETURN.0 as usize)), None);
+                let state = &*(GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *const Selection);
+                assert_eq!(state.accepted.get(), click);
+                SendMessageW(hwnd, WM_KEYDOWN, Some(WPARAM(VK_ESCAPE.0 as usize)), None);
             },
         )
-        .unwrap()
         .unwrap();
-        assert_eq!((selected.width, selected.height), (50, 40));
+        if click {
+            let selected = selected.unwrap();
+            assert_eq!((selected.width, selected.height), (50, 40));
+        } else {
+            assert!(selected.is_none());
+        }
     }
 }
 #[test]
@@ -97,7 +106,7 @@ fn live_drag_and_double_click_share_selector_without_cropping_frozen_pixels() {
             },
             vec![rect],
             false,
-            true,
+            Mode::Live,
             |hwnd| unsafe {
                 let at = |x: isize, y: isize| Some(LPARAM(x | (y << 16)));
                 SendMessageW(hwnd, WM_LBUTTONDOWN, None, at(30, 30));
@@ -140,7 +149,7 @@ fn live_drag_and_double_click_share_selector_without_cropping_frozen_pixels() {
         },
         vec![],
         false,
-        true,
+        Mode::Live,
         |hwnd| unsafe {
             SendMessageW(hwnd, WM_LBUTTONDBLCLK, None, Some(LPARAM(10 | (10 << 16))));
             SendMessageW(hwnd, WM_KEYDOWN, Some(WPARAM(VK_ESCAPE.0 as usize)), None);
@@ -148,4 +157,101 @@ fn live_drag_and_double_click_share_selector_without_cropping_frozen_pixels() {
     )
     .unwrap();
     assert!(result.is_none());
+}
+
+#[test]
+fn quick_capture_rejects_empty_drags_and_lost_capture_then_accepts_a_fresh_drag() {
+    for interruption in [WM_CANCELMODE, WM_CAPTURECHANGED, 0] {
+        let result = select_positioned_with(
+            image(100, 80),
+            POINT::default(),
+            vec![RECT {
+                left: 0,
+                top: 0,
+                right: 100,
+                bottom: 80,
+            }],
+            false,
+            |hwnd| unsafe {
+                let at = |x: isize, y: isize| Some(LPARAM(x | (y << 16)));
+                SendMessageW(hwnd, WM_LBUTTONDOWN, None, at(10, 10));
+                SendMessageW(hwnd, WM_MOUSEMOVE, None, at(30, 30));
+                if interruption == WM_CAPTURECHANGED {
+                    ReleaseCapture().unwrap();
+                } else if interruption != 0 {
+                    SendMessageW(hwnd, interruption, None, None);
+                }
+                // 零宽拖动不能退回到悬停整窗，也不能提交中断前的矩形。
+                SendMessageW(hwnd, WM_LBUTTONUP, None, at(10, 40));
+                let state = &*(GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *const Selection);
+                assert!(!state.done.get() && !state.accepted.get());
+                assert!(state.model.get().rect.is_none());
+                SendMessageW(hwnd, WM_KEYDOWN, Some(WPARAM(VK_RETURN.0 as usize)), None);
+                assert!(!state.done.get());
+                SendMessageW(hwnd, WM_LBUTTONDOWN, None, at(90, 70));
+                SendMessageW(hwnd, WM_LBUTTONUP, None, at(60, 40));
+                assert!(state.done.get() && state.accepted.get());
+                SendMessageW(hwnd, WM_KEYDOWN, Some(WPARAM(VK_ESCAPE.0 as usize)), None);
+            },
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!((result.0.width, result.0.height), (30, 30));
+        assert_eq!(result.1, POINT { x: 60, y: 40 });
+    }
+}
+
+#[test]
+fn pointer_motion_without_a_window_preview_has_no_magnifier_repaint() {
+    let result = select_positioned_with(
+        image(300, 300),
+        POINT::default(),
+        Vec::new(),
+        false,
+        |hwnd| unsafe {
+            assert!(ValidateRect(Some(hwnd), None).as_bool());
+            for (x, y) in [(30, 30), (280, 280), (280, 280)] {
+                SendMessageW(hwnd, WM_MOUSEMOVE, None, Some(LPARAM(x | (y << 16))));
+                assert!(!GetUpdateRect(hwnd, None, false).as_bool());
+            }
+            SendMessageW(hwnd, WM_KEYDOWN, Some(WPARAM(VK_ESCAPE.0 as usize)), None);
+        },
+    )
+    .unwrap();
+    assert!(result.is_none());
+}
+
+#[test]
+fn long_capture_keeps_adjustment_and_confirmation_in_its_own_mode() {
+    let result = select_bounds_with(
+        &image(100, 80),
+        POINT::default(),
+        Vec::new(),
+        false,
+        Mode::Adjust,
+        |hwnd| unsafe {
+            let at = |x: isize, y: isize| Some(LPARAM(x | (y << 16)));
+            SendMessageW(hwnd, WM_LBUTTONDOWN, None, at(10, 10));
+            SendMessageW(hwnd, WM_LBUTTONUP, None, at(60, 60));
+            let state = &*(GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *const Selection);
+            assert!(!state.done.get());
+            SendMessageW(hwnd, WM_LBUTTONDOWN, None, at(30, 30));
+            SendMessageW(hwnd, WM_LBUTTONUP, None, at(40, 40));
+            assert!(!state.done.get());
+            SendMessageW(hwnd, WM_KEYDOWN, Some(WPARAM(VK_RETURN.0 as usize)), None);
+            assert!(state.done.get());
+            SendMessageW(hwnd, WM_KEYDOWN, Some(WPARAM(VK_ESCAPE.0 as usize)), None);
+        },
+    )
+    .unwrap()
+    .unwrap();
+    assert_eq!(
+        result.0,
+        RECT {
+            left: 20,
+            top: 20,
+            right: 70,
+            bottom: 70
+        }
+    );
 }

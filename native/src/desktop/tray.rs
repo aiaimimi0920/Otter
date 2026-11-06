@@ -1,4 +1,4 @@
-//! 按需托盘 owner；先建立恢复入口再隐藏，Explorer 重启失败时恢复可见窗口。
+//! 常驻与按需托盘 owner；先建立恢复入口再隐藏，Explorer 重启失败时恢复隐藏窗口。
 use super::State;
 use std::cell::Cell;
 use windows::{
@@ -22,9 +22,25 @@ const NIN_KEYSELECT: u32 = NIN_SELECT | 1;
 #[derive(Default)]
 pub(super) struct Tray {
     installed: Cell<bool>,
+    resident: Cell<bool>,
     hidden: Cell<bool>,
     panel_visible: Cell<bool>,
     restarted: Cell<u32>,
+}
+
+pub(super) fn is_resident(state: &State) -> bool {
+    state.tray.resident.get()
+}
+pub(super) unsafe fn start(hwnd: HWND, state: &State) -> Result<()> {
+    start_with(state, || install(hwnd, state))
+}
+pub(super) fn start_with(state: &State, install: impl FnOnce() -> Result<()>) -> Result<()> {
+    // 常驻归属与系统安装结果分开；失败只记录一次，不能在每条消息上重复请求 Shell。
+    // TaskbarCreated 仍会重新安装，因此 Explorer 尚未就绪不会丢失后续恢复资格。
+    if state.tray.resident.replace(true) {
+        return Ok(());
+    }
+    install()
 }
 
 fn install_with(
@@ -167,7 +183,30 @@ pub(super) unsafe fn restore_with(
         show(state.tool_panel.get(), SW_SHOWNOACTIVATE);
     }
     foreground(hwnd);
-    remove(hwnd, state);
+    if !state.tray.resident.get() {
+        remove(hwnd, state);
+    }
+}
+
+unsafe fn activate(hwnd: HWND, state: &State) {
+    if state.tray.hidden.get() {
+        restore(hwnd, state);
+    } else if IsWindow(Some(hwnd)).as_bool() {
+        let _ = ShowWindow(hwnd, SW_RESTORE);
+        let _ = SetForegroundWindow(hwnd);
+    }
+}
+
+fn restarted_with(state: &State, install: impl FnOnce() -> Result<()>, restore: impl FnOnce()) {
+    state.tray.installed.set(false);
+    if state.tray.resident.get() || state.tray.hidden.get() {
+        if let Err(error) = install() {
+            eprintln!("native-tray-restart: {error}");
+            if state.tray.hidden.get() {
+                restore();
+            }
+        }
+    }
 }
 
 struct Menu(HMENU);
@@ -199,7 +238,7 @@ unsafe fn menu(hwnd: HWND, state: &State, position: WPARAM) -> Result<()> {
     })?;
     if IsWindow(Some(hwnd)).as_bool() {
         match command {
-            1 => restore(hwnd, state),
+            1 => activate(hwnd, state),
             2 => {
                 super::application::request_exit(hwnd, state)?;
             }
@@ -229,21 +268,15 @@ pub(super) unsafe fn dispatch(
         return None;
     }
     if state.tray.restarted.get() != 0 && msg == state.tray.restarted.get() {
-        state.tray.installed.set(false);
-        if state.tray.hidden.get() {
-            if let Err(error) = install(hwnd, state) {
-                eprintln!("native-tray-restart: {error}");
-                restore(hwnd, state);
-            }
-        }
+        restarted_with(state, || install(hwnd, state), || restore(hwnd, state));
         return Some(LRESULT(0));
     }
     if msg != CALLBACK {
         return None;
     }
-    if state.tray.installed.get() && state.tray.hidden.get() {
+    if state.tray.installed.get() {
         match event(lp) {
-            Some(NIN_SELECT | NIN_KEYSELECT) => restore(hwnd, state),
+            Some(NIN_SELECT | NIN_KEYSELECT) => activate(hwnd, state),
             Some(WM_CONTEXTMENU) => {
                 if let Err(error) = menu(hwnd, state, wp) {
                     eprintln!("native-tray-menu: {error}");
@@ -255,6 +288,9 @@ pub(super) unsafe fn dispatch(
     Some(LRESULT(0))
 }
 
+#[cfg(test)]
+#[path = "tray_resident_tests.rs"]
+mod resident_tests;
 #[cfg(test)]
 mod tests {
     use super::*;

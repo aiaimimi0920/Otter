@@ -45,6 +45,7 @@ pub(in crate::desktop) unsafe fn collapse(
     if !super::toggle_guard::allows(state) {
         return Ok(false);
     }
+    prepare(hwnd, state)?;
     let mut rect = RECT::default();
     GetWindowRect(hwnd, &mut rect)?;
     let before = PinRect {
@@ -55,7 +56,7 @@ pub(in crate::desktop) unsafe fn collapse(
     };
     let dpi = GetDpiForWindow(hwnd).max(1) as f64 / 96.0;
     let (after, size, offset) = geometry(before, screen, dpi)?;
-    let opacity = {
+    let (opacity, viewport) = {
         let mut canvas = state.canvas.borrow_mut();
         if canvas.minified.is_some() || canvas.tool != crate::editor::Tool::Pan {
             return Ok(false);
@@ -121,26 +122,49 @@ pub(in crate::desktop) unsafe fn collapse(
             persist_expanded: true,
         });
         canvas.window_opacity = canvas.minified_opacity;
-        opacity
+        (opacity, canvas.viewport)
     };
-    if let Err(error) = SetWindowPos(
-        hwnd,
-        None,
-        after.x,
-        after.y,
-        after.width as i32,
-        after.height as i32,
-        SWP_NOZORDER | SWP_NOACTIVATE,
-    ) {
+    if let Err(error) = present(hwnd, state, after) {
         let mut canvas = state.canvas.borrow_mut();
         canvas.minified = None;
         canvas.minified_restore = None;
         canvas.window_opacity = opacity;
+        canvas.viewport = viewport;
+        drop(canvas);
+        super::preview::finish(hwnd, state, true);
         return Err(error);
     }
     super::super::hit_region::update(hwnd, state)?;
     let _ = InvalidateRect(Some(hwnd), None, false);
     Ok(true)
+}
+
+pub(super) unsafe fn prepare(hwnd: HWND, state: &State) -> Result<()> {
+    super::animation::stop(hwnd, state);
+    if super::preview::active(state) {
+        return Err(Error::new(E_FAIL, "Previous preview handoff is incomplete"));
+    }
+    Ok(())
+}
+
+pub(super) unsafe fn present(hwnd: HWND, state: &State, target: PinRect) -> Result<()> {
+    // 模型已切到目标形态；先提交目标图框整帧，再改变被遮罩宿主的几何。
+    super::fit_size(hwnd, state, (target.width as i32, target.height as i32));
+    super::preview::begin(hwnd, state, target)?;
+    if !super::presentation::apply(hwnd, state, target) {
+        return Err(state
+            .error
+            .borrow()
+            .clone()
+            .unwrap_or_else(|| Error::new(E_FAIL, "Cannot position minified transition")));
+    }
+    let (minified, opacity) = {
+        let canvas = state.canvas.borrow();
+        (canvas.minified.is_some(), canvas.window_opacity)
+    };
+    crate::desktop::application::chrome::presentation(&state.chrome, hwnd, minified, opacity);
+    super::preview::finish(hwnd, state, true);
+    Ok(())
 }
 
 fn geometry(

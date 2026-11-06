@@ -17,9 +17,14 @@ pub(super) struct Bitmap {
     _lease: crate::byte_budget::Lease,
     _thread: PhantomData<Rc<()>>,
 }
+#[path = "software_bitmap_frame.rs"]
+mod frame;
 impl Bitmap {
     pub fn new(size: D2D_SIZE_U) -> Result<Self> {
         let bytes = byte_count(size)?;
+        Self::allocate(size, bytes)
+    }
+    fn allocate(size: D2D_SIZE_U, bytes: usize) -> Result<Self> {
         let lease = crate::pixels::reserve(bytes)
             .ok_or_else(|| Error::new(E_OUTOFMEMORY, "Software frame pixel budget exhausted"))?;
         unsafe {

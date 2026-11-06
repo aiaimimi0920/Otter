@@ -2,7 +2,10 @@
 use super::Application;
 use crate::editor::Tool;
 use std::time::{Duration, Instant};
-use windows::Win32::{Foundation::WPARAM, UI::WindowsAndMessaging::*};
+use windows::Win32::{
+    Foundation::{LPARAM, RECT, WPARAM},
+    UI::WindowsAndMessaging::*,
+};
 
 pub(super) unsafe fn verify(app: &mut Application) {
     for cancel in [false, true] {
@@ -24,8 +27,12 @@ pub(super) unsafe fn verify(app: &mut Application) {
             .borrow()
             .editor
             .document_stamp();
-        SendMessageW(hwnd, WM_LBUTTONDOWN, None, None);
-        SendMessageW(hwnd, WM_LBUTTONUP, None, None);
+        // 居中显示后左上角可能是透明留白；擦除必须从真实内容内部开始。
+        let mut client = RECT::default();
+        GetClientRect(hwnd, &mut client).unwrap();
+        let point = LPARAM((client.right / 2) as isize | (((client.bottom / 2) as isize) << 16));
+        SendMessageW(hwnd, WM_LBUTTONDOWN, None, Some(point));
+        SendMessageW(hwnd, WM_LBUTTONUP, None, Some(point));
         assert!(relay.state.erase_job.borrow().is_busy());
         assert!(relay.state.pending_adoption.borrow().is_some());
         let temporary = relay.state.canvas.borrow().editor.document_stamp();

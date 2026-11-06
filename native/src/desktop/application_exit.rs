@@ -176,6 +176,7 @@ impl Application {
         }
     }
     unsafe fn close_confirmed(&mut self) -> bool {
+        self.exit_committed = true;
         self.checkpoint_exiting();
         for document in &self.documents {
             if document.is_alive() {

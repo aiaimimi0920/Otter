@@ -89,6 +89,7 @@ impl Application {
             capture_windows,
             modals,
             exit_requested,
+            exit_committed: false,
             session_end,
         }
     }

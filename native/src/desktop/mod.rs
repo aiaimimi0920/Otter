@@ -37,6 +37,7 @@ mod blur_default;
 mod blur_input;
 mod blur_numeric;
 mod blur_selection;
+mod buffered_paint;
 mod cache_input;
 mod canvas;
 mod capability_catalog;
@@ -47,7 +48,7 @@ mod capability_selection;
 pub mod capture;
 mod capture_crop;
 mod capture_input;
-mod capture_magnifier;
+mod capture_pixel;
 mod capture_protection;
 mod capture_region;
 mod capture_selection;
@@ -162,6 +163,7 @@ mod parameter_view;
 mod parameter_view_values;
 mod paste_input;
 mod path_handles;
+pub(crate) mod pin_border_style;
 mod pin_window;
 mod popup_menu;
 #[cfg(test)]
@@ -337,6 +339,9 @@ pub(super) struct State {
     capture_windows: std::rc::Rc<RefCell<Vec<HWND>>>,
     lifetime: host_lifetime::Registration,
     geometry_wake: window_geometry_wake::Wake,
+    pin_zoom: Cell<crate::pin_geometry::WheelZoom>,
+    pin_resize: pin_window::presentation::Resize,
+    pin_animation: pin_window::animation::Animation,
     priority_watcher: RefCell<Option<window_priority::Watcher>>,
     global_capture: Cell<bool>,
     global_long_capture: Cell<bool>,

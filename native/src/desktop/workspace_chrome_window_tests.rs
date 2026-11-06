@@ -1,6 +1,25 @@
 //! 自有 HWND 的 region/捕获/几何/拓扑与资源门；由隔离 desktop runner 执行。
 use super::*;
-use windows::Win32::{Graphics::Gdi::*, UI::Input::KeyboardAndMouse::*};
+use windows::Win32::{
+    Graphics::Gdi::*,
+    UI::{Input::KeyboardAndMouse::*, Shell::*},
+};
+#[path = "workspace_chrome_atomic_tests.rs"]
+mod atomic_tests;
+#[path = "workspace_chrome_border_tests.rs"]
+mod border_tests;
+#[path = "workspace_chrome_handoff_tests.rs"]
+mod handoff_tests;
+#[path = "workspace_chrome_move_tests.rs"]
+mod move_tests;
+#[path = "workspace_chrome_occlusion_tests.rs"]
+mod occlusion;
+#[path = "workspace_chrome_refresh_tests.rs"]
+mod refresh_tests;
+#[path = "workspace_chrome_stack_tests.rs"]
+mod stack_tests;
+#[path = "workspace_chrome_stationary_tests.rs"]
+mod stationary_tests;
 unsafe fn visible_app() -> Application {
     let mut app = app();
     app.add_window(false).unwrap();
@@ -26,6 +45,25 @@ unsafe fn visible_app() -> Application {
     assert_eq!(app.chrome.ui.nodes.borrow().len(), 2);
     assert_eq!(app.chrome.ui.input_windows.borrow().len(), 4);
     app
+}
+unsafe fn border_handle(ui: &Ui, endpoint: usize) -> HWND {
+    let node = ui.node(endpoint).unwrap();
+    ui.borders
+        .borrow()
+        .iter()
+        .find(|border| border.matches(&node))
+        .unwrap()
+        .hwnd
+}
+unsafe fn border_covers(ui: &Ui, endpoint: usize, point: Point) -> bool {
+    let hwnd = border_handle(ui, endpoint);
+    let mut bounds = RECT::default();
+    GetWindowRect(hwnd, &mut bounds).unwrap();
+    let region = CreateRectRgn(0, 0, 0, 0);
+    assert_ne!(GetWindowRgn(hwnd, region), RGN_ERROR);
+    let covered = PtInRegion(region, point.x - bounds.left, point.y - bounds.top).as_bool();
+    let _ = DeleteObject(region.into());
+    IsWindowVisible(hwnd).as_bool() && covered
 }
 unsafe fn mouse(ui: &Ui, hwnd: HWND, msg: u32, point: Point) {
     let mut client = POINT {
@@ -54,7 +92,12 @@ fn port(ui: &Ui, node: usize, side: Side) -> (HWND, Port, Point) {
         side,
         index: 0,
     };
-    (hwnd, port, ui.point(port).unwrap())
+    let mut point = ui.point(port).unwrap();
+    let node = ui.node(node).unwrap();
+    // 命中样本必须位于新白框裁剪范围之外，小图的半径/2 恰好可能落在白框里。
+    let offset = (node.radius() / 2).max(desktop::pin_border_style::width(node.dpi) as i32 + 1);
+    point.x += if side == Side::Input { -offset } else { offset };
+    (hwnd, port, point)
 }
 #[test]
 fn owned_sparse_regions_affinity_and_three_modes_keep_only_declared_input_areas() {
@@ -64,14 +107,11 @@ fn owned_sparse_regions_affinity_and_three_modes_keep_only_declared_input_areas(
         let mut title = [0; 64];
         let length = GetWindowTextW(ui.drawing.get(), &mut title) as usize;
         assert_eq!(String::from_utf16_lossy(&title[..length]), "Otter · 工作区");
-        for (hwnd, endpoint, _) in ui.input_windows.borrow().iter() {
+        for (hwnd, endpoint, side) in ui.input_windows.borrow().iter() {
             let length = GetWindowTextW(*hwnd, &mut title) as usize;
             assert_eq!(String::from_utf16_lossy(&title[..length]), "Otter · 端口");
             let node = ui.node(*endpoint).unwrap();
-            assert_eq!(
-                GetWindow(*hwnd, GW_OWNER).unwrap(),
-                HWND(node.hwnd as *mut _)
-            );
+            assert!(GetWindow(*hwnd, GW_OWNER).unwrap_or_default().is_invalid());
             let mut affinity = 0;
             GetWindowDisplayAffinity(*hwnd, &mut affinity).unwrap();
             assert_eq!(
@@ -82,10 +122,8 @@ fn owned_sparse_regions_affinity_and_three_modes_keep_only_declared_input_areas(
                     0
                 }
             );
-            let region = CreateRectRgn(0, 0, 0, 0);
-            assert_ne!(GetWindowRgn(*hwnd, region), RGN_ERROR);
-            assert!(PtInRegion(region, 12, 12).as_bool());
-            let _ = DeleteObject(HGDIOBJ(region.0));
+            let (_, _, point) = port(ui, *endpoint, *side);
+            assert!(occlusion::contains(*hwnd, point));
         }
         let style = GetWindowLongPtrW(ui.drawing.get(), GWL_EXSTYLE) as u32;
         assert_eq!(style & WS_EX_TRANSPARENT.0, WS_EX_TRANSPARENT.0);
@@ -134,6 +172,71 @@ fn geometry_moves_without_application_polling_and_same_catalog_reuses_the_graph(
     }
 }
 #[test]
+fn host_moves_paint_current_frame_and_ports_before_returning_without_a_message_pump() {
+    let _apartment = desktop::Apartment::new().unwrap();
+    unsafe {
+        let mut app = visible_app();
+        // WS_EX_TRANSPARENT 必须等底下的同线程窗口首绘；真实拖动从已显示的钉图开始。
+        for doc in &app.documents {
+            let _ = UpdateWindow(doc.window.0);
+            assert!(!GetUpdateRect(doc.window.0, None, false).as_bool());
+        }
+        let ui = app.chrome.ui.clone();
+        let host = app.documents[0].window.0;
+        let other = ui.node(1).unwrap().rect;
+        for mode in [Mode::All, Mode::Border] {
+            ui.mode.set(mode);
+            for (x, y) in [(320, 300), (180, 220), (400, 160)] {
+                SetWindowPos(
+                    host,
+                    None,
+                    x,
+                    y,
+                    0,
+                    0,
+                    SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+                )
+                .unwrap();
+                let frame = scene::frame(host).unwrap();
+                assert_eq!(ui.node(0).unwrap().rect, frame);
+                assert_eq!(ui.node(1).unwrap().rect, other);
+                // 直接检查完成提交的外框像素，不再把空闲 WM_PAINT 次数当成呈现凭证。
+                assert!(ui.failure.borrow().is_none());
+                for (x, y) in [(frame.left - 1, frame.top - 1), (frame.right, frame.bottom)] {
+                    assert!(border_covers(&ui, 0, Point { x, y }));
+                }
+                for hwnd in ui
+                    .handles()
+                    .into_iter()
+                    .filter(|h| IsWindowVisible(*h).as_bool())
+                {
+                    assert!(
+                        !GetUpdateRect(hwnd, None, false).as_bool(),
+                        "visible chrome must not defer paint"
+                    );
+                }
+            }
+        }
+        ui.mode.set(Mode::None);
+        window::refresh(&ui).unwrap();
+        assert!(!ui.node(0).unwrap().frame(Mode::None));
+        app.capture_active.set(true);
+        SetWindowPos(
+            host,
+            None,
+            360,
+            200,
+            0,
+            0,
+            SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+        )
+        .unwrap();
+        assert!(IsWindowVisible(ui.drawing.get()).as_bool());
+        assert!(ui.redraw_after_capture.get());
+        app.shutdown();
+    }
+}
+#[test]
 fn click_discloses_and_drag_cancel_retains_topology_and_expands_preview_bounds() {
     unsafe {
         let mut app = visible_app();
@@ -164,6 +267,20 @@ fn click_discloses_and_drag_cancel_retains_topology_and_expands_preview_bounds()
 fn actual_drop_queues_once_and_reconnect_cancel_preserves_original_edge() {
     unsafe {
         let mut app = visible_app();
+        // 使用钉图真实的无边框宿主；系统非客户区不能作为端点上方的额外 resize 框。
+        for doc in &app.documents {
+            SetWindowLongPtrW(doc.window.0, GWL_STYLE, (WS_POPUP | WS_VISIBLE).0 as isize);
+            SetWindowPos(
+                doc.window.0,
+                None,
+                0,
+                0,
+                0,
+                0,
+                SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+            )
+            .unwrap();
+        }
         let ui = &app.chrome.ui;
         let (source_hwnd, _, source) = port(ui, 0, Side::Output);
         let (target_hwnd, _, target) = port(ui, 1, Side::Input);
@@ -203,7 +320,7 @@ fn actual_drop_queues_once_and_reconnect_cancel_preserves_original_edge() {
     }
 }
 #[test]
-fn capture_pause_and_host_destruction_retire_gestures_and_every_chrome_hwnd() {
+fn capture_retires_gestures_without_hiding_and_host_destruction_retires_every_chrome_hwnd() {
     unsafe {
         let mut app = visible_app();
         let (hwnd, _, point) = port(&app.chrome.ui, 0, Side::Output);
@@ -211,11 +328,12 @@ fn capture_pause_and_host_destruction_retire_gestures_and_every_chrome_hwnd() {
         app.capture_active.set(true);
         app.sync_workspace_chrome(true);
         assert!(app.chrome.idle());
+        assert!(app.chrome.ui.blocked());
         assert!(app
             .chrome
             .handles()
             .iter()
-            .all(|h| !IsWindowVisible(*h).as_bool()));
+            .all(|h| IsWindowVisible(*h).as_bool()));
         app.capture_active.set(false);
         app.sync_workspace_chrome(true);
         let handles = app.chrome.handles();

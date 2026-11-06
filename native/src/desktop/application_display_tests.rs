@@ -21,8 +21,14 @@ pub(super) fn verify_display_edit(app: &mut Application) {
     let viewport = relay.state.canvas.borrow().viewport;
     unsafe {
         use windows::Win32::UI::WindowsAndMessaging::*;
-        SendMessageW(relay.window.0, WM_LBUTTONDOWN, None, None);
-        SendMessageW(relay.window.0, WM_LBUTTONUP, None, None);
+        let mut rect = windows::Win32::Foundation::RECT::default();
+        GetClientRect(relay.window.0, &mut rect).unwrap();
+        // 从实际居中内容内部开始编辑，而不是点击透明留白的左上角。
+        let point = windows::Win32::Foundation::LPARAM(
+            (rect.right / 2) as isize | (((rect.bottom / 2) as isize) << 16),
+        );
+        SendMessageW(relay.window.0, WM_LBUTTONDOWN, None, Some(point));
+        SendMessageW(relay.window.0, WM_LBUTTONUP, None, Some(point));
     }
     assert!(relay.state.resolved_display.borrow().is_none());
     assert!(relay.state.pending_adoption.borrow().is_some());
@@ -123,6 +129,7 @@ pub(super) fn verify_display_lifetime(app: &mut Application) {
     assert_eq!(canvas.paints, paints + 4);
     assert!(canvas.image.is_none() && original.matches(&canvas.editor));
     canvas.pinned = true;
+    canvas.tool = Tool::Pan;
     drop(canvas);
     unsafe {
         use windows::Win32::{Foundation::RECT, Graphics::Gdi::*, UI::WindowsAndMessaging::*};
@@ -137,10 +144,61 @@ pub(super) fn verify_display_lifetime(app: &mut Application) {
         let region = CreateRectRgn(0, 0, 0, 0);
         assert!(!region.is_invalid());
         let kind = GetWindowRgn(relay.window.0, region);
-        let contains = PtInRegion(region, 1, 1).as_bool();
+        let contains = PtInRegion(region, client.right / 2, client.bottom / 2).as_bool();
         let outside = PtInRegion(region, client.right + 1, client.bottom + 1).as_bool();
         let _ = DeleteObject(region.into());
         assert_ne!(kind, RGN_ERROR);
         assert!(contains && !outside);
+        let mut window = RECT::default();
+        GetWindowRect(relay.window.0, &mut window).unwrap();
+        let border = (
+            window.right - window.left - client.right,
+            window.bottom - window.top - client.bottom,
+        );
+        for (width, height) in [(200, 100), (100, 200)] {
+            SetWindowPos(
+                relay.window.0,
+                None,
+                0,
+                0,
+                width + border.0,
+                height + border.1,
+                SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE,
+            )
+            .unwrap();
+            GetClientRect(relay.window.0, &mut client).unwrap();
+            // 旧夹具是 captioned HWND，系统最小宽度可能扩大客户区；按真实尺寸核居中。
+            let span = client.right.min(client.bottom);
+            let left = ((client.right - span) as f32 * 0.5).round() as i32;
+            let top = ((client.bottom - span) as f32 * 0.5).round() as i32;
+            crate::desktop::hit_region::update(relay.window.0, &relay.state).unwrap();
+            let region = CreateRectRgn(0, 0, 0, 0);
+            assert!(!region.is_invalid());
+            let kind = GetWindowRgn(relay.window.0, region);
+            let mut bounds = RECT::default();
+            let bounds_kind = GetRgnBox(region, &mut bounds);
+            let centered = PtInRegion(region, client.right / 2, client.bottom / 2).as_bool();
+            let _ = DeleteObject(region.into());
+            assert_ne!(kind, RGN_ERROR);
+            assert_ne!(bounds_kind, RGN_ERROR);
+            assert!(centered);
+            assert_eq!(
+                (bounds.left, bounds.top, bounds.right, bounds.bottom),
+                (left, top, left + span, top + span),
+                "relay hit region must follow centered content in actual client {}x{} (requested {width}x{height})",
+                client.right, client.bottom
+            );
+            assert!(relay.state.canvas.borrow().image.is_none());
+        }
+        SetWindowPos(
+            relay.window.0,
+            None,
+            0,
+            0,
+            window.right - window.left,
+            window.bottom - window.top,
+            SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE,
+        )
+        .unwrap();
     }
 }

@@ -1,6 +1,8 @@
 //! 冻结帧选区窗口；阻塞消息循环、事件触发绘制，窗口销毁后才释放帧及状态。
 use super::{capture_crop, image::Image, Window};
 use std::cell::Cell;
+#[path = "capture_region_paint.rs"]
+mod drawing;
 use windows::{
     core::{w, Error, Result},
     Win32::{
@@ -11,6 +13,12 @@ use windows::{
     },
 };
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Mode {
+    Quick,
+    Adjust,
+    Live,
+}
 struct Selection<'a> {
     image: &'a Image,
     model: Cell<super::capture_selection::Selection>,
@@ -20,7 +28,7 @@ struct Selection<'a> {
     paint_failed: Cell<bool>,
     windows: Vec<RECT>,
     hover: Cell<Option<RECT>>,
-    live: bool,
+    mode: Mode,
     whole_window: Cell<bool>,
     press: Cell<Option<POINT>>,
 }
@@ -76,7 +84,19 @@ fn select_positioned_with(
     visible: bool,
     ready: impl FnOnce(HWND),
 ) -> Result<Option<(Image, POINT)>> {
-    select_bounds_with(&image, origin, windows, visible, false, ready)?
+    select_bounds_with(&image, origin, windows, visible, Mode::Quick, ready)?
+        .map(|(rect, _)| capture_crop::positioned(&image, origin, rect))
+        .transpose()
+}
+/// 长截图保留选区确认阶段，不能让普通截图的松手提交改变其专用流程。
+pub(super) fn select_adjustable(
+    image: Image,
+    origin: POINT,
+    windows: Vec<RECT>,
+) -> Result<Option<(Image, POINT)>> {
+    let windows =
+        super::capture_windows::local_rectangles(&windows, origin, image.width, image.height);
+    select_bounds_with(&image, origin, windows, true, Mode::Adjust, |_| {})?
         .map(|(rect, _)| capture_crop::positioned(&image, origin, rect))
         .transpose()
 }
@@ -88,7 +108,7 @@ pub(super) fn select_live(
 ) -> Result<Option<(RECT, bool)>> {
     let windows =
         super::capture_windows::local_rectangles(&windows, origin, image.width, image.height);
-    select_bounds_with(&image, origin, windows, true, true, |_| {})?
+    select_bounds_with(&image, origin, windows, true, Mode::Live, |_| {})?
         .map(|(rect, whole)| Ok((capture_crop::screen_rectangle(origin, rect)?, whole)))
         .transpose()
 }
@@ -97,9 +117,10 @@ fn select_bounds_with(
     origin: POINT,
     windows: Vec<RECT>,
     visible: bool,
-    live: bool,
+    mode: Mode,
     ready: impl FnOnce(HWND),
 ) -> Result<Option<(RECT, bool)>> {
+    let _paint_session = super::buffered_paint::Session::new()?;
     let state = Selection {
         image,
         windows,
@@ -112,14 +133,14 @@ fn select_bounds_with(
         done: Cell::new(false),
         accepted: Cell::new(false),
         paint_failed: Cell::new(false),
-        live,
+        mode,
         whole_window: Cell::new(false),
         press: Cell::new(None),
     };
     unsafe {
         let instance: HINSTANCE = GetModuleHandleW(None)?.into();
         let class = WNDCLASSW {
-            style: if live {
+            style: if mode == Mode::Live {
                 CS_DBLCLKS
             } else {
                 WNDCLASS_STYLES::default()
@@ -137,10 +158,10 @@ fn select_bounds_with(
         let window = Window(CreateWindowExW(
             WS_EX_TOPMOST | WS_EX_TOOLWINDOW,
             class.lpszClassName,
-            if live {
-                w!("Otter Live：拖动选择区域，双击整窗，Esc 取消")
-            } else {
-                w!("Otter 区域截图：拖动选择，Enter 确认，Esc 取消")
+            match mode {
+                Mode::Quick => w!("Otter 区域截图：拖动选择，松手截图，Esc 取消"),
+                Mode::Adjust => w!("Otter 长截图选区：拖动选择，Enter 确认，Esc 取消"),
+                Mode::Live => w!("Otter Live：拖动选择区域，双击整窗，Esc 取消"),
             },
             WS_POPUP,
             origin.x,
@@ -203,6 +224,15 @@ unsafe extern "system" fn procedure(
         return DefWindowProcW(hwnd, message, wparam, lparam);
     }
     let state = &*pointer;
+    // 松手提交后冻结结果，避免释放鼠标捕获或销毁窗口期间的重入输入改写选区。
+    if state.done.get()
+        && matches!(
+            message,
+            WM_LBUTTONDOWN | WM_LBUTTONUP | WM_LBUTTONDBLCLK | WM_MOUSEMOVE | WM_KEYDOWN
+        )
+    {
+        return LRESULT(0);
+    }
     let point = || POINT {
         x: lparam.0 as i16 as i32,
         y: (lparam.0 >> 16) as i16 as i32,
@@ -215,6 +245,10 @@ unsafe extern "system" fn procedure(
                 .hover
                 .set(super::capture_windows::pick(&state.windows, point()));
             let mut model = state.model.get();
+            if state.mode == Mode::Quick {
+                model =
+                    super::capture_selection::Selection::new(state.image.width, state.image.height);
+            }
             model.begin(
                 point(),
                 (6 * windows::Win32::UI::HiDpi::GetDpiForWindow(hwnd).max(96) / 96) as i32,
@@ -225,8 +259,7 @@ unsafe extern "system" fn procedure(
         }
         WM_MOUSEMOVE => {
             let next = point();
-            let previous = state.pointer.replace(Some(next));
-            if previous.is_some_and(|old| old.x == next.x && old.y == next.y) {
+            if state.pointer.replace(Some(next)) == Some(next) {
                 return LRESULT(0);
             }
             let hover = super::capture_windows::pick(&state.windows, next);
@@ -236,35 +269,30 @@ unsafe extern "system" fn procedure(
                 model.update(next);
                 state.model.set(model);
                 let _ = InvalidateRect(Some(hwnd), None, false);
-            } else {
-                if hover_changed && state.model.get().rect.is_none() {
-                    let _ = InvalidateRect(Some(hwnd), None, false);
-                }
-                let dpi = windows::Win32::UI::HiDpi::GetDpiForWindow(hwnd);
-                for position in previous.into_iter().chain(Some(next)) {
-                    let rect = super::capture_magnifier::bounds(state.image, position, dpi);
-                    let _ = InvalidateRect(Some(hwnd), Some(&rect), false);
-                }
+            } else if hover_changed && state.model.get().rect.is_none() {
+                let _ = InvalidateRect(Some(hwnd), None, false);
             }
         }
         WM_LBUTTONUP if GetCapture() == hwnd => {
             state.pointer.set(Some(point()));
             let mut model = state.model.get();
             model.finish(point());
-            let dragged =
-                model.rect.is_some() && state.press.take().is_some_and(|start| start != point());
-            if model.rect.is_none() {
+            let press = state.press.take();
+            let dragged = model.rect.is_some() && press.is_some_and(|start| start != point());
+            if model.rect.is_none() && (state.mode != Mode::Quick || press == Some(point())) {
                 model.rect = state.hover.get();
             }
             state.model.set(model);
-            let _ = ReleaseCapture();
-            if state.live && dragged {
+            if (state.mode == Mode::Quick && model.rect.is_some())
+                || (state.mode == Mode::Live && dragged)
+            {
                 state.accepted.set(true);
                 state.done.set(true);
             }
+            let _ = ReleaseCapture();
             let _ = InvalidateRect(Some(hwnd), None, false);
         }
-        WM_LBUTTONDBLCLK if state.live => {
+        WM_LBUTTONDBLCLK if state.mode == Mode::Live => {
             // 同一选择表面选取当前 Z 序悬停窗口；身份/边界在退出消息泵后重新校验。
             if let Some(rect) = super::capture_windows::pick(&state.windows, point()) {
                 let mut model = state.model.get();
@@ -276,7 +304,7 @@ unsafe extern "system" fn procedure(
                 state.done.set(true);
             }
         }
-        WM_KEYDOWN if wparam.0 == VK_RETURN.0 as usize => {
+        WM_KEYDOWN if wparam.0 == VK_RETURN.0 as usize && state.mode != Mode::Quick => {
             if state.preview_rect().is_some() && !state.model.get().is_dragging() {
                 let mut model = state.model.get();
                 model.rect = state.preview_rect();
@@ -297,8 +325,8 @@ unsafe extern "system" fn procedure(
                 state
                     .pointer
                     .get()
-                    .and_then(|point| super::capture_magnifier::sample(state.image, point))
-                    .map(|sample| super::clipboard::copy_color(hwnd, sample.rgb))
+                    .and_then(|point| super::capture_pixel::rgb(state.image, point))
+                    .map(|rgb| super::clipboard::copy_color(hwnd, rgb))
             };
             match result {
                 Some(Ok(())) => state.done.set(true),
@@ -311,7 +339,10 @@ unsafe extern "system" fn procedure(
                 None => {}
             }
         }
-        WM_KEYDOWN if (VK_LEFT.0 as usize..=VK_DOWN.0 as usize).contains(&wparam.0) => {
+        WM_KEYDOWN
+            if state.mode != Mode::Quick
+                && (VK_LEFT.0 as usize..=VK_DOWN.0 as usize).contains(&wparam.0) =>
+        {
             let step = if GetKeyState(VK_SHIFT.0 as i32) < 0 {
                 10
             } else {
@@ -342,83 +373,10 @@ unsafe extern "system" fn procedure(
         WM_PAINT => {
             let mut paint = PAINTSTRUCT::default();
             let dc = BeginPaint(hwnd, &mut paint);
-            let info = BITMAPINFO {
-                bmiHeader: BITMAPINFOHEADER {
-                    biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
-                    biWidth: state.image.width as i32,
-                    biHeight: -(state.image.height as i32),
-                    biPlanes: 1,
-                    biBitCount: 32,
-                    ..Default::default()
-                },
-                ..Default::default()
-            };
-            let painted = SetDIBitsToDevice(
-                dc,
-                0,
-                0,
-                state.image.width,
-                state.image.height,
-                0,
-                0,
-                0,
-                state.image.height,
-                state.image.pixels.as_ptr().cast(),
-                &info,
-                DIB_RGB_COLORS,
-            );
-            if painted == 0 {
+            if let Err(error) = drawing::paint(hwnd, state, dc, &paint.rcPaint) {
+                eprintln!("native-capture-paint: {error}");
                 state.paint_failed.set(true);
                 state.done.set(true);
-            }
-            if let Some(rect) = state.preview_rect() {
-                let _ = DrawFocusRect(dc, &rect);
-                let half =
-                    (3 * windows::Win32::UI::HiDpi::GetDpiForWindow(hwnd).max(96) / 96) as i32;
-                for point in super::capture_selection::handles(rect) {
-                    let handle = RECT {
-                        left: point.x - half,
-                        top: point.y - half,
-                        right: point.x + half + 1,
-                        bottom: point.y + half + 1,
-                    };
-                    let _ = FrameRect(dc, &handle, HBRUSH(GetStockObject(WHITE_BRUSH).0));
-                }
-                let mut text: Vec<u16> =
-                    format!("{} × {} px", rect.right - rect.left, rect.bottom - rect.top)
-                        .encode_utf16()
-                        .collect();
-                let mut label = RECT {
-                    left: rect.left,
-                    top: if rect.top >= 24 {
-                        rect.top - 24
-                    } else {
-                        rect.top + 4
-                    },
-                    right: (rect.left + 200).min(state.image.width as i32),
-                    bottom: if rect.top >= 24 {
-                        rect.top
-                    } else {
-                        rect.top + 28
-                    },
-                };
-                DrawTextW(
-                    dc,
-                    &mut text,
-                    &mut label,
-                    DT_LEFT | DT_SINGLELINE | DT_NOPREFIX,
-                );
-            }
-            if let Some(point) = state.pointer.get() {
-                if !super::capture_magnifier::draw(
-                    dc,
-                    state.image,
-                    point,
-                    windows::Win32::UI::HiDpi::GetDpiForWindow(hwnd),
-                ) {
-                    state.paint_failed.set(true);
-                    state.done.set(true);
-                }
             }
             let _ = EndPaint(hwnd, &paint);
         }

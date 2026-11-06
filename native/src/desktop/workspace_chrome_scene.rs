@@ -43,10 +43,10 @@ impl Scene {
         let cached = app.chrome.ui.nodes.borrow().clone();
         let mut nodes = Vec::new();
         for (endpoint, entry) in catalog.endpoints.iter().enumerate() {
-            let (hwnd, minified, expanded, protected) = if let Some(doc) = app
-                .documents
-                .iter()
-                .find(|doc| doc.state.unit_id == entry.unit)
+            let (hwnd, minified, expanded, protected, opacity, composite_frame) = if let Some(doc) =
+                app.documents
+                    .iter()
+                    .find(|doc| doc.state.unit_id == entry.unit)
             {
                 if !doc.is_alive() || doc.state.group_hidden.get() {
                     continue;
@@ -56,6 +56,8 @@ impl Scene {
                     doc.state.canvas.borrow().minified.is_some(),
                     IsWindowVisible(doc.state.parameters_ui.window()).as_bool(),
                     doc.state.capture_protection_requested.get(),
+                    doc.state.canvas.borrow().window_opacity,
+                    desktop::pin_window::preview::active(&doc.state),
                 )
             } else {
                 let Some(session) = app.live_sessions.iter().find(|session| {
@@ -66,7 +68,10 @@ impl Scene {
                 let Some(hwnd) = session.group_dialog_owner() else {
                     continue;
                 };
-                (hwnd, false, false, true)
+                let Some(opacity) = session.opacity() else {
+                    continue;
+                };
+                (hwnd, false, false, true, opacity, false)
             };
             let marker = GetWindowLongPtrW(hwnd, GWLP_USERDATA);
             // 宿主几何消息直接更新标量；Live 的帧通知不重复读取客户区或重建图。
@@ -89,6 +94,8 @@ impl Scene {
                 minified,
                 expanded,
                 protected,
+                border_alpha: desktop::pin_border_style::alpha(opacity),
+                composite_frame,
                 interactive: !app.link_owner_blocked(&entry.unit),
                 inputs: entry.inputs.len(),
                 outputs: entry.outputs.len(),

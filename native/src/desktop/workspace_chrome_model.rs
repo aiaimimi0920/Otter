@@ -57,6 +57,8 @@ pub(super) struct Node {
     pub expanded: bool,
     pub interactive: bool,
     pub protected: bool,
+    pub border_alpha: u8,
+    pub composite_frame: bool,
     pub inputs: usize,
     pub outputs: usize,
     pub input_visibility: std::rc::Rc<[bool]>,
@@ -64,7 +66,7 @@ pub(super) struct Node {
 }
 impl Node {
     pub fn frame(&self, mode: Mode) -> bool {
-        self.rect.valid() && !self.minified && mode != Mode::None
+        self.rect.valid() && mode != Mode::None
     }
     pub fn ports(&self, mode: Mode, hide_collapsed: bool) -> bool {
         self.rect.valid()

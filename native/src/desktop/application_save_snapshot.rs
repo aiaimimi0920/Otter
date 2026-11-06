@@ -93,7 +93,13 @@ impl LiveStamp {
     }
 }
 pub(super) fn automatic_ready(app: &Application) -> Result<bool> {
-    Ok(app.live_freeze_job.is_none() && live::automatic_ready(app)?)
+    // 后台快照只取交互结束状态，不在滚轮/系统移动热路径冻结并序列化整个工作区。
+    Ok(app.live_freeze_job.is_none()
+        && !app
+            .documents
+            .iter()
+            .any(|doc| crate::desktop::pin_window::animation::busy(&doc.state))
+        && live::automatic_ready(app)?)
 }
 impl Receipt {
     pub(super) fn live_stamp(&self) -> LiveStamp {

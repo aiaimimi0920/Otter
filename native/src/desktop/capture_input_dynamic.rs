@@ -66,7 +66,7 @@ pub(super) unsafe fn prepare(
         .map_err(|error| Error::new(E_FAIL, error))?
         .and_then(|selection| selection.path.parent().map(|path| path.to_owned()))
         .ok_or_else(|| Error::new(E_FAIL, "Missing native capture profile"))?;
-    // 选择窗口已销毁；等待其 DWM 变化提交后捕获最终桌面，宿主仍由外层 Hidden 隐藏。
+    // 选择窗口已销毁；等待其 DWM 变化提交后捕获最终桌面，普通截图保留已有钉图。
     DwmFlush()?;
     super::super::capture::wait_cached(
         hwnd,

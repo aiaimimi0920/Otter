@@ -10,6 +10,9 @@ use windows::Win32::{
 
 #[path = "procedure_paint.rs"]
 mod paint;
+pub(super) use paint::resize_frame;
+#[path = "procedure_geometry.rs"]
+mod geometry;
 #[path = "paint_scope.rs"]
 mod paint_scope;
 #[path = "procedure_render_recovery.rs"]
@@ -52,8 +55,10 @@ unsafe fn dispatch(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
         return DefWindowProcW(hwnd, msg, wp, lp);
     }
     let state = &*pointer;
-    super::application::chrome::geometry(&state.chrome, hwnd, msg);
-    if let Some(result) = super::session_end::dispatch(hwnd, state, msg, wp, lp) {
+    if msg != WM_WINDOWPOSCHANGED {
+        super::application::chrome::geometry(&state.chrome, hwnd, msg);
+    }
+    if let Some(result) = geometry::before_dispatch(hwnd, state, msg, wp, lp) {
         return result;
     }
     if matches!(msg, WM_DESTROY | WM_NCDESTROY) {
@@ -99,6 +104,9 @@ unsafe fn dispatch(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
         return result;
     }
     if let Some(result) = super::pin_window::dispatch_minified(hwnd, state, msg, lp) {
+        return result;
+    }
+    if let Some(result) = geometry::dispatch(hwnd, state, msg, wp, lp) {
         return result;
     }
     match msg {
@@ -280,6 +288,9 @@ unsafe fn dispatch(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
         WM_KEYDOWN => {
             let control = GetKeyState(VK_CONTROL.0 as i32) < 0;
             let key = wp.0 as u32;
+            if key == VK_ESCAPE.0 as u32 && super::pin_window::close_on_escape(hwnd, state, lp) {
+                return LRESULT(0);
+            }
             if control && key == 0x48 {
                 if lp.0 & (1 << 30) == 0 {
                     super::capture_history_ui::toggle(state);
@@ -357,7 +368,6 @@ unsafe fn dispatch(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
                             | 0xBE
                             | 0xBB
                             | 0xBD
-                            | 0x1B
                             | 0x2E
                             | 0x41
                             | 0x42
@@ -455,6 +465,12 @@ unsafe fn dispatch(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
             if state.canvas.borrow().pinned {
                 if GetKeyState(VK_CONTROL.0 as i32) < 0 {
                     super::pin_window::wheel(hwnd, state, wp, lp);
+                } else if GetKeyState(VK_MENU.0 as i32) < 0
+                    && [VK_SHIFT, VK_LWIN, VK_RWIN]
+                        .iter()
+                        .all(|key| GetKeyState(key.0 as i32) >= 0)
+                {
+                    super::pin_window::opacity_wheel(hwnd, state, wp);
                 }
                 return LRESULT(0);
             }

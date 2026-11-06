@@ -1,9 +1,17 @@
 //! 只画公共端口名/外框/Bezier 连线，不读取或拷贝图片；GDI 对象逐次 RAII 回收。
 use super::*;
+use crate::desktop::buffered_paint as buffered;
+pub(super) use buffered::Session as PaintSession;
 use windows::Win32::Graphics::Gdi::*;
+#[path = "workspace_chrome_surface.rs"]
+mod surface;
+pub(super) use surface::Surface;
 const BLUE: COLORREF = COLORREF(0xd4b606);
 const YELLOW: COLORREF = COLORREF(0x38ffd9);
 const TEXT: COLORREF = COLORREF(0xeff8f7);
+#[cfg(test)]
+#[path = "workspace_chrome_frame_tests.rs"]
+mod frame_tests;
 pub(super) fn ports(ui: &Ui) -> Vec<(Port, Point, i32)> {
     let mut ports = Vec::new();
     for node in ui
@@ -56,6 +64,42 @@ impl Drop for Object {
         }
     }
 }
+#[cfg(test)]
+pub(super) unsafe fn frame(dc: HDC, origin: POINT, rect: Rect, dpi: u32) {
+    // 沿主干纯白外描边，统一 2 个逻辑像素；不能覆盖图片内容或改变端点锚点。
+    let width = desktop::pin_border_style::width(dpi) as i32;
+    let (left, top, right, bottom) = (
+        rect.left.saturating_sub(origin.x),
+        rect.top.saturating_sub(origin.y),
+        rect.right.saturating_sub(origin.x),
+        rect.bottom.saturating_sub(origin.y),
+    );
+    let (outer_left, outer_top, outer_right, outer_bottom) = (
+        left.saturating_sub(width),
+        top.saturating_sub(width),
+        right.saturating_add(width),
+        bottom.saturating_add(width),
+    );
+    SetDCBrushColor(dc, COLORREF(0xffffff));
+    let brush = HBRUSH(GetStockObject(DC_BRUSH).0);
+    let fill = |left, top, right, bottom| {
+        FillRect(
+            dc,
+            &RECT {
+                left,
+                top,
+                right,
+                bottom,
+            },
+            brush,
+        );
+    };
+    // 四条色带固定开销，不创建笔刷；内矩形保持原样，DPI 不增加 GDI 调用次数。
+    fill(outer_left, outer_top, outer_right, top);
+    fill(outer_left, bottom, outer_right, outer_bottom);
+    fill(outer_left, top, left, bottom);
+    fill(right, top, outer_right, bottom);
+}
 unsafe fn line(dc: HDC, origin: POINT, a: Point, b: Point, color: COLORREF, dashed: bool) {
     let pen = CreatePen(
         if dashed { PS_DASH } else { PS_SOLID },
@@ -88,31 +132,85 @@ pub(super) unsafe fn paint(hwnd: HWND, ui: &Ui) {
         return;
     }
     let _scope = Paint(hwnd, paint);
-    let mut bounds = RECT::default();
-    if GetWindowRect(hwnd, &mut bounds).is_err() {
-        return;
+    if ui.capturing() {
+        ui.redraw_after_capture.set(true);
+        return; // 截图期间保留已提交画面，只禁止输入；结束后由应用补一帧。
     }
-    let origin = POINT {
-        x: bounds.left,
-        y: bounds.top,
+    let result = (|| -> Result<()> {
+        if hwnd == ui.drawing.get() {
+            return window::refresh_drawing(ui);
+        }
+        let Some(buffer) = buffered::Frame::begin(dc, &paint.rcPaint)? else {
+            return Ok(());
+        };
+        let mut bounds = RECT::default();
+        GetWindowRect(hwnd, &mut bounds)?;
+        contents(
+            hwnd,
+            ui,
+            buffer.dc,
+            &paint.rcPaint,
+            POINT {
+                x: bounds.left,
+                y: bounds.top,
+            },
+        )?;
+        buffer.commit()
+    })();
+    if let Err(error) = result {
+        ui.fail(error);
+    }
+}
+pub(super) unsafe fn present(ui: &Ui, rect: Rect) -> Result<()> {
+    if ui.presenting.replace(true) {
+        return Ok(()); // ULW 同步尺寸消息不能再修改尚在提交的 DIB。
+    }
+    struct Cycle<'a>(&'a Cell<bool>);
+    impl Drop for Cycle<'_> {
+        fn drop(&mut self) {
+            self.0.set(false);
+        }
+    }
+    let _cycle = Cycle(&ui.presenting);
+    let size = SIZE {
+        cx: rect.right - rect.left,
+        cy: rect.bottom - rect.top,
     };
+    let cached = ui.surface.borrow_mut().take().filter(|s| s.fits(size));
+    let surface = match cached {
+        Some(surface) => surface,
+        None => Surface::new(size)?,
+    };
+    let area = RECT {
+        left: 0,
+        top: 0,
+        right: size.cx,
+        bottom: size.cy,
+    };
+    contents(
+        ui.drawing.get(),
+        ui,
+        surface.dc(),
+        &area,
+        POINT {
+            x: rect.left,
+            y: rect.top,
+        },
+    )?;
+    let result = surface.present(ui.drawing.get(), rect);
+    if !ui.closed.get() {
+        *ui.surface.borrow_mut() = Some(surface);
+    }
+    result
+}
+unsafe fn contents(hwnd: HWND, ui: &Ui, dc: HDC, area: &RECT, origin: POINT) -> Result<()> {
     SetDCBrushColor(dc, COLORREF(0));
-    FillRect(dc, &paint.rcPaint, HBRUSH(GetStockObject(DC_BRUSH).0));
+    FillRect(dc, area, HBRUSH(GetStockObject(DC_BRUSH).0));
     if ui.blocked() {
-        return;
+        return Ok(());
     }
     SetBkMode(dc, TRANSPARENT);
     if hwnd == ui.drawing.get() {
-        for node in ui.nodes.borrow().iter().filter(|n| n.frame(ui.mode.get())) {
-            let rect = RECT {
-                left: node.rect.left.saturating_sub(origin.x),
-                top: node.rect.top.saturating_sub(origin.y),
-                right: node.rect.right.saturating_sub(origin.x),
-                bottom: node.rect.bottom.saturating_sub(origin.y),
-            };
-            SetDCBrushColor(dc, COLORREF(0x9f9a92));
-            FrameRect(dc, &rect, HBRUSH(GetStockObject(DC_BRUSH).0));
-        }
         if let Some(scene) = ui.scene.borrow().clone() {
             for edge in &scene.edges {
                 let (Some(from), Some(to)) = (ui.node(edge.from.node), ui.node(edge.to.node))
@@ -212,6 +310,7 @@ pub(super) unsafe fn paint(hwnd: HWND, ui: &Ui) {
         SelectObject(dc, old_brush);
         SelectObject(dc, old_pen);
     }
+    Ok(())
 }
 struct Paint(HWND, PAINTSTRUCT);
 impl Drop for Paint {

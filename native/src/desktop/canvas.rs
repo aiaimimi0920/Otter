@@ -27,6 +27,8 @@ pub(in crate::desktop) use render_recovery::Destination as RenderChoice;
 mod submission;
 #[path = "canvas_target.rs"]
 mod target;
+#[path = "canvas_zoom_snapshot.rs"]
+mod zoom_snapshot;
 pub(in crate::desktop) use submission::Pending;
 #[cfg(test)]
 #[path = "canvas_software_tests.rs"]

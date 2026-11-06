@@ -1,7 +1,10 @@
 //! 软件帧离开 Canvas 借用作用域后提交；按 target 身份和文档凭证确认，不把旧代帧记入新文档。
 use super::Canvas;
 use std::rc::Rc;
-use windows::{core::Result, Win32::Foundation::HWND};
+use windows::{
+    core::Result,
+    Win32::Foundation::{HWND, POINT},
+};
 
 pub(in crate::desktop) struct Pending {
     frame: super::super::software_surface::Submission,
@@ -16,8 +19,22 @@ pub(in crate::desktop) struct Presented {
     confirm: bool,
 }
 impl Pending {
+    pub(in crate::desktop) fn prepare_preview(
+        self,
+        padding: u32,
+        border: bool,
+    ) -> Result<super::super::software_surface::Submission> {
+        if padding == 0 && !border {
+            Ok(self.frame)
+        } else {
+            self.frame.framed(padding, border)
+        }
+    }
     pub fn present(self, hwnd: HWND) -> Result<Presented> {
-        self.frame.present(hwnd)?;
+        self.present_at(hwnd, None)
+    }
+    pub fn present_at(self, hwnd: HWND, position: Option<POINT>) -> Result<Presented> {
+        self.frame.present_at(hwnd, position)?;
         Ok(Presented {
             identity: self.identity,
             document: self.document,

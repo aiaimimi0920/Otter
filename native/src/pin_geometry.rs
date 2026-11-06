@@ -1,4 +1,7 @@
 //! 钉图窗口以物理像素围绕指针缩放；预算约束在创建交换链缓冲前执行。
+#[path = "pin_wheel_geometry.rs"]
+mod wheel;
+pub use wheel::WheelZoom;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PinRect {
     pub x: i32,

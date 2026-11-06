@@ -3,9 +3,216 @@ use super::*;
 use std::cell::Cell;
 use windows::Win32::UI::Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass};
 
+#[test]
+fn background_checkpoint_keeps_workspace_borders_visible() {
+    unsafe {
+        run(|instance| {
+            let directory = Directory::new();
+            let mut app = new_app(instance);
+            app.install_workspace_checkpoint(Some(Profile::open(&directory.0).unwrap()), true)
+                .unwrap();
+            settle(&mut app);
+            let hwnd = app.documents[0].window.0;
+            let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+            app.sync_workspace_chrome(true);
+            let drawing = app.chrome.handles()[0];
+            assert!(IsWindowVisible(drawing).as_bool());
+            for opacity in [0.7, 0.5, 0.9] {
+                app.documents[0].state.canvas.borrow_mut().normal_opacity = opacity;
+                app.pending_workspace_save_with(|_, _, message, warning| {
+                    assert!(!warning, "{message}")
+                });
+                assert!(app.checkpoint_pending());
+                assert!(app.save_job.is_some());
+                app.sync_workspace_chrome(true);
+                assert!(
+                    IsWindowVisible(drawing).as_bool(),
+                    "background checkpoint hid every border"
+                );
+                settle(&mut app);
+            }
+            app.sync_workspace_chrome(false);
+            assert!(
+                !IsWindowVisible(drawing).as_bool(),
+                "explicit hide must still work"
+            );
+        });
+    }
+}
+
+#[test]
+fn sustained_ten_second_wheel_with_checkpoint_has_no_frame_backlog() {
+    unsafe {
+        run(|instance| {
+            use crate::desktop::pin_window::{animation, preview};
+            use windows::Win32::System::SystemServices::MK_CONTROL;
+            use windows::Win32::UI::Input::KeyboardAndMouse::*;
+            struct Keys([u8; 256]);
+            impl Drop for Keys {
+                fn drop(&mut self) {
+                    unsafe { SetKeyboardState(&self.0).unwrap() };
+                }
+            }
+            let mut original = [0; 256];
+            GetKeyboardState(&mut original).unwrap();
+            let _keys = Keys(original);
+            let mut held = [0; 256];
+            held[VK_CONTROL.0 as usize] = 0x80;
+            SetKeyboardState(&held).unwrap();
+            let directory = Directory::new();
+            let mut app = new_app(instance);
+            app.install_workspace_checkpoint(Some(Profile::open(&directory.0).unwrap()), true)
+                .unwrap();
+            let hwnd = app.documents[0].window.0;
+            app.documents[0].state.canvas.borrow_mut().pinned = true;
+            SetWindowPos(
+                hwnd,
+                None,
+                100,
+                100,
+                960,
+                540,
+                SWP_NOZORDER | SWP_NOACTIVATE,
+            )
+            .unwrap();
+            let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+            app.sync_workspace_chrome(true);
+            settle(&mut app);
+            drain_messages();
+            let drawing = app.chrome.handles()[0];
+            let address = hwnd.0 as usize;
+            let (tx, rx) = std::sync::mpsc::channel();
+            let mut stopped = None;
+            let mut tail = Duration::ZERO;
+            let mut hidden = false;
+            let mut checkpoint_during_zoom = false;
+            std::thread::scope(|scope| {
+                scope.spawn(move || {
+                    let started = Instant::now();
+                    for index in 0..1000 {
+                        let delta = if index % 10 < 5 { 30i16 } else { -30 };
+                        PostMessageW(
+                            Some(HWND(address as *mut _)),
+                            WM_MOUSEWHEEL,
+                            WPARAM(((delta as u16 as usize) << 16) | MK_CONTROL.0 as usize),
+                            LPARAM(580 | (370 << 16)),
+                        )
+                        .unwrap();
+                        std::thread::sleep(
+                            (started + Duration::from_millis((index + 1) * 10))
+                                .saturating_duration_since(Instant::now()),
+                        );
+                    }
+                    tx.send(Instant::now()).unwrap();
+                });
+                let deadline = Instant::now() + Duration::from_secs(20);
+                loop {
+                    assert!(
+                        Instant::now() < deadline,
+                        "continuous input settlement deadline"
+                    );
+                    let mut message = MSG::default();
+                    if PeekMessageW(&mut message, None, 0, 0, PM_REMOVE).as_bool() {
+                        assert_ne!(message.message, WM_QUIT);
+                        DispatchMessageW(&message);
+                        app.pending_windows(true).unwrap();
+                        app.pending_workspace_save_with(|_, _, message, warning| {
+                            assert!(!warning, "{message}")
+                        });
+                    } else {
+                        std::thread::sleep(Duration::from_millis(1));
+                    }
+                    hidden |= !IsWindowVisible(drawing).as_bool();
+                    checkpoint_during_zoom |=
+                        preview::active(&app.documents[0].state) && app.checkpoint_pending();
+                    stopped = stopped.or_else(|| rx.try_recv().ok());
+                    if let Some(at) = stopped {
+                        if !PeekMessageW(
+                            &mut message,
+                            Some(hwnd),
+                            WM_MOUSEWHEEL,
+                            WM_MOUSEWHEEL,
+                            PM_NOREMOVE,
+                        )
+                        .as_bool()
+                        {
+                            tail = at.elapsed();
+                            break;
+                        }
+                    }
+                }
+            });
+            let mut before = RECT::default();
+            GetWindowRect(hwnd, &mut before).unwrap();
+            animation::settle(hwnd, &app.documents[0].state);
+            let mut after = RECT::default();
+            GetWindowRect(hwnd, &mut after).unwrap();
+            assert_eq!(before, after, "idle replayed an old zoom frame");
+            settle(&mut app);
+            eprintln!("continuous-wheel duration_ms=10000 packets=1000 tail_ms={} hidden={} checkpoint_during_zoom={}", tail.as_millis(), hidden, checkpoint_during_zoom);
+            assert!(!hidden, "automatic persistence hid shared borders");
+            assert!(
+                !checkpoint_during_zoom,
+                "automatic snapshot ran on the zoom hot path"
+            );
+            assert!(
+                tail < Duration::from_millis(150),
+                "wheel backlog remained after producer stopped: {tail:?}"
+            );
+        });
+    }
+}
+
 struct Observer {
     hwnd: HWND,
     counts: Box<Cell<[u32; 2]>>,
+}
+
+#[test]
+fn system_move_defers_checkpoint_until_release_without_hiding_borders() {
+    unsafe {
+        run(|instance| {
+            let directory = Directory::new();
+            let mut app = new_app(instance);
+            app.install_workspace_checkpoint(Some(Profile::open(&directory.0).unwrap()), true)
+                .unwrap();
+            settle(&mut app);
+            let hwnd = app.documents[0].window.0;
+            let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+            app.sync_workspace_chrome(true);
+            let drawing = app.chrome.handles()[0];
+            SendMessageW(hwnd, WM_ENTERSIZEMOVE, None, None);
+            SetWindowPos(
+                hwnd,
+                None,
+                280,
+                240,
+                0,
+                0,
+                SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+            )
+            .unwrap();
+            app.pending_workspace_save_with(|_, _, message, warning| {
+                assert!(!warning, "{message}")
+            });
+            assert!(
+                app.save_job.is_none(),
+                "system drag must not snapshot intermediate geometry"
+            );
+            SendMessageW(hwnd, WM_EXITSIZEMOVE, None, None);
+            app.pending_workspace_save_with(|_, _, message, warning| {
+                assert!(!warning, "{message}")
+            });
+            assert!(app.checkpoint_pending());
+            app.sync_workspace_chrome(true);
+            assert!(IsWindowVisible(drawing).as_bool());
+            settle(&mut app);
+            let saved: serde_json::Value =
+                serde_json::from_slice(&std::fs::read(directory.path()).unwrap()).unwrap();
+            assert_eq!(saved["stickers"][0]["x"].as_f64(), Some(280.0));
+            assert_eq!(saved["stickers"][0]["y"].as_f64(), Some(240.0));
+        });
+    }
 }
 impl Observer {
     unsafe fn new(hwnd: HWND) -> Self {

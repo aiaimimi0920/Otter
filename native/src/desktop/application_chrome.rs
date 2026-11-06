@@ -6,6 +6,8 @@ use std::{
     collections::HashSet,
     rc::{Rc, Weak},
 };
+#[path = "workspace_chrome_border.rs"]
+mod border;
 #[path = "workspace_chrome_capsule.rs"]
 mod capsule;
 #[path = "workspace_chrome_draw.rs"]
@@ -18,6 +20,8 @@ mod integration;
 mod keyboard;
 #[path = "workspace_chrome_model.rs"]
 mod model;
+#[path = "workspace_chrome_move.rs"]
+mod movement;
 #[path = "workspace_port_settings.rs"]
 pub(in crate::desktop) mod ports;
 #[path = "workspace_chrome_scene.rs"]
@@ -40,11 +44,16 @@ pub(in crate::desktop) struct Ui {
     keyboard: keyboard::Control,
     capsule: RefCell<Option<Rc<capsule::Open>>>,
     drawing: Cell<HWND>,
+    surface: RefCell<Option<draw::Surface>>,
+    presenting: Cell<bool>,
+    ordering: Cell<bool>,
     input_windows: RefCell<Vec<(HWND, usize, Side)>>,
+    borders: RefCell<Vec<Rc<border::Border>>>,
     gates: RefCell<Option<scene::Gates>>,
     closed: Cell<bool>,
     failure: RefCell<Option<Error>>,
     reported: Cell<Option<windows::core::HRESULT>>,
+    redraw_after_capture: Cell<bool>,
 }
 impl Default for Ui {
     fn default() -> Self {
@@ -59,15 +68,26 @@ impl Default for Ui {
             keyboard: keyboard::Control::default(),
             capsule: RefCell::default(),
             drawing: Cell::default(),
+            surface: RefCell::default(),
+            presenting: Cell::new(false),
+            ordering: Cell::new(false),
             input_windows: RefCell::default(),
+            borders: RefCell::default(),
             gates: RefCell::default(),
             closed: Cell::new(false),
             failure: RefCell::default(),
             reported: Cell::default(),
+            redraw_after_capture: Cell::new(false),
         }
     }
 }
 impl Ui {
+    fn capturing(&self) -> bool {
+        self.gates
+            .borrow()
+            .as_ref()
+            .is_some_and(|g| g.capture.get())
+    }
     fn fail(&self, error: Error) {
         if self.reported.get() != Some(error.code()) && self.failure.borrow().is_none() {
             eprintln!("native-workspace-chrome: {error}");
@@ -123,6 +143,7 @@ impl Ui {
     fn handles(&self) -> Vec<HWND> {
         std::iter::once(self.drawing.get())
             .chain(self.input_windows.borrow().iter().map(|(hwnd, _, _)| *hwnd))
+            .chain(self.borders.borrow().iter().map(|border| border.hwnd))
             .collect()
     }
 }
@@ -201,6 +222,12 @@ pub(in crate::desktop) unsafe fn geometry(binding: &Binding, hwnd: HWND, msg: u3
     let Some(ui) = binding.borrow().upgrade() else {
         return;
     };
+    if msg == WM_WINDOWPOSCHANGED {
+        border::order(&ui, hwnd);
+        if let Err(error) = window::order_drawing(&ui) {
+            ui.fail(error);
+        }
+    }
     if matches!(msg, WM_DESTROY | WM_NCDESTROY) {
         capsule::cancel(&ui);
         ui.nodes
@@ -216,8 +243,12 @@ pub(in crate::desktop) unsafe fn geometry(binding: &Binding, hwnd: HWND, msg: u3
             .find(|node| node.hwnd == hwnd.0 as isize)
         {
             if let Some(rect) = rect {
+                let dpi = windows::Win32::UI::HiDpi::GetDpiForWindow(hwnd);
+                if node.rect == rect && node.dpi == dpi {
+                    return; // 命中 region 变更也发位置通知；不重复提交同一几何或重入宿主绘制。
+                }
                 node.rect = rect;
-                node.dpi = windows::Win32::UI::HiDpi::GetDpiForWindow(hwnd);
+                node.dpi = dpi;
             } else {
                 node.rect = Rect::default();
             }
@@ -225,8 +256,152 @@ pub(in crate::desktop) unsafe fn geometry(binding: &Binding, hwnd: HWND, msg: u3
     } else {
         return;
     }
-    if let Err(error) = window::refresh(&ui) {
-        window::hide(&ui);
+    refresh_geometry(&ui);
+}
+
+pub(in crate::desktop) fn border_visible(binding: &Binding, hwnd: HWND) -> bool {
+    binding.borrow().upgrade().is_none_or(|ui| {
+        !ui.blocked()
+            && ui
+                .nodes
+                .borrow()
+                .iter()
+                .any(|node| node.hwnd == hwnd.0 as isize && node.frame(ui.mode.get()))
+    })
+}
+pub(in crate::desktop) unsafe fn composite_frame(binding: &Binding, hwnd: HWND, active: bool) {
+    let Some(ui) = binding.borrow().upgrade() else {
+        return;
+    };
+    if let Some(node) = ui
+        .nodes
+        .borrow_mut()
+        .iter_mut()
+        .find(|node| node.hwnd == hwnd.0 as isize)
+    {
+        node.composite_frame = active;
+    }
+    if !ui.blocked() && !ui.capturing() {
+        if let Err(error) = border::refresh(&ui) {
+            ui.fail(error);
+        }
+    }
+}
+
+pub(in crate::desktop) unsafe fn prepare_frame(binding: &Binding, hwnd: HWND) -> Result<()> {
+    if let Some(ui) = binding.borrow().upgrade() {
+        border::prepare(&ui, hwnd)?;
+    }
+    Ok(())
+}
+
+pub(in crate::desktop) fn lease_frame(binding: &Binding, host: HWND) -> Option<HWND> {
+    let ui = binding.borrow().upgrade()?;
+    if ui.blocked() || ui.capturing() {
+        return None;
+    }
+    border::lease(&ui, host)
+}
+pub(in crate::desktop) fn release_frame(binding: &Binding, hwnd: HWND) {
+    if let Some(ui) = binding.borrow().upgrade() {
+        border::release(&ui, hwnd);
+    }
+}
+pub(in crate::desktop) unsafe fn commit_frame(binding: &Binding, host: HWND) -> Result<()> {
+    if let Some(ui) = binding.borrow().upgrade() {
+        border::commit(&ui, host)?;
+    }
+    Ok(())
+}
+
+/// 目标整帧遮住宿主时同步外框元数据，交接不等待主消息循环再纠正透明度。
+pub(in crate::desktop) fn presentation(
+    binding: &Binding,
+    hwnd: HWND,
+    minified: bool,
+    opacity: f32,
+) {
+    if let Some(ui) = binding.borrow().upgrade() {
+        if let Some(node) = ui
+            .nodes
+            .borrow_mut()
+            .iter_mut()
+            .find(|node| node.hwnd == hwnd.0 as isize)
+        {
+            node.minified = minified;
+            node.border_alpha = desktop::pin_border_style::alpha(opacity);
+        }
+    }
+}
+
+// 缩放的新外框在宿主几何提交之前准备，不能让扩大的图片先遮住旧外框。
+pub(in crate::desktop) unsafe fn zoom_frame(
+    binding: &Binding,
+    hwnd: HWND,
+    rect: crate::pin_geometry::PinRect,
+) {
+    let Some(ui) = binding.borrow().upgrade() else {
+        return;
+    };
+    if let Some(node) = ui
+        .nodes
+        .borrow_mut()
+        .iter_mut()
+        .find(|n| n.hwnd == hwnd.0 as isize)
+    {
+        let next = Rect {
+            left: rect.x,
+            top: rect.y,
+            right: rect.x.saturating_add_unsigned(rect.width),
+            bottom: rect.y.saturating_add_unsigned(rect.height),
+        };
+        if node.rect == next {
+            return;
+        }
+        node.rect = next;
+    } else {
+        return;
+    }
+    refresh_geometry(&ui);
+}
+
+pub(in crate::desktop) unsafe fn move_frame(
+    binding: &Binding,
+    host: HWND,
+    frame: HWND,
+    x: i32,
+    y: i32,
+) -> Result<()> {
+    if let Some(ui) = binding.borrow().upgrade() {
+        movement::cached(&ui, host, frame, x, y)
+    } else {
+        SetWindowPos(
+            frame,
+            None,
+            x,
+            y,
+            0,
+            0,
+            SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER,
+        )
+    }
+}
+
+unsafe fn refresh_geometry(ui: &Ui) {
+    if let Err(error) = window::refresh(ui) {
+        window::hide(ui);
         ui.fail(error);
+        return;
+    }
+    // 系统拖动的嵌套消息泵可能持续优先处理位置消息，不能等空闲 WM_PAINT 才补框。
+    // 几何与所有端点条先更新完，释放借用后在同一次移动内完成可见叠层重绘。
+    // handles 首项是 WS_EX_TRANSPARENT 线层；必须最后画，不能让它等仍失效的端点条。
+    for overlay in ui
+        .handles()
+        .into_iter()
+        .rev()
+        .filter(|h| IsWindowVisible(*h).as_bool())
+    {
+        let _ = windows::Win32::Graphics::Gdi::UpdateWindow(overlay);
     }
 }

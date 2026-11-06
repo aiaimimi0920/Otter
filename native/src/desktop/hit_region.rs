@@ -118,7 +118,8 @@ impl OwnedRegion {
     }
 }
 
-pub(super) unsafe fn update(hwnd: HWND, state: &State) -> Result<()> {
+pub(super) use super::pin_window::preview::hit_update as update;
+pub(super) unsafe fn update_visible(hwnd: HWND, state: &State) -> Result<()> {
     if state.canvas.borrow().minified.is_some() {
         return minified::update(hwnd, state);
     }
@@ -168,7 +169,7 @@ pub(super) unsafe fn update(hwnd: HWND, state: &State) -> Result<()> {
             minified: None,
         };
         let mut cache = state.hit_region.borrow_mut();
-        if cache.key == Some(key) {
+        if cache.key == Some(key) && state.pin_resize.rect.get().is_none() {
             return Ok(());
         }
         let region = if canvas.tool != Tool::Pan {

@@ -7,6 +7,7 @@ impl Application {
         &mut self,
         startup: Option<desktop::SessionStartup>,
     ) -> Result<()> {
+        self.ensure_tray();
         let initial = &self.documents[0];
         desktop::global_capture::install(initial.window.0, &initial.state);
         for doc in &self.documents {
@@ -31,7 +32,11 @@ impl Application {
         }
         let mut message = MSG::default();
         let mut emergency = crate::emergency_exit::Tracker::default();
+        let mut keep_hotkeys = self.hotkey_enabled.get();
         loop {
+            if self.documents.iter().any(|doc| doc.is_alive()) {
+                keep_hotkeys = self.hotkey_enabled.get();
+            }
             let status = self.next_live_message(&mut message)?;
             if status == -1 {
                 return Err(Error::from_win32());
@@ -39,6 +44,13 @@ impl Application {
             if status == 0 {
                 if message.wParam.0 != 0 {
                     return Err(Error::new(E_FAIL, "Native message callback failed"));
+                }
+                if !self.session_end.ended()
+                    && !self.exit_committed
+                    && !self.documents.iter().any(|doc| doc.is_alive())
+                {
+                    self.resume_empty_workspace(keep_hotkeys)?;
+                    continue;
                 }
                 if self.session_end.ended() {
                     self.checkpoint_exiting(); // 系统结束不等于用户删除末Unit，不能写空工作区。
@@ -135,7 +147,31 @@ impl Application {
                     desktop::global_capture::install(document.window.0, &document.state);
                 }
             }
+            self.ensure_tray();
         }
         Ok(())
     }
+
+    unsafe fn ensure_tray(&self) {
+        self.ensure_tray_with(|doc| desktop::tray::start(doc.window.0, &doc.state));
+    }
+    unsafe fn ensure_tray_with(&self, install: impl FnOnce(&DocumentWindow) -> Result<()>) {
+        if self
+            .documents
+            .iter()
+            .any(|doc| doc.is_alive() && desktop::tray::is_resident(&doc.state))
+        {
+            return;
+        }
+        // 常驻图标依附存活宿主；关闭或会话整体替换后交给新宿主，而不是逐钉图创建。
+        if let Some(doc) = self.documents.iter().find(|doc| doc.is_alive()) {
+            if let Err(error) = install(doc) {
+                eprintln!("native-tray-start: {error}");
+            }
+        }
+    }
 }
+
+#[cfg(test)]
+#[path = "application_tray_tests.rs"]
+mod tray_tests;

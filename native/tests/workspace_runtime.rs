@@ -1,5 +1,5 @@
 #![cfg(windows)]
-//! 真实普通启动→移动→持续检查点→强制结束→重启→删除最后 Unit；只操作自启 PID 的离屏窗口。
+//! 真实普通启动→移动→检查点→强制结束→重启→删空后常驻；只操作自启 PID 的离屏窗口。
 use base64::Engine;
 use std::{
     fs::OpenOptions,
@@ -121,14 +121,17 @@ fn until<T>(child: &mut OwnedChild, stage: &str, mut observe: impl FnMut(u32) ->
     }
 }
 fn window(child: &mut OwnedChild) -> HWND {
-    until(child, "visible-owned-window", |pid| unsafe {
+    owned_window(child, true)
+}
+fn owned_window(child: &mut OwnedChild, visible: bool) -> HWND {
+    until(child, "owned-window-visibility", |pid| unsafe {
         let mut search = Search { pid, hwnd: None };
         // 空desktop可返回false/ERROR_SUCCESS；callback从不中止，非零错误仍必须失败。
         SetLastError(ERROR_SUCCESS);
         let result = EnumWindows(Some(enumerate), LPARAM(&mut search as *mut Search as isize));
         enumerated_window(result, search.hwnd)
             .unwrap()
-            .filter(|hwnd| IsWindowVisible(*hwnd).as_bool())
+            .filter(|hwnd| IsWindowVisible(*hwnd).as_bool() == visible)
     })
 }
 fn enumerated_window(
@@ -214,6 +217,33 @@ fn ordinary_product_startup_recovers_persists_restarts_and_does_not_resurrect_de
         );
         PostMessageW(Some(hwnd), WM_CLOSE, WPARAM(0), LPARAM(0)).unwrap();
     }
+    // 删空应保存空工作区并接续隐藏宿主，而不是以进程退出作为保存完成的证据。
+    let resident = owned_window(&mut second, false);
+    assert!(!unsafe { IsWindow(Some(hwnd)) }.as_bool());
+    until(&mut second, "deleted-last-unit-checkpoint", |_| {
+        let bytes = std::fs::read(fixture.workspace()).ok()?;
+        otter_native::session_document::decode(&bytes)
+            .ok()?
+            .workspace
+            .units()
+            .is_empty()
+            .then_some(())
+    });
+    for _ in 0..10 {
+        assert!(second.0.try_wait().unwrap().is_none());
+        assert_eq!(
+            unsafe { session_end::send(second.0.id(), resident, WM_NULL, 0) },
+            0
+        );
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    // 沿真实系统结束协议退出自启进程，不把 WM_CLOSE 重新当成退出程序。
+    until(&mut second, "empty-resident-session-admission", |pid| {
+        (unsafe { session_end::send(pid, resident, WM_QUERYENDSESSION, 0) } == 1).then_some(())
+    });
+    // 文件替换早于 UI 消费检查点；以准入后的版本验证系统结束不再改写。
+    let saved = std::fs::read(fixture.workspace()).unwrap();
+    unsafe { session_end::send(second.0.id(), resident, WM_ENDSESSION, 1) };
     let end = Instant::now() + Duration::from_secs(15);
     let status = loop {
         if let Some(status) = second.0.try_wait().unwrap() {
@@ -221,7 +251,7 @@ fn ordinary_product_startup_recovers_persists_restarts_and_does_not_resurrect_de
         }
         assert!(
             Instant::now() < end,
-            "native empty workspace exit timed out"
+            "native empty resident confirmed exit timed out"
         );
         std::thread::sleep(Duration::from_millis(20));
     };
@@ -230,7 +260,7 @@ fn ordinary_product_startup_recovers_persists_restarts_and_does_not_resurrect_de
         "{}",
         std::fs::read_to_string(fixture.0.join("second-stderr.log")).unwrap()
     );
-    let saved = std::fs::read(fixture.workspace()).unwrap();
+    assert_eq!(std::fs::read(fixture.workspace()).unwrap(), saved);
     assert!(otter_native::session_document::decode(&saved)
         .unwrap()
         .workspace

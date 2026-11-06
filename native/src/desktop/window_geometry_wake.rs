@@ -2,7 +2,7 @@
 use std::cell::Cell;
 use windows::Win32::{Foundation::*, UI::WindowsAndMessaging::*};
 
-const MESSAGE: u32 = WM_APP + 117;
+pub(super) const MESSAGE: u32 = WM_APP + 117;
 pub(super) struct Wake {
     active: Cell<bool>,
     pending: Cell<bool>,

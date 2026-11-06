@@ -26,11 +26,14 @@ impl Drop for Cycle<'_> {
 unsafe fn draw(hwnd: HWND, state: &State) -> Result<Option<super::super::canvas::Pending>> {
     let mut rect = RECT::default();
     GetClientRect(hwnd, &mut rect)?;
-    let (width, height, dpi) = (
-        (rect.right - rect.left).max(0) as u32,
-        (rect.bottom - rect.top).max(0) as u32,
-        GetDpiForWindow(hwnd),
+    let (width, height) = state.pin_resize.rect.get().map_or(
+        (
+            (rect.right - rect.left).max(0) as u32,
+            (rect.bottom - rect.top).max(0) as u32,
+        ),
+        |next| (next.width, next.height),
     );
+    let dpi = GetDpiForWindow(hwnd);
     let display = state.resolved_display.borrow();
     let mut canvas = state.canvas.borrow_mut();
     let normal = display.is_none() && canvas.minified.is_none();
@@ -85,18 +88,46 @@ unsafe fn draw_frame(hwnd: HWND, state: &State) -> Result<bool> {
     if !state.lifetime.owns(hwnd) {
         return Ok(false);
     }
-    super::super::hit_region::update(hwnd, state)?;
+    if state.pin_resize.rect.get().is_none() {
+        super::super::hit_region::update(hwnd, state)?;
+    }
     Ok(true)
 }
 pub(super) unsafe fn paint(hwnd: HWND, state: &State) -> LRESULT {
+    execute(hwnd, state, true)
+}
+pub(in crate::desktop) unsafe fn resize_frame(hwnd: HWND, state: &State) {
+    execute(hwnd, state, false);
+}
+unsafe fn execute(hwnd: HWND, state: &State, validate: bool) -> LRESULT {
+    if super::super::pin_window::preview::active(state)
+        && super::super::pin_window::stationary::active(state)
+    {
+        if !super::super::pin_window::stationary::eligible(state) {
+            super::super::pin_window::animation::stop(hwnd, state);
+        } else {
+            if let Err(error) = super::super::pin_window::stationary::refresh(hwnd, state) {
+                *state.error.borrow_mut() = Some(error);
+            } else {
+                state.error.borrow_mut().take();
+            }
+            drop(validate.then(|| PaintScope::begin(hwnd)));
+            return LRESULT(0);
+        }
+    }
+    if super::super::pin_window::preview::active(state) {
+        // 临时完整帧拥有可见输出；宿主只更新几何，交接时才重绘一次原 GPU/CPU。
+        drop(validate.then(|| PaintScope::begin(hwnd)));
+        return LRESULT(0);
+    }
     if state.render_active.replace(true) {
         // 嵌套 paint 只消费当前失效区，不创建另一后端、不清错误、不提前确认像素。
         state.render_deferred.set(true);
-        drop(PaintScope::begin(hwnd));
+        drop(validate.then(|| PaintScope::begin(hwnd)));
         return LRESULT(0);
     }
     let _cycle = Cycle { state, hwnd };
-    let scope = PaintScope::begin(hwnd);
+    let scope = validate.then(|| PaintScope::begin(hwnd));
     if state.canvas.borrow().creation_blocked() || state.canvas.borrow().render_suspended() {
         // 消费失效区但不清错误、不重建后端、不丢文档；没有自动解锁或定时重试。
         drop(scope);
@@ -110,6 +141,9 @@ pub(super) unsafe fn paint(hwnd: HWND, state: &State) -> LRESULT {
     match result {
         Ok(false) => {}
         Ok(true) => {
+            if state.pin_resize.rect.get().is_some() {
+                state.pin_resize.prepared.set(true);
+            }
             state.error.borrow_mut().take();
             state.render_retries.set(0);
         }

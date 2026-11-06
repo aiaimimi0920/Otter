@@ -1,4 +1,4 @@
-//! 显式区域截图入口；截图前隐藏应用宿主，所有返回路径恢复窗口，复用后台加载提交。
+//! 显式截图入口；普通区域截图保留钉图，专用采集临时隐藏宿主，复用后台加载提交。
 use super::{image::Image, State};
 use windows::{
     core::{w, Error, Result, HSTRING},
@@ -123,12 +123,19 @@ pub(super) unsafe fn start(hwnd: HWND, state: &State, command: usize) {
         return;
     }
     let result = run_delivery(hwnd, state, route.new_pin, || {
-        // 等待隐藏窗口交付给 DWM，避免当前面板进入冻结帧。
+        // 普通区域截图保持当前桌面；Live/长截图等专用采集仍拥有各自显隐策略。
+        let _hidden = (!route.quick_region).then(|| Hidden::for_state(hwnd, state));
         DwmFlush()?;
         let acquired = route.acquire_with(
             super::capture_windows::snapshot,
             super::capture::virtual_desktop,
-            super::capture_region::select_positioned,
+            |image, origin, windows| {
+                if route.quick_region {
+                    super::capture_region::select_positioned(image, origin, windows)
+                } else {
+                    super::capture_region::select_adjustable(image, origin, windows)
+                }
+            },
         )?;
         if command == LONG_RECORDING {
             match acquired {
@@ -210,10 +217,7 @@ unsafe fn run_delivery(
         ReleaseCapture()?;
     }
     let stamp = state.canvas.borrow().editor.document_stamp();
-    let image = {
-        let _hidden = Hidden::for_state(hwnd, state);
-        capture()?
-    };
+    let image = capture()?;
     let Some(delivery) = image else {
         return Ok(());
     };
@@ -254,6 +258,9 @@ unsafe fn run_delivery(
     }
 }
 
+#[cfg(test)]
+#[path = "capture_input_tests.rs"]
+mod visibility_tests;
 #[cfg(test)]
 mod tests {
     use super::*;

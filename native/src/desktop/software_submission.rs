@@ -16,6 +16,13 @@ pub struct Submission {
     opacity: f32,
 }
 impl Submission {
+    pub(in crate::desktop) fn framed(self, padding: u32, border: bool) -> Result<Self> {
+        Ok(Self::new(
+            Rc::new(self.bitmap.framed(padding, self.opacity, border)?),
+            true,
+            1.0,
+        ))
+    }
     pub(super) fn new(bitmap: Rc<Bitmap>, pinned: bool, opacity: f32) -> Self {
         Self {
             bitmap,
@@ -27,6 +34,9 @@ impl Submission {
     /// UpdateLayeredWindow 可同步发送尺寸消息，本凭证在重入期间独立保持源像素。
     /// 成功或失败均消费凭证，不在这里重试或更改窗口样式。
     pub fn present(self, hwnd: HWND) -> Result<()> {
+        self.present_at(hwnd, None)
+    }
+    pub(in crate::desktop) fn present_at(self, hwnd: HWND, position: Option<POINT>) -> Result<()> {
         unsafe {
             if !IsWindow(Some(hwnd)).as_bool()
                 || GetWindowThreadProcessId(hwnd, None) != GetCurrentThreadId()
@@ -52,10 +62,10 @@ impl Submission {
                 UpdateLayeredWindow(
                     hwnd,
                     None,
-                    Some(&POINT {
+                    Some(&position.unwrap_or(POINT {
                         x: window.left,
                         y: window.top,
-                    }),
+                    })),
                     Some(&SIZE {
                         cx: size.width as i32,
                         cy: size.height as i32,

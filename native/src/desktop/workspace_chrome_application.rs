@@ -9,12 +9,20 @@ impl Application {
         for session in &self.live_sessions {
             session.bind_workspace_chrome(self.chrome.bind());
         }
+        if visible && self.capture_active.get() {
+            self.chrome.ui.redraw_after_capture.set(true);
+            capsule::cancel(&self.chrome.ui);
+            self.chrome.ui.keyboard.retire();
+            self.chrome.ui.cancel();
+            self.chrome.ui.pending.borrow_mut().take();
+            return; // 截图只阻止交互，不把已有外框隐藏后再整体闪回。
+        }
         if !visible
             || self.modals.blocked()
             || self.session_end.paused()
             || self.capture_active.get()
             || self.restore_job.is_some()
-            || self.save_job.is_some()
+            || (self.save_job.is_some() && !self.automatic_save_pending())
         {
             window::hide(&self.chrome.ui);
             return;
@@ -75,7 +83,12 @@ impl Application {
                 }
             }
         }
-        if changed || geometry_changed || !IsWindowVisible(self.chrome.ui.drawing.get()).as_bool() {
+        let resume_capture = self.chrome.ui.redraw_after_capture.replace(false);
+        if changed
+            || geometry_changed
+            || resume_capture
+            || !IsWindowVisible(self.chrome.ui.drawing.get()).as_bool()
+        {
             if let Err(error) = self
                 .chrome
                 .windows

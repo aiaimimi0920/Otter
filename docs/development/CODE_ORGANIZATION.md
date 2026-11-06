@@ -1,5 +1,139 @@
 # Otter 代码组织与开发规范
 
+## 端点与曲线同属连接层（v564）
+
+`workspace_chrome_strips::Strip` 不再绑定原生 HWND owner，避免 owned-popup 规则强制圆点高于钉图，或共享 owner 在焦点/层序变化时自动重排整组；逻辑节点身份、捕获保护及回收仍由 Strip 和 Windows::sync 拥有。`workspace_chrome_window::order_drawing` 检查端点条与 drawing HWND 的完整连接组，仅违约时在同一 DeferWindowPos 批次整体放到最下方可见钉图之后，不调整钉图或独立白框。端点首显和重显显式保留层序，稀疏 region、输入、参数 child 及图框/端点同步移动保持原 owner。
+
+端点或其 child 激活引起的真实 WM_WINDOWPOSCHANGED 在默认处理后立即复核连接组，保留焦点而不等应用轮询；Ui::ordering 的栈内租约阻止 EndDeferWindowPos 同步回调重入同一事务，纯移动通知不另开层序事务。`workspace_chrome_stack_tests` 是既有 window tests 下的隔离 HWND 回归叶，保护端点及嵌入 child 焦点/预览/重显、单独升高端点后的整体纠正，以及关闭节点立即隐藏其圆点、同步回收且不影响其余连接组；atomic tests 同时断言圆点和曲线均低于所有图片及白框。物理桌面的最终观感仍由手测确认。
+
+## 连线始终位于所有钉图下方（v563）
+
+`workspace_chrome_window::order_drawing` 根据当前真实窗口层序，将共享连线 HWND 放到最下方可见钉图宿主之后；仅顺序违约时移动线层，不提升、重排钉图或改动端口/独立边框。完整线帧提交前先确定层序；`application_chrome::geometry` 在纯层序通知的几何相等早退之前复核，确保点击/重排不需要等待应用轮询。已连接实线、展开虚线及鼠标/键盘连线预览共用此底层规则，未连接的可见钉图同样遮挡连线。
+
+定向回归保护新节点/截图恢复、三种显示模式、纯层序立即纠正且无重复置顶，以及默认 GPU/兼容 GPU/软件后端缩放和拖动完整图框始终在线层上方。该规则不改变文档连接关系、图像透明度、圆点命中区域或边框 alpha；窗口链断言不代替物理桌面的视觉验收。
+
+## 截图收尾、空工作区常驻与端口移动（v562）
+
+普通区域截图的最终等待由 `capture_wait_hidden` 拥有不可见 modeless HWND 与消息泵，仍使用 capture_wait_dialog 原 worker、timer、取消、显示变化及结果 owner；不显示默认位于 (0,0) 的瞬时等待框，其他捕获等待 UI 不变。
+
+`application_resident` 在用户关闭最后宿主产生的正常 WM_QUIT 后完成原空工作区检查点，并准备不可见 transient_host，接续现有托盘和热键；显式退出由 exit_committed 标记，不重建宿主。保活空文档沿已有 transient_host 序列化省略规则，不变成已保存的钉图。
+
+`workspace_chrome_move` 将完整缓存图框与本节点两个端口放入同一 DeferWindowPos 批次，移除图框和端口之间的共享线层重绘间隔；位置不变的端口不重复 SetWindowPos。端口 region 扣除所有可见图片及其白框，保证白框覆盖圆点交界，不修改既有边框 alpha/缩放呈现路径。定向测试覆盖不可见等待、末宿主接续/显式退出、即时批量移动及 DPI/小图遮挡。
+
+## 拖动 Esc 直接关闭、不先回滚（v561）
+
+v560 的先取消移动、再关闭导致原位置闪现。`pin_move_escape` 现在线程 WH_GETMESSAGE 取出 Esc 时校验真实宿主身份及既有删除准入，将该消息原位转换为目标宿主 WM_CLOSE；系统移动循环不再收到 Esc，既不先回滚位置，也不先结束预览交接。hook 不直接销毁窗口、不另排队；原消息分派负责关闭和租约回收。`pin_escape_tests` 覆盖关闭前位置不变、退出消息前删除、真实 DefWindowProc 系统移动循环，以及受保护按键继续保留 Esc。
+
+## 拖动中 Esc 删除（v560）
+
+`pin_move_escape` 拥有系统移动循环期间的线程级 WH_GETMESSAGE 租约，只记录新按下且无修饰键的 Esc，不吞消息、不在 hook 回调里销毁窗口。`pin_zoom_animation` 在进入移动时安装、退出或销毁时释放；退出移动后沿 `pin_window::close_on_escape` 既有删除准入与 WM_CLOSE 回收路径执行。正常松手、长按重复、组合键、非钉图以及编辑/截图等保护保持不变。`pin_escape_tests` 使用真实线程过滤器验证拖动目标删除与租约清理，物理鼠标系统移动观感仍需手测。
+
+## 半透明单一呈现与静止帧（v559）
+
+v558 的边框连续性经用户基本认可；半透明图像在开始或结束缩放时仍可能因两份输出叠加而短暂变实。`pin_zoom_preview` 现在先准备含透明度和边框的完整 Submission，再遮罩宿主并提交，避免先显示预览再遮罩宿主。绑定外框的普通 Pan 钉图停手后由 `pin_zoom_stationary` 保留原完整帧，不在空闲 timer 中恢复第二份图像；timer 停止且 busy 归零，不阻塞后台快照。
+
+`pin_zoom_stationary` 拥有静止帧资格与无重入刷新，WM_PAINT 更新同一呈现窗口的快照，保留原 Canvas/renderer/文档。拖动复用当前帧；显式编辑、隐藏、销毁或装饰层需要隐藏时归还租约。`workspace_chrome_border::restore_stationary` 只处理取得普通文档租约的宿主，不把 Live userdata 当作 State；归还失败时不能把仍持有内容的窗口当纯装饰隐藏。`workspace_chrome_stationary_tests` 覆盖三后端、间歇滚轮、透明度刷新、空闲保存准入、隐藏恢复及装饰隐藏；既有显式交接测试保留。
+
+本轮不重置透明度、不添加尾随动画，也不改变用户选择的原渲染器。初始化仍涉及两个原生窗口 API；自动测试检查唯一可见内容所有权和生命周期，不替代真实屏幕的首帧/停手观感验收。
+
+## 同一外框窗口的缩放交接（v558）
+
+v557 用户仍观察到停手闪动，以边框最明显。本轮不再在交接时销毁带框预览再显示独立框：绑定应用的预览借用既有边框 HWND，通过临时 subclass 转发输入；边框始终使用 ULW 预乘像素，完整图框与静止透明中心帧使用相同的边缘像素。结束时只恢复环形裁剪，保留整帧已有白框像素，再释放输入租约，不隐藏、销毁外框或重新提交白框像素。无外框/独立宿主保留原临时窗口路径。
+
+workspace_chrome_border 拥有 HWND 和最终边框像素，预览只拥有临时输入租约；预先准备环形 region，提交失败保留完整帧和租约；尺寸缓存仅在像素提交或裁剪交接成功后确认。测试检查三后端/三态/缩放及拖动结束的 HWND 身份连续、无隐藏销毁通知，并逐字节比较两种帧的边缘。宿主 GPU 内容交接仍不是跨 HWND 原子事务，不把消息测试当物理视觉验收。
+
+## 缩放停手交接的边框重叠（v557）
+
+用户确认 v556 基本通过，仅报告 Ctrl+滚轮结束后闪一下。`pin_zoom_preview::finish` 原先恢复宿主 region 后，先定位/显示/重绘独立边框，再销毁带同一图框的代理，使半透明内容及边框存在加深的中间阶段。`workspace_chrome_border::prepare` 现只在宿主仍被遮罩、代理持有完整画面时准备隐藏框的 region、几何、alpha 和绘制；失败保留原代理。恢复宿主后立刻释放代理，之后才恢复独立框，中间不插入边框刷新或额外 DwmFlush。
+
+`workspace_chrome_handoff_tests` 在真实边框同步位置/显示/绘制通知中检查顺序，覆盖默认GPU、兼容GPU、软件、三态及缩放空闲/拖动松手；既有小图往返和失败保留回归保护共用交接。该变更移除已证的较长双框重叠阶段，不宣称 SetWindowRgn 与 DestroyWindow 跨 HWND 成为系统原子事务，物理停手观感仍需手测。
+
+## 小图完整帧切换与截图离屏装饰（v556）
+
+`pin_minify::prepare/present` 为缩略和展开复用既有完整图框预览、宿主遮罩和原后端交接；先结束旧预览，失败仍有旧预览时不切换模型。`Node::frame` 与预览不再排除小图，端口规则不变；交接前同步节点小图/alpha 元数据。普通滚轮把每120 delta的两份缩放增量改为一份，保留亚像素累计和队列合并。
+
+`buffered_paint` 从原 chrome 专用文件提取为 desktop 的 GDI 提交 owner，chrome 与截图共用同一实现。`capture_region_paint` 拥有冻结图及装饰的离屏绘制，成功才提交；旧窗口过程只做 Begin/EndPaint 与错误处理。会话随选择窗口生命期释放，离屏峰值纳入像素预算，不新增定时器或重新截图。样式依据本地 main 的 CanvasSelection 和主题：2逻辑像素 #d9ff38 实线外框、上方28逻辑像素的11px等宽半粗尺寸标签、深色96%背景和信号色38%边框。测试检查图框几何交接、缩略拖动边框、信号黄连续像素和离屏提交前目标不变；物理闪烁仍需手测。
+
+## 同宿主层级外框与图框一体移动（v555）
+
+用户确认 v554 的滚轮积压、全局闪框及松手跳层通过，本轮仅处理拖动图框间隙和新增边框层级/透明度需求。`workspace_chrome_border` 拥有每节点一个穿透、不激活、紧邻宿主上方的环形 layered 窗口，以 HWND+marker/token 校验生命周期；不请求全局置顶。外框纳入原 chrome handles、捕获保护、三态和关闭回收。共享 drawing 不再绘制各节点白框，只保留连线；端口/展开参数条规则不变。`pin_border_style` 为普通/Live 边框及软件合成帧提供同一 DPI 宽度和 `alpha=0.5+0.5*window_opacity`，Node 保存量化 alpha 以保持精确变更比较。
+
+`pin_move_preview` 仅接入原系统移动循环，不另建鼠标捕获：进入时复用 `pin_zoom_preview` 生成图框同一位图/同一 HWND，隐藏该宿主的独立框并屏蔽旧宿主像素；移动只更新这张缓存整帧的位置。尺寸/DPI变化重建完整帧，退出、取消及销毁沿原交接回收链，原 CPU/GPU 和文档保持。恢复宿主区域失败保留完整预览供重试。滚轮预览也使用同样的独立边框 alpha；软件补边按行复制/预乘，不逐像素做坐标除模运算。未新增常驻线程、动画队列或持久化字段。
+
+`workspace_chrome_border_tests` 保护独立 alpha、纯层级变化、三态、穿透区域、其他边框不动及交接；`pin_move_preview_tests` 覆盖 CPU/GPU、连续缓存移动、尺寸变化、结束/取消/销毁；原像素、滚轮与真实检查点回归继续保护已验行为。测试只使用自有隔离窗口，不把消息和像素验证冒充物理桌面手测通过。
+
+## 后台检查点与交互呈现隔离（v554）
+
+`workspace_chrome_application` 不再因后台自动保存共用的 `save_job` 隐藏全部外框；显式隐藏、模态、恢复和会话结束门保留。带真实 profile 的回归已复现旧路径的全局隐藏，不以无 profile 的独立窗口测试替代。`application_save_snapshot::automatic_ready` 在普通滚轮预览或系统移动期间延迟后台快照，结束后仍保存最终几何；交互生命周期归现有 `pin_window::animation`，不新增后台线程或保存队列。
+
+滚轮合并正常派发同宿主的内部几何 ack 后继续累计，不把自己的结算通知当成输入屏障，其他输入/模式消息仍保序。`procedure_geometry` 在普通移动的位置提交前准备目标外框，落地后仍校验实际几何；相同目标不重复提交。新增持续10秒/1000包、真实检查点可见性、移动松手保存和位置通知时序回归。跨 HWND 的物理屏幕合成与任务栏观感仍需用户手测，不能由消息顺序测试宣称原子显示。
+
+## 滚轮队列合并与共享线层顺序（v553）
+
+v552 用户手测仍未通过。真实队列红测复现十条滚轮只处理一条、剩九条待绘制；`pin_zoom_animation` 现在只合并队首连续同宿主/预览、同修饰键输入，逐项保留锚点与尺寸预算，最多256条一次呈现，不越过其他消息。白框已不归预览，故零 padding 预览直接提交原软件帧，移除无用整图复制。共享线层仅在实际落到已知宿主下方时调整层序，纯几何刷新不反复置顶；白框绘制按实际 HWND 上层内容裁剪，不能让后层白框覆盖前层图像。队列、遮挡与层序均有定向回归，物理屏幕闪烁仍待验收。
+
+## 即时滚轮与稳定白框所有权（v552）
+
+用户否决 v551 的闪框、层级和追赶感。滚轮现在同步提交累计目标，timer 仅回收空闲预览，不再插值追赶。白框始终由共享 chrome 绘制，不在预览和共享层之间切换；临时图像窗口紧贴原宿主层序而非抢占最顶层。相关回归检查同步目标、空闲不继续缩放、共享白框持续存在及两钉图间层序。普通桌面视觉仍待手测，不以隔离窗口回归代替。
+
+## 缩放完整帧预览（v551）
+
+`pin_zoom_preview` 及 `pin_zoom_preview_window` 拥有单次缩放的临时 layered 窗口与输入交接；`canvas_zoom_snapshot` 复用正式显示绘制，`software_bitmap_frame` 将透明图像与不透明外框组成同一有界 DIB。每帧由一次 ULW 提交位置、尺寸和像素，原宿主空 region 隔离旧 GPU 帧；结束先重绘原后端再恢复区域，取消及销毁回收预览。不替换原 GPU、文档或编辑历史。滚轮按累计 delta 计速，灵敏度翻倍，Ctrl 边沿不丢未完成目标。相关隔离回归验证输入、几何和资源生命周期，普通桌面观感仍待手测。
+
+## 缩放中间帧与连续滚轮（v550）
+
+`pin_window::animation`（`pin_zoom_animation.rs`）拥有单宿主、单槽、120ms 可重定向过渡及专用 HWND timer；滚轮累计目标，按经过时间插值屏幕边缘，不排队播放每格动画。输入洪流也推进过渡，外部移动、锁定、隐藏、模态、手势及销毁撤销 timer。尺寸／像素预算、鼠标锚点与原图身份不变。
+
+`presentation` 的同步 resize 范围包含解除旧可见裁剪及恢复精确 alpha 区域；`hit_region` 在该范围内不以旧缓存跳过恢复。自有 Win32 探针复现旧区域导致右边缘 300→280→320，不能再把最终 HWND 矩形正确当中间帧正确。Chrome 提前准备目标白框，完成后核实际几何；共享线层在既有留量内复用 DIB／窗口范围，减少全局表面换代。GPU/CPU 选择不变，也不宣称跨 HWND 的 GPU 合成已成为原子事务。
+
+`pin_zoom_animation_tests` 观察真实 timer 中间矩形、重定向和取消；`pin_zoom_present_tests` 在几何提交处检查旧裁剪已解除；chrome 回归检查目标白框预先存在及连续缩放缓冲复用。普通显示器的最终无抖动／白框连续性仍须手测；拖动与截图后的整体闪烁不在本项关闭。
+
+## 鼠标锚点缩放的预提交呈现（v549）
+
+`pin_window::presentation`（`pin_zoom_present.rs`）只拥有普通钉图单次滚轮的目标矩形与栈内呈现范围。GPU 在 `WM_NCCALCSIZE` 返回、HWND 新几何生效之前按目标尺寸适配视口并绘制提交；软件后端不预先 `SetWindowPos`，由原不可变 `Submission` 的 `UpdateLayeredWindow` 一并提交新位置、尺寸与像素。`procedure_paint` 复用原绘制／错误／恢复链，命中区域在几何落地后更新；不增加线程、timer、队列或切换默认 GPU 后端。范围退出清除临时目标，重入绘制／缩放不能覆盖在途目标。
+
+`procedure_geometry` 接收原 `WM_WINDOWPOSCHANGED` 默认派发和新增 `WM_NCCALCSIZE` 预提交接线，避免继续扩大主窗口过程。`pin_zoom_present_tests` 在真实窗口尺寸通知处检查新帧准备顺序，分别运行默认 GPU、兼容 GPU 和 CPU；私有 desktop 的 GPU Present 可返回遮挡状态，测试只证明真实 GPU 绘制与消息顺序，不宣称屏幕扫描已完成。软件 ULW 不发尺寸消息，因此另显式同步 chrome，不靠区域更新的副作用。既有亚像素累积、文档身份、锁定及手势围栏仍由 `pin_zoom_tests` 保护。普通桌面锚点稳定性须通过本轮新包手测；拖动外框及截图后整体闪烁保持用户未通过，本轮不关闭。
+
+## 共享外框的位置与像素原子提交（v548）
+
+`workspace_chrome_draw::surface`（`workspace_chrome_surface.rs`）拥有共享线层的一张有界 top-down DIB、GDI 对象和像素租约；同尺寸复用，换尺寸先释放旧本地缓冲，关闭 chrome 时回收。完成所有外框／连线后，`UpdateLayeredWindow` 一次提交位置、尺寸和色键像素，不再先用 `SetWindowPos` 搬动所有静止外框的旧画面。端点条继续使用原线程缓冲及稀疏 region；保护属性仅实际改变时写入。同几何／DPI 的宿主 region 通知不重复刷新共享层。没有新窗口、线程、timer、队列、依赖或扩大像素上限。
+
+`pin_geometry::WheelZoom`（`pin_wheel_geometry.rs`）拥有普通钉图滚轮连续缩放的亚像素几何；`State::pin_zoom` 跟随宿主寿命，只在提交 HWND 时取整，外部移动／resize 后以实际矩形重新建基准。原缩放步长、指针锚点、尺寸／像素预算及绘制入口保留；不改 Live 专用缩放或已通过的 Esc 删除。`workspace_chrome_atomic_tests` 保护共享层无旧画面定位事务、静止外框像素、截图恢复／新增节点和缓冲回收；`pin_zoom_tests` 与纯几何测试保护奇数尺寸反向缩放、细步进累计和外部移动复位。普通桌面观感仍待专项手测。
+
+## 钉图交互绘制时序（v547）
+
+`workspace_chrome_draw::buffered`（`workspace_chrome_buffer.rs`）拥有 GDI 离屏帧与完成提交；线程缓冲会话跟随原 `window::Windows`，绘制范围受原窗口像素预算约束。清空、外框和连线完成后才一次提交，失败／取消不发布半帧；没有每节点整屏缓存、新线程、timer 或依赖。`workspace_chrome_strips` 比较系统 region，仅实际变化才交付新 region，未交付的 HRGN 沿本地 owner 回收。
+
+普通截图期间保留 chrome 已提交画面，但原 capture gate 继续禁止输入，并撤销 capsule 草稿、键盘连线、手势和待提交连线；结束由原应用同步补帧。专用采集的显式 Hidden guard 不变。`procedure` 让默认 `WM_WINDOWPOSCHANGED` 先派发 `WM_SIZE` 适配视口，再同步 chrome；`pin_window::wheel` 禁止复制旧尺寸 backing bits，仍经原绘制链提交。空闲 Pan 钉图的普通 Esc 走原 `WM_CLOSE`，编辑／选区／手势优先取消，repeat、修饰键、模态和锁定等围栏保留。
+
+`workspace_chrome_buffer_tests` 用自有 DIB 保护完整／取消／局部提交；`workspace_chrome_refresh_tests` 用隔离 HWND 保护静止 region、截图冻结与真实新钉图交付的零显隐通知，以及每次缩放绘制前的新视口。`pin_escape_tests` 保护目标宿主／面板回收、编辑优先取消和删除围栏。普通前台闪烁、GPU 缩放手感及物理显示器组合仍由专项手测确认，不由隔离测试代替。
+
+## 常驻托盘图标所有权
+
+`desktop/application_loop` 在正常启动和业务消息结算后维护一个存活宿主的常驻托盘归属；新增钉图不重复创建，原宿主销毁／会话整体替换后接续，不把该 UI 运行副作用放进 `Application::new` 或隐藏验证入口。`tray` 保留原 Shell 添加／版本／失败回收和宿主图标借用寿命，常驻归属不冒充系统安装成功，安装失败只记录一次、不按每条消息重试；`TaskbarCreated` 仍有恢复资格。常驻图标在窗口恢复后保留并接收可见状态回调，其他文档显式隐藏的临时图标及旧恢复语义不变。
+
+`tray_resident_tests` 注入 Shell 通知，保护启动、隐藏／恢复、可见回调和 Explorer 重建成功／失败；`application_tray_tests` 用自有隐藏 Application 保护单 owner、窗口销毁／整体替换接续及失败不循环重试。测试不操作用户系统托盘、不重启 Explorer，真实托盘显示、菜单和 Explorer 重启仍须专项手测。没有新生产模块、线程、timer、队列或权限。
+
+## 钉图外边框绘制所有权
+
+`workspace_chrome_draw::frame` 沿本地主干 `UnitSelectionBorder` 的纯白外描边，按本轮确认统一为 2 个逻辑像素并随 DPI 缩放；四条色带只写客户区外，不改变图片、窗口几何或端点锚点，沿原三态及缩略显隐规则。不增 GDI 对象、窗口或输入区域。`workspace_chrome_frame_tests` 是 draw owner 的内存 DIB 回归叶，逐像素检查纯白、完整外边框、图片内容不变、负屏幕原点、局部重绘及 DPI 边界；普通桌面观感仍待专项手测。
+
+## 普通截图快速选择所有权
+
+`desktop/capture_input::route` 区分普通区域与专用采集；普通截图不隐藏现有窗口，长截图／全屏与 Live 保留原显隐 owner。`capture_region` 的 Quick 模式只拥有一次拖选和松手提交，终态拒绝重入输入，不挂调整手柄或等待 Enter；Adjust／Live 复用原模型但保留各自完成语义。共享选区的局部放大绘制及采样块已移除，`capture_pixel` 只为既有 C 取色命令读取单像素 RGB，不绘制浮层。冻结帧、最终动态范围采集、窗口保护和后台新钉图事务仍归原 owner，没有新线程、timer、队列或权限。
+
+`capture_region_tests` 保护松手裁剪、取消、空选区、失捕获、终态不可调整、无放大浮层重绘及专用模式隔离；`capture_input_tests` 用自有窗口和合成图保护取消／失败／成功交付时的显隐与旧文档。普通前台观感、多屏与 HDR 留待专项手测，不用隔离 HWND 测试替代。
+
+## 钉图端点遮挡所有权
+
+`workspace_chrome_strips` 保留每节点两条 owned 窗口及原寿命／捕获保护，在既有稀疏 region 中扣除所有可见钉图的物理客户区，使左右端点只露外半圆且不抢占图片输入；单字段 capsule 的独立外侧区域在扣除后合并。几何消息沿原 owner 刷新，无新窗口、线程或输入框架。`workspace_chrome_occlusion_tests` 是原 window tests 的隔离 HWND 测试叶，覆盖左右半圆、其他钉图遮挡、移动／resize／隐藏／销毁恢复及负坐标／DPI／缩略标量；真实多屏与普通前台观感仍由专项手测确认。
+
+## 钉图透明度滚轮输入所有权
+
+`procedure` 只识别普通钉图的精确 `Alt+wheel`，保留原 `Ctrl+wheel`、锁定及活动手势围栏；`pin_window` 更新既有正常／缩略透明度与当前窗口期望值，释放 Canvas 借用后仅请求原绘制链提交，不改图像、编辑历史或窗口几何。`pin_wheel_tests` 是该 owner 下的隐藏 HWND 回归叶，拥有线程键态恢复及窗口／类回收，不注入全局输入、不代普通前台手测。没有新生产模块、依赖、线程或资源池。
+
+`Ctrl+wheel` 的有效尺寸变化由 `pin_window::wheel` 在原 `SetWindowPos`／视口适配之后同步请求既有 `WM_PAINT`，避免连续输入饿死空闲重绘；不改变缩放比例、指针锚点或像素预算。`pin_zoom_tests` 为该 owner 的独立测试叶，以自有隔离 HWND 和正式 CPU 提交检查逐步呈现、原图身份及零增量／锁定／绘图围栏，不代表普通前台手感或 GPU 性能验收。
+
 ## 贴图右键输入回归所有权（v545）
 
 procedure只拥有pinned＋HTCAPTION右键松开到原WM_CONTEXTMENU的消息接线；context_menu_input_tests是既有context_menu测试owner下的叶，拥有自有隐藏宿主、subclass观察及其释放，不弹菜单、不代普通前台验收。原菜单快照、模态、授权、会话、拖出与命令执行owner不变；没有新生产模块、依赖、线程、队列或兼容层。
@@ -6555,8 +6689,9 @@ Shell 拖入由 `file_drop.rs` 接管 HDROP 生命周期，快照路径后立即
 `capture_input_smoke.rs` 仅以内存夹具验证入口事务和真实后台提交，不读取桌面。
 `capture_protection.rs` 独立拥有系统捕获排除开关、两窗口更新回滚和部分成功状态，
 不将显示亲和性混入文档编辑历史；窗口销毁后该窗口的系统设置随之结束。
-`desktop/tray.rs` 拥有按需通知图标、版本化回调、隐藏/恢复与 Explorer 重启恢复，
-仅成功建立托盘入口后隐藏宿主，隐藏时释放画布设备资源；不另建事件循环或定时轮询。
+`desktop/tray.rs` 拥有常驻／按需通知图标、版本化回调、隐藏／恢复与 Explorer 重启恢复；
+正常消息泵维护一个存活宿主的常驻归属，仅显式隐藏时才改变窗口可见性并释放画布设备资源。
+恢复窗口保留常驻图标，其他临时图标沿原回收语义；不另建事件循环或定时轮询。
 `desktop/tray_actions.rs` 只拥有托盘常用操作的菜单投影与路由，复用区域/双轴长截图、
 打开图片的新钉图入口。执行前与恢复宿主后分别复核模态、窗口和任务准入，不跨菜单
 消息循环持有文档借用，不在托盘模块复制捕获、文件选择或加载实现。

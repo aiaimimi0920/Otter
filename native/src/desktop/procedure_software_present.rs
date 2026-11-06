@@ -12,7 +12,19 @@ pub(super) unsafe fn submit(hwnd: HWND, state: &State, pending: Pending) -> Resu
         state.render_deferred.set(true);
         return Ok(false); // 回滚样式，不提交重入前的旧文档帧。
     }
-    let presented = pending.present(hwnd)?;
+    let position = state
+        .pin_resize
+        .rect
+        .get()
+        .map(|rect| windows::Win32::Foundation::POINT {
+            x: rect.x,
+            y: rect.y,
+        });
+    let presented = if position.is_some() {
+        pending.present_at(hwnd, position)?
+    } else {
+        pending.present(hwnd)?
+    };
     if !owns() {
         return Ok(false);
     }

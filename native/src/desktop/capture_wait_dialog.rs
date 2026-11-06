@@ -11,6 +11,8 @@ use windows::{
         UI::{Input::KeyboardAndMouse::EnableWindow, WindowsAndMessaging::*},
     },
 };
+#[path = "capture_wait_hidden.rs"]
+mod hidden;
 #[path = "capture_wait_layout.rs"]
 mod layout;
 const USER: WINDOW_LONG_PTR_INDEX =
@@ -24,6 +26,7 @@ struct Input<T = Outcome> {
     cancelling: Cell<bool>,
     terminal: RefCell<Option<String>>,
     protect: bool,
+    quiet: bool,
 }
 impl<T> Input<T> {
     fn new(factory: Factory<T>, protect: bool) -> Self {
@@ -34,6 +37,7 @@ impl<T> Input<T> {
             cancelling: Cell::new(false),
             terminal: RefCell::new(None),
             protect,
+            quiet: false,
         }
     }
 }
@@ -72,7 +76,8 @@ pub unsafe fn show_cached(
     owner: HWND,
     request: CachedRequest,
 ) -> Result<Option<PreparedCapture>, String> {
-    let input = Input::new(
+    let quiet = request.standard_region;
+    let mut input = Input::new(
         Box::new(move || {
             CaptureJob::start_cached(
                 request.screen,
@@ -86,9 +91,15 @@ pub unsafe fn show_cached(
         }),
         true,
     );
+    input.quiet = quiet;
     run(owner, input)
 }
 unsafe fn run<T>(owner: HWND, input: Input<T>) -> Result<Option<T>, String> {
+    if input.quiet {
+        hidden::run(owner, &input)?;
+        input.job.borrow_mut().take();
+        return input.result.into_inner().unwrap_or(Ok(None));
+    }
     let template = layout::template();
     let result = DialogBoxIndirectParamW(
         None,
@@ -108,7 +119,9 @@ unsafe fn finish<T>(hwnd: HWND, input: &Input<T>, result: Result<Option<T>, Stri
     let _ = KillTimer(Some(hwnd), TIMER);
     input.result.replace(Some(result));
     input.job.borrow_mut().take();
-    let _ = EndDialog(hwnd, 1);
+    if !input.quiet {
+        let _ = EndDialog(hwnd, 1);
+    }
 }
 unsafe fn poll<T>(hwnd: HWND, input: &Input<T>) {
     let result = input

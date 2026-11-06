@@ -4,6 +4,7 @@ use crate::desktop::capture::Frame;
 
 pub(super) struct Route {
     pub new_pin: bool,
+    pub quick_region: bool,
     region: bool,
 }
 impl Route {
@@ -16,7 +17,11 @@ impl Route {
             LONG_RECORDING | LONG_VERTICAL | LONG_HORIZONTAL => (true, true),
             _ => return None,
         };
-        Some(Self { new_pin, region })
+        Some(Self {
+            new_pin,
+            quick_region: matches!(command, COMMAND | NEW_PIN),
+            region,
+        })
     }
 
     pub fn acquire_with(
@@ -52,6 +57,7 @@ mod tests {
         ] {
             let route = Route::resolve(command).unwrap();
             assert_eq!((route.new_pin, route.region), (new_pin, region));
+            assert_eq!(route.quick_region, matches!(command, COMMAND | NEW_PIN));
         }
         assert!(Route::resolve(usize::MAX).is_none());
     }

@@ -1,6 +1,8 @@
 use super::*;
 fn node() -> Node {
     Node {
+        border_alpha: 255,
+        composite_frame: false,
         endpoint: 0,
         hwnd: 1,
         marker: 2,
@@ -59,7 +61,9 @@ fn tab_expanded_overrides_clean_mode_and_hide_collapsed_but_not_minification() {
         assert!(unit.ports(mode, true));
     }
     unit.minified = true;
-    assert!(!unit.frame(Mode::All));
+    assert!(unit.frame(Mode::All));
+    assert!(unit.frame(Mode::Border));
+    assert!(!unit.frame(Mode::None));
     assert!(!unit.ports(Mode::None, false));
     assert!(unit.ports(Mode::All, false));
     assert_eq!(unit.radius(), 4);

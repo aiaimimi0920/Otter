@@ -109,6 +109,8 @@ mod pin_smoke;
 mod propagation;
 #[path = "application_remote_live.rs"]
 mod remote_live;
+#[path = "application_resident.rs"]
+mod resident;
 #[path = "application_restore_batch.rs"]
 pub mod restore_batch;
 #[path = "application_restore_rebind.rs"]
@@ -225,6 +227,7 @@ pub(super) struct Application {
     capture_windows: std::rc::Rc<std::cell::RefCell<Vec<HWND>>>,
     modals: super::modal_scope::Scope,
     exit_requested: std::rc::Rc<std::cell::Cell<bool>>,
+    exit_committed: bool,
     session_end: std::rc::Rc<super::session_end::Control>,
 }
 
