@@ -62,9 +62,9 @@
   },
   "license": "MIT",
   "dependencies": {
-    "@tauri-apps/api": "2.12.0",
+    "@tauri-apps/api": "2.12.5",
     "jsqr": "1.4.0",
-    "solid-js": "^1.9.17"
+    "solid-js": "^1.9.19"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
