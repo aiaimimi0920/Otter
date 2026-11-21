@@ -137,7 +137,8 @@ function run(check) {
   for (const [name, svg] of Object.entries(icons)) {
     const file = path.join(destination, name);
     if (check) {
-      if (fs.readFileSync(file, 'utf8') !== svg) throw new Error(`Baseline SVG drift: ${name}`);
+      // Checkout EOL conversion must not look like geometry drift.
+      if (fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n') !== svg) throw new Error(`Baseline SVG drift: ${name}`);
     } else fs.writeFileSync(file, svg, 'utf8');
   }
   return Object.keys(icons).length;
