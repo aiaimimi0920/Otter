@@ -15,7 +15,7 @@ pub(in crate::desktop) fn radius(edit: &serde_json::Value) -> Result<f32> {
     Ok(radius as f32)
 }
 
-pub(in crate::desktop::export) struct Clip<'a> {
+pub(in crate::desktop) struct Clip<'a> {
     // PopLayer 必须早于预算释放；调用方还须在 EndDraw 之前释放整个 guard。
     _layer: crate::desktop::annotation_opacity::Layer<'a>,
     _lease: crate::byte_budget::Lease,
@@ -30,7 +30,27 @@ pub(in crate::desktop::export) unsafe fn push<'a>(
     let Some(layout) = layout.filter(|value| value.radius > 0.0) else {
         return Ok(None);
     };
-    let bytes = checked_image_bytes(layout.output.0, layout.output.1)
+    push_frame(
+        target,
+        factory,
+        layout.visible,
+        layout.radius,
+        layout.output,
+        reserve,
+    )
+}
+pub(in crate::desktop) unsafe fn push_frame<'a>(
+    target: &'a ID2D1RenderTarget,
+    factory: &ID2D1Factory,
+    frame: crate::crop_geometry::Rect,
+    radius: f32,
+    output: (u32, u32),
+    reserve: impl FnOnce(usize) -> Option<crate::byte_budget::Lease>,
+) -> Result<Option<Clip<'a>>> {
+    if radius == 0.0 {
+        return Ok(None);
+    }
+    let bytes = checked_image_bytes(output.0, output.1)
         .ok_or_else(|| Error::new(E_INVALIDARG, "Invalid corner mask dimensions"))?;
     let lease = reserve(bytes).ok_or_else(|| {
         Error::new(
@@ -38,7 +58,6 @@ pub(in crate::desktop::export) unsafe fn push<'a>(
             "Corner mask budget exhausted",
         )
     })?;
-    let frame = layout.visible;
     let bounds = D2D_RECT_F {
         left: frame.x as f32,
         top: frame.y as f32,
@@ -46,9 +65,7 @@ pub(in crate::desktop::export) unsafe fn push<'a>(
         bottom: (frame.y + frame.height) as f32,
     };
     // Canvas roundRect 的统一半径在过大时等比例缩小，而不是分别压扁两轴。
-    let radius = layout
-        .radius
-        .min(frame.width.min(frame.height) as f32 / 2.0);
+    let radius = radius.min(frame.width.min(frame.height) as f32 / 2.0);
     let geometry = factory.CreateRoundedRectangleGeometry(&D2D1_ROUNDED_RECT {
         rect: bounds,
         radiusX: radius,

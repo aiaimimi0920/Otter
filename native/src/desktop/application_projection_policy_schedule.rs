@@ -43,10 +43,17 @@ fn missing(
                 && ticket.envelope().projection_id() == entry.envelope().projection_id()
         })
 }
+enum Attempt {
+    FirstAccept,
+    AwaitingInbox,
+    RetryReady,
+    Done,
+}
+
 #[derive(Default)]
 pub(in crate::desktop::application) struct Schedule {
     origin: Option<String>,
-    attempted: Vec<Key>,
+    attempted: Vec<(Key, Attempt)>,
     last: Option<String>,
     next: Option<Instant>,
     pub(super) wake: Option<Instant>,
@@ -65,8 +72,25 @@ impl Schedule {
     }
     pub(in crate::desktop::application) fn inbox(&mut self, entries: &[Arc<Invitation>]) {
         self.attempted
-            .retain(|old| entries.iter().any(|entry| old.matches(entry)));
+            .retain(|(old, _)| entries.iter().any(|entry| old.matches(entry)));
+        for (_, attempt) in &mut self.attempted {
+            if matches!(attempt, Attempt::AwaitingInbox) {
+                *attempt = Attempt::RetryReady;
+            }
+        }
         self.failures = 0;
+    }
+    pub(in crate::desktop::application) fn accept_unapplied(&mut self, entry: &Invitation) -> bool {
+        if let Some((_, attempt @ Attempt::FirstAccept)) = self
+            .attempted
+            .iter_mut()
+            .find(|(old, _)| old.matches(entry))
+        {
+            *attempt = Attempt::AwaitingInbox;
+            true
+        } else {
+            false
+        }
     }
     fn align_origin(&mut self, origin: &str) {
         if self.origin.as_deref() != Some(origin) {
@@ -107,6 +131,14 @@ impl Schedule {
         }
         self.next = now.checked_add(Duration::from_secs(3));
         self.wake = self.next; // 启动前失败也保有界唤醒，不依赖不存在的 worker 通知。
+                               // 只在权威收件箱确认仍是同一邀请后重试，不能沿用失败前的快照。
+        if self
+            .attempted
+            .iter()
+            .any(|(_, attempt)| matches!(attempt, Attempt::AwaitingInbox))
+        {
+            return Some(Request::Refresh);
+        }
         let count = entries
             .len()
             .min(crate::projection_delivery::MAX_INVITATIONS);
@@ -116,17 +148,30 @@ impl Schedule {
             .map_or(0, |index| index + 1);
         for offset in 0..count {
             let entry = &entries[(start + offset) % count];
-            if entry.origin() != origin
-                || self.attempted.iter().any(|old| old.matches(entry))
-                || (!entry.accepted() && policy == Policy::Confirm)
-            {
+            if entry.origin() != origin {
                 continue;
             }
-            // 快照最多 64 项；满额时只查询，不淘汰旧凭证以反复重试同一失败邀请。
-            if self.attempted.len() >= crate::projection_delivery::MAX_INVITATIONS {
-                break;
+            if let Some((_, attempt)) = self
+                .attempted
+                .iter_mut()
+                .find(|(old, _)| old.matches(entry))
+            {
+                if !matches!(attempt, Attempt::RetryReady) {
+                    continue;
+                }
+                *attempt = Attempt::Done;
+            } else {
+                // 快照最多 64 项；满额时只查询，不淘汰旧凭证以反复重试同一失败邀请。
+                if self.attempted.len() >= crate::projection_delivery::MAX_INVITATIONS {
+                    continue;
+                }
+                let attempt = if !entry.accepted() && policy != Policy::Reject {
+                    Attempt::FirstAccept
+                } else {
+                    Attempt::Done
+                };
+                self.attempted.push((key(entry), attempt));
             }
-            self.attempted.push(key(entry));
             self.last = Some(entry.envelope().projection_id().to_owned());
             return Some(if entry.accepted() {
                 Request::Reattach(entry.clone())
@@ -178,6 +223,7 @@ impl Application {
         let origin = view.origin.clone();
         let idle = !view.closed
             && !view.busy
+            && !view.account.busy
             && !view.projection.busy
             && view.request.is_none()
             && !view.consent.saving
@@ -205,10 +251,11 @@ impl Application {
                 return;
             }
         }
-        // 先检查目标，再占候选；暂不能追加不耗费该邀请唯一自动尝试。
+        // 先检查目标，再占候选；暂不能追加不耗费该邀请的自动尝试。
         drop(view);
         let existing = super::super::receive::Scope::capture_existing(self).ok();
-        let scope = if mode == Policy::Auto {
+        // “接收”已表达设备级同意，与“自动”一样沿原校验/保存流程接受，无二次审批。
+        let scope = if mode != Policy::Reject {
             super::super::receive::Scope::capture(self).ok()
         } else {
             None
@@ -220,8 +267,7 @@ impl Application {
             .entries
             .iter()
             .filter(|entry| {
-                (!entry.accepted()
-                    && (mode == Policy::Reject || (mode == Policy::Auto && scope.is_some())))
+                (!entry.accepted() && (mode == Policy::Reject || scope.is_some()))
                     || (entry.accepted()
                         && existing.is_some()
                         && missing(

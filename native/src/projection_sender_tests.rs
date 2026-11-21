@@ -252,11 +252,11 @@ fn malformed_selection_and_unimplemented_offline_route_are_rejected() {
             ..selection(1)
         },
         Selection {
-            target: "peer-target:abc".into(),
+            target: Some("peer-target:abc".into()),
             ..selection(1)
         },
         Selection {
-            target: "x".repeat(161),
+            target: Some("x".repeat(161)),
             ..selection(1)
         },
     ] {

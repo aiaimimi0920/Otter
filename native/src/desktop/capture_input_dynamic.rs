@@ -1,4 +1,4 @@
-//! 区域选择后的最终捕获；冻结 SDR 图只作选区参考，不冒充最终 HDR 帧。
+//! 松手选择后的最终捕获；普通选区不预采集像素，保留原动态范围和交付事务。
 use super::*;
 pub(super) enum Delivery {
     Recording(super::long_capture_dialog::Output),
@@ -50,15 +50,20 @@ fn screen(origin: POINT, width: u32, height: u32) -> Result<RECT> {
         bottom,
     })
 }
-pub(super) unsafe fn prepare(
-    hwnd: HWND,
-    state: &State,
-    image: Image,
-    origin: POINT,
-) -> Result<Option<Delivery>> {
-    let screen = screen(origin, image.width, image.height)?;
-    // 释放冻结预览再启动 WGC，避免把整屏选择缓冲和新帧池同时留在预算中。
-    drop(image);
+pub(super) fn acquire_with<T>(
+    select: impl FnOnce() -> Result<Option<RECT>>,
+    capture: impl FnOnce(RECT) -> Result<Option<T>>,
+) -> Result<Option<T>> {
+    match select()? {
+        Some(screen) => capture(screen),
+        None => Ok(None),
+    }
+}
+pub(super) unsafe fn prepare(hwnd: HWND, state: &State, screen: RECT) -> Result<Option<Delivery>> {
+    let origin = POINT {
+        x: screen.left,
+        y: screen.top,
+    };
     let mode = std::env::var("OTTER_CAPTURE_DYNAMIC_RANGE").ok();
     let root = std::env::var_os("OTTER_NATIVE_PROFILE_DIR");
     let local = std::env::var_os("LOCALAPPDATA");
@@ -67,22 +72,27 @@ pub(super) unsafe fn prepare(
         .and_then(|selection| selection.path.parent().map(|path| path.to_owned()))
         .ok_or_else(|| Error::new(E_FAIL, "Missing native capture profile"))?;
     // 选择窗口已销毁；等待其 DWM 变化提交后捕获最终桌面，普通截图保留已有钉图。
-    DwmFlush()?;
-    super::super::capture::wait_cached(
-        hwnd,
-        super::super::capture::CachedRequest {
-            screen,
-            mode: crate::capture_dynamic::Mode::parse(mode.as_deref()),
-            standard_region: true,
-            gain: 1.0,
-            profile,
-            stem: "Otter_hdr_capture".into(),
-            policy: state.cache_policy.get(),
-        },
-    )
+    super::super::smoke_timing::run("capture-release-flush", || DwmFlush())?;
+    super::super::smoke_timing::run("capture-acquire-and-stage", || {
+        super::super::capture::wait_cached(
+            hwnd,
+            super::super::capture::CachedRequest {
+                screen,
+                mode: crate::capture_dynamic::Mode::parse(mode.as_deref()),
+                standard_region: true,
+                gain: 1.0,
+                profile,
+                stem: "Otter_hdr_capture".into(),
+                policy: state.cache_policy.get(),
+            },
+        )
+    })
     .map(|result| result.map(|prepared| Delivery::Prepared(Box::new(prepared), origin)))
     .map_err(|error| Error::new(E_FAIL, error))
 }
+#[cfg(test)]
+#[path = "capture_release_delivery_tests.rs"]
+mod release_tests;
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -141,6 +151,31 @@ mod tests {
             &std::sync::atomic::AtomicBool::new(false),
         )
         .unwrap()
+    }
+    #[test]
+    fn capture_delivery_is_ready_without_waiting_for_the_open_timer() {
+        unsafe {
+            let _apartment = crate::desktop::Apartment::new().unwrap();
+            let state = State::new(None, true).unwrap();
+            let window = window();
+            let start = std::time::Instant::now();
+            run_delivery(window.0, &state, true, || {
+                Ok(Some(Delivery::Prepared(
+                    Box::new(prepared()),
+                    POINT::default(),
+                )))
+            })
+            .unwrap();
+            eprintln!(
+                "capture-delivery-ready: elapsed_us={}",
+                start.elapsed().as_micros()
+            );
+            assert!(
+                state.new_pin.borrow().is_some(),
+                "A finished capture must not wait for OPEN_TIMER"
+            );
+            assert!(state.open_job.borrow().is_none());
+        }
     }
     unsafe fn window() -> crate::desktop::Window {
         crate::desktop::Window(

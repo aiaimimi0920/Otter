@@ -1,10 +1,7 @@
 //! 新建模糊工具的精确强度；只改默认配置和准备缓存，不修改已经提交的标注。
 use super::{canvas::Canvas, numeric_style::Kind, State};
 use crate::editor::{DocumentStamp, Tool};
-use windows::{
-    core::w,
-    Win32::{Foundation::*, UI::WindowsAndMessaging::*},
-};
+use windows::Win32::{Foundation::*, UI::WindowsAndMessaging::*};
 pub(super) const COMMAND: usize = 0x104a;
 struct Pending {
     stamp: DocumentStamp,
@@ -34,15 +31,6 @@ impl Pending {
         canvas.blur_ready = None;
         true
     }
-}
-pub(super) unsafe fn append(menu: HMENU, state: &State) -> windows::core::Result<()> {
-    let enabled = Pending::capture(&state.canvas.borrow()).is_some();
-    AppendMenuW(
-        menu,
-        MF_STRING | if enabled { MF_ENABLED } else { MF_GRAYED },
-        COMMAND,
-        w!("新建模糊强度…"),
-    )
 }
 pub(super) unsafe fn show(hwnd: HWND, state: &State) {
     if !super::tool_panel_availability::Availability::capture(state)

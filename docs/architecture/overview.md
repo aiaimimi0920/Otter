@@ -1,5 +1,723 @@
 # Otter Technical Architecture
 
+## 当前主干：Windows 原生
+
+`native/` 是默认桌面程序。窗口与输入走 Win32，画布与合成走 Direct2D／DirectComposition；
+共享原生控件通过 Cargo 消费 NeuroDesign 的固定 Git commit。旧 `src/` 与 `src-tauri/` 保留供
+历史参考和既有合同测试，不进入默认 Windows 包。旧 WebView 主干见 `archive/webview-main`。
+
+v672 的目标列表在一次鼠标手势完成前不回写旧草稿；自绘外观仍复用原 LISTBOX 的选择和键盘模型。
+连接、分享和目标窗口共用 `dialog_controls`，列表滚动外观归 `pin_targets_scroll`。
+非文本附属控件的 Ctrl+C 路由到所属钉图，复制 worker 只允许一个后继请求并保留原发布围栏。
+设备级“接收”和“自动”均走已有自动接受调度；发送区依据真实绑定区分等待与已接收。
+
+v670 的分享弹窗为钉图拥有的独立浮层：二维码与链接共用 HWND，随钉图移动，尺寸仅受显示器工作区约束。
+目标选择将 UI 草稿与原 sender 请求分离，确认前无投射副作用；确认后按设备 ID 顺序执行，
+目录刷新不重建稳定列表。首次可协作源沿已有后台调度建立默认单向会话，方向切换仍使用原协作命令。
+具体归属见 [分享浮层与目标草稿](../development/CODE_ORGANIZATION.md#分享浮层与目标草稿v670)。
+v671 支持文档级方向预选，初始化后复用原协作事务应用；失败显示实际模式并保留原持久请求的恢复入口。
+确认目标以已保存绑定为完成依据，失败保留草稿。分享页签不受无关后台同步启停，属性栏的纯上下文更新不重排控件。
+
+v669 的产品入口直接输入 Loom 地址连接，使用同一设备身份与审批；主动断开持久暂停，
+Loom 保留离线设备。分享窗口在钉图内部选择局域网或公网，目标菜单以稳定 ID 多选并
+复用原 sender owner。当前及直接互联 Loom 的登录用户映射到对应设备，不另建联系人系统。
+局域网导入记录认证后的传输地址，签名邀请原文保持不变；账号分享通过现有 Device TLS
+通道访问当前 Loom，按来源／接收角色支持不同账号。模块归属及测试见
+[代码组织](../development/CODE_ORGANIZATION.md#连接分享与目标选择v669)。
+
+v668 的远端连接通过公开 `loom-remote.json` 固定 HTTPS 地址、Loom ID 和证书。CODE 只需运行 Otter，
+首次使用自己的身份提交配对，批准后沿既有单任务 owner 自动连接、提前续签和重启恢复；不复制服务器身份。
+显式清除会话同时持久暂停自动连接，明确重新连接后解除。长期导入/导出工具位于 `scripts/loom-connection/`。
+
+原生 Live 的跨仓库测试由 `scripts/tests/live-joint/run.py` 从当前源码构建并编排，
+沿 Loom 实际 LAN HTTPS/WSS 和 Otter 既有控制、编解码、GPU owner 验证。
+真实 WGC 联合场景改变自有源窗口的颜色和尺寸，沿原发布与观看 owner 核验解码像素和恢复。
+发送端仅在帧尺寸变化时重建线程内编码器并发 IDR，Loom／Viewer 沿已有帧级尺寸合同处理。
+初始发布描述不随媒体帧改写；每个联合场景仍只使用一个 Loom，不等于双 Loom Live。
+运行契约见 [原生 Live 联合测试](../features/LIVE_JOINT_TESTING.md)。
+
+托盘自绘菜单在根页真实显示后，通过 `NotifyWinEvent` 告知系统菜单开始，在隐藏或销毁后
+配对结束；状态归 `Panel` 实例，覆盖取消和激活失败，子页导航不提前结束根周期。
+该通知遵循 [Windows 自定义菜单事件契约](https://learn.microsoft.com/en-us/windows/win32/winauto/event-constants)，
+用于让 Shell 感知托盘上下文菜单；不改变 Explorer 的全局自动隐藏设置或接管其 HWND。
+
+空工作区的隐藏 HWND 只承载命令、托盘和热键。`tray::activate` 与启动呈现使用同一
+`pinned/image` 内容判据，点击托盘不显示空宿主，真实图片与无图 Art 保留召回行为。
+账号投射长期测试由 `scripts/tests/account-projection/` 编排，直接复用 Loom/Platform
+仓库的测试运行器与服务，通过现有 Rust Application 驱动验证，不依赖临时脚本。
+
+## 原生账号投射调用边界（v664）
+
+当前原生分享只实现最新 Otter 与最新 Loom 的 v2 连接。二维码、链接和普通浮层不再选择或回退到旧协议，
+旧邀请导入、旧关联迁移及混合版本互联不属于当前契约。`application_account_owner` 以现有 Device Lease 调用本机 Loom，
+负责当前 v2 关联的创建、后台同步、工作区恢复及显式停止；这是当前功能的生命周期，不是历史版本适配。
+
+v2 接收场景使用独立 Binding、写前记录和候选追加接口，复用原 Session／Bound／默认检查点；普通分享窗口排队 Create／Import／Stop，账号 owner 串行推进网络、恢复和持续同步。接收回执区分保存与呈现，保存期间取消、暂停、拒收或切换 Loom 不能复活旧显示许可。写前记录在入口拒绝同 Unit 的不同邀请，避免成功写出、重开却因重复身份拒绝的账本。
+
+Native `projection_account` 将现有 Device 租约连接到本机 Loom 的独立 v2 API。匿名本机 identity 必须匹配租约原 HTTPS origin，后续只在固定 numeric loopback HTTP 发送 Device 凭据与 nonce；中心账号 origin 仅参与身份匹配和邀请验签。账号授权、邀请签名、持久关联、中心协调和 Iroh 仍归 Loom/Platform，Otter 不复制这些实现或持有账号凭据。
+
+请求与响应有独立 6 MiB 上限并计入共享预算，PNG 复用既有正式快照 codec。读取携带原邀请、receiver Unit、已知 revision 和 digest；同修订不能换摘要。Loom 的 `linked` 只表示关联未停止，不能被解释为接收完成、写盘完成或实际呈现。租约撤销使用原取消句柄关闭在途连接，不重试或切换权限。
+
+当前分享窗口、场景关联保存和更新均使用 v2。显式隔离的 Application 联合驱动已验证真实 Device → v2 → 两个独立 Loom 的 direct Iroh PNG 创建／接受／更新、Otter 检查点及同 profile 重开、双方 Loom 重启和解绑保留末图。合成 Web 批准与同机传输不构成 OAuth、普通 GUI、物理双机、公网 relay 或 Live 媒体流验收。双 Loom 局域网 Live 仍待实现，公网／外网按用户要求暂缓。
+
+## 原生本机 Loom 接入（v661）
+
+普通消息泵通过唯一可取消的本机连接 owner 读取 Loom 发现清单；只有 numeric loopback HTTP 管理通道可以携带清单 bearer。登记仅限本机 Otter 的公钥，拒绝复活已禁用或拒绝的设备。LAN 证书先由该本机 authority 取得，再做真实 HTTPS identity 比对和设备签名会话申请；随后投射只使用 Device 凭据，复用既有 sender/inbox/检查点/呈现回执。证书快照限定当前 profile 和 origin，不降低远端 TLS 校验。
+
+自动续签让旧在途租约自然到期，不提前中断投射；显式清除、切换和退出同时撤销当前及待退休凭据。结果先发布再通知 UI，迟到的取消结果不得安装，网络和磁盘不在窗口回调执行。两端最新版是当前契约，不新增版本协商或降级。物理跨机和普通用户操作仍须与隔离联合门分开验收。
+
+v668：重复选择同一服务不停止自动续签；目标目录在连接后自动刷新，接收与持续同步优先，目标查询完成后至少间隔五秒。即使暂停接收仍可发现发送目标；Loom 使用最近通过设备认证的请求派生在线状态，历史授权和主机服务占位不混入默认在线终端计数。
+
+## 默认退出与场景恢复（v660）
+
+普通启动已有独立 workspace.json 检查点；手动文件的 Unsaved/Changed 不代表场景未保存。正常退出跳过另存确认，等待现有最终检查点落盘后关闭；下次普通启动按原恢复屏障还原布局及内容。图片导出与显式保存文件不受影响，失败或只读检查点不被当作自动保存成功。
+
+## 托盘菜单定位（v659）
+
+托盘根菜单优先向鼠标上方展开：右侧放得下时左下角锚定鼠标，否则右下角锚定鼠标。仅改变根页的定位标志，不重取或偏移通知坐标，不改变级联页锚点。顶部空间不足及任务栏区域由原工作区避让保证可见；v658 的临时置顶、隐藏 owner 和窗口回收语义保持。
+
+## 托盘菜单覆盖展开列表（v658）
+
+托盘菜单在显示前提升临时根面板及后续级联页，不依赖激活操作隐式越过置顶托盘浮层。不显示或提升隐藏业务 owner，不增加周期性抢前台；选择、取消或准备失败时仍由原 RAII 回收 HWND。普通钉图菜单保留原层级。
+
+## 删除期间的预览连续性（v657）
+
+剪贴板卡片删除不再提前销毁阅读窗。等待原删除事务和历史刷新时保留已绘制内容，确认后的新快照在同一 HWND 内换图或文字；末页回移沿可见卡位重新映射目标。预览仍不执行命令，原条目 ID 校验、旧手势退休和取消规则保持；空列表、错误或空卡位正常回收预览。
+
+## 展开面板内删除事务（v656）
+
+右键窗口回调仅排队一次菜单打开请求，`application_context_menu` 在外层分派后持有菜单循环及删除 start/poll 回调。原 `save_job`、单 worker、完整 Receipt 和库发布负责实际删除；只有不泵消息的准入与发布短段暂停 owner 自己的模态标记，并立即以 RAII 恢复。其它窗口的模态不被豁免，目标失效取消本菜单的在途工作，普通命令保持退出后执行。
+
+`popup_frozen_remove` 在删除确认后换到新 Source 并异步重读索引，期间保留旧画面且拒绝旧动作；现有 `replace_gallery` 保留面板和滚动位置，预览按 ID 留用小图并废弃旧范围请求。连续删除与删至空面板使用合成 HWND/库数据验证，真实系统剪贴板和普通桌面观感属于手测边界。
+
+## 右键图库呈现与输入（v655）
+
+菜单私有 `native_menu_layout` 统一卡片、删除角标、滚动和 UIA 矩形；`native_menu_panel_gallery` 只绘制卡片与独立删除 hover。`native_menu_owner_wheel` 在模态作用域内转交非激活 owner 的滚轮，窗口过程与消息队列共用屏幕坐标命中。`native_menu_gallery_interaction` 拥有独立删除手势与至多一个阅读窗，换卡、滚轮及快照更新复用同一 HWND 和位置；离开或关闭回收。`native_menu_panel_preview` 只画已准备内容，不成为命令页；菜单共用 `desktop::buffered_paint` 离屏完成后一次提交。
+
+两库每次追加64项至原4096项上限，命令始终绑定同一来源及全库条目；图库独立模型不放宽普通菜单1024节点限制，面板仅绘制最多15项。`popup_frozen_preview` 保留视口附近每库至多192张小图和单 worker，删除复用原库事务。剪贴板每次呈现18项已有快照，刷新期间保留旧画面但拒绝过期动作；`clipboard_history_preview` 在既有读取 worker 内生成有界阅读图，`clipboard_history_remove` 在同一进程许可下按最新系统历史 ID 删除。异步图库更新保留 HWND 和行偏移，原子退休旧点击与旧 UIA 节点，同名新内容也更新预览。普通桌面视觉验收与定向检查分开。
+
+## Main-branch menu ownership (v651)
+
+The pin context builder now composes the main-branch save/close and frozen-library layout, with the existing clipboard history as its only addition. Tray composition does not attach pin libraries or clipboard history. The existing bounded frozen-index worker supplies favorite membership and replaces its root command without retaining a pressed gesture. Clear-library requests use the existing reference queue, save worker and Receipt publication; the private library-clear leaf edits only the selected library, not image files, active windows or disk revision. Legacy presentation adapters retained for existing permission/state regressions are test-only, while toolbar and shortcut execution paths remain. Endpoint strips use an arrow class cursor rather than a permanent crosshair. Native desktop appearance and real cross-device reception are separate acceptance boundaries.
+
+## Completion-driven region delivery (v650)
+
+Ordinary Ctrl+1 capture waits on the existing CaptureJob thread handle while pumping messages, instead of polling a hidden dialog every 25ms. The private `open_job::capture_ready` leaf then settles the existing document-preparation worker immediately, without waiting for the 100ms import timer. Each iteration observes completion after at most one queued message, so continuous input cannot starve delivery. Existing file imports, paste, long capture and Live keep their own entry points. Cancellation, quit-code preservation, owner destruction, worker join, document identity and cache commit retain their original owners. No new thread, event, dependency or retry is introduced; release-time acquisition and HDR behavior are unchanged. Hidden-window synthetic timing is not foreground first-frame acceptance.
+
+## Release-time region capture (v649)
+
+Ordinary native Ctrl+1 uses `capture_region_release`, a private child of the existing region selector. It owns a near-transparent input surface and a click-through decoration surface, not a frozen desktop image. The paint leaf draws only the transparent key, signal outline and size label using the existing decoration renderer. Both HWNDs are capture-excluded and destroyed before final region acquisition. C color sampling also hides the selector before reading the current single pixel.
+
+`capture_input` branches before frozen-frame acquisition for ordinary regions. Selection returns only a physical RECT; cancellation never starts acquisition. `capture_input_dynamic` then uses the existing final dynamic-range/cache/commit pipeline. Full-screen capture, Live and long-capture selectors retain their existing behavior. Hidden-window and injected-source regression evidence does not substitute for front-desktop animation or physical multi-monitor acceptance.
+
+## WGC 工厂与 apartment 的共同生命周期（v648，2026-11-16）
+
+`capture_wgc_factory` 由一次性和 Live 采集共用；支持查询及 FreeThreaded 帧池创建均局部取得 WinRT 工厂，并在当前 apartment 退出前释放，不依赖跨 owner 的 windows-rs 静态缓存。真实组合回归与最小三轮对照已定位旧缓存在最后一个 COM apartment 退出后失效，第二轮支持查询可访问异常。新模块不常驻 MTA、不改取消/Close/join，也不延长采集等待预算；`capture_wgc_factory_tests` 覆盖完整 apartment 退出后的真实工厂/帧池重建，不采集桌面。
+
+hover 运行夹具使用 STATIC + SS_NOTIFY，保留真实 WindowFromPoint 命中前提；默认 STATIC 会被跳过。修正后的原生准备/Leave 接线回归已通过，不能推定所有应用视觉 hover 或 IME 候选窗已验收。最终 WGC 组合和完整产品结果仍按当前回执分别登记。
+
+修正后原失败的同进程弹窗→隐藏/召回 WGC 组合三项通过；相关采集/任务/退出组30通过、1项静止源 resize 默认 ignored，后者单独显式执行一项通过。测试输入为自有源窗口，不扩展为用户桌面或完整产品验收。
+
+## PotPlayer runtime-driven popup fixes (v648, 2026-11-16)
+
+`native_popup_layer` checks the actual TOPMOST result after both promotion and restoration, rather than accepting a successful SetWindowPos call as proof. A deterministic owned-window procedure ignores Z-order to protect the failure contract; unconfirmed restoration retains its original responsibility. The hook crate declares its own KeyboardAndMouse Windows feature so it builds independently of the host's feature unification. Popup recovery Binding boxes the larger existing channel once at registration; queue, ACK and lifetime semantics are unchanged.
+
+Repeated per-pixel fixture failures were traced to a missing root TOPMOST precondition on the current desktop: the same binary passed 29 recovery checks with one ignored after the owned blank PotPlayer was raised, and a bounded independent probe confirmed the actual style difference. This is not evidence that Snapshot reads revoke a lease. The WGC popup regression now resizes the ownerless main B directly, keeping the production child-following assertions instead of invoking an attached-popup placement API on the main window.
+
+`hover-hook/native_activation` prepares only an empty background source queue for an authenticated ordinary click while the exact B remains foreground. It uses source-thread SetActiveWindow, never SetForegroundWindow, SetFocus or AttachThreadInput, and preserves an existing active source dialog. Dispatch revalidates the complete request after this potentially reentrant preparation. Asynchronously shown menus still require the application's real owner chain; the synchronous SHOW admission boundary is unchanged.
+
+Synchronous owned menus now share the existing click Anchor placement after the bounded `native_input_scope::owned_by` check, without creating a display lease or changing their owner. Pending SHOW is consumed before positioning to prevent double relocation. `composition_live_popup_window` separately keeps complete popup B content within its B owner's monitor work area, including initial creation; normal source dialogs are not moved or resized.
+
+Hidden-window hover retirement avoids a synchronous Leave to the old menu during dialog initialization. Held releases and visible-target delivery failures retain their original semantics. A disabled local non-browser root consumes only new move/hover/wheel input as IgnoredWhileModal. Runtime Session/DLL probes have demonstrated menu/dialog mirrors and matching Chinese/English text in A/B; complete Application shutdown, IME candidate UI and a matching distributable remain separate acceptance gates. Current receipts are under `linshi/otter-live-648-runtime-20261116`.
+
+## 父源 Protection 生命周期覆盖附属输入（v648，未验证候选）
+
+Session 的三处保护释放判定改为现有整组输入完成句柄为空，不再只检查自身 worker。父 B 关闭后，子镜像仍可能释放 held 或取消原模态调用；源保护必须保留到这部分完成，不能由父采集先结束而提前恢复/退休。原 Family 句柄、poll、窗口销毁、无输入立即归还和等待预算不变。三条新增私有回归仅源码，使用真实 Worker/假释放与假采集/模拟 journal，尚未编译或执行；不是实际源恢复或完整退出验证。
+
+Family 的单个未确认标记在子成员退休时保留其自身/下层输入清理失败，父 Session 只在最终结算读取；不能仅记录子错误日志后丢失退出结果，也不能将普通子采集错误扩大为父 Live 失败。父输入启用仍只检查自己的原清理结果，不从该聚合标记撤销运行中的父 B。三条新增 `composition_live_popup_cleanup_tests` 回归源码复用 shutdown 设施，覆盖成功/失败/unknown、嵌套成员及采集错误隔离，均未编译或执行；不新增清理重试或替代实际恢复。
+
+## 模态决策只读最近一次结果观察（v648，未验证候选）
+
+Modal 的 Escape 目标和 Backend 的在途/Pending 决策不再隐式 refresh。它们只读原 token/半次 Escape 状态，不能在 preflight 结果检查后消费迟到拒绝并悄悄清成空槽；回执查询也不能在消费拒绝后因 token 归零而误称 Completed；成功完成同样留给显式观察结算。原 worker pending 采样/idle、submit/motion 的明确观察与等待预算保留，不在路由到发送之间再泵一次导致菜单 Escape 改投普通源。三条新增私有回归源码复用原 admission fixture，尚未编译/运行；回调到达为值状态注入，不代替真实竞态或产品验证。
+
+## 无呈现映射时按 held 责任暂停（v648，未验证候选）
+
+Live HWND 输入层在 viewport 不可用时仍不投递当前输入，但不再仅因 worker 已 enabled 而暂停。UI 无 mouse/key held 时保留原 enabled/pending、控制 epoch 及已交接的释放 FIFO；仍有 held 时沿原暂停/worker 清理责任退休，避免丢失松开。新 `composition_live_input_viewport_tests` 在同一输入 owner 下覆盖五条自有窗口/状态回归，不创建输入 worker/WGC 或移动系统鼠标；尚未编译/运行，不能代替实际源释放、PotPlayer 左上菜单定位或匹配 EXE/DLL 验收。
+
+## 附属镜像的失败恢复跟随父控制周期（v648，未验证候选）
+
+Family 不再仅向子镜像同步一个允许布尔值，而是传递当前父 B 的有效 Control 值快照。Focus 记录上次父 HWND/cookie/epoch，失败后同一周期的反复轮询不再自动请求 Enable，暂时无 grant 不清该标记；新有效父周期才可发起新准入。它不替代 popup Scope 或 worker 权限检查，不清除未确认的清理结果、不重放事件，原 held 收尾/未确认清理阻塞不变。四条新增状态回归和既有 Family 调用迁移仅源码，未编译/运行；真实 PotPlayer 和整包仍未验收。
+
+## VK 报文保留规范 E0 键身份（v648，未验证候选）
+
+现有 VK/down 输入经 Message::key 使用系统扩展扫描码映射，E0 编入按键消息扩展位，E1 不误标。发送与 cleanup 共用该编码，不改变目标、消息种类、队列或 Send/Post。三个新增编码回归尚未执行；本修正不恢复现有事件丢弃的物理键身份，不代替 Tab/Enter 预处理、真实文本/IME 和整包验收。
+
+## worker 不等待新输入才报告异步失败（v648，未验证候选）
+
+按钮/同步 Native motion 的 Modal 准入也只观察一次：`check_result` 处理回调与错误，其后 `require_idle` 只读 token/待补 Escape-up/TLS 槽，不再次调用 pending/escape_target 泵回调。检查后才到达的旧回调不清成可准入空槽；原在途/未知处理与失败取消不变。新增三条准入回归源码尚未执行，仅注入回调到达状态，不把它当作真实调度竞争或 PotPlayer 已验证。
+
+Win32 Backend 的 idle 观察现在返回 Modal 的拒绝结果，由 Controller 取消原 held 并保存 Cleanup；Worker 发送无对应命令的终态错误、唤醒 UI 并退出 InputFailed。pending 查询本身可能处理回调，因此查询在结果检查之前，进入等待时沿用该采样；不会在随后清掉 token 后无限等待。原 pending 观察仍为16ms，不增加计时器/线程或输入重放。
+
+Reply 用 Option<Command> 区分普通命令回执与异步终态，只有 Some 释放命令占位。输入容量仍16，回执容量17只预留一个终态槽；Session 的 Enable 匹配迁移，其他错误分类/暂停/清理按原路径。通知失败以 WakeFailed 保留原 Cleanup，已观察 stop 时不开始下一轮，观察中的竞争失败不改称成功。九条新回归仅源码，包含真实异步 API/生产 Backend 的自有无 hook 源（ignored），尚未编译或执行；不代表真实 PotPlayer、左上菜单、文本/IME、完整退出或 EXE/DLL 整包验收。
+
+## 原 popup 来源进入源精确执行入口（v648，未验证候选）
+
+`live_popup_scope_native` 将 worker 已持有的完整 Scope 展平为最多四段标量快照，不刷新父控制周期或显示 lease。Modal 固定该快照，Publication 在 COMMIT 前发布；源 `native_input_scope` 同时核对原 root/target/anchor 的 PID/TID、真实 owner 链、各父 B cookie/epoch 和 lease 实例，最终目标必须回到本请求 root。`native_protocol` 的 read/claim、dispatch 执行前及同步 SHOW 来源判断都保留原快照；完整报文相等也包含它。`native_input_scope_wire` 单独拥有固定字段读写/清理，主源无 scope 时只增加显式计数，不遍历四段数据。
+
+私有消息升级 `Input.v3`，缺失字段拒绝而非降级；必须成对构建 EXE/DLL，旧包和公共版本不变。已经执行返回的操作仍按原 publication 确认，不因其关闭原菜单而误报未完成；确认不重新授权。十一条新回归及原夹具迁移均仅源码，尚未编译或运行。源入口复核不等于跨线程原子性，普通 Owned 未新增显示代号；直接消息/posted 取消和原 held 收尾未扩协议。PotPlayer 左上菜单根因、异步 hover、完整文本/IME、产品退出与整包验收继续开放，下方旧“尚未携带完整 scope”描述是本节前的状态。
+
+## 源窗口过程返回后的完成回执（v648，未验证候选）
+
+源 `native_dispatch` 不再在按钮执行后重新用新输入的 Request::read 决定是否确认。新 `Request::finish_returned` 仅确认已领取并执行返回的原 publication，匹配 B cookie、完整请求快照、nonce、COMMIT/CLAIMED；当前 epoch、B 隐藏或源控件/根销毁不抹掉已执行结果。取消 publication、身份/报文替换不写旧确认。新输入、嵌套来源和同步 popup 收集仍使用原严格 read/claim，不从完成回执取得授权，也不重放输入。
+
+八条新增回归及一条原合同调整仅写入源码；宿主回归连接真实自有源 hook/Publication/Modal，回调到达时机是测试注入，不是实际异步 API 或产品运行验收。该切片修补源码确认的完成误报，不证明 PotPlayer 所有菜单错误同因，也不提供完整 popup scope 的源执行原子保证；退出、文本/IME、异步 hover 与匹配整包仍开放。
+
+## worker 固定控制周期与未发送拒绝（v648，未验证候选）
+
+本地 Session 在 pending 周期发布后捕获 `live_hover_owner::Control`，将原 Identity/epoch 的标量快照传给输入 worker；失败撤销预备启用，不遗留无 worker 的活动周期。Backend 的准入/发送及 Native 准备检查该固定周期，Publication 只发布原 REQUEST_EPOCH，由既有源协议拒绝暂停/恢复后的旧请求，而非在发送时借用新 epoch。远程路径不取得该本地能力，原 held 清理仍按原来源独立执行。
+
+Session 只把确定未发送的 ControlRevoked 作为旧 worker 正常退休，保留 UI 的新请求但不重放旧事件；已提交 modal 尚未确认或已拒绝时仍报告 DeliveryFailed，不能因周期变化掩盖未知结果。完成/撤销继续绑定原 Identity/nonce，已完成结果不随当前 epoch 丢失，旧 Publication 不清新槽。十四条新增回归仅源码，未编译/执行；本切片不扩源协议，不提供完整 popup scope 的源执行原子保证，也不宣称 PotPlayer 菜单、文本/IME、产品退出或匹配 EXE/DLL 已验收。
+
+## worker 弹窗输入与原实例清理分离（v648，未验证候选）
+
+Session 将原 popup scope 的进程保活引用及数值快照送入本地输入 factory，由 `live_popup_scope_transfer` 在 worker 内还原旧来源，不重新发现/绑定当前 HWND。独立 `live_input_popup_backend` 负责构建和输入入口复核；没有 scope 的主源及远程原路径不变，远程不能接收该本地能力。每次新输入仍必须满足原 Scope/目标/可见性，UI 尚未再次 poll 不能让旧队列自动取得新 lease。
+
+原显示仍在但 B/epoch 已撤销时，cleanup 允许固定 held 释放；显示实例已变则跳过旧释放和 hover Leave，不给新菜单发旧 CancelMode。禁止发 CancelMode 时仍观察原回调到原期限，未完成保持 unknown，不能假造成功。新增十条回归源码复用原 lease fixture 和生产 Worker，尚未编译/执行。本节只关闭宿主接线缺口；API 到源执行之间、posted 消息和源内部同步重入的实例竞争仍开放，Owned 原协议也没有新增显示代号，完整产品和匹配包均未验收。
+
+## 失败采集准入的来源生命周期（v648，未验证候选）
+
+Family 的失败缓存不再只存 HWND，而是保留失败时的完整 Scope。发现完成后先按 present 集合和原 scope 有效性统一裁剪，再用数值 HWND 查重；这避免同一无 owner 菜单隐藏重开后新 lease 一直继承旧失败，也让父控制周期撤销的失败记录正常退休。不变来源仍不反复启动失败采集，128 窗扫描与四会话上限不变，不新增线程、计时器或重试循环。
+
+三条缓存回归仅源码，未编译/执行。Owned 原通道仍没有独立显示代号，本修正不识别该通道在两轮扫描间所有隐藏重开，不代替真实菜单、完整退出和整包验收。
+
+## 附属镜像的来源更新与同步重入（v648，未验证候选）
+
+Family 不再按相同 HWND 直接覆盖已有 Session 的 popup scope。`rebind_popup_scope` 在重挂最近父镜像前后校验原来源和新来源；旧来源失效、镜像销毁或成员已经 stopping 就停止复用，保留旧 scope 供收尾。最终重挂会调用 `SetWindowPos`，返回前源可能同步隐藏/重开，因此提交不能只验证新来源。合法父链修正保留原镜像、采集 completion handle 和输入身份。
+
+四条新增回归复用现有源 lease fixture、自有 HWND 和有界假采集任务，不新增测试系统；仅写入源码，未编译/运行。此修正不是跨线程输入原子保证，输入 worker 在 UI 两轮 poll 之间的显示实例隔离仍须单独处理，不能将其当作左上菜单、完整产品退出或最终 EXE/DLL 已通过。
+
+## 普通应用悬浮的 Leave 过滤接线（v648，未验证候选）
+
+原生 motion/按钮准备现在发布既有 B/root 悬浮绑定，不再只安装包含 Leave 过滤的 DLL hooks。绑定沿用浏览器已用的实际鼠标命中、ACTIVE/cookie 与源身份条件，不因同 PID/线程放行；真实鼠标不在该 B 内的迟到样本不改源过滤槽。UI 离开/暂停和 worker detach 保持原撤销责任，显式同步 Leave 清理不经 GETMESSAGE，不被此过滤吞掉。新增生产 prepare/同包 DLL 的自有窗口回归源码尚未运行；异步 timer 弹窗来源、源应用内部鼠标查询及完整 hover 验收仍开放。
+
+## 普通应用采集帧与输入空间（v648，未验证候选）
+
+本地非 Chromium 整窗/附属窗的命中与发送统一经 `live_input_native_backend::map_point`，使用 `live_input_coordinates::map_capture` 从完整 WGC/DWM frame 转至目标客户区。标题栏/边框不再被缩放进客户区；不改为 NC 鼠标消息。局部裁剪保持原物理像素语义，浏览器保持既有路径。新自有带框窗口回归仅源码，不能代替真实应用或混合 DPI 验收。
+
+Session 以显式来源选择输入后端，不再将远程桥处理时暂时为空的 `remote_input` 当成本地来源。远程复用原 Win32 后端及客户区协议，不建立本地 hover 身份或 modal/hook 能力；原 TLS/Session 回归增加带框源坐标断言，尚未编译/执行。左上菜单唯一根因和最终整包仍未验收。
+
+## UI held 与键盘松开归属（v648，未验证候选）
+
+焦点交接排入的 key-up 仍沿原 FIFO/Controller held target 收尾，但 UI held 已清零；后续到达旧 B 或新 B 的同一物理 up 不再入队。过滤位于本地 Control 的容量检查之前，避免无人持有的松开触发误过载或按新键盘焦点发送；不改变源 worker 取消释放、按住重复、新手势或独立提交的 UTF-16 字符，不扩展远程行为。新增五条 Control 回归及已有镜像交接断言尚未编译/执行，不能作为完整文本/IME或真实应用通过证明。
+
+## helper 的 Pending 与失败恢复语义（v648，未验证候选）
+
+`live_recovery_session` 在父句柄确认退出后才执行恢复，将明确的源层级 Pending 保留为携带原 HRESULT 的 WouldBlock。Service 留住等待/失败 owner，汇总优先报告真实错误；Runtime 对纯等待沿原 Channel 的16ms间隔观察同一槽，不增长/重置真实失败的1秒至30秒退避，也不重发未知操作。真实失败保留日志与原责任，不能限次后丢弃。
+
+独立 helper 不运行产品 UI 消息泵，因此恢复前通过 Binding/Recovery 有界消费各自隐藏请求窗口的完成通知。取 HWND 后已释放 Channel 的 RefCell 借用，每 owner 每轮最多四条，不操作源应用或 B 的队列；完成仍只认请求身份及 FINISHED，而不是队列里有通知。新增五条回归源码未编译或执行；正常/异常父退出、源 DLL 卸载与真实产品仍须统一验收。
+
+## 菜单层级源线程串行接管与恢复（v648，未验证候选）
+
+每个 `live_recovery_popup_layer::Recovery` 都持有独立 Channel：保活 Target、请求窗口、单槽完整 lease/token/nonce 和源线程定向 hooks。共享 `live_native_hooks` 统一同包 DLL 加载和 RAII，不接管输入绑定的 Source/Owner 属性责任。正常宿主与恢复 child 在登记 ACK 前各自安装，输入 worker/B 退出不卸掉独立恢复能力；跨进程始终用实际 DLL，测试进程内 Layer 的 rlib 回调不用于三进程验收。
+
+Channel 只 PostMessage 固定 Acquire/Restore，由源 GETMESSAGE 在 PM_REMOVE 执行，共用 `native_popup_layer` 同实例 Mutation；原 Entry/Recovery 的跨线程层级写入已移除。撤 COMMIT 后只有未领取或 FINISHED 才可复用槽；已领取未知不能覆盖、重发或退休，超时后保留未来结算 deadline。源明确在修改前完成忙 Pending 才可稍后新 nonce。journal 的 `require_restore` 阻止最后 Ticket Drop 误退休；Layers 已进入退休就不重新借用，应用主等待与关闭 drain 消费 Owner deadline。正常恢复完成后才退休，父死仍由既有独立 child 恢复。新增九条单槽/生命周期和一条 journal Drop 回归、迁移真实源请求与实际 DLL 三进程夹具，均只写入源码、未编译或运行；这不是 PotPlayer 或完整产品退出通过声明，仍无当前全部源码匹配的已验收整包。以下旧阶段的“未接入”说明仅保留其历史边界。
+
+## 源菜单定位与提升的同实例保护（v648，未验证候选）
+
+同步定位、首次临时置顶和归还共用 `native_popup_layer` 的源线程有界 Mutation，guard 按 HWND 隔离且不跨窗口调用持有借用。隐藏先撤输入而保留外层尚需结算的身份；同 HWND 重入显示不写 PENDING、不提交新 lease，重复 hook 也不能在外层返回后补交。外层失败或 lease 已撤销时只归还确实借用过的层级，不恢复位置、可见性或源应用自己的 TOPMOST。其他窗口仍可在原精确事务内同步显示。
+
+新增两条自有 HWND 回归源码尚未执行。该保护不是跨线程锁，不能关闭宿主层级接管与父死归还的竞争，也不能由此宣称左上菜单或真实 PotPlayer 已修复；当前没有与全部源码匹配的已验收整包。
+
+## 类型化恢复责任与菜单登记（v648，未验证候选）
+
+恢复记录和本地 Binding 都以互斥类型区分完整窗口恢复与菜单 TOPMOST 部分恢复。菜单登记只读取保活进程身份和精确显示实例，不再先调用完整 Snapshot；因此没有用默认 alpha/几何冒充 `UpdateLayeredWindow` 原状态。普通隐藏源仍要求真实完整快照并保留原校验与恢复路径，菜单只能沿原 MANAGED/显示实例条件撤回 TOPMOST。私有同 EXE 恢复协议 schema 2 在握手拒绝旧端，无持久化记录迁移或既有运行实例变更。新增回归仅写入未执行；跨线程层级接管竞争、完整产品退出及匹配 EXE/DLL 包仍未验收。
+
+## 跨线程源 dialog 的镜像发现（v648，未验证候选）
+
+焦点状态机原本可接受 owner 链合法但位于其他源线程的 dialog，主源线程枚举却发现不了它。Family 现在将已核验源焦点及既有成员补入同一有界发现集合，再按当前主 root/父 scope 重新绑定；不是扩大到全进程扫描。已有成员同时补入，防止焦点从 A dialog 回到 B 后下一轮误停镜像。候选去重和可见性检查共享 128 窗预算，Session 仍最多四个，父镜像/epoch 和撤销清理保持原契约。三条新增跨线程回归及既有焦点隔离断言仅写入源码，尚无运行证明。
+
+## 源 dialog 激活前后的 held 输入收尾（v648，未验证候选）
+
+源应用可在左键 down 内激活 dialog，而 B 的物理 up 尚未到达。窗口输入层现在先将原已准入按钮/按键的 up 排入原 FIFO，不以停止 worker 取消父 modal 来收尾；Scope 仍在 Session poll 内、后续输入提交前完整验证，无关来源仍暂停。捕获变化仅取当前非镜像前台候选，不信任 capture HWND；队列满、缺指针坐标、远程和显式取消不获豁免。UI held 位清除后，迟到物理 up 由原边沿准入过滤。新增四条回归源码尚未执行；这只关闭一条源码级误取消路径，不能当作 PotPlayer 全部弹窗已修复或源层级接管已验收。
+
+## Live caret 到 B 的输入法定位（v648，未验证候选）
+
+源只读观测由 `live_input_routing::caret` 拥有，B 的候选/组合位置由 `composition_live_ime` 拥有，Session poll 连接两者。观测绑定原 Target 的 PID/TID 与 root/child，读取前后变化即丢弃；采集 frame/crop 尺寸须与 B 已提交纹理一致。位置经 `live_viewport::project` 反投影，包含编辑裁剪、镜像和留黑边，源缺少系统 caret 才退回源图归一化点击锚点。暂停/失焦清除旧定位，首次 Enable 待定保留首击后备；查询最多每 16ms 一次，不在 WndProc 查询来源。IMM 候选通知的同步重入有作用域 guard。该候选没有运行证明，不承诺所有自绘输入框、Tab/Enter 或真实应用 IME 已修复。
+
+## 菜单层级接管与部分恢复（v648，未验证候选）
+
+Application 在 Session 结算后收集有效 popup lease，交既有可见性 owner/journal 登记。只有真实恢复 ACK 后宿主才持久借用原非置顶菜单的 TOPMOST；源同步事务通过 TEMPORARY/MANAGED 标志完成责任交接。`live_recovery_popup_layer` 使用完整显示实例和保活的源进程绑定进行部分恢复，控制 epoch 已撤销仍可清理，但不能触碰新显示实例，不恢复位置、其他样式或可见性。正常关闭等待恢复及退休，父进程死亡由现有独立 recovery child 收尾。
+
+源恢复可能同步重入 hide/show，因此源端先撤销输入、保留清理身份，并用有界恢复 guard 阻止同 HWND 递归归还和提前清空。宿主区分未修改窗口的旧 lease 消失竞争与真实登记错误；多个恢复结果中的 E_PENDING 不能遮住其他错误，同轮后一次 poll 成功也不抹去已经观察到的失败。相关回归只写入未执行；这不是左上菜单、异步 hover 或完整文本/IME 已完成的声明。
+
+## 同步 motion 的 popup 来源（v648，未验证候选）
+
+普通应用 B 的同步 Move/Hover 可通过与按钮相同的精确私有请求取得同步新弹窗来源。该入口不覆盖本 B 正在运行的 modal；源端仍要求完整父/子来源链且最多四层，消息泵边界之后的 SHOW 不获租约。宿主使用原 motion 超时，未知结果不重放；没有新队列、线程或跨进程指针。此候选只覆盖同步显示，不能宣称修复所有定时悬浮菜单或源鼠标查询依赖。
+
+## 普通应用文本焦点路由（v648，未验证候选）
+
+控制器不再将“上一键盘目标”与“仍欠松开的按键目标”混为同一种路由约束。新的本地普通应用按键/字符优先查询源 root 内当前焦点，held 重复/松开及取消仍绑定原控件；源无有效焦点时使用原受验证的回退。浏览器、远程和模态 Escape 保持原路径，不抢源前台或调用 SetFocus。该源码修正仍须统一测试及真实文本/IME验收。
+
+自有 B 镜像间移交焦点时，原 B 排队释放尚持有的键，不再因 peer 快捷通道留下收不到物理 key-up 的旧目标。释放保持原队列顺序及原 Controller 目标；不使用停 worker 来处理正常组内切换，以免取消父菜单。held mouse/队列过载仍走原撤销清理，测试源码尚未运行。
+
+## 多级来源链和菜单装饰（v648，未验证候选）
+
+主 Live Family 仍统一拥有最多四个附属 Session。对直接根无法识别的弹窗，仅从已有授权成员的目标与镜像身份建立下一层局部来源，并保存完整父链及控制 epoch；显示与焦点移交共同消费这些 scope。源权限不因同 PID 放宽，父控制撤销使旧链失效。已有父成员按真实 owner 或精确 lease.root 的最近祖先优先选择，避免直接 OwnedPopup 绑定将二级镜像错误挂到主 B；父子同轮出现时，后续扫描会同步修正已有镜像的 owner 和 scope，保持源端嵌套校验与镜像关系一致。已确认的 PotPlayer 菜单阴影在名额分配前被排除，不创建独立输入窗口；其他普通弹窗和提示窗口保持原分类。该候选按用户要求尚未运行测试，不代表左上菜单、文本/IME或完整退出已完成。
+
+## 模态 Escape 的按键周期（v648）
+
+Escape 去重范围从整个模态调用收窄为一次按下/松开周期。原模态菜单仍在运行时，新的完整按键周期可以继续关闭上层菜单；正在按住的重复边沿仍不重复发送。每次准入保持 Pending 语义，第二次按下的迟到松开和取消也走原目标消息队列，不以同步 key-up 越过已排队的 key-down。
+
+## 原生菜单嵌套输入（v648）
+
+源侧按钮事务不再一律拒绝菜单内的按钮：只有源弹窗来源和镜像 owner 链均回到当前事务时，才允许最多四层嵌套。各层保存原请求及锚点，完成标记仍按各自 nonce 发布；子层消息泵不能重新开启父层 SHOW 来源收集，子层返回只恢复自己借用的菜单层级。来源策略由 `native_nested` 拥有，协议自有窗口测试与 PotPlayer 实机结果分别记录；这不代表所有多级弹窗、键盘和 IME 已验收。
+
+## 菜单销毁后的悬浮清理（v648）
+
+附属菜单可能在输入目标预检后销毁。释放通道仅对失败的 `WM_MOUSELEAVE` 复核 HWND 已不存在并结束悬浮清理；这不是消息已送达的证明，也不适用于 held 边沿、普通输入或仍存活目标的超时。原句柄已复用时不按“不存在”处理，不重新投递到替代窗口。
+
+## 源菜单定位及临时层级修正（v648，部分实机验证）
+
+同步 SHOW lease 提交后由 `native_popup_placement` 修正贴近真实鼠标的 NOACTIVATE 菜单，避免应用在 B 处创建源菜单后再次进行 A→B 映射。锚点来自源线程按钮入口，不移动系统鼠标，不修改菜单 owner；普通 dialog 和源位置菜单不受影响。`native_popup_layer` 为置顶 root 下的菜单提供最多 4 个显示实例绑定的临时置顶，隐藏/销毁/按钮返回收尾，恢复不依赖已撤销的控制 epoch。真实 PotPlayer 已观察右键菜单 A/B 同时可见及 Escape 后重新打开；二级 lease 链、左上菜单、文本/IME 和附属输入清理 unknown 仍开放，不能作为整体完成。
+
+## 原生无 owner 弹窗候选接线（v648，待实机验收）
+
+普通应用本地 modal 按钮由宿主发布精确标量请求，经源线程私有注册消息执行；原回调槽保留取消与 Pending 语义。宿主识别源已返回但未完成请求的拒绝，不重复按钮。B 控制周期独立于 hover Leave，暂停即撤销 lease。Family 和焦点判断消费统一 Scope：真实 owner 链，或该 B 的同步显示 lease 及其真实 owned 后代；原 OwnedPopup 不放宽。浏览器、远程和跨线程原生 destination 的原发送语义不变。以下未接线说明为先前阶段记录；当前仍需二级 lease 链、源菜单定位与实际 A/B 交互验收。
+
+## 原生弹窗关联协议准备（v648，未接线）
+
+`otter-live-hover-hook::native_protocol` 提供可撤销的精确按钮事务描述。控制 epoch 独立于随鼠标 Leave 变化的 hover ACTIVE，请求 nonce 防止同一事务被多个 hook 重复领取。协议本身不发送输入；新 `native_dispatch` 导出只在收到通过验证的私有请求时执行一次按钮，不从普通鼠标报文猜测请求身份。执行期间不持锁，首次消息泵停止收集，返回时只给仍有效的原请求写完成标志。宿主尚未安装新 hook，未改变源弹窗 owner，也未接入现有 Session。无 owner 菜单的同步来源观察、定位及生命周期仍需产品接线和实机验收，协议单测通过不是该功能完成。
+
+## Live 附属 popup 呈现与生命周期（v648）
+
+主 Session 现在拥有有界的附属 Session 集合，并通过 B 的低频 timer 发现 source 同线程、owner 链可回到已授权 root 的可见顶层弹窗。各弹窗使用自身窗口捕获和输入目标，映射到主 B 已提交图像区附近；不改变 A 的原弹窗位置或可见性。菜单镜像不激活、不夺取源 capture；普通 dialog 镜像保留自身输入/IME owner。明确的自有镜像之间焦点移交不停止原模态输入。对于本地普通应用无 held 输入的源弹窗焦点转移，WndProc 仅暂存一个候选，Session 在处理后续输入前用 OwnedPopup 和当前前台窗口核验；同 PID 无归属、过期候选或无源权限仍暂停。已接受的源弹窗在后续 poll 中持续复核前台和归属，切到其他应用时暂停整组，不能依赖已失焦 B 再收到一次通知。父 B 已暂停时不再仅凭 desired 许可子镜像输入。关闭/隐藏/失去归属时异步停止并回收，主 Session 不早于附属捕获清理完成交付终态。
+
+该接线尚不能证明 PotPlayer 的无 owner 自绘菜单、主动抢焦点的源 dialog 和所有模态按键均已支持。原来仅右键释放的异步模态路径现覆盖槽空闲且不需 WinForms 点击补偿的左键按下、双击和释放，避免这些按钮阶段打开模态窗口后因同步等待而撤销控制；按下准入后 Controller 仍持有释放责任，已有模态中的左键仍沿原投递，不覆盖原回调。取消先释放 held 按钮，再取消模态并收取原回调。WinForms 的 mouse-up 仍要求同步完成，随后经类别及父子关系验证的 BN_CLICKED 补偿通知在本地普通应用上复用同一回调槽，Escape/取消绑定通知接收父窗；不重放通知。真实 CLR/WinForms 和 PotPlayer 焦点行为仍须另行验收，不能由自有模拟类窗口回归代替。
+
+## Live 独立弹窗身份前置（v648）
+
+`live_window_target::popup::OwnedPopup` 绑定已授权 root 和独立顶层 popup；验证同进程 owner 链，最多检查 32 层并拒绝循环，每次取得 target 重新校验身份和链。无 owner 的 PotPlayer 自绘菜单不能据同 PID 自动授权；该分支尚待明确关联证据。此身份模块自身不修改原窗口位置/可见性，不枚举、呈现或路由输入；普通应用的附属发现与非激活镜像接线由 `composition_live_popup_family` 消费，真实应用完整交互仍待验收。
+
+## Live 模态键盘状态回滚（v648）
+
+Controller 仍在投递前登记可能按下，以便失败后释放；后端明确返回 `IgnoredWhileModal` 时恢复该键原 held slot 与 keyboard target。重复 Escape 不会制造额外同步 up，也不会清掉原按下的释放责任；未投递的按键不改变后续文字目标。纯契约 `live_input_ignored_key_tests` 与真实嵌套消息泵 `live_input_modal_cancel_tests` 共同保护该顺序。此修复不替代 A/B 独立弹窗同步和非激活菜单交互。
+
+## 普通应用 Live 模态右键的未完成边界
+
+PotPlayer 的 Session 右键已出现菜单，但同步 `WM_RBUTTONUP` 在 250ms 后以 Win32 1460 超时；其自定义菜单未设置标准 GUI 菜单标志。本地非 Chromium 的右键释放现使用回调准入：原预算内未返回则显式报告 Pending，不撤销菜单所需的后续输入；此状态不证明窗口过程已进入或菜单 ready。每输入线程仅一槽，后续事件维持发送 FIFO、允许目标嵌套处理，不承诺完成顺序。已有模态尚未完成时，重复右键以 IgnoredWhileModal 明确消费而非投递，down/up 成对处理，不能因容量策略撤销现有控制。worker 负责泵回调；取消在 held 释放后，仅向仍 pending 的原已验证目标 posted 一次 WM_CANCELMODE，不模拟 Escape；再在该 worker 内额外观察至多约 50ms 的原菜单完成通知（不含各 held 释放时间），预算后仍未完成则明确报告，不撤回或重放已提交输入，迟到回调凭值 token 隔离。未采用 Notify 加 WM_NULL 屏障。模态 Escape 使用原目标身份上的有界 posted down/up，使嵌套消息泵能消费取消键；已入队 down 的 up 不得改走同步路径，即使原菜单调用已结束。取消时不等待队列消费，未确认的释放仍记入失败；普通键盘、Chromium 和远程路径不变。独立 popup 的捕获、显示几何与输入目标绑定尚未实现，实机菜单和二级弹窗仍须分别验收。
+
+## 普通应用 Live 短时繁忙（v646）
+
+PotPlayer 的真实 Session 点击加载流程已记录 `WM_MOUSEMOVE` 在 50ms 超时，继而撤销控制及 `WM_MOUSELEAVE` 清理超时；点击本身已生效。本地非 Chromium 的 Move/Hover/Leave 现沿用普通输入的 250ms 同步预算，目标切换和退出 Leave 一致；不重发点击、不改成异步消息。Chromium、远程输入及 held-button/key 释放预算不变。相同测试钉图三轮停止/加载后保持控制中；这是 Session 路径验证，不代替 Ctrl+2 完整入口或所有播放器负载的保证。
+
+## 已确认退出的宽限保护（v646）
+
+正常退出在保存/检查点准入之后，使用已有认证 emergency watchdog 通道设置一次性 30 秒宽限。正常清理不变；若窗口销毁、驱动退出或父子恢复等待卡住，监护只终止认证的原父句柄，不按名称清理其他实例。受限计算 Job 的既有父句柄生命周期及独立 recovery 的父死恢复职责不变，不承诺失败源恢复的子进程也在宽限期内归零。新职责位于 `emergency_shutdown`，main 栈 guard 负责监护进程正常析构。通道失效不影响原紧急热键或已收到的截止；启动/发送失败只提供诊断，不能声称仍有兜底。
+
+## Live 原生快速滚轮准入（v645）
+
+后续逐请求日志已定位上述位移超量：源页面外部归零后，UIA 首格仍读取旧 800px，将页面从 0 推到 840px；记录中没有原生滚轮回退或重复 B 消息。刷新现移入动作前 prepare（同时保留动作后刷新），在原查询预算内先触达 renderer，再构建当前树，不重发滚动。独立回归用源页面在 0/400/800/1200 间跳转、50ms 后从 B 滚一格；旧路径在 400 处错误退到 80，修正诊断路径 12 次均得到当前值加 40。最终产品构建及整包验证另行记录，不以诊断路径替代交付。
+
+位置反馈刷新改为在已授权 source 的后代中定位包含滚动点的 `Chrome_RenderWidgetHostHWND`，再执行只读 MSAA 命中；顶层浏览器外壳命中不能稳定推动网页 AX 反馈。此查找不使用桌面命中或普通指针的可见性过滤，最多检查 256 个后代，重叠 renderer 歧义拒绝；没有 renderer 时保留浏览器外壳路径。目标由现有 Destination 绑定及权限重验，仍不重放 Scroll。自有 Edge 的产品 Session 合成滚轮验证已有完整位移结果，但真实指针位于 B 时，40 格合成滚轮曾得到 1720px 而非预期 1600px；此失败未定位，整包交付仍阻断，不能据其他通过结果宣称快速滚轮问题关闭。
+
+本地 HWND 的 `composition_live_input_queue::push_native` 将 Win32 signed WORD 滚轮增量原子拆成不超过 1200 的内部包；Controller 与远程事件上限不变。固定队列容量为 32，足以容纳一个最大原生包所需的 28 个分片；容量不足仍拒绝整包并沿原暂停清理，不无界积压。未按住按钮时，只允许同一位置、同轴、同方向滚轮跨过同点重复 Move 合并，保留末尾 Move；移动到别处、反向、换轴、按钮、Leave 等边界不跨越。逐格 UIA 调度与未知结果不重放保持不变。队列回归覆盖完整 signed WORD、原子准入、同点移动混合快滚总量及边界；产品快速滚轮仍未通过验收。
+
+## Live 快速滚轮反馈
+
+Chromium UIA 相对 Scroll 使用浏览器的可访问性位置；仅串行等待被动更新时，连续输入可被约 500ms 的位置反馈节奏限速。滚动后只读命中已绑定源的 MSAA 树，促使源刷新，再由原观察器确认位置变化；不重发、不推测位移，也不以扩大队列制造更多积压。无变化、RPC 失败和动作未知仍沿原预算与错误通道处理。只读刷新由独立 `live_browser_scroll_refresh` 拥有，不扩展远程输入或改变采集渲染。
+
+## Live 原生悬浮作用域
+
+本地 Chromium 的无鼠标按键 Leave 在原消息前，向已绑定 root 发送客户区外 `(-1,-1)` 的虚拟移动；Chromium 会用真实光标位置处理 Leave，仅发 Leave 在 A 被遮挡且鼠标位于 A 范围时仍可残留网页 hover。退出动作不移动系统光标、不重新命中、不用于远程控制或按住鼠标拖动；取消时在原按键释放后执行，失败保留原清理报告。自有 HWND 回归保护消息顺序、远程隔离、重复退出和拖动释放坐标；真实 Edge 通过与否另以对应构建的运行回执为准。
+
+本地 Chromium 输入 worker 使用同包 `otter_live_hover_hook.dll` 的线程定向 WH_GETMESSAGE 回调，过滤物理鼠标位于已授权 B 时源 A 自动排队的 WM_MOUSELEAVE；显式同步 Leave 不过滤，不移动系统鼠标、不抢源焦点、不使用扩展或浏览器调试端口。B 的 nonce、active 与双向源绑定全部匹配才过滤；暂停、Leave、窗口销毁或绑定失效恢复放行。B 的资格由 UI 输入层同步管理，DLL/钩子由原输入 worker RAII 拥有。正常取消仍通过原 Backend::leave 清理源悬浮；进程被强杀后的源视觉状态不宣称与正常退出等价。
+
+## Live 输入过载不再关闭用户控制意图
+
+真实 Edge 连续滚轮夹杂移动可填满 16 项窗口队列；旧路径调用 cancel 清掉 desired，后续新滚轮也无法恢复。过载现在走 pause：保留控制意图，立即撤销当前 owner、清掉未发送积压并释放本窗口捕获；后续新输入仍须等待旧 owner 释放，再按原准入启用。显式取消、安全失败、窗口关闭和锁定不改变。此修复不保证过载期间每一格都送达，不重放结果未知事件，也不解决 Chromium 原生 leave 撤销 DOM hover 或嵌套容器到边界后的滚动链。
+
+## Live 源销毁后的采集清理（v643）
+
+WGC 帧的 Close 与 GPU 对源纹理的使用完成并非同一件事：快照复制采用异步 CopyResource/CopySubresourceRegion。真实 crop 复现中正常停止/缩小可清理，源 DestroyWindow 后 capture worker 卡在 CaptureService COM Close。仅 Flush 的实验仍失败；加入同 context GPU EVENT 完成点后连续三轮通过，再换回固定 642 程序仍失败。终止路径因此先有限等待已提交复制完成，再调用原 session/pool Close；既不停止系统服务，也不遗忘 COM/GPU owner。事件查询和轮询独立归 live_wgc_drain，单次等待预算两秒，失败仍记录并执行原清理，不宣称所有 GPU/驱动故障下 Close 都有硬截止时间。
+
+最终源码的 crop 两轮及尺寸重建、反复重启、最小化恢复回归均通过；真实 Edge 源关闭仍出现一次 Session close timeout，后续连续通过不能抵消该失败。该间歇分支未定位，v643 暂不作为完整修复交付。resize 重建的 Close 尚未接入完成屏障，不能把终止路径的覆盖推及全部 Close。
+
+## Live 指针清理边界（v642）
+
+后端把 Win32 指针投递尝试目标 hovered 与取消 held-button 时禁止重新命中的 MousePosition 坐标分开。实测首次 UIA 初始化 0x80131505 后，旧代码给尚未投递过鼠标消息的新目标发送 Leave，清理失败又将可恢复过渡升级为控制失败。准备坐标或 UIA 成功滚动不再登记新的 hovered；真正 Win32 投递在调用前登记，未知结果仍须清理，既有真实悬浮的清理错误不被吞掉。Leave 不能在按钮尚按住时提前销毁这份释放信息；点击或滚轮在无先行 move 时切换目标，也必须先退出旧悬浮。两条路径在旧实现的自有 HWND 回归中分别表现为 cleanup.failed=1 和旧子窗缺少 WM_MOUSELEAVE；修复沿原有受限消息投递和身份重验，不引入全局鼠标移动或抢源焦点。B 的按住期间 Leave 过滤保持不变。Chromium 自行产生的物理位置 leave 与嵌套 CSS 滚动链仍是独立开放问题。
+
+## Live 重入不再误停控制（v641）
+
+Win32/GPU 操作可能同步重入，`State::with_host` 因此暂时取出 Host。输入曾把这个正常的 None 当成未呈现画面，调用 suspend 清空队列、触发 StopSignal，却没有 input_error。原生窗口回归已在旧实现稳定复现。已提交几何现在以同一个 UI 线程共享记录供 Host 和窗口读取，不依赖 Host 此刻是否在槽位内；仍要求当前客户区尺寸一致，且只由成功呈现更新。暂停、关闭和窗口终止先清空几何再释放资源，避免失效后继续输入。未增加输入重放、重试或后台线程。此机制修复不等同于所有历史 Edge 偶发失败均已溯源；完整 Ctrl+2、Chromium hover 与 CaptureService 关闭等待仍独立验收。
+
+## Live 浏览器滚动去除自动聚焦（v640）
+
+UIA 客户端显式设置 AutoSetFocus=false，保持 Live 后台输入契约。隔离实验中 Scroll 调用从约两秒降到毫秒，但快速连续调用会遇到 Chromium 可访问性树的延迟更新并丢失相对步长。因此成功动作后先有限观察当前轴的百分比变化与 100ms 静止期，再放行后续输入；观察最多 750ms，保留原 3000ms 动作期限及回执余量。方向边界/NoScroll 不等待，CSS snap 等合法无位移不会被误报成动作失败；观察到期只保留原 Scroll 成功语义，不声称像素已变化。没有动作重试、焦点切换、额外线程或跨事件缓存。长动画/动态页面与完整物理 Ctrl+2 仍须独立验收。
+
+## 浏览器 Live 滚轮逐格准入（v639）
+
+本地 Chromium 源的 B 窗口待发送队列按最多 120 delta 取出滚轮片，未发送余量保留原队首。原一条在途准入让每片独立取得查询/动作预算，并允许取消在片间生效；不增大超时、不重放已提交片、不扩大 16 项队列。高精度残量仍由原 browser worker 累计，键鼠边沿不越过剩余量。非法原包不分片，沿 Controller 原校验拒绝。非浏览器和远程路径不改变。
+
+这是窗口队列路径的修复，不改变直接 send_input/Backend API 的多格语义；完整手势耗时不承诺仍等于单片预算。无 UIA 目标时回退 Win32 也按片发送，总 delta 不变、消息数可能增加。嵌套 CSS 边界链、Chromium hover 保持和 WGC Close 挂起仍开放。
+
+## Live 滚动查询与动作确认（v638）
+
+本地滚动私有协议 OBS2 将查询与动作分开：查询总预算仍为 750ms，provider 遍历软预算仍为 450ms；查询准备完成后先回 prepared，只有收到父端 commit 才能调用 Scroll。父端在 commit 前的管道超时可证明没有动作，退休 child 后沿原 BrowserTransition 暂停，不重放本次输入。发送 commit 后的超时仍属于未知结果，不回退 Win32，不自动重试。
+
+实测 UIA Scroll 可在约两秒后成功，200ms transaction 配置不是动作硬上限。动作与回执使用独立 3000ms 有限预算，不再继承请求开始时的 700ms 期限；首次事件还包含原 2000ms 启动预算。输入仍在原 worker 串行处理，UI 不同步等待；取消时 owner 仍须等待在途调用/child 退休，不能承诺立即释放。节点、深度、进程身份、权限、Job 内存和 16 项队列上限不变。提交后的动作重新检查权限，并在最终属性 RPC 后再次检查期限。
+
+真实 Pipe 回归覆盖未 commit 零动作、查询超时后迟到准备、两秒成功回执、动作超时不重放及畸形阶段消息。此改动不解决滚动量合并、嵌套滚动链或 Chromium DOM hover 保持。
+
+已确认未动作的 BrowserTransition 在清理旧输入 owner 后，自动恢复仍有效的本地控制意图，不再依赖下一次鼠标移动。恢复复用原准入链和暂停后的有界单槽请求，不重放失败事件；主动取消、远程 owner、分组锁定/隐藏及未知动作失败不会触发自动恢复。普通源最小化仍等待用户恢复意图。
+
+## Live 导航过渡与悬浮恢复（v634）
+
+浏览器滚动私有 child 区分查询阶段与动作阶段：仅在从未调用 Scroll 时，将 UIA timeout、element unavailable 或查询期限耗尽报告为可恢复过渡。父进程验证状态和 HRESULT 后，沿本地 Session 暂停/释放路径保留控制意图，下一次用户输入重新准入，不重放本次滚轮。首次 provider 初始化同样没有滚动动作；任何已开始或部分完成的动作、权限错误、未知管道超时仍为失败，不扩大期限或容量。远程控制不开放此恢复分支。
+
+导航可能销毁旧 renderer HWND。鼠标目标切换时，对已失效的旧目标不再发送 leave；新目标仍重新路由和校验。禁用/暂停控制同时重置 B 的悬浮登记标记，避免禁用期间未转发的 leave 使恢复后的 MOVE 跳过 TrackMouseEvent。自有窗口回归覆盖旧子窗销毁后继续输入和跟踪重置，受控错误回归覆盖查询过渡与动作未知的差异；不将收到 WM_MOUSEHOVER 等同于真实 Edge 的 DOM hover 验收。
+
+## Live 浏览器滚动按需初始化（v633）
+
+本地 Chromium 的滚动 child 从输入 Enable/preflight 延迟到首次 Wheel；尚未滚动的 Live 不占用四份滚动池，滚动 provider 初始化不再阻止点击和键盘启用。源身份、权限、最小化检查仍在每次输入前执行，远程和非 Chromium 路径不变。首个 Wheel 声明原 2000ms 启动加 750ms 滚动预算，后续复用 child 和 750ms 预算；不增加容量、重试或失败回退。真正滚动时的启动/动作失败仍撤销控制，不能将此改动理解为所有 UIA 失败可恢复。
+
+回归使用五个同源 Chromium-class 控制后端和自有原生窗口，检查不滚动时不创建 child、点击键盘到达子窗、首轮惰性创建和后续预算。此夹具不代替真实 Edge 页面或物理 Ctrl+2 验收；另已复现的源关闭后 WGC `GraphicsCaptureSession.Close()` 停滞仍未解决。
+
+## Live 小幅滚轮与失败状态（v632）
+
+慢源等待期间，连续小 delta 曾逐项占满 HWND 队列，使第 17 个事件触发正常取消，无弹窗且后续输入不再恢复。窗口待发送队列现在只将同点、同轴、同方向的相邻滚轮累加到单包至多 1200；总量与输入边沿顺序不变，16 项容量、在途限制、真正过载撤销和失败不重放规则保留。已经交给 worker 的输入不会再次合并或重发。
+
+真实输入失败的标题在后续状态刷新中保持“控制不可用”，直到显式重试进入启用流程；不增加重复弹窗。Live 选择器增加丢失捕获、取消、显示变化及关闭中断回归，不把选择器组件测试当作物理 Ctrl+2 完整手测。
+
+## Live 长网页控制不可用修复（v631）
+
+v630 的 ControlView 遍历会把视口外的可访问节点也计入 256 节点预算。独立 Edge 页面增加 350 个屏外按钮后，实际 Controller 首次滚动返回 `BrowserScroll(0x8000000b)`，后续输入为 `Disabled`。`live_browser_scroll_provider` 改用 ControlView 与 `IsOffscreen=false` 的组合 TreeWalker，在浏览器 provider 内过滤，不再逐个跨进程查询屏外控件；初始化 Document 发现使用相同过滤。保留原 256 节点/32 层、时间预算、身份校验和失败不重放规则，不把异常改为成功。
+
+`native/tests/fixtures/live-browser-scroll.html` 提供普通页（`count=0`）、350 与 1000 个屏外控件的回归输入，复用 `owned_edge_backend`，仅操作显式指定的临时 Edge HWND/PID。此修复不等于覆盖所有 UIA 超时、复杂网页或用户 Ctrl+2 完整流程。
+
+## Chromium 本地 Live 页面滚动（v630）
+
+Chromium 的原生滚轮处理会按消息屏幕坐标再次执行桌面命中；源 A 被遮挡或透明后台渲染时，消息投递成功并不代表页面收到滚轮。仅本地 Live 的 `Backend::new_local` 在原控制授权检查后创建 `live_browser_scroll`，通过受限子进程在已绑定源窗口的 UIA 子树内选择指针下最深的可滚动容器。远程输入及只读窗口观察合同不变，不移动真实鼠标、不抢源焦点。
+
+`live_browser_scroll_process` 拥有私有协议和原 HWND/PID 绑定；`live_browser_scroll_provider` 拥有 MTA/UIA 生命周期、物理坐标命中与 ScrollPattern 动作。查询线程显式使用 per-monitor DPI，避免 150% 缩放时 UIA 矩形虚拟化导致命中错误容器；无矩形的虚拟分组仍遍历后代。首次连接在启动预算内等待 Document 树，不重试滚动动作。沿用 Job 的单 child、128 MiB/child 和四份容量池；扫描限制 256 节点/32 层。本地 UIA 滚动的复合发送预算为 750ms（查询/动作软期限 450ms，单次 UIA transaction 200ms），由 Backend 显式告知 Controller；普通 Win32 和远程输入仍为原 50/250ms，释放仍为 50ms。超时和部分动作失败不回退重放。没有支持的 Pattern 且尚未动作时才回原消息路径；两轴各保留不足 120 的滚轮余量。
+
+这是普通网页及原生滚动容器的语义滚动，不会生成 JavaScript `wheel` 事件，不能宣称 Canvas、地图或自定义滚轮手势等价支持。独立临时 Edge 测试入口只接受明确 HWND/PID 和测试页，不扫描或操作用户已有浏览器。
+
+UIA 导航使用单节点属性/Pattern 缓存合并跨进程查询，不跨滚轮事件复用旧 DOM 元素；动作前仍重新核验源身份和目标矩形。此优化减少遮挡场景下逐属性 RPC 的延迟，不改变普通消息预算，也不重放结果未知的动作。
+
+## Live 本地悬浮与输入法事件（v628，待应用实测）
+
+`live_visibility_resume` 在 B 的本地输入意图下重新接管已召回且最小化的 A：等待旧记录退休，再登记当前最小化快照，全部同源 peer 共享新的恢复 ticket；收到 ACK 后复用原透明后台渲染，不抢源焦点，最后 peer 关闭时按既有归还契约恢复源样式与布局并展开源窗口。Session 保留恢复请求，不能在等待 ACK 时重新按最小化路径丢弃它。对应 owner 和端到端输入运行测试覆盖重新登记、共享、点击与最终恢复。
+
+`composition_live_pointer_tracking` 在 B 跟踪 hover/leave，`composition_live_ime` 以 B 内最后一次有效点击定位系统组合与候选窗。源应用未提供系统 caret 时不假定 A 的屏幕坐标可直接用于 B。提交的 `WM_CHAR`（UTF-16 单元）和悬浮消息仍经过原 16 项有界队列与输入 worker；`VK_PROCESSKEY` 保留给 B 的输入法。后台输入后端在子目标切换/取消时清理旧悬浮，不移动物理鼠标、不抢源焦点、不扩展远程文字权限。
+
+`composition_live_pointer_text_runtime_tests` 验证自有隐藏源的局部 Live、hover、leave 和提交字符。真实浏览器遮挡和具体 IME/TSF 候选窗仍须实际应用验证，不能以收到 Win32 消息代替这些验收。
+
+Live capture sessions disable the WGC border when supported, including after frame-pool replacement. The existing source visibility lease restores a minimized hidden source to transparent background rendering without replacing its recovery snapshot. Input transitions release held edges and retain local control intent; resumption waits for the previous worker to finish, while real delivery or cleanup failures remain errors. Owned-window minimize and pool runtime tests cover these boundaries.
+
+## Live 滚轮与钉图操作（v626）
+
+Live 内容操作继续送往源窗口；黄色角选择后显示黄色外框并暂停源输入，快捷键借用同 UnitId 的普通钉图宿主，Esc 沿回收关闭、Ctrl+E 沿普通编辑入口。编辑宿主与采集窗口互斥显示，采集会话在编辑期间存活，返回时保留标注和撤销历史。后台读回/保存刷新最新底图，绘制和输入共享裁剪/镜像映射；关闭成功后释放采集，失败不提前丢弃编辑 owner。
+
+滚轮入口使用仅覆盖自有 Live 的 UI 线程低层钩子，物理屏幕坐标用于窗口命中，投递成功后才消费事件；最后一个 Live owner 释放时卸载。后续队列、背压、源身份校验和超时清理不变。真实输入门与普通桌面人工验收分别记录。
+
+## Live 本地输入背压（v625）
+
+本地 Live 每次只允许一条输入等待源回复，其余事件保留在原有界窗口队列。这样，相邻鼠标移动可以持续覆盖最新位置，而不会因每次消息泵轮转都提前转入后台通道而触发 `Full`。点击、键盘、滚轮仍是合并边界，worker 回复沿原 `WM_NULL` 唤醒继续发送；没有新增定时器、线程或重试，源失败、失焦和关闭仍撤销并释放输入。远程输入准入及 worker 的容量保护保持不变。
+
+## 长截图箭头与采样匹配（v623）
+
+录制中的箭头点击在 UI owner 内最多保留 16 次，并优先使用同一 SessionJob 的空闲槽，避免周期采样反复禁用按钮。失败和退出边界撤销尚未执行的点击。周期目标改为从采样开始计算 32ms；后台回复检查为 10ms，慢匹配结束后仍让预览使用原槽，不额外等待完整周期。这些是调度目标，不是保证的帧率。
+
+固定边缘从已有候选中取仍静止的交集，正文偶然留白不会扩大固定栏；`long_capture_session_edges` 只在释放行与当前及全部历史相邻帧的滚动逐像素对应时修正旧误判，真实固定栏变化继续拒绝。近似匹配保留原误差、纹理和歧义条件；粗采未找到可接受纹理匹配时，对恰落空白的低误差候选最多追加两次密采，并提前排除误差下界已超标的候选。没有重叠的帧仍不猜位移，不伪造遗漏内容。
+
+## Live 输入时序与持续长截图（v621）
+
+Live 的控制意图不依赖首帧何时呈现；首帧前无法建立坐标映射的消息被忽略，已持有输入在映射失效时释放。异步启用期间的状态呈现不能释放首次鼠标捕获，避免系统同步 `WM_CAPTURECHANGED` 撤销整次点击。源输入后端、权限检查、单 worker 及释放失败处理保持原 owner。
+
+长截图对照主干的持续采样机制：Ctrl+3 拖选松手后，在原非模态、穿透录制层下拖动画面或滚动，现有 `SessionJob` 串行采集变化区域并更新预览。普通任务完成后等待 60ms 再采样，滚轮提示提前到 24ms；这不是固定 FPS。重复/暂时无可靠重叠的帧不提交，继续等待可验证画面；结束请求停止周期、收取最后帧，再输出已确认的拼接内容。已接受帧的预算、目标身份/布局检查和取消清理继续由原实现负责。
+
+## 钉图关闭与主干采集交互（v620）
+
+钉图删除先在一个 `DeferWindowPos` 批次撤下内容及附属呈现，再进入销毁和资源回收；同步几何回调不能重显空宿主的抽屉。Live 源窗口控制默认请求原异步准入，本地移动、菜单和失焦只暂时释放源输入，显式停止取消恢复意图；旧 worker 释放失败必须保留错误，不能由新 worker 覆盖。
+
+对照主干 `2dfc73d107429c38e25a0c9e0a9fd062d99ab306` 的录制流程：Ctrl+3 松手起录、侧边持续预览、只让四个箭头接收鼠标、Enter／再次 Ctrl+3 完成及 Esc 取消。原生录制使用非模态且不激活的窗口，目标页面继续接受滚动；预览与箭头为同 owner 的兄弟窗口，避免穿透底板盖住按钮。箭头移动采样矩形后继续录制，首次可靠页面运动才锁轴。采集和拼接仍使用原 `SessionJob`，没有另建像素缓存、采集线程或持久化格式。
+
+## 系统剪贴板发布回执（v618）
+
+复制位置算法不变，修正真实发布到内部缓存的边界：PNG/DIBV5 等格式全部转移后显式关闭剪贴板，等待 Windows 同步完成格式合成，再重新持锁确认原 owner 并读取最终序号。旧版在关闭前采集的序号会在下一次真实粘贴时立即失配，清除 Content/placement 并误走鼠标左上角定位。重开失败或外部覆盖不绑定回执；没有按固定差值猜测序号，也没有取消外部剪贴板失效检查。
+
+`application_clipboard_roundtrip_smoke` 在新建非交互 station 中使用真实系统剪贴板验证 worker、发布、六次读取后的固定来源/位置会话、新 HWND 身份与复制尺寸；注入光标采样并省略文件缓存计划。该 station 不具备可见窗口语义，因此可见 A 内十二个不同坐标的累计落点仍由普通私有 desktop 回归独立验证。普通启动不访问测试分支；物理快捷键、日常剪贴板增强程序与多屏观感仍须手测。
+
+## 固定复制来源的堆叠（v617）
+
+复制会话固定 A 的身份与退役时备用矩形；最新副本仍独立记录，用于原图外定位。图内准入先按 A 的当前可见矩形判断，再用成功提交次数计算 `A 左上角 + n × step`，不依赖 A 内具体鼠标坐标或副本遮挡。排队请求先刷新提交修订；取消/失败不计数，新复制换身份并归零。参考本地主干 `useClipboard.ts` 的独立 `nextCascade` 思路，但不让主干快照中可变的 `originalId` 覆盖固定 A 身份。
+
+## 连续粘贴锚点（v616）
+
+位置会话记录上次成功粘贴的鼠标采样，鼠标不动时始终沿成功落点累加；只有新复制或鼠标位置变化才重新选择起点。`application_paste_target` 在隐藏准备阶段查询该采样坐标下最上层自有可见钉图的当前矩形；整个矩形参与定位，隐藏组／最小化／过期宿主排除。无命中时保留原复制来源与图外相对定位规则；提交、取消、资源释放仍由原 `application_import` 事务负责。
+
+## 启动显隐与独立粘贴位置（v615）
+
+`main` 使用 Windows GUI 子系统，重定向诊断管道和私有 worker 分派保持原样。`startup_entry` 始终隐藏建窗，`DocumentWindow::show_content` 统一普通启动及恢复发布的内容显隐；空非钉图宿主仅承载原托盘、热键和检查点，不新增常驻窗口框架。
+
+`clipboard_editable::Cache` 将已成功发布的序列与位置会话独立于可编辑内容保存；Art／缩略图不保留编辑内容，但不再丢失复制偏移。`copy_job` 在准备前采样，`paste_input` 在锁内匹配序列、锁外沿 `open_job::start_positioned` 将坐标与请求交给原有界批次。`application_import` 仍在整批提交后更新级联锚点；外部图片只设物理原点，不伪造捕获来源。原命名 renderer、Drag 模板、缓存锁和 Shell 副本运输不另建实现。
+
+## Tab 跟随所属钉图的层序
+
+左右端点、参数/候选 child、底部设置栏与连续行底板组成逐钉图层序块；`workspace_chrome_order` 在现有窗口通知中同步紧邻和 TOPMOST 状态，不再下置到所有钉图的最低处，也不重排图片或改变输入焦点。仅共享曲线保留全钉图下置策略。
+
+编辑工具栏首个按钮打开的 `pin_settings` 左侧属性栏与同节点端点内容双向互斥，沿原 disclosure 和设置 owner 在发布前同步切换；参数草稿与业务设置仍由原 owner 持有。黄色三角的底部抽屉不参与互斥，Tab 总开关显式同步它的展开状态，设置切换不伪装成 Tab。通用 `DrawerLayout` 在展开前后使用稳定宽度，收起区域仅覆盖居中三角，避免重新居中造成横向绕行；不增加动画、临时窗口或持久化字段。
+
+`workspace_chrome_backing` 独占每节点穿透底板 HWND，复用原 `Surface`、像素预算与主题绘制，参与原同批移动/截图保护/显隐/销毁集合。稀疏端口 region 与图片排除不变，底板间隙仍不接收输入。此职责替换下方 v610 的全局共享底板；普通桌面观感与隔离窗口层序/像素回归分别验收。
+
+## 紧凑 Art 选择与副本拖出（v611）
+
+Art 菜单布局/绘制留在 `art_picker_view`，目录、同步模态、IME、授权和节点创建沿原 owner。通用完整帧发布、BUTTON 擦底及抽屉三角裁剪归 NeuroDesign；Otter 只提供参数控件、附着位置和最终显隐，不增加动画、线程或另一套绘制管线。
+
+Shift 拖出仅为新生成 PNG 允许 Shell MOVE，原图片不进入该入口；发布后原缓存锁持续覆盖 OLE，导出只读句柄允许删除共享但拒绝改写。普通拖出仍 COPY-only，取消/文档换代/窗口退出沿既有单槽和回收路径。真实 Shell 文件夹交付与物理鼠标、普通桌面视觉分开验证。
+
+确认 DROP 后读取 `CFSTR_LOGICALPERFORMEDDROPEFFECT`，区分 Shell 已完成的优化移动与真正取消；目标已删除副本时原 pdwEffect 可以为 NONE。可选回执缺失沿原结果，格式错误保留为错误，介质与锁按原作用域释放。
+
+## Tab 展开分组与内容几何（v610）
+
+`workspace_chrome_backdrops` 从原端口/disclosure/rail 几何投影连续可见展开组，并在已有无输入共享层绘制；不改变稀疏端口 region、连接锚点或参数 owner。共享完整帧缓存同时比较组与钉图遮挡，长参数组参与显示范围计算。NeuroDesign 拥有通用圆角底板和眼睛/72 DIP 名称槽，Otter 保留显隐、裁剪及真实控件。分组不会新增窗口、动画、线程或持久化字段。
+
+## 左侧子栏连续布局与移动同步（v608）
+
+子栏恢复主干的内联页签/方向/连接/接收策略/目标与来源布局，不再以四个下拉入口代替。瞬态页签不重建请求 owner；菜单、来源复制和显式退出复用原授权、单槽请求和回执身份。缺失身份或计数不伪造成功状态。连续分组、Label 和按钮样式归 NeuroDesign，Otter 只提供业务快照。
+
+二维码与链接共享原签名 v1 envelope，不引入 HTTP 短链服务或自动切换授权来源。发送以显式无目标选择复用原 Store/Job/Lease，在主干 `qrProjection` 字段保存并进入 canonical sender Index，后续同步和停止仍沿原 owner。导入文本/PNG先本地解析，显式提交经同 origin authenticated inspect 后以最新 revision/digest 接收；已绑定本机只读重建，自身邀请在写 journal 前拒绝。新接收钉图仍经过隐藏追加、真实 checkpoint 和可见呈现；公开邀请没有 targeted receipt，其身份跨 journal 重启保留。原生分享浮层及 PNG 解码分别有 Rc HWND 和全应用单槽 worker 生命周期，关闭不能把在途线程名额提前归还。账号联网 v2 不在本次迁移范围。
+
+左侧几何由 `pin_settings_position` 投影，和完整图框、主/二级编辑条进入现有 `workspace_chrome_move` 同一位置批次，不再等待宿主移动提交后单独追随。保留原屏幕边界翻转、显隐和清理语义，不新增线程、timer 或动画。首观察点的真实 HWND 回归与普通桌面拖动观感分别验收。
+
+## 编辑栏绘制稳定性与侧栏接线（v607）
+
+共享 Neuro-mini 的 owner-draw BUTTON 保留上一完整帧，跳过系统先擦成空底色的中间帧。纵向 `PropertyPanel` 原子接收字段值与各自可用性，Otter 不再在每次消息刷新中启用全部控件后又禁用无数据的 OCR/译文字段；未变化投影直接退出，保留草稿、焦点和局部滚动。
+
+左侧增加 Loom、投射、被投射、数据流向四个紧凑入口，消费原授权/目录/接收策略/协作 owner。菜单附着于真实字段屏幕矩形，使用同钉图家族的前台窗口；返回前释放模态门，返回后按原文档和目录身份复核，再交既有请求执行器。主题库不认识网络业务，菜单不直接联网或持久化。该入口迁移不包含 QR/链接、完整内联页签和来源 ID 复制；没有替代原业务模型或宣称完整主干 parity。
+
+## 选择开关与操作柄预览（v606）
+
+`Canvas.selection_enabled` 只保存选择准入，不再持有移动／旋转／缩放模式。`edit_mode` 复用原菜单收尾与命中路径切换选择／静默；新建提交在静默时保留一份绑定文档版本的当前选择，不改变文件格式。工具条、Shift 点选、文本双击与扩展覆盖命中共同消费此状态；操作柄及原修饰键变换继续沿既有预览／原子历史提交。
+
+`transform_handle_layout::preview_bounds` 统一读取组／路径／效果预览；仅未物化的单选平移补一次偏移，旋转和缩放柄共同消费，不克隆笔迹或像素。相关回归留在既有编辑模式、工具条、文本、滚轮和操作柄测试模块；不新增线程、窗口、轮询或主题实现，普通桌面手测独立验收。
+
+## 钉图上的标注文字草稿（v604）
+
+`text_input::inline` 持有一份非模态 EDIT 草稿，坐标和字号从标注/视口读取；无标题附属层只解决 DComp/layered 上的输入呈现，不是第二份文档。Enter 或外部点击/失焦复用原 Pending 提交，Esc 取消；IME 组合由系统控件处理，Shift+Enter 保留多行输入。窗口、字体、焦点和旧文档校验分别沿显式 owner 清理，恢复/系统退出不会把未提交草稿当成已保存。
+
+字体下拉的系统底刷、整个 child 树首帧和滚动冻结统一消费 NeuroDesign `paint_batch`；没有延迟、动画或额外线程。定向窗口/事务回归与普通视觉、输入法手测分别报告。
+
+## 编辑栏附着与空闲 Esc（v602）
+
+`edit_strip_position` 拥有钉图与主编辑条的附着策略，Neuro-mini `property_attachment` 只投影二级行的零间隙位置与接边。纯拖动将完整图框、端点、抽屉及两级编辑条交给同一 `workspace_chrome_move` 批次，不再逐级等待位置通知，也不在预提交消息中按旧宿主位置回拉。两级条的实际接触边由主题 `strip_shell` 同时约束绘制和窗口 region；没有新增动画、线程或业务状态副本。
+
+空闲编辑态 Esc 沿原钉图关闭流程删除本节点，不再因工具栏或标注选择而阻断；真实输入框草稿、菜单及活动绘制仍先取消。工具目录不再暴露独立荧光笔/H，普通铅笔的荧光子开关及旧笔迹解码保持原 owner。定向真实窗口回归与普通桌面手测分别验收。
+
+## 右侧候选视图与唯一参数事务（v599）
+
+公共 Art 的多候选区随总 Tab 附着在右侧显式输出下方，使用原输出 strip 及全钉图下置层序；无显式输出时按需创建同类 strip，不额外创建业务顶层窗口。`workspace_candidate_auxiliary` 只投影几何，`parameter_panel_auxiliary` 通过 Weak 消费唯一参数 Ui 和原候选资格。点击继续复核配置/结果集合、拒绝未提交草稿，并沿原 result_index 与手动执行事务；不会发布缩略图为正式结果。
+
+Neuro-mini `PreviewGrid` 维护稳定 BUTTON、两列卡片、250 DIP 宽/320 DIP 最大高及独立即时滚动；输入图片由已有后台缩略图提供，不在绘制路径读取资源。折叠/隐藏/截图换 context，来源变化和父先销毁拒绝旧通知；region、移动、层序与截图保护仍沿原 chrome。仅迁移公共 Art 候选，不代表本地 Art、Live 辅助区、Art VIEW 或总体 UI/UX 已完成。
+
+## 逐行参数的统一原生 owner（v598）
+
+局部展开、总 Tab 与 F2 共同消费 `DocumentWindow.parameters` 的同一个多行 child，工作区仅持 Weak 附着视图。旧单字段临时窗和自身提交后的后继挂载已退役，不增加第二份参数或草稿。局部可独立展开多行，鼠标展开不抢焦点；F2 的一次性焦点凭证绑定目录及宿主，F6 回对应端口而不关闭控件。全部局部折叠时，脏草稿隐藏保留并继续阻止保存/退出空闲，重新展开不重建原 EDIT；已空闲 owner 可回收。
+
+原本地 Art 完整表单仍保留，右侧候选/Live 辅助区及连接/投射 UI 未由本项迁完。真实自有 HWND 回归与普通桌面、人工 IME 和混合 DPI 验收分开记录；下方 v597 及更早的临时单字段描述仅对应历史停点。
+
+## 附着的 Tab 参数视口（v597）
+
+公共参数总展开由瞬态 Control.expanded 决定，不再从独立表单 HWND 可见性推断。原 DocumentWindow.parameters 继续持有唯一事务模型及真实 child；端口条只持 Weak 视图，不复制参数、草稿或执行状态。普通图片和公共 Art 的值控件嵌入胶囊，主干显式输入/派生参数分区及可重复的主输入图片端口保留。
+
+Neuro-mini RailLayout 同时约束绘制、命中、连线与 child/父 HRGN；参数区 wheel 和 thumb 直接更新 offset，无动画，显式输入不滚动。文本框不随滚动或局部折叠重建，焦点可滚入，最多 128 个参数和四个面板 owner。capture affinity 使用真实顶层 strip；移动和层级仍沿原端口批次。裸 F2 临时编辑、本地 Art 旧表单和右侧辅助区尚未迁完，真实普通桌面与混合 DPI 另行验收。
+
+## Tab 逐行状态与统一端点几何（v596）
+
+正常 rail 的隐藏端口保留主干行槽，小图仍只均分可见端口。逐行展开使用三态语义：继承总 Tab、显式展开、显式收起；总状态边沿只重置本节点覆盖，目录换代按同一宿主及 Unit／字段重绑定，不把旧索引套给新字段。几何继续由原 Node 和 Neuro-mini CapsuleLayout 同源投影，不新增呈现层。
+
+鼠标正文不启动端口手势；锚点释放与最终位移共同决定局部点击，连线落点也只接受锚点。键盘焦点不强制展开，Enter／Space 与鼠标共用切换。现有参数 owner、四项有界事务、图提交与授权保持不变；完整行内表单／局部滚动仍未完成，隔离 HWND 回归不替代普通桌面验收。
+
+## 下附着节点设置的呈现与事务边界（v595）
+
+节点选择由 chrome 内的显式文档指针意图登记，抽屉仅在非小图且被选择／Tab 展开时挂载，不以激活事件或全局连接显示模式冒充选择。Neuro-mini `Drawer` 只提供稳定的 BUTTON／STATIC child、DPI 布局、主题绘制、tooltip 和带 context 的异步通知；Otter 的独立顶层宿主与所有连接组件一起下置，不绑定 HWND owner 自动升层，并加入原图框／端口的 DeferWindowPos 移动批次。
+
+设置和手动执行继续消费唯一 State／Selection owner。现有参数窗有草稿时先通过原四项有界意图及重绑定事务提交，再应用设置或将参数触发升级为显式运行；不增加并行提交链。展开边沿、来源换代、隐藏和关闭使旧点击失效，失效宿主可重建但不得参与层序批次，Weak 与实例凭证防止循环和复用 HWND 误销毁。该切片不增加后台任务、权限或持久化格式，也不关闭完整 Tab／rail、多选、独立 Live、Art VIEW 和连接／投射 UI 的迁移；真实桌面／Loom 仍单独验收。
+
+## 节点设置的唯一状态与通知策略（v594）
+
+`unit_node_settings` 只读写主干会话字段；活动值由文档 State 拥有。Art 执行策略仍归 Selection，合并上游开关复用原取消/配置事务；普通钉图通知门只限制图通知遍历，不接管图片解析或改变拓扑。端点隐藏同时约束绘制、输入条和键盘资格，展开仍可显示。配置、保存与恢复凭证分别覆盖其实际依赖，后台保存保留未知执行字段，尚无该 owner 的独立 Live 不以默认值覆盖原数据。现有参数窗复用同一设置动作，不增加线程、队列、协议或权限；附着底部抽屉和完整 Tab UI 继续迁移。
+
+## 普通画笔的荧光属性（v593）
+
+普通画笔 GLOW 由 `ToolProfiles` 记忆，不改变 Canvas 的工具及数值属性。草稿只用一个瞬态标记保留画笔的采样和平滑来源，绘制与持久化继续复用 Highlighter 的既有层级和 `35% × opacity` 合成。`editor_commit` 拥有原草稿到单次历史的提交与标记清理，取消／快照不泄漏瞬态状态。该修改不增加格式、权限、窗口或后台任务；普通桌面观感与其余 UI 迁移仍独立验收。
+
+## 声明式扩展命令的再次取消（v592）
+
+命名输入命令遵循旧主干的同目标/插件/上下文取消规则，并继续复核来源修订、同 scope 权限与精确目录身份；overlay fallback 复用真实命令的取消身份。动态工具槽不再以全局 busy 统一禁用，而让原命令 owner 判定哪些操作是已有任务的合法取消。已发取消后仍占原任务槽，直到原 worker 终态，不创建替代 worker 或隐式重试。
+
+取消原子标记沿原 Intent、单槽 rendezvous 和 effects 共享；原外层消息泵中断 I/O 并回收线程。取消后未提交的结果和后续独立效果不再接纳，已经完成的 CAS 保留。业务身份与取消不迁入 Neuro-mini，原生按钮/TLS 定向回归不代替普通桌面验收；扩展并行、Art VIEW、完整 Tab 与连接设置仍开放。
+
+## Art VIEW 的本地呈现更新（v591，尚未接 UI）
+
+视图声明的规范化归 `art_surface_views`；能力目录只提供呈现信息，不证明另一来源/版本的签名包或赋予执行权。原生 JS Session 的 SelectView 只更新 child 私有 snapshot.viewId，经插件既有 update 保留实例、closure、DOM 和资源；权威 scene/revision 与事件 baseRevision 仍由原远端快照拥有，原 Update 单调检查不变。
+
+signed Runtime 沿原单槽提交及 Local::operate 前后授权检查处理此操作，忙碌拒绝而不排尾随动画；失败/取消/换宿主/撤权继续回收原 child。没有新 HWND、线程、持久化字段或外部协议。本次仅接通并验证运行时接缝，Ctrl+E VIEW、实际钉图与独立 Surface owner 的连接、完整尺寸/裁剪/小图重置及保存恢复继续开放，不代表用户可见功能完成。
+
+## 编辑栏通用扩展入口（v590）
+
+`loom_extension_toolbar` 从可信同 scope 的菜单/命令声明投影 when、标题与分组，不签发资源权限。`edit_extension_toolbar_model` 按主干 en-US ICU 顺序合组并保留前八槽；`edit_extension_toolbar` 缓存目录/来源/上下文凭证，动态按钮异步消息携带投影 token，菜单返回再复核原目标，最终仍进入同一 `extension_commands`。命令重名沿主干 Map 的末项语义解析，不因新增 UI 绕过 owner 或单次许可。
+
+Neuro-mini 的动态文字槽保留固定子 HWND、空槽不占位；可禁用的长列表复用原有限 BUTTON 池和局部滚动，不将目录或任务搬入主题库。共享 `text_collation` 拥有系统 ICU 租约，字体仍保留原 zh-CN/base/numeric 选项。没有新线程、协议、全局输入或持久化字段；Art VIEW、完整 Tab/底部抽屉及连接设置继续迁移，普通桌面和真实 Loom 另行验收。
+
+## Tab 行内端口显隐（v589）
+
+`workspace_port_visibility` 复用原端口设置单槽和外观持久化，提交前复核目录、宿主、展开资格及全局门，不创建模态窗或修改拓扑/执行。`workspace_chrome_port_visual` 按 Unit/端口名和同一宿主重绑定局部展开，显隐换代不把原行突然收起；隐藏项仅在收起/小图时过滤，展开行使用同一锚点几何。Neuro-mini 的可选胶囊动作槽统一提供布局和绘制，应用传入主干 SVG 与状态；点击不进入连线拖动，也不广播重绘所有钉图外框。
+
+完整 Tab 表单、参数内联、rail 滚动、底部设置及连接/投射 UI 仍未收口；真实桌面、物理输入与保存后使用感受须另行手测。
+
+## 钉图设置的全文复制（v588）
+
+缓存全文是本地显式操作，不是扩展命令或覆盖场景事件。`sticker_extra_text` 保留主干附件优先、隐藏可复制、旧结果恢复及译文来源校验；`pin_settings_text` 将原文/译文投影到既有 Neuro-mini 属性控件，只持有宿主级短反馈 timer，不增加主题业务、线程或网络。附件/来源换代使排队点击失效，复制在清空剪贴板前再次复核；全文不沿扩展 effects 的截取策略。旧会话字段仍由原保存事务保留。
+
+按钮与计时器接线、失败/过期行为及恢复保存有定向回归；测试不操作用户剪贴板，也不代表普通桌面视觉或真实模型验收。完整 Tab/Art/连接设置及命令并行语义仍继续迁移。
+
+## 开发模式的显示与执行分界（v587）
+
+扩展目录为显示提供独立只读投影：活跃 trusted 和 unsigned_developer 可显示已保存 renderer/overlay、官方 OCR fallback 并保留 scope 通知；撤权/离线仍撤销呈现。场景命令只验证同插件/scope 的声明存在，实际输入继续经过原 trusted 命令 owner；快捷键、资源单次许可、附件写入/CAS 和保存格式不变，不新增网络、线程、窗口或权限。
+
+该边界留在 Otter 的目录/业务适配层，不搬入 Neuro-mini。信任矩阵、原 Canvas/完整缩放帧、真实 HWND 通知换代和点击拒绝分别验证，不能代替真实开发扩展或普通桌面验收；完整 Tab/Art/连接设置及命令并行/再次取消继续迁移。
+
+## 附属通知栈与长卡滚动（v586）
+
+Otter `extension_notices` 保留每钉图最新八条通知的预算、scope 撤权和业务生命周期，通过 Neuro-mini 的公开 `NoticeStack` 持有惰性视口和稳定子卡 HWND。通用卡片按主干紧凑布局绘制，栈高度限于钉图客户区，长卡/外栈共用即时像素滚动，边界滚轮不传给图片；条目关闭、超时或撤权同步重排，句柄凭证同步失效。
+
+主题的 layout/scroll/card/stack 分叶拥有测量缓存、稀疏 region、同步跟随、五秒 timer 和本地捕获，应用仍拥有授权与数据，不新增网络、动画、线程或刷新轮询。主消息泵只翻译本栈 Tab；只有顶层视口同步截图排除，子卡继承。Gallery、主题和实际应用分别验证，普通桌面/真实能力与剩余 UI/UX 迁移继续开放。
+
+## 缺失扩展视图的同层呈现（v585）
+
+官方 OCR 的 renderer 过渡和不可用占位由纯投影 `extension_visual_availability` 负责；精确插件/数据类型且活跃的可信目录才能继续使用已有 surfaceScene，失权或离线只显示有限类型提示。声明有效但场景缺失沿主干显示短不可用文字；占位不可选择、无事件，不被计作活动 OCR/译文，也不改写附件或显隐意图。
+
+Unit 内缩几何复用同一 Surface Presentation，Canvas 的 BeginDraw 之前才按尺寸变化重排，固定声明不重新测量。输入和完整缩放副本共享新几何、文字布局和回收，维持同一像素/透明度/层序路径，不引入独立覆盖窗口。真实 Loom 与普通桌面仍需验收，developer-mode、通知栈滚动、完整 Tab/Art/连接设置及命令并行语义继续开放。
+
+## 原钉图中的覆盖文字交互（v584）
+
+扩展视图仍是原 Canvas 的 Surface Presentation，输入和完整缩放快照共享同一有界视图；单根选区使用现有 DirectWrite，不创建额外文字窗口或动画层。原窗口消息先分流覆盖文字再走图片复制/拖窗，编辑绘制工具不被覆盖文字抢占；透明底图通过缓存的 selectable root 及声明动作补入原 HRGN，空白继续穿透。
+
+官方 schema 1 OCR/翻译文字点击只复制命中的显示节点，拖选及双击不触发祖先命令，Ctrl+C 复制同块选区；复制锁前/锁后复核目录、附件和源。非本地 click 沿原单任务扩展执行链传 surfaceEvent，不伪造 Live Surface binding，事件的 generation/attachment revision 不代替当前 invocation target/授权。隐藏、换源、撤权与捕获回收不复活旧文字动作，选区高亮刷新仍走同一静止完整帧。
+
+该切片不代表 OCR fallback、developer-mode、通知滚动、完整 Tab/Art/连接设置及命令并行语义已完成，也不以隐藏 HWND/合成 TLS/离屏像素代替真实模型和普通桌面手测。
+
+## 扩展快捷键的原生消息与统一授权（v583）
+
+目录声明决定局部/全局键位，不硬编码假定 Ctrl+4/5 与 Alt+4/5 总是可用。应用级 UI owner 注册线程热键，原消息泵分派，稳定 UnitId 保留最后实际选择；撤权或销毁后不把命令转给其它钉图。原生输入控件、重复、采集和模态继续拥有输入，旧注册消息不复用到新命令，无新 hook、轮询、线程或无界队列。
+
+按钮和快捷键使用同一命令 owner；overlay 缓存显隐先在原认证 Session checkOnly，再复核目录/来源/附件并修改宿主显隐。没有缓存时沿主干执行识别/翻译 fallback；Ctrl 的执行命令仍真正执行，不被误改为 toggle。授权失败、换源或关闭不修改旧缓存。真实模型/物理输入和其余文本交互、fallback、developer-mode、通知滚动、Tab/Art/连接设置仍须后续对齐，不以此切片称总迁移完成。
+
+## 首次 OCR/翻译的原生按钮闭环（v582）
+
+编辑栏没有缓存时只排轻量意图，应用级一个临时执行 owner 使用独立认证连接，不与单个目录订阅 worker 共享可变 socket。新连接匹配完整目录 fingerprint，UI 在资源交付与完整结果提交时再次检查原目录、文档源和附件 stamp；换源、撤权、附件变化和关闭取消并回收任务，不自动重放。
+
+单次授权先于任何图片/opaque 附件准备，PNG 编码在后台，命名 `ocr-text.v1` 在 checkOnly 后只输出有界文本/几何/来源摘要；缺少 OCR 文本时先在同一连接识别并提交，再取得翻译自己的单次许可。完整 effects 由宿主独立 CAS/权限检查，显式剪贴板发布持锁后复核来源，失败不伪装整项成功。通用短暂通知由 Neuro-mini 提供，应用仍拥有 scope、队列与撤权，原 Canvas 视图及保存事务不改写。
+
+自有隐藏 HWND、真实 PNG 和回环 TLS 验证不是实际模型或普通桌面观感验收。缓存显隐远端 checkOnly、快捷键、Surface/文本交互、OCR fallback、developer-mode、通知栈滚动和完整 Tab/Art/连接设置继续迁移；整体 UI/UX 目标仍未完成。
+
+## 文档缓存附件与原 Canvas 扩展视图（v581）
+
+文档独占不可变附件 store、源版本和轻量修改凭证；解析/CAS 共用 invocation 的验证值，宿主 overlayVisible 不进入插件输入。显隐共享 payload，译文依据源版本、OCR 附件版本/摘要及原文共同准入：显示译文只抑制 OCR，隐藏译文恢复 OCR 的显示意图，主动显示 OCR 则关闭其 replacement。
+
+活跃 trusted 目录与附件被投影为有限白名单 Surface；原 Canvas、外部显示和完整缩放快照复用同一 Surface Presentation，没有新增分层窗口或单独动画。换目录、撤权或源变化撤销旧呈现，缓存和不可理解的历史数据不被静默删除。保存/恢复沿既有事务共享附件并保护异步凭证，不把 UI 覆盖层写入栅格、导出或标注历史。
+
+源版本区别内容提交和纯呈现历史：移动、缩放视口、透明度/外框调整及其撤销重做不视为识别来源变化；内容提交和外部 Frame 换代则更新来源。所有绘制分支同步验证同一来源，外部完整缩放副本保留 Frame 身份，避免结算前显示旧覆盖层；没有新增内容快照或逐帧散列。
+
+这只接通已有缓存的真实编辑栏按钮与绘制/保存恢复，不代表首次联网识别/翻译、命名 OCR 输入协调、快捷键或文本/Surface 交互已完成；完整主干 UI/UX 迁移继续进行。原生离屏像素和自有隐藏 HWND 验证不代替普通桌面手测。
+
+## 空闲目录推送与应用级撤权（v580）
+
+扩展目录由一个应用级订阅 owner 维护，新旧文档共享不可变 Arc 投影。首次显式打开原生编辑栏只登记请求；原 UI 唤醒/消息结算启动后台发现、同连接 Hook/extension 握手与目录订阅，不在窗口回调访问网络。推送只保留最新一份，未收到新目录不刷新；没有 UI 轮询 timer、常驻渲染或自动重连。
+
+空闲订阅与单次命令 RPC 共用原帧解析、严格快照入口和中断能力。错误、断连、取消或退出清空未读及当前 UI 目录；Application 先停唤醒，再中断阻塞读取并回收 worker，新窗口不复制后台会话。目录展示不是资源授权，执行仍必须采用单次许可与源/目标凭证。回环 TLS、合成目录和隐藏窗口验证不代表真实 OCR/译文按钮已可用；命令任务、命名输入、附件存储/显隐/绘制/保存及其余 UI/UX 对齐继续进行。
+
+## 扩展命令的许可先行与结果交付（v579）
+
+原生会话现在可在同一已认证连接上执行一次真实 extension RPC：从当前 trusted command 取得有效权限、主干超时余量及手势要求，先申请单次资源许可，再调用宿主准备函数，之后发送带 generation/target 的 invocation。只传命令声明的图片与同插件附件，不传宿主显隐/digest 元数据或外插件 opaque 状态；完整请求上限与实际 Loom bridge 一致。
+
+准备前后均复核取消与目录 generation；完整响应还校验内部 requestId、协议、终态与 effect 类型。过期授权、来源准备失败、撤权或取消关闭会话及未消费许可，不自动重放；accepted/progress 不冒充完整结果。网络层只返回结果与捕获的插件/scope/generation，effect CAS 和原生显示仍归后续宿主文档事务，不能在网络线程直接触碰 HWND、系统剪贴板或 URL。
+
+回环验证覆盖许可在读取前取得、每次重新授权、手势/超时、各阶段取消/撤权、跨插件附件拒绝和组合请求预算；未调用实际模型、未接入实际 OCR/译文按钮。后台会话 owner、命名 OCR 输入及附件存储/显隐/绘制/保存仍须继续接入，完整 UI/UX 迁移没有因此收口。
+
+## 扩展目录与远端准入的原生基础链（v578）
+
+扩展协商继续使用原固定发现身份与 TLS 1.3 认证，在同一 WebSocket 的 Hook 握手之后建立 extension session；不另接受任意 URL、不复用另一连接的 session。目录入口校验主干的插件/scope/权限/when 与预算，条件表达式是纯有界 AST，不运行插件代码。
+
+会话的 checkOnly 请求绑定 requestId、session、插件、目录 generation 和目标 revision。通知只接受更高 generation，授权在途换代即使收到 authorized=true 也拒绝，终止会话不保留旧目录或连接；总截止时间不因 ping 或无关消息续期，取消复用原 stream Interrupt。原能力目录 fetch 保持既有合同。
+
+本轮是只读协议基础，不是 OCR/译文实际执行或 UI 点亮；资源单次许可、命令调用、附件 CAS/显隐/绘制/保存和宿主后台 owner 仍需后续接入。完整 Tab 界面与连接设置等既有主干迁移范围同样保持开放，不以回环测试代替普通桌面手测。
+
+## 标注滚轮与钉图呈现的入口分流（v576/v577）
+
+Win32 `WM_MOUSEWHEEL` 由 `procedure_wheel` 唯一分类：Ctrl 调整钉图窗口，Alt 调整钉图透明度，Ctrl+Alt 在选择态缩放已选标注，额外 Shift 选择各自中心。精确修饰键匹配避免空选区或其它模式的标注操作意外改动整个窗口。普通工作区视口缩放不变。
+
+标注入口只准备原 ResizePlan，不直接改像素、文档或工具中心/轴偏好；文字排版和全部几何成功后复用原同步/模糊后台提交与单一历史。`resize_wheel` 仅为自己启动的模糊缩放保留有界 delta/中心模式 FIFO，在原 worker 回收后逐项重新读取当前选区并提交独立历史；不向菜单或其它编辑任务追加输入。文档身份/revision、选区、选择模式及模态准入重新核对后才能交付/续做，取消或失效不恢复旧选择。没有第二个 worker、动画或持久化字段。主干其余 UI/UX 对齐仍进行中，隔离 HWND 接线不等于物理桌面验收。
+
+## Tab 胶囊的同源几何与类型图形（v574）
+
+`link_port_presentation` 只冻结公开端口名称及主干类型图标，不保存参数值或凭据；静态 SVG 继续由原主干声明导出。`workspace_chrome_port_visual` 将端口绘制、稀疏命中区域与连线锚点统一交给 Neuro-mini `CapsuleLayout`：普通行高 28 DIP、间隔 8 DIP、顶部 22 DIP，展开宽 256 DIP，连接点移到外端，收起保留图片外侧半图形。小图保留紧凑端点，隐藏端口保留原目录索引。
+
+主题绘图器只拥有软件绘制与字体；工作区继续拥有原端口 HWND、截图保护、输入和回收，连接层仍低于所有钉图/白框。旧单字段编辑器暂放胶囊外侧，不覆盖连接点。本切片不代表 Tab 独立表单、复杂字段内联、滚动 rail、底部设置条或 OCR/连接设置已完成迁移；后续仍需逐项替换，物理桌面最终观感仍待手测。
+
+## 窄属性面板的局部滚动（v573）
+
+通用主题组件独占 viewport、固定 28 DIP 字段、8 DIP 轨道和同步像素滚动；所有真实 EDIT/步进与图标底板共享 offset，焦点滚入不改字段值，数值方向键继续步进。应用仅传工作区高度与独立 `%` 单位，仍审核原目标凭证、历史和关闭语义；单位不进入提交字符串，滚动不创建动画队列、不移动钉图。原生 Gallery 直接消费公开组件；隔离 HWND/输入验证与物理桌面视觉手测分开，整体主干 UI/UX 对齐仍进行中。
+
+## 文档镜像状态与像素事务（v572）
+
+Editor 拥有已物化镜像的朝向，原异步 FlipPlan 将它与栅格、标注、crop 一次提交到同一有界历史。设置面板只投影各轴 pressed；worker 未完成、取消或凭证失效时不预先切换。文档接管、撤销重做和可编辑复制保持朝向与像素一致，Art 的无底图覆盖快照不带入旧底图朝向。
+
+imageEditState 的 `otterNativeMaterializedMirror` 是独立原生 UI 元数据，不参与 renderer、workflow 或 projection 的翻转计算。旧主干文档由原 canonical 标志物化像素并初始化朝向；保存新 PNG 仍将 canonical flippedX/Y 清零，显式保存 UI 朝向，避免重开后重复翻转。主题组件和通用皮肤未因该业务状态增加新 owner。真实按钮/历史/重复 PNG 保存恢复的定向验证与普通桌面的视觉验收分开报告；整体 UI/UX 对齐仍进行中。
+
+## Node-owned 内容外观与输出（v571）
+
+贴图内容边框/圆角由 Canvas 独立持有，以主干窗口逻辑像素表示，不改外部白色选择框，不物化到底图。`pin_frame_style` 独占三个字段的兼容读写与 toggle，设置沿原有历史游标提交；普通、外部结果、小图、拖动和缩放快照复用同一绘制。新增样式使用现有工作流的有预算 mask 与内描实现，边框在栅格底图之上、独立标注之下，圆角包住完整内容栈。
+
+普通输出通过 `export_style` 显式携带逻辑框和外观；`export_paint` 从原导出事务提取，分别变换 unit 样式与文档坐标。可编辑复制携带未烘焙图片/Editor/样式，恢复与保存继续合并主干 imageEditState，不二次烘焙或丢扩展字段。该切片不代表镜像 pressed/元数据、OCR/译文、局部滚动、Tab、Art 扩展和连接/投屏 UI 已全量对齐；最终视觉仍须普通桌面手测。
+
+## 附着贴图设置基础切片（v570）
+
+`pin_settings` 将设置入口投影为贴图侧面的 125 DIP 窄面板，复用 Neuro-mini `PropertyPanel` 的真实输入和通知；应用拥有附着回避、目标凭证、截图排除和关闭语义。宽度中心固定缩放、等比只读高度、不透明度、只缩小的合拢外框和原有镜像后端已经接线。工具/文档换代拒绝旧提交，Ctrl+E 从设置输入同样收起编辑并返回 Pan。
+
+`editor_pin_history` 的纯几何/透明度效果加入标注的同一有界历史游标，不另建撤销栈；`pin_settings_history` 在实际呈现成功后记录，撤销失败恢复原游标。纯呈现历史重新绑定原标注选择和小图取景凭证；透明度撤销不恢复后来拖动的位置。内容边框/圆角、镜像 pressed 与跨会话元数据、OCR/译文复制、完整局部滚动和连接/投屏设置仍未完成，不能把此切片称为主干编辑栏全量对齐。
+
+## 完整字体列表与滚动选项组件（v569）
+
+编辑栏字体入口消费应用自己的 GDI 名称 catalog；固定预设优先、字符串精确去重，`installed_font_order` 按需从系统目录加载 ICU，以中文基础权重、数字排序和稳定等权重次序对齐主干 Intl，失败不缓存。成功 catalog 在 UI 线程复用，不把字体文件加载或全集枚举塞进 CSS/SVG resolver。字体属性仍按目标凭证分流默认配置与单选文字/序号事务，不新增另一套历史或系统二级字体对话框。
+
+Neuro-mini 提供独立可滚动选项弹层，保留固定字号、行高、像素滚动和主干轨道几何。可见按钮池和裁剪 viewport 随弹层回收，取消不提交；Dropdown trigger 显示原图标、当前值和展开方向。原生 Gallery 通过公开入口消费同一控件，不以 Gallery 或隔离输入验证代替产品普通桌面验收。贴图设置、Tab 结构、Art 扩展与 OCR/翻译仍需继续迁移。
+
+## 原生颜色草稿与工具默认值（v568）
+
+主题库统一实现附着的 HSV/alpha/HEX/调色板面板，Otter 只适配工具颜色槽、原主干 SVG、目标凭证和历史。颜色和 fill alpha 独立提交，已选对象仍为一次可撤销样式事务。调色板共享于 Application 会话且不新增跨启动持久化；删除只重置匹配的工具创建默认色，不改已有标注。源窗口先结算删除、再接受显式应用，其他窗口由外层消息结算接续，避免删除与应用倒序。
+
+显式编辑栏吸管复用原生采样会话、取消和历史，但只更新主干 active/sample 色，不把采样擅自应用到原填充槽；上下文菜单的原有取色语义保持。主题本身不采集桌面。原生 Gallery 使用同一公开颜色组件；设置、installed-font 列表、Tab 结构和 OCR/翻译业务仍未迁移完成，隔离 HWND/模型验证不能代替普通桌面的视觉和输入法手测。
+
+## 编辑态生命周期与弹层投影（v567）
+
+打开编辑条显式进入 Select 并清旧选区，关闭收尾未提交手势、释放捕获并回到钉图 Pan；未选标注的 Select 空白使用系统拖窗和同一完整图框呈现。菜单模态仍控制执行准入，但独立投影租约避免自己的下拉菜单禁用整条主栏/属性栏。变换点击重定目标、Bezier 收尾选择、编辑 Esc 和按工具族记忆颜色均沿现有 Canvas/Editor 事务；透明色与取消选择明确区分。通用 UI 仍由 NeuroDesign 唯一实现，本轮不复制颜色面板或伪造 OCR/翻译能力。
+
+选择态 Ctrl+拖动命中标注时只对本次手势执行旋转，Alt+拖动执行移动；共用显式变换模式的目标选择和提交，不另建历史或改变工具条模式。原宿主入口读取修饰键，Canvas 仍可用纯输入验证；空白选择、Shift 多选、显式 W/E/R 和关闭编辑后的钉图拖动保持独立。
+
+## 主干 SVG 与附属二级编辑栏（v566）
+
+主条及属性图标来自主干组件的原始 SVG 导出，NeuroDesign 的有限静态 SVG 渲染器保留逐元素样式，不重绘近似路径。分体按钮短按选择、小三角或 450ms 长按展开；菜单用虚拟焦点而不切换活动窗口，同 root-owner 家族前台准入不放开外部窗口。
+
+二级属性栏由主题 crate 拥有通用控件与窗口资源，Otter 映射当前工具/单选对象、审核目标凭证并执行原文档事务。字段异步单槽合并，同目标保留草稿，切换工具/选区后旧提交拒绝；附属窗口随主条移动显隐，并进入捕获保护。原生颜色选择器和字体预设是当前接入边界，完整主干 palette/取色层及 Tab 栏仍未迁移；普通桌面视觉与人工输入法验收不由隔离消息测试代替。
+
+## Ctrl+E 主编辑条的渐进原生主题化（v565）
+
+钉图的主编辑条改为 owner-owned 无标题紧凑图标条，以本地 main 的视觉与分组交互为基准，优先紧贴钉图上方，工作区不足时放下方或换行。通用表现由 NeuroDesign `packages/windows-native/neuro-mini-ui` 提供，真实原生 Gallery 使用同一公开 crate；没有 React/WebView 运行时或跨语言皮肤适配。应用仍拥有附着、层序、命令可用性、文档目标、历史、后台任务与关闭语义。
+
+选择/移动/旋转/缩放为标注编辑模式，不与 Ctrl+滚轮的钉图窗口缩放混用；菜单只返回命令，原任务门禁释放且目标凭证仍匹配才执行。OCR/翻译原生业务尚无入口，保留禁用槽位，不伪造结果；Tab 参数栏、长设置菜单和其他页面继续渐进迁移。本切片不等于整体 UI 或旧主干全部业务能力已完成。
+
 ## 圆点与曲线统一连接层（v564）
 
 端点条解除原生 HWND owner 关系，寿命与节点身份仍由工作区持有，避免 Win32 自动将圆点提升到钉图之上或重排共享 owner。显示组内部保留端点输入窗口与穿透曲线窗口，两者统一由连接组层序管理，整体位于所有钉图和各自白框下方；顺序违约时仅批量移动连接组，不提升图片、不激活窗口。首显/重显保序，关闭回收、捕获保护、参数 child 和移动批次不变。真实层序、焦点、拖线和销毁由定向隔离窗口回归保护，不替代物理显示手测。

@@ -86,15 +86,22 @@ fn run(mode: u8) {
                 .unwrap()
                 .into(),
         );
-        authorization_ui::execute(
-            app.documents[0].window.0,
-            &app.documents[0].state,
-            ui_targets::REFRESH,
-        )
-        .unwrap();
+        if mode == 6 {
+            app.authorization.borrow_mut().targets.automatic = true;
+        } else {
+            authorization_ui::execute(
+                app.documents[0].window.0,
+                &app.documents[0].state,
+                ui_targets::REFRESH,
+            )
+            .unwrap();
+        }
         app.process_authorization_with_projection(|o| config(o, files.root()));
         assert!(second.authorization.borrow().targets.busy);
-        assert!(second.authorization.borrow().targets.directory.is_none());
+        assert_eq!(
+            second.authorization.borrow().targets.directory.is_some(),
+            mode == 6
+        );
         assert!(!app.projection_receive.busy());
         assert!(!app.authorization.borrow().projection.busy);
         if mode == 4 {
@@ -118,7 +125,7 @@ fn run(mode: u8) {
             });
             assert!(!app.remote_sessions.projection_pending());
             assert!(!app.authorization.borrow().targets.busy);
-            if mode == 0 {
+            if mode == 0 || mode == 6 {
                 let view = second.authorization.borrow();
                 assert_eq!(
                     view.targets.directory.as_ref().unwrap().targets()[0].id(),
@@ -173,6 +180,10 @@ fn run(mode: u8) {
 #[test]
 fn projection_targets_native_menu_works_paused_without_a_savable_workspace() {
     run(0);
+}
+#[test]
+fn projection_targets_native_automatic_discovery_works_when_receiving_is_paused() {
+    run(6);
 }
 #[test]
 fn projection_targets_native_away_and_back_discards_completed_old_directory() {

@@ -6,6 +6,7 @@ pub struct CatalogEntry {
     pub identity: Identity,
     pub revision: u64,
     pub member: bool,
+    pub direct_view: bool,
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -14,8 +15,11 @@ struct Catalog {
     sessions: Vec<Box<serde_json::value::RawValue>>,
 }
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct Header {
     session: SessionHeader,
+    #[serde(default)]
+    direct_view: bool,
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -47,6 +51,7 @@ fn parse(bytes: &[u8], device: &str) -> Result<Vec<CatalogEntry>, Error> {
         entries.push(CatalogEntry {
             member: snapshot.renewal(snapshot.identity(), device).is_ok(),
             revision: snapshot.revision(),
+            direct_view: header.direct_view,
             identity: snapshot.identity().clone(),
         });
     }

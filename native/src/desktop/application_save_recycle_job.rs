@@ -39,6 +39,7 @@ impl Job {
                 cancel,
             )?;
             Ok(Output {
+                checkpoint_accounts: None,
                 checkpoint_senders: None,
                 checkpoint_scope: None,
                 checkpoint_projections: None,
@@ -84,6 +85,7 @@ impl Job {
                 },
             };
             Ok(Output {
+                checkpoint_accounts: None,
                 checkpoint_senders: None,
                 checkpoint_scope: None,
                 checkpoint_projections: None,

@@ -8,20 +8,15 @@ impl Application {
         startup: Option<desktop::SessionStartup>,
     ) -> Result<()> {
         self.ensure_tray();
+        self.enable_local_loom();
         let initial = &self.documents[0];
         desktop::global_capture::install(initial.window.0, &initial.state);
+        desktop::extension_catalog::request(initial.window.0, &initial.state)?;
         for doc in &self.documents {
             doc.observe_priority()?;
-            if !doc.state.group_hidden.get() {
-                let _ = ShowWindow(doc.window.0, SW_SHOWNOACTIVATE);
-                if !doc.state.canvas.borrow().pinned {
-                    let _ = ShowWindow(doc.panel.0, SW_SHOWNOACTIVATE);
-                }
-            }
+            doc.show_content(SW_SHOWNOACTIVATE);
         }
-        if !initial.state.group_hidden.get() {
-            let _ = ShowWindow(initial.window.0, SW_SHOWNORMAL);
-        }
+        initial.show_content(SW_SHOWNORMAL);
         // 初始窗口激活/热键注册先完成，再冻结恢复来源；否则正常启动会使自己的凭证失效。
         if let Some(startup) = startup {
             self.request_restore_input(
@@ -80,6 +75,16 @@ impl Application {
                 }
                 continue;
             }
+            // 工具条可以不转移焦点；先结束就地文字，再让外部点击/保存改变文档。
+            if self.documents.iter().any(|document| {
+                desktop::text_input::inline::before_message(
+                    document.window.0,
+                    &document.state,
+                    &message,
+                )
+            }) {
+                continue;
+            }
             // 先复制最多4个受owner校验的句柄，键盘翻译可同步派发，不能跨它借用owner。
             let confirmation_key = (WM_KEYFIRST..=WM_KEYLAST).contains(&message.message)
                 && self
@@ -87,7 +92,17 @@ impl Application {
                     .confirmation_handles()
                     .into_iter()
                     .any(|hwnd| desktop::art_local_window::translate_confirmation(hwnd, &message));
-            if !self.translate_workspace_chrome(&message)
+            let share = self.authorization.borrow().share.clone();
+            let share_key = share
+                .as_ref()
+                .is_some_and(|window| window.translate(&message));
+            if !share_key
+                && !self
+                    .documents
+                    .iter()
+                    .any(|d| desktop::pin_settings::translate_targets(&d.state, &message))
+                && !self.translate_extension_shortcuts(&message)
+                && !self.translate_workspace_chrome(&message)
                 && !confirmation_key
                 && !self
                     .history_window
@@ -99,14 +114,15 @@ impl Application {
                         .as_ref()
                         .is_some_and(|panel| panel.translate(&message))
                 })
-                && !self
-                    .documents
-                    .iter()
-                    .any(|document| desktop::tool_panel::translate(&document.state, &message))
+                && !self.documents.iter().any(|document| {
+                    desktop::extension_notices::translate(&document.state, &message)
+                        || desktop::tool_panel::translate(&document.state, &message)
+                })
             {
                 let _ = TranslateMessage(&message);
                 DispatchMessageW(&message);
             }
+            self.process_context_menu();
             if self.close_requested() {
                 continue;
             }

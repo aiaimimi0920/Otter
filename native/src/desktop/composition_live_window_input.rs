@@ -2,53 +2,45 @@
 use super::*;
 use crate::{live_input::Event, live_input_worker::StopSignal};
 use std::collections::VecDeque;
+use windows::Win32::UI::Controls::{WM_MOUSEHOVER, WM_MOUSELEAVE};
 use windows::Win32::UI::Input::KeyboardAndMouse::{GetCapture, ReleaseCapture, SetCapture};
+#[path = "composition_live_input_control.rs"]
+mod control;
+#[cfg(test)]
+#[path = "composition_live_hover_tests.rs"]
+mod hover_tests;
+#[path = "composition_live_ime.rs"]
+mod ime;
+#[path = "composition_live_pointer_tracking.rs"]
+mod pointer_tracking;
+#[path = "composition_live_popup_input.rs"]
+mod popup;
+#[cfg(test)]
+#[path = "composition_live_input_viewport_tests.rs"]
+mod viewport_tests;
+pub(super) use popup::Focus as PopupFocus;
+#[path = "composition_live_input_queue.rs"]
+mod queue;
 pub(super) const TOGGLE: usize = 0x1ff0;
 #[derive(Default)]
 pub(super) struct Control {
+    pub(super) hover: Option<crate::live_hover_owner::Owner>,
+    tracking: pointer_tracking::Tracking,
+    ime: ime::Anchor,
     allowed: bool,
+    desired: bool,
     remote: bool,
     enabled: bool,
     pending: bool,
     buttons: u8,
+    pointer: Option<[f64; 2]>,
+    held_keys: [u64; 4],
     request: Option<bool>,
     events: VecDeque<Event>,
     stop: Option<StopSignal>,
     shown: Option<(bool, bool)>,
     failed: bool,
     notice: bool,
-}
-impl Control {
-    pub(super) fn source_input_allowed(&self) -> bool {
-        self.allowed
-    }
-    pub(super) fn cancel(&mut self) {
-        self.request = Some(false);
-        self.clear();
-    }
-    fn clear(&mut self) {
-        self.enabled = false;
-        self.pending = false;
-        self.buttons = 0;
-        self.events.clear();
-        if let Some(stop) = self.stop.take() {
-            stop.request();
-        }
-    }
-    fn push(&mut self, event: Event) -> bool {
-        if matches!(event, Event::Move { .. })
-            && matches!(self.events.back(), Some(Event::Move { .. }))
-        {
-            *self.events.back_mut().unwrap() = event;
-            return true;
-        }
-        if self.events.len() >= 16 {
-            self.cancel();
-            return false;
-        }
-        self.events.push_back(event);
-        true
-    }
 }
 impl LiveWindow {
     pub(crate) fn block_local_input(&self, remote: bool) {
@@ -83,11 +75,37 @@ impl LiveWindow {
         }
         Ok(())
     }
+    pub(crate) fn request_default_input(&self) {
+        let mut input = self.state.input.borrow_mut();
+        if input.allowed && !input.remote {
+            input.desired = true;
+            input.pending = true;
+            input.request = Some(true);
+        }
+    }
     pub(crate) fn take_input_request(&self) -> Option<bool> {
         self.state.input.borrow_mut().request.take()
     }
+    pub(crate) fn defer_input_resume(&self) {
+        self.state.input.borrow_mut().request = Some(true);
+    }
+    pub(crate) fn source_activation_requested(&self) -> bool {
+        let input = self.state.input.borrow();
+        input.allowed
+            && input.desired
+            && !input.remote
+            && !input.failed
+            && (input.request == Some(true)
+                || input.events.iter().any(|event| *event != Event::Leave))
+    }
+    pub(crate) fn input_resume_pending(&self) -> bool {
+        self.state.input.borrow().request == Some(true)
+    }
     pub(crate) fn pop_input(&self) -> Option<Event> {
         self.state.input.borrow_mut().events.pop_front()
+    }
+    pub(crate) fn pop_browser_input(&self) -> Option<Event> {
+        queue::pop_browser(&mut self.state.input.borrow_mut().events)
     }
     pub(crate) fn input_status(&self, enabled: bool, pending: bool, stop: Option<StopSignal>) {
         {
@@ -99,6 +117,8 @@ impl LiveWindow {
             }
             if !enabled && !pending {
                 input.clear();
+            } else {
+                input.native_active(true);
             }
             input.enabled = enabled;
             input.pending = pending;
@@ -114,6 +134,7 @@ impl LiveWindow {
         let changed = {
             let mut input = self.state.input.borrow_mut();
             let changed = !input.failed;
+            input.cancel();
             input.failed = true;
             input.notice |= changed;
             changed
@@ -124,6 +145,17 @@ impl LiveWindow {
                 let _ = SetWindowTextW(self.hwnd, w!("Otter Live · 控制不可用"));
             }
         }
+    }
+}
+impl LiveWindow {
+    pub(crate) fn suspend_source_input(&self) {
+        unsafe {
+            suspend(self.hwnd, &self.state);
+        }
+    }
+    pub(crate) fn resume_browser_input(&self) {
+        // 仅恢复仍有效的控制意图；不重放事件，不覆盖关闭、锁定或取消。
+        unsafe { resume(&self.state) }
     }
 }
 unsafe fn display_status(hwnd: HWND, state: &State, enabled: bool, pending: bool) {
@@ -142,21 +174,23 @@ unsafe fn display_status(hwnd: HWND, state: &State, enabled: bool, pending: bool
                 w!("Otter Live · 控制中")
             } else if pending {
                 w!("Otter Live · 启用中")
+            } else if state.input.borrow().failed {
+                w!("Otter Live · 控制不可用")
             } else {
                 w!("Otter Live")
             },
         );
     }
-    if !enabled && state.drag.get().is_none() && GetCapture() == hwnd {
+    if !enabled && !pending && state.drag.get().is_none() && GetCapture() == hwnd {
         let _ = ReleaseCapture();
     }
 }
 unsafe fn menu_status(hwnd: HWND, state: &State, enabled: bool, pending: bool) {
-    let (allowed, failed) = {
+    let (allowed, failed, desired) = {
         let input = state.input.borrow();
-        (input.allowed && !input.remote, input.failed)
+        (input.allowed && !input.remote, input.failed, input.desired)
     };
-    let label = if enabled {
+    let label = if enabled || (desired && !pending && !failed) {
         w!("停止控制源窗口")
     } else if pending {
         w!("控制源窗口（启用中）")
@@ -181,21 +215,54 @@ pub(super) unsafe fn install(hwnd: HWND) -> Result<()> {
 fn viewport(hwnd: HWND, state: &State) -> Option<crate::live_viewport::Viewport> {
     let mut rect = RECT::default();
     unsafe { GetClientRect(hwnd, &mut rect) }.ok()?;
+    // Host 在 GPU/Win32 调用中可被临时取出；读取同一提交记录，不把重入当成失效。
     state
-        .host
-        .borrow()
-        .as_ref()?
-        .presented_viewport([
+        .presented
+        .get([
             (rect.right - rect.left).max(0) as u32,
             (rect.bottom - rect.top).max(0) as u32,
         ])
         .map(|(_, view)| view)
 }
 pub(super) unsafe fn cancel(hwnd: HWND, state: &State) {
+    state.popup_focus.borrow_mut().clear();
     state.input.borrow_mut().cancel();
     display_status(hwnd, state, false, false);
     if GetCapture() == hwnd {
         let _ = ReleaseCapture();
+    }
+}
+/// 本地移动/失焦先释放源按键，保留控制开关；恢复时仍经过原 worker 准入。
+pub(super) unsafe fn suspend(hwnd: HWND, state: &State) {
+    state.popup_focus.borrow_mut().clear();
+    {
+        let mut input = state.input.borrow_mut();
+        input.pause();
+    }
+    display_status(hwnd, state, false, false);
+}
+fn resumable(state: &State) -> bool {
+    let input = state.input.borrow();
+    input.allowed
+        && input.desired
+        && !state.pin.selected.get()
+        && !input.remote
+        && !input.failed
+        && !state.closed.get()
+        && !state.group_locked.get()
+        && !state.group_hidden.get()
+}
+unsafe fn resume(state: &State) {
+    if resumable(state)
+        && ![0x11, 0x12, 0x10]
+            .iter()
+            .any(|key| windows::Win32::UI::Input::KeyboardAndMouse::GetKeyState(*key) < 0)
+    {
+        let mut input = state.input.borrow_mut();
+        if !input.enabled && !input.pending {
+            input.pending = true;
+            input.request = Some(true);
+        }
     }
 }
 /// Some 表示已消费；无输入控制时保留系统窗口行为。
@@ -206,7 +273,7 @@ pub(super) unsafe fn handle(
     wp: WPARAM,
     lp: LPARAM,
 ) -> Option<Result<()>> {
-    if super::menu::handle(hwnd, state, message, wp, lp) {
+    if !state.popup.get() && super::menu::handle(hwnd, state, message, wp, lp) {
         return Some(Ok(()));
     }
     // Popup 的嵌套消息泵不能创建新的源控制或本地几何事务；关闭/生命周期仍可达。
@@ -217,23 +284,31 @@ pub(super) unsafe fn handle(
     {
         return Some(Ok(()));
     }
-    if super::art::handle(hwnd, state, message, wp, lp) {
+    if !state.popup.get() && super::art::handle(hwnd, state, message, wp, lp) {
         return Some(Ok(()));
     }
-    if super::local::drag::handle(hwnd, state, message, wp, lp) {
+    if !state.popup.get() && super::local::drag::handle(hwnd, state, message, wp, lp) {
+        return Some(Ok(()));
+    }
+    if message == WM_LBUTTONDOWN && state.pin.selected.replace(false) {
+        let _ = windows::Win32::Graphics::Gdi::InvalidateRect(Some(hwnd), None, false);
+    }
+    if super::pin::handle(hwnd, state, message, wp, lp) {
         return Some(Ok(()));
     }
     if message == WM_SYSCOMMAND && wp.0 & 0xfff0 == TOGGLE {
         let toggle = {
             let input = state.input.borrow();
-            (input.allowed && !input.remote).then_some(!(input.enabled || input.pending))
+            (input.allowed && !input.remote).then_some(!input.desired)
         };
         if let Some(enable) = toggle {
             if !enable {
                 cancel(hwnd, state);
             } else {
+                state.pin.selected.set(false);
                 {
                     let mut input = state.input.borrow_mut();
+                    input.desired = true;
                     input.pending = true;
                     input.request = Some(true);
                 }
@@ -246,56 +321,165 @@ pub(super) unsafe fn handle(
         || (message == WM_ACTIVATE && wp.0 & 0xffff == WA_INACTIVE as usize)
         || (message == WM_SIZE && wp.0 == SIZE_MINIMIZED as usize)
     {
-        cancel(hwnd, state);
+        if popup::focus_handoff(hwnd, state, message, wp, lp) {
+            return None;
+        }
+        if state.input.borrow().enabled || state.input.borrow().pending {
+            eprintln!("native-live-input-pause: reason=window-message message=0x{message:04x}");
+        }
+        suspend(hwnd, state);
         return None;
     }
     if message == WM_CAPTURECHANGED {
         let held = state.input.borrow().buttons != 0;
-        if held {
+        if held && !popup::focus_handoff(hwnd, state, message, wp, lp) {
             cancel(hwnd, state);
         }
         return None;
     }
-    if let Some(result) = super::local::handle(hwnd, state, message, wp, lp) {
+    if let Some(result) = (!state.popup.get())
+        .then(|| super::local::handle(hwnd, state, message, wp, lp))
+        .flatten()
+    {
         return Some(result);
     }
-    if !state.input.borrow().enabled {
+    if message == WM_SETFOCUS && GetForegroundWindow() == hwnd {
+        resume(state);
+    }
+    if ime::handle(hwnd, state, message, wp) {
         return None;
+    }
+    let mouse = (WM_MOUSEFIRST..=WM_MOUSELAST).contains(&message)
+        || matches!(message, WM_MOUSEHOVER | WM_MOUSELEAVE);
+    if !state.input.borrow().enabled {
+        // 后台滚轮也会直接送到 Live；只有内容命中后才恢复，键盘仍等待 worker 准入。
+        if !mouse || (!state.input.borrow().pending && !resumable(state)) {
+            return None;
+        }
     }
     // 保留本地系统菜单和关闭快捷键；进入菜单/关闭时立即撤销源输入。
     if message == WM_SYSKEYDOWN && (wp.0 == 0x20 || wp.0 == 0x73) {
         return None;
     }
     use crate::desktop::window_input_event as event;
-    if !event::recognized(message) {
+    if matches!(message, WM_KEYDOWN | WM_KEYUP | WM_SYSKEYDOWN | WM_SYSKEYUP) && wp.0 == 0xe5 {
+        return Some(Ok(())); // VK_PROCESSKEY 属于 B 的 IME，不能当成源虚拟键。
+    }
+    if message == WM_CHAR {
+        if let Ok(unit) = u16::try_from(wp.0) {
+            if unit != 0 && !state.input.borrow_mut().push(Event::Character { unit }) {
+                suspend(hwnd, state);
+            }
+        }
+        return Some(Ok(()));
+    }
+    if mouse {
+        // TrackMouseEvent 不发送窗口消息；IMM 操作则不能跨 RefCell 借用。
+        if let Err(error) = state.input.borrow_mut().tracking.observe(hwnd, message) {
+            return Some(Err(error));
+        }
+    }
+    if message == WM_MOUSELEAVE {
+        let held = state.input.borrow().buttons != 0;
+        if held && state.popup_noactivate.get() {
+            // 非激活菜单不能夺走源菜单的 capture；离开时仍须释放已转发的按下。
+            suspend(hwnd, state);
+            return Some(Ok(()));
+        }
+        if !held && !state.input.borrow_mut().push(Event::Leave) {
+            suspend(hwnd, state);
+        }
+        return Some(Ok(()));
+    }
+    if !event::recognized(message) && message != WM_MOUSEHOVER {
         return None;
     }
     let Some(view) = viewport(hwnd, state) else {
-        cancel(hwnd, state);
+        // 无可信坐标时不发明/重放输入；仅因 worker 已启用就暂停会撤销菜单来源周期。
+        // UI 尚持有的鼠标或键盘必须走原取消清理；已交接的 up 则留给原 FIFO/worker。
+        let held = {
+            let input = state.input.borrow();
+            input.buttons != 0 || input.held_keys.iter().any(|word| *word != 0)
+        };
+        if held {
+            eprintln!(
+                "native-live-input-pause: reason=viewport-unavailable message=0x{message:04x}"
+            );
+            suspend(hwnd, state);
+        }
         return Some(Ok(()));
     };
     let held = state.input.borrow().buttons != 0;
-    let event = match event::decode(hwnd, message, wp, lp, view, held) {
+    let decoded = event::decode(
+        hwnd,
+        if message == WM_MOUSEHOVER {
+            WM_MOUSEMOVE
+        } else {
+            message
+        },
+        wp,
+        lp,
+        view,
+        held,
+    );
+    let event = match decoded {
         Ok(Some(event)) => event,
-        Ok(None) => return Some(Ok(())),
+        Ok(None) => {
+            if mouse && !held && !state.input.borrow_mut().push(Event::Leave) {
+                suspend(hwnd, state);
+            }
+            return Some(Ok(()));
+        }
         Err(()) => {
             cancel(hwnd, state);
             return Some(Ok(()));
         }
     };
+    let event = if message == WM_MOUSEHOVER {
+        let Event::Move { point } = event else {
+            return Some(Ok(()));
+        };
+        Event::Hover { point }
+    } else {
+        event
+    };
+    if message == WM_LBUTTONDOWN {
+        if let Event::Button { point, .. } = event {
+            state.input.borrow_mut().ime.click(point);
+        }
+    }
+    #[cfg(test)]
+    if matches!(message, WM_MOUSEWHEEL | WM_MOUSEHWHEEL) {
+        eprintln!("native-live-wheel-decode: {event:?}");
+    }
     let edge = event::button(event);
+    if mouse {
+        // 与主干一致，点击只聚焦自有 Live，源程序保持后台。焦点调用可能同步重入。
+        if !state.popup_noactivate.get() && edge.is_some_and(|(_, down)| down) && resumable(state) {
+            let _ = SetForegroundWindow(hwnd);
+            let _ = windows::Win32::UI::Input::KeyboardAndMouse::SetFocus(Some(hwnd));
+        }
+        resume(state);
+        let input = state.input.borrow();
+        if state.closed.get()
+            || state.group_locked.get()
+            || state.group_hidden.get()
+            || input.remote
+            || input.failed
+            || (!input.enabled && !input.pending)
+        {
+            return Some(Ok(()));
+        }
+    }
     if let Some((mask, down)) = edge {
-        let mut input = state.input.borrow_mut();
-        if down {
-            input.buttons |= mask;
-        } else {
-            input.buttons &= !mask;
+        if !state.input.borrow_mut().button_edge(mask, down) {
+            return Some(Ok(()));
         }
     }
     let accepted = state.input.borrow_mut().push(event);
     if !accepted {
-        cancel(hwnd, state);
-    } else if edge.is_some_and(|(_, down)| down) {
+        suspend(hwnd, state);
+    } else if !state.popup_noactivate.get() && edge.is_some_and(|(_, down)| down) {
         let _ = SetCapture(hwnd);
         if GetCapture() != hwnd {
             cancel(hwnd, state);
@@ -308,3 +492,7 @@ pub(super) unsafe fn handle(
     }
     Some(Ok(()))
 }
+
+#[cfg(test)]
+#[path = "composition_live_input_overload_tests.rs"]
+mod overload_tests;

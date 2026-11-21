@@ -22,6 +22,14 @@ pub(super) struct Record {
         deserialize_with = "receive_route::some"
     )]
     pub(super) offline: Option<receive_route::Offline>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub(super) public_invitation: bool,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "receive_route::some"
+    )]
+    pub(super) shared_origin: Option<String>,
 }
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -42,6 +50,8 @@ impl Record {
             unit: invitation.receiver_unit_id(),
             cleanup: false,
             offline: invitation.offline.clone(),
+            public_invitation: invitation.public_invitation,
+            shared_origin: invitation.shared_origin.clone(),
         };
         value.validate()?;
         Ok(value)
@@ -51,7 +61,11 @@ impl Record {
             .validate(self.envelope.origin())
             .map_err(|_| Error::Format)?;
         if !intent_id(&self.intent_id)
+            || (self.public_invitation && self.offline.is_some())
             || self.offline.as_ref().is_some_and(|route| !route.valid())
+            || self.shared_origin.as_ref().is_some_and(|origin| {
+                !self.public_invitation || envelope::canonical_origin(origin).as_ref() != Ok(origin)
+            })
             || !envelope::identifier(&self.device)
             || self.unit != format!("delivery-{}", &self.envelope.projection_id()[11..])
             || !(self.envelope.source_revision()..=envelope::MAX_REVISION)
@@ -74,6 +88,8 @@ impl Record {
             && self.device == other.device
             && self.unit == other.unit
             && self.offline == other.offline
+            && self.public_invitation == other.public_invitation
+            && self.shared_origin == other.shared_origin
     }
     pub(super) fn invitation(&self) -> Invitation {
         Invitation {
@@ -83,6 +99,8 @@ impl Record {
             source_name: self.envelope.source_device().into(),
             accepted: true,
             offline: self.offline.clone(),
+            public_invitation: self.public_invitation,
+            shared_origin: self.shared_origin.clone(),
         }
     }
 }

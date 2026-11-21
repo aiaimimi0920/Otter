@@ -82,7 +82,7 @@ pub(super) fn request(view: &View, command: usize) -> Result<Request> {
         return Err(Error::new(E_ABORT, "Receive policy unavailable"));
     }
     if command == PAUSE {
-        return Ok(Request::ReceivePause(!view.consent.paused()));
+        return Ok(Request::ReceivePause(true));
     }
     let policy = match command {
         AUTO => Policy::Auto,
@@ -94,46 +94,32 @@ pub(super) fn request(view: &View, command: usize) -> Result<Request> {
 }
 pub(super) unsafe fn append_menu(menu: HMENU, view: &View) -> Result<()> {
     AppendMenuW(menu, MF_SEPARATOR, 0, None)?;
-    AppendMenuW(
-        menu,
-        MF_STRING
-            | if !view.closed && !view.consent.saving && view.request.is_none() {
-                MF_ENABLED
-            } else {
-                MF_GRAYED
-            },
-        PAUSE,
-        &HSTRING::from(if view.consent.paused() {
-            "恢复本机接收"
-        } else {
-            "暂停本机接收"
-        }),
-    )?;
-    for (id, policy, label) in [
-        (AUTO, Policy::Auto, "接收：自动"),
-        (CONFIRM, Policy::Confirm, "接收：手动"),
-        (REJECT, Policy::Reject, "接收：拒绝"),
+    for (id, selected, label) in [
+        (PAUSE, view.consent.paused(), "暂停"),
+        (
+            CONFIRM,
+            !view.consent.paused() && view.consent.policy() == Policy::Confirm,
+            "接收",
+        ),
+        (
+            REJECT,
+            !view.consent.paused() && view.consent.policy() == Policy::Reject,
+            "拒绝",
+        ),
+        (
+            AUTO,
+            !view.consent.paused() && view.consent.policy() == Policy::Auto,
+            "自动",
+        ),
     ] {
         let enabled = !view.closed && !view.consent.saving && view.request.is_none();
         AppendMenuW(
             menu,
             MF_STRING
                 | if enabled { MF_ENABLED } else { MF_GRAYED }
-                | if view.consent.policy() == policy {
-                    MF_CHECKED
-                } else {
-                    MF_UNCHECKED
-                },
+                | if selected { MF_CHECKED } else { MF_UNCHECKED },
             id,
             &HSTRING::from(label),
-        )?;
-    }
-    if !view.consent.status.is_empty() {
-        AppendMenuW(
-            menu,
-            MF_STRING | MF_GRAYED,
-            0,
-            &HSTRING::from(view.consent.status),
         )?;
     }
     Ok(())

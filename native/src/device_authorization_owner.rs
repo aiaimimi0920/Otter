@@ -41,6 +41,7 @@ struct Pending {
 pub struct Owner {
     pending: Vec<Pending>,
     sessions: Vec<(String, Grant)>,
+    retiring: Vec<(String, Grant)>,
     closed: bool,
     offline_denied: Vec<String>,
     offline_closed: bool,
@@ -105,6 +106,46 @@ impl Owner {
     pub fn wait_handles(&self) -> impl Iterator<Item = BorrowedHandle<'_>> {
         self.pending.iter().filter_map(|p| p.runtime.wait_handle())
     }
+    /// 本机 Loom 已完成 TLS 和设备签名授权；安装仍受相同关闭、容量与凭据边界约束。
+    pub(crate) fn install(
+        &mut self,
+        origin: &str,
+        session: crate::device_session_attempt::Session,
+        now: u64,
+    ) -> Result<(), Error> {
+        let canonical =
+            crate::device_session_attempt::canonical_origin(origin).map_err(|_| Error::Origin)?;
+        let origin = canonical.as_str();
+        if self.closed {
+            return Err(Error::Closed);
+        }
+        session
+            .token_for(origin, now)
+            .map_err(|_| Error::Credential)?;
+        if self
+            .pending
+            .iter()
+            .any(|p| !p.discarded && p.origin == origin)
+        {
+            return Err(Error::Pending);
+        }
+        if !self.sessions.iter().any(|(o, _)| o == origin) && self.sessions.len() >= 8 {
+            return Err(Error::Capacity);
+        }
+        self.retiring
+            .retain(|(_, grant)| grant.expires_at_ms() > now);
+        // 自动续签不提前中断在途投射；旧租约仍受自身到期约束，显式撤权同时取消两代。
+        let previous = self.sessions.iter().position(|(o, _)| o == origin);
+        if previous.is_some() && self.retiring.len() >= 8 {
+            return Err(Error::Capacity);
+        }
+        self.deny_offline(origin);
+        if let Some(index) = previous {
+            self.retiring.push(self.sessions.swap_remove(index));
+        }
+        self.sessions.push((origin.into(), Grant::new(session)));
+        Ok(())
+    }
     pub fn poll(&mut self) -> Vec<Event> {
         let mut events = Vec::new();
         let mut index = 0;
@@ -123,6 +164,7 @@ impl Owner {
                 Ok(Output::Pairing { device, changed }) => {
                     // 即使 ID 未变，显式重新配对成功也必须撤销此 origin 的旧授权。
                     self.sessions.retain(|s| s.0 != origin);
+                    self.retiring.retain(|s| s.0 != origin);
                     events.push(Event::Pairing {
                         origin,
                         device,
@@ -132,6 +174,7 @@ impl Owner {
                 Ok(Output::Session(session)) => {
                     let device = session.device_id().to_owned();
                     self.sessions.retain(|s| s.0 != origin);
+                    self.retiring.retain(|s| s.0 != origin);
                     self.sessions.push((origin.clone(), Grant::new(session)));
                     events.push(Event::Authorized { origin, device });
                 }
@@ -175,6 +218,7 @@ impl Owner {
             crate::device_session_attempt::canonical_origin(origin).map_err(|_| Error::Origin)?;
         self.deny_offline(&origin);
         self.sessions.retain(|s| s.0 != origin);
+        self.retiring.retain(|s| s.0 != origin);
         for pending in self.pending.iter_mut().filter(|p| p.origin == origin) {
             pending.discarded = true;
             pending.runtime.request_stop();
@@ -184,6 +228,7 @@ impl Owner {
     pub fn close(&mut self) {
         self.closed = true;
         self.sessions.clear();
+        self.retiring.clear();
         for pending in &mut self.pending {
             pending.discarded = true;
             pending.runtime.request_stop();

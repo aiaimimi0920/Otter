@@ -1,4 +1,5 @@
 //! 独立原生入口；使用隔离的 OtterNative profile，--settings 优先，不自动访问主干目录。
+#![cfg_attr(windows, windows_subsystem = "windows")]
 #[cfg(windows)]
 mod startup_session;
 #[cfg(windows)]
@@ -12,6 +13,13 @@ fn main() -> windows::core::Result<()> {
             windows::Win32::Foundation::E_INVALIDARG,
             "Legacy ANGLE worker is retired",
         ));
+    }
+    if otter_native::live_browser_scroll::process::parse(&args).map_err(|e| {
+        windows::core::Error::new(windows::Win32::Foundation::E_INVALIDARG, e.to_string())
+    })? {
+        return otter_native::live_browser_scroll::process::run_inherited().map_err(|e| {
+            windows::core::Error::new(windows::Win32::Foundation::E_FAIL, e.to_string())
+        });
     }
     if otter_native::live_source_uia::process::parse(&args).map_err(|e| {
         windows::core::Error::new(windows::Win32::Foundation::E_INVALIDARG, e.to_string())

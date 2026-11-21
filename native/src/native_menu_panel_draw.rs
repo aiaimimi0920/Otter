@@ -2,6 +2,8 @@
 use super::*;
 #[path = "native_menu_panel_columns.rs"]
 mod columns;
+#[path = "native_menu_panel_gallery.rs"]
+mod gallery;
 use crate::image_thumbnail::draw as thumbnail;
 unsafe fn fill(dc: HDC, rect: &RECT, color: u32) {
     SetDCBrushColor(dc, COLORREF(color));
@@ -25,15 +27,33 @@ impl Drop for Paint {
 }
 pub(super) unsafe fn paint(hwnd: HWND, data: &Data) {
     let mut paint = Paint(hwnd, PAINTSTRUCT::default());
-    let dc = BeginPaint(hwnd, &mut paint.1);
+    let target = BeginPaint(hwnd, &mut paint.1);
+    let mut bounds = RECT::default();
+    let result = (|| -> Result<()> {
+        GetClientRect(hwnd, &mut bounds)?;
+        let Some(frame) = crate::desktop::buffered_paint::Frame::begin(target, &paint.1.rcPaint)?
+        else {
+            return Ok(());
+        };
+        paint_frame(frame.dc, bounds, data);
+        if !data.failed.get() {
+            frame.commit()?;
+        }
+        Ok(())
+    })();
+    if result.is_err() {
+        data.failed.set(true);
+    }
+}
+
+unsafe fn paint_frame(dc: HDC, bounds: RECT, data: &Data) {
     let saved = SaveDC(dc);
     if saved == 0 {
         data.failed.set(true);
         return;
     }
     let _saved = SavedDc(dc, saved);
-    let mut bounds = RECT::default();
-    if GetClientRect(hwnd, &mut bounds).is_ok() {
+    {
         fill(dc, &bounds, 0x18120e);
         let bar = data.bar.get();
         if let Some(bar) = bar {
@@ -42,7 +62,21 @@ pub(super) unsafe fn paint(hwnd: HWND, data: &Data) {
         }
         SetBkMode(dc, TRANSPARENT);
         SelectObject(dc, data.fonts.object(false));
+        if let Some(content) = data.preview.borrow().as_ref() {
+            super::preview::paint(dc, content, bounds, data);
+            return;
+        }
         let rows = data.rows.borrow();
+        if data.columns.get() == 3 {
+            gallery::paint(
+                dc,
+                data,
+                &rows,
+                bar.map_or(bounds.right, |bar| bar.track.left),
+            );
+            data.paints.set(data.paints.get().saturating_add(1));
+            return;
+        }
         let shortcut_width = rows
             .iter()
             .filter_map(|row| row.label.split_once('\t').map(|(_, shortcut)| shortcut))
@@ -125,8 +159,6 @@ pub(super) unsafe fn paint(hwnd: HWND, data: &Data) {
             text(dc, label, layout.label, DT_LEFT);
         }
         data.paints.set(data.paints.get().saturating_add(1));
-    } else {
-        data.failed.set(true);
     }
 }
 

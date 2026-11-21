@@ -1,5 +1,11 @@
 # Otter Release Provenance
 
+Windows-native `main` produces verified **internal** packages through
+[`build-native-candidate.ps1`](../../scripts/build-native-candidate.ps1) and the
+[development guide](../guide/development.md). Native public publishing is not enabled.
+The WebView procedures below apply to `archive/webview-main` and existing WebView
+release history, not to native builds.
+
 A publishable Otter release comes from a clean Git worktree and an exact
 `vx.y.z` tag that is reachable from `origin/main` (legacy uppercase tags remain
 accepted). Internal `vx.y.z.n` builds cannot be published. See [versioning](VERSIONING.md).

@@ -5,6 +5,7 @@ use crate::{
     stroke_style::StrokeStyle,
 };
 
+#[derive(Clone)]
 pub(in crate::desktop) struct MenuTarget {
     stamp: DocumentStamp,
     tool: Tool,

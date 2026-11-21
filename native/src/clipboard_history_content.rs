@@ -33,10 +33,12 @@ pub(super) fn decode(
         let image = crate::image_decode::Image::from_clipboard_history(&bytes)?;
         check(cancel, deadline)?;
         let thumbnail = crate::image_thumbnail::Thumbnail::from_image(&image)?;
-        if size as usize + thumbnail.pixels().len() > remaining {
+        let preview = super::preview::image(&image)?;
+        if size as usize + thumbnail.pixels().len() + preview.pixels.len() > remaining {
             return Ok(None);
         }
         return Ok(Some(Content::Bitmap {
+            preview,
             thumbnail,
             width: image.width,
             height: image.height,

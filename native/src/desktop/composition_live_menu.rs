@@ -1,6 +1,20 @@
 //! 无框 Live 的菜单与关闭键；复用原系统菜单，模态退出后重验 HWND owner。
 use super::*;
 use windows::Win32::UI::Input::KeyboardAndMouse::*;
+pub(super) unsafe fn install(hwnd: HWND) -> Result<()> {
+    let menu = GetSystemMenu(hwnd, false);
+    for (command, label) in [
+        (0x1f90, w!("断开 Live 连线…")),
+        (0x1fa0, w!("从 Live 创建连线…")),
+        (0x1fb0, w!("刷新连线快照并通知下游")),
+        (0x1fe0, w!("停止 Live 并保留当前画面")),
+        (0x1fd0, w!("关闭 Live 并移入回收站")),
+        (0x1fc0, w!("放弃 Live（不保留画面）")),
+    ] {
+        AppendMenuW(menu, MF_STRING, command, label)?;
+    }
+    Ok(())
+}
 pub(super) unsafe fn corner(hwnd: HWND, state: &State, lp: LPARAM) -> bool {
     if !crate::desktop::application::chrome::live_frame(&state.chrome) {
         return false;
@@ -82,7 +96,7 @@ pub(super) unsafe fn handle(
     }
     // 黄角右键属于菜单，不向源窗口发送孤立的 down。
     if state.drag.get().is_none() && message == WM_RBUTTONDOWN && corner(hwnd, state, lp) {
-        input::cancel(hwnd, state);
+        input::suspend(hwnd, state);
         return true;
     }
     false
@@ -92,7 +106,7 @@ unsafe fn show_with(hwnd: HWND, state: &State, select: impl FnOnce(HMENU) -> usi
         return;
     }
     local::drag::cancel(hwnd, state);
-    input::cancel(hwnd, state);
+    input::suspend(hwnd, state);
     let command = if state.closed.get() {
         0
     } else {

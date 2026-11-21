@@ -190,7 +190,8 @@ unsafe extern "system" fn procedure<T>(hwnd: HWND, message: u32, wp: WPARAM, lp:
                     return 1;
                 }
             }
-            if SetTimer(Some(hwnd), TIMER, 25, None) == 0 {
+            // 可见等待框保留原计时器；普通区域截图直接等待原 worker 线程完成。
+            if !input.quiet && SetTimer(Some(hwnd), TIMER, 25, None) == 0 {
                 finish(
                     hwnd,
                     input,

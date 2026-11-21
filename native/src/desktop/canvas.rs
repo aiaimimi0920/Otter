@@ -23,6 +23,12 @@ mod recovery_window_tests;
 #[path = "canvas_render_recovery.rs"]
 mod render_recovery;
 pub(in crate::desktop) use render_recovery::Destination as RenderChoice;
+#[cfg(test)]
+#[path = "extension_visuals_tests.rs"]
+mod extension_visuals_tests;
+#[cfg(test)]
+#[path = "canvas_frame_style_tests.rs"]
+mod frame_style_tests;
 #[path = "canvas_submission.rs"]
 mod submission;
 #[path = "canvas_target.rs"]
@@ -61,6 +67,7 @@ struct Target {
 }
 
 pub struct Canvas {
+    pub(super) live_pin: bool,
     target: Option<Target>,
     creation_admission: creation_admission::Admission,
     recovery: render_recovery::Recovery,
@@ -97,10 +104,13 @@ pub struct Canvas {
     pub(super) confirmed_paints: u64,
     pub editor: Editor,
     pub tool: Tool,
+    pub(super) selection_enabled: bool,
     pub pinned: bool,
     pub(super) window_opacity: f32,
     /// 主干 opacityNormal：输出仅作用于底图，不使用缩略呈现的不透明度。
     pub(super) normal_opacity: f32,
+    pub(super) frame_style: crate::pin_frame_style::Style,
+    pub(super) extension_views: Option<super::extension_visuals::Bound>,
     pub(super) minified: Option<minified::Presentation>,
     pub(super) minified_source: Option<minified_source::Source>,
     pub(super) minified_opacity: f32,
@@ -126,6 +136,7 @@ impl Canvas {
     pub fn new(image: Option<Image>) -> Result<Self> {
         let editor = raster::editor(image.as_ref())?;
         Ok(Self {
+            live_pin: false,
             target: None,
             creation_admission: Default::default(),
             recovery: Default::default(),
@@ -157,9 +168,12 @@ impl Canvas {
             confirmed_paints: 0,
             editor,
             tool: Tool::Pan,
+            selection_enabled: true,
             pinned: false,
             window_opacity: 1.0,
             normal_opacity: 1.0,
+            frame_style: Default::default(),
+            extension_views: None,
             minified: None,
             minified_source: None,
             minified_opacity: 0.9,
@@ -231,6 +245,12 @@ impl Canvas {
         }
         if width == 0 || height == 0 {
             return Ok(());
+        }
+        if self.minified.is_none() {
+            if let Some(views) = &self.extension_views {
+                let size = self.client_size.unwrap();
+                views.resize(self, frame, [size.x, size.y])?;
+            }
         }
         // COM 对象限定到消息线程；像素 Vec 的生命周期覆盖同步 CreateBitmap 调用。
         unsafe {
@@ -310,6 +330,8 @@ impl Canvas {
                     }
                 };
                 target.Clear(Some(&background));
+                let frame = super::frame_style_draw::Frame::new(self.frame_style, size, dpi);
+                let rounded = frame.clip(target, &self.factory)?;
                 if let Some(image) = &self.image {
                     let origin = self.viewport.origin;
                     let rect = self.editor.raster_base_projection().map_or(
@@ -347,13 +369,13 @@ impl Canvas {
                                     .is_some_and(|layers| layers.same_storage(&request.source))
                         });
                     let clipped = super::render_frame::Clip::push(target, &clip);
-                    resources.raster.draw_erasing_projected(
+                    resources.raster.draw_interleaved(
                         target,
                         &rect,
                         &clip,
                         erasing,
-                        self.viewport,
-                        self.editor.raster_base_projection(),
+                        (self.viewport, self.editor.raster_base_projection()),
+                        || frame.border_over_clip(target, &clip),
                     )?;
                     let drawing = if !self.group_preview.is_empty() {
                         super::annotations::draw_group_preview(
@@ -380,6 +402,10 @@ impl Canvas {
                     };
                     drop(clipped);
                     drawing?;
+                    if let Some(views) = &self.extension_views {
+                        views.draw(&self.editor, None, target, &resources.brush, (size, dpi))?;
+                    }
+                    drop(rounded);
                     if let Some(index) = selected {
                         let mut viewport = self.viewport;
                         if let Some((_, offset)) = preview {
@@ -438,6 +464,9 @@ impl Canvas {
                     self.erase_gesture.as_ref(),
                     self.viewport,
                 );
+                if self.live_pin {
+                    super::live_pin_document::draw(target, &resources.brush, size, dpi);
+                }
                 Ok(())
             })?;
             if confirmed {

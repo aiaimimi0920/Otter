@@ -16,6 +16,72 @@ fn snapshot(status: Status) -> Snapshot {
 fn ready() -> Result<Task> {
     Task::spawn(|_, _permit| Ok(snapshot(Status::Ready)))
 }
+#[test]
+fn delete_rechecks_painted_identity_and_refreshes_only_after_confirmed_completion() {
+    let now = Instant::now();
+    let mut session = Session::test_snapshot(snapshot(Status::Ready));
+    assert!(!session.delete_with(0, "old", |_| panic!("must reject stale identity")));
+    assert!(session.delete_with(0, "synthetic", |id| {
+        assert_eq!(id, "synthetic");
+        ready()
+    }));
+    assert!(session.take_entry(0, "synthetic").is_none());
+    wait(&mut session, now);
+    assert!(session.pending);
+    assert_eq!(session.state(), State::Loading);
+    session.tick_with(now + Duration::from_secs(1), ready);
+    wait(&mut session, now + Duration::from_secs(1));
+    assert_eq!(session.state(), State::Ready);
+    session.test_invalidate();
+    assert!(!session.delete_with(0, "synthetic", |_| panic!("must reject changed history")));
+}
+#[test]
+fn continuous_deletes_follow_refreshed_ids_until_the_history_is_empty() {
+    let entries = |ids: &[&str]| Snapshot {
+        status: Status::Ready,
+        entries: ids
+            .iter()
+            .map(|id| Entry {
+                id: (*id).into(),
+                content: Content::Text((*id).into()),
+            })
+            .collect(),
+    };
+    let mut session = Session::test_snapshot(entries(&["first", "second"]));
+    let mut now = Instant::now();
+    for (id, remaining) in [("first", vec!["second"]), ("second", vec![])] {
+        assert!(session.delete_with(0, id, |actual| {
+            assert_eq!(actual, id);
+            ready()
+        }));
+        assert!(!session.delete_with(0, id, |_| panic!("duplicate in-flight delete")));
+        wait(&mut session, now);
+        let refreshed = entries(&remaining);
+        now += Duration::from_secs(1);
+        session.tick_with(now, || Task::spawn(move |_, _| Ok(refreshed)));
+        wait(&mut session, now);
+        assert_eq!(session.entries().len(), remaining.len());
+        assert!(!session.delete_with(0, id, |_| panic!("old painted ID")));
+    }
+    assert_eq!(session.state(), State::Empty);
+}
+#[test]
+fn delete_failure_is_visible_without_retry_even_when_history_changed() {
+    let now = Instant::now();
+    let mut session = Session::test_snapshot(snapshot(Status::Ready));
+    assert!(
+        session.delete_with(0, "synthetic", |_| Task::spawn(|_, _| Err(Error::new(
+            E_ABORT, "refused"
+        ))))
+    );
+    session.test_invalidate();
+    wait(&mut session, now);
+    assert_eq!(session.state(), State::DeleteFailed);
+    assert!(!session.pending);
+    session.tick_with(now + Duration::from_secs(1), || {
+        panic!("must not retry deletion")
+    });
+}
 fn wait(session: &mut Session, now: Instant) {
     let deadline = Instant::now() + Duration::from_secs(5);
     while session.task.is_some() {

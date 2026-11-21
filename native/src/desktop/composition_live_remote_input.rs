@@ -99,7 +99,7 @@ impl Session {
         if !remote.bridge.stopping() && remote.pending.is_none() {
             if let Some(request) = remote.bridge.take() {
                 let result = match request.action {
-                    Action::Enable => self.enable_input(),
+                    Action::Enable => self.start_input(false),
                     Action::Input(event) => {
                         self.send_input(self.last_input_sequence.saturating_add(1), event)
                     }

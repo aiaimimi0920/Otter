@@ -41,20 +41,47 @@ fn snapshot_uses_latest_pending_without_changing_presented_and_retains_owner_aft
     let _apartment = Apartment::new().unwrap();
     unsafe {
         let window = window();
+        // Windows 会丢弃隐藏窗口的失效区；此测试在隔离 desktop 显示自有窗口。
+        let _ = ShowWindow(window.0, SW_SHOWNOACTIVATE);
         let device = device();
         let source = Source::new();
         let mut host = Host::bind(window.0, source.subscribe().unwrap()).unwrap();
         assert!(host.snapshot_frame().unwrap().is_none());
+        assert!(windows::Win32::Graphics::Gdi::ValidateRect(Some(window.0), None).as_bool());
         publish(&source, &device, [0, 0, 255, 255]);
+        assert_eq!(host.snapshot_frame().unwrap().unwrap().sequence, 1);
+        assert!(windows::Win32::Graphics::Gdi::GetUpdateRect(window.0, None, false).as_bool());
+        assert!(host.presented_viewport([32, 32]).is_none());
+        // 已排队通知不再携带帧，不能依靠下一次源变化来使首帧可交互。
+        let mut message = MSG::default();
+        assert!(PeekMessageW(
+            &mut message,
+            Some(window.0),
+            notification::MESSAGE,
+            notification::MESSAGE,
+            PM_REMOVE
+        )
+        .as_bool());
+        assert_eq!(
+            host.receive(message.message, message.wParam, message.lParam)
+                .unwrap(),
+            Update::Idle
+        );
+        assert!(windows::Win32::Graphics::Gdi::ValidateRect(Some(window.0), None).as_bool());
+        assert_eq!(host.snapshot_frame().unwrap().unwrap().sequence, 1);
+        assert!(!windows::Win32::Graphics::Gdi::GetUpdateRect(window.0, None, false).as_bool());
         host.paint(D2D_SIZE_U {
             width: 32,
             height: 32,
         })
         .unwrap();
         assert_eq!(host.snapshot_frame().unwrap().unwrap().sequence, 1);
+        // 快照可能先于已排队的帧通知领取新帧；通知随后只会读到 Idle。
+        assert!(windows::Win32::Graphics::Gdi::ValidateRect(Some(window.0), None).as_bool());
         publish(&source, &device, [0, 255, 0, 255]);
         let latest = host.snapshot_frame().unwrap().unwrap();
         assert_eq!(latest.sequence, 2);
+        assert!(windows::Win32::Graphics::Gdi::GetUpdateRect(window.0, None, false).as_bool());
         assert_eq!(host.presented_viewport([32, 32]).unwrap().0, 1);
         host.suspend();
         assert!(Arc::ptr_eq(

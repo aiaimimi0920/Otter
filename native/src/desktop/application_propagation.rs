@@ -1,6 +1,9 @@
 //! 正式结果提交后的 Art 通知；可经图片钉图中继，不以预览触发，不在此联网。
 use super::Application;
 use crate::{loom_capability::Capability, workspace_id::UnitId};
+#[cfg(test)]
+#[path = "application_propagation_policy_tests.rs"]
+mod policy_tests;
 impl Application {
     /// 新建连接复用原通知链；从 Art 出发仍必须尊重源 notify，不制造手动执行。
     pub(super) unsafe fn propagate_created_child(&self, source: &UnitId) {
@@ -74,11 +77,9 @@ impl Application {
                 }
             })
             .collect();
-        for session in self
-            .live_sessions
-            .iter()
-            .filter(|session| session.is_alive() && session.belongs_to(&self.workspace))
-        {
+        for session in self.live_sessions.iter().filter(|session| {
+            session.is_alive() && !session.pin_attached() && session.belongs_to(&self.workspace)
+        }) {
             nodes.push(Node {
                 id: session.unit_id(),
                 kind: Kind::Sticker,
@@ -97,7 +98,14 @@ impl Application {
             });
         }
         Ok(Graph::new(&nodes, self.workspace.links())?
-            .notification_targets(source)?
+            .notification_targets_with(source, |unit| {
+                self.documents
+                    .iter()
+                    .find(|doc| doc.state.unit_id == *unit)
+                    .is_none_or(|doc| {
+                        doc.state.is_art() || doc.state.node_settings.get().notify_downstream
+                    })
+            })?
             .into_iter()
             .cloned()
             .collect())

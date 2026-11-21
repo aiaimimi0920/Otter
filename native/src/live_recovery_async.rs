@@ -58,7 +58,15 @@ impl Owner {
         }
     }
     pub fn request(&mut self, operation: Operation) -> io::Result<()> {
-        self.request_with(move |client| client.request(operation))
+        self.request_with(move |client| {
+            let status = client.request(operation)?;
+            // 空登记 Shutdown ACK 不等于进程已退出。后台复用有界等待；超时
+            // 交回 Journal 的已恢复源回收路径，UI 仍泵消息且保留原子进程句柄。
+            if client.shutdown {
+                client.join_shutdown()?;
+            }
+            Ok(status)
+        })
     }
     fn request_with(
         &mut self,

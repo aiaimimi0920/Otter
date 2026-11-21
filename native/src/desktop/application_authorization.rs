@@ -8,6 +8,7 @@ use crate::{
 };
 impl Application {
     pub(super) fn process_authorization(&mut self) {
+        self.process_local_loom();
         self.process_authorization_with_projection(Config::from_env);
     }
     pub(super) fn process_authorization_with_projection(
@@ -17,6 +18,9 @@ impl Application {
         )
             -> std::result::Result<Config, crate::device_authorization_config::Error>,
     ) {
+        unsafe {
+            self.process_account_projection();
+        }
         self.projection_profile.poll();
         self.live_viewer_requests(&mut config);
         unsafe {
@@ -111,43 +115,7 @@ impl Application {
                 None => None,
             }
         };
-        let sender_request = {
-            let mut view = self.authorization.borrow_mut();
-            if matches!(
-                view.request,
-                Some(
-                    Request::SendProjection(_)
-                        | Request::SendProjectionGroup(_)
-                        | Request::StopProjectionGroup(_)
-                        | Request::CancelProjectionSend
-                        | Request::StopProjectionSend(_)
-                        | Request::RetryProjectionSend(_)
-                )
-            ) {
-                view.request.take()
-            } else {
-                None
-            }
-        };
-        match sender_request {
-            Some(Request::SendProjection(selection)) => unsafe {
-                self.start_projection_sender(selection, &mut config);
-            },
-            Some(Request::SendProjectionGroup(selection)) => unsafe {
-                self.start_projection_group(selection, &mut config);
-            },
-            Some(Request::StopProjectionGroup(selection)) => unsafe {
-                self.start_projection_stop_group(selection);
-            },
-            Some(Request::CancelProjectionSend) => self.stop_projection_sender(),
-            Some(Request::StopProjectionSend(selected)) => unsafe {
-                self.start_projection_sender_stop(*selected)
-            },
-            Some(Request::RetryProjectionSend(unit)) => unsafe {
-                self.retry_projection_sender(unit, &mut config);
-            },
-            _ => {}
-        }
+        self.projection_sender_requests(&mut config);
         let invalidate_sender = {
             let view = self.authorization.borrow();
             matches!(view.request, Some(Request::Cancel | Request::Start(_)))
@@ -197,10 +165,14 @@ impl Application {
         // 先消费撤销/切换，再收割完成结果；旧请求即使已经完成也不能覆盖新选择。
         if let Some(request) = view.request.take().filter(|_| !view.closed) {
             match request {
+                Request::AccountProjection(_) => {
+                    unreachable!("account requests consumed before borrowing view")
+                }
                 Request::WatchLive(_) | Request::StopLive(_) => {
                     unreachable!("viewer requests consumed before borrowing view")
                 }
                 Request::SendProjection(_)
+                | Request::ShareProjection(_)
                 | Request::SendProjectionGroup(_)
                 | Request::StopProjectionGroup(_)
                 | Request::CancelProjectionSend
@@ -242,7 +214,10 @@ impl Application {
                     } else if matches!(
                         request,
                         crate::desktop::device_authorization_ui::projection::Request::Accept(_)
-                        | crate::desktop::device_authorization_ui::projection::Request::Reattach(_)
+                            | crate::desktop::device_authorization_ui::projection::Request::Import(_)
+                            | crate::desktop::device_authorization_ui::projection::Request::Reattach(
+                                _
+                            )
                     ) && receive_scope.is_none()
                     {
                         view.projection.status = "接收未启动：当前工作区不能安全保存".into();
@@ -307,6 +282,8 @@ impl Application {
                     unreachable!("local request consumed before borrowing view")
                 }
                 Request::Select(origin) => {
+                    view.connected = false;
+                    view.loom_id = None;
                     if view.origin.as_ref() != Some(&origin) {
                         super::projection::reset(
                             &mut self.remote_sessions,
@@ -329,6 +306,8 @@ impl Application {
                     }
                 }
                 Request::Cancel => {
+                    view.connected = false;
+                    view.loom_id = None;
                     super::projection::reset(
                         &mut self.remote_sessions,
                         &mut view,
@@ -345,7 +324,12 @@ impl Application {
                         let _ = self.authorization_owner.invalidate(origin);
                     }
                     view.busy = false;
-                    view.status = "本地会话已清除；服务端设备批准状态不变".into();
+                    if !view
+                        .status
+                        .starts_with("本次连接已停止，但未保存停止状态：")
+                    {
+                        view.status = "本地会话已清除；服务端设备批准状态不变".into();
+                    }
                     // 无本地Art信任的旧会话不触及profile；配置捕获无IO，减权沿原有界后台owner提交。
                     if let Some(origin) = view
                         .origin
@@ -454,6 +438,10 @@ impl Application {
                 view.status = status;
             }
         }
+        view.connected = view.origin.as_deref().is_some_and(|origin| {
+            crate::desktop::surface_windows::now_ms()
+                .is_ok_and(|now| self.authorization_owner.token(origin, now).is_some())
+        });
         drop(view);
         self.poll_projection_inbox();
         unsafe {
@@ -463,15 +451,20 @@ impl Application {
         unsafe {
             self.poll_projection_edit(&mut config);
         }
-        self.process_projection_cleanup(&mut config);
-        unsafe {
-            self.process_projection_automatic(&mut config, std::time::Instant::now());
-            self.process_projection_sync(&mut config, std::time::Instant::now());
-        }
+        let now = std::time::Instant::now();
+        self.poll_projection_cleanup(now);
+        // An overdue inbox gets the shared slot before another background unlink retry.
+        unsafe { self.process_projection_automatic(&mut config, now) };
+        self.dispatch_projection_cleanup(&mut config, now);
+        unsafe { self.process_projection_sync(&mut config, std::time::Instant::now()) };
+        self.refresh_projection_targets(&mut config);
         self.projection_profile.sync(
             &mut self.authorization.borrow_mut().projection.recovery,
             |ticket| self.projection_checkpoint_inclusion(ticket).is_some(),
         );
+        unsafe {
+            crate::desktop::device_authorization_ui::share::refresh(&self.authorization);
+        }
     }
 }
 

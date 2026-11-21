@@ -10,6 +10,17 @@ use windows::{
 };
 
 const LIMIT: usize = 16;
+pub(crate) const RETIREMENT_PENDING: windows::core::HRESULT =
+    windows::core::HRESULT(0x8000000A_u32 as i32);
+
+/// 多个源的退休等待不能遮住真正的恢复失败；同级错误保留最先发生者。
+pub(crate) fn retain_restore_error(first: &mut Option<Error>, error: Error) {
+    if first.as_ref().is_none_or(|previous| {
+        previous.code() == RETIREMENT_PENDING && error.code() != RETIREMENT_PENDING
+    }) {
+        *first = Some(error);
+    }
+}
 struct Recovery {
     snapshot: Snapshot,
     retire: Box<dyn Fn() -> Result<()>>,
@@ -110,13 +121,13 @@ impl Registry {
         self.entries.push(entry.clone());
         Ok(Lease(entry))
     }
-    /// 重试没有会话但仍有恢复快照的源；失败继续保留，返回首个错误而非静默丢弃。
+    /// 重试没有会话但仍有恢复快照的源；失败继续保留，真实错误优先于退休等待。
     pub fn retry_pending(&mut self) -> Result<()> {
         let mut first = None;
         for entry in &self.entries {
             if entry.leases.get() == 0 {
                 if let Err(error) = entry.restore() {
-                    first.get_or_insert(error);
+                    retain_restore_error(&mut first, error);
                 }
             }
         }
@@ -185,6 +196,13 @@ impl Lease {
             return Err(Error::new(E_ABORT, "Live recovery retirement is pending"));
         }
         if snapshot.hidden.get() {
+            // 后续原生最小化会停止源渲染；沿首次快照恢复逻辑隐藏，不覆盖恢复登记。
+            self.0.target.validate()?;
+            if unsafe { windows::Win32::UI::WindowsAndMessaging::IsIconic(self.0.target.hwnd()) }
+                .as_bool()
+            {
+                snapshot.snapshot.apply_hidden()?;
+            }
             return Ok(false);
         }
         if snapshot.hide_attempted.replace(true) {

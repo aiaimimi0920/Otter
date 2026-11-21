@@ -28,7 +28,10 @@ pub(in crate::desktop) fn stop_enabled(
                 .is_some_and(|group| {
                     super::stops(view, unit).any(|binding| {
                         binding.envelope().origin() == directory.origin()
-                            && group.target_ids().iter().any(|id| id == binding.target())
+                            && group
+                                .target_ids()
+                                .iter()
+                                .any(|id| Some(id.as_str()) == binding.target())
                             && super::stop_enabled(view, binding)
                     })
                 })

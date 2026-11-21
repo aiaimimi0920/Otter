@@ -1,5 +1,7 @@
 //! 真实缓存移动入口：图框与本宿主两个端口批量移动，其他节点保持原位。
 use super::*;
+#[path = "workspace_chrome_drag_tests.rs"]
+mod drag_tests;
 
 unsafe fn origin(hwnd: HWND) -> (i32, i32) {
     let mut rect = RECT::default();

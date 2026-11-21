@@ -10,6 +10,8 @@ pub use media::Error as MediaError;
 #[path = "device_authorization_watch.rs"]
 mod watch;
 pub use watch::Notification;
+#[path = "device_authorization_account.rs"]
+mod account;
 #[path = "device_authorization_execution.rs"]
 mod execution;
 #[path = "device_authorization_local.rs"]
@@ -44,6 +46,9 @@ pub struct Lease {
     state: Arc<State>,
 }
 impl Grant {
+    pub(super) fn expires_at_ms(&self) -> u64 {
+        self.session.expires_at_ms()
+    }
     pub(super) fn new(session: Session) -> Self {
         Self {
             session: Arc::new(session),

@@ -9,15 +9,103 @@ mod sender;
 mod sync;
 
 impl Control<'_> {
-    /// 只读发送目录；不改变本机接收策略，不依据响应中的地址连接其他来源。
-    pub fn projection_targets(&self) -> Result<delivery::targets::Directory, Error> {
+    fn exchange_projection_until(
+        &self,
+        path: &'static str,
+        body: &[u8],
+        deadline: Instant,
+        limit: usize,
+    ) -> Result<(u16, Zeroizing<Vec<u8>>), Error> {
+        let shared = matches!(
+            path,
+            "/v1/projections/targets"
+                | "/v1/projections/inbox"
+                | "/v1/projections/read"
+                | "/v1/projections/create"
+                | "/v1/projections/accept"
+        );
+        let mut delays = [150, 450].into_iter();
+        loop {
+            let (status, bytes) = self.exchange_until("POST", path, body, deadline, limit, None)?;
+            if shared && status == 429 && error_code(&bytes, "projection_busy") {
+                // 共用 Loom 在进入 handler 前拒绝这次请求。互联 Loom 的错误没有这个保证。
+                let Some(delay) = delays.next().map(Duration::from_millis) else {
+                    return Err(Error::ProjectionBusy);
+                };
+                let cancelled = || {
+                    self.cancel
+                        .flag()
+                        .load(std::sync::atomic::Ordering::Acquire)
+                };
+                if cancelled() || deadline.saturating_duration_since(Instant::now()) <= delay {
+                    return Err(Error::ProjectionBusy);
+                }
+                drop(bytes);
+                std::thread::sleep(delay);
+                if cancelled() || Instant::now() >= deadline {
+                    return Err(Error::ProjectionBusy);
+                }
+                continue;
+            }
+            if path == "/v1/projections/create"
+                && status == 409
+                && error_code(&bytes, "projection_target_offline")
+            {
+                return Err(Error::ProjectionTargetOffline);
+            }
+            return Ok((status, bytes));
+        }
+    }
+    fn send_projection_limited(
+        &self,
+        path: &'static str,
+        body: &[u8],
+        limit: usize,
+    ) -> Result<Zeroizing<Vec<u8>>, Error> {
+        let (status, bytes) = self.exchange_projection_until(
+            path,
+            body,
+            Instant::now() + Duration::from_secs(12),
+            limit,
+        )?;
+        self.validated_response(status, bytes)
+    }
+    pub(crate) fn inspect_projection(
+        &self,
+        request: &delivery::share::Import,
+        cancel: &std::sync::atomic::AtomicBool,
+    ) -> Result<Invitation, Error> {
+        let envelope = &request.envelope;
+        let body = serde_json::to_vec(
+            &serde_json::json!({"sourceLoomId":request.source_loom_id,"envelope":envelope}),
+        )
+        .map_err(|_| Error::Input)?;
+        let mut budget = crate::pixels::reserve(delivery::accept::MAX_RESPONSE.next_power_of_two())
+            .ok_or(Error::Projection(delivery::Error::Budget))?;
         let bytes = self.send_limited(
             "POST",
-            "/v1/projections/targets",
-            b"{}",
+            "/v1/offline-projections/import",
+            &body,
             Duration::from_secs(12),
-            delivery::MAX_JSON,
+            delivery::accept::MAX_RESPONSE,
         )?;
+        if !budget.grow_to(bytes.capacity()) {
+            return Err(Error::Projection(delivery::Error::Budget));
+        }
+        delivery::share::inspected_from(
+            &bytes,
+            envelope,
+            self.client.origin(),
+            self.session.device_id(),
+            Some(&request.source_loom_id),
+            cancel,
+        )
+        .map_err(Error::Projection)
+    }
+    /// 只读发送目录；不改变本机接收策略，不依据响应中的地址连接其他来源。
+    pub fn projection_targets(&self) -> Result<delivery::targets::Directory, Error> {
+        let bytes =
+            self.send_projection_limited("/v1/projections/targets", b"{}", delivery::MAX_JSON)?;
         delivery::targets::Directory::parse(&bytes, self.client.origin()).map_err(Error::Projection)
     }
     /// 补偿只请求原来源解绑；非 2xx 或缺少 unlinked:true 不能退休写前意图。
@@ -98,7 +186,7 @@ impl Control<'_> {
     }
     fn projection_snapshot(
         &self,
-        path: &str,
+        path: &'static str,
         body: &[u8],
         invitation: &Invitation,
     ) -> Result<delivery::accept::Received, Error> {
@@ -106,13 +194,7 @@ impl Control<'_> {
         let mut wire_budget =
             crate::pixels::reserve(delivery::accept::MAX_RESPONSE.next_power_of_two())
                 .ok_or(Error::Projection(delivery::Error::Budget))?;
-        let bytes = self.send_limited(
-            "POST",
-            path,
-            body,
-            Duration::from_secs(12),
-            delivery::accept::MAX_RESPONSE,
-        )?;
+        let bytes = self.send_projection_limited(path, body, delivery::accept::MAX_RESPONSE)?;
         if !wire_budget.grow_to(bytes.capacity()) {
             return Err(Error::Projection(delivery::Error::Budget));
         }
@@ -128,13 +210,8 @@ impl Control<'_> {
     pub fn projection_inbox(&self, policy: InboxPolicy) -> Result<Inbox, Error> {
         let body = serde_json::to_vec(&serde_json::json!({"policy":policy}))
             .map_err(|_| Error::Projection(delivery::Error::Json))?;
-        let bytes = self.send_limited(
-            "POST",
-            "/v1/projections/inbox",
-            &body,
-            Duration::from_secs(12),
-            delivery::MAX_JSON,
-        )?;
+        let bytes =
+            self.send_projection_limited("/v1/projections/inbox", &body, delivery::MAX_JSON)?;
         let mut inbox = Inbox::parse(&bytes, self.client.origin()).map_err(Error::Projection)?;
         drop(bytes); // 第二份有界收件响应前释放原wire，不并存两份原始JSON。
         if inbox.has_offline_peers() && policy != InboxPolicy::Disabled {
@@ -201,4 +278,20 @@ impl Control<'_> {
         )?;
         delivery::receipt(&bytes).map_err(Error::Projection)
     }
+}
+
+fn error_code(bytes: &[u8], expected: &str) -> bool {
+    #[derive(serde::Deserialize)]
+    struct Failure<'a> {
+        #[serde(borrow)]
+        error: Code<'a>,
+    }
+    #[derive(serde::Deserialize)]
+    struct Code<'a> {
+        #[serde(borrow)]
+        code: &'a str,
+    }
+    bytes.len() <= delivery::MAX_JSON
+        && serde_json::from_slice::<Failure<'_>>(bytes)
+            .is_ok_and(|failure| failure.error.code == expected)
 }

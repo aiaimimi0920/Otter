@@ -107,6 +107,10 @@ pub(crate) fn request_result(
         || head.starts_with("POST /v1/art/local/service/submit-image-output HTTP/1.1\r\n")
     {
         crate::live_relay_http::art_prepare::service::MAX_IMAGE_REQUEST
+    } else if head.starts_with("POST /v1/projections/v2/create HTTP/1.1\r\n")
+        || head.starts_with("POST /v1/projections/v2/update HTTP/1.1\r\n")
+    {
+        6 * 1024 * 1024
     } else {
         16383
     };

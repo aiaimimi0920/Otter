@@ -66,3 +66,46 @@ fn rejects_missing_invalid_or_cancelled_identity_and_preserves_unrelated_raw_val
     )
     .is_err());
 }
+#[test]
+fn clear_only_selected_library_preserves_revision_windows_and_unknown_fields() {
+    let original = serde_json::to_vec(&serde_json::json!({"documentRevision":7,"stickers":[],"links":[],
+        "recycleBin":[{"entryId":"r","sourceStickerId":"pin","createdAt":"legacy","snapshot":{"id":"pin","x":0,"y":0,"w":32,"h":32}}],
+        "referenceLibrary":[{"entryId":"f","sourceStickerId":"pin","createdAt":"legacy","snapshot":{"id":"pin","x":0,"y":0,"w":32,"h":32}}],
+        "unknown":{"nested":[1,2,3]}})).unwrap();
+    for kind in [Kind::RecycleBin, Kind::ReferenceLibrary] {
+        let bytes = super::clear(&original, kind, &AtomicBool::new(false)).unwrap();
+        let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        let other = match kind {
+            Kind::RecycleBin => Kind::ReferenceLibrary,
+            Kind::ReferenceLibrary => Kind::RecycleBin,
+        };
+        assert!(super::super::decode(&bytes, kind)
+            .unwrap()
+            .entries()
+            .is_empty());
+        assert_eq!(
+            super::super::decode(&bytes, other).unwrap().entries().len(),
+            1
+        );
+        assert_eq!(value["documentRevision"], 7);
+        assert_eq!(value["unknown"], serde_json::json!({"nested":[1,2,3]}));
+        assert_eq!(value["stickers"], serde_json::json!([]));
+        assert!(super::clear(&original, kind, &AtomicBool::new(true)).is_err());
+    }
+}
+#[test]
+fn clear_rejects_corrupt_selected_library_and_does_not_materialize_missing_one() {
+    assert!(super::clear(
+        br#"{"stickers":[],"links":[],"recycleBin":42}"#,
+        Kind::RecycleBin,
+        &AtomicBool::new(false)
+    )
+    .is_err());
+    let original = br#"{"stickers":[],"links":[],"other":123}"#;
+    assert_eq!(
+        super::clear(original, Kind::RecycleBin, &AtomicBool::new(false))
+            .unwrap()
+            .as_ref(),
+        original
+    );
+}

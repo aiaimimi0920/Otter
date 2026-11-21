@@ -12,7 +12,8 @@ fn prepared(client: &Client) -> (Directory, sender::Store, SendRequest) {
     );
     let targets = delivery::targets::Directory::parse(&serde_json::to_vec(&json!({"targets":[{
         "deviceId":id,"route":"offline_peer","peerId":peer,"peerName":"Loom B","remoteDeviceId":"target-1",
-        "name":"Remote","policy":"confirm","deliveryAvailable":true,"transferProtocol":"loom.offline-transfer.v1"}]})).unwrap(),client.origin()).unwrap();
+        "name":"Remote","policy":"confirm","deliveryAvailable":true,"transferProtocol":"loom.offline-transfer.v1"}],
+        "groups":[],"peerDirectory":{"status":"complete"},"friends":{"users":[]}})).unwrap(),client.origin()).unwrap();
     let selected = sender::Selection::for_target(
         &"a".repeat(64),
         client.origin(),
@@ -40,7 +41,7 @@ fn run(lost: bool) {
     let (directory, store, request) = prepared(&client);
     let original = std::fs::read(directory.path()).unwrap();
     let envelope = serde_json::to_value(request.intent().envelope()).unwrap();
-    let target = request.intent().target().to_owned();
+    let target = request.intent().target().unwrap().to_owned();
     let mut expected = response(&request);
     expected["route"] = "offline_peer".into();
     expected["peerId"] = format!("loom-{}", "b".repeat(64)).into();
@@ -101,7 +102,7 @@ fn run(lost: bool) {
             .request()
             .intent()
             .target()
-            .starts_with("peer-target:"));
+            .is_some_and(|target| target.starts_with("peer-target:")));
     } else {
         assert!(result.is_err());
     }

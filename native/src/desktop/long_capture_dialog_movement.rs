@@ -1,8 +1,11 @@
 //! 取景框四向命令与 UI 参考坐标；候选坐标只在 worker 接受后提交。
 use super::*;
+use std::collections::VecDeque;
+const QUEUED_MOVES: usize = 16;
 pub(super) struct State {
     region: Cell<Region>,
     pending: Cell<Option<Region>>,
+    queued: RefCell<VecDeque<(usize, Region)>>,
 }
 impl State {
     pub fn region(&self) -> Region {
@@ -12,6 +15,7 @@ impl State {
         Self {
             region: Cell::new(region),
             pending: Cell::new(None),
+            queued: RefCell::new(VecDeque::new()),
         }
     }
     pub fn completed(&self, completion: &Completion) -> bool {
@@ -26,16 +30,23 @@ impl State {
         );
         if accepted {
             self.region.set(candidate);
+        } else {
+            self.queued.borrow_mut().clear();
         }
         accepted
+    }
+    pub fn queued(&self) -> bool {
+        !self.queued.borrow().is_empty()
+    }
+    pub fn cancel(&self) {
+        self.queued.borrow_mut().clear();
     }
 }
 pub(super) unsafe fn controls(hwnd: HWND, input: &Input, busy: bool) {
     let allowed = !input.finish.pending()
-        && !busy
+        && (!busy || input.recording.running())
+        && input.movement.queued.borrow().len() < QUEUED_MOVES
         && !input.automatic.borrow().running()
-        && !input.recording.running()
-        && (!input.recording.enabled() || input.job.borrow().snapshot().axis.is_some())
         && input.job.borrow().can_move();
     for id in 108..=111 {
         if let Ok(control) = GetDlgItem(Some(hwnd), id) {
@@ -57,14 +68,44 @@ unsafe fn dispatch_with(hwnd: HWND, input: &Input, command: usize, desktop: Regi
         let job = input.job.borrow();
         !input.finish.pending()
             && job.can_move()
-            && !job.is_pending()
+            && (!job.is_pending() || input.recording.running())
             && !input.automatic.borrow().running()
-            && !input.recording.running()
-            && (!input.recording.enabled() || job.snapshot().axis.is_some())
     };
     if !allowed {
         return;
     }
+    if input.job.borrow().is_pending() || input.movement.queued() {
+        let mut queued = input.movement.queued.borrow_mut();
+        if (108..=111).contains(&command) && queued.len() < QUEUED_MOVES {
+            queued.push_back((command, desktop));
+        }
+        drop(queued);
+        controls(hwnd, input, true);
+        return;
+    }
+    begin(hwnd, input, command, desktop);
+}
+// 周期截图和预览占用同一 worker；点击先保留，空闲后先执行用户的移动。
+pub(super) unsafe fn drive(hwnd: HWND, input: &Input) {
+    if !input.recording.running() || input.finish.pending() {
+        if input.movement.queued() {
+            input.movement.cancel();
+            controls(hwnd, input, input.job.borrow().is_pending());
+        }
+        return;
+    }
+    while !input.job.borrow().is_pending() {
+        let request = input.movement.queued.borrow_mut().pop_front();
+        let Some((command, desktop)) = request else {
+            break;
+        };
+        begin(hwnd, input, command, desktop);
+    }
+    if !input.job.borrow().is_pending() {
+        controls(hwnd, input, false);
+    }
+}
+unsafe fn begin(hwnd: HWND, input: &Input, command: usize, desktop: Region) {
     let region = input.movement.region.get();
     let Some((candidate, dx, dy)) = candidate(region, command, desktop) else {
         return;

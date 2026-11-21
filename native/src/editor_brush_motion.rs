@@ -2,6 +2,16 @@
 use super::*;
 
 impl Editor {
+    /// 普通画笔的荧光属性不切换工具；草稿/历史仍复用原荧光层及序列化。
+    pub(crate) fn begin_brush_highlighter(&mut self, point: Point) -> Result<bool, EditError> {
+        let started = self.begin(Tool::Brush, point)?;
+        if started {
+            self.draft_brush_highlighter = true;
+            self.draft.as_mut().unwrap().tool = Tool::Highlighter;
+        }
+        Ok(started)
+    }
+
     pub fn begin_timed(&mut self, tool: Tool, point: Point, time: f64) -> Result<bool, EditError> {
         let started = self.begin(tool, point)?;
         if started && tool == Tool::Paintbrush {
@@ -35,6 +45,10 @@ impl Editor {
         Ok(changed)
     }
 }
+
+#[cfg(test)]
+#[path = "editor_brush_glow_tests.rs"]
+mod glow_tests;
 
 #[cfg(test)]
 mod tests {

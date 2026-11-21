@@ -10,11 +10,7 @@ pub(in crate::desktop) fn active(state: &State) -> bool {
 }
 pub(in crate::desktop) fn eligible(state: &State) -> bool {
     let canvas = state.canvas.borrow();
-    canvas.pinned
-        && canvas.tool == crate::editor::Tool::Pan
-        && canvas.minified.is_none()
-        && !canvas.blocks_wheel()
-        && super::preview::shared(state)
+    canvas.pin_move_ready() && canvas.minified.is_none() && super::preview::shared(state)
 }
 pub(super) fn park(state: &State) -> bool {
     if !eligible(state) || !super::preview::fresh(state) {

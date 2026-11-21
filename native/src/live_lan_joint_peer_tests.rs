@@ -15,11 +15,12 @@ pub(super) fn connect(
 ) -> Result<Socket, Box<tungstenite::Error>> {
     let url = url::Url::parse(origin).unwrap();
     assert_eq!(url.scheme(), "https");
-    assert_eq!(url.host_str(), Some("127.0.0.1"));
+    let host = std::env::var("OTTER_LIVE_TEST_LAN_HOST").unwrap_or_else(|_| "127.0.0.1".into());
+    assert_eq!(url.host_str(), Some(host.as_str()));
+    let address: std::net::Ipv4Addr = host.parse().unwrap();
+    assert!(address.is_private() || address.is_loopback());
     let tcp = TcpStream::connect_timeout(
-        &format!("127.0.0.1:{}", url.port().unwrap())
-            .parse()
-            .unwrap(),
+        &std::net::SocketAddr::from((address, url.port().unwrap())),
         Duration::from_secs(2),
     )
     .map_err(|error| Box::new(tungstenite::Error::Io(error)))?;
@@ -32,7 +33,7 @@ pub(super) fn connect(
     .with_no_client_auth();
     let tls = rustls::ClientConnection::new(
         Arc::new(config),
-        rustls::pki_types::ServerName::try_from("127.0.0.1".to_owned()).unwrap(),
+        rustls::pki_types::ServerName::try_from(host.clone()).unwrap(),
     )
     .unwrap();
     let base =
@@ -40,7 +41,7 @@ pub(super) fn connect(
             .map_err(|error| Box::new(tungstenite::Error::Io(error)))?;
     let stream = rustls::StreamOwned::new(tls, base);
     let mut request = format!(
-        "wss://127.0.0.1:{}/v1/live/media?sessionId=live%3Alan%2Fpart&role={role}",
+        "wss://{host}:{}/v1/live/media?sessionId=live%3Alan%2Fpart&role={role}",
         url.port().unwrap()
     )
     .into_client_request()
@@ -72,10 +73,13 @@ pub(super) fn connect(
 }
 
 pub(super) fn frame() -> Vec<u8> {
+    frame_with(1, [17, 83, 211, 255])
+}
+pub(super) fn frame_with(frame_id: u64, pixel: [u8; 4]) -> Vec<u8> {
     use crate::live_relay_frame::*;
     let mut bytes = Metadata {
         epoch: 1,
-        frame_id: 1,
+        frame_id,
         capture_timestamp_ms: 1,
         encode_timestamp_ms: 1,
         width: 2,
@@ -88,10 +92,13 @@ pub(super) fn frame() -> Vec<u8> {
     .encode_header(16)
     .unwrap()
     .to_vec();
-    bytes.extend([17, 83, 211, 255].repeat(4));
+    bytes.extend(pixel.repeat(4));
     bytes
 }
 pub(super) fn binary(socket: &mut Socket) {
+    expect_frame(socket, &frame());
+}
+pub(super) fn expect_frame(socket: &mut Socket, expected: &[u8]) {
     let deadline = Instant::now() + Duration::from_secs(3);
     loop {
         assert!(Instant::now() < deadline, "real LAN binary frame deadline");
@@ -102,7 +109,7 @@ pub(super) fn binary(socket: &mut Socket) {
             .unwrap();
         match socket.read() {
             Ok(Message::Binary(bytes)) => {
-                assert_eq!(bytes, frame());
+                assert_eq!(bytes, expected);
                 return;
             }
             Ok(Message::Ping(bytes)) => socket.send(Message::Pong(bytes)).unwrap(),

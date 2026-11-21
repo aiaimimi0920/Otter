@@ -2,6 +2,14 @@
 use super::*;
 use crate::{live_frames::Consumer, live_relay_http::source::Publication};
 impl Session {
+    pub(in crate::desktop) fn publication_window(
+        &self,
+    ) -> Option<windows::Win32::Foundation::HWND> {
+        self.window
+            .as_ref()
+            .filter(|window| window.is_alive())
+            .map(|window| window.native_handle())
+    }
     pub(in crate::desktop) fn observation_target(
         &self,
     ) -> Result<crate::live_window_target::Target, String> {

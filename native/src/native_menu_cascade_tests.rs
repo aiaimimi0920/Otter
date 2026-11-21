@@ -1,4 +1,6 @@
 //! 真实级联 HWND 与导航消息；不修改业务文档或读取剪贴板。
+#[path = "native_menu_gallery_tests.rs"]
+mod gallery;
 #[path = "native_menu_uia_client_tests.rs"]
 mod uia_client;
 use super::*;
@@ -42,6 +44,8 @@ fn item(id: usize) -> Item {
         default: false,
         separator: false,
         children: None,
+        delete: None,
+        preview: None,
         thumbnail: None,
     }
 }

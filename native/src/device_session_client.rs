@@ -231,7 +231,7 @@ impl Client {
         } else {
             8 * 1024 * 1024
         };
-        // 仅新增专属图片提交可携带原安装预算内PNG；认证/普通POST/查询路径仍限1MiB。
+        // 图像提交按各自合同限额；认证和普通查询仍限 1 MiB。
         let body_ceiling = if request.method == "POST"
             && request.device.is_some()
             && matches!(
@@ -239,6 +239,14 @@ impl Client {
                 "/v1/art/local/service/submit-images" | "/v1/art/local/service/submit-image-output"
             ) {
             crate::live_relay_http::art_prepare::service::MAX_IMAGE_REQUEST
+        } else if request.method == "POST"
+            && request.device.is_some()
+            && matches!(
+                request.path,
+                "/v1/projections/v2/create" | "/v1/projections/v2/update"
+            )
+        {
+            6 * 1024 * 1024
         } else {
             1024 * 1024
         };
@@ -352,8 +360,38 @@ impl Client {
         let status = response.status().as_u16();
         // Device 401 本身已足够撤销使用权，不能让超大/截断错误体遮蔽认证终态。
         if request.device.is_some() && status == 401 {
+            // 账号退出不等同设备撤权；只读账号接口的有界错误码，读取失败仍保留 401。
+            let mut body = Zeroizing::new(Vec::new());
+            if matches!(
+                request.path,
+                "/v1/projections/v2/context"
+                    | "/v1/projections/v2/create"
+                    | "/v1/projections/v2/inspect"
+                    | "/v1/projections/v2/accept"
+                    | "/v1/projections/v2/update"
+                    | "/v1/projections/v2/read"
+                    | "/v1/projections/v2/unlink"
+            ) {
+                let length = response
+                    .headers()
+                    .get("content-length")
+                    .and_then(|v| v.to_str().ok())
+                    .and_then(|v| v.parse::<usize>().ok());
+                if length.is_some_and(|n| n <= 4096 && n <= request.limit) {
+                    if response
+                        .body_mut()
+                        .as_reader()
+                        .take(4097)
+                        .read_to_end(&mut body)
+                        .is_err()
+                        || body.len() > 4096
+                    {
+                        body.clear();
+                    }
+                }
+            }
             check_stop(stop)?;
-            return Ok((status, Zeroizing::new(Vec::new())));
+            return Ok((status, body));
         }
         if response
             .headers()

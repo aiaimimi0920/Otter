@@ -5,9 +5,7 @@ use windows::Win32::{Foundation::*, UI::WindowsAndMessaging::*};
 pub(super) unsafe fn begin(hwnd: HWND, state: &State) {
     let eligible = {
         let canvas = state.canvas.borrow();
-        canvas.pinned
-            && canvas.tool == crate::editor::Tool::Pan
-            && !canvas.blocks_wheel()
+        canvas.pin_move_ready()
             && (canvas.image.is_some() || state.resolved_display.borrow().is_some())
     };
     if !eligible || !IsWindowVisible(hwnd).as_bool() {

@@ -22,6 +22,27 @@ impl Default for Document {
 }
 
 impl Document {
+    /// 与主干 normalizeAppSettings 一致；原生界面当前为中文，空目标语言按中文默认值处理。
+    pub fn translation_options(&self) -> (&str, &str) {
+        let language = match self
+            .root
+            .get("translationTargetLanguage")
+            .and_then(Value::as_str)
+        {
+            Some("en") => "en",
+            _ => "zh-CN",
+        };
+        let provider = match self
+            .root
+            .get("translationProviderMode")
+            .and_then(Value::as_str)
+        {
+            Some("local") => "local",
+            Some("gateway") => "gateway",
+            _ => "auto",
+        };
+        (language, provider)
+    }
     /// 不读默认目录、不备份/重置坏文件；错误由调用方显式呈现。
     pub fn decode(bytes: &[u8]) -> Result<Self, String> {
         if bytes.len() > MAX_BYTES {

@@ -6,6 +6,8 @@ pub(super) unsafe fn run(app: &mut Application) -> Result<()> {
     let fixture = smoke::image_fixture::ImageFile::new()?;
     let path = fixture.path().to_owned();
     let count = app.documents.len();
+    // 可见流程还会登记工作区附属窗口；回滚必须保留原清单，不能假定每图仅两个 HWND。
+    let capture_windows = app.capture_windows.borrow().clone();
     let prepare = || super::super::open_image::PreparedDocument::open(&path, true);
     let mut staged_hwnd = HWND::default();
     let mut staged_panel = HWND::default();
@@ -28,7 +30,7 @@ pub(super) unsafe fn run(app: &mut Application) -> Result<()> {
         || app.documents.len() != count
         || IsWindow(Some(staged_hwnd)).as_bool()
         || IsWindow(Some(staged_panel)).as_bool()
-        || app.capture_windows.borrow().len() != count * 2
+        || *app.capture_windows.borrow() != capture_windows
         || app.workspace.units().len() != count
     {
         return Err(Error::new(E_FAIL, "Failed import retained partial windows"));
@@ -78,5 +80,9 @@ pub(super) unsafe fn run(app: &mut Application) -> Result<()> {
         "native-drop-batch-smoke: count=2 one-worker=true source-preserved=true system-input=false"
     );
     println!("native-import-rollback-smoke: staged-host-released=true staged-panel-released=true collection-unchanged=true");
+    println!(
+        "native-import-rollback-capture-smoke: documents={count} capture-windows={} unchanged=true",
+        capture_windows.len()
+    );
     Ok(())
 }

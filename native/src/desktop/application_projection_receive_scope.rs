@@ -12,6 +12,7 @@ pub(in crate::desktop::application) struct Scope {
     guard: restore_batch::guard::Guard,
     consent: Option<crate::desktop::device_authorization_ui::policy::Stamp>,
     participation: crate::desktop::device_authorization_ui::policy::Participation,
+    pub(super) cancel: Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
 }
 impl Scope {
     pub(in crate::desktop::application) unsafe fn capture(app: &mut Application) -> Result<Self> {
@@ -24,6 +25,7 @@ impl Scope {
     }
     unsafe fn capture_for(app: &mut Application, existing: bool) -> Result<Self> {
         if !app.projection_checkpoint_available()
+            || app.account_projection.busy()
             || app.save_job.is_some()
             || app.restore_job.is_some()
             || app.workspace.units().len() >= crate::workspace::MAX_UNITS
@@ -66,6 +68,7 @@ impl Scope {
             guard,
             consent,
             participation,
+            cancel: None,
         };
         if !scope.matches(app) {
             return Err(stale());
@@ -73,10 +76,15 @@ impl Scope {
         Ok(scope)
     }
     pub(super) unsafe fn matches(&self, app: &Application) -> bool {
-        app.authorization
-            .borrow()
-            .consent
-            .participates(&self.participation)
+        !self
+            .cancel
+            .as_ref()
+            .is_some_and(|cancel| cancel.load(std::sync::atomic::Ordering::Acquire))
+            && app
+                .authorization
+                .borrow()
+                .consent
+                .participates(&self.participation)
             && self
                 .consent
                 .as_ref()

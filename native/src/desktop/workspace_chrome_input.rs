@@ -7,6 +7,7 @@ pub(super) struct Press {
     pub current: Point,
     pub source: Option<Port>,
     pub dragged: bool,
+    pub(super) action: Option<Port>,
     dpi: u32,
     catalog: Rc<Catalog>,
 }
@@ -70,12 +71,17 @@ pub(super) unsafe fn mouse(hwnd: HWND, ui: &Ui, msg: u32, lp: LPARAM) {
         let Some(port) = hit(ui, hwnd, point).filter(|port| current(ui, *port)) else {
             return;
         };
+        let action = port_visual::action_hit(ui, port, point).then_some(port);
+        if action.is_none() && !port_visual::anchor_hit(ui, port, point) {
+            return;
+        }
         let Some(scene) = ui.scene.borrow().clone() else {
             return;
         };
-        capsule::cancel(ui);
         ui.keyboard.retire();
-        let source = if port.side == Side::Output {
+        let source = if action.is_some() {
+            None
+        } else if port.side == Side::Output {
             Some(port)
         } else {
             scene
@@ -90,12 +96,15 @@ pub(super) unsafe fn mouse(hwnd: HWND, ui: &Ui, msg: u32, lp: LPARAM) {
             start: point,
             current: point,
             dragged: false,
+            action,
             dpi: ui.node(port.node).map_or(96, |node| node.dpi),
             catalog: scene.catalog.clone(),
         });
         SetCapture(hwnd);
         if GetCapture() != hwnd {
             ui.cancel();
+        } else if action.is_some() {
+            let _ = windows::Win32::Graphics::Gdi::InvalidateRect(Some(hwnd), None, false);
         }
     } else if msg == WM_MOUSEMOVE {
         if GetCapture() != hwnd {
@@ -106,6 +115,15 @@ pub(super) unsafe fn mouse(hwnd: HWND, ui: &Ui, msg: u32, lp: LPARAM) {
             press.current = point;
             press.dragged |= model::moved(press.start, point, press.dpi);
         }
+        if ui
+            .press
+            .borrow()
+            .as_ref()
+            .is_some_and(|p| p.action.is_some())
+        {
+            let _ = windows::Win32::Graphics::Gdi::InvalidateRect(Some(hwnd), None, false);
+            return;
+        }
         // 仅扩线层范围；端点 region 不随每个鼠标事件重建。
         if window::refresh_drawing(ui).is_err() {
             window::hide(ui);
@@ -115,21 +133,25 @@ pub(super) unsafe fn mouse(hwnd: HWND, ui: &Ui, msg: u32, lp: LPARAM) {
         if GetCapture() == hwnd {
             let _ = ReleaseCapture();
         }
-        let Some(press) = press else {
+        let Some(mut press) = press else {
             return;
         };
+        press.dragged |= model::moved(press.start, point, press.dpi);
+        if let Some(port) = press.action {
+            if !press.dragged && current(ui, port) && port_visual::action_hit(ui, port, point) {
+                ports::visibility::request(ui, port);
+            }
+            let _ = windows::Win32::Graphics::Gdi::InvalidateRect(Some(hwnd), None, false);
+            return;
+        }
         if !press.dragged {
-            if current(ui, press.port) {
-                let mut disclosed = ui.disclosed.borrow_mut();
-                if !disclosed.remove(&press.port) {
-                    disclosed.insert(press.port);
-                }
-                let expanded = disclosed.contains(&press.port);
-                drop(disclosed);
+            if current(ui, press.port)
+                && hit(ui, hwnd, point) == Some(press.port)
+                && port_visual::anchor_hit(ui, press.port, point)
+            {
+                let expanded = disclosure::toggle(ui, press.port);
                 if expanded {
-                    capsule::request(ui, press.port, false);
-                } else {
-                    capsule::cancel(ui);
+                    parameter_rail::request(ui, press.port, false);
                 }
             }
             if window::refresh(ui).is_err() {
@@ -146,9 +168,9 @@ pub(super) unsafe fn mouse(hwnd: HWND, ui: &Ui, msg: u32, lp: LPARAM) {
             x: point.x,
             y: point.y,
         });
-        let Some(target) =
-            hit(ui, target_hwnd, point).filter(|p| p.side == Side::Input && current(ui, *p))
-        else {
+        let Some(target) = hit(ui, target_hwnd, point).filter(|p| {
+            p.side == Side::Input && current(ui, *p) && port_visual::anchor_hit(ui, *p, point)
+        }) else {
             ui.repaint();
             return;
         };

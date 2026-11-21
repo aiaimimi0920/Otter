@@ -5,12 +5,20 @@ use std::{io, os::windows::io::BorrowedHandle};
 use windows::Win32::Foundation::RECT;
 #[path = "composition_live_session_input.rs"]
 mod input;
+#[path = "composition_live_pin_session.rs"]
+mod pin;
+#[path = "composition_live_popup_family.rs"]
+mod popup_family;
 #[path = "composition_live_remote_input.rs"]
 mod remote_input;
 #[path = "composition_live_source.rs"]
 mod source;
 
 pub struct Session {
+    popups: popup_family::Family,
+    popup_scope: Option<crate::live_window_target::popup::Scope>,
+    pin_document: Option<crate::desktop::document_window::DocumentWindow>,
+    pin_attached: bool,
     input_identity: std::sync::Arc<()>,
     unit_id: crate::workspace_id::UnitId,
     workspace: Option<crate::workspace::IdentityStamp>,
@@ -25,6 +33,7 @@ pub struct Session {
         Option<crate::live_input_worker::Worker<crate::live_window_target::input_backend::Error>>,
     input_enabled: bool,
     input_error: Option<String>,
+    input_transition: bool,
     input_cleanup: Option<crate::live_input::Cleanup>,
     input_cleanup_unknown: bool,
     remote_input: Option<remote_input::Remote>,
@@ -58,9 +67,15 @@ impl Session {
         let mut session = Self::new(job, window);
         if let Some(window) = &session.window {
             window.allow_input().map_err(io::Error::other)?;
+            if !crate::live_browser_scroll::eligible(&target) {
+                window.popup_watch().map_err(io::Error::other)?;
+            }
         }
         session.target = Some(target);
         session.input_crop = crop;
+        if let Some(window) = &session.window {
+            window.request_default_input();
+        }
         Ok(session)
     }
     /// 仅可用于用户已确认的物理选区；不显示窗口，调用方随后显式 show。
@@ -72,6 +87,10 @@ impl Session {
     }
     pub(in crate::desktop) fn new(job: LiveJob<Texture>, window: LiveWindow) -> Self {
         Self {
+            popups: Default::default(),
+            popup_scope: None,
+            pin_document: None,
+            pin_attached: false,
             input_identity: std::sync::Arc::new(()),
             unit_id: window.unit_id().clone(),
             workspace: None,
@@ -85,6 +104,7 @@ impl Session {
             input: None,
             input_enabled: false,
             input_error: None,
+            input_transition: false,
             input_cleanup: None,
             input_cleanup_unknown: false,
             remote_input: None,
@@ -265,27 +285,44 @@ impl Session {
     }
     /// 加入宿主消息等待集合；源 close 通知可能早于线程退出，此句柄不会提前报完成。
     pub fn completion_handle(&self) -> Option<BorrowedHandle<'_>> {
-        self.job.completion_handle()
+        self.job
+            .completion_handle()
+            .or_else(|| self.popups.completion_handle())
     }
     pub fn source_process_handle(&self) -> Option<BorrowedHandle<'_>> {
         self.job.source_process_handle()
     }
     /// 显式停止不在 UI 回调中 join；保留 owner 到 poll 领取结果或应用最终析构。
     pub fn stop(&mut self) {
+        self.popups.stop();
+        self.pin_document.take();
         self.stopping = true;
         self.cancel_remote_input();
         self.disable_input();
-        if self.input.is_none() {
+        // 附属镜像也可能仍在释放源按键/取消模态；父源保护必须覆盖整组输入收尾。
+        if self.input_completion_handle().is_none() {
             self.protection.take();
         }
         self.window.take();
         self.job.cancel();
     }
-    /// 每次消息分发后及线程句柄就绪时调用；返回值只交付一次，无定时轮询。
+    /// 每次消息分发后及线程句柄就绪时调用；附属弹窗发现由 B 的有界低频 timer 唤醒。
     pub fn poll(&mut self) -> Option<Result<(), String>> {
+        if let Some(window) = &self.window {
+            window
+                .resolve_popup_focus(self.target.as_ref().filter(|_| self.remote_input.is_none()));
+        }
+        self.poll_popups();
         self.poll_input();
         self.poll_remote_input();
         self.process_window_input();
+        if let Some(window) = &self.window {
+            // popup scope 已由 poll_popups 复核；来源观测不在 HWND 回调或远程路径执行。
+            window.refresh_ime(
+                self.target.as_ref().filter(|_| self.remote_input.is_none()),
+                self.input_crop,
+            );
+        }
         self.job.refresh_source();
         if let Some(window) = &self.window {
             if let Err(error) = window.refresh() {
@@ -309,7 +346,7 @@ impl Session {
             self.cancel_remote_input();
             self.disable_input();
         }
-        if self.window.is_none() && self.input.is_none() {
+        if self.window.is_none() && self.input_completion_handle().is_none() {
             self.protection.take();
         }
         if self.capture_result.is_none() {
@@ -319,7 +356,7 @@ impl Session {
                     self.error.get_or_insert_with(|| error.to_string());
                     self.window.take();
                     self.disable_input();
-                    if self.input.is_none() {
+                    if self.input_completion_handle().is_none() {
                         self.protection.take();
                     }
                     self.job.cancel();
@@ -327,11 +364,10 @@ impl Session {
             }
             return None;
         }
-        if self.input.is_some() {
+        if self.input.is_some() || !self.popups.is_empty() {
             return None;
         }
-        if self.input_cleanup_unknown || self.input_cleanup.is_some_and(|report| report.failed > 0)
-        {
+        if self.input_cleanup_unconfirmed() {
             self.error
                 .get_or_insert_with(|| "Live input cleanup failed or outcome unknown".into());
         }
@@ -354,6 +390,9 @@ impl Drop for Session {
     }
 }
 
+#[cfg(test)]
+#[path = "composition_live_input_backpressure_tests.rs"]
+mod input_backpressure_tests;
 #[cfg(test)]
 #[path = "composition_live_input_runtime_tests.rs"]
 mod input_runtime_tests;

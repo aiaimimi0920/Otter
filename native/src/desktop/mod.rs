@@ -37,7 +37,7 @@ mod blur_default;
 mod blur_input;
 mod blur_numeric;
 mod blur_selection;
-mod buffered_paint;
+pub(crate) mod buffered_paint;
 mod cache_input;
 mod canvas;
 mod capability_catalog;
@@ -79,7 +79,7 @@ mod crop_input;
 mod crop_smoke;
 mod crop_window;
 mod device_authorization_ui;
-mod dimensions_menu;
+mod dialog_controls;
 pub mod display_composition;
 mod display_edit;
 mod display_frame;
@@ -91,9 +91,13 @@ mod drag_input;
 pub mod drag_prepare;
 pub mod drag_preview;
 pub mod drag_transport;
+mod edit_extension_toolbar;
 mod edit_input;
 #[cfg(test)]
 mod edit_input_tests;
+mod edit_mode;
+mod edit_palette;
+mod edit_properties;
 mod effect_cache;
 mod erase_gesture;
 mod erase_input;
@@ -105,20 +109,40 @@ mod execution_start;
 mod export;
 mod export_job;
 mod export_naming;
+mod extension_catalog;
+mod extension_catalog_job;
+mod extension_command_bridge;
+mod extension_command_effects;
+mod extension_command_flow;
+mod extension_command_job;
+mod extension_command_route;
+mod extension_commands;
+mod extension_document;
+mod extension_input;
+mod extension_notices;
+mod extension_ocr_input;
+mod extension_overlay;
+mod extension_shortcuts;
+mod extension_visuals;
 mod file_dialog;
 mod file_drop;
 mod file_drop_smoke;
 mod flip_input;
 mod flip_smoke;
+mod frame_style_draw;
 mod global_capture;
 mod group_lock;
 mod group_menu;
 mod hit_region;
 mod host_lifetime;
 mod image;
+mod installed_fonts;
 mod link_catalog;
 mod link_create;
 mod link_menu;
+#[path = "live_pin_document.rs"]
+mod live_pin_document;
+mod live_pin_snapshot;
 pub mod live_relay_image;
 pub mod long_capture_source;
 pub mod loom_delivery;
@@ -148,6 +172,7 @@ mod naming_import_job;
 mod naming_input;
 mod naming_save_job;
 mod node_menu;
+mod node_settings;
 mod numeric_style;
 mod open_image;
 mod open_job;
@@ -164,6 +189,9 @@ mod parameter_view_values;
 mod paste_input;
 mod path_handles;
 pub(crate) mod pin_border_style;
+mod pin_settings;
+mod pin_settings_geometry;
+mod pin_settings_history;
 mod pin_window;
 mod popup_menu;
 #[cfg(test)]
@@ -234,6 +262,7 @@ pub mod surface_select_control;
 pub mod surface_slider_control;
 pub mod surface_window;
 pub mod surface_windows;
+mod text_collation;
 mod text_font;
 mod text_input;
 mod tool_commands;
@@ -271,10 +300,14 @@ mod frozen_library_ui;
 #[path = "reference_ui.rs"]
 mod reference_ui;
 pub(super) struct State {
+    live_pin: Cell<bool>,
+    live_resume: Cell<bool>,
     chrome: application::chrome::Binding,
     parameters_ui: document_window::parameter_panel::Control,
     capture_history: capture_history_ui::Shared,
+    edit_palette: edit_palette::Shared,
     projection_edit: RefCell<Option<projection_edit_workspace::Owner>>,
+    projection_mode: RefCell<Option<device_authorization_ui::editing::Preference>>,
     screen_color: RefCell<Option<screen_color::Session>>,
     drag: drag_input::Session,
     group_catalog: std::rc::Rc<RefCell<Vec<crate::workspace::Group>>>,
@@ -291,6 +324,13 @@ pub(super) struct State {
     execution_cancel: RefCell<Option<execution_cancel::Request>>,
     execution_configuration: RefCell<Option<execution_configuration::Binding>>,
     catalog: std::rc::Rc<RefCell<capability_catalog::Catalog>>,
+    extensions: extension_catalog::Shared,
+    extension_toolbar: RefCell<edit_extension_toolbar::Session>,
+    extension_target: extension_shortcuts::Target,
+    extension_commands: extension_commands::Shared,
+    extension_notices: RefCell<extension_notices::Notices>,
+    extension_document: RefCell<extension_document::Owner>,
+    extension_overlay: RefCell<extension_overlay::Cache>,
     authorization: std::rc::Rc<RefCell<device_authorization_ui::View>>,
     selected_art: RefCell<Option<capability_selection::Selection>>,
     /// 会话 Art 类型独立于能力可用性；缺失绑定不能退化为普通钉图。
@@ -306,6 +346,7 @@ pub(super) struct State {
     parameter_file_request: RefCell<Option<parameter_file_input::Request>>,
     sticker_input: sticker_input::Control,
     accept_upstream: Cell<bool>,
+    node_settings: Cell<crate::unit_node_settings::Settings>,
     resolved_display: RefCell<Option<display_frame::Frame>>,
     pending_adoption: RefCell<Option<display_edit::Pending>>,
     new_window: Cell<bool>,
@@ -347,15 +388,18 @@ pub(super) struct State {
     global_long_capture: Cell<bool>,
     global_live_capture: Cell<bool>,
     tray: tray::Tray,
-    capture_protection: Cell<[bool; 3]>,
+    capture_protection: Cell<[bool; 5]>,
     capture_protection_requested: Cell<bool>,
     tool_panel: Cell<HWND>,
+    edit_properties: RefCell<edit_properties::Session>,
+    pin_settings: RefCell<pin_settings::Session>,
     tool_panel_tool: Cell<Option<crate::editor::Tool>>,
     tool_panel_style: Cell<Option<crate::stroke_style::StrokeStyle>>,
     tool_panel_enabled: Cell<u64>,
     tool_panel_wheel: Cell<[i64; 2]>,
     copy_job: RefCell<Option<copy_job::Job>>,
     file_dialog: std::rc::Rc<Cell<bool>>,
+    inline_text: RefCell<Option<std::rc::Rc<text_input::inline::Session>>>,
     modals: modal_scope::Scope,
     canvas: RefCell<Canvas>,
     error: RefCell<Option<Error>>,
@@ -364,6 +408,7 @@ pub(super) struct State {
     blur_job: RefCell<crate::blur_job::Job>,
     erase_job: RefCell<crate::erase_job::Job>,
     resize_job: RefCell<crate::resize_job::Job>,
+    resize_wheel: RefCell<resize_input::wheel::Session>,
     flip_job: RefCell<crate::flip_job::Job>,
     crop_job: RefCell<Option<crop_apply::Job>>,
     rasterize_job: RefCell<Option<rasterize_input::Job>>,

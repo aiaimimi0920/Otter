@@ -52,7 +52,7 @@ pub(super) struct Key {
     pub envelope: Envelope,
     pub origin: String,
     pub projection: String,
-    pub destination: (String, String, String),
+    pub destination: (String, String, Option<String>),
 }
 pub(super) fn key(raw: &str, unit: &str) -> Result<Key, Error> {
     if raw.len() > MAX_BINDING_BYTES {
@@ -104,7 +104,7 @@ pub(super) fn key(raw: &str, unit: &str) -> Result<Key, Error> {
         destination: (
             origin.into(),
             target.peer_id.as_deref().unwrap_or("").into(),
-            target.device_id.to_string(),
+            Some(target.device_id.to_string()),
         ),
         envelope,
     })

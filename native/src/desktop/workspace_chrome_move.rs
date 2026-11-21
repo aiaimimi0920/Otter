@@ -1,21 +1,30 @@
-//! 缓存图框和所属端口在同一 DeferWindowPos 批次移动，批次之间不绘共享连线或复制图片。
+//! 缓存图框、所属端口和编辑条同批移动；不绘共享连线、不复制图片，也不重排无关钉图。
 use super::*;
 
-pub(super) unsafe fn cached(ui: &Ui, host: HWND, frame: HWND, x: i32, y: i32) -> Result<()> {
+pub(super) unsafe fn cached(
+    ui: Option<&Ui>,
+    host: HWND,
+    frame: HWND,
+    x: i32,
+    y: i32,
+    attached: &[(HWND, RECT)],
+) -> Result<()> {
     let mut current = RECT::default();
     GetWindowRect(frame, &mut current)?;
     let (dx, dy) = (x - current.left, y - current.top);
-    if dx == 0 && dy == 0 {
+    if dx == 0 && dy == 0 && attached.is_empty() {
         return Ok(());
     }
-    let node = ui
-        .nodes
-        .borrow()
-        .iter()
-        .find(|n| n.hwnd == host.0 as isize)
-        .cloned();
+    let node = ui.and_then(|ui| {
+        ui.nodes
+            .borrow()
+            .iter()
+            .find(|n| n.hwnd == host.0 as isize)
+            .cloned()
+    });
     let handles: Vec<_> = node.map_or_else(Vec::new, |node| {
-        ui.input_windows
+        ui.unwrap()
+            .input_windows
             .borrow()
             .iter()
             .filter(|(_, endpoint, _)| *endpoint == node.endpoint)
@@ -23,7 +32,11 @@ pub(super) unsafe fn cached(ui: &Ui, host: HWND, frame: HWND, x: i32, y: i32) ->
             .collect()
     });
     let mut positions = vec![(frame, x, y)];
-    for hwnd in handles {
+    for hwnd in handles
+        .into_iter()
+        .chain(ui.map_or_else(Vec::new, |ui| backing::moving(ui, host)))
+        .chain(ui.map_or_else(Vec::new, |ui| drawer::moving(ui, host)))
+    {
         if IsWindowVisible(hwnd).as_bool() {
             let mut rect = RECT::default();
             GetWindowRect(hwnd, &mut rect)?;
@@ -34,6 +47,11 @@ pub(super) unsafe fn cached(ui: &Ui, host: HWND, frame: HWND, x: i32, y: i32) ->
             ));
         }
     }
+    positions.extend(
+        attached
+            .iter()
+            .map(|(hwnd, rect)| (*hwnd, rect.left, rect.top)),
+    );
     let mut batch = BeginDeferWindowPos(positions.len() as i32)?;
     for (hwnd, x, y) in positions {
         batch = DeferWindowPos(

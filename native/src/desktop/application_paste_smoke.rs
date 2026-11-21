@@ -4,6 +4,8 @@ use super::*;
 mod editable;
 #[path = "application_paste_placement_smoke.rs"]
 mod placement;
+#[path = "application_clipboard_roundtrip_smoke.rs"]
+pub(in crate::desktop) mod system;
 use crate::desktop::{
     open_job,
     paste_input::{self, Snapshot},
@@ -13,6 +15,22 @@ fn bytes(input: &[u8]) -> Result<crate::pixels::Pixels> {
     let lease = crate::pixels::reserve(input.len())
         .ok_or_else(|| Error::new(E_OUTOFMEMORY, "Paste fixture budget exhausted"))?;
     Ok(crate::pixels::Pixels::from_reserved(input.to_vec(), lease))
+}
+
+pub(super) unsafe fn verify_idle(pin: &DocumentWindow) -> Result<()> {
+    let canvas = pin.state.canvas.borrow();
+    if !IsWindowVisible(pin.window.0).as_bool()
+        || IsWindowVisible(pin.panel.0).as_bool()
+        || canvas.tool != crate::editor::Tool::Pan
+        || !canvas.pin_move_ready()
+        || !canvas.selected_indices().is_empty()
+    {
+        return Err(Error::new(
+            E_FAIL,
+            "Pasted pin opened its toolbar or entered editing mode",
+        ));
+    }
+    Ok(())
 }
 
 pub(super) unsafe fn run(app: &mut Application) -> Result<()> {
@@ -36,8 +54,14 @@ pub(super) unsafe fn run(app: &mut Application) -> Result<()> {
         let count = app.documents.len();
         let source = &app.documents[0];
         let stamp = source.state.canvas.borrow().editor.document_stamp();
-        paste_input::deliver(source.window.0, &source.state, snapshot, true)?;
-        // 强制等待真实工作线程结束；不调用桌面/剪贴板 API，也不显示对话框。
+        paste_input::deliver_at(
+            source.window.0,
+            &source.state,
+            snapshot,
+            true,
+            POINT { x: -750, y: 125 },
+        )?;
+        // 强制等待真实工作线程结束；不读取用户剪贴板，也不显示对话框。
         open_job::finish(source.window.0, &source.state, true);
         if !stamp.matches(&source.state.canvas.borrow().editor)
             || source.state.new_pin.borrow().is_none()
@@ -54,11 +78,20 @@ pub(super) unsafe fn run(app: &mut Application) -> Result<()> {
         {
             return Err(Error::new(E_FAIL, "Paste overwrote pending pin"));
         }
-        app.pending_windows(false)?;
+        app.pending_windows(true)?;
         if app.documents.len() != count + 1 {
             return Err(Error::new(E_FAIL, "Paste did not create a document"));
         }
         let pin = app.documents.last().unwrap();
+        verify_idle(pin)?;
+        let mut rect = RECT::default();
+        GetWindowRect(pin.window.0, &mut rect)?;
+        if (rect.left, rect.top) != (-750, 125) {
+            return Err(Error::new(
+                E_FAIL,
+                "External clipboard paste lost sampled cursor",
+            ));
+        }
         let canvas = pin.state.canvas.borrow();
         if !canvas.pinned
             || !canvas.editor.elements().is_empty()
@@ -97,7 +130,7 @@ pub(super) unsafe fn run(app: &mut Application) -> Result<()> {
     paste_input::deliver(source.window.0, &source.state, Snapshot::Files(paths), true)?;
     open_job::finish(source.window.0, &source.state, true);
     let count = app.documents.len();
-    app.pending_windows(false)?;
+    app.pending_windows(true)?;
     if app.documents.len() != count + 2
         || !stamp.matches(&app.documents[0].state.canvas.borrow().editor)
     {
@@ -107,6 +140,7 @@ pub(super) unsafe fn run(app: &mut Application) -> Result<()> {
         ));
     }
     for pin in &app.documents[count..] {
+        verify_idle(pin)?;
         if !pin.state.canvas.borrow().pinned {
             return Err(Error::new(E_FAIL, "Clipboard batch did not create pins"));
         }
@@ -144,5 +178,6 @@ pub(super) unsafe fn run(app: &mut Application) -> Result<()> {
     }
     println!("native-paste-pin-smoke: png=true dib=true file=true source-preserved=true pending-bounded=true cancelled=true clipboard-access=false");
     println!("native-paste-batch-smoke: count=2 source-preserved=true replacement-rejected=true clipboard-access=false");
+    println!("native-paste-presentation-smoke: png=true dib=true files=true batch=true host-visible=true toolbar-hidden=true free-drag=true");
     Ok(())
 }

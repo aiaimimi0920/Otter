@@ -10,39 +10,46 @@ pub(super) struct Content {
     pub image: Image,
     pub editor: Editor,
     pub opacity: f32,
+    pub frame_style: crate::pin_frame_style::Style,
     pub capture_source: Option<super::canvas::CaptureSource>,
     pub origin: Option<super::clipboard_placement::Origin>,
 }
 pub(super) struct Prepared {
     pub editor: Editor,
     pub opacity: f32,
+    pub frame_style: crate::pin_frame_style::Style,
 }
 #[derive(Default)]
 pub(super) struct Cache {
-    entry: Option<(u32, Arc<Content>)>,
+    sequence: Option<u32>,
+    entry: Option<Arc<Content>>,
     placement: Option<super::clipboard_placement::Session>,
 }
 impl Cache {
     pub fn published(&mut self, sequence: u32, content: Option<Arc<Content>>) {
-        self.entry = content
+        let origin = content.as_ref().and_then(|content| content.origin.clone());
+        self.published_at(sequence, content, origin);
+    }
+    pub fn published_at(
+        &mut self,
+        sequence: u32,
+        content: Option<Arc<Content>>,
+        origin: Option<super::clipboard_placement::Origin>,
+    ) {
+        self.sequence = (sequence != 0).then_some(sequence);
+        self.entry = content.filter(|_| sequence != 0);
+        // 位置属于复制会话，而非可编辑内容；Art/小图扁平化不能丢失相对偏移。
+        self.placement = origin
             .filter(|_| sequence != 0)
-            .map(|content| (sequence, content));
-        self.placement = self
-            .entry
-            .as_ref()
-            .and_then(|(_, content)| content.origin.clone())
             .map(super::clipboard_placement::Session::new);
     }
     /// Called while the clipboard is locked; clone only the bounded shared owner.
     pub fn matching(&mut self, sequence: u32) -> Option<Arc<Content>> {
-        if self
-            .entry
-            .as_ref()
-            .is_some_and(|(expected, _)| sequence != 0 && *expected == sequence)
-        {
-            self.entry.as_ref().map(|(_, content)| content.clone())
+        if self.sequence == Some(sequence) && sequence != 0 {
+            self.entry.clone()
         } else {
             self.entry = None;
+            self.sequence = None;
             self.placement = None;
             None
         }
@@ -54,7 +61,10 @@ impl Cache {
     ) -> Option<super::clipboard_placement::Request> {
         self.entry
             .as_ref()
-            .filter(|(_, stored)| Arc::ptr_eq(stored, content))?;
+            .filter(|stored| Arc::ptr_eq(stored, content))?;
+        self.position(cursor)
+    }
+    pub fn position(&self, cursor: (i32, i32)) -> Option<super::clipboard_placement::Request> {
         self.placement
             .as_ref()
             .map(|session| session.request(cursor))
@@ -123,11 +133,13 @@ impl Content {
             image,
             region,
             capture_origin: None,
+            paste_origin: None,
             capture_source: self.capture_source.clone(),
             placement: None,
             editable: Some(Prepared {
                 editor,
                 opacity: self.opacity,
+                frame_style: self.frame_style,
             }),
         })
     }

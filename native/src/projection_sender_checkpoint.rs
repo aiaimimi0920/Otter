@@ -22,6 +22,19 @@ impl Index {
         let mut entries: Vec<Binding> = Vec::new();
         for window in windows.0 {
             let object = fields(window.get()).ok()?;
+            let unit: std::borrow::Cow<'_, str> =
+                serde_json::from_str(object.get("id")?.get()).ok()?;
+            if let Some(binding) = invitation::capture(&object, &unit, scope.as_deref()).ok()? {
+                if entries.len() == MAX_ENTRIES
+                    || entries.iter().any(|old| {
+                        old.envelope().origin() == binding.envelope().origin()
+                            && old.envelope().projection_id() == binding.envelope().projection_id()
+                    })
+                {
+                    return None;
+                }
+                entries.push(binding);
+            }
             let Some(raw) = object.get("projectionSenders") else {
                 continue;
             };
@@ -29,8 +42,6 @@ impl Index {
                 continue;
             } // 旧 null 保留，但绝不成为原生关联。
             let bindings: inventory::Entries<'_> = serde_json::from_str(raw.get()).ok()?;
-            let unit: std::borrow::Cow<'_, str> =
-                serde_json::from_str(object.get("id")?.get()).ok()?;
             let mut keys: Vec<inventory::Key> = Vec::new();
             for raw in bindings.0 {
                 let key = inventory::key(raw.get(), &unit).ok()?;

@@ -58,7 +58,7 @@ pub(super) unsafe extern "system" fn procedure(
                 LRESULT(0)
             }
             WM_MOUSEWHEEL => {
-                push(data, Event::Wheel((wp.0 >> 16) as i16));
+                push(data, Event::WheelAt((wp.0 >> 16) as i16, x, y));
                 LRESULT(0)
             }
             WM_KEYDOWN | WM_SYSKEYDOWN => {
@@ -73,7 +73,15 @@ pub(super) unsafe extern "system" fn procedure(
                 push(data, Event::Dpi);
                 LRESULT(0)
             }
+            WM_WINDOWPOSCHANGED => {
+                let result = DefSubclassProc(hwnd, msg, wp, lp);
+                if !data.destroyed.get() && !IsWindowVisible(hwnd).as_bool() {
+                    data.end_tray_popup(hwnd);
+                }
+                result
+            }
             WM_NCDESTROY => {
+                data.destroyed.set(true);
                 data.accessibility.revoke();
                 data.provider.borrow_mut().take();
                 windows::Win32::UI::Accessibility::UiaReturnRawElementProvider(
@@ -82,12 +90,13 @@ pub(super) unsafe extern "system" fn procedure(
                     LPARAM(0),
                     None,
                 );
-                data.destroyed.set(true);
                 // 唤醒可能正在 GetMessage 内派发销毁通知的菜单循环；不传递裸指针。
                 let _ = PostThreadMessageW(GetCurrentThreadId(), WM_NULL, WPARAM(0), LPARAM(0));
                 push(data, Event::Cancel);
                 let _ = RemoveWindowSubclass(hwnd, Some(procedure), ID);
-                DefSubclassProc(hwnd, msg, wp, lp)
+                let result = DefSubclassProc(hwnd, msg, wp, lp);
+                data.end_tray_popup(hwnd);
+                result
             }
             _ => DefSubclassProc(hwnd, msg, wp, lp),
         }

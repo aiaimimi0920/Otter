@@ -6,13 +6,10 @@ use crate::desktop::{
 use windows::Win32::UI::Input::KeyboardAndMouse::IsWindowEnabled;
 
 const ENTRIES: &[(usize, &str)] = &[
-    (capture_input::NEW_PIN, "区域截图"),
-    (capture_input::live::COMMAND, "区域 Live"),
-    (capture_input::live::WINDOW, "窗口 Live…"),
-    (capture_input::LONG_RECORDING, "长截图录制（自行滚动）"),
-    (capture_input::LONG_VERTICAL, "垂直长截图"),
-    (capture_input::LONG_HORIZONTAL, "水平长截图"),
-    (context_menu::OPEN, "打开图片为新钉图…"),
+    (capture_input::NEW_PIN, "截图"),
+    (capture_input::live::COMMAND, "实时截图…"),
+    (capture_input::LONG_RECORDING, "长截图"),
+    (context_menu::OPEN, "编辑已有图片…"),
 ];
 fn known(command: usize) -> bool {
     ENTRIES.iter().any(|(id, _)| *id == command)
@@ -33,8 +30,7 @@ fn available(state: &State, command: usize) -> bool {
             Availability::capture(state).is_some_and(|value| value.allows(command))
         }
 }
-pub(super) unsafe fn append(menu: HMENU, state: &State) -> Result<()> {
-    AppendMenuW(menu, MF_SEPARATOR, 0, None)?;
+pub(in crate::desktop) unsafe fn append(menu: HMENU, state: &State) -> Result<()> {
     for &(command, label) in ENTRIES {
         AppendMenuW(
             menu,
@@ -45,10 +41,20 @@ pub(super) unsafe fn append(menu: HMENU, state: &State) -> Result<()> {
                     MF_GRAYED
                 },
             command,
-            &windows::core::HSTRING::from(label),
+            &windows::core::HSTRING::from(tray_label(state, command, label)),
         )?;
     }
-    AppendMenuW(menu, MF_SEPARATOR, 0, None)
+    AppendMenuW(menu, MF_STRING, RECEIVE, windows::core::w!("接收投射"))
+}
+pub(super) const RECEIVE: usize = 0x10b8;
+fn tray_label(state: &State, command: usize, label: &str) -> String {
+    let shortcut = match command {
+        capture_input::NEW_PIN if state.global_capture.get() => Some("Ctrl+1"),
+        capture_input::live::COMMAND if state.global_live_capture.get() => Some("Ctrl+2"),
+        capture_input::LONG_RECORDING if state.global_long_capture.get() => Some("Ctrl+3"),
+        _ => None,
+    };
+    shortcut.map_or_else(|| label.into(), |shortcut| format!("{label}\t{shortcut}"))
 }
 pub(in crate::desktop) fn execute_with(
     command: usize,
@@ -67,6 +73,24 @@ pub(in crate::desktop) fn execute_with(
     true
 }
 pub(super) unsafe fn execute(hwnd: HWND, state: &State, command: usize) -> bool {
+    if command == RECEIVE {
+        if IsWindow(Some(hwnd)).as_bool() && !state.modals.blocked() {
+            let result = super::super::device_authorization_ui::settings::choose_with(
+                hwnd,
+                state,
+                super::super::device_authorization_ui::settings::Section::TrayReceive,
+                |items| {
+                    let mut point = POINT::default();
+                    GetCursorPos(&mut point)?;
+                    crate::native_menu::cascade::track_tray(hwnd, items, point)
+                },
+            );
+            if let Err(error) = result {
+                eprintln!("native-tray-receive: {error}");
+            }
+        }
+        return true;
+    }
     execute_with(
         command,
         || {
@@ -130,25 +154,17 @@ mod tests {
             let state = State::new(None, true).unwrap();
             let menu = Menu(CreatePopupMenu().unwrap());
             append(menu.0, &state).unwrap();
-            // 独立列出产品入口，防止新增录制时丢掉原手动双轴入口或误接命令。
+            // 独立列出主干产品入口，防止误加迁移分支命令或接错命令。
             let expected = [
                 capture_input::NEW_PIN,
                 capture_input::live::COMMAND,
-                capture_input::live::WINDOW,
                 capture_input::LONG_RECORDING,
-                capture_input::LONG_VERTICAL,
-                capture_input::LONG_HORIZONTAL,
                 context_menu::OPEN,
+                RECEIVE,
             ];
-            assert_eq!(GetMenuItemCount(Some(menu.0)), (expected.len() + 2) as i32);
-            for position in [0, (expected.len() + 1) as u32] {
-                assert_ne!(
-                    GetMenuState(menu.0, position, MF_BYPOSITION) & MF_SEPARATOR.0,
-                    0
-                );
-            }
+            assert_eq!(GetMenuItemCount(Some(menu.0)), expected.len() as i32);
             for (index, command) in expected.into_iter().enumerate() {
-                assert_eq!(GetMenuItemID(menu.0, index as i32 + 1), command as u32);
+                assert_eq!(GetMenuItemID(menu.0, index as i32), command as u32);
             }
             for &(command, _) in ENTRIES {
                 assert!(available(&state, command));

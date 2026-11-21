@@ -7,6 +7,7 @@ pub(super) struct Stamp {
     document: DocumentStamp,
     display: Option<Arc<()>>,
     opacity: f32,
+    style: super::export::style::Snapshot,
 }
 impl Stamp {
     pub fn capture(canvas: &Canvas, frame: Option<&Frame>) -> Self {
@@ -14,11 +15,13 @@ impl Stamp {
             document: canvas.editor.document_stamp(),
             display: frame.map(|frame| frame.identity.clone()),
             opacity: canvas.normal_opacity,
+            style: super::export::style::Snapshot::capture(canvas),
         }
     }
     pub fn matches(&self, canvas: &Canvas, frame: Option<&Frame>) -> bool {
         self.document.matches(&canvas.editor)
             && self.opacity == canvas.normal_opacity
+            && self.style == super::export::style::Snapshot::capture(canvas)
             && canvas.editor.draft().is_none()
             && match (&self.display, frame) {
                 (None, None) => true,

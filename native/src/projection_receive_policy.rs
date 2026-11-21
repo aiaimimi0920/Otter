@@ -14,6 +14,7 @@ pub enum Policy {
 #[derive(Clone, Copy)]
 pub enum Change {
     Policy(Policy),
+    Selection(Policy),
     Paused(bool),
 }
 impl From<Policy> for Change {
@@ -66,11 +67,14 @@ impl Document {
     pub fn with_change(&self, change: Change) -> Result<Vec<u8>, &'static str> {
         let mut root = self.0.clone();
         match change {
-            Change::Policy(policy) => {
+            Change::Policy(policy) | Change::Selection(policy) => {
                 root.insert(
                     "policy".into(),
                     serde_json::to_value(policy).map_err(|_| "Invalid receive policy")?,
                 );
+                if matches!(change, Change::Selection(_)) {
+                    root.insert("paused".into(), Value::Bool(false));
+                }
             }
             Change::Paused(paused) => {
                 root.insert("paused".into(), Value::Bool(paused));
@@ -87,6 +91,16 @@ impl Document {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn selecting_receive_mode_resumes_paused_receiver_after_roundtrip() {
+        let paused = Document::decode(br#"{"version":1,"policy":"auto","paused":true}"#).unwrap();
+        for policy in [Policy::Auto, Policy::Confirm, Policy::Reject] {
+            let next =
+                Document::decode(&paused.with_change(Change::Selection(policy)).unwrap()).unwrap();
+            assert_eq!(next.policy(), policy);
+            assert!(!next.paused());
+        }
+    }
     #[test]
     fn receive_policy_missing_default_and_invalid_fields_fail_closed() {
         assert_eq!(Document::default().policy(), Policy::Confirm);

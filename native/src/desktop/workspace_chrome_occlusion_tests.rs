@@ -44,10 +44,19 @@ fn both_ports_keep_only_outer_half_at_scaled_negative_and_minified_geometry() {
                 };
                 assert!(contains(strip, outside), "{dpi}/{minified:?}/{side:?}");
                 assert!(!contains(strip, inside), "{dpi}/{minified:?}/{side:?}");
-                assert!(
-                    !contains(strip, anchor),
-                    "visible border must cover either port anchor"
-                );
+                // 新胶囊中心在白框外缘，右侧的 exclusive 边界本身不属于白框。
+                // 验证真实边框像素被完整扣除，不能用旧圆点中心代替遮挡契约。
+                let node = ui.node(0).unwrap();
+                let border_pixel = Point {
+                    x: if side == Side::Input {
+                        node.rect.left - 1
+                    } else {
+                        node.rect.right
+                    },
+                    y: anchor.y,
+                };
+                assert!(border_covers(&ui, 0, border_pixel));
+                assert!(!contains(strip, border_pixel));
                 let padding = desktop::pin_border_style::width(dpi) as i32;
                 for dx in -padding..=padding {
                     let point = Point {

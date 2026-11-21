@@ -8,7 +8,7 @@ pub(super) unsafe fn poll(hwnd: HWND, state: &State, held: bool) {
         if GetAsyncKeyState(VK_LBUTTON.0 as i32) >= 0 {
             return Ok(());
         }
-        crate::desktop::drag_transport::drag_files_with_preview(&[path], cancel, Some(&preview))
+        crate::desktop::drag_transport::drag_export_snapshot(path, cancel, &preview)
             .map(|_| ())
             .map_err(|error| error.to_string())
     });
@@ -91,11 +91,15 @@ unsafe fn poll_preview(
             return Ok(());
         };
         let signal = Arc::new(AtomicBool::new(false));
-        let (path, preview) = staged.publish(&signal).map_err(|error| error.to_string())?;
-        // OLE 同步调用期间禁止缓存清理替换/删除来源；完成后保留文件供目标继续读取。
+        let (path, preview, _cache_lock) =
+            staged.publish(&signal).map_err(|error| error.to_string())?;
+        // 缓存锁阻止应用清理；只读句柄禁止改写，但允许 Shell 按 Shift 移走独占导出副本。
         let _file = OpenOptions::new()
             .read(true)
-            .share_mode(windows::Win32::Storage::FileSystem::FILE_SHARE_READ.0)
+            .share_mode(
+                windows::Win32::Storage::FileSystem::FILE_SHARE_READ.0
+                    | windows::Win32::Storage::FileSystem::FILE_SHARE_DELETE.0,
+            )
             .open(&path)
             .map_err(|error| error.to_string())?;
         let _modal = crate::desktop::file_dialog::Guard::begin(&state.file_dialog)

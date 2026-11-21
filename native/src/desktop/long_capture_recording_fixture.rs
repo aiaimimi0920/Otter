@@ -96,6 +96,19 @@ impl Fixture {
             "moved"
         );
     }
+    pub fn drag(&mut self, axis: Axis, forward: bool) {
+        let delta = if forward { -8 } else { 8 };
+        let (x, y) = if axis == Axis::Horizontal {
+            (delta, 0)
+        } else {
+            (0, delta)
+        };
+        writeln!(self.child.stdin.as_mut().unwrap(), "drag {x} {y}").unwrap();
+        assert_eq!(
+            self.events.recv_timeout(Duration::from_secs(5)).unwrap(),
+            "dragged"
+        );
+    }
 }
 impl Drop for Fixture {
     fn drop(&mut self) {
@@ -117,11 +130,44 @@ pub(super) fn pixel(x: i32, y: i32) -> [u8; 4] {
 struct Scene {
     x: Cell<i32>,
     y: Cell<i32>,
+    pointer: Cell<Option<(i32, i32)>>,
 }
 unsafe extern "system" fn procedure(hwnd: HWND, message: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
     let pointer = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *const Scene;
     if let Some(scene) = pointer.as_ref() {
         match message {
+            WM_LBUTTONDOWN => {
+                scene
+                    .pointer
+                    .set(Some((lp.0 as i16 as i32, (lp.0 >> 16) as i16 as i32)));
+                return LRESULT(0);
+            }
+            WM_MOUSEMOVE => {
+                let point = (lp.0 as i16 as i32, (lp.0 >> 16) as i16 as i32);
+                if let Some(previous) = scene.pointer.get() {
+                    scene.pointer.set(Some(point));
+                    scene.x.set(scene.x.get() + previous.0 - point.0);
+                    scene.y.set(scene.y.get() + previous.1 - point.1);
+                    let _ = InvalidateRect(Some(hwnd), None, false);
+                    let _ = UpdateWindow(hwnd);
+                }
+                return LRESULT(0);
+            }
+            WM_LBUTTONUP => {
+                scene.pointer.set(None);
+                return LRESULT(0);
+            }
+            value if value == WM_APP + 2 => {
+                let pack =
+                    |x: i32, y: i32| LPARAM((x as u16 as u32 | ((y as u16 as u32) << 16)) as isize);
+                SendMessageW(hwnd, WM_LBUTTONDOWN, None, Some(pack(40, 40)));
+                let end = pack(40 + wp.0 as i32, 40 + lp.0 as i32);
+                SendMessageW(hwnd, WM_MOUSEMOVE, Some(WPARAM(1)), Some(end));
+                SendMessageW(hwnd, WM_LBUTTONUP, None, Some(end));
+                let _ = DwmFlush();
+                println!("CAPTURE_FIXTURE=dragged");
+                return LRESULT(0);
+            }
             WM_MOUSEWHEEL | WM_MOUSEHWHEEL => {
                 let delta = ((wp.0 >> 16) as u16 as i16 as i32) / 120 * 8;
                 if message == WM_MOUSEWHEEL {
@@ -241,6 +287,7 @@ fn recording_window_child() {
         let scene = Scene {
             x: Cell::new(128),
             y: Cell::new(128),
+            pointer: Cell::new(None),
         };
         SetWindowLongPtrW(window.0, GWLP_USERDATA, &scene as *const _ as isize);
         let _ = ShowWindow(window.0, SW_SHOWNOACTIVATE);
@@ -259,6 +306,13 @@ fn recording_window_child() {
                 let hwnd = HWND(raw as *mut _);
                 let result = if values.first() == Some(&"move") {
                     PostMessageW(Some(hwnd), WM_APP + 1, WPARAM(0), LPARAM(0))
+                } else if values.len() == 3 && values[0] == "drag" {
+                    PostMessageW(
+                        Some(hwnd),
+                        WM_APP + 2,
+                        WPARAM(values[1].parse::<i32>().unwrap() as usize),
+                        LPARAM(values[2].parse::<i32>().unwrap() as isize),
+                    )
                 } else if values.len() == 2 {
                     let delta = values[1].parse::<i16>().unwrap();
                     PostMessageW(

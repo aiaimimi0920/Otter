@@ -13,6 +13,18 @@ pub(crate) struct Document {
     pub raster: Option<crate::erase_layers::Layers>,
     pub crop: Option<crate::editor::CropView>,
     pub logical_size: Option<crate::crop_geometry::Size>,
+    pub mirror: crate::editor::MirrorState,
+}
+
+/// 同一文档的可变目标借用，不拥有额外历史或像素。
+pub(crate) struct Target<'a> {
+    pub elements: &'a mut Vec<Stroke>,
+    pub serial_count: &'a mut u32,
+    pub raster: &'a mut Option<crate::erase_layers::Layers>,
+    pub crop: &'a mut Option<crate::editor::CropView>,
+    pub logical_size: &'a mut Option<crate::crop_geometry::Size>,
+    pub mirror: &'a mut crate::editor::MirrorState,
+    pub pending_pin: &'a mut Option<crate::editor::PinValue>,
 }
 
 pub(crate) struct Annotations {
@@ -21,6 +33,7 @@ pub(crate) struct Annotations {
 }
 
 pub(crate) struct Entry {
+    pin: Option<Box<crate::editor::PinChange>>,
     annotations: Option<Box<Annotations>>,
     document: Option<Box<Document>>,
     index: usize,
@@ -34,9 +47,16 @@ pub(crate) struct Entry {
     replacements: Option<Vec<(usize, Stroke)>>,
     styles: Option<Vec<(usize, StrokeStyle)>>,
     crop: Option<Option<crate::editor::CropView>>,
+    mirror: Option<crate::editor::MirrorState>,
 }
 
 impl Entry {
+    pub fn pin(change: crate::editor::PinChange) -> Self {
+        Self {
+            pin: Some(Box::new(change)),
+            ..Self::added(0)
+        }
+    }
     pub fn annotations(previous: Annotations) -> Self {
         Self {
             annotations: Some(Box::new(previous)),
@@ -53,6 +73,10 @@ impl Entry {
         self.crop = Some(previous);
         self
     }
+    pub fn with_mirror(mut self, previous: crate::editor::MirrorState) -> Self {
+        self.mirror = Some(previous);
+        self
+    }
     pub fn cropped(previous: Option<crate::editor::CropView>) -> Self {
         Self {
             crop: Some(previous),
@@ -62,6 +86,7 @@ impl Entry {
     pub fn added(index: usize) -> Self {
         Self {
             index,
+            pin: None,
             occupied: true,
             stored: None,
             style: None,
@@ -74,12 +99,14 @@ impl Entry {
             crop: None,
             document: None,
             annotations: None,
+            mirror: None,
         }
     }
     pub fn removed(index: usize, stroke: Stroke) -> Self {
         Self {
             index,
             occupied: false,
+            pin: None,
             stored: Some(stroke),
             style: None,
             rotation: None,
@@ -91,6 +118,7 @@ impl Entry {
             crop: None,
             document: None,
             annotations: None,
+            mirror: None,
         }
     }
     pub fn styled(index: usize, style: StrokeStyle) -> Self {
@@ -98,6 +126,7 @@ impl Entry {
             index,
             occupied: true,
             stored: None,
+            pin: None,
             style: Some(style),
             rotation: None,
             serial: None,
@@ -108,6 +137,7 @@ impl Entry {
             crop: None,
             document: None,
             annotations: None,
+            mirror: None,
         }
     }
     pub fn styled_many(styles: Vec<(usize, StrokeStyle)>) -> Self {
@@ -121,6 +151,7 @@ impl Entry {
             index,
             occupied: true,
             stored: Some(stroke),
+            pin: None,
             style: None,
             rotation: None,
             serial: None,
@@ -131,6 +162,7 @@ impl Entry {
             crop: None,
             document: None,
             annotations: None,
+            mirror: None,
         }
     }
     fn retained_points(&self) -> usize {
@@ -166,6 +198,7 @@ impl Entry {
             occupied: true,
             stored: None,
             style: None,
+            pin: None,
             rotation: Some(angle),
             serial: None,
             raster: None,
@@ -175,6 +208,7 @@ impl Entry {
             crop: None,
             document: None,
             annotations: None,
+            mirror: None,
         }
     }
     pub fn serial_added(index: usize, previous: u32) -> Self {
@@ -237,14 +271,20 @@ impl Entry {
             }
         }
     }
-    fn toggle(
-        &mut self,
-        elements: &mut Vec<Stroke>,
-        serial_count: &mut u32,
-        raster: &mut Option<crate::erase_layers::Layers>,
-        crop: &mut Option<crate::editor::CropView>,
-        logical_size: &mut Option<crate::crop_geometry::Size>,
-    ) {
+    fn toggle(&mut self, target: Target<'_>) {
+        let Target {
+            elements,
+            serial_count,
+            raster,
+            crop,
+            logical_size,
+            mirror,
+            pending_pin,
+        } = target;
+        if let Some(change) = &mut self.pin {
+            *pending_pin = Some(change.toggle());
+            return;
+        }
         if let Some(annotations) = &mut self.annotations {
             std::mem::swap(&mut annotations.elements, elements);
             std::mem::swap(&mut annotations.serial, serial_count);
@@ -256,7 +296,11 @@ impl Entry {
             std::mem::swap(&mut document.raster, raster);
             std::mem::swap(&mut document.crop, crop);
             std::mem::swap(&mut document.logical_size, logical_size);
+            std::mem::swap(&mut document.mirror, mirror);
             return;
+        }
+        if let Some(previous) = &mut self.mirror {
+            std::mem::swap(previous, mirror);
         }
         if let Some(previous) = &mut self.crop {
             std::mem::swap(previous, crop);
@@ -335,6 +379,9 @@ pub(crate) struct History {
     cursor: usize,
 }
 impl History {
+    pub(crate) fn availability(&self) -> (bool, bool) {
+        (self.cursor > 0, self.cursor < self.entries.len())
+    }
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
@@ -352,33 +399,19 @@ impl History {
         self.cursor = self.entries.len();
         released
     }
-    pub fn undo(
-        &mut self,
-        elements: &mut Vec<Stroke>,
-        serial_count: &mut u32,
-        raster: &mut Option<crate::erase_layers::Layers>,
-        crop: &mut Option<crate::editor::CropView>,
-        logical_size: &mut Option<crate::crop_geometry::Size>,
-    ) -> bool {
+    pub fn undo(&mut self, target: Target<'_>) -> bool {
         if self.cursor == 0 {
             return false;
         }
         self.cursor -= 1;
-        self.entries[self.cursor].toggle(elements, serial_count, raster, crop, logical_size);
+        self.entries[self.cursor].toggle(target);
         true
     }
-    pub fn redo(
-        &mut self,
-        elements: &mut Vec<Stroke>,
-        serial_count: &mut u32,
-        raster: &mut Option<crate::erase_layers::Layers>,
-        crop: &mut Option<crate::editor::CropView>,
-        logical_size: &mut Option<crate::crop_geometry::Size>,
-    ) -> bool {
+    pub fn redo(&mut self, target: Target<'_>) -> bool {
         if self.cursor == self.entries.len() {
             return false;
         }
-        self.entries[self.cursor].toggle(elements, serial_count, raster, crop, logical_size);
+        self.entries[self.cursor].toggle(target);
         self.cursor += 1;
         true
     }

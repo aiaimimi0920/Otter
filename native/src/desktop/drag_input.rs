@@ -29,8 +29,12 @@ struct Pending {
 
 fn can_begin(state: &State) -> bool {
     // 编辑工具拥有 Shift（追加框选、形状约束等）；拖出仅在平移/浏览模式接管手势。
-    state.canvas.borrow().tool == crate::editor::Tool::Pan
-        && (state.canvas.borrow().image.is_some() || state.resolved_display.borrow().is_some())
+    let canvas = state.canvas.borrow();
+    (canvas.tool == crate::editor::Tool::Pan
+        || (canvas.tool == crate::editor::Tool::Select
+            && !canvas.selection_enabled
+            && canvas.pin_move_ready()))
+        && (canvas.image.is_some() || state.resolved_display.borrow().is_some())
 }
 fn point(lp: LPARAM) -> (i32, i32) {
     (lp.0 as i16 as i32, (lp.0 >> 16) as i16 as i32)
@@ -165,6 +169,7 @@ unsafe fn start(hwnd: HWND, state: &State, root: Result<PathBuf, String>) -> Res
         pixels: image.pixels,
         editor,
         opacity: canvas.normal_opacity,
+        style: super::export::style::Snapshot::capture(&canvas),
         root,
         stem,
         policy: state.cache_policy.get(),

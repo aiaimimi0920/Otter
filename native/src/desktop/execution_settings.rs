@@ -1,8 +1,10 @@
 //! 节点执行策略的原生勾选菜单；策略修改只退休旧配置，不自动发起执行。
 use super::State;
 use crate::graph_execution_config::Config;
+#[cfg(test)]
+use windows::core::w;
 use windows::{
-    core::{w, Result},
+    core::Result,
     Win32::{Foundation::HWND, UI::WindowsAndMessaging::*},
 };
 pub(super) const FIRST: usize = 0x1085;
@@ -12,6 +14,7 @@ mod tests;
 pub(super) fn handles(command: usize) -> bool {
     (FIRST..FIRST + 4).contains(&command)
 }
+#[cfg(test)]
 fn flags(config: Config) -> [bool; 4] {
     [
         config.upstream_driven,
@@ -20,6 +23,41 @@ fn flags(config: Config) -> [bool; 4] {
         config.notify_downstream,
     ]
 }
+pub(super) unsafe fn toggle(hwnd: HWND, state: &State, command: usize) -> Result<()> {
+    if !handles(command) {
+        return Ok(());
+    }
+    update(hwnd, state, |config| match command - FIRST {
+        0 => config.upstream_driven = !config.upstream_driven,
+        1 => config.param_driven = !config.param_driven,
+        2 => config.listen_upstream = !config.listen_upstream,
+        3 => config.notify_downstream = !config.notify_downstream,
+        _ => unreachable!("validated execution setting"),
+    })
+}
+pub(super) unsafe fn toggle_upstream(hwnd: HWND, state: &State) -> Result<()> {
+    update(hwnd, state, |config| {
+        let enabled = !config.accepts_upstream_notification();
+        config.upstream_driven = enabled;
+        config.listen_upstream = enabled;
+    })
+}
+unsafe fn update(hwnd: HWND, state: &State, change: impl FnOnce(&mut Config)) -> Result<()> {
+    if !IsWindow(Some(hwnd)).as_bool() || state.group_locked.get() {
+        return Ok(());
+    }
+    let mut selected = state.selected_art.borrow_mut();
+    let Some(selected) = selected.as_mut() else {
+        return Ok(());
+    };
+    let mut config = selected.execution;
+    change(&mut config);
+    super::execution_cancel::request(hwnd, state)?;
+    selected.execution = config;
+    Ok(())
+}
+
+#[cfg(test)]
 pub(super) unsafe fn append(menu: HMENU, state: &State) -> Result<()> {
     let selected = state.selected_art.borrow();
     let Some(selected) = selected.as_ref() else {
@@ -48,25 +86,5 @@ pub(super) unsafe fn append(menu: HMENU, state: &State) -> Result<()> {
             label,
         )?;
     }
-    Ok(())
-}
-pub(super) unsafe fn toggle(hwnd: HWND, state: &State, command: usize) -> Result<()> {
-    if !handles(command) || !IsWindow(Some(hwnd)).as_bool() || state.group_locked.get() {
-        return Ok(());
-    }
-    let mut selected = state.selected_art.borrow_mut();
-    let Some(selected) = selected.as_mut() else {
-        return Ok(());
-    };
-    let mut config = selected.execution;
-    match command - FIRST {
-        0 => config.upstream_driven = !config.upstream_driven,
-        1 => config.param_driven = !config.param_driven,
-        2 => config.listen_upstream = !config.listen_upstream,
-        3 => config.notify_downstream = !config.notify_downstream,
-        _ => return Ok(()),
-    }
-    super::execution_cancel::request(hwnd, state)?;
-    selected.execution = config;
     Ok(())
 }

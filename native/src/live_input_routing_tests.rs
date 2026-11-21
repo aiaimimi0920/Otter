@@ -4,6 +4,48 @@ use windows::{
     Win32::UI::{HiDpi::*, Input::KeyboardAndMouse::EnableWindow},
 };
 struct Window(HWND);
+#[test]
+fn fresh_keyboard_focus_is_scoped_and_missing_focus_uses_verified_fallback() {
+    let root = window(None, WS_POPUP, WINDOW_EX_STYLE::default(), [0, 0], 100);
+    let first = window(
+        Some(root.0),
+        WS_CHILD,
+        WINDOW_EX_STYLE::default(),
+        [0, 0],
+        20,
+    );
+    let second = window(
+        Some(root.0),
+        WS_CHILD,
+        WINDOW_EX_STYLE::default(),
+        [20, 0],
+        20,
+    );
+    let other = window(None, WS_POPUP, WINDOW_EX_STYLE::default(), [0, 0], 100);
+    let target = Target::bind(root.0).unwrap();
+    let previous = Destination::bind(&target, first.0).unwrap();
+    assert_eq!(
+        keyboard_at(&target, second.0, Some(&previous))
+            .unwrap()
+            .hwnd(),
+        second.0
+    );
+    for focus in [HWND::default(), other.0] {
+        assert_eq!(
+            keyboard_at(&target, focus, Some(&previous)).unwrap().hwnd(),
+            first.0
+        );
+    }
+    let foreign = Destination::bind(&Target::bind(other.0).unwrap(), other.0).unwrap();
+    assert!(keyboard_at(&target, HWND::default(), Some(&foreign)).is_err());
+    drop(first);
+    assert_eq!(
+        keyboard_at(&target, HWND::default(), Some(&previous))
+            .unwrap()
+            .hwnd(),
+        root.0
+    );
+}
 impl Drop for Window {
     fn drop(&mut self) {
         unsafe {

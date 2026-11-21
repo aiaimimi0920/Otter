@@ -6,6 +6,7 @@ use std::sync::Arc;
 pub(crate) struct DocumentStamp {
     identity: Arc<()>,
     revision: u64,
+    presentation_revision: u64,
 }
 
 impl Editor {
@@ -13,11 +14,18 @@ impl Editor {
         DocumentStamp {
             identity: self.identity.clone(),
             revision: self.revision,
+            presentation_revision: self.presentation_revision,
         }
     }
 }
 
 impl DocumentStamp {
+    /// 呈现历史仍使普通异步凭证失效，但不把移动、透明度或外框当作 OCR 源编辑。
+    pub(crate) fn matches_content(&self, editor: &Editor) -> bool {
+        self.same_document(editor)
+            && self.revision.wrapping_sub(self.presentation_revision)
+                == editor.revision.wrapping_sub(editor.presentation_revision)
+    }
     pub(crate) fn same_document(&self, editor: &Editor) -> bool {
         Arc::ptr_eq(&self.identity, &editor.identity)
     }

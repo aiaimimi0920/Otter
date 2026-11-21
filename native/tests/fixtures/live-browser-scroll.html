@@ -1,0 +1,26 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Otter Live Input Probe</title>
+<style>
+  body { margin: 0; height: 6000px; background: linear-gradient(#eee, #acf); }
+  #nested { position: fixed; left: 400px; top: 180px; width: 350px; height: 250px; overflow: auto; }
+  #content { width: 1200px; height: 1800px; background: linear-gradient(#faa, #afa); }
+  #below { position: absolute; top: 1000px; }
+</style>
+<!-- 普通无角色 overflow 容器也必须接收滚动，不能依赖 tabindex/ARIA 才进入 ControlView。 -->
+<div id="nested">
+  <div id="content">Nested scroll test</div>
+</div>
+<div id="below"></div>
+<script>
+  // 视口外的可访问控件曾耗尽 256 节点预算，首次滚动后 Controller 永久 Disabled。
+  // count=0 保留简单页对照；350 和 1000 覆盖长页面，不接触外部站点或用户数据。
+  const count = Math.min(1000, Math.max(0, Number(new URL(location).searchParams.get('count') ?? 350)));
+  for (let i = 0; i < count; i++) {
+    const button = document.createElement('button');
+    button.textContent = `Item ${i}`;
+    below.append(button);
+  }
+  window.probe = { wheels: 0 };
+  addEventListener('wheel', () => probe.wheels++);
+</script>

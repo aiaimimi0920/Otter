@@ -16,6 +16,8 @@ mod group_name;
 mod groups;
 #[path = "application_live_link_tests.rs"]
 mod links;
+#[path = "application_live_pin_tests.rs"]
+mod pin;
 #[path = "application_live_ports_tests.rs"]
 mod ports;
 #[path = "application_live_recycle_tests.rs"]

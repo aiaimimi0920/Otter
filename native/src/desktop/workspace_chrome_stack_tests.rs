@@ -18,6 +18,84 @@ unsafe fn pin_order(ui: &Ui) -> Vec<isize> {
     order
 }
 
+unsafe fn rank(hwnd: HWND) -> usize {
+    let mut cursor = GetTopWindow(None).unwrap();
+    for index in 0..4096 {
+        if cursor == hwnd {
+            return index;
+        }
+        cursor = GetWindow(cursor, GW_HWNDNEXT).unwrap_or_default();
+        if cursor.is_invalid() {
+            break;
+        }
+    }
+    panic!("missing test window: {hwnd:?}");
+}
+
+#[test]
+fn tab_sides_follow_their_pin_across_an_independent_window_and_topmost_changes() {
+    unsafe {
+        let mut app = visible_app();
+        let ui = app.chrome.ui.clone();
+        for doc in &app.documents {
+            doc.state.parameters_ui.toggle.set(true);
+        }
+        app.process_parameter_panels(true);
+        app.sync_workspace_chrome(true);
+        let foreign = CreateWindowExW(
+            WINDOW_EX_STYLE::default(),
+            w!("STATIC"),
+            w!("stack fixture"),
+            WS_POPUP | WS_VISIBLE,
+            0,
+            0,
+            40,
+            40,
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+        let lower = app.documents[1].window.0;
+        let upper = app.documents[0].window.0;
+        let flags = SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER;
+        SetWindowPos(lower, Some(HWND_BOTTOM), 0, 0, 0, 0, flags).unwrap();
+        SetWindowPos(foreign, Some(HWND_TOP), 0, 0, 0, 0, flags).unwrap();
+        for band in [HWND_TOPMOST, HWND_NOTOPMOST, HWND_TOPMOST] {
+            SetWindowPos(upper, Some(band), 0, 0, 0, 0, flags).unwrap();
+            assert!(rank(upper) < rank(foreign) && rank(foreign) < rank(lower));
+            for side in [Side::Input, Side::Output] {
+                let (attached, _, _) = port(&ui, 0, side);
+                assert!(IsWindowVisible(attached).as_bool());
+                assert!(
+                    rank(attached) < rank(foreign),
+                    "Tab {side:?} must follow its own pin, not the lowest pin"
+                );
+                assert_eq!(
+                    GetWindowLongPtrW(attached, GWL_EXSTYLE) as u32 & WS_EX_TOPMOST.0,
+                    GetWindowLongPtrW(upper, GWL_EXSTYLE) as u32 & WS_EX_TOPMOST.0
+                );
+            }
+            let node = ui.node(0).unwrap();
+            let backing = ui
+                .backings
+                .borrow()
+                .iter()
+                .find(|b| b.matches(&node))
+                .unwrap()
+                .hwnd;
+            assert!(
+                rank(backing) < rank(foreign),
+                "Tab row backing must follow the same pin"
+            );
+            atomic_tests::links_below_nodes(&ui);
+        }
+        DestroyWindow(foreign).unwrap();
+        app.shutdown();
+    }
+}
+
 #[test]
 fn port_focus_preview_and_reshow_keep_the_entire_connection_group_below_unchanged_pins() {
     unsafe {
@@ -120,6 +198,113 @@ fn a_raised_port_is_lowered_with_curves_even_when_the_curve_window_is_already_be
         window::refresh(&ui).unwrap();
         atomic_tests::links_below_nodes(&ui);
         assert_eq!(pin_order(&ui), before);
+        app.shutdown();
+    }
+}
+
+#[test]
+fn one_order_transaction_demotes_every_topmost_member_without_reordering_pins() {
+    unsafe {
+        let mut app = visible_app();
+        let ui = app.chrome.ui.clone();
+        let before = pin_order(&ui);
+        let layers: Vec<_> = ui
+            .input_windows
+            .borrow()
+            .iter()
+            .map(|(h, _, _)| *h)
+            .chain(ui.backings.borrow().iter().map(|b| b.hwnd))
+            .chain([ui.drawing.get()])
+            .collect();
+        for mask in 1..1usize << layers.len() {
+            // 夹具暂时抑制同步纠正，制造各成员旧 TOPMOST 状态不同的完整批次。
+            assert!(!ui.ordering.replace(true));
+            for (index, hwnd) in layers.iter().enumerate() {
+                if mask & (1 << index) != 0 {
+                    SetWindowPos(
+                        *hwnd,
+                        Some(HWND_TOPMOST),
+                        0,
+                        0,
+                        0,
+                        0,
+                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER,
+                    )
+                    .unwrap();
+                }
+            }
+            ui.ordering.set(false);
+            window::order_drawing(&ui).unwrap();
+            atomic_tests::links_below_nodes(&ui);
+            assert_eq!(pin_order(&ui), before);
+            for hwnd in &layers {
+                assert_eq!(
+                    GetWindowLongPtrW(*hwnd, GWL_EXSTYLE) as u32 & WS_EX_TOPMOST.0,
+                    0,
+                    "mask={mask}: stale topmost state must not propagate to another member"
+                );
+            }
+        }
+        assert!(ui.failure.borrow().is_none());
+        app.shutdown();
+    }
+}
+
+#[test]
+fn a_legal_shared_curve_layer_is_not_raised_above_an_independent_window() {
+    unsafe {
+        let mut app = visible_app();
+        let ui = app.chrome.ui.clone();
+        let lowest = *pin_order(&ui).last().unwrap();
+        let node = ui
+            .nodes
+            .borrow()
+            .iter()
+            .find(|n| n.hwnd == lowest)
+            .unwrap()
+            .clone();
+        let tail = ui
+            .backings
+            .borrow()
+            .iter()
+            .find(|b| b.matches(&node))
+            .unwrap()
+            .hwnd;
+        let foreign = CreateWindowExW(
+            WINDOW_EX_STYLE::default(),
+            w!("STATIC"),
+            w!("curve fixture"),
+            WS_POPUP | WS_VISIBLE,
+            0,
+            0,
+            40,
+            40,
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+        SetWindowPos(
+            foreign,
+            Some(tail),
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER,
+        )
+        .unwrap();
+        assert!(rank(foreign) < rank(ui.drawing.get()));
+        let before = pin_order(&ui);
+        window::refresh(&ui).unwrap();
+        assert!(
+            rank(foreign) < rank(ui.drawing.get()),
+            "legal shared layer must not be raised"
+        );
+        assert_eq!(pin_order(&ui), before);
+        atomic_tests::links_below_nodes(&ui);
+        DestroyWindow(foreign).unwrap();
         app.shutdown();
     }
 }

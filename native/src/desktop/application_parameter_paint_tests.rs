@@ -1,4 +1,4 @@
-//! 在未切换desktop核正常Application调度是否允许每个参数child完成初始paint。
+//! 在未切换 desktop 核同步首帧及后续 Application 调度，不把已绘完的控件误判为饥饿。
 use super::*;
 use windows::Win32::Graphics::Gdi::GetUpdateRect;
 use windows::Win32::UI::Input::KeyboardAndMouse::{GetFocus, SetFocus};
@@ -27,7 +27,11 @@ unsafe fn check_pump(focused: bool) {
         app.pending_windows(true).unwrap();
         let panel = app.documents[0].parameters.as_ref().unwrap().handle();
         if focused {
-            assert_eq!(GetFocus(), GetDlgItem(Some(panel), 1001).unwrap());
+            assert_eq!(
+                GetFocus(),
+                host,
+                "Tab reveals controls without stealing the pin focus"
+            );
         }
         let mut child = GetWindow(panel, GW_CHILD).unwrap();
         let mut children = Vec::new();
@@ -35,7 +39,21 @@ unsafe fn check_pump(focused: bool) {
             children.push(child);
             child = GetWindow(child, GW_HWNDNEXT).unwrap_or_default();
         }
-        assert!(children.len() >= 6);
+        assert_eq!(
+            children.len(),
+            1,
+            "the ordinary image row has one inline upload control, not the old standalone form"
+        );
+        // 首帧现由完整帧发布同步完成；另使同一真实 child 失效，验证正常消息泵的后续重绘。
+        for child in &children {
+            assert!(
+                !GetUpdateRect(*child, None, false).as_bool(),
+                "initial frame is incomplete"
+            );
+            windows::Win32::Graphics::Gdi::InvalidateRect(Some(*child), None, false)
+                .ok()
+                .unwrap();
+        }
         let mut painted = std::collections::HashSet::new();
         let mut counts = std::collections::BTreeMap::new();
         let mut paints = std::collections::BTreeMap::new();

@@ -136,18 +136,23 @@ unsafe fn rect(object: &Provider) -> Result<UiaRect> {
     let mut rect = RECT::default();
     GetWindowRect(object.hwnd, &mut rect)?;
     available(object).ok()?;
-    let (top, bottom) = object
-        .node
-        .as_ref()
-        .map_or((rect.top, rect.bottom), |node| {
-            let top = rect.top + node.slot() as i32 * object.row;
-            (top, (top + object.row).min(rect.bottom))
-        });
+    if let Some(node) = &object.node {
+        let local = object
+            .view
+            .item_rect(node.slot(), rect.right - rect.left, object.row)
+            .ok_or_else(|| Error::from_hresult(HRESULT(UIA_E_ELEMENTNOTAVAILABLE as i32)))?;
+        rect = RECT {
+            left: rect.left + local.left,
+            right: rect.left + local.right,
+            top: rect.top + local.top,
+            bottom: (rect.top + local.bottom).min(rect.bottom),
+        };
+    }
     Ok(UiaRect {
         left: rect.left as f64,
-        top: top as f64,
+        top: rect.top as f64,
         width: (rect.right - rect.left).max(0) as f64,
-        height: (bottom - top).max(0) as f64,
+        height: (rect.bottom - rect.top).max(0) as f64,
     })
 }
 unsafe extern "system" fn bounds(this: *mut c_void, out: *mut UiaRect) -> HRESULT {
@@ -244,8 +249,19 @@ unsafe extern "system" fn point(
     {
         return S_OK;
     }
-    let index = ((y - bounds.top) / object.row as f64) as usize;
-    match object.view.nodes().get(index) {
+    let nodes = object.view.nodes();
+    let node = nodes.iter().find(|node| {
+        object
+            .view
+            .item_rect(node.slot(), bounds.width as i32, object.row)
+            .is_some_and(|r| {
+                x - bounds.left >= r.left as f64
+                    && x - bounds.left < r.right as f64
+                    && y - bounds.top >= r.top as f64
+                    && y - bounds.top < r.bottom as f64
+            })
+    });
+    match node {
         Some(node) => output(child(object, node.clone()), out),
         None => output(root(object), out),
     }

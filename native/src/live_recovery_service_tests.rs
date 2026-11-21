@@ -1,4 +1,5 @@
 use super::*;
+use crate::live_recovery_wire::{Restoration, WindowState};
 use std::{cell::Cell, rc::Rc};
 fn record(hwnd: u64) -> Record {
     Record {
@@ -6,16 +7,18 @@ fn record(hwnd: u64) -> Record {
         process_id: 2,
         thread_id: 3,
         process_created: 4,
-        rect: [0, 0, 32, 32],
-        placement_flags: 0,
-        show_command: 1,
-        min_position: [0, 0],
-        max_position: [0, 0],
-        normal_position: [0, 0, 32, 32],
-        extended_style: 0,
-        layered: None,
-        iconic: false,
-        visible: true,
+        restoration: Restoration::Window(WindowState {
+            rect: [0, 0, 32, 32],
+            placement_flags: 0,
+            show_command: 1,
+            min_position: [0, 0],
+            max_position: [0, 0],
+            normal_position: [0, 0, 32, 32],
+            extended_style: 0,
+            layered: None,
+            iconic: false,
+            visible: true,
+        }),
     }
 }
 fn req(sequence: u64, command: Command) -> Request {
@@ -59,7 +62,10 @@ fn lost_register_ack_replays_without_rebinding_or_replacing_snapshot() {
     );
     let mut changed = register(1, 1, 10);
     if let Command::Register { record, .. } = &mut changed.command {
-        record.rect[2] = 64;
+        let Restoration::Window(window) = &mut record.restoration else {
+            panic!("window fixture")
+        };
+        window.rect[2] = 64;
     }
     assert!(service.apply(changed, |_| panic!("changed retry")).is_err());
     assert_eq!(service.pending(), 1);
@@ -246,4 +252,60 @@ fn wrong_session_gaps_and_invalid_records_do_not_consume_sequence_or_bind() {
             .status,
         Status::Accepted
     );
+}
+
+#[test]
+fn asynchronous_restore_wait_keeps_original_owner_until_actual_completion() {
+    let dropped = Rc::new(Cell::new(0));
+    let mut service = Service::new([7; 16]).unwrap();
+    service
+        .apply(register(1, 1, 10), |_| Ok(Owner(dropped.clone())))
+        .unwrap();
+    for _ in 0..3 {
+        let error = service
+            .recover(|_, _| Err(io::ErrorKind::WouldBlock.into()))
+            .unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::WouldBlock);
+        assert_eq!(service.pending(), 1);
+        assert_eq!(dropped.get(), 0);
+    }
+    assert!(service
+        .apply(req(2, Command::Retire { id: 1 }), |_| panic!(
+            "terminal recovery"
+        ))
+        .is_err());
+    service.recover(|_, _| Ok(())).unwrap();
+    assert_eq!(service.pending(), 0);
+    assert_eq!(dropped.get(), 1);
+}
+
+#[test]
+fn pending_restore_cannot_mask_another_actual_failure_in_either_order() {
+    for pending_first in [true, false] {
+        let dropped = Rc::new(Cell::new(0));
+        let mut service = Service::new([7; 16]).unwrap();
+        for id in 1..=2 {
+            service
+                .apply(register(id, id, id), |_| Ok(Owner(dropped.clone())))
+                .unwrap();
+        }
+        let error = service
+            .recover(|record, _| {
+                if (record.hwnd == 1) == pending_first {
+                    Err(io::ErrorKind::WouldBlock.into())
+                } else {
+                    Err(io::Error::new(
+                        io::ErrorKind::PermissionDenied,
+                        "actual source failure",
+                    ))
+                }
+            })
+            .unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::PermissionDenied);
+        assert_eq!(error.to_string(), "actual source failure");
+        assert_eq!(service.pending(), 2);
+        assert_eq!(dropped.get(), 0);
+        service.recover(|_, _| Ok(())).unwrap();
+        assert_eq!(dropped.get(), 2);
+    }
 }

@@ -122,6 +122,13 @@ fn stale_pool_size_delivers_full_static_frame_without_source_redraw() {
             let (sender, receiver) = mpsc::sync_channel(1);
             let worker = std::thread::spawn(move || {
                 let mut session = Session::window(&target, frames).unwrap();
+                assert!(!session
+                    .resources
+                    .session
+                    .as_ref()
+                    .unwrap()
+                    .IsBorderRequired()
+                    .unwrap());
                 sender.send(session.stop_handle()).unwrap();
                 // 强制重现 Size 在恢复前读取、实际内容已恢复的边界，不再重绘源。
                 session
@@ -130,6 +137,13 @@ fn stale_pool_size_delivers_full_static_frame_without_source_redraw() {
                         Height: stale[1],
                     })
                     .unwrap();
+                assert!(!session
+                    .resources
+                    .session
+                    .as_ref()
+                    .unwrap()
+                    .IsBorderRequired()
+                    .unwrap());
                 loop {
                     match session.next_frame() {
                         Ok(_) => {}

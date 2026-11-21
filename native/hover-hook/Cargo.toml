@@ -1,0 +1,16 @@
+[package]
+name = "otter-live-hover-hook"
+version = "0.2.33"
+edition = "2021"
+license = "MIT"
+publish = false
+description = "Scoped native Live pointer leave filter"
+
+[lib]
+crate-type = ["rlib", "cdylib"]
+
+[dependencies]
+windows = { version = "=0.60.0", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Controls", "Win32_System_Threading", "Win32_System_LibraryLoader", "Win32_Graphics_Gdi"] }
+
+[dev-dependencies]
+windows = { version = "=0.60.0", features = ["Win32_Graphics_Gdi"] }

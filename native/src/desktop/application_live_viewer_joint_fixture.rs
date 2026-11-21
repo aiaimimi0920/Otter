@@ -1,4 +1,4 @@
-//! 真实联合门的隔离身份/固定CA/消息泵；仅使用linshi下新profile，不读取真实配置。
+//! 真实联合门的隔离身份/固定CA/消息泵；仅使用测试临时目录中的新profile。
 use super::*;
 use base64::Engine;
 use std::path::PathBuf;
@@ -14,7 +14,7 @@ impl Context {
         assert!(input.is_absolute() && std::fs::metadata(&input).unwrap().len() <= 64 * 1024);
         let root = input.parent().unwrap().to_path_buf();
         let canonical = std::fs::canonicalize(&root).unwrap();
-        let base = std::fs::canonicalize("C:/Users/Public/nas_home/AI/GameEditor/linshi").unwrap();
+        let base = std::fs::canonicalize(std::env::temp_dir()).unwrap();
         assert!(canonical != base && canonical.starts_with(base));
         let data: serde_json::Value =
             serde_json::from_slice(&zeroize::Zeroizing::new(std::fs::read(input).unwrap()))
@@ -22,7 +22,10 @@ impl Context {
         let origin = data["origin"].as_str().unwrap().to_owned();
         let url = url::Url::parse(&origin).unwrap();
         assert_eq!(url.scheme(), "https");
-        assert_eq!(url.host_str(), Some("127.0.0.1"));
+        let host = std::env::var("OTTER_LIVE_TEST_LAN_HOST").unwrap_or_else(|_| "127.0.0.1".into());
+        assert_eq!(url.host_str(), Some(host.as_str()));
+        let address: std::net::Ipv4Addr = host.parse().unwrap();
+        assert!(address.is_private() || address.is_loopback());
         let profile = root.join("native-viewer-profile");
         std::fs::create_dir(&profile).unwrap();
         std::fs::write(
@@ -67,9 +70,10 @@ impl Context {
         let client = crate::device_session_client::Client::new(
             &self.origin,
             roots,
-            vec![format!("127.0.0.1:{}", url.port().unwrap())
-                .parse()
-                .unwrap()],
+            vec![std::net::SocketAddr::new(
+                url.host_str().unwrap().parse().unwrap(),
+                url.port().unwrap(),
+            )],
         )
         .unwrap();
         app.authorization.borrow_mut().origin = Some(self.origin.clone());

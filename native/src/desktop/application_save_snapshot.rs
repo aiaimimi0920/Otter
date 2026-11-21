@@ -17,6 +17,8 @@ use crate::{
 };
 
 pub struct Document {
+    pub node_settings: Option<crate::unit_node_settings::Settings>,
+    pub(in crate::desktop) extensions: Option<crate::desktop::extension_document::Snapshot>,
     pub output_images: Vec<(String, crate::desktop::loom_image_value::ImageValue)>,
     pub outputs: Option<serde_json::Map<String, serde_json::Value>>,
     pub capture_original: Option<std::sync::Arc<std::fs::File>>,
@@ -30,6 +32,7 @@ pub struct Document {
     pub transition: Option<crate::minified_transition::Transition>,
     pub normal_opacity: f32,
     pub mini_opacity: f32,
+    pub frame_style: Option<crate::pin_frame_style::Style>,
     pub pinned: bool,
     pub art: bool,
     pub local_art_id: Option<String>,
@@ -121,6 +124,9 @@ impl Receipt {
 impl Application {
     /// 捕获使用创建或恢复时建立的显式坐标上下文；不猜测历史 DPR，不泵消息。
     pub unsafe fn capture_session_snapshot(&mut self) -> Result<(Receipt, Data)> {
+        for document in &self.documents {
+            crate::desktop::extension_document::observe(&document.state);
+        }
         // 仅生成固定 32 字节随机身份，不解析原文或访问磁盘；失败不降级为路径/UnitId。
         if let Some(record) = &mut self.restored_session {
             if record.projection_scope.is_none() {
@@ -185,6 +191,7 @@ impl Application {
                 projection_edits.push((doc.state.unit_id.clone(), snapshot));
             }
             documents.push(Document {
+                extensions: Some(doc.state.extension_document.borrow().snapshot()),
                 output_images: doc.state.execution_results.borrow().save_output_images(),
                 outputs: doc.state.execution_results.borrow().save_value_outputs(),
                 capture_original: canvas
@@ -200,6 +207,8 @@ impl Application {
                 transition: canvas.minified_restore,
                 normal_opacity: canvas.normal_opacity,
                 mini_opacity: canvas.minified_opacity,
+                frame_style: Some(canvas.frame_style),
+                node_settings: Some(doc.state.node_settings.get()),
                 pinned: canvas.pinned,
                 art: doc.state.is_art(),
                 local_art_id: doc.state.local_art_id.as_deref().map(str::to_owned),

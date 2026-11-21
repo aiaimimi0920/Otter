@@ -5,13 +5,14 @@ use crate::{
     editor::Tool,
     viewport::{Point, Viewport},
 };
+use windows::Win32::{
+    Foundation::HWND,
+    Graphics::Direct2D::{Common::*, *},
+};
+#[cfg(test)]
 use windows::{
     core::{w, Result},
-    Win32::{
-        Foundation::HWND,
-        Graphics::Direct2D::{Common::*, *},
-        UI::WindowsAndMessaging::*,
-    },
+    Win32::UI::WindowsAndMessaging::*,
 };
 
 pub(super) const START: usize = 0x102E;
@@ -79,42 +80,6 @@ impl Canvas {
     }
 }
 
-pub(super) unsafe fn append(menu: HMENU, state: &State) -> Result<()> {
-    let canvas = state.canvas.borrow();
-    let display = state.resolved_display.borrow();
-    let crop = display.as_ref().map_or_else(
-        || canvas.editor.crop_view(),
-        |frame| {
-            frame
-                .editor
-                .as_deref()
-                .and_then(|editor| editor.crop_view())
-        },
-    );
-    AppendMenuW(
-        menu,
-        MF_STRING
-            | if canvas.crop_mode {
-                MF_CHECKED
-            } else {
-                MF_UNCHECKED
-            },
-        START,
-        w!("裁剪选区"),
-    )?;
-    AppendMenuW(
-        menu,
-        MF_STRING
-            | if crop.is_some() {
-                MF_ENABLED
-            } else {
-                MF_GRAYED
-            },
-        RESET,
-        w!("重置裁剪"),
-    )
-}
-
 pub(super) unsafe fn command(hwnd: HWND, state: &State, command: usize) {
     if !matches!(command, START | RESET) || state.group_locked.get() {
         return;
@@ -179,4 +144,41 @@ pub(super) unsafe fn draw(
     });
     target.DrawRectangle(&rect, brush, 1.0, None);
     brush.SetColor(&previous);
+}
+
+#[cfg(test)]
+pub(super) unsafe fn append(menu: HMENU, state: &State) -> Result<()> {
+    let canvas = state.canvas.borrow();
+    let display = state.resolved_display.borrow();
+    let crop = display.as_ref().map_or_else(
+        || canvas.editor.crop_view(),
+        |frame| {
+            frame
+                .editor
+                .as_deref()
+                .and_then(|editor| editor.crop_view())
+        },
+    );
+    AppendMenuW(
+        menu,
+        MF_STRING
+            | if canvas.crop_mode {
+                MF_CHECKED
+            } else {
+                MF_UNCHECKED
+            },
+        START,
+        w!("裁剪选区"),
+    )?;
+    AppendMenuW(
+        menu,
+        MF_STRING
+            | if crop.is_some() {
+                MF_ENABLED
+            } else {
+                MF_GRAYED
+            },
+        RESET,
+        w!("重置裁剪"),
+    )
 }

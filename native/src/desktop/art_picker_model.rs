@@ -74,7 +74,7 @@ impl Snapshot {
     }
 }
 pub(in crate::desktop) fn search(catalog: Option<&Loaded>, query: &str) -> Vec<usize> {
-    let query = query.to_lowercase();
+    let query = query.trim().to_lowercase();
     catalog
         .map(|catalog| {
             (0..catalog.handshake.arts().len())

@@ -5,7 +5,7 @@ use windows::{
     core::IInspectable,
     Foundation::TypedEventHandler,
     Graphics::{
-        Capture::*,
+        Capture::{Direct3D11CaptureFramePool, GraphicsCaptureItem},
         DirectX::{Direct3D11::IDirect3DDevice, DirectXPixelFormat},
     },
 };
@@ -19,7 +19,7 @@ pub(super) fn start(
     size: SizeInt32,
 ) -> Result<(), Error> {
     // 先交给原 owner；任何 API 失败仍由 Session::close 关闭部分建成的资源。
-    resources.pool = Some(Direct3D11CaptureFramePool::CreateFreeThreaded(
+    resources.pool = Some(super::super::factory::pool(
         device,
         DirectXPixelFormat::B8G8R8A8UIntNormalized,
         2,
@@ -37,6 +37,12 @@ pub(super) fn start(
     }))?);
     let session = resources.session.as_ref().unwrap();
     session.SetIsCursorCaptureEnabled(false)?;
+    // 与主干 Win32 采集一致；旧系统缺少该接口时保留原采集能力。
+    if let Err(error) = session.SetIsBorderRequired(false) {
+        if error.code() != windows::Win32::Foundation::E_NOINTERFACE {
+            return Err(error.into());
+        }
+    }
     signal.check()?;
     session.StartCapture()?;
     Ok(())

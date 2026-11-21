@@ -4,6 +4,7 @@ use crate::{session_file_write::Staged, session_write::Candidate};
 use std::{path::PathBuf, sync::atomic::AtomicBool};
 
 pub(in crate::desktop) struct Prepared {
+    pub(super) checkpoint_accounts: Option<crate::projection_account::scene::Index>,
     pub(super) checkpoint_senders:
         Option<crate::projection_delivery::sender::binding::checkpoint::Index>,
     pub(super) checkpoint_scope: Option<crate::session_projection_scope::Proof>,
@@ -219,6 +220,7 @@ unsafe fn verify_failed_commits(
         let old_path = record.saved_path.clone();
         let old_host = record.transient_host.clone();
         let prepared = Prepared {
+            checkpoint_accounts: None,
             checkpoint_senders: None,
             checkpoint_scope: crate::session_projection_scope::Proof::capture(
                 &candidate.bytes.clone().into(),

@@ -1,5 +1,6 @@
-//! 实际端点条child、唯一事务和退休围栏；仅自有HWND，不注册热键或合成全局输入。
+//! 局部展开/F2 与 Tab 共用真实行内 owner；不注册热键或合成全局输入。
 use super::*;
+use windows::Win32::{Graphics::Gdi::*, UI::Input::KeyboardAndMouse::*};
 #[path = "workspace_chrome_capsule_reentry_tests.rs"]
 mod reentry;
 
@@ -41,11 +42,16 @@ unsafe fn app() -> Application {
     )
     .unwrap();
     let _ = ShowWindow(host, SW_SHOWNOACTIVATE);
-    app.sync_link_menus();
-    app.sync_workspace_chrome(true);
+    tick(&mut app);
     let _ = SetFocus(Some(host));
     assert_eq!(GetFocus(), host);
     app
+}
+unsafe fn tick(app: &mut Application) {
+    app.process_parameter_panels(true);
+    app.sync_link_menus();
+    app.sync_workspace_chrome(true);
+    assert!(app.chrome.ui.failure.borrow().is_none());
 }
 fn port(app: &Application, field: &str) -> Port {
     let scene = app.chrome.ui.scene.borrow().clone().unwrap();
@@ -59,30 +65,31 @@ fn port(app: &Application, field: &str) -> Port {
             .unwrap(),
     }
 }
-unsafe fn open(app: &mut Application, field: &str, enter: bool) -> Rc<Panel> {
-    request(&app.chrome.ui, port(app, field), enter);
-    app.sync_workspace_chrome(true);
-    assert!(app.chrome.ui.failure.borrow().is_none());
-    selected(&app.chrome.ui)
-        .unwrap()
-        .panel
-        .borrow()
-        .clone()
-        .unwrap()
+fn panel(app: &Application) -> &Panel {
+    app.documents[0].parameters.as_ref().unwrap()
 }
-unsafe fn edit(panel: &Panel) -> HWND {
-    FindWindowExW(Some(panel.handle()), None, w!("EDIT"), None).unwrap()
+unsafe fn open(app: &mut Application, field: &str, enter: bool) -> HWND {
+    assert!(request(&app.chrome.ui, port(app, field), enter));
+    tick(app);
+    panel(app).handle()
+}
+unsafe fn edit(app: &Application, field: &str) -> HWND {
+    GetDlgItem(
+        Some(panel(app).handle()),
+        if field == "text" { 1000 } else { 1001 },
+    )
+    .unwrap()
 }
 unsafe fn text(hwnd: HWND) -> String {
     let mut out = vec![0; GetWindowTextLengthW(hwnd).max(0) as usize + 1];
     let length = GetWindowTextW(hwnd, &mut out).max(0) as usize;
     String::from_utf16(&out[..length]).unwrap()
 }
-unsafe fn commit(panel: &Panel, value: &str) {
-    let edit = edit(panel);
+unsafe fn commit(app: &Application, value: &str) {
+    let edit = edit(app, "text");
     SetWindowTextW(edit, &HSTRING::from(value)).unwrap();
     SendMessageW(
-        panel.handle(),
+        panel(app).handle(),
         WM_COMMAND,
         Some(WPARAM((EN_KILLFOCUS as usize) << 16)),
         Some(LPARAM(edit.0 as isize)),
@@ -102,133 +109,188 @@ fn value(app: &Application, field: &str) -> serde_json::Value {
         .clone()
 }
 unsafe fn key(app: &Application, key: u16, repeat: bool) -> bool {
-    app.translate_workspace_chrome(&MSG {
+    let msg = MSG {
         hwnd: GetFocus(),
         message: WM_KEYDOWN,
         wParam: WPARAM(key as usize),
         lParam: LPARAM(if repeat { 1 << 30 } else { 0 }),
         ..Default::default()
-    })
+    };
+    // 仿真实消息泵：chrome 未消费时再交文档参数控件，不重复生产分派。
+    app.translate_workspace_chrome(&msg)
+        || app
+            .documents
+            .iter()
+            .any(|d| d.parameters.as_ref().is_some_and(|p| p.translate(&msg)))
 }
 #[test]
-fn actual_capsule_is_inside_the_owned_strip_and_region_without_covering_image_pixels() {
+fn local_row_is_inside_the_strip_with_only_real_controls_in_its_hit_region() {
     unsafe {
         let mut app = app();
-        let panel = open(&mut app, "text", true);
-        let open = selected(&app.chrome.ui).unwrap();
-        assert_eq!(GetParent(panel.handle()).unwrap(), open.parent);
-        assert!(IsChild(open.parent, edit(&panel)).as_bool());
-        assert!(app.documents[0].state.parameters_ui.window().is_invalid());
+        let hwnd = open(&mut app, "text", true);
+        let parent = GetParent(hwnd).unwrap();
+        assert!(app
+            .chrome
+            .ui
+            .input_windows
+            .borrow()
+            .iter()
+            .any(|(h, n, s)| *h == parent && *n == 0 && *s == Side::Input));
+        let child = edit(&app, "text");
+        assert!(IsChild(parent, child).as_bool());
+        assert_eq!(app.documents[0].state.parameters_ui.window(), hwnd);
         let mut rect = RECT::default();
-        GetWindowRect(panel.handle(), &mut rect).unwrap();
-        let node = app.chrome.ui.node(0).unwrap();
-        assert!(rect.right <= node.rect.left || rect.left >= node.rect.right);
+        GetWindowRect(child, &mut rect).unwrap();
+        assert!(rect.right <= app.chrome.ui.node(0).unwrap().rect.left);
         let region = CreateRectRgn(0, 0, 0, 0);
-        assert_ne!(GetWindowRgn(open.parent, region), RGN_ERROR);
+        assert_ne!(GetWindowRgn(hwnd, region), RGN_ERROR);
         let mut point = POINT {
             x: (rect.left + rect.right) / 2,
             y: (rect.top + rect.bottom) / 2,
         };
-        ScreenToClient(open.parent, &mut point).ok().unwrap();
+        ScreenToClient(hwnd, &mut point).ok().unwrap();
         assert!(PtInRegion(region, point.x, point.y).as_bool());
-        DeleteObject(HGDIOBJ(region.0)).ok().unwrap();
-        assert_eq!(GetFocus(), edit(&panel));
+        assert_ne!(GetWindowRgn(parent, region), RGN_ERROR);
+        point = POINT {
+            x: (rect.left + rect.right) / 2,
+            y: (rect.top + rect.bottom) / 2,
+        };
+        ScreenToClient(parent, &mut point).ok().unwrap();
+        assert!(
+            PtInRegion(region, point.x, point.y).as_bool(),
+            "the actual parent must not clip the local field"
+        );
+        DeleteObject(HGDIOBJ(region.0)).unwrap();
+        assert_eq!(GetFocus(), child);
         assert!(app.chrome.idle());
         app.shutdown();
-        assert!(panel.retired());
+        assert!(!IsWindow(Some(hwnd)).as_bool());
     }
 }
 #[test]
-fn dirty_text_blocks_idle_and_only_its_successful_commit_may_mount_a_fresh_successor() {
+fn dirty_local_row_commits_through_the_document_owner_and_preserves_disclosure() {
     unsafe {
         let mut app = app();
-        let panel = open(&mut app, "text", true);
-        SetWindowTextW(edit(&panel), &HSTRING::from("中文🙂")).unwrap();
+        let hwnd = open(&mut app, "text", false);
+        SetWindowTextW(edit(&app, "text"), &HSTRING::from("中文🙂")).unwrap();
         assert!(!app.chrome.idle());
-        let original = selected(&app.chrome.ui).unwrap();
-        commit(&panel, "中文🙂");
-        app.sync_workspace_chrome(true);
+        commit(&app, "中文🙂");
+        tick(&mut app);
         assert_eq!(value(&app, "text"), "中文🙂");
-        let successor = selected(&app.chrome.ui).expect("own commit keeps an active fresh capsule");
-        assert!(!Rc::ptr_eq(&successor, &original));
-        assert!(!Rc::ptr_eq(&successor.catalog, &original.catalog));
-        assert!(panel.retired());
-        let next = successor.panel.borrow().clone().unwrap();
-        assert_eq!(text(edit(&next)), "中文🙂");
+        assert_eq!(panel(&app).handle(), hwnd);
+        assert!(disclosure::expanded(
+            &app.chrome.ui,
+            port(&app, "text"),
+            &app.chrome.ui.node(0).unwrap()
+        ));
+        assert_eq!(text(edit(&app, "text")), "中文🙂");
         assert!(app.chrome.idle());
         app.shutdown();
     }
 }
 #[test]
-fn f2_enters_real_edit_while_f6_and_two_stage_escape_return_to_ports_without_host_deletion() {
+fn f2_f6_and_two_stage_escape_keep_the_pin_and_restore_the_corresponding_port() {
     unsafe {
         let mut app = app();
         keyboard::restore(&app.chrome.ui, port(&app, "text"));
         assert!(key(&app, VK_F2.0, false));
-        app.sync_workspace_chrome(true);
-        let panel = selected(&app.chrome.ui)
-            .unwrap()
-            .panel
-            .borrow()
-            .clone()
-            .unwrap();
-        let edit = edit(&panel);
-        assert_eq!(GetFocus(), edit);
-        SetWindowTextW(edit, &HSTRING::from("放弃草稿")).unwrap();
+        tick(&mut app);
+        let child = edit(&app, "text");
+        assert_eq!(GetFocus(), child);
+        SetWindowTextW(child, &HSTRING::from("放弃草稿")).unwrap();
         assert!(key(&app, VK_ESCAPE.0, false));
-        assert_eq!(text(edit), "原值");
-        assert!(!panel.retired());
+        assert_eq!(text(child), "原值");
+        assert!(!panel(&app).retired());
         assert!(key(&app, VK_ESCAPE.0, false));
-        assert!(panel.retired());
+        assert!(panel(&app).retired());
         assert_eq!(app.chrome.ui.keyboard.focused(), Some(port(&app, "text")));
         assert!(key(&app, VK_ESCAPE.0, true));
-        assert!(app.documents[0].is_alive());
-        app.sync_workspace_chrome(true);
-        let panel = open(&mut app, "n", true);
+        tick(&mut app);
+        let hwnd = open(&mut app, "n", true);
+        assert_eq!(GetFocus(), edit(&app, "n"));
         assert!(key(&app, VK_F6.0, false));
-        assert!(panel.retired());
         assert_eq!(app.chrome.ui.keyboard.focused(), Some(port(&app, "n")));
+        assert!(
+            !panel(&app).retired(),
+            "F6 leaves focus without closing the inline form"
+        );
+        assert_eq!(panel(&app).handle(), hwnd);
         assert!(key(&app, VK_F6.0, true));
-        assert_eq!(app.chrome.ui.keyboard.focused(), Some(port(&app, "n")));
+        assert!(app.documents[0].is_alive());
         app.shutdown();
     }
 }
 #[test]
-fn one_slot_replacement_and_output_disclosure_never_create_per_port_editors() {
+fn independent_local_rows_and_tab_share_one_owner_without_focus_theft() {
     unsafe {
         let mut app = app();
-        let first = open(&mut app, "text", false);
-        let second = open(&mut app, "n", false);
-        assert!(first.retired());
-        assert!(!second.retired());
-        let scene = app.chrome.ui.scene.borrow().clone().unwrap();
-        assert!(!scene.catalog.endpoints[0]
-            .inputs
-            .iter()
-            .any(|p| p == "secret"));
-        cancel(&app.chrome.ui);
-        request(
+        let host = app.documents[0].window.0;
+        let hwnd = open(&mut app, "text", false);
+        let child = edit(&app, "text");
+        assert_eq!(GetFocus(), host);
+        assert_eq!(open(&mut app, "n", false), hwnd);
+        assert_eq!(GetFocus(), host);
+        assert!(IsWindowVisible(child).as_bool());
+        assert!(IsWindowVisible(edit(&app, "n")).as_bool());
+        assert!(!request(
             &app.chrome.ui,
             Port {
                 node: 0,
                 side: Side::Output,
-                index: 0,
+                index: 0
             },
-            true,
-        );
-        app.sync_workspace_chrome(true);
-        assert!(selected(&app.chrome.ui).is_none());
-        assert!(second.retired());
+            true
+        ));
+        assert!(!app
+            .chrome
+            .ui
+            .scene
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .catalog
+            .endpoints[0]
+            .inputs
+            .iter()
+            .any(|p| p == "secret"));
+        app.documents[0].state.parameters_ui.toggle.set(true);
+        tick(&mut app);
+        assert_eq!(panel(&app).handle(), hwnd);
+        assert_eq!(edit(&app, "text"), child);
+        assert!(app.documents[0].state.parameters_ui.expanded.get());
         app.shutdown();
     }
 }
 #[test]
-fn stale_config_hidden_locked_capture_and_port_visibility_reject_queued_drafts() {
+fn folding_all_local_rows_keeps_dirty_drafts_and_the_idle_gate_until_reopened() {
+    unsafe {
+        let mut app = app();
+        let hwnd = open(&mut app, "text", false);
+        let child = edit(&app, "text");
+        SetWindowTextW(child, &HSTRING::from("保留草稿")).unwrap();
+        assert!(!disclosure::toggle(&app.chrome.ui, port(&app, "text")));
+        tick(&mut app);
+        assert_eq!(panel(&app).handle(), hwnd);
+        assert!(!IsWindowVisible(hwnd).as_bool());
+        assert!(!app.chrome.idle());
+        assert!(!panel(&app).exit_idle());
+        assert_eq!(open(&mut app, "text", false), hwnd);
+        assert_eq!(edit(&app, "text"), child);
+        assert_eq!(text(child), "保留草稿");
+        assert!(IsWindowVisible(hwnd).as_bool());
+        commit(&app, "保留草稿");
+        tick(&mut app);
+        assert_eq!(value(&app, "text"), "保留草稿");
+        app.shutdown();
+    }
+}
+#[test]
+fn stale_config_hidden_locked_capture_and_modal_changes_reject_queued_drafts() {
     unsafe {
         for variant in 0..5 {
             let mut app = app();
-            let panel = open(&mut app, "text", true);
-            commit(&panel, "不能提交");
+            open(&mut app, "text", false);
+            commit(&app, "不能提交");
             let state = &app.documents[0].state;
             match variant {
                 0 => {
@@ -243,80 +305,26 @@ fn stale_config_hidden_locked_capture_and_port_visibility_reject_queued_drafts()
                 }
                 1 => state.group_hidden.set(true),
                 2 => state.group_locked.set(true),
-                3 => app.capture_active.set(true),
-                _ => {
-                    app.workspace
-                        .set_port_visibility(
-                            &state.unit_id,
-                            crate::workspace::ports::Visibility::read(r#"{"text":false}"#).unwrap(),
-                        )
-                        .unwrap();
-                }
+                3 => state.capture_active.set(true),
+                _ => state.file_dialog.set(true),
             }
-            app.sync_workspace_chrome(true);
+            tick(&mut app);
             assert_eq!(value(&app, "text"), "原值", "variant={variant}");
-            assert!(panel.retired(), "variant={variant}");
-            assert!(selected(&app.chrome.ui).is_none());
-            app.capture_active.set(false);
+            app.documents[0].state.capture_active.set(false);
+            app.documents[0].state.file_dialog.set(false);
             app.shutdown();
         }
     }
 }
 #[test]
-fn external_focus_and_mouse_capture_retire_drafts_without_a_late_blur_commit() {
+fn local_edit_blur_uses_the_same_valid_commit_as_the_full_tab_form() {
     unsafe {
         let mut app = app();
-        app.add_window(false).unwrap();
-        let _ = ShowWindow(app.documents[1].window.0, SW_SHOWNOACTIVATE);
-        app.sync_link_menus();
-        app.sync_workspace_chrome(true);
-        let panel = open(&mut app, "text", true);
-        SetWindowTextW(edit(&panel), &HSTRING::from("失焦不提交")).unwrap();
-        let _ = SetFocus(Some(app.documents[1].window.0));
-        app.sync_workspace_chrome(true);
-        assert_eq!(value(&app, "text"), "原值");
-        assert!(panel.retired());
+        open(&mut app, "text", true);
+        SetWindowTextW(edit(&app, "text"), &HSTRING::from("失焦提交")).unwrap();
         let _ = SetFocus(Some(app.documents[0].window.0));
-        let panel = open(&mut app, "text", true);
-        app.chrome.ui.cancel();
-        window::hide(&app.chrome.ui);
-        assert!(panel.retired());
-        assert!(app.chrome.idle());
-        app.shutdown();
-    }
-}
-#[test]
-fn synchronous_child_focus_cancellation_cannot_restore_a_retired_candidate() {
-    unsafe extern "system" fn retire(
-        hwnd: HWND,
-        msg: u32,
-        wp: WPARAM,
-        lp: LPARAM,
-        _: usize,
-        data: usize,
-    ) -> LRESULT {
-        if msg == WM_SETFOCUS {
-            cancel(&*(data as *const Ui));
-        }
-        windows::Win32::UI::Shell::DefSubclassProc(hwnd, msg, wp, lp)
-    }
-    unsafe {
-        let mut app = app();
-        let panel = open(&mut app, "text", false);
-        let edit = edit(&panel);
-        windows::Win32::UI::Shell::SetWindowSubclass(
-            edit,
-            Some(retire),
-            536,
-            Rc::as_ptr(&app.chrome.ui) as usize,
-        )
-        .ok()
-        .unwrap();
-        request(&app.chrome.ui, port(&app, "text"), true);
-        app.sync_workspace_chrome(true);
-        assert!(selected(&app.chrome.ui).is_none());
-        assert!(panel.retired());
-        assert!(app.chrome.idle());
+        tick(&mut app);
+        assert_eq!(value(&app, "text"), "失焦提交");
         app.shutdown();
     }
 }

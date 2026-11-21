@@ -1,6 +1,8 @@
 //! 二维采集会话的单所有者状态；先验证再提交，错误不会改变最后接受帧或累计坐标。
 use super::*;
 use std::sync::atomic::Ordering;
+#[path = "long_capture_spatial_detect.rs"]
+mod detecting;
 #[path = "long_capture_spatial_preview.rs"]
 mod preview;
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -16,6 +18,7 @@ pub struct SpatialSession {
     accepted_count: usize,
     input_total: u64,
     axis: Axis,
+    detect_axis: bool,
     options: MatchOptions,
 }
 impl SpatialSession {
@@ -33,6 +36,7 @@ impl SpatialSession {
                 y: 0,
             }],
             axis,
+            detect_axis: false,
             options,
         })
     }
@@ -41,6 +45,15 @@ impl SpatialSession {
     }
     pub fn axis(&self) -> Axis {
         self.axis
+    }
+    pub(super) fn detected_axis(&self) -> Option<Axis> {
+        (!self.detect_axis).then_some(self.axis)
+    }
+    pub(super) fn detecting(first: Frame) -> Result<Self, Error> {
+        let options = MatchOptions::for_detection(Axis::Vertical, &first);
+        let mut session = Self::new(Axis::Vertical, first, options)?;
+        session.detect_axis = true;
+        Ok(session)
     }
     pub fn position(&self) -> (i64, i64) {
         self.cursor
@@ -111,6 +124,7 @@ impl SpatialSession {
             accepted_count,
             input_total,
             axis,
+            detect_axis: false,
             options,
         })
     }
@@ -131,14 +145,22 @@ impl SpatialSession {
         reserve: impl FnOnce(usize) -> Option<crate::byte_budget::Lease>,
     ) -> Result<SpatialAppend, Error> {
         check(cancel)?;
-        let (dx, dy) = match match_spatial(
-            &self.reference,
-            &frame,
-            movement,
-            self.axis,
-            self.options,
-            cancel,
-        )? {
+        let (matched, detected) = if self.detect_axis {
+            detecting::match_frame(&self.reference, &frame, movement, cancel)?
+        } else {
+            (
+                match_spatial(
+                    &self.reference,
+                    &frame,
+                    movement,
+                    self.axis,
+                    self.options,
+                    cancel,
+                )?,
+                None,
+            )
+        };
+        let (dx, dy) = match matched {
             SpatialMatch::Rejected(reason) => return Ok(SpatialAppend::Rejected(reason)),
             SpatialMatch::Offset { x, y, .. } => (x, y),
         };
@@ -169,6 +191,11 @@ impl SpatialSession {
             return Err(error);
         }
         self.reference = reference;
+        if let Some(axis) = detected {
+            self.axis = axis;
+            self.options = MatchOptions::for_detection(axis, &self.reference);
+            self.detect_axis = false;
+        }
         self.cursor = (x, y);
         self.accepted_count += 1;
         self.input_total = total;

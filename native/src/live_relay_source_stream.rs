@@ -88,11 +88,9 @@ pub(super) fn run(
                 }
                 if let Some((resource, capture)) = latest.as_ref().filter(|_| changed || refresh) {
                     let sequence = resource.sequence;
-                    if [resource.resource.width, resource.resource.height] != publication.size() {
-                        return Err(Exit::Geometry);
-                    }
                     let frame = crate::live_texture::readback::read(resource.clone(), &signal.stop)
                         .map_err(|_| Exit::Readback)?;
+                    video.resize([frame.width, frame.height], budget);
                     frame_id = frame_id.checked_add(1).ok_or(Exit::Geometry)?;
                     let dropped = last_sequence
                         .map_or(0, |old: u64| sequence.saturating_sub(old).saturating_sub(1));

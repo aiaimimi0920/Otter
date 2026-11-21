@@ -53,13 +53,24 @@ fn run(mut session: Session) -> io::Result<()> {
     loop {
         match session.wait_and_recover() {
             Ok(()) => return Ok(()),
-            Err(_) => {
-                // 仅失败恢复阶段重试；正常空闲仍完全事件驱动。失败记录不能限次后丢弃。
-                std::thread::sleep(delay);
-                delay = next_delay(delay);
+            Err(error) => {
+                if error.kind() != io::ErrorKind::WouldBlock {
+                    eprintln!("native-live-recovery-restore: {error}");
+                }
+                // Pending 继续观察原单槽，不重发；不能让正常异步开始也增长失败退避。
+                std::thread::sleep(recovery_delay(&error, &mut delay));
             }
         }
     }
+}
+fn recovery_delay(error: &io::Error, delay: &mut Duration) -> Duration {
+    if error.kind() == io::ErrorKind::WouldBlock {
+        return crate::live_popup_layer_request::POLL;
+    }
+    // 只对真实失败沿用原有有界退避；失败登记不能限次后丢弃。
+    let current = *delay;
+    *delay = next_delay(current);
+    current
 }
 fn next_delay(delay: Duration) -> Duration {
     delay.saturating_mul(2).min(Duration::from_secs(30))
@@ -93,5 +104,27 @@ mod tests {
             assert_eq!(delay, Duration::from_secs(expected));
         }
         assert_eq!(next_delay(Duration::MAX), Duration::from_secs(30));
+    }
+    #[test]
+    fn source_pending_does_not_increase_or_reset_actual_failure_backoff() {
+        let pending = io::Error::from(io::ErrorKind::WouldBlock);
+        let failed = io::Error::other("actual source failure");
+        let mut delay = Duration::from_secs(1);
+        for _ in 0..3 {
+            assert_eq!(
+                recovery_delay(&pending, &mut delay),
+                crate::live_popup_layer_request::POLL
+            );
+            assert_eq!(delay, Duration::from_secs(1));
+        }
+        assert_eq!(recovery_delay(&failed, &mut delay), Duration::from_secs(1));
+        assert_eq!(delay, Duration::from_secs(2));
+        assert_eq!(
+            recovery_delay(&pending, &mut delay),
+            crate::live_popup_layer_request::POLL
+        );
+        assert_eq!(delay, Duration::from_secs(2));
+        assert_eq!(recovery_delay(&failed, &mut delay), Duration::from_secs(2));
+        assert_eq!(delay, Duration::from_secs(4));
     }
 }

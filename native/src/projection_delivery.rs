@@ -16,6 +16,9 @@ pub mod journal;
 mod receive_route;
 #[path = "projection_sender.rs"]
 pub mod sender;
+#[cfg(windows)]
+#[path = "projection_share.rs"]
+pub(crate) mod share;
 #[path = "projection_targets.rs"]
 pub mod targets;
 pub(crate) use receive_route::Operation as ReceiveOperation;
@@ -54,8 +57,13 @@ pub struct Invitation {
     source_name: String,
     accepted: bool,
     offline: Option<receive_route::Offline>,
+    shared_origin: Option<String>,
+    public_invitation: bool,
 }
 impl Invitation {
+    pub(crate) fn requires_receipt(&self) -> bool {
+        !self.public_invitation
+    }
     pub fn envelope(&self) -> &Envelope {
         &self.envelope
     }

@@ -20,16 +20,7 @@ impl Application {
             }
         }
     }
-    pub(in crate::desktop::application) fn process_projection_cleanup(
-        &mut self,
-        config: &mut impl FnMut(
-            &str,
-        ) -> std::result::Result<
-            Config,
-            crate::device_authorization_config::Error,
-        >,
-    ) {
-        let now = Instant::now();
+    pub(in crate::desktop::application) fn poll_projection_cleanup(&mut self, now: Instant) {
         self.projection_cleanup.resolve(&self.projection_profile);
         let owner = &mut self.projection_cleanup;
         owner.wake = None;
@@ -65,6 +56,18 @@ impl Application {
             }
             owner.wake = owner.mark.is_none().then_some(owner.mark_due).flatten();
         }
+    }
+    pub(in crate::desktop::application) fn dispatch_projection_cleanup(
+        &mut self,
+        config: &mut impl FnMut(
+            &str,
+        ) -> std::result::Result<
+            Config,
+            crate::device_authorization_config::Error,
+        >,
+        now: Instant,
+    ) {
+        let owner = &mut self.projection_cleanup;
         if owner.pending_local()
             || owner.network.is_some()
             || self.remote_sessions.projection_pending()

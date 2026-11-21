@@ -68,7 +68,7 @@ pub(in crate::desktop) fn bound(view: &super::View, unit: &UnitId, target: &str)
     view.sender.bindings.iter().any(|binding| {
         binding.unit() == unit.as_str()
             && Some(binding.envelope().origin()) == view.origin.as_deref()
-            && binding.target() == target
+            && binding.target() == Some(target)
     })
 }
 pub(in crate::desktop) fn enabled(view: &super::View, unit: &UnitId, index: usize) -> bool {
@@ -86,7 +86,7 @@ pub(in crate::desktop) fn enabled(view: &super::View, unit: &UnitId, index: usiz
                 })
         })
 }
-pub(super) unsafe fn execute(hwnd: HWND, state: &State, command: usize) -> Result<()> {
+pub(in crate::desktop) unsafe fn execute(hwnd: HWND, state: &State, command: usize) -> Result<()> {
     if groups::handles(command) {
         return groups::execute(hwnd, state, command);
     }

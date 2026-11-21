@@ -41,17 +41,10 @@ pub(super) fn scaled(rect: RECT, dpi: u32) -> RECT {
         bottom: scale(rect.bottom),
     }
 }
-pub(super) fn field_rect(ui: &Ui, rect: RECT) -> RECT {
-    if ui.field.is_none() {
-        return rect;
-    }
-    RECT {
-        left: rect.left * 300 / 440,
-        right: rect.right * 300 / 440,
-        ..rect
-    }
-}
 pub(super) unsafe fn place(ui: &Ui) {
+    if ui.inline {
+        return inline::place(ui);
+    }
     let hwnd = ui.hwnd.get();
     if !IsWindow(Some(hwnd)).as_bool() {
         return;
@@ -73,7 +66,7 @@ pub(super) unsafe fn place(ui: &Ui) {
     ui.scroll.set(scroll);
     let width = scaled(
         RECT {
-            right: if ui.field.is_some() { 300 } else { 440 },
+            right: 440,
             ..Default::default()
         },
         dpi,
@@ -121,6 +114,9 @@ pub(super) unsafe fn place(ui: &Ui) {
     let _ = InvalidateRect(Some(hwnd), None, false);
 }
 pub(super) unsafe fn reveal(ui: &Ui, child: HWND) {
+    if ui.inline {
+        return inline_input::reveal(ui, child);
+    }
     let before = (ui.scroll.get(), ui.scroll_x.get());
     let rect = ui
         .placements
@@ -156,6 +152,9 @@ pub(super) unsafe fn reveal(ui: &Ui, child: HWND) {
     }
 }
 pub(super) unsafe fn scroll(ui: &Ui, msg: u32, wp: WPARAM, lp: LPARAM) -> bool {
+    if ui.inline {
+        return msg == WM_MOUSEWHEEL && inline::wheel(ui, wp, lp);
+    }
     let horizontal = msg == WM_HSCROLL
         || msg == WM_MOUSEHWHEEL
         || msg == WM_MOUSEWHEEL && GetKeyState(VK_SHIFT.0 as i32) < 0;

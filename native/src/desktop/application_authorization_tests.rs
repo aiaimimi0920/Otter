@@ -128,6 +128,7 @@ fn discovery_requires_live_authorization_and_service_changes_clear_catalog() {
             let mut view = app.authorization.borrow_mut();
             view.catalog = Some(crate::live_relay_catalog_runtime::Catalog {
                 origin: origin.into(),
+                device_id: "device".into(),
                 entries: Vec::new(),
             });
             view.catalog_busy = true;

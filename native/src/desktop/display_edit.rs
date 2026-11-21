@@ -18,6 +18,7 @@ pub(super) struct Pending {
 pub(super) fn settle(state: &State) -> bool {
     if state.pending_adoption.borrow().is_none()
         || state.file_dialog.get()
+        || state.inline_text.borrow().is_some()
         || state.blur_job.borrow().is_busy()
         || state.erase_job.borrow().is_busy()
         || state.crop_job.borrow().is_some()

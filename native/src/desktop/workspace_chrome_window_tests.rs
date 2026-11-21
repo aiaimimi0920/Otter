@@ -8,12 +8,20 @@ use windows::Win32::{
 mod atomic_tests;
 #[path = "workspace_chrome_border_tests.rs"]
 mod border_tests;
+#[path = "workspace_chrome_close_tests.rs"]
+mod close_tests;
+#[path = "workspace_chrome_cursor_tests.rs"]
+mod cursor_tests;
 #[path = "workspace_chrome_handoff_tests.rs"]
 mod handoff_tests;
 #[path = "workspace_chrome_move_tests.rs"]
 mod move_tests;
+#[path = "workspace_node_settings_tests.rs"]
+mod node_settings_tests;
 #[path = "workspace_chrome_occlusion_tests.rs"]
 mod occlusion;
+#[path = "workspace_chrome_port_visual_tests.rs"]
+mod port_visual_tests;
 #[path = "workspace_chrome_refresh_tests.rs"]
 mod refresh_tests;
 #[path = "workspace_chrome_stack_tests.rs"]
@@ -245,7 +253,9 @@ fn click_discloses_and_drag_cancel_retains_topology_and_expands_preview_bounds()
         mouse(ui, hwnd, WM_LBUTTONDOWN, point);
         assert!(!ui.idle());
         mouse(ui, hwnd, WM_LBUTTONUP, point);
-        assert!(ui.disclosed.borrow().contains(&source));
+        assert_eq!(ui.disclosed.borrow().get(&source), Some(&true));
+        // 展开后的 anchor 已移到外侧；原坐标是 body，不能再用它伪造连接拖动。
+        let (_, _, point) = port(ui, 0, Side::Output);
         mouse(ui, hwnd, WM_LBUTTONDOWN, point);
         let far = Point {
             x: point.x + 600,
@@ -299,6 +309,14 @@ fn actual_drop_queues_once_and_reconnect_cancel_preserves_original_edge() {
         app.pending_link_changes();
         assert_eq!(app.workspace.links().len(), 1);
         assert!(app.chrome.idle());
+        assert_eq!(
+            GetClassLongPtrW(source_hwnd, GCLP_HCURSOR),
+            LoadCursorW(None, IDC_ARROW).unwrap().0 as usize
+        );
+        assert_eq!(
+            GetClassLongPtrW(target_hwnd, GCLP_HCURSOR),
+            LoadCursorW(None, IDC_ARROW).unwrap().0 as usize
+        );
         app.sync_workspace_chrome(true);
         let old = app.workspace.links()[0].clone();
         let ui = &app.chrome.ui;
@@ -325,15 +343,20 @@ fn capture_retires_gestures_without_hiding_and_host_destruction_retires_every_ch
         let mut app = visible_app();
         let (hwnd, _, point) = port(&app.chrome.ui, 0, Side::Output);
         mouse(&app.chrome.ui, hwnd, WM_LBUTTONDOWN, point);
+        let visibility: Vec<_> = app
+            .chrome
+            .handles()
+            .into_iter()
+            .map(|hwnd| (hwnd, IsWindowVisible(hwnd).as_bool()))
+            .collect();
         app.capture_active.set(true);
         app.sync_workspace_chrome(true);
         assert!(app.chrome.idle());
         assert!(app.chrome.ui.blocked());
-        assert!(app
-            .chrome
-            .handles()
-            .iter()
-            .all(|h| IsWindowVisible(*h).as_bool()));
+        // 无连续展开行的底板保持隐藏；截图不能隐藏原可见窗口，也不能显示原隐藏窗口。
+        for (hwnd, visible) in visibility {
+            assert_eq!(IsWindowVisible(hwnd).as_bool(), visible);
+        }
         app.capture_active.set(false);
         app.sync_workspace_chrome(true);
         let handles = app.chrome.handles();

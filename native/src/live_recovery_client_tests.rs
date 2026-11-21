@@ -57,7 +57,7 @@ fn child_entry() {
     if mode == "exit" {
         return;
     }
-    assert_eq!(mode, "serve");
+    assert!(matches!(mode.as_str(), "serve" | "shutdown-hang"));
     if let Ok(raw) = std::env::var("OTTER_RECOVERY_INHERIT_EVENT") {
         let raw = raw.parse::<usize>().unwrap();
         // 只能影响父测试专门创建的事件，不枚举其他句柄。
@@ -68,6 +68,10 @@ fn child_entry() {
         .parse()
         .unwrap();
     crate::live_recovery_runtime::run_inherited(parent).unwrap();
+    if mode == "shutdown-hang" {
+        // 模拟已发空登记 Shutdown ACK、但进程析构仍未结束；父测试负责回收。
+        std::thread::sleep(Duration::from_secs(60));
+    }
 }
 
 #[test]

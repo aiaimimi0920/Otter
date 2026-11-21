@@ -14,6 +14,8 @@ use windows::{
     },
 };
 pub(super) const TIMER: usize = 0x4F59;
+#[path = "resize_wheel.rs"]
+pub(super) mod wheel;
 
 pub(super) unsafe fn submit_pending(hwnd: HWND, state: &State) {
     let plan = state.canvas.borrow_mut().scale_pending.take();
@@ -154,17 +156,30 @@ pub(super) unsafe fn poll(hwnd: HWND, state: &State) {
     if state.canvas.borrow_mut().clear_scale_display() {
         let _ = InvalidateRect(Some(hwnd), None, false);
     }
+    if !wheel::permit_completion(state) {
+        return;
+    }
     match result {
         Ok(plan) => {
             let accepted = accept(&mut state.canvas.borrow_mut(), plan);
             match accepted {
-                Ok(true) => refresh(hwnd, state),
-                Ok(false) => {}
-                Err(error) => report(hwnd, &format!("{error:?}")),
+                Ok(true) => {
+                    wheel::committed(state);
+                    refresh(hwnd, state);
+                    wheel::resume(hwnd, state);
+                }
+                Ok(false) => wheel::clear(state),
+                Err(error) => {
+                    wheel::clear(state);
+                    report(hwnd, &format!("{error:?}"));
+                }
             }
         }
-        Err(Error::Cancelled) => {}
-        Err(error) => report(hwnd, &format!("{error:?}")),
+        Err(Error::Cancelled) => wheel::clear(state),
+        Err(error) => {
+            wheel::clear(state);
+            report(hwnd, &format!("{error:?}"));
+        }
     }
 }
 unsafe fn refresh(hwnd: HWND, state: &State) {

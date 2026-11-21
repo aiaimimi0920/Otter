@@ -1,10 +1,12 @@
-//! 显式真实Loom LAN Source联合消费者，沿实际系统菜单/Application，不是真实桌面捕获或双普通产品。
+//! 真实 Loom LAN Source 联合消费者，沿系统菜单/Application；WGC 场景使用自有窗口。
 use super::*;
 use base64::Engine;
 #[path = "application_live_source_joint_observe.rs"]
 mod observe;
 #[path = "application_live_source_joint_reconnect.rs"]
 mod reconnect;
+#[path = "application_live_source_joint_wgc.rs"]
+mod wgc;
 #[test]
 #[ignore = "explicit real Loom Source publication and cleanup"]
 fn source_menu_real_loom_lan() {
@@ -41,7 +43,10 @@ fn run(mode: u8) {
     let origin = data["origin"].as_str().unwrap();
     let url = url::Url::parse(origin).unwrap();
     assert_eq!(url.scheme(), "https");
-    assert_eq!(url.host_str(), Some("127.0.0.1"));
+    let host = std::env::var("OTTER_LIVE_TEST_LAN_HOST").unwrap_or_else(|_| "127.0.0.1".into());
+    assert_eq!(url.host_str(), Some(host.as_str()));
+    let address: std::net::Ipv4Addr = host.parse().unwrap();
+    assert!(address.is_private() || address.is_loopback());
     let profile = root.join("native-source-profile");
     std::fs::create_dir(&profile).unwrap();
     std::fs::write(
@@ -67,9 +72,7 @@ fn run(mode: u8) {
     let client = crate::device_session_client::Client::new(
         origin,
         roots,
-        vec![format!("127.0.0.1:{}", url.port().unwrap())
-            .parse()
-            .unwrap()],
+        vec![std::net::SocketAddr::from((address, url.port().unwrap()))],
     )
     .unwrap();
     let config = |origin: &str| {
@@ -106,10 +109,17 @@ fn run(mode: u8) {
             [crate::device_authorization_owner::Event::Authorized { .. }]
         ));
         let color = Arc::new(AtomicUsize::new(0));
-        let active = if mode == 4 {
-            capture_stream(&mut app, color.clone())
+        let mut wgc = (mode == 3 && std::env::var_os("OTTER_LIVE_WGC_JOINT").is_some())
+            .then(|| wgc::Capture::start(&mut app));
+        let active = if wgc.is_some() {
+            None
+        } else if mode == 4 {
+            Some(capture_stream(&mut app, color.clone()))
         } else {
-            capture_size(&mut app, if mode == 3 { [64, 64] } else { [2, 2] })
+            Some(capture_size(
+                &mut app,
+                if mode == 3 { [64, 64] } else { [2, 2] },
+            ))
         };
         if let Some(target) = &target {
             app.live_sessions[0]
@@ -147,6 +157,9 @@ fn run(mode: u8) {
         let mut recovery = reconnect::Progress::default();
         let mut changed = false;
         while !root.join("source-stop").exists() {
+            if let Some(wgc) = &mut wgc {
+                wgc.poll(root, &mut app);
+            }
             if mode == 4 && root.join("source-pixels-change").exists() {
                 color.store(1, Ordering::Release);
             }
@@ -208,7 +221,18 @@ fn run(mode: u8) {
             std::fs::write(root.join("source-input-released.json"),br#"{"actualKeyUp":65,"actualMouseUp":true,"inputOwnerReclaimed":true,"sourceNotForegroundAtEnd":true}"#).unwrap();
         }
         app.shutdown_live().unwrap();
-        assert_eq!(active.load(Ordering::Acquire), 0);
+        if let Some(active) = active {
+            assert_eq!(active.load(Ordering::Acquire), 0);
+        }
+        if let Some(wgc) = wgc {
+            assert!(app.live_sessions.is_empty());
+            wgc.verify();
+            std::fs::write(
+                root.join("source-wgc-complete.json"),
+                br#"{"realWgc":true,"sourceRestored":true,"captureReclaimed":true}"#,
+            )
+            .unwrap();
+        }
         std::fs::write(root.join("source-complete.json"),br#"{"sourceClosed":true,"capturePreservedUntilShutdown":true,"ownersReclaimed":true,"ordinaryDualProduct":false,"physicalCrossDevice":false}"#).unwrap();
     }
 }

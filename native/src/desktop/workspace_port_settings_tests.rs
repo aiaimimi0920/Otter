@@ -1,6 +1,8 @@
 //! 自有Application的外观事务；可见窗仅在runner的隔离desktop中使用。
 use super::*;
 use crate::workspace::ports::Visibility;
+#[path = "workspace_port_visibility_tests.rs"]
+mod inline;
 unsafe fn visible() -> Application {
     let mut app = super::super::tests::app();
     for doc in &app.documents {

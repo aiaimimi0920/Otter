@@ -119,6 +119,29 @@ fn failed_staging_ordinary_import_and_stale_origin_never_add_history_or_windows(
     }
 }
 #[test]
+fn visible_capture_starts_in_free_mode_without_opening_the_edit_strip() {
+    unsafe {
+        let environment = Environment::new();
+        let mut app = environment.app();
+        app.documents[0]
+            .state
+            .canvas
+            .borrow_mut()
+            .select_tool(crate::editor::Tool::Brush);
+        app.add_prepared(vec![prepared(true)], true).unwrap();
+        let doc = app.documents.last().unwrap();
+        assert!(IsWindowVisible(doc.window.0).as_bool());
+        assert!(!IsWindowVisible(doc.panel.0).as_bool());
+        assert_eq!(doc.state.canvas.borrow().tool, crate::editor::Tool::Pan);
+        assert!(doc.state.canvas.borrow().selected_indices().is_empty());
+        assert!(neuro_mini_ui::property_window(doc.panel.0).is_none());
+        app.add_prepared(vec![prepared(false)], true).unwrap();
+        assert!(IsWindowVisible(app.documents.last().unwrap().panel.0).as_bool());
+        assert!(!IsWindowVisible(app.documents[1].panel.0).as_bool());
+        app.shutdown();
+    }
+}
+#[test]
 fn color_reuse_is_nonfatal_on_copy_failure_and_delete_requires_confirmation_of_same_entry() {
     unsafe {
         let environment = Environment::new();

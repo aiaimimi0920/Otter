@@ -40,6 +40,10 @@ pub(crate) mod edit;
 pub(crate) mod sender_update;
 
 pub enum Operation {
+    Import {
+        request: Arc<crate::projection_delivery::share::Import>,
+        journal: crate::projection_delivery::journal::Store,
+    },
     Targets,
     Inbox(InboxPolicy),
     Reject(Box<Invitation>),
@@ -84,6 +88,7 @@ pub enum Error {
     Panicked,
     Preparation(PrepareError),
     Http(HttpError),
+    AcceptBusyUnapplied,
     Decode(crate::projection_delivery::Error),
     Journal(crate::projection_delivery::journal::Error),
     Sender(crate::projection_delivery::sender::Error),

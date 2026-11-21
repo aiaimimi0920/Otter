@@ -38,6 +38,15 @@ impl Fixture {
         self.launch_with_settings(name, origin, &package::settings(origin))
     }
     pub fn launch_with_settings(&self, name: &str, origin: &str, settings: &Value) -> Product {
+        self.launch_with_manifest(name, origin, settings, None)
+    }
+    pub fn launch_with_manifest(
+        &self,
+        name: &str,
+        origin: &str,
+        settings: &Value,
+        manifest: Option<&std::path::Path>,
+    ) -> Product {
         let exe = std::env::var_os("OTTER_ART_PRODUCT_EXE")
             .map(PathBuf::from)
             .unwrap_or_else(|| PathBuf::from(env!("CARGO_BIN_EXE_otter-native")));
@@ -75,20 +84,28 @@ impl Fixture {
             .create_new(true)
             .open(self.root.join(format!("{name}-stderr.log")))
             .unwrap();
-        Product(
-            Command::new(exe)
-                .args(["--settings"])
-                .arg(self.root.join("settings.json"))
-                .env("OTTER_NATIVE_PROFILE_DIR", &self.root)
+        let mut command = Command::new(exe);
+        command
+            .args(["--settings"])
+            .arg(self.root.join("settings.json"))
+            .env("OTTER_NATIVE_PROFILE_DIR", &self.root)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(error)
+            .creation_flags(0x08000000);
+        if let Some(manifest) = manifest {
+            command
+                .env("LOOM_MANIFEST_PATH", manifest)
+                .env_remove("OTTER_LOOM_TLS_ORIGIN")
+                .env_remove("OTTER_LOOM_TLS_CA_FILE")
+                .env_remove("HOOK_LOOM_TLS_ORIGIN")
+                .env_remove("HOOK_LOOM_TLS_CA_FILE");
+        } else {
+            command
                 .env("OTTER_LOOM_TLS_ORIGIN", origin)
-                .env("OTTER_LOOM_TLS_CA_FILE", self.root.join("ca.pem"))
-                .stdin(Stdio::null())
-                .stdout(Stdio::null())
-                .stderr(error)
-                .creation_flags(0x08000000)
-                .spawn()
-                .unwrap(),
-        )
+                .env("OTTER_LOOM_TLS_CA_FILE", self.root.join("ca.pem"));
+        }
+        Product(command.spawn().unwrap())
     }
     pub fn workspace(&self) -> Option<Value> {
         serde_json::from_slice(&fs::read(self.root.join("workspace.json")).ok()?).ok()

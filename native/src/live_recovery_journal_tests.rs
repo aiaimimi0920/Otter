@@ -44,6 +44,24 @@ fn journal() -> Journal {
         Owner::start_with(|| Client::start_command(super::super::tests::fixture("serve"))).unwrap(),
     )
 }
+
+#[test]
+fn shutdown_ack_stalled_child_is_reaped_after_all_records_retire() {
+    let window = Window::new();
+    let mut journal = Journal::with_owner(
+        Owner::start_with(|| Client::start_command(super::super::tests::fixture("shutdown-hang")))
+            .unwrap(),
+    );
+    let ticket = journal.register(window.record()).unwrap();
+    advance(&mut journal, |_| ticket.ready());
+    assert_eq!(ticket.retire().unwrap_err().code(), RETIREMENT_PENDING);
+    advance(&mut journal, |_| ticket.retired());
+    journal.close();
+    advance(&mut journal, Journal::finished);
+    assert!(journal.child_handle().is_none());
+    assert!(ticket.retired());
+    assert!(journal.fault().unwrap().contains("shutdown timed out"));
+}
 fn advance(journal: &mut Journal, done: impl Fn(&Journal) -> bool) {
     let deadline = Instant::now() + Duration::from_secs(10);
     loop {
@@ -129,6 +147,30 @@ fn last_external_ticket_drop_retires_but_an_intermediate_clone_drop_does_not() {
     drop(peer);
     journal.close();
     advance(&mut journal, Journal::finished);
+    assert!(journal.entries.is_empty());
+    assert!(journal.fault().is_none());
+}
+
+#[test]
+fn uncertain_source_request_survives_last_ticket_drop_until_explicit_restore_retirement() {
+    let window = Window::new();
+    let mut journal = journal();
+    let ticket = journal.register(window.record()).unwrap();
+    advance(&mut journal, |_| ticket.ready());
+    ticket.require_restore();
+    drop(ticket);
+    assert_eq!(journal.entries.len(), 1);
+    assert_eq!(Rc::strong_count(&journal.entries[0].shared), 1);
+    assert!(!journal.entries[0].shared.retire.get());
+    journal.close();
+    journal.poll();
+    assert!(!journal.finished());
+    assert!(!journal.entries[0].shared.retire.get());
+    // 模拟原 owner 确认源已恢复后的显式退休，不能留下真正的测试 child。
+    let restored = Ticket(journal.entries[0].shared.clone());
+    assert_eq!(restored.retire().unwrap_err().code(), RETIREMENT_PENDING);
+    advance(&mut journal, Journal::finished);
+    assert!(restored.retired());
     assert!(journal.entries.is_empty());
     assert!(journal.fault().is_none());
 }

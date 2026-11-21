@@ -1,8 +1,10 @@
 //! 当前文档的手动后端选择/重试；不重置关联门禁、不保存全局偏好、不改变文档和编辑历史。
 use super::{canvas::RenderChoice, State};
+#[cfg(test)]
+use windows::{core::w, Win32::UI::WindowsAndMessaging::*};
 use windows::{
-    core::{w, Error, Result},
-    Win32::{Foundation::*, Graphics::Gdi::InvalidateRect, UI::WindowsAndMessaging::*},
+    core::{Error, Result},
+    Win32::{Foundation::*, Graphics::Gdi::InvalidateRect},
 };
 
 pub(super) const SOFTWARE: usize = 0x10F0;
@@ -21,6 +23,34 @@ fn available(state: &State, retry: bool) -> bool {
         .try_borrow()
         .is_ok_and(|canvas| canvas.can_request_render() && (!retry || canvas.software_selected()))
 }
+pub(super) unsafe fn execute(hwnd: HWND, state: &State, command: usize) -> Result<()> {
+    // 菜单快照可能已过期；进入事务前再次检查宿主、paint 和退休状态。
+    if !handles(command) || !state.lifetime.owns(hwnd) || !available(state, command == RETRY) {
+        return Err(Error::new(
+            E_ABORT,
+            "Manual render selection is not currently available",
+        ));
+    }
+    let choice = match command {
+        AUTOMATIC => RenderChoice::Automatic,
+        COMPATIBILITY => RenderChoice::Compatibility,
+        _ => RenderChoice::Software,
+    };
+    let pending = state
+        .canvas
+        .try_borrow_mut()
+        .map_err(|_| Error::new(E_ABORT, "Canvas is in use during a manual render request"))?
+        .request_render(choice)?;
+    state.render_retries.set(0);
+    if pending {
+        super::procedure::render_recovery::start(hwnd, state);
+    } else {
+        let _ = InvalidateRect(Some(hwnd), None, false);
+    }
+    Ok(())
+}
+
+#[cfg(test)]
 pub(super) unsafe fn append(menu: HMENU, state: &State) -> Result<()> {
     let selected = state
         .canvas
@@ -57,32 +87,6 @@ pub(super) unsafe fn append(menu: HMENU, state: &State) -> Result<()> {
             command,
             label,
         )?;
-    }
-    Ok(())
-}
-pub(super) unsafe fn execute(hwnd: HWND, state: &State, command: usize) -> Result<()> {
-    // 菜单快照可能已过期；进入事务前再次检查宿主、paint 和退休状态。
-    if !handles(command) || !state.lifetime.owns(hwnd) || !available(state, command == RETRY) {
-        return Err(Error::new(
-            E_ABORT,
-            "Manual render selection is not currently available",
-        ));
-    }
-    let choice = match command {
-        AUTOMATIC => RenderChoice::Automatic,
-        COMPATIBILITY => RenderChoice::Compatibility,
-        _ => RenderChoice::Software,
-    };
-    let pending = state
-        .canvas
-        .try_borrow_mut()
-        .map_err(|_| Error::new(E_ABORT, "Canvas is in use during a manual render request"))?
-        .request_render(choice)?;
-    state.render_retries.set(0);
-    if pending {
-        super::procedure::render_recovery::start(hwnd, state);
-    } else {
-        let _ = InvalidateRect(Some(hwnd), None, false);
     }
     Ok(())
 }

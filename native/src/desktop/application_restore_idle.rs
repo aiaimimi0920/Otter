@@ -24,6 +24,7 @@ pub(super) fn state(state: &crate::desktop::State) -> bool {
         || state.art_request.borrow().is_some()
         || state.hotkey_toggle.get()
         || state.file_dialog.get()
+        || state.inline_text.borrow().is_some()
         || state.new_pin.borrow().is_some()
         || state.group_request.borrow().is_some()
         || state.link_request.borrow().is_some()

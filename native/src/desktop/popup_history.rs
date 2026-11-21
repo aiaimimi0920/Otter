@@ -1,4 +1,4 @@
-//! 展开期间持有只读历史会话；命令映射绑定绘制时的条目 ID，不记录私有内容。
+//! 展开期间持有历史会话；粘贴与删除均绑定绘制时的条目 ID，不记录私有内容。
 use crate::{
     clipboard_history::{
         session::{Session, State},
@@ -8,20 +8,35 @@ use crate::{
 };
 use windows::core::Result;
 const BASE: usize = usize::MAX - 25;
+const REMOVE: usize = BASE - 25;
+const BATCH: usize = 18;
 
 pub(super) struct History {
     index: usize,
     session: Option<Session>,
     opened: bool,
     ids: Vec<String>,
+    loaded: usize,
 }
 impl History {
+    pub(super) fn delete(&mut self, command: usize) -> bool {
+        let Some(index) = command.checked_sub(REMOVE).filter(|index| *index < 25) else {
+            return false;
+        };
+        if let Some(id) = self.ids.get(index) {
+            if let Some(session) = &mut self.session {
+                session.delete_entry(index, id);
+            }
+        }
+        true
+    }
     pub(super) fn new(index: usize) -> Self {
         Self {
             index,
             session: None,
             opened: false,
             ids: Vec::new(),
+            loaded: BATCH,
         }
     }
     pub(super) fn attach(tree: &mut Vec<Item>) -> usize {
@@ -39,6 +54,7 @@ impl History {
             self.session = None;
             self.ids.clear();
             self.opened = false;
+            self.loaded = BATCH;
             return Ok(());
         }
         let just_opened = !self.opened;
@@ -47,7 +63,32 @@ impl History {
             self.session = Session::open().ok();
         }
         let changed = self.session.as_mut().is_some_and(Session::tick);
-        if !just_opened && !changed {
+        self.present(menu, just_opened || changed)
+    }
+    fn present(&mut self, menu: &mut Cascade, changed: bool) -> Result<()> {
+        // 刷新期间保留已绘制内容；Session 在 pending/task 状态拒绝旧 ID 的动作。
+        if self
+            .session
+            .as_ref()
+            .is_some_and(|session| session.state() == State::Loading)
+            && !self.ids.is_empty()
+        {
+            return Ok(());
+        }
+        let more = self.session.as_ref().is_some_and(|session| {
+            session.state() == State::Ready
+                && self.loaded < session.entries().len()
+                && menu.gallery_at_end(self.index)
+        });
+        if more {
+            self.loaded += BATCH;
+        }
+        let terminal = self
+            .session
+            .as_ref()
+            .is_some_and(|session| session.state() != State::Ready)
+            && !self.ids.is_empty();
+        if !changed && !more && !terminal {
             return Ok(());
         }
         self.ids.clear();
@@ -56,24 +97,39 @@ impl History {
                 self.ids = session
                     .entries()
                     .iter()
+                    .take(self.loaded)
                     .map(|entry| entry.id.clone())
                     .collect();
                 session
                     .entries()
                     .iter()
+                    .take(self.loaded)
                     .enumerate()
                     .map(|(index, entry)| {
                         let mut item = row(BASE + index, label(&entry.content), true);
-                        if let Content::Bitmap { thumbnail, .. } = &entry.content {
-                            item.thumbnail = Some(thumbnail.clone());
-                        }
+                        item.delete = Some(REMOVE + index);
+                        item.preview = Some(match &entry.content {
+                            Content::Bitmap {
+                                thumbnail, preview, ..
+                            } => {
+                                item.thumbnail = Some(thumbnail.clone());
+                                crate::native_menu::panel::Preview::Image(preview.clone())
+                            }
+                            Content::Text(text) => {
+                                crate::native_menu::panel::Preview::Text(text.as_str().into())
+                            }
+                        });
                         item
                     })
                     .collect()
             }
             session => vec![status(session.map_or(State::Unavailable, Session::state))],
         };
-        menu.replace_submenu(self.index, rows)
+        if self.ids.is_empty() {
+            menu.replace_submenu(self.index, rows)
+        } else {
+            menu.replace_gallery(self.index, rows)
+        }
     }
     pub(super) fn take(&mut self, command: usize) -> Option<Entry> {
         let index = command.checked_sub(BASE)?;
@@ -94,6 +150,8 @@ fn row(command: usize, label: String, enabled: bool) -> Item {
         default: false,
         separator: false,
         children: None,
+        delete: None,
+        preview: None,
         thumbnail: None,
     }
 }
@@ -101,6 +159,7 @@ fn status(state: State) -> Item {
     row(
         0,
         match state {
+            State::DeleteFailed => "删除失败，请重新打开后重试",
             State::Loading => "正在读取历史…",
             State::Empty => "没有可用的历史内容",
             State::Disabled => "Windows 剪贴板历史未启用",
@@ -146,6 +205,7 @@ mod tests {
             })),
             opened: true,
             ids: vec!["painted-id".into()],
+            loaded: BATCH,
         }
     }
     #[test]
@@ -186,5 +246,84 @@ mod tests {
         assert!(items[1].separator);
         assert_eq!(items[index].label, "剪贴板");
         assert!(items[index].children.is_some());
+    }
+    #[test]
+    fn history_appends_snapshot_entries_and_keeps_old_view_until_refresh_finishes() {
+        use windows::{
+            core::w,
+            Win32::{
+                Foundation::{HWND, POINT},
+                UI::WindowsAndMessaging::*,
+            },
+        };
+        struct Owner(HWND);
+        impl Drop for Owner {
+            fn drop(&mut self) {
+                unsafe {
+                    let _ = DestroyWindow(self.0);
+                }
+            }
+        }
+        let owner = Owner(unsafe {
+            CreateWindowExW(
+                WINDOW_EX_STYLE::default(),
+                w!("STATIC"),
+                w!("history test"),
+                WS_OVERLAPPED,
+                0,
+                0,
+                100,
+                100,
+                None,
+                None,
+                None,
+                None,
+            )
+            .unwrap()
+        });
+        let mut tree = Vec::new();
+        let root = History::attach(&mut tree);
+        let mut menu = Cascade::open(owner.0, tree, POINT { x: 30, y: 30 }).unwrap();
+        let snapshot = |suffix: &str| {
+            Session::test_snapshot(crate::clipboard_history::Snapshot {
+                status: crate::clipboard_history::Status::Ready,
+                entries: (0..25)
+                    .map(|n| Entry {
+                        id: format!("{n}-{suffix}"),
+                        content: Content::Text(format!("same label {n}")),
+                    })
+                    .collect(),
+            })
+        };
+        let mut history = History::new(root);
+        history.opened = true;
+        history.session = Some(snapshot("before"));
+        history.present(&mut menu, true).unwrap();
+        assert_eq!(history.ids.len(), BATCH);
+        menu.key(0x28).unwrap();
+        menu.key(0x0d).unwrap();
+        while !menu.gallery_at_end(root) {
+            menu.key(0x28).unwrap();
+        }
+        history.present(&mut menu, false).unwrap();
+        assert_eq!(history.ids.len(), 25);
+        let view = menu.gallery_view(root).unwrap();
+        history.session.as_ref().unwrap().test_invalidate();
+        assert!(history.take(BASE).is_none());
+        assert_eq!(history.session.as_ref().unwrap().state(), State::Loading);
+        history.present(&mut menu, true).unwrap();
+        assert_eq!(history.ids[0], "0-before");
+        assert_eq!(menu.gallery_view(root).unwrap(), view);
+        assert!(!history
+            .session
+            .as_mut()
+            .unwrap()
+            .delete_entry(0, "0-before"));
+        history.session = Some(snapshot("after"));
+        history.present(&mut menu, true).unwrap();
+        assert_eq!(history.ids[0], "0-after");
+        assert_eq!(menu.gallery_view(root).unwrap(), view);
+        history.present(&mut menu, false).unwrap();
+        assert_eq!(history.take(BASE + 24).unwrap().id, "24-after");
     }
 }

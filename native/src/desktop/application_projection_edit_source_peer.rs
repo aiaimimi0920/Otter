@@ -268,7 +268,23 @@ impl Peer {
                         }
                         _ => panic!("unexpected edit operation: {body}"),
                     }
-                    reply(&mut stream, 200, &serde_json::to_vec(&document).unwrap());
+                    // apply 已提交后客户端可合法取消；保留对端以验证显式重试读取同一回执。
+                    if let Err(error) = crate::device_session_client::tests::reply_result(
+                        &mut stream,
+                        200,
+                        &serde_json::to_vec(&document).unwrap(),
+                    ) {
+                        assert!(
+                            body["operation"] == "apply"
+                                && matches!(
+                                    error.kind(),
+                                    std::io::ErrorKind::ConnectionReset
+                                        | std::io::ErrorKind::ConnectionAborted
+                                        | std::io::ErrorKind::BrokenPipe
+                                ),
+                            "source peer reply: {error}"
+                        );
+                    }
                     continue;
                 }
                 if path == "/v1/projections/update" {

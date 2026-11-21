@@ -84,6 +84,9 @@ pub(super) fn run(
             Operation::Viewport(viewport) => {
                 local.scheduled(current, online, viewport, None, &|| false)
             }
+            Operation::SelectView(view_id, viewport) => {
+                local.select_view(current, online, &view_id, viewport, &|| false)
+            }
             Operation::Animation(viewport) => {
                 local.scheduled(current, online, viewport, Some(true), &|| false)
             }

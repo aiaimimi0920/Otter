@@ -1,14 +1,16 @@
 use super::*;
 #[test]
-fn idle_has_no_sampling_and_thousands_of_events_coalesce_behind_one_worker() {
+fn recording_polls_without_wheel_and_thousands_of_hints_coalesce_behind_one_worker() {
     let now = Instant::now();
     let mut schedule = Schedule::default();
     assert!(schedule.start(now));
     assert!(!schedule.needs_timer(false));
-    assert_eq!(
-        schedule.action(now + Duration::from_secs(1), false),
-        Action::Idle
-    );
+    assert_eq!(schedule.wake_after(now, false), Some(POLL));
+    assert_eq!(schedule.action(now + POLL, false), Action::Capture);
+    schedule.completed(now + POLL);
+    assert_eq!(schedule.action(now + POLL * 2, false), Action::Capture);
+    schedule.completed(now + POLL * 2);
+    let now = now + POLL * 2;
     for _ in 0..10_000 {
         schedule.notify(now);
     }
@@ -18,7 +20,6 @@ fn idle_has_no_sampling_and_thousands_of_events_coalesce_behind_one_worker() {
         schedule.notify(now + DELAY);
     }
     assert_eq!(schedule.action(now + DELAY * 2, true), Action::Idle);
-    assert_eq!(schedule.attempts, 1);
     schedule.completed(now + DELAY * 2);
     assert_eq!(schedule.action(now + DELAY * 2, false), Action::Capture);
     for index in 3..=4 {
@@ -28,7 +29,10 @@ fn idle_has_no_sampling_and_thousands_of_events_coalesce_behind_one_worker() {
     schedule.completed(now + DELAY * 4);
     assert_eq!(schedule.action(now + DELAY * 5, false), Action::Idle);
     assert!(!schedule.needs_timer(false));
-    assert_eq!(schedule.attempts, 4);
+    assert_eq!(
+        schedule.action(now + DELAY * 4 + POLL, false),
+        Action::Capture
+    );
 }
 #[test]
 fn stop_discards_pending_tail_and_late_completion_cannot_restart_it() {
@@ -79,19 +83,27 @@ fn old_hint_cancel_and_restart_do_not_leak_across_sessions() {
     assert_eq!(fresh.action(now + DELAY, false), Action::Idle);
     fresh.notify(now);
     fresh.finish(now + RECENT + DELAY);
-    assert_eq!(fresh.action(now + RECENT + DELAY, false), Action::Compose);
+    assert_eq!(
+        fresh.action(now + RECENT + DELAY * 2, false),
+        Action::Capture
+    );
+    fresh.completed(now + RECENT + DELAY * 2);
+    assert_eq!(
+        fresh.action(now + RECENT + DELAY * 2, false),
+        Action::Compose
+    );
 }
 #[test]
-fn attempts_and_total_session_time_are_not_reset_by_stop_resume() {
+fn repeated_polling_does_not_exhaust_frames_and_total_time_survives_stop_resume() {
     let now = Instant::now();
     let mut schedule = Schedule::default();
     schedule.start(now);
-    schedule.attempts = 510;
-    schedule.notify(now);
-    assert_eq!(schedule.action(now + DELAY, false), Action::Capture);
-    schedule.stop();
-    assert!(!schedule.start(now + DELAY));
-    assert_eq!(schedule.attempts, 511);
+    for index in 1..=1000 {
+        let at = now + POLL * index;
+        assert_eq!(schedule.action(at, false), Action::Capture);
+        schedule.completed(at);
+    }
+    assert_eq!(schedule.phase(), Phase::Recording);
     let mut timed = Schedule::default();
     timed.start(now);
     timed.stop();
@@ -104,4 +116,50 @@ fn attempts_and_total_session_time_are_not_reset_by_stop_resume() {
         Action::Limit
     );
     assert!(!active.needs_timer(false));
+}
+
+#[test]
+fn finishing_after_drag_without_any_wheel_takes_a_final_frame_and_stops_polling() {
+    let now = Instant::now();
+    let mut schedule = Schedule::default();
+    schedule.start(now);
+    schedule.finish(now);
+    assert_eq!(schedule.action(now, false), Action::Idle);
+    assert_eq!(schedule.action(now + DELAY, false), Action::Capture);
+    assert_eq!(schedule.action(now + POLL, true), Action::Idle);
+    schedule.completed(now + POLL);
+    assert_eq!(schedule.action(now + POLL, false), Action::Compose);
+    assert_eq!(schedule.wake_after(now + POLL, false), None);
+}
+
+#[test]
+fn slow_inflight_job_cannot_consume_the_completion_frame_budget() {
+    let now = Instant::now();
+    let mut schedule = Schedule::default();
+    schedule.start(now);
+    schedule.finish(now);
+    let ready = now + DRAIN * 2;
+    assert_eq!(schedule.action(ready, true), Action::Idle);
+    schedule.completed(ready);
+    assert_eq!(schedule.action(ready, false), Action::Capture);
+    schedule.completed(ready + POLL);
+    assert_eq!(schedule.action(ready + POLL, false), Action::Compose);
+    assert_eq!(schedule.wake_after(ready + POLL, false), None);
+}
+
+#[test]
+fn slow_matching_does_not_add_another_poll_period_after_the_reply() {
+    let now = Instant::now();
+    let mut schedule = Schedule::default();
+    schedule.start(now);
+    assert_eq!(schedule.action(now + POLL, false), Action::Capture);
+    let ready = now + POLL * 5;
+    assert_eq!(schedule.action(ready, true), Action::Idle);
+    schedule.completed(ready);
+    assert_eq!(schedule.action(ready, false), Action::Idle); // 预览有机会使用同一槽。
+    assert_eq!(
+        schedule.action(ready + Duration::from_millis(1), false),
+        Action::Capture
+    );
+    assert_eq!(schedule.wake_after(ready, true), Some(REPLY));
 }

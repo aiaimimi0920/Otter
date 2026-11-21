@@ -36,6 +36,7 @@ impl Editor {
             raster: std::mem::replace(&mut self.raster, source.raster.clone()),
             crop: std::mem::replace(&mut self.crop, source.crop),
             logical_size: std::mem::replace(&mut self.logical_size, source.logical_size),
+            mirror: std::mem::replace(&mut self.mirror, source.mirror),
         };
         self.retained_points += points;
         self.retained_points -= self.history.record(Entry::document(previous));

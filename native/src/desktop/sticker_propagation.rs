@@ -1,13 +1,28 @@
 //! 钉图中继开关只修改文档策略；依赖凭证在主循环退休旧准备/执行，不在菜单中等待。
 use super::State;
+#[cfg(test)]
+use windows::core::w;
 use windows::{
-    core::{w, Result},
+    core::Result,
     Win32::{
         Foundation::{HWND, LPARAM, WPARAM},
         UI::WindowsAndMessaging::*,
     },
 };
 pub(super) const COMMAND: usize = 0x1084;
+pub(super) unsafe fn toggle(hwnd: HWND, state: &State) -> Result<()> {
+    if !IsWindow(Some(hwnd)).as_bool() || state.group_locked.get() || state.is_art() {
+        return Ok(());
+    }
+    let before = state.accept_upstream.get();
+    state.accept_upstream.set(!before);
+    if let Err(error) = PostMessageW(None, WM_NULL, WPARAM(0), LPARAM(0)) {
+        state.accept_upstream.set(before);
+        return Err(error);
+    }
+    Ok(())
+}
+#[cfg(test)]
 pub(super) unsafe fn append(menu: HMENU, state: &State) -> Result<()> {
     if state.is_art() {
         return Ok(());
@@ -29,18 +44,7 @@ pub(super) unsafe fn append(menu: HMENU, state: &State) -> Result<()> {
         w!("接收上游图片"),
     )
 }
-pub(super) unsafe fn toggle(hwnd: HWND, state: &State) -> Result<()> {
-    if !IsWindow(Some(hwnd)).as_bool() || state.group_locked.get() || state.is_art() {
-        return Ok(());
-    }
-    let before = state.accept_upstream.get();
-    state.accept_upstream.set(!before);
-    if let Err(error) = PostMessageW(None, WM_NULL, WPARAM(0), LPARAM(0)) {
-        state.accept_upstream.set(before);
-        return Err(error);
-    }
-    Ok(())
-}
+
 #[cfg(test)]
 mod tests {
     use super::*;

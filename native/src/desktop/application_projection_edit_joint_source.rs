@@ -60,7 +60,7 @@ fn native_edit_application_source_modes_automatic_checkpoint_and_reopen() {
             &json!({"envelope":created.envelope(),"digest":created.digest()}),
         );
         f.wait("accepted");
-        command(&mut app, &f, ui::editing::INITIALIZE);
+        // 首次投射沿生产调度自动初始化协作，不注入旧的手动初始化命令。
         until(&mut app, &f, |app| has_revision(app, 1) && quiet(app));
         acknowledged(&f, 1);
         verify(&app, 1, edit::Mode::OneWay, 4.0);

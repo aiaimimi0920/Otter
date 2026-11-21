@@ -19,6 +19,7 @@ fn bitmap() -> Result<Entry> {
     Ok(Entry {
         id: "local-bitmap-fixture".into(),
         content: Content::Bitmap {
+            preview: image.clone(),
             width: image.width,
             height: image.height,
             thumbnail: crate::image_thumbnail::Thumbnail::from_image(&image)?,

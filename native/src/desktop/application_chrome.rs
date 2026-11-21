@@ -1,17 +1,28 @@
 //! 工作区 chrome 的独立 UI owner；回调只持 Rc 数据，不持 Application 或文档裸指针。
 use super::*;
+#[path = "workspace_chrome_close.rs"]
+mod close;
 use crate::desktop::{self, link_catalog::Catalog};
+pub(in crate::desktop) use close::hide_pin;
 use std::{
     cell::{Cell, RefCell},
     collections::HashSet,
     rc::{Rc, Weak},
 };
+#[path = "workspace_chrome_backing.rs"]
+mod backing;
 #[path = "workspace_chrome_border.rs"]
 mod border;
-#[path = "workspace_chrome_capsule.rs"]
-mod capsule;
+#[path = "workspace_candidate_auxiliary.rs"]
+mod candidate_auxiliary;
+#[path = "workspace_chrome_disclosure.rs"]
+mod disclosure;
 #[path = "workspace_chrome_draw.rs"]
 mod draw;
+#[path = "workspace_node_drawer.rs"]
+mod drawer;
+pub(in crate::desktop) use disclosure::collapse_for_settings;
+pub(super) use drawer::tab as drawer_tab;
 #[path = "workspace_chrome_input.rs"]
 mod input;
 #[path = "workspace_chrome_application.rs"]
@@ -22,10 +33,19 @@ mod keyboard;
 mod model;
 #[path = "workspace_chrome_move.rs"]
 mod movement;
+#[path = "workspace_parameter_rail.rs"]
+mod parameter_rail;
+#[path = "workspace_parameter_scroll.rs"]
+mod parameter_scroll;
+#[path = "workspace_chrome_port_visual.rs"]
+mod port_visual;
 #[path = "workspace_port_settings.rs"]
 pub(in crate::desktop) mod ports;
 #[path = "workspace_chrome_scene.rs"]
 mod scene;
+#[path = "workspace_node_selection.rs"]
+mod selection;
+pub(in crate::desktop) use selection::observe as select_node;
 #[cfg(test)]
 #[path = "workspace_chrome_tests.rs"]
 pub(in crate::desktop) mod tests;
@@ -33,22 +53,35 @@ pub(in crate::desktop) mod tests;
 mod window;
 use model::{Edge, Mode, Node, Point, Port, Rect, Side};
 pub(in crate::desktop) type Binding = RefCell<Weak<Ui>>;
+pub(in crate::desktop) use parameter_scroll::{
+    close_parameter_rows, focus_parameter, reveal_parameter,
+};
 pub(in crate::desktop) struct Ui {
     scene: RefCell<Option<Rc<scene::Scene>>>,
     nodes: RefCell<Vec<Node>>,
     mode: Cell<Mode>,
-    disclosed: RefCell<HashSet<Port>>,
+    disclosed: RefCell<std::collections::HashMap<Port, bool>>,
     press: RefCell<Option<input::Press>>,
     pending: RefCell<Option<desktop::link_catalog::Creation>>,
     port_settings: RefCell<Option<ports::Open>>,
     keyboard: keyboard::Control,
-    capsule: RefCell<Option<Rc<capsule::Open>>>,
+    rails: RefCell<Vec<(usize, desktop::document_window::parameter_panel::Inline)>>,
+    auxiliary_counts: RefCell<Vec<(usize, usize)>>,
+    rail_offsets: RefCell<Vec<(crate::workspace_id::UnitId, f64)>>,
+    rail_heights: RefCell<Vec<(isize, u32, i32)>>,
+    rail_drag: Cell<Option<parameter_scroll::Drag>>,
+    rail_focus: RefCell<Option<parameter_rail::Focus>>,
+    rail_layout_dirty: Cell<bool>,
     drawing: Cell<HWND>,
     surface: RefCell<Option<draw::Surface>>,
+    port_painter: RefCell<Option<neuro_mini_ui::CapsulePainter>>,
     presenting: Cell<bool>,
     ordering: Cell<bool>,
     input_windows: RefCell<Vec<(HWND, usize, Side)>>,
+    drawers: RefCell<Vec<Rc<drawer::Open>>>,
+    selected: RefCell<Vec<(isize, isize)>>,
     borders: RefCell<Vec<Rc<border::Border>>>,
+    backings: RefCell<Vec<Rc<backing::Backing>>>,
     gates: RefCell<Option<scene::Gates>>,
     closed: Cell<bool>,
     failure: RefCell<Option<Error>>,
@@ -66,13 +99,23 @@ impl Default for Ui {
             pending: RefCell::default(),
             port_settings: RefCell::default(),
             keyboard: keyboard::Control::default(),
-            capsule: RefCell::default(),
+            rails: RefCell::default(),
+            auxiliary_counts: RefCell::default(),
+            rail_offsets: RefCell::default(),
+            rail_heights: RefCell::default(),
+            rail_drag: Cell::default(),
+            rail_focus: RefCell::default(),
+            rail_layout_dirty: Cell::new(false),
             drawing: Cell::default(),
             surface: RefCell::default(),
+            port_painter: RefCell::default(),
             presenting: Cell::new(false),
             ordering: Cell::new(false),
             input_windows: RefCell::default(),
+            drawers: RefCell::default(),
+            selected: RefCell::default(),
             borders: RefCell::default(),
+            backings: RefCell::default(),
             gates: RefCell::default(),
             closed: Cell::new(false),
             failure: RefCell::default(),
@@ -103,11 +146,14 @@ impl Ui {
                 .is_none_or(scene::Gates::blocked)
     }
     fn idle(&self) -> bool {
+        let rails = self.rails.borrow().clone();
         self.press.borrow().is_none()
+            && self.rail_drag.get().is_none()
             && self.pending.borrow().is_none()
             && self.port_settings.borrow().is_none()
             && self.keyboard.source().is_none()
-            && capsule::idle(self)
+            && rails.iter().all(|(_, panel)| unsafe { panel.idle() })
+            && drawer::idle(self)
     }
     fn node(&self, endpoint: usize) -> Option<Node> {
         self.nodes
@@ -117,12 +163,14 @@ impl Ui {
             .cloned()
     }
     fn point(&self, port: Port) -> Option<Point> {
-        self.node(port.node)?.point(port.side, port.index)
+        let (x, y) = port_visual::layout(self, port)?.connection();
+        Some(Point { x, y })
     }
     fn visible(&self, port: Port) -> bool {
         self.point(port).is_some()
     }
     unsafe fn cancel(&self) {
+        self.rail_drag.set(None);
         self.keyboard.cancel_link();
         self.press.borrow_mut().take();
         let captured = windows::Win32::UI::Input::KeyboardAndMouse::GetCapture();
@@ -142,8 +190,10 @@ impl Ui {
     }
     fn handles(&self) -> Vec<HWND> {
         std::iter::once(self.drawing.get())
+            .chain(self.backings.borrow().iter().map(|backing| backing.hwnd))
             .chain(self.input_windows.borrow().iter().map(|(hwnd, _, _)| *hwnd))
             .chain(self.borders.borrow().iter().map(|border| border.hwnd))
+            .chain(drawer::handles(self))
             .collect()
     }
 }
@@ -193,7 +243,6 @@ impl Owner {
     }
     pub(super) unsafe fn close(&mut self) {
         self.ui.closed.set(true);
-        capsule::cancel(&self.ui);
         self.ui.keyboard.retire();
         self.ui.cancel();
         self.ui.pending.borrow_mut().take();
@@ -201,6 +250,8 @@ impl Owner {
         self.windows.take();
         self.ui.scene.borrow_mut().take();
         self.ui.nodes.borrow_mut().clear();
+        self.ui.drawers.borrow_mut().clear();
+        self.ui.selected.borrow_mut().clear();
     }
 }
 /// 独立 Live 测试/宿主未绑定时保留旧边角；应用绑定后严格服从三态。
@@ -229,7 +280,6 @@ pub(in crate::desktop) unsafe fn geometry(binding: &Binding, hwnd: HWND, msg: u3
         }
     }
     if matches!(msg, WM_DESTROY | WM_NCDESTROY) {
-        capsule::cancel(&ui);
         ui.nodes
             .borrow_mut()
             .retain(|node| node.hwnd != hwnd.0 as isize);
@@ -256,7 +306,7 @@ pub(in crate::desktop) unsafe fn geometry(binding: &Binding, hwnd: HWND, msg: u3
     } else {
         return;
     }
-    refresh_geometry(&ui);
+    refresh_geometry(&ui, false);
 }
 
 pub(in crate::desktop) fn border_visible(binding: &Binding, hwnd: HWND) -> bool {
@@ -343,7 +393,7 @@ pub(in crate::desktop) unsafe fn zoom_frame(
     let Some(ui) = binding.borrow().upgrade() else {
         return;
     };
-    if let Some(node) = ui
+    let translated = if let Some(node) = ui
         .nodes
         .borrow_mut()
         .iter_mut()
@@ -358,11 +408,15 @@ pub(in crate::desktop) unsafe fn zoom_frame(
         if node.rect == next {
             return;
         }
+        let translated = node.dpi == windows::Win32::UI::HiDpi::GetDpiForWindow(hwnd)
+            && node.rect.right - node.rect.left == next.right - next.left
+            && node.rect.bottom - node.rect.top == next.bottom - next.top;
         node.rect = next;
+        translated
     } else {
         return;
-    }
-    refresh_geometry(&ui);
+    };
+    refresh_geometry(&ui, translated);
 }
 
 pub(in crate::desktop) unsafe fn move_frame(
@@ -371,24 +425,14 @@ pub(in crate::desktop) unsafe fn move_frame(
     frame: HWND,
     x: i32,
     y: i32,
+    attached: &[(HWND, RECT)],
 ) -> Result<()> {
-    if let Some(ui) = binding.borrow().upgrade() {
-        movement::cached(&ui, host, frame, x, y)
-    } else {
-        SetWindowPos(
-            frame,
-            None,
-            x,
-            y,
-            0,
-            0,
-            SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER,
-        )
-    }
+    let ui = binding.borrow().upgrade();
+    movement::cached(ui.as_deref(), host, frame, x, y, attached)
 }
 
-unsafe fn refresh_geometry(ui: &Ui) {
-    if let Err(error) = window::refresh(ui) {
+unsafe fn refresh_geometry(ui: &Ui, translated: bool) {
+    if let Err(error) = window::refresh_at(ui, translated) {
         window::hide(ui);
         ui.fail(error);
         return;

@@ -1,7 +1,9 @@
 use super::*;
 use crate::{
     live_recovery_handshake::{read_ready, write_hello},
-    live_recovery_wire::{read_ack, write_request, Command, Request, Status, SCHEMA},
+    live_recovery_wire::{
+        read_ack, write_request, Command, Request, Restoration, Status, WindowState, SCHEMA,
+    },
 };
 use std::{
     io::Write,
@@ -31,16 +33,18 @@ fn record() -> Record {
         process_id: 2,
         thread_id: 3,
         process_created: 4,
-        rect: [0, 0, 32, 32],
-        placement_flags: 0,
-        show_command: 1,
-        min_position: [0, 0],
-        max_position: [0, 0],
-        normal_position: [0, 0, 32, 32],
-        extended_style: 0,
-        layered: None,
-        iconic: false,
-        visible: true,
+        restoration: Restoration::Window(WindowState {
+            rect: [0, 0, 32, 32],
+            placement_flags: 0,
+            show_command: 1,
+            min_position: [0, 0],
+            max_position: [0, 0],
+            normal_position: [0, 0, 32, 32],
+            extended_style: 0,
+            layered: None,
+            iconic: false,
+            visible: true,
+        }),
     }
 }
 fn connect(pipe: &mut Pipe) {
@@ -196,4 +200,31 @@ fn ack_write_failure_keeps_newly_bound_owner_without_reopening_stream() {
     drop(parent);
     closed_tx.send(()).unwrap();
     worker.join().unwrap();
+}
+
+#[test]
+fn only_explicit_layer_pending_maps_to_wait_without_losing_original_hresult() {
+    for code in [
+        otter_live_hover_hook::native_layer_protocol::PENDING,
+        E_ABORT,
+        ERROR_TIMEOUT.to_hresult(),
+    ] {
+        let original = windows::core::Error::new(code, "source restoration status");
+        let mapped = restoration_error(original);
+        assert_eq!(
+            mapped.kind(),
+            if code == otter_live_hover_hook::native_layer_protocol::PENDING {
+                io::ErrorKind::WouldBlock
+            } else {
+                io::ErrorKind::Other
+            }
+        );
+        let retained = mapped
+            .get_ref()
+            .unwrap()
+            .downcast_ref::<windows::core::Error>()
+            .unwrap();
+        assert_eq!(retained.code(), code);
+        assert_eq!(retained.message(), "source restoration status");
+    }
 }

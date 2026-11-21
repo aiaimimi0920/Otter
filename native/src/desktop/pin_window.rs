@@ -58,12 +58,9 @@ pub(super) unsafe fn can_close_on_escape(state: &State, lp: LPARAM) -> bool {
     {
         let canvas = state.canvas.borrow();
         canvas.pinned
-            && canvas.tool == crate::editor::Tool::Pan
             && !canvas.crop_mode
             && !canvas.blocks_wheel()
             && canvas.drag.is_none()
-            && canvas.selected.is_none()
-            && canvas.multi_selection.is_none()
             && canvas.scale_pending.is_none()
             && canvas.crop_pending.is_none()
     }

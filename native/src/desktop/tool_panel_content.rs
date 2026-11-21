@@ -6,7 +6,11 @@ const BUILDING: HANDLE = HANDLE(std::ptr::without_provenance_mut(1));
 const READY: HANDLE = HANDLE(std::ptr::without_provenance_mut(2));
 
 pub(super) unsafe fn ready(panel: HWND) -> bool {
-    GetPropW(panel, KEY) == READY
+    if neuro_mini_ui::is_toolbar(panel) {
+        neuro_mini_ui::ready(panel)
+    } else {
+        GetPropW(panel, KEY) == READY
+    }
 }
 struct Pending(HWND, bool);
 impl Drop for Pending {
@@ -19,6 +23,11 @@ impl Drop for Pending {
     }
 }
 pub(in crate::desktop) unsafe fn prepare(panel: HWND, state: &State) -> Result<()> {
+    if neuro_mini_ui::is_toolbar(panel) {
+        neuro_mini_ui::prepare(panel)?;
+        strip::refresh(state);
+        return Ok(());
+    }
     prepare_with(panel, state, || {
         children::create(panel, HINSTANCE(GetModuleHandleW(None)?.0))
     })

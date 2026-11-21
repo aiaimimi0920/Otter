@@ -11,7 +11,7 @@ impl Active {
             Self::Linear(session) => snapshot(session),
             Self::Detecting(session) => session.snapshot(),
             Self::Spatial(session, motion) => Snapshot {
-                axis: Some(session.axis()),
+                axis: session.detected_axis(),
                 direction: *motion,
                 frame_count: session.frame_count(),
                 confirmed_edges: None,

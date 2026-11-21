@@ -16,9 +16,10 @@ function stage(repo, candidate, output) {
   const cargoHome = process.env.CARGO_HOME || path.join(process.env.USERPROFILE, '.cargo');
   collect(repo, metadata, path.join(output, 'licenses'), path.join(cargoHome, 'registry/src'));
   fs.copyFileSync(checkedPath(candidate, 'payload/otter-native.exe'), path.join(output, 'otter-native.exe'), fs.constants.COPYFILE_EXCL);
+  fs.copyFileSync(checkedPath(candidate, 'payload/otter_live_hover_hook.dll'), path.join(output, 'otter_live_hover_hook.dll'), fs.constants.COPYFILE_EXCL);
   fs.writeFileSync(path.join(output, 'build-provenance.json'), JSON.stringify(receipt, null, 2) + '\n', { flag: 'wx' });
   fs.writeFileSync(path.join(output, 'README.txt'),
-    `Otter Windows Native ${receipt.buildVersion}\n\n内部开发候选，未签名，不是正式发布。\n运行 otter-native.exe 启动原生程序。\n` +
+    `Otter Windows Native ${receipt.buildVersion}\n\n内部开发候选，未签名，不是正式发布。\n运行 otter-native.exe 启动原生程序。请保留同目录 otter_live_hover_hook.dll，供本地 Live 浏览器悬浮使用。\n` +
     'licenses 目录包含 normal/build 依赖材料；不表示法律或安全检查已批准。\n' +
     'build-provenance.json 是构建身份摘要，原始构建日志与源码快照不随包分发。\n' +
     'package-manifest.json 提供字节一致性记录，不提供签名认证或完整功能验收。\n', { flag: 'wx' });
@@ -38,6 +39,8 @@ function stage(repo, candidate, output) {
   walk();
   const exe = files.find(f => f.path === 'otter-native.exe');
   if (exe.sha256 !== receipt.files[0].sha256 || exe.bytes !== receipt.files[0].bytes) throw new Error('Candidate changed during staging');
+  const hook = files.find(f => f.path === 'otter_live_hover_hook.dll');
+  if (hook.sha256 !== receipt.files[1].sha256 || hook.bytes !== receipt.files[1].bytes) throw new Error('Candidate hook changed during staging');
   assertUnchanged(source, snapshot(repo, metadata));
   verify(candidate);
   const manifest = { schemaVersion: 1, kind: 'otter-native-internal-package', buildVersion: receipt.buildVersion,

@@ -1,4 +1,4 @@
-//! 同一控件实现的child宿主：真实编辑/类型/IME/清理，不代普通桌面或人工输入法验收。
+//! 行内 owner 的完整 widget/IME/清理合同，不保留旧单字段临时窗 API。
 use super::*;
 
 unsafe fn binding(panel: &Panel, key: &str) -> controls::Binding {
@@ -12,32 +12,29 @@ unsafe fn binding(panel: &Panel, key: &str) -> controls::Binding {
         .clone()
 }
 #[test]
-fn embedded_field_is_a_real_child_and_does_not_replace_the_full_panel_owner() {
+fn inline_rows_are_real_children_and_register_the_document_owner() {
     unsafe {
         let f = Fixture::new();
-        let panel = Panel::embedded(f.host.0, &f.state, f.panel.handle(), "text").unwrap();
+        let panel = Panel::inline(f.host.0, &f.state, f.panel.handle()).unwrap();
         assert_eq!(GetParent(panel.handle()).unwrap(), f.panel.handle());
-        assert_eq!(f.state.parameters_ui.window(), f.panel.handle());
-        assert_eq!(panel.ui.model.borrow().rows.len(), 1);
+        assert_eq!(f.state.parameters_ui.window(), panel.handle());
+        assert_eq!(panel.ui.model.borrow().rows.len(), 5);
         assert_eq!(panel.ui.model.borrow().rows[0].id, "text");
         assert!(panel
             .ui
             .bindings
             .borrow()
             .iter()
-            .all(|b| b.key.starts_with("text:")));
-        assert!(panel.ui.bindings.borrow().len() < 8);
-        assert!(panel.embedded_height() < 240);
-        assert!(Panel::embedded(f.host.0, &f.state, f.panel.handle(), "secret").is_err());
-        assert!(Panel::embedded(f.host.0, &f.state, f.panel.handle(), "missing").is_err());
+            .all(|b| !b.key.starts_with("secret:")));
+        assert!(Panel::inline(f.host.0, &f.state, HWND::default()).is_err());
         let hwnd = panel.handle();
         drop(panel);
         assert!(!IsWindow(Some(hwnd)).as_bool());
-        assert_eq!(f.state.parameters_ui.window(), f.panel.handle());
+        assert!(f.state.parameters_ui.window().is_invalid());
     }
 }
 #[test]
-fn all_public_widget_families_reuse_the_real_single_row_controls() {
+fn all_public_widget_families_share_one_inline_owner() {
     unsafe {
         let f = Fixture::with_parameters(serde_json::json!([
             {"id":"text","widget":"text","default":"文字"},
@@ -51,36 +48,34 @@ fn all_public_widget_families_reuse_the_real_single_row_controls() {
             {"id":"file","widget":"file","default":""},
             {"id":"image","widget":"image_link","default":""}
         ]));
+        let panel = Panel::inline(f.host.0, &f.state, f.panel.handle()).unwrap();
         for (id, key) in [
             ("text", "edit"),
             ("path", "edit"),
-            ("body", "edit"),
+            ("body", "value"),
             ("number", "edit"),
             ("slider", "slider"),
-            ("switch", "boolean"),
+            ("switch", "value"),
             ("radio", "options"),
-            ("color", "color"),
-            ("file", "file"),
-            ("image", "file"),
+            ("color", "value"),
+            ("file", "value"),
+            ("image", "value"),
         ] {
-            let panel = Panel::embedded(f.host.0, &f.state, f.panel.handle(), id).unwrap();
             assert!(IsWindow(Some(binding(&panel, &format!("{id}:{key}")).hwnd)).as_bool());
             assert!(panel.exit_idle(), "{id}");
-            assert!(panel.ui.bindings.borrow().len() < 8);
-            assert!(panel.embedded_height() <= 240, "{id}");
         }
     }
 }
 #[test]
-fn embedded_text_option_and_boolean_use_the_original_candidate_transactions() {
+fn inline_text_option_and_boolean_use_the_original_candidate_transactions() {
     unsafe {
         let f = Fixture::new();
+        let panel = Panel::inline(f.host.0, &f.state, f.panel.handle()).unwrap();
         for (field, key) in [
             ("text", "text:edit"),
             ("mode", "mode:options"),
-            ("enabled", "enabled:boolean"),
+            ("enabled", "enabled:value"),
         ] {
-            let panel = Panel::embedded(f.host.0, &f.state, f.panel.handle(), field).unwrap();
             let b = binding(&panel, key);
             match field {
                 "text" => {
@@ -102,8 +97,7 @@ fn embedded_text_option_and_boolean_use_the_original_candidate_transactions() {
             }
             assert!(!panel.exit_idle());
             panel.update(&f.state).unwrap();
-            assert!(panel.take_commit());
-            assert!(!panel.take_commit());
+            assert!(panel.exit_idle());
         }
         assert_eq!(f.value("text"), "内嵌🙂");
         assert_eq!(f.value("mode"), 2);
@@ -111,7 +105,7 @@ fn embedded_text_option_and_boolean_use_the_original_candidate_transactions() {
     }
 }
 #[test]
-fn linked_embedded_value_is_effective_read_only_and_does_not_replace_the_manual_value() {
+fn linked_inline_value_is_effective_read_only_and_does_not_replace_the_manual_value() {
     unsafe {
         let f = Fixture::new();
         desktop::parameter_view::View::update(
@@ -119,7 +113,7 @@ fn linked_embedded_value_is_effective_read_only_and_does_not_replace_the_manual_
             serde_json::from_value(serde_json::json!({"n":8})).unwrap(),
             vec!["n".into()],
         );
-        let panel = Panel::embedded(f.host.0, &f.state, f.panel.handle(), "n").unwrap();
+        let panel = Panel::inline(f.host.0, &f.state, f.panel.handle()).unwrap();
         let b = binding(&panel, "n:edit");
         assert!(!IsWindowEnabled(b.hwnd).as_bool());
         assert_eq!(controls::text(b.hwnd).unwrap(), "8");
@@ -127,14 +121,13 @@ fn linked_embedded_value_is_effective_read_only_and_does_not_replace_the_manual_
         controls::commit(&panel.ui, &b);
         panel.update(&f.state).unwrap();
         assert_eq!(f.value("n"), 3);
-        assert!(!panel.take_commit());
     }
 }
 #[test]
 fn child_ime_and_dpi_keep_draft_then_parent_destruction_reclaims_every_handle() {
     unsafe {
         let f = Fixture::new();
-        let panel = Panel::embedded(f.host.0, &f.state, f.panel.handle(), "text").unwrap();
+        let panel = Panel::inline(f.host.0, &f.state, f.panel.handle()).unwrap();
         let b = binding(&panel, "text:edit");
         SetWindowTextW(b.hwnd, &HSTRING::from("未完成🙂")).unwrap();
         SendMessageW(b.hwnd, WM_IME_STARTCOMPOSITION, None, None);
@@ -161,7 +154,7 @@ fn child_ime_and_dpi_keep_draft_then_parent_destruction_reclaims_every_handle() 
 fn retired_child_cannot_publish_even_when_host_and_configuration_stay_current() {
     unsafe {
         let f = Fixture::new();
-        let panel = Panel::embedded(f.host.0, &f.state, f.panel.handle(), "mode").unwrap();
+        let panel = Panel::inline(f.host.0, &f.state, f.panel.handle()).unwrap();
         let b = binding(&panel, "mode:options");
         let controls::Kind::Options(snapshot, choices) = b.kind else {
             panic!("expected options");
@@ -172,7 +165,7 @@ fn retired_child_cannot_publish_even_when_host_and_configuration_stay_current() 
             .submit_guarded(f.host.0, &f.state, choices[1], None, &|| {
                 calls.set(calls.get() + 1);
                 if calls.get() == 2 {
-                    panel.retire_embedded();
+                    panel.ui.close();
                 }
                 panel.ui.available()
             })

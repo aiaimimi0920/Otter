@@ -6,7 +6,7 @@ use crate::{
     raster_flip::Axis,
 };
 use windows::{
-    core::{w, Result, HSTRING},
+    core::{w, HSTRING},
     Win32::{Foundation::*, Graphics::Gdi::InvalidateRect, UI::WindowsAndMessaging::*},
 };
 
@@ -20,16 +20,6 @@ fn busy(state: &State) -> bool {
         || state.erase_job.borrow().is_busy()
         || state.resize_job.borrow().is_busy()
         || state.rasterize_job.borrow().is_some()
-}
-pub(super) unsafe fn append(menu: HMENU, state: &State) -> Result<()> {
-    let canvas = state.canvas.borrow();
-    let display = state.resolved_display.borrow();
-    let supported = !state.is_art();
-    let enabled =
-        !busy(state) && supported && (canvas.editor.layers().is_some() || display.is_some());
-    let flags = MF_STRING | if enabled { MF_ENABLED } else { MF_GRAYED };
-    AppendMenuW(menu, flags, HORIZONTAL, w!("水平翻转"))?;
-    AppendMenuW(menu, flags, VERTICAL, w!("垂直翻转"))
 }
 pub(super) unsafe fn start(hwnd: HWND, state: &State, command: usize) {
     if busy(state) {

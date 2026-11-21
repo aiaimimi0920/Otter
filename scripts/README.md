@@ -5,13 +5,15 @@
 
 | 用途 | 入口/实现 |
 | --- | --- |
-| 前端开发与构建 | `dev-tauri.cmd`、`build-static.cmd`、`serve-static.cmd`、`run-tauri.cmd` |
+| Windows 原生构建和验包 | `build-native-candidate.ps1`、`package-native-candidate.ps1`、`verify-native-package.ps1`、`tests/native-package-runtime.py` |
+| 历史 WebView 前端工具 | `dev-tauri.cmd`、`build-static.cmd`、`serve-static.cmd`、`run-tauri.cmd` |
 | 版本、构建与打包 | `bump-internal-version.ps1`、`build-local-otter-exe.ps1`、`build-release.ps1`、`verify-release.ps1`、`release/` |
 | 安全与供应链 | `Invoke-DependencySecurityScan.ps1`、`audit-open-source-dependencies.ps1`、`security/` |
 | 代码规模、CI 与文档检查 | `effective-code-lines.mjs`、`ci_change_scope.py`、`check_changed_docs.py` |
 | 浏览器验证 | `run-javascript-surface-browser-smoke.mjs`、`javascript-surface-browser-smoke/`、`test-*-browser.mjs` |
 | 原生与联合验收 | `Invoke-OtterNativeCandidateAcceptance.ps1`、`native-candidate-acceptance/`、`smoke-otter-tea-*.ps1` |
 | 工具测试与现场探针 | `tests/`，按 Node、Python、PowerShell 或真实设备环境分别执行 |
+| 共用 Loom 连接 | `loom-connection/Export-LoomConnection.ps1` 导出公开连接资料，`Import-LoomConnection.ps1` 在仅运行 Otter 的电脑上导入 |
 | 生成资源 | `generate-javascript-surface-bootstrap.mjs`、`javascript-surface-bootstrap/`、`capture-homepage-assets/` |
 
 工具必须写明输入、输出、退出码及副作用。截图、录制、输入注入、进程清理、安装、

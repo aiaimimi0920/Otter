@@ -1,5 +1,7 @@
 //! 显式Live发布的Application围栏；旧工作区/来源/授权不能接纳迟到Ready，失败保本地采集。
 use super::*;
+#[path = "application_live_direct_source.rs"]
+mod direct;
 use crate::{
     desktop::composition::live::window::publication::{Phase, Request},
     device_authorization_config::Config,
@@ -74,7 +76,7 @@ impl Application {
                 }
                 continue;
             }
-            let result = (|| -> std::result::Result<(), String> {
+            let result = (|| -> std::result::Result<bool, String> {
                 if self.exit_requested.get()
                     || self.modals.blocked()
                     || self.restore_job.is_some()
@@ -96,7 +98,54 @@ impl Application {
                     .lease(origin, now)
                     .map_err(|e| format!("请先获取有效授权：{e:?}"))?;
                 let config = config(origin).map_err(|e| format!("配置无效：{e:?}"))?;
+                let recipient = if matches!(publish, Request::PublishDirect) {
+                    let directory = self
+                        .authorization
+                        .borrow()
+                        .targets
+                        .directory
+                        .clone()
+                        .filter(|directory| directory.origin() == origin)
+                        .ok_or("请先刷新投送目标")?;
+                    let hwnd = source.publication_window().ok_or("Live 源已关闭")?;
+                    let selected = {
+                        let flag = std::rc::Rc::new(std::cell::Cell::new(false));
+                        self.modals.register(&flag);
+                        let _guard = crate::desktop::file_dialog::Guard::begin(&flag)
+                            .expect("new modal flag");
+                        direct::choose(hwnd, &lease, &directory)?
+                    };
+                    let Some(recipient) = selected else {
+                        return Ok(false);
+                    };
+                    let view = self.authorization.borrow();
+                    if view.closed
+                        || view.busy
+                        || view.targets.busy
+                        || view.request.is_some()
+                        || view.origin.as_deref() != Some(origin)
+                        || view
+                            .targets
+                            .directory
+                            .as_ref()
+                            .is_none_or(|current| !std::sync::Arc::ptr_eq(current, &directory))
+                        || self.exit_requested.get()
+                        || self.modals.blocked()
+                        || lease.is_revoked()
+                        || source.publication_window() != Some(hwnd)
+                    {
+                        return Err("Live 来源、目标目录或当前设备授权已变化".into());
+                    }
+                    Some(recipient)
+                } else {
+                    None
+                };
                 let (mut publication, consumer) = source.source_publication()?;
+                if let Some(recipient) = recipient {
+                    publication
+                        .allow_direct_viewer(recipient)
+                        .map_err(|e| format!("投射目标无效：{e:?}"))?;
+                }
                 let observation = if matches!(publish, Request::PublishObservations) {
                     let target = source.observation_target()?;
                     publication
@@ -152,15 +201,16 @@ impl Application {
                         interaction.cancel();
                     }
                 }
-                result
+                result.map(|()| true)
             })();
-            source.publication_phase(if result.is_ok() {
-                Phase::Starting
-            } else {
-                Phase::Failed
+            source.publication_phase(match &result {
+                Ok(true) => Phase::Starting,
+                Ok(false) => Phase::Idle,
+                Err(_) => Phase::Failed,
             });
             self.authorization.borrow_mut().live.status = match result {
-                Ok(()) => "正在发布 Live…".into(),
+                Ok(true) => "正在发布 Live…".into(),
+                Ok(false) => String::new(),
                 Err(error) => error,
             };
         }

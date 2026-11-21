@@ -45,7 +45,7 @@ impl Application {
                 };
                 if let Err(error) = result {
                     self.settle_projection_source(&unit, scheduled.as_deref(), false);
-                    self.edit_status(&error);
+                    self.edit_error(&error);
                 }
             }
             Phase::Checkpoint(saved) => {
@@ -58,7 +58,7 @@ impl Application {
                         saved.guard.scheduled.as_deref(),
                         false,
                     );
-                    self.edit_status("源端协作保存已中止；内容和原stage/请求保留");
+                    self.edit_error("源端协作保存已中止；内容和原stage/请求保留");
                     return;
                 }
                 if !saved.durable {
@@ -104,7 +104,7 @@ impl Application {
                             saved.guard.scheduled.as_deref(),
                             false,
                         );
-                        self.edit_status(&format!(
+                        self.edit_error(&format!(
                             "源端协作内容已保存；原请求确认待显式重试：{error}"
                         ));
                     }
@@ -135,7 +135,7 @@ impl Application {
                         Err(error) => format!("{error:?}"),
                         _ => "响应过期、已取消或类型不匹配".into(),
                     };
-                    self.edit_status(&format!("源端协作原请求确认未完成；请显式重试：{reason}"));
+                    self.edit_error(&format!("源端协作原请求确认未完成；请显式重试：{reason}"));
                 }
             }
         }

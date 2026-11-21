@@ -20,6 +20,8 @@ mod lifecycle;
 mod offline;
 #[path = "projection_sender_preparation_http_tests.rs"]
 mod preparation;
+#[path = "projection_share_http_tests.rs"]
+mod share;
 fn prepared(client: &Client) -> (Directory, sender::Store, SendRequest) {
     let directory = Directory::new();
     directory.install_identity();
@@ -81,6 +83,36 @@ fn no_request(listener: &TcpListener) {
 }
 const MISSING: &[u8] =
     br#"{"error":{"code":"projection_not_found","message":"projection_not_found"}}"#;
+#[test]
+fn sender_shared_busy_create_reuses_signed_invitation_and_target() {
+    let (listener, client, tls) = fixture();
+    let (_, _, request) = prepared(&client);
+    let expected = response(&request);
+    let peer = std::thread::spawn(move || {
+        let mut read = receive(&listener, tls.clone());
+        assert!(http_request(&mut read)
+            .0
+            .starts_with("POST /v1/projections/read "));
+        reply(&mut read, 404, MISSING);
+        let mut create = receive(&listener, tls.clone());
+        let (head, body) = http_request(&mut create);
+        assert!(head.starts_with("POST /v1/projections/create "));
+        assert_eq!(body["targetDeviceId"], "target-1");
+        reply(&mut create, 429, br#"{"error":{"code":"projection_busy"}}"#);
+        let mut retry = receive(&listener, tls);
+        let (retry_head, retry_body) = http_request(&mut retry);
+        assert!(retry_head.starts_with("POST /v1/projections/create "));
+        assert_eq!(retry_body, body);
+        assert_ne!(retry_head, head);
+        reply(&mut retry, 200, &serde_json::to_vec(&expected).unwrap());
+        listener
+    });
+    let mut grant = grant(&client);
+    let mut job = start(&client, &mut grant, request);
+    wait(&job);
+    assert!(matches!(job.try_join(), Some(Ok(Output::Sent(_)))));
+    no_request(&peer.join().unwrap());
+}
 #[test]
 fn sender_read_then_create_uses_durable_exact_identity_target_and_distinct_nonces() {
     let (listener, client, tls) = fixture();

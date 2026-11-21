@@ -40,6 +40,8 @@ fn item(id: usize, label: &str) -> Item {
         default: false,
         separator: false,
         children: None,
+        delete: None,
+        preview: None,
         thumbnail: None,
     }
 }

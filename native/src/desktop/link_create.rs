@@ -1,10 +1,15 @@
 //! 原生连线选择框；三个下拉框只引用打开时目录，确认后排队，不在模态中改工作区。
-use super::{link_catalog::Catalog, State};
+use super::link_catalog::Catalog;
+#[cfg(test)]
+use super::State;
 use std::rc::Rc;
+#[cfg(test)]
+use windows::core::w;
 use windows::{
-    core::{w, Result, HSTRING},
+    core::{Result, HSTRING},
     Win32::{Foundation::*, UI::WindowsAndMessaging::*},
 };
+#[cfg(test)]
 pub(super) const COMMAND: usize = 0x1090;
 const SOURCE: i32 = 101;
 const OUTPUT: i32 = 102;
@@ -17,6 +22,7 @@ struct Dialog {
     fixed: usize,
     result: Option<(usize, usize, usize)>,
 }
+#[cfg(test)]
 pub(super) unsafe fn append(menu: HMENU, state: &State) -> Result<Option<Rc<Catalog>>> {
     let catalog = state.link_catalog.borrow().clone();
     let enabled = !state.group_locked.get()
@@ -38,6 +44,7 @@ pub(super) unsafe fn append(menu: HMENU, state: &State) -> Result<Option<Rc<Cata
     )?;
     Ok(catalog)
 }
+#[cfg(test)]
 pub(super) unsafe fn apply(
     catalog: Option<Rc<Catalog>>,
     hwnd: HWND,

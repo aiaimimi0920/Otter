@@ -1,5 +1,11 @@
 //! 真实 GetMessage/捕获/定时器生命周期；注入消息，不冒充物理输入验收。
 use super::*;
+#[path = "native_menu_tray_events_tests.rs"]
+mod tray_events;
+#[path = "native_menu_tray_layer_tests.rs"]
+mod tray_layer;
+#[path = "native_menu_tray_position_tests.rs"]
+mod tray_position;
 use windows::core::w;
 struct Owner(HWND);
 impl Owner {
@@ -40,6 +46,8 @@ fn tree() -> Vec<Item> {
         default: false,
         separator: false,
         children: None,
+        delete: None,
+        preview: None,
         thumbnail: None,
     }]
 }
@@ -51,6 +59,53 @@ fn start(owner: HWND, ready: impl FnOnce(HWND)) -> Result<Option<usize>> {
         unsafe { GetForegroundWindow() },
         ready,
     )
+}
+
+#[test]
+fn captured_menu_replaces_busy_cursor_on_first_open_reopen_and_pointer_move() {
+    let owner = Owner::new();
+    let foreground = unsafe { GetForegroundWindow() };
+    let arrow = unsafe { LoadCursorW(None, IDC_ARROW).unwrap() };
+    for tray_mode in [true, false] {
+        for initial in [IDC_WAIT, IDC_APPSTARTING] {
+            let busy = unsafe { LoadCursorW(None, initial).unwrap() };
+            let moved = std::cell::Cell::new(false);
+            let result = run_updated(
+                owner.0,
+                tree(),
+                POINT { x: 30, y: 30 },
+                foreground,
+                (
+                    |_| {
+                        unsafe { SetCursor(Some(busy)) };
+                        Ok(foreground)
+                    },
+                    |root| unsafe {
+                        assert_eq!(GetCapture(), root);
+                        assert_eq!(GetCursor(), arrow);
+                        // 模拟回调留下忙光标；捕获下的移动仍必须走产品消息泵恢复箭头。
+                        SetCursor(Some(busy));
+                        PostMessageW(Some(root), WM_MOUSEMOVE, WPARAM(0), LPARAM((8 << 16) | 8))
+                            .unwrap();
+                        PostMessageW(Some(root), WM_KEYDOWN, WPARAM(0x1b), LPARAM(0)).unwrap();
+                    },
+                ),
+                |menu| {
+                    if menu.pages[0].focus.is_some() {
+                        assert_eq!(unsafe { GetCursor() }, arrow);
+                        moved.set(true);
+                    }
+                    Ok(())
+                },
+                tray_mode,
+                320,
+            )
+            .unwrap();
+            assert_eq!(result, None);
+            assert!(moved.get());
+            assert!(unsafe { GetCapture() }.is_invalid());
+        }
+    }
 }
 
 #[test]
@@ -346,6 +401,8 @@ fn live_update_rebuilds_open_submenu_before_next_queued_selection() {
             }
             Ok(())
         },
+        false,
+        320,
     )
     .unwrap();
     assert!(updated);

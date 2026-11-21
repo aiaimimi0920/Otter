@@ -93,48 +93,6 @@ fn spawn(mut request: Request, snapshot: Editor) -> Result<Job, String> {
         worker: Some(worker),
     })
 }
-pub(super) unsafe fn append_menu(menu: HMENU, state: &State) -> windows::core::Result<()> {
-    let busy = state.rasterize_job.borrow().is_some() || state.erase_job.borrow().is_busy();
-    let (selected, all) = {
-        let canvas = state.canvas.borrow();
-        let display = state.resolved_display.borrow();
-        let supported = !state.is_art();
-        (
-            supported && display.is_none() && !canvas.selected_indices().is_empty(),
-            supported
-                && display.as_ref().map_or_else(
-                    || !canvas.editor.elements().is_empty(),
-                    |frame| {
-                        frame
-                            .editor
-                            .as_deref()
-                            .is_some_and(|editor| !editor.elements().is_empty())
-                    },
-                ),
-        )
-    };
-    AppendMenuW(
-        menu,
-        MF_STRING
-            | if selected && !busy {
-                MF_ENABLED
-            } else {
-                MF_GRAYED
-            },
-        SELECTED,
-        w!("栅格化选中标注"),
-    )?;
-    AppendMenuW(
-        menu,
-        MF_STRING | if all && !busy { MF_ENABLED } else { MF_GRAYED },
-        ALL,
-        w!("栅格化全部标注"),
-    )?;
-    if state.rasterize_job.borrow().is_some() {
-        AppendMenuW(menu, MF_STRING | MF_GRAYED, 0, w!("栅格化处理中…"))?;
-    }
-    Ok(())
-}
 pub(super) unsafe fn start(hwnd: HWND, state: &State, selected: bool) {
     if state.rasterize_job.borrow().is_some()
         || state.erase_job.borrow().is_busy()
@@ -245,3 +203,47 @@ unsafe fn report(hwnd: HWND, error: &str) {
 #[cfg(test)]
 #[path = "rasterize_input_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+pub(super) unsafe fn append_menu(menu: HMENU, state: &State) -> windows::core::Result<()> {
+    let busy = state.rasterize_job.borrow().is_some() || state.erase_job.borrow().is_busy();
+    let (selected, all) = {
+        let canvas = state.canvas.borrow();
+        let display = state.resolved_display.borrow();
+        let supported = !state.is_art();
+        (
+            supported && display.is_none() && !canvas.selected_indices().is_empty(),
+            supported
+                && display.as_ref().map_or_else(
+                    || !canvas.editor.elements().is_empty(),
+                    |frame| {
+                        frame
+                            .editor
+                            .as_deref()
+                            .is_some_and(|editor| !editor.elements().is_empty())
+                    },
+                ),
+        )
+    };
+    AppendMenuW(
+        menu,
+        MF_STRING
+            | if selected && !busy {
+                MF_ENABLED
+            } else {
+                MF_GRAYED
+            },
+        SELECTED,
+        w!("栅格化选中标注"),
+    )?;
+    AppendMenuW(
+        menu,
+        MF_STRING | if all && !busy { MF_ENABLED } else { MF_GRAYED },
+        ALL,
+        w!("栅格化全部标注"),
+    )?;
+    if state.rasterize_job.borrow().is_some() {
+        AppendMenuW(menu, MF_STRING | MF_GRAYED, 0, w!("栅格化处理中…"))?;
+    }
+    Ok(())
+}

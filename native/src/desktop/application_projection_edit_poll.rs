@@ -30,12 +30,12 @@ impl Application {
                     Ok(_) => Err("协作提交已过期；保留本地修改和原请求".into()),
                 };
                 if let Err(error) = result {
-                    self.edit_status(&error);
+                    self.edit_error(&error);
                 }
             }
             Phase::Checkpoint(saved) => {
                 if !saved.fence.matches(self) {
-                    self.edit_status("协作保存目标已变化；内容及原请求保留");
+                    self.edit_error("协作保存目标已变化；内容及原请求保留");
                     return;
                 }
                 if !saved.durable {
@@ -71,7 +71,7 @@ impl Application {
                         self.edit_status("协作结果已写入检查点，正在确认原请求…");
                     }
                     Err(error) => {
-                        self.edit_status(&format!("协作结果已保存；日志确认待重试：{error}"))
+                        self.edit_error(&format!("协作结果已保存；日志确认待重试：{error}"))
                     }
                 }
             }
@@ -88,7 +88,7 @@ impl Application {
                 if matches!(result, Ok(Output::EditAcknowledged)) && valid {
                     self.continue_projection_edit(pending, config);
                 } else {
-                    self.edit_status("协作结果保留；原请求确认未完成，请显式重试");
+                    self.edit_error("协作结果保留；原请求确认未完成，请显式重试");
                 }
             }
             Phase::Idle => {}

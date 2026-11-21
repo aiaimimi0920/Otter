@@ -1,4 +1,4 @@
-//! 只读 Windows 历史快照；仅后台 STA 调用，内容不落盘、不记录日志、不写系统剪贴板。
+//! Windows 历史快照和显式单条删除；仅后台 STA 调用，内容不落盘、不写当前剪贴板。
 use std::{
     sync::atomic::{AtomicBool, Ordering},
     time::{Duration, Instant},
@@ -17,6 +17,10 @@ mod content;
 pub mod events;
 #[path = "clipboard_history_list.rs"]
 pub mod list;
+#[path = "clipboard_history_preview.rs"]
+mod preview;
+#[path = "clipboard_history_remove.rs"]
+mod remove;
 #[path = "clipboard_history_session.rs"]
 pub mod session;
 #[path = "clipboard_history_task.rs"]
@@ -52,6 +56,7 @@ pub enum Status {
 }
 pub enum Content {
     Bitmap {
+        preview: crate::image_decode::Image,
         thumbnail: crate::image_thumbnail::Thumbnail,
         encoded: crate::pixels::Pixels,
         width: u32,
@@ -138,14 +143,23 @@ fn read_with_permit(cancel: &AtomicBool, _permit: ReadPermit) -> Result<Snapshot
                 })
             })
         })();
-        if let Ok(Some(entry)) = entry {
-            remaining -= match &entry.content {
-                Content::Bitmap {
-                    encoded, thumbnail, ..
-                } => encoded.len() + thumbnail.pixels().len(),
-                Content::Text(text) => text.len(),
-            };
-            entries.push(entry);
+        match entry {
+            Err(error) if error.code() == windows::Win32::Foundation::E_OUTOFMEMORY => {
+                return Err(error)
+            }
+            Ok(Some(entry)) => {
+                remaining -= match &entry.content {
+                    Content::Bitmap {
+                        encoded,
+                        thumbnail,
+                        preview,
+                        ..
+                    } => encoded.len() + thumbnail.pixels().len() + preview.pixels.len(),
+                    Content::Text(text) => text.len(),
+                };
+                entries.push(entry);
+            }
+            _ => {}
         }
     }
     check(cancel, deadline)?;

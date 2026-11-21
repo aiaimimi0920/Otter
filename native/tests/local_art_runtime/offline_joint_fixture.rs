@@ -65,14 +65,11 @@ impl Side {
             identity.protected_document().unwrap(),
         )
         .unwrap();
-        fs::write(
-            profile.join("ca.pem"),
-            format!(
-                "-----BEGIN CERTIFICATE-----\n{}\n-----END CERTIFICATE-----\n",
-                data.certificate
-            ),
-        )
-        .unwrap();
+        assert!(!data.certificate.is_empty());
+        assert!(
+            parent.join("loom.json").is_file(),
+            "production local manifest required"
+        );
         if !sender {
             // 默认手动是无写入的no-op；从显式拒绝起步，才能证明真实菜单产生持久confirm。
             fs::write(
@@ -101,8 +98,12 @@ impl Side {
         }
     }
     pub(super) fn launch(&self, name: &str) -> fixture::Product {
-        self.files
-            .launch_with_settings(name, &self.origin, &json!({"schemaVersion":2}))
+        self.files.launch_with_manifest(
+            name,
+            &self.origin,
+            &json!({"schemaVersion":2}),
+            Some(&self.files.root.parent().unwrap().join("loom.json")),
+        )
     }
 }
 pub(super) fn publish(root: &Path, name: &str, value: &Value) {

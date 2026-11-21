@@ -32,6 +32,7 @@ impl Drop for Owner {
 fn rows() -> Vec<Row> {
     vec![Row {
         key: 0,
+        deletable: false,
         thumbnail: None,
         label: "原生菜单测试(&T)\tCtrl+Shift+C".into(),
         enabled: true,
@@ -98,6 +99,37 @@ fn real_panel_paints_routes_messages_and_destroys_before_data() {
     panel.update(rows()).unwrap();
     drop(panel);
     assert!(!unsafe { IsWindow(Some(hwnd)).as_bool() });
+}
+#[test]
+fn panel_is_a_system_pointer_target_outside_its_owner_without_activation() {
+    let owner = Owner::new();
+    let panel = panel(owner.0);
+    let point = POINT { x: 220, y: 40 };
+    unsafe {
+        let foreground = GetForegroundWindow();
+        assert_eq!(
+            SendMessageW(
+                panel.hwnd,
+                WM_NCHITTEST,
+                None,
+                Some(LPARAM(((point.y << 16) | point.x) as isize)),
+            ),
+            LRESULT(HTCLIENT as isize),
+        );
+        panel.show().unwrap();
+        SetWindowPos(
+            panel.hwnd,
+            Some(HWND_TOPMOST),
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+        )
+        .unwrap();
+        assert_eq!(WindowFromPoint(point), panel.hwnd);
+        assert_eq!(GetForegroundWindow(), foreground);
+    }
 }
 #[test]
 fn real_panel_paints_shared_thumbnail_on_normal_and_focused_background() {

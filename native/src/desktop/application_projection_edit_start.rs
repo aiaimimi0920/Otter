@@ -42,7 +42,7 @@ impl Application {
             }
             Some(Request::CancelProjectionEdit) => {
                 self.projection_edit.stop();
-                self.edit_status("协作提交已取消；原请求保留供显式重试");
+                self.edit_error("协作提交已取消；原请求保留供显式重试");
             }
             _ => {}
         }
@@ -53,7 +53,69 @@ impl Application {
         };
         if invalidate {
             self.projection_edit.stop();
+        } else if self.projection_edit_available() {
+            let view = self.authorization.borrow();
+            let idle = !view.closed
+                && !view.busy
+                && !view.targets.busy
+                && !view.projection.busy
+                && view.request.is_none();
+            drop(view);
+            if idle {
+                let choice = self
+                    .documents
+                    .iter()
+                    .filter(|doc| doc.is_alive())
+                    .find_map(|doc| {
+                        let canvas = doc.state.canvas.borrow();
+                        let owner = doc.state.projection_edit.borrow();
+                        let owner = owner.as_ref()?;
+                        let snapshot = owner.capture(&canvas.editor);
+                        let mut preference = doc.state.projection_mode.borrow_mut();
+                        let choice = preference.as_mut()?;
+                        if !choice.stamp.same_document(&canvas.editor)
+                            || choice.mode == snapshot.document().mode()
+                        {
+                            preference.take();
+                            return None;
+                        }
+                        if choice.submitted
+                            || snapshot.suspended().is_some()
+                            || snapshot.role() != crate::projection_edit::workspace::Role::Source
+                        {
+                            return None;
+                        }
+                        // 显式方向只派发一次；后台暂忙先保留，失败由用户显式重试。
+                        choice.submitted = true;
+                        Some((
+                            Selection {
+                                unit: doc.state.unit_id.clone(),
+                                stamp: owner.stamp(),
+                            },
+                            choice.mode,
+                        ))
+                    });
+                if let Some((selection, mode)) = choice {
+                    self.authorization.borrow_mut().editing.unit = Some(selection.unit.clone());
+                    self.start_projection_edit(selection, config, 1, Action::Mode(mode));
+                }
+            }
         }
+    }
+    fn projection_edit_available(&self) -> bool {
+        let view = self.authorization.borrow();
+        !self.projection_edit.busy()
+            && !self.account_projection.busy()
+            && !self.modals.blocked()
+            && !view.closed
+            && !view.busy
+            && !self.exit_requested.get()
+            && self.restore_job.is_none()
+            && self.save_job.is_none()
+            && !self.projection_receive.busy()
+            && self.sender_idle_for_edit()
+            && !self.remote_sessions.projection_pending()
+            && self.projection_checkpoint_available()
     }
     pub(super) unsafe fn start_projection_edit(
         &mut self,
@@ -68,22 +130,9 @@ impl Application {
         action: Action,
     ) -> bool {
         let result = (|| {
-            let view = self.authorization.borrow();
-            if self.projection_edit.busy()
-                || self.modals.blocked()
-                || view.closed
-                || view.busy
-                || self.exit_requested.get()
-                || self.restore_job.is_some()
-                || self.save_job.is_some()
-                || self.projection_receive.busy()
-                || !self.sender_idle_for_edit()
-                || self.remote_sessions.projection_pending()
-                || !self.projection_checkpoint_available()
-            {
+            if !self.projection_edit_available() {
                 return Err(stale());
             }
-            drop(view);
             let doc = self
                 .documents
                 .iter()
@@ -197,14 +246,31 @@ impl Application {
                 true
             }
             Err(error) => {
-                self.edit_status(&format!("协作提交未启动：{error}"));
+                self.edit_error(&format!("协作提交未启动：{error}"));
                 false
             }
         }
+    }
+    pub(super) fn edit_error(&self, status: &str) {
+        let unit = self.authorization.borrow().editing.unit.clone();
+        if let Some(doc) = self
+            .documents
+            .iter()
+            .find(|doc| Some(&doc.state.unit_id) == unit.as_ref())
+        {
+            let mut preference = doc.state.projection_mode.borrow_mut();
+            if preference.as_ref().is_some_and(|choice| choice.submitted) {
+                // UI 意图失败后回到实际模式；已持久化的请求仍由原恢复流程持有。
+                preference.take();
+            }
+        }
+        self.edit_status(status);
+        self.authorization.borrow_mut().editing.recovery = true;
     }
     pub(super) fn edit_status(&self, status: &str) {
         let mut view = self.authorization.borrow_mut();
         view.editing.busy = self.projection_edit.busy();
         view.editing.status = status.into();
+        view.editing.recovery = false;
     }
 }

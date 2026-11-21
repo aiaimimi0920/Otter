@@ -14,6 +14,44 @@ use windows::Win32::{
 };
 
 #[test]
+fn failed_or_unknown_input_release_blocks_a_new_worker_and_preserves_error() {
+    let _apartment = Apartment::new().unwrap();
+    let active = Arc::new(AtomicUsize::new(0));
+    let (release, wait) = mpsc::channel();
+    let (job, window) = LiveJob::<Texture>::spawn_bound(
+        &active,
+        |consumer| LiveWindow::new(consumer, 128, 128).map_err(io::Error::other),
+        move |_, _| {
+            wait.recv_timeout(Duration::from_secs(5)).unwrap();
+            Ok(())
+        },
+    )
+    .unwrap();
+    let mut session = Session::new(job, window);
+    for unknown in [false, true] {
+        session.input_cleanup_unknown = unknown;
+        session.input_cleanup = (!unknown).then_some(crate::live_input::Cleanup {
+            released: 0,
+            failed: 1,
+            skipped: 0,
+        });
+        session.input_error = Some("release failed".into());
+        let window = session.window.as_ref().unwrap();
+        window.allow_input().unwrap();
+        window.request_default_input();
+        session.process_window_input();
+        assert!(session.input.is_none());
+        assert!(!session.input_enabled());
+        assert_eq!(session.input_error.as_deref(), Some("release failed"));
+        assert_eq!(
+            session.window.as_ref().unwrap().take_input_request(),
+            Some(false)
+        );
+    }
+    release.send(()).unwrap();
+}
+
+#[test]
 fn source_close_is_not_worker_completion_and_error_survives_window_close() {
     let _apartment = Apartment::new().unwrap();
     let active = Arc::new(AtomicUsize::new(0));

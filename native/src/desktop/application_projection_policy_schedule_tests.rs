@@ -2,6 +2,51 @@
 use super::*;
 use crate::projection_delivery::{tests::invitation, Inbox};
 const ORIGIN: &str = "https://loom.example";
+#[test]
+fn receive_policy_accepts_new_invitation_once_without_waiting_for_manual_request() {
+    let entries = entries(1, false);
+    let mut schedule = Schedule::default();
+    let now = Instant::now();
+    assert!(matches!(
+        schedule.plan(ORIGIN, &entries, Policy::Confirm, now),
+        Some(Request::Accept(_))
+    ));
+    schedule.inbox(&entries);
+    assert!(matches!(
+        schedule.plan(
+            ORIGIN,
+            &entries,
+            Policy::Confirm,
+            now + Duration::from_secs(3)
+        ),
+        Some(Request::Refresh)
+    ));
+}
+#[test]
+fn receive_policy_retries_unapplied_accept_once_from_fresh_inbox() {
+    let entries = entries(1, false);
+    let start = Instant::now();
+    let mut schedule = Schedule::default();
+    let plan = |schedule: &mut Schedule, seconds| {
+        schedule.plan(
+            ORIGIN,
+            &entries,
+            Policy::Confirm,
+            start + Duration::from_secs(seconds),
+        )
+    };
+    assert!(matches!(plan(&mut schedule, 0), Some(Request::Accept(_))));
+    assert!(schedule.accept_unapplied(&entries[0]));
+    schedule.failure(ORIGIN, start);
+    assert!(plan(&mut schedule, 3).is_none());
+    assert!(matches!(plan(&mut schedule, 6), Some(Request::Refresh)));
+    assert!(matches!(plan(&mut schedule, 9), Some(Request::Refresh)));
+    schedule.inbox(&entries);
+    assert!(matches!(plan(&mut schedule, 12), Some(Request::Accept(_))));
+    assert!(!schedule.accept_unapplied(&entries[0]));
+    schedule.inbox(&entries);
+    assert!(matches!(plan(&mut schedule, 15), Some(Request::Refresh)));
+}
 fn entries(count: usize, accepted: bool) -> Vec<Arc<Invitation>> {
     let values = (0..count)
         .map(|index| {

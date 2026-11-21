@@ -22,7 +22,7 @@ pub(super) unsafe fn handle(
         return None;
     }
     // Ctrl/Alt 可能已经送达源；先走现有停止通道释放源按键，不能只吞掉滚轮。
-    input::cancel(hwnd, state);
+    input::suspend(hwnd, state);
     if state.group_locked.get() || state.group_hidden.get() {
         return Some(Ok(()));
     }

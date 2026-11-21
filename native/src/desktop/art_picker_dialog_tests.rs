@@ -91,12 +91,12 @@ fn actual_search_list_preserves_catalog_index_and_disabled_item_cannot_add() {
             SetWindowTextW(search, w!("第二")).unwrap();
             assert_eq!(SendMessageW(list, LB_GETCOUNT, None, None).0, 1);
             assert_eq!(selected(hwnd), Some(1));
-            assert!(!IsWindowEnabled(GetDlgItem(Some(hwnd), IDOK.0).unwrap()).as_bool());
+            assert!(!(ui(hwnd).context.allowed)(selected(hwnd).unwrap()));
             command(hwnd, IDOK.0);
             assert!(matches!(*ui(hwnd).result.borrow(), Outcome::Cancel));
             SetWindowTextW(search, w!("TEST-ART")).unwrap();
             assert_eq!(selected(hwnd), Some(0));
-            assert!(IsWindowEnabled(GetDlgItem(Some(hwnd), IDOK.0).unwrap()).as_bool());
+            assert!((ui(hwnd).context.allowed)(selected(hwnd).unwrap()));
             command(hwnd, IDOK.0);
         });
         assert!(matches!(result, Outcome::Select(0)));
@@ -198,5 +198,80 @@ fn nested_dialog_pump_freezes_search_and_commands_during_session_pause_then_resu
             command(hwnd, IDOK.0);
         });
         assert!(matches!(result, Outcome::Select(0)));
+    }
+}
+
+#[test]
+fn compact_menu_has_no_caption_footer_and_clear_preserves_search_window() {
+    unsafe {
+        run(|hwnd| {
+            assert_eq!(GetWindowLongW(hwnd, GWL_STYLE) as u32 & WS_CAPTION.0, 0);
+            assert!(GetDlgItem(Some(hwnd), IDOK.0).is_err());
+            let mut bounds = RECT::default();
+            GetWindowRect(hwnd, &mut bounds).unwrap();
+            let dpi = GetDpiForWindow(hwnd).max(96) as i32;
+            assert_eq!(bounds.right - bounds.left, 250 * dpi / 96);
+            assert_eq!(bounds.bottom - bounds.top, 300 * dpi / 96);
+            let search = GetDlgItem(Some(hwnd), SEARCH).unwrap();
+            SetWindowTextW(search, w!("  TEST-ART  ")).unwrap();
+            assert_eq!(selected(hwnd), Some(0));
+            SetWindowTextW(search, w!("no such art")).unwrap();
+            let list = GetDlgItem(Some(hwnd), LIST).unwrap();
+            assert_eq!(GetWindowLongW(list, GWL_STYLE) as u32 & WS_VISIBLE.0, 0);
+            assert_ne!(
+                GetWindowLongW(GetDlgItem(Some(hwnd), STATUS).unwrap(), GWL_STYLE) as u32
+                    & WS_VISIBLE.0,
+                0
+            );
+            command(hwnd, CLEAR);
+            assert_eq!(GetDlgItem(Some(hwnd), SEARCH).unwrap(), search);
+            assert_eq!(text(search), "");
+            assert_eq!(
+                SendMessageW(
+                    GetDlgItem(Some(hwnd), LIST).unwrap(),
+                    LB_GETCOUNT,
+                    None,
+                    None
+                )
+                .0,
+                2
+            );
+            assert!(
+                row_at(list, LPARAM((150 << 16) | 8)).is_none(),
+                "blank list area is not an Art row"
+            );
+            assert!(matches!(*ui(hwnd).result.borrow(), Outcome::Cancel));
+        });
+    }
+}
+
+#[test]
+fn list_keyboard_selection_does_not_add_and_single_click_requires_same_row_and_short_motion() {
+    unsafe {
+        for moved in [true, false] {
+            let result = run(move |hwnd| {
+                let list = GetDlgItem(Some(hwnd), LIST).unwrap();
+                SendMessageW(
+                    hwnd,
+                    WM_COMMAND,
+                    Some(WPARAM(LIST as usize | (LBN_SELCHANGE as usize) << 16)),
+                    Some(LPARAM(list.0 as isize)),
+                );
+                assert!(matches!(*ui(hwnd).result.borrow(), Outcome::Cancel));
+                let point = LPARAM((8 << 16) | 8);
+                SendMessageW(list, WM_LBUTTONDOWN, Some(WPARAM(1)), Some(point));
+                SendMessageW(
+                    list,
+                    WM_LBUTTONUP,
+                    None,
+                    Some(if moved { LPARAM((8 << 16) | 20) } else { point }),
+                );
+            });
+            assert!(if moved {
+                matches!(result, Outcome::Cancel)
+            } else {
+                matches!(result, Outcome::Select(0))
+            });
+        }
     }
 }

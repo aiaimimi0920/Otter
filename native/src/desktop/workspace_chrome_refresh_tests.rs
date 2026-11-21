@@ -2,6 +2,7 @@
 use super::*;
 struct Probe {
     hwnd: HWND,
+    initially_visible: bool,
     positions: Cell<u32>,
     visibility: Cell<u32>,
     paints: Cell<u32>,
@@ -15,6 +16,7 @@ impl Probe {
     unsafe fn new(hwnd: HWND, check_viewport: bool) -> Box<Self> {
         let owner = Box::new(Self {
             hwnd,
+            initially_visible: IsWindowVisible(hwnd).as_bool(),
             positions: Cell::new(0),
             visibility: Cell::new(0),
             paints: Cell::new(0),
@@ -212,13 +214,17 @@ fn capture_keeps_visible_chrome_frozen_and_resumes_without_hide_show() {
             let _ = UpdateWindow(h);
         }
         assert!(ui.blocked());
-        assert!(ui.handles().iter().all(|h| IsWindowVisible(*h).as_bool()));
+        assert!(probes
+            .iter()
+            .all(|p| IsWindowVisible(p.hwnd).as_bool() == p.initially_visible));
         assert!(ui.redraw_after_capture.get());
         app.capture_active.set(false);
         app.sync_workspace_chrome(true);
         assert!(!ui.redraw_after_capture.get());
         assert!(probes.iter().all(|p| p.visibility.get() == 0));
-        assert!(ui.handles().iter().all(|h| IsWindowVisible(*h).as_bool()));
+        assert!(probes
+            .iter()
+            .all(|p| IsWindowVisible(p.hwnd).as_bool() == p.initially_visible));
         drop(probes);
         app.shutdown();
     }
@@ -263,7 +269,10 @@ fn captured_pin_delivery_keeps_previous_hosts_and_chrome_visible() {
         assert!(!ui.redraw_after_capture.get());
         for probe in &probes {
             assert_eq!(probe.visibility.get(), 0);
-            assert!(IsWindowVisible(probe.hwnd).as_bool());
+            assert_eq!(
+                IsWindowVisible(probe.hwnd).as_bool(),
+                probe.initially_visible
+            );
         }
         drop(probes);
         app.shutdown();

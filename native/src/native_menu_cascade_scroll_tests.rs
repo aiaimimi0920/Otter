@@ -41,6 +41,8 @@ fn tree() -> Vec<Item> {
             default: false,
             separator: false,
             children: None,
+            delete: None,
+            preview: None,
             thumbnail: None,
         })
         .collect()

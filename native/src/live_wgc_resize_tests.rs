@@ -83,10 +83,7 @@ fn peak_budget_and_recreate_failure_do_not_commit_size_or_leak_candidate() {
 fn real_warp_frame_pool_recreates_without_starting_any_capture_session() {
     use windows::{
         core::Interface,
-        Graphics::{
-            Capture::Direct3D11CaptureFramePool,
-            DirectX::{Direct3D11::IDirect3DDevice, DirectXPixelFormat},
-        },
+        Graphics::DirectX::{Direct3D11::IDirect3DDevice, DirectXPixelFormat},
         Win32::{
             Foundation::HMODULE,
             Graphics::{Direct3D::D3D_DRIVER_TYPE_WARP, Direct3D11::*, Dxgi::IDXGIDevice},
@@ -113,7 +110,7 @@ fn real_warp_frame_pool_recreates_without_starting_any_capture_session() {
             .unwrap()
             .cast()
             .unwrap();
-        let pool = Direct3D11CaptureFramePool::CreateFreeThreaded(
+        let pool = super::super::super::factory::pool(
             &winrt,
             DirectXPixelFormat::B8G8R8A8UIntNormalized,
             2,

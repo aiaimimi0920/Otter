@@ -7,25 +7,6 @@ use windows::{
 pub(super) const TIMER: usize = 0x4F57;
 pub(super) const MODE_COMMAND: usize = 0x1021;
 
-pub(super) unsafe fn append_menu(
-    menu: HMENU,
-    state: &State,
-    tool: crate::editor::Tool,
-) -> windows::core::Result<()> {
-    if state.erase_job.borrow().is_busy() {
-        AppendMenuW(menu, MF_STRING | MF_GRAYED, 0, w!("擦除处理中…"))?;
-    }
-    if tool == crate::editor::Tool::Eraser {
-        let checked = state.canvas.borrow().erase_annotations_only;
-        AppendMenuW(
-            menu,
-            MF_STRING | if checked { MF_CHECKED } else { MF_UNCHECKED },
-            MODE_COMMAND,
-            w!("仅擦除栅格标注"),
-        )?;
-    }
-    Ok(())
-}
 pub(super) fn toggle_mode(state: &State) {
     let mut canvas = state.canvas.borrow_mut();
     canvas.erase_annotations_only = !canvas.erase_annotations_only;

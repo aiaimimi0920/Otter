@@ -1,4 +1,4 @@
-//! 将已验证 TLS 流交给固定版本 ureq 解析 HTTP；不创建线程、不解析 DNS、不复用连接。
+//! 将固定连接交给 ureq 解析 HTTP；TLS 或可信 loopback，不创建线程、解析 DNS或复用连接。
 use crate::loom_bridge_stream::BridgeStream;
 use rustls::{ClientConnection, StreamOwned};
 use std::{
@@ -18,11 +18,15 @@ use ureq::{
 pub(super) type TlsStream = StreamOwned<ClientConnection, BridgeStream>;
 pub(super) struct Once {
     uri: Uri,
-    stream: Mutex<Option<TlsStream>>,
+    stream: Mutex<Option<Stream>>,
+}
+enum Stream {
+    Tls(Box<TlsStream>),
+    Local(BridgeStream),
 }
 pub(super) struct FixedAddress(pub SocketAddr);
 pub(super) struct HttpStream {
-    stream: TlsStream,
+    stream: Stream,
     buffers: LazyBuffers,
 }
 // 库接口要求 Debug；不能输出 TLS 状态、输入缓冲或请求信息。
@@ -45,7 +49,35 @@ impl Once {
     pub(super) fn new(uri: Uri, stream: TlsStream) -> Self {
         Self {
             uri,
-            stream: Mutex::new(Some(stream)),
+            stream: Mutex::new(Some(Stream::Tls(Box::new(stream)))),
+        }
+    }
+    pub(super) fn local(uri: Uri, stream: BridgeStream) -> Self {
+        Self {
+            uri,
+            stream: Mutex::new(Some(Stream::Local(stream))),
+        }
+    }
+}
+impl Read for Stream {
+    fn read(&mut self, bytes: &mut [u8]) -> std::io::Result<usize> {
+        match self {
+            Self::Tls(s) => s.read(bytes),
+            Self::Local(s) => s.read(bytes),
+        }
+    }
+}
+impl Write for Stream {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        match self {
+            Self::Tls(s) => s.write(bytes),
+            Self::Local(s) => s.write(bytes),
+        }
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        match self {
+            Self::Tls(s) => s.flush(),
+            Self::Local(s) => s.flush(),
         }
     }
 }
@@ -111,6 +143,6 @@ impl Transport for HttpStream {
         false
     }
     fn is_tls(&self) -> bool {
-        true
+        matches!(self.stream, Stream::Tls(_))
     }
 }

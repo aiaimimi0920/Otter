@@ -15,6 +15,7 @@ pub struct Input {
     pub pixels: crate::pixels::Pixels,
     pub editor: crate::editor::Editor,
     pub opacity: f32,
+    pub(super) style: super::export::style::Snapshot,
     pub root: PathBuf,
     pub stem: String,
     pub policy: crate::cache_policy::Policy,
@@ -31,8 +32,9 @@ impl Ready {
     pub(super) fn publish(
         self,
         cancel: &AtomicBool,
-    ) -> std::io::Result<(PathBuf, super::drag_preview::Preview)> {
-        Ok((self.cache.commit(cancel)?, self.preview))
+    ) -> std::io::Result<(PathBuf, super::drag_preview::Preview, std::fs::File)> {
+        let (path, lock) = self.cache.commit_drag(cancel)?;
+        Ok((path, self.preview, lock))
     }
 }
 type Output = Result<Option<Ready>, String>;
@@ -129,7 +131,9 @@ fn prepare(input: Input, cancel: &AtomicBool) -> Output {
         height: input.height,
         pixels: input.pixels,
     };
-    let (png, preview) = super::export::png_with_opacity(&image, &input.editor, input.opacity)
+    let (png, preview) = input
+        .style
+        .png(&image, &input.editor, input.opacity)
         .map_err(|error| error.to_string())?;
     if cancel.load(Ordering::Acquire) {
         return Ok(None);

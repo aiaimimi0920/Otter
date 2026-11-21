@@ -1,9 +1,10 @@
-//! 图像打开、导出及编辑后台任务的完成消息路由；不新增或重启任何定时器。
+//! 宿主后台任务与设置短反馈的计时消息路由；定时器生命周期仍归各责任模块。
 use crate::desktop::{self, State};
 use windows::Win32::Foundation::HWND;
 
 pub(super) unsafe fn complete(hwnd: HWND, state: &State, id: usize) -> bool {
     match id {
+        desktop::pin_settings::TEXT_TIMER => desktop::pin_settings::text_timer(hwnd, state),
         super::render_recovery::TIMER => super::render_recovery::poll(hwnd, state),
         desktop::export_job::EXPORT_TIMER => desktop::export_job::finish(hwnd, state, false),
         desktop::open_job::OPEN_TIMER => desktop::open_job::finish(hwnd, state, false),

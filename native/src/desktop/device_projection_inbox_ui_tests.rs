@@ -67,7 +67,7 @@ fn real_projection_menu_and_queue_keep_shared_state_identity_and_bounded_labels(
 fn projection_menu_and_requests_reject_busy_closed_cross_origin_and_accepted_candidates() {
     unsafe {
         let state = State::new(None, false).unwrap();
-        for mode in 0..7 {
+        for mode in 0..8 {
             let mut view = state.authorization.borrow_mut();
             *view = View::default();
             view.origin = Some(
@@ -82,6 +82,7 @@ fn projection_menu_and_requests_reject_busy_closed_cross_origin_and_accepted_can
             view.closed = mode == 0;
             view.busy = mode == 1;
             view.projection.busy = mode == 2;
+            view.account.busy = mode == 7;
             if mode == 3 {
                 view.request = Some(Request::Cancel);
             }

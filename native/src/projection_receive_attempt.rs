@@ -53,6 +53,14 @@ impl Attempt {
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .take()
     }
+    pub(super) fn discard_unapplied(&self) -> Result<bool, Error> {
+        if let Some((ticket, true)) = self.take() {
+            // 只有本次新建且已退休的记录可重新尝试；旧记录可能对应不确定的副作用。
+            ticket.retire().map_err(Error::Journal)?;
+            return Ok(true);
+        }
+        Ok(false)
+    }
     pub(super) fn abandon(&self) -> Option<Ticket> {
         let (ticket, created) = self
             .0

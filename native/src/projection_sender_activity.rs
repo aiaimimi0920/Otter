@@ -148,7 +148,8 @@ impl Active {
         struct Body<'a> {
             envelope: &'a Envelope,
             snapshot: &'a snapshot::Snapshot,
-            target_device_id: &'a str,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            target_device_id: Option<&'a str>,
             #[serde(skip_serializing_if = "Option::is_none")]
             peer_id: Option<&'a str>,
             #[serde(skip_serializing_if = "Option::is_none")]

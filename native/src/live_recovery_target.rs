@@ -3,7 +3,9 @@ use super::{
     snapshot::{Layered, Snapshot},
     Target,
 };
-use crate::live_recovery_wire::{Layered as WireLayered, Record};
+use crate::live_recovery_wire::{Layered as WireLayered, Record, Restoration, WindowState};
+#[path = "live_recovery_popup_layer.rs"]
+pub(crate) mod popup_layer;
 use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle};
 use windows::{
     core::{Error, Result},
@@ -56,42 +58,55 @@ fn point(value: [i32; 2]) -> POINT {
 
 impl Snapshot {
     pub fn recovery_record(&self) -> Result<Record> {
-        let record = Record {
-            hwnd: self.target.identity.window as u64,
-            process_id: self.target.identity.process,
-            thread_id: self.target.identity.thread,
-            process_created: creation_time(&self.target)?,
-            rect: rect_array(self.rect),
-            placement_flags: self.placement.flags.0,
-            show_command: self.placement.showCmd,
-            min_position: [
-                self.placement.ptMinPosition.x,
-                self.placement.ptMinPosition.y,
-            ],
-            max_position: [
-                self.placement.ptMaxPosition.x,
-                self.placement.ptMaxPosition.y,
-            ],
-            normal_position: rect_array(self.placement.rcNormalPosition),
-            extended_style: self.extended_style as i64,
-            layered: self.layered.map(|value| WireLayered {
-                color: value.color.0,
-                alpha: value.alpha,
-                flags: value.flags.0,
+        make_record(
+            &self.target,
+            Restoration::Window(WindowState {
+                rect: rect_array(self.rect),
+                placement_flags: self.placement.flags.0,
+                show_command: self.placement.showCmd,
+                min_position: [
+                    self.placement.ptMinPosition.x,
+                    self.placement.ptMinPosition.y,
+                ],
+                max_position: [
+                    self.placement.ptMaxPosition.x,
+                    self.placement.ptMaxPosition.y,
+                ],
+                normal_position: rect_array(self.placement.rcNormalPosition),
+                extended_style: self.extended_style as i64,
+                layered: self.layered.map(|value| WireLayered {
+                    color: value.color.0,
+                    alpha: value.alpha,
+                    flags: value.flags.0,
+                }),
+                iconic: self.iconic,
+                visible: self.visible,
             }),
-            iconic: self.iconic,
-            visible: self.visible,
-        };
-        record
-            .validate()
-            .map_err(|error| Error::new(E_INVALIDARG, error.to_string()))?;
-        Ok(record)
+        )
     }
+}
+fn make_record(target: &Target, restoration: Restoration) -> Result<Record> {
+    let record = Record {
+        hwnd: target.identity.window as u64,
+        process_id: target.identity.process,
+        thread_id: target.identity.thread,
+        process_created: creation_time(target)?,
+        restoration,
+    };
+    record
+        .validate()
+        .map_err(|error| Error::new(E_INVALIDARG, error.to_string()))?;
+    Ok(record)
 }
 
 /// 登记 ACK 之前建立并保留此 owner；恢复只使用该 Target，不再次按 PID 打开源进程。
 pub struct Binding {
-    snapshot: Snapshot,
+    state: Bound,
+}
+enum Bound {
+    Window(Snapshot),
+    // 请求通道含原身份与在途槽；只在登记时分配，不扩大普通窗口恢复记录。
+    PopupLayer(Box<popup_layer::Recovery>),
 }
 impl Binding {
     pub fn bind(record: &Record) -> Result<Self> {
@@ -100,8 +115,6 @@ impl Binding {
             .map_err(|error| Error::new(E_INVALIDARG, error.to_string()))?;
         let window = usize::try_from(record.hwnd)
             .map_err(|_| Error::new(E_INVALIDARG, "Live recovery HWND is out of range"))?;
-        let style = isize::try_from(record.extended_style)
-            .map_err(|_| Error::new(E_INVALIDARG, "Live recovery style is out of range"))?;
         let target = Target::bind(HWND(window as *mut _))?;
         if target.identity.process != record.process_id
             || target.identity.thread != record.thread_id
@@ -112,36 +125,58 @@ impl Binding {
                 "Live recovery source identity mismatch",
             ));
         }
-        let snapshot = Snapshot {
-            target,
-            rect: rect(record.rect),
-            placement: WINDOWPLACEMENT {
-                length: std::mem::size_of::<WINDOWPLACEMENT>() as u32,
-                flags: WINDOWPLACEMENT_FLAGS(record.placement_flags),
-                showCmd: record.show_command,
-                ptMinPosition: point(record.min_position),
-                ptMaxPosition: point(record.max_position),
-                rcNormalPosition: rect(record.normal_position),
-            },
-            iconic: record.iconic,
-            visible: record.visible,
-            extended_style: style,
-            layered: record.layered.as_ref().map(|value| Layered {
-                color: COLORREF(value.color),
-                alpha: value.alpha,
-                flags: LAYERED_WINDOW_ATTRIBUTES_FLAGS(value.flags),
-            }),
+        let state = match &record.restoration {
+            Restoration::Window(state) => Bound::Window(snapshot(target, state)?),
+            Restoration::PopupLayer(layer) => {
+                Bound::PopupLayer(Box::new(popup_layer::Recovery::bind(target, layer)?))
+            }
         };
-        snapshot.target.validate()?;
-        Ok(Self { snapshot })
+        Ok(Self { state })
     }
     pub fn restore(&self) -> Result<()> {
-        self.snapshot.restore()
+        match &self.state {
+            Bound::PopupLayer(layer) => layer.restore(),
+            Bound::Window(snapshot) => snapshot.restore(),
+        }
     }
     /// 原源已消失时无对象可恢复；查询失败不冒充消失，避免静默丢弃恢复责任。
     pub fn restore_or_retire(&self) -> Result<()> {
-        self.snapshot.restore_or_retire()
+        match &self.state {
+            Bound::PopupLayer(layer) => layer.restore(),
+            Bound::Window(snapshot) => snapshot.restore_or_retire(),
+        }
     }
+    pub(crate) fn drain_helper_notifications(&self) {
+        if let Bound::PopupLayer(layer) = &self.state {
+            layer.drain_helper_notifications();
+        }
+    }
+}
+fn snapshot(target: Target, state: &WindowState) -> Result<Snapshot> {
+    let style = isize::try_from(state.extended_style)
+        .map_err(|_| Error::new(E_INVALIDARG, "Live recovery style is out of range"))?;
+    let snapshot = Snapshot {
+        target,
+        rect: rect(state.rect),
+        placement: WINDOWPLACEMENT {
+            length: std::mem::size_of::<WINDOWPLACEMENT>() as u32,
+            flags: WINDOWPLACEMENT_FLAGS(state.placement_flags),
+            showCmd: state.show_command,
+            ptMinPosition: point(state.min_position),
+            ptMaxPosition: point(state.max_position),
+            rcNormalPosition: rect(state.normal_position),
+        },
+        iconic: state.iconic,
+        visible: state.visible,
+        extended_style: style,
+        layered: state.layered.as_ref().map(|value| Layered {
+            color: COLORREF(value.color),
+            alpha: value.alpha,
+            flags: LAYERED_WINDOW_ATTRIBUTES_FLAGS(value.flags),
+        }),
+    };
+    snapshot.target.validate()?;
+    Ok(snapshot)
 }
 
 #[cfg(test)]

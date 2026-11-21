@@ -1,11 +1,19 @@
 //! 工作流外框在底图之后、独立标注之前绘制；不继承底图透明度。
 use super::*;
 
+#[derive(Clone, Copy)]
 pub(in crate::desktop) struct Border {
     width: f32,
     color: D2D1_COLOR_F,
 }
 impl Border {
+    pub(in crate::desktop) fn from_style(style: crate::pin_frame_style::Style) -> Option<Self> {
+        let (width, crate::surface_color::Color([r, g, b, a])) = style.border()?;
+        Some(Self {
+            width,
+            color: D2D1_COLOR_F { r, g, b, a },
+        })
+    }
     pub(in crate::desktop) fn read(edit: &serde_json::Value) -> Result<Option<Self>> {
         let width = match edit.get("borderWidth") {
             None | Some(serde_json::Value::Null) => 0.0,
@@ -34,7 +42,7 @@ impl Border {
         }))
     }
 
-    pub(in crate::desktop::export) unsafe fn draw(
+    pub(in crate::desktop) unsafe fn draw(
         &self,
         target: &ID2D1RenderTarget,
         frame: crate::crop_geometry::Rect,

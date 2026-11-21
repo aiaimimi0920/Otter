@@ -89,6 +89,8 @@ pub enum Error {
     SurfaceBinding(crate::surface_live_binding::Error),
     SurfaceLifecycle(crate::surface_lifecycle_owner::Error),
     Projection(crate::projection_delivery::Error),
+    ProjectionBusy,
+    ProjectionTargetOffline,
     ProjectionStopped(crate::projection_delivery::binding::StopReason),
     Sender(crate::projection_delivery::sender::Error),
 }
@@ -118,6 +120,28 @@ pub struct Control<'a> {
     cancel: &'a Cancel,
 }
 impl<'a> Control<'a> {
+    pub(crate) fn loom_connection_info(&self) -> Result<(String, Option<String>), Error> {
+        let bytes = self.send_limited(
+            "GET",
+            "/v1/otter/connection-info",
+            &[],
+            Duration::from_secs(5),
+            16384,
+        )?;
+        let value: serde_json::Value = serde_json::from_slice(&bytes).map_err(|_| Error::Input)?;
+        let id = value["loom"]["loomId"]
+            .as_str()
+            .filter(|s| crate::projection_delivery::share::loom_id(s))
+            .ok_or(Error::Input)?
+            .to_owned();
+        Ok((
+            id,
+            value["account"]
+                .as_str()
+                .filter(|s| s.len() <= 640 && !s.chars().any(char::is_control))
+                .map(str::to_owned),
+        ))
+    }
     pub fn new(client: &'a Client, session: &'a Session, cancel: &'a Cancel) -> Self {
         Self {
             client,
@@ -269,6 +293,13 @@ impl<'a> Control<'a> {
         resource: Option<&ResourceLease>,
     ) -> Result<Zeroizing<Vec<u8>>, Error> {
         let (status, bytes) = self.exchange_until(method, path, body, deadline, limit, resource)?;
+        self.validated_response(status, bytes)
+    }
+    fn validated_response(
+        &self,
+        status: u16,
+        bytes: Zeroizing<Vec<u8>>,
+    ) -> Result<Zeroizing<Vec<u8>>, Error> {
         if status == 401 {
             return Err(Error::AuthorizationRequired);
         }

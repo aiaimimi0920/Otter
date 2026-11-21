@@ -1,4 +1,5 @@
 use super::*;
+use crate::live_recovery_wire::Restoration;
 use std::{
     os::windows::io::AsRawHandle,
     time::{Duration, Instant},
@@ -81,7 +82,10 @@ fn shared_source_uses_one_registration_and_last_session_restores_and_reaps() {
         second.poll().unwrap();
         first.source.armed.get()
     });
-    assert_eq!(window.record().layered.unwrap().alpha, 1);
+    let Restoration::Window(hidden) = window.record().restoration else {
+        panic!("window fixture")
+    };
+    assert_eq!(hidden.layered.unwrap().alpha, 1);
     drop(first);
     assert!(second.lease.has_recovery());
     assert_ne!(window.record(), before);
@@ -209,4 +213,61 @@ fn preexisting_and_cancelled_intents_do_not_reclaim_hidden_source() {
     drop(protection);
     owner.close();
     advance(&mut owner, Owner::finished);
+}
+
+#[test]
+fn explicit_b_input_rearms_recalled_minimized_source_for_all_peers() {
+    let window = Window::new();
+    let mut owner = owner();
+    let first = owner.acquire(window.target()).unwrap();
+    let second = owner.acquire(window.target()).unwrap();
+    advance(&mut owner, |_| {
+        first.poll().unwrap();
+        first.source.armed.get()
+    });
+    first.source.recalled.set(true);
+    advance(&mut owner, |owner| owner.journal.is_none());
+    unsafe {
+        let _ = ShowWindow(window.0, SW_SHOWMINNOACTIVE);
+    }
+    assert!(unsafe { IsIconic(window.0) }.as_bool());
+    let minimized = window.record();
+    assert!(owner.resume_minimized(&first).unwrap());
+    assert!(
+        unsafe { IsIconic(window.0) }.as_bool(),
+        "no mutation before new registration ACK"
+    );
+    advance(&mut owner, |_| {
+        second.poll().unwrap();
+        second.source.armed.get()
+    });
+    assert!(!unsafe { IsIconic(window.0) }.as_bool());
+    assert!(!first.recalled());
+    assert!(Rc::ptr_eq(&first.source, &second.source));
+    assert_eq!(
+        Snapshot::read(&window.target())
+            .unwrap()
+            .layered
+            .unwrap()
+            .alpha,
+        1
+    );
+    drop(first);
+    second.poll().unwrap();
+    drop(second);
+    owner.close();
+    advance(&mut owner, Owner::finished);
+    let restored = window.record();
+    let Restoration::Window(restored) = restored.restoration else {
+        panic!("window fixture")
+    };
+    let Restoration::Window(minimized) = minimized.restoration else {
+        panic!("window fixture")
+    };
+    // 沿既有归还契约展开最小化源；验证用的是新快照，而不是首次隐藏前的 invisible 状态。
+    assert!(!restored.iconic);
+    assert_eq!(restored.visible, minimized.visible);
+    assert_eq!(restored.extended_style, minimized.extended_style);
+    assert_eq!(restored.normal_position, minimized.normal_position);
+    assert_eq!(restored.layered, minimized.layered);
 }

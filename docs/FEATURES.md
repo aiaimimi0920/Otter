@@ -1,5 +1,190 @@
 # Otter Features and Manual Regression Matrix
 
+## 空工作区托盘
+
+桌面没有钉图时，点击或键盘激活托盘图标保持空工作区，不显示黑色空宿主。
+已有内容的召回、托盘右键菜单和截图快捷键保留。回归覆盖空宿主、普通图片和无图 Art；
+手测全新启动、删除最后一张钉图后的托盘点击，以及已有钉图隐藏后的恢复。
+
+## 未发布 Windows-native 分支：v2 账号分享单入口（v664，验证中）
+
+两端均使用最新 Otter、Loom，分别连接自己的本机 Loom 并登录同一账号。二维码和链接只使用账号 v2，
+取消旧模式切换、旧邀请导入和协议回退。创建、导入、持续 PNG 更新、重开和解绑进入一个原生账号生命周期。
+接收图只有真实检查点提交后才显示；暂停撤销在途处理，解除关联保留末图。
+
+真实双 Loom Application 联合已验证创建/接受、两次 PNG 更新、双方重启和解绑。单入口调整后的二维码、窗口、
+账号与恢复 34 项定向回归已通过。v664 完整内部包已完成来源、归档及解包 EXE 工作区回归；
+普通分享菜单仍待验，双 Loom 局域网 Live 尚未实现。公网 Live 与外网验收按用户授权暂缓。
+以下带旧版本号的记录是历史状态，不构成当前兼容或旧版回归要求。
+
+## 未发布 Windows-native 分支：右键图库滚动、删除与预览（v653）
+
+回收站、收藏夹和剪贴板图片按三列卡片展示，滚轮按鼠标所在面板整行滚动。每条右上角“×”直接删除对应条目，键盘选中后也可按 Delete；正文点击仍使用原库操作或剪贴板粘贴。两库删除复用原事务，剪贴板删除按 Windows 历史 ID 定位，系统拒绝时显示失败，不清空整个历史或当前剪贴板。
+
+剪贴板文字与图片悬浮时在网格右侧显示较大的阅读预览，图片保持完整比例，右侧空间不足时放在左侧。预览不接收条目操作；跨卡片、滚动、刷新与在预览内松开鼠标均撤销旧点击。缩略图加载保留滚动位置，显式翻页从页首开始。两库缩略图只为当前页后台准备；剪贴板阅读图在既有 worker 中准备，长边最多360像素并计入原总预算，不在 UI 解码。
+
+手测三处菜单的零项／一项／多行、文字与图片混排、滚轮与分页、卡片边缘点击、恢复／复制／删除和不同显示缩放。本轮只做针对性检查及手测整包，不把编译视为普通桌面视觉验收。
+
+## 未发布 Windows-native 分支：主干菜单与端点光标（v651）
+
+钉图右键依次为保存、关闭、回收站、清空回收站、收藏／取消收藏、收藏夹、清空收藏夹和剪贴板，保留主干分组；关闭沿用回收事务。收藏状态由原有界库索引 worker 读取，未知时禁用，不在窗口回调解析整库。清空只更新选定库的内存会话原文，沿原 Receipt／单 worker 结算，不直接删除图片文件。
+
+托盘依次为截图、实时截图、长截图、编辑已有图片、接收投射、自启动、退出，不追加剪贴板或冻结库。接收投射复用现有接收策略与收件菜单，不绕过授权或自动接受。端点条默认箭头，不使用会在连接结束后残留的类十字光标。手测拖连成功／空白松手／Esc取消、右键关闭与回收、两库清空／收藏切换、剪贴板和托盘各入口；真实跨设备接受与桌面观感不由菜单树回归替代。
+
+## 未发布 Windows-native 分支：普通截图交付延迟（v650）
+
+普通Ctrl+1的采集结果与钉图准备不再等隐藏采集25ms／导入100ms轮询，完成后立即沿原交付链处理，不提前采样旧画面或降级HDR。手测不同大小的选区、连续多次截图、Esc取消及已有多钉图场景，对比松手后出现钉图的等待感；真实首帧延迟不能由隐藏HWND和合成像素回归推定为零。
+
+## 未发布 Windows-native 分支：启动与粘贴位置（v615–v618）
+
+v618 修正 Windows 关闭剪贴板时补充图片格式导致发布序列号变化、内部来源失效的问题。新增隔离 station 的真实系统发布/读取回归，检查六次读取仍保留来源与位置会话，并交付独立窗口；可见 A 内十二个不同位置的累计落点由原私有 desktop 回归独立检查。物理 Ctrl+C/Ctrl+V 及第三方剪贴板工具的交互仍需手测。
+
+普通无参启动使用 GUI 子系统，不弹出控制台；全新及恢复的空工作区只保留隐藏命令宿主和托盘，已有钉图、显式图片启动仍按原流程显示。手测双击 EXE、恢复有图／空工作区、托盘和截图快捷键。隔离产品测试不使用 `CREATE_NO_WINDOW` 掩盖控制台，另核 PE 子系统。
+
+复制时冻结鼠标相对图像的偏移；复制来源 A 的当前可见范围优先：在 A 内任意位置粘贴，均以 A 左上角累计偏移 20、40、60……DIP（按复制来源 DPI 转物理像素），不以鼠标静止或副本的遮挡层序作为堆叠条件。A 外的其它可见目标仍按原目标规则定位；鼠标移到图外则使用鼠标减复制偏移。该规则与可编辑性分离，普通图片、Art 和缩略图都保留位置；Art／缩略图仍是扁平图片，不恢复执行权限或可编辑 Art。外部 PNG／DIB／文件使用粘贴时鼠标作为左上角；取消、准备失败和新复制不会错误推进旧锚点。手测十次以上连续粘贴、另一张钉图内粘贴、来源移动、多屏、不同 DPI 和外部剪贴板覆盖。
+
+Shift 拖出继续使用主干默认 `{label}_{shortId}_{date}_{time}`；普通图片为 `image_<ID 后四位>_<YYYYMMDD>_<HHmmsscc>.png`，自定义模板与同名递增保留。定向回归检查默认名到缓存发布及真实 Shell 文件夹的最终名字；该验证不替代物理拖动与用户旧配置验收。
+
+## 未发布 Windows-native 分支：底栏层级、稳定三角与正确的互斥对象（v614）
+
+底部黄色三角及设置条与所属钉图紧邻，并跟随其普通／置顶状态。展开前后保留相同宽度和水平坐标，三角直接切换到条下方；收起仍仅三角区域可见、可点，不增加两侧空白命中区。
+
+同一钉图的端点内容与编辑工具栏首个按钮打开的左侧“钉图设置”双向互斥。点击左右端点、Tab 总展开和 F2 打开参数时收起左侧属性栏；打开左侧属性栏时立即收起该钉图的左右内容及候选。黄色三角打开的底部抽屉与两者都不互斥，仍支持独立点击和 Tab 总开关。其它钉图不受影响，未提交参数草稿和原提交事务保留，旧属性编辑不跨收起重开生效。手测两个方向快速往返、底部抽屉共存、跨应用层叠、置顶、字段草稿、候选、移动和混合 DPI；隔离 HWND 的中间位置与层序回归不替代普通桌面视觉验收。
+
+## 未发布 Windows-native 分支：Tab 层序（v612）
+
+左右端点展开内容、参数/候选控件和连续行底板紧邻各自钉图，随其进入或退出置顶层；不再取全工作区最低钉图作为共同锚点。普通应用切换、两张不同层位的钉图、参数输入焦点、Tab 展开/收起和移动需一起手测。底板间隙仍穿透，图片/边框遮挡和截图保护保持；隔离 HWND 回归不替代普通桌面观感。
+
+## 未发布 Windows-native 分支：Art 菜单、Tab 与拖出（v611）
+
+`Shift+1` 使用居中的 250×300 DIP 无标题搜索菜单，名称/id 包含匹配忽略首尾空格，清空后回到搜索框，单击同一行添加；拖动、空白列表区域和不可用项不提交。保留原模态会话、IME 与授权，尚未改成主干随钉图移动的非模态窗，原生滚动条及部分图标细节不承诺像素一致。
+
+下方收起标记仅保留三角区域，展开条与参数按钮在最终布局完成后发布完整帧。手测连续切换 Tab、单独展开/收起、隐藏收起端点以及混合 DPI，检查无黑色矩形、上传按钮闪底或位置漂移，原草稿与点击行为不变。
+
+空闲 Pan／静默模式按住 Shift 拖出到文件夹，系统可按 MOVE 保存本次新生成的 PNG 副本，原图片及钉图保留；普通文件拖出接口仍只允许 COPY。导出期间缓存排他锁阻止应用清理，副本只读句柄禁止改写但允许 Shell 移动。松键早于准备完成仍取消；定向真实 Shell 目标落盘测试不等于物理鼠标 OLE 全流程或普通桌面观感通过。
+
+## 未发布 Windows-native 分支：镜像不闪动编辑控件（v609）
+
+水平／垂直镜像后台计算期间保留主编辑栏、属性栏和左侧子栏的原有可用外观，不再先整栏禁用再恢复。命令执行仍拒绝冲突操作，镜像完成后才更新图像、按下状态与撤销历史。真实 HWND 回归检查两个轴的控件启停消息、窗口复用、冲突拦截和撤销／重做；普通桌面的动态观感仍需手测。
+
+## 未发布 Windows-native 分支：左侧内联子栏与分享（v608）
+
+恢复原主干内联连接行、投射/被投射页签、方向、策略、设备/组和来源复制/退出；左侧子栏加入钉图/主编辑栏的同一位置批次，纯拖动保留宽度草稿。二维码导出只有二维码与关闭，链接导出有只读输入与复制；两者复用同一共享 Loom v1 签名邀请。导入提供二维码/链接两页，选择 PNG 或粘贴只本地解析，点击导入才连接已授权的同一 Loom，以当前版本接受并新建关联钉图。关闭窗口不停止已保存关联；失效/已连接/停止邀请不能继续复制。
+
+手测：打开左侧子栏，连续/快速拖动钉图并对照主编辑栏；切换内联页签、输入宽度草稿、滚动和取消菜单。两台已授权同一 Loom 的设备之间分别测试链接和二维码 PNG 导入，确认源钉图编辑同步、入口钉图不被覆盖、重开工作区仍有关联，以及退出/停止后的状态。重复点击当前导入页签保留草稿，换页清输入；在解码、联网、保存等待阶段关闭浮层，检查无迟到自动显示。错误来源、自己的邀请、过期邀请、非 PNG、超过 4 MiB/4096 边长图片应拒绝，且不自动切换 Loom。此版本不包含账号联网 v2 分享；本地 TLS/自有 HWND 回归不代替真实跨机、混合 DPI 或普通桌面观感。
+
+## 未发布 Windows-native 分支：编辑栏稳定性与左侧设置（v607）
+
+主按钮不再在 owner-draw 前先擦成空底色；左侧字段一次更新最终可用性，空 OCR/译文等禁用字段不再使整个子栏持续启停和重绘。左侧新增主干原图标的 Loom、投射目标、接收来源/策略、数据流通/协作入口，复用原生业务菜单和原请求执行器，不在展开时发起网络请求。QR/链接导入导出、主干完整内联方向页签和来源 ID 复制仍未迁移。
+
+手测：连续切换主编辑按钮，打开子栏并停留；在宽度输入草稿时刷新状态，检查不闪、不丢焦点/草稿；分别点击四入口，检查子栏获得焦点后仍能打开，取消后不禁用全栏，接收策略与已有投送/协作操作正常，长内容局部滚动且不缩放钉图。目录或文档换代不得执行旧菜单目标。真实自有 HWND/内存像素回归不代替普通桌面观感、混合 DPI 或真实 Loom/跨机验收。
+
+## Unpublished Windows-native branch: editor presentation
+
+The line group exposes only straight lines and Bézier curves. Arrowheads remain a property rather than a duplicate Arrow entry; standalone Arrow/Polyline tool commands (including A/U) are removed without changing saved annotation decoding. Manually check both remaining tools and arrow-property editing of existing strokes.
+
+Open/close Ctrl+E repeatedly, use its triangle and long-press menus, and switch Rectangle/Ellipse/Line/Brush while the secondary row is open. Check for white or cleared intermediate frames, readable input drafts and selection, unchanged focus, overlapping corner buttons, and screenshot exclusion. Focused native HWND/pixel regressions do not establish ordinary desktop no-flicker acceptance.
+
+## Unpublished Windows-native branch: right-side candidate results (v599)
+
+Public Art multi-result cards now attach below the right output rows only while total Tab is expanded. The compact two-column grid shows prepared thumbnails, titles, indices and the current selection, with a separate immediate local scroll viewport. Candidate clicks use the existing typed result_index transaction and one manual execution; stale result/configuration clicks and uncommitted parameter drafts are rejected. Preview pixels never become formal output. Empty public parameter/output lists still use one document parameter owner.
+
+Manually check a real multi-result Art, select another candidate, inspect pending/disabled states, scroll a long result list without moving the left parameters or zooming the pin, and compare Tab close/reopen, movement, overlapping pins and screenshot protection. Existing editor triangles and Select/closed Ctrl+E pin dragging remain regression targets. Local Art forms, Live auxiliary controls, Art VIEW, full node multiselection and connection/projection UI remain unfinished; isolated HWND and Gallery checks do not replace ordinary-desktop or real Loom acceptance.
+
+## Unpublished Windows-native branch: unified local parameter rows (v598)
+
+Opening one parameter anchor, total Tab expansion and F2 now use the same attached multi-row form. Several local rows can stay open together; a mouse expansion does not steal focus. F2 enters the matching control and F6 returns to its port without closing the form. Escape first restores a changed text draft, then closes the form without deleting the pin. Folding all local rows retains dirty text and its HWND until it is reopened or explicitly closed; these drafts still block the original save/exit idle gate. Valid blur commits and stale-configuration rejection keep the original transaction.
+
+Manually compare local single/multiple rows with Tab, type then fold/reopen, use F2/F6 and two-stage Escape, try typed options and linked values, and check Ctrl+E empty-selection dragging and its closed pin-drag mode. Ordinary desktop/IME/mixed-DPI acceptance remains separate. Local Art forms, the right-side auxiliary area, Art VIEW and connection/projection UI are not completed by this change. Earlier transitional single-field notes below describe their historical iteration, not the current local disclosure path.
+
+## Unpublished Windows-native branch: attached inline Tab parameters (v597)
+
+The native Tab layout now shares a dark backing behind consecutive visible expanded rows, matching the baseline without adding an input surface to row gaps. Folding a row splits its group; scrolling clips the backing with the rows. Output eyes and 72px names use the original image-side padding rather than a mirrored input layout. Manually compare both sides, long lists, local folding, overlapping pins and mixed-DPI text; native pixel/window checks are not ordinary-desktop visual acceptance.
+
+Total Tab expansion now mounts ordinary-image/public Art fields inside their own 28px capsule rows, not a separate captioned form. Text, number/slider, boolean, typed options, color and file actions consume the existing parameter snapshot and atomic transaction. Label/anchor context actions disable/restore a parameter; value context actions reset it or clear color/image. Multiple fields share one document owner. Explicit inputs remain fixed; derived parameters have direct local wheel scrolling, a bounded viewport and a proportional scrollbar. Scroll and local folding keep the existing EDIT controls and drafts. Tab round trips remember transient per-unit offsets; nothing adds a trailing scroll animation or pin zoom.
+
+Manually check several field types and rows at once, high-resolution wheels over values/anchors, the first/last clipped rows, fixed explicit inputs, thumb drag/track clicks, drafts through scrolling/folding, disabled stash/linked fallback, Enter/IME/Escape, settings/Run after drafts, Tab close/reopen, movement/overlap and screenshot protection. Bare F2/local-only field editors, local Art forms and the right-side candidate/Live auxiliary region remain transitional; this is not full Tab or overall migration completion. Owned HWND/DIB checks do not substitute for ordinary desktop, mixed-DPI or real Loom acceptance.
+
+## Unpublished Windows-native branch: per-row Tab disclosure (v596)
+
+Normal-size hidden ports retain their baseline row slots instead of moving later rows upward. Each row inherits the total Tab state until its own anchor explicitly folds or opens it; the next total-state edge resynchronizes that node only. Keyboard focus alone no longer expands rows. Labels do not start disclosure or connection gestures, and a release outside the pressed anchor does not click it. Link drops still use the existing graph transaction and now require the destination anchor, not its label. Eye actions retain their own hit slot.
+
+Manually expand Tab, fold/open individual input/output rows, toggle Tab again, and compare an independently open row on another pin. Hide a middle port and confirm later anchors and lines stay on their original rows. Check F6 then Enter/Space, label clicks, short releases outside an anchor, real dragging/link drops, eyes, movement, minification, and Ctrl+E empty-selection dragging. These changes do not finish inline Tab parameter controls, rail scrolling, Art VIEW or connection/projection UI. The standalone parameter window/single-field editor remains transitional; isolated HWND tests do not replace ordinary desktop/mixed-DPI or real Loom acceptance.
+
+## Unpublished Windows-native branch: attached bottom node drawer (v595)
+
+An explicit document-node click or Tab expansion mounts the baseline's bottom drawer unless the pin is minified. Tab edges resynchronize disclosure; the bottom caret may independently expand/fold it. Original SVGs expose the node name, collapsed endpoint visibility, downstream notification, sticker edit inheritance and Art upstream/parameter automation plus manual execution. Unresolved Art actions are disabled rather than given a synthetic execution owner. Settings and Run use the existing parameter-draft transaction and execution owner. Escape folds only this drawer and retires queued clicks; Ctrl+E/F4 from its buttons still target the owning pin. The attached host moves in the existing frame/port batch and stays below all pins without raising them.
+
+Manually check ordinary/sticker and Art drawers, independent caret versus Tab edges, small-image mode, real parameter drafts before settings/Run, lock/hide/capture/close, movement and overlapping pins, Ctrl+E return to pin dragging, and save/reopen. Focused owned-HWND and memory-DIB checks do not replace ordinary desktop/mixed-DPI or real Loom acceptance. This slice does not complete inline Tab forms, rail scrolling, full workspace multiselection/box selection, standalone Live settings, Art VIEW, or connection/projection UI. Older sections below describe their historical slice, not the current combined completion state.
+
+## Unpublished Windows-native branch: node settings state
+
+The existing parameter window exposes collapsed endpoint visibility, downstream notifications, sticker edit inheritance, and the baseline Art upstream/parameter automation switches. Art upstream automation toggles both trigger and listener together, without executing immediately. Hiding collapsed endpoints removes their paint, mouse and keyboard entry; Tab expansion reveals them again. Notification policy gates both a sticker source and sticker relays but does not disconnect ports or suppress image display. These settings persist without discarding unrelated execution metadata.
+
+Manually check each switch, Tab expand/collapse, F6 eligibility, an image→sticker→Art chain with notifications disabled at each sticker, independent image inheritance, lock/hide/close, and save/reopen. This is the business/state seam with the existing parameter window, not the attached bottom drawer or full inline Tab migration. Focused owned-HWND and save/restore regressions do not replace ordinary desktop or real Loom acceptance.
+
+## Unpublished Windows-native branch: pencil highlight property
+
+The ordinary pencil's GLOW switch is a remembered pencil property, not a tool switch. Opacity and smoothing fields stay visible with their current values. Highlighted pencil drafts retain pencil sampling and smoothing, render in the existing highlighter layer with `0.35 × pencil opacity`, and use the existing annotation/session format and one history entry per stroke. The duplicate standalone highlighter entry and H command are removed; saved highlighter strokes keep their existing rendering.
+
+Manually set pencil opacity to 50% and smoothing to 100%, enable GLOW, and draw a bent stroke: both fields should remain visible, and the stroke should be smoothed with approximately 17.5% opacity. Disable GLOW and check an ordinary 50% pencil stroke; switch away and back, undo/redo, and save/reopen both kinds of stroke. Focused model, owned-HWND button and D2D/PNG regressions do not replace physical input or ordinary desktop acceptance.
+
+## Unpublished Windows-native branch: extension toolbar contributions
+
+Ctrl+E displays up to eight trusted extension toolbar slots using baseline menu visibility, command availability, ordering and grouping. Direct text buttons invoke their declared command; a grouped button or its corner opens the same bounded, internally scrollable command list, with unavailable entries disabled. OCR retains its existing dedicated buttons instead of appearing twice. Static tools and property editors keep their HWNDs. Opening a contribution menu does not whiten or disable every tool label.
+
+Check direct/grouped tools, body versus corner clicks, long lists, disabled entries, catalog/revocation changes during a menu, switching/closing the target, repeated clicks while busy, narrow-screen layout, and empty-selection pin dragging/Ctrl+E return to Pan. The existing command owner and authorization path execute the selected exact commandId; synthetic directory/HWND tests are not real Loom or ordinary desktop acceptance. Art VIEW selection, full Tab layout and connection settings remain separate open migration items.
+
+## Unpublished Windows-native branch: inline port visibility
+
+Expanded Tab rails reveal all declared non-secret ports, including ports hidden while collapsed. Each expanded capsule uses the baseline eye SVG to change its persisted collapsed visibility directly, without opening the separate port dialog. The eye is not a connection drag or disclosure toggle; releasing outside it or dragging cancels the click. A locally disclosed row stays open after a visibility change and is rebound by Unit/port name and host identity, never by a stale catalog index. Collapsed and compact nodes still obey the visibility mask. Graph edges and execution settings are unchanged.
+
+Manually check input/output eyes, initially hidden/default-hidden ports, Tab expand/collapse, individually disclosed rows, link retention, save/reopen, zoom/move/occlusion, and lock/hide/close while a click is pending. The full Tab form, inline parameter values, rail scrolling, bottom settings drawer, Art and connection pages are not complete; owned-HWND/DIB tests do not replace ordinary desktop acceptance.
+
+## Unpublished Windows-native branch: cached full-text copy
+
+Pin settings expose the baseline's original SVG buttons for `原文` / `译文`. Each copies the complete cached OCR/translation text independently of overlay visibility and online renderer availability, without running a model. Current official attachments take precedence over legacy saved results; translations require their original source revision/dependency. Empty or stale results disable only the relevant button. The clicked button reports `已复制` or `复制失败` for about 1.6 seconds. Invalid/NUL/over-budget text is rejected before changing the clipboard, never silently truncated.
+
+Manually check hidden results, multiline Chinese/emoji/long text pasted into an editor, old saved workspaces, stale translations after edits, clipboard contention, repeated clicks, closing Ctrl+E during feedback, and small-screen internal scrolling. Recheck triangle/long-press menus without all-button whitening, selecting/moving annotations, empty-selection pin dragging, and Ctrl+E restoring ordinary pin dragging. Synthetic owned-HWND tests inject only the clipboard publisher and do not replace ordinary desktop or real Loom acceptance. Full Tab/Art/connection settings remain separate migration items.
+
+## Unpublished Windows-native branch: developer-mode display parity
+
+Active `unsigned_developer` scopes, like `trusted` scopes, may project saved renderer/overlay scenes, official OCR renderer fallback, cached visibility and retained notices. Revoked, untrusted and offline scopes do not display old scenes or retain scoped notices. Display metadata does not grant command execution, shortcut registration, resource access or attachment-effect writes; those retain their existing trusted authorization path.
+
+Check saved developer-mode views and notice retention across catalog updates, missing/returning renderers, hide/show, zoom and revocation. A declared developer action may remain visible but must not invoke an untrusted command. Synthetic scope-matrix, real Canvas/zoom, HWND notice and click regressions do not substitute for actual Loom/developer-package acceptance. Full Tab/Art/connection settings and command parallel/cancellation semantics remain open.
+
+## Unpublished Windows-native branch: extension notice stacks
+
+Extension feedback keeps the newest eight notices at the pin's top-right inset. The stack has a local height boundary; long messages also scroll internally without discarding text. Wheel, track/thumb, and keyboard scrolling do not resize or change the pin's opacity. Click/Enter/Space/Esc or the original five-second timeout dismisses a notice and immediately reflows the stack; new/removed notices reset the outer scroll to the newest item. Pin move/resize/hide and capture exclusion apply to the attached stack, without activating the pin or adding animation/worker queues.
+
+Manually check several simultaneous notices on a small pin, long titles/messages, nested scroll boundaries, clicking a partially visible card, timer versus explicit close, moving/hiding/closing the pin during a scrollbar drag, and revoking the originating capability. The Gallery and synthetic owned-HWND tests exercise the real component/consumer but do not replace ordinary desktop, mixed-DPI or real Loom acceptance. Full Tab/Art/connection settings remain open.
+
+## Unpublished Windows-native branch: overlay text input
+
+Official schema 1 OCR/translation result text supports local single-block click-to-copy, double-click word selection, drag selection within its initial text block, and Ctrl+C before image copying. The toolbar may be closed or in ordinary Select mode; painting/transform tools keep their input. Blank overlay space still moves the pin, and text gestures do not move or minify it. Declarative non-local click actions use the existing authorized extension command path.
+
+Manually check multiline text versus ancestor action payloads, selection without automatic whole-block copying, Ctrl+C, blank-area dragging, Ctrl+E and Brush/shape tools, transparent PNGs, repeated zoom/opacity changes, and hide/close/revoke while selecting. Check selection highlights without frame/opacity flashing. Real Loom capabilities and ordinary desktop/DPI acceptance remain open.
+
+The active official OCR data type retains its validated saved Surface scene when its renderer is temporarily missing. A valid descriptor with no usable scene displays `扩展视图不可用`; unavailable attachments show at most eight noninteractive `扩展数据不可用` badges. Offline/revoked catalogs never display saved attachment scenes, and visibility intent/payloads are not rewritten. Unit-relative fallback and badges reflow in the same Canvas and shared full-frame zoom presentation; fixed descriptor scenes do not remeasure on resize. Check missing/returning renderers, offline saved workspaces, hidden results, narrow images, zoom, and blank-area dragging. Developer-mode support remains outside this slice.
+
+## Unpublished Windows-native branch: extension shortcuts and authorized overlay toggles
+
+Trusted Loom capability declarations provide local/global shortcut keys, including `Ctrl+4/5` execution and `Alt+4/5` result visibility when declared by the installed packages. The native message path preserves standard text editing, exact modifiers, modal/capture ownership, and the last selected unit; a closed target does not redirect to another image. Overlay buttons and shortcuts check remote authorization before changing cached visibility, and fall back to real execution only when no usable cache exists.
+
+Manually check declared keys with the toolbar closed, two different selected images, native text fields, denied/disconnected capabilities, repeated presses, and a deleted target. Physical keyboard and real Loom model acceptance remain open; synthetic TLS and owned HWND regressions do not replace them.
+
+## Unpublished Windows-native branch: selection toggle and attached transform handles
+
+Opening the native editor with `Ctrl+E` enables its second, non-dropdown Select button. Clicking it again or pressing `Q` switches to quiet mode and clears the current selection without editing the document. Existing annotations ignore ordinary, Ctrl/Alt, Shift-selection and double-click text picking. Newly created annotations remain selected for immediate move, rotate, scale or text adjustment while the toggle stays off; after deselecting them, re-enable Select to pick them again. Explicit selection with `S` also enables picking. The former Move/Rotate/Scale modes and their W/E/R overrides are removed; those keys retain their original Eraser/Ellipse/Rectangle tools.
+
+The rotation circle and scale square use the current annotation preview during single/group dragging, including mosaic and blur, rather than waiting for mouse release. Check both drag directions, zoomed pins, cancel/undo, fresh text/serial/shape creation in quiet mode, turning Select back on, and closing/reopening the toolbar. Isolated model/HWND tests do not replace ordinary desktop or mixed-DPI visual acceptance.
+
+## Unpublished Windows-native branch: annotation modifier-wheel scaling
+
+In Select mode, `Ctrl+Alt+Wheel` scales selected annotations around the group center. `Ctrl+Alt+Shift+Wheel` scales each annotation around its own center. Both preserve the pinned window's geometry, viewport and opacity, the selection, and the toolbar's persistent transform preferences. Empty selections and other drawing tools do not fall through to whole-window scaling. A blur resize started by this gesture accepts subsequent wheel inputs in a bounded FIFO and commits each input through the existing single worker and undo history; other busy edits do not accept them. Cancellation, a changed target or unavailable editing stops the old batch.
+
+Manually check single/multiple selections, fine wheel increments, both center modes, text/serial layout, continuous blur scaling with direction/center changes, one undo step per input, cancellation or closing the toolbar during computation, and ordinary `Ctrl+Wheel` window scaling / `Alt+Wheel` opacity. Isolated HWND regression coverage is not physical mouse, DPI or foreground visual acceptance.
+
 ## Unpublished Windows-native branch: single-field parameter capsules
 
 `F2` enters the real native editor on a focused public Art parameter input; `F6` returns to the port. The workspace has one active field editor outside image pixels. It reuses the parameter transactions and widgets; linked values remain read-only and secrets are omitted. Ordinary sticker image upload is not part of this editor. These are development-branch controls, not completed ordinary desktop or IME acceptance. See [native parity](development/WINDOWS_NATIVE_PARITY.md).
@@ -160,7 +345,7 @@ another application has focus.
 
 | Shortcut | Current behavior | Manual check |
 | --- | --- | --- |
-| `Ctrl+1` | Enter region/window capture mode. Hovering a valid visible window highlights it; double-click captures the revalidated window target. | Test empty desktop, ordinary windows, overlapping windows, secondary monitors, and cancel with `Escape`. |
+| `Ctrl+1` | Native: select over the changing desktop without a frozen preview; drag and release to capture the current selected region. A click can choose the highlighted window bounds. | Keep an animation running while dragging, change its content before release, and verify the captured content is current and has no selection outline. Also test reverse drags, negative-coordinate monitors, Escape/right-click cancellation and existing visible pins. |
 | `Ctrl+2` | Enter live region/window capture mode. Double-click chooses a revalidated full window. A drag fully contained by one valid program window binds a fixed window-local pixel region; other drags use a screen region. | Select a 50×50 area at offset (100,100), move the source window, and confirm the view still shows that same UI area. |
 | `Ctrl+3` | Enter long-capture mode, with four-direction viewfinder movement during recording. | Capture a scrollable page, move the viewfinder horizontally and vertically, verify the final no-hole crop, then cancel and retry to confirm session cleanup. |
 | `Ctrl+E` | Toggle sticker editing, including projection invitations, device/group multiselect and opt-in two-way v1 annotation editing. Enabled Capability Plugins may contribute namespaced menus and actions. | Select overlapping targets, retry partial sends, switch source-only direction, merge separate objects and explicitly resolve same-object conflicts. Check durable restart, Escape focus and native popup clicks. Shared Loom needs no official login; account mode keeps its login requirement and does not support two-way editing. |
@@ -182,10 +367,14 @@ Device delivery confirmation uses a bottom-right desktop prompt with accept,
 reject and defer actions. Deferred invitations remain available in the receiver
 panel; polling does not repeatedly reopen the same deferred prompt. Native hit
 rectangles and direct synthetic input handling keep the prompt interactive.
-The receive tab offers a persistent device-wide policy: automatic approval,
-manual approval (default), or always reject. All sticker panels share the setting;
-existing received stickers remain linked. Server authorization and deny rules are
-not bypassed by local automatic approval.
+The native receive tab offers Pause, Receive, Reject, and Auto. Receive (default)
+and Auto accept new invitations without another approval prompt; Pause suspends
+participation and Reject declines new invitations. All sticker panels share the
+setting; existing received stickers remain linked. Server authorization and deny
+rules still apply. The sender shows waiting and received counts separately.
+Ctrl+C copies the owning pin when focus is on an attached button; text fields
+retain text copying. A newer explicit copy replaces stale pending work without
+overwriting later edits or newer clipboard contents.
 
 ## 2. Frontend shortcuts
 

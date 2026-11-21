@@ -23,8 +23,11 @@ pub(in crate::desktop::application) fn start(
         view.targets.status = "投送目标任务不可用".into();
         return;
     }
-    // 每次请求先丢旧快照；失败不能留下看似新鲜的目标或组。
-    view.targets.directory = None;
+    // 后台查询期间保留上一份目录的呈现；busy 阻止使用它派发，失败仍使目录失效。
+    view.targets.next = Some(std::time::Instant::now() + std::time::Duration::from_secs(5));
+    if !view.targets.automatic {
+        view.targets.directory = None;
+    }
     let result = (|| {
         let origin = view.origin.as_deref().ok_or("尚未选择服务")?;
         let now =
@@ -42,12 +45,58 @@ pub(in crate::desktop::application) fn start(
         Ok(()) => "正在查询投送目标…".into(),
         Err(error) => error,
     };
+    if !view.targets.busy {
+        view.targets.directory = None;
+    }
+}
+impl super::Application {
+    pub(in crate::desktop::application) fn refresh_projection_targets(
+        &mut self,
+        config: &mut impl FnMut(&str) -> Result<Config, crate::device_authorization_config::Error>,
+    ) {
+        let mut view = self.authorization.borrow_mut();
+        if !view.targets.automatic || view.closed || self.exit_requested.get() {
+            view.targets.next = None;
+            return;
+        }
+        let now = std::time::Instant::now();
+        if view.targets.next.is_some_and(|next| next > now) {
+            return;
+        }
+        if view.request.is_some()
+            || view.busy
+            || view.projection.busy
+            || view.targets.busy
+            || self.modals.blocked()
+            || self.remote_sessions.projection_pending()
+            || self.projection_receive.busy()
+            || self.projection_edit.busy()
+        {
+            // 错过一次收发空窗不应再等完整刷新周期；消息泵仍有界休眠。
+            view.targets.next = Some(now + std::time::Duration::from_millis(500));
+            return;
+        }
+        if !view.origin.as_deref().is_some_and(|origin| {
+            crate::desktop::surface_windows::now_ms()
+                .is_ok_and(|now| self.authorization_owner.token(origin, now).is_some())
+        }) {
+            view.targets.next = Some(now + std::time::Duration::from_secs(5));
+            return;
+        }
+        start(
+            &mut view,
+            &mut self.authorization_owner,
+            &mut self.remote_sessions,
+            config,
+        );
+    }
 }
 pub(super) fn finish(view: &mut View, origin: &str, result: Result<Output, Error>) {
     if view.closed || view.origin.as_deref() != Some(origin) {
         return;
     }
     view.targets.busy = false;
+    view.targets.next = Some(std::time::Instant::now() + std::time::Duration::from_secs(5));
     view.targets.directory = None;
     view.targets.status = match result {
         Ok(Output::Targets(directory)) if directory.origin() == origin => {

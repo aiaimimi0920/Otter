@@ -4,7 +4,8 @@ use otter_native::{
     live_recovery_handshake::{read_ready, write_hello},
     live_recovery_pipe::Pipe,
     live_recovery_wire::{
-        read_ack, write_request, Command as Operation, Record, Request, Status, SCHEMA,
+        read_ack, write_request, Command as Operation, Record, Request, Restoration, Status,
+        WindowState, SCHEMA,
     },
 };
 use std::{
@@ -60,16 +61,18 @@ fn authenticated_child_completes_real_session_and_rejects_unbound_source() {
         process_id: std::process::id(),
         thread_id: 1,
         process_created: 1,
-        rect: [0, 0, 32, 32],
-        placement_flags: 0,
-        show_command: 1,
-        min_position: [0, 0],
-        max_position: [0, 0],
-        normal_position: [0, 0, 32, 32],
-        extended_style: 0,
-        layered: None,
-        iconic: false,
-        visible: true,
+        restoration: Restoration::Window(WindowState {
+            rect: [0, 0, 32, 32],
+            placement_flags: 0,
+            show_command: 1,
+            min_position: [0, 0],
+            max_position: [0, 0],
+            normal_position: [0, 0, 32, 32],
+            extended_style: 0,
+            layered: None,
+            iconic: false,
+            visible: true,
+        }),
     };
     for (sequence, command, expected) in [
         (1, Operation::Register { id: 1, record }, Status::Rejected),

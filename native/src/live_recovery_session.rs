@@ -43,14 +43,24 @@ impl Session {
         self.exchange.failed = true;
         match unsafe { WaitForSingleObject(HANDLE(self.parent.handle().as_raw_handle()), INFINITE) }
         {
-            WAIT_OBJECT_0 => self
-                .exchange
-                .service
-                .recover(|_, binding| binding.restore_or_retire().map_err(io::Error::other)),
+            WAIT_OBJECT_0 => self.exchange.service.recover(|_, binding| {
+                // helper 没有产品 UI 消息泵；先清自己的完成通知，且不跨 RefCell 借用。
+                binding.drain_helper_notifications();
+                binding.restore_or_retire().map_err(restoration_error)
+            }),
             WAIT_FAILED => Err(io::Error::last_os_error()),
             _ => Err(io::Error::other("Unexpected recovery parent wait status")),
         }
     }
+}
+
+fn restoration_error(error: windows::core::Error) -> io::Error {
+    let kind = if error.code() == otter_live_hover_hook::native_layer_protocol::PENDING {
+        io::ErrorKind::WouldBlock
+    } else {
+        io::ErrorKind::Other
+    };
+    io::Error::new(kind, error) // 保留原 HRESULT；Pending 只表示等待，不是恢复成功。
 }
 
 struct Exchange<T> {

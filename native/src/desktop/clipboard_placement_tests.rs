@@ -45,7 +45,7 @@ fn cursor_relative_and_cascade_preserve_copied_physical_size() {
     );
 }
 #[test]
-fn moved_resized_anchor_affects_membership_not_copied_size_or_next_cascade() {
+fn moved_resized_target_uses_current_top_left_and_copied_size() {
     let session = Session::new(origin());
     let request = session.request((700, 700));
     let current = PinRect {
@@ -57,13 +57,111 @@ fn moved_resized_anchor_affects_membership_not_copied_size_or_next_cascade() {
     assert_eq!(
         request.frame(Some(current)),
         PinRect {
-            x: -180,
-            y: 120,
+            x: 620,
+            y: 620,
             width: 400,
             height: 200
         }
     );
     assert_eq!(request.frame(None).x, 650); // Retired unit falls back to the saved anchor.
+}
+#[test]
+fn stationary_cursor_cascades_past_the_latest_pin_instead_of_wrapping() {
+    for cursor in [(-200, 100), (-150, 140), (200, 300)] {
+        let mut session = Session::new(origin());
+        let pending = session.request(cursor);
+        for step in 1..=10 {
+            let request = session.refresh(&pending);
+            let frame = request.frame(Some(origin().frame));
+            assert_eq!((frame.x, frame.y), (-200 + 20 * step, 100 + 20 * step));
+            assert_eq!((frame.width, frame.height), (400, 200));
+            session.commit(&request, unit(&format!("pasted-{step}")), frame);
+        }
+    }
+}
+#[test]
+fn moving_cursor_reanchors_then_stationary_outside_pastes_keep_cascading() {
+    let mut session = Session::new(origin());
+    for step in 0..5 {
+        let request = session.request((1000, -100));
+        let frame = request.frame(None);
+        assert_eq!((frame.x, frame.y), (950 + 20 * step, -140 + 20 * step));
+        session.commit(&request, unit("pasted"), frame);
+    }
+    let target = PinRect {
+        x: 600,
+        y: 600,
+        ..origin().frame
+    };
+    let request = session.request((700, 700));
+    assert!(!request.continuing());
+    let frame = request.frame(Some(target));
+    assert_eq!((frame.x, frame.y), (620, 620));
+    session.commit(&request, unit("other-target-paste"), frame);
+    assert_eq!(session.request((700, 700)).frame(Some(target)).x, 640);
+    assert_eq!(session.request((1500, -500)).frame(None).x, 1450);
+}
+#[test]
+fn moving_cursor_inside_original_source_keeps_one_cascade() {
+    let mut session = Session::new(origin());
+    let points = [
+        (-199, 101),
+        (-197, 102),
+        (199, 299),
+        (-180, 280),
+        (50, 150),
+        (-198, 103),
+        (180, 290),
+        (-100, 200),
+        (100, 180),
+        (-199, 102),
+    ];
+    // 不同坐标的请求均在首个提交前采样；交付时必须刷新累计次数而非固定鼠标。
+    let pending: Vec<_> = points
+        .into_iter()
+        .map(|point| session.request(point))
+        .collect();
+    for (index, pending) in pending.iter().enumerate() {
+        let request = session.refresh(pending);
+        assert_eq!(request.source(), (&unit("source"), origin().frame));
+        assert!(request.contains_cursor(origin().frame));
+        let frame = request.cascade_in_source(origin().frame);
+        let offset = 20 * (index as i32 + 1);
+        assert_eq!((frame.x, frame.y), (-200 + offset, 100 + offset));
+        // 未提交的重试仍在同一层；只有最后的成功提交才能推进下一层。
+        assert_eq!(
+            session.refresh(pending).cascade_in_source(origin().frame),
+            frame
+        );
+        session.commit(&request, unit(&format!("copy-{index}")), frame);
+    }
+}
+#[test]
+fn source_cascade_uses_current_source_rect_and_copied_size() {
+    let mut session = Session::new(origin());
+    for (index, x) in [600, 800].into_iter().enumerate() {
+        let current = PinRect {
+            x,
+            y: 600,
+            width: 1000,
+            height: 1000,
+        };
+        let request = session.request((x + 10, 610));
+        let frame = request.cascade_in_source(current);
+        let offset = 20 * (index as i32 + 1);
+        assert_eq!(
+            (frame.x, frame.y, frame.width, frame.height),
+            (x + offset, 600 + offset, 400, 200)
+        );
+        session.commit(&request, unit("pasted"), frame);
+    }
+    let request = session.request((2000, -100));
+    assert_eq!(
+        (request.relative_frame().x, request.relative_frame().y),
+        (1950, -140)
+    );
+    let next = Session::new(origin()).request((-199, 101));
+    assert_eq!(next.cascade_in_source(origin().frame).x, -180);
 }
 #[test]
 fn old_request_cannot_advance_a_new_copy_or_replay_a_committed_step() {

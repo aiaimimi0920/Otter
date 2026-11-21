@@ -29,6 +29,7 @@ impl Fixture {
             pixels,
             editor,
             opacity: 0.5,
+            style: Default::default(),
             root: self.0.clone(),
             stem: "拖出 🦦".into(),
             policy: Default::default(),

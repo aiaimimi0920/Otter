@@ -1,17 +1,21 @@
 //! 节点菜单的打开时快照集合；统一分发能力选择、参数和连线，索引不跨版本解释。
+#[cfg(test)]
 use super::State;
 #[path = "art_picker.rs"]
 pub(super) mod art_picker;
+#[cfg(test)]
 use windows::{
     core::Result,
     Win32::{Foundation::HWND, UI::WindowsAndMessaging::HMENU},
 };
+#[cfg(test)]
 pub(super) struct Snapshot {
     creation: Option<std::rc::Rc<super::link_catalog::Catalog>>,
     capability: Option<super::capability_selection::Snapshot>,
     parameters: Option<super::capability_parameter_menu::Snapshot>,
     links: Option<std::rc::Rc<super::link_menu::Snapshot>>,
 }
+#[cfg(test)]
 impl Snapshot {
     pub unsafe fn append(menu: HMENU, state: &State) -> Result<Self> {
         super::application::chrome::ports::append(menu, state)?;

@@ -18,7 +18,7 @@ impl Drop for Scope<'_> {
     }
 }
 
-pub(super) unsafe fn apply(hwnd: HWND, state: &State, after: PinRect) -> bool {
+pub(in crate::desktop) unsafe fn apply(hwnd: HWND, state: &State, after: PinRect) -> bool {
     // 不能在绘制或另一 resize 的重入中替换待提交几何。
     if state.render_active.get() || state.pin_resize.rect.get().is_some() {
         return false;

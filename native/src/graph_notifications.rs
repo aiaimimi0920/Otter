@@ -2,6 +2,14 @@
 use super::*;
 impl<'a> Graph<'a> {
     pub fn notification_targets(&self, source: &UnitId) -> Result<Vec<&'a UnitId>, Error> {
+        self.notification_targets_with(source, |_| true)
+    }
+    /// 通知策略只限制向外传播；不改变图片解析、显示刷新或端口连通性。
+    pub fn notification_targets_with(
+        &self,
+        source: &UnitId,
+        notify: impl Fn(&UnitId) -> bool,
+    ) -> Result<Vec<&'a UnitId>, Error> {
         let Some(root) = self.index(source) else {
             return Ok(Vec::new());
         };
@@ -19,6 +27,10 @@ impl<'a> Graph<'a> {
         let mut next = 0;
         while next < queue.len() {
             let node = &self.nodes[queue[next]];
+            if !notify(node.id) {
+                next += 1;
+                continue;
+            }
             for link in self.links.iter().filter(|link| &link.from_unit == node.id) {
                 let Some(index) = self.index(&link.to_unit) else {
                     continue;
@@ -44,6 +56,9 @@ impl<'a> Graph<'a> {
         Ok(targets)
     }
 }
+#[cfg(test)]
+#[path = "graph_notification_policy_tests.rs"]
+mod policy_tests;
 #[cfg(test)]
 mod tests {
     use super::super::tests::{id, link, sticker};

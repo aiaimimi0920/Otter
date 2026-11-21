@@ -32,6 +32,8 @@ impl Drop for ShowProbe {
 }
 #[path = "capture_wait_cached_tests.rs"]
 mod cached;
+#[path = "capture_wait_completion_tests.rs"]
+mod completion;
 fn outcome() -> Outcome {
     Outcome {
         frame: Frame::Sdr(SdrFrame {

@@ -17,14 +17,21 @@ use windows::{
         UI::{Controls::*, HiDpi::*, Input::KeyboardAndMouse::*, WindowsAndMessaging::*},
     },
 };
+#[path = "parameter_panel_auxiliary.rs"]
+mod auxiliary;
 #[path = "parameter_panel_controls.rs"]
 mod controls;
 #[path = "parameter_panel_events.rs"]
 mod events;
+#[path = "parameter_panel_inline.rs"]
+mod inline;
+#[path = "parameter_panel_inline_input.rs"]
+mod inline_input;
 #[path = "parameter_panel_keyboard.rs"]
 mod keyboard;
 #[path = "parameter_panel_layout.rs"]
 mod layout;
+pub(in crate::desktop) use inline::Inline;
 #[path = "parameter_panel_model.rs"]
 mod model;
 #[cfg(test)]
@@ -42,6 +49,7 @@ pub(in crate::desktop) struct Control {
     identity: Cell<isize>,
     pub toggle: Cell<bool>,
     pub close: Cell<bool>,
+    pub expanded: Cell<bool>,
 }
 impl Control {
     pub(in crate::desktop) fn window(&self) -> HWND {
@@ -56,15 +64,22 @@ impl Control {
         }
         HWND::default()
     }
+    pub(in crate::desktop) unsafe fn capture_window(&self) -> HWND {
+        let hwnd = self.window();
+        if hwnd.is_invalid() {
+            hwnd
+        } else {
+            GetAncestor(hwnd, GA_ROOT)
+        }
+    }
 }
 #[derive(Clone)]
 pub(super) enum Intent {
     Choice(Rc<Snapshot>, usize, Option<String>),
     Texts(Rc<Snapshot>, Vec<(usize, String)>),
-    Setting(Stamp, usize),
+    Setting(Stamp, desktop::node_settings::Action),
     Run(Stamp),
     Stop(Stamp),
-    Relay(Stamp),
     Ports(Stamp),
     Sticker(Stamp, desktop::sticker_input::Action),
     Candidate(Rc<controls::candidates::Choice>),
@@ -74,10 +89,11 @@ pub(super) enum Intent {
 struct Ui {
     host: HWND,
     host_identity: isize,
-    field: Option<String>,
+    inline: bool,
+    inline_rows: RefCell<Vec<(String, RECT, RECT)>>,
+    auxiliary: RefCell<Option<Rc<auxiliary::Open>>>,
     parent: HWND,
     parent_identity: isize,
-    committed: Cell<bool>,
     hwnd: Cell<HWND>,
     model: RefCell<Rc<model::Model>>,
     bindings: RefCell<Vec<controls::Binding>>,
@@ -94,6 +110,16 @@ struct Ui {
     capture_windows: Rc<RefCell<Vec<HWND>>>,
 }
 impl Ui {
+    unsafe fn drafts_idle(&self) -> bool {
+        let bindings = self.bindings.borrow().clone();
+        bindings.iter().all(|binding| match &binding.kind {
+            controls::Kind::Text { initial, .. } => {
+                !keyboard::composing(binding.hwnd)
+                    && controls::text(binding.hwnd).is_some_and(|text| text == *initial)
+            }
+            _ => true,
+        })
+    }
     unsafe fn state(&self) -> Option<&State> {
         if !IsWindow(Some(self.host)).as_bool()
             || GetWindowLongPtrW(self.host, GWLP_USERDATA) != self.host_identity
@@ -107,7 +133,17 @@ impl Ui {
         !self.closed.get() && self.state().is_some_and(available)
     }
     unsafe fn error(&self, message: &str) {
+        let changed = *self.message.borrow() != message;
         *self.message.borrow_mut() = message.into();
+        if self.inline && changed && !message.is_empty() {
+            if let Some(state) = self.state() {
+                if let Err(error) =
+                    desktop::extension_notices::show(self.host, state, None, "参数", message)
+                {
+                    eprintln!("native-parameter-notice: {error}");
+                }
+            }
+        }
         let status = self.status.get();
         if IsWindow(Some(status)).as_bool() {
             let _ = SetWindowTextW(status, &HSTRING::from(message));
@@ -152,21 +188,22 @@ impl Ui {
             return;
         }
         self.closed.set(true);
+        if let Some(state) = self.state() {
+            state.parameters_ui.expanded.set(false);
+            if self.inline {
+                desktop::application::chrome::close_parameter_rows(&state.chrome, self.host);
+            }
+        }
         self.pending.borrow_mut().clear();
+        let auxiliary = self.auxiliary.borrow().clone();
+        if let Some(auxiliary) = auxiliary {
+            auxiliary.hide();
+        }
         let focus = GetFocus();
         let restore = focus == self.hwnd.get() || IsChild(self.hwnd.get(), focus).as_bool();
         let _ = ShowWindow(self.hwnd.get(), SW_HIDE);
-        let target = if self.field.is_some() {
-            self.parent
-        } else {
-            self.host
-        };
-        if restore
-            && self.state().is_some()
-            && (self.field.is_none()
-                || GetWindowLongPtrW(target, GWLP_USERDATA) == self.parent_identity)
-        {
-            let _ = SetFocus(Some(target));
+        if restore && self.state().is_some() {
+            let _ = SetFocus(Some(self.host));
         }
     }
 }
@@ -175,9 +212,6 @@ pub(in crate::desktop) fn available(state: &State) -> bool {
         && !state.group_hidden.get()
         && !state.group_locked.get()
         && desktop::capture_input::exclusive_available(state)
-}
-pub(in crate::desktop) unsafe fn composing_focus() -> bool {
-    keyboard::composing(GetFocus())
 }
 pub(in crate::desktop) unsafe fn dispatch(
     host: HWND,
@@ -199,6 +233,16 @@ pub(in crate::desktop) struct Panel {
     ui: Rc<Ui>,
 }
 impl Panel {
+    pub(in crate::desktop) unsafe fn queue_node_action(
+        &self,
+        stamp: Stamp,
+        action: Option<desktop::node_settings::Action>,
+    ) {
+        self.ui.queue(match action {
+            Some(action) => Intent::Setting(stamp, action),
+            None => Intent::Run(stamp),
+        });
+    }
     pub(in crate::desktop) unsafe fn new(host: HWND, state: &State) -> Result<Self> {
         Self::create(host, state, None)
     }
@@ -212,11 +256,17 @@ impl Panel {
         let focus = GetFocus();
         let enter = focus == self.ui.host;
         let _ = ShowWindow(self.handle(), SW_SHOWNOACTIVATE);
+        if let Some(state) = self.ui.state() {
+            state.parameters_ui.expanded.set(true);
+        }
         if enter && self.ui.available() {
             keyboard::enter(&self.ui);
         }
     }
     pub(in crate::desktop) unsafe fn translate(&self, msg: &MSG) -> bool {
+        if auxiliary::translate(&self.ui, msg) {
+            return true;
+        }
         keyboard::translate(&self.ui, msg)
     }
     pub(in crate::desktop) unsafe fn chrome_key(&self, msg: &MSG) -> bool {
@@ -232,17 +282,7 @@ impl Panel {
     }
     pub(in crate::desktop) unsafe fn exit_idle(&self) -> bool {
         let empty = self.ui.pending.borrow().is_empty();
-        empty && self.drafts_idle()
-    }
-    unsafe fn drafts_idle(&self) -> bool {
-        let bindings = self.ui.bindings.borrow().clone();
-        bindings.iter().all(|binding| match &binding.kind {
-            controls::Kind::Text { initial, .. } => {
-                !keyboard::composing(binding.hwnd)
-                    && controls::text(binding.hwnd).is_some_and(|text| text == *initial)
-            }
-            _ => true,
-        })
+        empty && self.ui.drafts_idle()
     }
     pub(in crate::desktop) unsafe fn update(&self, state: &State) -> Result<()> {
         if self.retired() {
@@ -261,7 +301,7 @@ impl Panel {
         if !current && waiting {
             self.ui.error("参数同步中");
         } else if !current {
-            if self.drafts_idle() {
+            if self.ui.drafts_idle() {
                 *self.ui.model.borrow_mut() = Rc::new(self.ui.capture(state));
                 controls::rebuild(&self.ui)?;
             } else {
@@ -278,13 +318,9 @@ impl Panel {
                     self.ui.error("配置已变化，请重试");
                     return Ok(());
                 }
-                let before = Stamp::capture(state);
-                if snapshot.submit_guarded(self.ui.host, state, index, text.as_deref(), &|| {
+                snapshot.submit_guarded(self.ui.host, state, index, text.as_deref(), &|| {
                     self.ui.available()
-                })? && before != Stamp::capture(state)
-                {
-                    self.ui.committed.set(true);
-                }
+                })?;
                 if let Some(text) = &text {
                     for binding in self.ui.bindings.borrow_mut().iter_mut() {
                         if let controls::Kind::Text {
@@ -305,11 +341,10 @@ impl Panel {
             Intent::Texts(..) => unreachable!("text batches are drained transactionally"),
             Intent::Candidate(choice) => {
                 if !choice.submit(self.ui.host, state, &|| {
-                    self.ui.available() && self.drafts_idle()
+                    self.ui.available() && self.ui.drafts_idle()
                 })? {
                     self.ui.error("候选或参数已变化，请重新执行");
                 } else {
-                    self.ui.committed.set(true);
                     self.ui.error("");
                 }
             }
@@ -336,12 +371,8 @@ impl Panel {
                 self.ui.error("");
                 controls::rebuild(&self.ui)?;
             }
-            Intent::Setting(stamp, index) if stamp.matches(state) => {
-                desktop::execution_settings::toggle(
-                    self.ui.host,
-                    state,
-                    desktop::execution_settings::FIRST + index,
-                )?
+            Intent::Setting(stamp, action) if stamp.matches(state) => {
+                desktop::node_settings::apply(self.ui.host, state, action)?
             }
             Intent::Run(stamp) if stamp.matches(state) => {
                 desktop::execution_start::request_after_parameter(self.ui.host, state)?
@@ -349,41 +380,29 @@ impl Panel {
             Intent::Stop(stamp) if stamp.matches(state) => {
                 desktop::execution_cancel::stop(self.ui.host, state)?;
             }
-            Intent::Relay(stamp) if stamp.matches(state) => {
-                desktop::sticker_propagation::toggle(self.ui.host, state)?
-            }
             Intent::Ports(stamp) if stamp.matches(state) => {
                 if !desktop::application::chrome::ports::request(&state.chrome, self.ui.host) {
                     self.ui.error("端口设置暂不可用");
                 }
             }
             Intent::Sticker(stamp, action) => {
-                let before = Stamp::capture(state);
                 let outcome =
                     desktop::sticker_input::apply(self.ui.host, state, &stamp, action, &|| {
                         self.ui.available()
                     })?;
-                self.sticker_outcome(state, &before, outcome);
+                self.sticker_outcome(outcome);
             }
             _ => self.ui.error("配置已变化，请重试"),
         }
         Ok(())
     }
-    unsafe fn sticker_outcome(
-        &self,
-        state: &State,
-        before: &Stamp,
-        outcome: desktop::parameter_file_input::Outcome,
-    ) {
+    unsafe fn sticker_outcome(&self, outcome: desktop::parameter_file_input::Outcome) {
         use desktop::parameter_file_input::Outcome;
         match outcome {
             Outcome::Rejected => self.ui.error("图片输入配置已变化或暂不可用"),
             Outcome::Cancelled => self.ui.error(""),
             Outcome::Accepted => {
                 self.ui.error("");
-                if before != &Stamp::capture(state) {
-                    self.ui.committed.set(true);
-                }
             }
         }
     }
@@ -393,7 +412,12 @@ impl Drop for Panel {
         unsafe {
             let hwnd = self.handle();
             if let Some(state) = self.ui.state() {
-                if state.parameters_ui.hwnd.get() == hwnd {
+                if state.parameters_ui.hwnd.get() == hwnd
+                    && state.parameters_ui.identity.get() == Rc::as_ptr(&self.ui) as isize
+                {
+                    if !self.ui.inline {
+                        state.parameters_ui.expanded.set(false);
+                    }
                     state.parameters_ui.hwnd.set(HWND::default());
                     state.parameters_ui.identity.set(0);
                 }

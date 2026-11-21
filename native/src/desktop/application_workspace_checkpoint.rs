@@ -21,6 +21,7 @@ pub(super) struct Owner {
     stamp: Option<(save_state::Stamp, Source)>,
     projections: Option<crate::projection_delivery::binding::checkpoint::Index>,
     senders: Option<crate::projection_delivery::sender::binding::checkpoint::Index>,
+    accounts: Option<crate::projection_account::scene::Index>,
     projection_workspace: Option<crate::workspace::IdentityStamp>,
     projection_scope: Option<crate::session_projection_scope::Proof>,
     projection_display: projection_proof::Documents,
@@ -60,6 +61,7 @@ impl Owner {
             stamp: None,
             projections: None,
             senders: None,
+            accounts: None,
             projection_workspace: None,
             projection_scope: None,
             projection_display: None,
@@ -73,26 +75,29 @@ impl Owner {
 impl Application {
     /// 仅供只读系统退出准入；必须是实际commit的完整当前检查点，不能借用在途Receipt。
     pub(super) unsafe fn session_checkpoint_current(&self) -> bool {
-        self.workspace_checkpoint.as_ref().is_some_and(|owner| {
-            !owner.stopped
-                && !owner.pending
-                && !owner.exiting
-                && owner.exit.is_none()
-                && owner.stamp.as_ref().is_some_and(|(stamp, source)| {
-                    stamp.matches_automatic(self)
-                        && self.restored_session.as_ref().is_some_and(|record| {
-                            source.same_storage(&record.original)
-                                && owner.projection_scope.as_ref().is_some_and(|proof| {
-                                    // stamp的source是保留输入；Proof绑定真实落盘候选，不能混用两份身份。
-                                    owner
-                                        .original
-                                        .as_ref()
-                                        .is_some_and(|published| proof.is_for(published))
-                                        && record.projection_scope == Some(proof.scope())
-                                })
-                        })
-                })
-        })
+        self.documents
+            .iter()
+            .all(|document| document.state.inline_text.borrow().is_none())
+            && self.workspace_checkpoint.as_ref().is_some_and(|owner| {
+                !owner.stopped
+                    && !owner.pending
+                    && !owner.exiting
+                    && owner.exit.is_none()
+                    && owner.stamp.as_ref().is_some_and(|(stamp, source)| {
+                        stamp.matches_automatic(self)
+                            && self.restored_session.as_ref().is_some_and(|record| {
+                                source.same_storage(&record.original)
+                                    && owner.projection_scope.as_ref().is_some_and(|proof| {
+                                        // stamp的source是保留输入；Proof绑定真实落盘候选，不能混用两份身份。
+                                        owner
+                                            .original
+                                            .as_ref()
+                                            .is_some_and(|published| proof.is_for(published))
+                                            && record.projection_scope == Some(proof.scope())
+                                    })
+                            })
+                    })
+            })
     }
     pub(super) fn checkpoint_is_exiting(&self) -> bool {
         self.workspace_checkpoint
@@ -243,6 +248,10 @@ impl Application {
                     .checkpoint_projections
                     .as_ref()
                     .is_some_and(|index| !index.is_for(&prepared.candidate.bytes.clone().into()))
+                || prepared
+                    .checkpoint_accounts
+                    .as_ref()
+                    .is_none_or(|index| !index.is_for(&prepared.candidate.bytes.clone().into()))
             {
                 return Err(Error::new(E_ABORT, "Checkpoint changed before commit"));
             }
@@ -278,6 +287,7 @@ impl Application {
             // 先记真实发布事实；旧恢复副本未退休的独立错误不能抹掉已经提交的包含关系。
             owner.projections = prepared.checkpoint_projections;
             owner.senders = prepared.checkpoint_senders;
+            owner.accounts = prepared.checkpoint_accounts;
             owner.projection_scope = prepared.checkpoint_scope;
             owner.projection_workspace = Some(self.workspace.identity_stamp());
             owner.projection_display = display;

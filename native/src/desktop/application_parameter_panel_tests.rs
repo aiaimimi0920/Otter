@@ -33,10 +33,14 @@ fn host_tab_creates_owned_panel_and_capture_list_tray_close_does_not_restore_it(
         );
         assert!(app.documents[0].parameters.is_none());
         app.process_parameter_panels(false);
+        let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+        app.sync_link_menus();
+        app.sync_workspace_chrome(true);
         let panel = app.documents[0].parameters.as_ref().unwrap().handle();
         assert!(app.capture_windows.borrow().contains(&panel));
         crate::desktop::tray::hide_with(hwnd, &app.documents[0].state, || Ok(())).unwrap();
         app.process_parameter_panels(false);
+        app.sync_workspace_chrome(false);
         assert!(app.documents[0].parameters.is_none());
         assert!(!app.capture_windows.borrow().contains(&panel));
         assert!(!IsWindow(Some(panel)).as_bool());
@@ -58,9 +62,12 @@ fn four_panel_budget_is_shared_and_closed_slot_is_reusable_without_changing_docu
             .map(|d| d.state.unit_id.clone())
             .collect::<Vec<_>>();
         for doc in &app.documents {
+            let _ = ShowWindow(doc.window.0, SW_SHOWNOACTIVATE);
             doc.state.parameters_ui.toggle.set(true);
         }
         app.process_parameter_panels(false);
+        app.sync_link_menus();
+        app.sync_workspace_chrome(true);
         assert_eq!(
             app.documents
                 .iter()
@@ -72,6 +79,7 @@ fn four_panel_budget_is_shared_and_closed_slot_is_reusable_without_changing_docu
         app.documents[0].state.parameters_ui.close.set(true);
         app.documents[4].state.parameters_ui.toggle.set(true);
         app.process_parameter_panels(false);
+        app.sync_workspace_chrome(true);
         assert!(app.documents[0].parameters.is_none());
         assert!(app.documents[4].parameters.is_some());
         assert_eq!(

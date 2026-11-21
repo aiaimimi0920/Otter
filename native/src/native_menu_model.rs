@@ -2,6 +2,28 @@
 use super::{invalid, Item};
 use windows::core::Result;
 
+/// 图库的逻辑数据与静态菜单树分开；每页仍只向 HWND 提交最多15张卡片。
+pub(super) fn validate_gallery(items: &[Item]) -> Result<()> {
+    if items.len() > 4096 {
+        return Err(invalid());
+    }
+    let mut units = 0usize;
+    for item in items {
+        let actions = item.children.as_deref().unwrap_or(&[]);
+        if actions.len() > 2 || actions.iter().any(|action| action.children.is_some()) {
+            return Err(invalid());
+        }
+        for row in std::iter::once(item).chain(actions) {
+            let count = row.label.encode_utf16().take(4097).count();
+            units += count;
+            if row.label.contains('\0') || count > 4096 || units > 2 * 1024 * 1024 {
+                return Err(invalid());
+            }
+        }
+    }
+    Ok(())
+}
+
 pub(super) fn validate(tree: &[Item], replacement: Option<(usize, &[Item])>) -> Result<()> {
     let mut budget = (0usize, 0usize);
     for (index, item) in tree.iter().enumerate() {

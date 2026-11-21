@@ -1,11 +1,13 @@
-//! 文字输入事务；模态期间不借用 Canvas，提交前核验文档身份与版本。
+//! 文字输入事务；就地草稿不改文档，提交前核验文档身份与版本。
 use super::canvas::Canvas;
 use super::State;
 use crate::{editor::Tool, text_annotation::TextAnnotation, viewport::Point};
 use windows::{
     core::{w, HSTRING},
-    Win32::{Foundation::*, Graphics::Gdi::InvalidateRect, UI::WindowsAndMessaging::*},
+    Win32::{Foundation::*, UI::WindowsAndMessaging::*},
 };
+#[path = "text_inline.rs"]
+pub(super) mod inline;
 #[cfg(test)]
 #[path = "text_input_tests.rs"]
 mod tests;
@@ -34,7 +36,8 @@ impl Pending {
         }?;
         let Some(index) = index.filter(|index| {
             let tool = canvas.editor.elements()[*index].tool;
-            tool == Tool::Text || (canvas.tool == Tool::Select && tool == Tool::Serial)
+            canvas.can_select_annotation(*index)
+                && (tool == Tool::Text || (canvas.tool == Tool::Select && tool == Tool::Serial))
         }) else {
             return Ok(None);
         };
@@ -88,11 +91,14 @@ impl Pending {
             }
             Ok(changed)
         } else {
-            Ok(canvas
+            let index = canvas
                 .editor
                 .insert_text(self.point, size, text)
-                .map_err(edit_error)?
-                .is_some())
+                .map_err(edit_error)?;
+            if let Some(index) = index {
+                canvas.select_created_annotation(index);
+            }
+            Ok(index.is_some())
         }
     }
     pub(super) fn text(&self) -> Option<&TextAnnotation> {
@@ -101,25 +107,6 @@ impl Pending {
 }
 fn edit_error(error: crate::editor::EditError) -> windows::core::Error {
     windows::core::Error::new(E_FAIL, format!("Text edit rejected: {error:?}"))
-}
-pub(super) unsafe fn append_edit_menu(
-    menu: HMENU,
-    id: usize,
-    canvas: &Canvas,
-) -> windows::core::Result<()> {
-    let enabled = canvas.selected_index().is_some_and(|index| {
-        matches!(
-            canvas.editor.elements()[index].tool,
-            Tool::Text | Tool::Serial
-        )
-    });
-    AppendMenuW(
-        menu,
-        MF_STRING | if enabled { MF_ENABLED } else { MF_GRAYED },
-        id,
-        w!("编辑选中文字…\tF2"),
-    )?;
-    super::text_font::append_menu(menu, canvas)
 }
 pub(super) unsafe fn edit_selected(hwnd: HWND, state: &State) {
     if !super::display_edit::prepare(state) {
@@ -190,33 +177,25 @@ pub(super) unsafe fn insert(hwnd: HWND, state: &State, point: Point) {
     run(hwnd, state, pending);
 }
 unsafe fn run(hwnd: HWND, state: &State, pending: Pending) {
-    let Some(_dialog) = super::file_dialog::Guard::begin(&state.file_dialog) else {
-        return;
-    };
-    let initial = pending
-        .text
-        .as_ref()
-        .map_or(String::new(), |text| text.content().to_owned());
-    if initial.contains('\0') {
+    if let Err(error) = inline::begin(hwnd, state, pending) {
         MessageBoxW(
             Some(hwnd),
-            w!("此文字含有输入控件无法表达的字符，原内容已保留。"),
+            &HSTRING::from(format!("无法开始文字输入。\n{error}")),
             w!("Otter"),
             MB_OK | MB_ICONERROR,
         );
-        return;
     }
-    let Some(content) = super::shape_dialog::show_text(hwnd, initial) else {
-        return;
-    };
-    if !IsWindow(Some(hwnd)).as_bool() {
-        return;
-    }
+}
+unsafe fn commit_content(
+    state: &State,
+    pending: &Pending,
+    content: &str,
+) -> windows::core::Result<()> {
     if pending.text.as_ref().is_some_and(|text| {
         text.content().replace("\r\n", "\n").replace('\r', "\n")
             == content.replace("\r\n", "\n").replace('\r', "\n")
     }) {
-        return;
+        return Ok(());
     }
     let constructor = if pending.text.is_some() {
         TextAnnotation::restored
@@ -224,31 +203,14 @@ unsafe fn run(hwnd: HWND, state: &State, pending: Pending) {
         TextAnnotation::new
     };
     let Some(text) = constructor(
-        &content,
+        content,
         pending.font.family(),
         pending.font.font_size(),
         pending.font.bold(),
     ) else {
-        return;
+        return Ok(());
     };
-    let result = (|| -> windows::core::Result<()> {
-        let size = super::annotation_text::measure(&text)?;
-        let mut canvas = state.canvas.borrow_mut();
-        pending.commit(&mut canvas, text, size)?;
-        Ok(())
-    })();
-    if let Err(error) = result {
-        MessageBoxW(
-            Some(hwnd),
-            &HSTRING::from(format!("无法保存文字。\n{error}")),
-            w!("Otter"),
-            MB_OK | MB_ICONERROR,
-        );
-    }
-    if IsWindow(Some(hwnd)).as_bool() {
-        if let Err(error) = super::hit_region::update(hwnd, state) {
-            eprintln!("native-text-region: {error}");
-        }
-        let _ = InvalidateRect(Some(hwnd), None, false);
-    }
+    let size = super::annotation_text::measure(&text)?;
+    pending.commit(&mut state.canvas.borrow_mut(), text, size)?;
+    Ok(())
 }

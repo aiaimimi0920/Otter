@@ -24,17 +24,11 @@ pub(super) struct HitRegion {
     display_identity: Option<std::sync::Arc<()>>,
 }
 
-/// 区域缓存依赖实际绘制坐标系，不能把窗口客户区尺寸当作 viewport 的替代。
-#[derive(Clone, Copy, Debug, PartialEq)]
-struct Key {
-    source: usize,
-    revision: u64,
-    pan: bool,
-    client: (u32, u32),
-    dpi: u32,
-    viewport: crate::viewport::Viewport,
-    minified: Option<(crate::session_minified::Views, crate::crop_geometry::Size)>,
-}
+#[path = "hit_region_extension.rs"]
+mod extension;
+#[path = "hit_region_frame.rs"]
+mod frame;
+use frame::Key;
 
 impl HitRegion {
     /// 网络 worker 已准备有界 alpha；保留独立本地标注缓存，不在 UI 重扫新底图。
@@ -167,6 +161,8 @@ pub(super) unsafe fn update_visible(hwnd: HWND, state: &State) -> Result<()> {
             dpi,
             viewport: canvas.viewport,
             minified: None,
+            style: canvas.frame_style,
+            overlay: extension::identity(state),
         };
         let mut cache = state.hit_region.borrow_mut();
         if cache.key == Some(key) && state.pin_resize.rect.get().is_none() {
@@ -218,6 +214,8 @@ pub(super) unsafe fn update_visible(hwnd: HWND, state: &State) -> Result<()> {
             }
             region
         };
+        extension::add(&region, state, dpi)?;
+        frame::apply(&region, key)?;
         cache.key = Some(key);
         region
     };
@@ -369,6 +367,8 @@ mod tests {
                 scale: 1.5,
             },
             minified: None,
+            style: Default::default(),
+            overlay: 0,
         };
         let mut moved = original;
         moved.viewport.origin.x += 1.0;

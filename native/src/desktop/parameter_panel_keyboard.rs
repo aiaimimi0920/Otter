@@ -52,6 +52,15 @@ pub(super) unsafe fn translate(ui: &Ui, msg: &MSG) -> bool {
         if composing(focus) {
             return false;
         }
+        if desktop::clipboard_input::translate(ui.host, msg) {
+            return true;
+        }
+        if ui.inline && msg.wParam.0 == VK_F6.0 as usize {
+            if msg.lParam.0 & (1 << 30) == 0 {
+                inline_input::leave(ui, focus, msg.wParam.0);
+            }
+            return true;
+        }
         // 标准 COMBOBOX 已展开时，Esc/Enter 属于列表而非面板关闭或执行。
         let binding = ui
             .bindings
@@ -81,6 +90,9 @@ pub(super) unsafe fn translate(ui: &Ui, msg: &MSG) -> bool {
                     }
                 }
                 ui.close();
+                if ui.inline {
+                    inline_input::leave(ui, focus, msg.wParam.0);
+                }
             }
             return true;
         }

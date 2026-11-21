@@ -4,6 +4,7 @@ use crate::desktop::{configuration_stamp, display_snapshot, loom_result_state::O
 
 #[derive(PartialEq)]
 struct Presentation {
+    node_settings: crate::unit_node_settings::Settings,
     viewport: crate::viewport::Viewport,
     pinned: bool,
     window_opacity: f32,
@@ -23,6 +24,7 @@ impl Presentation {
     fn capture(state: &crate::desktop::State) -> Self {
         let canvas = state.canvas.borrow();
         Self {
+            node_settings: state.node_settings.get(),
             viewport: canvas.viewport,
             pinned: canvas.pinned,
             window_opacity: canvas.window_opacity,
@@ -40,6 +42,7 @@ impl Presentation {
     }
 }
 pub(in crate::desktop) struct Document {
+    extensions: crate::desktop::extension_document::Stamp,
     unit: crate::workspace_id::UnitId,
     window: HWND,
     rect: RECT,
@@ -62,6 +65,7 @@ impl Document {
             return Err(Error::new(E_ABORT, "Window DPI is unavailable"));
         }
         Ok(Self {
+            extensions: doc.state.extension_document.borrow().stamp(),
             unit: doc.state.unit_id.clone(),
             window: doc.window.0,
             rect,
@@ -92,6 +96,11 @@ impl Document {
         }
         let mut rect = RECT::default();
         require!(self.unit == doc.state.unit_id, "unit");
+        require!(
+            self.extensions
+                .matches(&doc.state.extension_document.borrow()),
+            "extensions"
+        );
         require!(self.window == doc.window.0, "window");
         require!(doc.is_alive(), "lifetime");
         require!(idle::state(&doc.state), "busy");

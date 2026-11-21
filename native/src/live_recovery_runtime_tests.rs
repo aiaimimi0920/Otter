@@ -1,7 +1,7 @@
 //! 三进程恢复验证：源窗口留在观察者中，登记父进程退出，独立恢复子进程继续存活。
 use super::*;
 use crate::{
-    live_recovery_wire::Record,
+    live_recovery_wire::{Record, Restoration},
     live_window_target::{snapshot::Snapshot, Target},
 };
 use std::{
@@ -75,98 +75,7 @@ fn actual_parent_exit_restores_surviving_window_and_eof_does_not_restore_early()
             .unwrap()
             .recovery_record()
             .unwrap();
-        let mut parent = ParentFixture(
-            Command::new(std::env::current_exe().unwrap())
-                .creation_flags(CREATE_NO_WINDOW.0)
-                .args([
-                    "--exact",
-                    "live_recovery_client::runtime_tests::registration_parent",
-                    "--ignored",
-                    "--nocapture",
-                    "--test-threads=1",
-                ])
-                .env(
-                    "OTTER_RECOVERY_RUNTIME_RECORD",
-                    serde_json::to_string(&before).unwrap(),
-                )
-                .env(
-                    "OTTER_RECOVERY_RUNTIME_OBSERVER",
-                    std::process::id().to_string(),
-                )
-                .env(
-                    "OTTER_RECOVERY_RUNTIME_ABRUPT",
-                    if abrupt { "1" } else { "0" },
-                )
-                .stdin(Stdio::null())
-                .stdout(Stdio::piped())
-                .stderr(Stdio::null())
-                .spawn()
-                .unwrap(),
-        );
-        let deadline = Instant::now() + Duration::from_secs(15);
-        let status = loop {
-            pump();
-            if let Some(status) = parent.0.try_wait().unwrap() {
-                break Some(status);
-            }
-            if Instant::now() >= deadline {
-                parent.0.kill().unwrap();
-                parent.0.wait().unwrap();
-                break None;
-            }
-            std::thread::sleep(Duration::from_millis(5));
-        };
-        // 只读取已退出父进程留下的现有字节；不能等待 EOF 阻塞窗口消息泵。
-        // 后代意外继承输出句柄时，EOF 可能晚于父进程退出。
-        let mut stdout = parent.0.stdout.take().unwrap();
-        let mut available = 0;
-        unsafe {
-            windows::Win32::System::Pipes::PeekNamedPipe(
-                HANDLE(stdout.as_raw_handle()),
-                None,
-                0,
-                None,
-                Some(&mut available),
-                None,
-            )
-            .unwrap();
-        }
-        assert!(available <= 65536);
-        let mut bytes = vec![0; available as usize];
-        stdout.read_exact(&mut bytes).unwrap();
-        let output = String::from_utf8(bytes).unwrap();
-        let raw = output
-            .lines()
-            .find_map(|line| {
-                line.split_once("RECOVERY_FIXTURE_HANDLE=")
-                    .map(|(_, value)| value)
-            })
-            .expect("Fixture must transfer owned recovery handle")
-            .parse::<usize>()
-            .unwrap();
-        // 仅接受本次受控子进程经 DuplicateHandle 转交到当前进程的句柄，不是外部 PID。
-        let recovery = RecoveryFixture(unsafe { OwnedHandle::from_raw_handle(raw as *mut _) });
-        assert!(output.contains("RECOVERY_FIXTURE_EOF_HELD"), "{output}");
-        assert_eq!(
-            status.expect("Registration fixture timed out").code(),
-            Some(if abrupt { 23 } else { 0 })
-        );
-        let deadline = Instant::now() + Duration::from_secs(10);
-        loop {
-            pump();
-            let result = unsafe { WaitForSingleObject(HANDLE(recovery.0.as_raw_handle()), 0) };
-            if result == WAIT_OBJECT_0 {
-                break;
-            }
-            assert_eq!(result, WAIT_TIMEOUT);
-            assert!(Instant::now() < deadline, "Recovery child did not finish");
-            std::thread::sleep(Duration::from_millis(5));
-        }
-        let mut exit_code = 0;
-        unsafe {
-            GetExitCodeProcess(HANDLE(recovery.0.as_raw_handle()), &mut exit_code).unwrap();
-        }
-        assert_eq!(exit_code, 0);
+        run_parent(&before, abrupt);
         let after = Snapshot::read(&Target::bind(window.0).unwrap())
             .unwrap()
             .recovery_record()
@@ -175,6 +84,122 @@ fn actual_parent_exit_restores_surviving_window_and_eof_does_not_restore_early()
         assert!(!unsafe { IsWindowVisible(window.0) }.as_bool());
         println!("native-recovery-runtime: abrupt={abrupt} ack-before-change=true eof-held=true restored=true child-exited=true");
     }
+}
+
+#[test]
+#[ignore = "explicit owned-menu three-process popup layer recovery gate"]
+fn actual_parent_exit_releases_surviving_menu_layer_without_hiding_or_moving_it() {
+    use crate::live_window_target::recovery::popup_layer::fixture::Fixture;
+    for abrupt in [false, true] {
+        let fixture = Fixture::with_dll();
+        let lease = fixture.show();
+        let before = Snapshot::read(&Target::bind(fixture.popup.0).unwrap()).unwrap();
+        run_parent(&fixture.record(lease), abrupt);
+        let after = Snapshot::read(&Target::bind(fixture.popup.0).unwrap()).unwrap();
+        assert!(!fixture.topmost());
+        assert_eq!(before.rect, after.rect);
+        assert_eq!(before.visible, after.visible);
+        assert_eq!(before.extended_style, after.extended_style);
+        assert!(
+            lease.valid(),
+            "layer recovery must not revoke otherwise valid input scope"
+        );
+    }
+}
+
+fn run_parent(before: &Record, abrupt: bool) {
+    let mut parent = ParentFixture(
+        Command::new(std::env::current_exe().unwrap())
+            .creation_flags(CREATE_NO_WINDOW.0)
+            .args([
+                "--exact",
+                "live_recovery_client::runtime_tests::registration_parent",
+                "--ignored",
+                "--nocapture",
+                "--test-threads=1",
+            ])
+            .env(
+                "OTTER_RECOVERY_RUNTIME_RECORD",
+                serde_json::to_string(before).unwrap(),
+            )
+            .env(
+                "OTTER_RECOVERY_RUNTIME_OBSERVER",
+                std::process::id().to_string(),
+            )
+            .env(
+                "OTTER_RECOVERY_RUNTIME_ABRUPT",
+                if abrupt { "1" } else { "0" },
+            )
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap(),
+    );
+    let deadline = Instant::now() + Duration::from_secs(15);
+    let status = loop {
+        pump();
+        if let Some(status) = parent.0.try_wait().unwrap() {
+            break Some(status);
+        }
+        if Instant::now() >= deadline {
+            parent.0.kill().unwrap();
+            parent.0.wait().unwrap();
+            break None;
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    };
+    // 只读取已退出父进程留下的现有字节；不能等待 EOF 阻塞窗口消息泵。
+    // 后代意外继承输出句柄时，EOF 可能晚于父进程退出。
+    let mut stdout = parent.0.stdout.take().unwrap();
+    let mut available = 0;
+    unsafe {
+        windows::Win32::System::Pipes::PeekNamedPipe(
+            HANDLE(stdout.as_raw_handle()),
+            None,
+            0,
+            None,
+            Some(&mut available),
+            None,
+        )
+        .unwrap();
+    }
+    assert!(available <= 65536);
+    let mut bytes = vec![0; available as usize];
+    stdout.read_exact(&mut bytes).unwrap();
+    let output = String::from_utf8(bytes).unwrap();
+    let raw = output
+        .lines()
+        .find_map(|line| {
+            line.split_once("RECOVERY_FIXTURE_HANDLE=")
+                .map(|(_, value)| value)
+        })
+        .expect("Fixture must transfer owned recovery handle")
+        .parse::<usize>()
+        .unwrap();
+    // 仅接受本次受控子进程经 DuplicateHandle 转交到当前进程的句柄，不是外部 PID。
+    let recovery = RecoveryFixture(unsafe { OwnedHandle::from_raw_handle(raw as *mut _) });
+    assert!(output.contains("RECOVERY_FIXTURE_EOF_HELD"), "{output}");
+    assert_eq!(
+        status.expect("Registration fixture timed out").code(),
+        Some(if abrupt { 23 } else { 0 })
+    );
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        pump();
+        let result = unsafe { WaitForSingleObject(HANDLE(recovery.0.as_raw_handle()), 0) };
+        if result == WAIT_OBJECT_0 {
+            break;
+        }
+        assert_eq!(result, WAIT_TIMEOUT);
+        assert!(Instant::now() < deadline, "Recovery child did not finish");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let mut exit_code = 0;
+    unsafe {
+        GetExitCodeProcess(HANDLE(recovery.0.as_raw_handle()), &mut exit_code).unwrap();
+    }
+    assert_eq!(exit_code, 0);
 }
 
 #[test]
@@ -216,20 +241,32 @@ fn registration_parent() {
         Status::Accepted
     );
     let hwnd = HWND(record.hwnd as usize as *mut _);
-    // 已收到真实登记 ACK；夹具直接调用同一隐藏后端，避免父端正常析构替 watchdog 恢复。
-    let snapshot = Snapshot::read(&Target::bind(hwnd).unwrap()).unwrap();
-    snapshot.apply_hidden().unwrap();
-    let altered =
-        record.extended_style as isize | WS_EX_TRANSPARENT.0 as isize | WS_EX_LAYERED.0 as isize;
+    // 已收到真实 ACK；保留请求 owner 但不主动恢复，退出后由独立 child 收尾。
+    let mut layer_owner = None;
+    let altered = match &record.restoration {
+        Restoration::PopupLayer(layer) => {
+            let original_style = unsafe { GetWindowLongPtrW(hwnd, GWL_EXSTYLE) };
+            use crate::live_window_target::recovery::popup_layer::{fixture::settle, Recovery};
+            let recovery = Recovery::bind(Target::bind(hwnd).unwrap(), layer).unwrap();
+            settle(|| recovery.acquire());
+            layer_owner = Some(recovery);
+            original_style | WS_EX_TOPMOST.0 as isize
+        }
+        Restoration::Window(state) => {
+            let snapshot = Snapshot::read(&Target::bind(hwnd).unwrap()).unwrap();
+            snapshot.apply_hidden().unwrap();
+            assert_eq!(
+                Snapshot::read(&Target::bind(hwnd).unwrap())
+                    .unwrap()
+                    .layered
+                    .unwrap()
+                    .alpha,
+                1
+            );
+            state.extended_style as isize | WS_EX_TRANSPARENT.0 as isize | WS_EX_LAYERED.0 as isize
+        }
+    };
     assert_eq!(unsafe { GetWindowLongPtrW(hwnd, GWL_EXSTYLE) }, altered);
-    assert_eq!(
-        Snapshot::read(&Target::bind(hwnd).unwrap())
-            .unwrap()
-            .layered
-            .unwrap()
-            .alpha,
-        1
-    );
     drop(client);
     std::thread::sleep(Duration::from_millis(200));
     assert_eq!(unsafe { GetWindowLongPtrW(hwnd, GWL_EXSTYLE) }, altered);
@@ -238,4 +275,5 @@ fn registration_parent() {
     if std::env::var("OTTER_RECOVERY_RUNTIME_ABRUPT").unwrap() == "1" {
         std::process::exit(23);
     }
+    drop(layer_owner); // Drop 只撤销请求，不以父进程退出前的本地归还替代 child 验收。
 }

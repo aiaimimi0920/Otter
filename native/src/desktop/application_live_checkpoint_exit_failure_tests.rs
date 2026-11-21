@@ -179,3 +179,48 @@ fn external_conflict_stops_once_preserves_external_file_and_explicit_discard_can
         app.shutdown_live().unwrap();
     }
 }
+
+#[test]
+fn stopped_profile_live_manual_snapshot_allows_exit_only_with_unchanged_layout() {
+    unsafe {
+        let environment = Environment::new();
+        let directory = Directory::new();
+        let mut app = app(&environment);
+        let (hwnd, _, source) = super::super::super::refresh::stream(&mut app);
+        source.publish([0, 0, 255, 255]);
+        install(&mut app, &directory, false);
+        settle_auto(&mut app);
+        let before = b"external-conflict-must-not-be-overwritten";
+        std::fs::write(directory.path(), before).unwrap();
+        begin(&mut app);
+        ready(&app);
+        app.pending_workspace_save_with(|_, _, _, warning| assert!(warning));
+        assert!(app.checkpoint_writes_stopped());
+        save_manual(&mut app, directory.0.join("rescue-before.json"));
+        assert_ne!(app.save_status(), save_state::Status::Unchanged);
+        SetWindowPos(
+            hwnd,
+            None,
+            -380,
+            140,
+            120,
+            100,
+            SWP_NOACTIVATE | SWP_NOZORDER,
+        )
+        .unwrap();
+        app.exit_requested.set(true);
+        let mut notices = 0;
+        assert!(!app.close_requested_automatically_with_notify(|_, _| notices += 1));
+        assert_eq!(notices, 1);
+        assert!(!app.exit_requested.get());
+        assert!(app.documents[0].is_alive() && IsWindow(Some(hwnd)).as_bool());
+        save_manual(&mut app, directory.0.join("rescue-after.json"));
+        assert_ne!(app.save_status(), save_state::Status::Unchanged);
+        app.exit_requested.set(true);
+        assert!(app.close_requested_automatically_with_notify(|_, text| panic!("{text}")));
+        assert!(app.documents.is_empty());
+        assert_eq!(directory.bytes(), before);
+        drop(source);
+        app.shutdown_live().unwrap();
+    }
+}

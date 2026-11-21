@@ -1,4 +1,6 @@
 use super::*;
+#[path = "live_input_worker_idle_tests.rs"]
+mod idle;
 use std::{
     sync::Mutex,
     time::{Duration, Instant},

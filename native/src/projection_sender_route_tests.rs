@@ -123,7 +123,10 @@ fn offline_binding_preserves_web_identity_and_only_explicit_native_route_can_res
         format!("loom-{}", "b".repeat(64))
     );
     assert_eq!(entry["link"]["offlineTransport"]["origin"], ORIGIN);
-    assert_eq!(entry["link"]["otterNativeSend"]["target"], intent.target());
+    assert_eq!(
+        entry["link"]["otterNativeSend"]["target"].as_str(),
+        intent.target()
+    );
     assert!(candidate.binding().matches_intent(&intent));
     assert!(candidate.index().for_intent(&intent).is_some());
     assert!(binding::Binding::admit_send(candidate.source(), &selected).is_err());

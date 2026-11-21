@@ -49,7 +49,7 @@ impl Application {
         if self
             .live_sessions
             .iter()
-            .any(|session| session.unit_id() == &unit)
+            .any(|session| session.unit_id() == &unit && !session.pin_attached())
         {
             return self.commit_live_recycle(&unit, &receipt, output.candidate.bytes.into());
         }
@@ -118,6 +118,11 @@ impl Application {
             ));
         }
         // 目标已销毁：不再执行可失败的准备。即使系统返回错误也必须保留其冻结记录。
+        if target.state.live_pin.get() {
+            if let Some(session) = self.live_sessions.iter_mut().find(|s| s.unit_id() == &unit) {
+                session.stop();
+            }
+        }
         let record = self.restored_session.as_mut().unwrap();
         record.edit_original(source);
         record.annotation_ids.retain(|(id, _)| id != &unit);

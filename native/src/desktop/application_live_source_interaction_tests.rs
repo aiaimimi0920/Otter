@@ -85,6 +85,24 @@ fn run(mode: u8) {
     let mut peer = peer::Peer::input(listener, tls, batches);
     unsafe {
         let source = oracle::Window::new();
+        if mode == 7 {
+            let style = GetWindowLongPtrW(source.hwnd, GWL_STYLE);
+            SetWindowLongPtrW(
+                source.hwnd,
+                GWL_STYLE,
+                (style & !(WS_POPUP.0 as isize)) | WS_OVERLAPPEDWINDOW.0 as isize,
+            );
+            SetWindowPos(
+                source.hwnd,
+                None,
+                0,
+                0,
+                0,
+                0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
+            )
+            .unwrap();
+        }
         let target = crate::live_window_target::Target::bind(source.hwnd).unwrap();
         let (_class, mut app) = fixture::application();
         app.authorization.borrow_mut().origin = Some(origin.clone());
@@ -127,6 +145,18 @@ fn run(mode: u8) {
                     && (mode != 6 || peer.polls.load(Ordering::Acquire) >= 2)
             });
             assert!(app.live_sessions[0].enable_input().is_err());
+            if mode == 7 {
+                let mut client = RECT::default();
+                GetClientRect(source.hwnd, &mut client).unwrap();
+                let x = ((client.right - client.left - 1) as f64 * 0.5).round() as u16;
+                let y = ((client.bottom - client.top - 1) as f64 * 0.5).round() as u16;
+                let expected = (u32::from(x) | (u32::from(y) << 16)) as isize;
+                assert!(source
+                    .messages()
+                    .iter()
+                    .filter(|&&(message, _, _)| message == WM_LBUTTONDOWN)
+                    .all(|&(_, _, point)| point == expected));
+            }
             if mode == 0 {
                 let messages = source.messages();
                 assert!(messages.iter().any(|&(m, k, _)| m == WM_KEYUP && k == 65));
@@ -195,4 +225,8 @@ fn interactive_source_application_exit_pumps_input_cleanup() {
 #[test]
 fn interactive_source_idle_bridge_cancel_closes_publication_and_releases_inputs() {
     run(6)
+}
+#[test]
+fn interactive_source_keeps_legacy_client_coordinates_for_a_framed_source() {
+    run(7)
 }

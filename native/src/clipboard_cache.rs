@@ -29,6 +29,12 @@ pub struct Prepared {
     _lock: File,
 }
 impl Prepared {
+    /// 拖出仅交付新生成的副本；保留缓存锁直到 Shell 完成，允许它移动该副本而非用户原图。
+    pub(crate) fn commit_drag(self, cancel: &AtomicBool) -> io::Result<(PathBuf, File)> {
+        let lock = self._lock.try_clone()?;
+        let path = self.commit(cancel)?;
+        Ok((path, lock))
+    }
     /// 调用方须在主线程检查请求 owner/文档/取消；之后即使剪贴板部分失败也保留文件。
     pub fn commit(self, cancel: &AtomicBool) -> io::Result<PathBuf> {
         self.publish(cancel, false).map(|(path, _)| path)

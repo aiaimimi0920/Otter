@@ -50,6 +50,7 @@ impl Drop for Fixture {
 fn row(key: usize) -> Row {
     Row {
         key,
+        deletable: false,
         thumbnail: None,
         label: format!("&命令 {key}\tCtrl+O"),
         enabled: true,

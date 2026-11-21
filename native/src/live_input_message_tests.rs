@@ -40,6 +40,61 @@ fn key_encoding_marks_release_and_rejects_invalid_keys() {
     assert!(Message::key(255, false).is_err());
 }
 
+#[test]
+fn navigation_and_divide_preserve_extended_scan_identity_on_both_edges() {
+    for key in [
+        VK_LEFT, VK_RIGHT, VK_UP, VK_DOWN, VK_HOME, VK_END, VK_PRIOR, VK_NEXT, VK_INSERT,
+        VK_DELETE, VK_DIVIDE,
+    ] {
+        let scan = unsafe { MapVirtualKeyW(u32::from(key.0), MAPVK_VK_TO_VSC_EX) };
+        // 导航 VK 本身确定扩展身份；中文布局可能只给出数字键盘的基础扫描码。
+        for down in [true, false] {
+            let packet = Message::key(key.0, down).unwrap();
+            let bits = packet.lp.0 as u32;
+            assert_eq!(packet.wp.0, usize::from(key.0));
+            assert_eq!(bits & 0x01000000, 0x01000000);
+            assert_eq!((bits >> 16) & 0xff, scan & 0xff);
+            assert_eq!(bits & 0xc0000000, if down { 0 } else { 0xc0000000 });
+            assert_eq!(bits & 0xffff, 1);
+            assert_eq!(packet.releasing, !down);
+        }
+    }
+}
+
+#[test]
+fn ordinary_numpad_and_e1_keys_do_not_gain_an_e0_flag() {
+    for code in [
+        65,
+        VK_TAB.0,
+        VK_RETURN.0,
+        VK_ESCAPE.0,
+        VK_NUMPAD0.0,
+        VK_NUMPAD4.0,
+        VK_NUMPAD9.0,
+        VK_DECIMAL.0,
+        VK_PAUSE.0,
+        VK_LCONTROL.0,
+        VK_RSHIFT.0,
+    ] {
+        for down in [true, false] {
+            let packet = Message::key(code, down).unwrap();
+            assert_eq!(packet.lp.0 as u32 & 0x01000000, 0, "code={code}");
+        }
+    }
+}
+
+#[test]
+fn explicit_right_control_keeps_its_e0_prefix_without_changing_the_scan_byte() {
+    for down in [true, false] {
+        let left = Message::key(VK_LCONTROL.0, down).unwrap().lp.0 as u32;
+        let right = Message::key(VK_RCONTROL.0, down).unwrap().lp.0 as u32;
+        assert_eq!(left & 0x01000000, 0);
+        assert_eq!(right & 0x01000000, 0x01000000);
+        assert_eq!(left & 0x00ff0000, right & 0x00ff0000);
+        assert_eq!(left & 0xc000ffff, right & 0xc000ffff);
+    }
+}
+
 // 窗口完全由夹具创建；没有全局输入、焦点切换或用户窗口枚举。
 #[test]
 #[ignore = "requires interactive default desktop; sends only to owned hidden fixture"]
@@ -167,4 +222,22 @@ fn actual_zero_result_timeout_same_thread_and_closed_source() {
         send(&target, Message::key(66, false).unwrap()),
         Err(Error::Security(_))
     ));
+}
+
+#[test]
+fn local_hover_leave_and_committed_utf16_have_distinct_packets() {
+    let hover = Message::hover([12, 34], 0).unwrap();
+    assert_eq!(hover.id, WM_MOUSEHOVER);
+    assert_eq!(hover.lp.0, 12 | (34 << 16));
+    let leave = Message::leave();
+    assert_eq!(leave.id, WM_MOUSELEAVE);
+    assert!(leave.releasing && leave.moving);
+    let exit = Message::exit_motion();
+    assert_eq!(exit.id, WM_MOUSEMOVE);
+    assert_eq!(exit.wp.0, 0);
+    assert_eq!(exit.lp.0 as u32, u32::MAX);
+    assert!(exit.releasing && exit.moving);
+    assert_eq!(Message::character(0x4e2d).unwrap().id, WM_CHAR);
+    assert_eq!(Message::character(0xd83d).unwrap().wp.0, 0xd83d);
+    assert!(Message::character(0).is_err());
 }

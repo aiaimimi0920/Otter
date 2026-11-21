@@ -1,5 +1,7 @@
 //! 批次窗口先全部准备，再一次加入应用；容量/建窗失败释放暂存 owner，不展示半批。
 use super::*;
+#[path = "application_paste_target.rs"]
+mod paste_target;
 
 impl Application {
     pub(super) unsafe fn add_prepared(
@@ -46,21 +48,39 @@ impl Application {
         placements
             .try_reserve_exact(pins.len())
             .map_err(|_| Error::new(E_OUTOFMEMORY, "Cannot reserve clipboard placements"))?;
-        let captured: Vec<_> = pins.iter().map(|pin| pin.record_history).collect();
+        let presentation: Vec<_> = pins
+            .iter()
+            .map(|pin| {
+                (
+                    pin.record_history,
+                    !pin.record_history && pin.paste_origin.is_none(),
+                )
+            })
+            .collect();
         for mut pin in pins {
             let request = pin
                 .placement
                 .take()
                 .map(|request| self.editable_clipboard.borrow().refresh(&request));
-            let frame = request.as_ref().map(|request| {
-                let current = self.source_window(request.unit()).and_then(|hwnd| {
-                    let mut rect = RECT::default();
-                    GetWindowRect(hwnd, &mut rect).ok()?;
-                    crate::desktop::clipboard_placement::rectangle(rect)
-                });
-                request.frame(current)
-            });
-            staged.push(prepare(self, State::from_prepared(pin)?, visible, frame)?);
+            let frame = request
+                .as_ref()
+                .map(|request| self.paste_frame(request))
+                .transpose()?;
+            let origin = pin.paste_origin;
+            let document = prepare(self, State::from_prepared(pin)?, visible, frame)?;
+            if let Some(cursor) = origin.filter(|_| frame.is_none()) {
+                // 只定位隐藏的暂存窗口；不借用 capture_origin 的截图 1:1 尺寸语义。
+                SetWindowPos(
+                    document.window.0,
+                    None,
+                    cursor.x,
+                    cursor.y,
+                    0,
+                    0,
+                    SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+                )?;
+            }
+            staged.push(document);
             placements.push(request.zip(frame));
         }
         let start = self.documents.len();
@@ -73,8 +93,8 @@ impl Application {
                 )
             })?;
         self.documents.extend(staged);
-        for (document, captured) in self.documents[start..].iter().zip(captured) {
-            if captured {
+        for (document, (captured, _)) in self.documents[start..].iter().zip(&presentation) {
+            if *captured {
                 crate::desktop::capture_history_ui::record(&document.state);
             }
         }
@@ -90,9 +110,12 @@ impl Application {
         }
         self.sync_capture_windows();
         if visible {
-            for document in &self.documents[start..] {
+            for (document, (_, show_panel)) in self.documents[start..].iter().zip(presentation) {
                 let _ = ShowWindow(document.window.0, SW_SHOWNORMAL);
-                let _ = ShowWindow(document.panel.0, SW_SHOWNOACTIVATE);
+                // 截图和粘贴默认自由拖动；普通文件导入沿用原显示规则。
+                if show_panel {
+                    let _ = ShowWindow(document.panel.0, SW_SHOWNOACTIVATE);
+                }
             }
         }
         Ok(())

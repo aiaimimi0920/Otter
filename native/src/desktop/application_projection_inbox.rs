@@ -44,6 +44,7 @@ pub(super) fn start(
         -> std::result::Result<Config, crate::device_authorization_config::Error>,
 ) -> bool {
     if view.closed
+        || view.account.busy
         || view.busy
         || view.projection.busy
         || view.targets.busy
@@ -64,7 +65,9 @@ pub(super) fn start(
             view.projection.participation =
                 Some(view.consent.participation().ok_or("本机接收已暂停")?);
         }
-        if matches!(request, ui::Request::Accept(_)) && view.consent.stamp().is_none() {
+        if matches!(request, ui::Request::Accept(_) | ui::Request::Import(_))
+            && view.consent.stamp().is_none()
+        {
             return Err("当前接收策略不允许新投送".into());
         }
         let origin = view
@@ -115,6 +118,15 @@ pub(super) fn start(
             .map_err(|e| format!("请先获取有效授权：{e:?}"))?;
         let config = config(origin).map_err(|e| format!("配置无效：{e:?}"))?;
         match request {
+            ui::Request::Import(request) => {
+                if !request.current() {
+                    return Err("邀请导入已取消".into());
+                }
+                let profile::Owner::Ready { store, .. } = profile else {
+                    return Err("接收存储尚未就绪".into());
+                };
+                remote.import_projection(config, lease, request, store.clone())
+            }
             ui::Request::Display(_) => return Err("呈现恢复必须经过当前工作区核验".into()),
             ui::Request::Refresh => remote.query_projection_inbox(config, lease),
             ui::Request::Reject(entry) => remote.reject_projection(config, lease, entry),
@@ -226,7 +238,8 @@ impl Application {
         {
             return; // 暂停/恢复或失败写入都不能复活旧收件快照，不触碰补偿或已保存的持续同步。
         }
-        if event.result.is_ok() {
+        // Cleanup has its own retry schedule; its result is not an inbox attempt.
+        if !event.compensation && event.result.is_ok() {
             if let profile::Owner::Ready { policy, .. } = &mut self.projection_profile {
                 policy
                     .schedule
@@ -252,7 +265,7 @@ impl Application {
                 );
             }
             Ok(Output::Rejected) => {
-                if let Some(entry) = event.rejected {
+                if let Some(entry) = event.invitation {
                     view.projection
                         .entries
                         .retain(|current| !Arc::ptr_eq(current, &entry));
@@ -278,12 +291,27 @@ impl Application {
                 view.projection.status = "投送操作已取消，请重新获取授权".into();
             }
             Err(error) => {
+                let mut retrying = false;
                 if let profile::Owner::Ready { policy, .. } = &mut self.projection_profile {
-                    policy
-                        .schedule
-                        .failure(&event.origin, std::time::Instant::now());
+                    if !event.compensation {
+                        policy
+                            .schedule
+                            .failure(&event.origin, std::time::Instant::now());
+                    }
+                    if error == JobError::AcceptBusyUnapplied {
+                        retrying = event
+                            .invitation
+                            .as_deref()
+                            .is_some_and(|entry| policy.schedule.accept_unapplied(entry));
+                    }
                 }
-                view.projection.status = format!("投送操作失败：{error:?}");
+                view.projection.status = match error {
+                    JobError::AcceptBusyUnapplied if retrying => {
+                        "Loom 正忙；将刷新收件箱后重试".into()
+                    }
+                    JobError::AcceptBusyUnapplied => "Loom 正忙；本次投送未接收".into(),
+                    _ => format!("投送操作失败：{error:?}"),
+                };
             }
         }
     }

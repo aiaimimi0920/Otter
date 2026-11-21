@@ -7,6 +7,8 @@ use super::{
 use windows::Win32::UI::Input::KeyboardAndMouse::IsWindowEnabled;
 use windows::Win32::{Foundation::*, Graphics::Gdi::*, UI::WindowsAndMessaging::*};
 const MAX_DEPTH: usize = 64;
+#[path = "live_input_caret.rs"]
+pub(crate) mod caret;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Error {
     Target(input_target::Error),
@@ -84,21 +86,34 @@ fn contains(rect: RECT, point: POINT) -> bool {
 }
 /// 不调用 SetFocus/AttachThreadInput；别的窗口拥有焦点时只回退到原 root。
 pub fn keyboard(root: &Target) -> Result<Destination> {
+    keyboard_with_fallback(root, None)
+}
+pub fn keyboard_with_fallback(
+    root: &Target,
+    fallback: Option<&Destination>,
+) -> Result<Destination> {
     root.validate()
         .map_err(|_| Error::Target(input_target::Error::SourceChanged))?;
     let mut info = GUITHREADINFO {
         cbSize: std::mem::size_of::<GUITHREADINFO>() as u32,
         ..Default::default()
     };
-    let candidate = if unsafe { GetGUIThreadInfo(root.identity.thread, &mut info) }.is_ok()
-        && (info.hwndFocus == root.hwnd()
-            || unsafe { IsChild(root.hwnd(), info.hwndFocus) }.as_bool())
-    {
+    let focus = if unsafe { GetGUIThreadInfo(root.identity.thread, &mut info) }.is_ok() {
         info.hwndFocus
     } else {
-        root.hwnd()
+        HWND::default()
     };
-    nearest(root, candidate)
+    keyboard_at(root, focus, fallback)
+}
+// 只接受本 root/child 内的焦点；源队列没有焦点时保留已经验证的点击目标。
+fn keyboard_at(root: &Target, focus: HWND, fallback: Option<&Destination>) -> Result<Destination> {
+    if focus == root.hwnd() || unsafe { IsChild(root.hwnd(), focus) }.as_bool() {
+        nearest(root, focus)
+    } else if let Some(fallback) = fallback {
+        retained(root, fallback)
+    } else {
+        nearest(root, root.hwnd())
+    }
 }
 /// 已有拖动/按键优先保留目标；失效只回退已授权 root，不能命中另一个控件。
 pub fn retained(root: &Target, previous: &Destination) -> Result<Destination> {

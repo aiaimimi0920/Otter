@@ -30,6 +30,10 @@ for example `release/Otter/v0.2.30.1`.
 
 ## Public release
 
+The WebView publication procedures below apply to `archive/webview-main`.
+Native `main` currently produces internal ZIPs only; do not tag a native public
+release until its publishing and signing workflow is implemented and verified.
+
 Only an explicit public release request advances the public base. Align all
 package versions, set `version-state.json.publicVersion` to that base, and reset
 `internalRevision` to zero. Validate with `npm run verify:version`.

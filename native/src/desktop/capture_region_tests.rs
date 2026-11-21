@@ -222,6 +222,56 @@ fn pointer_motion_without_a_window_preview_has_no_magnifier_repaint() {
 }
 
 #[test]
+fn live_interrupted_drag_never_submits_old_selection_and_can_restart() {
+    for interruption in [WM_CANCELMODE, WM_CAPTURECHANGED, WM_DISPLAYCHANGE, WM_CLOSE] {
+        let result = select_bounds_with(
+            &image(100, 80),
+            POINT::default(),
+            Vec::new(),
+            false,
+            Mode::Live,
+            |hwnd| unsafe {
+                let at = |x: isize, y: isize| Some(LPARAM(x | (y << 16)));
+                SendMessageW(hwnd, WM_LBUTTONDOWN, None, at(10, 10));
+                SendMessageW(hwnd, WM_MOUSEMOVE, None, at(30, 30));
+                if interruption == WM_CAPTURECHANGED {
+                    ReleaseCapture().unwrap();
+                } else {
+                    SendMessageW(hwnd, interruption, None, None);
+                }
+                let state = &*(GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *const Selection);
+                assert!(!state.accepted.get());
+                if matches!(interruption, WM_CANCELMODE | WM_CAPTURECHANGED) {
+                    SendMessageW(hwnd, WM_LBUTTONUP, None, at(30, 30));
+                    assert!(!state.accepted.get() && !state.done.get());
+                    SendMessageW(hwnd, WM_LBUTTONDOWN, None, at(60, 40));
+                    SendMessageW(hwnd, WM_LBUTTONUP, None, at(90, 70));
+                    assert!(state.accepted.get() && state.done.get());
+                }
+                SendMessageW(hwnd, WM_KEYDOWN, Some(WPARAM(VK_ESCAPE.0 as usize)), None);
+            },
+        )
+        .unwrap();
+        if matches!(interruption, WM_CANCELMODE | WM_CAPTURECHANGED) {
+            assert_eq!(
+                result,
+                Some((
+                    RECT {
+                        left: 60,
+                        top: 40,
+                        right: 90,
+                        bottom: 70
+                    },
+                    false
+                ))
+            );
+        } else {
+            assert!(result.is_none());
+        }
+    }
+}
+
+#[test]
 fn long_capture_keeps_adjustment_and_confirmation_in_its_own_mode() {
     let result = select_bounds_with(
         &image(100, 80),

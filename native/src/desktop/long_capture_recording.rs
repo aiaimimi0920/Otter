@@ -1,4 +1,4 @@
-//! 用户滚轮录制的专属 UI owner；像素、采集与拼接仍由原 SessionJob 独占。
+//! 用户拖动/滚动录制的 UI owner；像素、周期采集与拼接仍由原 SessionJob 独占。
 use super::*;
 use std::time::Instant;
 #[path = "long_capture_recording_hook.rs"]
@@ -13,7 +13,6 @@ pub(super) struct State {
     schedule: RefCell<Schedule>,
     hook: RefCell<Option<hook::Hook>>,
     preview_due: Cell<bool>,
-    rejected: Cell<u8>,
     revoked: Cell<bool>,
 }
 impl State {
@@ -23,8 +22,7 @@ impl State {
             target,
             schedule: RefCell::new(Schedule::default()),
             hook: RefCell::new(None),
-            preview_due: Cell::new(false),
-            rejected: Cell::new(0),
+            preview_due: Cell::new(true),
             revoked: Cell::new(false),
         }
     }
@@ -42,10 +40,6 @@ impl State {
     pub fn stop(&self) {
         self.hook.borrow_mut().take();
         self.schedule.borrow_mut().stop();
-    }
-    pub fn revoke(&self) {
-        self.stop();
-        self.revoked.set(true);
     }
 }
 pub(super) unsafe fn start(hwnd: HWND, input: &Input) {
@@ -67,10 +61,9 @@ pub(super) unsafe fn start(hwnd: HWND, input: &Input) {
     match result {
         Ok(hook) if state.schedule.borrow_mut().start(Instant::now()) => {
             *state.hook.borrow_mut() = Some(hook);
-            state.rejected.set(0);
-            status(hwnd, "录制中 · 请滚动目标页面 · 方向待识别");
+            status(hwnd, "录制中");
         }
-        Ok(_) => status(hwnd, "录制已达到次数或时间上限，可完成或取消"),
+        Ok(_) => status(hwnd, "录制已达到时间上限，可完成或取消"),
         Err(error) => status(hwnd, &format!("无法开始录制：{error}")),
     }
     controls(hwnd, input, false);
@@ -84,14 +77,7 @@ pub(super) unsafe fn command(hwnd: HWND, input: &Input) {
         input.recording.stop();
         let busy = input.job.borrow().is_pending();
         controls(hwnd, input, busy);
-        status(
-            hwnd,
-            if busy {
-                "录制已停止，等待当前帧"
-            } else {
-                "录制已停止"
-            },
-        );
+        status(hwnd, "录制已停止");
         drive(hwnd, input);
     } else {
         start(hwnd, input);
@@ -147,7 +133,7 @@ pub(super) unsafe fn finish(hwnd: HWND, input: &Input) {
         return;
     }
     input.recording.schedule.borrow_mut().finish(Instant::now());
-    status(hwnd, "正在收取最近滚动后完成…");
+    status(hwnd, "正在收取最后画面…");
     controls(hwnd, input, input.job.borrow().is_pending());
     drive(hwnd, input);
 }
@@ -159,23 +145,17 @@ pub(super) fn completed(input: &Input, completion: &Completion) {
     match completion {
         Completion::Append(Ok(Append::Added { .. }))
         | Completion::SpatialAppend(Ok(crate::long_capture::SpatialAppend::Added { .. })) => {
-            state.rejected.set(0);
             state.preview_due.set(true);
             state.schedule.borrow_mut().completed(Instant::now());
         }
         Completion::Append(Ok(Append::Duplicate))
         | Completion::SpatialAppend(Ok(crate::long_capture::SpatialAppend::Duplicate)) => {
-            state.rejected.set(0);
             state.schedule.borrow_mut().completed(Instant::now());
         }
         Completion::Append(Ok(Append::Rejected(_)))
         | Completion::SpatialAppend(Ok(crate::long_capture::SpatialAppend::Rejected(_))) => {
-            state.rejected.set(state.rejected.get().saturating_add(1));
-            if state.rejected.get() >= 3 {
-                state.stop();
-            } else {
-                state.schedule.borrow_mut().completed(Instant::now());
-            }
+            // 拖动途中可能短暂重绘或没有可靠重叠；跳过该帧，保留最后可信基准继续采样。
+            state.schedule.borrow_mut().completed(Instant::now());
         }
         Completion::Preview(Err(crate::long_capture::Error::UnconfirmedEdges)) => {}
         Completion::Compose(Ok(_)) | Completion::SpatialCompose(Ok(_)) => state.cancel(),
@@ -192,6 +172,7 @@ unsafe fn drive_with_timer(hwnd: HWND, input: &Input, arm: impl FnOnce(u32) -> b
     if !input.recording.enabled() {
         return;
     }
+    movement::drive(hwnd, input);
     let busy = input.job.borrow().is_pending();
     let action = input
         .recording
@@ -215,7 +196,7 @@ unsafe fn drive_with_timer(hwnd: HWND, input: &Input, arm: impl FnOnce(u32) -> b
         Action::Limit => {
             input.recording.stop();
             input.finish.retry();
-            status(hwnd, "录制已达到次数或时间上限，可完成或取消");
+            status(hwnd, "录制已达到时间上限，可完成或取消");
             controls(hwnd, input, false);
         }
         Action::Idle => {

@@ -14,6 +14,25 @@ pub fn resized_image(
     axis: Axis,
     cancelled: impl Fn() -> bool,
 ) -> Result<Pixels, Error> {
+    resized_axes(
+        source,
+        source_size,
+        output_size,
+        axis == Axis::Horizontal,
+        axis == Axis::Vertical,
+        cancelled,
+    )
+}
+
+/// Live 底图保持编辑坐标尺寸；无镜像与双轴镜像也只分配一次。
+pub(crate) fn resized_axes(
+    source: &Pixels,
+    source_size: (u32, u32),
+    output_size: (u32, u32),
+    horizontal: bool,
+    vertical: bool,
+    cancelled: impl Fn() -> bool,
+) -> Result<Pixels, Error> {
     let source_bytes =
         checked_image_bytes(source_size.0, source_size.1).ok_or(Error::InvalidInput)?;
     let bytes = checked_image_bytes(output_size.0, output_size.1).ok_or(Error::InvalidInput)?;
@@ -24,7 +43,7 @@ pub fn resized_image(
         return Err(Error::Cancelled);
     }
     if source_size == output_size {
-        return raster_flip::image(source, source_size, axis, cancelled);
+        return raster_flip::image_axes(source, source_size, horizontal, vertical, cancelled);
     }
     let mut lease = pixels::reserve(bytes).ok_or(Error::BudgetExceeded)?;
     let mut output = Vec::new();
@@ -41,18 +60,10 @@ pub fn resized_image(
         if cancelled() {
             return Err(Error::Cancelled);
         }
-        let mirrored_y = if axis == Axis::Vertical {
-            oh - 1 - y
-        } else {
-            y
-        };
+        let mirrored_y = if vertical { oh - 1 - y } else { y };
         let (y0, y1, fy) = sample(mirrored_y, oh, sh);
         for x in 0..ow {
-            let mirrored_x = if axis == Axis::Horizontal {
-                ow - 1 - x
-            } else {
-                x
-            };
+            let mirrored_x = if horizontal { ow - 1 - x } else { x };
             let (x0, x1, fx) = sample(mirrored_x, ow, sw);
             let top_left = ((y0 * sw + x0) * 4) as usize;
             let top_right = ((y0 * sw + x1) * 4) as usize;

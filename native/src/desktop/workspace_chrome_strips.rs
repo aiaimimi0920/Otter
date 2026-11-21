@@ -1,4 +1,4 @@
-//! 端点条与曲线统一受连接组层序管理；不绑定原生 owner，节点身份与回收归 Strip。
+//! 左右端点条按所属钉图管理层序；不绑定原生 owner，节点身份与回收归 Strip。
 use super::*;
 pub(super) struct Strip {
     pub hwnd: HWND,
@@ -14,7 +14,7 @@ impl Strip {
             WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
             CLASS,
             w!("Otter · 端口"),
-            WS_POPUP,
+            WS_POPUP | WS_CLIPCHILDREN,
             0,
             0,
             1,
@@ -61,7 +61,7 @@ impl Drop for Strip {
         }
     }
 }
-pub(super) unsafe fn refresh(ui: &Ui) -> Result<()> {
+pub(super) unsafe fn refresh(ui: &Ui, translated: bool) -> Result<()> {
     let handles = ui.input_windows.borrow().clone();
     let ports = draw::ports(ui);
     let images: Vec<_> = ui
@@ -86,18 +86,32 @@ pub(super) unsafe fn refresh(ui: &Ui) -> Result<()> {
     for (hwnd, endpoint, side) in handles {
         let Some(node) = ui
             .node(endpoint)
-            .filter(|node| node.ports(ui.mode.get(), false))
+            .filter(|node| node.ports(ui.mode.get(), node.hide_collapsed_endpoints))
         else {
             let _ = ShowWindow(hwnd, SW_HIDE);
             continue;
         };
-        let areas: Vec<_> = ports
+        let mut areas: Vec<_> = ports
             .iter()
             .filter(|(p, _, _)| p.node == endpoint && p.side == side)
             .map(|(p, point, radius)| draw::port_rect(ui, *p, *point, *radius))
             .collect();
-        let capsule = capsule::area(ui, hwnd);
-        let mut all = areas.iter().chain(capsule.iter());
+        if side == Side::Output {
+            if let Some(auxiliary) = candidate_auxiliary::layout(ui, &node) {
+                areas.push(auxiliary);
+            }
+        }
+        if side == Side::Input && parameter_rail::active(ui, &node) {
+            if let Some(track) = parameter_rail::layout(ui, &node).and_then(|r| r.track()) {
+                areas.push(RECT {
+                    left: track.x,
+                    top: track.y,
+                    right: track.x + track.width,
+                    bottom: track.y + track.height,
+                });
+            }
+        }
+        let mut all = areas.iter();
         let Some(first) = all.next() else {
             let _ = ShowWindow(hwnd, SW_HIDE);
             continue;
@@ -129,6 +143,10 @@ pub(super) unsafe fn refresh(ui: &Ui) -> Result<()> {
         )?;
         let mut current = RECT::default();
         GetWindowRect(hwnd, &mut current)?;
+        let redraw = !translated
+            || !IsWindowVisible(hwnd).as_bool()
+            || i64::from(current.right - current.left) != width
+            || i64::from(current.bottom - current.top) != height;
         if current != bounds {
             SetWindowPos(
                 hwnd,
@@ -162,10 +180,6 @@ pub(super) unsafe fn refresh(ui: &Ui) -> Result<()> {
                     RGN_DIFF,
                 )?;
             }
-            // 单字段 child 有独立的外侧布局，不随端口的遮挡裁剪丢失输入区域。
-            if let Some(area) = capsule {
-                combine(region, bounds, area, RGN_OR)?;
-            }
             // 相同 region 也会生成 WM_WINDOWPOSCHANGED；静止端点不应随其他钉图反复重置。
             let previous = CreateRectRgn(0, 0, 0, 0);
             if previous.is_invalid() {
@@ -185,8 +199,7 @@ pub(super) unsafe fn refresh(ui: &Ui) -> Result<()> {
         if !matches!(result, Ok(true)) {
             let _ = DeleteObject(HGDIOBJ(region.0));
         }
-        result?;
-        capsule::place(ui, hwnd, bounds)?;
+        let region_changed = result?;
         if !ui.blocked() && !IsWindowVisible(hwnd).as_bool() {
             SetWindowPos(
                 hwnd,
@@ -203,9 +216,12 @@ pub(super) unsafe fn refresh(ui: &Ui) -> Result<()> {
                     | SWP_NOOWNERZORDER,
             )?;
         }
-        InvalidateRect(Some(hwnd), None, false).ok()?;
+        // 纯平移已搬动缓存端口；只在裁剪/尺寸改变时重画，不能让一个钉图拖动重画所有端点。
+        if redraw || region_changed {
+            InvalidateRect(Some(hwnd), None, false).ok()?;
+        }
     }
-    Ok(())
+    parameter_rail::place(ui)
 }
 
 unsafe fn combine(region: HRGN, bounds: RECT, area: RECT, mode: RGN_COMBINE_MODE) -> Result<()> {

@@ -6,11 +6,19 @@ impl Application {
             self.chrome.close();
         }
         self.history_window.take();
+        crate::desktop::device_authorization_ui::share::shutdown(&self.authorization);
         self.capture_history.shutdown();
+        self.local_loom.shutdown();
         // 不在单个窗口 WM_CLOSE 回调中等待网络或驱动清理。
         self.execution_wake.close();
+        self.extension_commands.shutdown();
+        unsafe {
+            self.extension_shortcuts.shutdown();
+        }
+        self.extensions.shutdown();
         self.local_arts.shutdown();
         self.projection_edit.shutdown();
+        self.account_projection.shutdown();
         self.reset_projection_inbox();
         self.projection_receive
             .shutdown(&mut self.projection_cleanup);

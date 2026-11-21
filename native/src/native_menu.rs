@@ -8,6 +8,8 @@ use windows::{
 pub mod accessibility;
 #[path = "native_menu_cascade.rs"]
 pub mod cascade;
+#[path = "native_menu_layout.rs"]
+mod layout;
 #[path = "native_menu_model.rs"]
 mod model;
 #[path = "native_menu_panel.rs"]
@@ -18,6 +20,8 @@ mod scrollbar;
 mod uia;
 
 pub struct Item {
+    pub delete: Option<usize>,
+    pub preview: Option<panel::Preview>,
     pub thumbnail: Option<crate::image_thumbnail::Thumbnail>,
     pub command: usize,
     /// 保留 & 助记符和制表符快捷键；绘制层负责解析，不修改业务标签。
@@ -111,6 +115,8 @@ fn read(menu: HMENU, depth: usize, budget: &mut Budget) -> Result<Vec<Item>> {
             Some(read(info.hSubMenu, depth + 1, budget)?)
         };
         items.push(Item {
+            delete: None,
+            preview: None,
             thumbnail: None,
             command: info.wID as usize,
             label,

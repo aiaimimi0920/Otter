@@ -39,7 +39,14 @@ unsafe fn finish(session: &mut Session, owner: &mut Owner) -> Result<(), String>
         pump();
         owner.poll().unwrap();
         result = session.poll();
-        assert!(Instant::now() < deadline, "Crop capture did not terminate");
+        assert!(
+            Instant::now() < deadline,
+            "Crop capture did not terminate: capture={:?} input={} window={} error={:?}",
+            session.capture_result,
+            session.input.is_some(),
+            session.window.is_some(),
+            session.error
+        );
         std::thread::sleep(Duration::from_millis(2));
     }
     owner.close();
@@ -115,7 +122,7 @@ fn actual_wgc_crop_move_resize_input_and_terminal_cleanup() {
                 let moved =
                     wait_pixels(&mut session, &mut owner, "moved white crop", true, initial);
                 let window = session.window.as_ref().unwrap().hwnd_for_test();
-                SendMessageW(window, WM_SYSCOMMAND, Some(WPARAM(0x1ff0)), None);
+                // Live 默认启用；旧测试的 toggle 会关闭已启用的输入，不能冒充首次启用。
                 until(
                     &mut session,
                     &mut owner,

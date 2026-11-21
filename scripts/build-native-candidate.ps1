@@ -59,7 +59,7 @@ try {
     $sourceScript = Join-Path $PSScriptRoot 'native-candidate/source.cjs'
     & $commands['node'] $sourceScript $repo $metadata (Join-Path $output 'source-before.json')
     if ($LASTEXITCODE -ne 0) { throw 'Native source preflight failed.' }
-    $arguments = @('build', '--manifest-path', 'native/Cargo.toml', '--locked', '--offline', '--release', '--bin', 'otter-native', '--target', 'x86_64-pc-windows-msvc')
+    $arguments = @('build', '--manifest-path', 'native/Cargo.toml', '--locked', '--offline', '--release', '-p', 'otter-native', '-p', 'otter-live-hover-hook', '--lib', '--bin', 'otter-native', '--target', 'x86_64-pc-windows-msvc')
     Write-Output "Building $($version.buildVersion); log will be retained in $output"
     Invoke-NativeCandidateTool -Executable $commands['cargo'] -Arguments $arguments -LogPath (Join-Path $output 'build.log')
     & $commands['node'] $sourceScript $repo $metadata (Join-Path $output 'source-after.json')
@@ -74,6 +74,9 @@ try {
     $exe = Join-Path $target 'x86_64-pc-windows-msvc/release/otter-native.exe'
     [void](Assert-OtterAbsolutePathNoReparsePoints -Path $exe -TrustedRootPath $target)
     Copy-Item -LiteralPath $exe -Destination (Join-Path $output 'payload/otter-native.exe')
+    $hook = Join-Path $target 'x86_64-pc-windows-msvc/release/otter_live_hover_hook.dll'
+    [void](Assert-OtterAbsolutePathNoReparsePoints -Path $hook -TrustedRootPath $target)
+    Copy-Item -LiteralPath $hook -Destination (Join-Path $output 'payload/otter_live_hover_hook.dll')
     & $commands['node'] (Join-Path $PSScriptRoot 'native-candidate/provenance.cjs') create $output
     if ($LASTEXITCODE -ne 0) { throw 'Native candidate identity verification failed.' }
 } catch {

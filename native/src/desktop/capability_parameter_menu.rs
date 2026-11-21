@@ -4,10 +4,13 @@ use super::{configuration_stamp::Stamp, State};
 #[path = "parameter_commit.rs"]
 mod commit;
 use serde_json::Value;
+#[cfg(test)]
+use windows::core::{w, HSTRING};
 use windows::{
-    core::{w, Result, HSTRING},
+    core::Result,
     Win32::{Foundation::*, UI::WindowsAndMessaging::*},
 };
+#[cfg(test)]
 const FIRST: usize = 0x7000;
 const MAX_CHOICES: usize = 512;
 fn edit_label(label: &str, value: &str, linked: bool) -> String {
@@ -41,6 +44,7 @@ fn reset_value(parameter: &crate::loom_capability::Parameter<'_>) -> Option<Opti
             .unwrap_or(fallback),
     ))
 }
+#[cfg(test)]
 pub(super) unsafe fn append(parent: HMENU, state: &State) -> Result<Option<Snapshot>> {
     let snapshot = Snapshot::capture(state);
     if let Some(snapshot) = &snapshot {
@@ -48,6 +52,7 @@ pub(super) unsafe fn append(parent: HMENU, state: &State) -> Result<Option<Snaps
     }
     Ok(snapshot)
 }
+#[cfg(test)]
 pub(super) unsafe fn apply(
     snapshot: Option<Snapshot>,
     hwnd: HWND,
@@ -72,7 +77,9 @@ pub(super) struct Snapshot {
     stamp: Stamp,
     pub choices: Vec<Choice>,
 }
+#[cfg(test)]
 struct Menu(HMENU);
+#[cfg(test)]
 impl Drop for Menu {
     fn drop(&mut self) {
         unsafe {
@@ -243,6 +250,7 @@ impl Snapshot {
             choices,
         })
     }
+    #[cfg(test)]
     pub unsafe fn append(&self, parent: HMENU, state: &State) -> Result<()> {
         let menu = Menu(CreatePopupMenu()?);
         for (index, choice) in self.choices.iter().enumerate() {
@@ -268,11 +276,13 @@ impl Snapshot {
         std::mem::forget(menu);
         Ok(())
     }
+    #[cfg(test)]
     pub fn handles(&self, command: usize) -> bool {
         command
             .checked_sub(FIRST)
             .is_some_and(|index| index < self.choices.len())
     }
+    #[cfg(test)]
     pub unsafe fn select(&self, hwnd: HWND, state: &State, command: usize) -> Result<bool> {
         match command.checked_sub(FIRST) {
             Some(index) => self.submit(hwnd, state, index, None),

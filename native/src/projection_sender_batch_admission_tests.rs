@@ -67,7 +67,7 @@ fn batch_admission_counts_existing_and_primary_and_preserves_unknown_fields() {
         &"a".repeat(64),
         "https://loom.example",
         "unit-1",
-        intent.target(),
+        intent.target().unwrap(),
     )
     .unwrap();
     assert!(Binding::admit_batch(&source, &[existing]).is_err());

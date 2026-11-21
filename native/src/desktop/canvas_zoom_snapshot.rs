@@ -20,6 +20,11 @@ impl Canvas {
         copy.software_renderer = true;
         copy.viewport = self.viewport;
         copy.window_opacity = self.window_opacity;
+        copy.frame_style = self.frame_style;
+        copy.extension_views = self
+            .extension_views
+            .as_ref()
+            .and_then(|views| views.rebind(self, &copy, frame));
         copy.tool = self.tool;
         if frame.is_none() {
             copy.selected = self.selected;

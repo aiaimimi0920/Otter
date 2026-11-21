@@ -17,6 +17,8 @@ use std::{
 mod result_tests;
 #[path = "surface_javascript_signed_runtime.rs"]
 pub mod runtime;
+#[path = "surface_javascript_signed_view.rs"]
+mod view;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Error {

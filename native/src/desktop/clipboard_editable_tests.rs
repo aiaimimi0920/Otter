@@ -22,6 +22,7 @@ fn content() -> Content {
         image,
         editor,
         opacity: 0.5,
+        frame_style: Default::default(),
         capture_source: None,
         origin: None,
     }
@@ -29,7 +30,16 @@ fn content() -> Content {
 
 #[test]
 fn each_paste_has_fresh_document_annotations_and_history_but_shared_pixels() {
-    let content = content();
+    let mut content = content();
+    let plan = content
+        .editor
+        .prepare_flip(crate::raster_flip::Axis::Horizontal, |_| unreachable!())
+        .unwrap()
+        .unwrap()
+        .compute(|| false)
+        .unwrap();
+    assert!(content.editor.commit_raster_refresh(plan).unwrap());
+    content.image.pixels = content.editor.layers().unwrap().base.clone();
     let source = content.editor.document_stamp();
     let first = content.prepare(|| false).unwrap();
     let first = first.editable.unwrap();
@@ -55,6 +65,11 @@ fn each_paste_has_fresh_document_annotations_and_history_but_shared_pixels() {
         .base
         .same_storage(&content.image.pixels));
     assert!(!second.editor.undo());
+    assert_eq!(
+        first.editor.mirror_state(),
+        crate::editor::MirrorState { x: true, y: false }
+    );
+    assert_eq!(second.editor.mirror_state(), first.editor.mirror_state());
     second
         .editor
         .begin(Tool::Brush, Point { x: 1.0, y: 1.0 })

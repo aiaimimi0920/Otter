@@ -1,11 +1,38 @@
-//! 真实旧合同形状与安全边界；每次全量拒绝，不发布部分目标或悬空组成员。
+//! 当前目录合同与安全边界；每次全量拒绝，不发布部分目标或悬空组成员。
 use super::*;
 use serde_json::{json, Value};
 const ORIGIN: &str = "https://loom.example";
 pub(crate) fn body() -> Value {
     json!({"targets":[{"deviceId":"receiver-one","name":"A&B","policy":"confirm","route":"shared_loom"}],
         "groups":[{"groupId":"group:one","name":"Pair","targetIds":["receiver-one"],"unavailableCount":1}],
-        "peerDirectory":{"status":"partial"}})
+        "peerDirectory":{"status":"partial"},"friends":{"users":[]}})
+}
+
+#[test]
+fn logged_in_users_preserve_account_scope_and_reject_dangling_targets() {
+    let mut value = body();
+    value["friends"] = json!({"users":[{"userId":"user:one","issuer":"https://account.example",
+        "accountId":"account-1","name":"登录用户","targetIds":["receiver-one"]}]});
+    let directory = parse(&value).unwrap();
+    assert_eq!(directory.users()[0].name(), "登录用户");
+    assert_eq!(directory.users()[0].target_ids(), &["receiver-one"]);
+    for (key, invalid) in [
+        ("targetIds", json!(["missing"])),
+        ("targetIds", json!(["receiver-one", "receiver-one"])),
+        ("issuer", json!("http://external.invalid")),
+        ("accountId", json!("")),
+        ("name", json!("bad\nname")),
+    ] {
+        let mut bad = value.clone();
+        bad["friends"]["users"][0][key] = invalid;
+        assert!(parse(&bad).is_err(), "{key}");
+    }
+    let duplicate = value["friends"]["users"][0].clone();
+    value["friends"]["users"]
+        .as_array_mut()
+        .unwrap()
+        .push(duplicate);
+    assert!(parse(&value).is_err());
 }
 fn parse(value: &Value) -> Result<Directory, Error> {
     Directory::parse(&serde_json::to_vec(value).unwrap(), ORIGIN)
@@ -19,7 +46,7 @@ fn offline(available: bool) -> Value {
         "transferProtocol":"loom.offline-transfer.v1","unavailableReason":"offline_peer_delivery_not_implemented"})
 }
 #[test]
-fn projection_targets_keeps_typed_groups_origin_and_legacy_optional_fields() {
+fn projection_targets_requires_current_directory_fields_and_keeps_origin() {
     let directory = parse(&body()).unwrap();
     assert_eq!(directory.origin(), ORIGIN);
     assert_eq!(directory.status(), Status::Partial);
@@ -30,9 +57,11 @@ fn projection_targets_keeps_typed_groups_origin_and_legacy_optional_fields() {
     assert_eq!(groups[0].id(), "group:one");
     assert_eq!(groups[0].target_ids(), &["receiver-one"]);
     assert_eq!(groups[0].unavailable_count(), 1);
-    let old = parse(&json!({"targets":[]})).unwrap();
-    assert_eq!(old.status(), Status::Complete);
-    assert!(old.groups().is_none());
+    for field in ["peerDirectory", "groups", "friends"] {
+        let mut incomplete = body();
+        incomplete.as_object_mut().unwrap().remove(field);
+        assert!(parse(&incomplete).is_err());
+    }
     for status in ["complete", "partial", "busy", "unavailable"] {
         let mut value = body();
         value["peerDirectory"]["status"] = status.into();
@@ -42,7 +71,7 @@ fn projection_targets_keeps_typed_groups_origin_and_legacy_optional_fields() {
 #[test]
 fn projection_targets_offline_hash_binding_and_advertised_availability_are_preserved() {
     for available in [false, true] {
-        let value = json!({"targets":[offline(available)]});
+        let value = json!({"targets":[offline(available)],"groups":[],"peerDirectory":{"status":"complete"},"friends":{"users":[]}});
         let directory = parse(&value).unwrap();
         assert!(
             matches!(directory.targets()[0].route(), Route::OfflinePeer {

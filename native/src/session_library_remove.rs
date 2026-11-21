@@ -63,6 +63,45 @@ pub fn prepare(
     Ok(bytes)
 }
 
+/// 显式清空只修改选定库的原文；不删除图片文件、不改变另一库或活动窗口。
+pub fn clear(
+    original: &[u8],
+    kind: Kind,
+    cancel: &AtomicBool,
+) -> Result<crate::pixels::Pixels, String> {
+    if cancel.load(Ordering::Acquire) {
+        return Err("Frozen clear cancelled".into());
+    }
+    crate::session_document::decode(original)
+        .map_err(|error| format!("Invalid frozen source: {error:?}"))?;
+    let library = super::decode(original, kind)?;
+    if library.entries().is_empty() {
+        return crate::session_write::encode_bounded(
+            &serde_json::from_slice::<&RawValue>(original).map_err(|error| error.to_string())?,
+            cancel,
+        )
+        .map_err(|error| format!("Frozen clear encoding: {error:?}"));
+    }
+    let root =
+        candidate::fields(std::str::from_utf8(original).map_err(|error| error.to_string())?)?;
+    let key = match kind {
+        Kind::RecycleBin => "recycleBin",
+        Kind::ReferenceLibrary => "referenceLibrary",
+    };
+    let bytes = crate::session_write::encode_bounded(
+        &Updated {
+            root,
+            key,
+            entries: Vec::new(),
+        },
+        cancel,
+    )
+    .map_err(|error| format!("Frozen clear encoding: {error:?}"))?;
+    crate::session_document::decode(&bytes)
+        .map_err(|error| format!("Invalid frozen clear: {error:?}"))?;
+    Ok(bytes)
+}
+
 #[cfg(test)]
 #[path = "session_library_remove_tests.rs"]
 mod tests;

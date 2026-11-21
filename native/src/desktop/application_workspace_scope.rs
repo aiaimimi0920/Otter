@@ -1,6 +1,42 @@
 //! 只从默认工作区真实提交取得发送 scope；导入、暂存、手动另存不借旧 canonical 凭证。
 use super::*;
 impl Owner {
+    pub(in crate::desktop::application) fn account_bindings(
+        &self,
+        workspace: &crate::workspace::Workspace,
+    ) -> Vec<crate::projection_account::scene::Binding> {
+        self.accounts
+            .as_ref()
+            .map(|index| {
+                index
+                    .bindings()
+                    .iter()
+                    .filter(|binding| self.includes_account(binding, workspace))
+                    .cloned()
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+    pub(in crate::desktop::application) fn includes_account(
+        &self,
+        binding: &crate::projection_account::scene::Binding,
+        workspace: &crate::workspace::Workspace,
+    ) -> bool {
+        !self.stopped
+            && self
+                .projection_workspace
+                .as_ref()
+                .is_some_and(|stamp| stamp.matches(workspace))
+            && self.original.as_ref().is_some_and(|source| {
+                self.accounts
+                    .as_ref()
+                    .is_some_and(|index| index.is_for(source) && index.includes(binding))
+            })
+            && self
+                .projection_scope
+                .as_ref()
+                .is_some_and(|proof| proof.scope() == binding.scope())
+    }
     pub(in crate::desktop::application) fn sender_source(
         &self,
     ) -> Option<&crate::session_source::Source> {

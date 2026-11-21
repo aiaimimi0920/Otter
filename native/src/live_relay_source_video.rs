@@ -7,6 +7,7 @@ use crate::{
 use std::sync::{atomic::AtomicBool, Arc};
 pub(super) struct Video {
     encoder: Option<VideoEncoder>,
+    size: [u32; 2],
     policy: VideoPolicy,
     refresh: bool,
     since_idr: u32,
@@ -17,6 +18,7 @@ impl Video {
         let network = budget.reserve(crate::live_relay_media_transport::BUFFER_BUDGET);
         Self {
             encoder: network.and_then(|_network| VideoEncoder::create(size, budget).ok()),
+            size,
             policy: VideoPolicy {
                 epoch: 1,
                 h264_allowed: false,
@@ -28,6 +30,18 @@ impl Video {
     }
     pub fn available(&self) -> bool {
         self.encoder.is_some()
+    }
+    pub fn resize(&mut self, size: [u32; 2], budget: &Arc<Budget>) {
+        if size == self.size {
+            return;
+        }
+        self.size = size;
+        self.since_idr = 30;
+        // 先释放旧编码器的额度和系统资源；尺寸变化不能复活已失败的编码器。
+        if self.encoder.is_some() {
+            self.encoder.take();
+            self.encoder = VideoEncoder::create(size, budget).ok();
+        }
     }
     pub fn legacy(&mut self) {
         self.encoder.take();

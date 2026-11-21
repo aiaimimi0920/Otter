@@ -17,20 +17,36 @@ impl LiveWindow {
             if !ClientToScreen(self.hwnd, &mut origin).as_bool() {
                 return Err(Error::from_win32());
             }
-            physical_rect(
+            let content = self
+                .state
+                .host
+                .borrow()
+                .as_ref()
+                .map_or(source.map(f64::from), |host| host.content_size(source));
+            physical_content_rect(
                 source,
                 [
                     (client.right - client.left).max(0) as u32,
                     (client.bottom - client.top).max(0) as u32,
                 ],
                 [origin.x, origin.y],
+                content,
             )
             .ok_or_else(|| Error::new(E_INVALIDARG, "Invalid Live freeze geometry"))
         }
     }
 }
+#[cfg(test)]
 fn physical_rect(source: [u32; 2], client: [u32; 2], origin: [i32; 2]) -> Option<PinRect> {
-    let view = crate::live_viewport::Viewport::fit(source, client)?;
+    physical_content_rect(source, client, origin, source.map(f64::from))
+}
+fn physical_content_rect(
+    source: [u32; 2],
+    client: [u32; 2],
+    origin: [i32; 2],
+    content: [f64; 2],
+) -> Option<PinRect> {
+    let view = crate::live_viewport::Viewport::fit_content(source, client, content)?;
     let [left, top, right, bottom] = view
         .destination()
         .map(|value| f64::from(value).round() as i64);

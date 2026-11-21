@@ -11,15 +11,18 @@ pub(in crate::desktop::application::chrome) struct Surface {
     old: HGDIOBJ,
     size: SIZE,
     _lease: crate::byte_budget::Lease,
+    pub(super) content: Option<super::Content>,
+    #[cfg(test)]
+    pub(in crate::desktop::application::chrome) submissions: std::cell::Cell<u32>,
 }
 impl Surface {
-    pub(super) fn fits(&self, size: SIZE) -> bool {
+    pub(in crate::desktop::application::chrome) fn fits(&self, size: SIZE) -> bool {
         self.size == size
     }
     pub(in crate::desktop::application::chrome) fn dc(&self) -> HDC {
         self.dc
     }
-    pub(super) unsafe fn new(size: SIZE) -> Result<Self> {
+    pub(in crate::desktop::application::chrome) unsafe fn new(size: SIZE) -> Result<Self> {
         let count = i64::from(size.cx) * i64::from(size.cy);
         if size.cx <= 0 || size.cy <= 0 || size.cx > 32768 || size.cy > 32768 || count > MAX_PIXELS
         {
@@ -37,6 +40,9 @@ impl Surface {
             old: HGDIOBJ::default(),
             size,
             _lease: lease,
+            content: None,
+            #[cfg(test)]
+            submissions: Default::default(),
         };
         let info = BITMAPINFO {
             bmiHeader: BITMAPINFOHEADER {
@@ -58,7 +64,13 @@ impl Surface {
         }
         Ok(surface)
     }
-    pub(super) unsafe fn present(&self, hwnd: HWND, rect: Rect) -> Result<()> {
+    pub(in crate::desktop::application::chrome) unsafe fn present(
+        &self,
+        hwnd: HWND,
+        rect: Rect,
+    ) -> Result<()> {
+        #[cfg(test)]
+        self.submissions.set(self.submissions.get() + 1);
         // GDI 批次先完成；DWM 从未观察到清空半帧或新位置上的旧尺寸内容。
         GdiFlush().ok()?;
         UpdateLayeredWindow(

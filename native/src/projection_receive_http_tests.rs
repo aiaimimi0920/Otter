@@ -71,6 +71,98 @@ fn authenticated_accept_returns_compressed_pixels_but_does_not_report_displayed(
     peer.join().unwrap();
 }
 #[test]
+fn shared_loom_busy_before_accept_retries_the_exact_logged_request() {
+    let (listener, client, tls) = fixture();
+    let origin = client.origin().to_owned();
+    let server_origin = origin.clone();
+    let peer = std::thread::spawn(move || {
+        let mut first = StreamOwned::new(
+            ServerConnection::new(tls.clone()).unwrap(),
+            accept(&listener),
+        );
+        let (head, body) = request(&mut first);
+        assert!(head.starts_with("POST /v1/projections/accept "));
+        reply(&mut first, 429, br#"{"error":{"code":"projection_busy"}}"#);
+        let mut second = StreamOwned::new(ServerConnection::new(tls).unwrap(), accept(&listener));
+        let (retry_head, retry_body) = request(&mut second);
+        assert!(retry_head.starts_with("POST /v1/projections/accept "));
+        assert_eq!(retry_body, body);
+        assert_ne!(head, retry_head); // 独立 nonce，不重放原 HTTP 请求。
+        reply(
+            &mut second,
+            200,
+            &serde_json::to_vec(&pixels::response(&server_origin)).unwrap(),
+        );
+    });
+    let mut grant = Grant::new(session(&origin, u64::MAX));
+    let mut job = Job::start_prepared(
+        client,
+        grant.lease(&origin, 0).unwrap(),
+        accept_operation(&origin),
+    )
+    .unwrap();
+    wait(&job);
+    assert!(matches!(job.try_join(), Some(Ok(Output::Received(_)))));
+    peer.join().unwrap();
+}
+#[test]
+fn only_definite_shared_busy_can_retire_the_unapplied_accept() {
+    use crate::{live_relay_http::Error as Http, projection_delivery_runtime::Error as JobError};
+    for (definite, existing) in [(true, false), (true, true), (false, false)] {
+        let (listener, client, tls) = fixture();
+        let origin = client.origin().to_owned();
+        let peer = std::thread::spawn(move || {
+            for _ in 0..if definite { 3 } else { 1 } {
+                let mut stream = StreamOwned::new(
+                    ServerConnection::new(tls.clone()).unwrap(),
+                    accept(&listener),
+                );
+                assert!(request(&mut stream)
+                    .0
+                    .starts_with("POST /v1/projections/accept "));
+                let response: &[u8] = if definite {
+                    br#"{"error":{"code":"projection_busy"}}"#
+                } else {
+                    b"unexpected gateway response"
+                };
+                reply(&mut stream, 429, response);
+            }
+            listener
+        });
+        let directory = delivery::journal::tests::Directory::new();
+        let journal = delivery::journal::Store::open(&directory.0).unwrap();
+        let invitation = pixels::invitation(&origin);
+        if existing {
+            journal.begin(&invitation, "device-1").unwrap();
+        }
+        let mut grant = Grant::new(session(&origin, u64::MAX));
+        let mut job = Job::start_prepared(
+            client,
+            grant.lease(&origin, 0).unwrap(),
+            Operation::Accept {
+                invitation: Box::new(invitation),
+                journal: journal.clone(),
+            },
+        )
+        .unwrap();
+        wait(&job);
+        assert_eq!(
+            job.try_join().unwrap().unwrap_err(),
+            match (definite, existing) {
+                (true, false) => JobError::AcceptBusyUnapplied,
+                (true, true) => JobError::Http(Http::ProjectionBusy),
+                (false, _) => JobError::Http(Http::Status(429)),
+            }
+        );
+        assert_eq!(job.take_abandoned().is_none(), definite);
+        assert_eq!(journal.pending().unwrap().is_empty(), definite && !existing);
+        assert_eq!(
+            peer.join().unwrap().accept().unwrap_err().kind(),
+            io::ErrorKind::WouldBlock
+        );
+    }
+}
+#[test]
 fn completed_ready_survives_job_drop_and_only_transfers_with_original_grant() {
     let (client, peer) = start_reply(pixels::response);
     let origin = client.origin().to_owned();

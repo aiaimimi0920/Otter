@@ -1,4 +1,10 @@
 use super::*;
+#[path = "application_save_frame_tests.rs"]
+mod frame_tests;
+#[path = "application_save_mirror_tests.rs"]
+mod mirror_tests;
+#[path = "application_save_node_settings_tests.rs"]
+mod node_settings_tests;
 use crate::session_source::Source;
 use crate::{
     editor::Editor, pin_geometry::PinRect, session_placement::Space, workspace_id::UnitId,
@@ -8,6 +14,7 @@ fn id(value: &str) -> UnitId {
 }
 pub(super) fn doc(unit: &str) -> Document {
     Document {
+        extensions: None,
         output_images: Vec::new(),
         outputs: None,
         capture_original: None,
@@ -26,6 +33,8 @@ pub(super) fn doc(unit: &str) -> Document {
         transition: None,
         normal_opacity: 1.0,
         mini_opacity: 0.9,
+        frame_style: None,
+        node_settings: Some(Default::default()),
         pinned: false,
         art: false,
         local_art_id: None,
@@ -440,3 +449,5 @@ fn minified_annotation_write_keeps_expanded_coordinates_and_single_view_offset()
         (-10.0, 0.0)
     );
 }
+#[path = "application_save_extension_tests.rs"]
+mod extensions;

@@ -156,3 +156,21 @@ fn wrong_panel_marker_never_returns_a_capture_target_or_destroys_successor() {
         assert_eq!(f.state.parameters_ui.window(), hwnd);
     }
 }
+
+#[test]
+fn full_panel_retirement_clears_expansion_without_resetting_a_new_owner() {
+    unsafe {
+        let f = Fixture::new();
+        f.state.parameters_ui.expanded.set(true);
+        let Fixture { panel, host, state } = f;
+        drop(panel);
+        assert!(!state.parameters_ui.expanded.get());
+        let old = Panel::new(host.0, &state).unwrap();
+        let current = Panel::new(host.0, &state).unwrap();
+        state.parameters_ui.expanded.set(true);
+        drop(old);
+        assert!(state.parameters_ui.expanded.get());
+        DestroyWindow(current.handle()).unwrap();
+        assert!(!state.parameters_ui.expanded.get());
+    }
+}

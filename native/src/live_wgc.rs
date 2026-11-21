@@ -21,6 +21,8 @@ use windows::{
         },
     },
 };
+#[path = "live_wgc_drain.rs"]
+mod drain;
 #[path = "live_wgc_pool.rs"]
 mod pool;
 #[path = "live_wgc_resize.rs"]
@@ -66,6 +68,7 @@ pub struct Session {
     frames: Arc<Source<Texture>>,
     size: SizeInt32,
     region: Option<crate::capture_readback::Region>,
+    window_target: Option<crate::live_window_target::Target>,
     window_crop: Option<(
         crate::live_window_target::Target,
         crate::live_window_target::region::Crop,
@@ -119,6 +122,7 @@ impl Session {
             Ok(item)
         })?;
         session.window_crop = crop.map(|crop| (target.clone(), crop));
+        session.window_target = Some(target.clone());
         Ok(session)
     }
     fn start_monitor(
@@ -145,7 +149,7 @@ impl Session {
             return Err(Error::NoConsumers);
         }
         let apartment = lifetime::Apartment::new()?;
-        if !GraphicsCaptureSession::IsSupported()? {
+        if !super::factory::supported()? {
             return Err(Error::Unsupported);
         }
         let item = create()?;
@@ -175,6 +179,7 @@ impl Session {
             size,
             region,
             window_crop: None,
+            window_target: None,
             resize_allowed,
             _budget: Some(budget),
             _apartment: apartment,
@@ -232,19 +237,34 @@ impl Session {
                 return Err(Error::TargetChanged);
             }
             let content = frame.0.ContentSize()?;
+            // 全窗口与裁剪窗口都保留最小化前的最后一帧，不呈现任务栏缩略尺寸。
+            if self.window_target.as_ref().is_some_and(|target| unsafe {
+                windows::Win32::UI::WindowsAndMessaging::IsIconic(target.hwnd()).as_bool()
+            }) {
+                continue;
+            }
             if let Some((target, crop)) = &self.window_crop {
                 // 最小化不重建零池；resize 的旧帧不交付为另一个偏移的画面。
-                if unsafe { windows::Win32::UI::WindowsAndMessaging::IsIconic(target.hwnd()) }
-                    .as_bool()
-                    || content.Width == 0
-                    || content.Height == 0
-                {
+                if content.Width == 0 || content.Height == 0 {
                     continue;
                 }
                 if content.Width < 0 || content.Height < 0 {
                     return Err(Error::Dimensions);
                 }
-                let bounds = target.frame_bounds().map_err(|_| Error::TargetChanged)?;
+                let bounds = match target.frame_bounds() {
+                    Ok(bounds) => bounds,
+                    // 读边界前源可能刚最小化；身份仍有效时等待恢复，不把过渡当成换源。
+                    Err(_)
+                        if target.validate().is_ok()
+                            && unsafe {
+                                windows::Win32::UI::WindowsAndMessaging::IsIconic(target.hwnd())
+                                    .as_bool()
+                            } =>
+                    {
+                        continue
+                    }
+                    Err(_) => return Err(Error::TargetChanged),
+                };
                 if !crop.matches_texture(bounds, [content.Width as u32, content.Height as u32])? {
                     continue;
                 }
@@ -298,6 +318,8 @@ impl Session {
         }
     }
     pub fn close(&mut self) {
+        #[cfg(test)]
+        eprintln!("native-live-close: unsubscribe");
         self.signal.stop();
         if let (Some(pool), Some(token)) = (&self.resources.pool, self.frame_token.take()) {
             if let Err(error) = pool.RemoveFrameArrived(token) {
@@ -310,16 +332,26 @@ impl Session {
             }
         }
         if let Some(session) = self.resources.session.take() {
+            if let Err(error) = drain::finish(&self.context) {
+                // 失败不等于资源已释放；保留诊断并继续原 Close，不丢弃 owner 冒充成功。
+                eprintln!("native-live-close-gpu: {error}");
+            }
+            #[cfg(test)]
+            eprintln!("native-live-close: session");
             if let Err(error) = session.Close() {
                 eprintln!("native-live-close-session: {error}");
             }
         }
         if let Some(pool) = self.resources.pool.take() {
+            #[cfg(test)]
+            eprintln!("native-live-close: pool");
             if let Err(error) = pool.Close() {
                 eprintln!("native-live-close-pool: {error}");
             }
         }
         self.frames.close();
+        #[cfg(test)]
+        eprintln!("native-live-close: complete");
         drop(self._budget.take());
     }
 }

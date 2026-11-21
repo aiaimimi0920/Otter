@@ -1,29 +1,34 @@
 //! 长截图控件投影与任务等待；禁用按钮不替代命令执行时的准入复核。
 use super::*;
+/// 模态和录制浮层共用消息边界；异常也沿实际窗口类型退出，不能留下 modeless 循环。
+pub(super) unsafe extern "system" fn procedure(
+    hwnd: HWND,
+    message: u32,
+    wp: WPARAM,
+    lp: LPARAM,
+) -> isize {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        handle(hwnd, message, wp, lp)
+    }))
+    .unwrap_or_else(|_| {
+        let pointer = GetWindowLongPtrW(hwnd, WINDOW_LONG_PTR_INDEX(USER)) as *const Input;
+        if let Some(input) = pointer.as_ref() {
+            if let Ok(mut error) = input.error.try_borrow_mut() {
+                *error = Some("长截图窗口发生内部错误，录制已关闭。".into());
+            }
+            overlay::end(hwnd, input, 0);
+        }
+        1
+    })
+}
 pub(super) unsafe fn status(hwnd: HWND, text: &str) {
     let _ = SetDlgItemTextW(hwnd, 103, &HSTRING::from(text));
+    overlay::refresh(hwnd);
 }
 pub(super) unsafe fn frame_status(hwnd: HWND, input: &Input, count: usize) {
     if input.recording.enabled() {
-        let snapshot = input.job.borrow().snapshot();
-        let direction = match snapshot.direction {
-            Some(crate::long_capture::Direction::Up) => "向上",
-            Some(crate::long_capture::Direction::Down) => "向下",
-            Some(crate::long_capture::Direction::Left) => "向左",
-            Some(crate::long_capture::Direction::Right) => "向右",
-            None => "方向待识别",
-        };
-        status(
-            hwnd,
-            &format!(
-                "{} · 已采集 {count} 帧 · {direction}",
-                if input.recording.running() {
-                    "录制中"
-                } else {
-                    "已停止"
-                }
-            ),
-        );
+        // 逐帧回复只刷新预览，题头由开始、完成、停止和错误边界更新。
+        overlay::refresh(hwnd);
     } else {
         let mode = if input.job.borrow().can_scroll() {
             ""
@@ -92,13 +97,13 @@ pub(super) unsafe fn waiting(hwnd: HWND, input: &Input) {
         clear_preview(hwnd, input);
     }
     controls(hwnd, input, true);
-    if input.recording.running() {
-        frame_status(hwnd, input, input.job.borrow().snapshot().frame_count);
-    } else if input.automatic.borrow().running() {
-        let count = input.job.borrow().snapshot().frame_count;
-        status(hwnd, &format!("自动采集中：已采集 {count} 帧"));
-    } else {
-        status(hwnd, "处理中…");
+    if !input.recording.enabled() {
+        if input.automatic.borrow().running() {
+            let count = input.job.borrow().snapshot().frame_count;
+            status(hwnd, &format!("自动采集中：已采集 {count} 帧"));
+        } else {
+            status(hwnd, "处理中…");
+        }
     }
     if SetTimer(Some(hwnd), TIMER, 50, None) == 0 {
         *input.error.borrow_mut() = Some("无法等待长截图后台任务。".into());

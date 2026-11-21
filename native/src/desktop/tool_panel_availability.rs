@@ -5,6 +5,7 @@ use crate::editor::Tool;
 pub(super) struct Availability {
     image: bool,
     busy: bool,
+    flipping: bool,
     copying: bool,
     exporting: bool,
     target: bool,
@@ -16,6 +17,14 @@ pub(super) struct Availability {
     minified: bool,
 }
 impl Availability {
+    /// 镜像保留已提交画面，不发布整栏短暂灰态；此投影只用于绘制，执行仍使用 capture。
+    pub(super) fn presentation(mut self) -> Self {
+        self.flipping = false;
+        self
+    }
+    pub(super) fn extension_allowed(self) -> bool {
+        self.image && !self.busy && !self.flipping && !self.capture_blocked && !self.locked
+    }
     pub(super) fn capture(state: &State) -> Option<Self> {
         let canvas = state.canvas.try_borrow().ok()?;
         let image = canvas.image.is_some() || state.resolved_display.try_borrow().ok()?.is_some();
@@ -29,8 +38,7 @@ impl Availability {
             || state.erase_job.try_borrow().ok()?.is_busy()
             || state.crop_job.try_borrow().ok()?.is_some()
             || state.rasterize_job.try_borrow().ok()?.is_some()
-            || state.resize_job.try_borrow().ok()?.is_busy()
-            || state.flip_job.try_borrow().ok()?.is_busy();
+            || state.resize_job.try_borrow().ok()?.is_busy();
         Some(Self {
             locked: state.group_locked.get(),
             minified: canvas.minified.is_some(),
@@ -41,6 +49,7 @@ impl Availability {
             selected_blur: super::blur_input::selected_strength(&canvas).is_some(),
             image,
             busy,
+            flipping: state.flip_job.try_borrow().ok()?.is_busy(),
             target,
             copying: state.copy_job.try_borrow().ok()?.is_some(),
             exporting: state.export.try_borrow().ok()?.is_some(),
@@ -65,7 +74,7 @@ impl Availability {
         if self.locked && !super::group_lock::allows(command) {
             return false;
         }
-        if self.busy {
+        if self.busy || self.flipping {
             return false;
         }
         if let Some(entry) = super::tool_commands::TOOLS
@@ -104,6 +113,41 @@ impl Availability {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn mirror_presentation_keeps_command_gate_and_other_restrictions() {
+        let flipping = Availability {
+            image: true,
+            flipping: true,
+            ..Default::default()
+        };
+        assert!(!flipping.allows(0x42));
+        assert!(!flipping.extension_allowed());
+        assert!(flipping.presentation().allows(0x42));
+        assert!(flipping.presentation().extension_allowed());
+        for blocked in [
+            Availability {
+                busy: true,
+                ..flipping
+            },
+            Availability {
+                locked: true,
+                ..flipping
+            },
+            Availability {
+                image: false,
+                ..flipping
+            },
+        ] {
+            assert!(!blocked.presentation().allows(0x42));
+            assert!(!blocked.presentation().extension_allowed());
+        }
+        assert!(!Availability {
+            capture_blocked: true,
+            ..flipping
+        }
+        .presentation()
+        .allows(super::super::capture_input::COMMAND));
+    }
     #[test]
     fn minified_panel_preserves_independent_output_but_disables_edit_controls() {
         let ready = Availability {

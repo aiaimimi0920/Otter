@@ -1,0 +1,120 @@
+//! 按需的单次扩展执行 owner；使用独立认证连接，不借用目录订阅 socket，不自动重放。
+use super::{
+    capability_job::Source,
+    extension_command_bridge::{Mailbox, Packet, Port},
+    extension_command_flow::{self, Spec},
+    loom_execution_signal::{CompletionSignal, Notify},
+};
+use crate::loom_extension_session::{Error, Session};
+use std::{
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+    },
+    thread::{self, JoinHandle},
+};
+pub(super) struct Job {
+    port: Port,
+    ready: Arc<AtomicBool>,
+    worker: Option<JoinHandle<Result<(), String>>>,
+}
+impl Job {
+    pub(super) fn start(
+        source: Source,
+        spec: Spec,
+        notify: Notify,
+        cancel: Arc<AtomicBool>,
+    ) -> Result<Self, String> {
+        let port = Port {
+            mailbox: Arc::new(Mutex::new(Mailbox::default())),
+            cancel,
+            notify: notify.clone(),
+        };
+        let worker_port = port.clone();
+        let ready = Arc::new(AtomicBool::new(false));
+        let completed = ready.clone();
+        let worker = thread::Builder::new()
+            .name("otter-extension-command".into())
+            .spawn(move || {
+                let _completion = CompletionSignal::new(completed, notify);
+                let result = (|| {
+                    worker_port.check().map_err(diagnostic)?;
+                    let identity = match source {
+                        Source::Fixed(identity) => identity,
+                        Source::Discovery(config) => config
+                            .load()
+                            .map_err(|error| format!("extension discovery: {error:?}"))?,
+                    };
+                    let mut session =
+                        Session::open(&identity, &worker_port.cancel).map_err(diagnostic)?;
+                    {
+                        let mut mailbox = worker_port
+                            .mailbox
+                            .lock()
+                            .unwrap_or_else(|e| e.into_inner());
+                        worker_port.check().map_err(diagnostic)?;
+                        mailbox.interrupt = Some(session.interrupt().map_err(diagnostic)?);
+                    }
+                    extension_command_flow::run(&mut session, spec, &worker_port)
+                        .map_err(diagnostic)
+                })();
+                let mut mailbox = worker_port
+                    .mailbox
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner());
+                mailbox.packet.take();
+                mailbox.interrupt = None;
+                result
+            })
+            .map_err(|e| e.to_string())?;
+        Ok(Self {
+            port,
+            ready,
+            worker: Some(worker),
+        })
+    }
+    pub(super) fn take_request(&self) -> Option<Packet> {
+        self.port
+            .mailbox
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .packet
+            .take()
+    }
+    #[cfg(test)]
+    pub(super) fn request_pending(&self) -> bool {
+        self.port
+            .mailbox
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .packet
+            .is_some()
+    }
+    pub(super) fn poll(&mut self) -> Option<Result<(), String>> {
+        let worker = self.worker.as_ref()?;
+        if !self.ready.load(Ordering::Acquire) && !worker.is_finished() {
+            return None;
+        }
+        Some(
+            self.worker
+                .take()
+                .unwrap()
+                .join()
+                .unwrap_or_else(|_| Err("extension worker failed".into())),
+        )
+    }
+    pub(super) fn cancel(&self) {
+        self.port.cancel();
+    }
+}
+fn diagnostic(error: Error) -> String {
+    format!("extension command: {error:?}")
+}
+impl Drop for Job {
+    fn drop(&mut self) {
+        self.cancel();
+        if let Some(worker) = self.worker.take() {
+            let _ = worker.join();
+        }
+    }
+}

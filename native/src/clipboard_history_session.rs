@@ -5,6 +5,7 @@ use windows::core::Result;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum State {
+    DeleteFailed,
     Loading,
     Ready,
     Empty,
@@ -14,6 +15,7 @@ pub enum State {
 }
 
 pub struct Session {
+    deleting: bool,
     events: Events,
     task: Option<Task>,
     snapshot: Option<Snapshot>,
@@ -46,6 +48,7 @@ impl Session {
 
     fn new(events: Events, now: Instant) -> Self {
         Self {
+            deleting: false,
             events,
             task: None,
             snapshot: None,
@@ -82,6 +85,16 @@ impl Session {
         if let Some(task) = self.task.as_mut() {
             if let Some(result) = task.poll() {
                 self.task = None;
+                if self.deleting {
+                    self.deleting = false;
+                    self.pending = result.is_ok();
+                    self.state = if self.pending {
+                        State::Loading
+                    } else {
+                        State::DeleteFailed
+                    };
+                    return true;
+                }
                 // 读取期间发生变化：该快照不再可选，等待下一次读取。
                 if !self.pending {
                     self.accept(result);
@@ -90,6 +103,7 @@ impl Session {
             } else if now.saturating_duration_since(self.started) >= Duration::from_secs(6) {
                 // UI 超时只关闭通道，不等待提供方；后台许可仍保护其资源生命周期。
                 self.task = None;
+                self.deleting = false;
                 self.state = State::Unavailable;
                 changed = true;
             }
@@ -147,6 +161,30 @@ impl Session {
         self.snapshot = None;
         self.state = State::Empty;
         Some(entry)
+    }
+    /// 与取用共用最新快照身份校验；只在显式删除手势后启动有界后台任务。
+    pub fn delete_entry(&mut self, index: usize, painted_id: &str) -> bool {
+        self.delete_with(index, painted_id, Task::delete)
+    }
+    fn delete_with(
+        &mut self,
+        index: usize,
+        painted_id: &str,
+        start: impl FnOnce(String) -> Result<Task>,
+    ) -> bool {
+        let Some(entry) = self.take_entry(index, painted_id) else {
+            return false;
+        };
+        match start(entry.id) {
+            Ok(task) => {
+                self.task = Some(task);
+                self.deleting = true;
+                self.started = Instant::now();
+                self.state = State::Loading;
+            }
+            Err(_) => self.state = State::DeleteFailed,
+        }
+        true
     }
 }
 

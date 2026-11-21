@@ -1,0 +1,10 @@
+<svg
+
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linecap="round"
+    >
+        <path d="M12 2C10 6 5 11 5 15a7 7 0 0 0 14 0c0-4-5-9-7-13Z" fill="currentColor" stroke="none" />
+    </svg>

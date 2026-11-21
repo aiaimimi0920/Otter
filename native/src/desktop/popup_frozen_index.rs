@@ -13,6 +13,7 @@ use std::{
 pub(super) struct Entry {
     pub id: String,
     pub label: String,
+    pub source_unit: String,
 }
 pub(super) type Index = [Result<Vec<Entry>, String>; 2];
 pub(super) struct Job {
@@ -44,6 +45,7 @@ impl Job {
                             .collect();
                         entries.push(Entry {
                             id: entry.entry_id.to_string(),
+                            source_unit: entry.source_sticker_id.to_string(),
                             label: format!(
                                 "{} × {} · {}",
                                 entry.window.w,

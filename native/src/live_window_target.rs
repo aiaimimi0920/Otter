@@ -13,6 +13,8 @@ pub mod input_routing;
 pub mod input_security;
 #[path = "live_input_target.rs"]
 pub mod input_target;
+#[path = "live_popup_scope.rs"]
+pub mod popup;
 #[path = "live_recovery_target.rs"]
 pub mod recovery;
 #[path = "live_window_region.rs"]

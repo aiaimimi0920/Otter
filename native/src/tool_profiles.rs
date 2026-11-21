@@ -1,7 +1,12 @@
-//! 当前已实现属性的工具配置；只恢复该工具拥有的字段，不覆盖颜色与填充等共享编辑值。
+//! 工具拥有各自数值属性；颜色与填充按主干工具族记忆，不泄漏到其它创建工具。
 use crate::{editor::Tool, stroke_style::StrokeStyle};
+#[path = "tool_paint_profiles.rs"]
+mod paint;
+#[path = "tool_paint_reset.rs"]
+mod reset;
 
 pub struct ToolProfiles {
+    paint: paint::Profiles,
     serial_style: StrokeStyle,
     before_serial: Option<StrokeStyle>,
     serial_radius: u16,
@@ -12,6 +17,7 @@ pub struct ToolProfiles {
     styles: [StrokeStyle; 15],
     line_angle_snap: [bool; 2],
     brush_smoothing: u8,
+    brush_highlighter: bool,
     paintbrush_smoothing: u8,
 }
 
@@ -23,6 +29,7 @@ impl Default for ToolProfiles {
         styles[12] = styles[12].with_width(28.0).unwrap();
         styles[13] = styles[13].with_width(28.0).unwrap();
         Self {
+            paint: paint::Profiles::default(),
             serial_style: StrokeStyle::default()
                 .with_fill(Some(crate::stroke_style::Color(0, 0, 0))),
             before_serial: None,
@@ -34,6 +41,7 @@ impl Default for ToolProfiles {
             styles,
             line_angle_snap: [false; 2],
             brush_smoothing: 0,
+            brush_highlighter: false,
             paintbrush_smoothing: 50,
         }
     }
@@ -61,6 +69,29 @@ fn index(tool: Tool) -> Option<usize> {
 }
 
 impl ToolProfiles {
+    pub(crate) fn brush_highlighter_enabled(&self) -> bool {
+        self.brush_highlighter
+    }
+    pub(crate) fn toggle_brush_highlighter(&mut self) {
+        self.brush_highlighter = !self.brush_highlighter;
+    }
+    pub(crate) fn remove_palette_color(
+        &mut self,
+        tool: Tool,
+        current: StrokeStyle,
+        color: crate::stroke_style::Color,
+        alpha: u8,
+    ) -> StrokeStyle {
+        self.paint.remove(color, alpha);
+        self.serial_style = reset::reset(self.serial_style, true, color, alpha);
+        self.before_serial = self
+            .before_serial
+            .map(|s| reset::reset(s, false, color, alpha));
+        for style in &mut self.styles {
+            *style = reset::reset(*style, false, color, alpha);
+        }
+        reset::reset(current, tool == Tool::Serial, color, alpha)
+    }
     pub fn blur_strength(&self) -> f32 {
         self.blur_strength
     }
@@ -98,6 +129,17 @@ impl ToolProfiles {
             self.brush_smoothing
         }
     }
+    pub(crate) fn set_smoothing(&mut self, tool: Tool, value: u8) -> bool {
+        if value > 100 {
+            return false;
+        }
+        match tool {
+            Tool::Brush => self.brush_smoothing = value,
+            Tool::Paintbrush => self.paintbrush_smoothing = value,
+            _ => return false,
+        }
+        true
+    }
     pub fn cycle_smoothing(&mut self, tool: Tool) {
         if tool == Tool::Paintbrush {
             self.paintbrush_smoothing = (self.paintbrush_smoothing + 25) % 125;
@@ -130,6 +172,15 @@ impl ToolProfiles {
     }
 
     pub fn switch(&mut self, previous: Tool, next: Tool, current: StrokeStyle) -> StrokeStyle {
+        let properties = self.switch_properties(previous, next, current);
+        self.paint.switch(previous, next, current, properties)
+    }
+    fn switch_properties(
+        &mut self,
+        previous: Tool,
+        next: Tool,
+        current: StrokeStyle,
+    ) -> StrokeStyle {
         if previous == next {
             return current;
         }
@@ -154,7 +205,7 @@ impl ToolProfiles {
         };
         let stored = self.styles[index];
         // 所有存储值均来自通过校验的 StrokeStyle，恢复不发生失败或静默截断。
-        let mut result = current.with_width(stored.width()).unwrap();
+        let mut result = current.with_width_value(stored.width()).unwrap();
         result = result.with_arrow(stored.arrow());
         if next == Tool::Polyline {
             result = result.with_opacity(1.0).unwrap();
@@ -170,7 +221,9 @@ impl ToolProfiles {
             next,
             Tool::Rectangle | Tool::RoundedRectangle | Tool::Triangle | Tool::Polygon
         ) {
-            result = result.with_corner_radius(stored.corner_radius()).unwrap();
+            result = result
+                .with_corner_radius_value(stored.corner_radius())
+                .unwrap();
         }
         result = result.with_dash(stored.dash());
         if next == Tool::Mosaic {
@@ -289,7 +342,7 @@ mod tests {
         }
     }
     #[test]
-    fn switching_restores_owned_settings_without_overwriting_shared_colors() {
+    fn switching_restores_owned_settings_and_independent_family_colors() {
         let mut profiles = ToolProfiles::default();
         let brush = StrokeStyle::new(20.0, Color(1, 2, 3))
             .unwrap()
@@ -307,8 +360,8 @@ mod tests {
         let restored = profiles.switch(Tool::Rectangle, Tool::Brush, rectangle);
         assert_eq!(restored.width(), 20.0);
         assert_eq!(restored.opacity(), 0.25);
-        assert_eq!(restored.color(), rectangle.color());
-        assert_eq!(restored.fill(), rectangle.fill());
+        assert_eq!(restored.color(), brush.color());
+        assert_eq!(restored.fill(), brush.fill());
         let restored = profiles.switch(Tool::Brush, Tool::Rectangle, restored);
         assert_eq!(restored.width(), 8.0);
         assert_eq!(restored.corner_radius(), 30.0);

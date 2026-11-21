@@ -71,6 +71,7 @@ impl Owner {
         let change = change.into();
         if match change {
             Change::Policy(policy) => consent.policy() == policy,
+            Change::Selection(policy) => consent.policy() == policy && !consent.paused(),
             Change::Paused(paused) => consent.paused() == paused,
         } {
             return;
@@ -84,6 +85,7 @@ impl Owner {
                 self.job = Some(job);
                 match change {
                     Change::Policy(_) => consent.begin_save(),
+                    Change::Selection(_) => consent.begin_pause(),
                     Change::Paused(_) => consent.begin_pause(),
                 }
                 self.schedule.reset();
@@ -111,7 +113,7 @@ impl Application {
             owner.poll(&mut view.consent);
         }
         let change = match &view.request {
-            Some(Request::ReceivePolicy(policy)) => Some(Change::Policy(*policy)),
+            Some(Request::ReceivePolicy(policy)) => Some(Change::Selection(*policy)),
             Some(Request::ReceivePause(paused)) => Some(Change::Paused(*paused)),
             _ => None,
         };
@@ -122,7 +124,8 @@ impl Application {
             }
             if let Some(owner) = owner {
                 owner.request(change, &mut view.consent, self.execution_wake.callback());
-                if matches!(change, Change::Paused(_)) && view.consent.saving {
+                if matches!(change, Change::Paused(_) | Change::Selection(_)) && view.consent.saving
+                {
                     // 立即清空旧菜单/凭证；网络仍由原单槽回收，失败或恢复也不复活旧快照。
                     view.projection.entries.clear();
                     view.projection.participation = None;

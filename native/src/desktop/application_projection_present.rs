@@ -7,14 +7,14 @@ use windows::Win32::Graphics::{
     Gdi::{GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTONULL},
 };
 
-pub(super) struct Visual {
+pub(in crate::desktop::application) struct Visual {
     hwnd: HWND,
     state: usize,
     document: restore_batch::guard::Document,
     image: crate::image_decode::Image,
 }
 impl Visual {
-    pub(super) unsafe fn capture(doc: &DocumentWindow) -> Result<Self> {
+    pub(in crate::desktop::application) unsafe fn capture(doc: &DocumentWindow) -> Result<Self> {
         let value = Self {
             hwnd: doc.window.0,
             state: (&*doc.state as *const State) as usize,
@@ -109,7 +109,10 @@ impl Visual {
             && frame.bottom > monitor.rcWork.top
             && frame.top < monitor.rcWork.bottom
     }
-    pub(super) unsafe fn present(&self, doc: &DocumentWindow) -> Result<()> {
+    pub(in crate::desktop::application) unsafe fn present(
+        &self,
+        doc: &DocumentWindow,
+    ) -> Result<()> {
         if !self.matches(doc) {
             return Err(Error::new(
                 E_ABORT,

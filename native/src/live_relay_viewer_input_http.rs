@@ -45,6 +45,7 @@ impl Capabilities {
     }
     pub(crate) fn allows(self, event: Event) -> bool {
         let required = match event {
+            Event::Character { .. } | Event::Hover { .. } | Event::Leave => return false,
             Event::Move { .. } => 1,
             Event::Button { double: true, .. } => 2 | 4,
             Event::Button { .. } => 2,
@@ -73,6 +74,7 @@ pub(crate) fn event_payload(event: Event) -> Result<Value, Error> {
         return Err(Error::Input);
     }
     let (kind, data) = match event {
+        Event::Character { .. } | Event::Hover { .. } | Event::Leave => return Err(Error::Input),
         Event::Move { point: [x, y] } => ("mouse_move", json!({"x":x,"y":y})),
         Event::Button {
             point: [x, y],

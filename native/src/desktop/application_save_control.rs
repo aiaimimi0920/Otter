@@ -79,6 +79,7 @@ impl Application {
             return Ok(Poll::Stale);
         }
         Ok(Poll::Ready(Box::new(save_publish::Prepared {
+            checkpoint_accounts: output.checkpoint_accounts,
             checkpoint_senders: output.checkpoint_senders,
             checkpoint_scope: output.checkpoint_scope,
             checkpoint_projections: output.checkpoint_projections,

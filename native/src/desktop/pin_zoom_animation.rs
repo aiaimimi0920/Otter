@@ -29,7 +29,7 @@ pub(in crate::desktop) fn busy(state: &State) -> bool {
         || (super::preview::active(state)
             && (!state.pin_animation.parked.get() || state.error.borrow().is_some()))
 }
-pub(super) fn moving(state: &State) -> bool {
+pub(in crate::desktop) fn moving(state: &State) -> bool {
     state.pin_animation.moving.get()
 }
 unsafe fn rect(hwnd: HWND) -> Option<PinRect> {

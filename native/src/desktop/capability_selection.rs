@@ -1,11 +1,16 @@
 //! 原生目录选择使用不可变快照，菜单索引不跨目录版本解释；选择本身不执行能力。
-use super::{capability_job::Loaded, State};
+use super::capability_job::Loaded;
+#[cfg(test)]
+use super::State;
 use std::rc::Rc;
+#[cfg(test)]
 use windows::{
     core::{w, Result, HSTRING},
     Win32::{Foundation::HWND, UI::WindowsAndMessaging::*},
 };
+#[cfg(test)]
 const FIRST: usize = 0x6000;
+#[cfg(test)]
 pub(super) unsafe fn append_menu(parent: HMENU, state: &State) -> Result<Option<Snapshot>> {
     let snapshot = Snapshot::capture(state);
     super::capability_catalog::append(parent, state)?;
@@ -24,10 +29,13 @@ pub(super) struct Selection {
     pub catalog: Rc<Loaded>,
     pub parameters: crate::loom_parameter_state::Parameters,
 }
+#[cfg(test)]
 pub(super) struct Snapshot {
     catalog: Rc<Loaded>,
 }
+#[cfg(test)]
 struct Menu(HMENU);
+#[cfg(test)]
 impl Drop for Menu {
     fn drop(&mut self) {
         unsafe {
@@ -35,6 +43,7 @@ impl Drop for Menu {
         }
     }
 }
+#[cfg(test)]
 impl Snapshot {
     pub(super) fn capture(state: &State) -> Option<Self> {
         Some(Self {

@@ -7,6 +7,7 @@ pub(in crate::desktop::composition::live::window) struct Drag {
     rect: PinRect,
     pointer: (i32, i32),
     resize: bool,
+    moved: bool,
     owner: u64,
 }
 pub(in crate::desktop::composition::live::window) unsafe fn cancel(hwnd: HWND, state: &State) {
@@ -96,12 +97,15 @@ pub(in crate::desktop::composition::live::window) unsafe fn handle(
     {
         return false;
     }
+    if super::super::menu::corner(hwnd, state, lp) {
+        super::super::pin::select(hwnd, state);
+    }
     begin_with(
         hwnd,
         state,
         lp,
         pressed(VK_MENU) && pressed(VK_SHIFT),
-        || input::cancel(hwnd, state),
+        || input::suspend(hwnd, state),
     )
 }
 unsafe fn begin_with(
@@ -131,6 +135,7 @@ unsafe fn begin_with(
         rect,
         pointer,
         resize,
+        moved: false,
         owner,
     }));
     SetCapture(hwnd);
@@ -140,7 +145,7 @@ unsafe fn begin_with(
     true
 }
 unsafe fn update(hwnd: HWND, state: &State, lp: LPARAM) {
-    let (Some(drag), Some(pointer)) = (state.drag.get(), screen_point(hwnd, lp)) else {
+    let (Some(mut drag), Some(pointer)) = (state.drag.get(), screen_point(hwnd, lp)) else {
         return;
     };
     let revision = state.drag_revision.get().wrapping_add(1);
@@ -157,6 +162,11 @@ unsafe fn update(hwnd: HWND, state: &State, lp: LPARAM) {
         i64::from(pointer.0) - i64::from(drag.pointer.0),
         i64::from(pointer.1) - i64::from(drag.pointer.1),
     );
+    if !drag.moved && delta.0 * delta.0 + delta.1 * delta.1 <= 9 {
+        return;
+    }
+    drag.moved = true;
+    state.drag.set(Some(drag));
     if drag.resize {
         if let Some(next) = crate::pin_geometry::resize_drag(drag.rect, delta) {
             if place_while(hwnd, next, current).is_err() && current() {

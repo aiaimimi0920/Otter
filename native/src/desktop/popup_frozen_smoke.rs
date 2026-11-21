@@ -1,4 +1,4 @@
-//! 真菜单模型/后台索引/键盘分页验证，不进入系统剪贴板或借用应用模型。
+//! 真菜单模型/后台索引/滚底追加验证，不进入系统剪贴板或借用应用模型。
 use super::*;
 use windows::{
     core::Error,
@@ -35,19 +35,18 @@ pub(in crate::desktop) fn select_action(
     {
         return Err(Error::new(E_FAIL, "Frozen menu fixture index mismatch"));
     }
-    // 首页面板无焦点，向上选择最后一个启用项（下一页）。
+    // 无焦点时向上到当前最后一张卡，视口抵底后自动追加末条。
     menu.key(0x26)?;
-    menu.key(0x0d)?;
     if menu.closed() || menu.take_command().is_some() {
-        return Err(Error::new(E_FAIL, "Page navigation closed menu"));
+        return Err(Error::new(E_FAIL, "Gallery scrolling closed menu"));
     }
     model.update(&mut menu)?;
-    if model.pages[library] != 1 || !menu.submenu_open(model.roots[library]) {
-        return Err(Error::new(E_FAIL, "Frozen second page not shown"));
+    if model.loaded[library] != 65 || !menu.submenu_open(model.roots[library]) {
+        return Err(Error::new(E_FAIL, "Frozen trailing entry not loaded"));
     }
-    menu.key(0x26)?;
+    menu.key(0x27)?;
     menu.key(0x0d)?;
-    // Enter 展开时已聚焦首个动作，删除才再向下移动一次。
+    // 向右选新增末条；Enter 展开后聚焦首个动作，删除才再向下移动一次。
     if remove {
         menu.key(0x28)?;
     }
@@ -60,7 +59,10 @@ pub(in crate::desktop) fn select_action(
         .and_then(|command| model.take(command))
         .ok_or_else(|| Error::new(E_FAIL, "Frozen selection lost painted identity"))?;
     if choice.entry_id != "entry-64" || choice.remove != remove {
-        return Err(Error::new(E_FAIL, "Frozen paging selected wrong identity"));
+        return Err(Error::new(
+            E_FAIL,
+            "Frozen scrolling selected wrong identity",
+        ));
     }
     Ok(choice)
 }

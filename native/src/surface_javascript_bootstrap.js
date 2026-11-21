@@ -103,6 +103,10 @@
     } else if (command.type === "update") {
       snapshot = command.snapshot; resources = freeze(command.resources);
       if (typeof definition.update === "function") await definition.update({ snapshot: clone(snapshot), resources });
+    } else if (command.type === "selectView") {
+      // snapshot 是私有 null-prototype 副本；不触发插件安装的继承 setter，也不改权威 revision。
+      snapshot.viewId = command.viewId;
+      if (typeof definition.update === "function") await definition.update({ snapshot: clone(snapshot), resources });
     } else if (command.type === "click") {
       const target = op.mapGet(nodes, command.target);
       if (suspended || !target || op.mapHas(dom.get(target).attrs, "disabled")) fail();

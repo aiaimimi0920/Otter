@@ -115,6 +115,9 @@ impl SignedAttempt {
     }
 }
 impl Session {
+    pub(crate) fn origin(&self) -> &str {
+        &self.origin
+    }
     pub fn device_id(&self) -> &str {
         &self.device
     }

@@ -1,6 +1,7 @@
 //! UI 线程上的 Live 呈现控制器；宿主仍拥有 HWND、消息分发和捕获授权。
 use super::{notification::WindowSignal, *};
 use crate::live_frames::{Consumer, Delivery};
+use std::{cell::Cell, rc::Rc};
 use windows::Win32::Foundation::{LPARAM, WPARAM};
 
 #[derive(Debug, PartialEq, Eq)]
@@ -11,6 +12,27 @@ pub enum Update {
     Closed,
 }
 
+/// 同一 UI 线程共享已提交几何，不持有 GPU/帧 owner；Host 借出期间仍可读。
+#[derive(Clone, Default)]
+pub(super) struct Presented(Rc<Cell<Option<Geometry>>>);
+#[derive(Clone, Copy)]
+struct Geometry {
+    size: [u32; 2],
+    sequence: u64,
+    viewport: crate::live_viewport::Viewport,
+}
+impl Presented {
+    pub(super) fn get(&self, size: [u32; 2]) -> Option<(u64, crate::live_viewport::Viewport)> {
+        self.0
+            .get()
+            .filter(|geometry| geometry.size == size)
+            .map(|geometry| (geometry.sequence, geometry.viewport))
+    }
+    pub(super) fn clear(&self) {
+        self.0.set(None);
+    }
+}
+
 pub struct Host {
     signal: Option<WindowSignal<Texture>>,
     surface: Option<Surface>,
@@ -19,11 +41,20 @@ pub struct Host {
     failures: u64,
     opacity: f32,
     chrome_visible: bool,
-    presented: Option<([u32; 2], u64, crate::live_viewport::Viewport)>,
+    pin_selected: bool,
+    pin_editor: Option<std::rc::Rc<crate::editor::Editor>>,
+    presented: Presented,
 }
 impl Host {
     /// 不启动捕获；消费已获授权的源。须在 HWND 销毁前丢弃本对象。
     pub fn bind(hwnd: HWND, consumer: Consumer<Texture>) -> Result<Self> {
+        Self::bind_presented(hwnd, consumer, Presented::default())
+    }
+    pub(super) fn bind_presented(
+        hwnd: HWND,
+        consumer: Consumer<Texture>,
+        presented: Presented,
+    ) -> Result<Self> {
         Ok(Self {
             signal: Some(WindowSignal::bind(hwnd, consumer)?),
             surface: None,
@@ -32,7 +63,9 @@ impl Host {
             failures: 0,
             opacity: 1.0,
             chrome_visible: true,
-            presented: None,
+            pin_selected: false,
+            pin_editor: None,
+            presented,
         })
     }
     /// Frame/Closed 时宿主应使窗口失效；不在消息突发期间绘制每一帧。
@@ -68,11 +101,35 @@ impl Host {
     pub(in crate::desktop) fn set_chrome_visible(&mut self, visible: bool) {
         self.chrome_visible = visible;
     }
+    pub(in crate::desktop) fn select_pin(&mut self, selected: bool) {
+        self.pin_selected = selected;
+    }
+    pub(in crate::desktop) fn set_pin_editor(&mut self, editor: crate::editor::Editor) {
+        self.pin_editor = Some(std::rc::Rc::new(editor));
+    }
+    pub(super) fn content_size(&self, source: [u32; 2]) -> [f64; 2] {
+        self.pin_editor
+            .as_ref()
+            .map_or(source.map(f64::from), |editor| {
+                let (bounds, _, _) = super::edit_view::geometry(editor);
+                [bounds.width, bounds.height]
+            })
+    }
     /// 显式快照领取最新已投递帧（可能尚未呈现），不改变输入所用的 presented 身份。
     /// 调用方须持有整个 Arc；关闭后不得回退到先前 surface 的旧画面。
     pub fn snapshot_frame(&mut self) -> Result<Option<Arc<Frame<Texture>>>> {
-        if self.refresh()? == Update::Closed {
-            return Ok(None);
+        match self.refresh()? {
+            Update::Closed => return Ok(None),
+            Update::Frame => unsafe {
+                // 快照会消费投递，迟到的帧通知只能读到 Idle。保留一次重绘请求，
+                // 静止来源也必须呈现；仅 paint 成功后才能更新输入坐标身份。
+                if !windows::Win32::Graphics::Gdi::InvalidateRect(Some(self.hwnd), None, false)
+                    .as_bool()
+                {
+                    return Err(Error::from_win32());
+                }
+            },
+            _ => {}
         }
         Ok(self
             .pending
@@ -85,9 +142,7 @@ impl Host {
         &self,
         size: [u32; 2],
     ) -> Option<(u64, crate::live_viewport::Viewport)> {
-        self.presented
-            .filter(|(presented_size, _, _)| *presented_size == size)
-            .map(|(_, sequence, viewport)| (sequence, viewport))
+        self.presented.get(size)
     }
     #[cfg(test)]
     pub(in crate::desktop) fn applied_opacity_for_test(&self) -> Option<f32> {
@@ -115,7 +170,7 @@ impl Host {
     }
     /// 暂停输出但不取消订阅；仅保留最新帧，恢复不依赖源再次产生画面变化。
     pub fn suspend(&mut self) {
-        self.presented = None;
+        self.presented.clear();
         if let Some(surface) = self.surface.take() {
             if self.pending.is_none() {
                 self.pending = Some(surface.frame.clone());
@@ -152,14 +207,17 @@ impl Host {
         };
         surface.resize(size)?;
         surface.set_opacity(self.opacity)?;
-        surface.draw_chrome(self.chrome_visible)?;
+        surface.set_pin_editor(self.pin_editor.clone())?;
+        surface.draw_pin_chrome(self.chrome_visible, self.pin_selected)?;
         surface.present()?;
         let destination = [size.width, size.height];
-        self.presented = crate::live_viewport::Viewport::fit(
-            [surface.frame.resource.width, surface.frame.resource.height],
-            destination,
-        )
-        .map(|viewport| (destination, surface.frame.sequence, viewport));
+        self.presented
+            .0
+            .set(surface.viewport(destination).map(|viewport| Geometry {
+                size: destination,
+                sequence: surface.frame.sequence,
+                viewport,
+            }));
         Ok(true)
     }
     fn accept(
@@ -184,11 +242,12 @@ impl Host {
     }
     /// 先取消订阅，再释放待绘帧和 GPU surface；最后消费者离开会唤醒采集退出。
     pub fn close(&mut self) {
+        // 释放 GPU/通知 owner 可能重入；必须先撤销输入几何。
+        self.presented.clear();
         self.failures = self.notification_failures();
         self.signal = None;
         self.pending = None;
         self.surface = None;
-        self.presented = None;
     }
 }
 impl Drop for Host {

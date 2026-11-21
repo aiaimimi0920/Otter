@@ -6,7 +6,7 @@ if errorlevel 1 exit /b %errorlevel%
 
 if /I "%~1"=="dev" (
   echo [Otter tauri] Preparing static frontend before tauri dev...
-  call npm run build
+  call npm run build:web
   if errorlevel 1 goto :end
 )
 

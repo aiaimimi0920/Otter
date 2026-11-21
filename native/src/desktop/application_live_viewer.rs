@@ -123,6 +123,10 @@ impl Application {
         }
         let config = config(&selected.origin).map_err(|error| format!("配置无效：{error:?}"))?;
         match selected.binding {
+            ViewerHost::Direct { .. } => {
+                self.remote_sessions
+                    .start_direct_viewing(config, lease, selected.identity)
+            }
             ViewerHost::Surface(binding) => {
                 let target = binding
                     .viewer_target(

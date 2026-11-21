@@ -6,6 +6,8 @@ use std::os::windows::io::AsRawHandle;
 pub(super) mod freeze;
 #[path = "application_live_groups.rs"]
 mod groups;
+#[path = "application_live_pin.rs"]
+mod pin;
 #[path = "application_live_recycle.rs"]
 mod recycle;
 #[path = "application_live_shutdown.rs"]
@@ -63,6 +65,7 @@ impl Application {
             .map_err(|error| Error::new(E_FAIL, error.to_string()))?;
         let mut index = 0;
         while index < self.live_sessions.len() {
+            self.live_sessions[index].resume_minimized_source(&mut self.live_visibility);
             match self.live_sessions[index].poll() {
                 None => {
                     let notice = self.live_sessions[index].take_input_notice().map(|owner| {
@@ -105,11 +108,17 @@ impl Application {
                 }
             }
         }
+        let mut layers = Vec::new();
+        for session in &self.live_sessions {
+            session.popup_layer_leases(&mut layers);
+        }
         self.live_visibility
-            .poll()
+            .sync_popup_layers(&layers)
+            .and_then(|_| self.live_visibility.poll())
             .map_err(|error| Error::new(E_FAIL, error.to_string()))
     }
     pub(super) unsafe fn process_live(&mut self, visible: bool) -> Result<()> {
+        self.settle_live_pins(visible)?;
         self.poll_live(visible)?;
         let recycle = self.process_live_recycle();
         self.reference_result(recycle, visible)?;
@@ -174,7 +183,7 @@ impl Application {
         }
         Ok(())
     }
-    unsafe fn start_live_window(
+    pub(super) unsafe fn start_live_window(
         &mut self,
         target: crate::live_window_target::Target,
         crop: Option<crate::live_window_target::region::Crop>,
@@ -268,7 +277,11 @@ impl Application {
                     .deadline(crate::desktop::surface_windows::now_ms()?),
             )
             .chain(self.projection_policy_deadline())
+            .chain(self.account_projection.deadline())
             .chain(self.local_arts.deadline())
+            .chain(self.local_loom.deadline())
+            .chain(self.authorization.borrow().targets.next)
+            .chain(self.live_visibility.deadline())
             .min();
         // 本调用返回前不修改会话集合或回收任务；句柄 owner 始终存活。
         super::super::session_end::with_query(

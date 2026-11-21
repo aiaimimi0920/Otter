@@ -16,21 +16,6 @@ mod default_save;
 pub(super) mod original;
 pub(super) use default_save::start as start_default;
 
-pub(super) unsafe fn append(
-    menu: HMENU,
-    state: &State,
-    command: usize,
-) -> windows::core::Result<()> {
-    let enabled =
-        state.resolved_display.borrow().is_some() || state.canvas.borrow().image.is_some();
-    AppendMenuW(
-        menu,
-        MF_STRING | if enabled { MF_ENABLED } else { MF_GRAYED },
-        command,
-        w!("导出 PNG…\tCtrl+S"),
-    )
-}
-
 use super::file_dialog::Guard as Dialog;
 
 fn snapshot_if_current(
@@ -109,8 +94,9 @@ pub(super) unsafe fn start(hwnd: HWND, state: &State) {
         return;
     };
     let opacity = state.canvas.borrow().normal_opacity;
+    let style = export::style::Snapshot::capture(&state.canvas.borrow());
     spawn(hwnd, state, move || {
-        export::save_new_with_opacity(&path, &image, &editor, opacity)
+        style.save_new(&path, &image, &editor, opacity)
     });
 }
 

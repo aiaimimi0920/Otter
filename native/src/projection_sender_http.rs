@@ -44,13 +44,11 @@ impl Control<'_> {
         let limit = delivery::accept::MAX_RESPONSE;
         let mut budget = crate::pixels::reserve(limit.next_power_of_two())
             .ok_or(Error::Sender(delivery::sender::Error::Limit))?;
-        let (status, bytes) = self.exchange_until(
-            "POST",
+        let (status, bytes) = self.exchange_projection_until(
             path,
             body,
             Instant::now() + Duration::from_secs(12),
             limit,
-            None,
         )?;
         if !budget.grow_to(bytes.capacity()) {
             return Err(Error::Sender(delivery::sender::Error::Limit));
@@ -64,22 +62,7 @@ impl Control<'_> {
         }
         if !(200..300).contains(&status) {
             // 普通 404、网关正文、其他业务码与任何其他 HTTP 状态都不授权创建。
-            #[derive(serde::Deserialize)]
-            struct Failure<'a> {
-                #[serde(borrow)]
-                error: Code<'a>,
-            }
-            #[derive(serde::Deserialize)]
-            struct Code<'a> {
-                #[serde(borrow)]
-                code: &'a str,
-            }
-            if !created
-                && status == 404
-                && bytes.len() <= delivery::MAX_JSON
-                && serde_json::from_slice::<Failure<'_>>(&bytes)
-                    .is_ok_and(|error| error.error.code == "projection_not_found")
-            {
+            if !created && status == 404 && error_code(&bytes, "projection_not_found") {
                 return Ok(None);
             }
             return Err(Error::Status(status));

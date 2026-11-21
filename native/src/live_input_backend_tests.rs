@@ -1,6 +1,14 @@
 use super::*;
+#[path = "live_input_busy_motion_tests.rs"]
+mod busy_motion;
 #[path = "live_input_button_runtime_tests.rs"]
 mod button_runtime;
+#[path = "live_input_hover_retirement_tests.rs"]
+mod hover_retirement;
+#[path = "live_input_modal_tests.rs"]
+mod modal;
+#[path = "live_input_pointer_cleanup_tests.rs"]
+mod pointer_cleanup;
 use crate::live_input::{Button, Controller};
 use std::{cell::RefCell, sync::mpsc, time::Duration};
 use windows::{
@@ -14,9 +22,40 @@ use windows::{
 type Record = (usize, u32, usize, isize);
 thread_local! { static TRACE: RefCell<Vec<Record>> = const { RefCell::new(Vec::new()) }; }
 unsafe extern "system" fn proc(window: HWND, message: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
+    if message == windows::Win32::UI::Controls::WM_MOUSELEAVE
+        && !RemovePropW(window, w!("Otter.Test.DestroyOnLeave"))
+            .unwrap_or_default()
+            .0
+            .is_null()
+    {
+        DestroyWindow(window).unwrap();
+        return LRESULT(0);
+    }
+    if let Some(result) = unsafe { modal::handle(window, message, wp, lp) } {
+        return result;
+    }
     if matches!(
         message,
-        WM_MOUSEMOVE | WM_LBUTTONDOWN | WM_LBUTTONUP | WM_KEYDOWN | WM_KEYUP | WM_COMMAND
+        WM_MOUSEMOVE | windows::Win32::UI::Controls::WM_MOUSELEAVE
+    ) {
+        let delay =
+            unsafe { RemovePropW(window, w!("Otter.Test.MotionDelay")) }.unwrap_or_default();
+        if !delay.0.is_null() {
+            std::thread::sleep(Duration::from_millis(delay.0 as usize as u64));
+        }
+    }
+    if matches!(
+        message,
+        WM_MOUSEMOVE
+            | WM_LBUTTONDOWN
+            | WM_LBUTTONUP
+            | WM_RBUTTONDOWN
+            | WM_RBUTTONUP
+            | WM_KEYDOWN
+            | WM_KEYUP
+            | WM_COMMAND
+            | WM_MOUSEWHEEL
+            | windows::Win32::UI::Controls::WM_MOUSELEAVE
     ) {
         TRACE.with(|trace| {
             trace
@@ -50,10 +89,15 @@ fn fixture() -> (Fixture, Target, usize) {
     fixture_with_button_class(false)
 }
 fn fixture_with_button_class(button: bool) -> (Fixture, Target, usize) {
+    fixture_with_class(button, false)
+}
+fn fixture_with_class(button: bool, browser: bool) -> (Fixture, Target, usize) {
     let (tx, rx) = mpsc::sync_channel(1);
     let worker = std::thread::spawn(move || unsafe {
         let instance = GetModuleHandleW(None).unwrap();
-        let class = if button {
+        let class = if browser {
+            w!("Chrome_WidgetWin_1")
+        } else if button {
             w!("WindowsForms10.BUTTON.OtterOwnedFixture")
         } else {
             w!("OtterNativeInputBackendFixture")
@@ -122,6 +166,134 @@ fn fixture_with_button_class(button: bool) -> (Fixture, Target, usize) {
         root,
         child,
     )
+}
+#[test]
+#[ignore = "interactive desktop; owned Chromium-class window without a browser UIA document"]
+fn browser_pointer_and_keyboard_do_not_require_scroll_provider() {
+    use crate::live_input::Backend as _;
+    let (mut fixture, target, child) = fixture_with_class(false, true);
+    // 五个同源 Live 超过滚动池的四份容量，但仅点击/键盘不应申请滚动资源。
+    let mut backends = Vec::new();
+    for _ in 0..5 {
+        let mut backend = Backend::new_local(target.clone(), None).unwrap();
+        backend.preflight().unwrap();
+        backends.push(backend);
+    }
+    assert!(backends
+        .iter()
+        .all(|backend| backend.browser_scroll.is_none()));
+    let backend = backends.pop().unwrap();
+    let mut controller = Controller::new(backend);
+    controller.enable().unwrap();
+    for (index, event) in [
+        Event::Button {
+            point: [0.2; 2],
+            button: Button::Left,
+            down: true,
+            double: false,
+        },
+        Event::Button {
+            point: [0.2; 2],
+            button: Button::Left,
+            down: false,
+            double: false,
+        },
+        Event::Key {
+            code: 65,
+            down: true,
+        },
+        Event::Key {
+            code: 65,
+            down: false,
+        },
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        controller.dispatch(index as u64 + 1, event).unwrap();
+    }
+    assert!(controller.enabled());
+    assert_eq!(controller.cancel().failed, 0);
+    // 首次滚动才启动真实受限 child，之后复用；无 Document 的自有窗口允许原消息路径。
+    let mut backend = backends.pop().unwrap();
+    let wheel = Event::Wheel {
+        point: [0.2; 2],
+        delta: -120,
+        horizontal: false,
+    };
+    assert_eq!(backend.send_timeout_ms(wheel), 5750);
+    let destination = backend.resolve(wheel, None).unwrap();
+    backend
+        .send(destination, wheel, 0, backend.send_timeout_ms(wheel))
+        .unwrap();
+    assert!(backend.browser_scroll.is_some());
+    assert_eq!(backend.send_timeout_ms(wheel), 3750);
+    let probe = backend
+        .browser_scroll
+        .as_mut()
+        .unwrap()
+        .disconnect_for_test();
+    let destination = backend.resolve(wheel, None).unwrap();
+    assert!(matches!(
+        backend.send(destination, wheel, 0, 3750),
+        Err(Error::BrowserScroll(_))
+    ));
+    assert!(backend.browser_scroll.is_none());
+    assert!(
+        probe.exited(),
+        "Failed scroll child must be retired before returning"
+    );
+    // 新用户输入可建立新流，但失败的滚动不重放。
+    assert_eq!(backend.send_timeout_ms(wheel), 5750);
+    let destination = backend.resolve(wheel, None).unwrap();
+    backend.send(destination, wheel, 0, 5750).unwrap();
+    assert!(backend.browser_scroll.is_some());
+    assert_eq!(backend.leave().failed, 0);
+    drop(backend);
+    let trace = fixture.finish();
+    for message in [WM_LBUTTONDOWN, WM_LBUTTONUP, WM_KEYDOWN, WM_KEYUP] {
+        assert!(
+            trace
+                .iter()
+                .any(|&(hwnd, msg, _, _)| hwnd == child && msg == message),
+            "missing {message}: {trace:?}"
+        );
+    }
+}
+#[test]
+#[ignore = "interactive desktop; replaces only the owned source child"]
+fn pointer_survives_navigation_that_destroys_previous_child() {
+    let (mut fixture, root, child) = fixture();
+    let mut controller = Controller::new(Backend::new(root.clone(), None).unwrap());
+    controller.enable().unwrap();
+    controller
+        .dispatch(1, Event::Move { point: [0.2; 2] })
+        .unwrap();
+    unsafe {
+        let delivered = SendMessageTimeoutW(
+            HWND(child as *mut _),
+            WM_CLOSE,
+            WPARAM(0),
+            LPARAM(0),
+            SMTO_ABORTIFHUNG | SMTO_BLOCK,
+            1000,
+            None,
+        );
+        assert_ne!(delivered.0, 0);
+        assert!(!IsWindow(Some(HWND(child as *mut _))).as_bool());
+    }
+    let result = controller.dispatch(2, Event::Move { point: [0.2; 2] });
+    assert_eq!(
+        result,
+        Ok(()),
+        "stale hover cleanup must not revoke the surviving source"
+    );
+    assert!(controller.enabled());
+    assert_eq!(controller.cancel().failed, 0);
+    let trace = fixture.finish();
+    assert!(trace
+        .iter()
+        .any(|&(hwnd, msg, _, _)| hwnd == root.hwnd().0 as usize && msg == WM_MOUSEMOVE));
 }
 #[test]
 #[ignore = "interactive desktop; controller sends only to owned alpha=1 fixture windows"]

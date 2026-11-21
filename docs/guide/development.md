@@ -4,6 +4,40 @@
 
 Run the commands below from the repository root. For contribution rules and ownership, follow [the engineering guide](../../CONTRIBUTING.md).
 
+## Windows-native development
+
+Use Windows 10/11, the Rust x64 MSVC toolchain, Visual Studio C++ Build Tools
+and a Windows resource compiler (`rc.exe` or `llvm-rc.exe` on PATH, or set
+`OTTER_NATIVE_RC` to its absolute path). Node.js and Python are used by tooling,
+not by the application. No WebView2 or sibling NeuroDesign checkout is required.
+
+```powershell
+cargo fetch --locked --manifest-path native/Cargo.toml
+npm run build
+npm run verify:local
+# Launch the app in development after exiting other Otter instances normally.
+npm run dev
+```
+
+Cargo fetches `neuro-mini-ui` from NeuroDesign at the exact Git `rev` recorded in
+`native/Cargo.toml` and `native/Cargo.lock`. The release build outputs
+`native/target/release/otter-native.exe` plus `otter_live_hover_hook.dll` by default.
+For distribution to testers, build the complete **internal** ZIP instead:
+
+```powershell
+.\scripts\build-native-candidate.ps1 -OutputDirectory "$env:TEMP/otter-candidate" -TargetDirectory "$env:TEMP/otter-native-target"
+.\scripts\package-native-candidate.ps1 -CandidateDirectory "$env:TEMP/otter-candidate" -OutputDirectory "$env:TEMP/otter-package"
+.\scripts\verify-native-package.ps1 -ZipPath (Get-ChildItem "$env:TEMP/otter-package/*-internal.zip").FullName
+```
+
+Use fresh candidate and package destinations. `cargo fetch` above primes the
+offline candidate gate. Public native signing and release are not enabled.
+
+## Historical Tauri/WebView verification
+
+The procedures below document the archived product, not native acceptance.
+Check out `archive/webview-main` to reproduce the original WebView product.
+
 Tauri v2 · SolidJS · TypeScript · Rust
 
 ```powershell
@@ -42,9 +76,6 @@ cargo fmt --check --manifest-path src-tauri\Cargo.toml
 cargo test --manifest-path src-tauri\Cargo.toml
 npm run build
 ```
-
-`npm run verify:local` runs the complete serial verification chain and then
-builds/packages a local release. It is not a lightweight lint-only command.
 
 `npm run test:surface-browser` launches an isolated headless Chromium, imports
 the production JavaScript Surface document builder, and exercises healthy,

@@ -62,17 +62,20 @@ impl Canvas {
                 }
             };
             target.Clear(Some(&background));
-            let _clipped = super::super::render_frame::Clip::push(target, &clip);
+            let frame_style =
+                crate::desktop::frame_style_draw::Frame::new(self.frame_style, size, dpi);
+            let _rounded = frame_style.clip(target, &self.factory)?;
+            let clipped = super::super::render_frame::Clip::push(target, &clip);
             // 走无擦除的公共路径同时退休旧擦除几何缓存。
             resources
                 .raster
-                .draw_erasing_projected(
+                .draw_interleaved(
                     target,
                     &rect,
                     &clip,
                     None,
-                    self.viewport,
-                    editor.raster_base_projection(),
+                    (self.viewport, editor.raster_base_projection()),
+                    || frame_style.border_over_clip(target, &clip),
                 )
                 .and_then(|_| {
                     crate::desktop::annotations::draw_preview(
@@ -84,7 +87,18 @@ impl Canvas {
                         None,
                         &mut resources.effects,
                     )
-                })
+                })?;
+            drop(clipped);
+            if let Some(views) = &self.extension_views {
+                views.draw(
+                    &self.editor,
+                    Some(frame),
+                    target,
+                    &resources.brush,
+                    (size, dpi),
+                )?;
+            }
+            Ok(())
         })?;
         self.paints = self.paints.saturating_add(1);
         Ok(())

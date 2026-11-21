@@ -21,16 +21,20 @@ pub(super) mod render_recovery;
 mod software_present;
 #[path = "procedure_tasks.rs"]
 mod tasks;
+#[path = "procedure_wheel.rs"]
+mod wheel;
 
 pub unsafe extern "system" fn window_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
     match std::panic::catch_unwind(|| {
         let result = dispatch(hwnd, msg, wp, lp);
         if super::host_lifetime::owns(hwnd)
-            && !(*(GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *const State))
-                .session_end
-                .paused()
+            // 预提交阶段附属条已经按目标位置移动，不能用尚未提交的宿主位置拉回旧帧。
+            && !matches!(msg, WM_WINDOWPOSCHANGING | WM_NCCALCSIZE)
         {
-            super::tool_panel::refresh(hwnd);
+            let state = &*(GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *const State);
+            if !state.session_end.paused() && !geometry::drag_position_only(state, msg, lp) {
+                super::tool_panel::refresh(hwnd);
+            }
         }
         result
     }) {
@@ -55,10 +59,18 @@ unsafe fn dispatch(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
         return DefWindowProcW(hwnd, msg, wp, lp);
     }
     let state = &*pointer;
+    if let Some(result) = super::live_pin_document::dispatch(hwnd, state, msg, lp) {
+        return result;
+    }
+    super::extension_shortcuts::observe(state, msg, wp);
+    super::application::chrome::select_node(&state.chrome, hwnd, msg);
     if msg != WM_WINDOWPOSCHANGED {
         super::application::chrome::geometry(&state.chrome, hwnd, msg);
     }
     if let Some(result) = geometry::before_dispatch(hwnd, state, msg, wp, lp) {
+        return result;
+    }
+    if let Some(result) = super::text_input::inline::dispatch(hwnd, state, msg, wp, lp) {
         return result;
     }
     if matches!(msg, WM_DESTROY | WM_NCDESTROY) {
@@ -94,7 +106,10 @@ unsafe fn dispatch(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
     {
         return result;
     }
-    if let Some(result) = super::clipboard_input::dispatch(hwnd, state, msg, wp) {
+    if let Some(result) = super::extension_input::dispatch(hwnd, state, msg, wp, lp) {
+        return result;
+    }
+    if let Some(result) = super::clipboard_input::dispatch(hwnd, state, msg, wp, lp) {
         return result;
     }
     if let Some(result) = super::node_menu::art_picker::dispatch(hwnd, state, msg, wp, lp) {
@@ -126,13 +141,7 @@ unsafe fn dispatch(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
             DefWindowProcW(hwnd, msg, wp, lp)
         }
         WM_NCHITTEST if state.canvas.borrow().pinned => {
-            // 平移工具下使用系统窗口拖动；编辑工具仍接收客户区指针。
-            let hit = if state.canvas.borrow().tool == Tool::Pan {
-                HTCAPTION
-            } else {
-                HTCLIENT
-            };
-            LRESULT(hit as isize)
+            LRESULT(super::edit_mode::hit_test(hwnd, state, lp) as isize)
         }
         WM_PAINT => paint::paint(hwnd, state),
         WM_ERASEBKGND => LRESULT(1),
@@ -192,7 +201,7 @@ unsafe fn dispatch(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
             let started = {
                 let mut canvas = state.canvas.borrow_mut();
                 let time = canvas.message_clock.start(message_time);
-                canvas.pointer_down_at(logical_point(hwnd, lp), time)
+                super::edit_mode::pointer_down(&mut canvas, logical_point(hwnd, lp), time)
             };
             if started {
                 SetCapture(hwnd);
@@ -391,11 +400,11 @@ unsafe fn dispatch(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
             if !handled {
                 return DefWindowProcW(hwnd, msg, wp, lp);
             }
-            let changed = {
+            let changed = if control && matches!(key, 0x5A | 0x59) {
+                super::pin_settings_history::shortcut(hwnd, state, key == 0x59)
+            } else {
                 let mut canvas = state.canvas.borrow_mut();
                 let changed = match (control, wp.0 as u32) {
-                    (true, 0x5A) => canvas.cancel_gesture() || canvas.editor.undo(),
-                    (true, 0x59) => canvas.cancel_gesture() || canvas.editor.redo(),
                     (true, 0x44) => canvas.duplicate_selected(),
                     (true, 0x0D) => canvas.restyle_target(),
                     (_, 0x1B) => {
@@ -409,7 +418,13 @@ unsafe fn dispatch(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
                         canvas.crop_pending = None;
                         canvas.clear_scale_display();
                         super::open_job::cancel(state);
-                        canvas.escape_selection()
+                        if neuro_mini_ui::is_toolbar(state.tool_panel.get())
+                            && IsWindowVisible(state.tool_panel.get()).as_bool()
+                        {
+                            canvas.cancel_gesture()
+                        } else {
+                            canvas.escape_selection()
+                        }
                     }
                     (false, 0x2E) => canvas.delete_target(),
                     (false, 0xBC) => canvas.rotate_selected(-15.0),
@@ -458,43 +473,16 @@ unsafe fn dispatch(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
             }
             LRESULT(0)
         }
-        WM_MOUSEWHEEL => {
-            if state.canvas.borrow().blocks_wheel() {
-                return LRESULT(0);
-            }
-            if state.canvas.borrow().pinned {
-                if GetKeyState(VK_CONTROL.0 as i32) < 0 {
-                    super::pin_window::wheel(hwnd, state, wp, lp);
-                } else if GetKeyState(VK_MENU.0 as i32) < 0
-                    && [VK_SHIFT, VK_LWIN, VK_RWIN]
-                        .iter()
-                        .all(|key| GetKeyState(key.0 as i32) >= 0)
-                {
-                    super::pin_window::opacity_wheel(hwnd, state, wp);
-                }
-                return LRESULT(0);
-            }
-            let mut point = POINT {
-                x: lp.0 as i16 as i32,
-                y: (lp.0 >> 16) as i16 as i32,
-            };
-            if ScreenToClient(hwnd, &mut point).as_bool() {
-                let dpi = GetDpiForWindow(hwnd).max(1) as f32 / 96.0;
-                let steps = (wp.0 >> 16) as i16 as f32 / 120.0;
-                if state.canvas.borrow_mut().viewport.zoom_at(
-                    Point {
-                        x: point.x as f32 / dpi,
-                        y: point.y as f32 / dpi,
-                    },
-                    steps,
-                ) {
-                    let _ = InvalidateRect(Some(hwnd), None, false);
-                }
-            }
-            LRESULT(0)
-        }
+        WM_MOUSEWHEEL => wheel::dispatch(hwnd, state, wp, lp),
         WM_CLOSE => {
-            let _ = DestroyWindow(hwnd);
+            match super::application::chrome::hide_pin(hwnd, state) {
+                Ok(()) => {
+                    let _ = DestroyWindow(hwnd);
+                }
+                Err(error) => {
+                    *state.error.borrow_mut() = Some(error);
+                }
+            }
             LRESULT(0)
         }
         WM_TIMER if tasks::complete(hwnd, state, wp.0) => LRESULT(0),

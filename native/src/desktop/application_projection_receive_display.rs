@@ -28,7 +28,11 @@ impl Application {
             crate::device_authorization_config::Error,
         >,
     ) -> Result<&'static str> {
-        if !self.receive_source_current(&saved.source, saved.held.ticket().unit())
+        if saved
+            .cancel
+            .as_ref()
+            .is_some_and(|signal| signal.load(std::sync::atomic::Ordering::Acquire))
+            || !self.receive_source_current(&saved.source, saved.held.ticket().unit())
             || !self.receive_hold_valid(&saved.held, &saved.current)
         {
             return Err(Error::new(
@@ -65,6 +69,10 @@ impl Application {
                 E_ABORT,
                 "Projection saved proof changed after presentation",
             ));
+        }
+        // 无目标分享没有服务端 displayed 合同；真实保存/可见证明之后保留 journal，释放原 Hold。
+        if !saved.held.ticket().invitation().requires_receipt() {
+            return Ok("分享已接收并呈现");
         }
         let config = config(saved.held.origin()).map_err(|error| {
             Error::new(

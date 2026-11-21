@@ -105,8 +105,9 @@ impl Editor {
                     .map_err(FlipError::Edit)?,
             );
         }
-        let raster =
-            RasterRefreshPlan::for_transform(self, replacements).map_err(FlipError::Edit)?;
+        let raster = RasterRefreshPlan::for_transform(self, replacements)
+            .map_err(FlipError::Edit)?
+            .with_mirror_target(self.mirror.toggled(axis));
         Ok(Some(FlipPlan {
             source: source.clone(),
             axis,

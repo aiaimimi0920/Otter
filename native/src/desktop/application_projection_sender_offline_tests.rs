@@ -15,7 +15,8 @@ pub(super) fn directory(
         "targets":[{"deviceId":id,"name":"Remote screen","policy":"confirm","route":"offline_peer",
         "peerId":peer,"peerName":"Loom B","remoteDeviceId":"receiver-one","deliveryAvailable":available,
         "transferProtocol":"loom.offline-transfer.v1","unavailableReason":"offline_peer_delivery_not_implemented"}],
-        "groups":[{"groupId":"remote-group","name":"Remote","targetIds":[id],"unavailableCount":0}]
+        "groups":[{"groupId":"remote-group","name":"Remote","targetIds":[id],"unavailableCount":0}],
+        "peerDirectory":{"status":"complete"},"friends":{"users":[]}
     })).unwrap(), origin).unwrap().into()
 }
 #[test]
@@ -82,7 +83,8 @@ fn offline_sender_mixed_group_same_named_devices_keep_routes_through_canonical_s
     let remote = directory(&origin, true);
     let remote_id = remote.targets()[0].id().to_owned();
     let mut catalog = json!({
-        "targets":[], "groups":[{"groupId":"mixed","name":"Mixed","targetIds":[remote_id,"receiver-one"],"unavailableCount":0}]
+        "targets":[], "groups":[{"groupId":"mixed","name":"Mixed","targetIds":[remote_id,"receiver-one"],"unavailableCount":0}],
+        "peerDirectory":{"status":"complete"},"friends":{"users":[]}
     });
     let peer_id = format!("loom-{}", "b".repeat(64));
     catalog["targets"] = json!([

@@ -198,11 +198,17 @@ fn source_lost_mode_reply_survives_real_reopen_and_only_explicit_submit_retries_
         let (_class, mut app) = application(files.root());
         initialized(&mut app, &files, identity, client, 1);
         peer.lose_mode.store(true, Ordering::Release);
-        command(&mut app, &files, ui::editing::TWO_WAY);
+        ui::editing::choose_mode(&app.documents[0].state, edit::Mode::TwoWay).unwrap();
+        app.projection_edit_requests(&mut |o| config(o, files.root()));
         completed(&app);
         poll(&mut app, &files);
         assert!(!app.projection_edit.busy());
         assert_eq!(snapshot(&app).document().mode(), edit::Mode::OneWay);
+        assert!(app.documents[0].state.projection_mode.borrow().is_none());
+        assert_eq!(
+            ui::editing::mode(&app.documents[0].state),
+            edit::Mode::OneWay
+        );
         let original = journal(&files)["entries"][0]["pending"]["request"].clone();
         assert_eq!(original["operation"], "mode");
         app.shutdown();

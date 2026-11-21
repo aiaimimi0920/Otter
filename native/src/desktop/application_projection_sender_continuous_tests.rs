@@ -4,6 +4,18 @@ use serde_json::{json, Value};
 #[path = "application_projection_sender_update_peer.rs"]
 mod peer;
 pub(super) use peer::Mode;
+fn mosaic(app: &Application) {
+    // 图像范围外的马赛克仍要求 PNG 通道；保留纯色完整像素 oracle，不弱化网络/CAS 断言。
+    let mut canvas = app.documents[0].state.canvas.borrow_mut();
+    canvas
+        .editor
+        .begin(
+            crate::editor::Tool::Mosaic,
+            crate::viewport::Point { x: 64.0, y: 64.0 },
+        )
+        .unwrap();
+    assert!(canvas.editor.commit());
+}
 unsafe fn cycle(app: &mut Application, root: &std::path::Path) {
     app.projection_sender.updates.make_due();
     app.process_authorization_with_projection(|origin| config(origin, root));
@@ -43,6 +55,7 @@ pub(super) unsafe fn run_routed(mode: Mode, offline: bool) {
         peer::start(listener, tls, mode)
     };
     let (_class, mut app) = application(files.root());
+    mosaic(&app);
     app.authorization.borrow_mut().origin = Some(origin.clone());
     app.authorization.borrow_mut().consent.install_paused(true);
     app.authorization_owner
@@ -95,6 +108,7 @@ pub(super) unsafe fn run_routed(mode: Mode, offline: bool) {
             pixels: [0, 255, 0, 255].repeat(32 * 32).into(),
         })
         .unwrap();
+    mosaic(&app);
     let before = app.restored_session.as_ref().unwrap().original.clone();
     if mode == Mode::Profile {
         app.projection_sender.updates.make_due();
@@ -134,6 +148,7 @@ pub(super) unsafe fn run_routed(mode: Mode, offline: bool) {
                 pixels: [0, 0, 255, 255].repeat(32 * 32).into(),
             })
             .unwrap();
+        mosaic(&app);
     } else if mode == Mode::Stopped {
         app.stop_projection_sender();
     } else if mode == Mode::Revoked {

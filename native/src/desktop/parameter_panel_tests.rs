@@ -4,8 +4,12 @@ use super::*;
 mod candidates;
 #[path = "parameter_panel_embedded_tests.rs"]
 mod embedded;
+#[path = "parameter_panel_inline_tests.rs"]
+mod inline_tests;
 #[path = "parameter_panel_lifetime_tests.rs"]
 mod lifetime;
+#[path = "node_settings_tests.rs"]
+mod node_settings;
 #[path = "parameter_panel_paint_tests.rs"]
 mod paint;
 #[path = "parameter_panel_sticker_tests.rs"]

@@ -55,6 +55,7 @@ impl Application {
             && self.restore_job.is_none()
             && !self.remote_sessions.projection_pending()
             && !self.projection_edit.busy()
+            && !self.account_projection.busy()
             && restore_batch::guard::is_idle(self)
     }
     unsafe fn sync_pending_current(&self, pending: &Pending) -> bool {

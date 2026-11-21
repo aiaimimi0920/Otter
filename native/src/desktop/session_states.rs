@@ -68,8 +68,15 @@ impl Parts {
             // UI 线程接管后台 alpha 缓存，不重新扫描图片或创建图形设备。
             let mut state = State::new(None, true)?;
             state.unit_id = unit.clone();
+            *state.extension_document.borrow_mut() =
+                crate::desktop::extension_document::Owner::restore(
+                    placement.extension_state.clone(),
+                    placement.extension_propagation.as_deref(),
+                );
+            state.extension_document.borrow_mut().legacy_text = placement.legacy_text.clone();
             state.sticker_input.restore(images.sticker.clone());
             state.accept_upstream.set(images.accept_upstream);
+            state.node_settings.set(placement.node_settings);
             if let Some(index) = projection_edits.iter().position(|(id, _)| *id == unit) {
                 *state.projection_edit.borrow_mut() = Some(projection_edits.swap_remove(index).1);
             }
@@ -99,6 +106,7 @@ impl Parts {
             {
                 let mut canvas = state.canvas.borrow_mut();
                 canvas.editor = restored.editor;
+                canvas.frame_style = placement.frame_style;
                 canvas.normal_opacity = placement.opacity_normal as f32;
                 canvas.window_opacity = if placement.minified {
                     placement.opacity_mini

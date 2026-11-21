@@ -2,12 +2,16 @@
 use super::*;
 #[path = "port_visibility_dialog.rs"]
 mod dialog;
+#[path = "workspace_port_visibility.rs"]
+pub(super) mod visibility;
+#[cfg(test)]
 pub(in crate::desktop) const COMMAND: usize = 0x10a0;
 pub(in crate::desktop) const LIVE_COMMAND: usize = 0x1f70;
 pub(super) struct Open {
     unit: crate::workspace_id::UnitId,
     hwnd: HWND,
     marker: isize,
+    toggle: Option<visibility::Toggle>,
 }
 struct Draft {
     request: Open,
@@ -50,6 +54,7 @@ pub(in crate::desktop) unsafe fn request(binding: &Binding, hwnd: HWND) -> bool 
         unit: endpoint.unit.clone(),
         hwnd,
         marker: node.marker,
+        toggle: None,
     };
     ui.cancel();
     if PostMessageW(Some(scene.wake), WM_NULL, WPARAM(0), LPARAM(0)).is_err() {
@@ -58,6 +63,7 @@ pub(in crate::desktop) unsafe fn request(binding: &Binding, hwnd: HWND) -> bool 
     *ui.port_settings.borrow_mut() = Some(open);
     true
 }
+#[cfg(test)]
 pub(in crate::desktop) unsafe fn append(menu: HMENU, state: &desktop::State) -> Result<()> {
     if state.chrome.borrow().upgrade().is_some() {
         AppendMenuW(menu, MF_STRING, COMMAND, w!("端口显示…"))?;
@@ -143,6 +149,24 @@ impl Application {
         }
     }
     pub(in crate::desktop::application) unsafe fn process_port_settings(&mut self) {
+        let toggle = self
+            .chrome
+            .ui
+            .port_settings
+            .borrow()
+            .as_ref()
+            .is_some_and(|r| r.toggle.is_some());
+        if toggle {
+            let request = self
+                .chrome
+                .ui
+                .port_settings
+                .borrow_mut()
+                .take()
+                .expect("queued visibility intent");
+            visibility::commit(self, request);
+            return;
+        }
         let Some(Draft {
             request,
             catalog,

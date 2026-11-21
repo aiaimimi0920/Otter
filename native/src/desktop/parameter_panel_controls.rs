@@ -2,8 +2,8 @@
 use super::*;
 #[path = "parameter_panel_candidates.rs"]
 pub(super) mod candidates;
-#[path = "parameter_panel_capsule.rs"]
-mod capsule;
+#[path = "parameter_panel_inline_controls.rs"]
+mod inline;
 #[path = "parameter_panel_rows.rs"]
 mod rows;
 #[path = "parameter_panel_sticker.rs"]
@@ -25,10 +25,9 @@ pub(super) enum Kind {
         Rc<Snapshot>,
         usize,
     ),
-    Setting(Stamp, usize),
+    Setting(Stamp, desktop::node_settings::Action),
     Run(Stamp),
     Stop(Stamp),
-    Relay(Stamp),
     Ports(Stamp),
     Sticker(Stamp, desktop::sticker_input::Action),
     Candidate(Rc<candidates::Choice>),
@@ -59,15 +58,12 @@ impl Builder<'_> {
         width: i32,
         height: i32,
     ) -> Result<HWND> {
-        let rect = layout::field_rect(
-            self.ui,
-            RECT {
-                left: x,
-                top: self.y,
-                right: x + width,
-                bottom: self.y + height,
-            },
-        );
+        let rect = RECT {
+            left: x,
+            top: self.y,
+            right: x + width,
+            bottom: self.y + height,
+        };
         let scale = GetDpiForWindow(self.ui.hwnd.get()).max(96) as i32;
         let hwnd = CreateWindowExW(
             WINDOW_EX_STYLE::default(),
@@ -120,8 +116,9 @@ impl Builder<'_> {
             WS_TABSTOP | WINDOW_STYLE(BS_OWNERDRAW as u32),
             x,
             width,
-            28,
+            if self.ui.inline { 20 } else { 28 },
         )?;
+        neuro_mini_ui::prepare_button(hwnd)?;
         self.bindings.push(Binding {
             hwnd,
             key: key.into(),
@@ -132,6 +129,7 @@ impl Builder<'_> {
     }
 }
 pub(super) unsafe fn rebuild(ui: &Ui) -> Result<()> {
+    let _redraw = neuro_mini_ui::paint_batch::Hold::new(ui.hwnd.get());
     // 所有旧 handle/草稿先移出借用再销毁；同步失焦不能提交被替换的控件。
     let focus = GetFocus();
     let focused = ui
@@ -169,8 +167,8 @@ pub(super) unsafe fn rebuild(ui: &Ui) -> Result<()> {
     Ok(())
 }
 unsafe fn build(ui: &Ui) -> Result<()> {
-    if ui.field.is_some() {
-        return capsule::build(ui);
+    if ui.inline {
+        return inline::build(ui);
     }
     let model = ui.model.borrow().clone();
     let page = ui.page.get().min(model.pages() - 1);
@@ -186,18 +184,13 @@ unsafe fn build(ui: &Ui) -> Result<()> {
     b.y += 26;
     b.button("reload", "重新加载", 12, 416, Kind::Reload, true)?;
     b.y += 34;
-    for (index, (label, checked)) in model.settings.iter().enumerate() {
-        let kind = if model.snapshot.is_some() {
-            Kind::Setting(model.stamp.clone(), index)
-        } else {
-            Kind::Relay(model.stamp.clone())
-        };
+    for (index, field) in model.settings.iter().enumerate() {
         b.button(
             &format!("setting:{index}"),
-            &format!("{} {label}", if *checked { "☑" } else { "☐" }),
+            &format!("{} {}", if field.checked { "☑" } else { "☐" }, field.label),
             12,
             416,
-            kind,
+            Kind::Setting(model.stamp.clone(), field.action),
             true,
         )?;
         b.y += 32;

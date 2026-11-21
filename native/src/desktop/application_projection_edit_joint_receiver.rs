@@ -1,4 +1,4 @@
-//! Receiver原接纳/真实NOACTIVATE帧/自动Apply/one_way冲突和默认保存重开消费者。
+//! Receiver自动接纳/真实NOACTIVATE帧/自动Apply/one_way冲突和默认保存重开消费者。
 use super::*;
 #[test]
 #[ignore = "isolated two real Looms plus two native Application consumers"]
@@ -22,19 +22,8 @@ fn native_edit_application_receiver_automatic_readonly_resolution_and_reopen() {
         until(&mut app, &f, |app| {
             app.authorization.borrow().consent.stamp().is_some()
         });
-        command(&mut app, &f, ui::projection::REFRESH);
         until(&mut app, &f, |app| {
-            app.authorization.borrow().projection.entries.len() == 1
-        });
-        ui::projection::accept::confirm_with(
-            app.documents[0].window.0,
-            &app.documents[0].state,
-            ui::projection::ACCEPT_BASE,
-            |_| true,
-        )
-        .unwrap();
-        until(&mut app, &f, |app| {
-            app.authorization.borrow().projection.status == "投送已呈现"
+            super::super::receiver::received(app).is_some() && quiet(app)
         });
         focus.assert_passive();
         let row = super::super::receiver::received(&app).unwrap();

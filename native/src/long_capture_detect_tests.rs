@@ -145,7 +145,9 @@ fn initial_preview_and_final_share_pixels_without_fabricating_axis_or_direction(
         .same_storage(&first.pixels));
     assert_eq!(detect.snapshot().axis, None);
     assert_eq!(detect.snapshot().direction, None);
-    assert!(matches!(detect.to_spatial(&cancel), Err(Error::CrossAxis)));
+    let spatial = detect.to_spatial(&cancel).unwrap();
+    assert_eq!(spatial.detected_axis(), None);
+    assert_eq!(spatial.position(), (0, 0));
     assert!(detect.preview(&cancel).is_ok());
     assert!(matches!(
         detect.compose(&AtomicBool::new(true)),

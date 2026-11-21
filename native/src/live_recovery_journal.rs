@@ -31,6 +31,7 @@ enum State {
 struct Shared {
     state: Cell<State>,
     retire: Cell<bool>,
+    restore_required: Cell<bool>,
     alive: Rc<Cell<bool>>,
 }
 #[derive(Clone)]
@@ -48,6 +49,10 @@ impl Ticket {
     pub fn rejected(&self) -> bool {
         self.0.state.get() == State::Rejected
     }
+    /// 层级请求可能已被源领取；最后 owner 丢失不证明已恢复，必须显式结算再退休。
+    pub(crate) fn require_restore(&self) {
+        self.0.restore_required.set(true);
+    }
     /// 可直接供 Lease::arm 的退休回调使用；未收到 ACK 时保留本地恢复快照。
     pub fn retire(&self) -> WinResult<()> {
         self.0.retire.set(true);
@@ -63,8 +68,8 @@ impl Ticket {
 }
 impl Drop for Ticket {
     fn drop(&mut self) {
-        // Journal 持一份引用；最后一个外部 owner 消失时取消/退休，不遗留无人持有的登记。
-        if Rc::strong_count(&self.0) == 2 {
+        // Journal 持一份引用；普通未借用票据自动退休，未知源请求必须保留恢复责任。
+        if Rc::strong_count(&self.0) == 2 && !self.0.restore_required.get() {
             self.0.retire.set(true);
         }
     }
@@ -137,6 +142,7 @@ impl Journal {
         let shared = Rc::new(Shared {
             state: Cell::new(State::Requested),
             retire: Cell::new(false),
+            restore_required: Cell::new(false),
             alive: self.alive.clone(),
         });
         self.entries.push(Entry {

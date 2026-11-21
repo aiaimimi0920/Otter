@@ -20,11 +20,40 @@ fn composite(source: &[u8], background: u32, output: &mut [u8]) {
 
 pub(crate) unsafe fn draw(dc: HDC, rect: RECT, thumbnail: &Thumbnail, background: u32) -> bool {
     let (width, height) = (rect.right - rect.left - 2, rect.bottom - rect.top - 4);
+    draw_fitted(dc, rect, thumbnail, background, width, height, false)
+}
+/// 候选卡片沿主干 object-fit: cover 居中裁切；菜单的小图仍保留完整图像和内边距。
+pub(crate) unsafe fn draw_cover(
+    dc: HDC,
+    rect: RECT,
+    thumbnail: &Thumbnail,
+    background: u32,
+) -> bool {
+    draw_fitted(
+        dc,
+        rect,
+        thumbnail,
+        background,
+        rect.right - rect.left,
+        rect.bottom - rect.top,
+        true,
+    )
+}
+unsafe fn draw_fitted(
+    dc: HDC,
+    rect: RECT,
+    thumbnail: &Thumbnail,
+    background: u32,
+    width: i32,
+    height: i32,
+    cover: bool,
+) -> bool {
     if width <= 0 || height <= 0 {
         return true;
     }
-    let scale =
-        (width as f64 / thumbnail.width() as f64).min(height as f64 / thumbnail.height() as f64);
+    let x = width as f64 / thumbnail.width() as f64;
+    let y = height as f64 / thumbnail.height() as f64;
+    let scale = if cover { x.max(y) } else { x.min(y) };
     let w = (thumbnail.width() as f64 * scale).round().max(1.0) as i32;
     let h = (thumbnail.height() as f64 * scale).round().max(1.0) as i32;
     let mut buffer = [0u8; 64 * 64 * 4];
@@ -45,6 +74,10 @@ pub(crate) unsafe fn draw(dc: HDC, rect: RECT, thumbnail: &Thumbnail, background
         },
         ..Default::default()
     };
+    let saved = SaveDC(dc);
+    if cover {
+        IntersectClipRect(dc, rect.left, rect.top, rect.right, rect.bottom);
+    }
     let result = StretchDIBits(
         dc,
         rect.left + (rect.right - rect.left - w) / 2,
@@ -60,6 +93,7 @@ pub(crate) unsafe fn draw(dc: HDC, rect: RECT, thumbnail: &Thumbnail, background
         DIB_RGB_COLORS,
         SRCCOPY,
     );
+    let _ = RestoreDC(dc, saved);
     result != 0 && result != -1
 }
 #[cfg(test)]
@@ -75,5 +109,81 @@ mod tests {
         );
         assert_eq!(&out[..8], &[48, 32, 16, 255, 10, 20, 30, 255]);
         assert_eq!(&out[8..], &[34, 36, 38, 255]);
+    }
+    struct Buffer(HDC, HBITMAP, HGDIOBJ);
+    impl Buffer {
+        unsafe fn new() -> Self {
+            let dc = CreateCompatibleDC(None);
+            assert!(!dc.is_invalid());
+            let mut bits = std::ptr::null_mut();
+            let info = BITMAPINFO {
+                bmiHeader: BITMAPINFOHEADER {
+                    biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
+                    biWidth: 24,
+                    biHeight: -24,
+                    biPlanes: 1,
+                    biBitCount: 32,
+                    biCompression: BI_RGB.0,
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
+            let bitmap =
+                CreateDIBSection(Some(dc), &info, DIB_RGB_COLORS, &mut bits, None, 0).unwrap();
+            let old = SelectObject(dc, HGDIOBJ(bitmap.0));
+            Self(dc, bitmap, old)
+        }
+    }
+    impl Drop for Buffer {
+        fn drop(&mut self) {
+            unsafe {
+                SelectObject(self.0, self.2);
+                let _ = DeleteObject(HGDIOBJ(self.1 .0));
+                let _ = DeleteDC(self.0);
+            }
+        }
+    }
+    #[test]
+    fn candidate_cover_fills_the_preview_and_clips_overflow_without_changing_menu_contain() {
+        unsafe {
+            let buffer = Buffer::new();
+            let thumbnail = Thumbnail::from_rgba(
+                4,
+                1,
+                &[
+                    255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 0, 255,
+                ],
+            )
+            .unwrap();
+            let all = RECT {
+                right: 24,
+                bottom: 24,
+                ..Default::default()
+            };
+            let rect = RECT {
+                left: 6,
+                top: 6,
+                right: 14,
+                bottom: 14,
+            };
+            let sentinel = windows::Win32::Foundation::COLORREF(0x050403);
+            SetDCBrushColor(buffer.0, sentinel);
+            FillRect(buffer.0, &all, HBRUSH(GetStockObject(DC_BRUSH).0));
+            let mut before = RECT::default();
+            GetClipBox(buffer.0, &mut before);
+            assert!(draw_cover(buffer.0, rect, &thumbnail, 0x110c09));
+            GdiFlush().ok().unwrap();
+            assert_ne!(GetPixel(buffer.0, 6, 6), sentinel);
+            assert_ne!(GetPixel(buffer.0, 13, 13), sentinel);
+            assert_eq!(GetPixel(buffer.0, 5, 10), sentinel);
+            assert_eq!(GetPixel(buffer.0, 14, 10), sentinel);
+            let mut after = RECT::default();
+            GetClipBox(buffer.0, &mut after);
+            assert_eq!(after, before);
+            FillRect(buffer.0, &all, HBRUSH(GetStockObject(DC_BRUSH).0));
+            assert!(draw(buffer.0, rect, &thumbnail, 0x110c09));
+            GdiFlush().ok().unwrap();
+            assert_eq!(GetPixel(buffer.0, 6, 6), sentinel);
+        }
     }
 }

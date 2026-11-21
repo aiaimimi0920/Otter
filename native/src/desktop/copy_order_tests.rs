@@ -16,6 +16,93 @@ fn wait_ready(state: &State) {
         std::thread::sleep(std::time::Duration::from_millis(1));
     }
 }
+
+#[test]
+fn new_copy_after_edit_replaces_uncollected_work_and_publishes_latest_pixels_once() {
+    unsafe {
+        let f = Fixture::new();
+        let s = state();
+        start_with_plan(f.hwnd, &s, Some(f.plan()));
+        wait_ready(&s);
+        s.canvas.borrow_mut().normal_opacity = 0.5;
+        start_with_plan(f.hwnd, &s, Some(f.plan()));
+        assert!(s.copy_job.borrow().as_ref().unwrap().next.is_some());
+        poll_files_using(f.hwnd, &s, |_, _, _| panic!("stale image published"));
+        wait_ready(&s);
+        let mut published = 0;
+        poll_files_using(f.hwnd, &s, |_, payload, paths| {
+            assert_eq!(paths.len(), 1);
+            assert_eq!(fs::read(&paths[0]).unwrap(), &*payload.png);
+            assert!((127..=128).contains(&payload.dibv5[127]));
+            published += 1;
+            Ok(())
+        });
+        assert_eq!(published, 1);
+        assert!(s.copy_job.borrow().is_none());
+        assert_eq!(f.files().len(), 1);
+    }
+}
+
+#[test]
+fn queued_copy_respects_cancel_newer_window_and_later_document_changes() {
+    unsafe {
+        for cause in 0..4 {
+            let f = Fixture::new();
+            let s = state();
+            start_with_plan(f.hwnd, &s, Some(f.plan()));
+            wait_ready(&s);
+            s.canvas.borrow_mut().normal_opacity = 0.5;
+            start_with_plan(f.hwnd, &s, Some(f.plan()));
+            let mut other = state();
+            other.copy_authority = s.copy_authority.clone();
+            match cause {
+                0 => cancel(&s),
+                1 => {
+                    start_with_plan(f.hwnd, &other, None);
+                    cancel(&other);
+                }
+                2 => s.canvas.borrow_mut().normal_opacity = 0.25,
+                _ => {
+                    s.canvas
+                        .borrow_mut()
+                        .begin_additive_marquee(crate::viewport::Point { x: 1.0, y: 1.0 });
+                }
+            }
+            assert_eq!(finish(&f, &s), 0);
+            assert!(f.files().is_empty());
+            if cause == 3 {
+                assert!(
+                    s.canvas.borrow().marquee.is_some(),
+                    "queued copy cancelled a later gesture"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn queued_copy_never_overwrites_a_newer_external_clipboard_sequence() {
+    unsafe {
+        let f = Fixture::new();
+        let s = state();
+        start_guarded(f.hwnd, &s, Some(f.plan()), Some(41));
+        wait_ready(&s);
+        s.canvas.borrow_mut().normal_opacity = 0.5;
+        start_guarded(f.hwnd, &s, Some(f.plan()), Some(41));
+        poll_guarded(f.hwnd, &s, || 42, |_, _, _, _| panic!("stale publication"));
+        if s.copy_job.borrow().is_some() {
+            wait_ready(&s);
+            poll_guarded(
+                f.hwnd,
+                &s,
+                || 42,
+                |_, _, _, _| panic!("newer external clipboard overwritten"),
+            );
+        }
+        assert!(s.copy_job.borrow().is_none());
+        assert!(f.files().is_empty());
+    }
+}
 #[test]
 fn newer_window_copy_cancels_old_completed_stage_and_can_acquire_same_cache_lock() {
     unsafe {

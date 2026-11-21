@@ -16,7 +16,7 @@ struct Wire<'a> {
     #[serde(borrow)]
     receiver_unit_id: Option<&'a str>,
     #[serde(borrow)]
-    delivery: Delivery<'a>,
+    delivery: Option<Delivery<'a>>,
     #[serde(borrow)]
     snapshot: Option<snapshot::Wire<'a>>,
     #[serde(borrow)]
@@ -86,12 +86,28 @@ impl Response {
         }
         let envelope: Envelope =
             serde_json::from_str(wire.envelope.get()).map_err(|_| Error::Response)?;
+        let status = match (intent.target(), &wire.delivery) {
+            (Some(target), Some(delivery))
+                if delivery.target_device_id == target
+                    && wire.linked
+                    && delivery.status != Status::Rejected
+                    && (delivery.status == Status::AwaitingConfirmation)
+                        == wire.receiver_device_id.is_none() =>
+            {
+                delivery.status
+            }
+            (None, None) if wire.linked => {
+                if wire.receiver_device_id.is_some() {
+                    Status::Accepted
+                } else {
+                    Status::AwaitingConfirmation
+                }
+            }
+            _ => return Err(Error::Response),
+        };
         if &envelope != intent.envelope()
             || !intent.response_route(wire.route, wire.peer_id)
             || wire.offline_transport.is_some()
-            || !wire.linked
-            || wire.delivery.target_device_id != intent.target()
-            || wire.delivery.status == Status::Rejected
             || !(envelope.source_revision()..=super::super::envelope::MAX_REVISION)
                 .contains(&wire.revision)
             || !super::super::envelope::digest(wire.digest)
@@ -99,10 +115,9 @@ impl Response {
             || (created
                 && (wire.revision != envelope.source_revision() || wire.digest != intent.digest()))
             || wire.receiver_device_id.is_some() != wire.receiver_unit_id.is_some()
-            || (wire.delivery.status == Status::AwaitingConfirmation)
-                != wire.receiver_device_id.is_none()
             || wire.receiver_device_id.is_some_and(|id| {
-                !super::super::envelope::identifier(id) || id != intent.receiver()
+                !super::super::envelope::identifier(id)
+                    || intent.receiver().is_some_and(|expected| id != expected)
             })
             || wire
                 .receiver_unit_id
@@ -139,7 +154,7 @@ impl Response {
             digest: wire.digest.into(),
             receiver_device: wire.receiver_device_id.map(str::to_owned),
             receiver_unit: wire.receiver_unit_id.map(str::to_owned),
-            status: wire.delivery.status,
+            status,
             editing,
         })
     }

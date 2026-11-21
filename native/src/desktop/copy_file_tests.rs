@@ -2,6 +2,8 @@
 use super::*;
 #[path = "copy_order_tests.rs"]
 mod order_tests;
+#[path = "copy_placement_tests.rs"]
+mod placement_tests;
 use std::{fs, path::PathBuf};
 struct Fixture {
     root: PathBuf,

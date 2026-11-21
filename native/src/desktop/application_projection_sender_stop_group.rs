@@ -65,7 +65,10 @@ impl Batch {
                 binding.unit() == selection.group.unit.as_str()
                     && binding.scope() == scope
                     && binding.envelope().origin() == selection.group.directory.origin()
-                    && group.target_ids().iter().any(|id| id == binding.target())
+                    && group
+                        .target_ids()
+                        .iter()
+                        .any(|id| Some(id.as_str()) == binding.target())
             })
             .map(|binding| Entry {
                 binding: binding.clone(),
@@ -196,7 +199,7 @@ impl Batch {
                 format!(
                     "{}：{state}",
                     if entry.binding.name().is_empty() {
-                        entry.binding.target()
+                        entry.binding.target().unwrap_or("分享邀请")
                     } else {
                         entry.binding.name()
                     }

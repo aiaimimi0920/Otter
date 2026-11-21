@@ -68,11 +68,11 @@ impl Tracker {
                 gesture.finish(&(target.hwnd().0 as usize), point, button, valid)?;
                 Some(original)
             }
-            Event::Wheel { .. } => {
+            Event::Wheel { .. } | Event::Leave => {
                 self.gesture = None;
                 None
             }
-            Event::Key { .. } => None,
+            Event::Key { .. } | Event::Character { .. } | Event::Hover { .. } => None,
         }
     }
 }
@@ -120,7 +120,11 @@ fn eligible(target: &Destination, point: [i32; 2]) -> bool {
 }
 
 /// 不用 BM_CLICK（会重复产生 down/up）；只使用受限的 BN_CLICKED/WM_COMMAND。
-pub(super) fn complete(target: Destination, point: [i32; 2]) -> Result<(), Error> {
+pub(super) fn complete(
+    target: Destination,
+    point: [i32; 2],
+    modal: Option<&mut message::Modal>,
+) -> Result<(), Error> {
     if !eligible(&target, point) {
         return Ok(());
     }
@@ -132,13 +136,19 @@ pub(super) fn complete(target: Destination, point: [i32; 2]) -> Result<(), Error
     // 绑定父窗口之后再复核原始子目标及父子关系；句柄本身不是权限凭证。
     target.preflight().map_err(Error::Target)?;
     parent.preflight().map_err(Error::Target)?;
-    if unsafe { GetParent(target.hwnd()) }.ok() != Some(parent.hwnd())
-        || unsafe { IsIconic(target.root().hwnd()) }.as_bool()
-    {
+    if unsafe { GetParent(target.hwnd()) }.ok() != Some(parent.hwnd()) {
         return Err(Error::InvalidDelivery);
     }
+    if unsafe { IsIconic(target.root().hwnd()) }.as_bool() {
+        return Err(Error::Message(message::Error::SourceTransition));
+    }
     let id = unsafe { GetDlgCtrlID(target.hwnd()) } as u16;
+    if let Some(modal) = modal {
+        // 通知也能打开模态窗。保留原父目标供 Escape/取消使用，不重放通知。
+        return message::button_command(&parent, &target, id, modal).map_err(Error::Message);
+    }
     let completed = unsafe {
+        SetLastError(ERROR_SUCCESS);
         SendMessageTimeoutW(
             parent.hwnd(),
             WM_COMMAND,
@@ -150,6 +160,10 @@ pub(super) fn complete(target: Destination, point: [i32; 2]) -> Result<(), Error
         )
     };
     if completed.0 == 0 {
+        let error = unsafe { GetLastError() }.0;
+        eprintln!(
+            "native-live-message-failed: message=0x{WM_COMMAND:04X} win32={error} timeout_ms=250"
+        );
         Err(Error::Message(message::Error::DeliveryFailed))
     } else {
         Ok(())

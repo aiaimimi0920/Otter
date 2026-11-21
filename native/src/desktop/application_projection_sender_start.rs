@@ -5,7 +5,22 @@ use crate::{
     device_authorization_config::Config,
     projection_delivery_runtime::{Error as JobError, SenderInput},
 };
+#[path = "application_projection_sender_choice.rs"]
+mod choice;
+use choice::Choice;
 impl Application {
+    pub(in crate::desktop) unsafe fn start_projection_share(
+        &mut self,
+        selection: crate::desktop::device_authorization_ui::share::SourceSelection,
+        config: &mut impl FnMut(
+            &str,
+        ) -> std::result::Result<
+            Config,
+            crate::device_authorization_config::Error,
+        >,
+    ) {
+        self.start_sender_choice(Choice::Invitation(selection), Vec::new(), config);
+    }
     pub(in crate::desktop) unsafe fn start_projection_sender(
         &mut self,
         selection: Selection,
@@ -29,8 +44,22 @@ impl Application {
             crate::device_authorization_config::Error,
         >,
     ) -> bool {
+        self.start_sender_choice(Choice::Device(selection), admission, config)
+    }
+    unsafe fn start_sender_choice(
+        &mut self,
+        selection: Choice,
+        admission: Vec<crate::projection_delivery::sender::Selection>,
+        config: &mut impl FnMut(
+            &str,
+        ) -> std::result::Result<
+            Config,
+            crate::device_authorization_config::Error,
+        >,
+    ) -> bool {
         let result = (|| {
-            if self.projection_sender.busy()
+            if self.account_projection.busy()
+                || self.projection_sender.busy()
                 || self.projection_edit.busy()
                 || self.projection_sender.pending_local()
                 || self.projection_sender.cleanup.network.is_some()
@@ -39,9 +68,15 @@ impl Application {
             {
                 return Err(scope::stale());
             }
-            let (scope, snapshot) = scope::Scope::capture(self, &selection.unit)?;
-            let origin = selection.directory.origin();
-            let editing = self.projection_source_snapshot(&selection.unit)?;
+            if !selection.valid(self) {
+                return Err(scope::stale());
+            }
+            let (mut scope, snapshot) = scope::Scope::capture(self, selection.unit())?;
+            if let Choice::Invitation(selection) = &selection {
+                scope.cancel = Some(selection.cancel.clone());
+            }
+            let origin = selection.origin();
+            let editing = self.projection_source_snapshot(selection.unit())?;
             if editing
                 .as_ref()
                 .is_some_and(|state| state.context().origin() != origin)
@@ -61,20 +96,9 @@ impl Application {
                     || view.projection.busy
                     || view.targets.busy
                     || view.origin.as_deref() != Some(origin)
-                    || !view.targets.directory.as_ref().is_some_and(|current| {
-                        std::sync::Arc::ptr_eq(current, &selection.directory)
-                    })
                 {
                     return Err(scope::stale());
                 }
-            }
-            let target = selection
-                .directory
-                .targets()
-                .get(selection.index)
-                .ok_or_else(scope::stale)?;
-            if !target.route().available() {
-                return Err(scope::stale());
             }
             let prepared_config = config(origin).map_err(|_| scope::stale())?;
             let root = prepared_config.identity_root().to_path_buf();
@@ -92,15 +116,9 @@ impl Application {
                 .lease(origin, now()?)
                 .map_err(|_| scope::stale())?;
             lease.notify_revocation(self.execution_wake.callback());
-            let name = target.name().to_owned();
+            let name = selection.name()?.to_owned();
             let pending_name = name.clone();
-            let selected = crate::projection_delivery::sender::Selection::for_target(
-                &scope.scope.to_string(),
-                origin,
-                selection.unit.as_str(),
-                target,
-            )
-            .map_err(|_| scope::stale())?;
+            let selected = selection.prepared(&scope.scope.to_string())?;
             let source = scope.binding_source.clone();
             let unit = scope.unit.clone();
             self.remote_sessions

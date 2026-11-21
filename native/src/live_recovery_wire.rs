@@ -1,7 +1,8 @@
 //! 独立恢复进程的有界协议；结构校验不等于传输鉴权或窗口身份验证。
 use serde::{Deserialize, Serialize};
 use std::io::{self, Read, Write};
-pub const SCHEMA: u8 = 1;
+// 私有同 EXE 父子协议；类型化恢复状态不兼容旧的混合快照，握手即拒绝混用。
+pub const SCHEMA: u8 = 2;
 pub const MAX_FRAME_BYTES: usize = 4096;
 pub const MAX_RECORDS: usize = 16;
 
@@ -12,6 +13,23 @@ pub struct Record {
     pub process_id: u32,
     pub thread_id: u32,
     pub process_created: u64,
+    pub restoration: Restoration,
+}
+/// 互斥恢复职责：菜单层级没有位置/可见性/分层属性的恢复许可或伪造后备值。
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(
+    tag = "kind",
+    content = "state",
+    rename_all = "camelCase",
+    deny_unknown_fields
+)]
+pub enum Restoration {
+    Window(WindowState),
+    PopupLayer(PopupLayer),
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WindowState {
     pub rect: [i32; 4],
     pub placement_flags: u32,
     pub show_command: u32,
@@ -23,6 +41,17 @@ pub struct Record {
     pub iconic: bool,
     pub visible: bool,
 }
+/// 只恢复借用的置顶位；显示实例不匹配时不得触碰重用窗口，也不恢复位置/可见性。
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PopupLayer {
+    pub owner: u64,
+    pub root: u64,
+    pub cookie: u64,
+    pub epoch: u64,
+    pub request: u64,
+    pub instance: u64,
+}
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Layered {
@@ -33,6 +62,35 @@ pub struct Layered {
 
 impl Record {
     pub fn validate(&self) -> io::Result<()> {
+        if self.hwnd == 0
+            || self.process_id == 0
+            || self.thread_id == 0
+            || self.process_created == 0
+        {
+            return Err(invalid("Invalid Live recovery identity"));
+        }
+        match &self.restoration {
+            Restoration::Window(state) => state.validate(),
+            Restoration::PopupLayer(layer) => {
+                if [
+                    layer.owner,
+                    layer.root,
+                    layer.cookie,
+                    layer.epoch,
+                    layer.request,
+                    layer.instance,
+                ]
+                .contains(&0)
+                {
+                    return Err(invalid("Invalid Live popup layer identity"));
+                }
+                Ok(())
+            }
+        }
+    }
+}
+impl WindowState {
+    fn validate(&self) -> io::Result<()> {
         // WS_EX_LAYERED / LWA_* 是协议数值；本模块不依赖 Windows 或调用任何窗口 API。
         let layered = self.extended_style & 0x0008_0000 != 0;
         let rect_valid = |rect: [i32; 4]| {
@@ -40,11 +98,7 @@ impl Record {
             let height = i64::from(rect[3]) - i64::from(rect[1]);
             width > 0 && height > 0 && width <= i64::from(i32::MAX) && height <= i64::from(i32::MAX)
         };
-        if self.hwnd == 0
-            || self.process_id == 0
-            || self.thread_id == 0
-            || self.process_created == 0
-            || !rect_valid(self.rect)
+        if !rect_valid(self.rect)
             || !rect_valid(self.normal_position)
             || self.show_command > 11
             || self.placement_flags & !7 != 0

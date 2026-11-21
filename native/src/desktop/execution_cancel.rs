@@ -2,7 +2,7 @@
 use super::State;
 use crate::{graph_requests, workspace_id::UnitId};
 use windows::{
-    core::{w, Result},
+    core::Result,
     Win32::{Foundation::*, UI::WindowsAndMessaging::*},
 };
 pub(super) const COMMAND: usize = 0x1080;
@@ -24,18 +24,6 @@ fn snapshot(state: &State) -> Request {
             .map(|execution| execution.request.clone())
             .or_else(|| state.execution_results.borrow().active().cloned()),
     }
-}
-pub(super) unsafe fn append(menu: HMENU, state: &State) -> Result<()> {
-    let request = snapshot(state);
-    let enabled = request.preparation.is_some()
-        || request.execution.is_some()
-        || state.pending_start.borrow().is_some();
-    AppendMenuW(
-        menu,
-        MF_STRING | if enabled { MF_ENABLED } else { MF_GRAYED },
-        COMMAND,
-        w!("停止节点执行"),
-    )
 }
 /// 显式停止包含排队请求；参数编辑退休旧执行时仍使用 request，不能删除新请求。
 pub(super) unsafe fn stop(hwnd: HWND, state: &State) -> Result<()> {

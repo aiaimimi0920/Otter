@@ -16,6 +16,7 @@ impl Application {
         let result = (|| {
             let view = self.authorization.borrow();
             if self.projection_edit.busy()
+                || self.account_projection.busy()
                 || !self.sender_idle_for_edit()
                 || self.modals.blocked()
                 || view.closed
@@ -137,7 +138,7 @@ impl Application {
                 true
             }
             Err(error) => {
-                self.edit_status(&format!("源端协作未启动：{error}"));
+                self.edit_error(&format!("源端协作未启动：{error}"));
                 false
             }
         }

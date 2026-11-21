@@ -25,6 +25,7 @@ impl Canvas {
     pub(in crate::desktop) fn software_selected(&self) -> bool {
         self.software_renderer
     }
+    #[cfg(test)]
     pub(in crate::desktop) fn render_choice(&self) -> Destination {
         if self.software_renderer {
             Destination::Software

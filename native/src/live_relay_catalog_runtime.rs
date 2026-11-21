@@ -15,6 +15,7 @@ use std::{
 
 pub struct Catalog {
     pub origin: String,
+    pub device_id: String,
     pub entries: Vec<CatalogEntry>,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -63,6 +64,7 @@ impl Job {
                 }
                 Ok(Catalog {
                     origin: client.origin().to_owned(),
+                    device_id: task.device_id().to_owned(),
                     entries,
                 })
             })?;

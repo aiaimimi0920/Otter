@@ -23,6 +23,8 @@ mod groups;
 mod guard;
 #[path = "application_projection_sender_joint_tests.rs"]
 mod joint;
+#[path = "application_loom_connection_tests.rs"]
+mod local_connection;
 #[path = "application_projection_sender_offline_tests.rs"]
 mod offline;
 #[path = "application_projection_sender_source_tests.rs"]

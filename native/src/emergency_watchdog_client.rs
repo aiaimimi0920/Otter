@@ -6,7 +6,7 @@ use crate::{
     live_recovery_pipe::Pipe,
 };
 use std::{
-    io,
+    io::{self, Write},
     os::windows::io::{AsHandle, AsRawHandle},
     process::Command,
     time::Instant,
@@ -42,6 +42,11 @@ impl Owner {
         live_recovery_handshake::write_hello(&mut channel, nonce)?;
         live_recovery_handshake::read_ready(&mut channel, nonce)?;
         Ok(owner)
+    }
+    pub(super) fn begin_shutdown(&mut self) -> io::Result<()> {
+        self._pipe
+            .io(Some(Instant::now() + BUDGET), Some(self.child.as_handle()))
+            .write_all(&[super::shutdown::command()])
     }
     #[cfg(test)]
     pub(super) fn handle(&self) -> std::os::windows::io::BorrowedHandle<'_> {

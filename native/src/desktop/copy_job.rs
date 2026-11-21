@@ -30,10 +30,22 @@ pub(super) struct Job {
     sequence: Option<u32>,
     preserve_edits: bool,
     origin: Option<super::clipboard_placement::Origin>,
+    next: Option<Next>,
+}
+// 新的显式复制最多占一个后继槽；旧编码器先回收，不在按键回调 join 或并行编码。
+struct Next {
+    stamp: super::display_snapshot::Stamp,
+    plan: Option<file_plan::Plan>,
+    sequence: Option<u32>,
+    origin: Option<super::clipboard_placement::Origin>,
+    cancel: Arc<AtomicBool>,
 }
 impl Drop for Job {
     fn drop(&mut self) {
         self.cancel.store(true, Ordering::Release);
+        if let Some(next) = &self.next {
+            next.cancel.store(true, Ordering::Release);
+        }
         // WIC 编码不可中断；关闭仍 join，不能遗留无 owner 的任务。
         if let Some(worker) = self.worker.take() {
             let _ = worker.join();
@@ -58,6 +70,7 @@ fn prepare_with_plan(
     };
     let stamp = super::display_snapshot::Stamp::capture(canvas, frame);
     let opacity = canvas.normal_opacity;
+    let style = super::export::style::Snapshot::capture(canvas);
     let preserve_edits = canvas.minified.is_none();
     // Resolved pixels belong to their display source, not this canvas's old capture.
     let capture_source = (preserve_edits && frame.is_none())
@@ -71,7 +84,8 @@ fn prepare_with_plan(
             if signal.load(Ordering::Acquire) {
                 return Ok(None);
             }
-            let result = super::export::clipboard_payload_with_opacity(&image, &editor, opacity)
+            let result = style
+                .clipboard(&image, &editor, opacity)
                 .map_err(|error| error.to_string());
             if signal.load(Ordering::Acquire) {
                 Ok(None)
@@ -88,6 +102,7 @@ fn prepare_with_plan(
                             image,
                             editor,
                             opacity,
+                            frame_style: style.style,
                             capture_source,
                             origin: None,
                         })
@@ -108,31 +123,21 @@ fn prepare_with_plan(
         sequence: None,
         preserve_edits,
         origin: None,
+        next: None,
     }))
 }
 fn eligible(canvas: &Canvas, frame: Option<&super::display_frame::Frame>, job: &Job) -> bool {
-    !job.cancel.load(Ordering::Acquire)
-        && job.stamp.matches(canvas, frame)
-        && canvas.editor.draft().is_none()
+    !job.cancel.load(Ordering::Acquire) && job.stamp.matches(canvas, frame) && gesture_idle(canvas)
+}
+fn gesture_idle(canvas: &Canvas) -> bool {
+    canvas.editor.draft().is_none()
         && canvas.selection_drag.is_none()
         && canvas.marquee.is_none()
         && canvas.path_drag.is_none()
         && canvas.erase_gesture.is_none()
 }
-pub(super) unsafe fn append(menu: HMENU, state: &State) -> windows::core::Result<()> {
-    let enabled = (state.resolved_display.borrow().is_some()
-        || state.canvas.borrow().image.is_some())
-        && state.copy_job.borrow().is_none();
-    AppendMenuW(
-        menu,
-        MF_STRING | if enabled { MF_ENABLED } else { MF_GRAYED },
-        COMMAND,
-        w!("复制图片\tCtrl+C"),
-    )
-}
 pub(super) unsafe fn start(hwnd: HWND, state: &State) {
-    if state.copy_job.borrow().is_some()
-        || state.modals.blocked()
+    if state.modals.blocked()
         || (state.resolved_display.borrow().is_none() && state.canvas.borrow().image.is_none())
     {
         return;
@@ -152,10 +157,50 @@ unsafe fn start_guarded(
     plan: Option<file_plan::Plan>,
     sequence: Option<u32>,
 ) {
-    if state.copy_job.borrow().is_some() || state.file_dialog.get() {
+    // 在准备像素/启动 worker 前采样，与主干复制入口的鼠标时刻一致。
+    let origin = super::clipboard_placement::Origin::capture(hwnd, state);
+    start_guarded_at(hwnd, state, plan, sequence, origin);
+}
+pub(super) unsafe fn start_guarded_at(
+    hwnd: HWND,
+    state: &State,
+    plan: Option<file_plan::Plan>,
+    sequence: Option<u32>,
+    origin: Option<super::clipboard_placement::Origin>,
+) {
+    if state.file_dialog.get() {
         return;
     }
     state.canvas.borrow_mut().cancel_gesture();
+    if let Some(job) = state.copy_job.borrow_mut().as_mut() {
+        if job.sequence == sequence
+            && eligible(
+                &state.canvas.borrow(),
+                state.resolved_display.borrow().as_ref(),
+                job,
+            )
+        {
+            job.origin = origin;
+            return;
+        }
+        let cancel = Arc::new(AtomicBool::new(false));
+        state
+            .copy_authority
+            .replace(cancel.clone())
+            .store(true, Ordering::Release);
+        job.cancel.store(true, Ordering::Release);
+        job.next = Some(Next {
+            stamp: super::display_snapshot::Stamp::capture(
+                &state.canvas.borrow(),
+                state.resolved_display.borrow().as_ref(),
+            ),
+            plan,
+            sequence,
+            origin,
+            cancel,
+        });
+        return;
+    }
     let prepared = prepare_with_plan(
         &state.canvas.borrow(),
         state.resolved_display.borrow().as_ref(),
@@ -166,7 +211,7 @@ unsafe fn start_guarded(
             if let Some(job) = &mut job {
                 job.sequence = sequence;
                 job.preserve_edits &= !state.is_art();
-                job.origin = super::clipboard_placement::Origin::capture(hwnd, state);
+                job.origin = origin;
                 // 跨窗口取消旧 worker；旧结果仍由原窗口回收，不转移 HWND 或 State。
                 state
                     .copy_authority
@@ -189,6 +234,9 @@ unsafe fn start_guarded(
 pub(super) fn cancel(state: &State) {
     if let Some(job) = state.copy_job.borrow().as_ref() {
         job.cancel.store(true, Ordering::Release);
+        if let Some(next) = &job.next {
+            next.cancel.store(true, Ordering::Release);
+        }
     }
 }
 pub(super) unsafe fn poll(hwnd: HWND, state: &State) {
@@ -253,6 +301,25 @@ unsafe fn poll_guarded(
         .unwrap()
         .join()
         .unwrap_or_else(|_| Err("Copy worker failed".into()));
+    if let Some(next) = job.next.take() {
+        drop(result);
+        // 只继续仍属于这次按键的内容；后来的编辑、其它复制和取消均不能被覆盖。
+        if IsWindow(Some(hwnd)).as_bool()
+            && !state.modals.blocked()
+            && !next.cancel.load(Ordering::Acquire)
+            && !next
+                .sequence
+                .is_some_and(|expected| current_sequence() != expected)
+            && gesture_idle(&state.canvas.borrow())
+            && next.stamp.matches(
+                &state.canvas.borrow(),
+                state.resolved_display.borrow().as_ref(),
+            )
+        {
+            start_guarded_at(hwnd, state, next.plan, next.sequence, next.origin);
+        }
+        return;
+    }
     if !IsWindow(Some(hwnd)).as_bool()
         || job
             .sequence
@@ -268,7 +335,7 @@ unsafe fn poll_guarded(
     match result {
         Ok(Some(mut ready)) => {
             if let Some(content) = ready.editable.as_mut().and_then(Arc::get_mut) {
-                content.origin = job.origin.take();
+                content.origin = job.origin.clone();
             }
             let paths = match ready
                 .cache
@@ -283,13 +350,14 @@ unsafe fn poll_guarded(
             };
             // 一旦开始发布，失败可能已转移部分格式；保留 backing file，不能在此删除。
             match publish(hwnd, &ready.payload, &paths, job.sequence) {
-                Ok(Some(sequence)) => state.editable_clipboard.borrow_mut().published(
+                Ok(Some(sequence)) => state.editable_clipboard.borrow_mut().published_at(
                     sequence,
                     if job.preserve_edits {
                         ready.editable
                     } else {
                         None
                     },
+                    job.origin.take(),
                 ),
                 Ok(None) => {} // Final-lock sequence mismatch: nothing was published.
                 Err(error) => report(hwnd, &error.to_string()),

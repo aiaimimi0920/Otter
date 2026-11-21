@@ -175,6 +175,17 @@ impl Runtime {
     pub fn pending(&self) -> bool {
         self.pending
     }
+    /// 单槽原路提交；调用方仍须确认 view 属于当前声明，忙碌时不排动画或隐式重试。
+    pub fn select_view(
+        &mut self,
+        current: &Binding,
+        view_id: &str,
+        viewport: crate::surface_viewport::Viewport,
+    ) -> Result<(), Error> {
+        let view_id = crate::art_surface_views::Id::parse(view_id)
+            .ok_or(Error::Io(io::ErrorKind::InvalidInput))?;
+        self.submit(current, Operation::SelectView(view_id, viewport))
+    }
     pub(crate) fn take_progress(&self, current: &Binding) -> Option<progress::Update> {
         let progress = self.progress.as_ref()?;
         if !self.pending || self.validate(current).is_err() {
@@ -255,6 +266,7 @@ impl Runtime {
         }
         match &operation {
             Operation::Viewport(viewport)
+            | Operation::SelectView(_, viewport)
             | Operation::Animation(viewport)
             | Operation::Timer(viewport)
             | Operation::ClickAt(_, viewport)

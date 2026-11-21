@@ -102,6 +102,8 @@ pub(super) unsafe fn install(app: &mut Application, beautify: bool) -> Image {
         "borderWidth": if beautify { 2 } else { 0 }, "borderColor":"#ff0000",
         "beautify":{"enabled":beautify,"padding":3,"backgroundId":"white","cornerRadius":0,"shadow":false}
     });
+    app.documents[0].state.canvas.borrow_mut().frame_style =
+        crate::pin_frame_style::Style::read(&target["imageEditState"]).unwrap();
     app.restored_session
         .as_mut()
         .unwrap()

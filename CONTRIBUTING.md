@@ -22,8 +22,8 @@ write code to take part.
    discuss the scope in an issue before investing in a broad implementation.
 2. **Work on a focused branch from `main`.** Keep unrelated cleanup separate and
    preserve existing behavior outside your change.
-3. **Read the owning code and guidance.** Otter is a Windows-first Tauri/SolidJS
-   application. Use current implementation and tests, not historical plans, as
+3. **Read the owning code and guidance.** Otter is a Rust/Win32 desktop
+   application; WebView history is archived at `archive/webview-main`. Use current implementation and tests, not historical plans, as
    the source of truth. Read [AGENTS.md](AGENTS.md) and the
    [engineering requirements](docs/development/ENGINEERING.md) for code work.
 4. **Verify what you changed.** Run the relevant tests and checks. Documentation-only
@@ -46,9 +46,9 @@ Mention display scaling or monitor layout when the problem involves capture or p
 
 ## Development and verification
 
-Otter is built with SolidJS, TypeScript, Rust and Tauri for Windows. Use the
-[development guide](docs/guide/development.md) for prerequisites and setup; a browser
-preview alone cannot validate native capture, input or desktop behavior.
+Otter uses Win32, Direct2D and DirectComposition for the Windows product. Use the
+[development guide](docs/guide/development.md) for prerequisites and setup; legacy
+browser tests do not validate the native desktop app.
 
 Before changing code, read the [engineering requirements](docs/development/ENGINEERING.md)
 and [code organization standard](docs/development/CODE_ORGANIZATION.md). These cover

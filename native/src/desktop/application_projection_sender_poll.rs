@@ -41,7 +41,18 @@ impl Application {
         {
             // 普通网络失败不等于用户取消；显式重试继续同 ID/签名/PNG，不自动重新 Create。
             self.projection_sender.phase = Phase::Retry(pending);
-            self.sender_status("发送未完成；可重试原邀请或取消");
+            use crate::{
+                live_relay_http::Error as Http, projection_delivery_runtime::Error as Job,
+            };
+            let reason = match result {
+                Err(Job::Http(Http::ProjectionTargetOffline)) => {
+                    "目标已离线；待对方重新连接后可重试原邀请，或取消".to_owned()
+                }
+                Err(Job::Http(Http::ProjectionBusy)) => "Loom 正忙；可重试原邀请或取消".to_owned(),
+                Err(error) => format!("发送未完成：{error:?}；可重试原邀请或取消"),
+                Ok(_) => unreachable!("retry requires a failed send"),
+            };
+            self.sender_status(&reason);
             return;
         }
         let prepared = (|| {
@@ -195,6 +206,9 @@ impl Application {
             && self.projection_sender_scope().is_some()
             && !self.projection_sender.pending_local();
         view.sender.ready &= self.projection_sender.cleanup.network.is_none();
+        view.sender.ready &= self.save_job.is_none()
+            && self.restore_job.is_none()
+            && !self.display_composition.borrow().is_busy();
         view.sender.bindings = self
             .workspace_checkpoint
             .as_ref()

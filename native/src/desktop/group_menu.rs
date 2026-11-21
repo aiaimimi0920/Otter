@@ -2,7 +2,7 @@
 use super::State;
 use crate::workspace_id::UnitId;
 use windows::{
-    core::{w, Result, HSTRING},
+    core::Result,
     Win32::{Foundation::*, UI::WindowsAndMessaging::*},
 };
 pub(super) const CREATE: usize = 0x1052;
@@ -31,41 +31,6 @@ pub(super) fn handles(command: usize) -> bool {
         || catalog::handles(command)
         || (JOIN_BASE..JOIN_BASE + crate::workspace::MAX_UNITS).contains(&command)
         || (SHOW_BASE..SHOW_BASE + crate::workspace::MAX_UNITS).contains(&command)
-}
-pub(super) unsafe fn append(menu: HMENU, state: &State) -> Result<()> {
-    let groups = state.group_catalog.borrow().clone();
-    let current = state.group_id.borrow().clone();
-    AppendMenuW(menu, MF_SEPARATOR, 0, None)?;
-    AppendMenuW(menu, MF_STRING, CREATE, w!("创建分组…"))?;
-    catalog::append(menu, &groups, current.as_ref())?;
-    for (command, label) in [
-        (HIDE, w!("隐藏当前分组（托盘可恢复）")),
-        (
-            LOCK,
-            if state.group_locked.get() {
-                w!("解锁当前分组")
-            } else {
-                w!("锁定当前分组")
-            },
-        ),
-        (RENAME, w!("重命名当前分组…")),
-        (LEAVE, w!("移出当前分组")),
-        (DELETE, w!("删除当前分组（保留图片）")),
-        (CLOSE, w!("关闭当前分组的全部窗口（不移入回收站）")),
-    ] {
-        AppendMenuW(
-            menu,
-            MF_STRING
-                | if current.is_none() {
-                    MF_GRAYED
-                } else {
-                    MF_ENABLED
-                },
-            command,
-            label,
-        )?;
-    }
-    Ok(())
 }
 pub(super) unsafe fn queue(hwnd: HWND, state: &State, request: Request) -> Result<()> {
     if state.file_dialog.get() || state.group_request.borrow().is_some() {

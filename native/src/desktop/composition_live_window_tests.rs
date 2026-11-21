@@ -1,9 +1,149 @@
 use super::*;
+#[path = "composition_live_input_reentrant_tests.rs"]
+mod input_reentrant;
+#[path = "composition_live_pin_tests.rs"]
+mod pin_tests;
 #[path = "composition_live_session_end_tests.rs"]
 mod session_end;
 use crate::{desktop::Apartment, live_frames::Source};
 use std::sync::Arc;
 use windows::{core::Interface, Win32::Graphics::Direct3D11::ID3D11Multithread};
+
+#[test]
+fn suspended_live_accepts_pointer_input_without_foreground_and_keeps_explicit_stop() {
+    use crate::live_input::Event;
+    let _apartment = Apartment::new().unwrap();
+    unsafe {
+        let source = Source::new();
+        let window = LiveWindow::new(source.subscribe().unwrap(), 128, 128).unwrap();
+        window.allow_input().unwrap();
+        window.request_default_input();
+        assert_eq!(window.take_input_request(), Some(true));
+        publish(&source);
+        SendMessageW(window.hwnd, WM_PAINT, None, None);
+        window.input_status(true, false, None);
+        SendMessageW(window.hwnd, WM_KILLFOCUS, None, None);
+        assert_eq!(window.take_input_request(), Some(false));
+        assert_ne!(GetForegroundWindow(), window.hwnd);
+        let mut screen = POINT { x: 64, y: 64 };
+        assert!(ClientToScreen(window.hwnd, &mut screen).as_bool());
+        let wheel_point = LPARAM(
+            (u32::from(screen.x as i16 as u16) | (u32::from(screen.y as i16 as u16) << 16))
+                as isize,
+        );
+        SendMessageW(
+            window.hwnd,
+            WM_MOUSEWHEEL,
+            Some(WPARAM(120 << 16)),
+            Some(wheel_point),
+        );
+        assert_eq!(
+            window.take_input_request(),
+            Some(true),
+            "inactive scrolling must resume source input"
+        );
+        assert!(matches!(
+            window.pop_input(),
+            Some(Event::Wheel { delta: 120, .. })
+        ));
+        // Pending mouse is retained, while keyboard still awaits the worker's acknowledgement.
+        SendMessageW(window.hwnd, WM_KEYDOWN, Some(WPARAM(65)), None);
+        assert!(window.pop_input().is_none());
+        window.input_status(true, false, None);
+        SendMessageW(window.hwnd, WM_KEYDOWN, Some(WPARAM(65)), None);
+        assert_eq!(
+            window.pop_input(),
+            Some(Event::Key {
+                code: 65,
+                down: true
+            })
+        );
+        input::cancel(window.hwnd, &window.state);
+        assert_eq!(window.take_input_request(), Some(false));
+        SendMessageW(
+            window.hwnd,
+            WM_MOUSEMOVE,
+            None,
+            Some(LPARAM(64 | (64 << 16))),
+        );
+        SendMessageW(
+            window.hwnd,
+            WM_MOUSEWHEEL,
+            Some(WPARAM(120 << 16)),
+            Some(wheel_point),
+        );
+        assert_eq!(window.take_input_request(), None);
+        assert!(window.pop_input().is_none());
+    }
+}
+
+#[test]
+fn default_input_survives_pointer_activity_before_the_first_presented_frame() {
+    let _apartment = Apartment::new().unwrap();
+    unsafe {
+        let source = Source::new();
+        let window = LiveWindow::new(source.subscribe().unwrap(), 128, 128).unwrap();
+        window.allow_input().unwrap();
+        window.request_default_input();
+        SendMessageW(
+            window.hwnd,
+            WM_MOUSEMOVE,
+            None,
+            Some(LPARAM(32 | (32 << 16))),
+        );
+        assert_eq!(window.take_input_request(), Some(true));
+        assert!(window.pop_input().is_none());
+        publish(&source);
+        SendMessageW(window.hwnd, WM_PAINT, None, None);
+        window.input_status(true, false, None);
+        SendMessageW(window.hwnd, WM_KEYDOWN, Some(WPARAM(65)), None);
+        assert_eq!(
+            window.pop_input(),
+            Some(crate::live_input::Event::Key {
+                code: 65,
+                down: true
+            })
+        );
+    }
+}
+
+#[test]
+fn pending_status_preserves_first_mouse_capture_until_source_acknowledges() {
+    use windows::Win32::UI::Input::KeyboardAndMouse::GetCapture;
+    let _apartment = Apartment::new().unwrap();
+    unsafe {
+        let source = Source::new();
+        let window = LiveWindow::new(source.subscribe().unwrap(), 128, 128).unwrap();
+        window.allow_input().unwrap();
+        window.show().unwrap();
+        publish(&source);
+        SendMessageW(window.hwnd, WM_PAINT, None, None);
+        window.request_default_input();
+        assert_eq!(window.take_input_request(), Some(true));
+        let point = LPARAM(64 | (64 << 16));
+        SendMessageW(window.hwnd, WM_LBUTTONDOWN, None, Some(point));
+        assert_eq!(GetCapture(), window.hwnd);
+        window.input_status(false, true, None);
+        assert_eq!(
+            GetCapture(),
+            window.hwnd,
+            "pending acknowledgement must not cancel the gesture"
+        );
+        window.input_status(true, false, None);
+        SendMessageW(window.hwnd, WM_LBUTTONUP, None, Some(point));
+        assert!(matches!(
+            window.pop_input(),
+            Some(crate::live_input::Event::Button { down: true, .. })
+        ));
+        assert!(matches!(
+            window.pop_input(),
+            Some(crate::live_input::Event::Button { down: false, .. })
+        ));
+        // 点击主动聚焦可能在异步准入期间产生暂停/恢复；恢复请求是幂等的，不能取消手势。
+        assert_ne!(window.take_input_request(), Some(false));
+        assert_ne!(GetCapture(), window.hwnd);
+    }
+}
 
 pub(super) unsafe fn publish(source: &Source<Texture>) {
     let device = super::super::super::create_device(

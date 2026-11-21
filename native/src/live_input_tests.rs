@@ -8,11 +8,18 @@ struct Trace {
     fail_cleanup: bool,
     target: u8,
     sent: Vec<(u8, Event, u8, u32)>,
+    timeout_override: Option<u32>,
 }
 struct Mock(Rc<RefCell<Trace>>);
 impl Backend for Mock {
     type Target = u8;
     type Error = &'static str;
+    fn send_timeout_ms(&self, event: Event) -> u32 {
+        self.0
+            .borrow()
+            .timeout_override
+            .unwrap_or_else(|| event.message_timeout_ms())
+    }
     fn preflight(&mut self) -> Result<(), Self::Error> {
         if self.0.borrow().denied {
             Err("denied")
@@ -62,6 +69,36 @@ fn button(button: Button, down: bool) -> Event {
         down,
         double: false,
     }
+}
+#[test]
+fn backend_budget_is_explicit_and_cleanup_remains_short() {
+    let (mut owner, trace) = fixture();
+    owner.enable().unwrap();
+    owner
+        .dispatch(1, Event::Move { point: [0.5, 0.5] })
+        .unwrap();
+    owner.dispatch(2, key(65, true)).unwrap();
+    trace.borrow_mut().timeout_override = Some(750);
+    owner
+        .dispatch(
+            3,
+            Event::Wheel {
+                point: [0.5, 0.5],
+                delta: -120,
+                horizontal: false,
+            },
+        )
+        .unwrap();
+    owner.cancel();
+    assert_eq!(
+        trace
+            .borrow()
+            .sent
+            .iter()
+            .map(|row| row.3)
+            .collect::<Vec<_>>(),
+        [50, 250, 750, 50]
+    );
 }
 #[test]
 fn capture_does_not_enable_and_sequence_survives_cancel_and_reenable() {

@@ -11,6 +11,9 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
+if (-not $DryRun) {
+    throw "The WebView public release builder is archived. Use archive/webview-main for historical builds; native public release is not configured."
+}
 . (Join-Path $PSScriptRoot "file-hash.ps1")
 . (Join-Path $PSScriptRoot "release\PathSafety.ps1")
 . (Join-Path $PSScriptRoot "release\Manifest.ps1")

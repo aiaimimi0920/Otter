@@ -43,6 +43,9 @@ pub(crate) fn prepare(
     {
         return Err(Error::Changed);
     }
+    if expected.is_invitation() {
+        return invitation::stop(source, expected, remove, cancel);
+    }
     let result = patch::transform(source, expected.unit(), cancel, |object| {
         let raw = object.get("projectionSenders").ok_or(Error::Changed)?;
         let entries: inventory::Entries<'_> =

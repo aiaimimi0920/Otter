@@ -36,6 +36,17 @@ pub(in crate::desktop) unsafe fn colors(msg: u32, wp: WPARAM, lp: LPARAM, error:
     LRESULT(GetStockObject(DC_BRUSH).0 as isize)
 }
 pub(in crate::desktop) unsafe fn button(item: &DRAWITEMSTRUCT) {
+    let result = neuro_mini_ui::paint_batch::control(item.hDC, item.rcItem, |out| {
+        let mut buffered = *item;
+        buffered.hDC = out;
+        button_frame(&buffered);
+        Ok(())
+    });
+    if let Err(error) = result {
+        eprintln!("native-parameter-button: {error}");
+    }
+}
+unsafe fn button_frame(item: &DRAWITEMSTRUCT) {
     let disabled = item.itemState.0 & ODS_DISABLED.0 != 0;
     let font = SendMessageW(item.hwndItem, WM_GETFONT, None, None);
     let old = SelectObject(item.hDC, HGDIOBJ(font.0 as *mut _));

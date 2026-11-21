@@ -29,10 +29,12 @@ fn local_art_viewer_menu_proof_is_stable_and_stale_selection_cannot_start_networ
         let origin = binding.origin().to_owned();
         app.authorization.borrow_mut().catalog = Some(crate::live_relay_catalog_runtime::Catalog {
             origin: origin.clone(),
+            device_id: "device".into(),
             entries: vec![crate::live_relay_http::CatalogEntry {
                 identity: snapshot.identity().clone(),
                 revision: 1,
                 member: false,
+                direct_view: false,
             }],
         });
         let selected = live::Selection {

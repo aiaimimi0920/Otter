@@ -4,6 +4,7 @@ use super::*;
 pub(super) mod smoke;
 
 pub(in crate::desktop::application) struct Record {
+    pub restored_accounts: Option<crate::projection_account::scene::Index>,
     pub restored_senders: Option<crate::projection_delivery::sender::binding::checkpoint::Index>,
     pub original: crate::session_source::Source,
     /// 原后台候选解析的只读关联；默认 profile 启动屏障领取，不等于普通导入已落盘。
@@ -40,6 +41,7 @@ impl Record {
         self.original = source;
         self.restored_projections = None;
         self.restored_senders = None;
+        self.restored_accounts = None;
         self.restored_projection_scope = None;
     }
 }
@@ -91,6 +93,7 @@ impl Application {
         };
         let record = Record {
             restored_senders: batch.candidate.sender_index.take(),
+            restored_accounts: batch.candidate.account_index.take(),
             projection_scope: batch
                 .candidate
                 .projection_scope
@@ -136,12 +139,7 @@ impl Application {
         // 候选 State 的分组成员/锁定/隐藏状态已由 manifest 校验，不在交换期触发分组命令。
         if visible {
             for doc in &self.documents {
-                if !doc.state.group_hidden.get() {
-                    let _ = ShowWindow(doc.window.0, SW_SHOWNOACTIVATE);
-                    if !doc.state.canvas.borrow().pinned {
-                        let _ = ShowWindow(doc.panel.0, SW_SHOWNOACTIVATE);
-                    }
-                }
+                doc.show_content(SW_SHOWNOACTIVATE);
             }
         }
         drop(previous);

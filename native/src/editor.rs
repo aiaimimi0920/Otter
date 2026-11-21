@@ -37,6 +37,9 @@ pub use flip_geometry::TextFlipMetrics;
 #[path = "editor_flip.rs"]
 mod flip;
 pub use flip::{FlipError, FlipPlan};
+#[path = "editor_mirror.rs"]
+mod mirror;
+pub(crate) use mirror::MirrorState;
 #[path = "editor_group_resize.rs"]
 mod group_resize;
 pub use group_resize::ResizePlan;
@@ -47,6 +50,15 @@ mod raster;
 #[path = "editor_raster_refresh.rs"]
 mod raster_refresh;
 pub use raster_refresh::RasterRefreshPlan;
+#[path = "editor_history_state.rs"]
+mod history_state;
+#[path = "editor_pin_history.rs"]
+mod pin_history;
+pub(crate) use pin_history::{PinChange, PinValue};
+#[path = "editor_commit.rs"]
+mod commit;
+#[path = "editor_line_property.rs"]
+mod line_property;
 #[path = "editor_rasterize.rs"]
 mod rasterize;
 #[path = "editor_resize_preview.rs"]
@@ -132,16 +144,21 @@ pub struct Editor {
     identity: std::sync::Arc<()>,
     style: StrokeStyle,
     revision: u64,
+    presentation_revision: u64,
     serial_count: u32,
     elements: Vec<Stroke>,
     history: History,
     retained_points: usize,
     draft: Option<Stroke>,
     draft_motion: Option<crate::brush_dynamics::Motion>,
+    // 仅当前草稿的采样来源；提交仍存为既有 Highlighter，不新增持久化类型。
+    draft_brush_highlighter: bool,
     raster: Option<crate::erase_layers::Layers>,
     crop: Option<CropView>,
     // 恢复文档的完整逻辑框可含小数；不能由像素缓冲的 ceil 尺寸反推。
     logical_size: Option<crate::crop_geometry::Size>,
+    mirror: MirrorState,
+    pending_pin: Option<PinValue>,
 }
 
 impl Editor {
@@ -178,6 +195,7 @@ impl Editor {
         if self.elements.len() >= MAX_ELEMENTS || self.retained_points >= MAX_TOTAL_POINTS {
             return Err(EditError::BudgetExceeded);
         }
+        self.draft_brush_highlighter = false;
         self.draft = Some(Stroke {
             annotation_id: annotation_id::AnnotationId::new()?,
             tool,
@@ -249,12 +267,13 @@ impl Editor {
         if stroke.points.last() == Some(&point) {
             return Ok(false);
         }
-        if matches!(stroke.tool, Tool::Brush | Tool::Paintbrush) && !straight {
+        let pencil = stroke.tool == Tool::Brush || self.draft_brush_highlighter;
+        if (pencil || stroke.tool == Tool::Paintbrush) && !straight {
             let last = stroke.points.last().unwrap();
             if (point.x - last.x).hypot(point.y - last.y) < 0.75 {
                 return Ok(false);
             }
-            if stroke.tool == Tool::Brush && stroke.points.len() >= crate::freehand::MAX_POINTS {
+            if pencil && stroke.points.len() >= crate::freehand::MAX_POINTS {
                 if self.retained_points + stroke.points.len().div_ceil(2) + 1 > MAX_TOTAL_POINTS {
                     return Err(EditError::BudgetExceeded);
                 }
@@ -293,89 +312,48 @@ impl Editor {
         Ok(true)
     }
 
-    pub fn commit(&mut self) -> bool {
-        self.commit_smoothed(0.0)
-    }
-
-    pub fn commit_smoothed(&mut self, smoothing: f32) -> bool {
-        self.draft_motion = None;
-        let Some(mut stroke) = self.draft.take() else {
-            return false;
-        };
-        // 单击画笔保留一个点；零长度线和零面积形状不制造历史。
-        if stroke.tool == Tool::Polyline && stroke.points.len() < 2 {
-            return false;
-        }
-        if !matches!(
-            stroke.tool,
-            Tool::Brush
-                | Tool::Highlighter
-                | Tool::Polyline
-                | Tool::Paintbrush
-                | Tool::Mosaic
-                | Tool::Blur
-        ) && (stroke.points.len() < 2 || stroke.points.first() == stroke.points.last())
-        {
-            return false;
-        }
-        if matches!(
-            stroke.tool,
-            Tool::Rectangle
-                | Tool::RoundedRectangle
-                | Tool::Ellipse
-                | Tool::Triangle
-                | Tool::Polygon
-        ) && (stroke.points[0].x == stroke.points[1].x
-            || stroke.points[0].y == stroke.points[1].y)
-        {
-            return false;
-        }
-        if matches!(stroke.tool, Tool::Brush | Tool::Paintbrush) {
-            crate::freehand::smooth(&mut stroke.points, smoothing);
-        }
-        self.retained_points += stroke.points.len();
-        let index = self.elements.len();
-        self.elements.push(stroke);
-        self.retained_points -= self.history.record(Entry::added(index));
-        self.revision = self.revision.wrapping_add(1);
-        true
-    }
-
     pub fn cancel(&mut self) -> bool {
         self.draft_motion = None;
+        self.draft_brush_highlighter = false;
         self.draft.take().is_some()
     }
 
     pub fn undo(&mut self) -> bool {
+        self.pending_pin = None;
         if self.cancel() {
             return true;
         }
-        if !self.history.undo(
-            &mut self.elements,
-            &mut self.serial_count,
-            &mut self.raster,
-            &mut self.crop,
-            &mut self.logical_size,
-        ) {
+        if !self.history.undo(crate::edit_history::Target {
+            elements: &mut self.elements,
+            serial_count: &mut self.serial_count,
+            raster: &mut self.raster,
+            crop: &mut self.crop,
+            logical_size: &mut self.logical_size,
+            mirror: &mut self.mirror,
+            pending_pin: &mut self.pending_pin,
+        }) {
             return false;
         }
-        self.revision = self.revision.wrapping_add(1);
+        self.commit_history_step();
         true
     }
 
     pub fn redo(&mut self) -> bool {
+        self.pending_pin = None;
         if self.draft.is_some()
-            || !self.history.redo(
-                &mut self.elements,
-                &mut self.serial_count,
-                &mut self.raster,
-                &mut self.crop,
-                &mut self.logical_size,
-            )
+            || !self.history.redo(crate::edit_history::Target {
+                elements: &mut self.elements,
+                serial_count: &mut self.serial_count,
+                raster: &mut self.raster,
+                crop: &mut self.crop,
+                logical_size: &mut self.logical_size,
+                mirror: &mut self.mirror,
+                pending_pin: &mut self.pending_pin,
+            })
         {
             return false;
         }
-        self.revision = self.revision.wrapping_add(1);
+        self.commit_history_step();
         true
     }
 

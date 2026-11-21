@@ -114,3 +114,150 @@ fn admission_cancellation_and_search_limit_are_enforced() {
         Err(Error::Cancelled)
     );
 }
+
+#[test]
+fn fast_noisy_scroll_with_coarse_samples_on_blank_lines_keeps_the_real_overlap() {
+    let cancel = AtomicBool::new(false);
+    let blank: Vec<_> = (0..16)
+        .flat_map(|i| {
+            let row = 173 + position(i, 16, 83);
+            [row, if row == 255 { row - 1 } else { row + 1 }]
+        })
+        .collect();
+    for axis in [Axis::Vertical, Axis::Horizontal] {
+        let make = |origin: u32, noise: u8| {
+            let (width, height) = if axis == Axis::Vertical {
+                (20, 256)
+            } else {
+                (256, 20)
+            };
+            let mut bytes = Vec::new();
+            for y in 0..height {
+                for x in 0..width {
+                    let (along, cross) = if axis == Axis::Vertical {
+                        (y, x)
+                    } else {
+                        (x, y)
+                    };
+                    let world = along + origin;
+                    let mut seed = world * 997 + cross * 7919 + 1;
+                    seed = (seed ^ (seed >> 16)).wrapping_mul(0x7feb352d);
+                    seed = (seed ^ (seed >> 15)).wrapping_mul(0x846ca68b);
+                    let value = if blank.contains(&world) {
+                        128
+                    } else {
+                        ((seed ^ (seed >> 16)) % 220) as u8
+                    };
+                    bytes.extend_from_slice(&[value + noise, value / 2 + noise, 240 - value, 255]);
+                }
+            }
+            Frame::new(width, height, bytes.into()).unwrap()
+        };
+        let a = make(0, 0);
+        let b = make(173, 2);
+        let options = MatchOptions {
+            minimum_overlap: 64,
+            maximum_shift: 255,
+            maximum_mean_error: 3.0,
+        };
+        for (previous, current, delta) in [(&a, &b, 173), (&b, &a, -173)] {
+            assert_eq!(
+                match_approximate(previous, current, axis, options, &cancel),
+                Ok(ApproximateMatch::Offset {
+                    delta,
+                    mean_error: 1.0
+                })
+            );
+        }
+        let missing = make(300, 2);
+        assert!(
+            !matches!(
+                match_approximate(&a, &missing, axis, options, &cancel),
+                Ok(ApproximateMatch::Offset { .. })
+            ),
+            "missing overlap must never be fabricated"
+        );
+    }
+}
+
+#[test]
+fn early_score_rejection_preserves_every_viable_match_and_ambiguity_margin() {
+    let cancel = AtomicBool::new(false);
+    let a = image(Axis::Vertical, 0, 0);
+    let b = image(Axis::Vertical, 9, 2);
+    let a = View::new(&a, 0, 0, 20, 48).unwrap();
+    let b = View::new(&b, 0, 0, 20, 48).unwrap();
+    let mut pruned = 0;
+    for delta in -24..=24 {
+        let full = score(
+            a,
+            b,
+            Axis::Vertical,
+            delta,
+            (16, 16),
+            f64::INFINITY,
+            &cancel,
+        )
+        .unwrap();
+        let fast = score(a, b, Axis::Vertical, delta, (16, 16), 5.0, &cancel).unwrap();
+        if fast.error.is_infinite() {
+            assert!(full.error > 5.0 && full.texture >= 4.0);
+            pruned += 1;
+        } else {
+            assert_eq!((fast.error, fast.texture), (full.error, full.texture));
+        }
+    }
+    assert!(pruned > 0);
+}
+
+#[test]
+fn blank_page_margins_do_not_hide_a_unique_textured_match() {
+    for axis in [Axis::Vertical, Axis::Horizontal] {
+        let make = |origin: u32, noise: u8| {
+            let (width, height) = if axis == Axis::Vertical {
+                (20, 256)
+            } else {
+                (256, 20)
+            };
+            let mut bytes = Vec::new();
+            for y in 0..height {
+                for x in 0..width {
+                    let (along, cross) = if axis == Axis::Vertical {
+                        (y, x)
+                    } else {
+                        (x, y)
+                    };
+                    let world = along + origin;
+                    let mut seed = world * 997 + cross * 7919 + 1;
+                    seed = (seed ^ (seed >> 16)).wrapping_mul(0x7feb352d);
+                    seed = (seed ^ (seed >> 15)).wrapping_mul(0x846ca68b);
+                    let value = if world < 100 {
+                        100
+                    } else if world >= 156 {
+                        106
+                    } else {
+                        ((seed ^ (seed >> 16)) % 220) as u8
+                    };
+                    bytes.extend_from_slice(&[value + noise, value / 2 + noise, 240 - value, 255]);
+                }
+            }
+            Frame::new(width, height, bytes.into()).unwrap()
+        };
+        let a = make(0, 0);
+        let b = make(9, 2);
+        let options = MatchOptions {
+            minimum_overlap: 64,
+            maximum_shift: 255,
+            maximum_mean_error: 3.0,
+        };
+        for (previous, current, delta) in [(&a, &b, 9), (&b, &a, -9)] {
+            assert_eq!(
+                match_approximate(previous, current, axis, options, &AtomicBool::new(false)),
+                Ok(ApproximateMatch::Offset {
+                    delta,
+                    mean_error: 1.0
+                })
+            );
+        }
+    }
+}

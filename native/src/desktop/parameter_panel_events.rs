@@ -21,12 +21,21 @@ unsafe fn dispatch(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
     let ui = &*pointer;
     if msg == WM_NCDESTROY {
         ui.closed.set(true);
+        let auxiliary = ui.auxiliary.borrow().clone();
+        if let Some(auxiliary) = auxiliary {
+            auxiliary.hide();
+        }
         ui.pending.borrow_mut().clear();
         ui.capture_windows
             .borrow_mut()
             .retain(|window| *window != hwnd);
         if let Some(state) = ui.state() {
-            if state.parameters_ui.hwnd.get() == hwnd {
+            if state.parameters_ui.hwnd.get() == hwnd
+                && state.parameters_ui.identity.get() == pointer as isize
+            {
+                if !ui.inline {
+                    state.parameters_ui.expanded.set(false);
+                }
                 state.parameters_ui.hwnd.set(HWND::default());
                 state.parameters_ui.identity.set(0);
             }
@@ -74,7 +83,7 @@ unsafe fn dispatch(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
         }
         WM_DPICHANGED | WM_DPICHANGED_AFTERPARENT => {
             let _ = desktop::tool_panel::font::update(hwnd, GetDpiForWindow(hwnd));
-            if msg == WM_DPICHANGED && ui.field.is_none() {
+            if msg == WM_DPICHANGED && !ui.inline {
                 let rect = *(lp.0 as *const RECT);
                 let _ = SetWindowPos(
                     hwnd,
@@ -113,11 +122,27 @@ unsafe fn dispatch(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
             }
             LRESULT(0)
         }
-        WM_ERASEBKGND => {
+        WM_ERASEBKGND => LRESULT(1),
+        WM_PAINT | WM_PRINTCLIENT => {
+            let mut ps = PAINTSTRUCT::default();
+            let dc = if msg == WM_PAINT {
+                BeginPaint(hwnd, &mut ps)
+            } else {
+                HDC(wp.0 as *mut _)
+            };
             let mut rect = RECT::default();
             let _ = GetClientRect(hwnd, &mut rect);
-            theme::fill(HDC(wp.0 as *mut _), &rect, theme::PANEL);
-            LRESULT(1)
+            let result = neuro_mini_ui::paint_batch::window(hwnd, dc, |out| {
+                theme::fill(out, &rect, theme::PANEL);
+                Ok(())
+            });
+            if msg == WM_PAINT {
+                let _ = EndPaint(hwnd, &ps);
+            }
+            if let Err(error) = result {
+                eprintln!("native-parameter-paint: {error}");
+            }
+            LRESULT(0)
         }
         WM_DRAWITEM if lp.0 != 0 => {
             let item = &*(lp.0 as *const DRAWITEMSTRUCT);
@@ -180,9 +205,6 @@ unsafe fn command(ui: &Ui, wp: WPARAM, lp: LPARAM) {
         }
         controls::Kind::Run(stamp) if code == BN_CLICKED => ui.queue(Intent::Run(stamp.clone())),
         controls::Kind::Stop(stamp) if code == BN_CLICKED => ui.queue(Intent::Stop(stamp.clone())),
-        controls::Kind::Relay(stamp) if code == BN_CLICKED => {
-            ui.queue(Intent::Relay(stamp.clone()))
-        }
         controls::Kind::Ports(stamp) if code == BN_CLICKED => {
             ui.queue(Intent::Ports(stamp.clone()))
         }

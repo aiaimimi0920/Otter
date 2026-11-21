@@ -49,7 +49,7 @@ pub(super) fn path(offline: bool, operation: Operation) -> &'static str {
         (true, Operation::Unlink) => "/v1/offline-projections/unlink",
     }
 }
-// 缺字段兼容旧在线记录；显式null不能被Option默认为无路由而降级。
+// 路由字段仅在对应传输中存在；显式 null 不能冒充无路由。
 pub(super) fn some<'de, D: serde::Deserializer<'de>, T: Deserialize<'de>>(
     de: D,
 ) -> Result<Option<T>, D::Error> {
@@ -60,9 +60,12 @@ pub(super) fn text(raw: Option<&RawValue>, expected: &str) -> bool {
 }
 impl Invitation {
     pub fn origin(&self) -> &str {
-        self.offline
-            .as_ref()
-            .map_or(self.envelope.origin(), |route| &route.origin)
+        self.offline.as_ref().map_or(
+            self.shared_origin
+                .as_deref()
+                .unwrap_or(self.envelope.origin()),
+            |route| &route.origin,
+        )
     }
     pub fn peer_id(&self) -> Option<&str> {
         self.offline.as_ref().map(|route| route.peer_id.as_str())
@@ -71,14 +74,20 @@ impl Invitation {
         path(self.offline.is_some(), operation)
     }
     pub(crate) fn validate_for(&self, origin: &str) -> Result<(), Error> {
-        if self.origin() != origin || self.offline.as_ref().is_some_and(|route| !route.valid()) {
+        if self.origin() != origin
+            || self.offline.as_ref().is_some_and(|route| !route.valid())
+            || self.shared_origin.as_ref().is_some_and(|value| {
+                self.offline.is_some() || envelope::canonical_origin(value).as_ref() != Ok(value)
+            })
+        {
             return Err(Error::Origin);
         }
-        self.envelope.validate(if self.offline.is_some() {
-            self.envelope.origin()
-        } else {
-            origin
-        })
+        self.envelope
+            .validate(if self.offline.is_some() || self.shared_origin.is_some() {
+                self.envelope.origin()
+            } else {
+                origin
+            })
     }
     pub(super) fn response_route(
         &self,
@@ -88,7 +97,7 @@ impl Invitation {
         delivery: Option<&RawValue>,
         device: &str,
     ) -> bool {
-        if transport.is_some() {
+        if transport.is_some() || (self.public_invitation && delivery.is_some()) {
             return false;
         }
         match &self.offline {

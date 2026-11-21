@@ -12,6 +12,7 @@ fn view() -> AuthorizationView {
     view.live.bindings.push(ViewerHost::Surface(binding));
     view.catalog = Some(crate::live_relay_catalog_runtime::Catalog {
         origin: origin.into(),
+        device_id: "viewer:1".into(),
         entries: vec![entry("live:1")],
     });
     view
@@ -22,6 +23,7 @@ fn entry(session: &str) -> CatalogEntry {
         identity: snapshot.identity().clone(),
         revision: 1,
         member: false,
+        direct_view: false,
     }
 }
 #[test]
@@ -65,6 +67,33 @@ fn full_catalog_fits_common_menu_budget_and_refuses_invalid_binding() {
     view.catalog.as_mut().unwrap().entries.pop();
     let binding = view.live.bindings.remove(0);
     assert!(unsafe { choices(&view, &binding) }.is_err());
+}
+#[test]
+fn direct_watch_without_art_fences_actor_and_session() {
+    let mut view = view();
+    view.live.bindings.clear();
+    let catalog = view.catalog.as_mut().unwrap();
+    catalog.entries[0].direct_view = true;
+    let selected = Selection {
+        origin: catalog.origin.clone(),
+        identity: catalog.entries[0].identity.clone(),
+        binding: ViewerHost::Direct {
+            origin: catalog.origin.clone(),
+            device: catalog.device_id.clone(),
+        },
+    };
+    assert!(current(&view, &selected));
+    let menu = Menu(unsafe { CreatePopupMenu().unwrap() });
+    unsafe {
+        append_direct(menu.0, &view).unwrap();
+    }
+    let row = &crate::native_menu::snapshot(menu.0).unwrap()[0];
+    assert!(row.enabled && row.command == WATCH_DIRECT);
+    view.catalog.as_mut().unwrap().device_id = "viewer:other".into();
+    assert!(!current(&view, &selected));
+    view.catalog.as_mut().unwrap().device_id = "viewer:1".into();
+    view.catalog.as_mut().unwrap().entries[0].direct_view = false;
+    assert!(!current(&view, &selected));
 }
 #[test]
 fn watch_disabled_without_real_surface_and_command_range_is_bounded() {

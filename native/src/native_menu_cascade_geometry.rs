@@ -32,6 +32,7 @@ impl Cascade {
             for page in &mut self.pages {
                 // 在旧坐标系开始的点击或滑块拖动不可跨越重定位执行。
                 page.pressed = None;
+                page.delete_pressed = None;
                 page.drag = None;
                 page.panel.discard_pointer_events();
             }

@@ -9,6 +9,7 @@ use std::{
     cell::{Cell, RefCell},
     time::{Duration, Instant},
 };
+use windows::Win32::UI::Controls::{WM_MOUSEHOVER, WM_MOUSELEAVE};
 use windows::{
     core::w,
     Win32::{
@@ -25,7 +26,17 @@ thread_local! {
     static POINTS: RefCell<Vec<(usize,u32,[i32;2])>> = const { RefCell::new(Vec::new()) };
 }
 unsafe extern "system" fn source_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
-    if matches!(msg, WM_LBUTTONDOWN | WM_LBUTTONUP | WM_KEYDOWN | WM_KEYUP) {
+    if matches!(
+        msg,
+        WM_LBUTTONDOWN
+            | WM_LBUTTONUP
+            | WM_KEYDOWN
+            | WM_KEYUP
+            | WM_MOUSEWHEEL
+            | WM_MOUSEHOVER
+            | WM_MOUSELEAVE
+            | WM_CHAR
+    ) {
         let hidden = GetWindowLongPtrW(GetAncestor(hwnd, GA_ROOT), GWL_EXSTYLE)
             & WS_EX_TRANSPARENT.0 as isize
             != 0;
@@ -159,6 +170,14 @@ impl Fixture {
 mod crop;
 #[path = "composition_live_cycles_runtime_tests.rs"]
 mod cycles;
+#[path = "composition_live_minimize_runtime_tests.rs"]
+mod minimize;
+#[path = "composition_live_pointer_text_runtime_tests.rs"]
+mod pointer_text;
+#[path = "composition_live_startup_runtime_tests.rs"]
+mod startup;
+#[path = "composition_live_wheel_runtime_tests.rs"]
+mod wheel;
 impl Drop for Fixture {
     fn drop(&mut self) {
         unsafe {
@@ -218,6 +237,7 @@ unsafe fn until(
     loop {
         pump();
         owner.poll().unwrap();
+        session.resume_minimized_source(owner);
         assert!(session.poll().is_none(), "Live ended during {label}");
         if condition(session) {
             return;
@@ -247,6 +267,9 @@ fn actual_wgc_live_ui_input_feedback_focus_cancel_and_close_restore() {
             Session::start_window(target.clone(), target.frame_bounds().unwrap()).unwrap();
         session.protect(protection);
         session.show().unwrap();
+        let window = session.window.as_ref().unwrap().hwnd_for_test();
+        // 创建时指针可能已在选区内；首帧前的 move 不得撤销默认控制。
+        SendMessageW(window, WM_MOUSEMOVE, None, Some(LPARAM(50 | (50 << 16))));
         until(&mut session, &mut owner, "white hidden source", |session| {
             let Some(frame) = session.window.as_ref().and_then(LiveWindow::frame_for_test) else {
                 return false;
@@ -259,7 +282,6 @@ fn actual_wgc_live_ui_input_feedback_focus_cancel_and_close_restore() {
                     .layered
                     .is_some_and(|layered| layered.alpha == 1)
         });
-        let window = session.window.as_ref().unwrap().hwnd_for_test();
         let white = session
             .window
             .as_ref()
@@ -267,8 +289,12 @@ fn actual_wgc_live_ui_input_feedback_focus_cancel_and_close_restore() {
             .frame_for_test()
             .unwrap()
             .sequence;
-        SendMessageW(window, WM_SYSCOMMAND, Some(WPARAM(0x1ff0)), None);
-        until(&mut session, &mut owner, "enable", Session::input_enabled);
+        until(
+            &mut session,
+            &mut owner,
+            "default enable",
+            Session::input_enabled,
+        );
         let mut client = RECT::default();
         GetClientRect(window, &mut client).unwrap();
         let center =
@@ -287,12 +313,55 @@ fn actual_wgc_live_ui_input_feedback_focus_cancel_and_close_restore() {
         until(&mut session, &mut owner, "held key", |_| {
             fixture.received(WM_KEYDOWN, Some(65))
         });
-        SendMessageW(window, WM_KILLFOCUS, None, None);
+        // 使用同线程自有窗口实际转移焦点，不向用户程序发送输入。
+        let focus_source = crate::live_frames::Source::new();
+        let focus_window = LiveWindow::new(focus_source.subscribe().unwrap(), 80, 80).unwrap();
+        focus_window.show().unwrap();
+        let focus = focus_window.hwnd_for_test();
+        let _ = SetForegroundWindow(focus);
+        windows::Win32::UI::Input::KeyboardAndMouse::SetFocus(Some(focus)).unwrap();
+        assert_ne!(GetForegroundWindow(), window);
         until(&mut session, &mut owner, "focus release", |session| {
             !session.input_enabled()
                 && session.input_completion_handle().is_none()
                 && fixture.received(WM_KEYUP, Some(65))
         });
+        // 失焦后的后台滚动应经原 worker 清理/重新准入，并交付首个滚轮事件。
+        let mut scroll = POINT {
+            x: client.right / 2,
+            y: client.bottom / 2,
+        };
+        assert!(ClientToScreen(window, &mut scroll).as_bool());
+        let point = LPARAM(
+            (u32::from(scroll.x as i16 as u16) | (u32::from(scroll.y as i16 as u16) << 16))
+                as isize,
+        );
+        SendMessageW(window, WM_MOUSEWHEEL, Some(WPARAM(120 << 16)), Some(point));
+        until(
+            &mut session,
+            &mut owner,
+            "inactive wheel resumes",
+            |session| session.input_enabled() && fixture.received(WM_MOUSEWHEEL, None),
+        );
+        INPUT.with(|input| input.borrow_mut().clear());
+        SendMessageW(window, WM_LBUTTONDOWN, None, Some(center));
+        until(&mut session, &mut owner, "held mouse after resume", |_| {
+            fixture.received(WM_LBUTTONDOWN, None)
+        });
+        assert_eq!(
+            windows::Win32::UI::Input::KeyboardAndMouse::GetFocus(),
+            window
+        );
+        SendMessageW(window, WM_LBUTTONUP, None, Some(center));
+        until(
+            &mut session,
+            &mut owner,
+            "paired mouse after resume",
+            |_| fixture.received(WM_LBUTTONUP, None),
+        );
+        // 显式菜单停用仍优先，恢复只能由用户重新启用。
+        SendMessageW(window, WM_SYSCOMMAND, Some(WPARAM(0x1ff0)), None);
+        session.poll();
         SendMessageW(window, WM_SYSCOMMAND, Some(WPARAM(0x1ff0)), None);
         until(
             &mut session,

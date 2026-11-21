@@ -4,11 +4,17 @@ pub(super) const SET: usize = 0x10b0;
 pub(super) const REMOVE: usize = 0x10b1;
 pub(super) const RECYCLE: usize = 0x10b2;
 pub(super) const CONFIGURE: usize = 0x10b3;
+pub(super) const CLEAR_RECYCLE: usize = 0x10b4;
+pub(super) const CLEAR_REFERENCE: usize = 0x10b5;
+pub(super) const RECYCLE_ROOT: usize = 0x10b6;
+pub(super) const REFERENCE_ROOT: usize = 0x10b7;
 #[derive(Clone, Copy, PartialEq)]
 pub(super) enum Action {
     Set,
     Remove,
     Recycle,
+    ClearRecycle,
+    ClearReference,
 }
 pub(super) struct Request {
     pub source: crate::session_source::Source,
@@ -17,14 +23,17 @@ pub(super) struct Request {
     pub action: Action,
 }
 pub(super) fn handles(command: usize) -> bool {
-    matches!(command, SET | REMOVE | RECYCLE | CONFIGURE)
+    matches!(
+        command,
+        SET | REMOVE | RECYCLE | CONFIGURE | CLEAR_RECYCLE | CLEAR_REFERENCE
+    )
 }
 pub(super) unsafe fn request(hwnd: HWND, state: &State, command: usize) -> Result<()> {
     if !handles(command) {
         return Err(Error::new(E_INVALIDARG, "Unknown reference command"));
     }
     if state.modals.blocked()
-        || (state.is_art() && command != CONFIGURE)
+        || (state.is_art() && matches!(command, SET | REMOVE | RECYCLE))
         || !IsWindow(Some(hwnd)).as_bool()
     {
         return Ok(());
@@ -55,6 +64,8 @@ pub(super) unsafe fn request(hwnd: HWND, state: &State, command: usize) -> Resul
         action: match command {
             RECYCLE => Action::Recycle,
             REMOVE => Action::Remove,
+            CLEAR_RECYCLE => Action::ClearRecycle,
+            CLEAR_REFERENCE => Action::ClearReference,
             _ => Action::Set,
         },
     });
@@ -66,15 +77,24 @@ pub(super) unsafe fn request(hwnd: HWND, state: &State, command: usize) -> Resul
 }
 pub(super) unsafe fn append_menu(menu: HMENU, state: &State) -> Result<()> {
     let view = state.frozen_library.borrow();
-    let available = !state.is_art() && !view.busy && view.source.is_some();
+    let available = !view.busy && view.source.is_some();
     let flags = MF_STRING | if available { MF_ENABLED } else { MF_GRAYED };
-    AppendMenuW(menu, flags, SET, w!("收藏当前贴纸（更新快照）"))?;
-    AppendMenuW(menu, flags, REMOVE, w!("取消当前贴纸收藏"))?;
-    AppendMenuW(menu, flags, RECYCLE, w!("关闭贴纸并移入回收站"))?;
     AppendMenuW(
         menu,
-        MF_STRING | if view.busy { MF_GRAYED } else { MF_ENABLED },
-        CONFIGURE,
-        w!("回收站保留设置…"),
-    )
+        flags
+            | if state.is_art() {
+                MF_GRAYED
+            } else {
+                MF_ENABLED
+            },
+        RECYCLE,
+        w!("关闭"),
+    )?;
+    // 冻结库的原 worker 会替换占位子菜单，并异步决定收藏/取消收藏。
+    AppendMenuW(menu, flags, RECYCLE_ROOT, w!("回收站"))?;
+    AppendMenuW(menu, flags, CLEAR_RECYCLE, w!("清空回收站"))?;
+    AppendMenuW(menu, MF_SEPARATOR, 0, None)?;
+    AppendMenuW(menu, MF_STRING | MF_GRAYED, SET, w!("收藏"))?;
+    AppendMenuW(menu, flags, REFERENCE_ROOT, w!("收藏夹"))?;
+    AppendMenuW(menu, flags, CLEAR_REFERENCE, w!("清空收藏夹"))
 }

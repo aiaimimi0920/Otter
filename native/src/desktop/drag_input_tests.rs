@@ -106,6 +106,19 @@ fn threshold_handles_negative_coordinates_and_does_not_treat_click_as_drag() {
 fn drag_gesture_does_not_steal_shift_from_selection_or_drawing_tools() {
     let state = state();
     assert!(can_begin(&state));
+    {
+        let mut canvas = state.canvas.borrow_mut();
+        canvas.select_tool(crate::editor::Tool::Select);
+        canvas.selection_enabled = false;
+    }
+    assert!(
+        can_begin(&state),
+        "quiet selection permits the same pin drag as Pan"
+    );
+    state.canvas.borrow_mut().crop_mode = true;
+    assert!(!can_begin(&state));
+    state.canvas.borrow_mut().crop_mode = false;
+    state.canvas.borrow_mut().selection_enabled = true;
     for tool in [
         crate::editor::Tool::Select,
         crate::editor::Tool::Brush,
@@ -120,6 +133,29 @@ fn drag_gesture_does_not_steal_shift_from_selection_or_drawing_tools() {
         .borrow_mut()
         .select_tool(crate::editor::Tool::Pan);
     assert!(can_begin(&state));
+}
+
+#[test]
+fn default_drag_name_reaches_the_published_file_not_a_cache_uuid() {
+    unsafe {
+        let fixture = Fixture::new();
+        let mut state = state();
+        state.unit_id = crate::workspace_id::UnitId::parse("drag-unit-1234").unwrap();
+        start(fixture.hwnd, &state, Ok(fixture.root.clone())).unwrap();
+        wait(&state);
+        finish::poll_using(fixture.hwnd, &state, true, |path, _| {
+            let name = path.file_stem().unwrap().to_str().unwrap();
+            let fields: Vec<_> = name.split('_').collect();
+            assert_eq!(&fields[..2], &["image", "1234"]);
+            assert_eq!(fields.len(), 4);
+            assert_eq!((fields[2].len(), fields[3].len()), (8, 8));
+            assert!(fields[2..]
+                .iter()
+                .all(|field| field.bytes().all(|byte| byte.is_ascii_digit())));
+            assert_eq!(path.extension().unwrap(), "png");
+            Ok(())
+        });
+    }
 }
 
 #[test]
@@ -141,7 +177,11 @@ fn frozen_drag_pattern_publishes_once_with_no_ui_borrows_and_protects_source_dur
             assert!(state.drag.pending.borrow_mut().is_none());
             assert!(state.canvas.try_borrow_mut().is_ok());
             assert!(!signal.load(Ordering::Acquire));
-            assert!(fs::remove_file(&path).is_err());
+            assert!(std::fs::OpenOptions::new().write(true).open(&path).is_err());
+            assert!(std::fs::OpenOptions::new()
+                .write(true)
+                .open(fixture.root.join("clipboard_cache/cache.lock"))
+                .is_err());
             assert!(
                 dispatch(fixture.hwnd, &state, WM_COMMAND, WPARAM(0x1040), LPARAM(0)).is_some()
             );

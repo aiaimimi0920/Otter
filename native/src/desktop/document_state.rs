@@ -40,6 +40,7 @@ impl State {
             canvas.editor = editable.editor;
             canvas.normal_opacity = editable.opacity;
             canvas.window_opacity = editable.opacity;
+            canvas.frame_style = editable.frame_style;
             canvas.applied_crop = canvas.editor.annotation_frame();
             canvas.sync_raster_source();
         }
@@ -65,10 +66,14 @@ impl State {
         canvas.pinned = pinned;
         let unit_id = new_unit_id()?;
         Ok(Self {
+            live_pin: Cell::new(false),
+            live_resume: Cell::new(false),
             chrome: Default::default(),
             parameters_ui: Default::default(),
             capture_history: Default::default(),
+            edit_palette: Default::default(),
             projection_edit: RefCell::new(None),
+            projection_mode: RefCell::new(None),
             screen_color: Default::default(),
             live_request: RefCell::new(None),
             drag: Default::default(),
@@ -87,6 +92,13 @@ impl State {
             execution_cancel: RefCell::new(None),
             execution_configuration: RefCell::new(None),
             catalog: Default::default(),
+            extensions: Default::default(),
+            extension_toolbar: Default::default(),
+            extension_target: Default::default(),
+            extension_commands: Default::default(),
+            extension_notices: Default::default(),
+            extension_document: Default::default(),
+            extension_overlay: Default::default(),
             authorization: Default::default(),
             selected_art: RefCell::new(None),
             restored_art: false,
@@ -100,6 +112,7 @@ impl State {
             parameter_file_request: RefCell::new(None),
             sticker_input: Default::default(),
             accept_upstream: Cell::new(true),
+            node_settings: Default::default(),
             resolved_display: RefCell::new(None),
             pending_adoption: RefCell::new(None),
             unit_id,
@@ -141,9 +154,11 @@ impl State {
             global_long_capture: Cell::new(false),
             global_live_capture: Cell::new(false),
             tray: Default::default(),
-            capture_protection: Cell::new([false; 3]),
+            capture_protection: Cell::new([false; 5]),
             capture_protection_requested: Cell::new(false),
             tool_panel: Cell::new(HWND::default()),
+            edit_properties: Default::default(),
+            pin_settings: Default::default(),
             tool_panel_tool: Cell::new(None),
             tool_panel_style: Cell::new(None),
             tool_panel_enabled: Cell::new(0),
@@ -153,11 +168,13 @@ impl State {
             export: RefCell::new(None),
             copy_job: RefCell::new(None),
             file_dialog: std::rc::Rc::new(Cell::new(false)),
+            inline_text: Default::default(),
             modals: Default::default(),
             open_job: RefCell::new(None),
             blur_job: RefCell::new(Default::default()),
             erase_job: RefCell::new(Default::default()),
             resize_job: RefCell::new(Default::default()),
+            resize_wheel: Default::default(),
             flip_job: RefCell::new(Default::default()),
             crop_job: RefCell::new(None),
             rasterize_job: RefCell::new(None),

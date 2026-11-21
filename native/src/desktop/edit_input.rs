@@ -23,6 +23,16 @@ impl Canvas {
     }
 
     pub fn pointer_down_at(&mut self, point: Point, time: f64) -> bool {
+        self.pointer_down_modified_at(point, time, false, false)
+    }
+
+    pub(super) fn pointer_down_modified_at(
+        &mut self,
+        point: Point,
+        time: f64,
+        control: bool,
+        alt: bool,
+    ) -> bool {
         self.last_pointer_time = time;
         self.cancel_gesture();
         if self.crop_mode {
@@ -32,6 +42,9 @@ impl Canvas {
             return self.begin_erase(point);
         }
         if self.tool == Tool::Select {
+            if self.pinned && self.begin_quick_transform(point, control, alt) {
+                return true;
+            }
             // 原有端点/延伸柄优先，避免通用变换柄抢占专用路径编辑入口。
             if self.selected_index().is_some() && self.begin_path_handle(point) {
                 return true;
@@ -64,14 +77,18 @@ impl Canvas {
                     5.0 / self.viewport.scale,
                 )
             } {
-                Ok(index) => self.selected = index.map(|index| (index, self.editor.revision())),
+                Ok(index) => {
+                    self.selected = index
+                        .filter(|index| self.can_select_annotation(*index))
+                        .map(|index| (index, self.editor.revision()));
+                }
                 Err(error) => {
                     self.selected = None;
                     eprintln!("native-selection: {error}");
                 }
             }
             self.selection_drag = self.selected.map(|_| (point, Point::default()));
-            if self.selected.is_none() {
+            if self.selected.is_none() && !self.pinned && self.selection_enabled {
                 self.marquee = Some(super::marquee::Marquee::new(point, &self.editor));
             }
             self.selection_effect_preview = self.selected_index().and_then(|index| {
@@ -126,14 +143,23 @@ impl Canvas {
                 self.tool_profiles.serial_font_family(),
                 fill,
             ) {
-                Ok(index) => index.is_some(),
+                Ok(Some(index)) => {
+                    self.select_created_annotation(index);
+                    true
+                }
+                Ok(None) => false,
                 Err(error) => {
                     eprintln!("native-serial: {error:?}");
                     false
                 }
             };
         }
-        match self.editor.begin_timed(self.tool, image_point, time) {
+        let result = if self.tool == Tool::Brush && self.tool_profiles.brush_highlighter_enabled() {
+            self.editor.begin_brush_highlighter(image_point)
+        } else {
+            self.editor.begin_timed(self.tool, image_point, time)
+        };
+        match result {
             Ok(started) => {
                 if started {
                     self.draft_pointer = Some(point);
@@ -343,9 +369,13 @@ impl Canvas {
         }
         self.drag = None;
         self.draft_pointer = None;
-        self.editor
-            .commit_smoothed(self.tool_profiles.smoothing(self.tool) as f32)
-            || changed
+        let committed = self
+            .editor
+            .commit_smoothed(self.tool_profiles.smoothing(self.tool) as f32);
+        if committed {
+            self.select_created_annotation(self.editor.elements().len() - 1);
+        }
+        committed || changed
     }
 
     pub fn cancel_gesture(&mut self) -> bool {
@@ -389,13 +419,19 @@ impl Canvas {
     }
 
     pub fn select_tool(&mut self, tool: Tool) -> bool {
-        let changed = self.cancel_gesture() || self.tool != tool || self.crop_mode;
+        let changed = self.cancel_gesture()
+            || self.tool != tool
+            || self.crop_mode
+            || (tool == Tool::Select && !self.selection_enabled);
         self.crop_mode = false;
         let style = self
             .tool_profiles
             .switch(self.tool, tool, self.editor.style());
         self.editor.set_style(style);
         self.tool = tool;
+        if tool == Tool::Select {
+            self.selection_enabled = true;
+        }
         self.selected = None;
         self.multi_selection = None;
         changed

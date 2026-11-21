@@ -41,6 +41,8 @@ pub enum Rejected {
 }
 
 struct Snapshot {
+    content_width: Option<i32>,
+    columns: usize,
     active: bool,
     location: Option<(usize, i32)>,
     parent: Option<links::WeakNode>,
@@ -71,6 +73,8 @@ impl Owner {
             std::process::abort();
         }
         Self(Arc::new(Mutex::new(Snapshot {
+            content_width: None,
+            columns: 1,
             active: true,
             location: None,
             parent: None,
@@ -89,12 +93,19 @@ impl Owner {
         })))
     }
     pub fn replace(&self, rows: &[Row]) {
+        self.replace_rows(rows, false);
+    }
+    pub(crate) fn replace_fresh(&self, rows: &[Row]) {
+        self.replace_rows(rows, true);
+    }
+    fn replace_rows(&self, rows: &[Row], fresh: bool) {
         let Ok(mut state) = self.0.lock() else { return };
         let mut entries: Vec<_> = rows.iter().map(entry).collect();
         let keys: Vec<_> = rows.iter().map(|row| row.key).collect();
         // 焦点改变不撤销节点，允许 SetFocus 后对同一节点 Invoke；滚动后的
         // 同名行则由模型索引区别，不能用文案或可见槽位充当身份。
-        if keys == state.keys
+        if !fresh
+            && keys == state.keys
             && entries.iter().zip(&state.entries).all(|(new, old)| {
                 new.name == old.name
                     && new.shortcut == old.shortcut
@@ -144,6 +155,16 @@ impl Owner {
             state.scroll = scroll;
         }
     }
+    pub(crate) fn set_columns(&self, columns: usize) {
+        if let Ok(mut state) = self.0.lock() {
+            state.columns = columns;
+        }
+    }
+    pub(crate) fn set_content_width(&self, width: i32) {
+        if let Ok(mut state) = self.0.lock() {
+            state.content_width = Some(width);
+        }
+    }
     pub fn set_active(&self, active: bool) {
         if let Ok(mut state) = self.0.lock() {
             state.active = active;
@@ -162,6 +183,26 @@ impl Owner {
     }
 }
 impl View {
+    pub(crate) fn item_rect(
+        &self,
+        slot: usize,
+        width: i32,
+        row: i32,
+    ) -> Option<windows::Win32::Foundation::RECT> {
+        let state = self.0.lock().ok()?;
+        (state.alive && slot < state.entries.len()).then(|| {
+            super::layout::Layout {
+                columns: state.columns,
+                row,
+            }
+            .rect(
+                slot,
+                state
+                    .content_width
+                    .map_or(width, |content| content.min(width)),
+            )
+        })
+    }
     pub fn scroll(&self) -> Option<Scroll> {
         let state = self.0.lock().ok()?;
         state.alive.then_some(state.scroll)

@@ -24,7 +24,7 @@ impl Snapshot {
     pub(in crate::desktop) fn current(&self, state: &State) -> bool {
         self.stamp.matches(state) && desktop::parameter_view::matches(&self.view, state)
     }
-    /// 一页草稿先完整解析到候选，再取消旧执行并一次发布；失败不能留下半批参数。
+    /// 公共参数草稿先完整解析到候选，再一次发布；128 与目录参数上限相同。
     pub(in crate::desktop) unsafe fn submit_texts(
         &self,
         hwnd: HWND,
@@ -32,7 +32,7 @@ impl Snapshot {
         edits: &[(usize, String)],
     ) -> Result<bool> {
         if edits.is_empty()
-            || edits.len() > 16
+            || edits.len() > 128
             || !self.current(state)
             || !IsWindow(Some(hwnd)).as_bool()
             || state.session_end.paused()
@@ -69,6 +69,7 @@ impl Snapshot {
         }
         Ok(true)
     }
+    #[cfg(test)]
     pub(in crate::desktop) unsafe fn submit(
         &self,
         hwnd: HWND,

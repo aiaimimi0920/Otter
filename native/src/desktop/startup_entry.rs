@@ -30,11 +30,8 @@ pub(super) unsafe fn run_window(
         workspace_check,
     } = runtime;
     let hidden_check = workspace_check || session.as_ref().is_some_and(|session| session.check);
-    let document = document_window::DocumentWindow::create(
-        instance,
-        state,
-        !smoke && !hidden_check && workspace.is_none(),
-    )?;
+    // 托盘/热键宿主始终隐藏创建；只在恢复完成后显示真实内容，避免空面板闪现。
+    let document = document_window::DocumentWindow::create(instance, state, false)?;
     let document = if smoke {
         document.smoke_relocation()?
     } else {

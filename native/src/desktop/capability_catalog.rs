@@ -3,8 +3,10 @@ use super::{
     capability_job::{Job, Loaded, Source},
     State,
 };
+#[cfg(test)]
+use windows::core::{w, HSTRING};
 use windows::{
-    core::{w, Result, HSTRING},
+    core::Result,
     Win32::{Foundation::*, UI::WindowsAndMessaging::*},
 };
 pub(super) const COMMAND: usize = 0x1081;
@@ -14,30 +16,6 @@ pub(super) struct Catalog {
     pub job: Job,
     pub loaded: Option<std::rc::Rc<Loaded>>,
     pub failed: bool,
-}
-pub(super) unsafe fn append(menu: HMENU, state: &State) -> Result<()> {
-    let catalog = state.catalog.borrow();
-    let label = if catalog.job.is_busy() {
-        "正在加载节点能力…".into()
-    } else if catalog.failed {
-        "节点能力加载失败".into()
-    } else if let Some(loaded) = &catalog.loaded {
-        format!("节点能力：{}", loaded.handshake.arts().len())
-    } else {
-        "节点能力尚未加载".into()
-    };
-    AppendMenuW(menu, MF_STRING | MF_GRAYED, 0, &HSTRING::from(label))?;
-    AppendMenuW(
-        menu,
-        MF_STRING
-            | if catalog.job.is_busy() {
-                MF_GRAYED
-            } else {
-                MF_ENABLED
-            },
-        COMMAND,
-        w!("加载节点能力"),
-    )
 }
 pub(super) unsafe fn request(hwnd: HWND, state: &State) -> Result<()> {
     request_for(hwnd, &state.catalog)
@@ -85,6 +63,32 @@ impl super::application::Application {
         }
     }
 }
+#[cfg(test)]
+pub(super) unsafe fn append(menu: HMENU, state: &State) -> Result<()> {
+    let catalog = state.catalog.borrow();
+    let label = if catalog.job.is_busy() {
+        "正在加载节点能力…".into()
+    } else if catalog.failed {
+        "节点能力加载失败".into()
+    } else if let Some(loaded) = &catalog.loaded {
+        format!("节点能力：{}", loaded.handshake.arts().len())
+    } else {
+        "节点能力尚未加载".into()
+    };
+    AppendMenuW(menu, MF_STRING | MF_GRAYED, 0, &HSTRING::from(label))?;
+    AppendMenuW(
+        menu,
+        MF_STRING
+            | if catalog.job.is_busy() {
+                MF_GRAYED
+            } else {
+                MF_ENABLED
+            },
+        COMMAND,
+        w!("加载节点能力"),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

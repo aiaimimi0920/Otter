@@ -26,6 +26,38 @@ fn source(value: &Value) -> crate::session_source::Source {
     serde_json::to_vec(value).unwrap().into()
 }
 #[test]
+fn authenticated_alias_survives_checkpoint_refresh_and_stop() {
+    let directory = Directory::new();
+    let store = Store::open(&directory.0).unwrap();
+    let mut invitation = png::public_invitation(ORIGIN);
+    invitation.shared_origin = Some("https://192.168.15.20:8766".into());
+    let ticket = store.begin(&invitation, "device-1").unwrap();
+    let binding = Binding::new(
+        &png::verified(ORIGIN).bind_intent(&ticket).unwrap(),
+        &ticket,
+    )
+    .unwrap();
+    let restored: Binding = serde_json::from_slice(&serde_json::to_vec(&binding).unwrap()).unwrap();
+    assert!(restored.matches_ticket(&ticket));
+    assert_eq!(
+        restored.shared_transport.as_ref().unwrap().origin,
+        ticket.origin()
+    );
+    assert!(checkpoint::Index::capture(&source(&session(&restored)))
+        .unwrap()
+        .for_ticket(&ticket)
+        .is_some());
+    let refreshed = Binding::new(
+        &png::verified(ORIGIN).bind_intent(&ticket).unwrap(),
+        &ticket,
+    )
+    .unwrap();
+    let stopped = refreshed.stop(StopReason::ProjectionUnlinked);
+    assert!(stopped.matches_ticket(&ticket));
+    assert!(stopped.shared_transport == restored.shared_transport);
+}
+
+#[test]
 fn binding_requires_exact_intent_envelope_and_verified_receiver_device() {
     let (directory, ticket, binding) = fixture();
     assert!(binding.matches_ticket(&ticket));

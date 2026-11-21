@@ -67,7 +67,8 @@ fn menu_target_rejects_style_and_crop_mode_changes_without_revision_increment() 
 }
 #[test]
 fn command_mapping_does_not_depend_on_keyboard_modifier_state() {
-    assert_eq!(tool_for_command(0x51), Some(Tool::RoundedRectangle));
+    assert_eq!(tool_for_command(0x52), Some(Tool::Rectangle));
+    assert_eq!(tool_for_command(0x51), None); // Q 已是选择/静默切换，不再映射旧圆角矩形工具。
     assert_eq!(tool_for_command(0x56), Some(Tool::Pan));
     assert_eq!(tool_for_command(EXPORT), None);
     assert_eq!(tool_for_command(0), None);
@@ -88,5 +89,20 @@ fn native_menu_owns_items_and_releases_handle() {
         );
         drop(menu);
         assert!(!IsMenu(handle).as_bool());
+    }
+}
+#[test]
+fn actual_pin_builder_excludes_migration_and_editing_commands() {
+    unsafe {
+        let state = State::new(None, true).unwrap();
+        let menu = pin::build(&state).unwrap();
+        let tree = crate::native_menu::snapshot(menu.0).unwrap();
+        assert_eq!(tree.len(), 8);
+        assert_eq!(tree[0].label, "保存");
+        assert_eq!(tree[0].command, EXPORT);
+        assert!(!tree[0].enabled);
+        assert!(tree
+            .iter()
+            .all(|row| !matches!(row.command, OPEN | COLOR | UNDO | REDO | APPLY_STYLE)));
     }
 }

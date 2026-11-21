@@ -43,7 +43,7 @@ function Test-NativeCandidateArchive {
         $records[$name] = $file
     }
     if (-not $expected.SetEquals([string[]]$entries)) { throw 'Native ZIP has missing or extra files' }
-    foreach ($required in @('otter-native.exe', 'README.txt', 'build-provenance.json', 'licenses\inventory.json')) {
+    foreach ($required in @('otter-native.exe', 'otter_live_hover_hook.dll', 'README.txt', 'build-provenance.json', 'licenses\inventory.json')) {
         if (-not $records.ContainsKey($required)) { throw "Missing native package component: $required" }
     }
     $receipt = (Read-OtterArchiveEntryText -ZipPath $ZipPath -EntryName 'build-provenance.json' -MaxBytes 4MB) | ConvertFrom-Json
@@ -54,6 +54,9 @@ function Test-NativeCandidateArchive {
         $receipt.signed -cne $false -or $receipt.runtimeVerified -cne $false -or
         $receipt.files[0].path -cne 'payload/otter-native.exe' -or
         $receipt.files[0].sha256 -cne $exe.sha256 -or $receipt.files[0].bytes -ne $exe.bytes) { throw 'Native ZIP build identity mismatch' }
+    $hook = $records['otter_live_hover_hook.dll']
+    if ($receipt.files[1].path -cne 'payload/otter_live_hover_hook.dll' -or
+        $receipt.files[1].sha256 -cne $hook.sha256 -or $receipt.files[1].bytes -ne $hook.bytes) { throw 'Native ZIP hook build identity mismatch' }
     $licenses = (Read-OtterArchiveEntryText -ZipPath $ZipPath -EntryName 'licenses/inventory.json' -MaxBytes 4MB) | ConvertFrom-Json
     if ($licenses.schemaVersion -ne 1 -or $licenses.kind -ne 'otter-native-license-materials' -or
         $licenses.legalClearance -isnot [bool] -or $licenses.legalClearance -cne $false -or @($licenses.packages).Count -lt 1) { throw 'Invalid native license inventory' }

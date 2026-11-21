@@ -40,8 +40,9 @@ pub enum Command {
 }
 #[derive(Debug)]
 pub struct Reply<E> {
-    pub command: Command,
-    pub result: Result<(), Error<E>>,
+    /// None 是没有对应新命令的异步终态错误，不释放命令准入占位。
+    pub command: Option<Command>,
+    pub result: Result<crate::live_input::Delivery, Error<E>>,
 }
 #[derive(Debug, PartialEq, Eq)]
 pub enum Reason {
@@ -108,7 +109,8 @@ impl<E: Send + 'static> Worker<E> {
         let wake = Arc::new(unsafe { OwnedHandle::from_raw_handle(raw.0) });
         let stop = Arc::new(AtomicBool::new(false));
         let (sender, commands) = mpsc::sync_channel(CAPACITY);
-        let (results, replies) = mpsc::sync_channel(CAPACITY);
+        // 最多 16 条普通回执，另留唯一异步终态事件槽；不增加输入准入容量。
+        let (results, replies) = mpsc::sync_channel(CAPACITY + 1);
         let signal = stop.clone();
         let event = wake.clone();
         let worker = std::thread::Builder::new()
@@ -216,7 +218,9 @@ impl<E> Worker<E> {
         unsafe { ResetEvent(HANDLE(self.wake.as_raw_handle())) }.map_err(io::Error::other)?;
         match self.replies.try_recv() {
             Ok(reply) => {
-                self.outstanding = self.outstanding.saturating_sub(1);
+                if reply.command.is_some() {
+                    self.outstanding = self.outstanding.saturating_sub(1);
+                }
                 unsafe { SetEvent(HANDLE(self.wake.as_raw_handle())) }.map_err(io::Error::other)?;
                 Ok(Some(reply))
             }
@@ -261,33 +265,51 @@ fn run<B: Backend>(
     wake: &OwnedHandle,
     ui_thread: Option<u32>,
 ) -> Exit {
-    let mut reason = Reason::Stopped;
-    while let Ok(command) = commands.recv() {
+    loop {
         if stop.load(Ordering::Acquire) {
             break;
         }
-        let result = match command {
-            Command::Enable => controller.enable(),
-            Command::Input { sequence, event } => controller.dispatch(sequence, event),
+        // pending 查询也可能处理完成回调，必须先采样再检查结果。沿用采样值，
+        // 避免第二次查询清掉 token 后带着未上报错误进入无限 recv。
+        let pending = controller.pending_delivery();
+        let (command, result) = if let Err(error) = controller.idle() {
+            (None, Err(error))
+        } else {
+            let received = if pending {
+                commands.recv_timeout(std::time::Duration::from_millis(16))
+            } else {
+                commands
+                    .recv()
+                    .map_err(|_| mpsc::RecvTimeoutError::Disconnected)
+            };
+            let command = match received {
+                Ok(command) => command,
+                Err(mpsc::RecvTimeoutError::Timeout) if !stop.load(Ordering::Acquire) => continue,
+                Err(_) => break,
+            };
+            if stop.load(Ordering::Acquire) {
+                break;
+            }
+            let result = match command {
+                Command::Enable => controller
+                    .enable()
+                    .map(|_| crate::live_input::Delivery::Completed),
+                Command::Input { sequence, event } => controller.dispatch_status(sequence, event),
+            };
+            (Some(command), result)
         };
         let failed = result.is_err();
         let failed_cleanup = controller.last_cleanup();
-        if results.try_send(Reply { command, result }).is_err() {
-            break;
-        }
-        if unsafe { SetEvent(HANDLE(wake.as_raw_handle())) }.is_err() {
-            reason = Reason::WakeFailed;
-            break;
-        }
-        if let Some(thread) = ui_thread {
-            use windows::Win32::{
-                Foundation::{LPARAM, WPARAM},
-                UI::WindowsAndMessaging::{PostThreadMessageW, WM_NULL},
+        let notified = publish(&results, Reply { command, result }, wake, ui_thread);
+        if let Err(reason) = notified {
+            return Exit {
+                reason,
+                cleanup: Some(if failed {
+                    failed_cleanup
+                } else {
+                    controller.cancel()
+                }),
             };
-            if unsafe { PostThreadMessageW(thread, WM_NULL, WPARAM(0), LPARAM(0)) }.is_err() {
-                reason = Reason::WakeFailed;
-                break;
-            }
         }
         if failed {
             return Exit {
@@ -300,9 +322,27 @@ fn run<B: Backend>(
         }
     }
     Exit {
-        reason,
+        reason: Reason::Stopped,
         cleanup: Some(controller.cancel()),
     }
+}
+fn publish<E>(
+    results: &mpsc::SyncSender<Reply<E>>,
+    reply: Reply<E>,
+    wake: &OwnedHandle,
+    ui_thread: Option<u32>,
+) -> Result<(), Reason> {
+    results.try_send(reply).map_err(|_| Reason::WakeFailed)?;
+    unsafe { SetEvent(HANDLE(wake.as_raw_handle())) }.map_err(|_| Reason::WakeFailed)?;
+    if let Some(thread) = ui_thread {
+        use windows::Win32::{
+            Foundation::{LPARAM, WPARAM},
+            UI::WindowsAndMessaging::{PostThreadMessageW, WM_NULL},
+        };
+        unsafe { PostThreadMessageW(thread, WM_NULL, WPARAM(0), LPARAM(0)) }
+            .map_err(|_| Reason::WakeFailed)?;
+    }
+    Ok(())
 }
 #[cfg(test)]
 #[path = "live_input_worker_tests.rs"]

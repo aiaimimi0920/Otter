@@ -11,6 +11,9 @@ use windows::{
 };
 pub(in crate::desktop) const WATCH: usize = 0x2000;
 const STOP_BASE: usize = WATCH + 1;
+#[path = "device_live_direct_ui.rs"]
+mod direct;
+pub(super) use direct::{append as append_direct, choose as choose_direct, WATCH_DIRECT};
 const MAX_VIEWERS: usize = 4;
 const MAX_HOSTS: usize = 8;
 const MAX_CATALOG: usize = 512;
@@ -26,7 +29,7 @@ pub(in crate::desktop) struct Selection {
     pub binding: ViewerHost,
 }
 pub(super) fn handles(command: usize) -> bool {
-    (WATCH..STOP_BASE + MAX_VIEWERS).contains(&command)
+    command == WATCH_DIRECT || (WATCH..STOP_BASE + MAX_VIEWERS).contains(&command)
 }
 fn available(view: &AuthorizationView) -> bool {
     !view.closed
@@ -35,7 +38,8 @@ fn available(view: &AuthorizationView) -> bool {
         && view.request.is_none()
         && !view.live.bindings.is_empty()
         && view.catalog.as_ref().is_some_and(|catalog| {
-            view.origin.as_deref() == Some(catalog.origin.as_str()) && !catalog.entries.is_empty()
+            view.origin.as_deref() == Some(catalog.origin.as_str())
+                && catalog.entries.iter().any(|e| !e.direct_view)
         })
 }
 fn duplicate(view: &AuthorizationView, origin: &str, session: &str) -> bool {
@@ -45,6 +49,9 @@ fn duplicate(view: &AuthorizationView, origin: &str, session: &str) -> bool {
         .any(|entry| entry.key.origin() == origin && entry.key.session() == session)
 }
 pub(in crate::desktop) fn current(view: &AuthorizationView, selected: &Selection) -> bool {
+    if let ViewerHost::Direct { device, .. } = &selected.binding {
+        return direct::current(view, selected, device);
+    }
     !view.closed
         && !view.busy
         && !view.catalog_busy
@@ -54,7 +61,7 @@ pub(in crate::desktop) fn current(view: &AuthorizationView, selected: &Selection
                 && catalog
                     .entries
                     .iter()
-                    .any(|entry| entry.identity == selected.identity)
+                    .any(|entry| !entry.direct_view && entry.identity == selected.identity)
         })
         && view
             .live
@@ -90,6 +97,9 @@ pub(super) unsafe fn append_menu(menu: HMENU, view: &AuthorizationView) -> Resul
         WATCH,
         w!("加入远程观看…"),
     )?;
+    append_stops(menu, view)
+}
+pub(super) unsafe fn append_stops(menu: HMENU, view: &AuthorizationView) -> Result<()> {
     if !view.live.status.is_empty() {
         AppendMenuW(
             menu,
@@ -143,7 +153,7 @@ unsafe fn choices(
     let menu = Menu(CreatePopupMenu()?);
     let mut selections = Vec::new();
     for entry in &catalog.entries {
-        if duplicate(view, &catalog.origin, entry.identity.session()) {
+        if entry.direct_view || duplicate(view, &catalog.origin, entry.identity.session()) {
             continue;
         }
         selections.push(Selection {
@@ -175,7 +185,9 @@ pub(in crate::desktop) unsafe fn select(
     queue(hwnd, state, Request::WatchLive(selected))
 }
 pub(super) unsafe fn execute(hwnd: HWND, state: &State, command: usize) -> Result<()> {
-    if command == WATCH {
+    if command == WATCH_DIRECT {
+        direct::choose(hwnd, state, false)
+    } else if command == WATCH {
         let mut point = POINT::default();
         GetCursorPos(&mut point)?;
         // 先选附件，再列最多512会话，避免4×512子菜单越过公共1024项快照预算。

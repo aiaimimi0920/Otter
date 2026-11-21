@@ -3,6 +3,7 @@ use super::*;
 use crate::{session_library::Kind, session_source::Source, workspace_id::UnitId};
 #[derive(Default)]
 pub(super) struct View {
+    pub menu: Option<super::context_menu::Pending>,
     pub source: Option<Source>,
     pub busy: bool,
     pub request: Option<Request>,

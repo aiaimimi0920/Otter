@@ -2,9 +2,9 @@
 use super::*;
 use std::cell::{Cell, RefCell};
 use windows::{
-    core::{Error, HSTRING},
+    core::{w, Error, HSTRING},
     Win32::UI::{
-        Controls::EM_SETLIMITTEXT,
+        Controls::{EM_SETCUEBANNER, EM_SETLIMITTEXT},
         HiDpi::*,
         Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass},
     },
@@ -14,11 +14,14 @@ mod template;
 #[cfg(test)]
 #[path = "art_picker_dialog_tests.rs"]
 pub(in crate::desktop) mod tests;
+#[path = "art_picker_view.rs"]
+mod view;
 use desktop::document_window::parameter_panel::theme;
 const SEARCH: i32 = 1001;
 const LIST: i32 = 1002;
 const STATUS: i32 = 1003;
 const REFRESH: i32 = 1004;
+const CLEAR: i32 = 1005;
 const USER: WINDOW_LONG_PTR_INDEX =
     WINDOW_LONG_PTR_INDEX((2 * std::mem::size_of::<isize>()) as i32);
 pub(in crate::desktop) enum Outcome {
@@ -31,6 +34,7 @@ struct Ui<'a> {
     result: RefCell<Outcome>,
     error: RefCell<Option<Error>>,
     composing: Cell<u8>,
+    pressed: Cell<Option<(usize, POINT)>>,
 }
 /// 同步显示借用；仅复用目录 UI，不给 Live 构造假的文档 State 或执行授权。
 pub(in crate::desktop) struct Context<'a> {
@@ -69,6 +73,7 @@ pub(in crate::desktop) unsafe fn show_with(owner: HWND, context: Context<'_>) ->
         result: RefCell::new(Outcome::Cancel),
         error: RefCell::new(None),
         composing: Cell::new(0),
+        pressed: Cell::new(None),
     };
     let template = template::template();
     let result = DialogBoxIndirectParamW(
@@ -102,6 +107,9 @@ unsafe fn text(hwnd: HWND) -> String {
 unsafe fn refresh(hwnd: HWND, ui: &Ui<'_>) {
     let list = GetDlgItem(Some(hwnd), LIST).unwrap_or_default();
     let query = text(GetDlgItem(Some(hwnd), SEARCH).unwrap_or_default());
+    let _redraw = neuro_mini_ui::paint_batch::Hold::new(hwnd);
+    let list_redraw = neuro_mini_ui::paint_batch::Hold::new(list);
+    ui.pressed.set(None);
     SendMessageW(list, LB_RESETCONTENT, None, None);
     if let Some(catalog) = &ui.context.catalog {
         for index in model::search(Some(catalog), &query) {
@@ -115,7 +123,7 @@ unsafe fn refresh(hwnd: HWND, ui: &Ui<'_>) {
             } else {
                 ""
             };
-            let label = HSTRING::from(format!("{} · {}{}", art.label, art.id, suffix));
+            let label = HSTRING::from(format!("{}{}", art.label, suffix));
             let row = SendMessageW(
                 list,
                 LB_ADDSTRING,
@@ -134,11 +142,15 @@ unsafe fn refresh(hwnd: HWND, ui: &Ui<'_>) {
         }
     }
     SendMessageW(list, LB_SETCURSEL, Some(WPARAM(0)), None);
+    drop(list_redraw);
     update(hwnd, ui);
 }
 unsafe fn update(hwnd: HWND, ui: &Ui<'_>) {
-    let enabled = selected(hwnd).is_some_and(ui.context.allowed);
-    let _ = EnableWindow(GetDlgItem(Some(hwnd), IDOK.0).unwrap_or_default(), enabled);
+    view::visible(
+        hwnd,
+        CLEAR,
+        !text(GetDlgItem(Some(hwnd), SEARCH).unwrap_or_default()).is_empty(),
+    );
     let status = if ui.context.loading {
         "正在加载节点能力…"
     } else if ui.context.failed {
@@ -146,51 +158,27 @@ unsafe fn update(hwnd: HWND, ui: &Ui<'_>) {
     } else if ui.context.catalog.is_none() {
         "节点能力尚未加载"
     } else if selected(hwnd).is_none() {
-        "没有匹配的 Art"
+        "未找到 Art"
     } else {
         ""
     };
-    let status = if status.is_empty() {
-        ui.context
-            .origin
-            .as_ref()
-            .map(|origin| format!("本地 Art · {origin}"))
-            .unwrap_or_default()
-    } else {
-        status.into()
-    };
+    let empty = SendMessageW(
+        GetDlgItem(Some(hwnd), LIST).unwrap_or_default(),
+        LB_GETCOUNT,
+        None,
+        None,
+    )
+    .0 == 0;
+    view::visible(hwnd, LIST, !empty);
+    view::visible(hwnd, STATUS, empty);
+    view::visible(hwnd, REFRESH, empty && !ui.context.loading);
     let _ = SetWindowTextW(
         GetDlgItem(Some(hwnd), STATUS).unwrap_or_default(),
         &HSTRING::from(status),
     );
 }
 unsafe fn layout(hwnd: HWND) -> Result<()> {
-    let dpi = GetDpiForWindow(hwnd).max(96);
-    desktop::tool_panel::font::update(hwnd, dpi)?;
-    let font = desktop::tool_panel::font::object(hwnd);
-    let px = |value: i32| (i64::from(value) * i64::from(dpi) / 96) as i32;
-    let mut rect = RECT::default();
-    GetClientRect(hwnd, &mut rect)?;
-    let width = rect.right.max(px(240));
-    let height = rect.bottom.max(px(180));
-    for (id, x, y, w, h) in [
-        (SEARCH, px(12), px(12), width - px(24), px(28)),
-        (LIST, px(12), px(48), width - px(24), height - px(132)),
-        (STATUS, px(12), height - px(78), width - px(24), px(26)),
-        (REFRESH, px(12), height - px(42), px(94), px(28)),
-        (IDOK.0, width - px(182), height - px(42), px(78), px(28)),
-        (IDCANCEL.0, width - px(90), height - px(42), px(78), px(28)),
-    ] {
-        let control = GetDlgItem(Some(hwnd), id)?;
-        SendMessageW(
-            control,
-            WM_SETFONT,
-            Some(WPARAM(font.0 as usize)),
-            Some(LPARAM(1)),
-        );
-        SetWindowPos(control, None, x, y, w, h, SWP_NOZORDER | SWP_NOACTIVATE)?;
-    }
-    Ok(())
+    view::layout(hwnd)
 }
 unsafe extern "system" fn procedure(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> isize {
     std::panic::catch_unwind(|| dispatch(hwnd, msg, wp, lp)).unwrap_or_else(|_| {
@@ -228,7 +216,13 @@ unsafe fn dispatch(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> isize {
                 Some(WPARAM(256)),
                 None,
             );
-            for id in [SEARCH, LIST, REFRESH, IDOK.0, IDCANCEL.0] {
+            SendMessageW(
+                GetDlgItem(Some(hwnd), SEARCH)?,
+                EM_SETCUEBANNER,
+                Some(WPARAM(1)),
+                Some(LPARAM(w!("搜索 Art").as_ptr() as isize)),
+            );
+            for id in [SEARCH, LIST, REFRESH, CLEAR, IDCANCEL.0] {
                 SetWindowSubclass(
                     GetDlgItem(Some(hwnd), id)?,
                     Some(policy),
@@ -237,7 +231,10 @@ unsafe fn dispatch(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> isize {
                 )
                 .ok()?;
             }
-            layout(hwnd)?;
+            for id in [REFRESH, CLEAR, IDCANCEL.0] {
+                neuro_mini_ui::prepare_button(GetDlgItem(Some(hwnd), id)?)?;
+            }
+            view::position(hwnd, GetWindow(hwnd, GW_OWNER)?)?;
             refresh(hwnd, ui);
             Ok(())
         })();
@@ -253,6 +250,9 @@ unsafe fn dispatch(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> isize {
             }
         }
         return 1;
+    }
+    if let Some(result) = view::paint(hwnd, msg, wp, lp, ui) {
+        return result;
     }
     if msg == WM_DPICHANGED {
         let rect = &*(lp.0 as *const RECT);
@@ -293,6 +293,12 @@ unsafe fn dispatch(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> isize {
             update(hwnd, ui);
             return 1;
         }
+        if id == CLEAR {
+            let edit = GetDlgItem(Some(hwnd), SEARCH).unwrap_or_default();
+            let _ = SetWindowTextW(edit, w!(""));
+            let _ = SetFocus(Some(edit));
+            return 1;
+        }
         if id == IDCANCEL.0 {
             if ui.composing.get() == 0 || lp.0 != 0 {
                 let _ = EndDialog(hwnd, 0);
@@ -315,6 +321,13 @@ unsafe fn dispatch(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> isize {
         }
     }
     if msg == WM_CLOSE {
+        let _ = EndDialog(hwnd, 0);
+        return 1;
+    }
+    if msg == WM_ACTIVATE
+        && wp.0 & 0xffff == WA_INACTIVE as usize
+        && IsWindowVisible(hwnd).as_bool()
+    {
         let _ = EndDialog(hwnd, 0);
         return 1;
     }
@@ -352,9 +365,74 @@ unsafe extern "system" fn policy(
             }
             return LRESULT(0);
         }
+        if ui.composing.get() == 0
+            && msg == WM_KEYDOWN
+            && wp.0 == VK_RETURN.0 as usize
+            && [SEARCH, LIST].contains(&GetDlgCtrlID(hwnd))
+        {
+            if lp.0 & (1 << 30) == 0 {
+                SendMessageW(
+                    GetParent(hwnd).unwrap_or_default(),
+                    WM_COMMAND,
+                    Some(WPARAM(IDOK.0 as usize)),
+                    None,
+                );
+            }
+            return LRESULT(0);
+        }
+        if GetDlgCtrlID(hwnd) == LIST {
+            let point = POINT {
+                x: lp.0 as i16 as i32,
+                y: (lp.0 >> 16) as i16 as i32,
+            };
+            if msg == WM_LBUTTONDOWN {
+                ui.pressed.set(row_at(hwnd, lp).map(|row| (row, point)));
+            } else if matches!(msg, WM_CANCELMODE | WM_CAPTURECHANGED) {
+                ui.pressed.set(None);
+            } else if msg == WM_LBUTTONUP {
+                let press = ui.pressed.take();
+                let result = DefSubclassProc(hwnd, msg, wp, lp);
+                let row = row_at(hwnd, lp);
+                let threshold = (4 * GetDpiForWindow(hwnd).max(96) / 96).max(1);
+                if ui.composing.get() == 0
+                    && press.is_some_and(|(old, start)| {
+                        row == Some(old)
+                            && start.x.abs_diff(point.x) <= threshold
+                            && start.y.abs_diff(point.y) <= threshold
+                    })
+                {
+                    SendMessageW(
+                        GetParent(hwnd).unwrap_or_default(),
+                        WM_COMMAND,
+                        Some(WPARAM(IDOK.0 as usize)),
+                        None,
+                    );
+                }
+                return result;
+            }
+        }
         DefSubclassProc(hwnd, msg, wp, lp)
     })
     .unwrap_or(LRESULT(0))
+}
+unsafe fn row_at(hwnd: HWND, lp: LPARAM) -> Option<usize> {
+    let row = SendMessageW(hwnd, LB_ITEMFROMPOINT, None, Some(lp)).0 as usize;
+    if row >> 16 != 0 {
+        return None;
+    }
+    let mut rect = RECT::default();
+    let result = SendMessageW(
+        hwnd,
+        LB_GETITEMRECT,
+        Some(WPARAM(row)),
+        Some(LPARAM(&mut rect as *mut _ as isize)),
+    );
+    let point = POINT {
+        x: lp.0 as i16 as i32,
+        y: (lp.0 >> 16) as i16 as i32,
+    };
+    (result.0 != LB_ERR as isize && windows::Win32::Graphics::Gdi::PtInRect(&rect, point).as_bool())
+        .then_some(row)
 }
 fn blocked(ui: &Ui<'_>, msg: u32) -> bool {
     desktop::session_end::with_owner(ui.context.session_end, || {

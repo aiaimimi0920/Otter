@@ -121,7 +121,7 @@ fn projection_targets_revoked_completed_result_and_cancelled_network_keep_origin
                 let mut byte = [0];
                 assert!(!stream.read(&mut byte).is_ok_and(|count| count > 0));
             } else {
-                reply(&mut stream, 200, br#"{"targets":[]}"#);
+                reply(&mut stream, 200, br#"{"targets":[],"groups":[],"peerDirectory":{"status":"complete"},"friends":{"users":[]}}"#);
             }
         });
         let mut grant = Grant::new(session(&origin, u64::MAX));

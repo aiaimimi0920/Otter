@@ -34,6 +34,7 @@ pub(super) unsafe fn run(app: &mut Application) -> Result<()> {
         })
         .unwrap();
     let content = Arc::new(Content {
+        frame_style: Default::default(),
         image,
         editor,
         opacity: 0.5,
@@ -59,7 +60,7 @@ pub(super) unsafe fn run(app: &mut Application) -> Result<()> {
             true,
         )?;
         open_job::finish(source.window.0, &source.state, true);
-        app.pending_windows(false)?;
+        app.pending_windows(true)?;
     }
     if app.documents.len() != count + 2 {
         return Err(Error::new(
@@ -79,6 +80,7 @@ pub(super) unsafe fn run(app: &mut Application) -> Result<()> {
         .annotation_id()
         .to_owned();
     for pin in [first, second] {
+        verify_idle(pin)?;
         let canvas = pin.state.canvas.borrow();
         if canvas.editor.elements().len() != 1
             || source_stamp.same_document(&canvas.editor)
@@ -187,5 +189,6 @@ pub(super) unsafe fn run(app: &mut Application) -> Result<()> {
     }
     println!("native-paste-editable-smoke: independent-units=true fresh-annotations=true crop=true opacity=true undo-isolated=true cancelled=true clipboard-access=false");
     println!("native-paste-capture-smoke: metadata=true unknown-fields=true new-document-binding=true path-access=false");
+    println!("native-paste-editable-presentation-smoke: host-visible=true toolbar-hidden=true free-drag=true");
     Ok(())
 }

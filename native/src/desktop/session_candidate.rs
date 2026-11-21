@@ -9,6 +9,8 @@ use windows::{
     core::{Error, Result},
     Win32::Foundation::{E_ABORT, E_ACCESSDENIED, E_INVALIDARG},
 };
+#[path = "session_account_projection_candidate.rs"]
+pub mod account_projection;
 #[path = "session_projection_candidate.rs"]
 pub mod projection;
 #[path = "session_candidate_results.rs"]
@@ -27,6 +29,10 @@ pub use workflow_bake::workflow::job::{
 
 #[derive(Clone)]
 pub struct Placement {
+    pub node_settings: crate::unit_node_settings::Settings,
+    pub(crate) extension_state: crate::unit_attachment_store::Store,
+    pub(crate) extension_propagation: Option<std::sync::Arc<serde_json::value::RawValue>>,
+    pub(crate) legacy_text: crate::sticker_extra_text::Legacy,
     pub capture_meta: Option<String>,
     pub unit: UnitId,
     pub art: bool,
@@ -41,8 +47,11 @@ pub struct Placement {
     pub crop: Option<crate::session_crop::Restored>,
     pub opacity_normal: f64,
     pub opacity_mini: f64,
+    pub frame_style: crate::pin_frame_style::Style,
+    pub(crate) mirror: crate::editor::MirrorState,
 }
 pub struct Candidate {
+    pub(in crate::desktop) account_index: Option<crate::projection_account::scene::Index>,
     pub(in crate::desktop) sender_index:
         Option<crate::projection_delivery::sender::binding::checkpoint::Index>,
     original: crate::session_source::Source,
@@ -150,6 +159,9 @@ impl VectorCandidate {
                     }
                 }
             }
+            restored.editor = std::mem::take(&mut restored.editor)
+                .with_restored_mirror(placement.mirror)
+                .map_err(|_| Error::new(E_INVALIDARG, "Cannot install restored mirror state"))?;
         }
         let projection_edits =
             super::session_projection_edit::prepare(&document, &mut vectors, cancel)?;
@@ -357,6 +369,20 @@ fn prepare_source(
                 height: image.height as f64,
             });
         placements.push(Placement {
+            node_settings: crate::unit_node_settings::Settings::read(window)
+                .map_err(|message| Error::new(E_INVALIDARG, message))?,
+            extension_state: crate::unit_attachment_store::Store::restore(window.extension_state),
+            legacy_text: crate::sticker_extra_text::Legacy::restore(
+                window.ocr_result,
+                window.translation_result,
+            ),
+            extension_propagation: window
+                .sticker_edit_propagation
+                .map(|raw| std::sync::Arc::from(raw.to_owned())),
+            mirror: crate::editor::MirrorState::read_raw(window.image_edit_state)
+                .map_err(|message| Error::new(E_INVALIDARG, message))?,
+            frame_style: crate::pin_frame_style::Style::read_raw(window.image_edit_state)
+                .map_err(|message| Error::new(E_INVALIDARG, message))?,
             capture_meta: window.capture_meta.map(|value| value.get().to_owned()),
             unit: UnitId::parse(&window.id)
                 .ok_or_else(|| Error::new(E_INVALIDARG, "Invalid session unit"))?,
@@ -409,6 +435,15 @@ fn prepare_source(
     }
     check(cancel)?;
     Ok(Candidate {
+        account_index: if document.projection_scope.is_some() {
+            Some(
+                crate::projection_account::scene::Index::capture(&bytes).map_err(|error| {
+                    Error::new(E_INVALIDARG, format!("Invalid account scene: {error:?}"))
+                })?,
+            )
+        } else {
+            None
+        },
         projection_index: crate::projection_delivery::binding::checkpoint::Index::capture(&bytes),
         sender_index: crate::projection_delivery::sender::binding::checkpoint::Index::capture(
             &bytes,

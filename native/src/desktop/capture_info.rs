@@ -2,7 +2,8 @@
 use super::*;
 use crate::{capture_dynamic::Reason, desktop::canvas::CaptureSource};
 pub(in crate::desktop) const COMMAND: usize = 0x1068;
-pub(in crate::desktop) unsafe fn append(menu: HMENU, state: &State) -> Result<()> {
+#[cfg(test)]
+unsafe fn append(menu: HMENU, state: &State) -> Result<()> {
     let status = state
         .canvas
         .borrow()

@@ -153,6 +153,35 @@ fn inflight_checkpoint_and_new_intents_cannot_borrow_durable_permission() {
     }
 }
 #[test]
+fn current_checkpoint_cannot_discard_active_inline_text() {
+    unsafe {
+        run(|instance| {
+            let directory = Directory::new();
+            let mut app = new_app(instance);
+            app.install_workspace_checkpoint(Some(Profile::open(&directory.0).unwrap()), true)
+                .unwrap();
+            settle(&mut app);
+            assert!(app.session_checkpoint_current());
+            let doc = &app.documents[0];
+            let point = {
+                let mut canvas = doc.state.canvas.borrow_mut();
+                canvas.select_tool(crate::editor::Tool::Text);
+                canvas.viewport.origin
+            };
+            crate::desktop::text_input::insert(doc.window.0, &doc.state, point);
+            assert!(doc.state.inline_text.borrow().is_some());
+            assert!(!app.session_checkpoint_current());
+            assert_eq!(query(&app, 0), 0);
+            cancel(&app);
+            assert!(doc.state.inline_text.borrow().is_some());
+            crate::desktop::text_input::inline::finish(doc.window.0, &doc.state, false).unwrap();
+            assert!(app.session_checkpoint_current());
+            assert_eq!(query(&app, 0), 1);
+            cancel(&app);
+        });
+    }
+}
+#[test]
 fn changed_projection_scope_cannot_borrow_same_storage_checkpoint() {
     unsafe {
         run(|instance| {

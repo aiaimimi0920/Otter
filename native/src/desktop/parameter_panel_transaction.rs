@@ -58,9 +58,6 @@ unsafe fn submit(
     // submit_texts 没有模态/同步 Win32 回调；取消通知只是 PostMessage。
     // 全部值与原 Spec 验证完才发布，后继必须按稳定参数/动作重绑定，不能沿用旧索引。
     let after = Stamp::capture(state);
-    if before != after {
-        panel.ui.committed.set(true);
-    }
     let successor = Snapshot::capture(state).map(Rc::new);
     for binding in panel.ui.bindings.borrow_mut().iter_mut() {
         if let controls::Kind::Text {
@@ -76,6 +73,9 @@ unsafe fn submit(
                 }
             }
         }
+    }
+    if let Some(successor) = &successor {
+        advance_inline_drafts(panel, state, snapshot, successor);
     }
     for intent in remaining {
         match intent {
@@ -98,7 +98,6 @@ unsafe fn submit(
             Intent::Setting(stamp, _)
             | Intent::Run(stamp)
             | Intent::Stop(stamp)
-            | Intent::Relay(stamp)
             | Intent::Ports(stamp)
             | Intent::Sticker(stamp, _)
                 if *stamp == before =>
@@ -113,4 +112,52 @@ unsafe fn submit(
 }
 fn stale() -> Error {
     Error::new(E_ABORT, "参数操作已变化，请重试")
+}
+
+unsafe fn advance_inline_drafts(
+    panel: &Panel,
+    state: &State,
+    previous: &Rc<Snapshot>,
+    successor: &Rc<Snapshot>,
+) {
+    if !panel.ui.inline || panel.ui.drafts_idle() {
+        return;
+    }
+    // 只延续刚刚确认的本 owner 同步文本事务。外部/模态换代不能走到这里。
+    // 后来的 thumb-track 草稿保留 HWND；结构变化仍沿原失效/重新加载路径。
+    let mut next = panel.ui.capture(state);
+    let old = panel.ui.model.borrow();
+    if old.rows.len() != next.rows.len()
+        || old.rows.iter().zip(&next.rows).any(|(a, b)| {
+            a.id != b.id || a.widget != b.widget || a.primary.len() != b.primary.len()
+        })
+    {
+        return;
+    }
+    drop(old);
+    let mut bindings = panel.ui.bindings.borrow().clone();
+    for binding in &mut bindings {
+        let (bound, indices) = match &mut binding.kind {
+            controls::Kind::Text {
+                snapshot, index, ..
+            }
+            | controls::Kind::Slider(_, _, snapshot, index)
+            | controls::Kind::Choice(snapshot, index) => (snapshot, std::slice::from_mut(index)),
+            controls::Kind::Options(snapshot, indices) => (snapshot, indices.as_mut_slice()),
+            _ => continue,
+        };
+        if !Rc::ptr_eq(bound, previous) {
+            continue;
+        }
+        for index in indices {
+            let Some(current) = successor.corresponding(previous, *index) else {
+                return;
+            };
+            *index = current;
+        }
+        *bound = successor.clone();
+    }
+    next.snapshot = Some(successor.clone());
+    *panel.ui.bindings.borrow_mut() = bindings;
+    *panel.ui.model.borrow_mut() = Rc::new(next);
 }

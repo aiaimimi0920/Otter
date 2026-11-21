@@ -2,10 +2,13 @@
 use super::*;
 use std::sync::OnceLock;
 use windows::Win32::{Graphics::Gdi::*, System::LibraryLoader::GetModuleHandleW};
-const CLASS: windows::core::PCWSTR = w!("Otter.Native.WorkspaceChrome");
+pub(super) const CLASS: windows::core::PCWSTR = w!("Otter.Native.WorkspaceChrome");
 pub(super) const MAX_PIXELS: i64 = 33_554_432;
+#[path = "workspace_chrome_order.rs"]
+mod order;
 #[path = "workspace_chrome_strips.rs"]
 mod strips;
+pub(super) use order::apply as order_drawing;
 pub(super) struct Windows {
     ui: Rc<Ui>,
     drawing: HWND,
@@ -46,11 +49,14 @@ impl Windows {
             return Err(Error::from(E_OUTOFMEMORY));
         }
         border::sync(&self.ui, &nodes)?;
+        backing::sync(&self.ui, &nodes)?;
         self.inputs
             .retain(|strip| nodes.iter().any(|node| strip.matches(node)));
         for node in &nodes {
             for (side, count) in [(Side::Input, node.inputs), (Side::Output, node.outputs)] {
-                if count > 0
+                if (count > 0
+                    || side == Side::Output
+                        && candidate_auxiliary::layout(&self.ui, node).is_some())
                     && !self
                         .inputs
                         .iter()
@@ -78,9 +84,12 @@ impl Drop for Windows {
             self.ui.cancel();
             self.inputs.clear();
             drop(self.ui.borders.replace(Vec::new()));
+            drop(self.ui.backings.replace(Vec::new()));
             self.ui.input_windows.borrow_mut().clear();
             self.ui.drawing.set(HWND::default());
             self.ui.surface.borrow_mut().take();
+            self.ui.port_painter.borrow_mut().take();
+            self.ui.drawers.borrow_mut().clear();
             for hwnd in [self.drawing] {
                 if !hwnd.is_invalid()
                     && GetWindowLongPtrW(hwnd, GWLP_USERDATA) == Rc::as_ptr(&self.ui) as isize
@@ -100,7 +109,8 @@ unsafe fn register() -> Result<()> {
                     lpfnWndProc: Some(procedure),
                     hInstance: HINSTANCE(GetModuleHandleW(None)?.0),
                     lpszClassName: CLASS,
-                    hCursor: LoadCursorW(None, IDC_CROSS)?,
+                    // 端点条也承载标签、眼睛和字段；连线捕获结束后不能留下十字光标。
+                    hCursor: LoadCursorW(None, IDC_ARROW)?,
                     ..Default::default()
                 };
                 if RegisterClassW(&class) == 0 {
@@ -113,8 +123,9 @@ unsafe fn register() -> Result<()> {
         .map_err(Error::from)
 }
 pub(super) unsafe fn hide(ui: &Ui) {
+    drawer::cancel(ui);
+    candidate_auxiliary::cancel(ui);
     border::restore_stationary(ui);
-    capsule::cancel(ui);
     ui.keyboard.retire();
     ui.cancel();
     ui.pending.borrow_mut().take();
@@ -141,8 +152,10 @@ fn bounds(nodes: &[Node]) -> Option<Rect> {
     })
 }
 pub(super) unsafe fn refresh(ui: &Ui) -> Result<()> {
+    refresh_at(ui, false)
+}
+pub(super) unsafe fn refresh_at(ui: &Ui, translated: bool) -> Result<()> {
     keyboard::reconcile(ui);
-    capsule::reconcile(ui);
     if ui.capturing() {
         ui.redraw_after_capture.set(true);
         ui.cancel();
@@ -153,7 +166,9 @@ pub(super) unsafe fn refresh(ui: &Ui) -> Result<()> {
         return Ok(());
     }
     border::refresh(ui)?;
-    strips::refresh(ui)
+    strips::refresh(ui, translated)?;
+    backing::refresh(ui)?;
+    drawer::geometry(ui)
 }
 pub(super) unsafe fn refresh_drawing(ui: &Ui) -> Result<()> {
     let nodes = ui.nodes.borrow().clone();
@@ -161,6 +176,8 @@ pub(super) unsafe fn refresh_drawing(ui: &Ui) -> Result<()> {
         hide(ui);
         return Ok(());
     };
+    let backdrops = draw::backdrops::Backdrops::default();
+    rect = backdrops.include_bounds(rect);
     if let Some(press) = ui.press.borrow().as_ref() {
         rect.left = rect.left.min(press.current.x.saturating_sub(160));
         rect.right = rect.right.max(press.current.x.saturating_add(160));
@@ -180,7 +197,7 @@ pub(super) unsafe fn refresh_drawing(ui: &Ui) -> Result<()> {
     // 线层已有富余空间时保持 HWND/DIB 尺寸，只提交像素；连续滚轮不能每帧重建全局外框表面。
     let mut existing = RECT::default();
     if ui.surface.borrow().is_some() && GetWindowRect(ui.drawing.get(), &mut existing).is_ok() {
-        let needed = Rect {
+        let needed = backdrops.include_bounds(Rect {
             left: nodes
                 .iter()
                 .map(|n| n.rect.left.saturating_sub(160))
@@ -205,7 +222,7 @@ pub(super) unsafe fn refresh_drawing(ui: &Ui) -> Result<()> {
                 .max()
                 .unwrap_or(rect.bottom)
                 .min(vy.saturating_add(GetSystemMetrics(SM_CYVIRTUALSCREEN))),
-        };
+        });
         if ui.press.borrow().is_none()
             && existing.left <= needed.left
             && existing.top <= needed.top
@@ -254,7 +271,7 @@ pub(super) unsafe fn refresh_drawing(ui: &Ui) -> Result<()> {
     }
     // 首次显示/新节点发布前先确定层序，不能先把新连线画到图片上再下移。
     order_drawing(ui)?;
-    draw::present(ui, rect)?;
+    draw::present(ui, rect, backdrops)?;
     if !IsWindowVisible(drawing).as_bool() {
         SetWindowPos(
             drawing,
@@ -270,76 +287,10 @@ pub(super) unsafe fn refresh_drawing(ui: &Ui) -> Result<()> {
     ValidateRect(Some(drawing), None).ok()?;
     Ok(())
 }
-struct OrderGuard<'a>(&'a Cell<bool>);
-impl Drop for OrderGuard<'_> {
-    fn drop(&mut self) {
-        self.0.set(false);
-    }
-}
-pub(super) unsafe fn order_drawing(ui: &Ui) -> Result<()> {
-    let drawing = ui.drawing.get();
-    if drawing.is_invalid() || ui.blocked() || ui.ordering.get() {
-        return Ok(());
-    }
-    // EndDeferWindowPos 同步回调组内每个 HWND，不能在尚未完成的同一层序事务中再开一批。
-    ui.ordering.set(true);
-    let _guard = OrderGuard(&ui.ordering);
-    let mut hosts: HashSet<_> = ui
-        .nodes
-        .borrow()
-        .iter()
-        .filter(|node| {
-            let hwnd = HWND(node.hwnd as *mut _);
-            IsWindowVisible(hwnd).as_bool() && GetWindowLongPtrW(hwnd, GWLP_USERDATA) == node.marker
-        })
-        .map(|node| node.hwnd)
-        .collect();
-    if hosts.is_empty() {
-        return Ok(());
-    }
-    // 端点不绑定 HWND owner，避免系统自动升层；连接组统一位于所有图片下。
-    let layers: Vec<_> = ui
-        .input_windows
-        .borrow()
-        .iter()
-        .map(|(hwnd, _, _)| *hwnd)
-        .filter(|hwnd| IsWindow(Some(*hwnd)).as_bool())
-        .chain([drawing])
-        .collect();
-    let members: HashSet<_> = layers.iter().map(|hwnd| hwnd.0 as isize).collect();
-    let mut cursor = GetTopWindow(None)?;
-    let mut connection_above = false;
-    for _ in 0..4096 {
-        if cursor.is_invalid() {
-            break;
-        }
-        connection_above |= members.contains(&(cursor.0 as isize));
-        if hosts.remove(&(cursor.0 as isize)) && hosts.is_empty() {
-            if connection_above {
-                // 仅违约时批量下移连接组，不提升/重排钉图与独立白框，不重绘静止像素。
-                let mut batch = BeginDeferWindowPos(layers.len() as i32)?;
-                for hwnd in layers {
-                    batch = DeferWindowPos(
-                        batch,
-                        hwnd,
-                        Some(cursor),
-                        0,
-                        0,
-                        0,
-                        0,
-                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOREDRAW | SWP_NOOWNERZORDER,
-                    )?;
-                    cursor = hwnd;
-                }
-                EndDeferWindowPos(batch)?;
-            }
-            return Ok(());
-        }
-        cursor = GetWindow(cursor, GW_HWNDNEXT).unwrap_or_default();
-    }
-    Ok(())
-}
-unsafe fn affinity_if_changed(hwnd: HWND, desired: WINDOW_DISPLAY_AFFINITY) -> Result<()> {
+pub(super) unsafe fn affinity_if_changed(
+    hwnd: HWND,
+    desired: WINDOW_DISPLAY_AFFINITY,
+) -> Result<()> {
     let mut current = 0;
     GetWindowDisplayAffinity(hwnd, &mut current)?;
     if current != desired.0 {
@@ -390,8 +341,21 @@ unsafe fn dispatch(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
             LRESULT(0)
         }
         WM_LBUTTONDOWN | WM_MOUSEMOVE | WM_LBUTTONUP => {
-            input::mouse(hwnd, ui, msg, lp);
+            if !parameter_scroll::message(hwnd, ui, msg, wp, lp) {
+                input::mouse(hwnd, ui, msg, lp);
+            }
             LRESULT(0)
+        }
+        WM_MOUSEWHEEL => {
+            parameter_scroll::message(hwnd, ui, msg, wp, lp);
+            LRESULT(0)
+        }
+        WM_CONTEXTMENU => {
+            if parameter_rail::context(ui, hwnd, lp) {
+                LRESULT(0)
+            } else {
+                DefWindowProcW(hwnd, msg, wp, lp)
+            }
         }
         WM_CANCELMODE | WM_CAPTURECHANGED => {
             ui.cancel();

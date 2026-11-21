@@ -138,6 +138,37 @@ impl Control<'_> {
             self.attach_local_art(identity, proof, sequence, false)
         })
     }
+    pub(crate) fn prepare_direct_viewer(&self, selected: &Identity) -> Result<Prepared, Error> {
+        self.prepare_bound(
+            selected.session(),
+            None,
+            Some(selected),
+            |identity, sequence| {
+                let body = serde_json::to_vec(&serde_json::json!({
+                    "envelope": self.viewer_ack(identity, sequence)?
+                }))
+                .map_err(|_| Error::Input)?;
+                let bytes = self.send(
+                    "POST",
+                    &path(identity.session(), Some("direct-viewer"))?,
+                    &body,
+                    Duration::from_secs(15),
+                )?;
+                let value: serde_json::Value = protocol::parse(&bytes).map_err(Error::Protocol)?;
+                if value["directView"] != true
+                    || value["session"]["interactionCapabilities"]
+                        .as_array()
+                        .is_none_or(|caps| !caps.is_empty())
+                    || value["session"]["observationCapabilities"]
+                        .as_array()
+                        .is_none_or(|caps| !caps.is_empty())
+                {
+                    return Err(Error::Input);
+                }
+                self.attached_viewer(identity, &bytes)
+            },
+        )
+    }
     fn prepare_bound(
         &self,
         session: &str,

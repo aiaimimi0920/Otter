@@ -92,47 +92,65 @@ fn receive_policy_reject_after_append_preserves_original_checkpoint_phase_and_bi
 }
 
 #[test]
-fn receive_policy_auto_runs_original_tls_accept_once_without_manual_accept_request() {
+fn receive_and_auto_policies_run_original_tls_accept_once_without_manual_accept_request() {
     let _serial = crate::loom_bridge_client::tests::execution_job::SERIAL
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let _com = Apartment::new().unwrap();
-    unsafe {
-        let mut fixture = Fixture::new();
-        fixture
-            .app
-            .authorization
-            .borrow_mut()
-            .projection
-            .entries
-            .push(Arc::new(
-                crate::projection_delivery::accept::tests::invitation(&fixture.origin),
-            ));
-        policy(&mut fixture.app, Policy::Auto);
-        fixture
-            .app
-            .process_authorization_with_projection(|origin| config(origin, fixture.files.root()));
-        assert!(fixture.app.remote_sessions.projection_pending());
-        fixture
-            .app
-            .process_authorization_with_projection(|origin| config(origin, fixture.files.root()));
-        assert_eq!(fixture.app.remote_sessions.wait_handles().count(), 1);
-        wait_remote(&fixture.app);
-        fixture.finish_accept();
-        let end = Instant::now() + Duration::from_secs(10);
-        loop {
+    for mode in [Policy::Confirm, Policy::Auto] {
+        unsafe {
+            let mut fixture = Fixture::new();
+            policy(&mut fixture.app, mode);
+            fixture
+                .app
+                .authorization
+                .borrow_mut()
+                .projection
+                .entries
+                .push(Arc::new(
+                    crate::projection_delivery::accept::tests::invitation(&fixture.origin),
+                ));
+            fixture.app.resume_projection_poll_for_test();
+            // 后台账号核对占用接收状态时，不报失败，也不消费邀请的自动尝试。
+            fixture.app.authorization.borrow_mut().account.busy = true;
+            fixture.app.process_projection_automatic(
+                &mut |_| panic!("account recovery must finish before inbox work"),
+                Instant::now(),
+            );
+            assert!(!fixture.app.remote_sessions.projection_pending());
+            assert!(fixture
+                .app
+                .authorization
+                .borrow()
+                .projection
+                .status
+                .is_empty());
+            fixture.app.authorization.borrow_mut().account.busy = false;
             fixture.app.process_authorization_with_projection(|origin| {
                 config(origin, fixture.files.root())
             });
-            if !fixture.app.projection_receive.preparing() && fixture.unit_present() {
-                break;
+            assert!(fixture.app.remote_sessions.projection_pending());
+            fixture.app.process_authorization_with_projection(|origin| {
+                config(origin, fixture.files.root())
+            });
+            assert_eq!(fixture.app.remote_sessions.wait_handles().count(), 1);
+            wait_remote(&fixture.app);
+            fixture.finish_accept();
+            let end = Instant::now() + Duration::from_secs(10);
+            loop {
+                fixture.app.process_authorization_with_projection(|origin| {
+                    config(origin, fixture.files.root())
+                });
+                if !fixture.app.projection_receive.preparing() && fixture.unit_present() {
+                    break;
+                }
+                assert!(Instant::now() < end, "automatic receive append deadline");
+                std::thread::yield_now();
             }
-            assert!(Instant::now() < end, "automatic receive append deadline");
-            std::thread::yield_now();
+            assert_eq!(fixture.store.pending().unwrap().len(), 1);
+            assert!(!fixture.ticket().cleanup_pending());
+            assert!(fixture.app.authorization.borrow().request.is_none());
         }
-        assert_eq!(fixture.store.pending().unwrap().len(), 1);
-        assert!(!fixture.ticket().cleanup_pending());
-        assert!(fixture.app.authorization.borrow().request.is_none());
     }
 }
 

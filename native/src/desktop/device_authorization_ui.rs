@@ -7,6 +7,8 @@ use windows::{
     core::{w, Error, Result, HSTRING},
     Win32::{Foundation::*, UI::WindowsAndMessaging::*},
 };
+#[path = "device_account_projection_ui.rs"]
+pub(in crate::desktop) mod account;
 #[path = "device_authorization_dialog.rs"]
 mod dialog;
 #[path = "device_projection_edit_ui.rs"]
@@ -19,6 +21,10 @@ pub(super) mod projection;
 mod recovery;
 #[path = "device_projection_sender_ui.rs"]
 pub(super) mod sender;
+#[path = "device_settings_menu.rs"]
+pub(super) mod settings;
+#[path = "projection_share_ui.rs"]
+pub(in crate::desktop) mod share;
 #[path = "device_authorization_surface.rs"]
 mod surface;
 #[path = "device_projection_targets_ui.rs"]
@@ -37,6 +43,7 @@ pub(super) const RESUME_SURFACE: usize = 0x109b;
 const RECOVERY_BASE: usize = 0x10c0;
 
 pub(super) enum Request {
+    AccountProjection(Box<account::Request>),
     WatchLive(live::Selection),
     StopLive(std::sync::Arc<crate::desktop::composition::relay::sessions::ViewerKey>),
     ReceivePolicy(crate::projection_receive_policy::Policy),
@@ -44,6 +51,7 @@ pub(super) enum Request {
     Projection(projection::Request),
     ProjectionTargets,
     SendProjection(sender::Selection),
+    ShareProjection(share::SourceSelection),
     SendProjectionGroup(sender::groups::Selection),
     StopProjectionGroup(sender::groups::StopSelection),
     CancelProjectionSend,
@@ -67,6 +75,9 @@ pub(super) enum Request {
 }
 #[derive(Default)]
 pub(super) struct View {
+    pub account: account::View,
+    pub share: Option<std::rc::Rc<share::Window>>,
+    pub share_decode: Option<share::Decode>,
     pub live: live::View,
     pub consent: policy::Consent,
     pub projection: projection::View,
@@ -76,6 +87,10 @@ pub(super) struct View {
     pub continuation: Option<String>,
     pub confirmation: Option<String>,
     pub origin: Option<String>,
+    pub connected: bool,
+    pub loom_name: String,
+    pub loom_id: Option<String>,
+    pub connection_password: zeroize::Zeroizing<String>,
     pub request: Option<Request>,
     pub busy: bool,
     pub closed: bool,
@@ -114,6 +129,26 @@ pub(super) fn handles(command: usize) -> bool {
 }
 pub(super) unsafe fn append_menu(menu: HMENU, state: &State) -> Result<()> {
     let view = state.authorization.borrow();
+    append_connection(menu, &view)?;
+    append_actions(
+        menu,
+        &view,
+        &[
+            (DISCOVER, "刷新远程会话目录"),
+            (OPEN_ART, "打开 Art（原生预览）…"),
+            (CONFIRM_SURFACE, "处理待确认的 Surface 操作…"),
+            (RESUME_SURFACE, "继续 Surface 批次的剩余操作"),
+        ],
+    )?;
+    recovery::append_menu(menu, &view)?;
+    live::append_menu(menu, &view)?;
+    policy::append_menu(menu, &view)?;
+    projection::append_menu(menu, &view)?;
+    targets::append_menu(menu, &view, &state.unit_id)?;
+    editing::append_menu(menu, state, &view)?;
+    AppendMenuW(menu, MF_SEPARATOR, 0, None)
+}
+unsafe fn append_connection(menu: HMENU, view: &View) -> Result<()> {
     let label = match &view.origin {
         Some(origin) => format!("Loom：{}", origin.replace('&', "&&")),
         None => "Loom：未选择服务".into(),
@@ -123,17 +158,20 @@ pub(super) unsafe fn append_menu(menu: HMENU, state: &State) -> Result<()> {
     if !view.status.is_empty() {
         AppendMenuW(menu, MF_STRING | MF_GRAYED, 0, &HSTRING::from(&view.status))?;
     }
-    for (id, label) in [
-        (SELECT, "选择 Loom 服务…"),
-        (PAIR, "提交设备配对"),
-        (APPROVAL, "等待管理员批准"),
-        (RENEW, "获取 / 续签授权会话"),
-        (CANCEL, "取消请求并清除本地会话"),
-        (DISCOVER, "刷新远程会话目录"),
-        (OPEN_ART, "打开 Art（原生预览）…"),
-        (CONFIRM_SURFACE, "处理待确认的 Surface 操作…"),
-        (RESUME_SURFACE, "继续 Surface 批次的剩余操作"),
-    ] {
+    append_actions(
+        menu,
+        view,
+        &[
+            (SELECT, "选择 Loom 服务…"),
+            (PAIR, "提交设备配对"),
+            (APPROVAL, "等待管理员批准"),
+            (RENEW, "获取 / 续签授权会话"),
+            (CANCEL, "取消请求并清除本地会话"),
+        ],
+    )
+}
+unsafe fn append_actions(menu: HMENU, view: &View, actions: &[(usize, &str)]) -> Result<()> {
+    for &(id, label) in actions {
         let enabled = !view.closed
             && (id != CONFIRM_SURFACE || view.confirmation.is_some())
             && (id != RESUME_SURFACE || view.continuation.is_some())
@@ -148,13 +186,7 @@ pub(super) unsafe fn append_menu(menu: HMENU, state: &State) -> Result<()> {
             &HSTRING::from(label),
         )?;
     }
-    recovery::append_menu(menu, &view)?;
-    live::append_menu(menu, &view)?;
-    policy::append_menu(menu, &view)?;
-    projection::append_menu(menu, &view)?;
-    targets::append_menu(menu, &view, &state.unit_id)?;
-    editing::append_menu(menu, state, &view)?;
-    AppendMenuW(menu, MF_SEPARATOR, 0, None)
+    Ok(())
 }
 pub(super) unsafe fn execute(hwnd: HWND, state: &State, command: usize) -> Result<()> {
     let result = if live::handles(command) {
@@ -191,7 +223,22 @@ pub(super) unsafe fn execute(hwnd: HWND, state: &State, command: usize) -> Resul
     } else if command == OPEN_ART {
         surface::choose(hwnd, state, || dialog::show_art(hwnd))
     } else if command == SELECT {
-        select_with(hwnd, state, |old| dialog::show(hwnd, old))
+        let mut password = zeroize::Zeroizing::new(String::new());
+        let result = select_with(hwnd, state, |old| {
+            dialog::show(hwnd, old).map(|(origin, secret)| {
+                password = secret;
+                origin
+            })
+        });
+        if result.is_ok()
+            && matches!(
+                state.authorization.borrow().request,
+                Some(Request::Select(_))
+            )
+        {
+            state.authorization.borrow_mut().connection_password = password;
+        }
+        result
     } else {
         let request = match command {
             PAIR => Request::Start(Action::RequestPairing),

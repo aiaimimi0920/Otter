@@ -9,6 +9,7 @@ use windows::Win32::{
 pub enum Error {
     InvalidPoint,
     InvalidBounds,
+    SourceTransition,
     Overflow,
     TargetChanged,
     Dpi,
@@ -52,13 +53,32 @@ impl Drop for Dpi {
         }
     }
 }
-/// 全窗口输入沿用主干客户区归一化规则；窗口内裁剪从物理 frame 转换。
+/// 旧整窗协议沿用客户区归一化规则；窗口内裁剪从物理 frame 转换。
 /// destination 必须属于同一个原 root；结果仍需 message 层检查 signed 16-bit 范围。
 pub fn map(
     root: &Target,
     destination: &Destination,
     normalized: [f64; 2],
     region: Option<FrameRegion>,
+) -> Result<Mapped> {
+    map_in_space(root, destination, normalized, region, false)
+}
+/// 本地普通应用的图像来自完整 WGC frame，包括标题栏/边框；不能按客户区拉伸。
+/// 仅改变坐标空间，不将非客户区转换成新的消息或授予额外目标权限。
+pub(crate) fn map_capture(
+    root: &Target,
+    destination: &Destination,
+    normalized: [f64; 2],
+    region: Option<FrameRegion>,
+) -> Result<Mapped> {
+    map_in_space(root, destination, normalized, region, true)
+}
+fn map_in_space(
+    root: &Target,
+    destination: &Destination,
+    normalized: [f64; 2],
+    region: Option<FrameRegion>,
+    full_frame: bool,
 ) -> Result<Mapped> {
     validate_point(normalized)?;
     if !root.same_source(destination.root()) {
@@ -67,7 +87,7 @@ pub fn map(
     root.validate().map_err(|_| Error::TargetChanged)?;
     destination.validate().map_err(|_| Error::TargetChanged)?;
     if unsafe { IsIconic(root.hwnd()) }.as_bool() {
-        return Err(Error::InvalidBounds);
+        return Err(Error::SourceTransition);
     }
     let _dpi = Dpi::enter(root.hwnd())?;
     let root_context = unsafe { GetWindowDpiAwarenessContext(root.hwnd()) };
@@ -76,9 +96,12 @@ pub fn map(
         == DPI_AWARENESS_PER_MONITOR_AWARE;
     let same_context =
         unsafe { AreDpiAwarenessContextsEqual(root_context, destination_context) }.as_bool();
-    let mut point = if let Some(region) = region {
+    let mut point = if full_frame || region.is_some() {
         let bounds = frame_bounds(root.hwnd())?;
-        let physical = region_point(bounds, region, normalized)?;
+        let physical = match region {
+            Some(region) => region_point(bounds, region, normalized)?,
+            None => rectangle_point(bounds, normalized)?,
+        };
         let mut point = POINT {
             x: physical[0],
             y: physical[1],
@@ -203,6 +226,9 @@ pub(super) fn frame_bounds(window: HWND) -> Result<RECT> {
 #[cfg(test)]
 #[path = "live_input_dpi_runtime_tests.rs"]
 mod dpi_runtime_tests;
+#[cfg(test)]
+#[path = "live_input_frame_mapping_tests.rs"]
+mod frame_mapping_tests;
 #[cfg(test)]
 #[path = "live_input_mixed_dpi_tests.rs"]
 mod mixed_dpi_tests;

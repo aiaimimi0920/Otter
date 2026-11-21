@@ -4,7 +4,7 @@ use crate::{
     live_recovery_client::journal::{Journal, Ticket},
     live_window_target::{
         snapshot::Snapshot,
-        visibility::{Lease, Registry},
+        visibility::{retain_restore_error, Lease, Registry, RETIREMENT_PENDING},
         Target,
     },
 };
@@ -18,7 +18,7 @@ use std::{
 struct Source {
     target: Target,
     snapshot: RefCell<Option<Snapshot>>,
-    ticket: Ticket,
+    ticket: RefCell<Ticket>,
     armed: Cell<bool>,
     recalled: Cell<bool>,
     activation: RefCell<Option<Activation>>,
@@ -35,15 +35,16 @@ impl Protection {
         if source.recalled.get() {
             return Ok(());
         }
-        if !source.ticket.available() || source.ticket.rejected() {
+        let ticket = source.ticket.borrow().clone();
+        if !ticket.available() || ticket.rejected() {
             return Err(io::Error::other("Live recovery registration unavailable"));
         }
-        if !source.ticket.ready() {
+        if !ticket.ready() {
             return Ok(());
         }
         let snapshot = source.snapshot.borrow_mut().take();
         if let Some(snapshot) = snapshot {
-            let ticket = source.ticket.clone();
+            let ticket = ticket.clone();
             self.lease
                 .arm(snapshot, move || ticket.retire())
                 .map_err(io::Error::other)?;
@@ -54,8 +55,14 @@ impl Protection {
     }
 }
 
+#[path = "live_visibility_popup_layers.rs"]
+mod popup_layers;
+#[path = "live_visibility_resume.rs"]
+mod resume;
+
 #[derive(Default)]
 pub struct Owner {
+    popup_layers: popup_layers::Layers,
     watcher: Option<crate::live_reclaim_watch::Watcher>,
     #[cfg(test)]
     simulated_input: bool,
@@ -88,7 +95,7 @@ impl Owner {
             .iter()
             .find(|source| source.target.same_source(&target))
         {
-            if source.ticket.retired() || !source.ticket.available() {
+            if source.ticket.borrow().retired() || !source.ticket.borrow().available() {
                 return Err(io::Error::other("Live recovery source is retiring"));
             }
             return Ok(Protection {
@@ -117,7 +124,7 @@ impl Owner {
         let source = Rc::new(Source {
             target,
             snapshot: RefCell::new(Some(snapshot)),
-            ticket,
+            ticket: RefCell::new(ticket),
             armed: Cell::new(false),
             recalled: Cell::new(false),
             activation: RefCell::new(None),
@@ -139,14 +146,20 @@ impl Owner {
         let mut restore = self.restore_pending();
         for source in &self.sources {
             if Rc::strong_count(source) == 1 && !source.armed.get() {
-                let _ = source.ticket.retire();
+                let _ = source.ticket.borrow().retire();
             }
         }
         if restore.is_ok() {
-            self.sources
-                .retain(|source| Rc::strong_count(source) != 1 || !source.ticket.retired());
+            self.sources.retain(|source| {
+                Rc::strong_count(source) != 1 || !source.ticket.borrow().retired()
+            });
         }
-        if self.sources.iter().all(|source| source.ticket.retired()) {
+        if self
+            .sources
+            .iter()
+            .all(|source| source.ticket.borrow().retired())
+            && self.popup_layers.is_empty()
+        {
             if let Some(journal) = &mut self.journal {
                 journal.close();
                 self.draining = true;
@@ -158,12 +171,26 @@ impl Owner {
         if self.journal.as_ref().is_some_and(Journal::finished) {
             // 本次第二次 poll 可能刚确认子进程退出；先结算新完成的退休，避免
             // 剩下本地条目却已无等待句柄，宿主只能错误退出或空等下一条 UI 消息。
+            let previous = restore
+                .err()
+                .filter(|error| error.code() != RETIREMENT_PENDING);
             restore = self.restore_pending();
-            if restore.is_ok() {
-                self.sources
-                    .retain(|source| Rc::strong_count(source) != 1 || !source.ticket.retired());
+            if let Some(error) = previous {
+                // 后一次结算成功也不能抹去本轮已经观察到的真实恢复失败。
+                restore = Err(error);
             }
-            if self.sources.iter().all(|source| source.ticket.retired()) && restore.is_ok() {
+            if restore.is_ok() {
+                self.sources.retain(|source| {
+                    Rc::strong_count(source) != 1 || !source.ticket.borrow().retired()
+                });
+            }
+            if self
+                .sources
+                .iter()
+                .all(|source| source.ticket.borrow().retired())
+                && self.popup_layers.is_empty()
+                && restore.is_ok()
+            {
                 self.journal.take();
                 self.draining = false;
             }
@@ -173,16 +200,19 @@ impl Owner {
         }
         // E_PENDING 是异步退休等待，不是窗口恢复失败。
         match restore {
-            Err(error) if error.code().0 != 0x8000000A_u32 as i32 => Err(io::Error::other(error)),
+            Err(error) if error.code() != RETIREMENT_PENDING => Err(io::Error::other(error)),
             _ => Ok(()),
         }
     }
     fn restore_pending(&mut self) -> windows::core::Result<()> {
         let mut first = self.registry.retry_pending().err();
+        if let Err(error) = self.popup_layers.poll(self.closing) {
+            retain_restore_error(&mut first, error);
+        }
         for source in &self.sources {
             if source.recalled.get() && source.armed.get() && Rc::strong_count(source) > 1 {
                 if let Err(error) = self.registry.restore_source(&source.target) {
-                    first.get_or_insert(error);
+                    retain_restore_error(&mut first, error);
                 }
             }
         }
@@ -240,10 +270,13 @@ impl Owner {
         }
     }
     pub fn finished(&self) -> bool {
-        self.sources.is_empty() && self.journal.is_none()
+        self.sources.is_empty() && self.popup_layers.is_empty() && self.journal.is_none()
     }
     pub fn completion_handle(&self) -> Option<BorrowedHandle<'_>> {
         self.journal.as_ref().and_then(Journal::completion_handle)
+    }
+    pub fn deadline(&self) -> Option<std::time::Instant> {
+        self.popup_layers.deadline()
     }
     pub fn input_handle(&self) -> Option<BorrowedHandle<'_>> {
         self.watcher

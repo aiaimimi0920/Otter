@@ -22,6 +22,7 @@ pub(in crate::desktop::application) struct Scope {
     display: display_snapshot::Stamp,
     pixels: snapshot::Stamp,
     geometry: Option<geometry::Captured>,
+    pub cancel: Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
 }
 impl Scope {
     pub(in crate::desktop::application) unsafe fn capture(
@@ -97,11 +98,16 @@ impl Scope {
             display: display_snapshot::Stamp::capture(&canvas, resolved.as_ref()),
             pixels: snapshot.stamp(),
             geometry,
+            cancel: None,
         };
         Ok((captured, snapshot))
     }
     pub(in crate::desktop::application) unsafe fn matches(&self, app: &Application) -> bool {
-        self.workspace.matches(&app.workspace)
+        !self
+            .cancel
+            .as_ref()
+            .is_some_and(|cancel| cancel.load(std::sync::atomic::Ordering::Acquire))
+            && self.workspace.matches(&app.workspace)
             && display_matches(
                 app,
                 &self.unit,

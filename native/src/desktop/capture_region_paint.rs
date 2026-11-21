@@ -63,6 +63,16 @@ unsafe fn render(
     {
         return Err(Error::new(E_FAIL, "Cannot draw frozen capture"));
     }
+    decorations(dc, selection, dpi, handles, false)
+}
+
+pub(super) unsafe fn decorations(
+    dc: HDC,
+    selection: Option<RECT>,
+    dpi: u32,
+    handles: bool,
+    opaque_label: bool,
+) -> Result<()> {
     if let Some(rect) = selection {
         let scale = |value: i32| (value * dpi as i32 + 48) / 96;
         let width = scale(2);
@@ -84,7 +94,7 @@ unsafe fn render(
                 }
             }
         }
-        label(dc, rect, dpi)?;
+        label(dc, rect, dpi, opaque_label)?;
     }
     Ok(())
 }
@@ -142,7 +152,7 @@ impl Drop for DcState {
 fn label_text(rect: RECT) -> String {
     format!("{} x {}", rect.right - rect.left, rect.bottom - rect.top)
 }
-unsafe fn label(dc: HDC, rect: RECT, dpi: u32) -> Result<()> {
+unsafe fn label(dc: HDC, rect: RECT, dpi: u32, opaque: bool) -> Result<()> {
     let scale = |value: i32| (value * dpi as i32 + 48) / 96;
     let font = Font(CreateFontW(
         -scale(11),
@@ -194,7 +204,11 @@ unsafe fn label(dc: HDC, rect: RECT, dpi: u32) -> Result<()> {
             width: 1,
             height: 1,
         })?;
-    blend(dc, tint.dc(), panel, PANEL, 245)?;
+    if opaque {
+        fill(dc, &panel, PANEL)?;
+    } else {
+        blend(dc, tint.dc(), panel, PANEL, 245)?;
+    }
     let line = scale(1);
     let inner = RECT {
         left: panel.left + line,
@@ -203,7 +217,11 @@ unsafe fn label(dc: HDC, rect: RECT, dpi: u32) -> Result<()> {
         bottom: panel.bottom - line,
     };
     for edge in edges(inner, line) {
-        blend(dc, tint.dc(), edge, SIGNAL, 97)?;
+        if opaque {
+            fill(dc, &edge, SIGNAL)?;
+        } else {
+            blend(dc, tint.dc(), edge, SIGNAL, 97)?;
+        }
     }
     SetBkMode(dc, TRANSPARENT);
     SetTextColor(dc, SIGNAL);

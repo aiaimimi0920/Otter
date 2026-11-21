@@ -54,6 +54,12 @@ impl Application {
         &mut self,
         request: crate::desktop::reference_ui::Request,
     ) -> Result<()> {
+        use crate::desktop::reference_ui::Action;
+        let clear = match request.action {
+            Action::ClearRecycle => Some(crate::session_library::Kind::RecycleBin),
+            Action::ClearReference => Some(crate::session_library::Kind::ReferenceLibrary),
+            _ => None,
+        };
         if self.save_job.is_some()
             || self.restore_job.is_some()
             || self.exit_requested.get()
@@ -64,7 +70,7 @@ impl Application {
             || !self.documents.iter().any(|doc| {
                 doc.is_alive()
                     && doc.state.unit_id == request.unit
-                    && !doc.state.is_art()
+                    && (clear.is_some() || !doc.state.is_art())
                     && (request.action != crate::desktop::reference_ui::Action::Recycle
                         || doc.state.live_request.borrow().is_none())
                     && request.target.matches(&doc.state.canvas.borrow())
@@ -73,7 +79,15 @@ impl Application {
             return Err(Error::new(E_ABORT, "Reference source or target changed"));
         }
         let (receipt, data) = self.capture_session_snapshot()?;
-        let job = if request.action == crate::desktop::reference_ui::Action::Recycle {
+        let job = if let Some(kind) = clear {
+            let source = data.original.clone();
+            drop(data);
+            save_snapshot::job::Job::start_library_clear(
+                source,
+                kind,
+                self.execution_wake.callback(),
+            )
+        } else if request.action == Action::Recycle {
             save_snapshot::job::Job::start_recycle(
                 data,
                 self.new_recycle_request(request.unit)?,
@@ -94,7 +108,7 @@ impl Application {
         self.save_job = Some((receipt, job));
         Ok(())
     }
-    unsafe fn poll_reference(&mut self) -> Result<()> {
+    pub(in crate::desktop::application) unsafe fn poll_reference(&mut self) -> Result<()> {
         if !self
             .save_job
             .as_ref()
@@ -190,5 +204,8 @@ fn entry_identity() -> Result<(String, String)> {
     ))
 }
 
+#[cfg(test)]
+#[path = "application_library_clear_tests.rs"]
+mod clear_tests;
 #[path = "application_reference_smoke.rs"]
 pub(in crate::desktop::application) mod smoke;

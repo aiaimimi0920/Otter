@@ -11,7 +11,7 @@ mod frozen;
 mod history;
 #[path = "menu_target.rs"]
 pub(super) mod target;
-enum Selection {
+pub(super) enum Selection {
     Command(usize),
     History(crate::clipboard_history::Entry),
     Frozen(super::frozen_library_ui::Choice),
@@ -57,12 +57,47 @@ pub(super) unsafe fn track(
     }
 }
 
-fn choose(hwnd: HWND, state: &State, menu: HMENU, point: POINT, tray: bool) -> Result<Selection> {
+pub(super) struct Contents {
+    tree: Vec<crate::native_menu::Item>,
+    history: Option<history::History>,
+    frozen: Option<frozen::LibraryMenu>,
+}
+impl Contents {
+    pub(super) fn update(
+        &mut self,
+        menu: &mut crate::native_menu::cascade::Cascade,
+        mut remove: Option<&mut Remove<'_>>,
+    ) -> Result<()> {
+        if let Some(command) = menu.take_delete() {
+            if !self
+                .history
+                .as_mut()
+                .is_some_and(|history| history.delete(command))
+            {
+                if let (Some(frozen), Some(remove)) = (&mut self.frozen, &mut remove) {
+                    frozen.remove(menu, Some(command), *remove)?;
+                } else {
+                    menu.finish_command(command);
+                    return Ok(());
+                }
+            }
+        }
+        if let Some(history) = &mut self.history {
+            history.update(menu)?;
+        }
+        if let Some(frozen) = &mut self.frozen {
+            if let Some(remove) = &mut remove {
+                frozen.remove(menu, None, *remove)?;
+            }
+            frozen.update(menu)?;
+        }
+        Ok(())
+    }
+}
+pub(super) fn contents(state: &State, menu: HMENU, tray: bool) -> Result<Contents> {
     // HMENU 仍由业务构建器持有；自绘宿主只消费有界只读快照。
     // 失败不回退到另一个嵌套菜单，避免重放输入或绕过捕获/前台保护。
     let mut tree = crate::native_menu::snapshot(menu)?;
-    let index = history::History::attach(&mut tree);
-    let mut history = history::History::new(index);
     let source = {
         let view = state.frozen_library.borrow();
         if view.busy {
@@ -71,10 +106,55 @@ fn choose(hwnd: HWND, state: &State, menu: HMENU, point: POINT, tray: bool) -> R
             view.source.clone()
         }
     };
-    let mut frozen = frozen::LibraryMenu::attach(&mut tree, source);
+    // 主干托盘没有剪贴板或冻结库；仅钉图菜单追加这些入口。
+    let frozen = (!tray).then(|| {
+        let mut frozen = frozen::LibraryMenu::attach(&mut tree, source);
+        frozen.bind_reference(
+            &tree,
+            &state.unit_id,
+            !state.is_art() && !state.group_locked.get() && !state.frozen_library.borrow().busy,
+        );
+        frozen
+    });
+    let history = (!tray).then(|| {
+        let index = history::History::attach(&mut tree);
+        history::History::new(index)
+    });
+    Ok(Contents {
+        tree,
+        history,
+        frozen,
+    })
+}
+fn choose(hwnd: HWND, state: &State, menu: HMENU, point: POINT, tray: bool) -> Result<Selection> {
+    choose_contents(hwnd, contents(state, menu, tray)?, point, tray, None)
+}
+
+pub(super) type Remove<'a> = dyn FnMut(Option<super::frozen_library_ui::Choice>) -> Result<Option<crate::session_source::Source>>
+    + 'a;
+
+pub(super) fn track_contents(
+    hwnd: HWND,
+    contents: Contents,
+    point: POINT,
+    busy: &Cell<bool>,
+    remove: &mut Remove<'_>,
+) -> Result<Selection> {
+    while_open(busy, || {
+        choose_contents(hwnd, contents, point, false, Some(remove))
+    })
+}
+
+fn choose_contents(
+    hwnd: HWND,
+    mut contents: Contents,
+    point: POINT,
+    tray: bool,
+    mut remove: Option<&mut Remove<'_>>,
+) -> Result<Selection> {
+    let tree = std::mem::take(&mut contents.tree);
     let update = |menu: &mut crate::native_menu::cascade::Cascade| {
-        history.update(menu)?;
-        frozen.update(menu)
+        contents.update(menu, remove.as_deref_mut())
     };
     let command = if tray {
         crate::native_menu::cascade::track_tray_live(hwnd, tree, point, update)?
@@ -83,17 +163,24 @@ fn choose(hwnd: HWND, state: &State, menu: HMENU, point: POINT, tray: bool) -> R
     }
     .unwrap_or(0);
     let selection = if history::History::is_history(command) {
-        history
-            .take(command)
+        contents
+            .history
+            .as_mut()
+            .and_then(|history| history.take(command))
             .map_or(Selection::Command(0), Selection::History)
-    } else if let Some(choice) = frozen.take(command) {
+    } else if let Some(choice) = contents
+        .frozen
+        .as_ref()
+        .and_then(|frozen| frozen.take(command))
+    {
         Selection::Frozen(choice)
     } else {
         Selection::Command(command)
     };
-    drop(history);
     Ok(selection)
 }
+#[cfg(test)]
+pub(in crate::desktop) use frozen::remove_tests::exercise as test_continuous_removal;
 pub(in crate::desktop) use frozen::smoke::select as smoke_frozen_selection;
 pub(in crate::desktop) use frozen::smoke::select_action as smoke_frozen_action;
 
@@ -168,3 +255,6 @@ mod tests {
         assert_eq!(while_open(&busy, || Ok(0)).unwrap(), 0);
     }
 }
+#[cfg(test)]
+#[path = "popup_menu_baseline_tests.rs"]
+mod baseline_tests;

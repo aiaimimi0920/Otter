@@ -116,7 +116,12 @@ pub(super) unsafe fn append_menu(menu: HMENU, view: &AuthorizationView) -> Resul
                     },
                 DISPLAY_BASE + index,
                 &HSTRING::from(format!(
-                    "重试呈现回执：{}",
+                    "{}：{}",
+                    if entry.invitation().requires_receipt() {
+                        "重试呈现回执"
+                    } else {
+                        "重试呈现"
+                    },
                     &entry.envelope().projection_id()[11..19]
                 )),
             )?;

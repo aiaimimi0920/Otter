@@ -263,6 +263,7 @@ pub(super) fn input() -> Input {
     .unwrap();
     let job = SessionJob::start_with_capture(session, move |_| Ok(frame(4))).unwrap();
     Input {
+        modeless: Cell::new(false),
         finish: finish::State::new(std::rc::Rc::new(Cell::new(true))),
         outline: RefCell::new(None),
         movement: movement::State::new(Region {

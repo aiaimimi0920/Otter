@@ -138,3 +138,34 @@ fn text_color_alpha_is_independent_of_group_opacity() {
         .chunks_exact(4)
         .all(|p| p[0] == 0 && p[1] == 0 && p[2] <= 33 && p[3] <= 33));
 }
+
+#[test]
+fn brush_glow_multiplies_brush_opacity_by_existing_wash_once_and_roundtrips_pixels() {
+    let _com = Apartment::new().unwrap();
+    let mut editor = Editor::default();
+    editor.set_style(
+        StrokeStyle::new(8., Color(255, 0, 0))
+            .unwrap()
+            .with_opacity(0.5)
+            .unwrap(),
+    );
+    editor
+        .begin_brush_highlighter(Point { x: 8., y: 32. })
+        .unwrap();
+    editor.extend(Point { x: 56., y: 32. }).unwrap();
+    assert!(editor.commit_smoothed(100.));
+    let output = render(&editor);
+    check(&output, 32, 32, [0, 0, 45, 45]); // .35 wash * .5 brush * 255
+    let bytes = crate::session_vector_write::encode(&editor, None, |_| unreachable!()).unwrap();
+    let raw = RawValue::from_string(String::from_utf8(bytes).unwrap()).unwrap();
+    let restored = crate::session_vectors::restore(Some(&raw)).unwrap().editor;
+    assert_eq!(render(&restored).pixels, output.pixels);
+    let mut independent = Editor::default();
+    independent.set_style(editor.style().with_opacity(1.).unwrap());
+    independent
+        .begin(Tool::Highlighter, Point { x: 8., y: 32. })
+        .unwrap();
+    independent.extend(Point { x: 56., y: 32. }).unwrap();
+    independent.commit_smoothed(100.);
+    check(&render(&independent), 32, 32, [0, 0, 89, 89]);
+}

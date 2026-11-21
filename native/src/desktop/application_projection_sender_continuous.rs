@@ -117,16 +117,32 @@ impl Application {
         >,
     ) -> Result<()> {
         let unit = crate::workspace_id::UnitId::parse(expected.unit()).ok_or_else(scope::stale)?;
-        match self.projection_source_snapshot(&unit) {
-            Ok(Some(_)) => {
-                let id = expected.envelope().projection_id().to_owned();
-                if self.start_projection_source(unit, Some(vec![id]), false, config) {
-                    return Ok(());
-                }
-                return Err(scope::stale());
+        // 首次普通源投射自动建立协作；接收转发及协作不支持的效果继续传输 PNG。
+        let initialize = self
+            .documents
+            .iter()
+            .find(|d| d.state.unit_id == unit)
+            .is_some_and(|d| {
+                let canvas = d.state.canvas.borrow();
+                d.state.projection_edit.borrow().is_none()
+                    && canvas.editor.draft().is_none()
+                    && !canvas.editor.elements().iter().any(|stroke| {
+                        stroke.blur.is_some()
+                            || matches!(
+                                stroke.tool,
+                                crate::editor::Tool::Blur
+                                    | crate::editor::Tool::Mosaic
+                                    | crate::editor::Tool::Bezier
+                            )
+                    })
+            });
+        let source = self.projection_source_snapshot(&unit)?;
+        if source.is_some() || initialize {
+            let id = expected.envelope().projection_id().to_owned();
+            if self.start_projection_source(unit, Some(vec![id]), false, config) {
+                return Ok(());
             }
-            Err(error) => return Err(error),
-            Ok(None) => {}
+            return Err(scope::stale());
         }
         let (scope, snapshot) = scope::Scope::capture(self, &unit)?;
         let render = !self.projection_sender.updates.entries[index]

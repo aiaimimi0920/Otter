@@ -1,0 +1,6 @@
+<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2.5" y="2.5" width="11" height="11" rx="1.5" opacity="0.35" />
+        <rect x="4.2" y="4.2" width="5.2" height="5.2" rx="0.9" stroke-dasharray="1.1 1.1" />
+        <path d="M10.3 9.8 12.9 7.2" />
+        <path d="M10.7 6.8h1.7l.8.8-2.5 2.5H9.9l-.6-.6 1.4-2.7Z" />
+    </svg>

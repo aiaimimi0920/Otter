@@ -21,27 +21,12 @@ describe("Otter developer entrypoints contract", () => {
     expect(existsSync(verifyWrapperPath)).toBe(false);
     expect(existsSync(captureWrapperPath)).toBe(false);
 
-    expect(verifyScript).toContain("npm run typecheck");
-    expect(verifyScript).toContain("npm test");
-    expect(verifyScript).toContain("cargo fmt --check");
-    expect(verifyScript).toContain("cargo test");
-    expect(verifyScript).toContain("npm run build");
-    expect(verifyScript).toContain("build-otter-release.bat");
-    expect(verifyScript.indexOf("npm run typecheck")).toBeLessThan(
-      verifyScript.indexOf("npm test"),
-    );
-    expect(verifyScript.indexOf("npm test")).toBeLessThan(
-      verifyScript.indexOf("cargo fmt --check"),
-    );
-    expect(verifyScript.indexOf("cargo fmt --check")).toBeLessThan(
-      verifyScript.indexOf("cargo test"),
-    );
-    expect(verifyScript.indexOf("cargo test")).toBeLessThan(
-      verifyScript.indexOf("npm run build"),
-    );
-    expect(verifyScript.indexOf("npm run build")).toBeLessThan(
-      verifyScript.indexOf("build-otter-release.bat"),
-    );
+    expect(packageJson.scripts.build).toContain("cargo build --locked --release --workspace --manifest-path native/Cargo.toml");
+    expect(packageJson.scripts.dev).toContain("cargo run --locked --manifest-path native/Cargo.toml --bin otter-native");
+    expect(verifyScript).toContain("cargo fmt --all --check --manifest-path native/Cargo.toml");
+    expect(verifyScript).toContain("cargo test --locked --workspace --manifest-path native/Cargo.toml");
+    expect(verifyScript.indexOf("cargo test")).toBeLessThan(verifyScript.indexOf("npm run build"));
+    expect(verifyScript).not.toMatch(/src-tauri|build-otter-release/);
 
     expect(readme).toContain("./docs/README.md");
     expect(docsIndex).toContain("guide/development.md");

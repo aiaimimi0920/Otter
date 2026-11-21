@@ -167,7 +167,7 @@ fn run(mode: Mode) {
                 .unwrap()
                 .entries()
                 .iter()
-                .any(|b| b.target() == "receiver-1" && !b.stopped()));
+                .any(|b| b.target() == Some("receiver-1") && !b.stopped()));
         } else if mode == Mode::BeginFailure {
             until(&mut app, files.root(), |app| {
                 app.projection_sender.stop_group.is_none()
@@ -218,7 +218,7 @@ fn run(mode: Mode) {
                 assert!(app.projection_sender.profile.entries().unwrap().is_empty());
             } else {
                 assert_eq!(index.entries().len(), 1);
-                assert_eq!(index.entries()[0].target(), "receiver-0");
+                assert_eq!(index.entries()[0].target(), Some("receiver-0"));
                 if mode == Mode::NetworkFailure {
                     assert!(index.entries()[0].stopped());
                     assert_eq!(remaining["entries"][0]["stop"], "requested");

@@ -2,6 +2,23 @@
 use super::State;
 use windows::Win32::{Foundation::*, UI::WindowsAndMessaging::*};
 
+// 系统拖动只用附属窗口的原几何跟随路径。保留默认消息派发和排队唤醒，
+// 但它们不应反复重算工具及设置字段；尺寸、DPI、任务和拖动结束照常刷新。
+pub(super) unsafe fn drag_position_only(state: &State, msg: u32, lp: LPARAM) -> bool {
+    if !crate::desktop::pin_window::animation::moving(state) {
+        return false;
+    }
+    match msg {
+        WM_MOVING | WM_MOVE | super::super::window_geometry_wake::MESSAGE => true,
+        WM_WINDOWPOSCHANGED if lp.0 != 0 => {
+            let flags = (*(lp.0 as *const WINDOWPOS)).flags;
+            flags.contains(SWP_NOSIZE)
+                && (flags & (SWP_FRAMECHANGED | SWP_SHOWWINDOW | SWP_HIDEWINDOW)).0 == 0
+        }
+        _ => false,
+    }
+}
+
 pub(super) unsafe fn before_dispatch(
     hwnd: HWND,
     state: &State,
@@ -73,6 +90,8 @@ pub(super) unsafe fn dispatch(
         } else if msg == WM_WINDOWPOSCHANGED && state.pin_resize.rect.get().is_none() {
             // 默认过程先派发 WM_SIZE 并适配视口，透明叠层才可同步触发宿主绘制。
             crate::desktop::application::chrome::geometry(&state.chrome, hwnd, msg);
+            crate::desktop::tool_panel::follow(hwnd, state, msg);
+            crate::desktop::device_authorization_ui::share::follow(hwnd, state);
         }
     }
     Some(result)

@@ -19,6 +19,7 @@ function fixture() {
   const root = fs.mkdtempSync(path.join(base, 'contract-'));
   fs.mkdirSync(path.join(root, 'payload'));
   fs.writeFileSync(path.join(root, 'payload/otter-native.exe'), 'synthetic binary; not a runtime test');
+  fs.writeFileSync(path.join(root, 'payload/otter_live_hover_hook.dll'), 'synthetic hook; not a runtime test');
   fs.writeFileSync(path.join(root, 'build.log'), 'synthetic successful build');
   write(root, 'metadata.json', {});
   for (const phase of ['before', 'after']) write(root, `source-${phase}.json`, source());
@@ -28,7 +29,7 @@ function fixture() {
   for (const phase of ['before', 'after']) write(root, `tools-${phase}.json`, tools);
   write(root, 'build.json', { exitCode: 0, channel: 'internal', profile: 'release', target: 'x86_64-pc-windows-msvc',
     gitDirty: true, gitCommit: 'a'.repeat(40), arguments: ['build', '--manifest-path', 'native/Cargo.toml', '--locked',
-      '--offline', '--release', '--bin', 'otter-native', '--target', 'x86_64-pc-windows-msvc'] });
+      '--offline', '--release', '-p', 'otter-native', '-p', 'otter-live-hover-hook', '--lib', '--bin', 'otter-native', '--target', 'x86_64-pc-windows-msvc'] });
   write(root, 'provenance.json', create(root));
   return root;
 }
@@ -38,9 +39,9 @@ test('internal candidate binds content without granting release or runtime accep
   assert.equal(receipt.runtimeVerified, false);
   assert.equal(receipt.signed, false);
   assert.equal(receipt.gitDirty, true);
-  assert.equal(receipt.files.length, 8);
+  assert.equal(receipt.files.length, 9);
 });
-for (const name of ['payload/otter-native.exe', 'build.log', 'metadata.json']) {
+for (const name of ['payload/otter-native.exe', 'payload/otter_live_hover_hook.dll', 'build.log', 'metadata.json']) {
   test(`tampering is rejected: ${name}`, () => {
     const root = fixture();
     fs.appendFileSync(path.join(root, name), 'modified');

@@ -5,10 +5,14 @@ use std::sync::Arc;
 use windows::core::IUnknown;
 #[path = "composition_live_chrome.rs"]
 mod chrome;
+#[path = "composition_live_edit_view.rs"]
+mod edit_view;
 #[path = "composition_live_host.rs"]
 pub mod host;
 #[path = "composition_live_notify.rs"]
 pub mod notification;
+#[path = "composition_live_overlay.rs"]
+mod overlay;
 #[path = "composition_live_session.rs"]
 pub mod session;
 #[path = "composition_live_window.rs"]
@@ -19,8 +23,19 @@ pub struct Surface {
     frame: Arc<Frame<Texture>>,
     device: IUnknown,
     chrome: chrome::Chrome,
+    overlay: Option<overlay::Overlay>,
 }
 impl Surface {
+    pub(super) fn viewport(&self, size: [u32; 2]) -> Option<crate::live_viewport::Viewport> {
+        if let Some(overlay) = &self.overlay {
+            edit_view::viewport(&overlay.editor, size)
+        } else {
+            crate::live_viewport::Viewport::fit(
+                [self.frame.resource.width, self.frame.resource.height],
+                size,
+            )
+        }
+    }
     pub fn new(hwnd: HWND, size: D2D_SIZE_U, frame: Arc<Frame<Texture>>) -> Result<Self> {
         let device = validate(&frame.resource)?;
         let composition = Composition::with_device(hwnd, size, &device)?;
@@ -32,6 +47,7 @@ impl Surface {
             frame,
             device: device.cast()?,
             chrome,
+            overlay: None,
         })
     }
     /// 更换设备必须由宿主重建整个 surface；失败不改动当前帧和位图。
@@ -51,6 +67,22 @@ impl Surface {
     pub fn resize(&mut self, size: D2D_SIZE_U) -> Result<()> {
         self.composition.resize(size)
     }
+    pub(super) fn set_pin_editor(
+        &mut self,
+        editor: Option<std::rc::Rc<crate::editor::Editor>>,
+    ) -> Result<()> {
+        if editor.as_ref().is_some_and(|e| {
+            self.overlay
+                .as_ref()
+                .is_some_and(|o| std::rc::Rc::ptr_eq(e, &o.editor))
+        }) {
+            return Ok(());
+        }
+        self.overlay = editor
+            .map(|editor| overlay::Overlay::new(self.composition.renderer(), editor))
+            .transpose()?;
+        Ok(())
+    }
     pub fn set_opacity(&mut self, opacity: f32) -> Result<()> {
         self.composition.set_opacity(opacity)
     }
@@ -58,6 +90,9 @@ impl Surface {
         self.draw_chrome(true)
     }
     pub(in crate::desktop) fn draw_chrome(&self, visible: bool) -> Result<()> {
+        self.draw_pin_chrome(visible, false)
+    }
+    pub(in crate::desktop) fn draw_pin_chrome(&self, visible: bool, selected: bool) -> Result<()> {
         self.composition.ensure_attached()?;
         let size = self.composition.state.size;
         let viewport = crate::live_viewport::Viewport::fit(
@@ -76,17 +111,28 @@ impl Surface {
             let target = self.composition.renderer();
             target.BeginDraw();
             target.Clear(Some(&D2D1_COLOR_F::default()));
-            target.DrawBitmap(
-                &self.bitmap,
-                Some(&destination),
-                1.0,
-                D2D1_BITMAP_INTERPOLATION_MODE_LINEAR,
-                None,
-            );
+            let painted = if let Some(overlay) = &self.overlay {
+                overlay.draw(
+                    target,
+                    &self.bitmap,
+                    size,
+                    [self.frame.resource.width, self.frame.resource.height],
+                )
+            } else {
+                target.DrawBitmap(
+                    &self.bitmap,
+                    Some(&destination),
+                    1.0,
+                    D2D1_BITMAP_INTERPOLATION_MODE_LINEAR,
+                    None,
+                );
+                Ok(())
+            };
             if visible {
-                self.chrome.draw(target, size);
+                self.chrome.draw(target, size, selected);
             }
-            target.EndDraw(None, None)
+            let ended = target.EndDraw(None, None);
+            painted.and(ended)
         }
     }
     pub fn present(&self) -> Result<()> {

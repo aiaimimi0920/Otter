@@ -60,10 +60,10 @@ fn hidden_window_renders_and_destroys_without_webview() {
     assert!(stdout.contains("native-recycle-maintenance-smoke: load=true settings=true noop-clean=true cancel=true stale=true policy-stale=true save=true windows-preserved=true"));
     assert!(stdout.contains("native-recycle-close-smoke: menu=true cancel=true stale=true close-failure=true retired=true last-host=true save=true restore=true"));
     assert!(stdout.contains("native-recycle-prepare-smoke: image=true typed=true single-slot=true late-cancel=true stale=true unpublished=true windows-preserved=true"));
-    assert!(stdout.contains("native-frozen-remove-smoke: menu=true paged=true both-libraries=true cancel=true stale=true windows-preserved=true disk-revision=3"));
+    assert!(stdout.contains("native-frozen-remove-smoke: menu=true scroll-loaded=true both-libraries=true cancel=true stale=true windows-preserved=true disk-revision=3"));
     assert!(stdout.contains("native-reference-disk-smoke: create=true update=true copy=true remove=true revision=4 external-conflict=true"));
     assert!(stdout.contains("native-reference-write-smoke: menu=true current-snapshot=true worker=true replace=true remove=true stale=true cancel=true revision-preserved=true"));
-    assert!(stdout.contains("native-frozen-menu-smoke: indexed=true paged=true selection=true queued=true worker=true appended=true libraries=true"));
+    assert!(stdout.contains("native-frozen-menu-smoke: indexed=true scroll-loaded=true selection=true queued=true worker=true appended=true libraries=true"));
     assert!(stdout.contains("native-frozen-worker-smoke: worker=true append=true cancel=true stale=true coordinates=true recycle=true reference=true cleanup=true"));
     assert!(stdout.contains("native-frozen-append-smoke: append=true old-windows=true topology=true stale-rejected=true recycle-commit=true save=true cleanup=true"));
     assert!(stdout.contains(

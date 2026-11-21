@@ -30,7 +30,7 @@ impl Drop for Fixture {
     }
 }
 unsafe fn begin(hwnd: HWND, state: &State, fill: bool) {
-    *state.screen_color.borrow_mut() = Some(prepare(hwnd, state, fill).unwrap());
+    *state.screen_color.borrow_mut() = Some(prepare(hwnd, state, Some(fill)).unwrap());
 }
 #[test]
 fn stroke_fill_and_cancel_restore_modal_and_destroy_preview() {
@@ -41,7 +41,7 @@ fn stroke_fill_and_cancel_restore_modal_and_destroy_preview() {
         begin(fixture.0, &state, false);
         let popup = state.screen_color.borrow().as_ref().unwrap().preview.0;
         assert!(state.file_dialog.get());
-        assert!(prepare(fixture.0, &state, true).is_err());
+        assert!(prepare(fixture.0, &state, Some(true)).is_err());
         finish(fixture.0, &state, Some(Color(1, 2, 3)));
         assert_eq!(state.canvas.borrow().editor.style().color(), Color(1, 2, 3));
         assert_eq!(state.canvas.borrow().editor.style().fill(), initial.fill());
@@ -92,5 +92,23 @@ fn stale_style_tool_or_closed_owner_cannot_apply_and_commands_do_not_reenter() {
             assert!(!state.file_dialog.get());
             assert!(state.capture_history.borrow().data.colors.is_empty());
         }
+    }
+}
+#[test]
+fn toolbar_sampling_updates_active_color_and_history_not_creation_or_selected_style() {
+    unsafe {
+        let fixture = Fixture::new();
+        let state = State::new(None, false).unwrap();
+        state.canvas.borrow_mut().select_tool(Tool::Rectangle);
+        let before = state.canvas.borrow().editor.style();
+        *state.screen_color.borrow_mut() = Some(prepare(fixture.0, &state, None).unwrap());
+        let preview = state.screen_color.borrow().as_ref().unwrap().preview.0;
+        finish(fixture.0, &state, Some(Color(16, 32, 48)));
+        assert_eq!(state.canvas.borrow().tool, Tool::Rectangle);
+        assert_eq!(state.canvas.borrow().editor.style(), before);
+        assert_eq!(state.edit_palette.borrow().active.hex(), "#102030");
+        assert_eq!(state.edit_palette.borrow().sampled, Some(Color(16, 32, 48)));
+        assert_eq!(state.capture_history.borrow().data.colors[0].hex, "#102030");
+        assert!(!state.file_dialog.get() && !IsWindow(Some(preview)).as_bool());
     }
 }

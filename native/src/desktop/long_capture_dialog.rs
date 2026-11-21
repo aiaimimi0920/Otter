@@ -26,12 +26,15 @@ mod outline;
 mod preview;
 #[path = "long_capture_dialog_controls.rs"]
 mod ui;
-use ui::{clear_preview, controls, frame_status, request_auto, status, waiting};
+use ui::{clear_preview, controls, frame_status, procedure, request_auto, status, waiting};
+#[path = "long_capture_recording_overlay.rs"]
+mod overlay;
 #[path = "long_capture_recording.rs"]
 mod recording;
 const USER: i32 = (2 * std::mem::size_of::<isize>()) as i32;
 const TIMER: usize = 0x4f65;
 struct Input {
+    modeless: Cell<bool>,
     finish: finish::State,
     outline: RefCell<Option<outline::Outline>>,
     movement: movement::State,
@@ -62,6 +65,7 @@ impl Input {
         target: Option<long_capture_source::scroll::Target>,
     ) -> Self {
         Self {
+            modeless: Cell::new(false),
             finish: finish::State::new(capture.clone()),
             outline: RefCell::new(None),
             movement: movement::State::new(region),
@@ -132,6 +136,9 @@ pub(super) unsafe fn show(
     run(owner, &input)
 }
 unsafe fn run(owner: HWND, input: &Input) -> Result<Option<Image>> {
+    if input.recording.enabled() {
+        return overlay::run(owner, input);
+    }
     let template = layout::template();
     let result = DialogBoxIndirectParamW(
         None,
@@ -152,12 +159,13 @@ unsafe fn run(owner: HWND, input: &Input) -> Result<Option<Image>> {
 }
 unsafe fn close(hwnd: HWND, input: &Input) {
     input.recording.cancel();
+    input.movement.cancel();
     input.finish.close();
     input.outline.borrow_mut().take();
     input.automatic.borrow_mut().stop();
     input.job.borrow_mut().cancel();
     let _ = KillTimer(Some(hwnd), TIMER);
-    let _ = EndDialog(hwnd, 0);
+    overlay::end(hwnd, input, 0);
 }
 unsafe fn handle(hwnd: HWND, message: u32, wp: WPARAM, lp: LPARAM) -> isize {
     if message == WM_INITDIALOG {
@@ -190,10 +198,10 @@ unsafe fn handle(hwnd: HWND, message: u32, wp: WPARAM, lp: LPARAM) -> isize {
                     }
                 }
             }
-            if input.recording.enabled() {
+            if input.recording.enabled() && !input.modeless.get() {
                 recording::start(hwnd, input);
             }
-            1
+            isize::from(!input.recording.enabled())
         }
         WM_DISPLAYCHANGE | WM_DPICHANGED if input.recording.enabled() => {
             input.recording.stop();
@@ -312,8 +320,6 @@ unsafe fn handle(hwnd: HWND, message: u32, wp: WPARAM, lp: LPARAM) -> isize {
                 let compose_after = finish::completed(input, &reply.completion);
                 let moved = input.movement.completed(&reply.completion);
                 if moved {
-                    // 显式移动转入手动空间会话，不能用原目标重新授权新区域。
-                    input.recording.revoke();
                     let positioned = input
                         .outline
                         .borrow()
@@ -329,7 +335,11 @@ unsafe fn handle(hwnd: HWND, message: u32, wp: WPARAM, lp: LPARAM) -> isize {
                     .automatic
                     .borrow_mut()
                     .completed(&reply.completion, reply.snapshot.confirmed_edges.is_some());
-                if moved && next == automatic::Next::Stop && !input.finish.pending() {
+                if moved
+                    && next == automatic::Next::Stop
+                    && !input.finish.pending()
+                    && !input.movement.queued()
+                {
                     next = automatic::Next::Preview;
                 }
                 controls(hwnd, input, false);
@@ -389,7 +399,7 @@ unsafe fn handle(hwnd: HWND, message: u32, wp: WPARAM, lp: LPARAM) -> isize {
                             pixels,
                         });
                         input.finish.close();
-                        let _ = EndDialog(hwnd, 1);
+                        overlay::end(hwnd, input, 1);
                     }
                     Completion::Append(Ok(Append::Added { .. }))
                     | Completion::SpatialAppend(Ok(crate::long_capture::SpatialAppend::Added {
@@ -403,25 +413,19 @@ unsafe fn handle(hwnd: HWND, message: u32, wp: WPARAM, lp: LPARAM) -> isize {
                     Completion::Append(Ok(Append::Duplicate))
                     | Completion::SpatialAppend(Ok(
                         crate::long_capture::SpatialAppend::Duplicate,
-                    )) => status(
-                        hwnd,
-                        if input.recording.enabled() {
-                            "等待目标页面滚动，重复画面已忽略"
-                        } else {
-                            "画面未变化"
-                        },
-                    ),
+                    )) => {
+                        if !input.recording.enabled() {
+                            status(hwnd, "画面未变化");
+                        }
+                    }
                     Completion::Append(Ok(Append::Rejected(_)))
                     | Completion::SpatialAppend(Ok(
                         crate::long_capture::SpatialAppend::Rejected(_),
-                    )) => status(
-                        hwnd,
-                        if input.recording.enabled() && !input.recording.running() {
-                            "未识别到可靠重叠，录制已停止；已接受内容保留"
-                        } else {
-                            "未识别到可靠重叠，请缩小滚动距离后重试"
-                        },
-                    ),
+                    )) => {
+                        if !input.recording.enabled() {
+                            status(hwnd, "未识别到可靠重叠，请缩小滚动距离后重试");
+                        }
+                    }
                     Completion::Append(Err(error))
                     | Completion::SpatialAppend(Err(error))
                     | Completion::SpatialCompose(Err(error))
@@ -429,7 +433,9 @@ unsafe fn handle(hwnd: HWND, message: u32, wp: WPARAM, lp: LPARAM) -> isize {
                     | Completion::Compose(Err(error))
                     | Completion::Preview(Err(error)) => match error {
                         crate::long_capture::Error::UnconfirmedEdges => {
-                            status(hwnd, "请继续滚动并采集一帧，以确认固定边缘")
+                            if !input.recording.running() {
+                                status(hwnd, "请继续滚动并采集一帧，以确认固定边缘");
+                            }
                         }
                         crate::long_capture::Error::ChangedEdges => {
                             status(hwnd, "固定边缘已变化，请取消并重新选择区域")
@@ -472,17 +478,14 @@ unsafe fn handle(hwnd: HWND, message: u32, wp: WPARAM, lp: LPARAM) -> isize {
             preview::paint(item, input.preview.borrow().as_ref());
             1
         }
+        WM_DRAWITEM if (108..=111).contains(&wp.0) && lp.0 != 0 => {
+            crate::desktop::document_window::parameter_panel::theme::button(
+                &*(lp.0 as *const windows::Win32::UI::Controls::DRAWITEMSTRUCT),
+            );
+            1
+        }
         _ => 0,
     }
-}
-unsafe extern "system" fn procedure(hwnd: HWND, message: u32, wp: WPARAM, lp: LPARAM) -> isize {
-    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        handle(hwnd, message, wp, lp)
-    }))
-    .unwrap_or_else(|_| {
-        let _ = EndDialog(hwnd, 0);
-        1
-    })
 }
 #[cfg(test)]
 #[path = "long_capture_dialog_finish_tests.rs"]

@@ -27,6 +27,11 @@ pub(crate) fn accepted(origin: &str) -> Invitation {
     entry.accepted = true;
     entry
 }
+pub(crate) fn public_invitation(origin: &str) -> Invitation {
+    let mut entry = invitation(origin);
+    entry.public_invitation = true;
+    entry
+}
 pub(crate) fn response(origin: &str) -> Value {
     let invitation = invitation(origin);
     let bytes = png();

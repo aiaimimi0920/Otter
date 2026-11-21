@@ -55,6 +55,7 @@ pub(super) struct Node {
     pub dpi: u32,
     pub minified: bool,
     pub expanded: bool,
+    pub hide_collapsed_endpoints: bool,
     pub interactive: bool,
     pub protected: bool,
     pub border_alpha: u8,
@@ -73,28 +74,57 @@ impl Node {
             && ((!self.minified && self.expanded) || (mode == Mode::All && !hide_collapsed))
     }
     pub fn point(&self, side: Side, index: usize) -> Option<Point> {
+        self.point_revealed(side, index, |_| self.expanded)
+    }
+    pub fn point_revealed(
+        &self,
+        side: Side,
+        index: usize,
+        expanded: impl Fn(usize) -> bool,
+    ) -> Option<Point> {
         let (count, mask) = match side {
             Side::Input => (self.inputs, &self.input_visibility),
             Side::Output => (self.outputs, &self.output_visibility),
         };
-        if index >= count || !self.rect.valid() || mask.get(index) == Some(&false) {
+        let shown = |i| mask.get(i) != Some(&false) || (!self.minified && expanded(i));
+        if index >= count || !self.rect.valid() || !shown(index) {
             return None;
         }
-        // 目录索引保持稳定，位置按可见顺序紧排；隐藏不重命名端口或改变图。
-        let rank = (0..index).filter(|&i| mask.get(i) != Some(&false)).count();
-        let count = (0..count).filter(|&i| mask.get(i) != Some(&false)).count();
+        // 主干 visibility:hidden 保留正常 rail 行空位；只有小图标记按可见端口均分。
+        let (rank, count) = if self.minified {
+            (
+                (0..index).filter(|&i| shown(i)).count(),
+                (0..count).filter(|&i| shown(i)).count(),
+            )
+        } else {
+            (index, count)
+        };
         let height = i64::from(self.rect.bottom) - i64::from(self.rect.top);
         Some(Point {
             x: match side {
-                Side::Input => self.rect.left,
-                Side::Output => self.rect.right,
+                Side::Input => self.rect.left.saturating_sub(if self.minified {
+                    0
+                } else {
+                    super::desktop::pin_border_style::width(self.dpi) as i32
+                }),
+                Side::Output => self.rect.right.saturating_add(if self.minified {
+                    0
+                } else {
+                    super::desktop::pin_border_style::width(self.dpi) as i32
+                }),
             },
-            y: (i64::from(self.rect.top) + height * (2 * rank as i64 + 1) / (2 * count as i64))
-                as i32,
+            y: if self.minified {
+                (i64::from(self.rect.top) + height * (2 * rank as i64 + 1) / (2 * count as i64))
+                    as i32
+            } else {
+                self.rect.top.saturating_add(
+                    ((36 + 36 * rank as i64) * i64::from(self.dpi.clamp(96, 768)) / 96) as i32,
+                )
+            },
         })
     }
     pub fn radius(&self) -> i32 {
-        let logical = if self.minified { 4 } else { 12 };
+        let logical = if self.minified { 4 } else { 14 };
         (logical * self.dpi.clamp(96, 768) as i32 / 96).max(1)
     }
 }

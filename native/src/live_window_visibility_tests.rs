@@ -4,6 +4,61 @@ use windows::{
     Win32::{Foundation::HWND, UI::WindowsAndMessaging::*},
 };
 struct Window(HWND);
+
+#[test]
+fn restoration_errors_are_not_hidden_by_another_sources_pending_retirement() {
+    let pending = || Error::new(RETIREMENT_PENDING, "pending retirement");
+    let failure = || Error::new(E_ABORT, "actual restore failure");
+    let mut first = None;
+    retain_restore_error(&mut first, pending());
+    assert_eq!(first.as_ref().unwrap().code(), RETIREMENT_PENDING);
+    retain_restore_error(&mut first, failure());
+    assert_eq!(first.as_ref().unwrap().code(), E_ABORT);
+    retain_restore_error(&mut first, pending());
+    retain_restore_error(&mut first, Error::new(E_INVALIDARG, "later failure"));
+    assert_eq!(first.unwrap().message(), failure().message());
+}
+
+#[test]
+fn registry_reports_a_later_restore_failure_instead_of_pending_retirement() {
+    let mut registry = Registry::default();
+    let first = Window::new();
+    let second = Window::new();
+    let waiting = registry.acquire(first.target()).unwrap();
+    let failing = registry.acquire(second.target()).unwrap();
+    let finish = Rc::new(Cell::new(false));
+    let waiting_finish = finish.clone();
+    waiting
+        .arm(Snapshot::read(&first.target()).unwrap(), move || {
+            if waiting_finish.get() {
+                Ok(())
+            } else {
+                Err(Error::from_hresult(RETIREMENT_PENDING))
+            }
+        })
+        .unwrap();
+    let failing_finish = finish.clone();
+    failing
+        .arm(Snapshot::read(&second.target()).unwrap(), move || {
+            if failing_finish.get() {
+                Ok(())
+            } else {
+                Err(Error::new(E_ABORT, "fixture restore failure"))
+            }
+        })
+        .unwrap();
+    drop(waiting);
+    drop(failing);
+    assert_eq!(registry.retry_pending().unwrap_err().code(), E_ABORT);
+    assert_eq!(
+        registry.entries.len(),
+        2,
+        "both responsibilities remain owned"
+    );
+    finish.set(true);
+    registry.retry_pending().unwrap();
+    assert!(registry.entries.is_empty());
+}
 impl Window {
     fn new() -> Self {
         Self(unsafe {
@@ -44,15 +99,13 @@ impl Window {
 #[test]
 fn logical_hide_requires_armed_snapshot_is_shared_and_restores_original_state() {
     let window = Window::new();
-    let before = Snapshot::read(&window.target())
-        .unwrap()
-        .recovery_record()
-        .unwrap();
+    let snapshot = Snapshot::read(&window.target()).unwrap();
+    let before = snapshot.recovery_record().unwrap();
     let mut registry = Registry::default();
     let first = registry.acquire(window.target()).unwrap();
     let second = registry.acquire(window.target()).unwrap();
     assert!(first.hide().is_err());
-    assert_eq!(window.style(), before.extended_style as isize);
+    assert_eq!(window.style(), snapshot.extended_style);
     first
         .arm(Snapshot::read(&window.target()).unwrap(), || Ok(()))
         .unwrap();
@@ -65,6 +118,43 @@ fn logical_hide_requires_armed_snapshot_is_shared_and_restores_original_state() 
     drop(first);
     assert!(second.has_recovery());
     drop(second);
+    assert_eq!(
+        Snapshot::read(&window.target())
+            .unwrap()
+            .recovery_record()
+            .unwrap(),
+        before
+    );
+}
+
+#[test]
+fn minimized_hidden_source_is_restored_without_replacing_original_snapshot() {
+    let window = Window::new();
+    unsafe {
+        let _ = ShowWindow(window.0, SW_SHOWNOACTIVATE);
+    }
+    let before = Snapshot::read(&window.target())
+        .unwrap()
+        .recovery_record()
+        .unwrap();
+    let mut registry = Registry::default();
+    let lease = registry.acquire(window.target()).unwrap();
+    lease
+        .arm(Snapshot::read(&window.target()).unwrap(), || Ok(()))
+        .unwrap();
+    assert!(lease.hide().unwrap());
+    for _ in 0..3 {
+        unsafe {
+            let _ = ShowWindow(window.0, SW_SHOWMINNOACTIVE);
+        }
+        assert!(unsafe { IsIconic(window.0).as_bool() });
+        assert!(!lease.hide().unwrap());
+        assert!(!unsafe { IsIconic(window.0).as_bool() });
+        let hidden = Snapshot::read(&window.target()).unwrap();
+        assert_eq!(hidden.layered.unwrap().alpha, 1);
+        assert_ne!(hidden.extended_style & WS_EX_TRANSPARENT.0 as isize, 0);
+    }
+    drop(lease);
     assert_eq!(
         Snapshot::read(&window.target())
             .unwrap()

@@ -18,6 +18,7 @@ pub(super) struct Job {
 impl Job {
     pub fn start(
         frame: Arc<crate::live_frames::Frame<crate::live_texture::Texture>>,
+        editor: Option<crate::editor::Editor>,
         notify: Notify,
     ) -> std::io::Result<Self> {
         let cancel = Arc::new(AtomicBool::new(false));
@@ -30,15 +31,27 @@ impl Job {
                 let _completion = CompletionSignal::new(completed, notify);
                 let image = crate::live_texture::readback::read(frame, &signal)
                     .map_err(|error| format!("Live readback failed: {error:?}"))?;
-                let pin = PreparedDocument::from_image(
-                    crate::image_decode::Image {
-                        width: image.width,
-                        height: image.height,
-                        pixels: image.pixels,
-                    },
-                    true,
-                )
-                .map_err(|error| error.to_string())?;
+                let image = crate::image_decode::Image {
+                    width: image.width,
+                    height: image.height,
+                    pixels: image.pixels,
+                };
+                let (editor, image) = if let Some(editor) = editor {
+                    let (editor, image) =
+                        crate::desktop::live_pin_snapshot::refresh(editor, image, || {
+                            signal.load(Ordering::Acquire)
+                        })?;
+                    (Some(editor), image)
+                } else {
+                    (None, image)
+                };
+                let mut pin =
+                    PreparedDocument::from_image(image, true).map_err(|error| error.to_string())?;
+                pin.editable = editor.map(|editor| crate::desktop::clipboard_editable::Prepared {
+                    editor,
+                    opacity: 1.0,
+                    frame_style: Default::default(),
+                });
                 if signal.load(Ordering::Acquire) {
                     return Err("Live freeze cancelled".into());
                 }

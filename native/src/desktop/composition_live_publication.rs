@@ -1,12 +1,20 @@
 //! Live系统菜单只排有界发布/停止意图；网络与帧读回留在Application后台owner。
 use super::*;
+pub(in crate::desktop) const PUBLISH_DIRECT: usize = 0x2f80;
 pub(in crate::desktop) const PUBLISH: usize = 0x2fb0;
 pub(in crate::desktop) const STOP: usize = 0x2fc0;
 pub(in crate::desktop) const PUBLISH_CONTROL: usize = 0x2fa0;
 pub(in crate::desktop) const PUBLISH_OBSERVE: usize = 0x2f90;
+pub(super) fn handles(command: usize) -> bool {
+    matches!(
+        command,
+        PUBLISH | PUBLISH_DIRECT | PUBLISH_CONTROL | PUBLISH_OBSERVE | STOP
+    )
+}
 #[derive(Clone, Copy)]
 pub(in crate::desktop) enum Request {
     Publish,
+    PublishDirect,
     PublishInteractive,
     PublishObservations,
     Stop,
@@ -29,6 +37,7 @@ pub(super) struct Control {
 }
 pub(super) unsafe fn install(hwnd: HWND) -> Result<()> {
     let menu = GetSystemMenu(hwnd, false);
+    AppendMenuW(menu, MF_STRING, PUBLISH_DIRECT, w!("投射 Live 到设备…"))?;
     AppendMenuW(menu, MF_STRING, PUBLISH, w!("发布 Live 到 Loom"))?;
     AppendMenuW(
         menu,
@@ -48,8 +57,10 @@ pub(super) unsafe fn install(hwnd: HWND) -> Result<()> {
 }
 pub(super) fn queue(state: &State, command: usize) {
     let phase = state.publication.phase.get();
-    if matches!(command, PUBLISH | PUBLISH_CONTROL | PUBLISH_OBSERVE)
-        && matches!(phase, Phase::Idle | Phase::Failed | Phase::Unconfirmed)
+    if matches!(
+        command,
+        PUBLISH | PUBLISH_DIRECT | PUBLISH_CONTROL | PUBLISH_OBSERVE
+    ) && matches!(phase, Phase::Idle | Phase::Failed | Phase::Unconfirmed)
     {
         state
             .publication
@@ -58,6 +69,8 @@ pub(super) fn queue(state: &State, command: usize) {
                 Request::PublishInteractive
             } else if command == PUBLISH_OBSERVE {
                 Request::PublishObservations
+            } else if command == PUBLISH_DIRECT {
+                Request::PublishDirect
             } else {
                 Request::Publish
             }));
@@ -114,6 +127,11 @@ impl LiveWindow {
                     } else {
                         MF_GRAYED
                     },
+            );
+            let _ = EnableMenuItem(
+                menu,
+                PUBLISH_DIRECT as u32,
+                MF_BYCOMMAND | if busy { MF_GRAYED } else { MF_ENABLED },
             );
             let _ = ModifyMenuW(
                 menu,

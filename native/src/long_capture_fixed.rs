@@ -70,15 +70,20 @@ pub enum FixedMatch {
     },
 }
 pub(super) fn equal_line(a: &Frame, b: &Frame, axis: Axis, line: u32) -> bool {
+    equal_lines(a, b, axis, line, line)
+}
+pub(super) fn equal_lines(a: &Frame, b: &Frame, axis: Axis, line_a: u32, line_b: u32) -> bool {
     match axis {
         Axis::Vertical => {
             let stride = a.width as usize * 4;
-            let start = line as usize * stride;
-            a.pixels[start..start + stride] == b.pixels[start..start + stride]
+            let start_a = line_a as usize * stride;
+            let start_b = line_b as usize * stride;
+            a.pixels[start_a..start_a + stride] == b.pixels[start_b..start_b + stride]
         }
         Axis::Horizontal => (0..a.height as usize).all(|row| {
-            let start = (row * a.width as usize + line as usize) * 4;
-            a.pixels[start..start + 4] == b.pixels[start..start + 4]
+            let start_a = (row * a.width as usize + line_a as usize) * 4;
+            let start_b = (row * b.width as usize + line_b as usize) * 4;
+            a.pixels[start_a..start_a + 4] == b.pixels[start_b..start_b + 4]
         }),
     }
 }

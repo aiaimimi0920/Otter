@@ -5,7 +5,14 @@ impl Image {
         bytes: &[u8],
         stopped: &impl Fn() -> bool,
     ) -> Result<Self> {
-        if bytes.is_empty() || bytes.len() > 4 * 1024 * 1024 || stopped() {
+        Self::thumbnail(bytes, 4 * 1024 * 1024, stopped)
+    }
+    /// 冻结截图可能没有单独的小预览；只放宽编码大小，仍先缩到64才分配像素。
+    pub(crate) fn from_menu_thumbnail(bytes: &[u8], stopped: &impl Fn() -> bool) -> Result<Self> {
+        Self::thumbnail(bytes, 16 * 1024 * 1024, stopped)
+    }
+    fn thumbnail(bytes: &[u8], encoded_limit: usize, stopped: &impl Fn() -> bool) -> Result<Self> {
+        if bytes.is_empty() || bytes.len() > encoded_limit || stopped() {
             return Err(Error::new(
                 E_INVALIDARG,
                 "Candidate preview exceeds input policy",

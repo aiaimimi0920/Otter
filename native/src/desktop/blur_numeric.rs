@@ -1,10 +1,7 @@
 //! 选中模糊强度的精确输入；模态返回后核验原文档、选择和强度，再提交既有后台任务。
 use super::{canvas::Canvas, numeric_style::Kind, State};
 use crate::{blur_job::Request, editor::DocumentStamp};
-use windows::{
-    core::w,
-    Win32::{Foundation::*, UI::WindowsAndMessaging::*},
-};
+use windows::Win32::{Foundation::*, UI::WindowsAndMessaging::*};
 pub(super) const COMMAND: usize = 0x1049;
 #[cfg(test)]
 #[path = "blur_numeric_tests.rs"]
@@ -31,15 +28,6 @@ impl Pending {
         }
         super::blur_selection::absolute(canvas, previous, Kind::BlurStrength.parse(text)?)
     }
-}
-pub(super) unsafe fn append(menu: HMENU, state: &State) -> windows::core::Result<()> {
-    let enabled = super::blur_input::selected_strength(&state.canvas.borrow()).is_some();
-    AppendMenuW(
-        menu,
-        MF_STRING | if enabled { MF_ENABLED } else { MF_GRAYED },
-        COMMAND,
-        w!("选中模糊强度…"),
-    )
 }
 pub(super) unsafe fn show(hwnd: HWND, state: &State) {
     if !super::tool_panel_availability::Availability::capture(state)

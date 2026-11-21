@@ -64,6 +64,7 @@ pub(crate) struct LocalArtTarget {
 enum RequestTarget {
     Surface(Target),
     LocalArt(LocalArtTarget),
+    Direct(Identity),
 }
 impl RequestTarget {
     fn prepare(
@@ -86,6 +87,7 @@ impl RequestTarget {
             Self::LocalArt(target) => {
                 control.prepare_local_art_viewer(&target.session, &target.selected, &target.proof)
             }
+            Self::Direct(selected) => control.prepare_direct_viewer(selected),
         }
     }
 }
@@ -227,6 +229,20 @@ impl Runtime {
             consume,
         )
     }
+    pub(crate) fn start_direct_viewer(
+        config: crate::device_authorization_config::Config,
+        lease: Lease,
+        selected: Identity,
+        budget: Arc<crate::byte_budget::Budget>,
+    ) -> io::Result<Self> {
+        Self::spawn(
+            Connection::Configured(config),
+            lease,
+            RequestTarget::Direct(selected),
+            Some(budget),
+            |_| Ok(()),
+        )
+    }
     fn spawn(
         connection: Connection,
         lease: Lease,
@@ -344,7 +360,7 @@ fn run(
     input.configure(owner.business().interaction(), &owner.media());
     input.triggers.configure(match &target {
         RequestTarget::Surface(t) => Some((t.surface.clone(), t.attachment.clone())),
-        RequestTarget::LocalArt(_) => None,
+        RequestTarget::LocalArt(_) | RequestTarget::Direct(_) => None,
     });
     if let RequestTarget::LocalArt(target) = &target {
         input

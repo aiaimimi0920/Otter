@@ -65,14 +65,14 @@ fn source_background_sync_keeps_frozen_png_and_caches_only_current_content_ident
             1
         );
         peer.omit_editing.store(false, Ordering::Release);
-        // 缺本地Source owner时，普通sender也必须拒绝远端editing，不能烘焙覆盖其basis。
+        // 缺本地 Source owner 时，默认协作从既有 journal/probe 恢复，不能烘焙覆盖 basis。
         app.documents[0].state.projection_edit.borrow_mut().take();
         let before = app.restored_session.as_ref().unwrap().original.clone();
         app.projection_sender.updates.make_due();
         app.process_authorization_with_projection(|o| config(o, files.root()));
-        assert!(matches!(app.projection_sender.phase, Phase::Updating(_)));
-        wait_remote(&app);
-        app.process_authorization_with_projection(|o| config(o, files.root()));
+        assert!(app.projection_edit.busy());
+        finish(&mut app, &files);
+        assert!(app.documents[0].state.projection_edit.borrow().is_some());
         assert!(matches!(app.projection_sender.phase, Phase::Idle));
         assert!(before.same_storage(&app.restored_session.as_ref().unwrap().original));
         assert_eq!(

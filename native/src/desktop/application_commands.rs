@@ -15,6 +15,72 @@ pub(in crate::desktop) unsafe fn request(hwnd: HWND, state: &State) -> Result<()
     Ok(())
 }
 
+pub(in crate::desktop) unsafe fn append_menu(menu: HMENU, state: &State) -> Result<()> {
+    crate::desktop::reference_ui::append_menu(menu, state)?;
+    crate::desktop::device_authorization_ui::append_menu(menu, state)?;
+    AppendMenuW(
+        menu,
+        MF_STRING,
+        crate::desktop::cache_input::COMMAND,
+        w!("临时缓存设置…"),
+    )?;
+    AppendMenuW(
+        menu,
+        MF_STRING
+            | if state.resolved_display.borrow().is_some() || state.canvas.borrow().image.is_some()
+            {
+                MF_ENABLED
+            } else {
+                MF_GRAYED
+            },
+        SAVE_PNG_DEFAULT,
+        w!("保存 PNG 到默认目录"),
+    )?;
+    AppendMenuW(
+        menu,
+        MF_STRING,
+        crate::desktop::naming_input::COMMAND,
+        w!("文件命名设置…"),
+    )?;
+    AppendMenuW(menu, MF_STRING, NEW_WINDOW, w!("新建工作窗口"))?;
+    AppendMenuW(menu, MF_STRING, IMPORT_NAMING, w!("导入命名设置…"))?;
+    AppendMenuW(menu, MF_STRING, SAVE_NAMING, w!("文件与缓存设置另存为…"))?;
+    AppendMenuW(menu, MF_STRING, UPDATE_NAMING, w!("保存文件与缓存设置"))?;
+    AppendMenuW(menu, MF_STRING, OPEN_SESSION, w!("打开工作区…"))?;
+    AppendMenuW(
+        menu,
+        MF_STRING
+            | if state.naming_autosave.get() {
+                MF_CHECKED
+            } else {
+                MF_UNCHECKED
+            },
+        AUTO_NAMING,
+        w!("自动保存文件与缓存设置"),
+    )?;
+    AppendMenuW(
+        menu,
+        MF_STRING,
+        OPEN_SESSION_ASSETS,
+        w!("打开工作区（指定图片目录）…"),
+    )?;
+    AppendMenuW(menu, MF_STRING, SAVE_SESSION, w!("保存工作区"))?;
+    AppendMenuW(menu, MF_STRING, SAVE_SESSION_AS, w!("工作区另存为…"))?;
+    AppendMenuW(
+        menu,
+        MF_STRING
+            | if state.workspace_autosave.enabled() {
+                MF_CHECKED
+            } else {
+                MF_UNCHECKED
+            },
+        AUTO_WORKSPACE,
+        w!("自动保存当前工作区"),
+    )?;
+    restore_batch::workflow::ui::append_menu(menu)?;
+    AppendMenuW(menu, MF_STRING, EXIT_APPLICATION, w!("退出 Otter"))
+}
+
 pub(in crate::desktop) const NEW_WINDOW: usize = 0x104c;
 pub(in crate::desktop) const EXIT_APPLICATION: usize = 0x104e;
 pub(in crate::desktop) const SAVE_SESSION_AS: usize = 0x1059;
@@ -99,71 +165,6 @@ pub(in crate::desktop) unsafe fn execute(hwnd: HWND, state: &State, command: usi
         }
         _ => Err(Error::new(E_INVALIDARG, "Unknown application command")),
     }
-}
-pub(in crate::desktop) unsafe fn append_menu(menu: HMENU, state: &State) -> Result<()> {
-    crate::desktop::reference_ui::append_menu(menu, state)?;
-    crate::desktop::device_authorization_ui::append_menu(menu, state)?;
-    AppendMenuW(
-        menu,
-        MF_STRING,
-        crate::desktop::cache_input::COMMAND,
-        w!("临时缓存设置…"),
-    )?;
-    AppendMenuW(
-        menu,
-        MF_STRING
-            | if state.resolved_display.borrow().is_some() || state.canvas.borrow().image.is_some()
-            {
-                MF_ENABLED
-            } else {
-                MF_GRAYED
-            },
-        SAVE_PNG_DEFAULT,
-        w!("保存 PNG 到默认目录"),
-    )?;
-    AppendMenuW(
-        menu,
-        MF_STRING,
-        crate::desktop::naming_input::COMMAND,
-        w!("文件命名设置…"),
-    )?;
-    AppendMenuW(menu, MF_STRING, NEW_WINDOW, w!("新建工作窗口"))?;
-    AppendMenuW(menu, MF_STRING, IMPORT_NAMING, w!("导入命名设置…"))?;
-    AppendMenuW(menu, MF_STRING, SAVE_NAMING, w!("文件与缓存设置另存为…"))?;
-    AppendMenuW(menu, MF_STRING, UPDATE_NAMING, w!("保存文件与缓存设置"))?;
-    AppendMenuW(menu, MF_STRING, OPEN_SESSION, w!("打开工作区…"))?;
-    AppendMenuW(
-        menu,
-        MF_STRING
-            | if state.naming_autosave.get() {
-                MF_CHECKED
-            } else {
-                MF_UNCHECKED
-            },
-        AUTO_NAMING,
-        w!("自动保存文件与缓存设置"),
-    )?;
-    AppendMenuW(
-        menu,
-        MF_STRING,
-        OPEN_SESSION_ASSETS,
-        w!("打开工作区（指定图片目录）…"),
-    )?;
-    AppendMenuW(menu, MF_STRING, SAVE_SESSION, w!("保存工作区"))?;
-    AppendMenuW(menu, MF_STRING, SAVE_SESSION_AS, w!("工作区另存为…"))?;
-    AppendMenuW(
-        menu,
-        MF_STRING
-            | if state.workspace_autosave.enabled() {
-                MF_CHECKED
-            } else {
-                MF_UNCHECKED
-            },
-        AUTO_WORKSPACE,
-        w!("自动保存当前工作区"),
-    )?;
-    restore_batch::workflow::ui::append_menu(menu)?;
-    AppendMenuW(menu, MF_STRING, EXIT_APPLICATION, w!("退出 Otter"))
 }
 pub(in crate::desktop) unsafe fn request_exit(hwnd: HWND, state: &State) -> Result<()> {
     if !IsWindow(Some(hwnd)).as_bool() {

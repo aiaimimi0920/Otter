@@ -117,6 +117,7 @@ mod tests {
     fn weak_relationships_do_not_keep_closed_or_replaced_nodes_available() {
         let rows = vec![Row {
             key: 7,
+            deletable: false,
             thumbnail: None,
             label: "parent".into(),
             enabled: true,

@@ -20,6 +20,7 @@ pub(super) struct Guard {
 pub(super) struct Snapshot {
     guard: Guard,
     frame: Arc<Frame<Texture>>,
+    editor: Option<crate::editor::Editor>,
 }
 fn owns_saved_unit(
     app: &Application,
@@ -27,7 +28,9 @@ fn owns_saved_unit(
 ) -> bool {
     // 回收先移除图节点，worker 可继续保留到实际退出；它不再是下一份保存的成员。
     // 不以 is_alive 过滤，仍在图内却意外关闭的 Live 必须继续失败关闭。
-    session.belongs_to(&app.workspace) && app.workspace.contains(session.unit_id())
+    !session.pin_attached()
+        && session.belongs_to(&app.workspace)
+        && app.workspace.contains(session.unit_id())
 }
 pub(super) fn automatic_ready(app: &Application) -> Result<bool> {
     for session in app
@@ -79,7 +82,11 @@ pub(super) fn capture(app: &Application) -> Result<(Vec<Guard>, Vec<Snapshot>)> 
                 .map(|group| group.id.clone()),
         };
         guards.push(guard.clone());
-        frames.push(Snapshot { guard, frame });
+        frames.push(Snapshot {
+            guard,
+            frame,
+            editor: session.pin_snapshot(),
+        });
     }
     if app.documents.len() + frames.len() > crate::workspace::MAX_UNITS {
         return Err(Error::new(E_ABORT, "Live save exceeds workspace capacity"));
@@ -122,15 +129,30 @@ impl Snapshot {
             height: image.height,
             pixels: image.pixels,
         };
-        // Live 不可编辑；保存为普通静态 sticker，不序列化采集目标、授权或运行句柄。
-        let editor = crate::editor::Editor::with_layers(crate::erase_layers::Layers {
-            size: (image.width, image.height),
-            base: image.pixels.clone(),
-            annotation_size: None,
-            annotations: None,
-        })
-        .map_err(|_| Error::Window)?;
+        // 保存当前帧及本地标注，不序列化采集目标、授权或运行句柄。
+        let (editor, image) = if let Some(editor) = self.editor {
+            crate::desktop::live_pin_snapshot::refresh(editor, image, || {
+                cancel.load(std::sync::atomic::Ordering::Acquire)
+            })
+            .map_err(|_| {
+                if cancel.load(std::sync::atomic::Ordering::Acquire) {
+                    Error::Cancelled
+                } else {
+                    Error::Window
+                }
+            })?
+        } else {
+            let editor = crate::editor::Editor::with_layers(crate::erase_layers::Layers {
+                size: (image.width, image.height),
+                base: image.pixels.clone(),
+                annotation_size: None,
+                annotations: None,
+            })
+            .map_err(|_| Error::Window)?;
+            (editor, image)
+        };
         Ok(Document {
+            extensions: None,
             unit: self.guard.unit,
             frame: self.guard.rect,
             viewport: crate::viewport::Viewport {
@@ -149,6 +171,8 @@ impl Snapshot {
             transition: None,
             normal_opacity: self.guard.opacity,
             mini_opacity: 0.9,
+            frame_style: None,
+            node_settings: None,
             pinned: true,
             art: false,
             local_art_id: None,

@@ -10,7 +10,7 @@
       "wait": false
     },
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "npm run build",
+    "beforeBuildCommand": "npm run build:web",
     "frontendDist": "../.output/public"
   },
   "app": {

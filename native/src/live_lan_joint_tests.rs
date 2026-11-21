@@ -30,7 +30,10 @@ fn live_lan_joint_real_loom() {
         serde_json::from_value(data["request"]["binding"].clone()).unwrap();
     let url = url::Url::parse(&binding.origin).unwrap();
     assert_eq!(url.scheme(), "https");
-    assert_eq!(url.host_str(), Some("127.0.0.1"));
+    let host = std::env::var("OTTER_LIVE_TEST_LAN_HOST").unwrap_or_else(|_| "127.0.0.1".into());
+    assert_eq!(url.host_str(), Some(host.as_str()));
+    let address: std::net::Ipv4Addr = host.parse().unwrap();
+    assert!(address.is_private() || address.is_loopback());
     let mut roots = RootCertStore::empty();
     roots
         .add(rustls::pki_types::CertificateDer::from(
@@ -42,12 +45,15 @@ fn live_lan_joint_real_loom() {
     let client = Client::new(
         &binding.origin,
         roots.clone(),
-        vec![format!("127.0.0.1:{}", url.port().unwrap())
-            .parse()
-            .unwrap()],
+        vec![std::net::SocketAddr::from((address, url.port().unwrap()))],
     )
     .unwrap();
-    let create_body = serde_json::to_vec(&serde_json::json!({"envelope":data["start"]})).unwrap();
+    let direct = data["direct"] == true;
+    let mut create = serde_json::json!({"envelope":data["start"]});
+    if direct {
+        create["directViewerDeviceId"] = serde_json::json!(binding.device_id);
+    }
+    let create_body = serde_json::to_vec(&create).unwrap();
     let (status, response) = client
         .exchange(
             crate::device_session_client::Request {
@@ -71,26 +77,12 @@ fn live_lan_joint_real_loom() {
         .unwrap();
     let mut owner = DeviceGrant::new(session);
     let lease = Arc::new(owner.lease(&binding.origin, now_ms()).unwrap());
-    let pin = Pin {
-        key_id: data["issuer"]["keyId"].as_str().unwrap().into(),
-        public_key: STANDARD
-            .decode(data["issuer"]["publicKey"].as_str().unwrap())
-            .unwrap()
-            .try_into()
-            .unwrap(),
-    };
-    let request = ArtRequest {
-        binding: binding.clone(),
-        permissions: serde_json::from_value(data["request"]["permissions"].clone()).unwrap(),
-        services: vec![],
-    };
-    let prepared = Prepared::fetch(&client, lease.clone(), request, pin).unwrap();
     let control = lease.control(&client).unwrap();
     let catalog = control.catalog().unwrap();
     assert_eq!(catalog.len(), 1);
     assert!(!catalog[0].member);
     assert_eq!(catalog[0].identity.session(), "live:lan/part");
-    let proof = prepared.viewer_proof().unwrap();
+    assert_eq!(catalog[0].direct_view, direct);
     let pem = root.join("lan-ca.pem");
     fs::write(
         &pem,
@@ -110,23 +102,59 @@ fn live_lan_joint_real_loom() {
     })
     .unwrap();
     let budget = Budget::new(4 * 1024 * 1024);
-    let runtime = Runtime::start_local_art_viewer(
-        config,
-        owner.lease(&binding.origin, now_ms()).unwrap(),
-        LocalArtTarget {
-            session: "live:lan/part".into(),
-            selected: catalog[0].identity.clone(),
-            proof,
-        },
-        budget.clone(),
-        |events| {
-            if events.iter().all(|event| event.kind() == "session_state") {
-                Ok(())
-            } else {
-                Err(())
-            }
-        },
-    )
+    let runtime = if direct {
+        Runtime::start_direct_viewer(
+            config,
+            owner.lease(&binding.origin, now_ms()).unwrap(),
+            catalog[0].identity.clone(),
+            budget.clone(),
+        )
+    } else {
+        let pin = Pin {
+            key_id: data["issuer"]["keyId"].as_str().unwrap().into(),
+            public_key: STANDARD
+                .decode(data["issuer"]["publicKey"].as_str().unwrap())
+                .unwrap()
+                .try_into()
+                .unwrap(),
+        };
+        let request = ArtRequest {
+            binding: binding.clone(),
+            permissions: serde_json::from_value(data["request"]["permissions"].clone()).unwrap(),
+            services: vec![],
+        };
+        // Use the current signed package path, with the same protected identity as the viewer.
+        write_once(
+            &root.join("device-identity.json"),
+            &identity.protected_document().unwrap(),
+        );
+        let prepared = Prepared::fetch_resumable(
+            &client,
+            lease.clone(),
+            request,
+            pin,
+            &crate::art_source_cache::Store::new(root),
+        )
+        .expect("current v3 LAN Local Art package");
+        let proof = prepared.viewer_proof().unwrap();
+        Runtime::start_local_art_viewer(
+            config,
+            owner.lease(&binding.origin, now_ms()).unwrap(),
+            LocalArtTarget {
+                session: "live:lan/part".into(),
+                selected: catalog[0].identity.clone(),
+                proof,
+            },
+            budget.clone(),
+            |events| {
+                if events.iter().all(|event| event.kind() == "session_state") {
+                    Ok(())
+                } else {
+                    Err(())
+                }
+            },
+        )
+    }
     .unwrap();
     let _com = peer::Apartment::new();
     let mut native = crate::desktop::composition::relay::session::Session::from_runtime(runtime);
@@ -176,6 +204,43 @@ fn live_lan_joint_real_loom() {
         .unwrap();
         peer::binary(&mut socket);
         viewers.push(socket);
+    }
+    if direct {
+        // The fixture uses a per-operation absolute deadline. Other joins can outlast it.
+        source
+            .get_mut()
+            .sock
+            .operation_deadline(Duration::from_secs(1))
+            .unwrap();
+        let updated = peer::frame_with(2, [211, 83, 17, 255]);
+        source
+            .send(tungstenite::Message::Binary(updated.clone()))
+            .unwrap();
+        // A frame sent before revocation is expected, not a revocation leak. Drain it
+        // deterministically on every socket before the parent is allowed to revoke.
+        for viewer in &mut viewers {
+            peer::expect_frame(viewer, &updated);
+        }
+        let deadline = Instant::now() + Duration::from_secs(5);
+        loop {
+            assert!(native.poll().is_none());
+            if let Some((meta, pixel)) = native.test_frame().unwrap() {
+                if meta.frame_id == 2 {
+                    assert_eq!(pixel, [211, 83, 17, 255]);
+                    write_once(
+                        &root.join("lan-direct-update.json"),
+                        br#"{"frameId":2,"pixel":[211,83,17,255]}"#,
+                    );
+                    break;
+                }
+            }
+            assert!(
+                Instant::now() < deadline,
+                "direct viewer never rendered updated frame"
+            );
+            peer::pump();
+            std::thread::sleep(Duration::from_millis(5));
+        }
     }
     assert!(
         matches!(peer::connect(&binding.origin, roots.clone(), source_token, "source", "lan-source-1"), Err(error) if matches!(error.as_ref(), tungstenite::Error::Http(response) if response.status().as_u16() == 409))

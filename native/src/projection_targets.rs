@@ -72,27 +72,39 @@ pub struct Directory {
     targets: Vec<Target>,
     status: Status,
     groups: Option<Vec<Group>>,
+    users: Vec<User>,
+}
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct User {
+    user_id: String,
+    issuer: String,
+    account_id: String,
+    name: String,
+    target_ids: Vec<String>,
+}
+impl User {
+    pub fn id(&self) -> &str {
+        &self.user_id
+    }
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+    pub fn target_ids(&self) -> &[String] {
+        &self.target_ids
+    }
+}
+#[derive(Deserialize)]
+struct Users {
+    users: Vec<User>,
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct WireDirectory {
     targets: Vec<WireTarget>,
-    // Missing fields support older Loom; explicit null is not a valid directory or group list.
-    #[serde(default)]
-    peer_directory: OptionField<PeerDirectory>,
-    #[serde(default)]
-    groups: OptionField<Vec<Group>>,
-}
-struct OptionField<T>(Option<T>);
-impl<T> Default for OptionField<T> {
-    fn default() -> Self {
-        Self(None)
-    }
-}
-impl<'de, T: Deserialize<'de>> Deserialize<'de> for OptionField<T> {
-    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        T::deserialize(deserializer).map(|value| Self(Some(value)))
-    }
+    peer_directory: PeerDirectory,
+    groups: Vec<Group>,
+    friends: Users,
 }
 #[derive(Deserialize)]
 struct PeerDirectory {
@@ -120,19 +132,16 @@ impl Directory {
     pub fn groups(&self) -> Option<&[Group]> {
         self.groups.as_deref()
     }
+    pub fn users(&self) -> &[User] {
+        &self.users
+    }
     pub fn parse(bytes: &[u8], origin: &str) -> Result<Self, Error> {
         if bytes.len() > MAX_JSON {
             return Err(Error::Limit);
         }
         let origin = envelope::canonical_origin(origin)?;
         let wire: WireDirectory = serde_json::from_slice(bytes).map_err(|_| Error::Json)?;
-        if wire.targets.len() > MAX_TARGETS
-            || wire
-                .groups
-                .0
-                .as_ref()
-                .is_some_and(|groups| groups.len() > MAX_GROUPS)
-        {
+        if wire.targets.len() > MAX_TARGETS || wire.groups.len() > MAX_GROUPS {
             return Err(Error::Limit);
         }
         let mut ids = BTreeSet::new();
@@ -152,7 +161,7 @@ impl Directory {
             });
         }
         let mut groups = BTreeSet::new();
-        for group in wire.groups.0.iter().flatten() {
+        for group in &wire.groups {
             if !envelope::identifier(&group.group_id)
                 || !name_valid(&group.name, 128, false)
                 || group.target_ids.len() > MAX_TARGETS
@@ -167,14 +176,30 @@ impl Directory {
                 return Err(Error::Duplicate);
             }
         }
+        let users = wire.friends.users;
+        let mut user_ids = BTreeSet::new();
+        if users.len() > 34 {
+            return Err(Error::Limit);
+        }
+        for user in &users {
+            if !envelope::identifier(&user.user_id)
+                || !user_ids.insert(&user.user_id)
+                || !name_valid(&user.name, 256, false)
+                || !name_valid(&user.account_id, 256, false)
+                || envelope::canonical_origin(&user.issuer).as_ref() != Ok(&user.issuer)
+                || user.target_ids.len() > MAX_TARGETS
+                || user.target_ids.iter().any(|id| !ids.contains(id))
+                || user.target_ids.iter().collect::<BTreeSet<_>>().len() != user.target_ids.len()
+            {
+                return Err(Error::Entry);
+            }
+        }
         Ok(Self {
             origin,
             targets,
-            status: wire
-                .peer_directory
-                .0
-                .map_or(Status::Complete, |peer| peer.status),
-            groups: wire.groups.0,
+            status: wire.peer_directory.status,
+            groups: Some(wire.groups),
+            users,
         })
     }
 }

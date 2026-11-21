@@ -36,7 +36,7 @@ pub(super) enum Snapshot {
     Dib(Pixels),
     Files(Vec<std::path::PathBuf>),
 }
-unsafe fn read_image(hwnd: HWND, state: &State, new_pin: bool) -> Result<Snapshot> {
+pub(super) unsafe fn read_image(hwnd: HWND, state: &State, new_pin: bool) -> Result<Snapshot> {
     let format = RegisterClipboardFormatW(w!("PNG"));
     if format == 0 {
         return Err(Error::from_win32());
@@ -124,6 +124,11 @@ pub(super) unsafe fn start_with(hwnd: HWND, state: &State, new_pin: bool) {
         return;
     };
     let result = (|| -> Result<()> {
+        // 读剪贴板/准备图像前采样；所有格式使用同一次物理坐标，而非固定 (100,100)。
+        let mut cursor = POINT::default();
+        if new_pin {
+            GetCursorPos(&mut cursor)?;
+        }
         let snapshot = read_image(hwnd, state, new_pin)?;
         if !new_pin && !super::open_image::confirm_replace(hwnd, state) {
             return Ok(());
@@ -133,7 +138,7 @@ pub(super) unsafe fn start_with(hwnd: HWND, state: &State, new_pin: bool) {
             ReleaseCapture()?;
         }
         let _ = windows::Win32::Graphics::Gdi::InvalidateRect(Some(hwnd), None, false);
-        deliver(hwnd, state, snapshot, new_pin)
+        deliver_at(hwnd, state, snapshot, new_pin, cursor)
     })();
     if let Err(error) = result {
         if IsWindow(Some(hwnd)).as_bool() {
@@ -146,25 +151,36 @@ pub(super) unsafe fn start_with(hwnd: HWND, state: &State, new_pin: bool) {
         }
     }
 }
-// 只接收已释放剪贴板锁的快照；三种格式复用同一个有界后台任务及交付目标。
+// smoke/回归只注入快照与坐标，不访问用户剪贴板或移动鼠标；产品入口使用 deliver_at。
 pub(super) unsafe fn deliver(
     hwnd: HWND,
     state: &State,
     snapshot: Snapshot,
     new_pin: bool,
 ) -> Result<()> {
-    use super::open_job::{start_destination, Input};
+    deliver_at(hwnd, state, snapshot, new_pin, POINT::default())
+}
+pub(super) unsafe fn deliver_at(
+    hwnd: HWND,
+    state: &State,
+    snapshot: Snapshot,
+    new_pin: bool,
+    cursor: POINT,
+) -> Result<()> {
+    use super::open_job::{start_positioned, Input};
+    let placement = if let Snapshot::Editable(content) = &snapshot {
+        state
+            .editable_clipboard
+            .borrow()
+            .placement(content, (cursor.x, cursor.y))
+    } else {
+        state
+            .editable_clipboard
+            .borrow()
+            .position((cursor.x, cursor.y))
+    };
     let input = match snapshot {
-        Snapshot::Editable(content) if new_pin => {
-            let mut cursor = POINT::default();
-            let placement = GetCursorPos(&mut cursor).ok().and_then(|()| {
-                state
-                    .editable_clipboard
-                    .borrow()
-                    .placement(&content, (cursor.x, cursor.y))
-            });
-            Input::Editable(content, placement)
-        }
+        Snapshot::Editable(content) if new_pin => Input::Editable(content, None),
         Snapshot::Editable(_) => {
             return Err(Error::new(
                 E_INVALIDARG,
@@ -183,27 +199,11 @@ pub(super) unsafe fn deliver(
             }
         }
     };
-    start_destination(hwnd, state, input, new_pin)
-}
-pub(super) unsafe fn append(menu: HMENU, state: &State) -> Result<()> {
-    for (command, label) in [
-        (COMMAND, w!("粘贴图片为新钉图\tCtrl+V")),
-        (REPLACE, w!("粘贴图片替换当前图片")),
-    ] {
-        AppendMenuW(
-            menu,
-            MF_STRING
-                | if state.open_job.borrow().is_some()
-                    || (command == REPLACE && !super::open_image::can_replace(state))
-                    || (command == COMMAND && state.new_pin.borrow().is_some())
-                {
-                    MF_GRAYED
-                } else {
-                    MF_ENABLED
-                },
-            command,
-            label,
-        )?;
-    }
-    Ok(())
+    start_positioned(
+        hwnd,
+        state,
+        input,
+        new_pin,
+        new_pin.then_some((cursor, placement)),
+    )
 }

@@ -18,15 +18,6 @@ fn source(state: &State) -> Option<Arc<File>> {
         .original_lease
         .clone()
 }
-pub(in crate::desktop) unsafe fn append(menu: HMENU, state: &State) -> windows::core::Result<()> {
-    let enabled = state.export.borrow().is_none() && source(state).is_some();
-    AppendMenuW(
-        menu,
-        MF_STRING | if enabled { MF_ENABLED } else { MF_GRAYED },
-        COMMAND,
-        w!("另存 HDR 原图（不含编辑）…"),
-    )
-}
 pub(in crate::desktop) unsafe fn start(hwnd: HWND, state: &State) {
     if state.export.borrow().is_some() || state.modals.blocked() {
         return;

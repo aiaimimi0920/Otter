@@ -1,15 +1,19 @@
 //! 按需构建业务菜单快照；自绘宿主重入消息循环，不能跨调用借用 Canvas。
 use super::tool_commands::tool_for_command;
 use super::{application as app, State};
-use crate::{editor::Tool, stroke_style::DashPattern};
+use crate::editor::Tool;
+#[cfg(test)]
+use windows::core::w;
+#[path = "context_menu_pin.rs"]
+mod pin;
 #[path = "context_menu_shapes.rs"]
 mod shapes;
 use windows::{
-    core::{w, Result},
+    core::Result,
     Win32::{Foundation::*, Graphics::Gdi::*, UI::WindowsAndMessaging::*},
 };
 
-struct Menu(HMENU);
+pub(super) struct Menu(pub(super) HMENU);
 impl Drop for Menu {
     fn drop(&mut self) {
         unsafe {
@@ -24,8 +28,8 @@ pub(super) const WIDTH_DOWN: usize = 0x1003;
 pub(super) const WIDTH_UP: usize = 0x1004;
 pub(super) const RADIUS_DOWN: usize = 0x1005;
 pub(super) const RADIUS_UP: usize = 0x1006;
-const UNDO: usize = 0x1007;
-const REDO: usize = 0x1008;
+pub(super) const UNDO: usize = 0x1007;
+pub(super) const REDO: usize = 0x1008;
 pub(super) const EXPORT: usize = 0x1009;
 pub(super) const OPEN: usize = 0x100A;
 const REMOVE_LAST: usize = 0x100B;
@@ -51,266 +55,16 @@ const SHAPE_CUSTOM_STEP: usize = 0x101D;
 
 use super::popup_menu::target::MenuTarget;
 
+pub(super) struct Pending {
+    pub origin: crate::workspace_id::UnitId,
+    pub target: MenuTarget,
+    pub point: POINT,
+}
+
 pub(super) unsafe fn show(hwnd: HWND, state: &State, position: LPARAM) -> Result<()> {
     super::menu_transition::prepare(hwnd, state)?;
     let _ = InvalidateRect(Some(hwnd), None, false);
     let target = MenuTarget::capture(&state.canvas.borrow());
-    let (tool, style) = {
-        let canvas = state.canvas.borrow();
-        (canvas.tool, canvas.editor.style())
-    };
-    let menu = Menu(CreatePopupMenu()?);
-    super::capture_input::append_pin(menu.0)?;
-    super::capture_input::info::append(menu.0, state)?;
-    super::export_job::original::append(menu.0, state)?;
-    super::application::append_menu(menu.0, state)?;
-    super::execution_cancel::append(menu.0, state)?;
-    let node_snapshot = super::node_menu::Snapshot::append(menu.0, state)?;
-    super::group_menu::append(menu.0, state)?;
-    super::capture_protection::append(menu.0, state)?;
-    super::render_commands::append(menu.0, state)?;
-    super::global_capture::append(menu.0, state)?;
-    super::blur_numeric::append(menu.0, state)?;
-    super::blur_default::append(menu.0, state)?;
-    label(menu.0, super::tray::COMMAND, "隐藏到托盘", MF_STRING)?;
-    let shape_flags = MF_STRING
-        | if crate::shape_options::ShapeOptions::supports(tool) {
-            MF_ENABLED
-        } else {
-            MF_GRAYED
-        };
-    label(menu.0, SHAPE_CUSTOM_STEP, "自定义形状步进…", shape_flags)?;
-    label(
-        menu.0,
-        SHAPE_CUSTOM_RATIO,
-        "自定义矩形 / 椭圆比例…",
-        MF_STRING
-            | if crate::shape_options::ShapeOptions::supports_ratio(tool) {
-                MF_ENABLED
-            } else {
-                MF_GRAYED
-            },
-    )?;
-    super::open_image::append(menu.0, state)?;
-    AppendMenuW(menu.0, MF_SEPARATOR, 0, None)?;
-    for entry in super::tool_commands::TOOLS {
-        label(
-            menu.0,
-            entry.id,
-            entry.label,
-            MF_STRING
-                | if tool == entry.tool {
-                    MF_CHECKED
-                } else {
-                    MF_UNCHECKED
-                },
-        )?;
-    }
-    if state.blur_job.borrow().is_busy() {
-        AppendMenuW(menu.0, MF_STRING | MF_GRAYED, 0, w!("模糊准备中…"))?;
-    }
-    super::erase_input::append_menu(menu.0, state, tool)?;
-    super::rasterize_input::append_menu(menu.0, state)?;
-    super::crop_input::append(menu.0, state)?;
-    super::flip_input::append(menu.0, state)?;
-    super::copy_job::append(menu.0, state)?;
-    super::paste_input::append(menu.0, state)?;
-    label(
-        menu.0,
-        super::capture_input::COMMAND,
-        "区域截图并替换当前图片…",
-        MF_STRING,
-    )?;
-    label(menu.0, super::numeric_style::WIDTH, "精确粗细…", MF_STRING)?;
-    label(
-        menu.0,
-        super::capture_input::FULL_SCREEN,
-        "全屏截图并替换当前图片（所有显示器）",
-        MF_STRING,
-    )?;
-    label(
-        menu.0,
-        super::numeric_style::OPACITY,
-        "精确透明度…",
-        MF_STRING,
-    )?;
-    super::transform_mode::append(menu.0, state)?;
-    AppendMenuW(menu.0, MF_SEPARATOR, 0, None)?;
-    label(
-        menu.0,
-        0,
-        &format!("多边形边数：{}", style.sides()),
-        MF_STRING | MF_GRAYED,
-    )?;
-    AppendMenuW(menu.0, MF_STRING, 0x21, w!("增加边数\tPageUp"))?;
-    AppendMenuW(menu.0, MF_STRING, 0x22, w!("减少边数\tPageDown"))?;
-    AppendMenuW(
-        menu.0,
-        MF_STRING
-            | if matches!(tool, Tool::Line | Tool::Arrow) {
-                MF_ENABLED
-            } else {
-                MF_GRAYED
-            }
-            | if state.canvas.borrow().tool_profiles.angle_snap(tool) {
-                MF_CHECKED
-            } else {
-                MF_UNCHECKED
-            },
-        ANGLE_SNAP,
-        w!("直线 / 箭头角度吸附（5°）"),
-    )?;
-    AppendMenuW(menu.0, MF_STRING, COLOR, w!("边框 / 画笔颜色…\tC"))?;
-    super::screen_color::append(menu.0)?;
-    label(
-        menu.0,
-        BRUSH_SMOOTHING,
-        &format!(
-            "画笔平滑：{}%（切换）",
-            state.canvas.borrow().tool_profiles.smoothing(tool)
-        ),
-        MF_STRING
-            | if matches!(tool, Tool::Brush | Tool::Paintbrush) {
-                MF_ENABLED
-            } else {
-                MF_GRAYED
-            },
-    )?;
-    AppendMenuW(
-        menu.0,
-        MF_STRING
-            | if matches!(tool, Tool::Line | Tool::Bezier) {
-                MF_ENABLED
-            } else {
-                MF_GRAYED
-            }
-            | if style.arrow() {
-                MF_CHECKED
-            } else {
-                MF_UNCHECKED
-            },
-        LINE_ARROW,
-        w!("直线 / 贝塞尔箭头"),
-    )?;
-    AppendMenuW(menu.0, MF_STRING, FILL_COLOR, w!("填充颜色…\tShift+C"))?;
-    {
-        let canvas = state.canvas.borrow();
-        let shapes = &canvas.tool_profiles.shapes;
-        let flags = MF_STRING
-            | if crate::shape_options::ShapeOptions::supports(tool) {
-                MF_ENABLED
-            } else {
-                MF_GRAYED
-            };
-        label(
-            menu.0,
-            SHAPE_LOCK,
-            "形状等比例绘制",
-            flags
-                | if shapes.lock_aspect {
-                    MF_CHECKED
-                } else {
-                    MF_UNCHECKED
-                },
-        )?;
-        label(
-            menu.0,
-            SHAPE_STEP,
-            &format!("形状尺寸步进：{} px（0 为关闭，点击切换）", shapes.step()),
-            flags,
-        )?;
-        label(
-            menu.0,
-            SHAPE_RATIO,
-            &format!("矩形 / 椭圆比例：{}（点击切换）", shapes.ratio_label()),
-            MF_STRING
-                | if crate::shape_options::ShapeOptions::supports_ratio(tool) {
-                    MF_ENABLED
-                } else {
-                    MF_GRAYED
-                },
-        )?;
-    }
-    AppendMenuW(
-        menu.0,
-        MF_STRING
-            | if style.fill().is_some() {
-                MF_CHECKED
-            } else {
-                MF_UNCHECKED
-            },
-        0x46,
-        w!("形状填充\tF"),
-    )?;
-    let dash = match style.dash() {
-        DashPattern::Solid => "实线",
-        DashPattern::Dash => "虚线",
-        DashPattern::DashDot => "点划线",
-    };
-    label(menu.0, 0x44, &format!("切换线型：{dash}\tD"), MF_STRING)?;
-    label(
-        menu.0,
-        0x4F,
-        &format!("切换不透明度：{:.0}%\tO", style.opacity() * 100.0),
-        MF_STRING,
-    )?;
-    super::dimensions_menu::append_current(
-        menu.0,
-        state,
-        tool,
-        [WIDTH_DOWN, WIDTH_UP, RADIUS_DOWN, RADIUS_UP],
-    )?;
-    AppendMenuW(menu.0, MF_SEPARATOR, 0, None)?;
-    AppendMenuW(menu.0, MF_STRING, UNDO, w!("撤销\tCtrl+Z"))?;
-    AppendMenuW(menu.0, MF_STRING, REDO, w!("重做\tCtrl+Y"))?;
-    let resize_flags = MF_STRING
-        | if state.canvas.borrow().selected_index().is_some() {
-            MF_ENABLED
-        } else {
-            MF_GRAYED
-        };
-    let group_flags = MF_STRING
-        | if state.canvas.borrow().selected_indices().is_empty() {
-            MF_GRAYED
-        } else {
-            MF_ENABLED
-        };
-    AppendMenuW(menu.0, group_flags, ENLARGE, w!("放大选中标注\t+"))?;
-    AppendMenuW(menu.0, group_flags, SHRINK, w!("缩小选中标注\t-"))?;
-    AppendMenuW(menu.0, resize_flags, DUPLICATE, w!("复制选中标注\tCtrl+D"))?;
-    super::text_input::append_edit_menu(menu.0, EDIT_TEXT, &state.canvas.borrow())?;
-    super::serial_input::append_menu(menu.0, &state.canvas.borrow())?;
-    for (id, text) in [
-        (WIDEN, w!("增加选中标注宽度")),
-        (NARROW, w!("减少选中标注宽度")),
-        (TALLER, w!("增加选中标注高度")),
-        (SHORTER, w!("减少选中标注高度")),
-    ] {
-        AppendMenuW(menu.0, group_flags, id, text)?;
-    }
-    AppendMenuW(menu.0, group_flags, ROTATE_LEFT, w!("逆时针旋转 15°\t,"))?;
-    AppendMenuW(menu.0, group_flags, ROTATE_RIGHT, w!("顺时针旋转 15°\t."))?;
-    AppendMenuW(
-        menu.0,
-        MF_STRING,
-        APPLY_STYLE,
-        if tool == Tool::Select {
-            w!("将当前样式应用到选中标注\tCtrl+Enter")
-        } else {
-            w!("将当前样式应用到最后一个标注\tCtrl+Enter")
-        },
-    )?;
-    AppendMenuW(
-        menu.0,
-        MF_STRING,
-        REMOVE_LAST,
-        if tool == Tool::Select {
-            w!("删除选中标注\tDelete")
-        } else {
-            w!("删除最后一个标注\tDelete")
-        },
-    )?;
-    super::export_job::append(menu.0, state, EXPORT)?;
     let mut point = POINT {
         x: position.0 as i16 as i32,
         y: (position.0 >> 16) as i16 as i32,
@@ -321,16 +75,27 @@ pub(super) unsafe fn show(hwnd: HWND, state: &State, position: LPARAM) -> Result
             return Err(windows::core::Error::from_win32());
         }
     }
+    let mut view = state.frozen_library.borrow_mut();
+    if state.file_dialog.get() || view.menu.is_some() {
+        return Ok(());
+    }
+    // 回调仅交付打开请求；Application 拥有菜单循环，才能推进原删除事务。
+    view.menu = Some(Pending {
+        origin: state.unit_id.clone(),
+        target,
+        point,
+    });
+    if let Err(error) = PostMessageW(Some(hwnd), WM_NULL, WPARAM(0), LPARAM(0)) {
+        view.menu = None;
+        return Err(error);
+    }
+    Ok(())
+}
+
+pub(super) unsafe fn build(state: &State) -> Result<Menu> {
+    let menu = pin::build(state)?;
     super::group_lock::restrict_menu(menu.0, state);
-    let current = || target.matches(&state.canvas.borrow());
-    let command = super::popup_menu::track(hwnd, state, menu.0, point, current)?;
-    if command == 0 || !IsWindow(Some(hwnd)).as_bool() || !target.matches(&state.canvas.borrow()) {
-        return Ok(());
-    }
-    if node_snapshot.apply(hwnd, state, command)? {
-        return Ok(());
-    }
-    execute(hwnd, state, command)
+    Ok(menu)
 }
 
 /// 即时 UI 命令的共用执行入口；延迟 UI 必须在调用前校验其目标快照。
@@ -435,13 +200,7 @@ pub(super) unsafe fn execute(hwnd: HWND, state: &State, command: usize) -> Resul
         }
         command if super::style_input::execute(hwnd, state, command)? => (),
         UNDO | REDO => {
-            let mut canvas = state.canvas.borrow_mut();
-            if command == UNDO {
-                canvas.editor.undo();
-            } else {
-                canvas.editor.redo();
-            }
-            canvas.sync_raster_source();
+            super::pin_settings_history::step(hwnd, state, command == REDO)?;
         }
         super::erase_input::MODE_COMMAND => super::erase_input::toggle_mode(state),
         super::transform_mode::COMMAND..=super::transform_mode::SCALE_Y => {

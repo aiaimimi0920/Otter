@@ -10,7 +10,6 @@ mod receiver;
 mod source;
 
 unsafe fn tick(app: &mut Application, f: &fixture::Fixture) {
-    app.defer_projection_poll_for_test(&f.origin);
     process(app, f);
     app.pending_workspace_save_with(|_, _, message, warning| assert!(!warning, "{message}"));
     drain_messages(); // 与真实UI线程一致投递自有窗口消息和被动WinEvent；不操作用户窗口。
@@ -36,6 +35,7 @@ fn quiet(app: &Application) -> bool {
     !app.projection_edit.busy()
         && !app.projection_sender.busy()
         && !app.projection_receive.busy()
+        && !app.account_projection.busy()
         && !app.remote_sessions.projection_pending()
         && app.save_job.is_none()
 }

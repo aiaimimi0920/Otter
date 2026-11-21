@@ -8,6 +8,8 @@ use windows::{
 pub(in crate::desktop) const REFRESH: usize = 0x1600;
 #[derive(Default)]
 pub(in crate::desktop) struct View {
+    pub automatic: bool,
+    pub next: Option<std::time::Instant>,
     pub directory: Option<std::sync::Arc<Directory>>,
     pub busy: bool,
     pub status: String,
@@ -20,7 +22,7 @@ fn available(view: &AuthorizationView) -> bool {
         && view.request.is_none()
         && view.origin.is_some()
 }
-pub(super) fn request(view: &AuthorizationView) -> Result<Request> {
+pub(in crate::desktop) fn request(view: &AuthorizationView) -> Result<Request> {
     if !available(view) {
         return Err(Error::new(
             E_ABORT,
@@ -30,7 +32,10 @@ pub(super) fn request(view: &AuthorizationView) -> Result<Request> {
     Ok(Request::ProjectionTargets)
 }
 pub(in crate::desktop) fn reset(view: &mut AuthorizationView) {
-    view.targets = View::default();
+    view.targets = View {
+        automatic: view.targets.automatic,
+        ..View::default()
+    };
     if matches!(view.request, Some(Request::ProjectionTargets)) {
         view.request = None;
     }
@@ -123,7 +128,7 @@ pub(super) unsafe fn append_menu(
             &HSTRING::from(format!(
                 "停止投送：{}{}",
                 label(if binding.name().is_empty() {
-                    binding.target()
+                    binding.target().unwrap_or("分享邀请")
                 } else {
                     binding.name()
                 }),
@@ -164,7 +169,7 @@ pub(super) unsafe fn append_menu(
             };
             let policy = match target.policy() {
                 Policy::Auto => "自动",
-                Policy::Confirm => "手动",
+                Policy::Confirm => "接收",
             };
             let name = if target.name().is_empty() {
                 target.id()

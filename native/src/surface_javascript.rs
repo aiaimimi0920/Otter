@@ -24,6 +24,8 @@ mod mounting;
 pub mod services;
 #[path = "surface_javascript_signed.rs"]
 pub mod signed;
+#[path = "surface_javascript_view.rs"]
+mod view;
 pub use wire::images::ImageResource;
 #[cfg(test)]
 #[path = "surface_javascript_image_session_tests.rs"]

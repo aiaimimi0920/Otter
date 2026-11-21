@@ -10,6 +10,16 @@ pub struct MatchOptions {
     /// BGRA 各通道平均绝对误差上限，限定 0..=12，避免任意放宽导致误拼。
     pub maximum_mean_error: f64,
 }
+impl MatchOptions {
+    pub(super) fn for_detection(axis: Axis, frame: &Frame) -> Self {
+        let length = dimensions(frame, axis).0;
+        Self {
+            minimum_overlap: (length / 4).clamp(1, 64),
+            maximum_shift: length.saturating_sub(1),
+            maximum_mean_error: 3.0,
+        }
+    }
+}
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ApproximateMatch {
     Offset { delta: i64, mean_error: f64 },
@@ -48,6 +58,7 @@ fn score(
     axis: Axis,
     delta: i64,
     samples: (u32, u32),
+    ceiling: f64,
     cancel: &AtomicBool,
 ) -> Result<Score, Error> {
     let (length, cross) = previous.dimensions(axis);
@@ -55,6 +66,7 @@ fn score(
     let overlap = length - shift;
     let rows = overlap.min(samples.0);
     let columns = cross.min(samples.1);
+    let count = u64::from(rows) * u64::from(columns);
     let start_a = if delta > 0 { shift } else { 0 };
     let start_b = if delta < 0 { shift } else { 0 };
     let mut error = 0u64;
@@ -82,9 +94,15 @@ fn score(
                 let tb: u64 = (0..3).map(|c| b[c].abs_diff(bn[c]) as u64).sum();
                 texture += ta.min(tb);
             }
+            // 完整采样分母给出误差下界；纹理已足够且超过歧义窗口的候选无需继续读取。
+            if error as f64 > ceiling * (count * 4) as f64 && texture >= count * 3 * 4 {
+                return Ok(Score {
+                    error: f64::INFINITY,
+                    texture: 4.0,
+                });
+            }
         }
     }
-    let count = u64::from(rows) * u64::from(columns);
     Ok(Score {
         error: error as f64 / (count * 4) as f64,
         texture: texture as f64 / (count * 3) as f64,
@@ -92,7 +110,7 @@ fn score(
 }
 
 /// 搜索调用方限定的双向位移（包括零位移）；时间上界为 65535 个候选，各采样至多 256 点。
-/// 无图像副本或候选数组；成功结果仍是采样推断，调用方不得当作逐像素精确匹配证明。
+/// 无图像副本，只保留两个稀疏候选；成功仍是采样推断，不是逐像素精确匹配证明。
 pub fn match_approximate(
     previous: &Frame,
     current: &Frame,
@@ -159,9 +177,19 @@ pub(super) fn match_views(
     let limit = options.maximum_shift.min(length - options.minimum_overlap) as i64;
     let mut best: Option<(i64, Score)> = None;
     let mut second = f64::INFINITY;
+    let mut sparse = Vec::with_capacity(2);
+    let mut sparse_overflow = false;
+    let ceiling = options.maximum_mean_error + 2.0;
     for delta in -limit..=limit {
-        let candidate = score(previous, current, axis, delta, (16, 16), cancel)?;
+        let candidate = score(previous, current, axis, delta, (16, 16), ceiling, cancel)?;
         if candidate.texture < 4.0 {
+            if candidate.error <= ceiling {
+                if sparse.len() < 2 {
+                    sparse.push(delta);
+                } else {
+                    sparse_overflow = true;
+                }
+            }
             continue;
         }
         if best.is_none_or(|(_, old)| candidate.error < old.error) {
@@ -173,6 +201,29 @@ pub(super) fn match_views(
             second = second.min(candidate.error);
         }
     }
+    // 粗采样找不到可接受的纹理匹配时，才复核落在空白行的候选。
+    // 最多两次密采；低纹理候选数量不能否定已有的可靠匹配，也不能放大纯色页工作量。
+    if best.is_none_or(|(_, candidate)| candidate.error > options.maximum_mean_error) {
+        for delta in sparse {
+            let candidate = score(previous, current, axis, delta, (128, 192), ceiling, cancel)?;
+            if candidate.texture < 4.0 {
+                continue;
+            }
+            if best.is_none_or(|(_, old)| candidate.error < old.error) {
+                if let Some((_, old)) = best {
+                    second = second.min(old.error);
+                }
+                best = Some((delta, candidate));
+            } else {
+                second = second.min(candidate.error);
+            }
+        }
+        if sparse_overflow
+            && best.is_some_and(|(_, candidate)| candidate.error <= options.maximum_mean_error)
+        {
+            return Ok(ApproximateMatch::Ambiguous);
+        }
+    }
     let Some((delta, candidate)) = best else {
         return Ok(ApproximateMatch::LowTexture);
     };
@@ -182,7 +233,7 @@ pub(super) fn match_views(
     if second <= candidate.error + 2.0 {
         return Ok(ApproximateMatch::Ambiguous);
     }
-    let verified = score(previous, current, axis, delta, (128, 192), cancel)?;
+    let verified = score(previous, current, axis, delta, (128, 192), ceiling, cancel)?;
     if verified.texture < 4.0 {
         return Ok(ApproximateMatch::LowTexture);
     }

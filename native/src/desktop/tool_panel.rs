@@ -30,12 +30,17 @@ mod keyboard;
 #[cfg(test)]
 #[path = "tool_panel_layout_tests.rs"]
 mod layout_tests;
+#[path = "edit_strip_popup.rs"]
+pub(super) mod popup;
 #[path = "tool_panel_position.rs"]
 mod position;
+#[path = "edit_strip.rs"]
+mod strip;
+pub(super) use strip::{follow, moving_positions};
 #[path = "tool_panel_scroll.rs"]
 mod scroll;
 use children::layout;
-const EXECUTE: u32 = WM_APP + 90;
+pub(super) const EXECUTE: u32 = WM_APP + 90;
 fn entries() -> impl Iterator<Item = (usize, &'static str)> {
     super::tool_commands::TOOLS
         .iter()
@@ -44,6 +49,12 @@ fn entries() -> impl Iterator<Item = (usize, &'static str)> {
 }
 
 pub(super) unsafe fn translate(state: &State, message: &MSG) -> bool {
+    if super::pin_settings::translate(state, message) {
+        return true;
+    }
+    if keyboard::translate_property(state, message) {
+        return true;
+    }
     let Some(owner) = keyboard::owner(state) else {
         return false;
     };
@@ -57,8 +68,19 @@ pub(super) unsafe fn translate(state: &State, message: &MSG) -> bool {
     if keyboard::translate(state, message) {
         return true;
     }
+    if neuro_mini_ui::is_toolbar(panel)
+        && super::edit_mode::shortcut(
+            owner,
+            state,
+            message.message,
+            message.wParam.0,
+            message.lParam.0 & (1 << 30) != 0,
+        )
+    {
+        return true;
+    }
     let handled = IsDialogMessageW(panel, message).as_bool();
-    if handled {
+    if handled && !neuro_mini_ui::is_toolbar(panel) {
         scroll::reveal_focus(panel);
     }
     handled
@@ -233,6 +255,9 @@ unsafe fn effect_controls_smoke(owner: HWND, state: &State) -> Result<()> {
 }
 
 pub(super) unsafe fn create(owner: HWND, state: &State, visible: bool) -> Result<Window> {
+    if state.canvas.borrow().pinned {
+        return strip::create(owner, state, visible);
+    }
     let instance = HINSTANCE(GetModuleHandleW(None)?.0);
     let class = w!("OtterNativeToolPanel");
     let descriptor = WNDCLASSW {
@@ -308,6 +333,10 @@ pub(super) unsafe fn create(owner: HWND, state: &State, visible: bool) -> Result
     Ok(panel)
 }
 pub(super) unsafe fn invalidate(state: &State) {
+    if neuro_mini_ui::is_toolbar(state.tool_panel.get()) {
+        strip::refresh(state);
+        return;
+    }
     if !content::ready(state.tool_panel.get()) {
         return;
     }
@@ -333,6 +362,10 @@ pub(super) unsafe fn refresh(owner: HWND) {
         return;
     }
     let state = &*pointer;
+    if neuro_mini_ui::is_toolbar(state.tool_panel.get()) {
+        strip::refresh(state);
+        return;
+    }
     if !IsWindow(Some(state.tool_panel.get())).as_bool() || !content::ready(state.tool_panel.get())
     {
         return;
@@ -348,7 +381,7 @@ pub(super) unsafe fn refresh(owner: HWND) {
         return;
     };
     let mask = entries().enumerate().fold(0u64, |mask, (index, (id, _))| {
-        mask | ((available.allows(id) as u64) << index)
+        mask | ((available.presentation().allows(id) as u64) << index)
     });
     if state.tool_panel_enabled.replace(mask) != mask {
         let panel = state.tool_panel.get();
@@ -373,6 +406,26 @@ pub(super) unsafe fn dispatch(
         return Some(result);
     }
     if msg == EXECUTE {
+        if neuro_mini_ui::is_toolbar(state.tool_panel.get()) {
+            if lp.0 == neuro_mini_ui::PANEL {
+                if let Err(e) = super::pin_settings::execute(hwnd, state, wp.0 as u16) {
+                    eprintln!("native-pin-settings: {e}");
+                }
+            } else if lp.0 == neuro_mini_ui::PANEL_CLOSE {
+                super::pin_settings::close(state);
+            } else if lp.0 == neuro_mini_ui::PROPERTY {
+                if let Err(e) = super::edit_properties::execute(hwnd, state, wp.0 as u16) {
+                    eprintln!("native-edit-properties: {e}");
+                }
+            } else if wp.0 == 0 && lp.0 == neuro_mini_ui::PREPARED {
+                strip::refresh(state);
+            } else if wp.0 == 0 && lp.0 == neuro_mini_ui::CLOSE {
+                strip::close(hwnd, state);
+            } else {
+                strip::execute(hwnd, state, wp.0, lp.0 == 1);
+            }
+            return Some(LRESULT(0));
+        }
         if Availability::capture(state).is_some_and(|available| available.allows(wp.0)) {
             if let Err(error) = super::context_menu::execute(hwnd, state, wp.0) {
                 eprintln!("native-tool-panel: {error}");

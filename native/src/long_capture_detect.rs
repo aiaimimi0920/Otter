@@ -101,10 +101,13 @@ impl Detect {
         }
     }
     pub fn to_spatial(&self, cancel: &AtomicBool) -> Result<SpatialSession, Error> {
-        self.session
-            .as_ref()
-            .ok_or(Error::CrossAxis)?
-            .to_spatial(cancel)
+        if cancel.load(Ordering::Acquire) {
+            return Err(Error::Cancelled);
+        }
+        match &self.session {
+            Some(session) => session.to_spatial(cancel),
+            None => SpatialSession::detecting(self.reference.clone()),
+        }
     }
     fn initial(&self) -> Result<Session, Error> {
         Session::new(
@@ -125,17 +128,7 @@ fn candidate(
     Ok((session, result))
 }
 fn options(axis: Axis, frame: &Frame) -> MatchOptions {
-    let (width, height) = frame.dimensions();
-    let length = if axis == Axis::Vertical {
-        height
-    } else {
-        width
-    };
-    MatchOptions {
-        minimum_overlap: (length / 4).clamp(1, 64),
-        maximum_shift: length.saturating_sub(1),
-        maximum_mean_error: 3.0,
-    }
+    MatchOptions::for_detection(axis, frame)
 }
 
 #[cfg(test)]

@@ -62,7 +62,7 @@ impl Chrome {
             })
         }
     }
-    pub(super) unsafe fn draw(&self, target: &ID2D1RenderTarget, size: D2D_SIZE_U) {
+    pub(super) unsafe fn draw(&self, target: &ID2D1RenderTarget, size: D2D_SIZE_U, selected: bool) {
         let (w, h) = (size.width as f32, size.height as f32);
         let t = LINE.min(w / 2.0).min(h / 2.0);
         for r in [
@@ -71,7 +71,7 @@ impl Chrome {
             rect(0.0, 0.0, t, h),
             rect(w - t, 0.0, w, h),
         ] {
-            target.FillRectangle(&r, &self.green);
+            target.FillRectangle(&r, if selected { &self.yellow } else { &self.green });
         }
         for r in arms(size, LINE) {
             target.FillRectangle(&r, &self.yellow);

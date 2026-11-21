@@ -98,11 +98,11 @@ fn enter_space_disclose_once_and_escape_keyup_never_deletes_the_origin() {
         key(&app, VK_F6, &[], false);
         let port = at(0, Side::Input);
         assert!(key(&app, VK_RETURN, &[], false));
-        assert!(app.chrome.ui.disclosed.borrow().contains(&port));
+        assert_eq!(app.chrome.ui.disclosed.borrow().get(&port), Some(&true));
         assert!(key(&app, VK_RETURN, &[], true));
-        assert!(app.chrome.ui.disclosed.borrow().contains(&port));
+        assert_eq!(app.chrome.ui.disclosed.borrow().get(&port), Some(&true));
         assert!(key(&app, VK_SPACE, &[], false));
-        assert!(!app.chrome.ui.disclosed.borrow().contains(&port));
+        assert_eq!(app.chrome.ui.disclosed.borrow().get(&port), Some(&false));
         assert!(key(&app, VK_ESCAPE, &[], false));
         assert_eq!(GetFocus(), host);
         assert!(key(&app, VK_ESCAPE, &[], true));

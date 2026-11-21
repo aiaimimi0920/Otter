@@ -9,6 +9,8 @@ use crate::{
 use serde_json::{json, Value};
 #[path = "application_projection_edit_automation_tests.rs"]
 mod automation;
+#[path = "application_projection_edit_default_tests.rs"]
+mod default_collaboration;
 #[path = "application_projection_edit_source_guard_tests.rs"]
 mod guard;
 #[path = "application_projection_edit_source_peer.rs"]
@@ -166,7 +168,7 @@ fn source_menu_freezes_basis_initializes_existing_targets_and_later_target_attac
         let targets = app.projection_source_targets(&unit, &origin);
         let latest = targets
             .iter()
-            .find(|t| t.binding.target() == "receiver-2")
+            .find(|t| t.binding.target() == Some("receiver-2"))
             .unwrap()
             .binding
             .envelope()

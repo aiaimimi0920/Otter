@@ -111,6 +111,7 @@ fn bitmap_stream_accepts_real_bmp_without_relabeling_it_as_png() {
         width,
         height,
         thumbnail,
+        preview,
     }) = decode(&package, MAX_TOTAL_BYTES).unwrap()
     else {
         panic!("Missing BMP")
@@ -119,6 +120,8 @@ fn bitmap_stream_accepts_real_bmp_without_relabeling_it_as_png() {
     assert_eq!(&encoded[..], bytes);
     assert_eq!((thumbnail.width(), thumbnail.height()), (1, 1));
     assert_eq!(thumbnail.pixels(), &[20, 40, 60, 255]);
+    assert_eq!((preview.width, preview.height), (1, 1));
+    assert_eq!(&preview.pixels[..], &[20, 40, 60, 255]);
 }
 #[test]
 fn bitmap_keeps_encoded_bytes_and_has_priority_over_text() {
@@ -131,6 +134,7 @@ fn bitmap_keeps_encoded_bytes_and_has_priority_over_text() {
         width,
         height,
         thumbnail,
+        preview,
     }) = decode(&package, MAX_TOTAL_BYTES).unwrap()
     else {
         panic!("Missing bitmap")
@@ -138,6 +142,8 @@ fn bitmap_keeps_encoded_bytes_and_has_priority_over_text() {
     assert_eq!((width, height), (32, 32));
     assert_eq!(&encoded[..], png);
     assert_eq!((thumbnail.width(), thumbnail.height()), (32, 32));
+    assert_eq!((preview.width, preview.height), (32, 32));
+    assert!(decode(&package, png.len() + 32 * 32 * 4).unwrap().is_none());
     assert!(decode(&package, png.len() - 1).unwrap().is_none());
     let invalid = bitmap(b"not an image");
     invalid

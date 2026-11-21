@@ -25,6 +25,7 @@ unsafe fn window() -> crate::desktop::Window {
 fn startup_hide_restore_and_visible_callback_keep_the_resident_icon() {
     unsafe {
         let state = State::new(None, false).unwrap();
+        state.canvas.borrow_mut().pinned = true;
         let owner = window();
         let calls = std::cell::RefCell::new(Vec::new());
         start_with(&state, || {
@@ -54,6 +55,68 @@ fn startup_hide_restore_and_visible_callback_keep_the_resident_icon() {
         );
         assert!(IsWindowVisible(owner.0).as_bool());
         assert!(state.tray.installed.get());
+    }
+}
+
+#[test]
+fn empty_host_stays_hidden_after_mouse_or_keyboard_tray_activation() {
+    unsafe {
+        let state = State::new(None, false).unwrap();
+        let owner = window();
+        start_with(&state, || install_with(&state.tray.installed, |_| true)).unwrap();
+        for hidden in [false, true] {
+            state.tray.hidden.set(hidden);
+            for event in [NIN_SELECT, NIN_KEYSELECT] {
+                dispatch(
+                    owner.0,
+                    &state,
+                    CALLBACK,
+                    WPARAM(0),
+                    LPARAM(((ID << 16) | event) as isize),
+                );
+                assert!(!IsWindowVisible(owner.0).as_bool());
+                assert_eq!(is_hidden(&state), hidden);
+                assert!(is_resident(&state) && state.tray.installed.get());
+                let canvas = state.canvas.borrow();
+                assert!(!canvas.pinned && canvas.image.is_none());
+            }
+        }
+        let (menu, _) = build_menu(&state).unwrap();
+        assert_eq!(GetMenuItemCount(Some(menu.0)), 7);
+    }
+}
+
+#[test]
+fn tray_activation_still_restores_image_documents_and_pins_without_images() {
+    unsafe {
+        for pinned in [false, true] {
+            let state = State::new(None, false).unwrap();
+            {
+                let mut canvas = state.canvas.borrow_mut();
+                canvas.pinned = pinned;
+                if !pinned {
+                    canvas.image = Some(crate::desktop::image::Image {
+                        width: 1,
+                        height: 1,
+                        pixels: vec![17, 83, 211, 255].into(),
+                    });
+                }
+            }
+            let owner = window();
+            start_with(&state, || install_with(&state.tray.installed, |_| true)).unwrap();
+            for event in [NIN_SELECT, NIN_KEYSELECT] {
+                hide_with(owner.0, &state, || Ok(())).unwrap();
+                dispatch(
+                    owner.0,
+                    &state,
+                    CALLBACK,
+                    WPARAM(0),
+                    LPARAM(((ID << 16) | event) as isize),
+                );
+                assert!(IsWindowVisible(owner.0).as_bool());
+                assert!(!is_hidden(&state) && state.tray.installed.get());
+            }
+        }
     }
 }
 

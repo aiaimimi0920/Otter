@@ -6,6 +6,11 @@ pub(super) struct Pending {
     revision: u64,
 }
 impl Application {
+    pub(in crate::desktop::application) fn checkpoint_writes_stopped(&self) -> bool {
+        self.workspace_checkpoint
+            .as_ref()
+            .is_some_and(|owner| owner.stopped)
+    }
     pub(in crate::desktop::application) fn checkpoint_exit_waiting(&self) -> bool {
         self.workspace_checkpoint
             .as_ref()

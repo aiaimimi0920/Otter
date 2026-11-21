@@ -18,9 +18,14 @@ pub struct RasterRefreshPlan {
     base_mapping_changed: bool,
     full_logical_frame: Option<crate::crop_geometry::Rect>,
     crop_change: Option<Option<CropView>>,
+    mirror_change: Option<MirrorState>,
 }
 
 impl RasterRefreshPlan {
+    pub(super) fn with_mirror_target(mut self, next: MirrorState) -> Self {
+        self.mirror_change = Some(next);
+        self
+    }
     pub fn requires_effect_compute(&self) -> bool {
         self.replacements
             .iter()
@@ -75,6 +80,7 @@ impl RasterRefreshPlan {
             base_mapping_changed: false,
             full_logical_frame: editor.full_logical_frame(),
             crop_change: None,
+            mirror_change: None,
         })
     }
     pub fn matches_source(&self, source: &Layers, revision: u64) -> bool {
@@ -219,6 +225,7 @@ impl Editor {
             base_mapping_changed: false,
             full_logical_frame: self.full_logical_frame(),
             crop_change: None,
+            mirror_change: None,
         }))
     }
 
@@ -255,6 +262,9 @@ impl Editor {
         let mut entry = Entry::raster_refreshed(previous, plan.replacements, removed);
         if let Some(next) = plan.crop_change {
             entry = entry.with_crop(std::mem::replace(&mut self.crop, next));
+        }
+        if let Some(next) = plan.mirror_change {
+            entry = entry.with_mirror(std::mem::replace(&mut self.mirror, next));
         }
         self.retained_points -= self.history.record(entry);
         self.revision = self.revision.wrapping_add(1);

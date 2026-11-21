@@ -97,6 +97,9 @@ impl Canvas {
             .map_or_else(Vec::new, |(index, _)| vec![index])
     }
     pub(super) fn toggle_selection_at(&mut self, point: Point) -> bool {
+        if !self.selection_enabled {
+            return false;
+        }
         self.cancel_gesture();
         let Some(point) = self.image_point(point, false) else {
             return false;

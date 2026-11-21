@@ -93,7 +93,7 @@ fn initial_native_titles_are_preserved_before_panel_is_shown() {
         let fixture = Fixture::new();
         for (hwnd, expected) in [
             (fixture.owner.0, "toolbar keyboard fixture"),
-            (fixture.panel.0, "Otter · 工具（Ctrl+E / F4）"),
+            (fixture.panel.0, "贴图编辑"),
         ] {
             let mut title = [0; 64];
             let length = GetWindowTextW(hwnd, &mut title) as usize;
@@ -141,8 +141,9 @@ fn real_host_ctrl_e_materializes_once_and_reuses_panel_without_changing_document
         assert!(!content::ready(fixture.panel.0));
         fixture.key(0x45, false);
         assert!(fixture.visible());
-        let controls: Vec<_> = entries()
-            .map(|(id, _)| GetDlgItem(Some(fixture.panel.0), id as i32).unwrap())
+        let controls: Vec<_> = strip::control_ids()
+            .into_iter()
+            .map(|id| GetDlgItem(Some(fixture.panel.0), id).unwrap())
             .collect();
         fixture.key(0x45, true);
         assert!(fixture.visible());
@@ -154,13 +155,18 @@ fn real_host_ctrl_e_materializes_once_and_reuses_panel_without_changing_document
         assert!(fixture.visible());
         assert_eq!(
             controls,
-            entries()
-                .map(|(id, _)| GetDlgItem(Some(fixture.panel.0), id as i32).unwrap())
+            strip::control_ids()
+                .into_iter()
+                .map(|id| GetDlgItem(Some(fixture.panel.0), id).unwrap())
                 .collect::<Vec<_>>()
         );
         assert!(before.matches(&fixture.state.canvas.borrow().editor));
         assert_eq!(fixture.state.unit_id, unit);
-        assert_eq!(fixture.state.canvas.borrow().tool, tool);
+        assert_eq!(tool, crate::editor::Tool::Pan);
+        assert_eq!(
+            fixture.state.canvas.borrow().tool,
+            crate::editor::Tool::Select
+        );
         assert_eq!(
             &fixture.state.canvas.borrow().image.as_ref().unwrap().pixels[..4],
             &[10, 20, 30, 255]
@@ -182,7 +188,7 @@ fn child_ctrl_e_closes_only_its_panel_and_repeat_does_not_reopen_it() {
         let other = Fixture::new();
         fixture.key(0x45, false);
         other.key(0x45, false);
-        let button = GetDlgItem(Some(fixture.panel.0), 0x53).unwrap();
+        let button = GetDlgItem(Some(fixture.panel.0), 0x6101).unwrap();
         let message = fixture.message(button, 0x45, false);
         assert!(!super::super::translate(&other.state, &message));
         assert!(super::super::translate(&fixture.state, &message));
@@ -197,7 +203,7 @@ fn child_ctrl_e_closes_only_its_panel_and_repeat_does_not_reopen_it() {
 }
 
 #[test]
-fn f4_compatibility_and_escape_keep_existing_panel_close_route() {
+fn f4_closes_toolbar_but_idle_editing_escape_deletes_its_pin() {
     unsafe {
         let _keys = Keys::held(&[]);
         let fixture = Fixture::new();
@@ -215,7 +221,7 @@ fn f4_compatibility_and_escape_keep_existing_panel_close_route() {
             &fixture.state,
             &fixture.message(fixture.panel.0, VK_ESCAPE.0 as usize, false)
         ));
-        assert!(!fixture.visible());
+        assert!(!IsWindow(Some(fixture.owner.0)).as_bool());
     }
 }
 
@@ -274,6 +280,33 @@ fn toolbar_keys_respect_capture_modal_group_and_system_session_gates() {
 }
 
 #[test]
+fn property_edit_escape_discards_its_draft_without_deleting_the_pin() {
+    unsafe {
+        let _keys = Keys::held(&[]);
+        let f = Fixture::new();
+        f.key(VK_F4.0 as usize, false);
+        f.key(0x42, false);
+        let property = neuro_mini_ui::property_window(f.panel.0).unwrap();
+        let edit = GetDlgItem(
+            Some(property),
+            i32::from(crate::desktop::edit_properties::WIDTH) * 4,
+        )
+        .unwrap();
+        let mut before = [0; 32];
+        let n = GetWindowTextW(edit, &mut before);
+        SetWindowTextW(edit, w!("88")).unwrap();
+        assert!(super::super::translate(
+            &f.state,
+            &f.message(edit, VK_ESCAPE.0 as usize, false)
+        ));
+        assert!(IsWindow(Some(f.owner.0)).as_bool() && f.visible());
+        let mut after = [0; 32];
+        assert_eq!(GetWindowTextW(edit, &mut after), n);
+        assert_eq!(before, after);
+    }
+}
+
+#[test]
 fn plain_e_and_modified_e_do_not_get_consumed_as_toolbar_toggle() {
     unsafe {
         let fixture = Fixture::new();
@@ -301,15 +334,71 @@ fn stale_panel_owner_identity_does_not_toggle_or_consume_foreign_child_input() {
     unsafe {
         let _keys = Keys::held(&[VK_CONTROL]);
         let fixture = Fixture::new();
-        SetWindowLongPtrW(fixture.panel.0, GWLP_USERDATA, 0);
+        let identity = GetWindowLongPtrW(fixture.owner.0, GWLP_USERDATA);
+        SetWindowLongPtrW(fixture.owner.0, GWLP_USERDATA, 0);
         fixture.key(0x45, false);
         assert!(!fixture.visible());
         assert!(!super::super::translate(
             &fixture.state,
             &fixture.message(fixture.panel.0, 0x45, false)
         ));
-        SetWindowLongPtrW(fixture.panel.0, GWLP_USERDATA, fixture.owner.0 .0 as isize);
+        SetWindowLongPtrW(fixture.owner.0, GWLP_USERDATA, identity);
         fixture.key(0x45, false);
         assert!(fixture.visible());
+    }
+}
+
+#[test]
+fn ctrl_c_from_toolbar_button_copies_only_its_pin_and_repeat_does_not_start_work() {
+    unsafe {
+        let _keys = Keys::held(&[VK_CONTROL]);
+        let f = Fixture::new();
+        let other = Fixture::new();
+        f.key(0x45, false);
+        let button = GetDlgItem(Some(f.panel.0), 0x6101).unwrap();
+        SetFocus(Some(button)).unwrap();
+        let repeat = f.message(button, 0x43, true);
+        assert!(super::super::translate(&f.state, &repeat));
+        assert!(f.state.copy_job.borrow().is_none());
+        let key = f.message(button, 0x43, false);
+        assert!(!super::super::translate(&other.state, &key));
+        assert!(super::super::translate(&f.state, &key));
+        assert!(f.state.copy_job.borrow().is_some());
+        assert!(other.state.copy_job.borrow().is_none());
+        crate::desktop::copy_job::cancel(&f.state);
+    }
+}
+
+#[test]
+fn ctrl_c_keeps_edit_text_copy_but_reaches_canvas_after_direct_activation() {
+    unsafe {
+        let f = Fixture::new();
+        {
+            let _keys = Keys::held(&[]);
+            f.key(VK_F4.0 as usize, false);
+            f.key(0x42, false);
+        }
+        let property = neuro_mini_ui::property_window(f.panel.0).unwrap();
+        let edit = GetDlgItem(
+            Some(property),
+            i32::from(crate::desktop::edit_properties::WIDTH) * 4,
+        )
+        .unwrap();
+        let _keys = Keys::held(&[VK_CONTROL]);
+        SetFocus(Some(edit)).unwrap();
+        assert!(!crate::desktop::clipboard_input::translate(
+            f.owner.0,
+            &f.message(edit, 0x43, false)
+        ));
+        assert!(
+            f.state.copy_job.borrow().is_none(),
+            "text Ctrl+C must not copy the image"
+        );
+        SetFocus(Some(f.owner.0)).unwrap();
+        f.key(0x43, true);
+        assert!(f.state.copy_job.borrow().is_none());
+        f.key(0x43, false);
+        assert!(f.state.copy_job.borrow().is_some());
+        crate::desktop::copy_job::cancel(&f.state);
     }
 }

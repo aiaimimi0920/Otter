@@ -51,6 +51,10 @@ pub(crate) enum Command {
         snapshot: Value,
         resources: Value,
     },
+    SelectView {
+        #[serde(rename = "viewId")]
+        view_id: crate::art_surface_views::Id,
+    },
     Click {
         target: String,
     },

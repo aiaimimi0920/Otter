@@ -118,42 +118,44 @@ jobs:
         with:
           components: rustfmt
 
-      - name: Cache Rust build
+      - name: Cache native Rust dependencies
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
-          workspaces: src-tauri
-        env:
-          NODE_OPTIONS: --no-deprecation
+          workspaces: native
 
-      - name: Install npm dependencies
-        run: npm ci --no-audit --no-fund
-
-      - name: Rust tests
-        shell: powershell
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-rust-tests-ci.ps1
-
-      - name: Native migration format, tests and build
+      - name: Fetch locked native dependencies and run native tests
         shell: powershell
         run: |
-          node scripts/release/third-party-sources.cjs .
+          if (-not (Get-Command rc.exe,llvm-rc.exe -ErrorAction SilentlyContinue)) {
+            $env:OTTER_NATIVE_RC = Join-Path $env:ProgramFiles 'LLVM\bin\llvm-rc.exe'
+            if (-not (Test-Path -LiteralPath $env:OTTER_NATIVE_RC -PathType Leaf)) { throw 'Windows resource compiler not found' }
+            "OTTER_NATIVE_RC=$env:OTTER_NATIVE_RC" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          }
+          cargo fetch --locked --manifest-path native/Cargo.toml
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          cargo fmt --check --manifest-path native/Cargo.toml
+          cargo fmt --all --check --manifest-path native/Cargo.toml
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          cargo test --locked --manifest-path native/Cargo.toml
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          cargo build --locked --release --manifest-path native/Cargo.toml
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo test --locked --offline --workspace --manifest-path native/Cargo.toml -- --test-threads=1
 
-      - name: Build portable Otter EXE
+      - name: Build and verify the native Windows internal package
         shell: powershell
         run: |
-          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-local-otter-exe.ps1 -OutputDir "release\Otter\portable" -Force
+          $candidate = Join-Path $env:RUNNER_TEMP 'otter-native-candidate'
+          $target = Join-Path $env:RUNNER_TEMP 'otter-native-release-target'
+          $package = Join-Path $env:RUNNER_TEMP 'otter-native-package'
+          & .\scripts\build-native-candidate.ps1 -OutputDirectory $candidate -TargetDirectory $target
+          & .\scripts\package-native-candidate.ps1 -CandidateDirectory $candidate -OutputDirectory $package
+          $zip = @(Get-ChildItem -LiteralPath $package -Filter '*-internal.zip' -File)
+          if ($zip.Count -ne 1) { throw 'Expected exactly one native ZIP' }
+          & .\scripts\verify-native-package.ps1 -ZipPath $zip[0].FullName
 
-      - name: Stage unvalidated Otter build candidate
+      - name: Stage verified native internal package
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: otter-build-candidate
-          path: release/Otter/portable/otter.exe
+          path: |
+            ${{ runner.temp }}/otter-native-package/*-internal.zip
+            ${{ runner.temp }}/otter-native-package/archive-verification.json
           if-no-files-found: error
           retention-days: 1
 
@@ -192,12 +194,14 @@ jobs:
         with:
           name: otter-build-candidate
           path: candidate
-      - name: Upload portable Otter EXE artifact
+      - name: Upload portable Otter native package
         if: needs.change-scope.outputs.full == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: otter-portable-windows-x64
-          path: candidate/otter.exe
+          path: |
+            candidate/*-internal.zip
+            candidate/archive-verification.json
           if-no-files-found: error
 
   parallel-race:

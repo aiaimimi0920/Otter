@@ -12,6 +12,10 @@ impl Presentation {
         if !self.begin_text_selection(point)? {
             return Ok(false);
         }
+        self.select_initial_word(point)?;
+        Ok(true)
+    }
+    pub(super) fn select_initial_word(&mut self, point: [f32; 2]) -> Result<()> {
         let selection = self.selection.as_mut().unwrap();
         let item = self
             .text
@@ -31,7 +35,7 @@ impl Presentation {
             initial_point: point,
             moved: false,
         });
-        Ok(true)
+        Ok(())
     }
 }
 pub(super) fn extend(

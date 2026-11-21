@@ -1,4 +1,5 @@
 //! 原生连线菜单只提交身份绑定请求；拓扑修改由应用线程统一处理。
+#[cfg(test)]
 use super::State;
 use crate::{
     workspace::{Link, TopologyStamp, Workspace},
@@ -38,11 +39,13 @@ impl Snapshot {
                 .collect(),
         })
     }
+    #[cfg(test)]
     fn handles(&self, command: usize) -> bool {
         command
             .checked_sub(FIRST)
             .is_some_and(|index| index < self.links.len())
     }
+    #[cfg(test)]
     pub unsafe fn queue(
         self: &Rc<Self>,
         hwnd: HWND,
@@ -143,6 +146,7 @@ impl Snapshot {
         Ok(())
     }
 }
+#[cfg(test)]
 pub(super) unsafe fn append(parent: HMENU, state: &State) -> Result<Option<Rc<Snapshot>>> {
     let snapshot = state.link_menu.borrow().clone();
     if let Some(snapshot) = &snapshot {
@@ -150,6 +154,7 @@ pub(super) unsafe fn append(parent: HMENU, state: &State) -> Result<Option<Rc<Sn
     }
     Ok(snapshot)
 }
+#[cfg(test)]
 pub(super) unsafe fn apply(
     snapshot: Option<Rc<Snapshot>>,
     hwnd: HWND,

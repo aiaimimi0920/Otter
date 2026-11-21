@@ -11,7 +11,8 @@ pub(super) unsafe fn saved(fixture: &mut Fixture) {
         .start_checkpoint_with(&mut |_, _, message, warning| assert!(!warning, "{message}"));
     checkpoint(&mut fixture.app);
     fixture.app.reset_projection_inbox();
-    fixture.app.process_authorization();
+    // 新保存的 scope 会启动本地账号 journal 核对；沿消息泵结算后再驱动显式操作。
+    until(&mut fixture.app, |app| !app.account_projection.busy());
     assert!(!fixture.app.projection_receive.busy());
     assert!(fixture
         .app

@@ -10,8 +10,9 @@ impl Application {
             session.bind_workspace_chrome(self.chrome.bind());
         }
         if visible && self.capture_active.get() {
+            drawer::cancel(&self.chrome.ui);
+            candidate_auxiliary::cancel(&self.chrome.ui);
             self.chrome.ui.redraw_after_capture.set(true);
-            capsule::cancel(&self.chrome.ui);
             self.chrome.ui.keyboard.retire();
             self.chrome.ui.cancel();
             self.chrome.ui.pending.borrow_mut().take();
@@ -27,7 +28,6 @@ impl Application {
             window::hide(&self.chrome.ui);
             return;
         }
-        let resume = capsule::drain(self);
         let catalog = self
             .documents
             .first()
@@ -47,6 +47,9 @@ impl Application {
                 Catalog::capture(&self.documents, &self.live_sessions, &self.workspace)
             });
         let (scene, nodes) = scene::Scene::capture(self, catalog);
+        let auxiliary = candidate_auxiliary::capture(self, &nodes);
+        let auxiliary_changed = *self.chrome.ui.auxiliary_counts.borrow() != auxiliary;
+        *self.chrome.ui.auxiliary_counts.borrow_mut() = auxiliary;
         let changed = self
             .chrome
             .ui
@@ -55,13 +58,13 @@ impl Application {
             .as_ref()
             .is_none_or(|old| !Rc::ptr_eq(&old.catalog, &scene.catalog));
         if changed {
-            capsule::cancel(&self.chrome.ui);
             self.chrome.ui.cancel();
             self.chrome.ui.keyboard.retire();
-            self.chrome.ui.disclosed.borrow_mut().clear();
         }
+        disclosure::sync(&self.chrome.ui, &scene.catalog, &nodes);
         let geometry_changed = *self.chrome.ui.nodes.borrow() != nodes;
         *self.chrome.ui.nodes.borrow_mut() = nodes;
+        selection::reconcile(&self.chrome.ui);
         *self.chrome.ui.scene.borrow_mut() = Some(scene);
         keyboard::reconcile(&self.chrome.ui);
         *self.chrome.ui.gates.borrow_mut() = Some(scene::Gates {
@@ -70,9 +73,6 @@ impl Application {
             capture: self.capture_active.clone(),
             exit: self.exit_requested.clone(),
         });
-        if let Some(resume) = resume {
-            capsule::resume(&self.chrome.ui, resume);
-        }
         if self.chrome.windows.is_none() && !self.chrome.ui.nodes.borrow().is_empty() {
             match window::Windows::new(self.chrome.ui.clone()) {
                 Ok(windows) => self.chrome.windows = Some(windows),
@@ -86,6 +86,7 @@ impl Application {
         let resume_capture = self.chrome.ui.redraw_after_capture.replace(false);
         if changed
             || geometry_changed
+            || auxiliary_changed
             || resume_capture
             || !IsWindowVisible(self.chrome.ui.drawing.get()).as_bool()
         {
@@ -100,7 +101,13 @@ impl Application {
             }
             self.sync_capture_windows();
         }
-        capsule::mount(self);
+        if let Err(error) = parameter_rail::sync(self) {
+            self.chrome.ui.fail(error);
+        }
+        if let Err(error) = drawer::sync(self) {
+            self.chrome.ui.fail(error);
+        }
+        self.sync_capture_windows();
         self.report_workspace_chrome_failure();
     }
     unsafe fn report_workspace_chrome_failure(&self) {
@@ -135,7 +142,7 @@ impl Application {
         &self,
         message: &MSG,
     ) -> bool {
-        if capsule::translate(&self.chrome.ui, message) {
+        if drawer::translate(&self.chrome.ui, message) {
             return true;
         }
         if keyboard::translate(&self.chrome.ui, message) {
@@ -186,7 +193,6 @@ impl Application {
             return false;
         }
         if message.lParam.0 & (1 << 30) == 0 {
-            capsule::cancel(&self.chrome.ui);
             self.chrome.ui.cancel();
             self.chrome.ui.reported.set(None);
             self.chrome.ui.mode.set(self.chrome.ui.mode.get().next());

@@ -136,7 +136,7 @@ fn idle_pinned_escape_closes_only_its_host_and_owned_panel() {
 }
 
 #[test]
-fn editing_and_selection_escape_cancel_without_closing_the_pin() {
+fn drawing_escape_cancels_then_a_fresh_idle_escape_closes_without_switching_tool() {
     let _apartment = Apartment::new().unwrap();
     unsafe {
         let _keys = Keys::held(&[]);
@@ -153,12 +153,6 @@ fn editing_and_selection_escape_cancel_without_closing_the_pin() {
         assert!(fixture.alive());
         assert!(fixture.state.canvas.borrow().editor.draft().is_none());
         assert_eq!(fixture.state.canvas.borrow().tool, Tool::Brush);
-        fixture.state.canvas.borrow_mut().select_tool(Tool::Select);
-        fixture.state.canvas.borrow_mut().selected = Some((0, 0));
-        fixture.escape(false);
-        assert!(fixture.alive());
-        assert!(fixture.state.canvas.borrow().selected.is_none());
-        fixture.state.canvas.borrow_mut().select_tool(Tool::Pan);
         fixture.escape(true);
         assert!(
             fixture.alive(),
@@ -166,6 +160,27 @@ fn editing_and_selection_escape_cancel_without_closing_the_pin() {
         );
         fixture.escape(false);
         assert!(!fixture.alive());
+    }
+}
+
+#[test]
+fn visible_editing_toolbar_and_idle_annotation_selection_do_not_block_pin_deletion() {
+    let _apartment = Apartment::new().unwrap();
+    unsafe {
+        let _keys = Keys::held(&[]);
+        for tool in [Tool::Select, Tool::Brush, Tool::Line] {
+            let f = Fixture::new(true);
+            crate::desktop::tool_panel::prepare(f.panel.0, &f.state).unwrap();
+            let _ = ShowWindow(f.panel.0, SW_SHOWNOACTIVATE);
+            f.state.canvas.borrow_mut().select_tool(tool);
+            if tool == Tool::Select {
+                f.state.canvas.borrow_mut().selected = Some((0, 0));
+            }
+            f.escape(false);
+            assert!(!f.alive());
+            assert!(!IsWindow(Some(f.panel.0)).as_bool());
+            assert!(!f.state.exit_requested.get());
+        }
     }
 }
 

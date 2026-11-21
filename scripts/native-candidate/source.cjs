@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { verifiedSources, verifyResolution, checkedPath } = require('../release/third-party-sources.cjs');
+const design = require('./design-source.cjs');
 const hash = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
 const encoded = value => JSON.stringify(value);
 
@@ -21,11 +22,16 @@ function snapshot(root, metadata) {
   root = fs.realpathSync(root);
   const identities = verifiedSources(root);
   verifyResolution(root, identities, metadata);
-  const allowedLocal = new Set(['otter-native', ...identities.map(p => p.name)]);
+  const designFiles = design.sourceFiles(root, metadata);
+  const allowedLocal = new Set(['otter-native', 'otter-live-hover-hook', ...identities.map(p => p.name)]);
   if (metadata.packages.some(p => p.source == null && !allowedLocal.has(p.name))) {
     throw new Error('Uninventoried local Cargo dependency');
   }
   const native = metadata.packages.filter(p => p.name === 'otter-native');
+  const hook = metadata.packages.filter(p => p.name === 'otter-live-hover-hook');
+  if (hook.length !== 1 || fs.realpathSync(hook[0].manifest_path) !== path.join(root, 'native', 'hover-hook', 'Cargo.toml')) {
+    throw new Error('Native hover package resolution mismatch');
+  }
   if (native.length !== 1 || fs.realpathSync(native[0].manifest_path) !== path.join(root, 'native', 'Cargo.toml')) {
     throw new Error('Native package resolution mismatch');
   }
@@ -38,8 +44,8 @@ function snapshot(root, metadata) {
     'src-tauri/icons/icon.ico', 'src-tauri/icons/32x32.png', 'package.json', 'version-state.json', 'third_party/sources.json',
     'scripts/build-native-candidate.ps1', 'scripts/package-native-candidate.ps1', 'scripts/verify-native-package.ps1',
     'scripts/version-identity.ps1', 'scripts/file-hash.ps1', 'THIRD_PARTY_NOTICES.md',
-    'scripts/release/PathSafety.ps1', 'scripts/release/third-party-sources.cjs']);
-  for (const directory of ['native/src', 'native/tests', 'native/build_support', 'scripts/native-candidate']) {
+    'scripts/release/PathSafety.ps1', 'scripts/release/third-party-sources.cjs', 'scripts/export-native-edit-icons.cjs']);
+  for (const directory of ['native/src', 'native/hover-hook', 'native/assets', 'native/tests', 'native/build_support', 'scripts/native-candidate']) {
     filesUnder(root, directory, names);
   }
   for (const directory of ['.cargo', 'native/.cargo']) {
@@ -57,6 +63,8 @@ function snapshot(root, metadata) {
     const bytes = fs.readFileSync(checkedPath(root, name));
     return { path: name, bytes: bytes.length, sha256: hash(bytes) };
   });
+  files.push(...designFiles);
+  files.sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
   return { schemaVersion: 1, kind: 'otter-native-build-inputs',
     buildVersion: `v${version.publicVersion}.${version.internalRevision}`, productVersion: version.publicVersion,
     internalRevision: version.internalRevision, identities, files, sourceSha256: hash(encoded(files)) };

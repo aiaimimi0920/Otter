@@ -7,6 +7,8 @@ mod admission;
 pub mod checkpoint;
 #[path = "projection_sender_binding_inventory.rs"]
 mod inventory;
+#[path = "projection_sender_binding_invitation.rs"]
+mod invitation;
 #[path = "projection_sender_binding_patch.rs"]
 mod patch;
 #[path = "projection_sender_binding_route.rs"]
@@ -19,7 +21,8 @@ pub(super) const MAX_BINDING_BYTES: usize = 16 * 1024;
 #[serde(rename_all = "camelCase")]
 pub struct Binding {
     link: Link,
-    target: Target,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    target: Option<Target>,
 }
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -37,6 +40,10 @@ struct Link {
     stopped: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     offline_transport: Option<route_binding::Origin>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    receiver_device_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    receiver_unit_id: Option<String>,
 }
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
@@ -45,6 +52,8 @@ struct Marker {
     scope: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     target: Option<String>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    invitation: bool,
 }
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -81,15 +90,20 @@ impl Binding {
     pub fn envelope(&self) -> &Envelope {
         &self.link.envelope
     }
-    pub fn target(&self) -> &str {
+    pub fn target(&self) -> Option<&str> {
         self.link
             .otter_native_send
             .target
             .as_deref()
-            .unwrap_or(&self.target.device_id)
+            .or_else(|| self.target.as_ref().map(|target| target.device_id.as_str()))
     }
     pub fn name(&self) -> &str {
-        &self.target.name
+        self.target
+            .as_ref()
+            .map_or("分享邀请", |target| &target.name)
+    }
+    pub fn is_invitation(&self) -> bool {
+        self.link.otter_native_send.invitation
     }
     pub fn revision(&self) -> u64 {
         self.link.revision
@@ -121,10 +135,10 @@ impl Binding {
             && self.link.otter_native_send.version == 1
             && self.link.otter_native_send.scope == scope
             && envelope::digest(scope)
-            && envelope::identifier(self.target())
+            && self.target().is_none_or(envelope::identifier)
             && self.route_valid()
-            && self.target.name.len() <= 1024
-            && !self.target.name.chars().any(char::is_control)
+            && self.name().len() <= 1024
+            && !self.name().chars().any(char::is_control)
             && (self.envelope().source_revision()..=envelope::MAX_REVISION)
                 .contains(&self.revision())
             && envelope::digest(self.digest())
@@ -138,8 +152,11 @@ impl Binding {
         let object = fields(raw).map_err(|_| Error::Format)?;
         let link =
             fields(object.get("link").ok_or(Error::Format)?.get()).map_err(|_| Error::Format)?;
-        let target =
-            fields(object.get("target").ok_or(Error::Format)?.get()).map_err(|_| Error::Format)?;
+        let target = object
+            .get("target")
+            .map(|raw| fields(raw.get()).map_err(|_| Error::Format))
+            .transpose()?
+            .unwrap_or_default();
         // 明确成对且非null；未知/残缺离线字段仍不能降为在线资格。
         if link.contains_key("offlineTransport") != target.contains_key("peerId")
             || link
@@ -181,19 +198,30 @@ impl Binding {
                 otter_native_send: Marker {
                     version: 1,
                     scope: selection.scope.clone(),
-                    target: offline.map(|_| intent.target().into()),
+                    target: offline.and_then(|_| intent.target().map(str::to_owned)),
+                    invitation: intent.target().is_none(),
                 },
                 stop_pending: false,
                 stopped: false,
                 offline_transport: offline.map(|_| route_binding::Origin {
                     origin: intent.envelope().origin().into(),
                 }),
+                receiver_device_id: intent
+                    .target()
+                    .is_none()
+                    .then(|| response.receiver_device().map(str::to_owned))
+                    .flatten(),
+                receiver_unit_id: intent
+                    .target()
+                    .is_none()
+                    .then(|| response.receiver_unit().map(str::to_owned))
+                    .flatten(),
             },
-            target: Target {
-                device_id: intent.receiver().into(),
+            target: intent.receiver().map(|receiver| Target {
+                device_id: receiver.into(),
                 name: name.into(),
                 peer_id: offline.map(|r| r.peer_id.clone()),
-            },
+            }),
         };
         if !next.valid(intent.unit(), &selection.scope) {
             return Err(Error::Format);
@@ -207,7 +235,11 @@ impl Binding {
         {
             return Err(Error::Changed);
         }
-        let patched = patch::prepare(source, &next, cancel)?;
+        let patched = if next.is_invitation() {
+            invitation::prepare(source, &next, cancel)?
+        } else {
+            patch::prepare(source, &next, cancel)?
+        };
         let index = checkpoint::Index::capture(&patched).ok_or(Error::Format)?;
         if !index.includes(&next) {
             return Err(Error::Changed);

@@ -24,8 +24,12 @@ struct Key<'a> {
     origin: &'a str,
     #[serde(borrow)]
     unit: &'a str,
-    #[serde(borrow)]
-    target: &'a str,
+    #[serde(
+        default,
+        borrow,
+        deserialize_with = "crate::projection_delivery::receive_route::some"
+    )]
+    target: Option<&'a str>,
     #[serde(default, borrow, deserialize_with = "super::super::route::present")]
     offline: Option<&'a RawValue>,
 }

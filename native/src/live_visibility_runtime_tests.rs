@@ -168,7 +168,7 @@ unsafe fn frame(
             Instant::now() < end,
             "WGC visibility frame timed out; armed={} ready={} iconic={} recalled={} bounds={:?} journal={:?} worker={:?}",
             protection.source.armed.get(),
-            protection.source.ticket.ready(),
+            protection.source.ticket.borrow().ready(),
             IsIconic(protection.source.target.hwnd()).as_bool(),
             protection.source.recalled.get(),
             protection.source.target.frame_bounds(),

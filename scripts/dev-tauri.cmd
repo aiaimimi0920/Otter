@@ -6,7 +6,7 @@ if errorlevel 1 exit /b %errorlevel%
 
 if not exist ".output\\public\\index.html" (
   echo [Otter dev-tauri] Missing .output/public/index.html
-  echo [Otter dev-tauri] Run npm run build once before starting tauri dev.
+  echo [Otter dev-tauri] Run npm run build:web once before starting tauri dev.
   exit /b 1
 )
 

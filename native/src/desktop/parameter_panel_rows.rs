@@ -73,15 +73,12 @@ pub(super) unsafe fn build(
                 b.y += height + 4;
                 if row.widget == "slider" {
                     if let Some(range) = spec.slider(initial) {
-                        let rect = layout::field_rect(
-                            b.ui,
-                            RECT {
-                                left: 12,
-                                top: b.y,
-                                right: 428,
-                                bottom: b.y + 28,
-                            },
-                        );
+                        let rect = RECT {
+                            left: 12,
+                            top: b.y,
+                            right: 428,
+                            bottom: b.y + 28,
+                        };
                         let slider = Rc::new(desktop::parameter_slider::Control::create(
                             b.ui.hwnd.get(),
                             layout::scaled(rect, GetDpiForWindow(b.ui.hwnd.get())),

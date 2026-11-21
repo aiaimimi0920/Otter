@@ -32,9 +32,6 @@ struct InputState {
 pub(super) unsafe fn show(owner: HWND, value: String, ratio: bool) -> Option<String> {
     show_input(owner, value, if ratio { Mode::Ratio } else { Mode::Step })
 }
-pub(super) unsafe fn show_text(owner: HWND, value: String) -> Option<String> {
-    show_input(owner, value, Mode::Text)
-}
 pub(super) unsafe fn show_parameters(owner: HWND, value: String) -> Option<String> {
     show_input(owner, value, Mode::Parameters)
 }

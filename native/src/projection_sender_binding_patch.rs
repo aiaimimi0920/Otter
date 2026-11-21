@@ -9,20 +9,26 @@ struct Window<'a> {
 }
 struct Replacement<'a> {
     fields: BTreeMap<String, Cow<'a, RawValue>>,
-    bindings: Vec<Value>,
+    field: &'static str,
+    value: Value,
 }
 impl Serialize for Window<'_> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let Some(Replacement { fields, bindings }) = &self.patch else {
+        let Some(Replacement {
+            fields,
+            field,
+            value: replacement,
+        }) = &self.patch
+        else {
             return self.raw.serialize(serializer);
         };
         let mut map = serializer.serialize_map(None)?;
         for (key, value) in fields {
-            if key != "projectionSenders" {
+            if key != field {
                 map.serialize_entry(key, value)?;
             }
         }
-        map.serialize_entry("projectionSenders", bindings)?;
+        map.serialize_entry(field, replacement)?;
         map.end()
     }
 }
@@ -80,7 +86,7 @@ fn merge(
             value["link"]["revision"] = next.revision().into();
             value["link"]["digest"] = next.digest().into();
             value["link"]["linked"] = next.linked().into();
-            value["target"]["name"] = next.target.name.clone().into();
+            value["target"]["name"] = next.name().into();
             updated = true;
         } else if key.origin == next.envelope().origin()
             && key.projection == next.envelope().projection_id()
@@ -118,6 +124,17 @@ pub(super) fn transform(
     cancel: &AtomicBool,
     mut change: impl FnMut(&BTreeMap<String, Cow<'_, RawValue>>) -> Result<Vec<Value>, Error>,
 ) -> Result<Source, Error> {
+    transform_field(source, target, cancel, "projectionSenders", |object| {
+        change(object).map(Value::Array)
+    })
+}
+pub(super) fn transform_field(
+    source: &Source,
+    target: &str,
+    cancel: &AtomicBool,
+    field: &'static str,
+    mut change: impl FnMut(&BTreeMap<String, Cow<'_, RawValue>>) -> Result<Value, Error>,
+) -> Result<Source, Error> {
     let root = fields(std::str::from_utf8(source).map_err(|_| Error::Format)?)
         .map_err(|_| Error::Format)?;
     let raw: Vec<&RawValue> =
@@ -135,10 +152,11 @@ pub(super) fn transform(
                 return Err(Error::Changed);
             }
             found = true;
-            let bindings = change(&object)?;
+            let value = change(&object)?;
             Some(Replacement {
                 fields: object,
-                bindings,
+                field,
+                value,
             })
         } else {
             None

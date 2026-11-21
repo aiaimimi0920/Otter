@@ -7,6 +7,18 @@ struct Fixture {
     state: Box<State>,
 }
 impl Fixture {
+    unsafe fn legacy(pinned: bool) -> Self {
+        let fixture = Self::new(false);
+        fixture.state.canvas.borrow_mut().pinned = pinned;
+        // 旧网格只用于普通工作区；保留该控件实现的回滚/滚动合同测试。
+        let _ = RemovePropW(fixture.panel.0, w!("Otter.ToolPanel.Content"));
+        let mut child = GetWindow(fixture.panel.0, GW_CHILD).ok();
+        while let Some(hwnd) = child {
+            child = GetWindow(hwnd, GW_HWNDNEXT).ok();
+            let _ = DestroyWindow(hwnd);
+        }
+        fixture
+    }
     unsafe fn new(pinned: bool) -> Self {
         let state = Box::new(State::new(None, false).unwrap());
         state.canvas.borrow_mut().pinned = pinned;
@@ -44,8 +56,8 @@ fn hidden_pin_preserves_panel_owner_without_allocating_unused_buttons() {
         assert!(IsWindow(Some(fixture.panel.0)).as_bool());
         assert_eq!(fixture.state.tool_panel.get(), fixture.panel.0);
         assert_eq!(
-            GetWindowLongPtrW(fixture.panel.0, GWLP_USERDATA),
-            fixture._owner.0 .0 as isize
+            neuro_mini_ui::owner(fixture.panel.0),
+            Some(fixture._owner.0)
         );
         assert!(!IsWindowVisible(fixture.panel.0).as_bool());
         assert!(
@@ -93,12 +105,20 @@ fn first_pin_materialization_projects_current_style_and_busy_gate_once_and_relea
         assert_eq!(fixture.state.tool_panel_style.get(), None);
         prepare(fixture.panel.0, &fixture.state).unwrap();
         assert_eq!(fixture.state.tool_panel_style.get(), Some(style));
-        verify_captions(fixture.panel.0, &fixture.state).unwrap();
-        let button = GetDlgItem(Some(fixture.panel.0), 0x53).unwrap();
+        let button = GetDlgItem(Some(fixture.panel.0), 0x6101).unwrap();
         assert!(!IsWindowEnabled(button).as_bool());
-        let controls = handles(fixture.panel.0);
+        let controls: Vec<_> = strip::control_ids()
+            .into_iter()
+            .map(|id| GetDlgItem(Some(fixture.panel.0), id).unwrap())
+            .collect();
         prepare(fixture.panel.0, &fixture.state).unwrap();
-        assert_eq!(handles(fixture.panel.0), controls);
+        assert_eq!(
+            strip::control_ids()
+                .into_iter()
+                .map(|id| GetDlgItem(Some(fixture.panel.0), id).unwrap())
+                .collect::<Vec<_>>(),
+            controls
+        );
         fixture.state.file_dialog.set(false);
         refresh(fixture._owner.0);
         assert!(IsWindowEnabled(button).as_bool());
@@ -114,7 +134,7 @@ fn first_pin_materialization_projects_current_style_and_busy_gate_once_and_relea
 #[test]
 fn pin_materialization_uses_current_hidden_scroll_geometry() {
     unsafe {
-        let fixture = Fixture::new(true);
+        let fixture = Fixture::legacy(true);
         let panel = fixture.panel.0;
         SetWindowPos(
             panel,
@@ -155,7 +175,7 @@ fn pin_materialization_uses_current_hidden_scroll_geometry() {
 #[test]
 fn failed_partial_pin_materialization_rolls_back_and_retries_without_duplicate_ids() {
     unsafe {
-        let fixture = Fixture::new(true);
+        let fixture = Fixture::legacy(true);
         let mut created = Vec::new();
         let result = content::prepare_with(fixture.panel.0, &fixture.state, || {
             children::create_checked(
@@ -191,7 +211,7 @@ fn failed_partial_pin_materialization_rolls_back_and_retries_without_duplicate_i
 #[test]
 fn showwindow_position_message_prepares_controls_and_reentrant_show_stays_hidden() {
     unsafe {
-        let fixture = Fixture::new(true);
+        let fixture = Fixture::legacy(true);
         content::prepare_with(fixture.panel.0, &fixture.state, || {
             let mut position = WINDOWPOS {
                 hwnd: fixture.panel.0,
@@ -208,7 +228,7 @@ fn showwindow_position_message_prepares_controls_and_reentrant_show_stays_hidden
         })
         .unwrap();
         assert!(content::ready(fixture.panel.0));
-        let fixture = Fixture::new(true);
+        let fixture = Fixture::legacy(true);
         let mut position = WINDOWPOS {
             hwnd: fixture.panel.0,
             flags: SWP_SHOWWINDOW,
@@ -230,7 +250,7 @@ fn showwindow_position_message_prepares_controls_and_reentrant_show_stays_hidden
 #[test]
 fn actual_showwindow_cancels_reentrant_display_then_retries_with_real_button_state() {
     unsafe {
-        let fixture = Fixture::new(true);
+        let fixture = Fixture::legacy(true);
         let panel = fixture.panel.0;
         // 自有面板在屏幕外、非前台展示；不激活 owner、不发送全局输入。
         SetWindowPos(

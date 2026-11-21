@@ -107,6 +107,6 @@ pub(in crate::desktop::application) unsafe fn run(instance: HINSTANCE) -> Result
     {
         return Err(Error::new(E_FAIL, "Frozen removal disk roundtrip mismatch"));
     }
-    println!("native-frozen-remove-smoke: menu=true paged=true both-libraries=true cancel=true stale=true windows-preserved=true disk-revision=3");
+    println!("native-frozen-remove-smoke: menu=true scroll-loaded=true both-libraries=true cancel=true stale=true windows-preserved=true disk-revision=3");
     Ok(())
 }

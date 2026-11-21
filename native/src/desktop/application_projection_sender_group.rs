@@ -110,7 +110,7 @@ impl Batch {
         if !saved.updated
             && saved.expected.unit() == self.selection.unit.as_str()
             && saved.expected.target()
-                == self.selection.directory.targets()[self.entries[index].index].id()
+                == Some(self.selection.directory.targets()[self.entries[index].index].id())
             && saved.previous.same_storage(&self.scope.source)
         {
             self.entries[index].state = State::Saved;

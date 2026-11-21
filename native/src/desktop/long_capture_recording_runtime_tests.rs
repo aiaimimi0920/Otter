@@ -1,4 +1,4 @@
-//! 自建跨进程原生滚动窗 + 真 GDI/DialogBox/worker/preview/finish；只有 wheel 通知是合成的。
+//! 自建跨进程原生源 + 真 GDI/非模态录制/worker/preview/finish；拖动分支没有 wheel 通知。
 use super::*;
 use std::time::Duration;
 use windows::core::BOOL;
@@ -9,6 +9,7 @@ struct Driver {
     fixture: fixture::Fixture,
     axis: Axis,
     forward: bool,
+    drag: bool,
     stage: u8,
     deadline: Instant,
     error: Option<String>,
@@ -59,6 +60,11 @@ unsafe extern "system" fn tick(_: HWND, _: u32, _: usize, _: u32) {
                     let mut text = [0u16; 256]; let count = GetDlgItemTextW(hwnd, 103, &mut text); String::from_utf16_lossy(&text[..count as usize])
                 }
             );
+            // 创建/布局窗口期间 Win32 可以重入 timer；等待产品真正起录后再驱动源。
+            // 起录失败仍由上面的有界 deadline 和实际状态文本报告，不能误作成功。
+            if driver.stage == 0 && !input.recording.running() {
+                return;
+            }
             match driver.stage {
                 0 => {
                     // 只移动自己的控制窗，不覆盖 fixture，不更改用户光标或焦点。
@@ -73,7 +79,7 @@ unsafe extern "system" fn tick(_: HWND, _: u32, _: usize, _: u32) {
                     )
                     .unwrap();
                     assert!(input.recording.running());
-                    driver.fixture.wheel(driver.axis, driver.forward);
+                    move_content(driver);
                     emit(driver, input);
                     driver.stage = 1;
                 }
@@ -84,7 +90,7 @@ unsafe extern "system" fn tick(_: HWND, _: u32, _: usize, _: u32) {
                             == usize::from(driver.stage) + 1 =>
                 {
                     if driver.stage == 1 {
-                        driver.fixture.wheel(driver.axis, driver.forward);
+                        move_content(driver);
                         emit(driver, input);
                         driver.stage = 2;
                     } else {
@@ -123,10 +129,20 @@ unsafe fn emit(driver: &Driver, input: &Input) {
         "owned fixture must remain the bound wheel target"
     );
     let region = driver.fixture.region;
-    let sample =
-        crate::desktop::capture::region(region.left, region.top, region.width, region.height)
-            .unwrap();
     let delta = (i32::from(driver.stage) + 1) * if driver.forward { 8 } else { -8 };
+    let expected = fixture::pixel(
+        136 + if driver.axis == Axis::Horizontal {
+            delta
+        } else {
+            0
+        },
+        136 + if driver.axis == Axis::Vertical {
+            delta
+        } else {
+            0
+        },
+    );
+    let sample = presented_sample(region, expected);
     assert_eq!(
         &sample.pixels[..4],
         &fixture::pixel(
@@ -143,27 +159,51 @@ unsafe fn emit(driver: &Driver, input: &Input) {
         ),
         "owned fixture must really scroll before the synthetic notification"
     );
-    hook::test_notify(point, driver.fixture.hwnd.0 as isize);
+    if !driver.drag {
+        hook::test_notify(point, driver.fixture.hwnd.0 as isize);
+    }
+}
+fn presented_sample(region: Region, expected: [u8; 4]) -> Image {
+    // 子进程绘制已完成不等于桌面合成已呈现；先观察实际 GDI 像素再驱动下一步。
+    let deadline = Instant::now() + Duration::from_secs(2);
+    loop {
+        let sample =
+            crate::desktop::capture::region(region.left, region.top, region.width, region.height)
+                .unwrap();
+        if sample.pixels[..4] == expected {
+            return sample;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "owned fixture was not presented: {:?}, expected {expected:?}",
+            &sample.pixels[..4]
+        );
+        std::thread::sleep(Duration::from_millis(15));
+    }
+}
+fn move_content(driver: &mut Driver) {
+    if driver.drag {
+        driver.fixture.drag(driver.axis, driver.forward);
+    } else {
+        driver.fixture.wheel(driver.axis, driver.forward);
+    }
 }
 #[test]
 #[ignore = "explicit visible owned-window runtime gate; never touches user application input"]
-fn owned_native_window_records_all_four_directions_to_exact_final_pixels() {
+fn owned_native_window_records_wheel_and_drag_in_four_directions_to_exact_final_pixels() {
     unsafe {
         initialize_process_dpi();
         let previous = windows::Win32::UI::HiDpi::SetThreadDpiAwarenessContext(
             windows::Win32::UI::HiDpi::DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2,
         );
-        for axis in [Axis::Vertical, Axis::Horizontal] {
+        for (axis, drag) in [Axis::Vertical, Axis::Horizontal]
+            .into_iter()
+            .flat_map(|axis| [false, true].map(|drag| (axis, drag)))
+        {
             for forward in [true, false] {
                 let fixture = fixture::Fixture::start();
                 let region = fixture.region;
-                let first = crate::desktop::capture::region(
-                    region.left,
-                    region.top,
-                    region.width,
-                    region.height,
-                )
-                .unwrap();
+                let first = presented_sample(region, fixture::pixel(136, 136));
                 assert_eq!(
                     &first.pixels[..4],
                     &fixture::pixel(136, 136),
@@ -174,6 +214,7 @@ fn owned_native_window_records_all_four_directions_to_exact_final_pixels() {
                         fixture,
                         axis,
                         forward,
+                        drag,
                         stage: 0,
                         deadline: Instant::now() + Duration::from_secs(15),
                         error: None,
@@ -232,7 +273,7 @@ fn owned_native_window_records_all_four_directions_to_exact_final_pixels() {
                 }
                 if let Ok(directory) = std::env::var("OTTER_CAPTURE_EVIDENCE") {
                     let path = std::path::Path::new(&directory)
-                        .join(format!("recording-{axis:?}-{forward}.png"));
+                        .join(format!("recording-{axis:?}-{forward}-drag-{drag}.png"));
                     let file = std::fs::File::create(path).unwrap();
                     let mut encoder = png::Encoder::new(file, width, height);
                     encoder.set_color(png::ColorType::Rgba);

@@ -42,6 +42,7 @@ struct Prepared {
     image: crate::desktop::image::Image,
     editor: crate::editor::Editor,
     opacity: f32,
+    style: export::style::Snapshot,
 }
 fn prepare(state: &State, root: PathBuf) -> Result<Option<Prepared>, String> {
     if state.modals.blocked() || state.export.borrow().is_some() {
@@ -68,6 +69,7 @@ fn prepare(state: &State, root: PathBuf) -> Result<Option<Prepared>, String> {
         image,
         editor,
         opacity,
+        style: export::style::Snapshot::capture(&state.canvas.borrow()),
     }))
 }
 impl Prepared {
@@ -84,7 +86,7 @@ impl Prepared {
         for path in [&self.root, &directory] {
             crate::profile_directory::validate(path).map_err(|e| e.to_string())?;
         }
-        export::save_incremented(
+        self.style.save_incremented(
             &directory,
             &self.stem,
             &self.image,

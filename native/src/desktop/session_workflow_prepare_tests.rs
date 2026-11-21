@@ -59,12 +59,19 @@ fn real_bake_and_parameter_filter_feed_global_and_component_ready_snapshot() {
 #[test]
 fn invalid_style_missing_capability_and_cancel_return_no_prepared_snapshot() {
     let _com = crate::desktop::Apartment::new().unwrap();
-    let (candidate, catalog) =
-        fixture(json!({"imageEditState":{"borderWidth":2,"borderColor":"url(secret)"}}));
-    assert!(candidate
-        .prepare_workflow_snapshot(&catalog, &AtomicBool::new(false))
-        .is_err());
     let (candidate, catalog) = fixture(json!({}));
+    let mut invalid: serde_json::Value =
+        serde_json::from_slice(candidate.candidate.original_json()).unwrap();
+    invalid["stickers"][0]["imageEditState"] = json!({"borderWidth":2,"borderColor":"url(secret)"});
+    // 内容样式现在在恢复边界验证；非法输入不得先构成可呈现的候选。
+    let error = prepare(
+        serde_json::to_vec(&invalid).unwrap(),
+        None,
+        &AtomicBool::new(false),
+    )
+    .err()
+    .expect("unsupported frame style must fail before candidate preparation");
+    assert_eq!(error.message(), "Unsupported frame border color");
     assert!(candidate
         .prepare_workflow_snapshot(&[], &AtomicBool::new(false))
         .is_err());

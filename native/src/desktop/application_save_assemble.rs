@@ -112,6 +112,9 @@ impl Data {
                 .as_ref()
                 .is_none_or(|(config, accept)| !config.configured() && *accept)
             && doc.execution.is_none()
+            && doc
+                .node_settings
+                .is_none_or(|settings| settings == Default::default())
             && doc.outputs.is_none()
             && doc.output_images.is_empty()
             && doc.editor.revision() == 0
@@ -205,6 +208,9 @@ impl Data {
                 };
                 // 缺少当前会话owner时不能把原文中的旧快照原样带回，避免删除/reset后复活。
                 fields.remove(crate::projection_edit::workspace::FIELD);
+                if let Some(extensions) = &doc.extensions {
+                    extensions.write(&mut fields).map_err(|_| Error::Window)?;
+                }
                 if let Some((_, visibility)) = self
                     .port_visibility
                     .iter()
@@ -243,8 +249,19 @@ impl Data {
                 } else {
                     doc.editor.raster_crop_view()
                 };
-                if previous_crop.is_some() || crop.is_some() {
-                    let state = crate::session_crop_write::merge_view(previous_crop, crop)
+                if previous_crop.is_some()
+                    || crop.is_some()
+                    || doc.frame_style.is_some_and(|s| s != Default::default())
+                    || doc.editor.mirror_state() != Default::default()
+                {
+                    let mut state = crate::session_crop_write::merge_view(previous_crop, crop)
+                        .map_err(|_| Error::Window)?;
+                    if let Some(style) = doc.frame_style {
+                        state = style.merge(state).map_err(|_| Error::Window)?;
+                    }
+                    doc.editor
+                        .mirror_state()
+                        .write(&mut state)
                         .map_err(|_| Error::Window)?;
                     fields.insert("imageEditState".into(), state);
                 }
@@ -282,28 +299,40 @@ impl Data {
                         if !doc.art {
                             fields.remove("otterNativeLocalArt");
                             fields.remove("otterNativeLocalArtPorts");
-                            for key in ["artId", "executionConfig"] {
-                                fields.remove(key);
-                            }
+                            fields.remove("artId");
                             fields.insert("type".into(), "sticker".into());
                             let (config, accept) = doc.sticker.clone().unwrap_or_default();
                             let params = config.parameters();
                             crate::sticker_image_params::validate(&params)
                                 .map_err(|_| Error::Window)?;
                             fields.insert("params".into(), Value::Object(params));
-                            let propagation = fields
-                                .entry("stickerEditPropagation")
-                                .or_insert_with(|| Value::Object(Map::new()));
-                            let propagation = propagation.as_object_mut().ok_or(Error::Window)?;
-                            propagation.insert(
-                                "acceptUpstream".into(),
-                                if doc.sticker.is_some() { accept } else { true }.into(),
-                            );
-                            propagation
-                                .insert("locallyEdited".into(), doc.editor.has_edit_state().into());
+                            if doc
+                                .extensions
+                                .as_ref()
+                                .is_none_or(|e| e.has_source_revision())
+                            {
+                                let propagation = fields
+                                    .entry("stickerEditPropagation")
+                                    .or_insert_with(|| Value::Object(Map::new()));
+                                let propagation =
+                                    propagation.as_object_mut().ok_or(Error::Window)?;
+                                propagation.insert(
+                                    "acceptUpstream".into(),
+                                    if doc.sticker.is_some() { accept } else { true }.into(),
+                                );
+                                propagation.insert(
+                                    "locallyEdited".into(),
+                                    doc.editor.has_edit_state().into(),
+                                );
+                            }
                         }
                     }
                     _ => return Err(Error::Window),
+                }
+                if let Some(settings) = doc.node_settings {
+                    settings
+                        .write(&mut fields, doc.art)
+                        .map_err(|_| Error::Window)?;
                 }
                 content(doc, fields)
             },

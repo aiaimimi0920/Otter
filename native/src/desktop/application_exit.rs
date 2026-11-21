@@ -1,4 +1,4 @@
-//! 应用退出确认与异步保存衔接；取消/失败不销毁窗口，不在模态回调里释放 owner。
+//! 应用退出默认保存场景，不询问手动另存；失败保留窗口，提交后才释放 owner。
 use super::*;
 
 pub(super) enum Choice {
@@ -67,27 +67,37 @@ pub(super) unsafe fn verify(app: &mut Application) -> Result<()> {
 
 impl Application {
     pub(super) unsafe fn close_requested(&mut self) -> bool {
-        self.close_requested_with(|app| {
-            let Some(document) = app.documents.iter().find(|doc| doc.is_alive()) else {
-                return Choice::Cancel;
-            };
-            let flag = document.state.file_dialog.clone();
-            let Some(_dialog) = super::super::file_dialog::Guard::begin(&flag) else {
-                return Choice::Cancel;
-            };
-            match MessageBoxW(
-                Some(document.window.0),
-                w!("工作区有尚未保存到文件的内容。退出前保存到文件吗？\n是：保存到文件后退出\n否：不保存到文件并退出\n取消：继续编辑"),
-                w!("退出 Otter"),
-                MB_YESNOCANCEL | MB_ICONWARNING | MB_DEFBUTTON3,
-            ) {
-                IDYES => Choice::Save,
-                IDNO => Choice::Discard,
-                _ => Choice::Cancel,
+        self.close_requested_automatically_with_notify(|app, message| {
+            if let Some(doc) = app.documents.iter().find(|doc| doc.is_alive()) {
+                app.save_message(&doc.state.unit_id, message, true);
             }
         })
     }
 
+    pub(super) unsafe fn close_requested_automatically_with_notify(
+        &mut self,
+        notify: impl FnOnce(&Self, &str),
+    ) -> bool {
+        if !self.modals.blocked()
+            && self.exit_requested.get()
+            && self.save_job.is_none()
+            && self.checkpoint_writes_stopped()
+            && self.exit_saved.is_none()
+            && !self
+                .saved_state
+                .as_ref()
+                .is_some_and(|stamp| stamp.matches_automatic(self))
+        {
+            self.exit_requested.set(false);
+            notify(
+                self,
+                "场景自动保存不可用，当前内容仍保留。请另存工作区后重试退出。",
+            );
+            return false;
+        }
+        // Discard 仅跳过手动另存文件；后续仍须完成默认场景的最终检查点。
+        self.close_requested_with_notify(|_| Choice::Discard, notify)
+    }
     pub(super) unsafe fn close_requested_with(
         &mut self,
         choose: impl FnOnce(&Self) -> Choice,
@@ -178,6 +188,8 @@ impl Application {
     unsafe fn close_confirmed(&mut self) -> bool {
         self.exit_committed = true;
         self.checkpoint_exiting();
+        // 保存/检查点已完成；从这里起驱动或恢复等待不能让无窗口宿主永久驻留。
+        crate::emergency_watchdog::shutdown::begin();
         for document in &self.documents {
             if document.is_alive() {
                 SendMessageW(document.window.0, WM_CLOSE, None, None);

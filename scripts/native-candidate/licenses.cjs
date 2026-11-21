@@ -4,6 +4,7 @@ const path = require('node:path');
 const { hash } = require('./source.cjs');
 const { checkedPath } = require('../release/third-party-sources.cjs');
 const { javascriptLicenses } = require('./javascript_licenses.cjs');
+const design = require('./design-source.cjs');
 const licenseName = /^(licen[sc]es?|copying|copyright|notice)([._-]|$)/i;
 const safeName = value => typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9_.+-]*$/.test(value);
 
@@ -65,9 +66,16 @@ function collect(repo, metadata, output, registryRoot) {
     if (pkg.id === metadata.resolve.root) {
       if (fs.realpathSync(pkg.manifest_path) !== fs.realpathSync(path.join(repo, 'native/Cargo.toml'))) throw new Error('Invalid project license root');
       directory = repo;
+    } else if (pkg.name === design.NAME) {
+      directory = design.directory(repo, pkg);
     } else if (pkg.source == null) {
-      const local = sources.find(s => s.name === pkg.name && s.version === pkg.version);
-      if (!local || fs.realpathSync(directory) !== fs.realpathSync(path.join(repo, local.directory))) throw new Error('Unknown local license source');
+      if (pkg.name === 'otter-live-hover-hook') {
+        if (fs.realpathSync(pkg.manifest_path) !== fs.realpathSync(path.join(repo, 'native/hover-hook/Cargo.toml'))) throw new Error('Invalid hover license root');
+        directory = repo;
+      } else {
+        const local = sources.find(s => s.name === pkg.name && s.version === pkg.version);
+        if (!local || fs.realpathSync(directory) !== fs.realpathSync(path.join(repo, local.directory))) throw new Error('Unknown local license source');
+      }
     } else {
       if (!pkg.source.startsWith('registry+')) throw new Error('Unsupported registry license source');
       const relative = path.relative(registryRoot, directory).split(path.sep).join('/');

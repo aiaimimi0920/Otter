@@ -6,6 +6,7 @@ pub(crate) struct Stamp {
     unit: UnitId,
     selection: Option<(UnitId, u64, crate::graph_execution_config::Config)>,
     accept_upstream: bool,
+    notify_downstream: bool,
     sticker: super::sticker_input::Stamp,
     local: Option<(
         String,
@@ -17,6 +18,7 @@ impl Stamp {
         Self {
             unit: state.unit_id.clone(),
             accept_upstream: state.accept_upstream.get(),
+            notify_downstream: state.node_settings.get().notify_downstream,
             sticker: state.sticker_input.snapshot().stamp(),
             local: state
                 .local_art_id
@@ -34,6 +36,7 @@ impl Stamp {
     pub(crate) fn matches(&self, state: &State) -> bool {
         if self.unit != state.unit_id
             || self.accept_upstream != state.accept_upstream.get()
+            || self.notify_downstream != state.node_settings.get().notify_downstream
             || self.sticker != state.sticker_input.snapshot().stamp()
         {
             return false;

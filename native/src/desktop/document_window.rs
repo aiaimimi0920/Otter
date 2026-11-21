@@ -22,6 +22,21 @@ pub(super) struct DocumentWindow {
 }
 
 impl DocumentWindow {
+    /// 空文档只承载命令、托盘和热键；显式图片及恢复的无图 Art 仍正常显示。
+    pub unsafe fn show_content(&self, command: SHOW_WINDOW_CMD) {
+        let (pinned, empty) = {
+            let canvas = self.state.canvas.borrow();
+            (canvas.pinned, !canvas.pinned && canvas.image.is_none())
+        };
+        if empty || self.state.group_hidden.get() {
+            return;
+        }
+        let _ = ShowWindow(self.window.0, command);
+        if !pinned {
+            let _ = ShowWindow(self.panel.0, SW_SHOWNOACTIVATE);
+        }
+    }
+
     pub unsafe fn is_alive(&self) -> bool {
         IsWindow(Some(self.window.0)).as_bool()
             && GetWindowLongPtrW(self.window.0, GWLP_USERDATA)

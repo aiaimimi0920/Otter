@@ -22,6 +22,8 @@ use windows::{
         System::WinRT::{Direct3D11::*, Graphics::Capture::IGraphicsCaptureItemInterop, *},
     },
 };
+#[path = "capture_wgc_factory.rs"]
+mod factory;
 #[path = "capture_wgc_lifetime.rs"]
 mod lifetime;
 #[path = "live_wgc.rs"]
@@ -67,7 +69,7 @@ fn capture<T>(
         return Err(Error::InvalidMonitor);
     }
     let _apartment = lifetime::Apartment::new().map_err(Error::Api)?;
-    if !GraphicsCaptureSession::IsSupported().map_err(Error::Api)? {
+    if !factory::supported().map_err(Error::Api)? {
         return Err(Error::Unsupported);
     }
     let interop = windows::core::factory::<GraphicsCaptureItem, IGraphicsCaptureItemInterop>()
@@ -81,13 +83,8 @@ fn capture<T>(
     let (device, context, winrt) = device().map_err(Error::Api)?;
     let mut resources = lifetime::Resources::default();
     resources.pool = Some(
-        Direct3D11CaptureFramePool::CreateFreeThreaded(
-            &winrt,
-            DirectXPixelFormat::R16G16B16A16Float,
-            2,
-            size,
-        )
-        .map_err(Error::Api)?,
+        factory::pool(&winrt, DirectXPixelFormat::R16G16B16A16Float, 2, size)
+            .map_err(Error::Api)?,
     );
     let pool = resources.pool.as_ref().unwrap();
     resources.session = Some(pool.CreateCaptureSession(&item).map_err(Error::Api)?);

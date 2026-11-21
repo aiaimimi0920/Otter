@@ -76,7 +76,8 @@ fn failed_authentication_and_missing_ready_never_arm() {
 
 #[test]
 fn deterministic_chords_terminate_only_authenticated_sacrificial_parent_and_child_exits() {
-    for mode in ["backup", "triple", "parent-exit"] {
+    for mode in ["backup", "triple", "parent-exit", "shutdown"] {
+        let started = Instant::now();
         let mut parent = ChildOwner(
             fixture("parent_fixture", mode)
                 .creation_flags(CREATE_NO_WINDOW.0)
@@ -86,7 +87,12 @@ fn deterministic_chords_terminate_only_authenticated_sacrificial_parent_and_chil
                 .spawn()
                 .unwrap(),
         );
-        let status = unsafe { WaitForSingleObject(HANDLE(parent.0.as_raw_handle()), 15000) };
+        let status = unsafe {
+            WaitForSingleObject(
+                HANDLE(parent.0.as_raw_handle()),
+                if mode == "shutdown" { 40000 } else { 15000 },
+            )
+        };
         // 仅读取已到达字节，失败时不能因后代继承stdout而无限等EOF。
         let mut output = parent.0.stdout.take().unwrap();
         let mut available = 0;
@@ -119,6 +125,9 @@ fn deterministic_chords_terminate_only_authenticated_sacrificial_parent_and_chil
             status, WAIT_OBJECT_0,
             "Sacrificial parent timed out: {mode}"
         );
+        if mode == "shutdown" {
+            assert!(started.elapsed() >= Duration::from_secs(30));
+        }
         assert_eq!(
             parent.0.wait().unwrap().code(),
             Some(if mode == "parent-exit" { 23 } else { 0 })
@@ -152,7 +161,7 @@ fn watchdog_fixture() {
         .is_err());
         return;
     }
-    assert!(["idle", "parent-exit", "triple", "backup"].contains(&mode.as_str()));
+    assert!(["idle", "parent-exit", "triple", "backup", "shutdown"].contains(&mode.as_str()));
     let mut sample = 0u32;
     run(parent, pipe, || {
         sample += 1;
@@ -182,12 +191,12 @@ fn watchdog_fixture() {
 #[ignore = "private sacrificial parent, only launched by owned emergency fixtures"]
 fn parent_fixture() {
     let mode = std::env::var("OTTER_EMERGENCY_FIXTURE_MODE").unwrap();
-    assert!(["backup", "triple", "parent-exit"].contains(&mode.as_str()));
+    assert!(["backup", "triple", "parent-exit", "shutdown"].contains(&mode.as_str()));
     let observer: u32 = std::env::var("OTTER_EMERGENCY_FIXTURE_PARENT")
         .unwrap()
         .parse()
         .unwrap();
-    let owner = Owner::start_command(fixture("watchdog_fixture", &mode)).unwrap();
+    let mut owner = Owner::start_command(fixture("watchdog_fixture", &mode)).unwrap();
     unsafe {
         let observer = OwnedHandle::from_raw_handle(
             OpenProcess(PROCESS_DUP_HANDLE, false, observer).unwrap().0,
@@ -209,7 +218,14 @@ fn parent_fixture() {
     if mode == "parent-exit" {
         std::process::exit(23);
     }
+    if mode == "shutdown" {
+        owner.begin_shutdown().unwrap();
+    }
     // 故意不泵UI或处理键盘：独立child必须能终止一个阻塞的原父进程。
-    std::thread::sleep(Duration::from_secs(10));
+    std::thread::sleep(Duration::from_secs(if mode == "shutdown" {
+        35
+    } else {
+        10
+    }));
     panic!("Deterministic emergency failed to terminate sacrificial parent");
 }

@@ -14,13 +14,15 @@ if (Test-Path -LiteralPath $OutputDirectory) { throw 'Test output must be fresh'
 $baseline = Test-NativeCandidateArchive -ZipPath $ZipPath
 if ($baseline.files -lt 5) { throw 'Expected populated archive fixture' }
 $passed = 1
-foreach ($case in @('tamper', 'missing', 'extra', 'traversal', 'duplicate', 'false-string', 'angle-egl', 'angle-gles')) {
+foreach ($case in @('tamper', 'missing', 'hook-missing', 'hook-tamper', 'extra', 'traversal', 'duplicate', 'false-string', 'angle-egl', 'angle-gles')) {
     $copy = Join-Path $OutputDirectory ($case + '.zip')
     Copy-Item -LiteralPath $ZipPath -Destination $copy
     $archive = [IO.Compression.ZipFile]::Open($copy, [IO.Compression.ZipArchiveMode]::Update)
     try {
         switch ($case) {
             'missing' { $archive.GetEntry('README.txt').Delete(); break }
+            'hook-missing' { $archive.GetEntry('otter_live_hover_hook.dll').Delete(); break }
+            'hook-tamper' { $name = 'otter_live_hover_hook.dll'; $archive.GetEntry($name).Delete(); $text = 'wrong hook'; break }
             'tamper' { $name = 'otter-native.exe'; $archive.GetEntry($name).Delete(); $text = 'wrong executable'; break }
             'extra' { $name = 'extra.txt'; $text = 'extra'; break }
             'traversal' { $name = '../escape.txt'; $text = 'escape'; break }
@@ -38,7 +40,7 @@ foreach ($case in @('tamper', 'missing', 'extra', 'traversal', 'duplicate', 'fal
                 break
             }
         }
-        if ($case -ne 'missing') {
+        if ($case -notin @('missing', 'hook-missing')) {
             $entry = $archive.CreateEntry($name)
             $writer = [IO.StreamWriter]::new($entry.Open(), [Text.UTF8Encoding]::new($false))
             try { $writer.Write($text) } finally { $writer.Dispose() }

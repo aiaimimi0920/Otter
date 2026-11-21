@@ -21,13 +21,7 @@ pub(super) fn position(canvas: &Canvas) -> Option<Point> {
     let mut right = f32::NEG_INFINITY;
     let mut bottom = f32::NEG_INFINITY;
     for index in canvas.selected_indices() {
-        let stroke = canvas
-            .group_preview
-            .iter()
-            .find(|(target, _)| *target == index)
-            .map(|(_, s)| s)
-            .unwrap_or(&canvas.editor.elements()[index]);
-        let bounds = crate::group_bounds::bounds(stroke)?;
+        let bounds = super::transform_handle_layout::preview_bounds(canvas, index)?;
         right = right.max(bounds.high.x);
         bottom = bottom.max(bounds.high.y);
     }
@@ -102,6 +96,9 @@ impl Canvas {
         if (handle.x - screen.x).abs() > 7.0 || (handle.y - screen.y).abs() > 7.0 {
             return false;
         }
+        self.begin_scale_at(screen)
+    }
+    pub(super) fn begin_scale_at(&mut self, screen: Point) -> bool {
         let indices = self.selected_indices();
         let Some(pivot) = crate::group_bounds::center(
             indices.iter().map(|index| &self.editor.elements()[*index]),

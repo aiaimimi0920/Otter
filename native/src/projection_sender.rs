@@ -59,23 +59,35 @@ pub struct Selection {
     scope: String,
     origin: String,
     unit: String,
-    target: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    target: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     offline: Option<route::Offline>,
 }
 impl Selection {
     pub fn new(scope: &str, origin: &str, unit: &str, target: &str) -> Result<Self, Error> {
         // 先校验借用字段，禁止畸形磁盘字段先复制几十 MiB 后才拒绝。
-        validate_selection(scope, origin, unit, target)?;
+        validate_selection(scope, origin, unit, Some(target))?;
         let value = Self {
             scope: scope.into(),
             origin: origin.into(),
             unit: unit.into(),
-            target: target.into(),
+            target: Some(target.into()),
             offline: None,
         };
         value.validate()?;
         Ok(value)
+    }
+    /// 无目标邀请与定向投送是不同目的；缺失 target 不能降为任意设备身份。
+    pub(crate) fn invitation(scope: &str, origin: &str, unit: &str) -> Result<Self, Error> {
+        validate_selection(scope, origin, unit, None)?;
+        Ok(Self {
+            scope: scope.into(),
+            origin: origin.into(),
+            unit: unit.into(),
+            target: None,
+            offline: None,
+        })
     }
     fn validate(&self) -> Result<(), Error> {
         if let Some(route) = &self.offline {
@@ -84,7 +96,7 @@ impl Selection {
                 &route.remote_device_id,
             )
             .as_deref()
-                != Some(&self.target)
+                != self.target.as_deref()
             {
                 return Err(Error::Format);
             }
@@ -92,10 +104,15 @@ impl Selection {
                 &self.scope,
                 &self.origin,
                 &self.unit,
-                &route.remote_device_id,
+                Some(&route.remote_device_id),
             )
         } else {
-            validate_selection(&self.scope, &self.origin, &self.unit, &self.target)
+            validate_selection(
+                &self.scope,
+                &self.origin,
+                &self.unit,
+                self.target.as_deref(),
+            )
         }
     }
 }
@@ -275,8 +292,8 @@ impl Intent {
     pub fn envelope(&self) -> &Envelope {
         &self.record.prepared.envelope
     }
-    pub fn target(&self) -> &str {
-        &self.record.selection.target
+    pub fn target(&self) -> Option<&str> {
+        self.record.selection.target.as_deref()
     }
     pub fn unit(&self) -> &str {
         &self.record.selection.unit
@@ -308,12 +325,18 @@ fn check(cancel: &AtomicBool) -> Result<(), Error> {
         Ok(())
     }
 }
-fn validate_selection(scope: &str, origin: &str, unit: &str, target: &str) -> Result<(), Error> {
+fn validate_selection(
+    scope: &str,
+    origin: &str,
+    unit: &str,
+    target: Option<&str>,
+) -> Result<(), Error> {
     if !envelope::digest(scope)
         || envelope::canonical_origin(origin).as_deref() != Ok(origin)
         || !envelope::identifier(unit)
-        || !envelope::identifier(target)
-        || target.starts_with("peer-target:")
+        || target.is_some_and(|target| {
+            !envelope::identifier(target) || target.starts_with("peer-target:")
+        })
     {
         return Err(Error::Format);
     }

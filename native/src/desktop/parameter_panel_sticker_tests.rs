@@ -1,4 +1,4 @@
-//! 普通Tab及单字段child的真实按钮通知；不打开系统文件框或发送全局输入。
+//! 普通 Tab 行内 child 的真实按钮通知；不打开系统文件框或发送全局输入。
 use super::*;
 #[test]
 fn ordinary_sticker_has_real_upload_clear_disable_controls_and_uses_same_transaction() {
@@ -35,7 +35,7 @@ fn ordinary_sticker_has_real_upload_clear_disable_controls_and_uses_same_transac
             None,
         )
         .unwrap();
-        let panel = Panel::embedded(fixture.host.0, &fixture.state, parent, "image").unwrap();
+        let panel = Panel::inline(fixture.host.0, &fixture.state, parent).unwrap();
         assert_eq!(
             GetWindowLongW(panel.handle(), GWL_STYLE) as u32 & WS_CHILD.0,
             WS_CHILD.0
@@ -46,8 +46,14 @@ fn ordinary_sticker_has_real_upload_clear_disable_controls_and_uses_same_transac
             .bindings
             .borrow()
             .iter()
-            .any(|binding| binding.key == "sticker:upload"));
-        assert!(Panel::embedded(fixture.host.0, &fixture.state, parent, "output_image").is_err());
+            .any(|binding| binding.key == "image:upload"));
+        assert!(panel
+            .ui
+            .model
+            .borrow()
+            .rows
+            .iter()
+            .all(|row| row.id != "output_image"));
         drop(panel);
         DestroyWindow(parent).unwrap();
     }
@@ -95,13 +101,10 @@ fn cancelled_image_choice_clears_error_without_commit_or_configuration_change() 
         fixture.tick();
         let before = Stamp::capture(&fixture.state);
         fixture.panel.ui.error("旧错误");
-        fixture.panel.sticker_outcome(
-            &fixture.state,
-            &before,
-            desktop::parameter_file_input::Outcome::Cancelled,
-        );
+        fixture
+            .panel
+            .sticker_outcome(desktop::parameter_file_input::Outcome::Cancelled);
         assert!(fixture.panel.ui.message.borrow().is_empty());
-        assert!(!fixture.panel.ui.committed.get());
         assert!(before.matches(&fixture.state));
         assert!(fixture.state.parameter_file_request.borrow().is_none());
         assert!(fixture.state.sticker_input.snapshot().asset.is_none());
@@ -109,30 +112,97 @@ fn cancelled_image_choice_clears_error_without_commit_or_configuration_change() 
 }
 
 #[test]
-fn rejected_image_choice_stays_an_error_and_only_actual_change_marks_committed() {
+fn rejected_image_choice_stays_an_error_and_accepted_outcome_clears_it() {
     unsafe {
         use desktop::parameter_file_input::Outcome;
         let fixture = Fixture::new();
         fixture.state.selected_art.borrow_mut().take();
         fixture.tick();
         let before = Stamp::capture(&fixture.state);
-        fixture
-            .panel
-            .sticker_outcome(&fixture.state, &before, Outcome::Rejected);
+        fixture.panel.sticker_outcome(Outcome::Rejected);
         assert_eq!(
             &*fixture.panel.ui.message.borrow(),
             "图片输入配置已变化或暂不可用"
         );
-        assert!(!fixture.panel.ui.committed.get());
-        fixture
-            .panel
-            .sticker_outcome(&fixture.state, &before, Outcome::Accepted);
+        fixture.panel.sticker_outcome(Outcome::Accepted);
         assert!(fixture.panel.ui.message.borrow().is_empty());
-        assert!(!fixture.panel.ui.committed.get());
+        assert!(before.matches(&fixture.state));
         fixture.state.sticker_input.toggle().unwrap();
-        fixture
-            .panel
-            .sticker_outcome(&fixture.state, &before, Outcome::Accepted);
-        assert!(fixture.panel.ui.committed.get());
+        fixture.panel.sticker_outcome(Outcome::Accepted);
+        assert!(!before.matches(&fixture.state));
+    }
+}
+
+#[test]
+fn upload_button_erase_keeps_previous_pixels_and_tab_placement_finishes_the_control_frame() {
+    unsafe {
+        let fixture = Fixture::new();
+        fixture.state.selected_art.borrow_mut().take();
+        let parent = desktop::Window(
+            CreateWindowExW(
+                WINDOW_EX_STYLE::default(),
+                w!("STATIC"),
+                None,
+                WS_POPUP,
+                0,
+                0,
+                256,
+                160,
+                None,
+                None,
+                None,
+                None,
+            )
+            .unwrap(),
+        );
+        let panel = Panel::inline(fixture.host.0, &fixture.state, parent.0).unwrap();
+        let button = panel
+            .ui
+            .bindings
+            .borrow()
+            .iter()
+            .find(|b| b.key == "image:upload")
+            .unwrap()
+            .hwnd;
+        let dc = CreateCompatibleDC(None);
+        let bitmap = CreateBitmap(4, 4, 1, 32, None);
+        let old = SelectObject(dc, HGDIOBJ(bitmap.0));
+        theme::fill(
+            dc,
+            &RECT {
+                right: 4,
+                bottom: 4,
+                ..Default::default()
+            },
+            0x563412,
+        );
+        assert_eq!(
+            SendMessageW(button, WM_ERASEBKGND, Some(WPARAM(dc.0 as usize)), None),
+            LRESULT(1)
+        );
+        assert_eq!(GetPixel(dc, 1, 1), COLORREF(0x563412));
+        SelectObject(dc, old);
+        DeleteObject(HGDIOBJ(bitmap.0)).unwrap();
+        DeleteDC(dc).ok().unwrap();
+        let _ = ShowWindow(parent.0, SW_SHOWNOACTIVATE);
+        let binding = panel.inline_binding().unwrap();
+        let bounds = RECT {
+            right: 256,
+            bottom: 160,
+            ..Default::default()
+        };
+        let row = RECT {
+            right: 228,
+            bottom: 28,
+            ..Default::default()
+        };
+        for _ in 0..12 {
+            binding.place(bounds, Vec::new()).unwrap();
+            // 模型中的稳定字段名由生产 owner 提供，不在测试中猜字段。
+            let id = panel.ui.model.borrow().rows[0].id.clone();
+            binding.place(bounds, vec![(id, row, row)]).unwrap();
+            assert!(IsWindowVisible(button).as_bool());
+            assert!(!GetUpdateRect(button, None, false).as_bool());
+        }
     }
 }

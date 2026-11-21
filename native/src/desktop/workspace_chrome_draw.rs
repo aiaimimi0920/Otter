@@ -3,12 +3,21 @@ use super::*;
 use crate::desktop::buffered_paint as buffered;
 pub(super) use buffered::Session as PaintSession;
 use windows::Win32::Graphics::Gdi::*;
+#[path = "workspace_chrome_backdrops.rs"]
+pub(super) mod backdrops;
 #[path = "workspace_chrome_surface.rs"]
 mod surface;
 pub(super) use surface::Surface;
 const BLUE: COLORREF = COLORREF(0xd4b606);
 const YELLOW: COLORREF = COLORREF(0x38ffd9);
 const TEXT: COLORREF = COLORREF(0xeff8f7);
+type Lines = Vec<(Point, Point, COLORREF, bool)>;
+#[derive(PartialEq, Eq)]
+pub(super) struct Content {
+    rect: Rect,
+    lines: Lines,
+    backdrops: backdrops::Backdrops,
+}
 #[cfg(test)]
 #[path = "workspace_chrome_frame_tests.rs"]
 mod frame_tests;
@@ -18,11 +27,16 @@ pub(super) fn ports(ui: &Ui) -> Vec<(Port, Point, i32)> {
         .nodes
         .borrow()
         .iter()
-        .filter(|node| node.ports(ui.mode.get(), false))
+        .filter(|node| node.ports(ui.mode.get(), node.hide_collapsed_endpoints))
     {
         for (side, count) in [(Side::Input, node.inputs), (Side::Output, node.outputs)] {
             for index in 0..count {
-                if let Some(point) = node.point(side, index) {
+                let port = Port {
+                    node: node.endpoint,
+                    side,
+                    index,
+                };
+                if let Some(point) = ui.point(port) {
                     ports.push((
                         Port {
                             node: node.endpoint,
@@ -38,23 +52,21 @@ pub(super) fn ports(ui: &Ui) -> Vec<(Port, Point, i32)> {
     }
     ports
 }
-pub(super) fn port_rect(ui: &Ui, port: Port, p: Point, radius: i32) -> RECT {
-    let expanded = ui.node(port.node).is_some_and(|node| node.expanded)
-        || ui.disclosed.borrow().contains(&port)
-        || ui.keyboard.focused() == Some(port);
-    let extra = if expanded { radius * 7 } else { 0 };
-    RECT {
-        left: p
-            .x
-            .saturating_sub(radius)
-            .saturating_sub(if port.side == Side::Input { extra } else { 0 }),
-        top: p.y.saturating_sub(radius),
-        right: p
-            .x
-            .saturating_add(radius)
-            .saturating_add(if port.side == Side::Output { extra } else { 0 }),
-        bottom: p.y.saturating_add(radius),
+pub(super) fn port_rect(ui: &Ui, port: Port, _: Point, _: i32) -> RECT {
+    let frame = port_visual::layout(ui, port)
+        .expect("rendered port has current geometry")
+        .frame;
+    let mut rect = RECT {
+        left: frame.x,
+        top: frame.y,
+        right: frame.x.saturating_add(frame.width),
+        bottom: frame.y.saturating_add(frame.height),
+    };
+    if let Some(clip) = parameter_rail::clip(ui, port) {
+        rect.top = rect.top.max(clip.top);
+        rect.bottom = rect.bottom.min(clip.bottom);
     }
+    rect
 }
 struct Object(HGDIOBJ);
 impl Drop for Object {
@@ -140,6 +152,9 @@ pub(super) unsafe fn paint(hwnd: HWND, ui: &Ui) {
         if hwnd == ui.drawing.get() {
             return window::refresh_drawing(ui);
         }
+        if backing::owns(ui, hwnd) {
+            return Ok(()); // ULW 已提交完整底板，不能混用 GDI 重定向绘制。
+        }
         let Some(buffer) = buffered::Frame::begin(dc, &paint.rcPaint)? else {
             return Ok(());
         };
@@ -161,7 +176,7 @@ pub(super) unsafe fn paint(hwnd: HWND, ui: &Ui) {
         ui.fail(error);
     }
 }
-pub(super) unsafe fn present(ui: &Ui, rect: Rect) -> Result<()> {
+pub(super) unsafe fn present(ui: &Ui, rect: Rect, backdrops: backdrops::Backdrops) -> Result<()> {
     if ui.presenting.replace(true) {
         return Ok(()); // ULW 同步尺寸消息不能再修改尚在提交的 DIB。
     }
@@ -176,8 +191,21 @@ pub(super) unsafe fn present(ui: &Ui, rect: Rect) -> Result<()> {
         cx: rect.right - rect.left,
         cy: rect.bottom - rect.top,
     };
+    let content = Content {
+        rect,
+        lines: lines(ui),
+        backdrops,
+    };
     let cached = ui.surface.borrow_mut().take().filter(|s| s.fits(size));
-    let surface = match cached {
+    // 节点位移不等于连线像素变化。保留已提交表面，避免每个拖动步都清空/ULW 整张公共层。
+    if cached
+        .as_ref()
+        .is_some_and(|s| s.content.as_ref() == Some(&content))
+    {
+        *ui.surface.borrow_mut() = cached;
+        return Ok(());
+    }
+    let mut surface = match cached {
         Some(surface) => surface,
         None => Surface::new(size)?,
     };
@@ -187,30 +215,39 @@ pub(super) unsafe fn present(ui: &Ui, rect: Rect) -> Result<()> {
         right: size.cx,
         bottom: size.cy,
     };
-    contents(
-        ui.drawing.get(),
-        ui,
-        surface.dc(),
-        &area,
-        POINT {
-            x: rect.left,
-            y: rect.top,
-        },
-    )?;
+    clear(surface.dc(), &area);
+    let origin = POINT {
+        x: rect.left,
+        y: rect.top,
+    };
+    content.backdrops.paint(ui, surface.dc(), origin)?;
+    for &(a, b, color, dashed) in &content.lines {
+        line(surface.dc(), origin, a, b, color, dashed);
+    }
     let result = surface.present(ui.drawing.get(), rect);
+    if result.is_ok() {
+        surface.content = Some(content);
+    }
     if !ui.closed.get() {
         *ui.surface.borrow_mut() = Some(surface);
     }
     result
 }
-unsafe fn contents(hwnd: HWND, ui: &Ui, dc: HDC, area: &RECT, origin: POINT) -> Result<()> {
+unsafe fn clear(dc: HDC, area: &RECT) {
     SetDCBrushColor(dc, COLORREF(0));
     FillRect(dc, area, HBRUSH(GetStockObject(DC_BRUSH).0));
+    SetBkMode(dc, TRANSPARENT);
+}
+unsafe fn contents(hwnd: HWND, ui: &Ui, dc: HDC, area: &RECT, origin: POINT) -> Result<()> {
+    clear(dc, area);
     if ui.blocked() {
         return Ok(());
     }
-    SetBkMode(dc, TRANSPARENT);
-    if hwnd == ui.drawing.get() {
+    port_visual::paint(hwnd, ui, dc, origin)
+}
+fn lines(ui: &Ui) -> Lines {
+    let mut lines = Vec::new();
+    if !ui.blocked() {
         if let Some(scene) = ui.scene.borrow().clone() {
             for edge in &scene.edges {
                 let (Some(from), Some(to)) = (ui.node(edge.from.node), ui.node(edge.to.node))
@@ -225,92 +262,25 @@ unsafe fn contents(hwnd: HWND, ui: &Ui, dc: HDC, area: &RECT, origin: POINT) -> 
                 };
                 let (body, dashed) = model::edge_style(ui.mode.get(), &from, &to);
                 if body {
-                    line(dc, origin, a, b, BLUE, false);
+                    lines.push((a, b, BLUE, false));
                 }
                 if dashed {
-                    line(dc, origin, a, b, TEXT, true);
+                    lines.push((a, b, TEXT, true));
                 }
             }
         }
         if let Some(press) = ui.press.borrow().as_ref().filter(|press| press.dragged) {
             if let Some(start) = press.source.and_then(|source| ui.point(source)) {
-                line(dc, origin, start, press.current, YELLOW, true);
+                lines.push((start, press.current, YELLOW, true));
             }
         }
         if let (Some(source), Some(target)) = (ui.keyboard.source(), ui.keyboard.focused()) {
             if let (Some(a), Some(b)) = (ui.point(source), ui.point(target)) {
-                line(dc, origin, a, b, YELLOW, true);
+                lines.push((a, b, YELLOW, true));
             }
         }
-    } else {
-        let old_pen = SelectObject(dc, GetStockObject(DC_PEN));
-        let old_brush = SelectObject(dc, GetStockObject(DC_BRUSH));
-        let old_font = SelectObject(dc, GetStockObject(DEFAULT_GUI_FONT));
-        SetDCPenColor(dc, BLUE);
-        let binding = ui
-            .input_windows
-            .borrow()
-            .iter()
-            .find(|(h, _, _)| *h == hwnd)
-            .copied();
-        for (port, point, radius) in ports(ui).into_iter().filter(|(p, _, _)| {
-            binding.is_some_and(|(_, node, side)| p.node == node && p.side == side)
-        }) {
-            SetDCPenColor(
-                dc,
-                if ui.keyboard.focused() == Some(port) {
-                    YELLOW
-                } else {
-                    BLUE
-                },
-            );
-            let mut rect = port_rect(ui, port, point, radius);
-            rect.left = rect.left.saturating_sub(origin.x);
-            rect.right = rect.right.saturating_sub(origin.x);
-            rect.top = rect.top.saturating_sub(origin.y);
-            rect.bottom = rect.bottom.saturating_sub(origin.y);
-            SetDCBrushColor(dc, COLORREF(0x201711));
-            if rect.right - rect.left > 2 * radius {
-                let _ = Rectangle(dc, rect.left, rect.top, rect.right, rect.bottom);
-            } else {
-                let _ = Ellipse(dc, rect.left, rect.top, rect.right, rect.bottom);
-            }
-            if rect.right - rect.left > 2 * radius {
-                if let Some(scene) = ui.scene.borrow().clone() {
-                    if let Some(endpoint) = scene.catalog.endpoints.get(port.node) {
-                        let names = if port.side == Side::Input {
-                            &endpoint.inputs
-                        } else {
-                            &endpoint.outputs
-                        };
-                        if let Some(name) = names.get(port.index) {
-                            let mut text: Vec<u16> = name
-                                .chars()
-                                .take(64)
-                                .collect::<String>()
-                                .encode_utf16()
-                                .collect();
-                            SetTextColor(dc, TEXT);
-                            DrawTextW(
-                                dc,
-                                &mut text,
-                                &mut rect,
-                                DT_CENTER
-                                    | DT_VCENTER
-                                    | DT_SINGLELINE
-                                    | DT_NOPREFIX
-                                    | DT_END_ELLIPSIS,
-                            );
-                        }
-                    }
-                }
-            }
-        }
-        SelectObject(dc, old_font);
-        SelectObject(dc, old_brush);
-        SelectObject(dc, old_pen);
     }
-    Ok(())
+    lines
 }
 struct Paint(HWND, PAINTSTRUCT);
 impl Drop for Paint {

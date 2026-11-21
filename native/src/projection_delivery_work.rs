@@ -21,6 +21,35 @@ impl Work {
         sender_attempt: &sender_flow::Attempt,
     ) -> Result<Completed, Error> {
         let output = match self {
+            Self::Request(Operation::Import { request, journal }) => {
+                if !request.current() {
+                    return Err(Error::Stopped);
+                }
+                let invitation = control
+                    .inspect_projection(&request, &request.cancel)
+                    .map_err(Error::Http)?;
+                if !request.current() || task.is_revoked() {
+                    return Err(Error::Stopped);
+                }
+                // 已存在的远端接收关联只读重建，不能获得 fresh accept 的自动解绑资格。
+                let intent = if invitation.accepted() {
+                    attempt.reattach(&journal, &invitation, task.device_id())?
+                } else {
+                    attempt.begin(&journal, &invitation, task.device_id())?
+                };
+                if !request.current() {
+                    return Err(Error::Stopped);
+                }
+                let received = if invitation.accepted() {
+                    control.read_projection(&intent)
+                } else {
+                    control.accept_projection(&intent.invitation())
+                }
+                .map_err(Error::Http)?;
+                return Ok(Completed::Accepted(Box::new(received::decode(
+                    received, task, &intent,
+                )?)));
+            }
             Self::Request(Operation::Send(request)) => {
                 return sender_flow::send(&request, control, task)
                     .map(|connected| Completed::Sent(Box::new(connected)));
@@ -68,9 +97,16 @@ impl Work {
                     .map_err(Error::Decode)?;
                 let intent = attempt.begin(&journal, &invitation, task.device_id())?;
                 // 写前意图成功后才允许 HTTP accept；失败/撤权不能抹掉不确定副作用。
-                let received = control
-                    .accept_projection(&intent.invitation())
-                    .map_err(Error::Http)?;
+                let received = match control.accept_projection(&intent.invitation()) {
+                    Err(HttpError::ProjectionBusy) => {
+                        return Err(if attempt.discard_unapplied()? {
+                            Error::AcceptBusyUnapplied
+                        } else {
+                            Error::Http(HttpError::ProjectionBusy)
+                        });
+                    }
+                    other => other.map_err(Error::Http)?,
+                };
                 return Ok(Completed::Accepted(Box::new(received::decode(
                     received, task, &intent,
                 )?)));

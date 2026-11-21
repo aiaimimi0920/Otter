@@ -5,6 +5,7 @@ pub(super) fn fresh(host: crate::workspace_id::UnitId) -> restore_batch::Record 
     restore_batch::Record {
         restored_projections: None,
         restored_senders: None,
+        restored_accounts: None,
         restored_projection_scope: None,
         projection_scope: None,
         disk_original: None,

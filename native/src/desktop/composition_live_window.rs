@@ -1,6 +1,6 @@
 //! Live 专用 HWND；不复用可编辑钉图 State，不启动捕获，不拥有应用消息循环。
 use super::{
-    host::{Host, Update},
+    host::{Host, Presented, Update},
     notification, Texture,
 };
 use crate::live_frames::Consumer;
@@ -16,10 +16,16 @@ mod input;
 pub(in crate::desktop) mod local;
 #[path = "composition_live_menu.rs"]
 mod menu;
+#[path = "composition_live_pin.rs"]
+mod pin;
 #[path = "composition_live_placement.rs"]
 mod placement;
+#[path = "composition_live_popup_window.rs"]
+mod popup_window;
 #[path = "composition_live_publication.rs"]
 pub(in crate::desktop) mod publication;
+#[path = "composition_live_wheel.rs"]
+mod wheel;
 use std::{
     cell::{Cell, RefCell},
     sync::OnceLock,
@@ -35,6 +41,11 @@ use windows::{
 };
 
 struct State {
+    popup: Cell<bool>,
+    popup_noactivate: Cell<bool>,
+    popup_peers: RefCell<Vec<HWND>>,
+    popup_focus: RefCell<input::PopupFocus>,
+    pin: pin::Pin,
     chrome: crate::desktop::application::chrome::Binding,
     session_end_reason: Cell<bool>,
     publication: publication::Control,
@@ -55,6 +66,7 @@ struct State {
     menu_open: Cell<bool>,
     unlink_requested: Cell<bool>,
     host: RefCell<Option<Host>>,
+    presented: Presented,
     error: RefCell<Option<Error>>,
     closed: Cell<bool>,
     deferred: Cell<bool>,
@@ -74,6 +86,7 @@ impl State {
         result.map(Some)
     }
     fn stop(&self) {
+        self.presented.clear();
         self.art_requested.set(false);
         self.drag.set(None);
         self.drag_starting.set(false);
@@ -85,6 +98,7 @@ impl State {
 }
 
 pub struct LiveWindow {
+    wheel: Option<wheel::Registration>,
     unit_id: crate::workspace_id::UnitId,
     hwnd: HWND,
     state: Box<State>,
@@ -150,13 +164,21 @@ impl LiveWindow {
             && !self.state.freeze_requested.get()
             && !self.state.recycle_requested.get()
             && !self.state.art_requested.get()
+            && self.state.pin.request.get().is_none()
     }
     pub fn take_unlink_request(&self) -> bool {
         self.state.unlink_requested.replace(false)
     }
+    pub(super) fn native_handle(&self) -> HWND {
+        self.hwnd
+    }
     #[cfg(test)]
     pub(in crate::desktop) fn hwnd_for_test(&self) -> HWND {
         self.hwnd
+    }
+    #[cfg(test)]
+    pub(in crate::desktop) fn wheel_routed_for_test(&self) -> usize {
+        wheel::routed()
     }
     #[cfg(test)]
     pub(in crate::desktop) fn frame_for_test(
@@ -171,6 +193,11 @@ impl LiveWindow {
             register()?;
             let unit_id = crate::desktop::document_state::new_unit_id()?;
             let state = Box::new(State {
+                popup: Cell::new(false),
+                popup_noactivate: Cell::new(false),
+                popup_peers: RefCell::new(Vec::new()),
+                popup_focus: Default::default(),
+                pin: Default::default(),
                 chrome: Default::default(),
                 session_end_reason: Cell::new(false),
                 publication: publication::Control::default(),
@@ -191,6 +218,7 @@ impl LiveWindow {
                 menu_open: Cell::new(false),
                 unlink_requested: Cell::new(false),
                 host: RefCell::new(None),
+                presented: Presented::default(),
                 error: RefCell::new(None),
                 closed: Cell::new(false),
                 deferred: Cell::new(false),
@@ -210,54 +238,27 @@ impl LiveWindow {
                 Some(HINSTANCE(GetModuleHandleW(None)?.0)),
                 Some((&*state as *const State).cast()),
             )?;
-            let window = Self {
+            let mut window = Self {
+                wheel: None,
                 hwnd,
                 state,
                 unit_id,
             };
             input::install(hwnd)?;
+            window.state.input.borrow_mut().hover =
+                Some(crate::live_hover_owner::Owner::new(hwnd)?);
+            window.wheel = Some(wheel::Registration::new(hwnd)?);
             art::install(hwnd)?;
             crate::desktop::application::chrome::ports::install_live(hwnd)?;
             publication::install(hwnd)?;
             window.state.groups.borrow_mut().menu = Some(groups::install(hwnd)?);
-            AppendMenuW(
-                GetSystemMenu(hwnd, false),
-                MF_STRING,
-                0x1f90,
-                w!("断开 Live 连线…"),
-            )?;
-            AppendMenuW(
-                GetSystemMenu(hwnd, false),
-                MF_STRING,
-                0x1fa0,
-                w!("从 Live 创建连线…"),
-            )?;
-            AppendMenuW(
-                GetSystemMenu(hwnd, false),
-                MF_STRING,
-                0x1fb0,
-                w!("刷新连线快照并通知下游"),
-            )?;
-            AppendMenuW(
-                GetSystemMenu(hwnd, false),
-                MF_STRING,
-                0x1fe0,
-                w!("停止 Live 并保留当前画面"),
-            )?;
-            AppendMenuW(
-                GetSystemMenu(hwnd, false),
-                MF_STRING,
-                0x1fd0,
-                w!("关闭 Live 并移入回收站"),
-            )?;
-            AppendMenuW(
-                GetSystemMenu(hwnd, false),
-                MF_STRING,
-                0x1fc0,
-                w!("放弃 Live（不保留画面）"),
-            )?;
+            menu::install(hwnd)?;
             SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE)?;
-            *window.state.host.borrow_mut() = Some(Host::bind(hwnd, consumer)?);
+            *window.state.host.borrow_mut() = Some(Host::bind_presented(
+                hwnd,
+                consumer,
+                window.state.presented.clone(),
+            )?);
             Ok(window)
         }
     }
@@ -308,6 +309,7 @@ impl LiveWindow {
 }
 impl Drop for LiveWindow {
     fn drop(&mut self) {
+        self.wheel.take();
         let alive = self.owns_hwnd();
         self.state.stop();
         if alive {
@@ -369,6 +371,9 @@ unsafe extern "system" fn procedure(hwnd: HWND, message: u32, wp: WPARAM, lp: LP
     let Some(state) = pointer.as_ref() else {
         return DefWindowProcW(hwnd, message, wp, lp);
     };
+    if state.popup_noactivate.get() && message == WM_MOUSEACTIVATE {
+        return LRESULT(MA_NOACTIVATE as isize);
+    }
     crate::desktop::application::chrome::geometry(&state.chrome, hwnd, message);
     if let Some(result) = crate::desktop::session_end::dispatch_active(
         hwnd,
@@ -383,15 +388,7 @@ unsafe extern "system" fn procedure(hwnd: HWND, message: u32, wp: WPARAM, lp: LP
         result
     } else {
         match message {
-            WM_SYSCOMMAND
-                if [
-                    publication::PUBLISH,
-                    publication::PUBLISH_CONTROL,
-                    publication::PUBLISH_OBSERVE,
-                    publication::STOP,
-                ]
-                .contains(&(wp.0 & 0xfff0)) =>
-            {
+            WM_SYSCOMMAND if publication::handles(wp.0 & 0xfff0) => {
                 publication::queue(state, wp.0 & 0xfff0);
                 Ok(())
             }
@@ -487,6 +484,7 @@ unsafe fn paint(hwnd: HWND, state: &State) -> Result<()> {
         }
         state.with_host(|host| {
             host.set_opacity(state.opacity.get())?;
+            host.select_pin(state.pin.selected.get());
             host.set_chrome_visible(crate::desktop::application::chrome::live_frame(
                 &state.chrome,
             ));

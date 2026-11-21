@@ -51,7 +51,10 @@ fn prepare_with(
     })
 }
 pub(super) unsafe fn paint(item: &DRAWITEMSTRUCT, image: Option<&Image>) {
-    FillRect(item.hDC, &item.rcItem, GetSysColorBrush(COLOR_WINDOW));
+    paint_on(item, image, GetSysColorBrush(COLOR_WINDOW));
+}
+pub(super) unsafe fn paint_on(item: &DRAWITEMSTRUCT, image: Option<&Image>, background: HBRUSH) {
+    FillRect(item.hDC, &item.rcItem, background);
     let Some(image) = image else {
         return;
     };

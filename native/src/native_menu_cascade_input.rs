@@ -1,7 +1,7 @@
 //! 级联导航与可见行映射；按下/抬起必须命中同一当前条目才返回命令。
 use super::*;
 impl Cascade {
-    fn row_at(&self, level: usize, x: i32, y: i32) -> Option<usize> {
+    pub(super) fn row_at(&self, level: usize, x: i32, y: i32) -> Option<usize> {
         let page = &self.pages[level];
         if x < 0
             || y < 0
@@ -10,7 +10,13 @@ impl Cascade {
         {
             return None;
         }
-        let index = page.first + (y / self.row) as usize;
+        let index = page.first
+            + page.layout.hit(
+                x,
+                y,
+                self.content_width(level),
+                self.items(&page.path).len().saturating_sub(page.first),
+            )?;
         self.items(&page.path)
             .get(index)
             .filter(|item| item.enabled && !item.separator)
@@ -43,7 +49,9 @@ impl Cascade {
                 return Ok(());
             }
             self.command = Some(command);
-            self.cancel();
+            if !self.checklist {
+                self.cancel();
+            }
             Ok(())
         }
     }
@@ -67,13 +75,34 @@ impl Cascade {
         Ok(())
     }
     pub(super) fn event(&mut self, level: usize, event: Event) -> Result<()> {
+        if event == Event::PreviewPointer {
+            self.retire_clicks();
+            return Ok(());
+        }
+        if let Event::WheelAt(delta, x, y) = event {
+            return self.pointer(&MSG {
+                message: WM_MOUSEWHEEL,
+                wParam: WPARAM((delta as u16 as usize) << 16),
+                lParam: LPARAM(((y as u16 as u32) << 16 | x as u16 as u32) as isize),
+                ..Default::default()
+            });
+        }
+        if !matches!(
+            event,
+            Event::Move(..) | Event::Down(..) | Event::Up(..) | Event::Wheel(_)
+        ) {
+            self.preview = None;
+            self.pages[level].panel.set_delete_hover(None);
+        }
         self.pending_surrogate = None; // 导航/指针事件不能把前一菜单的半个字符带到新目标。
         if self.scroll_event(level, event)? {
             self.sync_accessibility();
             return Ok(());
         }
         match event {
-            Event::ScrollTo(first) => self.set_first(level, first)?,
+            Event::ScrollTo(first) => {
+                self.set_first(level, first * self.pages[level].layout.columns)?
+            }
             Event::Automation(visible, action) => {
                 use crate::native_menu::accessibility::Action;
                 let page = &self.pages[level];
@@ -92,6 +121,7 @@ impl Cascade {
                         // 同一父行再次获取焦点也须退出子页，不能被 focus 的同值快路吞掉。
                         self.pages.truncate(level + 1);
                         self.pages[level].pressed = None;
+                        self.pages[level].delete_pressed = None;
                         self.pages[level].drag = None;
                         self.focus(level, Some(index))?;
                     }
@@ -115,18 +145,64 @@ impl Cascade {
             Event::Move(x, y) => {
                 let index = self.row_at(level, x, y);
                 self.focus(level, index)?;
-                if let Some(index) = index {
+                self.pages[level]
+                    .panel
+                    .set_delete_hover(self.delete_at(level, x, y));
+                self.show_preview(level, index)?;
+                if let Some(index) = index.filter(|_| self.pages[level].layout.columns == 1) {
                     self.expand(level, index)?;
                 }
             }
-            Event::Down(x, y) => self.pages[level].pressed = self.row_at(level, x, y),
+            Event::Down(x, y) => {
+                let delete = self.delete_at(level, x, y);
+                self.pages[level].delete_pressed = delete;
+                self.pages[level].pressed = if delete.is_some() {
+                    None
+                } else {
+                    self.row_at(level, x, y)
+                };
+            }
             Event::Up(x, y) => {
-                let pressed = self.pages[level].pressed.take();
+                let delete = self.pages[level].delete_pressed.take();
                 if let Some(index) =
-                    pressed.filter(|index| Some(*index) == self.row_at(level, x, y))
+                    delete.filter(|index| Some(*index) == self.delete_at(level, x, y))
                 {
+                    self.pending_delete = self.items(&self.pages[level].path)[index].delete;
+                    // 删除确认前保留阅读帧；新快照原位换内容，空列表再关闭预览。
+                }
+                let pressed = self.pages[level].pressed.take();
+                if let Some(index) = pressed.filter(|index| {
+                    Some(*index) == self.row_at(level, x, y)
+                        && self.delete_at(level, x, y).is_none()
+                }) {
                     self.activate(level, index)?;
                 }
+            }
+            Event::Key(0x2e) if self.pages[level].layout.columns == 3 => {
+                if let Some(index) = self.pages[level].focus {
+                    self.pending_delete = self.items(&self.pages[level].path)[index].delete;
+                    self.retire_clicks();
+                }
+            }
+            Event::Key(0x26 | 0x28) if self.pages[level].layout.columns == 3 => {
+                self.gallery_key(
+                    level,
+                    if matches!(event, Event::Key(0x26)) {
+                        -3
+                    } else {
+                        3
+                    },
+                )?;
+            }
+            Event::Key(0x25 | 0x27) if self.pages[level].layout.columns == 3 => {
+                self.gallery_key(
+                    level,
+                    if matches!(event, Event::Key(0x25)) {
+                        -1
+                    } else {
+                        1
+                    },
+                )?;
             }
             Event::Key(0x26) => self.navigate(level, -1)?,
             Event::Key(0x28) => self.navigate(level, 1)?,
@@ -162,16 +238,19 @@ impl Cascade {
                 let count = self.items(&self.pages[level].path).len();
                 self.pages.truncate(level + 1);
                 let page = &mut self.pages[level];
+                page.panel.set_delete_hover(None);
+                page.delete_pressed = None;
                 page.wheel += i32::from(delta);
                 let notches = page.wheel / 120;
                 page.wheel %= 120;
                 let step = if lines == u32::MAX {
-                    page.visible as i64
+                    (page.visible / page.layout.columns) as i64
                 } else {
                     i64::from(lines)
                 };
-                let first = (page.first as i64 - i64::from(notches) * step)
-                    .clamp(0, count.saturating_sub(page.visible) as i64)
+                let first = (page.first as i64
+                    - i64::from(notches) * step * page.layout.columns as i64)
+                    .clamp(0, page.layout.max_first(count, page.visible) as i64)
                     as usize;
                 if first != page.first {
                     page.first = first;

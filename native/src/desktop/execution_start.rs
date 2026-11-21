@@ -1,7 +1,9 @@
 //! 用户启动命令只捕获配置身份并唤醒应用；不在 Win32 回调中编码图片或连接 Loom。
 use super::{configuration_stamp::Stamp, State};
+#[cfg(test)]
+use windows::core::w;
 use windows::{
-    core::{w, Result},
+    core::Result,
     Win32::{Foundation::*, UI::WindowsAndMessaging::*},
 };
 pub(super) const COMMAND: usize = 0x1083;
@@ -56,19 +58,6 @@ pub(super) fn ready(state: &State) -> bool {
         && state.pending_execution.borrow().is_none()
         && state.execution_results.borrow().active().is_none()
 }
-pub(super) unsafe fn append(menu: HMENU, state: &State) -> Result<()> {
-    AppendMenuW(
-        menu,
-        MF_STRING
-            | if available(state) {
-                MF_ENABLED
-            } else {
-                MF_GRAYED
-            },
-        COMMAND,
-        w!("运行所选能力"),
-    )
-}
 pub(super) unsafe fn request(hwnd: HWND, state: &State) -> Result<()> {
     if !IsWindow(Some(hwnd)).as_bool() {
         return Err(windows::core::Error::from_win32());
@@ -114,4 +103,19 @@ pub(super) unsafe fn request_after_parameter(hwnd: HWND, state: &State) -> Resul
     state.pending_start.borrow_mut().as_mut().unwrap().trigger =
         crate::graph_execution_config::Trigger::Manual;
     Ok(())
+}
+
+#[cfg(test)]
+pub(super) unsafe fn append(menu: HMENU, state: &State) -> Result<()> {
+    AppendMenuW(
+        menu,
+        MF_STRING
+            | if available(state) {
+                MF_ENABLED
+            } else {
+                MF_GRAYED
+            },
+        COMMAND,
+        w!("运行所选能力"),
+    )
 }

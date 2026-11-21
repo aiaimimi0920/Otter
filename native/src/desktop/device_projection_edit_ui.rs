@@ -7,6 +7,54 @@ pub(in crate::desktop) const USE_REMOTE: usize = 0x1783;
 pub(in crate::desktop) const INITIALIZE: usize = 0x1784;
 pub(in crate::desktop) const ONE_WAY: usize = 0x1785;
 pub(in crate::desktop) const TWO_WAY: usize = 0x1786;
+// 投射前的方向属于当前文档；初始化及之后的模式变更仍交给原协作事务。
+pub(in crate::desktop) struct Preference {
+    pub stamp: crate::editor::DocumentStamp,
+    pub mode: crate::projection_edit::Mode,
+    pub submitted: bool,
+}
+pub(in crate::desktop) fn requested_mode(state: &State) -> Option<crate::projection_edit::Mode> {
+    state.projection_mode.borrow().as_ref().and_then(|choice| {
+        choice
+            .stamp
+            .same_document(&state.canvas.borrow().editor)
+            .then_some(choice.mode)
+    })
+}
+pub(in crate::desktop) fn mode(state: &State) -> crate::projection_edit::Mode {
+    requested_mode(state)
+        .or_else(|| {
+            state.projection_edit.borrow().as_ref().map(|owner| {
+                owner
+                    .capture(&state.canvas.borrow().editor)
+                    .document()
+                    .mode()
+            })
+        })
+        .unwrap_or(crate::projection_edit::Mode::OneWay)
+}
+pub(in crate::desktop) fn can_choose_mode(state: &State) -> bool {
+    !state.authorization.borrow().closed
+        && state.projection_edit.borrow().as_ref().is_none_or(|owner| {
+            owner.capture(&state.canvas.borrow().editor).role()
+                == crate::projection_edit::workspace::Role::Source
+        })
+}
+pub(in crate::desktop) unsafe fn choose_mode(
+    state: &State,
+    mode: crate::projection_edit::Mode,
+) -> Result<()> {
+    if !can_choose_mode(state) || state.exit_requested.get() || state.modals.blocked() {
+        return Err(Error::new(E_ABORT, "Collaboration mode selection expired"));
+    }
+    let stamp = state.canvas.borrow().editor.document_stamp();
+    *state.projection_mode.borrow_mut() = Some(Preference {
+        stamp,
+        mode,
+        submitted: false,
+    });
+    PostMessageW(None, WM_NULL, WPARAM(0), LPARAM(0))
+}
 pub(in crate::desktop) struct Selection {
     pub unit: crate::workspace_id::UnitId,
     pub stamp: crate::desktop::projection_edit_workspace::Stamp,
@@ -16,6 +64,7 @@ pub(in crate::desktop) struct View {
     pub busy: bool,
     pub unit: Option<crate::workspace_id::UnitId>,
     pub status: String,
+    pub recovery: bool,
 }
 pub(in crate::desktop) fn handles(command: usize) -> bool {
     matches!(
@@ -89,8 +138,8 @@ pub(super) unsafe fn append_menu(menu: HMENU, state: &State, view: &super::View)
         .unwrap()
         .capture(&state.canvas.borrow().editor);
     for (id, mode, label) in [
-        (ONE_WAY, crate::projection_edit::Mode::OneWay, "单向修改"),
-        (TWO_WAY, crate::projection_edit::Mode::TwoWay, "双向修改"),
+        (ONE_WAY, crate::projection_edit::Mode::OneWay, "单向数据"),
+        (TWO_WAY, crate::projection_edit::Mode::TwoWay, "双向数据"),
     ] {
         let enabled = selectable(state, view)
             && snapshot.role() == crate::projection_edit::workspace::Role::Source

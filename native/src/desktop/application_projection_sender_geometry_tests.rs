@@ -95,6 +95,8 @@ pub(super) unsafe fn install(app: &mut Application, case: source::Case) -> Image
     let mut value: serde_json::Value = serde_json::from_slice(&canonical).unwrap();
     value["stickers"][0]["imageEditState"] =
         serde_json::json!({"borderWidth":2,"borderColor":"#ff0000"});
+    app.documents[0].state.canvas.borrow_mut().frame_style =
+        crate::pin_frame_style::Style::read(&value["stickers"][0]["imageEditState"]).unwrap();
     if matches!(case, source::Case::ArtLive) {
         value["stickers"][0]["type"] = "art".into();
         app.documents[0].state.restored_art = true;

@@ -16,6 +16,8 @@ use windows::{
 pub(super) const OPEN_TIMER: usize = 0x4F55;
 #[path = "open_batch.rs"]
 mod batch;
+#[path = "open_capture_ready.rs"]
+mod capture_ready;
 use batch::load_inputs;
 pub(super) const MAX_BATCH: usize = 32;
 pub(super) enum Input {
@@ -164,6 +166,31 @@ pub(super) unsafe fn start_destination(
     input: Input,
     new_pin: bool,
 ) -> Result<()> {
+    start_positioned(hwnd, state, input, new_pin, None)
+}
+/// 普通截图在原准备线程完成时交付；不等下一次 100 ms 的导入轮询。
+pub(super) unsafe fn start_capture_destination(
+    hwnd: HWND,
+    state: &State,
+    input: Input,
+    new_pin: bool,
+) -> Result<()> {
+    // 不接管先前的文件打开任务；维持 start_destination 的单任务准入语义。
+    let pending = state.open_job.borrow().is_some();
+    start_destination(hwnd, state, input, new_pin)?;
+    if pending {
+        Ok(())
+    } else {
+        capture_ready::finish(hwnd, state)
+    }
+}
+pub(super) unsafe fn start_positioned(
+    hwnd: HWND,
+    state: &State,
+    input: Input,
+    new_pin: bool,
+    position: Option<(POINT, Option<super::clipboard_placement::Request>)>,
+) -> Result<()> {
     if !new_pin && !super::open_image::can_replace(state) {
         return Err(Error::new(
             E_ACCESSDENIED,
@@ -198,7 +225,16 @@ pub(super) unsafe fn start_destination(
     let worker_cancel = cancel.clone();
     let worker = std::thread::Builder::new()
         .name("otter-open".into())
-        .spawn(move || load_inputs(input, pinned, &worker_cancel))
+        .spawn(move || {
+            let mut result = load_inputs(input, pinned, &worker_cancel)?;
+            if let (Some(documents), Some((cursor, request))) = (&mut result, position) {
+                for document in documents {
+                    document.paste_origin = Some(cursor);
+                    document.placement = request.clone();
+                }
+            }
+            Ok(result)
+        })
         .map_err(|error| Error::new(E_FAIL, error.to_string()))?;
     *state.open_job.borrow_mut() = Some(OpenJob {
         new_pin,

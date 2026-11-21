@@ -127,7 +127,7 @@ impl<T> Service<T> {
         mut restore: impl FnMut(&Record, &mut T) -> io::Result<()>,
     ) -> io::Result<()> {
         self.recovering = true;
-        let mut first = None;
+        let mut first: Option<io::Error> = None;
         let mut index = 0;
         while index < self.entries.len() {
             let entry = &mut self.entries[index];
@@ -136,7 +136,13 @@ impl<T> Service<T> {
                     self.entries.remove(index);
                 }
                 Err(error) => {
-                    first.get_or_insert(error);
+                    // 异步等待不能遮住同轮其他源的真实恢复失败，两个类型的责任都保留。
+                    if first.as_ref().is_none_or(|previous| {
+                        previous.kind() == io::ErrorKind::WouldBlock
+                            && error.kind() != io::ErrorKind::WouldBlock
+                    }) {
+                        first = Some(error);
+                    }
                     index += 1;
                 }
             }

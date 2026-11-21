@@ -14,6 +14,10 @@ pub(in crate::desktop) struct Presentation {
 }
 
 impl Presentation {
+    /// 仅限没有改变像素/裁剪/标注的呈现历史；几何和透明度不使既有取景失效。
+    pub(in crate::desktop) fn refresh_presentation_stamp(&mut self, editor: &Editor) {
+        self.stamp = editor.document_stamp();
+    }
     pub(in crate::desktop) fn for_display(&self, image: &Image, editor: &Editor) -> Result<Self> {
         let annotations = self.views.annotations;
         let image_view =
@@ -110,9 +114,9 @@ impl Presentation {
         brush: &ID2D1SolidColorBrush,
         effects: &mut super::super::effect_cache::Cache,
         editor: &Editor,
-        output: (D2D_SIZE_U, u32),
+        output: (D2D_SIZE_U, u32, crate::pin_frame_style::Style),
     ) -> Result<()> {
-        let (size, dpi) = output;
+        let (size, dpi, style) = output;
         if !self.matches(editor) || dpi == 0 {
             return Err(Error::new(E_INVALIDARG, "Stale minified presentation"));
         }
@@ -146,6 +150,9 @@ impl Presentation {
         transform.M32 = 0.0;
         target.SetDpi(dpi as f32, dpi as f32);
         target.Clear(Some(&D2D1_COLOR_F::default()));
+        let factory = target.GetFactory()?;
+        let frame_style = super::super::frame_style_draw::Frame::new(style, size, dpi);
+        let _rounded = frame_style.clip(target, &factory)?;
         target.SetTransform(&transform);
         let clip = D2D_RECT_F {
             left: 0.0,
@@ -154,11 +161,33 @@ impl Presentation {
             bottom: self.size.height as f32,
         };
         let _clipped = super::super::render_frame::Clip::push(target, &clip);
-        resources.draw(
+        resources.draw_interleaved(
             target,
             &destination(self.views.image),
             &destination(self.views.annotations),
-        );
+            None,
+            (
+                Viewport {
+                    origin: Point::default(),
+                    scale: 1.0,
+                },
+                None,
+            ),
+            || {
+                target.SetTransform(&original);
+                let result = frame_style.border_over_clip(
+                    target,
+                    &D2D_RECT_F {
+                        left: 0.0,
+                        top: 0.0,
+                        right: size.width as f32 * 96.0 / dpi as f32,
+                        bottom: size.height as f32 * 96.0 / dpi as f32,
+                    },
+                );
+                target.SetTransform(&transform);
+                result
+            },
+        )?;
         transform.M11 = (sx * mapping.scale.0) as f32;
         transform.M22 = (sy * mapping.scale.1) as f32;
         transform.M31 = (sx * mapping.offset.0) as f32;
@@ -187,7 +216,14 @@ impl Presentation {
         output: (D2D_SIZE_U, u32),
     ) -> Result<()> {
         super::super::render_frame::draw(target, || {
-            self.paint(target, resources, brush, effects, editor, output)
+            self.paint(
+                target,
+                resources,
+                brush,
+                effects,
+                editor,
+                (output.0, output.1, Default::default()),
+            )
         })
     }
     fn editor_frame(&self, editor: &Editor) -> Option<crate::crop_geometry::Rect> {
@@ -227,7 +263,7 @@ impl Canvas {
                 &resources.brush,
                 &mut resources.effects,
                 editor,
-                (size, dpi),
+                (size, dpi, self.frame_style),
             )
         })?;
         self.paints = self.paints.saturating_add(1);
@@ -244,7 +280,7 @@ impl Canvas {
                 &resources.brush,
                 &mut resources.effects,
                 &self.editor,
-                (size, dpi),
+                (size, dpi, self.frame_style),
             )
         })?;
         self.paints = self.paints.saturating_add(1);

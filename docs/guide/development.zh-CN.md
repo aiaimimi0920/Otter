@@ -4,6 +4,37 @@
 
 以下命令均在仓库根目录执行；贡献流程与代码归属以[工程贡献规范](../../CONTRIBUTING.md)为准。
 
+## Windows 原生开发
+
+需要 Windows 10/11、Rust x64 MSVC 工具链、Visual Studio C++ Build Tools 和 Windows 资源编译器
+（将 `rc.exe` 或 `llvm-rc.exe` 加入 PATH，或以绝对路径设置 `OTTER_NATIVE_RC`）。Node.js 和 Python
+只用于工程工具，不是运行依赖；无需 WebView2，也无需在同级目录放置 NeuroDesign。
+
+```powershell
+cargo fetch --locked --manifest-path native/Cargo.toml
+npm run build
+npm run verify:local
+# 正常退出其他 Otter 实例后再启动开发版。
+npm run dev
+```
+
+Cargo 从 NeuroDesign 拉取 `neuro-mini-ui`，精确提交记录在 `native/Cargo.toml` 和
+`native/Cargo.lock`。Release 构建默认生成 `native/target/release/otter-native.exe` 和
+`otter_live_hover_hook.dll`。给其他人手测时使用完整内部 ZIP：
+
+```powershell
+.\scripts\build-native-candidate.ps1 -OutputDirectory "$env:TEMP/otter-candidate" -TargetDirectory "$env:TEMP/otter-native-target"
+.\scripts\package-native-candidate.ps1 -CandidateDirectory "$env:TEMP/otter-candidate" -OutputDirectory "$env:TEMP/otter-package"
+.\scripts\verify-native-package.ps1 -ZipPath (Get-ChildItem "$env:TEMP/otter-package/*-internal.zip").FullName
+```
+
+候选和打包必须使用尚不存在的输出目录。先运行上面的 `cargo fetch`，再执行离线候选构建。
+原生公开签名和发行暂未启用。
+
+## 历史 Tauri／WebView 验证
+
+以下是归档产品的验证记录，不是原生版验收。复现原 WebView 产品请检出 `archive/webview-main`。
+
 Tauri v2 · SolidJS · TypeScript · Rust
 
 ```powershell
@@ -39,9 +70,6 @@ cargo fmt --check --manifest-path src-tauri\Cargo.toml
 cargo test --manifest-path src-tauri\Cargo.toml
 npm run build
 ```
-
-`npm run verify:local` 会执行完整的串行验证，并继续构建和打包本地 Release；它不
-是轻量级的 lint 命令。
 
 实时截图 G2 探针默认在交互式桌面运行 600 秒。它使用同权限、持续变化的 WinForms
 夹具验证 WGC 新帧、尺寸变化后的重建、源关闭 fail-closed、会话清理，以及句柄和

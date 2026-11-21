@@ -14,6 +14,8 @@ mod lifecycle;
 mod live_trigger;
 #[path = "surface_javascript_signed_result_lifecycle_tests.rs"]
 mod result_lifecycle;
+#[path = "surface_javascript_signed_view_tests.rs"]
+mod view;
 pub(crate) fn start(
     deadline: Option<Duration>,
 ) -> (

@@ -11,6 +11,7 @@ pub struct Publication {
     interactive: bool,
     observing: bool,
     h264: bool,
+    direct_viewer: Option<String>,
     actor: std::sync::atomic::AtomicU64,
 }
 impl Publication {
@@ -37,6 +38,7 @@ impl Publication {
             interactive: false,
             observing: false,
             h264: false,
+            direct_viewer: None,
             actor: std::sync::atomic::AtomicU64::new(1),
         })
     }
@@ -77,6 +79,13 @@ impl Publication {
     pub(crate) fn h264(&self) -> bool {
         self.h264
     }
+    pub(crate) fn allow_direct_viewer(&mut self, device: String) -> Result<(), Error> {
+        if !protocol::identifier(&device) || self.interactive || self.observing {
+            return Err(Error::Input);
+        }
+        self.direct_viewer = Some(device);
+        Ok(())
+    }
     fn body(&self, device: &str, now: u64) -> Value {
         let window = self.window.is_some();
         let (id, pid) = self
@@ -84,7 +93,7 @@ impl Publication {
             .as_ref()
             .map(|(id, pid)| (id.as_str(), *pid))
             .unwrap_or((&self.session, std::process::id()));
-        json!({"surfaceInstanceId":null,"sourceAttachmentId":null,"envelope":{
+        let mut body = json!({"surfaceInstanceId":null,"sourceAttachmentId":null,"envelope":{
             "protocolVersion":protocol::PROTOCOL,"sessionId":self.session,"epoch":1,"sequence":1,
             "messageType":"session_start","payload":{"session":{
                 "protocolVersion":protocol::PROTOCOL,"sessionId":self.session,
@@ -102,7 +111,11 @@ impl Publication {
                 "captureStrategy":if window {"persistent_window_wgc"} else {"persistent_display_wgc"},
                 "renderPreservationStrategy":if window {"visible_offscreen"} else {"visible"},
                 "revision":1,"createdAtMs":now,"lastSeenAtMs":now},
-                "requestedByDeviceId":device,"requestNonce":format!("request:{}",self.session)}}})
+                "requestedByDeviceId":device,"requestNonce":format!("request:{}",self.session)}}});
+        if let Some(viewer) = &self.direct_viewer {
+            body["directViewerDeviceId"] = json!(viewer);
+        }
+        body
     }
 }
 impl Control<'_> {
@@ -132,7 +145,9 @@ impl Control<'_> {
             return Err(Error::Input);
         }
         let actual: Value = serde_json::from_slice(bytes).map_err(|_| Error::Input)?;
-        if actual["closed"] != false {
+        if actual["closed"] != false
+            || (actual["directView"] == true) != publication.direct_viewer.is_some()
+        {
             return Err(Error::Input);
         }
         // 不只核 sessionId；服务响应不能替换采集来源、尺寸、codec或广告尚未接通的能力。

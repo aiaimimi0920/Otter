@@ -13,7 +13,8 @@ pub(super) fn directory(
 ) -> std::sync::Arc<crate::projection_delivery::targets::Directory> {
     crate::projection_delivery::targets::Directory::parse(&serde_json::to_vec(&json!({
         "targets":(0..count).map(|i| json!({"deviceId":format!("receiver-{i}"),"name":format!("Screen {i}"),"policy":"confirm","route":"shared_loom"})).collect::<Vec<_>>(),
-        "groups":[{"groupId":"group:all","name":"All screens","targetIds":(0..count).map(|i| format!("receiver-{i}")).collect::<Vec<_>>(),"unavailableCount":1}]
+        "groups":[{"groupId":"group:all","name":"All screens","targetIds":(0..count).map(|i| format!("receiver-{i}")).collect::<Vec<_>>(),"unavailableCount":1}],
+        "peerDirectory":{"status":"complete"},"friends":{"users":[]}
     })).unwrap(),origin).unwrap().into()
 }
 pub(super) unsafe fn authorize(

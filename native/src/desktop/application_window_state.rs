@@ -18,6 +18,8 @@ impl Application {
                         document.window.0,
                         document.panel.0,
                         document.state.parameters_ui.window(),
+                        unsafe { crate::desktop::pin_settings::window(&document.state) }
+                            .unwrap_or_default(),
                     ]
                 })
                 .filter(|hwnd| !hwnd.is_invalid()),
@@ -50,6 +52,7 @@ impl Application {
     pub(super) fn bind_window_state(&self, mut state: State) -> State {
         *state.chrome.borrow_mut() = self.chrome.bind();
         state.capture_history = self.capture_history.view.clone();
+        state.edit_palette = self.edit_palette.clone();
         state.naming = self.naming.clone();
         state.cache_policy = self.cache_policy.clone();
         state.frozen_library = self.frozen_library.clone();
@@ -58,6 +61,9 @@ impl Application {
         state.naming_autosave = self.naming_autosave.clone();
         state.workspace_autosave = self.workspace_autosave.clone();
         state.catalog = self.catalog.clone();
+        state.extensions = self.extensions.view.clone();
+        state.extension_commands = self.extension_commands.view.clone();
+        state.extension_target = self.extension_shortcuts.target.clone();
         state.authorization = self.authorization.clone();
         state.group_catalog = self.group_catalog.clone();
         state.hotkey_enabled = self.hotkey_enabled.clone();

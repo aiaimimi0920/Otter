@@ -55,8 +55,8 @@ unsafe fn current(ui: &Ui, port: Port, catalog: &Rc<Catalog>) -> bool {
             .is_some_and(|s| Rc::ptr_eq(&s.catalog, catalog))
         && ui.node(port.node).is_some_and(|node| {
             node.interactive
-                && node.ports(ui.mode.get(), false)
-                && node.point(port.side, port.index).is_some()
+                && node.ports(ui.mode.get(), node.hide_collapsed_endpoints)
+                && ui.point(port).is_some()
                 && IsWindowVisible(HWND(node.hwnd as *mut _)).as_bool()
                 && GetWindowLongPtrW(HWND(node.hwnd as *mut _), GWLP_USERDATA) == node.marker
         })
@@ -74,10 +74,6 @@ unsafe fn focus(ui: &Ui, port: Port, catalog: Rc<Catalog>, origin: Node) -> bool
         return false;
     };
     if !current(ui, port, &catalog) {
-        return false;
-    }
-    capsule::cancel(ui);
-    if ui.capsule.borrow().is_some() {
         return false;
     }
     let candidate = Rc::new(Focus {
@@ -279,19 +275,12 @@ pub(super) unsafe fn translate(ui: &Ui, message: &MSG) -> bool {
             }
             Action::Link => link(ui, f),
             Action::Edit => {
-                capsule::request(ui, f.port, true);
+                parameter_rail::request(ui, f.port, true);
             }
             Action::Disclose => {
-                let mut disclosed = ui.disclosed.borrow_mut();
-                if !disclosed.remove(&f.port) {
-                    disclosed.insert(f.port);
-                }
-                let expanded = disclosed.contains(&f.port);
-                drop(disclosed);
+                let expanded = disclosure::toggle(ui, f.port);
                 if expanded {
-                    capsule::request(ui, f.port, false);
-                } else {
-                    capsule::cancel(ui);
+                    parameter_rail::request(ui, f.port, false);
                 }
                 if let Err(error) = window::refresh(ui) {
                     window::hide(ui);

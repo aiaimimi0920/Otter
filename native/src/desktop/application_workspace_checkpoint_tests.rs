@@ -1,11 +1,17 @@
 //! 完整 Application 检查点/重开/文件隔离；真实隐藏 HWND，不发全局输入。
 use super::*;
+#[path = "application_account_joint_tests.rs"]
+mod account_joint;
+#[path = "application_account_projection_tests.rs"]
+mod account_projection;
 #[path = "application_workspace_checkpoint_annotation_domain_tests.rs"]
 mod annotation_domain;
 #[path = "application_workspace_checkpoint_edit_tests.rs"]
 mod collaboration;
 #[path = "application_workspace_checkpoint_crash_tests.rs"]
 mod crash;
+#[path = "application_exit_scene_tests.rs"]
+mod exit_scene;
 #[path = "application_workspace_checkpoint_geometry_tests.rs"]
 mod geometry;
 #[path = "application_workspace_checkpoint_maintenance_tests.rs"]

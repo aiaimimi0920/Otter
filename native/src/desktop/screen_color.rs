@@ -29,15 +29,17 @@ pub(super) struct Session {
     stamp: DocumentStamp,
     style: StrokeStyle,
     tool: Tool,
-    fill: bool,
+    fill: Option<bool>,
     preview: super::Window,
     _modal: Modal,
 }
-pub(super) unsafe fn append(menu: HMENU) -> Result<()> {
-    AppendMenuW(menu, MF_STRING, STROKE, w!("屏幕取色：画笔 / 边框"))?;
-    AppendMenuW(menu, MF_STRING, FILL, w!("屏幕取色：填充"))
-}
 pub(super) unsafe fn start(hwnd: HWND, state: &State, fill: bool) -> Result<()> {
+    start_mode(hwnd, state, Some(fill))
+}
+pub(super) unsafe fn start_palette(hwnd: HWND, state: &State) -> Result<()> {
+    start_mode(hwnd, state, None)
+}
+unsafe fn start_mode(hwnd: HWND, state: &State, fill: Option<bool>) -> Result<()> {
     if !IsWindow(Some(hwnd)).as_bool()
         || state.modals.blocked()
         || state.file_dialog.get()
@@ -65,7 +67,7 @@ pub(super) unsafe fn start(hwnd: HWND, state: &State, fill: bool) -> Result<()> 
     SetCursor(Some(cursor));
     Ok(())
 }
-unsafe fn prepare(hwnd: HWND, state: &State, fill: bool) -> Result<Session> {
+unsafe fn prepare(hwnd: HWND, state: &State, fill: Option<bool>) -> Result<Session> {
     if state.file_dialog.replace(true) {
         return Err(Error::new(E_FAIL, "Color picker modal already active"));
     }
@@ -147,11 +149,17 @@ unsafe fn finish(hwnd: HWND, state: &State, color: Option<Color>) {
                 && session.tool == canvas.tool
                 && session.style == canvas.editor.style()
             {
-                canvas.editor.set_style(if session.fill {
-                    session.style.with_fill(Some(color))
+                if let Some(fill) = session.fill {
+                    canvas.editor.set_style(if fill {
+                        session.style.with_fill(Some(color))
+                    } else {
+                        session.style.with_color(color)
+                    });
                 } else {
-                    session.style.with_color(color)
-                });
+                    let mut palette = state.edit_palette.borrow_mut();
+                    palette.active = neuro_mini_ui::Rgba::rgb(color.0, color.1, color.2);
+                    palette.sampled = Some(color);
+                }
                 state.capture_history.borrow_mut().color(color);
             }
         }

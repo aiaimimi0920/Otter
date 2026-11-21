@@ -1,6 +1,9 @@
 //! 分组目录提供无成员分组的管理入口；子菜单附加成功后由父菜单统一释放。
 use super::*;
+#[cfg(test)]
 use crate::workspace::Group;
+#[cfg(test)]
+use windows::core::{w, HSTRING};
 pub(in crate::desktop) const RENAME_BASE: usize = 0x5200;
 pub(in crate::desktop) const DELETE_BASE: usize = 0x5300;
 pub(in crate::desktop) const CLOSE_BASE: usize = 0x5400;
@@ -8,7 +11,9 @@ pub(in crate::desktop) const LOCK_BASE: usize = 0x5500;
 const HIDE_BASE: usize = 0x5600;
 const BASES: [usize; 5] = [RENAME_BASE, DELETE_BASE, CLOSE_BASE, LOCK_BASE, HIDE_BASE];
 
+#[cfg(test)]
 struct Menu(Option<HMENU>);
+#[cfg(test)]
 impl Drop for Menu {
     fn drop(&mut self) {
         if let Some(menu) = self.0 {
@@ -18,16 +23,8 @@ impl Drop for Menu {
         }
     }
 }
-pub(super) fn handles(command: usize) -> bool {
-    BASES
-        .iter()
-        .any(|base| (*base..*base + crate::workspace::MAX_UNITS).contains(&command))
-}
-pub(super) unsafe fn append(
-    parent: HMENU,
-    groups: &[Group],
-    current: Option<&UnitId>,
-) -> Result<()> {
+#[cfg(test)]
+unsafe fn append(parent: HMENU, groups: &[Group], current: Option<&UnitId>) -> Result<()> {
     for (index, group) in groups.iter().enumerate() {
         let handle = CreatePopupMenu()?;
         let mut owner = Menu(Some(handle));
@@ -71,9 +68,14 @@ pub(super) unsafe fn append(
             handle.0 as usize,
             &HSTRING::from(group.name.replace('&', "&&")),
         )?;
-        owner.0 = None; // 父菜单取得所有权；后续任一步失败也由父 owner 递归释放。
+        owner.0 = None; // 父菜单接管子菜单，后续失败时仍会递归释放。
     }
     Ok(())
+}
+pub(super) fn handles(command: usize) -> bool {
+    BASES
+        .iter()
+        .any(|base| (*base..*base + crate::workspace::MAX_UNITS).contains(&command))
 }
 pub(super) unsafe fn execute(hwnd: HWND, state: &State, command: usize) -> Result<()> {
     execute_with(hwnd, state, command, |name| {

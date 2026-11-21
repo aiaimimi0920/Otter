@@ -23,6 +23,10 @@ pub(crate) enum Operation {
     Resume,
     /// 视口与操作同时交付，不能从后台读取 HWND。
     Viewport(crate::surface_viewport::Viewport),
+    SelectView(
+        crate::art_surface_views::Id,
+        crate::surface_viewport::Viewport,
+    ),
     Animation(crate::surface_viewport::Viewport),
     Timer(crate::surface_viewport::Viewport),
     Input(

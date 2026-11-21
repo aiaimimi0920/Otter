@@ -86,6 +86,9 @@ impl Binding {
                 keys.push(key);
             }
             let (primary, _) = inventory::primary(&object, &unit, &keys)?;
+            if selections.iter().any(|s| s.target.is_none()) && primary != 0 {
+                return Err(Error::Changed);
+            }
             return if keys.len() + primary + selections.len() <= MAX_PER_UNIT {
                 Ok(())
             } else {

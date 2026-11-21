@@ -101,6 +101,8 @@ impl Inbox {
                 source_name,
                 accepted: entry.delivery.status == "accepted",
                 offline: routing,
+                public_invitation: false,
+                shared_origin: None,
             });
         }
         Ok(Self {

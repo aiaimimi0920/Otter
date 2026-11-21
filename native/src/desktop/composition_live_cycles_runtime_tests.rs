@@ -51,7 +51,7 @@ unsafe fn click_child(session: &Session, fixture: &Fixture, target: &Target) {
     SendMessageW(hwnd, WM_LBUTTONDOWN, None, at);
     SendMessageW(hwnd, WM_LBUTTONUP, None, at);
 }
-unsafe fn close(session: &mut Session, owner: &mut Owner) {
+pub(super) unsafe fn close(session: &mut Session, owner: &mut Owner) {
     session.stop();
     owner.close();
     let end = Instant::now() + Duration::from_secs(12);
@@ -135,7 +135,8 @@ fn actual_wgc_repeated_resize_input_restart_and_source_restore() {
                     }
                     for restart in 0..2 {
                         let hwnd = session.window.as_ref().unwrap().hwnd_for_test();
-                        SendMessageW(hwnd, WM_SYSCOMMAND, Some(WPARAM(0x1ff0)), None);
+                        // 默认控制或失焦后的恢复都由内容鼠标事件驱动，不切换用户控制意图。
+                        SendMessageW(hwnd, WM_MOUSEMOVE, None, Some(LPARAM(32 | (32 << 16))));
                         until(
                             &mut session,
                             &mut owner,

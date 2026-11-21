@@ -3,16 +3,22 @@ use super::{annotations, image::Image, Apartment};
 #[cfg(test)]
 #[path = "export_annotation_domain_tests.rs"]
 mod annotation_domain_tests;
+#[cfg(test)]
 #[path = "export_drag.rs"]
 mod drag;
+#[path = "export_paint.rs"]
+mod paint;
 #[path = "export_projection.rs"]
 pub(super) mod projection;
 #[path = "export_raw.rs"]
 mod raw;
+#[path = "export_style.rs"]
+pub(super) mod style;
 use crate::{
     editor::Editor,
     viewport::{checked_image_bytes, Point, Viewport},
 };
+#[cfg(test)]
 pub(super) use drag::png_with_opacity;
 #[path = "export_source_resolution.rs"]
 pub(super) mod source_resolution;
@@ -38,46 +44,34 @@ fn save_new(path: &Path, image: &Image, editor: &Editor) -> std::result::Result<
     save_new_with_opacity(path, image, editor, 1.0)
 }
 
+#[cfg(test)]
 pub(super) fn save_new_with_opacity(
     path: &Path,
     image: &Image,
     editor: &Editor,
     opacity: f32,
 ) -> std::result::Result<(), String> {
-    save_allocated(image, editor, opacity, || {
+    save_allocated(image, editor, opacity, None, || {
         crate::file_naming::allocate::create_exact(path).map(|file| (file, path.to_path_buf()))
     })
     .map(|_| ())
-}
-
-pub(super) fn save_incremented(
-    directory: &Path,
-    stem: &str,
-    image: &Image,
-    editor: &Editor,
-    opacity: f32,
-) -> std::result::Result<std::path::PathBuf, String> {
-    save_allocated(image, editor, opacity, || {
-        crate::file_naming::allocate::create_unique_file(
-            directory,
-            stem,
-            Some("png"),
-            &std::sync::atomic::AtomicBool::new(false),
-        )
-    })
 }
 
 fn save_allocated(
     image: &Image,
     editor: &Editor,
     opacity: f32,
+    decoration: Option<&style::Snapshot>,
     allocate: impl FnOnce() -> std::io::Result<(std::fs::File, std::path::PathBuf)>,
 ) -> std::result::Result<std::path::PathBuf, String> {
     let _apartment = Apartment::new().map_err(|error| error.to_string())?;
     let wic: IWICImagingFactory =
         unsafe { CoCreateInstance(&CLSID_WICImagingFactory, None, CLSCTX_INPROC_SERVER) }
             .map_err(|error| error.to_string())?;
-    let bitmap = compose_opacity(image, editor, &wic, opacity, crate::pixels::reserve)
+    let bitmap = decoration
+        .copied()
+        .unwrap_or_default()
+        .compose(image, editor, &wic, opacity, crate::pixels::reserve)
         .map_err(|error| error.to_string())?;
     let (stream, size) = encode_bitmap(&wic, &bitmap.bitmap).map_err(|error| error.to_string())?;
     drop(bitmap);
@@ -160,6 +154,17 @@ fn compose_layout(
     reserve: impl Fn(usize) -> Option<crate::byte_budget::Lease>,
     layout: Option<&source_resolution::Layout>,
 ) -> Result<ComposedImage> {
+    compose_frame(image, editor, wic, opacity, reserve, layout, None)
+}
+fn compose_frame(
+    image: &Image,
+    editor: &Editor,
+    wic: &IWICImagingFactory,
+    opacity: f32,
+    reserve: impl Fn(usize) -> Option<crate::byte_budget::Lease>,
+    layout: Option<&source_resolution::Layout>,
+    decoration: Option<&style::Snapshot>,
+) -> Result<ComposedImage> {
     if !opacity.is_finite() || !(0.0..=1.0).contains(&opacity) {
         return Err(Error::new(E_INVALIDARG, "Invalid base image opacity"));
     }
@@ -176,9 +181,6 @@ fn compose_layout(
     if checked_image_bytes(image.width, image.height) != Some(image.pixels.len()) {
         return Err(Error::new(E_INVALIDARG, "Invalid export pixel dimensions"));
     }
-    let crop = layout
-        .map(|layout| layout.visible)
-        .or_else(|| editor.annotation_frame());
     let (width, height) = match layout {
         Some(layout) => layout.output,
         None => dimensions(image, Some(editor))?,
@@ -272,63 +274,15 @@ fn compose_layout(
             },
             None,
         )?;
-        target.BeginDraw();
-        target.Clear(Some(&D2D1_COLOR_F::default()));
-        if let Some(crop) = crop {
-            // 底图和矢量保留源坐标；栅格标注另用当前可见框作为目标矩形。
-            // 四舍五入后的输出尺寸按主干合同分别缩放两轴。
-            let mut transform = Default::default();
-            target.GetTransform(&mut transform);
-            transform.M11 = width as f32 / crop.width as f32;
-            transform.M22 = height as f32 / crop.height as f32;
-            transform.M31 = -(crop.x as f32) * transform.M11;
-            transform.M32 = -(crop.y as f32) * transform.M22;
-            target.SetTransform(&transform);
-        }
-        let clip = source_resolution::frame_clip::push(&target, &factory, layout, &reserve)?;
-        source_resolution::draw(&target, &bitmap, layout, opacity);
-        if let Some(layout) = layout {
-            if let Some(border) = &layout.border {
-                border.draw(&target, layout.visible)?;
-            }
-        }
-        if let Some(bitmap) = annotation_bitmap {
-            // 主干完整绘制该层到可见框；不能复用底图的源框裁剪。
-            let destination = crop
-                .map(|r| D2D_RECT_F {
-                    left: r.x as f32,
-                    top: r.y as f32,
-                    right: (r.x + r.width) as f32,
-                    bottom: (r.y + r.height) as f32,
-                })
-                .unwrap_or(D2D_RECT_F {
-                    left: 0.0,
-                    top: 0.0,
-                    right: image.width as f32,
-                    bottom: image.height as f32,
-                });
-            target.DrawBitmap(
-                &bitmap,
-                Some(&destination),
-                1.0,
-                D2D1_BITMAP_INTERPOLATION_MODE_LINEAR,
-                None,
-            );
-        }
-        let drawing = annotations::draw_committed(
-            &target,
-            &brush,
+        paint::Paint {
+            target: &target,
+            factory: &factory,
+            bitmap: &bitmap,
+            annotations: annotation_bitmap.as_ref(),
+            brush: &brush,
             editor,
-            Viewport {
-                origin: Point::default(),
-                scale: 1.0,
-            },
-            &mut super::effect_cache::Cache::default(),
-        );
-        drop(clip);
-        let finished = target.EndDraw(None, None);
-        drawing?;
-        finished?;
+        }
+        .draw(opacity, layout, decoration, (width, height), &reserve)?;
         Ok(ComposedImage {
             bitmap: output,
             _lease: output_lease,
@@ -382,22 +336,13 @@ pub(super) fn clipboard_payload(
     clipboard_payload_with_opacity(image, editor, 1.0)
 }
 
+#[cfg(test)]
 pub(super) fn clipboard_payload_with_opacity(
     image: &Image,
     editor: &Editor,
     opacity: f32,
 ) -> Result<super::clipboard_bitmap::Payload> {
-    let _apartment = Apartment::new()?;
-    let wic: IWICImagingFactory =
-        unsafe { CoCreateInstance(&CLSID_WICImagingFactory, None, CLSCTX_INPROC_SERVER)? };
-    let bitmap = compose_opacity(image, editor, &wic, opacity, crate::pixels::reserve)?;
-    let (stream, size) = encode_bitmap(&wic, &bitmap.bitmap)?;
-    let dibv5 = super::clipboard_bitmap::encode(&wic, &bitmap.bitmap)?;
-    drop(bitmap);
-    Ok(super::clipboard_bitmap::Payload {
-        png: stream_pixels(stream, size)?,
-        dibv5,
-    })
+    style::Snapshot::default().clipboard(image, editor, opacity)
 }
 
 fn stream_pixels(stream: IStream, size: u64) -> Result<crate::pixels::Pixels> {

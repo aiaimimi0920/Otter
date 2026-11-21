@@ -6,6 +6,7 @@ use windows::Win32::{
 };
 pub(super) fn editing_busy(state: &State) -> bool {
     state.open_job.borrow().is_some()
+        || state.inline_text.borrow().is_some()
         || state.blur_job.borrow().is_busy()
         || state.erase_job.borrow().is_busy()
         || state.resize_job.borrow().is_busy()

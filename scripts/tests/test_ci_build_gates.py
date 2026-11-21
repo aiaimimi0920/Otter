@@ -119,9 +119,14 @@ class BuildGateTests(unittest.TestCase):
         self.assertIn("${{ runner.os }}-${{ runner.arch }}", parallel)
         self.assertNotIn("cache-hit", parallel)
         candidate = job("build-windows-candidate")
-        self.assertIn("run-rust-tests-ci.ps1", candidate)
-        self.assertIn("assert-release-version.ps1", candidate)
-        self.assertIn("build-local-otter-exe.ps1", candidate)
+        for command in ("assert-release-version.ps1", "cargo fetch --locked",
+                        "cargo test --locked --offline --workspace", "build-native-candidate.ps1",
+                        "package-native-candidate.ps1", "verify-native-package.ps1"):
+            self.assertIn(command, candidate)
+        self.assertNotIn("build-local-otter-exe.ps1", candidate)
+        self.assertNotIn("src-tauri", candidate)
+        self.assertIn("candidate/*-internal.zip", job("build-windows-exe"))
+        self.assertNotIn("candidate/otter.exe", job("build-windows-exe"))
 
 
 if __name__ == "__main__":

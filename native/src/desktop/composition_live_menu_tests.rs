@@ -28,6 +28,55 @@ unsafe fn label(hwnd: HWND) -> String {
     String::from_utf16_lossy(&value[..count as usize])
 }
 #[test]
+fn default_control_survives_suspend_but_menu_can_explicitly_stop_it() {
+    let _apartment = Apartment::new().unwrap();
+    unsafe {
+        let (_source, window) = window();
+        window.allow_input().unwrap();
+        window.request_default_input();
+        assert_eq!(window.take_input_request(), Some(true));
+        window.input_status(true, false, None);
+        show_with(window.hwnd, &window.state, |_| {
+            assert_eq!(label(window.hwnd), "停止控制源窗口");
+            input::TOGGLE
+        });
+        assert_eq!(window.take_input_request(), Some(false));
+        assert_eq!(label(window.hwnd), "控制源窗口");
+        show_with(window.hwnd, &window.state, |_| input::TOGGLE);
+        assert_eq!(window.take_input_request(), Some(true));
+        window.input_status(false, true, None);
+        local::tests::with_keys(&[], || {
+            SendMessageW(
+                window.hwnd,
+                WM_LBUTTONDOWN,
+                None,
+                Some(LPARAM(64 | (64 << 16))),
+            );
+            SendMessageW(
+                window.hwnd,
+                WM_LBUTTONUP,
+                None,
+                Some(LPARAM(64 | (64 << 16))),
+            );
+        });
+        assert!(matches!(
+            window.pop_input(),
+            Some(crate::live_input::Event::Button { down: true, .. })
+        ));
+        assert!(matches!(
+            window.pop_input(),
+            Some(crate::live_input::Event::Button { down: false, .. })
+        ));
+        SendMessageW(
+            window.hwnd,
+            WM_LBUTTONUP,
+            None,
+            Some(LPARAM(64 | (64 << 16))),
+        );
+        assert!(window.pop_input().is_none());
+    }
+}
+#[test]
 fn live_frameless_menu_dispatches_existing_commands_and_rejects_closed_owner() {
     let _apartment = Apartment::new().unwrap();
     unsafe {
@@ -149,6 +198,16 @@ fn live_frameless_alt_delete_uses_recycle_close_and_failure_notice_is_deduplicat
         window.input_failure();
         assert!(label(window.hwnd).contains("上次失败"));
         assert!(window.take_input_notice());
+        for _ in 0..2 {
+            window.input_status(false, false, None);
+            let mut title = [0u16; 64];
+            let length = GetWindowTextW(window.hwnd, &mut title) as usize;
+            assert_eq!(
+                String::from_utf16_lossy(&title[..length]),
+                "Otter Live · 控制不可用"
+            );
+            assert!(!window.take_input_notice());
+        }
         window.input_failure();
         assert!(!window.take_input_notice());
         window.input_status(false, true, None);

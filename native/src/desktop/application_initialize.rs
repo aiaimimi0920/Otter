@@ -17,18 +17,28 @@ impl Application {
         *capture_windows.borrow_mut() = vec![initial.window.0, initial.panel.0];
         let execution_wake = wake::Wake::new();
         let execution_jobs = loom_execution_tasks::Tasks::with_notify(execution_wake.callback());
+        let extensions = super::super::extension_catalog::Owner::new(
+            initial.state.extensions.clone(),
+            execution_wake.callback(),
+        );
         let session = save_context::fresh(initial.state.unit_id.clone());
+        let extension_commands = super::super::extension_commands::Owner::new(
+            initial.state.extension_commands.clone(),
+            execution_wake.callback(),
+        );
         let chrome = super::chrome::Owner::default();
         *initial.state.chrome.borrow_mut() = chrome.bind();
         initial.state.frozen_library.borrow_mut().source = Some(session.original.clone());
         Self {
             chrome,
+            edit_palette: initial.state.edit_palette.clone(),
             capture_history: history::worker::Owner::new(
                 initial.state.capture_history.clone(),
                 execution_wake.callback(),
             ),
             history_window: None,
             authorization_owner: Default::default(),
+            local_loom: Default::default(),
             authorization: initial.state.authorization.clone(),
             live_sessions: Vec::new(),
             live_freeze_job: None,
@@ -56,6 +66,11 @@ impl Application {
             input_jobs: loom_input_tasks::Tasks::new(execution_wake.callback()),
             local_arts: super::super::art_local_owner::Owner::new(execution_wake.callback()),
             execution_wake,
+            extensions,
+            extension_commands,
+            extension_shortcuts: super::super::extension_shortcuts::Owner::new(
+                initial.state.extension_target.clone(),
+            ),
             naming: initial.state.naming.clone(),
             cache_policy: initial.state.cache_policy.clone(),
             copy_authority: initial.state.copy_authority.clone(),
@@ -73,6 +88,7 @@ impl Application {
             projection_receive: Default::default(),
             projection_cleanup: Default::default(),
             projection_sender: Default::default(),
+            account_projection: Default::default(),
             projection_edit: Default::default(),
             recycle_maintenance_pending: false,
             recycle_policy: Default::default(),

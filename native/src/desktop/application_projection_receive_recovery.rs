@@ -171,6 +171,7 @@ impl Application {
             })?;
         self.display_projection_saved(
             Box::new(Saved {
+                cancel: None,
                 source: pending.source,
                 held,
                 expected: pending.expected,

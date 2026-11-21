@@ -30,23 +30,6 @@ use dynamic::Delivery;
 pub(super) mod info;
 // 常用截图入口保留当前编辑；替换只保留在显式命名的菜单命令中。
 pub(super) const DEFAULT: usize = NEW_PIN;
-pub(super) unsafe fn append_pin(menu: HMENU) -> Result<()> {
-    AppendMenuW(
-        menu,
-        MF_STRING,
-        LONG_RECORDING,
-        w!("长截图录制（自行滚动）"),
-    )?;
-    AppendMenuW(menu, MF_STRING, LONG_VERTICAL, w!("垂直长截图"))?;
-    AppendMenuW(menu, MF_STRING, LONG_HORIZONTAL, w!("水平长截图"))?;
-    AppendMenuW(menu, MF_STRING, NEW_PIN, w!("区域截图为新钉图"))?;
-    AppendMenuW(
-        menu,
-        MF_STRING,
-        NEW_FULL_PIN,
-        w!("全屏截图为新钉图（所有显示器）"),
-    )
-}
 pub(super) fn exclusive_available(state: &State) -> bool {
     !state.capture_active.get() && !state.file_dialog.get() && !state.modals.blocked()
 }
@@ -126,11 +109,17 @@ pub(super) unsafe fn start(hwnd: HWND, state: &State, command: usize) {
         // 普通区域截图保持当前桌面；Live/长截图等专用采集仍拥有各自显隐策略。
         let _hidden = (!route.quick_region).then(|| Hidden::for_state(hwnd, state));
         DwmFlush()?;
+        if route.quick_region {
+            return dynamic::acquire_with(
+                || super::capture_region::select_realtime(super::capture_windows::snapshot()?),
+                |screen| dynamic::prepare(hwnd, state, screen),
+            );
+        }
         let acquired = route.acquire_with(
             super::capture_windows::snapshot,
             super::capture::virtual_desktop,
             |image, origin, windows| {
-                if route.quick_region {
+                if command == LONG_RECORDING {
                     super::capture_region::select_positioned(image, origin, windows)
                 } else {
                     super::capture_region::select_adjustable(image, origin, windows)
@@ -159,11 +148,6 @@ pub(super) unsafe fn start(hwnd: HWND, state: &State, command: usize) {
                     });
             }
             Ok(None)
-        } else if matches!(command, COMMAND | NEW_PIN) {
-            match acquired {
-                Some((image, Some(origin))) => dynamic::prepare(hwnd, state, image, origin),
-                _ => Ok(None),
-            }
         } else {
             Ok(acquired.map(|(image, origin)| Delivery::Image(image, origin)))
         }
@@ -243,17 +227,20 @@ unsafe fn run_delivery(
             }
         }
         Delivery::Prepared(prepared, origin) => {
-            let captured = prepared
-                .commit(&std::sync::atomic::AtomicBool::new(false), || {
+            let captured = super::smoke_timing::run("capture-commit", || {
+                prepared.commit(&std::sync::atomic::AtomicBool::new(false), || {
                     IsWindow(Some(hwnd)).as_bool() && stamp.matches(&state.canvas.borrow().editor)
                 })
-                .map_err(|error| Error::new(E_FAIL, error.to_string()))?;
-            super::open_job::start_destination(
-                hwnd,
-                state,
-                super::open_job::Input::Captured(captured, Some(origin)),
-                new_pin,
-            )
+            })
+            .map_err(|error| Error::new(E_FAIL, error.to_string()))?;
+            super::smoke_timing::run("capture-ready", || {
+                super::open_job::start_capture_destination(
+                    hwnd,
+                    state,
+                    super::open_job::Input::Captured(captured, Some(origin)),
+                    new_pin,
+                )
+            })
         }
     }
 }

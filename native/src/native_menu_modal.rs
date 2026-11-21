@@ -8,6 +8,22 @@ const TIMER: usize = 0x4f4d54;
 pub fn track(owner: HWND, tree: Vec<Item>, point: POINT) -> Result<Option<usize>> {
     track_live(owner, tree, point, |_| Ok(()))
 }
+pub fn track_compact(owner: HWND, tree: Vec<Item>, point: POINT) -> Result<Option<usize>> {
+    let foreground = unsafe { GetForegroundWindow() };
+    if unsafe { GetAncestor(owner, GA_ROOT) } != foreground {
+        return Err(Error::new(E_ACCESSDENIED, "Menu owner is not foreground"));
+    }
+    run_updated(
+        owner,
+        tree,
+        point,
+        foreground,
+        (|_| Ok(foreground), |_| {}),
+        |_| Ok(()),
+        false,
+        120,
+    )
+}
 
 /// 动态菜单回调只查询本地完成通道；不能阻塞、借用业务模型或直接执行命令。
 pub fn track_live(
@@ -29,6 +45,8 @@ pub fn track_live(
         foreground,
         (|_| Ok(foreground), |_| {}),
         update,
+        false,
+        320,
     )
 }
 
@@ -58,6 +76,8 @@ pub fn track_tray_live(
             |_| {},
         ),
         update,
+        true,
+        320,
     )
 }
 
@@ -81,7 +101,16 @@ fn run_prepared(
     prepare: impl FnOnce(HWND) -> Result<HWND>,
     ready: impl FnOnce(HWND),
 ) -> Result<Option<usize>> {
-    run_updated(owner, tree, point, foreground, (prepare, ready), |_| Ok(()))
+    run_updated(
+        owner,
+        tree,
+        point,
+        foreground,
+        (prepare, ready),
+        |_| Ok(()),
+        false,
+        320,
+    )
 }
 
 fn run_updated(
@@ -91,13 +120,17 @@ fn run_updated(
     foreground: HWND,
     callbacks: (impl FnOnce(HWND) -> Result<HWND>, impl FnOnce(HWND)),
     mut update: impl FnMut(&mut Cascade) -> Result<()>,
+    tray_mode: bool,
+    width: u32,
 ) -> Result<Option<usize>> {
     let (prepare, ready) = callbacks;
     if !unsafe { GetCapture() }.is_invalid() {
         return Err(Error::new(E_ABORT, "Another pointer capture is active"));
     }
-    let mut menu = Cascade::open(owner, tree, point)?;
+    let cursor = unsafe { LoadCursorW(None, IDC_ARROW)? };
+    let mut menu = Cascade::open_sized(owner, tree, point, tray_mode, width)?;
     let root = menu.pages[0].panel.handle()?;
+    let _wheel = menu.pages[0].panel.forward_owner_wheel(owner)?;
     let initial_foreground = foreground;
     let result = (|| {
         let foreground;
@@ -116,6 +149,8 @@ fn run_updated(
             if GetCapture() != root {
                 return Err(Error::new(E_ABORT, "Menu capture was interrupted"));
             }
+            // 捕获期间系统不发送 WM_SETCURSOR，菜单必须接管光标，不能沿用等待状态。
+            SetCursor(Some(cursor));
             // 定时器仅用于生命周期检查，不轮询系统剪贴板；随根 HWND 销毁。
             if SetTimer(Some(root), TIMER, 30, None) == 0 {
                 return Err(Error::from_win32());
@@ -136,7 +171,7 @@ fn run_updated(
             if menu.closed() {
                 break;
             }
-            if menu.navigation.pending.is_some() {
+            if menu.navigation.pending.is_some() || menu.pending_delete.is_some() {
                 continue;
             }
             let mut message = MSG::default();
@@ -190,7 +225,11 @@ fn run_updated(
                         menu.pointer(&message)?;
                     }
                 }
-                WM_MOUSEMOVE | WM_MOUSEWHEEL => menu.pointer(&message)?,
+                WM_MOUSEMOVE => {
+                    unsafe { SetCursor(Some(cursor)) };
+                    menu.pointer(&message)?;
+                }
+                WM_MOUSEWHEEL => menu.pointer(&message)?,
                 WM_MBUTTONDOWN | WM_NCLBUTTONDOWN | WM_NCRBUTTONDOWN => menu.cancel(),
                 WM_MBUTTONUP => {}
                 WM_TIMER if message.hwnd == root && message.wParam.0 == TIMER => {}
@@ -231,6 +270,27 @@ impl Cascade {
             self.cancel();
             return Ok(());
         }
+        if let Some(view) = &self.preview {
+            if point.x >= view.bounds.left
+                && point.x < view.bounds.right
+                && point.y >= view.bounds.top
+                && point.y < view.bounds.bottom
+            {
+                for page in &self.pages {
+                    page.panel.set_delete_hover(None);
+                }
+                if message.message == WM_MOUSEWHEEL {
+                    let level = view.level;
+                    self.event(level, Event::Wheel((message.wParam.0 >> 16) as i16))?;
+                } else if matches!(
+                    message.message,
+                    WM_LBUTTONDOWN | WM_RBUTTONDOWN | WM_LBUTTONUP | WM_RBUTTONUP
+                ) {
+                    self.retire_clicks();
+                }
+                return Ok(());
+            }
+        }
         let level = if matches!(message.message, WM_MOUSEMOVE | WM_LBUTTONUP | WM_RBUTTONUP) {
             self.dragging()
         } else {
@@ -245,6 +305,11 @@ impl Cascade {
             })
         });
         if let Some(level) = level {
+            for (other, page) in self.pages.iter().enumerate() {
+                if other != level {
+                    page.panel.set_delete_hover(None);
+                }
+            }
             let bounds = self.pages[level].bounds;
             let (x, y) = (point.x - bounds.left, point.y - bounds.top);
             let event = match message.message {
@@ -254,11 +319,25 @@ impl Cascade {
                 _ => Event::Wheel((message.wParam.0 >> 16) as i16),
             };
             self.event(level, event)?;
+            if message.message == WM_MOUSEWHEEL
+                && self
+                    .pages
+                    .get(level)
+                    .is_some_and(|page| page.layout.columns == 3)
+            {
+                self.event(level, Event::Move(x, y))?;
+            }
         } else if matches!(message.message, WM_LBUTTONDOWN | WM_RBUTTONDOWN) {
             self.cancel();
         } else if matches!(message.message, WM_LBUTTONUP | WM_RBUTTONUP) {
             for page in &mut self.pages {
                 page.pressed = None;
+                page.delete_pressed = None;
+            }
+        } else if message.message == WM_MOUSEMOVE {
+            self.preview = None;
+            for page in &self.pages {
+                page.panel.set_delete_hover(None);
             }
         }
         Ok(())

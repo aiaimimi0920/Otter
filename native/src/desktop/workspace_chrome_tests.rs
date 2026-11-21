@@ -1,6 +1,6 @@
 //! 自有 HWND/原 Application 事务；不注册热键、不改前台、不注入物理输入。
 use super::*;
-pub(super) unsafe fn app() -> Application {
+pub(in crate::desktop::application) unsafe fn app() -> Application {
     let instance = HINSTANCE(
         windows::Win32::System::LibraryLoader::GetModuleHandleW(None)
             .unwrap()

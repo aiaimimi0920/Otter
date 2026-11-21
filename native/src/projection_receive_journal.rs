@@ -134,6 +134,8 @@ impl Store {
             if old.device != device
                 || old.envelope != record.envelope
                 || old.offline != record.offline
+                || old.shared_origin != record.shared_origin
+                || old.public_invitation != record.public_invitation
                 || old.cleanup
             {
                 return Err(Error::Changed);
@@ -229,10 +231,13 @@ impl Ticket {
         &self.record.envelope
     }
     pub fn origin(&self) -> &str {
-        self.record
-            .offline
-            .as_ref()
-            .map_or(self.record.envelope.origin(), |route| &route.origin)
+        self.record.offline.as_ref().map_or(
+            self.record
+                .shared_origin
+                .as_deref()
+                .unwrap_or(self.record.envelope.origin()),
+            |route| &route.origin,
+        )
     }
     pub(crate) fn path(&self, operation: super::ReceiveOperation) -> &'static str {
         super::receive_route::path(self.record.offline.is_some(), operation)

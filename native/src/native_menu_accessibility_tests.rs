@@ -3,6 +3,7 @@ use super::*;
 fn row() -> Row {
     Row {
         key: 0,
+        deletable: false,
         thumbnail: None,
         label: "&打开 && 编辑\tCtrl+O".into(),
         enabled: true,

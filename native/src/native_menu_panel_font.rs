@@ -112,7 +112,7 @@ pub(super) fn width(owner: HWND, rows: &[Row]) -> Result<i32> {
             *target = (*target).max(rect.right - rect.left);
         }
     }
-    Ok((label_width + shortcut_width + scaled(72, dpi)).max(scaled(160, dpi)))
+    Ok(label_width + shortcut_width + scaled(72, dpi))
 }
 
 #[cfg(test)]

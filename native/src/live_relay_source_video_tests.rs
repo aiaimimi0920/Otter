@@ -31,6 +31,9 @@ fn policy_epoch_sequence_and_legacy_fallback_are_fenced() {
     assert!(!video.policy.h264_allowed);
     assert!(!video.available());
     assert_eq!(budget.used(), 0);
+    video.resize([96, 80], &budget);
+    assert!(!video.available());
+    assert_eq!(budget.used(), 0);
 }
 #[test]
 #[ignore = "requires Windows system encoder; no screen or network"]
@@ -43,6 +46,7 @@ fn system_policy_requests_periodic_idr_transition_and_sticky_alpha_fallback() {
     assert!(video.encode(&bgra, 1, &stop).is_none());
     video.policy(policy(true, 1)).unwrap();
     for id in 2..=33 {
+        video.resize([64, 64], &budget);
         let encoded = video.encode(&bgra, id, &stop).unwrap();
         assert_eq!(encoded.keyframe, id == 2 || id == 32);
     }
@@ -58,13 +62,25 @@ fn system_policy_requests_periodic_idr_transition_and_sticky_alpha_fallback() {
     assert!(!video.policy.h264_allowed);
     video.policy(policy(true, 2)).unwrap();
     assert!(video.encode(&bgra, 37, &stop).unwrap().keyframe);
+    // 同会话换尺寸必须立即给新 SPS/IDR，尺寸往返后不能遗留旧编码器租约。
+    let original_budget = budget.used();
+    video.resize([96, 80], &budget);
+    let resized = [17, 83, 211, 255].repeat(96 * 80);
+    let encoded = video.encode(&resized, 38, &stop).unwrap();
+    assert!(encoded.keyframe);
+    crate::live_h264::validate(&encoded.bytes, 96, 80, true).unwrap();
+    drop(encoded);
+    video.resize([64, 64], &budget);
+    assert_eq!(budget.used(), original_budget);
+    assert!(video.encode(&bgra, 39, &stop).unwrap().keyframe);
     bgra[3] = 0;
-    assert!(video.encode(&bgra, 38, &stop).is_none());
+    assert!(video.encode(&bgra, 40, &stop).is_none());
     assert!(!video.available());
     assert_eq!(budget.used(), 0);
     bgra[3] = 255;
     video.reconnect();
     video.policy(policy(true, 3)).unwrap();
-    assert!(video.encode(&bgra, 39, &stop).is_none());
+    video.resize([96, 80], &budget);
+    assert!(video.encode(&resized, 41, &stop).is_none());
     assert_eq!(budget.used(), 0);
 }

@@ -29,6 +29,7 @@ unsafe fn inject(hwnd: HWND, context: &Context) {
     .unwrap();
     let owner = GetWindow(hwnd, GW_OWNER).unwrap();
     assert!(!IsWindowEnabled(owner).as_bool());
+    input.recording.schedule.borrow_mut().start(Instant::now());
     *input.recording.hook.borrow_mut() = Some(hook::Hook::install(hwnd, owner.0 as isize).unwrap());
     hook::test_notify(POINT::default(), owner.0 as isize);
     assert!(!hook::test_inactive());
@@ -44,7 +45,7 @@ unsafe fn inject(hwnd: HWND, context: &Context) {
         assert_eq!(input.job.borrow().is_pending(), context.inflight);
         if context.inflight {
             // 此时 waiting 已成功设立真实 timer 且禁用预览；只让随后的重设失败。
-            assert_eq!(delay, 24);
+            assert_eq!(delay, 10);
             assert!(!IsWindowEnabled(GetDlgItem(Some(hwnd), 102).unwrap()).as_bool());
             let deadline = Instant::now() + Duration::from_secs(2);
             while context.calls.load(Ordering::Acquire) == 0 {
@@ -121,6 +122,8 @@ unsafe fn run(inflight: bool) {
     );
     let (release, gate) = mpsc::channel();
     let (mut input, calls) = setup(vec![Ok(frame(0, 4))], Some(gate));
+    // 首帧现在会自动生成预览；此夹具只注入录制 Capture 的 timer 故障。
+    input.recording.preview_due.set(false);
     let capture = Rc::new(Cell::new(true));
     input.finish = dialog::finish::State::new(capture.clone());
     let context = Context {

@@ -52,6 +52,9 @@ impl Sender {
         target: &RequestTarget,
         owner: &mut Owner,
     ) -> Result<bool, HttpError> {
+        if matches!(target, RequestTarget::Direct(_)) {
+            return Ok(self.queue.intent().1);
+        }
         // 减权释放必须先于可能耗时的配置HTTP；不能让旧按键等到配置对账结束才释放。
         if self.drive(control, target, owner.identity(), owner.after())? {
             return Ok(true);
@@ -59,6 +62,7 @@ impl Sender {
         match target {
             RequestTarget::Surface(_) => self.drive_trigger(control, owner)?,
             RequestTarget::LocalArt(target) => self.drive_local_trigger(control, target, owner)?,
+            RequestTarget::Direct(_) => unreachable!("media-only viewer"),
         }
         Ok(false)
     }
@@ -188,6 +192,7 @@ impl RequestTarget {
             Self::LocalArt(t) => {
                 control.change_local_art_controller(identity, &t.proof, sequence, acquire)
             }
+            Self::Direct(_) => Err(HttpError::Input),
         }
     }
     fn forward_input(
@@ -208,6 +213,7 @@ impl RequestTarget {
                 event,
             ),
             Self::LocalArt(t) => control.forward_local_art_input(identity, &t.proof, cursor, event),
+            Self::Direct(_) => Err(HttpError::Input),
         }
     }
 }

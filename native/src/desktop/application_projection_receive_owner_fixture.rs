@@ -198,6 +198,13 @@ impl Fixture {
     }
     pub(super) unsafe fn accepted(&mut self, remote: bool) -> Option<Ready> {
         let invitation = self.invitation();
+        self.accepted_invitation(remote, invitation)
+    }
+    pub(super) unsafe fn accepted_invitation(
+        &mut self,
+        remote: bool,
+        invitation: crate::projection_delivery::Invitation,
+    ) -> Option<Ready> {
         let scope = projection::receive::Scope::capture(&mut self.app).unwrap();
         self.app.projection_receive.waiting(Some(scope));
         let lease = self

@@ -189,6 +189,14 @@ pub(super) unsafe fn restore_with(
 }
 
 unsafe fn activate(hwnd: HWND, state: &State) {
+    // 空宿主只承载托盘和热键；无图 Art 仍通过 pinned 标记保留召回资格。
+    let empty = {
+        let canvas = state.canvas.borrow();
+        !canvas.pinned && canvas.image.is_none()
+    };
+    if empty {
+        return;
+    }
     if state.tray.hidden.get() {
         restore(hwnd, state);
     } else if IsWindow(Some(hwnd)).as_bool() {
@@ -219,12 +227,15 @@ impl Drop for Menu {
         }
     }
 }
-unsafe fn menu(hwnd: HWND, state: &State, position: WPARAM) -> Result<()> {
+unsafe fn build_menu(state: &State) -> Result<(Menu, Option<crate::autostart::Status>)> {
     let menu = Menu(CreatePopupMenu()?);
-    AppendMenuW(menu.0, MF_STRING, 1, w!("恢复 Otter"))?;
     actions::append(menu.0, state)?;
     let startup = startup::append(menu.0)?;
-    AppendMenuW(menu.0, MF_STRING, 2, w!("退出 Otter"))?;
+    AppendMenuW(menu.0, MF_STRING, 2, w!("退出"))?;
+    Ok((menu, startup))
+}
+unsafe fn menu(hwnd: HWND, state: &State, position: WPARAM) -> Result<()> {
+    let (menu, startup) = build_menu(state)?;
     let mut point = POINT {
         x: position.0 as i16 as i32,
         y: (position.0 >> 16) as i16 as i32,
@@ -294,6 +305,25 @@ mod resident_tests;
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn actual_tray_builder_preserves_main_order_without_recovery_or_migration_commands() {
+        unsafe {
+            let state = State::new(None, false).unwrap();
+            let (menu, _) = build_menu(&state).unwrap();
+            let tree = crate::native_menu::snapshot(menu.0).unwrap();
+            assert_eq!(tree.len(), 7);
+            assert_eq!(tree[0].label, "截图");
+            assert_eq!(tree[1].label, "实时截图…");
+            assert_eq!(tree[2].label, "长截图");
+            assert_eq!(tree[3].label, "编辑已有图片…");
+            assert_eq!(tree[4].label, "接收投射");
+            assert!(tree[5].label.starts_with("自启动"));
+            assert_eq!(tree[6].label, "退出");
+            assert!(tree
+                .iter()
+                .all(|item| item.children.is_none() && !item.separator));
+        }
+    }
     #[test]
     fn cleanup_failure_retains_ownership_and_retry_removes_before_readding() {
         let installed = Cell::new(false);

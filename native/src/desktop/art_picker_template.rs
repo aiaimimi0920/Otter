@@ -1,4 +1,4 @@
-//! 标准系统对话框布局；只有 EDIT、LISTBOX 和操作，不复制能力业务或持久化数据。
+//! 紧凑无标题搜索菜单；DialogBox 继续拥有模态、焦点及退出，不复制能力业务。
 use super::*;
 pub(super) fn template() -> Vec<u32> {
     fn string(data: &mut Vec<u16>, text: &str) {
@@ -11,10 +11,10 @@ pub(super) fn template() -> Vec<u32> {
     let mut data = Vec::new();
     dword(
         &mut data,
-        WS_POPUP.0 | WS_CAPTION.0 | WS_SYSMENU.0 | DS_MODALFRAME as u32 | DS_SETFONT as u32,
+        WS_POPUP.0 | WS_CLIPCHILDREN.0 | DS_SETFONT as u32,
     );
-    dword(&mut data, 0);
-    data.extend([6, 0, 0, 340, 255, 0, 0]);
+    dword(&mut data, WS_EX_TOOLWINDOW.0);
+    data.extend([6, 0, 0, 180, 210, 0, 0]);
     string(&mut data, "添加 Art");
     data.push(9);
     string(&mut data, "Microsoft YaHei UI");
@@ -22,7 +22,7 @@ pub(super) fn template() -> Vec<u32> {
         (
             SEARCH,
             0x81,
-            WS_TABSTOP.0 | ES_AUTOHSCROLL as u32 | WS_BORDER.0,
+            WS_TABSTOP.0 | ES_AUTOHSCROLL as u32,
             8,
             8,
             324,
@@ -32,7 +32,12 @@ pub(super) fn template() -> Vec<u32> {
         (
             LIST,
             0x83,
-            WS_TABSTOP.0 | WS_VSCROLL.0 | WS_BORDER.0 | LBS_NOTIFY as u32,
+            WS_TABSTOP.0
+                | WS_VSCROLL.0
+                | LBS_NOTIFY as u32
+                | LBS_OWNERDRAWFIXED as u32
+                | LBS_HASSTRINGS as u32
+                | LBS_NOINTEGRALHEIGHT as u32,
             8,
             34,
             324,
@@ -40,18 +45,36 @@ pub(super) fn template() -> Vec<u32> {
             "",
         ),
         (STATUS, 0x82, 0, 8, 198, 324, 18, ""),
-        (REFRESH, 0x80, WS_TABSTOP.0, 8, 226, 74, 20, "刷新列表"),
         (
-            IDOK.0,
+            REFRESH,
             0x80,
-            WS_TABSTOP.0 | BS_DEFPUSHBUTTON as u32,
-            204,
+            WS_TABSTOP.0 | BS_OWNERDRAW as u32,
+            8,
             226,
-            60,
+            74,
             20,
-            "添加",
+            "刷新列表",
         ),
-        (IDCANCEL.0, 0x80, WS_TABSTOP.0, 272, 226, 60, 20, "取消"),
+        (
+            CLEAR,
+            0x80,
+            WS_TABSTOP.0 | BS_OWNERDRAW as u32,
+            204,
+            8,
+            24,
+            20,
+            "清空搜索",
+        ),
+        (
+            IDCANCEL.0,
+            0x80,
+            WS_TABSTOP.0 | BS_OWNERDRAW as u32,
+            272,
+            8,
+            28,
+            20,
+            "关闭 Art 菜单",
+        ),
     ] {
         if data.len() % 2 != 0 {
             data.push(0);

@@ -63,6 +63,7 @@ impl Editor {
     pub fn export_overlay_snapshot(&self) -> Self {
         let mut snapshot = self.export_snapshot();
         snapshot.raster = None;
+        snapshot.mirror = MirrorState::default();
         snapshot
     }
     /// 协作basis只移除可共享矢量；已物化栅格、裁剪和逻辑几何必须原样保留。
@@ -80,15 +81,19 @@ impl Editor {
             style: self.style,
             identity: std::sync::Arc::default(),
             revision: self.revision,
+            presentation_revision: self.presentation_revision,
             serial_count: self.serial_count,
             history: History::default(),
             elements,
             retained_points,
             draft: None,
             draft_motion: None,
+            draft_brush_highlighter: false,
             raster: self.raster.clone(),
             crop: self.crop,
             logical_size: self.logical_size,
+            mirror: self.mirror,
+            pending_pin: None,
         }
     }
 }

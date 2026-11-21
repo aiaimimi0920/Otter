@@ -139,6 +139,59 @@ fn now() -> Result<u64> {
     crate::desktop::surface_windows::now_ms()
 }
 impl Application {
+    pub(super) fn projection_sender_requests(
+        &mut self,
+        config: &mut impl FnMut(
+            &str,
+        ) -> std::result::Result<
+            crate::device_authorization_config::Config,
+            crate::device_authorization_config::Error,
+        >,
+    ) {
+        use crate::desktop::device_authorization_ui::Request;
+        // 先释放菜单 View 借用，再进入原发送 owner；一次只消费它拥有的请求。
+        let request = {
+            let mut view = self.authorization.borrow_mut();
+            if matches!(
+                view.request,
+                Some(
+                    Request::SendProjection(_)
+                        | Request::ShareProjection(_)
+                        | Request::SendProjectionGroup(_)
+                        | Request::StopProjectionGroup(_)
+                        | Request::CancelProjectionSend
+                        | Request::StopProjectionSend(_)
+                        | Request::RetryProjectionSend(_)
+                )
+            ) {
+                view.request.take()
+            } else {
+                None
+            }
+        };
+        match request {
+            Some(Request::ShareProjection(selection)) => unsafe {
+                self.start_projection_share(selection, config);
+            },
+            Some(Request::SendProjection(selection)) => unsafe {
+                self.start_projection_sender(selection, config);
+            },
+            Some(Request::SendProjectionGroup(selection)) => unsafe {
+                self.start_projection_group(selection, config);
+            },
+            Some(Request::StopProjectionGroup(selection)) => unsafe {
+                self.start_projection_stop_group(selection);
+            },
+            Some(Request::CancelProjectionSend) => self.stop_projection_sender(),
+            Some(Request::StopProjectionSend(selected)) => unsafe {
+                self.start_projection_sender_stop(*selected);
+            },
+            Some(Request::RetryProjectionSend(unit)) => unsafe {
+                self.retry_projection_sender(unit, config);
+            },
+            _ => {}
+        }
+    }
     fn sender_status(&self, status: &str) {
         let mut view = self.authorization.borrow_mut();
         view.sender.busy = self.projection_sender.busy();

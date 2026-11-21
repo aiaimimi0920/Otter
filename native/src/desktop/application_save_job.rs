@@ -11,6 +11,7 @@ use std::{
 };
 
 pub struct Output {
+    pub checkpoint_accounts: Option<crate::projection_account::scene::Index>,
     pub checkpoint_senders: Option<crate::projection_delivery::sender::binding::checkpoint::Index>,
     pub checkpoint_scope: Option<crate::session_projection_scope::Proof>,
     pub checkpoint_projections: Option<crate::projection_delivery::binding::checkpoint::Index>,
@@ -28,6 +29,8 @@ enum Purpose {
 #[path = "application_save_recycle_job.rs"]
 mod recycle;
 pub use recycle::Request as RecycleRequest;
+#[path = "application_save_library_clear.rs"]
+mod library_clear;
 pub struct Job {
     prune_policy: Option<crate::session_library::recycle::policy::Policy>,
     purpose: Purpose,
@@ -95,6 +98,7 @@ impl Job {
                 cancel,
             )?;
             Ok(Output {
+                checkpoint_accounts: None,
                 checkpoint_senders: None,
                 checkpoint_scope: None,
                 checkpoint_projections: None,
@@ -122,6 +126,7 @@ impl Job {
                 .revision;
             let bytes = crate::session_library::remove::prepare(&source, kind, &entry_id, cancel)?;
             Ok(Output {
+                checkpoint_accounts: None,
                 checkpoint_senders: None,
                 checkpoint_scope: None,
                 checkpoint_projections: None,
@@ -152,6 +157,12 @@ impl Job {
                 .transpose()
                 .map_err(|error| format!("Save staging failed: {error}"))?;
             Ok(Output {
+                checkpoint_accounts: Some(
+                    crate::projection_account::scene::Index::capture(
+                        &candidate.bytes.clone().into(),
+                    )
+                    .map_err(|error| format!("Account projection checkpoint: {error:?}"))?,
+                ),
                 checkpoint_senders:
                     crate::projection_delivery::sender::binding::checkpoint::Index::capture(
                         &candidate.bytes.clone().into(),
@@ -248,6 +259,7 @@ mod tests {
                 }),
                 |_| {
                     Ok(Output {
+                        checkpoint_accounts: None,
                         checkpoint_senders: None,
                         checkpoint_scope: None,
                         checkpoint_projections: None,
@@ -318,7 +330,7 @@ mod tests {
                     };
                     let staged = Staged::prepare(&target, &candidate, cancel)
                         .map_err(|error| error.to_string())?;
-                    Ok(Output { checkpoint_senders: None, checkpoint_scope: None, checkpoint_projections: None, candidate, staged: Some(Disk::New(staged)), library_changed: true })
+                    Ok(Output { checkpoint_accounts: None, checkpoint_senders: None, checkpoint_scope: None, checkpoint_projections: None, candidate, staged: Some(Disk::New(staged)), library_changed: true })
                 },
             ).unwrap();
             rx.recv_timeout(std::time::Duration::from_secs(5)).unwrap();

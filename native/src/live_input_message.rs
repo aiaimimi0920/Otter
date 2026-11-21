@@ -5,6 +5,10 @@ use super::{
     Target,
 };
 use crate::live_input::Button;
+#[path = "live_input_modal.rs"]
+mod modal;
+pub(crate) use modal::{button_command, button_modal, motion_native, Modal};
+use windows::Win32::UI::Controls::{WM_MOUSEHOVER, WM_MOUSELEAVE};
 use windows::Win32::{
     Foundation::*,
     System::Threading::GetCurrentThreadId,
@@ -16,10 +20,12 @@ pub enum Error {
     CoordinateRange,
     SameThread,
     SourceTransition,
+    ControlRevoked,
     Security(input_security::Denied),
     Destination(input_target::Error),
     Dpi,
     DeliveryFailed,
+    ModalPending,
 }
 type Result<T> = std::result::Result<T, Error>;
 #[derive(Clone, Copy, Debug)]
@@ -31,15 +37,59 @@ pub struct Message {
     releasing: bool,
 }
 impl Message {
+    pub fn character(unit: u16) -> Result<Self> {
+        if unit == 0 {
+            return Err(Error::InvalidPayload);
+        }
+        Ok(Self {
+            id: WM_CHAR,
+            wp: WPARAM(usize::from(unit)),
+            lp: LPARAM(1),
+            moving: false,
+            releasing: false,
+        })
+    }
+    pub fn hover(point: [i32; 2], buttons: u8) -> Result<Self> {
+        Ok(Self {
+            id: WM_MOUSEHOVER,
+            ..Self::motion(point, buttons)?
+        })
+    }
+    pub fn leave() -> Self {
+        Self {
+            id: WM_MOUSELEAVE,
+            wp: WPARAM(0),
+            lp: LPARAM(0),
+            moving: true,
+            releasing: true,
+        }
+    }
+    /// 本地浏览器退出悬浮时投递到 root；虚拟坐标在客户区外，不移动系统指针。
+    pub(crate) fn exit_motion() -> Self {
+        Self {
+            id: WM_MOUSEMOVE,
+            wp: WPARAM(0),
+            lp: LPARAM(u32::MAX as isize), // 两个有符号 16 位坐标均为 -1。
+            moving: true,
+            releasing: true,
+        }
+    }
     pub fn key(code: u16, down: bool) -> Result<Self> {
         if !(1..=254).contains(&code) {
             return Err(Error::InvalidPayload);
         }
-        let scan = unsafe { MapVirtualKeyW(u32::from(code), MAPVK_VK_TO_VSC) };
+        let scan = unsafe { MapVirtualKeyW(u32::from(code), MAPVK_VK_TO_VSC_EX) };
+        // 部分布局把导航 VK 映射到数字键盘的基础扫描码，即使请求 VSC_EX 也不带 E0。
+        // 合同已区分导航 VK 与 VK_NUMPAD*，规范导航键仍须第24位；E1/Pause 不混同。
+        // 不据此猜测数字键盘 Enter 或通用 VK_CONTROL/VK_MENU 的物理左右身份。
+        let extended =
+            u32::from(scan & 0xff00 == 0xe000 || matches!(code, 0x21..=0x28 | 0x2d | 0x2e)) << 24;
         Ok(Self {
             id: if down { WM_KEYDOWN } else { WM_KEYUP },
             wp: WPARAM(usize::from(code)),
-            lp: LPARAM((1 | ((scan & 0xff) << 16) | if down { 0 } else { 0xc0000000 }) as isize),
+            lp: LPARAM(
+                (1 | ((scan & 0xff) << 16) | extended | if down { 0 } else { 0xc0000000 }) as isize,
+            ),
             moving: false,
             releasing: !down,
         })
@@ -140,34 +190,65 @@ fn deliver(target: &Target, message: Message, timeout: u32) -> Result<()> {
 }
 /// 向已绑定后代发送；仍需显式授权，不能把 Destination::bind 当成启用控制。
 pub fn send_to(target: &Destination, message: Message) -> Result<()> {
+    send_to_with_timeout(target, message, if message.moving { 50 } else { 250 })
+}
+pub(crate) fn send_to_with_timeout(
+    target: &Destination,
+    message: Message,
+    timeout: u32,
+) -> Result<()> {
     if unsafe { IsIconic(target.root().hwnd()) }.as_bool() {
         return Err(Error::SourceTransition);
     }
-    deliver_destination(target, message, if message.moving { 50 } else { 250 })
+    deliver_destination(target, message, timeout)
 }
 pub fn release_to(target: &Destination, message: Message) -> Result<()> {
+    release_to_with_timeout(target, message, 50)
+}
+pub(crate) fn release_to_with_timeout(
+    target: &Destination,
+    message: Message,
+    timeout: u32,
+) -> Result<()> {
     if !message.releasing {
         return Err(Error::InvalidPayload);
     }
-    deliver_destination(target, message, 50)
+    let result = deliver_destination(target, message, timeout);
+    // 菜单可在身份预检之后、DPI 查询或同步 Leave 期间销毁。
+    // 仅悬浮清理以 HWND 已不存在作为终态；不重试、不重新绑定复用句柄，
+    // 按键/按钮释放及仍存活窗口的超时继续保留原失败。
+    if result.is_err()
+        && message.id == WM_MOUSELEAVE
+        && !unsafe { IsWindow(Some(target.hwnd())) }.as_bool()
+    {
+        return Ok(());
+    }
+    result
 }
 fn deliver_destination(target: &Destination, message: Message, timeout: u32) -> Result<()> {
     if target.thread() == unsafe { GetCurrentThreadId() } {
         return Err(Error::SameThread);
     }
     target.preflight().map_err(Error::Destination)?;
+    // 隐藏菜单已结束这轮可见悬浮；其 UI 线程可能正在初始化下一个模态框。
+    // 不再同步调用旧菜单的 Leave，避免把正常换窗变成超时。held 释放不走此终态。
+    if message.id == WM_MOUSELEAVE && !unsafe { IsWindowVisible(target.hwnd()) }.as_bool() {
+        return Ok(());
+    }
     deliver_window(target.hwnd(), message, timeout)
 }
 fn deliver_window(window: HWND, message: Message, timeout: u32) -> Result<()> {
     // 鼠标坐标已按接收窗口映射；同上下文发送以阻止 Win32 再次 DPI 虚拟化。
     // 仅键盘没有空间坐标；RAII 在成功、超时和失败返回时均恢复 worker 上下文。
-    let _dpi = if matches!(message.id, WM_KEYDOWN | WM_KEYUP) {
+    let _dpi = if matches!(message.id, WM_KEYDOWN | WM_KEYUP | WM_CHAR) {
         None
     } else {
         Some(input_coordinates::Dpi::enter(window).map_err(|_| Error::Dpi)?)
     };
     let mut result = 0usize;
     let completed = unsafe {
+        // 此 API 失败时不保证设置 LastError；先清零，避免把旧错误当成当前原因。
+        SetLastError(ERROR_SUCCESS);
         SendMessageTimeoutW(
             window,
             message.id,
@@ -180,6 +261,11 @@ fn deliver_window(window: HWND, message: Message, timeout: u32) -> Result<()> {
     };
     // 消息处理返回 0 也可能成功。失败包含超时/UIPI 等，不能把它误报为已拒绝送达。
     if completed.0 == 0 {
+        let error = unsafe { GetLastError() }.0;
+        eprintln!(
+            "native-live-message-failed: message=0x{:04X} win32={} timeout_ms={timeout}",
+            message.id, error
+        );
         Err(Error::DeliveryFailed)
     } else {
         Ok(())

@@ -1,7 +1,11 @@
 //! 隐藏控件/真实 worker 的录制状态测试；合成源与通知，不读取屏幕。timer 子模块另验真实 hook 清理。
+#[path = "long_capture_recording_movement_tests.rs"]
+mod movement_tests;
+#[path = "long_capture_recording_overlay_tests.rs"]
+mod overlay_tests;
 #[path = "long_capture_recording_timer_tests.rs"]
 mod timer_tests;
-use super::super::tests::{hidden, input as manual_input};
+use super::super::tests::{hidden as hidden_dialog, input as manual_input};
 use super::*;
 use crate::long_capture::{CaptureMode, CaptureSource, Frame};
 use std::{
@@ -78,8 +82,19 @@ fn setup(
     .unwrap();
     // 仅此测试构造绕开外部 HWND 绑定；生产启用位只由已绑定 Target 构造。
     input.recording.enabled = true;
-    input.recording.schedule.borrow_mut().start(Instant::now());
     (input, calls)
+}
+unsafe fn hidden(input: &Input) -> crate::desktop::Window {
+    let window = hidden_dialog(input);
+    // 产品在 overlay 创建/布局完成后才起录，夹具同样不能把创建控件的耗时算进周期。
+    input.recording.schedule.borrow_mut().start(Instant::now());
+    status(window.0, "录制中");
+    window
+}
+unsafe fn caption(hwnd: HWND) -> String {
+    let mut text = [0u16; 256];
+    let length = GetDlgItemTextW(hwnd, 103, &mut text) as usize;
+    String::from_utf16(&text[..length]).unwrap()
 }
 unsafe fn pump(hwnd: HWND, input: &Input) {
     let deadline = Instant::now() + Duration::from_secs(5);
@@ -100,6 +115,47 @@ unsafe fn hint(hwnd: HWND, input: &Input) {
 unsafe fn command(hwnd: HWND, id: usize) {
     super::super::handle(hwnd, WM_COMMAND, WPARAM(id), LPARAM(0));
 }
+#[test]
+fn periodic_sampling_recovers_after_transient_repaints_without_wheel_notifications() {
+    unsafe {
+        let unknown = Frame::new(32, 48, vec![0; 32 * 48 * 4].into()).unwrap();
+        let mut frames = vec![Ok(unknown); 5];
+        frames.extend([Ok(frame(0, 0)), Ok(frame(0, 4)), Ok(frame(0, 8))]);
+        let (input, calls) = setup(frames, None);
+        let window = hidden(&input);
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while input.job.borrow().snapshot().frame_count < 3 || input.preview.borrow().is_none() {
+            super::super::handle(window.0, WM_TIMER, WPARAM(TIMER), LPARAM(0));
+            assert_eq!(
+                caption(window.0),
+                "录制中",
+                "sampling must not change the header"
+            );
+            assert!(
+                input.recording.running(),
+                "transient repaint must not stop recording"
+            );
+            assert!(
+                Instant::now() < deadline,
+                "dragged content was never sampled"
+            );
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        assert!(calls.load(Ordering::Acquire) >= 8);
+        command(window.0, 1);
+        pump(window.0, &input);
+        assert_eq!(
+            input
+                .output
+                .borrow()
+                .as_ref()
+                .map(|image| (image.width, image.height)),
+            Some((32, 56))
+        );
+        assert_eq!(input.recording.schedule.borrow().phase(), Phase::Cancelled);
+    }
+}
+
 #[test]
 fn merged_wheel_burst_updates_preview_then_finishes_through_the_original_worker() {
     unsafe {
@@ -132,6 +188,48 @@ fn merged_wheel_burst_updates_preview_then_finishes_through_the_original_worker(
         command(window.0, 1);
         assert!(!input.job.borrow().is_pending());
         assert!(input.recording.hook.borrow().is_none());
+    }
+}
+
+#[test]
+fn finish_behind_a_slow_capture_still_collects_the_last_dragged_frame() {
+    unsafe {
+        let (release, gate) = mpsc::channel();
+        let (input, calls) = setup(vec![Ok(frame(0, 4)), Ok(frame(0, 8))], Some(gate));
+        let window = hidden(&input);
+        input
+            .recording
+            .schedule
+            .borrow_mut()
+            .notify(Instant::now() - Duration::from_millis(25));
+        drive(window.0, &input);
+        assert!(input.job.borrow().is_pending());
+        command(window.0, 1);
+        // 实际 worker 保持在途超过 tail 截止，最后帧还没有进入唯一任务槽。
+        std::thread::sleep(Duration::from_millis(400));
+        release.send(()).unwrap();
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while input.output.borrow().is_none() {
+            assert!(
+                matches!(
+                    caption(window.0).as_str(),
+                    "正在收取最后画面…" | "正在拼接长截图…"
+                ),
+                "finishing header was overwritten by a frame reply"
+            );
+            super::super::handle(window.0, WM_TIMER, WPARAM(TIMER), LPARAM(0));
+            assert!(Instant::now() < deadline, "recording did not finish");
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        assert_eq!(calls.load(Ordering::Acquire), 2);
+        assert_eq!(
+            input
+                .output
+                .borrow()
+                .as_ref()
+                .map(|image| (image.width, image.height)),
+            Some((32, 56))
+        );
     }
 }
 #[test]
@@ -176,6 +274,7 @@ fn stopping_during_inflight_keeps_that_frame_but_drops_all_followup_sampling() {
         release.send(()).unwrap();
         pump(window.0, &input);
         assert!(!input.recording.running());
+        assert_eq!(caption(window.0), "录制已停止");
         assert_eq!(calls.load(Ordering::Acquire), 1);
         assert_eq!(input.job.borrow().snapshot().frame_count, 2);
         super::super::handle(window.0, MESSAGE, WPARAM(7), LPARAM(0));
@@ -236,6 +335,14 @@ fn target_failure_and_layout_dpi_change_stop_but_preserve_the_finalizable_first_
             }
             assert!(!input.recording.running());
             assert!(input.recording.hook.borrow().is_none());
+            assert_eq!(
+                caption(window.0),
+                if message == 0 {
+                    "采集失败：Scroll target closed"
+                } else {
+                    "屏幕布局或 DPI 已变化，录制已停止；可完成已有内容或取消"
+                }
+            );
             assert_eq!(calls.load(Ordering::Acquire), usize::from(message == 0));
             command(window.0, 1);
             pump(window.0, &input);
@@ -244,7 +351,7 @@ fn target_failure_and_layout_dpi_change_stop_but_preserve_the_finalizable_first_
     }
 }
 #[test]
-fn axis_change_and_repeated_unreliable_frames_stop_without_silent_commit() {
+fn axis_change_stops_but_transient_unreliable_frames_keep_recording_without_commit() {
     unsafe {
         for cross_axis in [false, true] {
             let frames = if cross_axis {
@@ -256,7 +363,7 @@ fn axis_change_and_repeated_unreliable_frames_stop_without_silent_commit() {
             let window = hidden(&input);
             hint(window.0, &input);
             pump(window.0, &input);
-            assert!(!input.recording.running());
+            assert_eq!(input.recording.running(), !cross_axis);
             assert_eq!(
                 input.job.borrow().snapshot().frame_count,
                 if cross_axis { 2 } else { 1 }
@@ -271,7 +378,7 @@ fn axis_change_and_repeated_unreliable_frames_stop_without_silent_commit() {
     }
 }
 #[test]
-fn accepted_explicit_viewfinder_move_retires_wheel_authority_permanently() {
+fn accepted_viewfinder_move_keeps_recording_and_refreshes_preview() {
     unsafe {
         let (input, _) = setup(
             vec![
@@ -286,23 +393,43 @@ fn accepted_explicit_viewfinder_move_retires_wheel_authority_permanently() {
         hint(window.0, &input);
         pump(window.0, &input);
         assert_eq!(input.job.borrow().snapshot().frame_count, 3);
-        command(window.0, 112);
         command(window.0, 110);
         pump(window.0, &input);
         assert!(input.job.borrow().snapshot().spatial_position.is_some());
         assert_eq!(input.movement.region().left, 1);
-        assert!(input.recording.revoked.get());
-        command(window.0, 112);
-        assert!(!input.recording.running());
-        assert!(input.recording.hook.borrow().is_none());
-        assert!(
-            !windows::Win32::UI::Input::KeyboardAndMouse::IsWindowEnabled(
-                GetDlgItem(Some(window.0), 112).unwrap()
-            )
-            .as_bool()
-        );
+        assert!(!input.recording.revoked.get());
+        assert!(input.recording.running());
+        assert!(input.preview.borrow().is_some());
         command(window.0, 1);
         pump(window.0, &input);
         assert!(input.output.borrow().is_some());
+    }
+}
+#[test]
+fn moving_before_first_scroll_does_not_choose_the_page_axis() {
+    unsafe {
+        let (input, _) = setup(
+            vec![Ok(frame(1, 0)), Ok(frame(5, 0)), Ok(frame(9, 0))],
+            None,
+        );
+        let window = hidden(&input);
+        command(window.0, 110);
+        pump(window.0, &input);
+        assert_eq!(input.job.borrow().snapshot().spatial_position, Some((1, 0)));
+        assert_eq!(input.job.borrow().snapshot().axis, None);
+        assert!(input.recording.running());
+        hint(window.0, &input);
+        pump(window.0, &input);
+        assert_eq!(input.job.borrow().snapshot().axis, Some(Axis::Horizontal));
+        assert_eq!(
+            input.job.borrow().snapshot().direction,
+            Some(crate::long_capture::Direction::Right)
+        );
+        command(window.0, 1);
+        pump(window.0, &input);
+        assert_eq!(
+            input.output.borrow().as_ref().map(|i| (i.width, i.height)),
+            Some((41, 48))
+        );
     }
 }

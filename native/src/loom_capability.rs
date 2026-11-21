@@ -98,6 +98,11 @@ fn widget(raw: &Value, data_type: Option<&str>) -> String {
     .into()
 }
 impl<'a> Capability<'a> {
+    pub fn surface_views(&self) -> crate::art_surface_views::Views<'a> {
+        crate::art_surface_views::Views::from_manifest(
+            self.raw.pointer("/metadata/capabilities/surface"),
+        )
+    }
     pub fn new(raw: &'a Value) -> Option<Self> {
         if !raw.is_object() {
             return None;

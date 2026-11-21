@@ -63,14 +63,14 @@ function create(root) {
   if (build.exitCode !== 0 || build.profile !== 'release' || build.target !== 'x86_64-pc-windows-msvc' ||
       build.channel !== 'internal' || build.gitDirty !== true && build.gitDirty !== false ||
       !/^[a-f0-9]{40}$/.test(build.gitCommit) ||
-      JSON.stringify(build.arguments) !== JSON.stringify(['build', '--manifest-path', 'native/Cargo.toml', '--locked', '--offline', '--release', '--bin', 'otter-native', '--target', 'x86_64-pc-windows-msvc'])) {
+      JSON.stringify(build.arguments) !== JSON.stringify(['build', '--manifest-path', 'native/Cargo.toml', '--locked', '--offline', '--release', '-p', 'otter-native', '-p', 'otter-live-hover-hook', '--lib', '--bin', 'otter-native', '--target', 'x86_64-pc-windows-msvc'])) {
     throw new Error('Invalid native build invocation');
   }
   return { schemaVersion: 1, kind: 'otter-native-internal-candidate', channel: 'internal', publishable: false,
     buildVersion: before.buildVersion, productVersion: before.productVersion, internalRevision: before.internalRevision,
     sourceSha256: before.sourceSha256, gitCommit: build.gitCommit, gitDirty: build.gitDirty,
     profile: 'release', runtimeVerified: false, signed: false,
-    files: ['payload/otter-native.exe', 'source-before.json', 'source-after.json', 'tools-before.json',
+    files: ['payload/otter-native.exe', 'payload/otter_live_hover_hook.dll', 'source-before.json', 'source-after.json', 'tools-before.json',
       'tools-after.json', 'build.json', 'build.log', 'metadata.json'].map(name => digest(root, name)) };
 }
 function verify(root) {

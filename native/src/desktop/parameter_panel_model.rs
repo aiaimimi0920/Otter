@@ -16,7 +16,8 @@ pub(super) struct Model {
     pub rows: Vec<Row>,
     pub ports: Option<Rc<desktop::link_catalog::Catalog>>,
     pub title: String,
-    pub settings: Vec<(String, bool)>,
+    pub settings: Vec<desktop::node_settings::Field>,
+    node_settings: crate::unit_node_settings::Settings,
     pub sticker: Option<desktop::sticker_input::Config>,
     pub candidates: Option<std::sync::Arc<desktop::loom_output_batch::candidates::Set>>,
 }
@@ -76,33 +77,7 @@ impl Model {
                 disable: None,
             });
         }
-        let settings = selected.as_ref().map_or_else(
-            || {
-                if state.is_art() {
-                    Vec::new()
-                } else {
-                    vec![("接收上游图片".into(), state.accept_upstream.get())]
-                }
-            },
-            |selected| {
-                let config = selected.execution;
-                [
-                    "上游变化触发执行",
-                    "参数变化触发执行",
-                    "接收上游执行通知",
-                    "完成后通知下游",
-                ]
-                .into_iter()
-                .zip([
-                    config.upstream_driven,
-                    config.param_driven,
-                    config.listen_upstream,
-                    config.notify_downstream,
-                ])
-                .map(|(label, checked)| (label.into(), checked))
-                .collect()
-            },
-        );
+        let settings = desktop::node_settings::fields(state);
         let stamp = Stamp::capture(state);
         let candidates = state
             .execution_results
@@ -116,6 +91,7 @@ impl Model {
             rows,
             sticker,
             settings,
+            node_settings: state.node_settings.get(),
             ports: state.link_catalog.borrow().clone(),
             title: capability.map_or_else(
                 || {
@@ -131,6 +107,7 @@ impl Model {
     }
     pub fn current(&self, state: &State) -> bool {
         self.stamp.matches(state)
+            && self.node_settings == state.node_settings.get()
             && match (
                 &self.candidates,
                 state.execution_results.borrow().candidate_view(&self.stamp),

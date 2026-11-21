@@ -36,6 +36,10 @@ impl Application {
             owner.original = Some(record.original.clone());
             owner.stopped = record.recovery_path.is_some();
             if !owner.stopped {
+                owner.accounts = record
+                    .restored_accounts
+                    .take()
+                    .filter(|index| index.is_for(&record.original));
                 owner.senders = record
                     .restored_senders
                     .take()

@@ -1,7 +1,8 @@
 //! 连线选择的共享只读目录；只保留端口名和身份凭证，不持有像素或参数值。
+#[cfg(test)]
+use super::State;
 use super::{
     configuration_stamp::Stamp, document_window::DocumentWindow, loom_result_state::OutputStamp,
-    State,
 };
 use crate::{
     loom_capability::Capability,
@@ -9,19 +10,23 @@ use crate::{
     workspace_id::UnitId,
 };
 use std::rc::Rc;
-use windows::{
-    core::Result,
-    Win32::{Foundation::*, UI::WindowsAndMessaging::*},
-};
+use windows::core::Result;
+#[cfg(test)]
+use windows::Win32::{Foundation::*, UI::WindowsAndMessaging::*};
+#[path = "link_port_presentation.rs"]
+mod presentation;
 pub(super) struct Endpoint {
     pub unit: UnitId,
     pub label: String,
     pub inputs: Vec<String>,
+    pub parameter_start: usize,
     pub outputs: Vec<String>,
     pub input_defaults: Vec<bool>,
     pub output_defaults: Vec<bool>,
     pub input_visibility: Rc<[bool]>,
     pub output_visibility: Rc<[bool]>,
+    pub input_presentation: Vec<presentation::Presentation>,
+    pub output_presentation: Vec<presentation::Presentation>,
     configuration: Option<(Stamp, OutputStamp)>,
     live: Option<std::sync::Arc<()>>,
 }
@@ -56,26 +61,32 @@ impl Catalog {
                 });
                 let mut inputs = Vec::new();
                 let mut outputs = Vec::new();
+                let parameter_start;
                 let label = if let Some(capability) = &capability {
                     let parameters: Vec<_> = capability.parameters().collect();
-                    for port in capability.inputs() {
+                    for port in capability.visible_inputs() {
                         if !parameters.iter().any(|p| p.id == port.name && p.secret) {
                             add(&mut inputs, port.name);
                         }
                     }
+                    parameter_start = inputs.len();
+                    let mut public = Vec::new();
                     for parameter in parameters.iter().filter(|p| !p.secret) {
-                        add(&mut inputs, parameter.id);
+                        add(&mut public, parameter.id);
                     }
+                    inputs.extend(public);
                     for port in capability.outputs() {
                         add(&mut outputs, port.name);
                     }
                     capability.label.to_owned()
                 } else if let Some(id) = &doc.state.local_art_id {
                     inputs.extend(id.inputs().into_iter().map(|(name, _)| name));
+                    parameter_start = inputs.len();
                     outputs.extend(id.outputs());
                     id.to_string()
                 } else {
                     add(&mut inputs, "image");
+                    parameter_start = 0;
                     add(&mut outputs, "output");
                     "钉图".into()
                 };
@@ -133,7 +144,30 @@ impl Catalog {
                             .take(128)
                             .collect::<String>()
                     ),
+                    input_presentation: inputs
+                        .iter()
+                        .map(|name| {
+                            presentation::Presentation::capture(
+                                capability.as_ref(),
+                                name,
+                                true,
+                                !doc.state.is_art(),
+                            )
+                        })
+                        .collect(),
+                    output_presentation: outputs
+                        .iter()
+                        .map(|name| {
+                            presentation::Presentation::capture(
+                                capability.as_ref(),
+                                name,
+                                false,
+                                !doc.state.is_art(),
+                            )
+                        })
+                        .collect(),
                     inputs,
+                    parameter_start,
                     outputs,
                     input_defaults,
                     output_defaults,
@@ -144,15 +178,19 @@ impl Catalog {
                 }
             })
             .collect();
-        for session in sessions
-            .iter()
-            .filter(|session| session.is_alive() && session.belongs_to(workspace))
-        {
+        for session in sessions.iter().filter(|session| {
+            session.is_alive() && !session.pin_attached() && session.belongs_to(workspace)
+        }) {
             endpoints.push(Endpoint {
                 unit: session.unit_id().clone(),
                 label: format!("{} · Live", endpoints.len() + 1),
                 inputs: Vec::new(),
+                parameter_start: 0,
                 outputs: vec!["output".into()],
+                input_presentation: Vec::new(),
+                output_presentation: vec![presentation::Presentation::capture(
+                    None, "output", false, true,
+                )],
                 input_defaults: Vec::new(),
                 output_defaults: vec![true],
                 input_visibility: Rc::from([]),
@@ -182,7 +220,7 @@ impl Catalog {
                 == documents.len()
                     + sessions
                         .iter()
-                        .filter(|s| s.is_alive() && s.belongs_to(workspace))
+                        .filter(|s| s.is_alive() && !s.pin_attached() && s.belongs_to(workspace))
                         .count()
             && self.endpoints.iter().zip(documents).all(|(endpoint, doc)| {
                 endpoint.unit == doc.state.unit_id
@@ -216,6 +254,7 @@ impl Catalog {
                 .iter()
                 .any(|e| e.unit == link.to_unit && e.inputs.contains(&link.to_port))
     }
+    #[cfg(test)]
     pub unsafe fn queue(
         self: &Rc<Self>,
         hwnd: HWND,

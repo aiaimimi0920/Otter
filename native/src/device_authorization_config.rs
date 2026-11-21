@@ -34,6 +34,7 @@ pub struct Config {
     root: PathBuf,
     name: String,
     trust_env: Vec<(String, OsString)>,
+    local_roots: Option<rustls::RootCertStore>,
 }
 impl Config {
     /// origin 必须由连接选择明确传入；TLS_ORIGIN 只限定 CA，绝不是默认服务地址。
@@ -67,6 +68,7 @@ impl Config {
             name
         };
         let mut config = Self::new(origin, root, name)?;
+        config.local_roots = crate::loom_local_connection::roots(root, config.origin());
         for key in [
             "OTTER_LOOM_TLS_ORIGIN",
             "OTTER_LOOM_TLS_CA_FILE",
@@ -94,6 +96,7 @@ impl Config {
             root: root.to_owned(),
             name: name.into(),
             trust_env: Vec::new(),
+            local_roots: None,
         })
     }
     pub fn origin(&self) -> &str {
@@ -143,23 +146,28 @@ impl Config {
         if cancel.is_stopped() {
             return Err(Error::Stopped);
         }
-        let trust = Trust::load_with(
-            Trust::public_roots(),
-            |key| {
-                self.trust_env
-                    .iter()
-                    .find(|entry| entry.0 == key)
-                    .map(|entry| entry.1.clone())
-            },
-            |path| {
-                let file = File::open(path)?;
-                if !file.metadata()?.is_file() {
-                    return Err(std::io::ErrorKind::InvalidInput.into());
-                }
-                Ok(file)
-            },
-        )
-        .map_err(|_| Error::Trust)?;
+        let roots = if let Some(roots) = &self.local_roots {
+            roots.clone()
+        } else {
+            let trust = Trust::load_with(
+                Trust::public_roots(),
+                |key| {
+                    self.trust_env
+                        .iter()
+                        .find(|entry| entry.0 == key)
+                        .map(|entry| entry.1.clone())
+                },
+                |path| {
+                    let file = File::open(path)?;
+                    if !file.metadata()?.is_file() {
+                        return Err(std::io::ErrorKind::InvalidInput.into());
+                    }
+                    Ok(file)
+                },
+            )
+            .map_err(|_| Error::Trust)?;
+            trust.roots_for(&self.origin).map_err(|_| Error::Trust)?
+        };
         if cancel.is_stopped() {
             return Err(Error::Stopped);
         }
@@ -178,12 +186,7 @@ impl Config {
         if cancel.is_stopped() {
             return Err(Error::Stopped);
         }
-        Client::new(
-            &self.origin,
-            trust.roots_for(&self.origin).map_err(|_| Error::Trust)?,
-            addresses,
-        )
-        .map_err(Error::Client)
+        Client::new(&self.origin, roots, addresses).map_err(Error::Client)
     }
 }
 

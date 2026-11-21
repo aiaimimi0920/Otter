@@ -96,8 +96,41 @@ impl Presentation {
         }
     }
     pub fn begin_text_selection(&mut self, point: [f32; 2]) -> Result<bool> {
+        self.begin_text_selection_scoped(point, false)
+    }
+    /// DOM selectable root 的留白仍属于该文字块；仅覆盖宿主使用最近 caret 起选。
+    pub(crate) fn begin_root_text_selection(
+        &mut self,
+        point: [f32; 2],
+        word: bool,
+    ) -> Result<bool> {
+        if !self.begin_text_selection_scoped(point, true)? {
+            return Ok(false);
+        }
+        if word {
+            self.select_initial_word(point)?;
+        }
+        Ok(true)
+    }
+    fn begin_text_selection_scoped(&mut self, point: [f32; 2], root: bool) -> Result<bool> {
         self.selection = None;
-        let Some((id, position)) = self.text_selection_hit(point)? else {
+        let hit = if root {
+            self.hit_test(point)
+                .and_then(|id| {
+                    self.text
+                        .items()
+                        .iter()
+                        .find(|item| item.node_id() == id && item.selectable())
+                })
+                .map(|item| {
+                    item.selection_position(point)
+                        .map(|position| (item.node_id(), position))
+                })
+                .transpose()?
+        } else {
+            self.text_selection_hit(point)?
+        };
+        let Some((id, position)) = hit else {
             return Ok(false);
         };
         let caret = self
@@ -210,7 +243,30 @@ impl Presentation {
         Ok(true)
     }
     pub fn update_text_selection(&mut self, point: [f32; 2]) -> Result<bool> {
-        let hit = self.text_selection_hit(point)?.and_then(|(node, _)| {
+        self.update_text_selection_scoped(point, true)
+    }
+    /// 覆盖文字沿主干锁定开始命中的单一 selectable root，不扩展为跨块选择。
+    pub(crate) fn update_root_text_selection(
+        &mut self,
+        point: [f32; 2],
+        finish: bool,
+    ) -> Result<bool> {
+        let changed = self.update_text_selection_scoped(point, false)?;
+        if finish && changed {
+            let selection = self.selection.as_mut().unwrap();
+            selection.dragging = false;
+            selection.word = None;
+            return Ok(selection.anchor != selection.focus);
+        }
+        Ok(changed)
+    }
+    fn update_text_selection_scoped(&mut self, point: [f32; 2], cross: bool) -> Result<bool> {
+        let hit = if cross {
+            self.text_selection_hit(point)?
+        } else {
+            None
+        }
+        .and_then(|(node, _)| {
             self.selection
                 .as_ref()
                 .filter(|s| s.dragging && s.focus_node != node)

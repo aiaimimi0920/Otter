@@ -5,7 +5,7 @@ type Set = desktop::loom_output_batch::candidates::Set;
 pub(in crate::desktop::document_window) struct Choice {
     set: Arc<Set>,
     item: usize,
-    snapshot: Rc<Snapshot>,
+    snapshot: Option<Rc<Snapshot>>,
     stamp: Stamp,
     selected: bool,
     parameter: Option<usize>,
@@ -19,9 +19,28 @@ fn parameter(snapshot: &Snapshot, index: u32) -> Option<usize> {
     })
 }
 impl Choice {
+    pub(in super::super) fn selected(&self) -> bool {
+        self.selected
+    }
+    pub(in super::super) fn card(&self, state: &State) -> neuro_mini_ui::PreviewCard {
+        let item = &self.set.items[self.item];
+        neuro_mini_ui::PreviewCard {
+            title: if item.title.is_empty() {
+                format!("候选 {}", item.index + 1)
+            } else {
+                item.title.clone()
+            },
+            detail: format!("#{}", item.index + 1),
+            enabled: self.available(state),
+            preview: item
+                .thumbnail
+                .clone()
+                .map(|t| Rc::new(t) as Rc<dyn neuro_mini_ui::CardPreview>),
+        }
+    }
     pub(in super::super) fn available(&self, state: &State) -> bool {
         self.stamp.matches(state)
-            && self.snapshot.current(state)
+            && self.snapshot.as_ref().is_some_and(|s| s.current(state))
             && self.parameter.is_some()
             && desktop::execution_start::available(state)
             && state
@@ -46,9 +65,12 @@ impl Choice {
         let Some(parameter) = self.parameter else {
             return Ok(false);
         };
+        let Some(snapshot) = &self.snapshot else {
+            return Ok(false);
+        };
         let text = self.set.items[self.item].index.to_string();
         // 验证原Spec；相同index也允许显式重跑，但绝不发布缩略图为正式图像。
-        let Action::Edit(spec, _) = &self.snapshot.choices[parameter].action else {
+        let Action::Edit(spec, _) = &snapshot.choices[parameter].action else {
             return Ok(false);
         };
         let Some(value) = spec.parse(&text) else {
@@ -65,11 +87,7 @@ impl Choice {
             .is_some_and(|selected| {
                 selected.parameters.get("result_index").flatten() == Some(&value)
             });
-        if !unchanged
-            && !self
-                .snapshot
-                .submit_guarded(hwnd, state, parameter, Some(&text), current)?
-        {
+        if !unchanged && !snapshot.submit_guarded(hwnd, state, parameter, Some(&text), current)? {
             return Ok(false);
         }
         desktop::execution_start::request_after_parameter(hwnd, state)?;
@@ -77,36 +95,15 @@ impl Choice {
     }
 }
 pub(super) unsafe fn build(b: &mut Builder<'_>, model: &model::Model) -> Result<()> {
-    let (Some(set), Some(snapshot)) = (&model.candidates, &model.snapshot) else {
-        return Ok(());
-    };
-    b.label("候选")?;
-    b.y += 24;
-    let selected = set.selected.or_else(|| {
-        b.ui.state().and_then(|state| {
-            state.selected_art.borrow().as_ref().and_then(|selection| {
-                selection
-                    .parameters
-                    .get("result_index")
-                    .flatten()
-                    .and_then(serde_json::Value::as_u64)
-                    .and_then(|n| u32::try_from(n).ok())
-            })
-        })
-    });
-    for (position, item) in set.items.iter().enumerate() {
-        let selected = selected == Some(item.index);
-        let choice = Rc::new(Choice {
-            set: set.clone(),
-            item: position,
-            snapshot: snapshot.clone(),
-            stamp: model.stamp.clone(),
-            selected,
-            parameter: parameter(snapshot, item.index),
-        });
+    for (position, choice) in choices(model, b.ui.state()).into_iter().enumerate() {
+        if position == 0 {
+            b.label("候选")?;
+            b.y += 24;
+        }
+        let item = &choice.set.items[choice.item];
         let text = format!(
             "{}#{} {}",
-            if selected { "✓ " } else { "" },
+            if choice.selected { "✓ " } else { "" },
             item.index + 1,
             item.title
         );
@@ -125,11 +122,51 @@ pub(super) unsafe fn build(b: &mut Builder<'_>, model: &model::Model) -> Result<
             kind: Kind::Candidate(choice),
             enabled,
         });
-        if position % 2 == 1 || position + 1 == set.items.len() {
+        if position % 2 == 1 || position + 1 == model.candidates.as_ref().unwrap().items.len() {
             b.y += 86;
         }
     }
     Ok(())
+}
+pub(in super::super) fn choices(model: &model::Model, state: Option<&State>) -> Vec<Rc<Choice>> {
+    let Some(set) = &model.candidates else {
+        return Vec::new();
+    };
+    let selected = set.selected.or_else(|| {
+        state.and_then(|state| {
+            state.selected_art.borrow().as_ref().and_then(|selection| {
+                selection
+                    .parameters
+                    .get("result_index")
+                    .flatten()
+                    .and_then(serde_json::Value::as_u64)
+                    .and_then(|n| u32::try_from(n).ok())
+            })
+        })
+    });
+    set.items
+        .iter()
+        .enumerate()
+        .map(|(position, item)| {
+            let selected = selected == Some(item.index);
+            Rc::new(Choice {
+                set: set.clone(),
+                item: position,
+                snapshot: model.snapshot.clone(),
+                stamp: model.stamp.clone(),
+                selected,
+                parameter: model
+                    .snapshot
+                    .as_ref()
+                    .and_then(|s| parameter(s, item.index)),
+            })
+        })
+        .collect()
+}
+impl neuro_mini_ui::CardPreview for crate::image_thumbnail::Thumbnail {
+    unsafe fn paint(&self, dc: HDC, rect: RECT) {
+        crate::image_thumbnail::draw::draw_cover(dc, rect, self, 0x110c09);
+    }
 }
 pub(in super::super) unsafe fn draw(ui: &Ui, item: &DRAWITEMSTRUCT) -> bool {
     let binding = ui

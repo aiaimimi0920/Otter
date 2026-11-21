@@ -49,6 +49,8 @@ pub struct Window<'a> {
     pub otter_native_local_art_ports: Option<&'a serde_json::value::RawValue>,
     #[serde(default, borrow, deserialize_with = "present_projection_edit")]
     pub port_visibility: Option<&'a serde_json::value::RawValue>,
+    #[serde(default)]
+    pub hide_collapsed_endpoints: Option<bool>,
     pub x: f64,
     pub y: f64,
     pub w: f64,
@@ -97,6 +99,12 @@ pub struct Window<'a> {
     pub image_edit_state: Option<&'a serde_json::value::RawValue>,
     #[serde(default, borrow)]
     pub sticker_edit_propagation: Option<&'a serde_json::value::RawValue>,
+    #[serde(default, borrow, deserialize_with = "present_projection_edit")]
+    pub extension_state: Option<&'a serde_json::value::RawValue>,
+    #[serde(default, borrow)]
+    pub ocr_result: Option<&'a serde_json::value::RawValue>,
+    #[serde(default, borrow)]
+    pub translation_result: Option<&'a serde_json::value::RawValue>,
     #[serde(default, borrow)]
     pub annotation_state: Option<&'a serde_json::value::RawValue>,
     #[serde(default, borrow, deserialize_with = "present_projection_edit")]

@@ -22,10 +22,16 @@ mod draw;
 mod font;
 #[path = "native_menu_panel_input.rs"]
 mod input;
+#[path = "native_menu_owner_wheel.rs"]
+mod owner_wheel;
+#[path = "native_menu_panel_preview.rs"]
+mod preview;
+pub use preview::Preview;
 const ID: usize = 0x4f4d50;
 
 #[derive(Clone)]
 pub struct Row {
+    pub deletable: bool,
     /// 当前面板模型内的稳定条目索引；滚动后不能用可见槽位替代。
     pub key: usize,
     pub thumbnail: Option<crate::image_thumbnail::Thumbnail>,
@@ -40,6 +46,8 @@ pub struct Row {
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Event {
+    PreviewPointer,
+    WheelAt(i16, i32, i32),
     Automation(usize, super::accessibility::Action),
     Move(i32, i32),
     Down(i32, i32),
@@ -51,6 +59,10 @@ pub enum Event {
     ScrollTo(usize),
 }
 struct Data {
+    _paint_session: crate::desktop::buffered_paint::Session,
+    delete_hover: Cell<Option<usize>>,
+    preview: RefCell<Option<Preview>>,
+    columns: Cell<usize>,
     notifications: RefCell<Option<super::uia::Snapshot>>,
     provider: RefCell<Option<windows::Win32::UI::Accessibility::IRawElementProviderSimple>>,
     accessibility: super::accessibility::Owner,
@@ -59,6 +71,7 @@ struct Data {
     events: RefCell<VecDeque<Event>>,
     failed: Cell<bool>,
     destroyed: Cell<bool>,
+    tray_popup: Cell<bool>,
     paints: Cell<u32>,
     row_height: i32,
     dpi: u32,
@@ -94,6 +107,10 @@ impl Panel {
                 return Err(invalid());
             }
             let data = Box::new(Data {
+                _paint_session: crate::desktop::buffered_paint::Session::new()?,
+                delete_hover: Cell::new(None),
+                preview: RefCell::new(None),
+                columns: Cell::new(1),
                 notifications: RefCell::new(None),
                 provider: RefCell::new(None),
                 accessibility: super::accessibility::Owner::new(&rows),
@@ -102,6 +119,7 @@ impl Panel {
                 events: RefCell::new(VecDeque::new()),
                 failed: Cell::new(false),
                 destroyed: Cell::new(false),
+                tray_popup: Cell::new(false),
                 paints: Cell::new(0),
                 row_height,
                 dpi: windows::Win32::UI::HiDpi::GetDpiForWindow(owner).clamp(48, 768),
@@ -111,7 +129,8 @@ impl Panel {
                 WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
                 w!("STATIC"),
                 w!("Otter 菜单"),
-                WS_POPUP,
+                // STATIC 默认命中穿透，系统滚轮会落到后方窗口；菜单必须可命中。
+                WS_POPUP | WINDOW_STYLE(windows::Win32::System::SystemServices::SS_NOTIFY.0),
                 bounds.left,
                 bounds.top,
                 width,
@@ -150,18 +169,66 @@ impl Panel {
         }
         Ok(())
     }
+    pub(crate) fn announce_tray_popup(&self) -> Result<()> {
+        // 自绘托盘根页也必须通知 Shell 菜单生命周期；通知可同步重入销毁窗口。
+        if self.notification_guard(|| {
+            if !self.data.tray_popup.replace(true) {
+                unsafe {
+                    windows::Win32::UI::Accessibility::NotifyWinEvent(
+                        EVENT_SYSTEM_MENUPOPUPSTART,
+                        self.hwnd,
+                        OBJID_CLIENT.0,
+                        0,
+                    );
+                }
+            }
+        }) {
+            Ok(())
+        } else {
+            Err(Error::new(E_ABORT, "Tray menu changed during notification"))
+        }
+    }
     pub fn update(&self, rows: Vec<Row>) -> Result<()> {
-        self.update_frame(rows, self.data.bar.get())
+        self.update_frame(rows, self.data.bar.get(), false)
+    }
+    pub(crate) fn set_columns(&self, columns: usize) {
+        assert!(matches!(columns, 1 | 3));
+        self.data.columns.set(columns);
+        self.data.accessibility.set_columns(columns);
+    }
+    pub(crate) fn set_delete_hover(&self, key: Option<usize>) {
+        if self.data.delete_hover.replace(key) != key {
+            unsafe {
+                let _ = InvalidateRect(Some(self.hwnd), None, false);
+            }
+        }
+    }
+    #[cfg(test)]
+    pub(crate) fn delete_hover(&self) -> Option<usize> {
+        self.data.delete_hover.get()
     }
     pub(crate) fn update_frame(
         &self,
         rows: Vec<Row>,
         bar: Option<super::scrollbar::Bar>,
+        fresh: bool,
     ) -> Result<()> {
         if !valid(&rows) || !self.alive() {
             return Err(invalid());
         }
-        self.data.accessibility.replace(&rows);
+        // 数据替换原子退休旧 UIA 节点及排队动作；普通焦点重绘仍可 Focus → Invoke。
+        if fresh {
+            self.data.accessibility.replace_fresh(&rows);
+        } else {
+            self.data.accessibility.replace(&rows);
+        }
+        let mut bounds = RECT::default();
+        unsafe {
+            GetClientRect(self.hwnd, &mut bounds)?;
+        }
+        self.data
+            .accessibility
+            .set_content_width(bar.map_or(bounds.right, |bar| bar.track.left));
         *self.data.rows.borrow_mut() = rows;
         self.data.bar.set(bar);
         unsafe {
@@ -218,7 +285,11 @@ impl Panel {
         self.data.events.borrow_mut().retain(|event| {
             !matches!(
                 event,
-                Event::Move(..) | Event::Down(..) | Event::Up(..) | Event::Wheel(_)
+                Event::Move(..)
+                    | Event::Down(..)
+                    | Event::Up(..)
+                    | Event::Wheel(_)
+                    | Event::WheelAt(..)
             )
         });
     }
@@ -230,6 +301,21 @@ impl Panel {
         unsafe {
             GetWindowSubclass(self.hwnd, Some(input::procedure), ID, Some(&mut pointer)).as_bool()
                 && pointer == (&*self.data as *const Data) as usize
+        }
+    }
+}
+impl Data {
+    fn end_tray_popup(&self, hwnd: HWND) {
+        // 先退休标记，隐藏和销毁（包括通知重入）只能发送一次结束通知。
+        if self.tray_popup.replace(false) {
+            unsafe {
+                windows::Win32::UI::Accessibility::NotifyWinEvent(
+                    EVENT_SYSTEM_MENUPOPUPEND,
+                    hwnd,
+                    OBJID_CLIENT.0,
+                    0,
+                );
+            }
         }
     }
 }

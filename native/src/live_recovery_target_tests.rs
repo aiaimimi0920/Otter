@@ -45,13 +45,17 @@ fn actual_process_identity_round_trip_and_restore_preserve_hidden_window() {
     assert_eq!(record.process_id, std::process::id());
     assert_ne!(record.process_created, 0);
     let bound = Binding::bind(&record).unwrap();
-    assert_eq!(bound.snapshot.recovery_record().unwrap(), record);
+    let Bound::Window(bound_snapshot) = &bound.state else {
+        panic!("window fixture")
+    };
+    assert_eq!(bound_snapshot.recovery_record().unwrap(), record);
+    let original_style = snapshot.extended_style;
     drop(snapshot);
     unsafe {
         SetWindowLongPtrW(
             window.0,
             GWL_EXSTYLE,
-            record.extended_style as isize | WS_EX_TRANSPARENT.0 as isize,
+            original_style | WS_EX_TRANSPARENT.0 as isize,
         );
     }
     bound.restore().unwrap();
@@ -89,8 +93,11 @@ fn obsolete_identity_is_retired_without_writing_to_other_window() {
     let window = Window::new();
     let record = window.snapshot().recovery_record().unwrap();
     let mut bound = Binding::bind(&record).unwrap();
-    bound.snapshot.target.identity.thread = record.thread_id.wrapping_add(1);
-    bound.snapshot.extended_style |= WS_EX_TRANSPARENT.0 as isize;
+    let Bound::Window(snapshot) = &mut bound.state else {
+        panic!("window fixture")
+    };
+    snapshot.target.identity.thread = record.thread_id.wrapping_add(1);
+    snapshot.extended_style |= WS_EX_TRANSPARENT.0 as isize;
     bound.restore_or_retire().unwrap();
     assert_eq!(window.snapshot().recovery_record().unwrap(), record);
 }
@@ -98,7 +105,8 @@ fn obsolete_identity_is_retired_without_writing_to_other_window() {
 #[test]
 fn recovery_service_holds_real_binding_before_ack_and_restores_original_state() {
     let window = Window::new();
-    let record = window.snapshot().recovery_record().unwrap();
+    let snapshot = window.snapshot();
+    let record = snapshot.recovery_record().unwrap();
     let mut service = Service::new([7; 16]).unwrap();
     let ack = service
         .apply(
@@ -119,7 +127,7 @@ fn recovery_service_holds_real_binding_before_ack_and_restores_original_state() 
         SetWindowLongPtrW(
             window.0,
             GWL_EXSTYLE,
-            record.extended_style as isize | WS_EX_TRANSPARENT.0 as isize,
+            snapshot.extended_style | WS_EX_TRANSPARENT.0 as isize,
         );
     }
     service

@@ -190,6 +190,29 @@ impl Sessions {
             .binding = Some(host);
         Ok(())
     }
+    pub(crate) fn start_direct_viewing(
+        &mut self,
+        config: Config,
+        lease: Lease,
+        selected: crate::live_relay_viewer_identity::Identity,
+    ) -> io::Result<()> {
+        if self
+            .entries
+            .iter()
+            .any(|e| e.key.origin == config.origin() && e.key.session == selected.session())
+        {
+            return Err(io::ErrorKind::AlreadyExists.into());
+        }
+        self.insert_session(config.origin().into(), selected.session().into(), || {
+            crate::live_relay_control_runtime::Runtime::start_direct_viewer(
+                config,
+                lease,
+                selected,
+                encoded_budget(),
+            )
+            .map(Session::from_runtime)
+        })
+    }
     pub fn stop_viewer(&mut self, key: &Arc<ViewerKey>) -> bool {
         let Some(entry) = self
             .entries

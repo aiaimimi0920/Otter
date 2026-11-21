@@ -43,6 +43,8 @@ fn row(command: usize) -> Item {
         default: false,
         separator: false,
         children: None,
+        delete: None,
+        preview: None,
         thumbnail: None,
     }
 }

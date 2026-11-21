@@ -2,8 +2,10 @@
 use super::State;
 use crate::loom_parameter_state::Parameters;
 use serde_json::{Map, Value};
+#[cfg(test)]
+use windows::core::w;
 use windows::{
-    core::{w, Result},
+    core::Result,
     Win32::{Foundation::*, UI::WindowsAndMessaging::*},
 };
 pub(super) const COMMAND: usize = 0x1082;
@@ -69,19 +71,6 @@ impl Edit {
 fn invalid() -> windows::core::Error {
     windows::core::Error::new(E_INVALIDARG, "参数无效、包含非公共字段或超过容量限制")
 }
-pub(super) unsafe fn append(menu: HMENU, state: &State) -> Result<()> {
-    AppendMenuW(
-        menu,
-        MF_STRING
-            | if state.selected_art.borrow().is_some() {
-                MF_ENABLED
-            } else {
-                MF_GRAYED
-            },
-        COMMAND,
-        w!("高级参数（JSON）…"),
-    )
-}
 pub(super) unsafe fn show(hwnd: HWND, state: &State) -> Result<()> {
     let Some(_dialog) = super::file_dialog::Guard::begin(&state.file_dialog) else {
         return Ok(());
@@ -98,3 +87,18 @@ pub(super) unsafe fn show(hwnd: HWND, state: &State) -> Result<()> {
 #[cfg(test)]
 #[path = "capability_parameters_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+pub(super) unsafe fn append(menu: HMENU, state: &State) -> Result<()> {
+    AppendMenuW(
+        menu,
+        MF_STRING
+            | if state.selected_art.borrow().is_some() {
+                MF_ENABLED
+            } else {
+                MF_GRAYED
+            },
+        COMMAND,
+        w!("高级参数（JSON）…"),
+    )
+}

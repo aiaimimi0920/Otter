@@ -248,6 +248,16 @@ pub(super) unsafe fn move_cached(hwnd: HWND, state: &State, rect: PinRect) -> Re
             return preview.present(hwnd, state, rect);
         }
         let padding = preview.padding.get() as i32;
+        let attached = crate::desktop::tool_panel::moving_positions(
+            hwnd,
+            state,
+            RECT {
+                left: rect.x,
+                top: rect.y,
+                right: rect.x + rect.width as i32,
+                bottom: rect.y + rect.height as i32,
+            },
+        )?;
         // 只移动已经完成的图框整帧，不重绘/复制图片，不排队补历史位置。
         crate::desktop::application::chrome::move_frame(
             &state.chrome,
@@ -255,6 +265,7 @@ pub(super) unsafe fn move_cached(hwnd: HWND, state: &State, rect: PinRect) -> Re
             preview.window.hwnd,
             rect.x - padding,
             rect.y - padding,
+            &attached,
         )?;
     }
     Ok(())

@@ -270,3 +270,44 @@ fn stale_document_image_or_tool_rejects_modal_result() {
         );
     }
 }
+
+#[test]
+fn quiet_text_creation_remains_editable_but_existing_text_cannot_be_picked() {
+    let mut c = canvas();
+    c.pinned = true;
+    c.viewport.origin = Point::default();
+    c.selection_enabled = false;
+    c.select_tool(Tool::Text);
+    let center = rotation::center(&c.editor.elements()[0].points);
+    assert!(Pending::at_point(&mut c, center).unwrap().is_none());
+    let pending = Pending {
+        index: None,
+        point: Point { x: 130.0, y: 130.0 },
+        pixels: c.image.as_ref().unwrap().pixels.clone(),
+        stamp: c.editor.document_stamp(),
+        text: None,
+        tool: Tool::Text,
+        font: c.tool_profiles.text_font.clone(),
+    };
+    assert!(pending
+        .commit(&mut c, text("新增"), Point { x: 40.0, y: 24.0 })
+        .unwrap());
+    assert_eq!(c.tool, Tool::Select);
+    assert!(!c.selection_enabled);
+    assert_eq!(c.selected_index(), Some(1));
+    let current = Pending::at_point(&mut c, Point { x: 140.0, y: 140.0 })
+        .unwrap()
+        .unwrap();
+    assert_eq!(current.index, Some(1));
+    assert!(Pending::at_point(&mut c, center).unwrap().is_none());
+    assert_eq!(c.selected_index(), Some(1));
+    assert!(current
+        .commit(&mut c, text("再次编辑"), Point { x: 60.0, y: 24.0 })
+        .unwrap());
+    assert_eq!(c.selected_index(), Some(1));
+    assert!(!c.selection_enabled);
+    assert!(c.editor.undo());
+    assert!(Pending::at_point(&mut c, Point { x: 140.0, y: 140.0 })
+        .unwrap()
+        .is_none());
+}

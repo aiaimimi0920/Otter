@@ -24,6 +24,12 @@ pub struct Binding {
         deserialize_with = "receive_route::some"
     )]
     offline_transport: Option<receive_route::Transport>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "receive_route::some"
+    )]
+    shared_transport: Option<receive_route::Transport>,
 }
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -87,6 +93,10 @@ impl Binding {
                 .map(|_| receive_route::Transport {
                     origin: ticket.origin().into(),
                 }),
+            shared_transport: ticket
+                .invitation()
+                .shared_origin
+                .map(|origin| receive_route::Transport { origin }),
         };
         if value.intent_id.as_deref() != Some(ticket.intent_id())
             || value.device() != ticket.device()
@@ -106,6 +116,10 @@ impl Binding {
             && envelope::digest(&self.digest)
             && envelope::identifier(&self.otter_native_receive.device_id)
             && super::journal::record_intent_id(&self.otter_native_receive.intent_id)
+            && self.shared_transport.as_ref().is_none_or(|route| {
+                self.offline_transport.is_none()
+                    && envelope::canonical_origin(&route.origin).as_ref() == Ok(&route.origin)
+            })
             && match (&self.offline_transport, &self.otter_native_receive.peer_id) {
                 (None, None) => true,
                 (Some(route), Some(peer)) => {
@@ -126,6 +140,8 @@ impl Binding {
                 .map(|route| route.origin.as_str())
                 == ticket.invitation().peer_id().map(|_| ticket.origin())
             && self.otter_native_receive.peer_id.as_deref() == ticket.invitation().peer_id()
+            && self.shared_transport.as_ref().map(|route| &route.origin)
+                == ticket.invitation().shared_origin.as_ref()
     }
 }
 #[path = "projection_receive_checkpoint.rs"]

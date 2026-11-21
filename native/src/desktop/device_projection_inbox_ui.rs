@@ -16,6 +16,7 @@ pub(in crate::desktop) mod accept;
 pub(in crate::desktop) mod recovery;
 pub(in crate::desktop) enum Request {
     Refresh,
+    Import(Arc<crate::projection_delivery::share::Import>),
     Reject(Arc<Invitation>),
     Accept(Arc<Invitation>),
     Reattach(Arc<Invitation>),
@@ -41,6 +42,7 @@ pub(super) fn handles(command: usize) -> bool {
 fn available(view: &AuthorizationView) -> bool {
     !view.closed
         && !view.busy
+        && !view.account.busy
         && !view.projection.busy
         && !view.targets.busy
         && view.request.is_none()

@@ -1,28 +1,11 @@
 //! 序号后续创建半径的原生入口；仅变更会话工具配置，不创建编辑历史。
-use super::{canvas::Canvas, State};
+use super::State;
 use crate::editor::Tool;
 use windows::{
-    core::{w, Result, HSTRING},
+    core::w,
     Win32::{Foundation::*, UI::WindowsAndMessaging::*},
 };
 pub(super) const COMMAND: usize = 0x1020;
-pub(super) unsafe fn append_menu(menu: HMENU, canvas: &Canvas) -> Result<()> {
-    let label = HSTRING::from(format!(
-        "序号半径：{} px…",
-        canvas.tool_profiles.serial_radius()
-    ));
-    AppendMenuW(
-        menu,
-        MF_STRING
-            | if canvas.tool == Tool::Serial {
-                MF_ENABLED
-            } else {
-                MF_GRAYED
-            },
-        COMMAND,
-        &label,
-    )
-}
 pub(super) unsafe fn show(hwnd: HWND, state: &State) {
     if state.canvas.borrow().minified.is_some() {
         return;

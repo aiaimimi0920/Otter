@@ -18,6 +18,9 @@ pub struct Task {
 }
 
 impl Task {
+    pub(super) fn delete(id: String) -> Result<Self> {
+        Self::spawn(move |cancel, permit| super::remove::remove(&id, cancel, permit))
+    }
     pub fn start() -> Result<Self> {
         Self::spawn(super::read_with_permit)
     }

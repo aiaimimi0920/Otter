@@ -98,6 +98,30 @@ fn render_pattern(
 mod tests {
     use super::*;
     #[test]
+    fn default_drag_name_matches_main_label_short_id_and_centiseconds() {
+        let name = render_pattern(
+            SYSTEMTIME {
+                wYear: 2026,
+                wMonth: 11,
+                wDay: 10,
+                wHour: 3,
+                wMinute: 4,
+                wSecond: 5,
+                wMilliseconds: 987,
+                ..Default::default()
+            },
+            &Default::default(),
+            &crate::file_naming::Context {
+                label: "image",
+                unit_id: "unit-1234",
+                ..Default::default()
+            },
+            "",
+            Pattern::Drag,
+        );
+        assert_eq!(name.as_deref(), Some("image_1234_20261110_03040598.png"));
+    }
+    #[test]
     fn runtime_pattern_receives_identity_dimensions_and_timestamp() {
         let settings = crate::file_naming_settings::Settings {
             sticker_save_pattern: "{kind}_{shortId}_{width}x{height}_{timestamp}".into(),

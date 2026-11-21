@@ -3,6 +3,8 @@ use super::image::Image;
 #[path = "clipboard_text.rs"]
 mod text;
 pub(super) use text::copy_checked as copy_text_checked;
+pub(super) use text::copy_extension_checked as copy_extension_text_checked;
+pub(super) use text::copy_full_checked as copy_full_text_checked;
 use windows::{
     core::{Error, Result},
     Win32::{
@@ -12,6 +14,15 @@ use windows::{
 };
 
 struct Clipboard;
+impl Clipboard {
+    unsafe fn close(self) -> Result<()> {
+        let result = CloseClipboard();
+        if result.is_ok() {
+            std::mem::forget(self);
+        }
+        result
+    }
+}
 impl Drop for Clipboard {
     fn drop(&mut self) {
         unsafe {
@@ -149,7 +160,7 @@ pub(super) unsafe fn copy_formats_checked(
         return Err(Error::from_win32());
     }
     OpenClipboard(Some(owner))?;
-    let _clipboard = Clipboard;
+    let clipboard = Clipboard;
     // 持锁后再核对，覆盖缓存发布及 HGLOBAL 准备期间发生的外部更新。
     publish_checked(
         expected_sequence,
@@ -159,24 +170,37 @@ pub(super) unsafe fn copy_formats_checked(
             prepared.png.transfer(format)?;
             prepared.dib.transfer(17)?; // CF_DIBV5
             if let Some(files) = prepared.files {
-                files.transfer(15)?;
-            } // CF_HDROP
-            Ok(())
+                files.transfer(15)?; // CF_HDROP
+            }
+            // Windows 会在关闭时合成附加图片格式并推进序号，不能返回关闭前的回执。
+            clipboard.close()
         },
+        || publication_receipt(owner),
     )
+}
+
+unsafe fn publication_receipt(owner: HWND) -> Result<Option<u32>> {
+    OpenClipboard(Some(owner))?;
+    let _clipboard = Clipboard;
+    // 重新持锁后核对 owner，关闭与重开之间的第三方发布不能被绑定成自己的内容。
+    if GetClipboardOwner()? != owner {
+        return Ok(None);
+    }
+    let sequence = GetClipboardSequenceNumber();
+    Ok((sequence != 0).then_some(sequence))
 }
 
 fn publish_checked(
     expected: Option<u32>,
     sequence: impl Fn() -> u32,
     transfer: impl FnOnce() -> Result<()>,
+    receipt: impl FnOnce() -> Result<Option<u32>>,
 ) -> Result<Option<u32>> {
     if !sequence_allows(expected, &sequence) {
         return Ok(None);
     }
     transfer()?;
-    // Immediate rendering only: capture the receipt before releasing the lock.
-    Ok(Some(sequence()))
+    receipt()
 }
 
 struct PreparedFormats {
@@ -240,10 +264,16 @@ pub(super) unsafe fn copy_color(owner: HWND, rgb: [u8; 3]) -> Result<()> {
 mod tests {
     use super::*;
     #[test]
-    fn publication_receipt_requires_all_transfers_and_uses_post_publish_sequence() {
+    fn publication_receipt_requires_all_transfers_and_uses_final_receipt() {
         let sequence = std::cell::Cell::new(41);
         assert_eq!(
-            publish_checked(Some(40), || sequence.get(), || panic!("stale publication")).unwrap(),
+            publish_checked(
+                Some(40),
+                || sequence.get(),
+                || panic!("stale publication"),
+                || panic!("stale receipt"),
+            )
+            .unwrap(),
             None
         );
         assert_eq!(
@@ -253,18 +283,36 @@ mod tests {
                 || {
                     sequence.set(44);
                     Ok(())
-                }
+                },
+                || {
+                    assert_eq!(sequence.get(), 44);
+                    // 最终回执可不同于 SetClipboardData 后、关闭前的值。
+                    sequence.set(46);
+                    Ok(Some(sequence.get()))
+                },
             )
             .unwrap(),
-            Some(44)
+            Some(46)
         );
         assert!(publish_checked(
-            Some(44),
+            Some(46),
             || sequence.get(),
             || {
                 sequence.set(45);
                 Err(Error::new(E_FAIL, "partial transfer"))
-            }
+            },
+            || panic!("partial publication cannot bind content"),
+        )
+        .is_err());
+        assert_eq!(
+            publish_checked(None, || unreachable!(), || Ok(()), || Ok(None)).unwrap(),
+            None
+        );
+        assert!(publish_checked(
+            None,
+            || unreachable!(),
+            || Ok(()),
+            || Err(Error::new(E_FAIL, "receipt lock failed"))
         )
         .is_err());
     }

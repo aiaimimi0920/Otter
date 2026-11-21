@@ -73,13 +73,7 @@ unsafe fn stationary_frame_is_white(ui: &Ui, endpoint: usize) {
     );
 }
 pub(super) unsafe fn links_below_nodes(ui: &Ui) {
-    let layers: Vec<_> = ui
-        .input_windows
-        .borrow()
-        .iter()
-        .map(|(hwnd, _, _)| *hwnd)
-        .chain([ui.drawing.get()])
-        .collect();
+    let layers = [ui.drawing.get()];
     for layer in layers {
         let mut above = HashSet::new();
         let mut cursor = GetWindow(layer, GW_HWNDPREV).unwrap_or_default();
@@ -92,7 +86,7 @@ pub(super) unsafe fn links_below_nodes(ui: &Ui) {
         for node in ui.nodes.borrow().iter() {
             assert!(
                 above.contains(&node.hwnd),
-                "port circles and curves must both be below every pin: {layer:?} / {}",
+                "shared curves must be below every pin: {layer:?} / {}",
                 node.endpoint
             );
             let border = border_handle(ui, node.endpoint);
@@ -102,6 +96,36 @@ pub(super) unsafe fn links_below_nodes(ui: &Ui) {
                     "complete preview/border must cover the whole connection layer"
                 );
             }
+        }
+    }
+    for node in ui.nodes.borrow().iter() {
+        let host = HWND(node.hwnd as *mut _);
+        let mut previous = host;
+        for hwnd in ui
+            .input_windows
+            .borrow()
+            .iter()
+            .filter(|(_, endpoint, _)| *endpoint == node.endpoint)
+            .map(|(hwnd, _, _)| *hwnd)
+            .chain(drawer::moving(ui, host))
+            .chain(
+                ui.backings
+                    .borrow()
+                    .iter()
+                    .filter(|b| b.matches(node))
+                    .map(|b| b.hwnd),
+            )
+        {
+            assert_eq!(
+                GetWindow(previous, GW_HWNDNEXT).unwrap(),
+                hwnd,
+                "Tab members must be adjacent to their own pin without interleaving"
+            );
+            assert_eq!(
+                GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as u32 & WS_EX_TOPMOST.0,
+                GetWindowLongPtrW(host, GWL_EXSTYLE) as u32 & WS_EX_TOPMOST.0
+            );
+            previous = hwnd;
         }
     }
 }

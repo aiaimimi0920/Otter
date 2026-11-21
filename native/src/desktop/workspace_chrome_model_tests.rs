@@ -15,6 +15,7 @@ fn node() -> Node {
         dpi: 96,
         minified: false,
         expanded: false,
+        hide_collapsed_endpoints: false,
         interactive: true,
         protected: true,
         inputs: 2,
@@ -24,17 +25,67 @@ fn node() -> Node {
     }
 }
 #[test]
-fn hidden_endpoints_have_no_point_and_visible_ranks_keep_original_catalog_indices() {
+fn hidden_endpoints_keep_their_normal_rail_slots_without_becoming_visible_or_hittable() {
     let mut unit = node();
     unit.inputs = 4;
     unit.input_visibility = std::rc::Rc::from([false, true, false, true]);
     assert_eq!(unit.point(Side::Input, 0), None);
     assert_eq!(unit.point(Side::Input, 2), None);
-    assert_eq!(unit.point(Side::Input, 1), Some(Point { x: -100, y: -100 }));
-    assert_eq!(unit.point(Side::Input, 3), Some(Point { x: -100, y: 100 }));
+    assert_eq!(unit.point(Side::Input, 1), Some(Point { x: -102, y: -128 }));
+    assert_eq!(unit.point(Side::Input, 3), Some(Point { x: -102, y: -56 }));
     unit.input_visibility = std::rc::Rc::from([false; 4]);
     assert!((0..4).all(|i| unit.point(Side::Input, i).is_none()));
     assert!(unit.point(Side::Output, 0).is_some());
+}
+#[test]
+fn expanded_rails_reveal_hidden_rows_at_stable_indices_and_compact_rows_still_obey_visibility() {
+    let mut unit = node();
+    unit.inputs = 4;
+    unit.input_visibility = std::rc::Rc::from([false, true, false, true]);
+    unit.expanded = true;
+    for index in 0..4 {
+        assert_eq!(
+            unit.point(Side::Input, index).unwrap().y,
+            -164 + index as i32 * 36
+        );
+    }
+    unit.expanded = false;
+    assert_eq!(
+        unit.point_revealed(Side::Input, 0, |i| i == 0).unwrap().y,
+        -164
+    );
+    assert_eq!(
+        unit.point_revealed(Side::Input, 1, |i| i == 0).unwrap().y,
+        -128
+    );
+    unit.minified = true;
+    unit.expanded = true;
+    assert!(unit.point_revealed(Side::Input, 0, |_| true).is_none());
+    assert!(unit.point(Side::Input, 1).is_some());
+}
+#[test]
+fn hidden_normal_slots_keep_visible_anchor_positions_across_dpi_and_tab_edges() {
+    for dpi in [96, 120, 144, 192, 768] {
+        let mut unit = node();
+        unit.dpi = dpi;
+        unit.inputs = 4;
+        let original = [unit.point(Side::Input, 1), unit.point(Side::Input, 3)];
+        unit.input_visibility = std::rc::Rc::from([false, true, false, true]);
+        assert_eq!(
+            [unit.point(Side::Input, 1), unit.point(Side::Input, 3)],
+            original
+        );
+        unit.expanded = true;
+        assert_eq!(
+            [unit.point(Side::Input, 1), unit.point(Side::Input, 3)],
+            original
+        );
+        assert!(unit.point(Side::Input, 0).is_some());
+        assert!(unit.point_revealed(Side::Input, 0, |_| false).is_none());
+        unit.minified = true;
+        assert_eq!(unit.point(Side::Input, 1).unwrap().y, -100);
+        assert_eq!(unit.point(Side::Input, 3).unwrap().y, 100);
+    }
 }
 #[test]
 fn three_modes_preserve_border_body_but_only_all_shows_collapsed_endpoints() {
@@ -69,13 +120,13 @@ fn tab_expanded_overrides_clean_mode_and_hide_collapsed_but_not_minification() {
     assert_eq!(unit.radius(), 4);
 }
 #[test]
-fn geometry_distributes_inputs_outputs_in_physical_negative_screen_coordinates() {
+fn normal_rails_use_main_top_22_height_28_gap_8_and_outline_outset() {
     let unit = node();
-    assert_eq!(unit.point(Side::Input, 0), Some(Point { x: -100, y: -100 }));
-    assert_eq!(unit.point(Side::Input, 1), Some(Point { x: -100, y: 100 }));
-    assert_eq!(unit.point(Side::Output, 0), Some(Point { x: 100, y: 0 }));
+    assert_eq!(unit.point(Side::Input, 0), Some(Point { x: -102, y: -164 }));
+    assert_eq!(unit.point(Side::Input, 1), Some(Point { x: -102, y: -128 }));
+    assert_eq!(unit.point(Side::Output, 0), Some(Point { x: 102, y: -164 }));
     assert_eq!(unit.point(Side::Output, 1), None);
-    assert_eq!(unit.radius(), 12);
+    assert_eq!(unit.radius(), 14);
 }
 #[test]
 fn link_body_and_dashed_expanded_overlay_have_distinct_mode_rules() {
@@ -108,9 +159,10 @@ fn five_css_pixel_threshold_is_scaled_and_extreme_deltas_do_not_overflow() {
     ));
 }
 #[test]
-fn degenerate_rectangles_never_show_or_hit_and_max_ports_remain_inside_bounds() {
+fn degenerate_rectangles_never_show_or_hit_and_compact_markers_remain_inside_the_image() {
     let mut unit = node();
     unit.inputs = 256;
+    unit.minified = true;
     for index in 0..256 {
         let point = unit.point(Side::Input, index).unwrap();
         assert!((-200..200).contains(&point.y));

@@ -8,14 +8,22 @@ use windows::{
 #[path = "application_chrome.rs"]
 pub(super) mod chrome;
 
+#[path = "application_account_owner.rs"]
+mod account_owner;
+#[path = "application_account_projection.rs"]
+mod account_projection;
 #[path = "application_add_art.rs"]
 mod add_art;
 #[path = "application_authorization.rs"]
 mod authorization;
 #[path = "application_commands.rs"]
 mod commands;
+#[path = "application_context_menu.rs"]
+mod context_menu;
 #[path = "application_frozen_menu.rs"]
 mod frozen_menu;
+#[path = "application_loom_connection.rs"]
+mod loom_connection;
 #[path = "application_projection_inbox.rs"]
 mod projection;
 #[path = "application_projection_edit.rs"]
@@ -23,9 +31,9 @@ mod projection_edit;
 #[path = "application_projection_sender.rs"]
 mod projection_sender;
 pub(super) use commands::{
-    append_menu, execute, handles, request, request_exit, AUTO_NAMING, EXIT_APPLICATION,
-    IMPORT_NAMING, NEW_WINDOW, OPEN_SESSION, OPEN_SESSION_ASSETS, SAVE_NAMING, SAVE_PNG_DEFAULT,
-    SAVE_SESSION, SAVE_SESSION_AS, UPDATE_NAMING,
+    execute, handles, request, request_exit, AUTO_NAMING, EXIT_APPLICATION, IMPORT_NAMING,
+    NEW_WINDOW, OPEN_SESSION, OPEN_SESSION_ASSETS, SAVE_NAMING, SAVE_PNG_DEFAULT, SAVE_SESSION,
+    SAVE_SESSION_AS, UPDATE_NAMING,
 };
 #[path = "application_art_issuer_confirmation.rs"]
 mod art_issuer_confirmation;
@@ -38,6 +46,8 @@ mod display;
 mod display_composition;
 #[path = "application_drop_smoke.rs"]
 mod drop_smoke;
+#[path = "application_edit_palette.rs"]
+mod edit_palette;
 #[path = "application_execution.rs"]
 mod execution;
 #[path = "application_execution_start.rs"]
@@ -51,6 +61,13 @@ mod exit;
 mod exit_intent;
 #[path = "application_exit_save_smoke.rs"]
 mod exit_save_smoke;
+#[cfg(test)]
+#[path = "application_extension_catalog_tests.rs"]
+mod extension_catalog_tests;
+#[path = "application_extension_shortcuts.rs"]
+mod extension_shortcuts;
+#[path = "application_extension_views.rs"]
+mod extension_views;
 #[path = "application_group_lock_smoke.rs"]
 mod group_lock_smoke;
 #[path = "application_group_visibility.rs"]
@@ -164,8 +181,10 @@ pub(super) use smoke::run as smoke;
 pub(super) struct Application {
     chrome: chrome::Owner,
     capture_history: history::worker::Owner,
+    edit_palette: super::edit_palette::Shared,
     history_window: Option<history::window::Window>,
     authorization_owner: crate::device_authorization_owner::Owner,
+    local_loom: crate::loom_local_connection::owner::Owner,
     authorization: std::rc::Rc<std::cell::RefCell<super::device_authorization_ui::View>>,
     live_sessions: Vec<super::composition::live::session::Session>,
     live_freeze_job: Option<live::freeze::Pending>,
@@ -177,6 +196,9 @@ pub(super) struct Application {
     executions: crate::graph_requests::Requests,
     // 字段按声明顺序析构：异常退出同样先停通知，再回收后台任务。
     pub(super) execution_wake: wake::Wake,
+    extensions: super::extension_catalog::Owner,
+    extension_commands: super::extension_commands::Owner,
+    extension_shortcuts: super::extension_shortcuts::Owner,
     display_composition: std::cell::RefCell<display_composition::Cache>,
     parameter_file_job: Option<super::parameter_file_job::Job>,
     naming_import_job: Option<naming_import::Pending>,
@@ -211,6 +233,7 @@ pub(super) struct Application {
     projection_receive: projection::receive::Owner,
     projection_cleanup: projection::cleanup::Owner,
     projection_sender: projection_sender::Owner,
+    account_projection: account_owner::Owner,
     projection_edit: projection_edit::Owner,
     recycle_maintenance_pending: bool,
     recycle_policy: crate::session_library::recycle::policy::Policy,
@@ -233,6 +256,17 @@ pub(super) struct Application {
 
 impl Application {
     unsafe fn collect_closed(&mut self) {
+        for doc in &self.documents {
+            if doc.state.live_pin.get() && !doc.is_alive() {
+                if let Some(session) = self
+                    .live_sessions
+                    .iter_mut()
+                    .find(|s| s.unit_id() == &doc.state.unit_id)
+                {
+                    session.stop();
+                }
+            }
+        }
         self.collect_deleted_projections();
         self.collect_deleted_senders();
         let previous = self.documents.len();
@@ -264,6 +298,7 @@ impl Application {
     unsafe fn pending_windows(&mut self, visible: bool) -> Result<()> {
         // 先确认旧通知再读取邮箱/启动新任务，避免快速完成被旧 pending 合并后失去唤醒。
         self.execution_wake.acknowledge();
+        self.settle_edit_palette();
         self.process_capture_history(visible);
         self.process_restore(visible)?;
         self.sync_frozen_menu();
@@ -279,6 +314,7 @@ impl Application {
             }
         }
         self.process_catalog();
+        self.sync_extension_views();
         self.process_art_requests(visible)?;
         self.process_workflow_sync();
         self.pending_link_changes();

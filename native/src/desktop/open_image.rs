@@ -17,6 +17,7 @@ pub(super) struct PreparedDocument {
     pub(super) image: Image,
     pub(super) region: HitRegion,
     pub(super) capture_origin: Option<POINT>,
+    pub(super) paste_origin: Option<POINT>,
     pub(super) capture_source: Option<super::canvas::CaptureSource>,
     pub(super) editable: Option<super::clipboard_editable::Prepared>,
     pub(super) placement: Option<super::clipboard_placement::Request>,
@@ -72,6 +73,7 @@ impl PreparedDocument {
             image,
             region,
             capture_origin: None,
+            paste_origin: None,
             capture_source: None,
             editable: None,
             placement: None,
@@ -85,23 +87,6 @@ pub(super) unsafe fn start(hwnd: HWND, state: &State) {
 pub(super) const REPLACE: usize = 0x1051;
 pub(super) fn can_replace(state: &State) -> bool {
     !state.group_locked.get() && state.canvas.borrow().minified.is_none()
-}
-pub(super) unsafe fn append(menu: HMENU, state: &State) -> Result<()> {
-    for (command, label) in [
-        (super::context_menu::OPEN, w!("打开图片为新钉图…\tCtrl+O")),
-        (REPLACE, w!("打开图片替换当前图片…")),
-    ] {
-        let blocked = state.open_job.borrow().is_some()
-            || (command == REPLACE && !can_replace(state))
-            || (command != REPLACE && state.new_pin.borrow().is_some());
-        AppendMenuW(
-            menu,
-            MF_STRING | if blocked { MF_GRAYED } else { MF_ENABLED },
-            command,
-            label,
-        )?;
-    }
-    Ok(())
 }
 pub(super) unsafe fn start_destination(hwnd: HWND, state: &State, new_pin: bool) {
     if !new_pin && !can_replace(state) {

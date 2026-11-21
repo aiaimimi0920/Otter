@@ -90,12 +90,13 @@ pub(super) fn drain(
         for handle in remote.wait_handles() {
             append_wait_handle(&mut handles, &mut count, HANDLE(handle.as_raw_handle()))?;
         }
-        if count == 0 {
+        let deadline = visibility.deadline();
+        if count == 0 && deadline.is_none() {
             return Err(Error::new(E_FAIL, "Live shutdown has no completion owner"));
         }
         let mut message = MSG::default();
         unsafe {
-            if wait::next(&handles[..count], &mut message)? == 0 {
+            if wait::next_until(&handles[..count], &mut message, deadline)? == 0 {
                 // WM_QUIT 不取消清理；结束后原样还给外层，而不是重新入队造成忙循环。
                 quit.0 = Some(message.wParam.0 as i32);
             } else {

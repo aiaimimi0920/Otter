@@ -23,29 +23,14 @@ pub(super) const TOOLS: &[ToolCommand] = &[
         tool: Tool::Brush,
     },
     ToolCommand {
-        id: 0x48,
-        label: "荧光笔\tH",
-        tool: Tool::Highlighter,
-    },
-    ToolCommand {
         id: 0x4C,
         label: "直线\tL",
         tool: Tool::Line,
     },
     ToolCommand {
-        id: 0x41,
-        label: "箭头\tA",
-        tool: Tool::Arrow,
-    },
-    ToolCommand {
         id: 0x4B,
         label: "贝塞尔曲线\tK",
         tool: Tool::Bezier,
-    },
-    ToolCommand {
-        id: 0x55,
-        label: "折线\tU",
-        tool: Tool::Polyline,
     },
     ToolCommand {
         id: 0x4A,
@@ -83,11 +68,6 @@ pub(super) const TOOLS: &[ToolCommand] = &[
         tool: Tool::Rectangle,
     },
     ToolCommand {
-        id: 0x51,
-        label: "圆角矩形\tQ",
-        tool: Tool::RoundedRectangle,
-    },
-    ToolCommand {
         id: 0x45,
         label: "椭圆\tE",
         tool: Tool::Ellipse,
@@ -119,11 +99,8 @@ mod tests {
             Tool::Pan,
             Tool::Select,
             Tool::Brush,
-            Tool::Highlighter,
             Tool::Line,
-            Tool::Arrow,
             Tool::Bezier,
-            Tool::Polyline,
             Tool::Paintbrush,
             Tool::Text,
             Tool::Serial,
@@ -131,7 +108,6 @@ mod tests {
             Tool::Blur,
             Tool::Eraser,
             Tool::Rectangle,
-            Tool::RoundedRectangle,
             Tool::Ellipse,
             Tool::Triangle,
             Tool::Polygon,
@@ -154,5 +130,12 @@ mod tests {
         }
         assert_eq!(tool_for_command(0), None);
         assert_eq!(tool_for_command(0x1009), None);
+        assert_eq!(tool_for_command(0x51), None);
+        assert_eq!(tool_for_command(0x41), None);
+        assert_eq!(tool_for_command(0x55), None);
+        assert_eq!(tool_for_command(0x48), None);
+        assert!(!TOOLS
+            .iter()
+            .any(|entry| entry.tool == Tool::RoundedRectangle));
     }
 }

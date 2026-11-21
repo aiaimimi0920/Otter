@@ -9,6 +9,7 @@ pub(in crate::desktop::application) struct Pending {
     unit: crate::workspace_id::UnitId,
     source: crate::session_source::Source,
     job: job::Job,
+    pin_key: Option<(usize, isize, [u8; 256])>,
 }
 impl Application {
     pub(super) unsafe fn process_live_freeze(&mut self, visible: bool) -> Result<()> {
@@ -25,7 +26,11 @@ impl Application {
             // 只在归还单槽时唤醒；其他 Live 的意图仍留在原窗口，不忙轮询。
             PostMessageW(None, WM_NULL, WPARAM(0), LPARAM(0))?;
             let pin = result.map_err(|error| Error::new(E_FAIL, error))?;
-            self.commit_live_freeze(pending.unit, pending.source, pin, visible)?;
+            if let Some(key) = pending.pin_key {
+                self.commit_live_pin(pending.unit, pending.source, pin, key, visible)?;
+            } else {
+                self.commit_live_freeze(pending.unit, pending.source, pin, visible)?;
+            }
         }
         if busy
             || self
@@ -36,10 +41,14 @@ impl Application {
             return Ok(());
         }
         // destructive read 只能领取一个，且不能先领取再发现 worker 忙碌。
-        let Some(unit) = self.live_sessions.iter().find_map(|session| {
-            session
-                .take_freeze_request()
-                .then(|| session.unit_id().clone())
+        let Some((unit, pin_key)) = self.live_sessions.iter().find_map(|session| {
+            if session.take_freeze_request() {
+                Some((session.unit_id().clone(), None))
+            } else {
+                session
+                    .take_pin_request()
+                    .map(|key| (session.unit_id().clone(), Some(key)))
+            }
         }) else {
             return Ok(());
         };
@@ -64,9 +73,18 @@ impl Application {
             .ok_or_else(|| Error::new(E_ABORT, "Workspace source missing"))?
             .original
             .clone();
-        let job = job::Job::start(frame, self.execution_wake.callback())
-            .map_err(|error| Error::new(E_FAIL, error.to_string()))?;
-        self.live_freeze_job = Some(Pending { unit, source, job });
+        let job = job::Job::start(
+            frame,
+            session.pin_snapshot(),
+            self.execution_wake.callback(),
+        )
+        .map_err(|error| Error::new(E_FAIL, error.to_string()))?;
+        self.live_freeze_job = Some(Pending {
+            unit,
+            source,
+            job,
+            pin_key,
+        });
         Ok(())
     }
     unsafe fn commit_live_freeze(

@@ -40,7 +40,7 @@ impl Selection {
         }
         // 借用字段先核小尺寸；与在线选择共用scope/origin/unit准入，再安装显式路由。
         let mut value = Self::new(scope, origin, unit, remote)?;
-        value.target = target.into();
+        value.target = Some(target.into());
         value.offline = Some(Offline {
             peer_id: peer.into(),
             remote_device_id: remote.into(),
@@ -48,14 +48,14 @@ impl Selection {
         value.validate()?;
         Ok(value)
     }
-    pub(super) fn destination(&self) -> (String, String, String) {
+    pub(super) fn destination(&self) -> (String, String, Option<String>) {
         (
             self.origin.clone(),
             self.offline.as_ref().map_or("", |r| &r.peer_id).into(),
             self.offline
                 .as_ref()
-                .map_or(self.target.as_str(), |r| &r.remote_device_id)
-                .into(),
+                .map(|r| r.remote_device_id.clone())
+                .or_else(|| self.target.clone()),
         )
     }
 }
@@ -72,12 +72,13 @@ impl Intent {
             (true, Operation::Unlink) => "/v1/offline-projections/unlink",
         }
     }
-    pub(super) fn receiver(&self) -> &str {
+    pub(super) fn receiver(&self) -> Option<&str> {
         self.record
             .selection
             .offline
             .as_ref()
-            .map_or(self.target(), |r| &r.remote_device_id)
+            .map(|r| r.remote_device_id.as_str())
+            .or_else(|| self.target())
     }
     pub(super) fn response_route(&self, route: Option<&RawValue>, peer: Option<&RawValue>) -> bool {
         let text = |raw: Option<&RawValue>, expected: &str| {
@@ -110,10 +111,13 @@ pub(super) fn decode(
     scope: &str,
     origin: &str,
     unit: &str,
-    target: &str,
+    target: Option<&str>,
 ) -> Result<Selection, Error> {
     match raw {
-        None => Selection::new(scope, origin, unit, target),
+        None => match target {
+            Some(target) => Selection::new(scope, origin, unit, target),
+            None => Selection::invitation(scope, origin, unit),
+        },
         Some(raw) => {
             if raw.get().len() > 1024 {
                 return Err(Error::Limit);
@@ -123,7 +127,7 @@ pub(super) fn decode(
                 scope,
                 origin,
                 unit,
-                target,
+                target.ok_or(Error::Format)?,
                 &route.peer_id,
                 &route.remote_device_id,
             )

@@ -1,4 +1,4 @@
-//! 文档与两个独立面板的捕获排除；失败回滚并保留准确状态，惰性面板创建时继承请求。
+//! 文档与附属面板的捕获排除；失败回滚并保留准确状态，惰性面板创建时继承请求。
 use super::State;
 use std::cell::Cell;
 use windows::{
@@ -48,30 +48,6 @@ fn apply<const N: usize>(
     Ok(())
 }
 
-pub(super) unsafe fn append(menu: HMENU, state: &State) -> Result<()> {
-    let flags = state.capture_protection.get();
-    let label = if flags.iter().any(|flag| *flag != flags[0]) {
-        if state.capture_protection_requested.get() {
-            w!("捕获排除（部分生效，重试开启）")
-        } else {
-            w!("捕获排除（部分生效，重试关闭）")
-        }
-    } else {
-        w!("从系统截图中排除此窗口与面板")
-    };
-    AppendMenuW(
-        menu,
-        MF_STRING
-            | if flags == [true; 3] {
-                MF_CHECKED
-            } else {
-                MF_UNCHECKED
-            },
-        COMMAND,
-        label,
-    )
-}
-
 pub(super) unsafe fn toggle(hwnd: HWND, state: &State) {
     let enabled = next_target(
         state.capture_protection.get(),
@@ -91,9 +67,15 @@ pub(super) unsafe fn toggle(hwnd: HWND, state: &State) {
 
 unsafe fn set(hwnd: HWND, state: &State, enabled: bool) -> Result<()> {
     state.capture_protection_requested.set(enabled);
-    let windows = [hwnd, state.tool_panel.get(), state.parameters_ui.window()];
+    let windows = [
+        hwnd,
+        state.tool_panel.get(),
+        state.parameters_ui.capture_window(),
+        neuro_mini_ui::property_window(state.tool_panel.get()).unwrap_or_default(),
+        super::pin_settings::window(state).unwrap_or_default(),
+    ];
     apply(&state.capture_protection, enabled, |index, value| {
-        if index == 2 && windows[index].is_invalid() {
+        if index >= 2 && windows[index].is_invalid() {
             return Ok(()); // 尚未创建的面板没有泄露面；创建必须显式继承请求才允许显示。
         }
         SetWindowDisplayAffinity(
@@ -104,7 +86,8 @@ unsafe fn set(hwnd: HWND, state: &State, enabled: bool) -> Result<()> {
                 WDA_NONE
             },
         )
-    })
+    })?;
+    super::extension_notices::sync(state)
 }
 
 fn next_target<const N: usize>(actual: [bool; N], requested: bool) -> bool {
@@ -117,14 +100,14 @@ fn next_target<const N: usize>(actual: [bool; N], requested: bool) -> bool {
 
 pub(super) unsafe fn smoke(hwnd: HWND, state: &State) -> Result<()> {
     set(hwnd, state, true)?;
-    if state.capture_protection.get() != [true; 3] {
+    if state.capture_protection.get() != [true; 5] {
         return Err(Error::new(
             E_FAIL,
             "Capture protection enable state mismatch",
         ));
     }
     set(hwnd, state, false)?;
-    if state.capture_protection.get() != [false; 3] {
+    if state.capture_protection.get() != [false; 5] {
         return Err(Error::new(
             E_FAIL,
             "Capture protection disable state mismatch",

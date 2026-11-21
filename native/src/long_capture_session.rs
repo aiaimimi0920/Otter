@@ -1,6 +1,8 @@
 //! 纯数据采集会话；持有共享帧，追加先验证再提交，不负责桌面输入或线程调度。
 use super::*;
 use std::sync::atomic::Ordering;
+#[path = "long_capture_session_edges.rs"]
+mod edges;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Append {
@@ -108,15 +110,6 @@ impl Session {
         if previous.frame.dimensions() != frame.dimensions() {
             return Err(Error::Dimensions);
         }
-        if let Some((leading, trailing)) = self.edges {
-            let length = axis_length(self.axis, &frame);
-            for line in (0..leading).chain(length - trailing..length) {
-                check(cancel)?;
-                if !fixed::equal_line(&self.frames[0].frame, &frame, self.axis, line) {
-                    return Err(Error::ChangedEdges);
-                }
-            }
-        }
         // 精确重复不计入帧数或输入预算，不改变最后接受帧和边界证据。
         let found = if self.edges.is_none_or(|edges| edges == (0, 0)) {
             match match_exact(
@@ -140,11 +133,29 @@ impl Session {
                 Match::Offset(_) => FixedMatch::Unresolved(ApproximateMatch::NoOverlap),
                 Match::Ambiguous => FixedMatch::Unresolved(ApproximateMatch::Ambiguous),
                 Match::NoOverlap => {
-                    match_fixed_edges(&previous.frame, &frame, self.axis, self.options, cancel)?
+                    if let Some(edges) = self.edges {
+                        edges::match_next(
+                            &self.frames,
+                            &frame,
+                            self.axis,
+                            self.options,
+                            edges,
+                            cancel,
+                        )?
+                    } else {
+                        match_fixed_edges(&previous.frame, &frame, self.axis, self.options, cancel)?
+                    }
                 }
             }
         } else {
-            match_fixed_edges(&previous.frame, &frame, self.axis, self.options, cancel)?
+            edges::match_next(
+                &self.frames,
+                &frame,
+                self.axis,
+                self.options,
+                self.edges.expect("fixed-edge branch"),
+                cancel,
+            )?
         };
         let (edges, delta) = match found {
             FixedMatch::Unchanged => return Ok(Append::Duplicate),
@@ -156,9 +167,6 @@ impl Session {
                 ..
             } => ((leading, trailing), delta),
         };
-        if self.edges.is_some_and(|old| old != edges) {
-            return Err(Error::ChangedEdges);
-        }
         if self.frames.len() >= MAX_FRAMES {
             return Err(Error::FrameLimit);
         }

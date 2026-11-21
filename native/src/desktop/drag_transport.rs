@@ -1,4 +1,4 @@
-//! 原生文件拖出的 OLE 边界；不写剪贴板、不移动或删除来源文件。
+//! 原生文件拖出的 OLE 边界；原图只复制，Shift 仅可移动本次新生成的独占导出副本。
 use std::{
     path::PathBuf,
     sync::{
@@ -39,6 +39,7 @@ impl Drop for Apartment {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Outcome {
     Copied,
+    Moved,
     Cancelled,
 }
 
@@ -70,12 +71,26 @@ fn continuation(escape: bool, keys: MODIFIERKEYS_FLAGS, cancelled: bool) -> HRES
 /// 仅允许 COPY。返回只说明 OLE 结果，不证明目标应用已持久化数据。
 /// 本函数不管理文件寿命；调用方不得在目标仍可能读取时撤销文件。
 pub fn drag_files(paths: &[PathBuf], cancel: Arc<AtomicBool>) -> Result<Outcome> {
-    drag_files_with_preview(paths, cancel, None)
+    drag_files_with_preview(paths, cancel, None, DROPEFFECT_COPY)
 }
-pub fn drag_files_with_preview(
+/// 仅供本应用本次独占生成的 PNG 副本使用，不能传入用户原始文件。
+pub(super) fn drag_export_snapshot(
+    path: PathBuf,
+    cancel: Arc<AtomicBool>,
+    image: &super::drag_preview::Preview,
+) -> Result<Outcome> {
+    drag_files_with_preview(
+        &[path],
+        cancel,
+        Some(image),
+        DROPEFFECT_COPY | DROPEFFECT_MOVE,
+    )
+}
+fn drag_files_with_preview(
     paths: &[PathBuf],
     cancel: Arc<AtomicBool>,
     image: Option<&super::drag_preview::Preview>,
+    allowed: DROPEFFECT,
 ) -> Result<Outcome> {
     if cancel.load(Ordering::Acquire) {
         return Ok(Outcome::Cancelled);
@@ -96,7 +111,19 @@ pub fn drag_files_with_preview(
         return Ok(Outcome::Cancelled);
     }
     let mut effect = DROPEFFECT_NONE;
-    let status = unsafe { DoDragDrop(&payload.object, &source, DROPEFFECT_COPY, &mut effect) };
+    let status = unsafe { DoDragDrop(&payload.object, &source, allowed, &mut effect) };
+    completion(status, effect, &payload.object)
+}
+fn completion(
+    status: HRESULT,
+    effect: DROPEFFECT,
+    object: &windows::Win32::System::Com::IDataObject,
+) -> Result<Outcome> {
+    let effect = if status == DRAGDROP_S_DROP {
+        data::logical_effect(object)?.unwrap_or(effect)
+    } else {
+        effect
+    };
     outcome(status, effect)
 }
 
@@ -107,6 +134,8 @@ fn outcome(status: HRESULT, effect: DROPEFFECT) -> Result<Outcome> {
     status.ok()?;
     if status == DRAGDROP_S_DROP && effect == DROPEFFECT_COPY {
         Ok(Outcome::Copied)
+    } else if status == DRAGDROP_S_DROP && effect == DROPEFFECT_MOVE {
+        Ok(Outcome::Moved)
     } else if status == DRAGDROP_S_DROP && effect == DROPEFFECT_NONE {
         Ok(Outcome::Cancelled)
     } else {

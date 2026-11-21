@@ -12,6 +12,7 @@ mod art_package_cache;
 mod art_package_content;
 mod art_source_cache;
 mod art_source_cache_file;
+pub mod art_surface_views;
 #[cfg(windows)]
 pub mod autostart;
 pub mod bezier_arrow;
@@ -86,6 +87,8 @@ pub mod emergency_watchdog;
 pub mod erase;
 pub mod erase_job;
 pub mod erase_layers;
+pub mod extension_visual;
+pub mod extension_when;
 pub mod file_naming;
 pub mod file_naming_settings;
 pub mod flip_job;
@@ -104,9 +107,15 @@ pub mod image_projection;
 #[cfg(windows)]
 pub mod image_thumbnail;
 pub mod linear_constraint;
+#[cfg(windows)]
+pub mod live_browser_scroll;
 pub mod live_button_gesture;
 pub mod live_frames;
 pub mod live_h264;
+#[cfg(windows)]
+mod live_hover_binding;
+#[cfg(windows)]
+mod live_hover_owner;
 pub mod live_input;
 #[cfg(windows)]
 pub mod live_input_worker;
@@ -114,6 +123,10 @@ pub mod live_input_worker;
 pub mod live_job;
 #[cfg(target_os = "windows")]
 pub mod live_mf;
+#[cfg(windows)]
+mod live_native_hooks;
+#[cfg(windows)]
+mod live_popup_layer_request;
 pub mod live_reclaim;
 #[cfg(windows)]
 pub mod live_reclaim_watch;
@@ -192,13 +205,20 @@ pub mod loom_bridge_stream;
 pub mod loom_capability;
 pub mod loom_discovery;
 pub mod loom_discovery_manifest;
+pub mod loom_extension_session;
+pub mod loom_extension_snapshot;
 pub mod loom_handshake;
 pub mod loom_handshake_exchange;
 #[cfg(windows)]
 mod loom_http_transport;
+#[cfg(windows)]
+mod loom_local_connection;
 pub mod loom_media_target;
 pub mod loom_output_leases;
 pub mod loom_parameter_state;
+#[cfg(windows)]
+mod loom_remote_connection;
+mod loom_selected_connection;
 pub mod loom_tls_trust;
 #[cfg(windows)]
 mod media_websocket;
@@ -209,11 +229,14 @@ pub mod mosaic;
 pub mod native_menu;
 pub mod paintbrush_samples;
 pub mod parameter_file;
+pub mod pin_frame_style;
 pub mod pin_geometry;
 pub mod pixels;
 pub mod polygon_geometry;
 #[cfg(windows)]
 mod profile_directory;
+#[cfg(windows)]
+pub mod projection_account;
 #[cfg(windows)]
 pub mod projection_delivery;
 #[cfg(windows)]
@@ -282,6 +305,7 @@ mod shader_worker_wire;
 pub mod shape_constraint;
 pub mod shape_options;
 pub mod shape_value;
+mod sticker_extra_text;
 mod sticker_image_params;
 pub mod stroke_style;
 #[cfg(windows)]
@@ -333,6 +357,10 @@ mod tile_surface_worker;
 mod tile_tests;
 #[cfg(windows)]
 pub mod tile_wire;
+pub mod unit_attachment;
+mod unit_attachment_json;
+pub mod unit_attachment_store;
+pub mod unit_node_settings;
 // 保留既有源码路径；共享的线程绑定 DIB 只编译为一个资源 owner。
 #[cfg(windows)]
 #[path = "desktop/software_bitmap.rs"]

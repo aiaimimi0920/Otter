@@ -1,0 +1,111 @@
+//! 空闲刷新不能让不可用字段反复启停，也不能重排或清除用户草稿。
+use super::*;
+use windows::Win32::UI::Shell::*;
+#[derive(Default, Debug)]
+struct Counts {
+    enabled: usize,
+    layout: usize,
+    paint: usize,
+}
+unsafe extern "system" fn observe(
+    hwnd: HWND,
+    msg: u32,
+    wp: WPARAM,
+    lp: LPARAM,
+    _: usize,
+    p: usize,
+) -> LRESULT {
+    let counts = &mut *(p as *mut Counts);
+    match msg {
+        WM_ENABLE => counts.enabled += 1,
+        WM_WINDOWPOSCHANGING => counts.layout += 1,
+        WM_PAINT => counts.paint += 1,
+        _ => {}
+    }
+    DefSubclassProc(hwnd, msg, wp, lp)
+}
+#[test]
+fn unavailable_copy_buttons_do_not_toggle_or_repaint_on_unchanged_refresh() {
+    unsafe {
+        let f = Fixture::new();
+        let panel = open(&f);
+        let copy = field(panel, settings::text::OCR);
+        assert!(!IsWindowEnabled(copy).as_bool());
+        let width = field(panel, settings::WIDTH);
+        SetWindowTextW(width, windows::core::w!("456")).unwrap();
+        let mut counts = Counts::default();
+        for h in [panel, copy, width] {
+            SetWindowSubclass(h, Some(observe), 607, &mut counts as *mut _ as usize)
+                .ok()
+                .unwrap();
+        }
+        for _ in 0..8 {
+            tool_panel::refresh(f.owner.0);
+        }
+        for h in [panel, copy, width] {
+            RemoveWindowSubclass(h, Some(observe), 607).ok().unwrap();
+        }
+        let mut text = [0u16; 16];
+        let n = GetWindowTextW(width, &mut text) as usize;
+        assert_eq!(String::from_utf16_lossy(&text[..n]), "456");
+        assert_eq!(
+            counts.enabled, 0,
+            "disabled button changed state: {counts:?}"
+        );
+        assert_eq!(counts.layout, 0, "stable panel moved: {counts:?}");
+        assert_eq!(counts.paint, 0, "stable panel repainted: {counts:?}");
+    }
+}
+
+#[test]
+fn refreshed_identical_directory_retires_old_context_without_repainting_controls() {
+    unsafe {
+        let f = Fixture::new();
+        f.state.authorization.borrow_mut().origin = Some("https://loom.example".into());
+        let directory = || {
+            std::sync::Arc::new(
+                crate::projection_delivery::targets::Directory::parse(
+                    &serde_json::to_vec(&crate::projection_delivery::targets::tests::body())
+                        .unwrap(),
+                    "https://loom.example",
+                )
+                .unwrap(),
+            )
+        };
+        f.state.authorization.borrow_mut().targets.directory = Some(directory());
+        let panel = open(&f);
+        let controls = [
+            panel,
+            field(panel, settings::WIDTH),
+            field(panel, 205),
+            field(panel, 222),
+        ];
+        for h in controls {
+            windows::Win32::Graphics::Gdi::UpdateWindow(h).ok().unwrap();
+        }
+        let mut counts = Counts::default();
+        for h in controls {
+            SetWindowSubclass(h, Some(observe), 671, &mut counts as *mut _ as usize)
+                .ok()
+                .unwrap();
+        }
+        for n in 0..8 {
+            {
+                let mut view = f.state.authorization.borrow_mut();
+                view.targets.directory = Some(directory());
+                view.sender.busy = n % 2 == 0;
+                view.editing.busy = n % 2 != 0;
+            }
+            tool_panel::refresh(f.owner.0);
+            for h in controls {
+                windows::Win32::Graphics::Gdi::UpdateWindow(h).ok().unwrap();
+            }
+        }
+        for h in controls {
+            RemoveWindowSubclass(h, Some(observe), 671).ok().unwrap();
+        }
+        assert_eq!(counts.enabled, 0, "{counts:?}");
+        assert_eq!(counts.layout, 0, "{counts:?}");
+        assert_eq!(counts.paint, 0, "{counts:?}");
+    }
+}

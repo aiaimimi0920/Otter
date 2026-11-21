@@ -25,13 +25,7 @@ pub(super) fn position(canvas: &Canvas) -> Option<Point> {
         y: f32::NEG_INFINITY,
     };
     for index in indices {
-        let stroke = canvas
-            .group_preview
-            .iter()
-            .find(|(target, _)| *target == index)
-            .map(|(_, s)| s)
-            .unwrap_or(&canvas.editor.elements()[index]);
-        let bounds = crate::group_bounds::bounds(stroke)?;
+        let bounds = super::transform_handle_layout::preview_bounds(canvas, index)?;
         low.x = low.x.min(bounds.low.x);
         low.y = low.y.min(bounds.low.y);
         high.x = high.x.max(bounds.high.x);
@@ -54,6 +48,9 @@ impl Canvas {
         if (handle.x - screen.x).hypot(handle.y - screen.y) > 7.0 {
             return false;
         }
+        self.begin_rotation_at(screen)
+    }
+    pub(super) fn begin_rotation_at(&mut self, screen: Point) -> bool {
         let indices = self.selected_indices();
         let Some(pivot) = crate::group_bounds::center(
             indices.iter().map(|index| &self.editor.elements()[*index]),

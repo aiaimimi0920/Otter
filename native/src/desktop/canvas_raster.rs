@@ -170,6 +170,7 @@ impl Resources {
         }
         Ok(())
     }
+    #[cfg(test)]
     pub(super) unsafe fn draw(
         &self,
         target: &ID2D1RenderTarget,
@@ -200,6 +201,7 @@ impl Resources {
     ) -> Result<()> {
         self.draw_erasing_projected(target, rect, annotation_rect, request, viewport, None)
     }
+    #[cfg(test)]
     pub(super) unsafe fn draw_erasing_projected(
         &mut self,
         target: &ID2D1RenderTarget,
@@ -209,17 +211,33 @@ impl Resources {
         viewport: Viewport,
         mapping: Option<crate::image_projection::Projection>,
     ) -> Result<()> {
+        self.draw_interleaved(
+            target,
+            rect,
+            annotation_rect,
+            request,
+            (viewport, mapping),
+            || Ok(()),
+        )
+    }
+    pub(super) unsafe fn draw_interleaved(
+        &mut self,
+        target: &ID2D1RenderTarget,
+        rect: &D2D_RECT_F,
+        annotation_rect: &D2D_RECT_F,
+        request: Option<&crate::erase_job::Request>,
+        projection: (Viewport, Option<crate::image_projection::Projection>),
+        between: impl FnOnce() -> Result<()>,
+    ) -> Result<()> {
+        let (viewport, mapping) = projection;
         let Some(request) = request else {
             self.preview.clear();
-            if mapping.is_none() {
-                self.draw(target, rect, annotation_rect);
-            } else {
-                if let Some(base) = &self.base {
-                    projection::draw(target, base, rect, mapping, viewport);
-                }
-                if let Some(layer) = &self.annotations {
-                    projection::draw(target, layer, annotation_rect, None, viewport);
-                }
+            if let Some(base) = &self.base {
+                projection::draw(target, base, rect, mapping, viewport);
+            }
+            between()?;
+            if let Some(layer) = &self.annotations {
+                projection::draw(target, layer, annotation_rect, None, viewport);
             }
             return Ok(());
         };
@@ -231,7 +249,8 @@ impl Resources {
         };
         let mask = self.preview.geometry(target, &bounds, request, viewport)?;
         // 与提交内核一致：分别擦除每层，再 source-over。先合成再遮罩会错误削弱双层软边。
-        for (bitmap, erase, destination, projection) in [
+        let mut between = Some(between);
+        for (i, (bitmap, erase, destination, projection)) in [
             (
                 &self.base,
                 request.mode == crate::erase_layers::Mode::Content,
@@ -239,7 +258,13 @@ impl Resources {
                 mapping,
             ),
             (&self.annotations, true, annotation_rect, None),
-        ] {
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            if i == 1 {
+                between.take().unwrap()()?;
+            }
             let Some(bitmap) = bitmap else {
                 continue;
             };

@@ -16,7 +16,7 @@ mod job;
 #[path = "application_projection_receive_lifecycle.rs"]
 mod lifecycle;
 #[path = "application_projection_present.rs"]
-mod present;
+pub(in crate::desktop::application) mod present;
 #[path = "application_projection_receive_recovery.rs"]
 mod recovery;
 #[path = "application_projection_sync.rs"]
@@ -28,7 +28,7 @@ pub(in crate::desktop::application) struct Owner(Phase, sync::Schedule);
 enum Phase {
     #[default]
     Idle,
-    Waiting(Option<Scope>),
+    Waiting(Option<Box<Scope>>),
     Preparing(Box<Pending>),
     Recovering(Box<recovery::Pending>),
     Syncing(Box<sync::Pending>),
@@ -49,6 +49,7 @@ struct Reporting {
     recovery: Option<crate::projection_delivery::binding::Binding>,
 }
 struct Saved {
+    cancel: Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
     source: Source,
     held: Hold,
     expected: crate::projection_delivery::binding::Binding,
@@ -74,7 +75,7 @@ impl Owner {
         )
     }
     pub(in crate::desktop::application) fn waiting(&mut self, scope: Option<Scope>) {
-        self.0 = Phase::Waiting(scope);
+        self.0 = Phase::Waiting(scope.map(Box::new));
     }
     pub(super) fn finish_metadata(&mut self) {
         if matches!(self.0, Phase::Waiting(_)) {
@@ -166,7 +167,7 @@ impl Application {
                 self.execution_wake.callback(),
             )?;
             self.projection_receive.0 = Phase::Preparing(Box::new(Pending {
-                scope,
+                scope: *scope,
                 origin,
                 current: lease,
                 job,
@@ -271,6 +272,7 @@ impl Application {
             .ok_or_else(stale)?;
         let visual = present::Visual::capture(document)?;
         self.projection_receive.0 = Phase::Checkpoint(Box::new(Saved {
+            cancel: scope.cancel,
             source: self.restored_session.as_ref().unwrap().original.clone(),
             held: prepared.held,
             expected: prepared.expected,

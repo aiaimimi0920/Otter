@@ -35,6 +35,8 @@ pub(super) unsafe fn update(hwnd: HWND, state: &State) -> Result<()> {
             dpi: GetDpiForWindow(hwnd),
             viewport: Default::default(),
             minified: Some(geometry),
+            style: canvas.frame_style,
+            overlay: 0,
         };
         let mut cache = state.hit_region.borrow_mut();
         let identity = display.as_ref().map(|frame| &frame.identity);
@@ -72,6 +74,7 @@ pub(super) unsafe fn update(hwnd: HWND, state: &State) -> Result<()> {
             // 无图 Art 仍保留可拖动宿主；不伪造图片 alpha。
             OwnedRegion::checked(CreateRectRgn(0, 0, client.right, client.bottom))?
         };
+        frame::apply(&region, key)?;
         cache.key = Some(key);
         cache.display_identity = identity.cloned();
         region

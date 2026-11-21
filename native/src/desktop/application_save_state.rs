@@ -22,6 +22,7 @@ pub(super) struct Stamp {
     documents: Vec<Document>,
 }
 struct Document {
+    extensions: crate::desktop::extension_document::Stamp,
     unit: UnitId,
     editor: DocumentStamp,
     output: crate::desktop::loom_result_state::OutputStamp,
@@ -33,10 +34,12 @@ struct Document {
 }
 #[derive(PartialEq)]
 struct Presentation {
+    node_settings: crate::unit_node_settings::Settings,
     viewport: crate::viewport::Viewport,
     pinned: bool,
     normal_opacity: f32,
     mini_opacity: f32,
+    frame_style: crate::pin_frame_style::Style,
     mini: Option<(crate::session_minified::Views, crate::crop_geometry::Size)>,
     restore: Option<crate::minified_transition::Transition>,
     art: bool,
@@ -45,10 +48,12 @@ impl Presentation {
     fn capture(state: &State) -> Self {
         let canvas = state.canvas.borrow();
         Self {
+            node_settings: state.node_settings.get(),
             viewport: canvas.viewport,
             pinned: canvas.pinned,
             normal_opacity: canvas.normal_opacity,
             mini_opacity: canvas.minified_opacity,
+            frame_style: canvas.frame_style,
             mini: canvas.minified.as_ref().map(|value| value.geometry()),
             restore: canvas.minified_restore,
             art: state.is_art(),
@@ -69,6 +74,7 @@ impl Stamp {
                 return Err(Error::new(E_ABORT, "Cannot capture saved window DPI"));
             }
             documents.push(Document {
+                extensions: doc.state.extension_document.borrow().stamp(),
                 unit: doc.state.unit_id.clone(),
                 editor: doc.state.canvas.borrow().editor.document_stamp(),
                 output: doc.state.execution_results.borrow().output_stamp(),
@@ -135,6 +141,7 @@ impl Stamp {
                 .all(|(saved, doc)| {
                     let mut rect = RECT::default();
                     saved.unit == doc.state.unit_id
+                        && saved.extensions.matches(&doc.state.extension_document.borrow())
                         && !pending_edits(&doc.state)
                         && doc.is_alive()
                         && GetWindowRect(doc.window.0, &mut rect).is_ok()

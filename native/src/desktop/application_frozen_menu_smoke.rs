@@ -110,6 +110,6 @@ pub(in crate::desktop::application) unsafe fn run(instance: HINSTANCE) -> Result
     {
         return Err(Error::new(E_FAIL, "Frozen menu consumed wrong library"));
     }
-    println!("native-frozen-menu-smoke: indexed=true paged=true selection=true queued=true worker=true appended=true libraries=true");
+    println!("native-frozen-menu-smoke: indexed=true scroll-loaded=true selection=true queued=true worker=true appended=true libraries=true");
     Ok(())
 }

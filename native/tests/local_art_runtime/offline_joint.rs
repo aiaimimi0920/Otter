@@ -88,9 +88,8 @@ fn authorize(
 ) -> HWND {
     fg.allow(product);
     let hwnd = source_workspace(side, product);
-    select(ui, product, hwnd, &side.origin);
-    ui.command(product, hwnd, "获取 / 续签授权会话");
-    assert!(!ui.status(product, hwnd, "最近一次授权成功；使用时仍须校验有效期"));
+    // 不注入 CA，不手动选择或续签；必须由普通消息泵完成本机 Loom 接入。
+    assert!(!ui.status(product, hwnd, "本机 Loom 已连接"));
     hwnd
 }
 fn phase(root: &std::path::Path, name: &str, binding: &Value, row: &Value) {

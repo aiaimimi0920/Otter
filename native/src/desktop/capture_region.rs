@@ -3,6 +3,11 @@ use super::{capture_crop, image::Image, Window};
 use std::cell::Cell;
 #[path = "capture_region_paint.rs"]
 mod drawing;
+#[path = "capture_region_release.rs"]
+mod release;
+pub(super) fn select_realtime(windows: Vec<RECT>) -> Result<Option<RECT>> {
+    release::select(windows)
+}
 use windows::{
     core::{w, Error, Result},
     Win32::{

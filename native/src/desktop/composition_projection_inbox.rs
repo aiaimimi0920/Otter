@@ -6,11 +6,12 @@ use crate::{
 };
 pub(super) struct Pending {
     job: Job,
-    rejected: Option<Arc<Invitation>>,
+    invitation: Option<Arc<Invitation>>,
     discarded: bool,
     targets: bool,
     sender: bool,
     sender_cleanup: bool,
+    compensation: bool,
 }
 impl Pending {
     pub(super) fn handle(&self) -> Option<BorrowedHandle<'_>> {
@@ -19,13 +20,23 @@ impl Pending {
 }
 pub struct Event {
     pub origin: String,
-    pub rejected: Option<Arc<Invitation>>,
+    pub invitation: Option<Arc<Invitation>>,
     pub result: Result<Output, Error>,
     pub targets: bool,
     pub sender: bool,
     pub sender_cleanup: bool,
+    pub compensation: bool,
 }
 impl Sessions {
+    pub(crate) fn import_projection(
+        &mut self,
+        config: Config,
+        lease: Lease,
+        request: Arc<crate::projection_delivery::share::Import>,
+        journal: crate::projection_delivery::journal::Store,
+    ) -> io::Result<()> {
+        self.start_projection(config, lease, None, Operation::Import { request, journal })
+    }
     pub(crate) fn update_projection(
         &mut self,
         config: Config,
@@ -35,11 +46,12 @@ impl Sessions {
         self.admit_projection()?;
         self.projection_job = Some(Pending {
             job: Job::start_sender_update(config, lease, request)?,
-            rejected: None,
+            invitation: None,
             discarded: false,
             targets: false,
             sender: true,
             sender_cleanup: false,
+            compensation: false,
         });
         Ok(())
     }
@@ -52,11 +64,12 @@ impl Sessions {
         self.admit_projection()?;
         self.projection_job = Some(Pending {
             job: Job::start_sender(config, lease, prepare)?,
-            rejected: None,
+            invitation: None,
             discarded: false,
             targets: false,
             sender: true,
             sender_cleanup: false,
+            compensation: false,
         });
         Ok(())
     }
@@ -111,7 +124,7 @@ impl Sessions {
         self.start_projection(
             config,
             lease,
-            None,
+            Some(invitation.clone()),
             Operation::Accept {
                 invitation: Box::new((*invitation).clone()),
                 journal,
@@ -139,7 +152,7 @@ impl Sessions {
         &mut self,
         config: Config,
         lease: Lease,
-        rejected: Option<Arc<Invitation>>,
+        invitation: Option<Arc<Invitation>>,
         operation: Operation,
     ) -> io::Result<()> {
         self.admit_projection()?;
@@ -147,8 +160,9 @@ impl Sessions {
             targets: matches!(operation, Operation::Targets),
             sender: matches!(operation, Operation::Send(_) | Operation::CancelSend(_)),
             sender_cleanup: matches!(operation, Operation::CancelSend(_)),
+            compensation: matches!(operation, Operation::Compensate(_)),
             job: Job::start(config, lease, operation)?,
-            rejected,
+            invitation,
             discarded: false,
         });
         Ok(())
@@ -190,11 +204,12 @@ impl Sessions {
         }
         Some(Event {
             origin: pending.job.origin().to_owned(),
-            rejected: pending.rejected,
+            invitation: pending.invitation,
             result,
             targets: pending.targets,
             sender: pending.sender,
             sender_cleanup: pending.sender_cleanup,
+            compensation: pending.compensation,
         })
     }
     pub(crate) fn take_projection_abandoned(

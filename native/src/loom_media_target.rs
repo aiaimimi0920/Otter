@@ -21,6 +21,20 @@ impl Target {
         &self.origin
     }
 
+    /// 仅本机发现清单的管理通道；不得把此凭据交给 LAN 或投射来源。
+    pub(crate) fn local_control(&self) -> Result<(&str, &str), Error> {
+        let url = url::Url::parse(&self.origin).map_err(|_| Error::RemoteAuthorizationRequired)?;
+        if url.scheme() != "http" || !live_relay_media_endpoint::loopback(&url) {
+            return Err(Error::RemoteAuthorizationRequired);
+        }
+        Ok((
+            &self.origin,
+            self.token
+                .as_deref()
+                .ok_or(Error::RemoteAuthorizationRequired)?,
+        ))
+    }
+
     pub fn local_viewer_with_trust(
         &self,
         session: &str,

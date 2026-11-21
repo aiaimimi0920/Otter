@@ -43,10 +43,18 @@ impl Scene {
         let cached = app.chrome.ui.nodes.borrow().clone();
         let mut nodes = Vec::new();
         for (endpoint, entry) in catalog.endpoints.iter().enumerate() {
-            let (hwnd, minified, expanded, protected, opacity, composite_frame) = if let Some(doc) =
-                app.documents
-                    .iter()
-                    .find(|doc| doc.state.unit_id == entry.unit)
+            let (
+                hwnd,
+                minified,
+                expanded,
+                protected,
+                opacity,
+                composite_frame,
+                hide_collapsed_endpoints,
+            ) = if let Some(doc) = app
+                .documents
+                .iter()
+                .find(|doc| doc.state.unit_id == entry.unit)
             {
                 if !doc.is_alive() || doc.state.group_hidden.get() {
                     continue;
@@ -54,10 +62,11 @@ impl Scene {
                 (
                     doc.window.0,
                     doc.state.canvas.borrow().minified.is_some(),
-                    IsWindowVisible(doc.state.parameters_ui.window()).as_bool(),
+                    doc.state.parameters_ui.expanded.get(),
                     doc.state.capture_protection_requested.get(),
                     doc.state.canvas.borrow().window_opacity,
                     desktop::pin_window::preview::active(&doc.state),
+                    doc.state.node_settings.get().hide_collapsed_endpoints,
                 )
             } else {
                 let Some(session) = app.live_sessions.iter().find(|session| {
@@ -71,7 +80,7 @@ impl Scene {
                 let Some(opacity) = session.opacity() else {
                     continue;
                 };
-                (hwnd, false, false, true, opacity, false)
+                (hwnd, false, false, true, opacity, false, false)
             };
             let marker = GetWindowLongPtrW(hwnd, GWLP_USERDATA);
             // 宿主几何消息直接更新标量；Live 的帧通知不重复读取客户区或重建图。
@@ -93,6 +102,7 @@ impl Scene {
                 dpi: windows::Win32::UI::HiDpi::GetDpiForWindow(hwnd),
                 minified,
                 expanded,
+                hide_collapsed_endpoints,
                 protected,
                 border_alpha: desktop::pin_border_style::alpha(opacity),
                 composite_frame,

@@ -14,6 +14,8 @@ use windows::Win32::{Foundation::*, System::Threading::*, UI::Input::KeyboardAnd
 #[path = "emergency_watchdog_client.rs"]
 mod client;
 pub use client::Owner;
+#[path = "emergency_shutdown.rs"]
+pub mod shutdown;
 #[cfg(test)]
 #[path = "emergency_watchdog_tests.rs"]
 mod tests;
@@ -45,9 +47,9 @@ pub fn parse(args: &[OsString]) -> io::Result<Option<u32>> {
     }
     Ok(Some(pid))
 }
-pub fn install() -> Option<Owner> {
+pub fn install() -> Option<shutdown::Installed> {
     match Owner::start() {
-        Ok(owner) => Some(owner),
+        Ok(owner) => Some(shutdown::install(owner)),
         Err(error) => {
             eprintln!("native-emergency-watchdog: unavailable: {error}");
             None
@@ -102,6 +104,7 @@ fn run(parent: u32, mut pipe: Pipe, mut keys: impl FnMut() -> Keys) -> io::Resul
     let nonce = live_recovery_handshake::read_hello(&mut channel)?;
     live_recovery_handshake::write_ready(&mut channel, nonce)?;
     let mut gate = Gate::default();
+    let mut shutdown = shutdown::Deadline::default();
     loop {
         // 旧产品同为8ms采样；独立进程不依赖UI消息泵、模态或挂起状态。
         match unsafe { WaitForSingleObject(HANDLE(parent.handle().as_raw_handle()), SAMPLE_MS) } {
@@ -110,7 +113,7 @@ fn run(parent: u32, mut pipe: Pipe, mut keys: impl FnMut() -> Keys) -> io::Resul
             WAIT_FAILED => return Err(io::Error::last_os_error()),
             _ => return Err(io::Error::other("Unexpected emergency parent wait status")),
         }
-        if gate.observe(keys(), Instant::now()) {
+        if shutdown.poll(&mut pipe) || gate.observe(keys(), Instant::now()) {
             parent.terminate_emergency().map_err(io::Error::other)?;
             return Ok(());
         }

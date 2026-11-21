@@ -58,6 +58,26 @@ fn startup_failure_delivers_once_and_does_not_accept_commands() {
     assert!(owner.child_handle().is_none());
     assert!(owner.request(Operation::Shutdown).is_err());
 }
+
+#[test]
+fn shutdown_ack_has_bounded_exit_wait_and_preserves_child_for_cleanup() {
+    let mut owner =
+        Owner::start_with(|| Client::start_command(super::super::tests::fixture("shutdown-hang")))
+            .unwrap();
+    wait(&mut owner).unwrap();
+    let original = owner.child_handle().unwrap().as_raw_handle();
+    owner.request(Operation::Shutdown).unwrap();
+    let result = wait(&mut owner);
+    let retained = owner.child_handle().unwrap().as_raw_handle() == original;
+    // 在断言前回收本测试的空登记 helper，即使旧实现错误地返回 Accepted 也不残留。
+    owner.stop_after_restore().unwrap();
+    assert_eq!(
+        unsafe { WaitForSingleObject(HANDLE(original), 10000) },
+        WAIT_OBJECT_0
+    );
+    assert!(retained);
+    assert_eq!(result.unwrap_err().kind(), io::ErrorKind::TimedOut);
+}
 #[test]
 fn local_request_error_returns_client_without_discarding_owner() {
     let mut owner =

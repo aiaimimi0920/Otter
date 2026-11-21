@@ -4,9 +4,9 @@ use windows::{
     Win32::{Foundation::RECT, Graphics::Gdi::HDC, UI::Controls::*},
 };
 
-pub(super) struct Session;
+pub(crate) struct Session;
 impl Session {
-    pub(super) fn new() -> Result<Self> {
+    pub(crate) fn new() -> Result<Self> {
         unsafe { BufferedPaintInit()? };
         Ok(Self)
     }
@@ -19,13 +19,13 @@ impl Drop for Session {
     }
 }
 
-pub(super) struct Frame {
+pub(crate) struct Frame {
     handle: isize,
-    pub(super) dc: HDC,
+    pub(crate) dc: HDC,
 }
 impl Frame {
     // rect 来自已受窗口像素预算约束的 BeginPaint；不为每个节点缓存一张整屏位图。
-    pub(super) unsafe fn begin(target: HDC, rect: &RECT) -> Result<Option<Self>> {
+    pub(crate) unsafe fn begin(target: HDC, rect: &RECT) -> Result<Option<Self>> {
         if rect.right <= rect.left || rect.bottom <= rect.top {
             return Ok(None);
         }
@@ -36,7 +36,7 @@ impl Frame {
         }
         Ok(Some(Self { handle, dc }))
     }
-    pub(super) unsafe fn commit(mut self) -> Result<()> {
+    pub(crate) unsafe fn commit(mut self) -> Result<()> {
         let handle = std::mem::replace(&mut self.handle, 0);
         EndBufferedPaint(handle, true)
     }

@@ -1,5 +1,5 @@
 //! 原生字体选择；默认配置与选中文字事务分开，模态期间不借用画布。
-use super::{canvas::Canvas, text_input::Pending, State};
+use super::{text_input::Pending, State};
 use crate::{editor::Tool, text_annotation::TextFont};
 use windows::{
     core::{w, Error, Result, HSTRING},
@@ -10,26 +10,6 @@ use windows::{
     },
 };
 pub(super) const COMMAND: usize = 0x101F;
-pub(super) unsafe fn append_menu(menu: HMENU, canvas: &Canvas) -> Result<()> {
-    let selected = Pending::selected(canvas).is_some();
-    AppendMenuW(
-        menu,
-        MF_STRING
-            | if selected || matches!(canvas.tool, Tool::Text | Tool::Serial) {
-                MF_ENABLED
-            } else {
-                MF_GRAYED
-            },
-        COMMAND,
-        if selected {
-            w!("修改选中文字字体…")
-        } else if canvas.tool == Tool::Serial {
-            w!("新序号默认字体…")
-        } else {
-            w!("新文字默认字体…")
-        },
-    )
-}
 pub(super) unsafe fn show(hwnd: HWND, state: &State) {
     if state.canvas.borrow().minified.is_some() {
         return;
@@ -101,7 +81,11 @@ pub(super) unsafe fn show(hwnd: HWND, state: &State) {
         let _ = InvalidateRect(Some(hwnd), None, false);
     }
 }
-unsafe fn choose(hwnd: HWND, font: &TextFont, family_only: bool) -> Result<Option<TextFont>> {
+pub(super) unsafe fn choose(
+    hwnd: HWND,
+    font: &TextFont,
+    family_only: bool,
+) -> Result<Option<TextFont>> {
     let mut log = LOGFONTW {
         lfHeight: -(font.font_size()
             * windows::Win32::UI::HiDpi::GetDpiForWindow(hwnd).max(96) as f32

@@ -1,5 +1,7 @@
 //! 真实 COM 数据对象往返；不调用 DoDragDrop，不操作系统剪贴板或用户文件。
 use super::*;
+#[path = "drag_shell_tests.rs"]
+mod shell;
 
 #[test]
 fn shell_preview_attaches_without_dragging_and_reclaims_gdi_handles() {
@@ -45,6 +47,7 @@ fn source_prioritizes_cancellation_and_only_left_button_release_drops() {
     .into();
     unsafe {
         assert_eq!(source.QueryContinueDrag(false, MK_LBUTTON), S_OK);
+        assert_eq!(source.QueryContinueDrag(false, MK_LBUTTON | MK_SHIFT), S_OK);
         assert_eq!(
             source.QueryContinueDrag(false, MODIFIERKEYS_FLAGS(0)),
             DRAGDROP_S_DROP
@@ -70,7 +73,7 @@ fn source_prioritizes_cancellation_and_only_left_button_release_drops() {
 }
 
 #[test]
-fn only_confirmed_copy_is_success_and_errors_are_preserved() {
+fn only_confirmed_transfer_is_success_and_errors_are_preserved() {
     assert_eq!(
         outcome(DRAGDROP_S_DROP, DROPEFFECT_COPY).unwrap(),
         Outcome::Copied
@@ -83,7 +86,10 @@ fn only_confirmed_copy_is_success_and_errors_are_preserved() {
         outcome(DRAGDROP_S_CANCEL, DROPEFFECT_COPY).unwrap(),
         Outcome::Cancelled
     );
-    assert!(outcome(DRAGDROP_S_DROP, DROPEFFECT_MOVE).is_err());
+    assert_eq!(
+        outcome(DRAGDROP_S_DROP, DROPEFFECT_MOVE).unwrap(),
+        Outcome::Moved
+    );
     assert!(outcome(S_OK, DROPEFFECT_COPY).is_err());
     assert_eq!(
         outcome(E_ACCESSDENIED, DROPEFFECT_NONE).unwrap_err().code(),
@@ -97,6 +103,43 @@ fn pre_cancel_does_not_initialize_ole_or_validate_paths() {
         drag_files(&[], Arc::new(AtomicBool::new(true))).unwrap(),
         Outcome::Cancelled
     );
+}
+
+#[test]
+fn logical_shell_receipt_overrides_cleanup_effect_but_never_overrides_cancel_or_error() {
+    use windows::Win32::System::Memory::*;
+    unsafe {
+        let _apartment = Apartment::new().unwrap();
+        let object: windows::Win32::System::Com::IDataObject =
+            windows::Win32::UI::Shell::SHCreateDataObject(None, None, None).unwrap();
+        assert!(data::logical_effect(&object).unwrap().is_none());
+        assert_eq!(
+            completion(DRAGDROP_S_DROP, DROPEFFECT_COPY, &object).unwrap(),
+            Outcome::Copied
+        );
+        let memory = GlobalAlloc(GMEM_MOVEABLE | GMEM_ZEROINIT, 4).unwrap();
+        let pointer = GlobalLock(memory);
+        assert!(!pointer.is_null());
+        std::ptr::write_unaligned(pointer.cast::<u32>(), DROPEFFECT_MOVE.0);
+        let _ = GlobalUnlock(memory);
+        let medium = windows::Win32::System::Com::STGMEDIUM {
+            tymed: windows::Win32::System::Com::TYMED_HGLOBAL.0 as u32,
+            u: windows::Win32::System::Com::STGMEDIUM_0 { hGlobal: memory },
+            ..Default::default()
+        };
+        object
+            .SetData(&data::logical_format().unwrap(), &medium, true)
+            .unwrap();
+        assert_eq!(
+            completion(DRAGDROP_S_DROP, DROPEFFECT_NONE, &object).unwrap(),
+            Outcome::Moved
+        );
+        assert_eq!(
+            completion(DRAGDROP_S_CANCEL, DROPEFFECT_NONE, &object).unwrap(),
+            Outcome::Cancelled
+        );
+        assert!(completion(E_FAIL, DROPEFFECT_NONE, &object).is_err());
+    }
 }
 
 #[test]

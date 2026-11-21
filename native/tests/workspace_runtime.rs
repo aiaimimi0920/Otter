@@ -3,7 +3,6 @@
 use base64::Engine;
 use std::{
     fs::OpenOptions,
-    os::windows::process::CommandExt,
     path::PathBuf,
     process::{Child, Command, Stdio},
     time::{Duration, Instant},
@@ -22,6 +21,8 @@ mod exit;
 mod product;
 #[path = "workspace_runtime/session_end.rs"]
 mod session_end;
+#[path = "workspace_runtime/startup.rs"]
+mod startup;
 struct Fixture(PathBuf);
 impl Fixture {
     fn new() -> Self {
@@ -50,7 +51,6 @@ impl Fixture {
                 .stdout(Stdio::null())
                 .stderr(error)
                 .stdin(Stdio::null())
-                .creation_flags(0x08000000)
                 .spawn()
                 .unwrap(),
         )
@@ -218,6 +218,10 @@ fn ordinary_product_startup_recovers_persists_restarts_and_does_not_resurrect_de
         PostMessageW(Some(hwnd), WM_CLOSE, WPARAM(0), LPARAM(0)).unwrap();
     }
     // 删空应保存空工作区并接续隐藏宿主，而不是以进程退出作为保存完成的证据。
+    // DestroyWindow 先撤销可见性；必须等旧句柄失效，避免把正在销毁的钉图当作新宿主。
+    until(&mut second, "deleted-last-unit-window-destroyed", |_| {
+        (!unsafe { IsWindow(Some(hwnd)) }.as_bool()).then_some(())
+    });
     let resident = owned_window(&mut second, false);
     assert!(!unsafe { IsWindow(Some(hwnd)) }.as_bool());
     until(&mut second, "deleted-last-unit-checkpoint", |_| {
