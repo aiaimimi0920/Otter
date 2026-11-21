@@ -19,7 +19,7 @@ fn input(src: &str) -> Input {
 #[test]
 fn frozen_image_is_prepared_on_worker_without_changing_source() {
     let png = crate::loom_base64::encode_png_data_url(
-        include_bytes!("../../../src-tauri/icons/32x32.png"),
+        include_bytes!("../../assets/branding/32x32.png"),
         &AtomicBool::new(false),
     )
     .unwrap();

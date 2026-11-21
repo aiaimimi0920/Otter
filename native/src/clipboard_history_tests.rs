@@ -126,7 +126,7 @@ fn bitmap_stream_accepts_real_bmp_without_relabeling_it_as_png() {
 #[test]
 fn bitmap_keeps_encoded_bytes_and_has_priority_over_text() {
     let _apartment = Apartment::new().unwrap();
-    let png = include_bytes!("../../src-tauri/icons/32x32.png");
+    let png = include_bytes!("../assets/branding/32x32.png");
     let package = bitmap(png);
     package.SetText(&HSTRING::from("not selected")).unwrap();
     let Some(Content::Bitmap {

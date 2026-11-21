@@ -128,7 +128,7 @@ mod tests {
         let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .parent()
             .unwrap()
-            .join("src-tauri/icons/32x32.png");
+            .join("native/assets/branding/32x32.png");
         let path = parse(&packet(&[fixture.to_str().unwrap()]))
             .unwrap()
             .pop()

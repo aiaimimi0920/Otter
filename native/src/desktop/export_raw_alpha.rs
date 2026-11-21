@@ -61,7 +61,7 @@ mod tests {
 
     #[test]
     fn checkpoint_preserves_ordinary_product_icon_straight_pixels_across_repeated_restores() {
-        let original = include_bytes!("../../../src-tauri/icons/32x32.png");
+        let original = include_bytes!("../../assets/branding/32x32.png");
         let decode = |png: &[u8]| {
             let mut reader = ::png::Decoder::new(std::io::Cursor::new(png))
                 .read_info()

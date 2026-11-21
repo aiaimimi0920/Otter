@@ -20,7 +20,6 @@ fn ignored_class(class: &str) -> bool {
             | "Shell_TrayWnd"
             | "Shell_SecondaryTrayWnd"
             | "DV2ControlHost"
-            | "Tauri Window"
             | "Tooltip"
             | "ToolTips_Class32"
     )

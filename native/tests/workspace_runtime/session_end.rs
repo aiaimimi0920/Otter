@@ -34,7 +34,7 @@ fn ordinary_product_session_cancel_resumes_checkpoint_and_confirmed_end_keeps_la
     let _dpi = Dpi(old);
     let fixture = Fixture::new();
     let image = base64::engine::general_purpose::STANDARD
-        .encode(include_bytes!("../../../src-tauri/icons/32x32.png"));
+        .encode(include_bytes!("../../assets/branding/32x32.png"));
     let source = serde_json::json!({
         "documentSchemaVersion":1,"documentRevision":7,
         "otterNativeCoordinateSpace":{"version":1,"origin":[0,0],"scale":1},

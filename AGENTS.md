@@ -79,10 +79,10 @@ Any stricter repository-local checker or CI gate overrides this common floor.
 - Public releases use `vx.y.z`; internal iterations use `vx.y.z.n`.
 - For an internal development iteration, run `npm run version:internal` once
   and commit `version-state.json` with that iteration. Do not increment the
-  public package, Cargo, or Tauri version for internal work.
+  public package or Cargo version for internal work.
 - Advance the public three-part version only for an explicitly requested public
   release, align all package metadata, and reset `internalRevision` to zero.
-- Cargo/npm/Tauri retain three-part SemVer; the fourth part is a Otter build
+- Cargo and npm retain three-part SemVer; the fourth part is a Otter build
   identity in provenance, not a dependency version. Never publish an internal
   candidate or a four-part tag through the public release pipeline.
 - Follow `docs/release/VERSIONING.md` for commands, compatibility, and release gates.

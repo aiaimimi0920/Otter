@@ -3,7 +3,7 @@ use windows::{
     core::{Error, Result},
     Win32::{Foundation::*, UI::WindowsAndMessaging::*},
 };
-const SOURCE: &[u8] = include_bytes!("../../../src-tauri/icons/icon.ico");
+const SOURCE: &[u8] = include_bytes!("../../assets/branding/icon.ico");
 const LIMIT: usize = 4 * 1024 * 1024;
 
 fn frame(bytes: &[u8], desired: u32) -> Option<&[u8]> {

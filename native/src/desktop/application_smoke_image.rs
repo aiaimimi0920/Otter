@@ -10,7 +10,7 @@ use windows::{
 };
 
 pub(in crate::desktop::application) const PNG: &[u8] =
-    include_bytes!("../../../src-tauri/icons/32x32.png");
+    include_bytes!("../../assets/branding/32x32.png");
 
 pub(in crate::desktop::application) struct ImageFile(PathBuf);
 

@@ -2,7 +2,7 @@
 use super::*;
 fn golden(name: &str) -> Vec<u8> {
     let value: serde_json::Value =
-        serde_json::from_str(include_str!("../../tests/fixtures/wall/wall-media.v1.json")).unwrap();
+        serde_json::from_str(include_str!("../tests/fixtures/wall-media.v1.json")).unwrap();
     let hex = value[name].as_str().unwrap();
     (0..hex.len())
         .step_by(2)

@@ -1,4 +1,4 @@
-//! 原生宿主及可测试模型，不依赖 WebView；标注身份使用 Windows 系统 GUID。
+//! Windows 宿主及可测试模型；标注身份使用 Windows 系统 GUID。
 pub mod alpha_region;
 pub mod app_settings_document;
 pub mod arrow_geometry;
@@ -327,7 +327,6 @@ mod tile_live_queue;
 #[cfg(windows)]
 mod tile_live_socket;
 #[cfg(windows)]
-#[path = "../../src-tauri/src/tile_outputs.rs"]
 pub mod tile_outputs;
 #[cfg(windows)]
 pub mod tile_runtime;

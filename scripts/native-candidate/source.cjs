@@ -41,10 +41,10 @@ function snapshot(root, metadata) {
       version.publicVersion !== native[0].version || !Number.isInteger(version.internalRevision) ||
       version.internalRevision < 1 || version.internalRevision > 65535) throw new Error('Invalid internal build version');
   const names = new Set(['native/Cargo.toml', 'native/Cargo.lock', 'native/build.rs', 'native/windows.manifest',
-    'src-tauri/icons/icon.ico', 'src-tauri/icons/32x32.png', 'package.json', 'version-state.json', 'third_party/sources.json',
+    'package.json', 'version-state.json', 'third_party/sources.json',
     'scripts/build-native-candidate.ps1', 'scripts/package-native-candidate.ps1', 'scripts/verify-native-package.ps1',
     'scripts/version-identity.ps1', 'scripts/file-hash.ps1', 'THIRD_PARTY_NOTICES.md',
-    'scripts/release/PathSafety.ps1', 'scripts/release/third-party-sources.cjs', 'scripts/export-native-edit-icons.cjs']);
+    'scripts/release/PathSafety.ps1', 'scripts/release/third-party-sources.cjs']);
   for (const directory of ['native/src', 'native/hover-hook', 'native/assets', 'native/tests', 'native/build_support', 'scripts/native-candidate']) {
     filesUnder(root, directory, names);
   }

@@ -48,7 +48,7 @@ Mention display scaling or monitor layout when the problem involves capture or p
 
 Otter uses Win32, Direct2D and DirectComposition for the Windows product. Use the
 [development guide](docs/guide/development.md) for prerequisites and setup; legacy
-browser tests do not validate the native desktop app.
+browser tests do not validate the desktop app.
 
 Before changing code, read the [engineering requirements](docs/development/ENGINEERING.md)
 and [code organization standard](docs/development/CODE_ORGANIZATION.md). These cover
@@ -57,11 +57,11 @@ module ownership, state and resource lifetimes, testing, and release boundaries.
 | Your change | Verification to include in the PR |
 | --- | --- |
 | Documentation or translation | Check affected links, anchors, examples and language consistency; run the documentation contracts that consume those files. |
-| Frontend behavior | Relevant tests, typechecks and lint; describe visible behavior and add regression coverage. |
-| Native capture or desktop input | Relevant Rust and frontend checks, plus the applicable Windows runtime verification. |
+| Desktop UI | Native component and input regressions; describe visible behavior and verify the affected workflow. |
+| Native capture or desktop input | Relevant Rust tests, plus the applicable Windows runtime verification. |
 | Packaging or dependencies | Follow the release and dependency-security gates in the engineering requirements. |
 
-See the [verification requirements](docs/development/ENGINEERING.md#6-tests-and-verification)
+See the [verification requirements](docs/development/ENGINEERING.md#2-tests-and-verification)
 for commands and CI behavior. Report which checks you actually ran; compilation,
 mocked tests and browser tests do not substitute for native or cross-device acceptance.
 

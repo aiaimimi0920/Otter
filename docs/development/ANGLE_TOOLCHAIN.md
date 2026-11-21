@@ -1,6 +1,6 @@
 # ANGLE 固定源码暂存、显式工具链与隔离 DLL 构建
 
-当前方向已由 [统一修订计划](WINDOWS_NATIVE_REVISED_PLAN.md) 调整为原生双后端与 ANGLE 退役。
+当前方向已由 [统一修订计划](../architecture/overview.md) 调整为原生双后端与 ANGLE 退役。
 下述是现有工具/历史证据，不再作为长期兼容路线扩建；替代功能验证前保留，不授权删除或默认加载 DLL。
 
 本工具服务于独立 Windows 原生迁移的 Shader 构建供应链。入口可以生成可单独导入的
@@ -8,7 +8,7 @@
 显式构建入口才会运行已审阅的 GN/Ninja、编译器与 SDK 工具。
 暂存入口仅运行只读 Git 对象消费，不获取依赖、不接受许可、不安装 SDK、不运行
 编译器、SDK 包内工具、CIPD、vpython、hooks、GN 或 ninja，也不授权应用加载 DLL。
-完整迁移仍以 [迁移总计划](WINDOWS_NATIVE_MIGRATION.md) 为准。
+完整迁移仍以 [迁移总计划](../architecture/overview.md) 为准。
 
 v334 的实际产品显式消费入口另见 [本地 Shader 候选](SHADER_LOCAL_CANDIDATE.md)。
 它固定已审阅的两 DLL 身份并检查持续私有路径，不因材料 verify 成功自动授予执行

@@ -5,7 +5,8 @@
 不读取临时目录中的历史测试脚本或固定测试 EXE；清空缓存后可重新构建。
 
 需要 Windows、Python 3.11+、Rust MSVC 工具链、Windows resource compiler，以及当前
-Otter、Loom 和 Otter 路径依赖的 NeuroDesign checkout。以下命令从 Otter 根目录执行，
+Otter、Loom 源码。NeuroDesign 使用 Cargo 锁定的 Git 提交，不需要相邻 checkout。
+以下命令从 Otter 根目录执行，
 路径与局域网 IP 按当前机器修改：
 
 ```powershell

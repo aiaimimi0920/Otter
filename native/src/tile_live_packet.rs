@@ -1,4 +1,4 @@
-//! Wall NLWM专属协议；直接编译复用旧生产校验器，不改造成普通NLLV帧。
+//! Wall NLWM专属协议；使用本模块的线协议校验器，不改造成普通NLLV帧。
 use crate::image_decode::Image;
 pub(crate) const PROTOCOL: &str = "loom.wall.media.v1";
 pub(crate) const MAX_FRAME_BYTES: usize = 16 * 1024 * 1024;
@@ -15,7 +15,7 @@ impl WallMediaFormat {
         }
     }
 }
-#[path = "../../src-tauri/src/wall_live/packet.rs"]
+#[path = "tile_live_wire.rs"]
 mod wire;
 pub(crate) const LIMIT: usize = MAX_FRAME_BYTES + wire::HEADER_LEN;
 #[derive(Clone)]

@@ -72,8 +72,9 @@ test("repository source copies have distinct pinned source identities", () => {
   assert.deepEqual(sources.map(s => s.name).sort(), ["resvg", "roxmltree", "tiny-skia", "usvg"]);
   assert.equal(new Set(sources.map(s => s.sourceSha256)).size, 4);
   const workflow = fs.readFileSync(path.resolve(__dirname, "../../.github/workflows/build-otter-exe.yml"), "utf8");
-  assert.ok(workflow.indexOf("node scripts/release/third-party-sources.cjs .") <
-    workflow.indexOf("cargo test --locked --manifest-path native/Cargo.toml"));
+  const tests = workflow.indexOf("cargo test --locked --offline --workspace --manifest-path native/Cargo.toml");
+  const verification = workflow.indexOf("node scripts/release/third-party-sources.cjs .");
+  assert.ok(tests >= 0 && verification >= 0 && verification < tests);
   assert.match(workflow, /node scripts\/release\/third-party-sources\.cjs \.\r?\n\s+if \(\$LASTEXITCODE -ne 0\)/);
 });
 

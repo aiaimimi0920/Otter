@@ -17,4 +17,4 @@ Ctrl+E 打开主编辑栏，在铅笔按钮下拉菜单中选择“铅笔”或�
 
 本次不扩展 Loom 跨端对象编辑协议。自然画笔新增的样式字段不在旧协议内；如需使用现有跨端对象编辑，应先栅格化。
 
-聚焦验证见 `stickerPaintbrush.test.ts` 和 `stickerPaintbrushInteraction.test.tsx`。浏览器预览不替代原生 EXE 人工验收。
+本机定向检查可运行 `cargo test --locked --manifest-path native/Cargo.toml --lib paintbrush`。

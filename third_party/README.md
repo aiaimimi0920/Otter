@@ -6,7 +6,7 @@ v225 增加 turbulence 实际坐标的 checked 转换/运算与 render_checked
 必要接线增加 21 行至 892，未增加独立算法职责。宿主滤镜仍不开放。
 
 这些目录是固定版本上游 crate 的受控副本，不是新的 Otter 业务模块。
-`native/Cargo.toml` 仅对原生宿主应用 path patch，Tauri 的依赖解析不变。
+`native/Cargo.toml` 通过 path patch 引用这些第三方源码。
 上游许可证随完整归档保留。禁止直接修改 Cargo registry 或依赖临时目录。
 
 v224 在 resvg turbulence 初始化中使用 unsigned_abs 后取模，修复

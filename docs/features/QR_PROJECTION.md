@@ -2,9 +2,10 @@
 
 ## 当前范围
 
-Otter 与 Loom 同时升级到最新代码。原生分享只使用 `neuro.qr-projection.v2`，
-生成和接收 v2 JSON、`hook://projection/v2#` 链接；没有版本模式切换、旧邀请导入、
-协议降级或旧关联迁移。旧版使用方式不再作为开发或验收要求。
+Otter 与 Loom 同时升级。二维码／链接分享只生成和导入 `neuro.qr-projection.v2`
+JSON 与 `hook://projection/v2#` 链接，不做旧邀请导入、版本协商或协议降级。
+设备／设备组定向投送是另一条仍在用的业务链：使用 `neuro.qr-projection.v1` 签名
+信封，由 Loom 收件箱投送；它不是二维码／链接分享失败时的回退。
 
 Otter 使用当前已连接并获得 Device 授权的 Loom，可以是本机或局域网服务。
 局域网分享面向该 Loom 及已互联 Loom 的设备，不要求中心账号登录；公网分享需要
@@ -75,7 +76,6 @@ PNG 最多 4 MiB，宽高各最多 8192，总像素最多 16,777,216。
 
 前提：Windows、Python 3.11+、Node、Rust MSVC 工具链、Windows resource compiler、
 运行中的 Docker（Linux 容器），以及当前 Otter、Loom、Platform 源码。
-Otter 的 Rust 路径依赖还需要同级 NeuroDesign checkout。
 先在 Platform 执行 `npm ci`，在 Loom 执行 `cargo build --locked -p loom-daemon`。
 两者的业务实现直接从各自仓库复用；本入口不复制服务端实现、不新增依赖。
 

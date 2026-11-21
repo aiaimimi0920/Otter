@@ -47,7 +47,7 @@ fn built_executable_contains_brand_icon_and_package_version() {
         );
         let icons = resource(&module, RT_GROUP_ICON, 1);
         assert_eq!(&icons[..4], &[0, 0, 1, 0]);
-        let source = include_bytes!("../../src-tauri/icons/icon.ico");
+        let source = include_bytes!("../assets/branding/icon.ico");
         let count = u16::from_le_bytes([icons[4], icons[5]]) as usize;
         assert!(count > 0);
         assert_eq!(&icons[..6], &source[..6]);

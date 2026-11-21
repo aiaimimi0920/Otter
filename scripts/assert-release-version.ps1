@@ -12,44 +12,23 @@ $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 . (Join-Path $PSScriptRoot "version-identity.ps1")
 $null = Get-OtterVersionIdentity -RepoRoot $repoRoot
 $packageJson = Get-Content -LiteralPath (Join-Path $repoRoot "package.json") -Raw | ConvertFrom-Json
-$packageLockRaw = Get-Content -LiteralPath (Join-Path $repoRoot "package-lock.json") -Raw
-$tauriConfig = Get-Content -LiteralPath (Join-Path $repoRoot "src-tauri\tauri.conf.json") -Raw | ConvertFrom-Json
-$cargoToml = Get-Content -LiteralPath (Join-Path $repoRoot "src-tauri\Cargo.toml") -Raw
-$cargoLock = Get-Content -LiteralPath (Join-Path $repoRoot "src-tauri\Cargo.lock") -Raw
+$cargoToml = Get-Content -LiteralPath (Join-Path $repoRoot "native/Cargo.toml") -Raw
+$cargoLock = Get-Content -LiteralPath (Join-Path $repoRoot "native/Cargo.lock") -Raw
 
 $cargoTomlMatch = [regex]::Match($cargoToml, '(?m)^version\s*=\s*"([^"]+)"')
 if (-not $cargoTomlMatch.Success) {
-    throw "Could not read the Otter package version from src-tauri/Cargo.toml."
+    throw "Could not read the Otter package version from native/Cargo.toml."
 }
 
-$cargoLockMatch = [regex]::Match($cargoLock, '(?ms)\[\[package\]\]\s+name\s*=\s*"otter"\s+version\s*=\s*"([^"]+)"')
+$cargoLockMatch = [regex]::Match($cargoLock, '(?ms)\[\[package\]\]\s+name\s*=\s*"otter-native"\s+version\s*=\s*"([^"]+)"')
 if (-not $cargoLockMatch.Success) {
-    throw "Could not read the Otter package version from src-tauri/Cargo.lock."
-}
-
-$packageLockVersionMatch = [regex]::Match(
-    $packageLockRaw,
-    '(?s)^\s*\{\s*"name"\s*:\s*"[^"]+"\s*,\s*"version"\s*:\s*"([^"]+)"'
-)
-if (-not $packageLockVersionMatch.Success) {
-    throw "Could not read the top-level version from package-lock.json."
-}
-
-$packageLockRootVersionMatch = [regex]::Match(
-    $packageLockRaw,
-    '(?s)"packages"\s*:\s*\{\s*""\s*:\s*\{.*?"version"\s*:\s*"([^"]+)"'
-)
-if (-not $packageLockRootVersionMatch.Success) {
-    throw "Could not read the root package version from package-lock.json."
+    throw "Could not read the Otter package version from native/Cargo.lock."
 }
 
 $versions = [ordered]@{
     "package.json" = [string]$packageJson.version
-    "package-lock.json" = $packageLockVersionMatch.Groups[1].Value
-    "package-lock.json root package" = $packageLockRootVersionMatch.Groups[1].Value
-    "src-tauri/Cargo.toml" = $cargoTomlMatch.Groups[1].Value
-    "src-tauri/Cargo.lock" = $cargoLockMatch.Groups[1].Value
-    "src-tauri/tauri.conf.json" = [string]$tauriConfig.version
+    "native/Cargo.toml" = $cargoTomlMatch.Groups[1].Value
+    "native/Cargo.lock" = $cargoLockMatch.Groups[1].Value
 }
 
 $metadataVersion = [string]$packageJson.version

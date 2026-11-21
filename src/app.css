@@ -1,9 +1,0 @@
-@import "tailwindcss";
-@import "./shared/styles/theme-foundation.css";
-@import "./shared/styles/terminal-primitives.css";
-@import "./shared/styles/feature-surfaces.css";
-@import "./features/workspace/styles/unit-workspace.css";
-@import "./features/settings/styles/settings-dialog.css";
-@import "./features/art/styles/parameter-controls.css";
-
-@source "./**/*.{tsx,ts}";

@@ -24,13 +24,7 @@ Assert-True ($policy.scanner.actionCommit -eq "baa4139e56d6312335d899e6ba045fa16
 Assert-True ($policy.scanner.windowsX64Sha256 -eq "25e42f5ef6711fd8c0fb45390972205891dd44c6bd02ac93f0f63e8e98d9bfb6") "OSV Windows hash changed without review."
 Assert-True ([int]$policy.maximumExceptionDays -gt 0 -and [int]$policy.maximumExceptionDays -le 90) "Exception lifetime must be at most 90 days."
 
-$expectedLockfiles = @(
-    "package-lock.json",
-    "native/Cargo.lock",
-    "src-tauri/Cargo.lock",
-    "src-tauri/crates/drag/Cargo.lock",
-    "src-tauri/crates/scap-direct3d/Cargo.lock"
-)
+$expectedLockfiles = @("native/Cargo.lock")
 Assert-True ($policy.lockfiles.Count -eq $expectedLockfiles.Count) "Dependency lockfile inventory changed without review."
 foreach ($lockfile in $expectedLockfiles) {
     Assert-True ($policy.lockfiles -contains $lockfile) "Policy does not scan lockfile: $lockfile"
@@ -66,10 +60,6 @@ Assert-True (-not $workflow.Contains("continue-on-error:")) "Scanner operational
 Assert-True ($policy.scanner.containerImage -match '^ghcr\.io/google/osv-scanner-action@sha256:[a-f0-9]{64}$') "Scanner container must be immutable."
 $advisory = Read-RepoText ([string]$policy.advisoryConfig)
 Assert-True (-not ($advisory -match '(?m)^\s*\[')) "Development advisory scans must not suppress findings."
-$release = Read-RepoText ".github\workflows\release-otter-tag.yml"
-Assert-True $release.Contains("uses: ./.github/workflows/dependency-security.yml") "Tag release does not call dependency security."
-Assert-True $release.Contains("needs: [scan-context, dependency-security]") "Tag release is not blocked on dependency security."
-
 foreach ($scriptAndTerms in @(
     @("scripts\Install-OsvScanner.ps1", "Assert-ScannerHash", "Invoke-WebRequest"),
     @("scripts\Invoke-DependencySecurityScan.ps1", "--version", "--config=", "--lockfile=")

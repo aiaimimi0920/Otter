@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const { id, finding, sarif, pkg } = require('./security-osv-fixtures.cjs');
 const { validateScan, validateSarif, verdict, summary } = require('../security/osv-result-policy.cjs');
 const { classifyReleaseScan } = require('../../.github/scripts/security-run-context.cjs');
-const locks = ['package-lock.json', 'src-tauri/Cargo.lock'];
+const locks = ['package-lock.json', 'fixtures/extra/Cargo.lock'];
 const evidence = (vulnerable = false) => ({ results: locks.map(lock => ({ source: { type: 'lockfile', path: `/github/workspace/${lock}` }, packages: [vulnerable ? pkg() : { package: { name: 'fixture', version: '1', ecosystem: 'npm' } }] })) });
 test('complete clean and finding reports preserve original scanner exit and release enforcement', () => {
   for (const exit of [0, 1]) { const scan = validateScan(evidence(Boolean(exit)), exit, locks); assert.equal(verdict(scan, 'advisory'), 0); assert.equal(verdict(scan, 'enforce'), exit); }

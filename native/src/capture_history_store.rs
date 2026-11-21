@@ -18,7 +18,7 @@ pub(crate) struct Store {
     _directories: Vec<File>,
 }
 impl Store {
-    /// 只读取调用者选定的原生profile，不自动探测或迁移旧Tauri目录。
+    /// 只读取调用者选定的原生profile，不自动探测其他 profile。
     pub fn open(root: &Path) -> Result<(Self, Data), String> {
         let directories = crate::profile_directory::pin(root).map_err(|e| e.to_string())?;
         let lease = OpenOptions::new()

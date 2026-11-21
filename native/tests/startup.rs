@@ -41,7 +41,7 @@ fn capture_rejects_conflicting_sources_before_reading_desktop() {
 }
 
 #[test]
-fn hidden_window_renders_and_destroys_without_webview() {
+fn hidden_window_renders_and_destroys() {
     let output = run_bounded(Command::new(env!("CARGO_BIN_EXE_otter-native")).arg("--smoke-test"));
     assert!(
         output.status.success(),
@@ -50,7 +50,7 @@ fn hidden_window_renders_and_destroys_without_webview() {
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert_default_shader_is_configured_without_execution(&stdout);
-    assert!(stdout.contains("destroyed=true webview=false"));
+    assert!(stdout.contains("destroyed=true"));
     assert!(
         stdout.contains("native-retirement-smoke:")
             && stdout.contains("document-preserved=true paints-preserved=true")
@@ -135,8 +135,7 @@ fn hidden_window_renders_and_destroys_without_webview() {
 
 #[test]
 fn wic_image_upload_survives_two_paints() {
-    let image =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../src-tauri/icons/32x32.png");
+    let image = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("assets/branding/32x32.png");
     let output = run_bounded(
         Command::new(env!("CARGO_BIN_EXE_otter-native"))
             .arg(image)
@@ -149,7 +148,7 @@ fn wic_image_upload_survives_two_paints() {
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert_default_shader_is_configured_without_execution(&stdout);
-    assert!(stdout.contains("destroyed=true webview=false"));
+    assert!(stdout.contains("destroyed=true"));
     assert!(
         stdout.contains("native-retirement-smoke:")
             && stdout.contains("document-preserved=true paints-preserved=true")
@@ -239,8 +238,7 @@ fn unknown_flags_fail_before_starting_a_window() {
 
 #[test]
 fn transparent_pin_creates_compositor_and_rebuilds_device_resources() {
-    let image =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../src-tauri/icons/32x32.png");
+    let image = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("assets/branding/32x32.png");
     let output = run_bounded(
         Command::new(env!("CARGO_BIN_EXE_otter-native"))
             .arg(image)

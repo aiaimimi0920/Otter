@@ -15,6 +15,8 @@ fn parse(value: &Value) -> Result<Option<Handshake>, Error> {
 fn request_and_catalog_preserve_protocol_and_definition_fields() {
     let wire: Value = serde_json::from_str(&request("otter-native", "0.2.33").unwrap()).unwrap();
     assert_eq!(wire["method"], "loom.hook.handshake");
+    assert_eq!(wire["params"]["protocolVersion"], PROTOCOL);
+    assert!(wire["params"].get("supportedProtocolVersions").is_none());
     assert_eq!(
         wire["params"]["transports"],
         serde_json::json!(["websocket", "shared_memory"])
@@ -63,6 +65,9 @@ fn invalid_or_oversized_catalog_is_not_accepted() {
         parse(&serde_json::json!({"error":"private detail"})),
         Err(Error::Remote)
     ));
+    let mut unsupported = fixture();
+    unsupported["protocolVersion"] = "loom.hook.v0".into();
+    assert!(matches!(parse(&unsupported), Err(Error::Protocol)));
     for field in ["protocolVersion", "sessionId", "transport"] {
         let mut value = fixture();
         value[field] = Value::String(String::new());

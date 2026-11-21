@@ -33,7 +33,7 @@ controller 中处理，不能只依赖 SVG circle 的事件。拖动预览不改
 ## 聚焦验证
 
 - `stickerBezierGeometry.test.ts`：曲线求值、命中、控制点、变换、Canvas 输出、独立工具设置。
-- `stickerBezierInteraction.test.tsx`：真实绘制层创建、原生式事件路由、重复编辑、取消、属性与历史。
+本机定向检查可运行 `cargo test --locked --manifest-path native/Cargo.toml --lib bezier`。
 - `stickerToolbarModel.test.ts`：新工具和已有线条属性路由。
 
-浏览器预览不能替代 WebView2/原生 EXE 的人工验收。
+模型回归不能替代实际 EXE 的人工验收。

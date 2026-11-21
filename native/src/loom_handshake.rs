@@ -1,6 +1,7 @@
 //! 原生能力握手数据边界；只保留有界目录，不自动执行能力、不输出远端数据日志。
 use serde::Deserialize;
 use serde_json::Value;
+const PROTOCOL: &str = "loom.hook.v1";
 pub const MAX_BYTES: usize = 1024 * 1024;
 #[derive(Debug, PartialEq)]
 pub enum Error {
@@ -69,7 +70,7 @@ pub fn request(client_id: &str, version: &str) -> Result<String, Error> {
         return Err(Error::Identity);
     }
     Ok(serde_json::json!({"method":"loom.hook.handshake","params":{
-        "protocolVersion":"loom.hook.v1","supportedProtocolVersions":["loom.hook.v1"],
+        "protocolVersion":PROTOCOL,
         "clientId":client_id,"clientVersion":version,"platform":"windows","deviceId":"device:local",
         "transports":["websocket","shared_memory"]}})
     .to_string())
@@ -88,7 +89,7 @@ pub fn response(bytes: &[u8]) -> Result<Option<Handshake>, Error> {
     }
     // 再从原文解码，保留 serde 对重复已知字段的拒绝，不经 Value 覆盖后再解码。
     let result: Handshake = serde_json::from_slice(bytes).map_err(|_| Error::Encoding)?;
-    if result.protocol_version != "loom.hook.v1" {
+    if result.protocol_version != PROTOCOL {
         return Err(Error::Protocol);
     }
     if !text(&result.server_name) || !text(&result.server_version) || !text(&result.session_id) {

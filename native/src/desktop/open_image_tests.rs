@@ -7,7 +7,8 @@ mod capture;
 fn prepare_decodes_image_and_pin_region_before_replacement() {
     let _apartment = super::super::Apartment::new().unwrap();
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
-    let prepared = PreparedDocument::open(&root.join("src-tauri/icons/32x32.png"), true).unwrap();
+    let prepared =
+        PreparedDocument::open(&root.join("native/assets/branding/32x32.png"), true).unwrap();
     assert_eq!((prepared.image.width, prepared.image.height), (32, 32));
     assert_eq!(prepared.image.pixels.len(), 32 * 32 * 4);
 }

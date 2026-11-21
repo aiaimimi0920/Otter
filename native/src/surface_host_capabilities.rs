@@ -87,7 +87,7 @@ impl Report {
 mod tests {
     use super::*;
     #[test]
-    fn report_never_implicitly_claims_webview_or_input_capabilities() {
+    fn report_never_implicitly_claims_browser_or_input_capabilities() {
         let report = Report::new(
             vec![Runtime::Declarative],
             vec!["text".into()],

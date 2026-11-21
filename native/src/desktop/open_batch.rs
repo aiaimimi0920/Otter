@@ -39,7 +39,7 @@ mod tests {
         std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .parent()
             .unwrap()
-            .join("src-tauri/icons/32x32.png")
+            .join("native/assets/branding/32x32.png")
     }
     #[test]
     fn batch_decodes_all_in_order_and_requires_bounded_nonempty_input() {

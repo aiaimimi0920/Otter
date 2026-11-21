@@ -17,7 +17,7 @@ HTTPS 与现有证书信任；本机回环地址可使用 HTTP，不接受用户
 手动“断连”或“取消连接”会持久取消自动重连，但保留历史列表。关闭弹窗不是断连。
 启动重连不会覆盖启动期间的新手动操作；离线、身份变化或授权失效时不会假装连接成功，
 也不会尝试历史中的其他目标。服务端若要求重新批准，仍须按原有流程批准。
-旧版本只有历史而没有重连记录时不会猜测连接意图，需成功连接一次建立记录。
+没有重连记录时不会从历史列表猜测连接意图，需成功连接一次建立记录。
 
 密码、receipt、私钥和 session token 不进入历史文件或状态 DTO。原生 owner 的
 generation 防止旧任务覆盖新状态，退出 latch 阻止应用退出后重新发起连接。
@@ -51,8 +51,8 @@ generation 防止旧任务覆盖新状态，退出 latch 阻止应用退出后�
 
 ## 定向验证
 
-- `node node_modules/vitest/vitest.mjs run tests/unit/loomConnection.test.tsx`
-- `cargo test --manifest-path src-tauri/Cargo.toml --lib loom_connection --locked --offline`
+- `cargo test --locked --manifest-path native/Cargo.toml --lib pin_settings_connection`
+- `cargo test --locked --manifest-path native/Cargo.toml --lib loom_handshake::`
 - 两端签名联调：设置 `OTTER_LOOM_CONNECTION_SMOKE_EXE` 为新编译 Loom daemon 的
   绝对路径，设置 `TEMP` / `TMP` 到独立临时目录，然后运行上一条命令并追加
   `-- --include-ignored --nocapture`。测试只管理自己创建的 daemon 子进程。

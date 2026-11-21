@@ -2,7 +2,7 @@
 use std::{env, ffi::OsString, fs, io, path::Path, process::Command};
 
 pub fn compile(root: &Path, out: &Path, version: &str) -> io::Result<()> {
-    let icon = root.join("../src-tauri/icons/icon.ico");
+    let icon = root.join("assets/branding/icon.ico");
     let script = out.join("otter-native.rc");
     let resource = out.join("otter-native.res");
     fs::write(&script, source(version, &icon)?)?;

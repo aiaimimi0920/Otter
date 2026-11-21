@@ -22,7 +22,7 @@ impl Fixture {
         }));
         fs::create_dir_all(&root).unwrap();
         eprintln!("art-product-evidence: {}", root.display());
-        let image = STANDARD.encode(include_bytes!("../../../src-tauri/icons/32x32.png"));
+        let image = STANDARD.encode(include_bytes!("../../assets/branding/32x32.png"));
         let source = json!({"documentSchemaVersion":1,"documentRevision":7,
             "otterNativeCoordinateSpace":{"version":1,"origin":[0,0],"scale":1},
             "stickers":[{"id":"product-source","x":40,"y":40,"w":160,"h":160,"src":format!("data:image/png;base64,{image}")}],

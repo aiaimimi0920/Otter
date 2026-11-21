@@ -112,7 +112,7 @@ pub(super) unsafe fn run(
             "Native window paint/lifecycle smoke failed",
         ));
     }
-    println!("native-smoke: paints={paints} destroyed=true webview=false");
+    println!("native-smoke: paints={paints} destroyed=true");
     println!("native-rebuild-smoke: paints={}", paints - before_paints);
     println!("native-edit-smoke: annotations={annotations} device-recreated=true");
     println!("native-window-smoke: pinned={pinned}");

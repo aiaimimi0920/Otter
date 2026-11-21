@@ -3,7 +3,7 @@
 mod windows_resources;
 fn main() {
     println!("cargo:rerun-if-changed=windows.manifest");
-    println!("cargo:rerun-if-changed=../src-tauri/icons/icon.ico");
+    println!("cargo:rerun-if-changed=assets/branding/icon.ico");
     println!("cargo:rerun-if-env-changed=OTTER_NATIVE_RC");
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows")
         && std::env::var("CARGO_CFG_TARGET_ENV").as_deref() == Ok("msvc")

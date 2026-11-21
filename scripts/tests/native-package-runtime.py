@@ -41,7 +41,7 @@ def main():
     spec.loader.exec_module(job)
     checks = []
     for label, arguments, expected, marker in [
-        ("smoke", ["--smoke-test"], 0, "destroyed=true webview=false"),
+        ("smoke", ["--smoke-test"], 0, "destroyed=true"),
         ("pin-missing-image", ["--pin"], 1, "requires an image"),
         ("unknown-option", ["--unknown-option"], 1, "Usage:"),
     ]:

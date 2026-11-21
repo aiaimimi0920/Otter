@@ -13,11 +13,7 @@
   "evidenceDirectory": ".tmp/dependency-security",
   "maximumExceptionDays": 90,
   "lockfiles": [
-    "package-lock.json",
-    "native/Cargo.lock",
-    "src-tauri/Cargo.lock",
-    "src-tauri/crates/drag/Cargo.lock",
-    "src-tauri/crates/scap-direct3d/Cargo.lock"
+    "native/Cargo.lock"
   ],
   "advisoryConfig": "security/osv-advisory.toml"
 }

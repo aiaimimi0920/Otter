@@ -1,11 +1,11 @@
 # 显式本地 Shader 候选与产品启动
 
-当前目标见 [统一修订计划](WINDOWS_NATIVE_REVISED_PLAN.md)：功能替代验证后退役 ANGLE。
+当前目标见 [统一修订计划](../architecture/overview.md)：功能替代验证后退役 ANGLE。
 下述候选是既有开发证据，不代表未来 Shader 路线；不再以旧 GLSL 不改动作为保留 ANGLE 的要求。
 
 这是 Windows 原生内部开发入口，不是通用 DLL 安装器、来源签名验证器或公共发行许可。
 默认仍为 `Installation=None`；不扫描 PATH、环境、Art 响应、settings 或 session 来寻找
-ANGLE。完整迁移与材料供应链分别见 [迁移计划](WINDOWS_NATIVE_MIGRATION.md) 和
+ANGLE。完整迁移与材料供应链分别见 [迁移计划](../architecture/overview.md) 和
 [ANGLE 工具链](ANGLE_TOOLCHAIN.md)。
 
 ## 执行信任来自哪里

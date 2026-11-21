@@ -46,7 +46,7 @@ Otter's core screenshot/sticker workflow is local-first.
 The native local Loom bridge is enabled by default and uses authenticated local
 discovery. Set `OTTER_ENABLE_LOOM_OTTER=0` before starting Otter to disable that
 bridge. The old `HOOK_ENABLE_LOOM_HOOK` is a fallback only when the canonical
-variable is absent; see [environment precedence](../development/RENAMING.md#环境变量).
+variable is absent; see [environment precedence](../release/VERSIONING.md).
 Pure browser preview does not establish this native bridge. A saved global Loom
 connection has a separate [restart/reconnect lifecycle](../features/LOOM_CONNECTION.md);
 disconnect it explicitly to cancel its remembered restart intent.
@@ -104,7 +104,7 @@ Because Otter is local-first, the main user controls are local machine controls:
 - uninstall the app and remove local runtime directories if you no longer want
   Otter on the machine.
 
-For package-specific install/uninstall notes, see [UIAccess distribution](../release/uiaccess-distribution.md).
+For package-specific install/uninstall notes, see [UIAccess distribution](../guide/packages.md).
 
 ## Policy updates
 

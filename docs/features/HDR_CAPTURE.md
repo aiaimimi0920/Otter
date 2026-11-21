@@ -12,7 +12,7 @@ Otter uses an on-demand HDR path for ordinary region capture on Windows 11.
 
 The optional `OTTER_CAPTURE_DYNAMIC_RANGE` environment variable accepts `auto`, `hdr`, or `sdr`. `hdr` preserves a successful float capture as HDR even when the content itself does not exceed the SDR white level. It still falls back safely when HDR is unavailable. `sdr` disables the HDR attempt.
 The legacy `HOOK_CAPTURE_DYNAMIC_RANGE` is read only when the `OTTER_*` variable is
-absent; even an empty canonical value takes precedence. See [rename compatibility](../development/RENAMING.md).
+absent; even an empty canonical value takes precedence. See [rename compatibility](../release/VERSIONING.md).
 
 ## Output metadata
 

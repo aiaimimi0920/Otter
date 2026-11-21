@@ -2,14 +2,11 @@
 
 [简体中文](getting-started.zh-CN.md) · [Documentation](../README.md)
 
-Start with your first pinned image, then explore editing, nodes and projection. This guide describes current source; older releases may not include every feature.
+## Setup
 
-## Prepare and launch
-
-- Use Windows 10 or 11 with the WebView2 Runtime.
-- Download the portable ZIP from [Otter Releases](https://github.com/aiaimimi0920/Otter/releases), extract it and run the included executable. Current-source builds use `otter.exe`; historical packages such as Hook v0.2.33 retain `hook.exe`. Follow the notes for your release.
-- Local capture, pinned images and editing do not require Loom. OCR, translation and Loom-backed nodes require Loom separately, with the relevant capability packages installed, enabled and authorized. Starting Loom alone does not make every capability available.
-- No verified combined Otter + Loom installer is provided here. See [packages, signing and local data](packages.md) for distribution details.
+- Windows 10 or 11. Extract the current internal ZIP and launch `otter-native.exe`. Older releases have separate instructions.
+- Capture, pins and annotations work without Loom. OCR, translation and Art require current Loom, installed capabilities and authorization.
+- See [packages and profile data](packages.md).
 
 ## 1. Capture and pin
 
@@ -49,7 +46,7 @@ Connect nodes and assemble processing flows in Otter's node workspace; Loom supp
 
 A device here means an Otter receiver that supports the existing projection protocol and has completed the required connection and authorization. It does not imply compatibility with every client or platform. Start with two Windows computers running Otter and paired to the same Loom:
 
-1. Connect both devices to the same Loom and complete pairing and approval. Enable receiving on the receiver; new deliveries require manual approval by default.
+1. Connect both devices to the same Loom and complete pairing and approval. Enable receiving on the receiver; new deliveries require Receive or Auto for automatic acceptance.
 2. On the sender, select a pinned image, press **`Ctrl+E`**, and open the projection panel below sticker settings.
 3. Open the target device or device-group list and select an available target. The receiver accepts or rejects according to its policy; success is shown after the sender receives confirmation that the image was displayed.
 4. Once associated, later edits on the sender continue to synchronize. Deselect the target to stop projection; closing the panel does not stop an existing association.

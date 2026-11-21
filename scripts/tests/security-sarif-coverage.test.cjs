@@ -2,7 +2,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { validateScan, validateSarif } = require('../security/osv-result-policy.cjs');
 const { id, finding, sarif, pkg } = require('./security-osv-fixtures.cjs');
-const locks = ['package-lock.json', 'src-tauri/Cargo.lock'];
+const locks = ['package-lock.json', 'fixtures/extra/Cargo.lock'];
 const alias = 'CVE-2026-12345';
 function input() {
   return { results: locks.map(lock => ({ source: { path: `/github/workspace/${lock}`, type: 'lockfile' }, packages: [pkg('fixture', '1', [id, alias]), pkg('other', '2', [id, alias])] })) };

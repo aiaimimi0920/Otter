@@ -103,7 +103,7 @@ fn worker_initializes_own_com_and_returns_cpu_owned_image() {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .unwrap()
-        .join("src-tauri/icons/32x32.png");
+        .join("native/assets/branding/32x32.png");
     let task = std::thread::spawn(move || load(path, true, &AtomicBool::new(false)));
     let prepared = task.join().unwrap().unwrap().unwrap();
     assert_eq!((prepared.image.width, prepared.image.height), (32, 32));

@@ -2,15 +2,13 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { readJson } = require('../../scripts/security/osv-result-policy.cjs');
-const { validateEslint, validateLicenses, validateLines, formatReport } = require('../../scripts/security/quality-result-policy.cjs');
+const { validateLines, formatReport } = require('../../scripts/security/quality-result-policy.cjs');
 function runQuality(tool, { root = process.cwd(), execute = spawnSync, env = process.env } = {}) {
   const directory = path.join(root, 'artifacts/quality', tool || 'invalid');
   const reportPath = path.join(directory, 'results.json');
   const commands = {
-    eslint: [process.execPath, ['node_modules/eslint/bin/eslint.js', 'src', '--max-warnings', '0', '--format', 'json', '--output-file', reportPath]],
-    licenses: ['powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', 'scripts/audit-open-source-dependencies.ps1', '-ReportPath', `artifacts/quality/licenses/results.json`]],
     lines: [process.execPath, ['scripts/effective-code-lines.mjs', '--mode', 'ratchet', '--json', reportPath]],
-    format: ['cargo', ['fmt', '--check', '--manifest-path', 'src-tauri/Cargo.toml', '--', '--color', 'never']],
+    format: ['cargo', ['fmt', '--check', '--manifest-path', 'native/Cargo.toml', '--', '--color', 'never']],
   };
   if (!Object.hasOwn(commands, tool)) throw new Error('Unknown quality tool.');
   fs.mkdirSync(directory, { recursive: true });
@@ -26,8 +24,7 @@ function runQuality(tool, { root = process.cwd(), execute = spawnSync, env = pro
     const report = formatReport(result.stdout, result.stderr, result.status, root);
     fs.writeFileSync(reportPath, JSON.stringify(report, null, 2)); count = report.diffs.length;
   } else {
-    const validate = { eslint: validateEslint, licenses: validateLicenses, lines: validateLines }[tool];
-    count = validate(readJson(reportPath), result.status);
+    count = validateLines(readJson(reportPath), result.status);
   }
   if (env.GITHUB_STEP_SUMMARY) fs.appendFileSync(env.GITHUB_STEP_SUMMARY,
     `## ${tool}: development advisory\n\nValidated ${count} findings (tool exit ${result.status}). Full evidence is in the quality-${tool} artifact. Tool/report/upload errors still fail; release gates remain strict.\n`);

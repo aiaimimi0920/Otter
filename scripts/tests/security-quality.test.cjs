@@ -3,20 +3,8 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { validateEslint, validateLicenses, validateLines, formatReport } = require('../security/quality-result-policy.cjs');
+const { validateLines, formatReport } = require('../security/quality-result-policy.cjs');
 const { runQuality } = require('../../.github/scripts/run-quality-advisory.cjs');
-test('ESLint findings are advisory while parse/config/unknown and incomplete reports fail', () => {
-  const r = [{ filePath: 'a.ts', fatalErrorCount: 0, errorCount: 1, warningCount: 0, messages: [{ ruleId: 'no-unused-vars', severity: 2 }] }];
-  assert.equal(validateEslint(r, 1), 1);
-  for (const code of [0, 2, null]) assert.throws(() => validateEslint(r, code));
-  r[0].messages[0].fatal = true; assert.throws(() => validateEslint(r, 1));
-  assert.throws(() => validateEslint([], 0));
-});
-test('license findings need complete inventories; missing manifests/metadata never become success', () => {
-  const r = { schemaVersion: 1, complete: true, directNpmCount: 1, rustCount: 1, findings: ['missing license'], facts: ['project', 'npm-direct', 'npm-lock', 'cargo'].map(source => ({ source, license: '' })) };
-  assert.equal(validateLicenses(r, 1), 1); assert.throws(() => validateLicenses(r, 2));
-  r.facts.pop(); assert.throws(() => validateLicenses(r, 1));
-});
 test('line ratchet findings are recognized; filesystem/UTF8 diagnostics remain errors', () => {
   const r = { schemaVersion: 1, mode: 'ratchet', summary: { scanned: 1 }, files: [{ path: 'a.ts', effectiveLines: 800 }], violations: ['a.ts: oversized baseline file changed before reaching 700 lines'] };
   assert.equal(validateLines(r, 1), 1);
@@ -35,7 +23,7 @@ test('stable rustfmt diff parser requires existing in-repo Rust paths, complete 
 test('runner rejects missing, malformed, stale reports, spawn failure and unknown exits', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'quality-runner-'));
   try {
-    for (const tool of ['eslint', 'lines']) for (const result of [{ status: 1 }, { status: 2 }, { status: null, error: new Error('spawn') }]) {
+    for (const tool of ['lines']) for (const result of [{ status: 1 }, { status: 2 }, { status: null, error: new Error('spawn') }]) {
       const dir = path.join(root, 'artifacts/quality', tool); fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(path.join(dir, 'results.json'), '[]');
       assert.throws(() => runQuality(tool, { root, env: {}, execute: () => ({ stdout: '', stderr: '', ...result }) }));
       assert.ok(!fs.existsSync(path.join(dir, 'results.json')));

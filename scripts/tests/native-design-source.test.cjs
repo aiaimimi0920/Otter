@@ -34,8 +34,12 @@ test('actual product source and license inventory include the locked theme', () 
   const designFiles = design.sourceFiles(repo, metadata);
   assert.ok(designFiles.some(row => row.path === 'design-system/neuro-mini-ui/src/lib.rs'));
   assert.ok(designFiles.every(row => source.files.some(file => file.path === row.path && file.sha256 === row.sha256)));
-  assert.ok(source.files.some(row => row.path === 'native/assets/edit-strip/Settings.svg'));
-  assert.ok(source.files.some(row => row.path === 'scripts/export-native-edit-icons.cjs'));
+  const paths = new Set(source.files.map(row => row.path));
+  for (const name of ['native/assets/edit-strip/Settings.svg', 'native/assets/branding/icon.ico',
+    'native/src/tile_outputs.rs', 'native/src/tile_live_wire.rs', 'native/tests/fixtures/wall-media.v1.json']) {
+    assert.ok(paths.has(name), `Missing build input: ${name}`);
+  }
+  assert.ok(!paths.has('scripts/export-native-edit-icons.cjs'));
   const unknown = { ...metadata, packages: [...metadata.packages, { name: 'unknown-local', version: '1.0.0', source: null }] };
   assert.throws(() => snapshot(repo, unknown), /Uninventoried local/);
   const registry = path.join(process.env.CARGO_HOME || path.join(process.env.USERPROFILE, '.cargo'), 'registry/src');
