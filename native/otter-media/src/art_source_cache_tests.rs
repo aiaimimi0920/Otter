@@ -25,9 +25,16 @@ impl Drop for Fixture {
 }
 fn root() -> Fixture {
     let id = unsafe { windows::Win32::System::Com::CoCreateGuid() }.unwrap();
-    let temporary = Path::new(r"\\?\C:\Users\Public\nas_home\AI\GameEditor\linshi");
-    assert_eq!(temporary.canonicalize().unwrap(), temporary);
-    let base = temporary.join("otter-art-source-cache-tests");
+    let native = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .canonicalize()
+        .unwrap();
+    // Keep disposable fixtures in this checkout, independent of developer-machine paths.
+    let base = native
+        .join("target")
+        .join("test-fixtures")
+        .join("otter-art-source-cache-tests");
     std::fs::create_dir_all(&base).unwrap();
     assert_eq!(base.canonicalize().unwrap(), base);
     let path = base.join(format!("store-{id:?}"));
