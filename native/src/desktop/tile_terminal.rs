@@ -56,6 +56,8 @@ pub fn run(command: Command) -> Result<()> {
     else {
         unreachable!()
     };
+    super::settings_startup::resolve_in_profile(None, false, profile.as_deref())?
+        .install_language()?;
     let name = format!(
         "Local\\Otter.Native.Tile.{}",
         output.as_deref().unwrap_or("control")
@@ -149,8 +151,12 @@ fn output_run(id: &str, origin: &str, profile: Option<&Path>) -> Result<()> {
         }
         match output.tick(&mut owner, origin, profile) {
             Ok(output::Status::Running) => status.hide(),
-            Ok(output::Status::Waiting) => status.show("Otter Tile · 等待显示器"),
-            Ok(output::Status::Draining) => status.show("Otter Tile · 正在回收输出"),
+            Ok(output::Status::Waiting) => {
+                status.show(crate::ui_text::text("integration-tile-wait-display"))
+            }
+            Ok(output::Status::Draining) => {
+                status.show(crate::ui_text::text("integration-tile-draining"))
+            }
             Ok(output::Status::Stopped) => break,
             Err(e) => {
                 error = Some(e);

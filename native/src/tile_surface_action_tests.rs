@@ -208,7 +208,7 @@ fn queue_is_bounded_by_count_bytes_and_expiry_including_held_cancels() {
     }
     assert!(!q.offer(f.commands(), now));
     assert!(q.take(&f.state, now + Duration::from_secs(2)).is_none());
-    assert_eq!(q.notice, "Art操作已过期");
+    assert_eq!(q.notice, "tile-art-action-expired");
     let mut c = f.commands().pop().unwrap();
     let mut snapshot = crate::tile_surface_wire::Snapshot {
         revision: 1,
@@ -221,7 +221,7 @@ fn queue_is_bounded_by_count_bytes_and_expiry_including_held_cancels() {
     snapshot.images.insert("node".into(), "resource".into());
     c.anchor.snapshot = Arc::new(snapshot);
     assert!(!q.offer(vec![c], now));
-    assert_eq!(q.notice, "Art操作内存预算不足");
+    assert_eq!(q.notice, "tile-art-action-memory");
     let mut c = f.commands().pop().unwrap();
     c.kind = Kind::Cancel {
         request: "request".into(),
@@ -273,7 +273,7 @@ fn pending_waits_per_instance_new_failure_clears_only_its_successors_and_unknown
     assert!(q.offer(f.commands(), now));
     q.failed("art");
     assert!(q.take(&f.state, now).is_none());
-    assert_eq!(q.notice, "Art操作未确认；未重放");
+    assert_eq!(q.notice, "tile-art-action-unknown");
 }
 #[test]
 fn confirmation_needs_our_ack_complete_prompt_device_and_current_view() {

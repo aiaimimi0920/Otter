@@ -6,27 +6,31 @@ mod continuation;
 #[test]
 fn batch_dialog_choice_and_cancel_preserve_prompt_and_owner_until_explicit_preparation() {
     let _com = Apartment::new();
+    let _language = LanguageReset(ui_text::current_language());
     let mut grant = grant();
     let mut window = active_window(&mut grant);
     let receipt = waiting(&mut window);
-    for choice in [None, Some(Choice::Approve), Some(Choice::Reject)] {
-        assert_eq!(
-            window
-                .prompt_batch_choice_with(
-                    &receipt,
-                    0,
-                    || Ok(0),
-                    |text| {
-                        assert!(text.contains("风险：高"));
-                        Ok(choice)
-                    }
-                )
-                .unwrap(),
-            choice
-        );
-        assert!(receipt.confirmation_ready(0, 0));
-        assert_eq!(receipt.events.len(), 2);
-        assert!(window.lifecycle().unwrap().confirmed_active());
+    for language in DisplayLanguage::ALL {
+        ui_text::set_language(language);
+        for choice in [None, Some(Choice::Approve), Some(Choice::Reject)] {
+            assert_eq!(
+                window
+                    .prompt_batch_choice_with(
+                        &receipt,
+                        0,
+                        || Ok(0),
+                        |text| {
+                            assert_high_risk_confirmation(text);
+                            Ok(choice)
+                        }
+                    )
+                    .unwrap(),
+                choice
+            );
+            assert!(receipt.confirmation_ready(0, 0));
+            assert_eq!(receipt.events.len(), 2);
+            assert!(window.lifecycle().unwrap().confirmed_active());
+        }
     }
 }
 #[test]

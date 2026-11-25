@@ -173,7 +173,10 @@ impl Application {
             Ok(true) => return,
             Ok(false) => {}
             Err(error) => {
-                self.account_status(&format!("账号恢复记录核对失败：{error}"));
+                self.account_status(&crate::ui_text::format(
+                    "app-account-recovery-check-failed",
+                    &[("error", error.to_string().into())],
+                ));
                 self.account_projection.due = Some(Instant::now() + Duration::from_secs(5));
                 return;
             }

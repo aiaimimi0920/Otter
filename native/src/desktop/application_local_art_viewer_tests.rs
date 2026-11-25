@@ -50,7 +50,10 @@ fn local_art_viewer_menu_proof_is_stable_and_stale_selection_cannot_start_networ
             panic!("stale native host must not load network configuration")
         });
         assert!(app.remote_sessions.viewers().is_empty());
-        assert!(app.authorization.borrow().live.status.contains("已变化"));
+        assert_eq!(
+            app.authorization.borrow().live.status,
+            crate::ui_text::text("app-live-viewing-host-changed")
+        );
         settle_local(&mut app, (0, 0));
     }
 }

@@ -30,7 +30,7 @@ pub(super) unsafe fn show(hwnd: HWND, state: &State) {
     else {
         MessageBoxW(
             Some(hwnd),
-            w!("序号半径必须为 8–999 图像像素，原设置未修改。"),
+            &windows::core::HSTRING::from(crate::ui_text::text("action-serial-radius")),
             w!("Otter"),
             MB_OK | MB_ICONERROR,
         );

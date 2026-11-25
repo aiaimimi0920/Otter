@@ -9,6 +9,7 @@ pub mod brush_dynamics;
 pub mod brush_reduction;
 pub mod byte_budget;
 pub mod crop_geometry;
+pub mod display_language;
 pub mod emergency_exit;
 pub mod erase;
 pub mod erase_layers;

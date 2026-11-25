@@ -68,7 +68,28 @@ pub(super) unsafe fn refresh(state: &State) {
     );
     drop(session);
     drop(c);
-    if let Err(e) = neuro_mini_ui::set_properties(panel, context, fields, enabled) {
+    let captions = super::property_panel_captions::Captions::new(fields.iter());
+    let result = (|| -> Result<()> {
+        neuro_mini_ui::set_properties(panel, context, fields, enabled)?;
+        let (Some(owner), Some(root)) = (
+            neuro_mini_ui::owner(panel),
+            neuro_mini_ui::property_window(panel),
+        ) else {
+            return Ok(());
+        };
+        captions.sync(root, owner, || {
+            state.lifetime.owns(owner)
+                && state.tool_panel.get() == panel
+                && neuro_mini_ui::owner(panel) == Some(owner)
+                && neuro_mini_ui::property_window(panel) == Some(root)
+                && state
+                    .edit_properties
+                    .try_borrow()
+                    .is_ok_and(|s| s.context == context)
+        })?;
+        Ok(())
+    })();
+    if let Err(e) = result {
         eprintln!("native-edit-properties-refresh: {e}");
     }
 }

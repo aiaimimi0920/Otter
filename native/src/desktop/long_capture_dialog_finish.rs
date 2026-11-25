@@ -56,7 +56,7 @@ pub(super) unsafe fn request(hwnd: HWND, input: &Input) {
     }
     if input.job.borrow().is_pending() {
         waiting(hwnd, input);
-        status(hwnd, "已停止后续滚动，等待当前任务后完成");
+        status(hwnd, crate::ui_text::text("long-capture-finish-wait"));
     } else {
         compose(hwnd, input);
     }
@@ -66,11 +66,11 @@ pub(super) unsafe fn compose(hwnd: HWND, input: &Input) {
     let result = input.job.borrow_mut().compose();
     if result.is_ok() {
         waiting(hwnd, input);
-        status(hwnd, "正在拼接长截图…");
+        status(hwnd, crate::ui_text::text("long-capture-stitching"));
     } else {
         input.finish.retry();
         controls(hwnd, input, false);
-        status(hwnd, "无法启动长截图拼接，请重试或取消");
+        status(hwnd, crate::ui_text::text("long-capture-stitch-failed"));
     }
 }
 pub(super) fn completed(input: &Input, completion: &Completion, covered: bool) -> bool {

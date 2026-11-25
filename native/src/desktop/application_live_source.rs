@@ -47,9 +47,12 @@ impl Application {
             }) {
                 source.publication_phase(phase);
             }
-            self.authorization.borrow_mut().live.status = format!(
-                "Live 发布已结束：{:?} / {:?}",
-                event.outcome.exit, event.outcome.cleanup
+            self.authorization.borrow_mut().live.status = crate::ui_text::format(
+                "app-live-publication-ended",
+                &[
+                    ("outcome", format!("{:?}", event.outcome.exit).into()),
+                    ("cleanup", format!("{:?}", event.outcome.cleanup).into()),
+                ],
             );
         }
         let live_count = self.live_sessions.len();
@@ -85,21 +88,30 @@ impl Application {
                     || !source.is_alive()
                     || !source.belongs_to(&self.workspace)
                 {
-                    return Err("应用或 Live 源正在切换，未发布".into());
+                    return Err(crate::ui_text::text("app-live-publish-switching").into());
                 }
                 if status.is_some() {
-                    return Err("此 Live 已有发布任务".into());
+                    return Err(crate::ui_text::text("app-live-already-publishing").into());
                 }
                 if !super::live::fits_wait_budget(live_count, self.surface_windows.wait_budget()) {
-                    return Err("窗口等待容量已满".into());
+                    return Err(crate::ui_text::text("app-window-pending-capacity").into());
                 }
-                let origin = origin.as_deref().ok_or("请先连接并授权 Loom")?;
+                let origin = origin
+                    .as_deref()
+                    .ok_or(crate::ui_text::text("app-loom-authorization-required"))?;
                 let now = crate::desktop::surface_windows::now_ms().map_err(|e| e.to_string())?;
-                let lease = self
-                    .authorization_owner
-                    .lease(origin, now)
-                    .map_err(|e| format!("请先获取有效授权：{e:?}"))?;
-                let config = config(origin).map_err(|e| format!("配置无效：{e:?}"))?;
+                let lease = self.authorization_owner.lease(origin, now).map_err(|e| {
+                    crate::ui_text::format(
+                        "app-authorization-required-detail",
+                        &[("error", format!("{e:?}").into())],
+                    )
+                })?;
+                let config = config(origin).map_err(|e| {
+                    crate::ui_text::format(
+                        "app-configuration-invalid-detail",
+                        &[("error", format!("{e:?}").into())],
+                    )
+                })?;
                 let recipient = if matches!(publish, Request::PublishDirect) {
                     let directory = self
                         .authorization
@@ -108,8 +120,12 @@ impl Application {
                         .directory
                         .clone()
                         .filter(|directory| directory.origin() == origin)
-                        .ok_or("请先刷新投送目标")?;
-                    let hwnd = source.publication_window().ok_or("Live 源已关闭")?;
+                        .ok_or(crate::ui_text::text(
+                            "app-projection-targets-refresh-required",
+                        ))?;
+                    let hwnd = source
+                        .publication_window()
+                        .ok_or(crate::ui_text::text("app-live-source-closed"))?;
                     let selected = {
                         let flag = std::rc::Rc::new(std::cell::Cell::new(false));
                         self.modals.register(&flag);
@@ -136,7 +152,7 @@ impl Application {
                         || lease.is_revoked()
                         || source.publication_window() != Some(hwnd)
                     {
-                        return Err("Live 来源、目标目录或当前设备授权已变化".into());
+                        return Err(crate::ui_text::text("app-live-publication-changed").into());
                     }
                     Some(recipient)
                 } else {
@@ -144,19 +160,28 @@ impl Application {
                 };
                 let (mut publication, consumer) = source.source_publication()?;
                 if let Some(recipient) = recipient {
-                    publication
-                        .allow_direct_viewer(recipient)
-                        .map_err(|e| format!("投射目标无效：{e:?}"))?;
+                    publication.allow_direct_viewer(recipient).map_err(|e| {
+                        crate::ui_text::format(
+                            "app-projection-target-invalid",
+                            &[("error", format!("{e:?}").into())],
+                        )
+                    })?;
                 }
                 let observation = if matches!(publish, Request::PublishObservations) {
                     let target = source.observation_target()?;
-                    publication
-                        .allow_observation()
-                        .map_err(|e| format!("观察发布无效：{e:?}"))?;
-                    let observation_lease = self
-                        .authorization_owner
-                        .lease(origin, now)
-                        .map_err(|e| format!("观察授权不可用：{e:?}"))?;
+                    publication.allow_observation().map_err(|e| {
+                        crate::ui_text::format(
+                            "app-observation-publication-invalid",
+                            &[("error", format!("{e:?}").into())],
+                        )
+                    })?;
+                    let observation_lease =
+                        self.authorization_owner.lease(origin, now).map_err(|e| {
+                            crate::ui_text::format(
+                                "app-observation-authorization-unavailable",
+                                &[("error", format!("{e:?}").into())],
+                            )
+                        })?;
                     Some(crate::live_relay_source_runtime::Observation::new(
                         observation_lease,
                         target,
@@ -166,15 +191,21 @@ impl Application {
                 };
                 let interaction = if matches!(publish, Request::PublishInteractive) {
                     if !source.remote_input_allowed() {
-                        return Err("来源不支持远程控制，或原控制尚未回收".into());
+                        return Err(crate::ui_text::text("app-live-control-unavailable").into());
                     }
-                    publication
-                        .allow_interaction()
-                        .map_err(|e| format!("控制发布无效：{e:?}"))?;
-                    let control_lease = self
-                        .authorization_owner
-                        .lease(origin, now)
-                        .map_err(|e| format!("控制授权不可用：{e:?}"))?;
+                    publication.allow_interaction().map_err(|e| {
+                        crate::ui_text::format(
+                            "app-control-publication-invalid",
+                            &[("error", format!("{e:?}").into())],
+                        )
+                    })?;
+                    let control_lease =
+                        self.authorization_owner.lease(origin, now).map_err(|e| {
+                            crate::ui_text::format(
+                                "app-control-authorization-unavailable",
+                                &[("error", format!("{e:?}").into())],
+                            )
+                        })?;
                     let bridge = source.reserve_remote_input()?;
                     Some(crate::live_relay_source_runtime::Interaction::new(
                         control_lease,
@@ -211,7 +242,7 @@ impl Application {
                 Err(_) => Phase::Failed,
             });
             self.authorization.borrow_mut().live.status = match result {
-                Ok(true) => "正在发布 Live…".into(),
+                Ok(true) => crate::ui_text::text("app-live-publishing").into(),
                 Ok(false) => String::new(),
                 Err(error) => error,
             };

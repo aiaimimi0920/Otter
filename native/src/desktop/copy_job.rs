@@ -240,7 +240,7 @@ pub(super) unsafe fn start_guarded_at(
         return;
     }
     if SetTimer(Some(hwnd), TIMER, 50, None) == 0 {
-        report(hwnd, "无法调度复制任务，剪贴板未修改。");
+        report(hwnd, crate::ui_text::text("action-copy-unavailable"));
         return;
     }
     let prepared = prepare_with_plan(
@@ -406,7 +406,10 @@ unsafe fn poll_guarded(
 unsafe fn report(hwnd: HWND, message: &str) {
     MessageBoxW(
         Some(hwnd),
-        &HSTRING::from(format!("复制未完成。\n{message}")),
+        &HSTRING::from(crate::ui_text::format(
+            "action-copy-failed",
+            &[("error", message.into())],
+        )),
         w!("Otter"),
         MB_OK | MB_ICONWARNING,
     );

@@ -112,7 +112,7 @@ pub(super) unsafe fn append_menu(menu: HMENU, state: &State, view: &super::View)
                     MF_GRAYED
                 },
             INITIALIZE,
-            w!("启用 / 恢复源端协作标注"),
+            &windows::core::HSTRING::from(crate::ui_text::text("integration-enable-source-edits")),
         )?;
     }
     if state.projection_edit.borrow().is_none() {
@@ -124,13 +124,21 @@ pub(super) unsafe fn append_menu(menu: HMENU, state: &State, view: &super::View)
         menu,
         MF_STRING | if selectable { MF_ENABLED } else { MF_GRAYED },
         SUBMIT,
-        w!("提交 / 重试协作修改"),
+        &windows::core::HSTRING::from(crate::ui_text::text("integration-submit-edits")),
     )?;
     let owner = state.projection_edit.borrow();
     let snapshot = owner.as_ref().unwrap().authoritative();
     for (id, mode, label) in [
-        (ONE_WAY, crate::projection_edit::Mode::OneWay, "单向数据"),
-        (TWO_WAY, crate::projection_edit::Mode::TwoWay, "双向数据"),
+        (
+            ONE_WAY,
+            crate::projection_edit::Mode::OneWay,
+            crate::ui_text::text("integration-one-way"),
+        ),
+        (
+            TWO_WAY,
+            crate::projection_edit::Mode::TwoWay,
+            crate::ui_text::text("integration-two-way"),
+        ),
     ] {
         let enabled = selectable
             && snapshot.role() == crate::projection_edit::workspace::Role::Source
@@ -150,8 +158,14 @@ pub(super) unsafe fn append_menu(menu: HMENU, state: &State, view: &super::View)
     }
     if snapshot.conflict().is_some() {
         for (id, label) in [
-            (KEEP_LOCAL, "保留本地协作修改"),
-            (USE_REMOTE, "采用远端协作标注"),
+            (
+                KEEP_LOCAL,
+                crate::ui_text::text("integration-keep-local-edits"),
+            ),
+            (
+                USE_REMOTE,
+                crate::ui_text::text("integration-use-remote-edits"),
+            ),
         ] {
             let enabled = selectable
                 && (id != KEEP_LOCAL
@@ -170,7 +184,14 @@ pub(super) unsafe fn append_menu(menu: HMENU, state: &State, view: &super::View)
 unsafe fn append_status(menu: HMENU, state: &State, view: &super::View) -> Result<()> {
     if view.editing.unit.as_ref() == Some(&state.unit_id) {
         if view.editing.busy {
-            AppendMenuW(menu, MF_STRING, CANCEL, w!("取消当前协作提交"))?;
+            AppendMenuW(
+                menu,
+                MF_STRING,
+                CANCEL,
+                &windows::core::HSTRING::from(crate::ui_text::text(
+                    "integration-cancel-edit-submit",
+                )),
+            )?;
         }
         if !view.editing.status.is_empty() {
             AppendMenuW(

@@ -5,7 +5,7 @@ use super::{configuration_stamp::Stamp, State};
 mod commit;
 use serde_json::Value;
 #[cfg(test)]
-use windows::core::{w, HSTRING};
+use windows::core::HSTRING;
 use windows::{
     core::Result,
     Win32::{Foundation::*, UI::WindowsAndMessaging::*},
@@ -22,7 +22,10 @@ fn edit_label(label: &str, value: &str, linked: bool) -> String {
         .map(|c| if c.is_control() { ' ' } else { c })
         .take(64)
         .collect();
-    format!("{label}：{preview}（连线）")
+    crate::ui_text::format(
+        "integration-linked-parameter",
+        &[("label", label.into()), ("preview", preview.into())],
+    )
 }
 fn reset_value(parameter: &crate::loom_capability::Parameter<'_>) -> Option<Option<Value>> {
     if parameter.secret {
@@ -143,7 +146,10 @@ impl Snapshot {
                 choices.push(Choice {
                     action: Action::File,
                     id: parameter.id.into(),
-                    label: format!("{}：选择文件…", parameter.label),
+                    label: crate::ui_text::format(
+                        "integration-choose-parameter-file",
+                        &[("label", parameter.label.into())],
+                    ),
                     checked: false,
                     enabled,
                 });
@@ -161,7 +167,10 @@ impl Snapshot {
                     choices.push(Choice {
                         action: Action::Set(Value::String(String::new())),
                         id: parameter.id.into(),
-                        label: format!("{}：清空颜色", parameter.label),
+                        label: crate::ui_text::format(
+                            "integration-clear-parameter-color",
+                            &[("label", parameter.label.into())],
+                        ),
                         checked: false,
                         enabled,
                     });
@@ -208,9 +217,9 @@ impl Snapshot {
                     "{}：{}",
                     parameter.label,
                     if disabled {
-                        "启用参数"
+                        crate::ui_text::text("integration-enable-parameter")
                     } else {
-                        "禁用参数"
+                        crate::ui_text::text("integration-disable-parameter")
                     }
                 ),
                 checked: disabled,
@@ -229,9 +238,9 @@ impl Snapshot {
                     "{}：{}",
                     parameter.label,
                     if matches!(parameter.widget.as_str(), "file" | "image_link") {
-                        "清空图片"
+                        crate::ui_text::text("integration-clear-image")
                     } else {
-                        "恢复默认值"
+                        crate::ui_text::text("integration-restore-default")
                     }
                 ),
                 checked: false,
@@ -272,7 +281,12 @@ impl Snapshot {
                 &HSTRING::from(label.replace('&', "&&")),
             )?;
         }
-        AppendMenuW(parent, MF_POPUP, menu.0 .0 as usize, w!("编辑参数"))?;
+        AppendMenuW(
+            parent,
+            MF_POPUP,
+            menu.0 .0 as usize,
+            &windows::core::HSTRING::from(crate::ui_text::text("integration-edit-parameters")),
+        )?;
         std::mem::forget(menu);
         Ok(())
     }

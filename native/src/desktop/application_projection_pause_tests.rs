@@ -50,7 +50,10 @@ fn receive_policy_pause_write_conflict_invalidates_old_work_without_overwriting_
     assert!(!consent.participates(&old));
     assert_eq!(consent.policy(), Policy::Confirm);
     assert_eq!(std::fs::read(path(&root)).unwrap(), b"competitor");
-    assert_eq!(consent.status, "保存接收策略失败");
+    assert_eq!(
+        consent.status,
+        crate::ui_text::text("app-projection-policy-save-failed")
+    );
     let mut reopened = Owner::load(&root, &AtomicBool::new(false));
     reopened.poll(&mut consent);
     assert!(consent.paused());

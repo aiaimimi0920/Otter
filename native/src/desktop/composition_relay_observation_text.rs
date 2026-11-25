@@ -6,7 +6,12 @@ use crate::{
 };
 use std::fmt::Write;
 pub(super) const MAX_TEXT: usize = 128 * 1024;
-const END: &str = "\r\n…已达显示上限\r\n";
+fn end() -> String {
+    format!(
+        "\r\n{}\r\n",
+        crate::ui_text::text("integration-display-limit")
+    )
+}
 
 #[derive(Default)]
 struct Text {
@@ -19,7 +24,12 @@ impl Text {
         if self.truncated {
             return;
         }
-        let left = MAX_TEXT - END.encode_utf16().count() - self.units;
+        let left = MAX_TEXT
+            - crate::ui_text::text("integration-display-limit")
+                .encode_utf16()
+                .count()
+            - 4
+            - self.units;
         if left < 2 {
             self.truncated = true;
             return;
@@ -49,55 +59,61 @@ fn clean(value: &str, limit: usize) -> String {
         }
     }
     if chars.next().is_some() {
-        result.push_str("…[已截断]");
+        result.push_str(crate::ui_text::text("integration-truncated"));
     }
     result
 }
 fn state(value: State) -> &'static str {
     match value {
-        State::Unknown => "未知",
-        State::Detected => "已检测",
-        State::Observing => "观察中",
-        State::Stable => "稳定",
-        State::Triggered => "已触发",
-        State::Stale => "过期",
-        State::Error => "错误",
+        State::Unknown => crate::ui_text::text("integration-unknown"),
+        State::Detected => crate::ui_text::text("integration-detected"),
+        State::Observing => crate::ui_text::text("integration-observing"),
+        State::Stable => crate::ui_text::text("integration-stable"),
+        State::Triggered => crate::ui_text::text("integration-triggered"),
+        State::Stale => crate::ui_text::text("integration-stale"),
+        State::Error => crate::ui_text::text("integration-error"),
     }
 }
 fn source(value: Source) -> &'static str {
     match value {
         Source::UiAutomation => "UIA",
-        Source::AppAdapter => "应用适配器",
-        Source::Vision => "视觉",
-        Source::Unknown => "未知",
+        Source::AppAdapter => crate::ui_text::text("integration-application-adapter"),
+        Source::Vision => crate::ui_text::text("integration-vision"),
+        Source::Unknown => crate::ui_text::text("integration-unknown"),
     }
 }
 fn confidence(value: Confidence) -> &'static str {
     match value {
-        Confidence::Exact => "精确",
-        Confidence::High => "高",
-        Confidence::Medium => "中",
-        Confidence::Low => "低",
+        Confidence::Exact => crate::ui_text::text("integration-exact"),
+        Confidence::High => crate::ui_text::text("integration-risk-high"),
+        Confidence::Medium => crate::ui_text::text("integration-risk-medium"),
+        Confidence::Low => crate::ui_text::text("integration-risk-low"),
     }
 }
 pub(super) fn render(business: Option<&Business>) -> String {
     let Some(b) = business else {
-        return "等待已授权观察快照\r\n".into();
+        return format!(
+            "{}\r\n",
+            crate::ui_text::text("integration-await-observation")
+        );
     };
     let mut text = Text::default();
     let summary = match b.capabilities().summarize(b.observations()) {
-        Summary::Unsupported => "不支持",
-        Summary::Error(_) => "错误",
-        Summary::Observing => "观察中",
-        Summary::Stable => "稳定",
-        Summary::Stale => "过期",
+        Summary::Unsupported => crate::ui_text::text("integration-unsupported"),
+        Summary::Error(_) => crate::ui_text::text("integration-error"),
+        Summary::Observing => crate::ui_text::text("integration-observing"),
+        Summary::Stable => crate::ui_text::text("integration-stable"),
+        Summary::Stale => crate::ui_text::text("integration-stale"),
     };
-    text.line(&format!(
-        "观察：{summary} · {} 项 · 触发注册 {} 项",
-        b.observations().iter().count(),
-        b.registrations().len()
+    text.line(&crate::ui_text::format(
+        "integration-observation-summary",
+        &[
+            ("summary", summary.into()),
+            ("count", b.observations().iter().count().into()),
+            ("registrations", b.registrations().len().into()),
+        ],
     ));
-    text.line("[观察]");
+    text.line(crate::ui_text::text("integration-observations-heading"));
     for o in b.observations().iter() {
         if text.truncated {
             break;
@@ -110,12 +126,18 @@ pub(super) fn render(business: Option<&Business>) -> String {
             confidence(o.confidence),
             o.sequence
         ));
-        text.line(&format!(
-            "  采样 {} ms · 稳定起点 {}",
-            o.observed_at_ms,
-            o.stable_since_ms
-                .map(|n| format!("{n} ms"))
-                .unwrap_or_else(|| "—".into())
+        text.line(&crate::ui_text::format(
+            "integration-observation-timing",
+            &[
+                ("sample", o.observed_at_ms.into()),
+                (
+                    "stable",
+                    o.stable_since_ms
+                        .map(|n| format!("{n} ms"))
+                        .unwrap_or_else(|| "—".into())
+                        .into(),
+                ),
+            ],
         ));
         if let Some(locator) = &o.locator {
             text.line(&format!(
@@ -127,13 +149,19 @@ pub(super) fn render(business: Option<&Business>) -> String {
         }
         if let Some(value) = &o.value {
             // Each validated value is at most 64 KiB; display at most 512 characters per value, with a separate whole-window UTF-16 gate.
-            text.line(&format!("  值：{}", clean(&value.to_string(), 512)));
+            text.line(&crate::ui_text::format(
+                "integration-observation-value",
+                &[("value", clean(&value.to_string(), 512).into())],
+            ));
         }
         if let Some(reason) = &o.reason {
-            text.line(&format!("  原因：{}", clean(reason, 256)));
+            text.line(&crate::ui_text::format(
+                "integration-observation-reason",
+                &[("reason", clean(reason, 256).into())],
+            ));
         }
     }
-    text.line("[触发注册 · 最近确认快照]");
+    text.line(crate::ui_text::text("integration-trigger-registry-heading"));
     for r in b.registrations() {
         if text.truncated {
             break;
@@ -143,18 +171,26 @@ pub(super) fn render(business: Option<&Business>) -> String {
             clean(&r.binding.binding_id, 160),
             clean(&r.binding.observation_id, 160),
             if r.binding.enabled {
-                "启用"
+                crate::ui_text::text("integration-enabled")
             } else {
-                "禁用"
+                crate::ui_text::text("integration-disabled")
             },
             r.condition.revision
         ));
-        text.line(&format!(
-            "  {:?} {} · 稳定 {} ms · 最低置信度 {}",
-            r.condition.operator,
-            clean(&r.condition.operand.to_string(), 256),
-            r.condition.stable_for_ms,
-            confidence(r.condition.minimum_confidence)
+        text.line(&crate::ui_text::format(
+            "integration-observation-condition",
+            &[
+                ("operator", format!("{:?}", r.condition.operator).into()),
+                (
+                    "operand",
+                    clean(&r.condition.operand.to_string(), 256).into(),
+                ),
+                ("stable", r.condition.stable_for_ms.into()),
+                (
+                    "confidence",
+                    confidence(r.condition.minimum_confidence).into(),
+                ),
+            ],
         ));
         text.line(&format!(
             "  armed={} · lastMatch={} · pendingOfflineMatch={} · risingEdge={} · rearm={}",
@@ -164,17 +200,25 @@ pub(super) fn render(business: Option<&Business>) -> String {
             r.condition.rising_edge,
             r.condition.rearm
         ));
-        text.line(&format!(
-            "  目标：{} / {} / {} / {} / {}",
-            clean(&r.target.surface_instance_id, 160),
-            clean(&r.target.surface_attachment_id, 160),
-            clean(&r.target.surface_node_id, 160),
-            clean(&r.target.surface_event, 160),
-            clean(&r.target.surface_action, 160)
+        text.line(&crate::ui_text::format(
+            "integration-observation-target",
+            &[
+                ("instance", clean(&r.target.surface_instance_id, 160).into()),
+                (
+                    "attachment",
+                    clean(&r.target.surface_attachment_id, 160).into(),
+                ),
+                ("node", clean(&r.target.surface_node_id, 160).into()),
+                ("event", clean(&r.target.surface_event, 160).into()),
+                ("action", clean(&r.target.surface_action, 160).into()),
+            ],
         ));
     }
     let count = b.audits().iter().count();
-    text.line(&format!("[触发记录 · 最近 {} / {count} 项]", count.min(16)));
+    text.line(&crate::ui_text::format(
+        "integration-observation-audits",
+        &[("recent", count.min(16).into()), ("count", count.into())],
+    ));
     for a in b.audits().iter().skip(count.saturating_sub(16)) {
         if text.truncated {
             break;
@@ -184,11 +228,11 @@ pub(super) fn render(business: Option<&Business>) -> String {
                 if a.action_request_id.is_none()
                     && a.reason.as_deref() == Some("surface_action_dispatch_reserved") =>
             {
-                "派发中"
+                crate::ui_text::text("integration-dispatching")
             }
-            Outcome::Fired => "已触发",
-            Outcome::Skipped => "已跳过",
-            Outcome::Failed => "失败",
+            Outcome::Fired => crate::ui_text::text("integration-triggered"),
+            Outcome::Skipped => crate::ui_text::text("integration-skipped"),
+            Outcome::Failed => crate::ui_text::text("integration-failed"),
         };
         text.line(&format!(
             "{} · {} · {} / #{} · {} ms",
@@ -205,14 +249,20 @@ pub(super) fn render(business: Option<&Business>) -> String {
             clean(&a.idempotency_key, 160)
         ));
         if let Some(reason) = &a.reason {
-            text.line(&format!("  原因：{}", clean(reason, 256)));
+            text.line(&crate::ui_text::format(
+                "integration-observation-reason",
+                &[("reason", clean(reason, 256).into())],
+            ));
         }
         if let Some(request) = &a.action_request_id {
-            text.line(&format!("  请求：{}", clean(request, 160)));
+            text.line(&crate::ui_text::format(
+                "integration-observation-request",
+                &[("request", clean(request, 160).into())],
+            ));
         }
     }
     if text.truncated {
-        text.value.push_str(END);
+        text.value.push_str(&end());
     }
     text.value
 }

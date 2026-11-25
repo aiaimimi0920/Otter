@@ -73,7 +73,7 @@ pub(super) fn run(
         .tiles
         .iter()
         .find(|t| t.endpoint_id == job.key.endpoint)
-        .ok_or("输出未分配")?;
+        .ok_or("tile-output-unassigned")?;
     let mut kinds = BTreeMap::new();
     for p in job
         .layout
@@ -85,7 +85,7 @@ pub(super) fn run(
             .insert(p.source.id.clone(), p.source.kind.clone())
             .is_some_and(|k| k != p.source.kind)
         {
-            return Err("可见来源身份冲突");
+            return Err("tile-source-identity-conflict");
         }
     }
     let ids: BTreeSet<_> = kinds
@@ -110,7 +110,7 @@ pub(super) fn run(
         .filter(|p| p.source.kind == "surface" && tile.rect.intersects(&p.rect))
         .count();
     if ids.len() > 16 || live.len() > MAX_LIVE || art.len() > 4 || art_placements > 16 {
-        return Err("可见来源数量超限");
+        return Err("tile-source-count-limit");
     }
     cache.retain(|k, _| ids.contains(k));
     for id in ids {
@@ -120,11 +120,11 @@ pub(super) fn run(
         if !cache.contains_key(&id) {
             let image = lease
                 .control(client)
-                .map_err(|_| "设备授权失效")?
+                .map_err(|_| "tile-authorization-invalid")?
                 .wall_image(&job.key.endpoint, &job.key.lease, job.key.revision, &id)
-                .map_err(|_| "图片读取或校验失败")?;
+                .map_err(|_| "tile-image-read-failed")?;
             if pixels(cache.values()) + area(&image) > crate::tile_wire::MAX_PIXELS {
-                return Err("可见图片像素预算不足");
+                return Err("tile-image-pixel-budget");
             }
             cache.insert(id, image);
         }
@@ -210,7 +210,7 @@ pub(super) fn run(
             }
         }
         if total_pixels > crate::tile_wire::MAX_PIXELS {
-            return Err("可见内容像素预算不足");
+            return Err("tile-content-pixel-budget");
         }
         if complete {
             shared.publish_candidate(
@@ -226,7 +226,7 @@ pub(super) fn run(
                 prepared.as_ref(),
             );
         } else {
-            shared.unavailable(job.generation, &job.key, "正在等待完整内容");
+            shared.unavailable(job.generation, &job.key, "tile-content-waiting");
         }
         if (connections.streams.is_empty() && art.is_empty())
             || !shared.wait(Duration::from_millis(16))

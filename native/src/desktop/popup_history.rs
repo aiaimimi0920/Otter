@@ -44,7 +44,7 @@ impl History {
         separator.separator = true;
         tree.push(separator);
         let index = tree.len();
-        let mut parent = row(0, "剪贴板".into(), true);
+        let mut parent = row(0, crate::ui_text::text("clipboard-history").into(), true);
         parent.children = Some(vec![status(State::Loading)]);
         tree.push(parent);
         index
@@ -158,24 +158,27 @@ fn row(command: usize, label: String, enabled: bool) -> Item {
 fn status(state: State) -> Item {
     row(
         0,
-        match state {
-            State::DeleteFailed => "删除失败，请重新打开后重试",
-            State::Loading => "正在读取历史…",
-            State::Empty => "没有可用的历史内容",
-            State::Disabled => "Windows 剪贴板历史未启用",
-            State::Denied => "Windows 拒绝访问剪贴板历史",
-            State::Unavailable => "暂时无法读取剪贴板历史",
-            State::Ready => "没有可用的历史内容",
-        }
+        crate::ui_text::text(match state {
+            State::DeleteFailed => "clipboard-delete-failed",
+            State::Loading => "clipboard-loading",
+            State::Empty => "clipboard-empty",
+            State::Disabled => "clipboard-disabled",
+            State::Denied => "clipboard-denied",
+            State::Unavailable => "clipboard-unavailable",
+            State::Ready => "clipboard-empty",
+        })
         .into(),
         false,
     )
 }
 fn label(content: &Content) -> String {
     match content {
-        Content::Bitmap { width, height, .. } => format!("图片 {width} × {height}"),
+        Content::Bitmap { width, height, .. } => crate::ui_text::format(
+            "clipboard-image-size",
+            &[("width", (*width).into()), ("height", (*height).into())],
+        ),
         Content::Text(text) => {
-            let mut preview = String::from("文字：");
+            let mut preview = String::new();
             for ch in text.chars().take(64) {
                 match ch {
                     '&' => preview.push_str("&&"),
@@ -186,7 +189,7 @@ fn label(content: &Content) -> String {
             if text.chars().nth(64).is_some() {
                 preview.push('…');
             }
-            preview
+            crate::ui_text::format("clipboard-text-preview", &[("preview", preview.into())])
         }
     }
 }
@@ -225,9 +228,16 @@ mod tests {
     fn preview_cannot_inject_mnemonics_shortcuts_or_unbounded_labels() {
         assert_eq!(
             label(&Content::Text("&A\t中文\nB".into())),
-            "文字：&&A 中文 B"
+            crate::ui_text::format(
+                "clipboard-text-preview",
+                &[("preview", "&&A 中文 B".into())]
+            )
         );
-        assert_eq!(label(&Content::Text("😀".repeat(100))).chars().count(), 68);
+        let bounded = crate::ui_text::format(
+            "clipboard-text-preview",
+            &[("preview", format!("{}…", "😀".repeat(64)).into())],
+        );
+        assert_eq!(label(&Content::Text("😀".repeat(100))), bounded);
     }
     #[test]
     fn placeholder_is_disabled_and_commands_do_not_alias_existing_u32_ids() {
@@ -244,7 +254,10 @@ mod tests {
         assert_eq!(index, 2);
         assert_eq!(items[0].command, 42);
         assert!(items[1].separator);
-        assert_eq!(items[index].label, "剪贴板");
+        assert_eq!(
+            items[index].label,
+            crate::ui_text::text("clipboard-history")
+        );
         assert!(items[index].children.is_some());
     }
     #[test]

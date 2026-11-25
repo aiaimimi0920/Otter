@@ -4,6 +4,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { verifiedSources, verifyResolution, checkedPath } = require('../release/third-party-sources.cjs');
 const design = require('./design-source.cjs');
+const rxing = require('./rxing-source.cjs');
 const hash = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
 const encoded = value => JSON.stringify(value);
 
@@ -23,6 +24,10 @@ function snapshot(root, metadata) {
   const identities = verifiedSources(root);
   verifyResolution(root, identities, metadata);
   const designFiles = design.sourceFiles(root, metadata);
+  const rxingFiles = rxing.sourceFiles(root, metadata);
+  if (metadata.packages.some(p => p.source?.startsWith('git+') && ![design.NAME, rxing.NAME].includes(p.name))) {
+    throw new Error('Uninventoried Git Cargo dependency');
+  }
   const allowedLocal = new Set(['otter-native', 'otter-core', 'otter-media', 'otter-runtime', 'otter-live-hover-hook', ...identities.map(p => p.name)]);
   if (metadata.packages.some(p => p.source == null && !allowedLocal.has(p.name))) {
     throw new Error('Uninventoried local Cargo dependency');
@@ -78,7 +83,7 @@ function snapshot(root, metadata) {
     const bytes = fs.readFileSync(checkedPath(root, name));
     return { path: name, bytes: bytes.length, sha256: hash(bytes) };
   });
-  files.push(...designFiles);
+  files.push(...designFiles, ...rxingFiles);
   files.sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
   return { schemaVersion: 1, kind: 'otter-native-build-inputs',
     buildVersion: `v${version.publicVersion}.${version.internalRevision}`, productVersion: version.publicVersion,

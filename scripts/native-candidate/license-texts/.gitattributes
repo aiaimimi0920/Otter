@@ -1,0 +1,2 @@
+# Preserve reviewed upstream license bytes independently of checkout EOL settings.
+**/LICENSE-* -text

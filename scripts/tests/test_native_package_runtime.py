@@ -25,9 +25,13 @@ class PackageRuntimeTests(unittest.TestCase):
             profile = tomllib.load(source)["profile"]["release"]
         self.assertEqual(profile.get("panic", "unwind"), "unwind")
 
-    def run_probe(self, fault=None):
+    def run_probe(self, fault=None, aliased_root=False):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            if aliased_root:
+                # A real parent traversal reproduces path aliases without 8.3 names or symlink privileges.
+                (root / "alias").mkdir()
+                root = root / "alias" / ".."
             package = root / "package"
             package.mkdir()
             exe = b"isolated unit-test executable placeholder"
@@ -37,7 +41,10 @@ class PackageRuntimeTests(unittest.TestCase):
                 archive.writestr("otter_live_hover_hook.dll", b"test DLL placeholder")
             (package / "archive-verification.json").write_text(
                 json.dumps({"executableSha256": digest}), encoding="utf-8")
-            evidence = root / "evidence"
+            evidence_arg = root / "evidence"
+            evidence = evidence_arg.resolve()
+            if aliased_root:
+                self.assertNotEqual(evidence_arg, evidence)
             calls = []
 
             def run_job(command, work, env, out, err, timeout):
@@ -90,7 +97,7 @@ class PackageRuntimeTests(unittest.TestCase):
 
             spec = SimpleNamespace(loader=SimpleNamespace(exec_module=lambda module: None))
             job = SimpleNamespace(run_job=run_job)
-            argv = ["probe", "--package-dir", str(package), "--evidence-dir", str(evidence)]
+            argv = ["probe", "--package-dir", str(package), "--evidence-dir", str(evidence_arg)]
             with patch("sys.argv", argv), redirect_stdout(io.StringIO()), \
                     patch.dict("os.environ", OTTER_RUNTIME_TEST_SENTINEL="1",
                                LOOM_RUNTIME_TEST_SENTINEL="1"), \
@@ -112,6 +119,9 @@ class PackageRuntimeTests(unittest.TestCase):
 
     def test_isolated_release_probes_accept_only_expected_results(self):
         self.run_probe()
+
+    def test_isolated_release_probes_resolve_input_path_aliases(self):
+        self.run_probe(aliased_root=True)
 
     def test_failed_checks_never_produce_a_success_receipt(self):
         for fault in ("missing-marker", "workspace-write", "image-write", "session-write",

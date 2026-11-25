@@ -54,12 +54,18 @@ impl Snapshot {
             let Action::Edit(spec, _) = &choice.action else {
                 return Ok(false);
             };
-            let value = spec
-                .parse(text)
-                .ok_or_else(|| windows::core::Error::new(E_INVALIDARG, "参数值无效"))?;
-            changed |= candidate
-                .set(&choice.id, Some(value))
-                .map_err(|_| windows::core::Error::new(E_INVALIDARG, "参数值无效"))?;
+            let value = spec.parse(text).ok_or_else(|| {
+                windows::core::Error::new(
+                    E_INVALIDARG,
+                    crate::ui_text::text("parameter-invalid-value"),
+                )
+            })?;
+            changed |= candidate.set(&choice.id, Some(value)).map_err(|_| {
+                windows::core::Error::new(
+                    E_INVALIDARG,
+                    crate::ui_text::text("parameter-invalid-value"),
+                )
+            })?;
         }
         if changed {
             desktop::execution_cancel::request(hwnd, state)?;
@@ -109,7 +115,10 @@ impl Snapshot {
                     return Ok(false);
                 };
                 Some(Some(spec.parse(text).ok_or_else(|| {
-                    windows::core::Error::new(E_INVALIDARG, "参数值无效")
+                    windows::core::Error::new(
+                        E_INVALIDARG,
+                        crate::ui_text::text("parameter-invalid-value"),
+                    )
                 })?))
             }
             None => None,
@@ -140,7 +149,12 @@ impl Snapshot {
             }
             candidate.set(&choice.id, value)
         }
-        .map_err(|_| windows::core::Error::new(E_INVALIDARG, "参数值无效"))?;
+        .map_err(|_| {
+            windows::core::Error::new(
+                E_INVALIDARG,
+                crate::ui_text::text("parameter-invalid-value"),
+            )
+        })?;
         if !changed {
             return Ok(false);
         }

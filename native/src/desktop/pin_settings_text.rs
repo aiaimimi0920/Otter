@@ -22,39 +22,43 @@ pub(super) fn available(state: &State, id: u16) -> bool {
     sticker_extra_text::text(kind(id), &d.store, d.revision(), &d.legacy_text).is_some()
 }
 pub(super) fn fields(feedback: Option<&Feedback>) -> Vec<Field> {
-    [
-        (OCR, "复制 OCR 全文", "原文"),
-        (TRANSLATION, "复制翻译全文", "译文"),
-    ]
-    .into_iter()
-    .map(|(id, label, short)| {
-        let feedback = feedback.filter(|f| f.id == id);
-        Field {
-            id,
-            label,
-            icon: feedback.is_none().then(|| {
-                neuro_mini_ui::Icon::svg(if id == OCR {
-                    include_str!("../../assets/edit-strip/SettingsCopyOcr.svg")
-                } else {
-                    include_str!("../../assets/edit-strip/SettingsCopyTranslation.svg")
-                })
-            }),
-            kind: Kind::Action {
-                value: feedback
-                    .map_or(short, |f| {
-                        if f.copied {
-                            "已复制"
-                        } else {
-                            "复制失败"
-                        }
+    [(OCR, "pin-copy-ocr"), (TRANSLATION, "pin-copy-translation")]
+        .into_iter()
+        .map(|(id, label)| {
+            let feedback = feedback.filter(|f| f.id == id);
+            Field {
+                id,
+                label: crate::ui_text::text(feedback.map_or(label, |f| {
+                    if f.copied {
+                        "pin-text-copied"
+                    } else {
+                        "pin-text-copy-failed"
+                    }
+                })),
+                icon: feedback.is_none().then(|| {
+                    neuro_mini_ui::Icon::svg(if id == OCR {
+                        include_str!("../../assets/edit-strip/SettingsCopyOcr.svg")
+                    } else {
+                        include_str!("../../assets/edit-strip/SettingsCopyTranslation.svg")
                     })
-                    .into(),
-                active: false,
-                width: 58,
-            },
-        }
-    })
-    .collect()
+                }),
+                kind: Kind::Action {
+                    // Icons preserve the compact paired row; feedback gets its whole text area.
+                    value: feedback
+                        .map_or("", |f| {
+                            crate::ui_text::text(if f.copied {
+                                "pin-text-copied"
+                            } else {
+                                "pin-text-copy-failed-short"
+                            })
+                        })
+                        .into(),
+                    active: false,
+                    width: 58,
+                },
+            }
+        })
+        .collect()
 }
 pub(super) unsafe fn clear(owner: HWND, session: &mut Session) {
     if session.text_feedback.take().is_some() {

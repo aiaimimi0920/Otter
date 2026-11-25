@@ -144,7 +144,10 @@ impl Application {
             owner.stopped = true;
             owner.exit = None;
         }
-        let message = format!("工作区恢复检查点已停止；当前内容仍保留，请另存工作区。\n{error}");
+        let message = crate::ui_text::format(
+            "app-workspace-checkpoint-stopped",
+            &[("error", error.to_string().into())],
+        );
         eprintln!("native-workspace-checkpoint-stopped: {error}");
         if let Some(doc) = self.documents.iter().find(|doc| doc.is_alive()) {
             notify(self, &doc.state.unit_id, &message, true);
@@ -301,7 +304,13 @@ impl Application {
             if let Some((path, error)) = published.retained_recovery {
                 return Err(Error::new(
                     E_FAIL,
-                    format!("检查点已写入；旧恢复副本保留：{}\n{error}", path.display()),
+                    crate::ui_text::format(
+                        "app-checkpoint-recovery-retained",
+                        &[
+                            ("path", path.display().to_string().into()),
+                            ("error", error.to_string().into()),
+                        ],
+                    ),
                 ));
             }
         }

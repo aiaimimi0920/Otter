@@ -15,7 +15,7 @@ pub(super) fn capture(state: &State) -> Model {
                 .find(|c| c.id == selected.parameters.art_id())
                 .map(|c| c.label.to_owned())
         })
-        .unwrap_or_else(|| "贴图".into());
+        .unwrap_or_else(|| crate::ui_text::text("workspace-sticker").into());
     let mut checked = [false; 5];
     for field in desktop::node_settings::fields(state) {
         checked[match field.action {
@@ -28,6 +28,7 @@ pub(super) fn capture(state: &State) -> Model {
     }
     Model {
         stamp: Stamp::capture(state),
+        language: crate::ui_text::current_language(),
         settings: state.node_settings.get(),
         title,
         art: state.is_art(),
@@ -69,9 +70,9 @@ pub(super) fn buttons(model: &Model) -> Vec<DrawerButton> {
     let mut items = vec![DrawerButton {
         id: 2,
         label: if model.settings.hide_collapsed_endpoints {
-            "收起时隐藏端点；点击改为显示"
+            crate::ui_text::text("node-hidden-endpoints-hint")
         } else {
-            "收起时显示端点；点击改为隐藏"
+            crate::ui_text::text("node-shown-endpoints-hint")
         }
         .into(),
         icon: icon(if model.settings.hide_collapsed_endpoints {
@@ -87,7 +88,7 @@ pub(super) fn buttons(model: &Model) -> Vec<DrawerButton> {
         items.extend([
             DrawerButton {
                 id: 3,
-                label: "上游变化自动执行".into(),
+                label: crate::ui_text::text("node-run-on-upstream").into(),
                 icon: icon(include_str!("../../assets/edit-strip/NodeUpstream.svg")),
                 text: None,
                 active: model.checked[1],
@@ -95,7 +96,7 @@ pub(super) fn buttons(model: &Model) -> Vec<DrawerButton> {
             },
             DrawerButton {
                 id: 4,
-                label: "参数变化自动执行".into(),
+                label: crate::ui_text::text("node-run-on-parameter").into(),
                 icon: icon(include_str!("../../assets/edit-strip/NodeParameter.svg")),
                 text: None,
                 active: model.checked[2],
@@ -105,7 +106,7 @@ pub(super) fn buttons(model: &Model) -> Vec<DrawerButton> {
     }
     items.push(DrawerButton {
         id: 5,
-        label: "通知下游：允许本节点更新触发下游执行".into(),
+        label: crate::ui_text::text("node-notify-downstream-hint").into(),
         icon: icon(include_str!("../../assets/edit-strip/NodeNotify.svg")),
         text: None,
         active: model.checked[3],
@@ -114,7 +115,7 @@ pub(super) fn buttons(model: &Model) -> Vec<DrawerButton> {
     if !model.art {
         items.push(DrawerButton {
             id: 6,
-            label: "接受上级贴图编辑传导".into(),
+            label: crate::ui_text::text("node-accept-upstream-edits").into(),
             icon: icon(include_str!("../../assets/edit-strip/NodeRelay.svg")),
             text: None,
             active: model.checked[4],
@@ -124,9 +125,9 @@ pub(super) fn buttons(model: &Model) -> Vec<DrawerButton> {
     if model.art {
         items.push(DrawerButton {
             id: RUN,
-            label: "执行一次".into(),
+            label: crate::ui_text::text("node-run-once").into(),
             icon: icon(include_str!("../../assets/edit-strip/NodeRun.svg")),
-            text: Some("执行".into()),
+            text: Some(crate::ui_text::text("node-run").into()),
             active: false,
             enabled: available(model, RUN),
         });

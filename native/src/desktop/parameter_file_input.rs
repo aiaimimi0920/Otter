@@ -2,7 +2,7 @@
 use super::{configuration_stamp::Stamp, State};
 use std::{path::PathBuf, sync::Arc};
 use windows::{
-    core::{w, Result, PWSTR},
+    core::{Result, PCWSTR, PWSTR},
     Win32::{
         Foundation::*,
         UI::{Controls::Dialogs::*, WindowsAndMessaging::*},
@@ -125,18 +125,23 @@ pub(super) unsafe fn choose_target(
 unsafe fn choose_path(hwnd: HWND, target: &Target) -> Result<Option<PathBuf>> {
     let path = {
         let mut name = vec![0u16; 32768];
+        let images = crate::ui_text::text("parameter-file-images");
+        let all = crate::ui_text::text("parameter-file-all");
+        let filter = if matches!(target, Target::Sticker) {
+            format!("{images}\0*.png;*.jpg;*.jpeg;*.webp;*.bmp\0\0")
+        } else if matches!(target, Target::Parameter(id) if id.contains("image")) {
+            format!("{images}\0*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp;*.tif;*.tiff;*.svg;*.avif\0{all}\0*.*\0\0")
+        } else {
+            format!("{all}\0*.*\0\0")
+        };
+        // OPENFILENAME expects a live double-NUL-terminated list, not an HSTRING.
+        let filter: Vec<u16> = filter.encode_utf16().collect();
         let mut options = OPENFILENAMEW {
             lStructSize: std::mem::size_of::<OPENFILENAMEW>() as u32,
             hwndOwner: hwnd,
             lpstrFile: PWSTR(name.as_mut_ptr()),
             nMaxFile: name.len() as u32,
-            lpstrFilter: if matches!(target, Target::Sticker) {
-                w!("图片\0*.png;*.jpg;*.jpeg;*.webp;*.bmp\0\0")
-            } else if matches!(target, Target::Parameter(id) if id.contains("image")) {
-                w!("图片\0*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp;*.tif;*.tiff;*.svg;*.avif\0所有文件\0*.*\0\0")
-            } else {
-                w!("所有文件\0*.*\0\0")
-            },
+            lpstrFilter: PCWSTR(filter.as_ptr()),
             Flags: OFN_EXPLORER | OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR,
             ..Default::default()
         };

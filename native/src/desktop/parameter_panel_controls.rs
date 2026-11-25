@@ -45,6 +45,7 @@ struct Builder<'a> {
     ui: &'a Ui,
     bindings: Vec<Binding>,
     placements: Vec<(HWND, RECT)>,
+    captions: Vec<(HWND, language::Caption)>,
     y: i32,
     next: usize,
 }
@@ -79,6 +80,7 @@ impl Builder<'_> {
         }
         *self.ui.placements.borrow_mut() = std::mem::take(&mut self.placements);
         *self.ui.bindings.borrow_mut() = std::mem::take(&mut self.bindings);
+        *self.ui.captions.borrow_mut() = std::mem::take(&mut self.captions);
         self.ui.status.set(status);
         self.ui.content_height.set(height);
         Ok(())
@@ -161,6 +163,24 @@ impl Builder<'_> {
         });
         Ok(hwnd)
     }
+    unsafe fn localized_label(&mut self, caption: language::Caption) -> Result<HWND> {
+        let hwnd = self.label(&caption.text())?;
+        self.captions.push((hwnd, caption));
+        Ok(hwnd)
+    }
+    unsafe fn localized_button(
+        &mut self,
+        key: &str,
+        caption: language::Caption,
+        x: i32,
+        width: i32,
+        kind: Kind,
+        enabled: bool,
+    ) -> Result<HWND> {
+        let hwnd = self.button(key, &caption.text(), x, width, kind, enabled)?;
+        self.captions.push((hwnd, caption));
+        Ok(hwnd)
+    }
 }
 pub(super) unsafe fn rebuild(ui: &Ui) -> Result<()> {
     let _redraw = neuro_mini_ui::paint_batch::Hold::new(ui.hwnd.get());
@@ -177,6 +197,7 @@ pub(super) unsafe fn rebuild(ui: &Ui) -> Result<()> {
     ui.replacing.set(true);
     let old = ui.placements.take();
     ui.bindings.borrow_mut().clear();
+    ui.captions.borrow_mut().clear();
     ui.status.set(HWND::default());
     ui.content_height.set(0);
     destroy_children(ui.hwnd.get(), old);
@@ -210,17 +231,32 @@ unsafe fn build(ui: &Ui) -> Result<()> {
         ui,
         bindings: Vec::new(),
         placements: Vec::new(),
+        captions: Vec::new(),
         y: 10,
         next: 1000,
     };
-    b.label(&model.title)?;
+    if let Some(id) = model.title_id {
+        b.localized_label(language::Caption::plain(id))?;
+    } else {
+        b.label(&model.title)?;
+    }
     b.y += 26;
-    b.button("reload", "重新加载", 12, 416, Kind::Reload, true)?;
+    b.localized_button(
+        "reload",
+        language::Caption::plain("parameter-reload"),
+        12,
+        416,
+        Kind::Reload,
+        true,
+    )?;
     b.y += 34;
     for (index, field) in model.settings.iter().enumerate() {
-        b.button(
+        b.localized_button(
             &format!("setting:{index}"),
-            &format!("{} {}", if field.checked { "☑" } else { "☐" }, field.label),
+            language::Caption::checked(
+                desktop::node_settings::label_id(field.action),
+                field.checked,
+            ),
             12,
             416,
             Kind::Setting(model.stamp.clone(), field.action),
@@ -229,17 +265,17 @@ unsafe fn build(ui: &Ui) -> Result<()> {
         b.y += 32;
     }
     if model.snapshot.is_some() {
-        b.button(
+        b.localized_button(
             "run",
-            "执行一次",
+            language::Caption::plain("node-run-once"),
             12,
             202,
             Kind::Run(model.stamp.clone()),
             true,
         )?;
-        b.button(
+        b.localized_button(
             "stop",
-            "停止",
+            language::Caption::plain("parameter-stop"),
             226,
             202,
             Kind::Stop(model.stamp.clone()),
@@ -253,25 +289,31 @@ unsafe fn build(ui: &Ui) -> Result<()> {
             .iter()
             .find(|p| ui.state().is_some_and(|s| s.unit_id == p.unit))
     }) {
-        b.button(
+        b.localized_button(
             "ports",
-            "端口显示…",
+            language::Caption::plain("workspace-port-display"),
             12,
             416,
             Kind::Ports(model.stamp.clone()),
             true,
         )?;
         b.y += 32;
-        for (prefix, ports) in [("输入", &endpoint.inputs), ("输出", &endpoint.outputs)] {
+        for (message, ports) in [
+            ("parameter-input-ports", &endpoint.inputs),
+            ("parameter-output-ports", &endpoint.outputs),
+        ] {
             // List only actual catalog names; do not copy pixels or present a read-only port list as a wiring canvas.
-            b.label(&format!(
-                "{prefix} · {}",
-                ports
-                    .iter()
-                    .take(8)
-                    .map(|p| model::clean(p))
-                    .collect::<Vec<_>>()
-                    .join(" · ")
+            b.localized_label(language::Caption::message(
+                message,
+                &[(
+                    "ports",
+                    ports
+                        .iter()
+                        .take(8)
+                        .map(|p| model::clean(p))
+                        .collect::<Vec<_>>()
+                        .join(" · "),
+                )],
             ))?;
             b.y += 24;
         }
@@ -289,17 +331,17 @@ unsafe fn build(ui: &Ui) -> Result<()> {
         }
     }
     if model.pages() > 1 {
-        b.button(
+        b.localized_button(
             "previous",
-            "上一页",
+            language::Caption::plain("parameter-previous-page"),
             12,
             100,
             Kind::Page(page.saturating_sub(1)),
             page > 0,
         )?;
-        b.button(
+        b.localized_button(
             "next",
-            "下一页",
+            language::Caption::plain("parameter-next-page"),
             124,
             100,
             Kind::Page(page + 1),
@@ -359,14 +401,14 @@ pub(super) unsafe fn commit(ui: &Ui, binding: &Binding) {
             return;
         }
         let Some(text) = text(binding.hwnd) else {
-            ui.error("输入过长或 UTF-16 无效");
+            ui.localized_error("parameter-invalid-text");
             return;
         };
         if &text == initial {
             return;
         }
         if spec.parse(&text).is_none() {
-            ui.error("参数值无效");
+            ui.localized_error("parameter-invalid-value");
             return;
         }
         ui.queue(Intent::Choice(snapshot.clone(), *index, Some(text)));

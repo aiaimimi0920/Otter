@@ -129,13 +129,18 @@ pub(super) fn capture<'a>(
     for (index, (name, value)) in values.enumerate() {
         if index >= 128 || name.is_empty() || name.len() > 256 || name.chars().any(char::is_control)
         {
-            return Err("有效参数显示字段无效");
+            return Err(crate::ui_text::text("parameter-effective-field-invalid"));
         }
         let Some(value) = value else {
             continue;
         };
-        budget.charge(name).map_err(|_| "有效参数显示超过预算")?;
-        if let Some(value) = budget.copy(value, 0).map_err(|_| "有效参数显示超过预算")? {
+        budget
+            .charge(name)
+            .map_err(|_| crate::ui_text::text("parameter-effective-budget"))?;
+        if let Some(value) = budget
+            .copy(value, 0)
+            .map_err(|_| crate::ui_text::text("parameter-effective-budget"))?
+        {
             result.insert(name.into(), value);
         }
     }

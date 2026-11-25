@@ -64,21 +64,36 @@ impl Application {
                 !windows.retains_resource(binding, revision)
             });
         for (origin, error) in self.remote_sessions.poll_surfaces() {
-            warnings.push(format!("Surface 操作未完成。\n{origin}\n{error:?}"));
+            warnings.push(crate::ui_text::format(
+                "app-remote-surface-failed",
+                &[
+                    ("origin", origin.into()),
+                    ("error", format!("{error:?}").into()),
+                ],
+            ));
         }
         self.poll_surface_recovery_ui();
         if let Some(error) = self.remote_sessions.poll_catalog() {
             let mut view = self.authorization.borrow_mut();
             view.catalog_busy = false;
             view.catalog = None;
-            view.status = format!("目录查询失败：{error:?}");
-            warnings.push(format!("无法获取远程会话目录。\n{error:?}"));
+            view.status = crate::ui_text::format(
+                "app-catalog-query-failed",
+                &[("error", format!("{error:?}").into())],
+            );
+            warnings.push(crate::ui_text::format(
+                "app-remote-catalog-failed",
+                &[("error", format!("{error:?}").into())],
+            ));
         }
         if let Some(catalog) = self.remote_sessions.take_catalog() {
             let mut view = self.authorization.borrow_mut();
             if !view.closed && view.origin.as_deref() == Some(&catalog.origin) {
                 view.catalog_busy = false;
-                view.status = format!("远程会话目录：{} 项", catalog.entries.len());
+                view.status = crate::ui_text::format(
+                    "app-remote-catalog-count",
+                    &[("count", catalog.entries.len().into())],
+                );
                 view.catalog = Some(catalog);
             }
         }
@@ -86,14 +101,21 @@ impl Application {
             let mut view = self.authorization.borrow_mut();
             if view.catalog_busy {
                 view.catalog_busy = false;
-                view.status = "目录查询已取消，请重新获取授权后刷新".into();
+                view.status = crate::ui_text::text("app-remote-catalog-cancelled").into();
             }
         }
         self.settle_live_viewers()?;
         for event in self.remote_sessions.poll() {
-            self.authorization.borrow_mut().live.status = "远程观看已结束".into();
+            self.authorization.borrow_mut().live.status =
+                crate::ui_text::text("app-remote-viewing-ended").into();
             if let Some(error) = event.outcome.error_message() {
-                warnings.push(format!("远程观看已停止。\n{}\n{error}", event.origin));
+                warnings.push(crate::ui_text::format(
+                    "app-remote-viewing-stopped",
+                    &[
+                        ("origin", event.origin.into()),
+                        ("error", error.to_string().into()),
+                    ],
+                ));
             }
         }
         // Reap catalog/viewer/image completion slots before scheduling JS; settle lifecycle last so HWNDs closed by background failure
@@ -101,7 +123,7 @@ impl Application {
         self.settle_surface_images(crate::desktop::surface_windows::now_ms()?);
         self.poll_surface_javascript_with(visible, config)?;
         if self.activate_surface_windows_with(visible, config)? {
-            let text = "Surface 恢复记录无法再暂存，已关闭或未建窗的附件仍占用名额；请正常退出以保存记录。";
+            let text = crate::ui_text::text("app-surface-recovery-full");
             if visible {
                 warnings.push(text.into());
             } else {

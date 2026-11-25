@@ -115,24 +115,48 @@ fn shader_child_stall_before_and_after_frame_obeys_timeout_cancel_and_reaps() {
     for mode in [5., 7.] {
         for cancel in [false, true] {
             let start = Instant::now();
-            let deadline = start
-                + if cancel {
-                    Duration::from_secs(5)
-                } else {
-                    Duration::from_millis(220)
-                };
-            let stopped = || cancel && start.elapsed() >= Duration::from_millis(50);
+            let deadline = start + Duration::from_secs(5);
+            let spawned_at = std::cell::Cell::new(None::<Instant>);
+            // Observe a child before exercising reaping; admission cancellation is tested separately.
+            let stopped = || {
+                cancel
+                    && spawned_at
+                        .get()
+                        .is_some_and(|started| started.elapsed() >= Duration::from_millis(50))
+            };
             let mut handle = None;
             let result = invoke(mode, |value| {
                 client::run(value, deadline, &stopped, |endpoint, limit| {
+                    if cancel {
+                        // Slow scheduling before spawn must not consume the cancellation interval.
+                        std::thread::sleep(Duration::from_millis(100));
+                        assert!(!stopped());
+                    }
                     let child = spawn(endpoint, limit, &stopped)?;
                     handle = Some(child.handle().try_clone_to_owned()?);
+                    spawned_at.set(Some(Instant::now()));
                     Ok(child)
                 })
             });
-            assert!(matches!(result, Err(Failure::Transport(_))));
-            exited(handle.unwrap());
-            assert!(start.elapsed() < Duration::from_secs(3));
+            assert!(
+                matches!(&result, Err(Failure::Transport(error))
+                    if error.kind() == io::ErrorKind::TimedOut
+                        || cancel && error.kind() == io::ErrorKind::ConnectionAborted),
+                "mode={mode} cancel={cancel}: {:?}",
+                result.as_ref().err()
+            );
+            exited(handle.unwrap_or_else(|| {
+                panic!(
+                    "child was not observed: mode={mode} cancel={cancel}: {:?}",
+                    result.as_ref().err()
+                )
+            }));
+            assert!(Instant::now() < deadline + Duration::from_secs(3));
+            if cancel {
+                assert!(stopped(), "cancellation must fire before the deadline");
+                assert!(spawned_at.get().unwrap().elapsed() < Duration::from_secs(3));
+            }
+            assert_eq!(CAPACITY.used(), 0);
         }
     }
 }

@@ -27,6 +27,8 @@ otter-core = { path = "otter-core", version = "=0.2.33" }
 otter-media = { path = "otter-media", version = "=0.2.33" }
 otter-runtime = { path = "otter-runtime", version = "=0.2.33" }
 base64 = "=0.22.1"
+fluent-bundle = "=0.16.0"
+fluent-syntax = "=0.12.0"
 png = "=0.18.1"
 image-webp = "=0.2.4"
 resvg = { version = "=0.48.1", default-features = false, features = ["text"] }
@@ -42,10 +44,11 @@ zeroize = "=1.9.1"
 tungstenite = { version = "=0.24.0", default-features = false, features = ["handshake"] }
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = { version = "=1.0.151", features = ["raw_value", "float_roundtrip"] }
-url = "=2.5.8"
+url = "=2.5.9"
 ureq = { version = "=3.4.2", default-features = false }
 qrcode = { version = "=0.14.1", default-features = false }
-rxing = { version = "=0.9.3", default-features = false, features = ["decoders", "qrcode", "encoding_rs"] }
+# Pin the upstream chrono-optional fix until it reaches a registry release.
+rxing = { git = "https://github.com/rxing-core/rxing", rev = "912b1083ffd164b29e6b244e4845de9df06b107a", version = "=0.9.4", default-features = false, features = ["decoders", "qrcode", "encoding_rs"] }
 
 [dev-dependencies]
 otter-core = { path = "otter-core", version = "=0.2.33", features = ["test-support"] }

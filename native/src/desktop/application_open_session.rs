@@ -57,7 +57,10 @@ impl Application {
         {
             MessageBoxW(
                 self.documents.first().map(|doc| doc.window.0),
-                &HSTRING::from(format!("无法打开工作区，原工作区保留。\n{error}")),
+                &HSTRING::from(crate::ui_text::format(
+                    "app-workspace-open-failed",
+                    &[("error", error.to_string().into())],
+                )),
                 w!("Otter"),
                 MB_OK | MB_ICONWARNING,
             );
@@ -90,7 +93,7 @@ impl Application {
             self.open_after_save = None;
             return Err(Error::new(
                 E_ABORT,
-                "工作区正在保存、恢复或等待退出，请完成后重试。",
+                crate::ui_text::text("app-workspace-open-busy"),
             ));
         }
         let guard = restore_batch::guard::Guard::capture(self)?;
@@ -167,13 +170,14 @@ impl Application {
         let _dialog = super::super::file_dialog::Guard::begin(&flag)
             .ok_or_else(|| Error::new(E_ABORT, "Another file dialog is active"))?;
         let mut name = vec![0u16; 32768];
+        let title = HSTRING::from(crate::ui_text::text("app-workspace-open-title"));
         let mut options = OPENFILENAMEW {
             lStructSize: std::mem::size_of::<OPENFILENAMEW>() as u32,
             hwndOwner: hwnd,
             lpstrFile: windows::core::PWSTR(name.as_mut_ptr()),
             nMaxFile: name.len() as u32,
             lpstrFilter: w!("Otter workspace\0*.json\0\0"),
-            lpstrTitle: w!("打开工作区"),
+            lpstrTitle: windows::core::PCWSTR(title.as_ptr()),
             Flags: OFN_EXPLORER | OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR,
             ..Default::default()
         };
@@ -197,9 +201,14 @@ impl Application {
             None
         };
         let save_first = if self.save_status() != save_state::Status::Unchanged {
-            match MessageBoxW(Some(hwnd),
-                w!("打开前保存当前工作区吗？\n是：保存后打开\n否：放弃未保存内容并打开\n取消：继续编辑"),
-                w!("打开工作区"), MB_YESNOCANCEL | MB_ICONWARNING | MB_DEFBUTTON3) {
+            match MessageBoxW(
+                Some(hwnd),
+                &windows::core::HSTRING::from(crate::ui_text::text(
+                    "app-workspace-open-confirmation",
+                )),
+                &windows::core::HSTRING::from(crate::ui_text::text("app-workspace-open-title")),
+                MB_YESNOCANCEL | MB_ICONWARNING | MB_DEFBUTTON3,
+            ) {
                 IDYES => true,
                 IDNO => false,
                 _ => return Ok(None),

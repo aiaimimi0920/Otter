@@ -46,7 +46,7 @@ unsafe fn request_kind(hwnd: HWND, state: &State, update: bool) -> Result<()> {
 }
 impl Application {
     pub(super) fn naming_save_reap_deadline(&self) -> Option<std::time::Instant> {
-        if self.modals.blocked() {
+        if self.modals.blocked() || self.locale_busy() {
             return None;
         }
         self.naming_save_job.as_ref()?.job.deadline()
@@ -55,7 +55,10 @@ impl Application {
     pub(super) unsafe fn pending_naming_save(&mut self) {
         let message = match self.pending_naming_save_auto_with(|hwnd, state| choose(hwnd, state)) {
             Ok(warning) => warning,
-            Err(error) => Some(format!("文件与缓存设置未保存。\n{error}")),
+            Err(error) => Some(crate::ui_text::format(
+                "action-naming-save-failed",
+                &[("error", error.to_string().into())],
+            )),
         };
         if let Some(message) = message {
             MessageBoxW(
@@ -70,7 +73,7 @@ impl Application {
         &mut self,
         choose: impl FnOnce(HWND, &State) -> Result<Option<PathBuf>>,
     ) -> Result<Option<String>> {
-        if self.modals.blocked() {
+        if self.modals.blocked() || self.locale_busy() {
             return Ok(None);
         }
         if let Some(pending) = self.naming_save_job.as_mut() {
@@ -131,9 +134,12 @@ impl Application {
                     self.naming_document = next.document().clone();
                     self.naming_source = Some(next);
                     warning = published.retained_recovery.map(|(path, error)| {
-                        format!(
-                            "文件与缓存设置已保存，但旧配置恢复文件未清理：{}\n{error}",
-                            path.display()
+                        crate::ui_text::format(
+                            "action-naming-save-warning",
+                            &[
+                                ("path", path.display().to_string().into()),
+                                ("error", error.to_string().into()),
+                            ],
                         )
                     });
                     self.schedule_recycle_maintenance();
@@ -176,14 +182,14 @@ impl Application {
         if update && loaded.is_none() && self.naming_profile_target.is_none() {
             return Err(Error::new(
                 E_INVALIDARG,
-                "尚未加载配置文件，请先导入或通过 --settings 启动。",
+                crate::ui_text::text("action-naming-no-source"),
             ));
         }
         if let Some(loaded) = &loaded {
             if loaded.recovery_target().is_some() {
                 return Err(Error::new(
                     E_INVALIDARG,
-                    "当前配置来自恢复副本，请先另存为；恢复文件不会被覆盖。",
+                    crate::ui_text::text("action-naming-recovery-update"),
                 ));
             }
             if !Arc::ptr_eq(loaded.document(), &source) {
@@ -223,7 +229,7 @@ impl Application {
         {
             return Err(Error::new(
                 E_INVALIDARG,
-                "请选择新文件；文件与缓存设置另存为不覆盖现有文件。",
+                crate::ui_text::text("action-naming-new-file"),
             ));
         }
         let job = if let Some(loaded) = loaded {
@@ -264,6 +270,7 @@ unsafe fn choose(hwnd: HWND, state: &State) -> Result<Option<PathBuf>> {
     let _dialog = crate::desktop::file_dialog::Guard::begin(&flag)
         .ok_or_else(|| Error::new(E_ABORT, "Another dialog is active"))?;
     let mut name = vec![0u16; 32768];
+    let title = HSTRING::from(crate::ui_text::text("action-naming-save-title"));
     for (target, value) in name.iter_mut().zip("otter-settings.json".encode_utf16()) {
         *target = value;
     }
@@ -274,7 +281,7 @@ unsafe fn choose(hwnd: HWND, state: &State) -> Result<Option<PathBuf>> {
         nMaxFile: name.len() as u32,
         lpstrFilter: w!("Otter settings\0*.json\0\0"),
         lpstrDefExt: w!("json"),
-        lpstrTitle: w!("文件与缓存设置另存为（仅创建新文件）"),
+        lpstrTitle: windows::core::PCWSTR(title.as_ptr()),
         Flags: OFN_EXPLORER | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR,
         ..Default::default()
     };

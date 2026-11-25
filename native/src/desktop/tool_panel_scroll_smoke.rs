@@ -46,18 +46,44 @@ unsafe fn contained(panel: HWND, button: HWND) -> Result<()> {
         "Scrolled control is clipped",
     )
 }
+unsafe fn small_outer_size(panel: HWND, first: HWND, outer: RECT) -> Result<(i32, i32)> {
+    let mut client = RECT::default();
+    let mut button = RECT::default();
+    GetClientRect(panel, &mut client)?;
+    GetWindowRect(first, &mut button)?;
+    let mut inset = POINT {
+        x: button.left,
+        y: button.top,
+    };
+    require(
+        ScreenToClient(panel, &mut inset).as_bool(),
+        "Scroll coordinate mapping failed",
+    )?;
+    inset.x += GetScrollPos(panel, SB_HORZ);
+    inset.y += GetScrollPos(panel, SB_VERT);
+    // Fit a complete cell regardless of label size. Actual nonclient deltas include
+    // DPI-scaled borders, caption and both persistent standard scrollbars.
+    Ok((
+        button.right - button.left + inset.x * 2 + outer.right - outer.left - client.right,
+        button.bottom - button.top + inset.y * 2 + outer.bottom - outer.top - client.bottom,
+    ))
+}
 pub(in crate::desktop::tool_panel) unsafe fn run(panel: HWND) -> Result<()> {
     let mut original = RECT::default();
     GetWindowRect(panel, &mut original)?;
     let _restore = Restore(panel, original);
-    let dpi = GetDpiForWindow(panel).max(96) as i32;
+    let first = GetDlgItem(
+        Some(panel),
+        crate::desktop::tool_commands::TOOLS[0].id as i32,
+    )?;
+    let (width, height) = small_outer_size(panel, first, original)?;
     SetWindowPos(
         panel,
         None,
         0,
         0,
-        160 * dpi / 96,
-        140 * dpi / 96,
+        width,
+        height,
         SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE,
     )?;
     SendMessageW(panel, WM_VSCROLL, Some(WPARAM(SB_BOTTOM.0 as usize)), None);
@@ -78,10 +104,6 @@ pub(in crate::desktop::tool_panel) unsafe fn run(panel: HWND) -> Result<()> {
     require(
         GetScrollPos(panel, SB_VERT) == 0 && GetScrollPos(panel, SB_HORZ) == 0,
         "Panel did not return to origin",
-    )?;
-    let first = GetDlgItem(
-        Some(panel),
-        crate::desktop::tool_commands::TOOLS[0].id as i32,
     )?;
     contained(panel, first)?;
     drop(_restore);

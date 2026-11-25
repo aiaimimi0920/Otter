@@ -103,13 +103,19 @@ fn run(mode: u8) {
                 .same_storage(&original));
             if mode == 4 {
                 assert!(!files.root().join("projection-sender.json").exists());
-                assert!(app
-                    .authorization
-                    .borrow()
-                    .sender
-                    .group_results
-                    .iter()
-                    .any(|line| line.contains("失败")));
+                assert_eq!(
+                    app.authorization.borrow().sender.group_results[0],
+                    crate::ui_text::format(
+                        "app-projection-send-group-summary",
+                        &[
+                            ("group", "All screens".into()),
+                            ("saved", 0.into()),
+                            ("failed", 1.into()),
+                            ("unavailable", 1.into()),
+                            ("cancelled", 8.into()),
+                        ]
+                    )
+                );
             } else {
                 let end = Instant::now() + Duration::from_secs(5);
                 while app.projection_sender.pending_local()
@@ -214,7 +220,19 @@ fn run(mode: u8) {
                     &app.documents[0].state.unit_id,
                     0
                 ));
-                assert!(app.authorization.borrow().sender.group_results[0].contains("2 关联已保存"));
+                assert_eq!(
+                    app.authorization.borrow().sender.group_results[0],
+                    crate::ui_text::format(
+                        "app-projection-send-group-summary",
+                        &[
+                            ("group", "All screens".into()),
+                            ("saved", 2.into()),
+                            ("failed", 0.into()),
+                            ("unavailable", 1.into()),
+                            ("cancelled", 0.into()),
+                        ]
+                    )
+                );
                 app.shutdown();
                 drop(app);
                 drain_messages();

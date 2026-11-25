@@ -49,7 +49,7 @@ impl Border {
         let hwnd = CreateWindowExW(
             WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
             CLASS,
-            w!("Otter · 钉图外框"),
+            &HSTRING::from(crate::ui_text::text("workspace-pin-border-title")),
             WS_POPUP,
             0,
             0,

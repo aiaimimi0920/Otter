@@ -252,7 +252,7 @@ pub(super) fn run_source(mode: u8, case: source::Case) {
             );
             assert_ne!(
                 app.authorization.borrow().sender.status,
-                "邀请已发送，等待接收回执"
+                crate::ui_text::text("app-projection-invitation-awaiting")
             );
             app.stop_projection_sender();
             assert_eq!(
@@ -275,7 +275,7 @@ pub(super) fn run_source(mode: u8, case: source::Case) {
             assert!(app.projection_sender_inclusion(&expected));
             assert_eq!(
                 app.authorization.borrow().sender.status,
-                "邀请已发送，等待接收回执"
+                crate::ui_text::text("app-projection-invitation-awaiting")
             );
             let before = std::fs::read(&outbox).unwrap();
             if mode >= 6 {

@@ -41,6 +41,11 @@ controls from an exact NeuroDesign Git commit. This page describes runtime respo
   A workspace swap cancels and retires old workflow workers in one application slot;
   their completion cannot publish an archive or receipt to the next workspace.
   Peer-version policy does not change workspace format handling.
+- **Display language:** Embedded Fluent catalogs are presentation resources, not executable
+  capabilities. The Application owner serializes local tray and authenticated Loom requests
+  through the existing settings transaction. Language publication follows successful persistence;
+  changing presentation must not replace document state, editor drafts or business stamps.
+  See [display language](../features/DISPLAY_LANGUAGE.md) for defaults and remote request semantics.
 
 ## 2. Repository layout
 

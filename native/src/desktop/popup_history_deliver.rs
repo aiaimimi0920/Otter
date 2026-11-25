@@ -78,7 +78,7 @@ fn center(canvas: &super::super::canvas::Canvas) -> Result<Point> {
     let image = canvas
         .image
         .as_ref()
-        .ok_or_else(|| Error::new(E_FAIL, "请先打开图片，再导入历史文字。"))?;
+        .ok_or_else(|| Error::new(E_FAIL, crate::ui_text::text("clipboard-open-image-first")))?;
     Ok(canvas.editor.annotation_frame().map_or(
         Point {
             x: image.width as f32 / 2.0,
@@ -133,7 +133,9 @@ fn prepare(content: &str, font: &TextFont) -> Result<Vec<(f32, Point, TextAnnota
         }
         // Keep one object per line; body, history, and snapshots share the model's budget, without truncation or splitting.
         let text = TextAnnotation::new(line, font.family(), font.font_size(), font.bold())
-            .ok_or_else(|| Error::new(E_INVALIDARG, "历史文字超出内容预算或格式无效。"))?;
+            .ok_or_else(|| {
+                Error::new(E_INVALIDARG, crate::ui_text::text("clipboard-invalid-text"))
+            })?;
         let size = unsafe { super::super::annotation_text::measure(&text)? };
         output.push((offset, size, text));
         offset += size.y.max(font.font_size()) * 1.25;

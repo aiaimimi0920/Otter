@@ -22,7 +22,7 @@ pub(super) fn fields(
     let logical = |v: u32| (f64::from(v) * 96.0 / f64::from(dpi)).round() as i32;
     let action = |id, label, name| Field {
         id,
-        label,
+        label: crate::ui_text::text(label),
         icon: Some(icon(name)),
         kind: Kind::Action {
             value: String::new(),
@@ -36,13 +36,13 @@ pub(super) fn fields(
         },
     };
     vec![
-        action(FLIP_X, "水平镜像", "FlipX"),
-        action(FLIP_Y, "垂直镜像", "FlipY"),
-        action(BORDER, "外边框", "Border"),
-        action(FIT, "合拢外框", "Fit"),
+        action(FLIP_X, "pin-flip-horizontal", "FlipX"),
+        action(FLIP_Y, "pin-flip-vertical", "FlipY"),
+        action(BORDER, "pin-border", "Border"),
+        action(FIT, "pin-fit-frame", "Fit"),
         Field {
             id: WIDTH,
-            label: "宽度",
+            label: crate::ui_text::text("common-width"),
             icon: Some(icon("Width")),
             kind: Kind::Number {
                 value: logical(frame.width).clamp(32, 8192),
@@ -53,7 +53,7 @@ pub(super) fn fields(
         },
         Field {
             id: HEIGHT,
-            label: "等比高度",
+            label: crate::ui_text::text("pin-proportional-height"),
             icon: Some(icon("Height")),
             kind: Kind::ReadOnly {
                 value: logical(frame.height).to_string(),
@@ -61,7 +61,7 @@ pub(super) fn fields(
         },
         Field {
             id: OPACITY,
-            label: "不透明度（%）",
+            label: crate::ui_text::text("pin-opacity-percent"),
             icon: Some(icon("Opacity")),
             kind: Kind::Number {
                 value: (opacity * 100.0).round() as i32,
@@ -72,7 +72,7 @@ pub(super) fn fields(
         },
         Field {
             id: RADIUS,
-            label: "圆角",
+            label: crate::ui_text::text("pin-corner-radius"),
             icon: Some(icon("Radius")),
             kind: Kind::Number {
                 value: style.radius().round() as i32,

@@ -97,7 +97,7 @@ pub(super) unsafe fn message(hwnd: HWND, state: &State, msg: u32, wp: WPARAM, lp
     ) {
         Ok(changed) => changed,
         Err(error) => {
-            state.shared.lock().actions.notice = "Art滚动未完成";
+            state.shared.lock().actions.notice = "integration-art-scroll-incomplete";
             if error.code() != E_ABORT {
                 *state.error.borrow_mut() = Some(error);
                 state.shared.stop();

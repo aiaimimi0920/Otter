@@ -12,6 +12,8 @@ use windows::{
 pub(super) const COMMAND: usize = 0x1047;
 #[path = "tray_actions.rs"]
 pub(super) mod actions;
+#[path = "tray_language.rs"]
+mod language;
 #[path = "tray_startup.rs"]
 mod startup;
 const CALLBACK: u32 = WM_APP + 91;
@@ -111,7 +113,11 @@ unsafe fn install(hwnd: HWND, state: &State) -> Result<()> {
     if icon.hIcon.is_invalid() {
         return Err(Error::new(E_FAIL, "Host icon unavailable"));
     }
-    for (slot, character) in icon.szTip.iter_mut().zip("Otter · 点击恢复".encode_utf16()) {
+    for (slot, character) in icon
+        .szTip
+        .iter_mut()
+        .zip(crate::ui_text::text("tray-tooltip").encode_utf16())
+    {
         *slot = character;
     }
     icon.Anonymous.uVersion = NOTIFYICON_VERSION_4;
@@ -119,6 +125,23 @@ unsafe fn install(hwnd: HWND, state: &State) -> Result<()> {
         Shell_NotifyIconW(message, &icon).as_bool()
     })?;
     Ok(())
+}
+pub(super) unsafe fn refresh_language(hwnd: HWND, state: &State) {
+    if !state.tray.installed.get() {
+        return;
+    }
+    let mut icon = data(hwnd);
+    icon.uFlags = NIF_TIP | NIF_SHOWTIP;
+    for (slot, character) in icon
+        .szTip
+        .iter_mut()
+        .zip(crate::ui_text::text("tray-tooltip").encode_utf16())
+    {
+        *slot = character;
+    }
+    if !Shell_NotifyIconW(NIM_MODIFY, &icon).as_bool() {
+        eprintln!("native-tray-language: Cannot update tray tooltip");
+    }
 }
 unsafe fn remove(hwnd: HWND, state: &State) {
     if state.tray.installed.get() {
@@ -247,7 +270,13 @@ unsafe fn build_menu(state: &State) -> Result<(Menu, Option<crate::autostart::St
     let menu = Menu(CreatePopupMenu()?);
     actions::append(menu.0, state)?;
     let startup = startup::append(menu.0)?;
-    AppendMenuW(menu.0, MF_STRING, 2, w!("退出"))?;
+    language::append(menu.0)?;
+    AppendMenuW(
+        menu.0,
+        MF_STRING,
+        2,
+        &windows::core::HSTRING::from(crate::ui_text::text("tray-exit")),
+    )?;
     Ok((menu, startup))
 }
 unsafe fn menu(hwnd: HWND, state: &State, position: WPARAM) -> Result<()> {
@@ -271,7 +300,9 @@ unsafe fn menu(hwnd: HWND, state: &State, position: WPARAM) -> Result<()> {
             }
             startup::COMMAND => startup::execute(hwnd, state, startup),
             _ => {
-                if !actions::execute(hwnd, state, command) {
+                if !language::execute(hwnd, state, command)?
+                    && !actions::execute(hwnd, state, command)
+                {
                     let _ = Shell_NotifyIconW(NIM_SETFOCUS, &data(hwnd));
                 }
             }
@@ -350,17 +381,29 @@ mod tests {
             let state = State::new(None, false).unwrap();
             let (menu, _) = build_menu(&state).unwrap();
             let tree = crate::native_menu::snapshot(menu.0).unwrap();
-            assert_eq!(tree.len(), 7);
-            assert_eq!(tree[0].label, "截图");
-            assert_eq!(tree[1].label, "实时截图…");
-            assert_eq!(tree[2].label, "长截图");
-            assert_eq!(tree[3].label, "编辑已有图片…");
-            assert_eq!(tree[4].label, "接收投射");
-            assert!(tree[5].label.starts_with("自启动"));
-            assert_eq!(tree[6].label, "退出");
+            assert_eq!(tree.len(), 8);
+            for (index, key) in [
+                "tray-capture",
+                "tray-live-capture",
+                "tray-long-capture",
+                "tray-open-image",
+                "tray-receive",
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                assert_eq!(tree[index].label, crate::ui_text::text(key));
+            }
+            assert!(tree[5]
+                .label
+                .starts_with(crate::ui_text::text("tray-autostart")));
+            assert_eq!(tree[6].label, crate::ui_text::text("tray-language"));
+            assert_eq!(tree[7].label, crate::ui_text::text("tray-exit"));
+            assert_eq!(tree[6].children.as_ref().unwrap().len(), 2);
             assert!(tree
                 .iter()
-                .all(|item| item.children.is_none() && !item.separator));
+                .enumerate()
+                .all(|(index, item)| (index == 6 || item.children.is_none()) && !item.separator));
         }
     }
     #[test]

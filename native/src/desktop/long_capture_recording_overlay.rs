@@ -41,7 +41,7 @@ pub(super) unsafe fn run_with(
                 .error
                 .borrow_mut()
                 .take()
-                .unwrap_or_else(|| "无法开始长截图".into()),
+                .unwrap_or_else(|| crate::ui_text::text("long-capture-start-failed").into()),
         ));
     }
     for id in [1, 2, 101, 102, 103, 104, 105, 106, 107, 112] {
@@ -62,7 +62,7 @@ pub(super) unsafe fn run_with(
     let backing = crate::desktop::Window(CreateWindowExW(
         WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TOPMOST,
         w!("STATIC"),
-        w!("Otter · 长截图预览"),
+        &windows::core::HSTRING::from(crate::ui_text::text("long-capture-preview-title")),
         WS_POPUP,
         0,
         0,
@@ -119,7 +119,10 @@ pub(super) unsafe fn refresh(hwnd: HWND) {
     let pointer = GetWindowLongPtrW(hwnd, WINDOW_LONG_PTR_INDEX(USER)) as *const Input;
     if let Some(input) = pointer.as_ref() {
         if let Err(error) = present(hwnd, input) {
-            *input.error.borrow_mut() = Some(format!("无法更新长截图预览：{error}"));
+            *input.error.borrow_mut() = Some(crate::ui_text::format(
+                "long-capture-preview-update-failed",
+                &[("error", error.to_string().into())],
+            ));
             close(hwnd, input);
         }
     }
@@ -308,7 +311,9 @@ unsafe fn present(hwnd: HWND, input: &Input) -> Result<()> {
     SetTextColor(dc, color(palette.text));
     let font = SendMessageW(hwnd, WM_GETFONT, None, None);
     let old = SelectObject(dc, HGDIOBJ(font.0 as *mut _));
-    let mut text: Vec<u16> = "Enter / Ctrl+3 完成 · Esc 取消".encode_utf16().collect();
+    let mut text: Vec<u16> = crate::ui_text::text("long-capture-preview-help")
+        .encode_utf16()
+        .collect();
     DrawTextW(
         dc,
         &mut text,

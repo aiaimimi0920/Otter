@@ -50,7 +50,7 @@ pub(super) unsafe fn append_menu(menu: HMENU, view: &View) -> Result<()> {
         menu,
         MF_STRING | if enabled { MF_ENABLED } else { MF_GRAYED },
         LOAD_RECOVERY,
-        w!("读取 Surface 恢复记录…"),
+        &windows::core::HSTRING::from(crate::ui_text::text("integration-read-recovery")),
     )?;
     let restore_enabled = enabled
         && view
@@ -66,7 +66,7 @@ pub(super) unsafe fn append_menu(menu: HMENU, view: &View) -> Result<()> {
                 MF_GRAYED
             },
         RESTORE_SURFACE,
-        w!("重新挂载恢复候选…"),
+        &windows::core::HSTRING::from(crate::ui_text::text("integration-remount-candidate")),
     )?;
     if !view.recovery_status.is_empty() {
         AppendMenuW(
@@ -76,13 +76,19 @@ pub(super) unsafe fn append_menu(menu: HMENU, view: &View) -> Result<()> {
             &HSTRING::from(view.recovery_status.replace('&', "&&")),
         )?;
     }
-    append_records(menu, view, FILE_BASE, &view.recovery, "查询恢复")?;
+    append_records(
+        menu,
+        view,
+        FILE_BASE,
+        &view.recovery,
+        crate::ui_text::text("integration-query-recovery"),
+    )?;
     append_records(
         menu,
         view,
         RECENT_BASE,
         &view.recent_surface_recovery,
-        "查询已关闭的 Surface",
+        crate::ui_text::text("integration-query-closed-surface"),
     )?;
     Ok(())
 }
@@ -100,7 +106,9 @@ unsafe fn append_records(
         }
         let label = format!(
             "{action}：{} / {}",
-            record.art().unwrap_or("未知 Art"),
+            record
+                .art()
+                .unwrap_or(crate::ui_text::text("integration-unknown-art")),
             record.node()
         )
         .replace('&', "&&");
@@ -121,12 +129,19 @@ unsafe fn append_records(
 
 pub(super) unsafe fn confirm(hwnd: HWND, state: &State) -> Result<()> {
     confirm_with(hwnd, state, |candidate| {
-        let text = format!("重新挂载此候选？\n服务：{}\nArt：{}\n节点：{}\n附件：{}\n\n此操作会联系服务端，不会重新创建 Art。",
-            candidate.origin(), candidate.art(), candidate.node(), candidate.attachment());
+        let text = crate::ui_text::format(
+            "integration-remount-confirm",
+            &[
+                ("origin", candidate.origin().into()),
+                ("art", candidate.art().into()),
+                ("node", candidate.node().into()),
+                ("attachment", candidate.attachment().into()),
+            ],
+        );
         MessageBoxW(
             Some(hwnd),
             &HSTRING::from(text),
-            w!("恢复 Surface"),
+            &windows::core::HSTRING::from(crate::ui_text::text("integration-recover-surface")),
             MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2,
         ) == IDYES
     })
@@ -189,13 +204,14 @@ pub(super) unsafe fn choose(hwnd: HWND, state: &State) -> Result<()> {
     let guard = super::super::file_dialog::Guard::begin(&flag)
         .ok_or_else(|| Error::new(E_ABORT, "Another dialog is active"))?;
     let mut name = vec![0u16; 32768];
+    let title = HSTRING::from(crate::ui_text::text("integration-read-recovery-title"));
     let mut options = OPENFILENAMEW {
         lStructSize: std::mem::size_of::<OPENFILENAMEW>() as u32,
         hwndOwner: hwnd,
         lpstrFile: PWSTR(name.as_mut_ptr()),
         nMaxFile: name.len() as u32,
         lpstrFilter: w!("Surface recovery metadata\0*.json\0\0"),
-        lpstrTitle: w!("读取 Surface 恢复记录"),
+        lpstrTitle: windows::core::PCWSTR(title.as_ptr()),
         Flags: OFN_EXPLORER | OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR,
         ..Default::default()
     };

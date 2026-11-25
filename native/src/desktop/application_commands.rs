@@ -22,7 +22,7 @@ pub(in crate::desktop) unsafe fn append_menu(menu: HMENU, state: &State) -> Resu
         menu,
         MF_STRING,
         crate::desktop::cache_input::COMMAND,
-        w!("临时缓存设置…"),
+        &windows::core::HSTRING::from(crate::ui_text::text("app-menu-cache-settings")),
     )?;
     AppendMenuW(
         menu,
@@ -34,19 +34,44 @@ pub(in crate::desktop) unsafe fn append_menu(menu: HMENU, state: &State) -> Resu
                 MF_GRAYED
             },
         SAVE_PNG_DEFAULT,
-        w!("保存 PNG 到默认目录"),
+        &windows::core::HSTRING::from(crate::ui_text::text("app-menu-save-png")),
     )?;
     AppendMenuW(
         menu,
         MF_STRING,
         crate::desktop::naming_input::COMMAND,
-        w!("文件命名设置…"),
+        &windows::core::HSTRING::from(crate::ui_text::text("app-menu-naming-settings")),
     )?;
-    AppendMenuW(menu, MF_STRING, NEW_WINDOW, w!("新建工作窗口"))?;
-    AppendMenuW(menu, MF_STRING, IMPORT_NAMING, w!("导入命名设置…"))?;
-    AppendMenuW(menu, MF_STRING, SAVE_NAMING, w!("文件与缓存设置另存为…"))?;
-    AppendMenuW(menu, MF_STRING, UPDATE_NAMING, w!("保存文件与缓存设置"))?;
-    AppendMenuW(menu, MF_STRING, OPEN_SESSION, w!("打开工作区…"))?;
+    AppendMenuW(
+        menu,
+        MF_STRING,
+        NEW_WINDOW,
+        &windows::core::HSTRING::from(crate::ui_text::text("app-menu-new-window")),
+    )?;
+    AppendMenuW(
+        menu,
+        MF_STRING,
+        IMPORT_NAMING,
+        &windows::core::HSTRING::from(crate::ui_text::text("app-menu-import-naming")),
+    )?;
+    AppendMenuW(
+        menu,
+        MF_STRING,
+        SAVE_NAMING,
+        &windows::core::HSTRING::from(crate::ui_text::text("app-menu-save-settings-as")),
+    )?;
+    AppendMenuW(
+        menu,
+        MF_STRING,
+        UPDATE_NAMING,
+        &windows::core::HSTRING::from(crate::ui_text::text("app-menu-save-settings")),
+    )?;
+    AppendMenuW(
+        menu,
+        MF_STRING,
+        OPEN_SESSION,
+        &windows::core::HSTRING::from(crate::ui_text::text("app-menu-open-workspace")),
+    )?;
     AppendMenuW(
         menu,
         MF_STRING
@@ -56,16 +81,26 @@ pub(in crate::desktop) unsafe fn append_menu(menu: HMENU, state: &State) -> Resu
                 MF_UNCHECKED
             },
         AUTO_NAMING,
-        w!("自动保存文件与缓存设置"),
+        &windows::core::HSTRING::from(crate::ui_text::text("app-menu-settings-autosave")),
     )?;
     AppendMenuW(
         menu,
         MF_STRING,
         OPEN_SESSION_ASSETS,
-        w!("打开工作区（指定图片目录）…"),
+        &windows::core::HSTRING::from(crate::ui_text::text("app-menu-open-workspace-images")),
     )?;
-    AppendMenuW(menu, MF_STRING, SAVE_SESSION, w!("保存工作区"))?;
-    AppendMenuW(menu, MF_STRING, SAVE_SESSION_AS, w!("工作区另存为…"))?;
+    AppendMenuW(
+        menu,
+        MF_STRING,
+        SAVE_SESSION,
+        &windows::core::HSTRING::from(crate::ui_text::text("app-menu-save-workspace")),
+    )?;
+    AppendMenuW(
+        menu,
+        MF_STRING,
+        SAVE_SESSION_AS,
+        &windows::core::HSTRING::from(crate::ui_text::text("app-menu-save-workspace-as")),
+    )?;
     AppendMenuW(
         menu,
         MF_STRING
@@ -75,10 +110,15 @@ pub(in crate::desktop) unsafe fn append_menu(menu: HMENU, state: &State) -> Resu
                 MF_UNCHECKED
             },
         AUTO_WORKSPACE,
-        w!("自动保存当前工作区"),
+        &windows::core::HSTRING::from(crate::ui_text::text("app-menu-workspace-autosave")),
     )?;
     restore_batch::workflow::ui::append_menu(menu)?;
-    AppendMenuW(menu, MF_STRING, EXIT_APPLICATION, w!("退出 Otter"))
+    AppendMenuW(
+        menu,
+        MF_STRING,
+        EXIT_APPLICATION,
+        &windows::core::HSTRING::from(crate::ui_text::text("app-menu-exit")),
+    )
 }
 
 pub(in crate::desktop) const NEW_WINDOW: usize = 0x104c;

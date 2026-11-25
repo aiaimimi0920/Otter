@@ -7,6 +7,36 @@ use crate::projection_delivery::{
 use std::sync::Arc;
 const ORIGIN: &str = "https://loom.example";
 #[test]
+fn presentation_labels_do_not_change_command_identity_but_eligibility_does() {
+    let fields = |label, value, enabled, active| {
+        vec![vec![(
+            Field {
+                id: SEND,
+                label,
+                icon: None,
+                kind: Kind::Action {
+                    value,
+                    width: 80,
+                    active,
+                },
+            },
+            enabled,
+        )]]
+    };
+    let source = fields("Send", "Source".into(), true, false);
+    let translated = fields("投射", "译文".into(), true, false);
+    assert!(projection_fields::same_commands(&source, &translated));
+    assert!(!projection_fields::same_commands(
+        &source,
+        &fields("Send", "Source".into(), false, false)
+    ));
+    assert!(!projection_fields::same_commands(
+        &source,
+        &fields("Send", "Source".into(), true, true)
+    ));
+    assert!(!projection_fields::same_commands(&source, &[]));
+}
+#[test]
 fn source_id_uses_current_unit_and_exit_requires_exact_saved_receipt() {
     unsafe {
         let directory = Directory::new();

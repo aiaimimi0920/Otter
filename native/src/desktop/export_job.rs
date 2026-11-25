@@ -90,19 +90,22 @@ pub(super) unsafe fn start(hwnd: HWND, state: &State) {
             *destination = unit;
         }
     }
+    let filter: Vec<u16> = format!("{}\0*.png\0\0", crate::ui_text::text("file-filter-png"))
+        .encode_utf16()
+        .collect();
     let mut options = OPENFILENAMEW {
         lStructSize: std::mem::size_of::<OPENFILENAMEW>() as u32,
         hwndOwner: hwnd,
         lpstrFile: windows::core::PWSTR(name.as_mut_ptr()),
         nMaxFile: name.len() as u32,
-        lpstrFilter: w!("PNG image\0*.png\0\0"),
+        lpstrFilter: PCWSTR(filter.as_ptr()),
         lpstrDefExt: w!("png"),
         Flags: OFN_EXPLORER | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR,
         ..Default::default()
     };
     if !GetSaveFileNameW(&mut options).as_bool() {
         if CommDlgExtendedError() != COMMON_DLG_ERRORS(0) {
-            report(hwnd, "Cannot open export dialog");
+            report(hwnd, crate::ui_text::text("export-dialog-failed"));
         }
         return;
     }
@@ -121,7 +124,7 @@ pub(super) unsafe fn start(hwnd: HWND, state: &State) {
         &stamp,
     );
     let Some((image, editor)) = snapshot else {
-        report(hwnd, "选择保存路径期间文档已改变，未写入文件。请重新导出。");
+        report(hwnd, crate::ui_text::text("export-document-changed"));
         return;
     };
     let opacity = state.canvas.borrow().normal_opacity;
@@ -137,14 +140,20 @@ unsafe fn spawn(
     operation: impl FnOnce() -> Result<(), String> + Send + 'static,
 ) {
     if SetTimer(Some(hwnd), EXPORT_TIMER, 100, None) == 0 {
-        report(hwnd, "Cannot schedule export result");
+        report(hwnd, crate::ui_text::text("export-schedule-failed"));
         return;
     }
     match ExportJob::start(operation) {
         Ok(job) => *state.export.borrow_mut() = Some(job),
         Err(error) => {
             let _ = KillTimer(Some(hwnd), EXPORT_TIMER);
-            report(hwnd, &format!("Cannot start export: {error}"));
+            report(
+                hwnd,
+                &crate::ui_text::format(
+                    "export-start-failed",
+                    &[("error", error.to_string().into())],
+                ),
+            );
         }
     }
 }
@@ -174,7 +183,7 @@ unsafe fn report(hwnd: HWND, message: &str) {
     MessageBoxW(
         Some(hwnd),
         PCWSTR(message.as_ptr()),
-        w!("Otter export"),
+        &HSTRING::from(crate::ui_text::text("export-title")),
         MB_OK | MB_ICONERROR,
     );
 }

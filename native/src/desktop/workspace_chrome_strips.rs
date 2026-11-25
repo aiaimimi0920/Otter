@@ -13,7 +13,7 @@ impl Strip {
         let hwnd = CreateWindowExW(
             WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
             CLASS,
-            w!("Otter · 端口"),
+            &HSTRING::from(crate::ui_text::text("workspace-ports-title")),
             WS_POPUP | WS_CLIPCHILDREN,
             0,
             0,

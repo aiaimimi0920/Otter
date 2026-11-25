@@ -41,20 +41,30 @@ impl Application {
                                 super::super::parameter_file_input::Target::Parameter(id),
                                 super::super::parameter_file_job::Loaded::Parameter(value),
                             ) => (id, value),
-                            _ => return Err(Error::new(E_ABORT, "文件导入目标已失效")),
+                            _ => {
+                                return Err(Error::new(
+                                    E_ABORT,
+                                    crate::ui_text::text("app-file-import-target-expired"),
+                                ))
+                            }
                         };
                         let mut candidate = doc
                             .state
                             .selected_art
                             .borrow()
                             .as_ref()
-                            .ok_or_else(|| Error::new(E_FAIL, "能力已关闭"))?
+                            .ok_or_else(|| {
+                                Error::new(E_FAIL, crate::ui_text::text("app-capability-closed"))
+                            })?
                             .parameters
                             .clone();
                         let changed = candidate
                             .set(id, Some(serde_json::Value::String(value)))
                             .map_err(|_| {
-                                Error::new(E_INVALIDARG, "文件超过参数总容量限制或参数已失效")
+                                Error::new(
+                                    E_INVALIDARG,
+                                    crate::ui_text::text("app-file-parameter-limit"),
+                                )
                             })?;
                         if changed {
                             super::super::execution_cancel::request(doc.window.0, &doc.state)?;

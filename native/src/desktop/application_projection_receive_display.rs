@@ -45,12 +45,14 @@ impl Application {
         }
         if !saved.durable {
             self.projection_receive.0 = Phase::Checkpoint(saved);
-            return Ok("正在保存接收投送…");
+            return Ok(crate::ui_text::text("app-projection-reception-saving"));
         }
         // Create no new visible windows while modal; existing loops/messages drive later settlement, without additional timers.
         if self.modals.blocked() {
             self.projection_receive.0 = Phase::Checkpoint(saved);
-            return Ok("投送已保存，等待呈现");
+            return Ok(crate::ui_text::text(
+                "app-projection-saved-awaiting-display",
+            ));
         }
         let doc = self
             .documents
@@ -72,7 +74,7 @@ impl Application {
         }
         // Untargeted sharing has no server displayed contract; after real save/visibility proof, retain the journal and release the original Hold.
         if !saved.held.ticket().invitation().requires_receipt() {
-            return Ok("分享已接收并呈现");
+            return Ok(crate::ui_text::text("app-projection-share-presented"));
         }
         let config = config(saved.held.origin()).map_err(|error| {
             Error::new(
@@ -94,7 +96,7 @@ impl Application {
             job,
             recovery,
         }));
-        Ok("投送已呈现，正在确认回执…")
+        Ok(crate::ui_text::text("app-projection-presented-confirming"))
     }
     pub(super) unsafe fn poll_projection_report(
         &mut self,
@@ -119,9 +121,9 @@ impl Application {
             None => {
                 self.projection_receive.0 = Phase::Reporting(reporting);
                 Ok(if valid {
-                    "投送已呈现，正在确认回执…"
+                    crate::ui_text::text("app-projection-presented-confirming")
                 } else {
-                    "正在取消投送回执…"
+                    crate::ui_text::text("app-projection-receipt-cancelling")
                 })
             }
             Some(Ok(Output::Displayed)) if valid => {
@@ -131,7 +133,7 @@ impl Application {
                     .projection
                     .entries
                     .retain(|entry| entry.envelope() != envelope);
-                Ok("投送已呈现")
+                Ok(crate::ui_text::text("app-projection-presented"))
             }
             // Emit only closed-set error categories; do not automatically retry/retire/unlink or format retained content.
             Some(Err(error)) => Err(Error::new(

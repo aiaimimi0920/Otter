@@ -184,7 +184,8 @@ fn complete_package_application_interaction_service_progress_formal_save_and_off
             .clone();
         start(&mut first, &peer, &root);
         pump(&mut first, "service progress", |app| {
-            app.authorization.borrow().status == "Art 服务执行中 37%"
+            app.authorization.borrow().status
+                == crate::ui_text::format("integration-art-progress", &[("percent", 37.into())])
         });
         assert!(
             values(&first).is_none(),

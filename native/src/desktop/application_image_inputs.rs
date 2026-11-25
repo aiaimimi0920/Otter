@@ -40,7 +40,7 @@ impl Application {
     ) -> Result<Option<ImageInputs>, &'static str> {
         let mut dependencies = workspace
             .upstream_units(target)
-            .map_err(|_| "无法解析节点依赖")?;
+            .map_err(|_| crate::ui_text::text("app-node-dependencies-invalid"))?;
         let target_dependencies = dependencies.clone();
         let references = if let Some(shader) = shader {
             shader_inputs::references(
@@ -55,12 +55,12 @@ impl Application {
         for (_, unit) in &references {
             for dependency in workspace
                 .upstream_units(unit)
-                .map_err(|_| "无法解析 Shader 参数依赖")?
+                .map_err(|_| crate::ui_text::text("app-shader-dependencies-invalid"))?
             {
                 if !dependencies.contains(&dependency) {
                     dependencies
                         .try_reserve(1)
-                        .map_err(|_| "无法分配图片依赖")?;
+                        .map_err(|_| crate::ui_text::text("app-image-dependency-allocation"))?;
                     dependencies.push(dependency);
                 }
             }
@@ -75,7 +75,7 @@ impl Application {
             if target_dependencies.contains(&&state.unit_id)
                 && state.pending_adoption.borrow().is_some()
             {
-                return Err("图片依赖存在未完成接管");
+                return Err(crate::ui_text::text("app-image-dependency-pending"));
             }
             let canvas = state.canvas.borrow();
             let selected = state.selected_art.borrow();
@@ -216,11 +216,12 @@ impl Application {
                 pending: false,
             })
             .collect();
-        let graph = Graph::new(&nodes, workspace.links()).map_err(|_| "工作区图片图超过限制")?;
+        let graph = Graph::new(&nodes, workspace.links())
+            .map_err(|_| crate::ui_text::text("app-image-graph-limit"))?;
         let target_state = &documents
             .iter()
             .find(|doc| doc.state.unit_id == *target)
-            .ok_or("目标窗口已关闭")?
+            .ok_or(crate::ui_text::text("app-target-window-closed"))?
             .state;
         let selected = target_state.selected_art.borrow();
         let manual: Vec<_> = if let Some(resolved) = resolved.filter(|_| shader.is_some()) {
@@ -248,7 +249,7 @@ impl Application {
         };
         let mut images = graph
             .execution_images(target, &manual)
-            .map_err(|_| "无法解析图片输入")?;
+            .map_err(|_| crate::ui_text::text("app-image-input-invalid"))?;
         // The old Shader controller finally falls back to its own data.src. Only trusted Shader chains may use this; never read back display/previews.
         let own_input = shader.and_then(|capability| {
             let ports: Vec<_> = images.iter().map(|(name, _)| *name).collect();
@@ -264,7 +265,7 @@ impl Application {
         if let Some(input) = own_input {
             images
                 .try_reserve(1)
-                .map_err(|_| "无法分配 Shader 自身图片输入")?;
+                .map_err(|_| crate::ui_text::text("app-shader-own-input-allocation"))?;
             images.push(input);
         }
         let prepared = shader_inputs::resolve(shader, &graph, &references, &mut images)?;
@@ -273,12 +274,12 @@ impl Application {
         for unit in prepared.units {
             for dependency in workspace
                 .upstream_units(unit)
-                .map_err(|_| "无法解析 Shader 参数依赖")?
+                .map_err(|_| crate::ui_text::text("app-shader-dependencies-invalid"))?
             {
                 if !dependencies.contains(&dependency) {
                     dependencies
                         .try_reserve(1)
-                        .map_err(|_| "无法分配图片依赖")?;
+                        .map_err(|_| crate::ui_text::text("app-image-dependency-allocation"))?;
                     dependencies.push(dependency);
                 }
             }
@@ -287,7 +288,7 @@ impl Application {
         if !manual_trigger
             && graph
                 .missing_execution_images(target, &manual)
-                .map_err(|_| "无法检查缺失图片")?
+                .map_err(|_| crate::ui_text::text("app-image-missing-check-failed"))?
                 .iter()
                 .any(|name| {
                     own_input.is_none_or(|(port, _)| port != *name)
@@ -297,7 +298,7 @@ impl Application {
             return Ok(None);
         }
         if images.len() > 32 {
-            return Err("图片输入数量超过准备预算");
+            return Err(crate::ui_text::text("app-image-input-count-limit"));
         }
         // Only manual triggers are exempt from missing-image checks; neither trigger type fabricates input.
         let mut names = Vec::new();
@@ -313,18 +314,18 @@ impl Application {
                             && session.is_alive()
                             && session.belongs_to(workspace)
                     })
-                    .ok_or("Live 来源已停止")?;
+                    .ok_or(crate::ui_text::text("app-live-source-stopped"))?;
                 let frame = if let Some(frame) = live_frames.get(id) {
                     std::sync::Arc::clone(frame)
                 } else {
                     let Some(frame) = session
                         .snapshot_frame()
-                        .map_err(|_| "无法捕获 Live 输入帧")?
+                        .map_err(|_| crate::ui_text::text("app-live-frame-capture-failed"))?
                     else {
                         if !manual_trigger {
                             return Ok(None);
                         }
-                        return Err("Live 尚无可用画面");
+                        return Err(crate::ui_text::text("app-live-frame-unavailable"));
                     };
                     live_frames.insert(id, frame.clone());
                     frame
@@ -336,7 +337,7 @@ impl Application {
                         session.input_identity(),
                         frame,
                     )
-                    .map_err(|_| "Live 输入帧超过预算")?,
+                    .map_err(|_| crate::ui_text::text("app-live-frame-limit"))?,
                 );
                 names.push(name.into());
                 continue;
@@ -351,7 +352,7 @@ impl Application {
                     let state = &documents
                         .iter()
                         .find(|doc| doc.state.unit_id == node.id)
-                        .ok_or("手动图片来源已关闭")?
+                        .ok_or(crate::ui_text::text("app-manual-image-closed"))?
                         .state;
                     let asset = node.sticker.asset.as_ref().unwrap();
                     let source = Source::capture_sticker(
@@ -360,7 +361,7 @@ impl Application {
                         &asset.image,
                         &state.canvas.borrow().editor,
                     )
-                    .map_err(|_| "手动图片存在未完成编辑或超过预算")?;
+                    .map_err(|_| crate::ui_text::text("app-manual-image-pending"))?;
                     names.push(name.into());
                     sources.push(source);
                     continue;
@@ -368,7 +369,7 @@ impl Application {
                 let canvas = target_state.canvas.borrow();
                 let source =
                     Source::capture_inline(name.into(), target.clone(), key, &canvas.editor)
-                        .map_err(|_| "内联图片格式不支持或超过预算")?;
+                        .map_err(|_| crate::ui_text::text("app-inline-image-invalid"))?;
                 names.push(name.into());
                 sources.push(source);
                 continue;
@@ -376,26 +377,29 @@ impl Application {
             let origin = origins
                 .iter()
                 .find(|origin| origin.key == key)
-                .ok_or("图片引用不是本地资源")?;
+                .ok_or(crate::ui_text::text("app-image-reference-not-local"))?;
             let state = &documents[origin.document].state;
             let source = if let Some(port) = &origin.port {
                 let image = state
                     .execution_results
                     .borrow()
                     .image_source(port)
-                    .ok_or("上游正式图片已失效")?;
+                    .ok_or(crate::ui_text::text("app-upstream-image-expired"))?;
                 Source::capture_output(name.into(), state.unit_id.clone(), image)
             } else {
                 let canvas = state.canvas.borrow();
                 if state.is_art() {
                     let source =
                         Source::capture_base(name.into(), state.unit_id.clone(), &canvas.editor)
-                            .map_err(|_| "Shader 自身底图存在未完成编辑或无法捕获")?;
+                            .map_err(|_| crate::ui_text::text("app-shader-own-image-pending"))?;
                     names.push(name.into());
                     sources.push(source);
                     continue;
                 }
-                let image = canvas.image.as_ref().ok_or("来源图片已关闭")?;
+                let image = canvas
+                    .image
+                    .as_ref()
+                    .ok_or(crate::ui_text::text("app-image-source-closed"))?;
                 Source::capture(
                     name.into(),
                     state.unit_id.clone(),
@@ -405,7 +409,7 @@ impl Application {
                     &canvas.editor,
                 )
             }
-            .map_err(|_| "图片来源有未完成编辑或无法捕获")?;
+            .map_err(|_| crate::ui_text::text("app-image-source-pending"))?;
             names.push(name.into());
             sources.push(source);
         }
@@ -416,11 +420,11 @@ impl Application {
                     continue;
                 }
                 if document.state.pending_adoption.borrow().is_some() {
-                    return Err("图片依赖存在未完成接管");
+                    return Err(crate::ui_text::text("app-image-dependency-pending"));
                 }
                 source
                     .depend_on(&document.state)
-                    .map_err(|_| "工作区存在未完成编辑，无法捕获图片依赖")?;
+                    .map_err(|_| crate::ui_text::text("app-workspace-image-edits-pending"))?;
             }
         }
         Ok(Some(ImageInputs {

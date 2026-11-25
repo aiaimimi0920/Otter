@@ -10,10 +10,10 @@ impl Application {
         config: Config,
     ) -> Result<(), String> {
         if self.modals.blocked() || self.exit_requested.get() || self.restore_job.is_some() {
-            return Err("工作区正在切换或退出，Art 未启动".into());
+            return Err(crate::ui_text::text("app-art-workspace-switching").into());
         }
         if config.origin() != origin {
-            return Err("Art 服务配置不匹配".into());
+            return Err(crate::ui_text::text("app-art-service-mismatch").into());
         }
         let document = self
             .documents
@@ -24,8 +24,9 @@ impl Application {
                     && unsafe { document.is_alive() }
                     && self.workspace.contains(&document.state.unit_id)
             })
-            .ok_or("Art 发起节点已关闭或被替换")?;
-        let now = crate::desktop::surface_windows::now_ms().map_err(|_| "无法读取授权时钟")?;
+            .ok_or(crate::ui_text::text("app-art-source-node-unavailable"))?;
+        let now = crate::desktop::surface_windows::now_ms()
+            .map_err(|_| crate::ui_text::text("app-authorization-clock-unavailable"))?;
         // Only origins without an online session in the new owner may attempt offline use; rejection/capacity exhaustion never falls back.
         let lease = match self.authorization_owner.lease(origin, now) {
             Ok(lease) => lease,
@@ -34,9 +35,9 @@ impl Application {
             {
                 self.art_issuers
                     .pending_local(origin)
-                    .map_err(|_| "请先获取有效设备授权")?
+                    .map_err(|_| crate::ui_text::text("app-device-authorization-required"))?
             }
-            Err(_) => return Err("请先获取有效设备授权".into()),
+            Err(_) => return Err(crate::ui_text::text("app-device-authorization-required").into()),
         };
         self.local_arts
             .start(

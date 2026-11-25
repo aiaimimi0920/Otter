@@ -4,10 +4,10 @@ use crate::live_relay_viewer_business::Business;
 use serde_json::json;
 use windows::Win32::UI::Controls::{EM_GETSEL, EM_SETSEL};
 use windows::Win32::UI::Shell::{DefSubclassProc, SetWindowSubclass};
-fn business(value: u32) -> Arc<Business> {
+pub(super) fn business(value: u32) -> Arc<Business> {
     Arc::new(Business::from_snapshot(&serde_json::to_vec(&json!({"session":{"observationCapabilities":["adapter"]},"observations":[{"observationId":"o","sequence":1,"state":"stable","source":"app_adapter","confidence":"high","observedAtMs":1,"value":value}]})).unwrap()).unwrap())
 }
-unsafe fn create() -> (RelayWindow, Arc<ViewerSession>, Permit) {
+pub(super) unsafe fn create() -> (RelayWindow, Arc<ViewerSession>, Permit) {
     let (media, permit) = media();
     let window = RelayWindow::new(media.clone(), permit.clone(), 128, 96).unwrap();
     SetWindowPos(
@@ -22,7 +22,7 @@ unsafe fn create() -> (RelayWindow, Arc<ViewerSession>, Permit) {
     .unwrap();
     (window, media, permit)
 }
-unsafe fn open(window: &RelayWindow) -> (HWND, HWND) {
+pub(super) unsafe fn open(window: &RelayWindow) -> (HWND, HWND) {
     SendMessageW(
         window.hwnd,
         WM_SYSCOMMAND,
@@ -31,7 +31,7 @@ unsafe fn open(window: &RelayWindow) -> (HWND, HWND) {
     );
     window.observation_test().unwrap()
 }
-unsafe fn text(hwnd: HWND) -> String {
+pub(super) unsafe fn text(hwnd: HWND) -> String {
     let mut b = vec![0; GetWindowTextLengthW(hwnd) as usize + 1];
     let n = GetWindowTextW(hwnd, &mut b);
     String::from_utf16(&b[..n as usize]).unwrap()
@@ -52,7 +52,10 @@ fn explicit_menu_reuses_one_readonly_capture_excluded_window_and_preserves_selec
             GetWindowLongPtrW(edit, GWL_STYLE) as u32 & ES_READONLY as u32,
             ES_READONLY as u32
         );
-        assert!(text(edit).contains("值：7"));
+        assert!(text(edit).contains(&crate::ui_text::format(
+            "integration-observation-value",
+            &[("value", "7".into())]
+        )));
         assert_eq!(open(&window), (panel, edit));
         SendMessageW(edit, EM_SETSEL, Some(WPARAM(2)), Some(LPARAM(7)));
         // Ordinary media/input/state notices must not rewrite EDIT or clear user selections even if they publish a new Business Arc.
@@ -66,8 +69,14 @@ fn explicit_menu_reuses_one_readonly_capture_excluded_window_and_preserves_selec
         window.refresh().unwrap();
         let selection = SendMessageW(edit, EM_GETSEL, Some(WPARAM(0)), Some(LPARAM(0))).0 as usize;
         assert_eq!((selection & 0xffff, selection >> 16), (2, 7));
-        assert!(text(edit).contains("值：9"));
-        assert!(!text(edit).contains("值：7"));
+        assert!(text(edit).contains(&crate::ui_text::format(
+            "integration-observation-value",
+            &[("value", "9".into())]
+        )));
+        assert!(!text(edit).contains(&crate::ui_text::format(
+            "integration-observation-value",
+            &[("value", "7".into())]
+        )));
         let mut affinity = 0;
         GetWindowDisplayAffinity(panel, &mut affinity).unwrap();
         assert_eq!(affinity, WDA_EXCLUDEFROMCAPTURE.0);
@@ -101,7 +110,7 @@ fn closing_inspector_keeps_media_but_revocation_closes_reopened_inspector_and_dr
         assert!(weak.upgrade().is_none());
     }
 }
-unsafe extern "system" fn close_parent(
+pub(super) unsafe extern "system" fn close_parent(
     hwnd: HWND,
     message: u32,
     wp: WPARAM,

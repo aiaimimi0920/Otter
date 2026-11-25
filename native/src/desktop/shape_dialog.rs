@@ -199,21 +199,21 @@ unsafe extern "system" fn procedure(
         let _ = EndDialog(hwnd, 1);
     } else {
         let message = if matches!(state.mode, Mode::Trigger | Mode::LocalTrigger) {
-            "触发条件无效；最多 16 KiB，operand 最多 4 KiB"
+            crate::ui_text::text("shape-trigger-invalid")
         } else if state.mode == Mode::Parameters {
-            "请输入有效 JSON 对象，最多 1 MiB"
+            crate::ui_text::text("shape-json-invalid")
         } else if state.mode == Mode::GroupName {
-            "请输入非空名称，最多 256 个 UTF-8 字节"
+            crate::ui_text::text("shape-name-invalid")
         } else if let Mode::Numeric(kind) = state.mode {
             kind.hint()
         } else if state.mode == Mode::Text {
-            "请输入非空文字，最多 65536 个 UTF-16 单元；正文总预算不足时请释放不再需要的文档"
+            crate::ui_text::text("shape-text-invalid")
         } else if state.mode == Mode::Ratio {
-            "请输入宽:高，每项范围 0.01–10000"
+            crate::ui_text::text("shape-ratio-invalid")
         } else if state.mode == Mode::SerialRadius {
-            "请输入 8–999 的整数半径"
+            crate::ui_text::text("shape-radius-invalid")
         } else {
-            "请输入 0–999 的整数，0 为关闭"
+            crate::ui_text::text("shape-step-invalid")
         };
         let _ = SetDlgItemTextW(hwnd, ERROR, &HSTRING::from(message));
     }
@@ -241,27 +241,27 @@ fn template(mode: Mode) -> Vec<u32> {
     );
     dword(&mut data, 0);
     let extra = if text_input { 100 } else { 0 };
-    data.extend([4, 0, 0, 240, 94 + extra, 0, 0]);
+    data.extend([4, 0, 0, 340, 112 + extra, 0, 0]);
     string(
         &mut data,
         if mode == Mode::LocalTrigger {
-            "Art 自动触发条件（JSON）"
+            crate::ui_text::text("shape-local-trigger-title")
         } else if mode == Mode::Trigger {
-            "触发条件（JSON）"
+            crate::ui_text::text("shape-trigger-title")
         } else if mode == Mode::Parameters {
-            "高级参数（JSON）"
+            crate::ui_text::text("shape-parameters-title")
         } else if mode == Mode::GroupName {
-            "分组名称"
+            crate::ui_text::text("shape-group-title")
         } else if let Mode::Numeric(kind) = mode {
             kind.title()
         } else if text_input {
-            "文字标注"
+            crate::ui_text::text("shape-text-title")
         } else if ratio {
-            "自定义形状比例"
+            crate::ui_text::text("shape-ratio-title")
         } else if mode == Mode::SerialRadius {
-            "序号半径"
+            crate::ui_text::text("shape-radius-title")
         } else {
-            "自定义尺寸步进"
+            crate::ui_text::text("shape-step-title")
         },
     );
     data.push(9);
@@ -282,7 +282,7 @@ fn template(mode: Mode) -> Vec<u32> {
                 },
             10,
             12,
-            220,
+            320,
             16 + extra,
             "",
         ),
@@ -292,51 +292,51 @@ fn template(mode: Mode) -> Vec<u32> {
             0,
             10,
             34 + extra,
-            220,
-            22,
+            320,
+            40,
             if mode == Mode::LocalTrigger {
-                "条件满足时自动运行此 Art"
+                crate::ui_text::text("shape-local-trigger-help")
             } else if mode == Mode::Trigger {
-                "Loom 求值；禁用不撤回已派发动作"
+                crate::ui_text::text("shape-trigger-help")
             } else if mode == Mode::Parameters {
-                "省略字段表示未设置；null 表示显式空值"
+                crate::ui_text::text("shape-parameters-help")
             } else if mode == Mode::GroupName {
-                "分组名称"
+                crate::ui_text::text("shape-group-title")
             } else if let Mode::Numeric(kind) = mode {
                 kind.hint()
             } else if text_input {
-                "Enter 换行；确定保存，取消放弃"
+                crate::ui_text::text("shape-text-help")
             } else if ratio {
-                "宽:高，例如 16:9；需开启等比例绘制"
+                crate::ui_text::text("shape-ratio-help")
             } else if mode == Mode::SerialRadius {
-                "8–999 图像像素"
+                crate::ui_text::text("shape-radius-help")
             } else {
-                "0–999 图像像素，0 为关闭"
+                crate::ui_text::text("shape-step-help")
             },
         ),
         (
             IDOK.0 as u16,
             0x80,
             WS_TABSTOP.0 | BS_DEFPUSHBUTTON as u32,
-            115,
-            66 + extra,
-            55,
+            140,
+            84 + extra,
+            130,
             18,
             if mode == Mode::LocalTrigger {
-                "允许自动回调"
+                crate::ui_text::text("shape-allow-callback")
             } else {
-                "确定"
+                crate::ui_text::text("common-ok")
             },
         ),
         (
             IDCANCEL.0 as u16,
             0x80,
             WS_TABSTOP.0,
-            175,
-            66 + extra,
+            275,
+            84 + extra,
             55,
             18,
-            "取消",
+            crate::ui_text::text("common-cancel"),
         ),
     ] {
         if data.len() % 2 != 0 {

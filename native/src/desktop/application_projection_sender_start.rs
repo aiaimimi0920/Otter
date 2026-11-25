@@ -186,9 +186,9 @@ impl Application {
             Ok(())
         })();
         self.sender_status(if result.is_ok() {
-            "正在发送投送邀请…"
+            crate::ui_text::text("app-projection-sending-invitation")
         } else {
-            "发送未启动：来源、目标、授权或保存状态不可用"
+            crate::ui_text::text("app-projection-send-unavailable")
         });
         result.is_ok()
     }

@@ -16,6 +16,7 @@ const RUN: u16 = 20;
 #[derive(Clone, PartialEq)]
 struct Model {
     stamp: Stamp,
+    language: crate::ui_text::DisplayLanguage,
     settings: crate::unit_node_settings::Settings,
     title: String,
     art: bool,
@@ -108,6 +109,10 @@ impl Open {
         }
         let changed = *self.data.model.borrow() != model;
         if changed {
+            SetWindowTextW(
+                self.window.0,
+                &HSTRING::from(crate::ui_text::text("workspace-node-properties")),
+            )?;
             *self.data.model.borrow_mut() = model;
             self.data.presentation.set(None);
             self.data.advance()?;

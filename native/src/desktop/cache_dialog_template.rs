@@ -1,4 +1,5 @@
 //! Static cache-dialog layout; control order defines keyboard navigation order.
+use crate::ui_text::text as tr;
 use windows::Win32::UI::WindowsAndMessaging::*;
 pub(super) fn template() -> Vec<u32> {
     fn string(data: &mut Vec<u16>, text: &str) {
@@ -15,25 +16,16 @@ pub(super) fn template() -> Vec<u32> {
     );
     dword(&mut data, 0);
     data.extend([7, 0, 0, 320, 130, 0, 0]);
-    string(&mut data, "临时缓存设置");
+    string(&mut data, tr("cache-dialog-title"));
     data.push(9);
     string(&mut data, "Microsoft YaHei UI");
     let edit = WS_BORDER.0 | WS_TABSTOP.0 | ES_AUTOHSCROLL as u32;
     for (id, class, style, x, y, width, height, text) in [
-        (201, 0x82, 0, 10, 12, 100, 14, "容量上限（字节）"),
+        (201, 0x82, 0, 10, 12, 100, 14, tr("cache-dialog-capacity")),
         (101, 0x81, edit, 114, 10, 196, 16, ""),
-        (202, 0x82, 0, 10, 36, 100, 14, "保留天数"),
+        (202, 0x82, 0, 10, 36, 100, 14, tr("cache-dialog-retention")),
         (102, 0x81, edit, 114, 34, 196, 16, ""),
-        (
-            103,
-            0x82,
-            0,
-            10,
-            60,
-            300,
-            30,
-            "0 禁用相应限制。默认容量为 268435456 字节（256 MiB）。",
-        ),
+        (103, 0x82, 0, 10, 60, 300, 30, tr("cache-dialog-help")),
         (
             IDOK.0 as u16,
             0x80,
@@ -42,7 +34,7 @@ pub(super) fn template() -> Vec<u32> {
             104,
             55,
             18,
-            "确定",
+            tr("common-ok"),
         ),
         (
             IDCANCEL.0 as u16,
@@ -52,7 +44,7 @@ pub(super) fn template() -> Vec<u32> {
             104,
             55,
             18,
-            "取消",
+            tr("common-cancel"),
         ),
     ] {
         if data.len() % 2 != 0 {

@@ -72,14 +72,14 @@ impl Application {
         let result = match request {
             Request::StopLive(key) => {
                 if self.remote_sessions.stop_viewer(&key) {
-                    Ok("正在停止远程观看…")
+                    Ok(crate::ui_text::text("app-live-viewing-stopping"))
                 } else {
-                    Err("观看会话已结束".into())
+                    Err(crate::ui_text::text("app-live-viewing-ended").into())
                 }
             }
             Request::WatchLive(selected) => self
                 .start_live_viewer(selected, config)
-                .map(|()| "正在加入远程观看…"),
+                .map(|()| crate::ui_text::text("app-live-viewing-joining")),
             _ => unreachable!(),
         };
         // stop may synchronously destroy HWNDs; do not hold a menu View borrow across it.
@@ -100,28 +100,38 @@ impl Application {
         >,
     ) -> std::result::Result<(), String> {
         if self.exit_requested.get() || self.modals.blocked() || self.restore_job.is_some() {
-            return Err("应用正在切换或退出，观看未启动".into());
+            return Err(crate::ui_text::text("app-live-viewing-app-busy").into());
         }
         self.settle_live_viewers()
             .map_err(|error| error.to_string())?;
         if !live::current(&self.authorization.borrow(), &selected) {
-            return Err("目录或观看宿主已变化，请重新选择".into());
+            return Err(crate::ui_text::text("app-live-viewing-host-changed").into());
         }
         if !super::live::fits_wait_budget(
             self.live_sessions.len(),
             self.surface_windows.wait_budget(),
         ) {
-            return Err("窗口等待容量已满".into());
+            return Err(crate::ui_text::text("app-window-pending-capacity").into());
         }
         let now = crate::desktop::surface_windows::now_ms().map_err(|error| error.to_string())?;
         let lease = self
             .authorization_owner
             .lease(&selected.origin, now)
-            .map_err(|error| format!("请先获取有效授权：{error:?}"))?;
+            .map_err(|error| {
+                crate::ui_text::format(
+                    "app-authorization-required-detail",
+                    &[("error", format!("{error:?}").into())],
+                )
+            })?;
         if lease.device_id() != selected.binding.device() {
-            return Err("当前设备与观看宿主不一致".into());
+            return Err(crate::ui_text::text("app-live-viewing-device-mismatch").into());
         }
-        let config = config(&selected.origin).map_err(|error| format!("配置无效：{error:?}"))?;
+        let config = config(&selected.origin).map_err(|error| {
+            crate::ui_text::format(
+                "app-configuration-invalid-detail",
+                &[("error", format!("{error:?}").into())],
+            )
+        })?;
         match selected.binding {
             ViewerHost::Direct { .. } => {
                 self.remote_sessions
@@ -136,7 +146,12 @@ impl Application {
                         binding.node(),
                         binding.generation(),
                     )
-                    .map_err(|error| format!("观看绑定无效：{error:?}"))?;
+                    .map_err(|error| {
+                        crate::ui_text::format(
+                            "app-viewing-binding-invalid",
+                            &[("error", format!("{error:?}").into())],
+                        )
+                    })?;
                 self.remote_sessions
                     .start_viewing(config, lease, target, binding)
             }
@@ -150,6 +165,11 @@ impl Application {
                 },
             ),
         }
-        .map_err(|error| format!("观看未启动：{error}"))
+        .map_err(|error| {
+            crate::ui_text::format(
+                "app-viewing-not-started",
+                &[("error", error.to_string().into())],
+            )
+        })
     }
 }

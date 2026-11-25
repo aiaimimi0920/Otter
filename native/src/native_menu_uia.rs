@@ -247,7 +247,9 @@ unsafe extern "system" fn property(
         VARIANT::from(
             entry
                 .as_ref()
-                .map_or("Otter 菜单", |entry| entry.name.as_str()),
+                .map_or(crate::ui_text::text("native-menu-title"), |entry| {
+                    entry.name.as_str()
+                }),
         )
     } else if id == UIA_FrameworkIdPropertyId {
         VARIANT::from("Otter.Native")
@@ -281,9 +283,15 @@ unsafe extern "system" fn property(
         // Unchecked HMENU items have no checkbox role; do not infer ordinary commands as unchecked toggles.
         // Present only known markers without promising Toggle/SelectionItem operation/group semantics.
         VARIANT::from(match entry.as_ref() {
-            Some(entry) if !entry.separator && entry.radio && entry.checked => "已选中",
-            Some(entry) if !entry.separator && entry.radio => "未选中",
-            Some(entry) if !entry.separator && entry.checked => "已勾选",
+            Some(entry) if !entry.separator && entry.radio && entry.checked => {
+                crate::ui_text::text("native-menu-selected")
+            }
+            Some(entry) if !entry.separator && entry.radio => {
+                crate::ui_text::text("native-menu-unselected")
+            }
+            Some(entry) if !entry.separator && entry.checked => {
+                crate::ui_text::text("native-menu-checked")
+            }
             _ => "",
         })
     } else {

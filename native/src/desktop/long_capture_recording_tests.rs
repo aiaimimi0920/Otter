@@ -8,6 +8,7 @@ mod timer_tests;
 use super::super::tests::{hidden as hidden_dialog, input as manual_input};
 use super::*;
 use crate::long_capture::{CaptureMode, CaptureSource, Frame, OutputTarget};
+use crate::ui_text::{format as message, text as tr};
 use std::{
     collections::VecDeque,
     sync::{
@@ -98,7 +99,7 @@ unsafe fn hidden(input: &Input) -> crate::desktop::Window {
     let window = hidden_dialog(input);
     // Production starts recording after overlay creation/layout; fixtures likewise exclude control-creation time from sampling periods.
     input.recording.schedule.borrow_mut().start(Instant::now());
-    status(window.0, "录制中");
+    status(window.0, tr("long-capture-recording"));
     window
 }
 unsafe fn caption(hwnd: HWND) -> String {
@@ -138,7 +139,7 @@ fn periodic_sampling_recovers_after_transient_repaints_without_wheel_notificatio
             super::super::handle(window.0, WM_TIMER, WPARAM(TIMER), LPARAM(0));
             assert_eq!(
                 caption(window.0),
-                "录制中",
+                tr("long-capture-recording"),
                 "sampling must not change the header"
             );
             assert!(
@@ -221,10 +222,8 @@ fn finish_behind_a_slow_capture_still_collects_the_last_dragged_frame() {
         let deadline = Instant::now() + Duration::from_secs(5);
         while input.output.borrow().is_none() {
             assert!(
-                matches!(
-                    caption(window.0).as_str(),
-                    "正在收取最后画面…" | "正在拼接长截图…"
-                ),
+                [tr("long-capture-last-frame"), tr("long-capture-stitching")]
+                    .contains(&caption(window.0).as_str()),
                 "finishing header was overwritten by a frame reply"
             );
             super::super::handle(window.0, WM_TIMER, WPARAM(TIMER), LPARAM(0));
@@ -291,7 +290,7 @@ fn document_limit_during_finish_keeps_the_dialog_open_and_last_result_finishable
         release.send(()).unwrap();
         pump(window.0, &input);
         assert_eq!(calls.load(Ordering::Acquire), 1);
-        assert_eq!(caption(window.0), "已达钉图尺寸上限，可完成已有内容或取消");
+        assert_eq!(caption(window.0), tr("long-capture-size-limit"));
         assert!(!input.recording.running());
         assert!(!input.finish.pending());
         assert!(input.output.borrow().is_none());
@@ -348,7 +347,7 @@ fn stopping_during_inflight_keeps_that_frame_but_drops_all_followup_sampling() {
         release.send(()).unwrap();
         pump(window.0, &input);
         assert!(!input.recording.running());
-        assert_eq!(caption(window.0), "录制已停止");
+        assert_eq!(caption(window.0), tr("long-capture-record-stopped"));
         assert_eq!(calls.load(Ordering::Acquire), 1);
         assert_eq!(input.job.borrow().snapshot().frame_count, 2);
         super::super::handle(window.0, MESSAGE, WPARAM(7), LPARAM(0));
@@ -396,28 +395,28 @@ fn cancellation_retires_late_results_and_a_new_session_has_no_old_axis_or_frames
 #[test]
 fn target_failure_and_layout_dpi_change_stop_but_preserve_the_finalizable_first_frame() {
     unsafe {
-        for message in [0, WM_DISPLAYCHANGE, WM_DPICHANGED] {
+        for event in [0, WM_DISPLAYCHANGE, WM_DPICHANGED] {
             let (input, calls) = setup(vec![Err("Scroll target closed".into())], None);
             let window = hidden(&input);
-            if message == 0 {
-                hint(window.0, &input);
-                pump(window.0, &input);
-            } else {
-                hint(window.0, &input);
-                super::super::handle(window.0, message, WPARAM(0), LPARAM(0));
-                pump(window.0, &input);
+            hint(window.0, &input);
+            if event != 0 {
+                super::super::handle(window.0, event, WPARAM(0), LPARAM(0));
             }
+            pump(window.0, &input);
             assert!(!input.recording.running());
             assert!(input.recording.hook.borrow().is_none());
             assert_eq!(
                 caption(window.0),
-                if message == 0 {
-                    "采集失败：Scroll target closed"
+                if event == 0 {
+                    message(
+                        "long-capture-failed",
+                        &[("error", "Scroll target closed".into())],
+                    )
                 } else {
-                    "屏幕布局或 DPI 已变化，录制已停止；可完成已有内容或取消"
+                    tr("long-capture-display-changed").to_owned()
                 }
             );
-            assert_eq!(calls.load(Ordering::Acquire), usize::from(message == 0));
+            assert_eq!(calls.load(Ordering::Acquire), usize::from(event == 0));
             command(window.0, 1);
             pump(window.0, &input);
             assert!(input.output.borrow().is_some());

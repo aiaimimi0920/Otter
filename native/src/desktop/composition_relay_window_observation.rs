@@ -9,7 +9,7 @@ pub(super) unsafe fn install(hwnd: HWND) -> Result<()> {
         GetSystemMenu(hwnd, false),
         MF_STRING,
         OPEN,
-        w!("查看观察与触发记录"),
+        &windows::core::HSTRING::from(crate::ui_text::text("integration-view-observations")),
     )
 }
 fn snapshot(state: &State) -> Option<Arc<crate::live_relay_viewer_business::Business>> {
@@ -19,23 +19,45 @@ fn snapshot(state: &State) -> Option<Arc<crate::live_relay_viewer_business::Busi
         .as_ref()
         .and_then(Host::business_snapshot)
 }
-unsafe fn failure(hwnd: HWND) {
-    let _ = ModifyMenuW(
+unsafe fn label(hwnd: HWND, state: &State, failed: bool) {
+    if state.closed.get()
+        || GetWindowLongPtrW(hwnd, GWLP_USERDATA) != state as *const State as isize
+    {
+        return;
+    }
+    let language = crate::ui_text::current_language();
+    state.observation_label.set((None, failed));
+    if ModifyMenuW(
         GetSystemMenu(hwnd, false),
         OPEN as u32,
         MF_BYCOMMAND | MF_STRING,
         OPEN,
-        w!("查看观察与触发记录（打开失败，可重试）"),
-    );
+        &windows::core::HSTRING::from(crate::ui_text::text_for(
+            language,
+            if failed {
+                "integration-view-observations-failed"
+            } else {
+                "integration-view-observations"
+            },
+        )),
+    )
+    .is_ok()
+    {
+        state.observation_label.set((Some(language), failed));
+    }
 }
 pub(super) unsafe fn refresh(hwnd: HWND, state: &State) {
+    let (language, failed) = state.observation_label.get();
+    if !state.closed.get() && language != Some(crate::ui_text::current_language()) {
+        label(hwnd, state, failed);
+    }
     let window = state.observation.borrow_mut().take();
     let Some(mut window) = window else {
         return;
     };
     if !state.closed.get() && window.handle().is_some() {
         if window.update(snapshot(state)).is_err() {
-            failure(hwnd);
+            label(hwnd, state, true);
             return;
         }
         if !state.closed.get() && window.handle().is_some() {
@@ -60,7 +82,7 @@ pub(super) unsafe fn handle(hwnd: HWND, state: &State, message: u32, wp: WPARAM)
     match window {
         Ok(mut window) => {
             if window.update(snapshot(state)).is_err() {
-                failure(hwnd);
+                label(hwnd, state, true);
                 return true;
             }
             if !state.closed.get()
@@ -72,7 +94,7 @@ pub(super) unsafe fn handle(hwnd: HWND, state: &State, message: u32, wp: WPARAM)
                 }
             }
         }
-        Err(_) => failure(hwnd),
+        Err(_) => label(hwnd, state, true),
     }
     true
 }

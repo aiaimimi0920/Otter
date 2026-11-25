@@ -37,30 +37,35 @@ unsafe fn append(parent: HMENU, groups: &[Group], current: Option<&UnitId>) -> R
                     MF_UNCHECKED
                 },
             JOIN_BASE + index,
-            w!("加入此分组"),
+            &HSTRING::from(crate::ui_text::text("workspace-menu-join-group")),
         )?;
         for (base, label) in [
-            (RENAME_BASE, w!("重命名…")),
+            (RENAME_BASE, "workspace-menu-rename-group"),
             (
                 if group.hidden { SHOW_BASE } else { HIDE_BASE },
                 if group.hidden {
-                    w!("显示分组")
+                    "workspace-menu-show-group"
                 } else {
-                    w!("隐藏分组")
+                    "workspace-menu-hide-group"
                 },
             ),
             (
                 LOCK_BASE,
                 if group.locked {
-                    w!("解锁分组")
+                    "workspace-menu-unlock-group"
                 } else {
-                    w!("锁定分组")
+                    "workspace-menu-lock-group"
                 },
             ),
-            (DELETE_BASE, w!("删除分组（保留图片）")),
-            (CLOSE_BASE, w!("关闭分组的全部窗口")),
+            (DELETE_BASE, "workspace-menu-delete-group"),
+            (CLOSE_BASE, "workspace-menu-close-group"),
         ] {
-            AppendMenuW(handle, MF_STRING, base + index, label)?;
+            AppendMenuW(
+                handle,
+                MF_STRING,
+                base + index,
+                &HSTRING::from(crate::ui_text::text(label)),
+            )?;
         }
         AppendMenuW(
             parent,

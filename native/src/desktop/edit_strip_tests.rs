@@ -231,7 +231,7 @@ fn all_existing_tools_remain_in_groups_and_all_icons_are_valid() {
     .chain([0x53, 0x57, 0x56])
     .collect();
     for entry in crate::desktop::tool_commands::TOOLS {
-        assert!(commands.contains(&entry.id), "{}", entry.label);
+        assert!(commands.contains(&entry.id), "{}", entry.label());
         catalog::icon(entry.id).validate().unwrap();
     }
 }

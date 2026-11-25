@@ -67,7 +67,10 @@ impl Application {
             }
             MessageBoxW(
                 Some(hwnd),
-                &HSTRING::from(format!("无法处理冻结贴纸，原工作区和原库保留。\n{error}")),
+                &HSTRING::from(crate::ui_text::format(
+                    "app-frozen-sticker-failed",
+                    &[("error", error.to_string().into())],
+                )),
                 w!("Otter"),
                 MB_OK | MB_ICONWARNING,
             );

@@ -49,7 +49,10 @@ impl Application {
                 }
             };
             if let Err(error) = result {
-                let message = format!("无法修改 Live 分组：{error}");
+                let message = crate::ui_text::format(
+                    "app-live-group-change-failed",
+                    &[("error", error.to_string().into())],
+                );
                 if !report {
                     return Err(Error::new(E_FAIL, message));
                 }

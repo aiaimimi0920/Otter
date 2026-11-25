@@ -3,8 +3,6 @@ use super::link_catalog::Catalog;
 #[cfg(test)]
 use super::State;
 use std::rc::Rc;
-#[cfg(test)]
-use windows::core::w;
 use windows::{
     core::{Error, Result, HSTRING},
     Win32::{Foundation::*, UI::WindowsAndMessaging::*},
@@ -41,7 +39,7 @@ pub(super) unsafe fn append(menu: HMENU, state: &State) -> Result<Option<Rc<Cata
         menu,
         MF_STRING | if enabled { MF_ENABLED } else { MF_GRAYED },
         COMMAND,
-        w!("创建连线到当前窗口…"),
+        &HSTRING::from(crate::ui_text::text("workspace-menu-create-link-current")),
     )?;
     Ok(catalog)
 }
@@ -214,14 +212,13 @@ unsafe fn initialize(hwnd: HWND, dialog: &Dialog) -> bool {
     } else {
         (INPUT, &fixed.inputs)
     };
-    fill(
-        hwnd,
-        SOURCE,
-        dialog
-            .choices
-            .iter()
-            .map(|index| dialog.catalog.endpoints[*index].label.as_str()),
-    ) && fill(hwnd, id, ports.iter().map(String::as_str))
+    let labels: Vec<_> = dialog
+        .choices
+        .iter()
+        .map(|index| dialog.catalog.endpoints[*index].display_label())
+        .collect();
+    fill(hwnd, SOURCE, labels.iter().map(|label| label.as_ref()))
+        && fill(hwnd, id, ports.iter().map(String::as_str))
         && refresh_choice_ports(hwnd, dialog)
 }
 unsafe fn fail(hwnd: HWND, pointer: *mut Dialog) {
@@ -297,7 +294,10 @@ fn template(outgoing: bool) -> Vec<u32> {
     );
     dword(&mut data, 0);
     data.extend([8, 0, 0, 290, 155, 0, 0]);
-    string(&mut data, "创建连线");
+    string(
+        &mut data,
+        crate::ui_text::text("workspace-menu-create-link"),
+    );
     data.push(9);
     string(&mut data, "Microsoft YaHei UI");
     let combo = WS_TABSTOP.0 | WS_VSCROLL.0 | CBS_DROPDOWNLIST as u32;
@@ -311,15 +311,33 @@ fn template(outgoing: bool) -> Vec<u32> {
             65,
             14,
             if outgoing {
-                "目标窗口"
+                crate::ui_text::text("workspace-menu-target-window")
             } else {
-                "来源窗口"
+                crate::ui_text::text("workspace-menu-source-window")
             },
         ),
         (SOURCE as u16, 0x85, combo, 80, 10, 200, 120, ""),
-        (202, 0x82, 0, 10, 46, 65, 14, "来源端口"),
+        (
+            202,
+            0x82,
+            0,
+            10,
+            46,
+            65,
+            14,
+            crate::ui_text::text("workspace-menu-source-port"),
+        ),
         (OUTPUT as u16, 0x85, combo, 80, 44, 200, 120, ""),
-        (203, 0x82, 0, 10, 80, 65, 14, "目标端口"),
+        (
+            203,
+            0x82,
+            0,
+            10,
+            80,
+            65,
+            14,
+            crate::ui_text::text("workspace-menu-target-port"),
+        ),
         (INPUT as u16, 0x85, combo, 80, 78, 200, 120, ""),
         (
             IDOK.0 as u16,
@@ -329,7 +347,7 @@ fn template(outgoing: bool) -> Vec<u32> {
             126,
             55,
             18,
-            "连接",
+            crate::ui_text::text("workspace-menu-connect"),
         ),
         (
             IDCANCEL.0 as u16,
@@ -339,7 +357,7 @@ fn template(outgoing: bool) -> Vec<u32> {
             126,
             55,
             18,
-            "取消",
+            crate::ui_text::text("workspace-menu-cancel"),
         ),
     ] {
         if data.len() % 2 != 0 {

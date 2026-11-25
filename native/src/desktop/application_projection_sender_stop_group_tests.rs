@@ -11,6 +11,18 @@ enum Mode {
     MissingIntent,
     LateSource,
 }
+fn summary(stopped: usize, pending: usize, failed: usize) -> String {
+    crate::ui_text::format(
+        "app-projection-stop-group-summary",
+        &[
+            ("group", "All screens".into()),
+            ("stopped", stopped.into()),
+            ("pending", pending.into()),
+            ("failed", failed.into()),
+            ("cancelled", 0.into()),
+        ],
+    )
+}
 fn journal(root: &std::path::Path) -> Value {
     serde_json::from_slice(&std::fs::read(root.join("projection-sender.json")).unwrap()).unwrap()
 }
@@ -178,7 +190,10 @@ fn run(mode: Mode) {
                 .unwrap()
                 .original
                 .same_storage(&source));
-            assert!(app.authorization.borrow().sender.group_results[0].contains("2 失败"));
+            assert_eq!(
+                app.authorization.borrow().sender.group_results[0],
+                summary(0, 0, 2)
+            );
             assert!(!app.remote_sessions.projection_pending());
             assert!(journal(files.root())["entries"]
                 .as_array()
@@ -190,9 +205,11 @@ fn run(mode: Mode) {
             until(&mut app, files.root(), |app| {
                 let results = &app.authorization.borrow().sender.group_results;
                 if mode == Mode::Complete {
-                    app.projection_sender.stop_group.is_none() && results[0].contains("2 已确认")
+                    app.projection_sender.stop_group.is_none() && results[0] == summary(2, 0, 0)
+                } else if mode == Mode::NetworkFailure {
+                    results[0] == summary(1, 1, 0)
                 } else {
-                    results[0].contains("1 已确认")
+                    results[0] == summary(1, 0, 1)
                 }
             });
             let remaining = journal(files.root());
@@ -223,10 +240,16 @@ fn run(mode: Mode) {
                     assert!(index.entries()[0].stopped());
                     assert_eq!(remaining["entries"][0]["stop"], "requested");
                     assert!(app.projection_sender.stop_group.is_some());
-                    assert!(app.authorization.borrow().sender.group_results[0].contains("1 待确认"));
+                    assert_eq!(
+                        app.authorization.borrow().sender.group_results[0],
+                        summary(1, 1, 0)
+                    );
                 } else {
                     assert!(!index.entries()[0].stopped());
-                    assert!(app.authorization.borrow().sender.group_results[0].contains("1 失败"));
+                    assert_eq!(
+                        app.authorization.borrow().sender.group_results[0],
+                        summary(1, 0, 1)
+                    );
                     assert!(app.projection_sender.stop_group.is_none());
                 }
                 reopen(&mut app, files.root());

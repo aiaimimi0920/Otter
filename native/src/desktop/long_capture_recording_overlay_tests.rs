@@ -106,7 +106,7 @@ fn modeless_preview_has_only_arrow_hits_and_finishes_without_disabling_owner() {
             }
             assert!(SetWindowSubclass(backing, Some(observe_positions), 2, data).as_bool());
             for _ in 0..3 {
-                status(hwnd, "录制中");
+                status(hwnd, crate::ui_text::text("long-capture-recording"));
             }
             assert_eq!(
                 positions.arrows.get(),
@@ -146,7 +146,7 @@ fn modeless_preview_has_only_arrow_hits_and_finishes_without_disabling_owner() {
                 "changed preview size must relayout arrows"
             );
             let layouts = positions.arrows.get();
-            status(hwnd, "录制已停止");
+            status(hwnd, crate::ui_text::text("long-capture-record-stopped"));
             assert_eq!(positions.arrows.get(), layouts);
             for arrow in arrows {
                 assert!(RemoveWindowSubclass(arrow, Some(observe_positions), 1).as_bool());

@@ -98,7 +98,7 @@ fn projection_display_recovery_matching_saved_model_with_wrong_pixels_still_fail
         joined(&mut fixture);
         assert_eq!(
             fixture.app.authorization.borrow().projection.status,
-            "接收未完成；本地内容和未结意图保留"
+            crate::ui_text::text("app-projection-reception-incomplete")
         );
         assert_eq!(fixture.journal(), journal);
     }
@@ -148,7 +148,7 @@ unsafe fn completed(mode: u8) {
     assert_eq!(fixture.journal(), journal);
     assert_ne!(
         fixture.app.authorization.borrow().projection.status,
-        "投送已呈现"
+        crate::ui_text::text("app-projection-presented")
     );
     assert!(!fixture.app.projection_cleanup.pending_local());
     retry.activate().unwrap();

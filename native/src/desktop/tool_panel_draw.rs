@@ -17,10 +17,10 @@ pub(super) unsafe fn button(item: &DRAWITEMSTRUCT, state: &State) {
     let label = entry
         .map(|entry| {
             entry
-                .label
+                .label()
                 .split('\t')
                 .next()
-                .unwrap_or(entry.label)
+                .unwrap_or(entry.label())
                 .to_owned()
         })
         .or_else(|| super::super::tool_panel_actions::label(item.CtlID as usize, state));

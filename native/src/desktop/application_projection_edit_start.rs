@@ -42,7 +42,7 @@ impl Application {
             }
             Some(Request::CancelProjectionEdit) => {
                 self.projection_edit.stop();
-                self.edit_error("协作提交已取消；原请求保留供显式重试");
+                self.edit_error(crate::ui_text::text("app-projection-edit-cancelled"));
             }
             _ => {}
         }
@@ -250,12 +250,15 @@ impl Application {
                     .block(&self.workspace, &selection.unit);
                 self.authorization.borrow_mut().editing.unit = Some(selection.unit);
                 self.projection_edit.0 = Phase::Sending(Box::new(pending));
-                self.edit_status("正在提交协作修改…");
+                self.edit_status(crate::ui_text::text("app-projection-edit-submitting"));
                 true
             }
             Ok(None) => false,
             Err(error) => {
-                self.edit_error(&format!("协作提交未启动：{error}"));
+                self.edit_error(&crate::ui_text::format(
+                    "app-projection-edit-start-failed",
+                    &[("error", error.to_string().into())],
+                ));
                 false
             }
         }

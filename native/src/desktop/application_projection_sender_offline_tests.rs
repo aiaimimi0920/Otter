@@ -234,7 +234,19 @@ fn offline_sender_mixed_group_same_named_devices_keep_routes_through_canonical_s
             app.process_authorization_with_projection(|o| config(o, files.root()));
         }
         assert!(app.projection_sender.group.is_none());
-        assert!(app.authorization.borrow().sender.group_results[0].contains("2 关联已保存"));
+        assert_eq!(
+            app.authorization.borrow().sender.group_results[0],
+            crate::ui_text::format(
+                "app-projection-send-group-summary",
+                &[
+                    ("group", "Mixed".into()),
+                    ("saved", 2.into()),
+                    ("failed", 0.into()),
+                    ("unavailable", 0.into()),
+                    ("cancelled", 0.into()),
+                ]
+            )
+        );
         ui::execute(
             app.documents[0].window.0,
             &app.documents[0].state,
@@ -253,7 +265,19 @@ fn offline_sender_mixed_group_same_named_devices_keep_routes_through_canonical_s
             assert!(Instant::now() < end, "mixed stop deadline");
             std::thread::sleep(Duration::from_millis(1));
         }
-        assert!(app.authorization.borrow().sender.group_results[0].contains("2 已确认"));
+        assert_eq!(
+            app.authorization.borrow().sender.group_results[0],
+            crate::ui_text::format(
+                "app-projection-stop-group-summary",
+                &[
+                    ("group", "Mixed".into()),
+                    ("stopped", 2.into()),
+                    ("pending", 0.into()),
+                    ("failed", 0.into()),
+                    ("cancelled", 0.into()),
+                ]
+            )
+        );
         app.shutdown();
     }
     server.join().unwrap();

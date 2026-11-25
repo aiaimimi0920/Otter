@@ -35,7 +35,15 @@ pub(super) fn prepare(frames: Vec<CanvasFrame>) -> Result<Uploads, Error> {
         decoded_limit: canvas::TOTAL_BYTES,
         sources: frames
             .iter()
-            .map(|frame| (format!("画布 {}", frame.id), [frame.width, frame.height]))
+            .map(|frame| {
+                (
+                    crate::ui_text::format(
+                        "native-art-canvas",
+                        &[("id", frame.id.as_str().into())],
+                    ),
+                    [frame.width, frame.height],
+                )
+            })
             .collect(),
         images: frames.into_iter().map(|v| Image { png: v.png }).collect(),
         _budget: budget,

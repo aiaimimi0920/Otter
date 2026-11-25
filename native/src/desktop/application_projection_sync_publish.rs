@@ -86,11 +86,11 @@ impl Application {
         let edit_status = doc.state.projection_edit.borrow().as_ref().map(|owner| {
             let snapshot = owner.capture(&canvas.editor);
             if snapshot.conflict().is_some() {
-                "协作冲突，保留本地修改"
+                crate::ui_text::text("app-projection-edit-conflict")
             } else if snapshot.visible_differs_from_authority() {
-                "已接收协作，本地修改待提交"
+                crate::ui_text::text("app-projection-edit-pending")
             } else {
-                "协作标注已同步"
+                crate::ui_text::text("app-projection-edit-synchronized")
             }
         });
         drop(canvas);
@@ -111,9 +111,9 @@ impl Application {
         self.display_cache.borrow_mut().take();
         self.display_composition.borrow_mut().invalidate();
         self.authorization.borrow_mut().projection.status = if stopped {
-            "投送关联已停止，保留最后内容"
+            crate::ui_text::text("app-projection-association-stopped")
         } else {
-            edit_status.unwrap_or("投送已同步")
+            edit_status.unwrap_or(crate::ui_text::text("app-projection-synchronized"))
         }
         .into();
         // Queue only this window's repaint; do not force foreground or reset frame/opacity/selection/viewport.

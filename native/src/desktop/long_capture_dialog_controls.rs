@@ -1,5 +1,23 @@
 //! Scrolling-capture control projection/task waits; disabled buttons do not replace admission checks at command execution.
 use super::*;
+pub(super) unsafe fn abort_error(
+    hwnd: HWND,
+    input: &Input,
+    id: &str,
+    error: impl std::fmt::Display,
+) {
+    *input.error.borrow_mut() = Some(crate::ui_text::format(
+        id,
+        &[("error", error.to_string().into())],
+    ));
+    close(hwnd, input);
+}
+pub(super) unsafe fn status_error(hwnd: HWND, id: &str, error: impl std::fmt::Display) {
+    status(
+        hwnd,
+        &crate::ui_text::format(id, &[("error", error.to_string().into())]),
+    );
+}
 use crate::long_capture::{Error as CaptureError, Snapshot};
 /// Modals and recording overlays share message boundaries; errors exit through actual window types without leaving modeless loops.
 pub(super) unsafe extern "system" fn procedure(
@@ -15,7 +33,7 @@ pub(super) unsafe extern "system" fn procedure(
         let pointer = GetWindowLongPtrW(hwnd, WINDOW_LONG_PTR_INDEX(USER)) as *const Input;
         if let Some(input) = pointer.as_ref() {
             if let Ok(mut error) = input.error.try_borrow_mut() {
-                *error = Some("长截图窗口发生内部错误，录制已关闭。".into());
+                *error = Some(crate::ui_text::text("long-capture-internal-error").into());
             }
             overlay::end(hwnd, input, 0);
         }
@@ -35,24 +53,32 @@ pub(super) unsafe fn capture_error(
     match error {
         CaptureError::UnconfirmedEdges => {
             if !input.recording.running() {
-                status(hwnd, "请继续滚动并采集一帧，以确认固定边缘");
+                status(hwnd, crate::ui_text::text("long-capture-confirm-edges"));
             }
         }
-        CaptureError::ChangedEdges => status(hwnd, "固定边缘已变化，请取消并重新选择区域"),
+        CaptureError::ChangedEdges => {
+            status(hwnd, crate::ui_text::text("long-capture-edges-changed"))
+        }
         CaptureError::CrossAxis if input.recording.enabled() => {
-            status(hwnd, "滚动轴已变化，录制已停止；可完成已有内容或取消")
+            status(hwnd, crate::ui_text::text("long-capture-axis-changed"))
         }
         CaptureError::DocumentLimit => {
             if snapshot.frame_count == 1
                 || snapshot.confirmed_edges.is_some()
                 || snapshot.spatial_position.is_some()
             {
-                status(hwnd, "已达钉图尺寸上限，可完成已有内容或取消");
+                status(hwnd, crate::ui_text::text("long-capture-size-limit"));
             } else {
-                status(hwnd, "已达钉图尺寸上限，请缩小选区后重新录制");
+                status(hwnd, crate::ui_text::text("long-capture-selection-limit"));
             }
         }
-        other => status(hwnd, &format!("无法完成：{other:?}")),
+        other => status(
+            hwnd,
+            &crate::ui_text::format(
+                "long-capture-finish-error",
+                &[("error", format!("{other:?}").into())],
+            ),
+        ),
     }
 }
 pub(super) unsafe fn frame_status(hwnd: HWND, input: &Input, count: usize) {
@@ -60,12 +86,15 @@ pub(super) unsafe fn frame_status(hwnd: HWND, input: &Input, count: usize) {
         // Per-frame replies refresh previews only; start, completion, stop, and error boundaries update headings.
         overlay::refresh(hwnd);
     } else {
-        let mode = if input.job.borrow().can_scroll() {
-            ""
+        let message = if input.job.borrow().can_scroll() {
+            "long-capture-frame-count"
         } else {
-            " · 手动滚动"
+            "long-capture-frame-count-manual"
         };
-        status(hwnd, &format!("已采集 {count} 帧{mode}"));
+        status(
+            hwnd,
+            &crate::ui_text::format(message, &[("count", count.into())]),
+        );
     }
 }
 pub(super) unsafe fn controls(hwnd: HWND, input: &Input, busy: bool) {
@@ -89,16 +118,16 @@ pub(super) unsafe fn controls(hwnd: HWND, input: &Input, busy: bool) {
         let _ = EnableWindow(control, !finishing);
     }
     let direction = match (input.axis, input.forward.get()) {
-        (Axis::Vertical, true) => "方向：向下",
-        (Axis::Vertical, false) => "方向：向上",
-        (Axis::Horizontal, true) => "方向：向右",
-        (Axis::Horizontal, false) => "方向：向左",
+        (Axis::Vertical, true) => crate::ui_text::text("long-capture-down"),
+        (Axis::Vertical, false) => crate::ui_text::text("long-capture-up"),
+        (Axis::Horizontal, true) => crate::ui_text::text("long-capture-right"),
+        (Axis::Horizontal, false) => crate::ui_text::text("long-capture-left"),
     };
     let _ = SetDlgItemTextW(
         hwnd,
         107,
         &HSTRING::from(if input.recording.enabled() {
-            "方向：自动识别"
+            crate::ui_text::text("long-capture-auto-direction")
         } else {
             direction
         }),
@@ -110,9 +139,9 @@ pub(super) unsafe fn controls(hwnd: HWND, input: &Input, busy: bool) {
         hwnd,
         106,
         &HSTRING::from(if input.automatic.borrow().running() {
-            "停止自动"
+            crate::ui_text::text("long-capture-auto-stop")
         } else {
-            "自动采集"
+            crate::ui_text::text("long-capture-auto")
         }),
     );
 }
@@ -130,13 +159,17 @@ pub(super) unsafe fn waiting(hwnd: HWND, input: &Input) {
     if !input.recording.enabled() {
         if input.automatic.borrow().running() {
             let count = input.job.borrow().snapshot().frame_count;
-            status(hwnd, &format!("自动采集中：已采集 {count} 帧"));
+            status(
+                hwnd,
+                &crate::ui_text::format("long-capture-auto-progress", &[("count", count.into())]),
+            );
         } else {
-            status(hwnd, "处理中…");
+            status(hwnd, crate::ui_text::text("long-capture-processing"));
         }
     }
     if SetTimer(Some(hwnd), TIMER, 50, None) == 0 {
-        *input.error.borrow_mut() = Some("无法等待长截图后台任务。".into());
+        *input.error.borrow_mut() =
+            Some(crate::ui_text::text("long-capture-worker-wait-failed").into());
         close(hwnd, input);
     }
 }
@@ -147,7 +180,7 @@ pub(super) unsafe fn request_auto(hwnd: HWND, input: &Input) {
         .request(std::time::Instant::now())
     {
         controls(hwnd, input, false);
-        status(hwnd, "自动采集已达到次数或时间上限");
+        status(hwnd, crate::ui_text::text("long-capture-auto-limit"));
         return;
     }
     let result = input.job.borrow_mut().scroll_capture(input.forward.get());
@@ -156,6 +189,6 @@ pub(super) unsafe fn request_auto(hwnd: HWND, input: &Input) {
     } else {
         input.automatic.borrow_mut().stop();
         controls(hwnd, input, false);
-        status(hwnd, "无法继续自动采集");
+        status(hwnd, crate::ui_text::text("long-capture-auto-failed"));
     }
 }

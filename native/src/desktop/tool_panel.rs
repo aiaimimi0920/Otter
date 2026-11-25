@@ -51,8 +51,12 @@ pub(super) const EXECUTE: u32 = WM_APP + 90;
 fn entries() -> impl Iterator<Item = (usize, &'static str)> {
     super::tool_commands::TOOLS
         .iter()
-        .map(|entry| (entry.id, entry.label))
-        .chain(super::tool_panel_actions::ACTIONS.iter().copied())
+        .map(|entry| (entry.id, entry.label()))
+        .chain(
+            super::tool_panel_actions::ACTIONS
+                .iter()
+                .map(|&(id, label_id)| (id, crate::ui_text::text(label_id))),
+        )
 }
 
 pub(super) unsafe fn translate(state: &State, message: &MSG) -> bool {
@@ -158,7 +162,7 @@ pub(super) unsafe fn create(owner: HWND, state: &State, visible: bool) -> Result
         CreateWindowExW(
             WS_EX_TOOLWINDOW,
             class,
-            w!("Otter · 工具（Ctrl+E / F4）"),
+            &windows::core::HSTRING::from(crate::ui_text::text("tool-panel-title")),
             style,
             area.left,
             area.top,
@@ -187,6 +191,33 @@ pub(super) unsafe fn create(owner: HWND, state: &State, visible: bool) -> Result
         let _ = ShowWindow(panel.0, SW_SHOWNOACTIVATE);
     }
     Ok(panel)
+}
+pub(super) unsafe fn refresh_language(state: &State) {
+    let panel = state.tool_panel.get();
+    if !IsWindow(Some(panel)).as_bool() {
+        return;
+    }
+    let title = if neuro_mini_ui::is_toolbar(panel) {
+        "edit-strip-title"
+    } else {
+        "tool-panel-title"
+    };
+    let _ = SetWindowTextW(
+        panel,
+        &windows::core::HSTRING::from(crate::ui_text::text(title)),
+    );
+    if !neuro_mini_ui::is_toolbar(panel) && content::ready(panel) {
+        for entry in super::tool_commands::TOOLS {
+            if let Ok(button) = GetDlgItem(Some(panel), entry.id as i32) {
+                let _ = SetWindowTextW(
+                    button,
+                    &windows::core::HSTRING::from(entry.label().replace('\t', " ")),
+                );
+            }
+        }
+        layout(panel);
+    }
+    invalidate(state);
 }
 pub(super) unsafe fn invalidate(state: &State) {
     if neuro_mini_ui::is_toolbar(state.tool_panel.get()) {

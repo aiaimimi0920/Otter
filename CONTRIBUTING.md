@@ -43,10 +43,16 @@ Mention display scaling, monitor layout, HDR or Loom authorization only when rel
   must not alter UI strings, protocol values, diagnostic matching or Unicode test data.
 - Give the page or control location, original wording, proposed translation and reason.
   Fix a typo in its own language; update both language variants when behavior changes.
-- Start with the [documentation index](docs/README.md). Desktop text lives in Rust components,
-  for example the [edit-strip catalog](native/src/desktop/edit_strip_catalog.rs) and
-  [pin settings](native/src/desktop/pin_settings_fields.rs). Changing these strings is a code
-  change; translated documents or the OCR translation setting do not add an interface language.
+- Desktop messages live in `native/assets/locales/<language>/*.ftl`. English (`en`) is the
+  complete source contract; Simplified Chinese (`zh-Hans`) is bundled alongside it. Use stable
+  semantic IDs, Fluent variables and plural selectors, not source text as a key or concatenated
+  sentence fragments. Keep protocol values, diagnostics and user/extension content unchanged.
+- Adding a language requires a reviewed catalog, registration in `ui_text_catalog.rs` and the
+  supported-language list, plus resource-contract and native layout tests. Catalogs are compiled
+  into Otter, not downloaded as executable capability packages. See [display language](docs/features/DISPLAY_LANGUAGE.md).
+- Use `ui_text::text` for static labels and `ui_text::format` for messages with arguments.
+  Do not compare translated text to make application decisions. Refresh existing controls without
+  replacing editable drafts, document identity or authorization snapshots.
 - Preserve file names, options, identifiers, placeholders, authorization limits, license text
   and third-party attributions. Check local links, images, heading anchors and examples.
 - Keep one maintained page per contract or procedure. Remove completed plans and superseded

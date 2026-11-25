@@ -112,8 +112,8 @@ unsafe fn copy_with(
                     hwnd,
                     state,
                     None,
-                    "复制失败",
-                    "请再次点击文本重试。",
+                    crate::ui_text::text("integration-copy-failed"),
+                    crate::ui_text::text("integration-copy-retry"),
                 )?;
             }
         }

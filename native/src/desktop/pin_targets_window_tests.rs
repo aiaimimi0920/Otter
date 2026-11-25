@@ -1,5 +1,7 @@
 //! Real LISTBOX messages verify the narrow header, stable HWND, no repaint without changes, and draft events; no user devices are used.
 use super::*;
+#[path = "pin_targets_language_tests.rs"]
+mod language_tests;
 unsafe extern "system" fn count_selection_queries(
     hwnd: HWND,
     msg: u32,
@@ -251,7 +253,7 @@ fn picker_preserves_native_selection_during_idle_refresh_and_emits_only_draft_ev
         assert_eq!((bounds.left, bounds.top), (320, 270));
         assert_eq!(
             bounds.right - bounds.left,
-            176 * GetDpiForWindow(owner).max(96) as i32 / 96
+            240 * GetDpiForWindow(owner).max(96) as i32 / 96
         );
         let header = [4, 3, 1].map(|id| rect(GetDlgItem(Some(hwnd), id).unwrap()));
         assert!(header.iter().all(|r| r.top == header[0].top));
@@ -368,7 +370,7 @@ fn picker_preserves_native_selection_during_idle_refresh_and_emits_only_draft_ev
 }
 
 unsafe fn painted_row(menu: &Window, list: HWND) -> Vec<u8> {
-    let width = 176 * GetDpiForWindow(list).max(96) as i32 / 96;
+    let width = 240 * GetDpiForWindow(list).max(96) as i32 / 96;
     let height = 24 * GetDpiForWindow(list).max(96) as i32 / 96;
     let dc = CreateCompatibleDC(None);
     assert!(!dc.is_invalid());

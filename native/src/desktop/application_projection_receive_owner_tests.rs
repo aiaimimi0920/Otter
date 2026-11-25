@@ -225,7 +225,7 @@ unsafe fn run_routed(case: u8, offline: bool) {
             );
             assert_eq!(
                 fixture.app.authorization.borrow().projection.status,
-                "正在保存接收投送…"
+                crate::ui_text::text("app-projection-reception-saving")
             );
             assert!(fixture.app.projection_receive.busy());
             assert_eq!(

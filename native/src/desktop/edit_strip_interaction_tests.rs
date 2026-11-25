@@ -249,7 +249,7 @@ fn select_button_is_a_default_on_toggle_without_a_dropdown_and_reopens_enabled()
         let length = GetWindowTextW(button, &mut label);
         assert_eq!(
             String::from_utf16_lossy(&label[..length as usize]),
-            "选择（静默）"
+            crate::ui_text::text("edit-select-silent")
         );
         execute(f.owner.0, &f.state, catalog::MODE as usize, true);
         assert!(!f.state.canvas.borrow().selection_enabled);

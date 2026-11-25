@@ -19,6 +19,8 @@ mod control_runtime;
 mod join_http;
 #[path = "device_authorization_lease_http_tests.rs"]
 mod lease_http;
+#[path = "loom_locale_http_tests.rs"]
+mod locale_http;
 #[path = "projection_delivery_http_tests.rs"]
 mod projection_delivery;
 #[path = "projection_edit_http_tests.rs"]

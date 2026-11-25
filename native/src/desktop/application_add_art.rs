@@ -37,7 +37,10 @@ impl Application {
                 if let Some(hwnd) = self.source_window(&unit) {
                     MessageBoxW(
                         Some(hwnd),
-                        &HSTRING::from(format!("Art 未添加，原节点保留。\n{error}")),
+                        &HSTRING::from(crate::ui_text::format(
+                            "app-art-not-added",
+                            &[("error", error.to_string().into())],
+                        )),
                         w!("Otter"),
                         MB_OK | MB_ICONWARNING,
                     );
@@ -57,7 +60,10 @@ impl Application {
             || self.restore_job.is_some()
             || self.save_job.is_some()
         {
-            return Err(Error::new(E_ABORT, "工作区正在切换、保存或退出"));
+            return Err(Error::new(
+                E_ABORT,
+                crate::ui_text::text("app-workspace-transition-busy"),
+            ));
         }
         let source = self
             .documents
@@ -65,9 +71,17 @@ impl Application {
             .find(|doc| {
                 &doc.state.unit_id == unit && doc.is_alive() && self.workspace.contains(unit)
             })
-            .ok_or_else(|| Error::new(E_ABORT, "Art 发起节点已关闭或被替换"))?;
+            .ok_or_else(|| {
+                Error::new(
+                    E_ABORT,
+                    crate::ui_text::text("app-art-source-node-unavailable"),
+                )
+            })?;
         if !request.current(source.window.0, &source.state) {
-            return Err(Error::new(E_ABORT, "Art 来源或能力目录已变化"));
+            return Err(Error::new(
+                E_ABORT,
+                crate::ui_text::text("app-art-source-catalog-changed"),
+            ));
         }
         let source = source::Source::capture(self, unit)?;
         let art = request
@@ -77,8 +91,13 @@ impl Application {
             .ok_or_else(|| Error::from(E_INVALIDARG))?;
         if let Route::Local(origin) = &request.route {
             // origin comes only from explicit HTTPS selection; the WSS catalog provides ID hints only, while the original local chain still validates actual packages/permissions.
-            let config = crate::device_authorization_config::Config::from_env(origin)
-                .map_err(|_| Error::new(E_INVALIDARG, "Art 服务配置无效"))?;
+            let config =
+                crate::device_authorization_config::Config::from_env(origin).map_err(|_| {
+                    Error::new(
+                        E_INVALIDARG,
+                        crate::ui_text::text("app-art-service-invalid"),
+                    )
+                })?;
             return self.open_local_art_child(
                 origin,
                 art.id.into(),
@@ -106,15 +125,27 @@ impl Application {
         current: impl Fn(&Self) -> bool,
     ) -> Result<()> {
         if !source.current(self) || !current(self) {
-            return Err(Error::new(E_ABORT, "Art 来源已变化"));
+            return Err(Error::new(
+                E_ABORT,
+                crate::ui_text::text("app-art-source-changed"),
+            ));
         }
         let art = catalog
             .handshake
             .capability(index)
             .filter(|art| art.enabled)
-            .ok_or_else(|| Error::new(E_INVALIDARG, "Art 能力不存在或已禁用"))?;
-        let parameters = crate::loom_parameter_state::Parameters::new(&art)
-            .map_err(|_| Error::new(E_INVALIDARG, "能力参数初始化失败"))?;
+            .ok_or_else(|| {
+                Error::new(
+                    E_INVALIDARG,
+                    crate::ui_text::text("app-art-capability-unavailable"),
+                )
+            })?;
+        let parameters = crate::loom_parameter_state::Parameters::new(&art).map_err(|_| {
+            Error::new(
+                E_INVALIDARG,
+                crate::ui_text::text("app-art-parameters-failed"),
+            )
+        })?;
         let input = desktop::node_menu::art_picker::model::primary_input(&art);
         let execution = art.execution_config(None);
         let guard = restore_batch::guard::Guard::capture(self)?;
@@ -128,9 +159,9 @@ impl Application {
             parameters,
         });
         let mut workspace = self.workspace.clone();
-        workspace
-            .add_units([child.clone()])
-            .map_err(|_| Error::new(E_ABORT, "工作区节点容量不足"))?;
+        workspace.add_units([child.clone()]).map_err(|_| {
+            Error::new(E_ABORT, crate::ui_text::text("app-workspace-node-capacity"))
+        })?;
         workspace
             .connect(crate::workspace::Link {
                 id: desktop::document_state::new_unit_id()?,
@@ -139,7 +170,12 @@ impl Application {
                 to_unit: child,
                 to_port: input,
             })
-            .map_err(|_| Error::new(E_INVALIDARG, "无法创建 Art 输入连接"))?;
+            .map_err(|_| {
+                Error::new(
+                    E_INVALIDARG,
+                    crate::ui_text::text("app-art-input-link-failed"),
+                )
+            })?;
         self.documents
             .try_reserve(1)
             .map_err(|_| Error::from(E_OUTOFMEMORY))?;
@@ -166,7 +202,10 @@ impl Application {
             || !source.current(self)
             || !current(self)
         {
-            return Err(Error::new(E_ABORT, "Art 准备期间来源已变化"));
+            return Err(Error::new(
+                E_ABORT,
+                crate::ui_text::text("app-art-source-preparation-changed"),
+            ));
         }
         let hwnd = document.window.0;
         self.workspace = workspace;

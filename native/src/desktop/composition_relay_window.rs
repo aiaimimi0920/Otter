@@ -27,6 +27,7 @@ pub(crate) mod trigger;
 struct State {
     session_end_reason: Cell<bool>,
     observation: RefCell<Option<observation::Window>>,
+    observation_label: Cell<(Option<crate::ui_text::DisplayLanguage>, bool)>,
     input: RefCell<input::Control>,
     host: RefCell<Option<Host>>,
     error: RefCell<Option<Error>>,
@@ -87,6 +88,7 @@ impl RelayWindow {
             let state = Box::new(State {
                 session_end_reason: Cell::new(false),
                 observation: RefCell::new(None),
+                observation_label: Cell::new((Some(crate::ui_text::current_language()), false)),
                 input: RefCell::new(input::Control::default()),
                 host: RefCell::new(None),
                 error: RefCell::new(None),
@@ -96,7 +98,7 @@ impl RelayWindow {
             let hwnd = CreateWindowExW(
                 WS_EX_NOREDIRECTIONBITMAP | WS_EX_TOOLWINDOW,
                 w!("Otter.Native.Relay"),
-                w!("Otter 远程观看"),
+                &windows::core::HSTRING::from(crate::ui_text::text("integration-remote-viewer")),
                 WS_OVERLAPPEDWINDOW,
                 CW_USEDEFAULT,
                 CW_USEDEFAULT,

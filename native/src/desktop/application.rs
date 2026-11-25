@@ -110,6 +110,10 @@ mod live_viewer;
 mod local_art;
 #[path = "application_local_art_node.rs"]
 mod local_art_node;
+#[path = "application_locale.rs"]
+pub(super) mod locale;
+#[path = "application_locale_remote.rs"]
+mod locale_remote;
 #[path = "application_loop.rs"]
 mod message_loop;
 #[path = "application_naming_autosave.rs"]
@@ -224,6 +228,8 @@ pub(super) struct Application {
     parameter_file_job: Option<super::parameter_file_job::Job>,
     naming_import_job: Option<naming_import::Pending>,
     naming_save_job: Option<naming_save::Pending>,
+    locale: locale::Owner,
+    locale_remote: locale_remote::Owner,
     naming_document: std::sync::Arc<crate::app_settings_document::Document>,
     art_issuers: crate::art_issuer_trust::Authority,
     naming_source: Option<std::sync::Arc<crate::settings_source::Source>>,
@@ -333,6 +339,7 @@ impl Application {
         self.process_live(visible)?;
         self.process_frozen_menu(visible)?;
         self.process_authorization();
+        self.process_remote_locale();
         for doc in &self.documents {
             if super::display_edit::settle(&doc.state) {
                 let _ =
@@ -380,7 +387,10 @@ impl Application {
                 if let Some(source) = self.source_window(&source) {
                     MessageBoxW(
                         Some(source),
-                        &HSTRING::from(format!("无法新建工作窗口。\n{error}")),
+                        &HSTRING::from(crate::ui_text::format(
+                            "action-new-window-failed",
+                            &[("error", error.to_string().into())],
+                        )),
                         w!("Otter"),
                         MB_OK | MB_ICONWARNING,
                     );
@@ -408,7 +418,10 @@ impl Application {
                 if let Some(source) = self.source_window(&source) {
                     MessageBoxW(
                         Some(source),
-                        &HSTRING::from(format!("无法创建新钉图，原文档保留。\n{error}")),
+                        &HSTRING::from(crate::ui_text::format(
+                            "action-new-pin-failed",
+                            &[("error", error.to_string().into())],
+                        )),
                         w!("Otter"),
                         MB_OK | MB_ICONWARNING,
                     );

@@ -7,7 +7,7 @@ pub(super) unsafe fn build(state: &State) -> Result<Menu> {
     label(
         menu.0,
         EXPORT,
-        "保存",
+        crate::ui_text::text("common-save"),
         MF_STRING | if available { MF_ENABLED } else { MF_GRAYED },
     )?;
     super::super::reference_ui::append_menu(menu.0, state)?;

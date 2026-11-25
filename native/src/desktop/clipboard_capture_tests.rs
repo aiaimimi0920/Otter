@@ -1,8 +1,16 @@
 //! Provenance is rebound to pasted documents; shared read-only leases outlive source windows.
 use super::*;
 use crate::desktop::{canvas::CaptureSource, State};
+use crate::ui_text::{self, DisplayLanguage};
 use std::{fs::OpenOptions, os::windows::fs::OpenOptionsExt, path::PathBuf};
 use windows::Win32::Storage::FileSystem::FILE_SHARE_READ;
+
+struct LanguageReset(DisplayLanguage);
+impl Drop for LanguageReset {
+    fn drop(&mut self) {
+        ui_text::set_language(self.0);
+    }
+}
 
 struct Fixture(PathBuf);
 impl Drop for Fixture {
@@ -87,6 +95,7 @@ fn copied_provenance_rebinds_and_read_only_lease_survives_until_last_owner() {
 #[test]
 fn metadata_without_a_lease_never_manufactures_original_file_access() {
     let _apartment = crate::desktop::Apartment::new().unwrap();
+    let _language = LanguageReset(ui_text::current_language());
     let mut content = content();
     let mut source = CaptureSource::from_session(
         r#"{"dynamicRange":"hdr","bitDepth":16,"colorSpace":"bt2020-pq"}"#,
@@ -97,6 +106,12 @@ fn metadata_without_a_lease_never_manufactures_original_file_access() {
     let state = State::from_prepared(content.prepare(|| false).unwrap()).unwrap();
     let canvas = state.canvas.borrow();
     let source = canvas.capture_source().unwrap();
-    assert!(source.original_lease.is_none());
-    assert_eq!(source.original_label(), "HDR（原图文件未恢复）");
+    for (language, expected) in [
+        (DisplayLanguage::English, "HDR (original file not restored)"),
+        (DisplayLanguage::SimplifiedChinese, "HDR（原图文件未恢复）"),
+    ] {
+        ui_text::set_language(language);
+        assert!(source.original_lease.is_none());
+        assert_eq!(source.original_label(), expected);
+    }
 }

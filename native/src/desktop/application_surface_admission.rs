@@ -189,14 +189,19 @@ impl Application {
                         };
                         if !super::live::fits_wait_budget(self.live_sessions.len(), handles + extra)
                         {
-                            return Err("窗口等待容量已满，保留已确认挂载结果".into());
+                            return Err(crate::ui_text::text("app-surface-pending-capacity").into());
                         }
                         if closed || selected.as_deref() != Some(outcome.origin.as_str()) {
-                            return Err("服务已切换或授权界面已关闭，保留挂载结果".into());
+                            return Err(crate::ui_text::text("app-surface-owner-changed").into());
                         }
                         self.authorization_owner
                             .lease(&outcome.origin, now)
-                            .map_err(|error| format!("当前授权不可用：{error:?}"))
+                            .map_err(|error| {
+                                crate::ui_text::format(
+                                    "app-current-authorization-unavailable",
+                                    &[("error", format!("{error:?}").into())],
+                                )
+                            })
                     },
                     now,
                 )
@@ -227,14 +232,24 @@ fn start_transition_with(
     let origin = owner.binding().origin();
     let prepared = authorization
         .lease(origin, now)
-        .map_err(|error| format!("当前授权不可用：{error:?}"))
+        .map_err(|error| {
+            crate::ui_text::format(
+                "app-current-authorization-unavailable",
+                &[("error", format!("{error:?}").into())],
+            )
+        })
         .and_then(|lease| {
             if lease.device_id() != owner.binding().device() {
-                return Err("当前设备与附件绑定不一致".into());
+                return Err(crate::ui_text::text("app-surface-device-mismatch").into());
             }
             config(origin)
                 .map(|config| (config, lease))
-                .map_err(|error| format!("配置无效：{error:?}"))
+                .map_err(|error| {
+                    crate::ui_text::format(
+                        "app-configuration-invalid-detail",
+                        &[("error", format!("{error:?}").into())],
+                    )
+                })
         });
     match prepared {
         Ok((config, lease)) => {

@@ -71,7 +71,7 @@ impl Consent {
         // Even failed writes cannot revive new acceptances already in flight; update in-memory policy values only after successful commit.
         self.generation = Rc::new(());
         self.saving = true;
-        self.status = "正在保存接收策略…";
+        self.status = crate::ui_text::text("integration-saving-receive-policy");
     }
 }
 pub(super) fn handles(command: usize) -> bool {
@@ -95,21 +95,25 @@ pub(super) fn request(view: &View, command: usize) -> Result<Request> {
 pub(super) unsafe fn append_menu(menu: HMENU, view: &View) -> Result<()> {
     AppendMenuW(menu, MF_SEPARATOR, 0, None)?;
     for (id, selected, label) in [
-        (PAUSE, view.consent.paused(), "暂停"),
+        (
+            PAUSE,
+            view.consent.paused(),
+            crate::ui_text::text("integration-pause"),
+        ),
         (
             CONFIRM,
             !view.consent.paused() && view.consent.policy() == Policy::Confirm,
-            "接收",
+            crate::ui_text::text("integration-receive"),
         ),
         (
             REJECT,
             !view.consent.paused() && view.consent.policy() == Policy::Reject,
-            "拒绝",
+            crate::ui_text::text("integration-reject"),
         ),
         (
             AUTO,
             !view.consent.paused() && view.consent.policy() == Policy::Auto,
-            "自动",
+            crate::ui_text::text("integration-automatic"),
         ),
     ] {
         let enabled = !view.closed && !view.consent.saving && view.request.is_none();

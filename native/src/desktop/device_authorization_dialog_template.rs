@@ -1,4 +1,5 @@
 //! Single service-address input layout; no browser, external fonts, or persistent render thread.
+use crate::ui_text::text as tr;
 use windows::Win32::UI::WindowsAndMessaging::*;
 pub(super) fn template(art: bool) -> Vec<u32> {
     fn string(data: &mut Vec<u16>, text: &str) {
@@ -18,9 +19,9 @@ pub(super) fn template(art: bool) -> Vec<u32> {
     string(
         &mut data,
         if art {
-            "打开 Art（原生预览）"
+            tr("device-dialog-art-preview")
         } else {
-            "连接 Loom"
+            tr("device-dialog-connect-loom")
         },
     );
     data.push(9);
@@ -34,16 +35,20 @@ pub(super) fn template(art: bool) -> Vec<u32> {
             6,
             320,
             14,
-            if art { "打开 Art" } else { "连接 Loom" },
+            if art {
+                tr("device-dialog-open-art")
+            } else {
+                tr("device-dialog-connect-loom")
+            },
         ),
-        (202, 0x82, 0, 10, 52, 64, 14, "连接码（可选）"),
+        (202, 0x82, 0, 10, 52, 112, 14, tr("device-dialog-code")),
         (
             102,
             0x81,
             WS_BORDER.0 | WS_TABSTOP.0 | ES_PASSWORD as u32 | ES_AUTOHSCROLL as u32,
-            78,
+            126,
             50,
-            252,
+            204,
             18,
             "",
         ),
@@ -58,7 +63,7 @@ pub(super) fn template(art: bool) -> Vec<u32> {
             if art {
                 "Art ID"
             } else {
-                "服务地址（例如 https://loom.example.com:8443）"
+                tr("device-dialog-endpoint")
             },
         ),
         (
@@ -80,7 +85,11 @@ pub(super) fn template(art: bool) -> Vec<u32> {
             120,
             55,
             18,
-            if art { "确定" } else { "连接" },
+            if art {
+                tr("common-ok")
+            } else {
+                tr("device-dialog-connect")
+            },
         ),
         (
             IDCANCEL.0 as u16,
@@ -90,7 +99,7 @@ pub(super) fn template(art: bool) -> Vec<u32> {
             120,
             55,
             18,
-            "取消",
+            tr("common-cancel"),
         ),
     ] {
         if data.len() % 2 != 0 {

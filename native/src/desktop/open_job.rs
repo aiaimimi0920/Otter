@@ -438,7 +438,13 @@ pub(super) unsafe fn finish(hwnd: HWND, state: &State, force: bool) {
         Ok(Some(prepared)) => prepared,
         Ok(None) => return,
         Err(error) => {
-            report(hwnd, &format!("无法打开图片，原文档未被替换。\n{error}"));
+            report(
+                hwnd,
+                &crate::ui_text::format(
+                    "action-open-failed",
+                    &[("error", error.to_string().into())],
+                ),
+            );
             return;
         }
     };
@@ -447,16 +453,16 @@ pub(super) unsafe fn finish(hwnd: HWND, state: &State, force: bool) {
         return;
     }
     if prepared.len() != 1 {
-        report(hwnd, "替换图片必须恰好包含一张图片，原文档保留。");
+        report(hwnd, crate::ui_text::text("action-replace-one-image"));
         return;
     }
     let prepared = prepared.pop().unwrap();
     if prepared.editable.is_some() {
-        report(hwnd, "Editable content cannot replace the current image");
+        report(hwnd, crate::ui_text::text("action-replace-editable"));
         return;
     }
     if !job.token.matches(&state.canvas.borrow()) {
-        report(hwnd, "加载期间文档已修改，已取消替换。请重新打开图片。");
+        report(hwnd, crate::ui_text::text("action-replace-stale"));
         return;
     }
     let captured = prepared.record_history;
@@ -467,7 +473,10 @@ pub(super) unsafe fn finish(hwnd: HWND, state: &State, force: bool) {
             .map(|()| canvas.attach_capture(prepared.capture_source))
     };
     if let Err(error) = replaced {
-        report(hwnd, &format!("无法打开图片，原文档未被替换。\n{error}"));
+        report(
+            hwnd,
+            &crate::ui_text::format("action-open-failed", &[("error", error.to_string().into())]),
+        );
         return;
     }
     *state.hit_region.borrow_mut() = prepared.region;

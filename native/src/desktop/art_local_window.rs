@@ -206,14 +206,19 @@ impl Window {
             self.service_progress_visible = true;
             use crate::live_relay_http::art_prepare::service::Status;
             self.status = Some(match progress.status {
-                Status::Accepted => "Art 服务已排队".into(),
+                Status::Accepted => crate::ui_text::text("integration-art-queued").into(),
                 Status::Running => progress.percent.map_or_else(
-                    || "Art 服务执行中".into(),
-                    |percent| format!("Art 服务执行中 {percent}%"),
+                    || crate::ui_text::text("integration-art-running").into(),
+                    |percent| {
+                        crate::ui_text::format(
+                            "integration-art-progress",
+                            &[("percent", percent.into())],
+                        )
+                    },
                 ),
-                Status::Succeeded => "Art 服务完成".into(),
-                Status::Failed => "Art 服务失败".into(),
-                Status::Cancelled => "Art 服务已取消".into(),
+                Status::Succeeded => crate::ui_text::text("integration-art-complete").into(),
+                Status::Failed => crate::ui_text::text("integration-art-failed").into(),
+                Status::Cancelled => crate::ui_text::text("integration-art-cancelled").into(),
             });
         }
         let Some(frame) = self.runtime.take_reply(&self.current) else {
@@ -239,7 +244,7 @@ impl Window {
         })();
         if result.is_ok() && self.service_progress_visible {
             self.service_progress_visible = false;
-            self.status = Some("Art 就绪".into());
+            self.status = Some(crate::ui_text::text("integration-art-ready").into());
         }
         if result.is_err() {
             self.complete_trigger(crate::art_live_trigger::Receipt::Failed);

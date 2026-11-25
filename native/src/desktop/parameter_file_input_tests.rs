@@ -1,5 +1,6 @@
 //! Selection-result/request-admission regressions; owned hidden HWNDs only, without system modals or file reads.
 use super::*;
+use windows::core::w;
 
 struct Fixture {
     window: super::super::Window,

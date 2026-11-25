@@ -33,29 +33,44 @@ pub(super) fn start(
             .as_ref()
             .is_some_and(|current| Arc::ptr_eq(current, &candidate))
     {
-        return Err("恢复候选已变化，请重新查询".into());
+        return Err(crate::ui_text::text("app-recovery-candidate-changed").into());
     }
     // Consume this explicit selection; any failure requires a fresh query, retaining no candidate that a double-click could replay.
     view.recovery_candidate = None;
     if sessions.attaching() || !windows.can_mount(candidate.origin(), candidate.node()) {
-        return Err("节点已有附件或待处理记录，不能重复挂载".into());
+        return Err(crate::ui_text::text("app-surface-already-attached").into());
     }
     if !super::live::fits_wait_budget(live_count, windows.wait_budget() + 1) {
-        return Err("窗口等待容量已满，请关闭部分 Live 后重新查询".into());
+        return Err(crate::ui_text::text("app-recovery-window-capacity").into());
     }
     let now = crate::desktop::surface_windows::now_ms().map_err(|error| error.to_string())?;
     let lease = authorization
         .lease(candidate.origin(), now)
-        .map_err(|error| format!("请重新授权并查询：{error:?}"))?;
+        .map_err(|error| {
+            crate::ui_text::format(
+                "app-recovery-reauthorize-detail",
+                &[("error", format!("{error:?}").into())],
+            )
+        })?;
     if lease.device_id() != candidate.device() {
-        return Err("当前设备与候选不一致，请重新查询".into());
+        return Err(crate::ui_text::text("app-recovery-device-changed").into());
     }
-    let config = config(candidate.origin()).map_err(|error| format!("配置无效：{error:?}"))?;
+    let config = config(candidate.origin()).map_err(|error| {
+        crate::ui_text::format(
+            "app-configuration-invalid-detail",
+            &[("error", format!("{error:?}").into())],
+        )
+    })?;
     let request =
         crate::surface_attach_runtime::Request::recover(candidate, super::surface_start::report()?);
     sessions
         .start_attach(config, lease, Arc::new(request))
-        .map_err(|error| format!("恢复未启动，请重新查询：{error}"))
+        .map_err(|error| {
+            crate::ui_text::format(
+                "app-recovery-start-failed",
+                &[("error", error.to_string().into())],
+            )
+        })
 }
 
 #[cfg(test)]
@@ -127,7 +142,7 @@ mod tests {
             |_| panic!("rejected recovery must not read configuration"),
         )
         .unwrap_err();
-        assert!(error.contains("等待容量"));
+        assert_eq!(error, crate::ui_text::text("app-recovery-window-capacity"));
         assert!(view.recovery_candidate.is_none());
         assert!(sessions.finished());
     }

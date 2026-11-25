@@ -11,8 +11,12 @@ pub(crate) const RELEASE: usize = 0x1fd0;
 pub(super) struct Control {
     pub(super) queue: Option<Arc<Queue>>,
     buttons: u8,
-    shown: Option<Status>,
-    pub(super) trigger_shown: Option<(crate::live_relay_viewer_trigger_queue::Phase, bool)>,
+    shown: Option<(Status, crate::ui_text::DisplayLanguage)>,
+    pub(super) trigger_shown: Option<(
+        crate::live_relay_viewer_trigger_queue::Phase,
+        bool,
+        crate::ui_text::DisplayLanguage,
+    )>,
 }
 impl Control {
     pub(super) fn stop(&mut self) {
@@ -42,8 +46,18 @@ impl RelayWindow {
 pub(super) unsafe fn install(hwnd: HWND) -> Result<()> {
     let menu = GetSystemMenu(hwnd, false);
     AppendMenuW(menu, MF_SEPARATOR, 0, None)?;
-    AppendMenuW(menu, MF_STRING | MF_GRAYED, ACQUIRE, w!("获取远程控制权"))?;
-    AppendMenuW(menu, MF_STRING | MF_GRAYED, RELEASE, w!("释放远程控制权"))
+    AppendMenuW(
+        menu,
+        MF_STRING | MF_GRAYED,
+        ACQUIRE,
+        &windows::core::HSTRING::from(crate::ui_text::text("integration-acquire-remote-control")),
+    )?;
+    AppendMenuW(
+        menu,
+        MF_STRING | MF_GRAYED,
+        RELEASE,
+        &windows::core::HSTRING::from(crate::ui_text::text("integration-release-remote-control")),
+    )
 }
 fn queue(state: &State) -> Option<Arc<Queue>> {
     state.input.borrow().queue.clone()
@@ -53,54 +67,79 @@ pub(super) unsafe fn refresh(hwnd: HWND, state: &State) {
         return;
     }
     let status = queue(state).map(|q| q.status()).unwrap_or_default();
+    let language = crate::ui_text::current_language();
+    let shown = (status, language);
     let changed = {
         let mut input = state.input.borrow_mut();
         if !status.enabled {
             input.buttons = 0;
         }
-        input.shown.replace(status) != Some(status)
+        input.shown != Some(shown)
     };
     if !status.enabled && GetCapture() == hwnd {
         let _ = ReleaseCapture();
     }
-    if !changed {
+    if !changed
+        || state.closed.get()
+        || GetWindowLongPtrW(hwnd, GWLP_USERDATA) != state as *const State as isize
+    {
         return;
     }
+    // A partial native write must remain retryable, including a switch back to the old language.
+    state.input.borrow_mut().shown = None;
     let menu = GetSystemMenu(hwnd, false);
-    let _ = EnableMenuItem(
+    let acquire = ModifyMenuW(
         menu,
         ACQUIRE as u32,
         MF_BYCOMMAND
+            | MF_STRING
             | if status.available && !status.pending && !status.enabled {
                 MF_ENABLED
             } else {
                 MF_GRAYED
             },
+        ACQUIRE,
+        &windows::core::HSTRING::from(crate::ui_text::text_for(
+            language,
+            "integration-acquire-remote-control",
+        )),
     );
-    let _ = EnableMenuItem(
+    let release = ModifyMenuW(
         menu,
         RELEASE as u32,
         MF_BYCOMMAND
+            | MF_STRING
             | if status.pending || status.enabled {
                 MF_ENABLED
             } else {
                 MF_GRAYED
             },
+        RELEASE,
+        &windows::core::HSTRING::from(crate::ui_text::text_for(
+            language,
+            "integration-release-remote-control",
+        )),
     );
-    let _ = SetWindowTextW(
+    let title = SetWindowTextW(
         hwnd,
-        if status.recovering {
-            w!("Otter 远程观看 · 重连中")
-        } else if status.enabled {
-            w!("Otter 远程观看 · 控制中")
-        } else if status.pending {
-            w!("Otter 远程观看 · 获取控制权中")
-        } else if status.failed {
-            w!("Otter 远程观看 · 控制失败")
-        } else {
-            w!("Otter 远程观看")
-        },
+        &windows::core::HSTRING::from(crate::ui_text::text_for(
+            language,
+            if status.recovering {
+                "integration-remote-reconnecting"
+            } else if status.enabled {
+                "integration-remote-controlling"
+            } else if status.pending {
+                "integration-remote-acquiring"
+            } else if status.failed {
+                "integration-remote-control-failed"
+            } else {
+                "integration-remote-viewer"
+            },
+        )),
     );
+    if acquire.is_ok() && release.is_ok() && title.is_ok() && !state.closed.get() {
+        state.input.borrow_mut().shown = Some(shown);
+    }
 }
 pub(super) unsafe fn release(hwnd: HWND, state: &State) {
     if let Some(queue) = queue(state) {

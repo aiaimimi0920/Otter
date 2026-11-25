@@ -82,7 +82,14 @@ fn empty_host_stays_hidden_after_mouse_or_keyboard_tray_activation() {
             }
         }
         let (menu, _) = build_menu(&state).unwrap();
-        assert_eq!(GetMenuItemCount(Some(menu.0)), 7);
+        assert_eq!(GetMenuItemCount(Some(menu.0)), 8);
+        let items = crate::native_menu::snapshot(menu.0).unwrap();
+        let language = items
+            .iter()
+            .find(|item| item.label == crate::ui_text::text("tray-language"))
+            .expect("empty hosts retain the language submenu");
+        assert!(language.enabled);
+        assert_eq!(language.children.as_ref().unwrap().len(), 2);
     }
 }
 

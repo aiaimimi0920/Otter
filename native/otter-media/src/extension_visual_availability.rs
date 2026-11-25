@@ -2,6 +2,13 @@
 use super::*;
 use serde_json::json;
 
+/// Internal presentation provenance; external JSON cannot request translation of its content.
+#[derive(Debug, Eq, PartialEq)]
+pub enum Unavailable {
+    Scene,
+    Attachments(Vec<String>),
+}
+
 pub(super) fn ocr<'a>(catalog: &Snapshot, item: &'a Stored) -> Option<Descriptor<'a>> {
     let a = &item.attachment;
     if a.plugin() != OCR || a.type_id() != OCR_RESULT || !available(catalog, item) {
@@ -29,21 +36,41 @@ fn available(catalog: &Snapshot, item: &Stored) -> bool {
         .any(|d| d.plugin == item.attachment.plugin() && d.id == item.attachment.type_id())
 }
 pub(super) fn scene_unavailable() -> Value {
-    json!({"id":"extension-unavailable","type":"text","props":{"text":"扩展视图不可用"}})
+    json!({"id":"extension-unavailable","type":"text","props":{"text":"Extension view unavailable"}})
 }
 pub(super) fn unavailable(
     catalog: Option<&Snapshot>,
     store: &Store,
     visuals: &[Visual],
 ) -> Option<Visual> {
-    let children: Vec<_> = store.items().iter().filter(|item| {
-        !visuals.iter().any(|v| v.attachment == item.attachment.id())
-            && catalog.is_none_or(|c| !available(c, item) || !c.visual_declarations("renderers").take(32)
-                .any(|d| descriptor(c, d, item, true).is_some()))
-    }).take(8).enumerate().map(|(index, item)| {
-        let label = String::from_utf16_lossy(&item.attachment.type_id().encode_utf16().take(64).collect::<Vec<_>>());
+    let labels: Vec<_> = store
+        .items()
+        .iter()
+        .filter(|item| {
+            !visuals.iter().any(|v| v.attachment == item.attachment.id())
+                && catalog.is_none_or(|c| {
+                    !available(c, item)
+                        || !c
+                            .visual_declarations("renderers")
+                            .take(32)
+                            .any(|d| descriptor(c, d, item, true).is_some())
+                })
+        })
+        .take(8)
+        .map(|item| {
+            String::from_utf16_lossy(
+                &item
+                    .attachment
+                    .type_id()
+                    .encode_utf16()
+                    .take(64)
+                    .collect::<Vec<_>>(),
+            )
+        })
+        .collect();
+    let children: Vec<_> = labels.iter().enumerate().map(|(index, label)| {
         json!({"id":format!("unavailable-{index}"),"type":"text",
-            "props":{"text":format!("扩展数据不可用 · {label}"),"selectable":false},
+            "props":{"text":format!("Extension data unavailable · {label}"),"selectable":false},
             "layout":{"width":"100%","height":24,"minHeight":24,"paddingLeft":7,"paddingRight":7,
                 "paddingTop":4,"paddingBottom":4,"overflowX":"hidden","overflowY":"hidden"},
             "style":{"fontSize":11,"lineHeight":1.25,"whiteSpace":"nowrap","textOverflow":"ellipsis",
@@ -64,5 +91,6 @@ pub(super) fn unavailable(
         generation: 0,
         revision: 0,
         placeholder: true,
+        unavailable: Some(Unavailable::Attachments(labels)),
     })
 }

@@ -190,10 +190,19 @@ fn run_routed(mode: u8, offline: bool) {
                 let view = app.authorization.borrow();
                 assert_eq!(view.projection.entries.len(), usize::from(mode == 1));
                 if mode == 0 {
-                    assert_eq!(view.projection.status, "已拒绝投送");
+                    assert_eq!(
+                        view.projection.status,
+                        crate::ui_text::text("app-projection-rejected")
+                    );
                 } else {
                     assert!(Arc::ptr_eq(&view.projection.entries[0], &entry));
-                    assert!(view.projection.status.starts_with("投送操作失败："));
+                    assert_eq!(
+                        view.projection.status,
+                        crate::ui_text::format(
+                            "app-projection-operation-failed",
+                            &[("error", "Http(Projection(Receipt))".into())]
+                        )
+                    );
                 }
             }
             app.shutdown();

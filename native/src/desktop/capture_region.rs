@@ -9,7 +9,7 @@ pub(super) fn select_realtime(windows: Vec<RECT>) -> Result<Option<RECT>> {
     release::select(windows)
 }
 use windows::{
-    core::{w, Error, Result},
+    core::{w, Error, Result, HSTRING},
     Win32::{
         Foundation::*,
         Graphics::Gdi::*,
@@ -166,11 +166,11 @@ fn select_bounds_with(
         let window = Window(CreateWindowExW(
             WS_EX_TOPMOST | WS_EX_TOOLWINDOW,
             class.lpszClassName,
-            match mode {
-                Mode::Quick => w!("Otter 区域截图：拖动选择，松手截图，Esc 取消"),
-                Mode::Adjust => w!("Otter 长截图选区：拖动选择，Enter 确认，Esc 取消"),
-                Mode::Live => w!("Otter Live：拖动选择区域，双击整窗，Esc 取消"),
-            },
+            &HSTRING::from(crate::ui_text::text(match mode {
+                Mode::Quick => "capture-region-quick-title",
+                Mode::Adjust => "capture-region-adjust-title",
+                Mode::Live => "capture-region-live-title",
+            })),
             WS_POPUP,
             origin.x,
             origin.y,
@@ -341,8 +341,9 @@ unsafe extern "system" fn procedure(
             match result {
                 Some(Ok(())) => state.done.set(true),
                 Some(Err(error)) => {
-                    let text = windows::core::HSTRING::from(format!(
-                        "复制失败，请重试。若发布阶段失败，原剪贴板内容可能已被清空。\n{error}"
+                    let text = HSTRING::from(crate::ui_text::format(
+                        "capture-copy-failed",
+                        &[("error", error.to_string().into())],
                     ));
                     MessageBoxW(Some(hwnd), &text, w!("Otter"), MB_OK | MB_ICONERROR);
                 }

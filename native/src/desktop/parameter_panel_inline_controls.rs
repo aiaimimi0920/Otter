@@ -6,6 +6,7 @@ pub(super) unsafe fn build(ui: &Ui) -> Result<()> {
         ui,
         bindings: Vec::new(),
         placements: Vec::new(),
+        captions: Vec::new(),
         y: 4,
         next: 1000,
     };
@@ -13,17 +14,23 @@ pub(super) unsafe fn build(ui: &Ui) -> Result<()> {
         b.y = rank as i32 * 36 + 4;
         if row.widget == "sticker-image" {
             if let Some(config) = &model.sticker {
-                b.button(
+                let hwnd = b.button(
                     "image:upload",
                     config
                         .asset
                         .as_ref()
-                        .map_or("上传图片…", |a| a.filename.as_str()),
+                        .map_or(crate::ui_text::text("parameter-upload-image"), |a| {
+                            a.filename.as_str()
+                        }),
                     104,
                     96,
                     Kind::Sticker(model.stamp.clone(), desktop::sticker_input::Action::Upload),
                     !config.disabled,
                 )?;
+                if config.asset.is_none() {
+                    b.captions
+                        .push((hwnd, language::Caption::plain("parameter-upload-image")));
+                }
             }
             continue;
         }
@@ -142,10 +149,10 @@ pub(super) unsafe fn build(ui: &Ui) -> Result<()> {
                             "☐".into()
                         }
                     }
-                    Action::File => "选择文件…".into(),
+                    Action::File => crate::ui_text::text("parameter-choose-file").into(),
                     _ => continue,
                 };
-                b.button(
+                let hwnd = b.button(
                     &format!("{}:value", row.id),
                     &label,
                     104,
@@ -153,6 +160,10 @@ pub(super) unsafe fn build(ui: &Ui) -> Result<()> {
                     Kind::Choice(snapshot.clone(), index),
                     choice.enabled,
                 )?;
+                if matches!(choice.action, Action::File) {
+                    b.captions
+                        .push((hwnd, language::Caption::plain("parameter-choose-file")));
+                }
             }
         }
     }

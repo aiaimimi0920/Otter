@@ -51,11 +51,13 @@ fn completed_worker_updates_shared_status_without_creating_identity_or_retaining
         }
         app.process_authorization();
         assert!(!state.authorization.borrow().busy);
-        assert!(state
-            .authorization
-            .borrow()
-            .status
-            .starts_with("授权请求失败："));
+        assert_eq!(
+            state.authorization.borrow().status,
+            crate::ui_text::format(
+                "app-authorization-failed",
+                &[("error", "Store(Missing)".into())]
+            )
+        );
         assert!(app.authorization_owner.finished());
         assert_eq!(app.authorization_owner.wait_handles().count(), 0);
         assert!(!root.exists());
@@ -76,7 +78,7 @@ fn selection_discards_old_completion_and_shutdown_clears_queued_request_and_reap
         app.process_authorization();
         assert_eq!(
             app.authorization.borrow().status,
-            "已选择服务，尚未获取授权会话"
+            crate::ui_text::text("app-service-selected-no-session")
         );
         app.authorization_owner.start(task(&root)).unwrap();
         app.authorization.borrow_mut().request = Some(Request::Start(Action::RequestPairing));
@@ -99,11 +101,13 @@ fn discovery_requires_live_authorization_and_service_changes_clear_catalog() {
         app.process_authorization();
         assert!(!app.remote_sessions.discovering());
         assert!(!app.authorization.borrow().catalog_busy);
-        assert!(app
-            .authorization
-            .borrow()
-            .status
-            .starts_with("请先获取有效授权："));
+        assert_eq!(
+            app.authorization.borrow().status,
+            crate::ui_text::format(
+                "app-authorization-required-detail",
+                &[("error", "Credential".into())]
+            )
+        );
         for request in [
             Request::Cancel,
             Request::Select("https://changed.example".into()),
@@ -127,6 +131,36 @@ fn discovery_requires_live_authorization_and_service_changes_clear_catalog() {
         assert!(!app.authorization.borrow().catalog_busy);
         app.shutdown();
         assert!(app.authorization.borrow().catalog.is_none());
+    }
+}
+
+#[test]
+fn cancellation_preserves_stop_failure_by_state_not_translated_text() {
+    let _apartment = Apartment::new().unwrap();
+    unsafe {
+        let mut app = application();
+        for failed in [true, false] {
+            {
+                let mut view = app.authorization.borrow_mut();
+                view.origin = Some("https://selected.example".into());
+                view.request = Some(Request::Cancel);
+                view.status = "opaque stop failure".into();
+            }
+            app.process_authorization_with_projection_status(
+                |_| panic!("untrusted cancellation must not prepare a client"),
+                failed,
+            );
+            assert!(app.authorization.borrow().request.is_none());
+            assert_eq!(
+                app.authorization.borrow().status,
+                if failed {
+                    "opaque stop failure"
+                } else {
+                    crate::ui_text::text("app-session-cleared")
+                }
+            );
+        }
+        app.shutdown();
     }
 }
 

@@ -6,10 +6,10 @@ use crate::desktop::{
 use windows::Win32::UI::Input::KeyboardAndMouse::IsWindowEnabled;
 
 const ENTRIES: &[(usize, &str)] = &[
-    (capture_input::NEW_PIN, "截图"),
-    (capture_input::live::COMMAND, "实时截图…"),
-    (capture_input::LONG_RECORDING, "长截图"),
-    (context_menu::OPEN, "编辑已有图片…"),
+    (capture_input::NEW_PIN, "tray-capture"),
+    (capture_input::live::COMMAND, "tray-live-capture"),
+    (capture_input::LONG_RECORDING, "tray-long-capture"),
+    (context_menu::OPEN, "tray-open-image"),
 ];
 fn known(command: usize) -> bool {
     ENTRIES.iter().any(|(id, _)| *id == command)
@@ -41,10 +41,15 @@ pub(in crate::desktop) unsafe fn append(menu: HMENU, state: &State) -> Result<()
                     MF_GRAYED
                 },
             command,
-            &windows::core::HSTRING::from(tray_label(state, command, label)),
+            &windows::core::HSTRING::from(tray_label(state, command, crate::ui_text::text(label))),
         )?;
     }
-    AppendMenuW(menu, MF_STRING, RECEIVE, windows::core::w!("接收投射"))
+    AppendMenuW(
+        menu,
+        MF_STRING,
+        RECEIVE,
+        &windows::core::HSTRING::from(crate::ui_text::text("tray-receive")),
+    )
 }
 pub(super) const RECEIVE: usize = 0x10b8;
 fn tray_label(state: &State, command: usize, label: &str) -> String {

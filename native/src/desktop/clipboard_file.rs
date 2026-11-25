@@ -12,7 +12,7 @@ pub(super) fn parse(bytes: &[u8]) -> Result<Vec<PathBuf>> {
     let invalid = || {
         Error::new(
             E_INVALIDARG,
-            "剪贴板文件列表无效或超出 32 个文件的批次限制。",
+            crate::ui_text::text("action-clipboard-files-invalid"),
         )
     };
     if bytes.len() < 22 || bytes.len() > MAX_BYTES {

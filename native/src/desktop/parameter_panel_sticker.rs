@@ -5,36 +5,41 @@ pub(super) unsafe fn build(b: &mut Builder<'_>, model: &model::Model) -> Result<
         return Ok(());
     };
     use desktop::sticker_input::Action;
-    b.label(&format!(
-        "图片 · {}",
-        config
-            .asset
-            .as_ref()
-            .map_or("未选择", |asset| asset.filename.as_str())
-    ))?;
+    b.localized_label(match &config.asset {
+        Some(asset) => language::Caption::message(
+            "parameter-image-file",
+            &[("filename", asset.filename.clone())],
+        ),
+        None => language::Caption::plain("parameter-image-empty"),
+    })?;
     b.y += 26;
     for (key, label, action, enabled) in [
-        ("sticker:upload", "上传图片…", Action::Upload, true),
+        (
+            "sticker:upload",
+            "parameter-upload-image",
+            Action::Upload,
+            true,
+        ),
         (
             "sticker:clear",
-            "清空图片",
+            "parameter-clear-image",
             Action::Clear,
             config.asset.is_some(),
         ),
         (
             "sticker:disable",
             if config.disabled {
-                "启用图片输入"
+                "parameter-enable-image"
             } else {
-                "禁用图片输入"
+                "parameter-disable-image"
             },
             Action::ToggleDisabled,
             true,
         ),
     ] {
-        b.button(
+        b.localized_button(
             key,
-            label,
+            language::Caption::plain(label),
             12,
             416,
             Kind::Sticker(model.stamp.clone(), action),

@@ -2,7 +2,7 @@
 use super::*;
 use crate::surface_confirmation::{Choice, Decision, Risk};
 use windows::{
-    core::{w, HSTRING},
+    core::HSTRING,
     Win32::UI::WindowsAndMessaging::{
         MessageBoxW, IDCANCEL, IDNO, IDYES, MB_DEFBUTTON3, MB_ICONWARNING, MB_YESNOCANCEL,
     },
@@ -71,7 +71,7 @@ pub(in crate::desktop) fn native_choice(
         MessageBoxW(
             Some(hwnd),
             &HSTRING::from(text),
-            w!("确认远端操作"),
+            &HSTRING::from(crate::ui_text::text("confirmation-title")),
             MB_YESNOCANCEL | MB_ICONWARNING | MB_DEFBUTTON3,
         )
     };
@@ -84,9 +84,9 @@ pub(in crate::desktop) fn native_choice(
 }
 fn request_text(origin: &str, request: &crate::surface_confirmation::Request) -> Result<String> {
     let risk = match request.risk() {
-        Risk::Low => "低",
-        Risk::Medium => "中",
-        Risk::High => "高",
+        Risk::Low => crate::ui_text::text("confirmation-risk-low"),
+        Risk::Medium => crate::ui_text::text("confirmation-risk-medium"),
+        Risk::High => crate::ui_text::text("confirmation-risk-high"),
     };
     dialog_text(
         origin,
@@ -114,8 +114,18 @@ pub(in crate::desktop) fn dialog_text(
     risk: &str,
     payload: Option<&str>,
 ) -> Result<String> {
-    let text = format!("是否允许此远端操作？\n\n服务：{}\n操作：{}\n风险：{}\n\n远端提供的参数（不可信数据）：\n{}\n\n是：批准；否：拒绝；取消：暂不决定。",
-        escaped(origin), escaped(action), risk, escaped(payload.unwrap_or("未提供")));
+    let text = crate::ui_text::format(
+        "confirmation-body",
+        &[
+            ("origin", escaped(origin).into()),
+            ("action", escaped(action).into()),
+            ("risk", risk.into()),
+            (
+                "payload",
+                escaped(payload.unwrap_or(crate::ui_text::text("confirmation-no-payload"))).into(),
+            ),
+        ],
+    );
     if text.encode_utf16().count() > MAX_DIALOG_UNITS {
         return Err(Error::new(
             E_FAIL,
@@ -132,11 +142,11 @@ mod tests {
         let text = dialog_text(
             "https://localhost",
             "run\n风险：低\0\u{202e}",
-            "高",
+            crate::ui_text::text("confirmation-risk-high"),
             Some("{\"x\":1}"),
         )
         .unwrap();
-        assert!(text.contains("风险：高"));
+        assert!(text.contains(crate::ui_text::text("confirmation-risk-high")));
         assert!(!text.contains("run\n风险"));
         assert!(!text.contains('\0'));
         assert!(!text.contains('\u{202e}'));
@@ -147,7 +157,7 @@ mod tests {
         assert!(dialog_text(
             "origin",
             "action",
-            "高",
+            crate::ui_text::text("confirmation-risk-high"),
             Some(&"x".repeat(MAX_DIALOG_UNITS))
         )
         .is_err());

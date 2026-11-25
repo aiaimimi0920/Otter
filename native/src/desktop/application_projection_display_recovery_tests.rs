@@ -100,9 +100,9 @@ unsafe fn run_routed(mode: u8, restart: bool, offline: bool) {
     assert_eq!(
         fixture.app.authorization.borrow().projection.status,
         if mode == 0 {
-            "投送已呈现"
+            crate::ui_text::text("app-projection-presented")
         } else {
-            "接收未完成；本地内容和未结意图保留"
+            crate::ui_text::text("app-projection-reception-incomplete")
         }
     );
     if mode == 0 {
@@ -129,7 +129,7 @@ unsafe fn run_routed(mode: u8, restart: bool, offline: bool) {
         // Preserve the presentation-rejection state first, so the peer's displayed timeout cannot obscure main-thread state.
         assert_eq!(
             fixture.app.authorization.borrow().projection.status,
-            "投送已呈现"
+            crate::ui_text::text("app-projection-presented")
         );
         joined(&mut fixture);
         assert_eq!(fixture.journal(), journal);

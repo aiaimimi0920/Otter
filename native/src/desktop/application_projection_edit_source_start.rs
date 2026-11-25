@@ -133,11 +133,14 @@ impl Application {
                 self.authorization.borrow_mut().editing.unit = Some(unit);
                 self.projection_edit.0 =
                     super::super::Phase::Source(Box::new(Phase::Sending(pending)));
-                self.edit_status("正在初始化 / 同步源端协作…");
+                self.edit_status(crate::ui_text::text("app-projection-source-initializing"));
                 true
             }
             Err(error) => {
-                self.edit_error(&format!("源端协作未启动：{error}"));
+                self.edit_error(&crate::ui_text::format(
+                    "app-projection-source-start-failed",
+                    &[("error", error.to_string().into())],
+                ));
                 false
             }
         }

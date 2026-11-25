@@ -174,11 +174,39 @@ impl Call<'_> {
         let input = serde_json::to_string_pretty(&self.input).map_err(|_| Error::Wire)?;
         let escape = |v: &str, multiline: bool| {
             v.chars().flat_map(|ch| {
-            if multiline && ch == '\n' { vec!['\r','\n'] }
+            if multiline && ch == '\n' { vec!['\n'] }
             else if ch.is_control() || matches!(ch,'\u{061c}'|'\u{200e}'|'\u{200f}'|'\u{202a}'..='\u{202e}'|'\u{2066}'..='\u{2069}') { ch.escape_unicode().collect::<Vec<_>>() } else { vec![ch] }
         }).collect::<String>()
         };
-        let text = format!("允许本次敏感服务调用？\r\nArt：{} @ {}\r\n服务：{}\r\n插件：{}\r\n包摘要：{}\r\n输入摘要：{}\r\n图片数：{}；图片输出：{}\r\n\r\n参数（由 Art 提供）：\r\n{}", escape(&self.owner.binding.art_id,false),escape(&self.owner.binding.art_version,false),escape(&self.owner.service,false),challenge.plugin_id,challenge.package_digest,challenge.fingerprint,self.images.as_ref().map_or(0,|v| v.images.len()),self.image_output,escape(&input,true));
+        let text = crate::ui_text::format(
+            "native-art-confirmation",
+            &[
+                ("art", escape(&self.owner.binding.art_id, false).into()),
+                (
+                    "version",
+                    escape(&self.owner.binding.art_version, false).into(),
+                ),
+                ("service", escape(&self.owner.service, false).into()),
+                ("plugin", escape(&challenge.plugin_id, false).into()),
+                ("package", escape(&challenge.package_digest, false).into()),
+                ("fingerprint", escape(&challenge.fingerprint, false).into()),
+                (
+                    "count",
+                    self.images.as_ref().map_or(0, |v| v.images.len()).into(),
+                ),
+                (
+                    "output",
+                    crate::ui_text::text(if self.image_output {
+                        "common-yes"
+                    } else {
+                        "common-no"
+                    })
+                    .into(),
+                ),
+                ("input", escape(&input, true).into()),
+            ],
+        )
+        .replace('\n', "\r\n");
         if text.len() > 512 * 1024 {
             return Err(Error::Limit);
         }

@@ -38,10 +38,11 @@ impl Application {
                     Ok(Output::Edited(ready)) if valid => {
                         self.publish_projection_source(pending, ready, config)
                     }
-                    Err(error) => Err(format!(
-                        "源端协作未确认，原stage/请求和本地编辑保留：{error:?}"
+                    Err(error) => Err(crate::ui_text::format(
+                        "app-projection-source-unconfirmed",
+                        &[("error", format!("{error:?}").into())],
                     )),
-                    _ => Err("源端协作响应已过期；保留当前内容和原请求".into()),
+                    _ => Err(crate::ui_text::text("app-projection-source-response-expired").into()),
                 };
                 if let Err(error) = result {
                     self.settle_projection_source(&unit, scheduled.as_deref(), false);
@@ -58,7 +59,7 @@ impl Application {
                         saved.guard.scheduled.as_deref(),
                         false,
                     );
-                    self.edit_error("源端协作保存已中止；内容和原stage/请求保留");
+                    self.edit_error(crate::ui_text::text("app-projection-source-save-aborted"));
                     return;
                 }
                 if !saved.durable {
@@ -96,7 +97,9 @@ impl Application {
                                 source: None,
                                 cancelled: false,
                             })));
-                        self.edit_status("源端协作已写入检查点，正在确认原请求…");
+                        self.edit_status(crate::ui_text::text(
+                            "app-projection-source-checkpoint-confirming",
+                        ));
                     }
                     Err(error) => {
                         self.settle_projection_source(
@@ -104,8 +107,9 @@ impl Application {
                             saved.guard.scheduled.as_deref(),
                             false,
                         );
-                        self.edit_error(&format!(
-                            "源端协作内容已保存；原请求确认待显式重试：{error}"
+                        self.edit_error(&crate::ui_text::format(
+                            "app-projection-source-confirm-retry",
+                            &[("error", error.to_string().into())],
                         ));
                     }
                 }
@@ -133,9 +137,12 @@ impl Application {
                     );
                     let reason = match result {
                         Err(error) => format!("{error:?}"),
-                        _ => "响应过期、已取消或类型不匹配".into(),
+                        _ => crate::ui_text::text("app-projection-response-mismatch").into(),
                     };
-                    self.edit_error(&format!("源端协作原请求确认未完成；请显式重试：{reason}"));
+                    self.edit_error(&crate::ui_text::format(
+                        "app-projection-source-confirm-incomplete",
+                        &[("error", reason.to_string().into())],
+                    ));
                 }
             }
         }
@@ -151,11 +158,14 @@ impl Application {
             crate::device_authorization_config::Error,
         >,
     ) -> std::result::Result<(), String> {
-        let source = ready.source.as_ref().ok_or("缺少源端协作结果")?;
+        let source = ready
+            .source
+            .as_ref()
+            .ok_or(crate::ui_text::text("app-projection-source-result-missing"))?;
         let targets =
             self.projection_source_targets(&pending.guard.unit, pending.guard.context.origin());
         if !targets.iter().any(|target| target.binding == source.target) {
-            return Err("源端目标已变化".into());
+            return Err(crate::ui_text::text("app-projection-source-target-changed").into());
         }
         if let Some(candidate) = &source.candidate {
             if !candidate
@@ -164,7 +174,7 @@ impl Application {
                 || !candidate.index().is_for(candidate.source())
                 || self.restored_session.is_none()
             {
-                return Err("源端canonical候选已变化".into());
+                return Err(crate::ui_text::text("app-projection-source-canonical-changed").into());
             }
         }
         let route = targets
@@ -175,7 +185,7 @@ impl Application {
             .documents
             .iter()
             .find(|doc| doc.state.unit_id == pending.guard.unit)
-            .ok_or("源端窗口已关闭")?;
+            .ok_or(crate::ui_text::text("app-projection-source-window-closed"))?;
         let mut canvas = doc.state.canvas.borrow_mut();
         let mut slot = doc.state.projection_edit.borrow_mut();
         let unchanged = ready.ticket.is_none()
@@ -199,7 +209,9 @@ impl Application {
         }
         let route = route
             .or_else(|| slot.as_ref().map(|owner| owner.authoritative().route()))
-            .ok_or("源端anchor不可用")?;
+            .ok_or(crate::ui_text::text(
+                "app-projection-source-anchor-unavailable",
+            ))?;
         let owner = crate::desktop::projection_edit_workspace::source::prepare(
             slot.as_ref(),
             &source.frozen,
@@ -210,7 +222,12 @@ impl Application {
             &canvas.editor,
         )
         .and_then(|candidate| candidate.apply(&mut canvas.editor, None))
-        .map_err(|error| format!("源端协作候选未发布：{error}"))?;
+        .map_err(|error| {
+            crate::ui_text::format(
+                "app-projection-source-candidate-unpublished",
+                &[("error", error.to_string().into())],
+            )
+        })?;
         let snapshot = owner.capture(&canvas.editor);
         pending.guard.stamp = Some(owner.stamp());
         *slot = Some(owner);
@@ -232,7 +249,9 @@ impl Application {
             snapshot,
             durable: false,
         })));
-        self.edit_status("源端协作已初始化，等待工作区检查点…");
+        self.edit_status(crate::ui_text::text(
+            "app-projection-source-awaiting-checkpoint",
+        ));
         Ok(())
     }
     unsafe fn continue_projection_source(
@@ -257,7 +276,7 @@ impl Application {
         if !guard.targets.is_empty() && guard.explicit {
             self.start_projection_source(guard.unit, Some(guard.targets), true, config);
         } else {
-            self.edit_status("源端协作已核对；新投送目标继续使用同一冻结底图");
+            self.edit_status(crate::ui_text::text("app-projection-source-checked"));
             self.automatic_projection_edit(guard.unit, config);
         }
     }

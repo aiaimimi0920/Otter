@@ -4,12 +4,30 @@ use windows::Win32::UI::Input::KeyboardAndMouse::*;
 pub(super) unsafe fn install(hwnd: HWND) -> Result<()> {
     let menu = GetSystemMenu(hwnd, false);
     for (command, label) in [
-        (0x1f90, w!("断开 Live 连线…")),
-        (0x1fa0, w!("从 Live 创建连线…")),
-        (0x1fb0, w!("刷新连线快照并通知下游")),
-        (0x1fe0, w!("停止 Live 并保留当前画面")),
-        (0x1fd0, w!("关闭 Live 并移入回收站")),
-        (0x1fc0, w!("放弃 Live（不保留画面）")),
+        (
+            0x1f90,
+            &windows::core::HSTRING::from(crate::ui_text::text("integration-disconnect-live")),
+        ),
+        (
+            0x1fa0,
+            &windows::core::HSTRING::from(crate::ui_text::text("integration-create-live-link")),
+        ),
+        (
+            0x1fb0,
+            &windows::core::HSTRING::from(crate::ui_text::text("integration-refresh-live-links")),
+        ),
+        (
+            0x1fe0,
+            &windows::core::HSTRING::from(crate::ui_text::text("integration-stop-live-keep-frame")),
+        ),
+        (
+            0x1fd0,
+            &windows::core::HSTRING::from(crate::ui_text::text("integration-close-live-recycle")),
+        ),
+        (
+            0x1fc0,
+            &windows::core::HSTRING::from(crate::ui_text::text("integration-discard-live")),
+        ),
     ] {
         AppendMenuW(menu, MF_STRING, command, label)?;
     }

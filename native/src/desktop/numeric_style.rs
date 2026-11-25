@@ -20,24 +20,24 @@ pub(super) enum Kind {
 }
 impl Kind {
     pub(super) fn title(self) -> &'static str {
-        match self {
-            Self::Width | Self::EraserWidth | Self::EffectWidth => "精确粗细",
-            Self::MosaicCell => "精确色块大小",
-            Self::Opacity => "精确透明度",
-            Self::BlurStrength => "选中模糊强度",
-            Self::BlurDefaultStrength => "新建模糊强度",
-        }
+        crate::ui_text::text(match self {
+            Self::Width | Self::EraserWidth | Self::EffectWidth => "workspace-numeric-width",
+            Self::MosaicCell => "workspace-numeric-cell",
+            Self::Opacity => "workspace-numeric-opacity",
+            Self::BlurStrength => "workspace-numeric-blur-selected",
+            Self::BlurDefaultStrength => "workspace-numeric-blur-new",
+        })
     }
     pub(super) fn hint(self) -> &'static str {
-        match self {
-            Self::Width => "请输入 1–256 的粗细，允许小数",
-            Self::EraserWidth => "请输入 4–96 的橡皮擦粗细，允许小数",
-            Self::EffectWidth => "请输入 4–200 的效果笔刷大小，允许小数",
-            Self::MosaicCell => "请输入 2–64 的色块大小，允许小数",
-            Self::Opacity => "请输入 0–100 的百分比，允许小数",
-            Self::BlurStrength => "请输入 1–64 的模糊强度，允许小数",
-            Self::BlurDefaultStrength => "请输入 2–64 的模糊强度，允许小数",
-        }
+        crate::ui_text::text(match self {
+            Self::Width => "workspace-numeric-width-hint",
+            Self::EraserWidth => "workspace-numeric-eraser-hint",
+            Self::EffectWidth => "workspace-numeric-effect-hint",
+            Self::MosaicCell => "workspace-numeric-cell-hint",
+            Self::Opacity => "workspace-numeric-opacity-hint",
+            Self::BlurStrength => "workspace-numeric-blur-selected-hint",
+            Self::BlurDefaultStrength => "workspace-numeric-blur-new-hint",
+        })
     }
     pub(super) fn parse(self, text: &str) -> Option<f32> {
         if text.len() > 32 {

@@ -64,7 +64,10 @@ impl Owner {
         self.failed = true;
         // Do not log screenshots/colors/file contents; brief status appears only in the history window.
         eprintln!("native-capture-history: operation failed");
-        self.view.borrow_mut().status = Some(format!("历史记录未保存：{error}"));
+        self.view.borrow_mut().status = Some(crate::ui_text::format(
+            "capture-history-save-failed",
+            &[("error", error.to_string().into())],
+        ));
     }
     fn settle(&mut self) {
         let Some(job) = self.job.take() else { return };
@@ -91,7 +94,9 @@ impl Owner {
                         .iter()
                         .any(|entry| entry.preview.is_none())
                     {
-                        view.status = Some("部分截图预览不可用，原记录已保留".into());
+                        view.status = Some(
+                            crate::ui_text::text("capture-history-preview-unavailable").into(),
+                        );
                     }
                     view.changed();
                     self.saved = if revision == 0 { view.revision } else { 0 };
@@ -102,7 +107,10 @@ impl Owner {
             Output::Captured(result) => match result {
                 Ok(entry) => self.view.borrow_mut().screenshot(entry),
                 Err(error) => {
-                    self.view.borrow_mut().status = Some(format!("截图未加入历史：{error}"));
+                    self.view.borrow_mut().status = Some(crate::ui_text::format(
+                        "capture-history-add-failed",
+                        &[("error", error.to_string().into())],
+                    ));
                 }
             },
             Output::Saved(store, result) => {

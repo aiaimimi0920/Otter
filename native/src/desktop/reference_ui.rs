@@ -1,5 +1,6 @@
 //! Favorite commands enqueue only the current window and source credential; background encoding/publication never enters window callbacks.
 use super::*;
+use windows::core::HSTRING;
 pub(super) const SET: usize = 0x10b0;
 pub(super) const REMOVE: usize = 0x10b1;
 pub(super) const RECYCLE: usize = 0x10b2;
@@ -88,13 +89,38 @@ pub(super) unsafe fn append_menu(menu: HMENU, state: &State) -> Result<()> {
                 MF_ENABLED
             },
         RECYCLE,
-        w!("关闭"),
+        &HSTRING::from(crate::ui_text::text("workspace-menu-close")),
     )?;
     // The frozen library's original worker replaces placeholder submenus and asynchronously determines favorite/unfavorite state.
-    AppendMenuW(menu, flags, RECYCLE_ROOT, w!("回收站"))?;
-    AppendMenuW(menu, flags, CLEAR_RECYCLE, w!("清空回收站"))?;
+    AppendMenuW(
+        menu,
+        flags,
+        RECYCLE_ROOT,
+        &HSTRING::from(crate::ui_text::text("workspace-menu-recycle-bin")),
+    )?;
+    AppendMenuW(
+        menu,
+        flags,
+        CLEAR_RECYCLE,
+        &HSTRING::from(crate::ui_text::text("workspace-menu-clear-recycle")),
+    )?;
     AppendMenuW(menu, MF_SEPARATOR, 0, None)?;
-    AppendMenuW(menu, MF_STRING | MF_GRAYED, SET, w!("收藏"))?;
-    AppendMenuW(menu, flags, REFERENCE_ROOT, w!("收藏夹"))?;
-    AppendMenuW(menu, flags, CLEAR_REFERENCE, w!("清空收藏夹"))
+    AppendMenuW(
+        menu,
+        MF_STRING | MF_GRAYED,
+        SET,
+        &HSTRING::from(crate::ui_text::text("workspace-menu-favorite")),
+    )?;
+    AppendMenuW(
+        menu,
+        flags,
+        REFERENCE_ROOT,
+        &HSTRING::from(crate::ui_text::text("workspace-menu-favorites")),
+    )?;
+    AppendMenuW(
+        menu,
+        flags,
+        CLEAR_REFERENCE,
+        &HSTRING::from(crate::ui_text::text("workspace-menu-clear-favorites")),
+    )
 }

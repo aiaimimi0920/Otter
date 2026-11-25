@@ -77,7 +77,14 @@ fn valid_descriptor_with_missing_or_rejected_scene_displays_short_unavailable_te
     c["contributions"]["renderers"][0]["payload"]["payload"]["attachmentScenePath"] =
         "/absent".into();
     let projected = project(Some(&snapshot(&c)), &text_store(), 4);
-    assert_eq!(projected[0].scene["props"]["text"], "扩展视图不可用");
+    assert_eq!(
+        projected[0].scene["props"]["text"],
+        "Extension view unavailable"
+    );
+    assert_eq!(
+        projected[0].unavailable,
+        Some(availability::Unavailable::Scene)
+    );
     assert!(!projected[0].placeholder);
     c["contributions"]["renderers"][0]["payload"]["payload"]["scene"] =
         json!({"id":"static","type":"text","props":{"text":"Static declared fallback"}});
@@ -93,7 +100,14 @@ fn valid_descriptor_with_missing_or_rejected_scene_displays_short_unavailable_te
         &f::store(vec![a]),
         4,
     );
-    assert_eq!(visual[0].scene["props"]["text"], "扩展视图不可用");
+    assert_eq!(
+        visual[0].scene["props"]["text"],
+        "Extension view unavailable"
+    );
+    assert_eq!(
+        visual[0].unavailable,
+        Some(availability::Unavailable::Scene)
+    );
     assert!(visual[0].scene.get("events").is_none());
 }
 #[test]
@@ -113,6 +127,52 @@ fn offline_placeholders_are_bounded_noninteractive_and_do_not_hide_or_mutate_att
     assert_eq!(projected.len(), 1);
     assert!(projected[0].placeholder && !projected[0].local_copy && projected[0].command.is_none());
     assert_eq!(projected[0].scene["children"].as_array().unwrap().len(), 8);
+    assert_eq!(
+        projected[0].unavailable,
+        Some(availability::Unavailable::Attachments(vec![
+            OCR_RESULT
+                .into();
+            8
+        ]))
+    );
     assert_eq!(projected[0].bounds.resolve([100., 80.]), [6., 6., 88., 68.]);
     assert_eq!(serde_json::to_value(store.items()).unwrap(), before);
+}
+
+#[test]
+fn external_scene_identifiers_and_matching_text_never_grant_internal_provenance() {
+    let mut item = serde_json::to_value(&text_store().items()[0]).unwrap();
+    item["payload"]["surfaceScene"] = json!({
+        "id":"extension-unavailable","type":"text",
+        "props":{"text":"扩展视图不可用","selectable":true},
+        "unavailable":{"Scene":true}
+    });
+    item["payloadDigest"] = crate::unit_attachment_json::digest(&item["payload"]).into();
+    let projected = project(Some(&tests::catalog()), &f::store(vec![item]), 4);
+    assert_eq!(projected[0].scene["props"]["text"], "扩展视图不可用");
+    assert!(projected[0].unavailable.is_none());
+    assert!(projected[0].scene.get("unavailable").is_none());
+}
+
+#[test]
+fn unavailable_provenance_retains_only_bounded_external_type_labels() {
+    for type_id in [
+        format!("example/{}tail", "x".repeat(100)),
+        format!("{}😀tail", "x".repeat(63)),
+    ] {
+        let mut item = f::attachment();
+        item["typeId"] = type_id.clone().into();
+        let store = f::store(vec![item]);
+        assert_eq!(store.items().len(), 1);
+        let projected = project(None, &store, 4);
+        let label = String::from_utf16_lossy(&type_id.encode_utf16().take(64).collect::<Vec<_>>());
+        assert_eq!(
+            projected[0].unavailable,
+            Some(availability::Unavailable::Attachments(vec![label.clone()]))
+        );
+        assert_eq!(
+            projected[0].scene["children"][0]["props"]["text"],
+            format!("Extension data unavailable · {label}")
+        );
+    }
 }

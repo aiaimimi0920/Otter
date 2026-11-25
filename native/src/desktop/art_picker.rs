@@ -86,7 +86,10 @@ pub(in crate::desktop) unsafe fn dispatch(
             if owns(hwnd, state) {
                 MessageBoxW(
                     Some(hwnd),
-                    &windows::core::HSTRING::from(format!("Art 未添加。\n{error}")),
+                    &windows::core::HSTRING::from(crate::ui_text::format(
+                        "art-picker-add-failed",
+                        &[("error", error.to_string().into())],
+                    )),
                     windows::core::w!("Otter"),
                     MB_OK | MB_ICONWARNING,
                 );

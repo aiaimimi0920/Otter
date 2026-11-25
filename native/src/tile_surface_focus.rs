@@ -197,7 +197,7 @@ pub(crate) fn find(
             continue;
         }
         if *budget == 0 {
-            return Err("Art键盘可见区域搜索预算不足");
+            return Err("tile-art-keyboard-search-budget");
         }
         *budget -= 1;
         if search::covered(frame, art, p, placement, node, [l, t, r, b]) {

@@ -217,7 +217,7 @@ pub(super) unsafe fn guards(app: &mut Application, mode: TextureSource) {
         .borrow()
         .as_ref()
         .unwrap()
-        .contains("正式图片"));
+        .contains(crate::ui_text::text("app-shader-reference-no-image")));
     *app.documents[2].state.execution_results.borrow_mut() = saved;
     reference(app, mode, &app.documents[3].state.unit_id);
     if matches!(mode, TextureSource::DeclaredUnit) {

@@ -66,7 +66,12 @@ pub(in crate::desktop) unsafe fn request(binding: &Binding, hwnd: HWND) -> bool 
 #[cfg(test)]
 pub(in crate::desktop) unsafe fn append(menu: HMENU, state: &desktop::State) -> Result<()> {
     if state.chrome.borrow().upgrade().is_some() {
-        AppendMenuW(menu, MF_STRING, COMMAND, w!("端口显示…"))?;
+        AppendMenuW(
+            menu,
+            MF_STRING,
+            COMMAND,
+            &HSTRING::from(crate::ui_text::text("workspace-port-display")),
+        )?;
     }
     Ok(())
 }
@@ -75,7 +80,7 @@ pub(in crate::desktop) unsafe fn install_live(hwnd: HWND) -> Result<()> {
         GetSystemMenu(hwnd, false),
         MF_STRING,
         LIVE_COMMAND,
-        w!("端口显示…"),
+        &HSTRING::from(crate::ui_text::text("workspace-port-display")),
     )
 }
 impl Application {

@@ -199,12 +199,12 @@ fn run_recovery(mode: u8) {
                 ));
                 assert_ne!(
                     app.authorization.borrow().projection.status,
-                    "投送解绑已确认"
+                    crate::ui_text::text("app-projection-unlink-confirmed")
                 );
             } else if mode <= 1 {
                 assert_eq!(
                     app.authorization.borrow().projection.status,
-                    "投送解绑已确认"
+                    crate::ui_text::text("app-projection-unlink-confirmed")
                 );
             }
             if mode == 1 {
@@ -227,7 +227,7 @@ fn run_recovery(mode: u8) {
                     .is_empty());
                 assert_eq!(
                     app.authorization.borrow().projection.status,
-                    "投送解绑已确认"
+                    crate::ui_text::text("app-projection-unlink-confirmed")
                 );
             }
             assert_eq!(app.documents.len(), 2);
@@ -309,7 +309,7 @@ fn recovery_request_cannot_substitute_a_same_record_arc_not_owned_by_the_profile
         app.process_authorization_with_projection(|_| panic!("unowned record read configuration"));
         assert_eq!(
             app.authorization.borrow().projection.status,
-            "未结投送选择已失效"
+            crate::ui_text::text("app-projection-unsettled-choice-expired")
         );
         assert!(!app.remote_sessions.projection_pending());
         app.shutdown();

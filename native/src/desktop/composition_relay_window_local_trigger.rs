@@ -35,7 +35,7 @@ pub(super) unsafe fn handle(
                 MF_GRAYED
             },
         1,
-        w!("启用或修改 Art 自动触发…"),
+        &windows::core::HSTRING::from(crate::ui_text::text("integration-configure-art-trigger")),
     );
     let _ = AppendMenuW(
         menu.0,
@@ -47,7 +47,7 @@ pub(super) unsafe fn handle(
                 MF_GRAYED
             },
         2,
-        w!("停止 Art 自动触发"),
+        &windows::core::HSTRING::from(crate::ui_text::text("integration-stop-art-trigger")),
     );
     let mut point = POINT::default();
     if GetCursorPos(&mut point).is_err() {

@@ -12,14 +12,14 @@ fn freeze_after_poll_entry_holds_views_instead_of_interpreting_cancel_as_retirem
     assert!(current(&shared, &job));
     shared.lock().frozen = true;
     assert_eq!(
-        after_poll(&shared, &job, Err("Live已停止")),
+        after_poll(&shared, &job, Err("tile-live-stopped")),
         Ok(Phase::Held)
     );
     assert_eq!(after_poll(&shared, &job, Ok(())), Ok(Phase::Held));
     assert!(!current(&shared, &job));
     shared.lock().generation += 1;
     assert_eq!(
-        after_poll(&shared, &job, Err("Live已停止")),
+        after_poll(&shared, &job, Err("tile-live-stopped")),
         Ok(Phase::Ended)
     );
     shared.stop();

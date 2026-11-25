@@ -10,10 +10,7 @@ use windows::Win32::{
     Graphics::Direct2D::{Common::*, *},
 };
 #[cfg(test)]
-use windows::{
-    core::{w, Result},
-    Win32::UI::WindowsAndMessaging::*,
-};
+use windows::{core::Result, Win32::UI::WindowsAndMessaging::*};
 
 pub(super) const START: usize = 0x102E;
 pub(super) const RESET: usize = 0x102F;
@@ -168,7 +165,7 @@ pub(super) unsafe fn append(menu: HMENU, state: &State) -> Result<()> {
                 MF_UNCHECKED
             },
         START,
-        w!("裁剪选区"),
+        &windows::core::HSTRING::from(crate::ui_text::text("action-crop-selection")),
     )?;
     AppendMenuW(
         menu,
@@ -179,6 +176,6 @@ pub(super) unsafe fn append(menu: HMENU, state: &State) -> Result<()> {
                 MF_GRAYED
             },
         RESET,
-        w!("重置裁剪"),
+        &windows::core::HSTRING::from(crate::ui_text::text("action-reset-crop")),
     )
 }

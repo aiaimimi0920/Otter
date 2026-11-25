@@ -55,7 +55,7 @@ fn lan_invitation_waiting_for_unlink_cannot_be_replaced() {
             view.sender.bindings = vec![active.binding().clone()];
         }
         f.popup.model.refresh_lan();
-        assert_button("解除关联", true);
+        assert_button(crate::ui_text::text("share-unlink"), true);
         f.command(108);
         assert!(matches!(
             f.view.borrow_mut().request.take(),
@@ -64,13 +64,13 @@ fn lan_invitation_waiting_for_unlink_cannot_be_replaced() {
 
         f.view.borrow_mut().sender.bindings = pending.entries().to_vec();
         f.popup.model.refresh_lan();
-        assert_button("关联暂不可操作", false);
+        assert_button(crate::ui_text::text("share-unavailable"), false);
         f.command(108);
         assert!(f.view.borrow().request.is_none());
 
         f.view.borrow_mut().sender.bindings.clear();
         f.popup.model.refresh_lan();
-        assert_button("生成邀请", true);
+        assert_button(crate::ui_text::text("share-generate"), true);
         f.command(108);
         assert!(matches!(
             f.view.borrow_mut().request.take(),

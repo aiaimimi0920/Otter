@@ -99,7 +99,7 @@ pub(in crate::desktop::tile_window) fn finish(
             Ok(Some(index)) => Some(index),
             Ok(None) => return,
             Err(_) => {
-                state.shared.lock().actions.notice = "Art选项菜单不可用";
+                state.shared.lock().actions.notice = "integration-art-options-unavailable";
                 return;
             }
         },
@@ -149,12 +149,12 @@ pub(in crate::desktop::tile_window) fn finish(
         }
     }
     if super::super::text::decorate(state, &mut commands).is_err() {
-        state.shared.lock().actions.notice = "Art表单未提交";
+        state.shared.lock().actions.notice = "integration-art-form-not-committed";
         return;
     }
     if let Some((focus, value)) = local_focus.zip(changed) {
         if super::super::local::set(state, focus, value).is_err() {
-            state.shared.lock().actions.notice = "Art本地字段未修改";
+            state.shared.lock().actions.notice = "integration-art-field-unchanged";
             return;
         }
     }

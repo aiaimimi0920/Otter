@@ -18,7 +18,7 @@ fn pin_tree_matches_main_order_and_only_adds_clipboard() {
             menu.0,
             MF_STRING,
             context_menu::EXPORT,
-            windows::core::w!("保存"),
+            &windows::core::HSTRING::from(crate::ui_text::text("common-save")),
         )
         .unwrap();
         reference::append_menu(menu.0, &state).unwrap();
@@ -27,16 +27,16 @@ fn pin_tree_matches_main_order_and_only_adds_clipboard() {
         assert_eq!(
             labels,
             [
-                "保存",
-                "关闭",
-                "回收站",
-                "清空回收站",
+                crate::ui_text::text("common-save"),
+                crate::ui_text::text("common-close"),
+                crate::ui_text::text("library-recycle-bin"),
+                crate::ui_text::text("library-empty-recycle-bin"),
                 "",
-                "收藏",
-                "收藏夹",
-                "清空收藏夹",
+                crate::ui_text::text("library-add-favorite"),
+                crate::ui_text::text("library-favorites"),
+                crate::ui_text::text("library-empty-favorites"),
                 "",
-                "剪贴板"
+                crate::ui_text::text("clipboard-history")
             ]
         );
         for i in [2, 6, 9] {
@@ -57,8 +57,20 @@ fn tray_tree_has_no_clipboard_libraries_or_hidden_restore_entry() {
         let state = State::new(None, false).unwrap();
         let menu = Menu(CreatePopupMenu().unwrap());
         crate::desktop::tray::actions::append(menu.0, &state).unwrap();
-        AppendMenuW(menu.0, MF_STRING, 12, windows::core::w!("自启动")).unwrap();
-        AppendMenuW(menu.0, MF_STRING, 2, windows::core::w!("退出")).unwrap();
+        AppendMenuW(
+            menu.0,
+            MF_STRING,
+            12,
+            &windows::core::HSTRING::from(crate::ui_text::text("tray-autostart")),
+        )
+        .unwrap();
+        AppendMenuW(
+            menu.0,
+            MF_STRING,
+            2,
+            &windows::core::HSTRING::from(crate::ui_text::text("tray-exit")),
+        )
+        .unwrap();
         let snapshot = contents(&state, menu.0, true).unwrap();
         let labels: Vec<_> = snapshot
             .tree
@@ -68,13 +80,13 @@ fn tray_tree_has_no_clipboard_libraries_or_hidden_restore_entry() {
         assert_eq!(
             labels,
             [
-                "截图",
-                "实时截图…",
-                "长截图",
-                "编辑已有图片…",
-                "接收投射",
-                "自启动",
-                "退出"
+                crate::ui_text::text("tray-capture"),
+                crate::ui_text::text("tray-live-capture"),
+                crate::ui_text::text("tray-long-capture"),
+                crate::ui_text::text("tray-open-image"),
+                crate::ui_text::text("tray-receive"),
+                crate::ui_text::text("tray-autostart"),
+                crate::ui_text::text("tray-exit")
             ]
         );
         assert!(snapshot.history.is_none() && snapshot.frozen.is_none());

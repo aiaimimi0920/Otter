@@ -2,7 +2,7 @@
 use super::{Request, View as AuthorizationView};
 use crate::projection_delivery::targets::{Directory, Policy, Route, Status};
 use windows::{
-    core::{w, Error, Result, HSTRING},
+    core::{Error, Result, HSTRING},
     Win32::{Foundation::E_ABORT, UI::WindowsAndMessaging::*},
 };
 pub(in crate::desktop) const REFRESH: usize = 0x1600;
@@ -75,7 +75,7 @@ pub(super) unsafe fn append_menu(
                 MF_GRAYED
             },
         REFRESH,
-        w!("刷新投送目标"),
+        &windows::core::HSTRING::from(crate::ui_text::text("integration-refresh-targets")),
     )?;
     if !view.targets.status.is_empty() {
         AppendMenuW(
@@ -108,11 +108,11 @@ pub(super) unsafe fn append_menu(
             menu.0,
             MF_STRING,
             super::sender::CANCEL,
-            if view.sender.group_stopping {
-                w!("取消未受理的组停止")
+            &HSTRING::from(if view.sender.group_stopping {
+                crate::ui_text::text("integration-cancel-group-stop")
             } else {
-                w!("取消当前发送")
-            },
+                crate::ui_text::text("integration-cancel-send")
+            }),
         )?;
     }
     for (index, binding) in super::sender::stops(view, unit).enumerate() {
@@ -125,18 +125,25 @@ pub(super) unsafe fn append_menu(
                     MF_GRAYED
                 },
             super::sender::STOP_BASE + index,
-            &HSTRING::from(format!(
-                "停止投送：{}{}",
-                label(if binding.name().is_empty() {
-                    binding.target().unwrap_or("分享邀请")
-                } else {
-                    binding.name()
-                }),
-                if binding.stopped() {
-                    " · 停止中"
-                } else {
-                    ""
-                }
+            &HSTRING::from(crate::ui_text::format(
+                "integration-stop-delivery",
+                &[
+                    (
+                        "name",
+                        label(if binding.name().is_empty() {
+                            binding
+                                .target()
+                                .unwrap_or(crate::ui_text::text("integration-share-invitation"))
+                        } else {
+                            binding.name()
+                        })
+                        .into(),
+                    ),
+                    (
+                        "stopping",
+                        if binding.stopped() { "yes" } else { "no" }.into(),
+                    ),
+                ],
             )),
         )?;
     }
@@ -145,7 +152,7 @@ pub(super) unsafe fn append_menu(
             menu.0,
             MF_STRING,
             super::sender::RETRY,
-            w!("重试原投送邀请"),
+            &windows::core::HSTRING::from(crate::ui_text::text("integration-retry-invitation")),
         )?;
     }
     if let Some(directory) = view
@@ -156,20 +163,23 @@ pub(super) unsafe fn append_menu(
     {
         for (index, target) in directory.targets().iter().enumerate() {
             let route = match target.route() {
-                Route::SharedLoom => "同一 Loom".to_owned(),
+                Route::SharedLoom => crate::ui_text::text("integration-same-loom").to_owned(),
                 Route::OfflinePeer {
                     advertised_available: true,
                     peer_name,
                     ..
-                } => format!("离线互信 · {}", label(peer_name)),
+                } => crate::ui_text::format(
+                    "integration-offline-peer",
+                    &[("name", label(peer_name).into())],
+                ),
                 Route::OfflinePeer {
                     advertised_available: false,
                     ..
-                } => "离线不可用".to_owned(),
+                } => crate::ui_text::text("integration-offline-unavailable").to_owned(),
             };
             let policy = match target.policy() {
-                Policy::Auto => "自动",
-                Policy::Confirm => "接收",
+                Policy::Auto => crate::ui_text::text("integration-automatic"),
+                Policy::Confirm => crate::ui_text::text("integration-receive"),
             };
             let name = if target.name().is_empty() {
                 target.id()
@@ -203,11 +213,13 @@ pub(super) unsafe fn append_menu(
                         MF_GRAYED
                     },
                 super::sender::groups::BASE + index,
-                &HSTRING::from(format!(
-                    "发送组：{} · {} 项 · {} 不可用",
-                    label(group.name()),
-                    group.target_ids().len(),
-                    group.unavailable_count()
+                &HSTRING::from(crate::ui_text::format(
+                    "integration-send-group",
+                    &[
+                        ("name", label(group.name()).into()),
+                        ("count", group.target_ids().len().into()),
+                        ("unavailable", group.unavailable_count().into()),
+                    ],
                 )),
             )?;
             AppendMenuW(
@@ -219,11 +231,19 @@ pub(super) unsafe fn append_menu(
                         MF_GRAYED
                     },
                 super::sender::groups::STOP_BASE + index,
-                &HSTRING::from(format!("停止组：{}", label(group.name()))),
+                &HSTRING::from(crate::ui_text::format(
+                    "integration-stop-group",
+                    &[("name", label(group.name()).into())],
+                )),
             )?;
         }
     }
-    AppendMenuW(parent, MF_POPUP, menu.0 .0 as usize, w!("投送目标"))?;
+    AppendMenuW(
+        parent,
+        MF_POPUP,
+        menu.0 .0 as usize,
+        &windows::core::HSTRING::from(crate::ui_text::text("integration-delivery-targets")),
+    )?;
     // The parent menu takes ownership only after successful attachment; local owners release every construction failure.
     std::mem::forget(menu);
     Ok(())
@@ -231,9 +251,15 @@ pub(super) unsafe fn append_menu(
 pub(in crate::desktop) fn status(directory: &Directory) -> String {
     let suffix = match directory.status() {
         Status::Complete => "",
-        Status::Partial => " · 离线目录不完整",
-        Status::Busy => " · 离线目录忙",
-        Status::Unavailable => " · 离线目录不可用",
+        Status::Partial => crate::ui_text::text("integration-offline-directory-partial"),
+        Status::Busy => crate::ui_text::text("integration-offline-directory-busy"),
+        Status::Unavailable => crate::ui_text::text("integration-offline-directory-unavailable"),
     };
-    format!("投送目标：{} 项{suffix}", directory.targets().len())
+    crate::ui_text::format(
+        "integration-target-count",
+        &[
+            ("count", directory.targets().len().into()),
+            ("suffix", suffix.into()),
+        ],
+    )
 }

@@ -62,7 +62,10 @@ pub(super) unsafe fn read_image(hwnd: HWND, state: &State, new_pin: bool) -> Res
     } else if IsClipboardFormatAvailable(15).is_ok() {
         (15, false)
     } else {
-        return Err(Error::new(E_INVALIDARG, "剪贴板中没有可用的图片。"));
+        return Err(Error::new(
+            E_INVALIDARG,
+            crate::ui_text::text("action-paste-no-image"),
+        ));
     };
     let handle = GetClipboardData(format)?;
     let memory = HGLOBAL(handle.0);
@@ -144,7 +147,10 @@ pub(super) unsafe fn start_with(hwnd: HWND, state: &State, new_pin: bool) {
         if IsWindow(Some(hwnd)).as_bool() {
             MessageBoxW(
                 Some(hwnd),
-                &HSTRING::from(format!("无法粘贴图片，原文档保留。\n{error}")),
+                &HSTRING::from(crate::ui_text::format(
+                    "action-paste-failed",
+                    &[("error", error.to_string().into())],
+                )),
                 w!("Otter"),
                 MB_OK | MB_ICONWARNING,
             );
@@ -195,7 +201,10 @@ pub(super) unsafe fn deliver_at(
             } else if paths.len() == 1 {
                 Input::File(paths.pop().unwrap())
             } else {
-                return Err(Error::new(E_INVALIDARG, "替换图片只能粘贴一个文件。"));
+                return Err(Error::new(
+                    E_INVALIDARG,
+                    crate::ui_text::text("action-paste-one-file"),
+                ));
             }
         }
     };

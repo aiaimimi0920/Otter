@@ -41,6 +41,8 @@ pub struct Visual {
     pub generation: u64,
     pub revision: u64,
     pub placeholder: bool,
+    /// Set only by internal fallback constructors, never inferred from extension scene content.
+    pub unavailable: Option<availability::Unavailable>,
 }
 #[derive(Clone, Copy)]
 struct Descriptor<'a> {
@@ -218,6 +220,7 @@ fn visual(d: Descriptor<'_>, attachment: &Stored, scene: Value) -> Visual {
         generation: d.generation,
         revision: attachment.attachment.revision(),
         placeholder: false,
+        unavailable: None,
     }
 }
 fn valid_path(value: &Value) -> bool {
@@ -286,7 +289,11 @@ fn project_available(catalog: &Snapshot, store: &Store, revision: u64) -> Vec<Vi
             if replacement.as_ref().is_some_and(|(i, _)| *i == index) {
                 return replacement.take().unwrap().1;
             }
-            prepare(d, item).unwrap_or_else(|| visual(d, item, availability::scene_unavailable()))
+            prepare(d, item).unwrap_or_else(|| {
+                let mut visual = visual(d, item, availability::scene_unavailable());
+                visual.unavailable = Some(availability::Unavailable::Scene);
+                visual
+            })
         })
         .collect()
 }

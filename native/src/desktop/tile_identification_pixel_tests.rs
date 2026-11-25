@@ -49,9 +49,22 @@ fn real_marker_has_opaque_background_close_button_and_bounded_literal_identity_t
             until: now + std::time::Duration::from_millis(1001),
         };
         let text = text(&marker, now);
-        assert!(text.contains("2 秒后关闭"));
+        assert_eq!(
+            text,
+            crate::ui_text::format(
+                "integration-tile-identification",
+                &[
+                    ("name", "屏幕\\u{a}伪造\\u{202e}".into()),
+                    ("width", marker.endpoint.pixel_size.width.into()),
+                    ("height", marker.endpoint.pixel_size.height.into()),
+                    ("device", "device-1".into()),
+                    ("output", marker.endpoint.output_id.as_str().into()),
+                    ("seconds", "2".into()),
+                ]
+            )
+        );
         assert!(text.contains("屏幕\\u{a}伪造\\u{202e}"));
-        assert!(text.contains("设备：device-1") && text.contains("输出：monitor-"));
+        assert!(text.contains("device-1") && text.contains("monitor-"));
         let painter = Painter::new().unwrap();
         target.BeginDraw();
         painter.draw(&target, &marker, now).unwrap();

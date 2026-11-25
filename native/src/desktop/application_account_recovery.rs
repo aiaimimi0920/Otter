@@ -37,7 +37,10 @@ impl Application {
                         // A locally failing intent must not starve sync of existing bindings.
                         self.account_projection.recovery_retry_at =
                             Some(Instant::now() + Duration::from_secs(5));
-                        self.account_status(&format!("账号恢复记录核对失败：{error}"));
+                        self.account_status(&crate::ui_text::format(
+                            "app-account-recovery-check-failed",
+                            &[("error", error.to_string().into())],
+                        ));
                         Ok(false)
                     }
                 };
@@ -93,7 +96,7 @@ impl Application {
             cancel: None,
             participation: Some(participation),
         });
-        self.account_status("正在核对账号关联…");
+        self.account_status(crate::ui_text::text("app-account-checking"));
         Ok(true)
     }
 }

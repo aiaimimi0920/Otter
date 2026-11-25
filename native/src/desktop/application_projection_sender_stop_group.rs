@@ -177,32 +177,44 @@ impl Batch {
         let mut view = app.authorization.borrow_mut();
         view.sender.group_stopping = true;
         view.sender.group_unit = Some(self.selection.group.unit.clone());
-        view.sender.group_results = vec![format!(
-            "停止组 {}：{} 已确认 · {} 待确认 · {} 失败 · {} 未受理",
-            group.name(),
-            count(State::Stopped),
-            count(State::Starting) + count(State::Pending),
-            count(State::Failed),
-            count(State::Queued) + count(State::Cancelled),
+        view.sender.group_results = vec![crate::ui_text::format(
+            "app-projection-stop-group-summary",
+            &[
+                ("group", group.name().into()),
+                ("stopped", count(State::Stopped).into()),
+                (
+                    "pending",
+                    (count(State::Starting) + count(State::Pending)).into(),
+                ),
+                ("failed", count(State::Failed).into()),
+                (
+                    "cancelled",
+                    (count(State::Queued) + count(State::Cancelled)).into(),
+                ),
+            ],
         )];
         view.sender
             .group_results
             .extend(self.entries.iter().map(|entry| {
                 let state = match entry.state {
-                    State::Queued => "等待受理",
-                    State::Starting => "正在持久受理；取消不撤销已发布意图",
-                    State::Pending => "已持久受理，等待解绑/保存/确认",
-                    State::Stopped => "停止已确认",
-                    State::Failed => "未受理：持久减权失败或缺少原意图",
-                    State::Cancelled => "未受理/已取消",
+                    State::Queued => crate::ui_text::text("app-projection-stop-queued"),
+                    State::Starting => crate::ui_text::text("app-projection-stop-starting"),
+                    State::Pending => crate::ui_text::text("app-projection-stop-pending"),
+                    State::Stopped => crate::ui_text::text("app-projection-stop-confirmed"),
+                    State::Failed => crate::ui_text::text("app-projection-stop-failed"),
+                    State::Cancelled => crate::ui_text::text("app-projection-stop-cancelled"),
                 };
-                format!(
-                    "{}：{state}",
-                    if entry.binding.name().is_empty() {
-                        entry.binding.target().unwrap_or("分享邀请")
-                    } else {
-                        entry.binding.name()
-                    }
+                let name = if entry.binding.name().is_empty() {
+                    entry
+                        .binding
+                        .target()
+                        .unwrap_or(crate::ui_text::text("app-projection-share-invitation"))
+                } else {
+                    entry.binding.name()
+                };
+                crate::ui_text::format(
+                    "app-projection-target-result",
+                    &[("target", name.into()), ("status", state.into())],
                 )
             }));
     }

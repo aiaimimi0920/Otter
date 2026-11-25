@@ -59,6 +59,7 @@ impl Application {
         state.copy_authority = self.copy_authority.clone();
         state.editable_clipboard = self.editable_clipboard.clone();
         state.naming_autosave = self.naming_autosave.clone();
+        state.display_language_request = self.locale.local.clone();
         state.workspace_autosave = self.workspace_autosave.clone();
         state.catalog = self.catalog.clone();
         state.extensions = self.extensions.view.clone();

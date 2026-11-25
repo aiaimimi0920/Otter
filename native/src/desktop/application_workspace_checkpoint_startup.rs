@@ -102,9 +102,14 @@ impl Application {
                     .unwrap_or(0)
             );
         } else if readonly {
-            MessageBoxW(self.documents.first().map(|doc| doc.window.0),
-                w!("默认工作区原文件缺失，已读取唯一恢复副本。副本保持原样，自动检查点已停用；请另存工作区。"),
-                w!("Otter 工作区恢复"), MB_OK | MB_ICONWARNING);
+            MessageBoxW(
+                self.documents.first().map(|doc| doc.window.0),
+                &windows::core::HSTRING::from(crate::ui_text::text(
+                    "app-workspace-default-recovery",
+                )),
+                &windows::core::HSTRING::from(crate::ui_text::text("app-workspace-recovery-title")),
+                MB_OK | MB_ICONWARNING,
+            );
         }
         if !check {
             self.projection_sender.start(

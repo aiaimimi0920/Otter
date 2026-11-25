@@ -3,20 +3,33 @@ use super::*;
 use crate::{
     desktop::device_authorization_ui::Request,
     device_authorization_config::{Action, Config},
-    device_authorization_owner::Event,
     device_authorization_runtime::Task,
 };
+#[path = "application_authorization_events.rs"]
+mod events;
+
 impl Application {
     pub(super) fn process_authorization(&mut self) {
-        self.process_local_loom();
-        self.process_authorization_with_projection(Config::from_env);
+        let stop_preference_failed = self.process_local_loom();
+        self.process_authorization_with_projection_status(Config::from_env, stop_preference_failed);
     }
+    #[cfg(test)]
     pub(super) fn process_authorization_with_projection(
+        &mut self,
+        config: impl FnMut(
+            &str,
+        )
+            -> std::result::Result<Config, crate::device_authorization_config::Error>,
+    ) {
+        self.process_authorization_with_projection_status(config, false);
+    }
+    fn process_authorization_with_projection_status(
         &mut self,
         mut config: impl FnMut(
             &str,
         )
             -> std::result::Result<Config, crate::device_authorization_config::Error>,
+        stop_preference_failed: bool,
     ) {
         unsafe {
             self.process_account_projection();
@@ -138,16 +151,16 @@ impl Application {
         };
         if let Some((origin, art, node)) = local_request {
             let result = origin
-                .ok_or_else(|| "尚未选择服务".to_owned())
+                .ok_or_else(|| crate::ui_text::text("app-service-not-selected").to_owned())
                 .and_then(|origin| {
-                    let configuration =
-                        config(&origin).map_err(|_| "Art 服务配置无效".to_owned())?;
+                    let configuration = config(&origin)
+                        .map_err(|_| crate::ui_text::text("app-art-service-invalid").to_owned())?;
                     self.open_local_art(&origin, art, &node, configuration)
                 });
             let mut view = self.authorization.borrow_mut();
             view.mount_busy = self.remote_sessions.attaching() || self.local_arts.busy();
             view.status = match result {
-                Ok(()) => "正在本地打开 Art…".into(),
+                Ok(()) => crate::ui_text::text("app-art-opening-locally").into(),
                 Err(error) => error,
             };
         }
@@ -193,7 +206,8 @@ impl Application {
                         || self.projection_receive.busy()
                         || self.projection_edit.busy()
                     {
-                        view.targets.status = "目标目录未查询：应用正在处理其他操作".into();
+                        view.targets.status =
+                            crate::ui_text::text("app-target-catalog-app-busy").into();
                     } else {
                         super::projection::targets::start(
                             &mut view,
@@ -210,7 +224,7 @@ impl Application {
                         || self.projection_receive.busy()
                         || self.projection_edit.busy()
                     {
-                        view.projection.status = "投送操作未执行：工作区正在切换或退出".into();
+                        view.projection.status = crate::ui_text::text("app-projection-workspace-switching").into();
                     } else if matches!(
                         request,
                         crate::desktop::device_authorization_ui::projection::Request::Accept(_)
@@ -220,7 +234,7 @@ impl Application {
                             )
                     ) && receive_scope.is_none()
                     {
-                        view.projection.status = "接收未启动：当前工作区不能安全保存".into();
+                        view.projection.status = crate::ui_text::text("app-projection-workspace-unsafe").into();
                     } else if super::projection::start(
                         &mut view,
                         request,
@@ -251,7 +265,7 @@ impl Application {
                     view.mount_busy = self.remote_sessions.attaching();
                     view.restoring = result.is_ok();
                     view.recovery_status = match result {
-                        Ok(()) => "正在重新挂载候选…".into(),
+                        Ok(()) => crate::ui_text::text("app-recovery-remounting").into(),
                         Err(error) => error,
                     };
                 }
@@ -261,8 +275,11 @@ impl Application {
                     let result = self.remote_sessions.read_recovery_file(path);
                     view.recovery_busy = result.is_ok();
                     view.recovery_status = match result {
-                        Ok(()) => "正在读取恢复记录…".into(),
-                        Err(error) => format!("恢复文件未读取：{error}"),
+                        Ok(()) => crate::ui_text::text("app-recovery-reading").into(),
+                        Err(error) => crate::ui_text::format(
+                            "app-recovery-file-not-read",
+                            &[("error", error.to_string().into())],
+                        ),
                     };
                 }
                 Request::QueryRecovery(record) => {
@@ -276,7 +293,7 @@ impl Application {
                     );
                     view.recovery_busy = result.is_ok();
                     view.recovery_status = match result {
-                        Ok(()) => "正在查询恢复候选…".into(),
+                        Ok(()) => crate::ui_text::text("app-recovery-querying").into(),
                         Err(error) => error,
                     };
                 }
@@ -304,7 +321,8 @@ impl Application {
                         }
                         view.origin = Some(origin);
                         view.busy = false;
-                        view.status = "已选择服务，尚未获取授权会话".into();
+                        view.status =
+                            crate::ui_text::text("app-service-selected-no-session").into();
                     }
                 }
                 Request::Cancel => {
@@ -326,11 +344,8 @@ impl Application {
                         let _ = self.authorization_owner.invalidate(origin);
                     }
                     view.busy = false;
-                    if !view
-                        .status
-                        .starts_with("本次连接已停止，但未保存停止状态：")
-                    {
-                        view.status = "本地会话已清除；服务端设备批准状态不变".into();
+                    if !stop_preference_failed {
+                        view.status = crate::ui_text::text("app-session-cleared").into();
                     }
                     // Old sessions without local Art trust do not touch the profile; configuration capture performs no I/O, and revocation commits through the existing bounded background owner.
                     if let Some(origin) = view
@@ -339,16 +354,24 @@ impl Application {
                         .filter(|o| self.art_issuers.is_trusted(o))
                     {
                         let result = config(origin)
-                            .map_err(|_| "离线授权清除未启动：配置无效".to_owned())
+                            .map_err(|_| {
+                                crate::ui_text::text("app-offline-clear-invalid-config").to_owned()
+                            })
                             .and_then(|config| {
                                 self.authorization_owner
                                     .start(Task::ClearOffline { config })
-                                    .map_err(|e| format!("离线授权清除未启动：{e:?}"))
+                                    .map_err(|e| {
+                                        crate::ui_text::format(
+                                            "app-offline-clear-not-started",
+                                            &[("error", format!("{e:?}").into())],
+                                        )
+                                    })
                             });
                         match result {
                             Ok(()) => {
                                 view.busy = true;
-                                view.status = "本地会话已停止；正在清除离线授权…".into();
+                                view.status =
+                                    crate::ui_text::text("app-offline-clear-started").into();
                             }
                             Err(error) => view.status = error,
                         }
@@ -359,25 +382,39 @@ impl Application {
                     let result = view
                         .origin
                         .as_deref()
-                        .ok_or_else(|| "尚未选择服务".to_owned())
+                        .ok_or_else(|| crate::ui_text::text("app-service-not-selected").to_owned())
                         .and_then(|origin| {
                             let now = std::time::SystemTime::now()
                                 .duration_since(std::time::UNIX_EPOCH)
-                                .map_err(|_| "系统时间无效".to_owned())?;
-                            let now = u64::try_from(now.as_millis())
-                                .map_err(|_| "系统时间超出范围".to_owned())?;
-                            let lease = self
-                                .authorization_owner
-                                .lease(origin, now)
-                                .map_err(|e| format!("请先获取有效授权：{e:?}"))?;
-                            let config = config(origin).map_err(|e| format!("配置无效：{e:?}"))?;
-                            self.remote_sessions
-                                .discover(config, lease)
-                                .map_err(|e| format!("目录任务未启动：{e}"))
+                                .map_err(|_| {
+                                    crate::ui_text::text("app-system-time-invalid").to_owned()
+                                })?;
+                            let now = u64::try_from(now.as_millis()).map_err(|_| {
+                                crate::ui_text::text("app-system-time-out-of-range").to_owned()
+                            })?;
+                            let lease =
+                                self.authorization_owner.lease(origin, now).map_err(|e| {
+                                    crate::ui_text::format(
+                                        "app-authorization-required-detail",
+                                        &[("error", format!("{e:?}").into())],
+                                    )
+                                })?;
+                            let config = config(origin).map_err(|e| {
+                                crate::ui_text::format(
+                                    "app-configuration-invalid-detail",
+                                    &[("error", format!("{e:?}").into())],
+                                )
+                            })?;
+                            self.remote_sessions.discover(config, lease).map_err(|e| {
+                                crate::ui_text::format(
+                                    "app-catalog-task-not-started",
+                                    &[("error", e.to_string().into())],
+                                )
+                            })
                         });
                     view.catalog_busy = result.is_ok();
                     view.status = match result {
-                        Ok(()) => "正在获取远程会话目录…".into(),
+                        Ok(()) => crate::ui_text::text("app-remote-catalog-querying").into(),
                         Err(error) => error,
                     };
                 }
@@ -396,19 +433,35 @@ impl Application {
                     view.catalog_busy = false;
                     if let Some(origin) = &view.origin {
                         let result = Config::from_env(origin)
-                            .map_err(|e| format!("配置无效：{e:?}"))
+                            .map_err(|e| {
+                                crate::ui_text::format(
+                                    "app-configuration-invalid-detail",
+                                    &[("error", format!("{e:?}").into())],
+                                )
+                            })
                             .and_then(|config| {
                                 self.authorization_owner
                                     .start(Task::Configured { config, action })
-                                    .map_err(|e| format!("任务未启动：{e:?}"))
+                                    .map_err(|e| {
+                                        crate::ui_text::format(
+                                            "app-task-not-started",
+                                            &[("error", format!("{e:?}").into())],
+                                        )
+                                    })
                             });
                         match result {
                             Ok(()) => {
                                 view.busy = true;
                                 view.status = match action {
-                                    Action::RequestPairing => "正在提交配对…",
-                                    Action::AwaitApproval => "等待管理员批准（最长 90 秒）…",
-                                    Action::Renew => "正在获取授权会话…",
+                                    Action::RequestPairing => {
+                                        crate::ui_text::text("app-pairing-submitting")
+                                    }
+                                    Action::AwaitApproval => {
+                                        crate::ui_text::text("app-pairing-awaiting-approval")
+                                    }
+                                    Action::Renew => {
+                                        crate::ui_text::text("app-authorization-requesting")
+                                    }
                                 }
                                 .into();
                             }
@@ -421,29 +474,7 @@ impl Application {
                 }
             }
         }
-        for event in self.authorization_owner.poll() {
-            let (origin, status) = match event {
-                Event::OfflineCleared { origin } => (
-                    origin,
-                    "本地会话及离线授权已清除；服务端设备批准状态不变".into(),
-                ),
-                Event::Pairing { origin, .. } => {
-                    (origin, "配对已提交；请等待管理员批准或获取会话".into())
-                }
-                Event::Authorized { origin, .. } => {
-                    (origin, "最近一次授权成功；使用时仍须校验有效期".into())
-                }
-                Event::Failed { origin, error } => (origin, format!("授权请求失败：{error:?}")),
-            };
-            if !view.closed && view.origin.as_ref() == Some(&origin) {
-                view.busy = false;
-                view.status = status;
-            }
-        }
-        view.connected = view.origin.as_deref().is_some_and(|origin| {
-            crate::desktop::surface_windows::now_ms()
-                .is_ok_and(|now| self.authorization_owner.token(origin, now).is_some())
-        });
+        events::refresh(&mut self.authorization_owner, &mut view);
         drop(view);
         self.poll_projection_inbox();
         unsafe {

@@ -90,15 +90,16 @@ impl Field {
         selected: Option<usize>,
         prior: Option<usize>,
     ) -> Result<Vec<Command>, &'static str> {
-        let scene = Scene::parse(&self.anchor.snapshot.scene).map_err(|_| "Art字段场景失效")?;
-        let current = node(scene.root(), &self.node).ok_or("Art字段已移除")?;
+        let scene = Scene::parse(&self.anchor.snapshot.scene)
+            .map_err(|_| "tile-art-field-scene-invalid")?;
+        let current = node(scene.root(), &self.node).ok_or("tile-art-field-removed")?;
         let value = match &self.control {
             Control::Switch(checked) => Value::Boolean(!checked),
             Control::Select(options) => {
                 let Some(index) = selected.filter(|i| Some(*i) != prior) else {
                     return Ok(Vec::new());
                 };
-                Value::Text(options.value_at(index).ok_or("Art选项已失效")?)
+                Value::Text(options.value_at(index).ok_or("tile-art-option-invalid")?)
             }
         };
         let identity = crate::surface_click_event::Identity {
@@ -113,12 +114,12 @@ impl Field {
             Phase::Change,
             value,
         )
-        .map_err(|_| "Art字段编码失败")?;
+        .map_err(|_| "tile-art-field-encode-failed")?;
         let Some((_, bytes)) = encoded else {
             // Without change, retain ancestor clicks on the Switch activation edge without fabricating value actions.
             return Ok(self.prefix);
         };
-        let event = serde_json::from_slice(&bytes).map_err(|_| "Art字段编码失败")?;
+        let event = serde_json::from_slice(&bytes).map_err(|_| "tile-art-field-encode-failed")?;
         let total = bytes.len()
             + self
                 .prefix
@@ -129,7 +130,7 @@ impl Field {
                 })
                 .sum::<usize>();
         if total > crate::surface_click_event::MAX_EVENT_BYTES {
-            return Err("Art字段批次过大");
+            return Err("tile-art-field-batch-limit");
         }
         let until = Instant::now() + Duration::from_millis(1500);
         for c in &mut self.prefix {

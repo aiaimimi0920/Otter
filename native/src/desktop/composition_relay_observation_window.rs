@@ -27,6 +27,7 @@ pub(crate) struct Window {
     state: Box<State>,
     shown: Option<Arc<Business>>,
     initialized: bool,
+    language: crate::ui_text::DisplayLanguage,
 }
 impl Window {
     pub(super) fn new(owner: HWND) -> Result<Self> {
@@ -40,7 +41,9 @@ impl Window {
             let hwnd = CreateWindowExW(
                 WS_EX_TOOLWINDOW,
                 w!("Otter.Native.LiveObservations"),
-                w!("Otter · 观察与触发记录"),
+                &windows::core::HSTRING::from(crate::ui_text::text(
+                    "integration-observations-title",
+                )),
                 WS_OVERLAPPEDWINDOW,
                 rect.left.saturating_add(24),
                 rect.top.saturating_add(24),
@@ -56,6 +59,7 @@ impl Window {
                 state,
                 shown: None,
                 initialized: false,
+                language: crate::ui_text::current_language(),
             };
             SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE)?;
             let edit = CreateWindowExW(
@@ -107,10 +111,12 @@ impl Window {
         }
     }
     pub(super) fn update(&mut self, business: Option<Arc<Business>>) -> Result<()> {
-        if self.handle().is_none() {
+        let Some(hwnd) = self.handle() else {
             return Ok(());
-        }
+        };
+        let language = crate::ui_text::current_language();
         if self.initialized
+            && self.language == language
             && match (&self.shown, &business) {
                 (Some(a), Some(b)) => a.same_display(b),
                 (None, None) => true,
@@ -122,6 +128,15 @@ impl Window {
         let value = HSTRING::from(text::render(business.as_deref()));
         // Standard EDIT sends synchronous notifications; hold no Relay/Host/panel RefCell borrow across reentrancy.
         unsafe {
+            if self.language != language {
+                SetWindowTextW(
+                    hwnd,
+                    &HSTRING::from(crate::ui_text::text("integration-observations-title")),
+                )?;
+                if self.handle().is_none() {
+                    return Ok(());
+                }
+            }
             let edit = self.state.edit.get();
             let mut start = 0u32;
             let mut end = 0u32;
@@ -166,6 +181,7 @@ impl Window {
         if self.handle().is_some() {
             self.shown = business;
             self.initialized = true;
+            self.language = language;
         }
         Ok(())
     }

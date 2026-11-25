@@ -2,84 +2,89 @@
 use crate::editor::Tool;
 pub(super) struct ToolCommand {
     pub id: usize,
-    pub label: &'static str,
+    pub label_id: &'static str,
     pub tool: Tool,
+}
+impl ToolCommand {
+    pub(super) fn label(&self) -> &'static str {
+        crate::ui_text::text(self.label_id)
+    }
 }
 // Menus and subsequent native toolbars share order, names, and shortcuts; blur must use background preparation.
 pub(super) const TOOLS: &[ToolCommand] = &[
     ToolCommand {
         id: 0x56,
-        label: "移动\tV",
+        label_id: "tool-pan",
         tool: Tool::Pan,
     },
     ToolCommand {
         id: 0x53,
-        label: "选择标注\tS",
+        label_id: "tool-select",
         tool: Tool::Select,
     },
     ToolCommand {
         id: 0x42,
-        label: "画笔\tB",
+        label_id: "tool-brush",
         tool: Tool::Brush,
     },
     ToolCommand {
         id: 0x4C,
-        label: "直线\tL",
+        label_id: "tool-line",
         tool: Tool::Line,
     },
     ToolCommand {
         id: 0x4B,
-        label: "贝塞尔曲线\tK",
+        label_id: "tool-bezier",
         tool: Tool::Bezier,
     },
     ToolCommand {
         id: 0x4A,
-        label: "笔刷\tJ",
+        label_id: "tool-paintbrush",
         tool: Tool::Paintbrush,
     },
     ToolCommand {
         id: 0x58,
-        label: "文字\tX",
+        label_id: "tool-text",
         tool: Tool::Text,
     },
     ToolCommand {
         id: 0x4E,
-        label: "序号\tN",
+        label_id: "tool-serial",
         tool: Tool::Serial,
     },
     ToolCommand {
         id: 0x4D,
-        label: "马赛克\tM",
+        label_id: "tool-mosaic",
         tool: Tool::Mosaic,
     },
     ToolCommand {
         id: 0x47,
-        label: "模糊\tG",
+        label_id: "tool-blur",
         tool: Tool::Blur,
     },
     ToolCommand {
         id: 0x57,
-        label: "内容橡皮擦\tW",
+        label_id: "tool-eraser",
         tool: Tool::Eraser,
     },
     ToolCommand {
         id: 0x52,
-        label: "矩形\tR",
+        label_id: "tool-rectangle",
         tool: Tool::Rectangle,
     },
     ToolCommand {
         id: 0x45,
-        label: "椭圆\tE",
+        label_id: "tool-ellipse",
         tool: Tool::Ellipse,
     },
     ToolCommand {
         id: 0x54,
-        label: "三角形\tT",
+        label_id: "tool-triangle",
         tool: Tool::Triangle,
     },
     ToolCommand {
         id: 0x50,
-        label: "多边形\tP",
+        label_id: "tool-polygon",
         tool: Tool::Polygon,
     },
 ];
@@ -120,9 +125,12 @@ mod tests {
             assert!(!TOOLS[..index]
                 .iter()
                 .any(|previous| previous.id == entry.id));
-            let (name, shortcut) = entry.label.split_once('\t').unwrap();
-            assert!(!name.is_empty());
-            assert_eq!(shortcut.as_bytes(), &[entry.id as u8]);
+            for language in crate::ui_text::DisplayLanguage::ALL {
+                let label = crate::ui_text::text_for(language, entry.label_id);
+                let (name, shortcut) = label.split_once('\t').unwrap();
+                assert!(!name.is_empty());
+                assert_eq!(shortcut.as_bytes(), &[entry.id as u8]);
+            }
             assert_eq!(
                 tool_for_command(entry.id),
                 (entry.tool != Tool::Blur).then_some(entry.tool)

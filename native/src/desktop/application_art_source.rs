@@ -19,9 +19,9 @@ impl Source {
                 unit: unit.clone(),
                 hwnd: doc.window.0,
                 port: if let Some(local) = &doc.state.local_art_id {
-                    local
-                        .primary_output()
-                        .ok_or_else(|| Error::new(E_ABORT, "Art 来源没有图片输出端口"))?
+                    local.primary_output().ok_or_else(|| {
+                        Error::new(E_ABORT, crate::ui_text::text("app-art-no-image-port"))
+                    })?
                 } else {
                     "output".into()
                 },
@@ -36,12 +36,18 @@ impl Source {
                 .iter()
                 .any(|session| session.unit_id() == unit)
             {
-                return Err(Error::new(E_ABORT, "Art 发起节点已关闭或被替换"));
+                return Err(Error::new(
+                    E_ABORT,
+                    crate::ui_text::text("app-art-source-node-unavailable"),
+                ));
             }
             return Self::capture_live(app, unit);
         };
         if !source.current(app) {
-            return Err(Error::new(E_ABORT, "Art 来源已锁定、隐藏或被替换"));
+            return Err(Error::new(
+                E_ABORT,
+                crate::ui_text::text("app-art-source-unavailable"),
+            ));
         }
         Ok(source)
     }
@@ -50,17 +56,25 @@ impl Source {
             .live_sessions
             .iter()
             .find(|s| s.unit_id() == unit)
-            .ok_or_else(|| Error::new(E_ABORT, "Live 发起节点不存在"))?;
+            .ok_or_else(|| {
+                Error::new(
+                    E_ABORT,
+                    crate::ui_text::text("app-live-source-node-missing"),
+                )
+            })?;
         let source = Self {
             unit: unit.clone(),
             hwnd: session
                 .art_dialog_owner()
-                .ok_or_else(|| Error::new(E_ABORT, "Live 正在切换或关闭"))?,
+                .ok_or_else(|| Error::new(E_ABORT, crate::ui_text::text("app-live-switching")))?,
             port: "output".into(),
             owner: Owner::Live(session.input_identity()),
         };
         if !source.current(app) {
-            return Err(Error::new(E_ABORT, "Live 来源已变化"));
+            return Err(Error::new(
+                E_ABORT,
+                crate::ui_text::text("app-live-source-changed"),
+            ));
         }
         Ok(source)
     }

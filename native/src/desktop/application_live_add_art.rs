@@ -76,7 +76,10 @@ impl Application {
                 if let Some(owner) = self.live_link_owner(&unit) {
                     MessageBoxW(
                         Some(owner),
-                        &HSTRING::from(format!("Art 未添加，Live 保留。\n{error}")),
+                        &HSTRING::from(crate::ui_text::format(
+                            "app-live-art-not-added",
+                            &[("error", error.to_string().into())],
+                        )),
                         w!("Otter"),
                         MB_OK | MB_ICONWARNING,
                     );
@@ -91,7 +94,10 @@ impl Application {
         choose: impl FnOnce(&mut Self, HWND, &Picker) -> Result<dialog::Outcome>,
     ) -> Result<bool> {
         if self.modals.blocked() || self.session_end.paused() || self.live_link_busy() {
-            return Err(Error::new(E_ABORT, "工作区正在切换、保存或退出"));
+            return Err(Error::new(
+                E_ABORT,
+                crate::ui_text::text("app-workspace-transition-busy"),
+            ));
         }
         let source = Source::capture_live(self, unit)?;
         let guard = restore_batch::guard::Guard::capture(self)?;
@@ -111,15 +117,21 @@ impl Application {
             || self.session_end.paused()
             || self.live_link_busy()
         {
-            return Err(Error::new(E_ABORT, "Art 选择期间 Live、目录或工作区已变化"));
+            return Err(Error::new(
+                E_ABORT,
+                crate::ui_text::text("app-live-art-selection-changed"),
+            ));
         }
         let dialog::Outcome::Select(index) = outcome else {
             desktop::capability_catalog::request_for(source.hwnd, &self.catalog)?;
             return Ok(false);
         };
-        let route = picker
-            .route(self, index)
-            .ok_or_else(|| Error::new(E_ABORT, "Art 不可用或服务选择已变化"))?;
+        let route = picker.route(self, index).ok_or_else(|| {
+            Error::new(
+                E_ABORT,
+                crate::ui_text::text("app-art-selection-unavailable"),
+            )
+        })?;
         let catalog = picker.catalog.as_ref().unwrap();
         let art = catalog
             .handshake
@@ -130,7 +142,12 @@ impl Application {
             Route::Backend => self.create_backend_art(&source, catalog.clone(), index, current)?,
             Route::Local(origin) => {
                 let config = crate::device_authorization_config::Config::from_env(&origin)
-                    .map_err(|_| Error::new(E_INVALIDARG, "Art 服务配置无效"))?;
+                    .map_err(|_| {
+                        Error::new(
+                            E_INVALIDARG,
+                            crate::ui_text::text("app-art-service-invalid"),
+                        )
+                    })?;
                 self.open_local_art_child(&origin, art.id.into(), unit.as_str(), config, current)?;
             }
         }

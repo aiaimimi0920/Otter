@@ -72,9 +72,9 @@ unsafe fn refresh(hwnd: HWND, dialog: &Dialog) {
     let _ = SetWindowTextW(
         child(hwnd, DEFAULT),
         &HSTRING::from(if default {
-            "默认：显示"
+            crate::ui_text::text("port-default-visible")
         } else {
-            "默认：隐藏"
+            crate::ui_text::text("port-default-hidden")
         }),
     );
 }
@@ -110,7 +110,7 @@ unsafe fn init(hwnd: HWND, dialog: &Dialog) -> Result<()> {
             return Err(Error::from(E_OUTOFMEMORY));
         }
     }
-    for label in ["使用默认值", "显示", "隐藏"] {
+    for label in ["port-use-default", "port-visible", "port-hidden"].map(crate::ui_text::text) {
         if SendMessageW(
             child(hwnd, MODE),
             CB_ADDSTRING,
@@ -219,7 +219,7 @@ unsafe fn dispatch(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> isize {
                         &HSTRING::from(if valid {
                             ""
                         } else {
-                            "显示设置超出限制，未修改"
+                            crate::ui_text::text("port-limit-exceeded")
                         }),
                     );
                     refresh(hwnd, dialog);

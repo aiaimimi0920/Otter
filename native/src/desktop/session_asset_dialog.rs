@@ -2,7 +2,7 @@
 use super::session_asset_root::Root;
 use std::{os::windows::ffi::OsStringExt, path::PathBuf};
 use windows::{
-    core::{w, Result, PWSTR},
+    core::{Result, HSTRING, PWSTR},
     Win32::{Foundation::*, System::Com::*, UI::Shell::*},
 };
 struct Name(PWSTR);
@@ -14,15 +14,12 @@ impl Drop for Name {
     }
 }
 pub(super) unsafe fn choose(owner: HWND) -> Result<Option<Root>> {
-    choose_with_title(owner, w!("选择本次工作区可读取的图片目录（仅直接子文件）"))
+    choose_with_title(owner, crate::ui_text::text("session-assets-title"))
 }
 pub(super) unsafe fn choose_workflow(owner: HWND) -> Result<Option<Root>> {
-    choose_with_title(
-        owner,
-        w!("选择工作流归档目录（写入图片，并启用保存后同步）"),
-    )
+    choose_with_title(owner, crate::ui_text::text("session-archive-title"))
 }
-unsafe fn choose_with_title(owner: HWND, title: windows::core::PCWSTR) -> Result<Option<Root>> {
+unsafe fn choose_with_title(owner: HWND, title: &str) -> Result<Option<Root>> {
     let dialog: IFileOpenDialog = CoCreateInstance(&FileOpenDialog, None, CLSCTX_INPROC_SERVER)?;
     dialog.SetOptions(
         dialog.GetOptions()?
@@ -32,7 +29,7 @@ unsafe fn choose_with_title(owner: HWND, title: windows::core::PCWSTR) -> Result
             | FOS_NOCHANGEDIR
             | FOS_DONTADDTORECENT,
     )?;
-    dialog.SetTitle(title)?;
+    dialog.SetTitle(&HSTRING::from(title))?;
     if let Err(error) = dialog.Show(Some(owner)) {
         if error.code() == windows::core::HRESULT::from_win32(ERROR_CANCELLED.0) {
             return Ok(None);

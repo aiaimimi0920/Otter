@@ -203,7 +203,10 @@ mod tests {
         let prepared = parts.prepare_states(&cancel).unwrap();
         let canvas = prepared.states[0].canvas.borrow();
         let source = canvas.capture_source().unwrap();
-        assert_eq!(source.original_label(), "HDR（原图文件未恢复）");
+        assert_eq!(
+            source.original_label(),
+            crate::ui_text::text("action-hdr-unrestored")
+        );
         assert!(source.original_lease.is_none());
         assert!(source.original.is_none());
         assert_eq!(source.metadata()["extension"]["keep"], true);

@@ -161,33 +161,42 @@ impl Batch {
         let mut view = app.authorization.borrow_mut();
         view.sender.group_stopping = false;
         view.sender.group_unit = Some(self.selection.unit.clone());
-        view.sender.group_results = vec![format!(
-            "组 {}：{saved} 关联已保存 · {failed} 失败 · {unavailable} 不可用 · {cancelled} 未发送",
-            group.name()
+        view.sender.group_results = vec![crate::ui_text::format(
+            "app-projection-send-group-summary",
+            &[
+                ("group", group.name().into()),
+                ("saved", saved.into()),
+                ("failed", failed.into()),
+                ("unavailable", unavailable.into()),
+                ("cancelled", cancelled.into()),
+            ],
         )];
         view.sender
             .group_results
             .extend(self.entries.iter().map(|entry| {
                 let target = &self.selection.directory.targets()[entry.index];
                 let status = match entry.state {
-                    State::Queued => "等待发送",
-                    State::Existing => "已有发送关联",
-                    State::Unavailable => "目标不可用",
+                    State::Queued => crate::ui_text::text("app-projection-send-queued"),
+                    State::Existing => crate::ui_text::text("app-projection-send-existing"),
+                    State::Unavailable => {
+                        crate::ui_text::text("app-projection-send-target-unavailable")
+                    }
                     State::Sending if matches!(app.projection_sender.phase, Phase::Retry(_)) => {
-                        "失败，待重试原邀请或取消"
+                        crate::ui_text::text("app-projection-send-failed-retry")
                     }
-                    State::Sending => "发送/保存中",
-                    State::Saved => "关联已保存",
-                    State::Failed => "发送失败，未推进后续目标",
-                    State::Cancelled => "未发送/已取消",
+                    State::Sending => crate::ui_text::text("app-projection-send-in-progress"),
+                    State::Saved => crate::ui_text::text("app-projection-send-saved"),
+                    State::Failed => crate::ui_text::text("app-projection-send-failed-stop"),
+                    State::Cancelled => crate::ui_text::text("app-projection-send-cancelled"),
                 };
-                format!(
-                    "{}：{status}",
-                    if target.name().is_empty() {
-                        target.id()
-                    } else {
-                        target.name()
-                    }
+                let name = if target.name().is_empty() {
+                    target.id()
+                } else {
+                    target.name()
+                };
+                crate::ui_text::format(
+                    "app-projection-target-result",
+                    &[("target", name.into()), ("status", status.into())],
                 )
             }));
     }

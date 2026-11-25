@@ -200,6 +200,7 @@ fn run_source(
         smoke,
         workspace_check || session.as_ref().is_some_and(|session| session.check),
     )?;
+    settings.install_language()?;
     let workspace = workspace_profile::resolve(
         !smoke && image_path.is_none() && !capture && session.is_none(),
         workspace_check,

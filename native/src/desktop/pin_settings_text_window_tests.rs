@@ -1,6 +1,8 @@
 //! Real BUTTON/commit credentials/feedback reclamation; inject a receiver only at the clipboard boundary without reading/writing the user's clipboard.
+use super::projection::{caption, tooltip, LanguageReset};
 use super::*;
 use crate::desktop::pin_settings::text as cached;
+use crate::ui_text::{self, DisplayLanguage};
 use crate::unit_attachment_store::tests as store_fixture;
 use std::cell::Cell;
 use windows::Win32::{Graphics::Gdi::*, UI::Controls::*};
@@ -110,36 +112,122 @@ unsafe fn invoke(
 }
 #[test]
 fn actual_copy_buttons_share_a_row_copy_hidden_full_text_and_keep_document_and_tool_state() {
+    let _reset = LanguageReset(ui_text::current_language());
+    for language in DisplayLanguage::ALL {
+        ui_text::set_language(language);
+        unsafe {
+            let f = populated();
+            let window = open(&f);
+            let stamp = f.state.canvas.borrow().editor.document_stamp();
+            let attachment = f.state.extension_document.borrow().stamp();
+            let mut first = RECT::default();
+            let mut second = RECT::default();
+            let controls = [
+                field(window, cached::OCR),
+                field(window, cached::TRANSLATION),
+            ];
+            for display in DisplayLanguage::ALL {
+                ui_text::set_language(display);
+                refresh(&f.state);
+                for ((id, key), hwnd) in [
+                    (cached::OCR, "pin-copy-ocr"),
+                    (cached::TRANSLATION, "pin-copy-translation"),
+                ]
+                .into_iter()
+                .zip(controls)
+                {
+                    assert_eq!(field(window, id), hwnd);
+                    assert_eq!(caption(hwnd), ui_text::text(key));
+                    assert_eq!(tooltip(window, hwnd), ui_text::text(key));
+                }
+                GetWindowRect(field(window, cached::OCR), &mut first).unwrap();
+                GetWindowRect(field(window, cached::TRANSLATION), &mut second).unwrap();
+                assert_eq!(first.top, second.top);
+                assert!(first.right < second.left);
+            }
+            ui_text::set_language(language);
+            refresh(&f.state);
+            for (id, expected) in [
+                (cached::OCR, " 原文😀\n全文 "),
+                (cached::TRANSLATION, " 译文\n全文 "),
+            ] {
+                assert!(IsWindowEnabled(field(window, id)).as_bool());
+                let before = painted(field(window, id));
+                invoke(&f, window, id, |text, current| {
+                    assert!(current());
+                    assert_eq!(text, expected);
+                    Ok(())
+                });
+                // The Action's HWND name is an accessibility label; visible feedback requires checking actual owner-drawn output.
+                assert_ne!(painted(field(window, id)), before);
+                assert_eq!(caption(field(window, id)), ui_text::text("pin-text-copied"));
+                assert_eq!(
+                    tooltip(window, field(window, id)),
+                    ui_text::text("pin-text-copied")
+                );
+            }
+            assert!(stamp.matches(&f.state.canvas.borrow().editor));
+            assert!(attachment.matches(&f.state.extension_document.borrow()));
+            assert_eq!(f.state.canvas.borrow().tool, crate::editor::Tool::Select);
+            assert!(!crate::desktop::extension_commands::busy(&f.state));
+            assert!(f.state.error.borrow().is_none());
+        }
+    }
+}
+#[test]
+fn compact_copy_feedback_keeps_complete_accessible_names_and_fits_native_font() {
+    let _reset = LanguageReset(ui_text::current_language());
     unsafe {
         let f = populated();
-        let window = open(&f);
-        let stamp = f.state.canvas.borrow().editor.document_stamp();
-        let attachment = f.state.extension_document.borrow().stamp();
-        let mut first = RECT::default();
-        let mut second = RECT::default();
-        GetWindowRect(field(window, cached::OCR), &mut first).unwrap();
-        GetWindowRect(field(window, cached::TRANSLATION), &mut second).unwrap();
-        assert_eq!(first.top, second.top);
-        assert!(first.right < second.left);
-        for (id, expected) in [
-            (cached::OCR, " 原文😀\n全文 "),
-            (cached::TRANSLATION, " 译文\n全文 "),
-        ] {
-            assert!(IsWindowEnabled(field(window, id)).as_bool());
-            let before = painted(field(window, id));
-            invoke(&f, window, id, |text, current| {
-                assert!(current());
-                assert_eq!(text, expected);
-                Ok(())
-            });
-            // The Action's HWND name is an accessibility label; visible feedback requires checking actual owner-drawn output.
-            assert_ne!(painted(field(window, id)), before);
+        let panel = open(&f);
+        let control = field(panel, cached::OCR);
+        for language in DisplayLanguage::ALL {
+            ui_text::set_language(language);
+            for copied in [true, false] {
+                invoke(&f, panel, cached::OCR, |_, _| {
+                    if copied {
+                        Ok(())
+                    } else {
+                        Err(windows::core::Error::new(
+                            E_ACCESSDENIED,
+                            "synthetic copy failure",
+                        ))
+                    }
+                });
+                assert_eq!(field(panel, cached::OCR), control);
+                let label = ui_text::text(if copied {
+                    "pin-text-copied"
+                } else {
+                    "pin-text-copy-failed"
+                });
+                assert_eq!(caption(control), label);
+                assert_eq!(tooltip(panel, control), label);
+                let value: Vec<_> = ui_text::text(if copied {
+                    "pin-text-copied"
+                } else {
+                    "pin-text-copy-failed-short"
+                })
+                .encode_utf16()
+                .collect();
+                let dc = GetDC(Some(control));
+                assert!(!dc.is_invalid());
+                // Width 58 is not mini-ui's <48 compact variant; icon-free feedback
+                // uses this normal font and the entire unpadded client text frame.
+                let font = HGDIOBJ(SendMessageW(control, WM_GETFONT, None, None).0 as *mut _);
+                let old = SelectObject(dc, font);
+                let mut size = SIZE::default();
+                let measured = GetTextExtentPoint32W(dc, &value, &mut size).as_bool();
+                SelectObject(dc, old);
+                assert_eq!(ReleaseDC(Some(control), dc), 1);
+                let mut rect = RECT::default();
+                GetClientRect(control, &mut rect).unwrap();
+                assert!(measured);
+                assert!(
+                    size.cx <= rect.right,
+                    "{language:?}: {size:?} exceeds {rect:?}"
+                );
+            }
         }
-        assert!(stamp.matches(&f.state.canvas.borrow().editor));
-        assert!(attachment.matches(&f.state.extension_document.borrow()));
-        assert_eq!(f.state.canvas.borrow().tool, crate::editor::Tool::Select);
-        assert!(!crate::desktop::extension_commands::busy(&f.state));
-        assert!(f.state.error.borrow().is_none());
     }
 }
 #[test]

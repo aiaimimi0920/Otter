@@ -273,7 +273,7 @@ fn live_add_art_no_frame_reports_real_input_error_and_capacity_never_leaves_half
                 app.start_requested_preparations(false);
                 assert_eq!(
                     app.documents[1].state.preparation_error.borrow().as_deref(),
-                    Some("Live 尚无可用画面")
+                    Some(crate::ui_text::text("app-live-frame-unavailable"))
                 );
                 assert!(app.input_jobs.is_empty() && app.execution_jobs.is_empty());
             }

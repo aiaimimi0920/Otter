@@ -39,7 +39,9 @@ impl Application {
             let manual_trigger = request.trigger == crate::graph_execution_config::Trigger::Manual;
             let result = (|| -> Result<(), &'static str> {
                 let selected = state.selected_art.borrow();
-                let selected = selected.as_ref().ok_or("尚未选择能力")?;
+                let selected = selected
+                    .as_ref()
+                    .ok_or(crate::ui_text::text("app-capability-not-selected"))?;
                 let capability = selected
                     .catalog
                     .handshake
@@ -48,7 +50,7 @@ impl Application {
                     .filter_map(crate::loom_capability::Capability::new)
                     .find(|capability| capability.id == selected.parameters.art_id())
                     .filter(|capability| capability.enabled)
-                    .ok_or("所选能力不可用")?;
+                    .ok_or(crate::ui_text::text("app-capability-unavailable"))?;
                 let mut runtime = capability.runtime();
                 let shader = self.shader_installation.as_ref().filter(|_| {
                     runtime.shader && !runtime.surface && !runtime.formal_after_preview
@@ -59,7 +61,7 @@ impl Application {
                 }
                 if selected.execution.gate(request.trigger, runtime).is_err() {
                     if manual_trigger {
-                        return Err("此能力仅支持本地预览，原生预览运行时尚未接入，未发送后端请求");
+                        return Err(crate::ui_text::text("app-capability-preview-only"));
                     }
                     *state.preparation_error.borrow_mut() = None;
                     return Ok(());
@@ -71,7 +73,7 @@ impl Application {
                     .iter()
                     .any(|op| op == "loom.hook.art.execute")
                 {
-                    return Err("当前服务未声明节点执行操作");
+                    return Err(crate::ui_text::text("app-capability-no-execution"));
                 }
                 let (plan, dependencies) = Self::execution_parameters(
                     &self.documents,
@@ -99,8 +101,10 @@ impl Application {
                 if let Some(runtime) = &shader {
                     runtime.mark_context(&mut sources);
                 }
-                let ticket = new_unit_id().map_err(|_| "无法创建准备标识")?;
-                let request_id = new_unit_id().map_err(|_| "无法创建执行标识")?;
+                let ticket =
+                    new_unit_id().map_err(|_| crate::ui_text::text("app-preparation-id-failed"))?;
+                let request_id =
+                    new_unit_id().map_err(|_| crate::ui_text::text("app-execution-id-failed"))?;
                 let plan = Configured {
                     identity: selected.catalog.identity.clone(),
                     request_id,
@@ -115,7 +119,7 @@ impl Application {
                         &state.canvas.borrow().editor,
                         sources,
                     )
-                    .map_err(|_| "无法启动输入准备，后台任务可能仍在清理")?;
+                    .map_err(|_| crate::ui_text::text("app-input-preparation-start-failed"))?;
                 *state.pending_preparation.borrow_mut() = Some(Pending {
                     shader,
                     dependencies,

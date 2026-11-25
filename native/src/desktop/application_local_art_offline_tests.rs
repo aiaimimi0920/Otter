@@ -145,7 +145,7 @@ fn clearing_authorization_prevents_cached_art_after_application_restart() {
                     .authorization
                     .borrow()
                     .status
-                    .contains("离线授权已清除"));
+                    .contains(crate::ui_text::text("app-session-offline-cleared")));
             }
             first.shutdown();
             assert!(

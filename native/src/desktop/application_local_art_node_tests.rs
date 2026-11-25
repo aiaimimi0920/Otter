@@ -116,7 +116,10 @@ fn open_art_creates_independent_connected_node_and_roundtrips_formal_result() {
             });
         }
         app.process_authorization_with_projection(|_| Ok(peer.config()));
-        assert_eq!(app.authorization.borrow().status, "正在本地打开 Art…");
+        assert_eq!(
+            app.authorization.borrow().status,
+            crate::ui_text::text("app-art-opening-locally")
+        );
         assert_eq!(app.documents.len(), 2);
         assert!(!app.documents[0].state.is_art());
         let target = app.documents[1].state.unit_id.clone();

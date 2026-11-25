@@ -122,7 +122,7 @@ fn rejected_image_choice_stays_an_error_and_accepted_outcome_clears_it() {
         fixture.panel.sticker_outcome(Outcome::Rejected);
         assert_eq!(
             &*fixture.panel.ui.message.borrow(),
-            "图片输入配置已变化或暂不可用"
+            crate::ui_text::text("parameter-image-config-unavailable")
         );
         fixture.panel.sticker_outcome(Outcome::Accepted);
         assert!(fixture.panel.ui.message.borrow().is_empty());

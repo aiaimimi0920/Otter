@@ -104,11 +104,13 @@ pub(super) unsafe fn refresh(
 ) -> Result<Vec<Vec<(Field, bool)>>> {
     let fields = projection_fields::fields(state, session.connections.receive)?;
     let c = &mut session.connections;
-    if c.fields != fields || !c.snapshot.as_ref().is_some_and(|s| s.same_inputs(state)) {
+    if !projection_fields::same_commands(&c.fields, &fields)
+        || !c.snapshot.as_ref().is_some_and(|s| s.same_inputs(state))
+    {
         session.context = session.context.wrapping_add(1);
         c.snapshot = Some(settings::Snapshot::capture(state));
-        c.fields = fields.clone();
     }
+    c.fields = fields.clone();
     Ok(fields)
 }
 fn current(state: &State, id: u16) -> bool {
@@ -262,7 +264,10 @@ pub(super) unsafe fn poll_targets(owner: HWND, state: &State) {
             Ok(true) => state.pin_settings.borrow_mut().connections.targets = Some(popup),
             Ok(false) => {}
             Err(error) => {
-                state.authorization.borrow_mut().sender.status = format!("目标菜单已关闭：{error}")
+                state.authorization.borrow_mut().sender.status = crate::ui_text::format(
+                    "pin-target-menu-closed",
+                    &[("error", error.to_string().into())],
+                )
             }
         }
     }

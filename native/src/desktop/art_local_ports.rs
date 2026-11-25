@@ -11,24 +11,26 @@ pub(super) fn accept(
     let document = documents
         .iter()
         .find(|d| d.state.unit_id == entry.unit)
-        .ok_or("Art 目标已关闭")?;
+        .ok_or(crate::ui_text::text("integration-art-target-closed"))?;
     let Some(config) = document.state.local_art_id.as_ref() else {
         // Legacy direct-API tests may start default ports on ordinary documents; new evidence must not silently convert ordinary documents to Local.
         return if prepared.ports.is_none() {
             Ok(())
         } else {
-            Err("Art 宿主类型已变化")
+            Err(crate::ui_text::text("integration-art-host-type-changed"))
         };
     };
     if **config != prepared.binding().art_id {
-        return Err("Art 宿主身份已变化");
+        return Err(crate::ui_text::text(
+            "integration-art-host-identity-changed",
+        ));
     }
     let previous = config.ports.borrow();
     let Some(ports) = &prepared.ports else {
         return if previous.is_none() {
             Ok(())
         } else {
-            Err("Art 服务缺少已保存端口的签名证明")
+            Err(crate::ui_text::text("integration-art-port-proof-missing"))
         };
     };
     let mut record = Record::new(prepared.binding(), ports.clone());
@@ -38,9 +40,13 @@ pub(super) fn accept(
         .is_some_and(|old| old.visibility.is_some())
         && record.visibility.is_none()
     {
-        return Err("Art 服务缺少已保存显隐的签名证明");
+        return Err(crate::ui_text::text(
+            "integration-art-visibility-proof-missing",
+        ));
     }
-    record.validate(config).map_err(|_| "Art 端口证明无效")?;
+    record
+        .validate(config)
+        .map_err(|_| crate::ui_text::text("integration-art-port-proof-invalid"))?;
     if previous.as_deref() == Some(&record) {
         return Ok(());
     }
@@ -89,12 +95,13 @@ fn topology(
                     .iter()
                     .any(|l| &l.to_unit == unit && l.to_port == primary))
         {
-            return Err("Art 旧默认输入与自定义输入冲突，原连接已保留");
+            return Err(crate::ui_text::text("integration-art-input-conflict"));
         }
         for mut link in links {
             next.remove_link(&link.id);
             link.to_port = primary.into();
-            next.add_link(link).map_err(|_| "Art 自定义输入连接无效")?;
+            next.add_link(link)
+                .map_err(|_| crate::ui_text::text("integration-art-input-link-invalid"))?;
         }
     } else if let Some(pending) = pending {
         if next.links().contains(pending) {

@@ -109,7 +109,7 @@ fn higher_image_blocks_but_tiny_exposed_strip_is_found_and_budget_is_explicit() 
             &mut 0
         )
         .err(),
-        Some("Art键盘可见区域搜索预算不足")
+        Some("tile-art-keyboard-search-budget")
     );
 }
 #[test]

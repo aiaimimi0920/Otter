@@ -3,10 +3,7 @@ use std::{
     cell::{Cell, RefCell},
     rc::{Rc, Weak},
 };
-use windows::{
-    core::w,
-    Win32::{Foundation::*, System::Shutdown::*, UI::WindowsAndMessaging::*},
-};
+use windows::Win32::{Foundation::*, System::Shutdown::*, UI::WindowsAndMessaging::*};
 
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
 enum Phase {
@@ -164,7 +161,9 @@ unsafe fn dispatch_control(
                 if !reason.get()
                     && ShutdownBlockReasonCreate(
                         hwnd,
-                        w!("工作区尚未安全保存，请完成操作或先退出 Otter。"),
+                        &windows::core::HSTRING::from(crate::ui_text::text(
+                            "action-session-unsaved",
+                        )),
                     )
                     .is_ok()
                 {

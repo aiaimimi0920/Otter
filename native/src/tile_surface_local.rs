@@ -139,12 +139,12 @@ impl Cache {
         if let Some(index) = self.index(&focus).filter(|&i| !self.current(i, &focus)) {
             self.refresh(index, &focus, source);
         }
-        let (node, source) = source.ok_or("Art本地字段已失效")?;
+        let (node, source) = source.ok_or("tile-art-local-field-invalid")?;
         let valid = match (source, value) {
             (Value::Switch(_), Value::Switch(_)) => true,
             (Value::Select(_), Value::Select(index)) => {
-                let options =
-                    crate::surface_select::Options::parse(node).map_err(|_| "Art本地选项失效")?;
+                let options = crate::surface_select::Options::parse(node)
+                    .map_err(|_| "tile-art-local-option-invalid")?;
                 index.is_none_or(|i| options.value_at(i).is_some())
             }
             (Value::Slider(_), Value::Slider(v)) => crate::surface_slider::Range::parse(node)
@@ -152,7 +152,7 @@ impl Cache {
             _ => false,
         };
         if !valid {
-            return Err("Art本地字段值无效");
+            return Err("tile-art-local-value-invalid");
         }
         if let Some(e) = Rc::make_mut(&mut self.rows)
             .iter_mut()
@@ -163,7 +163,7 @@ impl Cache {
         }
         let (total, per_view) = self.counts(&focus.anchor.view);
         if total + text.0 >= 256 || per_view + text.1 >= 64 {
-            return Err("Art本地字段预算不足");
+            return Err("tile-art-local-field-budget");
         }
         let stamp = stamp(node);
         Rc::make_mut(&mut self.rows).push(Entry {

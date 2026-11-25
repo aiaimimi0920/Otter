@@ -19,7 +19,7 @@ ring = "=0.17.14"
 zeroize = "=1.9.1"
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = { version = "=1.0.151", features = ["raw_value", "float_roundtrip"] }
-url = "=2.5.8"
+url = "=2.5.9"
 
 [dev-dependencies]
 otter-core = { path = "../otter-core", version = "=0.2.33", features = ["test-support"] }

@@ -52,9 +52,9 @@ impl Progress {
         // Network notification may arrive after this Application poll; check the real menu next round, not an old caption that falsely reports an error.
         if String::from_utf16(&text[..count as usize]).unwrap()
             != if recovering {
-                "Live 重连中…"
+                crate::ui_text::text("app-live-reconnecting")
             } else {
-                "Live 已发布"
+                crate::ui_text::text("app-live-published")
             }
         {
             return;

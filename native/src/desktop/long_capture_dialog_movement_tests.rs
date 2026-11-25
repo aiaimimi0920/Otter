@@ -104,7 +104,13 @@ fn hidden_move_commits_ui_reference_only_after_acceptance_and_refreshes_preview(
         assert!(input.job.borrow().can_move());
         let mut label = [0u16; 64];
         let length = GetDlgItemTextW(window.0, 103, &mut label);
-        assert!(String::from_utf16_lossy(&label[..length as usize]).contains("手动滚动"));
+        assert_eq!(
+            String::from_utf16_lossy(&label[..length as usize]),
+            crate::ui_text::format(
+                "long-capture-frame-count-manual",
+                &[("count", input.job.borrow().snapshot().frame_count.into()),]
+            )
+        );
         assert_eq!(input.movement.region.get().left, 1);
         assert!(input.movement.pending.get().is_none());
         assert_eq!(

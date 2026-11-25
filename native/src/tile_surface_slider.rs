@@ -148,9 +148,12 @@ impl Drag {
         pixel: [i32; 2],
     ) -> Result<Option<Command>, &'static str> {
         if !self.edit.active() {
-            return Err("Art滑块手势已失效");
+            return Err("tile-art-slider-gesture-invalid");
         }
-        let value = self.field.value_at(frame, pixel).ok_or("Art滑块几何失效")?;
+        let value = self
+            .field
+            .value_at(frame, pixel)
+            .ok_or("tile-art-slider-geometry-invalid")?;
         if value == self.value {
             return Ok(None);
         }
@@ -165,12 +168,12 @@ impl Drag {
     }
     pub(crate) fn command(&self, phase: Phase) -> Result<Option<Command>, &'static str> {
         if !self.edit.active() {
-            return Err("Art滑块手势已失效");
+            return Err("tile-art-slider-gesture-invalid");
         }
         let scene = crate::surface_scene::Scene::parse(&self.field.anchor.snapshot.scene)
-            .map_err(|_| "Art滑块场景失效")?;
+            .map_err(|_| "tile-art-slider-scene-invalid")?;
         let node = crate::tile_surface_value::node(scene.root(), &self.field.node)
-            .ok_or("Art滑块已移除")?;
+            .ok_or("tile-art-slider-removed")?;
         let anchor = &self.field.anchor;
         let result = crate::surface_input_event::encode_identity(
             node,
@@ -183,13 +186,14 @@ impl Drag {
             phase,
             Value::Number(Some(self.value)),
         )
-        .map_err(|_| "Art滑块编码失败")?;
+        .map_err(|_| "tile-art-slider-encode-failed")?;
         result
             .map(|(_, bytes)| {
                 Ok(Command {
                     anchor: anchor.clone(),
                     kind: Action::Event(
-                        serde_json::from_slice(&bytes).map_err(|_| "Art滑块编码失败")?,
+                        serde_json::from_slice(&bytes)
+                            .map_err(|_| "tile-art-slider-encode-failed")?,
                     ),
                     until: Instant::now() + Duration::from_millis(1500),
                     edit: Some(self.edit.clone()),

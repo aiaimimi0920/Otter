@@ -11,7 +11,7 @@ and repository `AGENTS.md` for development and verification requirements.
 | `native/otter-runtime` | Vector annotations and editing history, workspace and Loom graph-parameter contracts, WGC window targets, and constrained HLSL/UIA/scrolling child-process runtimes. |
 | `native/src/desktop` | Win32 HWNDs, message routing, visible state and Application lifecycle; external operations go to their owning worker or client. |
 | `native/src` | Session persistence, Loom bridging/workflows, device projection, LiveRelay, Tile presentation, and Surface/Shader host composition; root re-exports keep subcrate call paths consistent. |
-| `native/assets`, `native/build_support` | Application icons, native toolbar SVGs, versioning and Windows resources. |
+| `native/assets`, `native/build_support` | Application icons, native toolbar SVGs, embedded Fluent language catalogs, versioning and Windows resources. |
 | `native/hover-hook` | Local Live hover-bridge DLL, built, verified and packaged with the same version as the EXE. |
 | `native/tests/integration.rs`, `native/tests/suites`, adjacent `*_tests.rs` | Single-entry aggregated CLI/process contracts and module regressions; shared wire fixtures live in `native/tests/fixtures` or `protocol/fixtures`. |
 | `scripts/native-candidate`, `scripts/tests`, `scripts/effective-code-lines*.mjs` | Provenance, packaging, runtime acceptance and effective-code-line checks; see [scripts](../../scripts/README.md). Only reproducible output belongs in temporary directories. |
@@ -28,6 +28,7 @@ and repository `AGENTS.md` for development and verification requirements.
 | Live capture, input and cleanup | Runtime `capture_wgc`, `live_texture` and `live_*`; host `live_relay_*`; desktop `composition_live_*`. |
 | Constrained child processes | Media `bounded_worker_process`; runtime `shader_hlsl_*`; host `surface_image_worker_session` and `surface_javascript_*`. |
 | Window and menu caches | Desktop `annotation_cache`, `native_menu_panel_text` and `popup_frozen_*`; resources are reclaimed with their owning window, task or application slot. |
+| Display language | Core `display_language`; host `ui_text*` and `assets/locales`; desktop `application_locale*` owns persistence and refresh. `loom_locale*` receives authenticated one-shot requests, never a second settings owner. |
 
 Keep detailed cancellation, capacity, input-validation and resource-lifetime constraints in the
 owning modules and adjacent tests, not a running fix log here. NeuroDesign owns shared control

@@ -42,7 +42,7 @@ fn receive_policy_confirm_automatically_reattaches_then_saves_and_reports_origin
         fixture.listener = Some(fixture.server.take().unwrap().join().unwrap());
         assert_eq!(
             fixture.app.authorization.borrow().projection.status,
-            "投送已呈现"
+            crate::ui_text::text("app-projection-presented")
         );
         assert!(fixture
             .app

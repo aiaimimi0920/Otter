@@ -15,12 +15,30 @@ pub(super) fn template() -> Vec<u32> {
     );
     word(&mut data, WS_EX_TOPMOST.0);
     data.extend([2, 0, 0, 180, 65, 0, 0]);
-    text(&mut data, "截图");
+    text(&mut data, crate::ui_text::text("capture-wait-title"));
     data.push(9);
     text(&mut data, "Microsoft YaHei UI");
     for (id, class, style, x, y, width, height, label) in [
-        (103, 0x82, 0, 10, 10, 160, 18, "正在截图…"),
-        (2, 0x80, WS_TABSTOP.0, 115, 35, 55, 20, "取消"),
+        (
+            103,
+            0x82,
+            0,
+            10,
+            10,
+            160,
+            18,
+            crate::ui_text::text("capture-wait-progress"),
+        ),
+        (
+            2,
+            0x80,
+            WS_TABSTOP.0,
+            115,
+            35,
+            55,
+            20,
+            crate::ui_text::text("common-cancel"),
+        ),
     ] {
         if data.len() % 2 != 0 {
             data.push(0);

@@ -29,6 +29,8 @@ mod inline;
 mod inline_input;
 #[path = "parameter_panel_keyboard.rs"]
 mod keyboard;
+#[path = "parameter_panel_language.rs"]
+mod language;
 #[path = "parameter_panel_layout.rs"]
 mod layout;
 pub(in crate::desktop) use inline::Inline;
@@ -98,6 +100,8 @@ struct Ui {
     model: RefCell<Rc<model::Model>>,
     bindings: RefCell<Vec<controls::Binding>>,
     placements: RefCell<Vec<(HWND, RECT)>>,
+    captions: RefCell<Vec<(HWND, language::Caption)>>,
+    language: Cell<crate::ui_text::DisplayLanguage>,
     pending: RefCell<VecDeque<Intent>>,
     closed: Cell<bool>,
     replacing: Cell<bool>,
@@ -109,6 +113,7 @@ struct Ui {
     status_dirty: Cell<bool>,
     status_writing: Cell<bool>,
     message: RefCell<String>,
+    message_caption: RefCell<Option<language::Caption>>,
     capture_windows: Rc<RefCell<Vec<HWND>>>,
 }
 impl Ui {
@@ -135,6 +140,18 @@ impl Ui {
         !self.closed.get() && self.state().is_some_and(available)
     }
     unsafe fn error(&self, message: &str) {
+        self.message_caption.borrow_mut().take();
+        self.write_error(message);
+    }
+    unsafe fn localized_error(&self, id: &'static str) {
+        self.error_caption(language::Caption::plain(id));
+    }
+    unsafe fn error_caption(&self, caption: language::Caption) {
+        let message = caption.text();
+        *self.message_caption.borrow_mut() = Some(caption);
+        self.write_error(&message);
+    }
+    unsafe fn write_error(&self, message: &str) {
         let changed = *self.message.borrow() != message;
         if changed {
             *self.message.borrow_mut() = message.into();
@@ -142,9 +159,13 @@ impl Ui {
         }
         if self.inline && changed && !message.is_empty() {
             if let Some(state) = self.state() {
-                if let Err(error) =
-                    desktop::extension_notices::show(self.host, state, None, "参数", message)
-                {
+                if let Err(error) = desktop::extension_notices::show(
+                    self.host,
+                    state,
+                    None,
+                    crate::ui_text::text("parameter-title"),
+                    message,
+                ) {
                     eprintln!("native-parameter-notice: {error}");
                 }
             }
@@ -193,7 +214,7 @@ impl Ui {
             match controls::drafts(self) {
                 Ok(drafts) => drafts,
                 Err(()) => {
-                    self.error("请先完成有效输入");
+                    self.localized_error("parameter-complete-input");
                     return;
                 }
             }
@@ -201,20 +222,20 @@ impl Ui {
         let mut pending = self.pending.borrow().clone();
         // Candidates come from established inputs/parameters; do not rebind this transaction's uncommitted draft as new selection eligibility.
         if matches!(&intent, Intent::Candidate(_)) && (!drafts.is_empty() || !pending.is_empty()) {
-            self.error("请先提交参数更改并重新执行");
+            self.localized_error("parameter-commit-and-rerun");
             return;
         }
         for item in drafts.into_iter().chain([intent]) {
             transaction::enqueue(&mut pending, item);
         }
         if pending.len() > 4 {
-            self.error("操作队列已满，请重试");
+            self.localized_error("parameter-queue-full");
             return;
         }
         if PostMessageW(Some(self.host), WM_NULL, WPARAM(0), LPARAM(0)).is_ok() {
             *self.pending.borrow_mut() = pending;
         } else {
-            self.error("操作未入队");
+            self.localized_error("parameter-not-queued");
         }
     }
     unsafe fn close(&self) {
@@ -326,20 +347,21 @@ impl Panel {
         if self.retired() {
             return Ok(());
         }
-        let current = self.ui.model.borrow().current(state);
+        language::refresh(&self.ui, state)?;
+        let current = self.ui.model.borrow().current_content(state);
         let waiting = state
             .parameter_view
             .borrow()
             .as_ref()
             .is_some_and(|view| !view.current(state));
         if !current && waiting {
-            self.ui.error("参数同步中");
+            self.ui.localized_error("parameter-syncing");
         } else if !current {
             if self.ui.drafts_idle() {
                 *self.ui.model.borrow_mut() = Rc::new(self.ui.capture(state));
                 controls::rebuild(&self.ui)?;
             } else {
-                self.ui.error("配置已变化，草稿未提交");
+                self.ui.localized_error("parameter-config-draft-conflict");
             }
         } else {
             self.ui.sync_status();
@@ -351,7 +373,7 @@ impl Panel {
         match intent {
             Intent::Choice(snapshot, index, text) => {
                 if !snapshot.current(state) {
-                    self.ui.error("配置已变化，请重试");
+                    self.ui.localized_error("parameter-config-changed");
                     return Ok(());
                 }
                 snapshot.submit_guarded(self.ui.host, state, index, text.as_deref(), &|| {
@@ -379,7 +401,7 @@ impl Panel {
                 if !choice.submit(self.ui.host, state, &|| {
                     self.ui.available() && self.ui.drafts_idle()
                 })? {
-                    self.ui.error("候选或参数已变化，请重新执行");
+                    self.ui.localized_error("parameter-candidate-changed");
                 } else {
                     self.ui.error("");
                 }
@@ -400,7 +422,7 @@ impl Panel {
                     .as_ref()
                     .is_some_and(|view| !view.current(state))
                 {
-                    self.ui.error("参数同步中");
+                    self.ui.localized_error("parameter-syncing");
                     return Ok(());
                 }
                 *self.ui.model.borrow_mut() = Rc::new(self.ui.capture(state));
@@ -418,7 +440,7 @@ impl Panel {
             }
             Intent::Ports(stamp) if stamp.matches(state) => {
                 if !desktop::application::chrome::ports::request(&state.chrome, self.ui.host) {
-                    self.ui.error("端口设置暂不可用");
+                    self.ui.localized_error("parameter-ports-unavailable");
                 }
             }
             Intent::Sticker(stamp, action) => {
@@ -428,14 +450,16 @@ impl Panel {
                     })?;
                 self.sticker_outcome(outcome);
             }
-            _ => self.ui.error("配置已变化，请重试"),
+            _ => self.ui.localized_error("parameter-config-changed"),
         }
         Ok(())
     }
     unsafe fn sticker_outcome(&self, outcome: desktop::parameter_file_input::Outcome) {
         use desktop::parameter_file_input::Outcome;
         match outcome {
-            Outcome::Rejected => self.ui.error("图片输入配置已变化或暂不可用"),
+            Outcome::Rejected => self
+                .ui
+                .localized_error("parameter-image-config-unavailable"),
             Outcome::Cancelled => self.ui.error(""),
             Outcome::Accepted => {
                 self.ui.error("");

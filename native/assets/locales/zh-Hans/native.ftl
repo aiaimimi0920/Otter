@@ -1,0 +1,96 @@
+native-menu-title = Otter 菜单
+native-menu-selected = 已选中
+native-menu-unselected = 未选中
+native-menu-checked = 已勾选
+native-art-image = 图片 { $id }
+native-art-canvas-kind = 画布
+native-art-canvas = { native-art-canvas-kind } { $id }
+native-art-confirmation-parameters = 参数（由 Art 提供，不受信任）：
+native-art-confirmation = 允许本次敏感服务调用？
+    Art：{ $art } @ { $version }
+    服务：{ $service }
+    插件：{ $plugin }
+    包摘要：{ $package }
+    输入摘要：{ $fingerprint }
+    图片数：{ $count }；图片输出：{ $output }
+
+    { native-art-confirmation-parameters }
+    { $input }
+tile-art-preparation-ended = Art准备已结束
+tile-art-preparing = 正在准备Art内容
+tile-art-thread-init-failed = Art线程初始化失败
+tile-art-thread-start-failed = Art线程启动失败
+tile-art-thread-ended = Art线程已结束
+tile-art-field-scene-invalid = Art字段场景失效
+tile-art-field-removed = Art字段已移除
+tile-art-option-invalid = Art选项已失效
+tile-art-field-encode-failed = Art字段编码失败
+tile-art-field-batch-limit = Art字段批次过大
+tile-art-slider-gesture-invalid = Art滑块手势已失效
+tile-art-slider-geometry-invalid = Art滑块几何失效
+tile-art-slider-scene-invalid = Art滑块场景失效
+tile-art-slider-removed = Art滑块已移除
+tile-art-slider-encode-failed = Art滑块编码失败
+tile-art-action-invalid = Art操作已失效
+tile-art-count-limit = 可见Art数量超限
+tile-authorization-invalid = 设备授权失效
+tile-art-image-read-failed = Art图片读取失败
+tile-art-image-dimensions = Art图片尺寸不匹配
+tile-content-pixel-budget = 可见内容像素预算不足
+tile-art-view-read-failed = Art视图读取失败
+tile-art-view-invalid = Art视图校验失败
+tile-art-node-budget = 可见Art节点预算不足
+tile-art-image-count-limit = 可见Art图片数量超限
+tile-art-image-not-ready = Art图片未就绪
+tile-art-local-field-invalid = Art本地字段已失效
+tile-art-local-option-invalid = Art本地选项失效
+tile-art-local-value-invalid = Art本地字段值无效
+tile-art-local-field-budget = Art本地字段预算不足
+tile-art-keyboard-search-budget = Art键盘可见区域搜索预算不足
+tile-art-hit-invalid = Art命中已失效
+tile-art-source-changed = Art来源已改变
+tile-art-click-encode-failed = Art点击编码失败
+tile-art-click-batch-limit = Art点击批次过大
+tile-art-action-queue-full = Art操作队列已满
+tile-art-action-memory = Art操作内存预算不足
+tile-art-action-failed = Art操作失败
+tile-art-action-rejected = Art操作被拒绝
+tile-art-action-confirmation = Art操作等待确认（右键审阅）
+tile-art-action-accepted = Art操作已受理
+tile-art-action-capacity = Art操作跟踪容量不足
+tile-art-action-unknown = Art操作未确认；未重放
+tile-art-action-expired = Art操作已过期
+tile-wait-authorization = 等待设备授权
+tile-authorization-expired = 呈现授权已超时
+tile-stopped = 已停止
+tile-content-ready = 内容已准备
+tile-presented = 已呈现
+tile-connection-prepare-failed = 连接准备失败
+tile-image-thread-start-failed = 图片线程启动失败
+tile-wall-read-failed = 墙面状态读取失败
+tile-service-clock-changed = 服务时钟已改变
+tile-output-register-failed = 输出注册失败
+tile-presentation-lease-failed = 呈现租约申请失败
+tile-wall-preparing = 正在准备墙面
+tile-output-identifying = 正在识别物理输出
+tile-wall-clock-missing = 服务未提供 Wall 场景时钟
+tile-output-report-failed = 输出识别回报失败
+tile-presentation-sequence-exhausted = 呈现序号已耗尽
+tile-heartbeat-failed = 呈现心跳失败
+tile-live-encode-budget = Live编码预算不足
+tile-live-authorization-invalid = Live授权无效
+tile-live-connection-failed = Live连接失败
+tile-live-protocol-mismatch = Live协议不匹配
+tile-live-stopped = Live已停止
+tile-live-deadline-failed = Live期限失败
+tile-live-clock-failed = Live时钟失败
+tile-live-disconnected = Live已断开
+tile-live-source-closed = Live来源已关闭或授权失效
+tile-live-media-invalid = Live媒体无效或已断开
+tile-live-source-stalled = Live来源已停滞
+tile-output-unassigned = 输出未分配
+tile-source-identity-conflict = 可见来源身份冲突
+tile-source-count-limit = 可见来源数量超限
+tile-image-read-failed = 图片读取或校验失败
+tile-image-pixel-budget = 可见图片像素预算不足
+tile-content-waiting = 正在等待完整内容

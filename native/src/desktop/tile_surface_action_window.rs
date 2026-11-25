@@ -61,7 +61,7 @@ pub(super) fn prepare(state: &State, pixel: [i32; 2]) -> Vec<Command> {
     match result {
         Ok(mut commands) => {
             if super::text::decorate(state, &mut commands).is_err() {
-                s.actions.notice = "Art表单未提交";
+                s.actions.notice = "integration-art-form-not-committed";
                 return Vec::new();
             }
             if let Some((view, edit)) = state
@@ -79,7 +79,7 @@ pub(super) fn prepare(state: &State, pixel: [i32; 2]) -> Vec<Command> {
             commands
         }
         Err(_) => {
-            s.actions.notice = "Art点击未提交";
+            s.actions.notice = "integration-art-click-uncommitted";
             Vec::new()
         }
     }
@@ -210,9 +210,9 @@ pub(super) unsafe fn menu(hwnd: HWND, state: &State, point: POINT) {
     let _menu = Menu(menu);
     let notice = state.shared.lock().actions.notice;
     let label = windows::core::HSTRING::from(if notice.is_empty() {
-        "Art操作"
+        crate::ui_text::text("integration-art-action")
     } else {
-        notice
+        crate::tile_shared::display_status(notice)
     });
     if AppendMenuW(menu, MF_STRING | MF_DISABLED, 0, &label).is_err() {
         return;
@@ -220,8 +220,14 @@ pub(super) unsafe fn menu(hwnd: HWND, state: &State, point: POINT) {
     for (i, (option, action)) in options.iter().enumerate() {
         let action = action.replace('&', "&&");
         let label = match option.kind {
-            Kind::Decision { .. } => format!("审阅：{action}"),
-            _ => format!("取消：{action}"),
+            Kind::Decision { .. } => crate::ui_text::format(
+                "integration-review-action",
+                &[("action", action.as_str().into())],
+            ),
+            _ => crate::ui_text::format(
+                "integration-cancel-action",
+                &[("action", action.as_str().into())],
+            ),
         };
         if AppendMenuW(menu, MF_STRING, i + 1, &windows::core::HSTRING::from(label)).is_err() {
             return;
@@ -243,9 +249,9 @@ pub(super) unsafe fn menu(hwnd: HWND, state: &State, point: POINT) {
     if let Some((command, _)) = options.into_iter().nth(index - 1) {
         choose(hwnd, state, command, |origin, c| {
             let risk = match c.risk {
-                Risk::Low => "低",
-                Risk::Medium => "中",
-                Risk::High => "高",
+                Risk::Low => crate::ui_text::text("integration-risk-low"),
+                Risk::Medium => crate::ui_text::text("integration-risk-medium"),
+                Risk::High => crate::ui_text::text("integration-risk-high"),
             };
             let payload = c.payload.as_ref().map(serde_json::Value::to_string);
             let text = crate::desktop::surface_authorized_window::confirmation_dialog::dialog_text(

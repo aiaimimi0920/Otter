@@ -61,7 +61,9 @@ pub(in crate::desktop) unsafe fn run(owner: HWND, state: &State) -> Result<()> {
                 "Property buttons did not update real style",
             ));
         }
-        if crate::desktop::tool_panel_actions::label(0x46, state).as_deref() != Some("填充 开") {
+        if crate::desktop::tool_panel_actions::label(0x46, state).as_deref()
+            != Some(crate::ui_text::text("tool-action-fill-on"))
+        {
             return Err(windows::core::Error::new(
                 E_FAIL,
                 "Property label did not reflect style",

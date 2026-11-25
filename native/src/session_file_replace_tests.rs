@@ -72,6 +72,27 @@ fn drop_and_cancel_before_or_after_old_move_preserve_original() {
         assert_eq!(std::fs::read_dir(&fixture.directory).unwrap().count(), 1);
     }
 }
+
+#[test]
+fn locale_authority_expiring_at_final_publish_restores_the_original() {
+    let fixture = Fixture::new();
+    let cancel = AtomicBool::new(false);
+    let failure = fixture
+        .prepare(&cancel)
+        .commit_checked(&cancel, || {
+            // The baseline has already moved; rejection must use the normal rollback path.
+            assert!(!fixture.target.exists());
+            Err(io::Error::new(
+                io::ErrorKind::Interrupted,
+                "locale lease expired",
+            ))
+        })
+        .unwrap_err();
+    assert_eq!(failure.error.kind(), io::ErrorKind::Interrupted);
+    assert!(failure.recovery.is_none() && failure.restore_error.is_none());
+    assert_eq!(std::fs::read(&fixture.target).unwrap(), OLD);
+    assert_eq!(std::fs::read_dir(&fixture.directory).unwrap().count(), 1);
+}
 #[test]
 fn competing_target_is_kept_and_original_recovery_path_is_reported() {
     let fixture = Fixture::new();

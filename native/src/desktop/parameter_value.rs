@@ -104,16 +104,33 @@ impl Spec {
     }
     pub fn hint(&self) -> String {
         if self.number {
-            format!(
-                "{}；最小值 {}，最大值 {}",
-                "请输入数字（越界值限制到范围内）",
-                self.min.map_or("不限".into(), |n| n.to_string()),
-                self.max.map_or("不限".into(), |n| n.to_string())
+            crate::ui_text::format(
+                "parameter-number-hint",
+                &[
+                    (
+                        "minimum",
+                        self.min
+                            .map_or_else(
+                                || crate::ui_text::text("parameter-unlimited").into(),
+                                |n| n.to_string(),
+                            )
+                            .into(),
+                    ),
+                    (
+                        "maximum",
+                        self.max
+                            .map_or_else(
+                                || crate::ui_text::text("parameter-unlimited").into(),
+                                |n| n.to_string(),
+                            )
+                            .into(),
+                    ),
+                ],
             )
         } else if self.json {
-            format!("请输入有效 JSON，最多 {} 个 UTF-16 单元", MAX_TEXT)
+            crate::ui_text::format("parameter-json-hint", &[("limit", MAX_TEXT.into())])
         } else {
-            format!("最多 {} 个 UTF-16 单元", MAX_TEXT)
+            crate::ui_text::format("parameter-text-hint", &[("limit", MAX_TEXT.into())])
         }
     }
 }

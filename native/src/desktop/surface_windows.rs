@@ -28,20 +28,32 @@ pub struct Windows {
 impl Windows {
     pub fn status(&self) -> Option<String> {
         if let Some(failure) = self.failures.last() {
-            return Some(format!("Surface 未打开：{}", failure.reason));
+            return Some(crate::ui_text::format(
+                "integration-surface-not-open",
+                &[("reason", failure.reason.as_str().into())],
+            ));
         }
         if let Some(error) = self.entries.iter().find_map(|w| w.activation_error()) {
-            return Some(format!("Surface 操作未完成：{error}"));
+            return Some(crate::ui_text::format(
+                "integration-surface-action-incomplete",
+                &[("error", error.into())],
+            ));
         }
         if let Some(error) = self.entries.iter().find_map(|w| w.image_error()) {
-            return Some(format!("Surface 图片未完成：{error}"));
+            return Some(crate::ui_text::format(
+                "integration-surface-image-incomplete",
+                &[("error", error.into())],
+            ));
         }
         let shown = self.entries.iter().filter(|w| w.is_shown()).count();
         if shown > 0 {
-            return Some(format!("已打开 {shown} 个 Surface 窗口"));
+            return Some(crate::ui_text::format(
+                "integration-surface-open-count",
+                &[("count", shown.into())],
+            ));
         }
         if self.entries.iter().any(|w| w.is_alive()) {
-            return Some("Surface 正在激活".into());
+            return Some(crate::ui_text::text("integration-surface-activating").into());
         }
         if !self.entries.is_empty()
             && self.entries.iter().all(|window| {
@@ -52,9 +64,10 @@ impl Windows {
                 })
             })
         {
-            return Some("Surface 窗口已停用".into());
+            return Some(crate::ui_text::text("integration-surface-inactive").into());
         }
-        (!self.entries.is_empty()).then(|| "Surface 窗口已关闭，附件状态待处理".into())
+        (!self.entries.is_empty())
+            .then(|| crate::ui_text::text("integration-surface-closed-pending").into())
     }
     pub fn can_mount(&self, origin: &str, node: &str) -> bool {
         self.entries.len() + self.failures.len() < MAX_WINDOWS
@@ -169,7 +182,10 @@ impl Windows {
                 }
             }
             Ok(Some(_)) => unreachable!("recovery result is returned before owner transfer"),
-            Err(error) => window.record_activation_error(format!("生命周期操作未完成：{error:?}")),
+            Err(error) => window.record_activation_error(crate::ui_text::format(
+                "integration-lifecycle-incomplete",
+                &[("error", format!("{error:?}").into())],
+            )),
         }
         Ok(())
     }
@@ -220,13 +236,17 @@ impl Windows {
                 .any(|hint| hint.supersedes_mount(binding))
         });
         let result = if duplicate {
-            Err("附件已有持有记录，保留重复挂载结果".to_owned())
+            Err(crate::ui_text::text("integration-attachment-retained").to_owned())
         } else if outcome.result.is_err() || outcome.uncertain || outcome.binding.is_none() {
-            Err("挂载结果未确认，保留恢复证据".to_owned())
+            Err(crate::ui_text::text("integration-mount-unconfirmed").to_owned())
         } else {
             authorize(&outcome).and_then(|lease| {
-                AuthorizedWindow::new(&outcome, lease, now_ms, [960, 640])
-                    .map_err(|error| format!("Surface 场景未接纳：{error:?}"))
+                AuthorizedWindow::new(&outcome, lease, now_ms, [960, 640]).map_err(|error| {
+                    crate::ui_text::format(
+                        "integration-surface-scene-rejected",
+                        &[("error", format!("{error:?}").into())],
+                    )
+                })
             })
         };
         match result {

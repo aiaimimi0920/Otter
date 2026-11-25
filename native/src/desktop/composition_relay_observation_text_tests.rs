@@ -11,19 +11,25 @@ fn audit(id: usize) -> Value {
 }
 #[test]
 fn readonly_projection_preserves_values_states_and_distinct_pending_and_unsupported() {
-    assert_eq!(render(None), "等待已授权观察快照\r\n");
+    assert_eq!(
+        render(None),
+        format!(
+            "{}\r\n",
+            crate::ui_text::text("integration-await-observation")
+        )
+    );
     let b =
         Business::from_snapshot(br#"{"session":{"observationCapabilities":[]},"observations":[]}"#)
             .unwrap();
-    assert!(render(Some(&b)).contains("观察：不支持"));
+    assert!(render(Some(&b)).contains(crate::ui_text::text("integration-unsupported")));
     for (state, label) in [
-        ("unknown", "未知"),
-        ("detected", "已检测"),
-        ("observing", "观察中"),
-        ("stable", "稳定"),
-        ("triggered", "已触发"),
-        ("stale", "过期"),
-        ("error", "错误"),
+        ("unknown", "integration-unknown"),
+        ("detected", "integration-detected"),
+        ("observing", "integration-observing"),
+        ("stable", "integration-stable"),
+        ("triggered", "integration-triggered"),
+        ("stale", "integration-stale"),
+        ("error", "integration-error"),
     ] {
         let mut o = observation(0);
         o["state"] = json!(state);
@@ -31,10 +37,21 @@ fn readonly_projection_preserves_values_states_and_distinct_pending_and_unsuppor
             o.as_object_mut().unwrap().remove("value");
         }
         let text = render(Some(&snapshot(vec![o], vec![])));
-        assert!(text.contains(&format!("o:0 · {label} · 应用适配器 / 高 · #1")));
-        assert!(text.contains("采样 12 ms · 稳定起点 10 ms"));
+        assert!(text.contains(&format!(
+            "o:0 · {} · {} / {} · #1",
+            crate::ui_text::text(label),
+            crate::ui_text::text("integration-application-adapter"),
+            crate::ui_text::text("integration-risk-high")
+        )));
+        assert!(text.contains(&crate::ui_text::format(
+            "integration-observation-timing",
+            &[("sample", 12.into()), ("stable", "10 ms".into())]
+        )));
         assert_eq!(
-            text.contains("值：{\"n\":7}"),
+            text.contains(&crate::ui_text::format(
+                "integration-observation-value",
+                &[("value", "{\"n\":7}".into())]
+            )),
             !["unknown", "stale", "error"].contains(&state)
         );
     }
@@ -49,7 +66,7 @@ fn untrusted_text_cannot_hide_fields_and_oversized_values_are_explicitly_clipped
     assert!(!text.contains('\0'));
     assert!(!text.contains('\u{202e}'));
     assert!(text.contains("remote\\u{0}\\u{d}\\u{a}\\u{202e}标题"));
-    assert!(text.contains("…[已截断]"));
+    assert!(text.contains(crate::ui_text::text("integration-truncated")));
     assert_eq!(
         b.observations()
             .get("o:0")
@@ -70,13 +87,22 @@ fn latest_audits_are_bounded_and_reservation_is_not_reported_as_completed_action
     audits[17]["outcome"] = json!("fired");
     audits[17]["reason"] = json!("surface_action_dispatch_reserved");
     let text = render(Some(&snapshot(vec![], audits)));
-    assert!(text.contains("最近 16 / 18 项"));
+    assert!(text.contains(&crate::ui_text::format(
+        "integration-observation-audits",
+        &[("recent", 16.into()), ("count", 18.into())]
+    )));
     assert!(!text.contains("key:0\r"));
     assert!(!text.contains("key:1\r"));
     assert!(text.contains("key:2\r"));
     assert!(text.contains("surface_action_dispatch_reserved"));
-    assert!(!text.contains("请求："));
-    assert!(text.contains("b · 派发中"));
+    assert!(!text.contains(&crate::ui_text::format(
+        "integration-observation-request",
+        &[("request", "".into())]
+    )));
+    assert!(text.contains(&format!(
+        "b · {}",
+        crate::ui_text::text("integration-dispatching")
+    )));
 }
 #[test]
 fn maximum_cardinality_and_utf16_budget_do_not_build_an_unbounded_report() {
@@ -89,7 +115,7 @@ fn maximum_cardinality_and_utf16_budget_do_not_build_an_unbounded_report() {
     }
     let text = render(Some(&snapshot(values, vec![])));
     assert!(text.encode_utf16().count() <= MAX_TEXT);
-    assert!(text.ends_with(END));
+    assert!(text.ends_with(&end()));
     let mut out = Text::default();
     out.line(&"😀".repeat(MAX_TEXT));
     assert!(out.truncated);

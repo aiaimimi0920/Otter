@@ -143,10 +143,22 @@ pub(super) unsafe fn append_menu(menu: HMENU, state: &State) -> Result<()> {
         menu,
         &view,
         &[
-            (DISCOVER, "刷新远程会话目录"),
-            (OPEN_ART, "打开 Art（原生预览）…"),
-            (CONFIRM_SURFACE, "处理待确认的 Surface 操作…"),
-            (RESUME_SURFACE, "继续 Surface 批次的剩余操作"),
+            (
+                DISCOVER,
+                crate::ui_text::text("integration-refresh-remote-sessions"),
+            ),
+            (
+                OPEN_ART,
+                crate::ui_text::text("integration-open-art-preview"),
+            ),
+            (
+                CONFIRM_SURFACE,
+                crate::ui_text::text("integration-confirm-surface-actions"),
+            ),
+            (
+                RESUME_SURFACE,
+                crate::ui_text::text("integration-resume-surface-batch"),
+            ),
         ],
     )?;
     recovery::append_menu(menu, &view)?;
@@ -160,7 +172,7 @@ pub(super) unsafe fn append_menu(menu: HMENU, state: &State) -> Result<()> {
 unsafe fn append_connection(menu: HMENU, view: &View) -> Result<()> {
     let label = match &view.origin {
         Some(origin) => format!("Loom：{}", origin.replace('&', "&&")),
-        None => "Loom：未选择服务".into(),
+        None => crate::ui_text::text("integration-no-loom").into(),
     };
     AppendMenuW(menu, MF_SEPARATOR, 0, None)?;
     AppendMenuW(menu, MF_STRING | MF_GRAYED, 0, &HSTRING::from(label))?;
@@ -171,11 +183,14 @@ unsafe fn append_connection(menu: HMENU, view: &View) -> Result<()> {
         menu,
         view,
         &[
-            (SELECT, "选择 Loom 服务…"),
-            (PAIR, "提交设备配对"),
-            (APPROVAL, "等待管理员批准"),
-            (RENEW, "获取 / 续签授权会话"),
-            (CANCEL, "取消请求并清除本地会话"),
+            (SELECT, crate::ui_text::text("integration-choose-loom")),
+            (PAIR, crate::ui_text::text("integration-submit-pairing")),
+            (APPROVAL, crate::ui_text::text("integration-wait-admin")),
+            (RENEW, crate::ui_text::text("integration-get-renew-session")),
+            (
+                CANCEL,
+                crate::ui_text::text("integration-cancel-clear-session"),
+            ),
         ],
     )
 }
@@ -267,7 +282,10 @@ pub(super) unsafe fn execute(hwnd: HWND, state: &State, command: usize) -> Resul
     if let Err(error) = result {
         MessageBoxW(
             Some(hwnd),
-            &HSTRING::from(format!("授权操作未执行。\n{error}")),
+            &HSTRING::from(crate::ui_text::format(
+                "integration-authorization-action-failed",
+                &[("error", error.to_string().into())],
+            )),
             w!("Otter"),
             MB_OK | MB_ICONWARNING,
         );

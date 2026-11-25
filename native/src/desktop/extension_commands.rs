@@ -221,8 +221,8 @@ impl Owner {
                                 document.window.0,
                                 &document.state,
                                 None,
-                                "扩展操作未完成",
-                                "请检查 Loom 连接及扩展状态后重试。",
+                                crate::ui_text::text("integration-extension-incomplete"),
+                                crate::ui_text::text("integration-extension-retry"),
                             ) {
                                 eprintln!("native-extension-notice: {error}");
                             }

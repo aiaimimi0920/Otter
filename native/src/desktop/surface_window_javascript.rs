@@ -125,7 +125,10 @@ impl AuthorizedWindow {
     pub(super) fn poll_javascript(&mut self, now: u64) -> Result<()> {
         if let Err(error) = self.settle_javascript(now) {
             // Presentation/snapshot/queue failures are terminal; a later empty rebind reply must not falsely claim frame presentation.
-            self.fail_javascript(format!("JS 结算失败：{error}"))?;
+            self.fail_javascript(crate::ui_text::format(
+                "integration-javascript-settlement-failed",
+                &[("error", error.to_string().into())],
+            ))?;
         }
         Ok(())
     }
@@ -140,7 +143,10 @@ impl AuthorizedWindow {
         };
         if let Some(exit) = runtime.take_exit() {
             if alive {
-                self.fail_javascript(format!("JS 执行已结束：{exit:?}"))?;
+                self.fail_javascript(crate::ui_text::format(
+                    "integration-javascript-ended",
+                    &[("error", format!("{exit:?}").into())],
+                ))?;
             }
             return Ok(());
         }
@@ -148,7 +154,8 @@ impl AuthorizedWindow {
             return Ok(());
         }
         if now >= runtime.expires_at_ms() {
-            return self.fail_javascript("JS 资源或凭据已过期".into());
+            return self
+                .fail_javascript(crate::ui_text::text("integration-javascript-expired").into());
         }
         // Common idle/wait messages neither copy nor parse snapshots up to 1 MiB; event/thread handles provide the next wake.
         if (runtime.pending() && !runtime.reply_ready())
@@ -175,7 +182,12 @@ impl AuthorizedWindow {
                     self.javascript.as_mut().unwrap().synced =
                         Some((current.binding.clone(), self.snapshot_revision));
                 }
-                Err(error) => return self.fail_javascript(format!("JS 帧未接纳：{error:?}")),
+                Err(error) => {
+                    return self.fail_javascript(crate::ui_text::format(
+                        "integration-javascript-frame-rejected",
+                        &[("error", format!("{error:?}").into())],
+                    ))
+                }
             }
         }
         let js = self.javascript.as_mut().unwrap();

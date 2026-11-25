@@ -11,9 +11,11 @@ use std::sync::Arc;
 
 fn request(record: &Record, origin: &str, device: &str) -> std::result::Result<Request, String> {
     if record.origin() != origin || record.device() != device {
-        return Err("恢复记录与当前服务或设备不一致".into());
+        return Err(crate::ui_text::text("app-recovery-record-mismatch").into());
     }
-    let art = record.art().ok_or("记录缺少 Art，不能查询恢复候选")?;
+    let art = record
+        .art()
+        .ok_or(crate::ui_text::text("app-recovery-art-missing"))?;
     let report = Report::new(
         vec![Runtime::Declarative],
         vec![],
@@ -21,7 +23,12 @@ fn request(record: &Record, origin: &str, device: &str) -> std::result::Result<R
         vec![],
         Input::default(),
     )
-    .map_err(|error| format!("恢复查询配置无效：{error:?}"))?;
+    .map_err(|error| {
+        crate::ui_text::format(
+            "app-recovery-config-invalid",
+            &[("error", format!("{error:?}").into())],
+        )
+    })?;
     // Art/node context for GET queries only; never pass this request to start_attach.
     Request::new(
         art.into(),
@@ -44,17 +51,30 @@ pub(super) fn query(
     >,
 ) -> std::result::Result<(), String> {
     if selected != Some(record.origin()) || sessions.querying_recovery() || sessions.attaching() {
-        return Err("服务已变化或恢复查询仍在进行".into());
+        return Err(crate::ui_text::text("app-recovery-query-busy").into());
     }
     let now = crate::desktop::surface_windows::now_ms().map_err(|error| error.to_string())?;
-    let lease = auth
-        .lease(record.origin(), now)
-        .map_err(|error| format!("请先获取有效授权：{error:?}"))?;
+    let lease = auth.lease(record.origin(), now).map_err(|error| {
+        crate::ui_text::format(
+            "app-authorization-required-detail",
+            &[("error", format!("{error:?}").into())],
+        )
+    })?;
     let request = request(record, record.origin(), lease.device_id())?;
-    let config = config(record.origin()).map_err(|error| format!("配置无效：{error:?}"))?;
+    let config = config(record.origin()).map_err(|error| {
+        crate::ui_text::format(
+            "app-configuration-invalid-detail",
+            &[("error", format!("{error:?}").into())],
+        )
+    })?;
     sessions
         .query_surface_recovery(config, lease, Arc::new(request))
-        .map_err(|error| format!("恢复查询未启动：{error}"))
+        .map_err(|error| {
+            crate::ui_text::format(
+                "app-recovery-query-start-failed",
+                &[("error", error.to_string().into())],
+            )
+        })
 }
 impl Application {
     pub(super) fn poll_surface_recovery_ui(&mut self) {
@@ -63,12 +83,18 @@ impl Application {
             if !view.closed {
                 match result {
                     Ok(records) => {
-                        view.recovery_status = format!("已读取 {} 条恢复记录", records.len());
+                        view.recovery_status = crate::ui_text::format(
+                            "app-recovery-record-count",
+                            &[("count", records.len().into())],
+                        );
                         view.recovery = records.into_iter().map(Arc::new).collect();
                     }
                     Err(error) => {
                         view.recovery.clear();
-                        view.recovery_status = format!("恢复文件无效：{error}");
+                        view.recovery_status = crate::ui_text::format(
+                            "app-recovery-file-invalid",
+                            &[("error", error.to_string().into())],
+                        );
                     }
                 }
             }
@@ -86,18 +112,28 @@ impl Application {
             if !current {
                 view.recovery_candidate = None;
                 if !view.closed {
-                    view.recovery_status = "恢复查询结果已失效，请重新授权后查询".into();
+                    view.recovery_status =
+                        crate::ui_text::text("app-recovery-query-expired").into();
                 }
                 continue;
             }
             view.recovery_candidate = None;
             match outcome.result {
                 Ok(Some(candidate)) => {
-                    view.recovery_status = "找到恢复候选，尚未重新挂载".into();
+                    view.recovery_status =
+                        crate::ui_text::text("app-recovery-candidate-found").into();
                     view.recovery_candidate = Some(Arc::new(candidate));
                 }
-                Ok(None) => view.recovery_status = "未找到候选；不能据此确认原创建未生效".into(),
-                Err(error) => view.recovery_status = format!("恢复查询未完成：{error:?}"),
+                Ok(None) => {
+                    view.recovery_status =
+                        crate::ui_text::text("app-recovery-candidate-not-found").into()
+                }
+                Err(error) => {
+                    view.recovery_status = crate::ui_text::format(
+                        "app-recovery-query-incomplete",
+                        &[("error", format!("{error:?}").into())],
+                    )
+                }
             }
         }
         view.recovery_busy = self.remote_sessions.reading_recovery_file()

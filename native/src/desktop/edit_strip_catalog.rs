@@ -14,28 +14,33 @@ pub(super) use super::icons::icon;
 fn button(id: u16, label: &'static str, command: usize, dropdown: bool) -> Item {
     Item::Button(Button {
         id,
-        label,
+        label: crate::ui_text::text(label),
         icon: icon(command),
         dropdown,
     })
 }
 pub(super) fn items() -> Vec<Item> {
     let mut items = vec![
-        button(SETTINGS, "钉图设置", 0, false),
-        button(MODE, "选择", 0x53, false),
-        button(0x1007, "撤销", 0x1007, false),
-        button(0x1008, "重做", 0x1008, false),
-        button(RASTER, "栅格化", 0x1022, true),
-        button(OCR, "识别结果", OCR as usize, false),
-        button(TRANSLATE, "翻译结果", TRANSLATE as usize, false),
+        button(SETTINGS, "edit-pin-settings", 0, false),
+        button(MODE, "edit-select", 0x53, false),
+        button(0x1007, "common-undo", 0x1007, false),
+        button(0x1008, "common-redo", 0x1008, false),
+        button(RASTER, "edit-rasterize", 0x1022, true),
+        button(OCR, "edit-ocr-result", OCR as usize, false),
+        button(
+            TRANSLATE,
+            "edit-translation-result",
+            TRANSLATE as usize,
+            false,
+        ),
         Item::Divider,
-        button(SHAPE, "矩形", 0x52, true),
-        button(LINE, "直线", 0x4c, true),
-        button(BRUSH, "铅笔", 0x42, true),
-        button(LABEL, "文本", 0x58, true),
-        button(EFFECT, "马赛克", 0x4d, true),
-        button(0x57, "橡皮擦", 0x57, false),
-        button(0x102e, "裁剪", 0x102e, false),
+        button(SHAPE, "edit-rectangle", 0x52, true),
+        button(LINE, "edit-line", 0x4c, true),
+        button(BRUSH, "edit-pencil", 0x42, true),
+        button(LABEL, "edit-text", 0x58, true),
+        button(EFFECT, "edit-mosaic", 0x4d, true),
+        button(0x57, "edit-eraser", 0x57, false),
+        button(0x102e, "edit-crop", 0x102e, false),
         Item::Divider,
     ];
     items.extend((0x6300..0x6308).map(Item::Slot));

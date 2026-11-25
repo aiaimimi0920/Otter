@@ -114,10 +114,16 @@ fn owned_sparse_regions_affinity_and_three_modes_keep_only_declared_input_areas(
         let ui = &app.chrome.ui;
         let mut title = [0; 64];
         let length = GetWindowTextW(ui.drawing.get(), &mut title) as usize;
-        assert_eq!(String::from_utf16_lossy(&title[..length]), "Otter · 工作区");
+        assert_eq!(
+            String::from_utf16_lossy(&title[..length]),
+            crate::ui_text::text("workspace-title")
+        );
         for (hwnd, endpoint, side) in ui.input_windows.borrow().iter() {
             let length = GetWindowTextW(*hwnd, &mut title) as usize;
-            assert_eq!(String::from_utf16_lossy(&title[..length]), "Otter · 端口");
+            assert_eq!(
+                String::from_utf16_lossy(&title[..length]),
+                crate::ui_text::text("workspace-ports-title")
+            );
             let node = ui.node(*endpoint).unwrap();
             assert!(GetWindow(*hwnd, GW_OWNER).unwrap_or_default().is_invalid());
             let mut affinity = 0;

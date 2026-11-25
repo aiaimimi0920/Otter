@@ -81,10 +81,10 @@ impl Job {
             .worker
             .take()?
             .join()
-            .map_err(|_| "文件导入任务异常退出".to_string())
+            .map_err(|_| crate::ui_text::text("parameter-import-worker-failed").to_string())
             .and_then(|result| result.map_err(|error| error.to_string()));
         Some(if self.cancel.load(Ordering::Acquire) {
-            Err("文件导入已取消".into())
+            Err(crate::ui_text::text("parameter-import-cancelled").into())
         } else {
             result
         })
@@ -133,7 +133,10 @@ mod tests {
         assert!(job.poll().is_none());
         gate.release.send(()).unwrap();
         wait_finished(job.worker.as_ref().unwrap());
-        assert_eq!(job.poll().unwrap().err().as_deref(), Some("文件导入已取消"));
+        assert_eq!(
+            job.poll().unwrap().err().as_deref(),
+            Some(crate::ui_text::text("parameter-import-cancelled"))
+        );
         assert!(job.poll().is_none());
         assert!(job.deadline().is_none());
     }

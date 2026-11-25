@@ -52,15 +52,18 @@ impl Application {
                         }
                         Ok(false) => {}
                         Err(error) => {
-                            self.account_status(&format!("关联已保存，显示失败：{error}"));
+                            self.account_status(&crate::ui_text::format(
+                                "app-account-display-failed",
+                                &[("error", error.to_string().into())],
+                            ));
                             return;
                         }
                     }
                 }
                 self.account_status(if saved.binding.stopped() {
-                    "关联已解除，保留最后图像"
+                    crate::ui_text::text("app-account-unlinked")
                 } else {
-                    "账号关联已保存"
+                    crate::ui_text::text("app-account-saved")
                 });
                 self.account_projection.due = Some(Instant::now() + Duration::from_secs(1));
             } else if current
@@ -69,7 +72,7 @@ impl Application {
             {
                 self.account_projection.saved = Some(saved);
             } else {
-                self.account_status("账号关联保存未完成，保留恢复记录");
+                self.account_status(crate::ui_text::text("app-account-save-incomplete"));
             }
         }
         let Some(mut pending) = self.account_projection.pending.take() else {
@@ -89,10 +92,13 @@ impl Application {
             Err(stale())
         };
         if let Err(error) = result {
-            self.account_status(&format!("同步暂缓，保留当前内容：{error}"));
+            self.account_status(&crate::ui_text::format(
+                "app-account-sync-deferred",
+                &[("error", error.to_string().into())],
+            ));
             self.account_projection.due = Some(Instant::now() + Duration::from_secs(5));
         } else if self.account_projection.saved.is_none() {
-            self.account_status("账号投射已核对");
+            self.account_status(crate::ui_text::text("app-account-projection-checked"));
             self.account_projection.due = Some(Instant::now() + Duration::from_secs(1));
         }
     }
@@ -167,7 +173,7 @@ impl Application {
             receive,
             cancel: pending.cancel.clone(),
         });
-        self.account_status("正在保存账号关联…");
+        self.account_status(crate::ui_text::text("app-account-saving"));
         Ok(())
     }
 }

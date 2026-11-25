@@ -98,7 +98,7 @@ unsafe extern "system" fn tick(_: HWND, _: u32, _: usize, _: u32) {
                     assert_eq!(input.job.borrow().snapshot().frame_count, 1);
                     let mut text = [0u16; 128];
                     let count = GetDlgItemTextW(hwnd, 103, &mut text) as usize;
-                    assert!(String::from_utf16_lossy(&text[..count]).contains("随后自动继续"));
+                    assert_eq!(String::from_utf16_lossy(&text[..count]), crate::ui_text::text("long-capture-record-obscured"));
                     drop(driver.cover.take().unwrap());
                     driver.exercise_cover = false;
                     driver.stage = 0;
@@ -117,7 +117,7 @@ unsafe extern "system" fn tick(_: HWND, _: u32, _: usize, _: u32) {
                         assert!(!input.recording.covered.get());
                         let mut text = [0u16; 32];
                         let count = GetDlgItemTextW(hwnd, 103, &mut text) as usize;
-                        assert_eq!(String::from_utf16_lossy(&text[..count]), "录制中");
+                        assert_eq!(String::from_utf16_lossy(&text[..count]), crate::ui_text::text("long-capture-recording"));
                         super::super::handle(hwnd, WM_COMMAND, WPARAM(112), LPARAM(0));
                         assert!(input.recording.hook.borrow().is_none());
                         super::super::handle(hwnd, WM_COMMAND, WPARAM(1), LPARAM(0));

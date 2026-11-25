@@ -46,7 +46,11 @@ impl Drop for Retire<'_> {
         if s.generation == self.job.generation && s.desired.as_ref() == Some(&self.job.key) {
             s.art = None;
             s.actions.clear();
-            s.unavailable(self.job.generation, &self.job.key, "Art准备已结束");
+            s.unavailable(
+                self.job.generation,
+                &self.job.key,
+                "tile-art-preparation-ended",
+            );
         }
     }
 }
@@ -68,7 +72,7 @@ impl Worker {
             if phase(&s, job) == Phase::Active {
                 s.art = None;
                 s.actions.clear();
-                s.unavailable(job.generation, &job.key, "正在准备Art内容");
+                s.unavailable(job.generation, &job.key, "tile-art-preparing");
             }
         }
         let (client, lease, shared, job, ended) = (
@@ -84,7 +88,7 @@ impl Worker {
                 use windows::Win32::System::Com::*;
                 unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) }
                     .ok()
-                    .map_err(|_| "Art线程初始化失败")?;
+                    .map_err(|_| "tile-art-thread-init-failed")?;
                 struct Com;
                 impl Drop for Com {
                     fn drop(&mut self) {
@@ -136,7 +140,7 @@ impl Worker {
                 // Views closes trusted views before exiting COM; cancellation/revocation uses the original Lease without new cleanup credentials.
                 Ok(())
             })
-            .map_err(|_| "Art线程启动失败")?;
+            .map_err(|_| "tile-art-thread-start-failed")?;
         Ok(Self {
             stop,
             thread: Some(thread),
@@ -146,7 +150,7 @@ impl Worker {
         if self.thread.as_ref().is_some_and(|t| t.is_finished()) {
             return match self.thread.take().unwrap().join() {
                 Ok(Err(reason)) => Err(reason),
-                _ => Err("Art线程已结束"),
+                _ => Err("tile-art-thread-ended"),
             };
         }
         Ok(())

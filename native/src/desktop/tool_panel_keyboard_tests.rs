@@ -93,7 +93,7 @@ fn initial_native_titles_are_preserved_before_panel_is_shown() {
         let fixture = Fixture::new();
         for (hwnd, expected) in [
             (fixture.owner.0, "toolbar keyboard fixture"),
-            (fixture.panel.0, "贴图编辑"),
+            (fixture.panel.0, crate::ui_text::text("edit-strip-title")),
         ] {
             let mut title = [0; 64];
             let length = GetWindowTextW(hwnd, &mut title) as usize;

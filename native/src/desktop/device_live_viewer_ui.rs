@@ -6,7 +6,7 @@ use crate::{
 };
 use std::sync::Arc;
 use windows::{
-    core::{w, Error, Result, HSTRING},
+    core::{Error, Result, HSTRING},
     Win32::{Foundation::*, UI::WindowsAndMessaging::*},
 };
 pub(in crate::desktop) const WATCH: usize = 0x2000;
@@ -95,7 +95,7 @@ pub(super) unsafe fn append_menu(menu: HMENU, view: &AuthorizationView) -> Resul
                 MF_GRAYED
             },
         WATCH,
-        w!("加入远程观看…"),
+        &windows::core::HSTRING::from(crate::ui_text::text("integration-join-viewer")),
     )?;
     append_stops(menu, view)
 }
@@ -110,11 +110,11 @@ pub(super) unsafe fn append_stops(menu: HMENU, view: &AuthorizationView) -> Resu
     }
     for (index, entry) in view.live.watching.iter().take(MAX_VIEWERS).enumerate() {
         let status = if entry.stopping {
-            "停止中"
+            crate::ui_text::text("integration-stopping")
         } else if entry.shown {
-            "观看中"
+            crate::ui_text::text("integration-viewing")
         } else {
-            "加入中"
+            crate::ui_text::text("integration-joining")
         };
         AppendMenuW(
             menu,
@@ -125,9 +125,12 @@ pub(super) unsafe fn append_stops(menu: HMENU, view: &AuthorizationView) -> Resu
                     MF_ENABLED
                 },
             STOP_BASE + index,
-            &HSTRING::from(format!(
-                "停止观看：{} · {status}",
-                label(entry.key.session())
+            &HSTRING::from(crate::ui_text::format(
+                "integration-stop-viewing",
+                &[
+                    ("name", label(entry.key.session()).into()),
+                    ("status", status.into()),
+                ],
             )),
         )?;
     }

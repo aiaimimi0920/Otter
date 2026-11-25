@@ -47,7 +47,10 @@ impl Application {
                             })
                     });
             if let Err(error) = window.sync_input(editing, requested, now) {
-                self.authorization.borrow_mut().status = format!("输入状态更新失败：{error}");
+                self.authorization.borrow_mut().status = crate::ui_text::format(
+                    "app-input-state-failed",
+                    &[("error", error.to_string().into())],
+                );
             }
         }
         let Some(origin) = origin else { return };
@@ -95,7 +98,10 @@ impl Application {
             let (config, lease, now) = match prepared {
                 Ok(value) => value,
                 Err(error) => {
-                    status = Some(format!("输入未准备：{error}"));
+                    status = Some(crate::ui_text::format(
+                        "app-input-not-prepared",
+                        &[("error", error.to_string().into())],
+                    ));
                     continue;
                 }
             };
@@ -142,10 +148,17 @@ impl Application {
                     }))
                 });
             match result {
-                Ok(true) => status = Some("正在提交 Surface 输入…".into()),
+                Ok(true) => {
+                    status = Some(crate::ui_text::text("app-surface-input-submitting").into())
+                }
                 Ok(false) => {}
                 Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {}
-                Err(error) => status = Some(format!("输入未启动：{error}")),
+                Err(error) => {
+                    status = Some(crate::ui_text::format(
+                        "app-input-not-started",
+                        &[("error", error.to_string().into())],
+                    ))
+                }
             }
         }
         if let Some(status) = status {

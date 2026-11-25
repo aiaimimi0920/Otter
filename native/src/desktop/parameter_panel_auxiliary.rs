@@ -45,7 +45,7 @@ impl Open {
         let hwnd = CreateWindowExW(
             WS_EX_CONTROLPARENT,
             class,
-            w!("候选"),
+            &HSTRING::from(crate::ui_text::text("parameter-candidates")),
             WS_CHILD | WS_CLIPCHILDREN,
             0,
             0,
@@ -146,10 +146,13 @@ pub(super) unsafe fn place(
         .collect();
     let selected = open.data.choices.iter().position(|c| c.selected());
     let status = selected.map_or_else(String::new, |i| {
-        format!("当前 {}", open.data.choices[i].card(state).detail)
+        crate::ui_text::format(
+            "parameter-current-candidate",
+            &[("detail", open.data.choices[i].card(state).detail.into())],
+        )
     });
     open.grid.update(
-        "候选",
+        crate::ui_text::text("parameter-candidates"),
         &status,
         &enabled,
         selected,

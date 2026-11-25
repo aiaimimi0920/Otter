@@ -4,7 +4,9 @@ const path = require('node:path');
 const { hash } = require('./source.cjs');
 const { checkedPath } = require('../release/third-party-sources.cjs');
 const { javascriptLicenses } = require('./javascript_licenses.cjs');
+const { fluentLicenses } = require('./fluent_licenses.cjs');
 const design = require('./design-source.cjs');
+const rxing = require('./rxing-source.cjs');
 const licenseName = /^(licen[sc]es?|copying|copyright|notice)([._-]|$)/i;
 const safeName = value => typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9_.+-]*$/.test(value);
 
@@ -51,6 +53,7 @@ function collect(repo, metadata, output, registryRoot) {
   if (fs.existsSync(output)) throw new Error('License output already exists');
   const sources = require('../release/third-party-sources.cjs').verifiedSources(repo);
   require('../release/third-party-sources.cjs').verifyResolution(repo, sources, metadata);
+  rxing.selectedPackage(metadata);
   const records = [];
   let total = 0;
   const keys = new Set();
@@ -68,6 +71,8 @@ function collect(repo, metadata, output, registryRoot) {
       directory = repo;
     } else if (pkg.name === design.NAME) {
       directory = design.directory(repo, pkg);
+    } else if (pkg.name === rxing.NAME) {
+      directory = rxing.directory(repo, pkg);
     } else if (pkg.source == null) {
       const workspaceDirs = {
         'otter-live-hover-hook': 'native/hover-hook/Cargo.toml',
@@ -101,11 +106,11 @@ function collect(repo, metadata, output, registryRoot) {
       new TextDecoder('utf-8', { fatal: true }).decode(bytes);
       return { path: `${key}/${name}`, bytes, sha256: hash(bytes) };
     });
-    // Retain strict missing-license checks; only JS subcrates with exact versions/sources/original-text digests receive explicit supplements.
-    for (const file of javascriptLicenses(pkg, metadata, registryRoot)) {
+    // Supplements admit only reviewed exact identities and original-text digests; missing licenses still fail.
+    for (const file of [...javascriptLicenses(pkg, metadata, registryRoot), ...fluentLicenses(pkg, registryRoot)]) {
       const destination = `${key}/${file.name}`;
       if (files.some(f => f.path === destination) || (total += file.bytes.length) > 64 * 1024 * 1024) {
-        throw new Error('Duplicate or oversized JavaScript license material');
+        throw new Error('Duplicate or oversized supplemental license material');
       }
       files.push({ path: destination, bytes: file.bytes, sha256: file.sha256, upstream: file.upstream });
     }

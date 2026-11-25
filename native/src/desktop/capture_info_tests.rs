@@ -11,8 +11,17 @@ fn restored_metadata_keeps_extensions_but_does_not_grant_file_lease_or_claim_ori
         serde_json::from_str::<serde_json::Value>(raw).unwrap()
     );
     let text = describe(&source);
-    assert!(text.contains("HDR（原图文件未恢复）"));
-    assert!(text.contains("HDR 降级：未记录"));
+    assert_eq!(
+        text,
+        message(
+            "capture-info-summary",
+            &[
+                ("original", source.original_label().into()),
+                ("downgraded", tr("capture-info-unrecorded").into()),
+                ("reason", reason(source.reason).into()),
+            ]
+        )
+    );
     assert!(CaptureSource::from_session(r#"{"dynamicRange":"hdr","bitDepth":8}"#).is_err());
 }
 fn source() -> CaptureSource {
@@ -30,9 +39,19 @@ fn source() -> CaptureSource {
 fn information_distinguishes_hdr_original_sdr_preview_and_downgrade_without_raw_lines() {
     let mut source = source();
     let text = describe(&source);
-    assert!(text.contains("原图：SDR\n画布预览：SDR\nHDR 降级：是"));
-    assert!(text.contains("原因：HDR 捕获失败"));
-    assert!(text.contains("诊断：fixture 原图：forged"));
+    assert!(text.starts_with(&message(
+        "capture-info-summary",
+        &[
+            ("original", source.original_label().into()),
+            ("downgraded", tr("common-yes").into()),
+            ("reason", tr("capture-info-hdr-failed").into()),
+        ]
+    )));
+    assert!(text.ends_with(&message(
+        "capture-info-diagnostic",
+        &[("diagnostic", "fixture 原图：forged".into()),]
+    )));
+    assert!(!text.contains("\n原图：forged"));
     source.original = Some("C:/not-opened/hdr.png".into());
     source.downgraded = false;
     source.reason = None;
@@ -45,10 +64,24 @@ fn information_distinguishes_hdr_original_sdr_preview_and_downgrade_without_raw_
         white_level_known: false,
     });
     let text = describe(&source);
-    assert!(text.contains("原图：HDR PNG\n画布预览：SDR\nHDR 降级：否"));
-    assert!(text.contains("显示器 HDR：未确认"));
-    assert!(text.contains("203.0 nit（回退值）"));
-    assert!(text.contains("0.010–1000.0 nit"));
+    assert!(text.starts_with(&message(
+        "capture-info-summary",
+        &[
+            ("original", source.original_label().into()),
+            ("downgraded", tr("common-no").into()),
+            ("reason", reason(None).into()),
+        ]
+    )));
+    assert!(text.contains(&message(
+        "capture-info-display",
+        &[
+            ("hdr", tr("capture-info-unconfirmed").into()),
+            ("white", "203.0".into()),
+            ("fallback", tr("capture-info-fallback").into()),
+            ("minimum", "0.010".into()),
+            ("maximum", "1000.0".into()),
+        ]
+    )));
 }
 #[test]
 fn diagnostic_text_is_bounded_and_all_capture_reasons_have_labels() {

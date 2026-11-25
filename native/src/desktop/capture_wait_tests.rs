@@ -8,6 +8,7 @@ use std::{
     sync::mpsc,
     time::{Duration, Instant},
 };
+use windows::core::w;
 use windows::Win32::UI::Input::KeyboardAndMouse::IsWindowEnabled;
 thread_local! { static SHOWN: Cell<usize> = const { Cell::new(0) }; }
 unsafe extern "system" fn observe_show(code: i32, wp: WPARAM, lp: LPARAM) -> LRESULT {

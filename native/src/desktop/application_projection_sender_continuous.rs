@@ -91,7 +91,7 @@ impl Application {
                 .is_err()
             {
                 self.projection_sender.updates.settle(&request, None, now);
-                self.sender_status("投送同步暂缓，保留当前内容与关联");
+                self.sender_status(crate::ui_text::text("app-projection-sync-binding-retained"));
             }
         }
         if matches!(self.projection_sender.phase, Phase::Idle) {

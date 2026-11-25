@@ -6,6 +6,7 @@ use windows::Win32::UI::Controls::{WM_MOUSEHOVER, WM_MOUSELEAVE};
 use windows::Win32::UI::Input::KeyboardAndMouse::{GetCapture, ReleaseCapture, SetCapture};
 #[path = "composition_live_input_control.rs"]
 mod control;
+use control::menu_status;
 #[cfg(test)]
 #[path = "composition_live_hover_tests.rs"]
 mod hover_tests;
@@ -154,7 +155,12 @@ impl LiveWindow {
             unsafe {
                 menu_status(self.hwnd, &self.state, false, false);
                 wheel::sync(self.hwnd, &self.state);
-                let _ = SetWindowTextW(self.hwnd, w!("Otter Live · 控制不可用"));
+                let _ = SetWindowTextW(
+                    self.hwnd,
+                    &windows::core::HSTRING::from(crate::ui_text::text(
+                        "integration-live-control-unavailable",
+                    )),
+                );
             }
         }
     }
@@ -180,49 +186,30 @@ unsafe fn display_status(hwnd: HWND, state: &State, enabled: bool, pending: bool
             TOGGLE as u32,
             (MF_BYCOMMAND | if enabled { MF_CHECKED } else { MF_UNCHECKED }).0,
         );
-        let _ = SetWindowTextW(
-            hwnd,
-            if enabled {
-                w!("Otter Live · 控制中")
-            } else if pending {
-                w!("Otter Live · 启用中")
-            } else if state.input.borrow().failed {
-                w!("Otter Live · 控制不可用")
-            } else {
-                w!("Otter Live")
-            },
-        );
+        let title = windows::core::HSTRING::from(if enabled {
+            crate::ui_text::text("integration-live-controlling")
+        } else if pending {
+            crate::ui_text::text("integration-live-enabling")
+        } else if state.input.borrow().failed {
+            crate::ui_text::text("integration-live-control-unavailable")
+        } else {
+            "Otter Live"
+        });
+        let _ = SetWindowTextW(hwnd, &title);
     }
     if !enabled && !pending && state.drag.get().is_none() && GetCapture() == hwnd {
         let _ = ReleaseCapture();
     }
 }
-unsafe fn menu_status(hwnd: HWND, state: &State, enabled: bool, pending: bool) {
-    let (allowed, failed, desired) = {
-        let input = state.input.borrow();
-        (input.allowed && !input.remote, input.failed, input.desired)
-    };
-    let label = if enabled || (desired && !pending && !failed) {
-        w!("停止控制源窗口")
-    } else if pending {
-        w!("控制源窗口（启用中）")
-    } else if failed {
-        w!("控制源窗口（上次失败，可重试）")
-    } else {
-        w!("控制源窗口")
-    };
-    let _ = ModifyMenuW(
-        GetSystemMenu(hwnd, false),
-        TOGGLE as u32,
-        MF_BYCOMMAND | MF_STRING | if allowed { MF_ENABLED } else { MF_GRAYED },
-        TOGGLE,
-        label,
-    );
-}
 pub(super) unsafe fn install(hwnd: HWND) -> Result<()> {
     let menu = GetSystemMenu(hwnd, false);
     AppendMenuW(menu, MF_SEPARATOR, 0, None)?;
-    AppendMenuW(menu, MF_STRING | MF_GRAYED, TOGGLE, w!("控制源窗口"))
+    AppendMenuW(
+        menu,
+        MF_STRING | MF_GRAYED,
+        TOGGLE,
+        &windows::core::HSTRING::from(crate::ui_text::text("integration-control-source")),
+    )
 }
 fn viewport(hwnd: HWND, state: &State) -> Option<crate::live_viewport::Viewport> {
     let mut rect = RECT::default();

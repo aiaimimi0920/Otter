@@ -42,7 +42,12 @@ fn windows_uia_client_reads_checked_and_radio_status_without_executing() {
     let hwnd = menu.pages[0].panel.handle().unwrap().0 as usize;
     assert_eq!(
         query(hwnd, read_statuses, || {}),
-        ["", "已勾选", "未选中", "已选中"]
+        [
+            "",
+            crate::ui_text::text("native-menu-checked"),
+            crate::ui_text::text("native-menu-unselected"),
+            crate::ui_text::text("native-menu-selected")
+        ]
     );
     menu.poll().unwrap();
     assert!(!menu.closed());

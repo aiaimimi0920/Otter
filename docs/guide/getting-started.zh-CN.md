@@ -8,6 +8,10 @@
 - 截图、钉图、标注可独立使用。OCR、翻译和 Art 需要当前 Loom、对应能力包及授权。
 - 默认工作区和设置位于 `%LOCALAPPDATA%/OtterNative`，与历史版目录独立。测试可用 `OTTER_NATIVE_PROFILE_DIR` 指定独立的绝对路径；不要覆盖使用中的目录或转移设备凭据。
 
+右键托盘图标，选择 **Language / 语言 → English / 简体中文** 即可切换界面语言，无需安装能力包。
+选择会保存，并在当前模态操作结束后生效，无需重启。也可从 Loom 的 Otter 连接设置向指定在线设备发送一次语言设置请求。
+它与 OCR 翻译目标语言、Loom 自身语言相互独立，详见[显示语言机制](../features/DISPLAY_LANGUAGE.md)。
+
 ## 1. 截取并钉在桌面
 
 1. 启动 Otter，按 **`Ctrl+1`**，框选要截取的区域。

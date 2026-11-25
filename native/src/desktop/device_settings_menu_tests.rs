@@ -19,16 +19,19 @@ fn settings_show_connection_projection_receive_and_flow_controls_without_startin
         let f = Fixture::new();
         let panel = open(&f);
         for (id, expected) in [
-            (201, "Loom 连接"),
-            (202, "投射"),
-            (203, "被投射"),
-            (204, "数据流向"),
+            (201, "pin-connect"),
+            (202, "pin-send"),
+            (203, "pin-receive"),
+            (204, "pin-flow"),
         ] {
             let child = field(panel, id);
             assert!(IsWindowVisible(child).as_bool());
             let mut text = [0; 64];
             let n = GetWindowTextW(child, &mut text) as usize;
-            assert_eq!(String::from_utf16_lossy(&text[..n]), expected);
+            assert_eq!(
+                String::from_utf16_lossy(&text[..n]),
+                crate::ui_text::text(expected)
+            );
         }
         let connection = menus::items(Section::Loom, &f.state).unwrap();
         assert!(find(&connection, auth::SELECT).unwrap().enabled);

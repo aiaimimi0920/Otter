@@ -104,7 +104,7 @@ impl Application {
             self.stop_projection_sender();
             self.start_sender_stop_work(request, job::Work::Begin);
         } else {
-            self.sender_status("停止未执行：关联已变化或缺少原发送意图");
+            self.sender_status(crate::ui_text::text("app-projection-stop-intent-changed"));
         }
     }
     pub(super) fn begin_sender_stop_request(&mut self, request: Request) {
@@ -121,7 +121,7 @@ impl Application {
     }
     fn sender_stop_retry(&mut self) {
         self.projection_sender.stop.due = Some(Instant::now() + Duration::from_secs(2));
-        self.sender_status("停止尚未完成；原意图与回执保留");
+        self.sender_status(crate::ui_text::text("app-projection-stop-incomplete"));
     }
     pub(super) unsafe fn poll_sender_stop(&mut self) {
         // Consume deadline wakeups; temporary workspace unavailability or unpersisted Begin must not leave expired WM_NULL spinning.
@@ -144,7 +144,7 @@ impl Application {
             match job.join() {
                 Ok(job::Output::Acknowledged) => {
                     self.projection_sender.profile.retired(&job.request);
-                    self.sender_status("发送关联已停止");
+                    self.sender_status(crate::ui_text::text("app-projection-sender-stopped"));
                 }
                 Ok(job::Output::Patched(context, source)) if context.matches(self) => {
                     if let Some(batch) = &mut self.projection_sender.stop_group {
@@ -155,20 +155,24 @@ impl Application {
                         .unwrap()
                         .edit_original(source);
                     self.saved_state = None;
-                    self.sender_status("正在保存停止状态…");
+                    self.sender_status(crate::ui_text::text("app-projection-stop-saving"));
                 }
                 Ok(job::Output::Begun | job::Output::Patched(..)) => {}
                 Err(_) if job.ack && job.request.published_retired() => {
                     // persist may have actually committed but report an error because a recovery copy remains; do not leave a ghost entry in the original profile.
                     self.projection_sender.profile.retired(&job.request);
                     self.projection_sender.stop.due = None;
-                    self.sender_status("发送关联已停止；日志恢复副本保留");
+                    self.sender_status(crate::ui_text::text(
+                        "app-projection-stop-recovery-retained",
+                    ));
                 }
                 Err(_) if job.begin && !job.request.stop_requested() => {
                     // Without published revocation, do not pretend the request was accepted; preserve original Request and let the user explicitly retry through the menu.
                     self.projection_sender.stop.busy = false;
                     self.projection_sender.stop.due = None;
-                    self.sender_status("停止未执行：持久减权失败；请重试");
+                    self.sender_status(crate::ui_text::text(
+                        "app-projection-stop-authority-failed",
+                    ));
                 }
                 Err(_) => self.sender_stop_retry(),
             }
@@ -236,7 +240,7 @@ impl Application {
             }
             Some(_) => {
                 self.projection_sender.cleanup.enqueue_stop(request);
-                self.sender_status("正在停止投送；等待原设备授权与解绑回执…");
+                self.sender_status(crate::ui_text::text("app-projection-stopping"));
             }
             None if unlinked => {
                 if let Some(proof) =

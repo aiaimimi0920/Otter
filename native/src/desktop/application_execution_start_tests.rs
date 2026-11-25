@@ -218,7 +218,7 @@ fn menu_start_prepares_fixed_identity_and_configuration_without_connecting_on_ui
             .borrow()
             .as_ref()
             .unwrap()
-            .contains("内联图片"));
+            .contains(crate::ui_text::text("app-inline-image-invalid")));
         assert!(app.input_jobs.is_empty());
         assert!(app.documents[0]
             .state
@@ -415,7 +415,7 @@ fn menu_start_prepares_fixed_identity_and_configuration_without_connecting_on_ui
             .borrow()
             .as_ref()
             .unwrap()
-            .contains("本地预览"));
+            .contains(crate::ui_text::text("app-capability-preview-only")));
         assert!(app.documents[0]
             .state
             .pending_preparation

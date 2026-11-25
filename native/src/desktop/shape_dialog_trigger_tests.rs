@@ -130,7 +130,10 @@ fn hidden_local_trigger_controls_require_explicit_auto_consent_and_strict_condit
             assert_eq!(affinity, WDA_EXCLUDEFROMCAPTURE.0);
             let mut text = [0u16; 64];
             let length = GetDlgItemTextW(hwnd, IDOK.0, &mut text) as usize;
-            assert_eq!(String::from_utf16_lossy(&text[..length]), "允许自动回调");
+            assert_eq!(
+                String::from_utf16_lossy(&text[..length]),
+                crate::ui_text::text("shape-allow-callback")
+            );
             procedure(hwnd, WM_COMMAND, WPARAM(IDOK.0 as usize), LPARAM(0));
             assert_eq!(state.result, accepted.then_some(value));
             DestroyWindow(hwnd).unwrap();

@@ -102,7 +102,7 @@ fn published_successor_without_paint_keeps_original_intent_and_deadline() {
     });
     views.dispatch("art", &f.shared, &f.job, false);
     assert!(f.shared.lock().actions.pending.is_empty());
-    assert_eq!(f.shared.lock().actions.notice, "Art操作已受理");
+    assert_eq!(f.shared.lock().actions.notice, "tile-art-action-accepted");
     views.dispatch("art", &f.shared, &f.job, false);
     peer.join().unwrap();
     views.entries.clear();

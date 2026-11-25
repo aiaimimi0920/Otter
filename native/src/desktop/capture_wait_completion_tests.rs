@@ -1,5 +1,6 @@
 //! Completion-notification regressions use only hidden HWNDs and synthetic pixels; no desktop reads or system input injection.
 use super::*;
+use windows::core::w;
 thread_local! { static TICKS: Cell<usize> = const { Cell::new(0) }; }
 unsafe extern "system" fn count_timer(code: i32, wp: WPARAM, lp: LPARAM) -> LRESULT {
     if code == HC_ACTION as i32 && lp.0 != 0 {

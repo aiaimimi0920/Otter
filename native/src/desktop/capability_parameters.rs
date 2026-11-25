@@ -69,7 +69,10 @@ impl Edit {
     }
 }
 fn invalid() -> windows::core::Error {
-    windows::core::Error::new(E_INVALIDARG, "参数无效、包含非公共字段或超过容量限制")
+    windows::core::Error::new(
+        E_INVALIDARG,
+        crate::ui_text::text("integration-invalid-parameters"),
+    )
 }
 pub(super) unsafe fn show(hwnd: HWND, state: &State) -> Result<()> {
     let Some(_dialog) = super::file_dialog::Guard::begin(&state.file_dialog) else {
@@ -99,6 +102,6 @@ pub(super) unsafe fn append(menu: HMENU, state: &State) -> Result<()> {
                 MF_GRAYED
             },
         COMMAND,
-        w!("高级参数（JSON）…"),
+        &windows::core::HSTRING::from(crate::ui_text::text("integration-advanced-parameters")),
     )
 }

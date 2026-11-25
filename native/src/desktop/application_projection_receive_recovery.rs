@@ -97,7 +97,7 @@ impl Application {
                 current,
                 job,
             }));
-            Ok("正在核验已保存投送…")
+            Ok(crate::ui_text::text("app-projection-recovery-verifying"))
         })();
         self.receive_status(result);
     }
@@ -125,9 +125,9 @@ impl Application {
         let Some(result) = pending.job.try_join() else {
             self.projection_receive.0 = Phase::Recovering(pending);
             return Ok(if valid {
-                "正在核验已保存投送…"
+                crate::ui_text::text("app-projection-recovery-verifying")
             } else {
-                "正在取消投送恢复…"
+                crate::ui_text::text("app-projection-recovery-cancelling")
             });
         };
         // Record only closed-set error and fence categories; never format Ready, credentials, or remote response bodies.

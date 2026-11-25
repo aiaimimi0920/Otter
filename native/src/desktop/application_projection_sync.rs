@@ -117,7 +117,7 @@ impl Application {
                 .settle(&pending.ticket, now, success);
             if !success {
                 self.authorization.borrow_mut().projection.status =
-                    "投送同步暂缓，保留当前内容".into();
+                    crate::ui_text::text("app-projection-sync-deferred").into();
             }
             let unit = success
                 .then(|| crate::workspace_id::UnitId::parse(pending.ticket.unit()))

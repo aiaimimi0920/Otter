@@ -38,14 +38,20 @@ impl Application {
                     if error == crate::device_authorization_owner::Error::Capacity {
                         StartImageError::Busy
                     } else {
-                        StartImageError::Failed(format!("图片授权不可用：{error:?}"))
+                        StartImageError::Failed(crate::ui_text::format(
+                            "app-image-authorization-unavailable",
+                            &[("error", format!("{error:?}").into())],
+                        ))
                     }
                 })?;
             let started = match request {
                 Request::Inline(request) => self.remote_sessions.start_inline_image(lease, request),
                 Request::Resource(request) => {
                     let config = config(request.binding().origin()).map_err(|error| {
-                        StartImageError::Failed(format!("图片配置无效：{error:?}"))
+                        StartImageError::Failed(crate::ui_text::format(
+                            "app-image-configuration-invalid",
+                            &[("error", format!("{error:?}").into())],
+                        ))
                     })?;
                     self.remote_sessions
                         .start_surface_resource(config, lease, request)
@@ -58,7 +64,10 @@ impl Application {
                 ) {
                     StartImageError::Busy
                 } else {
-                    StartImageError::Failed(format!("图片任务未启动：{error}"))
+                    StartImageError::Failed(crate::ui_text::format(
+                        "app-image-task-not-started",
+                        &[("error", error.to_string().into())],
+                    ))
                 }
             })
         });

@@ -47,7 +47,7 @@ unsafe fn prevented(mode: u8) {
     assert!(!fixture.app.projection_receive.busy());
     assert_eq!(
         fixture.app.authorization.borrow().projection.status,
-        "接收未完成；本地内容和未结意图保留"
+        crate::ui_text::text("app-projection-reception-incomplete")
     );
     assert_eq!(fixture.journal(), journal);
     assert!(fixture.unit_present());
@@ -107,7 +107,7 @@ fn projection_accept_confirmation_requires_same_arc_and_live_requester_without_b
         assert!(!app.remote_sessions.projection_pending());
         assert_eq!(
             app.authorization.borrow().projection.status,
-            "接收未启动：当前工作区不能安全保存"
+            crate::ui_text::text("app-projection-workspace-unsafe")
         );
         app.shutdown();
     }

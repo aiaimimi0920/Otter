@@ -35,6 +35,7 @@ struct Model {
     events: RefCell<VecDeque<Event>>,
     hover: Cell<Option<usize>>,
     status: RefCell<String>,
+    language: Cell<crate::ui_text::DisplayLanguage>,
     brush: HBRUSH,
 }
 const LIST: i32 = 10;
@@ -56,6 +57,7 @@ impl Window {
             events: RefCell::new(VecDeque::new()),
             hover: Cell::new(None),
             status: RefCell::new(String::new()),
+            language: Cell::new(crate::ui_text::current_language()),
             brush,
         });
         let template = layout::template();
@@ -68,7 +70,7 @@ impl Window {
         )?;
         let result = Self(model);
         let dpi = GetDpiForWindow(owner).max(96) as i32;
-        let width = 176 * dpi / 96;
+        let width = 240 * dpi / 96;
         let row = 28 * dpi / 96;
         let mut monitor = MONITORINFO {
             cbSize: std::mem::size_of::<MONITORINFO>() as u32,
@@ -167,6 +169,7 @@ impl Window {
         let Some(hwnd) = self.0.hwnd.get() else {
             return;
         };
+        layout::refresh_if_changed(&self.0, hwnd);
         let Ok(list) = GetDlgItem(Some(hwnd), LIST) else {
             return;
         };

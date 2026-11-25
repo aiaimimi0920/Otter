@@ -167,9 +167,15 @@ impl Application {
                 if let Some(document) = self.documents.first() {
                     windows::Win32::UI::WindowsAndMessaging::MessageBoxW(
                         Some(document.window.0),
-                        &windows::core::HSTRING::from(format!("原会话文件缺失，已从恢复副本读取：\n{}\n请另存为确认恢复；恢复副本未被移动或删除。", path.display())),
-                        windows::core::w!("Otter 会话恢复"),
-                        windows::Win32::UI::WindowsAndMessaging::MB_OK | windows::Win32::UI::WindowsAndMessaging::MB_ICONWARNING,
+                        &windows::core::HSTRING::from(crate::ui_text::format(
+                            "app-session-recovered",
+                            &[("path", path.display().to_string().into())],
+                        )),
+                        &windows::core::HSTRING::from(crate::ui_text::text(
+                            "app-session-recovery-title",
+                        )),
+                        windows::Win32::UI::WindowsAndMessaging::MB_OK
+                            | windows::Win32::UI::WindowsAndMessaging::MB_ICONWARNING,
                     );
                 }
             }

@@ -68,7 +68,10 @@ pub(super) unsafe fn show(hwnd: HWND, state: &State) {
         if IsWindow(Some(hwnd)).as_bool() {
             MessageBoxW(
                 Some(hwnd),
-                &HSTRING::from(format!("无法应用字体。\n{error}")),
+                &HSTRING::from(crate::ui_text::format(
+                    "action-font-failed",
+                    &[("error", error.to_string().into())],
+                )),
                 w!("Otter"),
                 MB_OK | MB_ICONERROR,
             );

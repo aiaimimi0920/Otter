@@ -138,7 +138,10 @@ unsafe fn run_client(hwnd: usize, pid: u32) -> Result<()> {
     client.SetTransactionTimeout(3000)?;
     let root = client.ElementFromHandle(HWND(hwnd as *mut _))?;
     assert_eq!(root.CurrentProcessId()?, pid as i32);
-    assert_eq!(root.CurrentName()?.to_string(), "Otter 菜单");
+    assert_eq!(
+        root.CurrentName()?.to_string(),
+        crate::ui_text::text("native-menu-title")
+    );
     let walker = client.RawViewWalker()?;
     let parent = walker.GetFirstChildElement(&root)?;
     let expand: IUIAutomationExpandCollapsePattern =
@@ -167,7 +170,10 @@ unsafe fn run_client(hwnd: usize, pid: u32) -> Result<()> {
     );
     let leaf = walker.GetLastChildElement(&submenu)?;
     assert_eq!(leaf.CurrentName()?.to_string(), "命令 39");
-    assert_eq!(leaf.CurrentItemStatus()?.to_string(), "已选中");
+    assert_eq!(
+        leaf.CurrentItemStatus()?.to_string(),
+        crate::ui_text::text("native-menu-selected")
+    );
     let invoke: IUIAutomationInvokePattern = leaf.GetCurrentPatternAs(UIA_InvokePatternId)?;
     invoke.Invoke()?;
     let deadline = Instant::now() + Duration::from_secs(5);

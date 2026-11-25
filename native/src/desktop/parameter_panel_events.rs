@@ -197,7 +197,7 @@ unsafe fn command(ui: &Ui, wp: WPARAM, lp: LPARAM) {
                     controls::commit(ui, &binding);
                 }
             } else {
-                ui.error("参数值无效");
+                ui.localized_error("parameter-invalid-value");
             }
         }
         controls::Kind::Setting(stamp, index) if code == BN_CLICKED => {

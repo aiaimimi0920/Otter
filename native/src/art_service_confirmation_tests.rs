@@ -78,7 +78,9 @@ fn art_service_confirmation_signed_waits_for_host_and_never_exposes_token_to_scr
         let binding = runtime.binding().clone();
         let pending = ticket(&runtime);
         assert!(pending.text.contains("vendor/service"));
-        assert!(pending.text.contains("参数（由 Art 提供）"));
+        assert!(pending
+            .text
+            .contains(crate::ui_text::text("native-art-confirmation-parameters")));
         assert!(runtime.pending());
         assert!(runtime.take_reply(&binding).is_none());
         assert!(runtime.take_confirmation(&binding).is_none());
@@ -258,7 +260,9 @@ fn art_service_confirmation_canvas_preview_and_image_result_share_the_exact_payl
     let binding = runtime.binding().clone();
     let pending = ticket(&runtime);
     assert_eq!(pending.images.len(), 1);
-    assert!(pending.images[0].label.starts_with("画布 "));
+    assert!(pending.images[0]
+        .label
+        .contains(crate::ui_text::text("native-art-canvas-kind")));
     assert_eq!(pending.images[0].size, [1, 1]);
     assert_eq!(pending.images[0].image.pixels(), [0, 0, 255, 255]);
     assert!(pending.resolve(true));

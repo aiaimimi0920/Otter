@@ -86,7 +86,10 @@ impl Application {
             {
                 MessageBoxW(
                     Some(doc.window.0),
-                    &HSTRING::from(format!("无法完成菜单操作，未提交的修改已保留。\n{error}")),
+                    &HSTRING::from(crate::ui_text::format(
+                        "app-menu-operation-failed",
+                        &[("error", error.to_string().into())],
+                    )),
                     w!("Otter"),
                     MB_OK | MB_ICONWARNING,
                 );

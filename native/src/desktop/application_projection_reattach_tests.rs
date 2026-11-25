@@ -131,7 +131,7 @@ unsafe fn run_routed(offline: bool) {
         fixture.listener = Some(fixture.server.take().unwrap().join().unwrap());
         assert_eq!(
             fixture.app.authorization.borrow().projection.status,
-            "投送已呈现"
+            crate::ui_text::text("app-projection-presented")
         );
         assert!(fixture
             .app

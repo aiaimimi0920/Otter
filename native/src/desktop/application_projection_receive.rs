@@ -177,7 +177,7 @@ impl Application {
                 current: lease,
                 job,
             }));
-            Ok("正在准备接收投送…")
+            Ok(crate::ui_text::text("app-projection-reception-preparing"))
         })();
         if result.is_err() {
             self.receive_cleanup(cleanup);
@@ -286,7 +286,7 @@ impl Application {
             workspace: self.workspace.identity_stamp(),
             recovery: false,
         }));
-        Ok("正在保存接收投送…")
+        Ok(crate::ui_text::text("app-projection-reception-saving"))
     }
     fn receive_status(&mut self, result: Result<&str>) {
         #[cfg(test)]
@@ -301,7 +301,7 @@ impl Application {
         view.projection.busy = self.remote_sessions.projection_pending()
             || (self.projection_receive.busy()
                 && !matches!(self.projection_receive.0, Phase::Syncing(_)));
-        let status = result.unwrap_or("接收未完成；本地内容和未结意图保留");
+        let status = result.unwrap_or(crate::ui_text::text("app-projection-reception-incomplete"));
         if view.projection.status != status {
             view.projection.status.clear();
             view.projection.status.push_str(status);

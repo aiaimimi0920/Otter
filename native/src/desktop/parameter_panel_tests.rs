@@ -6,6 +6,8 @@ mod candidates;
 mod embedded;
 #[path = "parameter_panel_inline_tests.rs"]
 mod inline_tests;
+#[path = "parameter_panel_language_tests.rs"]
+mod language_tests;
 #[path = "parameter_panel_lifetime_tests.rs"]
 mod lifetime;
 #[path = "node_settings_tests.rs"]

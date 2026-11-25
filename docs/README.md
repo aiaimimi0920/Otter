@@ -3,6 +3,7 @@
 | Task | Start here |
 | --- | --- |
 | Set up, capture and edit | [English guide](guide/getting-started.md) · [Simplified Chinese guide](guide/getting-started.zh-CN.md) · [Shortcuts](FEATURES.md) |
+| Choose the interface language | [Display language and translation resources](features/DISPLAY_LANGUAGE.md) |
 | Feature reference | [Strokes and curves](features/BEZIER_EDITING.md) · [HDR](features/HDR_CAPTURE.md) · [Live capture](features/LIVE_CAPTURE.md) · [OCR code scanning](features/QR_BARCODE_RECOGNITION.md) · [Tile wall](features/TILE_TERMINAL.md) |
 | Connect and share | [Loom connection](features/LOOM_CONNECTION.md) · [Device, QR and link projection](features/QR_PROJECTION.md) · [LiveRelay protocol](features/LIVE_SCREENSHOT_PROTOCOL.md) |
 | Build and verify | [Build, package and startup diagnosis](development/WINDOWS_NATIVE_BUILD.md) · [Loom and two-machine testing](development/JOINT_TESTING.md) · [Live testing and diagnostics](features/LIVE_JOINT_TESTING.md) |

@@ -12,7 +12,10 @@ pub(super) unsafe fn edit(hwnd: HWND, state: &State) -> Result<()> {
     if let Err(error) = edit_with(hwnd, state, |old| dialog::show(hwnd, old)) {
         MessageBoxW(
             Some(hwnd),
-            &HSTRING::from(format!("缓存设置未修改。\n{error}")),
+            &HSTRING::from(crate::ui_text::format(
+                "action-cache-failed",
+                &[("error", error.to_string().into())],
+            )),
             w!("Otter"),
             MB_OK | MB_ICONWARNING,
         );

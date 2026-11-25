@@ -73,7 +73,7 @@ fn navigation_search_error_preserves_select_slider_hwnds_focus_values_and_pendin
         );
         assert_eq!(
             f.shared.lock().actions.notice,
-            "Art键盘可见区域搜索预算不足"
+            "integration-art-keyboard-budget"
         );
         assert_eq!(focus(&w), "value");
         assert_eq!(child(&w), h);

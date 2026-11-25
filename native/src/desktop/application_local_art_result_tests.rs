@@ -88,7 +88,10 @@ fn local_art_formal_result_enters_session_save_restore_but_image_host_is_not_a_t
                     &[0, 0, 255, 255, 0, 0, 255, 255]
                 );
             } else {
-                assert_eq!(app.authorization.borrow().status, "Art 宿主类型已变化");
+                assert_eq!(
+                    app.authorization.borrow().status,
+                    crate::ui_text::text("integration-art-host-type-changed")
+                );
                 assert!(app.documents[0]
                     .state
                     .execution_results

@@ -81,7 +81,7 @@ unsafe extern "system" fn procedure(hwnd: HWND, message: u32, wp: WPARAM, lp: LP
         let _ = SetDlgItemTextW(
             hwnd,
             103,
-            &HSTRING::from("容量须为 0 或 33554432–17179869184 字节；天数须为 0–3650。"),
+            &HSTRING::from(crate::ui_text::text("cache-dialog-validation")),
         );
     }
     1

@@ -161,8 +161,9 @@ impl Ui {
             )
             .unwrap()
         };
+        let title = product.menu_title();
         until(product, "owned menu", |pid| {
-            let menus = windows(pid, "STATIC", Some("Otter 菜单"), Some(hwnd));
+            let menus = windows(pid, "STATIC", Some(title), Some(hwnd));
             assert!(menus.len() <= 1, "ambiguous owned menu");
             menus.first().copied()
         })
@@ -252,8 +253,9 @@ impl Ui {
                 .Expand()
                 .unwrap();
         }
+        let title = product.menu_title();
         until(product, "owned submenu", |pid| {
-            let children: Vec<_> = windows(pid, "STATIC", Some("Otter 菜单"), Some(hwnd))
+            let children: Vec<_> = windows(pid, "STATIC", Some(title), Some(hwnd))
                 .into_iter()
                 .filter(|candidate| *candidate != menu)
                 .collect();

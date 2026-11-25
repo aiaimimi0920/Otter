@@ -162,7 +162,7 @@ pub(super) fn finish(hwnd: HWND, state: &State, mut drag: Drag, pixel: [i32; 2])
     if !valid || !current(state, &drag) {
         let mut s = state.shared.lock();
         s.actions.cancel_edit(&drag.edit);
-        s.actions.notice = "Art滑块画面已失效；未提交";
+        s.actions.notice = "integration-art-slider-stale";
         return;
     }
     let Some(frame) = active(state) else {
@@ -186,7 +186,7 @@ pub(super) fn finish(hwnd: HWND, state: &State, mut drag: Drag, pixel: [i32; 2])
                     focus,
                     crate::tile_surface_local::Value::Slider(drag.value),
                 )
-                .map_err(|_| "Art本地滑块未修改")?;
+                .map_err(|_| crate::ui_text::text("integration-art-slider-unchanged"))?;
             }
         }
         // As with ordinary Slider, commit precedes ancestor click. Releasing outside the original field commits only the value, not a fabricated external click.

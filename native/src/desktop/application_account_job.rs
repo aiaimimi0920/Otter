@@ -78,13 +78,19 @@ pub(super) fn failure(error: account::Error) -> Error {
             code.as_str(),
             "account_signed_out" | "projection_account_required"
         ) {
-            return Error::new(E_FAIL, "公网分享不可用：Loom 尚未登录投射账号");
+            return Error::new(
+                E_FAIL,
+                crate::ui_text::text("app-account-share-not-signed-in"),
+            );
         }
         if matches!(
             code.as_str(),
             "projection_unavailable" | "projection_not_configured" | "account_not_configured"
         ) {
-            return Error::new(E_FAIL, "公网分享不可用：服务尚未配置");
+            return Error::new(
+                E_FAIL,
+                crate::ui_text::text("app-account-share-unconfigured"),
+            );
         }
     }
     Error::new(E_FAIL, format!("Account projection: {error:?}"))

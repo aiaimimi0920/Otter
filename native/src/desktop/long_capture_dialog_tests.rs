@@ -95,8 +95,8 @@ fn direction_switch_drives_manual_and_automatic_capture_on_both_axes() {
                 assert_eq!(
                     String::from_utf16_lossy(&label[..length as usize]),
                     match axis {
-                        Axis::Vertical => "方向：向上",
-                        Axis::Horizontal => "方向：向左",
+                        Axis::Vertical => crate::ui_text::text("long-capture-up"),
+                        Axis::Horizontal => crate::ui_text::text("long-capture-left"),
                     }
                 );
                 handle(

@@ -6,7 +6,13 @@ use crate::{
     workspace_id::UnitId,
 };
 fn model(error: ModelError) -> Error {
-    Error::new(E_INVALIDARG, format!("无法修改分组：{error:?}"))
+    Error::new(
+        E_INVALIDARG,
+        crate::ui_text::format(
+            "app-group-change-failed",
+            &[("error", format!("{error:?}").into())],
+        ),
+    )
 }
 impl Application {
     pub(super) unsafe fn sync_groups(&self) {
@@ -208,7 +214,10 @@ impl Application {
                 self.collect_closed();
                 // If hosts later support rejecting closure, retain surviving members and groups without unlinking them early.
                 if members.iter().any(|member| self.workspace.contains(member)) {
-                    return Err(Error::new(E_ABORT, "仍有分组窗口未关闭。"));
+                    return Err(Error::new(
+                        E_ABORT,
+                        crate::ui_text::text("app-group-windows-open"),
+                    ));
                 }
                 self.workspace.remove_group(&id);
             }
@@ -224,7 +233,7 @@ impl Application {
         {
             return Err(Error::new(
                 E_ABORT,
-                "组内图片正在处理，请完成或取消后再锁定。",
+                crate::ui_text::text("app-group-images-busy"),
             ));
         }
         for document in self

@@ -57,6 +57,9 @@ struct Model {
     link: RefCell<String>,
     inputs: RefCell<[String; 2]>,
     status: RefCell<String>,
+    language: Cell<crate::ui_text::DisplayLanguage>,
+    primary_label: Cell<&'static str>,
+    action_label: Cell<&'static str>,
 }
 pub(in crate::desktop) fn available(state: &State, _receive: bool) -> bool {
     let view = state.authorization.borrow();
@@ -124,6 +127,13 @@ pub(in crate::desktop) unsafe fn show(
         link: RefCell::new(String::new()),
         inputs: RefCell::new(Default::default()),
         status: RefCell::new(String::new()),
+        language: Cell::new(crate::ui_text::current_language()),
+        primary_label: Cell::new(if receive {
+            "share-import"
+        } else {
+            "share-copy-link"
+        }),
+        action_label: Cell::new("share-unlink"),
     });
     window::create(&model)?;
     let popup = Rc::new(Window { model });
@@ -142,6 +152,7 @@ impl Window {
         if self.model.hwnd.get().is_none() || self.model.cancel.load(Ordering::Acquire) {
             return;
         }
+        let _ = window::refresh_language(&self.model, crate::ui_text::current_language());
         if !self.model.view.upgrade().is_some_and(|v| {
             let v = v.borrow();
             !v.closed && v.origin.as_deref() == Some(&self.model.origin)
@@ -242,7 +253,7 @@ impl Model {
             self.set_status(if text.trim().is_empty() {
                 ""
             } else {
-                "无效的投射邀请"
+                crate::ui_text::text("share-invalid-invitation")
             });
             if let Some(hwnd) = self.hwnd.get() {
                 window::enable(hwnd, 1, false);

@@ -3,6 +3,67 @@ use super::*;
 use serde_json::json;
 
 #[test]
+fn display_language_defaults_distinguish_existing_and_new_profiles() {
+    use crate::display_language::DisplayLanguage::*;
+    assert_eq!(Document::default().display_language().unwrap(), English);
+    for input in [br#"{}"#.as_slice(), br#"{"schemaVersion":1}"#] {
+        let doc = Document::decode(input).unwrap();
+        assert_eq!(doc.display_language().unwrap(), SimplifiedChinese);
+        assert_eq!(doc.display_language_revision().unwrap(), 0);
+        assert_eq!(doc.encode().unwrap(), input);
+    }
+    let alias = Document::decode(br#"{"displayLanguage":"zh-CN"}"#).unwrap();
+    assert_eq!(alias.display_language().unwrap(), SimplifiedChinese);
+}
+
+#[test]
+fn display_language_preserves_ocr_settings_unknown_data_and_last_remote_receipt() {
+    use crate::display_language::DisplayLanguage::*;
+    let mut doc = Document::decode(br#"{"translationTargetLanguage":"zh-CN","extra":17}"#).unwrap();
+    doc.set_display_language(English, 1, Some(("request-1", "loom|origin|generation")))
+        .unwrap();
+    doc.set_display_language(SimplifiedChinese, 2, None)
+        .unwrap();
+    assert_eq!(doc.translation_options().0, "zh-CN");
+    let encoded = doc.encode().unwrap();
+    let parsed = Document::decode(&encoded).unwrap();
+    assert_eq!(parsed.display_language_revision().unwrap(), 2);
+    assert_eq!(
+        parsed.last_display_language_request().unwrap(),
+        Some(("request-1", "loom|origin|generation"))
+    );
+    assert_eq!(
+        parsed.last_display_language_receipt().unwrap(),
+        Some((English, 1))
+    );
+    assert_eq!(
+        serde_json::from_slice::<Value>(&encoded).unwrap()["extra"],
+        17
+    );
+    assert!(doc.set_display_language(English, 0, None).is_err());
+    assert!(doc
+        .set_display_language(English, 3, Some(("", "source")))
+        .is_err());
+    assert_eq!(doc.encode().unwrap(), encoded);
+}
+
+#[test]
+fn display_language_rejects_malformed_or_unsupported_persisted_contracts() {
+    for input in [
+        r#"{"displayLanguage":"fr"}"#,
+        r#"{"displayLanguage":null}"#,
+        r#"{"displayLanguageRevision":-1}"#,
+        r#"{"displayLanguageRevision":9007199254740992}"#,
+        r#"{"displayLanguageRevision":1.5}"#,
+        r#"{"displayLanguageLastRequestId":"x"}"#,
+        r#"{"displayLanguageLastRequestLanguage":"en"}"#,
+        r#"{"displayLanguageLastRequestId":"x","displayLanguageLastRequestSource":"origin"}"#,
+    ] {
+        assert!(Document::decode(input.as_bytes()).is_err(), "{input}");
+    }
+}
+
+#[test]
 fn recycle_edit_preserves_other_fields_and_invalid_edit_is_atomic() {
     use crate::session_library::recycle::policy::Policy;
     let original = json!({"schemaVersion":1,"extension":[true],"cache":{

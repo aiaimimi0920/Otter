@@ -75,7 +75,10 @@ impl Application {
                             notify(
                                 self,
                                 &origin,
-                                &format!("工作区已保存，但无法继续打开。\n{error}"),
+                                &crate::ui_text::format(
+                                    "app-workspace-saved-open-failed",
+                                    &[("error", error.to_string().into())],
+                                ),
                                 true,
                             );
                             false
@@ -86,22 +89,33 @@ impl Application {
                             if !exiting && !opening {
                                 self.queue_saved_workflow();
                             }
-                            let mut message =
-                                format!("工作区已保存：\n{}", published.destination.display());
+                            let mut message = crate::ui_text::format(
+                                "app-workspace-saved",
+                                &[("path", published.destination.display().to_string().into())],
+                            );
                             let warning = published.retained_recovery.is_some();
                             if let Some((path, error)) = published.retained_recovery {
-                                message.push_str(&format!(
-                                    "\n旧恢复文件尚未清理：{}\n{error}",
-                                    path.display()
+                                message.push_str(&crate::ui_text::format(
+                                    "app-workspace-recovery-not-cleaned",
+                                    &[
+                                        ("path", path.display().to_string().into()),
+                                        ("error", error.to_string().into()),
+                                    ],
                                 ));
                             }
                             if (!exiting && !opening) || warning {
                                 notify(self, &origin, &message, warning);
                             }
                         }
-                        Err(error) => {
-                            notify(self, &origin, &format!("工作区保存失败。\n{error}"), true)
-                        }
+                        Err(error) => notify(
+                            self,
+                            &origin,
+                            &crate::ui_text::format(
+                                "app-workspace-save-failed",
+                                &[("error", error.to_string().into())],
+                            ),
+                            true,
+                        ),
                     }
                 }
             }
@@ -116,7 +130,12 @@ impl Application {
         if self.save_job.is_some() {
             self.exit_after_save = false;
             self.open_after_save = None;
-            notify(self, &source, "正在保存工作区，请等待完成。", true);
+            notify(
+                self,
+                &source,
+                crate::ui_text::text("app-workspace-saving-wait"),
+                true,
+            );
             return;
         }
         let result = if self.save_requires_destination(save_as) {
@@ -128,7 +147,15 @@ impl Application {
         if let Err(error) = result {
             self.exit_after_save = false;
             self.open_after_save = None;
-            notify(self, &source, &format!("无法保存工作区。\n{error}"), true);
+            notify(
+                self,
+                &source,
+                &crate::ui_text::format(
+                    "app-workspace-cannot-save",
+                    &[("error", error.to_string().into())],
+                ),
+                true,
+            );
         }
         // Canceling the path dialog also ends exit intent, so the next manual save cannot unexpectedly exit.
         if self.save_job.is_none() {
@@ -173,6 +200,7 @@ impl Application {
         let dialog = super::super::file_dialog::Guard::begin(&flag)
             .ok_or_else(|| Error::new(E_ABORT, "Another file dialog is active"))?;
         let mut name = vec![0u16; 32768];
+        let title = HSTRING::from(crate::ui_text::text("app-workspace-save-as-title"));
         let mut options = OPENFILENAMEW {
             lStructSize: std::mem::size_of::<OPENFILENAMEW>() as u32,
             hwndOwner: hwnd,
@@ -180,7 +208,7 @@ impl Application {
             nMaxFile: name.len() as u32,
             lpstrFilter: w!("Otter workspace\0*.json\0\0"),
             lpstrDefExt: w!("json"),
-            lpstrTitle: w!("工作区另存为（新文件）"),
+            lpstrTitle: windows::core::PCWSTR(title.as_ptr()),
             Flags: OFN_EXPLORER | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR,
             ..Default::default()
         };
@@ -209,7 +237,10 @@ impl Application {
             .try_exists()
             .map_err(|error| Error::new(E_FAIL, error.to_string()))?
         {
-            return Err(Error::new(E_ABORT, "目标文件已存在，请选择新的文件名。"));
+            return Err(Error::new(
+                E_ABORT,
+                crate::ui_text::text("app-workspace-destination-exists"),
+            ));
         }
         self.request_save_new(path)?;
         self.save_origin = Some(source.clone());

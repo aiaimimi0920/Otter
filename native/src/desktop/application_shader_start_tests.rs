@@ -203,7 +203,7 @@ unsafe fn run_mode(real: bool, backend: Backend, own: bool, texture: TextureSour
         .borrow()
         .as_ref()
         .unwrap()
-        .contains("本地预览"));
+        .contains(crate::ui_text::text("app-capability-preview-only")));
     assert!(app.input_jobs.is_empty());
     assert!(app.executions.is_idle());
     assert_eq!(

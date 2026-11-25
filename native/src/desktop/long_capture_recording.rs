@@ -62,10 +62,16 @@ pub(super) unsafe fn start(hwnd: HWND, input: &Input) {
     match result {
         Ok(hook) if state.schedule.borrow_mut().start(Instant::now()) => {
             *state.hook.borrow_mut() = Some(hook);
-            status(hwnd, "录制中");
+            status(hwnd, crate::ui_text::text("long-capture-recording"));
         }
-        Ok(_) => status(hwnd, "录制已达到时间上限，可完成或取消"),
-        Err(error) => status(hwnd, &format!("无法开始录制：{error}")),
+        Ok(_) => status(hwnd, crate::ui_text::text("long-capture-record-time-limit")),
+        Err(error) => status(
+            hwnd,
+            &crate::ui_text::format(
+                "long-capture-record-start-failed",
+                &[("error", error.to_string().into())],
+            ),
+        ),
     }
     controls(hwnd, input, false);
     drive(hwnd, input);
@@ -78,7 +84,7 @@ pub(super) unsafe fn command(hwnd: HWND, input: &Input) {
         input.recording.stop();
         let busy = input.job.borrow().is_pending();
         controls(hwnd, input, busy);
-        status(hwnd, "录制已停止");
+        status(hwnd, crate::ui_text::text("long-capture-record-stopped"));
         drive(hwnd, input);
     } else {
         start(hwnd, input);
@@ -113,7 +119,13 @@ unsafe fn receive(hwnd: HWND, input: &Input, wheel: hook::Wheel) {
         Ok(false) => {}
         Err(error) => {
             state.stop();
-            status(hwnd, &format!("录制已停止：{error}"));
+            status(
+                hwnd,
+                &crate::ui_text::format(
+                    "long-capture-record-error",
+                    &[("error", error.to_string().into())],
+                ),
+            );
             controls(hwnd, input, input.job.borrow().is_pending());
         }
     }
@@ -135,7 +147,7 @@ pub(super) unsafe fn finish(hwnd: HWND, input: &Input) {
         return;
     }
     input.recording.schedule.borrow_mut().finish(Instant::now());
-    status(hwnd, "正在收取最后画面…");
+    status(hwnd, crate::ui_text::text("long-capture-last-frame"));
     controls(hwnd, input, input.job.borrow().is_pending());
     drive(hwnd, input);
 }
@@ -155,13 +167,13 @@ pub(super) unsafe fn completed(hwnd: HWND, input: &Input, completion: &Completio
         {
             state.schedule.borrow_mut().covered(Instant::now());
             if state.running() && !state.covered.replace(true) {
-                status(hwnd, "录制暂停：请移开遮挡窗口，随后自动继续");
+                status(hwnd, crate::ui_text::text("long-capture-record-obscured"));
             }
             return true;
         }
         Completion::Append(Ok(_)) | Completion::SpatialAppend(Ok(_)) => {
             if state.covered.replace(false) && state.running() {
-                status(hwnd, "录制中");
+                status(hwnd, crate::ui_text::text("long-capture-recording"));
             }
         }
         _ => {}
@@ -212,7 +224,7 @@ unsafe fn drive_with_timer(hwnd: HWND, input: &Input, arm: impl FnOnce(u32) -> b
             } else {
                 input.recording.stop();
                 input.finish.retry();
-                status(hwnd, "无法安排录制采样，已停止");
+                status(hwnd, crate::ui_text::text("long-capture-sample-failed"));
             }
         }
         Action::Compose => {
@@ -221,7 +233,7 @@ unsafe fn drive_with_timer(hwnd: HWND, input: &Input, arm: impl FnOnce(u32) -> b
         Action::Limit => {
             input.recording.stop();
             input.finish.retry();
-            status(hwnd, "录制已达到时间上限，可完成或取消");
+            status(hwnd, crate::ui_text::text("long-capture-record-time-limit"));
             controls(hwnd, input, false);
         }
         Action::Idle => {
@@ -251,7 +263,8 @@ unsafe fn drive_with_timer(hwnd: HWND, input: &Input, arm: impl FnOnce(u32) -> b
     if let Some(delay) = delay {
         if !arm(delay.as_millis().clamp(1, 300_000) as u32) {
             // The timer is also the sole background-reply wakeup; merely stopping recording leaves in-flight tasks and disabled controls.
-            *input.error.borrow_mut() = Some("无法安排长截图录制等待，录制已安全关闭。".into());
+            *input.error.borrow_mut() =
+                Some(crate::ui_text::text("long-capture-wait-failed").into());
             close(hwnd, input);
         }
     } else {
@@ -271,9 +284,9 @@ pub(super) unsafe fn update_control(hwnd: HWND, input: &Input, busy: bool) {
         hwnd,
         112,
         &HSTRING::from(if state.running() {
-            "停止录制"
+            crate::ui_text::text("long-capture-record-stop")
         } else {
-            "继续录制"
+            crate::ui_text::text("long-capture-record-resume")
         }),
     );
 }

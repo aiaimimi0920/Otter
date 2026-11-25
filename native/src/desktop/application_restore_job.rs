@@ -315,7 +315,10 @@ impl Application {
             // A load failure must not terminate the application or close existing windows; visible mode reports it once, then clears this task.
             MessageBoxW(
                 self.documents.first().map(|doc| doc.window.0),
-                &HSTRING::from(format!("无法恢复会话，原工作区保留。\n{error}")),
+                &HSTRING::from(crate::ui_text::format(
+                    "app-session-restore-failed",
+                    &[("error", error.to_string().into())],
+                )),
                 w!("Otter"),
                 MB_OK | MB_ICONWARNING,
             );

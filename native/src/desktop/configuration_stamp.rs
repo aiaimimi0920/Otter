@@ -78,7 +78,8 @@ pub(super) fn discard_changed(state: &State, workspace: &crate::workspace::Works
         });
     if stale {
         state.pending_preparation.borrow_mut().take();
-        *state.preparation_error.borrow_mut() = Some("节点配置已变化，旧准备已取消".into());
+        *state.preparation_error.borrow_mut() =
+            Some(crate::ui_text::text("action-configuration-changed").into());
     }
 }
 

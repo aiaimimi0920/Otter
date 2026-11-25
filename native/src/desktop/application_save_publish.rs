@@ -78,7 +78,10 @@ impl Prepared {
         let published = disk.commit(cancel).map_err(|failure| {
             let mut message = format!("Cannot commit session: {}", failure.error);
             if let Some(path) = failure.recovery {
-                message.push_str(&format!("\n原会话保留于：{}", path.display()));
+                message.push_str(&crate::ui_text::format(
+                    "app-session-original-retained",
+                    &[("path", path.display().to_string().into())],
+                ));
             }
             if let Some(error) = failure.restore_error {
                 message.push_str(&format!("\nCannot restore original destination: {error}"));

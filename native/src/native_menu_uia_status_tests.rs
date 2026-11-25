@@ -16,10 +16,34 @@ fn status_reflects_known_marks_without_inventing_patterns_or_actions() {
         let mut previous: Option<IRawElementProviderSimple> = None;
         for (checked, radio, separator, enabled, expected) in [
             (false, false, false, true, ""),
-            (true, false, false, true, "已勾选"),
-            (false, true, false, true, "未选中"),
-            (true, true, false, true, "已选中"),
-            (true, true, false, false, "已选中"),
+            (
+                true,
+                false,
+                false,
+                true,
+                crate::ui_text::text("native-menu-checked"),
+            ),
+            (
+                false,
+                true,
+                false,
+                true,
+                crate::ui_text::text("native-menu-unselected"),
+            ),
+            (
+                true,
+                true,
+                false,
+                true,
+                crate::ui_text::text("native-menu-selected"),
+            ),
+            (
+                true,
+                true,
+                false,
+                false,
+                crate::ui_text::text("native-menu-selected"),
+            ),
             (true, true, true, true, ""),
         ] {
             let mut item = row(0);

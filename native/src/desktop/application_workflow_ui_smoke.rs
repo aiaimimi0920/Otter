@@ -97,7 +97,8 @@ unsafe fn verify_dialog_catalog_change(
             Root::open(directory).map(Some)
         },
         |_, message, warning| {
-            rejected = warning && message.contains("选择目录期间");
+            rejected = warning
+                && message.contains(crate::ui_text::text("app-workflow-sync-selection-changed"));
         },
     );
     catalog.borrow_mut().loaded = previous;

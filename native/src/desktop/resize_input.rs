@@ -208,7 +208,10 @@ unsafe fn refresh(hwnd: HWND, state: &State) {
 unsafe fn report(hwnd: HWND, error: &str) {
     MessageBoxW(
         Some(hwnd),
-        &HSTRING::from(format!("缩放未提交，原标注保留。\n{error}")),
+        &HSTRING::from(crate::ui_text::format(
+            "action-resize-failed",
+            &[("error", error.to_string().into())],
+        )),
         w!("Otter"),
         MB_OK | MB_ICONERROR,
     );

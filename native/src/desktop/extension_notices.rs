@@ -49,11 +49,11 @@ pub(super) unsafe fn show(
         notices.entries.clear();
         notices.stack = Some(neuro_mini_ui::NoticeStack::new(hwnd)?);
     }
-    let notice = notices
-        .stack
-        .as_ref()
-        .unwrap()
-        .push(&title, &message, "知道了")?;
+    let notice = notices.stack.as_ref().unwrap().push(
+        &title,
+        &message,
+        crate::ui_text::text("integration-acknowledge"),
+    )?;
     if notices.entries.len() >= 8 {
         notices.entries.pop();
     }

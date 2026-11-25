@@ -41,7 +41,7 @@ pub(super) unsafe fn append(menu: HMENU, state: &State) -> Result<()> {
                 MF_ENABLED
             },
         COMMAND,
-        w!("接收上游图片"),
+        &windows::core::HSTRING::from(crate::ui_text::text("action-receive-upstream")),
     )
 }
 

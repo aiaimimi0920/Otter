@@ -57,7 +57,7 @@ unsafe fn inject(hwnd: HWND, context: &Context) {
     });
     assert_eq!(
         input.error.borrow().as_deref(),
-        Some("无法安排长截图录制等待，录制已安全关闭。")
+        Some(crate::ui_text::text("long-capture-wait-failed"))
     );
     assert_eq!(input.recording.schedule.borrow().phase(), Phase::Cancelled);
     assert!(input.recording.hook.borrow().is_none() && hook::test_inactive());

@@ -33,6 +33,7 @@ pub(in crate::desktop) unsafe fn start(hwnd: HWND, state: &State) {
     for (out, unit) in name.iter_mut().zip("Otter_HDR_original.png".encode_utf16()) {
         *out = unit;
     }
+    let title = HSTRING::from(crate::ui_text::text("export-original-title"));
     let mut options = OPENFILENAMEW {
         lStructSize: std::mem::size_of::<OPENFILENAMEW>() as u32,
         hwndOwner: hwnd,
@@ -40,13 +41,13 @@ pub(in crate::desktop) unsafe fn start(hwnd: HWND, state: &State) {
         nMaxFile: name.len() as u32,
         lpstrFilter: w!("HDR PNG\0*.png\0\0"),
         lpstrDefExt: w!("png"),
-        lpstrTitle: w!("另存 HDR 原图（不含编辑）"),
+        lpstrTitle: PCWSTR(title.as_ptr()),
         Flags: OFN_EXPLORER | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR,
         ..Default::default()
     };
     if !GetSaveFileNameW(&mut options).as_bool() {
         if CommDlgExtendedError() != COMMON_DLG_ERRORS(0) {
-            report(hwnd, "无法打开 HDR 原图保存对话框。");
+            report(hwnd, crate::ui_text::text("export-original-dialog-failed"));
         }
         return;
     }
@@ -56,7 +57,7 @@ pub(in crate::desktop) unsafe fn start(hwnd: HWND, state: &State) {
     if !stamp.matches(&state.canvas.borrow().editor)
         || !source(state).is_some_and(|current| Arc::ptr_eq(&current, &lease))
     {
-        report(hwnd, "选择路径期间截图来源已改变，未写入文件。");
+        report(hwnd, crate::ui_text::text("export-original-changed"));
         return;
     }
     let end = name
@@ -69,6 +70,11 @@ pub(in crate::desktop) unsafe fn start(hwnd: HWND, state: &State) {
         crate::capture_file::prepare_original(&lease, &path, &cancel)
             .and_then(|staged| staged.commit_new(&cancel))
             .map(|_| ())
-            .map_err(|error| format!("无法另存 HDR 原图；不会覆盖已有文件。\n{error}"))
+            .map_err(|error| {
+                crate::ui_text::format(
+                    "export-original-failed",
+                    &[("error", error.to_string().into())],
+                )
+            })
     });
 }

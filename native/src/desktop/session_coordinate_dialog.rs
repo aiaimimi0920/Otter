@@ -78,7 +78,7 @@ unsafe extern "system" fn procedure(hwnd: HWND, message: u32, wp: WPARAM, lp: LP
         let _ = SetDlgItemTextW(
             hwnd,
             104,
-            &HSTRING::from("原点须为整数；缩放须为有效正数（例如 1.5）。"),
+            &HSTRING::from(crate::ui_text::text("session-coordinates-invalid")),
         );
     }
     1
@@ -99,11 +99,20 @@ fn template() -> Vec<u32> {
     );
     dword(&mut data, 0);
     data.extend([9, 0, 0, 280, 142, 0, 0]);
-    string(&mut data, "旧工作区坐标");
+    string(&mut data, crate::ui_text::text("session-coordinates-title"));
     data.push(9);
     string(&mut data, "Microsoft YaHei UI");
     for (id, class, style, x, y, width, height, text) in [
-        (201, 0x82, 0, 10, 12, 68, 14, "原点 X"),
+        (
+            201,
+            0x82,
+            0,
+            10,
+            12,
+            68,
+            14,
+            crate::ui_text::text("session-origin-x"),
+        ),
         (
             101,
             0x81,
@@ -114,7 +123,16 @@ fn template() -> Vec<u32> {
             16,
             "",
         ),
-        (202, 0x82, 0, 10, 36, 68, 14, "原点 Y"),
+        (
+            202,
+            0x82,
+            0,
+            10,
+            36,
+            68,
+            14,
+            crate::ui_text::text("session-origin-y"),
+        ),
         (
             102,
             0x81,
@@ -125,7 +143,16 @@ fn template() -> Vec<u32> {
             16,
             "",
         ),
-        (203, 0x82, 0, 10, 60, 68, 14, "缩放"),
+        (
+            203,
+            0x82,
+            0,
+            10,
+            60,
+            68,
+            14,
+            crate::ui_text::text("session-scale"),
+        ),
         (
             103,
             0x81,
@@ -144,7 +171,7 @@ fn template() -> Vec<u32> {
             82,
             260,
             28,
-            "填写原工作区的坐标原点和缩放；不确定时请取消。",
+            crate::ui_text::text("session-coordinates-help"),
         ),
         (
             IDOK.0 as u16,
@@ -154,7 +181,7 @@ fn template() -> Vec<u32> {
             116,
             55,
             18,
-            "确定",
+            crate::ui_text::text("common-ok"),
         ),
         (
             IDCANCEL.0 as u16,
@@ -164,7 +191,7 @@ fn template() -> Vec<u32> {
             116,
             55,
             18,
-            "取消",
+            crate::ui_text::text("common-cancel"),
         ),
     ] {
         if data.len() % 2 != 0 {

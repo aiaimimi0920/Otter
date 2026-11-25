@@ -7,7 +7,7 @@ impl Window {
         let hwnd = CreateWindowExW(
             WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
             w!("STATIC"),
-            w!("Otter 菜单"),
+            w!("Otter menu"),
             WS_POPUP,
             -16000,
             -16000,

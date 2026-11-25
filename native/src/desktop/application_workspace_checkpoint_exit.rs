@@ -42,7 +42,7 @@ impl Application {
         if !intent.matches(self) || !self.start_checkpoint_mode(true)? {
             return Err(Error::new(
                 E_ABORT,
-                "工作区正忙或 Live 尚无可保存画面；当前窗口保留，请完成操作后重试退出。",
+                crate::ui_text::text("app-exit-workspace-busy"),
             ));
         }
         self.workspace_checkpoint.as_mut().unwrap().exit = Some(Pending { intent, revision });

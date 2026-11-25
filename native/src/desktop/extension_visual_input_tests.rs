@@ -4,7 +4,7 @@ use serde_json::json;
 fn view(local_copy: bool) -> Views {
     Views::prepare(vec![Visual {
         plugin:crate::extension_visual::OCR.into(),attachment:"ocr-result".into(),descriptor:"view".into(),
-        bounds:Bounds::Fixed([4.,6.,180.,96.]),command:Some("copy-block".into()),local_copy,generation:17,revision:9,placeholder:false,
+        bounds:Bounds::Fixed([4.,6.,180.,96.]),command:Some("copy-block".into()),local_copy,generation:17,revision:9,placeholder:false,unavailable:None,
         scene:json!({"id":"root","type":"stack","layout":{"position":"relative","width":180,"height":96},
             "props":{"eventPayload":{"text":"ancestor text must not replace display text"}},
             "events":{"click":"copy-block"},"children":[

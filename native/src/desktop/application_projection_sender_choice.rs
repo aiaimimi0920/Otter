@@ -44,7 +44,7 @@ impl Choice {
     }
     pub(super) fn name(&self) -> Result<&str> {
         match self {
-            Self::Invitation(_) => Ok("局域网邀请"),
+            Self::Invitation(_) => Ok(crate::ui_text::text("app-projection-lan-invitation")),
             Self::Device(s) => s
                 .directory
                 .targets()

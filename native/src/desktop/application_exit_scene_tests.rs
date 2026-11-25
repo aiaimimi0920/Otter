@@ -104,7 +104,7 @@ fn stopped_scene_save_keeps_unsaved_windows_and_consumes_default_exit() {
             let mut notices = 0;
             assert!(
                 !app.close_requested_automatically_with_notify(|_, message| {
-                    assert!(message.contains("场景自动保存不可用"));
+                    assert!(message.contains(crate::ui_text::text("app-exit-autosave-unavailable")));
                     notices += 1;
                 })
             );

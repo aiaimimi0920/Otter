@@ -47,7 +47,10 @@ impl Application {
                 Ok(true)
             });
             if let Err(error) = result {
-                self.authorization.borrow_mut().status = format!("Surface 节点绑定未完成：{error}");
+                self.authorization.borrow_mut().status = crate::ui_text::format(
+                    "app-surface-binding-incomplete",
+                    &[("error", error.to_string().into())],
+                );
             }
         }
         // With no new results, allocate no notification cache; reserve once before the first write for at most one notification per node.
@@ -100,7 +103,8 @@ impl Application {
                     return;
                 }
                 if changed.capacity() == 0 && changed.try_reserve(self.documents.len()).is_err() {
-                    self.authorization.borrow_mut().status = "无法准备 Surface 输出通知".into();
+                    self.authorization.borrow_mut().status =
+                        crate::ui_text::text("app-surface-output-unprepared").into();
                     return;
                 }
                 match results.apply_surface_result(binding, commit) {
@@ -111,8 +115,10 @@ impl Application {
                     }
                     Ok(false) => {}
                     Err(error) => {
-                        self.authorization.borrow_mut().status =
-                            format!("Surface 输出未应用：{error:?}")
+                        self.authorization.borrow_mut().status = crate::ui_text::format(
+                            "app-surface-output-not-applied",
+                            &[("error", format!("{error:?}").into())],
+                        )
                     }
                 }
             });

@@ -54,9 +54,9 @@ pub(super) fn run(origin: &str, profile: Option<&Path>) -> Result<()> {
                 title(
                     &window,
                     if result.is_ok() {
-                        "Otter Tile · 输出已启动"
+                        crate::ui_text::text("integration-tile-started")
                     } else {
-                        "Otter Tile · 输出启动失败"
+                        crate::ui_text::text("integration-tile-start-failed")
                     },
                 );
             }
@@ -65,9 +65,11 @@ pub(super) fn run(origin: &str, profile: Option<&Path>) -> Result<()> {
             title(
                 &window,
                 match event {
-                    Event::Pairing { .. } => "Otter Tile · 请在 Loom 批准设备",
-                    Event::Authorized { .. } => "Otter Tile · 设备已授权",
-                    Event::Failed { .. } => "Otter Tile · 设备授权失败",
+                    Event::Pairing { .. } => crate::ui_text::text("integration-tile-approve"),
+                    Event::Authorized { .. } => crate::ui_text::text("integration-tile-authorized"),
+                    Event::Failed { .. } => {
+                        crate::ui_text::text("integration-tile-authorization-failed")
+                    }
                     _ => "Otter Tile",
                 },
             );
@@ -105,9 +107,9 @@ fn authorization_action(
     title(
         window,
         if result.is_ok() {
-            "Otter Tile · 等待设备授权"
+            crate::ui_text::text("integration-tile-wait-authorization")
         } else {
-            "Otter Tile · 授权任务未启动"
+            crate::ui_text::text("integration-tile-authorization-not-started")
         },
     );
     Ok(true)
@@ -172,7 +174,11 @@ unsafe fn create(outputs: &[crate::tile_outputs::TileOutput]) -> Result<Window> 
     }
     let mut menu_owner = Menu(CreateMenu()?, true);
     let menu = menu_owner.0;
-    for (id, text) in [(1, "请求设备配对"), (2, "等待批准"), (3, "续签授权")] {
+    for (id, text) in [
+        (1, crate::ui_text::text("integration-request-pairing")),
+        (2, crate::ui_text::text("integration-wait-approval")),
+        (3, crate::ui_text::text("integration-renew-authorization")),
+    ] {
         let wide: Vec<_> = text.encode_utf16().chain(Some(0)).collect();
         AppendMenuW(menu, MF_STRING, id, PCWSTR(wide.as_ptr()))?;
     }
@@ -185,7 +191,12 @@ unsafe fn create(outputs: &[crate::tile_outputs::TileOutput]) -> Result<Window> 
             .collect();
         AppendMenuW(submenu, MF_STRING, index + 100, PCWSTR(text.as_ptr()))?;
     }
-    AppendMenuW(menu, MF_POPUP, submenu.0 as usize, w!("启动输出"))?;
+    AppendMenuW(
+        menu,
+        MF_POPUP,
+        submenu.0 as usize,
+        &windows::core::HSTRING::from(crate::ui_text::text("integration-start-output")),
+    )?;
     submenu_owner.1 = false;
     SetMenu(hwnd, Some(menu))?;
     menu_owner.1 = false;

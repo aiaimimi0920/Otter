@@ -95,16 +95,32 @@ fn reference_command_uses_source_identity_and_never_enables_an_unknown_or_locked
     use super::super::super::reference_ui::{REMOVE, SET};
     let mut model = model(1);
     model.reference = Some((5, "source-0".into(), true));
-    assert_eq!(model.reference_action(), (REMOVE, "取消收藏", true));
+    assert_eq!(
+        model.reference_action(),
+        (
+            REMOVE,
+            crate::ui_text::text("library-remove-favorite"),
+            true
+        )
+    );
     model.reference.as_mut().unwrap().1 = "unreferenced".into();
-    assert_eq!(model.reference_action(), (SET, "收藏", true));
+    assert_eq!(
+        model.reference_action(),
+        (SET, crate::ui_text::text("library-add-favorite"), true)
+    );
     model.reference.as_mut().unwrap().2 = false;
     assert!(!model.reference_action().2);
     model.data = Some([Ok(vec![]), Err("unavailable".into())]);
     model.reference.as_mut().unwrap().2 = true;
-    assert_eq!(model.reference_action(), (SET, "收藏", false));
+    assert_eq!(
+        model.reference_action(),
+        (SET, crate::ui_text::text("library-add-favorite"), false)
+    );
     model.data = None;
-    assert_eq!(model.reference_action(), (SET, "收藏", false));
+    assert_eq!(
+        model.reference_action(),
+        (SET, crate::ui_text::text("library-add-favorite"), false)
+    );
 }
 
 #[test]

@@ -81,7 +81,7 @@ unsafe extern "system" fn procedure(hwnd: HWND, message: u32, wp: WPARAM, lp: LP
         let _ = SetDlgItemTextW(
             hwnd,
             103,
-            &HSTRING::from("条数须为 0–500；保留天数须为 0–3650。"),
+            &HSTRING::from(crate::ui_text::text("recycle-dialog-validation")),
         );
     }
     1

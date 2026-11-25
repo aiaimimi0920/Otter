@@ -1,5 +1,14 @@
 //! The sharing popup is independent of pin size; lay out only the current view and do not repaint when geometry/visibility are unchanged.
 use super::*;
+use crate::ui_text::text as tr;
+pub(super) const FIXED_LABELS: [(i32, &str); 6] = [
+    (103, "share-image"),
+    (104, "share-qr"),
+    (105, "share-link"),
+    (106, "share-qr-title"),
+    (109, "share-lan"),
+    (110, "share-public"),
+];
 pub(super) fn template() -> Vec<u32> {
     fn text(out: &mut Vec<u16>, value: &str) {
         out.extend(value.encode_utf16());
@@ -12,11 +21,16 @@ pub(super) fn template() -> Vec<u32> {
     dword(&mut out, WS_POPUP.0 | WS_CLIPCHILDREN.0 | DS_SETFONT as u32);
     dword(&mut out, WS_EX_TOOLWINDOW.0);
     out.extend([11, 0, 0, 224, 240, 0, 0]);
-    text(&mut out, "投射分享");
+    text(&mut out, tr("share-title"));
     out.push(9);
     text(&mut out, "Microsoft YaHei UI");
     for (id, class, style, label) in [
-        (1, 0x80, WS_TABSTOP.0 | BS_OWNERDRAW as u32, "导入"),
+        (
+            1,
+            0x80,
+            WS_TABSTOP.0 | BS_OWNERDRAW as u32,
+            tr("share-import"),
+        ),
         (2, 0x80, WS_TABSTOP.0 | BS_OWNERDRAW as u32, "×"),
         (
             101,
@@ -25,17 +39,47 @@ pub(super) fn template() -> Vec<u32> {
             "",
         ),
         (102, 0x82, 0, ""),
-        (103, 0x80, WS_TABSTOP.0 | BS_OWNERDRAW as u32, "选择图片"),
-        (104, 0x80, WS_TABSTOP.0 | BS_OWNERDRAW as u32, "二维码"),
-        (105, 0x80, WS_TABSTOP.0 | BS_OWNERDRAW as u32, "链接"),
-        (108, 0x80, WS_TABSTOP.0 | BS_OWNERDRAW as u32, "解除关联"),
-        (109, 0x80, WS_TABSTOP.0 | BS_OWNERDRAW as u32, "局域网"),
-        (110, 0x80, WS_TABSTOP.0 | BS_OWNERDRAW as u32, "公网"),
+        (
+            103,
+            0x80,
+            WS_TABSTOP.0 | BS_OWNERDRAW as u32,
+            tr("share-image"),
+        ),
+        (
+            104,
+            0x80,
+            WS_TABSTOP.0 | BS_OWNERDRAW as u32,
+            tr("share-qr"),
+        ),
+        (
+            105,
+            0x80,
+            WS_TABSTOP.0 | BS_OWNERDRAW as u32,
+            tr("share-link"),
+        ),
+        (
+            108,
+            0x80,
+            WS_TABSTOP.0 | BS_OWNERDRAW as u32,
+            tr("share-unlink"),
+        ),
+        (
+            109,
+            0x80,
+            WS_TABSTOP.0 | BS_OWNERDRAW as u32,
+            tr("share-lan"),
+        ),
+        (
+            110,
+            0x80,
+            WS_TABSTOP.0 | BS_OWNERDRAW as u32,
+            tr("share-public"),
+        ),
         (
             106,
             0x82,
             windows::Win32::System::SystemServices::SS_OWNERDRAW.0,
-            "投射邀请二维码",
+            tr("share-qr-title"),
         ),
     ] {
         if out.len() % 2 != 0 {
@@ -59,9 +103,9 @@ pub(super) fn width(m: &Model) -> i32 {
         m.code
             .borrow()
             .as_ref()
-            .map_or(288, |c| ((c.size as i32 + 8) * 2 + 16).max(288))
+            .map_or(360, |c| ((c.size as i32 + 8) * 2 + 16).max(360))
     } else {
-        288
+        360
     }
 }
 pub(super) fn height(m: &Model) -> i32 {
@@ -104,7 +148,7 @@ pub(super) unsafe fn arrange(hwnd: HWND, m: &Model, dpi: u32) {
             28,
             !m.status.borrow().is_empty(),
         ),
-        (108, 8, height - 36, 96, 28, !m.receive || account_linked),
+        (108, 8, height - 36, 180, 28, !m.receive || account_linked),
         (1, width - 96, height - 36, 88, 28, true),
         (
             106,

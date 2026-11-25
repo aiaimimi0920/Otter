@@ -12,6 +12,7 @@ pub(super) struct StatusWindow {
     hwnd: HWND,
     state: Box<State>,
     label: Cell<Option<&'static str>>,
+    stop_label: Cell<Option<&'static str>>,
 }
 impl StatusWindow {
     pub fn new() -> Result<Self> {
@@ -38,11 +39,12 @@ impl StatusWindow {
                 hwnd,
                 state,
                 label: Cell::new(None),
+                stop_label: Cell::new(None),
             };
             CreateWindowExW(
                 WINDOW_EX_STYLE::default(),
                 w!("BUTTON"),
-                w!("停止输出"),
+                &windows::core::HSTRING::from(crate::ui_text::text("integration-stop-output")),
                 WS_CHILD | WS_VISIBLE,
                 85,
                 20,
@@ -62,6 +64,20 @@ impl StatusWindow {
     pub fn show(&self, label: &'static str) {
         if self.stopped() {
             return;
+        }
+        let stop_label = crate::ui_text::text("integration-stop-output");
+        if self.stop_label.get() != Some(stop_label) {
+            let updated = unsafe {
+                GetDlgItem(Some(self.hwnd), 1).and_then(|button| {
+                    SetWindowTextW(button, &windows::core::HSTRING::from(stop_label))
+                })
+            };
+            if self.stopped() {
+                return;
+            }
+            if updated.is_ok() {
+                self.stop_label.set(Some(stop_label));
+            }
         }
         if self.label.get() != Some(label) {
             // A failed write leaves the title unconfirmed. Let the next output

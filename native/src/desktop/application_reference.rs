@@ -196,8 +196,9 @@ impl Application {
             if let Some(owner) = self.documents.iter().find(|doc| doc.is_alive()) {
                 MessageBoxW(
                     Some(owner.window.0),
-                    &HSTRING::from(format!(
-                        "无法完成冻结库操作，请检查贴纸和回收站状态。\n{error}"
+                    &HSTRING::from(crate::ui_text::format(
+                        "app-frozen-library-failed",
+                        &[("error", error.to_string().into())],
                     )),
                     w!("Otter"),
                     MB_OK | MB_ICONWARNING,

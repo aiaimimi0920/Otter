@@ -44,11 +44,11 @@ unsafe fn show_group(owner: HWND, state: &State, id: u16) -> Result<usize> {
 }
 pub(super) fn label(command: usize) -> &'static str {
     match command {
-        0x1022 => "栅格化所选",
-        0x1023 => "栅格化全部",
+        0x1022 => crate::ui_text::text("edit-rasterize-selection"),
+        0x1023 => crate::ui_text::text("edit-rasterize-all"),
         _ => crate::desktop::tool_commands::TOOLS
             .iter()
             .find(|entry| entry.id == command)
-            .map_or("", |entry| entry.label),
+            .map_or("", |entry| entry.label()),
     }
 }

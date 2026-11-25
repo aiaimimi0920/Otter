@@ -30,11 +30,13 @@ pub(super) fn run(
             break;
         }
         let mut step = || -> Result<Duration, &'static str> {
-            let control = token.control(client).map_err(|_| "设备授权失效")?;
+            let control = token
+                .control(client)
+                .map_err(|_| "tile-authorization-invalid")?;
             let sent = Instant::now();
             let mut state = control
                 .wall_state()
-                .map_err(|e| failure(token, e, "墙面状态读取失败"))?;
+                .map_err(|e| failure(token, e, "tile-wall-read-failed"))?;
             let received = Instant::now();
             {
                 let mut s = shared.lock();
@@ -43,7 +45,7 @@ pub(super) fn run(
                     .as_ref()
                     .is_some_and(|t| s.clock.observe(t, sent, received));
                 if changed {
-                    s.clear("服务时钟已改变");
+                    s.clear("tile-service-clock-changed");
                 }
             }
             if shared.lock().stopped {
@@ -59,7 +61,7 @@ pub(super) fn run(
                 disconnect(&control, &mut presenter);
                 state = control
                     .wall_register(state.revision, &endpoint)
-                    .map_err(|e| failure(token, e, "输出注册失败"))?;
+                    .map_err(|e| failure(token, e, "tile-output-register-failed"))?;
             }
             if presenter.is_none() {
                 let lease = control.wall_connect(&endpoint.endpoint_id).map_err(|e| {
@@ -67,7 +69,7 @@ pub(super) fn run(
                     if matches!(e, crate::live_relay_http::Error::Http(_)) {
                         shared.stop();
                     }
-                    failure(token, e, "呈现租约申请失败")
+                    failure(token, e, "tile-presentation-lease-failed")
                 })?;
                 presenter = Some(Presenter {
                     endpoint: endpoint.endpoint_id.clone(),
@@ -108,7 +110,7 @@ pub(super) fn run(
             let (applied, report, scene_report, job, identification_report, identifying, heartbeat) = {
                 let mut s = shared.lock();
                 if s.desired != key {
-                    s.clear("正在准备墙面");
+                    s.clear("tile-wall-preparing");
                     s.desired = key.clone();
                 }
                 s.expire(Instant::now());
@@ -123,7 +125,7 @@ pub(super) fn run(
                 if identifying {
                     s.presented = None;
                     s.presented_frame = None;
-                    s.status = "正在识别物理输出";
+                    s.status = "tile-output-identifying";
                 }
                 // Without fresh control heartbeats, the independent window watchdog must clear the screen; downloads cannot extend permission.
                 if s.until.is_none() {
@@ -132,7 +134,7 @@ pub(super) fn run(
                 s.activate_at = scene.map_or(0, |v| v.activate_at_ms);
                 // Once scheduledPresentation is advertised, reject missing authoritative clocks rather than displaying immediately and early.
                 if state.timing.is_none() {
-                    return Err("服务未提供 Wall 场景时钟");
+                    return Err("tile-wall-clock-missing");
                 }
                 let retained = s.presented_frame.as_ref().is_some_and(|r| {
                     Some(&r.key) == key.as_ref()
@@ -221,7 +223,7 @@ pub(super) fn run(
                 // Send once without replaying uncertain report outcomes; the original error chain revokes this presenter and clears the screen.
                 control
                     .wall_identification_report(&report)
-                    .map_err(|e| failure(token, e, "输出识别回报失败"))?;
+                    .map_err(|e| failure(token, e, "tile-output-report-failed"))?;
             }
             shared.trace.observe(if applied.is_some() {
                 crate::tile_shared::diagnostics::Stage::HeartbeatPreparedWithApplied
@@ -232,7 +234,7 @@ pub(super) fn run(
                 .sequence
                 .checked_add(1)
                 .filter(|v| *v <= wire::MAX_SAFE)
-                .ok_or("呈现序号已耗尽")?;
+                .ok_or("tile-presentation-sequence-exhausted")?;
             control
                 .wall_heartbeat(
                     &p.endpoint,
@@ -242,7 +244,7 @@ pub(super) fn run(
                     report.as_ref(),
                     scene_report.as_ref(),
                 )
-                .map_err(|e| failure(token, e, "呈现心跳失败"))?;
+                .map_err(|e| failure(token, e, "tile-heartbeat-failed"))?;
             let mut s = shared.lock();
             if !s.stopped {
                 s.until = Some(deadline(token, p.ttl));
@@ -278,7 +280,7 @@ pub(super) fn run(
     if let Ok(control) = token.control(client) {
         disconnect(&control, &mut presenter);
     }
-    shared.lock().clear("已停止");
+    shared.lock().clear("tile-stopped");
     Ok(())
 }
 fn disconnect(control: &crate::live_relay_http::Control<'_>, p: &mut Option<Presenter>) {

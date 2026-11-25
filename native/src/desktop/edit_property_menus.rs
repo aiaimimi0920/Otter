@@ -32,7 +32,9 @@ pub(super) unsafe fn execute(
         v.style
     };
     let (labels, current): (Vec<String>, usize) = (
-        vec!["━  实线".into(), "╌  虚线1".into(), "┄  虚线2".into()],
+        ["edit-solid-line", "edit-dashed-line", "edit-dotted-line"]
+            .map(|id| crate::ui_text::text(id).to_owned())
+            .into(),
         match initial.dash() {
             DashPattern::Solid => 0,
             DashPattern::Dash => 1,

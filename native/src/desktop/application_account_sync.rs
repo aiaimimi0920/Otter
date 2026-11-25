@@ -215,9 +215,9 @@ impl Application {
             participation,
         });
         self.account_status(if stop {
-            "正在解除账号关联…"
+            crate::ui_text::text("app-account-unlinking")
         } else {
-            "正在同步账号投射…"
+            crate::ui_text::text("app-account-syncing")
         });
         Ok(())
     }

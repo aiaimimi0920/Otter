@@ -15,18 +15,30 @@ impl Model {
     }
     pub fn new(endpoint: &Endpoint, visibility: Visibility) -> Self {
         let mut rows = Vec::new();
-        for (prefix, ports, defaults) in [
-            ("输入", &endpoint.inputs, &endpoint.input_defaults),
-            ("输出", &endpoint.outputs, &endpoint.output_defaults),
+        for (message, ports, defaults) in [
+            (
+                "port-input-label",
+                &endpoint.inputs,
+                &endpoint.input_defaults,
+            ),
+            (
+                "port-output-label",
+                &endpoint.outputs,
+                &endpoint.output_defaults,
+            ),
         ] {
             for (index, name) in ports.iter().enumerate() {
                 rows.push(Row {
                     name: name.clone(),
-                    label: format!(
-                        "{prefix} · {}",
-                        name.chars()
-                            .map(|c| if c.is_control() { ' ' } else { c })
-                            .collect::<String>()
+                    label: crate::ui_text::format(
+                        message,
+                        &[(
+                            "name",
+                            name.chars()
+                                .map(|c| if c.is_control() { ' ' } else { c })
+                                .collect::<String>()
+                                .into(),
+                        )],
                     ),
                     default_visible: defaults.get(index).copied().unwrap_or(true),
                 });

@@ -70,9 +70,9 @@ impl Application {
             Phase::Retry(pending)
         };
         self.sender_status(if started.is_ok() {
-            "正在重试原投送邀请…"
+            crate::ui_text::text("app-projection-retrying-invitation")
         } else {
-            "原邀请未重试；来源、授权或任务不可用"
+            crate::ui_text::text("app-projection-retry-unavailable")
         });
     }
 }

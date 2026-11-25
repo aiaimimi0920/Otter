@@ -75,7 +75,10 @@ impl Application {
                 notify(
                     self,
                     &doc.state.unit_id,
-                    &format!("工作区自动保存已停止；当前内容仍保留。\n{error}"),
+                    &crate::ui_text::format(
+                        "app-workspace-autosave-stopped",
+                        &[("error", error.to_string().into())],
+                    ),
                     true,
                 );
             }
@@ -96,7 +99,10 @@ impl Application {
             return Ok(());
         }
         if self.save_requires_destination(false) {
-            return Err(Error::new(E_ABORT, "请先保存工作区，再开启自动保存。"));
+            return Err(Error::new(
+                E_ABORT,
+                crate::ui_text::text("app-workspace-autosave-prerequisite"),
+            ));
         }
         if !save_snapshot::automatic_static_ready(self)
             || self
@@ -144,7 +150,13 @@ impl Application {
                 if let Some((path, error)) = published.retained_recovery {
                     return Err(Error::new(
                         E_FAIL,
-                        format!("工作区已保存；旧恢复副本保留：{}\n{error}", path.display()),
+                        crate::ui_text::format(
+                            "app-workspace-recovery-retained",
+                            &[
+                                ("path", path.display().to_string().into()),
+                                ("error", error.to_string().into()),
+                            ],
+                        ),
                     ));
                 }
             }

@@ -20,7 +20,7 @@ pub(super) unsafe fn install(hwnd: HWND) -> Result<()> {
         GetSystemMenu(hwnd, false),
         MF_STRING | MF_GRAYED,
         OPEN,
-        w!("配置触发条件"),
+        &windows::core::HSTRING::from(crate::ui_text::text("integration-configure-trigger")),
     )
 }
 fn queue(state: &State) -> Option<Arc<crate::live_relay_control_runtime::interaction::Queue>> {
@@ -43,32 +43,29 @@ unsafe fn submit(hwnd: HWND, state: &State, command: Command) -> bool {
     accepted
 }
 pub(super) unsafe fn refresh(hwnd: HWND, state: &State) {
-    let Some(q) = queue(state) else { return };
-    let local = q.local_triggers.host().is_some();
-    let phase = if local {
-        q.local_triggers.phase()
-    } else {
-        q.triggers.phase()
-    };
-    let available = local || q.triggers.available();
-    if state.closed.get()
-        || state
-            .input
-            .borrow_mut()
-            .trigger_shown
-            .replace((phase, available))
-            == Some((phase, available))
-    {
+    let (phase, available, local) = queue(state).map_or((Phase::Idle, false, false), |q| {
+        let local = q.local_triggers.host().is_some();
+        let phase = if local {
+            q.local_triggers.phase()
+        } else {
+            q.triggers.phase()
+        };
+        (phase, local || q.triggers.available(), local)
+    });
+    let language = crate::ui_text::current_language();
+    let shown = (phase, available, language);
+    if state.closed.get() || state.input.borrow().trigger_shown == Some(shown) {
         return;
     }
+    state.input.borrow_mut().trigger_shown = None;
     let title = match phase {
-        Phase::Idle => "配置触发条件",
-        Phase::Pending => "配置触发条件（提交中）",
-        Phase::Confirmed => "配置触发条件（已确认）",
-        Phase::Rejected => "配置触发条件（已拒绝，可重试）",
-        Phase::Unknown => "配置触发条件（结果未知，请重新加入）",
+        Phase::Idle => "integration-configure-trigger",
+        Phase::Pending => "integration-trigger-pending",
+        Phase::Confirmed => "integration-trigger-confirmed",
+        Phase::Rejected => "integration-trigger-rejected",
+        Phase::Unknown => "integration-trigger-unknown",
     };
-    let _ = ModifyMenuW(
+    if ModifyMenuW(
         GetSystemMenu(hwnd, false),
         OPEN as u32,
         MF_BYCOMMAND
@@ -79,8 +76,13 @@ pub(super) unsafe fn refresh(hwnd: HWND, state: &State) {
                 MF_GRAYED
             },
         OPEN,
-        &HSTRING::from(title),
-    );
+        &HSTRING::from(crate::ui_text::text_for(language, title)),
+    )
+    .is_ok()
+        && !state.closed.get()
+    {
+        state.input.borrow_mut().trigger_shown = Some(shown);
+    }
 }
 fn seed(
     b: &crate::live_relay_viewer_business::Business,
@@ -126,7 +128,7 @@ unsafe fn choose(hwnd: HWND, b: &crate::live_relay_viewer_business::Business) ->
                 MF_GRAYED
             },
         1,
-        w!("新增触发条件"),
+        &windows::core::HSTRING::from(crate::ui_text::text("integration-add-trigger")),
     )?;
     for (i, r) in b.registrations().iter().enumerate() {
         // Wire identifiers allow only legal ASCII characters; remote text cannot inject menu shortcuts or newlines.
@@ -134,7 +136,10 @@ unsafe fn choose(hwnd: HWND, b: &crate::live_relay_viewer_business::Business) ->
             menu.0,
             MF_STRING,
             2 + i * 2,
-            &HSTRING::from(format!("编辑 {}", r.binding.binding_id)),
+            &HSTRING::from(crate::ui_text::format(
+                "integration-edit-trigger",
+                &[("id", r.binding.binding_id.as_str().into())],
+            )),
         )?;
         AppendMenuW(
             menu.0,
@@ -145,7 +150,10 @@ unsafe fn choose(hwnd: HWND, b: &crate::live_relay_viewer_business::Business) ->
                     MF_GRAYED
                 },
             3 + i * 2,
-            &HSTRING::from(format!("禁用 {}", r.binding.binding_id)),
+            &HSTRING::from(crate::ui_text::format(
+                "integration-disable-trigger",
+                &[("id", r.binding.binding_id.as_str().into())],
+            )),
         )?;
     }
     let mut point = POINT::default();

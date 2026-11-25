@@ -20,9 +20,9 @@ pub(crate) fn prepare(
 ) -> Result<Vec<Command>, &'static str> {
     let (placement, uv) =
         crate::tile_surface_hit::hit(&frame.layout, &frame.key.endpoint, frame.size, pixel)
-            .ok_or("Art命中已失效")?;
+            .ok_or("tile-art-hit-invalid")?;
     if placement.source.id != art.view.instance_id {
-        return Err("Art来源已改变");
+        return Err("tile-art-source-changed");
     }
     fn collect(node: &Node, values: &mut crate::surface_form_values::Values) {
         if !node.visible() {
@@ -84,12 +84,12 @@ pub(crate) fn prepare(
         };
         let (_, wire) = action
             .encode_identity(identity, art.snapshot.revision, modifiers, fields)
-            .map_err(|_| "Art点击编码失败")?;
+            .map_err(|_| "tile-art-click-encode-failed")?;
         bytes += wire.len();
         if bytes > crate::surface_click_event::MAX_EVENT_BYTES {
-            return Err("Art点击批次过大");
+            return Err("tile-art-click-batch-limit");
         }
-        let event = serde_json::from_slice(&wire).map_err(|_| "Art点击编码失败")?;
+        let event = serde_json::from_slice(&wire).map_err(|_| "tile-art-click-encode-failed")?;
         result.push(Command {
             edit: None,
             anchor: anchor.clone(),

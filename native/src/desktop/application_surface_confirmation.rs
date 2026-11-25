@@ -40,13 +40,27 @@ impl Application {
                         .authorization_owner
                         .lease(&origin, now)
                         .map_err(|error| {
-                            Error::new(E_ABORT, format!("当前授权不可用：{error:?}"))
+                            Error::new(
+                                E_ABORT,
+                                crate::ui_text::format(
+                                    "app-current-authorization-unavailable",
+                                    &[("error", format!("{error:?}").into())],
+                                ),
+                            )
                         })?;
                     if lease.device_id() != receipt.event.binding().device() {
                         return Err(Error::new(E_ABORT, "Surface device changed"));
                     }
                     let config = crate::device_authorization_config::Config::from_env(&origin)
-                        .map_err(|error| Error::new(E_FAIL, format!("配置无效：{error:?}")))?;
+                        .map_err(|error| {
+                            Error::new(
+                                E_FAIL,
+                                crate::ui_text::format(
+                                    "app-configuration-invalid-detail",
+                                    &[("error", format!("{error:?}").into())],
+                                ),
+                            )
+                        })?;
                     Ok((config, lease))
                 })();
                 let (config, lease) = match prepared {
@@ -61,7 +75,7 @@ impl Application {
                     .iter_mut()
                     .find(|window| window.binding() == receipt.event.binding())
                 else {
-                    failure = Some("Surface 窗口已不可用".into());
+                    failure = Some(crate::ui_text::text("app-surface-window-unavailable").into());
                     return ConfirmationAction::Keep(receipt);
                 };
                 let decision = match window.prompt_decision(&mut receipt) {
@@ -86,7 +100,7 @@ impl Application {
                         revision: window.snapshot_revision(),
                         submission: Err(DecisionError::NotStarted),
                     });
-                    failure = Some("确认后状态已变化，决定未提交".into());
+                    failure = Some(crate::ui_text::text("app-surface-confirmation-changed").into());
                     return ConfirmationAction::Keep(receipt);
                 }
                 match window.begin_receipt_decision(receipt, decision, now.expect("checked clock"))
@@ -105,9 +119,14 @@ impl Application {
                 }
             });
         self.authorization.borrow_mut().status = match result {
-            Err(error) => format!("决定未启动：{error}"),
-            Ok(true) => "正在提交明确选择的决定…".into(),
-            Ok(false) => failure.unwrap_or_else(|| "未提交决定".into()),
+            Err(error) => crate::ui_text::format(
+                "app-decision-not-started",
+                &[("error", error.to_string().into())],
+            ),
+            Ok(true) => crate::ui_text::text("app-surface-decision-submitting").into(),
+            Ok(false) => failure.unwrap_or_else(|| {
+                crate::ui_text::text("app-surface-decision-not-submitted").into()
+            }),
         };
     }
 }

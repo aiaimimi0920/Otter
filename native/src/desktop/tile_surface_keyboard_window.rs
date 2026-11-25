@@ -67,7 +67,7 @@ fn run_value(state: &State, f: impl FnOnce(&mut Owner) -> Result<()>) {
         *state.keyboard_value.borrow_mut() = Some(owner);
     } else {
         state.shared.lock().actions.cancel_edit(&owner.edit);
-        state.shared.lock().actions.notice = "Art键盘字段未提交";
+        state.shared.lock().actions.notice = "integration-art-keyboard-field-uncommitted";
     }
 }
 pub(super) fn retire(state: &State) {
@@ -195,11 +195,11 @@ fn transfer(hwnd: HWND, state: &State, next: Option<Result<Option<Focus>>>) {
     let next = match next {
         Some(Ok(next)) => next,
         Some(Err(_)) => {
-            state.shared.lock().actions.notice = "Art键盘可见区域搜索预算不足";
+            state.shared.lock().actions.notice = "integration-art-keyboard-budget";
             return;
         }
         None => {
-            state.shared.lock().actions.notice = "Art键盘导航不可用";
+            state.shared.lock().actions.notice = "integration-art-keyboard-unavailable";
             return;
         }
     };
@@ -228,7 +228,7 @@ fn transfer(hwnd: HWND, state: &State, next: Option<Result<Option<Focus>>>) {
         }
         if installed.is_err() {
             retire(state);
-            state.shared.lock().actions.notice = "Art键盘显露未完成";
+            state.shared.lock().actions.notice = "integration-art-keyboard-reveal-incomplete";
             return;
         }
     }
@@ -272,7 +272,7 @@ fn transfer(hwnd: HWND, state: &State, next: Option<Result<Option<Focus>>>) {
             },
             _ => {
                 retire(state);
-                state.shared.lock().actions.notice = "Art键盘控件不可用";
+                state.shared.lock().actions.notice = "integration-art-keyboard-control-unavailable";
                 if actions::active(state).is_some() {
                     unsafe {
                         let _ = SetFocus(Some(hwnd));

@@ -82,8 +82,9 @@ impl Application {
                         if visible && IsWindowVisible(owner).as_bool() {
                             MessageBoxW(
                                 Some(owner),
-                                &HSTRING::from(format!(
-                                    "Live 源窗口控制不可用。采集画面仍保留。\n{error}"
+                                &HSTRING::from(crate::ui_text::format(
+                                    "action-live-control-failed",
+                                    &[("error", error.to_string().into())],
                                 )),
                                 w!("Otter"),
                                 MB_OK | MB_ICONWARNING,
@@ -100,7 +101,10 @@ impl Application {
                         }
                         MessageBoxW(
                             None,
-                            &HSTRING::from(format!("Live 已停止。\n{error}")),
+                            &HSTRING::from(crate::ui_text::format(
+                                "action-live-stopped",
+                                &[("error", error.to_string().into())],
+                            )),
                             w!("Otter"),
                             MB_OK | MB_ICONWARNING,
                         );
@@ -128,7 +132,10 @@ impl Application {
             }
             MessageBoxW(
                 None,
-                &HSTRING::from(format!("Live 画面未保留。\n{error}")),
+                &HSTRING::from(crate::ui_text::format(
+                    "action-live-retain-failed",
+                    &[("error", error.to_string().into())],
+                )),
                 w!("Otter"),
                 MB_OK | MB_ICONWARNING,
             );
@@ -175,7 +182,10 @@ impl Application {
                 }
                 MessageBoxW(
                     self.source_window(&source),
-                    &HSTRING::from(format!("无法开始 Live。\n{error}")),
+                    &HSTRING::from(crate::ui_text::format(
+                        "action-live-start-failed",
+                        &[("error", error.to_string().into())],
+                    )),
                     w!("Otter"),
                     MB_OK | MB_ICONWARNING,
                 );
@@ -274,6 +284,8 @@ impl Application {
             .chain(self.restore_reap_deadline())
             .chain(self.save_reap_deadline())
             .chain(self.naming_save_reap_deadline())
+            .chain(self.locale_reap_deadline())
+            .chain(self.locale_remote.deadline())
             .chain(self.workflow_reap_deadline())
             .chain(self.input_jobs.deadline())
             .chain(self.live_freeze_reap_deadline())

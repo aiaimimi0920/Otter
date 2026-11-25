@@ -4,6 +4,7 @@ use crate::desktop::{
     long_capture_source::{self, Region},
 };
 use crate::long_capture::{Append, Axis, Completion, MatchOptions, SessionJob};
+use crate::ui_text::text as tr;
 use std::cell::{Cell, RefCell};
 use windows::{
     core::{Error, Result, HSTRING},
@@ -177,22 +178,19 @@ unsafe fn handle(hwnd: HWND, message: u32, wp: WPARAM, lp: LPARAM) -> isize {
     match message {
         WM_INITDIALOG => {
             if let Err(error) = input.finish.install(hwnd) {
-                *input.error.borrow_mut() = Some(format!("无法建立长截图结束路由：{error}"));
-                close(hwnd, input);
+                ui::abort_error(hwnd, input, "long-capture-route-failed", error);
                 return 1;
             }
             controls(hwnd, input, false);
             if input.protect {
                 if let Err(error) = SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE) {
-                    *input.error.borrow_mut() = Some(format!("无法排除长截图控制窗口：{error}"));
-                    close(hwnd, input);
+                    ui::abort_error(hwnd, input, "long-capture-exclusion-failed", error);
                     return 1;
                 }
                 match outline::Outline::new(hwnd, input.movement.region(), true, true) {
                     Ok(outline) => *input.outline.borrow_mut() = Some(outline),
                     Err(error) => {
-                        *input.error.borrow_mut() = Some(format!("无法建立取景框边框：{error}"));
-                        close(hwnd, input);
+                        ui::abort_error(hwnd, input, "long-capture-outline-failed", error);
                         return 1;
                     }
                 }
@@ -216,16 +214,13 @@ unsafe fn handle(hwnd: HWND, message: u32, wp: WPARAM, lp: LPARAM) -> isize {
             input.recording.stop();
             let busy = input.job.borrow().is_pending();
             controls(hwnd, input, busy);
-            status(
-                hwnd,
-                "屏幕布局或 DPI 已变化，录制已停止；可完成已有内容或取消",
-            );
+            status(hwnd, tr("long-capture-display-changed"));
             recording::drive(hwnd, input);
             1
         }
         WM_CLOSE | WM_DISPLAYCHANGE | WM_DPICHANGED => {
             if message != WM_CLOSE {
-                *input.error.borrow_mut() = Some("屏幕布局已改变，请重新选择截图区域。".into());
+                *input.error.borrow_mut() = Some(tr("long-capture-reselect").into());
             }
             close(hwnd, input);
             1
@@ -278,9 +273,9 @@ unsafe fn handle(hwnd: HWND, message: u32, wp: WPARAM, lp: LPARAM) -> isize {
                         status(
                             hwnd,
                             if pending {
-                                "已停止后续滚动，等待当前任务结束"
+                                tr("long-capture-stop-wait")
                             } else {
-                                "自动采集已停止"
+                                tr("long-capture-auto-stopped")
                             },
                         );
                     } else {
@@ -335,8 +330,7 @@ unsafe fn handle(hwnd: HWND, message: u32, wp: WPARAM, lp: LPARAM) -> isize {
                         .as_ref()
                         .map_or(Ok(()), |outline| outline.position(input.movement.region()));
                     if let Err(error) = positioned {
-                        *input.error.borrow_mut() = Some(format!("无法更新取景框边框：{error}"));
-                        close(hwnd, input);
+                        ui::abort_error(hwnd, input, "long-capture-outline-update-failed", error);
                         return 1;
                     }
                     overlay::refresh(hwnd);
@@ -378,7 +372,11 @@ unsafe fn handle(hwnd: HWND, message: u32, wp: WPARAM, lp: LPARAM) -> isize {
                                 input.automatic.borrow_mut().stop();
                                 input.recording.stop();
                                 controls(hwnd, input, false);
-                                status(hwnd, &format!("无法准备预览：{error:?}"));
+                                ui::status_error(
+                                    hwnd,
+                                    "long-capture-preview-failed",
+                                    format!("{error:?}"),
+                                );
                                 return 1;
                             }
                         }
@@ -426,7 +424,7 @@ unsafe fn handle(hwnd: HWND, message: u32, wp: WPARAM, lp: LPARAM) -> isize {
                         crate::long_capture::SpatialAppend::Duplicate,
                     )) => {
                         if !input.recording.enabled() {
-                            status(hwnd, "画面未变化");
+                            status(hwnd, tr("long-capture-unchanged"));
                         }
                     }
                     Completion::Append(Ok(Append::Rejected(_)))
@@ -434,7 +432,7 @@ unsafe fn handle(hwnd: HWND, message: u32, wp: WPARAM, lp: LPARAM) -> isize {
                         crate::long_capture::SpatialAppend::Rejected(_),
                     )) => {
                         if !input.recording.enabled() {
-                            status(hwnd, "未识别到可靠重叠，请缩小滚动距离后重试");
+                            status(hwnd, tr("long-capture-overlap-failed"));
                         }
                     }
                     Completion::Append(Err(error))
@@ -447,11 +445,11 @@ unsafe fn handle(hwnd: HWND, message: u32, wp: WPARAM, lp: LPARAM) -> isize {
                     }
                     Completion::CaptureFailed(error) => {
                         if !covered {
-                            status(hwnd, &format!("采集失败：{error}"));
+                            ui::status_error(hwnd, "long-capture-failed", error);
                         }
                     }
                     Completion::WorkerStopped => {
-                        *input.error.borrow_mut() = Some("长截图后台任务已停止。".into());
+                        *input.error.borrow_mut() = Some(tr("long-capture-worker-stopped").into());
                         close(hwnd, input);
                     }
                 }
@@ -468,7 +466,7 @@ unsafe fn handle(hwnd: HWND, message: u32, wp: WPARAM, lp: LPARAM) -> isize {
                         } else {
                             input.automatic.borrow_mut().stop();
                             controls(hwnd, input, false);
-                            status(hwnd, "无法生成自动采集预览，已停止后续滚动");
+                            status(hwnd, tr("long-capture-auto-preview-failed"));
                         }
                     }
                     automatic::Next::Stop => {}

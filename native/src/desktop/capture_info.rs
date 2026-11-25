@@ -1,5 +1,6 @@
 //! On-demand capture metadata for the current document; no file access, persistent controls, or background refresh.
 use super::*;
+use crate::ui_text::{format as message, text as tr};
 use crate::{capture_dynamic::Reason, desktop::canvas::CaptureSource};
 pub(in crate::desktop) const COMMAND: usize = 0x1068;
 #[cfg(test)]
@@ -18,11 +19,11 @@ unsafe fn append(menu: HMENU, state: &State) -> Result<()> {
                 MF_GRAYED
             },
         COMMAND,
-        if status == Some(true) {
-            w!("截图信息（HDR 已降级）…")
+        &HSTRING::from(if status == Some(true) {
+            tr("capture-info-menu-downgraded")
         } else {
-            w!("截图信息…")
-        },
+            tr("capture-info-menu")
+        }),
     )
 }
 pub(in crate::desktop) unsafe fn show(hwnd: HWND, state: &State) {
@@ -40,20 +41,20 @@ pub(in crate::desktop) unsafe fn show(hwnd: HWND, state: &State) {
     MessageBoxW(
         Some(hwnd),
         &HSTRING::from(text),
-        w!("截图信息"),
+        &HSTRING::from(tr("capture-info-title")),
         MB_OK | MB_ICONINFORMATION,
     );
 }
 fn reason(value: Option<Reason>) -> &'static str {
     match value {
-        Some(Reason::ExplicitSdr) => "指定 SDR",
-        Some(Reason::Workload) => "当前捕获类型使用 SDR",
-        Some(Reason::CrossMonitor) => "选区跨越显示器",
-        Some(Reason::DisplayUnknown) => "无法确认显示器 HDR 状态",
-        Some(Reason::DisplaySdr) => "显示器未启用 HDR",
-        Some(Reason::UnsupportedOs) => "当前系统不支持此 HDR 捕获路径",
-        Some(Reason::HdrFailed) => "HDR 捕获失败",
-        Some(Reason::AutoSdr) => "内容未超过 SDR 白电平",
+        Some(Reason::ExplicitSdr) => tr("capture-info-explicit-sdr"),
+        Some(Reason::Workload) => tr("capture-info-workload-sdr"),
+        Some(Reason::CrossMonitor) => tr("capture-info-cross-monitor"),
+        Some(Reason::DisplayUnknown) => tr("capture-info-display-unknown"),
+        Some(Reason::DisplaySdr) => tr("capture-info-display-sdr"),
+        Some(Reason::UnsupportedOs) => tr("capture-info-unsupported-os"),
+        Some(Reason::HdrFailed) => tr("capture-info-hdr-failed"),
+        Some(Reason::AutoSdr) => tr("capture-info-auto-sdr"),
         None => "—",
     }
 }
@@ -77,50 +78,63 @@ fn single_line(value: &str) -> String {
     output
 }
 fn describe(source: &CaptureSource) -> String {
-    let mut text = format!(
-        "原图：{}\n画布预览：SDR\nHDR 降级：{}\n原因：{}",
-        source.original_label(),
-        if source.session_meta.as_ref().is_some_and(|meta| meta
-            .get("downgradedFromHdr")
+    let downgraded = if source.session_meta.as_ref().is_some_and(|meta| {
+        meta.get("downgradedFromHdr")
             .and_then(serde_json::Value::as_bool)
-            .is_none())
-        {
-            "未记录"
-        } else if source.downgraded {
-            "是"
-        } else {
-            "否"
-        },
-        reason(source.reason)
+            .is_none()
+    }) {
+        tr("capture-info-unrecorded")
+    } else if source.downgraded {
+        tr("common-yes")
+    } else {
+        tr("common-no")
+    };
+    let mut text = message(
+        "capture-info-summary",
+        &[
+            ("original", source.original_label().into()),
+            ("downgraded", downgraded.into()),
+            ("reason", reason(source.reason).into()),
+        ],
     );
     if let Some(path) = &source.original {
-        text.push_str(&format!(
-            "\n原图路径：{}",
-            single_line(&path.to_string_lossy())
+        text.push('\n');
+        text.push_str(&message(
+            "capture-info-path",
+            &[("path", single_line(&path.to_string_lossy()).into())],
         ));
     }
     if let Some(display) = source.display {
-        text.push_str(&format!(
-            "\n显示器 HDR：{}\nSDR 白电平：{:.1} nit{}\n显示器亮度范围：{:.3}–{:.1} nit",
-            if !display.configuration_known {
-                "未确认"
-            } else if display.hdr_enabled {
-                "启用"
-            } else {
-                "关闭"
-            },
-            display.sdr_white_nits,
-            if display.white_level_known {
-                ""
-            } else {
-                "（回退值）"
-            },
-            display.minimum_nits,
-            display.maximum_nits
+        let hdr = if !display.configuration_known {
+            tr("capture-info-unconfirmed")
+        } else if display.hdr_enabled {
+            tr("capture-info-enabled")
+        } else {
+            tr("capture-info-disabled")
+        };
+        let fallback = if display.white_level_known {
+            ""
+        } else {
+            tr("capture-info-fallback")
+        };
+        text.push('\n');
+        text.push_str(&message(
+            "capture-info-display",
+            &[
+                ("hdr", hdr.into()),
+                ("white", format!("{:.1}", display.sdr_white_nits).into()),
+                ("fallback", fallback.into()),
+                ("minimum", format!("{:.3}", display.minimum_nits).into()),
+                ("maximum", format!("{:.1}", display.maximum_nits).into()),
+            ],
         ));
     }
     if let Some(diagnostic) = &source.diagnostic {
-        text.push_str(&format!("\n诊断：{}", single_line(diagnostic)));
+        text.push('\n');
+        text.push_str(&message(
+            "capture-info-diagnostic",
+            &[("diagnostic", single_line(diagnostic).into())],
+        ));
     }
     text
 }

@@ -139,15 +139,43 @@ fn malformed_startup_or_import_never_replaces_existing_trust() {
 }
 #[test]
 fn confirmation_lists_independent_key_fingerprint_and_removal() {
+    use sha2::{Digest, Sha256};
     let added =
         crate::desktop::application::art_issuer_confirmation::describe(&Trust::default(), &trust())
             .unwrap();
     assert!(added.contains(ORIGIN));
     assert!(added.contains("issuer:1"));
     assert!(added.contains("SHA-256:"));
-    assert!(added.contains("独立可信渠道"));
+    let entry = crate::ui_text::format(
+        "app-issuer-trust-entry",
+        &[
+            ("origin", ORIGIN.into()),
+            ("key", "issuer:1".into()),
+            (
+                "fingerprint",
+                format!("{:x}", Sha256::digest([7; 32])).into(),
+            ),
+        ],
+    );
+    assert_eq!(
+        added,
+        crate::ui_text::format(
+            "app-issuer-change-confirmation",
+            &[("entries", entry.into())]
+        )
+    );
     let removed =
         crate::desktop::application::art_issuer_confirmation::describe(&trust(), &Trust::default())
             .unwrap();
-    assert!(removed.contains("移除旧信任"));
+    let entry = crate::ui_text::format(
+        "app-issuer-remove-trust",
+        &[("origin", ORIGIN.into()), ("key", "issuer:1".into())],
+    );
+    assert_eq!(
+        removed,
+        crate::ui_text::format(
+            "app-issuer-change-confirmation",
+            &[("entries", entry.into())]
+        )
+    );
 }

@@ -33,7 +33,7 @@ fn unstarted(
         if let Some(edit) = &command.edit {
             s.actions.cancel_edit(edit);
         }
-        s.actions.notice = "Art操作已失效";
+        s.actions.notice = "tile-art-action-invalid";
     }
 }
 impl Views<'_> {

@@ -11,11 +11,13 @@ pub(super) struct Row {
     pub disable: Option<usize>,
 }
 pub(super) struct Model {
+    pub language: crate::ui_text::DisplayLanguage,
     pub stamp: Stamp,
     pub snapshot: Option<Rc<Snapshot>>,
     pub rows: Vec<Row>,
     pub ports: Option<Rc<desktop::link_catalog::Catalog>>,
     pub title: String,
+    pub title_id: Option<&'static str>,
     pub settings: Vec<desktop::node_settings::Field>,
     node_settings: crate::unit_node_settings::Settings,
     pub sticker: Option<desktop::sticker_input::Config>,
@@ -69,7 +71,7 @@ impl Model {
         if sticker.is_some() {
             rows.push(Row {
                 id: "image".into(),
-                label: "图片".into(),
+                label: crate::ui_text::text("parameter-image").into(),
                 widget: "sticker-image".into(),
                 linked: false,
                 primary: Vec::new(),
@@ -85,6 +87,7 @@ impl Model {
             .candidate_view(&stamp)
             .cloned();
         Self {
+            language: crate::ui_text::current_language(),
             stamp,
             candidates,
             snapshot,
@@ -93,12 +96,17 @@ impl Model {
             settings,
             node_settings: state.node_settings.get(),
             ports: state.link_catalog.borrow().clone(),
+            title_id: capability.as_ref().is_none().then_some(if state.is_art() {
+                "workspace-art"
+            } else {
+                "workspace-pin"
+            }),
             title: capability.map_or_else(
                 || {
                     if state.is_art() {
-                        "Art".into()
+                        crate::ui_text::text("workspace-art").into()
                     } else {
-                        "钉图".into()
+                        crate::ui_text::text("workspace-pin").into()
                     }
                 },
                 |cap| clean(cap.label),
@@ -106,6 +114,9 @@ impl Model {
         }
     }
     pub fn current(&self, state: &State) -> bool {
+        self.language == crate::ui_text::current_language() && self.current_content(state)
+    }
+    pub fn current_content(&self, state: &State) -> bool {
         self.stamp.matches(state)
             && self.node_settings == state.node_settings.get()
             && match (

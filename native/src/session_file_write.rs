@@ -130,7 +130,15 @@ impl Staged {
     }
     /// Callers still recheck UI Receipt before commit; no overwriting or cross-volume copy/delete fallback.
     /// After success, late cancellation never deletes published files; power-loss durability depends on the actual filesystem.
-    pub fn commit_new(mut self, cancel: &AtomicBool) -> io::Result<PathBuf> {
+    pub fn commit_new(self, cancel: &AtomicBool) -> io::Result<PathBuf> {
+        self.commit_new_checked(cancel, || Ok(()))
+    }
+    /// Check external authority at the final publication boundary, never after a successful rename.
+    pub(crate) fn commit_new_checked(
+        mut self,
+        cancel: &AtomicBool,
+        authorize: impl FnOnce() -> io::Result<()>,
+    ) -> io::Result<PathBuf> {
         check(cancel)?;
         self.file.take();
         let source: Vec<u16> = self
@@ -146,14 +154,17 @@ impl Staged {
             .chain(Some(0))
             .collect();
         check(cancel)?;
-        crate::session_file_trace::run("publish-new", None, || unsafe {
-            MoveFileExW(
-                PCWSTR(source.as_ptr()),
-                PCWSTR(target.as_ptr()),
-                MOVEFILE_WRITE_THROUGH,
-            )
-        })
-        .map_err(io::Error::other)?;
+        crate::session_file_trace::run("publish-new", None, || {
+            authorize()?;
+            unsafe {
+                MoveFileExW(
+                    PCWSTR(source.as_ptr()),
+                    PCWSTR(target.as_ptr()),
+                    MOVEFILE_WRITE_THROUGH,
+                )
+            }
+            .map_err(io::Error::other)
+        })?;
         self.committed = true;
         Ok(self.destination.clone())
     }

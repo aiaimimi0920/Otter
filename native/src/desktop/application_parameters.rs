@@ -52,7 +52,7 @@ impl Application {
                     } else {
                         Configuration::from_resolved(capability.id, resolved, &images)
                     }
-                    .map_err(|_| "无法捕获执行参数")?;
+                    .map_err(|_| crate::ui_text::text("app-execution-parameters-capture"))?;
                 let shader = shader
                     .map(|installation| {
                         let mut runtime = installation.capture(
@@ -75,7 +75,7 @@ impl Application {
                         Ok::<_, crate::desktop::shader_prepare::Error>(runtime)
                     })
                     .transpose()
-                    .map_err(|_| "无法准备本地 Shader 参数或主图像输入")?;
+                    .map_err(|_| crate::ui_text::text("app-shader-local-inputs-failed"))?;
                 Ok(Some((configuration, shader, inputs.sources)))
             },
         )
@@ -90,7 +90,7 @@ impl Application {
     ) -> Result<Captured<T>, &'static str> {
         let upstream = workspace
             .upstream_units(target)
-            .map_err(|_| "无法解析参数依赖")?;
+            .map_err(|_| crate::ui_text::text("app-parameter-dependencies-invalid"))?;
         let documents: Vec<_> = documents
             .iter()
             .filter(|doc| upstream.contains(&&doc.state.unit_id))
@@ -160,19 +160,20 @@ impl Application {
             .entries()
             .filter_map(|(name, value)| value.map(|value| (name, Output::from_json(value))))
             .collect();
-        let graph = Graph::new(&nodes, workspace.links()).map_err(|_| "参数图超过预算")?;
+        let graph = Graph::new(&nodes, workspace.links())
+            .map_err(|_| crate::ui_text::text("app-parameter-graph-limit"))?;
         let resolved = graph
             .effective_params(target, &declared, &manual)
-            .map_err(|_| "无法解析连线参数")?;
+            .map_err(|_| crate::ui_text::text("app-linked-parameters-invalid"))?;
         let configuration = consume(&resolved)?;
         let mut dependencies = Vec::new();
         dependencies
             .try_reserve(documents.len() * 2)
-            .map_err(|_| "无法分配参数依赖")?;
+            .map_err(|_| crate::ui_text::text("app-parameter-dependency-allocation"))?;
         for (doc, result) in documents.iter().zip(&results) {
             let canvas = doc.state.canvas.borrow();
             if canvas.editor.draft().is_some() || doc.state.pending_adoption.borrow().is_some() {
-                return Err("参数依赖存在未完成编辑");
+                return Err(crate::ui_text::text("app-parameter-edits-pending"));
             }
             dependencies.push((
                 doc.state.unit_id.clone(),

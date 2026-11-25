@@ -4,12 +4,21 @@ use super::*;
 mod event_delivery;
 #[path = "surface_shutdown_tests.rs"]
 mod shutdown;
-use crate::desktop::surface_authorized_window::AuthorizedWindow;
+use crate::{
+    desktop::surface_authorized_window::AuthorizedWindow,
+    ui_text::{self, DisplayLanguage},
+};
 use std::os::windows::io::AsRawHandle;
 use windows::Win32::{
     Foundation::{HANDLE, WAIT_OBJECT_0},
     System::{Com::*, Threading::WaitForSingleObject},
 };
+struct LanguageReset(DisplayLanguage);
+impl Drop for LanguageReset {
+    fn drop(&mut self) {
+        ui_text::set_language(self.0);
+    }
+}
 struct Apartment;
 impl Apartment {
     fn new() -> Self {
@@ -112,38 +121,51 @@ fn window_collection_stops_waiting_on_terminal_windows_and_preserves_owners() {
 
 #[test]
 fn admission_retains_unconfirmed_results_and_returns_full_capacity_input() {
-    let mut windows = crate::desktop::surface_windows::Windows::default();
-    assert!(windows.status().is_none());
-    for _ in 0..4 {
-        let mut pending = outcome();
-        pending.uncertain = true;
-        assert!(windows
+    let _language = LanguageReset(ui_text::current_language());
+    for (language, expected_status) in [
+        (
+            DisplayLanguage::English,
+            "Surface did not open: \u{2068}An attachment record already exists; duplicate mount result retained\u{2069}",
+        ),
+        (
+            DisplayLanguage::SimplifiedChinese,
+            "Surface 未打开：\u{2068}附件已有持有记录，保留重复挂载结果\u{2069}",
+        ),
+    ] {
+        ui_text::set_language(language);
+        let mut windows = crate::desktop::surface_windows::Windows::default();
+        assert!(windows.status().is_none());
+        for _ in 0..4 {
+            let mut pending = outcome();
+            pending.uncertain = true;
+            assert!(windows
+                .admit(
+                    pending,
+                    |_| panic!("unconfirmed result must not request authorization"),
+                    0
+                )
+                .is_ok());
+        }
+        let returned = windows
             .admit(
-                pending,
-                |_| panic!("unconfirmed result must not request authorization"),
-                0
+                outcome(),
+                |_| panic!("full collection must not authorize"),
+                0,
             )
-            .is_ok());
+            .err()
+            .unwrap();
+        assert!(returned.binding.is_some());
+        assert!(windows.wait_handles().is_empty());
+        assert_eq!(windows.status().as_deref(), Some(expected_status));
+        assert!(!windows.can_mount("https://localhost:1234", "node:test"));
+        for _ in 0..4 {
+            let failure = windows.take_failure().unwrap();
+            assert!(failure.outcome.uncertain);
+            assert!(!failure.reason.is_empty());
+        }
+        assert!(windows.take_failure().is_none());
+        assert!(windows.can_mount("https://localhost:1234", "node:test"));
     }
-    let returned = windows
-        .admit(
-            outcome(),
-            |_| panic!("full collection must not authorize"),
-            0,
-        )
-        .err()
-        .unwrap();
-    assert!(returned.binding.is_some());
-    assert!(windows.wait_handles().is_empty());
-    assert!(windows.status().unwrap().contains("未打开"));
-    assert!(!windows.can_mount("https://localhost:1234", "node:test"));
-    for _ in 0..4 {
-        let failure = windows.take_failure().unwrap();
-        assert!(failure.outcome.uncertain);
-        assert!(!failure.reason.is_empty());
-    }
-    assert!(windows.take_failure().is_none());
-    assert!(windows.can_mount("https://localhost:1234", "node:test"));
 }
 #[test]
 fn confirmed_admission_creates_one_owner_and_keeps_duplicate_evidence() {

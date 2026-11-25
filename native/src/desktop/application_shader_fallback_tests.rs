@@ -66,7 +66,7 @@ pub(super) unsafe fn guards(app: &mut Application) {
         .borrow()
         .as_ref()
         .unwrap()
-        .contains("主图像输入"));
+        .contains(crate::ui_text::text("app-shader-local-inputs-failed")));
     {
         let mut canvas = app.documents[0].state.canvas.borrow_mut();
         canvas.image = base;

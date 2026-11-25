@@ -54,7 +54,7 @@ impl Owner {
             consent.status = if file.writable() {
                 ""
             } else {
-                "接收策略不可读，已拒绝新投送"
+                crate::ui_text::text("app-projection-policy-unreadable")
             };
         }
         let Some(result) = self.job.as_mut().and_then(job::Job::poll) else {
@@ -72,12 +72,12 @@ impl Owner {
                 self.file = Some(next);
                 self.schedule.reset();
                 consent.status = if retained {
-                    "接收策略已保存，旧恢复文件保留"
+                    crate::ui_text::text("app-projection-policy-recovery-retained")
                 } else {
-                    "接收策略已保存"
+                    crate::ui_text::text("app-projection-policy-saved")
                 };
             }
-            Err(_) => consent.status = "保存接收策略失败",
+            Err(_) => consent.status = crate::ui_text::text("app-projection-policy-save-failed"),
         }
     }
     fn request(&mut self, change: impl Into<Change>, consent: &mut Consent, notify: Notify) {
@@ -93,7 +93,7 @@ impl Owner {
             return;
         }
         let Some(file) = self.file.as_ref().filter(|file| file.writable()) else {
-            consent.status = "保存接收策略失败";
+            consent.status = crate::ui_text::text("app-projection-policy-save-failed");
             return;
         };
         match job::Job::start(file.clone(), change, notify) {
@@ -106,7 +106,7 @@ impl Owner {
                 }
                 self.schedule.reset();
             }
-            Err(_) => consent.status = "保存接收策略失败",
+            Err(_) => consent.status = crate::ui_text::text("app-projection-policy-save-failed"),
         }
     }
 }
@@ -148,7 +148,7 @@ impl Application {
                     view.projection.participation = None;
                 }
             } else {
-                view.consent.status = "保存接收策略失败";
+                view.consent.status = crate::ui_text::text("app-projection-policy-save-failed");
             }
         }
     }

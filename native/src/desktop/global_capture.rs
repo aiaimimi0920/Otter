@@ -77,8 +77,9 @@ pub(super) unsafe fn toggle(hwnd: HWND, state: &State) {
     if let Err(error) = super::application_hotkey::request(hwnd, state) {
         MessageBoxW(
             Some(hwnd),
-            &HSTRING::from(format!(
-                "无法切换 Ctrl+1 全局截图快捷键。可能已被其他程序占用。\n{error}"
+            &HSTRING::from(crate::ui_text::format(
+                "action-hotkey-failed",
+                &[("error", error.to_string().into())],
             )),
             w!("Otter"),
             MB_OK | MB_ICONWARNING,
@@ -107,12 +108,12 @@ fn label(state: &State) -> String {
     .filter_map(|(label, enabled)| (!enabled).then_some(label))
     .collect();
     if state.hotkey_enabled.get() && !missing.is_empty() {
-        format!(
-            "全局截图快捷键（{} 不可用）\tCtrl+1 / Ctrl+2 / Ctrl+3",
-            missing.join(" / ")
+        crate::ui_text::format(
+            "action-hotkey-degraded",
+            &[("shortcuts", missing.join(" / ").into())],
         )
     } else {
-        "全局截图 / Live / 长截图录制\tCtrl+1 / Ctrl+2 / Ctrl+3".into()
+        crate::ui_text::text("action-hotkey-menu").into()
     }
 }
 #[cfg(test)]

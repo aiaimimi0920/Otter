@@ -55,7 +55,7 @@ impl Window {
                     WINDOW_EX_STYLE(0)
                 },
             class,
-            w!("输入标注文本"),
+            &windows::core::HSTRING::from(crate::ui_text::text("action-inline-text")),
             WS_POPUP | WS_CLIPCHILDREN,
             0,
             0,

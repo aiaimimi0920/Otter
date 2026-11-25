@@ -37,14 +37,20 @@ impl Application {
                 Ok(lease) => lease,
                 Err(crate::device_authorization_owner::Error::Capacity) => continue,
                 Err(error) => {
-                    window.fail_javascript(format!("JS 授权不可用：{error:?}"))?;
+                    window.fail_javascript(crate::ui_text::format(
+                        "app-js-authorization-unavailable",
+                        &[("error", format!("{error:?}").into())],
+                    ))?;
                     continue;
                 }
             };
             let config = match config(origin) {
                 Ok(config) => config,
                 Err(error) => {
-                    window.fail_javascript(format!("JS 配置无效：{error:?}"))?;
+                    window.fail_javascript(crate::ui_text::format(
+                        "app-js-configuration-invalid",
+                        &[("error", format!("{error:?}").into())],
+                    ))?;
                     continue;
                 }
             };
@@ -53,7 +59,10 @@ impl Application {
                 if error.kind() == std::io::ErrorKind::WouldBlock {
                     continue;
                 }
-                window.fail_javascript(format!("JS 挂载未启动：{error}"))?;
+                window.fail_javascript(crate::ui_text::format(
+                    "app-js-mount-not-started",
+                    &[("error", error.to_string().into())],
+                ))?;
             } else {
                 running += 1;
             }

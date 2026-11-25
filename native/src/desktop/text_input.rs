@@ -183,7 +183,10 @@ unsafe fn run(hwnd: HWND, state: &State, pending: Pending) {
     if let Err(error) = inline::begin(hwnd, state, pending) {
         MessageBoxW(
             Some(hwnd),
-            &HSTRING::from(format!("无法开始文字输入。\n{error}")),
+            &HSTRING::from(crate::ui_text::format(
+                "action-text-failed",
+                &[("error", error.to_string().into())],
+            )),
             w!("Otter"),
             MB_OK | MB_ICONERROR,
         );

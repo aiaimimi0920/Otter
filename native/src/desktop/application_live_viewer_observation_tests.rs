@@ -36,12 +36,40 @@ pub(super) unsafe fn exercise(
     let (window, edit) = app.remote_sessions.test_viewer_observation(key).unwrap();
     assert_ne!(GetForegroundWindow(), window);
     let initial = text(edit);
-    assert!(initial.contains("观察：稳定 · 1 项 · 触发注册 1 项"));
-    assert!(initial.contains("值：{\"progress\":7}"));
-    assert!(initial.contains("稳定 500 ms"));
-    assert!(initial.contains("目标：instance:test / attachment:test / label / click / run"));
-    assert!(initial.contains("binding:progress · 派发中"));
-    assert!(!initial.contains("请求："));
+    let value_text = |value| {
+        crate::ui_text::format(
+            "integration-observation-value",
+            &[("value", format!("{{\"progress\":{value}}}").into())],
+        )
+    };
+    assert!(initial.contains(&crate::ui_text::format(
+        "integration-observation-summary",
+        &[
+            ("summary", crate::ui_text::text("integration-stable").into()),
+            ("count", 1.into()),
+            ("registrations", 1.into()),
+        ]
+    )));
+    assert!(initial.contains(&value_text(7)));
+    assert!(initial.contains("500"));
+    assert!(initial.contains(&crate::ui_text::format(
+        "integration-observation-target",
+        &[
+            ("instance", "instance:test".into()),
+            ("attachment", "attachment:test".into()),
+            ("node", "label".into()),
+            ("event", "click".into()),
+            ("action", "run".into()),
+        ]
+    )));
+    assert!(initial.contains(&format!(
+        "binding:progress · {}",
+        crate::ui_text::text("integration-dispatching")
+    )));
+    assert!(!initial.contains(&crate::ui_text::format(
+        "integration-observation-request",
+        &[("request", "".into())]
+    )));
     assert_ne!(
         GetWindowLongPtrW(edit, GWL_STYLE) as u32 & ES_READONLY as u32,
         0
@@ -53,13 +81,22 @@ pub(super) unsafe fn exercise(
     spin(app, root, |app| {
         app.remote_sessions
             .test_viewer_observation(key)
-            .is_some_and(|(_, e)| text(e).contains("值：{\"progress\":9}"))
+            .is_some_and(|(_, e)| text(e).contains(&value_text(9)))
     });
     let updated = text(edit);
-    assert!(!updated.contains("值：{\"progress\":7}"));
-    assert!(updated.contains("最近 1 / 1 项"));
-    assert!(updated.contains("binding:progress · 已触发"));
-    assert!(updated.contains("请求：action:123"));
+    assert!(!updated.contains(&value_text(7)));
+    assert!(updated.contains(&crate::ui_text::format(
+        "integration-observation-audits",
+        &[("recent", 1.into()), ("count", 1.into())]
+    )));
+    assert!(updated.contains(&format!(
+        "binding:progress · {}",
+        crate::ui_text::text("integration-triggered")
+    )));
+    assert!(updated.contains(&crate::ui_text::format(
+        "integration-observation-request",
+        &[("request", "action:123".into())]
+    )));
     assert!(!updated.contains("surface_action_dispatch_reserved"));
     SendMessageW(window, WM_CLOSE, Some(WPARAM(0)), Some(LPARAM(0)));
     assert!(!IsWindow(Some(window)).as_bool());
@@ -72,7 +109,7 @@ pub(super) unsafe fn exercise(
     );
     SendMessageW(viewer, WM_SYSCOMMAND, Some(WPARAM(OPEN)), Some(LPARAM(0)));
     let (reopened, reedit) = app.remote_sessions.test_viewer_observation(key).unwrap();
-    assert!(text(reedit).contains("值：{\"progress\":9}"));
+    assert!(text(reedit).contains(&value_text(9)));
     app.authorization.borrow_mut().request = Some(Request::Cancel);
     app.process_authorization_with_projection(|origin| fixture::config(origin, root));
     spin(app, root, |app| app.remote_sessions.viewers().is_empty());

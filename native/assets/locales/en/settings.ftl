@@ -1,0 +1,15 @@
+tray-language = Language
+tray-tooltip = Otter · Click to restore
+tray-exit = Exit
+tray-capture = Capture
+tray-live-capture = Live capture…
+tray-long-capture = Scrolling capture
+tray-open-image = Edit an existing image…
+tray-receive = Receive projection
+tray-autostart = Start with Windows
+tray-autostart-other = Start with Windows (another Otter installation)
+tray-autostart-unavailable = Start with Windows (unavailable)
+tray-autostart-failed = Could not update startup settings. The entry may have changed or access was denied. Reopen the tray menu to check.
+display-language-save-failed = Display language was not changed. Settings could not be saved.
+display-language-save-warning = Display language was saved, but an old recovery file could not be removed.
+tool-panel-title = Otter · Tools (Ctrl+E / F4)

@@ -24,9 +24,12 @@ pub(super) struct Views {
     press: RefCell<Option<input::Press>>,
     regions: RefCell<Vec<crate::surface_clip::Rect>>,
     size: Cell<[f32; 2]>,
+    language: Cell<crate::ui_text::DisplayLanguage>,
 }
 #[path = "extension_visual_input.rs"]
 mod input;
+#[path = "extension_visual_locale.rs"]
+mod locale;
 pub(super) use input::Outcome;
 pub(super) struct Bound {
     source: Source,
@@ -34,21 +37,10 @@ pub(super) struct Bound {
 }
 impl Views {
     pub(super) fn prepare(visuals: Vec<Visual>, unit_size: [f32; 2]) -> Result<Self> {
+        let language = crate::ui_text::current_language();
         let mut items = Vec::new();
         for visual in visuals {
-            let bytes = serde_json::to_vec(&visual.scene)
-                .map_err(|_| windows::core::Error::new(E_INVALIDARG, "Invalid extension scene"))?;
-            let scene = crate::surface_scene::Scene::parse(&bytes)
-                .map_err(|_| windows::core::Error::new(E_INVALIDARG, "Invalid extension scene"))?;
-            let bounds = visual.bounds.resolve(unit_size);
-            let size = [bounds[2].max(1.), bounds[3].max(1.)];
-            let mut presentation = Presentation::new(
-                scene,
-                crate::surface_viewport::style(),
-                crate::surface_viewport::context(size),
-                size,
-            )?;
-            presentation.embed_controls()?;
+            let presentation = locale::prepare(&visual, unit_size, language)?;
             items.push((visual, RefCell::new(presentation)));
         }
         let mut views = Self {
@@ -58,6 +50,7 @@ impl Views {
             press: RefCell::new(None),
             regions: RefCell::new(Vec::new()),
             size: Cell::new(unit_size),
+            language: Cell::new(language),
         };
         *views.regions.get_mut() = views.build_regions();
         Ok(views)

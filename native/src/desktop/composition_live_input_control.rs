@@ -1,5 +1,28 @@
 //! Window input-control state: queue admission, pause/revocation, and synchronous hover eligibility; no source-thread hook ownership.
 use super::*;
+/// Project control state into its system-menu command without changing input intent.
+pub(super) unsafe fn menu_status(hwnd: HWND, state: &State, enabled: bool, pending: bool) {
+    let (allowed, failed, desired) = {
+        let input = state.input.borrow();
+        (input.allowed && !input.remote, input.failed, input.desired)
+    };
+    let label = windows::core::HSTRING::from(if enabled || (desired && !pending && !failed) {
+        crate::ui_text::text("integration-stop-source-control")
+    } else if pending {
+        crate::ui_text::text("integration-source-control-pending")
+    } else if failed {
+        crate::ui_text::text("integration-source-control-failed")
+    } else {
+        crate::ui_text::text("integration-control-source")
+    });
+    let _ = ModifyMenuW(
+        GetSystemMenu(hwnd, false),
+        TOGGLE as u32,
+        MF_BYCOMMAND | MF_STRING | if allowed { MF_ENABLED } else { MF_GRAYED },
+        TOGGLE,
+        &label,
+    );
+}
 impl Control {
     pub(in super::super) fn source_input_allowed(&self) -> bool {
         self.allowed

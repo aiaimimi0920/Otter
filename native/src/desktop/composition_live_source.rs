@@ -14,16 +14,23 @@ impl Session {
         &self,
     ) -> Result<crate::live_window_target::Target, String> {
         if !self.is_alive() {
-            return Err("Live 源已关闭".into());
+            return Err(crate::ui_text::text("integration-live-source-closed").into());
         }
         // Cropped windows share only visible imagery, never implicitly exposing controls outside the selected region.
         if self.input_crop.is_some() {
-            return Err("窗口选区不共享整窗观察".into());
+            return Err(crate::ui_text::text("integration-window-region-no-observation").into());
         }
-        let target = self.target.as_ref().ok_or("此来源不是窗口")?;
+        let target = self
+            .target
+            .as_ref()
+            .ok_or(crate::ui_text::text("integration-source-not-window"))?;
         target.validate().map_err(|e| e.to_string())?;
-        crate::live_window_target::input_security::preflight(target)
-            .map_err(|e| format!("窗口观察不可用：{e:?}"))?;
+        crate::live_window_target::input_security::preflight(target).map_err(|e| {
+            crate::ui_text::format(
+                "integration-window-observation-unavailable",
+                &[("error", format!("{e:?}").into())],
+            )
+        })?;
         Ok(target.clone())
     }
     pub(in crate::desktop) fn take_publication_request(
@@ -43,12 +50,12 @@ impl Session {
         &self,
     ) -> Result<(Publication, Consumer<Texture>), String> {
         if !self.is_alive() {
-            return Err("Live 源已关闭".into());
+            return Err(crate::ui_text::text("integration-live-source-closed").into());
         }
         let frame = self
             .snapshot_frame()
             .map_err(|e| e.to_string())?
-            .ok_or("Live 尚无可发布帧")?;
+            .ok_or(crate::ui_text::text("integration-live-no-frame"))?;
         let window = self
             .target
             .as_ref()
@@ -65,11 +72,18 @@ impl Session {
             [frame.resource.width, frame.resource.height],
             window,
         )
-        .map_err(|e| format!("发布来源无效：{e:?}"))?;
-        let consumer = self
-            .job
-            .subscribe()
-            .map_err(|e| format!("Live 订阅失败：{e:?}"))?;
+        .map_err(|e| {
+            crate::ui_text::format(
+                "integration-publication-source-invalid",
+                &[("error", format!("{e:?}").into())],
+            )
+        })?;
+        let consumer = self.job.subscribe().map_err(|e| {
+            crate::ui_text::format(
+                "integration-live-subscription-failed",
+                &[("error", format!("{e:?}").into())],
+            )
+        })?;
         Ok((publication, consumer))
     }
 }

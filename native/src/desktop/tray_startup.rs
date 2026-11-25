@@ -4,10 +4,19 @@ use crate::autostart::{self, Status};
 pub(super) const COMMAND: usize = 0x106a;
 fn presentation(status: Option<Status>) -> (MENU_ITEM_FLAGS, &'static str) {
     match status {
-        Some(Status::Enabled) => (MF_STRING | MF_CHECKED, "自启动"),
-        Some(Status::Disabled) => (MF_STRING, "自启动"),
-        Some(Status::OtherInstallation) => (MF_STRING | MF_GRAYED, "自启动（其他 Otter 安装）"),
-        None => (MF_STRING | MF_GRAYED, "自启动（读取失败）"),
+        Some(Status::Enabled) => (
+            MF_STRING | MF_CHECKED,
+            crate::ui_text::text("tray-autostart"),
+        ),
+        Some(Status::Disabled) => (MF_STRING, crate::ui_text::text("tray-autostart")),
+        Some(Status::OtherInstallation) => (
+            MF_STRING | MF_GRAYED,
+            crate::ui_text::text("tray-autostart-other"),
+        ),
+        None => (
+            MF_STRING | MF_GRAYED,
+            crate::ui_text::text("tray-autostart-unavailable"),
+        ),
     }
 }
 pub(super) unsafe fn append(menu: HMENU) -> Result<Option<Status>> {
@@ -49,7 +58,7 @@ pub(super) unsafe fn execute(hwnd: HWND, state: &State, snapshot: Option<Status>
         };
         MessageBoxW(
             Some(hwnd),
-            w!("无法更新自启动设置。启动项可能已变化或当前用户权限不足，请重新打开托盘菜单检查。"),
+            &windows::core::HSTRING::from(crate::ui_text::text("tray-autostart-failed")),
             w!("Otter"),
             MB_OK | MB_ICONERROR,
         );

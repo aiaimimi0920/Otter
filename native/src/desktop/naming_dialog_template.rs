@@ -1,4 +1,5 @@
 //! Win32 dialog layout in dialog units/system fonts; controls participate in keyboard navigation in field order.
+use crate::ui_text::text as tr;
 use windows::Win32::UI::WindowsAndMessaging::*;
 pub(super) fn template() -> Vec<u32> {
     fn string(data: &mut Vec<u16>, text: &str) {
@@ -15,27 +16,58 @@ pub(super) fn template() -> Vec<u32> {
     );
     dword(&mut data, 0);
     data.extend([11, 0, 0, 360, 182, 0, 0]);
-    string(&mut data, "文件命名设置");
+    string(&mut data, tr("naming-title"));
     data.push(9);
     string(&mut data, "Microsoft YaHei UI");
     let edit = WS_BORDER.0 | WS_TABSTOP.0 | ES_AUTOHSCROLL as u32;
     for (id, class, style, x, y, width, height, text) in [
-        (201, 0x82, 0, 10, 12, 90, 14, "PNG 保存模板"),
+        (201, 0x82, 0, 10, 12, 90, 14, tr("naming-save-template")),
         (101, 0x81, edit, 104, 10, 246, 16, ""),
-        (202, 0x82, 0, 10, 36, 90, 14, "拖出文件模板"),
+        (202, 0x82, 0, 10, 36, 90, 14, tr("naming-drag-template")),
         (102, 0x81, edit, 104, 34, 246, 16, ""),
-        (203, 0x82, 0, 10, 60, 90, 14, "剪贴板文件模板"),
+        (
+            203,
+            0x82,
+            0,
+            10,
+            60,
+            90,
+            14,
+            tr("naming-clipboard-template"),
+        ),
         (103, 0x81, edit, 104, 58, 246, 16, ""),
-        (204, 0x82, 0, 10, 84, 90, 14, "标题最大长度"),
+        (204, 0x82, 0, 10, 84, 90, 14, tr("naming-title-length")),
         (104, 0x81, edit, 104, 82, 246, 16, ""),
-        (105, 0x82, 0, 10, 106, 340, 42, "占位符：{app} {kind} {label} {title} {process} {unitId} {shortId} {width} {height} {date} {time} {timestamp}"),
-        (IDOK.0 as u16, 0x80, WS_TABSTOP.0 | BS_DEFPUSHBUTTON as u32, 230, 156, 55, 18, "确定"),
-        (IDCANCEL.0 as u16, 0x80, WS_TABSTOP.0, 295, 156, 55, 18, "取消"),
+        (105, 0x82, 0, 10, 106, 340, 42, tr("naming-placeholders")),
+        (
+            IDOK.0 as u16,
+            0x80,
+            WS_TABSTOP.0 | BS_DEFPUSHBUTTON as u32,
+            230,
+            156,
+            55,
+            18,
+            tr("common-ok"),
+        ),
+        (
+            IDCANCEL.0 as u16,
+            0x80,
+            WS_TABSTOP.0,
+            295,
+            156,
+            55,
+            18,
+            tr("common-cancel"),
+        ),
     ] {
-        if data.len() % 2 != 0 { data.push(0); }
-        dword(&mut data, WS_CHILD.0 | WS_VISIBLE.0 | style); dword(&mut data, 0);
+        if data.len() % 2 != 0 {
+            data.push(0);
+        }
+        dword(&mut data, WS_CHILD.0 | WS_VISIBLE.0 | style);
+        dword(&mut data, 0);
         data.extend([x, y, width, height, id, 0xffff, class]);
-        string(&mut data, text); data.push(0);
+        string(&mut data, text);
+        data.push(0);
     }
     if data.len() % 2 != 0 {
         data.push(0);

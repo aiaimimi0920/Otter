@@ -116,7 +116,7 @@ fn shader_modes_reject_connected_images_before_worker_and_preserve_old_request_a
             let state = &app.documents[0].state;
             assert_eq!(
                 state.preparation_error.borrow().as_deref(),
-                Some("无法捕获执行参数")
+                Some(crate::ui_text::text("app-execution-parameters-capture"))
             );
             assert!(state.pending_start.borrow().is_none());
             assert!(state.pending_preparation.borrow().is_none());

@@ -10,6 +10,7 @@ impl Application {
             || self.open_after_save.is_some()
             || self.naming_import_job.is_some()
             || self.naming_save_job.is_some()
+            || self.locale_blocks_exit()
             || self.naming_autosave_blocks_exit()
             || self.automatic_save_pending()
             || self.checkpoint_exit_waiting()

@@ -35,14 +35,28 @@ pub(in crate::desktop) unsafe fn items(
             policy::append_menu(menu.0, &view)?;
             projection::append_menu(menu.0, &view)?;
             AppendMenuW(menu.0, MF_SEPARATOR, 0, None)?;
-            append_actions(menu.0, &view, &[(DISCOVER, "刷新 Live 投射")])?;
+            append_actions(
+                menu.0,
+                &view,
+                &[(
+                    DISCOVER,
+                    crate::ui_text::text("integration-refresh-live-projections"),
+                )],
+            )?;
             live::append_direct(menu.0, &view)?;
             live::append_stops(menu.0, &view)?;
         }
         Section::Flow => {
             editing::append_menu(menu.0, state, &view)?;
             if GetMenuItemCount(Some(menu.0)) == 0 {
-                AppendMenuW(menu.0, MF_STRING | MF_GRAYED, 0, w!("未建立协作"))?;
+                AppendMenuW(
+                    menu.0,
+                    MF_STRING | MF_GRAYED,
+                    0,
+                    &windows::core::HSTRING::from(crate::ui_text::text(
+                        "integration-collaboration-not-established",
+                    )),
+                )?;
             }
         }
     }

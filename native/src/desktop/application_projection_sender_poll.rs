@@ -46,10 +46,15 @@ impl Application {
             };
             let reason = match result {
                 Err(Job::Http(Http::ProjectionTargetOffline)) => {
-                    "目标已离线；待对方重新连接后可重试原邀请，或取消".to_owned()
+                    crate::ui_text::text("app-projection-target-offline").to_owned()
                 }
-                Err(Job::Http(Http::ProjectionBusy)) => "Loom 正忙；可重试原邀请或取消".to_owned(),
-                Err(error) => format!("发送未完成：{error:?}；可重试原邀请或取消"),
+                Err(Job::Http(Http::ProjectionBusy)) => {
+                    crate::ui_text::text("app-projection-send-loom-busy").to_owned()
+                }
+                Err(error) => crate::ui_text::format(
+                    "app-projection-send-incomplete",
+                    &[("error", format!("{error:?}").into())],
+                ),
                 Ok(_) => unreachable!("retry requires a failed send"),
             };
             self.sender_status(&reason);
@@ -99,9 +104,9 @@ impl Application {
             if let Some(request) = request {
                 self.projection_sender.cleanup.enqueue(request, false);
             }
-            self.sender_status("发送未完成；正在保留并清理原投送意图");
+            self.sender_status(crate::ui_text::text("app-projection-send-cleaning"));
         } else {
-            self.sender_status("邀请已创建，正在保存发送关联…");
+            self.sender_status(crate::ui_text::text("app-projection-invitation-saving"));
         }
     }
     pub(in crate::desktop) unsafe fn poll_projection_sender(
@@ -138,7 +143,9 @@ impl Application {
                     if let Some(request) = pending.request {
                         self.projection_sender.cleanup.enqueue(request, false);
                     }
-                    self.sender_status("发送已停止；未结意图保留");
+                    self.sender_status(crate::ui_text::text(
+                        "app-projection-send-stopped-unsettled",
+                    ));
                 } else {
                     self.projection_sender.phase = Phase::Waiting(pending);
                 }
@@ -149,15 +156,17 @@ impl Application {
                         batch.committed(&saved);
                     }
                     self.sender_status(if saved.updated {
-                        "投送关联与当前版本已保存"
+                        crate::ui_text::text("app-projection-binding-version-saved")
                     } else if saved.expected.linked() {
-                        "发送关联已保存；接收端已接收"
+                        crate::ui_text::text("app-projection-sender-received")
                     } else {
-                        "邀请已发送，等待接收回执"
+                        crate::ui_text::text("app-projection-invitation-awaiting")
                     });
                 } else if !self.sender_saved_current(&saved) {
                     self.cancel_sender_saved(saved);
-                    self.sender_status("发送已停止；未结意图保留");
+                    self.sender_status(crate::ui_text::text(
+                        "app-projection-send-stopped-unsettled",
+                    ));
                 } else {
                     self.projection_sender.phase = Phase::Checkpoint(saved);
                 }
@@ -171,7 +180,9 @@ impl Application {
                     if let Some(request) = pending.request {
                         self.projection_sender.cleanup.enqueue(request, false);
                     }
-                    self.sender_status("发送已停止；未结意图保留");
+                    self.sender_status(crate::ui_text::text(
+                        "app-projection-send-stopped-unsettled",
+                    ));
                 }
             }
             Phase::Idle => {}

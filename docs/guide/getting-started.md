@@ -4,10 +4,14 @@
 
 ## Setup
 
-- This guide uses English control names for reference; translating documentation does not change the application's current interface language.
+- This guide uses English control names. Right-click the tray icon and choose **Language / 语言 → English / 简体中文** to change Otter's display language; no capability package is required.
 - Windows 10 or 11. Extract the entire internal ZIP, run `otter-native.exe` and keep `otter_live_hover_hook.dll` in the same directory. Internal ZIPs are unsigned development packages, not public releases or installers; older public downloads have their own instructions.
 - Capture, pins and annotations work without Loom. OCR, translation and Art require current Loom, installed capabilities and authorization.
 - Workspace and settings default to `%LOCALAPPDATA%/OtterNative`, separate from historical releases. Use an absolute `OTTER_NATIVE_PROFILE_DIR` for an isolated test profile; do not overwrite a running profile or copy device credentials.
+
+The selection is saved and applied without restarting after active modal operations finish.
+Loom's Otter Connection settings can send the same change to one connected device.
+This is separate from OCR translation and Loom's own language. See [display language](../features/DISPLAY_LANGUAGE.md).
 
 ## 1. Capture and pin
 

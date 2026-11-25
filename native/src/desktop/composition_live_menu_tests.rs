@@ -37,11 +37,17 @@ fn default_control_survives_suspend_but_menu_can_explicitly_stop_it() {
         assert_eq!(window.take_input_request(), Some(true));
         window.input_status(true, false, None);
         show_with(window.hwnd, &window.state, |_| {
-            assert_eq!(label(window.hwnd), "停止控制源窗口");
+            assert_eq!(
+                label(window.hwnd),
+                crate::ui_text::text("integration-stop-source-control")
+            );
             input::TOGGLE
         });
         assert_eq!(window.take_input_request(), Some(false));
-        assert_eq!(label(window.hwnd), "控制源窗口");
+        assert_eq!(
+            label(window.hwnd),
+            crate::ui_text::text("integration-control-source")
+        );
         show_with(window.hwnd, &window.state, |_| input::TOGGLE);
         assert_eq!(window.take_input_request(), Some(true));
         window.input_status(false, true, None);
@@ -191,12 +197,21 @@ fn live_frameless_alt_delete_uses_recycle_close_and_failure_notice_is_deduplicat
         let (_source, window) = window();
         window.allow_input().unwrap();
         window.input_status(false, true, None);
-        assert!(label(window.hwnd).contains("启用中"));
+        assert_eq!(
+            label(window.hwnd),
+            crate::ui_text::text("integration-source-control-pending")
+        );
         window.input_status(true, false, None);
-        assert_eq!(label(window.hwnd), "停止控制源窗口");
+        assert_eq!(
+            label(window.hwnd),
+            crate::ui_text::text("integration-stop-source-control")
+        );
         window.input_status(false, false, None);
         window.input_failure();
-        assert!(label(window.hwnd).contains("上次失败"));
+        assert_eq!(
+            label(window.hwnd),
+            crate::ui_text::text("integration-source-control-failed")
+        );
         assert!(window.take_input_notice());
         for _ in 0..2 {
             window.input_status(false, false, None);
@@ -204,7 +219,7 @@ fn live_frameless_alt_delete_uses_recycle_close_and_failure_notice_is_deduplicat
             let length = GetWindowTextW(window.hwnd, &mut title) as usize;
             assert_eq!(
                 String::from_utf16_lossy(&title[..length]),
-                "Otter Live · 控制不可用"
+                crate::ui_text::text("integration-live-control-unavailable")
             );
             assert!(!window.take_input_notice());
         }

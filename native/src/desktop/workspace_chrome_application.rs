@@ -88,6 +88,11 @@ impl Application {
             || geometry_changed
             || auxiliary_changed
             || resume_capture
+            || self
+                .chrome
+                .windows
+                .as_ref()
+                .is_some_and(window::Windows::language_changed)
             || !IsWindowVisible(self.chrome.ui.drawing.get()).as_bool()
         {
             if let Err(error) = self
@@ -132,7 +137,10 @@ impl Application {
             let _guard = desktop::file_dialog::Guard::begin(&flag);
             MessageBoxW(
                 Some(hwnd),
-                &HSTRING::from(format!("工作区外框或端口暂不可用，文档保留。\n{error}")),
+                &HSTRING::from(crate::ui_text::format(
+                    "workspace-chrome-unavailable",
+                    &[("error", error.to_string().into())],
+                )),
                 w!("Otter"),
                 MB_OK | MB_ICONWARNING,
             );

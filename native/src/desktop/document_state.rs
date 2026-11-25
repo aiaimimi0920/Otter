@@ -132,6 +132,7 @@ impl State {
             naming_save_requested: Cell::new(false),
             naming_update_requested: Cell::new(false),
             naming_autosave: Default::default(),
+            display_language_request: Default::default(),
             open_session_assets_requested: Cell::new(false),
             exit_requested: std::rc::Rc::new(Cell::new(false)),
             session_end: Default::default(),

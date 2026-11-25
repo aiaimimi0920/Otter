@@ -33,6 +33,13 @@ pub(super) unsafe fn create(hwnd: HWND, state: &State) -> Result<()> {
     Ok(())
 }
 pub(super) unsafe fn update(hwnd: HWND, state: &State) -> Result<()> {
+    labels(state, state.language.get())?;
+    geometry(hwnd, state, true, None)
+}
+pub(super) unsafe fn labels(
+    state: &State,
+    language: crate::ui_text::DisplayLanguage,
+) -> Result<()> {
     // HWND messages may reenter the parent. Keep an owned snapshot, not a live RefCell borrow.
     let data = state.data.borrow().clone();
     let children = state.children.borrow().clone();
@@ -44,23 +51,29 @@ pub(super) unsafe fn update(hwnd: HWND, state: &State) -> Result<()> {
                 .get(index)
                 .map(|entry| HSTRING::from(&entry.hex)),
             1 => data.screenshots.get(index).map(|entry| {
-                HSTRING::from(format!(
-                    "截图 {} · {}×{}",
-                    index + 1,
-                    entry.width,
-                    entry.height
+                HSTRING::from(crate::ui_text::format_for(
+                    language,
+                    "capture-history-image",
+                    &[
+                        ("index", (index + 1).into()),
+                        ("width", entry.width.into()),
+                        ("height", entry.height.into()),
+                    ],
                 ))
             }),
-            _ => data
-                .screenshots
-                .get(index)
-                .map(|_| HSTRING::from(format!("删除截图 {}", index + 1))),
+            _ => data.screenshots.get(index).map(|_| {
+                HSTRING::from(crate::ui_text::format_for(
+                    language,
+                    "capture-history-delete",
+                    &[("index", (index + 1).into())],
+                ))
+            }),
         };
         if let Some(label) = label {
             SetWindowTextW(child, &label)?;
         }
     }
-    geometry(hwnd, state, true, None)
+    Ok(())
 }
 
 pub(super) unsafe fn resize(hwnd: HWND, state: &State) -> Result<()> {

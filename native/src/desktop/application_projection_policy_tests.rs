@@ -64,7 +64,10 @@ fn receive_policy_conflict_failure_never_grants_or_overwrites_competitor() {
     owner.request(Policy::Auto, &mut consent, Arc::new(|| {}));
     settle(&mut owner, &mut consent);
     assert_eq!(consent.policy(), Policy::Confirm);
-    assert_eq!(consent.status, "保存接收策略失败");
+    assert_eq!(
+        consent.status,
+        crate::ui_text::text("app-projection-policy-save-failed")
+    );
     assert!(!consent.matches(&old));
     assert_eq!(std::fs::read(path(&root)).unwrap(), b"competing bytes");
     assert_eq!(std::fs::read_dir(&root).unwrap().count(), 1);

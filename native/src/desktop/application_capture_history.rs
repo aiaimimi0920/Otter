@@ -54,7 +54,10 @@ impl Application {
                             }
                             Err(error) => {
                                 self.capture_history.view.borrow_mut().status =
-                                    Some(format!("无法打开历史：{error}"))
+                                    Some(crate::ui_text::format(
+                                        "app-history-open-failed",
+                                        &[("error", error.to_string().into())],
+                                    ))
                             }
                         }
                     }
@@ -64,14 +67,18 @@ impl Application {
         let action = self.capture_history.view.borrow_mut().action.take();
         if let Some((origin, action)) = action {
             if let Err(error) = self.apply_history(&origin, action, visible) {
-                self.capture_history.view.borrow_mut().status =
-                    Some(format!("历史操作未完成：{error}"));
+                self.capture_history.view.borrow_mut().status = Some(crate::ui_text::format(
+                    "app-history-operation-incomplete",
+                    &[("error", error.to_string().into())],
+                ));
             }
         }
         if let Some(window) = &mut self.history_window {
             if let Err(error) = window.update() {
-                self.capture_history.view.borrow_mut().status =
-                    Some(format!("历史界面未更新：{error}"));
+                self.capture_history.view.borrow_mut().status = Some(crate::ui_text::format(
+                    "app-history-view-not-updated",
+                    &[("error", error.to_string().into())],
+                ));
                 self.history_window.take();
             }
         }
@@ -90,7 +97,9 @@ impl Application {
             |hwnd| {
                 MessageBoxW(
                     Some(hwnd),
-                    w!("确定要删除这条截图记录吗？"),
+                    &windows::core::HSTRING::from(crate::ui_text::text(
+                        "app-history-delete-confirmation",
+                    )),
                     w!("Otter"),
                     MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2,
                 ) == IDYES
@@ -154,7 +163,10 @@ impl Application {
                     });
                     self.add_prepared(vec![prepared], visible)?;
                 } else {
-                    return Err(Error::new(E_FAIL, "截图预览不可用；原历史记录保留"));
+                    return Err(Error::new(
+                        E_FAIL,
+                        crate::ui_text::text("app-history-preview-unavailable"),
+                    ));
                 }
             }
             Action::Delete(id) => {

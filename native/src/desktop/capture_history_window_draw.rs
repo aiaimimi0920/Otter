@@ -48,7 +48,11 @@ pub(super) unsafe fn item(state: &State, item: &DRAWITEMSTRUCT) {
                     None,
                 )
             }),
-            300..=323 => Some(("删除".into(), None, None)),
+            300..=323 => Some((
+                crate::ui_text::text_for(state.language.get(), "common-delete").into(),
+                None,
+                None,
+            )),
             _ => None,
         }
         .unwrap_or_default()
@@ -117,9 +121,9 @@ pub(super) unsafe fn paint(hwnd: HWND, state: &State) {
                 ..rect
             },
             if empty_colors {
-                "取色历史 · 暂无记录"
+                crate::ui_text::text_for(state.language.get(), "capture-history-colors-empty")
             } else {
-                "取色历史"
+                crate::ui_text::text_for(state.language.get(), "capture-history-colors")
             },
             0xeff8f7,
         );
@@ -131,9 +135,9 @@ pub(super) unsafe fn paint(hwnd: HWND, state: &State) {
                 ..rect
             },
             if empty_shots {
-                "截图历史 · 暂无记录"
+                crate::ui_text::text_for(state.language.get(), "capture-history-images-empty")
             } else {
-                "截图历史"
+                crate::ui_text::text_for(state.language.get(), "capture-history-images")
             },
             0xeff8f7,
         );

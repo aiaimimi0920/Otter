@@ -54,6 +54,8 @@ impl Application {
             parameter_file_job: None,
             naming_import_job: None,
             naming_save_job: None,
+            locale: locale::Owner::with_local(initial.state.display_language_request.clone()),
+            locale_remote: Default::default(),
             naming_document: Default::default(),
             art_issuers: Default::default(),
             naming_source: None,

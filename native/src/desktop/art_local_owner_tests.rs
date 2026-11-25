@@ -76,7 +76,7 @@ fn reset_revokes_pending_description_and_discards_old_workspace_completion() {
         owner
             .poll(&[], &mut Workspace::default(), &[], false)
             .as_deref(),
-        Some("Art 已停止")
+        Some(crate::ui_text::text("integration-art-stopped"))
     );
     assert!(owner
         .poll(&[], &mut Workspace::default(), &[], false)

@@ -91,7 +91,7 @@ fn receive_policy_without_native_profile_cannot_grant_auto_or_change_other_setti
         assert_eq!(app.authorization.borrow().consent.policy(), Policy::Confirm);
         assert_eq!(
             app.authorization.borrow().consent.status,
-            "保存接收策略失败"
+            crate::ui_text::text("app-projection-policy-save-failed")
         );
         assert!(std::sync::Arc::ptr_eq(&source, &app.naming_document));
         app.shutdown();
@@ -126,8 +126,16 @@ fn receive_policy_pause_menu_is_shared_without_service_and_blocks_inbox_not_cons
                 paused
             );
             for (item, label, selected) in [
-                (policy::PAUSE, "暂停", paused),
-                (policy::CONFIRM, "接收", !paused),
+                (
+                    policy::PAUSE,
+                    crate::ui_text::text("integration-pause"),
+                    paused,
+                ),
+                (
+                    policy::CONFIRM,
+                    crate::ui_text::text("integration-receive"),
+                    !paused,
+                ),
             ] {
                 let flags = GetMenuState(menu, item as u32, MF_BYCOMMAND);
                 assert_eq!(flags & MF_CHECKED.0 != 0, selected);

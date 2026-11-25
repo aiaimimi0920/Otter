@@ -118,7 +118,7 @@ fn com_tree_names_geometry_identity_and_invoke_follow_snapshot_lifetime() {
             root.GetPropertyValue(UIA_NamePropertyId)
                 .unwrap()
                 .to_string(),
-            "Otter 菜单"
+            crate::ui_text::text("native-menu-title")
         );
         let mut unsupported = ptr::dangling_mut();
         assert_eq!(
@@ -204,7 +204,7 @@ fn fragment_point_and_siblings_return_only_current_matching_rows() {
         );
         assert_eq!(
             name(hit.ElementProviderFromPoint(213.0, 58.0).unwrap()),
-            "Otter 菜单"
+            crate::ui_text::text("native-menu-title")
         );
         assert!(hit.ElementProviderFromPoint(f64::NAN, 58.0).is_err());
         fixture.owner.replace_fresh(&[row(2), row(3)]);

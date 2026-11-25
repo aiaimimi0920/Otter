@@ -1,6 +1,14 @@
 //! Real admission/command dispatch on hidden HWNDs; inject only final selection callbacks, without desktop reads/system hotkey registration.
 use super::*;
+use crate::ui_text::{self, DisplayLanguage};
 use std::{cell::Cell, rc::Rc};
+struct LanguageReset(DisplayLanguage);
+impl Drop for LanguageReset {
+    fn drop(&mut self) {
+        ui_text::set_language(self.0);
+    }
+}
+
 unsafe fn window() -> crate::desktop::Window {
     crate::desktop::Window(
         CreateWindowExW(
@@ -102,33 +110,60 @@ fn live_selection_rejects_missing_registration_modal_disabled_closed_and_borrowe
 }
 #[test]
 fn menu_reports_each_independent_secondary_degradation_on_every_document() {
+    let _language = LanguageReset(ui_text::current_language());
     let owner = State::new(None, false).unwrap();
     let mut other = State::new(None, false).unwrap();
     other.hotkey_enabled = owner.hotkey_enabled.clone();
     other.live_hotkey_enabled = owner.live_hotkey_enabled.clone();
     other.long_hotkey_enabled = owner.long_hotkey_enabled.clone();
-    for mask in 0..4 {
-        update(&owner, true, |key, _| {
-            if (key == Key::Live && mask & 1 != 0) || (key == Key::Long && mask & 2 != 0) {
-                Err(windows::core::Error::new(E_FAIL, "occupied"))
-            } else {
-                Ok(())
-            }
-        })
-        .unwrap();
-        assert_eq!(label(&owner), label(&other));
-        let expected = match mask {
-            0 => None,
-            1 => Some("Ctrl+2 不可用"),
-            2 => Some("Ctrl+3 不可用"),
-            _ => Some("Ctrl+2 / Ctrl+3 不可用"),
-        };
-        assert_eq!(label(&other).contains("不可用"), expected.is_some());
-        if let Some(expected) = expected {
-            assert!(label(&other).contains(expected));
+    for (language, normal, prefix, suffix) in [
+        (
+            DisplayLanguage::English,
+            "Global capture / Live / scrolling capture",
+            "Global capture (",
+            " unavailable)",
+        ),
+        (
+            DisplayLanguage::SimplifiedChinese,
+            "全局截图 / Live / 长截图录制",
+            "全局截图快捷键（",
+            " 不可用）",
+        ),
+    ] {
+        ui_text::set_language(language);
+        let normal = format!("{normal}\tCtrl+1 / Ctrl+2 / Ctrl+3");
+        for (mask, missing) in [
+            None,
+            Some("Ctrl+2"),
+            Some("Ctrl+3"),
+            Some("Ctrl+2 / Ctrl+3"),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            update(&owner, true, |key, _| {
+                if (key == Key::Live && mask & 1 != 0) || (key == Key::Long && mask & 2 != 0) {
+                    Err(windows::core::Error::new(E_FAIL, "occupied"))
+                } else {
+                    Ok(())
+                }
+            })
+            .unwrap();
+            // Fluent isolates the shortcut argument; assert full text instead of stripping it.
+            let expected = missing.map_or_else(
+                || normal.clone(),
+                |shortcuts| {
+                    format!("{prefix}\u{2068}{shortcuts}\u{2069}{suffix}\tCtrl+1 / Ctrl+2 / Ctrl+3")
+                },
+            );
+            assert_eq!(label(&owner), expected, "{language:?}, mask {mask}");
+            assert_eq!(label(&other), expected, "{language:?}, mask {mask}");
+            update(&other, false, |_, _| panic!("non-owner release")).unwrap();
+            assert_eq!(label(&owner), expected);
+            assert_eq!(label(&other), expected);
+            update(&owner, false, |_, _| Ok(())).unwrap();
+            assert_eq!(label(&owner), normal);
+            assert_eq!(label(&other), normal);
         }
-        update(&other, false, |_, _| panic!("non-owner release")).unwrap();
-        assert_eq!(label(&owner), label(&other));
-        update(&owner, false, |_, _| Ok(())).unwrap();
     }
 }

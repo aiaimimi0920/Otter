@@ -220,7 +220,7 @@ fn cancel_still_sends_once_when_frozen_after_prepare() {
         assert!(listener.accept().is_err());
     });
     Views::new(&client, &lease).dispatch_state(state, None, &f.shared, &f.job, true);
-    assert_eq!(f.shared.lock().actions.notice, "Art操作被拒绝"); // The original Queue classifies Cancelled ACKs as rejected terminal states.
+    assert_eq!(f.shared.lock().actions.notice, "tile-art-action-rejected"); // The original Queue classifies Cancelled ACKs as rejected terminal states.
     assert_eq!(
         f.shared.lock().actions.test_dispatch.as_ref().unwrap()["stage"],
         "http_ack"
@@ -251,7 +251,7 @@ fn lost_http_after_commit_never_returns_to_pending_or_retries() {
         &f.job,
         false,
     );
-    assert_eq!(f.shared.lock().actions.notice, "Art操作未确认；未重放");
+    assert_eq!(f.shared.lock().actions.notice, "tile-art-action-unknown");
     views.dispatch_state(
         f.state.clone(),
         Some(f.art.clone()),

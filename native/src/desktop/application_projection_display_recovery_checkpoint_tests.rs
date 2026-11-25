@@ -45,7 +45,7 @@ fn projection_display_recovery_manual_save_requires_a_new_canonical_commit_befor
         joined(&mut fixture);
         assert_eq!(
             fixture.app.authorization.borrow().projection.status,
-            "投送已呈现"
+            crate::ui_text::text("app-projection-presented")
         );
     }
 }
@@ -137,7 +137,7 @@ fn projection_display_recovery_reporting_rechecks_other_saved_document_changes()
         assert_eq!(fixture.journal(), journal);
         assert_ne!(
             fixture.app.authorization.borrow().projection.status,
-            "投送已呈现"
+            crate::ui_text::text("app-projection-presented")
         );
         assert!(!fixture.app.projection_cleanup.pending_local());
     }

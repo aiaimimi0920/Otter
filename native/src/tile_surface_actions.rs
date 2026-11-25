@@ -49,6 +49,7 @@ pub(crate) struct Queue {
     held: Option<pending::Held>,
     pub states: BTreeMap<String, Arc<State>>,
     pub accepted: BTreeMap<String, Accepted>,
+    /// A locale resource ID or an unchanged machine diagnostic; resolve only at presentation.
     pub notice: &'static str,
     pub origin: String,
     pub device: String,
@@ -98,7 +99,7 @@ impl Queue {
         let replace = crate::tile_surface_edits::replace_tail(&self.pending, &commands);
         let (held_slots, held_bytes) = self.held_cost();
         if self.pending.len() + commands.len() + held_slots - usize::from(replace) > 32 {
-            self.notice = "Art操作队列已满";
+            self.notice = "tile-art-action-queue-full";
             return false;
         }
         // Charge conservatively per anchor, including each shared Arc, so accumulated old scenes/prompts/JSON stay within 8MiB.
@@ -116,7 +117,7 @@ impl Queue {
                 .map(|a| a.anchor.bytes())
                 .sum::<usize>();
         if bytes > 8 * 1024 * 1024 {
-            self.notice = "Art操作内存预算不足";
+            self.notice = "tile-art-action-memory";
             return false;
         }
         if commands.iter().any(|c| {
@@ -186,7 +187,7 @@ impl Queue {
             }
             self.pending
                 .retain(|c| c.anchor.view.instance_id != *instance);
-            self.notice = "Art操作失败";
+            self.notice = "tile-art-action-failed";
         }
         self.release_ready_edits(&state, now);
         self.accepted.retain(|event, a| {
@@ -257,11 +258,11 @@ impl Queue {
             }
         }
         self.notice = if rejected {
-            "Art操作被拒绝"
+            "tile-art-action-rejected"
         } else if ack.status() == Status::AwaitingConfirmation {
-            "Art操作等待确认（右键审阅）"
+            "tile-art-action-confirmation"
         } else {
-            "Art操作已受理"
+            "tile-art-action-accepted"
         };
         if let Kind::Event(event) = &command.kind {
             if !rejected && (ack.status() == Status::AwaitingConfirmation || command.edit.is_some())
@@ -278,7 +279,7 @@ impl Queue {
                     if let Some(edit) = &command.edit {
                         self.cancel_edit(edit);
                     }
-                    self.notice = "Art操作跟踪容量不足";
+                    self.notice = "tile-art-action-capacity";
                     return;
                 }
                 let event_id = event["eventId"].as_str().unwrap().to_owned();
@@ -325,7 +326,7 @@ impl Queue {
     }
     pub fn failed(&mut self, instance: &str) {
         self.discard(instance);
-        self.notice = "Art操作未确认；未重放";
+        self.notice = "tile-art-action-unknown";
     }
     fn discard(&mut self, instance: &str) {
         self.retire_dispatch(Some(instance), false);
@@ -361,7 +362,7 @@ impl Queue {
             .collect();
         for edit in expired {
             self.cancel_edit(&edit);
-            self.notice = "Art操作已过期";
+            self.notice = "tile-art-action-expired";
         }
         let ready: Vec<_> = self
             .pending
@@ -372,7 +373,7 @@ impl Queue {
         self.pending.retain(|_| {
             let alive = ready.next().unwrap();
             if !alive {
-                self.notice = "Art操作已过期";
+                self.notice = "tile-art-action-expired";
             }
             alive
         });

@@ -18,6 +18,29 @@ use crate::{
     surface_convergence::Snapshot, surface_event_runtime::Outcome as EventOutcome,
     surface_scene::Scene,
 };
+fn assert_high_risk_confirmation(text: &str) {
+    let expected = match ui_text::current_language() {
+        DisplayLanguage::English => concat!(
+            "Allow this remote action?\n\n",
+            "Service: \u{2068}https://localhost:1234\u{2069}\n",
+            "Action: \u{2068}run\u{2069}\n",
+            "Risk: \u{2068}High\u{2069}\n\n",
+            "Parameters provided by the remote service (untrusted data):\n",
+            "\u{2068}Not provided\u{2069}\n\n",
+            "Yes: approve. No: reject. Cancel: decide later.",
+        ),
+        DisplayLanguage::SimplifiedChinese => concat!(
+            "是否允许此远端操作？\n\n",
+            "服务：\u{2068}https://localhost:1234\u{2069}\n",
+            "操作：\u{2068}run\u{2069}\n",
+            "风险：\u{2068}高\u{2069}\n\n",
+            "远端提供的参数（不可信数据）：\n",
+            "\u{2068}未提供\u{2069}\n\n",
+            "是：批准；否：拒绝；取消：暂不决定。",
+        ),
+    };
+    assert_eq!(text, expected);
+}
 fn active_window(grant: &mut crate::device_authorization_lease::Grant) -> AuthorizedWindow {
     let lease = grant.lease("https://localhost:1234", 0).unwrap();
     let mut window = AuthorizedWindow::new(&outcome(), lease, 0, [200, 140]).unwrap();
@@ -266,6 +289,7 @@ fn collection_returns_unmatched_result_and_preserves_convergence_failure_receipt
 #[test]
 fn confirmation_receipt_requires_fresh_window_authorization_and_expiry_check() {
     let _com = Apartment::new();
+    let _language = LanguageReset(ui_text::current_language());
     let mut grant = grant();
     let mut window = active_window(&mut grant);
     let mut outcome = completed(&mut window);
@@ -301,11 +325,22 @@ fn confirmation_receipt_requires_fresh_window_authorization_and_expiry_check() {
     );
     assert!(window.confirmation_for(&receipt, 50).is_err());
     let choice = crate::surface_confirmation::Choice::Reject;
-    assert!(window
-        .prompt_decision_with(&mut receipt, || Ok(0), |_| Ok(None))
-        .unwrap()
-        .is_none());
-    assert!(receipt.confirmation.as_ref().unwrap().is_ok());
+    for language in DisplayLanguage::ALL {
+        ui_text::set_language(language);
+        assert!(window
+            .prompt_decision_with(
+                &mut receipt,
+                || Ok(0),
+                |text| {
+                    assert_high_risk_confirmation(text);
+                    Ok(None)
+                },
+            )
+            .unwrap()
+            .is_none());
+        assert!(receipt.confirmation.as_ref().unwrap().is_ok());
+        assert!(window.lifecycle().unwrap().confirmed_active());
+    }
     let mut times = [0, 50].into_iter();
     assert!(window
         .prompt_decision_with(
@@ -323,7 +358,7 @@ fn confirmation_receipt_requires_fresh_window_authorization_and_expiry_check() {
             &mut receipt,
             || Ok(0),
             |text| {
-                assert!(text.contains("风险：高"));
+                assert_high_risk_confirmation(text);
                 Ok(Some(choice))
             },
         )

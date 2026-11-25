@@ -55,7 +55,7 @@ fn receive_policy_reject_automatically_queries_and_rejects_over_original_tls_sin
                 view.busy,
                 view.projection.busy,
                 view.projection.entries.len(),
-                view.projection.status == "已拒绝投送",
+                view.projection.status == crate::ui_text::text("app-projection-rejected"),
             );
             if previous != Some(stage) {
                 eprintln!(
@@ -80,7 +80,9 @@ fn receive_policy_reject_automatically_queries_and_rejects_over_original_tls_sin
                 app.process_projection_automatic(&mut |origin| config(origin, files.root()), due);
                 advanced = true;
             }
-            if app.authorization.borrow().projection.status == "已拒绝投送" {
+            if app.authorization.borrow().projection.status
+                == crate::ui_text::text("app-projection-rejected")
+            {
                 break;
             }
             assert!(Instant::now() < end, "automatic rejection deadline");

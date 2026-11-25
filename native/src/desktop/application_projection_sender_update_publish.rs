@@ -61,9 +61,9 @@ impl Application {
             Instant::now(),
         );
         self.sender_status(if success {
-            "投送同步已核对；接收端呈现以回执为准"
+            crate::ui_text::text("app-projection-sync-checked")
         } else {
-            "投送同步暂缓，保留当前内容与关联"
+            crate::ui_text::text("app-projection-sync-binding-retained")
         });
     }
 }

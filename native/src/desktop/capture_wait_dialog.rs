@@ -5,7 +5,7 @@ use crate::{
 };
 use std::cell::{Cell, RefCell};
 use windows::{
-    core::w,
+    core::HSTRING,
     Win32::{
         Foundation::*,
         UI::{Input::KeyboardAndMouse::EnableWindow, WindowsAndMessaging::*},
@@ -151,7 +151,11 @@ unsafe fn cancel<T>(hwnd: HWND, input: &Input<T>, error: Option<&str>) {
     if let Some(job) = input.job.borrow().as_ref() {
         job.cancel();
     }
-    let _ = SetDlgItemTextW(hwnd, 103, w!("正在取消…"));
+    let _ = SetDlgItemTextW(
+        hwnd,
+        103,
+        &HSTRING::from(crate::ui_text::text("capture-cancelling")),
+    );
     if let Ok(button) = GetDlgItem(Some(hwnd), 2) {
         let _ = EnableWindow(button, false);
     }

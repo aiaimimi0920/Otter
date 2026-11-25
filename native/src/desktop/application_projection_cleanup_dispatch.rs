@@ -35,8 +35,10 @@ impl Application {
                 }
                 Err(error) => {
                     owner.fail_mark(now);
-                    self.authorization.borrow_mut().projection.status =
-                        format!("未结投送意图尚未保存：{error:?}");
+                    self.authorization.borrow_mut().projection.status = crate::ui_text::format(
+                        "app-projection-unsettled-unsaved",
+                        &[("error", format!("{error:?}").into())],
+                    );
                 }
             }
         }
@@ -129,7 +131,8 @@ impl Application {
             owner.wake = None;
             let mut view = self.authorization.borrow_mut();
             view.projection.busy = true;
-            view.projection.status = "正在清理未结投送…".into();
+            view.projection.status =
+                crate::ui_text::text("app-projection-unsettled-cleaning").into();
         } else {
             let due = owner.retry_network(ticket, now);
             owner.schedule(due);

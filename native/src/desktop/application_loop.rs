@@ -8,6 +8,7 @@ impl Application {
         startup: Option<desktop::SessionStartup>,
     ) -> Result<()> {
         self.enable_local_loom();
+        self.locale_remote.enable();
         let initial = &self.documents[0];
         desktop::global_capture::install(initial.window.0, &initial.state);
         self.ensure_tray();
@@ -140,7 +141,10 @@ impl Application {
                     if IsWindow(Some(source)).as_bool() {
                         MessageBoxW(
                             Some(source),
-                            &HSTRING::from(format!("无法切换 Ctrl+1 全局截图快捷键。\n{error}")),
+                            &HSTRING::from(crate::ui_text::format(
+                                "action-hotkey-failed",
+                                &[("error", error.to_string().into())],
+                            )),
                             w!("Otter"),
                             MB_OK | MB_ICONWARNING,
                         );
@@ -152,6 +156,7 @@ impl Application {
             self.pending_open_session();
             self.pending_naming_import();
             self.pending_naming_save();
+            self.process_display_language();
             self.sync_frozen_menu();
             if transfer
                 && !self

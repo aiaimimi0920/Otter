@@ -87,7 +87,7 @@ fn windows_uia_client_discovers_real_menu_and_queues_leaf_command() {
     assert_eq!(
         query(hwnd, read_and_invoke, || {}),
         (
-            "Otter 菜单".into(),
+            crate::ui_text::text("native-menu-title").into(),
             "命令 42".into(),
             UIA_MenuItemControlTypeId.0
         )

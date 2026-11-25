@@ -149,7 +149,8 @@ fn native_receiver_joint_two_loom_menu_display_update_reopen_and_terminal() {
         )
         .unwrap();
         until(&mut app, &f, |app| {
-            app.authorization.borrow().projection.status == "投送已呈现"
+            app.authorization.borrow().projection.status
+                == crate::ui_text::text("app-projection-presented")
         });
         assert_eq!(
             GetForegroundWindow(),

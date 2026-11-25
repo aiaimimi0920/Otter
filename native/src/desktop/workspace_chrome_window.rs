@@ -16,6 +16,7 @@ pub(super) struct Windows {
     ui: Rc<Ui>,
     drawing: HWND,
     inputs: Vec<strips::Strip>,
+    language: crate::ui_text::DisplayLanguage,
     _paint_session: draw::PaintSession,
 }
 impl Windows {
@@ -25,12 +26,13 @@ impl Windows {
             ui,
             drawing: HWND::default(),
             inputs: Vec::new(),
+            language: crate::ui_text::current_language(),
             _paint_session: draw::PaintSession::new()?,
         };
         let hwnd = CreateWindowExW(
             WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST | WS_EX_TRANSPARENT,
             CLASS,
-            w!("Otter · 工作区"),
+            &HSTRING::from(crate::ui_text::text("workspace-title")),
             WS_POPUP,
             0,
             0,
@@ -78,10 +80,51 @@ impl Windows {
             .iter()
             .map(|strip| (strip.hwnd, strip.endpoint, strip.side))
             .collect();
+        self.refresh_language()?;
         refresh(&self.ui)
     }
     pub unsafe fn refresh(&self) -> Result<()> {
         refresh(&self.ui)
+    }
+    pub fn language_changed(&self) -> bool {
+        self.language != crate::ui_text::current_language()
+    }
+    unsafe fn refresh_language(&mut self) -> Result<()> {
+        if !self.language_changed() {
+            return Ok(());
+        }
+        let titles = [
+            (vec![self.drawing], "workspace-title"),
+            (
+                self.inputs.iter().map(|strip| strip.hwnd).collect(),
+                "workspace-ports-title",
+            ),
+            (
+                self.ui
+                    .backings
+                    .borrow()
+                    .iter()
+                    .map(|backing| backing.hwnd)
+                    .collect(),
+                "workspace-parameter-backing-title",
+            ),
+            (
+                self.ui
+                    .borders
+                    .borrow()
+                    .iter()
+                    .map(|border| border.hwnd)
+                    .collect(),
+                "workspace-pin-border-title",
+            ),
+        ];
+        for (handles, id) in titles {
+            for hwnd in handles {
+                SetWindowTextW(hwnd, &HSTRING::from(crate::ui_text::text(id)))?;
+            }
+        }
+        self.language = crate::ui_text::current_language();
+        Ok(())
     }
 }
 impl Drop for Windows {
@@ -236,7 +279,7 @@ pub(super) unsafe fn refresh_drawing(ui: &Ui) -> Result<()> {
         hide(ui);
         return Err(Error::new(
             E_OUTOFMEMORY,
-            "工作区叠层超过显示像素预算，文档保留",
+            crate::ui_text::text("workspace-pixel-budget"),
         ));
     }
     let drawing = ui.drawing.get();

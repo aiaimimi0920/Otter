@@ -9,6 +9,7 @@ impl Application {
         crate::desktop::device_authorization_ui::share::shutdown(&self.authorization);
         self.capture_history.shutdown();
         self.local_loom.shutdown();
+        self.locale_remote.shutdown();
         // Do not wait for network or driver cleanup in individual-window WM_CLOSE callbacks.
         self.execution_wake.close();
         self.extension_commands.shutdown();

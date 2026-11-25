@@ -1,6 +1,7 @@
 //! LAN invitations reuse send bindings and receive journals; links contain only signed invitations, never session credentials.
 use super::*;
 use crate::projection_delivery::{sender::binding::Binding, share};
+use crate::ui_text::text as tr;
 use windows::Win32::UI::HiDpi::GetDpiForWindow;
 impl Model {
     pub(super) fn lan_binding(&self) -> Option<Binding> {
@@ -23,7 +24,7 @@ impl Model {
             .ok_or_else(|| Error::new(E_ABORT, "Share closed"))?;
         let mut view = view.borrow_mut();
         if view.closed || super::busy(&view) || view.origin.as_deref() != Some(&self.origin) {
-            return Err(Error::new(E_ABORT, "投射正在处理"));
+            return Err(Error::new(E_ABORT, tr("share-busy")));
         }
         view.request = Some(request);
         if let Err(error) = PostMessageW(None, WM_NULL, WPARAM(0), LPARAM(0)) {
@@ -46,7 +47,7 @@ impl Model {
         };
         // A pending unlink still owns the canonical association.
         if binding.stopped() {
-            return Err(Error::new(E_ABORT, "关联暂不可操作"));
+            return Err(Error::new(E_ABORT, tr("share-unavailable")));
         }
         let view = self
             .view
@@ -57,7 +58,7 @@ impl Model {
             .sender
             .stop_source
             .clone()
-            .ok_or_else(|| Error::new(E_ABORT, "投射来源不可用"))?;
+            .ok_or_else(|| Error::new(E_ABORT, tr("share-source-unavailable")))?;
         self.queue_lan(Request::StopProjectionSend(Box::new(
             super::super::sender::StopSelection { binding, source },
         )))
@@ -95,7 +96,7 @@ impl Model {
             .envelope
             .borrow()
             .clone()
-            .ok_or_else(|| Error::new(E_INVALIDARG, "无效的局域网邀请"))?;
+            .ok_or_else(|| Error::new(E_INVALIDARG, tr("share-lan-invalid")))?;
         self.queue_lan(Request::Projection(
             super::super::projection::Request::Import(Arc::new(share::Import {
                 envelope,
@@ -104,7 +105,7 @@ impl Model {
             })),
         ))?;
         self.account_import.set(true);
-        self.set_status("正在导入…");
+        self.set_status(tr("share-importing"));
         Ok(())
     }
     pub(super) unsafe fn refresh_lan(&self) {
@@ -136,12 +137,12 @@ impl Model {
         }
         let binding = (!self.receive).then(|| self.lan_binding()).flatten();
         let (label, enabled) = match binding.as_ref() {
-            Some(binding) if binding.stopped() => ("关联暂不可操作", false),
-            Some(_) => ("解除关联", true),
-            None => ("生成邀请", true),
+            Some(binding) if binding.stopped() => ("share-unavailable", false),
+            Some(_) => ("share-unlink", true),
+            None => ("share-generate", true),
         };
         window::enable(hwnd, 108, enabled && !self.account_import.get());
-        window::label(hwnd, 108, label);
+        window::label(self, 108, label);
         if self.receive {
             if self.account_import.get() {
                 self.set_status(&status);
@@ -159,17 +160,17 @@ impl Model {
                 || binding.envelope().expires_at_ms()
                     <= crate::desktop::surface_windows::now_ms().unwrap_or(u64::MAX)
             {
-                self.set_status("邀请已停止或过期");
+                self.set_status(tr("share-invitation-expired"));
                 window::output(hwnd, self, false);
             } else if self.envelope.borrow().as_ref() != Some(binding.envelope())
                 || self.link.borrow().is_empty()
             {
                 let Some(loom_id) = view.borrow().loom_id.clone() else {
-                    self.set_status("Loom 身份尚未就绪");
+                    self.set_status(tr("share-loom-not-ready"));
                     return;
                 };
                 match share::encode(binding.envelope(), &loom_id)
-                    .map_err(|_| "邀请编码失败".to_owned())
+                    .map_err(|_| tr("share-encode-failed").to_owned())
                     .and_then(|link| {
                         *self.code.borrow_mut() = Some(qr::encode_bytes(link.as_bytes())?);
                         *self.link.borrow_mut() = link;
@@ -185,7 +186,7 @@ impl Model {
             }
         } else {
             self.set_status(if status.is_empty() {
-                "正在生成邀请…"
+                tr("share-generating")
             } else {
                 &status
             });
@@ -201,7 +202,7 @@ impl Model {
             return Ok(());
         }
         if self.account_import.get() {
-            return Err(Error::new(E_ABORT, "正在导入…"));
+            return Err(Error::new(E_ABORT, tr("share-importing")));
         }
         self.public.set(public);
         self.envelope.borrow_mut().take();

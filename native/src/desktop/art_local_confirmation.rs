@@ -1,5 +1,6 @@
 //! Nonmodal trusted confirmation: the window procedure only records the choice; the original Window transfers approval after revalidating the host.
 use crate::live_relay_http::art_prepare::service::confirmation::Ticket;
+use crate::ui_text::{self, DisplayLanguage};
 use std::{cell::Cell, sync::Arc};
 use windows::{
     core::HSTRING,
@@ -21,6 +22,7 @@ struct State {
 pub(super) struct Prompt {
     hwnd: HWND,
     state: Box<State>,
+    language: Cell<Option<DisplayLanguage>>,
 }
 impl Prompt {
     pub fn new(owner: HWND, ticket: Arc<Ticket>) -> windows::core::Result<Self> {
@@ -36,7 +38,8 @@ impl Prompt {
             choice: Cell::new(None),
             failed: Cell::new(false),
         });
-        let template = template(&state.ticket.images);
+        let language = ui_text::current_language();
+        let template = template(&state.ticket.images, language);
         // The Box address is stable; release State only after DestroyWindow returns synchronously. The procedure does not borrow Application/Document.
         let hwnd = unsafe {
             CreateDialogIndirectParamW(
@@ -47,7 +50,11 @@ impl Prompt {
                 LPARAM(&*state as *const State as isize),
             )?
         };
-        let prompt = Self { hwnd, state };
+        let prompt = Self {
+            hwnd,
+            state,
+            language: Cell::new(Some(language)),
+        };
         if prompt.state.failed.get() {
             return Err(windows::core::Error::from_win32());
         }
@@ -66,6 +73,40 @@ impl Prompt {
     }
     pub fn resolve(&self, approve: bool) {
         self.state.ticket.resolve(approve);
+    }
+    pub(super) fn refresh_language(&self) -> windows::core::Result<()> {
+        let language = ui_text::current_language();
+        if self.language.get() == Some(language) {
+            return Ok(());
+        }
+        let hwnd = self
+            .handle()
+            .ok_or_else(|| windows::core::Error::new(E_HANDLE, "Local Art prompt closed"))?;
+        // A partial update stays dirty even if the next request returns to the old language.
+        // Only host-owned labels change; the ticket, choice, timer, and controls keep identity.
+        self.language.set(None);
+        for (control, key) in [
+            (None, "integration-art-confirm-title"),
+            (Some(1), "integration-allow-once"),
+            (Some(2), "integration-reject"),
+        ] {
+            let label = HSTRING::from(ui_text::text_for(language, key));
+            unsafe {
+                match control {
+                    Some(id) => SetDlgItemTextW(hwnd, id, &label),
+                    None => SetWindowTextW(hwnd, &label),
+                }?;
+            }
+            // Every synchronous text message may retire the original HWND through reentry.
+            if self.handle() != Some(hwnd) {
+                return Err(windows::core::Error::new(
+                    E_HANDLE,
+                    "Local Art prompt closed",
+                ));
+            }
+        }
+        self.language.set(Some(language));
+        Ok(())
     }
     pub(super) fn handle(&self) -> Option<HWND> {
         // Closing the owner may synchronously destroy the child dialog; never message a reused HWND or call DestroyWindow again.
@@ -184,6 +225,7 @@ unsafe extern "system" fn procedure(hwnd: HWND, message: u32, wp: WPARAM, lp: LP
 }
 fn template(
     images: &[crate::live_relay_http::art_prepare::service::confirmation::Preview],
+    language: DisplayLanguage,
 ) -> Vec<u32> {
     fn text(data: &mut Vec<u16>, value: &str) {
         data.extend(value.encode_utf16());
@@ -200,7 +242,10 @@ fn template(
     word(&mut data, 0);
     let buttons_y = if images.is_empty() { 210 } else { 280 };
     data.extend([3 + 2 * images.len() as u16, 0, 0, 360, buttons_y + 30, 0, 0]);
-    text(&mut data, "Otter · Art 服务确认");
+    text(
+        &mut data,
+        ui_text::text_for(language, "integration-art-confirm-title"),
+    );
     data.push(9);
     text(&mut data, "Microsoft YaHei UI");
     let mut controls = vec![
@@ -219,7 +264,16 @@ fn template(
             190,
             "",
         ),
-        (1, 0x80, WS_TABSTOP.0, 220, buttons_y, 65, 20, "允许本次"),
+        (
+            1,
+            0x80,
+            WS_TABSTOP.0,
+            220,
+            buttons_y,
+            65,
+            20,
+            ui_text::text_for(language, "integration-allow-once"),
+        ),
         (
             2,
             0x80,
@@ -228,7 +282,7 @@ fn template(
             buttons_y,
             60,
             20,
-            "拒绝",
+            ui_text::text_for(language, "integration-reject"),
         ),
     ];
     for (index, image) in images.iter().enumerate() {
@@ -262,6 +316,10 @@ fn template(
         .map(|value| u32::from(value[0]) | u32::from(value[1]) << 16)
         .collect()
 }
+
+#[cfg(test)]
+#[path = "art_local_confirmation_language_tests.rs"]
+mod language_tests;
 
 #[cfg(test)]
 mod tests {

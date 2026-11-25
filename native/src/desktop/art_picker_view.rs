@@ -183,11 +183,11 @@ unsafe fn draw(item: &DRAWITEMSTRUCT, ui: &Ui<'_>) {
                     "{}{}",
                     art.label,
                     if !art.enabled {
-                        " · 已禁用"
+                        crate::ui_text::text("art-picker-disabled")
                     } else if !allowed && ui.context.origin.is_none() {
-                        " · 需选择 Loom 服务"
+                        crate::ui_text::text("art-picker-service-required")
                     } else if !allowed {
-                        " · 不可用"
+                        crate::ui_text::text("art-picker-unavailable")
                     } else {
                         ""
                     }

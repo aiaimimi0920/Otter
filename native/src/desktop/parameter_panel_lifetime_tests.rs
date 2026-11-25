@@ -106,7 +106,7 @@ fn initial_native_panel_title_is_preserved_before_show() {
         let length = GetWindowTextW(f.panel.handle(), &mut title) as usize;
         assert_eq!(
             String::from_utf16_lossy(&title[..length]),
-            "Otter · 参数（Tab）"
+            crate::ui_text::text("parameter-panel-title")
         );
         assert!(!IsWindowVisible(f.panel.handle()).as_bool());
     }

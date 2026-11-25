@@ -13,6 +13,21 @@ use std::{
 pub(crate) mod admission;
 #[path = "tile_presentation_trace.rs"]
 pub(crate) mod diagnostics;
+/// Workers retain locale IDs, while protocol/decoder diagnostics remain verbatim.
+/// Resolve at the UI boundary so cached states follow the current display language.
+pub(crate) fn display_status(code: &'static str) -> &'static str {
+    display_status_for(crate::ui_text::current_language(), code)
+}
+fn display_status_for(
+    language: crate::ui_text::DisplayLanguage,
+    code: &'static str,
+) -> &'static str {
+    if code.starts_with("tile-") || code.starts_with("integration-") {
+        crate::ui_text::text_for(language, code)
+    } else {
+        code
+    }
+}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Key {
     pub endpoint: String,
@@ -20,6 +35,31 @@ pub(crate) struct Key {
     pub wall: String,
     pub revision: u64,
     pub clock: String,
+}
+
+#[cfg(test)]
+mod locale_tests {
+    use super::*;
+    use crate::ui_text::DisplayLanguage;
+
+    #[test]
+    fn retained_status_is_resolved_for_each_display_language() {
+        let state = State::default();
+        assert_eq!(state.status, "tile-wait-authorization");
+        assert_eq!(
+            display_status_for(DisplayLanguage::English, state.status),
+            "Waiting for device authorization"
+        );
+        assert_eq!(
+            display_status_for(DisplayLanguage::SimplifiedChinese, state.status),
+            "等待设备授权"
+        );
+        assert_eq!(
+            display_status_for(DisplayLanguage::English, "tile_surface_invalid"),
+            "tile_surface_invalid"
+        );
+        assert_eq!(display_status_for(DisplayLanguage::English, ""), "");
+    }
 }
 pub(crate) struct Frame {
     pub key: Key,
@@ -52,6 +92,7 @@ pub(crate) struct State {
     pub activate_at: u64,
     pub frozen: bool,
     pub black: bool,
+    /// Keep locale IDs rather than translated text so a language switch cannot stale the status.
     pub status: &'static str,
     pub black_revision: Option<u64>,
     pub black_confirmed: Option<u64>,
@@ -75,7 +116,7 @@ impl Default for State {
             activate_at: 0,
             frozen: false,
             black: true,
-            status: "等待设备授权",
+            status: "tile-wait-authorization",
             black_revision: None,
             black_confirmed: None,
             expired: false,
@@ -148,7 +189,7 @@ impl State {
             self.presented_frame = None;
             self.input_applied = None;
             self.black_confirmed = None;
-            self.status = "呈现授权已超时";
+            self.status = "tile-authorization-expired";
         }
     }
     pub fn visible(&self, now: Instant) -> bool {
@@ -171,7 +212,7 @@ impl Shared {
     pub fn stop(&self) {
         let mut s = self.lock();
         s.stopped = true;
-        s.clear("已停止");
+        s.clear("tile-stopped");
         self.wake.notify_all();
     }
     pub fn wait(&self, time: Duration) -> bool {
@@ -267,7 +308,7 @@ impl Shared {
                 arts: candidate.arts.clone(),
                 live_until: candidate.until,
             }));
-            s.status = "内容已准备";
+            s.status = "tile-content-ready";
             drop(s);
             drop(previous);
         }
@@ -297,7 +338,7 @@ impl Shared {
                 if s.presented.as_ref().is_none_or(|p| p.0 != frame.key) {
                     s.presented = Some((frame.key.clone(), time, error));
                 }
-                s.status = "已呈现";
+                s.status = "tile-presented";
                 Stage::Confirmed
             } else {
                 Stage::ClockUnavailable

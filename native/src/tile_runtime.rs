@@ -22,7 +22,9 @@ impl Runtime {
         output: TileOutput,
     ) -> std::io::Result<Self> {
         Self::spawn(lease, images, art, output, move |token| {
-            token.prepare_client(&config).map_err(|_| "连接准备失败")
+            token
+                .prepare_client(&config)
+                .map_err(|_| "tile-connection-prepare-failed")
         })
     }
     #[cfg(test)]
@@ -68,7 +70,7 @@ impl Runtime {
                     let client = prepare(&token)?;
                     let assets =
                         Assets::start(client.clone(), image_token, art_token, state.clone())
-                            .map_err(|_| "图片线程启动失败")?;
+                            .map_err(|_| "tile-image-thread-start-failed")?;
                     presenter::run(&client, &token, &state, &assets, output)
                 };
                 if let Err(reason) = run() {
@@ -97,7 +99,7 @@ impl Runtime {
         self.art.revoke();
     }
     pub fn status(&self) -> &'static str {
-        self.shared.lock().status
+        crate::tile_shared::display_status(self.shared.lock().status)
     }
     /// Output rebinding uses only the original Grant; server-revoked/expired owners cannot restart through geometry changes.
     pub(crate) fn authorization_valid(&self, origin: &str) -> bool {

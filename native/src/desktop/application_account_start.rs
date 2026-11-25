@@ -123,7 +123,7 @@ impl Application {
             participation: Some(participation),
         });
         self.authorization.borrow_mut().account.received = None;
-        self.account_status("正在处理账号投射…");
+        self.account_status(crate::ui_text::text("app-account-processing"));
         Ok(())
     }
 }

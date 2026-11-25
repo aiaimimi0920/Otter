@@ -103,7 +103,7 @@ fn malformed_successful_open_is_unknown_creation_and_cannot_be_implicitly_retrie
     let mut views = Views::new(&client, &lease);
     assert_eq!(
         views.poll(&["art".into()], &shared, &job, 0),
-        Err("Art视图校验失败")
+        Err("tile-art-view-invalid")
     );
     assert!(shared.lock().stopped);
     assert!(views.frames().is_empty());
@@ -207,7 +207,7 @@ fn each_poll_downloads_at_most_one_resource_and_width_only_mismatch_is_not_ignor
         // BTreeMap sorts by digest; single-dimension failure scenarios ensure the image with a width constraint is fetched first.
         if mismatch {
             let first = views.poll(&["art".into()], &shared, &job, 0);
-            assert_eq!(first, Err("Art图片尺寸不匹配"));
+            assert_eq!(first, Err("tile-art-image-dimensions"));
         } else {
             views.poll(&["art".into()], &shared, &job, 0).unwrap();
             assert!(views.frames().is_empty());

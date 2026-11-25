@@ -94,10 +94,7 @@ impl Application {
                 .is_some_and(|stamp| stamp.matches_automatic(self))
         {
             self.exit_requested.set(false);
-            notify(
-                self,
-                "场景自动保存不可用，当前内容仍保留。请另存工作区后重试退出。",
-            );
+            notify(self, crate::ui_text::text("app-exit-autosave-unavailable"));
             return false;
         }
         // Discard skips only the manual save-as file; the default scene's final checkpoint must still complete afterward.
@@ -129,6 +126,7 @@ impl Application {
             return false;
         }
         if self.naming_autosave_blocks_exit()
+            || self.locale_blocks_exit()
             || self.workspace_autosave_blocks_exit()
             || self.checkpoint_pending()
         {
@@ -174,7 +172,7 @@ impl Application {
             if !intent.matches(self) {
                 return Err(Error::new(
                     E_ABORT,
-                    "工作区有待完成操作；当前窗口保留，请完成后重试退出。",
+                    crate::ui_text::text("app-exit-operations-pending"),
                 ));
             }
             self.begin_checkpoint_exit(intent)
@@ -185,7 +183,10 @@ impl Application {
             Err(error) => {
                 notify(
                     self,
-                    &format!("无法完成退出检查点，当前工作区保留。\n{error}"),
+                    &crate::ui_text::format(
+                        "app-exit-checkpoint-failed",
+                        &[("error", error.to_string().into())],
+                    ),
                 );
                 false
             }

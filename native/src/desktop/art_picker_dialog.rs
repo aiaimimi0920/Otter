@@ -117,9 +117,9 @@ unsafe fn refresh(hwnd: HWND, ui: &Ui<'_>) {
                 continue;
             };
             let suffix = if !art.enabled {
-                " · 已禁用"
+                crate::ui_text::text("art-picker-disabled")
             } else if !(ui.context.allowed)(index) {
-                " · 需选择 Loom 服务"
+                crate::ui_text::text("art-picker-service-required")
             } else {
                 ""
             };
@@ -152,13 +152,13 @@ unsafe fn update(hwnd: HWND, ui: &Ui<'_>) {
         !text(GetDlgItem(Some(hwnd), SEARCH).unwrap_or_default()).is_empty(),
     );
     let status = if ui.context.loading {
-        "正在加载节点能力…"
+        crate::ui_text::text("art-picker-loading")
     } else if ui.context.failed {
-        "加载失败；可刷新重试"
+        crate::ui_text::text("art-picker-failed")
     } else if ui.context.catalog.is_none() {
-        "节点能力尚未加载"
+        crate::ui_text::text("art-picker-not-loaded")
     } else if selected(hwnd).is_none() {
-        "未找到 Art"
+        crate::ui_text::text("art-picker-empty")
     } else {
         ""
     };
@@ -220,7 +220,9 @@ unsafe fn dispatch(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> isize {
                 GetDlgItem(Some(hwnd), SEARCH)?,
                 EM_SETCUEBANNER,
                 Some(WPARAM(1)),
-                Some(LPARAM(w!("搜索 Art").as_ptr() as isize)),
+                Some(LPARAM(
+                    HSTRING::from(crate::ui_text::text("art-picker-search")).as_ptr() as isize,
+                )),
             );
             for id in [SEARCH, LIST, REFRESH, CLEAR, IDCANCEL.0] {
                 SetWindowSubclass(

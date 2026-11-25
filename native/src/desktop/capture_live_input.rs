@@ -69,7 +69,10 @@ unsafe fn start_with(hwnd: HWND, state: &State, window: bool) {
         if IsWindow(Some(hwnd)).as_bool() {
             MessageBoxW(
                 Some(hwnd),
-                &HSTRING::from(format!("无法开始 Live。\n{error}")),
+                &HSTRING::from(crate::ui_text::format(
+                    "capture-live-failed",
+                    &[("error", error.to_string().into())],
+                )),
                 w!("Otter"),
                 MB_OK | MB_ICONWARNING,
             );

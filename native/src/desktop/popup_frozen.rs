@@ -67,17 +67,20 @@ impl LibraryMenu {
                 .map(|index| (index, tree[index].enabled))
         });
         let mut roots = [0; 2];
-        for (library, (command, label)) in [(RECYCLE_ROOT, "回收站"), (REFERENCE_ROOT, "收藏夹")]
-            .into_iter()
-            .enumerate()
+        for (library, (command, label)) in [
+            (RECYCLE_ROOT, "library-recycle-bin"),
+            (REFERENCE_ROOT, "library-favorites"),
+        ]
+        .into_iter()
+        .enumerate()
         {
-            let mut parent = row(0, label.into(), true);
+            let mut parent = row(0, crate::ui_text::text(label).into(), true);
             parent.children = Some(vec![row(
                 0,
                 if source.is_some() {
-                    "展开后读取…"
+                    crate::ui_text::text("library-expand-to-load")
                 } else {
-                    "当前会话暂不可用"
+                    crate::ui_text::text("library-session-unavailable")
                 }
                 .into(),
                 false,
@@ -224,14 +227,19 @@ impl LibraryMenu {
     fn update_reference(&self, menu: &mut Cascade) -> Result<()> {
         use super::super::reference_ui::{CLEAR_RECYCLE, CLEAR_REFERENCE};
         for (library, (command, label)) in [
-            (CLEAR_RECYCLE, "清空回收站"),
-            (CLEAR_REFERENCE, "清空收藏夹"),
+            (CLEAR_RECYCLE, "library-empty-recycle-bin"),
+            (CLEAR_REFERENCE, "library-empty-favorites"),
         ]
         .into_iter()
         .enumerate()
         {
             if let Some((index, allowed)) = self.clear[library] {
-                menu.replace_action(index, command, label, allowed && !self.removing)?;
+                menu.replace_action(
+                    index,
+                    command,
+                    crate::ui_text::text(label),
+                    allowed && !self.removing,
+                )?;
             }
         }
         let Some((index, _, _)) = &self.reference else {
@@ -243,14 +251,18 @@ impl LibraryMenu {
     fn reference_action(&self) -> (usize, &'static str, bool) {
         use super::super::reference_ui::{REMOVE, SET};
         let Some((_, unit, allowed)) = &self.reference else {
-            return (SET, "收藏", false);
+            return (SET, crate::ui_text::text("library-add-favorite"), false);
         };
         let entries = self.entries(1);
         let referenced =
             entries.is_some_and(|entries| entries.iter().any(|entry| &entry.source_unit == unit));
         (
             if referenced { REMOVE } else { SET },
-            if referenced { "取消收藏" } else { "收藏" },
+            crate::ui_text::text(if referenced {
+                "library-remove-favorite"
+            } else {
+                "library-add-favorite"
+            }),
             *allowed && entries.is_some() && !self.removing,
         )
     }
@@ -260,16 +272,16 @@ impl LibraryMenu {
     fn rows(&self, library: usize) -> Vec<Item> {
         let Some(entries) = self.entries(library) else {
             let label = if self.source.is_none() {
-                "当前会话暂不可用"
+                crate::ui_text::text("library-session-unavailable")
             } else if self.data.is_some() {
-                "无法读取此库，原数据保留"
+                crate::ui_text::text("library-unavailable-data-preserved")
             } else {
-                "正在读取…"
+                crate::ui_text::text("library-loading")
             };
             return vec![row(0, label.into(), false)];
         };
         if entries.is_empty() {
-            return vec![row(0, "没有冻结贴纸".into(), false)];
+            return vec![row(0, crate::ui_text::text("library-empty").into(), false)];
         }
         let thumbnails: std::collections::HashMap<_, _> = self
             .previews
@@ -291,14 +303,18 @@ impl LibraryMenu {
                     row(
                         BASE + offset,
                         if library == 0 {
-                            "恢复贴纸"
+                            crate::ui_text::text("library-restore-pin")
                         } else {
-                            "复制贴纸"
+                            crate::ui_text::text("library-copy-pin")
                         }
                         .into(),
                         true,
                     ),
-                    row(REMOVE + offset, "删除此条".into(), true),
+                    row(
+                        REMOVE + offset,
+                        crate::ui_text::text("library-delete-entry").into(),
+                        true,
+                    ),
                 ]);
                 parent
             })

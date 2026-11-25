@@ -55,7 +55,7 @@ impl View {
     }
     pub fn capture(&mut self, id: String, image: Image) {
         if self.captures.len() >= 4 {
-            self.status = Some("历史记录繁忙，本次截图未加入历史".into());
+            self.status = Some(crate::ui_text::text("capture-history-busy").into());
             return;
         }
         self.captures.push_back(Capture {

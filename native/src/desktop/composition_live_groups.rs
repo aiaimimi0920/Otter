@@ -52,7 +52,7 @@ pub(super) unsafe fn install(hwnd: HWND) -> Result<HMENU> {
         GetSystemMenu(hwnd, false),
         MF_POPUP,
         menu.0 as usize,
-        w!("分组"),
+        &windows::core::HSTRING::from(crate::ui_text::text("integration-groups")),
     ) {
         let _ = DestroyMenu(menu);
         return Err(error);
@@ -158,7 +158,12 @@ impl LiveWindow {
             while GetMenuItemCount(Some(menu)) > 0 {
                 DeleteMenu(menu, 0, MF_BYPOSITION)?;
             }
-            AppendMenuW(menu, MF_STRING, CREATE, w!("创建分组…"))?;
+            AppendMenuW(
+                menu,
+                MF_STRING,
+                CREATE,
+                &windows::core::HSTRING::from(crate::ui_text::text("integration-create-group")),
+            )?;
             for (index, group) in view.groups.iter().enumerate() {
                 let label = windows::core::HSTRING::from(group.name.replace('&', "&&"));
                 AppendMenuW(
@@ -182,7 +187,9 @@ impl LiveWindow {
                         MF_GRAYED
                     },
                 LEAVE,
-                w!("移出当前分组"),
+                &windows::core::HSTRING::from(crate::ui_text::text(
+                    "integration-remove-from-group",
+                )),
             )?;
             AppendMenuW(
                 menu,
@@ -193,7 +200,7 @@ impl LiveWindow {
                         MF_GRAYED
                     },
                 RENAME,
-                w!("重命名当前分组…"),
+                &windows::core::HSTRING::from(crate::ui_text::text("integration-rename-group")),
             )?;
         }
         control.view = Some(view);

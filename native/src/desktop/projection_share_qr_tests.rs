@@ -48,7 +48,7 @@ fn qr_dense_export_and_account_json_or_link_roundtrip() {
             );
             assert_eq!(
                 decode(path, &AtomicBool::new(true)),
-                Err("二维码识别已取消")
+                Err(crate::ui_text::text("share-qr-cancelled"))
             );
         }
     }
@@ -57,7 +57,7 @@ fn qr_dense_export_and_account_json_or_link_roundtrip() {
     write_png(&encode_bytes(invalid.as_bytes()).unwrap(), 3, &path);
     assert_eq!(
         decode(path, &AtomicBool::new(false)),
-        Err("不是有效的投射邀请")
+        Err(crate::ui_text::text("share-invalid-invitation"))
     );
 }
 #[test]
@@ -76,6 +76,6 @@ fn qr_decoder_rejects_non_png_oversize_and_invalid_dimension_before_decode() {
     std::fs::write(&path, header).unwrap();
     assert_eq!(
         decode(path, &AtomicBool::new(false)),
-        Err("二维码图片边长不能超过 4096")
+        Err(crate::ui_text::text("share-qr-dimensions"))
     );
 }

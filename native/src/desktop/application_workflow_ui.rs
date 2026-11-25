@@ -31,8 +31,18 @@ pub(in crate::desktop) unsafe fn request(hwnd: HWND, state: &State, command: usi
     Ok(())
 }
 pub(in crate::desktop) unsafe fn append_menu(menu: HMENU) -> Result<()> {
-    AppendMenuW(menu, MF_STRING, ENABLE, w!("同步工作流（选择归档目录）…"))?;
-    AppendMenuW(menu, MF_STRING, DISABLE, w!("停止保存后自动同步"))
+    AppendMenuW(
+        menu,
+        MF_STRING,
+        ENABLE,
+        &windows::core::HSTRING::from(crate::ui_text::text("app-workflow-sync-enable")),
+    )?;
+    AppendMenuW(
+        menu,
+        MF_STRING,
+        DISABLE,
+        &windows::core::HSTRING::from(crate::ui_text::text("app-workflow-sync-disable")),
+    )
 }
 impl Application {
     pub(in crate::desktop::application) fn queue_saved_workflow(&mut self) {
@@ -88,7 +98,7 @@ impl Application {
                 }
                 notify(
                     hwnd,
-                    "已停止后续保存触发的同步。当前已启动的同步将继续完成。",
+                    crate::ui_text::text("app-workflow-sync-disabled"),
                     false,
                 );
             } else {
@@ -96,7 +106,10 @@ impl Application {
                     if self.save_status() != save_state::Status::Unchanged
                         || self.catalog.borrow().loaded.is_none()
                     {
-                        return Err(Error::new(E_ABORT, "请先保存工作区并连接 Loom 能力目录。"));
+                        return Err(Error::new(
+                            E_ABORT,
+                            crate::ui_text::text("app-workflow-sync-prerequisites"),
+                        ));
                     }
                     // The folder dialog pumps messages; its selection may authorize only the workspace and catalog identities captured before opening it.
                     let receipt = Receipt {
@@ -114,7 +127,7 @@ impl Application {
                     if !IsWindow(Some(hwnd)).as_bool() || !receipt.matches(self) {
                         return Err(Error::new(
                             E_ABORT,
-                            "选择目录期间工作区或 Loom 连接已变化，请重新发起同步。",
+                            crate::ui_text::text("app-workflow-sync-selection-changed"),
                         ));
                     }
                     let root = Arc::new(root);
@@ -128,7 +141,14 @@ impl Application {
                     Ok(())
                 })();
                 if let Err(error) = result {
-                    notify(hwnd, &format!("无法启动工作流同步。\n{error}"), true);
+                    notify(
+                        hwnd,
+                        &crate::ui_text::format(
+                            "app-workflow-start-failed",
+                            &[("error", error.to_string().into())],
+                        ),
+                        true,
+                    );
                 }
             }
         }
@@ -163,14 +183,20 @@ impl Application {
                 .and_then(|p| p.retained_recovery.as_ref());
             if interactive || !success || recovery.is_some() {
                 let mut message = if success {
-                    "工作流同步完成。".to_owned()
+                    crate::ui_text::text("app-workflow-sync-complete").to_owned()
                 } else {
-                    format!("工作流同步未完整完成，不会自动重试。\n{:?}", outcome.sync)
+                    crate::ui_text::format(
+                        "app-workflow-incomplete",
+                        &[("error", format!("{:?}", outcome.sync).into())],
+                    )
                 };
                 if let Some((path, error)) = recovery {
-                    message.push_str(&format!(
-                        "\n归档已保存，恢复文件尚未清理：{}\n{error}",
-                        path.display()
+                    message.push_str(&crate::ui_text::format(
+                        "app-workflow-archive-recovery-retained",
+                        &[
+                            ("path", path.display().to_string().into()),
+                            ("error", error.to_string().into()),
+                        ],
                     ));
                 }
                 if let Some(doc) = self.documents.first() {
@@ -203,7 +229,14 @@ impl Application {
                 let result = timestamp().and_then(|time| self.request_workflow_cycle(root, time));
                 if let Err(error) = result {
                     if let Some(doc) = self.documents.first() {
-                        notify(doc.window.0, &format!("保存后同步未启动。\n{error}"), true);
+                        notify(
+                            doc.window.0,
+                            &crate::ui_text::format(
+                                "app-workflow-after-save-failed",
+                                &[("error", error.to_string().into())],
+                            ),
+                            true,
+                        );
                     }
                 }
             }

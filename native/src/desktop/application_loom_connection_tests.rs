@@ -102,7 +102,9 @@ fn native_local_loom_bootstrap_and_sender() {
         }
         assert!(!prior.is_revoked());
         let until = Instant::now() + Duration::from_secs(10);
-        while app.authorization.borrow().projection.status != "投送收件箱：0 项" {
+        let empty_inbox =
+            crate::ui_text::format("app-projection-inbox-count", &[("count", 0.into())]);
+        while app.authorization.borrow().projection.status != empty_inbox {
             app.process_authorization();
             assert!(
                 Instant::now() < until,
@@ -197,15 +199,10 @@ fn native_local_loom_bootstrap_and_sender() {
             assert!(!again.local_loom.enabled());
             assert!(again.authorization_owner.token(&origin, now).is_none());
             let view = again.authorization.borrow();
-            if view.status == "Loom 已断开" {
+            if view.status == crate::ui_text::text("app-loom-disconnected") {
                 break;
             }
-            assert!(
-                !view.status.starts_with("本地已断开，Loom 离线确认失败：")
-                    && Instant::now() < until,
-                "{}",
-                view.status
-            );
+            assert!(Instant::now() < until, "{}", view.status);
             drop(view);
             std::thread::sleep(Duration::from_millis(2));
         }

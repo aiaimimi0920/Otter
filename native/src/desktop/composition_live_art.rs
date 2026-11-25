@@ -7,7 +7,7 @@ pub(super) unsafe fn install(hwnd: HWND) -> Result<()> {
         GetSystemMenu(hwnd, false),
         MF_STRING,
         ADD,
-        w!("添加 Art…\tShift+1"),
+        &windows::core::HSTRING::from(crate::ui_text::text("integration-add-art")),
     )
 }
 pub(super) unsafe fn handle(hwnd: HWND, state: &State, msg: u32, wp: WPARAM, lp: LPARAM) -> bool {

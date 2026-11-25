@@ -256,7 +256,10 @@ pub(super) unsafe fn poll(hwnd: HWND, state: &State) {
 unsafe fn report(hwnd: HWND, error: &str) {
     MessageBoxW(
         Some(hwnd),
-        &HSTRING::from(format!("栅格化未提交，原标注保留。\n{error}")),
+        &HSTRING::from(crate::ui_text::format(
+            "action-rasterize-failed",
+            &[("error", error.to_string().into())],
+        )),
         w!("Otter"),
         MB_OK | MB_ICONERROR,
     );
@@ -299,16 +302,21 @@ pub(super) unsafe fn append_menu(menu: HMENU, state: &State) -> windows::core::R
                 MF_GRAYED
             },
         SELECTED,
-        w!("栅格化选中标注"),
+        &HSTRING::from(crate::ui_text::text("action-rasterize-selection")),
     )?;
     AppendMenuW(
         menu,
         MF_STRING | if all && !busy { MF_ENABLED } else { MF_GRAYED },
         ALL,
-        w!("栅格化全部标注"),
+        &HSTRING::from(crate::ui_text::text("action-rasterize-all")),
     )?;
     if state.rasterize_job.borrow().is_some() {
-        AppendMenuW(menu, MF_STRING | MF_GRAYED, 0, w!("栅格化处理中…"))?;
+        AppendMenuW(
+            menu,
+            MF_STRING | MF_GRAYED,
+            0,
+            &HSTRING::from(crate::ui_text::text("action-rasterizing")),
+        )?;
     }
     Ok(())
 }

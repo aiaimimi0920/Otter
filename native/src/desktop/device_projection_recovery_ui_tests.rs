@@ -121,10 +121,8 @@ fn recovery_saved_label_requires_the_exact_candidate_not_an_equal_record_snapsho
         let state = State::new(None, false).unwrap();
         state.authorization.borrow_mut().origin = Some(ORIGIN.into());
         state.authorization.borrow_mut().projection.recovery.entries = vec![entry.clone()];
-        for (saved, prefix) in [
-            (replacement, "解除未结投送绑定："),
-            (entry, "解除已保存投送绑定："),
-        ] {
+        let id = entry.envelope().projection_id()[11..19].to_owned();
+        for (saved, saved_flag) in [(replacement, "no"), (entry, "yes")] {
             state.authorization.borrow_mut().projection.recovery.saved = vec![saved];
             let menu = CreatePopupMenu().unwrap();
             append_menu(menu, &state).unwrap();
@@ -135,9 +133,13 @@ fn recovery_saved_label_requires_the_exact_candidate_not_an_equal_record_snapsho
                 Some(&mut text),
                 MF_BYCOMMAND,
             );
-            assert!(String::from_utf16(&text[..count as usize])
-                .unwrap()
-                .starts_with(prefix));
+            assert_eq!(
+                String::from_utf16(&text[..count as usize]).unwrap(),
+                crate::ui_text::format(
+                    "integration-detach-delivery-label",
+                    &[("saved", saved_flag.into()), ("id", id.as_str().into())]
+                )
+            );
             DestroyMenu(menu).unwrap();
         }
         assert!(state.authorization.borrow().request.is_none());

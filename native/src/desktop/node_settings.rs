@@ -14,14 +14,21 @@ pub(super) enum Action {
     Relay,
 }
 pub(super) struct Field {
-    pub label: &'static str,
     pub checked: bool,
     pub action: Action,
+}
+pub(super) fn label_id(action: Action) -> &'static str {
+    match action {
+        Action::Endpoints => "node-show-collapsed-endpoints",
+        Action::Upstream => "node-run-on-upstream",
+        Action::Parameter => "node-run-on-parameter",
+        Action::Notify => "node-notify-downstream",
+        Action::Relay => "node-accept-upstream-edits",
+    }
 }
 pub(super) fn fields(state: &State) -> Vec<Field> {
     let settings = state.node_settings.get();
     let mut fields = vec![Field {
-        label: "收起时显示端点",
         checked: !settings.hide_collapsed_endpoints,
         action: Action::Endpoints,
     }];
@@ -30,17 +37,14 @@ pub(super) fn fields(state: &State) -> Vec<Field> {
         let config = selected.execution;
         fields.extend([
             Field {
-                label: "上游变化自动执行",
                 checked: config.accepts_upstream_notification(),
                 action: Action::Upstream,
             },
             Field {
-                label: "参数变化自动执行",
                 checked: config.param_driven,
                 action: Action::Parameter,
             },
             Field {
-                label: "通知下游",
                 checked: config.notify_downstream,
                 action: Action::Notify,
             },
@@ -48,12 +52,10 @@ pub(super) fn fields(state: &State) -> Vec<Field> {
     } else if !state.is_art() {
         fields.extend([
             Field {
-                label: "通知下游",
                 checked: settings.notify_downstream,
                 action: Action::Notify,
             },
             Field {
-                label: "接受上级贴图编辑传导",
                 checked: state.accept_upstream.get(),
                 action: Action::Relay,
             },

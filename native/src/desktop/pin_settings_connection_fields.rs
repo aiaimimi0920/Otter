@@ -1,5 +1,25 @@
 //! The original mainline compact inline layout; project only verifiable state, never fabricate missing Loom identity, group counts, or sharing capabilities.
 use super::*;
+// Translated captions and display-only policy values do not retire geometry drafts.
+// Command identity, structure, active state, eligibility, and owner snapshots still do.
+pub(super) fn same_commands(a: &[Vec<(Field, bool)>], b: &[Vec<(Field, bool)>]) -> bool {
+    a.len() == b.len()
+        && a.iter().zip(b).all(|(a, b)| {
+            a.len() == b.len()
+                && a.iter().zip(b).all(|((a, a_enabled), (b, b_enabled))| {
+                    a.id == b.id
+                        && a_enabled == b_enabled
+                        && match (&a.kind, &b.kind) {
+                            (Kind::Action { active: a, .. }, Kind::Action { active: b, .. }) => {
+                                a == b
+                            }
+                            (Kind::Label { .. }, Kind::Label { .. })
+                            | (Kind::Dropdown { .. }, Kind::Dropdown { .. }) => true,
+                            _ => a.kind == b.kind,
+                        }
+                })
+        })
+}
 fn icon(name: &str) -> neuro_mini_ui::Icon {
     neuro_mini_ui::Icon::svg(match name {
         "Loom" => include_str!("../../assets/edit-strip/SettingsLoom.svg"),
@@ -26,7 +46,7 @@ fn field(id: u16, label: &'static str, name: &str, kind: Kind, enabled: bool) ->
     (
         Field {
             id,
-            label,
+            label: crate::ui_text::text(label),
             icon: (!name.is_empty()).then(|| icon(name)),
             kind,
         },
@@ -71,12 +91,12 @@ pub(super) unsafe fn fields(state: &State, receive: bool) -> Result<Vec<Vec<(Fie
     let available = |id| item(&flow, id).is_some_and(|i| i.enabled);
     let mode = auth::editing::mode(state);
     let mut projection = vec![
-        action(SEND, "投射", "Send", "", 58, !receive, true),
-        action(RECEIVE, "被投射", "Receive", "", 58, receive, true),
-        label(FLOW, "数据流向", "Flow", "", 18),
+        action(SEND, "pin-send", "Send", "", 58, !receive, true),
+        action(RECEIVE, "pin-receive", "Receive", "", 58, receive, true),
+        label(FLOW, "pin-flow", "Flow", "", 18),
         action(
             ONE_WAY,
-            "单向数据",
+            "pin-one-way",
             if receive { "OneWayReceive" } else { "OneWay" },
             "",
             48,
@@ -85,7 +105,7 @@ pub(super) unsafe fn fields(state: &State, receive: bool) -> Result<Vec<Vec<(Fie
         ),
         action(
             TWO_WAY,
-            "双向数据",
+            "pin-two-way",
             "TwoWay",
             "",
             49,
@@ -101,19 +121,19 @@ pub(super) unsafe fn fields(state: &State, receive: bool) -> Result<Vec<Vec<(Fie
     if conflict {
         projection.push(action(
             225,
-            "保留本地",
+            "pin-keep-local",
             "",
-            "保留本地",
-            58,
+            crate::ui_text::text("pin-keep-local"),
+            96,
             false,
             available(auth::editing::KEEP_LOCAL),
         ));
         projection.push(action(
             226,
-            "采用远端",
+            "pin-use-remote",
             "",
-            "采用远端",
-            58,
+            crate::ui_text::text("pin-use-remote"),
+            96,
             false,
             available(auth::editing::USE_REMOTE),
         ));
@@ -125,9 +145,9 @@ pub(super) unsafe fn fields(state: &State, receive: bool) -> Result<Vec<Vec<(Fie
         };
         projection.push(action(
             224,
-            "重试",
+            "common-retry",
             "",
-            "重试",
+            crate::ui_text::text("common-retry"),
             116,
             false,
             available(command),
@@ -137,19 +157,31 @@ pub(super) unsafe fn fields(state: &State, receive: bool) -> Result<Vec<Vec<(Fie
         let policy = settings::items(Section::Policy, state)?;
         let view = state.authorization.borrow();
         let value = if view.consent.paused() {
-            "暂停"
+            crate::ui_text::text("pin-paused")
         } else {
             match view.consent.policy() {
-                crate::projection_receive_policy::Policy::Auto => "自动",
-                crate::projection_receive_policy::Policy::Confirm => "接收",
-                crate::projection_receive_policy::Policy::Reject => "拒绝",
+                crate::projection_receive_policy::Policy::Auto => {
+                    crate::ui_text::text("pin-policy-auto")
+                }
+                crate::projection_receive_policy::Policy::Confirm => {
+                    crate::ui_text::text("pin-policy-confirm")
+                }
+                crate::projection_receive_policy::Policy::Reject => {
+                    crate::ui_text::text("pin-policy-reject")
+                }
             }
         };
         projection.extend([
-            label(220, "接收策略", "", "接收策略", 48),
+            label(
+                220,
+                "pin-receive-policy",
+                "",
+                crate::ui_text::text("pin-receive-policy-short"),
+                48,
+            ),
             field(
                 POLICY,
-                "本机接收策略",
+                "pin-local-receive-policy",
                 "",
                 Kind::Dropdown {
                     value: value.into(),
@@ -162,14 +194,14 @@ pub(super) unsafe fn fields(state: &State, receive: bool) -> Result<Vec<Vec<(Fie
     projection.extend([
         label(
             221,
-            if receive { "导入" } else { "导出" },
+            if receive { "pin-import" } else { "pin-export" },
             if receive { "Import" } else { "Export" },
             "",
             18,
         ),
         action(
             222,
-            "二维码",
+            "pin-qr-code",
             "Qr",
             "",
             48,
@@ -178,7 +210,7 @@ pub(super) unsafe fn fields(state: &State, receive: bool) -> Result<Vec<Vec<(Fie
         ),
         action(
             223,
-            "链接",
+            "pin-link",
             "Link",
             "",
             49,
@@ -191,11 +223,19 @@ pub(super) unsafe fn fields(state: &State, receive: bool) -> Result<Vec<Vec<(Fie
         let id = ticket.as_ref().map_or("-", ReceiveSource::id);
         let menu = settings::items(Section::Receive, state)?;
         projection.extend([
-            label(219, "来源 ID", "Source", id, 61),
-            action(COPY, "复制来源 ID", "Copy", "", 27, false, ticket.is_some()),
+            label(219, "pin-source-id", "Source", id, 61),
+            action(
+                COPY,
+                "pin-copy-source-id",
+                "Copy",
+                "",
+                27,
+                false,
+                ticket.is_some(),
+            ),
             action(
                 UNLINK,
-                "退出投射（本地图片保留）",
+                "pin-leave-projection",
                 "Unlink",
                 "",
                 27,
@@ -214,10 +254,10 @@ pub(super) unsafe fn fields(state: &State, receive: bool) -> Result<Vec<Vec<(Fie
                 (count + 1, pending + usize::from(!b.linked()))
             });
         projection.extend([
-            label(219, "投射目标", "Send", "", 18),
+            label(219, "pin-projection-targets", "Send", "", 18),
             action(
                 DEVICES,
-                "设备",
+                "pin-devices",
                 "Devices",
                 &count.to_string(),
                 32,
@@ -226,7 +266,7 @@ pub(super) unsafe fn fields(state: &State, receive: bool) -> Result<Vec<Vec<(Fie
             ),
             action(
                 GROUPS,
-                "设备组",
+                "pin-device-groups",
                 "Groups",
                 &view
                     .targets
@@ -241,7 +281,7 @@ pub(super) unsafe fn fields(state: &State, receive: bool) -> Result<Vec<Vec<(Fie
             ),
             action(
                 218,
-                "用户",
+                "pin-users",
                 "Friends",
                 &view
                     .targets
@@ -256,29 +296,35 @@ pub(super) unsafe fn fields(state: &State, receive: bool) -> Result<Vec<Vec<(Fie
         ]);
         if count > 0 {
             let status = if pending == 0 {
-                format!("已接收 {count}")
+                crate::ui_text::format("pin-projection-received", &[("count", count.into())])
             } else {
-                format!("已接收 {} · 等待 {pending}", count - pending)
+                crate::ui_text::format(
+                    "pin-projection-pending",
+                    &[
+                        ("count", (count - pending).into()),
+                        ("pending", pending.into()),
+                    ],
+                )
             };
-            projection.push(label(229, "投射状态", "", &status, 116));
+            projection.push(label(229, "pin-projection-status", "", &status, 116));
         }
     }
     let view = state.authorization.borrow();
     if view.sender.retry.as_ref() == Some(&state.unit_id) {
         projection.push(action(
             227,
-            "重试投射",
+            "pin-retry-projection",
             "",
-            "重试",
+            crate::ui_text::text("common-retry"),
             58,
             false,
             view.request.is_none(),
         ));
         projection.push(action(
             228,
-            "取消投射",
+            "pin-cancel-projection",
             "",
-            "取消",
+            crate::ui_text::text("common-cancel"),
             58,
             false,
             view.sender.cancelable && view.request.is_none(),
@@ -287,16 +333,20 @@ pub(super) unsafe fn fields(state: &State, receive: bool) -> Result<Vec<Vec<(Fie
     let name = if view.connected {
         view.loom_name.as_str()
     } else {
-        "未连接"
+        crate::ui_text::text("pin-disconnected")
     };
     Ok(vec![
         vec![
-            label(217, "Loom", "Loom", name, 82),
+            label(217, "pin-loom", "Loom", name, 82),
             action(
                 LOOM,
-                "Loom 连接",
+                if view.connected {
+                    "pin-disconnect"
+                } else {
+                    "pin-connect"
+                },
+                if view.connected { "Unlink" } else { "Link" },
                 "",
-                if view.connected { "断开" } else { "连接" },
                 34,
                 false,
                 view.request.is_none(),

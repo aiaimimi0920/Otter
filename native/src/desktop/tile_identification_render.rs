@@ -42,14 +42,19 @@ pub(super) fn text(marker: &Marker, now: Instant) -> String {
         .saturating_duration_since(now)
         .as_millis()
         .div_ceil(1000);
-    format!(
-        "Otter · 物理显示输出\n\n{}\n{} × {} 像素\n\n设备：{}\n输出：{}\n\n{} 秒后关闭",
-        escaped(endpoint.display.as_ref().map_or("", |d| &d.name)),
-        endpoint.pixel_size.width,
-        endpoint.pixel_size.height,
-        escaped(&endpoint.device_id),
-        escaped(&endpoint.output_id),
-        seconds
+    crate::ui_text::format(
+        "integration-tile-identification",
+        &[
+            (
+                "name",
+                escaped(endpoint.display.as_ref().map_or("", |d| &d.name)).into(),
+            ),
+            ("width", endpoint.pixel_size.width.into()),
+            ("height", endpoint.pixel_size.height.into()),
+            ("device", escaped(&endpoint.device_id).into()),
+            ("output", escaped(&endpoint.output_id).into()),
+            ("seconds", seconds.to_string().into()),
+        ],
     )
 }
 impl Painter {
@@ -132,7 +137,9 @@ impl Painter {
             a: 1.,
         });
         target.DrawText(
-            &"关闭识别 · Escape".encode_utf16().collect::<Vec<_>>(),
+            &crate::ui_text::text("integration-close-identification")
+                .encode_utf16()
+                .collect::<Vec<_>>(),
             &self.format,
             &rect,
             &brush,

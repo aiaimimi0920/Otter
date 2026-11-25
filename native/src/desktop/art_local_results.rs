@@ -9,7 +9,10 @@ impl Owner {
     ) -> (Vec<UnitId>, Option<String>) {
         let mut changed = Vec::new();
         if changed.try_reserve(self.entries.len()).is_err() {
-            return (changed, Some("无法准备 Art 输出通知".into()));
+            return (
+                changed,
+                Some(crate::ui_text::text("integration-art-output-notification-failed").into()),
+            );
         }
         let mut error = None;
         for entry in &mut self.entries {
@@ -73,7 +76,7 @@ impl Owner {
                 entry.images.cancel();
                 self.tasks.cancel(unit);
                 let _ = window.stop();
-                error = Some("Art 正式输出未提交：目标节点或结果身份已变化".into());
+                error = Some(crate::ui_text::text("integration-art-output-uncommitted").into());
                 self.status_owner = None;
             }
         }

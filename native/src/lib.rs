@@ -84,6 +84,9 @@ pub mod loom_extension_session;
 pub mod loom_handshake_exchange;
 #[cfg(windows)]
 mod loom_local_connection;
+pub mod loom_locale_protocol;
+#[cfg(windows)]
+pub(crate) mod loom_locale_runtime;
 pub mod loom_media_target;
 pub mod loom_output_leases;
 #[cfg(windows)]
@@ -251,6 +254,7 @@ mod tile_surface_wire;
 mod tile_surface_worker;
 #[cfg(all(windows, test))]
 mod tile_tests;
+pub mod ui_text;
 pub mod unit_node_settings;
 #[cfg(all(test, windows))]
 mod runtime_worker_entries {

@@ -243,7 +243,7 @@ unsafe fn refresh_at(owner: HWND, state: &State) -> Result<()> {
         state,
         Availability::capture(state).map(Availability::presentation),
     );
-    let sections = sections
+    let sections: Vec<Vec<(Field, bool)>> = sections
         .into_iter()
         .map(|fields| {
             fields
@@ -263,9 +263,39 @@ unsafe fn refresh_at(owner: HWND, state: &State) -> Result<()> {
                 .collect()
         })
         .collect();
+    let captions = super::property_panel_captions::Captions::new(
+        sections.iter().flatten().map(|(field, _)| field),
+    );
     panel.update_sections(context, sections)?;
+    let toolbar = state.tool_panel.get();
+    let current = || {
+        state.lifetime.owns(owner)
+            && state.tool_panel.get() == toolbar
+            && neuro_mini_ui::owner(toolbar) == Some(owner)
+            && state.pin_settings.try_borrow().is_ok_and(|session| {
+                session.open
+                    && session.context == context
+                    && session
+                        .panel
+                        .as_ref()
+                        .is_some_and(|p| Rc::ptr_eq(p, &panel))
+            })
+    };
+    let Some(root) = panel.window() else {
+        return Ok(());
+    };
+    match captions.sync(root, owner, || current() && panel.window() == Some(root)) {
+        Ok(false) => return Ok(()),
+        Err(error) => eprintln!("native-pin-settings-captions: {error}"),
+        Ok(true) => {}
+    }
+    if !current() || panel.window() != Some(root) {
+        return Ok(());
+    }
     position::place(owner, &panel)?;
-    panel.show(true);
+    if current() && panel.window() == Some(root) {
+        panel.show(true);
+    }
     Ok(())
 }
 pub(super) unsafe fn execute(owner: HWND, state: &State, id: u16) -> Result<()> {

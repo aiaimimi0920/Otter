@@ -154,7 +154,7 @@ fn live_execution_no_frame_and_old_catalog_never_fake_input() {
         assert!(app.input_jobs.is_empty());
         assert_eq!(
             app.documents[0].state.preparation_error.borrow().as_deref(),
-            Some("Live 尚无可用画面")
+            Some(crate::ui_text::text("app-live-frame-unavailable"))
         );
         let target = app.documents[0].state.unit_id.clone();
         assert!(Application::image_inputs(

@@ -1,12 +1,14 @@
 //! Shared DIP layout for tool/action groups; actions start on the next full row, with dimensions derived from catalog count.
 use windows::Win32::Foundation::RECT;
 const COLUMNS: usize = 5;
+// Reserve space for both bundled languages; scrollbars retain access on small work areas.
+const COLUMN_WIDTH: usize = 148;
 fn px(value: usize, dpi: u32) -> i32 {
     ((value as u64 * dpi.max(96) as u64 + 48) / 96).min(i32::MAX as u64) as i32
 }
 pub(super) fn client(tools: usize, actions: usize, dpi: u32) -> (i32, i32) {
     let rows = tools.div_ceil(COLUMNS) + actions.div_ceil(COLUMNS);
-    (px(504, dpi), px(4 + rows * 35, dpi))
+    (px(4 + COLUMNS * COLUMN_WIDTH, dpi), px(4 + rows * 35, dpi))
 }
 pub(super) fn button(index: usize, tools: usize, dpi: u32) -> RECT {
     let slot = if index < tools {
@@ -14,11 +16,11 @@ pub(super) fn button(index: usize, tools: usize, dpi: u32) -> RECT {
     } else {
         tools.div_ceil(COLUMNS) * COLUMNS + index - tools
     };
-    let (x, y) = (4 + slot % COLUMNS * 100, 4 + slot / COLUMNS * 35);
+    let (x, y) = (4 + slot % COLUMNS * COLUMN_WIDTH, 4 + slot / COLUMNS * 35);
     RECT {
         left: px(x, dpi),
         top: px(y, dpi),
-        right: px(x + 96, dpi),
+        right: px(x + COLUMN_WIDTH - 4, dpi),
         bottom: px(y + 31, dpi),
     }
 }

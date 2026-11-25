@@ -115,8 +115,19 @@ fn owned_buttons_display_both_lists_queue_stable_actions_and_close_without_quitt
         let shot_probe = TextProbe::new(screenshot);
         let delete_probe = TextProbe::new(delete);
         assert_eq!(caption(color), "#010203");
-        assert_eq!(caption(screenshot), "截图 1 · 480×240");
-        assert_eq!(caption(delete), "删除截图 1");
+        let screenshot_label = crate::ui_text::format(
+            "capture-history-image",
+            &[
+                ("index", 1.into()),
+                ("width", 480.into()),
+                ("height", 240.into()),
+            ],
+        );
+        assert_eq!(caption(screenshot), screenshot_label);
+        assert_eq!(
+            caption(delete),
+            crate::ui_text::format("capture-history-delete", &[("index", 1.into())])
+        );
         SetWindowPos(
             hwnd,
             None,
@@ -150,7 +161,7 @@ fn owned_buttons_display_both_lists_queue_stable_actions_and_close_without_quitt
         for probe in [&caption_probe, &shot_probe, &delete_probe] {
             assert_eq!(probe.messages.get(), 0);
         }
-        assert_eq!(caption(screenshot), "截图 1 · 480×240");
+        assert_eq!(caption(screenshot), screenshot_label);
         // A real scroll moves the controls; repeating at the lower bound must not move them.
         let moves = shot_probe.moves.get();
         SendMessageW(hwnd, WM_VSCROLL, Some(WPARAM(SB_BOTTOM.0 as usize)), None);
@@ -225,5 +236,87 @@ fn scroll_is_bounded_and_destroyed_owner_cannot_receive_late_actions() {
         DestroyWindow(hwnd).unwrap();
         assert!(window.handle().is_none());
         assert!(window.state.view.borrow().action.is_none());
+    }
+}
+
+#[test]
+fn language_refresh_preserves_history_identity_scroll_and_existing_status() {
+    use crate::ui_text::{format_for, text_for, DisplayLanguage};
+    unsafe {
+        let source = crate::desktop::Window(
+            CreateWindowExW(
+                WINDOW_EX_STYLE::default(),
+                w!("STATIC"),
+                None,
+                WS_OVERLAPPED,
+                0,
+                0,
+                100,
+                100,
+                None,
+                None,
+                None,
+                None,
+            )
+            .unwrap(),
+        );
+        let shared: Shared = Default::default();
+        let image = crate::image_decode::Image {
+            width: 2,
+            height: 1,
+            pixels: [0, 0, 255, 255].repeat(2).into(),
+        };
+        shared
+            .borrow_mut()
+            .screenshot(crate::capture_history::image::capture("id".into(), &image, 1).unwrap());
+        shared.borrow_mut().status = Some("existing event snapshot".into());
+        let origin = Origin {
+            unit: crate::workspace_id::UnitId::parse("fixture").unwrap(),
+            lifetime: Default::default(),
+        };
+        let window = Window::new(source.0, origin, shared.clone()).unwrap();
+        let hwnd = window.handle().unwrap();
+        let screenshot = GetDlgItem(Some(hwnd), 200).unwrap();
+        let delete = GetDlgItem(Some(hwnd), 300).unwrap();
+        let probe = TextProbe::new(screenshot);
+        let snapshot = window.state.data.borrow().clone();
+        let revision = window.revision;
+        window.state.scroll.set(i32::MAX);
+        for language in [
+            DisplayLanguage::English,
+            DisplayLanguage::SimplifiedChinese,
+            DisplayLanguage::English,
+        ] {
+            window.refresh_language(language).unwrap();
+            assert_eq!(window.handle(), Some(hwnd));
+            assert_eq!(GetDlgItem(Some(hwnd), 200).unwrap(), screenshot);
+            assert_eq!(caption(hwnd), text_for(language, "capture-history-title"));
+            assert_eq!(
+                caption(screenshot),
+                format_for(
+                    language,
+                    "capture-history-image",
+                    &[
+                        ("index", 1.into()),
+                        ("width", 2.into()),
+                        ("height", 1.into())
+                    ],
+                )
+            );
+            assert_eq!(
+                caption(delete),
+                format_for(language, "capture-history-delete", &[("index", 1.into())])
+            );
+            assert_eq!(window.state.scroll.get(), i32::MAX);
+            assert_eq!(window.revision, revision);
+            assert_eq!(shared.borrow().revision, revision);
+            assert!(Arc::ptr_eq(&snapshot, &window.state.data.borrow()));
+            assert_eq!(&*window.state.status.borrow(), "existing event snapshot");
+            assert!(shared.borrow().action.is_none());
+            assert_eq!(probe.moves.get(), 0);
+            let count = probe.messages.get();
+            window.refresh_language(language).unwrap();
+            assert_eq!(probe.messages.get(), count);
+        }
     }
 }

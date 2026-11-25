@@ -7,7 +7,7 @@ use crate::{
 };
 use std::rc::Rc;
 use windows::{
-    core::{w, Result, HSTRING},
+    core::{Result, HSTRING},
     Win32::{Foundation::*, UI::WindowsAndMessaging::*},
 };
 pub(super) const FIRST: usize = 0x8000;
@@ -133,15 +133,22 @@ impl Snapshot {
                 menu.0,
                 MF_POPUP,
                 child.0 .0 as usize,
-                &HSTRING::from(format!(
-                    "连线 {}–{}",
-                    page * 64 + 1,
-                    page * 64 + links.len()
+                &HSTRING::from(crate::ui_text::format(
+                    "workspace-menu-link-range",
+                    &[
+                        ("first", (page * 64 + 1).into()),
+                        ("last", (page * 64 + links.len()).into()),
+                    ],
                 )),
             )?;
             std::mem::forget(child);
         }
-        AppendMenuW(parent, MF_POPUP, menu.0 .0 as usize, w!("断开连线"))?;
+        AppendMenuW(
+            parent,
+            MF_POPUP,
+            menu.0 .0 as usize,
+            &HSTRING::from(crate::ui_text::text("workspace-menu-disconnect")),
+        )?;
         std::mem::forget(menu);
         Ok(())
     }

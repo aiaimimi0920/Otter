@@ -23,7 +23,9 @@ impl Application {
             .iter()
             .find(|group| group.id == *id)
             .cloned()
-            .ok_or_else(|| Error::new(E_INVALIDARG, "分组已不存在。"))?;
+            .ok_or_else(|| {
+                Error::new(E_INVALIDARG, crate::ui_text::text("app-group-unavailable"))
+            })?;
         let members: Vec<_> = self
             .documents
             .iter()

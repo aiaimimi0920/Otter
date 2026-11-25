@@ -130,7 +130,10 @@ pub(super) unsafe fn poll(hwnd: HWND, state: &State) {
 unsafe fn report(hwnd: HWND, error: &str) {
     MessageBoxW(
         Some(hwnd),
-        &HSTRING::from(format!("擦除未提交，原文档保留。\n{error}")),
+        &HSTRING::from(crate::ui_text::format(
+            "action-erase-failed",
+            &[("error", error.to_string().into())],
+        )),
         w!("Otter"),
         MB_OK | MB_ICONERROR,
     );

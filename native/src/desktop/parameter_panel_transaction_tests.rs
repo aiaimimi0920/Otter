@@ -18,7 +18,10 @@ fn actual_ports_button_commits_drafts_then_rebinds_only_its_successor_stamp() {
         f.tick();
         assert_eq!(f.value("text"), "先提交");
         // The fixture deliberately has no chrome binding, proving rejection is not from an old configuration Stamp; real menus/single-slot behavior are tested separately.
-        assert_eq!(&*f.panel.ui.message.borrow(), "端口设置暂不可用");
+        assert_eq!(
+            &*f.panel.ui.message.borrow(),
+            crate::ui_text::text("parameter-ports-unavailable")
+        );
         let before = Stamp::capture(&f.state);
         f.state
             .selected_art
@@ -29,7 +32,10 @@ fn actual_ports_button_commits_drafts_then_rebinds_only_its_successor_stamp() {
             .set("text", Some(serde_json::json!("外部变化")))
             .unwrap();
         f.panel.apply(&f.state, Intent::Ports(before)).unwrap();
-        assert_eq!(&*f.panel.ui.message.borrow(), "配置已变化，请重试");
+        assert_eq!(
+            &*f.panel.ui.message.borrow(),
+            crate::ui_text::text("parameter-config-changed")
+        );
     }
 }
 #[test]
@@ -85,7 +91,12 @@ fn external_configuration_and_linked_value_refresh_preserve_dirty_edit_but_rejec
         controls::commit(&f.panel.ui, &f.binding("text:edit"));
         f.tick();
         assert_eq!(f.value("text"), "原值");
-        assert!(f.panel.ui.message.borrow().contains("草稿未提交"));
+        assert!(f
+            .panel
+            .ui
+            .message
+            .borrow()
+            .contains(crate::ui_text::text("parameter-config-draft-conflict")));
         f.click("reload");
         f.tick();
         let mut values = serde_json::Map::new();
@@ -124,7 +135,12 @@ fn bounded_pending_queue_does_not_overwrite_accepted_actions() {
             f.click("stop");
         }
         assert_eq!(f.panel.ui.pending.borrow().len(), 4);
-        assert!(f.panel.ui.message.borrow().contains("队列已满"));
+        assert!(f
+            .panel
+            .ui
+            .message
+            .borrow()
+            .contains(crate::ui_text::text("parameter-queue-full")));
         f.tick();
         assert!(f.panel.ui.pending.borrow().is_empty());
     }

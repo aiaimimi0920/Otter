@@ -127,7 +127,10 @@ impl Popup {
                 self.failed = true;
                 self.inflight = None;
                 self.queue.clear();
-                self.menu.status(&format!("未完成：{error}"));
+                self.menu.status(&crate::ui_text::format(
+                    "pin-targets-incomplete",
+                    &[("error", error.to_string().into())],
+                ));
                 self.menu
                     .update_draft(&self.rows, Some(&self.draft), true, true, false);
                 Ok(!self.menu.closed())
@@ -186,7 +189,8 @@ impl Popup {
                     if state.authorization.borrow().targets.directory.is_some() {
                         self.failed = false;
                         self.confirm(state);
-                        self.menu.status("正在应用…");
+                        self.menu
+                            .status(crate::ui_text::text("pin-targets-applying"));
                     }
                 }
             }
@@ -198,7 +202,7 @@ impl Popup {
             {
                 return Err(windows::core::Error::new(
                     E_ABORT,
-                    "投射未完成，请检查连接或重试原请求",
+                    crate::ui_text::text("pin-projection-incomplete"),
                 ));
             }
             (
@@ -233,13 +237,16 @@ impl Popup {
             {
                 auth::sender::execute(owner, state, command)?;
                 if state.authorization.borrow().request.is_none() {
-                    return Err(windows::core::Error::new(E_ABORT, "投射请求未排入"));
+                    return Err(windows::core::Error::new(
+                        E_ABORT,
+                        crate::ui_text::text("pin-projection-not-queued"),
+                    ));
                 }
                 self.inflight = Some((id, wanted));
             } else if !self.queue.is_empty() {
                 return Err(windows::core::Error::new(
                     E_ABORT,
-                    "目标当前不可用，请刷新后重试",
+                    crate::ui_text::text("pin-target-unavailable"),
                 ));
             }
             if self.queue.is_empty() && self.inflight.is_none() {
@@ -249,7 +256,7 @@ impl Popup {
         if self.applying && idle && !current {
             return Err(windows::core::Error::new(
                 E_ABORT,
-                "目标目录不可用，请刷新后重试",
+                crate::ui_text::text("pin-target-directory-unavailable"),
             ));
         }
         self.menu.update_draft(
@@ -283,13 +290,13 @@ impl Popup {
 fn directory_status(state: &State) -> String {
     let view = state.authorization.borrow();
     if view.targets.busy || matches!(view.request, Some(auth::Request::ProjectionTargets)) {
-        "正在加载…".into()
+        crate::ui_text::text("common-loading").into()
     } else if view.targets.directory.is_some() {
-        "暂无目标".into()
+        crate::ui_text::text("pin-no-targets").into()
     } else if !view.targets.status.is_empty() {
         view.targets.status.clone()
     } else {
-        "目录不可用，请刷新".into()
+        crate::ui_text::text("pin-directory-refresh").into()
     }
 }
 fn next_choice(

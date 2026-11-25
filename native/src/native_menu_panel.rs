@@ -131,7 +131,7 @@ impl Panel {
             let hwnd = CreateWindowExW(
                 WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
                 w!("STATIC"),
-                w!("Otter 菜单"),
+                &windows::core::HSTRING::from(crate::ui_text::text("native-menu-title")),
                 // STATIC defaults to hit-test transparency, routing system wheels behind it; menus must be hittable.
                 WS_POPUP | WINDOW_STYLE(windows::Win32::System::SystemServices::SS_NOTIFY.0),
                 bounds.left,

@@ -15,7 +15,7 @@ pub(super) fn template() -> Vec<u32> {
     );
     dword(&mut data, WS_EX_TOOLWINDOW.0);
     data.extend([6, 0, 0, 180, 210, 0, 0]);
-    string(&mut data, "添加 Art");
+    string(&mut data, crate::ui_text::text("art-picker-title"));
     data.push(9);
     string(&mut data, "Microsoft YaHei UI");
     for (id, class, style, x, y, w, h, text) in [
@@ -53,7 +53,7 @@ pub(super) fn template() -> Vec<u32> {
             226,
             74,
             20,
-            "刷新列表",
+            crate::ui_text::text("art-picker-refresh"),
         ),
         (
             CLEAR,
@@ -63,7 +63,7 @@ pub(super) fn template() -> Vec<u32> {
             8,
             24,
             20,
-            "清空搜索",
+            crate::ui_text::text("art-picker-clear-search"),
         ),
         (
             IDCANCEL.0,
@@ -73,7 +73,7 @@ pub(super) fn template() -> Vec<u32> {
             8,
             28,
             20,
-            "关闭 Art 菜单",
+            crate::ui_text::text("art-picker-close"),
         ),
     ] {
         if data.len() % 2 != 0 {

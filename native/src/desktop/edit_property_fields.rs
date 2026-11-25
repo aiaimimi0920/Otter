@@ -43,7 +43,7 @@ pub(super) fn view(c: &Canvas) -> Option<View> {
 fn field(id: u16, label: &'static str, kind: Kind) -> Field {
     Field {
         id,
-        label,
+        label: crate::ui_text::text(label),
         icon: icon(id),
         kind,
     }
@@ -133,7 +133,7 @@ pub(super) fn fields(c: &Canvas) -> Vec<Field> {
     let stroke = || {
         color(
             STROKE,
-            "描边颜色",
+            "edit-stroke-color",
             Some(style.color()),
             style.paint_alpha().stroke(),
             true,
@@ -142,17 +142,17 @@ pub(super) fn fields(c: &Canvas) -> Vec<Field> {
     let fill = || {
         color(
             FILL,
-            "填充颜色",
+            "edit-fill-color",
             style.fill(),
             style.paint_alpha().fill(),
             false,
         )
     };
-    let width = || number(WIDTH, "线宽", style.width(), 0, 999);
+    let width = || number(WIDTH, "edit-line-width", style.width(), 0, 999);
     let dash = || {
         action(
             DASH,
-            "线型",
+            "edit-line-style",
             match style.dash() {
                 crate::stroke_style::DashPattern::Solid => "━",
                 crate::stroke_style::DashPattern::Dash => "╌",
@@ -169,13 +169,19 @@ pub(super) fn fields(c: &Canvas) -> Vec<Field> {
         | Tool::Polygon => {
             let mut f = vec![fill(), stroke(), width()];
             if tool != Tool::Ellipse {
-                f.push(number(RADIUS, "圆角半径", style.corner_radius(), 0, 999));
+                f.push(number(
+                    RADIUS,
+                    "edit-corner-radius",
+                    style.corner_radius(),
+                    0,
+                    999,
+                ));
             }
             f.push(dash());
             if crate::shape_options::ShapeOptions::supports_ratio(tool) {
                 f.push(field(
                     RATIO,
-                    "宽高比",
+                    "edit-aspect-ratio",
                     Kind::Ratio {
                         value: profiles
                             .shapes
@@ -191,14 +197,20 @@ pub(super) fn fields(c: &Canvas) -> Vec<Field> {
             } else {
                 f.push(action(
                     CONSTRAIN,
-                    "正多边形约束",
+                    "edit-regular-polygon",
                     "",
                     profiles.shapes.lock_aspect,
                 ));
             }
-            f.push(number(STEP, "步进", profiles.shapes.step() as f32, 0, 999));
+            f.push(number(
+                STEP,
+                "edit-step",
+                profiles.shapes.step() as f32,
+                0,
+                999,
+            ));
             if tool == Tool::Polygon {
-                f.push(number(SIDES, "边数", style.sides() as f32, 3, 12));
+                f.push(number(SIDES, "edit-sides", style.sides() as f32, 3, 12));
             }
             f
         }
@@ -207,10 +219,20 @@ pub(super) fn fields(c: &Canvas) -> Vec<Field> {
                 stroke(),
                 width(),
                 dash(),
-                action(ARROW, "箭头", "", tool == Tool::Arrow || style.arrow()),
+                action(
+                    ARROW,
+                    "edit-arrow",
+                    "",
+                    tool == Tool::Arrow || style.arrow(),
+                ),
             ];
             if v.selected.is_none() && matches!(tool, Tool::Line | Tool::Arrow) {
-                f.push(action(ANGLE, "角度吸附", "", profiles.angle_snap(tool)));
+                f.push(action(
+                    ANGLE,
+                    "edit-angle-snap",
+                    "",
+                    profiles.angle_snap(tool),
+                ));
             }
             f
         }
@@ -218,18 +240,24 @@ pub(super) fn fields(c: &Canvas) -> Vec<Field> {
             let mut f = vec![
                 color(
                     STROKE,
-                    "笔触颜色",
+                    "edit-brush-color",
                     Some(style.color()),
                     style.paint_alpha().stroke(),
                     false,
                 ),
-                number(WIDTH, "粗细", style.width(), 1, 999),
+                number(WIDTH, "edit-width", style.width(), 1, 999),
             ];
             if tool != Tool::Highlighter {
-                f.push(number(OPACITY, "不透明度", style.opacity() * 100.0, 0, 100));
+                f.push(number(
+                    OPACITY,
+                    "common-opacity",
+                    style.opacity() * 100.0,
+                    0,
+                    100,
+                ));
                 f.push(number(
                     SMOOTH,
-                    "平滑度",
+                    "edit-smoothing",
                     profiles.smoothing(tool) as f32,
                     0,
                     100,
@@ -238,7 +266,7 @@ pub(super) fn fields(c: &Canvas) -> Vec<Field> {
             if tool != Tool::Paintbrush {
                 f.push(action(
                     GLOW,
-                    "荧光开关",
+                    "edit-highlighter",
                     "",
                     profiles.brush_highlighter_enabled(),
                 ));
@@ -260,9 +288,9 @@ pub(super) fn fields(c: &Canvas) -> Vec<Field> {
             f.push(color(
                 STROKE,
                 if tool == Tool::Serial {
-                    "描边/数字颜色"
+                    "edit-number-color"
                 } else {
-                    "文字颜色"
+                    "edit-text-color"
                 },
                 Some(style.color()),
                 style.paint_alpha().stroke(),
@@ -285,28 +313,39 @@ pub(super) fn fields(c: &Canvas) -> Vec<Field> {
                     SIZE
                 },
                 if tool == Tool::Serial {
-                    "半径"
+                    "edit-radius"
                 } else {
-                    "字号"
+                    "edit-font-size"
                 },
                 size,
                 8,
                 999,
             ));
-            f.push(action(FONT, "字体", font, false));
+            f.push(action(FONT, "edit-font", font, false));
             f
         }
         Tool::Mosaic | Tool::Blur => vec![
-            number(WIDTH, "笔刷大小", style.width(), 4, 200),
+            number(WIDTH, "edit-brush-size", style.width(), 4, 200),
             if tool == Tool::Mosaic {
-                number(CELL, "色块大小", style.mosaic_cell(), 2, 64)
+                number(CELL, "edit-mosaic-cell", style.mosaic_cell(), 2, 64)
             } else {
-                number(STRENGTH, "模糊强度", profiles.blur_strength(), 2, 64)
+                number(
+                    STRENGTH,
+                    "edit-blur-strength",
+                    profiles.blur_strength(),
+                    2,
+                    64,
+                )
             },
         ],
         Tool::Eraser => vec![
-            number(WIDTH, "橡皮大小", style.width(), 4, 96),
-            action(ONLY_MARKS, "只擦标记", "", c.erase_annotations_only),
+            number(WIDTH, "edit-eraser-size", style.width(), 4, 96),
+            action(
+                ONLY_MARKS,
+                "edit-erase-annotations",
+                "",
+                c.erase_annotations_only,
+            ),
         ],
         _ => Vec::new(),
     };

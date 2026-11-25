@@ -23,6 +23,8 @@ impl Panel {
             model: RefCell::new(Rc::new(model)),
             bindings: RefCell::default(),
             placements: RefCell::default(),
+            captions: RefCell::default(),
+            language: Cell::new(crate::ui_text::current_language()),
             pending: RefCell::default(),
             closed: Cell::new(false),
             replacing: Cell::new(false),
@@ -34,6 +36,7 @@ impl Panel {
             status_dirty: Cell::default(),
             status_writing: Cell::default(),
             message: RefCell::default(),
+            message_caption: RefCell::default(),
             capture_windows: state.capture_windows.clone(),
         };
         if ui.state().is_none() || inline && !IsWindow(Some(parent)).as_bool() {
@@ -73,7 +76,7 @@ impl Panel {
                     WS_EX_TOOLWINDOW
                 },
             class,
-            w!("Otter · 参数（Tab）"),
+            &HSTRING::from(crate::ui_text::text("parameter-panel-title")),
             WS_CLIPCHILDREN
                 | if inline {
                     WS_CHILD

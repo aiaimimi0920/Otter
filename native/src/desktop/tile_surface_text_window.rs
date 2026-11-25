@@ -33,7 +33,7 @@ fn run(state: &State, f: impl FnOnce(&mut Owner) -> Result<()>) -> bool {
     }
     let changed = *old != **state.text_preview.borrow();
     if let Err(error) = result {
-        state.shared.lock().actions.notice = "Art文字编辑未提交";
+        state.shared.lock().actions.notice = "integration-art-text-not-committed";
         #[cfg(test)]
         eprintln!("tile-text-edit: {error}");
         let _ = error;
@@ -57,7 +57,7 @@ pub(super) fn begin(hwnd: HWND, state: &State, pixel: [i32; 2]) -> bool {
         match Owner::new(hwnd) {
             Ok(owner) => *state.text.borrow_mut() = Some(owner),
             Err(_) => {
-                state.shared.lock().actions.notice = "Art文字编辑器不可用";
+                state.shared.lock().actions.notice = "integration-art-editor-unavailable";
                 return true;
             }
         }

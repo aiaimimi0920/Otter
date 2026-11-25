@@ -54,7 +54,7 @@ fn scrolled_button_is_validated_in_saved_geometry_and_posts_exactly_once() {
         false,
     );
     assert!(f.shared.lock().actions.pending.is_empty());
-    assert_eq!(f.shared.lock().actions.notice, "Art操作已受理");
+    assert_eq!(f.shared.lock().actions.notice, "tile-art-action-accepted");
     views.dispatch_state(
         f.state.clone(),
         Some(f.art.clone()),

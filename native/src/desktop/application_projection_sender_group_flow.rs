@@ -17,7 +17,7 @@ impl Application {
                 self.projection_sender.group = Some(batch);
                 self.process_projection_group(config);
             }
-            Err(_) => self.sender_status("设备组未发送：来源、目录或授权不可用"),
+            Err(_) => self.sender_status(crate::ui_text::text("app-projection-group-unavailable")),
         }
     }
     pub(in crate::desktop::application::projection_sender) fn cancel_projection_group(&mut self) {
@@ -97,7 +97,7 @@ impl Application {
         if batch.current.is_some() {
             self.projection_sender.group = Some(batch);
         } else {
-            self.sender_status("设备组处理结束；详情见逐目标结果，已保存关联可分别停止");
+            self.sender_status(crate::ui_text::text("app-projection-group-complete"));
         }
     }
 }

@@ -3,7 +3,7 @@ use super::{Request as AuthorizationRequest, View as AuthorizationView};
 use crate::projection_delivery::{Invitation, MAX_INVITATIONS};
 use std::sync::Arc;
 use windows::{
-    core::{w, Error, Result, HSTRING},
+    core::{Error, Result, HSTRING},
     Win32::{Foundation::E_ABORT, UI::WindowsAndMessaging::*},
 };
 pub(in crate::desktop) const REFRESH: usize = 0x1300;
@@ -103,7 +103,7 @@ pub(super) unsafe fn append_menu(menu: HMENU, view: &AuthorizationView) -> Resul
         menu,
         MF_STRING | if enabled { MF_ENABLED } else { MF_GRAYED },
         REFRESH,
-        w!("刷新投送收件箱"),
+        &windows::core::HSTRING::from(crate::ui_text::text("integration-refresh-inbox")),
     )?;
     if !view.projection.status.is_empty() {
         AppendMenuW(
@@ -130,14 +130,14 @@ pub(super) unsafe fn append_menu(menu: HMENU, view: &AuthorizationView) -> Resul
         let label = format!(
             "{}{}：{name}{suffix} · {}",
             if entry.peer_id().is_some() {
-                "离线 · "
+                crate::ui_text::text("integration-offline-prefix")
             } else {
                 ""
             },
             if entry.accepted() {
-                "恢复已接受投送"
+                crate::ui_text::text("integration-restore-accepted")
             } else {
-                "拒绝投送"
+                crate::ui_text::text("integration-reject-delivery")
             },
             &entry.envelope().projection_id()[11..19]
         )
@@ -153,14 +153,22 @@ pub(super) unsafe fn append_menu(menu: HMENU, view: &AuthorizationView) -> Resul
                     },
                 ACCEPT_BASE + index,
                 &HSTRING::from(
-                    format!(
-                        "{}接受投送：{name}{suffix} · {}",
-                        if entry.peer_id().is_some() {
-                            "离线 · "
-                        } else {
-                            ""
-                        },
-                        &entry.envelope().projection_id()[11..19]
+                    crate::ui_text::format(
+                        "integration-accept-delivery-label",
+                        &[
+                            (
+                                "offline",
+                                if entry.peer_id().is_some() {
+                                    "yes"
+                                } else {
+                                    "no"
+                                }
+                                .into(),
+                            ),
+                            ("name", name.as_str().into()),
+                            ("suffix", suffix.into()),
+                            ("id", (&entry.envelope().projection_id()[11..19]).into()),
+                        ],
                     )
                     .replace('&', "&&"),
                 ),

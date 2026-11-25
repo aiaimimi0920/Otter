@@ -22,7 +22,7 @@ impl Backing {
         let hwnd = CreateWindowExW(
             WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TRANSPARENT,
             window::CLASS,
-            w!("Otter · 参数底板"),
+            &HSTRING::from(crate::ui_text::text("workspace-parameter-backing-title")),
             WS_POPUP,
             0,
             0,

@@ -98,9 +98,10 @@ impl Binding {
             .or_else(|| self.target.as_ref().map(|target| target.device_id.as_str()))
     }
     pub fn name(&self) -> &str {
-        self.target
-            .as_ref()
-            .map_or("分享邀请", |target| &target.name)
+        self.target.as_ref().map_or(
+            crate::ui_text::text("integration-share-invitation"),
+            |target| &target.name,
+        )
     }
     pub fn is_invitation(&self) -> bool {
         self.link.otter_native_send.invitation

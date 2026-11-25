@@ -40,7 +40,7 @@ impl Application {
             || config.origin() != origin
             || !current(self)
         {
-            return Err(fail("工作区正在切换、保存或退出，Art 未启动"));
+            return Err(fail(crate::ui_text::text("app-art-workspace-busy")));
         }
         let source = self.documents.iter().find(|doc| {
             doc.state.unit_id.as_str() == node
@@ -65,16 +65,17 @@ impl Application {
                     .map_err(|message| fail(&message));
             }
             if source.state.group_locked.get() || source.state.file_dialog.get() {
-                return Err(fail("Art 发起节点已锁定或正在编辑"));
+                return Err(fail(crate::ui_text::text("app-art-source-editing")));
             }
         }
-        let unit =
-            crate::workspace_id::UnitId::parse(node).ok_or_else(|| fail("Art 来源身份无效"))?;
+        let unit = crate::workspace_id::UnitId::parse(node)
+            .ok_or_else(|| fail(crate::ui_text::text("app-art-source-identity-invalid")))?;
         let source = super::add_art::source::Source::capture(self, &unit)?;
         if art.is_empty() || art.len() > 256 || art.chars().any(char::is_control) {
-            return Err(fail("Art 身份无效"));
+            return Err(fail(crate::ui_text::text("app-art-identity-invalid")));
         }
-        let now = super::super::surface_windows::now_ms().map_err(|_| fail("无法读取授权时钟"))?;
+        let now = super::super::surface_windows::now_ms()
+            .map_err(|_| fail(crate::ui_text::text("app-authorization-clock-unavailable")))?;
         let lease = match self.authorization_owner.lease(origin, now) {
             Ok(lease) => lease,
             Err(crate::device_authorization_owner::Error::Credential)
@@ -82,9 +83,13 @@ impl Application {
             {
                 self.art_issuers
                     .pending_local(origin)
-                    .map_err(|_| fail("请先获取有效设备授权"))?
+                    .map_err(|_| fail(crate::ui_text::text("app-device-authorization-required")))?
             }
-            Err(_) => return Err(fail("请先获取有效设备授权")),
+            Err(_) => {
+                return Err(fail(crate::ui_text::text(
+                    "app-device-authorization-required",
+                )))
+            }
         };
         let lease = std::sync::Arc::new(lease);
         let guard = restore_batch::guard::Guard::capture(self)?;
@@ -95,7 +100,7 @@ impl Application {
         let mut workspace = self.workspace.clone();
         workspace
             .add_units([unit.clone()])
-            .map_err(|_| fail("工作区节点容量不足"))?;
+            .map_err(|_| fail(crate::ui_text::text("app-workspace-node-capacity")))?;
         let link = Link {
             id: super::super::document_state::new_unit_id()?,
             from_unit: source.unit.clone(),
@@ -105,7 +110,7 @@ impl Application {
         };
         workspace
             .connect(link.clone())
-            .map_err(|_| fail("无法创建 Art 输入连接"))?;
+            .map_err(|_| fail(crate::ui_text::text("app-art-input-link-failed")))?;
         *state
             .local_art_id
             .as_ref()
@@ -139,7 +144,7 @@ impl Application {
             || !current(self)
             || !source.current(self)
         {
-            return Err(fail("Art 发起节点已变化"));
+            return Err(fail(crate::ui_text::text("app-art-source-node-changed")));
         }
         self.local_arts
             .start(

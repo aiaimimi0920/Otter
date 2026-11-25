@@ -54,9 +54,11 @@ impl CaptureSource {
                 .and_then(|value| value.get("dynamicRange"))
                 .and_then(serde_json::Value::as_str)
             {
-                Some("hdr") => "HDR（原图文件未恢复）",
+                Some("hdr") => crate::ui_text::text("action-hdr-unrestored"),
                 Some("sdr") => "SDR",
-                _ if self.session_meta.is_some() => "未记录",
+                _ if self.session_meta.is_some() => {
+                    crate::ui_text::text("action-capture-unrecorded")
+                }
                 _ if self.original.is_some() => "HDR PNG",
                 _ => "SDR",
             }

@@ -22,6 +22,7 @@ struct State {
     origin: Origin,
     data: RefCell<Arc<crate::capture_history::Data>>,
     status: RefCell<String>,
+    language: Cell<crate::ui_text::DisplayLanguage>,
     scroll: Cell<i32>,
     children: RefCell<Vec<HWND>>,
 }
@@ -40,6 +41,7 @@ impl Window {
                 origin,
                 data: Default::default(),
                 status: Default::default(),
+                language: Cell::new(crate::ui_text::current_language()),
                 scroll: Cell::new(0),
                 children: Default::default(),
             });
@@ -48,7 +50,7 @@ impl Window {
             let hwnd = CreateWindowExW(
                 WINDOW_EX_STYLE::default(),
                 w!("Otter.Native.CaptureHistory"),
-                w!("Otter · 历史记录"),
+                &HSTRING::from(crate::ui_text::text("capture-history-title")),
                 WS_OVERLAPPEDWINDOW | WS_VSCROLL | WS_CLIPCHILDREN,
                 rect.left.saturating_add(24),
                 rect.top.saturating_add(24),
@@ -90,6 +92,7 @@ impl Window {
         let Some(hwnd) = self.handle() else {
             return Ok(());
         };
+        self.refresh_language(crate::ui_text::current_language())?;
         unsafe {
             // Do not change entry identity while a button is pressed; the original message pump updates again after release/cancellation.
             if IsChild(hwnd, GetCapture()).as_bool()
@@ -118,6 +121,25 @@ impl Window {
             } else if status_changed {
                 let _ = InvalidateRect(Some(hwnd), None, false);
             }
+        }
+        Ok(())
+    }
+    fn refresh_language(&self, language: crate::ui_text::DisplayLanguage) -> Result<()> {
+        if self.state.language.get() == language {
+            return Ok(());
+        }
+        let Some(hwnd) = self.handle() else {
+            return Ok(());
+        };
+        unsafe {
+            SetWindowTextW(
+                hwnd,
+                &HSTRING::from(crate::ui_text::text_for(language, "capture-history-title")),
+            )?;
+            // Presentation never replaces entries, moves controls, or clamps the current scroll.
+            layout::labels(&self.state, language)?;
+            self.state.language.set(language);
+            let _ = RedrawWindow(Some(hwnd), None, None, RDW_INVALIDATE | RDW_ALLCHILDREN);
         }
         Ok(())
     }

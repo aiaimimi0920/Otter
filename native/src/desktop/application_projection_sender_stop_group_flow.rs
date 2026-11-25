@@ -10,7 +10,7 @@ impl Application {
             self.projection_sender.stop_group = Some(batch);
             self.process_projection_stop_group();
         } else {
-            self.sender_status("设备组未停止：来源、目录或关联已变化");
+            self.sender_status(crate::ui_text::text("app-projection-stop-group-changed"));
         }
     }
     pub(in crate::desktop::application::projection_sender) fn cancel_projection_stop_group(
@@ -90,7 +90,7 @@ impl Application {
         }) {
             self.projection_sender.stop_group = Some(batch);
         } else {
-            self.sender_status("设备组停止处理结束；逐项确认结果见菜单");
+            self.sender_status(crate::ui_text::text("app-projection-stop-group-complete"));
         }
     }
 }

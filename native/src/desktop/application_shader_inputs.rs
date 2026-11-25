@@ -30,13 +30,14 @@ pub(super) fn references<'a>(
         let Some(unit) = workspace.units().iter().find(|unit| unit.as_str() == value) else {
             continue;
         };
-        crate::shader_angle::name(name).map_err(|_| "Shader 图片参数名称无效")?;
+        crate::shader_angle::name(name)
+            .map_err(|_| crate::ui_text::text("app-shader-input-name-invalid"))?;
         if references.len() >= 31 {
-            return Err("Shader 图片参数数量超过预算");
+            return Err(crate::ui_text::text("app-shader-input-count-limit"));
         }
         references
             .try_reserve(1)
-            .map_err(|_| "无法分配 Shader 参数引用")?;
+            .map_err(|_| crate::ui_text::text("app-shader-reference-allocation"))?;
         references.push((name.into(), unit));
     }
     Ok(references)
@@ -65,22 +66,22 @@ pub(super) fn resolve<'a>(
             // Art may use committed output only; Graph still handles Sticker relay/edit/Live sources.
             // Do not call image()/canvas_image() to obtain Art's own display or restored preview.
             let Some(Output::Image(key)) = graph.output(unit, "output").map(Output::direct) else {
-                return Err("Shader 参数引用暂无可用正式图片");
+                return Err(crate::ui_text::text("app-shader-reference-no-image"));
             };
             images
                 .try_reserve(1)
-                .map_err(|_| "无法分配 Shader 参数图片")?;
+                .map_err(|_| crate::ui_text::text("app-shader-image-allocation"))?;
             images.push((name.as_str(), key));
             prepared
                 .units
                 .try_reserve(1)
-                .map_err(|_| "无法冻结 Shader 参数来源")?;
+                .map_err(|_| crate::ui_text::text("app-shader-source-freeze"))?;
             prepared.units.push(*unit);
         }
         prepared
             .parameters
             .try_reserve(1)
-            .map_err(|_| "无法冻结 Shader 参数图片")?;
+            .map_err(|_| crate::ui_text::text("app-shader-image-freeze"))?;
         prepared.parameters.push(name.clone());
     }
     Ok(prepared)

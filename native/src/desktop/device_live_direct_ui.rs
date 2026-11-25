@@ -39,7 +39,7 @@ pub(in crate::desktop::device_authorization_ui) unsafe fn append(
         menu,
         MF_STRING | if ready { MF_ENABLED } else { MF_GRAYED },
         WATCH_DIRECT,
-        w!("观看 Live 投射…"),
+        &windows::core::HSTRING::from(crate::ui_text::text("integration-watch-live-projection")),
     )
 }
 pub(in crate::desktop::device_authorization_ui) unsafe fn choose(

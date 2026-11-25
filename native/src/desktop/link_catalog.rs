@@ -9,6 +9,7 @@ use crate::{
     workspace::{Link, TopologyStamp, Workspace},
     workspace_id::UnitId,
 };
+use std::borrow::Cow;
 use std::rc::Rc;
 use windows::core::Result;
 #[cfg(test)]
@@ -27,7 +28,8 @@ fn live_endpoints<'a>(
 }
 pub(super) struct Endpoint {
     pub unit: UnitId,
-    pub label: String,
+    label: String,
+    pinned_ordinal: Option<usize>,
     pub inputs: Vec<String>,
     pub parameter_start: usize,
     pub outputs: Vec<String>,
@@ -39,6 +41,16 @@ pub(super) struct Endpoint {
     pub output_presentation: Vec<presentation::Presentation>,
     configuration: Option<(Stamp, OutputStamp)>,
     live: Option<std::sync::Arc<()>>,
+}
+impl Endpoint {
+    pub fn display_label(&self) -> Cow<'_, str> {
+        match self.pinned_ordinal {
+            Some(ordinal) => {
+                format!("{ordinal} · {}", crate::ui_text::text("workspace-menu-pin")).into()
+            }
+            None => self.label.as_str().into(),
+        }
+    }
 }
 pub(super) struct Catalog {
     pub endpoints: Vec<Endpoint>,
@@ -98,7 +110,7 @@ impl Catalog {
                     add(&mut inputs, "image");
                     parameter_start = 0;
                     add(&mut outputs, "output");
-                    "钉图".into()
+                    String::new()
                 };
                 let results = doc.state.execution_results.borrow();
                 for port in results.ports() {
@@ -145,6 +157,8 @@ impl Catalog {
                     .collect();
                 Endpoint {
                     unit: doc.state.unit_id.clone(),
+                    pinned_ordinal: (capability.is_none() && doc.state.local_art_id.is_none())
+                        .then_some(index + 1),
                     label: format!(
                         "{} · {}",
                         index + 1,
@@ -192,6 +206,7 @@ impl Catalog {
             endpoints.push(Endpoint {
                 unit: session.unit_id().clone(),
                 label: format!("{} · Live", endpoints.len() + 1),
+                pinned_ordinal: None,
                 inputs: Vec::new(),
                 parameter_start: 0,
                 outputs: vec!["output".into()],

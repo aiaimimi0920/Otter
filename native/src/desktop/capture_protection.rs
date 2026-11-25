@@ -57,7 +57,10 @@ pub(super) unsafe fn toggle(hwnd: HWND, state: &State) {
         if IsWindow(Some(hwnd)).as_bool() {
             MessageBoxW(
                 Some(hwnd),
-                &HSTRING::from(format!("无法完整设置捕获排除。\n{error}")),
+                &HSTRING::from(crate::ui_text::format(
+                    "capture-protection-failed",
+                    &[("error", error.to_string().into())],
+                )),
                 w!("Otter"),
                 MB_OK | MB_ICONWARNING,
             );

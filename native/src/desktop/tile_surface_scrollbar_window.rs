@@ -264,7 +264,7 @@ pub(super) unsafe fn message(hwnd: HWND, state: &State, msg: u32, wp: WPARAM, lp
         Ok(handled) => handled,
         // begin/drive retire only their own tokens; outer error cleanup must not remove successors installed during synchronous paint.
         Err(error) => {
-            state.shared.lock().actions.notice = "Art滚动条未完成";
+            state.shared.lock().actions.notice = "integration-art-scrollbar-incomplete";
             #[cfg(test)]
             eprintln!("tile-scrollbar: {error}");
             let _ = error;

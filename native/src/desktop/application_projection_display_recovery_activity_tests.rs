@@ -55,7 +55,7 @@ unsafe fn failed(mode: u8) {
     assert!(!fixture.app.projection_cleanup.pending_local());
     assert_ne!(
         fixture.app.authorization.borrow().projection.status,
-        "投送已呈现"
+        crate::ui_text::text("app-projection-presented")
     );
     retry.activate().unwrap();
 }

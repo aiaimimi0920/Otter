@@ -75,9 +75,19 @@ impl Snapshot {
             )?;
         }
         if self.catalog.handshake.arts().is_empty() {
-            AppendMenuW(menu.0, MF_STRING | MF_GRAYED, 0, w!("没有可用节点能力"))?;
+            AppendMenuW(
+                menu.0,
+                MF_STRING | MF_GRAYED,
+                0,
+                &windows::core::HSTRING::from(crate::ui_text::text("integration-no-capabilities")),
+            )?;
         }
-        AppendMenuW(parent, MF_POPUP, menu.0 .0 as usize, w!("选择节点能力"))?;
+        AppendMenuW(
+            parent,
+            MF_POPUP,
+            menu.0 .0 as usize,
+            &windows::core::HSTRING::from(crate::ui_text::text("integration-choose-capability")),
+        )?;
         // The parent menu takes ownership of submenus; a local guard reclaims failure paths.
         std::mem::forget(menu);
         Ok(())
@@ -122,7 +132,7 @@ impl Snapshot {
         let parameters = crate::loom_parameter_state::Parameters::new(&art).map_err(|_| {
             windows::core::Error::new(
                 windows::Win32::Foundation::E_INVALIDARG,
-                "能力参数初始化失败",
+                crate::ui_text::text("integration-parameter-init-failed"),
             )
         })?;
         let identity = super::document_state::new_unit_id()?;

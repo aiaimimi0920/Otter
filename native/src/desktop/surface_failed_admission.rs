@@ -100,7 +100,10 @@ impl FailedAdmission {
         self.lifecycle.as_mut()?.take_inactive()
     }
     pub(in crate::desktop) fn failed_start(&mut self, error: StartError) {
-        self.reason = format!("附件停用未启动：{}", error.error);
+        self.reason = crate::ui_text::format(
+            "integration-attachment-stop-not-started",
+            &[("error", error.error.to_string().into())],
+        );
         if let Some(lifecycle) = &mut self.lifecycle {
             if let Err(owner) = lifecycle.restore(*error.owner) {
                 self.rejected = Some(owner);
@@ -124,7 +127,10 @@ impl FailedAdmission {
             }));
         }
         if let Err(error) = result {
-            self.reason = format!("附件停用未完成：{error:?}");
+            self.reason = crate::ui_text::format(
+                "integration-attachment-stop-incomplete",
+                &[("error", format!("{error:?}").into())],
+            );
         }
         Ok(())
     }

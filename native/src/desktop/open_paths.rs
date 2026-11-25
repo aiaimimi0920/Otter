@@ -12,7 +12,10 @@ const MAX_PATH_UNITS: usize = 32767;
 pub(super) const MAX_BUFFER: usize = 32768 * (super::super::open_job::MAX_BATCH + 1);
 
 fn invalid() -> Error {
-    Error::new(E_INVALIDARG, "文件选择结果不完整、路径非法或超出批次限制。")
+    Error::new(
+        E_INVALIDARG,
+        crate::ui_text::text("action-open-paths-invalid"),
+    )
 }
 fn part(buffer: &[u16], offset: usize) -> Result<(&[u16], usize)> {
     let remaining = buffer.get(offset..).ok_or_else(invalid)?;

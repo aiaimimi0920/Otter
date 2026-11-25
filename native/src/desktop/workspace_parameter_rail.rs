@@ -242,8 +242,8 @@ pub(super) unsafe fn sync(app: &mut Application) -> Result<()> {
                     doc.window.0,
                     &doc.state,
                     None,
-                    "参数",
-                    "最多同时打开4个参数面板",
+                    crate::ui_text::text("parameter-title"),
+                    crate::ui_text::text("workspace-parameter-limit"),
                 )?;
                 continue;
             }

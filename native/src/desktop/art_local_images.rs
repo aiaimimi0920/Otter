@@ -27,11 +27,11 @@ impl Images {
     ) -> Result<(), &'static str> {
         let inputs =
             Application::image_inputs(documents, sessions, workspace, unit, true, None, None)?
-                .ok_or("Art 图片输入尚未就绪")?;
+                .ok_or(crate::ui_text::text("integration-art-image-not-ready"))?;
         let document = documents
             .iter()
             .find(|doc| &doc.state.unit_id == unit)
-            .ok_or("Art 目标已关闭")?;
+            .ok_or(crate::ui_text::text("integration-art-target-closed"))?;
         self.job
             .start_with_notify(
                 unit.clone(),
@@ -39,16 +39,22 @@ impl Images {
                 inputs.sources,
                 notify,
             )
-            .map_err(|_| "Art 图片准备超过预算或正在回收")?;
+            .map_err(|_| crate::ui_text::text("integration-art-image-budget"))?;
         self.prepared = Some(prepared);
         Ok(())
     }
     pub fn poll(&mut self) -> Option<Result<(Prepared, Content), &'static str>> {
         let result = self.job.poll()?;
         Some((|| {
-            let batch = result.map_err(|_| "Art 图片输入准备失败")?;
-            let prepared = self.prepared.take().ok_or("Art 图片准备已取消")?;
-            let freshness = batch.freshness().map_err(|_| "无法保留 Art 图片凭证")?;
+            let batch =
+                result.map_err(|_| crate::ui_text::text("integration-art-image-prepare-failed"))?;
+            let prepared = self
+                .prepared
+                .take()
+                .ok_or(crate::ui_text::text("integration-art-image-cancelled"))?;
+            let freshness = batch
+                .freshness()
+                .map_err(|_| crate::ui_text::text("integration-art-image-proof-failed"))?;
             let content = content(&batch)?;
             self.freshness = Some(freshness);
             Ok((prepared, content))
@@ -98,12 +104,12 @@ fn content(batch: &PreparedBatch) -> Result<Content, &'static str> {
             height,
         } = descriptor
         else {
-            return Err("Art 图片输入不是已准备的本地 PNG");
+            return Err(crate::ui_text::text("integration-art-image-not-local-png"));
         };
         let id = format!("art-input:{index}");
         let next = bytes
             .checked_add(id.len() + base64.len() + 22 + 6)
-            .ok_or("Art 图片资源超过本地通道预算")?;
+            .ok_or(crate::ui_text::text("integration-art-image-channel-budget"))?;
         // Small images retain the existing resource() contract; larger images require image() handles, not Base64 embedded in JSON.
         if next <= LIMIT {
             resources.insert(
@@ -121,7 +127,8 @@ fn content(batch: &PreparedBatch) -> Result<Content, &'static str> {
         inputs.insert(port.into(), json!({"kind":"image","resourceId":id,"mimeType":"image/png","width":width,"height":height}));
     }
     let resources = Value::Object(resources);
-    crate::surface_javascript::resources(&resources).map_err(|_| "Art 图片资源超过本地通道预算")?;
+    crate::surface_javascript::resources(&resources)
+        .map_err(|_| crate::ui_text::text("integration-art-image-channel-budget"))?;
     Ok(Content {
         snapshot: json!({"revision":1,"scene":{"id":"root","type":"column","children":[]},"state":{"inputs":inputs}}),
         resources,

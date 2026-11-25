@@ -32,11 +32,11 @@ impl Receiver {
         interrupts: &Interrupts,
     ) -> Result<Self, &'static str> {
         // tungstenite receive buffers and returned payloads may coexist; all four streams and old generations share the 512MiB pool.
-        let wire =
-            crate::pixels::reserve(2 * packet::LIMIT + 64 * 1024).ok_or("Live编码预算不足")?;
+        let wire = crate::pixels::reserve(2 * packet::LIMIT + 64 * 1024)
+            .ok_or("tile-live-encode-budget")?;
         let prepared = lease
             .wall_media(client, key, session, format)
-            .map_err(|_| "Live授权无效")?;
+            .map_err(|_| "tile-live-authorization-invalid")?;
         let mut config = crate::live_relay_media_socket::config();
         config.max_message_size = Some(packet::LIMIT);
         config.max_frame_size = Some(packet::LIMIT);
@@ -54,9 +54,9 @@ impl Receiver {
             },
             config,
         )
-        .map_err(|_| "Live连接失败")?;
+        .map_err(|_| "tile-live-connection-failed")?;
         if !upgraded.device || upgraded.protocol != packet::PROTOCOL {
-            return Err("Live协议不匹配");
+            return Err("tile-live-protocol-mismatch");
         }
         Ok(Self {
             socket: upgraded.socket,
@@ -69,28 +69,28 @@ impl Receiver {
     }
     pub fn poll(&mut self, stopped: impl Fn() -> bool) -> Result<(), &'static str> {
         if stopped() {
-            return Err("Live已停止");
+            return Err("tile-live-stopped");
         }
         self.socket
             .get_mut()
             .base()
             .operation_deadline(Duration::from_millis(5))
-            .map_err(|_| "Live期限失败")?;
+            .map_err(|_| "tile-live-deadline-failed")?;
         if let Some(ping) = self
             .liveness
             .poll(Instant::now())
-            .map_err(|_| "Live时钟失败")?
+            .map_err(|_| "tile-live-clock-failed")?
         {
             self.socket
                 .send(Message::Ping(ping.to_vec()))
-                .map_err(|_| "Live已断开")?;
+                .map_err(|_| "tile-live-disconnected")?;
         }
         match self.socket.read() {
             Ok(Message::Binary(bytes)) => {
                 let (identity, received) = self.queue.watermark();
                 let frame = packet::decode(&bytes, self.format, identity, received, &stopped)?;
                 if stopped() {
-                    return Err("Live已停止");
+                    return Err("tile-live-stopped");
                 }
                 self.queue.push(frame);
                 self.last = Instant::now();
@@ -98,21 +98,21 @@ impl Receiver {
             Ok(Message::Ping(bytes)) => {
                 self.socket
                     .send(Message::Pong(bytes))
-                    .map_err(|_| "Live已断开")?;
+                    .map_err(|_| "tile-live-disconnected")?;
             }
             Ok(Message::Pong(bytes)) => {
                 self.liveness.observe(&bytes, Instant::now());
             }
-            Ok(Message::Close(_)) => return Err("Live来源已关闭或授权失效"),
+            Ok(Message::Close(_)) => return Err("tile-live-source-closed"),
             Err(tungstenite::Error::Io(e))
                 if matches!(
                     e.kind(),
                     std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
                 ) => {}
-            _ => return Err("Live媒体无效或已断开"),
+            _ => return Err("tile-live-media-invalid"),
         }
         if self.last.elapsed() > Duration::from_secs(5) {
-            return Err("Live来源已停滞");
+            return Err("tile-live-source-stalled");
         }
         Ok(())
     }

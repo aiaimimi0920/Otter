@@ -50,7 +50,8 @@ pub(super) fn start(
         || view.targets.busy
         || remote.projection_pending()
     {
-        view.projection.status = "投送收件任务不可用".into();
+        view.projection.status =
+            crate::ui_text::text("app-projection-inbox-task-unavailable").into();
         return false; // Neither overwrite busy state for a running task nor clear its candidate.
     }
     let refresh = matches!(request, ui::Request::Refresh);
@@ -62,18 +63,21 @@ pub(super) fn start(
             request,
             ui::Request::Compensate(_) | ui::Request::Display(_)
         ) {
-            view.projection.participation =
-                Some(view.consent.participation().ok_or("本机接收已暂停")?);
+            view.projection.participation = Some(
+                view.consent
+                    .participation()
+                    .ok_or(crate::ui_text::text("app-projection-reception-paused"))?,
+            );
         }
         if matches!(request, ui::Request::Accept(_) | ui::Request::Import(_))
             && view.consent.stamp().is_none()
         {
-            return Err("当前接收策略不允许新投送".into());
+            return Err(crate::ui_text::text("app-projection-policy-denied").into());
         }
         let origin = view
             .origin
             .as_deref()
-            .ok_or_else(|| "尚未选择服务".to_owned())?;
+            .ok_or_else(|| crate::ui_text::text("app-service-not-selected").to_owned())?;
         if let ui::Request::Reject(entry) | ui::Request::Accept(entry) = &request {
             if entry.accepted()
                 || entry.origin() != origin
@@ -83,7 +87,7 @@ pub(super) fn start(
                     .iter()
                     .any(|current| Arc::ptr_eq(current, entry))
             {
-                return Err("投送选择已失效，请刷新收件箱".into());
+                return Err(crate::ui_text::text("app-projection-choice-expired").into());
             }
         }
         if let ui::Request::Reattach(entry) = &request {
@@ -95,7 +99,7 @@ pub(super) fn start(
                     .iter()
                     .any(|current| Arc::ptr_eq(current, entry))
             {
-                return Err("投送恢复选择已失效，请刷新收件箱".into());
+                return Err(crate::ui_text::text("app-projection-recovery-choice-expired").into());
             }
         }
         if let ui::Request::Compensate(entry) = &request {
@@ -108,51 +112,68 @@ pub(super) fn start(
                     .iter()
                     .any(|current| Arc::ptr_eq(current, entry))
             {
-                return Err("未结投送选择已失效".into());
+                return Err(crate::ui_text::text("app-projection-unsettled-choice-expired").into());
             }
         }
-        let now =
-            crate::desktop::surface_windows::now_ms().map_err(|_| "系统时间无效".to_owned())?;
-        let lease = owner
-            .lease(origin, now)
-            .map_err(|e| format!("请先获取有效授权：{e:?}"))?;
-        let config = config(origin).map_err(|e| format!("配置无效：{e:?}"))?;
+        let now = crate::desktop::surface_windows::now_ms()
+            .map_err(|_| crate::ui_text::text("app-system-time-invalid").to_owned())?;
+        let lease = owner.lease(origin, now).map_err(|e| {
+            crate::ui_text::format(
+                "app-authorization-required-detail",
+                &[("error", format!("{e:?}").into())],
+            )
+        })?;
+        let config = config(origin).map_err(|e| {
+            crate::ui_text::format(
+                "app-configuration-invalid-detail",
+                &[("error", format!("{e:?}").into())],
+            )
+        })?;
         match request {
             ui::Request::Import(request) => {
                 if !request.current() {
-                    return Err("邀请导入已取消".into());
+                    return Err(crate::ui_text::text("app-projection-invitation-cancelled").into());
                 }
                 let profile::Owner::Ready { store, .. } = profile else {
-                    return Err("接收存储尚未就绪".into());
+                    return Err(crate::ui_text::text("app-projection-storage-not-ready").into());
                 };
                 remote.import_projection(config, lease, request, store.clone())
             }
-            ui::Request::Display(_) => return Err("呈现恢复必须经过当前工作区核验".into()),
+            ui::Request::Display(_) => {
+                return Err(
+                    crate::ui_text::text("app-projection-display-recovery-verification").into(),
+                )
+            }
             ui::Request::Refresh => remote.query_projection_inbox(config, lease),
             ui::Request::Reject(entry) => remote.reject_projection(config, lease, entry),
             ui::Request::Compensate(entry) => remote.compensate_projection(config, lease, entry),
             ui::Request::Accept(entry) => {
                 let profile::Owner::Ready { store, .. } = profile else {
-                    return Err("接收存储尚未就绪".into());
+                    return Err(crate::ui_text::text("app-projection-storage-not-ready").into());
                 };
                 remote.accept_projection(config, lease, entry, store.clone())
             }
             ui::Request::Reattach(entry) => {
                 let profile::Owner::Ready { store, .. } = profile else {
-                    return Err("接收存储尚未就绪".into());
+                    return Err(crate::ui_text::text("app-projection-storage-not-ready").into());
                 };
                 remote.reattach_projection(config, lease, entry, store.clone())
             }
         }
-        .map_err(|e| format!("投送任务未启动：{e}"))
+        .map_err(|e| {
+            crate::ui_text::format(
+                "app-projection-task-start-failed",
+                &[("error", e.to_string().into())],
+            )
+        })
     })();
     let started = result.is_ok();
     view.projection.busy = started;
     view.projection.status = match result {
         Ok(()) => if refresh {
-            "正在查询投送收件箱…"
+            crate::ui_text::text("app-projection-inbox-querying")
         } else {
-            "正在处理投送…"
+            crate::ui_text::text("app-projection-processing")
         }
         .into(),
         Err(error) => error,
@@ -254,14 +275,13 @@ impl Application {
                 if let profile::Owner::Ready { policy, .. } = &mut self.projection_profile {
                     policy.schedule.inbox(&view.projection.entries);
                 }
-                view.projection.status = format!(
-                    "投送收件箱：{} 项{}",
-                    view.projection.entries.len(),
+                view.projection.status = crate::ui_text::format(
                     if offline {
-                        " · 离线来源未查询"
+                        "app-projection-inbox-count-offline"
                     } else {
-                        ""
-                    }
+                        "app-projection-inbox-count"
+                    },
+                    &[("count", view.projection.entries.len().into())],
                 );
             }
             Ok(Output::Rejected) => {
@@ -270,13 +290,14 @@ impl Application {
                         .entries
                         .retain(|current| !Arc::ptr_eq(current, &entry));
                 }
-                view.projection.status = "已拒绝投送".into();
+                view.projection.status = crate::ui_text::text("app-projection-rejected").into();
             }
             Ok(Output::Received(_)) => {
                 unreachable!("received owner consumed before borrowing view")
             }
             Ok(Output::Compensated) => {
-                view.projection.status = "投送解绑已确认".into();
+                view.projection.status =
+                    crate::ui_text::text("app-projection-unlink-confirmed").into();
             }
             Ok(Output::Displayed) => unreachable!("displayed is consumed by the receive owner"),
             Ok(Output::Synchronized(_)) => unreachable!("sync is consumed by the receive owner"),
@@ -288,7 +309,8 @@ impl Application {
             }
             Err(JobError::Stopped) => {
                 view.projection.entries.clear();
-                view.projection.status = "投送操作已取消，请重新获取授权".into();
+                view.projection.status =
+                    crate::ui_text::text("app-projection-operation-cancelled").into();
             }
             Err(error) => {
                 let mut retrying = false;
@@ -307,10 +329,15 @@ impl Application {
                 }
                 view.projection.status = match error {
                     JobError::AcceptBusyUnapplied if retrying => {
-                        "Loom 正忙；将刷新收件箱后重试".into()
+                        crate::ui_text::text("app-projection-loom-busy-retry").into()
                     }
-                    JobError::AcceptBusyUnapplied => "Loom 正忙；本次投送未接收".into(),
-                    _ => format!("投送操作失败：{error:?}"),
+                    JobError::AcceptBusyUnapplied => {
+                        crate::ui_text::text("app-projection-loom-busy-unapplied").into()
+                    }
+                    _ => crate::ui_text::format(
+                        "app-projection-operation-failed",
+                        &[("error", format!("{error:?}").into())],
+                    ),
                 };
             }
         }

@@ -78,7 +78,7 @@ fn admit(
         !Arc::ptr_eq(&e.state.snapshot, &state.snapshot) || e.state.generation != state.generation
     }) {
         s.art = None;
-        s.unavailable(job.generation, &job.key, "正在准备Art内容");
+        s.unavailable(job.generation, &job.key, "tile-art-preparing");
     }
     entries.insert(
         id,
@@ -131,7 +131,7 @@ impl<'a> Views<'a> {
         other_pixels: u64,
     ) -> Result<(), &'static str> {
         if ids.len() > 4 {
-            return Err("可见Art数量超限");
+            return Err("tile-art-count-limit");
         }
         if !super::tile_assets::live::current(shared, job) {
             return Ok(());
@@ -143,21 +143,21 @@ impl<'a> Views<'a> {
         let control = self
             .lease
             .control(self.client)
-            .map_err(|_| "设备授权失效")?;
+            .map_err(|_| "tile-authorization-invalid")?;
         if let Task::Image(id, resource) = task {
             let entry = &self.entries[&id];
             let image = control
                 .wall_surface_image(&entry.state.view, &resource)
-                .map_err(|_| "Art图片读取失败")?;
+                .map_err(|_| "tile-art-image-read-failed")?;
             if !super::tile_assets::live::current(shared, job) {
                 return Ok(());
             }
             if !dimensions_match(&entry.state.snapshot.dimensions[&resource], &image) {
-                return Err("Art图片尺寸不匹配");
+                return Err("tile-art-image-dimensions");
             }
             let pixels = u64::from(image.width) * u64::from(image.height);
             if other_pixels + self.pixels() + pixels > crate::tile_wire::MAX_PIXELS {
-                return Err("可见内容像素预算不足");
+                return Err("tile-content-pixel-budget");
             }
             self.images.insert(resource, image);
             return self.prepare();
@@ -172,10 +172,10 @@ impl<'a> Views<'a> {
             control.wall_surface_open(&binding, &id)
         };
         let state = bytes
-            .map_err(|_| "Art视图读取失败")
+            .map_err(|_| "tile-art-view-read-failed")
             .and_then(|bytes| {
                 State::parse(&bytes, &binding, &id, old.map(|e| &*e.state))
-                    .map_err(|_| "Art视图校验失败")
+                    .map_err(|_| "tile-art-view-invalid")
             })
             .inspect_err(|_| {
                 // This includes 200 replies lacking trusted identity: never infer that open created nothing and send again two seconds later.
@@ -198,7 +198,7 @@ impl<'a> Views<'a> {
             .sum::<usize>()
             > 512
         {
-            return Err("可见Art节点预算不足");
+            return Err("tile-art-node-budget");
         }
         let wanted: BTreeSet<_> = self
             .entries
@@ -206,7 +206,7 @@ impl<'a> Views<'a> {
             .flat_map(|e| e.state.snapshot.dimensions.keys().cloned())
             .collect();
         if wanted.len() > 16 {
-            return Err("可见Art图片数量超限");
+            return Err("tile-art-image-count-limit");
         }
         self.images.retain(|id, _| wanted.contains(id));
         self.prepare()?;
@@ -231,7 +231,7 @@ impl<'a> Views<'a> {
                 .iter()
                 .any(|(id, dims)| !dimensions_match(dims, &self.images[id]))
             {
-                return Err("Art图片尺寸不匹配");
+                return Err("tile-art-image-dimensions");
             }
             let images = entry
                 .state
@@ -243,7 +243,7 @@ impl<'a> Views<'a> {
                         .get(resource)
                         .cloned()
                         .map(|image| (node.clone(), image))
-                        .ok_or("Art图片未就绪")
+                        .ok_or("tile-art-image-not-ready")
                 })
                 .collect::<Result<_, _>>()?;
             entry.ready = Some(Arc::new(Art {

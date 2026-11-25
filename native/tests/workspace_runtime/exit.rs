@@ -44,7 +44,8 @@ unsafe fn invoke_exit(menu: HWND) {
     client.SetTransactionTimeout(3000).unwrap();
     let root = client.ElementFromHandle(menu).unwrap();
     let condition = client
-        .CreatePropertyCondition(UIA_NamePropertyId, &"退出".into())
+        // This fixture starts a new profile without a settings document, so English is required.
+        .CreatePropertyCondition(UIA_NamePropertyId, &"Exit".into())
         .unwrap();
     let find = || root.FindAll(TreeScope_Children, &condition).unwrap();
     let mut rows = find();

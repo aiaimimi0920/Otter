@@ -20,5 +20,10 @@ pub(crate) fn report() -> Result<Report, String> {
             keyboard: true,
         },
     )
-    .map_err(|e| format!("宿主能力无效：{e:?}"))
+    .map_err(|e| {
+        crate::ui_text::format(
+            "integration-host-capability-invalid",
+            &[("error", format!("{e:?}").into())],
+        )
+    })
 }

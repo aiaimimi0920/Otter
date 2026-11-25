@@ -36,18 +36,31 @@ pub(super) fn start_with(
 ) -> Result<(), String> {
     use crate::{live_relay_http::Persistence, surface_attach_runtime::Request};
     if sessions.attaching() || !windows.can_mount(origin, &node) {
-        return Err("节点已有 Surface 或待处理记录，或窗口容量已满".into());
+        return Err(crate::ui_text::text("app-surface-capacity").into());
     }
     let now = crate::desktop::surface_windows::now_ms().map_err(|e| e.to_string())?;
-    let lease = authorization
-        .lease(origin, now)
-        .map_err(|e| format!("请先获取有效授权：{e:?}"))?;
-    let config = config(origin).map_err(|e| format!("配置无效：{e:?}"))?;
+    let lease = authorization.lease(origin, now).map_err(|e| {
+        crate::ui_text::format(
+            "app-authorization-required-detail",
+            &[("error", format!("{e:?}").into())],
+        )
+    })?;
+    let config = config(origin).map_err(|e| {
+        crate::ui_text::format(
+            "app-configuration-invalid-detail",
+            &[("error", format!("{e:?}").into())],
+        )
+    })?;
     let request =
         Request::new(art, node, report()?, Persistence::Temporary).map_err(|e| e.to_string())?;
     sessions
         .start_attach(config, lease, std::sync::Arc::new(request))
-        .map_err(|e| format!("挂载任务未启动：{e}"))
+        .map_err(|e| {
+            crate::ui_text::format(
+                "app-surface-start-failed",
+                &[("error", e.to_string().into())],
+            )
+        })
 }
 /// Creation and explicit recovery share the same real host capabilities; recovery must not expand support.
 pub(super) fn report() -> Result<crate::surface_host_capabilities::Report, String> {

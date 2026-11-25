@@ -109,7 +109,7 @@ fn select_with(
             CreateWindowExW(
                 WS_EX_LAYERED | WS_EX_TOPMOST | WS_EX_TOOLWINDOW | extra,
                 class.lpszClassName,
-                w!("Otter 区域截图：拖动选择，松手截图，Esc 取消"),
+                &HSTRING::from(crate::ui_text::text("capture-region-quick-title")),
                 WS_POPUP,
                 screen.left,
                 screen.top,

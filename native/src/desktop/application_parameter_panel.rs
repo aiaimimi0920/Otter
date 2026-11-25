@@ -60,7 +60,10 @@ impl Application {
             }
             if toggle && parameter_panel::available(&doc.state) {
                 let result = if open >= MAX_OPEN {
-                    Err(Error::new(E_OUTOFMEMORY, "最多同时打开4个参数面板"))
+                    Err(Error::new(
+                        E_OUTOFMEMORY,
+                        crate::ui_text::text("app-parameter-panel-limit"),
+                    ))
                 } else {
                     Panel::new(doc.window.0, &doc.state)
                 };
@@ -79,7 +82,10 @@ impl Application {
                         if visible && doc.is_alive() {
                             MessageBoxW(
                                 Some(doc.window.0),
-                                &HSTRING::from(format!("无法打开参数面板。\n{error}")),
+                                &HSTRING::from(crate::ui_text::format(
+                                    "app-parameter-panel-open-failed",
+                                    &[("error", error.to_string().into())],
+                                )),
                                 w!("Otter"),
                                 MB_OK | MB_ICONWARNING,
                             );

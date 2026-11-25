@@ -1,0 +1,15 @@
+tray-language = 语言
+tray-tooltip = Otter · 点击恢复
+tray-exit = 退出
+tray-capture = 截图
+tray-live-capture = 实时截图…
+tray-long-capture = 长截图
+tray-open-image = 编辑已有图片…
+tray-receive = 接收投射
+tray-autostart = 自启动
+tray-autostart-other = 自启动（其他 Otter 安装）
+tray-autostart-unavailable = 自启动（读取失败）
+tray-autostart-failed = 无法更新自启动设置。启动项可能已变化或当前用户权限不足，请重新打开托盘菜单检查。
+display-language-save-failed = 显示语言未改变，无法保存设置。
+display-language-save-warning = 显示语言已保存，但旧配置恢复文件未清理。
+tool-panel-title = Otter · 工具（Ctrl+E / F4）

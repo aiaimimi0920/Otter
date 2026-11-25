@@ -135,7 +135,10 @@ unsafe extern "system" fn procedure(
         let _ = SetDlgItemTextW(
             hwnd,
             ERROR,
-            &HSTRING::from(format!("输入无效。{}", input.spec.hint())),
+            &HSTRING::from(crate::ui_text::format(
+                "dialog-input-invalid",
+                &[("hint", input.spec.hint().into())],
+            )),
         );
     }
     1
@@ -206,7 +209,7 @@ fn template(spec: &Spec) -> Vec<u32> {
             72 + extra + slider_extra,
             55,
             18,
-            "确定",
+            crate::ui_text::text("common-ok"),
         ),
         (
             IDCANCEL.0 as u16,
@@ -216,7 +219,7 @@ fn template(spec: &Spec) -> Vec<u32> {
             72 + extra + slider_extra,
             55,
             18,
-            "取消",
+            crate::ui_text::text("common-cancel"),
         ),
     ];
     if spec.number {

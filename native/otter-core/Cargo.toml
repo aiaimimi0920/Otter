@@ -13,7 +13,7 @@ test-support = []
 ring = "=0.17.14"
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = { version = "=1.0.151", features = ["raw_value", "float_roundtrip"] }
-url = "=2.5.8"
+url = "=2.5.9"
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "=0.60.0", features = [

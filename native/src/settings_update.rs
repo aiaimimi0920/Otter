@@ -58,11 +58,14 @@ impl Prepared {
         }
         Self::prepare_document(source, document, cancel)
     }
-    fn prepare_document(
+    pub(crate) fn prepare_document(
         source: &Source,
         document: crate::app_settings_document::Document,
         cancel: &AtomicBool,
     ) -> Result<Self, String> {
+        if source.recovery_target().is_some() {
+            return Err("Recovered settings require Save As".into());
+        }
         let next = Source::from_document(source.path().to_path_buf(), document)?;
         let transaction =
             Replacement::prepare_bytes(source.path(), source.bytes(), next.bytes().clone(), cancel)
@@ -72,6 +75,14 @@ impl Prepared {
     /// Return a new baseline only after successful publication; UI must present warnings about retained recovery files.
     pub fn commit(self, cancel: &AtomicBool) -> Result<(Arc<Source>, Published), Failure> {
         let published = self.transaction.commit(cancel)?;
+        Ok((self.next, published))
+    }
+    pub(crate) fn commit_checked(
+        self,
+        cancel: &AtomicBool,
+        authorize: impl FnOnce() -> std::io::Result<()>,
+    ) -> Result<(Arc<Source>, Published), Failure> {
+        let published = self.transaction.commit_checked(cancel, authorize)?;
         Ok((self.next, published))
     }
 }

@@ -133,6 +133,14 @@ impl Replacement {
     pub fn commit(self, cancel: &AtomicBool) -> Result<Published, Failure> {
         self.commit_with(cancel, |_| {})
     }
+    /// Preserve rollback if authority expires after moving the baseline but before publication.
+    pub(crate) fn commit_checked(
+        self,
+        cancel: &AtomicBool,
+        authorize: impl FnOnce() -> io::Result<()>,
+    ) -> Result<Published, Failure> {
+        self.commit_guarded(cancel, |_| {}, |_| {}, authorize)
+    }
     fn commit_with(
         self,
         cancel: &AtomicBool,
@@ -142,10 +150,19 @@ impl Replacement {
     }
     // Private synchronous observation points for process-interruption regressions; production always passes empty callbacks without exposing fault injection.
     fn commit_observed(
+        self,
+        cancel: &AtomicBool,
+        before_publish: impl FnOnce(&Path),
+        after_publish: impl FnOnce(&Path),
+    ) -> Result<Published, Failure> {
+        self.commit_guarded(cancel, before_publish, after_publish, || Ok(()))
+    }
+    fn commit_guarded(
         mut self,
         cancel: &AtomicBool,
         before_publish: impl FnOnce(&Path),
         after_publish: impl FnOnce(&Path),
+        authorize: impl FnOnce() -> io::Result<()>,
     ) -> Result<Published, Failure> {
         check(cancel).map_err(Failure::before)?;
         crate::session_file_trace::run("baseline-move", None, || {
@@ -154,7 +171,12 @@ impl Replacement {
         .map_err(Failure::before)?;
         self.restore_on_drop = true;
         before_publish(&self.destination);
-        match self.staged.take().unwrap().commit_new(cancel) {
+        match self
+            .staged
+            .take()
+            .unwrap()
+            .commit_new_checked(cancel, authorize)
+        {
             Ok(destination) => {
                 self.restore_on_drop = false;
                 after_publish(&destination);

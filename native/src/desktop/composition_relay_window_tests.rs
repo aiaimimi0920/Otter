@@ -9,6 +9,8 @@ use crate::{
     live_relay_viewer_identity::Snapshot,
     pixels::Pixels,
 };
+#[path = "composition_relay_window_language_tests.rs"]
+mod language_tests;
 #[path = "composition_relay_window_observation_tests.rs"]
 mod observation_tests;
 #[path = "composition_relay_window_trigger_tests.rs"]

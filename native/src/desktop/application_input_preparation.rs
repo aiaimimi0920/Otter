@@ -55,16 +55,16 @@ impl Application {
                 .expect("matched ticket");
             let result = report
                 .result
-                .map_err(|_| "图片输入准备失败或已取消")
+                .map_err(|_| crate::ui_text::text("app-image-input-preparation-failed"))
                 .and_then(|mut inputs| {
                     if inputs.target != document.state.unit_id
                         || document.state.pending_execution.borrow().is_some()
                     {
-                        return Err("节点已有待执行请求或准备结果身份不匹配");
+                        return Err(crate::ui_text::text("app-execution-preparation-mismatch"));
                     }
                     inputs
                         .set_dependencies(pending.dependencies)
-                        .map_err(|_| "执行依赖超过预算")?;
+                        .map_err(|_| crate::ui_text::text("app-execution-dependency-limit"))?;
                     pending
                         .plan
                         .stage_checked(&mut self.executions, inputs, |unit, stamp| {
@@ -75,7 +75,7 @@ impl Application {
                                 &self.workspace,
                             )
                         })
-                        .map_err(|_| "执行配置或文档已失效，未创建新请求")
+                        .map_err(|_| crate::ui_text::text("app-execution-document-expired"))
                 });
             match result {
                 Ok(mut execution) => {

@@ -44,7 +44,7 @@ fn same_id_replacement_accepted_and_cross_origin_candidates_cannot_reach_configu
             });
             assert_eq!(
                 app.authorization.borrow().projection.status,
-                "投送选择已失效，请刷新收件箱"
+                crate::ui_text::text("app-projection-choice-expired")
             );
             assert!(!app.remote_sessions.projection_pending());
         }
@@ -101,7 +101,7 @@ fn queued_inbox_request_cannot_cross_modal_exit_or_restore_start() {
                 .borrow()
                 .projection
                 .status
-                .starts_with("投送操作未执行："));
+                .starts_with(crate::ui_text::text("app-projection-workspace-switching")));
             app.documents[0].state.file_dialog.set(false);
             app.exit_requested.set(false);
             app.cancel_restore();

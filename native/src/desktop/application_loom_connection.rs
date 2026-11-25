@@ -26,7 +26,7 @@ impl Application {
                     self.local_loom.select(&saved.origin);
                     let mut view = self.authorization.borrow_mut();
                     view.origin = Some(saved.origin);
-                    view.status = "Loom 自动连接已暂停".into();
+                    view.status = crate::ui_text::text("app-loom-autoconnect-paused").into();
                 }
                 Ok(Some(saved)) => {
                     self.local_loom.select(&saved.origin);
@@ -37,12 +37,16 @@ impl Application {
             }
         }
     }
-    pub(super) fn process_local_loom(&mut self) {
+    pub(super) fn process_local_loom(&mut self) -> bool {
+        let mut stop_preference_failed = false;
         let mut view = self.authorization.borrow_mut();
         if let Some(result) = self.local_loom.poll_disconnect() {
             view.status = match result {
-                Ok(()) => "Loom 已断开".into(),
-                Err(error) => format!("本地已断开，Loom 离线确认失败：{error:?}"),
+                Ok(()) => crate::ui_text::text("app-loom-disconnected").into(),
+                Err(error) => crate::ui_text::format(
+                    "app-loom-disconnect-unconfirmed",
+                    &[("error", format!("{error:?}").into())],
+                ),
             };
         }
         if matches!(view.request, Some(Request::Cancel)) {
@@ -59,7 +63,12 @@ impl Application {
                             )
                         }) {
                         Ok(()) => {}
-                        Err(error) => view.status = format!("Loom 断开请求失败：{error:?}"),
+                        Err(error) => {
+                            view.status = crate::ui_text::format(
+                                "app-loom-disconnect-failed",
+                                &[("error", format!("{error:?}").into())],
+                            )
+                        }
                     }
                 }
             }
@@ -91,7 +100,11 @@ impl Application {
             if view.targets.automatic && matches!(view.request, Some(Request::Cancel)) {
                 if let Some((profile, origin)) = profile().zip(view.origin.as_deref()) {
                     if let Err(error) = preference::save(&profile, true, origin) {
-                        view.status = format!("本次连接已停止，但未保存停止状态：{error}");
+                        stop_preference_failed = true;
+                        view.status = crate::ui_text::format(
+                            "app-loom-stop-save-failed",
+                            &[("error", error.into())],
+                        );
                         // Main authorization handling must still consume Cancel to stop existing leases.
                     }
                 }
@@ -105,7 +118,7 @@ impl Application {
                 .is_some_and(|origin| self.local_loom.manages(origin));
         if reconnect {
             view.request = None;
-            view.status = "正在连接 Loom…".into();
+            view.status = crate::ui_text::text("app-loom-connecting").into();
         } else if matches!(view.request, Some(Request::Start(_))) {
             self.local_loom.stop();
         }
@@ -119,21 +132,24 @@ impl Application {
         {
             self.local_loom.refresh();
             view.request = None;
-            view.targets.status = "正在连接 Loom，连接后自动发现设备…".into();
+            view.targets.status = crate::ui_text::text("app-loom-connecting-targets").into();
         }
         drop(view);
         if reconnect {
             let origin = self.authorization.borrow().origin.clone();
             if let Some((profile, origin)) = profile().zip(origin) {
                 if let Err(error) = preference::save(&profile, false, &origin) {
-                    self.authorization.borrow_mut().status = format!("连接设置未保存：{error}");
-                    return;
+                    self.authorization.borrow_mut().status = crate::ui_text::format(
+                        "app-loom-settings-unsaved",
+                        &[("error", error.to_string().into())],
+                    );
+                    return stop_preference_failed;
                 }
             }
             self.enable_local_loom();
         }
         let Some(result) = self.local_loom.poll(|| self.execution_wake.callback()) else {
-            return;
+            return stop_preference_failed;
         };
         let mut view = self.authorization.borrow_mut();
         match result {
@@ -159,32 +175,39 @@ impl Application {
                         self.local_loom.installed();
                         view.origin = Some(connected.origin);
                         view.busy = false;
-                        view.status = "Loom 已连接".into();
+                        view.status = crate::ui_text::text("app-loom-connected").into();
                         view.connected = true;
                         view.loom_name = connected.name;
                         view.loom_id = Some(connected.loom_id);
                     }
                     Err(error) => {
-                        view.status = format!("Loom 授权未安装：{error:?}");
+                        view.status = crate::ui_text::format(
+                            "app-loom-authorization-not-installed",
+                            &[("error", format!("{error:?}").into())],
+                        );
                         self.local_loom.retry_install();
                     }
                 }
             }
             Err(error) => {
                 if error == crate::loom_local_connection::Error::AwaitingApproval {
-                    view.status = "等待 Loom 管理员批准此设备…".into();
-                    return;
+                    view.status = crate::ui_text::text("app-loom-awaiting-approval").into();
+                    return stop_preference_failed;
                 }
                 if error == crate::loom_local_connection::Error::DeviceDenied {
                     if let Some(origin) = &view.origin {
                         let _ = self.authorization_owner.invalidate(origin);
                     }
-                    view.status = "请在 Loom 批准此设备，然后重新连接；已禁用的设备须先启用".into();
-                    return;
+                    view.status = crate::ui_text::text("app-loom-approval-required").into();
+                    return stop_preference_failed;
                 }
                 // Do not disguise failure as online status or overwrite the user's explicitly selected remote service.
-                view.status = format!("Loom 未连接：{error:?}");
+                view.status = crate::ui_text::format(
+                    "app-loom-not-connected",
+                    &[("error", format!("{error:?}").into())],
+                );
             }
         }
+        stop_preference_failed
     }
 }

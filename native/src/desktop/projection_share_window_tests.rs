@@ -51,6 +51,13 @@ impl Fixture {
             link: RefCell::new(String::new()),
             inputs: RefCell::new(Default::default()),
             status: RefCell::new(String::new()),
+            language: Cell::new(crate::ui_text::current_language()),
+            primary_label: Cell::new(if receive {
+                "share-import"
+            } else {
+                "share-copy-link"
+            }),
+            action_label: Cell::new("share-unlink"),
         });
         create(&model).unwrap();
         Self {
@@ -81,6 +88,8 @@ impl Drop for Fixture {
 fn invitation() -> Binding {
     source_fixture("https://loom.example")
 }
+#[path = "projection_share_locale_tests.rs"]
+mod locale;
 #[test]
 fn share_qr_decode_retains_slot_until_notifier_exits() {
     use std::{
@@ -123,7 +132,10 @@ fn share_qr_decode_retains_slot_until_notifier_exits() {
             assert!(Instant::now() < deadline);
             std::thread::yield_now();
         }
-        assert_eq!(*f.popup.model.status.borrow(), "无法读取二维码图片");
+        assert_eq!(
+            *f.popup.model.status.borrow(),
+            crate::ui_text::text("share-qr-read-failed")
+        );
     }
 }
 #[test]

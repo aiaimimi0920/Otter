@@ -26,7 +26,7 @@ impl Session {
             || self.remote_input.is_some()
             || self.window.as_ref().is_none_or(|w| w.group_input_blocked())
         {
-            return Err("来源不支持远程控制，或已有控制正在执行/回收".into());
+            return Err(crate::ui_text::text("integration-source-control-busy").into());
         }
         let bridge = Bridge::new();
         self.remote_input = Some(Remote {

@@ -5,11 +5,14 @@ pub(super) unsafe fn build(
     snapshot: &Rc<Snapshot>,
     row: &model::Row,
 ) -> Result<()> {
-    b.label(&format!(
-        "{}{}",
-        row.label,
-        if row.linked { " · 连线" } else { "" }
-    ))?;
+    if row.linked {
+        b.localized_label(language::Caption::message(
+            "parameter-linked-row",
+            &[("label", row.label.clone())],
+        ))?;
+    } else {
+        b.label(&row.label)?;
+    }
     b.y += 24;
     if let Some(&index) = row.primary.first() {
         let choice = &snapshot.choices[index];
@@ -147,9 +150,13 @@ pub(super) unsafe fn build(
                 b.y += 32;
             }
             Action::Set(_) => {
-                b.button(
+                b.localized_button(
                     &format!("{}:boolean", row.id),
-                    if choice.checked { "☑ 开" } else { "☐ 关" },
+                    language::Caption::plain(if choice.checked {
+                        "parameter-boolean-on"
+                    } else {
+                        "parameter-boolean-off"
+                    }),
                     12,
                     416,
                     Kind::Choice(snapshot.clone(), index),
@@ -158,9 +165,12 @@ pub(super) unsafe fn build(
                 b.y += 32;
             }
             Action::Color(initial) => {
-                b.button(
+                b.localized_button(
                     &format!("{}:color", row.id),
-                    &format!("颜色 · {}", model::clean(initial)),
+                    language::Caption::message(
+                        "parameter-color-value",
+                        &[("value", model::clean(initial))],
+                    ),
                     12,
                     416,
                     Kind::Choice(snapshot.clone(), index),
@@ -168,9 +178,9 @@ pub(super) unsafe fn build(
                 )?;
                 b.y += 32;
                 if let Some(&clear) = row.primary.get(1) {
-                    b.button(
+                    b.localized_button(
                         &format!("{}:clear", row.id),
-                        "清空颜色",
+                        language::Caption::plain("parameter-clear-color"),
                         12,
                         202,
                         Kind::Choice(snapshot.clone(), clear),
@@ -180,9 +190,9 @@ pub(super) unsafe fn build(
                 }
             }
             Action::File => {
-                b.button(
+                b.localized_button(
                     &format!("{}:file", row.id),
-                    "选择文件…",
+                    language::Caption::plain("parameter-choose-file"),
                     12,
                     416,
                     Kind::Choice(snapshot.clone(), index),
@@ -194,13 +204,13 @@ pub(super) unsafe fn build(
         }
     }
     if let Some(index) = row.reset {
-        b.button(
+        b.localized_button(
             &format!("{}:reset", row.id),
-            if matches!(row.widget.as_str(), "file" | "image_link") {
-                "清空图片"
+            language::Caption::plain(if matches!(row.widget.as_str(), "file" | "image_link") {
+                "parameter-clear-image"
             } else {
-                "恢复默认值"
-            },
+                "parameter-reset-default"
+            }),
             12,
             202,
             Kind::Choice(snapshot.clone(), index),
@@ -209,13 +219,13 @@ pub(super) unsafe fn build(
     }
     if let Some(index) = row.disable {
         let choice = &snapshot.choices[index];
-        b.button(
+        b.localized_button(
             &format!("{}:disable", row.id),
-            if choice.checked {
-                "启用参数"
+            language::Caption::plain(if choice.checked {
+                "parameter-enable"
             } else {
-                "禁用参数"
-            },
+                "parameter-disable"
+            }),
             226,
             202,
             Kind::Choice(snapshot.clone(), index),

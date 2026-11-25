@@ -117,12 +117,49 @@ pub(super) unsafe fn input(hwnd: HWND, value: &str) {
         let _ = SetDlgItemTextW(hwnd, 101, &HSTRING::from(value));
     }
 }
-pub(super) unsafe fn label(hwnd: HWND, id: i32, value: &str) {
+pub(super) unsafe fn label(m: &Model, id: i32, key: &'static str) {
+    match id {
+        1 => m.primary_label.set(key),
+        108 => m.action_label.set(key),
+        _ => unreachable!("only dynamic share buttons have cached labels"),
+    }
+    let Some(hwnd) = m.hwnd.get() else {
+        return;
+    };
+    let value = crate::ui_text::text_for(m.language.get(), key);
     let mut old = [0u16; 64];
     let length = GetDlgItemTextW(hwnd, id, &mut old) as usize;
     if old[..length].iter().copied().ne(value.encode_utf16()) {
         let _ = SetDlgItemTextW(hwnd, id, &HSTRING::from(value));
     }
+}
+pub(super) unsafe fn refresh_language(
+    m: &Model,
+    language: crate::ui_text::DisplayLanguage,
+) -> Result<()> {
+    if m.language.get() == language {
+        return Ok(());
+    }
+    let Some(hwnd) = m.hwnd.get() else {
+        return Ok(());
+    };
+    SetWindowTextW(
+        hwnd,
+        &HSTRING::from(crate::ui_text::text_for(language, "share-title")),
+    )?;
+    // Only presentation changes: retain input, decoding, generated QR data, and pending requests.
+    for (id, key) in layout::FIXED_LABELS
+        .into_iter()
+        .chain([(1, m.primary_label.get()), (108, m.action_label.get())])
+    {
+        SetDlgItemTextW(
+            hwnd,
+            id,
+            &HSTRING::from(crate::ui_text::text_for(language, key)),
+        )?;
+    }
+    m.language.set(language);
+    Ok(())
 }
 unsafe fn copy(m: &Model) -> Result<()> {
     let value = m.link.borrow().clone();
@@ -136,7 +173,7 @@ unsafe fn copy(m: &Model) -> Result<()> {
     crate::desktop::clipboard::copy_text_checked(hwnd, &value, || {
         m.output_current() && m.hwnd.get() == Some(hwnd)
     })?;
-    let _ = SetDlgItemTextW(hwnd, 1, &HSTRING::from("已复制"));
+    label(m, 1, "share-copied");
     if let Ok(edit) = GetDlgItem(Some(hwnd), 101) {
         SendMessageW(edit, 0x00b1, Some(WPARAM(0)), Some(LPARAM(-1)));
     }
@@ -186,9 +223,7 @@ unsafe extern "system" fn procedure(hwnd: HWND, message: u32, wp: WPARAM, lp: LP
             );
             let _ = SetWindowSubclass(edit, Some(edit_proc), 1, ptr as usize);
         }
-        if !m.receive {
-            let _ = SetDlgItemTextW(hwnd, 1, &HSTRING::from("复制链接"));
-        }
+        label(m, 1, m.primary_label.get());
         enable(hwnd, 1, false);
         layout::arrange(hwnd, m, GetDpiForWindow(hwnd));
         return 1;
@@ -278,7 +313,10 @@ unsafe fn choose(m: &Rc<Model>) -> Result<()> {
         .upgrade()
         .ok_or_else(|| Error::new(E_ABORT, "Share closed"))?;
     if view.borrow().share_decode.is_some() {
-        return Err(Error::new(E_ABORT, "上一张图片仍在结束识别，请稍后重试"));
+        return Err(Error::new(
+            E_ABORT,
+            crate::ui_text::text("share-decoder-busy"),
+        ));
     }
     let epoch = m.input_epoch.get();
     let hwnd = m
@@ -286,7 +324,9 @@ unsafe fn choose(m: &Rc<Model>) -> Result<()> {
         .get()
         .ok_or_else(|| Error::new(E_ABORT, "Share closed"))?;
     let mut path = [0u16; 32768];
-    let filter: Vec<u16> = "PNG 图片\0*.png\0\0".encode_utf16().collect();
+    let filter: Vec<u16> = format!("{}\0*.png\0\0", crate::ui_text::text("file-filter-png"))
+        .encode_utf16()
+        .collect();
     let mut options = OPENFILENAMEW {
         lStructSize: std::mem::size_of::<OPENFILENAMEW>() as u32,
         hwndOwner: hwnd,
@@ -314,14 +354,17 @@ unsafe fn choose(m: &Rc<Model>) -> Result<()> {
     let len = path.iter().position(|c| *c == 0).unwrap_or(path.len());
     let path = std::path::PathBuf::from(String::from_utf16_lossy(&path[..len]));
     if view.borrow().share_decode.is_some() {
-        return Err(Error::new(E_ABORT, "上一张图片仍在结束识别，请稍后重试"));
+        return Err(Error::new(
+            E_ABORT,
+            crate::ui_text::text("share-decoder-busy"),
+        ));
     }
     m.cancel_decode();
     m.account_envelope.borrow_mut().take();
     m.envelope.borrow_mut().take();
     enable(hwnd, 1, false);
     view.borrow_mut().share_decode = Some(qr::Decode::start(path, m)?);
-    m.set_status("识别中…");
+    m.set_status(crate::ui_text::text("share-recognizing"));
     Ok(())
 }
 unsafe fn draw(m: &Model, item: &DRAWITEMSTRUCT) {

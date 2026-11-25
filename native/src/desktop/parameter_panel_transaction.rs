@@ -44,7 +44,10 @@ pub(super) unsafe fn drain(panel: &Panel, state: &State) -> Result<()> {
             if rebuild {
                 return Err(error);
             }
-            panel.ui.error(&format!("未完成：{error}"));
+            panel.ui.error_caption(language::Caption::message(
+                "parameter-incomplete",
+                &[("error", error.to_string())],
+            ));
             break;
         }
     }
@@ -60,7 +63,10 @@ unsafe fn submit(
 ) -> Result<()> {
     let before = Stamp::capture(state);
     if !snapshot.submit_texts(panel.ui.host, state, edits)? {
-        return Err(Error::new(E_ABORT, "配置已变化，草稿未提交"));
+        return Err(Error::new(
+            E_ABORT,
+            crate::ui_text::text("parameter-config-draft-conflict"),
+        ));
     }
     // submit_texts has no modal/synchronous Win32 callbacks; cancellation notifications only PostMessage.
     // Publish only after validating all values against the original Spec; successors rebind by stable parameter/action, never reuse old indices.
@@ -118,7 +124,7 @@ unsafe fn submit(
     Ok(())
 }
 fn stale() -> Error {
-    Error::new(E_ABORT, "参数操作已变化，请重试")
+    Error::new(E_ABORT, crate::ui_text::text("parameter-operation-changed"))
 }
 
 unsafe fn advance_inline_drafts(

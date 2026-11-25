@@ -197,9 +197,9 @@ unsafe fn run_routed(mode: u8, offline: bool) {
     assert_eq!(
         fixture.app.authorization.borrow().projection.status,
         if mode == 0 {
-            "投送已呈现"
+            crate::ui_text::text("app-projection-presented")
         } else {
-            "接收未完成；本地内容和未结意图保留"
+            crate::ui_text::text("app-projection-reception-incomplete")
         }
     );
     assert!(fixture.unit_present());

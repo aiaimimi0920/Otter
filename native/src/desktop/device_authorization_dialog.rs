@@ -122,9 +122,9 @@ unsafe extern "system" fn procedure(hwnd: HWND, message: u32, wp: WPARAM, lp: LP
             hwnd,
             103,
             &HSTRING::from(if (*input).art {
-                "请输入有效的 Art ID。"
+                crate::ui_text::text("device-dialog-art-invalid")
             } else {
-                "请输入 HTTPS 服务地址；不能包含账号、路径、查询或片段。"
+                crate::ui_text::text("device-dialog-endpoint-invalid")
             }),
         );
     }

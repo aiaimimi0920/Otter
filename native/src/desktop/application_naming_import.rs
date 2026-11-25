@@ -91,7 +91,10 @@ impl Application {
         ) {
             MessageBoxW(
                 None,
-                &HSTRING::from(format!("命名设置未导入。\n{error}")),
+                &HSTRING::from(crate::ui_text::format(
+                    "action-naming-import-failed",
+                    &[("error", error.to_string().into())],
+                )),
                 w!("Otter"),
                 MB_OK | MB_ICONWARNING,
             );
@@ -113,7 +116,7 @@ impl Application {
             &crate::art_issuer_trust::Document,
         ) -> Result<bool>,
     ) -> Result<()> {
-        if self.modals.blocked() {
+        if self.modals.blocked() || self.locale_busy() {
             return Ok(());
         }
         // Consume new operations first; clicks while busy must not become a second implicit import after completion.
@@ -200,6 +203,8 @@ impl Application {
             self.recycle_policy = recycle;
             self.naming_document = next.document().clone();
             self.naming_source = Some(next);
+            self.locale_remote.reset_profile();
+            self.refresh_display_language();
             self.schedule_recycle_maintenance();
         }
         let Some((origin, hwnd)) = requester else {
@@ -255,13 +260,14 @@ unsafe fn choose(hwnd: HWND, state: &State) -> Result<Option<PathBuf>> {
     let _dialog = crate::desktop::file_dialog::Guard::begin(&flag)
         .ok_or_else(|| Error::new(E_ABORT, "Another dialog is active"))?;
     let mut name = vec![0u16; 32768];
+    let title = HSTRING::from(crate::ui_text::text("action-naming-import-title"));
     let mut options = OPENFILENAMEW {
         lStructSize: std::mem::size_of::<OPENFILENAMEW>() as u32,
         hwndOwner: hwnd,
         lpstrFile: windows::core::PWSTR(name.as_mut_ptr()),
         nMaxFile: name.len() as u32,
         lpstrFilter: w!("Otter settings\0*.json\0\0"),
-        lpstrTitle: w!("导入命名设置（仅本次运行，不修改源文件）"),
+        lpstrTitle: windows::core::PCWSTR(title.as_ptr()),
         Flags: OFN_EXPLORER | OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR,
         ..Default::default()
     };

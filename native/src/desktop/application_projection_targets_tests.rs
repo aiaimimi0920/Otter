@@ -130,7 +130,20 @@ fn run(mode: u8) {
                     view.targets.directory.as_ref().unwrap().targets()[0].id(),
                     "receiver-one"
                 );
-                assert_eq!(view.targets.status, "投送目标：1 项 · 离线目录不完整");
+                assert_eq!(
+                    view.targets.status,
+                    crate::ui_text::format(
+                        "integration-target-count",
+                        &[
+                            ("count", 1.into()),
+                            (
+                                "suffix",
+                                crate::ui_text::text("integration-offline-directory-partial")
+                                    .into()
+                            ),
+                        ]
+                    )
+                );
                 assert!(view.consent.paused());
                 assert!(view.projection.entries.is_empty());
             } else {
@@ -141,12 +154,13 @@ fn run(mode: u8) {
                     assert!(second.authorization.borrow().targets.directory.is_none());
                 }
                 if mode == 5 {
-                    assert!(second
-                        .authorization
-                        .borrow()
-                        .targets
-                        .status
-                        .starts_with("目标目录查询失败："));
+                    assert_eq!(
+                        second.authorization.borrow().targets.status,
+                        crate::ui_text::format(
+                            "app-projection-targets-query-failed",
+                            &[("error", "Http(Projection(Entry))".into())]
+                        )
+                    );
                 }
             }
             app.shutdown();
@@ -218,12 +232,13 @@ fn projection_targets_native_missing_grant_and_busy_owner_do_not_prepare_network
             panic!("missing grant must not prepare network")
         });
         assert!(!app.remote_sessions.projection_pending());
-        assert!(app
-            .authorization
-            .borrow()
-            .targets
-            .status
-            .starts_with("请先获取有效授权："));
+        assert_eq!(
+            app.authorization.borrow().targets.status,
+            crate::ui_text::format(
+                "app-authorization-required-detail",
+                &[("error", "Credential".into())]
+            )
+        );
         app.authorization.borrow_mut().targets.busy = true;
         projection::targets::start(
             &mut app.authorization.borrow_mut(),

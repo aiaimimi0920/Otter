@@ -100,13 +100,13 @@ fn invalid_or_busy_journal_disables_only_recovery_without_overwriting_or_retryin
                 app.install_workspace_checkpoint(Some(Profile::open(&directory.0).unwrap()), false)
                     .unwrap();
                 poll(&mut app);
-                assert!(app
-                    .authorization
-                    .borrow()
-                    .projection
-                    .recovery
-                    .status
-                    .starts_with("投送恢复不可用："));
+                assert_eq!(
+                    app.authorization.borrow().projection.recovery.status,
+                    crate::ui_text::format(
+                        "app-projection-recovery-unavailable",
+                        &[("error", if busy { "Lock" } else { "Format" }.into())]
+                    )
+                );
                 assert!(app
                     .authorization
                     .borrow()

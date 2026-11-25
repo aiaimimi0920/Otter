@@ -1,5 +1,6 @@
 use super::*;
 use std::rc::Rc;
+use windows::core::w;
 fn state() -> State {
     let (_listener, identity, _) = crate::loom_bridge_client::tests::fixture();
     let mut value = crate::loom_handshake::tests::fixture();
@@ -304,7 +305,13 @@ fn linked_view_locks_editing_rejects_stale_menu_and_preserves_manual_values() {
         unreachable!();
     };
     assert_eq!(text, "7");
-    assert!(edit.label.contains("7（连线）"));
+    assert_eq!(
+        edit.label,
+        crate::ui_text::format(
+            "integration-linked-parameter",
+            &[("label", "amount".into()), ("preview", "7".into())]
+        )
+    );
     assert!(!edit.enabled);
     assert_eq!(
         state

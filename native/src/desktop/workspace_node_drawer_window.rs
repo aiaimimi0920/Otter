@@ -20,7 +20,7 @@ impl Window {
         let hwnd = CreateWindowExW(
             WS_EX_TOOLWINDOW | WS_EX_CONTROLPARENT,
             CLASS,
-            w!("节点属性"),
+            &HSTRING::from(crate::ui_text::text("workspace-node-properties")),
             WS_POPUP | WS_CLIPCHILDREN,
             0,
             0,

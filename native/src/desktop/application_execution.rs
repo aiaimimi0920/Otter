@@ -83,7 +83,10 @@ impl Application {
                     &self.workspace,
                 )
             {
-                results.fail(&request, "准备期间文档已变化，执行未启动");
+                results.fail(
+                    &request,
+                    crate::ui_text::text("app-execution-document-changed"),
+                );
                 self.executions.finish(&unit, &request);
                 super::super::execution_configuration::clear(&document.state, &request);
                 continue;
@@ -96,7 +99,7 @@ impl Application {
                 .start(execution, &self.executions)
                 .is_err()
             {
-                results.fail(&request, "无法启动节点执行，后台任务可能仍在清理");
+                results.fail(&request, crate::ui_text::text("app-execution-start-failed"));
                 self.executions.finish(&unit, &request);
                 super::super::execution_configuration::clear(&document.state, &request);
             }
@@ -164,19 +167,19 @@ impl Application {
                 // Do not put raw service responses/authentication information into UI state; types distinguish detailed causes.
                 let message = match error {
                     crate::desktop::loom_execution_tasks::CommitError::Stale => {
-                        "执行期间文档或请求已变化，结果未应用"
+                        crate::ui_text::text("app-execution-result-stale")
                     }
                     crate::desktop::loom_execution_tasks::CommitError::ExecutionFailed => {
-                        "节点执行失败"
+                        crate::ui_text::text("app-execution-failed")
                     }
                     crate::desktop::loom_execution_tasks::CommitError::PendingCleanup => {
-                        "远端资源清理尚未确认"
+                        crate::ui_text::text("app-execution-cleanup-unconfirmed")
                     }
                     crate::desktop::loom_execution_tasks::CommitError::Output(_) => {
-                        "无法读取节点执行结果"
+                        crate::ui_text::text("app-execution-result-unreadable")
                     }
                     crate::desktop::loom_execution_tasks::CommitError::State(_) => {
-                        "节点输出超过资源限制，结果未应用"
+                        crate::ui_text::text("app-execution-result-limit")
                     }
                 };
                 report.reject(&mut self.executions, &mut results, message);

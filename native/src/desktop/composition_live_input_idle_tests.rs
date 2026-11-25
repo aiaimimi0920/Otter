@@ -115,7 +115,10 @@ fn asynchronous_rejection_marks_session_unavailable_without_new_input_or_replay(
         assert_eq!(cleanup.released, u8::from(!cleanup_failed));
         assert!(session.window.as_ref().unwrap().take_input_notice());
         assert!(!session.window.as_ref().unwrap().input_resume_pending());
-        assert_eq!(title(&session), "Otter Live · 控制不可用");
+        assert_eq!(
+            title(&session),
+            crate::ui_text::text("integration-live-control-unavailable")
+        );
         assert_eq!(finish(&mut session).is_err(), cleanup_failed);
     }
 }

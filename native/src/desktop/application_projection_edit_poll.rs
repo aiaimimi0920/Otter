@@ -26,8 +26,11 @@ impl Application {
                     Ok(Output::Edited(ready)) if valid => {
                         self.publish_projection_edit(pending.fence, ready, pending.remaining)
                     }
-                    Err(error) => Err(format!("协作提交未确认，保留本地修改和原请求：{error:?}")),
-                    Ok(_) => Err("协作提交已过期；保留本地修改和原请求".into()),
+                    Err(error) => Err(crate::ui_text::format(
+                        "app-projection-edit-unconfirmed",
+                        &[("error", format!("{error:?}").into())],
+                    )),
+                    Ok(_) => Err(crate::ui_text::text("app-projection-edit-expired").into()),
                 };
                 if let Err(error) = result {
                     self.edit_error(&error);
@@ -35,7 +38,9 @@ impl Application {
             }
             Phase::Checkpoint(saved) => {
                 if !saved.fence.matches(self) {
-                    self.edit_error("协作保存目标已变化；内容及原请求保留");
+                    self.edit_error(crate::ui_text::text(
+                        "app-projection-edit-save-target-changed",
+                    ));
                     return;
                 }
                 if !saved.durable {
@@ -68,11 +73,14 @@ impl Application {
                             cancelled: false,
                             remaining,
                         }));
-                        self.edit_status("协作结果已写入检查点，正在确认原请求…");
+                        self.edit_status(crate::ui_text::text(
+                            "app-projection-edit-checkpoint-confirming",
+                        ));
                     }
-                    Err(error) => {
-                        self.edit_error(&format!("协作结果已保存；日志确认待重试：{error}"))
-                    }
+                    Err(error) => self.edit_error(&crate::ui_text::format(
+                        "app-projection-edit-journal-retry",
+                        &[("error", error.to_string().into())],
+                    )),
                 }
             }
             Phase::Acknowledging(mut pending) => {
@@ -88,7 +96,9 @@ impl Application {
                 if matches!(result, Ok(Output::EditAcknowledged)) && valid {
                     self.continue_projection_edit(pending, config);
                 } else {
-                    self.edit_error("协作结果保留；原请求确认未完成，请显式重试");
+                    self.edit_error(crate::ui_text::text(
+                        "app-projection-edit-confirm-incomplete",
+                    ));
                 }
             }
             Phase::Idle => {}
@@ -105,14 +115,19 @@ impl Application {
             .documents
             .iter()
             .find(|doc| doc.state.unit_id == fence.unit)
-            .ok_or("协作窗口已关闭")?;
+            .ok_or(crate::ui_text::text("app-projection-edit-window-closed"))?;
         let mut canvas = doc.state.canvas.borrow_mut();
         let mut slot = doc.state.projection_edit.borrow_mut();
         let owner = slot
             .as_ref()
-            .ok_or("协作会话已关闭")?
+            .ok_or(crate::ui_text::text("app-projection-edit-session-closed"))?
             .apply_ready(&ready, &mut canvas.editor)
-            .map_err(|error| format!("协作响应未发布；原图及请求保留：{error}"))?;
+            .map_err(|error| {
+                crate::ui_text::format(
+                    "app-projection-edit-unpublished",
+                    &[("error", error.to_string().into())],
+                )
+            })?;
         let snapshot = owner.capture(&canvas.editor);
         fence.stamp = owner.stamp();
         *slot = Some(owner);
@@ -129,7 +144,9 @@ impl Application {
         self.display_cache.borrow_mut().take();
         self.display_composition.borrow_mut().invalidate();
         let _ = windows::Win32::Graphics::Gdi::InvalidateRect(Some(doc.window.0), None, false);
-        self.edit_status("协作响应已接收，等待工作区检查点…");
+        self.edit_status(crate::ui_text::text(
+            "app-projection-edit-awaiting-checkpoint",
+        ));
         Ok(())
     }
     unsafe fn continue_projection_edit(
@@ -178,7 +195,7 @@ impl Application {
                 self.start_projection_edit(selection, config, remaining, Action::Submit);
                 return;
             }
-            self.edit_status("本批协作修改已保存；仍有修改待继续提交");
+            self.edit_status(crate::ui_text::text("app-projection-edit-batch-saved"));
         } else {
             let conflict = self
                 .documents
@@ -194,9 +211,9 @@ impl Application {
                         })
                 });
             self.edit_status(if conflict.is_some() {
-                "协作冲突已保存；请选择保留本地修改或采用远端标注"
+                crate::ui_text::text("app-projection-edit-conflict-saved")
             } else {
-                "协作会话已更新并写入检查点"
+                crate::ui_text::text("app-projection-edit-session-checkpointed")
             });
         }
     }

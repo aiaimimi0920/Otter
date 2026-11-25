@@ -34,7 +34,7 @@ pub(super) fn control_ids() -> Vec<i32> {
 pub(super) unsafe fn create(owner: HWND, state: &State, visible: bool) -> Result<Window> {
     let panel = Window(neuro_mini_ui::create(
         owner,
-        "贴图编辑",
+        crate::ui_text::text("edit-strip-title"),
         super::EXECUTE,
         &catalog::items(),
     )?);
@@ -190,16 +190,16 @@ pub(super) unsafe fn refresh(state: &State) {
         };
         let label = if button.id == catalog::MODE {
             if tool == crate::editor::Tool::Select && !selection_enabled {
-                "选择（静默）"
+                crate::ui_text::text("edit-select-silent")
             } else {
-                "选择"
+                crate::ui_text::text("edit-select")
             }
         } else {
             super::super::tool_commands::TOOLS
                 .iter()
                 .find(|entry| entry.id == command)
                 .map_or(button.label, |entry| {
-                    entry.label.split('\t').next().unwrap_or(entry.label)
+                    entry.label().split('\t').next().unwrap_or(entry.label())
                 })
         };
         if let Err(error) = neuro_mini_ui::update(

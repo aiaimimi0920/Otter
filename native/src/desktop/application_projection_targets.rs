@@ -20,7 +20,7 @@ pub(in crate::desktop::application) fn start(
         || view.targets.busy
         || remote.projection_pending()
     {
-        view.targets.status = "投送目标任务不可用".into();
+        view.targets.status = crate::ui_text::text("app-projection-target-task-unavailable").into();
         return;
     }
     // Preserve the previous catalog's presentation during background queries; busy prevents dispatch from it, while failures still invalidate it.
@@ -29,20 +29,34 @@ pub(in crate::desktop::application) fn start(
         view.targets.directory = None;
     }
     let result = (|| {
-        let origin = view.origin.as_deref().ok_or("尚未选择服务")?;
-        let now =
-            crate::desktop::surface_windows::now_ms().map_err(|_| "系统时间无效".to_owned())?;
-        let lease = owner
-            .lease(origin, now)
-            .map_err(|e| format!("请先获取有效授权：{e:?}"))?;
-        let config = config(origin).map_err(|e| format!("配置无效：{e:?}"))?;
-        remote
-            .query_projection_targets(config, lease)
-            .map_err(|e| format!("目标目录未启动：{e}"))
+        let origin = view
+            .origin
+            .as_deref()
+            .ok_or(crate::ui_text::text("app-service-not-selected"))?;
+        let now = crate::desktop::surface_windows::now_ms()
+            .map_err(|_| crate::ui_text::text("app-system-time-invalid").to_owned())?;
+        let lease = owner.lease(origin, now).map_err(|e| {
+            crate::ui_text::format(
+                "app-authorization-required-detail",
+                &[("error", format!("{e:?}").into())],
+            )
+        })?;
+        let config = config(origin).map_err(|e| {
+            crate::ui_text::format(
+                "app-configuration-invalid-detail",
+                &[("error", format!("{e:?}").into())],
+            )
+        })?;
+        remote.query_projection_targets(config, lease).map_err(|e| {
+            crate::ui_text::format(
+                "app-projection-targets-start-failed",
+                &[("error", e.to_string().into())],
+            )
+        })
     })();
     view.targets.busy = result.is_ok();
     view.targets.status = match result {
-        Ok(()) => "正在查询投送目标…".into(),
+        Ok(()) => crate::ui_text::text("app-projection-targets-querying").into(),
         Err(error) => error,
     };
     if !view.targets.busy {
@@ -104,8 +118,11 @@ pub(super) fn finish(view: &mut View, origin: &str, result: Result<Output, Error
             view.targets.directory = Some(std::sync::Arc::new(directory));
             status
         }
-        Err(Error::Stopped) => "目标目录已取消，请重新获取授权".into(),
-        Err(error) => format!("目标目录查询失败：{error:?}"),
-        _ => "目标目录响应不匹配".into(),
+        Err(Error::Stopped) => crate::ui_text::text("app-projection-targets-cancelled").into(),
+        Err(error) => crate::ui_text::format(
+            "app-projection-targets-query-failed",
+            &[("error", format!("{error:?}").into())],
+        ),
+        _ => crate::ui_text::text("app-projection-targets-mismatch").into(),
     };
 }

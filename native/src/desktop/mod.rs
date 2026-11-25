@@ -206,6 +206,7 @@ mod presentation_readback_test;
 mod priority_input;
 mod procedure;
 mod projection_edit_workspace;
+mod property_panel_captions;
 mod rasterize;
 mod rasterize_input;
 mod render_commands;
@@ -378,6 +379,7 @@ pub(super) struct State {
     naming_save_requested: Cell<bool>,
     naming_update_requested: Cell<bool>,
     naming_autosave: std::rc::Rc<Cell<bool>>,
+    display_language_request: std::rc::Rc<Cell<Option<crate::display_language::DisplayLanguage>>>,
     open_session_assets_requested: Cell<bool>,
     exit_requested: std::rc::Rc<Cell<bool>>,
     session_end: std::rc::Rc<session_end::Control>,

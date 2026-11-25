@@ -156,7 +156,10 @@ pub(super) unsafe fn start(hwnd: HWND, state: &State, command: usize) {
         if IsWindow(Some(hwnd)).as_bool() {
             MessageBoxW(
                 Some(hwnd),
-                &HSTRING::from(format!("无法完成截图，原文档保留。\n{error}")),
+                &HSTRING::from(crate::ui_text::format(
+                    "capture-failed",
+                    &[("error", error.to_string().into())],
+                )),
                 w!("Otter"),
                 MB_OK | MB_ICONWARNING,
             );

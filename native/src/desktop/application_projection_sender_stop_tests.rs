@@ -77,7 +77,7 @@ pub(super) unsafe fn run(
                 .borrow()
                 .sender
                 .status
-                .contains("持久减权失败")
+                .contains(crate::ui_text::text("app-projection-stop-authority-failed"))
         });
         assert!(!app.remote_sessions.projection_pending());
         assert!(
@@ -159,7 +159,10 @@ pub(super) unsafe fn run(
         1,
         "memory removal cannot acknowledge durable unlink receipt"
     );
-    assert_ne!(app.authorization.borrow().sender.status, "发送关联已停止");
+    assert_ne!(
+        app.authorization.borrow().sender.status,
+        crate::ui_text::text("app-projection-sender-stopped")
+    );
     settle(app);
     if mode == 9 {
         // Final canonical removal is done but ack is not yet scheduled; recovery still consumes only the original durable success fact.
@@ -178,7 +181,10 @@ pub(super) unsafe fn run(
         app.projection_sender.profile.entries().unwrap().is_empty()
     });
     assert_eq!(journal(root)["entries"], json!([]));
-    assert_eq!(app.authorization.borrow().sender.status, "发送关联已停止");
+    assert_eq!(
+        app.authorization.borrow().sender.status,
+        crate::ui_text::text("app-projection-sender-stopped")
+    );
     let saved: Value =
         serde_json::from_slice(&std::fs::read(root.join("workspace.json")).unwrap()).unwrap();
     assert_eq!(saved["stickers"][0]["projectionSenders"], json!([]));

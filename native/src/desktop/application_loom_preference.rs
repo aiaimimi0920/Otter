@@ -10,12 +10,12 @@ pub(super) fn load(root: &Path) -> Result<Option<Preference>, String> {
     match read(root)? {
         None => Ok(None),
         Some(bytes) => {
-            let value: Preference =
-                serde_json::from_slice(&bytes).map_err(|_| "Loom 自动连接设置无效")?;
+            let value: Preference = serde_json::from_slice(&bytes)
+                .map_err(|_| crate::ui_text::text("app-loom-preference-invalid"))?;
             if crate::device_session_attempt::canonical_origin(&value.origin).as_ref()
                 != Ok(&value.origin)
             {
-                return Err("Loom 自动连接地址无效".into());
+                return Err(crate::ui_text::text("app-loom-preference-origin-invalid").into());
             }
             Ok(Some(value))
         }
@@ -52,7 +52,7 @@ pub(super) fn save(root: &Path, paused: bool, origin: &str) -> Result<(), String
         crate::session_file_replace::Replacement::prepare_bytes(&path, &before, next, &cancel)
             .map_err(|e| e.to_string())?
             .commit(&cancel)
-            .map_err(|_| "Loom 自动连接设置保存失败".to_owned())?;
+            .map_err(|_| crate::ui_text::text("app-loom-preference-save-failed").to_owned())?;
     } else {
         crate::session_file_write::Staged::prepare_bytes(&path, next, &cancel)
             .map_err(|e| e.to_string())?

@@ -26,7 +26,10 @@ impl Choice {
         let item = &self.set.items[self.item];
         neuro_mini_ui::PreviewCard {
             title: if item.title.is_empty() {
-                format!("候选 {}", item.index + 1)
+                crate::ui_text::format(
+                    "parameter-candidate-number",
+                    &[("index", (item.index + 1).into())],
+                )
             } else {
                 item.title.clone()
             },
@@ -97,7 +100,7 @@ impl Choice {
 pub(super) unsafe fn build(b: &mut Builder<'_>, model: &model::Model) -> Result<()> {
     for (position, choice) in choices(model, b.ui.state()).into_iter().enumerate() {
         if position == 0 {
-            b.label("候选")?;
+            b.localized_label(language::Caption::plain("parameter-candidates"))?;
             b.y += 24;
         }
         let item = &choice.set.items[choice.item];

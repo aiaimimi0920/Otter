@@ -37,20 +37,35 @@ pub(super) struct Control {
 }
 pub(super) unsafe fn install(hwnd: HWND) -> Result<()> {
     let menu = GetSystemMenu(hwnd, false);
-    AppendMenuW(menu, MF_STRING, PUBLISH_DIRECT, w!("投射 Live 到设备…"))?;
-    AppendMenuW(menu, MF_STRING, PUBLISH, w!("发布 Live 到 Loom"))?;
+    AppendMenuW(
+        menu,
+        MF_STRING,
+        PUBLISH_DIRECT,
+        &windows::core::HSTRING::from(crate::ui_text::text("integration-project-live")),
+    )?;
+    AppendMenuW(
+        menu,
+        MF_STRING,
+        PUBLISH,
+        &windows::core::HSTRING::from(crate::ui_text::text("integration-publish-live")),
+    )?;
     AppendMenuW(
         menu,
         MF_STRING | MF_GRAYED,
         PUBLISH_CONTROL,
-        w!("发布 Live 并允许远程控制"),
+        &windows::core::HSTRING::from(crate::ui_text::text("integration-publish-live-control")),
     )?;
-    AppendMenuW(menu, MF_STRING, STOP, w!("停止 Live 发布"))?;
+    AppendMenuW(
+        menu,
+        MF_STRING,
+        STOP,
+        &windows::core::HSTRING::from(crate::ui_text::text("integration-stop-live-publication")),
+    )?;
     AppendMenuW(
         menu,
         MF_STRING | MF_GRAYED,
         PUBLISH_OBSERVE,
-        w!("发布 Live 并共享窗口观察"),
+        &windows::core::HSTRING::from(crate::ui_text::text("integration-publish-live-observation")),
     )?;
     let _ = EnableMenuItem(menu, STOP as u32, MF_BYCOMMAND | MF_GRAYED);
     Ok(())
@@ -117,15 +132,15 @@ impl LiveWindow {
             phase,
             Phase::Starting | Phase::Publishing | Phase::Recovering | Phase::Stopping
         );
-        let title = match phase {
-            Phase::Idle => w!("发布 Live 到 Loom"),
-            Phase::Starting => w!("Live 正在发布…"),
-            Phase::Publishing => w!("Live 已发布"),
-            Phase::Recovering => w!("Live 重连中…"),
-            Phase::Stopping => w!("Live 正在停止发布…"),
-            Phase::Failed => w!("发布失败（可重试）"),
-            Phase::Unconfirmed => w!("发布已停，服务器关闭未确认"),
-        };
+        let title = windows::core::HSTRING::from(match phase {
+            Phase::Idle => crate::ui_text::text("integration-publish-live"),
+            Phase::Starting => crate::ui_text::text("integration-live-publishing"),
+            Phase::Publishing => crate::ui_text::text("integration-live-published"),
+            Phase::Recovering => crate::ui_text::text("integration-live-reconnecting"),
+            Phase::Stopping => crate::ui_text::text("integration-live-publication-stopping"),
+            Phase::Failed => crate::ui_text::text("integration-publication-failed"),
+            Phase::Unconfirmed => crate::ui_text::text("integration-publication-unconfirmed"),
+        });
         // Hold no RefCell borrow across synchronous Win32 dispatch; modify only this owner's system menu.
         unsafe {
             let menu = GetSystemMenu(self.hwnd, false);
@@ -160,7 +175,7 @@ impl LiveWindow {
                 PUBLISH as u32,
                 MF_BYCOMMAND | MF_STRING | if busy { MF_GRAYED } else { MF_ENABLED },
                 PUBLISH,
-                title,
+                &title,
             );
             let _ = EnableMenuItem(
                 menu,

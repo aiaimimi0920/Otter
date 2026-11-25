@@ -30,6 +30,10 @@ impl Window {
                 prompt.resolve(approved);
             }
         }
+        if let Some(prompt) = &self.confirmation {
+            // Cosmetic failure keeps the dirty language stamp for the next pump, not a runtime stop.
+            let _ = prompt.refresh_language();
+        }
         if self.confirmation.is_none() {
             if let Some(ticket) = self.runtime.take_confirmation(&self.current) {
                 let hwnd = self

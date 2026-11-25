@@ -68,7 +68,7 @@ modifying system root certificates. For preconfiguration without UDP, use truste
 connection details as described below.
 
 The LAN endpoint is disabled by default and separate from local administration. Its restricted
-routes cover device authentication, projection, Surface, wall, local Art HTTP and authorized
+routes cover device authentication, display-language reports, projection, Surface, wall, local Art HTTP and authorized
 Live media WebSocket (`/v1/live/media`). This does not expose administration APIs or the local
 bridge; every operation still requires its own authorization checks.
 
@@ -104,6 +104,10 @@ changes, export again from the correct Loom; do not copy `loom.json`, `device-id
 or an entire user profile.
 
 ## Focused verification
+
+Loom can also request a display-language change for one connected Otter device. This uses the
+authenticated Device receiver and does not grant general settings or filesystem access.
+See [display language](DISPLAY_LANGUAGE.md) for request lifetime, revision conflicts and receipts.
 
 - Native connection and pause state: `loom_local_connection_tests.rs`, `application_loom_connection_tests.rs`
   and adjacent tests for `application_loom_preference.rs`. Tests for `device_authorization_dialog.rs`

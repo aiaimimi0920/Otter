@@ -129,26 +129,45 @@ fn stalled_child_before_after_frame_is_cancelled_timed_out_reaped_and_capacity_r
     for mode in [5, 7] {
         for cancelled in [false, true] {
             let start = Instant::now();
-            let stopped = || cancelled && start.elapsed() > Duration::from_millis(80);
-            let deadline = start
-                + if cancelled {
-                    Duration::from_secs(5)
-                } else {
-                    Duration::from_millis(400)
-                };
+            let spawned_at = std::cell::Cell::new(None::<Instant>);
+            // Reaping requires an observed child; admission cancellation has its own test.
+            let stopped = || {
+                cancelled
+                    && spawned_at
+                        .get()
+                        .is_some_and(|started| started.elapsed() > Duration::from_millis(80))
+            };
+            let deadline = start + Duration::from_secs(5);
             let mut probe = None;
             let result = with_request(&mode.to_string(), |r| {
                 run(r, Backend::D3d12, deadline, &stopped, |endpoint, limit| {
+                    if cancelled {
+                        // Model startup scheduling slower than the cancellation interval.
+                        std::thread::sleep(Duration::from_millis(100));
+                        assert!(!stopped());
+                    }
                     let child = spawn(endpoint, limit, &stopped)?;
                     probe = Some(child.probe()?);
+                    spawned_at.set(Some(Instant::now()));
                     Ok(child)
                 })
             });
-            assert!(result.is_err());
-            let probe = probe.unwrap();
+            assert!(
+                matches!(&result, Err(Failure::Transport(error))
+                    if error.kind() == io::ErrorKind::TimedOut
+                        || cancelled && error.kind() == io::ErrorKind::ConnectionAborted),
+                "mode={mode} cancelled={cancelled}: {result:?}"
+            );
+            let probe = probe.unwrap_or_else(|| {
+                panic!("child was not observed: mode={mode} cancelled={cancelled}: {result:?}")
+            });
             assert!(probe.exited());
             assert!(probe.peak_job_bytes().unwrap() <= CHILD_LIMIT);
-            assert!(start.elapsed() < Duration::from_secs(3));
+            assert!(Instant::now() < deadline + Duration::from_secs(3));
+            if cancelled {
+                assert!(stopped(), "cancellation must fire before the deadline");
+                assert!(spawned_at.get().unwrap().elapsed() < Duration::from_secs(3));
+            }
             assert_eq!(CAPACITY.used(), 0);
         }
     }

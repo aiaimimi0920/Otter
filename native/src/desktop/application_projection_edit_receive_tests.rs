@@ -128,7 +128,7 @@ fn collaboration_same_png_revision_updates_remote_objects_keeps_local_undo_and_s
         assert_eq!(snapshot(&fixture).document().revision(), 2);
         assert_eq!(
             fixture.app.authorization.borrow().projection.status,
-            "协作标注已同步"
+            crate::ui_text::text("app-projection-edit-synchronized")
         );
         assert_eq!(binding(&fixture)["revision"], 5);
         assert!(state(&fixture)
@@ -295,9 +295,9 @@ unsafe fn local_and_remote(two_way: bool) {
     assert_eq!(
         fixture.app.authorization.borrow().projection.status,
         if two_way {
-            "已接收协作，本地修改待提交"
+            crate::ui_text::text("app-projection-edit-pending")
         } else {
-            "协作冲突，保留本地修改"
+            crate::ui_text::text("app-projection-edit-conflict")
         }
     );
     save(&mut fixture);

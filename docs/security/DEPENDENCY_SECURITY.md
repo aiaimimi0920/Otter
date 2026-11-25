@@ -23,6 +23,15 @@ its resolved checkout, commit, files and MIT license. Renderer patches have sepa
 [`third_party`](../../third_party/README.md). The package gate inventories all-platform normal/build dependency materials,
 including exact reviewed license supplements for QuickJS. There are no legacy frontend/runtime npm dependencies.
 
+The QR reader uses upstream `rxing` 0.9.4 at commit
+`912b1083ffd164b29e6b244e4845de9df06b107a`, with only `decoders`, `qrcode` and `encoding_rs`.
+This commit makes `chrono` optional and removes it from the native QR-only dependency graph;
+the published 0.9.4 crate still depends on the unmaintained library (`RUSTSEC-2026-0543`).
+Keep the full commit pin until a reviewed registry release contains this fix, and keep the
+candidate source/license checks aligned with the resolved Git checkout. Do not enable
+`client_support` or `wasm_support` without reviewing their additional dependencies.
+The four workspace crates pin `url` 2.5.9, which fixes `RUSTSEC-2026-0592`.
+
 For any future exception, use a specific advisory, reason and bounded expiry in `security/osv-scanner.toml`;
 the contract rejects broad package overrides, expired exceptions and expiry beyond the policy's maximum lifetime.
 See [runtime security](SECURITY_BOUNDARIES.md)

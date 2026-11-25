@@ -38,7 +38,7 @@ fn label(title: &[u16], process: u32, hwnd: usize) -> String {
         }
     }
     let title = if clean.trim().is_empty() {
-        "无标题窗口"
+        crate::ui_text::text("action-untitled-window")
     } else {
         clean.trim()
     };
@@ -98,7 +98,12 @@ unsafe fn menu(candidates: &[Candidate]) -> Result<Menu> {
     }
     if candidates.len() == LIMIT {
         AppendMenuW(menu.0, MF_SEPARATOR, 0, None)?;
-        AppendMenuW(menu.0, MF_STRING | MF_GRAYED, 0, w!("仅显示前 64 个窗口"))?;
+        AppendMenuW(
+            menu.0,
+            MF_STRING | MF_GRAYED,
+            0,
+            &HSTRING::from(crate::ui_text::text("action-window-limit")),
+        )?;
     }
     Ok(menu)
 }
@@ -136,7 +141,7 @@ mod tests {
     fn titles_are_bounded_and_cannot_inject_menu_shortcuts_or_control_layout() {
         let title: Vec<u16> = "A&B\tC\nD\u{202e}".encode_utf16().collect();
         assert_eq!(label(&title, 42, 16), "A&&B C D  [PID 42 · 10]");
-        assert!(label(&[], 42, 16).starts_with("无标题窗口"));
+        assert!(label(&[], 42, 16).starts_with(crate::ui_text::text("action-untitled-window")));
         assert!(label(&vec![b'&' as u16; 10000], 1, 1).len() < 300);
         assert!(take(Vec::new(), 0).unwrap().is_none());
         assert!(take(Vec::new(), 1).is_err());

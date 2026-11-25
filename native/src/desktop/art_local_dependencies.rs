@@ -14,11 +14,11 @@ impl Stamp {
     pub(super) fn capture(workspace: &Workspace, target: &UnitId) -> Result<Self, &'static str> {
         let upstream = workspace
             .upstream_units(target)
-            .map_err(|_| "Art 输入图无效")?;
+            .map_err(|_| crate::ui_text::text("integration-art-input-graph-invalid"))?;
         let mut units = Vec::new();
         units
             .try_reserve_exact(upstream.len())
-            .map_err(|_| "无法保留 Art 输入身份")?;
+            .map_err(|_| crate::ui_text::text("integration-art-input-id-failed"))?;
         units.extend(upstream.into_iter().cloned());
         // Sort only member indices; edge evidence retains the original workspace order.
         units.sort_unstable();
@@ -30,7 +30,7 @@ impl Stamp {
         let mut links = Vec::new();
         links
             .try_reserve_exact(count)
-            .map_err(|_| "无法保留 Art 输入连接")?;
+            .map_err(|_| crate::ui_text::text("integration-art-input-link-failed"))?;
         links.extend(
             workspace
                 .links()

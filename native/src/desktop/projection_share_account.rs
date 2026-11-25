@@ -1,6 +1,7 @@
 //! Sharing uses account v2 only; QR parsing is offline, and only create/import/unbind buttons enqueue business work.
 use super::*;
 use crate::desktop::device_authorization_ui::account::Request as AccountRequest;
+use crate::ui_text::text as tr;
 use windows::Win32::UI::HiDpi::GetDpiForWindow;
 impl Model {
     pub(super) unsafe fn ensure_account(&self) -> Result<()> {
@@ -22,7 +23,7 @@ impl Model {
             .ok_or_else(|| Error::new(E_ABORT, "Share owner closed"))?;
         let mut view = view.borrow_mut();
         if view.closed || super::busy(&view) || view.origin.as_deref() != Some(&self.origin) {
-            return Err(Error::new(E_ABORT, "账号投射正在处理，请稍后重试"));
+            return Err(Error::new(E_ABORT, tr("share-account-busy")));
         }
         view.request = Some(Request::AccountProjection(Box::new(request)));
         if let Err(error) = PostMessageW(None, WM_NULL, WPARAM(0), LPARAM(0)) {
@@ -47,13 +48,13 @@ impl Model {
             .account_envelope
             .borrow()
             .clone()
-            .ok_or_else(|| Error::new(E_INVALIDARG, "无效的账号邀请"))?;
+            .ok_or_else(|| Error::new(E_INVALIDARG, tr("share-account-invalid")))?;
         self.queue_account(AccountRequest::Import {
             envelope,
             cancel: self.cancel.clone(),
         })?;
         self.account_import.set(true);
-        self.set_status("正在导入…");
+        self.set_status(tr("share-importing"));
         Ok(())
     }
     pub(super) unsafe fn stop_account(&self) -> Result<()> {
@@ -78,7 +79,7 @@ impl Model {
                 cancel: self.cancel.clone(),
             }))
         } else {
-            Err(Error::new(E_ABORT, "没有活动的账号关联"))
+            Err(Error::new(E_ABORT, tr("share-account-none")))
         }
     }
     pub(super) fn account_output_current(&self) -> bool {
@@ -142,12 +143,12 @@ impl Model {
             }
         }
         window::label(
-            hwnd,
+            self,
             108,
             if active {
-                "解除关联"
+                "share-unlink"
             } else {
-                "生成邀请"
+                "share-generate"
             },
         );
         window::enable(
@@ -173,15 +174,17 @@ impl Model {
                     <= crate::desktop::surface_windows::now_ms().unwrap_or(u64::MAX)
             {
                 self.set_status(if binding.stopped() {
-                    "投射已停止"
+                    tr("share-stopped")
                 } else {
-                    "邀请已到期，已接收关联继续同步"
+                    tr("share-account-expired")
                 });
                 window::output(hwnd, self, false);
             } else if self.account_envelope.borrow().as_ref() != Some(binding.envelope()) {
                 let result = (|| {
                     let envelope = binding.envelope();
-                    let link = envelope.link().map_err(|_| "邀请编码失败".to_owned())?;
+                    let link = envelope
+                        .link()
+                        .map_err(|_| tr("share-encode-failed").to_owned())?;
                     *self.link.borrow_mut() = link.clone();
                     *self.code.borrow_mut() = Some(qr::encode_bytes(link.as_bytes())?);
                     *self.account_envelope.borrow_mut() = Some(envelope.clone());
@@ -197,14 +200,14 @@ impl Model {
             }
         } else if binding.is_some() {
             self.set_status(if active {
-                "正在接收账号投射"
+                tr("share-account-receiving")
             } else {
-                "关联已解除，保留最后图像"
+                tr("share-unlinked")
             });
             window::output(hwnd, self, false);
         } else {
             self.set_status(if status.is_empty() {
-                "正在生成账号邀请…"
+                tr("share-account-generating")
             } else {
                 &status
             });

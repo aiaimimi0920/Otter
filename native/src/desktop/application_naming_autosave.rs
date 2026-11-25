@@ -24,7 +24,10 @@ impl Application {
             if enabled {
                 Error::new(
                     error.code(),
-                    format!("自动保存已停止；当前设置仍保留，请解决错误后重新开启。\n{error}"),
+                    crate::ui_text::format(
+                        "action-naming-autosave-failed",
+                        &[("error", error.to_string().into())],
+                    ),
                 )
             } else {
                 error
@@ -36,6 +39,7 @@ impl Application {
             || self.modals.blocked()
             || self.naming_save_job.is_some()
             || self.naming_import_job.is_some()
+            || self.locale_busy()
         {
             return Ok(());
         }
@@ -49,13 +53,13 @@ impl Application {
         if source.is_none() && self.naming_profile_target.is_none() {
             return Err(Error::new(
                 E_INVALIDARG,
-                "请先加载配置或将设置另存为，再开启自动保存。",
+                crate::ui_text::text("action-naming-load-first"),
             ));
         }
         if source.is_some_and(|source| source.recovery_target().is_some()) {
             return Err(Error::new(
                 E_INVALIDARG,
-                "恢复来源必须先另存为，不能开启自动覆盖保存。",
+                crate::ui_text::text("action-naming-recovery-save"),
             ));
         }
         if source

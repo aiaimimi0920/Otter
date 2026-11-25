@@ -28,12 +28,28 @@ impl Application {
                 let lease = self
                     .authorization_owner
                     .lease(&origin, now)
-                    .map_err(|error| Error::new(E_ABORT, format!("当前授权不可用：{error:?}")))?;
+                    .map_err(|error| {
+                        Error::new(
+                            E_ABORT,
+                            crate::ui_text::format(
+                                "app-current-authorization-unavailable",
+                                &[("error", format!("{error:?}").into())],
+                            ),
+                        )
+                    })?;
                 if lease.device_id() != event.binding().device() {
                     return Err(Error::new(E_ABORT, "Surface device changed"));
                 }
                 let config = crate::device_authorization_config::Config::from_env(&origin)
-                    .map_err(|error| Error::new(E_FAIL, format!("配置无效：{error:?}")))?;
+                    .map_err(|error| {
+                        Error::new(
+                            E_FAIL,
+                            crate::ui_text::format(
+                                "app-configuration-invalid-detail",
+                                &[("error", format!("{error:?}").into())],
+                            ),
+                        )
+                    })?;
                 Ok((config, lease, now))
             })();
             let (config, lease, now) = match prepared {
@@ -48,7 +64,7 @@ impl Application {
                 .iter_mut()
                 .find(|window| window.binding() == receipt.events[0].binding())
             else {
-                failure = Some("Surface 窗口已不可用".into());
+                failure = Some(crate::ui_text::text("app-surface-window-unavailable").into());
                 return BatchResumeAction::Keep(Box::new(receipt));
             };
             // refresh may close windows synchronously; do not hold View's RefCell borrow during the call.
@@ -65,7 +81,7 @@ impl Application {
                     || view.origin.as_deref() != Some(origin.as_str())
             };
             if changed {
-                failure = Some("状态已变化，接续未启动".into());
+                failure = Some(crate::ui_text::text("app-batch-state-changed").into());
                 return BatchResumeAction::Keep(Box::new(receipt));
             }
             match window.begin_batch_continuation(receipt, now) {
@@ -77,9 +93,12 @@ impl Application {
             }
         });
         self.authorization.borrow_mut().status = match result {
-            Ok(true) => "正在继续批次的剩余操作…".into(),
-            Ok(false) => failure.unwrap_or_else(|| "没有可继续的批次".into()),
-            Err(error) => format!("接续未启动：{error}"),
+            Ok(true) => crate::ui_text::text("app-batch-resuming").into(),
+            Ok(false) => failure.unwrap_or_else(|| crate::ui_text::text("app-batch-none").into()),
+            Err(error) => crate::ui_text::format(
+                "app-batch-resume-not-started",
+                &[("error", error.to_string().into())],
+            ),
         };
     }
 }

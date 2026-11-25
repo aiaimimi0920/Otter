@@ -152,7 +152,12 @@ fn candidate_queued_before_new_draft_or_ime_does_not_commit_or_run() {
             assert!(f.state.pending_start.borrow().is_none());
             assert!(f.panel.ui.pending.borrow().is_empty());
             assert!(!f.panel.exit_idle());
-            assert!(f.panel.ui.message.borrow().contains("候选或参数已变化"));
+            assert!(f
+                .panel
+                .ui
+                .message
+                .borrow()
+                .contains(crate::ui_text::text("parameter-candidate-changed")));
             if !composing {
                 assert_eq!(controls::text(edit).unwrap(), "入队后新草稿");
             }

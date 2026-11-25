@@ -11,7 +11,15 @@ use std::{
 pub struct Fixture {
     pub root: PathBuf,
 }
-pub struct Product(pub Child);
+pub struct Product(
+    pub Child,
+    pub super::native::display_language::DisplayLanguage,
+);
+impl Product {
+    pub fn menu_title(&self) -> &'static str {
+        super::native::ui_text::text_for(self.1, "native-menu-title")
+    }
+}
 impl Fixture {
     pub fn new() -> Self {
         let root = PathBuf::from(
@@ -74,11 +82,12 @@ impl Fixture {
                 "explicit product requires digest"
             );
         }
-        fs::write(
-            self.root.join("settings.json"),
-            serde_json::to_vec(settings).unwrap(),
-        )
-        .unwrap();
+        let settings = serde_json::to_vec(settings).unwrap();
+        let language = super::native::app_settings_document::Document::decode(&settings)
+            .unwrap()
+            .display_language()
+            .unwrap();
+        fs::write(self.root.join("settings.json"), settings).unwrap();
         let error = fs::OpenOptions::new()
             .write(true)
             .create_new(true)
@@ -105,7 +114,7 @@ impl Fixture {
                 .env("OTTER_LOOM_TLS_ORIGIN", origin)
                 .env("OTTER_LOOM_TLS_CA_FILE", self.root.join("ca.pem"));
         }
-        Product(command.spawn().unwrap())
+        Product(command.spawn().unwrap(), language)
     }
     pub fn workspace(&self) -> Option<Value> {
         serde_json::from_slice(&fs::read(self.root.join("workspace.json")).ok()?).ok()

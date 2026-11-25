@@ -15,9 +15,15 @@ fn row(id: &str, checked: bool, command: usize) -> Entry {
 fn directory_loading_empty_failure_and_unnamed_device_are_visible() {
     use crate::projection_delivery::targets::Directory;
     let state = State::new(None, false).unwrap();
-    assert_eq!(directory_status(&state), "目录不可用，请刷新");
+    assert_eq!(
+        directory_status(&state),
+        crate::ui_text::text("pin-directory-refresh")
+    );
     state.authorization.borrow_mut().targets.busy = true;
-    assert_eq!(directory_status(&state), "正在加载…");
+    assert_eq!(
+        directory_status(&state),
+        crate::ui_text::text("common-loading")
+    );
     {
         let mut view = state.authorization.borrow_mut();
         view.targets.busy = false;
@@ -30,7 +36,10 @@ fn directory_loading_empty_failure_and_unnamed_device_are_visible() {
     ).unwrap().into());
     assert_eq!(entries(&state, DEVICES)[0].name, "code-device");
     assert!(entries(&state, GROUPS).is_empty());
-    assert_eq!(directory_status(&state), "暂无目标");
+    assert_eq!(
+        directory_status(&state),
+        crate::ui_text::text("pin-no-targets")
+    );
 }
 
 #[test]
@@ -82,7 +91,8 @@ fn directory_refresh_does_not_hide_a_failed_projection() {
         let mut text = [0u16; 256];
         let n = GetWindowTextW(label, &mut text) as usize;
         let failure = String::from_utf16_lossy(&text[..n]);
-        assert!(failure.starts_with("未完成："));
+        let prefix = crate::ui_text::format("pin-targets-incomplete", &[("error", "".into())]);
+        assert!(failure.starts_with(prefix.trim_end_matches(['\u{2068}', '\u{2069}'])));
         for _ in 0..8 {
             popup.sync_directory(&state);
         }

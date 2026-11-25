@@ -144,7 +144,7 @@ pub(super) unsafe fn place(ui: &Ui) {
     let dpi = GetDpiForWindow(ui.parent).max(96);
     let region = CreateRectRgn(0, 0, 0, 0);
     if region.is_invalid() {
-        ui.error("无法裁剪参数栏");
+        ui.localized_error("parameter-clip-failed");
         return;
     }
     // The root HRGN includes only actual controls, not labels, eyes, anchors, or gaps between rows.

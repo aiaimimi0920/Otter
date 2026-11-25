@@ -5,32 +5,47 @@ use windows::{
     Win32::{Foundation::HWND, UI::WindowsAndMessaging::*},
 };
 pub(super) const ACTIONS: &[(usize, &str)] = &[
-    (menu::COLOR, "颜色"),
-    (menu::FILL_COLOR, "填充色"),
-    (menu::WIDTH_DOWN, "粗细 −"),
-    (menu::WIDTH_UP, "粗细 +"),
-    (0x4F, "透明度"),
-    (0x46, "填充"),
-    (menu::APPLY_STYLE, "应用样式"),
-    (menu::OPEN, "打开图片"),
-    (super::copy_job::COMMAND, "复制图片"),
-    (menu::EXPORT, "导出 PNG"),
-    (super::numeric_style::WIDTH, "精确粗细…"),
-    (super::numeric_style::OPACITY, "精确透明度…"),
-    (super::capture_input::DEFAULT, "区域截图"),
-    (super::blur_default::COMMAND, "新建模糊…"),
-    (super::blur_numeric::COMMAND, "选中模糊…"),
-    (super::numeric_style::MOSAIC, "色块大小…"),
+    (menu::COLOR, "common-color"),
+    (menu::FILL_COLOR, "tool-action-fill-color"),
+    (menu::WIDTH_DOWN, "tool-action-width-down"),
+    (menu::WIDTH_UP, "tool-action-width-up"),
+    (0x4F, "common-opacity"),
+    (0x46, "tool-action-fill"),
+    (menu::APPLY_STYLE, "tool-action-apply-style"),
+    (menu::OPEN, "tool-action-open-image"),
+    (super::copy_job::COMMAND, "tool-action-copy-image"),
+    (menu::EXPORT, "tool-action-export-png"),
+    (super::numeric_style::WIDTH, "tool-action-exact-width"),
+    (super::numeric_style::OPACITY, "tool-action-exact-opacity"),
+    (super::capture_input::DEFAULT, "tool-action-region-capture"),
+    (super::blur_default::COMMAND, "tool-action-new-blur"),
+    (super::blur_numeric::COMMAND, "tool-action-selection-blur"),
+    (super::numeric_style::MOSAIC, "tool-action-mosaic-cell"),
 ];
 // Availability caches have fixed capacity; excess new catalog entries must fail at compile time rather than truncate high bits at runtime.
 const _: () = assert!(ACTIONS.len() + super::tool_commands::TOOLS.len() <= u64::BITS as usize);
 pub(super) fn label(command: usize, state: &State) -> Option<String> {
-    let name = ACTIONS.iter().find(|entry| entry.0 == command)?.1;
+    let name = crate::ui_text::text(ACTIONS.iter().find(|entry| entry.0 == command)?.1);
     let style = state.canvas.borrow().editor.style();
     Some(match command {
-        menu::WIDTH_DOWN | menu::WIDTH_UP => format!("{name} {:.2}", style.width()),
-        0x4F => format!("透明度 {:.0}%", style.opacity() * 100.0),
-        0x46 => format!("填充 {}", if style.fill().is_some() { "开" } else { "关" }),
+        menu::WIDTH_DOWN | menu::WIDTH_UP => crate::ui_text::format(
+            if command == menu::WIDTH_DOWN {
+                "tool-action-width-down-value"
+            } else {
+                "tool-action-width-up-value"
+            },
+            &[("width", format!("{:.2}", style.width()).into())],
+        ),
+        0x4F => crate::ui_text::format(
+            "tool-action-opacity-value",
+            &[("opacity", format!("{:.0}", style.opacity() * 100.0).into())],
+        ),
+        0x46 => crate::ui_text::text(if style.fill().is_some() {
+            "tool-action-fill-on"
+        } else {
+            "tool-action-fill-off"
+        })
+        .to_owned(),
         _ => name.to_owned(),
     })
 }
@@ -62,7 +77,8 @@ mod tests {
         );
         assert!(ACTIONS
             .iter()
-            .any(|entry| entry.0 == super::super::capture_input::DEFAULT && entry.1 == "区域截图"));
+            .any(|entry| entry.0 == super::super::capture_input::DEFAULT
+                && entry.1 == "tool-action-region-capture"));
         assert!(!ACTIONS
             .iter()
             .any(|entry| entry.0 == super::super::capture_input::COMMAND));

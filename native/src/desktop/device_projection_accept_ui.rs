@@ -7,18 +7,19 @@ pub(super) unsafe fn confirm(hwnd: HWND, state: &State, command: usize) -> Resul
     confirm_with(hwnd, state, command, |entry| {
         MessageBoxW(
             Some(hwnd),
-            &HSTRING::from(format!(
-                "{}并保存到当前工作区？\n来源：{}\n服务：{}\n投送：{}",
-                if entry.accepted() {
-                    "只读恢复已接受的投送"
-                } else {
-                    "接受此投送"
-                },
-                entry.source_name(),
-                entry.envelope().origin(),
-                entry.envelope().projection_id()
+            &HSTRING::from(crate::ui_text::format(
+                "integration-accept-delivery-confirm",
+                &[
+                    (
+                        "accepted",
+                        if entry.accepted() { "yes" } else { "no" }.into(),
+                    ),
+                    ("source", entry.source_name().into()),
+                    ("origin", entry.envelope().origin().into()),
+                    ("id", entry.envelope().projection_id().into()),
+                ],
             )),
-            w!("接受投送"),
+            &windows::core::HSTRING::from(crate::ui_text::text("integration-accept-delivery")),
             MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2,
         ) == IDYES
     })

@@ -15,7 +15,7 @@ pub(super) fn template() -> Vec<u32> {
     );
     dword(&mut data, 0);
     data.extend([6, 0, 0, 310, 238, 0, 0]);
-    string(&mut data, "端口显示");
+    string(&mut data, crate::ui_text::text("port-visibility-title"));
     data.push(9);
     string(&mut data, "Microsoft YaHei UI");
     for (id, class, style, x, y, width, height, text) in [
@@ -53,7 +53,7 @@ pub(super) fn template() -> Vec<u32> {
             212,
             55,
             18,
-            "确定",
+            crate::ui_text::text("common-ok"),
         ),
         (
             IDCANCEL.0 as u16,
@@ -63,7 +63,7 @@ pub(super) fn template() -> Vec<u32> {
             212,
             55,
             18,
-            "取消",
+            crate::ui_text::text("common-cancel"),
         ),
     ] {
         if data.len() % 2 != 0 {

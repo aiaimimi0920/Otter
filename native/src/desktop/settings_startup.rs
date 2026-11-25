@@ -14,6 +14,17 @@ pub(super) struct Loaded {
     pub default_target: Option<std::path::PathBuf>,
 }
 impl Loaded {
+    pub(super) fn install_language(&self) -> Result<()> {
+        let language = match &self.source {
+            Some(source) => source
+                .document()
+                .display_language()
+                .map_err(|error| Error::new(E_INVALIDARG, error))?,
+            None => crate::display_language::DisplayLanguage::English,
+        };
+        crate::ui_text::set_language(language);
+        Ok(())
+    }
     pub(super) fn install(&self, state: &super::State) -> Result<()> {
         if let Some(source) = &self.source {
             let policy = source
@@ -27,11 +38,19 @@ impl Loaded {
     }
 }
 pub(super) fn resolve(explicit: Option<&Path>, hidden_check: bool) -> Result<Loaded> {
+    resolve_in_profile(explicit, hidden_check, None)
+}
+/// Independent Tile processes read the selected profile once; they do not become settings writers.
+pub(super) fn resolve_in_profile(
+    explicit: Option<&Path>,
+    hidden_check: bool,
+    profile: Option<&Path>,
+) -> Result<Loaded> {
     let override_root = std::env::var_os("OTTER_NATIVE_PROFILE_DIR");
     let local = std::env::var_os("LOCALAPPDATA");
     let selection = crate::settings_profile::select(
         explicit,
-        override_root.as_deref(),
+        profile.map(Path::as_os_str).or(override_root.as_deref()),
         local.as_deref(),
         hidden_check,
     )
@@ -123,10 +142,19 @@ pub(super) unsafe fn announce_recovery(
     if hidden {
         println!("native-settings-recovery: recovered=true update-blocked=true readonly=true");
     } else {
-        use windows::{
-            core::{w, HSTRING},
-            Win32::UI::WindowsAndMessaging::*,
-        };
-        MessageBoxW(Some(hwnd), &HSTRING::from(format!("配置原文件缺失，已读取唯一恢复副本。\n原路径：{}\n恢复副本：{}\n文件未修改；请使用命名设置另存为，不能直接覆盖保存。", target.display(), source.path().display())), w!("Otter 配置恢复"), MB_OK | MB_ICONWARNING);
+        use windows::{core::HSTRING, Win32::UI::WindowsAndMessaging::*};
+        let message = crate::ui_text::format(
+            "action-settings-recovery",
+            &[
+                ("target", target.display().to_string().into()),
+                ("recovery", source.path().display().to_string().into()),
+            ],
+        );
+        MessageBoxW(
+            Some(hwnd),
+            &HSTRING::from(message),
+            &HSTRING::from(crate::ui_text::text("action-settings-recovery-title")),
+            MB_OK | MB_ICONWARNING,
+        );
     }
 }

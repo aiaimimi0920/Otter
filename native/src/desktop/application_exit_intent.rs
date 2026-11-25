@@ -35,6 +35,7 @@ impl Intent {
             && app.chrome.idle()
             && !app.exit_requested.get()
             && !app.naming_autosave_blocks_exit()
+            && !app.locale_blocks_exit()
             && app.restore_job.is_none()
             && app.live_freeze_job.is_none()
             && !app.projection_receive.preparing()

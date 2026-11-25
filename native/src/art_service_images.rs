@@ -79,7 +79,15 @@ impl Uploads {
             decoded_limit: 16 * 1024 * 1024,
             sources: chosen
                 .iter()
-                .map(|image| (format!("图片 {}", image.id), [image.width, image.height]))
+                .map(|image| {
+                    (
+                        crate::ui_text::format(
+                            "native-art-image",
+                            &[("id", image.id.as_str().into())],
+                        ),
+                        [image.width, image.height],
+                    )
+                })
                 .collect(),
             images: chosen
                 .into_iter()

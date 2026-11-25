@@ -116,6 +116,6 @@ pub(super) unsafe fn append(menu: HMENU, state: &State) -> Result<()> {
                 MF_GRAYED
             },
         COMMAND,
-        w!("运行所选能力"),
+        &windows::core::HSTRING::from(crate::ui_text::text("integration-run-capability")),
     )
 }

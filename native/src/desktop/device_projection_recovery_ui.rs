@@ -72,20 +72,26 @@ pub(super) unsafe fn append_menu(menu: HMENU, view: &AuthorizationView) -> Resul
         if view.origin.as_deref() != Some(entry.origin()) {
             continue;
         }
-        let label = format!(
-            "解除{}投送绑定：{}",
-            if view
-                .projection
-                .recovery
-                .saved
-                .iter()
-                .any(|saved| Arc::ptr_eq(saved, entry))
-            {
-                "已保存"
-            } else {
-                "未结"
-            },
-            &entry.envelope().projection_id()[11..19]
+        let label = crate::ui_text::format(
+            "integration-detach-delivery-label",
+            &[
+                (
+                    "saved",
+                    if view
+                        .projection
+                        .recovery
+                        .saved
+                        .iter()
+                        .any(|saved| Arc::ptr_eq(saved, entry))
+                    {
+                        "yes"
+                    } else {
+                        "no"
+                    }
+                    .into(),
+                ),
+                ("id", (&entry.envelope().projection_id()[11..19]).into()),
+            ],
         );
         AppendMenuW(
             menu,
@@ -118,9 +124,9 @@ pub(super) unsafe fn append_menu(menu: HMENU, view: &AuthorizationView) -> Resul
                 &HSTRING::from(format!(
                     "{}：{}",
                     if entry.invitation().requires_receipt() {
-                        "重试呈现回执"
+                        crate::ui_text::text("integration-retry-presentation-receipt")
                     } else {
-                        "重试呈现"
+                        crate::ui_text::text("integration-retry-presentation")
                     },
                     &entry.envelope().projection_id()[11..19]
                 )),
@@ -133,12 +139,14 @@ pub(super) unsafe fn confirm(hwnd: HWND, state: &State, command: usize) -> Resul
     confirm_with(hwnd, state, command, |entry| {
         MessageBoxW(
             Some(hwnd),
-            &HSTRING::from(format!(
-                "解除此投送的远端绑定？此操作不能恢复，本地图片保留。\n服务：{}\n投送：{}",
-                entry.envelope().origin(),
-                entry.envelope().projection_id()
+            &HSTRING::from(crate::ui_text::format(
+                "integration-detach-delivery-confirm",
+                &[
+                    ("origin", entry.envelope().origin().into()),
+                    ("id", entry.envelope().projection_id().into()),
+                ],
             )),
-            w!("解除投送绑定"),
+            &windows::core::HSTRING::from(crate::ui_text::text("integration-detach-delivery")),
             MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2,
         ) == IDYES
     })

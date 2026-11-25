@@ -14,6 +14,7 @@ impl Default for Document {
     fn default() -> Self {
         let mut root = Map::new();
         root.insert("schemaVersion".into(), Value::from(2));
+        root.insert("displayLanguage".into(), Value::from("en"));
         Self {
             root,
             naming: Settings::default(),
@@ -22,7 +23,7 @@ impl Default for Document {
 }
 
 impl Document {
-    /// Match mainline normalizeAppSettings; the native UI is currently Chinese, so an empty target language defaults to Chinese.
+    /// OCR translation targets are independent from the application's display language.
     pub fn translation_options(&self) -> (&str, &str) {
         let language = match self
             .root
@@ -67,7 +68,109 @@ impl Document {
         naming
             .validate()
             .map_err(|e| format!("Invalid fileNaming: {e:?}"))?;
-        Ok(Self { root, naming })
+        let document = Self { root, naming };
+        document.display_language()?;
+        document.display_language_revision()?;
+        document.last_display_language_request()?;
+        document.last_display_language_receipt()?;
+        Ok(document)
+    }
+
+    /// Old settings without this field retain Chinese; only new profiles default to English.
+    pub fn display_language(&self) -> Result<crate::display_language::DisplayLanguage, String> {
+        use crate::display_language::DisplayLanguage;
+        match self.root.get("displayLanguage") {
+            None => Ok(DisplayLanguage::SimplifiedChinese),
+            Some(Value::String(value)) => DisplayLanguage::parse_persisted(value)
+                .ok_or_else(|| "Unsupported displayLanguage".into()),
+            Some(_) => Err("displayLanguage must be a string".into()),
+        }
+    }
+    pub fn display_language_revision(&self) -> Result<u64, String> {
+        match self.root.get("displayLanguageRevision") {
+            None => Ok(0),
+            Some(value) => value
+                .as_u64()
+                .filter(|revision| *revision <= 9_007_199_254_740_991)
+                .ok_or_else(|| "Invalid displayLanguageRevision".into()),
+        }
+    }
+    pub fn last_display_language_request(&self) -> Result<Option<(&str, &str)>, String> {
+        match (
+            self.root.get("displayLanguageLastRequestId"),
+            self.root.get("displayLanguageLastRequestSource"),
+        ) {
+            (None, None) => Ok(None),
+            (Some(Value::String(id)), Some(Value::String(source)))
+                if valid_request_field(id, 128) && valid_request_field(source, 2048) =>
+            {
+                Ok(Some((id, source)))
+            }
+            _ => Err("Invalid display-language request identity".into()),
+        }
+    }
+    pub fn last_display_language_receipt(
+        &self,
+    ) -> Result<Option<(crate::display_language::DisplayLanguage, u64)>, String> {
+        use crate::display_language::DisplayLanguage;
+        let request = self.last_display_language_request()?;
+        match (
+            request,
+            self.root.get("displayLanguageLastRequestLanguage"),
+            self.root.get("displayLanguageLastRequestRevision"),
+        ) {
+            (None, None, None) => Ok(None),
+            (Some(_), Some(Value::String(language)), Some(revision)) => {
+                let language = DisplayLanguage::parse(language)
+                    .ok_or("Invalid display-language receipt language")?;
+                let revision = revision
+                    .as_u64()
+                    .filter(|revision| *revision > 0 && *revision <= 9_007_199_254_740_991)
+                    .ok_or("Invalid display-language receipt revision")?;
+                if revision > self.display_language_revision()? {
+                    return Err("Display-language receipt exceeds current revision".into());
+                }
+                Ok(Some((language, revision)))
+            }
+            _ => Err("Invalid display-language receipt".into()),
+        }
+    }
+    pub fn set_display_language(
+        &mut self,
+        language: crate::display_language::DisplayLanguage,
+        revision: u64,
+        request: Option<(&str, &str)>,
+    ) -> Result<(), String> {
+        if revision > 9_007_199_254_740_991
+            || (request.is_some() && revision == 0)
+            || (request.is_none()
+                && self
+                    .last_display_language_receipt()?
+                    .is_some_and(|(_, previous)| revision < previous))
+            || request.is_some_and(|(id, source)| {
+                !valid_request_field(id, 128) || !valid_request_field(source, 2048)
+            })
+        {
+            return Err("Invalid display-language revision or request identity".into());
+        }
+        self.root
+            .insert("displayLanguage".into(), language.code().into());
+        self.root
+            .insert("displayLanguageRevision".into(), revision.into());
+        // Local choices retain the last remote receipt so retries cannot undo a later choice.
+        if let Some((id, source)) = request {
+            self.root
+                .insert("displayLanguageLastRequestId".into(), id.into());
+            self.root
+                .insert("displayLanguageLastRequestSource".into(), source.into());
+            self.root.insert(
+                "displayLanguageLastRequestLanguage".into(),
+                language.code().into(),
+            );
+            self.root
+                .insert("displayLanguageLastRequestRevision".into(), revision.into());
+        }
+        Ok(())
     }
 
     pub fn naming(&self) -> &Settings {
@@ -172,6 +275,10 @@ impl Document {
         serde_json::to_writer(&mut output, &self.root).map_err(|e| e.to_string())?;
         Ok(output.0)
     }
+}
+
+fn valid_request_field(value: &str, limit: usize) -> bool {
+    !value.is_empty() && value.len() <= limit && !value.chars().any(char::is_control)
 }
 
 use serde::Deserialize;

@@ -28,7 +28,11 @@ fn active_execution_can_be_discarded_without_profile_but_blocks_final_profile_sn
                 |_| Choice::Discard,
                 |_, message| {
                     warnings += 1;
-                    assert!(message.contains("检查点"));
+                    let expected = crate::ui_text::format(
+                        "app-exit-checkpoint-failed",
+                        &[("error", "".into())],
+                    );
+                    assert!(message.starts_with(expected.lines().next().unwrap()));
                 },
             );
             assert_eq!(closed, !writable_profile);
@@ -164,7 +168,11 @@ fn external_conflict_stops_once_preserves_external_file_and_explicit_discard_can
         let mut warnings = 0;
         for _ in 0..3 {
             app.pending_workspace_save_with(|_, _, message, warning| {
-                assert!(warning && message.contains("检查点"));
+                let expected = crate::ui_text::format(
+                    "app-workspace-checkpoint-stopped",
+                    &[("error", "".into())],
+                );
+                assert!(warning && message.starts_with(expected.lines().next().unwrap()));
                 warnings += 1;
             });
         }

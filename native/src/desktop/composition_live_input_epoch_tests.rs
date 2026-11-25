@@ -92,7 +92,10 @@ fn default_enable_publishes_the_initial_cycle_before_starting_the_worker() {
     assert!(admitted.valid());
     assert!(session.input_error.is_none());
     assert!(!session.window.as_ref().unwrap().take_input_notice());
-    assert_eq!(title(&session), "Otter Live · 控制中");
+    assert_eq!(
+        title(&session),
+        crate::ui_text::text("integration-live-controlling")
+    );
     finish(&mut session).unwrap();
 }
 
@@ -137,7 +140,10 @@ fn late_old_cycle_input_retires_without_cancelling_the_new_ui_enable_intent() {
         session.last_input_sequence, 1,
         "old input must not be replayed"
     );
-    assert_eq!(title(&session), "Otter Live · 控制中");
+    assert_eq!(
+        title(&session),
+        crate::ui_text::text("integration-live-controlling")
+    );
     finish(&mut session).unwrap();
 }
 
@@ -160,7 +166,10 @@ fn snapshot_failure_rolls_back_pending_state_without_creating_a_worker() {
     );
     assert!(replacement.identity().capture_control().is_err());
     assert!(session.window.as_ref().unwrap().take_input_notice());
-    assert_eq!(title(&session), "Otter Live · 控制不可用");
+    assert_eq!(
+        title(&session),
+        crate::ui_text::text("integration-live-control-unavailable")
+    );
     finish(&mut session).unwrap();
 }
 
@@ -224,7 +233,10 @@ fn committed_delivery_failure_or_failed_cleanup_still_reports_unavailable() {
         assert!(session.input_error.is_some());
         assert!(session.window.as_ref().unwrap().take_input_notice());
         assert!(!session.window.as_ref().unwrap().input_resume_pending());
-        assert_eq!(title(&session), "Otter Live · 控制不可用");
+        assert_eq!(
+            title(&session),
+            crate::ui_text::text("integration-live-control-unavailable")
+        );
         let result = finish(&mut session);
         assert_eq!(result.is_err(), cleanup_failed);
     }

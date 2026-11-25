@@ -15,7 +15,10 @@ impl Windows {
             return;
         }; // Consume/release stale results instead of permanently occupying Ready-queue capacity.
         if let Err(error) = window.install_resource(ready, now) {
-            window.record_image_error(&format!("图片安装失败：{error:?}"));
+            window.record_image_error(&crate::ui_text::format(
+                "integration-image-install-failed",
+                &[("error", format!("{error:?}").into())],
+            ));
         }
     }
     pub(crate) fn schedule_images(
@@ -36,7 +39,10 @@ impl Windows {
                     Ok(Some(request)) => request,
                     Ok(None) => break,
                     Err(error) => {
-                        window.record_image_error(&format!("图片请求无效：{error:?}"));
+                        window.record_image_error(&crate::ui_text::format(
+                            "integration-image-request-invalid",
+                            &[("error", format!("{error:?}").into())],
+                        ));
                         continue;
                     }
                 };

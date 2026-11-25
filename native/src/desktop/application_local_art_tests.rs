@@ -37,8 +37,14 @@ fn queued_open_art_requires_current_host_and_device_authorization() {
         let mut app = app();
         let node = app.documents[0].state.unit_id.to_string();
         for (node, expected) in [
-            ("missing-node".to_owned(), "Art 发起节点已关闭或被替换"),
-            (node, "请先获取有效设备授权"),
+            (
+                "missing-node".to_owned(),
+                crate::ui_text::text("app-art-source-node-unavailable"),
+            ),
+            (
+                node,
+                crate::ui_text::text("app-device-authorization-required"),
+            ),
         ] {
             {
                 let mut view = app.authorization.borrow_mut();

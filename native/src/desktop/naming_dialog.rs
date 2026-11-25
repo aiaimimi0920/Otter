@@ -96,7 +96,7 @@ unsafe extern "system" fn procedure(hwnd: HWND, message: u32, wp: WPARAM, lp: LP
         let _ = SetDlgItemTextW(
             hwnd,
             105,
-            &HSTRING::from("模板须使用有效占位符且不超过 4096 字节；标题长度须为 1–240 的整数。"),
+            &HSTRING::from(crate::ui_text::text("naming-validation")),
         );
     }
     1

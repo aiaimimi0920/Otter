@@ -34,7 +34,7 @@ pub(super) fn choose(
         })
         .collect();
     if targets.is_empty() {
-        return Err("无可用的同一 Loom 设备，请刷新投送目标".into());
+        return Err(crate::ui_text::text("app-live-no-peer").into());
     }
     unsafe {
         let menu = Menu(CreatePopupMenu().map_err(|e| e.to_string())?);

@@ -12,7 +12,10 @@ pub(super) unsafe fn edit(hwnd: HWND, state: &State) -> Result<()> {
     if let Err(error) = edit_with(hwnd, state, |value| dialog::show(hwnd, value)) {
         MessageBoxW(
             Some(hwnd),
-            &HSTRING::from(format!("命名设置未修改。\n{error}")),
+            &HSTRING::from(crate::ui_text::format(
+                "naming-unchanged",
+                &[("error", error.to_string().into())],
+            )),
             w!("Otter"),
             MB_OK | MB_ICONWARNING,
         );
@@ -42,7 +45,15 @@ unsafe fn edit_with(
     if !IsWindow(Some(hwnd)).as_bool() || *state.naming.borrow() != old {
         return Err(Error::new(E_ABORT, "Naming settings changed while editing"));
     }
-    next.validate().map_err(|error| Error::new(E_INVALIDARG, format!("无效命名模板：{error:?}。支持 {{date}}、{{time}}、{{width}}、{{height}}、{{shortId}} 等占位符。")))?;
+    next.validate().map_err(|error| {
+        Error::new(
+            E_INVALIDARG,
+            crate::ui_text::format(
+                "naming-invalid-template",
+                &[("error", format!("{error:?}").into())],
+            ),
+        )
+    })?;
     *state.naming.borrow_mut() = next;
     Ok(())
 }

@@ -4,7 +4,7 @@ use super::{
     State,
 };
 #[cfg(test)]
-use windows::core::{w, HSTRING};
+use windows::core::HSTRING;
 use windows::{
     core::Result,
     Win32::{Foundation::*, UI::WindowsAndMessaging::*},
@@ -67,13 +67,16 @@ impl super::application::Application {
 pub(super) unsafe fn append(menu: HMENU, state: &State) -> Result<()> {
     let catalog = state.catalog.borrow();
     let label = if catalog.job.is_busy() {
-        "正在加载节点能力…".into()
+        crate::ui_text::text("integration-loading-capabilities").into()
     } else if catalog.failed {
-        "节点能力加载失败".into()
+        crate::ui_text::text("integration-capabilities-load-failed").into()
     } else if let Some(loaded) = &catalog.loaded {
-        format!("节点能力：{}", loaded.handshake.arts().len())
+        crate::ui_text::format(
+            "integration-capability-count",
+            &[("count", loaded.handshake.arts().len().into())],
+        )
     } else {
-        "节点能力尚未加载".into()
+        crate::ui_text::text("integration-capabilities-not-loaded").into()
     };
     AppendMenuW(menu, MF_STRING | MF_GRAYED, 0, &HSTRING::from(label))?;
     AppendMenuW(
@@ -85,7 +88,7 @@ pub(super) unsafe fn append(menu: HMENU, state: &State) -> Result<()> {
                 MF_ENABLED
             },
         COMMAND,
-        w!("加载节点能力"),
+        &windows::core::HSTRING::from(crate::ui_text::text("integration-load-capabilities")),
     )
 }
 

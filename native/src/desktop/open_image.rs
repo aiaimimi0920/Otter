@@ -133,8 +133,9 @@ pub(super) unsafe fn start_destination(hwnd: HWND, state: &State, new_pin: bool)
     };
     if let Err(error) = open_with(hwnd, state, new_pin, || choose(hwnd, new_pin)) {
         if IsWindow(Some(hwnd)).as_bool() {
-            let text = HSTRING::from(format!(
-                "无法打开图片，原文档未因加载失败而被替换。\n{error}"
+            let text = HSTRING::from(crate::ui_text::format(
+                "open-image-failed",
+                &[("error", error.to_string().into())],
             ));
             MessageBoxW(
                 Some(hwnd),
@@ -155,7 +156,7 @@ pub(super) unsafe fn confirm_replace(hwnd: HWND, state: &State) -> bool {
     if has_edits
         && MessageBoxW(
             Some(hwnd),
-            w!("打开新图片会丢弃当前标注和撤销记录。是否继续？"),
+            &HSTRING::from(crate::ui_text::text("open-image-confirm")),
             w!("Otter"),
             MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2,
         ) != IDYES
@@ -192,7 +193,7 @@ pub(super) unsafe fn open_with(
     if !stamp.matches(&state.canvas.borrow().editor) {
         return Err(windows::core::Error::new(
             E_FAIL,
-            "选择文件期间文档已改变，请重新打开图片。",
+            crate::ui_text::text("open-image-changed"),
         ));
     }
     let input = if new_pin {
@@ -202,7 +203,7 @@ pub(super) unsafe fn open_with(
     } else {
         return Err(windows::core::Error::new(
             E_INVALIDARG,
-            "替换图片只能选择一个文件。",
+            crate::ui_text::text("open-image-single"),
         ));
     };
     super::open_job::start_destination(hwnd, state, input, new_pin)
@@ -210,14 +211,19 @@ pub(super) unsafe fn open_with(
 
 unsafe fn choose(hwnd: HWND, multiple: bool) -> Result<Option<Vec<std::path::PathBuf>>> {
     let mut name = vec![0u16; if multiple { paths::MAX_BUFFER } else { 32768 }];
+    let filter: Vec<u16> = format!(
+        "{}\0*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.tif;*.tiff;*.webp\0{}\0*.*\0\0",
+        crate::ui_text::text("file-filter-images"),
+        crate::ui_text::text("file-filter-all")
+    )
+    .encode_utf16()
+    .collect();
     let mut options = OPENFILENAMEW {
         lStructSize: std::mem::size_of::<OPENFILENAMEW>() as u32,
         hwndOwner: hwnd,
         lpstrFile: PWSTR(name.as_mut_ptr()),
         nMaxFile: name.len() as u32,
-        lpstrFilter: w!(
-            "图片\0*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.tif;*.tiff;*.webp\0所有文件\0*.*\0\0"
-        ),
+        lpstrFilter: PCWSTR(filter.as_ptr()),
         Flags: OFN_EXPLORER
             | OFN_FILEMUSTEXIST
             | OFN_PATHMUSTEXIST

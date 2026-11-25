@@ -58,14 +58,22 @@ impl Owner {
             .spawn(move || {
                 let _completion = CompletionSignal::new(completed, notify);
                 if signal.load(Ordering::Acquire) {
-                    return Err("投送恢复已停止".into());
+                    return Err(crate::ui_text::text("app-projection-recovery-stopped").into());
                 }
-                let store = Store::open(&root).map_err(|e| format!("投送恢复不可用：{e:?}"))?;
-                let entries = store
-                    .pending()
-                    .map_err(|e| format!("投送恢复不可用：{e:?}"))?;
+                let store = Store::open(&root).map_err(|e| {
+                    crate::ui_text::format(
+                        "app-projection-recovery-unavailable",
+                        &[("error", format!("{e:?}").into())],
+                    )
+                })?;
+                let entries = store.pending().map_err(|e| {
+                    crate::ui_text::format(
+                        "app-projection-recovery-unavailable",
+                        &[("error", format!("{e:?}").into())],
+                    )
+                })?;
                 if signal.load(Ordering::Acquire) {
-                    return Err("投送恢复已停止".into());
+                    return Err(crate::ui_text::text("app-projection-recovery-stopped").into());
                 }
                 let policy = super::policy::Owner::load(&root, &signal);
                 Ok(Loaded {
@@ -80,7 +88,10 @@ impl Owner {
                 ready,
                 thread: Some(thread),
             }),
-            Err(error) => Self::Failed(format!("投送恢复未启动：{error}")),
+            Err(error) => Self::Failed(crate::ui_text::format(
+                "app-projection-recovery-start-failed",
+                &[("error", error.to_string().into())],
+            )),
         };
     }
     pub(in crate::desktop::application) fn poll(&mut self) {
@@ -102,12 +113,9 @@ impl Owner {
         if !terminal && !job.thread.as_ref().unwrap().is_finished() {
             return;
         }
-        let result = job
-            .thread
-            .take()
-            .unwrap()
-            .join()
-            .unwrap_or_else(|_| Err("投送恢复任务异常退出".into()));
+        let result = job.thread.take().unwrap().join().unwrap_or_else(|_| {
+            Err(crate::ui_text::text("app-projection-recovery-task-exited").into())
+        });
         *self = match result {
             Ok(loaded) => Self::Ready {
                 store: loaded.store,
@@ -137,7 +145,12 @@ impl Owner {
                     }
                 }
             }
-            Err(error) => *self = Self::Failed(format!("投送恢复不可用：{error:?}")),
+            Err(error) => {
+                *self = Self::Failed(crate::ui_text::format(
+                    "app-projection-recovery-unavailable",
+                    &[("error", format!("{error:?}").into())],
+                ))
+            }
         }
     }
     pub(in crate::desktop::application) fn sync(
@@ -171,7 +184,7 @@ impl Owner {
         }
         view.saved.truncate(count);
         let status = match self {
-            Self::Opening(_) => "正在读取未结投送…",
+            Self::Opening(_) => crate::ui_text::text("app-projection-unsettled-reading"),
             Self::Failed(error) => error,
             _ => "",
         };

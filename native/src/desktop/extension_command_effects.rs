@@ -105,10 +105,10 @@ pub(super) unsafe fn apply(
                         Some(outcome.scope()),
                         p.get("title")
                             .and_then(|v| v.as_str())
-                            .unwrap_or("扩展能力"),
+                            .unwrap_or(crate::ui_text::text("integration-extension-capability")),
                         p.get("message")
                             .and_then(|v| v.as_str())
-                            .unwrap_or("操作已完成"),
+                            .unwrap_or(crate::ui_text::text("integration-action-completed")),
                     )
                     .map_err(|_| Error::Unavailable)
                 }

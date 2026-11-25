@@ -187,7 +187,10 @@ pub(super) unsafe fn poll(hwnd: HWND, state: &State) {
 unsafe fn report(hwnd: HWND, error: &str) {
     MessageBoxW(
         Some(hwnd),
-        &HSTRING::from(format!("裁剪未提交，原画框及效果保留。\n{error}")),
+        &HSTRING::from(crate::ui_text::format(
+            "action-crop-failed",
+            &[("error", error.to_string().into())],
+        )),
         w!("Otter"),
         MB_OK | MB_ICONERROR,
     );

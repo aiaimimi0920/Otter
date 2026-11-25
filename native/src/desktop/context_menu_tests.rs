@@ -98,7 +98,7 @@ fn actual_pin_builder_excludes_migration_and_editing_commands() {
         let menu = pin::build(&state).unwrap();
         let tree = crate::native_menu::snapshot(menu.0).unwrap();
         assert_eq!(tree.len(), 8);
-        assert_eq!(tree[0].label, "保存");
+        assert_eq!(tree[0].label, crate::ui_text::text("common-save"));
         assert_eq!(tree[0].command, EXPORT);
         assert!(!tree[0].enabled);
         assert!(tree

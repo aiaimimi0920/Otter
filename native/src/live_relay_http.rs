@@ -62,6 +62,8 @@ pub mod art_describe;
 pub mod art_prepare;
 #[path = "live_relay_viewer_input_http.rs"]
 pub(crate) mod input;
+#[path = "loom_locale_http.rs"]
+mod locale;
 #[path = "projection_delivery_http.rs"]
 mod projection_delivery;
 #[path = "projection_edit_http.rs"]

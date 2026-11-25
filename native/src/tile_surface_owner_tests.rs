@@ -27,7 +27,7 @@ fn accepting_a_new_snapshot_clears_old_pixels_before_any_new_resource_is_ready()
     assert!(entries["art"].ready.is_none());
     let s = shared.lock();
     assert!(s.frame.is_none() && s.presented_frame.is_none() && s.presented.is_none());
-    assert_eq!(s.status, "正在准备Art内容");
+    assert_eq!(s.status, "tile-art-preparing");
 }
 #[test]
 fn late_state_during_freeze_preserves_the_exact_ready_owner_and_new_open_is_returned_to_close() {

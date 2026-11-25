@@ -147,23 +147,23 @@ impl Owner {
     ) -> Result<(), &'static str> {
         // The owner is called only on the host UI thread; DocumentWindow/State remain alive throughout this borrow.
         if !unsafe { document.is_alive() } || document.state.group_locked.get() {
-            return Err("Art 宿主已关闭或锁定");
+            return Err(crate::ui_text::text("integration-art-host-closed-locked"));
         }
         if !self.tasks.has_capacity() || self.entries.len() >= MAX_RECORDS {
-            return Err("Art 正在执行或回收，请稍后再试");
+            return Err(crate::ui_text::text("integration-art-busy"));
         }
         self.entries
             .try_reserve(1)
-            .map_err(|_| "无法保留 Art 状态")?;
+            .map_err(|_| crate::ui_text::text("integration-art-state-retain-failed"))?;
         if self.workspace.is_none() {
             let workspace = super::document_state::new_unit_id()
-                .map_err(|_| "无法创建 Art 工作区身份")?
+                .map_err(|_| crate::ui_text::text("integration-art-workspace-id-failed"))?
                 .to_string();
             self.tasks.reset_workspace(workspace.clone());
             self.workspace = Some(workspace);
         }
         let instance = super::document_state::new_unit_id()
-            .map_err(|_| "无法创建 Art 实例身份")?
+            .map_err(|_| crate::ui_text::text("integration-art-instance-id-failed"))?
             .to_string();
         let unit = document.state.unit_id.clone();
         let inputs = dependencies::Stamp::capture(workspace, &unit)?;
@@ -176,7 +176,7 @@ impl Owner {
         let token = self
             .tasks
             .start_description(unit.clone(), request, lease, authority, config)
-            .map_err(|_| "Art 未启动：请检查设备授权、签发者信任和配置")?;
+            .map_err(|_| crate::ui_text::text("integration-art-start-rejected"))?;
         // The new request has advanced the generation successfully; old windows may only retire, never cancel(unit) and accidentally revoke the new request.
         for entry in self
             .entries
@@ -228,7 +228,7 @@ impl Owner {
                     entry.active = false;
                     entry.images.cancel();
                     self.tasks.cancel(unit);
-                    status = Some("Art 视图已停止".into());
+                    status = Some(crate::ui_text::text("integration-art-view-stopped").into());
                     self.status_owner = None;
                 }
                 if window.finished() && entry.active {
@@ -254,7 +254,7 @@ impl Owner {
                 .any(|entry| entry.active && &entry.token == token)
         }) {
             self.status_owner = None;
-            status.get_or_insert_with(|| "Art 已停止".into());
+            status.get_or_insert_with(|| crate::ui_text::text("integration-art-stopped").into());
         }
         self.entries.retain(|entry| {
             entry.active

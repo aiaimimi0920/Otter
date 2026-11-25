@@ -107,20 +107,29 @@ mod tests {
                 .unwrap(),
             );
             let _cleanup = PropertyCleanup(window.0);
-            let labels: Vec<_> = crate::desktop::tool_commands::TOOLS
-                .iter()
-                .map(|entry| format!("✓ {}", entry.label.split('\t').next().unwrap()))
-                .chain(
+            let mut labels = Vec::new();
+            for language in crate::ui_text::DisplayLanguage::ALL {
+                labels.extend(crate::desktop::tool_commands::TOOLS.iter().map(|entry| {
+                    let label = crate::ui_text::text_for(language, entry.label_id);
+                    format!("✓ {}", label.split('\t').next().unwrap())
+                }));
+                labels.extend(
                     crate::desktop::tool_panel_actions::ACTIONS
                         .iter()
-                        .map(|entry| entry.1.to_owned()),
-                )
-                .chain([
-                    "粗细 + 256.00".into(),
-                    "透明度 100%".into(),
-                    "填充 开".into(),
-                ])
-                .collect();
+                        .map(|entry| crate::ui_text::text_for(language, entry.1).to_owned()),
+                );
+                labels.push(crate::ui_text::format_for(
+                    language,
+                    "tool-action-width-up-value",
+                    &[("width", "256.00".into())],
+                ));
+                labels.push(crate::ui_text::format_for(
+                    language,
+                    "tool-action-opacity-value",
+                    &[("opacity", "100".into())],
+                ));
+                labels.push(crate::ui_text::text_for(language, "tool-action-fill-on").to_owned());
+            }
             for dpi in [96, 144, 192] {
                 update(window.0, dpi).unwrap();
                 let dc = CreateCompatibleDC(None);
