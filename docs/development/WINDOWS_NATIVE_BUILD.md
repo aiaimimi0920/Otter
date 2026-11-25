@@ -27,6 +27,17 @@ npm run test:effective-lines
 python -m unittest discover -s scripts/tests -p 'test_ci_*.py'
 ```
 
+## Compilation-only CI
+
+`Compile Windows (no package)` (`.github/workflows/compile-windows.yml`) runs on pushes
+to `main` or by manual dispatch. It executes `npm run build`'s locked Release workspace
+command with Rust 1.95.0, compiling both `otter-native.exe` and `otter_live_hover_hook.dll`.
+Only a JSON receipt is uploaded: the exact GitHub/checkout commit, lockfile digest and
+the nonempty EXE/DLL sizes and SHA-256 digests. No executable, ZIP or Release is uploaded.
+This lane does not run or approve product tests, packaging or runtime acceptance.
+The independent `Build Otter EXE` workflow and stable `build-windows-exe` gate still
+require their existing tests and package/runtime verification before promoting a package.
+
 ## Internal ZIP and runtime startup
 
 Run from the Otter root. Use new paths for candidate, package and runtime-evidence directories.

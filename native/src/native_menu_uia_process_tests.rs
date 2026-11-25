@@ -7,6 +7,15 @@ const HWND_ENV: &str = "OTTER_TEST_UIA_HWND";
 const PID_ENV: &str = "OTTER_TEST_UIA_PID";
 const EVENT_TEST: &str = "native_menu::cascade::tests::uia_client::process::uia_event_client_child";
 const MODE_ENV: &str = "OTTER_TEST_UIA_MODE";
+const TITLE_ENV: &str = "OTTER_TEST_UIA_TITLE";
+const SELECTED_ENV: &str = "OTTER_TEST_UIA_SELECTED";
+
+struct LanguageRestore(crate::ui_text::DisplayLanguage);
+impl Drop for LanguageRestore {
+    fn drop(&mut self) {
+        crate::ui_text::set_language(self.0);
+    }
+}
 
 // Even panic/timeout must reclaim the client we launched, never terminate other processes.
 struct Client(Child);
@@ -24,16 +33,23 @@ fn separate_process_expands_scrolls_invokes_and_observes_revocation() {
     }
     let _com = Apartment;
     let owner = Owner::new();
-    let mut parent = item(1);
-    let mut children: Vec<_> = (10..40).map(item).collect();
-    children[29].checked = true;
-    children[29].radio = true;
-    parent.children = Some(children);
-    let mut menu = Cascade::open(owner.0, vec![parent], POINT { x: 30, y: 30 }).unwrap();
-    run_process(&mut menu, CHILD_TEST, 0);
-    assert!(menu.closed());
-    assert_eq!(menu.take_command(), Some(39));
-    assert!(menu.take_command().is_none());
+    let _language = LanguageRestore(crate::ui_text::current_language());
+    for language in [
+        crate::ui_text::DisplayLanguage::English,
+        crate::ui_text::DisplayLanguage::SimplifiedChinese,
+    ] {
+        crate::ui_text::set_language(language);
+        let mut parent = item(1);
+        let mut children: Vec<_> = (10..40).map(item).collect();
+        children[29].checked = true;
+        children[29].radio = true;
+        parent.children = Some(children);
+        let mut menu = Cascade::open(owner.0, vec![parent], POINT { x: 30, y: 30 }).unwrap();
+        run_process(&mut menu, CHILD_TEST, 0);
+        assert!(menu.closed());
+        assert_eq!(menu.take_command(), Some(39));
+        assert!(menu.take_command().is_none());
+    }
 }
 
 fn run_process(menu: &mut Cascade, test: &str, mode: u8) {
@@ -49,6 +65,9 @@ fn run_process(menu: &mut Cascade, test: &str, mode: u8) {
         .env(HWND_ENV, hwnd.to_string())
         .env(PID_ENV, std::process::id().to_string())
         .env(MODE_ENV, mode.to_string())
+        // The client's default language is independent of the provider process.
+        .env(TITLE_ENV, crate::ui_text::text("native-menu-title"))
+        .env(SELECTED_ENV, crate::ui_text::text("native-menu-selected"))
         .stdin(Stdio::null())
         .spawn()
         .unwrap();
@@ -140,7 +159,7 @@ unsafe fn run_client(hwnd: usize, pid: u32) -> Result<()> {
     assert_eq!(root.CurrentProcessId()?, pid as i32);
     assert_eq!(
         root.CurrentName()?.to_string(),
-        crate::ui_text::text("native-menu-title")
+        std::env::var(TITLE_ENV).unwrap()
     );
     let walker = client.RawViewWalker()?;
     let parent = walker.GetFirstChildElement(&root)?;
@@ -172,7 +191,7 @@ unsafe fn run_client(hwnd: usize, pid: u32) -> Result<()> {
     assert_eq!(leaf.CurrentName()?.to_string(), "命令 39");
     assert_eq!(
         leaf.CurrentItemStatus()?.to_string(),
-        crate::ui_text::text("native-menu-selected")
+        std::env::var(SELECTED_ENV).unwrap()
     );
     let invoke: IUIAutomationInvokePattern = leaf.GetCurrentPatternAs(UIA_InvokePatternId)?;
     invoke.Invoke()?;

@@ -10,6 +10,12 @@ CI builds and uploads the internal package only when change classification selec
 gates pass. A documentation-only classification runs documentation checks and skips the EXE build; a green check
 on that path is not a newly built package.
 
+The separate `Compile Windows (no package)` workflow uploads only a compilation receipt,
+not binaries or a package. Its `compilationOnly=true`, `packageVerified=false` and
+`formalReleaseApproved=false` fields distinguish compiled EXE/DLL hashes from candidate
+provenance. Success does not satisfy or bypass the unchanged `build-windows-exe` test,
+package or runtime gates, and does not authorize a formal release.
+
 - `build-native-candidate.ps1` binds the Git revision/dirty state, input hashes, exact Cargo resolution,
   pinned NeuroDesign input, tool versions and the EXE/DLL digests. It rejects changes to the inventoried build inputs,
   tool snapshot or `HEAD` during the build; this is not a claim to track every file in the worktree.
