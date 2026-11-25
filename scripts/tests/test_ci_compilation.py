@@ -39,7 +39,9 @@ class CompilationWorkflowTests(unittest.TestCase):
         self.assertEqual(COMPILATION.BUILD_COMMAND, package["scripts"]["build"])
         self.assertIn(COMPILATION.BUILD_COMMAND, WORKFLOW)
         self.assertIn('CARGO_TARGET_DIR: ${{ github.workspace }}/native/target', WORKFLOW)
-        self.assertIn('toolchain: "1.95.0"', WORKFLOW)
+        self.assertIn("uses: dtolnay/rust-toolchain@a5f673d0ba8626c3977bb416a1612774bc82181b # 1.95.0",
+                      WORKFLOW)
+        self.assertNotIn("toolchain:", WORKFLOW)
         self.assertIn("Get-Command rc.exe,llvm-rc.exe", WORKFLOW)
         self.assertIn("Windows resource compiler not found", WORKFLOW)
         self.assertIn("test_ci_compilation.py", WORKFLOW)
