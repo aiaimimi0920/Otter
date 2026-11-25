@@ -87,7 +87,7 @@ fn process_probe() {
         return;
     };
     let directory = Directory(PathBuf::from(root));
-    assert_eq!(directory.0.parent(), Some(Path::new(ROOT)));
+    assert_eq!(directory.0.parent(), Some(root_dir().as_path()));
     if std::env::var_os("OTTER_NATIVE_SENDER_EXIT_TEST").is_some() {
         let store = directory.store();
         prepare(&store, &directory, &selection(1)).unwrap();

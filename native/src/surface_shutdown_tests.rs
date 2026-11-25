@@ -33,9 +33,7 @@ fn completed(owner: Owner) -> Sessions {
     drop(grant);
     let config = crate::device_authorization_config::Config::new(
         "https://localhost:1234",
-        std::path::Path::new(
-            "C:/Users/Public/nas_home/AI/GameEditor/linshi/unused-surface-shutdown",
-        ),
+        &crate::test_temp_root().join("unused-surface-shutdown"),
         "test",
     )
     .unwrap();

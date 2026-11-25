@@ -8,10 +8,9 @@ struct Fixture(PathBuf);
 impl Fixture {
     fn new() -> Self {
         Self(
-            PathBuf::from("C:/Users/Public/nas_home/AI/GameEditor/linshi")
-                .join(format!("otter-drag-prepare-{:?}", unsafe {
-                    windows::Win32::System::Com::CoCreateGuid().unwrap()
-                })),
+            crate::test_temp_root().join(format!("otter-drag-prepare-{:?}", unsafe {
+                windows::Win32::System::Com::CoCreateGuid().unwrap()
+            })),
         )
     }
     fn input(&self) -> Input {

@@ -16,7 +16,7 @@ pub(in crate::desktop) fn asset() -> Arc<Asset> {
 struct File(PathBuf);
 impl File {
     fn new(bytes: &[u8]) -> Self {
-        let path = PathBuf::from("C:/Users/Public/nas_home/AI/GameEditor/linshi").join(format!(
+        let path = crate::test_temp_root().join(format!(
             "otter-sticker-{}.png",
             crate::desktop::document_state::new_unit_id()
                 .unwrap()

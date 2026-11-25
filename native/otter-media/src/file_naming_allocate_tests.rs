@@ -90,7 +90,12 @@ fn exhaustion_errors_and_cancellation_are_bounded() {
 #[test]
 fn concurrent_real_files_never_overwrite_and_exact_export_still_rejects_collision() {
     use std::io::Write;
-    let root = PathBuf::from("C:/Users/Public/nas_home/AI/GameEditor/linshi");
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(2)
+        .unwrap()
+        .join(".tmp");
+    std::fs::create_dir_all(&root).unwrap();
     let path = root.join(format!("otter-unique-{:?}", unsafe {
         windows::Win32::System::Com::CoCreateGuid().unwrap()
     }));

@@ -1,8 +1,12 @@
 //! Isolated-profile storage tests; preserve failure artifacts and never operate on real user configuration.
 use super::*;
 fn root() -> PathBuf {
-    let root=PathBuf::from("C:/Users/Public/nas_home/AI/GameEditor/linshi/otter-native-parallel-20261029/main-art-offline-resume-1/runtime")
-        .join(format!("store-{:?}",unsafe {windows::Win32::System::Com::CoCreateGuid()}.unwrap()));
+    let root = crate::test_temp_root()
+        .join("otter-art-offline-store-tests")
+        .join(format!(
+            "store-{:?}",
+            unsafe { windows::Win32::System::Com::CoCreateGuid() }.unwrap()
+        ));
     std::fs::create_dir_all(&root).unwrap();
     root
 }

@@ -43,10 +43,9 @@ fn read_input(root: &Path) -> io::Result<serde_json::Value> {
 
 #[test]
 fn descriptor_accepts_limit_and_rejects_larger_input() {
-    let root = Path::new("C:/Users/Public/nas_home/AI/GameEditor/linshi")
-        .join(format!("otter-loom-descriptor-{:?}", unsafe {
-            windows::Win32::System::Com::CoCreateGuid().unwrap()
-        }));
+    let root = crate::test_temp_root().join(format!("otter-loom-descriptor-{:?}", unsafe {
+        windows::Win32::System::Com::CoCreateGuid().unwrap()
+    }));
     std::fs::create_dir(&root).unwrap();
     let path = root.join("test-input.json");
     let mut bytes = br#"{"nodeId":"test"}"#.to_vec();
@@ -140,8 +139,11 @@ fn isolated_real_loom_pairs_mounts_activates_and_closes() {
     );
     assert!(root.is_absolute());
     let canonical = std::fs::canonicalize(&root).unwrap();
-    let base = std::fs::canonicalize("C:/Users/Public/nas_home/AI/GameEditor/linshi").unwrap();
-    assert!(canonical != base && canonical.starts_with(base));
+    let allowed = [crate::test_temp_root(), std::env::temp_dir()];
+    assert!(allowed
+        .iter()
+        .filter_map(|candidate| std::fs::canonicalize(candidate).ok())
+        .any(|base| canonical != base && canonical.starts_with(&base)));
     let input = read_input(&canonical).expect("invalid isolated Loom test-input.json");
     let origin = input["origin"].as_str().unwrap();
     let url = url::Url::parse(origin).unwrap();

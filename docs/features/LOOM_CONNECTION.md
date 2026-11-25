@@ -79,7 +79,7 @@ only Otter. On the Loom computer, export from the Otter repository root to a loc
 that **does not yet exist**:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/loom-connection/Export-LoomConnection.ps1 -OutputDirectory C:/path/to/new-connection
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/loom-connection/Export-LoomConnection.ps1 -OutputDirectory .tmp/new-connection
 ```
 
 Export reads public identity from `http://127.0.0.1:8765` by default. Use `-LocalLoom` for another

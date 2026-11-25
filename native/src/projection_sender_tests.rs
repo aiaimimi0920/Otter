@@ -5,13 +5,16 @@ use serde_json::{json, Value};
 mod lifetime;
 #[path = "projection_sender_storage_tests.rs"]
 mod storage;
-const ROOT: &str = "C:/Users/Public/nas_home/AI/GameEditor/linshi/otter-sender-intent-tests";
+fn root_dir() -> PathBuf {
+    crate::test_temp_root().join("otter-sender-intent-tests")
+}
 const ORIGIN: &str = "https://loom.example";
 pub(crate) struct Directory(pub(crate) PathBuf);
 impl Directory {
     pub(crate) fn new() -> Self {
-        std::fs::create_dir_all(ROOT).unwrap();
-        let root = Path::new(ROOT).join(format!("{:?}", unsafe {
+        let base = root_dir();
+        std::fs::create_dir_all(&base).unwrap();
+        let root = base.join(format!("{:?}", unsafe {
             windows::Win32::System::Com::CoCreateGuid().unwrap()
         }));
         std::fs::create_dir(&root).unwrap();

@@ -78,11 +78,12 @@ fn run(stages: &[&str]) {
     let input = PathBuf::from(std::env::var_os("OTTER_TILE_JOINT_INPUT").unwrap());
     let root = input.parent().unwrap().to_owned();
     assert!(root.is_absolute());
-    assert!(root.canonicalize().unwrap().starts_with(
-        PathBuf::from("C:/Users/Public/nas_home/AI/GameEditor/linshi")
-            .canonicalize()
-            .unwrap()
-    ));
+    let canonical = root.canonicalize().unwrap();
+    let allowed = [crate::test_temp_root(), std::env::temp_dir()];
+    assert!(allowed
+        .iter()
+        .filter_map(|candidate| candidate.canonicalize().ok())
+        .any(|base| canonical != base && canonical.starts_with(&base)));
     let data = fs::read(&input).unwrap();
     assert!(data.len() < 65536);
     let value: Value = serde_json::from_slice(&data).unwrap();

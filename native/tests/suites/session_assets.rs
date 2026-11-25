@@ -9,7 +9,9 @@ use std::{
 };
 #[path = "../support/process.rs"]
 mod process;
-const BASE: &str = "C:/Users/Public/nas_home/AI/GameEditor/linshi/otter-native-assets-check";
+fn base_dir() -> PathBuf {
+    crate::test_temp_root().join("otter-native-assets-check")
+}
 const PNG: &[u8] = &[
     137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 2, 0, 0, 0, 2, 8, 6, 0,
     0, 0, 114, 182, 13, 36, 0, 0, 0, 14, 73, 68, 65, 84, 120, 156, 99, 248, 15, 5, 12, 48, 6, 0,
@@ -22,8 +24,9 @@ struct Fixture {
 }
 impl Fixture {
     fn new() -> Self {
-        fs::create_dir_all(BASE).unwrap();
-        let root = Path::new(BASE).join(format!("{:?}", unsafe {
+        let base = base_dir();
+        fs::create_dir_all(&base).unwrap();
+        let root = base.join(format!("{:?}", unsafe {
             windows::Win32::System::Com::CoCreateGuid().unwrap()
         }));
         fs::create_dir(&root).unwrap();
@@ -65,7 +68,7 @@ impl Fixture {
         }
     }
     fn cleanup(&mut self) {
-        assert_eq!(self.root.parent(), Some(Path::new(BASE)));
+        assert_eq!(self.root.parent(), Some(base_dir().as_path()));
         for (path, _) in &self.files {
             fs::remove_file(path).unwrap();
         }
@@ -81,7 +84,7 @@ impl Fixture {
 impl Drop for Fixture {
     fn drop(&mut self) {
         // Delete only files successfully registered by create_new and this fixture's directory; do not recursively scan or follow directory links.
-        assert_eq!(self.root.parent(), Some(Path::new(BASE)));
+        assert_eq!(self.root.parent(), Some(base_dir().as_path()));
         for (path, _) in &self.files {
             let _ = fs::remove_file(path);
         }

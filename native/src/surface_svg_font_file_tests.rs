@@ -1,10 +1,9 @@
 //! Verify origins, sharing locks, and preallocation budgets only with self-created linshi files; never modify system fonts.
 use super::*;
 fn directory() -> PathBuf {
-    let path = PathBuf::from("C:/Users/Public/nas_home/AI/GameEditor/linshi")
-        .join(format!("otter-font-file-{:?}", unsafe {
-            windows::Win32::System::Com::CoCreateGuid().unwrap()
-        }));
+    let path = crate::test_temp_root().join(format!("otter-font-file-{:?}", unsafe {
+        windows::Win32::System::Com::CoCreateGuid().unwrap()
+    }));
     std::fs::create_dir(&path).unwrap();
     path
 }

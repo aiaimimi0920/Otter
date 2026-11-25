@@ -12,7 +12,7 @@ import time
 from urllib.error import URLError
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
-SCRATCH = Path("C:/Users/Public/nas_home/AI/GameEditor/linshi")
+SCRATCH = Path(__file__).resolve().parents[2] / ".tmp"
 EXACT = ("desktop::application::restore_batch::workflow::cycle::real_loom_tests::"
          "saved_workflow_survives_real_loom_bridge_restart")
 
@@ -67,6 +67,7 @@ def main():
     if tests != [EXACT]:
         raise RuntimeError(f"Expected exactly {EXACT}, got {tests}")
 
+    SCRATCH.mkdir(parents=True, exist_ok=True)
     root = Path(tempfile.mkdtemp(prefix="otter-workflow-loom-restart-", dir=SCRATCH))
     print(root, flush=True)
     for name in ("manifest", "appdata", "tmp"):

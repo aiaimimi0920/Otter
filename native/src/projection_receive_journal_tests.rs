@@ -4,11 +4,13 @@ use super::*;
 mod cleanup;
 use serde_json::{json, Value};
 pub(crate) struct Directory(pub PathBuf);
-const ROOT: &str = "C:/Users/Public/nas_home/AI/GameEditor/linshi/otter-receive-journal-tests";
+fn root_dir() -> PathBuf {
+    crate::test_temp_root().join("otter-receive-journal-tests")
+}
 impl Directory {
     pub(crate) fn new() -> Self {
-        let root = Path::new(ROOT);
-        std::fs::create_dir_all(root).unwrap();
+        let root = root_dir();
+        std::fs::create_dir_all(&root).unwrap();
         let path = root.join(format!("{:?}", unsafe {
             windows::Win32::System::Com::CoCreateGuid().unwrap()
         }));
@@ -277,7 +279,7 @@ fn lease_process_probe() {
         return;
     };
     let root = PathBuf::from(root);
-    assert_eq!(root.parent(), Some(Path::new(ROOT)));
+    assert_eq!(root.parent(), Some(root_dir().as_path()));
     if std::env::var_os("OTTER_NATIVE_RECEIVE_JOURNAL_EXIT_TEST").is_some() {
         let store = Store::open(&root).unwrap();
         store.begin(&invitation(1), "device-1").unwrap();

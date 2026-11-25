@@ -12,7 +12,7 @@ import re
 import threading
 
 
-TEMP_ROOT = Path("C:/Users/Public/nas_home/AI/GameEditor/linshi")
+TEMP_ROOT = Path(__file__).resolve().parents[2] / ".tmp"
 READY = b"OTTER_FOREGROUND_READY"
 TEST_NAME = re.compile(r"[A-Za-z_][A-Za-z_0-9]*(?:::[A-Za-z_][A-Za-z_0-9]*)+")
 
@@ -196,11 +196,12 @@ def main():
     parser.add_argument("--preflight", action="store_true", help="只核对摘要和测试清单，不显示窗口")
     parser.add_argument("--case", help="只运行清单中的一个完整测试名")
     args = parser.parse_args()
+    TEMP_ROOT.mkdir(parents=True, exist_ok=True)
     root = args.evidence_dir.resolve()
     driver = args.driver.resolve(strict=True)
     if (not root.is_relative_to(TEMP_ROOT.resolve()) or root == TEMP_ROOT.resolve()
             or driver.drive.upper() != "C:" or driver.suffix.lower() != ".exe"):
-        parser.error("Use a local C: driver and a fresh evidence directory under linshi")
+        parser.error("Use a local C: driver and a fresh evidence directory under .tmp")
     expected, cases = inventory(args.inventory)
     if args.case:
         if args.case not in cases:

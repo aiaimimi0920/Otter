@@ -209,7 +209,7 @@ mod tests {
     }
     #[test]
     fn real_handle_stays_in_explicit_root_and_outside_reference_is_rejected() {
-        let root = PathBuf::from("C:/Users/Public/nas_home/AI/GameEditor/linshi").join(format!(
+        let root = crate::test_temp_root().join(format!(
             "otter-assets-{}",
             super::super::document_state::new_unit_id()
                 .unwrap()

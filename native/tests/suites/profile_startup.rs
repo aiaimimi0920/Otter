@@ -15,7 +15,7 @@ struct Fixture {
 }
 impl Fixture {
     fn new() -> Self {
-        let root = PathBuf::from("C:/Users/Public/nas_home/AI/GameEditor/linshi");
+        let root = crate::test_temp_root();
         fs::create_dir_all(&root).unwrap();
         let id = unsafe { windows::Win32::System::Com::CoCreateGuid().unwrap() };
         let root = root.join(format!("otter-profile-startup-{id:?}"));

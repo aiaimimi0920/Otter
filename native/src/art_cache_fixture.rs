@@ -12,8 +12,7 @@ pub(crate) struct Directory {
 
 impl Directory {
     pub(crate) fn new() -> Self {
-        let temporary = Path::new(r"\\?\C:\Users\Public\nas_home\AI\GameEditor\linshi");
-        assert_eq!(temporary.canonicalize().unwrap(), temporary);
+        let temporary = crate::test_temp_root().canonicalize().unwrap();
         let base = temporary.join("otter-host-art-cache-tests");
         fs::create_dir_all(&base).unwrap();
         assert_eq!(base.canonicalize().unwrap(), base);

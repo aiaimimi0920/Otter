@@ -13,7 +13,7 @@ struct Fixture {
 }
 impl Fixture {
     unsafe fn new() -> Self {
-        let root = PathBuf::from("C:/Users/Public/nas_home/AI/GameEditor/linshi").join(format!(
+        let root = crate::test_temp_root().join(format!(
             "otter-drag-input-{:?}",
             windows::Win32::System::Com::CoCreateGuid().unwrap()
         ));

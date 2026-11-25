@@ -57,9 +57,7 @@ fn shutdown_drains_remote_control_owner_and_releases_wait_handles() {
         .start_surface(
             crate::device_authorization_config::Config::new(
                 "https://localhost:9",
-                std::path::Path::new(
-                    "C:/Users/Public/nas_home/AI/GameEditor/linshi/unused-relay-profile",
-                ),
+                &crate::test_temp_root().join("unused-relay-profile"),
                 "test",
             )
             .unwrap(),
@@ -72,9 +70,7 @@ fn shutdown_drains_remote_control_owner_and_releases_wait_handles() {
         .discover(
             crate::device_authorization_config::Config::new(
                 "https://localhost:9",
-                std::path::Path::new(
-                    "C:/Users/Public/nas_home/AI/GameEditor/linshi/unused-relay-profile",
-                ),
+                &crate::test_temp_root().join("unused-relay-profile"),
                 "test",
             )
             .unwrap(),

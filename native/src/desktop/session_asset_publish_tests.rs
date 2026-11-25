@@ -1,10 +1,9 @@
 use super::*;
 fn fixture() -> (std::path::PathBuf, Root, Pixels) {
-    let directory =
-        std::path::PathBuf::from("C:/Users/Public/nas_home/AI/GameEditor/linshi").join(format!(
-            "otter-archive-{}",
-            crate::desktop::document_state::new_unit_id().unwrap()
-        ));
+    let directory = crate::test_temp_root().join(format!(
+        "otter-archive-{}",
+        crate::desktop::document_state::new_unit_id().unwrap()
+    ));
     std::fs::create_dir(&directory).unwrap();
     let root = Root::open(&directory).unwrap();
     let image = crate::desktop::image::Image {

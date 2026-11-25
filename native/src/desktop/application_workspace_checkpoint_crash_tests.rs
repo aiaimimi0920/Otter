@@ -4,17 +4,20 @@ use crate::test_process as process;
 use std::process::Command;
 const PATH_ENV: &str = "OTTER_NATIVE_CHECKPOINT_CRASH_TEST_ROOT";
 const MODE_ENV: &str = "OTTER_NATIVE_CHECKPOINT_CRASH_TEST_MODE";
-const ROOT: &str = "C:/Users/Public/nas_home/AI/GameEditor/linshi/otter-workspace-checkpoint-tests";
+fn root_dir() -> PathBuf {
+    crate::test_temp_root().join("otter-workspace-checkpoint-tests")
+}
 #[test]
 fn interruption_probe() {
     let Some(root) = std::env::var_os(PATH_ENV) else {
         return;
     };
     let root = PathBuf::from(root);
-    assert_eq!(root.parent(), Some(std::path::Path::new(ROOT)));
+    let expected = root_dir();
+    assert_eq!(root.parent(), Some(expected.as_path()));
     assert_eq!(
         root.canonicalize().unwrap().parent(),
-        Some(std::path::Path::new(ROOT).canonicalize().unwrap().as_path())
+        Some(expected.canonicalize().unwrap().as_path())
     );
     let mode = std::env::var(MODE_ENV).unwrap();
     assert!(mode == "staged" || mode == "committed");

@@ -1,8 +1,7 @@
 //! Signed invitation -> real PNG -> WIC -> QR reader round trips, budgets, and close cancellation without reading actual user files.
 use super::*;
 fn directory() -> PathBuf {
-    let root =
-        PathBuf::from("C:/Users/Public/nas_home/AI/GameEditor/linshi/otter-account-qr-tests");
+    let root = crate::test_temp_root().join("otter-account-qr-tests");
     let path = root.join(format!("{:?}", unsafe {
         windows::Win32::System::Com::CoCreateGuid().unwrap()
     }));

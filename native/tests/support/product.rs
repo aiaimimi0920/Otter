@@ -92,9 +92,7 @@ impl Product {
 mod tests {
     use super::*;
     fn fixture() -> PathBuf {
-        let root = PathBuf::from(
-            "C:/Users/Public/nas_home/AI/GameEditor/linshi/otter-pinned-product-tests",
-        );
+        let root = crate::test_temp_root().join("otter-pinned-product-tests");
         std::fs::create_dir_all(&root).unwrap();
         let path = root.join(format!("{:?}.bin", unsafe {
             windows::Win32::System::Com::CoCreateGuid().unwrap()

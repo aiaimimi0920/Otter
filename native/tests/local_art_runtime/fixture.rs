@@ -22,12 +22,11 @@ impl Product {
 }
 impl Fixture {
     pub fn new() -> Self {
-        let root = PathBuf::from(
-            "C:/Users/Public/nas_home/AI/GameEditor/linshi/otter-art-product-runtime",
-        )
-        .join(format!("{:?}", unsafe {
-            windows::Win32::System::Com::CoCreateGuid().unwrap()
-        }));
+        let root = crate::test_temp_root()
+            .join("otter-art-product-runtime")
+            .join(format!("{:?}", unsafe {
+                windows::Win32::System::Com::CoCreateGuid().unwrap()
+            }));
         fs::create_dir_all(&root).unwrap();
         eprintln!("art-product-evidence: {}", root.display());
         let image = STANDARD.encode(include_bytes!("../../assets/branding/32x32.png"));

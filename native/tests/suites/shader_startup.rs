@@ -62,12 +62,9 @@ fn session_path_does_not_select_shader_smoke_mode() {
 }
 #[test]
 fn shader_startup_rejects_untrusted_candidate_in_every_product_mode() {
+    let candidate = crate::test_temp_root().join("missing-shader-candidate");
     for mode in ["--smoke-test", "--capture", "--capture-region", "--session"] {
-        let mut args = vec![
-            "--shader-candidate",
-            "C:/Users/Public/nas_home/AI/GameEditor/linshi/missing-shader-candidate",
-            mode,
-        ];
+        let mut args = vec!["--shader-candidate", candidate.to_str().unwrap(), mode];
         if mode == "--session" {
             args.extend(["missing.json", "--session-check"]);
         }

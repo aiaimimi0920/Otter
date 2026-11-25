@@ -2,9 +2,13 @@ use super::*;
 struct Fixture(PathBuf);
 impl Fixture {
     fn new() -> Self {
-        let root =
-            Path::new("C:/Users/Public/nas_home/AI/GameEditor/linshi/otter-session-recovery-tests");
-        std::fs::create_dir_all(root).unwrap();
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .ancestors()
+            .nth(2)
+            .unwrap()
+            .join(".tmp")
+            .join("otter-session-recovery-tests");
+        std::fs::create_dir_all(&root).unwrap();
         let path = root.join(format!("{:?}", unsafe {
             windows::Win32::System::Com::CoCreateGuid().unwrap()
         }));

@@ -15,9 +15,7 @@ impl Files {
         Store::new(&self.0).unwrap()
     }
     pub(crate) fn new() -> (Self, Store, Loaded) {
-        let root = PathBuf::from(
-            "C:/Users/Public/nas_home/AI/GameEditor/linshi/otter-native-pairing-tests",
-        );
+        let root = crate::test_temp_root().join("otter-native-pairing-tests");
         std::fs::create_dir_all(&root).unwrap();
         let root = root.join(format!(
             "{:?}",

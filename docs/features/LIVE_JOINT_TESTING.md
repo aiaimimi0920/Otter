@@ -11,14 +11,14 @@ checkout is needed. Run from the Otter root, adjusting paths and the LAN IP for 
 
 ```powershell
 python -B scripts/tests/live-joint/run.py `
-  --loom-repo C:/work/Loom `
+  --loom-repo ../Loom `
   --lan-host 192.168.1.20 `
-  --evidence-root C:/work/test-output `
+  --evidence-root .tmp/live-joint `
   --rc 'C:/Program Files/LLVM/bin/llvm-rc.exe' `
   --with-wgc
 ```
 
-Place output in a dedicated disposable test directory such as `linshi`; identities, profiles, logs
+Place output in a dedicated disposable test directory such as `.tmp/live-joint`; identities, profiles, logs
 and copied build artifacts there are reproducible. Reuse the repository's existing Cargo cache.
 If `--cargo-target-dir` must be set explicitly, point only to an existing main Cargo target on
 local `C:`, never the evidence directory or a fresh disposable cold cache. Tests use no real

@@ -65,10 +65,8 @@ unsafe fn drain_messages() -> bool {
 struct Directory(PathBuf);
 impl Directory {
     fn new() -> Self {
-        let root = std::path::Path::new(
-            "C:/Users/Public/nas_home/AI/GameEditor/linshi/otter-workspace-checkpoint-tests",
-        );
-        std::fs::create_dir_all(root).unwrap();
+        let root = crate::test_temp_root().join("otter-workspace-checkpoint-tests");
+        std::fs::create_dir_all(&root).unwrap();
         let path = root.join(format!("{:?}", unsafe {
             windows::Win32::System::Com::CoCreateGuid().unwrap()
         }));
@@ -88,9 +86,9 @@ impl Drop for Directory {
             );
             return;
         }
-        assert!(self.0.starts_with(
-            "C:/Users/Public/nas_home/AI/GameEditor/linshi/otter-workspace-checkpoint-tests"
-        ));
+        assert!(self
+            .0
+            .starts_with(crate::test_temp_root().join("otter-workspace-checkpoint-tests")));
         for entry in std::fs::read_dir(&self.0).unwrap().flatten() {
             if entry.file_type().unwrap().is_file() {
                 let _ = std::fs::remove_file(entry.path());

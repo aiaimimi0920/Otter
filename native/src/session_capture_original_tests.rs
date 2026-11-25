@@ -2,11 +2,10 @@ use super::*;
 struct Directory(std::path::PathBuf);
 impl Directory {
     fn new() -> Self {
-        let path = std::path::PathBuf::from("C:/Users/Public/nas_home/AI/GameEditor/linshi").join(
-            format!("otter-original-restore-test-{:?}", unsafe {
+        let path = crate::test_temp_root()
+            .join(format!("otter-original-restore-test-{:?}", unsafe {
                 CoCreateGuid().unwrap()
-            }),
-        );
+            }));
         std::fs::create_dir(&path).unwrap();
         Self(path)
     }

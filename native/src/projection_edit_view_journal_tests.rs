@@ -8,8 +8,11 @@ use crate::projection_edit::{
 use serde_json::json;
 use std::{path::PathBuf, sync::atomic::AtomicBool};
 fn directory() -> PathBuf {
-    let path = PathBuf::from("C:/Users/Public/nas_home/AI/GameEditor/linshi/otter-native-parallel-20261029/main-projection-edit-view-1/tmp")
-        .join(format!("view-{:?}",unsafe { windows::Win32::System::Com::CoCreateGuid().unwrap() }));
+    let path = crate::test_temp_root()
+        .join("otter-projection-edit-view-tests")
+        .join(format!("view-{:?}", unsafe {
+            windows::Win32::System::Com::CoCreateGuid().unwrap()
+        }));
     std::fs::create_dir_all(&path).unwrap();
     path
 }

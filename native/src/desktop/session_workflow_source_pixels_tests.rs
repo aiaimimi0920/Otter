@@ -99,11 +99,10 @@ fn workflow_bake_rejects_unadmitted_formal_output_file() {
 fn workflow_bake_reads_admitted_output_file_and_applies_target_flip() {
     let _com = crate::desktop::Apartment::new().unwrap();
     let cancel = AtomicBool::new(false);
-    let directory =
-        std::path::PathBuf::from("C:/Users/Public/nas_home/AI/GameEditor/linshi").join(format!(
-            "otter-workflow-source-{}",
-            crate::desktop::document_state::new_unit_id().unwrap()
-        ));
+    let directory = crate::test_temp_root().join(format!(
+        "otter-workflow-source-{}",
+        crate::desktop::document_state::new_unit_id().unwrap()
+    ));
     std::fs::create_dir(&directory).unwrap();
     let path = directory.join("formal.png");
     let image = crate::desktop::image::Image {

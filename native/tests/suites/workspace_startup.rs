@@ -3,13 +3,16 @@
 use std::{path::PathBuf, process::Command, time::Duration};
 #[path = "../support/process.rs"]
 mod process;
-const ROOT: &str = "C:/Users/Public/nas_home/AI/GameEditor/linshi/otter-workspace-startup-tests";
+fn root_dir() -> PathBuf {
+    crate::test_temp_root().join("otter-workspace-startup-tests")
+}
 const SESSION: &[u8] = br#"{"documentSchemaVersion":1,"documentRevision":7,"otterNativeCoordinateSpace":{"version":1,"origin":[0,0],"scale":1},"stickers":[],"links":[],"groups":[],"extension":{"keep":true}}"#;
 struct Fixture(PathBuf);
 impl Fixture {
     fn new() -> Self {
-        std::fs::create_dir_all(ROOT).unwrap();
-        let path = PathBuf::from(ROOT).join(format!("{:?}", unsafe {
+        let base = root_dir();
+        std::fs::create_dir_all(&base).unwrap();
+        let path = base.join(format!("{:?}", unsafe {
             windows::Win32::System::Com::CoCreateGuid().unwrap()
         }));
         std::fs::create_dir(&path).unwrap();
@@ -30,7 +33,7 @@ impl Fixture {
 }
 impl Drop for Fixture {
     fn drop(&mut self) {
-        assert_eq!(self.0.parent(), Some(std::path::Path::new(ROOT)));
+        assert_eq!(self.0.parent(), Some(root_dir().as_path()));
         for entry in std::fs::read_dir(&self.0).unwrap().flatten() {
             if entry.file_type().unwrap().is_file() {
                 let _ = std::fs::remove_file(entry.path());

@@ -14,7 +14,9 @@ use windows::{
     core::{w, BOOL},
     Win32::{Foundation::*, UI::WindowsAndMessaging::*},
 };
-const ROOT: &str = "C:/Users/Public/nas_home/AI/GameEditor/linshi/otter-workspace-runtime-tests";
+fn root_dir() -> PathBuf {
+    crate::test_temp_root().join("otter-workspace-runtime-tests")
+}
 #[path = "../workspace_runtime/exit.rs"]
 mod exit;
 #[path = "../workspace_runtime/pin_settings.rs"]
@@ -28,8 +30,9 @@ mod startup;
 struct Fixture(PathBuf);
 impl Fixture {
     fn new() -> Self {
-        std::fs::create_dir_all(ROOT).unwrap();
-        let path = PathBuf::from(ROOT).join(format!("{:?}", unsafe {
+        let base = root_dir();
+        std::fs::create_dir_all(&base).unwrap();
+        let path = base.join(format!("{:?}", unsafe {
             windows::Win32::System::Com::CoCreateGuid().unwrap()
         }));
         std::fs::create_dir(&path).unwrap();
@@ -64,7 +67,7 @@ impl Drop for Fixture {
             eprintln!("workspace-runtime-failure-evidence: {}", self.0.display());
             return;
         }
-        assert_eq!(self.0.parent(), Some(std::path::Path::new(ROOT)));
+        assert_eq!(self.0.parent(), Some(root_dir().as_path()));
         for entry in std::fs::read_dir(&self.0).unwrap().flatten() {
             if entry.file_type().unwrap().is_file() {
                 let _ = std::fs::remove_file(entry.path());

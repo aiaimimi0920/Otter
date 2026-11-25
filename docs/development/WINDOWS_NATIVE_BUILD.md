@@ -47,11 +47,11 @@ outside the repository and not contain one another. Normal iteration still reuse
 Keep all active resources on local `C:`, not network drives or redirected user folders.
 
 ```powershell
-.\scripts\build-native-candidate.ps1 -OutputDirectory C:/build/otter-candidate -TargetDirectory C:/build/otter-target
-.\scripts\package-native-candidate.ps1 -CandidateDirectory C:/build/otter-candidate -OutputDirectory C:/build/otter-package
-$zip = Get-ChildItem C:/build/otter-package -Filter '*-internal.zip' -File
+.\scripts\build-native-candidate.ps1 -OutputDirectory ../Release/Otter/candidate -TargetDirectory ../Release/Otter/target
+.\scripts\package-native-candidate.ps1 -CandidateDirectory ../Release/Otter/candidate -OutputDirectory ../Release/Otter/package
+$zip = Get-ChildItem ../Release/Otter/package -Filter '*-internal.zip' -File
 .\scripts\verify-native-package.ps1 -ZipPath $zip.FullName
-python scripts/tests/native-package-runtime.py --package-dir C:/build/otter-package --evidence-dir C:/build/otter-runtime
+python scripts/tests/native-package-runtime.py --package-dir ../Release/Otter/package --evidence-dir ../Release/Otter/runtime
 ```
 
 Cross-check the original package, provenance digests and evidence. Release builds exclude the

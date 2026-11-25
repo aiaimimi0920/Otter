@@ -23,7 +23,7 @@ fn surface_owner() -> crate::surface_lifecycle_owner::Owner {
 fn surface_config() -> Config {
     Config::new(
         "https://localhost:9",
-        std::path::Path::new("C:/Users/Public/nas_home/AI/GameEditor/linshi/unused-relay-profile"),
+        &crate::test_temp_root().join("unused-relay-profile"),
         "test",
     )
     .unwrap()
@@ -165,9 +165,7 @@ fn start(sessions: &mut Sessions) -> io::Result<()> {
     sessions.start(
         Config::new(
             "https://localhost:9",
-            std::path::Path::new(
-                "C:/Users/Public/nas_home/AI/GameEditor/linshi/unused-relay-profile",
-            ),
+            &crate::test_temp_root().join("unused-relay-profile"),
             "test",
         )
         .unwrap(),
@@ -253,9 +251,7 @@ fn discovery_shares_collection_capacity_and_is_reaped_on_close() {
     let config = || {
         Config::new(
             "https://localhost:9",
-            std::path::Path::new(
-                "C:/Users/Public/nas_home/AI/GameEditor/linshi/unused-relay-profile",
-            ),
+            &crate::test_temp_root().join("unused-relay-profile"),
             "test",
         )
         .unwrap()

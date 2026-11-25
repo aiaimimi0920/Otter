@@ -1,4 +1,13 @@
 //! Aggregated native integration and startup-contract tests eliminate 19 redundant binary links.
+#[cfg(windows)]
+pub(crate) fn test_temp_root() -> std::path::PathBuf {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("repository root")
+        .join(".tmp");
+    std::fs::create_dir_all(&root).expect("create repository .tmp directory");
+    root
+}
 #[path = "suites/build_resources.rs"]
 mod build_resources;
 #[path = "suites/exe_resources.rs"]

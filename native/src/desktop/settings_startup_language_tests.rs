@@ -6,8 +6,7 @@ struct Profile(PathBuf);
 impl Profile {
     fn new() -> Self {
         let id = unsafe { windows::Win32::System::Com::CoCreateGuid().unwrap() };
-        let path = PathBuf::from("C:/Users/Public/nas_home/AI/GameEditor/linshi")
-            .join(format!("otter-language-startup-{id:?}"));
+        let path = crate::test_temp_root().join(format!("otter-language-startup-{id:?}"));
         fs::create_dir_all(&path).unwrap();
         Self(path)
     }

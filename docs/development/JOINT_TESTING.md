@@ -44,11 +44,11 @@ Run from the Otter root, adjusting the example paths and IP for your machine:
 
 ```powershell
 python -B scripts/tests/account-projection/run.py `
-  --loom-repo C:/work/Loom `
-  --platform-repo C:/work/Platform `
-  --daemon C:/work/Loom/target/debug/loom-daemon.exe `
+  --loom-repo ../Loom `
+  --platform-repo ../Platform `
+  --daemon ../Loom/target/debug/loom-daemon.exe `
   --lan-host 192.168.1.20 `
-  --evidence-root C:/work/test-output `
+  --evidence-root .tmp/account-projection `
   --rc 'C:/Program Files/LLVM/bin/llvm-rc.exe'
 ```
 

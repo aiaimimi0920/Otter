@@ -218,7 +218,7 @@ fn each_remaining_raster_worker_retires_from_a_closed_hwnd_without_blocking() {
 #[test]
 fn closing_window_revokes_copy_and_drag_but_finishes_admitted_file_export() {
     let _apartment = desktop::Apartment::new().unwrap();
-    let scratch = std::path::Path::new("C:/Users/Public/nas_home/AI/GameEditor/linshi");
+    let scratch = crate::test_temp_root();
     let id = desktop::document_state::new_unit_id().unwrap();
     let path = scratch.join(format!("otter-retired-export-{}.txt", id.as_str()));
     struct Cleanup(std::path::PathBuf);

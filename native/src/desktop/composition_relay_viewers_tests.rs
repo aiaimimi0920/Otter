@@ -8,7 +8,7 @@ use windows::Win32::{
 fn config() -> Config {
     Config::new(
         "https://localhost:9",
-        std::path::Path::new("C:/Users/Public/nas_home/AI/GameEditor/linshi/unused-live-viewer"),
+        &crate::test_temp_root().join("unused-live-viewer"),
         "test",
     )
     .unwrap()

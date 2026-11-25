@@ -21,8 +21,7 @@ fn record() -> Record {
 }
 fn directory() -> PathBuf {
     let guid = unsafe { windows::Win32::System::Com::CoCreateGuid() }.unwrap();
-    PathBuf::from("C:/Users/Public/nas_home/AI/GameEditor/linshi")
-        .join(format!("surface-journal-{guid:?}"))
+    crate::test_temp_root().join(format!("surface-journal-{guid:?}"))
 }
 #[test]
 fn recovery_file_reader_rejects_device_paths_relative_paths_and_alternate_streams() {

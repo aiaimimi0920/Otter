@@ -2,13 +2,15 @@
 use super::*;
 use crate::test_process as process;
 use std::{process::Command, time::Duration};
-pub(super) const ROOT: &str =
-    "C:/Users/Public/nas_home/AI/GameEditor/linshi/otter-workspace-profile-tests";
+fn root_dir() -> PathBuf {
+    crate::test_temp_root().join("otter-workspace-profile-tests")
+}
 pub(super) struct Directory(pub PathBuf);
 impl Directory {
     pub(super) fn new() -> Self {
-        std::fs::create_dir_all(ROOT).unwrap();
-        let path = Path::new(ROOT).join(format!("{:?}", unsafe {
+        let base = root_dir();
+        std::fs::create_dir_all(&base).unwrap();
+        let path = base.join(format!("{:?}", unsafe {
             windows::Win32::System::Com::CoCreateGuid().unwrap()
         }));
         std::fs::create_dir(&path).unwrap();
@@ -17,7 +19,7 @@ impl Directory {
 }
 impl Drop for Directory {
     fn drop(&mut self) {
-        assert_eq!(self.0.parent(), Some(Path::new(ROOT)));
+        assert_eq!(self.0.parent(), Some(root_dir().as_path()));
         // Delete only ordinary files in this run's GUID directory; no reparse-point following or recursive cleanup.
         for entry in std::fs::read_dir(&self.0).unwrap().flatten() {
             if entry.file_type().unwrap().is_file() {
@@ -33,7 +35,8 @@ fn lease_probe() {
         return;
     };
     let root = PathBuf::from(root);
-    assert!(root.starts_with(ROOT) && root.parent() == Some(Path::new(ROOT)));
+    let base = root_dir();
+    assert!(root.starts_with(&base) && root.parent() == Some(base.as_path()));
     let result = Profile::open(&root);
     if std::env::var_os("OTTER_NATIVE_WORKSPACE_LEASE_EXIT").is_some() {
         let _profile = result.unwrap();

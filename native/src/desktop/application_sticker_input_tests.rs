@@ -221,12 +221,10 @@ fn manual_upload_notifies_downstream_and_clear_rejects_inflight_file_result() {
             .unwrap();
         app.pending_parameter_files(false).unwrap();
         assert!(app.documents[1].state.pending_start.borrow().is_some());
-        let path = std::path::PathBuf::from("C:/Users/Public/nas_home/AI/GameEditor/linshi").join(
-            format!(
-                "otter-sticker-worker-{}.png",
-                desktop::document_state::new_unit_id().unwrap().as_str()
-            ),
-        );
+        let path = crate::test_temp_root().join(format!(
+            "otter-sticker-worker-{}.png",
+            desktop::document_state::new_unit_id().unwrap().as_str()
+        ));
         let bytes = desktop::export::png_raw(&manual.image, &AtomicBool::new(false)).unwrap();
         std::fs::write(&path, &*bytes).unwrap();
         let state = &app.documents[0].state;

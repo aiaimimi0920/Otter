@@ -107,10 +107,9 @@ fn session_save_embeds_exact_hdr_original_and_non_capture_replacement_removes_it
         }
     }
     let path = FileGuard(
-        std::path::PathBuf::from("C:/Users/Public/nas_home/AI/GameEditor/linshi")
-            .join(format!("otter-session-original-{:?}.png", unsafe {
-                windows::Win32::System::Com::CoCreateGuid().unwrap()
-            })),
+        crate::test_temp_root().join(format!("otter-session-original-{:?}.png", unsafe {
+            windows::Win32::System::Com::CoCreateGuid().unwrap()
+        })),
     );
     let cancel = AtomicBool::new(false);
     let pixels: Vec<_> = [0x4000u16; 4]

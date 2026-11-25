@@ -13,9 +13,7 @@ struct Fixture(PathBuf);
 static NEXT_FIXTURE: AtomicU64 = AtomicU64::new(0);
 impl Fixture {
     fn new(bytes: &[u8]) -> Self {
-        let root = PathBuf::from(
-            "C:/Users/Public/nas_home/AI/GameEditor/linshi/otter-native-session-startup",
-        );
+        let root = crate::test_temp_root().join("otter-native-session-startup");
         std::fs::create_dir_all(&root).unwrap();
         let stamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)

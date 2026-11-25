@@ -4,9 +4,8 @@ use std::{fs, io::Cursor, sync::atomic::Ordering};
 struct Fixture(PathBuf);
 impl Fixture {
     fn new() -> Self {
-        let root =
-            Path::new("C:/Users/Public/nas_home/AI/GameEditor/linshi/otter-native-hdr-file-tests");
-        fs::create_dir_all(root).unwrap();
+        let root = crate::test_temp_root().join("otter-native-hdr-file-tests");
+        fs::create_dir_all(&root).unwrap();
         let path = root.join(format!(
             "{:?}",
             unsafe { windows::Win32::System::Com::CoCreateGuid() }.unwrap()

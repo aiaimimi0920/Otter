@@ -60,8 +60,7 @@ fn strict_decoder_rejects_invalid_identity_versions_and_inconsistent_evidence() 
 #[test]
 fn event_store_is_append_only_and_separate_from_attachment_records() {
     let guid = unsafe { windows::Win32::System::Com::CoCreateGuid() }.unwrap();
-    let root = std::path::PathBuf::from("C:/Users/Public/nas_home/AI/GameEditor/linshi")
-        .join(format!("surface-event-record-{guid:?}"));
+    let root = crate::test_temp_root().join(format!("surface-event-record-{guid:?}"));
     let records = vec![record()];
     let first = crate::surface_recovery_store::save_events(&root, &records).unwrap();
     let second = crate::surface_recovery_store::save_events(&root, &records).unwrap();

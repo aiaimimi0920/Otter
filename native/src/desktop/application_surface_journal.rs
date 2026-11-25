@@ -178,8 +178,7 @@ mod tests {
     fn journal_can_persist_event_only_metadata_without_an_attachment_file() {
         let events = event_records();
         let guid = unsafe { windows::Win32::System::Com::CoCreateGuid() }.unwrap();
-        let root = PathBuf::from("C:/Users/Public/nas_home/AI/GameEditor/linshi")
-            .join(format!("surface-event-journal-{guid:?}"));
+        let root = crate::test_temp_root().join(format!("surface-event-journal-{guid:?}"));
         let path = save(root.clone(), Vec::new(), events.clone()).unwrap();
         assert_eq!(
             crate::surface_recovery_store::load_events(&path).unwrap(),
@@ -302,8 +301,7 @@ mod tests {
     fn journal_worker_publishes_metadata_and_preserves_quit_on_success_and_error() {
         let records = crate::surface_recovery_record::decode(br#"{"version":1,"records":[{"origin":"https://localhost:1234","device":"viewer:test","node":"node:test","art":"art:test","binding":null,"uncertain":true,"inFlight":false}]}"#).unwrap();
         let guid = unsafe { windows::Win32::System::Com::CoCreateGuid() }.unwrap();
-        let root = PathBuf::from("C:/Users/Public/nas_home/AI/GameEditor/linshi")
-            .join(format!("surface-exit-journal-{guid:?}"));
+        let root = crate::test_temp_root().join(format!("surface-exit-journal-{guid:?}"));
         unsafe {
             PostQuitMessage(37);
         }

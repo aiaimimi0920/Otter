@@ -3,10 +3,8 @@ use super::*;
 use journal::{Intent, Store};
 
 fn directory() -> std::path::PathBuf {
-    let root = std::path::Path::new(
-        "C:/Users/Public/nas_home/AI/GameEditor/linshi/otter-account-journal-tests",
-    );
-    std::fs::create_dir_all(root).unwrap();
+    let root = crate::test_temp_root().join("otter-account-journal-tests");
+    std::fs::create_dir_all(&root).unwrap();
     let path = root.join(format!("{:?}", unsafe {
         windows::Win32::System::Com::CoCreateGuid().unwrap()
     }));

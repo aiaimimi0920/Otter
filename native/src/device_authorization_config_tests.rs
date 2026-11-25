@@ -50,7 +50,7 @@ fn invalid_profile_origin_and_name_fail_before_preparation() {
 
 #[test]
 fn background_preparation_resolves_localhost_but_does_not_create_identity() {
-    let root = PathBuf::from("C:/Users/Public/nas_home/AI/GameEditor/linshi").join(format!(
+    let root = crate::test_temp_root().join(format!(
         "otter-prepare-{:?}",
         unsafe { windows::Win32::System::Com::CoCreateGuid() }.unwrap()
     ));

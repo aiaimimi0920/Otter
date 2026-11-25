@@ -94,12 +94,10 @@ fn actual_pairing_task_only_registers_and_returns_binding_result() {
 #[test]
 fn renewal_and_approval_missing_identity_never_create_or_connect() {
     for approval in [false, true] {
-        let path = std::path::PathBuf::from("C:/Users/Public/nas_home/AI/GameEditor/linshi").join(
-            format!(
-                "otter-missing-auth-{:?}",
-                unsafe { windows::Win32::System::Com::CoCreateGuid() }.unwrap()
-            ),
-        );
+        let path = crate::test_temp_root().join(format!(
+            "otter-missing-auth-{:?}",
+            unsafe { windows::Win32::System::Com::CoCreateGuid() }.unwrap()
+        ));
         assert!(!path.exists());
         let store = Store::new(&path).unwrap();
         let (listener, client, _) = fixture();

@@ -6,10 +6,13 @@ use windows::Win32::System::Com::CoCreateGuid;
 struct Fixture(PathBuf);
 impl Fixture {
     fn new() -> Self {
-        let base = Path::new(
-            "C:/Users/Public/nas_home/AI/GameEditor/linshi/otter-native-device-store-tests",
-        );
-        std::fs::create_dir_all(base).unwrap();
+        let base = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .ancestors()
+            .nth(2)
+            .unwrap()
+            .join(".tmp")
+            .join("otter-native-device-store-tests");
+        std::fs::create_dir_all(&base).unwrap();
         let path = base.join(format!("{:?}", unsafe { CoCreateGuid() }.unwrap()));
         std::fs::create_dir(&path).unwrap();
         Self(path)

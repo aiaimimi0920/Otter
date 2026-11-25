@@ -216,6 +216,15 @@ pub mod surface_webp_worker;
 #[cfg(all(test, windows))]
 #[path = "../tests/support/process.rs"]
 mod test_process;
+#[cfg(all(test, windows))]
+pub(crate) fn test_temp_root() -> std::path::PathBuf {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("repository root")
+        .join(".tmp");
+    std::fs::create_dir_all(&root).expect("create repository .tmp directory");
+    root
+}
 #[cfg(windows)]
 mod tile_assets;
 #[cfg(windows)]

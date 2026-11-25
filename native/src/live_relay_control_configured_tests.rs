@@ -5,11 +5,10 @@ use crate::device_authorization_config::{Config, Error as PrepareError};
 #[test]
 fn configured_runtime_loads_scoped_ca_and_runs_join_without_identity_store() {
     let (listener, client, tls, pem) = fixture_with_pem();
-    let root =
-        std::path::PathBuf::from("C:/Users/Public/nas_home/AI/GameEditor/linshi").join(format!(
-            "otter-live-config-{:?}",
-            unsafe { windows::Win32::System::Com::CoCreateGuid() }.unwrap()
-        ));
+    let root = crate::test_temp_root().join(format!(
+        "otter-live-config-{:?}",
+        unsafe { windows::Win32::System::Com::CoCreateGuid() }.unwrap()
+    ));
     std::fs::create_dir_all(&root).unwrap();
     let ca = root.join("ca.pem");
     std::fs::write(&ca, pem).unwrap();
@@ -63,9 +62,11 @@ fn configured_wrong_origin_expired_or_revoked_lease_fails_before_ca_or_dns() {
             &client.origin
         };
         let config = Config::from_lookup(origin, |key| match key {
-            "OTTER_NATIVE_PROFILE_DIR" => {
-                Some("C:/Users/Public/nas_home/AI/GameEditor/linshi/unused-profile".into())
-            }
+            "OTTER_NATIVE_PROFILE_DIR" => Some(
+                crate::test_temp_root()
+                    .join("unused-profile")
+                    .into_os_string(),
+            ),
             // Intentionally incomplete CA configuration fails during preparation; authorization errors should precede Trust.
             "OTTER_LOOM_TLS_ORIGIN" => Some(origin.into()),
             _ => None,

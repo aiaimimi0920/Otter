@@ -52,8 +52,8 @@ pub(crate) struct Directory(pub(crate) std::path::PathBuf);
 #[cfg(windows)]
 impl Directory {
     pub(crate) fn new() -> Self {
-        let root=std::path::Path::new("C:/Users/Public/nas_home/AI/GameEditor/linshi/otter-native-parallel-20261029/main-projection-edit-1/tmp");
-        std::fs::create_dir_all(root).unwrap();
+        let root = crate::test_temp_root().join("otter-projection-edit-tests");
+        std::fs::create_dir_all(&root).unwrap();
         let path = root.join(format!("edit-{:?}", unsafe {
             windows::Win32::System::Com::CoCreateGuid().unwrap()
         }));

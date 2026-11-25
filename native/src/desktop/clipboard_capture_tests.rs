@@ -22,10 +22,9 @@ impl Drop for Fixture {
 #[test]
 fn copied_provenance_rebinds_and_read_only_lease_survives_until_last_owner() {
     let _apartment = crate::desktop::Apartment::new().unwrap();
-    let path = PathBuf::from("C:/Users/Public/nas_home/AI/GameEditor/linshi")
-        .join(format!("otter-clipboard-lease-{:?}.bin", unsafe {
-            windows::Win32::System::Com::CoCreateGuid().unwrap()
-        }));
+    let path = crate::test_temp_root().join(format!("otter-clipboard-lease-{:?}.bin", unsafe {
+        windows::Win32::System::Com::CoCreateGuid().unwrap()
+    }));
     drop(
         OpenOptions::new()
             .create_new(true)

@@ -54,13 +54,12 @@ fn real_file_decodes_on_worker_without_leaving_handle_or_pixel_owner() {
     let crate::loom_art_wire::Input::InlinePng { base64, .. } = encoded.descriptor() else {
         panic!("PNG expected");
     };
-    let path =
-        std::path::PathBuf::from("C:/Users/Public/nas_home/AI/GameEditor/linshi").join(format!(
-            "otter-session-image-{}.png",
-            super::super::document_state::new_unit_id()
-                .unwrap()
-                .as_str()
-        ));
+    let path = crate::test_temp_root().join(format!(
+        "otter-session-image-{}.png",
+        super::super::document_state::new_unit_id()
+            .unwrap()
+            .as_str()
+    ));
     std::fs::write(
         &path,
         base64::engine::general_purpose::STANDARD

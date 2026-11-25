@@ -13,8 +13,11 @@ use std::{
 #[ignore = "requires an isolated Loom bridge controller under linshi"]
 fn saved_workflow_survives_real_loom_bridge_restart() {
     let root = fs::canonicalize(std::env::var_os("OTTER_WORKFLOW_LOOM_FIXTURE").unwrap()).unwrap();
-    let base = fs::canonicalize("C:/Users/Public/nas_home/AI/GameEditor/linshi").unwrap();
-    assert!(root != base && root.starts_with(base));
+    let allowed = [crate::test_temp_root(), std::env::temp_dir()];
+    assert!(allowed
+        .iter()
+        .filter_map(|candidate| fs::canonicalize(candidate).ok())
+        .any(|base| root != base && root.starts_with(&base)));
     let session = root.join("session.json");
     assert!(!session.exists());
     let assets = root.join("images");

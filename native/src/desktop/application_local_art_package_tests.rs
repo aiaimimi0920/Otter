@@ -16,12 +16,11 @@ mod service_failure_tests;
 #[path = "application_local_art_service_image_tests.rs"]
 mod service_image_tests;
 fn root() -> PathBuf {
-    let root = PathBuf::from(
-        "C:/Users/Public/nas_home/AI/GameEditor/linshi/otter-art-application-package",
-    )
-    .join(format!("{:?}", unsafe {
-        windows::Win32::System::Com::CoCreateGuid().unwrap()
-    }));
+    let root = crate::test_temp_root()
+        .join("otter-art-application-package")
+        .join(format!("{:?}", unsafe {
+            windows::Win32::System::Com::CoCreateGuid().unwrap()
+        }));
     std::fs::create_dir_all(&root).unwrap();
     eprintln!("art-application-package-evidence: {}", root.display());
     root

@@ -2,7 +2,9 @@
 use super::*;
 use crate::test_process as process;
 use std::{io::Write, process::Command, time::Duration};
-const ROOT: &str = "C:/Users/Public/nas_home/AI/GameEditor/linshi/otter-session-crash-tests";
+fn root_dir() -> PathBuf {
+    crate::test_temp_root().join("otter-session-crash-tests")
+}
 const OLD: &[u8] = br#"{"documentRevision":1,"stickers":[],"links":[],"note":"old"}"#;
 const NEW: &[u8] = br#"{"documentRevision":2,"stickers":[],"links":[],"note":"new"}"#;
 const PATH_ENV: &str = "OTTER_NATIVE_REPLACE_CRASH_TEST_PATH";
@@ -14,9 +16,10 @@ struct Fixture {
 }
 impl Fixture {
     fn new() -> Self {
-        std::fs::create_dir_all(ROOT).unwrap();
+        let base = root_dir();
+        std::fs::create_dir_all(&base).unwrap();
         let id = unsafe { windows::Win32::System::Com::CoCreateGuid().unwrap() };
-        let directory = Path::new(ROOT).join(format!("{id:?}"));
+        let directory = base.join(format!("{id:?}"));
         std::fs::create_dir(&directory).unwrap();
         let target = directory.join("workspace.json");
         OpenOptions::new()
@@ -32,7 +35,7 @@ impl Fixture {
 impl Drop for Fixture {
     fn drop(&mut self) {
         // Unique linshi directory; parent tests clean ordinary staging/recovery files left by interruption, without recursion.
-        assert_eq!(self.directory.parent(), Some(Path::new(ROOT)));
+        assert_eq!(self.directory.parent(), Some(root_dir().as_path()));
         for entry in std::fs::read_dir(&self.directory).unwrap().flatten() {
             if entry.file_type().unwrap().is_file() {
                 let _ = std::fs::remove_file(entry.path());
@@ -48,9 +51,10 @@ fn interruption_probe() {
         return;
     };
     let path = PathBuf::from(path);
-    assert!(path.is_absolute() && path.starts_with(ROOT));
+    let base = root_dir();
+    assert!(path.is_absolute() && path.starts_with(&base));
     assert_eq!(path.file_name().unwrap(), "workspace.json");
-    let root = Path::new(ROOT).canonicalize().unwrap();
+    let root = base.canonicalize().unwrap();
     let path = path.canonicalize().unwrap();
     assert!(path.starts_with(&root));
     assert_eq!(path.parent().unwrap().parent(), Some(root.as_path()));

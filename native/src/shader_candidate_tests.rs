@@ -9,7 +9,7 @@ use windows::Win32::Storage::FileSystem::FILE_FLAG_BACKUP_SEMANTICS;
 struct Fixture(PathBuf);
 impl Fixture {
     fn new() -> Self {
-        let root = PathBuf::from("C:/Users/Public/nas_home/AI/GameEditor/linshi");
+        let root = crate::test_temp_root();
         let id = unsafe { windows::Win32::System::Com::CoCreateGuid().unwrap() };
         let path = root.join(format!("otter-shader-candidate-{id:?}"));
         fs::create_dir(&path).unwrap();

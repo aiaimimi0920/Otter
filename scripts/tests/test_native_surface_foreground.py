@@ -18,6 +18,7 @@ SPEC.loader.exec_module(LAUNCHER)
 @unittest.skipUnless(sys.platform == "win32", "Win32 process Job required")
 class ForegroundLauncherTests(unittest.TestCase):
     def setUp(self):
+        LAUNCHER.TEMP_ROOT.mkdir(parents=True, exist_ok=True)
         self.work = tempfile.TemporaryDirectory(dir=LAUNCHER.TEMP_ROOT)
         self.addCleanup(self.work.cleanup)
         self.root = Path(self.work.name)

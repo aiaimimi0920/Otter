@@ -7,9 +7,8 @@ struct Fixture {
 }
 impl Fixture {
     fn new(bytes: &[u8]) -> Self {
-        let root =
-            Path::new("C:/Users/Public/nas_home/AI/GameEditor/linshi/otter-session-guard-tests");
-        std::fs::create_dir_all(root).unwrap();
+        let root = crate::test_temp_root().join("otter-session-guard-tests");
+        std::fs::create_dir_all(&root).unwrap();
         let directory = root.join(format!("{:?}", unsafe {
             windows::Win32::System::Com::CoCreateGuid().unwrap()
         }));

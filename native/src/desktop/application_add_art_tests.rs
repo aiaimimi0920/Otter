@@ -181,13 +181,12 @@ fn queued_art_intent_blocks_restore_and_durable_system_query_until_consumed() {
     unsafe {
         let _apartment = Apartment::new().unwrap();
         let mut app = app();
-        let root = std::path::Path::new(
-            "C:/Users/Public/nas_home/AI/GameEditor/linshi/otter-native-add-art-tests",
-        )
-        .join(format!(
-            "{:?}",
-            windows::Win32::System::Com::CoCreateGuid().unwrap()
-        ));
+        let root = crate::test_temp_root()
+            .join("otter-native-add-art-tests")
+            .join(format!(
+                "{:?}",
+                windows::Win32::System::Com::CoCreateGuid().unwrap()
+            ));
         std::fs::create_dir_all(&root).unwrap();
         app.install_workspace_checkpoint(
             Some(desktop::workspace_profile::Profile::open(&root).unwrap()),

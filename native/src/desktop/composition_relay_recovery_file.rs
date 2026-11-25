@@ -76,8 +76,7 @@ mod tests {
     use super::*;
     fn fixture() -> PathBuf {
         let guid = unsafe { windows::Win32::System::Com::CoCreateGuid() }.unwrap();
-        let path = PathBuf::from("C:/Users/Public/nas_home/AI/GameEditor/linshi")
-            .join(format!("surface-recovery-read-{guid:?}.json"));
+        let path = crate::test_temp_root().join(format!("surface-recovery-read-{guid:?}.json"));
         std::fs::write(&path, br#"{"version":1,"records":[]}"#).unwrap();
         path
     }

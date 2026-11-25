@@ -101,7 +101,7 @@ formal release.
   `rustfmt --edition 2021 --config skip_children=true <files>`, reuse built test
   binaries under `native/target/debug/deps/` when Rust source is unchanged, and
   never spawn concurrent Cargo writers on `target/` or
-  disposable cold `CARGO_TARGET_DIR` folders under `linshi/`.
+  disposable cold `CARGO_TARGET_DIR` folders under `.tmp/`.
 
 Any stricter repository-local checker or CI gate overrides this common floor.
 

@@ -16,8 +16,8 @@ fn shift_drop_moves_only_the_export_copy_and_retains_original_and_cache_lease() 
     unsafe {
         let _apartment = Apartment::new().unwrap();
         // Shell parsing names require native backslash paths; mixed separators accepted by Win32 file I/O are not the Shell contract.
-        let root = PathBuf::from(r"C:\Users\Public\nas_home\AI\GameEditor\linshi")
-            .join(format!("otter-shell-drop-{:?}", CoCreateGuid().unwrap()));
+        let root =
+            crate::test_temp_root().join(format!("otter-shell-drop-{:?}", CoCreateGuid().unwrap()));
         let folder = root.join("target");
         fs::create_dir_all(&folder).unwrap();
         let bytes = b"\x89PNG\r\n\x1a\nexport snapshot";

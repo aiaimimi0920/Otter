@@ -35,13 +35,12 @@ pub(super) unsafe fn verify(app: &mut Application) {
         .parameters
         .clone();
     app.sync_display_frames();
-    let path =
-        std::path::PathBuf::from("C:/Users/Public/nas_home/AI/GameEditor/linshi").join(format!(
-            "otter-param-{}.txt",
-            crate::desktop::document_state::new_unit_id()
-                .unwrap()
-                .as_str()
-        ));
+    let path = crate::test_temp_root().join(format!(
+        "otter-param-{}.txt",
+        crate::desktop::document_state::new_unit_id()
+            .unwrap()
+            .as_str()
+    ));
     std::fs::write(&path, b"native file parameter").unwrap();
     let doc = &app.documents[0];
     for id in ["secret", "amount", "missing"] {

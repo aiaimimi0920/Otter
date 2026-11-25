@@ -20,7 +20,7 @@ import zlib
 ART = "custom-1770131241684"
 EXACT = ("desktop::application::execution_start::tests::shader::color_transfer::"
          "installed_loom_color_transfer_commits_native_png")
-SCRATCH = Path("C:/Users/Public/nas_home/AI/GameEditor/linshi")
+SCRATCH = Path(__file__).resolve().parents[2] / ".tmp"
 FILES = ("manifest.json", "art.runtime.json", "runtime/main.py", "runtime/shader_payload.py",
          "runtime/color_transfer.hlsl", "runtime/color_transfer.vert", "runtime/color_transfer.frag")
 
@@ -56,6 +56,7 @@ def main():
         if resolved.drive.upper() != "C:":
             parser.error(f"{name} must resolve to the local C: drive")
         setattr(args, name, resolved)
+    SCRATCH.mkdir(parents=True, exist_ok=True)
     root = Path(tempfile.mkdtemp(prefix="otter-color-transfer-", dir=SCRATCH))
     manifest = root / "discovery/loom.json"
     token = secrets.token_hex(32)
