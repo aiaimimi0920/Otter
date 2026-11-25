@@ -79,6 +79,7 @@ fn success(output: &Output) -> String {
 }
 
 #[test]
+#[cfg(any(debug_assertions, feature = "smoke-test"))]
 fn settings_load_before_hidden_host_and_do_not_modify_source() {
     let fixture = Fixture::new(CONFIG);
     let text = success(&fixture.run(&["--settings", "命名设置.json", "--smoke-test"]));
@@ -131,7 +132,13 @@ fn invalid_settings_fail_before_window_or_capture_side_effects() {
             let output = fixture.run(&["--settings", "命名设置.json", mode]);
             assert!(!output.status.success());
             assert!(output.stdout.is_empty());
-            assert!(String::from_utf8_lossy(&output.stderr).contains("settings"));
+            let expected =
+                if mode == "--smoke-test" && !cfg!(any(debug_assertions, feature = "smoke-test")) {
+                    "--smoke-test is disabled in release builds"
+                } else {
+                    "settings"
+                };
+            assert!(String::from_utf8_lossy(&output.stderr).contains(expected));
             fixture.unchanged_and_unlocked(&bytes);
         }
     }
@@ -140,8 +147,17 @@ fn invalid_settings_fail_before_window_or_capture_side_effects() {
 #[test]
 fn missing_file_and_duplicate_cli_options_are_not_silently_ignored() {
     let fixture = Fixture::new(CONFIG);
+    let missing = fixture.run(&[
+        "--settings",
+        "missing.json",
+        "--session",
+        "workspace.json",
+        "--session-check",
+    ]);
+    assert!(!missing.status.success());
+    assert!(missing.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&missing.stderr).contains("settings"));
     for args in [
-        vec!["--settings", "missing.json", "--smoke-test"],
         vec![
             "--settings",
             "命名设置.json",

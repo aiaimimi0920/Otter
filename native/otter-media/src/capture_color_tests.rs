@@ -114,3 +114,32 @@ fn malformed_layout_budget_and_cancellation_do_not_leak_output() {
     drop(output);
     assert_eq!(budget.used(), 0);
 }
+#[test]
+fn small_sdr_frames_skip_lut_and_large_lut_matches_every_half_pattern() {
+    let cancel = AtomicBool::new(false);
+    assert!(sdr_lut(SDR_LUT_MIN_PIXELS - 1, 1.75, 80.0 / 203.0, &cancel)
+        .unwrap()
+        .is_none());
+    let data: Vec<_> = (0u16..=u16::MAX)
+        .flat_map(|bits| pixel([bits, bits.rotate_left(5), bits ^ 0x3c00, 0]))
+        .collect();
+    let input = ScRgb::new(&data, 256, 256, 256 * 8).unwrap();
+    let output = input.to_sdr(203.0, 1.75, &cancel).unwrap();
+    for (source, actual) in data.chunks_exact(8).zip(output.pixels.chunks_exact(4)) {
+        let [r, g, b] = rgb(source, 1.75);
+        assert_eq!(
+            actual,
+            [
+                srgb(b * (80.0 / 203.0)),
+                srgb(g * (80.0 / 203.0)),
+                srgb(r * (80.0 / 203.0)),
+                255
+            ]
+        );
+    }
+    cancel.store(true, Ordering::Release);
+    assert!(matches!(
+        sdr_lut(SDR_LUT_MIN_PIXELS, 1.0, 1.0, &cancel),
+        Err(Error::Cancelled)
+    ));
+}

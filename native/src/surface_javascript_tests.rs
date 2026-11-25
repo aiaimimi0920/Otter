@@ -148,6 +148,44 @@ fn javascript_wire_size_only_matches_encoding_at_escaped_frame_boundary() {
     }
 }
 #[test]
+fn javascript_response_envelope_enforces_frame_limit_before_writing() {
+    let mut response = wire::Response {
+        sequence: 1,
+        service: None,
+        output: Some(wire::Output {
+            result: None,
+            scene: json!(""),
+            focus: Vec::new(),
+            default_allowed: None,
+            canvases: Vec::new(),
+            events: Vec::new(),
+            disposed: false,
+            layout_read: false,
+            animation_pending: false,
+            timer_delay_ms: None,
+            resize_observed: false,
+        }),
+        diagnostic: None,
+    };
+    let payload_length = wire::MAX_FRAME - wire::encode(&response).unwrap().len();
+    response.output.as_mut().unwrap().scene = json!("x".repeat(payload_length));
+    wire::validate_encoded_size(response.output.as_ref().unwrap()).unwrap();
+    let mut bytes = Vec::new();
+    wire::write(&mut bytes, &response).unwrap();
+    assert_eq!(bytes.len(), wire::MAX_FRAME + 8);
+    let received: wire::Response = wire::read(&mut bytes.as_slice()).unwrap();
+    assert_eq!(
+        received.output.unwrap().scene,
+        response.output.as_ref().unwrap().scene
+    );
+    response.output.as_mut().unwrap().scene = json!("x".repeat(payload_length + 1));
+    // Output 自身仍在限额内，外层 envelope 超限必须在发出成功 header 前拒绝。
+    wire::validate_encoded_size(response.output.as_ref().unwrap()).unwrap();
+    bytes.clear();
+    assert!(wire::write(&mut bytes, &response).is_err());
+    assert!(bytes.is_empty());
+}
+#[test]
 fn javascript_emit_budget_returns_false_without_poisoning_live_session() {
     let _serial = fixture::SERIAL.lock().unwrap();
     let source = r#"NeuroSurface.define({mount({root,emit}){

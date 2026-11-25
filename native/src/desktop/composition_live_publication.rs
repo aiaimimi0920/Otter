@@ -84,6 +84,28 @@ pub(super) fn queue(state: &State, command: usize) {
     }
 }
 impl LiveWindow {
+    pub(in crate::desktop) fn persistence_state(&self) -> Option<(RECT, f32)> {
+        let mut rect = RECT::default();
+        (self.is_alive() && unsafe { GetWindowRect(self.hwnd, &mut rect) }.is_ok())
+            .then(|| (rect, self.opacity()))
+    }
+    pub(in crate::desktop) fn exit_idle(&self) -> bool {
+        self.persistence_idle()
+            && !self.state.snapshot_requested.get()
+            && !self.state.link_requested.get()
+            && !self.state.unlink_requested.get()
+            && self.state.groups.borrow().request.is_none()
+    }
+    pub(in crate::desktop) fn persistence_idle(&self) -> bool {
+        self.is_alive()
+            && self.state.drag.get().is_none()
+            && !self.state.drag_starting.get()
+            && !self.state.menu_open.get()
+            && !self.state.freeze_requested.get()
+            && !self.state.recycle_requested.get()
+            && !self.state.art_requested.get()
+            && self.state.pin.request.get().is_none()
+    }
     pub(in crate::desktop) fn take_publication_request(&self) -> Option<Request> {
         self.state.publication.request.take()
     }

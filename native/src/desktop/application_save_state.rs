@@ -238,6 +238,7 @@ fn space(app: &Application) -> Option<((i32, i32), f64)> {
         .map(|value| (value.origin, value.scale))
 }
 
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 pub(super) unsafe fn verify(app: &mut Application) -> Result<()> {
     if app.save_status() != Status::Unchanged {
         return Err(Error::new(

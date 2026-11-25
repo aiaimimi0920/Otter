@@ -159,5 +159,6 @@ impl Application {
     }
 }
 
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 #[path = "application_workflow_smoke.rs"]
 pub(in crate::desktop::application) mod smoke;

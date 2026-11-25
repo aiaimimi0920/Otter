@@ -8,7 +8,7 @@
 | `native/otter-media` | 屏幕与 HDR 色彩管线、Surface 排版与绘制、Live 输入/恢复连接基础原语。 |
 | `native/otter-runtime` | 矢量标注与历史编辑模型、工作区与 Loom 图参数契约、WGC 窗口目标及受限 HLSL/UIA/滚动子进程运行时。 |
 | `native/src/desktop` | Win32 HWND、消息路由、可见状态和 Application 生命周期；外部操作交所属 worker 或客户端。 |
-| `native/src` | 会话持久化、Loom 桥接与工作流、设备投射、LiveRelay、Tile 呈现、ANGLE Shader 及宿主组装；根级重导出子库保持模块契约一致，并支持 `scoped-tests` 分域单测裁剪。 |
+| `native/src` | 会话持久化、Loom 桥接与工作流、设备投射、LiveRelay、Tile 呈现、ANGLE Shader 及宿主组装；根级重导出子库保持模块契约一致，支持 `scoped-tests` 分域单测裁剪，并在正式 Release 默认剥离 `*_smoke.rs` 自检模块（`smoke-test` feature）。 |
 | `native/assets`、`native/build_support` | 程序图标、原生工具栏 SVG、版本与 Windows 资源。 |
 | `native/hover-hook` | 本地 Live 悬浮桥接 DLL，与 EXE 同版本构建、验证及打包。 |
 | `native/tests/integration.rs`、`native/tests/suites`、邻接 `*_tests.rs` | 单入口聚合的 CLI/整进程契约与模块回归；共享线协议夹具放 `native/tests/fixtures` 或 `protocol/fixtures`。 |
@@ -37,6 +37,9 @@ Surface 前台复验由 `scripts/tests/native-surface-foreground.py` 按摘要�
 前台许可由用户激活的启动窗授予，测试本身仍检查实际前台；进程树归 `build_job.py` 回收。
 Live Source 的媒体连接轮换与资源回收归 `live_relay_source_runtime`，退出优先级归 `live_relay_source_outcome`。
 Live 本地 Chromium 的滚轮分流与协议流退休归 `live_input_browser_scroll`；观察和滚动的受限 worker 默认走生产入口，只有实际的 libtest 宿主显式选测试入口。
+Live 非前台窗口的全局滚轮钩子按可见且允许滚轮转发的窗口数由 `composition_live_wheel` 按需挂载与回收；紧急看门狗的空闲事件唤醒与快捷键监听归 `emergency_watchdog_wake`，控制管道由 `emergency_shutdown` 重叠 I/O 驱动。
+Live 的纹理池 `live_texture_pool` 与 staging 复用 `live_texture_readback::Scratch` 保留库级设施和测试；在具备共享预算压力回收前，生产 WGC 快照和 relay 读回仍随帧释放，不长期占用闲置 GPU 租约。钉图已提交标注的窗口私有 DWrite/D2D 几何与样式缓存归 `annotation_cache`，随窗口 `Target` 一同释放；变形/分组预览不覆盖正式缓存，回归邻接 `effect_cache`。
+绑定目标与当前选择身份的 HLSL 短时热复用子进程会话归 `shader_hlsl_session`，同源 Surface 批量 SVG/WebP 短时热复用子进程会话归 `surface_image_worker_session`；保留原 Job 内存硬限，由父端回收空闲实例并为等待中的工作让出容量，SVG 字体预算仍按单次请求计算。共用的空闲响应边界与终止退出/EOF 校验归 media 层 `bounded_worker_process::session`，回收前后均保留取消语义。
 原生菜单的可见行文字快照及快捷键度量归 `native_menu_panel_text`，由各面板维护，不把 GDI 资源或列表状态跨窗口共享。
 冻结图库的索引与视口缩略图分别由 `popup_frozen_index`、`popup_frozen_preview` 准备；`popup_frozen_worker` 为每类任务提供一个应用级活动或退休槽，菜单退出不等待，应用等待器回收已退出线程。
 NeuroDesign 管控件绘制及布局；Loom 管能力目录、执行和设备授权；Otter 不复制它们的业务逻辑。

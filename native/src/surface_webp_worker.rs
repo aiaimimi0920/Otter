@@ -5,6 +5,7 @@ use crate::{
 };
 use std::{ffi::OsString, io};
 pub const FLAG: &str = "--native-webp-worker";
+pub const SESSION_FLAG: &str = "--native-webp-session-worker";
 #[path = "surface_webp_color.rs"]
 mod color;
 pub fn parse(args: &[OsString]) -> io::Result<bool> {
@@ -16,8 +17,20 @@ pub fn parse(args: &[OsString]) -> io::Result<bool> {
     }
     Ok(true)
 }
+pub fn parse_session(args: &[OsString]) -> io::Result<bool> {
+    if !args.iter().any(|arg| arg == SESSION_FLAG) {
+        return Ok(false);
+    }
+    if args.len() != 1 || args[0] != SESSION_FLAG {
+        return Err(invalid());
+    }
+    Ok(true)
+}
 pub fn run_inherited() -> io::Result<()> {
     host::run(decode)
+}
+pub fn run_session_inherited() -> io::Result<()> {
+    host::run_session_for(crate::surface_image_worker_wire::Codec::WebP, decode)
 }
 fn decode(bytes: &[u8]) -> io::Result<Decoded> {
     let (width, height) = inspect(bytes)?;
@@ -107,5 +120,14 @@ mod tests {
     #[ignore = "private pipe child entry; invoked by bounded parent tests"]
     fn webp_worker_entry() {
         std::process::exit(if super::run_inherited().is_ok() { 0 } else { 1 });
+    }
+    #[test]
+    #[ignore = "private session pipe child entry; invoked by bounded parent tests"]
+    fn webp_session_worker_entry() {
+        std::process::exit(if super::run_session_inherited().is_ok() {
+            0
+        } else {
+            1
+        });
     }
 }

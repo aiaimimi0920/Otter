@@ -33,6 +33,26 @@ pub fn resized_axes(
     vertical: bool,
     cancelled: impl Fn() -> bool,
 ) -> Result<Pixels, Error> {
+    resized_with_budget(
+        source,
+        source_size,
+        output_size,
+        horizontal,
+        vertical,
+        cancelled,
+        pixels::reserve,
+    )
+}
+
+fn resized_with_budget(
+    source: &Pixels,
+    source_size: (u32, u32),
+    output_size: (u32, u32),
+    horizontal: bool,
+    vertical: bool,
+    cancelled: impl Fn() -> bool,
+    reserve: impl Fn(usize) -> Option<crate::byte_budget::Lease>,
+) -> Result<Pixels, Error> {
     let source_bytes =
         checked_image_bytes(source_size.0, source_size.1).ok_or(Error::InvalidInput)?;
     let bytes = checked_image_bytes(output_size.0, output_size.1).ok_or(Error::InvalidInput)?;
@@ -45,7 +65,7 @@ pub fn resized_axes(
     if source_size == output_size {
         return raster_flip::image_axes(source, source_size, horizontal, vertical, cancelled);
     }
-    let mut lease = pixels::reserve(bytes).ok_or(Error::BudgetExceeded)?;
+    let mut lease = reserve(bytes).ok_or(Error::BudgetExceeded)?;
     let mut output = Vec::new();
     output
         .try_reserve_exact(bytes)
@@ -55,34 +75,98 @@ pub fn resized_axes(
     }
     let (sw, sh) = source_size;
     let (ow, oh) = output_size;
+    // 列表只是加速缓存；预算紧张时仍按原公式逐像素采样，不能阻止原本可完成的保存/冻结。
+    let x_samples = match sample_columns(ow, sw, horizontal, &cancelled, reserve) {
+        Ok(samples) => Some(samples),
+        Err(Error::BudgetExceeded) => None,
+        Err(error) => return Err(error),
+    };
+    let sw_bytes = sw as usize * 4;
+    let ow_bytes = ow as usize * 4;
     for y in 0..oh {
         if cancelled() {
             return Err(Error::Cancelled);
         }
+        // 只初始化即将写入的行，避免在下一次取消检查前清零整帧。
+        let row_start = output.len();
+        output.resize(row_start + ow_bytes, 0);
+        let out_row = &mut output[row_start..];
         let mirrored_y = if vertical { oh - 1 - y } else { y };
         let (y0, y1, fy) = sample(mirrored_y, oh, sh);
-        for x in 0..ow {
-            let mirrored_x = if horizontal { ow - 1 - x } else { x };
-            let (x0, x1, fx) = sample(mirrored_x, ow, sw);
-            let top_left = ((y0 * sw + x0) * 4) as usize;
-            let top_right = ((y0 * sw + x1) * 4) as usize;
-            let bottom_left = ((y1 * sw + x0) * 4) as usize;
-            let bottom_right = ((y1 * sw + x1) * 4) as usize;
-            let mut pixel = [0; 4];
+        let wy0 = 1.0 - fy;
+        let wy1 = fy;
+        let row0 = &source[y0 as usize * sw_bytes..(y0 as usize + 1) * sw_bytes];
+        let row1 = &source[y1 as usize * sw_bytes..(y1 as usize + 1) * sw_bytes];
+        for (x, dst) in out_row.chunks_exact_mut(4).enumerate() {
+            let (x0, x1, fx) = x_samples.as_ref().map_or_else(
+                || column_sample(x as u32, ow, sw, horizontal),
+                |samples| samples.values[x],
+            );
+            let wx0 = 1.0 - fx;
+            let p00 = &row0[x0..x0 + 4];
+            let p01 = &row0[x1..x1 + 4];
+            let p10 = &row1[x0..x0 + 4];
+            let p11 = &row1[x1..x1 + 4];
             for channel in 0..4 {
-                let top = source[top_left + channel] as f64 * (1.0 - fx)
-                    + source[top_right + channel] as f64 * fx;
-                let bottom = source[bottom_left + channel] as f64 * (1.0 - fx)
-                    + source[bottom_right + channel] as f64 * fx;
-                pixel[channel] = (top * (1.0 - fy) + bottom * fy).round().clamp(0.0, 255.0) as u8;
+                let top = p00[channel] as f64 * wx0 + p01[channel] as f64 * fx;
+                let bottom = p10[channel] as f64 * wx0 + p11[channel] as f64 * fx;
+                dst[channel] = (top * wy0 + bottom * wy1).round().clamp(0.0, 255.0) as u8;
             }
-            output.extend_from_slice(&pixel);
         }
     }
     if cancelled() {
         return Err(Error::Cancelled);
     }
     Ok(Pixels::from_reserved(output, lease))
+}
+
+type ColumnSample = (usize, usize, f64);
+struct ColumnSamples {
+    values: Vec<ColumnSample>,
+    _lease: crate::byte_budget::Lease,
+}
+fn sample_columns(
+    output: u32,
+    source: u32,
+    horizontal: bool,
+    cancelled: &impl Fn() -> bool,
+    reserve: impl FnOnce(usize) -> Option<crate::byte_budget::Lease>,
+) -> Result<ColumnSamples, Error> {
+    // 水平采样索引和权重独立于行号；临时表也计入像素池，覆盖真实 Vec capacity。
+    let bytes = (output as usize)
+        .checked_mul(std::mem::size_of::<ColumnSample>())
+        .ok_or(Error::BudgetExceeded)?;
+    let mut lease = reserve(bytes).ok_or(Error::BudgetExceeded)?;
+    let mut samples = Vec::new();
+    samples
+        .try_reserve_exact(output as usize)
+        .map_err(|_| Error::BudgetExceeded)?;
+    let allocated = samples
+        .capacity()
+        .checked_mul(std::mem::size_of::<ColumnSample>())
+        .ok_or(Error::BudgetExceeded)?;
+    if !lease.grow_to(allocated) {
+        return Err(Error::BudgetExceeded);
+    }
+    for x in 0..output {
+        if x.is_multiple_of(256) && cancelled() {
+            return Err(Error::Cancelled);
+        }
+        samples.push(column_sample(x, output, source, horizontal));
+    }
+    if cancelled() {
+        return Err(Error::Cancelled);
+    }
+    Ok(ColumnSamples {
+        values: samples,
+        _lease: lease,
+    })
+}
+
+fn column_sample(x: u32, output: u32, source: u32, horizontal: bool) -> ColumnSample {
+    let mirrored = if horizontal { output - 1 - x } else { x };
+    let (x0, x1, fx) = sample(mirrored, output, source);
+    (x0 as usize * 4, x1 as usize * 4, fx)
 }
 
 fn sample(position: u32, output: u32, source: u32) -> (u32, u32, f64) {
@@ -95,6 +179,47 @@ fn sample(position: u32, output: u32, source: u32) -> (u32, u32, f64) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn scratch_pressure_preserves_resized_pixels_and_cancellation() {
+        let source: Pixels = (0..16).collect::<Vec<u8>>().into();
+        for horizontal in [false, true] {
+            for vertical in [false, true] {
+                let expected =
+                    resized_axes(&source, (2, 2), (4, 2), horizontal, vertical, || false).unwrap();
+                let budget = crate::byte_budget::Budget::new(32);
+                let actual = resized_with_budget(
+                    &source,
+                    (2, 2),
+                    (4, 2),
+                    horizontal,
+                    vertical,
+                    || false,
+                    |n| budget.reserve(n),
+                )
+                .unwrap();
+                assert_eq!(actual, expected);
+                assert_eq!(budget.used(), 32);
+                drop(actual);
+                let calls = std::cell::Cell::new(0);
+                assert!(matches!(
+                    resized_with_budget(
+                        &source,
+                        (2, 2),
+                        (4, 2),
+                        horizontal,
+                        vertical,
+                        || {
+                            calls.set(calls.get() + 1);
+                            calls.get() >= 2
+                        },
+                        |n| budget.reserve(n),
+                    ),
+                    Err(Error::Cancelled)
+                ));
+                assert_eq!(budget.used(), 0);
+            }
+        }
+    }
     #[test]
     fn upscale_mirrors_pixel_centers_and_interpolates_premultiplied_alpha() {
         let source: Pixels = vec![0, 0, 0, 0, 100, 50, 25, 100].into();
@@ -147,5 +272,37 @@ mod tests {
                 Err(Error::InvalidInput)
             ));
         }
+    }
+    #[test]
+    fn column_samples_account_all_scratch_and_release_on_cancel() {
+        let bytes = 512 * std::mem::size_of::<ColumnSample>();
+        let budget = crate::byte_budget::Budget::new(bytes);
+        let occupied = budget.reserve(1).unwrap();
+        assert!(matches!(
+            sample_columns(512, 2, false, &|| false, |n| budget.reserve(n)),
+            Err(Error::BudgetExceeded)
+        ));
+        drop(occupied);
+        let samples = sample_columns(512, 2, false, &|| false, |n| budget.reserve(n)).unwrap();
+        assert_eq!(
+            budget.used(),
+            samples.values.capacity() * std::mem::size_of::<ColumnSample>()
+        );
+        drop(samples);
+        let calls = std::cell::Cell::new(0);
+        assert!(matches!(
+            sample_columns(
+                512,
+                2,
+                false,
+                &|| {
+                    calls.set(calls.get() + 1);
+                    calls.get() == 2
+                },
+                |n| budget.reserve(n)
+            ),
+            Err(Error::Cancelled)
+        ));
+        assert_eq!(budget.used(), 0);
     }
 }

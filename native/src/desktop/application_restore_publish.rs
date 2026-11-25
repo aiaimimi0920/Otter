@@ -1,5 +1,6 @@
 //! 原生会话发布：所有可恢复的失败先于 owner 交换；不写文件、不丢未知会话字段。
 use super::*;
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 #[path = "application_restore_publish_smoke.rs"]
 pub(super) mod smoke;
 

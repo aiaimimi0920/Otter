@@ -1,5 +1,6 @@
 //! 加载/设置更新触发的回收裁剪；空闲后使用现有保存单槽，失败报告一次，不循环重试。
 use super::*;
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 #[path = "application_recycle_maintenance_smoke.rs"]
 pub(in crate::desktop::application) mod smoke;
 impl Application {

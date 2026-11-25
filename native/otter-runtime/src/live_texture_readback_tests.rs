@@ -89,8 +89,12 @@ fn rejects_cancel_metadata_unprotected_context_and_budget_without_leaking() {
         let _ = protection.SetMultithreadProtected(true);
         let budget = crate::byte_budget::Budget::new(24);
         assert!(matches!(
-            read_inner(&frame.resource, &AtomicBool::new(false), |n| budget
-                .reserve(n)),
+            read_inner(
+                &frame.resource,
+                &AtomicBool::new(false),
+                |n| budget.reserve(n),
+                None
+            ),
             Err(Error::Budget)
         ));
         assert_eq!(budget.used(), 0);
@@ -109,14 +113,19 @@ fn mapping_budget_failure_releases_leases_and_later_readback_still_succeeds() {
         // 注入映射后无法扩展的 staging 租约，确保覆盖 Map 后错误路径，不依赖驱动 padding。
         let budget = crate::byte_budget::Budget::new(0);
         let calls = std::cell::Cell::new(0);
-        let result = read_inner(&frame.resource, &AtomicBool::new(false), |n| {
-            let count = calls.replace(calls.get() + 1);
-            if count == 0 {
-                budget.reserve(0)
-            } else {
-                crate::pixels::reserve(n)
-            }
-        });
+        let result = read_inner(
+            &frame.resource,
+            &AtomicBool::new(false),
+            |n| {
+                let count = calls.replace(calls.get() + 1);
+                if count == 0 {
+                    budget.reserve(0)
+                } else {
+                    crate::pixels::reserve(n)
+                }
+            },
+            None,
+        );
         assert!(matches!(result, Err(Error::Budget)));
         assert_eq!(budget.used(), 0);
         assert_eq!(
@@ -151,4 +160,103 @@ fn nonblocking_wait_distinguishes_timeout_cancel_and_device_failure() {
         )),
         Err(Error::Api(_))
     ));
+}
+#[test]
+fn scratch_reuses_staging_for_matching_layout_and_clears_explicitly() {
+    let (_, _, frame, bytes) = unsafe { fixture() };
+    let cancel = AtomicBool::new(false);
+    let budget = crate::byte_budget::Budget::new(4096);
+    let mut scratch = Scratch::default();
+    let first = unsafe {
+        read_inner(
+            &frame.resource,
+            &cancel,
+            |n| budget.reserve(n),
+            Some(&mut scratch.0),
+        )
+    }
+    .unwrap();
+    let ptr = scratch.raw_staging().unwrap();
+    let retained = scratch.0.as_ref().unwrap().lease.bytes();
+    assert!(retained >= bytes.len());
+    assert_eq!(budget.used(), retained + first.pixels.len());
+    assert_eq!(&*first.pixels, bytes);
+    drop(first);
+    assert_eq!(budget.used(), retained);
+    // 仅留输出所需余量；同规格复用不得再次为 staging 申请预算。
+    let occupied = budget.reserve(4096 - retained - bytes.len()).unwrap();
+    let second = unsafe {
+        read_inner(
+            &frame.resource,
+            &cancel,
+            |n| budget.reserve(n),
+            Some(&mut scratch.0),
+        )
+    }
+    .unwrap();
+    assert_eq!(scratch.raw_staging(), Some(ptr));
+    assert_eq!(&*second.pixels, bytes);
+    assert_eq!(budget.used(), 4096);
+    drop(occupied);
+    drop(second);
+    assert_eq!(budget.used(), retained);
+    scratch.clear();
+    assert!(scratch.raw_staging().is_none());
+    assert_eq!(budget.used(), 0);
+}
+
+#[test]
+fn scratch_replacement_releases_old_device_lease_and_drop_releases_new_lease() {
+    let (_, _, frame, _) = unsafe { fixture() };
+    let (_, _, replacement, bytes) = unsafe { fixture() };
+    let budget = crate::byte_budget::Budget::new(4096);
+    let mut scratch = Scratch::default();
+    let cancel = AtomicBool::new(false);
+    let read = |frame: &Texture, scratch: &mut Scratch| unsafe {
+        read_inner(frame, &cancel, |n| budget.reserve(n), Some(&mut scratch.0))
+    };
+    drop(read(&frame.resource, &mut scratch).unwrap());
+    let retained = budget.used();
+    let occupied = budget.reserve(4096 - retained - bytes.len()).unwrap();
+    let output = read(&replacement.resource, &mut scratch).unwrap();
+    assert_eq!(&*output.pixels, bytes);
+    assert_eq!(
+        budget.used(),
+        4096,
+        "old staging was released before replacement"
+    );
+    drop(output);
+    drop(occupied);
+    assert_eq!(budget.used(), retained);
+    drop(scratch);
+    assert_eq!(budget.used(), 0);
+}
+
+#[test]
+fn scratch_failed_mapping_growth_drops_staging_before_releasing_budget() {
+    let (_, _, frame, bytes) = unsafe { fixture() };
+    let budget = crate::byte_budget::Budget::new(0);
+    let mut scratch = Scratch::default();
+    let calls = std::cell::Cell::new(0);
+    let result = unsafe {
+        read_inner(
+            &frame.resource,
+            &AtomicBool::new(false),
+            |n| {
+                if calls.replace(calls.get() + 1) == 0 {
+                    budget.reserve(0)
+                } else {
+                    crate::pixels::reserve(n)
+                }
+            },
+            Some(&mut scratch.0),
+        )
+    };
+    assert!(matches!(result, Err(Error::Budget)));
+    assert!(scratch.raw_staging().is_none());
+    assert_eq!(budget.used(), 0);
+    assert_eq!(
+        &*scratch.read(frame, &AtomicBool::new(false)).unwrap().pixels,
+        bytes
+    );
 }

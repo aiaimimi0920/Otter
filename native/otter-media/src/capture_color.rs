@@ -110,11 +110,28 @@ impl<'a> ScRgb<'a> {
         if !lease.grow_to(bytes.capacity()) {
             return Err(Error::Budget);
         }
+        let lut = sdr_lut(self.output_bytes / 4, gain, scale, cancel)?;
+        let lookup = |lo: u8, hi: u8| {
+            let bits = u16::from_le_bytes([lo, hi]);
+            match &lut {
+                Some(lut) if bits & 0x8000 == 0 => lut[bits as usize],
+                Some(_) => 0,
+                None => srgb((nonnegative_half(bits) * gain) * scale),
+            }
+        };
+        let row_out = self.width as usize * 4;
         for row in self.rows() {
             check(cancel)?;
-            for pixel in row.chunks_exact(8) {
-                let [r, g, b] = rgb(pixel, gain);
-                bytes.extend_from_slice(&[srgb(b * scale), srgb(g * scale), srgb(r * scale), 255]);
+            let row_start = bytes.len();
+            bytes.resize(row_start + row_out, 0);
+            let out_row = &mut bytes[row_start..];
+            for (pixel, dst) in row.chunks_exact(8).zip(out_row.chunks_exact_mut(4)) {
+                dst.copy_from_slice(&[
+                    lookup(pixel[4], pixel[5]),
+                    lookup(pixel[2], pixel[3]),
+                    lookup(pixel[0], pixel[1]),
+                    255,
+                ]);
             }
         }
         check(cancel)?;
@@ -124,6 +141,26 @@ impl<'a> ScRgb<'a> {
             pixels: Pixels::from_reserved(bytes, lease),
         })
     }
+}
+const SDR_LUT_MIN_PIXELS: usize = 32_768;
+fn sdr_lut(
+    pixels: usize,
+    gain: f32,
+    scale: f32,
+    cancel: &AtomicBool,
+) -> Result<Option<[u8; 32768]>, Error> {
+    // 小图直接计算，避免为少量像素固定支付 32768 次转换；大图保留 half 查表优化。
+    if pixels < SDR_LUT_MIN_PIXELS {
+        return Ok(None);
+    }
+    let mut lut = [0u8; 32768];
+    for (bits, slot) in lut.iter_mut().enumerate() {
+        if bits.is_multiple_of(256) {
+            check(cancel)?;
+        }
+        *slot = srgb((nonnegative_half(bits as u16) * gain) * scale);
+    }
+    Ok(Some(lut))
 }
 fn luminance([r, g, b]: [f32; 3]) -> f32 {
     0.2126 * r + 0.7152 * g + 0.0722 * b

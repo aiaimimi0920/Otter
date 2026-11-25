@@ -1,4 +1,4 @@
-//! NV12 surface 直接转换到预算内的 PBGRA；避免额外的整帧可见 NV12 副本。
+//! 有界 NV12 缓冲转换到预算内的 PBGRA；2D surface 先由 MF 复制到已知范围。
 use super::{
     samples::{Locked, MAX_BUFFER},
     Layout,
@@ -22,11 +22,13 @@ pub(super) fn decode(
         }
         let buffer = sample.ConvertToContiguousBuffer()?;
         if let Ok(surface) = buffer.cast::<IMF2DBuffer>() {
+            validate_layout(layout.width as usize, layout)?;
             let size = layout.width as usize * layout.height as usize * 3 / 2;
             if surface.GetContiguousLength()? as usize != size {
                 return Err(invalid("Decoded surface size mismatch"));
             }
-            let (mut storage, _lease) = allocate(size)?;
+            // Lock2D 的 scanline/pitch 不证明整个 NV12 backing 范围，不能据此构造 UV 裸切片。
+            let (mut storage, _lease) = allocate_zeroed(size)?;
             surface.ContiguousCopyTo(&mut storage)?;
             convert(&storage, layout.width as usize, layout)
         } else {
@@ -52,7 +54,7 @@ pub(super) fn decode(
         }
     }
 }
-fn allocate(size: usize) -> Result<(Vec<u8>, crate::byte_budget::Lease)> {
+fn reserve_vec(size: usize) -> Result<(Vec<u8>, crate::byte_budget::Lease)> {
     let fail = || Error::new(E_OUTOFMEMORY, "Decoder pixel budget exhausted");
     let mut lease = pixels::reserve(size).ok_or_else(fail)?;
     let mut bytes = Vec::new();
@@ -60,13 +62,17 @@ fn allocate(size: usize) -> Result<(Vec<u8>, crate::byte_budget::Lease)> {
     if !lease.grow_to(bytes.capacity()) {
         return Err(fail());
     }
+    Ok((bytes, lease))
+}
+fn allocate_zeroed(size: usize) -> Result<(Vec<u8>, crate::byte_budget::Lease)> {
+    let (mut bytes, lease) = reserve_vec(size)?;
     bytes.resize(size, 0);
     Ok((bytes, lease))
 }
 fn invalid(message: &str) -> Error {
     Error::new(E_INVALIDARG, message)
 }
-fn convert(source: &[u8], stride: usize, layout: Layout) -> Result<pixels::Pixels> {
+fn validate_layout(stride: usize, layout: Layout) -> Result<(usize, usize, usize, usize)> {
     let (w, h, sw, sh) = (
         layout.visible_width as usize,
         layout.visible_height as usize,
@@ -79,34 +85,65 @@ fn convert(source: &[u8], stride: usize, layout: Layout) -> Result<pixels::Pixel
         || h > sh
         || sw > 4096
         || sh > 4096
-        || w % 2 != 0
-        || h % 2 != 0
-        || sh % 2 != 0
+        || !w.is_multiple_of(2)
+        || !h.is_multiple_of(2)
+        || !sh.is_multiple_of(2)
         || stride < sw
         || stride > 8192
         || !stride.is_multiple_of(2)
         || sw * sh > 8_294_400
-        || source.len() < stride * sh * 3 / 2
     {
         return Err(invalid("Decoder NV12 bounds"));
     }
-    let (mut out, lease) = allocate(w * h * 4)?;
-    for y in 0..h {
-        for x in 0..w {
-            let luma = i32::from(source[y * stride + x]) - 16;
-            // UV 从存储高度后开始，不可用可见高度，否则 padding 图像会读错色度。
-            let uv = stride * sh + (y / 2) * stride + (x & !1);
-            let u = i32::from(source[uv]) - 128;
-            let v = i32::from(source[uv + 1]) - 128;
-            let channel = |n: i32| ((n + 128) >> 8).clamp(0, 255) as u8;
-            out[(y * w + x) * 4..(y * w + x + 1) * 4].copy_from_slice(&[
-                channel(298 * luma + 541 * u),
-                channel(298 * luma - 55 * u - 136 * v),
-                channel(298 * luma + 459 * v),
-                255,
-            ]);
+    Ok((w, h, sw, sh))
+}
+fn convert(source: &[u8], stride: usize, layout: Layout) -> Result<pixels::Pixels> {
+    let (w, h, _, sh) = validate_layout(stride, layout)?;
+    if source.len() < stride * sh * 3 / 2 {
+        return Err(invalid("Decoder NV12 bounds"));
+    }
+    let (y_plane, uv_plane) = source.split_at(stride * sh);
+    let total = w * h * 4;
+    let (mut out, lease) = reserve_vec(total)?;
+    let channel = |n: i32| ((n + 128) >> 8).clamp(0, 255) as u8;
+    // 按 2x2 像素块复用同一对 UV 色度，并直接写满预留输出，省去整帧预清零与 3/4 色度乘法。
+    for (y, rows) in (0..h)
+        .step_by(2)
+        .zip(out.spare_capacity_mut()[..total].chunks_exact_mut(w * 8))
+    {
+        let y0 = &y_plane[y * stride..y * stride + w];
+        let y1 = &y_plane[(y + 1) * stride..(y + 1) * stride + w];
+        let uv_row = &uv_plane[y / 2 * stride..y / 2 * stride + w];
+        let (out0, out1) = rows.split_at_mut(w * 4);
+        for x in (0..w).step_by(2) {
+            let u = i32::from(uv_row[x]) - 128;
+            let v = i32::from(uv_row[x + 1]) - 128;
+            let bu = 541 * u;
+            let guv = -55 * u - 136 * v;
+            let rv = 459 * v;
+            let write_pair = |row_y: &[u8], row_out: &mut [std::mem::MaybeUninit<u8>]| {
+                let l0 = 298 * (i32::from(row_y[x]) - 16);
+                let l1 = 298 * (i32::from(row_y[x + 1]) - 16);
+                let encoded = [
+                    channel(l0 + bu),
+                    channel(l0 + guv),
+                    channel(l0 + rv),
+                    255,
+                    channel(l1 + bu),
+                    channel(l1 + guv),
+                    channel(l1 + rv),
+                    255,
+                ];
+                for (slot, value) in row_out[x * 4..x * 4 + 8].iter_mut().zip(encoded) {
+                    slot.write(value);
+                }
+            };
+            write_pair(y0, out0);
+            write_pair(y1, out1);
         }
     }
+    // w/h 均为正偶数；上面逐 2 行、逐 2 像素恰好初始化 total 个字节，无裸源指针读。
+    unsafe { out.set_len(total) };
     Ok(pixels::Pixels::from_reserved(out, lease))
 }
 #[cfg(test)]
@@ -137,5 +174,37 @@ mod tests {
         for p in convert(&source, 4, layout).unwrap().chunks_exact(4) {
             assert!(p[0] <= 2 && p[1] <= 2 && p[2] >= 253 && p[3] == 255);
         }
+    }
+    #[test]
+    fn paired_nv12_rows_match_scalar_reference_for_padded_color_planes() {
+        let layout = Layout {
+            width: 8,
+            height: 6,
+            visible_width: 6,
+            visible_height: 4,
+        };
+        let stride = 12;
+        let source: Vec<u8> = (0..stride * 6 * 3 / 2)
+            .map(|n| (n * 73 + 19) as u8)
+            .collect();
+        let output = convert(&source, stride, layout).unwrap();
+        for (index, actual) in output.chunks_exact(4).enumerate() {
+            let (x, y) = (index % 6, index / 6);
+            let luma = i32::from(source[y * stride + x]) - 16;
+            let uv = stride * 6 + y / 2 * stride + (x & !1);
+            let u = i32::from(source[uv]) - 128;
+            let v = i32::from(source[uv + 1]) - 128;
+            let channel = |n: i32| ((n + 128) >> 8).clamp(0, 255) as u8;
+            assert_eq!(
+                actual,
+                [
+                    channel(298 * luma + 541 * u),
+                    channel(298 * luma - 55 * u - 136 * v),
+                    channel(298 * luma + 459 * v),
+                    255,
+                ]
+            );
+        }
+        assert!(convert(&source[..source.len() - 1], stride, layout).is_err());
     }
 }

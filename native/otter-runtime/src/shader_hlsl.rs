@@ -15,6 +15,8 @@ pub mod d3d12;
 pub mod pixels;
 #[path = "shader_hlsl_process.rs"]
 pub mod process;
+#[path = "shader_hlsl_session.rs"]
+pub mod session;
 #[path = "shader_hlsl_wire.rs"]
 pub mod wire;
 
@@ -123,25 +125,7 @@ fn prepare(
 ) -> Result<Prepared> {
     check(stopped, deadline)?;
     validate(request)?;
-    if backend == Backend::Software {
-        return Err(Error::Unsupported);
-    }
-    crate::bounded_worker_process::require_limits(CHILD_LIMIT).map_err(|_| Error::Isolation)?;
-    let device = match backend {
-        Backend::Auto => match d3d12::Device::new() {
-            Ok(value) => Device::D3d12(value),
-            // new() 尚未提交 GPU 工作；失败局部资源完整析构后才进入唯一兼容候选。
-            Err(_) => {
-                check(stopped, deadline)?;
-                Device::D3d11(d3d11::Device::new(false)?)
-            }
-        },
-        Backend::D3d12 => Device::D3d12(d3d12::Device::new()?),
-        Backend::D3d11 | Backend::Warp => {
-            Device::D3d11(d3d11::Device::new(backend == Backend::Warp)?)
-        }
-        Backend::Software => return Err(Error::Unsupported),
-    };
+    let device = create_device(backend, stopped, deadline)?;
     check(stopped, deadline)?;
     let program = compile::Program::new(request, stopped, deadline)?;
     match device {
@@ -153,7 +137,72 @@ fn prepare(
             .map(Prepared::Frame),
     }
 }
-enum Prepared {
+fn create_device(
+    backend: Backend,
+    stopped: &impl Fn() -> bool,
+    deadline: Instant,
+) -> Result<Device> {
+    if backend == Backend::Software {
+        return Err(Error::Unsupported);
+    }
+    crate::bounded_worker_process::require_limits(CHILD_LIMIT).map_err(|_| Error::Isolation)?;
+    match backend {
+        Backend::Auto => match d3d12::Device::new() {
+            Ok(value) => Ok(Device::D3d12(value)),
+            // new() 尚未提交 GPU 工作；失败局部资源完整析构后才进入唯一兼容候选。
+            Err(_) => {
+                check(stopped, deadline)?;
+                Ok(Device::D3d11(d3d11::Device::new(false)?))
+            }
+        },
+        Backend::D3d12 => Ok(Device::D3d12(d3d12::Device::new()?)),
+        Backend::D3d11 | Backend::Warp => {
+            Ok(Device::D3d11(d3d11::Device::new(backend == Backend::Warp)?))
+        }
+        Backend::Software => Err(Error::Unsupported),
+    }
+}
+pub(super) struct WarmEngine {
+    backend: Backend,
+    device: Device,
+    compiler: compile::CompilerSession,
+}
+impl WarmEngine {
+    pub fn prepare(
+        slot: &mut Option<Self>,
+        request: &Request<'_>,
+        backend: Backend,
+        stopped: &impl Fn() -> bool,
+        deadline: Instant,
+    ) -> Result<Prepared> {
+        check(stopped, deadline)?;
+        validate(request)?;
+        if slot.as_ref().is_none_or(|engine| engine.backend != backend) {
+            *slot = None;
+            let device = create_device(backend, stopped, deadline)?;
+            check(stopped, deadline)?;
+            let compiler = compile::CompilerSession::new()?;
+            *slot = Some(Self {
+                backend,
+                device,
+                compiler,
+            });
+        }
+        let engine = slot.as_mut().unwrap();
+        let program = engine
+            .compiler
+            .compile_request(request, stopped, deadline)?;
+        match &engine.device {
+            Device::D3d12(device) => device
+                .prepare(request, program, stopped, deadline)
+                .map(Prepared::D3d12),
+            Device::D3d11(device) => device
+                .render(request, program, stopped, deadline)
+                .map(Prepared::Frame),
+        }
+    }
+}
+pub(super) enum Prepared {
     D3d12(d3d12::Readback),
     Frame(Frame),
 }

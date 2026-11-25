@@ -1,8 +1,10 @@
 //! 面板滚动范围由实际内容/客户区推导；偏移由 Win32 scrollbar 持有，无定时器。
 use windows::Win32::UI::Controls::{SetScrollInfo, SetScrollPos};
 use windows::Win32::UI::HiDpi::GetDpiForWindow;
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 #[path = "tool_panel_scroll_smoke.rs"]
 mod smoke;
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 pub(super) use smoke::run as smoke;
 #[path = "tool_panel_wheel.rs"]
 mod wheel;

@@ -70,3 +70,37 @@ pub(super) unsafe fn geometry(
     sink.Close()?;
     Ok(geometry)
 }
+
+#[allow(clippy::too_many_arguments)]
+pub(super) unsafe fn draw_cached(
+    target: &ID2D1RenderTarget,
+    brush: &ID2D1SolidColorBrush,
+    stroke: &Stroke,
+    viewport: Viewport,
+    width: f32,
+    dash: Option<&ID2D1StrokeStyle>,
+    cacheable: bool,
+    cache: &mut super::effect_cache::annotation_cache::Cache,
+) -> Result<()> {
+    let factory = target.GetFactory()?;
+    if stroke.arrow {
+        if let Some((shaft, head)) =
+            cache.arrow_paths(cacheable, stroke, viewport.scale, |local| {
+                arrow_paths(&factory, stroke, local)
+            })?
+        {
+            super::effect_cache::annotation_cache::with_origin(target, viewport.origin, |target| {
+                target.DrawGeometry(&shaft, brush, width, dash);
+                target.FillGeometry(&head, brush, None);
+            });
+            return Ok(());
+        }
+    }
+    let path = cache.single_path(cacheable, stroke, viewport.scale, |local| {
+        geometry(&factory, stroke, local)
+    })?;
+    super::effect_cache::annotation_cache::with_origin(target, viewport.origin, |target| {
+        target.DrawGeometry(&path, brush, width, dash);
+    });
+    Ok(())
+}

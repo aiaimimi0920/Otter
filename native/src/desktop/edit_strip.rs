@@ -1,7 +1,9 @@
 //! 钉图的附属编辑条：主干分组布局由 Neuro-mini 绘制，命令和宿主跟随仍由 Otter 拥有。
 use super::{Availability, State, Window};
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
+use windows::core::Error;
 use windows::{
-    core::{Error, Result, HSTRING},
+    core::{Result, HSTRING},
     Win32::{Foundation::*, UI::WindowsAndMessaging::*},
 };
 #[path = "edit_strip_catalog.rs"]
@@ -51,6 +53,7 @@ pub(super) unsafe fn create(owner: HWND, state: &State, visible: bool) -> Result
 }
 
 /// 钉图没有旧网格的滚动和属性控件；用真实编辑条 BUTTON 检查选择命令交付。
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 pub(in crate::desktop) unsafe fn smoke(owner: HWND, state: &State) -> Result<()> {
     use crate::editor::Tool;
     let panel = state.tool_panel.get();

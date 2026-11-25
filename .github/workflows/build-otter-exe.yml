@@ -87,6 +87,8 @@ jobs:
           if ($contracts.Count -eq 0) { throw 'Native build-tool contracts not found' }
           node --test scripts/tests/effective-code-lines.test.mjs scripts/tests/javascript-license-supplements.test.cjs @contracts
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m unittest discover -s scripts/tests -p test_native_package_runtime.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node scripts/effective-code-lines.mjs --mode strict
 
       - name: Run native tests with the locked graph

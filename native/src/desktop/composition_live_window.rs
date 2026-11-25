@@ -144,28 +144,6 @@ impl LiveWindow {
     pub fn opacity(&self) -> f32 {
         self.state.opacity.get()
     }
-    pub(in crate::desktop) fn persistence_state(&self) -> Option<(RECT, f32)> {
-        let mut rect = RECT::default();
-        (self.is_alive() && unsafe { GetWindowRect(self.hwnd, &mut rect) }.is_ok())
-            .then(|| (rect, self.opacity()))
-    }
-    pub(in crate::desktop) fn exit_idle(&self) -> bool {
-        self.persistence_idle()
-            && !self.state.snapshot_requested.get()
-            && !self.state.link_requested.get()
-            && !self.state.unlink_requested.get()
-            && self.state.groups.borrow().request.is_none()
-    }
-    pub(in crate::desktop) fn persistence_idle(&self) -> bool {
-        self.is_alive()
-            && self.state.drag.get().is_none()
-            && !self.state.drag_starting.get()
-            && !self.state.menu_open.get()
-            && !self.state.freeze_requested.get()
-            && !self.state.recycle_requested.get()
-            && !self.state.art_requested.get()
-            && self.state.pin.request.get().is_none()
-    }
     pub fn take_unlink_request(&self) -> bool {
         self.state.unlink_requested.replace(false)
     }
@@ -175,10 +153,6 @@ impl LiveWindow {
     #[cfg(test)]
     pub(in crate::desktop) fn hwnd_for_test(&self) -> HWND {
         self.hwnd
-    }
-    #[cfg(test)]
-    pub(in crate::desktop) fn wheel_routed_for_test(&self) -> usize {
-        wheel::routed()
     }
     #[cfg(test)]
     pub(in crate::desktop) fn frame_for_test(
@@ -278,6 +252,7 @@ impl LiveWindow {
         }
         unsafe {
             let _ = ShowWindow(self.hwnd, SW_SHOWNOACTIVATE);
+            wheel::sync(self.hwnd, &self.state);
         }
         Ok(())
     }
@@ -301,6 +276,7 @@ impl LiveWindow {
             return Ok(());
         }
         unsafe {
+            wheel::sync(self.hwnd, &self.state);
             handle_update(self.hwnd, self.state.with_host(Host::refresh)?)?;
             reschedule(self.hwnd, &self.state);
             Ok(())
@@ -382,6 +358,12 @@ unsafe extern "system" fn procedure(hwnd: HWND, message: u32, wp: WPARAM, lp: LP
         wp,
         lp,
     ) {
+        if matches!(
+            message,
+            WM_QUERYENDSESSION | WM_ENDSESSION | WM_WINDOWPOSCHANGED | WM_SIZE
+        ) {
+            wheel::sync(hwnd, state);
+        }
         return result;
     }
     // 恢复可见时静态源不会再投递帧；默认过程仍负责派发 WM_SIZE/WM_MOVE。
@@ -389,6 +371,7 @@ unsafe extern "system" fn procedure(hwnd: HWND, message: u32, wp: WPARAM, lp: LP
         if (*(lp.0 as *const WINDOWPOS)).flags.contains(SWP_SHOWWINDOW) {
             let _ = InvalidateRect(Some(hwnd), None, false);
         }
+        wheel::sync(hwnd, state);
     }
     let result = if let Some(result) = input::handle(hwnd, state, message, wp, lp) {
         result
@@ -451,16 +434,19 @@ unsafe extern "system" fn procedure(hwnd: HWND, message: u32, wp: WPARAM, lp: LP
                         Ok(())
                     });
                 }
+                wheel::sync(hwnd, state);
                 let _ = InvalidateRect(Some(hwnd), None, false);
                 Ok(())
             }
             WM_ERASEBKGND => return LRESULT(1),
             WM_DESTROY => {
                 state.stop();
+                wheel::sync(hwnd, state);
                 Ok(())
             }
             WM_NCDESTROY => {
                 state.stop();
+                wheel::sync(hwnd, state);
                 SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
                 return DefWindowProcW(hwnd, message, wp, lp);
             }
@@ -470,6 +456,7 @@ unsafe extern "system" fn procedure(hwnd: HWND, message: u32, wp: WPARAM, lp: LP
     if let Err(error) = result {
         *state.error.borrow_mut() = Some(error);
         state.stop();
+        wheel::sync(hwnd, state);
         if GetWindowLongPtrW(hwnd, GWLP_USERDATA) == pointer as isize {
             SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
             let _ = DestroyWindow(hwnd);
@@ -494,10 +481,11 @@ unsafe fn paint(hwnd: HWND, state: &State) -> Result<()> {
             host.set_chrome_visible(crate::desktop::application::chrome::live_frame(
                 &state.chrome,
             ));
-            host.paint(D2D_SIZE_U {
+            let size = D2D_SIZE_U {
                 width: (client.right - client.left).max(0) as u32,
                 height: (client.bottom - client.top).max(0) as u32,
-            })?;
+            };
+            host.paint(size)?;
             Ok(if host.is_closed() {
                 Update::Closed
             } else {

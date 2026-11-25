@@ -36,10 +36,17 @@ pub(super) mod popup;
 pub(super) mod position;
 #[path = "edit_strip.rs"]
 mod strip;
-pub(super) use strip::{follow, moving_positions, smoke as pinned_smoke};
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
+pub(super) use strip::smoke as pinned_smoke;
+pub(super) use strip::{follow, moving_positions};
 #[path = "tool_panel_scroll.rs"]
 mod scroll;
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
+#[path = "tool_panel_smoke.rs"]
+mod smoke;
 use children::layout;
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
+pub(super) use smoke::run as smoke;
 pub(super) const EXECUTE: u32 = WM_APP + 90;
 fn entries() -> impl Iterator<Item = (usize, &'static str)> {
     super::tool_commands::TOOLS
@@ -86,120 +93,7 @@ pub(super) unsafe fn translate(state: &State, message: &MSG) -> bool {
     handled
 }
 
-pub(super) unsafe fn smoke(owner: HWND, state: &State) -> Result<()> {
-    prepare(state.tool_panel.get(), state)?;
-    scroll::smoke(state.tool_panel.get())?;
-    effect_controls_smoke(owner, state)?;
-    let panel = state.tool_panel.get();
-    for (id, _) in entries() {
-        GetDlgItem(Some(panel), id as i32)?;
-    }
-    let old_tool = state.canvas.borrow().tool;
-    let button = GetDlgItem(Some(panel), 0x53)?;
-    let _ = SendMessageW(button, BM_CLICK, None, None);
-    let mut message = MSG::default();
-    if !PeekMessageW(&mut message, Some(owner), EXECUTE, EXECUTE, PM_REMOVE).as_bool() {
-        return Err(windows::core::Error::new(
-            E_FAIL,
-            "Tool panel did not route click",
-        ));
-    }
-    DispatchMessageW(&message);
-    if state.canvas.borrow().tool != crate::editor::Tool::Select {
-        return Err(windows::core::Error::new(
-            E_FAIL,
-            "Tool panel did not select tool",
-        ));
-    }
-    let _ = SendMessageW(button, WM_PAINT, None, None);
-    let before_style = state.canvas.borrow().editor.style();
-    let has_image = state.canvas.borrow().image.is_some();
-    if has_image {
-        for command in [super::context_menu::WIDTH_UP, 0x4F, 0x46] {
-            let action = GetDlgItem(Some(panel), command as i32)?;
-            let _ = SendMessageW(action, BM_CLICK, None, None);
-            if !PeekMessageW(&mut message, Some(owner), EXECUTE, EXECUTE, PM_REMOVE).as_bool() {
-                return Err(windows::core::Error::new(
-                    E_FAIL,
-                    "Property button did not route click",
-                ));
-            }
-            DispatchMessageW(&message);
-        }
-        let after_style = state.canvas.borrow().editor.style();
-        if after_style.width() != before_style.width() + 1.0
-            || after_style.opacity() == before_style.opacity()
-            || after_style.fill().is_some() == before_style.fill().is_some()
-            || state.tool_panel_style.get() != Some(after_style)
-        {
-            return Err(windows::core::Error::new(
-                E_FAIL,
-                "Property buttons did not update real style",
-            ));
-        }
-        if super::tool_panel_actions::label(0x46, state).as_deref() != Some("填充 开") {
-            return Err(windows::core::Error::new(
-                E_FAIL,
-                "Property label did not reflect style",
-            ));
-        }
-        verify_captions(panel, state)?;
-    }
-    state.file_dialog.set(true);
-    refresh(owner);
-    let disabled = !IsWindowEnabled(button).as_bool();
-    let guarded_style = state.canvas.borrow().editor.style();
-    let _ = SendMessageW(
-        owner,
-        EXECUTE,
-        Some(WPARAM(super::context_menu::WIDTH_UP)),
-        None,
-    );
-    let unchanged = state.canvas.borrow().editor.style() == guarded_style;
-    state.file_dialog.set(false);
-    refresh(owner);
-    if !disabled || !unchanged || !IsWindowEnabled(button).as_bool() {
-        return Err(windows::core::Error::new(
-            E_FAIL,
-            "Tool panel busy gate failed",
-        ));
-    }
-    let _ = ValidateRect(Some(panel), None);
-    for (id, _) in entries() {
-        let _ = ValidateRect(Some(GetDlgItem(Some(panel), id as i32)?), None);
-    }
-    for _ in 0..8 {
-        let _ = SendMessageW(owner, WM_TIMER, Some(WPARAM(0xffff)), None);
-    }
-    if GetUpdateRect(panel, None, false).as_bool() || GetUpdateRect(button, None, false).as_bool() {
-        return Err(windows::core::Error::new(
-            E_FAIL,
-            "Unchanged timer repainted tool panel",
-        ));
-    }
-    state.canvas.borrow_mut().select_tool(old_tool);
-    state.canvas.borrow_mut().editor.set_style(before_style);
-    let _ = SendMessageW(owner, WM_NULL, None, None);
-    verify_captions(panel, state)?;
-    if state.tool_panel_tool.get() != Some(old_tool) {
-        return Err(windows::core::Error::new(
-            E_FAIL,
-            "Tool panel did not observe completed tool change",
-        ));
-    }
-    println!("native-tool-panel-smoke: controls=19 click=true command=true");
-    if has_image {
-        println!(
-        "native-tool-properties-smoke: controls=16 width=true opacity=true fill=true labels=true"
-    );
-    }
-    println!(
-        "native-tool-panel-availability-smoke: disabled=true queued-rejected=true recovered=true"
-    );
-    println!("native-tool-panel-refresh-smoke: unchanged-timers=8 refreshed-after-change=true");
-    Ok(())
-}
-
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 unsafe fn verify_captions(panel: HWND, state: &State) -> Result<()> {
     for &(command, _) in super::tool_panel_actions::ACTIONS {
         let expected = super::tool_panel_actions::label(command, state).unwrap();
@@ -213,44 +107,6 @@ unsafe fn verify_captions(panel: HWND, state: &State) -> Result<()> {
             ));
         }
     }
-    Ok(())
-}
-
-unsafe fn effect_controls_smoke(owner: HWND, state: &State) -> Result<()> {
-    use crate::editor::Tool;
-    let original = state.canvas.borrow().tool;
-    let has_image = state.canvas.borrow().image.is_some();
-    let result = (|| {
-        for tool in [Tool::Blur, Tool::Mosaic, Tool::Select] {
-            // 仅检查实际 HWND 可用性刷新，不点击会打开模态输入的按钮，也不启动模糊任务。
-            state.canvas.borrow_mut().tool = tool;
-            SendMessageW(owner, WM_NULL, None, None);
-            for (command, enabled) in [
-                (
-                    super::blur_default::COMMAND,
-                    has_image && tool == Tool::Blur,
-                ),
-                (
-                    super::numeric_style::MOSAIC,
-                    has_image && tool == Tool::Mosaic,
-                ),
-                (super::blur_numeric::COMMAND, false),
-            ] {
-                let button = GetDlgItem(Some(state.tool_panel.get()), command as i32)?;
-                if IsWindowEnabled(button).as_bool() != enabled {
-                    return Err(windows::core::Error::new(
-                        E_FAIL,
-                        "Effect control availability mismatch",
-                    ));
-                }
-            }
-        }
-        Ok(())
-    })();
-    state.canvas.borrow_mut().tool = original;
-    SendMessageW(owner, WM_NULL, None, None);
-    result?;
-    println!("native-effect-controls-smoke: high-bits=true tool-gates=true");
     Ok(())
 }
 

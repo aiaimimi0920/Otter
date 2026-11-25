@@ -98,6 +98,7 @@ fn next_target<const N: usize>(actual: [bool; N], requested: bool) -> bool {
     }
 }
 
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 pub(super) unsafe fn smoke(hwnd: HWND, state: &State) -> Result<()> {
     set(hwnd, state, true)?;
     if state.capture_protection.get() != [true; 5] {

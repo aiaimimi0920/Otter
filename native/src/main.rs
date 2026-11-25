@@ -42,6 +42,13 @@ fn main() -> windows::core::Result<()> {
             windows::core::Error::new(windows::Win32::Foundation::E_FAIL, e.to_string())
         });
     }
+    if otter_native::shader_hlsl::session::parse(&args).map_err(|e| {
+        windows::core::Error::new(windows::Win32::Foundation::E_INVALIDARG, e.to_string())
+    })? {
+        return otter_native::shader_hlsl::session::run_inherited().map_err(|e| {
+            windows::core::Error::new(windows::Win32::Foundation::E_FAIL, e.to_string())
+        });
+    }
     if otter_native::surface_webp_worker::parse(&args).map_err(|e| {
         windows::core::Error::new(windows::Win32::Foundation::E_INVALIDARG, e.to_string())
     })? {
@@ -49,10 +56,24 @@ fn main() -> windows::core::Result<()> {
             windows::core::Error::new(windows::Win32::Foundation::E_FAIL, e.to_string())
         });
     }
+    if otter_native::surface_webp_worker::parse_session(&args).map_err(|e| {
+        windows::core::Error::new(windows::Win32::Foundation::E_INVALIDARG, e.to_string())
+    })? {
+        return otter_native::surface_webp_worker::run_session_inherited().map_err(|e| {
+            windows::core::Error::new(windows::Win32::Foundation::E_FAIL, e.to_string())
+        });
+    }
     if otter_native::surface_svg_worker::parse(&args).map_err(|e| {
         windows::core::Error::new(windows::Win32::Foundation::E_INVALIDARG, e.to_string())
     })? {
         return otter_native::surface_svg_worker::run_inherited().map_err(|e| {
+            windows::core::Error::new(windows::Win32::Foundation::E_FAIL, e.to_string())
+        });
+    }
+    if otter_native::surface_svg_worker::parse_session(&args).map_err(|e| {
+        windows::core::Error::new(windows::Win32::Foundation::E_INVALIDARG, e.to_string())
+    })? {
+        return otter_native::surface_svg_worker::run_session_inherited().map_err(|e| {
             windows::core::Error::new(windows::Win32::Foundation::E_FAIL, e.to_string())
         });
     }

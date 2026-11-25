@@ -19,6 +19,8 @@ test-save = ["scoped-tests"]
 test-capture = ["scoped-tests"]
 test-loom = ["scoped-tests"]
 test-canvas = ["scoped-tests"]
+# 自检子系统：Debug 和单测保留；正式 Release 默认剥离，集成 smoke 需显式启用。
+smoke-test = []
 
 [dependencies]
 otter-core = { path = "otter-core", version = "=0.2.33" }
@@ -112,6 +114,7 @@ windows = { version = "=0.60.0", features = [
     "Win32_UI_Accessibility",
     "Win32_System_LibraryLoader",
     "Win32_UI_HiDpi",
+    "Win32_UI_Input",
     "Win32_UI_Input_KeyboardAndMouse",
     "Win32_UI_Input_Ime",
     "Win32_UI_Input_Touch",
@@ -125,6 +128,24 @@ lto = true
 codegen-units = 1
 opt-level = "s"
 strip = true
+
+# 冷热分包策略：宿主 UI/控制流保持体积优先，像素算子与图像编解码包开启最高矢量化与展开优化。
+[profile.release.package.otter-core]
+opt-level = 3
+[profile.release.package.otter-media]
+opt-level = 3
+[profile.release.package.tiny-skia]
+opt-level = 3
+[profile.release.package.resvg]
+opt-level = 3
+[profile.release.package.usvg]
+opt-level = 3
+[profile.release.package.png]
+opt-level = 3
+[profile.release.package.image-webp]
+opt-level = 3
+[profile.release.package.moxcms]
+opt-level = 3
 
 # 可追溯补丁及完整性门见 third_party/README.md。
 [patch.crates-io]

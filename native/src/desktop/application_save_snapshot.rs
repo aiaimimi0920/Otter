@@ -396,5 +396,6 @@ impl Application {
     }
 }
 
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 #[path = "application_save_snapshot_smoke.rs"]
 pub(super) mod smoke;

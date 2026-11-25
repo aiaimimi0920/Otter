@@ -5,12 +5,48 @@ use crate::{
     session_document::{decode, MAX_SESSION_BYTES},
     workspace_session::{Sticker, Topology},
 };
-use serde_json::{json, Map, Value};
+use serde_json::{json, value::RawValue, Map, Value};
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap, VecDeque},
     io::Write,
-    sync::atomic::{AtomicBool, Ordering},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        LazyLock, Mutex, Weak,
+    },
 };
+
+type VerifiedSlot = (Weak<crate::pixels::Storage>, u64, u64);
+static VERIFIED_CANDIDATES: LazyLock<Mutex<VecDeque<VerifiedSlot>>> =
+    LazyLock::new(|| Mutex::new(VecDeque::with_capacity(8)));
+
+fn record_verified(bytes: &crate::pixels::Pixels, expected_revision: u64, revision: u64) {
+    if let Ok(mut guard) = VERIFIED_CANDIDATES.lock() {
+        guard.retain(|(weak, _, _)| weak.strong_count() > 0);
+        while guard.len() >= 8 {
+            guard.pop_front();
+        }
+        guard.push_back((bytes.downgrade(), expected_revision, revision));
+    }
+}
+
+pub(crate) fn is_verified(candidate: &Candidate) -> bool {
+    let probe = candidate.bytes.downgrade();
+    VERIFIED_CANDIDATES.lock().is_ok_and(|guard| {
+        guard.iter().any(|(weak, expected, rev)| {
+            Weak::ptr_eq(weak, &probe)
+                && *expected == candidate.expected_revision
+                && *rev == candidate.revision
+        })
+    })
+}
+
+#[derive(serde::Serialize)]
+#[serde(untagged)]
+enum RootEntry<'a> {
+    Raw(&'a RawValue),
+    Windows(Vec<WindowCandidate>),
+    Value(Value),
+}
 
 #[derive(Debug, PartialEq)]
 pub enum Error {
@@ -128,7 +164,29 @@ pub(crate) fn assemble_owned_at_revision(
     space: Option<crate::session_placement::Space>,
     disk_revision: Option<u64>,
     projection_scope: Option<crate::session_projection_scope::Scope>,
+    build: impl FnMut(&Sticker, Map<String, Value>) -> Result<WindowCandidate, Error>,
+) -> Result<Candidate, Error> {
+    assemble_with_reserve(
+        original,
+        topology,
+        cancel,
+        space,
+        disk_revision,
+        projection_scope,
+        build,
+        crate::pixels::reserve,
+    )
+}
+
+fn assemble_with_reserve(
+    original: &[u8],
+    topology: &Topology,
+    cancel: &AtomicBool,
+    space: Option<crate::session_placement::Space>,
+    disk_revision: Option<u64>,
+    projection_scope: Option<crate::session_projection_scope::Scope>,
     mut build: impl FnMut(&Sticker, Map<String, Value>) -> Result<WindowCandidate, Error>,
+    reserve: impl FnOnce(usize) -> Option<crate::byte_budget::Lease>,
 ) -> Result<Candidate, Error> {
     check(cancel)?;
     let source = decode(original).map_err(|_| Error::Source)?;
@@ -136,45 +194,59 @@ pub(crate) fn assemble_owned_at_revision(
     let revision = expected_revision.checked_add(1).ok_or(Error::Revision)?;
     topology.restore().map_err(|_| Error::Topology)?;
     drop(source);
-    // 声明在 root 前面，错误提前返回时也先释放 JSON、再释放租约。
-    let mut leases = Vec::new();
-    let Value::Object(mut root) = serde_json::from_slice(original).map_err(|_| Error::Source)?
-    else {
-        return Err(Error::Source);
+    // 按顶层 RawValue 借用原文，未改动的冻结图库/扩展大字段零分配透传。
+    // JSON 字段名可含转义；只拥有这些小键，字段值仍借用原文而不复制大资源。
+    let mut raw_root: BTreeMap<String, &RawValue> =
+        serde_json::from_slice(original).map_err(|_| Error::Source)?;
+    let parse_entry = |raw: Option<&RawValue>| -> Result<Option<Value>, Error> {
+        raw.map(|v| serde_json::from_str(v.get()).map_err(|_| Error::Source))
+            .transpose()
     };
-    let mut windows = indexed(root.remove("stickers"))?;
+    let mut windows = indexed(parse_entry(raw_root.remove("stickers"))?)?;
+    let old_links = indexed(parse_entry(raw_root.remove("links"))?)?;
+    let old_groups = indexed(parse_entry(raw_root.remove("groups"))?)?;
+    raw_root.remove("documentSchemaVersion");
+    raw_root.remove("documentRevision");
+
+    let mut meta = Map::new();
+    if projection_scope.is_some() {
+        if let Some(existing) = parse_entry(raw_root.remove("otterNativeProjectionScope"))? {
+            meta.insert("otterNativeProjectionScope".into(), existing);
+        }
+    }
+    if space.is_some() {
+        if let Some(existing) = parse_entry(raw_root.remove("otterNativeCoordinateSpace"))? {
+            meta.insert("otterNativeCoordinateSpace".into(), existing);
+        }
+    }
     if let Some(scope) = projection_scope {
-        scope.install(&mut root)?;
+        scope.install(&mut meta)?;
     }
     if let Some(space) = space {
-        crate::session_coordinates::install(&mut root, space).map_err(|_| Error::Source)?;
+        crate::session_coordinates::install(&mut meta, space).map_err(|_| Error::Source)?;
     }
-    let old_links = indexed(root.remove("links"))?;
-    let old_groups = indexed(root.remove("groups"))?;
-    let mut used = measure(&root, cancel)?;
-    let mut stickers = Vec::with_capacity(topology.stickers.len());
+
+    let mut used = 0usize;
+    let mut built_windows = Vec::with_capacity(topology.stickers.len());
     for sticker in &topology.stickers {
         check(cancel)?;
         let old = windows.remove(&sticker.id).unwrap_or_default();
-        let WindowCandidate {
-            fields: mut window,
-            leases: window_leases,
-        } = build(sticker, old)?;
-        leases.extend(window_leases);
+        let mut window = build(sticker, old)?;
         // 身份/分组由已验证拓扑拥有；回调不能偷偷引入另一份对象或悬空分组。
         if window
+            .fields
             .get("id")
             .is_some_and(|id| id.as_str() != Some(&sticker.id))
         {
             return Err(Error::Window);
         }
-        window.insert("id".into(), sticker.id.clone().into());
+        window.fields.insert("id".into(), sticker.id.clone().into());
         match &sticker.group_id {
             Some(id) => {
-                window.insert("groupId".into(), id.clone().into());
+                window.fields.insert("groupId".into(), id.clone().into());
             }
             None => {
-                window.remove("groupId");
+                window.fields.remove("groupId");
             }
         }
         used = used
@@ -183,34 +255,58 @@ pub(crate) fn assemble_owned_at_revision(
         if used > MAX_SESSION_BYTES {
             return Err(Error::Budget);
         }
-        stickers.push(Value::Object(window));
+        built_windows.push(window);
     }
-    root.insert("stickers".into(), stickers.into());
+    drop(windows);
+    let mut root: BTreeMap<String, RootEntry<'_>> = raw_root
+        .into_iter()
+        .map(|(k, v)| (k, RootEntry::Raw(v)))
+        .collect();
+    for (k, v) in meta {
+        root.insert(k, RootEntry::Value(v));
+    }
+    root.insert("stickers".into(), RootEntry::Windows(built_windows));
     root.insert(
         "links".into(),
-        merge_records(old_links, &topology.links, cancel)?.into(),
+        RootEntry::Value(merge_records(old_links, &topology.links, cancel)?.into()),
     );
     root.insert(
         "groups".into(),
-        merge_records(old_groups, &topology.groups, cancel)?.into(),
+        RootEntry::Value(merge_records(old_groups, &topology.groups, cancel)?.into()),
     );
-    root.insert("documentSchemaVersion".into(), json!(1));
-    root.insert("documentRevision".into(), json!(revision));
+    root.insert("documentSchemaVersion".into(), RootEntry::Value(json!(1)));
+    root.insert("documentRevision".into(), RootEntry::Value(json!(revision)));
     check(cancel)?;
-    // 先计数并预留实际容量，避免序列化期间几何扩容绕过共享预算。
-    let length = measure(&root, cancel)?;
-    let mut output = Sink::new(length, cancel, crate::pixels::reserve)?;
+    // 不另保留整套窗口编码缓冲；共享预算只需最终输出及原有窗口资源租约。
+    let length = match measure(&root, cancel) {
+        Ok(length) => length,
+        Err(Error::Budget) => {
+            // 合法旧文件可能恰好达上限；仅在此慢路径压缩未知字段的空白，且不重跑 build。
+            for entry in root.values_mut() {
+                check(cancel)?;
+                if let RootEntry::Raw(raw) = entry {
+                    *entry = RootEntry::Value(
+                        serde_json::from_str(raw.get()).map_err(|_| Error::Source)?,
+                    );
+                }
+            }
+            measure(&root, cancel)?
+        }
+        Err(error) => return Err(error),
+    };
+    let mut output = Sink::new(length, cancel, reserve)?;
     serde_json::to_writer(&mut output, &root).map_err(|_| failure(cancel))?;
     drop(root);
-    drop(leases);
     check(cancel)?;
     let checked = decode(&output.bytes).map_err(|_| Error::Window)?;
     if checked.revision != revision || Topology::capture(&checked.workspace) != *topology {
         return Err(Error::Topology);
     }
     check(cancel)?;
+    let bytes = crate::pixels::Pixels::from_reserved(output.bytes, output.lease);
+    record_verified(&bytes, expected_revision, revision);
     Ok(Candidate {
-        bytes: crate::pixels::Pixels::from_reserved(output.bytes, output.lease),
+        bytes,
         expected_revision,
         revision,
     })

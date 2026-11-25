@@ -98,6 +98,7 @@ impl Icons {
             Some(LPARAM(self.big.0 .0 as isize)),
         );
     }
+    #[cfg(any(test, debug_assertions, feature = "smoke-test"))]
     pub(super) unsafe fn verify(&self, hwnd: HWND) -> Result<()> {
         for (kind, icon) in [(ICON_SMALL, self.small.0), (ICON_BIG, self.big.0)] {
             if SendMessageW(hwnd, WM_GETICON, Some(WPARAM(kind as usize)), None).0

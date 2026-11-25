@@ -6,10 +6,12 @@ use crate::{
 use std::{
     ffi::OsString,
     io,
-    os::windows::io::{AsHandle, AsRawHandle},
+    os::windows::io::AsHandle,
     time::{Duration, Instant},
 };
-use windows::Win32::{Foundation::*, System::Threading::*, UI::Input::KeyboardAndMouse::*};
+use windows::Win32::UI::Input::KeyboardAndMouse::*;
+#[cfg(test)]
+use windows::Win32::{Foundation::*, System::Threading::*};
 
 #[path = "emergency_watchdog_client.rs"]
 pub mod client;
@@ -19,6 +21,8 @@ pub mod shutdown;
 #[cfg(test)]
 #[path = "emergency_watchdog_tests.rs"]
 mod tests;
+#[path = "emergency_watchdog_wake.rs"]
+mod wake;
 
 pub const FLAG: &str = "--native-emergency-parent";
 const BUDGET: Duration = Duration::from_secs(5);
@@ -57,8 +61,12 @@ pub fn install() -> Option<shutdown::Installed> {
     }
 }
 pub fn run_inherited(parent: u32) -> io::Result<()> {
-    let pipe = Pipe::adopt(std::io::stdin().as_handle().try_clone_to_owned()?)?;
-    run(parent, pipe, physical)
+    let mut pipe = Pipe::adopt(std::io::stdin().as_handle().try_clone_to_owned()?)?;
+    let parent = Parent::authenticate_emergency(parent, pipe.handle()).map_err(io::Error::other)?;
+    let mut channel = pipe.io(Some(Instant::now() + BUDGET), Some(parent.handle()));
+    let nonce = live_recovery_handshake::read_hello(&mut channel)?;
+    live_recovery_handshake::write_ready(&mut channel, nonce)?;
+    wake::run_event_driven(&parent, &mut pipe, physical)
 }
 #[derive(Default, Clone, Copy)]
 struct Keys {
@@ -98,24 +106,11 @@ impl Gate {
         self.tracker.state(keys.escape, keys.delete, now) || backup
     }
 }
+#[cfg(test)]
 fn run(parent: u32, mut pipe: Pipe, mut keys: impl FnMut() -> Keys) -> io::Result<()> {
     let parent = Parent::authenticate_emergency(parent, pipe.handle()).map_err(io::Error::other)?;
     let mut channel = pipe.io(Some(Instant::now() + BUDGET), Some(parent.handle()));
     let nonce = live_recovery_handshake::read_hello(&mut channel)?;
     live_recovery_handshake::write_ready(&mut channel, nonce)?;
-    let mut gate = Gate::default();
-    let mut shutdown = shutdown::Deadline::default();
-    loop {
-        // 旧产品同为8ms采样；独立进程不依赖UI消息泵、模态或挂起状态。
-        match unsafe { WaitForSingleObject(HANDLE(parent.handle().as_raw_handle()), SAMPLE_MS) } {
-            WAIT_OBJECT_0 => return Ok(()),
-            WAIT_TIMEOUT => {}
-            WAIT_FAILED => return Err(io::Error::last_os_error()),
-            _ => return Err(io::Error::other("Unexpected emergency parent wait status")),
-        }
-        if shutdown.poll(&mut pipe) || gate.observe(keys(), Instant::now()) {
-            parent.terminate_emergency().map_err(io::Error::other)?;
-            return Ok(());
-        }
-    }
+    wake::run_event_driven(&parent, &mut pipe, &mut keys)
 }

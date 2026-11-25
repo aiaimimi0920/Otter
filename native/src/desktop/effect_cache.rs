@@ -10,11 +10,15 @@ use windows::{
     },
 };
 
+#[path = "annotation_cache.rs"]
+pub(super) mod annotation_cache;
+
 const BLUR_CACHE_BYTES: usize = 32 * 1024 * 1024;
 const BLUR_CACHE_ENTRIES: usize = 32;
 #[derive(Default)]
 pub(super) struct Cache {
     pub(super) mosaic: super::mosaic_cache::Cache,
+    pub(super) annotations: annotation_cache::Cache,
     blur: VecDeque<(BlurImage, ID2D1Bitmap, [u32; 4])>,
     blur_bytes: usize,
     #[cfg(test)]
@@ -121,6 +125,9 @@ impl Cache {
 }
 
 #[cfg(test)]
+#[path = "annotation_cache_preview_tests.rs"]
+mod preview_tests;
+#[cfg(test)]
 mod tests {
     use super::*;
     use windows::{
@@ -138,6 +145,98 @@ mod tests {
         factory
             .CreateWicBitmapRenderTarget(&backing, &D2D1_RENDER_TARGET_PROPERTIES::default())
             .unwrap()
+    }
+
+    unsafe fn draw_editor(
+        target: &ID2D1RenderTarget,
+        editor: &crate::editor::Editor,
+        cache: &mut Cache,
+    ) {
+        let brush = target
+            .CreateSolidColorBrush(&D2D1_COLOR_F::default(), None)
+            .unwrap();
+        target.BeginDraw();
+        super::super::annotations::draw_committed(
+            target,
+            &brush,
+            editor,
+            crate::viewport::Viewport {
+                origin: crate::viewport::Point::default(),
+                scale: 1.0,
+            },
+            cache,
+        )
+        .unwrap();
+        target.EndDraw(None, None).unwrap();
+    }
+
+    #[test]
+    fn committed_degenerate_bezier_arrow_reuses_arrow_and_fallback_geometry() {
+        let _apartment = super::super::Apartment::new().unwrap();
+        let mut editor = crate::editor::Editor::default();
+        editor.set_style(editor.style().with_arrow(true));
+        editor
+            .append_restored(
+                crate::editor::Tool::Bezier,
+                vec![crate::viewport::Point { x: 8.0, y: 8.0 }; 4],
+                0.0,
+                Vec::new(),
+            )
+            .unwrap();
+        assert!(editor.elements()[0].arrow);
+        let mut cache = Cache::default();
+        unsafe {
+            let target = target();
+            draw_editor(&target, &editor, &mut cache);
+            assert_eq!(cache.annotations.path_builds, 2);
+            draw_editor(&target, &editor, &mut cache);
+            assert_eq!(cache.annotations.path_builds, 2);
+        }
+    }
+
+    #[test]
+    fn over_capacity_annotations_keep_stable_hits_and_admit_after_removal() {
+        use crate::{editor::Tool, viewport::Point};
+        let _apartment = super::super::Apartment::new().unwrap();
+        let mut editor = crate::editor::Editor::default();
+        for _ in 0..129 {
+            editor
+                .append_restored(
+                    Tool::Brush,
+                    vec![Point { x: 2.0, y: 2.0 }, Point { x: 20.0, y: 18.0 }],
+                    0.0,
+                    Vec::new(),
+                )
+                .unwrap();
+        }
+        let text =
+            crate::text_annotation::TextAnnotation::new("缓存", "Segoe UI", 16.0, false).unwrap();
+        for _ in 0..65 {
+            editor
+                .insert_text(
+                    Point { x: 2.0, y: 2.0 },
+                    Point { x: 30.0, y: 30.0 },
+                    text.clone(),
+                )
+                .unwrap();
+        }
+        let mut cache = Cache::default();
+        unsafe {
+            let target = target();
+            for frame in 0..3 {
+                draw_editor(&target, &editor, &mut cache);
+                assert_eq!(cache.annotations.path_builds, 129 + frame);
+                assert_eq!(cache.annotations.text_builds, 65 + frame);
+            }
+            assert!(editor.remove(129));
+            assert!(editor.remove(0));
+            draw_editor(&target, &editor, &mut cache);
+            assert_eq!(cache.annotations.path_builds, 132);
+            assert_eq!(cache.annotations.text_builds, 68);
+            draw_editor(&target, &editor, &mut cache);
+            assert_eq!(cache.annotations.path_builds, 132);
+            assert_eq!(cache.annotations.text_builds, 68);
+        }
     }
 
     #[test]
@@ -285,6 +384,89 @@ mod tests {
             assert!(replacement_weak.upgrade().is_none());
             drop(cache);
             assert!(replacement_weak.upgrade().is_none());
+        }
+    }
+
+    #[test]
+    fn committed_text_and_paths_reuse_across_pan_invalidate_on_zoom_and_prune_on_remove() {
+        let _apartment = super::super::Apartment::new().unwrap();
+        unsafe {
+            let target = target();
+            let brush = target
+                .CreateSolidColorBrush(&D2D1_COLOR_F::default(), None)
+                .unwrap();
+            let mut editor = crate::editor::Editor::default();
+            let text =
+                crate::text_annotation::TextAnnotation::new("Otter 缓存", "Segoe UI", 16.0, false)
+                    .unwrap();
+            editor
+                .insert_text(
+                    crate::viewport::Point { x: 4.0, y: 4.0 },
+                    crate::viewport::Point { x: 80.0, y: 28.0 },
+                    text,
+                )
+                .unwrap();
+            assert!(editor
+                .begin(
+                    crate::editor::Tool::Brush,
+                    crate::viewport::Point { x: 2.0, y: 2.0 },
+                )
+                .unwrap());
+            assert!(editor
+                .extend(crate::viewport::Point { x: 20.0, y: 18.0 })
+                .unwrap());
+            assert!(editor.commit());
+            let mut cache = Cache::default();
+            for origin_x in [0.0, 12.0, -6.0] {
+                target.BeginDraw();
+                super::super::annotations::draw_committed(
+                    &target,
+                    &brush,
+                    &editor,
+                    crate::viewport::Viewport {
+                        origin: crate::viewport::Point {
+                            x: origin_x,
+                            y: 4.0,
+                        },
+                        scale: 1.0,
+                    },
+                    &mut cache,
+                )
+                .unwrap();
+                target.EndDraw(None, None).unwrap();
+            }
+            assert_eq!(cache.annotations.text_builds, 1);
+            assert_eq!(cache.annotations.path_builds, 1);
+            target.BeginDraw();
+            super::super::annotations::draw_committed(
+                &target,
+                &brush,
+                &editor,
+                crate::viewport::Viewport {
+                    origin: crate::viewport::Point::default(),
+                    scale: 1.5,
+                },
+                &mut cache,
+            )
+            .unwrap();
+            target.EndDraw(None, None).unwrap();
+            assert_eq!(cache.annotations.text_builds, 2);
+            assert_eq!(cache.annotations.path_builds, 2);
+            assert!(editor.remove(1));
+            assert!(editor.remove(0));
+            target.BeginDraw();
+            super::super::annotations::draw_committed(
+                &target,
+                &brush,
+                &editor,
+                crate::viewport::Viewport {
+                    origin: crate::viewport::Point::default(),
+                    scale: 1.5,
+                },
+                &mut cache,
+            )
+            .unwrap();
+            target.EndDraw(None, None).unwrap();
         }
     }
 }

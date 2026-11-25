@@ -1,24 +1,33 @@
-//! 跨线程字节租约；预留失败不改变计数，最后一个资源 owner 释放时归还预算。
-use std::sync::{
-    atomic::{AtomicUsize, Ordering},
-    Arc,
+//! 跨线程字节租约；预留失败不改变计数，最后一个资源 owner 释放时归还预算并按需唤醒等待者。
+use std::{
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc, Condvar, Mutex,
+    },
+    time::{Duration, Instant},
 };
 
 #[derive(Debug)]
 pub struct Budget {
     limit: usize,
     used: AtomicUsize,
+    waiters: AtomicUsize,
+    wake_lock: Mutex<()>,
+    wake: Condvar,
 }
 impl Budget {
     pub fn new(limit: usize) -> Arc<Self> {
         Arc::new(Self {
             limit,
             used: AtomicUsize::new(0),
+            waiters: AtomicUsize::new(0),
+            wake_lock: Mutex::new(()),
+            wake: Condvar::new(),
         })
     }
     fn claim(&self, bytes: usize) -> bool {
         self.used
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |used| {
+            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |used| {
                 used.checked_add(bytes).filter(|total| *total <= self.limit)
             })
             .is_ok()
@@ -28,6 +37,41 @@ impl Budget {
             budget: self.clone(),
             bytes,
         })
+    }
+    /// 在至多 `timeout` 内等待可用容量；无等待者时 `Drop` 保持纯原子快速路径。
+    pub fn wait_for(self: &Arc<Self>, bytes: usize, timeout: Duration) -> Option<Lease> {
+        let started = Instant::now();
+        if let Some(lease) = self.reserve(bytes) {
+            return Some(lease);
+        }
+        if bytes > self.limit || timeout.is_zero() {
+            return None;
+        }
+        struct Waiter<'a>(&'a AtomicUsize);
+        impl Drop for Waiter<'_> {
+            fn drop(&mut self) {
+                self.0.fetch_sub(1, Ordering::SeqCst);
+            }
+        }
+        // 与 claim 的失败读取、Drop 的归还及 waiter 读取共享 SC 全序：
+        // 要么注册后看见容量，要么归还方看见等待者并持锁通知，不能彼此漏看。
+        self.waiters.fetch_add(1, Ordering::SeqCst);
+        let _waiter = Waiter(&self.waiters);
+        let mut guard = self.wake_lock.lock().unwrap_or_else(|e| e.into_inner());
+        loop {
+            let remaining = timeout.saturating_sub(started.elapsed());
+            if remaining.is_zero() {
+                return None;
+            }
+            if let Some(lease) = self.reserve(bytes) {
+                return Some(lease);
+            }
+            let (next, _) = self
+                .wake
+                .wait_timeout(guard, remaining)
+                .unwrap_or_else(|e| e.into_inner());
+            guard = next;
+        }
     }
     pub fn used(&self) -> usize {
         self.used.load(Ordering::Acquire)
@@ -56,7 +100,15 @@ impl Lease {
 }
 impl Drop for Lease {
     fn drop(&mut self) {
-        self.budget.used.fetch_sub(self.bytes, Ordering::AcqRel);
+        self.budget.used.fetch_sub(self.bytes, Ordering::SeqCst);
+        if self.budget.waiters.load(Ordering::SeqCst) != 0 {
+            let _guard = self
+                .budget
+                .wake_lock
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
+            self.budget.wake.notify_all();
+        }
     }
 }
 
@@ -104,6 +156,72 @@ mod tests {
             .filter(|admitted| *admitted)
             .count();
         assert_eq!(admitted, 4);
+        assert_eq!(budget.used(), 0);
+    }
+    #[test]
+    fn wait_for_wakes_promptly_when_lease_drops() {
+        let budget = Budget::new(32);
+        let held = budget.reserve(32).unwrap();
+        let waiter_budget = budget.clone();
+        let start = Instant::now();
+        let release = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(5));
+            drop(held);
+        });
+        let acquired = waiter_budget
+            .wait_for(32, Duration::from_secs(2))
+            .expect("woken on drop");
+        assert!(start.elapsed() < Duration::from_millis(500));
+        release.join().unwrap();
+        drop(acquired);
+        assert_eq!(budget.used(), 0);
+    }
+    #[test]
+    fn release_racing_waiter_registration_does_not_lose_capacity() {
+        let budget = Budget::new(1);
+        for _ in 0..64 {
+            let held = budget.reserve(1).unwrap();
+            let barrier = Arc::new(std::sync::Barrier::new(2));
+            let released = barrier.clone();
+            let release = std::thread::spawn(move || {
+                released.wait();
+                drop(held);
+            });
+            barrier.wait();
+            let acquired = budget
+                .wait_for(1, Duration::from_secs(1))
+                .expect("release racing registration must not be lost");
+            release.join().unwrap();
+            drop(acquired);
+        }
+        assert_eq!(budget.used(), 0);
+        assert_eq!(budget.waiters.load(Ordering::SeqCst), 0);
+    }
+    #[test]
+    fn wait_for_checks_expiry_after_acquiring_wake_lock() {
+        let budget = Budget::new(1);
+        let held = budget.reserve(1).unwrap();
+        let guard = budget.wake_lock.lock().unwrap();
+        let waiting = budget.clone();
+        let waiter = std::thread::spawn(move || waiting.wait_for(1, Duration::from_millis(20)));
+        let limit = Instant::now() + Duration::from_secs(2);
+        while budget.waiters.load(Ordering::SeqCst) == 0 && Instant::now() < limit {
+            std::thread::yield_now();
+        }
+        let registered = budget.waiters.load(Ordering::SeqCst) != 0;
+        let release = std::thread::spawn(move || drop(held));
+        while budget.used() != 0 && Instant::now() < limit {
+            std::thread::yield_now();
+        }
+        std::thread::sleep(Duration::from_millis(30));
+        drop(guard);
+        let result = waiter.join().unwrap();
+        release.join().unwrap();
+        assert!(registered, "waiter did not register before test deadline");
+        assert!(
+            result.is_none(),
+            "expired wait must not acquire returned capacity"
+        );
         assert_eq!(budget.used(), 0);
     }
 }

@@ -1,8 +1,14 @@
 //! 仅在缓存排他锁内运行；不信任文件名或记录，身份/内容匹配后通过同一句柄退休。
-use super::{receipt, MAX_BYTES, MAX_ENTRIES};
+#[cfg(test)]
+use super::MAX_ENTRIES;
+use super::{receipt, MAX_BYTES};
 use sha2::{Digest, Sha256};
+#[cfg(test)]
+use std::fs;
+#[cfg(test)]
+use std::time::{SystemTime, UNIX_EPOCH};
 use std::{
-    fs::{self, File, OpenOptions},
+    fs::{File, OpenOptions},
     io::{self, Read},
     os::windows::{
         fs::{MetadataExt, OpenOptionsExt},
@@ -10,7 +16,7 @@ use std::{
     },
     path::{Component, Path},
     sync::atomic::AtomicBool,
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::Duration,
 };
 use windows::Win32::{
     Foundation::{GENERIC_READ, HANDLE},
@@ -30,6 +36,7 @@ pub(super) struct Report {
 pub(super) fn run(directory: &Path, now: SystemTime, cancel: &AtomicBool) -> io::Result<Report> {
     run_with_retention(directory, now, cancel, 7)
 }
+#[cfg(test)]
 pub(super) fn run_with_retention(
     directory: &Path,
     now: SystemTime,

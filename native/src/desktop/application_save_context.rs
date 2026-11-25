@@ -30,6 +30,7 @@ pub(super) fn fresh(host: crate::workspace_id::UnitId) -> restore_batch::Record 
 }
 
 /// 使用刚创建的隐藏 HWND 捕获完整候选，不写文件、不替换实际恢复上下文。
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 pub(super) unsafe fn verify(app: &mut Application) -> Result<()> {
     if app.save_status() != save_state::Status::Unsaved {
         return Err(Error::new(E_FAIL, "Fresh workspace was marked saved"));

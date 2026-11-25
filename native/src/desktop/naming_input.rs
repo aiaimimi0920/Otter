@@ -47,6 +47,7 @@ unsafe fn edit_with(
     Ok(())
 }
 
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 pub(super) unsafe fn verify(
     first: &super::document_window::DocumentWindow,
     second: &super::document_window::DocumentWindow,

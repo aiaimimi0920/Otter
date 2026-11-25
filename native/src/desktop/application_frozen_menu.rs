@@ -6,10 +6,12 @@ pub(super) mod maintenance;
 pub(super) mod recycle_close;
 #[path = "application_reference.rs"]
 pub(super) mod reference;
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 #[path = "application_library_remove_smoke.rs"]
 pub(super) mod remove_smoke;
 #[path = "application_recycle_settings.rs"]
 pub(super) mod settings;
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 #[path = "application_frozen_menu_smoke.rs"]
 pub(super) mod smoke;
 impl Application {

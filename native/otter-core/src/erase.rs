@@ -104,8 +104,12 @@ fn apply_scaled(
     let mask_len = mask_width * mask_height;
     let (mut coverage, _mask_lease) = reserve_buffer::<u16>(mask_len)?;
     coverage.resize(mask_len, 0);
-    // 直到首个像素实际改变才复制底图；包围框有内容但笔迹未命中仍返回原共享快照。
-    let mut output: Option<(Vec<u8>, crate::byte_budget::Lease)> = None;
+    // 4×4 子采样点相对像素中心最大偏移为 (±0.375/sx, ±0.375/sy)；中心距离超出阈值可整像素跳过或置满。
+    let margin = 0.38 * (1.0 / scale.0).hypot(1.0 / scale.1);
+    let inner_sq = (logical_radius > margin).then(|| (logical_radius - margin).powi(2));
+    let outer_sq = (logical_radius + margin).powi(2);
+    let radius_sq = logical_radius * logical_radius;
+    let mut touched = false;
     for i in 0..points.len() {
         if cancelled() {
             return Err(EraseError::Cancelled);
@@ -124,53 +128,101 @@ fn apply_scaled(
             let Some((left, right)) = span::row(a, b, radius, y, size.0) else {
                 continue;
             };
+            let cy = (y as f64 + 0.5 - a.y as f64) / scale.1;
             for x in left.max(region_left)..right.min(region_right) {
-                let index = y as usize * size.0 as usize + x as usize;
                 let mask_index =
                     (y - region_top) as usize * mask_width + (x - region_left) as usize;
-                if coverage[mask_index] == u16::MAX {
+                let existing = coverage[mask_index];
+                if existing == u16::MAX {
                     continue;
                 }
-                let mut mask = coverage[mask_index];
-                for sy in 0..4 {
-                    for sx in 0..4 {
-                        let px = (x as f64 + (sx as f64 + 0.5) / 4.0 - a.x as f64) / scale.0;
+                let cx = (x as f64 + 0.5 - a.x as f64) / scale.0;
+                let ct = if length == 0.0 {
+                    0.0
+                } else {
+                    ((cx * dx + cy * dy) / length).clamp(0.0, 1.0)
+                };
+                let center_sq = (cx - ct * dx).powi(2) + (cy - ct * dy).powi(2);
+                if center_sq > outer_sq {
+                    continue;
+                }
+                let mut mask = if inner_sq.is_some_and(|limit| center_sq <= limit) {
+                    u16::MAX
+                } else {
+                    existing
+                };
+                if mask != u16::MAX {
+                    for sy in 0..4 {
                         let py = (y as f64 + (sy as f64 + 0.5) / 4.0 - a.y as f64) / scale.1;
-                        let t = if length == 0.0 {
-                            0.0
-                        } else {
-                            ((px * dx + py * dy) / length).clamp(0.0, 1.0)
-                        };
-                        if (px - t * dx).powi(2) + (py - t * dy).powi(2)
-                            <= logical_radius * logical_radius
-                        {
-                            mask |= 1 << (sy * 4 + sx);
+                        for sx in 0..4 {
+                            let bit = 1u16 << (sy * 4 + sx);
+                            if mask & bit != 0 {
+                                continue;
+                            }
+                            let px = (x as f64 + (sx as f64 + 0.5) / 4.0 - a.x as f64) / scale.0;
+                            let t = if length == 0.0 {
+                                0.0
+                            } else {
+                                ((px * dx + py * dy) / length).clamp(0.0, 1.0)
+                            };
+                            if (px - t * dx).powi(2) + (py - t * dy).powi(2) <= radius_sq {
+                                mask |= bit;
+                            }
                         }
                     }
                 }
-                if mask == coverage[mask_index] {
-                    continue;
+                if mask != existing {
+                    coverage[mask_index] = mask;
+                    touched = true;
                 }
-                coverage[mask_index] = mask;
-                let keep = 16 - mask.count_ones();
-                let start = index * 4;
-                let mut pixel = [0u8; 4];
-                for channel in 0..4 {
-                    pixel[channel] = ((source[start + channel] as u32 * keep + 8) / 16) as u8;
-                }
-                if pixel == source[start..start + 4] {
-                    continue;
-                }
-                if output.is_none() {
-                    if cancelled() {
-                        return Err(EraseError::Cancelled);
-                    }
-                    let (mut bytes, lease) = reserve_buffer::<u8>(source.len())?;
-                    bytes.extend_from_slice(source);
-                    output = Some((bytes, lease));
-                }
-                output.as_mut().unwrap().0[start..start + 4].copy_from_slice(&pixel);
             }
+        }
+    }
+    if !touched {
+        return if cancelled() {
+            Err(EraseError::Cancelled)
+        } else {
+            Ok(source.clone())
+        };
+    }
+    // 所有笔迹段合并覆盖度后只做一遍像素混合，直到首个像素实际改变才复制底图。
+    let mut output: Option<(Vec<u8>, crate::byte_budget::Lease)> = None;
+    for y in region_top..region_bottom {
+        if cancelled() {
+            return Err(EraseError::Cancelled);
+        }
+        let mask_row = &coverage
+            [(y - region_top) as usize * mask_width..((y - region_top) as usize + 1) * mask_width];
+        let row_base = y as usize * size.0 as usize + region_left as usize;
+        for (offset, &mask) in mask_row.iter().enumerate() {
+            if mask == 0 {
+                continue;
+            }
+            let start = (row_base + offset) * 4;
+            let src = &source[start..start + 4];
+            let pixel = if mask == u16::MAX {
+                [0u8; 4]
+            } else {
+                let keep = 16 - mask.count_ones();
+                [
+                    ((src[0] as u32 * keep + 8) / 16) as u8,
+                    ((src[1] as u32 * keep + 8) / 16) as u8,
+                    ((src[2] as u32 * keep + 8) / 16) as u8,
+                    ((src[3] as u32 * keep + 8) / 16) as u8,
+                ]
+            };
+            if pixel == src {
+                continue;
+            }
+            if output.is_none() {
+                if cancelled() {
+                    return Err(EraseError::Cancelled);
+                }
+                let (mut bytes, lease) = reserve_buffer::<u8>(source.len())?;
+                bytes.extend_from_slice(source);
+                output = Some((bytes, lease));
+            }
+            output.as_mut().unwrap().0[start..start + 4].copy_from_slice(&pixel);
         }
     }
     if cancelled() {

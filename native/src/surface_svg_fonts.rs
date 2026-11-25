@@ -19,7 +19,7 @@ pub struct Face {
     pub index: u32,
     pub simulations: u32,
 }
-/// 不枚举/预载系统字体，不接受字体文件路径；每个 SVG child 单独拥有此预算。
+/// 不枚举/预载系统字体，不接受字体文件路径；每个 SVG 请求单独拥有此预算。
 pub struct Fonts {
     collection: IDWriteFontCollection,
     fallback: IDWriteFontFallback,

@@ -149,3 +149,27 @@ fn disabled_quota_cancel_and_impossible_incoming_preserve_cache() {
     assert!(eviction::run(&directory.cache(), 1, 1, &mut 0, &cancel).is_err());
     assert!(target.exists());
 }
+#[test]
+fn staging_admits_the_last_two_entries_but_not_one_pair_beyond_the_limit() {
+    let directory = Directory::new();
+    let cancel = AtomicBool::new(false);
+    stage(&directory.0, "initial", png(), &cancel)
+        .unwrap()
+        .commit(&cancel)
+        .unwrap();
+    let count = fs::read_dir(directory.cache()).unwrap().count();
+    for index in count..MAX_ENTRIES - 2 {
+        fs::write(directory.cache().join(format!("external-{index}")), []).unwrap();
+    }
+    let last = stage(&directory.0, "last", png(), &cancel)
+        .unwrap()
+        .commit(&cancel)
+        .unwrap();
+    assert!(last.exists());
+    assert_eq!(
+        fs::read_dir(directory.cache()).unwrap().count(),
+        MAX_ENTRIES
+    );
+    assert!(stage(&directory.0, "overflow", png(), &cancel).is_err());
+    assert!(last.exists());
+}

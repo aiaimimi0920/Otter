@@ -1,11 +1,15 @@
 #![cfg(windows)]
 //! 实际产品 EXE 的候选启动边界；可选真实门由显式 pinned fixture 供给，不默认激活。
+#[cfg(any(debug_assertions, feature = "smoke-test"))]
 use std::{
     fs,
     path::{Path, PathBuf},
+};
+use std::{
     process::{Command, Output},
     time::Duration,
 };
+#[cfg(any(debug_assertions, feature = "smoke-test"))]
 #[path = "../support/shader_peer.rs"]
 mod peer;
 #[path = "../support/process.rs"]
@@ -70,7 +74,13 @@ fn shader_startup_rejects_untrusted_candidate_in_every_product_mode() {
         let output = run(&args);
         assert!(!output.status.success());
         assert!(output.stdout.is_empty());
-        assert!(String::from_utf8_lossy(&output.stderr).contains("Shader candidate"));
+        let expected =
+            if mode == "--smoke-test" && !cfg!(any(debug_assertions, feature = "smoke-test")) {
+                "--smoke-test is disabled in release builds"
+            } else {
+                "Shader candidate"
+            };
+        assert!(String::from_utf8_lossy(&output.stderr).contains(expected));
     }
 }
 #[test]
@@ -143,6 +153,7 @@ fn production_library_cannot_load_angle_or_start_legacy_child() {
     );
 }
 #[test]
+#[cfg(any(debug_assertions, feature = "smoke-test"))]
 #[ignore = "explicit actual product native GPU startup and cache integration"]
 fn native_shader_product_default_fetch_commit_and_cached_rerender() {
     let identity = unsafe { windows::Win32::System::Com::CoCreateGuid() }.unwrap();
@@ -182,7 +193,9 @@ fn native_shader_product_default_fetch_commit_and_cached_rerender() {
     assert!(stdout.contains("native-smoke:"));
     // 保留本次小型合成peer夹具；不清理用户目录或其他测试证据。
 }
+#[cfg(any(debug_assertions, feature = "smoke-test"))]
 struct Fixture(PathBuf);
+#[cfg(any(debug_assertions, feature = "smoke-test"))]
 impl Fixture {
     fn private() -> Self {
         let path = PathBuf::from(
@@ -215,6 +228,7 @@ foreach($name in 'libEGL.dll','libGLESv2.dll'){ $p=Join-Path $env:OTTER_SHADER_T
     }
 }
 #[test]
+#[cfg(any(debug_assertions, feature = "smoke-test"))]
 #[ignore = "optional historical pinned DLL fixture; retired product path must reject even trusted files"]
 fn shader_product_exe_rejects_retired_trusted_candidate_without_network() {
     let source =

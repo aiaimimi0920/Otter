@@ -20,6 +20,8 @@ use windows::{
 };
 #[path = "bounded_worker_environment.rs"]
 pub mod environment;
+#[path = "bounded_worker_session.rs"]
+pub mod session;
 pub use environment::Environment;
 pub struct Policy<'a> {
     pub suffix: &'a str,
@@ -126,17 +128,41 @@ pub fn capacity(
     deadline: Instant,
     stopped: &impl Fn() -> bool,
 ) -> io::Result<crate::byte_budget::Lease> {
+    capacity_reclaiming(pool, maximum, deadline, stopped, &|| {})
+}
+fn check_active(deadline: Instant, stopped: &impl Fn() -> bool) -> io::Result<()> {
+    if stopped() || Instant::now() >= deadline {
+        Err(io::Error::new(
+            io::ErrorKind::TimedOut,
+            "Worker child capacity wait stopped",
+        ))
+    } else {
+        Ok(())
+    }
+}
+fn capacity_reclaiming(
+    pool: &Arc<crate::byte_budget::Budget>,
+    maximum: usize,
+    deadline: Instant,
+    stopped: &impl Fn() -> bool,
+    reclaim: &impl Fn(),
+) -> io::Result<crate::byte_budget::Lease> {
     loop {
-        if stopped() || Instant::now() >= deadline {
-            return Err(io::Error::new(
-                io::ErrorKind::TimedOut,
-                "Worker child capacity wait stopped",
-            ));
-        }
+        check_active(deadline, stopped)?;
+        // 空闲 child 仍持有容量；每次重试显式回收，不把有副作用的工作藏入 stopped。
+        reclaim();
+        check_active(deadline, stopped)?;
         if let Some(lease) = pool.reserve(maximum) {
+            check_active(deadline, stopped)?;
             return Ok(lease);
         }
-        std::thread::sleep(std::time::Duration::from_millis(20));
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if let Some(lease) =
+            pool.wait_for(maximum, remaining.min(std::time::Duration::from_millis(20)))
+        {
+            check_active(deadline, stopped)?;
+            return Ok(lease);
+        }
     }
 }
 /// 此入口只接受 crate 内固定 suffix/策略；不得把远端数据拼进命令行。
@@ -146,12 +172,22 @@ pub fn start(
     stopped: &impl Fn() -> bool,
     policy: Policy<'_>,
 ) -> io::Result<Child> {
-    start_at(
+    start_reclaiming(endpoint, deadline, stopped, policy, &|| {})
+}
+pub fn start_reclaiming(
+    endpoint: OwnedHandle,
+    deadline: Instant,
+    stopped: &impl Fn() -> bool,
+    policy: Policy<'_>,
+    reclaim: &impl Fn(),
+) -> io::Result<Child> {
+    start_at_reclaiming(
         endpoint,
         deadline,
         stopped,
         policy,
         &std::env::current_exe()?,
+        reclaim,
     )
 }
 // 生产只经 start 选择 current_exe；测试才可指定同 target/profile 的产品 EXE。
@@ -162,7 +198,17 @@ pub fn start_at(
     policy: Policy<'_>,
     executable: &Path,
 ) -> io::Result<Child> {
-    let capacity = capacity(policy.pool, policy.maximum, deadline, stopped)?;
+    start_at_reclaiming(endpoint, deadline, stopped, policy, executable, &|| {})
+}
+pub fn start_at_reclaiming(
+    endpoint: OwnedHandle,
+    deadline: Instant,
+    stopped: &impl Fn() -> bool,
+    policy: Policy<'_>,
+    executable: &Path,
+    reclaim: &impl Fn(),
+) -> io::Result<Child> {
+    let capacity = capacity_reclaiming(policy.pool, policy.maximum, deadline, stopped, reclaim)?;
     let environment = policy.environment.block()?;
     let executable: Vec<u16> = executable
         .as_os_str()
@@ -254,6 +300,7 @@ pub fn start_at(
         startup.StartupInfo.hStdOutput = handles[1];
         startup.StartupInfo.hStdError = handles[1];
         let mut process = PROCESS_INFORMATION::default();
+        check_active(deadline, stopped)?;
         CreateProcessW(
             PCWSTR(executable.as_ptr()),
             Some(PWSTR(args.as_mut_ptr())),
@@ -284,12 +331,16 @@ pub fn start_at(
             job,
             _capacity: capacity,
         };
+        check_active(deadline, stopped)?;
         if ResumeThread(HANDLE(thread.as_raw_handle())) == u32::MAX {
             return Err(io::Error::last_os_error());
         }
         Ok(child)
     }
 }
+#[cfg(test)]
+#[path = "bounded_worker_process_tests.rs"]
+mod tests;
 /// child 必须在读取/执行领域载荷前验证父侧 Job，拒绝直接私有入口绕过限额。
 pub fn require_limits(maximum: usize) -> io::Result<()> {
     unsafe {

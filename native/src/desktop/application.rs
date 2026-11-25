@@ -30,9 +30,11 @@ mod projection;
 mod projection_edit;
 #[path = "application_projection_sender.rs"]
 mod projection_sender;
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
+pub(super) use commands::request;
 pub(super) use commands::{
-    execute, handles, request, request_exit, AUTO_NAMING, EXIT_APPLICATION, IMPORT_NAMING,
-    NEW_WINDOW, OPEN_SESSION, OPEN_SESSION_ASSETS, SAVE_NAMING, SAVE_PNG_DEFAULT, SAVE_SESSION,
+    execute, handles, request_exit, AUTO_NAMING, EXIT_APPLICATION, IMPORT_NAMING, NEW_WINDOW,
+    OPEN_SESSION, OPEN_SESSION_ASSETS, SAVE_NAMING, SAVE_PNG_DEFAULT, SAVE_SESSION,
     SAVE_SESSION_AS, UPDATE_NAMING,
 };
 #[path = "application_art_issuer_confirmation.rs"]
@@ -44,6 +46,7 @@ mod chain_tests;
 mod display;
 #[path = "application_display_composition.rs"]
 mod display_composition;
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 #[path = "application_drop_smoke.rs"]
 mod drop_smoke;
 #[path = "application_edit_palette.rs"]
@@ -64,6 +67,7 @@ mod execution_test_pump;
 mod exit;
 #[path = "application_exit_intent.rs"]
 mod exit_intent;
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 #[path = "application_exit_save_smoke.rs"]
 mod exit_save_smoke;
 #[cfg(test)]
@@ -73,14 +77,17 @@ mod extension_catalog_tests;
 mod extension_shortcuts;
 #[path = "application_extension_views.rs"]
 mod extension_views;
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 #[path = "application_group_lock_smoke.rs"]
 mod group_lock_smoke;
 #[path = "application_group_visibility.rs"]
 mod group_visibility;
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 #[path = "application_group_visibility_smoke.rs"]
 mod group_visibility_smoke;
 #[path = "application_groups.rs"]
 mod groups;
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 #[path = "application_groups_smoke.rs"]
 mod groups_smoke;
 #[path = "application_capture_history.rs"]
@@ -113,6 +120,7 @@ mod naming_import;
 mod naming_save;
 #[path = "application_open_session.rs"]
 mod open_session;
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 #[path = "application_open_smoke.rs"]
 mod open_smoke;
 #[path = "application_parameter_files.rs"]
@@ -123,8 +131,10 @@ mod parameter_panel;
 mod parameter_views;
 #[path = "application_parameters.rs"]
 mod parameters;
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 #[path = "application_paste_smoke.rs"]
 mod paste_smoke;
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 #[path = "application_pin_smoke.rs"]
 mod pin_smoke;
 #[path = "application_propagation.rs"]
@@ -147,6 +157,7 @@ mod save_control;
 mod save_disk;
 #[path = "application_save_publish.rs"]
 mod save_publish;
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 #[path = "application_save_replace_smoke.rs"]
 mod save_replace_smoke;
 #[path = "application_save_snapshot.rs"]
@@ -161,8 +172,10 @@ mod session_end;
 mod shader_startup;
 #[path = "application_shutdown.rs"]
 mod shutdown;
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 #[path = "application_smoke.rs"]
 mod smoke;
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 #[path = "application_smoke_session_fixture.rs"]
 mod smoke_session_fixture;
 #[path = "application_surface_admission.rs"]
@@ -183,6 +196,7 @@ mod window_state;
 pub(super) mod workspace_autosave;
 #[path = "application_workspace_checkpoint.rs"]
 mod workspace_checkpoint;
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 pub(super) use smoke::run as smoke;
 
 pub(super) struct Application {

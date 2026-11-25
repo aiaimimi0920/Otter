@@ -12,6 +12,7 @@ mod index;
 mod preview;
 #[path = "popup_frozen_remove.rs"]
 mod remove;
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 #[path = "popup_frozen_smoke.rs"]
 pub(in crate::desktop) mod smoke;
 #[path = "popup_frozen_worker.rs"]

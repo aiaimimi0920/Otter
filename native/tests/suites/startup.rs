@@ -15,6 +15,7 @@ fn run_bounded(command: &mut Command) -> std::process::Output {
     process::run(command, std::time::Duration::from_secs(15)).unwrap()
 }
 
+#[cfg(any(debug_assertions, feature = "smoke-test"))]
 fn assert_default_shader_is_configured_without_execution(stdout: &str) {
     // 原生路由默认可用不等于启动worker；无显式peer时不能取码或提交正式Shader结果。
     let configured: Vec<_> = stdout
@@ -28,6 +29,7 @@ fn assert_default_shader_is_configured_without_execution(stdout: &str) {
     assert!(!stdout.contains("native-shader-product-smoke:"));
 }
 
+#[cfg(any(debug_assertions, feature = "smoke-test"))]
 fn assert_paste_placement(stdout: &str) {
     assert!(stdout.lines().any(|line| line == "native-paste-placement-smoke: physical-size=true cascade=true cascade-count=10 current-target=true topmost-target=true hidden-target-excluded=true pending-refresh=true failed-staging=true new-copy-isolated=true clipboard-access=false"));
 }
@@ -45,6 +47,7 @@ fn capture_rejects_conflicting_sources_before_reading_desktop() {
 }
 
 #[test]
+#[cfg(any(debug_assertions, feature = "smoke-test"))]
 fn hidden_window_renders_and_destroys() {
     let output = run_bounded(Command::new(env!("CARGO_BIN_EXE_otter-native")).arg("--smoke-test"));
     assert!(
@@ -138,6 +141,7 @@ fn hidden_window_renders_and_destroys() {
 }
 
 #[test]
+#[cfg(any(debug_assertions, feature = "smoke-test"))]
 fn wic_image_upload_survives_two_paints() {
     let image = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("assets/branding/32x32.png");
     let output = run_bounded(
@@ -241,6 +245,7 @@ fn unknown_flags_fail_before_starting_a_window() {
 }
 
 #[test]
+#[cfg(any(debug_assertions, feature = "smoke-test"))]
 fn transparent_pin_creates_compositor_and_rebuilds_device_resources() {
     let image = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("assets/branding/32x32.png");
     let output = run_bounded(
@@ -334,6 +339,7 @@ fn pin_requires_an_image() {
 }
 
 #[test]
+#[cfg(any(debug_assertions, feature = "smoke-test"))]
 fn invalid_image_does_not_fall_back_to_fake_success() {
     let file = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml");
     let output = run_bounded(
@@ -343,4 +349,25 @@ fn invalid_image_does_not_fall_back_to_fake_success() {
     );
     assert!(!output.status.success());
     assert!(!String::from_utf8_lossy(&output.stdout).contains("native-smoke:"));
+}
+
+#[test]
+#[cfg(not(any(debug_assertions, feature = "smoke-test")))]
+fn release_smoke_is_rejected_before_loading_explicit_inputs() {
+    for extra in [
+        Vec::new(),
+        vec!["--settings", "missing-settings.json"],
+        vec!["--shader-candidate", "missing-shader-candidate"],
+        vec!["missing-image.png", "--pin"],
+    ] {
+        let output = run_bounded(
+            Command::new(env!("CARGO_BIN_EXE_otter-native"))
+                .arg("--smoke-test")
+                .args(extra),
+        );
+        assert_eq!(output.status.code(), Some(1));
+        assert!(output.stdout.is_empty());
+        assert!(String::from_utf8_lossy(&output.stderr)
+            .contains("--smoke-test is disabled in release builds"));
+    }
 }

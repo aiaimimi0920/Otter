@@ -54,20 +54,43 @@ def main():
     job = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(job)
     checks = []
-    pin_image = root / "pinned-fixture.png"
+    assets_dir = root / "assets"
+    assets_dir.mkdir()
+    pin_image = assets_dir / "pinned-fixture.png"
     pin_bytes = fixture_png()
     pin_image.write_bytes(pin_bytes)
-    # smoke 会批量创建/恢复窗口并执行完整功能检查；预算用于终止挂起，不是冷启动性能阈值。
-    # 参数拒绝不进入这些检查，继续保留较短预算；所有路径仍核退出码、成功标记和进程树清理。
+    session_file = root / "pinned-session.json"
+    session_bytes = json.dumps({
+        "stickers": [{
+            "id": "pinned-fixture",
+            "x": 32,
+            "y": 32,
+            "w": 96,
+            "h": 72,
+            "src": str(pin_image),
+            "filePath": str(pin_image),
+        }],
+        "links": [],
+        "otterNativeCoordinateSpace": {"version": 1, "origin": [0, 0], "scale": 1},
+    }).encode("utf-8")
+    session_file.write_bytes(session_bytes)
+    # 正式 Release 包已剥离开发 smoke 自检模块；探针通过隐藏只读启动检查验证实际 EXE、
+    # D2D 绘制/设备重建与外部资产解码，并核验 --smoke-test 及非法参数均按预期拒绝。
     for label, arguments, expected, markers, timeout in [
-        ("smoke", ["--smoke-test"], 0, ("destroyed=true",), 60),
-        ("pinned-image-smoke", [str(pin_image), "--pin", "--smoke-test"], 0, (
-            "native-document-owner-smoke: relocated=true state-stable=true icons=true",
-            "native-edit-strip-smoke: button=true selection=true silent=true",
-            "native-drop-smoke: shell=true worker=true timer=true source-preserved=true",
-            "native-marquee-smoke: pointer=true shift=true capture=true escape=true wheel=true undo=true",
-            "native-window-smoke: pinned=true",
+        ("workspace-check", ["--workspace-check"], 0, (
+            "native-workspace-startup: loaded=false readonly=false manual-target=false",
+            "native-session-check: windows=1",
+            "native-session-render-check: paints=2 device-recreated=true",
         ), 60),
+        ("pinned-session-check", [
+            "--session", str(session_file),
+            "--session-assets", str(assets_dir),
+            "--session-check",
+        ], 0, (
+            "native-session-check: windows=1",
+            "native-session-render-check: paints=2 device-recreated=true",
+        ), 60),
+        ("smoke-disabled", ["--smoke-test"], 1, ("disabled in release builds",), 15),
         ("pin-missing-image", ["--pin"], 1, ("requires an image",), 15),
         ("unknown-option", ["--unknown-option"], 1, ("Usage:",), 15),
     ]:
@@ -88,12 +111,16 @@ def main():
                    expectedExitCode=expected, markerFound=not missing, missingMarkers=missing)
         if expected == 0:
             row["sessionFixtureResidues"] = len(list(temp.glob("otter-session-fixture-*")))
-        if label == "pinned-image-smoke":
-            row["sourceUnchanged"] = pin_image.is_file() and pin_image.read_bytes() == pin_bytes
+            row["workspaceUnwritten"] = not (profile / "workspace.json").exists()
+        if label == "pinned-session-check":
+            row["sourceUnchanged"] = (pin_image.is_file() and pin_image.read_bytes() == pin_bytes
+                                      and session_file.is_file()
+                                      and session_file.read_bytes() == session_bytes)
         checks.append(row)
         print(json.dumps(row), flush=True)
         if (result["exitCode"] != expected or result["status"] != "exited"
                 or missing or row.get("sessionFixtureResidues", 0)
+                or not row.get("workspaceUnwritten", True)
                 or not row.get("sourceUnchanged", True)):
             raise RuntimeError(f"{label} failed; see {work}")
     receipt = dict(executableSha256=digest, archiveSha256=hashlib.sha256(archive.read_bytes()).hexdigest(),

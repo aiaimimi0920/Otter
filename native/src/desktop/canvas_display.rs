@@ -57,6 +57,7 @@ impl Canvas {
                 )?;
             } else {
                 resources.effects.retain_tools(false, false);
+                resources.effects.annotations = Default::default();
             }
             drop(clipped);
             if let Some(views) = &self.extension_views {
@@ -72,5 +73,59 @@ impl Canvas {
         })?;
         self.paints = self.paints.saturating_add(1);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn frame_without_editor_releases_annotations_without_replacing_target() {
+        let _apartment = crate::desktop::Apartment::new().unwrap();
+        let image = Image {
+            width: 32,
+            height: 32,
+            pixels: vec![255; 32 * 32 * 4].into(),
+        };
+        let mut canvas = Canvas::new(Some(image.clone())).unwrap();
+        canvas.software_renderer = true;
+        canvas
+            .editor
+            .append_restored(
+                Tool::Brush,
+                vec![Point { x: 2., y: 2. }, Point { x: 20., y: 18. }],
+                0.,
+                Vec::new(),
+            )
+            .unwrap();
+        canvas
+            .editor
+            .insert_text(
+                Point { x: 2., y: 2. },
+                Point { x: 30., y: 30. },
+                crate::text_annotation::TextAnnotation::new("缓存", "Segoe UI", 16., false)
+                    .unwrap(),
+            )
+            .unwrap();
+        let source = crate::workspace_id::UnitId::parse("cache-release").unwrap();
+        let annotated = crate::desktop::display_frame::Frame::capture(
+            source.clone(),
+            image.clone(),
+            Some(&canvas.editor),
+        );
+        canvas
+            .paint_display(HWND::default(), 32, 32, 96, Some(&annotated))
+            .unwrap();
+        let target = canvas.target.as_ref().unwrap();
+        let identity = target.identity.clone();
+        let counts = target.effects.annotations.entry_counts();
+        assert!(counts[0] > 0 && counts[1] > 0);
+        let plain = crate::desktop::display_frame::Frame::capture(source, image, None);
+        canvas
+            .paint_display(HWND::default(), 32, 32, 96, Some(&plain))
+            .unwrap();
+        let target = canvas.target.as_ref().unwrap();
+        assert!(std::rc::Rc::ptr_eq(&identity, &target.identity));
+        assert_eq!(target.effects.annotations.entry_counts(), [0; 3]);
     }
 }

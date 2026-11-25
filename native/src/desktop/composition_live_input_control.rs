@@ -4,6 +4,9 @@ impl Control {
     pub(in super::super) fn source_input_allowed(&self) -> bool {
         self.allowed
     }
+    pub(in super::super) fn wheel_wanted(&self) -> bool {
+        self.allowed && self.desired && !self.remote && !self.failed
+    }
     pub(in super::super) fn cancel(&mut self) {
         self.desired = false;
         self.shown = None;

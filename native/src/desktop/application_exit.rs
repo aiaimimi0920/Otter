@@ -1,6 +1,10 @@
 //! 应用退出默认保存场景，不询问手动另存；失败保留窗口，提交后才释放 owner。
 use super::*;
 
+#[cfg_attr(
+    not(any(test, debug_assertions, feature = "smoke-test")),
+    allow(dead_code)
+)]
 pub(super) enum Choice {
     Save,
     Discard,
@@ -8,6 +12,7 @@ pub(super) enum Choice {
 }
 
 /// 隐藏 HWND 验证决策与完成状态转换；不显示对话框或写用户会话。
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 pub(super) unsafe fn verify(app: &mut Application) -> Result<()> {
     let saved = app.saved_state.take();
     let count = app.documents.len();
@@ -98,6 +103,7 @@ impl Application {
         // Discard 仅跳过手动另存文件；后续仍须完成默认场景的最终检查点。
         self.close_requested_with_notify(|_| Choice::Discard, notify)
     }
+    #[cfg(any(test, debug_assertions, feature = "smoke-test"))]
     pub(super) unsafe fn close_requested_with(
         &mut self,
         choose: impl FnOnce(&Self) -> Choice,

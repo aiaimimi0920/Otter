@@ -1,5 +1,6 @@
 //! 回收关闭的 UI 提交 owner；先准备最后宿主并复核凭证，再转交热键和销毁目标。
 use super::*;
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 #[path = "application_recycle_close_smoke.rs"]
 pub(in crate::desktop::application) mod smoke;
 

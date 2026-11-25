@@ -117,10 +117,17 @@ impl Composition {
                 },
                 None,
             )?;
-            let d2d: ID2D1Factory1 = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, None)?;
-            let context = d2d
-                .CreateDevice(&dxgi)?
-                .CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE)?;
+            let context = match &shared {
+                Some(owner) => owner
+                    .device2d()
+                    .CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE)?,
+                None => {
+                    let d2d: ID2D1Factory1 =
+                        D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, None)?;
+                    d2d.CreateDevice(&dxgi)?
+                        .CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE)?
+                }
+            };
             let composition: IDCompositionDevice = DCompositionCreateDevice(&dxgi)?;
             let target = composition.CreateTargetForHwnd(hwnd, true)?;
             let visual = composition.CreateVisual()?;

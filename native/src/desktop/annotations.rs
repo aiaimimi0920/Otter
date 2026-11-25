@@ -4,6 +4,7 @@ use crate::{
     editor::{Editor, Stroke, Tool},
     viewport::{Point, Viewport},
 };
+use std::collections::HashSet;
 use windows::Win32::Graphics::Direct2D::{Common::*, *};
 
 struct Preview<'a> {
@@ -135,35 +136,35 @@ unsafe fn draw_layers(
                 let preview = group
                     .next_if(|(current, _)| *current == index)
                     .map(|(_, preview)| preview);
-                (
-                    index,
-                    preview
-                        .or_else(|| {
-                            replacement
-                                .filter(|(selected, _)| *selected == index)
-                                .map(|(_, changed)| changed)
-                        })
-                        .unwrap_or(stroke),
-                )
+                let replacement = preview.or_else(|| {
+                    replacement
+                        .filter(|(selected, _)| *selected == index)
+                        .map(|(_, changed)| changed)
+                });
+                (index, replacement.unwrap_or(stroke), replacement.is_none())
             })
             .chain(
                 editor
                     .draft()
                     .filter(|_| include_draft)
-                    .map(|stroke| (usize::MAX, stroke)),
+                    .map(|stroke| (usize::MAX, stroke, false)),
             )
     };
     let (mut ranks, mut blur, mut mosaic) = (0u8, false, false);
-    for (_, stroke) in strokes() {
+    let mut active_ids = HashSet::new();
+    for (_, stroke, _) in strokes() {
         ranks |= 1 << stroke.tool.render_rank();
         blur |= stroke.tool == Tool::Blur;
         mosaic |= stroke.tool == Tool::Mosaic;
     }
+    // 预览保留正式 ID，但不得替换正式几何缓存；隐藏/变形期间也保留其已提交条目。
+    active_ids.extend(editor.elements().iter().map(Stroke::annotation_id));
     // 撤销/删除最后一个效果后，下一帧释放其缓存，而不是等到窗口销毁。
     cache.retain_tools(blur, mosaic);
     if blur {
-        cache.retain_blurs(strokes().filter_map(|(_, stroke)| stroke.blur.as_ref()));
+        cache.retain_blurs(strokes().filter_map(|(_, stroke, _)| stroke.blur.as_ref()));
     }
+    cache.annotations.retain_active(&active_ids);
     // 基线荧光笔统一在其他标注下方，层内涂抹不突破整体 35% 上限。
     for rank in 0..=3 {
         if ranks & (1 << rank) == 0 {
@@ -178,16 +179,19 @@ unsafe fn draw_layers(
                 right,
                 bottom,
             };
-            let Some(bounds) =
-                crate::highlighter_bounds::visible(strokes(), viewport, preview, clip)
-            else {
+            let Some(bounds) = crate::highlighter_bounds::visible(
+                strokes().map(|(index, stroke, _)| (index, stroke)),
+                viewport,
+                preview,
+                clip,
+            ) else {
                 continue;
             };
             Some(super::annotation_opacity::push_wash(target, bounds))
         } else {
             None
         };
-        for (index, stroke) in strokes() {
+        for (index, stroke, cacheable) in strokes() {
             if stroke.tool.render_rank() != rank {
                 continue;
             }
@@ -198,7 +202,7 @@ unsafe fn draw_layers(
                     position.origin.y += offset.y * position.scale;
                 }
             }
-            draw_stroke(target, brush, stroke, position, cache)?;
+            draw_stroke(target, brush, stroke, position, cacheable, cache)?;
         }
     }
     Ok(())
@@ -209,6 +213,7 @@ unsafe fn draw_stroke(
     brush: &ID2D1SolidColorBrush,
     stroke: &Stroke,
     viewport: Viewport,
+    cacheable: bool,
     cache: &mut Cache,
 ) -> windows::core::Result<()> {
     if !stroke.visible_paint() || stroke.points.is_empty() {
@@ -223,10 +228,24 @@ unsafe fn draw_stroke(
         return super::annotation_mosaic::draw(target, stroke, viewport, &mut cache.mosaic);
     }
     if stroke.tool == Tool::Paintbrush {
-        return super::annotation_paintbrush::draw(target, brush, stroke, viewport);
+        return super::annotation_paintbrush::draw_cached(
+            target,
+            brush,
+            stroke,
+            viewport,
+            cacheable,
+            &mut cache.annotations,
+        );
     }
     let layer = super::annotation_opacity::push(target, stroke, viewport)?;
-    let result = draw_opaque_stroke(target, brush, stroke, viewport);
+    let result = draw_opaque_stroke(
+        target,
+        brush,
+        stroke,
+        viewport,
+        cacheable,
+        &mut cache.annotations,
+    );
     // 包括几何创建失败的路径，都必须先恢复图层栈再传播错误。
     drop(layer);
     result
@@ -237,6 +256,8 @@ unsafe fn draw_opaque_stroke(
     brush: &ID2D1SolidColorBrush,
     stroke: &Stroke,
     viewport: Viewport,
+    cacheable: bool,
+    cache: &mut super::effect_cache::annotation_cache::Cache,
 ) -> windows::core::Result<()> {
     let Some(first) = stroke.points.first() else {
         return Ok(());
@@ -244,7 +265,7 @@ unsafe fn draw_opaque_stroke(
     let a = transform(*first, viewport);
     let b = transform(*stroke.points.last().unwrap(), viewport);
     let width = stroke.width * viewport.scale;
-    let dash = super::annotation_dash::create(target, stroke)?;
+    let dash = super::annotation_dash::cached(target, stroke, cache)?;
     let crate::stroke_style::Color(red, green, blue) = stroke.color;
     brush.SetColor(&D2D1_COLOR_F {
         r: red as f32 / 255.0,
@@ -261,26 +282,34 @@ unsafe fn draw_opaque_stroke(
     match stroke.tool {
         Tool::Mosaic | Tool::Blur => unreachable!("effects are drawn before ordinary opacity"),
         Tool::Serial => super::annotation_serial::draw(target, brush, stroke, viewport)?,
-        Tool::Text => super::annotation_text::draw(target, brush, stroke, viewport)?,
+        Tool::Text => {
+            super::annotation_text::draw_cached(target, brush, stroke, viewport, cacheable, cache)?
+        }
         Tool::Brush | Tool::Highlighter | Tool::Polyline => {
-            super::annotation_freehand::draw(target, brush, stroke, viewport, dash.as_ref())?;
+            super::annotation_freehand::draw_cached(
+                target,
+                brush,
+                stroke,
+                viewport,
+                dash.as_ref(),
+                cacheable,
+                cache,
+            )?;
         }
         Tool::Line | Tool::Arrow => {
             super::annotation_linear::draw(target, brush, stroke, viewport, dash.as_ref())?;
         }
         Tool::Bezier => {
-            if stroke.arrow {
-                if let Some((shaft, head)) =
-                    super::annotation_bezier::arrow_paths(&target.GetFactory()?, stroke, viewport)?
-                {
-                    target.DrawGeometry(&shaft, brush, width, dash.as_ref());
-                    target.FillGeometry(&head, brush, None);
-                    return Ok(());
-                }
-            }
-            let geometry =
-                super::annotation_bezier::geometry(&target.GetFactory()?, stroke, viewport)?;
-            target.DrawGeometry(&geometry, brush, width, dash.as_ref());
+            super::annotation_bezier::draw_cached(
+                target,
+                brush,
+                stroke,
+                viewport,
+                width,
+                dash.as_ref(),
+                cacheable,
+                cache,
+            )?;
         }
         Tool::Rectangle | Tool::RoundedRectangle | Tool::Ellipse => super::annotation_shapes::draw(
             target,
@@ -291,9 +320,15 @@ unsafe fn draw_opaque_stroke(
             dash.as_ref(),
         ),
         Tool::Pan | Tool::Select | Tool::Paintbrush | Tool::Eraser => {}
-        Tool::Triangle | Tool::Polygon => {
-            super::annotation_polygons::draw(target, brush, stroke, viewport, dash.as_ref())?
-        }
+        Tool::Triangle | Tool::Polygon => super::annotation_polygons::draw_cached(
+            target,
+            brush,
+            stroke,
+            viewport,
+            dash.as_ref(),
+            cacheable,
+            cache,
+        )?,
     }
     Ok(())
 }

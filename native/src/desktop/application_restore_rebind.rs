@@ -4,6 +4,7 @@ use crate::desktop::{
     capability_selection::Selection, document_state, session_binding::catalog_matches,
 };
 use crate::session_art_batch::{resolve_optional, Binding};
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 #[path = "application_restore_rebind_smoke.rs"]
 pub(super) mod smoke;
 

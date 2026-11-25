@@ -180,48 +180,9 @@ fn admit_staging(
             "Invalid clipboard cache lock",
         ));
     }
-    let cleaned = cleanup::run_with_retention(
-        &directory,
-        std::time::SystemTime::now(),
-        cancel,
-        policy.temp_cache_retention_days,
-    )?;
-    let mut hashed = cleaned.hashed_bytes;
-    eviction::run(
-        &directory,
-        incoming + receipt::MAX_BYTES as u64,
-        policy.temp_cache_max_bytes,
-        &mut hashed,
-        cancel,
-    )?;
-    admit(
-        &directory,
-        incoming + receipt::MAX_BYTES as u64,
-        cancel,
-        policy.temp_cache_max_bytes,
-    )?;
+    let incoming_total = incoming + receipt::MAX_BYTES as u64;
+    eviction::admit_staging(&directory, incoming_total, policy, cancel)?;
     Ok((directory, lock))
-}
-fn admit(directory: &Path, incoming: u64, cancel: &AtomicBool, max_bytes: u64) -> io::Result<()> {
-    let mut total = incoming;
-    for (index, entry) in fs::read_dir(directory)?.enumerate() {
-        check(cancel)?;
-        if index >= MAX_ENTRIES - 2 {
-            return Err(full());
-        }
-        let metadata = fs::symlink_metadata(entry?.path())?;
-        if !metadata.is_file() || metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT.0 != 0 {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "Unexpected clipboard cache entry",
-            ));
-        }
-        total = total.checked_add(metadata.len()).ok_or_else(full)?;
-        if max_bytes != 0 && total > max_bytes {
-            return Err(full());
-        }
-    }
-    Ok(())
 }
 fn full() -> io::Error {
     io::Error::other("Clipboard cache capacity exhausted; files retained")

@@ -55,12 +55,24 @@ impl Application {
                     .map_err(|_| "无法捕获执行参数")?;
                 let shader = shader
                     .map(|installation| {
-                        installation.capture(
+                        let mut runtime = installation.capture(
                             capability,
                             &images,
                             resolved,
                             &inputs.shader_parameters,
-                        )
+                        )?;
+                        if runtime.bundle.is_none() {
+                            let document = documents
+                                .iter()
+                                .find(|document| &document.state.unit_id == target)
+                                .ok_or(crate::desktop::shader_prepare::Error::Bindings)?;
+                            let selection = document.state.selected_art.borrow();
+                            let selection = selection
+                                .as_ref()
+                                .ok_or(crate::desktop::shader_prepare::Error::Bindings)?;
+                            runtime.bind_scope(target, &selection.identity);
+                        }
+                        Ok::<_, crate::desktop::shader_prepare::Error>(runtime)
                     })
                     .transpose()
                     .map_err(|_| "无法准备本地 Shader 参数或主图像输入")?;

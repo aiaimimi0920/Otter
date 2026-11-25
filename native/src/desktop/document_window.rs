@@ -2,6 +2,7 @@
 use super::{app_icon, tool_panel, State, Window};
 #[path = "parameter_panel.rs"]
 pub(super) mod parameter_panel;
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 #[path = "document_restore_smoke.rs"]
 mod restore_smoke;
 use windows::{
@@ -66,6 +67,7 @@ impl DocumentWindow {
         }
         Ok(())
     }
+    #[cfg(any(test, debug_assertions, feature = "smoke-test"))]
     pub unsafe fn smoke_relocation(self) -> Result<Self> {
         let pointer = (&*self.state as *const State) as isize;
         let mut owners = Vec::with_capacity(1);

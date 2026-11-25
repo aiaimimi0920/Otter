@@ -245,6 +245,7 @@ impl Application {
 }
 
 /// 隐藏 HWND 通过正式菜单分发排队，不打开可见对话框或写文件。
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 pub(super) unsafe fn verify_requests(app: &Application) -> Result<()> {
     let document = &app.documents[0];
     let old_lock = document.state.group_locked.replace(true);

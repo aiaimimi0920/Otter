@@ -15,8 +15,11 @@ impl Application {
             let group = self.workspace.group_of(&document.state.unit_id);
             *document.state.group_id.borrow_mut() = group.map(|group| group.id.clone());
             let hidden = group.is_some_and(|group| group.hidden);
-            if document.state.group_hidden.replace(hidden) && !hidden {
+            let was_hidden = document.state.group_hidden.replace(hidden);
+            if was_hidden && !hidden {
                 super::super::tray::restore_window(document.window.0, &document.state);
+            } else if hidden && !was_hidden {
+                document.state.canvas.borrow_mut().discard_device();
             }
             let locked = group.is_some_and(|group| group.locked);
             let changed = document.state.group_locked.replace(locked) != locked;

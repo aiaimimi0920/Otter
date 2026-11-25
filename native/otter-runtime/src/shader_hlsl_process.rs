@@ -9,9 +9,9 @@ use std::{
     time::Duration,
 };
 pub const FLAG: &str = "--native-hlsl-worker";
-const TIMEOUT: Duration = Duration::from_secs(15);
+pub(super) const TIMEOUT: Duration = Duration::from_secs(15);
 // MAIN 集成时只选择一条 Shader 路径；此池不增加默认 worker/线程或预建 GPU owner。
-static CAPACITY: LazyLock<Arc<crate::byte_budget::Budget>> =
+pub(super) static CAPACITY: LazyLock<Arc<crate::byte_budget::Budget>> =
     LazyLock::new(|| crate::byte_budget::Budget::new(CHILD_LIMIT));
 #[derive(Debug)]
 pub enum Failure {
@@ -71,7 +71,7 @@ pub fn render_in_test_harness(
     )
 }
 
-fn render_with_entry(
+pub(super) fn render_with_entry(
     request: &Request<'_>,
     backend: Backend,
     stopped: &impl Fn() -> bool,
@@ -83,7 +83,7 @@ fn render_with_entry(
         Instant::now() + TIMEOUT,
         stopped,
         |endpoint, deadline| {
-            bounded::start(
+            bounded::start_reclaiming(
                 endpoint,
                 deadline,
                 stopped,
@@ -93,6 +93,7 @@ fn render_with_entry(
                     pool: &CAPACITY,
                     environment: bounded::Environment::SystemRoot,
                 },
+                &super::session::reclaim_idle,
             )
         },
     )

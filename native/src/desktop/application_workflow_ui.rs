@@ -1,4 +1,5 @@
 //! 显式目录授权及保存后同步入口；授权随当前 Record 生命周期，不从图片路径扩权。
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 #[path = "application_workflow_ui_smoke.rs"]
 pub(in crate::desktop::application) mod smoke;
 use super::*;

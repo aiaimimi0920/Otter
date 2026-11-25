@@ -17,6 +17,7 @@ impl Application {
     }
 }
 
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 pub(super) unsafe fn smoke(app: &Application) -> Result<()> {
     let count = app.documents.len();
     let unit_count = app.workspace.units().len();

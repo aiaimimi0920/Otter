@@ -152,6 +152,7 @@ impl Cycle {
 #[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "application_workflow_real_loom_tests.rs"]
 mod real_loom_tests;
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 #[path = "application_workflow_cycle_smoke.rs"]
 pub(in crate::desktop::application) mod smoke;
 #[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]

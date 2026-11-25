@@ -1,14 +1,22 @@
-//! Live 帧池纹理的独立快照：仅 GPU 复制，预算随共享帧存活，不发布可被池复用的纹理。
-use std::sync::atomic::{AtomicBool, Ordering};
+//! Live 帧池纹理的独立快照：仅 GPU 复制，预算随纹理存活；最后一个消费者释放后方可归还有界会话池。
+use std::{
+    mem::ManuallyDrop,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+    },
+};
 use windows::{
     core::{IUnknown, Interface},
     Win32::Graphics::{Direct3D11::*, Dxgi::Common::*},
 };
+#[path = "live_texture_pool.rs"]
+pub mod pool;
 #[path = "live_texture_readback.rs"]
 pub mod readback;
 pub struct Texture {
-    texture: ID3D11Texture2D,
-    _lease: crate::byte_budget::Lease,
+    allocation: ManuallyDrop<pool::Allocation>,
+    returner: Option<pool::Returner>,
     pub width: u32,
     pub height: u32,
     pub format: DXGI_FORMAT,
@@ -16,7 +24,15 @@ pub struct Texture {
 impl Texture {
     /// 仅借用。呈现者必须持有整个共享帧，不得只克隆 COM 指针而提前释放预算 owner。
     pub fn texture(&self) -> &ID3D11Texture2D {
-        &self.texture
+        &self.allocation.texture
+    }
+}
+impl Drop for Texture {
+    fn drop(&mut self) {
+        let allocation = unsafe { ManuallyDrop::take(&mut self.allocation) };
+        if let Some(returner) = self.returner.take() {
+            pool::recycle(returner, allocation);
+        }
     }
 }
 #[derive(Debug)]
@@ -70,6 +86,23 @@ unsafe fn copy(
     region: Option<crate::capture_readback::Region>,
     cancel: &AtomicBool,
 ) -> Result<Texture, Error> {
+    copy_pooled(
+        context,
+        source,
+        region,
+        cancel,
+        None,
+        crate::pixels::reserve,
+    )
+}
+pub(super) unsafe fn copy_pooled(
+    context: &ID3D11DeviceContext,
+    source: &ID3D11Texture2D,
+    region: Option<crate::capture_readback::Region>,
+    cancel: &AtomicBool,
+    pool: Option<&Arc<Mutex<pool::State>>>,
+    reserve: impl Fn(usize) -> Option<crate::byte_budget::Lease>,
+) -> Result<Texture, Error> {
     check(cancel)?;
     if context.GetType() != D3D11_DEVICE_CONTEXT_IMMEDIATE {
         return Err(Error::Device);
@@ -94,7 +127,6 @@ unsafe fn copy(
     let area = region_box(region, desc.Width, desc.Height)?;
     desc.Width = region.width;
     desc.Height = region.height;
-    let lease = crate::pixels::reserve(bytes(&desc)?).ok_or(Error::Budget)?;
     let destination = D3D11_TEXTURE2D_DESC {
         Usage: D3D11_USAGE_DEFAULT,
         BindFlags: D3D11_BIND_SHADER_RESOURCE.0 as u32,
@@ -102,22 +134,18 @@ unsafe fn copy(
         MiscFlags: 0,
         ..desc
     };
-    let mut texture = None;
-    device
-        .CreateTexture2D(&destination, None, Some(&mut texture))
-        .map_err(Error::Api)?;
-    let texture = texture.ok_or(Error::Device)?;
+    let (allocation, returner) = pool::acquire(pool, &device, &destination, reserve)?;
     check(cancel)?;
     if full {
-        context.CopyResource(&texture, source);
+        context.CopyResource(&allocation.texture, source);
     } else {
-        context.CopySubresourceRegion(&texture, 0, 0, 0, 0, source, 0, Some(&area));
+        context.CopySubresourceRegion(&allocation.texture, 0, 0, 0, 0, source, 0, Some(&area));
     }
     device.GetDeviceRemovedReason().map_err(Error::Api)?;
     check(cancel)?;
     Ok(Texture {
-        texture,
-        _lease: lease,
+        allocation: ManuallyDrop::new(allocation),
+        returner,
         width: desc.Width,
         height: desc.Height,
         format: desc.Format,

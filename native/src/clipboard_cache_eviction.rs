@@ -1,4 +1,4 @@
-//! 配额压力淘汰；有限索引按记录时间排序，再通过共用句柄核验删除，不信任排序快照。
+//! 配额压力淘汰与最终准入复验；通过共用句柄核验删除，不信任排序快照。
 use super::{cleanup, receipt, MAX_BYTES, MAX_ENTRIES};
 use std::{
     ffi::OsString,
@@ -13,7 +13,108 @@ struct Candidate {
     name: OsString,
     record: receipt::Receipt,
 }
-
+struct Snapshot {
+    total: u128,
+    records: Vec<OsString>,
+}
+impl Snapshot {
+    // 排他锁只约束本进程协作者，外部修改仍须由最终准入扫描重新计量。
+    fn scan(directory: &Path, limit: usize, cancel: &AtomicBool) -> io::Result<Self> {
+        let mut total = 0u128;
+        let mut records = Vec::new();
+        for (index, entry) in fs::read_dir(directory)?.enumerate() {
+            super::check(cancel)?;
+            if index >= limit {
+                return Err(super::full());
+            }
+            let entry = entry?;
+            let metadata = fs::symlink_metadata(entry.path())?;
+            if !metadata.is_file()
+                || metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT.0 != 0
+            {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "Unexpected clipboard cache entry",
+                ));
+            }
+            total = total
+                .checked_add(u128::from(metadata.len()))
+                .ok_or_else(super::full)?;
+            let name = entry.file_name();
+            if is_record_name(&name) {
+                records.push(name);
+            }
+        }
+        Ok(Self { total, records })
+    }
+}
+fn is_record_name(name: &OsString) -> bool {
+    name.to_str()
+        .and_then(|s| s.strip_prefix(".otter-clipboard-"))
+        .and_then(|s| s.strip_suffix(".json"))
+        .is_some_and(|id| id.len() == 36 && uuid::Uuid::parse_str(id).is_ok())
+}
+pub(super) fn admit_staging(
+    directory: &Path,
+    incoming: u64,
+    policy: crate::cache_policy::Policy,
+    cancel: &AtomicBool,
+) -> io::Result<()> {
+    super::check(cancel)?;
+    let max = policy.temp_cache_max_bytes;
+    if max != 0 && incoming > max {
+        return Err(super::full());
+    }
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(io::Error::other)?
+        .as_secs();
+    let mut snapshot = Snapshot::scan(directory, MAX_ENTRIES.saturating_mul(2), cancel)?;
+    let mut hashed = 0u64;
+    if policy.temp_cache_retention_days > 0 {
+        let retention = u64::from(policy.temp_cache_retention_days) * 86400;
+        let mut kept = Vec::with_capacity(snapshot.records.len());
+        for name in snapshot.records.into_iter().take(MAX_ENTRIES) {
+            super::check(cancel)?;
+            match cleanup::retire_matching(
+                directory,
+                &directory.join(&name),
+                |record| now.saturating_sub(record.created) > retention,
+                &mut hashed,
+                cancel,
+            ) {
+                Ok(Some(freed)) => {
+                    snapshot.total = snapshot.total.saturating_sub(u128::from(freed));
+                }
+                Err(error) if error.kind() == io::ErrorKind::Interrupted => return Err(error),
+                _ => kept.push(name),
+            }
+        }
+        snapshot.records = kept;
+    }
+    if max != 0 && snapshot.total > u128::from(max - incoming) {
+        evict_from_snapshot(
+            directory,
+            &mut snapshot,
+            incoming,
+            max,
+            now,
+            &mut hashed,
+            cancel,
+        )?;
+    }
+    // 淘汰期间外部文件可能变化；旧快照只能用于选择候选，不能证明当前仍可准入。
+    let current = Snapshot::scan(directory, MAX_ENTRIES - 2, cancel)?;
+    let final_total = u64::try_from(current.total)
+        .ok()
+        .and_then(|total| total.checked_add(incoming))
+        .ok_or_else(super::full)?;
+    if max != 0 && final_total > max {
+        return Err(super::full());
+    }
+    Ok(())
+}
+#[cfg(test)]
 pub(super) fn run(
     directory: &Path,
     incoming: u64,
@@ -25,7 +126,6 @@ pub(super) fn run(
     if max == 0 {
         return Ok(());
     }
-    // 单次输出本身超限时不能为注定失败的请求清空旧缓存。
     if incoming > max {
         return Err(super::full());
     }
@@ -33,45 +133,34 @@ pub(super) fn run(
         .duration_since(UNIX_EPOCH)
         .map_err(io::Error::other)?
         .as_secs();
-    let mut total = 0u64;
-    let mut names = Vec::new();
-    for (index, entry) in fs::read_dir(directory)?.enumerate() {
-        super::check(cancel)?;
-        if index >= MAX_ENTRIES {
-            return Err(super::full());
-        }
-        let entry = entry?;
-        let metadata = fs::symlink_metadata(entry.path())?;
-        if !metadata.is_file() || metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT.0 != 0 {
-            return Err(io::Error::other("Unexpected clipboard cache entry"));
-        }
-        total = total.checked_add(metadata.len()).ok_or_else(super::full)?;
-        let name = entry.file_name();
-        let Some(id) = name
-            .to_str()
-            .and_then(|name| name.strip_prefix(".otter-clipboard-"))
-            .and_then(|name| name.strip_suffix(".json"))
-        else {
-            continue;
-        };
-        if id.len() != 36 || uuid::Uuid::parse_str(id).is_err() {
-            continue;
-        }
-        names.push(name);
-    }
-    if total <= max - incoming {
+    let mut snapshot = Snapshot::scan(directory, MAX_ENTRIES, cancel)?;
+    if snapshot.total <= u128::from(max - incoming) {
         return Ok(());
     }
+    evict_from_snapshot(directory, &mut snapshot, incoming, max, now, hashed, cancel)
+}
+fn evict_from_snapshot(
+    directory: &Path,
+    snapshot: &mut Snapshot,
+    incoming: u64,
+    max: u64,
+    now: u64,
+    hashed: &mut u64,
+    cancel: &AtomicBool,
+) -> io::Result<()> {
     let mut candidates = Vec::new();
-    for name in names {
+    for name in &snapshot.records {
         super::check(cancel)?;
-        if let Ok((_, record)) = cleanup::read_record(&directory.join(&name)) {
+        if let Ok((_, record)) = cleanup::read_record(&directory.join(name)) {
             if record.created <= now {
-                candidates.push(Candidate { name, record });
+                candidates.push(Candidate {
+                    name: name.clone(),
+                    record,
+                });
             }
         }
     }
-    let target = (max / 2).min(max - incoming);
+    let target = u128::from((max / 2).min(max - incoming));
     candidates.sort_by(|left, right| {
         left.record
             .created
@@ -80,7 +169,7 @@ pub(super) fn run(
     });
     for candidate in candidates {
         super::check(cancel)?;
-        if total <= target || *hashed >= MAX_BYTES {
+        if snapshot.total <= target || *hashed >= MAX_BYTES {
             break;
         }
         match cleanup::retire_matching(
@@ -90,12 +179,14 @@ pub(super) fn run(
             hashed,
             cancel,
         ) {
-            Ok(Some(freed)) => total = total.saturating_sub(freed),
+            Ok(Some(freed)) => {
+                snapshot.total = snapshot.total.saturating_sub(u128::from(freed));
+            }
             Err(error) if error.kind() == io::ErrorKind::Interrupted => return Err(error),
-            _ => {} // 不匹配/忙/损坏/预算不足时保留，不退化为按路径删除。
+            _ => {}
         }
     }
-    if total > max - incoming {
+    if snapshot.total > u128::from(max - incoming) {
         Err(super::full())
     } else {
         Ok(())

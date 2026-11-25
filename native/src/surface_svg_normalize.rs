@@ -4,17 +4,43 @@ use resvg::usvg::roxmltree::Node;
 use std::io;
 use svgtypes::Length;
 
-pub(super) fn normalize(
+fn exact_root_dimensions(root: Node<'_, '_>, viewport: &Viewport) -> bool {
+    let mut width_ok = false;
+    let mut height_ok = false;
+    for attr in root.attributes().filter(|a| a.namespace().is_none()) {
+        match attr.name() {
+            "width" => {
+                if attr.value() != viewport.inner_width.to_string() {
+                    return false;
+                }
+                width_ok = true;
+            }
+            "height" => {
+                if attr.value() != viewport.inner_height.to_string() {
+                    return false;
+                }
+                height_ok = true;
+            }
+            _ => {}
+        }
+    }
+    width_ok && height_ok
+}
+
+pub(super) fn normalize_if_needed(
     source: &str,
     root: Node<'_, '_>,
     viewport: &Viewport,
-) -> io::Result<String> {
-    let mut output = source.to_owned();
+) -> io::Result<Option<String>> {
     let definitions: std::collections::HashMap<_, _> = root
         .descendants()
         .filter(|n| n.is_element())
         .filter_map(|n| n.attribute("id").map(|id| (id, n)))
         .collect();
+    let root_attr_edits = root
+        .attributes()
+        .filter(|a| a.namespace().is_none() && matches!(a.name(), "width" | "height"))
+        .count();
     let mut edits: Vec<_> = root
         .attributes()
         .filter(|a| a.namespace().is_none() && matches!(a.name(), "width" | "height"))
@@ -100,6 +126,10 @@ pub(super) fn normalize(
             }
         }
     }
+    if edits.len() == root_attr_edits && exact_root_dimensions(root, viewport) {
+        return Ok(None);
+    }
+    let mut output = source.to_owned();
     // 全部 range 来自原文；仅替换独立属性/插入 QName 后，不删除父子元素整段。
     edits.sort_by_key(|(range, _)| std::cmp::Reverse(range.start));
     for (range, value) in edits {
@@ -113,7 +143,7 @@ pub(super) fn normalize(
             viewport.inner_width, viewport.inner_height
         ),
     );
-    Ok(output)
+    Ok(Some(output))
 }
 fn name_end(source: &str, node: Node<'_, '_>) -> io::Result<usize> {
     let start = node.range().start + 1;

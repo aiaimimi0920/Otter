@@ -167,6 +167,8 @@ pub mod surface_image_paint;
 pub mod surface_image_worker_host;
 #[path = "surface_webp_process.rs"]
 pub mod surface_image_worker_process;
+#[cfg(windows)]
+pub mod surface_image_worker_session;
 pub mod surface_input_event;
 #[cfg(windows)]
 pub mod surface_javascript;
@@ -205,6 +207,7 @@ pub mod surface_text_node;
 pub mod surface_text_styles;
 #[cfg(windows)]
 pub mod surface_viewport;
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 pub mod surface_webp_smoke;
 pub mod surface_webp_worker;
 #[cfg(all(test, windows))]
@@ -271,6 +274,15 @@ mod runtime_worker_entries {
     #[ignore = "private HLSL child entry; invoked by bounded parent"]
     fn hlsl_worker_entry() {
         std::process::exit(if crate::shader_hlsl::process::run_inherited().is_ok() {
+            0
+        } else {
+            1
+        });
+    }
+    #[test]
+    #[ignore = "private HLSL warm session child entry; invoked by bounded parent"]
+    fn hlsl_session_worker_entry() {
+        std::process::exit(if crate::shader_hlsl::session::run_inherited().is_ok() {
             0
         } else {
             1

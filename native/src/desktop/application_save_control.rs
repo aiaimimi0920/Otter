@@ -115,6 +115,7 @@ impl Application {
     }
 }
 
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 pub(super) unsafe fn verify(app: &mut Application) -> Result<()> {
     save_ui::verify_requests(app)?;
     let source = &app.documents[0];

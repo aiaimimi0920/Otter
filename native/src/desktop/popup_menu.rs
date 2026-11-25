@@ -181,7 +181,9 @@ fn choose_contents(
 }
 #[cfg(test)]
 pub(in crate::desktop) use frozen::remove_tests::exercise as test_continuous_removal;
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 pub(in crate::desktop) use frozen::smoke::select as smoke_frozen_selection;
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 pub(in crate::desktop) use frozen::smoke::select_action as smoke_frozen_action;
 
 /// 菜单已关闭，且调用者仍须提供原目标凭证；冒烟测试与生产共用这条交付路径。

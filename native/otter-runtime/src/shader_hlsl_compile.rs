@@ -16,6 +16,50 @@ pub(super) struct Program {
     // Blob 的 vtable 来自 compiler DLL；先释放两个 Blob，最后解除模块租约。
     _compiler: compiler_api::Compiler,
 }
+pub(super) struct CompilerSession {
+    vertex: ID3DBlob,
+    cached: Option<(String, Program)>,
+    // 首次编译失败时 cached 仍为空；会话自身也必须先释放 Blob 再卸载 DLL。
+    compiler: compiler_api::Compiler,
+}
+impl CompilerSession {
+    pub fn new() -> Result<Self> {
+        let compiler = compiler_api::Compiler::new()?;
+        let vertex = compile(&compiler, VERTEX, true)?;
+        Ok(Self {
+            vertex,
+            cached: None,
+            compiler,
+        })
+    }
+    pub fn compile_request(
+        &mut self,
+        request: &Request<'_>,
+        stopped: &impl Fn() -> bool,
+        deadline: Instant,
+    ) -> Result<&Program> {
+        check(stopped, deadline)?;
+        let full_source = source(request);
+        if self
+            .cached
+            .as_ref()
+            .is_none_or(|(previous, _)| previous != &full_source)
+        {
+            let pixel = compile(&self.compiler, &full_source, false)?;
+            reflect::validate(&pixel, request, self.compiler.reflect)?;
+            check(stopped, deadline)?;
+            let program = Program {
+                vertex: self.vertex.clone(),
+                pixel,
+                _compiler: self.compiler.clone(),
+            };
+            self.cached = Some((full_source, program));
+        } else if let Some((_, program)) = &self.cached {
+            reflect::validate(&program.pixel, request, self.compiler.reflect)?;
+        }
+        Ok(&self.cached.as_ref().unwrap().1)
+    }
+}
 impl Program {
     pub fn new(
         request: &Request<'_>,
@@ -70,7 +114,9 @@ fn compile(compiler: &compiler_api::Compiler, source: &str, vertex: bool) -> Res
             std::ptr::null_mut(),
             s!("main"),
             if vertex { s!("vs_5_0") } else { s!("ps_5_0") },
-            D3DCOMPILE_ENABLE_STRICTNESS | D3DCOMPILE_IEEE_STRICTNESS,
+            D3DCOMPILE_ENABLE_STRICTNESS
+                | D3DCOMPILE_IEEE_STRICTNESS
+                | D3DCOMPILE_OPTIMIZATION_LEVEL3,
             0,
             (&mut code as *mut Option<ID3DBlob>).cast(),
             (&mut diagnostic as *mut Option<ID3DBlob>).cast(),
@@ -102,4 +148,31 @@ fn compile(compiler: &compiler_api::Compiler, source: &str, vertex: bool) -> Res
 }
 pub(super) fn bytes(blob: &ID3DBlob) -> &[u8] {
     unsafe { std::slice::from_raw_parts(blob.GetBufferPointer().cast(), blob.GetBufferSize()) }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn empty_compiler_session_releases_vertex_before_library() {
+        drop(CompilerSession::new().unwrap());
+    }
+
+    #[test]
+    fn first_compile_failure_releases_vertex_before_library() {
+        let mut session = CompilerSession::new().unwrap();
+        crate::shader_hlsl::contract_tests::with_request("not valid HLSL", |request| {
+            assert!(matches!(
+                session.compile_request(
+                    request,
+                    &|| false,
+                    Instant::now() + std::time::Duration::from_secs(10),
+                ),
+                Err(Error::Compile(_))
+            ));
+        });
+        assert!(session.cached.is_none());
+        drop(session);
+    }
 }

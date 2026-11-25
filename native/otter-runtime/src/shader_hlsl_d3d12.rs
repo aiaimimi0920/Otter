@@ -14,10 +14,12 @@ pub mod pipeline;
 pub mod resource;
 use resource::Resource;
 
+#[derive(Clone)]
 pub(super) struct Device {
     device: ID3D12Device,
     queue: ID3D12CommandQueue,
     fence: ID3D12Fence,
+    next_fence: std::sync::Arc<std::sync::atomic::AtomicU64>,
 }
 impl Device {
     pub fn new() -> Result<Self> {
@@ -66,20 +68,32 @@ impl Device {
                 device,
                 queue,
                 fence,
+                next_fence: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(1)),
             })
         }
     }
-    pub fn prepare(
-        self,
+    fn next_fence_value(&self) -> Result<u64> {
+        let value = self
+            .next_fence
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        if value == u64::MAX {
+            Err(Error::Unsupported)
+        } else {
+            Ok(value)
+        }
+    }
+    pub(super) fn prepare(
+        &self,
         request: &Request<'_>,
         program: &compile::Program,
         stopped: &impl Fn() -> bool,
         deadline: Instant,
     ) -> Result<Readback> {
         check(stopped, deadline)?;
-        let owner = Submission::new(self, request, program, stopped, deadline)?;
+        let upload_fence = self.next_fence_value()?;
+        let owner = Submission::new(self.clone(), request, program, stopped, deadline)?;
         // 两阶段复用同一队列/命令 owner：先确认上传并释放 upload，后建输出资源。
-        let owner = owner.submit(1, stopped, deadline)?;
+        let owner = owner.submit(upload_fence, stopped, deadline)?;
         let (readback, footprint) = owner.draw(request, stopped, deadline)?;
         Ok(Readback {
             readback,
@@ -90,7 +104,7 @@ impl Device {
     }
 }
 // 只持有已确认完成的 readback，不借用 Request/源码/纹理，允许 worker 先释放私有输入。
-pub(super) struct Readback {
+pub(crate) struct Readback {
     readback: Resource,
     footprint: D3D12_PLACED_SUBRESOURCE_FOOTPRINT,
     width: u32,
@@ -312,7 +326,8 @@ impl Submission {
         let footprint = target.footprint;
         self.target = Some(target);
         self.readback = Some(readback);
-        let mut completed = self.submit(2, stopped, deadline)?;
+        let draw_fence = self.device.next_fence_value()?;
+        let mut completed = self.submit(draw_fence, stopped, deadline)?;
         let readback = completed.readback.take().ok_or(Error::Layout)?;
         // completed 析构先归还图与租约；readback 独立维持对应设备的 COM 生命周期。
         Ok((readback, footprint))
@@ -330,6 +345,7 @@ impl Submission {
                 .Signal(&owner.device.fence, value)
                 .map_err(|e| api(Stage::Submit, e))?;
         }
+        let mut attempts = 0u32;
         loop {
             check(stopped, deadline)?;
             let completed = unsafe { owner.device.fence.GetCompletedValue() };
@@ -342,7 +358,14 @@ impl Submission {
             if completed >= value {
                 break;
             }
-            std::thread::sleep(Duration::from_millis(1));
+            if attempts < 8 {
+                std::hint::spin_loop();
+            } else if attempts < 16 {
+                std::thread::yield_now();
+            } else {
+                std::thread::sleep(Duration::from_millis(1));
+            }
+            attempts = attempts.saturating_add(1);
         }
         let owner = ManuallyDrop::into_inner(owner);
         unsafe { owner.device.device.GetDeviceRemovedReason() }

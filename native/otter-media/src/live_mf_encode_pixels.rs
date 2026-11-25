@@ -33,9 +33,13 @@ pub(super) fn input(
         Ok(sample)
     }
 }
-fn yuv(r: i32, g: i32, b: i32) -> [u8; 3] {
+#[inline(always)]
+fn luma(r: i32, g: i32, b: i32) -> u8 {
+    (((11966 * r + 40254 * g + 4064 * b + 32768) >> 16) + 16).clamp(16, 235) as u8
+}
+#[inline(always)]
+fn chroma(r: i32, g: i32, b: i32) -> [u8; 2] {
     [
-        (((11966 * r + 40254 * g + 4064 * b + 32768) >> 16) + 16).clamp(16, 235) as u8,
         (((-6596 * r - 22188 * g + 28784 * b + 32768) >> 16) + 128).clamp(16, 240) as u8,
         (((28784 * r - 26145 * g - 2639 * b + 32768) >> 16) + 128).clamp(16, 240) as u8,
     ]
@@ -50,23 +54,34 @@ fn convert(
     let (y_plane, uv_plane) = nv12.split_at_mut(w * height as usize);
     for y in (0..height as usize).step_by(2) {
         check_stop(stop)?;
+        let row0 = &bgra[y * w * 4..(y + 1) * w * 4];
+        let row1 = &bgra[(y + 1) * w * 4..(y + 2) * w * 4];
+        let (y_rows, _) = y_plane[y * w..(y + 2) * w].split_at_mut(2 * w);
+        let (y_out0, y_out1) = y_rows.split_at_mut(w);
+        let uv_out = &mut uv_plane[(y / 2) * w..(y / 2 + 1) * w];
         for x in (0..w).step_by(2) {
-            let mut rgb = [0; 3];
-            for (dy, dx) in [(0, 0), (0, 1), (1, 0), (1, 1)] {
-                let at = ((y + dy) * w + x + dx) * 4;
-                let p = &bgra[at..at + 4];
-                // H264无alpha；不把透明像素静默变黑/不透明，调用者会退休codec并发原raw。
-                if p[3] != 255 {
-                    return Err(invalid("H264 cannot preserve input alpha"));
-                }
-                let [r, g, b] = [i32::from(p[2]), i32::from(p[1]), i32::from(p[0])];
-                y_plane[(y + dy) * w + x + dx] = yuv(r, g, b)[0];
-                for (sum, value) in rgb.iter_mut().zip([r, g, b]) {
-                    *sum += value;
-                }
+            let p00 = &row0[x * 4..x * 4 + 4];
+            let p01 = &row0[x * 4 + 4..x * 4 + 8];
+            let p10 = &row1[x * 4..x * 4 + 4];
+            let p11 = &row1[x * 4 + 4..x * 4 + 8];
+            // H264无alpha；不把透明像素静默变黑/不透明，调用者会退休codec并发原raw。
+            if (p00[3] & p01[3] & p10[3] & p11[3]) != 255 {
+                return Err(invalid("H264 cannot preserve input alpha"));
             }
-            let uv = yuv((rgb[0] + 2) / 4, (rgb[1] + 2) / 4, (rgb[2] + 2) / 4);
-            uv_plane[y / 2 * w + x..y / 2 * w + x + 2].copy_from_slice(&uv[1..]);
+            let (r00, g00, b00) = (i32::from(p00[2]), i32::from(p00[1]), i32::from(p00[0]));
+            let (r01, g01, b01) = (i32::from(p01[2]), i32::from(p01[1]), i32::from(p01[0]));
+            let (r10, g10, b10) = (i32::from(p10[2]), i32::from(p10[1]), i32::from(p10[0]));
+            let (r11, g11, b11) = (i32::from(p11[2]), i32::from(p11[1]), i32::from(p11[0]));
+            y_out0[x] = luma(r00, g00, b00);
+            y_out0[x + 1] = luma(r01, g01, b01);
+            y_out1[x] = luma(r10, g10, b10);
+            y_out1[x + 1] = luma(r11, g11, b11);
+            let uv = chroma(
+                (r00 + r01 + r10 + r11 + 2) >> 2,
+                (g00 + g01 + g10 + g11 + 2) >> 2,
+                (b00 + b01 + b10 + b11 + 2) >> 2,
+            );
+            uv_out[x..x + 2].copy_from_slice(&uv);
         }
     }
     Ok(())

@@ -33,9 +33,12 @@ pub(super) const DEFAULT: usize = NEW_PIN;
 pub(super) fn exclusive_available(state: &State) -> bool {
     !state.capture_active.get() && !state.file_dialog.get() && !state.modals.blocked()
 }
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 #[path = "capture_input_smoke.rs"]
 mod smoke;
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 pub(super) use smoke::run as smoke;
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 pub(super) use smoke::shared as smoke_shared;
 struct Hidden(Vec<(HWND, bool, isize)>);
 impl Hidden {

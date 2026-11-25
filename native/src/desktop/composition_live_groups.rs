@@ -135,6 +135,9 @@ impl LiveWindow {
                 }
             }
         }
+        unsafe {
+            wheel::sync(self.hwnd, &self.state);
+        }
         let mut control = self.state.groups.borrow_mut();
         if control.view.as_ref().is_some_and(|view| {
             view.groups == workspace.groups()

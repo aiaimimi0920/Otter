@@ -32,6 +32,12 @@ controls from an exact NeuroDesign Git commit.
   next to the EXE. [Live capture](../features/LIVE_CAPTURE.md) documents the limits.
   Live relay serializes source media rotation with its socket owner; source outcome
   selection keeps authorization termination distinct from an ordinary stop.
+  Snapshot-pool and staging-reuse facilities retain byte leases until GPU release,
+  but production capture and relay release them per frame until shared-budget
+  pressure reclamation exists. Window-private annotation caches retain committed
+  drawing resources; transient previews neither replace nor evict committed geometry.
+  The background wheel hook follows visible, authorized Live windows; emergency
+  monitoring uses its own authenticated process and event-driven input/pipe waits.
 - **Loom:** The authenticated Device connection owns the lease, directory and
   protected network requests. Local capabilities use the local bridge. Sharing,
   projected edits and Live control have separate message contracts; see
@@ -45,6 +51,10 @@ controls from an exact NeuroDesign Git commit.
 - **Art surfaces:** Otter renders validated native scenes. Scripted surfaces run
   inside a restricted QuickJS process with CPU/memory limits and no DOM. Approved
   `Surface` operations and resource admission remain distinct from Loom execution.
+  Short-lived image workers are scoped to the resource origin; HLSL workers are
+  scoped to the target and current selection identity. Idle workers retain their
+  Job limits, yield capacity to queued work and are reaped by the parent.
+  SVG font admission remains per request even when its worker is reused.
 - **Persistence:** Native profiles keep workspace snapshots and recovery records.
   Publishing received images requires workspace save; state changes retire stale
   worker results. Save and restore workers share a borrowed raw-window walk for device

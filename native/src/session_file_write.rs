@@ -31,12 +31,15 @@ impl Staged {
         cancel: &AtomicBool,
     ) -> io::Result<Self> {
         check(cancel)?;
-        let document =
-            decode(&candidate.bytes).map_err(|_| invalid("Invalid session candidate"))?;
-        if document.revision != candidate.revision
-            || candidate.expected_revision.checked_add(1) != Some(candidate.revision)
-        {
+        if candidate.expected_revision.checked_add(1) != Some(candidate.revision) {
             return Err(invalid("Invalid session candidate revision"));
+        }
+        if !crate::session_write::is_verified(candidate) {
+            let document =
+                decode(&candidate.bytes).map_err(|_| invalid("Invalid session candidate"))?;
+            if document.revision != candidate.revision {
+                return Err(invalid("Invalid session candidate revision"));
+            }
         }
         let mut staged = Self::write_bytes(destination, &candidate.bytes, cancel)?;
         staged.bytes = Some(candidate.bytes.clone());

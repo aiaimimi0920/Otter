@@ -1,22 +1,28 @@
 //! 默认呈现设备按 UI 线程弱共享；最后一个租约释放后不保留 GPU/COM 资源。
-//! 只共享 D3D11 device，窗口交换链、D2D context、合成树和 Live 捕获设备不归此 owner。
+//! 共享 D3D11 device 与对应的 D2D device，窗口交换链、D2D context、合成树和 Live 捕获设备不归此 owner。
 use super::selection::Backend;
 use std::{
     cell::RefCell,
     rc::{Rc, Weak},
 };
 use windows::{
-    core::{Error, Result},
+    core::{Error, Interface, Result},
     Win32::{
         Foundation::{E_FAIL, HMODULE},
-        Graphics::{Direct3D::*, Direct3D11::*},
+        Graphics::{Direct2D::*, Direct3D::*, Direct3D11::*, Dxgi::IDXGIDevice},
     },
 };
 
-pub(super) struct Device(ID3D11Device);
+pub(super) struct Device {
+    device11: ID3D11Device,
+    device2d: ID2D1Device,
+}
 impl Device {
     pub(super) fn get(&self) -> &ID3D11Device {
-        &self.0
+        &self.device11
+    }
+    pub(super) fn device2d(&self) -> &ID2D1Device {
+        &self.device2d
     }
 }
 thread_local! {
@@ -32,8 +38,15 @@ pub(super) fn acquire(backend: Backend) -> Result<Rc<Device>> {
     slot.with(|slot| {
         cached(
             slot,
-            || unsafe { create_device(driver).map(Device) },
-            |device| unsafe { device.0.GetDeviceRemovedReason().is_ok() },
+            || unsafe {
+                let device11 = create_device(driver)?;
+                let factory: ID2D1Factory1 =
+                    D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, None)?;
+                let dxgi: IDXGIDevice = device11.cast()?;
+                let device2d = factory.CreateDevice(&dxgi)?;
+                Ok(Device { device11, device2d })
+            },
+            |device| unsafe { device.device11.GetDeviceRemovedReason().is_ok() },
         )
     })
 }

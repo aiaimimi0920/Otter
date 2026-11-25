@@ -59,7 +59,7 @@ impl Device {
         })
     }
     pub fn render(
-        self,
+        &self,
         request: &Request<'_>,
         program: &compile::Program,
         stopped: &impl Fn() -> bool,

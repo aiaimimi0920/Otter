@@ -4,9 +4,10 @@ use super::*;
 mod close;
 use crate::desktop::{self, link_catalog::Catalog};
 pub(in crate::desktop) use close::hide_pin;
+#[cfg(test)]
+use std::collections::HashSet;
 use std::{
     cell::{Cell, RefCell},
-    collections::HashSet,
     rc::{Rc, Weak},
 };
 #[path = "workspace_chrome_backing.rs"]

@@ -219,7 +219,7 @@ impl Image {
         }
     }
 }
-fn pixel_buffer(count: usize) -> Result<(Vec<u8>, crate::byte_budget::Lease)> {
+pub(crate) fn pixel_buffer(count: usize) -> Result<(Vec<u8>, crate::byte_budget::Lease)> {
     use windows::Win32::Foundation::E_OUTOFMEMORY;
     let mut lease = crate::pixels::reserve(count)
         .ok_or_else(|| Error::new(E_OUTOFMEMORY, "Decoded pixel budget exhausted"))?;

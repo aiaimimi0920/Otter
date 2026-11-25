@@ -1,6 +1,7 @@
 //! 显式工作区自动保存；Live 仅在模型变化时取时间点，共用单槽且不触发外部工作流。
 use super::*;
 use std::{cell::Cell, sync::atomic::AtomicBool};
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 #[path = "application_workspace_autosave_smoke.rs"]
 pub(super) mod smoke;
 

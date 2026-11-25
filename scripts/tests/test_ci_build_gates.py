@@ -85,7 +85,8 @@ class BuildGateTests(unittest.TestCase):
         for command in ("assert-release-version.ps1", "cargo fetch --locked",
                         "cargo test --locked --offline --workspace", "build-native-candidate.ps1",
                         "package-native-candidate.ps1", "verify-native-package.ps1",
-                        "native-package-runtime.py", "cargo fmt", "--mode strict"):
+                        "native-package-runtime.py", "test_native_package_runtime.py",
+                        "cargo fmt", "--mode strict"):
             self.assertIn(command, candidate)
         self.assertNotIn("build-local-otter-exe.ps1", candidate)
         self.assertIn("workspaces: native", candidate)

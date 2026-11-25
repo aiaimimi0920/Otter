@@ -34,10 +34,14 @@ $zip = Get-ChildItem C:/build/otter-package -Filter '*-internal.zip' -File
 python scripts/tests/native-package-runtime.py --package-dir C:/build/otter-package --evidence-dir C:/build/otter-runtime
 ```
 
-原版包、来源摘要及证据互相核对。解包后从 ZIP 启动，以隔离 profile 执行无图及带图钉图 smoke 和参数拒绝；
-完整 smoke 包含批量窗口创建、恢复和应用功能检查。带图用例还核对编辑条、拖入、Shift 框选和输入 PNG 未被修改。
-每项 smoke 的防卡死预算为 60 秒；两个参数拒绝入口为
-15 秒。保存、归档和工作流自检在本次 `TEMP` 下使用独占夹具；探针核对完成后没有遗留该组会话目录。
+原版包、来源摘要及证据互相核对。正式 Release 包默认剥离开发期 `--smoke-test` 自检模块（完整 smoke 由
+Debug 集成测试覆盖；Release 集成 smoke 使用 `cargo test --release --features smoke-test`。
+单测所需 helper 在 `cfg(test)` 下保留，默认 Release 集成测试另验 smoke 拒绝入口）。解包后从
+ZIP 启动，以隔离 profile 执行 `--workspace-check`、带外部 PNG 资产的 `--session-check`（含隐藏建窗、
+Direct2D 绘制与设备重建及输入 PNG 未修改核验），核对空 profile 不生成工作区文件，
+并验证 `--smoke-test` 与非法参数入口按预期拒绝。Release 保留默认 unwind，避免绕过 worker panic
+错误交付和文件替换的析构恢复；体积优化不能改变这些恢复契约。
+两项隐藏启动检查的防卡死预算为 60 秒；三项参数拒绝入口为 15 秒。探针核对完成后没有遗留会话夹具目录。
 回执同时记录实际耗时、预算、退出码与成功标记；这些预算不作为冷启动性能指标。
 不替换运行中的 Otter。真实桌面联测按 [Live 联合测试](../features/LIVE_JOINT_TESTING.md)
 和[投射联合测试](JOINT_TESTING.md)进行。

@@ -4,6 +4,48 @@ fn topology() -> Topology {
     Topology::capture(&decode(SOURCE).unwrap().workspace)
 }
 #[test]
+fn existing_windows_need_only_the_final_output_pixel_budget() {
+    let cancel = AtomicBool::new(false);
+    let first = assemble(SOURCE, &topology(), &cancel, |_, old| Ok(old)).unwrap();
+    let length = first.bytes.len();
+    drop(first);
+    // 独立预算只够最终输出，不占满进程共享池，也可安全并行执行。
+    let budget = crate::byte_budget::Budget::new(length);
+    let candidate = assemble_with_reserve(
+        SOURCE,
+        &topology(),
+        &cancel,
+        None,
+        None,
+        None,
+        |_, old| Ok(WindowCandidate::new(old)),
+        |size| budget.reserve(size),
+    )
+    .unwrap();
+    assert_eq!(candidate.bytes.len(), length);
+    assert_eq!(budget.used(), length);
+    drop(candidate);
+    assert_eq!(budget.used(), 0);
+}
+#[test]
+fn maximum_sized_formatted_source_compacts_without_rebuilding_windows() {
+    let mut original = br#"{"documentRevision":9,"stickers":[{"id":"a","x":0,"y":0,"w":20,"h":20}],"links":[],"extension":["#.to_vec();
+    original.resize(MAX_SESSION_BYTES - 2, b' ');
+    original.extend_from_slice(b"]}");
+    let graph = Topology::capture(&decode(&original).unwrap().workspace);
+    let mut builds = 0;
+    let candidate = assemble(&original, &graph, &AtomicBool::new(false), |_, old| {
+        builds += 1;
+        Ok(old)
+    })
+    .unwrap();
+    assert_eq!(builds, 1);
+    assert!(candidate.bytes.len() < 256);
+    assert_eq!(candidate.revision, 10);
+    let value: Value = serde_json::from_slice(&candidate.bytes).unwrap();
+    assert_eq!(value["extension"], json!([]));
+}
+#[test]
 fn round_trip_retains_unknown_fields_and_advances_revision_once() {
     let cancel = AtomicBool::new(false);
     let mut graph = topology();
@@ -27,6 +69,41 @@ fn round_trip_retains_unknown_fields_and_advances_revision_once() {
     assert_eq!(value["groups"][0]["extension"], "group");
     assert_eq!(value["groups"][0]["name"], "renamed");
     assert_eq!(decode(SOURCE).unwrap().revision, 7);
+}
+#[test]
+fn escaped_root_keys_remain_valid_and_unknown_values_keep_their_raw_encoding() {
+    let original = br#"{"documentRevision":7,"sti\u0063kers":[],"links":[],"plugin\"key":{"escaped":"\u4e2d","number":1.00}}"#;
+    let graph = Topology::capture(&decode(original).unwrap().workspace);
+    let candidate = assemble(original, &graph, &AtomicBool::new(false), |_, _| {
+        unreachable!("empty workspace")
+    })
+    .unwrap();
+    let root: BTreeMap<String, &RawValue> = serde_json::from_slice(&candidate.bytes).unwrap();
+    assert_eq!(root["stickers"].get(), "[]");
+    assert_eq!(
+        root["plugin\"key"].get(),
+        r#"{"escaped":"\u4e2d","number":1.00}"#
+    );
+    assert_eq!(decode(&candidate.bytes).unwrap().revision, 8);
+}
+#[test]
+fn verified_candidate_requires_exact_immutable_storage_and_both_revisions() {
+    let mut candidate = assemble(SOURCE, &topology(), &AtomicBool::new(false), |_, old| {
+        Ok(old)
+    })
+    .unwrap();
+    assert!(is_verified(&candidate));
+    candidate.expected_revision += 1;
+    assert!(!is_verified(&candidate));
+    candidate.expected_revision -= 1;
+    candidate.revision += 1;
+    assert!(!is_verified(&candidate));
+    candidate.revision -= 1;
+    let same_storage = candidate.bytes.clone();
+    candidate.bytes = candidate.bytes.to_vec().into();
+    assert!(!is_verified(&candidate));
+    candidate.bytes = same_storage;
+    assert!(is_verified(&candidate));
 }
 #[test]
 fn deleted_objects_do_not_reappear_and_new_objects_do_not_inherit_extensions() {

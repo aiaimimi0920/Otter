@@ -96,6 +96,10 @@ fn missing_and_valid_default_workspace_are_read_without_writing_or_manual_target
     );
     assert!(String::from_utf8_lossy(&absent.stdout)
         .contains("loaded=false readonly=false manual-target=false"));
+    let stdout = String::from_utf8_lossy(&absent.stdout);
+    assert!(stdout.contains("native-session-check: windows=1"));
+    assert!(stdout.contains("hidden=true"));
+    assert!(stdout.contains("native-session-render-check: paints=2 device-recreated=true"));
     assert!(!fixture.path().exists());
     std::fs::write(fixture.path(), SESSION).unwrap();
     let loaded = fixture.run();
@@ -111,6 +115,7 @@ fn missing_and_valid_default_workspace_are_read_without_writing_or_manual_target
     );
     assert!(stdout.contains("native-session-save-state: Unsaved"));
     assert!(stdout.contains("hidden=true"));
+    assert!(stdout.contains("native-session-render-check: paints=2 device-recreated=true"));
     assert_eq!(std::fs::read(fixture.path()).unwrap(), SESSION);
 }
 #[test]

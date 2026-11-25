@@ -223,5 +223,6 @@ fn entry_identity() -> Result<(String, String)> {
 #[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "application_library_clear_tests.rs"]
 mod clear_tests;
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 #[path = "application_reference_smoke.rs"]
 pub(in crate::desktop::application) mod smoke;

@@ -14,6 +14,7 @@ use std::sync::{
 
 pub struct Runtime {
     pub(super) cached: Option<Arc<super::shader_recipe_cache::Recipe>>,
+    scope_id: Option<String>,
     reference_port: Option<String>,
     pub(super) bundle: Option<Arc<TrustedBundle>>,
     backend: Backend,
@@ -68,6 +69,20 @@ impl Installation {
     }
 }
 impl Runtime {
+    pub(super) fn bind_scope(
+        &mut self,
+        target: &crate::workspace_id::UnitId,
+        selection: &crate::workspace_id::UnitId,
+    ) {
+        // Selection.identity 在新建/恢复/重绑时更新；前缀长度消除任意旧 UnitId 的拼接歧义。
+        // 不用 Art ID 作 node scope，也不让合法长 Art ID 承担会话键的长度限制。
+        self.scope_id = Some(format!(
+            "{}:{}{}",
+            target.as_str().len(),
+            target.as_str(),
+            selection.as_str()
+        ));
+    }
     /// Some(bundle) 必须由可信安装 owner 提供；None 只使用原生 Auto，不读取 Art 的 DLL 路径。
     pub fn new(
         bundle: Option<Arc<TrustedBundle>>,
@@ -94,6 +109,7 @@ impl Runtime {
         }
         Ok(Self {
             cached: None,
+            scope_id: None,
             reference_port: None,
             bundle,
             backend,
@@ -270,6 +286,7 @@ impl Runtime {
             })
         } else {
             super::shader_invocation::Invocation::Native(shader_native_invocation::Invocation {
+                scope: self.scope_id.clone(),
                 source: payload.source.clone(),
                 width,
                 height,
@@ -342,5 +359,52 @@ fn texture(
         width: value.width,
         height: value.height,
         rgba: value.rgba,
+    }
+}
+
+#[cfg(test)]
+mod scope_tests {
+    use super::*;
+    use crate::{graph_params::Params, loom_capability::Capability, workspace_id::UnitId};
+
+    #[test]
+    fn native_scope_uses_node_and_selection_generation_not_shared_or_long_art_id() {
+        let raw = serde_json::json!({
+            "id": "art".repeat(200),
+            "inputs": [{"name": "input_path", "type": "image"}]
+        });
+        let capability = Capability::new(&raw).unwrap();
+        let parameters = Params::new(&[], &[]).unwrap();
+        let capture = || {
+            Installation::native()
+                .capture(&capability, &["input_path"], &parameters, &[])
+                .unwrap()
+        };
+        let mut first = capture();
+        assert!(
+            first.scope_id.is_none(),
+            "no binding must not fabricate an Art scope"
+        );
+        let node_a = UnitId::parse("node-a").unwrap();
+        let node_b = UnitId::parse("node-b").unwrap();
+        let binding_a = UnitId::parse("binding-a").unwrap();
+        let binding_b = UnitId::parse("binding-b").unwrap();
+        first.bind_scope(&node_a, &binding_a);
+        let mut second = capture();
+        second.bind_scope(&node_b, &binding_a);
+        assert_ne!(
+            first.scope_id, second.scope_id,
+            "same Art on different nodes is isolated"
+        );
+        second.bind_scope(&node_a, &binding_b);
+        assert_ne!(
+            first.scope_id, second.scope_id,
+            "new owner generation is isolated"
+        );
+        second.bind_scope(&node_a, &binding_a);
+        assert_eq!(first.scope_id, second.scope_id);
+        let longest = UnitId::parse(&"n".repeat(256)).unwrap();
+        second.bind_scope(&longest, &longest);
+        assert!(second.scope_id.as_ref().unwrap().len() <= 1024);
     }
 }

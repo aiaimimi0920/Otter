@@ -5,6 +5,38 @@ use crate::{
 };
 use windows::{core::Result, Win32::Graphics::Direct2D::*};
 
+pub(super) unsafe fn cached(
+    target: &ID2D1RenderTarget,
+    stroke: &Stroke,
+    cache: &mut super::effect_cache::annotation_cache::Cache,
+) -> Result<Option<ID2D1StrokeStyle>> {
+    let freehand = matches!(
+        stroke.tool,
+        Tool::Brush | Tool::Highlighter | Tool::Polyline
+    );
+    let pattern = if matches!(stroke.tool, Tool::Highlighter | Tool::Polyline) {
+        DashPattern::Solid
+    } else {
+        stroke.dash
+    };
+    let linear = matches!(stroke.tool, Tool::Line | Tool::Arrow);
+    if stroke.width <= 0.0
+        || !stroke.width.is_finite()
+        || (pattern == DashPattern::Solid && !freehand && !linear)
+        || stroke.tool == Tool::Pan
+    {
+        return Ok(None);
+    }
+    let kind = if freehand {
+        1
+    } else if linear {
+        2
+    } else {
+        0
+    };
+    cache.stroke_style(kind, pattern, stroke.width, || create(target, stroke))
+}
+
 pub(super) unsafe fn create(
     target: &ID2D1RenderTarget,
     stroke: &Stroke,

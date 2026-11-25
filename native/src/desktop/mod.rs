@@ -72,10 +72,13 @@ mod composition_software_transition_tests;
 mod configuration_stamp;
 mod context_menu;
 mod copy_job;
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 mod copy_smoke;
 mod crop_apply;
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 mod crop_effect_smoke;
 mod crop_input;
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 mod crop_smoke;
 mod crop_window;
 mod device_authorization_ui;
@@ -86,6 +89,7 @@ mod display_frame;
 mod display_snapshot;
 mod document_state;
 mod document_window;
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 mod document_window_smoke;
 mod drag_input;
 pub mod drag_prepare;
@@ -126,8 +130,10 @@ mod extension_shortcuts;
 mod extension_visuals;
 mod file_dialog;
 mod file_drop;
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 mod file_drop_smoke;
 mod flip_input;
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 mod flip_smoke;
 mod frame_style_draw;
 mod global_capture;
@@ -162,6 +168,7 @@ pub mod loom_output_inline;
 pub mod loom_output_shared;
 pub mod loom_result_state;
 mod marquee;
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 mod marquee_smoke;
 mod menu_transition;
 mod modal_scope;
@@ -240,6 +247,7 @@ mod shader_recipe_cache;
 mod shape_dialog;
 mod smoke_timing;
 pub mod software_surface;
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 mod startup_smoke;
 mod sticker_input;
 mod sticker_propagation;
@@ -301,6 +309,8 @@ mod capture_history_ui;
 mod frozen_library_ui;
 #[path = "reference_ui.rs"]
 mod reference_ui;
+#[path = "workspace_profile.rs"]
+mod workspace_profile;
 pub(super) struct State {
     live_pin: Cell<bool>,
     live_resume: Cell<bool>,
@@ -420,87 +430,4 @@ pub(super) struct State {
     hit_region: RefCell<hit_region::HitRegion>,
     priority_anchor: Cell<isize>,
     priority_policy: RefCell<crate::window_priority::PriorityPolicy>,
-}
-
-#[path = "workspace_profile.rs"]
-mod workspace_profile;
-fn run_source(
-    image_path: Option<&Path>,
-    mode: startup_entry::Mode,
-    pinned: bool,
-    capture: bool,
-    region: bool,
-    session: Option<SessionStartup>,
-    startup: Startup<'_>,
-) -> Result<()> {
-    let smoke = mode == startup_entry::Mode::Smoke;
-    let workspace_check = mode == startup_entry::Mode::WorkspaceCheck;
-    // 在截图、建窗、热键注册前完成显式配置读取；失败不降级成默认设置。
-    let (settings, shader) = startup.resolve(
-        smoke,
-        workspace_check || session.as_ref().is_some_and(|session| session.check),
-    )?;
-    let workspace = workspace_profile::resolve(
-        !smoke && image_path.is_none() && !capture && session.is_none(),
-        workspace_check,
-    )
-    .map_err(|error| Error::new(E_FAIL, format!("Cannot open workspace profile: {error}")))?;
-    if smoke {
-        crate::surface_webp_smoke::run()?;
-    }
-    let _apartment = Apartment::new()?;
-    unsafe {
-        SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)?;
-    }
-    let image = if capture {
-        let windows = if region {
-            capture_windows::snapshot()?
-        } else {
-            Vec::new()
-        };
-        let frame = capture::virtual_desktop()?;
-        if region {
-            let Some(image) = capture_region::select(frame.image, frame.origin, windows)? else {
-                return Ok(());
-            };
-            Some(image)
-        } else {
-            Some(frame.image)
-        }
-    } else {
-        image_path.map(image::Image::open).transpose()?
-    };
-    let state = State::new(image, pinned)?;
-    capture_history_ui::record_initial(&state, capture);
-    settings.install(&state)?;
-    // DocumentWindow 将 State 固定在堆上；宿主资源总是在 COM apartment 之前析构。
-    unsafe {
-        let instance = GetModuleHandleW(None)?;
-        let class = WNDCLASSW {
-            style: CS_DBLCLKS,
-            lpfnWndProc: Some(procedure::window_proc),
-            hInstance: instance.into(),
-            lpszClassName: w!("Otter.Native.Workspace"),
-            hCursor: LoadCursorW(None, IDC_ARROW)?,
-            ..Default::default()
-        };
-        if RegisterClassW(&class) == 0 {
-            return Err(Error::from_win32());
-        }
-        let result = startup_entry::run_window(
-            instance.into(),
-            state,
-            smoke,
-            image_path,
-            session,
-            startup_entry::Runtime {
-                settings,
-                shader,
-                workspace,
-                workspace_check,
-            },
-        );
-        let _ = UnregisterClassW(class.lpszClassName, Some(instance.into()));
-        result
-    }
 }

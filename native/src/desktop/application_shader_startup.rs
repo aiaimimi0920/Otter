@@ -1,32 +1,38 @@
 //! 产品启动接入及显式回环冒烟：真实目录握手/首次取码/child/commit，不预填配方缓存。
 use super::*;
+use crate::desktop::shader_prepare::Installation;
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 use crate::desktop::{
     capability_job, capability_selection::Selection, image::Image, loom_result_state::Status,
-    shader_prepare::Installation,
 };
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 use std::{
     rc::Rc,
     thread,
     time::{Duration, Instant},
 };
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 impl Application {
     pub(in crate::desktop) fn install_shader(&mut self, installation: Option<Installation>) {
         self.shader_installation = installation;
     }
 }
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 fn rejected(stage: &str) -> Error {
     Error::new(
         E_FAIL,
         format!("Shader startup application smoke failed: {stage}"),
     )
 }
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 fn modules_absent() -> bool {
     unsafe {
         GetModuleHandleW(w!("libEGL.dll")).is_err()
             && GetModuleHandleW(w!("libGLESv2.dll")).is_err()
     }
 }
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 pub(super) unsafe fn smoke(
     instance: HINSTANCE,
     loaded: crate::desktop::startup_entry::shader::Loaded,

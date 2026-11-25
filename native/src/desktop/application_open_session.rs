@@ -2,6 +2,7 @@
 use super::*;
 use std::{os::windows::ffi::OsStringExt, path::PathBuf};
 use windows::Win32::UI::Controls::Dialogs::*;
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 #[path = "application_open_session_smoke.rs"]
 pub(super) mod smoke;
 

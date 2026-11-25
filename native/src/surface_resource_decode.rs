@@ -33,9 +33,13 @@ pub(super) fn decode(resource: VerifiedResource, lease: &Lease) -> Result<Decode
         .map_err(|error| Error::Decode(error.code().0))?;
     let _apartment = Apartment;
     // WIC 调用本身不可强制中断；取消在调用前后检查，RGBA 转换逐行检查。
-    let decoded = Image::from_surface_sized(&bytes, request.mime(), request.dimensions(), || {
-        lease.is_revoked()
-    });
+    let decoded = Image::from_surface_sized_scoped(
+        Some(request.binding().origin()),
+        &bytes,
+        request.mime(),
+        request.dimensions(),
+        || lease.is_revoked(),
+    );
     validate()?;
     let (image, logical_size) = decoded.map_err(|error| Error::Decode(error.code().0))?;
     Ok(Decoded {
@@ -66,7 +70,13 @@ pub(super) fn inline(
     unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED).ok() }
         .map_err(|e| Error::Decode(e.code().0))?;
     let _apartment = Apartment;
-    let image = Image::from_surface_sized(&bytes, request.mime(), None, || lease.is_revoked());
+    let image = Image::from_surface_sized_scoped(
+        Some(request.binding().origin()),
+        &bytes,
+        request.mime(),
+        None,
+        || lease.is_revoked(),
+    );
     validate()?;
     let (image, logical_size) = image.map_err(|e| Error::Decode(e.code().0))?;
     Ok(Decoded {

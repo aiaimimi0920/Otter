@@ -85,25 +85,36 @@ pub(super) unsafe fn geometry(
     Ok(path)
 }
 
-pub(super) unsafe fn draw(
+pub(super) unsafe fn draw_cached(
     target: &ID2D1RenderTarget,
     brush: &ID2D1SolidColorBrush,
     stroke: &Stroke,
     viewport: Viewport,
+    cacheable: bool,
+    cache: &mut super::effect_cache::annotation_cache::Cache,
 ) -> Result<()> {
     let crate::stroke_style::Color(r, g, b) = stroke.color;
-    for (scale, alpha) in bands(stroke.opacity * stroke.paint_alpha.stroke()) {
-        if alpha <= 0.0 {
-            continue;
+    let factory = target.GetFactory()?;
+    let prepared = cache.paintbrush_bands(cacheable, stroke, viewport.scale, |local| {
+        let mut list = Vec::new();
+        for (scale, alpha) in bands(stroke.opacity * stroke.paint_alpha.stroke()) {
+            if alpha <= 0.0 {
+                continue;
+            }
+            list.push((geometry(&factory, stroke, local, scale)?, alpha));
         }
-        let path = geometry(&target.GetFactory()?, stroke, viewport, scale)?;
-        brush.SetColor(&D2D1_COLOR_F {
-            r: r as f32 / 255.0,
-            g: g as f32 / 255.0,
-            b: b as f32 / 255.0,
-            a: alpha,
-        });
-        target.FillGeometry(&path, brush, None);
-    }
+        Ok(list)
+    })?;
+    super::effect_cache::annotation_cache::with_origin(target, viewport.origin, |target| {
+        for (path, alpha) in &prepared {
+            brush.SetColor(&D2D1_COLOR_F {
+                r: r as f32 / 255.0,
+                g: g as f32 / 255.0,
+                b: b as f32 / 255.0,
+                a: *alpha,
+            });
+            target.FillGeometry(path, brush, None);
+        }
+    });
     Ok(())
 }

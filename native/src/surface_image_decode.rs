@@ -15,7 +15,29 @@ impl Image {
         dimensions: Option<(u32, u32)>,
         stopped: impl Fn() -> bool,
     ) -> Result<(Self, [f32; 2])> {
+        Self::from_surface_sized_scoped(None, bytes, mime, dimensions, stopped)
+    }
+    pub(crate) fn from_surface_sized_scoped(
+        scope: Option<&str>,
+        bytes: &[u8],
+        mime: &str,
+        dimensions: Option<(u32, u32)>,
+        stopped: impl Fn() -> bool,
+    ) -> Result<(Self, [f32; 2])> {
+        // 池键的容量只是优化准入，不得缩窄原有 inline 图像解码合同。
+        let scope =
+            scope.filter(|s| !s.is_empty() && s.len() <= 512 && !s.chars().any(char::is_control));
         if crate::surface_image_format::svg(mime) {
+            if let Some(origin) = scope {
+                return crate::surface_image_worker_session::decode_scoped(
+                    origin,
+                    bytes,
+                    crate::surface_image_worker_wire::Codec::Svg,
+                    None,
+                    &stopped,
+                )
+                .map_err(|e| Error::new(E_INVALIDARG, format!("Surface SVG decode: {e}")));
+            }
             return worker_client::run_sized(
                 bytes,
                 crate::surface_image_worker_wire::Codec::Svg,
@@ -26,6 +48,24 @@ impl Image {
                 },
             )
             .map_err(|e| Error::new(E_INVALIDARG, format!("Surface SVG decode: {e}")));
+        }
+        if let Some(origin) = scope {
+            if bytes.len() <= 16 * 1024 * 1024
+                && !bytes.is_empty()
+                && mime != "application/x-neuro-rgba8"
+                && crate::surface_image_format::encoded_mime(bytes, mime) == Some("image/webp")
+            {
+                let (width, height) = crate::surface_webp_header::inspect(bytes)
+                    .map_err(|e| Error::new(E_INVALIDARG, format!("Surface WebP decode: {e}")))?;
+                return crate::surface_image_worker_session::decode_scoped(
+                    origin,
+                    bytes,
+                    crate::surface_image_worker_wire::Codec::WebP,
+                    Some((width, height)),
+                    &stopped,
+                )
+                .map_err(|e| Error::new(E_INVALIDARG, format!("Surface WebP decode: {e}")));
+            }
         }
         Self::from_surface(bytes, mime, dimensions, stopped).map(|image| {
             let size = [image.width as f32, image.height as f32];

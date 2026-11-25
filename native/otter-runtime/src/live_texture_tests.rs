@@ -214,3 +214,102 @@ fn absent_demand_cancellation_and_cross_device_are_rejected() {
         assert!(bytes(&desc).is_err());
     }
 }
+#[test]
+fn session_pool_reuses_retired_textures_without_aliasing_active_consumers() {
+    unsafe {
+        let (context, source) = fixture();
+        let pool = pool::Pool::new();
+        let budget = crate::byte_budget::Budget::new(64);
+        let held = pool
+            .snapshot_with_budget(&context, &source, &budget)
+            .unwrap();
+        let held_raw = held.texture().as_raw();
+        let second = pool
+            .snapshot_with_budget(&context, &source, &budget)
+            .unwrap();
+        let second_raw = second.texture().as_raw();
+        assert_ne!(held_raw, second_raw);
+        assert_eq!(budget.used(), 64);
+        assert!(matches!(
+            pool.snapshot_with_budget(&context, &source, &budget),
+            Err(Error::Budget)
+        ));
+        drop(second);
+        assert_eq!(pool.idle_len(), 1);
+        assert_eq!(budget.used(), 64, "idle texture keeps its allocation lease");
+        let reused = pool
+            .snapshot_with_budget(&context, &source, &budget)
+            .unwrap();
+        assert_eq!(reused.texture().as_raw(), second_raw);
+        assert_ne!(reused.texture().as_raw(), held_raw);
+        assert_eq!(budget.used(), 64, "reuse does not reserve a second lease");
+        drop(reused);
+        assert_eq!(pool.idle_len(), 1);
+        pool.close();
+        assert_eq!(pool.idle_len(), 0);
+        assert_eq!(budget.used(), 32, "close releases idle, not active frames");
+        drop(held);
+        assert_eq!(budget.used(), 0);
+        assert_eq!(pool.idle_len(), 0);
+    }
+}
+
+#[test]
+fn session_pool_layout_change_releases_idle_and_rejects_retired_old_layout() {
+    unsafe {
+        let (context, source) = fixture();
+        let pool = pool::Pool::new();
+        let budget = crate::byte_budget::Budget::new(64);
+        let held = pool
+            .snapshot_with_budget(&context, &source, &budget)
+            .unwrap();
+        drop(
+            pool.snapshot_with_budget(&context, &source, &budget)
+                .unwrap(),
+        );
+        assert_eq!(budget.used(), 64);
+        let mut desc = D3D11_TEXTURE2D_DESC::default();
+        source.GetDesc(&mut desc);
+        desc.Width = 1;
+        let mut resized = None;
+        source
+            .GetDevice()
+            .unwrap()
+            .CreateTexture2D(&desc, None, Some(&mut resized))
+            .unwrap();
+        let next = pool
+            .snapshot_with_budget(&context, &resized.unwrap(), &budget)
+            .unwrap();
+        assert_eq!(budget.used(), 48, "old idle is released before admission");
+        assert_eq!(pool.idle_len(), 0);
+        drop(held);
+        assert_eq!(budget.used(), 16);
+        assert_eq!(pool.idle_len(), 0, "old active layout cannot reenter idle");
+        drop(next);
+        assert_eq!(pool.idle_len(), 1);
+        assert_eq!(budget.used(), 16);
+        drop(pool);
+        assert_eq!(budget.used(), 0);
+    }
+}
+
+#[test]
+fn session_pool_idle_capacity_releases_excess_allocations() {
+    unsafe {
+        let (context, source) = fixture();
+        let pool = pool::Pool::new();
+        let budget = crate::byte_budget::Budget::new(160);
+        let frames = (0..5)
+            .map(|_| {
+                pool.snapshot_with_budget(&context, &source, &budget)
+                    .unwrap()
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(budget.used(), 160);
+        drop(frames);
+        assert_eq!(pool.idle_len(), 4);
+        assert_eq!(budget.used(), 128);
+        pool.close();
+        assert_eq!(budget.used(), 0);
+    }
+}

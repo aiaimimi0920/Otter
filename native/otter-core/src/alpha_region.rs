@@ -68,24 +68,52 @@ fn scan(
     coarse: bool,
     cancelled: &impl Fn() -> bool,
 ) -> Option<Vec<Rect>> {
+    let w = width as usize;
+    let stride = w * 4;
     let mut rectangles: Vec<Rect> = Vec::new();
+    // 3×3 膨胀可分离：惰性维护三行水平膨胀位缓存；全不透明行直接整行合并，零邻域访存。
+    let mut rows = [Vec::<u8>::new(), Vec::<u8>::new(), Vec::<u8>::new()];
+    let mut cached_y = [u32::MAX; 3];
+    let mut raw = Vec::<u8>::new();
     for y in 0..height {
         if cancelled() {
             return None;
         }
+        let row_pixels = &pixels[y as usize * stride..(y as usize + 1) * stride];
+        if row_pixels.chunks_exact(4).all(|p| p[3] != 0) {
+            push_run(&mut rectangles, 0, y, width);
+            continue;
+        }
+        for r in y.saturating_sub(1)..=(y + 1).min(height - 1) {
+            let slot = (r % 3) as usize;
+            if cached_y[slot] != r {
+                fill_dilated_row(
+                    w,
+                    &pixels[r as usize * stride..(r as usize + 1) * stride],
+                    annotations.map(|layer| &layer[r as usize * stride..(r as usize + 1) * stride]),
+                    &mut raw,
+                    &mut rows[slot],
+                );
+                cached_y[slot] = r;
+            }
+        }
+        let s0 = (y.saturating_sub(1) % 3) as usize;
+        let s1 = (y % 3) as usize;
+        let s2 = ((y + 1).min(height - 1) % 3) as usize;
         let mut start = None;
         let mut first = None;
         let mut last = 0;
-        for x in 0..width {
-            let filled = occupied(width, height, pixels, annotations, x, y);
+        for x in 0..w {
+            let filled = (rows[s0][x] | rows[s1][x] | rows[s2][x]) != 0;
+            let xu = x as u32;
             if filled {
-                start.get_or_insert(x);
-                first.get_or_insert(x);
-                last = x + 1;
+                start.get_or_insert(xu);
+                first.get_or_insert(xu);
+                last = xu + 1;
             }
-            if !coarse && (!filled || x + 1 == width) {
+            if !coarse && (!filled || xu + 1 == width) {
                 if let Some(left) = start.take() {
-                    push_run(&mut rectangles, left, y, if filled { x + 1 } else { x });
+                    push_run(&mut rectangles, left, y, if filled { xu + 1 } else { xu });
                     if rectangles.len() > MAX_RUNS {
                         return None;
                     }
@@ -105,6 +133,42 @@ fn scan(
     }
 }
 
+fn fill_dilated_row(
+    width: usize,
+    pixels: &[u8],
+    annotations: Option<&[u8]>,
+    raw: &mut Vec<u8>,
+    out: &mut Vec<u8>,
+) {
+    raw.resize(width, 0);
+    out.resize(width, 0);
+    match annotations {
+        Some(layer) => {
+            for ((dst, p), a) in raw
+                .iter_mut()
+                .zip(pixels.chunks_exact(4))
+                .zip(layer.chunks_exact(4))
+            {
+                *dst = u8::from((p[3] | a[3]) != 0);
+            }
+        }
+        None => {
+            for (dst, p) in raw.iter_mut().zip(pixels.chunks_exact(4)) {
+                *dst = u8::from(p[3] != 0);
+            }
+        }
+    }
+    if width == 1 {
+        out[0] = raw[0];
+        return;
+    }
+    out[0] = raw[0] | raw[1];
+    for x in 1..width - 1 {
+        out[x] = raw[x - 1] | raw[x] | raw[x + 1];
+    }
+    out[width - 1] = raw[width - 2] | raw[width - 1];
+}
+
 fn push_run(rectangles: &mut Vec<Rect>, left: u32, y: u32, right: u32) {
     if let Some(last) = rectangles.last_mut() {
         if last.left == left as i32 && last.right == right as i32 && last.bottom == y as i32 {
@@ -118,25 +182,6 @@ fn push_run(rectangles: &mut Vec<Rect>, left: u32, y: u32, right: u32) {
         right: right as i32,
         bottom: y as i32 + 1,
     });
-}
-
-fn occupied(
-    width: u32,
-    height: u32,
-    pixels: &[u8],
-    annotations: Option<&[u8]>,
-    x: u32,
-    y: u32,
-) -> bool {
-    for row in y.saturating_sub(1)..=(y + 1).min(height - 1) {
-        for column in x.saturating_sub(1)..=(x + 1).min(width - 1) {
-            let alpha = ((row * width + column) * 4 + 3) as usize;
-            if pixels[alpha] != 0 || annotations.is_some_and(|layer| layer[alpha] != 0) {
-                return true;
-            }
-        }
-    }
-    false
 }
 
 #[cfg(test)]

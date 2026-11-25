@@ -1,7 +1,11 @@
 //! 保存准备结果继续持有 UI Receipt；临时文件写完后、最终提交前再次核对。
 use super::*;
-use crate::{session_file_write::Staged, session_write::Candidate};
-use std::{path::PathBuf, sync::atomic::AtomicBool};
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
+use crate::session_file_write::Staged;
+use crate::session_write::Candidate;
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
+use std::path::PathBuf;
+use std::sync::atomic::AtomicBool;
 
 pub(in crate::desktop) struct Prepared {
     pub(super) checkpoint_accounts: Option<crate::projection_account::scene::Index>,
@@ -16,10 +20,12 @@ pub(in crate::desktop) struct Prepared {
     pub(super) receipt: save_snapshot::Receipt,
 }
 impl Prepared {
+    #[cfg(any(test, debug_assertions, feature = "smoke-test"))]
     unsafe fn current(&self, app: &Application, staged: &Staged) -> bool {
         staged.is_for(&self.candidate) && self.receipt.matches(app)
     }
     /// UI 线程不得在校验与 rename 之间泵消息；成功后同步交换基线，失败不改旧记录。
+    #[cfg(any(test, debug_assertions, feature = "smoke-test"))]
     pub(super) unsafe fn commit_new(
         self,
         app: &mut Application,
@@ -104,6 +110,7 @@ impl Prepared {
     }
 }
 
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 pub(super) unsafe fn verify(
     app: &mut Application,
     mut prepared: Prepared,
@@ -197,6 +204,7 @@ pub(super) unsafe fn verify(
 }
 
 /// 实际走提交失败分支，而不只测试 current；目标仅为上方生成的独占路径。
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 unsafe fn verify_failed_commits(
     app: &mut Application,
     candidate: &Candidate,

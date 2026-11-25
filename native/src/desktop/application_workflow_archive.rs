@@ -1,4 +1,5 @@
 //! 归档的 UI 提交边界：后台只暂存，复核 Receipt 后才能替换磁盘和保存基线。
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 #[path = "application_workflow_archive_smoke.rs"]
 pub(in crate::desktop::application) mod smoke;
 use super::*;

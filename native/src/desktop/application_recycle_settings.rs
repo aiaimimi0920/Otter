@@ -3,6 +3,7 @@ use super::*;
 use crate::session_library::recycle::policy::Policy;
 #[path = "recycle_dialog.rs"]
 mod dialog;
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 #[path = "application_recycle_settings_smoke.rs"]
 pub(in crate::desktop::application) mod smoke;
 impl Application {

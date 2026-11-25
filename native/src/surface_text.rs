@@ -41,9 +41,21 @@ pub struct Style<'a> {
     pub align: Align,
     pub line_height: Option<f32>,
 }
+const MAX_CACHED_FORMATS: usize = 64;
+
+#[derive(Clone, PartialEq, Eq)]
+struct FormatKey {
+    family: String,
+    size_bits: u32,
+    weight: u16,
+    no_wrap: bool,
+    align: u8,
+}
+
 pub struct Engine {
     factory: IDWriteFactory,
     families: std::cell::RefCell<families::Families>,
+    formats: std::cell::RefCell<std::collections::VecDeque<(FormatKey, IDWriteTextFormat)>>,
 }
 #[derive(Clone)]
 pub struct Layout {
@@ -97,6 +109,7 @@ impl Engine {
         Ok(Self {
             factory: unsafe { DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED)? },
             families: Default::default(),
+            formats: Default::default(),
         })
     }
     /// 返回已安装的单一 native family，供文字和原生字段共用；缓存随 Engine 释放。
@@ -124,27 +137,56 @@ impl Engine {
         }
         let text = content(text, style.whitespace)?;
         unsafe {
-            let format = self.factory.CreateTextFormat(
-                &HSTRING::from(style.family),
-                None,
-                DWRITE_FONT_WEIGHT(i32::from(style.weight)),
-                DWRITE_FONT_STYLE_NORMAL,
-                DWRITE_FONT_STRETCH_NORMAL,
-                style.size,
-                w!("zh-CN"),
-            )?;
-            format.SetWordWrapping(
-                if matches!(style.whitespace, Whitespace::Nowrap | Whitespace::Pre) {
+            let no_wrap = matches!(style.whitespace, Whitespace::Nowrap | Whitespace::Pre);
+            let align_code = match style.align {
+                Align::Start => 0,
+                Align::Center => 1,
+                Align::End => 2,
+            };
+            let key = FormatKey {
+                family: style.family.to_owned(),
+                size_bits: style.size.to_bits(),
+                weight: style.weight,
+                no_wrap,
+                align: align_code,
+            };
+            let format = if let Some(hit) = {
+                let mut cache = self.formats.borrow_mut();
+                cache.iter().position(|(k, _)| k == &key).map(|idx| {
+                    let entry = cache.remove(idx).unwrap();
+                    let fmt = entry.1.clone();
+                    cache.push_back(entry);
+                    fmt
+                })
+            } {
+                hit
+            } else {
+                let created = self.factory.CreateTextFormat(
+                    &HSTRING::from(style.family),
+                    None,
+                    DWRITE_FONT_WEIGHT(i32::from(style.weight)),
+                    DWRITE_FONT_STYLE_NORMAL,
+                    DWRITE_FONT_STRETCH_NORMAL,
+                    style.size,
+                    w!("zh-CN"),
+                )?;
+                created.SetWordWrapping(if no_wrap {
                     DWRITE_WORD_WRAPPING_NO_WRAP
                 } else {
                     DWRITE_WORD_WRAPPING_WRAP
-                },
-            )?;
-            format.SetTextAlignment(match style.align {
-                Align::Start => DWRITE_TEXT_ALIGNMENT_LEADING,
-                Align::Center => DWRITE_TEXT_ALIGNMENT_CENTER,
-                Align::End => DWRITE_TEXT_ALIGNMENT_TRAILING,
-            })?;
+                })?;
+                created.SetTextAlignment(match style.align {
+                    Align::Start => DWRITE_TEXT_ALIGNMENT_LEADING,
+                    Align::Center => DWRITE_TEXT_ALIGNMENT_CENTER,
+                    Align::End => DWRITE_TEXT_ALIGNMENT_TRAILING,
+                })?;
+                let mut cache = self.formats.borrow_mut();
+                while cache.len() >= MAX_CACHED_FORMATS {
+                    cache.pop_front();
+                }
+                cache.push_back((key, created.clone()));
+                created
+            };
             let native = self
                 .factory
                 .CreateTextLayout(&text, &format, width, height)?;

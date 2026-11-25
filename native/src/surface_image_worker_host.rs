@@ -18,6 +18,24 @@ pub fn require_limits() -> io::Result<()> {
     crate::bounded_worker_process::require_limits(128 * 1024 * 1024)
 }
 
+const MAX_SESSION_IMAGES: usize = 32;
+// 正常 4s idle 由父侧从完整响应后计时；子侧提前进入等待，只作更长失联兜底。
+const SESSION_IDLE: Duration = Duration::from_secs(30);
+
+struct HeaderReader<R> {
+    inner: R,
+    started: bool,
+}
+impl<R: Read> Read for HeaderReader<R> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let count = self.inner.read(buf)?;
+        if count > 0 {
+            self.started = true;
+        }
+        Ok(count)
+    }
+}
+
 pub fn run(decode: impl FnOnce(&[u8]) -> io::Result<Decoded>) -> io::Result<()> {
     run_for(wire::Codec::WebP, decode)
 }
@@ -35,6 +53,42 @@ pub fn run_for(
     channel.read_exact(&mut bytes)?;
     let image = decode(&bytes)?;
     write_frame_for(codec, &mut channel, &image)
+}
+
+pub fn run_session_for(
+    codec: wire::Codec,
+    mut decode: impl FnMut(&[u8]) -> io::Result<Decoded>,
+) -> io::Result<()> {
+    require_limits()?;
+    let mut pipe = Pipe::adopt(std::io::stdin().as_handle().try_clone_to_owned()?)?;
+    for _ in 0..MAX_SESSION_IMAGES {
+        let mut header = [0u8; 8];
+        {
+            let mut idle = HeaderReader {
+                inner: pipe.io(Some(Instant::now() + SESSION_IDLE), None),
+                started: false,
+            };
+            match idle.read_exact(&mut header) {
+                Ok(()) => {}
+                Err(error)
+                    if !idle.started
+                        && crate::bounded_worker_process::session::idle_end(&error) =>
+                {
+                    return Ok(())
+                }
+                Err(error) => return Err(error),
+            }
+        }
+        let deadline = Instant::now() + Duration::from_secs(15);
+        let mut channel = pipe.io(Some(deadline), None);
+        let length = wire::request_for(codec, &header)?;
+        let mut bytes = zeroize::Zeroizing::new(vec![0; length]);
+        channel.read_exact(&mut bytes)?;
+        let image = decode(&bytes)?;
+        write_frame_for(codec, &mut channel, &image)?;
+        channel.flush()?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]

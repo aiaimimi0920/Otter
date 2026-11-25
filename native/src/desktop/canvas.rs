@@ -78,6 +78,7 @@ pub struct Canvas {
     compatibility_renderer: bool,
     software_renderer: bool,
     pub(super) factory: ID2D1Factory,
+    _shared_factory: std::rc::Rc<ID2D1Factory>,
     pub image: Option<Image>,
     capture_source: Option<(crate::editor::DocumentStamp, CaptureSource)>,
     pub(super) blur_ready: Option<(
@@ -137,9 +138,28 @@ pub struct Canvas {
     pub(super) tool_profiles: crate::tool_profiles::ToolProfiles,
 }
 
+thread_local! {
+    static CANVAS_FACTORY: std::cell::RefCell<std::rc::Weak<ID2D1Factory>> =
+        const { std::cell::RefCell::new(std::rc::Weak::new()) };
+}
+
+fn acquire_canvas_factory() -> Result<std::rc::Rc<ID2D1Factory>> {
+    CANVAS_FACTORY.with(|slot| {
+        if let Some(existing) = slot.borrow().upgrade() {
+            return Ok(existing);
+        }
+        let created = std::rc::Rc::new(super::smoke_timing::run("canvas-factory", || unsafe {
+            D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, None)
+        })?);
+        *slot.borrow_mut() = std::rc::Rc::downgrade(&created);
+        Ok(created)
+    })
+}
+
 impl Canvas {
     pub fn new(image: Option<Image>) -> Result<Self> {
         let editor = raster::editor(image.as_ref())?;
+        let shared_factory = acquire_canvas_factory()?;
         Ok(Self {
             live_pin: false,
             target: None,
@@ -147,9 +167,8 @@ impl Canvas {
             recovery: Default::default(),
             compatibility_renderer: false,
             software_renderer: false,
-            factory: super::smoke_timing::run("canvas-factory", || unsafe {
-                D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, None)
-            })?,
+            factory: (*shared_factory).clone(),
+            _shared_factory: shared_factory,
             image,
             capture_source: None,
             blur_ready: None,

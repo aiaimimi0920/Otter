@@ -8,17 +8,15 @@ use windows::{
     Win32::Graphics::Direct2D::{Common::*, *},
 };
 
-pub(super) unsafe fn draw(
+pub(super) unsafe fn draw_cached(
     target: &ID2D1RenderTarget,
     brush: &ID2D1Brush,
     stroke: &Stroke,
     viewport: Viewport,
     style: Option<&ID2D1StrokeStyle>,
+    cacheable: bool,
+    cache: &mut super::effect_cache::annotation_cache::Cache,
 ) -> Result<()> {
-    let convert = |p: Point| D2D_POINT_2F {
-        x: viewport.origin.x + p.x * viewport.scale,
-        y: viewport.origin.y + p.y * viewport.scale,
-    };
     let Some(&first) = stroke.points.first() else {
         return Ok(());
     };
@@ -26,7 +24,10 @@ pub(super) unsafe fn draw(
     if stroke.points.len() == 1 {
         target.FillEllipse(
             &D2D1_ELLIPSE {
-                point: convert(first),
+                point: D2D_POINT_2F {
+                    x: viewport.origin.x + first.x * viewport.scale,
+                    y: viewport.origin.y + first.y * viewport.scale,
+                },
                 radiusX: width / 2.0,
                 radiusY: width / 2.0,
             },
@@ -34,14 +35,32 @@ pub(super) unsafe fn draw(
         );
         return Ok(());
     }
-    let geometry = target.GetFactory()?.CreatePathGeometry()?;
+    let factory = target.GetFactory()?;
+    let geometry = cache.single_path(cacheable, stroke, viewport.scale, |local| {
+        build_geometry(&factory, stroke, local)
+    })?;
+    super::effect_cache::annotation_cache::with_origin(target, viewport.origin, |target| {
+        target.DrawGeometry(&geometry, brush, width, style);
+    });
+    Ok(())
+}
+
+unsafe fn build_geometry(
+    factory: &ID2D1Factory,
+    stroke: &Stroke,
+    viewport: Viewport,
+) -> Result<ID2D1PathGeometry> {
+    let convert = |p: Point| D2D_POINT_2F {
+        x: viewport.origin.x + p.x * viewport.scale,
+        y: viewport.origin.y + p.y * viewport.scale,
+    };
+    let geometry = factory.CreatePathGeometry()?;
     let sink = geometry.Open()?;
-    sink.BeginFigure(convert(first), D2D1_FIGURE_BEGIN_HOLLOW);
+    sink.BeginFigure(convert(stroke.points[0]), D2D1_FIGURE_BEGIN_HOLLOW);
     for &point in &stroke.points[1..] {
         sink.AddLine(convert(point));
     }
     sink.EndFigure(D2D1_FIGURE_END_OPEN);
     sink.Close()?;
-    target.DrawGeometry(&geometry, brush, width, style);
-    Ok(())
+    Ok(geometry)
 }

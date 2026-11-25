@@ -32,6 +32,7 @@ pub(super) unsafe fn run_window(
     let hidden_check = workspace_check || session.as_ref().is_some_and(|session| session.check);
     // 托盘/热键宿主始终隐藏创建；只在恢复完成后显示真实内容，避免空面板闪现。
     let document = document_window::DocumentWindow::create(instance, state, false)?;
+    #[cfg(any(debug_assertions, feature = "smoke-test"))]
     let document = if smoke {
         document.smoke_relocation()?
     } else {
@@ -43,9 +44,12 @@ pub(super) unsafe fn run_window(
     if !smoke && !hidden_check {
         document.observe_priority()?;
     }
+    #[cfg(any(debug_assertions, feature = "smoke-test"))]
     if smoke {
         return startup_smoke::run(instance, &document, image_path, &settings, shader);
     }
+    #[cfg(not(any(debug_assertions, feature = "smoke-test")))]
+    let _ = image_path;
     let mut app = application::Application::new(instance, document);
     if !hidden_check {
         app.install_capture_history()?;
@@ -170,5 +174,94 @@ impl Startup<'_> {
             }),
             self,
         )
+    }
+}
+
+fn run_source(
+    image_path: Option<&Path>,
+    mode: Mode,
+    pinned: bool,
+    capture: bool,
+    region: bool,
+    session: Option<SessionStartup>,
+    startup: Startup<'_>,
+) -> Result<()> {
+    let smoke = mode == Mode::Smoke;
+    #[cfg(not(any(debug_assertions, feature = "smoke-test")))]
+    if smoke {
+        return Err(Error::new(
+            E_INVALIDARG,
+            "--smoke-test is disabled in release builds",
+        ));
+    }
+    let workspace_check = mode == Mode::WorkspaceCheck;
+    // 在截图、建窗、热键注册前完成显式配置读取；失败不降级成默认设置。
+    let (settings, shader) = startup.resolve(
+        smoke,
+        workspace_check || session.as_ref().is_some_and(|session| session.check),
+    )?;
+    let workspace = workspace_profile::resolve(
+        !smoke && image_path.is_none() && !capture && session.is_none(),
+        workspace_check,
+    )
+    .map_err(|error| Error::new(E_FAIL, format!("Cannot open workspace profile: {error}")))?;
+    #[cfg(any(debug_assertions, feature = "smoke-test"))]
+    if smoke {
+        crate::surface_webp_smoke::run()?;
+    }
+    let _apartment = Apartment::new()?;
+    unsafe {
+        SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)?;
+    }
+    let image = if capture {
+        let windows = if region {
+            capture_windows::snapshot()?
+        } else {
+            Vec::new()
+        };
+        let frame = capture::virtual_desktop()?;
+        if region {
+            let Some(image) = capture_region::select(frame.image, frame.origin, windows)? else {
+                return Ok(());
+            };
+            Some(image)
+        } else {
+            Some(frame.image)
+        }
+    } else {
+        image_path.map(image::Image::open).transpose()?
+    };
+    let state = State::new(image, pinned)?;
+    capture_history_ui::record_initial(&state, capture);
+    settings.install(&state)?;
+    // DocumentWindow 将 State 固定在堆上；宿主资源总是在 COM apartment 之前析构。
+    unsafe {
+        let instance = GetModuleHandleW(None)?;
+        let class = WNDCLASSW {
+            style: CS_DBLCLKS,
+            lpfnWndProc: Some(procedure::window_proc),
+            hInstance: instance.into(),
+            lpszClassName: w!("Otter.Native.Workspace"),
+            hCursor: LoadCursorW(None, IDC_ARROW)?,
+            ..Default::default()
+        };
+        if RegisterClassW(&class) == 0 {
+            return Err(Error::from_win32());
+        }
+        let result = run_window(
+            instance.into(),
+            state,
+            smoke,
+            image_path,
+            session,
+            Runtime {
+                settings,
+                shader,
+                workspace,
+                workspace_check,
+            },
+        );
+        let _ = UnregisterClassW(class.lpszClassName, Some(instance.into()));
+        result
     }
 }

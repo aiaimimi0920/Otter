@@ -9,22 +9,29 @@ use windows::{
     Win32::Graphics::Direct2D::{Common::*, *},
 };
 
-pub(super) unsafe fn draw(
+pub(super) unsafe fn draw_cached(
     target: &ID2D1RenderTarget,
     brush: &ID2D1SolidColorBrush,
     stroke: &Stroke,
     viewport: Viewport,
     dash: Option<&ID2D1StrokeStyle>,
+    cacheable: bool,
+    cache: &mut super::effect_cache::annotation_cache::Cache,
 ) -> Result<()> {
-    let geometry = geometry(&target.GetFactory()?, stroke, viewport)?;
-    if let Some(fill) = stroke.fill {
-        super::annotation_shapes::set_color(brush, fill, stroke.paint_alpha.fill());
-        target.FillGeometry(&geometry, brush, None);
-    }
-    super::annotation_shapes::set_color(brush, stroke.color, stroke.paint_alpha.stroke());
-    if stroke.visible_outline() {
-        target.DrawGeometry(&geometry, brush, stroke.width * viewport.scale, dash);
-    }
+    let factory = target.GetFactory()?;
+    let geometry = cache.single_path(cacheable, stroke, viewport.scale, |local| {
+        geometry(&factory, stroke, local)
+    })?;
+    super::effect_cache::annotation_cache::with_origin(target, viewport.origin, |target| {
+        if let Some(fill) = stroke.fill {
+            super::annotation_shapes::set_color(brush, fill, stroke.paint_alpha.fill());
+            target.FillGeometry(&geometry, brush, None);
+        }
+        super::annotation_shapes::set_color(brush, stroke.color, stroke.paint_alpha.stroke());
+        if stroke.visible_outline() {
+            target.DrawGeometry(&geometry, brush, stroke.width * viewport.scale, dash);
+        }
+    });
     Ok(())
 }
 

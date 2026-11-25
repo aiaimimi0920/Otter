@@ -48,6 +48,7 @@ impl LiveWindow {
         if self.is_alive() {
             unsafe {
                 menu_status(self.hwnd, &self.state, false, false);
+                wheel::sync(self.hwnd, &self.state);
             }
         }
     }
@@ -72,15 +73,21 @@ impl LiveWindow {
                 super::publication::PUBLISH_OBSERVE as u32,
                 MF_BYCOMMAND | MF_ENABLED,
             );
+            wheel::sync(self.hwnd, &self.state);
         }
         Ok(())
     }
     pub(crate) fn request_default_input(&self) {
-        let mut input = self.state.input.borrow_mut();
-        if input.allowed && !input.remote {
-            input.desired = true;
-            input.pending = true;
-            input.request = Some(true);
+        {
+            let mut input = self.state.input.borrow_mut();
+            if input.allowed && !input.remote {
+                input.desired = true;
+                input.pending = true;
+                input.request = Some(true);
+            }
+        }
+        unsafe {
+            wheel::sync(self.hwnd, &self.state);
         }
     }
     pub(crate) fn take_input_request(&self) -> Option<bool> {
@@ -130,6 +137,7 @@ impl LiveWindow {
         if self.is_alive() {
             unsafe {
                 display_status(self.hwnd, &self.state, enabled, pending);
+                wheel::sync(self.hwnd, &self.state);
             }
         }
     }
@@ -145,6 +153,7 @@ impl LiveWindow {
         if changed && self.is_alive() {
             unsafe {
                 menu_status(self.hwnd, &self.state, false, false);
+                wheel::sync(self.hwnd, &self.state);
                 let _ = SetWindowTextW(self.hwnd, w!("Otter Live · 控制不可用"));
             }
         }
@@ -231,6 +240,7 @@ pub(super) unsafe fn cancel(hwnd: HWND, state: &State) {
     state.popup_focus.borrow_mut().clear();
     state.input.borrow_mut().cancel();
     display_status(hwnd, state, false, false);
+    wheel::sync(hwnd, state);
     if GetCapture() == hwnd {
         let _ = ReleaseCapture();
     }
@@ -316,6 +326,7 @@ pub(super) unsafe fn handle(
                     input.request = Some(true);
                 }
                 display_status(hwnd, state, false, true);
+                wheel::sync(hwnd, state);
             }
         }
         return Some(Ok(()));

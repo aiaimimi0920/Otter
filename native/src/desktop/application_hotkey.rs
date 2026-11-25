@@ -1,7 +1,9 @@
 //! 应用级 Ctrl+1 开关：请求合并，状态共享，系统注册仍由唯一宿主拥有。
 use super::{document_window::DocumentWindow, State};
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 #[path = "application_hotkey_smoke.rs"]
 mod smoke;
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 pub(super) use smoke::run as smoke;
 use windows::{
     core::Result,

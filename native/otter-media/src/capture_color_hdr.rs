@@ -51,18 +51,37 @@ impl ScRgb<'_> {
             return Err(Error::Budget);
         }
         // Decode once: the same RGB supplies light-level metadata and PQ output.
+        // 桌面截图存在大面积连续同色像素；单槽寄存器记忆化可跳过重复 powf 且保持逐比特一致。
+        let row_out = self.width as usize * 6;
         let mut peak = 0.0f32;
         let mut sum = 0.0f64;
+        let mut cached: Option<([u8; 6], [u8; 6], f32)> = None;
         for row in self.rows() {
             check(cancel)?;
-            for pixel in row.chunks_exact(8) {
-                let rgb = rgb(pixel, gain);
-                let light = luminance(rgb);
+            let row_start = bytes.len();
+            bytes.resize(row_start + row_out, 0);
+            let out_row = &mut bytes[row_start..];
+            for (pixel, dst) in row.chunks_exact(8).zip(out_row.chunks_exact_mut(6)) {
+                let key = [pixel[0], pixel[1], pixel[2], pixel[3], pixel[4], pixel[5]];
+                let (encoded, light) = match cached {
+                    Some((prev_key, prev_encoded, prev_light)) if prev_key == key => {
+                        (prev_encoded, prev_light)
+                    }
+                    _ => {
+                        let rgb = rgb(pixel, gain);
+                        let light = luminance(rgb);
+                        let [r, g, b] = bt2020(rgb);
+                        let [r0, r1] = pq(r * 80.0).to_be_bytes();
+                        let [g0, g1] = pq(g * 80.0).to_be_bytes();
+                        let [b0, b1] = pq(b * 80.0).to_be_bytes();
+                        let encoded = [r0, r1, g0, g1, b0, b1];
+                        cached = Some((key, encoded, light));
+                        (encoded, light)
+                    }
+                };
                 peak = peak.max(light);
                 sum += f64::from(light);
-                for channel in bt2020(rgb) {
-                    bytes.extend_from_slice(&pq(channel * 80.0).to_be_bytes());
-                }
+                dst.copy_from_slice(&encoded);
             }
         }
         check(cancel)?;

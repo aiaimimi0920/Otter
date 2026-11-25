@@ -23,10 +23,11 @@ type Compile = unsafe extern "system" fn(
 ) -> HRESULT;
 pub(super) type Reflect =
     unsafe extern "system" fn(*const c_void, usize, *const GUID, *mut *mut c_void) -> HRESULT;
+#[derive(Clone)]
 pub(super) struct Compiler {
     pub compile: Compile,
     pub reflect: Reflect,
-    _library: Library,
+    _library: std::rc::Rc<Library>,
 }
 struct Library(HMODULE);
 impl Drop for Library {
@@ -39,10 +40,10 @@ impl Drop for Library {
 impl Compiler {
     pub fn new() -> Result<Self> {
         unsafe {
-            let library = Library(
+            let library = std::rc::Rc::new(Library(
                 LoadLibraryExW(w!("d3dcompiler_47.dll"), None, LOAD_LIBRARY_SEARCH_SYSTEM32)
                     .map_err(|e| api(Stage::Pipeline, e))?,
-            );
+            ));
             let compile = GetProcAddress(library.0, windows::core::s!("D3DCompile"))
                 .ok_or(Error::Unsupported)?;
             let reflect = GetProcAddress(library.0, windows::core::s!("D3DReflect"))

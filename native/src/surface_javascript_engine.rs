@@ -329,6 +329,7 @@ impl Engine {
             return Err(wire::invalid());
         }
         mark!(self, Encode);
+        // 只计数，不保留一份完整 JSON；worker 写 Response 时才分配最终线帧。
         wire::validate_encoded_size(&output)?;
         if !self.geometry.borrow().valid() || !self.canvas.borrow().valid() {
             return Err(wire::invalid());

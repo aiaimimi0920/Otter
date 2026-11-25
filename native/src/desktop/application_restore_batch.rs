@@ -2,6 +2,7 @@
 use super::*;
 #[path = "application_append.rs"]
 pub(super) mod append;
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 #[path = "application_frozen_append_smoke.rs"]
 mod frozen_append_smoke;
 #[path = "application_restore_guard.rs"]
@@ -17,6 +18,7 @@ pub(super) use job::Job;
 mod publish;
 pub(super) use publish::transfer_hotkey;
 pub(super) use publish::Record;
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 #[path = "application_restore_batch_smoke.rs"]
 pub(super) mod smoke;
 use crate::desktop::{

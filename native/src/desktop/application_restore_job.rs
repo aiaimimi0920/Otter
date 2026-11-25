@@ -1,10 +1,12 @@
 //! 应用级单任务恢复协调：启动即冻结来源凭证，完成后再绑定目录、建窗与发布。
 use super::*;
 use crate::desktop::{session_asset_root::Root, session_binding::Bound, session_job};
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 #[path = "application_restore_context_smoke.rs"]
 mod context_smoke;
 #[path = "application_frozen_job.rs"]
 mod frozen;
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 #[path = "application_restore_job_smoke.rs"]
 pub(super) mod smoke;
 

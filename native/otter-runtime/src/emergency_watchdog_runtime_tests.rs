@@ -3,11 +3,53 @@ use super::*;
 use std::{
     io::{Read, Write},
     os::windows::{
-        io::{FromRawHandle, OwnedHandle},
+        io::{AsRawHandle, FromRawHandle, OwnedHandle},
         process::CommandExt,
     },
     process::{Child, Command, Stdio},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
 };
+use windows::Win32::UI::WindowsAndMessaging::{
+    PeekMessageW, PostThreadMessageW, MSG, PM_NOREMOVE, WM_INPUT,
+};
+
+// 仅唤醒本夹具 watchdog 的私有消息队列，不发送系统键盘输入。
+// 合成键位仍经过生产事件循环、Gate 与父进程认证，避免测到旧轮询实现。
+struct FixtureWake {
+    stopped: Arc<AtomicBool>,
+    thread: Option<std::thread::JoinHandle<()>>,
+}
+impl FixtureWake {
+    fn new() -> Self {
+        let thread_id = unsafe {
+            let _ = PeekMessageW(&mut MSG::default(), None, 0, 0, PM_NOREMOVE);
+            GetCurrentThreadId()
+        };
+        let stopped = Arc::new(AtomicBool::new(false));
+        let child_stopped = stopped.clone();
+        let thread = std::thread::spawn(move || {
+            while !child_stopped.load(Ordering::Acquire) {
+                unsafe {
+                    let _ = PostThreadMessageW(thread_id, WM_INPUT, WPARAM(0), LPARAM(0));
+                }
+                std::thread::sleep(Duration::from_millis(u64::from(SAMPLE_MS)));
+            }
+        });
+        Self {
+            stopped,
+            thread: Some(thread),
+        }
+    }
+}
+impl Drop for FixtureWake {
+    fn drop(&mut self) {
+        self.stopped.store(true, Ordering::Release);
+        self.thread.take().unwrap().join().unwrap();
+    }
+}
 
 struct ChildOwner(Child);
 impl Drop for ChildOwner {
@@ -162,6 +204,7 @@ fn watchdog_fixture() {
         return;
     }
     assert!(["idle", "parent-exit", "triple", "backup", "shutdown"].contains(&mode.as_str()));
+    let _wake = matches!(mode.as_str(), "backup" | "triple").then(FixtureWake::new);
     let mut sample = 0u32;
     run(parent, pipe, || {
         sample += 1;

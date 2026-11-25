@@ -8,6 +8,7 @@ pub struct Texture {
     pub rgba: Pixels,
 }
 pub struct Invocation {
+    pub scope: Option<String>,
     pub source: String,
     pub width: u32,
     pub height: u32,
@@ -60,6 +61,17 @@ impl Invocation {
         self.validate_counts()
             .map_err(hlsl::process::Failure::Backend)?;
         self.with_request(|request| {
+            if let Some(scope) = self.scope.as_deref().filter(|s| !s.is_empty()) {
+                #[cfg(test)]
+                return hlsl::session::render_scoped_in_test_harness(
+                    scope,
+                    request,
+                    hlsl::Backend::Auto,
+                    stopped,
+                );
+                #[cfg(not(test))]
+                return hlsl::session::render_scoped(scope, request, hlsl::Backend::Auto, stopped);
+            }
             #[cfg(test)]
             let result =
                 hlsl::process::render_in_test_harness(request, hlsl::Backend::Auto, stopped);

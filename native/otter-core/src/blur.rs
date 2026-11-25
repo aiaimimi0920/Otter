@@ -114,36 +114,48 @@ fn region_axes(
             }
             let slot = next_row as usize % rows;
             let row = &mut horizontal[slot * row_size..(slot + 1) * row_size];
-            row.fill(0.0);
-            for x in 0..area.width as usize {
-                for (k, &weight) in horizontal_kernel.weights.iter().enumerate() {
-                    let source_x = area.x as i32 + x as i32 + k as i32 - horizontal_kernel.radius;
-                    if source_x < 0 || source_x >= width as i32 {
-                        continue;
-                    }
-                    let input = (next_row as usize * width as usize + source_x as usize) * 4;
-                    for channel in 0..4 {
-                        row[x * 4 + channel] += source[input + channel] as f32 * weight;
+            let src_row = &source[next_row as usize * width as usize * 4
+                ..(next_row as usize + 1) * width as usize * 4];
+            let k_len = horizontal_kernel.weights.len() as i32;
+            // 预先裁剪核有效区间并在寄存器内累加，消除最内层分支/切片回写且保持加法顺序逐比特一致。
+            for (x, dst) in row.chunks_exact_mut(4).enumerate() {
+                let base_x = area.x as i32 + x as i32 - horizontal_kernel.radius;
+                let k_start = (-base_x).max(0).min(k_len) as usize;
+                let k_end = (width as i32 - base_x).clamp(0, k_len) as usize;
+                let mut sum = [0.0f32; 4];
+                if k_start < k_end {
+                    let px_start = (base_x + k_start as i32) as usize * 4;
+                    let px_end = px_start + (k_end - k_start) * 4;
+                    for (px, &weight) in src_row[px_start..px_end]
+                        .chunks_exact(4)
+                        .zip(&horizontal_kernel.weights[k_start..k_end])
+                    {
+                        for channel in 0..4 {
+                            sum[channel] += px[channel] as f32 * weight;
+                        }
                     }
                 }
+                dst.copy_from_slice(&sum);
             }
             next_row += 1;
         }
-        for x in 0..area.width as usize {
+        let base_y = area.y as i32 + y as i32 - vertical_kernel.radius;
+        let vk_len = vertical_kernel.weights.len() as i32;
+        let vk_start = (top - base_y).max(0).min(vk_len) as usize;
+        let vk_end = (bottom - base_y).clamp(0, vk_len) as usize;
+        let out_row = &mut output[y * row_size..(y + 1) * row_size];
+        for (x, dst) in out_row.chunks_exact_mut(4).enumerate() {
             let mut sum = [0.0f32; 4];
-            for (k, &weight) in vertical_kernel.weights.iter().enumerate() {
-                let source_y = area.y as i32 + y as i32 + k as i32 - vertical_kernel.radius;
-                if source_y < top || source_y >= bottom {
-                    continue;
-                }
-                let input = (source_y as usize % rows) * row_size + x * 4;
+            let x4 = x * 4;
+            for (offset, &weight) in vertical_kernel.weights[vk_start..vk_end].iter().enumerate() {
+                let source_y = (base_y + (vk_start + offset) as i32) as usize;
+                let input = (source_y % rows) * row_size + x4;
                 for channel in 0..4 {
                     sum[channel] += horizontal[input + channel] * weight;
                 }
             }
-            let destination = (y * area.width as usize + x) * 4;
             for channel in 0..4 {
-                output[destination + channel] = sum[channel].round().clamp(0.0, 255.0) as u8;
+                dst[channel] = sum[channel].round().clamp(0.0, 255.0) as u8;
             }
         }
     }

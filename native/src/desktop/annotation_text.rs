@@ -1,9 +1,10 @@
-//! 原生文字布局与绘制共用 DirectWrite；布局局部持有，不引入计时器或全局字体缓存。
+//! 原生文字布局与绘制共用 DirectWrite；工厂按线程复用，已提交布局随窗口 Target 有界缓存。
 use crate::{
     editor::Stroke,
     text_annotation::TextAnnotation,
     viewport::{Point, Viewport},
 };
+use std::cell::OnceCell;
 use windows::{
     core::{w, Result, HSTRING},
     Win32::Graphics::{
@@ -12,11 +13,28 @@ use windows::{
     },
 };
 
-pub(super) unsafe fn draw(
+thread_local! {
+    static FACTORY: OnceCell<IDWriteFactory> = const { OnceCell::new() };
+}
+
+unsafe fn shared_factory() -> Result<IDWriteFactory> {
+    FACTORY.with(|slot| {
+        if let Some(factory) = slot.get() {
+            return Ok(factory.clone());
+        }
+        let created: IDWriteFactory = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED)?;
+        let _ = slot.set(created.clone());
+        Ok(created)
+    })
+}
+
+pub(super) unsafe fn draw_cached(
     target: &ID2D1RenderTarget,
     brush: &ID2D1SolidColorBrush,
     stroke: &Stroke,
     viewport: Viewport,
+    cacheable: bool,
+    cache: &mut super::effect_cache::annotation_cache::Cache,
 ) -> Result<()> {
     let Some(text) = &stroke.text else {
         return Ok(());
@@ -48,11 +66,16 @@ pub(super) unsafe fn draw(
     if stroke.paint_alpha.stroke() == 0.0 {
         return Ok(());
     }
-    let layout = layout(
+    let width = (end.x - start.x).abs() * viewport.scale;
+    let height = (end.y - start.y).abs() * viewport.scale;
+    let layout = cache.text_layout(
+        cacheable,
+        stroke.annotation_id(),
         text,
         viewport.scale,
-        (end.x - start.x).abs() * viewport.scale,
-        (end.y - start.y).abs() * viewport.scale,
+        width,
+        height,
+        || layout(text, viewport.scale, width, height),
     )?;
     target.DrawTextLayout(
         D2D_POINT_2F {
@@ -121,7 +144,7 @@ pub(super) unsafe fn layout(
     width: f32,
     height: f32,
 ) -> Result<IDWriteTextLayout> {
-    let factory: IDWriteFactory = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED)?;
+    let factory = shared_factory()?;
     let format = factory.CreateTextFormat(
         // PCWSTR字体名不能表达NUL；显示使用有效前缀/系统fallback，模型仍保留原值。
         &HSTRING::from(

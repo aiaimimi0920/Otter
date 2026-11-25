@@ -95,3 +95,34 @@ fn output_budget_and_cancellation_release_exact_lease_and_allow_retry() {
     drop(clone);
     assert_eq!(budget.used(), 0);
 }
+#[test]
+fn repeated_hdr_pixels_across_rows_preserve_uncached_bytes_and_metadata() {
+    let a = [0x3c00, 0x3800, 0x3400, 0];
+    let b = [0x4a40, 0, 0x7e00, 0];
+    let data = encode(&[a, a, a, b, b, a]);
+    let input = ScRgb::new(&data, 2, 3, 16).unwrap();
+    let output = input
+        .to_hdr(0.0, 1000.0, 1.5, &AtomicBool::new(false))
+        .unwrap();
+    let mut peak = 0.0f32;
+    let mut sum = 0.0f64;
+    for (source, actual) in data.chunks_exact(8).zip(output.rgb16_be.chunks_exact(6)) {
+        let rgb = rgb(source, 1.5);
+        let light = luminance(rgb);
+        peak = peak.max(light);
+        sum += f64::from(light);
+        let expected: Vec<_> = bt2020(rgb)
+            .into_iter()
+            .flat_map(|v| pq(v * 80.0).to_be_bytes())
+            .collect();
+        assert_eq!(actual, expected);
+    }
+    assert_eq!(
+        output.analysis.maximum_nits,
+        (peak * 80.0).clamp(0.0, 10_000.0)
+    );
+    assert_eq!(
+        output.analysis.average_nits,
+        ((sum / 6.0) as f32 * 80.0).clamp(0.0, 10_000.0)
+    );
+}

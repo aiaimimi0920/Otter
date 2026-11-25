@@ -19,6 +19,7 @@ pub mod text_fonts;
 #[path = "surface_svg_viewport.rs"]
 pub mod viewport;
 pub const FLAG: &str = "--native-svg-worker";
+pub const SESSION_FLAG: &str = "--native-svg-session-worker";
 // 累计滤镜策略积分；不是耗时或峰值内存承诺，不能替代 Job 与 XML 准入限制。
 const MAX_FILTER_WORK: u64 = 4_000_000_000;
 #[cfg(test)]
@@ -39,18 +40,32 @@ pub fn parse(args: &[OsString]) -> io::Result<bool> {
     }
     Ok(true)
 }
+pub fn parse_session(args: &[OsString]) -> io::Result<bool> {
+    if !args.iter().any(|arg| arg == SESSION_FLAG) {
+        return Ok(false);
+    }
+    if args.len() != 1 || args[0] != SESSION_FLAG {
+        return Err(invalid());
+    }
+    Ok(true)
+}
 pub fn run_inherited() -> io::Result<()> {
     host::run_for(crate::surface_image_worker_wire::Codec::Svg, decode)
 }
+pub fn run_session_inherited() -> io::Result<()> {
+    host::run_session_for(crate::surface_image_worker_wire::Codec::Svg, decode)
+}
 fn decode(bytes: &[u8]) -> io::Result<Decoded> {
     let source = std::str::from_utf8(bytes).map_err(|_| invalid())?;
-    let doc = policy::parse(source)?;
-    filter_budget::validate(&doc)?;
-    policy::validate(&doc)?;
-    reference_policy::validate(&doc)?;
-    let viewport = viewport::inspect(doc.root_element())?;
-    let normalized = normalize::normalize(source, doc.root_element(), &viewport)?;
-    let doc = policy::parse(&normalized)?;
+    let initial_doc = policy::parse(source)?;
+    filter_budget::validate(&initial_doc)?;
+    policy::validate(&initial_doc)?;
+    reference_policy::validate(&initial_doc)?;
+    let viewport = viewport::inspect(initial_doc.root_element())?;
+    let normalized = normalize::normalize_if_needed(source, initial_doc.root_element(), &viewport)?;
+    let reparsed = normalized.as_deref().map(policy::parse).transpose()?;
+    let doc = reparsed.as_ref().unwrap_or(&initial_doc);
+    // 字体查询、文件数与字节预算属于单张图；复用 child 不能累积前一请求的额度。
     let text_fonts = doc
         .descendants()
         .any(|n| n.is_element() && n.tag_name().name() == "text")
@@ -70,7 +85,8 @@ fn decode(bytes: &[u8]) -> io::Result<Decoded> {
         },
         ..Default::default()
     };
-    let tree = resvg::usvg::Tree::from_xmltree(&doc, &options).map_err(|_| invalid())?;
+    let tree = resvg::usvg::Tree::from_xmltree(doc, &options).map_err(|_| invalid())?;
+    drop(options);
     if let Some(fonts) = text_fonts {
         fonts.finish(&tree)?;
     }
@@ -144,5 +160,14 @@ mod tests {
     #[ignore = "private SVG child invoked by bounded parent tests"]
     fn svg_worker_entry() {
         std::process::exit(if super::run_inherited().is_ok() { 0 } else { 1 });
+    }
+    #[test]
+    #[ignore = "private SVG session child invoked by bounded parent tests"]
+    fn svg_session_worker_entry() {
+        std::process::exit(if super::run_session_inherited().is_ok() {
+            0
+        } else {
+            1
+        });
     }
 }
