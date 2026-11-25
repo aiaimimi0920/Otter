@@ -35,6 +35,7 @@ pub(super) unsafe fn update(hwnd: HWND, state: &State) -> Result<()> {
             dpi: GetDpiForWindow(hwnd),
             viewport: Default::default(),
             minified: Some(geometry),
+            base_projection: None,
             style: canvas.frame_style,
             overlay: 0,
         };
@@ -147,6 +148,6 @@ unsafe fn combine(a: &OwnedRegion, b: &OwnedRegion, mode: RGN_COMBINE_MODE) -> R
     Ok(())
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "hit_region_minified_tests.rs"]
 mod tests;

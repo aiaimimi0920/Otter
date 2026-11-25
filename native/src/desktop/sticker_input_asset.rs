@@ -1,6 +1,6 @@
 //! 文件仅在用户选择后由唯一文件worker读取；内联恢复不把文件名或URL当读取权限。
 use super::super::{image::Image, Apartment};
-use crate::sticker_image_params::{image_parts, MAX_FILENAME_BYTES, MAX_FILE_BYTES};
+use crate::sticker_image_params::{checked_image, InlineImage, MAX_FILENAME_BYTES, MAX_FILE_BYTES};
 use base64::{engine::general_purpose::STANDARD, Engine};
 use std::{
     io::Read,
@@ -111,7 +111,15 @@ impl Asset {
     }
     pub fn restore(uri: &str, filename: &str, cancel: &AtomicBool) -> Result<Arc<Self>> {
         check(cancel)?;
-        let (declared, encoded) = image_parts(uri).map_err(invalid)?;
+        Self::restore_checked(checked_image(uri).map_err(invalid)?, filename, cancel)
+    }
+    pub fn restore_checked(
+        image: InlineImage<'_>,
+        filename: &str,
+        cancel: &AtomicBool,
+    ) -> Result<Arc<Self>> {
+        check(cancel)?;
+        let (declared, encoded) = image.parts();
         // 与Loom共用有界编码缓冲及预算租约，但不扩大它的MIME白名单。
         let bytes = super::super::loom_output_inline::decode_bytes(declared, encoded, cancel)?;
         if bytes.len() > MAX_FILE_BYTES || mime(&bytes) != Some(declared) {

@@ -2,7 +2,7 @@
 use super::*;
 
 pub(crate) struct Update {
-    snapshot: snapshot::Snapshot,
+    snapshot: Arc<snapshot::Snapshot>,
     prior: u64,
 }
 pub(crate) fn validate(
@@ -26,6 +26,15 @@ impl Update {
         cancel: &AtomicBool,
     ) -> Result<Option<Self>, Error> {
         let snapshot = snapshot::Snapshot::from_png(&frame.png, frame.width, frame.height, cancel)?;
+        Self::prepare_snapshot(Arc::new(snapshot), response, cancel)
+    }
+    /// Reuse a validated, budget-owning snapshot without decoding its PNG again.
+    pub(crate) fn prepare_snapshot(
+        snapshot: Arc<snapshot::Snapshot>,
+        response: &Response,
+        cancel: &AtomicBool,
+    ) -> Result<Option<Self>, Error> {
+        check(cancel)?;
         if snapshot.digest == response.digest() {
             return Ok(None);
         }
@@ -72,6 +81,6 @@ impl Update {
         Ok(bytes)
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "projection_sender_update_tests.rs"]
 mod tests;

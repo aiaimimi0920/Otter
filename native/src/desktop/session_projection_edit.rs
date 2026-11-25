@@ -25,7 +25,8 @@ pub(super) fn prepare(
         ));
     }
     let mut result = Vec::new();
-    for window in &document.windows {
+    // 唯一调用方在矢量准备时已按文档顺序校验整批身份和长度。
+    for (window, (unit, restored)) in document.windows.iter().zip(vectors) {
         if cancel.load(Ordering::Acquire) {
             return Err(Error::new(E_ABORT, "Projection edit restoration cancelled"));
         }
@@ -36,12 +37,6 @@ pub(super) fn prepare(
             )
         })?;
         if let Some(snapshot) = snapshot {
-            let (unit, restored) = vectors
-                .iter_mut()
-                .find(|(unit, _)| unit.as_str() == window.id)
-                .ok_or_else(|| {
-                    Error::new(E_INVALIDARG, "Missing projection edit restoration target")
-                })?;
             let (editor, owner) = Owner::restore(snapshot, std::mem::take(&mut restored.editor))?;
             restored.ids = editor
                 .elements()

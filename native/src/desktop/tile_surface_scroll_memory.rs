@@ -86,12 +86,15 @@ impl Memory {
             }) else {
                 continue;
             };
-            p.presentation.restore_scroll(&saved.scroll)?;
-            reembed(p)?;
+            // A Live-only update retains the presentation and its embedded previews.
+            if p.presentation.scroll_state() != saved.scroll {
+                p.presentation.restore_scroll(&saved.scroll)?;
+                reembed(p)?;
+            }
         }
         Ok(())
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-surface")))]
 #[path = "tile_surface_scroll_memory_tests.rs"]
 mod tests;

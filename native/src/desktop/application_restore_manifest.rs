@@ -13,61 +13,31 @@ pub(super) fn validate(prepared: &Prepared) -> Result<()> {
     {
         return Err(invalid());
     }
-    // 节点数受 MAX_UNITS 限制；逐项检查避免额外复制 ID/图片，也拒绝相同数量下的重复替换。
-    for unit in units {
-        if prepared
-            .states
-            .iter()
-            .filter(|state| state.unit_id == *unit)
-            .count()
-            != 1
-            || candidate
-                .placements
-                .iter()
-                .filter(|item| item.unit == *unit)
-                .count()
-                != 1
-            || candidate
-                .images
-                .iter()
-                .filter(|item| item.unit == *unit)
-                .count()
-                != 1
-            || prepared
-                .annotation_ids
-                .iter()
-                .filter(|(id, _)| id == unit)
-                .count()
-                != 1
+    // prepare_states 按工作区顺序创建密集批次；在建窗前重新验证，包含同数量的重复或错序。
+    for ((((unit, state), placement), images), (annotation_unit, ids)) in units
+        .iter()
+        .zip(&prepared.states)
+        .zip(&candidate.placements)
+        .zip(&candidate.images)
+        .zip(&prepared.annotation_ids)
+    {
+        if state.unit_id != *unit
+            || placement.unit != *unit
+            || images.unit != *unit
+            || annotation_unit != unit
         {
             return Err(invalid());
         }
-        let state = prepared
-            .states
-            .iter()
-            .find(|state| state.unit_id == *unit)
-            .unwrap();
-        let (_, ids) = prepared
-            .annotation_ids
-            .iter()
-            .find(|(id, _)| id == unit)
-            .unwrap();
         let group = candidate.workspace.group_of(unit);
-        let placement = candidate
-            .placements
-            .iter()
-            .find(|placement| placement.unit == *unit)
-            .unwrap();
+        let canvas = state.canvas.borrow();
         if ids.len() > 4096
-            || ids.len() != state.canvas.borrow().editor.elements().len()
-            || !ids.iter().map(String::as_str).eq(state
-                .canvas
-                .borrow()
+            || ids.len() != canvas.editor.elements().len()
+            || !ids.iter().map(String::as_str).eq(canvas
                 .editor
                 .elements()
                 .iter()
                 .map(|stroke| stroke.annotation_id()))
-            || !state.canvas.borrow().pinned
+            || !canvas.pinned
             || state.global_capture.get()
             || state.global_long_capture.get()
             || state.global_live_capture.get()

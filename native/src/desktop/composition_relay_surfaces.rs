@@ -230,6 +230,9 @@ impl Sessions {
             + self.recovery_jobs.len()
             + self.recovery_outcomes.len()
     }
+    pub(in crate::desktop) fn has_surface_worker_slot(&self) -> bool {
+        !self.closed && self.occupied() < MAX_SESSIONS
+    }
     pub fn start_surface(
         &mut self,
         config: Config,
@@ -239,7 +242,7 @@ impl Sessions {
     ) -> Result<(), StartError> {
         let error = if self.closed {
             Some(io::ErrorKind::BrokenPipe.into())
-        } else if self.occupied() >= MAX_SESSIONS {
+        } else if !self.has_surface_worker_slot() {
             Some(io::ErrorKind::WouldBlock.into())
         } else {
             self.surface_jobs.try_reserve(1).err().map(io::Error::other)

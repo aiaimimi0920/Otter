@@ -91,6 +91,6 @@ impl Engine {
         self.layout(text, style, width, height)
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-surface")))]
 #[path = "surface_text_node_tests.rs"]
 mod tests;

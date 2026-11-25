@@ -224,10 +224,10 @@ impl<'a> Tracker<'a> {
                     {
                         continue;
                     }
-                    let previous = self.ack.clone();
                     let was_success = self.success;
-                    self.ack
-                        .update(params.get().as_bytes(), self.event)
+                    let previous = self
+                        .ack
+                        .replace_checked(params.get().as_bytes(), self.event)
                         .map_err(Error::Ack)?;
                     self.check_status()?;
                     // after=0 刷新可能重放早期 running；不降级已知成功，但上面的失败仍终止。

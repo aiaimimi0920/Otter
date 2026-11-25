@@ -44,6 +44,17 @@ pub(super) unsafe fn run(
             "codec":"h264","keyframe":metadata.keyframe,
             "pixel":color,"width":64,"height":64,"nativeDecoderAndUpload":true}),
     );
+    // 两个断线回执都要在恢复之前观察原窗口及禁用状态。
+    let disconnected = |app: &Application, hwnd: HWND| {
+        app.remote_sessions
+            .test_viewer_input(key)
+            .is_some_and(|(current, status)| {
+                current == hwnd
+                    && IsWindow(Some(current)).as_bool()
+                    && status.recovering
+                    && !status.enabled
+            })
+    };
     if std::env::var_os("OTTER_LIVE_CONTROL_RECOVERY_JOINT").is_some() {
         context.signal(app, "viewer-control-disconnect");
         let (hwnd, _) = app.remote_sessions.test_viewer_input(key).unwrap();
@@ -54,6 +65,7 @@ pub(super) unsafe fn run(
             app.remote_sessions
                 .test_viewer_control(key)
                 .is_some_and(|(recovering, _)| recovering)
+                && disconnected(app, hwnd)
         });
         let (_, after) = app.remote_sessions.test_viewer_control(key).unwrap();
         context.record(
@@ -83,11 +95,7 @@ pub(super) unsafe fn run(
         context.signal(app, "viewer-disconnect");
         let (hwnd, _) = app.remote_sessions.test_viewer_input(key).unwrap();
         assert!(app.remote_sessions.test_disconnect_viewer_media(key));
-        context.spin(app, |app| {
-            app.remote_sessions
-                .test_viewer_input(key)
-                .is_some_and(|(_, status)| status.recovering)
-        });
+        context.spin(app, |app| disconnected(app, hwnd));
         context.record(
             "viewer-disconnected.json",
             serde_json::json!({"frameId":frame_id,

@@ -2,7 +2,7 @@
 use super::*;
 use crate::{
     editor::DocumentStamp,
-    workspace::{Group, TopologyStamp},
+    workspace::{GroupStamp, TopologyStamp},
     workspace_id::UnitId,
 };
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -17,8 +17,7 @@ pub(super) struct Stamp {
     space: Option<((i32, i32), f64)>,
     topology: TopologyStamp,
     appearance: crate::workspace::ports::AppearanceStamp,
-    groups: Vec<Group>,
-    membership: Vec<Option<UnitId>>,
+    groups: GroupStamp,
     documents: Vec<Document>,
 }
 struct Document {
@@ -73,48 +72,42 @@ impl Stamp {
             if dpi == 0 {
                 return Err(Error::new(E_ABORT, "Cannot capture saved window DPI"));
             }
-            documents.push(Document {
-                extensions: doc.state.extension_document.borrow().stamp(),
-                unit: doc.state.unit_id.clone(),
-                editor: doc.state.canvas.borrow().editor.document_stamp(),
-                output: doc.state.execution_results.borrow().output_stamp(),
-                configuration: crate::desktop::configuration_stamp::Stamp::capture(&doc.state),
-                projection_edit: crate::desktop::projection_edit_workspace::stamp(
-                    doc.state.projection_edit.borrow().as_ref(),
-                ),
-                rect,
-                dpi,
-                presentation: Presentation::capture(&doc.state),
-            });
+            documents.push(Document::capture(&doc.state, rect, dpi));
         }
-        Ok(Self {
+        Ok(Self::with_documents(app, documents, None))
+    }
+    /// The receipt has just verified this geometry and document order on the UI thread.
+    pub(super) fn from_verified_geometry(
+        app: &Application,
+        geometry: impl Iterator<Item = (RECT, u32)>,
+        live: save_snapshot::LiveStamp,
+    ) -> Self {
+        let documents = app
+            .documents
+            .iter()
+            .zip(geometry)
+            .map(|(doc, (rect, dpi))| Document::capture(&doc.state, rect, dpi))
+            .collect();
+        Self::with_documents(app, documents, Some(live))
+    }
+    fn with_documents(
+        app: &Application,
+        documents: Vec<Document>,
+        live: Option<save_snapshot::LiveStamp>,
+    ) -> Self {
+        Self {
             live_snapshot: has_live(app),
-            live: None,
+            live,
             space: space(app),
             topology: app.workspace.topology_stamp(),
             appearance: app.workspace.appearance_stamp(),
-            groups: app.workspace.groups().to_vec(),
-            membership: app
-                .workspace
-                .units()
-                .iter()
-                .map(|unit| app.workspace.group_of(unit).map(|group| group.id.clone()))
-                .collect(),
+            groups: app.workspace.group_stamp(),
             documents,
-        })
-    }
-    pub(super) unsafe fn capture_snapshot(
-        app: &Application,
-        receipt: &save_snapshot::Receipt,
-    ) -> Result<Self> {
-        let mut stamp = Self::capture(app)?;
-        // 必须来自真正被 worker 编码的 Receipt，不能把后来的流帧误记为已保存。
-        stamp.live = Some(receipt.live_stamp());
-        Ok(stamp)
+        }
     }
     pub(super) unsafe fn matches(&self, app: &Application) -> bool {
         // 手动 dirty 语义不变：持续 Live 不能被一个时间点快照标记为永久干净。
-        !self.live_snapshot && !has_live(app) && self.matches_model(app)
+        self.matches_with_restore(app, |_, _, _, _| true)
     }
     pub(super) unsafe fn matches_automatic(&self, app: &Application) -> bool {
         self.live_snapshot == has_live(app)
@@ -122,38 +115,76 @@ impl Stamp {
             && self.matches_model(app)
     }
     pub(super) unsafe fn matches_model(&self, app: &Application) -> bool {
+        self.matches_model_with(app, |_, _, _, _| true)
+    }
+    /// 共享本次消息循环内的物理窗口观测，不缓存跨消息的几何或 DPI。
+    pub(super) unsafe fn matches_with_restore(
+        &self,
+        app: &Application,
+        check: impl FnMut(usize, &DocumentWindow, RECT, u32) -> bool,
+    ) -> bool {
+        !self.live_snapshot && !has_live(app) && self.matches_model_with(app, check)
+    }
+    unsafe fn matches_model_with(
+        &self,
+        app: &Application,
+        mut check: impl FnMut(usize, &DocumentWindow, RECT, u32) -> bool,
+    ) -> bool {
         self.space == space(app)
             && self.topology.matches(&app.workspace)
             && self.appearance.matches(&app.workspace)
-            && self.groups == app.workspace.groups()
+            && self.groups.matches(&app.workspace)
             && self.documents.len() == app.documents.len()
-            && self
-                .membership
-                .iter()
-                .zip(app.workspace.units())
-                .all(|(group, unit)| {
-                    group.as_ref() == app.workspace.group_of(unit).map(|group| &group.id)
-                })
             && self
                 .documents
                 .iter()
                 .zip(&app.documents)
-                .all(|(saved, doc)| {
-                    let mut rect = RECT::default();
-                    saved.unit == doc.state.unit_id
-                        && saved.extensions.matches(&doc.state.extension_document.borrow())
-                        && !pending_edits(&doc.state)
-                        && doc.is_alive()
-                        && GetWindowRect(doc.window.0, &mut rect).is_ok()
-                        && saved.rect == rect
-                        && saved.dpi == windows::Win32::UI::HiDpi::GetDpiForWindow(doc.window.0)
-                        && saved.editor.matches(&doc.state.canvas.borrow().editor)
-                        // 正式端口独立于Editor；预览/进度不推进此身份，也不持有整图。
-                        && saved.output.matches(&doc.state.execution_results.borrow())
-                        && saved.configuration.matches(&doc.state)
-                        && saved.projection_edit == crate::desktop::projection_edit_workspace::stamp(doc.state.projection_edit.borrow().as_ref())
-                        && saved.presentation == Presentation::capture(&doc.state)
+                .enumerate()
+                .all(|(index, (saved, doc))| {
+                    saved
+                        .match_observation(doc)
+                        .is_some_and(|(rect, dpi)| check(index, doc, rect, dpi))
                 })
+    }
+}
+impl Document {
+    fn capture(state: &State, rect: RECT, dpi: u32) -> Self {
+        Self {
+            extensions: state.extension_document.borrow().stamp(),
+            unit: state.unit_id.clone(),
+            editor: state.canvas.borrow().editor.document_stamp(),
+            output: state.execution_results.borrow().output_stamp(),
+            configuration: crate::desktop::configuration_stamp::Stamp::capture(state),
+            projection_edit: crate::desktop::projection_edit_workspace::stamp(
+                state.projection_edit.borrow().as_ref(),
+            ),
+            rect,
+            dpi,
+            presentation: Presentation::capture(state),
+        }
+    }
+    unsafe fn match_observation(&self, doc: &DocumentWindow) -> Option<(RECT, u32)> {
+        let state = &doc.state;
+        if self.unit != state.unit_id
+            || !self.extensions.matches(&state.extension_document.borrow())
+            || pending_edits(state)
+            || !doc.is_alive()
+        {
+            return None;
+        }
+        let mut rect = RECT::default();
+        if GetWindowRect(doc.window.0, &mut rect).is_err() || rect != self.rect {
+            return None;
+        }
+        let dpi = windows::Win32::UI::HiDpi::GetDpiForWindow(doc.window.0);
+        (self.dpi == dpi
+            && self.editor.matches(&state.canvas.borrow().editor)
+            // 正式端口独立于 Editor；预览/进度不推进此身份，也不持有整图。
+            && self.output.matches(&state.execution_results.borrow())
+            && self.configuration.matches(state)
+            && self.projection_edit == crate::desktop::projection_edit_workspace::stamp(state.projection_edit.borrow().as_ref())
+            && self.presentation == Presentation::capture(state))
+            .then_some((rect, dpi))
     }
 }
 pub(super) fn has_live(app: &Application) -> bool {

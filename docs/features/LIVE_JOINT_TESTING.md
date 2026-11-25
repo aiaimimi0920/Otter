@@ -41,10 +41,6 @@ python -B scripts/tests/live-joint/run.py `
 `otter_live_hover_hook.dll` 并放在冻结测试 EXE 旁，不能只复制测试 EXE。
 H.264 联合场景不接入旧客户端，不以旧格式互操作或版本降级作为验收要求。
 
-同一发布会话的帧尺寸可以变化。发送端在原媒体线程释放旧编码器后，按新尺寸创建编码器，
-并从新关键帧开始；已失败的编码器不会因 resize 自动恢复。Loom 和观看端沿现有帧头尺寸
-清理旧缓存、重建解码器和位图。会话创建描述保留初始尺寸，不能把目录中的尺寸当作实时值。
-
 每个联合场景运行一个真实 Loom 服务夹具，媒体连接实际经过 `--lan-host` 指定的本机
 RFC1918 局域网 IPv4。除 `direct-revocation` 外，均使用两个 Otter Application 测试进程；
 `wgc-h264` 使用真实 WGC，其余使用合成 GPU 纹理。`direct-revocation` 使用一个 Otter
@@ -57,16 +53,35 @@ H.264 的 wire 帧号与 viewer 的解码／GPU 上传帧号对应，输入测�
 
 这些测试不证明两个独立 Loom 之间的 Live、物理双机、普通产品 GUI 或真实 OAuth。
 账号 v2 双 Loom 目前只有 PNG 分享链，详见 [二维码与链接投射](QR_PROJECTION.md)。
-公网、真实外网 NAT 和 relay 验收按当前用户确认范围暂缓。
+公网 NAT 或 relay 的能力与实际验收须另行验证。
 
-## 当前验证记录
 
-2026-11-20，v0.2.33.667 产品源码及随后补齐地址接线的测试在本机局域网地址上完成
-全部 7 个联合场景及独立 WGC 生命周期场景，8 项均通过。真实 WGC 联合确认
-64×64 → 96×80 的 H.264 关键帧、
-观看端新尺寸和改色后的 GPU 像素，以及停止后的源恢复、捕获回收和媒体连接数归零。
-独立生命周期场景覆盖 12 个会话、36 次尺寸变化和 24 次输入重启；这些循环数不是测试数。
-Direct 联合还确认两帧更新、撤权后原生窗口／媒体资源回收，以及 LAN listener 重启后
-源端可重连而已撤权接收端仍被拒绝。发送／观看、系统 codec、Loom 连续性、指定接收者
-隔离及 Application 停止／退出另有 25 项定向回归通过，其中本机模拟 peer 不是 LAN 服务证据。
-该结果沿用上述单 Loom、同机原生测试进程的范围，未关闭双 Loom、物理双机或普通 GUI 验收。
+
+## 单机 WinForms 输入门禁
+
+在已解锁的交互式 Windows 桌面，从 Otter 仓库根目录编译仓库内的专用夹具并运行显式忽略用例：
+
+```powershell
+$evidence = Join-Path ([IO.Path]::GetTempPath()) ("otter-winforms-" + [guid]::NewGuid())
+[void][IO.Directory]::CreateDirectory($evidence)
+$csc = Join-Path $env:WINDIR 'Microsoft.NET/Framework64/v4.0.30319/csc.exe'
+$env:OTTER_NATIVE_WINFORMS_FIXTURE = Join-Path $evidence 'fixture.exe'
+$env:OTTER_NATIVE_WINFORMS_EVIDENCE_ROOT = $evidence
+$source = (Resolve-Path -LiteralPath 'scripts/tests/fixtures/LiveInputWinFormsFixture.cs').Path
+& $csc /nologo /target:winexe "/out:$env:OTTER_NATIVE_WINFORMS_FIXTURE" /reference:System.Windows.Forms.dll /reference:System.Drawing.dll $source
+if ($LASTEXITCODE -ne 0) { throw "WinForms fixture compilation failed: $LASTEXITCODE" }
+cargo test --locked --manifest-path native/Cargo.toml --lib actual_managed_winforms_click_drag_cancel_and_restore -- --ignored --test-threads=1 --nocapture
+```
+
+用例只控制自己启动的 CLR 进程。`ready.json` 和 `state.json` 保存在每次运行的独占子目录，失败也保留；
+不指定产物根时用系统临时目录。这个门禁验证自有控件的真实点击、拖动、取消和窗口样式恢复，
+不发系统鼠标输入，不覆盖第三方应用、产品 UI 或跨机流程。
+
+## 诊断与证据边界
+
+- 记录双方版本或提交、包摘要、网络拓扑、源/观看端角色、尺寸、实例数、运行时长和媒体格式；
+  不记录令牌或用户像素。性能报告需覆盖 Otter、hook、Loom 与辅助进程，而不是只看主进程内存。
+- 分开核对发现、授权、会话状态、收包、解码、GPU 上传和呈现。WebSocket 成功升级不代表已收到
+  有效帧；重连看会话、epoch、帧号进展和实显，恢复水位以服务端确认值为准。
+- GPU 像素回读、墙钟耗时、收包和解码计数不能推导显示器 FPS、GPU 时间或物理输入延迟。
+  普通桌面、混合 DPI、物理双机和真实外网各自留证。逐版本结果从 Git 历史和对应产物查阅。

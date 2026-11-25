@@ -1,6 +1,6 @@
 //! 有界 data URL 解码；百分号不是表单编码，base64 遵循 forgiving 规则。
 use super::ResourceError;
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-surface")))]
 #[path = "surface_image_data_tests.rs"]
 mod tests;
 const LIMIT: usize = 1024 * 1024;
@@ -53,6 +53,7 @@ pub(crate) fn decode(source: &str, cancelled: impl Fn() -> bool) -> Result<Vec<u
         .map_err(|_| ResourceError::Limit)?;
     let raw = body.as_bytes();
     let mut index = 0;
+    let mut next_check = 0;
     fn hex(b: u8) -> Option<u8> {
         match b {
             b'0'..=b'9' => Some(b - b'0'),
@@ -62,8 +63,12 @@ pub(crate) fn decode(source: &str, cancelled: impl Fn() -> bool) -> Result<Vec<u
         }
     }
     while index < raw.len() {
-        if index % 4096 == 0 && cancelled() {
-            return Err(ResourceError::Identity);
+        // 百分号一次消费三个字节，可能跨过检查边界，不能要求索引恰好对齐。
+        if index >= next_check {
+            if cancelled() {
+                return Err(ResourceError::Identity);
+            }
+            next_check += 4096;
         }
         if raw[index] == b'%' && index + 2 < raw.len() {
             if let (Some(a), Some(b)) = (hex(raw[index + 1]), hex(raw[index + 2])) {
@@ -74,6 +79,9 @@ pub(crate) fn decode(source: &str, cancelled: impl Fn() -> bool) -> Result<Vec<u
         }
         bytes.push(raw[index]);
         index += 1;
+    }
+    if cancelled() {
+        return Err(ResourceError::Identity);
     }
     let header = header.trim_matches(|c: char| c.is_ascii_whitespace());
     let encoded = header

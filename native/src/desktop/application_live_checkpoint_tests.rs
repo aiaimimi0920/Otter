@@ -12,11 +12,12 @@ mod exit;
 mod lifecycle;
 
 struct Directory(PathBuf);
+fn fixture_root() -> PathBuf {
+    std::env::temp_dir().join("otter-live-checkpoint-tests")
+}
 impl Directory {
     fn new() -> Self {
-        let root = PathBuf::from(
-            "C:/Users/Public/nas_home/AI/GameEditor/linshi/otter-live-checkpoint-tests",
-        );
+        let root = fixture_root();
         std::fs::create_dir_all(&root).unwrap();
         let path = root.join(format!("{:?}", unsafe {
             windows::Win32::System::Com::CoCreateGuid().unwrap()

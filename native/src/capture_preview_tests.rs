@@ -98,7 +98,7 @@ fn cancelling_a_converted_pair_releases_both_outputs_without_publishing() {
         || Ok(((), info)),
         |_, _| {
             cancel.store(true, Ordering::Release);
-            Ok(frame)
+            Ok(WgcFrame::Native(frame))
         },
         || panic!("cancelled pair must not trigger another capture"),
     );

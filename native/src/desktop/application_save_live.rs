@@ -1,7 +1,8 @@
-//! 显式会话保存的 Live 帧快照；UI 只移交 GPU owner，既有保存 worker 读回并编码。
-use super::{Application, Document};
+//! 会话保存的 Live 帧快照；UI 只移交 GPU owner，既有保存 worker 读回并编码。
+use super::{Application, Document, Payload};
 use crate::{
-    live_frames::Frame, live_texture::Texture, pin_geometry::PinRect, workspace_id::UnitId,
+    desktop::composition::live::session::Session, live_frames::Frame, live_texture::Texture,
+    pin_geometry::PinRect, workspace_id::UnitId,
 };
 use std::sync::{atomic::AtomicBool, Arc};
 use windows::{
@@ -15,90 +16,105 @@ pub(super) struct Guard {
     size: [u32; 2],
     rect: PinRect,
     opacity: f32,
-    group: Option<UnitId>,
 }
 pub(super) struct Snapshot {
     guard: Guard,
     frame: Arc<Frame<Texture>>,
     editor: Option<crate::editor::Editor>,
+    group: Option<UnitId>,
 }
-fn owns_saved_unit(
-    app: &Application,
-    session: &crate::desktop::composition::live::session::Session,
-) -> bool {
+pub(super) struct Capture {
+    pub(super) guards: Vec<Guard>,
+    pub(super) frames: Vec<Snapshot>,
+}
+
+fn members(app: &Application) -> impl Iterator<Item = &Session> {
     // 回收先移除图节点，worker 可继续保留到实际退出；它不再是下一份保存的成员。
     // 不以 is_alive 过滤，仍在图内却意外关闭的 Live 必须继续失败关闭。
-    !session.pin_attached()
-        && session.belongs_to(&app.workspace)
-        && app.workspace.contains(session.unit_id())
+    app.live_sessions.iter().filter(|session| {
+        !session.pin_attached()
+            && session.belongs_to(&app.workspace)
+            && app.workspace.contains(session.unit_id())
+    })
+}
+
+#[cfg(test)]
+std::thread_local! {
+    pub(super) static FRAME_READS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+fn observe(session: &Session, automatic: bool) -> Result<Option<(Arc<Frame<Texture>>, PinRect)>> {
+    if automatic {
+        if !session.persistence_idle() {
+            return Ok(None);
+        }
+    } else if !session.is_alive() {
+        return Err(Error::new(E_ABORT, "Live session is closing during save"));
+    }
+    #[cfg(test)]
+    FRAME_READS.with(|reads| reads.set(reads.get() + 1));
+    let Some(frame) = session.snapshot_frame()? else {
+        return if automatic {
+            Ok(None)
+        } else {
+            Err(Error::new(E_ABORT, "Live has no frame to save"))
+        };
+    };
+    match session.freeze_rect([frame.resource.width, frame.resource.height]) {
+        Ok(rect) => Ok(Some((frame, rect))),
+        // 与首帧和忙手势一样，暂不可冻结的几何只延期，不停用自动保存。
+        Err(_) if automatic => Ok(None),
+        Err(error) => Err(error),
+    }
 }
 pub(super) fn automatic_ready(app: &Application) -> Result<bool> {
-    for session in app
-        .live_sessions
-        .iter()
-        .filter(|session| owns_saved_unit(app, session))
-    {
-        if !session.persistence_idle() {
-            return Ok(false);
-        }
-        let Some(frame) = session.snapshot_frame()? else {
-            return Ok(false); // 首帧/正常手势尚未提交，等原帧或输入消息，不停用自动保存。
-        };
-        if session
-            .freeze_rect([frame.resource.width, frame.resource.height])
-            .is_err()
-        {
+    for session in members(app) {
+        if observe(session, true)?.is_none() {
             return Ok(false);
         }
     }
     Ok(true)
 }
-pub(super) fn capture(app: &Application) -> Result<(Vec<Guard>, Vec<Snapshot>)> {
-    let mut guards = Vec::new();
+pub(super) fn capture(
+    app: &Application,
+    automatic: bool,
+    selection: Payload<'_>,
+) -> Result<Option<Capture>> {
     let mut frames = Vec::new();
-    for session in app
-        .live_sessions
-        .iter()
-        .filter(|session| owns_saved_unit(app, session))
-    {
-        if !session.is_alive() {
-            return Err(Error::new(E_ABORT, "Live session is closing during save"));
-        }
-        let frame = session
-            .snapshot_frame()?
-            .ok_or_else(|| Error::new(E_ABORT, "Live has no frame to save"))?;
-        let size = [frame.resource.width, frame.resource.height];
-        let rect = session.freeze_rect(size)?;
+    let mut guards = Vec::new();
+    for session in members(app) {
+        let Some((frame, rect)) = observe(session, automatic)? else {
+            return Ok(None);
+        };
         let guard = Guard {
             unit: session.unit_id().clone(),
-            size,
+            size: [frame.resource.width, frame.resource.height],
             rect,
             opacity: session
                 .opacity()
                 .ok_or_else(|| Error::new(E_ABORT, "Live opacity owner closed"))?,
-            group: app
-                .workspace
-                .group_of(session.unit_id())
-                .map(|group| group.id.clone()),
         };
-        guards.push(guard.clone());
-        frames.push(Snapshot {
-            guard,
-            frame,
-            editor: session.pin_snapshot(),
-        });
+        // Every member contributes readiness/geometry, but only selected frames outlive capture.
+        if selection.includes(session.unit_id()) {
+            frames.push(Snapshot {
+                guard: guard.clone(),
+                frame,
+                editor: session.pin_snapshot(),
+                group: app
+                    .workspace
+                    .group_of(session.unit_id())
+                    .map(|group| group.id.clone()),
+            });
+        }
+        guards.push(guard);
     }
-    if app.documents.len() + frames.len() > crate::workspace::MAX_UNITS {
+    if app.documents.len() + guards.len() > crate::workspace::MAX_UNITS {
         return Err(Error::new(E_ABORT, "Live save exceeds workspace capacity"));
     }
-    Ok((guards, frames))
+    Ok(Some(Capture { guards, frames }))
 }
 pub(super) fn matches(guards: &[Guard], app: &Application) -> bool {
-    let sessions: Vec<_> = app
-        .live_sessions
-        .iter()
-        .filter(|session| owns_saved_unit(app, session))
-        .collect();
+    let sessions: Vec<_> = members(app).collect();
     sessions.len() == guards.len()
         && guards.iter().all(|guard| {
             sessions.iter().any(|session| {
@@ -163,6 +179,7 @@ impl Snapshot {
             editor,
             local_image: Some(image),
             restored_source: None,
+            restored_source_rasterized_crop: false,
             output_images: Vec::new(),
             outputs: None,
             capture_original: None,
@@ -177,7 +194,7 @@ impl Snapshot {
             art: false,
             local_art_id: None,
             local_art_ports: None,
-            group: self.guard.group,
+            group: self.group,
             parameters: None,
             sticker: None,
             execution: None,

@@ -329,7 +329,10 @@ impl Engine {
             return Err(wire::invalid());
         }
         mark!(self, Encode);
-        wire::encode(&output)?;
+        wire::validate_encoded_size(&output)?;
+        if !self.geometry.borrow().valid() || !self.canvas.borrow().valid() {
+            return Err(wire::invalid());
+        }
         mark!(self, Complete);
         Ok(output)
     }

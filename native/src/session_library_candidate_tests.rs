@@ -49,7 +49,7 @@ fn prepared_snapshot_enters_existing_worker_without_granting_file_access() {
         if file_reference {
             assert!(result.is_err());
         } else {
-            let ready = result.unwrap();
+            let ready = result.unwrap().restore.vector;
             assert_eq!(ready.candidate.placements.len(), 1);
             assert_eq!(ready.candidate.placements[0].unit, prepared.unit);
             assert_eq!(ready.candidate.placements[0].rect.x, 60.0);

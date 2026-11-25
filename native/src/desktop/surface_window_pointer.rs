@@ -159,25 +159,53 @@ impl SurfaceWindow {
         if !self.is_alive() {
             return Err(Error::new(E_FAIL, "Surface window closed"));
         }
+        let state = &self.state;
         let submitting = editing && submitting;
-        if self.state.pointer.borrow().enabled == submitting
-            && self.state.local_edit.get() == editing
+        let was_editing = state.local_edit.get();
+        let was_submitting = state.pointer.borrow().enabled;
+        if !state.input_policy_dirty.get() && was_editing == editing && was_submitting == submitting
         {
             return Ok(());
         }
+        let revision = state
+            .input_policy_revision
+            .get()
+            .checked_add(1)
+            .expect("Surface input policy revision exhausted");
+        state.input_policy_revision.set(revision);
+        state.input_policy_dirty.set(true);
         if !editing {
-            text_selection::cancel(&self.state, true);
+            text_selection::cancel(state, true);
         }
-        if !editing || !self.state.local_edit.get() {
-            invalidate(self.hwnd, &self.state);
+        if !editing || !was_editing {
+            invalidate(self.hwnd, state);
         } else {
-            invalidate_soft(self.hwnd, &self.state);
+            invalidate_soft(self.hwnd, state);
         }
-        self.state.local_edit.set(editing);
-        self.state.pointer.borrow_mut().enabled = submitting;
-        if !self.state.run(|host| host.edit_policy(editing))? {
+        let current = || self.is_alive() && state.input_policy_revision.get() == revision;
+        if !current() {
+            return Err(Error::new(E_FAIL, "Surface edit policy superseded"));
+        }
+        // 撤权不等待 Host；新授权须等原生控件同步成功且未被同步消息换代。
+        state.local_edit.set(was_editing && editing);
+        state.pointer.borrow_mut().enabled = was_submitting && submitting;
+        if !state.run(|host| {
+            let result = host.edit_policy(editing);
+            if editing && result.is_err() && current() && !state.local_edit.get() {
+                // 授权失败时不留下已部分启用的原生控件。
+                result.and(host.edit_policy(false))
+            } else {
+                result
+            }
+        })? {
             return Err(Error::new(E_FAIL, "Surface edit policy unavailable"));
         }
+        if !current() {
+            return Err(Error::new(E_FAIL, "Surface edit policy superseded"));
+        }
+        state.local_edit.set(editing);
+        state.pointer.borrow_mut().enabled = submitting;
+        state.input_policy_dirty.set(false);
         Ok(())
     }
     pub fn set_submission_enabled(&self, enabled: bool) -> Result<()> {

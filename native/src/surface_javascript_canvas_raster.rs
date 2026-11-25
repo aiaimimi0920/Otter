@@ -24,6 +24,99 @@ macro_rules! mark {
             .mark(crate::surface_javascript_wire::diagnostics::Stage::$stage);
     };
 }
+
+#[cfg(test)]
+#[test]
+fn fresh_and_resized_empty_canvas_submit_transparent_pixels() {
+    let mut renderer = Renderer::new().unwrap();
+    let mut trace = crate::surface_javascript_wire::diagnostics::Trace::default();
+    for size in [[2, 1], [1, 2]] {
+        renderer
+            .submit(
+                commands::Batch {
+                    id: "canvas-test".into(),
+                    size,
+                    reset: false,
+                    commands: Vec::new(),
+                },
+                &mut trace,
+            )
+            .unwrap();
+        let canvas = &renderer.canvases["canvas-test"];
+        assert_eq!(canvas.size, size);
+        let mut pixels = [255; 8];
+        canvas
+            .backing
+            .as_ref()
+            .unwrap()
+            .copy_into(&mut pixels)
+            .unwrap();
+        assert_eq!(pixels, [0; 8]);
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn same_size_reset_clears_all_pixels_and_retires_cached_snapshot() {
+    let mut renderer = Renderer::new().unwrap();
+    let mut trace = crate::surface_javascript_wire::diagnostics::Trace::default();
+    let batch = serde_json::from_str(
+        r#"{"id":"canvas-test","size":[2,1],"reset":true,
+          "commands":[{"kind":"rect","rect":[-1,0,2,1],"stroke":false,"state":{
+          "transform":[1,0,0,1,1,0],"color":"red","alpha":1,"width":1,
+          "cap":"butt","join":"miter","miter":10,"dash":[],"dashOffset":0,
+          "font":"10px sans-serif","align":"start","baseline":"alphabetic"}}]}"#,
+    )
+    .unwrap();
+    renderer.submit(batch, &mut trace).unwrap();
+    let snapshot = |renderer: &mut Renderer| {
+        let mut frame = canvas::CanvasFrame {
+            id: "canvas-test".into(),
+            width: 2,
+            height: 1,
+            png: String::new(),
+        };
+        renderer.snapshot(&mut frame).unwrap();
+        let mut pixels = [255; 8];
+        renderer.canvases["canvas-test"]
+            .backing
+            .as_ref()
+            .unwrap()
+            .copy_into(&mut pixels)
+            .unwrap();
+        (frame.png, pixels)
+    };
+    let (original, pixels) = snapshot(&mut renderer);
+    assert_eq!(pixels, [0, 0, 255, 255, 0, 0, 255, 255]);
+    let target = &renderer.canvases["canvas-test"]
+        .backing
+        .as_ref()
+        .unwrap()
+        .target;
+    let identity = windows::core::Interface::as_raw(target);
+    for (reset, expected) in [(false, Some(&original)), (true, None)] {
+        renderer
+            .submit(
+                commands::Batch {
+                    id: "canvas-test".into(),
+                    size: [2, 1],
+                    reset,
+                    commands: Vec::new(),
+                },
+                &mut trace,
+            )
+            .unwrap();
+        let owner = &renderer.canvases["canvas-test"];
+        assert_eq!(owner.encoded.as_ref(), expected);
+        assert_eq!(
+            windows::core::Interface::as_raw(&owner.backing.as_ref().unwrap().target),
+            identity,
+        );
+    }
+    let (cleared, pixels) = snapshot(&mut renderer);
+    assert_ne!(cleared, original);
+    assert_eq!(pixels, [0; 8]);
+}
 struct Apartment(bool);
 impl Apartment {
     fn new() -> Result<Self> {
@@ -103,11 +196,11 @@ impl Renderer {
         if !self.canvases.contains_key(&batch.id) && self.canvases.len() >= canvas::MAX_CANVASES {
             return Err(invalid());
         }
-        if self
+        let fresh = self
             .canvases
             .get(&batch.id)
-            .is_none_or(|c| c.size != batch.size)
-        {
+            .is_none_or(|c| c.size != batch.size);
+        if fresh {
             self.canvases.remove(&batch.id);
             let canvas = self.create(
                 batch.size,
@@ -117,7 +210,7 @@ impl Renderer {
             self.canvases.insert(batch.id.clone(), canvas);
         }
         let canvas = self.canvases.get_mut(&batch.id).unwrap();
-        if !batch.reset && batch.commands.is_empty() {
+        if !fresh && !batch.reset && batch.commands.is_empty() {
             return Ok(());
         }
         canvas.encoded = None;
@@ -134,23 +227,12 @@ impl Renderer {
         #[cfg(test)]
         trace.mark(crate::surface_javascript_wire::diagnostics::Stage::CanvasImagesReady);
         unsafe {
-            backing.target.BeginDraw();
+            // A reset covers the same entire target as first-use initialization.
+            backing.begin_draw(fresh || batch.reset);
         }
         #[cfg(test)]
         trace.mark(crate::surface_javascript_wire::diagnostics::Stage::CanvasCommandsBegin);
         let result = (|| {
-            if batch.reset {
-                draw::draw(
-                    &backing.target,
-                    &self.factory,
-                    &self.text,
-                    &canvas.images,
-                    &commands::Draw::Clear {
-                        rect: [0., 0., batch.size[0] as f32, batch.size[1] as f32],
-                        transform: [1., 0., 0., 1., 0., 0.],
-                    },
-                )?;
-            }
             for command in &batch.commands {
                 draw::draw(
                     &backing.target,

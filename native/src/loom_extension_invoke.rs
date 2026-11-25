@@ -173,6 +173,6 @@ fn gesture() -> Result<String, Error> {
     bytes[8] = bytes[8] & 0x3f | 0x80;
     Ok(format!("otter-gesture:{}", uuid::Uuid::from_bytes(bytes)))
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-loom")))]
 #[path = "loom_extension_invoke_tests.rs"]
 mod tests;

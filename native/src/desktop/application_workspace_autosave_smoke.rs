@@ -1,18 +1,10 @@
-//! 真实产品的菜单→共享设置→保存线程→原子落盘→重新恢复；只用 linshi 合成会话。
+//! 真实产品的菜单→共享设置→保存线程→原子落盘→重新恢复；只用 合成会话。
 use super::*;
-use std::{
-    path::PathBuf,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 
-pub(super) struct File(pub PathBuf);
-impl Drop for File {
-    fn drop(&mut self) {
-        // smoke_destination 创建的独占 GUID 路径，仅删除本次 linshi 文件。
-        let _ = std::fs::remove_file(&self.0);
-    }
-}
-pub(super) unsafe fn fixture(instance: HINSTANCE) -> Result<(Application, File)> {
+pub(super) unsafe fn fixture(
+    instance: HINSTANCE,
+) -> Result<(Application, smoke_session_fixture::Directory)> {
     let image = crate::desktop::image::Image::from_encoded(
         crate::desktop::application::smoke::image_fixture::PNG,
     )?;
@@ -27,10 +19,10 @@ pub(super) unsafe fn fixture(instance: HINSTANCE) -> Result<(Application, File)>
             .map_err(|error| Error::new(E_FAIL, error.to_string()))?
             .into(),
     );
-    let path = File(save_publish::smoke_destination()?);
+    let path = smoke_session_fixture::Directory::new()?;
     crate::desktop::application::frozen_menu::reference::smoke::save(
         &mut app,
-        Some(path.0.clone()),
+        Some(path.target()),
     )?;
     Ok((app, path))
 }
@@ -83,7 +75,7 @@ pub(in crate::desktop::application) unsafe fn run(instance: HINSTANCE) -> Result
             "Autosave menu did not share current workspace control",
         ));
     }
-    let source = std::fs::read(&path.0).map_err(|e| Error::new(E_FAIL, e.to_string()))?;
+    let source = std::fs::read(path.target()).map_err(|e| Error::new(E_FAIL, e.to_string()))?;
     let before_revision = crate::session_document::decode(&source).unwrap().revision;
     let flag = app.documents[0].state.file_dialog.clone();
     let dialog = crate::desktop::file_dialog::Guard::begin(&flag).unwrap();
@@ -109,7 +101,7 @@ pub(in crate::desktop::application) unsafe fn run(instance: HINSTANCE) -> Result
     app.documents[0].state.canvas.borrow_mut().editor.cancel();
     app.documents[0].state.canvas.borrow_mut().normal_opacity = 0.4;
     settle(&mut app)?;
-    let disk = std::fs::read(&path.0).map_err(|e| Error::new(E_FAIL, e.to_string()))?;
+    let disk = std::fs::read(path.target()).map_err(|e| Error::new(E_FAIL, e.to_string()))?;
     let loaded = crate::session_document::decode(&disk).unwrap();
     if loaded.revision != before_revision + 1
         || loaded.windows.len() != 2
@@ -131,11 +123,11 @@ pub(in crate::desktop::application) unsafe fn run(instance: HINSTANCE) -> Result
         ));
     }
     settle(&mut app)?;
-    if std::fs::read(&path.0).map_err(|e| Error::new(E_FAIL, e.to_string()))? != disk {
+    if std::fs::read(path.target()).map_err(|e| Error::new(E_FAIL, e.to_string()))? != disk {
         return Err(Error::new(E_FAIL, "Unchanged workspace saved repeatedly"));
     }
     app.request_restore_input(
-        crate::desktop::session_job::Input::File(path.0.clone()),
+        crate::desktop::session_job::Input::File(path.target()),
         None,
         None,
     )?;

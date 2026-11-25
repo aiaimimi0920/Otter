@@ -27,9 +27,13 @@ impl Image {
                     "Sticker image dimensions exceed policy",
                 ));
             }
-            Self::decode_source(&factory, &frame.cast()?, None, 400_000_000, &|| {
-                cancel.load(Ordering::Acquire)
-            })
+            Self::decode_source(
+                &factory,
+                &frame.cast()?,
+                super::SizePolicy::Any,
+                400_000_000,
+                &|| cancel.load(Ordering::Acquire),
+            )
         }
     }
 }

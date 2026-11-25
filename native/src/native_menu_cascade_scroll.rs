@@ -75,6 +75,7 @@ impl Cascade {
                 self.pages[level].panel.set_delete_hover(None);
                 self.pages.truncate(level + 1);
                 self.pages[level].pressed = None;
+                self.pages[level].delete_pressed = None;
                 if bar.in_thumb(y) {
                     self.pages[level].drag = Some((
                         y,
@@ -93,12 +94,14 @@ impl Cascade {
                 Ok(true)
             }
             Event::Move(x, y) if bar.hit(x, y) => {
+                self.pages[level].delete_pressed = None;
                 self.pages[level].panel.set_delete_hover(None);
                 self.focus(level, None)?;
                 Ok(true)
             }
             Event::Up(x, y) if bar.hit(x, y) => {
                 self.pages[level].pressed = None;
+                self.pages[level].delete_pressed = None;
                 Ok(true)
             }
             _ => Ok(false),
@@ -106,6 +109,6 @@ impl Cascade {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "native_menu_cascade_scroll_tests.rs"]
 mod tests;

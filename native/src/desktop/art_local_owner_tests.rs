@@ -6,8 +6,14 @@ use std::{sync::mpsc, time::Duration};
 #[test]
 fn reset_revokes_pending_description_and_discards_old_workspace_completion() {
     let (notify, ready) = mpsc::channel();
+    let (release_notice, waiting_notice) = mpsc::channel();
+    let waiting_notice = std::sync::Mutex::new(waiting_notice);
     let mut owner = Owner::new(Arc::new(move || {
         let _ = notify.send(());
+        let _ = waiting_notice
+            .lock()
+            .unwrap()
+            .recv_timeout(Duration::from_secs(5));
     }));
     owner.workspace = Some("workspace:1".into());
     owner.tasks.reset_workspace("workspace:1".into());
@@ -55,10 +61,17 @@ fn reset_revokes_pending_description_and_discards_old_workspace_completion() {
     assert!(owner.workspace.is_none());
     assert!(!owner.entries[0].active);
     assert!(owner.tasks.busy());
+    assert!(owner.deadline().is_none());
     release.send(()).unwrap();
     ready.recv_timeout(Duration::from_secs(5)).unwrap();
+    assert!(owner.deadline().is_some());
+    assert!(owner.tasks.take_settled().is_none());
+    assert!(owner.tasks.busy());
+    release_notice.send(()).unwrap();
+    owner.tasks.test_wait_finished(0);
     assert!(owner.tasks.take_settled().is_none());
     assert!(!owner.tasks.busy());
+    assert!(owner.deadline().is_none());
     assert_eq!(
         owner
             .poll(&[], &mut Workspace::default(), &[], false)
@@ -158,6 +171,7 @@ fn retired_window_completion_cannot_cancel_new_request_for_same_unit() {
     assert!(owner.tasks.busy());
     release.send(()).unwrap();
     ready.recv_timeout(Duration::from_secs(5)).unwrap();
+    owner.tasks.test_wait_finished(0);
     assert!(matches!(
         owner.tasks.take_settled().unwrap().result,
         Err(Error::Worker)

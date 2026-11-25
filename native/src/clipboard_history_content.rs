@@ -30,10 +30,10 @@ pub(super) fn decode(
         }
         let mut bytes = vec![0; size as usize];
         reader.ReadBytes(&mut bytes)?;
-        let image = crate::image_decode::Image::from_clipboard_history(&bytes)?;
-        check(cancel, deadline)?;
+        let image = decode_bitmap(&bytes, cancel, deadline)?;
         let thumbnail = crate::image_thumbnail::Thumbnail::from_image(&image)?;
         let preview = super::preview::image(&image)?;
+        check(cancel, deadline)?;
         if size as usize + thumbnail.pixels().len() + preview.pixels.len() > remaining {
             return Ok(None);
         }
@@ -65,4 +65,18 @@ pub(super) fn decode(
         return Ok(Some(Content::Text(text)));
     }
     Ok(None)
+}
+
+// 菜单关闭和读取截止时间进入 WIC 的像素分配边界；保留历史读取的 E_ABORT 语义。
+pub(super) fn decode_bitmap(
+    bytes: &[u8],
+    cancel: &AtomicBool,
+    deadline: Instant,
+) -> Result<crate::image_decode::Image> {
+    check(cancel, deadline)?;
+    let image = crate::image_decode::Image::from_clipboard_history(bytes, &|| {
+        cancel.load(Ordering::Acquire) || Instant::now() >= deadline
+    });
+    check(cancel, deadline)?;
+    image
 }

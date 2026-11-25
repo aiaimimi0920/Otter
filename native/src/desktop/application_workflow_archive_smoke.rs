@@ -1,38 +1,16 @@
-//! 仅对既有 linshi 合成会话验证 UI 归档提交，结束后恢复夹具基线供其余回归使用。
+//! 仅对本次合成会话验证 UI 归档提交，结束后恢复夹具基线供其余回归使用。
 use super::*;
 pub(in crate::desktop::application) unsafe fn verify(
     app: &mut Application,
     candidate: Candidate,
     stale: bool,
+    fixture: &smoke_session_fixture::Directory,
 ) -> Result<()> {
-    let path = app
-        .restored_session
-        .as_ref()
-        .unwrap()
-        .saved_path
-        .clone()
-        .unwrap();
-    let temporary = std::path::Path::new("C:/Users/Public/nas_home/AI/GameEditor/linshi")
-        .canonicalize()
-        .map_err(|e| Error::new(E_FAIL, e.to_string()))?;
-    if !path
-        .canonicalize()
-        .map_err(|e| Error::new(E_FAIL, e.to_string()))?
-        .starts_with(temporary)
-    {
-        return Err(Error::new(
-            E_ABORT,
-            "Archive smoke requires synthetic linshi session",
-        ));
-    }
+    let path = fixture.require_saved(app)?;
     let original = app.restored_session.as_ref().unwrap().original.clone();
     let revision = candidate.ready().snapshot().revision();
-    let directory = path.parent().unwrap().join(format!(
-        "images-{}",
-        crate::desktop::document_state::new_unit_id()?
-    ));
-    std::fs::create_dir(&directory).map_err(|e| Error::new(E_FAIL, e.to_string()))?;
-    let root = Arc::new(Root::open(&directory)?);
+    let directory = fixture.child("archive-assets")?;
+    let root = Arc::new(Root::open(directory.path())?);
     let mut pending = candidate.start_archive(app, root, 123)?;
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
     let staged = loop {

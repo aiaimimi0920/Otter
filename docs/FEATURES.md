@@ -14,10 +14,4 @@
 [中文使用教程](guide/getting-started.zh-CN.md) · [English guide](guide/getting-started.md) ·
 [实时截图](features/LIVE_CAPTURE.md) · [投射](features/QR_PROJECTION.md)
 
-## 手测回归 / Manual checks
-
-- 普通截图松手出图；已有钉图、拖动、保存及重开不受影响。
-- 分别关闭和打开编辑栏、设置栏、参数行，拖动时各附属控件同步，焦点和编辑草稿不丢失。
-- 使用授权的当前 Loom 验证 OCR/翻译和 Art；目录撤销后不可继续提交旧动作。
-- 真机验证投射目标发现、策略、接收回执、重开与解除；发送成功不等于接收可见。
-- 分别记录普通桌面、混合 DPI/多显示器、输入法、跨机及长稳结果。构建、合成窗口或局域网测试不替代未运行的项目。
+开发验证从[构建与验证](development/WINDOWS_NATIVE_BUILD.md)和[联合验收](development/JOINT_TESTING.md)进入。

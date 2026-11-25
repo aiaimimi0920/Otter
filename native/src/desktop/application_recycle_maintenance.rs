@@ -19,12 +19,11 @@ impl Application {
             return Ok(());
         }
         // 编辑/执行期间等下一次正常消息推进；不新增定时器或后台轮询。
-        let Ok((receipt, data)) = self.capture_session_snapshot() else {
+        let Ok(receipt) = self.capture_session_receipt() else {
             return Ok(());
         };
         self.recycle_maintenance_pending = false;
-        let source = data.original.clone();
-        drop(data); // 裁剪不编码任何活动图片。
+        let source = receipt.original().clone();
         let policy = self.recycle_policy;
         let now_ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)

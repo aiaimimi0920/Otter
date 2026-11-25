@@ -28,13 +28,26 @@ fn service_progress_coalesces_bursts_and_never_wakes_under_lock() {
     channel.publish(&reply(json!(100)));
     assert!(channel.take().is_none());
     assert_eq!(wakes.load(Ordering::SeqCst), 1);
+    let received = Arc::new(AtomicUsize::new(usize::MAX));
     let channel: Arc<Channel> = Arc::new_cyclic(|weak: &std::sync::Weak<Channel>| {
         let weak = weak.clone();
+        let received = received.clone();
         Channel::new(Arc::new(move || {
-            assert!(weak.upgrade().unwrap().take().is_some());
+            // 若回归到持锁调用，try_lock 立即失败；断言留在 catch_unwind 之外。
+            let Some(channel) = weak.upgrade() else {
+                return;
+            };
+            if channel.state.try_lock().is_err() {
+                return;
+            }
+            if let Some(percent) = channel.take().and_then(|update| update.percent) {
+                received.store(usize::from(percent), Ordering::SeqCst);
+            }
         }))
     });
     channel.publish(&reply(json!(50)));
+    assert_eq!(received.load(Ordering::SeqCst), 50);
+    assert!(channel.take().is_none());
 }
 #[test]
 fn service_progress_bounds_percent_and_does_not_forward_arbitrary_json() {

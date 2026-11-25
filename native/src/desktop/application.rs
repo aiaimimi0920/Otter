@@ -48,6 +48,8 @@ mod display_composition;
 mod drop_smoke;
 #[path = "application_edit_palette.rs"]
 mod edit_palette;
+#[path = "application_edit_retirement.rs"]
+mod edit_retirement;
 #[path = "application_execution.rs"]
 mod execution;
 #[path = "application_execution_start.rs"]
@@ -55,6 +57,9 @@ mod execution_start;
 #[cfg(test)]
 #[path = "application_execution_test_peer.rs"]
 mod execution_test_peer;
+#[cfg(test)]
+#[path = "application_execution_test_pump.rs"]
+mod execution_test_pump;
 #[path = "application_exit.rs"]
 mod exit;
 #[path = "application_exit_intent.rs"]
@@ -158,6 +163,8 @@ mod shader_startup;
 mod shutdown;
 #[path = "application_smoke.rs"]
 mod smoke;
+#[path = "application_smoke_session_fixture.rs"]
+mod smoke_session_fixture;
 #[path = "application_surface_admission.rs"]
 mod surface_admission;
 #[path = "application_surface_confirmation.rs"]
@@ -222,6 +229,8 @@ pub(super) struct Application {
     copy_authority: crate::desktop::copy_job::Authority,
     editable_clipboard: crate::desktop::clipboard_editable::Shared,
     restored_session: Option<restore_batch::Record>,
+    retired_workflow: Option<restore_batch::workflow::retirement::Jobs>,
+    retired_edits: edit_retirement::Retired,
     frozen_library: std::rc::Rc<std::cell::RefCell<super::frozen_library_ui::View>>,
     restore_job: Option<restore_batch::Job>,
     save_job: Option<(save_snapshot::Receipt, save_snapshot::job::Job)>,
@@ -256,6 +265,8 @@ pub(super) struct Application {
 
 impl Application {
     unsafe fn collect_closed(&mut self) {
+        self.retired_edits.reap();
+        self.frozen_library.borrow().workers.reap();
         for doc in &self.documents {
             if doc.state.live_pin.get() && !doc.is_alive() {
                 if let Some(session) = self
@@ -277,6 +288,7 @@ impl Application {
             if self.error.is_none() {
                 self.error = document.state.error.borrow_mut().take();
             }
+            self.retired_edits.take_from(&document.state);
             false
         });
         if self.documents.len() != previous {

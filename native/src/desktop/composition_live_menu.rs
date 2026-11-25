@@ -121,6 +121,6 @@ unsafe fn show_with(hwnd: HWND, state: &State, select: impl FnOnce(HMENU) -> usi
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-live")))]
 #[path = "composition_live_menu_tests.rs"]
 mod tests;

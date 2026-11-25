@@ -25,7 +25,7 @@ unsafe fn window() -> Window {
     )
 }
 unsafe fn publish(source: &Source<Texture>, device: &ID3D11Device, color: [u8; 4]) {
-    let frame = super::super::tests::frame(device, color);
+    let frame = super::super::frame_fixture::frame(device, color);
     source
         .publish(Arc::try_unwrap(frame).ok().unwrap().resource)
         .unwrap();
@@ -76,13 +76,20 @@ fn snapshot_uses_latest_pending_without_changing_presented_and_retains_owner_aft
         })
         .unwrap();
         assert_eq!(host.snapshot_frame().unwrap().unwrap().sequence, 1);
+        let presented = host
+            .presented_viewport([32, 32])
+            .map(|(sequence, _)| sequence);
         // 快照可能先于已排队的帧通知领取新帧；通知随后只会读到 Idle。
         assert!(windows::Win32::Graphics::Gdi::ValidateRect(Some(window.0), None).as_bool());
         publish(&source, &device, [0, 255, 0, 255]);
         let latest = host.snapshot_frame().unwrap().unwrap();
         assert_eq!(latest.sequence, 2);
         assert!(windows::Win32::Graphics::Gdi::GetUpdateRect(window.0, None, false).as_bool());
-        assert_eq!(host.presented_viewport([32, 32]).unwrap().0, 1);
+        assert_eq!(
+            host.presented_viewport([32, 32])
+                .map(|(sequence, _)| sequence),
+            presented
+        );
         host.suspend();
         assert!(Arc::ptr_eq(
             &latest,
@@ -132,18 +139,16 @@ fn messages_coalesce_until_paint_and_close_releases_frame_and_subscription() {
         assert!(host.surface.is_none());
         assert!(!host.paint(D2D_SIZE_U::default()).unwrap());
         assert!(host.surface.is_none());
-        assert!(host.paint(size).unwrap());
-        assert_eq!(host.presented_viewport([32, 32]).unwrap().0, 3);
+        host.paint(size).unwrap();
+        assert_eq!(host.surface.as_ref().unwrap().frame.sequence, 3);
         assert!(host.presented_viewport([64, 32]).is_none());
         let frame = Arc::downgrade(&host.surface.as_ref().unwrap().frame);
         assert!(host.pending.is_none());
         // 不派发新消息，已有 paint 仍能读取最新帧，补偿被遗漏的通知。
         publish(&source, &device, [0, 255, 0, 255]);
         assert_eq!(host.refresh().unwrap(), Update::Frame);
-        // 接收到 pending 帧不等于呈现成功，不能提前切换输入帧身份。
-        assert_eq!(host.presented_viewport([32, 32]).unwrap().0, 3);
-        assert!(host.paint(size).unwrap());
-        assert_eq!(host.presented_viewport([32, 32]).unwrap().0, 4);
+        host.paint(size).unwrap();
+        assert_eq!(host.surface.as_ref().unwrap().frame.sequence, 4);
         assert!(frame.upgrade().is_none());
         let last = Arc::downgrade(&host.surface.as_ref().unwrap().frame);
         source.close();
@@ -172,7 +177,7 @@ fn suspension_releases_surface_preserves_latest_and_resumes_without_new_frame() 
             height: 32,
         };
         publish(&source, &device, [0, 0, 255, 255]);
-        assert!(host.paint(size).unwrap());
+        host.paint(size).unwrap();
         let old = Arc::downgrade(&host.surface.as_ref().unwrap().frame);
         host.suspend();
         assert!(host.presented_viewport([32, 32]).is_none());
@@ -183,7 +188,7 @@ fn suspension_releases_surface_preserves_latest_and_resumes_without_new_frame() 
             &old.upgrade().unwrap()
         ));
         host.suspend();
-        assert!(host.paint(size).unwrap());
+        host.paint(size).unwrap();
         assert!(Arc::ptr_eq(
             &host.surface.as_ref().unwrap().frame,
             &old.upgrade().unwrap()
@@ -195,7 +200,7 @@ fn suspension_releases_surface_preserves_latest_and_resumes_without_new_frame() 
         assert!(!host.paint(D2D_SIZE_U::default()).unwrap());
         assert!(host.surface.is_none());
         assert!(old.upgrade().is_none());
-        assert!(host.paint(size).unwrap());
+        host.paint(size).unwrap();
         assert!(Arc::ptr_eq(
             &host.surface.as_ref().unwrap().frame,
             &latest.upgrade().unwrap()
@@ -218,7 +223,7 @@ fn opacity_survives_surface_recreation_resize_and_frames_without_baking_pixels()
         host.set_opacity(0.35).unwrap();
         publish(&source, &device, [0, 0, 255, 255]);
         for width in [32, 64, 32] {
-            assert!(host.paint(D2D_SIZE_U { width, height: 32 }).unwrap());
+            host.paint(D2D_SIZE_U { width, height: 32 }).unwrap();
             assert_eq!(
                 host.surface
                     .as_ref()
@@ -248,12 +253,11 @@ fn opacity_survives_surface_recreation_resize_and_frames_without_baking_pixels()
             host.suspend();
         }
         publish(&source, &device, [0, 255, 0, 255]);
-        assert!(host
-            .paint(D2D_SIZE_U {
-                width: 32,
-                height: 32
-            })
-            .unwrap());
+        host.paint(D2D_SIZE_U {
+            width: 32,
+            height: 32,
+        })
+        .unwrap();
         assert_eq!(
             host.surface
                 .as_ref()
@@ -292,5 +296,48 @@ fn render_error_terminates_subscription_without_retry_and_drop_releases_demand()
         assert!(source.has_consumers());
         drop(host);
         assert!(!source.has_consumers());
+    }
+}
+
+#[test]
+fn unconfirmed_submission_preserves_committed_mapping_and_static_frame() {
+    let _apartment = Apartment::new().unwrap();
+    unsafe {
+        let window = window();
+        let device = device();
+        let source = Source::new();
+        let mut host = Host::bind(window.0, source.subscribe().unwrap()).unwrap();
+        let size = D2D_SIZE_U {
+            width: 32,
+            height: 32,
+        };
+        let committed = |host: &Host| host.presented_viewport([32, 32]).map(|(seq, _)| seq);
+        // 这里注入提交结果以覆盖遮挡状态；位图导入、绘制和生命周期仍为真实路径。
+        let confirmed = |_: &Surface| Ok(true);
+        let unconfirmed = |_: &Surface| Ok(false);
+        publish(&source, &device, [0, 0, 255, 255]);
+        assert!(!host.paint_with(size, unconfirmed).unwrap());
+        assert_eq!(committed(&host), None);
+        assert!(source.has_consumers());
+        assert!(host.paint_with(size, confirmed).unwrap());
+        assert_eq!(committed(&host), Some(1));
+
+        publish(&source, &device, [0, 255, 0, 255]);
+        assert!(!host.paint_with(size, unconfirmed).unwrap());
+        assert_eq!(committed(&host), Some(1));
+        assert_eq!(host.snapshot_frame().unwrap().unwrap().sequence, 2);
+        assert!(!host
+            .paint_with(
+                D2D_SIZE_U {
+                    width: 64,
+                    height: 32
+                },
+                unconfirmed
+            )
+            .unwrap());
+        assert!(!host.paint_with(size, unconfirmed).unwrap());
+        assert_eq!(committed(&host), None);
+        assert!(host.paint_with(size, confirmed).unwrap());
+        assert_eq!(committed(&host), Some(2));
     }
 }

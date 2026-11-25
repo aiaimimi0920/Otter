@@ -76,7 +76,7 @@ fn projection_accept_confirmation_requires_same_arc_and_live_requester_without_b
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let _com = Apartment::new().unwrap();
     unsafe {
-        let (_class, mut app) = application();
+        let mut app = application();
         let doc = &app.documents[0];
         let origin = "https://loom.example";
         let entry = Arc::new(png::invitation(origin));

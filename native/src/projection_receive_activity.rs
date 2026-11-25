@@ -49,6 +49,6 @@ impl Drop for Permit {
             .remove(&self.intent);
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "projection_receive_activity_tests.rs"]
 mod tests;

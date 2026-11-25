@@ -25,7 +25,7 @@ impl<'de> Deserialize<'de> for Frozen {
             session: wire.session.into(),
             layout: wire.layout,
             initial: wire.initial,
-            snapshot,
+            snapshot: Arc::new(snapshot),
         }));
         value.validate().map_err(fail)?;
         Ok(value)

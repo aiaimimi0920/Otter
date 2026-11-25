@@ -1,10 +1,11 @@
 //! 关闭前的回收候选：当前快照入库，裁掉旧活动窗口及关联链接；发布权仍属于窗口协调器。
-use super::{candidate, freeze, Kind, MAX_ENTRIES};
-use crate::{pixels::Pixels, session_document, workspace_id::UnitId};
-use serde::{
-    ser::{SerializeMap, SerializeSeq},
-    Serialize, Serializer,
+use super::{
+    candidate,
+    freeze::{self, Entries},
+    Kind, MAX_ENTRIES,
 };
+use crate::{pixels::Pixels, session_document, workspace_id::UnitId};
+use serde::{ser::SerializeMap, Serialize, Serializer};
 use serde_json::value::RawValue;
 use std::{
     borrow::Cow,
@@ -14,27 +15,11 @@ use std::{
 #[path = "session_library_recycle_policy.rs"]
 pub mod policy;
 pub struct Request<'a> {
+    /// Encoded current window object, not a session envelope.
     pub snapshot: &'a [u8],
     pub unit: &'a UnitId,
     pub entry_id: &'a str,
     pub created_at: &'a str,
-}
-struct Entries<'a> {
-    retained: Vec<&'a RawValue>,
-    next: Option<freeze::Entry<'a>>,
-}
-impl Serialize for Entries<'_> {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let mut sequence = serializer
-            .serialize_seq(Some(self.retained.len() + usize::from(self.next.is_some())))?;
-        for entry in &self.retained {
-            sequence.serialize_element(entry)?;
-        }
-        if let Some(next) = &self.next {
-            sequence.serialize_element(next)?;
-        }
-        sequence.end()
-    }
 }
 struct Updated<'a> {
     root: &'a BTreeMap<String, Cow<'a, RawValue>>,
@@ -131,6 +116,6 @@ pub fn prepare(
     Ok(bytes)
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "session_library_recycle_tests.rs"]
 mod tests;

@@ -239,14 +239,27 @@ impl Job {
         }
         (mailbox.progress.take(), mailbox.preview.take())
     }
-    /// 完成栅栏发布后不再执行网络清理；join 仍可能等待通知回调及线程最终退出调度。
+    pub(super) fn deadline(&self) -> Option<std::time::Instant> {
+        self.running
+            .as_ref()
+            .and_then(|running| super::loom_execution_signal::reap_deadline(&running.ready))
+    }
+    /// 完成通知不等于线程退出；UI 不等待通知尾段，交给 owner 的截止时间继续回收。
     pub fn poll(&mut self) -> Option<Result<Completion, Error>> {
-        if !self.running.as_ref().is_some_and(|running| {
-            running.ready.load(Ordering::Acquire) || running.worker.is_finished()
-        }) {
+        if !self
+            .running
+            .as_ref()
+            .is_some_and(|running| running.worker.is_finished())
+        {
             return None;
         }
         Some(self.join())
+    }
+    #[cfg(test)]
+    pub(crate) fn test_wait_finished(&self) {
+        super::loom_execution_tasks::reap_fixture::wait_finished(
+            &self.running.as_ref().unwrap().worker,
+        );
     }
     /// 应用关闭/替换任务必须显式调用并处理返回的 PendingRelease，不能仅丢弃 Job。
     pub fn shutdown(&mut self) -> Option<Result<Completion, Error>> {

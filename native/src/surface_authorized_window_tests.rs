@@ -225,6 +225,19 @@ fn local_close_reports_inactive_once_and_keeps_attachment() {
     let mut windows = crate::desktop::surface_windows::Windows::default();
     assert!(windows.insert(window).is_ok());
     assert!(windows.take_closed().is_none());
+    assert!(!windows.retire_confirmed());
+    assert!(windows.retired_records().is_empty());
+    // With all four slots occupied, an ACK must release exactly one slot without take_closed.
+    for id in ["second", "third", "fourth"] {
+        assert!(windows
+            .admit(
+                outcome_for(id),
+                |_| Ok(grant.lease("https://localhost:1234", 0).unwrap()),
+                0
+            )
+            .is_ok());
+    }
+    assert!(!windows.can_mount("https://localhost:1234", "node:another"));
     assert!(windows
         .accept_activation(
             crate::surface_lifecycle_runtime::Outcome {
@@ -235,11 +248,21 @@ fn local_close_reports_inactive_once_and_keeps_attachment() {
             false
         )
         .is_ok());
-    assert_eq!(windows.status().as_deref(), Some("Surface 窗口已停用"));
-    let mut closed = windows.take_closed().unwrap();
-    assert!(!closed.lifecycle().unwrap().disposed());
-    assert!(!closed.is_alive());
-    assert!(closed.begin_deactivation(0).unwrap().is_none());
+    assert!(!windows.retire_confirmed());
+    assert_eq!(windows.retired_records().len(), 1);
+    assert_eq!(windows.retired_records()[0].art(), Some("art:test"));
+    assert!(windows.can_mount("https://localhost:1234", "node:another"));
+    let candidate = crate::live_relay_http::RecoveryCandidate::fixture();
+    assert!(windows.can_mount(candidate.origin(), candidate.node()));
+    let mounted = outcome_for("another");
+    assert!(windows
+        .admit(
+            mounted,
+            |_| Ok(grant.lease("https://localhost:1234", 0).unwrap()),
+            0
+        )
+        .is_ok());
+    assert!(!windows.can_mount(candidate.origin(), candidate.node()));
 }
 
 #[test]

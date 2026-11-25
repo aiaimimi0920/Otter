@@ -221,6 +221,6 @@ pub(crate) fn find(
     }
     Ok(None)
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-surface")))]
 #[path = "tile_surface_focus_tests.rs"]
 mod tests;

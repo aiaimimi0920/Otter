@@ -3,6 +3,7 @@ use super::State;
 use crate::{
     alpha_region::{self, AlphaRegion},
     editor::Tool,
+    image_projection::{Projection, Sampling},
 };
 use windows::{
     core::{Error, Result},
@@ -161,6 +162,7 @@ pub(super) unsafe fn update_visible(hwnd: HWND, state: &State) -> Result<()> {
             dpi,
             viewport: canvas.viewport,
             minified: None,
+            base_projection: editor.raster_base_projection(),
             style: canvas.frame_style,
             overlay: extension::identity(state),
         };
@@ -191,6 +193,7 @@ pub(super) unsafe fn update_visible(hwnd: HWND, state: &State) -> Result<()> {
                 image.height,
                 canvas.viewport.scale * dpi as f32 / 96.0,
                 editor.annotation_frame(),
+                key.base_projection,
             )?;
             add_annotations(&region, editor, canvas.viewport.scale, dpi)?;
             // 掩码及矢量区域先在源坐标缩放，再统一平移并与可见裁剪框相交。
@@ -253,8 +256,13 @@ unsafe fn raster_region(
     height: u32,
     scale: f32,
     crop: Option<crate::crop_geometry::Rect>,
+    projection: Option<Projection>,
 ) -> Result<OwnedRegion> {
-    let region = source_region(&cache.source.as_ref().unwrap().1, width, height, scale)?;
+    let mask = &cache.source.as_ref().unwrap().1;
+    let region = match projection {
+        Some(mapping) => projected_region(mask, (width, height), scale, mapping)?,
+        None => source_region(mask, width, height, scale)?,
+    };
     if let Some((_, mask)) = &cache.annotations {
         let frame = crop.unwrap_or(crate::crop_geometry::Rect {
             x: 0.0,
@@ -281,42 +289,114 @@ unsafe fn raster_region(
     Ok(region)
 }
 
+unsafe fn projected_region(
+    mask: &AlphaRegion,
+    size: (u32, u32),
+    scale: f32,
+    mapping: Projection,
+) -> Result<OwnedRegion> {
+    let Sampling::Region(Projection { source, target }) =
+        Projection::clipped(mapping.source, mapping.target, size)
+            .ok_or_else(|| Error::new(E_INVALIDARG, "Invalid projected hit region"))?
+    else {
+        return OwnedRegion::checked(CreateRectRgn(0, 0, 0, 0));
+    };
+    let edge = |value: f64| {
+        // GDI regions accept signed 27-bit coordinates.
+        (value * f64::from(scale))
+            .round()
+            .clamp(-67_108_864.0, 67_108_863.0) as i32
+    };
+    let bounds = RECT {
+        left: edge(target.x),
+        top: edge(target.y),
+        right: edge(target.x + target.width),
+        bottom: edge(target.y + target.height),
+    };
+    let map_x = |x: f64| edge(target.x + (x - source.x) / source.width * target.width);
+    let map_y = |y: f64| edge(target.y + (y - source.y) / source.height * target.height);
+    // Clip each alpha span before scaling. A tiny source region must not transform
+    // distant, unrelated source pixels through an enormous affine matrix.
+    let rects = mask.rectangles.iter().filter_map(|r| {
+        let left = f64::from(r.left).max(source.x);
+        let top = f64::from(r.top).max(source.y);
+        let right = f64::from(r.right).min(source.x + source.width);
+        let bottom = f64::from(r.bottom).min(source.y + source.height);
+        if right <= left || bottom <= top {
+            return None;
+        }
+        let r = RECT {
+            left: map_x(left),
+            top: map_y(top),
+            right: map_x(right),
+            bottom: map_y(bottom),
+        };
+        (r.right > r.left && r.bottom > r.top).then_some(r)
+    });
+    region_from_rects(mask.rectangles.len(), bounds, None, rects)
+}
+
 unsafe fn transformed_region(
     mask: &AlphaRegion,
     width: u32,
     height: u32,
     transform: XFORM,
 ) -> Result<OwnedRegion> {
-    if mask.rectangles.is_empty() {
-        return OwnedRegion::checked(CreateRectRgn(0, 0, 0, 0));
-    }
-    let header = std::mem::size_of::<RGNDATAHEADER>();
-    let bytes = header + mask.rectangles.len() * std::mem::size_of::<RECT>();
-    // u32 对齐覆盖 RGNDATAHEADER/RECT，所有长度都来自有界矩形列表。
-    let mut storage = vec![0u32; bytes.div_ceil(4)];
-    let data = storage.as_mut_ptr().cast::<RGNDATA>();
-    (*data).rdh = RGNDATAHEADER {
-        dwSize: header as u32,
-        iType: RDH_RECTANGLES,
-        nCount: mask.rectangles.len() as u32,
-        nRgnSize: (bytes - header) as u32,
-        rcBound: RECT {
+    region_from_rects(
+        mask.rectangles.len(),
+        RECT {
             left: 0,
             top: 0,
             right: width as i32,
             bottom: height as i32,
         },
-    };
-    let output = storage.as_mut_ptr().cast::<u8>().add(header).cast::<RECT>();
-    for (index, rect) in mask.rectangles.iter().enumerate() {
-        output.add(index).write(RECT {
+        Some(&transform),
+        mask.rectangles.iter().map(|rect| RECT {
             left: rect.left,
             top: rect.top,
             right: rect.right,
             bottom: rect.bottom,
-        });
+        }),
+    )
+}
+
+unsafe fn region_from_rects(
+    capacity: usize,
+    bounds: RECT,
+    transform: Option<&XFORM>,
+    rects: impl Iterator<Item = RECT>,
+) -> Result<OwnedRegion> {
+    if capacity == 0 {
+        return OwnedRegion::checked(CreateRectRgn(0, 0, 0, 0));
     }
-    OwnedRegion::checked(ExtCreateRegion(Some(&transform), bytes as u32, data))
+    let header = std::mem::size_of::<RGNDATAHEADER>();
+    let stride = std::mem::size_of::<RECT>();
+    let bytes = header + capacity * stride;
+    // u32 对齐覆盖 RGNDATAHEADER/RECT，所有长度都来自有界矩形列表。
+    let mut storage = vec![0u32; bytes.div_ceil(4)];
+    let data = storage.as_mut_ptr().cast::<RGNDATA>();
+    let output = storage.as_mut_ptr().cast::<u8>().add(header).cast::<RECT>();
+    let mut count = 0;
+    for rect in rects {
+        assert!(count < capacity);
+        output.add(count).write(rect);
+        count += 1;
+    }
+    if count == 0 {
+        return OwnedRegion::checked(CreateRectRgn(0, 0, 0, 0));
+    }
+    (*data).rdh = RGNDATAHEADER {
+        dwSize: header as u32,
+        iType: RDH_RECTANGLES,
+        nCount: count as u32,
+        nRgnSize: (count * stride) as u32,
+        rcBound: bounds,
+    };
+    OwnedRegion::checked(ExtCreateRegion(
+        transform.map(std::ptr::from_ref),
+        (header + count * stride) as u32,
+        data,
+    ))
 }
 
 #[path = "hit_region_annotations.rs"]
@@ -324,200 +404,5 @@ mod annotations;
 use annotations::add_annotations;
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn worker_mask_retains_independent_layer_identity_without_gdi_handles() {
-        let image = super::super::image::Image {
-            width: 4,
-            height: 2,
-            pixels: vec![255; 32].into(),
-        };
-        let annotations: crate::pixels::Pixels = vec![255; 16].into();
-        let region =
-            HitRegion::prepare_cancellable(&image, Some(&annotations), (2, 2), || false).unwrap();
-        assert!(region
-            .source
-            .as_ref()
-            .unwrap()
-            .0
-            .same_storage(&image.pixels));
-        assert!(region
-            .annotations
-            .as_ref()
-            .unwrap()
-            .0
-            .same_storage(&annotations));
-        assert_eq!(region.annotation_size, (2, 2));
-        assert!(region.key.is_none());
-        assert!(
-            HitRegion::prepare_cancellable(&image, Some(&annotations), (2, 2), || true).is_err()
-        );
-    }
-    #[test]
-    fn region_key_invalidates_for_view_changes_without_document_or_window_changes() {
-        let original = Key {
-            source: 1,
-            revision: 2,
-            pan: true,
-            client: (640, 480),
-            dpi: 144,
-            viewport: crate::viewport::Viewport {
-                origin: crate::viewport::Point { x: -30.0, y: 20.0 },
-                scale: 1.5,
-            },
-            minified: None,
-            style: Default::default(),
-            overlay: 0,
-        };
-        let mut moved = original;
-        moved.viewport.origin.x += 1.0;
-        assert_ne!(original, moved);
-        let mut zoomed = original;
-        zoomed.viewport.scale = 2.0;
-        assert_ne!(original, zoomed);
-        let mut vertical = original;
-        vertical.viewport.origin.y -= 1.0;
-        assert_ne!(original, vertical);
-        assert_eq!(original, Key { ..original });
-    }
-
-    #[test]
-    fn independent_annotation_dimensions_map_native_mask_and_reject_wrong_stride() {
-        let image = super::super::image::Image {
-            width: 32,
-            height: 32,
-            pixels: vec![0; 4096].into(),
-        };
-        let mut pixels = vec![0; 8 * 4 * 4];
-        pixels[(8 + 1) * 4 + 3] = 255;
-        let pixels: crate::pixels::Pixels = pixels.into();
-        let horizontal = HitRegion::prepare_sized(&image, Some(&pixels), (8, 4)).unwrap();
-        let vertical = HitRegion::prepare_sized(&image, Some(&pixels), (4, 8)).unwrap();
-        let crop = Some(crate::crop_geometry::Rect {
-            x: 16.0,
-            y: 8.0,
-            width: 16.0,
-            height: 16.0,
-        });
-        unsafe {
-            let h = raster_region(&horizontal, 32, 32, 1.0, crop).unwrap();
-            assert!(PtInRegion(h.0, 19, 14).as_bool());
-            assert!(!PtInRegion(h.0, 30, 14).as_bool());
-            let v = raster_region(&vertical, 32, 32, 1.0, crop).unwrap();
-            assert!(PtInRegion(v.0, 22, 13).as_bool());
-            assert!(!PtInRegion(v.0, 22, 20).as_bool());
-        }
-        assert!(HitRegion::prepare_sized(&image, Some(&pixels), (8, 8)).is_err());
-        assert!(HitRegion::prepare_sized(&image, Some(&pixels), (0, 4)).is_err());
-    }
-
-    #[test]
-    fn raster_annotation_has_native_hit_region_when_base_is_erased() {
-        let image = super::super::image::Image {
-            width: 16,
-            height: 16,
-            pixels: vec![0; 16 * 16 * 4].into(),
-        };
-        let mut pixels = vec![0; 16 * 16 * 4];
-        pixels[(8 * 16 + 8) * 4 + 3] = 1;
-        let annotations: crate::pixels::Pixels = pixels.into();
-        let cache = HitRegion::prepare_layers(&image, Some(&annotations)).unwrap();
-        unsafe {
-            let region = raster_region(&cache, 16, 16, 1.0, None).unwrap();
-            assert!(PtInRegion(region.0, 8, 8).as_bool());
-            assert!(!PtInRegion(region.0, 2, 2).as_bool());
-        }
-        assert!(HitRegion::prepare(&image)
-            .unwrap()
-            .source
-            .unwrap()
-            .1
-            .rectangles
-            .is_empty());
-    }
-    #[test]
-    fn cropped_overlay_hit_region_moves_independently_from_base_at_multiple_scales() {
-        let mut base = vec![0; 32 * 32 * 4];
-        for y in 24..28 {
-            for x in 24..28 {
-                base[(y * 32 + x) * 4 + 3] = 255;
-            }
-        }
-        let image = super::super::image::Image {
-            width: 32,
-            height: 32,
-            pixels: base.into(),
-        };
-        let mut overlay = vec![0; 32 * 32 * 4];
-        for y in 4..12 {
-            for x in 4..12 {
-                overlay[(y * 32 + x) * 4 + 3] = 255;
-            }
-        }
-        let pixels: crate::pixels::Pixels = overlay.into();
-        let cache = HitRegion::prepare_layers(&image, Some(&pixels)).unwrap();
-        let frame = crate::crop_geometry::Rect {
-            x: 16.0,
-            y: 4.0,
-            width: 16.0,
-            height: 8.0,
-        };
-        for scale in [1.0, 1.5, 2.0] {
-            unsafe {
-                let region = raster_region(&cache, 32, 32, scale, Some(frame)).unwrap();
-                assert!(
-                    PtInRegion(region.0, (20.0 * scale) as i32, (6.0 * scale) as i32).as_bool()
-                );
-                assert!(
-                    !PtInRegion(region.0, (8.0 * scale) as i32, (8.0 * scale) as i32).as_bool()
-                );
-                // 底图仍位于原始位置；最终可见裁剪由 update 的统一 clip 负责。
-                assert!(
-                    PtInRegion(region.0, (26.0 * scale) as i32, (26.0 * scale) as i32).as_bool()
-                );
-                let reset = raster_region(&cache, 32, 32, scale, None).unwrap();
-                assert!(PtInRegion(reset.0, (8.0 * scale) as i32, (8.0 * scale) as i32).as_bool());
-                assert!(
-                    !PtInRegion(reset.0, (20.0 * scale) as i32, (6.0 * scale) as i32).as_bool()
-                );
-            }
-        }
-        assert!(cache.annotations.as_ref().unwrap().0.same_storage(&pixels));
-    }
-
-    #[test]
-    fn native_region_preserves_holes_and_scaled_sampling_border() {
-        let mut pixels = vec![0; 12 * 12 * 4];
-        pixels[(6 * 12 + 6) * 4 + 3] = 255;
-        let mask = alpha_region::build(12, 12, &pixels).unwrap();
-        unsafe {
-            let region = source_region(&mask, 12, 12, 2.0).unwrap();
-            assert!(!PtInRegion(region.0, 1, 1).as_bool());
-            assert!(PtInRegion(region.0, 12, 12).as_bool());
-            assert!(!PtInRegion(region.0, 20, 20).as_bool());
-        }
-    }
-
-    #[test]
-    fn annotation_bounds_remain_interactive_on_transparent_source() {
-        let image = super::super::image::Image {
-            width: 32,
-            height: 32,
-            pixels: vec![0; 32 * 32 * 4].into(),
-        };
-        let mut canvas = super::super::canvas::Canvas::new(Some(image)).unwrap();
-        canvas.viewport.origin = crate::viewport::Point::default();
-        canvas
-            .editor
-            .begin(Tool::Brush, crate::viewport::Point { x: 16.0, y: 16.0 })
-            .unwrap();
-        canvas.editor.commit();
-        unsafe {
-            let region = OwnedRegion::checked(CreateRectRgn(0, 0, 0, 0)).unwrap();
-            add_annotations(&region, &canvas.editor, canvas.viewport.scale, 96).unwrap();
-            assert!(PtInRegion(region.0, 16, 16).as_bool());
-            assert!(!PtInRegion(region.0, 2, 2).as_bool());
-        }
-    }
-}
+#[path = "hit_region_tests.rs"]
+mod tests;

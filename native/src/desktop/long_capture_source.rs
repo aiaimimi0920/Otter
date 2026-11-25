@@ -1,6 +1,8 @@
 //! 显式选区后台采集；手动和绑定目标的单步滚动分开准入，不控制焦点。
 use crate::{
-    long_capture::{Axis, CaptureMode, Frame, MatchOptions, Session, SessionJob},
+    long_capture::{
+        Axis, CaptureMode, CaptureSource, Frame, MatchOptions, OutputTarget, Session, SessionJob,
+    },
     pixels::Pixels,
 };
 use std::sync::atomic::Ordering;
@@ -41,7 +43,8 @@ fn prepare(
     let frame = Frame::new(region.width as u32, region.height as u32, first)
         .map_err(|error| format!("Invalid long capture frame: {error:?}"))?;
     Session::new(axis, frame, options)
-        .map_err(|error| format!("Invalid long capture options: {error:?}"))
+        .and_then(|session| session.with_output(OutputTarget::Document))
+        .map_err(|error| format!("Invalid long capture session: {error:?}"))
 }
 fn capture(region: Region, cancel: &std::sync::atomic::AtomicBool) -> Result<Frame, String> {
     if cancel.load(Ordering::Acquire) {
@@ -69,17 +72,19 @@ pub fn start_scrollable(
         .map_err(|error| error.to_string())
 }
 /// 在控制窗口出现前冻结目标。观察源没有主动发送输入的能力，旧主动采集入口不受影响。
-pub fn start_recording(
-    region: Region,
-    first: Pixels,
-) -> Result<(SessionJob, scroll::Target), String> {
+pub fn start_recording(region: Region) -> Result<(SessionJob, scroll::Target), String> {
     super::capture::validate_region(region.left, region.top, region.width, region.height)
         .map_err(|error| error.to_string())?;
-    let first = Frame::new(region.width as u32, region.height as u32, first)
-        .map_err(|error| format!("Invalid recording frame: {error:?}"))?;
+    // 选区窗已销毁，录制窗尚未创建；等待合成器提交切换后再绑定和采首帧。
+    unsafe { windows::Win32::Graphics::Dwm::DwmFlush() }.map_err(|error| error.to_string())?;
     let target = scroll::Target::bind(region)?;
-    let source = owner::Source::recording(region, target.clone());
-    let job = SessionJob::start_detecting(first, source).map_err(|error| error.to_string())?;
+    let mut source = owner::Source::recording(region, target.clone());
+    let first = source.capture(
+        CaptureMode::Current,
+        &std::sync::atomic::AtomicBool::new(false),
+    )?;
+    let job = SessionJob::start_detecting_for(first, source, OutputTarget::Document)
+        .map_err(|error| error.to_string())?;
     Ok((job, target))
 }
 // 稳定采样最多同时保留上一帧 BGRA、当前 DIB 和当前 BGRA。发送输入前先检查峰值，

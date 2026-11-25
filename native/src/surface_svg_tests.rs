@@ -38,6 +38,71 @@ fn decode(source: &str) -> Result<Image> {
         false
     })
 }
+#[track_caller]
+fn assert_same_pixels(actual: &Image, expected: &Image, context: &str) {
+    assert_eq!(
+        (actual.width, actual.height),
+        (expected.width, expected.height),
+        "{context}: image dimensions"
+    );
+    // zip 只比较公共前缀；先核长度，避免截断的像素缓冲被误判为相同。
+    assert_eq!(
+        actual.pixels.len(),
+        expected.pixels.len(),
+        "{context}: pixel buffer length"
+    );
+    let difference = actual
+        .pixels
+        .iter()
+        .zip(expected.pixels.iter())
+        .position(|(a, b)| a != b);
+    assert_eq!(difference, None, "{context}: first differing byte");
+}
+#[test]
+#[should_panic(expected = "image dimensions")]
+fn surface_svg_pixel_oracle_rejects_equal_bytes_with_different_dimensions() {
+    let actual = Image {
+        width: 2,
+        height: 1,
+        pixels: vec![0; 8].into(),
+    };
+    let expected = Image {
+        width: 1,
+        height: 2,
+        pixels: actual.pixels.clone(),
+    };
+    assert_same_pixels(&actual, &expected, "dimension regression");
+}
+#[test]
+#[should_panic(expected = "pixel buffer length")]
+fn surface_svg_pixel_oracle_rejects_matching_prefix_with_truncated_buffer() {
+    let actual = Image {
+        width: 2,
+        height: 1,
+        pixels: vec![0; 4].into(),
+    };
+    let expected = Image {
+        width: 2,
+        height: 1,
+        pixels: vec![0; 8].into(),
+    };
+    assert_same_pixels(&actual, &expected, "truncated buffer regression");
+}
+#[test]
+#[should_panic(expected = "first differing byte")]
+fn surface_svg_pixel_oracle_checks_the_final_byte() {
+    let actual = Image {
+        width: 1,
+        height: 1,
+        pixels: vec![0, 0, 0, 255].into(),
+    };
+    let expected = Image {
+        width: 1,
+        height: 1,
+        pixels: vec![0; 4].into(),
+    };
+    assert_same_pixels(&actual, &expected, "last byte regression");
+}
 #[test]
 fn surface_svg_child_matches_measured_natural_sizes_and_coverage() {
     for (attrs, size, coverage) in [

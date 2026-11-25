@@ -135,13 +135,7 @@ fn native_edit_joint_shared_offline_replay_merge_checkpoint_and_conflict() {
     let path = PathBuf::from(
         std::env::var_os("OTTER_PROJECTION_EDIT_JOINT_INPUT").expect("explicit isolated input"),
     );
-    assert!(path.is_absolute() && fs::metadata(&path).unwrap().len() <= 64 * 1024);
-    let root = path.parent().unwrap();
-    assert!(root
-        .canonicalize()
-        .unwrap()
-        .starts_with(std::env::temp_dir().canonicalize().unwrap()));
-    let bytes = zeroize::Zeroizing::new(fs::read(&path).unwrap());
+    let (root, bytes) = crate::projection_joint_input::load(&path).unwrap();
     let input: Input<'_> = serde_json::from_slice(&bytes).unwrap();
     let source = Actor::new(root, "source-profile", &input.source);
     let local = Actor::new(root, "local-profile", &input.local);

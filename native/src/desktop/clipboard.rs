@@ -2,6 +2,8 @@
 use super::image::Image;
 #[path = "clipboard_text.rs"]
 mod text;
+#[cfg(test)]
+pub(super) use text::capture_extension_copy;
 pub(super) use text::copy_checked as copy_text_checked;
 pub(super) use text::copy_extension_checked as copy_extension_text_checked;
 pub(super) use text::copy_full_checked as copy_full_text_checked;

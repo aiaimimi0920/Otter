@@ -18,10 +18,10 @@ pub(super) struct Sender {
     accepted: u64,
     local_poll: Instant,
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-live")))]
 #[path = "live_relay_viewer_input_runtime_tests.rs"]
 mod tests;
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-live")))]
 #[path = "live_relay_viewer_trigger_runtime_tests.rs"]
 mod trigger_tests;
 pub(super) struct Finish(pub Arc<Queue>);

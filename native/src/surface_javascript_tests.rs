@@ -139,6 +139,15 @@ fn javascript_wire_limits_precede_allocation_and_reject_trailing_or_unknown_fiel
     assert!(super::resources(&json!({"bad/path":"data:"})).is_err());
 }
 #[test]
+fn javascript_wire_size_only_matches_encoding_at_escaped_frame_boundary() {
+    for length in [wire::MAX_FRAME - 4, wire::MAX_FRAME - 3] {
+        let value = format!("{}\"", "x".repeat(length));
+        let expected = length == wire::MAX_FRAME - 4;
+        assert_eq!(wire::encode(&value).is_ok(), expected);
+        assert_eq!(wire::validate_encoded_size(&value).is_ok(), expected);
+    }
+}
+#[test]
 fn javascript_emit_budget_returns_false_without_poisoning_live_session() {
     let _serial = fixture::SERIAL.lock().unwrap();
     let source = r#"NeuroSurface.define({mount({root,emit}){

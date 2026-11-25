@@ -1,6 +1,6 @@
 //! 应用线程交付已完成的节点结果；短借用模型，不联网、不运行嵌套消息循环。
 use super::Application;
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-loom")))]
 #[path = "application_execution_tests.rs"]
 mod tests;
 impl Application {

@@ -26,7 +26,7 @@ fn ignored_class(class: &str) -> bool {
 }
 fn snapshot() -> Result<Vec<Candidate>> {
     let mut candidates = Vec::new();
-    for (hwnd, _) in super::super::super::capture_windows::entries()? {
+    for hwnd in super::super::super::capture_windows::handles()? {
         let mut process = 0;
         unsafe {
             GetWindowThreadProcessId(hwnd, Some(&mut process));
@@ -102,6 +102,6 @@ pub(super) fn select() -> Result<Option<Request>> {
         .transpose()
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-live")))]
 #[path = "capture_live_selection_tests.rs"]
 mod tests;

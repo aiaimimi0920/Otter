@@ -1,4 +1,4 @@
-//! 有界授权窗口集合；终态保留附件 owner，但不再参与等待或截止计算。
+//! 有界授权窗口集合；确认终态可退休为独立恢复提示。
 use super::surface_authorized_window::AuthorizedWindow;
 use std::{
     os::windows::io::BorrowedHandle,
@@ -22,6 +22,8 @@ pub struct Windows {
     entries: Vec<AuthorizedWindow>,
     failures: Vec<FailedAdmission>,
     image_cursor: usize,
+    retired: Vec<crate::surface_recovery_record::Record>,
+    retirement_blocked: bool,
 }
 impl Windows {
     pub fn status(&self) -> Option<String> {
@@ -212,7 +214,10 @@ impl Windows {
                         && current.instance() == binding.instance()
                         && current.attachment() == binding.attachment()
                 })
-            })
+            }) || self
+                .retired
+                .iter()
+                .any(|hint| hint.supersedes_mount(binding))
         });
         let result = if duplicate {
             Err("附件已有持有记录，保留重复挂载结果".to_owned())

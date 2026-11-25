@@ -1,6 +1,14 @@
 //! 多选绑定同一文档版本；主锚点改变或历史切换即失效，不让旧索引作用于新对象。
 use super::canvas::Canvas;
-use crate::viewport::Point;
+use crate::{
+    editor::{DocumentStamp, TranslationBounds},
+    viewport::Point,
+};
+
+pub(super) struct GroupTranslation {
+    stamp: DocumentStamp,
+    bounds: TranslationBounds,
+}
 
 impl Canvas {
     pub(super) fn begin_group_drag(&mut self, screen: Point) -> bool {
@@ -21,17 +29,55 @@ impl Canvas {
         if !matches!(hit, Ok(Some(index)) if indices.binary_search(&index).is_ok()) {
             return false;
         }
-        // 每次手势只克隆一次选中几何；总量受文档点上限约束，像素快照共享。
-        self.group_preview = indices
+        self.begin_group_translation(point)
+    }
+
+    pub(super) fn begin_group_translation(&mut self, point: Point) -> bool {
+        let Some(indices) = self.selected_group().filter(|indices| indices.len() > 1) else {
+            return false;
+        };
+        let originals = indices
             .iter()
-            .map(|index| (*index, self.editor.elements()[*index].clone()))
+            .map(|&index| (index, &self.editor.elements()[index]));
+        let Some(bounds) = TranslationBounds::new(
+            originals
+                .clone()
+                .flat_map(|(_, stroke)| stroke.points.iter().copied()),
+        ) else {
+            return false;
+        };
+        // One preview allocation per gesture; every sample starts from immutable original geometry.
+        self.group_preview = originals
+            .map(|(index, stroke)| (index, stroke.clone()))
             .collect();
+        self.scale_display_revision = None;
+        self.group_translation = Some(GroupTranslation {
+            stamp: self.editor.document_stamp(),
+            bounds,
+        });
         self.selection_drag = Some((point, Point::default()));
         true
     }
-    pub(super) fn move_group_drag(&mut self, screen: Point, start: Point, previous: Point) -> bool {
-        if self.selected_group().is_none() {
+
+    // Selection can change without an edit revision. Never reuse cached bounds for a new group.
+    pub(super) fn discard_stale_group_translation(&mut self) -> bool {
+        if self.group_translation.as_ref().is_some_and(|drag| {
+            !drag.stamp.matches(&self.editor)
+                || !self.selected_group().is_some_and(|indices| {
+                    indices
+                        .iter()
+                        .copied()
+                        .eq(self.group_preview.iter().map(|(index, _)| *index))
+                })
+        }) {
             self.cancel_gesture();
+            return true;
+        }
+        false
+    }
+
+    pub(super) fn move_group_drag(&mut self, screen: Point, start: Point, previous: Point) -> bool {
+        if self.discard_stale_group_translation() {
             return true;
         }
         let point = self.viewport.image_point(screen);
@@ -39,28 +85,21 @@ impl Canvas {
             x: point.x - start.x,
             y: point.y - start.y,
         });
-        // 先检查整个集合，禁止后续对象越界时留下部分更新的预览。
-        if !offset.x.is_finite()
-            || !offset.y.is_finite()
-            || offset.x.abs() > 1_000_000.0
-            || offset.y.abs() > 1_000_000.0
-            || self.group_preview.iter().any(|(index, _)| {
-                self.editor.elements()[*index].points.iter().any(|p| {
-                    (p.x + offset.x).abs() > 1_000_000.0 || (p.y + offset.y).abs() > 1_000_000.0
-                })
-            })
-        {
+        let drag = self
+            .group_translation
+            .as_ref()
+            .expect("active group translation");
+        if offset == previous || !drag.bounds.permits(offset) {
             return false;
         }
         for (index, preview) in &mut self.group_preview {
-            preview
-                .update_translation_preview(&self.editor.elements()[*index], offset)
-                .expect("validated group preview");
+            preview.apply_valid_translation_preview(&self.editor.elements()[*index], offset);
         }
         self.selection_drag = Some((start, offset));
-        offset != previous
+        true
     }
     pub(super) fn commit_group_drag(&mut self, offset: Point) {
+        self.group_translation = None;
         self.group_preview = Vec::new();
         let indices = self.selected_indices();
         match self.editor.translate_many(&indices, offset) {
@@ -86,15 +125,19 @@ impl Canvas {
         }
         Some(indices)
     }
-    pub(super) fn selected_indices(&self) -> Vec<usize> {
+    pub(super) fn selected_indices_ref(&self) -> &[usize] {
         if let Some(indices) = self.selected_group() {
-            return indices.to_vec();
+            return indices;
         }
         self.selected
+            .as_ref()
             .filter(|(index, revision)| {
                 *revision == self.editor.revision() && *index < self.editor.elements().len()
             })
-            .map_or_else(Vec::new, |(index, _)| vec![index])
+            .map_or(&[], |(index, _)| std::slice::from_ref(index))
+    }
+    pub(super) fn selected_indices(&self) -> Vec<usize> {
+        self.selected_indices_ref().to_vec()
     }
     pub(super) fn toggle_selection_at(&mut self, point: Point) -> bool {
         if !self.selection_enabled {
@@ -255,6 +298,31 @@ mod tests {
         assert!(canvas.group_preview.is_empty());
         assert!(canvas.selection_drag.is_none());
     }
+    #[test]
+    fn reselection_without_revision_change_does_not_commit_an_old_group_drag() {
+        let mut canvas = canvas();
+        for x in [8.0, 56.0] {
+            assert!(canvas.toggle_selection_at(Point { x, y: 16.0 }));
+        }
+        let start = Point { x: 8.0, y: 16.0 };
+        let end = Point { x: 10.0, y: 20.0 };
+        let revision = canvas.editor.revision();
+        assert!(canvas.pointer_down(start));
+        assert!(canvas.pointer_move(end));
+        assert!(!canvas.pointer_move(end));
+        canvas.multi_selection = Some((vec![0, 1], revision));
+        assert!(canvas.pointer_up(end));
+        assert!(canvas.group_translation.is_none());
+        assert!(canvas.group_preview.is_empty());
+        assert_eq!(canvas.editor.revision(), revision);
+        assert_eq!(canvas.editor.elements()[0].points[0], start);
+        assert_eq!(
+            canvas.editor.elements()[1].points[0],
+            Point { x: 32.0, y: 16.0 }
+        );
+        assert_eq!(canvas.selected_indices(), vec![0, 1]);
+    }
+
     #[test]
     fn rotate_command_keeps_group_selected_and_undoes_as_one_transaction() {
         let mut canvas = canvas();

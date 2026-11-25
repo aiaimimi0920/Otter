@@ -1,6 +1,7 @@
 //! 自有TLS/raw源恢复：独立wire像素、水位、nonce/创建次数；不捕获桌面或操作真实配置。
 use super::*;
 use serde_json::{json, Value};
+use std::io::{Read, Write};
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 fn spin(mut predicate: impl FnMut() -> bool) {
@@ -278,3 +279,166 @@ fn normal_close_and_invalid_messages_are_terminal_without_reconnect() {
         peer.join().unwrap();
     }
 }
+#[test]
+fn local_restart_interrupts_tls_or_upgrade_without_losing_pending_rotation() {
+    for upgrade in [false, true] {
+        let (files, _, _) = pairing::Files::new();
+        let (listener, client, tls, pem) = fixture_with_host("127.0.0.1");
+        std::fs::write(files.root().join("fixture-ca.pem"), pem).unwrap();
+        let (started, handshaking) = mpsc::channel();
+        let (confirmed, wait) = mpsc::channel();
+        let peer = std::thread::spawn(move || {
+            let mut value = created(&listener, &tls);
+            let tcp = accept(&listener);
+            if upgrade {
+                let mut held = StreamOwned::new(ServerConnection::new(tls.clone()).unwrap(), tcp);
+                let (head, _) = request(&mut held);
+                assert!(head.starts_with("GET /v1/live/media"));
+                started.send(()).unwrap();
+                assert!(held.read_exact(&mut [0]).is_err());
+            } else {
+                let mut held = tcp;
+                let mut byte = [0];
+                held.read_exact(&mut byte).unwrap();
+                assert_eq!(byte, [22]); // TLS ClientHello record.
+                started.send(()).unwrap();
+                let mut rest = Vec::new();
+                held.read_to_end(&mut rest).unwrap();
+            }
+            let mut nonces = std::collections::HashSet::new();
+            let mut retired = socket(&listener, &tls, &mut nonces);
+            assert!(retired.read().is_err(), "rotation must not publish a frame");
+            let mut current = socket(&listener, &tls, &mut nonces);
+            frame(&mut current, 1);
+            let mut receipt = StreamOwned::new(
+                ServerConnection::new(tls.clone()).unwrap(),
+                accept(&listener),
+            );
+            let (head, _) = request(&mut receipt);
+            assert!(head.starts_with("GET /v1/live/sessions/"));
+            value["sourceConnected"] = json!(true);
+            value["lastFrameId"] = json!(1);
+            reply(&mut receipt, 200, &serde_json::to_vec(&value).unwrap());
+            assert_eq!(nonces.len(), 2);
+            confirmed.send(()).unwrap();
+            closed(&listener, &tls, &mut value);
+        });
+        let mut grant = Grant::new(session(&client.origin, u64::MAX));
+        let (frames, budget, mut runtime) = start(&client.origin, files.root(), &mut grant);
+        handshaking.recv_timeout(Duration::from_secs(3)).unwrap();
+        assert!(!runtime.ready());
+        runtime.test_request_media_restart();
+        wait.recv_timeout(Duration::from_secs(5)).unwrap();
+        spin(|| runtime.ready());
+        runtime.request_stop();
+        spin(|| runtime.test_finished());
+        let outcome = runtime.try_join().unwrap();
+        assert_eq!(outcome.exit, Exit::Stopped);
+        assert_eq!(outcome.cleanup, Cleanup::Confirmed);
+        assert_eq!(budget.used(), 0);
+        assert!(!frames.has_consumers());
+        peer.join().unwrap();
+    }
+}
+
+#[test]
+fn uncancelled_tls_and_upgrade_failures_remain_terminal() {
+    for upgrade in [false, true] {
+        let (files, _, _) = pairing::Files::new();
+        let (listener, client, tls, pem) = fixture_with_host("127.0.0.1");
+        std::fs::write(files.root().join("fixture-ca.pem"), pem).unwrap();
+        let peer = std::thread::spawn(move || {
+            let mut value = created(&listener, &tls);
+            let mut tcp = accept(&listener);
+            if upgrade {
+                let mut rejected =
+                    StreamOwned::new(ServerConnection::new(tls.clone()).unwrap(), tcp);
+                let (head, _) = request(&mut rejected);
+                assert!(head.starts_with("GET /v1/live/media"));
+                reply(&mut rejected, 403, b"{}");
+            } else {
+                tcp.read_exact(&mut [0]).unwrap();
+                tcp.write_all(b"not tls").unwrap();
+            }
+            closed(&listener, &tls, &mut value);
+        });
+        let mut grant = Grant::new(session(&client.origin, u64::MAX));
+        let (frames, budget, mut runtime) = start(&client.origin, files.root(), &mut grant);
+        spin(|| runtime.test_finished());
+        let outcome = runtime.try_join().unwrap();
+        use crate::live_relay_media_transport::Error;
+        assert_eq!(
+            outcome.exit,
+            Exit::Media(if upgrade { Error::Upgrade } else { Error::Tls })
+        );
+        assert_eq!(outcome.cleanup, Cleanup::Confirmed);
+        assert_eq!(budget.used(), 0);
+        assert!(!frames.has_consumers());
+        peer.join().unwrap();
+    }
+}
+#[test]
+fn stop_cancels_inflight_progress_but_closes_only_with_valid_original_authority() {
+    for revoke in [false, true] {
+        let (files, _, _) = pairing::Files::new();
+        let (listener, client, tls, pem) = fixture_with_host("127.0.0.1");
+        std::fs::write(files.root().join("fixture-ca.pem"), pem).unwrap();
+        let (started, wait) = mpsc::channel();
+        let (joined, done) = mpsc::channel();
+        let peer = std::thread::spawn(move || {
+            let mut value = created(&listener, &tls);
+            let mut nonces = std::collections::HashSet::new();
+            let mut first = socket(&listener, &tls, &mut nonces);
+            frame(&mut first, 1);
+            drop(first);
+            let mut second = socket(&listener, &tls, &mut nonces);
+            frame(&mut second, 2);
+            let mut progress = StreamOwned::new(
+                ServerConnection::new(tls.clone()).unwrap(),
+                accept(&listener),
+            );
+            let (head, _) = request(&mut progress);
+            assert!(head.starts_with("GET /v1/live/sessions/") && !head.contains("/events"));
+            started.send(()).unwrap();
+            assert!(progress.read_exact(&mut [0]).is_err());
+            if !revoke {
+                closed(&listener, &tls, &mut value);
+            }
+            done.recv_timeout(Duration::from_secs(5)).unwrap();
+            assert!(
+                matches!(listener.accept(), Err(e) if e.kind()==std::io::ErrorKind::WouldBlock)
+            );
+        });
+        let mut grant = Grant::new(session(&client.origin, u64::MAX));
+        let (frames, budget, mut runtime) = start(&client.origin, files.root(), &mut grant);
+        wait.recv_timeout(Duration::from_secs(5)).unwrap();
+        assert!(!runtime.ready());
+        let began = Instant::now();
+        if revoke {
+            drop(grant);
+        } else {
+            runtime.request_stop();
+        }
+        spin(|| runtime.test_finished());
+        assert!(began.elapsed() < Duration::from_secs(2));
+        let outcome = runtime.try_join().unwrap();
+        assert_eq!(outcome.exit, Exit::Stopped);
+        assert_eq!(
+            outcome.cleanup,
+            if revoke {
+                Cleanup::AuthorizationEnded
+            } else {
+                Cleanup::Confirmed
+            }
+        );
+        assert_eq!(budget.used(), 0);
+        assert!(!frames.has_consumers());
+        joined.send(()).unwrap();
+        peer.join().unwrap();
+    }
+}
+
+#[path = "live_relay_source_denied_http_tests.rs"]
+mod denied;
+#[path = "live_relay_source_rotation_http_tests.rs"]
+mod rotation;

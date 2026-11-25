@@ -147,7 +147,7 @@ fn source_menu_freezes_basis_initializes_existing_targets_and_later_target_attac
     std::fs::write(files.root().join("ca.pem"), pem).unwrap();
     let peer = peer::Peer::start(listener, tls, files.root().to_path_buf());
     unsafe {
-        let (_class, mut app) = application(files.root());
+        let mut app = application(files.root());
         initialized(&mut app, &files, identity, client, 2);
         let state = snapshot(&app);
         assert_eq!(state.role(), edit::workspace::Role::Source);

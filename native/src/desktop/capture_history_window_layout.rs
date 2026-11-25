@@ -1,8 +1,8 @@
 //! 历史标准按钮的DPI布局与内部滚动；不改变物理显示，不分配图像。
 use super::*;
 use windows::Win32::UI::HiDpi::GetDpiForWindow;
-fn scaled(hwnd: HWND, value: i32) -> i32 {
-    (i64::from(value) * unsafe { GetDpiForWindow(hwnd) }.max(96) as i64 / 96) as i32
+fn scaled(dpi: u32, value: i32) -> i32 {
+    (i64::from(value) * i64::from(dpi.max(96)) / 96) as i32
 }
 pub(super) unsafe fn create(hwnd: HWND, state: &State) -> Result<()> {
     for base in [100, 200, 300] {
@@ -33,30 +33,68 @@ pub(super) unsafe fn create(hwnd: HWND, state: &State) -> Result<()> {
     Ok(())
 }
 pub(super) unsafe fn update(hwnd: HWND, state: &State) -> Result<()> {
+    // HWND messages may reenter the parent. Keep an owned snapshot, not a live RefCell borrow.
+    let data = state.data.borrow().clone();
+    let children = state.children.borrow().clone();
+    for (slot, child) in children.into_iter().enumerate() {
+        let index = slot % 24;
+        let label = match slot / 24 {
+            0 => data
+                .colors
+                .get(index)
+                .map(|entry| HSTRING::from(&entry.hex)),
+            1 => data.screenshots.get(index).map(|entry| {
+                HSTRING::from(format!(
+                    "截图 {} · {}×{}",
+                    index + 1,
+                    entry.width,
+                    entry.height
+                ))
+            }),
+            _ => data
+                .screenshots
+                .get(index)
+                .map(|_| HSTRING::from(format!("删除截图 {}", index + 1))),
+        };
+        if let Some(label) = label {
+            SetWindowTextW(child, &label)?;
+        }
+    }
+    geometry(hwnd, state, true, None)
+}
+
+pub(super) unsafe fn resize(hwnd: HWND, state: &State) -> Result<()> {
+    geometry(hwnd, state, false, None)
+}
+
+unsafe fn geometry(
+    hwnd: HWND,
+    state: &State,
+    refresh_visibility: bool,
+    requested_scroll: Option<i32>,
+) -> Result<()> {
     let mut client = RECT::default();
     GetClientRect(hwnd, &mut client)?;
-    let width = client.right.max(scaled(hwnd, 240));
-    let margin = scaled(hwnd, 12);
-    let row = scaled(hwnd, 126);
-    let shot_top = scaled(hwnd, 224);
+    let dpi = GetDpiForWindow(hwnd);
+    let scale = |value| scaled(dpi, value);
+    let width = client.right.max(scale(240));
+    let margin = scale(12);
+    let row = scale(126);
+    let shot_top = scale(224);
     let (colors, shots) = {
         let data = state.data.borrow();
-        (
-            data.colors
-                .iter()
-                .map(|e| e.hex.clone())
-                .collect::<Vec<_>>(),
-            data.screenshots
-                .iter()
-                .enumerate()
-                .map(|(i, e)| format!("截图 {} · {}×{}", i + 1, e.width, e.height))
-                .collect::<Vec<_>>(),
-        )
+        (data.colors.len(), data.screenshots.len())
     };
-    let content = shot_top + row * shots.len().div_ceil(3) as i32 + scaled(hwnd, 48);
+    let content = shot_top + row * shots.div_ceil(3) as i32 + scale(48);
     let max_scroll = (content - client.bottom).max(0);
-    state.scroll.set(state.scroll.get().clamp(0, max_scroll));
-    let scroll = state.scroll.get();
+    let current = state.scroll.get();
+    let scroll = requested_scroll.unwrap_or(current).clamp(0, max_scroll);
+    // At a scroll boundary the effective position has not changed. Resize and data
+    // updates still run layout because the viewport or its contents may have changed.
+    if requested_scroll.is_some() && scroll == current {
+        return Ok(());
+    }
+    state.scroll.set(scroll);
     SetScrollInfo(
         hwnd,
         SB_VERT,
@@ -75,45 +113,42 @@ pub(super) unsafe fn update(hwnd: HWND, state: &State) -> Result<()> {
     for (slot, child) in children.into_iter().enumerate() {
         let index = slot % 24;
         let base = slot / 24;
-        let label = match base {
-            0 => colors.get(index).cloned(),
-            1 => shots.get(index).cloned(),
-            _ => shots.get(index).map(|_| format!("删除截图 {}", index + 1)),
-        };
-        let Some(label) = label else {
-            let _ = ShowWindow(child, SW_HIDE);
+        if index >= if base == 0 { colors } else { shots } {
+            if refresh_visibility {
+                let _ = ShowWindow(child, SW_HIDE);
+            }
             continue;
-        };
-        SetWindowTextW(child, &HSTRING::from(label))?;
+        }
         let (x, y, w, h) = if base == 0 {
             let cell = (width - 2 * margin) / 6;
             (
                 margin + index as i32 % 6 * cell,
-                scaled(hwnd, 44) + index as i32 / 6 * scaled(hwnd, 34),
+                scale(44) + index as i32 / 6 * scale(34),
                 cell - 4,
-                scaled(hwnd, 30),
+                scale(30),
             )
         } else {
             let cell = (width - 2 * margin) / 3;
             (
                 margin + index as i32 % 3 * cell,
-                shot_top + index as i32 / 3 * row + if base == 2 { scaled(hwnd, 94) } else { 0 },
+                shot_top + index as i32 / 3 * row + if base == 2 { scale(94) } else { 0 },
                 cell - 6,
-                scaled(hwnd, if base == 2 { 24 } else { 90 }),
+                scale(if base == 2 { 24 } else { 90 }),
             )
         };
         MoveWindow(child, x, y - scroll, w, h, true)?;
-        let _ = ShowWindow(child, SW_SHOWNOACTIVATE);
+        if refresh_visibility {
+            let _ = ShowWindow(child, SW_SHOWNOACTIVATE);
+        }
     }
     let _ = InvalidateRect(Some(hwnd), None, false);
     Ok(())
 }
 pub(super) unsafe fn scroll(hwnd: HWND, state: &State, msg: u32, wp: WPARAM) {
     let next = if msg == WM_MOUSEWHEEL {
-        state
-            .scroll
-            .get()
-            .saturating_sub(((wp.0 >> 16) as u16 as i16 as i32 / 120) * scaled(hwnd, 68))
+        state.scroll.get().saturating_sub(
+            ((wp.0 >> 16) as u16 as i16 as i32 / 120) * scaled(GetDpiForWindow(hwnd), 68),
+        )
     } else {
         let mut info = SCROLLINFO {
             cbSize: std::mem::size_of::<SCROLLINFO>() as u32,
@@ -122,8 +157,8 @@ pub(super) unsafe fn scroll(hwnd: HWND, state: &State, msg: u32, wp: WPARAM) {
         };
         let _ = GetScrollInfo(hwnd, SB_VERT, &mut info);
         match wp.0 as u16 as i32 {
-            0 => state.scroll.get() - scaled(hwnd, 34),
-            1 => state.scroll.get() + scaled(hwnd, 34),
+            0 => state.scroll.get() - scaled(GetDpiForWindow(hwnd), 34),
+            1 => state.scroll.get() + scaled(GetDpiForWindow(hwnd), 34),
             2 => state.scroll.get() - info.nPage as i32,
             3 => state.scroll.get() + info.nPage as i32,
             4 | 5 => info.nTrackPos,
@@ -132,8 +167,9 @@ pub(super) unsafe fn scroll(hwnd: HWND, state: &State, msg: u32, wp: WPARAM) {
             _ => state.scroll.get(),
         }
     };
-    state.scroll.set(next.max(0));
-    let _ = update(hwnd, state);
+    if next != state.scroll.get() {
+        let _ = geometry(hwnd, state, false, Some(next));
+    }
 }
 pub(super) unsafe fn focus(hwnd: HWND, state: &State, child: HWND) {
     let mut rect = RECT::default();
@@ -153,7 +189,7 @@ pub(super) unsafe fn focus(hwnd: HWND, state: &State, child: HWND) {
         (bottom - client.bottom).max(0)
     };
     if delta != 0 {
-        state.scroll.set((state.scroll.get() + delta).max(0));
-        let _ = update(hwnd, state);
+        let next = state.scroll.get().saturating_add(delta);
+        let _ = geometry(hwnd, state, false, Some(next));
     }
 }

@@ -118,7 +118,10 @@ def _location(result: dict, run: dict) -> tuple[str, int]:
     return path, line
 
 
-def _run_rules(run: dict) -> list[tuple[dict, dict[str, dict]]]:
+RuleComponent = tuple[dict, list[dict], dict[str, dict]]
+
+
+def _run_rules(run: dict) -> list[RuleComponent]:
     _require(isinstance(run.get("tool"), dict))
     driver = run["tool"].get("driver")
     _require(isinstance(driver, dict))
@@ -140,7 +143,8 @@ def _run_rules(run: dict) -> list[tuple[dict, dict[str, dict]]]:
             identifier = _rule_id(rule.get("id"))
             _require(identifier not in indexed, "invalid_rules")
             indexed[identifier] = rule
-        components.append((component, indexed))
+        # SARIF indexes refer to the original validated array order.
+        components.append((component, rules, indexed))
     return components
 
 
@@ -154,7 +158,9 @@ def _guid(value: object) -> str:
     return value.lower()
 
 
-def _component_rules(reference: dict, components: list) -> dict[str, dict]:
+def _component_rules(
+    reference: dict, components: list[RuleComponent]
+) -> tuple[list[dict], dict[str, dict]]:
     # SARIF 2.1.0 sections 3.52.7 and 3.54.2: index addresses extensions;
     # absent index/GUID means driver. Names verify identity, never select it.
     selected = 0
@@ -165,14 +171,14 @@ def _component_rules(reference: dict, components: list) -> dict[str, dict]:
         guid = _guid(reference["guid"])
         matches = [
             index
-            for index, (component, _) in enumerate(components)
+            for index, (component, _, _) in enumerate(components)
             if isinstance(component.get("guid"), str)
             and component["guid"].lower() == guid
         ]
         _require(len(matches) == 1, "invalid_rules")
         _require("index" not in reference or selected == matches[0], "invalid_rules")
         selected = matches[0]
-    component, rules = components[selected]
+    component, ordered, rules = components[selected]
     if "name" in reference:
         name = reference["name"]
         _require(
@@ -181,15 +187,15 @@ def _component_rules(reference: dict, components: list) -> dict[str, dict]:
             and name == component.get("name"),
             "invalid_rules",
         )
-    return rules
+    return ordered, rules
 
 
-def _result_rule(result: dict, components: list) -> tuple[str, dict]:
+def _result_rule(result: dict, components: list[RuleComponent]) -> tuple[str, dict]:
     reference = result.get("rule", {})
     _require(isinstance(reference, dict), "invalid_rules")
     component = reference.get("toolComponent", {})
     _require(isinstance(component, dict), "invalid_rules")
-    rules = _component_rules(component, components)
+    ordered, rules = _component_rules(component, components)
     for outer, inner in (("ruleId", "id"), ("ruleIndex", "index")):
         if outer in result and inner in reference:
             _require(
@@ -201,8 +207,8 @@ def _result_rule(result: dict, components: list) -> tuple[str, dict]:
     rule = {}
     if "index" in reference or "ruleIndex" in result:
         index = reference.get("index", result.get("ruleIndex"))
-        _require(_integer(index, 0, len(rules) - 1), "invalid_rules")
-        rule = list(rules.values())[index]
+        _require(_integer(index, 0, len(ordered) - 1), "invalid_rules")
+        rule = ordered[index]
     if "guid" in reference:
         guid = _guid(reference["guid"])
         matches = [
@@ -260,7 +266,7 @@ def _check_execution(run: dict) -> Counter:
     return counts
 
 
-def _row(result: dict, run: dict, rules: list) -> dict:
+def _row(result: dict, run: dict, rules: list[RuleComponent]) -> dict:
     _require(isinstance(result, dict))
     identifier, rule = _result_rule(result, rules)
     configuration = rule.get("defaultConfiguration", {})

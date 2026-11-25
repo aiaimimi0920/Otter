@@ -101,8 +101,7 @@ impl Presentation {
         images: Images,
     ) -> Result<Self> {
         let (frame, cache) = Self::prepare(&scene, style, context, size, &mut scroll, &images)?;
-        let focusable = crate::surface_focus::buttons(&scene, &frame.geometry);
-        let navigation = crate::surface_focus::candidates(&scene, &frame.geometry);
+        let (focusable, navigation) = crate::surface_focus::lists(&scene, &frame.geometry);
         Ok(Self {
             scene,
             text: frame.text,
@@ -194,16 +193,26 @@ impl Presentation {
         let mut scroll = self.scroll.clone();
         let (frame, cache) =
             Self::prepare(&self.scene, style, context, size, &mut scroll, &self.images)?;
-        self.navigation = crate::surface_focus::candidates(&self.scene, &frame.geometry);
-        self.install_frame(frame, scroll);
+        let (focusable, navigation) = crate::surface_focus::lists(&self.scene, &frame.geometry);
+        self.navigation = navigation;
+        self.install_frame_with_focus(frame, scroll, focusable);
         self.size = size;
         self.cache = cache;
         self.reset_text_navigation();
         Ok(())
     }
     fn install_frame(&mut self, frame: Frame, scroll: crate::surface_scroll::Scroll) {
+        let focusable = crate::surface_focus::buttons(&self.scene, &frame.geometry);
+        self.install_frame_with_focus(frame, scroll, focusable);
+    }
+    fn install_frame_with_focus(
+        &mut self,
+        frame: Frame,
+        scroll: crate::surface_scroll::Scroll,
+        focusable: Vec<String>,
+    ) {
         self.reconcile_text_selection(&frame.text);
-        self.focusable = crate::surface_focus::buttons(&self.scene, &frame.geometry);
+        self.focusable = focusable;
         self.text = frame.text;
         self.geometry = frame.geometry;
         self.hits = frame.hits;

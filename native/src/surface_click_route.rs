@@ -12,7 +12,7 @@ pub struct ClickRoute<'a> {
     remaining: usize,
 }
 impl<'a> ClickRoute<'a> {
-    pub(crate) fn new(scene: &'a Scene, target: Option<&str>) -> Self {
+    pub fn new(scene: &'a Scene, target: Option<&str>) -> Self {
         let mut route = Self {
             path: [None; MAX_DEPTH],
             remaining: 0,

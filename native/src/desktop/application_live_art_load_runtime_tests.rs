@@ -55,11 +55,8 @@ fn actual_wgc_ordinary_loom_art_sustained_load() {
     unsafe {
         let environment = Environment::new();
         let _input = crate::desktop::loom_input_job::TEST_SERIAL.lock().unwrap();
-        let mut app = environment.app();
-        // 测试库没有普通 main 的恢复入口；复用现有真实恢复 child 测试启动方式。
-        app.live_visibility = crate::live_visibility_owner::Owner::fixture();
-        catalog(&app, manifest);
         // STATIC 的白色实心客户区提供独立像素 oracle；不注入输入或取得前台。
+        // 先持有源 HWND，确保断言失败时应用先释放保护，源窗口仍可恢复。
         let source = crate::desktop::Window(
             CreateWindowExW(
                 WS_EX_NOACTIVATE,
@@ -82,8 +79,19 @@ fn actual_wgc_ordinary_loom_art_sustained_load() {
         windows::Win32::Graphics::Dwm::DwmFlush().unwrap();
         let target = crate::live_window_target::Target::bind(source.0).unwrap();
         let original = crate::live_window_target::snapshot::Snapshot::read(&target).unwrap();
+        let mut app = environment.app();
+        // 测试库没有普通 main 的恢复入口；复用现有真实恢复 child 测试启动方式。
+        app.live_visibility = crate::live_visibility_owner::Owner::fixture();
+        catalog(&app, manifest);
         // fixture 已预建 journal，必须先登记源；空 owner 的正常 poll 会开始退休。
         let session = app.start_live_window(target.clone(), None).unwrap();
+        // 窗口 Live 默认请求控制源；观测负载显式用系统菜单命令关闭控制。
+        SendMessageW(
+            session.art_dialog_owner().unwrap(),
+            WM_SYSCOMMAND,
+            Some(WPARAM(0x1ff0)),
+            None,
+        );
         app.admit_live(session, false).unwrap();
         until(&mut app, "initial WGC frame", |app| {
             app.live_sessions.len() == 1 && app.live_sessions[0].snapshot_frame().unwrap().is_some()

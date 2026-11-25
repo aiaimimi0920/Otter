@@ -29,6 +29,12 @@ pub(super) enum Work {
     Shader(shader::Job),
 }
 impl Work {
+    pub(super) fn deadline(&self) -> Option<std::time::Instant> {
+        match self {
+            Self::Remote(job) => job.deadline(),
+            Self::Shader(job) => job.deadline(),
+        }
+    }
     pub(super) fn cancel(&self) {
         match self {
             Self::Remote(job) => job.cancel(),

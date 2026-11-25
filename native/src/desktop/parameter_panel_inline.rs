@@ -103,20 +103,22 @@ impl Inline {
         let Some(ui) = self.0.upgrade().filter(|ui| ui.available()) else {
             return;
         };
-        let child = ui
-            .bindings
-            .borrow()
-            .iter()
-            .find(|b| {
-                b.key.starts_with(&format!("{id}:"))
-                    && b.enabled
-                    && IsWindowVisible(b.hwnd).as_bool()
-            })
-            .map(|b| b.hwnd);
-        if let Some(child) = child {
+        if let Some(child) = focus_child(&ui, id) {
             let _ = SetFocus(Some(child));
         }
     }
+}
+pub(super) unsafe fn focus_child(ui: &Ui, id: &str) -> Option<HWND> {
+    ui.bindings
+        .borrow()
+        .iter()
+        .find(|b| {
+            // Only the final component is a fixed control role; a row ID may contain ':'.
+            b.key.rsplit_once(':').is_some_and(|(row, _)| row == id)
+                && b.enabled
+                && IsWindowVisible(b.hwnd).as_bool()
+        })
+        .map(|b| b.hwnd)
 }
 impl Panel {
     pub(in crate::desktop) unsafe fn inline(

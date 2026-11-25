@@ -2,6 +2,88 @@
 use super::*;
 
 #[test]
+fn restored_rasterized_blur_uses_working_grid_axis_density() {
+    let _com = Apartment::new().unwrap();
+    let mut pixels = vec![0; 8 * 8 * 4];
+    for row in pixels.chunks_exact_mut(32) {
+        row[8..16].fill(255);
+    }
+    let image = Image {
+        width: 8,
+        height: 8,
+        pixels: pixels.into(),
+    };
+    let logical = Size {
+        width: 16.0,
+        height: 8.0,
+    };
+    let visible = Rect {
+        x: 4.0,
+        y: 2.0,
+        width: 8.0,
+        height: 4.0,
+    };
+    let restored = crate::session_crop::Restored {
+        frame: Rect {
+            x: 0.0,
+            y: 0.0,
+            ..visible
+        },
+        crop: crate::crop_geometry::Crop {
+            source: logical,
+            rect: visible,
+        },
+        flipped_x: false,
+        flipped_y: false,
+        rasterized_source: true,
+    };
+    let frame = Frame::restored(&image, logical, Some(restored)).unwrap();
+    let parent = Layout::for_frame(&image, &frame, Some(visible)).unwrap();
+    let box_rect = Rect {
+        x: 0.0,
+        y: 0.0,
+        width: 4.0,
+        height: 4.0,
+    };
+    let cancel = AtomicBool::new(false);
+    let marked = local::prepare(
+        &image,
+        &parent,
+        box_rect,
+        local::Coordinates::WorkingGrid(logical),
+        1.0,
+        &cancel,
+    )
+    .unwrap();
+    assert_eq!((marked.width(), marked.height()), (2, 4));
+    let expected = crate::blur::region_scaled(
+        &vec![255; 2 * 4 * 4].into(),
+        (2, 4),
+        crate::blur::Region {
+            x: 0,
+            y: 0,
+            width: 2,
+            height: 4,
+        },
+        1.0,
+        (0.5, 1.0),
+        || false,
+    )
+    .unwrap();
+    assert_eq!(marked.pixels().as_ref(), expected.as_ref());
+    let natural = local::prepare(
+        &image,
+        &parent,
+        box_rect,
+        local::Coordinates::Natural(Some(restored)),
+        1.0,
+        &cancel,
+    )
+    .unwrap();
+    assert!(natural.pixels().iter().all(|p| *p == 0));
+}
+
+#[test]
 fn local_blur_convolves_the_smoothed_projection_not_nearest_pixels() {
     let image = Image {
         width: 2,
@@ -26,7 +108,15 @@ fn local_blur_convolves_the_smoothed_projection_not_nearest_pixels() {
         width: 2.0,
         height: 9.0,
     };
-    let blur = local::prepare(&image, &parent, frame, None, 1.0, &cancel).unwrap();
+    let blur = local::prepare(
+        &image,
+        &parent,
+        frame,
+        local::Coordinates::Natural(None),
+        1.0,
+        &cancel,
+    )
+    .unwrap();
     let reference = |values: &[u8]| {
         let bytes = values
             .iter()
@@ -187,8 +277,15 @@ fn local_texture_outside_source_has_empty_color_clip_but_keeps_wash_frame() {
         width: 4.0,
         height: 4.0,
     };
-    let prepared =
-        local::prepare(&image, &parent, frame, None, 4.0, &AtomicBool::new(false)).unwrap();
+    let prepared = local::prepare(
+        &image,
+        &parent,
+        frame,
+        local::Coordinates::Natural(None),
+        4.0,
+        &AtomicBool::new(false),
+    )
+    .unwrap();
     assert_eq!(prepared.frame(), frame);
     assert_eq!(prepared.effect_clip().unwrap().width, 0.0);
     assert!(prepared.pixels().iter().all(|byte| *byte == 0));
@@ -215,8 +312,15 @@ fn fractional_local_mask_scale_includes_canvas_and_output_rounding_per_axis() {
         width: 1.25,
         height: 2.5,
     };
-    let prepared =
-        local::prepare(&image, &parent, frame, None, 4.0, &AtomicBool::new(false)).unwrap();
+    let prepared = local::prepare(
+        &image,
+        &parent,
+        frame,
+        local::Coordinates::Natural(None),
+        4.0,
+        &AtomicBool::new(false),
+    )
+    .unwrap();
     assert_eq!((prepared.width(), prepared.height()), (3, 3));
     let scale = prepared.effect_mask_scale();
     assert!((scale.0 - (1.25 / 2.25) as f32).abs() < 1e-6);

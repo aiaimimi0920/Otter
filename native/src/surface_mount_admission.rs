@@ -67,16 +67,17 @@ impl Outcome {
         }
         #[derive(serde::Deserialize)]
         #[serde(rename_all = "camelCase")]
-        struct Header {
+        struct Header<'a> {
             protocol_version: String,
             instance_id: String,
             attachment_id: String,
             revision: u64,
             #[serde(default)]
             runtime: crate::surface_host_capabilities::Runtime,
-            scene: Box<serde_json::value::RawValue>,
+            #[serde(borrow)]
+            scene: &'a serde_json::value::RawValue,
         }
-        let header: Header =
+        let header: Header<'_> =
             serde_json::from_str(raw.get()).map_err(|_| AdmissionError::Identity)?;
         if header.protocol_version != "loom.surface.v1"
             || header.instance_id != binding.instance()
@@ -87,14 +88,14 @@ impl Outcome {
         }
         use crate::surface_host_capabilities::Runtime;
         // JS 的 scene 只授予动作权威并准备隐藏 HWND；绝不能作为执行后的呈现场景显示。
-        let scene = match header.runtime {
-            Runtime::Declarative => crate::live_relay_http::declarative_scene(raw.get()),
-            Runtime::Javascript if self.request.supports(Runtime::Javascript) => {
-                Scene::parse(header.scene.get().as_bytes())
-            }
-            _ => Err(SceneError::Runtime),
+        if header.runtime != Runtime::Declarative
+            && !(header.runtime == Runtime::Javascript
+                && self.request.supports(Runtime::Javascript))
+        {
+            return Err(AdmissionError::Scene(SceneError::Runtime));
         }
-        .map_err(AdmissionError::Scene)?;
+        // 角色与 runtime 已验证，直接解析借用的场景，不重复扫描快照封套。
+        let scene = Scene::parse(header.scene.get().as_bytes()).map_err(AdmissionError::Scene)?;
         lease
             .validate(&self.origin, now_ms)
             .map_err(AdmissionError::Authorization)?;

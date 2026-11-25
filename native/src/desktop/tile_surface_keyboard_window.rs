@@ -16,11 +16,14 @@ pub(super) struct Keyboard {
 }
 pub(super) fn current(state: &State, focus: &Focus) -> Option<Focus> {
     let frame = actions::active(state)?;
+    current_in_frame(state, focus, &frame)
+}
+fn current_in_frame(state: &State, focus: &Focus, frame: &Frame) -> Option<Focus> {
     state
         .renderer
         .borrow()
         .as_ref()?
-        .focus_at(&frame, focus.anchor.pixel)
+        .focus_at(frame, focus.anchor.pixel)
         .filter(|f| focus.same(f))
 }
 fn dirty(state: &State) {
@@ -388,7 +391,7 @@ pub(super) unsafe fn message(
 }
 #[cfg(test)]
 #[path = "tile_surface_keyboard_joint_access.rs"]
-mod joint_access;
+pub(super) mod joint_access;
 #[cfg(test)]
 #[path = "tile_surface_keyboard_tests.rs"]
 mod tests;

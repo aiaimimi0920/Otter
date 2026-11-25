@@ -1,7 +1,7 @@
 //! UI 线程的会话目录绑定：共享目录而非复制；旧目录结果不能提交到新目录。
 use super::{
     capability_job::Loaded,
-    session_candidate::{Candidate, VectorCandidate},
+    session_candidate::{Candidate, PreparedRestore, VectorCandidate},
 };
 use crate::session_art_batch::Entry;
 use std::{
@@ -59,22 +59,32 @@ impl Bound {
         catalog: Option<Rc<Loaded>>,
         cancel: &AtomicBool,
     ) -> std::result::Result<Self, Box<(VectorCandidate, windows::core::Error)>> {
-        let candidate = &prepared.candidate;
-        let results = match candidate.prepare_results(cancel) {
-            Ok(results) => results,
-            Err(error) => return Err(Box::new((prepared, error))),
-        };
-        match candidate.resolve_arts(catalog.as_ref().map(|catalog| &catalog.handshake), cancel) {
-            Ok(arts) => Ok(Self {
-                projection_edits: prepared.projection_edits,
-                candidate: prepared.candidate,
-                vectors: prepared.vectors,
-                regions: prepared.regions,
+        let handshake = catalog.as_ref().map(|catalog| &catalog.handshake);
+        match prepared.candidate.prepare_arts(handshake, cancel) {
+            Ok(arts) => Ok(Self::from_prepared(
+                PreparedRestore {
+                    vector: prepared,
+                    arts,
+                },
                 catalog,
-                arts,
-                results,
-            }),
+            )),
             Err(error) => Err(Box::new((prepared, error))),
+        }
+    }
+
+    /// 调用方仍持有准备时的目录 owner；先核对当前目录身份，再发布。
+    pub(in crate::desktop) fn from_prepared(
+        prepared: PreparedRestore,
+        catalog: Option<Rc<Loaded>>,
+    ) -> Self {
+        Self {
+            projection_edits: prepared.vector.projection_edits,
+            candidate: prepared.vector.candidate,
+            vectors: prepared.vector.vectors,
+            regions: prepared.vector.regions,
+            catalog,
+            arts: prepared.arts.arts,
+            results: prepared.arts.results,
         }
     }
     pub fn candidate(&self) -> &Candidate {
@@ -290,6 +300,49 @@ mod tests {
         assert!(Rc::ptr_eq(&selected.catalog, &current));
         assert!(selected.parameters.get("value").is_none());
     }
+    #[test]
+    fn mixed_host_states_keep_document_order_and_reject_misaligned_resources() {
+        let cancel = AtomicBool::new(false);
+        // 非字典序，且普通钉图夹在两个 Art 之间。
+        let bytes = br#"{"stickers":[
+            {"id":"z","type":"art","x":0,"y":0,"w":2,"h":2,"outputs":{"value":42}},
+            {"id":"pin","x":0,"y":0,"w":2,"h":2},
+            {"id":"a","type":"art","x":0,"y":0,"w":2,"h":2,"outputs":{"value":17}}
+        ],"links":[]}"#;
+        let parts = || {
+            let restore = PreparedRestore::prepare(bytes.to_vec(), None, None, &cancel).unwrap();
+            Bound::from_prepared(restore, None)
+                .into_parts_for(None, &cancel)
+                .ok()
+                .unwrap()
+        };
+        let prepared = parts().prepare_states(&cancel).unwrap();
+        assert_eq!(
+            prepared
+                .states
+                .iter()
+                .map(|state| state.unit_id.as_str())
+                .collect::<Vec<_>>(),
+            ["z", "pin", "a"]
+        );
+        for (state, value) in prepared.states.iter().zip([Some(42), None, Some(17)]) {
+            let results = state.execution_results.borrow();
+            assert_eq!(results.unit(), &state.unit_id);
+            assert_eq!(
+                results
+                    .save_value_outputs()
+                    .map(|outputs| outputs["value"].as_i64().unwrap()),
+                value
+            );
+        }
+        let mut wrong = parts();
+        wrong.regions.swap(0, 1);
+        assert!(wrong.prepare_states(&cancel).is_err());
+        let mut wrong = parts();
+        wrong.results.swap(0, 1);
+        assert!(wrong.prepare_states(&cancel).is_err());
+    }
+
     #[test]
     fn cancelled_or_incomplete_host_state_never_returns_partial_batch() {
         let current = catalog(false);

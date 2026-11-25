@@ -140,3 +140,40 @@ fn external_resize_cancels_instead_of_using_stale_row_geometry() {
     assert!(menu.closed());
     assert!(menu.take_command().is_none());
 }
+
+#[test]
+fn gallery_anchor_or_preview_move_retires_stale_preview_rectangle() {
+    let owner = Owner::new();
+    let mut parent = item(1);
+    parent.children = Some(Vec::new());
+    let mut menu = Cascade::open(owner.0, vec![parent], POINT { x: 30, y: 30 }).unwrap();
+    let mut card = item(42);
+    card.preview = Some(crate::native_menu::panel::Preview::Text("preview".into()));
+    menu.replace_gallery(0, vec![card]).unwrap();
+    menu.expand(0, 0).unwrap();
+    for move_anchor in [true, false] {
+        menu.event(1, Event::Move(10, 10)).unwrap();
+        let view = menu.preview.as_ref().unwrap();
+        let hwnd = view.panel.handle().unwrap();
+        if move_anchor {
+            relocate(&menu, 1);
+        } else {
+            unsafe {
+                SetWindowPos(
+                    hwnd,
+                    None,
+                    view.bounds.left + 43,
+                    view.bounds.top + 57,
+                    0,
+                    0,
+                    SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER,
+                )
+                .unwrap();
+            }
+        }
+        menu.sync_geometry().unwrap();
+        assert!(menu.preview.is_none());
+        assert!(!unsafe { IsWindow(Some(hwnd)) }.as_bool());
+        assert!(menu.submenu_open(0));
+    }
+}

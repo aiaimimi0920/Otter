@@ -64,9 +64,9 @@ impl Drop for Flushing<'_> {
         resume(self.0);
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-surface")))]
 #[path = "surface_window_edit_structure_tests.rs"]
 mod edit_tests;
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-surface")))]
 #[path = "surface_window_structure_notification_tests.rs"]
 mod tests;

@@ -187,6 +187,6 @@ impl LiveWindow {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-live")))]
 #[path = "composition_live_ime_tests.rs"]
 mod tests;

@@ -26,10 +26,32 @@ pub(super) struct Tray {
     hidden: Cell<bool>,
     panel_visible: Cell<bool>,
     restarted: Cell<u32>,
+    empty_fallback: Cell<bool>,
 }
 
 pub(super) fn is_resident(state: &State) -> bool {
     state.tray.resident.get()
+}
+/// 仅当 Shell 安装失败且空宿主没有已注册的截图键时，保留一个可操作入口。
+pub(super) unsafe fn expose_empty_host(hwnd: HWND, state: &State) {
+    if state.global_capture.get()
+        || state.session_end.paused()
+        || state.group_hidden.get()
+        || !state.lifetime.is_sole_host()
+        || !IsWindow(Some(hwnd)).as_bool()
+        || IsWindowVisible(hwnd).as_bool()
+    {
+        return;
+    }
+    if empty_host(state) {
+        state.tray.empty_fallback.set(true);
+        let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+        let _ = ShowWindow(state.tool_panel.get(), SW_SHOWNOACTIVATE);
+    }
+}
+fn empty_host(state: &State) -> bool {
+    let canvas = state.canvas.borrow();
+    !canvas.pinned && canvas.image.is_none()
 }
 pub(super) unsafe fn start(hwnd: HWND, state: &State) -> Result<()> {
     start_with(state, || install(hwnd, state))
@@ -190,11 +212,7 @@ pub(super) unsafe fn restore_with(
 
 unsafe fn activate(hwnd: HWND, state: &State) {
     // 空宿主只承载托盘和热键；无图 Art 仍通过 pinned 标记保留召回资格。
-    let empty = {
-        let canvas = state.canvas.borrow();
-        !canvas.pinned && canvas.image.is_none()
-    };
-    if empty {
+    if empty_host(state) {
         return;
     }
     if state.tray.hidden.get() {
@@ -205,14 +223,12 @@ unsafe fn activate(hwnd: HWND, state: &State) {
     }
 }
 
-fn restarted_with(state: &State, install: impl FnOnce() -> Result<()>, restore: impl FnOnce()) {
+fn restarted_with(state: &State, install: impl FnOnce() -> Result<()>, recover: impl FnOnce()) {
     state.tray.installed.set(false);
     if state.tray.resident.get() || state.tray.hidden.get() {
         if let Err(error) = install() {
             eprintln!("native-tray-restart: {error}");
-            if state.tray.hidden.get() {
-                restore();
-            }
+            recover();
         }
     }
 }
@@ -274,12 +290,35 @@ pub(super) unsafe fn dispatch(
     wp: WPARAM,
     lp: LPARAM,
 ) -> Option<LRESULT> {
+    // 标题栏关闭只在唯一空白回退宿主上请求正常退出；最终提交仍可用 WM_CLOSE 销毁它。
+    if msg == WM_SYSCOMMAND
+        && wp.0 & 0xfff0 == SC_CLOSE as usize
+        && state.tray.empty_fallback.get()
+        && !state.session_end.paused()
+        && state.lifetime.is_sole_host()
+        && empty_host(state)
+    {
+        if let Err(error) = super::application::request_exit(hwnd, state) {
+            eprintln!("native-tray-fallback-exit: {error}");
+        }
+        return Some(LRESULT(0));
+    }
     if msg == WM_DESTROY {
         remove(hwnd, state);
         return None;
     }
     if state.tray.restarted.get() != 0 && msg == state.tray.restarted.get() {
-        restarted_with(state, || install(hwnd, state), || restore(hwnd, state));
+        restarted_with(
+            state,
+            || install(hwnd, state),
+            || {
+                if state.tray.hidden.get() {
+                    restore(hwnd, state);
+                } else {
+                    expose_empty_host(hwnd, state);
+                }
+            },
+        );
         return Some(LRESULT(0));
     }
     if msg != CALLBACK {

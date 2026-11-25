@@ -2,7 +2,7 @@
 use crate::{
     device_request_cancel::Cancel,
     loom_local_connection::{Connected, Error},
-    loom_remote_connection::Document,
+    loom_remote_connection::{Document, Verified},
 };
 use base64::{engine::general_purpose::STANDARD, Engine};
 use std::{
@@ -21,23 +21,22 @@ pub(crate) fn connect(
             return remote.connect_with_password(profile, cancel, password);
         }
     }
-    let discovery = crate::loom_discovery::Config::from_env();
     // 本机清单已经提供信任；不能让旧远端配置覆盖用户刚选的本机地址。
-    if crate::loom_local_connection::local_origin(cancel).as_deref() == Some(origin) {
-        return crate::loom_local_connection::connect_local(discovery, profile, cancel);
+    if let Some(result) =
+        crate::loom_local_connection::connect_selected_local(origin, profile, cancel)
+    {
+        return result;
     }
     let url = url::Url::parse(origin).map_err(|_| Error::Response)?;
     let ip = url
         .host_str()
         .and_then(|h| h.parse::<std::net::Ipv4Addr>().ok());
-    let document = if ip.is_some_and(|ip| ip.is_private() || ip.is_loopback()) {
-        discover(origin, IpAddr::V4(ip.unwrap()), cancel)?
+    let verified = if let Some(ip) = ip.filter(|ip| ip.is_private() || ip.is_loopback()) {
+        discover(origin, IpAddr::V4(ip), cancel)?.verify(cancel)?
     } else {
-        public(origin, cancel)?
+        Verified::public(origin, cancel)?
     };
-    document.verify(cancel)?;
-    save(profile, &document, cancel)?;
-    document.connect_with_password(profile, cancel, password)
+    verified.connect_new(profile, cancel, password)
 }
 fn discover(origin: &str, ip: IpAddr, cancel: &Cancel) -> Result<Document, Error> {
     let socket = UdpSocket::bind("0.0.0.0:49779").map_err(|_| Error::Discovery)?;
@@ -80,7 +79,7 @@ fn discover(origin: &str, ip: IpAddr, cancel: &Cancel) -> Result<Document, Error
             device_id: None,
             loom_id: value["loomId"]
                 .as_str()
-                .filter(|s| !s.is_empty() && s.len() <= 256)
+                .filter(|s| crate::projection_delivery::share::loom_id(s))
                 .ok_or(Error::Response)?
                 .into(),
             certificate_pem,
@@ -90,47 +89,6 @@ fn discover(origin: &str, ip: IpAddr, cancel: &Cancel) -> Result<Document, Error
         Error::Stopped
     } else {
         Error::Discovery
-    })
-}
-fn public(origin: &str, cancel: &Cancel) -> Result<Document, Error> {
-    let url = url::Url::parse(origin).map_err(|_| Error::Response)?;
-    let addresses = crate::loom_address_resolver::resolve(
-        url.host_str().ok_or(Error::Response)?,
-        url.port_or_known_default().ok_or(Error::Response)?,
-        cancel,
-    )
-    .map_err(|_| Error::Tls)?;
-    let client = crate::device_session_client::Client::new(
-        origin,
-        crate::loom_tls_trust::Trust::public_roots(),
-        addresses,
-    )
-    .map_err(|_| Error::Tls)?;
-    let (status, bytes) = client
-        .exchange(
-            crate::device_session_client::Request {
-                method: "GET",
-                path: "/v1/otter/identity",
-                body: &[],
-                device: None,
-                limit: 16384,
-            },
-            cancel.flag(),
-            &mut |h| cancel.install(h),
-            Instant::now() + Duration::from_secs(10),
-        )
-        .map_err(|_| Error::Tls)?;
-    cancel.clear();
-    let value: serde_json::Value = serde_json::from_slice(&bytes).map_err(|_| Error::Response)?;
-    if status != 200 || value["protocolVersion"] != "loom.connection.v1" {
-        return Err(Error::Response);
-    }
-    Ok(Document {
-        schema_version: 1,
-        origin: origin.into(),
-        device_id: None,
-        loom_id: value["loomId"].as_str().ok_or(Error::Response)?.into(),
-        certificate_pem: String::new(),
     })
 }
 pub(crate) fn save(profile: &Path, value: &Document, cancel: &Cancel) -> Result<(), Error> {

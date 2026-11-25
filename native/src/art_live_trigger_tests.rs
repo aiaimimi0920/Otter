@@ -87,6 +87,31 @@ fn reply_rejects_identity_scope_revision_source_and_unknown_fields() {
     assert!(!parse(&extra));
 }
 #[test]
+fn ack_checks_current_delivery_even_when_receipt_matches() {
+    let mut v = reply();
+    let scope = serde_json::from_value(v["scope"].clone()).unwrap();
+    v["status"] = json!("acknowledged");
+    v["delivery"] = Value::Null;
+    v["receipt"] = json!({"kind":"no_result"});
+    for id in ["delivery:1", "delivery:other"] {
+        v["deliveryId"] = json!(id);
+        let ack = Reply::parse(
+            &serde_json::to_vec(&v).unwrap(),
+            &binding(),
+            "grant:1",
+            &scope,
+            &condition(),
+            &identity(),
+        )
+        .unwrap();
+        assert_eq!(
+            ack.confirms_ack("delivery:1", &Receipt::NoResult),
+            id == "delivery:1"
+        );
+        assert!(!ack.confirms_ack("delivery:1", &Receipt::Failed));
+    }
+}
+#[test]
 fn reply_state_and_delivery_budgets_are_strict_but_unknown_claim_has_no_payload() {
     let original = reply();
     for (status, enabled, receipt, accepted) in [

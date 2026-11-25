@@ -72,6 +72,6 @@ fn from_png(width: u32, height: u32, png: Pixels, cancel: &AtomicBool) -> Result
         height,
     })
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-loom")))]
 #[path = "loom_inline_tests.rs"]
 mod tests;

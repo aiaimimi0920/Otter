@@ -6,14 +6,14 @@ use crate::{
 };
 use serde_json::{json, value::RawValue, Map, Value};
 #[path = "session_vector_write_frame.rs"]
-mod frame;
+pub mod frame;
 pub use frame::{encode_visible, Visible};
 #[path = "session_vector_write_mapping.rs"]
-mod mapping;
+pub mod mapping;
 pub use mapping::Mapping;
 #[path = "session_vector_write_order.rs"]
-mod order;
-pub(crate) use order::Plan as OrderPlan;
+pub mod order;
+pub use order::Plan as OrderPlan;
 
 const LIMIT: usize = 8 * 1024 * 1024;
 #[derive(Debug, PartialEq)]
@@ -416,9 +416,9 @@ impl std::io::Write for Bounded {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "session_vector_write_cancel_tests.rs"]
 mod cancel_tests;
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "session_vector_write_tests.rs"]
 mod tests;

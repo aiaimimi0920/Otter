@@ -11,9 +11,9 @@ write code to take part.
 | I want to… | Start here |
 | --- | --- |
 | Report a bug or suggest an improvement | Search [existing issues](https://github.com/aiaimimi0920/Otter/issues), then describe the problem and expected result. |
-| Improve wording or translate documentation | Read the [translation guide](docs/guide/translating.md) / [Simplified Chinese](docs/guide/translating.zh-CN.md). |
+| Improve wording or translate documentation | Read the [wording and translation guide](docs/guide/contributing.md#wording-and-translation) / [简体中文](docs/guide/contributing.zh-CN.md#文案与翻译). |
 | Share a workflow or help other users | See [ways to contribute](docs/guide/contributing.md). Remove private images, tokens and personal data from examples. |
-| Fix a bug or develop a feature | Follow the [development guide](docs/guide/development.md) / [Simplified Chinese](docs/guide/development.zh-CN.md), then find the owning module in the [code organization standard](docs/development/CODE_ORGANIZATION.md). |
+| Fix a bug or develop a feature | Follow the [build guide](docs/development/WINDOWS_NATIVE_BUILD.md), then find the owning module in the [code organization standard](docs/development/CODE_ORGANIZATION.md). |
 | Report a security vulnerability | Use the [security policy](SECURITY.md), not a public bug report containing exploit details. |
 
 ## Make your first contribution
@@ -47,7 +47,7 @@ Mention display scaling or monitor layout when the problem involves capture or p
 ## Development and verification
 
 Otter uses Win32, Direct2D and DirectComposition for the Windows product. Use the
-[development guide](docs/guide/development.md) for prerequisites and setup; legacy
+[build guide](docs/development/WINDOWS_NATIVE_BUILD.md) for prerequisites and setup; legacy
 browser tests do not validate the desktop app.
 
 Before changing code, read the [engineering requirements](docs/development/ENGINEERING.md)

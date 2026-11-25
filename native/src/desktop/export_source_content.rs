@@ -39,8 +39,11 @@ impl Frame {
             let viewport_h = crop.crop.source.height * sy;
             // 非等比裁剪先构造 viewport 再 contain；不能 contain 后拉伸。
             let fit = (viewport_w / image.width as f64).min(viewport_h / image.height as f64);
-            let w = image.width as f64 * fit;
-            let h = image.height as f64 * fit;
+            let (w, h) = if self.rasterized_source {
+                (viewport_w, viewport_h)
+            } else {
+                (image.width as f64 * fit, image.height as f64 * fit)
+            };
             self.base_clip = Some(rect(visible.x + x, visible.y + y, width, height)?);
             (
                 visible.x + x + (viewport_w - w) / 2.0 - crop.crop.rect.x * sx,
@@ -85,8 +88,11 @@ impl Frame {
             return Ok(self);
         } else {
             let fit = (width / image.width as f64).min(height / image.height as f64);
-            let w = image.width as f64 * fit;
-            let h = image.height as f64 * fit;
+            let (w, h) = if self.rasterized_source {
+                (width, height)
+            } else {
+                (image.width as f64 * fit, image.height as f64 * fit)
+            };
             (x + (width - w) / 2.0, y + (height - h) / 2.0, w, h)
         };
         // 图片像素已经由恢复路径翻转。非裁剪还需围绕完整框镜像位置；

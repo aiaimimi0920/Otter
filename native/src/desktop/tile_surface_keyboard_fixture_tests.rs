@@ -45,6 +45,29 @@ fn tab_commit_is_not_misreported_as_an_accepted_enter_button() {
     assert_eq!(focus(&w), "send");
 }
 #[test]
+fn local_submit_receipt_counts_button_not_navigation_commit() {
+    let _com = crate::desktop::Apartment::new().unwrap();
+    let (f, w) = setup(form());
+    edit(&w);
+    unsafe {
+        assert!(SetWindowSubclass(w.hwnd, Some(reject_enter), 0x524a454e, 0).as_bool());
+    }
+    assert!(!w.test_art_local_submit());
+    assert_eq!(focus(&w), "send");
+    let pending = events(&f);
+    assert_eq!(pending.len(), 2);
+    assert_eq!(pending[0]["event"], "input");
+    assert_eq!(pending[1]["event"], "change");
+    unsafe {
+        assert!(RemoveWindowSubclass(w.hwnd, Some(reject_enter), 0x524a454e).as_bool());
+    }
+    assert!(w.test_art_local_submit());
+    let pending = events(&f);
+    assert_eq!(pending.len(), 3);
+    assert_eq!(pending[2]["event"], "click");
+    assert_eq!(pending[2]["action"], "go");
+}
+#[test]
 fn joint_unmodified_keys_restore_ambient_state_and_accept_exactly_one_button() {
     let _com = crate::desktop::Apartment::new().unwrap();
     let foreground = unsafe { GetForegroundWindow() };
@@ -71,13 +94,16 @@ fn thread_key_isolation_restores_on_unwind_and_product_still_rejects_control_ent
     navigate(w.hwnd, &w.state, false);
     navigate(w.hwnd, &w.state, false);
     joint_access::with_modifiers(&[VK_CONTROL, VK_LCONTROL], || {
-        let mut before = [0; 256];
         unsafe {
-            GetKeyboardState(&mut before).unwrap();
             key(w.hwnd, WM_KEYDOWN, 13, false);
             key(w.hwnd, WM_KEYUP, 13, false);
         }
         assert!(events(&f).is_empty());
+        assert!(actions::modifiers().ctrl_key);
+        // Snapshot only the unwind probe. The preceding key dispatch can
+        // legitimately update the thread's keyboard table.
+        let mut before = [0; 256];
+        unsafe { GetKeyboardState(&mut before).unwrap() };
         let result = std::panic::catch_unwind(|| {
             joint_access::with_modifiers(&[], || {
                 assert!(!actions::modifiers().ctrl_key);

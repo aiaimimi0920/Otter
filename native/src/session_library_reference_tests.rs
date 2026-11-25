@@ -2,7 +2,18 @@
 use super::*;
 use std::sync::atomic::AtomicBool;
 const ORIGINAL: &[u8] = br#"{"documentSchemaVersion":1,"documentRevision":7,"stickers":[],"links":[],"extension":{"huge":123456789012345678901234567890},"recycleBin":42}"#;
-const SNAPSHOT: &[u8] = br#"{"stickers":[{"id":"sticker","type":"sticker","x":1,"y":2,"w":32,"h":40,"params":{},"inputs":[],"outputs":{},"extensionState":{"precise":123456789012345678901234567890}}],"links":[]}"#;
+const SNAPSHOT: &[u8] = br#"{"id":"sticker","type":"sticker","x":1,"y":2,"w":32,"h":40,"params":{},"inputs":[],"outputs":{},"portVisibility":{},"otterNativeProjectionEdit":{},"extensionState":{"precise":123456789012345678901234567890}}"#;
+fn addition<'a>(
+    snapshot: &'a [u8],
+    entry_id: &'a str,
+    created_at: &'a str,
+) -> Option<Addition<'a>> {
+    Some(Addition {
+        snapshot,
+        entry_id,
+        created_at,
+    })
+}
 fn unit() -> UnitId {
     UnitId::parse("sticker").unwrap()
 }
@@ -17,10 +28,8 @@ fn adding_library_cannot_create_an_unreadable_257_field_root() {
     let original = serde_json::to_vec(&root).unwrap();
     assert!(prepare(
         &original,
-        Some(SNAPSHOT),
+        addition(SNAPSHOT, "entry", "date"),
         &unit(),
-        "entry",
-        "date",
         &AtomicBool::new(false)
     )
     .is_err());
@@ -33,15 +42,13 @@ fn adding_library_cannot_create_an_unreadable_257_field_root() {
             .len(),
         256
     );
-    assert!(prepare(&result, None, &unit(), "", "", &AtomicBool::new(false)).is_ok());
+    assert!(prepare(&result, None, &unit(), &AtomicBool::new(false)).is_ok());
 }
 fn set(source: &[u8], id: &str) -> Pixels {
     prepare(
         source,
-        Some(SNAPSHOT),
+        addition(SNAPSHOT, id, "2026-10-23T00:00:00.000Z"),
         &unit(),
-        id,
-        "2026-10-23T00:00:00.000Z",
         &AtomicBool::new(false),
     )
     .unwrap()
@@ -60,6 +67,8 @@ fn freezes_current_snapshot_preserves_unknown_raw_and_does_not_advance_disk_revi
         !snapshot.contains_key("params")
             && !snapshot.contains_key("inputs")
             && !snapshot.contains_key("outputs")
+            && !snapshot.contains_key("portVisibility")
+            && !snapshot.contains_key("otterNativeProjectionEdit")
     );
     assert_eq!(
         snapshot["extensionState"].get(),
@@ -84,7 +93,7 @@ fn same_source_replaces_and_remove_by_source_keeps_other_entries() {
         .find("entry-1")
         .is_some());
     let other = UnitId::parse("other").unwrap();
-    let unchanged = prepare(&second, None, &other, "", "", &AtomicBool::new(false)).unwrap();
+    let unchanged = prepare(&second, None, &other, &AtomicBool::new(false)).unwrap();
     assert_eq!(
         super::super::decode(&unchanged, Kind::ReferenceLibrary)
             .unwrap()
@@ -92,7 +101,7 @@ fn same_source_replaces_and_remove_by_source_keeps_other_entries() {
             .original_json(),
         library.entries()[0].original_json()
     );
-    let removed = prepare(&second, None, &unit(), "", "", &AtomicBool::new(false)).unwrap();
+    let removed = prepare(&second, None, &unit(), &AtomicBool::new(false)).unwrap();
     assert!(super::super::decode(&removed, Kind::ReferenceLibrary)
         .unwrap()
         .entries()
@@ -102,31 +111,31 @@ fn same_source_replaces_and_remove_by_source_keeps_other_entries() {
 #[test]
 fn invalid_source_identity_art_cancel_and_duplicate_root_do_not_produce_candidates() {
     let false_flag = AtomicBool::new(false);
-    assert!(prepare(ORIGINAL, Some(SNAPSHOT), &unit(), "", "date", &false_flag).is_err());
     assert!(prepare(
         ORIGINAL,
-        Some(SNAPSHOT),
+        addition(SNAPSHOT, "", "date"),
         &unit(),
-        "entry",
-        "\n",
         &false_flag
     )
     .is_err());
     assert!(prepare(
         ORIGINAL,
-        Some(SNAPSHOT),
+        addition(SNAPSHOT, "entry", "\n"),
+        &unit(),
+        &false_flag
+    )
+    .is_err());
+    assert!(prepare(
+        ORIGINAL,
+        addition(SNAPSHOT, "entry", "date"),
         &UnitId::parse("missing").unwrap(),
-        "entry",
-        "date",
         &false_flag
     )
     .is_err());
     assert!(prepare(
         ORIGINAL,
-        Some(SNAPSHOT),
+        addition(SNAPSHOT, "entry", "date"),
         &unit(),
-        "entry",
-        "date",
         &AtomicBool::new(true)
     )
     .is_err());
@@ -135,29 +144,23 @@ fn invalid_source_identity_art_cancel_and_duplicate_root_do_not_produce_candidat
         .replace("\"type\":\"sticker\"", "\"type\":\"art\"");
     assert!(prepare(
         ORIGINAL,
-        Some(art.as_bytes()),
+        addition(art.as_bytes(), "entry", "date"),
         &unit(),
-        "entry",
-        "date",
         &false_flag
     )
     .is_err());
     let first = set(ORIGINAL, "entry");
     assert!(prepare(
         &first,
-        Some(SNAPSHOT),
+        addition(SNAPSHOT, "entry", "date"),
         &unit(),
-        "entry",
-        "date",
         &false_flag
     )
     .is_err());
     assert!(prepare(
         br#"{"stickers":[],"links":[],"extra":1,"extra":2}"#,
-        Some(SNAPSHOT),
+        addition(SNAPSHOT, "entry", "date"),
         &unit(),
-        "entry",
-        "date",
         &false_flag
     )
     .is_err());
@@ -171,10 +174,8 @@ fn full_library_can_replace_same_source_but_cannot_admit_an_extra_source() {
     .unwrap();
     assert!(prepare(
         &source,
-        Some(SNAPSHOT),
+        addition(SNAPSHOT, "new-entry", "date"),
         &unit(),
-        "new-entry",
-        "date",
         &AtomicBool::new(false)
     )
     .is_err());
@@ -184,10 +185,8 @@ fn full_library_can_replace_same_source_but_cannot_admit_an_extra_source() {
         .replace("\"type\":\"source-0\"", "\"type\":\"sticker\"");
     let bytes = prepare(
         &source,
-        Some(replacement.as_bytes()),
+        addition(replacement.as_bytes(), "new-entry", "date"),
         &UnitId::parse("source-0").unwrap(),
-        "new-entry",
-        "date",
         &AtomicBool::new(false),
     )
     .unwrap();

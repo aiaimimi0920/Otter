@@ -198,3 +198,28 @@ fn real_gdi_measurement_expands_long_labels_and_shortcut_columns() {
     long[0].label = "x".repeat(128 * 1024 + 1);
     assert!(Panel::preferred_width(owner.0, &long).is_err());
 }
+
+#[test]
+fn real_paint_reuses_shortcut_measurement_until_the_label_changes() {
+    let owner = Owner::new();
+    let panel = panel(owner.0);
+    panel.show().unwrap();
+    let cached_width = || unsafe {
+        // 不传可用 DC：只有已成功绘制并量测过的内容可以在这里读出宽度。
+        panel.data.rows.borrow_mut().shortcut_width(HDC::default())
+    };
+    unsafe { UpdateWindow(panel.hwnd).ok().unwrap() };
+    let first = cached_width().expect("initial paint measured shortcuts");
+    assert!(first > 0);
+    let mut same = rows();
+    same[0].focused = true;
+    panel.update(same).unwrap();
+    assert_eq!(cached_width(), Some(first));
+    let mut changed = rows();
+    changed[0].label = "原生菜单测试(&T)\tCtrl+Shift+Alt+F12".into();
+    panel.update(changed).unwrap();
+    assert_eq!(cached_width(), None);
+    unsafe { UpdateWindow(panel.hwnd).ok().unwrap() };
+    assert!(cached_width().unwrap() > first);
+    assert!(!panel.data.failed.get());
+}

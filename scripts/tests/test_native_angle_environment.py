@@ -11,6 +11,16 @@ from otter_toolchain_env import create_manifest, load_environment
 from toolchain_paths import checked_path, read_json
 
 
+class FixtureTests(unittest.TestCase):
+    def test_root_alias_into_repository_is_rejected_before_mkdir(self):
+        repo = Path(__file__).resolve().parents[2]
+        alias = repo.parent / ".." / repo.parent.name / repo.name / "fixture-tripwire"
+        with patch.dict(os.environ, {"OTTER_ANGLE_TEST_ROOT": str(alias)}), \
+                patch.object(Path, "mkdir", side_effect=AssertionError("unexpected mkdir")):
+            with self.assertRaisesRegex(ValueError, "outside the repository"):
+                fixture()
+
+
 class EnvironmentTests(unittest.TestCase):
     def setUp(self):
         self.root, self.config = fixture()

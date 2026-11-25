@@ -1,12 +1,17 @@
 //! 图片卡片沿主干三列平铺并居中裁切；删除按钮单独响应悬停且避开选中边框。
 use super::*;
 
-pub(super) unsafe fn paint(dc: HDC, data: &Data, rows: &[Row], width: i32) {
+pub(super) unsafe fn paint(
+    dc: HDC,
+    data: &Data,
+    frame: &mut super::super::text::PaintRows,
+    width: i32,
+) {
     let layout = crate::native_menu::layout::Layout {
         columns: 3,
         row: data.row_height,
     };
-    for (slot, row) in rows.iter().enumerate() {
+    for (slot, (row, content)) in frame.rows.iter().zip(&mut frame.text).enumerate() {
         if row.label.is_empty() && row.thumbnail.is_none() {
             continue;
         }
@@ -30,10 +35,9 @@ pub(super) unsafe fn paint(dc: HDC, data: &Data, rows: &[Row], width: i32) {
                 bottom: rect.bottom - padding,
             };
             SetTextColor(dc, COLORREF(if row.enabled { 0xeff8f7 } else { 0x9f9a92 }));
-            let mut units: Vec<u16> = row.label.encode_utf16().collect();
             DrawTextW(
                 dc,
-                &mut units,
+                &mut content.full,
                 &mut text_rect,
                 DT_CENTER | DT_WORDBREAK | DT_END_ELLIPSIS,
             );
@@ -66,7 +70,7 @@ pub(super) unsafe fn paint(dc: HDC, data: &Data, rows: &[Row], width: i32) {
             let hovered = data.delete_hover.get() == Some(row.key);
             fill(dc, &button, if hovered { 0x5e3ff4 } else { 0x18120e });
             SetTextColor(dc, COLORREF(if hovered { 0xffffff } else { 0x5e3ff4 }));
-            let mut glyph: Vec<u16> = "×".encode_utf16().collect();
+            let mut glyph = ['×' as u16];
             DrawTextW(
                 dc,
                 &mut glyph,
@@ -171,7 +175,12 @@ mod tests {
                 let buffer = Buffer::new(width, height);
                 SetBkMode(buffer.0, TRANSPARENT);
                 SelectObject(buffer.0, panel.data.fonts.object(false));
-                paint(buffer.0, &panel.data, &panel.data.rows.borrow(), width);
+                paint(
+                    buffer.0,
+                    &panel.data,
+                    &mut panel.data.rows.borrow_mut(),
+                    width,
+                );
                 GdiFlush().ok().unwrap();
                 assert!(!panel.data.failed.get());
                 let layout = crate::native_menu::layout::Layout {
@@ -211,7 +220,12 @@ mod tests {
                     .count();
                 assert!(red_pixels >= 4, "dpi={dpi}, red_pixels={red_pixels}");
                 panel.set_delete_hover(Some(0));
-                paint(buffer.0, &panel.data, &panel.data.rows.borrow(), width);
+                paint(
+                    buffer.0,
+                    &panel.data,
+                    &mut panel.data.rows.borrow_mut(),
+                    width,
+                );
                 GdiFlush().ok().unwrap();
                 assert_eq!(
                     GetPixel(buffer.0, button.left, button.top),
@@ -222,7 +236,12 @@ mod tests {
                     COLORREF(0x38ffd9)
                 );
                 panel.set_delete_hover(None);
-                paint(buffer.0, &panel.data, &panel.data.rows.borrow(), width);
+                paint(
+                    buffer.0,
+                    &panel.data,
+                    &mut panel.data.rows.borrow_mut(),
+                    width,
+                );
                 GdiFlush().ok().unwrap();
                 assert_eq!(
                     GetPixel(buffer.0, button.left, button.top),

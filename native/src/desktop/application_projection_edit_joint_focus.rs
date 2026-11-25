@@ -82,7 +82,7 @@ fn passive_foreground_monitor_detects_own_event_and_unregisters_without_activati
     let _com = Apartment::new().unwrap();
     let (files, _, _) = Files::new();
     unsafe {
-        let (_class, mut app) = application(files.root());
+        let mut app = application(files.root());
         let watch = Watch::new();
         event(
             watch.hook,

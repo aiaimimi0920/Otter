@@ -157,6 +157,6 @@ fn decode_error(cancel: &AtomicBool) -> Error {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-loom")))]
 #[path = "loom_output_batch_tests.rs"]
 mod tests;

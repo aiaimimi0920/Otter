@@ -4,7 +4,10 @@ use crate::live_hover_owner::Control as ParentControl;
 #[cfg(test)]
 use crate::live_window_target::popup::OwnedPopup;
 use crate::live_window_target::{popup::Scope, Target};
-use std::time::{Duration, Instant};
+use std::{
+    rc::Rc,
+    time::{Duration, Instant},
+};
 use windows::Win32::{Foundation::*, UI::WindowsAndMessaging::*};
 
 const LIMIT: usize = 4;
@@ -266,9 +269,13 @@ impl Session {
         let Some(output) = window.popup_image_rect() else {
             return;
         };
-        let source = root
+        let Ok(source) = root
             .frame_bounds()
-            .and_then(|frame| self.input_crop.map_or(Ok(frame), |crop| crop.screen(frame)));
+            .and_then(|frame| self.input_crop.map_or(Ok(frame), |crop| crop.screen(frame)))
+        else {
+            // 没有可映射的源矩形时，不枚举弹窗；已存在的成员仍在本轮上方结算。
+            return;
+        };
         let parents: Vec<_> = self
             .popups
             .members
@@ -291,10 +298,7 @@ impl Session {
             )
             .filter_map(LiveWindow::focused_source_popup)
             .collect();
-        let (Ok(source), Ok(popups)) = (
-            source,
-            discover(root, window.hover_identity(), &parents, &focused),
-        ) else {
+        let Ok(popups) = discover(root, window.hover_identity(), &parents, &focused) else {
             return;
         };
         let present: Vec<_> = popups
@@ -384,6 +388,8 @@ impl Session {
             .filter(|member| !member.session.stopping)
             .filter_map(|member| member.session.popup_scope.clone())
             .collect();
+        // 焦点核验可在窗口间复用不可变快照，不为每个镜像递归克隆 Scope。
+        let scopes = (!scopes.is_empty()).then(|| Rc::new(scopes));
         window.popup_scopes(scopes.clone());
         for member in &self.popups.members {
             if let Some(mirror) = &member.session.window {

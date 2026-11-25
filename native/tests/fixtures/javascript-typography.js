@@ -23,7 +23,12 @@ NeuroSurface.define({
       reject(() => sheet.replaceSync(':root{font:700 16px/1.5 Segoe UI,sans-serif} span{font:' + value + '}'));
     }
     const marker = {};
-    try { second.style.font = {toString(){throw marker}}; } catch (error) { if(error !== marker) throw error; }
+    let propagated = false;
+    try { second.style.font = {toString(){throw marker}}; } catch (error) {
+      if (error !== marker) throw error;
+      propagated = true;
+    }
+    if (!propagated) throw Error('conversion exception was swallowed');
     if (second.style.cssText !== previous) throw Error('conversion replacement');
     second.style.setProperty('font', 'bold 12px/1 Consolas', 'important');
     if (second.style.getPropertyPriority('font') !== 'important') throw Error('font priority');

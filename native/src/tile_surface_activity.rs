@@ -23,7 +23,7 @@ pub(crate) struct Confirmation {
     pub expires_at_ms: u64,
     pub payload: Option<Value>,
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-surface")))]
 #[path = "tile_surface_activity_tests.rs"]
 mod tests;
 pub(crate) struct Pending {

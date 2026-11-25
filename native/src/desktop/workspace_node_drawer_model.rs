@@ -48,16 +48,24 @@ pub(super) fn action(id: u16) -> Option<Action> {
     })
 }
 pub(super) fn intent(id: u16, model: &Model) -> Option<Option<Action>> {
-    if id == RUN {
-        return (model.art && model.run).then_some(None);
+    if !available(model, id) {
+        return None;
     }
-    action(id)
-        .filter(|_| buttons(model).iter().any(|b| b.id == id && b.enabled))
-        .map(Some)
+    Some(action(id))
+}
+fn available(model: &Model, id: u16) -> bool {
+    model.enabled
+        && match id {
+            2 => true,
+            3 | 4 => model.art && model.has_execution,
+            5 => !model.art || model.has_execution,
+            6 => !model.art,
+            RUN => model.art && model.run,
+            _ => false,
+        }
 }
 pub(super) fn buttons(model: &Model) -> Vec<DrawerButton> {
     let icon = |source| Icon::svg(source);
-    let enabled = model.enabled;
     let mut items = vec![DrawerButton {
         id: 2,
         label: if model.settings.hide_collapsed_endpoints {
@@ -73,10 +81,9 @@ pub(super) fn buttons(model: &Model) -> Vec<DrawerButton> {
         }),
         text: None,
         active: !model.settings.hide_collapsed_endpoints,
-        enabled,
+        enabled: available(model, 2),
     }];
     if model.art {
-        let enabled = enabled && model.has_execution;
         items.extend([
             DrawerButton {
                 id: 3,
@@ -84,7 +91,7 @@ pub(super) fn buttons(model: &Model) -> Vec<DrawerButton> {
                 icon: icon(include_str!("../../assets/edit-strip/NodeUpstream.svg")),
                 text: None,
                 active: model.checked[1],
-                enabled,
+                enabled: available(model, 3),
             },
             DrawerButton {
                 id: 4,
@@ -92,7 +99,7 @@ pub(super) fn buttons(model: &Model) -> Vec<DrawerButton> {
                 icon: icon(include_str!("../../assets/edit-strip/NodeParameter.svg")),
                 text: None,
                 active: model.checked[2],
-                enabled,
+                enabled: available(model, 4),
             },
         ]);
     }
@@ -102,7 +109,7 @@ pub(super) fn buttons(model: &Model) -> Vec<DrawerButton> {
         icon: icon(include_str!("../../assets/edit-strip/NodeNotify.svg")),
         text: None,
         active: model.checked[3],
-        enabled: enabled && (!model.art || model.has_execution),
+        enabled: available(model, 5),
     });
     if !model.art {
         items.push(DrawerButton {
@@ -111,7 +118,7 @@ pub(super) fn buttons(model: &Model) -> Vec<DrawerButton> {
             icon: icon(include_str!("../../assets/edit-strip/NodeRelay.svg")),
             text: None,
             active: model.checked[4],
-            enabled,
+            enabled: available(model, 6),
         });
     }
     if model.art {
@@ -121,7 +128,7 @@ pub(super) fn buttons(model: &Model) -> Vec<DrawerButton> {
             icon: icon(include_str!("../../assets/edit-strip/NodeRun.svg")),
             text: Some("执行".into()),
             active: false,
-            enabled: enabled && model.run,
+            enabled: available(model, RUN),
         });
     }
     items

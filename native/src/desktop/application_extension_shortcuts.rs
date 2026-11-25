@@ -1,6 +1,6 @@
 //! 主干扩展快捷键的实际消息入口；焦点输入控件保留文字编辑，跨窗口只保存 UnitId 而非 HWND。
 use super::*;
-use crate::{desktop, loom_extension_snapshot::Chord};
+use crate::desktop;
 use windows::Win32::UI::Input::KeyboardAndMouse::*;
 unsafe fn editable(hwnd: HWND) -> bool {
     if hwnd.is_invalid() {
@@ -8,10 +8,10 @@ unsafe fn editable(hwnd: HWND) -> bool {
     }
     let mut name = [0u16; 64];
     let n = GetClassNameW(hwnd, &mut name).max(0) as usize;
-    matches!(
-        String::from_utf16_lossy(&name[..n]).as_str(),
-        "Edit" | "ComboBox" | "ComboLBox"
-    )
+    let name = &name[..n];
+    [w!("Edit"), w!("ComboBox"), w!("ComboLBox")]
+        .iter()
+        .any(|class| class.as_wide() == name)
 }
 unsafe fn document_for(documents: &[DocumentWindow], hwnd: HWND) -> Option<&DocumentWindow> {
     let root = GetAncestor(hwnd, GA_ROOTOWNER);
@@ -28,22 +28,30 @@ impl Application {
     }
     pub(super) unsafe fn translate_extension_shortcuts(&mut self, message: &MSG) -> bool {
         let global = message.message == WM_HOTKEY && message.hwnd.is_invalid();
-        let definition = if global {
-            self.extension_shortcuts
-                .global(message.wParam, message.lParam)
+        let (definition, local_document) = if global {
+            (
+                self.extension_shortcuts
+                    .global(message.wParam, message.lParam),
+                None,
+            )
         } else if matches!(message.message, WM_KEYDOWN | WM_SYSKEYDOWN) {
-            if document_for(&self.documents, message.hwnd).is_none() || editable(message.hwnd) {
-                return false;
-            }
-            self.extension_shortcuts.local(Chord {
-                key: message.wParam.0 as u32,
-                modifiers: u32::from(GetKeyState(VK_MENU.0 as i32) < 0)
+            let Some(definition) = self.extension_shortcuts.local(message.wParam.0 as u32, || {
+                u32::from(GetKeyState(VK_MENU.0 as i32) < 0)
                     | (u32::from(GetKeyState(VK_CONTROL.0 as i32) < 0) << 1)
                     | (u32::from(GetKeyState(VK_SHIFT.0 as i32) < 0) << 2)
                     | (u32::from(
                         GetKeyState(VK_LWIN.0 as i32) < 0 || GetKeyState(VK_RWIN.0 as i32) < 0,
-                    ) << 3),
-            })
+                    ) << 3)
+            }) else {
+                return false;
+            };
+            let Some(document) = document_for(&self.documents, message.hwnd) else {
+                return false;
+            };
+            if editable(message.hwnd) {
+                return false;
+            }
+            (Some(definition), Some(document))
         } else {
             return false;
         };
@@ -62,7 +70,7 @@ impl Application {
                 .iter()
                 .find(|d| d.is_alive() && Some(&d.state.unit_id) == target.as_ref())
         } else {
-            document_for(&self.documents, message.hwnd)
+            local_document
         };
         let Some(document) = document else {
             return global;
@@ -103,6 +111,6 @@ impl Application {
         true
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-loom")))]
 #[path = "application_extension_shortcut_tests.rs"]
 mod tests;

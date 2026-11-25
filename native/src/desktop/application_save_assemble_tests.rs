@@ -44,6 +44,7 @@ pub(super) fn doc(unit: &str) -> Document {
         sticker: None,
         execution: None,
         restored_source: None,
+        restored_source_rasterized_crop: false,
         local_image: None,
     }
 }
@@ -451,3 +452,23 @@ fn minified_annotation_write_keeps_expanded_coordinates_and_single_view_offset()
 }
 #[path = "application_save_extension_tests.rs"]
 mod extensions;
+
+#[test]
+fn frozen_snapshot_rejects_missing_target_blank_host_wrong_identity_and_cancellation() {
+    let target = id("target");
+    let original = br#"{"stickers":[],"links":[]}"#;
+    let source = crate::session_document::decode(original).unwrap();
+    let cancel = AtomicBool::new(false);
+    let mut blank = data(vec![doc("target")]);
+    blank.transient_host = Some(target.clone());
+    for invalid in [data(vec![]), blank, data(vec![doc("another")])] {
+        assert!(matches!(
+            FrozenData(invalid).encode(&source, &target, &cancel),
+            Err(Error::Window)
+        ));
+    }
+    assert!(matches!(
+        FrozenData(data(vec![doc("target")])).encode(&source, &target, &AtomicBool::new(true)),
+        Err(Error::Cancelled)
+    ));
+}

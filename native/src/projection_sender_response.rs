@@ -167,6 +167,6 @@ impl std::fmt::Debug for Response {
             .finish_non_exhaustive()
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "projection_sender_response_tests.rs"]
 mod tests;

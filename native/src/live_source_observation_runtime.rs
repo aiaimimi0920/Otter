@@ -66,7 +66,11 @@ fn run(
             .validate(client.origin(), now().map_err(|_| Error::Lease)?)
             .map_err(|_| Error::Lease)?;
         if worker.is_none() {
-            worker = Worker::start(observation.target.clone(), &stopped).ok();
+            #[cfg(test)]
+            let start = Worker::start_in_test_harness;
+            #[cfg(not(test))]
+            let start = Worker::start;
+            worker = start(observation.target.clone(), &stopped).ok();
         }
         let scan = worker.as_mut().and_then(|w| w.scan(&stopped).ok());
         if stopped() {
@@ -99,8 +103,11 @@ fn run(
                 }
                 let delay = std::time::Duration::from_millis(500);
                 let accepted = match control.publish_source_observation(publication, &mut pending) {
+                    Err(error @ live_relay_http::Error::AuthorizationRequired) => {
+                        return Err(Error::Http(error));
+                    }
+                    _ if stopped() => return Ok(()),
                     Ok(v) => v,
-                    Err(_) if stopped() => return Ok(()),
                     Err(error) if error.retryable_read() && attempts < 4 => {
                         let backoff =
                             std::time::Duration::from_millis((400u64 << attempts).min(2000));

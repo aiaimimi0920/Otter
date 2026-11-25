@@ -27,17 +27,23 @@ pub(super) fn run() {
     loop {
         f.pump();
         window.tick().unwrap();
-        let s = runtime.shared.lock();
-        if let Some(frame) = s
-            .presented_frame
-            .clone()
-            .filter(|_| s.visible(Instant::now()))
-        {
+        let (presented, frozen_now, black_now, black_confirmed) = {
+            let s = runtime.shared.lock();
+            (
+                s.presented_frame
+                    .clone()
+                    .filter(|_| s.visible(Instant::now())),
+                s.frozen,
+                s.black,
+                s.black_revision.is_some() && s.black_revision == s.black_confirmed,
+            )
+        };
+        if let Some(frame) = presented {
             assert_eq!(frame.arts.len(), 1);
             assert_eq!(frame.images.len(), 1);
             let art = frame.arts.values().next().unwrap();
             assert_eq!(art.size, [640, 480]);
-            if !first && !s.frozen {
+            if !first && !frozen_now {
                 assert_eq!(art.snapshot.revision, 1);
                 let size = art.size.map(|n| n as f32);
                 let p = crate::surface_presentation::Presentation::new(
@@ -50,20 +56,20 @@ pub(super) fn run() {
                 assert_eq!(p.geometry().nodes()[0].size(), [640., 480.]);
                 first = true;
                 f.mark("tile-art-first.json",json!({"snapshotRevision":1,"canonicalSize":[640,480],"mixed":true,"nativePresentConfirmed":true}));
-            } else if first && !updated && art.snapshot.revision > 1 && !s.frozen {
+            } else if first && !updated && art.snapshot.revision > 1 && !frozen_now {
                 assert_eq!(art.images.len(), 1);
                 let image = art.images.values().next().unwrap();
                 assert_eq!(&*image.pixels, &[0, 255, 0, 255].repeat(4));
                 weak.push(image.pixels.downgrade());
                 updated = true;
                 f.mark("tile-art-updated.json",json!({"snapshotRevision":art.snapshot.revision,"sourcePbgra":[0,255,0,255],"nativePresentConfirmed":true}));
-            } else if updated && s.frozen && !frozen {
+            } else if updated && frozen_now && !frozen {
                 frozen = true;
                 f.mark(
                     "tile-art-frozen.json",
                     json!({"nativePresentConfirmed":true}),
                 );
-            } else if black && !s.black && !s.frozen && !resumed {
+            } else if black && !black_now && !frozen_now && !resumed {
                 resumed = true;
                 f.mark(
                     "tile-art-resumed.json",
@@ -71,7 +77,7 @@ pub(super) fn run() {
                 );
             }
         }
-        if s.black_revision.is_some() && s.black_revision == s.black_confirmed && !black {
+        if black_confirmed && !black {
             assert!(frozen);
             black = true;
             f.mark(
@@ -79,7 +85,6 @@ pub(super) fn run() {
                 json!({"nativeBlackPresentConfirmed":true}),
             );
         }
-        drop(s);
         if f.root.join("tile-stop").exists() {
             assert!(resumed || revoked);
             runtime.request_stop();

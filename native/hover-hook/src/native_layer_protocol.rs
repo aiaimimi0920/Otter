@@ -114,10 +114,11 @@ impl Request {
         Ok(true)
     }
     pub fn result(self) -> Option<windows::core::HRESULT> {
-        (self.matches()
+        // 普通轮询先查提交标记；只有候选回执才需要重读完整请求身份。
+        (value(self.window, FINISHED) == self.nonce
             && value(self.window, CLAIMED) == self.nonce
-            && value(self.window, FINISHED) == self.nonce)
-            .then(|| windows::core::HRESULT(value(self.window, RESULT) as u32 as i32))
+            && self.matches())
+        .then(|| windows::core::HRESULT(value(self.window, RESULT) as u32 as i32))
     }
     /// RESULT 先写、FINISHED 最后提交；源调用返回后才能调用，不能将取消当完成。
     pub fn finish(self, result: windows::core::HRESULT) -> windows::core::Result<()> {

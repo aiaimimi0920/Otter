@@ -42,8 +42,24 @@ impl Range {
             as i32
     }
     fn value(self, position: i32) -> Option<f64> {
-        let raw = self.min + (self.max - self.min) * position.clamp(0, TICKS) as f64 / TICKS as f64;
-        let stepped = self.min + ((raw - self.min) / self.step).round() * self.step;
+        let span = self.max - self.min;
+        let tick = f64::from(position.clamp(0, TICKS));
+        let product = span * tick;
+        // Preserve ordinary rounding, but scale the tick first if its product overflows.
+        let offset = if product.is_finite() {
+            product / f64::from(TICKS)
+        } else {
+            span * (tick / f64::from(TICKS))
+        };
+        let raw = (self.min + offset).min(self.max);
+        let steps = (raw - self.min) / self.step;
+        let stepped = if steps.is_finite() {
+            // A rounded step beyond the finite span saturates before translating by min.
+            (self.min + (steps.round() * self.step).min(span)).min(self.max)
+        } else {
+            // Such a small step cannot affect the representable offset.
+            raw
+        };
         super::parameter_number::normalize(stepped, Some(self.min), Some(self.max))
     }
 }
@@ -122,6 +138,16 @@ mod tests {
             Some(4.0)
         );
         assert!(Range::new(0.0, Some(-f64::MAX), Some(f64::MAX), 1.0).is_none());
+    }
+    #[test]
+    fn finite_range_survives_interpolation_and_step_overflow() {
+        let wide = Range::new(0.0, Some(0.0), Some(1.6e308), 4e307).unwrap();
+        assert_eq!(wide.value(TICKS / 2), Some(8e307));
+        assert_eq!(wide.value(TICKS), Some(1.6e308));
+        let tiny = Range::new(0.0, Some(0.0), Some(1.0), f64::from_bits(1)).unwrap();
+        assert_eq!(tiny.value(TICKS / 2), Some(0.5));
+        let overshoot = Range::new(-f64::MAX, Some(-f64::MAX), Some(0.0), 1e308).unwrap();
+        assert_eq!(overshoot.value(TICKS), Some(0.0));
     }
     #[test]
     fn hidden_native_control_roundtrips_position_and_rejects_other_sender() {

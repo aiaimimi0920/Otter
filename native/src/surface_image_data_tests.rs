@@ -73,3 +73,35 @@ fn inline_data_unknown_mime_preserves_bytes_and_svg_is_deferred_to_child() {
     assert!(decode("data:image/png#fragment,YQ", || false).is_err());
     assert_eq!(mime("data:image/pn\ng;base64,YQ==").unwrap(), "image/png");
 }
+
+#[test]
+fn inline_data_percent_stride_cannot_skip_cancellation_boundary() {
+    let source = format!("data:image/png,{}%41{}", "a".repeat(4094), "a".repeat(4094));
+    let calls = std::cell::Cell::new(0);
+    assert_eq!(
+        decode(&source, || {
+            calls.set(calls.get() + 1);
+            calls.get() >= 3
+        }),
+        Err(ResourceError::Identity)
+    );
+    assert_eq!(calls.get(), 3);
+    let expected = [vec![b'a'; 4094], vec![b'A'], vec![b'a'; 4094]].concat();
+    assert_eq!(decode(&source, || false).unwrap(), expected);
+}
+
+#[test]
+fn inline_data_checks_cancellation_before_publishing_short_raw_output() {
+    for (body, cancel_at) in [("", 2), ("%41", 3), ("raw+%ZZ", 3)] {
+        let calls = std::cell::Cell::new(0);
+        assert_eq!(
+            decode(&format!("data:image/png,{body}"), || {
+                calls.set(calls.get() + 1);
+                calls.get() >= cancel_at
+            }),
+            Err(ResourceError::Identity),
+            "{body}"
+        );
+        assert_eq!(calls.get(), cancel_at);
+    }
+}

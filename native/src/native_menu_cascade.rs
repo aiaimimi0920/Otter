@@ -48,6 +48,7 @@ pub struct Cascade {
     galleries: std::collections::HashMap<usize, Vec<Item>>,
     tree: Vec<Item>,
     pages: Vec<Page>,
+    accessibility_pages: std::cell::Cell<Option<usize>>,
     owner: HWND,
     tray_mode: bool,
     row: i32,
@@ -85,6 +86,7 @@ impl Cascade {
             galleries: Default::default(),
             tree,
             pages: Vec::new(),
+            accessibility_pages: Default::default(),
             owner,
             tray_mode,
             row: (28 * dpi / 96) as i32,
@@ -263,6 +265,8 @@ impl Cascade {
         self.refresh_frame(level, false)
     }
     fn refresh_frame(&self, level: usize, fresh: bool) -> Result<()> {
+        // 行、焦点或可见区换代后，即使页数不变也须重新提交关系和通知。
+        self.accessibility_pages.set(None);
         let page = &self.pages[level];
         page.panel.set_scroll(
             page.first / page.layout.columns,
@@ -328,6 +332,11 @@ impl Cascade {
         self.closed
     }
     fn sync_accessibility(&self) {
+        // 截断只改变页数，不一定刷新行；空轮询则不需要重建弱关联或查询监听。
+        let count = Some(self.pages.len());
+        if self.accessibility_pages.replace(count) == count {
+            return;
+        }
         let active = self.pages.iter().rposition(|page| page.focus.is_some());
         for page in &self.pages {
             page.panel.clear_accessibility_links();

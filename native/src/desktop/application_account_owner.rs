@@ -30,6 +30,7 @@ pub(super) struct Owner {
     pending: Option<Pending>,
     saved: Option<Saved>,
     due: Option<Instant>,
+    recovery_retry_at: Option<Instant>,
     cursor: usize,
     recovery: Option<(crate::session_projection_scope::Scope, String)>,
     recovery_queue: std::collections::VecDeque<account::journal::Intent>,
@@ -74,11 +75,27 @@ impl Owner {
     }
     pub(super) fn deadline(&self) -> Option<Instant> {
         self.due
+            .into_iter()
+            .chain(self.recovery_retry_at)
+            .chain(self.reap_deadline())
+            .min()
+    }
+    pub(super) fn reap_deadline(&self) -> Option<Instant> {
+        self.pending.as_ref()?.job.deadline()
+    }
+    fn expire_deadlines(&mut self, now: Instant) {
+        if self.due.is_some_and(|due| due <= now) {
+            self.due = None;
+        }
+        if self.recovery_retry_at.is_some_and(|due| due <= now) {
+            self.recovery_retry_at = None;
+        }
     }
     pub(super) fn shutdown(&mut self) {
         self.pending.take();
         self.saved.take();
         self.due = None;
+        self.recovery_retry_at = None;
         self.recovery_queue.clear();
     }
 }
@@ -121,13 +138,7 @@ impl Application {
     }
     pub(super) unsafe fn process_account_projection(&mut self) {
         use crate::desktop::device_authorization_ui::Request;
-        if self
-            .account_projection
-            .due
-            .is_some_and(|due| due <= Instant::now())
-        {
-            self.account_projection.due = None;
-        }
+        self.account_projection.expire_deadlines(Instant::now());
         self.poll_account_projection();
         let bindings = self
             .workspace_checkpoint
@@ -187,4 +198,81 @@ fn stale() -> Error {
         E_ABORT,
         "Account projection destination changed or unavailable",
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::desktop::{
+        loom_execution_tasks::reap_fixture::{Gate, WAIT},
+        Apartment,
+    };
+
+    #[test]
+    fn account_owner_reaps_revoked_completion_without_a_second_wake() {
+        let _apartment = Apartment::new().unwrap();
+        unsafe {
+            let instance = crate::desktop::workspace_window_fixture::register();
+            let document =
+                DocumentWindow::create(instance, State::new(None, false).unwrap(), false).unwrap();
+            let mut app = Application::new(instance, document);
+            let pump = execution_test_pump::Pump::new();
+            let wake = app.execution_wake.callback();
+            let gate = Gate::new(move || wake());
+            // 租约撤销也可调用 notify。仅阻塞后台完成尾段，禁止测试制造第二个唤醒。
+            let notified = AtomicBool::new(false);
+            let notify = Arc::new(move || {
+                if !notified.swap(true, Ordering::AcqRel) {
+                    (gate.notify)();
+                }
+            });
+            let origin = "https://localhost:1234";
+            let mut grant = crate::device_authorization_lease::Grant::new(
+                crate::device_session_client::tests::session(origin, u64::MAX),
+            );
+            let lease = grant.lease(origin, 0).unwrap();
+            let job = job::Job::start(lease, notify, |_| Ok(Output::Unchanged)).unwrap();
+            let doc = &app.documents[0];
+            let source = app.restored_session.as_ref().unwrap().original.clone();
+            app.account_projection.pending = Some(Pending {
+                job,
+                origin: origin.into(),
+                source: source.clone(),
+                workspace: app.workspace.identity_stamp(),
+                guard: Guard::Existing {
+                    unit: doc.state.unit_id.clone(),
+                    document: Box::new(restore_batch::guard::Document::capture(doc).unwrap()),
+                },
+                cancel: None,
+                participation: None,
+            });
+            gate.noticed.recv_timeout(WAIT).unwrap();
+            assert!(PeekMessageW(
+                &mut MSG::default(),
+                None,
+                WM_APP + 92,
+                WM_APP + 92,
+                PM_REMOVE
+            )
+            .as_bool());
+            app.pending_windows(false).unwrap();
+            assert!(app.account_projection.pending.is_some());
+            assert!(app.account_projection.reap_deadline().is_some());
+            while pump.step(&mut app) != WM_NULL {}
+            assert!(app.account_projection.pending.is_some());
+            gate.release.send(()).unwrap();
+            while app.account_projection.pending.is_some() {
+                pump.step(&mut app);
+            }
+            assert!(app.account_projection.reap_deadline().is_none());
+            assert!(app.account_projection.saved.is_none());
+            assert!(app
+                .restored_session
+                .as_ref()
+                .unwrap()
+                .original
+                .same_storage(&source));
+            assert!(gate.noticed.try_recv().is_err());
+        }
+    }
 }

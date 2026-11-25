@@ -1,7 +1,7 @@
 //! 字体来源沿实际共享 launcher 进入 Job，私有测试入口不进入正式 CLI。
 use super::*;
 #[path = "surface_svg_font_fallback_tests.rs"]
-mod fallback_checks;
+pub mod fallback_checks;
 use crate::live_recovery_pipe::Pipe;
 use std::{
     io::{Read, Write},

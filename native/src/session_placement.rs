@@ -1,7 +1,7 @@
 //! 主干 CSS 会话框到屏幕物理框：backendRects.ts 的 Math.round，再加覆盖窗口客户区原点。
 use crate::{pin_geometry::PinRect, session_window::Rect};
 #[path = "session_placement_inverse.rs"]
-mod inverse;
+pub mod inverse;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Space {

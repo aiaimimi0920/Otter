@@ -318,5 +318,31 @@ fn mirror_handoff_does_not_bypass_held_mouse_or_release_queue_capacity() {
     }
 }
 
+#[test]
+fn family_scope_snapshot_is_shared_and_released_when_each_window_refreshes() {
+    let _apartment = crate::desktop::Apartment::new().unwrap();
+    let root = Source::new(None);
+    let popup = Source::new(Some(root.0));
+    let target = Target::bind(root.0).unwrap();
+    let scope = Scope::bind(&target, None, popup.0).unwrap();
+    let scopes = Rc::new(vec![scope]);
+    let snapshot = Rc::downgrade(&scopes);
+    let (_frames, window) = live();
+    let (_peer_frames, peer) = live();
+    window.popup_scopes(Some(scopes.clone()));
+    peer.popup_scopes(Some(scopes));
+    assert_eq!(snapshot.strong_count(), 2);
+
+    lose_focus(&window, popup.0);
+    window.resolve_popup_focus_at(Some(&target), popup.0);
+    assert!(window.focused_source_popup().is_some());
+    assert_eq!(snapshot.strong_count(), 2);
+
+    window.popup_scopes(None);
+    assert_eq!(snapshot.strong_count(), 1);
+    drop(peer);
+    assert!(snapshot.upgrade().is_none());
+}
+
 #[path = "composition_live_popup_capture_tests.rs"]
 mod capture_tests;

@@ -34,7 +34,7 @@ mod layout;
 pub(in crate::desktop) use inline::Inline;
 #[path = "parameter_panel_model.rs"]
 mod model;
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "parameter_panel_tests.rs"]
 mod tests;
 #[path = "parameter_panel_theme.rs"]
@@ -106,6 +106,8 @@ struct Ui {
     scroll_x: Cell<i32>,
     content_height: Cell<i32>,
     status: Cell<HWND>,
+    status_dirty: Cell<bool>,
+    status_writing: Cell<bool>,
     message: RefCell<String>,
     capture_windows: Rc<RefCell<Vec<HWND>>>,
 }
@@ -134,7 +136,10 @@ impl Ui {
     }
     unsafe fn error(&self, message: &str) {
         let changed = *self.message.borrow() != message;
-        *self.message.borrow_mut() = message.into();
+        if changed {
+            *self.message.borrow_mut() = message.into();
+            self.status_dirty.set(!self.inline);
+        }
         if self.inline && changed && !message.is_empty() {
             if let Some(state) = self.state() {
                 if let Err(error) =
@@ -144,9 +149,38 @@ impl Ui {
                 }
             }
         }
-        let status = self.status.get();
-        if IsWindow(Some(status)).as_bool() {
-            let _ = SetWindowTextW(status, &HSTRING::from(message));
+        self.sync_status();
+    }
+    unsafe fn sync_status(&self) {
+        if self.status_writing.get() {
+            return;
+        }
+        // Let one synchronous update supersede this write, without recursively
+        // sending WM_SETTEXT. Any further change remains dirty for the next tick.
+        for _ in 0..2 {
+            if !self.status_dirty.get() || self.closed.get() {
+                return;
+            }
+            let status = self.status.get();
+            if status.is_invalid() || GetParent(status).ok() != Some(self.hwnd.get()) {
+                return;
+            }
+            let text = HSTRING::from(self.message.borrow().as_str());
+            self.status_dirty.set(false);
+            self.status_writing.set(true);
+            let written = SendMessageW(
+                status,
+                WM_SETTEXT,
+                None,
+                Some(LPARAM(text.as_ptr() as isize)),
+            );
+            self.status_writing.set(false);
+            if written.0 != 1 {
+                if self.status.get() == status {
+                    self.status_dirty.set(true);
+                }
+                return;
+            }
         }
     }
     unsafe fn queue(&self, intent: Intent) {
@@ -288,7 +322,7 @@ impl Panel {
         if self.retired() {
             return Ok(());
         }
-        transaction::drain(self, state);
+        transaction::drain(self, state)?;
         if self.retired() {
             return Ok(());
         }
@@ -307,6 +341,8 @@ impl Panel {
             } else {
                 self.ui.error("配置已变化，草稿未提交");
             }
+        } else {
+            self.ui.sync_status();
         }
         controls::availability(&self.ui);
         Ok(())

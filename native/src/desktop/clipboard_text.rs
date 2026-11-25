@@ -72,13 +72,36 @@ pub(in crate::desktop) unsafe fn copy_extension_checked(
             (count > 1_048_576).then_some(i)
         })
         .unwrap_or(text.len());
-    let prepared = prepare_units(bounded_units(
-        &text[..end],
-        1_048_576,
-        4 * 1024 * 1024,
-        true,
-    )?)?;
-    publish(owner, prepared, current)
+    let units = bounded_units(&text[..end], 1_048_576, 4 * 1024 * 1024, true)?;
+    #[cfg(test)]
+    if CAPTURE.with(|capture| capture.borrow().is_some()) {
+        if !current() {
+            return Err(Error::new(E_ABORT, "Extension copy authority changed"));
+        }
+        CAPTURE.with(|capture| capture.borrow_mut().as_mut().unwrap().push(units));
+        return Ok(());
+    }
+    publish(owner, prepare_units(units)?, current)
+}
+#[cfg(test)]
+thread_local! {
+    static CAPTURE: std::cell::RefCell<Option<Vec<Vec<u16>>>> = const { std::cell::RefCell::new(None) };
+}
+#[cfg(test)]
+pub(in crate::desktop) fn capture_extension_copy(run: impl FnOnce()) -> Vec<Vec<u16>> {
+    struct Reset;
+    impl Drop for Reset {
+        fn drop(&mut self) {
+            CAPTURE.with(|capture| capture.borrow_mut().take());
+        }
+    }
+    CAPTURE.with(|capture| {
+        assert!(capture.borrow().is_none());
+        *capture.borrow_mut() = Some(Vec::new());
+    });
+    let _reset = Reset;
+    run();
+    CAPTURE.with(|capture| capture.borrow_mut().take().unwrap())
 }
 unsafe fn publish(owner: HWND, prepared: Prepared, current: impl FnOnce() -> bool) -> Result<()> {
     OpenClipboard(Some(owner))?;

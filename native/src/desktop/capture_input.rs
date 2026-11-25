@@ -115,26 +115,23 @@ pub(super) unsafe fn start(hwnd: HWND, state: &State, command: usize) {
                 |screen| dynamic::prepare(hwnd, state, screen),
             );
         }
+        if command == LONG_RECORDING {
+            let windows = super::capture_windows::snapshot()?;
+            let frame = super::capture::virtual_desktop()?;
+            let Some(rect) =
+                super::capture_region::select_recording(frame.image, frame.origin, windows)?
+            else {
+                return Ok(None);
+            };
+            return long_capture_dialog::show_recording(hwnd, rect, &state.capture_active)
+                .map(|result| result.map(Delivery::Recording));
+        }
         let acquired = route.acquire_with(
             super::capture_windows::snapshot,
             super::capture::virtual_desktop,
-            |image, origin, windows| {
-                if command == LONG_RECORDING {
-                    super::capture_region::select_positioned(image, origin, windows)
-                } else {
-                    super::capture_region::select_adjustable(image, origin, windows)
-                }
-            },
+            super::capture_region::select_adjustable,
         )?;
-        if command == LONG_RECORDING {
-            match acquired {
-                Some((image, Some(origin))) => {
-                    long_capture_dialog::show_recording(hwnd, image, origin, &state.capture_active)
-                        .map(|result| result.map(Delivery::Recording))
-                }
-                _ => Ok(None),
-            }
-        } else if matches!(command, LONG_VERTICAL | LONG_HORIZONTAL) {
+        if matches!(command, LONG_VERTICAL | LONG_HORIZONTAL) {
             if let Some((image, Some(origin))) = acquired {
                 let source_size = (image.width, image.height);
                 let axis = if command == LONG_VERTICAL {
@@ -227,19 +224,15 @@ unsafe fn run_delivery(
             }
         }
         Delivery::Prepared(prepared, origin) => {
-            let captured = super::smoke_timing::run("capture-commit", || {
-                prepared.commit(&std::sync::atomic::AtomicBool::new(false), || {
-                    IsWindow(Some(hwnd)).as_bool() && stamp.matches(&state.canvas.borrow().editor)
+            super::open_job::start_capture_destination(hwnd, state, new_pin, || {
+                let captured = super::smoke_timing::run("capture-commit", || {
+                    prepared.commit(&std::sync::atomic::AtomicBool::new(false), || {
+                        IsWindow(Some(hwnd)).as_bool()
+                            && stamp.matches(&state.canvas.borrow().editor)
+                    })
                 })
-            })
-            .map_err(|error| Error::new(E_FAIL, error.to_string()))?;
-            super::smoke_timing::run("capture-ready", || {
-                super::open_job::start_capture_destination(
-                    hwnd,
-                    state,
-                    super::open_job::Input::Captured(captured, Some(origin)),
-                    new_pin,
-                )
+                .map_err(|error| Error::new(E_FAIL, error.to_string()))?;
+                Ok(super::open_job::Input::Captured(captured, Some(origin)))
             })
         }
     }

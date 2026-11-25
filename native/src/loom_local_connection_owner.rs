@@ -3,27 +3,23 @@ use super::{Connected, Error};
 use crate::device_request_cancel::Cancel;
 use std::{
     path::PathBuf,
-    sync::{mpsc, Arc},
-    thread::JoinHandle,
+    sync::Arc,
     time::{Duration, Instant},
 };
 #[path = "loom_disconnect.rs"]
 mod disconnect;
-
-struct Pending {
-    cancel: Arc<Cancel>,
-    thread: JoinHandle<()>,
-    result: mpsc::Receiver<Result<Connected, Error>>,
-}
+#[path = "loom_connection_task.rs"]
+mod task;
+use task::Task;
 #[derive(Default)]
 pub(crate) struct Owner {
     profile: Option<PathBuf>,
-    pending: Option<Pending>,
+    pending: Option<Task<Connected>>,
     next: Option<Instant>,
     retry: u64,
     install_retry: u64,
     origin: Option<String>,
-    disconnect: Option<disconnect::Job>,
+    disconnect: Option<Task<()>>,
     password: zeroize::Zeroizing<String>,
 }
 impl Owner {
@@ -39,7 +35,7 @@ impl Owner {
         if self.disconnect.is_some() {
             return Err(Error::Stopped);
         }
-        self.disconnect = Some(disconnect::Job::start(config, token, wake)?);
+        self.disconnect = Some(disconnect::start(config, token, wake)?);
         Ok(())
     }
     pub(crate) fn poll_disconnect(&mut self) -> Option<Result<(), Error>> {
@@ -85,28 +81,21 @@ impl Owner {
         }
     }
     pub(crate) fn deadline(&self) -> Option<Instant> {
-        if self.disconnect.is_some() {
-            None
-        } else {
-            self.next
-        }
+        self.pending
+            .as_ref()
+            .and_then(Task::deadline)
+            .into_iter()
+            .chain(self.disconnect.as_ref().and_then(Task::deadline))
+            .chain(self.next.filter(|_| self.disconnect.is_none()))
+            .min()
     }
     pub(crate) fn poll(
         &mut self,
-        wake: Arc<dyn Fn() + Send + Sync>,
+        make_wake: impl FnOnce() -> Arc<dyn Fn() + Send + Sync>,
     ) -> Option<Result<Connected, Error>> {
         let mut output = None;
-        let completed = self
-            .pending
-            .as_ref()
-            .and_then(|p| match p.result.try_recv() {
-                Ok(result) => Some(result),
-                Err(mpsc::TryRecvError::Disconnected) => Some(Err(Error::Stopped)),
-                Err(mpsc::TryRecvError::Empty) => None,
-            });
-        if let Some(result) = completed {
+        if let Some(result) = self.pending.as_mut().and_then(Task::poll) {
             let pending = self.pending.take().unwrap();
-            let _ = pending.thread.join();
             if self.profile.is_some() && !pending.cancel.is_stopped() {
                 let delay = match &result {
                     Ok(connected) => {
@@ -152,37 +141,15 @@ impl Owner {
             let origin = self.origin.clone();
             let password = std::mem::take(&mut self.password);
             self.next = None;
-            let cancel = Arc::new(Cancel::new());
-            let stop = cancel.clone();
-            let (send, result) = mpsc::sync_channel(1);
-            match std::thread::Builder::new()
-                .name("otter-local-loom".into())
-                .spawn(move || {
-                    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                        if let Some(origin) = origin {
-                            crate::loom_selected_connection::connect(
-                                &origin, &profile, &stop, &password,
-                            )
-                        } else {
-                            super::connect(
-                                crate::loom_discovery::Config::from_env(),
-                                &profile,
-                                &stop,
-                            )
-                        }
-                    }))
-                    .unwrap_or(Err(Error::Worker));
-                    // 先发布结果，再通知 UI；不能依赖通知时 JoinHandle 已标记 finished。
-                    let _ = send.send(result);
-                    wake();
-                }) {
-                Ok(thread) => {
-                    self.pending = Some(Pending {
-                        cancel,
-                        thread,
-                        result,
-                    })
+            // Idle, deferred and in-flight polls need no per-worker callback.
+            match Task::spawn("otter-local-loom", make_wake(), move |stop| {
+                if let Some(origin) = origin {
+                    crate::loom_selected_connection::connect(&origin, &profile, stop, &password)
+                } else {
+                    super::connect(crate::loom_discovery::Config::from_env(), &profile, stop)
                 }
+            }) {
+                Ok(task) => self.pending = Some(task),
                 Err(_) => {
                     self.next = Some(Instant::now() + Duration::from_secs(30));
                     output = Some(Err(Error::Stopped));
@@ -194,9 +161,7 @@ impl Owner {
     pub(crate) fn shutdown(&mut self) {
         self.stop();
         self.disconnect.take();
-        if let Some(pending) = self.pending.take() {
-            let _ = pending.thread.join();
-        }
+        self.pending.take();
     }
 }
 impl Drop for Owner {
@@ -208,31 +173,88 @@ impl Drop for Owner {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::desktop::loom_execution_tasks::reap_fixture::{Gate, WAIT};
+
+    #[test]
+    fn local_loom_completion_notification_does_not_join_or_publish_cancelled_work() {
+        let gate = Gate::new(|| {});
+        let mut owner = Owner::default();
+        owner.pending =
+            Some(Task::spawn("connect-test", gate.notify, |_| Err(Error::Response)).unwrap());
+        owner.enable("test-profile".into());
+        let unexpected = || panic!("replacement started too soon");
+        gate.noticed.recv_timeout(WAIT).unwrap();
+        assert!(owner.poll(unexpected).is_none());
+        assert!(owner.deadline().is_some());
+        owner.stop();
+        assert!(owner.poll(unexpected).is_none());
+        gate.release.send(()).unwrap();
+        owner.pending.as_ref().unwrap().test_wait_finished();
+        assert!(owner.poll(unexpected).is_none(), "cancelled result escaped");
+        assert!(owner.pending.is_none());
+        assert!(owner.deadline().is_none());
+    }
+
+    #[test]
+    fn local_loom_disconnect_keeps_reconnect_gated_and_notifies_even_on_panic() {
+        for panic in [false, true] {
+            let gate = Gate::new(|| {});
+            let mut owner = Owner::default();
+            owner.disconnect = Some(
+                Task::spawn("disconnect-test", gate.notify, move |_| {
+                    assert!(!panic, "injected disconnect failure");
+                    Ok(())
+                })
+                .unwrap(),
+            );
+            owner.enable("test-profile".into());
+            gate.noticed.recv_timeout(WAIT).unwrap();
+            assert!(owner.poll_disconnect().is_none());
+            assert!(owner.deadline().is_some());
+            assert!(owner.poll(|| panic!("overlapping connection")).is_none());
+            gate.release.send(()).unwrap();
+            owner.disconnect.as_ref().unwrap().test_wait_finished();
+            assert_eq!(
+                owner.poll_disconnect(),
+                Some(if panic { Err(Error::Worker) } else { Ok(()) })
+            );
+            assert!(owner.poll_disconnect().is_none());
+            assert!(owner.deadline().is_some_and(|due| due <= Instant::now()));
+            owner.stop();
+            assert!(owner.deadline().is_none());
+        }
+    }
+
     #[test]
     fn local_loom_reenable_does_not_spin_or_lose_cancelled_pending_work() {
-        let (send, result) = mpsc::sync_channel(1);
-        let cancel = Arc::new(Cancel::new());
-        let worker_cancel = cancel.clone();
-        let thread = std::thread::spawn(move || {
-            while !worker_cancel.is_stopped() {
-                std::thread::yield_now();
-            }
-            let _ = send.send(Err(Error::Stopped));
-        });
         let mut owner = Owner::default();
-        owner.pending = Some(Pending {
-            cancel,
-            thread,
-            result,
-        });
+        owner.pending = Some(
+            Task::spawn("local-loom-test", Arc::new(|| {}), |cancel| {
+                while !cancel.is_stopped() {
+                    std::thread::yield_now();
+                }
+                Err(Error::Stopped)
+            })
+            .unwrap(),
+        );
         owner.enable(PathBuf::from("test-profile"));
         assert!(owner.enabled());
         assert!(owner.deadline().is_none(), "pending worker owns the wakeup");
         owner.stop();
         owner.refresh();
         assert!(!owner.enabled());
-        assert!(owner.deadline().is_none());
         owner.shutdown();
+        assert!(owner.deadline().is_none());
+    }
+    #[test]
+    fn local_loom_idle_poll_does_not_create_worker_wake() {
+        let mut owner = Owner::default();
+        let unexpected = || panic!("idle poll constructed a worker callback");
+        assert!(owner.poll(unexpected).is_none());
+        owner.enable(PathBuf::from("test-profile"));
+        owner.retry_install();
+        assert!(owner.poll(unexpected).is_none());
+        assert!(owner.deadline().is_some());
     }
     #[test]
     fn local_loom_install_retry_backs_off_independently_of_network_success() {

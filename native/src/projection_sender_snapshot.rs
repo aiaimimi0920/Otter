@@ -32,6 +32,28 @@ impl Snapshot {
         height: u32,
         cancel: &AtomicBool,
     ) -> Result<Self, Error> {
+        let digest = Self::validated_digest(png, width, height, cancel)?;
+        let encoded = crate::loom_base64::encode(png, cancel).map_err(|_| {
+            if cancel.load(Ordering::Acquire) {
+                Error::Stopped
+            } else {
+                Error::Limit
+            }
+        })?;
+        check(cancel)?;
+        Ok(Self {
+            encoded,
+            width,
+            height,
+            digest,
+        })
+    }
+    fn validated_digest(
+        png: &Pixels,
+        width: u32,
+        height: u32,
+        cancel: &AtomicBool,
+    ) -> Result<String, Error> {
         check(cancel)?;
         if png.len() > MAX_PNG
             || !png.starts_with(b"\x89PNG\r\n\x1a\n")
@@ -67,20 +89,13 @@ impl Snapshot {
             check(cancel)?;
             digest.update(chunk);
         }
-        let encoded = crate::loom_base64::encode(png, cancel).map_err(|_| {
-            if stopped() {
-                Error::Stopped
-            } else {
-                Error::Limit
-            }
-        })?;
         check(cancel)?;
-        Ok(Self {
-            encoded,
-            width,
-            height,
-            digest: format!("{:x}", digest.finalize()),
-        })
+        Ok(format!("{:x}", digest.finalize()))
+    }
+    /// 预览只消费摘要和尺寸；仍完整验证像素，但不再生成无人消费的 Base64。
+    pub(crate) fn inspect(wire: &Wire<'_>, cancel: &AtomicBool) -> Result<String, Error> {
+        let png = Self::decode_png(wire, cancel)?;
+        Self::validated_digest(&png, wire.width, wire.height, cancel)
     }
     pub(crate) fn decode(wire: Wire<'_>, cancel: &AtomicBool) -> Result<Self, Error> {
         let png = Self::decode_png(&wire, cancel)?;

@@ -13,7 +13,7 @@ fn text() -> Entry {
 }
 fn bitmap() -> Result<Entry> {
     let bytes = super::image_fixture::PNG;
-    let image = crate::image_decode::Image::from_clipboard_history(bytes)?;
+    let image = crate::image_decode::Image::from_clipboard_history(bytes, &|| false)?;
     let lease = crate::pixels::reserve(bytes.len())
         .ok_or_else(|| Error::new(E_OUTOFMEMORY, "History fixture budget exhausted"))?;
     Ok(Entry {

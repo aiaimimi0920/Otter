@@ -38,6 +38,8 @@ pub(super) struct Shared {
     expires: AtomicU64,
     #[cfg(test)]
     pub probe: Mutex<Option<Arc<crate::bounded_worker_process::Probe>>>,
+    #[cfg(test)]
+    pub fail_click_wake: std::sync::atomic::AtomicBool,
 }
 fn event() -> io::Result<OwnedHandle> {
     let handle = unsafe { CreateEventW(None, true, false, None) }.map_err(io::Error::other)?;
@@ -53,6 +55,8 @@ impl Shared {
             expires: AtomicU64::new(expires),
             #[cfg(test)]
             probe: Mutex::new(None),
+            #[cfg(test)]
+            fail_click_wake: std::sync::atomic::AtomicBool::new(false),
         })
     }
     pub fn expires(&self) -> u64 {
@@ -77,7 +81,16 @@ impl Shared {
         if command.is_some() {
             return Err(io::ErrorKind::WouldBlock.into());
         }
+        #[cfg(test)]
+        let fail_wake = matches!(&operation, Operation::Click(..))
+            && self.fail_click_wake.swap(false, Ordering::AcqRel);
         *command = Some((sequence, current, operation));
+        #[cfg(test)]
+        if fail_wake {
+            return Err(io::Error::other(
+                "injected click wake failure after enqueue",
+            ));
+        }
         unsafe { SetEvent(HANDLE(self.command_event.as_raw_handle())) }.map_err(io::Error::other)
     }
     pub fn take_command(&self) -> io::Result<Option<(u64, MountedSurface, Operation)>> {

@@ -6,7 +6,7 @@ fn group_menu_has_real_command_and_stale_directory_never_prepares_config() {
     let _com = Apartment::new().unwrap();
     let (files, _, _) = Files::new();
     unsafe {
-        let (_class, mut app) = application(files.root());
+        let mut app = application(files.root());
         let origin = "https://loom.example";
         let unit = app.documents[0].state.unit_id.clone();
         let selected = directory(origin, 2);

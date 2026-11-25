@@ -246,6 +246,7 @@ impl Application {
                         &mut self.remote_sessions,
                         &self.surface_windows,
                         self.live_sessions.len(),
+                        &mut config,
                     );
                     view.mount_busy = self.remote_sessions.attaching();
                     view.restoring = result.is_ok();
@@ -271,6 +272,7 @@ impl Application {
                         view.origin.as_deref(),
                         &mut self.authorization_owner,
                         &mut self.remote_sessions,
+                        &mut config,
                     );
                     view.recovery_busy = result.is_ok();
                     view.recovery_status = match result {

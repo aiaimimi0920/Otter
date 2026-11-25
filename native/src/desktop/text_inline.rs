@@ -12,7 +12,9 @@ use windows::{
 };
 #[path = "text_inline_messages.rs"]
 mod messages;
-#[cfg(test)]
+#[path = "text_inline_paint.rs"]
+mod paint;
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "text_inline_tests.rs"]
 mod tests;
 #[path = "text_inline_window.rs"]
@@ -29,12 +31,16 @@ pub(in crate::desktop) unsafe fn begin(hwnd: HWND, state: &State, pending: Pendi
     finish(hwnd, state, true)?;
     let initial = pending.text.as_ref().map_or("", TextAnnotation::content);
     let scale = state.canvas.borrow().viewport.scale * GetDpiForWindow(hwnd).max(96) as f32 / 96.0;
-    let ui = window::Window::new(hwnd, initial, &pending.font, scale)?;
+    let ui = window::Window::new(hwnd, initial, &pending.font, pending.style, scale)?;
     let session = Rc::new(Session { pending, ui });
     *state.inline_text.borrow_mut() = Some(session.clone());
+    state.canvas.borrow_mut().inline_text_hidden = session.pending.index;
+    let _ = InvalidateRect(Some(hwnd), None, false);
     let result = resize(hwnd, state, &session).and_then(|()| session.ui.show());
     if result.is_err() {
         state.inline_text.borrow_mut().take();
+        state.canvas.borrow_mut().inline_text_hidden = None;
+        let _ = InvalidateRect(Some(hwnd), None, false);
     }
     result
 }
@@ -108,6 +114,7 @@ pub(in crate::desktop) unsafe fn finish(hwnd: HWND, state: &State, commit: bool)
         return Err(error); // 不把读失败或提交失败伪装成成功，不丢草稿。
     }
     session.ui.hide();
+    state.canvas.borrow_mut().inline_text_hidden = None;
     drop(session);
     if state.lifetime.owns(hwnd) {
         desktop::hit_region::update(hwnd, state)?;
@@ -128,10 +135,18 @@ pub(in crate::desktop) unsafe fn before_message(hwnd: HWND, state: &State, messa
     let Some(session) = session else {
         return false;
     };
+    if session.ui.forward_click(hwnd, message) {
+        return true;
+    }
     let outside = !session.ui.contains(message.hwnd);
     let click = matches!(
         message.message,
-        WM_LBUTTONDOWN | WM_RBUTTONDOWN | WM_MBUTTONDOWN | WM_NCLBUTTONDOWN | WM_NCRBUTTONDOWN
+        WM_LBUTTONDOWN
+            | WM_LBUTTONDBLCLK
+            | WM_RBUTTONDOWN
+            | WM_MBUTTONDOWN
+            | WM_NCLBUTTONDOWN
+            | WM_NCRBUTTONDOWN
     );
     let save = message.message == WM_KEYDOWN
         && message.wParam.0 == 0x53
@@ -155,6 +170,16 @@ pub(in crate::desktop) unsafe fn dispatch(
     lp: LPARAM,
 ) -> Option<LRESULT> {
     let session = state.inline_text.borrow().clone()?;
+    if msg == WM_MOUSEACTIVATE {
+        let position = GetMessagePos();
+        let point = POINT {
+            x: position as i16 as i32,
+            y: (position >> 16) as i16 as i32,
+        };
+        if session.ui.keyed_edit_point(point).is_some() {
+            return Some(LRESULT(MA_NOACTIVATE as isize));
+        }
+    }
     if matches!(msg, messages::FINISH | messages::CHANGE | messages::CANCEL) {
         if session.ui.matches(wp, lp) {
             let result = if msg != messages::CHANGE {
@@ -173,6 +198,9 @@ pub(in crate::desktop) unsafe fn dispatch(
     }
     if matches!(msg, WM_DESTROY | WM_NCDESTROY) {
         let retired = state.inline_text.borrow_mut().take();
+        if let Ok(mut canvas) = state.canvas.try_borrow_mut() {
+            canvas.inline_text_hidden = None;
+        }
         drop(retired); // 宿主正在销毁，不重绘或把焦点交回即将失效的 HWND。
     } else if matches!(
         msg,

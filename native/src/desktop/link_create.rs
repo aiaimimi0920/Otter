@@ -6,7 +6,7 @@ use std::rc::Rc;
 #[cfg(test)]
 use windows::core::w;
 use windows::{
-    core::{Result, HSTRING},
+    core::{Error, Result, HSTRING},
     Win32::{Foundation::*, UI::WindowsAndMessaging::*},
 };
 #[cfg(test)]
@@ -21,6 +21,7 @@ struct Dialog {
     choices: Vec<usize>,
     fixed: usize,
     result: Option<(usize, usize, usize)>,
+    failed: bool,
 }
 #[cfg(test)]
 pub(super) unsafe fn append(menu: HMENU, state: &State) -> Result<Option<Rc<Catalog>>> {
@@ -90,6 +91,7 @@ pub(super) unsafe fn apply(
         fixed: target,
         choices,
         result: None,
+        failed: false,
     };
     {
         let Some(_guard) = super::file_dialog::Guard::begin(&state.file_dialog) else {
@@ -132,6 +134,7 @@ pub(super) unsafe fn show_outgoing(
         choices,
         fixed: source,
         result: None,
+        failed: false,
     };
     show(hwnd, &mut dialog)?;
     Ok(dialog.result)
@@ -146,9 +149,13 @@ unsafe fn show(hwnd: HWND, dialog: &mut Dialog) -> Result<()> {
         LPARAM(dialog as *mut _ as isize),
     ) == -1
     {
-        return Err(windows::core::Error::from_win32());
+        return Err(Error::from_win32());
     }
-    Ok(())
+    if dialog.failed {
+        Err(Error::new(E_FAIL, "Cannot populate link selection dialog"))
+    } else {
+        Ok(())
+    }
 }
 fn endpoints(dialog: &Dialog, choice: usize) -> (usize, usize) {
     if dialog.outgoing {
@@ -161,43 +168,65 @@ fn endpoints(dialog: &Dialog, choice: usize) -> (usize, usize) {
 #[cfg(test)]
 #[path = "link_create_tests.rs"]
 pub(super) mod tests;
-unsafe fn fill(hwnd: HWND, id: i32, items: impl Iterator<Item = String>) {
+unsafe fn fill<'a>(hwnd: HWND, id: i32, items: impl Iterator<Item = &'a str>) -> bool {
     let Ok(combo) = GetDlgItem(Some(hwnd), id) else {
-        return;
+        return false;
     };
     SendMessageW(combo, CB_RESETCONTENT, None, None);
-    for item in items {
+    for (index, item) in items.enumerate() {
         let item = HSTRING::from(item);
-        SendMessageW(
+        let inserted = SendMessageW(
             combo,
             CB_ADDSTRING,
             None,
             Some(LPARAM(item.as_ptr() as isize)),
-        );
+        )
+        .0;
+        // Selection indices address the immutable catalog, not just the rows
+        // that survived insertion. Never accept a partial or reordered list.
+        if usize::try_from(inserted).ok() != Some(index) {
+            return false;
+        }
     }
-    SendMessageW(combo, CB_SETCURSEL, Some(WPARAM(0)), None);
+    SendMessageW(combo, CB_SETCURSEL, Some(WPARAM(0)), None).0 == 0
 }
 unsafe fn selected(hwnd: HWND, id: i32) -> Option<usize> {
     let result = SendMessageW(GetDlgItem(Some(hwnd), id).ok()?, CB_GETCURSEL, None, None).0;
     usize::try_from(result).ok()
 }
-unsafe fn refresh_choice_ports(hwnd: HWND, dialog: &Dialog) {
+unsafe fn refresh_choice_ports(hwnd: HWND, dialog: &Dialog) -> bool {
     if let Some(choice) = selected(hwnd, SOURCE).and_then(|index| dialog.choices.get(index)) {
         let (source, target) = endpoints(dialog, *choice);
-        if dialog.outgoing {
-            fill(
-                hwnd,
-                INPUT,
-                dialog.catalog.endpoints[target].inputs.iter().cloned(),
-            );
+        let (id, ports) = if dialog.outgoing {
+            (INPUT, &dialog.catalog.endpoints[target].inputs)
         } else {
-            fill(
-                hwnd,
-                OUTPUT,
-                dialog.catalog.endpoints[source].outputs.iter().cloned(),
-            );
-        }
+            (OUTPUT, &dialog.catalog.endpoints[source].outputs)
+        };
+        fill(hwnd, id, ports.iter().map(String::as_str))
+    } else {
+        false
     }
+}
+unsafe fn initialize(hwnd: HWND, dialog: &Dialog) -> bool {
+    let fixed = &dialog.catalog.endpoints[dialog.fixed];
+    let (id, ports) = if dialog.outgoing {
+        (OUTPUT, &fixed.outputs)
+    } else {
+        (INPUT, &fixed.inputs)
+    };
+    fill(
+        hwnd,
+        SOURCE,
+        dialog
+            .choices
+            .iter()
+            .map(|index| dialog.catalog.endpoints[*index].label.as_str()),
+    ) && fill(hwnd, id, ports.iter().map(String::as_str))
+        && refresh_choice_ports(hwnd, dialog)
+}
+unsafe fn fail(hwnd: HWND, pointer: *mut Dialog) {
+    (*pointer).failed = true;
+    let _ = EndDialog(hwnd, 0);
 }
 unsafe extern "system" fn procedure(
     hwnd: HWND,
@@ -207,35 +236,10 @@ unsafe extern "system" fn procedure(
 ) -> isize {
     if message == WM_INITDIALOG {
         SetWindowLongPtrW(hwnd, WINDOW_LONG_PTR_INDEX(USER), lparam.0);
-        let dialog = &*(lparam.0 as *const Dialog);
-        fill(
-            hwnd,
-            SOURCE,
-            dialog
-                .choices
-                .iter()
-                .map(|index| dialog.catalog.endpoints[*index].label.clone()),
-        );
-        if dialog.outgoing {
-            fill(
-                hwnd,
-                OUTPUT,
-                dialog.catalog.endpoints[dialog.fixed]
-                    .outputs
-                    .iter()
-                    .cloned(),
-            );
-        } else {
-            fill(
-                hwnd,
-                INPUT,
-                dialog.catalog.endpoints[dialog.fixed]
-                    .inputs
-                    .iter()
-                    .cloned(),
-            );
+        let pointer = lparam.0 as *mut Dialog;
+        if !initialize(hwnd, &*pointer) {
+            fail(hwnd, pointer);
         }
-        refresh_choice_ports(hwnd, dialog);
         return 1;
     }
     if message == WM_CLOSE || message == WM_COMMAND && wparam.0 & 0xffff == IDCANCEL.0 as usize {
@@ -249,9 +253,14 @@ unsafe extern "system" fn procedure(
     if pointer.is_null() {
         return 0;
     }
+    if (*pointer).failed {
+        return 1;
+    }
     let command = wparam.0 & 0xffff;
     if command == SOURCE as usize && wparam.0 >> 16 == CBN_SELCHANGE as usize {
-        refresh_choice_ports(hwnd, &*pointer);
+        if !refresh_choice_ports(hwnd, &*pointer) {
+            fail(hwnd, pointer);
+        }
         return 1;
     }
     if command == IDOK.0 as usize {

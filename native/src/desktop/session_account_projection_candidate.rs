@@ -1,13 +1,14 @@
-//! v2 已接受图片复用正式 Session/VectorCandidate；无伪造 v1 Verified、Ticket 或呈现回执。
+//! v2 已接受图片复用后台单钉图准备；不借用另一条接收路径的回执。
 use super::*;
 use crate::projection_account::{scene::Binding, Content};
-pub fn prepare(
+pub(in crate::desktop) fn prepare(
     mut content: Content,
     binding: &Binding,
     space: crate::session_placement::Space,
     rect: Rect,
+    target: crate::session_append::Target<'_>,
     cancel: &AtomicBool,
-) -> Result<VectorCandidate> {
+) -> Result<(PreparedRestore, crate::pixels::Pixels)> {
     check(cancel)?;
     if !binding.matches_content(&content) || !rect.valid() {
         return Err(Error::new(
@@ -74,18 +75,9 @@ pub fn prepare(
     .map_err(|_| Error::new(E_INVALIDARG, "Cannot prepare account projection session"))?;
     let unit = UnitId::parse(binding.unit())
         .ok_or_else(|| Error::new(E_INVALIDARG, "Invalid account projection Unit"))?;
-    let images = vec![Images {
-        sticker: Default::default(),
-        accept_upstream: true,
-        capture_original: None,
-        unit,
-        source: Some(image),
-        preview: None,
-        rasterized_annotations: None,
-        restored_preview_locked: false,
-    }];
-    VectorCandidate::prepare(
-        prepare_source(bytes.into(), None, Some(images), cancel)?,
-        cancel,
-    )
+    PreparedRestore::projected_sticker(bytes, unit, image, cancel, |document| {
+        target
+            .append(document, cancel)
+            .map_err(|error| Error::new(windows::Win32::Foundation::E_FAIL, error))
+    })
 }

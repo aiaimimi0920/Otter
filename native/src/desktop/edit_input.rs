@@ -49,10 +49,15 @@ impl Canvas {
             if self.selected_index().is_some() && self.begin_path_handle(point) {
                 return true;
             }
-            if self.begin_rotation_handle(point) {
+            let (rotation, scale) = super::transform_handle_layout::positions(self);
+            if rotation.is_some_and(|p| (p.x - point.x).hypot(p.y - point.y) <= 7.0)
+                && self.begin_rotation_at(point)
+            {
                 return true;
             }
-            if self.begin_scale_handle(point) {
+            if scale.is_some_and(|p| (p.x - point.x).abs() <= 7.0 && (p.y - point.y).abs() <= 7.0)
+                && self.begin_scale_at(point)
+            {
                 return true;
             }
             if self.begin_group_drag(point) {
@@ -212,34 +217,32 @@ impl Canvas {
             self.draft_pointer = Some(point);
         }
         if let Some((start, previous)) = self.selection_drag {
-            if !self.group_preview.is_empty() {
+            if self.group_translation.is_some() {
                 return self.move_group_drag(point, start, previous);
             }
-            if self.selected_index().is_none() {
+            let Some(index) = self.selected_index() else {
                 self.selection_drag = None;
                 self.selection_effect_preview = None;
                 return true;
-            }
+            };
             let point = self.viewport.image_point(point);
             let offset = self.move_axis.constrain(Point {
                 x: point.x - start.x,
                 y: point.y - start.y,
             });
-            if !offset.x.is_finite() || !offset.y.is_finite() {
+            if offset == previous || !offset.x.is_finite() || !offset.y.is_finite() {
                 return false;
             }
-            if let Some(index) = self.selected_index() {
-                if let Some(preview) = &mut self.selection_effect_preview {
-                    if preview
-                        .update_translation_preview(&self.editor.elements()[index], offset)
-                        .is_err()
-                    {
-                        return false;
-                    }
+            if let Some(preview) = &mut self.selection_effect_preview {
+                if preview
+                    .update_translation_preview(&self.editor.elements()[index], offset)
+                    .is_err()
+                {
+                    return false;
                 }
             }
             self.selection_drag = Some((start, offset));
-            return offset != previous;
+            return true;
         }
         if let Some(previous) = self.drag {
             self.viewport.pan(Point {
@@ -350,7 +353,7 @@ impl Canvas {
         }
         let changed = self.pointer_move_at(point, shift, control, time);
         if let Some((_, offset)) = self.selection_drag.take() {
-            if !self.group_preview.is_empty() {
+            if self.group_translation.is_some() {
                 self.commit_group_drag(offset);
                 return true;
             }
@@ -389,6 +392,7 @@ impl Canvas {
         let rotated = self.rotation_drag.take().is_some();
         let erased = self.erase_gesture.take().is_some() | self.erase_pending.take().is_some();
         self.selection_effect_preview = None;
+        self.group_translation = None;
         if self.scale_display_revision.is_none() {
             self.group_preview = Vec::new();
         }

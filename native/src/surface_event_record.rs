@@ -262,6 +262,6 @@ fn invalid() -> io::Error {
         "Invalid Surface event recovery metadata",
     )
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-surface")))]
 #[path = "surface_event_record_tests.rs"]
 mod tests;

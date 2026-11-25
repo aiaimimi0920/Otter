@@ -2,10 +2,7 @@
 use super::*;
 use crate::{device_authorization_lease::Lease, projection_account as account};
 use std::{
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
+    sync::{atomic::AtomicBool, Arc},
     thread::JoinHandle,
 };
 
@@ -48,8 +45,12 @@ impl Job {
     pub(super) fn stop(&self) {
         self.lease.revoke();
     }
+    pub(super) fn deadline(&self) -> Option<Instant> {
+        self.worker.as_ref()?;
+        crate::desktop::loom_execution_signal::reap_deadline(&self.ready)
+    }
     pub(super) fn poll(&mut self) -> Option<Result<Output>> {
-        if !self.ready.load(Ordering::Acquire) && !self.worker.as_ref()?.is_finished() {
+        if !self.worker.as_ref()?.is_finished() {
             return None;
         }
         Some(

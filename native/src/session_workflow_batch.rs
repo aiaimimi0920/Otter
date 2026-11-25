@@ -1,8 +1,11 @@
 //! 惰性控制请求批次：借用快照，最多保留一个编码消息；不连接网络或推断发送授权。
-use super::{check, components, Error, Snapshot, WORKFLOW_ID};
+use super::{check, components, metadata, Error, Snapshot, WORKFLOW_ID};
 use crate::byte_budget::{Budget, Lease};
 use ring::rand::{SecureRandom, SystemRandom};
-use std::sync::{atomic::AtomicBool, Arc};
+use std::{
+    borrow::Cow,
+    sync::{atomic::AtomicBool, Arc},
+};
 #[path = "session_workflow_dispatch.rs"]
 pub mod dispatch;
 #[path = "session_workflow_exchange.rs"]
@@ -28,7 +31,7 @@ impl Request {
 }
 pub struct Batch<'a> {
     snapshot: &'a Snapshot,
-    components: Vec<components::Component<'a>>,
+    layouts: Cow<'a, [components::Layout]>,
     cursor: usize,
     pending: Option<Request>,
 }
@@ -38,15 +41,29 @@ impl<'a> Batch<'a> {
         saved: &[u8],
         cancel: &AtomicBool,
     ) -> Result<Self, Error> {
-        Ok(Self {
+        let (layouts, _) = components::prepare_with_origins(snapshot, saved, cancel)?;
+        Ok(Self::new(snapshot, Cow::Owned(layouts)))
+    }
+    pub(crate) fn from_plan(
+        snapshot: &'a Snapshot,
+        plan: &'a metadata::Plan,
+        cancel: &AtomicBool,
+    ) -> Result<Self, Error> {
+        Ok(Self::new(
             snapshot,
-            components: components::prepare(snapshot, saved, cancel)?,
+            Cow::Borrowed(plan.layouts_for(snapshot, cancel)?),
+        ))
+    }
+    fn new(snapshot: &'a Snapshot, layouts: Cow<'a, [components::Layout]>) -> Self {
+        Self {
+            snapshot,
+            layouts,
             cursor: 0,
             pending: None,
-        })
+        }
     }
     pub fn remaining(&self) -> usize {
-        self.components.len() + 1 - self.cursor
+        self.layouts.len() + 1 - self.cursor
     }
     /// 只生成当前消息。重试借用同一字节/ID，不能把网络超时当成远端未提交。
     /// 上层必须在每次实际发送前复核保存 receipt、连接身份与授权。
@@ -81,9 +98,9 @@ impl<'a> Batch<'a> {
                     WORKFLOW_ID,
                 )
             } else {
-                let component = &self.components[self.cursor - 1];
+                let component = &self.layouts[self.cursor - 1];
                 (
-                    component.encode_request(&id, limit, cancel)?,
+                    component.encode_request(self.snapshot, &id, limit, cancel)?,
                     component.workflow_id(),
                 )
             };
@@ -105,12 +122,21 @@ impl<'a> Batch<'a> {
         if self.pending.as_ref().is_none_or(|p| p.id != request_id) {
             return false;
         }
-        self.pending = None;
-        self.cursor += 1;
+        self.consume_pending();
         true
+    }
+
+    // The dispatcher borrows this exact pending request through exchange; on
+    // success it already matched the reply ID, so no temporary ID copy is needed.
+    fn consume_pending(&mut self) {
+        assert!(
+            self.pending.take().is_some(),
+            "Verified reply without pending workflow request"
+        );
+        self.cursor += 1;
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "session_workflow_batch_tests.rs"]
 mod tests;

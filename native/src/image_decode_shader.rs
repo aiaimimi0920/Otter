@@ -36,14 +36,13 @@ pub(crate) fn png(bytes: &[u8], remaining: usize, stopped: &impl Fn() -> bool) -
         let frame = decoder.GetFrame(0)?;
         let (mut width, mut height) = (0, 0);
         frame.GetSize(&mut width, &mut height)?;
-        let limit = crate::shader_worker_wire::pixel_count(width, height)
-            .ok()
+        let limit = crate::viewport::checked_shader_texture_bytes(width, height)
             .filter(|count| *count <= remaining)
             .ok_or_else(|| Error::new(E_INVALIDARG, "Shader texture budget exhausted"))?;
         let (width, height, rgba) = Image::decode_pixels(
             &factory,
             &frame.cast()?,
-            None,
+            super::SizePolicy::Any,
             limit,
             &GUID_WICPixelFormat32bppRGBA,
             stopped,

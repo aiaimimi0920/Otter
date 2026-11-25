@@ -19,13 +19,15 @@ pub(super) fn provider(data: &Data, hwnd: HWND) -> Option<IRawElementProviderSim
 }
 impl Panel {
     pub(crate) fn notify_accessibility(&self) {
-        if !self.alive() || !unsafe { UiaClientsAreListening() }.as_bool() {
+        if !self.alive() {
             self.data.notifications.borrow_mut().take();
             return;
         }
+        let listening = unsafe { UiaClientsAreListening() }.as_bool();
         let changes = super::super::uia::changes(
             &self.data.accessibility.view(),
             &mut self.data.notifications.borrow_mut(),
+            listening,
         );
         if !changes.is_empty() {
             if let Some(provider) = provider(&self.data, self.hwnd) {
@@ -34,12 +36,12 @@ impl Panel {
         }
     }
     pub(crate) fn notify_invoked(&self, slot: usize) -> bool {
-        let Some(node) = self.accessibility_nodes().into_iter().nth(slot) else {
+        let Some(node) = self.data.accessibility.view().node(slot) else {
             return false;
         };
         if !node
-            .read()
-            .is_some_and(|entry| entry.enabled && !entry.separator && !entry.submenu)
+            .with_entry(|entry, _| entry.enabled && !entry.separator && !entry.submenu)
+            .unwrap_or(false)
         {
             return false;
         }

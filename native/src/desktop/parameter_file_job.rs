@@ -69,8 +69,12 @@ impl Job {
     pub fn cancelled(&self) -> bool {
         self.cancel.load(Ordering::Acquire)
     }
+    pub(super) fn deadline(&self) -> Option<std::time::Instant> {
+        self.worker.as_ref()?;
+        super::loom_execution_signal::reap_deadline(&self.ready)
+    }
     pub fn poll(&mut self) -> Option<Result<Loaded, String>> {
-        if !self.ready.load(Ordering::Acquire) && !self.worker.as_ref()?.is_finished() {
+        if !self.worker.as_ref()?.is_finished() {
             return None;
         }
         let result = self
@@ -93,5 +97,44 @@ impl Drop for Job {
         if let Some(worker) = self.worker.take() {
             let _ = worker.join();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::desktop::{
+        configuration_stamp::Stamp,
+        loom_execution_tasks::reap_fixture::{wait_finished, Gate, WAIT},
+        parameter_file_input::Target,
+    };
+
+    #[test]
+    fn cancelled_file_owner_is_not_joined_during_completion_notification() {
+        let gate = Gate::new(|| {});
+        let state = crate::desktop::State::new(None, false).unwrap();
+        // An empty path cannot resolve to an importable file.
+        let request = Request {
+            path: Default::default(),
+            target: Target::Parameter("upload".into()),
+            stamp: Stamp::capture(&state),
+            view: None,
+        };
+        let mut job = Job::start(
+            state.unit_id.clone(),
+            request,
+            crate::workspace::Workspace::default().topology_stamp(),
+            gate.notify.clone(),
+        )
+        .unwrap();
+        gate.noticed.recv_timeout(WAIT).unwrap();
+        job.cancel();
+        assert!(job.deadline().is_some());
+        assert!(job.poll().is_none());
+        gate.release.send(()).unwrap();
+        wait_finished(job.worker.as_ref().unwrap());
+        assert_eq!(job.poll().unwrap().err().as_deref(), Some("文件导入已取消"));
+        assert!(job.poll().is_none());
+        assert!(job.deadline().is_none());
     }
 }

@@ -24,6 +24,39 @@ fn layout(image: &Image) -> Layout {
 }
 
 #[test]
+fn long_source_readback_preserves_every_row_across_strips_and_the_tail() {
+    let (width, height) = (12, 16384);
+    let pixels = (0..height)
+        .flat_map(|row| [row as u8, (row >> 8) as u8, 35, 255].repeat(width as usize))
+        .collect::<Vec<_>>();
+    let image = Image {
+        width,
+        height,
+        pixels: pixels.into(),
+    };
+    let layout = Layout::for_frame(
+        &image,
+        &Size {
+            width: 6.0,
+            height: 8192.0,
+        }
+        .into(),
+        None,
+    )
+    .unwrap();
+    let result = readback(&image, &layout, &AtomicBool::new(false)).unwrap();
+    assert_eq!((result.width, result.height), (width, height));
+    assert_eq!(&*result.pixels, &*image.pixels);
+    assert_eq!(
+        readback(&image, &layout, &AtomicBool::new(true))
+            .err()
+            .unwrap()
+            .code(),
+        windows::Win32::Foundation::E_ABORT
+    );
+}
+
+#[test]
 fn source_readback_keeps_nearest_default_and_explicit_linear_is_smooth() {
     let image = source();
     let mut layout = layout(&image);

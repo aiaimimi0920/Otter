@@ -45,12 +45,13 @@ pub(super) fn extend(
     text: &TextFrame,
     point: [f32; 2],
 ) -> Result<()> {
-    let cross_node = selection.cross_node();
-    let forward = selection.forward(text);
-    let Some(word) = &mut selection.word else {
+    if selection.word.is_none() {
         selection.focus = position;
         return Ok(());
-    };
+    }
+    let cross_node = selection.cross_node();
+    let forward = cross_node && selection.forward(text);
+    let word = selection.word.as_mut().unwrap();
     // 不移动直接抬起仍保留初始双击空白；一旦拖动，返回原点也不恢复该空白。
     if !word.moved && !cross_node && point == word.initial_point {
         return Ok(());

@@ -4,23 +4,25 @@ use crate::{tile_shared::Frame, tile_wire::Size};
 use std::collections::BTreeMap;
 #[path = "tile_surface_render.rs"]
 mod art;
+#[path = "tile_paint_geometry.rs"]
+mod geometry;
 #[path = "tile_identification_render.rs"]
 pub(super) mod identification;
+#[path = "tile_bitmap_uploads.rs"]
+mod uploads;
+use geometry::Geometry;
 use windows::{
     core::{Error, Result},
     Win32::{
         Foundation::*,
-        Graphics::{
-            Direct2D::{Common::*, *},
-            Dxgi::Common::DXGI_FORMAT_B8G8R8A8_UNORM,
-        },
+        Graphics::Direct2D::{Common::*, *},
     },
 };
 pub(super) struct Renderer {
     surface: RenderSurface,
-    bitmaps: BTreeMap<String, ID2D1Bitmap>,
-    _uploads: Option<crate::byte_budget::Lease>,
+    bitmaps: uploads::Cache,
     frame: Option<std::sync::Arc<Frame>>,
+    geometry: Option<Geometry>,
     arts: BTreeMap<String, art::Prepared>,
     scrolls: art::scroll::Memory,
     identification: Option<identification::Painter>,
@@ -187,9 +189,9 @@ impl Renderer {
     fn from_surface(surface: RenderSurface) -> Self {
         Self {
             surface,
-            bitmaps: BTreeMap::new(),
-            _uploads: None,
+            bitmaps: Default::default(),
             frame: None,
+            geometry: None,
             arts: BTreeMap::new(),
             scrolls: Default::default(),
             identification: None,
@@ -222,38 +224,21 @@ impl Renderer {
             art::prepare(&mut self.arts, frame.map(|f| f.as_ref()))?;
             self.scrolls
                 .restore(frame.map(|f| f.as_ref()), &mut self.arts)?;
-            self.bitmaps.clear();
-            self._uploads = None;
-            self.frame = None;
-            if let Some(f) = frame {
-                let bytes = f.images.values().map(|i| i.pixels.len()).sum();
-                self._uploads = Some(
-                    crate::pixels::reserve(bytes)
-                        .ok_or_else(|| Error::new(E_OUTOFMEMORY, "Tile bitmap upload budget"))?,
-                );
-                for (id, image) in &f.images {
-                    let bitmap = unsafe {
-                        self.surface.resource_target().CreateBitmap(
-                            D2D_SIZE_U {
-                                width: image.width,
-                                height: image.height,
-                            },
-                            Some(image.pixels.as_ptr().cast()),
-                            image.width * 4,
-                            &D2D1_BITMAP_PROPERTIES {
-                                pixelFormat: D2D1_PIXEL_FORMAT {
-                                    format: DXGI_FORMAT_B8G8R8A8_UNORM,
-                                    alphaMode: D2D1_ALPHA_MODE_PREMULTIPLIED,
-                                },
-                                dpiX: 96.,
-                                dpiY: 96.,
-                            },
-                        )?
-                    };
-                    self.bitmaps.insert(id.clone(), bitmap);
-                }
-                self.frame = Some(f.clone());
+            self.bitmaps.sync(
+                self.surface.resource_target(),
+                frame.map(|f| &f.images),
+                crate::pixels::reserve,
+            )?;
+            match frame {
+                Some(next)
+                    if self
+                        .frame
+                        .as_ref()
+                        .is_some_and(|prev| Geometry::same_inputs(prev, next)) => {}
+                Some(next) => self.geometry = Some(Geometry::project(next)?),
+                None => self.geometry = None,
             }
+            self.frame = frame.cloned();
         }
         if changed || !std::rc::Rc::ptr_eq(&self.texts, &self.applied_texts) {
             art::texts(&mut self.arts, &self.texts)?;
@@ -270,7 +255,12 @@ impl Renderer {
         let completed = self.surface.draw(|target| unsafe {
             paint(
                 target,
-                frame.map(|f| f.as_ref()),
+                frame.map(|f| {
+                    (
+                        f.as_ref(),
+                        self.geometry.as_ref().expect("prepared Tile geometry"),
+                    )
+                }),
                 bitmaps,
                 arts,
                 self.focus.as_ref(),
@@ -292,8 +282,8 @@ impl Renderer {
 }
 unsafe fn paint(
     target: &ID2D1RenderTarget,
-    frame: Option<&Frame>,
-    bitmaps: &BTreeMap<String, ID2D1Bitmap>,
+    frame: Option<(&Frame, &Geometry)>,
+    bitmaps: &uploads::Cache,
     arts: &BTreeMap<String, art::Prepared>,
     focus: Option<&(crate::tile_surface_focus::Focus, bool)>,
 ) -> Result<()> {
@@ -312,80 +302,24 @@ unsafe fn paint(
         b: 0.,
         a: 1.,
     }));
-    let Some(f) = frame else {
+    let Some((f, geometry)) = frame else {
         return Ok(());
     };
-    let tile = f
-        .layout
-        .tiles
-        .iter()
-        .find(|t| t.endpoint_id == f.key.endpoint)
-        .ok_or_else(|| Error::new(E_INVALIDARG, "Tile missing"))?;
-    let (width, height) = (f.size.width as f32, f.size.height as f32);
-    let mut placements: Vec<_> = f.layout.placements.iter().collect();
-    placements.sort_by(|a, b| {
-        a.z_index
-            .cmp(&b.z_index)
-            .then(a.placement_id.cmp(&b.placement_id))
-    });
-    if placements.is_empty() {
-        // 空墙测试图仍使用墙坐标；相邻输出共享网格，不把每屏各画一份局部网格。
-        let brush = target.CreateSolidColorBrush(
-            &D2D1_COLOR_F {
-                r: 0.25,
-                g: 0.7,
-                b: 0.45,
-                a: 1.,
-            },
-            None,
-        )?;
-        let bounds = f.layout.bounds;
-        let point = |p| {
-            let [x, y] = crate::tile_geometry::native(tile, p);
-            D2D_POINT_2F {
-                x: x as f32 * width,
-                y: y as f32 * height,
-            }
-        };
-        for i in 0..=16 {
-            let x = bounds.x + bounds.width * i as f64 / 16.;
-            let y = bounds.y + bounds.height * i as f64 / 16.;
-            target.DrawLine(
-                point([x, bounds.y]),
-                point([x, bounds.y + bounds.height]),
-                &brush,
-                1.,
-                None,
-            );
-            target.DrawLine(
-                point([bounds.x, y]),
-                point([bounds.x + bounds.width, y]),
-                &brush,
-                1.,
-                None,
-            );
-        }
-        target.DrawLine(
-            point([bounds.x, bounds.y]),
-            point([bounds.x + bounds.width, bounds.y + bounds.height]),
-            &brush,
-            2.,
-            None,
-        );
-        return Ok(());
-    }
-    for p in placements {
-        let Some(projection) = crate::tile_geometry::project(tile, p) else {
-            continue;
-        };
-        let [q0, q1, q3] = projection.quad;
+    let placements = match geometry {
+        Geometry::Grid(index) => return draw_grid(target, f, *index),
+        Geometry::Placed(placements) => placements,
+    };
+    for projection in placements {
+        let p = &f.layout.placements[projection.index];
         let mut transform = identity;
-        transform.M11 = (q1[0] - q0[0]) as f32 * width;
-        transform.M12 = (q1[1] - q0[1]) as f32 * height;
-        transform.M21 = (q3[0] - q0[0]) as f32 * width;
-        transform.M22 = (q3[1] - q0[1]) as f32 * height;
-        transform.M31 = q0[0] as f32 * width;
-        transform.M32 = q0[1] as f32 * height;
+        [
+            transform.M11,
+            transform.M12,
+            transform.M21,
+            transform.M22,
+            transform.M31,
+            transform.M32,
+        ] = projection.transform;
         target.SetTransform(&transform);
         let crop = projection.crop;
         if p.source.kind == "surface" {
@@ -433,6 +367,54 @@ unsafe fn paint(
         );
     }
     target.SetTransform(&identity);
+    Ok(())
+}
+unsafe fn draw_grid(target: &ID2D1RenderTarget, f: &Frame, tile: usize) -> Result<()> {
+    let tile = &f.layout.tiles[tile];
+    let (width, height) = (f.size.width as f32, f.size.height as f32);
+    // 空墙测试图仍使用墙坐标；相邻输出共享网格，不把每屏各画一份局部网格。
+    let brush = target.CreateSolidColorBrush(
+        &D2D1_COLOR_F {
+            r: 0.25,
+            g: 0.7,
+            b: 0.45,
+            a: 1.,
+        },
+        None,
+    )?;
+    let bounds = f.layout.bounds;
+    let point = |p| {
+        let [x, y] = crate::tile_geometry::native(tile, p);
+        D2D_POINT_2F {
+            x: x as f32 * width,
+            y: y as f32 * height,
+        }
+    };
+    for i in 0..=16 {
+        let x = bounds.x + bounds.width * i as f64 / 16.;
+        let y = bounds.y + bounds.height * i as f64 / 16.;
+        target.DrawLine(
+            point([x, bounds.y]),
+            point([x, bounds.y + bounds.height]),
+            &brush,
+            1.,
+            None,
+        );
+        target.DrawLine(
+            point([bounds.x, y]),
+            point([bounds.x + bounds.width, y]),
+            &brush,
+            1.,
+            None,
+        );
+    }
+    target.DrawLine(
+        point([bounds.x, bounds.y]),
+        point([bounds.x + bounds.width, bounds.y + bounds.height]),
+        &brush,
+        2.,
+        None,
+    );
     Ok(())
 }
 #[cfg(test)]

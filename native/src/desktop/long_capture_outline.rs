@@ -124,6 +124,6 @@ fn rectangles(region: Region, dpi: u32) -> Result<[RECT; 4]> {
         make(right, top, right + thickness, bottom)?,
     ])
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-capture")))]
 #[path = "long_capture_outline_tests.rs"]
 mod tests;

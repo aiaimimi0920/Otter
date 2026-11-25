@@ -30,7 +30,9 @@ unsafe fn append_projection(
         .unwrap()
         .projection_scope
         .unwrap();
-    let vector = std::thread::spawn(move || {
+    let source = app.restored_session.as_ref().unwrap().original.clone();
+    let units = app.workspace.units().to_vec();
+    let (restore, retained, expected) = std::thread::spawn(move || {
         let _com = crate::desktop::Apartment::new().unwrap();
         session_candidate::projection::prepare(
             value,
@@ -43,13 +45,17 @@ unsafe fn append_projection(
                 w: 160.0,
                 h: 80.0,
             },
+            crate::session_append::Target {
+                original: &source,
+                active: &units,
+            },
             &AtomicBool::new(false),
         )
         .unwrap()
     })
     .join()
     .unwrap();
-    assert!(vector.candidate.images[0]
+    assert!(restore.vector.candidate.images[0]
         .source
         .as_ref()
         .unwrap()
@@ -57,21 +63,24 @@ unsafe fn append_projection(
         .same_storage(&expected_pixels));
     let source = app.restored_session.as_ref().unwrap().original.clone();
     let cancel = AtomicBool::new(false);
-    let retained = crate::session_append::prepare(
-        &source,
-        vector.candidate.original_json(),
-        app.workspace.units(),
-        &cancel,
-    )
-    .unwrap();
-    let states = Bound::prepare_for(vector, None, &cancel)
-        .ok()
-        .unwrap()
+    let index =
+        crate::projection_delivery::binding::checkpoint::Index::capture(&retained.clone().into())
+            .unwrap();
+    assert!(index.includes(&expected));
+    assert!(expected.matches_ticket(intent));
+    let states = Bound::from_prepared(restore, None)
         .into_parts_for(None, &cancel)
         .ok()
         .unwrap()
         .prepare_states(&cancel)
         .unwrap();
+    assert!(!states.states[0].is_art());
+    assert!(states.states[0].selected_art.borrow().is_none());
+    assert!(states.states[0]
+        .execution_results
+        .borrow()
+        .ports()
+        .is_empty());
     let windows = app
         .prepare_restored_batch(states, &cancel, |placement| {
             space

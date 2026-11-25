@@ -56,12 +56,13 @@ impl Layers {
             entry.wanted = requested.contains(&entry.lease);
         }
         for &lease in requested {
-            if !eligible(lease)
-                || self.rejected.contains(&lease)
+            // 已登记或被拒绝的项不再重复查询 HWND；poll 仍独立复核已登记项。
+            if self.rejected.contains(&lease)
                 || self
                     .entries
                     .iter()
                     .any(|entry| entry.lease.popup == lease.popup)
+                || !eligible(lease)
             {
                 continue;
             }
@@ -84,13 +85,14 @@ impl Layers {
             if entry.ticket.rejected() && !self.rejected.contains(&entry.lease) {
                 self.rejected.push(entry.lease);
             }
+            // 正在归还或已归还的项只等待退休，避免继续查询源窗口和层级属性。
             let keep = !closing
                 && entry.wanted
-                && eligible(entry.lease)
+                && !entry.retiring
+                && !entry.restored
                 && entry.ticket.available()
                 && !entry.ticket.rejected()
-                && !entry.restored;
-            let keep = keep && !entry.retiring;
+                && eligible(entry.lease);
             let result = if keep {
                 if entry.ticket.ready() {
                     entry.borrow()
@@ -170,7 +172,7 @@ impl Drop for Entry {
 }
 
 impl Owner {
-    pub(crate) fn sync_popup_layers(&mut self, leases: &[PopupLease]) -> io::Result<()> {
+    pub fn sync_popup_layers(&mut self, leases: &[PopupLease]) -> io::Result<()> {
         if self.closing || self.draining {
             return Ok(());
         }
@@ -184,6 +186,6 @@ impl Owner {
             .sync(leases, self.journal.as_mut().unwrap())
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-live")))]
 #[path = "live_visibility_popup_layer_tests.rs"]
 mod tests;

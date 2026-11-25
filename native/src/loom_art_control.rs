@@ -139,6 +139,6 @@ fn reset_deadline(socket: &mut BridgeSocket, deadline: Instant) -> Result<(), Er
         .map_err(|_| Error::Closed)
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-loom")))]
 #[path = "loom_art_control_tests.rs"]
 mod tests;

@@ -15,7 +15,7 @@ def fixture():
     base = os.environ.get("OTTER_ANGLE_TEST_ROOT")
     if not base or not Path(base).is_absolute():
         raise ValueError("Set absolute OTTER_ANGLE_TEST_ROOT outside the repository")
-    base = Path(base)
+    base = Path(base).resolve()
     if base.is_relative_to(SCRIPTS.parent):
         raise ValueError("Synthetic toolchain fixtures must stay outside the repository")
     base.mkdir(parents=True, exist_ok=True)

@@ -72,6 +72,43 @@ Release and dependency changes must also follow `docs/release/release-provenance
 `docs/security/DEPENDENCY_SECURITY.md`; a dirty candidate is evidence, not a publishable
 formal release.
 
+## Fast iteration and build-cache discipline
+
+- Read related Rust and desktop TypeScript files in parallel, plan 150-500
+  effective-line module splits upfront, and implement each complete vertical
+  slice in one coordinated batch so you do not pay a second split-and-relink pass.
+- Preserve the layered Cargo workspace (`native/otter-core` -> `native/otter-media`
+  -> `native/otter-runtime` -> `native/src` host + single-binary
+  `native/tests/integration.rs`); test changes in `otter-core`, `otter-media`, or
+  `otter-runtime` via `-p otter-core` / `-p otter-media` / `-p otter-runtime` first
+  rather than relinking the full `otter-native` host when host code is untouched.
+  When iterating on host (`otter-native`) code, use opt-in scoped test features
+  (`--features test-live`, `test-surface`, `test-save`, `test-capture`, `test-loom`,
+  or `test-canvas`) for fast targeted inner-loop runs while keeping default
+  unflagged `cargo nextest` / CI runs covering 100% of unit tests.
+- Respect unified `CARGO_BUILD_JOBS=6` and `CARGO_INCREMENTAL=1` concurrency
+  (`~/.cargo/config.toml` enables `lld-link`, `debug = 0`, `build-override`
+  `opt-level = 3`, and heavy image/crypto crate `opt-level = 2`); use
+  `npm run check:fast` (`+nightly -Z threads=6` isolated in `native/target-nightly-check`)
+  for fast multi-core typechecks and `cargo nextest` (`native/.config/nextest.toml`)
+  for process-isolated test execution with timeouts.
+- For repository-wide review (`docs/development/review-coverage.json`), run
+  `node scripts/review-batches.mjs` to group pending modules and pre-screen hotspots,
+  and update the ledger atomically via `npm run review:upsert`
+  (`node scripts/review-ledger-upsert.mjs --entries <batch.json>` or `--refresh-paths`,
+  never hand-crafting ad-hoc SHA256/JSON rewrite scripts). Separate read-only review
+  batches (dispatching 3-5 read-only subagents across independent directories and
+  registering 40-80 `retained` files per batch without Cargo builds or
+  `version:internal` bumps) from batched code-optimization slices, overlap background
+  Cargo builds with read-only pre-review of the next batch, and relay to a fresh
+  session every ~400-500 reviewed files to keep context lean.
+- Never run `cargo check --tests` immediately before an unchanged `cargo test`;
+  format modified Rust files incrementally via
+  `rustfmt --edition 2021 --config skip_children=true <files>`, reuse built test
+  binaries under `native/target/debug/deps/` when Rust source is unchanged, and
+  never spawn concurrent Cargo writers on `target/` or
+  disposable cold `CARGO_TARGET_DIR` folders under `linshi/`.
+
 Any stricter repository-local checker or CI gate overrides this common floor.
 
 ## Public and internal versions

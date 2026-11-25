@@ -27,7 +27,7 @@ pub(super) use events::{changes, notify, Snapshot};
 pub(super) fn notify_invoked(provider: &IRawElementProviderSimple, node: Node) {
     unsafe {
         let object = object(provider.as_raw());
-        if available(object).is_ok() && node.read().is_some() {
+        if available(object).is_ok() && node.with_entry(|_, _| ()).is_some() {
             // 表示菜单选择已被接受，外层文档目标准入和业务结果仍独立核验。
             let _ = UiaRaiseAutomationEvent(&child(object, node), UIA_Invoke_InvokedEventId);
         }
@@ -70,14 +70,17 @@ fn allocate(
     node: Option<Node>,
     root: Option<IRawElementProviderSimple>,
 ) -> IRawElementProviderSimple {
-    let invokable = node
+    let (invokable, expandable) = node
         .as_ref()
-        .and_then(Node::read)
-        .is_some_and(|entry| !entry.separator && !entry.submenu);
-    let expandable = node
-        .as_ref()
-        .and_then(Node::read)
-        .is_some_and(|entry| !entry.separator && entry.submenu);
+        .and_then(|node| {
+            node.with_entry(|entry, _| {
+                (
+                    !entry.separator && !entry.submenu,
+                    !entry.separator && entry.submenu,
+                )
+            })
+        })
+        .unwrap_or_default();
     let object = Box::new(Provider {
         simple: &VTABLE,
         fragment: &fragment::VTABLE,
@@ -105,7 +108,7 @@ fn available(object: &Provider) -> HRESULT {
         || object
             .node
             .as_ref()
-            .is_some_and(|node| node.read().is_none())
+            .is_some_and(|node| node.with_entry(|_, _| ()).is_none())
     {
         HRESULT(UIA_E_ELEMENTNOTAVAILABLE as i32)
     } else if unsafe { GetCurrentThreadId() } != object.thread {
@@ -345,6 +348,13 @@ static VTABLE: IRawElementProviderSimple_Vtbl = IRawElementProviderSimple_Vtbl {
     HostRawElementProvider: host,
 };
 
-#[cfg(test)]
+#[cfg(all(
+    test,
+    any(
+        not(feature = "scoped-tests"),
+        feature = "test-live",
+        feature = "test-canvas"
+    )
+))]
 #[path = "native_menu_uia_tests.rs"]
 mod tests;

@@ -37,6 +37,35 @@ fn scrolled(
     (memory, cache)
 }
 #[test]
+fn live_frame_refresh_keeps_unchanged_art_geometry_and_preview() {
+    let _com = crate::desktop::Apartment::new().unwrap();
+    let f = fixture();
+    let (memory, mut cache) = scrolled(&f);
+    cache.get_mut("art").unwrap().preview = Some("last".into());
+    let nodes = cache["art"].presentation.geometry().nodes().as_ptr();
+    let mut next = Frame {
+        key: f.frame.key.clone(),
+        layout: f.frame.layout.clone(),
+        size: f.frame.size,
+        images: f.frame.images.clone(),
+        arts: f.frame.arts.clone(),
+        live_until: f.frame.live_until,
+    };
+    next.images.insert(
+        "live".into(),
+        crate::image_decode::Image {
+            width: 1,
+            height: 1,
+            pixels: vec![0, 0, 1, 255].into(),
+        },
+    );
+    prepare(&mut cache, Some(&next));
+    memory.restore(Some(&next), &mut cache).unwrap();
+    assert_eq!(cache["art"].presentation.geometry().nodes().as_ptr(), nodes);
+    assert_eq!(cache["art"].preview.as_deref(), Some("last"));
+    assert_eq!(top(&cache), 44.);
+}
+#[test]
 fn preparation_gap_keeps_only_scroll_and_restores_after_dropping_the_presentation() {
     let _com = crate::desktop::Apartment::new().unwrap();
     let f = fixture();

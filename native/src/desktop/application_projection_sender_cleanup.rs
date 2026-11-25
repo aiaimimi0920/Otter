@@ -1,6 +1,6 @@
 //! sender 清理先后台持久减权，再以当前原设备授权沿原 Job unlink；失败有界退避并保全部原文。
 use super::*;
-use crate::desktop::loom_execution_signal::{CompletionSignal, Notify};
+use crate::desktop::loom_execution_signal::{reap_deadline, CompletionSignal, Notify};
 use std::{
     sync::{atomic::AtomicBool, Arc},
     thread::JoinHandle,
@@ -15,6 +15,7 @@ struct Entry {
 }
 struct Mark {
     request: Request,
+    ready: Arc<AtomicBool>,
     thread: Option<JoinHandle<std::result::Result<(), SenderError>>>,
 }
 #[derive(Default)]
@@ -60,6 +61,13 @@ impl Owner {
     }
     pub(super) fn deadline(&self) -> Option<Instant> {
         self.wake
+            .into_iter()
+            .chain(
+                self.mark
+                    .as_ref()
+                    .and_then(|mark| reap_deadline(&mark.ready)),
+            )
+            .min()
     }
     pub(super) fn finished(&mut self, request: &Request, success: bool) {
         if success {
@@ -123,15 +131,18 @@ impl Owner {
             {
                 let request = entry.request.clone();
                 let worker = request.clone();
+                let ready = Arc::new(AtomicBool::new(false));
+                let signal = ready.clone();
                 match std::thread::Builder::new()
                     .name("otter-sender-cancel".into())
                     .spawn(move || {
-                        let _done = CompletionSignal::new(Arc::new(AtomicBool::new(false)), notify);
+                        let _done = CompletionSignal::new(signal, notify);
                         worker.cancel()
                     }) {
                     Ok(thread) => {
                         self.mark = Some(Mark {
                             request,
+                            ready,
                             thread: Some(thread),
                         })
                     }
@@ -290,6 +301,62 @@ impl Application {
                 if !self.projection_sender.cleanup.deleted.contains(&binding) {
                     self.projection_sender.cleanup.deleted.push(binding);
                 }
+            }
+        }
+    }
+}
+
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
+mod tests {
+    use super::*;
+    use crate::projection_delivery::sender::tests::{prepare, selection, setup};
+    use std::{os::windows::io::AsRawHandle, sync::mpsc};
+    use windows::Win32::System::Threading::WaitForSingleObject;
+
+    #[test]
+    fn sender_cleanup_reaps_after_notification_arrives_before_worker_exit() {
+        let limit = Duration::from_secs(5);
+        for failed in [false, true] {
+            let (directory, store) = setup();
+            let intent = prepare(&store, &directory, &selection(1)).unwrap();
+            if failed {
+                std::fs::write(directory.path(), b"changed externally").unwrap();
+            }
+            let request = Request::new(intent, directory.identity());
+            let mut owner = Owner::default();
+            owner.enqueue(request, false);
+            let (notified_tx, notified_rx) = mpsc::channel();
+            let (release_tx, release_rx) = mpsc::channel();
+            let release_rx = std::sync::Mutex::new(release_rx);
+            owner.poll_mark(Arc::new(move || {
+                notified_tx.send(()).unwrap();
+                let _ = release_rx.lock().unwrap().recv_timeout(limit);
+            }));
+            notified_rx.recv_timeout(limit).unwrap();
+            let silent: Notify = Arc::new(|| panic!("must not start another mark"));
+            owner.poll_mark(silent.clone());
+            let deadline = owner.deadline().expect("consumed notify needs a new wake");
+            assert!(deadline <= Instant::now() + Duration::from_millis(10));
+            let worker = owner.mark.as_ref().unwrap().thread.as_ref().unwrap();
+            assert!(
+                !worker.is_finished(),
+                "UI must not join the blocked notifier"
+            );
+            release_tx.send(()).unwrap();
+            assert_eq!(
+                unsafe { WaitForSingleObject(HANDLE(worker.as_raw_handle()), 5_000) },
+                WAIT_OBJECT_0
+            );
+            owner.poll_mark(silent);
+            assert!(owner.mark.is_none());
+            assert_eq!(owner.entries[0].marked, !failed);
+            assert_eq!(owner.pending_local(), failed);
+            if failed {
+                assert_eq!(owner.deadline(), Some(owner.entries[0].due));
+                assert!(owner.entries[0].due > Instant::now());
+            } else {
+                assert!(owner.deadline().is_none());
+                owner.flush().unwrap();
             }
         }
     }

@@ -6,7 +6,7 @@ pub(super) unsafe fn complete(hwnd: HWND, state: &State, id: usize) -> bool {
     match id {
         desktop::pin_settings::TEXT_TIMER => desktop::pin_settings::text_timer(hwnd, state),
         super::render_recovery::TIMER => super::render_recovery::poll(hwnd, state),
-        desktop::export_job::EXPORT_TIMER => desktop::export_job::finish(hwnd, state, false),
+        desktop::export_job::EXPORT_TIMER => desktop::export_job::finish(hwnd, state),
         desktop::open_job::OPEN_TIMER => desktop::open_job::finish(hwnd, state, false),
         desktop::blur_input::TIMER => desktop::blur_input::poll(hwnd, state),
         desktop::erase_input::TIMER => desktop::erase_input::poll(hwnd, state),

@@ -25,20 +25,16 @@ pub(in super::super) fn collect(ui: &Ui) -> Backdrops {
             continue;
         }
         for (side, count) in [(Side::Input, node.inputs), (Side::Output, node.outputs)] {
+            let geometry = port_visual::SideGeometry::new(ui, node, side);
             let mut run: Option<Group> = None;
             let mut length = 0;
             for index in 0..=count {
-                let port = Port {
-                    node: node.endpoint,
-                    side,
-                    index,
-                };
                 let row = (index < count)
-                    .then(|| port_visual::layout(ui, port))
+                    .then(|| geometry.layout(index, true))
                     .flatten()
                     .filter(|layout| layout.expanded)
                     .map(|layout| {
-                        let rect = draw::port_rect(ui, port, Point::default(), 0);
+                        let rect = geometry.rect(index, &layout);
                         Frame {
                             y: rect.top,
                             height: rect.bottom - rect.top,

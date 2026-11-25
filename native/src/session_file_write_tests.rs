@@ -34,10 +34,8 @@ fn streaming_matching_bytes_do_not_impersonate_a_bound_session_candidate() {
 struct Fixture(PathBuf);
 impl Fixture {
     fn new() -> Self {
-        let root =
-            Path::new("C:/Users/Public/nas_home/AI/GameEditor/linshi/otter-native-save-tests");
-        std::fs::create_dir_all(root).unwrap();
-        let path = root.join(format!("{:?}", unsafe { CoCreateGuid() }.unwrap()));
+        let id = unsafe { CoCreateGuid() }.unwrap();
+        let path = std::env::temp_dir().join(format!("otter-native-save-{id:?}"));
         std::fs::create_dir(&path).unwrap();
         Self(path)
     }
@@ -155,4 +153,10 @@ fn raw_config_staging_cannot_claim_session_candidate_identity() {
     )
     .unwrap();
     assert!(!staged.is_for(&candidate));
+    assert!(staged.bytes.is_none());
+    let source = candidate.bytes.downgrade();
+    drop(candidate);
+    assert!(source.upgrade().is_none());
+    let target = staged.commit_new(&AtomicBool::new(false)).unwrap();
+    assert_eq!(decode(&std::fs::read(target).unwrap()).unwrap().revision, 1);
 }

@@ -7,9 +7,12 @@ pub(super) fn prepare(
     editor: &Editor,
     logical: Size,
     source: Option<Size>,
+    rasterized_source: bool,
 ) -> Result<source_resolution::Frame> {
     let Some(source) = source else {
-        return Ok(logical.into());
+        return Ok(
+            source_resolution::Frame::from(logical).with_rasterized_source(rasterized_source)
+        );
     };
     if ![source.width, source.height]
         .iter()
@@ -41,6 +44,8 @@ pub(super) fn prepare(
             },
             flipped_x: false,
             flipped_y: false,
+            rasterized_source,
         });
-    source_resolution::Frame::restored(image, logical, crop)
+    Ok(source_resolution::Frame::restored(image, logical, crop)?
+        .with_rasterized_source(rasterized_source))
 }

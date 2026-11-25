@@ -100,7 +100,8 @@ pub(in crate::desktop::application) unsafe fn run(instance: HINSTANCE) -> Result
             "Recycle settings did not trigger maintenance",
         ));
     }
-    let path = save_publish::smoke_destination()?;
+    let fixture = smoke_session_fixture::Directory::new()?;
+    let path = fixture.target();
     let doc = &app.documents[0];
     crate::desktop::context_menu::execute(doc.window.0, &doc.state, SAVE_NAMING)?;
     app.pending_naming_save_with(|_, _| Ok(Some(path.clone())))?;

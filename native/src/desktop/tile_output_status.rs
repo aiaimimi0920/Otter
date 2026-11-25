@@ -2,7 +2,7 @@
 use super::*;
 use std::{cell::Cell, sync::OnceLock};
 use windows::{
-    core::{w, HRESULT, PCWSTR},
+    core::{w, HRESULT},
     Win32::System::LibraryLoader::GetModuleHandleW,
 };
 struct State {
@@ -11,7 +11,7 @@ struct State {
 pub(super) struct StatusWindow {
     hwnd: HWND,
     state: Box<State>,
-    label: Cell<&'static str>,
+    label: Cell<Option<&'static str>>,
 }
 impl StatusWindow {
     pub fn new() -> Result<Self> {
@@ -37,7 +37,7 @@ impl StatusWindow {
             let window = Self {
                 hwnd,
                 state,
-                label: Cell::new(""),
+                label: Cell::new(None),
             };
             CreateWindowExW(
                 WINDOW_EX_STYLE::default(),
@@ -63,13 +63,26 @@ impl StatusWindow {
         if self.stopped() {
             return;
         }
-        if self.label.replace(label) != label {
+        if self.label.get() != Some(label) {
+            // A failed write leaves the title unconfirmed. Let the next output
+            // tick retry, but keep the stop button available in this tick.
+            self.label.set(None);
             let wide: Vec<_> = label.encode_utf16().chain(Some(0)).collect();
-            unsafe {
-                let _ = SetWindowTextW(self.hwnd, PCWSTR(wide.as_ptr()));
+            // Own-thread window: use the window procedure's acknowledgement,
+            // not SetWindowTextW's wrapper status.
+            let written = unsafe {
+                SendMessageW(
+                    self.hwnd,
+                    WM_SETTEXT,
+                    None,
+                    Some(LPARAM(wide.as_ptr() as isize)),
+                )
+            };
+            if written.0 == 1 && !self.stopped() {
+                self.label.set(Some(label));
             }
         }
-        // SetWindowText/ShowWindow都可能同步重入；关闭后不再写旧HWND。
+        // WM_SETTEXT/ShowWindow 都可能同步重入；关闭后不再写旧 HWND。
         if !self.stopped() && !unsafe { IsWindowVisible(self.hwnd).as_bool() } {
             unsafe {
                 let _ = ShowWindow(self.hwnd, SW_SHOWNOACTIVATE);
@@ -145,6 +158,6 @@ unsafe extern "system" fn procedure(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM
         _ => DefWindowProcW(hwnd, msg, wp, lp),
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-surface")))]
 #[path = "tile_output_status_tests.rs"]
 mod tests;

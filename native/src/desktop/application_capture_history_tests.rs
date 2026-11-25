@@ -11,20 +11,7 @@ impl Environment {
             .lock()
             .unwrap();
         let com = crate::desktop::Apartment::new().unwrap();
-        let instance = HINSTANCE(
-            windows::Win32::System::LibraryLoader::GetModuleHandleW(None)
-                .unwrap()
-                .0,
-        );
-        assert_ne!(
-            RegisterClassW(&WNDCLASSW {
-                hInstance: instance,
-                lpszClassName: w!("Otter.Native.Workspace"),
-                lpfnWndProc: Some(crate::desktop::procedure::window_proc),
-                ..Default::default()
-            }),
-            0
-        );
+        let instance = crate::desktop::workspace_window_fixture::register();
         Self {
             instance,
             _com: com,
@@ -35,13 +22,6 @@ impl Environment {
         let initial =
             DocumentWindow::create(self.instance, State::new(None, false).unwrap(), false).unwrap();
         Application::new(self.instance, initial)
-    }
-}
-impl Drop for Environment {
-    fn drop(&mut self) {
-        unsafe {
-            let _ = UnregisterClassW(w!("Otter.Native.Workspace"), Some(self.instance));
-        }
     }
 }
 fn prepared(captured: bool) -> crate::desktop::open_image::PreparedDocument {

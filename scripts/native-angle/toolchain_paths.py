@@ -7,6 +7,7 @@ import stat
 from pathlib import Path
 
 SDK_VERSION = "10.0.26100.0"
+MAX_HASH_BYTES = 512 * 1024 * 1024
 CONFIG_KEYS = {
     "schemaVersion", "visualStudioRoot", "msvcVersion", "sdkRoot", "sdkVersion",
     "architectures", "systemRoot", "tempRoot",
@@ -37,11 +38,15 @@ def checked_path(value, *, directory=True):
 
 def file_hash(path):
     path = checked_path(str(path), directory=False)
-    if path.stat().st_size > 512 * 1024 * 1024:
+    if path.stat().st_size > MAX_HASH_BYTES:
         raise ValueError("Toolchain anchor exceeds size limit")
     digest = hashlib.sha256()
+    remaining = MAX_HASH_BYTES
     with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+        for chunk in iter(lambda: stream.read(min(1024 * 1024, remaining + 1)), b""):
+            remaining -= len(chunk)
+            if remaining < 0:
+                raise ValueError("Toolchain anchor exceeds size limit")
             digest.update(chunk)
     return digest.hexdigest()
 
@@ -112,5 +117,7 @@ def anchors(config, roots):
                  binaries[0] / "cl.exe", binaries[0] / "link.exe",
                  binaries[1] / "rc.exe", binaries[1] / "mt.exe"]
         for path in files:
-            result[str(path)] = file_hash(path)
+            key = str(path)
+            if key not in result:
+                result[key] = file_hash(path)
     return result

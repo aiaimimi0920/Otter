@@ -111,6 +111,6 @@ pub(super) fn prepared_parameters(
     }
     Ok(names)
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-surface")))]
 #[path = "shader_parameter_tests.rs"]
 mod tests;

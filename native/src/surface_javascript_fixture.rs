@@ -41,8 +41,8 @@ unsafe fn owned_window(hwnd: windows::Win32::Foundation::HWND) -> bool {
         windows::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId(hwnd, Some(&mut pid));
     thread != 0 && pid == std::process::id()
 }
-// 显式原生探针的启动前提，不是产品等待/重试。Application 必须在 TLS 夹具计时前调用；
-// 外层只持有本测试进程并以 120 秒就绪期限回收，收到 G 也仍须验证真正前台。
+// 显式原生探针的授权握手，不是产品等待/重试。等待期间不得消耗 TLS 单请求期限。
+// 外层以 120 秒期限回收本测试进程，收到 G 也仍须验证真正前台。
 pub(crate) fn foreground_startup() {
     static SPONSORED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
     if std::env::var("OTTER_NATIVE_FOREGROUND_SPONSOR").as_deref() == Ok("1")

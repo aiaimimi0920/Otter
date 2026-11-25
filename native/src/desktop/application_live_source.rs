@@ -5,7 +5,7 @@ mod direct;
 use crate::{
     desktop::composition::live::window::publication::{Phase, Request},
     device_authorization_config::Config,
-    live_relay_source_runtime::{Cleanup, Exit},
+    live_relay_source_runtime::{Cleanup, Exit, Status},
 };
 impl Application {
     pub(in crate::desktop::application) fn poll_live_sources_with(
@@ -27,7 +27,7 @@ impl Application {
                             && self.workspace.contains(unit)
                             && source.belongs_to(&self.workspace)
                             && source.is_alive()
-                            && std::sync::Arc::ptr_eq(&source.input_identity(), identity)
+                            && std::sync::Arc::ptr_eq(source.input_identity_ref(), identity)
                     })
             });
         for event in self.remote_sessions.poll_sources() {
@@ -43,7 +43,7 @@ impl Application {
             };
             if let Some(source) = self.live_sessions.iter().find(|source| {
                 source.unit_id() == &event.unit
-                    && std::sync::Arc::ptr_eq(&source.input_identity(), &event.identity)
+                    && std::sync::Arc::ptr_eq(source.input_identity_ref(), &event.identity)
             }) {
                 source.publication_phase(phase);
             }
@@ -55,23 +55,25 @@ impl Application {
         let live_count = self.live_sessions.len();
         for index in 0..live_count {
             let source = &mut self.live_sessions[index];
-            let identity = source.input_identity();
-            if let Some((ready, stopping)) = self.remote_sessions.source_status(&identity) {
-                source.publication_phase(if stopping {
-                    Phase::Stopping
-                } else if self.remote_sessions.source_recovering(&identity) {
-                    Phase::Recovering
-                } else if ready {
-                    Phase::Publishing
-                } else {
-                    Phase::Starting
+            let status = self
+                .remote_sessions
+                .source_status(source.input_identity_ref());
+            if let Some(status) = status {
+                source.publication_phase(match status {
+                    Status::Stopping => Phase::Stopping,
+                    Status::Recovering => Phase::Recovering,
+                    Status::Publishing => Phase::Publishing,
+                    Status::Starting => Phase::Starting,
                 });
             }
             let Some(publish) = source.take_publication_request() else {
                 continue;
             };
             if matches!(publish, Request::Stop) {
-                if self.remote_sessions.stop_source(&identity) {
+                if self
+                    .remote_sessions
+                    .stop_source(source.input_identity_ref())
+                {
                     source.publication_phase(Phase::Stopping);
                 }
                 continue;
@@ -85,7 +87,7 @@ impl Application {
                 {
                     return Err("应用或 Live 源正在切换，未发布".into());
                 }
-                if self.remote_sessions.source_status(&identity).is_some() {
+                if status.is_some() {
                     return Err("此 Live 已有发布任务".into());
                 }
                 if !super::live::fits_wait_budget(live_count, self.surface_windows.wait_budget()) {
@@ -187,7 +189,7 @@ impl Application {
                         config,
                         lease,
                         source.unit_id().clone(),
-                        identity,
+                        source.input_identity(),
                         crate::desktop::composition::relay::sessions::SourceCapture {
                             publication,
                             consumer,

@@ -83,18 +83,17 @@ impl Input {
 }
 pub(super) unsafe fn show_recording(
     owner: HWND,
-    image: Image,
-    origin: POINT,
+    rect: RECT,
     capture_owner: &std::rc::Rc<Cell<bool>>,
 ) -> Result<Option<Output>> {
     let region = Region {
-        left: origin.x,
-        top: origin.y,
-        width: image.width as i32,
-        height: image.height as i32,
+        left: rect.left,
+        top: rect.top,
+        width: rect.right - rect.left,
+        height: rect.bottom - rect.top,
     };
-    let (job, target) = long_capture_source::start_recording(region, image.pixels)
-        .map_err(|error| Error::new(E_FAIL, error))?;
+    let (job, target) =
+        long_capture_source::start_recording(region).map_err(|error| Error::new(E_FAIL, error))?;
     let input = Input::new(job, region, Axis::Vertical, capture_owner, Some(target));
     let image = run(owner, &input)?;
     let snapshot = input.job.borrow().snapshot();
@@ -202,6 +201,16 @@ unsafe fn handle(hwnd: HWND, message: u32, wp: WPARAM, lp: LPARAM) -> isize {
                 recording::start(hwnd, input);
             }
             isize::from(!input.recording.enabled())
+        }
+        // The shaped recording window contains only owner-drawn arrows. The preview
+        // is a separate layered HWND, so there is no dialog background to erase.
+        WM_ERASEBKGND if input.modeless.get() => {
+            SetWindowLongPtrW(hwnd, WINDOW_LONG_PTR_INDEX(DWLP_MSGRESULT as i32), 1);
+            1
+        }
+        WM_CTLCOLORBTN if input.modeless.get() => {
+            crate::desktop::document_window::parameter_panel::theme::colors(message, wp, lp, false)
+                .0
         }
         WM_DISPLAYCHANGE | WM_DPICHANGED if input.recording.enabled() => {
             input.recording.stop();
@@ -316,8 +325,8 @@ unsafe fn handle(hwnd: HWND, message: u32, wp: WPARAM, lp: LPARAM) -> isize {
             let reply = input.job.borrow_mut().take_ready();
             if let Some(reply) = reply {
                 let _ = KillTimer(Some(hwnd), TIMER);
-                recording::completed(input, &reply.completion);
-                let compose_after = finish::completed(input, &reply.completion);
+                let covered = recording::completed(hwnd, input, &reply.completion);
+                let compose_after = finish::completed(input, &reply.completion, covered);
                 let moved = input.movement.completed(&reply.completion);
                 if moved {
                     let positioned = input
@@ -330,6 +339,7 @@ unsafe fn handle(hwnd: HWND, message: u32, wp: WPARAM, lp: LPARAM) -> isize {
                         close(hwnd, input);
                         return 1;
                     }
+                    overlay::refresh(hwnd);
                 }
                 let mut next = input
                     .automatic
@@ -405,10 +415,11 @@ unsafe fn handle(hwnd: HWND, message: u32, wp: WPARAM, lp: LPARAM) -> isize {
                     | Completion::SpatialAppend(Ok(crate::long_capture::SpatialAppend::Added {
                         ..
                     })) => {
+                        // 录制预览仍是上一张；只在新预览或取景框位置提交后重绘。
                         if !input.recording.enabled() {
                             clear_preview(hwnd, input);
+                            frame_status(hwnd, input, reply.snapshot.frame_count);
                         }
-                        frame_status(hwnd, input, reply.snapshot.frame_count)
                     }
                     Completion::Append(Ok(Append::Duplicate))
                     | Completion::SpatialAppend(Ok(
@@ -431,21 +442,14 @@ unsafe fn handle(hwnd: HWND, message: u32, wp: WPARAM, lp: LPARAM) -> isize {
                     | Completion::SpatialCompose(Err(error))
                     | Completion::SpatialPreview(Err(error))
                     | Completion::Compose(Err(error))
-                    | Completion::Preview(Err(error)) => match error {
-                        crate::long_capture::Error::UnconfirmedEdges => {
-                            if !input.recording.running() {
-                                status(hwnd, "请继续滚动并采集一帧，以确认固定边缘");
-                            }
+                    | Completion::Preview(Err(error)) => {
+                        ui::capture_error(hwnd, input, reply.snapshot, error)
+                    }
+                    Completion::CaptureFailed(error) => {
+                        if !covered {
+                            status(hwnd, &format!("采集失败：{error}"));
                         }
-                        crate::long_capture::Error::ChangedEdges => {
-                            status(hwnd, "固定边缘已变化，请取消并重新选择区域")
-                        }
-                        crate::long_capture::Error::CrossAxis if input.recording.enabled() => {
-                            status(hwnd, "滚动轴已变化，录制已停止；可完成已有内容或取消")
-                        }
-                        other => status(hwnd, &format!("无法完成：{other:?}")),
-                    },
-                    Completion::CaptureFailed(error) => status(hwnd, &format!("采集失败：{error}")),
+                    }
                     Completion::WorkerStopped => {
                         *input.error.borrow_mut() = Some("长截图后台任务已停止。".into());
                         close(hwnd, input);
@@ -487,15 +491,15 @@ unsafe fn handle(hwnd: HWND, message: u32, wp: WPARAM, lp: LPARAM) -> isize {
         _ => 0,
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-capture")))]
 #[path = "long_capture_dialog_finish_tests.rs"]
 mod finish_tests;
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-capture")))]
 #[path = "long_capture_dialog_modal_tests.rs"]
 mod modal_tests;
 #[cfg(test)]
 #[path = "long_capture_dialog_tests.rs"]
 mod tests;
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-capture")))]
 #[path = "long_capture_dialog_timer_tests.rs"]
 mod timer_tests;

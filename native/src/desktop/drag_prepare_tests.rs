@@ -64,6 +64,44 @@ fn wait(job: &Job) {
 }
 
 #[test]
+fn capture_uses_resolved_content_without_carrying_live_history_or_draft() {
+    use crate::{editor::Tool, viewport::Point, workspace_id::UnitId};
+    let fixture = Fixture::new();
+    let mut source = fixture.input();
+    let point = Point { x: 1.0, y: 1.0 };
+    source.editor.begin(Tool::Brush, point).unwrap();
+    assert!(source.editor.commit());
+    let frame = super::super::display_frame::Frame::capture(
+        UnitId::parse("drag-source").unwrap(),
+        super::super::image::Image {
+            width: 4,
+            height: 4,
+            pixels: source.pixels.clone(),
+        },
+        Some(&source.editor),
+    );
+    let state = super::super::State::new(None, true).unwrap();
+    let mut canvas = state.canvas.borrow_mut();
+    let capture = |canvas: &super::super::canvas::Canvas| {
+        Input::capture(
+            canvas,
+            Some(&frame),
+            fixture.0.clone(),
+            "drag".into(),
+            Default::default(),
+        )
+    };
+    let mut frozen = capture(&canvas).unwrap();
+    assert!(frozen.pixels.same_storage(&source.pixels));
+    assert_eq!(frozen.editor.elements()[0].points.as_slice(), &[point]);
+    assert!(!frozen.editor.undo());
+    assert!(source.editor.undo());
+    canvas.editor.begin(Tool::Brush, point).unwrap();
+    assert!(capture(&canvas).is_none());
+    assert_eq!(frozen.editor.elements().len(), 1);
+}
+
+#[test]
 fn worker_encodes_committed_crop_opacity_and_publishes_only_on_explicit_commit() {
     let fixture = Fixture::new();
     let _apartment = super::super::Apartment::new().unwrap();

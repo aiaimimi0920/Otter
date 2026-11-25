@@ -72,3 +72,35 @@ fn fields_and_select_use_declared_values_and_the_existing_normalization_contract
         windows::Win32::System::Com::CoUninitialize();
     }
 }
+
+#[test]
+fn no_markers_and_nested_sliders_do_not_create_a_text_engine() {
+    let scene = Scene::parse(
+        br#"{"id":"root","type":"view","children":[
+            {"id":"left","type":"view","children":[
+                {"id":"a","type":"slider","props":{"min":0,"max":4,"step":1,"value":1}}]},
+            {"id":"right","type":"view","children":[
+                {"id":"b","type":"slider","props":{"min":0,"max":4,"step":1,"value":3}}]}]}"#,
+    )
+    .unwrap();
+    let no_text = || panic!("no text engine may be created");
+    assert!(prepare_with(&scene, std::iter::empty(), |_| None, no_text)
+        .unwrap()
+        .is_empty());
+    let markers = ["b", "a"].map(|id| Marker {
+        id: id.into(),
+        ink: crate::surface_button_visual::PaintColor::new(
+            scene.root().visible_node(id).unwrap(),
+            "color",
+            crate::surface_color::Color([0., 0., 0., 1.]),
+        ),
+        origin: [0., 0.],
+        size: [64., 24.],
+        clip: Rect::from_box([0., 0.], [64., 24.]),
+        inset: 0.0.into(),
+    });
+    let paints = prepare_with(&scene, markers.iter(), |_| None, no_text).unwrap();
+    for (id, expected) in [("a", 0.25), ("b", 0.75)] {
+        assert!(matches!(&paints[id], Paint::Slider { fraction, .. } if *fraction == expected));
+    }
+}

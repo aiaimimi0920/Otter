@@ -22,23 +22,22 @@ pub(super) fn open(root: &Path, cancel: &AtomicBool) -> Result<Store, Error> {
         .map_err(|_| Error::Lock)?;
     regular(&lease, cancel)?;
     let path = root.join("projection-edit.json");
-    let mut original = read(&path, cancel)?;
-    if original.is_none() {
-        if let Some(recovery) = crate::session_file_recovery::find(&path, cancel)
-            .map_err(|_| cancelled(cancel, Error::Read))?
-        {
-            let bytes = read(&recovery, cancel)?.ok_or(Error::Read)?;
-            Ledger::decode(&bytes)?;
-            crate::session_file_write::Staged::prepare_bytes(&path, bytes.clone(), cancel)
-                .map_err(|_| cancelled(cancel, Error::Write))?
-                .commit_new(cancel)
-                .map_err(|_| cancelled(cancel, Error::Write))?;
-            original = Some(bytes);
-        }
-    }
-    let entries = match &original {
-        Some(bytes) => Ledger::decode(bytes)?.entries,
-        None => Vec::new(),
+    let (original, entries) = if let Some(bytes) = read(&path, cancel)? {
+        let entries = Ledger::decode(&bytes)?.entries;
+        (Some(bytes), entries)
+    } else if let Some(recovery) = crate::session_file_recovery::find(&path, cancel)
+        .map_err(|_| cancelled(cancel, Error::Read))?
+    {
+        let bytes = read(&recovery, cancel)?.ok_or(Error::Read)?;
+        // Keep the validated entries paired with the exact bytes we publish.
+        let entries = Ledger::decode(&bytes)?.entries;
+        crate::session_file_write::Staged::prepare_bytes(&path, bytes.clone(), cancel)
+            .map_err(|_| cancelled(cancel, Error::Write))?
+            .commit_new(cancel)
+            .map_err(|_| cancelled(cancel, Error::Write))?;
+        (Some(bytes), entries)
+    } else {
+        (None, Vec::new())
     };
     check(cancel)?;
     Ok(Store(Arc::new(Inner {

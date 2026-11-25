@@ -184,6 +184,6 @@ pub enum Error {
     Prepare(crate::live_relay_http::art_prepare::Error),
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-loom")))]
 #[path = "art_issuer_trust_tests.rs"]
 mod tests;

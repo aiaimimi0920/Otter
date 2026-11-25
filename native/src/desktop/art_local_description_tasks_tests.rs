@@ -68,11 +68,13 @@ fn retiring_description_keeps_capacity_and_cannot_publish_old_error() {
     assert!(!current.is_revoked());
     release.send(()).unwrap();
     rx.recv_timeout(WAIT).unwrap();
+    tasks.test_wait_finished(0);
     assert!(tasks.take_settled().is_none());
     assert!(tasks.has_capacity());
     assert!(!current.is_revoked());
     release_current.send(()).unwrap();
     rx.recv_timeout(WAIT).unwrap();
+    tasks.test_wait_finished(0);
     assert!(matches!(
         tasks.take_settled().unwrap().result,
         Err(Error::Description(_))
@@ -108,6 +110,7 @@ fn configured_description_failure_is_delivered_and_revokes_original_lease() {
         .start_description(fixture::id(), request, lease.clone(), &mut trust, config)
         .unwrap();
     rx.recv_timeout(WAIT).unwrap();
+    tasks.test_wait_finished(0);
     assert!(matches!(
         tasks.take_settled().unwrap().result,
         Err(Error::Configuration(_))

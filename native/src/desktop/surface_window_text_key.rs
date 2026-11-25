@@ -70,10 +70,9 @@ unsafe fn route(
     if handled && message == WM_KEYDOWN {
         // 保留已完成选区，废弃旧点击/手势；键盘操作永远不生成远端 click/edit。
         super::super::invalidate_candidates(hwnd, state);
-        let _ = InvalidateRect(Some(hwnd), None, false);
     }
     handled
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-surface")))]
 #[path = "surface_window_text_key_tests.rs"]
 mod tests;

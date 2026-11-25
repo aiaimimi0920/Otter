@@ -1,12 +1,38 @@
 //! 会话原文的共享 owner：导入保留 Vec allocation，保存基线直接复用带预算的编码缓冲。
-use crate::pixels::Pixels;
+use crate::{
+    pixels::Pixels,
+    session_document::{self, Document},
+};
 use std::{ops::Deref, sync::Arc};
 #[derive(Clone)]
 pub enum Source {
     Imported(Arc<Vec<u8>>),
     Encoded(Pixels),
 }
+/// 借用解码结果与同一个原文 owner，避免索引误把其他缓冲区标成已校验。
+pub struct Parsed<'a> {
+    source: &'a Source,
+    document: Document<'a>,
+}
+impl<'a> Parsed<'a> {
+    pub fn source(&self) -> &'a Source {
+        self.source
+    }
+    pub fn document(&self) -> &Document<'a> {
+        &self.document
+    }
+    #[cfg(windows)]
+    pub fn into_document(self) -> Document<'a> {
+        self.document
+    }
+}
 impl Source {
+    pub fn parse(&self) -> Result<Parsed<'_>, session_document::Error> {
+        Ok(Parsed {
+            source: self,
+            document: session_document::decode(self)?,
+        })
+    }
     pub fn same_storage(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::Imported(a), Self::Imported(b)) => Arc::ptr_eq(a, b),

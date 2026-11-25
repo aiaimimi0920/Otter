@@ -9,10 +9,9 @@ struct Directory(PathBuf);
 impl Directory {
     fn new() -> Self {
         Self(
-            PathBuf::from("C:/Users/Public/nas_home/AI/GameEditor/linshi")
-                .join(format!("otter-cache-{:?}", unsafe {
-                    windows::Win32::System::Com::CoCreateGuid().unwrap()
-                })),
+            std::env::temp_dir().join(format!("otter-cache-{:?}", unsafe {
+                windows::Win32::System::Com::CoCreateGuid().unwrap()
+            })),
         )
     }
     fn cache(&self) -> PathBuf {
@@ -117,6 +116,13 @@ fn publish_reuses_staged_bytes_and_preserves_existing_files() {
 
 #[test]
 fn published_receipt_binds_exact_filename_bytes_digest_and_file_identity() {
+    assert_receipt_identity(false);
+}
+#[test]
+fn leased_publish_receipt_binds_the_document_handle_and_refuses_writers() {
+    assert_receipt_identity(true);
+}
+fn assert_receipt_identity(leased: bool) {
     use sha2::{Digest, Sha256};
     use std::os::windows::io::AsRawHandle;
     use windows::Win32::{
@@ -126,10 +132,16 @@ fn published_receipt_binds_exact_filename_bytes_digest_and_file_identity() {
     let directory = Directory::new();
     let cancel = AtomicBool::new(false);
     let bytes = png();
-    let path = stage(&directory.0, "所有权🙂", bytes.clone(), &cancel)
-        .unwrap()
-        .commit(&cancel)
-        .unwrap();
+    let staged = stage(&directory.0, "所有权🙂", bytes.clone(), &cancel).unwrap();
+    let (path, file) = if leased {
+        let (path, file) = staged.commit_leased(&cancel).unwrap();
+        assert!(OpenOptions::new().write(true).open(&path).is_err());
+        (path, file)
+    } else {
+        let path = staged.commit(&cancel).unwrap();
+        let file = File::open(&path).unwrap();
+        (path, file)
+    };
     let records: Vec<_> = fs::read_dir(directory.cache())
         .unwrap()
         .map(|entry| entry.unwrap().path())
@@ -146,10 +158,10 @@ fn published_receipt_binds_exact_filename_bytes_digest_and_file_identity() {
     let record: receipt::Receipt = serde_json::from_slice(&raw).unwrap();
     assert_eq!(record.version, 1);
     assert_eq!(record.name, "所有权🙂.png");
+    assert_eq!(path.file_name().unwrap(), record.name.as_str());
     assert_eq!(record.bytes, bytes.len() as u64);
     assert_eq!(record.sha256, <[u8; 32]>::from(Sha256::digest(&*bytes)));
     assert!(record.created > 0);
-    let file = File::open(path).unwrap();
     let mut info = BY_HANDLE_FILE_INFORMATION::default();
     unsafe {
         GetFileInformationByHandle(HANDLE(file.as_raw_handle()), &mut info).unwrap();

@@ -75,14 +75,14 @@ impl Application {
             return Ok(());
         }
         let mut source = None;
-        let mut assets = false;
         for doc in &self.documents {
-            assets |= doc.state.open_session_assets_requested.replace(false);
+            let assets = doc.state.open_session_assets_requested.replace(false);
             if doc.state.open_session_requested.replace(false) && source.is_none() {
-                source = Some(doc.window.0);
+                // Coalesce to one chooser without borrowing consent from a different HWND.
+                source = Some((doc.window.0, assets));
             }
         }
-        let Some(hwnd) = source else {
+        let Some((hwnd, assets)) = source else {
             return Ok(());
         };
         if self.save_job.is_some() || self.restore_job.is_some() || self.exit_after_save {
@@ -215,5 +215,56 @@ impl Application {
             save_first,
             root,
         }))
+    }
+}
+
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn open_session_coalescing_keeps_assets_mode_with_its_requester() {
+        unsafe {
+            let _apartment = crate::desktop::Apartment::new().unwrap();
+            let instance = crate::desktop::workspace_window_fixture::register();
+            let first =
+                DocumentWindow::create(instance, State::new(None, false).unwrap(), false).unwrap();
+            let mut app = Application::new(instance, first);
+            let second =
+                DocumentWindow::create(instance, State::new(None, false).unwrap(), false).unwrap();
+            app.workspace
+                .add_units([second.state.unit_id.clone()])
+                .unwrap();
+            app.documents.push(second);
+            let one = &app.documents[0];
+            let two = &app.documents[1];
+            let first_hwnd = one.window.0;
+            request(first_hwnd, &one.state).unwrap();
+            request_assets(two.window.0, &two.state).unwrap();
+            let mut calls = 0;
+            app.pending_open_session_with(|_, hwnd, assets| {
+                calls += 1;
+                assert_eq!(hwnd, first_hwnd);
+                assert!(!assets);
+                Ok(None)
+            })
+            .unwrap();
+            assert_eq!(calls, 1);
+            app.pending_open_session_with(|_, _, _| panic!("coalesced request replayed"))
+                .unwrap();
+
+            let one = &app.documents[0];
+            request(first_hwnd, &one.state).unwrap();
+            request_assets(first_hwnd, &one.state).unwrap();
+            app.pending_open_session_with(|_, hwnd, assets| {
+                calls += 1;
+                assert_eq!(hwnd, first_hwnd);
+                assert!(assets);
+                Ok(None)
+            })
+            .unwrap();
+            assert_eq!(calls, 2);
+            assert!(app.restore_job.is_none());
+        }
     }
 }

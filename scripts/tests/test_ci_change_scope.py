@@ -154,6 +154,22 @@ class GitScopeTests(unittest.TestCase):
         with self.assertRaisesRegex(SystemExit, 'removed document or directory'):
             docs.main()
 
+    def test_removal_keeps_directory_with_tracked_sibling_but_not_untracked_sibling(self):
+        self.write('docs/guide/first.md', '# First\n')
+        self.write('docs/guide/second.md', '# Second\n')
+        self.write('README.md', '# Otter\n[guide](docs/guide/)\n')
+        base = self.commit()
+        (self.root / 'docs/guide/first.md').unlink()
+        head = self.commit()
+        self.write('.ci-change-scope.json', json.dumps(self.classify(head, base)))
+        docs.main()
+        (self.root / 'docs/guide/second.md').unlink()
+        self.git('commit', '-qam', 'last tracked child removed')
+        self.write('docs/guide/generated.md', '# Generated\n')
+        self.write('.ci-change-scope.json', json.dumps(self.classify(self.git('rev-parse', 'HEAD'), head)))
+        with self.assertRaisesRegex(SystemExit, 'removed document or directory'):
+            docs.main()
+
     def test_generated_and_git_metadata_link_targets_are_not_repository_files(self):
         for target in ['.git/config', '.ci-change-scope.json', 'untracked.md']:
             self.write('README.md', f'# Otter\n[bad]({target})\n')

@@ -49,7 +49,6 @@ fn real_static_menu_discovery_preserves_pid_owner_and_visibility_checks() {
         let mut search = Dialog {
             pid: std::process::id(),
             hwnd: None,
-            menu: true,
             owner: owner.0,
         };
         let _ = dialog(menu.0, LPARAM(&mut search as *mut Dialog as isize));

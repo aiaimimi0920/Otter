@@ -22,8 +22,8 @@ mod catalog;
 pub use catalog::CatalogEntry;
 #[path = "surface_binding_http.rs"]
 mod surface;
+pub(crate) use surface::scene_for_runtime;
 pub use surface::MountedSurface;
-pub(crate) use surface::{declarative_scene, scene_for_runtime};
 #[path = "surface_attach_http.rs"]
 mod surface_attach;
 #[path = "surface_event_http.rs"]
@@ -120,7 +120,7 @@ pub struct Control<'a> {
     cancel: &'a Cancel,
 }
 impl<'a> Control<'a> {
-    pub(crate) fn loom_connection_info(&self) -> Result<(String, Option<String>), Error> {
+    pub(crate) fn loom_account(&self, expected_loom_id: &str) -> Result<Option<String>, Error> {
         let bytes = self.send_limited(
             "GET",
             "/v1/otter/connection-info",
@@ -129,18 +129,13 @@ impl<'a> Control<'a> {
             16384,
         )?;
         let value: serde_json::Value = serde_json::from_slice(&bytes).map_err(|_| Error::Input)?;
-        let id = value["loom"]["loomId"]
+        if value["loom"]["loomId"] != expected_loom_id {
+            return Err(Error::Input);
+        }
+        Ok(value["account"]
             .as_str()
-            .filter(|s| crate::projection_delivery::share::loom_id(s))
-            .ok_or(Error::Input)?
-            .to_owned();
-        Ok((
-            id,
-            value["account"]
-                .as_str()
-                .filter(|s| s.len() <= 640 && !s.chars().any(char::is_control))
-                .map(str::to_owned),
-        ))
+            .filter(|s| s.len() <= 640 && !s.chars().any(char::is_control))
+            .map(str::to_owned))
     }
     pub fn new(client: &'a Client, session: &'a Session, cancel: &'a Cancel) -> Self {
         Self {

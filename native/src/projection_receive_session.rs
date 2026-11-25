@@ -1,5 +1,5 @@
 //! 已验证投送生成确定身份的单贴纸会话；保留完整 qrProjection，不能替代活动工作区。
-use super::{Error, Verified};
+use super::{super::binding::Binding, Error, Verified};
 use crate::{session_placement::Space, session_window::Rect};
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -11,11 +11,21 @@ impl Verified {
         space: Space,
         rect: Rect,
         cancel: &AtomicBool,
-    ) -> Result<(crate::pixels::Pixels, crate::image_decode::Image), Error> {
+    ) -> Result<(crate::pixels::Pixels, crate::image_decode::Image, Binding), Error> {
         if cancel.load(Ordering::Acquire) {
             return Err(Error::Stopped);
         }
-        let binding = super::super::binding::Binding::new(&self, intent)?;
+        if !rect.valid() {
+            return Err(Error::Response);
+        }
+        let binding = Binding::new_cancellable(&self, intent, || cancel.load(Ordering::Acquire))
+            .map_err(|error| {
+                if cancel.load(Ordering::Acquire) {
+                    Error::Stopped
+                } else {
+                    error
+                }
+            })?;
         let encoded =
             crate::loom_base64::encode_png_data_url(&self.received.png, cancel).map_err(|_| {
                 if cancel.load(Ordering::Acquire) {
@@ -75,10 +85,10 @@ impl Verified {
                 Error::Budget
             }
         })?;
-        crate::session_document::decode(&bytes).map_err(|_| Error::Response)?;
         if cancel.load(Ordering::Acquire) {
             return Err(Error::Stopped);
         }
-        Ok((bytes, self.image))
+        // 同一关联既写入候选，也交给检查点调用方比较；不再为比较重新哈希像素。
+        Ok((bytes, self.image, binding))
     }
 }

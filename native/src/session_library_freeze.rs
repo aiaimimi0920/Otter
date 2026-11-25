@@ -1,7 +1,7 @@
 //! 收藏与回收共用当前编码窗口的冻结边界；只借用原文，不复制图片或运行时所有权。
 use super::candidate;
-use crate::{session_document, workspace_id::UnitId};
-use serde::Serialize;
+use crate::{session_window::Window, workspace_id::UnitId};
+use serde::{ser::SerializeSeq, Serialize, Serializer};
 use serde_json::value::RawValue;
 use std::{borrow::Cow, collections::BTreeMap};
 #[derive(Serialize)]
@@ -25,28 +25,22 @@ pub(super) fn capture<'a>(
     {
         return Err("Invalid frozen identity or timestamp".into());
     }
-    let document = session_document::decode(snapshot)
-        .map_err(|error| format!("Invalid frozen snapshot: {error:?}"))?;
-    let index = document
-        .windows
-        .iter()
-        .position(|window| window.id == unit.as_str())
-        .ok_or("Frozen source sticker is missing")?;
-    if document.windows[index]
+    if snapshot.len() > crate::session_document::MAX_SESSION_BYTES {
+        return Err("Frozen sticker exceeds byte budget".into());
+    }
+    let window: Window<'_> = serde_json::from_slice(snapshot).map_err(|error| error.to_string())?;
+    if window.id != unit.as_str() || !window.valid() {
+        return Err("Invalid frozen source identity or geometry".into());
+    }
+    if window
         .node_type
         .as_deref()
         .is_some_and(|kind| kind != "sticker")
     {
         return Err("Only stickers can be frozen".into());
     }
-    #[derive(serde::Deserialize)]
-    struct Windows<'a> {
-        #[serde(borrow)]
-        stickers: Vec<&'a RawValue>,
-    }
-    // Document 已验证数组预算；这里再次解析只借用值，不复制图片字符串。
-    let windows: Windows = serde_json::from_slice(snapshot).map_err(|error| error.to_string())?;
-    let mut snapshot = candidate::fields(windows.stickers[index].get())?;
+    let mut snapshot =
+        candidate::fields(std::str::from_utf8(snapshot).map_err(|error| error.to_string())?)?;
     for key in [
         "groupId",
         "artId",
@@ -55,6 +49,8 @@ pub(super) fn capture<'a>(
         "outputs",
         "executionConfig",
         "stickerEditPropagation",
+        "portVisibility",
+        "otterNativeProjectionEdit",
     ] {
         snapshot.remove(key);
     }
@@ -64,4 +60,23 @@ pub(super) fn capture<'a>(
         created_at,
         snapshot,
     })
+}
+
+/// Both libraries retain existing entries as raw JSON; only a new entry is serialized.
+pub(super) struct Entries<'a> {
+    pub(super) retained: Vec<&'a RawValue>,
+    pub(super) next: Option<Entry<'a>>,
+}
+impl Serialize for Entries<'_> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut sequence = serializer
+            .serialize_seq(Some(self.retained.len() + usize::from(self.next.is_some())))?;
+        for entry in &self.retained {
+            sequence.serialize_element(entry)?;
+        }
+        if let Some(next) = &self.next {
+            sequence.serialize_element(next)?;
+        }
+        sequence.end()
+    }
 }

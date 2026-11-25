@@ -20,18 +20,7 @@ impl LayerFixture {
         let popup = Window::new(None);
         let window = Window::new(None);
         let hooks = Hooks::new();
-        unsafe {
-            SetWindowPos(
-                source.root.0,
-                Some(HWND_TOPMOST),
-                0,
-                0,
-                0,
-                0,
-                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
-            )
-            .unwrap();
-        }
+        source.root.make_topmost();
         POSITION_HANDLER.with(|slot| slot.set(None));
         POPUP.with(|slot| slot.set(popup.0));
         BUTTON_HANDLER.with(|slot| {
@@ -157,6 +146,27 @@ fn request_claim_cancel_finish_and_new_identity_are_separate_states() {
 }
 
 #[test]
+fn completion_marker_alone_cannot_settle_a_different_or_unclaimed_request() {
+    let f = LayerFixture::new();
+    let request = f.publish(p::Operation::Restore, 1);
+    put(f.window.0, p::FINISHED, request.nonce);
+    assert_eq!(request.result(), None, "completion still requires claim");
+    put(f.window.0, p::FINISHED, 0);
+    assert!(request.claim().unwrap());
+    request.finish(E_ABORT).unwrap();
+    assert_eq!(request.result(), Some(E_ABORT));
+
+    // A matching nonce is not enough: claiming and completion are tied to the full slot.
+    put(f.window.0, p::TOKEN, request.token + 1);
+    assert_eq!(request.result(), None);
+    put(f.window.0, p::TOKEN, request.token);
+    put(f.window.0, p::INSTANCE, request.lease.instance + 1);
+    assert_eq!(request.result(), None);
+    put(f.window.0, p::INSTANCE, request.lease.instance);
+    assert_eq!(request.result(), Some(E_ABORT));
+}
+
+#[test]
 fn duplicate_layer_hooks_acquire_once_and_restore_without_live_b_epoch() {
     let f = LayerFixture::new();
     let mut hooks = Hooks(Vec::new());
@@ -266,18 +276,7 @@ fn claimed_acquire_cancelled_inside_window_callback_rolls_back_and_still_finishe
 #[test]
 fn source_owned_topmost_is_neither_acquired_nor_restored_by_layer_request() {
     let f = LayerFixture::new();
-    unsafe {
-        SetWindowPos(
-            f.popup.0,
-            Some(HWND_TOPMOST),
-            0,
-            0,
-            0,
-            0,
-            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
-        )
-        .unwrap();
-    }
+    f.popup.make_topmost();
     let acquire = f.publish(p::Operation::Acquire, 1);
     send(acquire);
     assert_eq!(acquire.result(), Some(E_ABORT));

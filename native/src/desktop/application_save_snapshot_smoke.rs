@@ -59,7 +59,16 @@ pub(in crate::desktop::application) unsafe fn verify(app: &mut Application) -> R
             "Snapshot lost graph or coordinate context",
         ));
     }
-    for frozen in &data.documents {
+    if data.documents.len() < 2 || data.documents.len() != app.documents.len() {
+        return Err(Error::new(
+            E_FAIL,
+            "Snapshot must preserve the multi-window fixture",
+        ));
+    }
+    for (frozen, doc) in data.documents.iter().zip(&app.documents) {
+        if frozen.unit != doc.state.unit_id {
+            return Err(Error::new(E_FAIL, "Snapshot changed the document order"));
+        }
         let original_window = old["stickers"]
             .as_array()
             .unwrap()
@@ -81,11 +90,6 @@ pub(in crate::desktop::application) unsafe fn verify(app: &mut Application) -> R
                 "Snapshot geometry lost actual window frame",
             ));
         }
-        let doc = app
-            .documents
-            .iter()
-            .find(|doc| doc.state.unit_id == frozen.unit)
-            .unwrap();
         let canvas = doc.state.canvas.borrow();
         let mapping = crate::session_vector_write::Mapping::from_viewport(
             frozen.viewport,
@@ -165,7 +169,6 @@ pub(in crate::desktop::application) unsafe fn verify(app: &mut Application) -> R
     if !receipt.matches(app)
         || !original.same_storage(&data.original)
         || original.as_ptr() != data.original.as_ptr()
-        || data.documents.len() != app.documents.len()
     {
         return Err(Error::new(
             E_FAIL,

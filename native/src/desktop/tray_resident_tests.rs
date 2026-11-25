@@ -121,7 +121,7 @@ fn tray_activation_still_restores_image_documents_and_pins_without_images() {
 }
 
 #[test]
-fn explorer_restart_reinstalls_resident_or_hidden_icons_and_only_restores_hidden_on_failure() {
+fn explorer_restart_reinstalls_resident_or_hidden_icons_and_only_recovers_on_failure() {
     for (resident, hidden) in [(true, false), (true, true), (false, true), (false, false)] {
         for success in [true, false] {
             let state = State::new(None, false).unwrap();
@@ -140,7 +140,7 @@ fn explorer_restart_reinstalls_resident_or_hidden_icons_and_only_restores_hidden
                 || restored.set(true),
             );
             assert_eq!(attempts.get(), u32::from(resident || hidden));
-            assert_eq!(restored.get(), hidden && !success);
+            assert_eq!(restored.get(), (resident || hidden) && !success);
             assert_eq!(state.tray.installed.get(), (resident || hidden) && success);
             assert_eq!(state.tray.hidden.get(), hidden);
         }

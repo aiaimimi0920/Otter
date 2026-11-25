@@ -14,29 +14,9 @@ pub(super) struct Drag {
     gesture: Gesture,
     factors: Point,
 }
+#[cfg(test)]
 pub(super) fn position(canvas: &Canvas) -> Option<Point> {
-    if canvas.tool != Tool::Select {
-        return None;
-    }
-    let mut right = f32::NEG_INFINITY;
-    let mut bottom = f32::NEG_INFINITY;
-    for index in canvas.selected_indices() {
-        let bounds = super::transform_handle_layout::preview_bounds(canvas, index)?;
-        right = right.max(bounds.high.x);
-        bottom = bottom.max(bounds.high.y);
-    }
-    let point = super::transform_handle_layout::fit(
-        Point {
-            x: canvas.viewport.origin.x + right * canvas.viewport.scale + 18.0,
-            y: canvas.viewport.origin.y + bottom * canvas.viewport.scale + 18.0,
-        },
-        canvas.client_size,
-    )?;
-    super::transform_handle_layout::separate(
-        point,
-        super::rotation_handle::position(canvas),
-        canvas.client_size,
-    )
+    super::transform_handle_layout::positions(canvas).1
 }
 fn update(
     preview: &mut Stroke,
@@ -80,7 +60,7 @@ impl Canvas {
         if let Some(revision) = self.scale_display_revision {
             if revision != self.editor.revision()
                 || !self
-                    .selected_indices()
+                    .selected_indices_ref()
                     .iter()
                     .copied()
                     .eq(self.group_preview.iter().map(|(index, _)| *index))
@@ -88,15 +68,6 @@ impl Canvas {
                 self.clear_scale_display();
             }
         }
-    }
-    pub(super) fn begin_scale_handle(&mut self, screen: Point) -> bool {
-        let Some(handle) = position(self) else {
-            return false;
-        };
-        if (handle.x - screen.x).abs() > 7.0 || (handle.y - screen.y).abs() > 7.0 {
-            return false;
-        }
-        self.begin_scale_at(screen)
     }
     pub(super) fn begin_scale_at(&mut self, screen: Point) -> bool {
         let indices = self.selected_indices();

@@ -11,21 +11,27 @@ pub(super) struct Press {
     dpi: u32,
     catalog: Rc<Catalog>,
 }
-fn hit(ui: &Ui, hwnd: HWND, point: Point) -> Option<Port> {
+pub(super) fn hit(ui: &Ui, hwnd: HWND, point: Point) -> Option<Port> {
     let (_, endpoint, side) = ui
         .input_windows
         .borrow()
         .iter()
         .find(|(h, _, _)| *h == hwnd)
         .copied()?;
-    draw::ports(ui)
-        .into_iter()
-        .filter(|(port, _, _)| port.node == endpoint && port.side == side)
-        .filter(|(port, p, r)| {
-            model::Rect::from(draw::port_rect(ui, *port, *p, *r)).contains(point)
+    let node = ui
+        .node(endpoint)
+        .filter(|node| node.ports(ui.mode.get(), node.hide_collapsed_endpoints))?;
+    let geometry = port_visual::SideGeometry::new(ui, &node, side);
+    geometry
+        .indices()
+        .filter_map(|index| {
+            let layout = geometry.layout(index, true)?;
+            Rect::from(geometry.rect(index, &layout))
+                .contains(point)
+                .then(|| (index, layout.connection().1))
         })
-        .min_by_key(|(_, p, _)| (i64::from(p.y) - i64::from(point.y)).abs())
-        .map(|(port, _, _)| port)
+        .min_by_key(|(_, y)| (i64::from(*y) - i64::from(point.y)).abs())
+        .map(|(index, _)| geometry.port(index))
 }
 impl From<RECT> for Rect {
     fn from(value: RECT) -> Self {

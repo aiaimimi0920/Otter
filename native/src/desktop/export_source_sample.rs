@@ -1,6 +1,6 @@
 //! 工作流底图的有预算 D2D 取样与可取消读回；不合成标注、不提前应用透明度。
 use super::*;
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-capture")))]
 #[path = "export_source_sample_tests.rs"]
 mod tests;
 
@@ -39,20 +39,22 @@ pub(super) fn readback(image: &Image, layout: &Layout, cancel: &AtomicBool) -> R
         return Err(allocation());
     }
     bytes.resize(count, 0);
-    for (y, row) in bytes
-        .chunks_exact_mut(layout.output.0 as usize * 4)
+    let stride = layout.output.0 * 4;
+    // Batch complete rows to avoid one WIC call per scanline of a tall capture.
+    // Cancellation is still checked before every bounded copy, including the tail.
+    let rows_per_copy = (256 * 1024 / stride).max(1) as usize;
+    for (index, strip) in bytes
+        .chunks_mut(rows_per_copy * stride as usize)
         .enumerate()
     {
         check(cancel)?;
         let rect = WICRect {
             X: 0,
-            Y: y as i32,
+            Y: (index * rows_per_copy) as i32,
             Width: layout.output.0 as i32,
-            Height: 1,
+            Height: (strip.len() / stride as usize) as i32,
         };
-        unsafe {
-            bitmap.bitmap.CopyPixels(&rect, layout.output.0 * 4, row)?;
-        }
+        unsafe { bitmap.bitmap.CopyPixels(&rect, stride, strip)? };
     }
     drop(bitmap);
     check(cancel)?;

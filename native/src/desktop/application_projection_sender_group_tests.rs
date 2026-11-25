@@ -73,7 +73,7 @@ fn run(mode: u8) {
         mode == 1 || mode == 2,
     );
     unsafe {
-        let (_class, mut app) = application(files.root());
+        let mut app = application(files.root());
         authorize(&mut app, &files, identity, client);
         start(
             &mut app,

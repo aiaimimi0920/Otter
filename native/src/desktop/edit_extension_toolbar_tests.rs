@@ -3,6 +3,8 @@ use super::*;
 use crate::desktop::{edit_extension_toolbar as ext, extension_commands, extension_document};
 use serde_json::json;
 use std::sync::Arc;
+#[path = "edit_extension_toolbar_collision_tests.rs"]
+mod collisions;
 unsafe fn setup(f: &Fixture, data: serde_json::Value) {
     f.state.extensions.borrow_mut().snapshot = Some(Arc::new(
         crate::loom_extension_snapshot::Snapshot::parse(&serde_json::to_vec(&data).unwrap())

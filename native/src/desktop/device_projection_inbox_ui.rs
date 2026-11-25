@@ -179,7 +179,7 @@ pub(super) unsafe fn append_menu(menu: HMENU, view: &AuthorizationView) -> Resul
     }
     recovery::append_menu(menu, view)
 }
-pub(super) unsafe fn execute(
+pub(in crate::desktop) unsafe fn execute(
     hwnd: windows::Win32::Foundation::HWND,
     state: &super::State,
     command: usize,

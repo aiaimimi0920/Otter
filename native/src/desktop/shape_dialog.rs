@@ -5,10 +5,14 @@ use windows::{
 };
 
 const INPUT: i32 = 101;
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "shape_dialog_trigger_tests.rs"]
 mod trigger_tests;
 const ERROR: i32 = 102;
+#[cfg(test)]
+thread_local! {
+    static FAIL_TRIGGER_AFFINITY: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
 // DWLP_USER = sizeof(LRESULT) + sizeof(DLGPROC)，不能使用仅适用于 32 位的 DWL_USER。
 const DWLP_USER: i32 = (2 * std::mem::size_of::<isize>()) as i32;
 #[derive(Clone, Copy, PartialEq)]
@@ -77,6 +81,17 @@ unsafe fn show_input(owner: HWND, value: String, mode: Mode) -> Option<String> {
     state.result
 }
 
+unsafe fn protect_trigger(hwnd: HWND) -> windows::core::Result<()> {
+    #[cfg(test)]
+    if FAIL_TRIGGER_AFFINITY.with(|fail| fail.replace(false)) {
+        return Err(windows::core::Error::new(
+            E_FAIL,
+            "injected trigger affinity failure",
+        ));
+    }
+    SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE)
+}
+
 unsafe extern "system" fn procedure(
     hwnd: HWND,
     message: u32,
@@ -84,11 +99,16 @@ unsafe extern "system" fn procedure(
     lparam: LPARAM,
 ) -> isize {
     if message == WM_INITDIALOG {
-        SetWindowLongPtrW(hwnd, WINDOW_LONG_PTR_INDEX(DWLP_USER), lparam.0);
         let state = &*(lparam.0 as *const InputState);
         if matches!(state.mode, Mode::Trigger | Mode::LocalTrigger) {
-            let _ = SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE);
+            if let Err(error) = protect_trigger(hwnd) {
+                // EndDialog during initialization retires the modal before it can show or take focus.
+                eprintln!("native-trigger-dialog: capture protection unavailable: {error}");
+                let _ = EndDialog(hwnd, 0);
+                return 0;
+            }
         }
+        SetWindowLongPtrW(hwnd, WINDOW_LONG_PTR_INDEX(DWLP_USER), lparam.0);
         let _ = SetDlgItemTextW(hwnd, INPUT, &HSTRING::from(&state.value));
         if let Ok(edit) = GetDlgItem(Some(hwnd), INPUT) {
             // 限制输入，不让原生编辑控件积累无限长度粘贴内容。
@@ -336,6 +356,6 @@ fn template(mode: Mode) -> Vec<u32> {
         .collect()
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "shape_dialog_tests.rs"]
 mod tests;

@@ -267,6 +267,6 @@ unsafe fn message(
     }
     Ok(false)
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-loom")))]
 #[path = "extension_input_tests.rs"]
 mod tests;

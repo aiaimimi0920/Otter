@@ -5,6 +5,7 @@ use crate::{
     live_relay_media_transport::SourceStep,
 };
 use std::time::{Duration, Instant};
+
 pub(super) fn run(
     client: &crate::device_session_client::Client,
     lease: &Lease,
@@ -45,11 +46,19 @@ pub(super) fn run(
                     next_control = Instant::now();
                 }
                 Err(exit) => {
-                    signal
-                        .socket
-                        .lock()
-                        .unwrap_or_else(|e| e.into_inner())
-                        .take();
+                    signal.retire_media();
+                    if signal.stop.load(Ordering::Acquire) {
+                        return Err(Exit::Stopped);
+                    }
+                    let exit = if exit
+                        == Exit::Media(crate::live_relay_media_transport::Error::Stopped)
+                        && signal.restart_media.load(Ordering::Acquire)
+                    {
+                        // 未完成握手不证明服务已看见 Source 退出；保留重启请求供已升级连接消费。
+                        recovery::media_restart()
+                    } else {
+                        exit
+                    };
                     recovery.retry(exit, client, lease, signal)?;
                     continue;
                 }
@@ -59,11 +68,7 @@ pub(super) fn run(
         let mut idle = false;
         let result = (|| -> Result<(), Exit> {
             if signal.restart_media.swap(false, Ordering::AcqRel) {
-                return Err(Exit::Media(
-                    crate::live_relay_media_transport::Error::Media(
-                        crate::live_relay_media_socket::Error::Liveness,
-                    ),
-                ));
+                return Err(recovery::media_restart());
             }
             let socket = socket.as_mut().unwrap();
             if clock >= next_control {
@@ -140,16 +145,10 @@ pub(super) fn run(
             Ok(())
         })();
         if let Err(exit) = result {
-            if matches!(exit, Exit::Media(e) if e.recoverable()) {
-                signal.restart_media.store(false, Ordering::Release);
-            }
-            // 旧socket和其interrupt先退休；未知完成的帧号已消费，下一连接只发新raw/IDR。
+            // 只在主动退休已升级连接时消费轮换。普通 I/O 失败不能清掉稍晚到达的请求。
+            // 旧 socket 与 interrupt 先退休；未知完成的帧号已消费，下一连接只发新 raw/IDR。
             socket.take();
-            signal
-                .socket
-                .lock()
-                .unwrap_or_else(|e| e.into_inner())
-                .take();
+            signal.retire_media();
             recovery.retry(exit, client, lease, signal)?;
             continue;
         }

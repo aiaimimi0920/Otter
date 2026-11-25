@@ -3,10 +3,10 @@ use super::*;
 use desktop::document_window::parameter_panel::Panel;
 use neuro_mini_ui::{Frame, RailLayout};
 use windows::Win32::Graphics::Gdi::MONITORINFO;
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "workspace_chrome_capsule_tests.rs"]
 mod disclosure_windows;
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "workspace_parameter_rail_tests.rs"]
 mod tests;
 pub(super) struct Focus {
@@ -62,23 +62,6 @@ pub(super) fn layout(ui: &Ui, node: &Node) -> Option<RailLayout> {
         entry.inputs.len() - entry.parameter_start,
         offset,
     ))
-}
-pub(super) fn clip(ui: &Ui, port: Port) -> Option<RECT> {
-    if port.side != Side::Input {
-        return None;
-    }
-    let node = ui.node(port.node)?;
-    let rail = layout(ui, &node)?;
-    let f = rail.visible(port.index).unwrap_or(Frame {
-        height: 0,
-        ..rail.row(port.index)?
-    });
-    Some(RECT {
-        left: f.x,
-        top: f.y,
-        right: f.x + f.width,
-        bottom: f.y + f.height,
-    })
 }
 pub(super) unsafe fn request(ui: &Ui, port: Port, enter: bool) -> bool {
     let Some(node) = ui
@@ -147,20 +130,16 @@ pub(super) unsafe fn context(ui: &Ui, hwnd: HWND, lp: LPARAM) -> bool {
         y: (lp.0 >> 16) as u16 as i16 as i32,
     };
     let entry = &scene.catalog.endpoints[endpoint];
+    let Some(node) = ui.node(endpoint) else {
+        return false;
+    };
+    let geometry = port_visual::SideGeometry::new(ui, &node, Side::Input);
     for (index, id) in entry.inputs.iter().enumerate().skip(entry.parameter_start) {
-        let port = Port {
-            node: endpoint,
-            side: Side::Input,
-            index,
-        };
-        let Some(layout) = port_visual::layout(ui, port) else {
+        let Some(layout) = geometry.layout(index, true) else {
             continue;
         };
-        if Rect::from(draw::port_rect(ui, port, point, 0)).contains(point) {
-            panel.context(
-                id,
-                point.x >= layout.body.x + (104 * ui.node(endpoint).unwrap().dpi / 96) as i32,
-            );
+        if Rect::from(geometry.rect(index, &layout)).contains(point) {
+            panel.context(id, point.x >= layout.body.x + (104 * node.dpi / 96) as i32);
             return true;
         }
     }
@@ -336,6 +315,7 @@ pub(super) unsafe fn place(ui: &Ui) -> Result<()> {
         };
         let mut bounds = RECT::default();
         GetWindowRect(parent, &mut bounds)?;
+        let geometry = port_visual::SideGeometry::new(ui, &node, Side::Input);
         let mut rows = Vec::new();
         for (index, id) in scene.catalog.endpoints[endpoint]
             .inputs
@@ -343,15 +323,10 @@ pub(super) unsafe fn place(ui: &Ui) -> Result<()> {
             .enumerate()
             .skip(scene.catalog.endpoints[endpoint].parameter_start)
         {
-            let port = Port {
-                node: endpoint,
-                side: Side::Input,
-                index,
-            };
-            if !disclosure::expanded(ui, port, &node) {
+            if !disclosure::expanded(ui, geometry.port(index), &node) {
                 continue;
             }
-            let Some(layout) = port_visual::unclipped(ui, port) else {
+            let Some(layout) = geometry.layout(index, false) else {
                 continue;
             };
             let f = layout.body;
@@ -361,7 +336,7 @@ pub(super) unsafe fn place(ui: &Ui) -> Result<()> {
                 right: f.x + f.width,
                 bottom: f.y + f.height,
             };
-            rows.push((id.clone(), row, clip(ui, port).unwrap_or(row)));
+            rows.push((id.clone(), row, geometry.clip(index).unwrap_or(row)));
         }
         panel.place(bounds, rows)?;
     }

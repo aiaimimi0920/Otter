@@ -16,6 +16,9 @@ impl Default for Wake {
     }
 }
 impl Wake {
+    pub(super) fn acknowledge(&self) {
+        self.pending.set(false);
+    }
     fn request(&self, flags: SET_WINDOW_POS_FLAGS, send: impl FnOnce() -> bool) {
         if self.active.get() && !self.pending.get() && !flags.contains(SWP_NOMOVE | SWP_NOSIZE) {
             // PostMessage 不同步重入窗口过程；投递失败不锁住 pending，已有队列消息可驱动结算。
@@ -36,10 +39,6 @@ pub(super) unsafe fn dispatch(hwnd: HWND, wake: &Wake, msg: u32, lp: LPARAM) -> 
             // 必须继续 DefWindowProc 的 WM_MOVE/WM_SIZE 默认派发，不能吞掉 resize/DPI/布局。
             None
         }
-        MESSAGE => {
-            wake.pending.set(false); // 先 ack；本轮结算内的后续几何变化能再投递一次。
-            Some(LRESULT(0))
-        }
         WM_DESTROY | WM_NCDESTROY => {
             wake.close(); // State 仍存活也不能向已销毁、可能复用的 HWND 投递。
             None
@@ -48,6 +47,6 @@ pub(super) unsafe fn dispatch(hwnd: HWND, wake: &Wake, msg: u32, lp: LPARAM) -> 
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "window_geometry_wake_tests.rs"]
 mod tests;

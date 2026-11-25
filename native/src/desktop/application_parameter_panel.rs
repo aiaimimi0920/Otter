@@ -2,7 +2,7 @@
 use super::*;
 use crate::desktop::document_window::parameter_panel::{self, Panel};
 const MAX_OPEN: usize = 4;
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "application_parameter_panel_tests.rs"]
 mod tests;
 impl Application {

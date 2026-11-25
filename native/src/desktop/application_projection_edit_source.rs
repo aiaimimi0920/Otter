@@ -116,10 +116,7 @@ impl Guard {
                             .as_ref()
                             .is_some_and(|owner| {
                                 owner.stamp() == *stamp
-                                    && owner
-                                        .capture(&doc.state.canvas.borrow().editor)
-                                        .suspended()
-                                        .is_none()
+                                    && owner.can_submit(&doc.state.canvas.borrow().editor)
                             })
                     })
             })

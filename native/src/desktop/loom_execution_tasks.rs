@@ -12,6 +12,12 @@ use crate::{
 mod commit;
 pub use commit::CommitError;
 #[cfg(test)]
+#[path = "loom_execution_reap_fixture.rs"]
+pub(crate) mod reap_fixture;
+#[cfg(test)]
+#[path = "shader_execution_reap_tests.rs"]
+mod reap_tests;
+#[cfg(test)]
 #[path = "shader_execution_task_tests.rs"]
 pub(crate) mod shader_tests;
 #[derive(Debug)]
@@ -169,6 +175,13 @@ impl Tasks {
     }
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
+    }
+    /// 退休任务仍拥有 worker；仅剩待清理报告的槽位不再安排周期唤醒。
+    pub(super) fn deadline(&self) -> Option<std::time::Instant> {
+        self.entries
+            .iter()
+            .filter_map(|task| task.job.deadline())
+            .min()
     }
     /// 不移除仍在清理的 owner；新文档即使复用 HWND 也不能继承旧请求。
     pub fn retain_units(&mut self, mut exists: impl FnMut(&UnitId) -> bool) {

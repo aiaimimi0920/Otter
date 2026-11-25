@@ -32,7 +32,7 @@ fn collapsed_endpoint_setting_hides_real_strips_and_tab_reveals_them_again() {
         assert!(app.chrome.ui.keyboard.focused().is_none());
         assert!(draw::ports(&app.chrome.ui)
             .iter()
-            .all(|(port, _, _)| port.node != 0));
+            .all(|port| port.node != 0));
         for (hwnd, node, _) in app.chrome.ui.input_windows.borrow().iter() {
             assert_eq!(IsWindowVisible(*hwnd).as_bool(), *node != 0);
         }
@@ -46,7 +46,7 @@ fn collapsed_endpoint_setting_hides_real_strips_and_tab_reveals_them_again() {
         assert!(app.chrome.ui.node(0).unwrap().expanded);
         assert!(draw::ports(&app.chrome.ui)
             .iter()
-            .any(|(port, _, _)| port.node == 0));
+            .any(|port| port.node == 0));
         for (hwnd, _, _) in app.chrome.ui.input_windows.borrow().iter() {
             assert!(IsWindowVisible(*hwnd).as_bool());
         }
@@ -55,7 +55,7 @@ fn collapsed_endpoint_setting_hides_real_strips_and_tab_reveals_them_again() {
         app.sync_workspace_chrome(true);
         assert!(draw::ports(&app.chrome.ui)
             .iter()
-            .all(|(port, _, _)| port.node != 0));
+            .all(|port| port.node != 0));
         assert_eq!(app.chrome.handles(), handles);
         app.shutdown();
     }

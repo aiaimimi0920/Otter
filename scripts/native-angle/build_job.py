@@ -123,7 +123,8 @@ def stage_lock(stage):
         close(handle)
 
 
-def run_job(arguments, cwd, environment, stdout, stderr, *, timeout, max_log=16 * 1024 * 1024):
+def run_job(arguments, cwd, environment, stdout, stderr, *, timeout, max_log=16 * 1024 * 1024,
+            stdin=None, on_poll=None):
     if not arguments or not os.path.isabs(arguments[0]) or timeout <= 0:
         raise ValueError("Explicit executable and positive build timeout required")
     if any(not isinstance(value, str) or "\0" in value for value in arguments):
@@ -140,7 +141,7 @@ def run_job(arguments, cwd, environment, stdout, stderr, *, timeout, max_log=16 
         limits.basic.flags, limits.basic.active = 0x2000 | 0x8, 32
         require(set_job(job, 9, C.byref(limits), C.sizeof(limits)))
         with open(os.devnull, "rb") as null:
-            for stream in (null, stdout, stderr):
+            for stream in (null if stdin is None else stdin, stdout, stderr):
                 handle = W.HANDLE()
                 require(duplicate(current(), msvcrt.get_osfhandle(stream.fileno()), current(), C.byref(handle), 0, True, 2))
                 handles.append(handle)
@@ -176,6 +177,9 @@ def run_job(arguments, cwd, environment, stdout, stderr, *, timeout, max_log=16 
                 break
             if any(os.fstat(stream.fileno()).st_size > max_log for stream in (stdout, stderr)):
                 status = "output-limit"
+                break
+            if on_poll is not None and not on_poll(process.pid):
+                status = "cancelled"
                 break
         if any(os.fstat(stream.fileno()).st_size > max_log for stream in (stdout, stderr)):
             status = "output-limit"

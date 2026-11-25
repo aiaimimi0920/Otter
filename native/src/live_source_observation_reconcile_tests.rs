@@ -2,7 +2,7 @@
 use super::*;
 #[test]
 fn source_observation_reconcile_rejects_payload_identity_geometry_and_duplicate_mismatches() {
-    for case in 0..10 {
+    for case in 0..11 {
         let (listener, client, tls) = fixture();
         let session = session(&client.origin, u64::MAX);
         let mut publication =
@@ -42,7 +42,8 @@ fn source_observation_reconcile_rejects_payload_identity_geometry_and_duplicate_
                         6 => snapshot["closed"] = json!(true),
                         7 => snapshot["session"]["observationCapabilities"] = json!([]),
                         8 => snapshot["observations"] = json!([]),
-                        _ => snapshot["requesterControl"]["deviceId"] = json!("other-device"),
+                        9 => snapshot["requesterControl"]["deviceId"] = json!("other-device"),
+                        _ => snapshot["session"]["triggerBindings"] = json!({}),
                     }
                     reply(&mut stream, 200, &serde_json::to_vec(&snapshot).unwrap());
                 }

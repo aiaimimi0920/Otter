@@ -1,5 +1,6 @@
 //! 两个根级冻结库滚到底逐批追加；命令绑定不可变来源与全库条目身份。
 use crate::{
+    desktop::loom_execution_signal::Notify,
     native_menu::{cascade::Cascade, Item},
     session_library::Kind,
     session_source::Source,
@@ -13,13 +14,35 @@ mod preview;
 mod remove;
 #[path = "popup_frozen_smoke.rs"]
 pub(in crate::desktop) mod smoke;
+#[path = "popup_frozen_worker.rs"]
+mod worker;
 use super::super::frozen_library_ui::Choice;
 const BATCH: usize = 64;
 const CAPACITY: usize = crate::session_library::MAX_ENTRIES;
 const BASE: usize = usize::MAX - 32768;
 const REMOVE: usize = BASE + CAPACITY * 2;
+#[derive(Default, Clone)]
+pub(in crate::desktop) struct Workers {
+    index: worker::Slot<index::Index>,
+    previews: worker::Slot<preview::Images>,
+    pub(in crate::desktop) notify: Option<Notify>,
+}
+impl Workers {
+    pub(in crate::desktop) fn reap(&self) {
+        self.index.reap();
+        self.previews.reap();
+    }
+    pub(in crate::desktop) fn deadline(&self) -> Option<std::time::Instant> {
+        self.index
+            .deadline()
+            .into_iter()
+            .chain(self.previews.deadline())
+            .min()
+    }
+}
 pub(super) struct LibraryMenu {
     previews: preview::Previews,
+    thumbnail_slots: [Vec<usize>; 2],
     roots: [usize; 2],
     source: Option<Source>,
     loaded: [usize; 2],
@@ -28,10 +51,12 @@ pub(super) struct LibraryMenu {
     started: bool,
     reference: Option<(usize, String, bool)>,
     removing: bool,
+    reload_pending: bool,
     clear: [Option<(usize, bool)>; 2],
+    workers: Workers,
 }
 impl LibraryMenu {
-    pub fn attach(tree: &mut Vec<Item>, source: Option<Source>) -> Self {
+    pub fn attach(tree: &mut Vec<Item>, source: Option<Source>, workers: Workers) -> Self {
         use super::super::reference_ui::{
             CLEAR_RECYCLE, CLEAR_REFERENCE, RECYCLE_ROOT, REFERENCE_ROOT,
         };
@@ -66,7 +91,8 @@ impl LibraryMenu {
             }
         }
         Self {
-            previews: Default::default(),
+            previews: preview::Previews::new(workers.previews.clone(), workers.notify.clone()),
+            thumbnail_slots: Default::default(),
             roots,
             source,
             loaded: [BATCH; 2],
@@ -75,7 +101,9 @@ impl LibraryMenu {
             started: false,
             reference: None,
             removing: false,
+            reload_pending: false,
             clear,
+            workers,
         }
     }
     pub fn bind_reference(
@@ -92,18 +120,26 @@ impl LibraryMenu {
         }
     }
     pub fn update(&mut self, menu: &mut Cascade) -> Result<()> {
+        if self.reload_pending {
+            // The durable removal has already published; retry admission, not the transaction.
+            self.job = self.start_index().map_err(|error| {
+                windows::core::Error::new(windows::Win32::Foundation::E_FAIL, error.to_string())
+            })?;
+            self.reload_pending = self.job.is_none();
+        }
         if !self.started
             && (self.reference.is_some() || self.roots.iter().any(|root| menu.submenu_open(*root)))
         {
-            self.started = true;
-            if let Some(source) = &self.source {
-                match index::Job::start(source.clone()) {
-                    Ok(job) => self.job = Some(job),
+            if self.source.is_some() {
+                match self.start_index() {
+                    Ok(Some(job)) => self.job = Some(job),
+                    Ok(None) => return Ok(()),
                     Err(_) => {
                         self.data = Some([Err("Unavailable".into()), Err("Unavailable".into())])
                     }
                 }
             }
+            self.started = true;
             for library in 0..2 {
                 self.replace(menu, library)?;
             }
@@ -118,8 +154,11 @@ impl LibraryMenu {
             }
             self.update_reference(menu)?;
         }
-        if let Some(source) = self.source.as_ref().filter(|_| !self.removing) {
+        if !self.removing {
             for library in 0..2 {
+                let Some(source) = self.source.as_ref() else {
+                    break;
+                };
                 let Some(view) = menu.gallery_view(self.roots[library]) else {
                     continue;
                 };
@@ -129,15 +168,34 @@ impl LibraryMenu {
                     self.loaded[library] = (self.loaded[library] + BATCH).min(count);
                 }
                 let images = self.previews.update(source, library, view, count);
-                if more || images {
+                if more {
                     self.replace(menu, library)?;
+                } else if images {
+                    self.replace_thumbnails(menu, library)?;
                 }
             }
         }
         Ok(())
     }
-    fn replace(&self, menu: &mut Cascade, library: usize) -> Result<()> {
+    fn start_index(&self) -> std::io::Result<Option<index::Job>> {
+        index::Job::start(
+            &self.workers.index,
+            self.source
+                .as_ref()
+                .expect("index requires a source")
+                .clone(),
+            self.workers.notify.clone(),
+        )
+    }
+    fn replace(&mut self, menu: &mut Cascade, library: usize) -> Result<()> {
         let rows = self.rows(library);
+        let slots = &mut self.thumbnail_slots[library];
+        slots.clear();
+        slots.extend(
+            rows.iter()
+                .enumerate()
+                .filter_map(|(slot, row)| row.thumbnail.as_ref().map(|_| slot)),
+        );
         if self
             .entries(library)
             .is_some_and(|entries| !entries.is_empty())
@@ -146,6 +204,21 @@ impl LibraryMenu {
         } else {
             menu.replace_submenu(self.roots[library], rows)
         }
+    }
+    fn replace_thumbnails(&mut self, menu: &mut Cascade, library: usize) -> Result<()> {
+        let entries = self.entries(library).expect("gallery requires an index");
+        let loaded = self.loaded[library].min(entries.len());
+        let images: Vec<_> = self
+            .previews
+            .batch(library)
+            .filter(|&(slot, id, _)| slot < loaded && entries[slot].id == id)
+            .map(|(slot, _, image)| (slot, image))
+            .collect();
+        let slots = &mut self.thumbnail_slots[library];
+        menu.replace_gallery_thumbnails(self.roots[library], slots, &images)?;
+        slots.clear();
+        slots.extend(images.into_iter().map(|(slot, _)| slot));
+        Ok(())
     }
     fn update_reference(&self, menu: &mut Cascade) -> Result<()> {
         use super::super::reference_ui::{CLEAR_RECYCLE, CLEAR_REFERENCE};
@@ -197,6 +270,11 @@ impl LibraryMenu {
         if entries.is_empty() {
             return vec![row(0, "没有冻结贴纸".into(), false)];
         }
+        let thumbnails: std::collections::HashMap<_, _> = self
+            .previews
+            .batch(library)
+            .map(|(_, id, image)| (id, image))
+            .collect();
         entries
             .iter()
             .take(self.loaded[library])
@@ -205,7 +283,9 @@ impl LibraryMenu {
                 let offset = library * CAPACITY + slot;
                 let mut parent = row(0, entry.label.clone(), !self.removing);
                 parent.delete = Some(REMOVE + offset);
-                parent.thumbnail = self.previews.image(library, &entry.id);
+                parent.thumbnail = thumbnails
+                    .get(entry.id.as_str())
+                    .map(|&image| image.clone());
                 parent.children = Some(vec![
                     row(
                         BASE + offset,
@@ -268,3 +348,10 @@ pub(super) mod remove_tests;
 #[cfg(test)]
 #[path = "popup_frozen_tests.rs"]
 mod tests;
+
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
+pub(in crate::desktop) fn test_close_index_menu(workers: Workers) {
+    let mut menu = LibraryMenu::attach(&mut Vec::new(), Some(b"{}".to_vec().into()), workers);
+    menu.job = Some(menu.start_index().unwrap().unwrap());
+    drop(menu);
+}

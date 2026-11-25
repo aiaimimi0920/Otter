@@ -5,30 +5,11 @@ use crate::{
     surface_live_binding::{Binding, Lifecycle},
 };
 use std::sync::Arc;
-pub(super) struct Class(HINSTANCE);
-impl Drop for Class {
-    fn drop(&mut self) {
-        unsafe {
-            let _ = UnregisterClassW(w!("Otter.Native.Workspace"), Some(self.0));
-        }
-    }
-}
-pub(super) unsafe fn application() -> (Class, Application) {
-    let instance: HINSTANCE = windows::Win32::System::LibraryLoader::GetModuleHandleW(None)
-        .unwrap()
-        .into();
-    assert_ne!(
-        RegisterClassW(&WNDCLASSW {
-            hInstance: instance,
-            lpszClassName: w!("Otter.Native.Workspace"),
-            lpfnWndProc: Some(crate::desktop::procedure::window_proc),
-            ..Default::default()
-        }),
-        0
-    );
+pub(super) unsafe fn application() -> Application {
+    let instance = crate::desktop::workspace_window_fixture::register();
     let document =
         DocumentWindow::create(instance, State::new(None, false).unwrap(), false).unwrap();
-    (Class(instance), Application::new(instance, document))
+    Application::new(instance, document)
 }
 pub(super) fn window(
     app: &mut Application,

@@ -98,6 +98,6 @@ fn rect_fields(value: &serde_json::Map<String, Value>) -> Option<Rect> {
     rect.valid().then_some(rect)
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "session_window_write_tests.rs"]
 mod tests;

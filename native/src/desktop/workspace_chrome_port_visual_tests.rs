@@ -6,6 +6,12 @@ fn expanded_port_hit_region_and_link_endpoint_follow_the_outer_anchor_without_ne
         let mut app = visible_app();
         let ui = &app.chrome.ui;
         let handles = ui.handles();
+        let (left, left_port, left_point) = port(ui, 0, Side::Input);
+        let (right, right_port, right_point) = port(ui, 0, Side::Output);
+        assert_eq!(input::hit(ui, left, left_point), Some(left_port));
+        assert_eq!(input::hit(ui, right, right_point), Some(right_port));
+        assert_eq!(input::hit(ui, left, right_point), None);
+        assert_eq!(input::hit(ui, right, left_point), None);
         for side in [Side::Input, Side::Output] {
             let (hwnd, port, _) = port(ui, 0, side);
             let node = ui.node(0).unwrap();
@@ -23,7 +29,8 @@ fn expanded_port_hit_region_and_link_endpoint_follow_the_outer_anchor_without_ne
                 edge.x + if side == Side::Input { -delta } else { delta }
             );
             assert_eq!(expanded.y, edge.y);
-            let region = draw::port_rect(ui, port, expanded, node.radius());
+            let geometry = port_visual::SideGeometry::new(ui, &node, side);
+            let region = geometry.rect(port.index, &layout);
             assert_eq!(region.right - region.left, width);
             assert_eq!((expanded.x, expanded.y), layout.connection());
             let (_, _, visible) = self::port(ui, 0, side);

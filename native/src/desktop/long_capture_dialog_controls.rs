@@ -1,5 +1,6 @@
 //! 长截图控件投影与任务等待；禁用按钮不替代命令执行时的准入复核。
 use super::*;
+use crate::long_capture::{Error as CaptureError, Snapshot};
 /// 模态和录制浮层共用消息边界；异常也沿实际窗口类型退出，不能留下 modeless 循环。
 pub(super) unsafe extern "system" fn procedure(
     hwnd: HWND,
@@ -24,6 +25,35 @@ pub(super) unsafe extern "system" fn procedure(
 pub(super) unsafe fn status(hwnd: HWND, text: &str) {
     let _ = SetDlgItemTextW(hwnd, 103, &HSTRING::from(text));
     overlay::refresh(hwnd);
+}
+pub(super) unsafe fn capture_error(
+    hwnd: HWND,
+    input: &Input,
+    snapshot: Snapshot,
+    error: CaptureError,
+) {
+    match error {
+        CaptureError::UnconfirmedEdges => {
+            if !input.recording.running() {
+                status(hwnd, "请继续滚动并采集一帧，以确认固定边缘");
+            }
+        }
+        CaptureError::ChangedEdges => status(hwnd, "固定边缘已变化，请取消并重新选择区域"),
+        CaptureError::CrossAxis if input.recording.enabled() => {
+            status(hwnd, "滚动轴已变化，录制已停止；可完成已有内容或取消")
+        }
+        CaptureError::DocumentLimit => {
+            if snapshot.frame_count == 1
+                || snapshot.confirmed_edges.is_some()
+                || snapshot.spatial_position.is_some()
+            {
+                status(hwnd, "已达钉图尺寸上限，可完成已有内容或取消");
+            } else {
+                status(hwnd, "已达钉图尺寸上限，请缩小选区后重新录制");
+            }
+        }
+        other => status(hwnd, &format!("无法完成：{other:?}")),
+    }
 }
 pub(super) unsafe fn frame_status(hwnd: HWND, input: &Input, count: usize) {
     if input.recording.enabled() {

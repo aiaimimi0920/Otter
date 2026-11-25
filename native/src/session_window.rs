@@ -147,22 +147,21 @@ impl Window<'_> {
         }
     }
     pub fn valid(&self) -> bool {
-        self.rect().valid()
-            && self.capture_metadata().is_ok()
-            && self
-                .otter_native_capture_original_src
-                .as_deref()
-                .is_none_or(|source| {
-                    source.len() <= crate::session_document::MAX_SESSION_BYTES
-                        && source.starts_with("data:image/png;base64,")
-                        && self
-                            .capture_metadata()
-                            .ok()
-                            .flatten()
-                            .is_some_and(|metadata| {
-                                metadata.dynamic_range == Some(crate::session_capture::Range::Hdr)
-                            })
-                })
+        if !self.rect().valid() {
+            return false;
+        }
+        let Ok(capture) = self.capture_metadata() else {
+            return false;
+        };
+        self.otter_native_capture_original_src
+            .as_deref()
+            .is_none_or(|source| {
+                source.len() <= crate::session_document::MAX_SESSION_BYTES
+                    && source.starts_with("data:image/png;base64,")
+                    && capture.as_ref().is_some_and(|metadata| {
+                        metadata.dynamic_range == Some(crate::session_capture::Range::Hdr)
+                    })
+            })
             && self.saved_rect.is_none_or(|rect| rect.valid())
             && self.crop_offset.is_none_or(Offset::valid)
             && self.expanded_rect().is_some()
@@ -241,6 +240,42 @@ mod tests {
         assert!(value.is_art() && value.is_minified());
         value.saved_rect = Some(value.rect());
         assert!(value.valid());
+    }
+    #[test]
+    fn inline_original_requires_valid_hdr_metadata_but_metadata_alone_is_allowed() {
+        for (metadata, inline, expected) in [
+            ("", false, true),
+            ("", true, false),
+            (
+                r#", "captureMeta":{"dynamicRange":"hdr","bitDepth":16}"#,
+                true,
+                true,
+            ),
+            (
+                r#", "captureMeta":{"dynamicRange":"sdr","bitDepth":8}"#,
+                true,
+                false,
+            ),
+            (
+                r#", "captureMeta":{"dynamicRange":"sdr","bitDepth":8}"#,
+                false,
+                true,
+            ),
+            (
+                r#", "captureMeta":{"dynamicRange":"hdr","bitDepth":8}"#,
+                false,
+                false,
+            ),
+        ] {
+            let original = if inline {
+                r#", "otterNativeCaptureOriginalSrc":"data:image/png;base64,AA==""#
+            } else {
+                ""
+            };
+            let raw = format!(r#"{{"id":"s","x":0,"y":0,"w":1,"h":1{metadata}{original}}}"#);
+            let parsed: Window<'_> = serde_json::from_str(&raw).unwrap();
+            assert_eq!(parsed.valid(), expected, "{raw}");
+        }
     }
     #[test]
     fn invalid_geometry_and_opacity_are_rejected_before_hwnd_conversion() {

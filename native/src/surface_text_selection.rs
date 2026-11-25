@@ -110,7 +110,7 @@ impl Layout {
         })
     }
 
-    fn validate_range(&self, range: Range<u32>) -> Result<()> {
+    pub(crate) fn validate_range(&self, range: Range<u32>) -> Result<()> {
         if range.start > range.end || range.end > self.text_len() {
             return Err(invalid());
         }
@@ -199,6 +199,6 @@ impl Layout {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-surface")))]
 #[path = "surface_text_selection_tests.rs"]
 mod tests;

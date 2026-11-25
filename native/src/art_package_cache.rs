@@ -12,7 +12,7 @@ fn key(source_key: &[u8; 32], resource: &Resource, chunk: usize) -> [u8; 32] {
     )
     .into()
 }
-pub(crate) fn load(
+pub fn load(
     store: &Store,
     source_key: &[u8; 32],
     resource: &Resource,
@@ -36,7 +36,7 @@ pub(crate) fn load(
     }
     Ok(Some(bytes))
 }
-pub(crate) fn put(
+pub fn put(
     store: &Store,
     source_key: &[u8; 32],
     resource: &Resource,
@@ -53,6 +53,6 @@ pub(crate) fn put(
     }
     Ok(())
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-loom")))]
 #[path = "art_package_cache_tests.rs"]
 mod tests;

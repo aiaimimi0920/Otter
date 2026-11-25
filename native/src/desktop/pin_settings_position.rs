@@ -1,17 +1,5 @@
 //! 左侧子栏与图框同批定位；纯拖动只读既有布局，不访问字段、重排控件或等待宿主通知。
 use super::*;
-use windows::Win32::Graphics::Gdi::*;
-
-unsafe fn work(anchor: &RECT) -> Result<RECT> {
-    let mut info = MONITORINFO {
-        cbSize: std::mem::size_of::<MONITORINFO>() as u32,
-        ..Default::default()
-    };
-    if !GetMonitorInfoW(MonitorFromRect(anchor, MONITOR_DEFAULTTONEAREST), &mut info).as_bool() {
-        return Err(Error::from_win32());
-    }
-    Ok(info.rcWork)
-}
 fn target(anchor: RECT, work: RECT, size: (i32, i32)) -> Result<RECT> {
     if size.0 > work.right - work.left || size.1 > work.bottom - work.top {
         return Err(Error::new(
@@ -26,7 +14,7 @@ fn target(anchor: RECT, work: RECT, size: (i32, i32)) -> Result<RECT> {
 pub(super) unsafe fn place(owner: HWND, panel: &PropertyPanel) -> Result<()> {
     let mut anchor = RECT::default();
     GetWindowRect(owner, &mut anchor)?;
-    let work = work(&anchor)?;
+    let work = super::super::tool_panel::position::work_area(&anchor)?;
     panel.set_max_height(work.bottom - work.top)?;
     panel.place(target(anchor, work, panel.size())?)
 }
@@ -37,6 +25,7 @@ fn panel(state: &State) -> Option<Rc<PropertyPanel>> {
 pub(in crate::desktop) unsafe fn moving_position(
     state: &State,
     proposed: RECT,
+    work: RECT,
 ) -> Result<Option<(HWND, RECT)>> {
     let Some(panel) = panel(state) else {
         return Ok(None);
@@ -44,10 +33,7 @@ pub(in crate::desktop) unsafe fn moving_position(
     let Some(hwnd) = panel.window().filter(|h| IsWindowVisible(*h).as_bool()) else {
         return Ok(None);
     };
-    Ok(Some((
-        hwnd,
-        target(proposed, work(&proposed)?, panel.size())?,
-    )))
+    Ok(Some((hwnd, target(proposed, work, panel.size())?)))
 }
 pub(in crate::desktop) unsafe fn follow(owner: HWND, state: &State) {
     if let Some(panel) = panel(state) {

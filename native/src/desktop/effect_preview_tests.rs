@@ -105,6 +105,12 @@ fn group_drag_preserves_effect_sampling_layer_order_and_single_history() {
     let _apartment = Apartment::new().unwrap();
     for tool in [Tool::Blur, Tool::Mosaic] {
         let mut canvas = canvas(tool);
+        // Keep an unselected stroke between the two replacements in the paint order.
+        canvas
+            .editor
+            .begin(Tool::Brush, Point { x: 55.0, y: 12.0 })
+            .unwrap();
+        assert!(canvas.editor.commit());
         canvas
             .editor
             .begin(Tool::Highlighter, Point { x: 24.0, y: 42.0 })
@@ -114,7 +120,7 @@ fn group_drag_preserves_effect_sampling_layer_order_and_single_history() {
         // 反向选择顺序不改变合成顺序，荧光笔仍处于效果下方。
         assert!(canvas.toggle_selection_at(Point { x: 30.0, y: 42.0 }));
         assert!(canvas.toggle_selection_at(Point { x: 24.0, y: 24.0 }));
-        assert_eq!(canvas.selected_indices(), vec![0, 1]);
+        assert_eq!(canvas.selected_indices(), vec![0, 2]);
         let committed_before = render(&canvas, false);
         let original: Vec<_> = canvas
             .editor
@@ -146,7 +152,8 @@ fn group_drag_preserves_effect_sampling_layer_order_and_single_history() {
         assert!(canvas.pointer_up(Point { x: 31.25, y: 29.5 }));
         assert!(canvas.group_preview.is_empty());
         assert_eq!(canvas.editor.revision(), revision + 1);
-        assert_eq!(canvas.selected_indices(), vec![0, 1]);
+        assert_eq!(canvas.selected_indices(), vec![0, 2]);
+        assert_eq!(canvas.editor.elements()[1].points, original[1]);
         assert_eq!(preview, render(&canvas, false), "{tool:?}");
         assert!(canvas.editor.undo());
         assert_eq!(

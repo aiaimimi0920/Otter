@@ -155,6 +155,6 @@ pub(super) fn hit(hwnd: HWND, scene: &Handle, point: [f64; 2]) -> Result<Hit> {
     Ok(Hit::Node(node))
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-surface")))]
 #[path = "surface_accessibility_bridge_tests.rs"]
 mod tests;

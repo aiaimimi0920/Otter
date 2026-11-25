@@ -45,6 +45,7 @@ fn sync_worker_waits_for_admission_and_returns_owned_preparation_and_report() {
         )
         .unwrap();
         rx.recv_timeout(Duration::from_secs(10)).unwrap();
+        prepare.test_wait_finished();
         let ready = prepare.poll().unwrap().unwrap();
         let budget = crate::byte_budget::Budget::new(8192);
         let mut sync =
@@ -65,6 +66,7 @@ fn sync_worker_waits_for_admission_and_returns_owned_preparation_and_report() {
         }
         admission.resolve(allow);
         rx.recv_timeout(Duration::from_secs(10)).unwrap();
+        sync.test_wait_finished();
         let delivery = sync.poll().unwrap().unwrap();
         assert!(sync.poll().is_none());
         assert!(delivery.ready.matches_source(&saved));

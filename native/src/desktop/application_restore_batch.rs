@@ -2,8 +2,8 @@
 use super::*;
 #[path = "application_append.rs"]
 pub(super) mod append;
-#[path = "application_frozen_append.rs"]
-pub(super) mod frozen_append;
+#[path = "application_frozen_append_smoke.rs"]
+mod frozen_append_smoke;
 #[path = "application_restore_guard.rs"]
 pub(super) mod guard;
 #[path = "application_restore_job.rs"]
@@ -89,14 +89,13 @@ impl Application {
         check()?;
         let mut documents = Vec::with_capacity(prepared.states.len());
         let mut ready = Vec::with_capacity(prepared.states.len());
-        for state in prepared.states {
+        // manifest::validate 已校验长度及同序身份，不为每个隐藏窗口重新扫描位置表。
+        for (state, placement) in prepared
+            .states
+            .into_iter()
+            .zip(&prepared.candidate.placements)
+        {
             check()?;
-            let placement = prepared
-                .candidate
-                .placements
-                .iter()
-                .find(|item| item.unit == state.unit_id)
-                .ok_or_else(|| Error::new(E_INVALIDARG, "Missing restored window placement"))?;
             let frame = physical_frame(placement)?;
             check()?;
             if placement.minified {

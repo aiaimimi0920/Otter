@@ -45,7 +45,13 @@ impl Image {
             let (mut w, mut h) = (0, 0);
             frame.GetSize(&mut w, &mut h)?;
             check(w, h)?;
-            Self::decode_source(&factory, &frame.cast()?, None, 64 * 1024 * 1024, &stopped)
+            Self::decode_source(
+                &factory,
+                &frame.cast()?,
+                super::SizePolicy::Any,
+                64 * 1024 * 1024,
+                &stopped,
+            )
         }
     }
 }

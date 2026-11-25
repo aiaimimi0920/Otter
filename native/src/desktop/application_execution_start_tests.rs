@@ -5,17 +5,8 @@ use std::{
     rc::Rc,
     time::{Duration, Instant},
 };
-use windows::Win32::{Foundation::HINSTANCE, System::LibraryLoader::GetModuleHandleW};
 #[path = "application_shader_start_tests.rs"]
 mod shader;
-struct Class(HINSTANCE);
-impl Drop for Class {
-    fn drop(&mut self) {
-        unsafe {
-            let _ = UnregisterClassW(w!("Otter.Native.Workspace"), Some(self.0));
-        }
-    }
-}
 #[test]
 fn menu_start_prepares_fixed_identity_and_configuration_without_connecting_on_ui_thread() {
     let _serial = crate::loom_bridge_client::tests::execution_job::SERIAL
@@ -24,17 +15,7 @@ fn menu_start_prepares_fixed_identity_and_configuration_without_connecting_on_ui
     let _input = crate::desktop::loom_input_job::TEST_SERIAL.lock().unwrap();
     let _apartment = Apartment::new().unwrap();
     unsafe {
-        let instance: HINSTANCE = GetModuleHandleW(None).unwrap().into();
-        assert_ne!(
-            RegisterClassW(&WNDCLASSW {
-                hInstance: instance,
-                lpszClassName: w!("Otter.Native.Workspace"),
-                lpfnWndProc: Some(crate::desktop::procedure::window_proc),
-                ..Default::default()
-            }),
-            0
-        );
-        let _class = Class(instance);
+        let instance = crate::desktop::workspace_window_fixture::register();
         let state = State::new(None, false).unwrap();
         let (listener, identity, config) = crate::loom_bridge_client::tests::fixture();
         listener.set_nonblocking(true).unwrap();
@@ -149,17 +130,13 @@ fn menu_start_prepares_fixed_identity_and_configuration_without_connecting_on_ui
         let server = test_peer::serve(listener.try_clone().unwrap(), config.clone(), 1);
         *app.documents[0].state.pending_execution.borrow_mut() = Some(execution);
         app.pending_windows(false).unwrap();
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let pump = super::super::execution_test_pump::Pump::new();
         while app.documents[0].state.execution_results.borrow().status()
             == crate::desktop::loom_result_state::Status::Running
         {
-            let mut message = MSG::default();
-            if PeekMessageW(&mut message, None, WM_APP + 92, WM_APP + 92, PM_REMOVE).as_bool() {
-                app.pending_windows(false).unwrap();
-            }
-            assert!(Instant::now() < deadline, "menu result timeout");
-            std::thread::sleep(Duration::from_millis(1));
+            pump.step(&mut app);
         }
+        drop(pump);
         server.join().unwrap();
         {
             let results = app.documents[0].state.execution_results.borrow();
@@ -391,17 +368,13 @@ fn menu_start_prepares_fixed_identity_and_configuration_without_connecting_on_ui
         let server = test_peer::serve(listener.try_clone().unwrap(), config.clone(), 2);
         *app.documents[0].state.pending_execution.borrow_mut() = Some(execution);
         app.pending_windows(false).unwrap();
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let pump = super::super::execution_test_pump::Pump::new();
         while app.documents[0].state.execution_results.borrow().status()
             == crate::desktop::loom_result_state::Status::Running
         {
-            let mut message = MSG::default();
-            if PeekMessageW(&mut message, None, WM_APP + 92, WM_APP + 92, PM_REMOVE).as_bool() {
-                app.pending_windows(false).unwrap();
-            }
-            assert!(Instant::now() < deadline, "image menu result timeout");
-            std::thread::sleep(Duration::from_millis(1));
+            pump.step(&mut app);
         }
+        drop(pump);
         server.join().unwrap();
         let results = app.documents[0].state.execution_results.borrow();
         assert_eq!(

@@ -28,74 +28,38 @@ fn captured_memory_image_is_prepared_without_copy_and_released_on_cancel() {
 }
 
 #[test]
-fn scheduler_failure_cancels_and_joins_running_worker_without_retaining_input() {
-    let canvas = Canvas::new(None).unwrap();
-    let token = DocumentToken::capture(&canvas);
-    let cancel = Arc::new(AtomicBool::new(false));
-    let worker_cancel = cancel.clone();
+fn timer_failure_never_admits_a_decoder_or_rolls_back_an_unreserved_timer() {
     let bytes: crate::pixels::Pixels = vec![0; 4].into();
     let weak = bytes.downgrade();
-    let worker = std::thread::spawn(move || {
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
-        while !worker_cancel.load(Ordering::Acquire) {
-            assert!(
-                std::time::Instant::now() < deadline,
-                "worker was not cancelled"
-            );
-            std::thread::yield_now();
-        }
-        drop(bytes);
-        Ok(None)
-    });
-    let slot = std::cell::RefCell::new(Some(OpenJob {
-        new_pin: false,
-        worker: Some(worker),
-        cancel: cancel.clone(),
-        token,
-    }));
-    assert!(scheduled(&slot, true).is_ok());
-    assert!(slot.borrow().is_some());
-    assert!(!cancel.load(Ordering::Acquire));
-    assert!(scheduled(&slot, false).is_err());
-    assert!(slot.borrow().is_none());
-    assert!(cancel.load(Ordering::Acquire));
+    let result = start_worker(
+        || false,
+        || panic!("no timer to roll back"),
+        move |_| {
+            drop(bytes);
+            panic!("decoder must not start");
+        },
+    );
+    assert_eq!(result.err().unwrap().code(), E_FAIL);
     assert!(weak.upgrade().is_none());
-    assert!(canvas.image.is_none());
 }
 
 #[test]
-fn scheduler_failure_discards_already_completed_document() {
-    let canvas = Canvas::new(None).unwrap();
-    let image = super::super::image::Image {
-        width: 1,
-        height: 1,
-        pixels: vec![0; 4].into(),
-    };
-    let weak = image.pixels.downgrade();
-    let worker = std::thread::spawn(move || {
-        PreparedDocument::from_image(image, false)
-            .map(|document| Some(vec![document]))
-            .map_err(|error| error.to_string())
-    });
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
-    while !worker.is_finished() {
-        assert!(
-            std::time::Instant::now() < deadline,
-            "worker did not complete"
-        );
-        std::thread::yield_now();
-    }
-    let slot = std::cell::RefCell::new(Some(OpenJob {
-        new_pin: false,
-        worker: Some(worker),
-        cancel: Arc::new(AtomicBool::new(false)),
-        token: DocumentToken::capture(&canvas),
-    }));
-    assert!(weak.upgrade().is_some());
-    assert!(scheduled(&slot, false).is_err());
-    assert!(weak.upgrade().is_none());
-    assert!(slot.borrow().is_none());
-    assert!(canvas.image.is_none());
+fn spawn_failure_rolls_back_exactly_the_reserved_timer() {
+    let steps = std::cell::Cell::new(0);
+    let advance = |expected| assert_eq!(steps.replace(expected + 1), expected);
+    let result = start_worker(
+        || {
+            advance(0);
+            true
+        },
+        || advance(2),
+        |_| {
+            advance(1);
+            Err(std::io::Error::other("fixture spawn failure"))
+        },
+    );
+    assert_eq!(result.err().unwrap().message(), "fixture spawn failure");
+    assert_eq!(steps.get(), 3);
 }
 
 #[test]
@@ -119,6 +83,30 @@ fn cancelled_request_does_not_attempt_to_open_invalid_path() {
     )
     .unwrap()
     .is_none());
+}
+
+#[test]
+fn file_and_encoded_decoders_observe_stop_before_returning_pixels() {
+    use super::super::image::Image;
+    let _apartment = Apartment::new().unwrap();
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("assets/branding/32x32.png");
+    let png = std::fs::read(&path).unwrap();
+    for stop_on in [1, 2] {
+        for encoded in [false, true] {
+            let checks = std::cell::Cell::new(0);
+            let stopped = || {
+                checks.set(checks.get() + 1);
+                checks.get() >= stop_on
+            };
+            let result = if encoded {
+                Image::from_encoded_with_cancel(&png, &stopped)
+            } else {
+                Image::open_with_cancel(&path, &stopped)
+            };
+            assert_eq!(result.err().unwrap().message(), "Image decode cancelled");
+            assert_eq!(checks.get(), stop_on);
+        }
+    }
 }
 
 #[test]

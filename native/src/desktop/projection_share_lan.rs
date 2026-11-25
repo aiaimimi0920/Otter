@@ -41,9 +41,13 @@ impl Model {
         }))
     }
     pub(super) unsafe fn stop_lan(&self) -> Result<()> {
-        let Some(binding) = self.lan_binding().filter(|b| !b.stopped()) else {
+        let Some(binding) = self.lan_binding() else {
             return self.start_lan();
         };
+        // A pending unlink still owns the canonical association.
+        if binding.stopped() {
+            return Err(Error::new(E_ABORT, "关联暂不可操作"));
+        }
         let view = self
             .view
             .upgrade()
@@ -130,6 +134,14 @@ impl Model {
             let _ = DestroyWindow(hwnd);
             return;
         }
+        let binding = (!self.receive).then(|| self.lan_binding()).flatten();
+        let (label, enabled) = match binding.as_ref() {
+            Some(binding) if binding.stopped() => ("关联暂不可操作", false),
+            Some(_) => ("解除关联", true),
+            None => ("生成邀请", true),
+        };
+        window::enable(hwnd, 108, enabled && !self.account_import.get());
+        window::label(hwnd, 108, label);
         if self.receive {
             if self.account_import.get() {
                 self.set_status(&status);
@@ -142,7 +154,7 @@ impl Model {
                 1,
                 !self.account_import.get() && self.envelope.borrow().is_some(),
             );
-        } else if let Some(binding) = self.lan_binding() {
+        } else if let Some(binding) = binding {
             if binding.stopped()
                 || binding.envelope().expires_at_ms()
                     <= crate::desktop::surface_windows::now_ms().unwrap_or(u64::MAX)
@@ -179,16 +191,6 @@ impl Model {
             });
             window::output(hwnd, self, false);
         }
-        window::enable(hwnd, 108, !self.account_import.get());
-        window::label(
-            hwnd,
-            108,
-            if self.lan_binding().is_some() {
-                "解除关联"
-            } else {
-                "生成邀请"
-            },
-        );
         for id in [101, 103, 104, 105, 109, 110] {
             window::enable(hwnd, id, !self.account_import.get());
         }

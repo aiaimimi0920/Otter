@@ -19,7 +19,8 @@ fn live_save_publishes_same_id_pixels_without_stopping_capture_and_roundtrips() 
         let mut app = environment.app();
         let (hwnd, id) = live(&mut app, true);
         wheel(hwnd, &[VK_MENU], -650, (0, 0));
-        let path = save_publish::smoke_destination().unwrap();
+        let fixture = smoke_session_fixture::Directory::new().unwrap();
+        let path = fixture.target();
         let cancel = AtomicBool::new(false);
         app.request_save_new(path.clone()).unwrap();
         let output = prepared(&mut app).unwrap();
@@ -105,7 +106,8 @@ fn live_save_receipt_rechecks_opacity_after_worker_delivery() {
         let environment = Environment::new();
         let mut app = environment.app();
         let (hwnd, _) = live(&mut app, true);
-        let path = save_publish::smoke_destination().unwrap();
+        let fixture = smoke_session_fixture::Directory::new().unwrap();
+        let path = fixture.target();
         app.request_save_new(path.clone()).unwrap();
         let output = prepared(&mut app).unwrap();
         wheel(hwnd, &[VK_MENU], -120, (0, 0));
@@ -123,7 +125,8 @@ fn live_save_receipt_rechecks_geometry_after_worker_delivery() {
         let environment = Environment::new();
         let mut app = environment.app();
         let (hwnd, _) = live(&mut app, true);
-        let path = save_publish::smoke_destination().unwrap();
+        let fixture = smoke_session_fixture::Directory::new().unwrap();
+        let path = fixture.target();
         app.request_save_new(path.clone()).unwrap();
         let output = prepared(&mut app).unwrap();
         SetWindowPos(hwnd, None, 25, 35, 300, 200, SWP_NOACTIVATE | SWP_NOZORDER).unwrap();

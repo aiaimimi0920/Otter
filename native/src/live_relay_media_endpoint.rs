@@ -214,6 +214,6 @@ pub(super) fn loopback(url: &Url) -> bool {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-live")))]
 #[path = "live_relay_media_endpoint_tests.rs"]
 mod tests;

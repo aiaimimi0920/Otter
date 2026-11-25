@@ -50,7 +50,7 @@ fn run(offline: bool) {
     let (f, client, store) = fixture::Fixture::load();
     assert_eq!(f.peer.is_some(), offline);
     unsafe {
-        let (_class, mut app) = application(&f.profile);
+        let mut app = application(&f.profile);
         app.authorization.borrow_mut().origin = Some(f.origin.clone());
         app.authorization.borrow_mut().consent.install_paused(true);
         app.authorization_owner

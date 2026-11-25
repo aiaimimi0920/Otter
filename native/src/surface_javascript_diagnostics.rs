@@ -66,7 +66,6 @@ pub(crate) enum Stage {
     CanvasBitmapReady,
     CanvasTargetReady,
     CanvasBindReady,
-    CanvasInitialEndDraw,
     CanvasBackingReady,
     CanvasImagesReady,
     CanvasCommandsBegin,

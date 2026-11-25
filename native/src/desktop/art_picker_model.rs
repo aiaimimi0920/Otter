@@ -80,7 +80,8 @@ pub(in crate::desktop) fn search(catalog: Option<&Loaded>, query: &str) -> Vec<u
             (0..catalog.handshake.arts().len())
                 .filter(|index| {
                     catalog.handshake.capability(*index).is_some_and(|art| {
-                        art.id.to_lowercase().contains(&query)
+                        query.is_empty()
+                            || art.id.to_lowercase().contains(&query)
                             || art.label.to_lowercase().contains(&query)
                     })
                 })

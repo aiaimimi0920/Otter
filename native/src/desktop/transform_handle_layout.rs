@@ -1,5 +1,6 @@
 //! 通用变换柄布局使用客户区 DIP，与绘制/命中共用；不改变文档的变换中心。
-use crate::viewport::Point;
+use super::canvas::Canvas;
+use crate::{editor::Tool, viewport::Point};
 /// 与画布预览同源；已物化的组/路径/效果预览不再叠加单选平移偏移。
 pub(super) fn preview_bounds(
     canvas: &super::canvas::Canvas,
@@ -7,9 +8,9 @@ pub(super) fn preview_bounds(
 ) -> Option<crate::group_bounds::Bounds> {
     let preview = canvas
         .group_preview
-        .iter()
-        .find(|(i, _)| *i == index)
-        .map(|(_, s)| s)
+        .binary_search_by_key(&index, |(i, _)| *i)
+        .ok()
+        .map(|position| &canvas.group_preview[position].1)
         .or_else(|| {
             canvas
                 .path_drag
@@ -35,6 +36,47 @@ pub(super) fn preview_bounds(
     }
     Some(bounds)
 }
+/// Drawing and hit testing share one traversal of the selected preview geometry.
+pub(super) fn positions(canvas: &Canvas) -> (Option<Point>, Option<Point>) {
+    if canvas.tool != Tool::Select {
+        return (None, None);
+    }
+    let mut selection = canvas.selected_indices_ref().iter().copied();
+    let Some(mut bounds) = selection
+        .next()
+        .and_then(|index| preview_bounds(canvas, index))
+    else {
+        return (None, None);
+    };
+    for index in selection {
+        let Some(next) = preview_bounds(canvas, index) else {
+            return (None, None);
+        };
+        bounds.low.x = bounds.low.x.min(next.low.x);
+        bounds.low.y = bounds.low.y.min(next.low.y);
+        bounds.high.x = bounds.high.x.max(next.high.x);
+        bounds.high.y = bounds.high.y.max(next.high.y);
+    }
+    let viewport = canvas.viewport;
+    let size = canvas.client_size;
+    let rotation = fit(
+        Point {
+            x: viewport.origin.x + (bounds.low.x + bounds.high.x) * 0.5 * viewport.scale,
+            y: viewport.origin.y + bounds.low.y * viewport.scale - 24.0,
+        },
+        size,
+    );
+    let scale = fit(
+        Point {
+            x: viewport.origin.x + bounds.high.x * viewport.scale + 18.0,
+            y: viewport.origin.y + bounds.high.y * viewport.scale + 18.0,
+        },
+        size,
+    )
+    .and_then(|point| separate(point, rotation, size));
+    (rotation, scale)
+}
+
 pub(super) fn logical_size(width: u32, height: u32, dpi: u32) -> Point {
     let scale = 96.0 / dpi.max(1) as f32;
     Point {

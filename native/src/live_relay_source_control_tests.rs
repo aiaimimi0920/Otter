@@ -12,6 +12,7 @@ fn signal(interaction: Arc<Interaction>) -> Arc<Signal> {
     let event = unsafe { CreateEventW(None, true, false, None) }.unwrap();
     Arc::new(Signal {
         stop: AtomicBool::new(false),
+        progress_stop: interaction.lease.execution_stop_handle(),
         socket: Mutex::new(None),
         worker: Mutex::new(None),
         ready: AtomicBool::new(true),
@@ -24,6 +25,37 @@ fn signal(interaction: Arc<Interaction>) -> Arc<Signal> {
         interaction: Some(interaction),
         observation: None,
     })
+}
+#[test]
+fn source_status_consumes_wakeup_and_prioritizes_stopping_over_recovery_and_ready() {
+    use windows::Win32::{
+        Foundation::{WAIT_OBJECT_0, WAIT_TIMEOUT},
+        System::Threading::WaitForSingleObject,
+    };
+    let (_listener, client, _tls, _) = fixture_with_host("127.0.0.1");
+    let mut grant = Grant::new(session(client.origin(), u64::MAX));
+    let interaction = Interaction::new(
+        grant.lease(client.origin(), 1).unwrap(),
+        input::Bridge::new(),
+    );
+    let signal = signal(interaction);
+    let event = HANDLE(signal.event.as_raw_handle());
+    let runtime = Runtime {
+        signal: signal.clone(),
+        thread: None,
+        slot: None,
+    };
+    signal.ready.store(false, Ordering::Release);
+    assert_eq!(runtime.status(), Status::Starting);
+    signal.ready.store(true, Ordering::Release);
+    assert_eq!(runtime.status(), Status::Publishing);
+    signal.service_recovery(&signal.control_recovering, true);
+    assert_eq!(unsafe { WaitForSingleObject(event, 0) }, WAIT_OBJECT_0);
+    assert_eq!(runtime.status(), Status::Recovering);
+    assert_eq!(unsafe { WaitForSingleObject(event, 0) }, WAIT_TIMEOUT);
+    runtime.request_stop();
+    assert_eq!(runtime.status(), Status::Stopping);
+    assert!(runtime.wait_handles().next().is_none());
 }
 fn history(first: u64, rows: Vec<(&str, Value)>) -> Vec<u8> {
     serde_json::to_vec(&json!({"protocolVersion":"loom.live.v1","next":first+rows.len() as u64-1,"reset":false,
@@ -65,7 +97,7 @@ fn source_control_transport_loss_keeps_cursor_consumes_old_input_and_requires_no
     let (ready, wait) = std::sync::mpsc::channel();
     let peer = std::thread::spawn(move || {
         let mut nonces = std::collections::HashSet::new();
-        for (stage, after) in [0, 2, 2, 4, 6].into_iter().enumerate() {
+        for (stage, after) in [0, 2, 2, 6, 7].into_iter().enumerate() {
             let mut stream = StreamOwned::new(
                 ServerConnection::new(tls.clone()).unwrap(),
                 accept(&listener),
@@ -94,11 +126,10 @@ fn source_control_transport_loss_keeps_cursor_consumes_old_input_and_requires_no
                 2 => vec![
                     ("input_event", key("a", 2, 66)),
                     ("session_state", state(Value::Null, false)),
-                ],
-                3 => vec![
                     ("session_state", state(json!("b"), false)),
-                    ("input_event", key("b", 1, 67)),
+                    ("input_event", key("b", 1, 67)), // 恢复批仍不得投递。
                 ],
+                3 => vec![("input_event", key("b", 2, 68))], // 不要求再等一次 None。
                 _ => vec![("session_state", state(Value::Null, true))],
             };
             reply(&mut stream, 200, &history(after + 1, rows));
@@ -140,7 +171,7 @@ fn source_control_transport_loss_keeps_cursor_consumes_old_input_and_requires_no
                 down: true
             },
             crate::live_input::Event::Key {
-                code: 67,
+                code: 68,
                 down: true
             }
         ]

@@ -377,26 +377,26 @@ fn run(
     // 媒体 Runtime 在控制线程析构，负责停止/回收其网络与 codec 线程，不阻塞 UI。
     let mut media_runtime: Option<crate::live_relay_viewer_runtime::Runtime> = None;
     let mut budget = budget;
-    loop {
+    let exit = loop {
         if let Some(exit) = completion.exit() {
-            return exit;
+            break exit;
         }
         if lease.is_revoked() {
-            return completion.exit().unwrap_or(Exit::Stopped);
+            break completion.exit().unwrap_or(Exit::Stopped);
         }
         if let Some(exit) = media_runtime
             .as_mut()
             .and_then(|runtime| runtime.try_join())
         {
-            return completion.exit().unwrap_or(Exit::Media(exit));
+            break completion.exit().unwrap_or(Exit::Media(exit));
         }
         let before = owner.after();
         match outgoing.drive_commands(&control, &target, &mut owner) {
-            Ok(true) => return Exit::Stopped,
+            Ok(true) => break Exit::Stopped,
             Ok(false) => {}
             Err(error) => {
                 input.finish(true);
-                return Exit::Http(error);
+                break Exit::Http(error);
             }
         }
         let result = recovery::poll(
@@ -408,20 +408,20 @@ fn run(
             if outgoing.active() { 50 } else { 750 },
         );
         if let Some(exit) = completion.exit() {
-            return exit;
+            break exit;
         }
         match result {
-            Ok(applied) if applied.closed => return Exit::Closed,
+            Ok(applied) if applied.closed => break Exit::Closed,
             Ok(applied) => outgoing.observe(applied.controller_owned),
-            Err(_) if lease.is_revoked() => return completion.exit().unwrap_or(Exit::Stopped),
-            Err(error) => return error,
+            Err(_) if lease.is_revoked() => break completion.exit().unwrap_or(Exit::Stopped),
+            Err(error) => break error,
         }
         #[cfg(test)]
         input.test_cursor.store(owner.after(), Ordering::Release);
         if let Some(sender) = sender.take() {
             let permit = match owner.permit() {
                 Ok(permit) => permit,
-                Err(error) => return Exit::Control(error),
+                Err(error) => break Exit::Control(error),
             };
             if let Some(budget) = budget.take() {
                 let completed = completion.clone();
@@ -435,9 +435,9 @@ fn run(
                 ) {
                     Ok(runtime) => media_runtime = Some(runtime),
                     Err(_) if lease.is_revoked() => {
-                        return completion.exit().unwrap_or(Exit::Stopped)
+                        break completion.exit().unwrap_or(Exit::Stopped)
                     }
-                    Err(error) => return Exit::MediaStart(error),
+                    Err(error) => break Exit::MediaStart(error),
                 }
             }
             if sender
@@ -449,7 +449,7 @@ fn run(
                 })
                 .is_err()
             {
-                return Exit::Receiver;
+                break Exit::Receiver;
             }
             let _ = unsafe { SetEvent(HANDLE(notify.as_raw_handle())) };
         }
@@ -461,7 +461,10 @@ fn run(
                 100
             }))
         {
-            return completion.exit().unwrap_or(Exit::Stopped);
+            break completion.exit().unwrap_or(Exit::Stopped);
         }
-    }
+    };
+    // 媒体线程完成回收并发布结果后，再确定控制线程的终态。
+    drop(media_runtime);
+    completion.device_revocation_or(exit)
 }

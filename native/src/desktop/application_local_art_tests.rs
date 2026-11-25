@@ -66,6 +66,9 @@ fn authenticated_local_art_host_changes_reclaim_hidden_window() {
         let _environment = environment();
         for change in [0, 1, 2, 3, 4, 5] {
             let mut app = if change == 5 { image_app() } else { app() };
+            if change != 5 {
+                restore_local_art(&mut app);
+            }
             let peer = peer::Peer::new();
             peer.authorize(&mut app.authorization_owner);
             let node = app.documents[0].state.unit_id.to_string();
@@ -79,7 +82,7 @@ fn authenticated_local_art_host_changes_reclaim_hidden_window() {
                 .is_err());
             assert!(!app.local_arts.busy());
             app.art_issuers = peer.authority();
-            app.start_local_art(
+            app.open_local_art(
                 &peer.origin,
                 "vendor/application".into(),
                 &node,
@@ -90,6 +93,11 @@ fn authenticated_local_art_host_changes_reclaim_hidden_window() {
             assert!(!app.remote_sessions.attaching());
             assert!(!app.authorization.borrow().mount_busy);
             peer.finish();
+            // 回收走真实的「截图 → Art」依赖；其余变更直接作用于恢复的 Art 宿主。
+            if change == 5 {
+                assert_eq!(app.documents.len(), 2);
+                assert_eq!(app.workspace.links().len(), 1);
+            }
             match change {
                 0 => app.documents[0]
                     .state
@@ -124,6 +132,36 @@ unsafe fn image_app() -> Application {
     let document =
         DocumentWindow::create(instance, State::new(Some(image), false).unwrap(), false).unwrap();
     Application::new(instance, document)
+}
+unsafe fn restore_local_art(app: &mut Application) {
+    app.restore_local_art_fixture("vendor/application");
+}
+
+impl Application {
+    pub(in crate::desktop::application) unsafe fn restore_local_art_fixture(&mut self, art: &str) {
+        let source = serde_json::json!({
+            "documentSchemaVersion": 1,
+            "documentRevision": 1,
+            "otterNativeCoordinateSpace": {"version": 1, "origin": [0, 0], "scale": 1},
+            "stickers": [{"id": "local-art", "type": "art", "artId": art,
+                "otterNativeLocalArt": true, "x": 0, "y": 0, "w": 200, "h": 120}],
+            "links": []
+        });
+        self.request_restore_input(
+            crate::desktop::session_job::Input::Bytes(serde_json::to_vec(&source).unwrap()),
+            None,
+            None,
+        )
+        .unwrap();
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while self.restore_job.is_some() {
+            self.process_restore(false).unwrap();
+            assert!(Instant::now() < deadline, "local Art restore deadline");
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        assert_eq!(self.documents.len(), 1);
+        assert_eq!(self.documents[0].state.local_art_id.as_deref(), Some(art));
+    }
 }
 unsafe fn restore_empty(app: &mut Application) {
     let old = app.documents[0].window.0;

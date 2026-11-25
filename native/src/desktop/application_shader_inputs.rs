@@ -41,7 +41,7 @@ pub(super) fn references<'a>(
     }
     Ok(references)
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-surface")))]
 #[path = "application_shader_input_tests.rs"]
 mod tests;
 

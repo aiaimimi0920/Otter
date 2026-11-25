@@ -125,6 +125,6 @@ impl Prepared {
 fn bounded_json(value: &Value, bytes: usize) -> Result<(), Error> {
     crate::unit_attachment_json::bounded(value, bytes).map_err(|_| Error::Limit)
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-loom")))]
 #[path = "loom_extension_resources_tests.rs"]
 mod tests;

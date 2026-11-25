@@ -113,83 +113,91 @@ function Read-OtterBoundedText {
     return [System.IO.File]::ReadAllText($item.FullName, $encoding)
 }
 
-function Get-OtterArchiveEntries {
+function Get-OtterArchiveEntryIndex {
     param(
-        [Parameter(Mandatory = $true)][string]$ZipPath,
+        [Parameter(Mandatory = $true)]$Archive,
         [int]$MaxEntries = 64,
         [int64]$MaxUncompressedBytes = 1GB
     )
-    Add-Type -AssemblyName System.IO.Compression.FileSystem
-    $archive = [System.IO.Compression.ZipFile]::OpenRead($ZipPath)
-    try {
-        $paths = [System.Collections.Generic.List[string]]::new()
-        $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
-        $total = 0L
-        foreach ($entry in $archive.Entries) {
-            if ($archive.Entries.Count -gt $MaxEntries) { throw "Otter archive exceeds its entry limit: $ZipPath" }
-            $raw = $entry.FullName.TrimEnd("/", "\")
-            if ([string]::IsNullOrWhiteSpace($raw)) { continue }
-            $relative = Assert-OtterSafeRelativePath -RelativePath $raw
-            if (-not $seen.Add($relative)) { throw "Duplicate Otter archive entry: $relative" }
-            if ($entry.Name.Length -eq 0) { continue }
-            $total += [int64]$entry.Length
-            if ($total -gt $MaxUncompressedBytes) { throw "Otter archive exceeds its uncompressed limit: $ZipPath" }
-            $paths.Add($relative)
+    $entries = $Archive.Entries
+    if ($entries.Count -gt $MaxEntries) { throw 'Otter archive exceeds its entry limit' }
+    $index = [Collections.Generic.Dictionary[string,object]]::new([StringComparer]::Ordinal)
+    $seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    $total = 0L
+    foreach ($entry in $entries) {
+        $raw = $entry.FullName.TrimEnd("/", "\")
+        if ([string]::IsNullOrWhiteSpace($raw)) { continue }
+        $relative = Assert-OtterSafeRelativePath -RelativePath $raw
+        if (-not $seen.Add($relative)) { throw "Duplicate Otter archive entry: $relative" }
+        if ($entry.Name.Length -eq 0) { continue }
+        if ($entry.Length -lt 0 -or $entry.Length -gt ($MaxUncompressedBytes - $total)) {
+            throw 'Otter archive exceeds its uncompressed limit'
         }
-        return @($paths | Sort-Object)
+        $total += $entry.Length
+        $index.Add($entry.FullName, $entry)
+    }
+    return ,$index
+}
+
+function Read-OtterExactArchiveEntry {
+    param($Entry, [byte[]]$TextBytes, [Security.Cryptography.IncrementalHash]$Hash)
+    $remaining = [long]$Entry.Length
+    $buffer = $TextBytes
+    if ($null -ne $Hash) {
+        $buffer = [byte[]]::new([int][Math]::Min(64KB, $remaining))
+    }
+    $offset = 0
+    $stream = $Entry.Open()
+    try {
+        # The index budgets declared lengths. Read at most that many bytes plus
+        # one EOF probe so actual expansion cannot bypass those budgets.
+        while ($remaining -gt 0) {
+            $count = $stream.Read($buffer, $offset, [int][Math]::Min(64KB, $remaining))
+            if ($count -eq 0) { throw "Otter archive entry ended before its declared length: $($Entry.FullName)" }
+            if ($null -ne $Hash) { $Hash.AppendData($buffer, 0, $count) }
+            else { $offset += $count }
+            $remaining -= $count
+        }
+        if ($stream.ReadByte() -ne -1) { throw "Otter archive entry exceeds its declared length: $($Entry.FullName)" }
     } finally {
-        $archive.Dispose()
+        $stream.Dispose()
     }
 }
 
 function Get-OtterArchiveEntryDigest {
     param(
-        [Parameter(Mandatory = $true)][string]$ZipPath,
+        [Parameter(Mandatory = $true)]$Index,
         [Parameter(Mandatory = $true)][string]$EntryName,
         [int64]$MaxBytes = 512MB
     )
-    Add-Type -AssemblyName System.IO.Compression.FileSystem
-    $archive = [System.IO.Compression.ZipFile]::OpenRead($ZipPath)
+    $entry = $null
+    if (-not $Index.TryGetValue($EntryName.Replace("\", "/"), [ref]$entry) -or
+        $entry.Length -lt 0 -or $entry.Length -gt $MaxBytes) {
+        throw "Missing or oversized Otter archive entry: $EntryName"
+    }
+    $algorithm = [Security.Cryptography.IncrementalHash]::CreateHash([Security.Cryptography.HashAlgorithmName]::SHA256)
     try {
-        $entry = $archive.GetEntry($EntryName.Replace("\", "/"))
-        if ($null -eq $entry -or $entry.Length -gt $MaxBytes) { throw "Missing or oversized Otter archive entry: $EntryName" }
-        $stream = $entry.Open()
-        $algorithm = [System.Security.Cryptography.SHA256]::Create()
-        try {
-            $hash = ([BitConverter]::ToString($algorithm.ComputeHash($stream))).Replace("-", "").ToLowerInvariant()
-            return [pscustomobject]@{ bytes = [int64]$entry.Length; sha256 = $hash }
-        } finally {
-            $algorithm.Dispose()
-            $stream.Dispose()
-        }
+        Read-OtterExactArchiveEntry -Entry $entry -Hash $algorithm
+        $hash = ([BitConverter]::ToString($algorithm.GetHashAndReset())).Replace("-", "").ToLowerInvariant()
+        return [pscustomobject]@{ bytes = [int64]$entry.Length; sha256 = $hash }
     } finally {
-        $archive.Dispose()
+        $algorithm.Dispose()
     }
 }
 
 function Read-OtterArchiveEntryText {
     param(
-        [Parameter(Mandatory = $true)][string]$ZipPath,
+        [Parameter(Mandatory = $true)]$Index,
         [Parameter(Mandatory = $true)][string]$EntryName,
-        [int64]$MaxBytes = 1MB
+        [int]$MaxBytes = 1MB
     )
-    Add-Type -AssemblyName System.IO.Compression.FileSystem
-    $archive = [System.IO.Compression.ZipFile]::OpenRead($ZipPath)
-    try {
-        $entry = $archive.GetEntry($EntryName.Replace("\", "/"))
-        if ($null -eq $entry -or $entry.Length -gt $MaxBytes) {
-            throw "Missing or oversized Otter archive text entry: $EntryName"
-        }
-        $stream = $entry.Open()
-        $encoding = [System.Text.UTF8Encoding]::new($false, $true)
-        $reader = [System.IO.StreamReader]::new($stream, $encoding, $false, 4096, $false)
-        try {
-            return $reader.ReadToEnd()
-        } finally {
-            $reader.Dispose()
-            $stream.Dispose()
-        }
-    } finally {
-        $archive.Dispose()
+    $entry = $null
+    if (-not $Index.TryGetValue($EntryName.Replace("\", "/"), [ref]$entry) -or
+        $entry.Length -lt 0 -or $entry.Length -gt $MaxBytes) {
+        throw "Missing or oversized Otter archive text entry: $EntryName"
     }
+    $bytes = [byte[]]::new([int]$entry.Length)
+    Read-OtterExactArchiveEntry -Entry $entry -TextBytes $bytes
+    $encoding = [System.Text.UTF8Encoding]::new($false, $true)
+    return $encoding.GetString($bytes)
 }

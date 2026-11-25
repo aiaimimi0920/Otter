@@ -314,6 +314,22 @@ fn system_move_escape_becomes_close_without_exiting_or_rolling_back_first() {
 }
 
 #[test]
+fn cancelled_system_move_releases_escape_hook_without_exit_message() {
+    let _apartment = Apartment::new().unwrap();
+    unsafe {
+        let _keys = Keys::held(&[]);
+        let selected = Fixture::new(true);
+        let other = Fixture::new(true);
+        SendMessageW(selected.owner.0, WM_ENTERSIZEMOVE, None, None);
+        assert_eq!(move_escape(&selected, false).message, WM_CLOSE);
+        SendMessageW(selected.owner.0, WM_CANCELMODE, None, None);
+        assert_eq!(move_escape(&other, false).message, WM_KEYDOWN);
+        assert!(selected.alive());
+        assert!(other.alive());
+    }
+}
+
+#[test]
 fn system_move_release_repeat_modifiers_and_unpinned_do_not_delete() {
     let _apartment = Apartment::new().unwrap();
     unsafe {

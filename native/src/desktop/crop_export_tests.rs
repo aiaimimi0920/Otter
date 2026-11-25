@@ -280,6 +280,64 @@ fn integer_crop_matches_full_composite_region_and_reset_restores_all_pixels() {
 }
 
 #[test]
+fn offset_crop_preserves_translucent_line_pixels() {
+    assert_offset_crop_preserves_opacity(Tool::Line, 128);
+}
+
+#[test]
+fn offset_crop_preserves_shared_highlighter_wash() {
+    assert_offset_crop_preserves_opacity(Tool::Highlighter, 45);
+}
+
+fn assert_offset_crop_preserves_opacity(tool: Tool, expected_alpha: u8) {
+    let _apartment = Apartment::new().unwrap();
+    let image = Image {
+        width: 64,
+        height: 32,
+        pixels: vec![0; 64 * 32 * 4].into(),
+    };
+    let mut editor = Editor::with_layers(Layers {
+        annotation_size: None,
+        size: (64, 32),
+        base: image.pixels.clone(),
+        annotations: None,
+    })
+    .unwrap();
+    editor.set_style(
+        editor
+            .style()
+            .with_color(Color(255, 0, 0))
+            .with_width(4.0)
+            .unwrap()
+            .with_opacity(0.5)
+            .unwrap(),
+    );
+    editor.begin(tool, Point { x: 48.0, y: 16.0 }).unwrap();
+    editor.extend(Point { x: 56.0, y: 16.0 }).unwrap();
+    assert!(editor.commit());
+    let full = tests::decode_png(encode(&image, &editor).unwrap());
+    assert!(full.pixels[(16 * 64 + 52) * 4 + 3].abs_diff(expected_alpha) <= 1);
+    editor
+        .crop_to(Rect {
+            x: 40.0,
+            y: 8.0,
+            width: 20.0,
+            height: 16.0,
+        })
+        .unwrap();
+    let cropped = tests::decode_png(encode(&image, &editor).unwrap());
+    assert_eq!((cropped.width, cropped.height), (20, 16));
+    for y in 0..16usize {
+        let start = ((y + 8) * 64 + 40) * 4;
+        assert_eq!(
+            &cropped.pixels[y * 20 * 4..(y + 1) * 20 * 4],
+            &full.pixels[start..start + 20 * 4],
+            "crop row {y}"
+        );
+    }
+}
+
+#[test]
 fn crop_keeps_blur_and_mosaic_sampling_in_source_coordinates() {
     let _apartment = Apartment::new().unwrap();
     let (image, mut editor) = document();

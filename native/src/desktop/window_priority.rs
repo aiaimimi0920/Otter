@@ -103,7 +103,7 @@ impl Hooks {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "window_priority_tests.rs"]
 mod tests;
 

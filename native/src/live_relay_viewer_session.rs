@@ -302,6 +302,6 @@ pub struct Update {
     pub frame: Option<PixelFrame>,
     pub business: Option<Arc<crate::live_relay_viewer_business::Business>>,
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-live")))]
 #[path = "live_relay_viewer_session_tests.rs"]
 mod tests;

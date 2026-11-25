@@ -160,6 +160,165 @@ fn javascript_canvas_model_identity_total_backing_and_path_command_limits() {
     }
 }
 #[test]
+fn javascript_canvas_model_rect_capacity_failure_keeps_path_atomic_after_coercion() {
+    for (used, reentrant) in (4091..=4096)
+        .map(|used| (used, false))
+        .chain([(4091, true)])
+    {
+        let occupied = used + usize::from(reentrant);
+        let rejected = occupied > 4091;
+        let source = format!(
+            r#"
+            let x,count=5;
+            NeuroSurface.define({{mount({{root}}) {{
+              const c=document.createElement('canvas');c.width=8;c.height=8;root.append(c);
+              x=c.getContext('2d');
+              x.rect(0.5,0.5,2,2);
+            }},update() {{
+              if(count<{used}) {{
+                const end=Math.min(count+256,{used});
+                for(;count<end;count++)x.moveTo(0,0);
+                return;
+              }}
+              let rejected=false;
+              const start={reentrant}?{{valueOf(){{x.moveTo(0,0);return 4.5}}}}:4.5;
+              try{{x.rect(start,4.5,2,2)}}catch{{rejected=true}}
+              if(rejected!=={rejected})throw Error('rect capacity');
+              // 失败仍保留全部剩余槽；成功则恰好达到路径上限。
+              if(rejected)for(let i={occupied};i<4096;i++)x.moveTo(0,0);
+              let full=false;try{{x.moveTo(0,0)}}catch{{full=true}}
+              if(!full)throw Error('path capacity');
+              x.fillStyle='blue';x.fillRect(0,0,8,8);
+            }}}});
+            "#
+        );
+        let (mut engine, mut output) = mount(&source).unwrap();
+        // 分帧准备真实持久路径；容量由剩余槽断言，不混入满路径 stroke 的复制耗时。
+        for phase in 0..=(used - 5).div_ceil(256) {
+            output = engine
+                .apply(
+                    Command::Update {
+                        snapshot: serde_json::json!({}),
+                        resources: serde_json::json!({}),
+                    },
+                    Some(Viewport::new([200, 80], 96).unwrap()),
+                )
+                .unwrap_or_else(|error| {
+                    wire::diagnostics::log(Some(&engine.diagnostic()));
+                    panic!("used={used}, reentrant={reentrant}, phase={phase}: {error}");
+                });
+        }
+        let rendered = image(&mut output);
+        assert_eq!(pixel(&rendered, 7, 7), [255, 0, 0, 255]);
+    }
+}
+#[test]
+fn javascript_canvas_model_rect_transform_failure_preserves_old_path_pixels() {
+    // 小路径验证捕获后仍可 stroke；不冒充满容量路径在单帧截止内的像素证明。
+    let (_, mut output) = mount(
+        r#"
+        NeuroSurface.define({mount({root}) {
+          const c=document.createElement('canvas');c.width=8;c.height=8;root.append(c);
+          const x=c.getContext('2d');x.strokeStyle='red';x.rect(0.5,0.5,2,2);
+          x.setTransform(1,0,0,1,1,0);
+          let rejected=false;try{x.rect(4.5,4.5,2,2)}catch{rejected=true}
+          if(!rejected)throw Error('transform mismatch');
+          x.resetTransform();x.stroke();
+        }});
+    "#,
+    )
+    .unwrap();
+    let rendered = image(&mut output);
+    assert_eq!(pixel(&rendered, 1, 0), [0, 0, 255, 255]);
+    assert_eq!(pixel(&rendered, 5, 4), [0, 0, 0, 0]);
+}
+#[test]
+fn javascript_canvas_model_queued_paths_snapshot_members_before_append_and_begin() {
+    let (_, mut output) = mount(
+        r#"
+        NeuroSurface.define({mount({root}) {
+          const c=document.createElement('canvas');c.width=8;c.height=8;root.append(c);
+          const x=c.getContext('2d');x.strokeStyle='red';
+          x.moveTo(0.5,0.5);x.lineTo(2.5,0.5);x.stroke();
+          x.lineTo(2.5,2.5);
+          x.beginPath();x.strokeStyle='blue';x.rect(4,4,2,2);x.fillStyle='blue';x.fill();
+          x.rect(0,4,2,2);x.beginPath();x.resetTransform();
+        }});
+        "#,
+    )
+    .unwrap();
+    let rendered = image(&mut output);
+    assert_eq!(pixel(&rendered, 1, 0), [0, 0, 255, 255]);
+    assert_eq!(pixel(&rendered, 2, 1), [0, 0, 0, 0]);
+    assert_eq!(pixel(&rendered, 5, 5), [255, 0, 0, 255]);
+    assert_eq!(pixel(&rendered, 1, 5), [0, 0, 0, 0]);
+}
+#[test]
+fn javascript_canvas_model_path_snapshot_ignores_plugin_prototype_and_json_hooks() {
+    let (_, mut output) = mount(
+        r#"
+        NeuroSurface.define({mount({root}) {
+          const c=document.createElement('canvas');c.width=8;c.height=8;root.append(c);
+          const x=c.getContext('2d');
+          const fail=()=>{throw Error('plugin hook')};
+          Object.defineProperty(Object.prototype,'toJSON',{get:fail});
+          Object.defineProperty(Array.prototype,'toJSON',{get:fail});
+          Array.prototype.map=fail;JSON.stringify=fail;JSON.parse=fail;
+          Object.getOwnPropertyDescriptors=fail;Object.setPrototypeOf=fail;
+          x.strokeStyle='red';x.rect(0.5,0.5,2,2);x.stroke();
+          x.beginPath();x.rect(4,4,2,2);x.fillStyle='blue';x.fill();
+          x.beginPath();x.moveTo(0.5,4.5);x.bezierCurveTo(1,4.5,1.5,4.5,2.5,4.5);
+          x.arc(6.5,1.5,1,0,Math.PI*2);x.stroke();
+        }});
+        "#,
+    )
+    .unwrap();
+    let rendered = image(&mut output);
+    assert_eq!(pixel(&rendered, 1, 0), [0, 0, 255, 255]);
+    assert_eq!(pixel(&rendered, 5, 5), [255, 0, 0, 255]);
+    assert_eq!(pixel(&rendered, 1, 4), [0, 0, 255, 255]);
+}
+#[test]
+fn javascript_canvas_model_full_path_strokes_within_unchanged_engine_deadline() {
+    let (mut engine, mut output) = mount(
+        r#"
+        let x,count=5;
+        NeuroSurface.define({mount({root}) {
+          const c=document.createElement('canvas');c.width=8;c.height=8;root.append(c);
+          x=c.getContext('2d');x.strokeStyle='red';x.rect(0.5,0.5,2,2);
+        },update() {
+          if(count<4096) {
+            const end=Math.min(count+256,4096);
+            for(;count<end;count++)x.moveTo(0,0);
+            return;
+          }
+          let rejected=false;try{x.rect(4.5,4.5,2,2)}catch{rejected=true}
+          if(!rejected)throw Error('full path');
+          x.stroke();
+        }});
+        "#,
+    )
+    .unwrap();
+    // 分帧仅准备路径；最终 4096 段快照、安全编码和实际绘制仍在原生产截止内。
+    for phase in 0..=16 {
+        output = engine
+            .apply(
+                Command::Update {
+                    snapshot: serde_json::json!({}),
+                    resources: serde_json::json!({}),
+                },
+                Some(Viewport::new([200, 80], 96).unwrap()),
+            )
+            .unwrap_or_else(|error| {
+                wire::diagnostics::log(Some(&engine.diagnostic()));
+                panic!("full path phase={phase}: {error}");
+            });
+    }
+    let rendered = image(&mut output);
+    assert_eq!(pixel(&rendered, 1, 0), [0, 0, 255, 255]);
+    assert_eq!(pixel(&rendered, 5, 4), [0, 0, 0, 0]);
+}
+#[test]
 fn javascript_canvas_model_attribute_reset_detach_and_reconnect_keep_identity() {
     let (mut engine, mut output) = mount(
         r#"

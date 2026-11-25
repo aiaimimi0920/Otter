@@ -117,6 +117,6 @@ impl Outcome {
         }
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-loom")))]
 #[path = "loom_extension_result_tests.rs"]
 mod tests;

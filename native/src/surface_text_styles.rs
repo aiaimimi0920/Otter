@@ -116,6 +116,6 @@ impl<'scene, 'font> Styles<'scene, 'font> {
         engine.layout(text, style, width, height)
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-surface")))]
 #[path = "surface_text_styles_tests.rs"]
 mod tests;

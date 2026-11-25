@@ -65,6 +65,7 @@ pub(in crate::desktop) fn prepare_mapped(
         sampling: geometry.sampling,
         beautify: None,
         projection: geometry.projection,
+        rasterized_source: geometry.rasterized_source,
     };
     let sampled = projection::prepare(image, &mut pending, crop, cancel)?;
     let source = sampled.as_ref().unwrap_or(image);
@@ -123,6 +124,6 @@ fn validate(mapping: Projection, image: &Image) -> Result<()> {
     Ok(())
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "export_projection_mapped_erase_tests.rs"]
 mod tests;

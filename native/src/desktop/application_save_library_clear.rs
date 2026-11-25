@@ -6,26 +6,8 @@ impl Job {
         kind: crate::session_library::Kind,
         notify: Arc<dyn Fn() + Send + Sync>,
     ) -> std::io::Result<Self> {
-        let mut job = Self::start_with(notify, move |cancel| {
-            let revision = crate::session_document::decode(&source)
-                .map_err(|error| format!("Invalid frozen clear source: {error:?}"))?
-                .revision;
-            let bytes = crate::session_library::remove::clear(&source, kind, cancel)?;
-            Ok(Output {
-                checkpoint_accounts: None,
-                checkpoint_senders: None,
-                checkpoint_scope: None,
-                checkpoint_projections: None,
-                library_changed: bytes.as_ref() != source.as_ref(),
-                candidate: Candidate {
-                    bytes,
-                    expected_revision: revision,
-                    revision,
-                },
-                staged: None,
-            })
-        })?;
-        job.purpose = Purpose::LibraryUpdate;
-        Ok(job)
+        Self::start_library(notify, move |cancel| {
+            crate::session_library::remove::clear(&source, kind, cancel)
+        })
     }
 }

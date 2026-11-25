@@ -9,6 +9,8 @@ pub mod accept;
 #[cfg(windows)]
 #[path = "projection_receive_binding.rs"]
 pub mod binding;
+#[path = "projection_checkpoint_session.rs"]
+pub(crate) mod checkpoint_session;
 #[cfg(windows)]
 #[path = "projection_receive_journal.rs"]
 pub mod journal;

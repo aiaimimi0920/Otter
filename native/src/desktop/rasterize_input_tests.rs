@@ -65,6 +65,61 @@ fn selected_rasterization_then_annotation_erase_undo_in_order() {
     assert_eq!(canvas.editor.elements().len(), 2);
 }
 #[test]
+fn restored_uncropped_rasterization_keeps_fractional_logical_frame() {
+    let mut canvas = canvas();
+    let source = crate::erase_layers::Layers {
+        size: (4, 4),
+        base: vec![255; 4 * 4 * 4].into(),
+        annotations: None,
+        annotation_size: None,
+    };
+    canvas.editor = Editor::with_layers(source.clone())
+        .unwrap()
+        .with_restored_size(crate::crop_geometry::Size {
+            width: 3.25,
+            height: 3.25,
+        })
+        .unwrap();
+    canvas.editor.set_style(
+        canvas
+            .editor
+            .style()
+            .with_width(2.0)
+            .unwrap()
+            .with_color(crate::stroke_style::Color(0, 0, 255)),
+    );
+    canvas
+        .editor
+        .begin(Tool::Brush, Point { x: 2.7, y: 1.6 })
+        .unwrap();
+    assert!(canvas.editor.commit());
+    let frame = canvas.editor.annotation_frame().unwrap();
+    let original_points = canvas.editor.elements()[0].points.as_ptr();
+    let (request, snapshot) = prepare(&canvas, false).unwrap();
+    assert!(snapshot.layers().is_none());
+    let mut job = spawn(request, snapshot).unwrap();
+    let result = finish(&mut job);
+    assert!(accept(&mut canvas, &job.request, result).unwrap());
+    let rendered = canvas.editor.layers().unwrap();
+    assert_eq!(rendered.annotation_dimensions(), (3, 3));
+    let pixels = rendered.annotations.as_ref().unwrap();
+    assert_eq!(&pixels[20..24], &[255, 0, 0, 255]);
+    assert_eq!(&pixels[..4], &[0; 4]);
+    assert!(rendered.base.same_storage(&source.base));
+    assert!(canvas.editor.elements().is_empty());
+    assert_eq!(canvas.editor.annotation_frame(), Some(frame));
+    assert!(canvas.editor.crop_view().is_none());
+    assert!(canvas.editor.undo());
+    assert_eq!(canvas.editor.elements()[0].points.as_ptr(), original_points);
+    assert!(canvas.editor.layers().unwrap().same_storage(&source));
+    assert!(canvas.editor.redo());
+    assert_eq!(
+        canvas.editor.layers().unwrap().annotation_dimensions(),
+        (3, 3)
+    );
+}
+
+#[test]
 fn all_scope_stale_result_and_cancel_do_not_publish_partial_edits() {
     let mut canvas = canvas();
     let (request, snapshot) = prepare(&canvas, false).unwrap();

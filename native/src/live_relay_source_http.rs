@@ -86,18 +86,14 @@ impl Publication {
         self.direct_viewer = Some(device);
         Ok(())
     }
-    fn body(&self, device: &str, now: u64) -> Value {
+    fn source_contract(&self) -> Value {
         let window = self.window.is_some();
         let (id, pid) = self
             .window
             .as_ref()
             .map(|(id, pid)| (id.as_str(), *pid))
             .unwrap_or((&self.session, std::process::id()));
-        let mut body = json!({"surfaceInstanceId":null,"sourceAttachmentId":null,"envelope":{
-            "protocolVersion":protocol::PROTOCOL,"sessionId":self.session,"epoch":1,"sequence":1,
-            "messageType":"session_start","payload":{"session":{
-                "protocolVersion":protocol::PROTOCOL,"sessionId":self.session,
-                "sourceDeviceId":device,"sourceHookId":self.hook,
+        json!({
                 "sourceKind":if window {"window"} else {"region"},
                 "sourceWindowIdentity":{"windowId":id,"processId":pid},
                 "sourceRegion":{"x":0,"y":0,"width":self.width,"height":self.height},
@@ -107,11 +103,35 @@ impl Publication {
                     "colorSpace":"srgb","width":self.width,"height":self.height,"targetFps":if self.h264 {30} else {60},
                     "maxBufferedFrames":3,"keyframeInterval":if self.h264 {30} else {1}},
                 "interactionCapabilities":if self.interactive { vec!["pointer_move","pointer_button","double_click","drag","wheel","keyboard","cancel"] } else { vec![] },"observationCapabilities":if self.observing { vec!["uia_tree"] } else { vec![] },"triggerBindings":[],
-                "viewerDevices":[],"visibilityState":"visible",
-                "captureStrategy":if window {"persistent_window_wgc"} else {"persistent_display_wgc"},
-                "renderPreservationStrategy":if window {"visible_offscreen"} else {"visible"},
-                "revision":1,"createdAtMs":now,"lastSeenAtMs":now},
+        })
+    }
+    fn body(&self, device: &str, now: u64) -> Value {
+        let mut source = self.source_contract();
+        source["protocolVersion"] = json!(protocol::PROTOCOL);
+        source["sessionId"] = json!(self.session);
+        source["sourceDeviceId"] = json!(device);
+        source["sourceHookId"] = json!(self.hook);
+        source["viewerDevices"] = json!([]);
+        source["visibilityState"] = json!("visible");
+        let window = self.window.is_some();
+        source["captureStrategy"] = json!(if window {
+            "persistent_window_wgc"
+        } else {
+            "persistent_display_wgc"
+        });
+        source["renderPreservationStrategy"] = json!(if window {
+            "visible_offscreen"
+        } else {
+            "visible"
+        });
+        source["revision"] = json!(1);
+        source["createdAtMs"] = json!(now);
+        source["lastSeenAtMs"] = json!(now);
+        let mut body = json!({"surfaceInstanceId":null,"sourceAttachmentId":null,"envelope":{
+            "protocolVersion":protocol::PROTOCOL,"sessionId":self.session,"epoch":1,"sequence":1,
+            "messageType":"session_start","payload":{
                 "requestedByDeviceId":device,"requestNonce":format!("request:{}",self.session)}}});
+        body["envelope"]["payload"]["session"] = source;
         if let Some(viewer) = &self.direct_viewer {
             body["directViewerDeviceId"] = json!(viewer);
         }
@@ -127,15 +147,22 @@ impl Control<'_> {
             &serde_json::to_vec(&expected).map_err(|_| Error::Input)?,
             Duration::from_secs(10),
         )?;
-        self.validate_source(publication, &bytes)
-            .map(|(snapshot, _)| snapshot)
+        self.validate_source(
+            publication,
+            &bytes,
+            &expected["envelope"]["payload"]["session"],
+            false,
+        )
+        .map(|(snapshot, _)| snapshot)
     }
     fn validate_source(
         &self,
         publication: &Publication,
         bytes: &[u8],
+        expected: &Value,
+        allow_updated_triggers: bool,
     ) -> Result<(Snapshot, Value), Error> {
-        let expected = publication.body(self.session.device_id(), now()?);
+        // 先走类型化身份解析，保留对重复身份键的拒绝；Value 本身会覆盖重复键。
         let snapshot = Snapshot::parse(bytes, publication.session()).map_err(Error::Protocol)?;
         let id = snapshot.identity();
         if id.source_device() != self.session.device_id()
@@ -159,27 +186,52 @@ impl Control<'_> {
             "frameStream",
             "interactionCapabilities",
             "observationCapabilities",
-            "triggerBindings",
         ] {
-            if actual["session"][key] != expected["envelope"]["payload"]["session"][key] {
+            if actual["session"][key] != expected[key] {
                 return Err(Error::Input);
             }
         }
+        // 创建时必须为空；观察会话后续可由已授权的观看端登记触发器。
+        // 源端不消费这些绑定，只校验外形；采集合同和 actor 游标仍按原规则核对。
+        let triggers = &actual["session"]["triggerBindings"];
+        let triggers_match = if allow_updated_triggers {
+            triggers.is_array()
+        } else {
+            triggers == &expected["triggerBindings"]
+        };
+        if !triggers_match {
+            return Err(Error::Input);
+        }
         Ok((snapshot, actual))
+    }
+    fn read_source_snapshot(
+        &self,
+        publication: &Publication,
+        deadline: Instant,
+    ) -> Result<Value, Error> {
+        let bytes = self.send_until(
+            "GET",
+            &path(publication.session(), None)?,
+            &[],
+            deadline,
+            protocol::MAX_JSON,
+        )?;
+        self.validate_source(
+            publication,
+            &bytes,
+            &publication.source_contract(),
+            publication.observing,
+        )
+        .map(|(_, value)| value)
     }
     /// 仅确认本次发送水位；不采用服务端actor/epoch，也不补发创建或帧。
     pub(crate) fn source_progress(
         &self,
         publication: &Publication,
         sent: u64,
+        deadline: Instant,
     ) -> Result<Option<u64>, Error> {
-        let bytes = self.send(
-            "GET",
-            &path(publication.session(), None)?,
-            &[],
-            Duration::from_secs(3),
-        )?;
-        let (_, value) = self.validate_source(publication, &bytes)?;
+        let value = self.read_source_snapshot(publication, deadline)?;
         let frame = value["lastFrameId"].as_u64().ok_or(Error::Input)?;
         if frame > sent {
             return Err(Error::Cursor);

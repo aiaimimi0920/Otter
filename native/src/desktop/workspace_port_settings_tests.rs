@@ -114,7 +114,6 @@ fn catalog_masks_do_not_delete_edges_or_change_menu_execution_permissions() {
             side: Side::Output,
             index: 0,
         };
-        assert!(!app.chrome.ui.visible(port));
         assert!(app.chrome.ui.point(port).is_none());
         for (hwnd, node, side) in app.chrome.ui.input_windows.borrow().iter() {
             if *node == 0 && *side == Side::Output {
@@ -126,7 +125,7 @@ fn catalog_masks_do_not_delete_edges_or_change_menu_execution_permissions() {
             .unwrap();
         app.sync_link_menus();
         app.sync_workspace_chrome(true);
-        assert!(app.chrome.ui.visible(port));
+        assert!(app.chrome.ui.point(port).is_some());
         assert_eq!(app.workspace.links(), [link]);
         app.shutdown();
     }

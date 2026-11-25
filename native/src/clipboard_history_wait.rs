@@ -40,6 +40,6 @@ macro_rules! operation {
     }};
 }
 pub(super) use operation;
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-capture")))]
 #[path = "clipboard_history_wait_tests.rs"]
 mod tests;

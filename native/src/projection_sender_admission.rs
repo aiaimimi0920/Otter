@@ -115,6 +115,6 @@ fn source_role(
     }
     Ok(())
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "projection_sender_batch_admission_tests.rs"]
 mod tests;

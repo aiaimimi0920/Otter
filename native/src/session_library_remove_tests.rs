@@ -9,7 +9,9 @@ fn source() -> Vec<u8> {
 fn removes_exact_identity_in_selected_library_without_advancing_revision() {
     for kind in [Kind::RecycleBin, Kind::ReferenceLibrary] {
         let original = source();
-        let bytes = prepare(&original, kind, "entry-1", &AtomicBool::new(false)).unwrap();
+        let candidate = prepare(&original, kind, "entry-1", &AtomicBool::new(false)).unwrap();
+        assert_eq!((candidate.expected_revision, candidate.revision), (7, 7));
+        let bytes = candidate.bytes;
         let selected = super::super::decode(&bytes, kind).unwrap();
         assert_eq!(selected.entries().len(), 2);
         assert!(selected.find("entry-1").is_none());
@@ -55,7 +57,7 @@ fn rejects_missing_invalid_or_cancelled_identity_and_preserves_unrelated_raw_val
         &AtomicBool::new(false),
     )
     .unwrap();
-    assert!(std::str::from_utf8(&bytes)
+    assert!(std::str::from_utf8(&bytes.bytes)
         .unwrap()
         .contains("123456789012345678901234567890"));
     assert!(prepare(
@@ -73,7 +75,14 @@ fn clear_only_selected_library_preserves_revision_windows_and_unknown_fields() {
         "referenceLibrary":[{"entryId":"f","sourceStickerId":"pin","createdAt":"legacy","snapshot":{"id":"pin","x":0,"y":0,"w":32,"h":32}}],
         "unknown":{"nested":[1,2,3]}})).unwrap();
     for kind in [Kind::RecycleBin, Kind::ReferenceLibrary] {
-        let bytes = super::clear(&original, kind, &AtomicBool::new(false)).unwrap();
+        let candidate = super::clear(&original, kind, &AtomicBool::new(false))
+            .unwrap()
+            .unwrap();
+        assert_eq!((candidate.expected_revision, candidate.revision), (7, 7));
+        let bytes = candidate.bytes;
+        assert!(super::clear(&bytes, kind, &AtomicBool::new(false))
+            .unwrap()
+            .is_none());
         let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
         let other = match kind {
             Kind::RecycleBin => Kind::ReferenceLibrary,
@@ -101,11 +110,10 @@ fn clear_rejects_corrupt_selected_library_and_does_not_materialize_missing_one()
         &AtomicBool::new(false)
     )
     .is_err());
-    let original = br#"{"stickers":[],"links":[],"other":123}"#;
-    assert_eq!(
+    let original = b"  {\"stickers\":[],\"links\":[],\"other\":123}\n";
+    assert!(
         super::clear(original, Kind::RecycleBin, &AtomicBool::new(false))
             .unwrap()
-            .as_ref(),
-        original
+            .is_none()
     );
 }

@@ -216,6 +216,6 @@ pub(super) fn render(business: Option<&Business>) -> String {
     }
     text.value
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-live")))]
 #[path = "composition_relay_observation_text_tests.rs"]
 mod tests;

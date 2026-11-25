@@ -1,6 +1,7 @@
 """在从未切换到前台的私有桌面运行单步 HWND 夹具；继承联合 runner 的进程 Job。"""
 
 import ctypes as C
+from contextlib import ExitStack
 from ctypes import wintypes as W
 import json
 import msvcrt
@@ -64,13 +65,26 @@ def checked(value):
     return value
 
 
+def reap_process(process):
+    # 只终止自有进程；外层 Job 负责该进程的后代。
+    status = K.WaitForSingleObject(process, 0)
+    if status == 0x102:
+        checked(K.TerminateProcess(process, 124))
+        status = K.WaitForSingleObject(process, 5000)
+    if status == 0xFFFFFFFF:
+        raise C.WinError(C.get_last_error())
+    if status != 0:
+        raise OSError("Owned native test did not terminate")
+
+
 name = "OtterAccountTest_" + str(os.getpid())
-# 不请求 DESKTOP_SWITCHDESKTOP，也不调用 SwitchDesktop 或发送系统输入。
-desktop = checked(U.CreateDesktopW(name, None, None, 0, 0xC3, None))
 info = Process()
 forced = False
 start = time.monotonic()
-try:
+with ExitStack() as cleanup:
+    # 不请求 DESKTOP_SWITCHDESKTOP，也不调用 SwitchDesktop 或发送系统输入。
+    desktop = checked(U.CreateDesktopW(name, None, None, 0, 0xC3, None))
+    cleanup.callback(lambda: checked(U.CloseDesktop(desktop)))
     with (RUN / (LABEL + ".log")).open("xb") as log, open(os.devnull, "rb") as null:
         handle = msvcrt.get_osfhandle(log.fileno())
         stdin = msvcrt.get_osfhandle(null.fileno())
@@ -85,26 +99,22 @@ try:
         args = [str(EXE), *TESTS, "--test-threads=1", "--nocapture"]
         checked(K.CreateProcessW(str(EXE), C.create_unicode_buffer(subprocess.list2cmdline(args)),
                                  None, None, True, 0x08000000, None, str(RUN), C.byref(startup), C.byref(info)))
-        checked(K.CloseHandle(info.hThread))
+        cleanup.callback(lambda: checked(K.CloseHandle(info.hThread)))
+        cleanup.callback(lambda: checked(K.CloseHandle(info.hProcess)))
+        cleanup.callback(reap_process, info.hProcess)
         status = K.WaitForSingleObject(info.hProcess, 240000)
-        if status != 0:
+        if status == 0x102:
             forced = True
-            checked(K.TerminateProcess(info.hProcess, 124))
-            if K.WaitForSingleObject(info.hProcess, 5000) != 0:
-                raise OSError("Owned native test did not terminate")
+            reap_process(info.hProcess)
+        elif status == 0xFFFFFFFF:
+            raise C.WinError(C.get_last_error())
+        elif status != 0:
+            raise OSError(f"Unexpected native wait result: {status}")
         code = W.DWORD()
         checked(K.GetExitCodeProcess(info.hProcess, C.byref(code)))
         receipt = {"exitCode": code.value, "pid": info.dwProcessId, "tests": TESTS,
                    "seconds": round(time.monotonic() - start, 3), "forcedTermination": forced,
                    "desktopSwitched": False, "systemInput": False}
-finally:
-    if info.hProcess:
-        # 异常时也只终止自有句柄；联合 runner 的 Job 负责整个进程树。
-        if K.WaitForSingleObject(info.hProcess, 0) == 0x102:
-            checked(K.TerminateProcess(info.hProcess, 124))
-            K.WaitForSingleObject(info.hProcess, 5000)
-        checked(K.CloseHandle(info.hProcess))
-    checked(U.CloseDesktop(desktop))
 (RUN / (LABEL + ".json")).write_text(json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
 print(json.dumps(receipt), flush=True)
 if receipt["exitCode"] or forced:

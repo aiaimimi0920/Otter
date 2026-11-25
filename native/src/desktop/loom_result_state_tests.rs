@@ -154,6 +154,36 @@ fn finals_merge_ports_preserve_null_and_reject_old_generations() {
     assert!(state.active().is_none());
 }
 #[test]
+fn committed_costs_follow_retained_replaced_and_aliased_ports() {
+    let mut state = Results::new(UnitId::parse("unit").unwrap());
+    let escaped = json!("汉字\n\"\\");
+    state.begin(request(1));
+    state
+        .finish(
+            &request(1),
+            values(json!({
+                "aux":{"kind":"value","value":escaped},
+                "output":{"kind":"value","value":"replaced"}
+            })),
+        )
+        .unwrap();
+    state.begin(request(2));
+    state.finish(&request(2), image(40)).unwrap();
+    let costs = state.port_costs.as_ref().unwrap();
+    assert_eq!(state.ports()[0].name, "aux");
+    assert_eq!(costs[0], serde_json::to_vec(&escaped).unwrap().len());
+    assert_eq!(&costs[1..], &[4, 4]);
+    state.begin(request(3));
+    state
+        .finish(
+            &request(3),
+            values(json!({"aux":{"kind":"value","value":null}})),
+        )
+        .unwrap();
+    assert_eq!(state.ports().last().unwrap().name, "aux");
+    assert_eq!(state.port_costs.as_deref().unwrap(), &[4, 4, 4]);
+}
+#[test]
 fn overflow_is_atomic_and_old_cancel_cannot_end_new_execution() {
     let mut state = Results::new(UnitId::parse("unit").unwrap());
     state.begin(request(1));
@@ -165,6 +195,7 @@ fn overflow_is_atomic_and_old_cancel_cannot_end_new_execution() {
         );
     }
     state.finish(&request(1), values(ports.into())).unwrap();
+    let old_costs = state.port_costs.clone();
     state.begin(request(2));
     assert_eq!(
         state.finish(
@@ -174,6 +205,7 @@ fn overflow_is_atomic_and_old_cancel_cannot_end_new_execution() {
         Err(Error::Capacity)
     );
     assert_eq!(state.ports().len(), 128);
+    assert_eq!(state.port_costs, old_costs);
     assert_eq!(state.active(), Some(&request(2)));
     assert!(!state.cancel(&request(1)));
     assert!(state.cancel(&request(2)));

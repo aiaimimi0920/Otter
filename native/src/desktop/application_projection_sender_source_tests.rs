@@ -180,7 +180,7 @@ fn native_sender_retained_replacement_without_editor_revision_invalidates_scope_
     let _com = Apartment::new().unwrap();
     let (files, _, _) = Files::new();
     unsafe {
-        let (_class, mut app) = application(files.root());
+        let mut app = application(files.root());
         drop(Case::Natural.install(&mut app));
         let unit = app.documents[0].state.unit_id.clone();
         let (guard, snapshot) = scope::Scope::capture(&app, &unit).unwrap();
@@ -212,7 +212,7 @@ fn native_sender_resolved_frame_never_borrows_target_retained_source() {
     let _com = Apartment::new().unwrap();
     let (files, _, _) = Files::new();
     unsafe {
-        let (_class, mut app) = application(files.root());
+        let mut app = application(files.root());
         drop(Case::Natural.install(&mut app));
         let unit = app.documents[0].state.unit_id.clone();
         let resolved = image(8, 4, [255, 0, 0, 255]);
@@ -235,7 +235,7 @@ fn native_sender_retained_pixels_keep_current_vector_and_raster_annotations_inde
     let _com = Apartment::new().unwrap();
     let (files, _, _) = Files::new();
     unsafe {
-        let (_class, mut app) = application(files.root());
+        let mut app = application(files.root());
         drop(Case::Natural.install(&mut app));
         let unit = app.documents[0].state.unit_id.clone();
         let mut canvas = app.documents[0].state.canvas.borrow_mut();

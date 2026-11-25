@@ -245,3 +245,11 @@ fn network_slots_are_bounded_and_returned_on_drop() {
     drop(replacement);
     assert_eq!(ACTIVE.load(Ordering::Acquire), 0);
 }
+
+#[test]
+fn parsed_device_revocation_survives_local_stop_at_socket_retirement() {
+    assert_eq!(Exit::DeviceRevoked.after_socket(true), Exit::DeviceRevoked);
+    assert_eq!(Exit::Closed.after_socket(false), Exit::Closed);
+    assert_eq!(Exit::Closed.after_socket(true), Exit::Stopped);
+    assert_eq!(Exit::Stopped.after_socket(true), Exit::Stopped);
+}

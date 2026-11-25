@@ -118,6 +118,6 @@ impl Queue {
         self.cancel_pointers(pointer.viewport_epoch)
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-surface")))]
 #[path = "surface_edit_pointer_queue_tests.rs"]
 mod tests;

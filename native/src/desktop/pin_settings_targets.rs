@@ -33,7 +33,9 @@ pub(super) struct Popup {
 fn merge_draft(draft: &mut BTreeMap<String, bool>, rows: &[Entry]) {
     draft.retain(|id, _| rows.iter().any(|row| &row.id == id));
     for row in rows {
-        draft.entry(row.id.clone()).or_insert(row.checked);
+        if !draft.contains_key(&row.id) {
+            draft.insert(row.id.clone(), row.checked);
+        }
     }
 }
 fn select_all(draft: &mut BTreeMap<String, bool>, rows: &[Entry]) {
@@ -126,11 +128,8 @@ impl Popup {
                 self.inflight = None;
                 self.queue.clear();
                 self.menu.status(&format!("未完成：{error}"));
-                let mut display = self.rows.clone();
-                for row in &mut display {
-                    row.checked = *self.draft.get(&row.id).unwrap_or(&row.checked);
-                }
-                self.menu.update(&display, true, true, false);
+                self.menu
+                    .update_draft(&self.rows, Some(&self.draft), true, true, false);
                 Ok(!self.menu.closed())
             }
         }
@@ -247,25 +246,29 @@ impl Popup {
                 return Ok(false);
             }
         }
-        let mut display = self.rows.clone();
-        for row in &mut display {
-            row.checked = *self.draft.get(&row.id).unwrap_or(&row.checked);
-        }
         if self.applying && idle && !current {
             return Err(windows::core::Error::new(
                 E_ABORT,
                 "目标目录不可用，请刷新后重试",
             ));
         }
-        self.menu
-            .update(&display, current, self.origin.is_some(), self.applying);
+        self.menu.update_draft(
+            &self.rows,
+            Some(&self.draft),
+            current,
+            self.origin.is_some(),
+            self.applying,
+        );
         Ok(true)
     }
     unsafe fn sync_directory(&mut self, state: &State) {
         let was_empty = self.rows.is_empty();
         if state.authorization.borrow().targets.directory.is_some() {
-            self.rows = entries(state, self.kind);
-            merge_draft(&mut self.draft, &self.rows);
+            let rows = entries(state, self.kind);
+            if rows != self.rows {
+                merge_draft(&mut self.draft, &rows);
+                self.rows = rows;
+            }
         }
         // 投射失败由显式刷新/重试清除，后台空目录提示不能覆盖失败原因。
         if !self.failed {

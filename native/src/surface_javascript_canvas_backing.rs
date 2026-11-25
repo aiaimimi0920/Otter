@@ -10,7 +10,6 @@ use windows::Win32::{
     Graphics::{
         Direct2D::{Common::*, *},
         Dxgi::Common::DXGI_FORMAT_B8G8R8A8_UNORM,
-        Gdi::GdiFlush,
     },
 };
 
@@ -71,12 +70,6 @@ impl Backing {
             #[cfg(test)]
             trace.mark(crate::surface_javascript_wire::diagnostics::Stage::CanvasBindReady);
             target.SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
-            target.BeginDraw();
-            target.Clear(Some(&D2D1_COLOR_F::default()));
-            #[cfg(test)]
-            trace.mark(crate::surface_javascript_wire::diagnostics::Stage::CanvasInitialEndDraw);
-            target.EndDraw(None, None).map_err(|_| invalid())?;
-            GdiFlush().ok().map_err(|_| invalid())?;
             target
         };
         #[cfg(test)]
@@ -87,6 +80,13 @@ impl Backing {
             _logical: logical,
             _scratch: scratch,
         })
+    }
+    pub(super) unsafe fn begin_draw(&self, clear_all: bool) {
+        self.target.BeginDraw();
+        if clear_all {
+            // No clip is active; this clears the whole target regardless of its last transform.
+            self.target.Clear(Some(&D2D1_COLOR_F::default()));
+        }
     }
     pub(super) fn copy_into(&self, output: &mut [u8]) -> io::Result<()> {
         self.bitmap.copy_into(output).map_err(|_| invalid())
@@ -116,11 +116,14 @@ mod tests {
                 Stage::CanvasBitmapReady,
                 Stage::CanvasTargetReady,
                 Stage::CanvasBindReady,
-                Stage::CanvasInitialEndDraw,
                 Stage::CanvasBackingReady
             ]
         );
         assert_eq!(budget.used(), 8);
+        unsafe {
+            backing.begin_draw(true);
+            backing.target.EndDraw(None, None).unwrap();
+        }
         let mut pixels = [1; 8];
         backing.copy_into(&mut pixels).unwrap();
         assert_eq!(pixels, [0; 8]);
@@ -128,7 +131,7 @@ mod tests {
         assert!(backing.copy_into(&mut too_short).is_err());
         assert_eq!(too_short, [99; 7]);
         unsafe {
-            backing.target.BeginDraw();
+            backing.begin_draw(false);
             let brush = backing
                 .target
                 .CreateSolidColorBrush(

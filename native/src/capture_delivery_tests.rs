@@ -9,10 +9,9 @@ struct Directory(PathBuf);
 impl Directory {
     fn new() -> Self {
         Self(
-            PathBuf::from("C:/Users/Public/nas_home/AI/GameEditor/linshi")
-                .join(format!("otter-delivery-{:?}", unsafe {
-                    windows::Win32::System::Com::CoCreateGuid().unwrap()
-                })),
+            std::env::temp_dir().join(format!("otter-delivery-{:?}", unsafe {
+                windows::Win32::System::Com::CoCreateGuid().unwrap()
+            })),
         )
     }
     fn entries(&self) -> usize {
@@ -44,6 +43,7 @@ fn outcome(hdr: bool) -> Outcome {
     let cancel = AtomicBool::new(false);
     let preview = frame.to_sdr(320.0, 1.0, &cancel).unwrap();
     Outcome {
+        backend: if hdr { Backend::Wgc } else { Backend::Gdi },
         frame: if hdr {
             Frame::Hdr {
                 image: frame.to_hdr(0.01, 1000.0, 1.0, &cancel).unwrap(),

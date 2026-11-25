@@ -44,6 +44,8 @@ fn assert_bridge(frame: Frame, expected: &[u8]) -> usize {
         difference, None,
         "straight PNG alpha/orientation must be exact"
     );
+    assert_eq!((output.image.width, output.image.height), (width, height));
+    assert_eq!(output.image.pixels.len(), actual.len());
     for (straight, display) in actual
         .chunks_exact(4)
         .zip(output.image.pixels.chunks_exact(4))

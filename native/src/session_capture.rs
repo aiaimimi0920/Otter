@@ -86,6 +86,6 @@ pub fn decode(raw: &str) -> Result<Metadata<'_>, Error> {
     }
     Ok(value)
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "session_capture_tests.rs"]
 mod tests;

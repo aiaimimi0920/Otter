@@ -108,13 +108,16 @@ pub struct Proof {
 }
 impl Proof {
     pub fn capture(source: &Source) -> Option<Self> {
-        let document = crate::session_document::decode(source).ok()?;
+        Self::capture_parsed(&source.parse().ok()?)
+    }
+    pub(crate) fn capture_parsed(parsed: &crate::session_source::Parsed<'_>) -> Option<Self> {
+        let document = parsed.document();
         let scope = document.projection_scope?;
         Some(Self {
-            source: source.clone(),
+            source: parsed.source().clone(),
             scope,
             #[cfg(windows)]
-            editing: crate::projection_edit::checkpoint::Index::capture(&document)?,
+            editing: crate::projection_edit::checkpoint::Index::capture(document)?,
         })
     }
     pub fn scope(&self) -> Scope {
@@ -133,6 +136,6 @@ impl Proof {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "session_projection_scope_tests.rs"]
 mod tests;

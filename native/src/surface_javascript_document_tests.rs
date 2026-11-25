@@ -69,6 +69,42 @@ fn javascript_document_invalid_markup_and_mutation_preserve_original_tree() {
     session.dispose(&|| false).unwrap();
 }
 #[test]
+fn javascript_document_real_child_markup_failure_releases_canvas_owner() {
+    let _serial = fixture::SERIAL.lock().unwrap();
+    let source = r#"NeuroSurface.define({mount({root}){
+      root.innerHTML='<span>original</span>';
+      const old=root.firstChild, markup='<canvas width="7" height="3"></canvas>';
+      for(let i=0;i<10;i++){
+        let rejected=false;
+        try{
+          if(i%2)old.innerHTML=markup; // valid draft, inadmissible at the destination
+          else root.innerHTML=markup+'<span></div>';
+        }catch{rejected=true}
+        if(!rejected||root.firstChild!==old||old.textContent!=='original')throw Error('not atomic');
+      }
+      root.innerHTML='<span>retained quota</span>'+markup;
+      const next=root.lastChild;
+      if(root.firstChild===old||next.width!==7||next.height!==3||!(next instanceof HTMLCanvasElement))
+        throw Error('canvas identity or size');
+      const ctx=next.getContext('2d');ctx.fillRect(0,0,1,1);
+    }});"#;
+    let (session, frame) = Session::mount(
+        fixture::binding(),
+        source.into(),
+        fixture::snapshot(3, 42),
+        fixture::resources(),
+        &|| false,
+    )
+    .unwrap();
+    let probe = session.child.as_ref().unwrap().probe().unwrap();
+    assert_eq!(fixture::text(&frame.scene), "retained quota");
+    session.dispose(&|| false).unwrap();
+    assert!(probe.exited());
+    let peak = probe.peak_job_bytes().unwrap();
+    assert!(peak > 0 && peak <= CHILD_LIMIT);
+    assert_eq!(CAPACITY.used(), 0);
+}
+#[test]
 fn javascript_document_node_attribute_and_depth_limits_remain_bounded() {
     let _serial = fixture::SERIAL.lock().unwrap();
     for expression in [
@@ -103,6 +139,40 @@ fn javascript_document_real_child_integrity_survives_collect_update_and_dispose(
     assert_eq!(fixture::text(&frame.scene), "updated-integrity");
     session.dispose(&|| false).unwrap();
     assert!(probe.exited());
+}
+#[test]
+fn javascript_document_real_child_static_and_live_collections_survive_update() {
+    let _serial = fixture::SERIAL.lock().unwrap();
+    for (source, expected) in [
+        (
+            include_str!("../tests/fixtures/javascript-document-query.js"),
+            "queries",
+        ),
+        (
+            include_str!("../tests/fixtures/javascript-document-collections.js"),
+            "collections",
+        ),
+    ] {
+        let (mut session, frame) = Session::mount(
+            fixture::binding(),
+            source.into(),
+            fixture::snapshot(3, 42),
+            fixture::resources(),
+            &|| false,
+        )
+        .unwrap();
+        let probe = session.child.as_ref().unwrap().probe().unwrap();
+        assert_eq!(fixture::text(&frame.scene), expected);
+        let frame = session
+            .update(fixture::snapshot(4, 45), fixture::resources(), &|| false)
+            .unwrap();
+        assert_eq!(fixture::text(&frame.scene), format!("updated-{expected}"));
+        session.dispose(&|| false).unwrap();
+        assert!(probe.exited());
+        let peak = probe.peak_job_bytes().unwrap();
+        assert!(peak > 0 && peak <= CHILD_LIMIT);
+    }
+    assert_eq!(CAPACITY.used(), 0);
 }
 #[test]
 fn javascript_document_private_protocol_does_not_invoke_plugin_to_json_hooks() {

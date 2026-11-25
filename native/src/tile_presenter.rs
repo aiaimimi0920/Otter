@@ -186,12 +186,9 @@ pub(super) fn run(
                         clock_uncertainty_ms: s.clock.estimate(Instant::now()).map(|v| v.1),
                     });
                 let job = if !s.black && !s.frozen && !identifying {
-                    layout.zip(key.clone()).map(|(l, key)| Job {
-                        generation: s.generation,
-                        key,
-                        layout: l.clone(),
-                        size: endpoint.pixel_size,
-                    })
+                    layout
+                        .zip(key.as_ref())
+                        .map(|(l, key)| (s.generation, l, key))
                 } else {
                     None
                 };
@@ -212,8 +209,13 @@ pub(super) fn run(
                     ),
                 )
             };
-            if let Some(job) = job {
-                assets.submit(job);
+            if let Some((generation, layout, key)) = job {
+                assets.submit(|| Job {
+                    generation,
+                    key: key.clone(),
+                    layout: layout.clone(),
+                    size: endpoint.pixel_size,
+                });
             }
             if let Some(report) = identification_report {
                 // 一次发送，不因未知报告结果重放；原错误链撤销此presenter并清屏。

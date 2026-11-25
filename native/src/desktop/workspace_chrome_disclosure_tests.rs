@@ -195,7 +195,7 @@ fn body_clicks_and_short_releases_outside_the_anchor_do_not_toggle_or_start_a_li
 
 #[test]
 fn a_real_drop_on_a_body_is_rejected_but_the_same_drop_on_its_anchor_uses_the_graph_transaction() {
-    unsafe {
+    desktop::workspace_window_fixture::with_private_desktop(|| unsafe {
         let mut app = app();
         let source = port(0, Side::Output);
         let target = port(1, Side::Input);
@@ -211,15 +211,16 @@ fn a_real_drop_on_a_body_is_rejected_but_the_same_drop_on_its_anchor_uses_the_gr
                 UpdateWindow(hwnd).ok().unwrap();
             }
             let found = WindowFromPoint(POINT { x: end.x, y: end.y });
-            assert!(app
+            let expected = app
                 .chrome
                 .ui
                 .input_windows
                 .borrow()
                 .iter()
-                .any(|(hwnd, node, side)| {
-                    *hwnd == found && *node == target.node && *side == target.side
-                }));
+                .find(|(_, node, side)| *node == target.node && *side == target.side)
+                .map(|(hwnd, _, _)| *hwnd)
+                .expect("target strip must exist");
+            assert_eq!(found, expected, "drop hit at ({}, {})", end.x, end.y);
             mouse(&app, source, WM_LBUTTONDOWN, anchor(&app, source));
             mouse(&app, source, WM_MOUSEMOVE, end);
             mouse(&app, source, WM_LBUTTONUP, end);
@@ -228,7 +229,7 @@ fn a_real_drop_on_a_body_is_rejected_but_the_same_drop_on_its_anchor_uses_the_gr
             assert_eq!(app.workspace.links().len(), usize::from(accepted));
         }
         app.shutdown();
-    }
+    });
 }
 
 #[test]

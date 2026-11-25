@@ -71,13 +71,15 @@ fn main() -> windows::core::Result<()> {
             windows::core::Error::new(windows::Win32::Foundation::E_FAIL, error.to_string())
         });
     }
-    // 私有worker已分流；正常宿主独占一个watchdog，退出后只回收该自建child。
-    let _emergency = otter_native::emergency_watchdog::install();
     if let Some(command) = otter_native::tile_cli::parse(&args).map_err(|message| {
         windows::core::Error::new(windows::Win32::Foundation::E_INVALIDARG, message)
     })? {
+        // 输出枚举只打印 JSON 后退出；常驻 Tile 仍需 watchdog。
+        let _emergency = (command != otter_native::tile_cli::Command::Outputs)
+            .then(otter_native::emergency_watchdog::install);
         return otter_native::desktop::tile_terminal::run(command);
     }
+    let _emergency = otter_native::emergency_watchdog::install();
     let (args, options) = startup_settings::extract(args).map_err(|message| {
         windows::core::Error::new(windows::Win32::Foundation::E_INVALIDARG, message)
     })?;
@@ -94,7 +96,7 @@ fn main() -> windows::core::Result<()> {
         shader_candidate: options.candidate.as_deref(),
         shader_smoke_peer: options.peer.as_deref(),
     };
-    if args.iter().any(|argument| argument == "--workspace-check") {
+    if options.workspace_check {
         if args.len() != 1 {
             return Err(windows::core::Error::new(
                 windows::Win32::Foundation::E_INVALIDARG,

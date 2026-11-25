@@ -108,7 +108,9 @@ pub(super) unsafe fn dispatch(hwnd: HWND, state: &State, msg: u32, wp: WPARAM) -
         }
         hook::CANCEL => finish(hwnd, state, None),
         hook::MOVED => {
-            let point = hook::take_move();
+            let Some(point) = hook::take_move() else {
+                return Some(LRESULT(1));
+            };
             let popup = state
                 .screen_color
                 .borrow()
@@ -167,6 +169,6 @@ unsafe fn finish(hwnd: HWND, state: &State, color: Option<Color>) {
     drop(session);
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "screen_color_tests.rs"]
 mod tests;

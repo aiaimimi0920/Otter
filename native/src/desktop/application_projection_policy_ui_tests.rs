@@ -32,7 +32,7 @@ fn receive_policy_shared_native_menu_persists_and_survives_service_reset() {
     let root = missing_profile();
     std::fs::create_dir(&root).unwrap();
     unsafe {
-        let (_class, mut app) = application();
+        let mut app = application();
         app.install_workspace_checkpoint(Some(Profile::open(&root).unwrap()), false)
             .unwrap();
         finish(&mut app);
@@ -79,7 +79,7 @@ fn receive_policy_shared_native_menu_persists_and_survives_service_reset() {
 fn receive_policy_without_native_profile_cannot_grant_auto_or_change_other_settings() {
     let _com = Apartment::new().unwrap();
     unsafe {
-        let (_class, mut app) = application();
+        let mut app = application();
         let source = app.naming_document.clone();
         ui::execute(
             app.documents[0].window.0,
@@ -104,18 +104,14 @@ fn receive_policy_pause_menu_is_shared_without_service_and_blocks_inbox_not_cons
     let root = missing_profile();
     std::fs::create_dir(&root).unwrap();
     unsafe {
-        let (_class, mut app) = application();
+        let mut app = application();
         app.install_workspace_checkpoint(Some(Profile::open(&root).unwrap()), false)
             .unwrap();
         finish(&mut app);
         let second = app.bind_window_state(State::new(None, false).unwrap());
-        for paused in [true, false] {
-            ui::execute(
-                app.documents[0].window.0,
-                &app.documents[0].state,
-                policy::PAUSE,
-            )
-            .unwrap();
+        // Pause is a selection, not a toggle. Selecting Receive resumes participation.
+        for (command, paused) in [(policy::PAUSE, true), (policy::CONFIRM, false)] {
+            ui::execute(app.documents[0].window.0, &app.documents[0].state, command).unwrap();
             finish(&mut app);
             assert_eq!(second.authorization.borrow().consent.paused(), paused);
             assert_eq!(
@@ -129,16 +125,17 @@ fn receive_policy_pause_menu_is_shared_without_service_and_blocks_inbox_not_cons
                 GetMenuState(menu, ui::projection::REFRESH as u32, MF_BYCOMMAND) & MF_GRAYED.0 != 0,
                 paused
             );
-            let mut text = [0u16; 64];
-            let len = GetMenuStringW(menu, policy::PAUSE as u32, Some(&mut text), MF_BYCOMMAND);
-            assert_eq!(
-                String::from_utf16(&text[..len as usize]).unwrap(),
-                if paused {
-                    "恢复本机接收"
-                } else {
-                    "暂停本机接收"
-                }
-            );
+            for (item, label, selected) in [
+                (policy::PAUSE, "暂停", paused),
+                (policy::CONFIRM, "接收", !paused),
+            ] {
+                let flags = GetMenuState(menu, item as u32, MF_BYCOMMAND);
+                assert_eq!(flags & MF_CHECKED.0 != 0, selected);
+                assert_eq!(flags & MF_GRAYED.0, 0);
+                let mut text = [0u16; 64];
+                let len = GetMenuStringW(menu, item as u32, Some(&mut text), MF_BYCOMMAND);
+                assert_eq!(String::from_utf16(&text[..len as usize]).unwrap(), label);
+            }
             DestroyMenu(menu).unwrap();
             if paused {
                 app.authorization.borrow_mut().request =

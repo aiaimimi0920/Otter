@@ -256,10 +256,7 @@ pub(super) fn fields(c: &Canvas) -> Vec<Field> {
                     profiles.text_font.family()
                 }
             });
-            let mut f = Vec::new();
-            if tool == Tool::Serial {
-                f.push(fill());
-            }
+            let mut f = vec![fill()];
             f.push(color(
                 STROKE,
                 if tool == Tool::Serial {

@@ -63,8 +63,7 @@ impl Application {
             .and_then(|doc| {
                 let slot = doc.state.projection_edit.borrow();
                 let owner = slot.as_ref()?;
-                let snapshot = owner.capture(&doc.state.canvas.borrow().editor);
-                crate::projection_delivery_runtime::edit::automatic(&snapshot).then(|| Selection {
+                Some(Selection {
                     unit: unit.clone(),
                     stamp: owner.stamp(),
                 })

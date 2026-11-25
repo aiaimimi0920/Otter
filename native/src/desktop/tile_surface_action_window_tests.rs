@@ -168,7 +168,7 @@ fn explicit_approve_reject_and_dialog_cancel_are_distinct_and_modal_reentry_reva
         assert!(matches!(command.kind,Kind::Decision{approved:a,..} if a==approved));
     }
     waiting(&f);
-    let command = choices(&w.state).pop().unwrap();
+    let (command, _) = choices(&w.state).pop().unwrap();
     choose(w.hwnd, &w.state, command, |_, _| {
         f.shared.stop();
         Ok(Some(Choice::Approve))
@@ -222,13 +222,13 @@ fn suspension_keeps_confirmation_identity_but_requires_visible_resume_and_explic
     }
 }
 #[test]
-fn changed_prompt_during_modal_cannot_reuse_old_approval() {
+fn changed_prompt_before_or_during_modal_cannot_reuse_old_approval() {
     let _com = Apartment::new();
-    let f = Fixture::new("art");
-    let w = window(&f);
-    let c = waiting(&f);
-    let command = choices(&w.state).pop().unwrap();
-    choose(w.hwnd, &w.state, command, |_, _| {
+    for replace_before_prompt in [false, true] {
+        let f = Fixture::new("art");
+        let w = window(&f);
+        let c = waiting(&f);
+        let (command, _) = choices(&w.state).pop().unwrap();
         let mut v = value(&f.job.key, "art");
         let mut next = confirmation(&c.event_id, &f.job.key.endpoint);
         next["payload"] = serde_json::json!({"different":true});
@@ -242,11 +242,22 @@ fn changed_prompt_during_modal_cannot_reuse_old_approval() {
             )
             .unwrap(),
         );
-        f.shared
-            .lock()
-            .actions
-            .observe(current, "origin", "device", Instant::now());
-        Ok(Some(Choice::Approve))
-    });
-    assert!(!queued(&f));
+        let replace = || {
+            f.shared
+                .lock()
+                .actions
+                .observe(current.clone(), "origin", "device", Instant::now());
+        };
+        if replace_before_prompt {
+            replace();
+        }
+        let mut prompted = false;
+        choose(w.hwnd, &w.state, command, |_, _| {
+            prompted = true;
+            replace();
+            Ok(Some(Choice::Approve))
+        });
+        assert_eq!(prompted, !replace_before_prompt);
+        assert!(!queued(&f));
+    }
 }

@@ -24,7 +24,7 @@ fn source_background_sync_keeps_frozen_png_and_caches_only_current_content_ident
     std::fs::write(files.root().join("ca.pem"), pem).unwrap();
     let peer = peer::Peer::start(listener, tls, files.root().to_path_buf());
     unsafe {
-        let (_class, mut app) = application(files.root());
+        let mut app = application(files.root());
         initialized(&mut app, &files, identity, client, 1);
         let unit = app.documents[0].state.unit_id.clone();
         let id = snapshot(&app).projection_id().to_owned();
@@ -89,6 +89,56 @@ fn source_background_sync_keeps_frozen_png_and_caches_only_current_content_ident
     }
 }
 #[test]
+fn source_guard_rechecks_drafts_edits_and_basis_after_success() {
+    let _serial = serial();
+    let _com = Apartment::new().unwrap();
+    let (files, identity, _) = Files::new();
+    let (listener, client, tls, pem) =
+        crate::device_session_client::tests::fixture_with_host("127.0.0.1");
+    std::fs::write(files.root().join("ca.pem"), pem).unwrap();
+    let _peer = peer::Peer::start(listener, tls, files.root().to_path_buf());
+    unsafe {
+        let mut app = application(files.root());
+        initialized(&mut app, &files, identity, client, 1);
+        let state = &app.documents[0].state;
+        let slot = state.projection_edit.borrow();
+        let owner = slot.as_ref().unwrap();
+        let mut canvas = state.canvas.borrow_mut();
+        let editor = &mut canvas.editor;
+        assert!(owner.can_submit(editor));
+        assert!(owner.can_submit(editor));
+        let before = editor.document_stamp();
+        editor
+            .begin(Tool::Mosaic, Point { x: 20.0, y: 20.0 })
+            .unwrap();
+        assert!(
+            before.matches(editor),
+            "a draft leaves committed revision unchanged"
+        );
+        assert!(!owner.can_submit(editor));
+        assert!(editor.cancel());
+        assert!(owner.can_submit(editor));
+        editor
+            .begin(Tool::Mosaic, Point { x: 20.0, y: 20.0 })
+            .unwrap();
+        assert!(editor.commit());
+        assert!(!owner.can_submit(editor));
+        assert!(editor.undo());
+        assert!(owner.can_submit(editor));
+        assert!(editor.redo());
+        assert!(!owner.can_submit(editor));
+        assert!(editor.undo());
+        assert!(owner.can_submit(editor));
+        let base = editor.layers().unwrap().base.to_vec();
+        assert!(editor.replace_source(base.into()));
+        assert!(!owner.can_submit(editor));
+        drop(canvas);
+        drop(slot);
+        app.shutdown();
+    }
+}
+
+#[test]
 fn source_active_mosaic_is_rejected_before_stage_or_network_without_changing_editor() {
     let _serial = serial();
     let _com = Apartment::new().unwrap();
@@ -98,7 +148,7 @@ fn source_active_mosaic_is_rejected_before_stage_or_network_without_changing_edi
     std::fs::write(files.root().join("ca.pem"), pem).unwrap();
     let peer = peer::Peer::start(listener, tls, files.root().to_path_buf());
     unsafe {
-        let (_class, mut app) = application(files.root());
+        let mut app = application(files.root());
         sent(&mut app, &files, identity, client);
         let mut canvas = app.documents[0].state.canvas.borrow_mut();
         canvas
@@ -132,7 +182,7 @@ fn source_unsupported_probe_does_not_replace_png_or_initialize_or_modify_editor(
         let peer = peer::Peer::start(listener, tls, files.root().to_path_buf());
         peer.probe_status.store(status, Ordering::Release);
         unsafe {
-            let (_class, mut app) = application(files.root());
+            let mut app = application(files.root());
             sent(&mut app, &files, identity, client);
             let original = app.restored_session.as_ref().unwrap().original.clone();
             let stamp = app.documents[0]
@@ -170,7 +220,7 @@ fn source_network_period_edit_to_existing_object_is_not_mistaken_for_staged_base
     std::fs::write(files.root().join("ca.pem"), pem).unwrap();
     let _peer = peer::Peer::start(listener, tls, files.root().to_path_buf());
     unsafe {
-        let (_class, mut app) = application(files.root());
+        let mut app = application(files.root());
         sent(&mut app, &files, identity, client);
         begin(&mut app, &files);
         completed(&app);
@@ -213,7 +263,7 @@ fn source_unknown_initialize_result_survives_real_reopen_and_retries_identical_i
     let peer = peer::Peer::start(listener, tls, files.root().to_path_buf());
     peer.lose_initialize.store(true, Ordering::Release);
     unsafe {
-        let (_class, mut app) = application(files.root());
+        let mut app = application(files.root());
         sent(&mut app, &files, identity, client);
         begin(&mut app, &files);
         completed(&app);
@@ -288,7 +338,7 @@ fn source_cancel_or_replaced_pixels_after_reply_does_not_publish_late_session() 
         std::fs::write(files.root().join("ca.pem"), pem).unwrap();
         let peer = peer::Peer::start(listener, tls, files.root().to_path_buf());
         unsafe {
-            let (_class, mut app) = application(files.root());
+            let mut app = application(files.root());
             sent(&mut app, &files, identity, client);
             begin(&mut app, &files);
             completed(&app);
@@ -341,7 +391,7 @@ fn source_checkpoint_transition_rejects_equal_bytes_new_allocation_cancel_and_re
         std::fs::write(files.root().join("ca.pem"), pem).unwrap();
         let _peer = peer::Peer::start(listener, tls, files.root().to_path_buf());
         unsafe {
-            let (_class, mut app) = application(files.root());
+            let mut app = application(files.root());
             sent(&mut app, &files, identity, client);
             begin(&mut app, &files);
             completed(&app);

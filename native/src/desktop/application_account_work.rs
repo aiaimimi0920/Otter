@@ -164,22 +164,19 @@ pub(super) fn receive(
         w: f64::from(image.width()) * scale,
         h: f64::from(image.height()) * scale,
     };
-    let vector = crate::desktop::session_candidate::account_projection::prepare(
+    let (restore, retained) = crate::desktop::session_candidate::account_projection::prepare(
         *content,
         &binding,
         input.space,
         rect,
+        crate::session_append::Target {
+            original: &input.source,
+            active: &input.units,
+        },
         cancel,
     )?;
-    let retained = crate::session_append::prepare(
-        &input.source,
-        vector.candidate.original_json(),
-        &input.units,
-        cancel,
-    )
-    .map_err(|e| Error::new(E_FAIL, e))?;
     Ok(Output::Receive(Box::new(account_projection::Prepared {
-        vector,
+        restore,
         retained,
         binding,
     })))

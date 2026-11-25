@@ -156,14 +156,18 @@ pub(super) fn prepare(cache: &mut BTreeMap<String, Prepared>, frame: Option<&Fra
     let Some(frame) = frame else {
         return Ok(());
     };
-    let mut pool: BTreeMap<_, _> = cache
-        .values()
-        .flat_map(|p| p.bitmaps.iter().map(|(id, b)| (id.clone(), b.clone())))
-        .collect();
+    // Build the pool only before the first replacement, while all reusable resources still exist.
+    let mut pool = None;
     for (id, art) in &frame.arts {
         if cache.get(id).is_some_and(|p| Arc::ptr_eq(&p.owner, art)) {
             continue;
         }
+        let pool = pool.get_or_insert_with(|| {
+            cache
+                .values()
+                .flat_map(|p| p.bitmaps.iter().map(|(id, b)| (id.clone(), b.clone())))
+                .collect::<BTreeMap<_, _>>()
+        });
         let scene = crate::surface_scene::Scene::parse(&art.snapshot.scene)
             .map_err(|_| Error::new(E_INVALIDARG, "Tile Art scene"))?;
         let mut bitmaps = BTreeMap::new();
@@ -193,7 +197,10 @@ pub(super) fn prepare(cache: &mut BTreeMap<String, Prepared>, frame: Option<&Fra
                 && p.owner.generation == art.generation
                 && p.owner.size == art.size
         }) {
-            presentation.restore_scroll(&previous.presentation.scroll_state())?;
+            let scroll = previous.presentation.scroll_state();
+            if presentation.scroll_state() != scroll {
+                presentation.restore_scroll(&scroll)?;
+            }
         }
         presentation.embed_controls()?;
         cache.insert(

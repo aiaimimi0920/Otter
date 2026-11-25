@@ -138,6 +138,34 @@ fn inspect_binds_current_digest_origin_and_public_receipt_identity() {
     assert_eq!(body["expectedDigest"], intent.digest());
     assert_eq!(body["receiverUnitId"], invitation.receiver_unit_id());
     assert_eq!(body["confirmed"], true);
+    for (field, value) in [
+        ("width", json!(3)),
+        ("height", json!(2)),
+        (
+            "snapshot",
+            json!({"width":3,"height":1,"imageBase64":STANDARD.encode(&bytes)}),
+        ),
+        (
+            "snapshot",
+            json!({"width":2,"height":1,"imageBase64":STANDARD.encode(&bytes[..24])}),
+        ),
+        (
+            "snapshot",
+            json!({"width":2,"height":1,"imageBase64":"invalid!"}),
+        ),
+    ] {
+        let mut invalid = wire.clone();
+        invalid[field] = value;
+        assert!(matches!(parse(&invalid), Err(Error::Snapshot)), "{field}");
+    }
+    assert!(inspected(
+        &serde_json::to_vec(&wire).unwrap(),
+        intent.envelope(),
+        ORIGIN,
+        "receiver-1",
+        &AtomicBool::new(true),
+    )
+    .is_err());
     wire["digest"] = "b".repeat(64).into();
     assert!(parse(&wire).is_err());
     wire["digest"] = intent.digest().into();

@@ -9,16 +9,39 @@ use std::{
 };
 
 /// UI 在启动前冻结这些值；像素和编辑器快照使用已有共享存储，不从 worker 回读窗口。
-pub struct Input {
-    pub width: u32,
-    pub height: u32,
-    pub pixels: crate::pixels::Pixels,
-    pub editor: crate::editor::Editor,
-    pub opacity: f32,
-    pub(super) style: super::export::style::Snapshot,
-    pub root: PathBuf,
-    pub stem: String,
-    pub policy: crate::cache_policy::Policy,
+pub(super) struct Input {
+    width: u32,
+    height: u32,
+    pixels: crate::pixels::Pixels,
+    editor: crate::editor::Editor,
+    opacity: f32,
+    style: super::export::style::Snapshot,
+    root: PathBuf,
+    stem: String,
+    policy: crate::cache_policy::Policy,
+}
+impl Input {
+    pub(super) fn capture(
+        canvas: &super::canvas::Canvas,
+        frame: Option<&super::display_frame::Frame>,
+        root: PathBuf,
+        stem: String,
+        policy: crate::cache_policy::Policy,
+    ) -> Option<Self> {
+        // 生产入口只接收已隔离历史和草稿的编辑快照；启动 worker 时直接移交。
+        let (image, editor) = super::display_snapshot::capture(canvas, frame)?;
+        Some(Self {
+            width: image.width,
+            height: image.height,
+            pixels: image.pixels,
+            editor,
+            opacity: canvas.normal_opacity,
+            style: super::export::style::Snapshot::capture(canvas),
+            root,
+            stem,
+            policy,
+        })
+    }
 }
 
 pub struct Ready {
@@ -39,14 +62,15 @@ impl Ready {
 }
 type Output = Result<Option<Ready>, String>;
 pub struct Job {
+    _permit: crate::edit_worker_budget::Permit<'static>,
     worker: Option<JoinHandle<Output>>,
     cancel: Arc<AtomicBool>,
 }
 impl Job {
-    pub fn start(mut input: Input) -> Result<Self, String> {
+    pub(super) fn start(input: Input) -> Result<Self, String> {
         validate(&input)?;
-        // worker 只需已提交内容，不能延长整个撤销/重做历史的寿命。
-        input.editor = input.editor.export_snapshot();
+        let permit = crate::edit_worker_budget::Permit::acquire_output()
+            .ok_or("Native output worker limit reached")?;
         let cancel = Arc::new(AtomicBool::new(false));
         let signal = cancel.clone();
         let worker = std::thread::Builder::new()
@@ -54,6 +78,7 @@ impl Job {
             .spawn(move || prepare(input, &signal))
             .map_err(|error| error.to_string())?;
         Ok(Self {
+            _permit: permit,
             worker: Some(worker),
             cancel,
         })
@@ -67,6 +92,7 @@ impl Job {
     #[cfg(test)]
     pub(super) fn from_test_worker(worker: JoinHandle<Output>, cancel: Arc<AtomicBool>) -> Self {
         Self {
+            _permit: crate::edit_worker_budget::Permit::acquire_output().unwrap(),
             worker: Some(worker),
             cancel,
         }

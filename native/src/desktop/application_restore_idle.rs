@@ -1,6 +1,6 @@
 //! 恢复替换只在无待交付工作时准备；不隐式取消执行或丢弃用户尚未提交的手势。
 use super::Application;
-pub(super) fn application(app: &Application) -> bool {
+pub(super) fn services(app: &Application) -> bool {
     !app.capture_active.get()
         && app.chrome.idle()
         && !app.projection_receive.preparing()
@@ -13,7 +13,6 @@ pub(super) fn application(app: &Application) -> bool {
         && !app.display_composition.borrow().is_busy()
         && !app.catalog.borrow().requested
         && !app.catalog.borrow().job.is_busy()
-        && app.documents.iter().all(|doc| state(&doc.state))
         && !app
             .live_sessions
             .iter()
@@ -37,6 +36,7 @@ pub(super) fn state(state: &crate::desktop::State) -> bool {
         || state.execution_cancel.borrow().is_some()
         || state.execution_results.borrow().active().is_some()
         || state.copy_job.borrow().is_some()
+        || state.drag.is_busy()
         || state.export.borrow().is_some()
         || state.open_job.borrow().is_some()
         || state.crop_job.borrow().is_some()

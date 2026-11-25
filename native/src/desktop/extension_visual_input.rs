@@ -198,6 +198,6 @@ fn translated(r: Rect, v: [f32; 4]) -> Rect {
         bottom: r.bottom + v[1],
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-loom")))]
 #[path = "extension_visual_input_tests.rs"]
 mod tests;

@@ -70,6 +70,7 @@ impl Application {
         }
         self.catalog.borrow_mut().job.shutdown();
         self.input_jobs.shutdown();
+        self.retired_edits.shutdown();
         self.projection_profile.close();
         for report in self.execution_jobs.shutdown() {
             let unresolved = report.completion.cleanup_unconfirmed();

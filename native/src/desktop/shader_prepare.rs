@@ -1,6 +1,8 @@
 //! 在既有执行 worker 中从同份准备输入与正式取码结果构造纹理；不创建线程、队列或临时文件。
 pub use super::shader_payload::Error;
-use super::{loom_input_job::PreparedBatch, shader_payload::Payload, Apartment};
+use super::{
+    loom_input_job::PreparedBatch, shader_native_invocation, shader_payload::Payload, Apartment,
+};
 use crate::{
     shader_angle::Backend,
     shader_process::{OwnedInvocation, OwnedTexture, TrustedBundle},
@@ -255,27 +257,25 @@ impl Runtime {
                 height,
                 vertex: payload.vertex_shader.clone(),
                 fragment: payload.fragment_shader.clone(),
-                textures,
+                textures: textures
+                    .into_iter()
+                    .map(|texture| OwnedTexture {
+                        name: texture.name,
+                        width: texture.width,
+                        height: texture.height,
+                        rgba: texture.rgba,
+                    })
+                    .collect(),
                 uniforms: uniforms.into_iter().collect(),
             })
         } else {
-            super::shader_invocation::Invocation::Native(
-                super::shader_native_invocation::Invocation {
-                    source: payload.source.clone(),
-                    width,
-                    height,
-                    textures: textures
-                        .into_iter()
-                        .map(|texture| super::shader_native_invocation::Texture {
-                            name: texture.name,
-                            width: texture.width,
-                            height: texture.height,
-                            rgba: texture.rgba,
-                        })
-                        .collect(),
-                    uniforms: uniforms.into_iter().collect(),
-                },
-            )
+            super::shader_invocation::Invocation::Native(shader_native_invocation::Invocation {
+                source: payload.source.clone(),
+                width,
+                height,
+                textures,
+                uniforms: uniforms.into_iter().collect(),
+            })
         };
         invocation.validate().map_err(|_| Error::Admission)?;
         check(cancel)?;
@@ -314,19 +314,30 @@ fn decode(
     cancel: &AtomicBool,
 ) -> Result<crate::image_decode::shader::Texture, Error> {
     check(cancel)?;
-    let bytes = super::loom_output_inline::decode_bytes("image/png", encoded, cancel)
-        .map_err(|_| Error::Decode)?;
-    let value =
-        crate::image_decode::shader::png(&bytes, remaining, &|| cancel.load(Ordering::Acquire))
-            .map_err(|_| Error::Decode)?;
+    let bytes = decode_result(
+        super::loom_output_inline::decode_bytes("image/png", encoded, cancel),
+        cancel,
+    )?;
+    decode_result(
+        crate::image_decode::shader::png(&bytes, remaining, &|| cancel.load(Ordering::Acquire)),
+        cancel,
+    )
+}
+
+fn decode_result<T>(result: windows::core::Result<T>, cancel: &AtomicBool) -> Result<T, Error> {
+    // Both decoders can return an ordinary error after observing cancellation.
+    // Check before classifying the result or passing a texture to the next stage.
     check(cancel)?;
-    Ok(value)
+    result.map_err(|_| Error::Decode)
 }
 #[cfg(test)]
 #[path = "shader_prepare_tests.rs"]
 pub(crate) mod tests;
-fn texture(name: String, value: crate::image_decode::shader::Texture) -> OwnedTexture {
-    OwnedTexture {
+fn texture(
+    name: String,
+    value: crate::image_decode::shader::Texture,
+) -> shader_native_invocation::Texture {
+    shader_native_invocation::Texture {
         name,
         width: value.width,
         height: value.height,

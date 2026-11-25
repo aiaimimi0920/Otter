@@ -1,4 +1,4 @@
-//! 打开工作区菜单到后台发布；仅使用保存回归已创建的 linshi 文件，替换选择框出口。
+//! 打开工作区菜单到后台发布；仅使用保存回归已创建的夹具文件，替换选择框出口。
 use super::*;
 use std::{
     path::Path,
@@ -9,12 +9,6 @@ pub(in crate::desktop::application) unsafe fn verify(
     instance: HINSTANCE,
     path: &Path,
 ) -> Result<()> {
-    // 保存事务返回 canonical/verbatim 路径；模拟文件框返回普通磁盘路径，不放宽读取准入。
-    let display = path
-        .to_str()
-        .ok_or_else(|| Error::new(E_FAIL, "Invalid fixture path"))?;
-    let selected = PathBuf::from(display.strip_prefix(r"\\?\").unwrap_or(display));
-    let path = selected.as_path();
     let first = DocumentWindow::create(instance, State::new(None, false)?, false)?;
     let mut app = Application::new(instance, first);
     let hwnd = app.documents[0].window.0;

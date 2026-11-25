@@ -61,7 +61,7 @@ fn native_local_loom_bootstrap_and_sender() {
     );
     assert!(std::env::var_os("OTTER_LOOM_TLS_CA_FILE").is_none());
     unsafe {
-        let (_class, mut app) = application(&profile);
+        let mut app = application(&profile);
         app.projection_profile
             .start(profile.clone(), app.execution_wake.callback());
         app.enable_local_loom();
@@ -167,9 +167,8 @@ fn native_local_loom_bootstrap_and_sender() {
         app.shutdown();
         drop(app);
         drain_messages();
-        drop(_class);
         // 同一 profile 重连不重复批准，不能更换设备 epoch 或公钥。
-        let (_second_class, mut again) = application(&profile);
+        let mut again = application(&profile);
         again
             .authorization
             .borrow_mut()
@@ -189,12 +188,32 @@ fn native_local_loom_bootstrap_and_sender() {
         again.authorization.borrow_mut().request = Some(ui::Request::Cancel);
         again.process_authorization();
         assert!(again.authorization_owner.token(&origin, now).is_none());
+        assert!(!again.local_loom.enabled());
+        // 自动续签已停；应用等待器仍须回收真实 Loom 断开任务及其完成通知。
+        let until = Instant::now() + Duration::from_secs(10);
+        loop {
+            again.process_authorization();
+            let now = crate::desktop::surface_windows::now_ms().unwrap();
+            assert!(!again.local_loom.enabled());
+            assert!(again.authorization_owner.token(&origin, now).is_none());
+            let view = again.authorization.borrow();
+            if view.status == "Loom 已断开" {
+                break;
+            }
+            assert!(
+                !view.status.starts_with("本地已断开，Loom 离线确认失败：")
+                    && Instant::now() < until,
+                "{}",
+                view.status
+            );
+            drop(view);
+            std::thread::sleep(Duration::from_millis(2));
+        }
         assert!(again.local_loom.deadline().is_none());
         again.shutdown();
         drop(again);
         drain_messages();
-        drop(_second_class);
-        let (_third_class, mut paused) = application(&profile);
+        let mut paused = application(&profile);
         paused.enable_local_loom();
         assert!(!paused.local_loom.enabled());
         assert!(paused.local_loom.deadline().is_none());

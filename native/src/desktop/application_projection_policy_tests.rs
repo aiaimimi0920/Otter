@@ -27,7 +27,7 @@ fn settle(owner: &mut Owner, consent: &mut Consent) {
             break;
         }
         assert!(Instant::now() < deadline, "receive policy save deadline");
-        std::thread::yield_now();
+        std::thread::sleep(Duration::from_millis(1));
     }
 }
 #[test]
@@ -160,4 +160,40 @@ fn receive_policy_recovery_and_cancel_do_not_reenable_auto_or_publish_unclaimed_
     assert_eq!(consent.policy(), Policy::Confirm);
     assert!(!path(&other).exists());
     assert_eq!(std::fs::read_dir(&other).unwrap().count(), 1);
+}
+
+#[test]
+fn receive_policy_close_retires_notified_worker_without_publishing_after_reopen() {
+    use std::sync::{mpsc, Mutex};
+    let root = root();
+    let mut owner = Owner::load(&root, &AtomicBool::new(false));
+    let mut consent = Consent::default();
+    owner.poll(&mut consent);
+    let (notified, notification) = mpsc::channel();
+    let (release, blocked) = mpsc::channel();
+    let blocked = Mutex::new(blocked);
+    owner.request(
+        Change::Selection(Policy::Auto),
+        &mut consent,
+        Arc::new(move || {
+            notified.send(()).unwrap();
+            // 即使发生提早 join 的回归，也给测试留出明确的有界失败出口。
+            let _ = blocked.lock().unwrap().recv_timeout(Duration::from_secs(5));
+        }),
+    );
+    let release = release;
+    notification.recv_timeout(Duration::from_secs(5)).unwrap();
+    assert!(owner.reap_deadline().is_some());
+    owner.poll(&mut consent);
+    assert!(consent.saving);
+    owner.discard(&mut consent);
+    assert!(consent.saving);
+    assert_eq!(consent.policy(), Policy::Confirm);
+    assert!(!path(&root).exists());
+    release.send(()).unwrap();
+    settle(&mut owner, &mut consent);
+    assert!(!consent.saving);
+    assert_eq!(consent.policy(), Policy::Confirm);
+    assert!(owner.reap_deadline().is_none());
+    assert_eq!(std::fs::read_dir(&root).unwrap().count(), 0);
 }

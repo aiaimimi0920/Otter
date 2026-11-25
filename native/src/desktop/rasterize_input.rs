@@ -1,6 +1,7 @@
 //! 单后台栅格化事务；COM 只在工作线程内存在，回执通过版本和源层身份校验后提交。
 use super::{canvas::Canvas, State};
 use crate::{
+    edit_worker_budget::Permit,
     editor::{Editor, RasterRefreshPlan},
     erase_layers::Layers,
 };
@@ -26,14 +27,50 @@ struct Request {
     refresh: Option<RasterRefreshPlan>,
 }
 pub(super) struct Job {
+    _permit: Permit<'static>,
     request: Request,
     cancel: Arc<AtomicBool>,
     worker: Option<JoinHandle<Result<RasterRefreshPlan, String>>>,
 }
+impl Job {
+    #[cfg(test)]
+    pub(super) fn gated(
+        source: Layers,
+        revision: u64,
+        gate: crate::edit_worker_budget::test_gate::Gate,
+    ) -> Self {
+        let permit = Permit::acquire().unwrap();
+        let cancel = Arc::new(AtomicBool::new(false));
+        let signal = cancel.clone();
+        let worker = std::thread::spawn(move || {
+            gate.wait(&signal);
+            Err("Rasterization cancelled".into())
+        });
+        Self {
+            _permit: permit,
+            request: Request {
+                source,
+                revision,
+                indices: vec![0],
+                refresh: None,
+            },
+            cancel,
+            worker: Some(worker),
+        }
+    }
+
+    pub(super) fn cancel(&self) {
+        self.cancel.store(true, Ordering::Release);
+    }
+
+    pub(super) fn is_finished(&self) -> bool {
+        self.worker.as_ref().is_some_and(JoinHandle::is_finished)
+    }
+}
 impl Drop for Job {
     fn drop(&mut self) {
-        self.cancel.store(true, Ordering::Release);
-        // WIC/D2D 同步调用不可中断；关闭时等待当前调用结束，不遗留线程或 COM 对象。
+        self.cancel();
+        // WIC/D2D 同步调用不可中断；普通关闭先移交应用，最终析构仍回收线程。
         if let Some(worker) = self.worker.take() {
             let _ = worker.join();
         }
@@ -65,6 +102,7 @@ fn spawn(mut request: Request, snapshot: Editor) -> Result<Job, String> {
         .refresh
         .take()
         .ok_or("Missing raster refresh plan")?;
+    let permit = Permit::acquire().ok_or("Busy")?;
     let source = request.source.clone();
     let cancel = Arc::new(AtomicBool::new(false));
     let signal = cancel.clone();
@@ -88,6 +126,7 @@ fn spawn(mut request: Request, snapshot: Editor) -> Result<Job, String> {
         })
         .map_err(|e| e.to_string())?;
     Ok(Job {
+        _permit: permit,
         request,
         cancel,
         worker: Some(worker),
@@ -113,21 +152,44 @@ pub(super) unsafe fn start(hwnd: HWND, state: &State, selected: bool) {
     let Some((request, snapshot)) = request else {
         return;
     };
-    match spawn(request, snapshot) {
-        Ok(job) => {
-            *state.rasterize_job.borrow_mut() = Some(job);
-            if SetTimer(Some(hwnd), TIMER, 30, None) == 0 {
-                let job = state.rasterize_job.borrow_mut().take();
-                drop(job);
-                report(hwnd, "Cannot schedule rasterization result");
-            }
-        }
-        Err(error) => report(hwnd, &error),
+    if let Err(error) = submit_with(
+        state,
+        request,
+        snapshot,
+        || SetTimer(Some(hwnd), TIMER, 30, None) != 0,
+        || {
+            let _ = KillTimer(Some(hwnd), TIMER);
+        },
+    ) {
+        report(hwnd, &error);
     }
+}
+fn submit_with(
+    state: &State,
+    request: Request,
+    snapshot: Editor,
+    reserve_timer: impl FnOnce() -> bool,
+    cancel_timer: impl FnOnce(),
+) -> Result<(), String> {
+    if state.rasterize_job.borrow().is_some() {
+        return Err("Busy".into());
+    }
+    // WIC/D2D 不可中断，必须在线程存在前确认其回收 timer 可用。
+    if !reserve_timer() {
+        return Err("Cannot schedule rasterization result".into());
+    }
+    match spawn(request, snapshot) {
+        Ok(job) => *state.rasterize_job.borrow_mut() = Some(job),
+        Err(error) => {
+            cancel_timer();
+            return Err(error);
+        }
+    }
+    Ok(())
 }
 pub(super) fn cancel(state: &State) {
     if let Some(job) = state.rasterize_job.borrow().as_ref() {
-        job.cancel.store(true, Ordering::Release);
+        job.cancel();
     }
 }
 fn accept(
@@ -159,11 +221,11 @@ fn accept(
     Ok(changed)
 }
 pub(super) unsafe fn poll(hwnd: HWND, state: &State) {
-    let ready = state.rasterize_job.borrow().as_ref().is_some_and(|job| {
-        job.worker
-            .as_ref()
-            .is_some_and(|worker| worker.is_finished())
-    });
+    let ready = state
+        .rasterize_job
+        .borrow()
+        .as_ref()
+        .is_some_and(Job::is_finished);
     if !ready {
         return;
     }
@@ -200,6 +262,9 @@ unsafe fn report(hwnd: HWND, error: &str) {
     );
 }
 
+#[cfg(test)]
+#[path = "rasterize_input_schedule_tests.rs"]
+mod schedule_tests;
 #[cfg(test)]
 #[path = "rasterize_input_tests.rs"]
 mod tests;

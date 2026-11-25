@@ -1,10 +1,24 @@
 //! 真实 TLS 固定会话 peer；逐项验证两个 emit 的 wire/nonce/顺序及每批后的两次观察。
 use super::*;
+use std::sync::mpsc::{self, Receiver, Sender};
+
 pub(super) const SOURCE: &str = include_str!("../../tests/fixtures/javascript-batch.js");
+
+pub(super) fn foreground_gate(mode: u8) -> (Option<Sender<()>>, Option<Receiver<()>>) {
+    if matches!(mode, 18 | 19) {
+        let (ready, wait) = mpsc::channel();
+        (Some(ready), Some(wait))
+    } else {
+        crate::surface_javascript::fixture::foreground_startup();
+        (None, None)
+    }
+}
+
 pub(super) fn serve(
     listener: std::net::TcpListener,
     server: std::sync::Arc<rustls::ServerConfig>,
     mode: u8,
+    mut wait_for_input: Option<Receiver<()>>,
 ) -> std::net::TcpListener {
     let source = if mode == 20 {
         include_str!("../../tests/fixtures/javascript-hover-batch.js")
@@ -18,6 +32,8 @@ pub(super) fn serve(
         include_str!("../../tests/fixtures/javascript-native-input.js")
     } else if mode == 13 {
         include_str!("../../tests/fixtures/javascript-batch-events.js")
+    } else if mode == 21 {
+        SOURCE
     } else if mode >= 11 {
         include_str!("../../tests/fixtures/javascript-batch-timers.js")
     } else if mode == 10 {
@@ -58,6 +74,15 @@ pub(super) fn serve(
     let mut ids = std::collections::HashSet::new();
     let started = std::time::Instant::now();
     for stage in 0..(6 + rounds * 4) {
+        if stage == 5 {
+            if let Some(ready) = wait_for_input.take() {
+                // Active ACK was sent. Give the user a bounded window to authorize
+                // foreground before starting the ordinary per-request TLS deadline.
+                ready
+                    .recv_timeout(std::time::Duration::from_secs(20))
+                    .expect("foreground readiness timed out or fixture was dropped");
+            }
+        }
         let mut stream = StreamOwned::new(
             ServerConnection::new(server.clone()).unwrap(),
             accept(&listener),

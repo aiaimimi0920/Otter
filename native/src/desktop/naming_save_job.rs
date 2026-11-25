@@ -90,7 +90,7 @@ impl Job {
         })
     }
     pub fn poll(&mut self) -> Option<Result<Ready, String>> {
-        if !self.ready.load(Ordering::Acquire) && !self.worker.as_ref()?.is_finished() {
+        if !self.worker.as_ref()?.is_finished() {
             return None;
         }
         Some(
@@ -101,6 +101,10 @@ impl Job {
                 .and_then(|result| result),
         )
     }
+    pub fn deadline(&self) -> Option<std::time::Instant> {
+        self.worker.as_ref()?;
+        super::loom_execution_signal::reap_deadline(&self.ready)
+    }
 }
 impl Drop for Job {
     fn drop(&mut self) {
@@ -109,5 +113,27 @@ impl Drop for Job {
             // join 返回的未发布 Staged 随结果析构，只清理本任务临时文件。
             let _ = worker.join();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::desktop::loom_execution_tasks::reap_fixture::{wait_finished, Gate, WAIT};
+
+    #[test]
+    fn notification_tail_does_not_block_settings_save_poll() {
+        let gate = Gate::new(|| {});
+        let mut job = Job::spawn(gate.notify, |_| Err("injected settings error".into())).unwrap();
+        gate.noticed.recv_timeout(WAIT).unwrap();
+        assert!(job.deadline().is_some());
+        assert!(job.poll().is_none());
+        gate.release.send(()).unwrap();
+        wait_finished(job.worker.as_ref().unwrap());
+        assert_eq!(
+            job.poll().unwrap().err().as_deref(),
+            Some("injected settings error")
+        );
+        assert!(job.deadline().is_none());
     }
 }

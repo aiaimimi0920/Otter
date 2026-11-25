@@ -12,7 +12,7 @@ use std::{
     io,
     sync::{Arc, Mutex},
 };
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-surface")))]
 #[path = "surface_javascript_signed_result_tests.rs"]
 mod result_tests;
 #[path = "surface_javascript_signed_runtime.rs"]

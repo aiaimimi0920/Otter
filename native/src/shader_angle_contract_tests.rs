@@ -85,6 +85,8 @@ fn actual_loom_glsl_lut_matches_legacy_webgl2_raw_rgba() {
                 let uniforms = case.uniforms.iter().map(|(name, value)| Uniform { name, value: *value }).collect::<Vec<_>>();
                 let frame = renderer.render(Request { vertex: &case.vertex, fragment: &case.fragment,
                     textures: &textures, uniforms: &uniforms }, &AtomicBool::new(false)).unwrap();
+                assert_eq!((frame.width, frame.height), (case.width, case.height), "backend={backend:?} case={}", case.name);
+                assert_eq!(frame.rgba.len(), case.expected_raw_rgba.len(), "backend={backend:?} case={}", case.name);
                 let mut maximum = 0;
                 for (index, (actual, expected)) in frame.rgba.iter().zip(&case.expected_raw_rgba).enumerate() {
                     let delta = actual.abs_diff(*expected);

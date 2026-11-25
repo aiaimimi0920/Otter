@@ -88,8 +88,7 @@ fn run_recovery(mode: u8) {
                     );
                     if mode == 4 {
                         tx.send(()).unwrap();
-                        let mut byte = [0];
-                        assert!(!stream.read(&mut byte).is_ok_and(|n| n != 0));
+                        assert_peer_disconnected(&mut stream);
                     } else {
                         reply(
                             &mut stream,
@@ -107,7 +106,7 @@ fn run_recovery(mode: u8) {
         listener
     });
     unsafe {
-        let (_class, mut app) = application();
+        let mut app = application();
         app.add_state(
             State::new(
                 Some(
@@ -297,7 +296,7 @@ fn recovery_request_cannot_substitute_a_same_record_arc_not_owned_by_the_profile
     let directory = crate::projection_delivery::journal::tests::Directory::new();
     seed(&directory.0, "https://loom.example", "device-old");
     unsafe {
-        let (_class, mut app) = application();
+        let mut app = application();
         app.install_workspace_checkpoint(Some(Profile::open(&directory.0).unwrap()), false)
             .unwrap();
         settle_profile(&mut app);

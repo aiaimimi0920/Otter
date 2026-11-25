@@ -57,15 +57,11 @@ impl Submission {
             }
             let size = self.bitmap.size;
             if self.pinned {
-                let mut window = RECT::default();
-                GetWindowRect(hwnd, &mut window)?;
+                // 未指定新位置时由 ULW 原地更新，不读回窗口坐标。
                 UpdateLayeredWindow(
                     hwnd,
                     None,
-                    Some(&position.unwrap_or(POINT {
-                        x: window.left,
-                        y: window.top,
-                    })),
+                    position.as_ref().map(std::ptr::from_ref),
                     Some(&SIZE {
                         cx: size.width as i32,
                         cy: size.height as i32,
@@ -81,12 +77,14 @@ impl Submission {
                     }),
                     ULW_ALPHA,
                 )?;
+                GdiFlush().ok()
             } else {
-                let dc = WindowDc(hwnd, GetDC(Some(hwnd)));
-                if dc.1.is_invalid() {
+                let dc = GetDC(Some(hwnd));
+                if dc.is_invalid() {
                     return Err(Error::new(E_FAIL, "Software window DC unavailable"));
                 }
-                BitBlt(
+                let dc = WindowDc(hwnd, dc);
+                let copied = BitBlt(
                     dc.1,
                     0,
                     0,
@@ -96,9 +94,11 @@ impl Submission {
                     0,
                     0,
                     SRCCOPY | NOMIRRORBITMAP,
-                )?;
+                );
+                // 在释放 DC 和源位图前只刷新一次，并保留传输或刷新失败。
+                let flushed = GdiFlush().ok();
+                copied.and(flushed)
             }
-            GdiFlush().ok()
         }
     }
 }
@@ -112,12 +112,11 @@ struct WindowDc(HWND, HDC);
 impl Drop for WindowDc {
     fn drop(&mut self) {
         unsafe {
-            let _ = GdiFlush();
             let _ = ReleaseDC(Some(self.0), self.1);
         }
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "software_submission_tests.rs"]
 mod tests;

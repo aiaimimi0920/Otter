@@ -1,16 +1,6 @@
 //! Otter 拥有钉图附着策略；主题仅投影附属行，纯移动不重排工具或访问应用模型。
+use super::super::position::work_area;
 use super::*;
-use windows::Win32::Graphics::Gdi::*;
-unsafe fn work(anchor: &RECT) -> Result<RECT> {
-    let mut info = MONITORINFO {
-        cbSize: std::mem::size_of::<MONITORINFO>() as u32,
-        ..Default::default()
-    };
-    if !GetMonitorInfoW(MonitorFromRect(anchor, MONITOR_DEFAULTTONEAREST), &mut info).as_bool() {
-        return Err(windows::core::Error::from_win32());
-    }
-    Ok(info.rcWork)
-}
 pub(in crate::desktop::tool_panel) unsafe fn place(
     owner: HWND,
     state: &State,
@@ -21,7 +11,7 @@ pub(in crate::desktop::tool_panel) unsafe fn place(
     if proposed.is_none() {
         GetWindowRect(owner, &mut anchor)?;
     }
-    let work = work(&anchor)?;
+    let work = work_area(&anchor)?;
     let dpi = windows::Win32::UI::HiDpi::GetDpiForWindow(owner).max(96);
     neuro_mini_ui::resize(panel, work.right - work.left, dpi)?;
     let mut old = RECT::default();
@@ -58,9 +48,10 @@ pub(in crate::desktop) unsafe fn moving_positions(
     let mut rect = RECT::default();
     GetWindowRect(panel, &mut rect)?;
     let dpi = windows::Win32::UI::HiDpi::GetDpiForWindow(owner).max(96);
+    let work = work_area(&proposed)?;
     let next = anchored(
         proposed,
-        work(&proposed)?,
+        work,
         rect.right - rect.left,
         rect.bottom - rect.top,
         (12 * dpi / 96) as i32,
@@ -68,7 +59,7 @@ pub(in crate::desktop) unsafe fn moving_positions(
     let mut result = vec![(panel, next)];
     result.extend(neuro_mini_ui::attached_position(panel, next)?);
     result.extend(crate::desktop::pin_settings::moving_position(
-        state, proposed,
+        state, proposed, work,
     )?);
     Ok(result)
 }

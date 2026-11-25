@@ -1,5 +1,5 @@
 //! 源线程菜单定位/层级变更与归还；同 HWND 重入不能丢恢复身份或重授显示租约。
-use crate::native_popup::Lease;
+use crate::{native_popup::Lease, native_protocol::Request};
 use std::cell::RefCell;
 use windows::{
     core::{w, PCWSTR},
@@ -8,6 +8,7 @@ use windows::{
 
 pub const TEMPORARY: PCWSTR = w!("Otter.Live.Popup.TemporaryTopmost.v1");
 pub const MANAGED: PCWSTR = w!("Otter.Live.Popup.ManagedTopmost.v1");
+const MAX_PROMOTED: usize = 4;
 
 thread_local! {
     static PROMOTED: RefCell<Vec<Lease>> = const { RefCell::new(Vec::new()) };
@@ -120,7 +121,7 @@ fn promote(lease: Lease) -> windows::core::Result<()> {
         }
         let retained = PROMOTED.with(|entries| {
             let mut entries = entries.borrow_mut();
-            if entries.len() >= 4 {
+            if entries.len() >= MAX_PROMOTED {
                 return false;
             }
             entries.push(lease);
@@ -187,20 +188,21 @@ pub(crate) fn acquire_managed(
     }
     unsafe {
         let style = GetWindowLongPtrW(lease.popup, GWL_EXSTYLE) as u32;
-        let owned = [TEMPORARY, MANAGED]
-            .iter()
-            .any(|key| crate::native_protocol::value(lease.popup, *key) == lease.instance);
+        let topmost = style & WS_EX_TOPMOST.0 != 0;
         if style & WS_EX_NOACTIVATE.0 == 0
             || GetWindowLongPtrW(lease.root, GWL_EXSTYLE) as u32 & WS_EX_TOPMOST.0 == 0
-            || style & WS_EX_TOPMOST.0 != 0 && !owned
+            || topmost
+                && ![TEMPORARY, MANAGED]
+                    .iter()
+                    .any(|key| crate::native_protocol::value(lease.popup, *key) == lease.instance)
         {
             return Err(changed()); // 原应用自己的 TOPMOST 不能被登记借用。
         }
         SetPropW(lease.popup, MANAGED, Some(HANDLE(lease.instance as *mut _)))?;
-        let result = if style & WS_EX_TOPMOST.0 == 0 {
-            set_topmost(lease.popup, true)
-        } else {
+        let result = if topmost {
             Ok(())
+        } else {
+            set_topmost(lease.popup, true)
         };
         if result.is_err() || !active() || !lease.valid() {
             if lease.same_instance()
@@ -256,22 +258,29 @@ pub(crate) fn release(popup: HWND, destroying: bool) -> bool {
     true
 }
 
-pub(crate) fn finish(request: crate::native_protocol::Request) {
-    // 子菜单按钮返回不得恢复仍在运行的父菜单层级；不跨窗口调用持有借用。
-    let leases = PROMOTED.with(|entries| {
-        let mut entries = entries.borrow_mut();
-        let (finished, remaining) = std::mem::take(&mut *entries)
-            .into_iter()
-            .partition::<Vec<_>, _>(|lease| {
-                lease.owner == request.owner
-                    && lease.cookie == request.cookie
-                    && lease.epoch == request.epoch
-                    && lease.request == request.nonce
-            });
-        *entries = remaining;
-        finished
+fn take_finished(entries: &mut Vec<Lease>, request: Request) -> [Option<Lease>; MAX_PROMOTED] {
+    // 与入槽上限相同；保留未完成事务的容量及两边的原次序。
+    let mut finished = [None; MAX_PROMOTED];
+    let mut next = 0;
+    entries.retain(|lease| {
+        if lease.owner != request.owner
+            || lease.cookie != request.cookie
+            || lease.epoch != request.epoch
+            || lease.request != request.nonce
+        {
+            return true;
+        }
+        finished[next] = Some(*lease);
+        next += 1;
+        false
     });
-    for lease in leases {
+    finished
+}
+
+pub(crate) fn finish(request: Request) {
+    // 子菜单按钮返回不得恢复仍在运行的父菜单层级；不跨窗口调用持有借用。
+    let leases = PROMOTED.with(|entries| take_finished(&mut entries.borrow_mut(), request));
+    for lease in leases.into_iter().flatten() {
         if crate::native_protocol::value(lease.popup, MANAGED) != lease.instance {
             if let Err(error) = restore(lease) {
                 eprintln!("native-live-popup-layer-finish: {error}");

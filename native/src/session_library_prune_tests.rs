@@ -17,9 +17,11 @@ fn age_then_tail_count_preserves_unknown_dates_other_library_and_revision() {
         recycle_bin_max_entries: 2,
         recycle_bin_retention_days: 1,
     };
-    let bytes = prepare(&original, policy, 2 * 86_400_000, &AtomicBool::new(false))
+    let candidate = prepare(&original, policy, 2 * 86_400_000, &AtomicBool::new(false))
         .unwrap()
         .unwrap();
+    assert_eq!((candidate.expected_revision, candidate.revision), (9, 9));
+    let bytes = candidate.bytes;
     let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     assert_eq!(value["recycleBin"].as_array().unwrap().len(), 2);
     assert_eq!(value["recycleBin"][0]["entryId"], "e-2");
@@ -35,7 +37,7 @@ fn age_then_tail_count_preserves_unknown_dates_other_library_and_revision() {
     let bytes = prepare(&original, policy, 2 * 86_400_000, &AtomicBool::new(false))
         .unwrap()
         .unwrap();
-    let library = super::super::decode(&bytes, Kind::RecycleBin).unwrap();
+    let library = super::super::decode(&bytes.bytes, Kind::RecycleBin).unwrap();
     assert_eq!(library.entries()[0].entry_id, "e-1");
     assert_eq!(library.entries().len(), 3);
 }

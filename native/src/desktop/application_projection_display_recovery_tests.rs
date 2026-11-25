@@ -120,7 +120,6 @@ unsafe fn run_routed(mode: u8, restart: bool, offline: bool) {
     drop(ticket);
     // lost/negative reply 可由下一次显式操作幂等结算，没有循环定时器或后台重放。
     if matches!(mode, 5 | 6) {
-        poll(&mut fixture);
         peer(&mut fixture, 0, false);
         choose(&mut fixture);
         settle(&mut fixture);

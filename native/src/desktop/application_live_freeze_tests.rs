@@ -57,18 +57,7 @@ impl Environment {
         let apartment = crate::desktop::Apartment::new().unwrap();
         let previous_dpi = SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
         assert!(!previous_dpi.0.is_null());
-        let instance: HINSTANCE = windows::Win32::System::LibraryLoader::GetModuleHandleW(None)
-            .unwrap()
-            .into();
-        assert_ne!(
-            RegisterClassW(&WNDCLASSW {
-                hInstance: instance,
-                lpszClassName: w!("Otter.Native.Workspace"),
-                lpfnWndProc: Some(crate::desktop::procedure::window_proc),
-                ..Default::default()
-            }),
-            0
-        );
+        let instance = crate::desktop::workspace_window_fixture::register();
         Self {
             instance,
             previous_dpi,
@@ -86,7 +75,6 @@ impl Environment {
 impl Drop for Environment {
     fn drop(&mut self) {
         unsafe {
-            let _ = UnregisterClassW(w!("Otter.Native.Workspace"), Some(self.instance));
             let _ = SetThreadDpiAwarenessContext(self.previous_dpi);
         }
     }

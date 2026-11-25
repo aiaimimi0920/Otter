@@ -154,6 +154,17 @@ fn busy_start_retains_refresh_and_rate_limits_retry() {
     assert_eq!(session.state(), State::Unavailable);
     assert!(session.pending);
     assert!(!session.tick_with(now, || panic!("Must throttle retry")));
+    let retries = std::cell::Cell::new(0);
+    assert!(!session.tick_with(now + Duration::from_millis(250), || {
+        retries.set(retries.get() + 1);
+        Err(Error::new(E_ABORT, "Still busy"))
+    }));
+    assert_eq!(retries.get(), 1);
+    assert_eq!(session.state(), State::Unavailable);
+    assert!(session.pending);
+    assert!(!session.tick_with(now + Duration::from_millis(300), || {
+        panic!("Must throttle repeated busy result")
+    }));
     session.tick_with(now + Duration::from_secs(1), ready);
     wait(&mut session, now + Duration::from_secs(1));
     assert_eq!(session.state(), State::Ready);

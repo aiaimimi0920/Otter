@@ -8,28 +8,11 @@ mod projection_inbox;
 #[path = "application_projection_policy_ui_tests.rs"]
 mod projection_policy;
 
-struct Class(HINSTANCE);
-impl Drop for Class {
-    fn drop(&mut self) {
-        unsafe {
-            let _ = UnregisterClassW(w!("Otter.Native.Workspace"), Some(self.0));
-        }
-    }
-}
-unsafe fn application() -> (Class, Application) {
-    let instance: HINSTANCE = GetModuleHandleW(None).unwrap().into();
-    assert_ne!(
-        RegisterClassW(&WNDCLASSW {
-            hInstance: instance,
-            lpszClassName: w!("Otter.Native.Workspace"),
-            lpfnWndProc: Some(crate::desktop::procedure::window_proc),
-            ..Default::default()
-        }),
-        0
-    );
+unsafe fn application() -> Application {
+    let instance = crate::desktop::workspace_window_fixture::register();
     let document =
         DocumentWindow::create(instance, State::new(None, false).unwrap(), false).unwrap();
-    (Class(instance), Application::new(instance, document))
+    Application::new(instance, document)
 }
 fn task(root: &std::path::Path) -> Task {
     Task::Configured {
@@ -49,7 +32,7 @@ fn missing_profile() -> PathBuf {
 fn completed_worker_updates_shared_status_without_creating_identity_or_retaining_handle() {
     let _apartment = Apartment::new().unwrap();
     unsafe {
-        let (_class, mut app) = application();
+        let mut app = application();
         let state = app.bind_window_state(State::new(None, false).unwrap());
         assert!(std::rc::Rc::ptr_eq(
             &state.authorization,
@@ -84,7 +67,7 @@ fn completed_worker_updates_shared_status_without_creating_identity_or_retaining
 fn selection_discards_old_completion_and_shutdown_clears_queued_request_and_reaps_task() {
     let _apartment = Apartment::new().unwrap();
     unsafe {
-        let (_class, mut app) = application();
+        let mut app = application();
         let root = missing_profile();
         app.authorization.borrow_mut().origin = Some("https://127.0.0.1:1".into());
         app.authorization_owner.start(task(&root)).unwrap();
@@ -109,7 +92,7 @@ fn selection_discards_old_completion_and_shutdown_clears_queued_request_and_reap
 fn discovery_requires_live_authorization_and_service_changes_clear_catalog() {
     let _apartment = Apartment::new().unwrap();
     unsafe {
-        let (_class, mut app) = application();
+        let mut app = application();
         let origin = "https://127.0.0.1:1";
         app.authorization.borrow_mut().origin = Some(origin.into());
         app.authorization.borrow_mut().request = Some(Request::Discover);
@@ -144,5 +127,69 @@ fn discovery_requires_live_authorization_and_service_changes_clear_catalog() {
         assert!(!app.authorization.borrow().catalog_busy);
         app.shutdown();
         assert!(app.authorization.borrow().catalog.is_none());
+    }
+}
+
+#[test]
+fn headless_remote_poll_reports_all_completed_viewers_and_settles_surface_status() {
+    use crate::{
+        desktop::composition::relay::session::Session,
+        device_authorization_lease::Grant,
+        device_session_client::tests::session,
+        live_relay_control_runtime::{Runtime, Target},
+    };
+    let _apartment = Apartment::new().unwrap();
+    unsafe {
+        let mut app = application();
+        let profile = std::env::temp_dir();
+        let origins = ["https://127.0.0.1:1", "https://127.0.0.1:2"];
+        for origin in origins {
+            // 有效的测试记录，但在实际 wall clock 下必定过期；线程不触碰文件或网络。
+            let mut grant = Grant::new(session(origin, 1));
+            let runtime = Runtime::start_configured(
+                Config::new(origin, &profile, "Remote settlement test").unwrap(),
+                grant.lease(origin, 0).unwrap(),
+                Target {
+                    session: "live:test".into(),
+                    surface: "surface:test".into(),
+                    attachment: "attach:test".into(),
+                    expected: None,
+                    selected: None,
+                },
+                |_| panic!("expired fixture must not reach the consumer"),
+            )
+            .unwrap();
+            let handle = runtime.wait_handle().unwrap();
+            assert_eq!(
+                WaitForSingleObject(HANDLE(handle.as_raw_handle()), 5000),
+                windows::Win32::Foundation::WAIT_OBJECT_0
+            );
+            app.remote_sessions
+                .insert_for_test(origin.into(), Session::from_runtime(runtime));
+        }
+        {
+            let mut view = app.authorization.borrow_mut();
+            view.mount_busy = true;
+            view.restoring = true;
+            view.recovery_status = "pend".into();
+        }
+        let error = app.poll_remote_live(false).unwrap_err();
+        assert_eq!(error.code(), E_FAIL);
+        let message = error.to_string();
+        for origin in origins {
+            assert!(message.contains(origin), "{message}");
+        }
+        assert_eq!(
+            message.matches("Preparation(Credential)").count(),
+            2,
+            "{message}"
+        );
+        let view = app.authorization.borrow();
+        assert!(!view.mount_busy && !view.restoring && view.recovery_status.is_empty());
+        assert!(view.live.watching.is_empty());
+        drop(view);
+        assert_eq!(app.remote_sessions.wait_handles().count(), 0);
+        app.poll_remote_live(false).unwrap();
+        app.shutdown();
     }
 }

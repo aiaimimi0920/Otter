@@ -147,10 +147,10 @@ pub(crate) fn inspected_from(
     {
         return Err(Error::Response);
     }
-    let snapshot = super::sender::snapshot::Snapshot::decode(wire.snapshot, cancel)
+    let digest = super::sender::snapshot::Snapshot::inspect(&wire.snapshot, cancel)
         .map_err(|_| Error::Snapshot)?;
-    if snapshot.digest != wire.digest
-        || (snapshot.width, snapshot.height) != (wire.width, wire.height)
+    if digest != wire.digest
+        || (wire.snapshot.width, wire.snapshot.height) != (wire.width, wire.height)
     {
         return Err(Error::Snapshot);
     }

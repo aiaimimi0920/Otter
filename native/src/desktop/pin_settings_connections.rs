@@ -8,7 +8,7 @@ use super::*;
 mod projection_fields;
 #[path = "pin_settings_targets.rs"]
 pub(super) mod target_list;
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "pin_settings_connection_state_tests.rs"]
 mod tests;
 #[derive(Default)]

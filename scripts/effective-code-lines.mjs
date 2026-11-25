@@ -149,7 +149,8 @@ function revisionRows(root, policy, revision) {
     const relativePath = normalizeRepoPath(match[2]);
     const parts = relativePath.split("/");
     let excluded = false;
-    for (let index = 0; index < parts.length - 1; index += 1) {
+    // Match the worktree walk: exclusions can name an ancestor or the leaf.
+    for (let index = 0; index < parts.length; index += 1) {
       const prefix = parts.slice(0, index + 1).join("/");
       if (isExcluded(prefix, parts[index], exclusions)) {
         excluded = true;

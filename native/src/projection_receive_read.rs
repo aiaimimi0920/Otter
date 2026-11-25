@@ -67,6 +67,6 @@ impl Read {
         Received::from_wire(wire, invitation.offline).map(|value| Self::Changed(Box::new(value)))
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "projection_receive_read_tests.rs"]
 mod tests;

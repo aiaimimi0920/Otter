@@ -68,6 +68,6 @@ pub(super) fn clear(state: &State, request: &Request) {
         state.execution_configuration.borrow_mut().take();
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-loom")))]
 #[path = "execution_configuration_tests.rs"]
 mod tests;

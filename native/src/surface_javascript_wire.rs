@@ -119,23 +119,36 @@ pub(crate) fn invalid() -> io::Error {
         "Invalid JavaScript Surface operation",
     )
 }
-struct Bounded(Vec<u8>);
-impl Write for Bounded {
+struct Bounded<W> {
+    inner: W,
+    remaining: usize,
+}
+impl<W: Write> Write for Bounded<W> {
     fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
-        if bytes.len() > MAX_FRAME.saturating_sub(self.0.len()) {
+        if bytes.len() > self.remaining {
             return Err(invalid());
         }
-        self.0.extend_from_slice(bytes);
-        Ok(bytes.len())
+        let written = self.inner.write(bytes)?;
+        self.remaining -= written;
+        Ok(written)
     }
     fn flush(&mut self) -> io::Result<()> {
-        Ok(())
+        self.inner.flush()
     }
 }
-pub(crate) fn encode(value: &impl Serialize) -> io::Result<Vec<u8>> {
-    let mut output = Bounded(Vec::new());
+fn serialize_bounded<W: Write>(value: &impl Serialize, inner: W) -> io::Result<W> {
+    let mut output = Bounded {
+        inner,
+        remaining: MAX_FRAME,
+    };
     serde_json::to_writer(&mut output, value).map_err(|_| invalid())?;
-    Ok(output.0)
+    Ok(output.inner)
+}
+pub(crate) fn encode(value: &impl Serialize) -> io::Result<Vec<u8>> {
+    serialize_bounded(value, Vec::new())
+}
+pub(crate) fn validate_encoded_size(value: &impl Serialize) -> io::Result<()> {
+    serialize_bounded(value, io::sink()).map(drop)
 }
 pub(crate) fn write(writer: &mut impl Write, value: &impl Serialize) -> io::Result<()> {
     let bytes = encode(value)?;

@@ -19,7 +19,7 @@ mod surface_journal;
 #[path = "application_surface_shutdown.rs"]
 mod surface_shutdown;
 #[path = "application_live_wait.rs"]
-mod wait;
+pub(super) mod wait;
 #[path = "application_live_workspace.rs"]
 mod workspace;
 // 每个远程会话是 Ready+完成或帧+完成，最多两个句柄；消息等待必须保留一个槽。
@@ -254,33 +254,42 @@ impl Application {
         for handle in self.surface_windows.wait_handles() {
             append_wait_handle(&mut handles, &mut count, HANDLE(handle.as_raw_handle()))?;
         }
+        let now_ms = crate::desktop::surface_windows::now_ms()?;
         let deadline = self
             .surface_windows
-            .deadline(crate::desktop::surface_windows::now_ms()?)?;
-        let deadline = deadline
+            .deadline(now_ms)?
             .into_iter()
-            .chain(
-                self.remote_sessions
-                    .resource_deadline(crate::desktop::surface_windows::now_ms()?),
-            )
-            .chain(
-                self.projection_receive
-                    .deadline(crate::desktop::surface_windows::now_ms()?),
-            )
+            .chain(self.remote_sessions.resource_deadline(now_ms))
+            .chain(self.projection_receive.deadline(now_ms))
             .chain(self.projection_cleanup.deadline())
-            .chain(
-                self.projection_edit
-                    .deadline(crate::desktop::surface_windows::now_ms()?),
-            )
-            .chain(
-                self.projection_sender
-                    .deadline(crate::desktop::surface_windows::now_ms()?),
-            )
+            .chain(self.projection_edit.deadline(now_ms))
+            .chain(self.projection_sender.deadline(now_ms))
             .chain(self.projection_policy_deadline())
             .chain(self.account_projection.deadline())
+            .chain(self.catalog.borrow().job.deadline())
+            .chain(self.extensions.deadline())
+            .chain(self.extension_commands.deadline())
+            .chain(self.execution_jobs.deadline())
+            .chain(self.display_composition.borrow().deadline())
+            .chain(self.restore_reap_deadline())
+            .chain(self.save_reap_deadline())
+            .chain(self.naming_save_reap_deadline())
+            .chain(self.workflow_reap_deadline())
+            .chain(self.input_jobs.deadline())
+            .chain(self.live_freeze_reap_deadline())
+            .chain(self.file_import_reap_deadline())
+            .chain(self.retired_edits.deadline())
+            .chain(self.frozen_library.borrow().workers.deadline())
             .chain(self.local_arts.deadline())
             .chain(self.local_loom.deadline())
             .chain(self.authorization.borrow().targets.next)
+            .chain(
+                self.authorization
+                    .borrow()
+                    .share_decode
+                    .as_ref()
+                    .and_then(|decoder| decoder.deadline()),
+            )
             .chain(self.live_visibility.deadline())
             .min();
         // 本调用返回前不修改会话集合或回收任务；句柄 owner 始终存活。
@@ -290,8 +299,33 @@ impl Application {
             || wait::next_until(&handles[..count], message, deadline),
         )
     }
+
+    fn file_import_reap_deadline(&self) -> Option<std::time::Instant> {
+        // 两个导入 owner 在模态期间均不轮询；不得安排无法消费的周期唤醒。
+        if self.modals.blocked() {
+            return None;
+        }
+        self.naming_import_job
+            .as_ref()
+            .and_then(|pending| pending.deadline())
+            .into_iter()
+            .chain(
+                self.parameter_file_job
+                    .as_ref()
+                    .and_then(|job| job.deadline()),
+            )
+            .min()
+    }
+
+    pub(super) fn save_reap_deadline(&self) -> Option<std::time::Instant> {
+        // 外层提交受模态门禁。图库菜单内独立结算，由既有生命周期 timer 接续。
+        if self.modals.blocked() {
+            return None;
+        }
+        self.save_job.as_ref()?.1.deadline()
+    }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-live")))]
 #[path = "application_live_tests.rs"]
 mod tests;

@@ -38,18 +38,7 @@ pub(super) unsafe fn submit_pending(hwnd: HWND, state: &State) {
         }
         return;
     }
-    let result = state.resize_job.borrow_mut().start(plan);
-    if let Err(error) = result {
-        state.canvas.borrow_mut().clear_scale_display();
-        report(hwnd, &format!("{error:?}"));
-        return;
-    }
-    if SetTimer(Some(hwnd), TIMER, 30, None) == 0 {
-        let job = std::mem::take(&mut *state.resize_job.borrow_mut());
-        drop(job);
-        state.canvas.borrow_mut().clear_scale_display();
-        report(hwnd, "Cannot schedule resize result");
-    }
+    schedule(hwnd, state, plan);
 }
 
 pub(super) unsafe fn uniform(hwnd: HWND, state: &State, factor: f32) {
@@ -114,20 +103,47 @@ pub(super) unsafe fn start(hwnd: HWND, state: &State, factors: Point) {
     };
     match prepared {
         Some(Ok(Some(plan))) => {
-            let result = state.resize_job.borrow_mut().start(plan);
-            if let Err(error) = result {
-                report(hwnd, &format!("{error:?}"));
-                return;
-            }
-            if SetTimer(Some(hwnd), TIMER, 30, None) == 0 {
-                let job = std::mem::take(&mut *state.resize_job.borrow_mut());
-                drop(job);
-                report(hwnd, "Cannot schedule resize result");
-            }
+            schedule(hwnd, state, plan);
         }
         Some(Err(error)) => report(hwnd, &format!("{error:?}")),
         _ => refresh(hwnd, state),
     }
+}
+
+unsafe fn schedule(hwnd: HWND, state: &State, plan: ResizePlan) {
+    if let Err(error) = schedule_with(
+        state,
+        plan,
+        || SetTimer(Some(hwnd), TIMER, 30, None) != 0,
+        || {
+            let _ = KillTimer(Some(hwnd), TIMER);
+        },
+    ) {
+        let _ = InvalidateRect(Some(hwnd), None, false);
+        report(hwnd, &error);
+    }
+}
+fn schedule_with(
+    state: &State,
+    plan: ResizePlan,
+    reserve_timer: impl FnOnce() -> bool,
+    cancel_timer: impl FnOnce(),
+) -> Result<(), String> {
+    if state.resize_job.borrow().is_busy() {
+        return Err("Busy".into());
+    }
+    // 松手和菜单/键盘入口共用预约顺序；失败只清理本次临时缩放显示。
+    if !reserve_timer() {
+        state.canvas.borrow_mut().clear_scale_display();
+        return Err("Cannot schedule resize result".into());
+    }
+    let result = state.resize_job.borrow_mut().start(plan);
+    if let Err(error) = result {
+        state.canvas.borrow_mut().clear_scale_display();
+        cancel_timer();
+        return Err(format!("{error:?}"));
+    }
+    Ok(())
 }
 
 fn accept(canvas: &mut Canvas, plan: ResizePlan) -> Result<bool, crate::editor::EditError> {
@@ -198,6 +214,9 @@ unsafe fn report(hwnd: HWND, error: &str) {
     );
 }
 
+#[cfg(test)]
+#[path = "resize_input_schedule_tests.rs"]
+mod schedule_tests;
 #[cfg(test)]
 mod tests {
     use super::*;

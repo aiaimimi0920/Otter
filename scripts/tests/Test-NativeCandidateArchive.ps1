@@ -14,6 +14,63 @@ if (Test-Path -LiteralPath $OutputDirectory) { throw 'Test output must be fresh'
 $baseline = Test-NativeCandidateArchive -ZipPath $ZipPath
 if ($baseline.files -lt 5) { throw 'Expected populated archive fixture' }
 $passed = 1
+
+# Supply synthetic entry streams to test exact-length handling independently
+# of differences between Windows and newer .NET ZIP readers.
+function New-EntryStreamFixture {
+    param([long]$Length, [byte[]]$Bytes)
+    $entry = [pscustomobject]@{ Length = $Length; FullName = 'entry.txt'; Stream = [IO.MemoryStream]::new($Bytes) }
+    $entry | Add-Member -MemberType ScriptMethod -Name Open -Value { return $this.Stream }
+    $index = [Collections.Generic.Dictionary[string,object]]::new([StringComparer]::Ordinal)
+    $index.Add($entry.FullName, $entry)
+    return ,$index
+}
+$validInputs = @('', ('x' * 65536 + [char]0x00e9))
+foreach ($expected in $validInputs) {
+    $bytes = [Text.Encoding]::UTF8.GetBytes($expected)
+    $textIndex = New-EntryStreamFixture -Length $bytes.Length -Bytes $bytes
+    $actual = Read-OtterArchiveEntryText -Index $textIndex -EntryName 'entry.txt'
+    if ($actual -cne $expected -or $textIndex['entry.txt'].Stream.CanRead) { throw 'Exact text read failed' }
+    $digestIndex = New-EntryStreamFixture -Length $bytes.Length -Bytes $bytes
+    $digest = Get-OtterArchiveEntryDigest -Index $digestIndex -EntryName 'entry.txt'
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try { $expectedDigest = ([BitConverter]::ToString($sha.ComputeHash($bytes))).Replace('-', '').ToLowerInvariant() }
+    finally { $sha.Dispose() }
+    if ($digest.bytes -ne $bytes.Length -or $digest.sha256 -cne $expectedDigest -or
+        $digestIndex['entry.txt'].Stream.CanRead) { throw 'Exact digest read failed' }
+    $passed += 2
+}
+foreach ($reader in @('Read-OtterArchiveEntryText', 'Get-OtterArchiveEntryDigest')) {
+    foreach ($case in @(
+        @{ Length = 0; Actual = 1; Error = 'exceeds its declared length'; Opens = $true },
+        @{ Length = 1; Actual = 2; Error = 'exceeds its declared length'; Opens = $true },
+        @{ Length = 2; Actual = 1; Error = 'ended before its declared length'; Opens = $true },
+        @{ Length = 3; Actual = 1; Error = 'Missing or oversized'; Opens = $false }
+    )) {
+        $index = New-EntryStreamFixture -Length $case.Length -Bytes ([byte[]]::new($case.Actual))
+        $rejected = $false
+        try { [void](& $reader -Index $index -EntryName 'entry.txt' -MaxBytes 2) }
+        catch {
+            if ($_.ToString() -notlike "*$($case.Error)*") { throw }
+            $rejected = $true
+        }
+        $stream = $index['entry.txt'].Stream
+        try {
+            if (-not $rejected -or $stream.CanRead -eq $case.Opens) { throw "Invalid length handling: $reader" }
+        } finally { $stream.Dispose() }
+        $passed++
+    }
+}
+$invalidUtf8 = New-EntryStreamFixture -Length 1 -Bytes ([byte[]]@(255))
+$rejected = $false
+try { [void](Read-OtterArchiveEntryText -Index $invalidUtf8 -EntryName 'entry.txt') }
+catch {
+    if ($_.Exception.InnerException -isnot [Text.DecoderFallbackException]) { throw }
+    $rejected = $true
+}
+if (-not $rejected -or $invalidUtf8['entry.txt'].Stream.CanRead) { throw 'Invalid UTF-8 was not rejected and closed' }
+$passed++
+
 foreach ($case in @('tamper', 'missing', 'hook-missing', 'hook-tamper', 'extra', 'traversal', 'duplicate', 'false-string', 'angle-egl', 'angle-gles')) {
     $copy = Join-Path $OutputDirectory ($case + '.zip')
     Copy-Item -LiteralPath $ZipPath -Destination $copy

@@ -7,10 +7,23 @@ publish = false
 description = "Otter Windows native migration host"
 
 [workspace]
-members = ["hover-hook"]
+members = ["hover-hook", "otter-core", "otter-media", "otter-runtime"]
 resolver = "2"
 
+[features]
+# 默认关闭 scoped-tests，确保常规/CI 构建运行 100% 全部单测；定向迭代可开启子域 feature 仅编译相关单测。
+scoped-tests = []
+test-live = ["scoped-tests"]
+test-surface = ["scoped-tests"]
+test-save = ["scoped-tests"]
+test-capture = ["scoped-tests"]
+test-loom = ["scoped-tests"]
+test-canvas = ["scoped-tests"]
+
 [dependencies]
+otter-core = { path = "otter-core", version = "=0.2.33" }
+otter-media = { path = "otter-media", version = "=0.2.33" }
+otter-runtime = { path = "otter-runtime", version = "=0.2.33" }
 base64 = "=0.22.1"
 png = "=0.18.1"
 image-webp = "=0.2.4"
@@ -33,6 +46,9 @@ qrcode = { version = "=0.14.1", default-features = false }
 rxing = { version = "=0.9.3", default-features = false, features = ["decoders", "qrcode", "encoding_rs"] }
 
 [dev-dependencies]
+otter-core = { path = "otter-core", version = "=0.2.33", features = ["test-support"] }
+otter-media = { path = "otter-media", version = "=0.2.33", features = ["test-support"] }
+otter-runtime = { path = "otter-runtime", version = "=0.2.33", features = ["test-support"] }
 rcgen = { version = "=0.13.2", default-features = false, features = ["crypto", "ring"] }
 
 [target.'cfg(windows)'.dev-dependencies]

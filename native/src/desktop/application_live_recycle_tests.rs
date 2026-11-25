@@ -51,7 +51,9 @@ fn live_recycle_close_and_menu_preserve_frame_until_commit_and_restore_from_libr
             let host = app.documents[0].window.0;
             request_close(hwnd, menu);
             assert!(IsWindow(Some(hwnd)).as_bool());
+            let exports = save_snapshot::payload_documents_for_test();
             app.process_live(false).unwrap();
+            assert_eq!(save_snapshot::payload_documents_for_test(), exports);
             assert!(app.live_sessions[0].is_alive());
             assert!(app.save_job.is_some());
             // 普通磁盘保存消费者不能领取会关闭窗口的结果。
@@ -60,7 +62,8 @@ fn live_recycle_close_and_menu_preserve_frame_until_commit_and_restore_from_libr
             assert!(!IsWindow(Some(hwnd)).as_bool());
             assert!(IsWindow(Some(host)).as_bool());
             app.shutdown_live().unwrap();
-            let path = save_publish::smoke_destination().unwrap();
+            let fixture = smoke_session_fixture::Directory::new().unwrap();
+            let path = fixture.target();
             app.request_save_new(path.clone()).unwrap();
             super::save::prepared(&mut app)
                 .unwrap()

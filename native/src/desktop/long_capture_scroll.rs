@@ -23,6 +23,7 @@ struct Identity {
 pub struct Target {
     identity: Identity,
     point: (i32, i32),
+    region: Region,
 }
 fn center(region: Region) -> Result<(i32, i32), String> {
     if region.width <= 0 || region.height <= 0 {
@@ -114,6 +115,18 @@ fn send_checked(
     }
     Ok(())
 }
+pub(in crate::desktop) const TARGET_COVERED: &str = "Long capture target region is covered";
+
+fn probe_axis(start: i32, length: i32) -> [i32; 3] {
+    // Interior witnesses avoid treating window borders as content. Bind/relocate validate the end.
+    let inset = (length / 16).min(8);
+    [
+        start + inset,
+        start + length / 2,
+        start + length - 1 - inset,
+    ]
+}
+
 impl Target {
     pub(in crate::desktop) fn root(&self) -> isize {
         self.identity.root
@@ -156,6 +169,7 @@ impl Target {
         Ok(Some(Self {
             identity: self.identity,
             point,
+            region,
         }))
     }
     pub fn validate(&self) -> Result<(), String> {
@@ -165,6 +179,37 @@ impl Target {
         } else {
             Ok(())
         }
+    }
+    pub(super) fn validate_sample(&self) -> Result<(), String> {
+        self.validate()?;
+        self.check_visible_region()
+    }
+    fn check_visible_region(&self) -> Result<(), String> {
+        // Desktop pixels are composited. Probe the center first, then the edges and corners;
+        // a differing root is enough to reject, but passing is not proof of full visibility.
+        let same_root = |x, y| unsafe {
+            GetAncestor(WindowFromPoint(POINT { x, y }), GA_ROOT).0 as isize == self.identity.root
+        };
+        let (x, y) = self.point;
+        if !same_root(x, y) {
+            return Err(TARGET_COVERED.into());
+        }
+        let xs = probe_axis(self.region.left, self.region.width);
+        let ys = probe_axis(self.region.top, self.region.height);
+        for (row, py) in ys.into_iter().enumerate() {
+            if row > 0 && py == ys[row - 1] {
+                continue;
+            }
+            for (column, px) in xs.into_iter().enumerate() {
+                if (px, py) == (x, y) || (column > 0 && px == xs[column - 1]) {
+                    continue;
+                }
+                if !same_root(px, py) {
+                    return Err(TARGET_COVERED.into());
+                }
+            }
+        }
+        Ok(())
     }
     /// 必须在显示长截图控制窗口前、用户确认选区后绑定。禁止将 Otter 自己作为滚动目标。
     pub fn bind(region: Region) -> Result<Self, String> {
@@ -186,7 +231,11 @@ impl Target {
             {
                 return Err("Scroll region must stay inside one target window".into());
             }
-            Ok(Self { identity, point })
+            Ok(Self {
+                identity,
+                point,
+                region,
+            })
         }
     }
     /// 只能从独立 worker 调用。一次发送一格，不提升权限、不重试或转发到父窗口。
@@ -200,6 +249,7 @@ impl Target {
             let current = identity(window)?;
             let (msg, wp, lp) = message(axis, forward, self.point);
             send_checked(self, current, GetCurrentThreadId(), cancel, || {
+                self.check_visible_region()?;
                 SetLastError(ERROR_SUCCESS);
                 let result = SendMessageTimeoutW(
                     window,
@@ -221,6 +271,6 @@ impl Target {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-capture")))]
 #[path = "long_capture_scroll_tests.rs"]
 mod tests;

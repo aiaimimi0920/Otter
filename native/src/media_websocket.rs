@@ -92,6 +92,11 @@ pub(crate) fn connect(
     if stop.load(Ordering::Acquire) {
         return Err(Error::Stopped);
     }
+    let cancelled = base.cancellation_flag();
+    // 只有这条 socket 的本地取消 I/O 才是 Stopped；不把远端拒绝或证书错误重分类。
+    let interrupted = |error: &io::Error| {
+        error.kind() == io::ErrorKind::ConnectionAborted && cancelled.load(Ordering::Acquire)
+    };
     let stream = if let Some(config) = prepared.tls {
         let name = prepared
             .url
@@ -104,7 +109,13 @@ pub(crate) fn connect(
             ClientConnection::new(config, ServerName::try_from(name).map_err(|_| Error::Tls)?)
                 .map_err(|_| Error::Tls)?;
         while tls.is_handshaking() {
-            tls.complete_io(&mut base).map_err(|_| Error::Tls)?;
+            tls.complete_io(&mut base).map_err(|error| {
+                if interrupted(&error) {
+                    Error::Stopped
+                } else {
+                    Error::Tls
+                }
+            })?;
         }
         Stream::Tls(Box::new(StreamOwned::new(tls, base)))
     } else {
@@ -118,8 +129,16 @@ pub(crate) fn connect(
         .ok_or(Error::Profile)?
         .to_owned();
     let (socket, response) =
-        tungstenite::client::client_with_config(prepared.request, stream, Some(config))
-            .map_err(|_| Error::Upgrade)?;
+        tungstenite::client::client_with_config(prepared.request, stream, Some(config)).map_err(
+            |error| match error {
+                tungstenite::HandshakeError::Failure(tungstenite::Error::Io(error))
+                    if interrupted(&error) =>
+                {
+                    Error::Stopped
+                }
+                _ => Error::Upgrade,
+            },
+        )?;
     let mut protocols = response.headers().get_all("sec-websocket-protocol").iter();
     let selected = protocols
         .next()

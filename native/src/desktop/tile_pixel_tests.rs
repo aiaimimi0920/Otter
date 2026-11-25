@@ -1,7 +1,10 @@
 //! WIC/D2D 实际栅格像素；预期是手工标号矩阵，不调用新几何算法生成 oracle。
 use super::*;
 use crate::tile_wire::*;
-use windows::Win32::{Graphics::Imaging::*, System::Com::*};
+use windows::Win32::{
+    Graphics::{Dxgi::Common::DXGI_FORMAT_B8G8R8A8_UNORM, Imaging::*},
+    System::Com::*,
+};
 pub(super) fn fixture(rotation: Rotation) -> std::sync::Arc<Frame> {
     let (_, mut frame) = crate::tile_tests::shared_frame();
     frame.layout.tiles[0].rotation = rotation;
@@ -40,10 +43,7 @@ pub(super) fn fixture(rotation: Rotation) -> std::sync::Arc<Frame> {
 pub(super) unsafe fn render(frame: &std::sync::Arc<Frame>) -> Vec<u8> {
     render_local(frame, &[])
 }
-pub(super) unsafe fn render_local(
-    frame: &std::sync::Arc<Frame>,
-    rows: &[crate::tile_surface_local::Entry],
-) -> Vec<u8> {
+unsafe fn target(size: Size) -> (IWICBitmap, ID2D1RenderTarget) {
     let wic: IWICImagingFactory = windows::Win32::System::Com::CoCreateInstance(
         &CLSID_WICImagingFactory,
         None,
@@ -52,8 +52,8 @@ pub(super) unsafe fn render_local(
     .unwrap();
     let bitmap = wic
         .CreateBitmap(
-            frame.size.width,
-            frame.size.height,
+            size.width,
+            size.height,
             &GUID_WICPixelFormat32bppPBGRA,
             WICBitmapCacheOnLoad,
         )
@@ -74,35 +74,23 @@ pub(super) unsafe fn render_local(
             },
         )
         .unwrap();
-    let mut images = BTreeMap::new();
-    for (id, image) in &frame.images {
-        images.insert(
-            id.clone(),
-            target
-                .CreateBitmap(
-                    D2D_SIZE_U {
-                        width: image.width,
-                        height: image.height,
-                    },
-                    Some(image.pixels.as_ptr().cast()),
-                    image.width * 4,
-                    &D2D1_BITMAP_PROPERTIES {
-                        pixelFormat: D2D1_PIXEL_FORMAT {
-                            format: DXGI_FORMAT_B8G8R8A8_UNORM,
-                            alphaMode: D2D1_ALPHA_MODE_PREMULTIPLIED,
-                        },
-                        dpiX: 96.,
-                        dpiY: 96.,
-                    },
-                )
-                .unwrap(),
-        );
-    }
+    (bitmap, target)
+}
+pub(super) unsafe fn render_local(
+    frame: &std::sync::Arc<Frame>,
+    rows: &[crate::tile_surface_local::Entry],
+) -> Vec<u8> {
+    let (bitmap, target) = target(frame.size);
+    let mut images = uploads::Cache::default();
+    images
+        .sync(&target, Some(&frame.images), crate::pixels::reserve)
+        .unwrap();
     target.BeginDraw();
     let mut arts = BTreeMap::new();
     art::prepare(&mut arts, Some(frame)).unwrap();
     art::local::apply(&mut arts, Some(frame), rows).unwrap();
-    paint(&target, Some(frame), &images, &arts, None).unwrap();
+    let geometry = Geometry::project(frame).unwrap();
+    paint(&target, Some((frame, &geometry)), &images, &arts, None).unwrap();
     target.EndDraw(None, None).unwrap();
     let mut result = vec![0; (frame.size.width * frame.size.height * 4) as usize];
     bitmap
@@ -175,4 +163,74 @@ fn cropped_nonuniform_placement_and_alpha_z_order_are_applied_once() {
     unsafe {
         CoUninitialize();
     }
+}
+
+#[test]
+fn paint_geometry_reuses_only_identical_layout_output_and_size() {
+    let before = fixture(Rotation::Zero);
+    let mut next = std::sync::Arc::try_unwrap(fixture(Rotation::Zero))
+        .ok()
+        .unwrap();
+    next.images.clear(); // Media changes do not change placement geometry.
+    assert!(Geometry::same_inputs(&before, &next));
+    next.layout.placements[0].source_crop.x = 0.5;
+    assert!(!Geometry::same_inputs(&before, &next));
+    next.layout = before.layout.clone();
+    next.layout.tiles[0].rotation = Rotation::Right;
+    assert!(!Geometry::same_inputs(&before, &next));
+    next.layout = before.layout.clone();
+    next.size.width += 1;
+    assert!(!Geometry::same_inputs(&before, &next));
+    next.size = before.size;
+    next.key.endpoint = "other-output".into();
+    assert!(!Geometry::same_inputs(&before, &next));
+}
+
+#[test]
+fn bitmap_uploads_retain_unchanged_sources_release_removed_and_do_not_overbook_replacements() {
+    let _apartment = crate::desktop::Apartment::new().unwrap();
+    let (_, target) = unsafe {
+        target(Size {
+            width: 2,
+            height: 2,
+        })
+    };
+    let budget = crate::byte_budget::Budget::new(8);
+    let reserve = |n| budget.reserve(n);
+    let image = |v| crate::image_decode::Image {
+        width: 1,
+        height: 1,
+        pixels: vec![v, 0, 0, 255].into(),
+    };
+    let mut images = BTreeMap::from([("still".into(), image(1)), ("live".into(), image(2))]);
+    let mut cache = uploads::Cache::default();
+    cache.sync(&target, Some(&images), reserve).unwrap();
+    let still = cache.get("still").unwrap().clone();
+    let old_live = cache.get("live").unwrap().clone();
+    assert_eq!(budget.used(), 8);
+
+    images.insert("live".into(), image(3));
+    cache.sync(&target, Some(&images), reserve).unwrap();
+    assert_eq!(cache.get("still"), Some(&still));
+    assert!(cache.get("live") != Some(&old_live));
+    assert_eq!(budget.used(), 8);
+    drop((still, old_live));
+
+    images.insert("extra".into(), image(4));
+    assert_eq!(
+        cache
+            .sync(&target, Some(&images), reserve)
+            .unwrap_err()
+            .code(),
+        E_OUTOFMEMORY
+    );
+    assert!(cache.get("extra").is_none());
+    assert_eq!(budget.used(), 8);
+    images.remove("live");
+    cache.sync(&target, Some(&images), reserve).unwrap();
+    assert!(cache.get("live").is_none());
+    assert!(cache.get("extra").is_some());
+    assert_eq!(budget.used(), 8);
+    cache.sync(&target, None, reserve).unwrap();
+    assert_eq!(budget.used(), 0);
 }

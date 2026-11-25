@@ -66,6 +66,6 @@ pub(super) unsafe fn create_device(driver: D3D_DRIVER_TYPE) -> Result<ID3D11Devi
     )?;
     device.ok_or_else(|| Error::new(E_FAIL, "D3D11 device missing"))
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "composition_device_tests.rs"]
 mod tests;

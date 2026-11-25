@@ -72,6 +72,6 @@ pub(super) fn prepare(
     }
     Ok(Some(input))
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-loom")))]
 #[path = "extension_ocr_input_tests.rs"]
 mod tests;

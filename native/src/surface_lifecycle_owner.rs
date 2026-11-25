@@ -99,6 +99,6 @@ impl Owner {
         Ok(())
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-surface")))]
 #[path = "surface_lifecycle_owner_tests.rs"]
 mod tests;

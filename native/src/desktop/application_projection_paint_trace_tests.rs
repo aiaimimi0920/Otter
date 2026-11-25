@@ -99,7 +99,7 @@ fn projection_display_recovery_paint_trace_forwards_and_removes_its_own_subclass
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let _com = Apartment::new().unwrap();
     unsafe {
-        let (_class, mut app) = application();
+        let mut app = application();
         let doc = &app.documents[0];
         let before = doc.state.canvas.borrow().paints;
         let trace = Trace::new(doc.window.0);

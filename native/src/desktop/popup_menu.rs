@@ -7,6 +7,9 @@ use windows::Win32::{Foundation::*, UI::WindowsAndMessaging::*};
 mod delivery;
 #[path = "popup_frozen.rs"]
 mod frozen;
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
+pub(in crate::desktop) use frozen::test_close_index_menu;
+pub(in crate::desktop) use frozen::Workers;
 #[path = "popup_history.rs"]
 mod history;
 #[path = "menu_target.rs"]
@@ -98,17 +101,14 @@ pub(super) fn contents(state: &State, menu: HMENU, tray: bool) -> Result<Content
     // HMENU 仍由业务构建器持有；自绘宿主只消费有界只读快照。
     // 失败不回退到另一个嵌套菜单，避免重放输入或绕过捕获/前台保护。
     let mut tree = crate::native_menu::snapshot(menu)?;
-    let source = {
+    let (source, workers) = {
         let view = state.frozen_library.borrow();
-        if view.busy {
-            None
-        } else {
-            view.source.clone()
-        }
+        let source = if view.busy { None } else { view.source.clone() };
+        (source, view.workers.clone())
     };
     // 主干托盘没有剪贴板或冻结库；仅钉图菜单追加这些入口。
     let frozen = (!tray).then(|| {
-        let mut frozen = frozen::LibraryMenu::attach(&mut tree, source);
+        let mut frozen = frozen::LibraryMenu::attach(&mut tree, source, workers);
         frozen.bind_reference(
             &tree,
             &state.unit_id,

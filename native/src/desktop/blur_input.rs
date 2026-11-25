@@ -124,18 +124,40 @@ pub(super) unsafe fn start(hwnd: HWND, state: &State) {
     submit(hwnd, state, request);
 }
 pub(super) unsafe fn submit(hwnd: HWND, state: &State, request: Request) {
-    let result = state.blur_job.borrow_mut().request(request);
-    if let Err(error) = result {
-        report(hwnd, &format!("{error:?}"));
-        return;
-    }
-    if SetTimer(Some(hwnd), TIMER, 50, None) == 0 {
-        // 无轮询器不能留下无人消费的任务；取消并回收后再报告。
-        *state.blur_job.borrow_mut() = Default::default();
-        report(hwnd, "无法启动模糊任务定时器。");
-    }
+    let result = submit_with(
+        state,
+        request,
+        || SetTimer(Some(hwnd), TIMER, 50, None) != 0,
+        || {
+            let _ = KillTimer(Some(hwnd), TIMER);
+        },
+    );
+    // 工具/强度可能已变更；失败时也先刷新显示，所有借用结束后再弹框。
     let _ = super::hit_region::update(hwnd, state);
     let _ = InvalidateRect(Some(hwnd), None, false);
+    if let Err(error) = result {
+        report(hwnd, &error);
+    }
+}
+fn submit_with(
+    state: &State,
+    request: Request,
+    reserve_timer: impl FnOnce() -> bool,
+    cancel_timer: impl FnOnce(),
+) -> Result<(), String> {
+    // latest-wins 复用原 timer，不能重预约失败后销毁仍待回收的旧线程。
+    let was_busy = state.blur_job.borrow().is_busy();
+    if !was_busy && !reserve_timer() {
+        return Err("无法启动模糊任务定时器。".into());
+    }
+    let result = state.blur_job.borrow_mut().request(request);
+    if let Err(error) = result {
+        if !was_busy {
+            cancel_timer();
+        }
+        return Err(format!("{error:?}"));
+    }
+    Ok(())
 }
 
 fn accept(canvas: &mut Canvas, completed: Completed) -> Result<bool, String> {
@@ -165,8 +187,14 @@ fn accept(canvas: &mut Canvas, completed: Completed) -> Result<bool, String> {
         return Ok(false);
     }
     let pixels = completed.result.map_err(|error| format!("{error:?}"))?;
-    let prepared = BlurImage::with_strength(image.width, image.height, pixels, request.sigma)
-        .ok_or("模糊图像尺寸不匹配")?;
+    let prepared = BlurImage::from_working_raster(
+        request.size,
+        request.area,
+        pixels,
+        request.sigma,
+        request.base_projection,
+    )
+    .ok_or("模糊图像尺寸不匹配")?;
     if let Some(index) = request.target {
         let changed = canvas
             .editor
@@ -229,6 +257,9 @@ unsafe fn report(hwnd: HWND, error: &str) {
     );
 }
 
+#[cfg(test)]
+#[path = "blur_input_schedule_tests.rs"]
+mod schedule_tests;
 #[cfg(test)]
 mod tests {
     use super::*;

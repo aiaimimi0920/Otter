@@ -31,6 +31,7 @@ pub(super) struct Window(Rc<Model>);
 struct Model {
     hwnd: Cell<Option<HWND>>,
     rows: RefCell<Vec<Entry>>,
+    selection_dirty: Cell<bool>,
     events: RefCell<VecDeque<Event>>,
     hover: Cell<Option<usize>>,
     status: RefCell<String>,
@@ -51,6 +52,7 @@ impl Window {
         let model = Rc::new(Model {
             hwnd: Cell::new(None),
             rows: RefCell::new(Vec::new()),
+            selection_dirty: Cell::new(false),
             events: RefCell::new(VecDeque::new()),
             hover: Cell::new(None),
             status: RefCell::new(String::new()),
@@ -146,6 +148,22 @@ impl Window {
         Ok(result)
     }
     pub(super) unsafe fn update(&self, rows: &[Entry], ready: bool, refresh: bool, applying: bool) {
+        self.update_draft(rows, None, ready, refresh, applying);
+    }
+    pub(super) unsafe fn update_draft(
+        &self,
+        rows: &[Entry],
+        draft: Option<&BTreeMap<String, bool>>,
+        ready: bool,
+        refresh: bool,
+        applying: bool,
+    ) {
+        let checked = |row: &Entry| {
+            draft
+                .and_then(|d| d.get(&row.id))
+                .copied()
+                .unwrap_or(row.checked)
+        };
         let Some(hwnd) = self.0.hwnd.get() else {
             return;
         };
@@ -156,19 +174,35 @@ impl Window {
         if windows::Win32::UI::Input::KeyboardAndMouse::GetCapture() == list {
             return;
         }
-        let same = {
+        let (same, changed) = {
             let old = self.0.rows.borrow();
-            old.len() == rows.len()
+            let same = old.len() == rows.len()
                 && old
                     .iter()
                     .zip(rows)
-                    .all(|(a, b)| a.id == b.id && a.name == b.name)
+                    .all(|(a, b)| a.id == b.id && a.name == b.name);
+            let changed = !same
+                || old.iter().zip(rows).any(|(a, b)| {
+                    a.enabled != b.enabled || a.command != b.command || a.checked != checked(b)
+                });
+            (same, changed)
         };
-        if !same {
+        let old_top = (!same).then(|| {
             let top = SendMessageW(list, LB_GETTOPINDEX, None, None);
             SendMessageW(list, WM_SETREDRAW, Some(WPARAM(0)), None);
             SendMessageW(list, LB_RESETCONTENT, None, None);
-            *self.0.rows.borrow_mut() = rows.to_vec();
+            top
+        });
+        if changed {
+            *self.0.rows.borrow_mut() = rows
+                .iter()
+                .map(|row| Entry {
+                    checked: checked(row),
+                    ..row.clone()
+                })
+                .collect();
+        }
+        if let Some(top) = old_top {
             for row in rows {
                 let text = HSTRING::from(&row.name);
                 SendMessageW(
@@ -187,18 +221,23 @@ impl Window {
             SendMessageW(list, WM_SETREDRAW, Some(WPARAM(1)), None);
             let _ = InvalidateRect(Some(list), None, false);
         }
-        let changed = *self.0.rows.borrow() != rows;
-        *self.0.rows.borrow_mut() = rows.to_vec();
-        for (i, row) in rows.iter().enumerate() {
-            let selected = SendMessageW(list, LB_GETSEL, Some(WPARAM(i)), None).0 > 0;
-            if selected != row.checked {
-                SendMessageW(
-                    list,
-                    LB_SETSEL,
-                    Some(WPARAM(usize::from(row.checked))),
-                    Some(LPARAM(i as isize)),
-                );
+        // LBN_SELCHANGE updates the snapshot synchronously; idle refresh need not interrogate Win32.
+        if changed || self.0.selection_dirty.get() {
+            let mut dirty = false;
+            for (i, row) in rows.iter().enumerate() {
+                let wanted = checked(row);
+                let selected = SendMessageW(list, LB_GETSEL, Some(WPARAM(i)), None).0;
+                if selected == -1 || (selected > 0) != wanted {
+                    dirty |= SendMessageW(
+                        list,
+                        LB_SETSEL,
+                        Some(WPARAM(usize::from(wanted))),
+                        Some(LPARAM(i as isize)),
+                    )
+                    .0 == -1;
+                }
             }
+            self.0.selection_dirty.set(dirty);
         }
         if changed {
             let _ = InvalidateRect(Some(list), None, false);

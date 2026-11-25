@@ -26,6 +26,10 @@
     "version:internal": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\bump-internal-version.ps1",
     "test:dependency-security": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\tests\\Test-DependencySecurityContract.ps1",
     "audit:dependencies": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\Invoke-DependencySecurityScan.ps1",
+    "check:fast": "powershell -NoProfile -Command \"$env:CARGO_TARGET_DIR='native/target-nightly-check'; $env:RUSTFLAGS='-Z threads=6'; cargo +nightly check --locked --offline --workspace --manifest-path native/Cargo.toml --lib\"",
+    "test:nextest": "cargo nextest run --locked --workspace --manifest-path native/Cargo.toml",
+    "review:batches": "node scripts/review-batches.mjs",
+    "review:upsert": "node scripts/review-ledger-upsert.mjs",
     "verify:local": "npm run verify:version && npm run check:effective-lines:strict && cargo fmt --all --check --manifest-path native/Cargo.toml && cargo test --locked --workspace --manifest-path native/Cargo.toml -- --test-threads=1 && npm run build",
     "test": "cargo test --locked --workspace --manifest-path native/Cargo.toml -- --test-threads=1",
     "test:effective-lines": "node --test scripts/tests/effective-code-lines.test.mjs"

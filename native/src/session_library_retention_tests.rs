@@ -24,6 +24,27 @@ fn unrelated_or_tampered_window_cannot_consume_selected_entry() {
     assert_eq!(original, source());
 }
 
+#[test]
+fn matching_window_with_duplicate_instance_root_is_rejected_before_consumption() {
+    let original = source();
+    let copy = String::from_utf8(copy())
+        .unwrap()
+        .replace("\"links\":[]", "\"links\":[],\"future\":1,\"future\":2");
+    assert!(session_document::decode(copy.as_bytes()).is_ok());
+    let error = prepare(
+        &original,
+        copy.as_bytes(),
+        &ids(&["a"]),
+        Kind::RecycleBin,
+        "entry",
+        &AtomicBool::new(false),
+    )
+    .err()
+    .unwrap();
+    assert!(error.contains("Session field limit or duplicate"));
+    assert_eq!(original, source());
+}
+
 fn source() -> Vec<u8> {
     br#"{"documentRevision":9,"stickers":[{"id":"a","x":0,"y":0,"w":10,"h":10},{"id":"closed","x":0,"y":0,"w":10,"h":10}],
     "links":[{"id":"edge","fromUnitId":"a","fromPortId":"out","toUnitId":"closed","toPortId":"in"}],

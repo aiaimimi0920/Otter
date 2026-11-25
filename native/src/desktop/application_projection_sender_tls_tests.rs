@@ -175,7 +175,7 @@ pub(super) fn run_source(mode: u8, case: source::Case) {
         listener
     }).unwrap();
     unsafe {
-        let (_class, mut app) = application(files.root());
+        let mut app = application(files.root());
         expected_tx.send(case.install(&mut app)).unwrap();
         let unit = app.documents[0].state.unit_id.clone();
         let original = app.restored_session.as_ref().unwrap().original.clone();

@@ -118,7 +118,29 @@ fn continuous_update_body_binds_original_session_and_exact_next_revision_without
     )
     .unwrap()
     .unwrap();
-    let body: Value = serde_json::from_slice(&update.body(&active).unwrap()).unwrap();
+    let frame = super::super::tests::frame();
+    let cancel = AtomicBool::new(false);
+    let snapshot = Arc::new(
+        snapshot::Snapshot::from_png(&frame.png, frame.width, frame.height, &cancel).unwrap(),
+    );
+    let reused = Update::prepare_snapshot(snapshot.clone(), &prior, &cancel)
+        .unwrap()
+        .unwrap();
+    assert!(Arc::ptr_eq(&reused.snapshot, &snapshot));
+    assert!(Update::prepare_snapshot(
+        snapshot.clone(),
+        &response(&intent, 1, intent.digest()),
+        &cancel
+    )
+    .unwrap()
+    .is_none());
+    assert_eq!(
+        Update::prepare_snapshot(snapshot, &prior, &AtomicBool::new(true)).err(),
+        Some(Error::Stopped)
+    );
+    let bytes = update.body(&active).unwrap();
+    assert_eq!(bytes, reused.body(&active).unwrap());
+    let body: Value = serde_json::from_slice(&bytes).unwrap();
     assert_eq!(body["projectionId"], intent.envelope().projection_id());
     assert_eq!(
         body["sourceSessionId"],

@@ -53,9 +53,8 @@ mod tests {
     #[test]
     fn embedded_image_files_are_independent_and_removed_after_use() {
         let _apartment = crate::desktop::Apartment::new().unwrap();
-        let directory = Path::new("C:/Users/Public/nas_home/AI/GameEditor/linshi");
-        let first = ImageFile::in_directory(directory).unwrap();
-        let second = ImageFile::in_directory(directory).unwrap();
+        let first = ImageFile::new().unwrap();
+        let second = ImageFile::new().unwrap();
         assert_ne!(first.path(), second.path());
         assert_eq!(std::fs::read(first.path()).unwrap(), PNG);
         let image = crate::desktop::image::Image::open(first.path()).unwrap();

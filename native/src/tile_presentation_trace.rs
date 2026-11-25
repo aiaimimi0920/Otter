@@ -85,6 +85,6 @@ pub(super) fn visibility(s: &State, now: Instant) -> Stage {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-surface")))]
 #[path = "tile_presentation_trace_tests.rs"]
 mod tests;

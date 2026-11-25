@@ -13,20 +13,24 @@ fn model(script: &str) {
         "projections++; const source = json.encode(project(dom.root)); if(projectionMutation){projectionMutation=false;dom.root.title='during-projection'}",
     );
     assert_ne!(factory, counted);
-    let bootstrap = BOOTSTRAP.replacen(factory, &counted, 1);
-    let json = include_str!("surface_javascript_json.js");
+    // 比对同一场景投影，不在 mount 的 JS 调用栈内提前刷出 Canvas 命令。
+    let bootstrap = BOOTSTRAP.replacen(factory, &counted, 1).replacen(
+        "    collect: () => protocol.encode(",
+        "    projectScene: () => protocol.encode(project(root)), collect: () => protocol.encode(",
+        1,
+    );
     let mut steps = script.split("await operation(");
     let setup = steps.next().unwrap();
     let source = format!(
         r#"
           let reads=0,lastSource,root,rejectRead=0;
-          const parse=JSON.parse,stringify=({json}).encode;
+          const parse=JSON.parse;
           const check=value=>{{if(!value)throw Error('projection assertion')}};
           const bridge=__projectionBridge;delete globalThis.__projectionBridge;
           bridge.bindGeometry(source=>{{reads++;lastSource=source;return reads===rejectRead?'':'[0,0,20,20,20,20,20,20,0,0,20,20]'}});
           bridge.bindAnimationClock(()=>0);bridge.bindCanvas(()=>true);
-          const current=()=>{{root.clientWidth;check(lastSource===stringify(parse(bridge.collect()).scene));return parse(lastSource)}};
-          const changed=edit=>{{const before=projections;edit();root.clientWidth;check(projections===before+1);check(lastSource===stringify(parse(bridge.collect()).scene))}};
+          const current=()=>{{root.clientWidth;check(lastSource===bridge.projectScene());return parse(lastSource)}};
+          const changed=edit=>{{const before=projections;edit();root.clientWidth;check(projections===before+1);check(lastSource===bridge.projectScene())}};
           const rejected=edit=>{{const before=projections,source=lastSource;let caught=false;try{{edit()}}catch{{caught=true}}check(caught);current();check(projections===before&&lastSource===source)}};
           {setup}
         "#
@@ -45,6 +49,7 @@ fn model(script: &str) {
                 bridge.get::<_, Function>("beginCanvas")?.call::<_, ()>(())?;
                 let command = serde_json::json!({"type":kind,"snapshot":{"scene":{"id":"root","type":"column"}},"resources":{}}).to_string();
                 bridge.get::<_, Function>("apply")?.call::<_, Promise>((command,))?.finish::<()>()?;
+                bridge.get::<_, Function>("collect")?.call::<_, String>(())?;
                 ctx.eval::<(), _>(checks)?;
             }
             Ok::<_, rquickjs::Error>(())

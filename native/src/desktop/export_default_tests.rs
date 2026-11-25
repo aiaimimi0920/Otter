@@ -4,10 +4,9 @@ struct Directory(PathBuf);
 impl Directory {
     fn new() -> Self {
         Self(
-            PathBuf::from("C:/Users/Public/nas_home/AI/GameEditor/linshi")
-                .join(format!("otter-default-export-{:?}", unsafe {
-                    windows::Win32::System::Com::CoCreateGuid().unwrap()
-                })),
+            std::env::temp_dir().join(format!("otter-default-export-{:?}", unsafe {
+                windows::Win32::System::Com::CoCreateGuid().unwrap()
+            })),
         )
     }
 }
@@ -66,6 +65,58 @@ fn default_save_creates_png_on_worker_increments_and_keeps_frozen_settings() {
     assert_eq!(next.file_name().unwrap(), "固定_2x2_2.png");
     assert_eq!(fs::read(path).unwrap(), original);
 }
+#[test]
+fn long_pin_annotation_save_reopens_at_source_dimensions() {
+    use crate::{desktop::image::Image, editor::Tool, viewport::Point};
+    let _apartment = crate::desktop::Apartment::new().unwrap();
+    let directory = Directory::new();
+    for (width, height) in [(12, 16384), (16384, 12)] {
+        let color = [17, 33, 65, 255];
+        let state = State::new(
+            Some(Image {
+                width,
+                height,
+                pixels: color.repeat((width * height) as usize).into(),
+            }),
+            true,
+        )
+        .unwrap();
+        state.naming.borrow_mut().sticker_save_pattern = "{width}x{height}".into();
+        let point = if width < height {
+            Point { x: 6.5, y: 16000.5 }
+        } else {
+            Point { x: 16000.5, y: 6.5 }
+        };
+        {
+            let mut canvas = state.canvas.borrow_mut();
+            canvas.viewport.scale = 0.5; // The filename and output must not be viewport sized.
+            canvas.editor.begin(Tool::Brush, point).unwrap();
+            assert!(canvas.editor.commit());
+        }
+        let prepared = prepare(&state, directory.0.clone()).unwrap().unwrap();
+        // A later edit must not silently alter the already requested export.
+        assert!(state.canvas.borrow_mut().editor.undo());
+        let path = std::thread::spawn(move || prepared.save())
+            .join()
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            path.file_name().unwrap().to_str().unwrap(),
+            format!("{width}x{height}.png")
+        );
+        let reopened = crate::desktop::open_image::PreparedDocument::open(&path, true).unwrap();
+        assert_eq!(
+            (reopened.image.width, reopened.image.height),
+            (width, height)
+        );
+        let bytes = &reopened.image.pixels;
+        assert_eq!(&bytes[..4], &color);
+        assert_eq!(&bytes[bytes.len() - 4..], &color);
+        let offset = 4 * (point.y as usize * width as usize + point.x as usize);
+        assert_ne!(&bytes[offset..offset + 4], &color);
+    }
+}
+
 #[test]
 fn missing_image_and_bad_name_do_not_create_directories() {
     let directory = Directory::new();

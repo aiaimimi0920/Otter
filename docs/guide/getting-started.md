@@ -4,9 +4,9 @@
 
 ## Setup
 
-- Windows 10 or 11. Extract the current internal ZIP and launch `otter-native.exe`. Older releases have separate instructions.
+- Windows 10 or 11. Extract the entire internal ZIP, run `otter-native.exe` and keep the adjacent Live DLL. Internal ZIPs are unsigned development packages, not public releases or installers; older public downloads have their own instructions.
 - Capture, pins and annotations work without Loom. OCR, translation and Art require current Loom, installed capabilities and authorization.
-- See [packages and profile data](packages.md).
+- Workspace and settings default to `%LOCALAPPDATA%/OtterNative`, separate from historical releases. Use an absolute `OTTER_NATIVE_PROFILE_DIR` for an isolated test profile; do not overwrite a running profile or copy device credentials.
 
 ## 1. Capture and pin
 
@@ -24,7 +24,7 @@ UAC secure-desktop capture and overlays are unsupported. Live capture does not g
 4. After leaving editing or selection mode, press **`Esc`** to delete the pinned image. An active edit draft, capture selection or dialog takes priority for cancellation or dismissal; when an annotation is selected, deletion may apply to that annotation.
 5. Press **`Ctrl+S`** to save the selected image, or hold **`Shift`** to drag it into File Explorer.
 
-Read more: [freehand editing](../features/FREEHAND_EDITING.md) · [Bézier editing](../features/BEZIER_EDITING.md) · [features and shortcuts](../FEATURES.md).
+Read more: [brush and Bézier editing](../features/BEZIER_EDITING.md) · [features and shortcuts](../FEATURES.md).
 
 ## 3. Use OCR, translation and Art nodes
 
@@ -48,8 +48,8 @@ A device here means an Otter receiver that supports the existing projection prot
 
 1. Connect both devices to the same Loom and complete pairing and approval. Enable receiving on the receiver; new deliveries require Receive or Auto for automatic acceptance.
 2. On the sender, select a pinned image, press **`Ctrl+E`**, and open the projection panel below sticker settings.
-3. Open the target device or device-group list and select an available target. The receiver accepts or rejects according to its policy; success is shown after the sender receives confirmation that the image was displayed.
-4. Once associated, later edits on the sender continue to synchronize. Deselect the target to stop projection; closing the panel does not stop an existing association.
+3. Open the target device or device-group list and select an available target, then click Confirm. The sender shows success after a receipt; check that the image is visible on the receiver.
+4. Once associated, later edits on the sender continue to synchronize. Deselect the target and confirm to stop projection; closing the panel does not stop an existing association.
 
 QR-code and link invitations are also supported. Receive them through the tray's receive-projection entry or the image's import panel. See [image projection](../features/QR_PROJECTION.md) for invitation expiry, cross-Loom trust, receiving policies and two-way editing limits.
 
@@ -60,4 +60,4 @@ QR-code and link invitations are also supported. Receive them through the tray's
 - Unexpected shortcut behavior: check whether an image, annotation or text input is selected and whether editing is still active. Follow the current shortcut configuration.
 - Before reporting, search [existing issues](https://github.com/aiaimimi0920/Otter/issues) and follow [ways to contribute](contributing.md). Include the version, reproduction steps and sanitized screenshots. Do not upload keys, tokens or private screen content.
 
-[Capability details](capabilities.md) · [Development and verification](development.md)
+[Development and verification](../development/WINDOWS_NATIVE_BUILD.md) · [Tile wall mode](../features/TILE_TERMINAL.md)

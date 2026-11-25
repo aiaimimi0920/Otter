@@ -17,6 +17,7 @@
     ".jsx",
     ".mjs",
     ".cjs",
+    ".cs",
     ".css",
     ".scss",
     ".html",
@@ -33,7 +34,6 @@
     { "name": "node_modules", "reason": "Installed JavaScript dependencies are immutable inputs." },
     { "name": "target", "reason": "Cargo build output is generated." },
     { "name": "dist", "reason": "Bundled frontend output is generated." },
-    { "name": "release", "reason": "Published artifacts are generated from reviewed source." },
     { "name": "output", "reason": "Runtime and packaging output is generated." },
     { "name": ".output", "reason": "Frontend build output is generated." },
     { "name": ".vinxi", "reason": "Frontend tool cache is generated." },
@@ -47,6 +47,7 @@
     { "prefix": "target_", "reason": "Alternate Cargo target directories are generated." }
   ],
   "excludedPaths": [
+    { "path": "release", "reason": "Root release artifacts are generated; nested hand-written release scripts are source." },
     { "path": "third_party/resvg-0.48.1", "reason": "Pinned upstream renderer with replay-verified source patches. Upstream legacy files only; every local-added module is independently measured by security-third-party-sources.test.cjs. Source manifests and verifier scripts are not exempt." },
     { "path": "third_party/roxmltree-0.21.1", "reason": "Pinned upstream XML crate with iterative tokenizer patch, exact bytes verified by third-party-sources.cjs. New handwritten tests are separately measured; metadata and verification scripts are not exempt." },
     { "path": "third_party/usvg-0.48.1", "reason": "Pinned upstream crate with reviewed minimal context-paint patch; all bytes verified by third-party-sources.cjs. Patch metadata and verification scripts are not exempt." },

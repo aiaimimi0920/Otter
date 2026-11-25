@@ -122,6 +122,57 @@ fn javascript_event_target_callback_throw_or_cpu_budget_reaps_child_and_capacity
         assert_eq!(CAPACITY.used(), 0);
     }
 }
+
+#[test]
+fn javascript_event_target_real_child_click_admission_and_fixed_path_cleanup() {
+    let _serial = fixture::SERIAL.lock().unwrap();
+    for mode in [1, 2, 3, 4] {
+        let (mut session, frame) = Session::mount(
+            fixture::binding(),
+            include_str!("../tests/fixtures/javascript-click-admission.js").into(),
+            fixture::snapshot(3, 42),
+            fixture::resources(),
+            &|| false,
+        )
+        .unwrap();
+        let probe = session.child.as_ref().unwrap().probe().unwrap();
+        let target = frame.scene.root().children()[1].children()[0]
+            .id()
+            .to_owned();
+        if mode == 1 {
+            let root = frame.scene.root().id();
+            let frame = session.click(root, &|| false).unwrap();
+            assert_eq!(fixture::text(&frame.scene), "root,bubble,microtask");
+            let frame = session.click(&target, &|| false).unwrap();
+            assert_eq!(
+                fixture::text(&frame.scene),
+                "capture,target,parent,bubble,microtask"
+            );
+            session.suspend(&|| false).unwrap();
+            assert!(session.click(&target, &|| false).is_err());
+            assert!(!probe.exited());
+            session.resume(&|| false).unwrap();
+        }
+        session
+            .update(fixture::snapshot(4, mode), fixture::resources(), &|| false)
+            .unwrap();
+        if mode == 1 {
+            let frame = session.click(&target, &|| false).unwrap();
+            assert_eq!(
+                fixture::text(&frame.scene),
+                "capture,target,parent,bubble,microtask"
+            );
+            assert_eq!(frame.scene.root().children().len(), 1);
+        }
+        let start = Instant::now();
+        assert!(session.click(&target, &|| false).is_err(), "mode={mode}");
+        assert!(start.elapsed() < Duration::from_secs(4));
+        assert!(probe.exited());
+        let peak = probe.peak_job_bytes().unwrap();
+        assert!(peak > 0 && peak <= CHILD_LIMIT);
+        assert_eq!(CAPACITY.used(), 0);
+    }
+}
 #[test]
 #[ignore = "requires an explicitly sealed product EXE and its externally expected SHA-256"]
 fn javascript_event_target_actual_product_worker_uses_same_dispatch_and_cleanup() {

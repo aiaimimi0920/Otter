@@ -1,22 +1,73 @@
-//! 构建期 PE 资源 owner；复用品牌图标，不引入 GUI 框架或运行时依赖。
-use std::{env, ffi::OsString, fs, io, path::Path, process::Command};
+//! ??? PE ?? owner??????????? GUI ?????????
+use std::{
+    env,
+    ffi::OsString,
+    fs, io,
+    path::{Path, PathBuf},
+    process::{self, Command},
+};
 
 pub fn compile(root: &Path, out: &Path, version: &str) -> io::Result<()> {
-    let icon = root.join("assets/branding/icon.ico");
+    let resource = compile_with(root, out, version, |script, staged| {
+        run_compiler(root, script, staged)
+    })?;
+    println!(
+        "cargo:rustc-link-arg-bin=otter-native={}",
+        resource.display()
+    );
+    Ok(())
+}
+
+pub(super) fn compile_with(
+    root: &Path,
+    out: &Path,
+    version: &str,
+    run: impl FnOnce(&Path, &Path) -> io::Result<()>,
+) -> io::Result<PathBuf> {
     let script = out.join("otter-native.rc");
+    fs::write(
+        &script,
+        source(version, &root.join("assets/branding/icon.ico"))?,
+    )?;
+    let staged = reserve_output(out)?;
+    run(&script, &staged)?;
+    if !fs::metadata(&staged).is_ok_and(|file| file.is_file() && file.len() > 0) {
+        return Err(io::Error::other("Resource compiler produced no .res file"));
+    }
+    // ??????????????????????? .res????????
     let resource = out.join("otter-native.res");
-    fs::write(&script, source(version, &icon)?)?;
+    fs::rename(staged, &resource)?;
+    Ok(resource)
+}
+
+fn reserve_output(out: &Path) -> io::Result<PathBuf> {
+    // create_new ??????????????????? PID ????????
+    for attempt in 0..64 {
+        let path = out.join(format!("otter-native-{}-{attempt}.res", process::id()));
+        match fs::File::create_new(&path) {
+            Ok(_) => return Ok(path),
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
+            Err(error) => return Err(error),
+        }
+    }
+    Err(io::Error::new(
+        io::ErrorKind::AlreadyExists,
+        "No fresh .res staging path",
+    ))
+}
+
+fn run_compiler(root: &Path, script: &Path, staged: &Path) -> io::Result<()> {
     let explicit = env::var_os("OTTER_NATIVE_RC");
     let compilers = explicit.map_or_else(
         || vec![OsString::from("rc.exe"), OsString::from("llvm-rc.exe")],
         |path| vec![path],
     );
-    // 只有工具不存在才尝试下一工具；语法/资源错误不得被回退掩盖。
+    // ?????????????????/????????????
     for compiler in compilers {
         let output = Command::new(&compiler)
             .arg("/FO")
-            .arg(&resource)
-            .arg(&script)
+            .arg(staged)
+            .arg(script)
             .current_dir(root)
             .output();
         match output {
@@ -29,16 +80,7 @@ pub fn compile(root: &Path, out: &Path, version: &str) -> io::Result<()> {
                     String::from_utf8_lossy(&output.stderr)
                 )));
             }
-            Ok(_) => {
-                if !resource.is_file() {
-                    return Err(io::Error::other("Resource compiler produced no .res file"));
-                }
-                println!(
-                    "cargo:rustc-link-arg-bin=otter-native={}",
-                    resource.display()
-                );
-                return Ok(());
-            }
+            Ok(_) => return Ok(()),
         }
     }
     Err(io::Error::new(

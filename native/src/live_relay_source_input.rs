@@ -60,7 +60,10 @@ impl Bridge {
         self.stop.load(Ordering::Acquire)
     }
     pub fn cancel(&self) {
-        self.stop.store(true, Ordering::Release);
+        // 等待输入清理时 UI 会重复取消；只在首次停止时清空队列并唤醒消息泵。
+        if self.stop.swap(true, Ordering::AcqRel) {
+            return;
+        }
         self.request
             .lock()
             .unwrap_or_else(|e| e.into_inner())
@@ -133,6 +136,6 @@ impl Bridge {
         }
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-live")))]
 #[path = "live_relay_source_input_tests.rs"]
 mod tests;

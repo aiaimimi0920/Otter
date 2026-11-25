@@ -155,3 +155,32 @@ fn legal_full_unknown_parameters_round_trip_and_rejected_edits_are_atomic() {
         assert_eq!(control.snapshot().parameters(), values);
     }
 }
+
+#[test]
+fn checked_config_restore_still_decodes_pixels_checks_mime_and_cancels() {
+    use windows::Win32::Foundation::{E_ABORT, E_INVALIDARG};
+    let original = asset();
+    let raw =
+        serde_json::value::to_raw_value(&serde_json::json!({"image_path":original.uri})).unwrap();
+    let restored = Config::restore(Some(&raw), &AtomicBool::new(false)).unwrap();
+    assert_eq!(restored.asset.unwrap().image.pixels, original.image.pixels);
+    assert_eq!(
+        Config::restore(Some(&raw), &AtomicBool::new(true))
+            .err()
+            .unwrap()
+            .code(),
+        E_ABORT
+    );
+    let mislabeled = original
+        .uri
+        .replacen("data:image/png;", "data:image/jpeg;", 1);
+    let raw =
+        serde_json::value::to_raw_value(&serde_json::json!({"image_path":mislabeled})).unwrap();
+    assert_eq!(
+        Config::restore(Some(&raw), &AtomicBool::new(false))
+            .err()
+            .unwrap()
+            .code(),
+        E_INVALIDARG
+    );
+}

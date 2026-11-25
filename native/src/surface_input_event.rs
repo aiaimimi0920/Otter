@@ -35,7 +35,7 @@ pub fn encode(
     })
 }
 /// Wall 与普通宿主只共享 wire 编码；此身份不授普通 Surface 挂载权。
-pub(crate) fn encode_identity(
+pub fn encode_identity(
     node: &Node,
     identity: surface_click_event::Identity<'_>,
     revision: u64,

@@ -69,18 +69,44 @@ impl DocumentToken {
 
 pub(super) struct OpenJob {
     new_pin: bool,
-    worker: Option<JoinHandle<std::result::Result<Option<Vec<PreparedDocument>>, String>>>,
-    cancel: Arc<AtomicBool>,
+    worker: OpenWorker,
     token: DocumentToken,
 }
-impl Drop for OpenJob {
-    fn drop(&mut self) {
+
+type DecodeHandle = JoinHandle<std::result::Result<Option<Vec<PreparedDocument>>, String>>;
+
+pub(super) struct OpenWorker {
+    handle: Option<DecodeHandle>,
+    cancel: Arc<AtomicBool>,
+    _permit: crate::edit_worker_budget::Permit<'static>,
+}
+
+impl OpenWorker {
+    fn cancel(&self) {
         self.cancel.store(true, Ordering::Release);
-        // WIC/文件系统调用不保证可中断；退出仍等待当前调用返回，不遗留无 owner 的线程。
-        if let Some(worker) = self.worker.take() {
+    }
+
+    pub(super) fn is_finished(&self) -> bool {
+        self.handle
+            .as_ref()
+            .is_some_and(|handle| handle.is_finished())
+    }
+}
+
+impl Drop for OpenWorker {
+    fn drop(&mut self) {
+        self.cancel();
+        // Only a completed worker or a final owner may drop the join handle.
+        if let Some(worker) = self.handle.take() {
             let _ = worker.join();
         }
     }
+}
+
+pub(super) fn retire(state: &State) -> Option<OpenWorker> {
+    let OpenJob { worker, .. } = state.open_job.take()?;
+    worker.cancel();
+    Some(worker)
 }
 
 pub(super) unsafe fn start_image(
@@ -172,17 +198,40 @@ pub(super) unsafe fn start_destination(
 pub(super) unsafe fn start_capture_destination(
     hwnd: HWND,
     state: &State,
-    input: Input,
     new_pin: bool,
+    publish: impl FnOnce() -> Result<Input>,
 ) -> Result<()> {
-    // 不接管先前的文件打开任务；维持 start_destination 的单任务准入语义。
-    let pending = state.open_job.borrow().is_some();
-    start_destination(hwnd, state, input, new_pin)?;
-    if pending {
-        Ok(())
-    } else {
-        capture_ready::finish(hwnd, state)
+    check_replace(state, new_pin)?;
+    check_pin_slot(state, new_pin)?;
+    if state.open_job.borrow().is_some() {
+        return Err(Error::new(E_ABORT, "Image loading is already in progress"));
     }
+    // publish 只能执行不分派窗口消息的缓存提交；准入到接管任务之间没有模态重入。
+    let input = publish()?;
+    super::smoke_timing::run("capture-ready", || {
+        start_destination(hwnd, state, input, new_pin)?;
+        capture_ready::finish(hwnd, state)
+    })
+}
+
+fn check_replace(state: &State, new_pin: bool) -> Result<()> {
+    if !new_pin && !super::open_image::can_replace(state) {
+        return Err(Error::new(
+            E_ACCESSDENIED,
+            "Locked or minified window cannot replace its image",
+        ));
+    }
+    Ok(())
+}
+
+fn check_pin_slot(state: &State, new_pin: bool) -> Result<()> {
+    if new_pin && state.new_pin.borrow().is_some() {
+        return Err(Error::new(
+            E_UNEXPECTED,
+            "A prepared pin is awaiting window creation",
+        ));
+    }
+    Ok(())
 }
 pub(super) unsafe fn start_positioned(
     hwnd: HWND,
@@ -191,12 +240,7 @@ pub(super) unsafe fn start_positioned(
     new_pin: bool,
     position: Option<(POINT, Option<super::clipboard_placement::Request>)>,
 ) -> Result<()> {
-    if !new_pin && !super::open_image::can_replace(state) {
-        return Err(Error::new(
-            E_ACCESSDENIED,
-            "Locked or minified window cannot replace its image",
-        ));
-    }
+    check_replace(state, new_pin)?;
     if !new_pin && matches!(&input, Input::Editable(..)) {
         return Err(Error::new(
             E_INVALIDARG,
@@ -208,12 +252,7 @@ pub(super) unsafe fn start_positioned(
             return Err(Error::new(E_INVALIDARG, "Invalid image import batch"));
         }
     }
-    if new_pin && state.new_pin.borrow().is_some() {
-        return Err(Error::new(
-            E_UNEXPECTED,
-            "A prepared pin is awaiting window creation",
-        ));
-    }
+    check_pin_slot(state, new_pin)?;
     if state.open_job.borrow().is_some() {
         return Ok(());
     }
@@ -221,50 +260,100 @@ pub(super) unsafe fn start_positioned(
     let token = DocumentToken::capture(&canvas);
     let pinned = new_pin || canvas.pinned;
     drop(canvas);
-    let cancel = Arc::new(AtomicBool::new(false));
-    let worker_cancel = cancel.clone();
-    let worker = std::thread::Builder::new()
-        .name("otter-open".into())
-        .spawn(move || {
-            let mut result = load_inputs(input, pinned, &worker_cancel)?;
-            if let (Some(documents), Some((cursor, request))) = (&mut result, position) {
-                for document in documents {
-                    document.paste_origin = Some(cursor);
-                    document.placement = request.clone();
-                }
-            }
-            Ok(result)
-        })
-        .map_err(|error| Error::new(E_FAIL, error.to_string()))?;
+    let worker = start_worker(
+        || SetTimer(Some(hwnd), OPEN_TIMER, 100, None) != 0,
+        || {
+            let _ = KillTimer(Some(hwnd), OPEN_TIMER);
+        },
+        |worker_cancel| {
+            std::thread::Builder::new()
+                .name("otter-open".into())
+                .spawn(move || {
+                    let mut result = load_inputs(input, pinned, &worker_cancel)?;
+                    if let (Some(documents), Some((cursor, request))) = (&mut result, position) {
+                        for document in documents {
+                            document.paste_origin = Some(cursor);
+                            document.placement = request.clone();
+                        }
+                    }
+                    Ok(result)
+                })
+        },
+    )?;
     *state.open_job.borrow_mut() = Some(OpenJob {
         new_pin,
-        worker: Some(worker),
-        cancel,
+        worker,
         token,
     });
-    scheduled(
-        &state.open_job,
-        SetTimer(Some(hwnd), OPEN_TIMER, 100, None) != 0,
-    )
+    Ok(())
 }
 
-fn scheduled(slot: &std::cell::RefCell<Option<OpenJob>>, timer_created: bool) -> Result<()> {
-    if timer_created {
-        return Ok(());
+fn start_worker(
+    reserve_timer: impl FnOnce() -> bool,
+    rollback_timer: impl FnOnce(),
+    spawn: impl FnOnce(Arc<AtomicBool>) -> std::io::Result<DecodeHandle>,
+) -> Result<OpenWorker> {
+    let permit = crate::edit_worker_budget::Permit::acquire_open()
+        .ok_or_else(|| Error::new(E_ABORT, "Image loading capacity is busy"))?;
+    // A failed timer must never leave a decoder for the message thread to join.
+    if !reserve_timer() {
+        return Err(Error::new(
+            E_FAIL,
+            "Cannot schedule image loading; original document preserved",
+        ));
     }
-    // 调度失败绝不能退化为同步提交。先释放 RefCell 借用，再由 owner 取消并回收线程。
-    let job = slot.borrow_mut().take();
-    drop(job);
-    Err(Error::new(
-        E_FAIL,
-        "Cannot schedule image loading; original document preserved",
-    ))
+    let cancel = Arc::new(AtomicBool::new(false));
+    match spawn(cancel.clone()) {
+        Ok(handle) => Ok(OpenWorker {
+            handle: Some(handle),
+            cancel,
+            _permit: permit,
+        }),
+        Err(error) => {
+            rollback_timer();
+            Err(Error::new(E_FAIL, error.to_string()))
+        }
+    }
 }
 
 pub(super) fn cancel(state: &State) {
     if let Some(job) = state.open_job.borrow().as_ref() {
-        job.cancel.store(true, Ordering::Release);
+        job.worker.cancel();
     }
+}
+
+#[cfg(test)]
+pub(super) fn install_gated(
+    state: &State,
+    new_pin: bool,
+    gate: std::sync::mpsc::Receiver<()>,
+) -> Arc<AtomicBool> {
+    let worker = start_worker(
+        || true,
+        || unreachable!(),
+        |_| {
+            std::thread::Builder::new().spawn(move || {
+                gate.recv_timeout(std::time::Duration::from_secs(5))
+                    .map_err(|error| error.to_string())?;
+                let image = super::image::Image {
+                    width: 1,
+                    height: 1,
+                    pixels: vec![255; 4].into(),
+                };
+                PreparedDocument::from_image(image, new_pin)
+                    .map(|document| Some(vec![document]))
+                    .map_err(|error| error.to_string())
+            })
+        },
+    )
+    .unwrap();
+    let cancel = worker.cancel.clone();
+    *state.open_job.borrow_mut() = Some(OpenJob {
+        new_pin,
+        worker,
+        token: DocumentToken::capture(&state.canvas.borrow()),
+    });
+    cancel
 }
 
 #[cfg(test)]
@@ -280,23 +369,26 @@ fn load_input(
     pinned: bool,
     cancel: &AtomicBool,
 ) -> std::result::Result<Option<PreparedDocument>, String> {
-    if cancel.load(Ordering::Acquire) {
+    let stopped = || cancel.load(Ordering::Acquire);
+    if stopped() {
         return Ok(None);
     }
     let _apartment = Apartment::new().map_err(|error| error.to_string())?;
+    use super::image::Image;
+    let prepare_image = |image| PreparedDocument::from_image_with_cancel(image, pinned, stopped);
     let prepared = match input {
         Input::WithContext(input) => {
             let (captured, origin, context) = *input;
-            let metadata = context.metadata(captured.original.is_some(), captured.downgraded);
-            PreparedDocument::from_capture(captured, pinned, origin).map(|mut document| {
-                if let Some(source) = document.capture_source.as_mut() {
-                    source.session_meta = Some(metadata);
-                }
-                document
-            })
+            PreparedDocument::from_capture_with_cancel(
+                captured,
+                pinned,
+                origin,
+                Some(context),
+                stopped,
+            )
         }
         Input::Files(_) => return Err("Batch input requires batch preparation".into()),
-        Input::Image(image) => PreparedDocument::from_image(image, pinned),
+        Input::Image(image) => prepare_image(image),
         Input::Editable(content, placement) => content
             .prepare(|| cancel.load(Ordering::Acquire))
             .map(|mut prepared| {
@@ -304,30 +396,29 @@ fn load_input(
                 prepared
             }),
         Input::Captured(captured, origin) => {
-            PreparedDocument::from_capture(captured, pinned, origin)
+            PreparedDocument::from_capture_with_cancel(captured, pinned, origin, None, stopped)
         }
-        Input::File(path) => PreparedDocument::open(&path, pinned),
-        Input::Encoded(bytes) => super::image::Image::from_encoded(&bytes)
-            .and_then(|image| PreparedDocument::from_image(image, pinned)),
+        Input::File(path) => Image::open_with_cancel(&path, &stopped).and_then(prepare_image),
+        Input::Encoded(bytes) => {
+            Image::from_encoded_with_cancel(&bytes, &stopped).and_then(prepare_image)
+        }
         Input::Dib(bytes) => {
-            super::clipboard_dib::decode_with_cancel(&bytes, || cancel.load(Ordering::Acquire))
-                .and_then(|image| PreparedDocument::from_image(image, pinned))
+            super::clipboard_dib::decode_with_cancel(&bytes, stopped).and_then(prepare_image)
         }
-    }
-    .map_err(|error| error.to_string())?;
-    if cancel.load(Ordering::Acquire) {
+    };
+    if stopped() {
         Ok(None)
     } else {
-        Ok(Some(prepared))
+        prepared.map(Some).map_err(|error| error.to_string())
     }
 }
 
 pub(super) unsafe fn finish(hwnd: HWND, state: &State, force: bool) {
-    let ready = state.open_job.borrow().as_ref().is_some_and(|job| {
-        job.worker
-            .as_ref()
-            .is_some_and(|worker| force || worker.is_finished())
-    });
+    let ready = state
+        .open_job
+        .borrow()
+        .as_ref()
+        .is_some_and(|job| force || job.worker.is_finished());
     if !ready {
         return;
     }
@@ -335,11 +426,12 @@ pub(super) unsafe fn finish(hwnd: HWND, state: &State, force: bool) {
     let _ = KillTimer(Some(hwnd), OPEN_TIMER);
     let result = job
         .worker
+        .handle
         .take()
         .unwrap()
         .join()
         .unwrap_or_else(|_| Err("Image worker failed".into()));
-    if job.cancel.load(Ordering::Acquire) || !IsWindow(Some(hwnd)).as_bool() {
+    if job.worker.cancel.load(Ordering::Acquire) || !IsWindow(Some(hwnd)).as_bool() {
         return;
     }
     let mut prepared = match result {

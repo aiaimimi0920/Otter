@@ -89,7 +89,7 @@ unsafe extern "system" fn procedure(
             if let Some(text) = text {
                 let _ = SetDlgItemTextW(hwnd, INPUT, &HSTRING::from(text));
             }
-        } else {
+        } else if (*pointer).slider.is_some() {
             let mut buffer = vec![0; MAX_TEXT + 1];
             let count = GetDlgItemTextW(hwnd, INPUT, &mut buffer) as usize;
             let range = String::from_utf16(&buffer[..count])

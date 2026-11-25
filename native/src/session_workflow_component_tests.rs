@@ -96,3 +96,43 @@ fn collision_wrong_source_and_cancel_never_return_partial_component_plan() {
         Err(Error::Cancelled)
     ));
 }
+
+#[test]
+fn interleaved_source_edges_keep_global_order_and_skip_unassigned_nodes() {
+    let saved = bytes(
+        &[
+            Some(("wf-a", "a0")),
+            Some(("wf-b", "b0")),
+            Some(("wf-a", "a1")),
+            Some(("wf-b", "b1")),
+            Some(("wf-a", "a2")),
+            None,
+            None,
+        ],
+        &[(5, 6), (1, 3), (2, 4), (0, 2)],
+    );
+    let snapshot = global(&saved);
+    let cancel = AtomicBool::new(false);
+    let parts = prepare(&snapshot, &saved, &cancel).unwrap();
+    assert_eq!(
+        parts.iter().map(Component::workflow_id).collect::<Vec<_>>(),
+        ["wf-a", "wf-b"]
+    );
+    let payload = |part: &Component<'_>| -> Value {
+        serde_json::from_slice(&part.encode_payload(8192, &cancel).unwrap()).unwrap()
+    };
+    let first = payload(&parts[0]);
+    let second = payload(&parts[1]);
+    let ids = |value: &Value| -> Vec<String> {
+        value["snapshot"]["edges"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|edge| edge["id"].as_str().unwrap().into())
+            .collect()
+    };
+    assert_eq!(ids(&first), ["e2", "e3"]);
+    assert_eq!(ids(&second), ["e1"]);
+    assert_eq!(first["snapshot"]["edges"][0]["source"], "a1");
+    assert_eq!(second["snapshot"]["edges"][0]["target"], "b1");
+}

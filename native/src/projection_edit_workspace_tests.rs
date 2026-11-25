@@ -31,6 +31,104 @@ fn restore(fields: Map<String, Value>, scope: Option<Scope>) -> Result<Option<Sn
     let document = crate::session_document::decode(&raw).unwrap();
     Snapshot::restore(&document.windows[0], scope)
 }
+fn assert_invalid_snapshot_is_rejected(invalid: &Snapshot) {
+    let mut fields = window();
+    let before = fields.clone();
+    assert_eq!(invalid.install(&mut fields), Err(Error::Format));
+    assert_eq!(
+        fields, before,
+        "failed validation must not publish a record"
+    );
+    let valid = snapshot();
+    valid.install(&mut fields).unwrap();
+    // 内容摘要不变，只破坏持久化 snapshot，确保 restore 也执行同一校验。
+    fields.get_mut(FIELD).unwrap()["snapshot"] = serde_json::to_value(invalid).unwrap();
+    assert_eq!(
+        restore(fields, Some(valid.context().scope())),
+        Err(Error::Format)
+    );
+}
+#[test]
+fn visible_status_comparison_matches_view_and_ignores_authority_tombstones() {
+    let mut state = snapshot();
+    let mut wire = serde_json::to_value(state.document()).unwrap();
+    wire["objects"]["deleted"] = json!({"revision":1,"value":null});
+    state.document = Document::parse(&serde_json::to_vec(&wire).unwrap()).unwrap();
+    let check = |state: &Snapshot, changed| {
+        assert_eq!(state.visible_differs_from_authority(), changed);
+        assert_eq!(
+            state.editor_view().unwrap().basis_objects() != &state.document().live_objects(),
+            changed
+        );
+    };
+    check(&state, false);
+    let original = state.visible.get("shape-1").unwrap().clone();
+    state.visible.get_mut("shape-1").unwrap()["x"] = json!(8);
+    check(&state, true);
+    state.visible.clear();
+    check(&state, true);
+    state.visible.insert("shape-1".into(), original);
+    let deleted = fixture::annotation("deleted");
+    state.visible.insert("deleted".into(), deleted);
+    check(&state, true);
+}
+#[test]
+fn snapshot_validation_keeps_real_layout_mapping_and_visible_boundaries() {
+    for (field, value) in [
+        ("width", json!(0)),
+        ("height", json!(1_000_001)),
+        ("scale", json!(0)),
+        ("offsetX", json!(f32::MAX)),
+    ] {
+        let mut raw = serde_json::to_value(snapshot()).unwrap();
+        raw["layout"][field] = value;
+        let invalid = serde_json::from_value(raw).unwrap();
+        assert_invalid_snapshot_is_rejected(&invalid);
+    }
+    let mut invalid = snapshot();
+    invalid.visible.get_mut("shape-1").unwrap()["type"] = json!("unknown");
+    assert_invalid_snapshot_is_rejected(&invalid);
+}
+#[test]
+fn snapshot_validation_keeps_independent_document_and_visible_byte_budgets() {
+    let mut objects = Map::new();
+    let mut visible = Objects::new();
+    for index in 0..64 {
+        let id = format!("text-{index}");
+        let value = json!({"id":id,"type":"text","zIndex":0,"x":0,"y":0,
+            "style":{"color":"#000","width":1},"text":"x".repeat(4096)});
+        assert!(crate::projection_edit::objects::annotation(&id, &value));
+        visible.insert(id.clone(), value.clone());
+        objects.insert(id, json!({"revision":1,"value":value}));
+    }
+    let mut invalid = snapshot();
+    let mut document = serde_json::to_value(&invalid.document).unwrap();
+    document["objects"] = objects.into();
+    invalid.document = serde_json::from_value(document).unwrap();
+    assert_eq!(
+        invalid.document.validate(),
+        Err(crate::projection_edit::Error::Limit)
+    );
+    assert!(
+        invalid.editor_view().is_ok(),
+        "visible remains within budget"
+    );
+    assert_invalid_snapshot_is_rejected(&invalid);
+
+    let mut invalid = snapshot();
+    invalid.visible = visible;
+    assert!(invalid.document.validate().is_ok());
+    assert_eq!(
+        View::from_basis(
+            invalid.document.basis(),
+            Size::new(64.0, 32.0).unwrap(),
+            invalid.visible.clone()
+        ),
+        Err(crate::projection_edit::view::Error::Limit)
+    );
+    assert_eq!(invalid.editor_view(), Err(Error::Format));
+    assert_invalid_snapshot_is_rejected(&invalid);
+}
 #[test]
 fn authoritative_and_visible_basis_survive_exact_record_roundtrip_without_lexical_loss() {
     let original = snapshot();

@@ -42,7 +42,7 @@ impl Image {
             Self::decode_source(
                 &factory,
                 &decoder.GetFrame(0)?.cast()?,
-                Some((width, height)),
+                super::SizePolicy::Exact(width, height),
                 64 * 1024 * 1024,
                 stopped,
             )

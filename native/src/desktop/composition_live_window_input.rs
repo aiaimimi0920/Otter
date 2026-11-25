@@ -104,8 +104,11 @@ impl LiveWindow {
     pub(crate) fn pop_input(&self) -> Option<Event> {
         self.state.input.borrow_mut().events.pop_front()
     }
-    pub(crate) fn pop_browser_input(&self) -> Option<Event> {
-        queue::pop_browser(&mut self.state.input.borrow_mut().events)
+    pub(in crate::desktop) fn pop_dispatch_input(
+        &self,
+        is_browser: impl FnOnce() -> bool,
+    ) -> Option<Event> {
+        queue::pop_for_dispatch(&mut self.state.input.borrow_mut().events, is_browser)
     }
     pub(crate) fn input_status(&self, enabled: bool, pending: bool, stop: Option<StopSignal>) {
         {

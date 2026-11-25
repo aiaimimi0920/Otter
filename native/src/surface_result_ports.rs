@@ -136,6 +136,6 @@ pub fn parse(raw: &RawValue) -> Result<Vec<Port<'_>>, crate::surface_result_comm
     let mut decoder = serde_json::Deserializer::from_str(raw.get());
     serde::Deserializer::deserialize_map(&mut decoder, Ports).map_err(|_| Error::Protocol)
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-surface")))]
 #[path = "surface_result_ports_tests.rs"]
 mod tests;

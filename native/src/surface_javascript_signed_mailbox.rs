@@ -52,6 +52,21 @@ fn event() -> io::Result<OwnedHandle> {
     let handle = unsafe { CreateEventW(None, true, false, None) }.map_err(io::Error::other)?;
     Ok(unsafe { OwnedHandle::from_raw_handle(handle.0) })
 }
+fn deliver<T>(
+    slot: &Mutex<Option<T>>,
+    value: T,
+    wake: impl FnOnce() -> io::Result<()>,
+) -> io::Result<()> {
+    let mut slot = slot.lock().map_err(|_| io::ErrorKind::Other)?;
+    if slot.is_some() {
+        return Err(io::ErrorKind::WouldBlock.into());
+    }
+    // The receiver needs this same lock before resetting the event or taking
+    // the value. A successful wake cannot race ahead of the slot assignment.
+    wake()?;
+    *slot = Some(value);
+    Ok(())
+}
 impl Mailbox {
     pub fn new(notify: Arc<dyn Fn() + Send + Sync>) -> io::Result<Self> {
         Ok(Self {
@@ -88,12 +103,10 @@ impl Mailbox {
         self.reply_event.as_handle()
     }
     pub fn submit(&self, sequence: u64, operation: Operation) -> io::Result<()> {
-        let mut slot = self.command.lock().map_err(|_| io::ErrorKind::Other)?;
-        if slot.is_some() {
-            return Err(io::ErrorKind::WouldBlock.into());
-        }
-        *slot = Some((sequence, operation));
-        unsafe { SetEvent(HANDLE(self.command_event.as_raw_handle())) }.map_err(io::Error::other)
+        deliver(&self.command, (sequence, operation), || {
+            unsafe { SetEvent(HANDLE(self.command_event.as_raw_handle())) }
+                .map_err(io::Error::other)
+        })
     }
     pub fn take_command(&self) -> io::Result<Option<(u64, Operation)>> {
         let mut slot = self.command.lock().map_err(|_| io::ErrorKind::Other)?;
@@ -102,13 +115,9 @@ impl Mailbox {
         Ok(slot.take())
     }
     pub fn publish(&self, reply: Reply) -> io::Result<()> {
-        let mut slot = self.reply.lock().map_err(|_| io::ErrorKind::Other)?;
-        if slot.is_some() {
-            return Err(io::ErrorKind::WouldBlock.into());
-        }
-        *slot = Some(reply);
-        unsafe { SetEvent(HANDLE(self.reply_event.as_raw_handle())) }.map_err(io::Error::other)?;
-        drop(slot);
+        deliver(&self.reply, reply, || {
+            unsafe { SetEvent(HANDLE(self.reply_event.as_raw_handle())) }.map_err(io::Error::other)
+        })?;
         self.notify();
         Ok(())
     }
@@ -117,5 +126,40 @@ impl Mailbox {
         unsafe { ResetEvent(HANDLE(self.reply_event.as_raw_handle())) }
             .map_err(io::Error::other)?;
         Ok(slot.take())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use windows::Win32::{Foundation::WAIT_OBJECT_0, System::Threading::WaitForSingleObject};
+
+    #[test]
+    fn failed_wake_leaves_nothing_to_take_and_does_not_replace_an_occupied_slot() {
+        let mailbox = Mailbox::new(Arc::new(|| {})).unwrap();
+        let error = deliver(&mailbox.command, (1, Operation::Suspend), || {
+            assert!(matches!(
+                mailbox.command.try_lock(),
+                Err(std::sync::TryLockError::WouldBlock)
+            ));
+            Err(io::ErrorKind::BrokenPipe.into())
+        })
+        .unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::BrokenPipe);
+        assert!(mailbox.take_command().unwrap().is_none());
+
+        mailbox.submit(2, Operation::Resume).unwrap();
+        let handle = HANDLE(mailbox.command_handle().as_raw_handle());
+        assert_eq!(unsafe { WaitForSingleObject(handle, 0) }, WAIT_OBJECT_0);
+        let error = deliver(&mailbox.command, (3, Operation::Suspend), || {
+            panic!("occupied slot must not signal a second command")
+        })
+        .unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::WouldBlock);
+        assert!(matches!(
+            mailbox.take_command().unwrap(),
+            Some((2, Operation::Resume))
+        ));
+        assert!(mailbox.take_command().unwrap().is_none());
     }
 }

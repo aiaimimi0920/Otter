@@ -87,7 +87,7 @@ fn run(mode: u8) {
     unsafe {
         let target = interactive.then(super::interaction::oracle::Window::new);
         let observed = (mode == 2).then(crate::live_source_uia_test_window::Window::new);
-        let (_class, mut app) = fixture::application();
+        let mut app = fixture::application();
         app.authorization.borrow_mut().origin = Some(origin.into());
         app.authorization_owner
             .start(crate::device_authorization_runtime::Task::Renew {
@@ -116,7 +116,7 @@ fn run(mode: u8) {
         } else if mode == 4 {
             Some(capture_stream(&mut app, color.clone()))
         } else {
-            Some(capture_size(
+            Some(capture_joint(
                 &mut app,
                 if mode == 3 { [64, 64] } else { [2, 2] },
             ))
@@ -142,7 +142,9 @@ fn run(mode: u8) {
         let deadline = Instant::now() + Duration::from_secs(15);
         loop {
             app.poll_live_sources_with(&mut |origin| config(origin));
-            if app.remote_sessions.source_status(&identity) == Some((true, false)) {
+            if app.remote_sessions.source_status(&identity)
+                == Some(crate::live_relay_source_runtime::Status::Publishing)
+            {
                 break;
             }
             assert!(
@@ -181,7 +183,8 @@ fn run(mode: u8) {
                     && source
                         .input_cleanup()
                         .is_some_and(|r| r.failed == 0 && r.skipped == 0)
-                    && app.remote_sessions.source_status(&identity) == Some((true, false));
+                    && app.remote_sessions.source_status(&identity)
+                        == Some(crate::live_relay_source_runtime::Status::Publishing);
                 progress.poll(root, target, released);
             }
             if !changed && root.join("source-change").exists() {
@@ -210,7 +213,10 @@ fn run(mode: u8) {
             assert!(Instant::now() < deadline);
             std::thread::sleep(Duration::from_millis(1));
         }
-        assert!(app.authorization.borrow().live.status.contains("Confirmed"));
+        {
+            let status = &app.authorization.borrow().live.status;
+            assert!(status.contains("Confirmed"), "{status}");
+        }
         assert!(app.live_sessions[0].is_alive());
         assert!(app.remote_sessions.finished());
         if let Some(target) = &target {

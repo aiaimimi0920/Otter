@@ -82,6 +82,6 @@ pub(super) fn discard_changed(state: &State, workspace: &crate::workspace::Works
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "configuration_stamp_tests.rs"]
 mod tests;

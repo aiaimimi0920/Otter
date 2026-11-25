@@ -1,4 +1,4 @@
-//! 原版列表合同/兼容JSON/有界图像与保数据事务；只使用linshi独占目录。
+//! 原版列表合同/兼容JSON/有界图像与保数据事务；使用独占临时目录。
 use super::*;
 struct Com;
 impl Com {
@@ -27,13 +27,6 @@ fn image(width: u32, height: u32) -> crate::image_decode::Image {
         height,
         pixels: [10, 20, 30, 128].repeat((width * height) as usize).into(),
     }
-}
-fn root() -> std::path::PathBuf {
-    let id = unsafe { windows::Win32::System::Com::CoCreateGuid().unwrap() };
-    let path = std::path::PathBuf::from("C:/Users/Public/nas_home/AI/GameEditor/linshi")
-        .join(format!("otter-capture-history-tests-{id:?}"));
-    std::fs::create_dir(&path).unwrap();
-    path
 }
 #[test]
 fn colors_deduplicate_refresh_and_cap_independently_of_screenshots() {
@@ -77,6 +70,30 @@ fn thumbnail_is_240_rounding_aspect_preserving_never_upscales_and_keeps_original
     assert!(entry.thumbnail.starts_with("data:image/png;base64,"));
 }
 #[test]
+fn small_history_capture_reuses_source_storage_and_keeps_original_pixels() {
+    for (width, height) in [(64, 31), (240, 240)] {
+        let source = image(width, height);
+        let entry = image::capture("compact".into(), &source, 1).unwrap();
+        let preview = entry.preview.unwrap();
+        assert!(preview.image.pixels.same_storage(&source.pixels));
+        assert_eq!((entry.width, entry.height), (width, height));
+        assert_eq!(&preview.small.pixels()[..4], &[10, 20, 30, 128]);
+        if width == 64 {
+            assert_eq!(preview.small.pixels().as_ptr(), source.pixels.as_ptr());
+        }
+    }
+    let mut padded = Vec::with_capacity(4096);
+    padded.extend_from_slice(&[10, 20, 30, 128]);
+    let source = crate::image_decode::Image {
+        width: 1,
+        height: 1,
+        pixels: padded.into(),
+    };
+    let preview = image::prepare(&source).unwrap();
+    assert!(!preview.image.pixels.same_storage(&source.pixels));
+    assert_eq!(preview.image.pixels.as_ref(), source.pixels.as_ref());
+}
+#[test]
 fn legacy_json_restores_both_lists_sanitizes_bad_entries_and_preserves_extensions() {
     let _com = Com::new();
     let entry = image::capture("legacy".into(), &image(2, 1), 5).unwrap();
@@ -105,6 +122,59 @@ fn legacy_json_restores_both_lists_sanitizes_bad_entries_and_preserves_extension
     assert!(Data::decode(&vec![b' '; MAX_BYTES + 1]).is_err());
 }
 #[test]
+fn history_preserves_verified_small_png_and_normalizes_legacy_images() {
+    use base64::{engine::general_purpose::STANDARD, Engine};
+    let _com = Com::new();
+    let png_url = |width, mime| {
+        let mut bytes = Vec::new();
+        {
+            let mut encoder = png::Encoder::new(&mut bytes, width, 1);
+            encoder.set_color(png::ColorType::Rgb);
+            encoder
+                .write_header()
+                .unwrap()
+                .write_image_data(&[30, 20, 10].repeat(width as usize))
+                .unwrap();
+        }
+        format!("data:image/{mime};base64,{}", STANDARD.encode(bytes))
+    };
+    let mut bmp = [0; 58]; // 1x1 opaque 24-bit BMP (including row padding).
+    bmp[..2].copy_from_slice(b"BM");
+    for (offset, value) in [(2, 58u32), (10, 54), (14, 40), (18, 1), (22, 1)] {
+        bmp[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
+    }
+    bmp[26] = 1;
+    bmp[28] = 24;
+    bmp[54..57].copy_from_slice(&[10, 20, 30]);
+    let entries = [
+        (png_url(2, "png"), 2, 2, true),
+        (png_url(480, "png"), 480, 240, false),
+        (png_url(2, "jpeg"), 2, 2, false),
+        (
+            format!("data:image/png;base64,{}", STANDARD.encode(bmp)),
+            1,
+            1,
+            false,
+        ),
+    ];
+    for (thumbnail, input_width, output_width, preserve) in entries {
+        let json = serde_json::json!({"screenshots": [{"id":"one", "thumbnail": thumbnail,
+            "width": input_width, "height": 1, "at": 1}]});
+        let data = Data::decode(&serde_json::to_vec(&json).unwrap()).unwrap();
+        let entry = &data.screenshots[0];
+        assert_eq!(entry.width, input_width);
+        let decoded = &entry.preview.as_ref().unwrap().image;
+        assert_eq!((decoded.width, decoded.height), (output_width, 1));
+        assert!(entry.thumbnail.starts_with("data:image/png;base64,"));
+        assert_eq!(entry.thumbnail == thumbnail, preserve);
+        if preserve {
+            assert_ne!(image::encode(decoded).unwrap(), thumbnail);
+        } else {
+            assert_eq!(image::encode(decoded).unwrap(), entry.thumbnail);
+        }
+    }
+}
+#[test]
 fn late_startup_load_merges_new_commits_without_reversing_recency() {
     let mut disk = Data::default();
     disk.color(Color(1, 2, 3), 1);
@@ -120,9 +190,10 @@ fn late_startup_load_merges_new_commits_without_reversing_recency() {
 #[test]
 fn persistent_cache_reopens_excludes_second_writer_and_preserves_conflicting_or_bad_files() {
     let _com = Com::new();
-    let root = root();
-    let (mut store, mut data) = store::Store::open(&root).unwrap();
-    assert!(store::Store::open(&root).is_err());
+    let fixture = store::fixture::Root::new();
+    let root = fixture.path();
+    let (mut store, mut data) = store::Store::open(root).unwrap();
+    assert!(store::Store::open(root).is_err());
     data.color(Color(1, 2, 3), 1);
     store.save(&data).unwrap();
     data.screenshot(image::capture("id".into(), &image(1, 1), 2).unwrap());
@@ -138,17 +209,16 @@ fn persistent_cache_reopens_excludes_second_writer_and_preserves_conflicting_or_
     assert_eq!(std::fs::read(root.join("history.json")).unwrap(), conflict);
     drop(store);
     std::fs::write(root.join("history.json"), &retained).unwrap();
-    let (store, restored) = store::Store::open(&root).unwrap();
+    let (store, restored) = store::Store::open(root).unwrap();
     assert_eq!(restored.colors[0].hex, "#010203");
     assert_eq!(restored.screenshots[0].id, "id");
     drop(store);
     std::fs::write(root.join("history.json"), b"malformed").unwrap();
-    assert!(store::Store::open(&root).is_err());
+    assert!(store::Store::open(root).is_err());
     assert_eq!(
         std::fs::read(root.join("history.json")).unwrap(),
         b"malformed"
     );
-    // 留在linshi作为本次测试数据；不递归删除任何目录。
 }
 #[test]
 fn embedded_only_image_policy_rejects_remote_traversal_and_invalid_payloads() {
@@ -165,12 +235,13 @@ fn embedded_only_image_policy_rejects_remote_traversal_and_invalid_payloads() {
 #[test]
 fn temporary_preview_failure_followed_by_new_color_save_preserves_existing_screenshot() {
     let _com = Com::new();
-    let root = root();
+    let fixture = store::fixture::Root::new();
+    let root = fixture.path();
     let mut original = Data::default();
     original.screenshot(image::capture("keep".into(), &image(2, 1), 1).unwrap());
     let bytes = serde_json::to_vec(&original).unwrap();
     std::fs::write(root.join("history.json"), &bytes).unwrap();
-    let (mut store, _) = store::Store::open(&root).unwrap();
+    let (mut store, _) = store::Store::open(root).unwrap();
     let mut unavailable =
         Data::decode_with(&bytes, |_| Err("injected pixel budget exhaustion".into())).unwrap();
     assert_eq!(unavailable.screenshots.len(), 1);
@@ -182,7 +253,7 @@ fn temporary_preview_failure_followed_by_new_color_save_preserves_existing_scree
     unavailable.color(Color(7, 8, 9), 2);
     store.save(&unavailable).unwrap();
     drop(store);
-    let (_, restored) = store::Store::open(&root).unwrap();
+    let (_, restored) = store::Store::open(root).unwrap();
     assert_eq!(restored.screenshots[0].id, "keep");
     assert!(restored.screenshots[0].preview.is_some());
 }

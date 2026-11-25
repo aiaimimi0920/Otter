@@ -33,6 +33,34 @@ fn invitation(index: usize) -> Invitation {
 }
 use crate::projection_delivery::Inbox;
 #[test]
+fn read_keeps_compact_baselines_and_rejects_size_drift() {
+    let directory = Directory::new();
+    let path = directory.path();
+    assert!(read(&path).unwrap().is_none());
+    let record = br#"{"version":1,"entries":[]}"#;
+    std::fs::write(&path, record).unwrap();
+    let store = Store::open(&directory.0).unwrap();
+    let state = store.0.state.lock().unwrap();
+    let original = state.original.as_ref().unwrap();
+    assert_eq!(&**original, record);
+    assert!(original.is_compact());
+
+    assert_eq!(read_sized(&b"abc"[..], 4).err(), Some(Error::Changed));
+    assert_eq!(read_sized(&b"abc"[..], 2).err(), Some(Error::Changed));
+    let max = vec![1; MAX_BYTES + 1];
+    assert!(read_sized(&max[..MAX_BYTES], MAX_BYTES as u64)
+        .unwrap()
+        .is_compact());
+    assert_eq!(
+        read_sized(&max[..], MAX_BYTES as u64).err(),
+        Some(Error::Limit)
+    );
+    assert_eq!(
+        read_sized(&max[..], max.len() as u64).err(),
+        Some(Error::Limit)
+    );
+}
+#[test]
 fn begin_is_durable_idempotent_across_restart_and_tickets_share_one_store() {
     let directory = Directory::new();
     let store = Store::open(&directory.0).unwrap();

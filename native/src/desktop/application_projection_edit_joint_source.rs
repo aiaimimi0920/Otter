@@ -7,7 +7,7 @@ fn native_edit_application_source_modes_automatic_checkpoint_and_reopen() {
     let _com = Apartment::new().unwrap();
     let (f, _client, _store) = fixture::Fixture::load();
     unsafe {
-        let (_class, mut app) = application(&f.profile);
+        let mut app = application(&f.profile);
         app.authorization.borrow_mut().consent.install_paused(true);
         renew(&mut app, &f);
         app.authorization.borrow_mut().request = Some(ui::Request::ProjectionTargets);

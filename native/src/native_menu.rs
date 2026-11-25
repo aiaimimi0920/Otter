@@ -131,6 +131,6 @@ fn read(menu: HMENU, depth: usize, budget: &mut Budget) -> Result<Vec<Item>> {
     Ok(items)
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "native_menu_tests.rs"]
 mod tests;

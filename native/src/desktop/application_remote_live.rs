@@ -21,7 +21,41 @@ impl Application {
             crate::device_authorization_config::Error,
         >,
     ) -> Result<()> {
-        self.poll_live_sources_with(&mut config);
+        let mut warnings = Vec::new();
+        let result = self.settle_remote_live_with(visible, &mut config, &mut warnings);
+        if warnings.is_empty() {
+            return result;
+        }
+        // 一次性结果已经出队；先完成本轮结算，再统一报告，不在结算中进入模态消息泵。
+        if !visible {
+            let code = result.err().map_or(E_FAIL, |error| {
+                let code = error.code();
+                warnings.push(error.to_string());
+                code
+            });
+            return Err(Error::new(code, warnings.join("\n\n")));
+        }
+        MessageBoxW(
+            None,
+            &HSTRING::from(warnings.join("\n\n")),
+            w!("Otter"),
+            MB_OK | MB_ICONWARNING,
+        );
+        result
+    }
+
+    fn settle_remote_live_with(
+        &mut self,
+        visible: bool,
+        config: &mut impl FnMut(
+            &str,
+        ) -> std::result::Result<
+            crate::device_authorization_config::Config,
+            crate::device_authorization_config::Error,
+        >,
+        warnings: &mut Vec<String>,
+    ) -> Result<()> {
+        self.poll_live_sources_with(config);
         self.remote_sessions
             .expire_surface_resources(crate::desktop::surface_windows::now_ms()?);
         let windows = &self.surface_windows;
@@ -30,35 +64,15 @@ impl Application {
                 !windows.retains_resource(binding, revision)
             });
         for (origin, error) in self.remote_sessions.poll_surfaces() {
-            let message = format!("Surface 操作未完成。\n{origin}\n{error:?}");
-            if !visible {
-                return Err(Error::new(E_FAIL, message));
-            }
-            MessageBoxW(
-                None,
-                &HSTRING::from(message),
-                w!("Otter"),
-                MB_OK | MB_ICONWARNING,
-            );
+            warnings.push(format!("Surface 操作未完成。\n{origin}\n{error:?}"));
         }
         self.poll_surface_recovery_ui();
-        self.admit_surface_results()?;
         if let Some(error) = self.remote_sessions.poll_catalog() {
             let mut view = self.authorization.borrow_mut();
             view.catalog_busy = false;
             view.catalog = None;
             view.status = format!("目录查询失败：{error:?}");
-            drop(view);
-            let message = format!("无法获取远程会话目录。\n{error:?}");
-            if !visible {
-                return Err(Error::new(E_FAIL, message));
-            }
-            MessageBoxW(
-                None,
-                &HSTRING::from(message),
-                w!("Otter"),
-                MB_OK | MB_ICONWARNING,
-            );
+            warnings.push(format!("无法获取远程会话目录。\n{error:?}"));
         }
         if let Some(catalog) = self.remote_sessions.take_catalog() {
             let mut view = self.authorization.borrow_mut();
@@ -79,23 +93,21 @@ impl Application {
         for event in self.remote_sessions.poll() {
             self.authorization.borrow_mut().live.status = "远程观看已结束".into();
             if let Some(error) = event.outcome.error_message() {
-                let message = format!("远程观看已停止。\n{}\n{error}", event.origin);
-                if !visible {
-                    return Err(Error::new(E_FAIL, message));
-                }
-                MessageBoxW(
-                    None,
-                    &HSTRING::from(message),
-                    w!("Otter"),
-                    MB_OK | MB_ICONWARNING,
-                );
+                warnings.push(format!("远程观看已停止。\n{}\n{error}", event.origin));
             }
         }
         // 先回收目录/观看/图片完成槽，再安排 JS；最后才结算生命周期，保证后台失败
         // 或同步 start 失败关闭的 HWND 在本轮进入 inactive，不丢失最后一个唤醒源。
         self.settle_surface_images(crate::desktop::surface_windows::now_ms()?);
-        self.poll_surface_javascript_with(visible, &mut config)?;
-        self.activate_surface_windows_with(visible, &mut config)?;
+        self.poll_surface_javascript_with(visible, config)?;
+        if self.activate_surface_windows_with(visible, config)? {
+            let text = "Surface 恢复记录无法再暂存，已关闭或未建窗的附件仍占用名额；请正常退出以保存记录。";
+            if visible {
+                warnings.push(text.into());
+            } else {
+                self.authorization.borrow_mut().recovery_status = text.into();
+            }
+        }
         self.settle_live_viewers()?;
         let windows = &self.surface_windows;
         self.remote_sessions
@@ -104,6 +116,16 @@ impl Application {
             });
         {
             let mut view = self.authorization.borrow_mut();
+            let records = self.surface_windows.retired_records();
+            let already_listed = view.recent_surface_recovery.len();
+            // The staging batch is append-only; an existing menu command keeps its identity.
+            view.recent_surface_recovery.extend(
+                records
+                    .iter()
+                    .skip(already_listed)
+                    .cloned()
+                    .map(std::sync::Arc::new),
+            );
             view.mount_busy = self.remote_sessions.attaching() || self.local_arts.busy();
             if view.restoring && !view.mount_busy {
                 view.restoring = false;
@@ -115,7 +137,7 @@ impl Application {
                 }
             }
         }
-        self.schedule_surface_images_with(&mut config)?;
+        self.schedule_surface_images_with(config)?;
         Ok(())
     }
 }

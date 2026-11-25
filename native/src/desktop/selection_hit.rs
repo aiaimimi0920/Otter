@@ -256,6 +256,6 @@ fn convert(point: Point) -> D2D_POINT_2F {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "selection_tests.rs"]
 mod tests;

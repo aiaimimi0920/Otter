@@ -33,11 +33,15 @@ pub(super) unsafe fn draw(
         radiusX: width / 2.0,
         radiusY: height / 2.0,
     };
-    if let Some(fill) = stroke.fill {
+    if let Some(fill) = stroke.fill.filter(|_| stroke.paint_alpha.fill() > 0.0) {
         super::annotation_shapes::set_color(brush, fill, stroke.paint_alpha.fill());
         target.FillEllipse(&ellipse, brush);
     }
-    super::annotation_shapes::set_color(brush, stroke.color, stroke.paint_alpha.stroke());
+    let alpha = stroke.paint_alpha.stroke();
+    if alpha <= 0.0 {
+        return Ok(());
+    }
+    super::annotation_shapes::set_color(brush, stroke.color, alpha);
     if stroke.visible_outline() {
         target.DrawEllipse(&ellipse, brush, stroke.width * viewport.scale, None);
     }

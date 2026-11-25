@@ -3,7 +3,7 @@ use crate::{
     desktop::{
         display_composition,
         image::Image,
-        loom_execution_signal::{CompletionSignal, Notify},
+        loom_execution_signal::{reap_deadline, CompletionSignal, Notify},
     },
     editor::{DocumentStamp, Editor},
     workspace_id::UnitId,
@@ -55,11 +55,23 @@ impl Cache {
     pub fn is_busy(&self) -> bool {
         self.running.is_some()
     }
+    pub fn deadline(&self) -> Option<std::time::Instant> {
+        reap_deadline(&self.running.as_ref()?.ready)
+    }
+    /// 替换工作区或发布新来源时撤销旧结果；仍占用原单槽，直到线程退出。
+    pub fn invalidate(&mut self) {
+        self.entries.clear();
+        self.live_refreshes.clear();
+        self.live_updates.clear();
+        if let Some(running) = &self.running {
+            running.cancel.store(true, Ordering::Release);
+        }
+    }
     pub fn poll(&mut self) -> bool {
         if !self
             .running
             .as_ref()
-            .is_some_and(|r| r.ready.load(Ordering::Acquire) || r.worker.is_finished())
+            .is_some_and(|r| r.worker.is_finished())
         {
             return false;
         }
@@ -171,6 +183,7 @@ impl Drop for Cache {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::desktop::loom_execution_tasks::reap_fixture::{wait_finished, Gate, WAIT};
     #[test]
     fn completed_source_reuses_pixels_and_retirement_discards_cancelled_result() {
         let source = UnitId::parse("source").unwrap();
@@ -192,6 +205,7 @@ mod tests {
         rx.recv_timeout(std::time::Duration::from_secs(5)).unwrap();
         // 已完成但尚未交付的结果也必须服从断连/关闭取消。
         cache.retain(|_, _, _| false);
+        wait_finished(&cache.running.as_ref().unwrap().worker);
         assert!(cache.poll());
         assert!(cache.entries.is_empty());
         assert!(cache
@@ -199,6 +213,7 @@ mod tests {
             .unwrap()
             .is_none());
         rx.recv_timeout(std::time::Duration::from_secs(5)).unwrap();
+        wait_finished(&cache.running.as_ref().unwrap().worker);
         assert!(cache.poll());
         let output = cache
             .request(&source, &image, &editor, notify.clone())
@@ -215,5 +230,47 @@ mod tests {
             .is_none());
         cache.retain(|_, _, stamp| stamp.matches(&replacement));
         assert!(cache.entries.is_empty());
+    }
+
+    #[test]
+    fn notification_tail_keeps_the_slot_until_exit_and_invalidation_discards_result() {
+        let source = UnitId::parse("source").unwrap();
+        let replacement = UnitId::parse("replacement").unwrap();
+        let image = Image {
+            width: 1,
+            height: 1,
+            pixels: vec![255; 4].into(),
+        };
+        let editor = Editor::default();
+        for invalidate in [false, true] {
+            let mut cache = Cache::default();
+            let gate = Gate::new(|| {});
+            assert!(cache.deadline().is_none());
+            assert!(cache
+                .request(&source, &image, &editor, gate.notify.clone())
+                .unwrap()
+                .is_none());
+            gate.noticed.recv_timeout(WAIT).unwrap();
+            assert!(!cache.poll());
+            assert!(cache.deadline().is_some());
+            if invalidate {
+                cache.invalidate();
+                assert!(cache
+                    .request(&replacement, &image, &editor, gate.notify.clone())
+                    .unwrap()
+                    .is_none());
+                assert_eq!(cache.running.as_ref().unwrap().key.source, source);
+            }
+            assert!(cache.is_busy());
+            assert!(cache.entries.is_empty());
+            gate.release.send(()).unwrap();
+            wait_finished(&cache.running.as_ref().unwrap().worker);
+            assert!(cache.poll());
+            assert!(!cache.poll());
+            assert!(!cache.is_busy());
+            assert!(cache.deadline().is_none());
+            assert_eq!(cache.entries.len(), usize::from(!invalidate));
+            assert!(gate.noticed.try_recv().is_err());
+        }
     }
 }

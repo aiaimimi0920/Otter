@@ -29,6 +29,17 @@ impl VectorCandidate {
         root: Option<&crate::desktop::session_asset_root::Root>,
         cancel: &AtomicBool,
     ) -> Result<Prepared> {
+        let document = self.candidate.decode_retained(cancel)?;
+        self.prepare_workflow_snapshot_from(&document, catalog, root, cancel)
+    }
+
+    fn prepare_workflow_snapshot_from(
+        &self,
+        document: &session_document::Document<'_>,
+        catalog: &[serde_json::Value],
+        root: Option<&crate::desktop::session_asset_root::Root>,
+        cancel: &AtomicBool,
+    ) -> Result<Prepared> {
         check(cancel)?;
         if self.vectors.len() != self.candidate.placements.len()
             || self.vectors.iter().any(|(_, restored)| {
@@ -44,22 +55,17 @@ impl VectorCandidate {
         leases
             .try_reserve_exact(self.vectors.len())
             .map_err(|_| Error::new(E_INVALIDARG, "Cannot reserve workflow image ownership"))?;
-        let snapshot = workflow_snapshot::sources::with_sources(
-            self.candidate.original_json(),
+        let snapshot = workflow_snapshot::sources::with_document_sources(
+            document,
             catalog,
             cancel,
-            |document, sources| {
-                content::prepare(
-                    self.candidate.original_json(),
+            |sources| {
+                content::prepare_from(
+                    document,
                     self.candidate.revision,
                     catalog,
                     cancel,
-                    |window, _, _| {
-                        let index = document
-                            .windows
-                            .iter()
-                            .position(|item| item.id == window.id)
-                            .ok_or(workflow_snapshot::Error::Node)?;
+                    |index, window, _, _| {
                         let reference = sources[index].ok_or(workflow_snapshot::Error::Content)?;
                         let images = self
                             .candidate
@@ -92,7 +98,7 @@ impl VectorCandidate {
                             }
                         };
                         let png = self
-                            .bake_window_image_png(window, Some(selected), cancel)
+                            .bake_window_image_png(index, window, Some(selected), cancel)
                             .map_err(|_| {
                                 if cancel.load(Ordering::Acquire) {
                                     workflow_snapshot::Error::Cancelled
@@ -133,9 +139,9 @@ impl VectorCandidate {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "session_workflow_source_pixels_tests.rs"]
 mod source_pixels_tests;
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "session_workflow_prepare_tests.rs"]
 mod tests;

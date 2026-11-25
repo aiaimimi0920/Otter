@@ -26,6 +26,41 @@ struct Pending {
     job: drag_prepare::Job,
     stamp: super::display_snapshot::Stamp,
 }
+impl Session {
+    pub(super) fn is_busy(&self) -> bool {
+        // A cancelled preparation still owns its worker until the timer reaps it.
+        self.origin.get().is_some()
+            || self.pending.borrow().is_some()
+            || self.active.borrow().is_some()
+    }
+
+    pub(super) fn retire_preparation(&self) -> Option<drag_prepare::Job> {
+        let pending = self.pending.borrow_mut().take()?;
+        pending.job.cancel();
+        Some(pending.job)
+    }
+}
+
+#[cfg(test)]
+pub(super) fn install_gated(
+    state: &State,
+    release: std::sync::mpsc::Receiver<()>,
+    returned: std::sync::mpsc::Sender<bool>,
+) {
+    let cancel = Arc::new(AtomicBool::new(false));
+    let worker_cancel = cancel.clone();
+    let worker = std::thread::spawn(move || {
+        let _ = release.recv_timeout(std::time::Duration::from_secs(5));
+        returned
+            .send(worker_cancel.load(Ordering::Acquire))
+            .unwrap();
+        Ok(None)
+    });
+    *state.drag.pending.borrow_mut() = Some(Pending {
+        job: drag_prepare::Job::from_test_worker(worker, cancel),
+        stamp: super::display_snapshot::Stamp::capture(&state.canvas.borrow(), None),
+    });
+}
 
 fn can_begin(state: &State) -> bool {
     // 编辑工具拥有 Shift（追加框选、形状约束等）；拖出仅在平移/浏览模式接管手势。
@@ -160,27 +195,26 @@ unsafe fn start(hwnd: HWND, state: &State, root: Result<PathBuf, String>) -> Res
         .to_owned();
     let canvas = state.canvas.borrow();
     let frame = state.resolved_display.borrow();
-    let (image, editor) =
-        super::display_snapshot::capture(&canvas, frame.as_ref()).ok_or("Missing drag image")?;
-    let stamp = super::display_snapshot::Stamp::capture(&canvas, frame.as_ref());
-    let input = drag_prepare::Input {
-        width: image.width,
-        height: image.height,
-        pixels: image.pixels,
-        editor,
-        opacity: canvas.normal_opacity,
-        style: super::export::style::Snapshot::capture(&canvas),
+    let input = drag_prepare::Input::capture(
+        &canvas,
+        frame.as_ref(),
         root,
         stem,
-        policy: state.cache_policy.get(),
-    };
+        state.cache_policy.get(),
+    )
+    .ok_or("Missing drag image")?;
+    let stamp = super::display_snapshot::Stamp::capture(&canvas, frame.as_ref());
     drop(frame);
     drop(canvas);
-    let job = drag_prepare::Job::start(input)?;
-    *state.drag.pending.borrow_mut() = Some(Pending { job, stamp });
     if SetTimer(Some(hwnd), TIMER, 50, None) == 0 {
-        state.drag.pending.borrow_mut().take();
         return Err("Cannot schedule native drag preparation".into());
+    }
+    match drag_prepare::Job::start(input) {
+        Ok(job) => *state.drag.pending.borrow_mut() = Some(Pending { job, stamp }),
+        Err(error) => {
+            let _ = KillTimer(Some(hwnd), TIMER);
+            return Err(error);
+        }
     }
     Ok(())
 }
@@ -206,11 +240,10 @@ unsafe fn cancel(hwnd: HWND, state: &State) {
 }
 unsafe fn dispose(hwnd: HWND, state: &State) {
     cancel(hwnd, state);
-    let pending = state.drag.pending.borrow_mut().take();
     let _ = KillTimer(Some(hwnd), TIMER);
-    drop(pending); // HWND 销毁边界仍 join，不让任务失去 owner。
+    // 若线程仍未结束，State 暂持任务直到应用把它移出；不能在 WM_DESTROY 中 join。
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "drag_input_tests.rs"]
 mod tests;

@@ -14,11 +14,7 @@ use windows::Win32::{
     System::Com::CoCreateGuid,
 };
 pub(crate) fn restore(reference: &str, cancel: &AtomicBool) -> io::Result<Arc<File>> {
-    #[cfg(test)]
-    let directory = std::path::PathBuf::from("C:/Users/Public/nas_home/AI/GameEditor/linshi");
-    #[cfg(not(test))]
-    let directory = std::env::temp_dir();
-    restore_in(reference, &directory, cancel)
+    restore_in(reference, &std::env::temp_dir(), cancel)
 }
 fn restore_in(reference: &str, directory: &Path, cancel: &AtomicBool) -> io::Result<Arc<File>> {
     check(cancel)?;
@@ -122,6 +118,6 @@ fn check(cancel: &AtomicBool) -> io::Result<()> {
         Ok(())
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "session_capture_original_tests.rs"]
 mod tests;

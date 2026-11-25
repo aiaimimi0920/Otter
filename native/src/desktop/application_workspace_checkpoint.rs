@@ -164,15 +164,13 @@ impl Application {
             || self.restore_job.is_some()
             || self.exit_after_save
             || self.open_after_save.is_some()
+            || !save_snapshot::automatic_static_ready(self)
             || !restore_batch::guard::is_idle(self)
             || self
                 .documents
                 .iter()
                 .any(|doc| doc.state.open_session_requested.get())
         {
-            return Ok(false);
-        }
-        if !save_snapshot::automatic_ready(self)? {
             return Ok(false);
         }
         if !force
@@ -195,7 +193,9 @@ impl Application {
         };
         // 已验证修订随磁盘基线一同推进；UI 热路径不重复解析整个检查点。
         let revision = owner.revision;
-        let (receipt, data) = self.capture_session_snapshot()?;
+        let Some((receipt, data)) = self.capture_automatic_session_snapshot()? else {
+            return Ok(false);
+        };
         let job = save_snapshot::job::Job::start_checkpoint(
             data,
             destination,
@@ -233,32 +233,39 @@ impl Application {
                 .staged
                 .take()
                 .ok_or_else(|| Error::new(E_FAIL, "Missing checkpoint file"))?;
+            let candidate_source = Source::from(prepared.candidate.bytes.clone());
+            let stale = || Error::new(E_ABORT, "Checkpoint changed before commit");
             if !disk.is_for(&prepared.candidate)
-                || !prepared.receipt.matches(self)
                 || prepared
                     .checkpoint_senders
                     .as_ref()
-                    .is_some_and(|index| !index.is_for(&prepared.candidate.bytes.clone().into()))
+                    .is_some_and(|index| !index.is_for(&candidate_source))
                 || prepared.checkpoint_scope.as_ref().is_none_or(|proof| {
-                    !proof.is_for(&prepared.candidate.bytes.clone().into())
-                        || self.restored_session.as_ref().unwrap().projection_scope
+                    !proof.is_for(&candidate_source)
+                        || self
+                            .restored_session
+                            .as_ref()
+                            .and_then(|record| record.projection_scope)
                             != Some(proof.scope())
                 })
                 || prepared
                     .checkpoint_projections
                     .as_ref()
-                    .is_some_and(|index| !index.is_for(&prepared.candidate.bytes.clone().into()))
+                    .is_some_and(|index| !index.is_for(&candidate_source))
                 || prepared
                     .checkpoint_accounts
                     .as_ref()
-                    .is_none_or(|index| !index.is_for(&prepared.candidate.bytes.clone().into()))
+                    .is_none_or(|index| !index.is_for(&candidate_source))
             {
-                return Err(Error::new(E_ABORT, "Checkpoint changed before commit"));
+                return Err(stale());
             }
             if !save_snapshot::automatic_ready(self)? {
                 return Ok(()); // 新的 Live 手势/显式意图使后台时间点正常过期。
             }
-            let stamp = save_state::Stamp::capture_snapshot(self, &prepared.receipt)?;
+            let stamp = prepared
+                .receipt
+                .checked_saved_stamp(self)
+                .ok_or_else(stale)?;
             let display = projection_proof::capture(self, prepared.checkpoint_projections.as_ref());
             let source = self.restored_session.as_ref().unwrap().original.clone();
             // 不泵 UI；成功前不改变 profile 基线，成功后不触碰手动文件/dirty/workflow。
@@ -269,20 +276,20 @@ impl Application {
                 .committed(prepared.checkpoint_projections.as_ref(), &self.workspace);
             self.projection_edit.committed(
                 prepared.checkpoint_scope.as_ref(),
-                &prepared.candidate.bytes.clone().into(),
+                &candidate_source,
                 &self.workspace,
             );
             self.projection_sender
                 .committed(prepared.checkpoint_senders.as_ref(), &self.workspace);
             self.projection_sender.stop_committed(
                 prepared.checkpoint_senders.as_ref(),
-                &prepared.candidate.bytes.clone().into(),
+                &candidate_source,
                 &source,
                 &self.workspace,
             );
             let owner = self.workspace_checkpoint.as_mut().unwrap();
             owner.revision = prepared.candidate.revision;
-            owner.original = Some(prepared.candidate.bytes.into());
+            owner.original = Some(candidate_source);
             owner.stamp = Some((stamp, source));
             // 先记真实发布事实；旧恢复副本未退休的独立错误不能抹掉已经提交的包含关系。
             owner.projections = prepared.checkpoint_projections;
@@ -360,7 +367,13 @@ impl Application {
                 };
             }
             let mut message = MSG::default();
-            if GetMessageW(&mut message, None, 0, 0).0 <= 0 {
+            let deadline = self
+                .save_reap_deadline()
+                .into_iter()
+                .chain(self.workflow_reap_deadline())
+                .chain(self.account_projection.reap_deadline())
+                .min();
+            if live::wait::next_until(&[], &mut message, deadline)? == 0 {
                 return Err(Error::new(
                     E_ABORT,
                     "Message loop ended before empty checkpoint",

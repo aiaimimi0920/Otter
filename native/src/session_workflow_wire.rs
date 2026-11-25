@@ -94,6 +94,6 @@ pub(super) fn encode<T: serde::Serialize>(
     Ok(writer.bytes)
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "session_workflow_wire_tests.rs"]
 mod tests;

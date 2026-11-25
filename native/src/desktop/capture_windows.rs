@@ -6,24 +6,40 @@ use windows::{
 
 const LIMIT: usize = 2048;
 pub(super) fn snapshot() -> Result<Vec<RECT>> {
-    Ok(entries()?.into_iter().map(|(_, rect)| rect).collect())
+    collect(|_, rect| rect)
 }
-/// 保留选择瞬间的 HWND；Live 在冻结前绑定进程身份，普通截图仍只消费矩形。
-pub(super) fn entries() -> Result<Vec<(HWND, RECT)>> {
+/// Live 使用相同的准入规则，随后根据 HWND 绑定来源身份。
+pub(super) fn handles() -> Result<Vec<HWND>> {
+    collect(|hwnd, _| hwnd)
+}
+fn collect<T, F: FnMut(HWND, RECT) -> T>(project: F) -> Result<Vec<T>> {
     let mut windows = Vec::new();
+    let mut state = (&mut windows, project);
     unsafe {
+        // EnumWindows 同步回调，state 在所有回调结束前保持有效。
         EnumWindows(
-            Some(enumerate),
-            LPARAM(&mut windows as *mut Vec<(HWND, RECT)> as isize),
+            Some(enumerate::<T, F>),
+            LPARAM(&mut state as *mut (&mut Vec<T>, F) as isize),
         )?;
     }
     Ok(windows)
 }
-unsafe extern "system" fn enumerate(hwnd: HWND, parameter: LPARAM) -> windows::core::BOOL {
-    let windows = &mut *(parameter.0 as *mut Vec<(HWND, RECT)>);
-    // 返回 true 继续枚举但不再分配，避免把达到上限误报成 EnumWindows 错误。
-    if windows.len() >= LIMIT || !IsWindowVisible(hwnd).as_bool() || IsIconic(hwnd).as_bool() {
-        return true.into();
+unsafe extern "system" fn enumerate<T, F: FnMut(HWND, RECT) -> T>(
+    hwnd: HWND,
+    parameter: LPARAM,
+) -> windows::core::BOOL {
+    let (windows, project) = &mut *(parameter.0 as *mut (&mut Vec<T>, F));
+    // 达到上限后不再查询窗口，但不能把正常截断当成枚举失败。
+    if windows.len() < LIMIT {
+        if let Some(rect) = eligible_bounds(hwnd) {
+            windows.push(project(hwnd, rect));
+        }
+    }
+    true.into()
+}
+unsafe fn eligible_bounds(hwnd: HWND) -> Option<RECT> {
+    if !IsWindowVisible(hwnd).as_bool() || IsIconic(hwnd).as_bool() {
+        return None;
     }
     let mut cloaked = 0u32;
     if DwmGetWindowAttribute(
@@ -35,7 +51,7 @@ unsafe extern "system" fn enumerate(hwnd: HWND, parameter: LPARAM) -> windows::c
     .is_ok()
         && cloaked != 0
     {
-        return true.into();
+        return None;
     }
     let mut rect = RECT::default();
     if DwmGetWindowAttribute(
@@ -47,35 +63,30 @@ unsafe extern "system" fn enumerate(hwnd: HWND, parameter: LPARAM) -> windows::c
     .is_err()
         && GetWindowRect(hwnd, &mut rect).is_err()
     {
-        return true.into();
+        return None;
     }
-    if rect.right > rect.left && rect.bottom > rect.top {
-        windows.push((hwnd, rect));
-    }
-    true.into()
+    (rect.right > rect.left && rect.bottom > rect.top).then_some(rect)
 }
 
 pub(super) fn local_rectangles(
-    windows: &[RECT],
+    mut windows: Vec<RECT>,
     origin: POINT,
     width: u32,
     height: u32,
 ) -> Vec<RECT> {
+    windows.truncate(LIMIT);
+    let x = |v: i32| (v as i64 - origin.x as i64).clamp(0, width as i64) as i32;
+    let y = |v: i32| (v as i64 - origin.y as i64).clamp(0, height as i64) as i32;
+    windows.retain_mut(|rect| {
+        *rect = RECT {
+            left: x(rect.left),
+            top: y(rect.top),
+            right: x(rect.right),
+            bottom: y(rect.bottom),
+        };
+        rect.right > rect.left && rect.bottom > rect.top
+    });
     windows
-        .iter()
-        .take(LIMIT)
-        .filter_map(|rect| {
-            let x = |v: i32| (v as i64 - origin.x as i64).clamp(0, width as i64) as i32;
-            let y = |v: i32| (v as i64 - origin.y as i64).clamp(0, height as i64) as i32;
-            let rect = RECT {
-                left: x(rect.left),
-                top: y(rect.top),
-                right: x(rect.right),
-                bottom: y(rect.bottom),
-            };
-            (rect.right > rect.left && rect.bottom > rect.top).then_some(rect)
-        })
-        .collect()
 }
 pub(super) fn pick(windows: &[RECT], point: POINT) -> Option<RECT> {
     windows
@@ -88,7 +99,13 @@ mod tests {
     use super::*;
     #[test]
     fn negative_desktop_origin_clips_windows_and_preserves_z_order() {
-        let windows = [
+        let windows = vec![
+            RECT {
+                left: 500,
+                top: 0,
+                right: 600,
+                bottom: 20,
+            },
             RECT {
                 left: -80,
                 top: 10,
@@ -101,14 +118,10 @@ mod tests {
                 right: 200,
                 bottom: 200,
             },
-            RECT {
-                left: 500,
-                top: 0,
-                right: 600,
-                bottom: 20,
-            },
         ];
-        let local = local_rectangles(&windows, POINT { x: -100, y: 0 }, 200, 100);
+        let allocation = windows.as_ptr();
+        let local = local_rectangles(windows, POINT { x: -100, y: 0 }, 200, 100);
+        assert_eq!(local.as_ptr(), allocation);
         assert_eq!(local.len(), 2);
         let top = pick(&local, POINT { x: 30, y: 30 }).unwrap();
         assert_eq!(
@@ -126,8 +139,10 @@ mod tests {
             right: i32::MAX,
             bottom: i32::MAX,
         };
+        let mut windows = vec![rect; LIMIT + 10];
+        windows[0] = RECT::default();
         let local = local_rectangles(
-            &vec![rect; LIMIT + 10],
+            windows,
             POINT {
                 x: i32::MIN,
                 y: i32::MIN,
@@ -135,7 +150,7 @@ mod tests {
             100,
             100,
         );
-        assert_eq!(local.len(), LIMIT);
+        assert_eq!(local.len(), LIMIT - 1);
         assert_eq!(local[0].right, 100);
     }
 }

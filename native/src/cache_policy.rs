@@ -27,6 +27,6 @@ impl Policy {
         Ok(self)
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "cache_policy_tests.rs"]
 mod tests;

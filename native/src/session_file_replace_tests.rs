@@ -8,11 +8,8 @@ struct Fixture {
 }
 impl Fixture {
     fn new() -> Self {
-        let root =
-            Path::new("C:/Users/Public/nas_home/AI/GameEditor/linshi/otter-session-replace-tests");
-        std::fs::create_dir_all(root).unwrap();
         let id = unsafe { windows::Win32::System::Com::CoCreateGuid().unwrap() };
-        let directory = root.join(format!("{id:?}"));
+        let directory = std::env::temp_dir().join(format!("otter-session-replace-{id:?}"));
         std::fs::create_dir(&directory).unwrap();
         let target = directory.join("workspace.json");
         OpenOptions::new()

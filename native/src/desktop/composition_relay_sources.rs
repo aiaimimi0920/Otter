@@ -2,7 +2,7 @@
 use super::*;
 use crate::{
     live_relay_http::source::Publication,
-    live_relay_source_runtime::{Outcome, Runtime},
+    live_relay_source_runtime::{Outcome, Runtime, Status},
     workspace_id::UnitId,
 };
 pub(crate) struct SourceCapture {
@@ -69,17 +69,11 @@ impl Sessions {
         });
         Ok(())
     }
-    pub(crate) fn source_status(&self, identity: &Arc<()>) -> Option<(bool, bool)> {
+    pub(crate) fn source_status(&self, identity: &Arc<()>) -> Option<Status> {
         self.sources
             .iter()
             .find(|entry| Arc::ptr_eq(&entry.identity, identity))
-            .map(|entry| (entry.runtime.ready(), entry.runtime.stopping()))
-    }
-    pub(crate) fn source_recovering(&self, identity: &Arc<()>) -> bool {
-        self.sources
-            .iter()
-            .find(|e| Arc::ptr_eq(&e.identity, identity))
-            .is_some_and(|e| e.runtime.recovering())
+            .map(|entry| entry.runtime.status())
     }
     #[cfg(test)]
     pub(crate) fn test_disconnect_source(&self, identity: &Arc<()>) -> bool {

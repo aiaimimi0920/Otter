@@ -66,6 +66,6 @@ pub(super) unsafe fn set(hwnd: HWND, state: &State, lp: LPARAM) -> bool {
     SetCursor(Some(cursor));
     true
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-surface")))]
 #[path = "surface_window_text_cursor_tests.rs"]
 mod tests;

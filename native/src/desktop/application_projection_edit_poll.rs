@@ -127,7 +127,7 @@ impl Application {
         }));
         self.saved_state = None;
         self.display_cache.borrow_mut().take();
-        *self.display_composition.borrow_mut() = Default::default();
+        self.display_composition.borrow_mut().invalidate();
         let _ = windows::Win32::Graphics::Gdi::InvalidateRect(Some(doc.window.0), None, false);
         self.edit_status("协作响应已接收，等待工作区检查点…");
         Ok(())

@@ -112,6 +112,36 @@ fn surface_scroll_repeat_delays_bounds_ticks_and_pauses_outside_track() {
     assert!(window.take_error().is_none());
 }
 #[test]
+fn surface_scroll_repeat_invalidates_only_when_page_moves() {
+    use windows::Win32::{
+        Graphics::Gdi::{GetUpdateRect, ValidateRect},
+        UI::WindowsAndMessaging::{ShowWindow, SW_SHOWNOACTIVATE},
+    };
+    let _com = crate::desktop::Apartment::new().unwrap();
+    let window = SurfaceWindow::new(long_scene(), 240, 200).unwrap();
+    window.set_input_policy(true, false).unwrap();
+    unsafe {
+        // 隐藏 HWND 不提供可供 GetUpdateRect 观察的重绘区域。
+        let _ = ShowWindow(window.hwnd, SW_SHOWNOACTIVATE);
+        send(&window, WM_LBUTTONDOWN, [95., 90.]);
+    }
+    let id = id(&window);
+    let now = Instant::now();
+    unsafe { assert!(ValidateRect(Some(window.hwnd), None).as_bool()) };
+    assert!(tick(&window, id, now + Duration::from_secs(1)));
+    assert_eq!(offset(&window), 200.);
+    unsafe {
+        assert!(GetUpdateRect(window.hwnd, None, false).as_bool());
+        send(&window, WM_MOUSEMOVE, [5., 90.]);
+        assert!(ValidateRect(Some(window.hwnd), None).as_bool());
+    }
+    assert!(tick(&window, id, now + Duration::from_secs(2)));
+    assert_eq!(offset(&window), 200.);
+    assert!(!unsafe { GetUpdateRect(window.hwnd, None, false) }.as_bool());
+    assert_eq!(unsafe { GetCapture() }, window.hwnd);
+    assert!(window.take_error().is_none());
+}
+#[test]
 fn surface_scroll_repeat_stops_at_thumb_and_old_timer_cannot_drive_new_gesture() {
     let _com = crate::desktop::Apartment::new().unwrap();
     let window = SurfaceWindow::new(long_scene(), 240, 200).unwrap();

@@ -29,6 +29,16 @@ pub(crate) struct Frame {
     pub arts: BTreeMap<String, Arc<crate::tile_surface_owner::Art>>,
     pub live_until: Option<Instant>,
 }
+/// A borrowed candidate; build the owned frame only after admission and deduplication.
+pub(crate) struct Candidate<'a, I> {
+    pub key: &'a Key,
+    pub layout: &'a Layout,
+    pub size: Size,
+    // Static and live image IDs are disjoint after the asset worker's source-kind check.
+    pub images: I,
+    pub arts: &'a BTreeMap<String, Arc<crate::tile_surface_owner::Art>>,
+    pub until: Option<Instant>,
+}
 pub(crate) struct State {
     pub stopped: bool,
     pub generation: u64,
@@ -187,45 +197,79 @@ impl Shared {
     pub fn publish_until(&self, generation: u64, frame: Frame, until: Option<Instant>) {
         self.publish_prepared(generation, frame, until, None);
     }
+    #[cfg(test)]
     pub fn publish_prepared(
         &self,
         generation: u64,
-        mut frame: Frame,
+        frame: Frame,
         until: Option<Instant>,
         art: Option<&Arc<crate::tile_surface_worker::Prepared>>,
     ) {
+        self.publish_candidate(
+            generation,
+            Candidate {
+                key: &frame.key,
+                layout: &frame.layout,
+                size: frame.size,
+                images: frame.images.iter(),
+                arts: &frame.arts,
+                until,
+            },
+            art,
+        );
+    }
+    pub fn publish_candidate<'a>(
+        &self,
+        generation: u64,
+        candidate: Candidate<'a, impl Iterator<Item = (&'a String, &'a Image)> + Clone>,
+        art: Option<&Arc<crate::tile_surface_worker::Prepared>>,
+    ) {
         let mut s = self.lock();
-        if !s.stopped
-            && !s.frozen
-            && !s.black
-            && s.generation == generation
-            && s.desired.as_ref() == Some(&frame.key)
-            && match (&s.art, art) {
-                (Some(a), Some(b)) => Arc::ptr_eq(a, b),
-                (None, None) => true,
-                _ => false,
+        if s.stopped
+            || s.frozen
+            || s.black
+            || s.generation != generation
+            || s.desired.as_ref() != Some(candidate.key)
+            || match (&s.art, art) {
+                (Some(a), Some(b)) => !Arc::ptr_eq(a, b),
+                (None, None) => false,
+                _ => true,
             }
         {
-            let same = s.frame.as_ref().is_some_and(|old| {
-                old.arts.len() == frame.arts.len()
-                    && old
-                        .arts
-                        .iter()
-                        .all(|(id, a)| frame.arts.get(id).is_some_and(|b| Arc::ptr_eq(a, b)))
-                    && old.images.len() == frame.images.len()
-                    && old.images.iter().all(|(id, a)| {
-                        frame.images.get(id).is_some_and(|b| {
-                            a.width == b.width
-                                && a.height == b.height
-                                && a.pixels.same_storage(&b.pixels)
-                        })
+            return;
+        }
+        let same = s.frame.as_ref().is_some_and(|old| {
+            &old.key == candidate.key
+                && old.size == candidate.size
+                && old.arts.len() == candidate.arts.len()
+                && old
+                    .arts
+                    .iter()
+                    .all(|(id, a)| candidate.arts.get(id).is_some_and(|b| Arc::ptr_eq(a, b)))
+                && old.images.len() == candidate.images.clone().count()
+                && candidate.images.clone().all(|(id, a)| {
+                    old.images.get(id).is_some_and(|b| {
+                        a.width == b.width
+                            && a.height == b.height
+                            && a.pixels.same_storage(&b.pixels)
                     })
-            });
-            if !same {
-                frame.live_until = until;
-                s.frame = Some(Arc::new(frame));
-                s.status = "内容已准备";
-            }
+                })
+        });
+        if !same {
+            let previous = s.frame.replace(Arc::new(Frame {
+                key: candidate.key.clone(),
+                layout: candidate.layout.clone(),
+                size: candidate.size,
+                images: candidate
+                    .images
+                    .map(|(id, image)| (id.clone(), image.clone()))
+                    .collect(),
+                arts: candidate.arts.clone(),
+                live_until: candidate.until,
+            }));
+            s.status = "内容已准备";
+            drop(s);
+            drop(previous);
         }
     }
     pub fn confirm(&self, frame: &Arc<Frame>, now: Instant) {

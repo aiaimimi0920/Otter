@@ -1,6 +1,9 @@
 //! 隐藏 HWND 保存链上的真实 worker 验证；不发送网络请求、不打开对话框。
 use super::*;
-pub(in crate::desktop::application) unsafe fn verify(app: &mut Application) -> Result<()> {
+pub(in crate::desktop::application) unsafe fn verify(
+    app: &mut Application,
+    fixture: &smoke_session_fixture::Directory,
+) -> Result<()> {
     // 保存回归允许使用已绑定 Art 而没有当前全局目录；工作流必须显式提供匹配目录。
     let catalog = app.documents.iter().find_map(|doc| {
         doc.state
@@ -13,11 +16,14 @@ pub(in crate::desktop::application) unsafe fn verify(app: &mut Application) -> R
     if catalog.is_some() {
         app.catalog.borrow_mut().loaded = catalog;
     }
-    let result = verify_current(app);
+    let result = verify_current(app, fixture);
     app.catalog.borrow_mut().loaded = previous;
     result
 }
-unsafe fn verify_current(app: &mut Application) -> Result<()> {
+unsafe fn verify_current(
+    app: &mut Application,
+    fixture: &smoke_session_fixture::Directory,
+) -> Result<()> {
     let path = app.restored_session.as_mut().unwrap().saved_path.take();
     let unsaved_rejected = app.request_workflow_preparation(None).is_err();
     app.restored_session.as_mut().unwrap().saved_path = path;
@@ -52,7 +58,9 @@ unsafe fn verify_current(app: &mut Application) -> Result<()> {
         };
         app.documents[0].state.canvas.borrow_mut().normal_opacity = opacity;
         match (mode, result) {
-            (4 | 5, Ok(Some(candidate))) => archive::smoke::verify(app, candidate, mode == 5)?,
+            (4 | 5, Ok(Some(candidate))) => {
+                archive::smoke::verify(app, candidate, mode == 5, fixture)?
+            }
             (3, Ok(Some(candidate))) => {
                 // 合成完成报告只测试本地消费凭证，不宣称网络同步已经成功。
                 let completion = sync::completion::Completion::new(
@@ -151,8 +159,8 @@ unsafe fn verify_current(app: &mut Application) -> Result<()> {
             _ => return Err(Error::new(E_FAIL, "Workflow receipt validation failed")),
         }
     }
-    cycle::smoke::verify(app)?;
-    ui::smoke::verify(app)?;
+    cycle::smoke::verify(app, fixture)?;
+    ui::smoke::verify(app, fixture)?;
     println!("native-workflow-prepare-smoke: worker=true single-slot=true cancel=true stale=true receipt-retained=true network=false");
     Ok(())
 }

@@ -154,11 +154,11 @@ impl Owner {
         Ok(())
     }
     pub fn close(&mut self, state: &State, commit: bool) -> Result<()> {
-        if let Some(id) = self.active.take() {
+        // Keep the active field until commit succeeds so a retry cannot bypass its draft.
+        if let Some(id) = self.active.clone() {
             let slot = self.fields.get_mut(&id).unwrap();
             if commit {
                 if slot.session.composing() {
-                    self.active = Some(id);
                     return Err(Error::new(E_FAIL, "Tile composition still active"));
                 }
                 slot.capture(true)?;
@@ -171,10 +171,10 @@ impl Owner {
                     slot.session.cancel(&event);
                 }
             }
-            if let Some(slot) = self.fields.get(&id) {
-                unsafe {
-                    let _ = ShowWindow(slot.session.control().hwnd()?, SW_HIDE);
-                }
+            let child = self.fields[&id].session.control().hwnd()?;
+            self.active = None;
+            unsafe {
+                let _ = ShowWindow(child, SW_HIDE);
             }
         }
         self.popup.hide();

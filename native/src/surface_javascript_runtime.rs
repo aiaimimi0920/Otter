@@ -272,6 +272,12 @@ impl Runtime {
     pub(crate) fn probe(&self) -> Option<Arc<crate::bounded_worker_process::Probe>> {
         self.shared.probe.lock().unwrap().clone()
     }
+    #[cfg(test)]
+    pub(crate) fn fail_next_click_wake_for_test(&self) {
+        self.shared
+            .fail_click_wake
+            .store(true, std::sync::atomic::Ordering::Release);
+    }
 }
 impl Drop for Runtime {
     fn drop(&mut self) {

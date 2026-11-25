@@ -95,6 +95,6 @@ pub(in crate::desktop) unsafe fn request(capture: &Rc<Cell<bool>>) -> bool {
     // 即使系统队列失败，也不能把第二次按键降级成另一次选区；用户仍可点击完成或重试。
     true
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-capture")))]
 #[path = "long_capture_finish_route_tests.rs"]
 mod tests;

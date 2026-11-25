@@ -1,12 +1,13 @@
 //! 最多 64 个已接受关联的最旧到期优先调度；单任务复用原 receive owner/全局四槽。
 use super::*;
 use std::time::{Duration, Instant};
+pub(super) const MAX_ENTRIES: usize = 64;
 #[derive(Default)]
 pub(in crate::desktop::application) struct Schedule {
     pub(super) entries: Vec<Entry>,
     pub(in crate::desktop::application) wake: Option<Instant>,
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "application_projection_sync_schedule_tests.rs"]
 mod tests;
 pub(super) struct Entry {
@@ -26,13 +27,13 @@ impl Schedule {
     }
     pub(super) fn reconcile(&mut self, mut candidates: Vec<(Arc<Ticket>, Binding)>, now: Instant) {
         candidates.retain(|(_, binding)| !binding.stopped());
-        candidates.truncate(64);
+        candidates.truncate(MAX_ENTRIES);
         self.entries.retain(|entry| {
             candidates.iter().any(|(ticket, binding)| {
                 ticket.same_record(&entry.ticket) && binding == &entry.binding
             })
         });
-        for (ticket, binding) in candidates.into_iter().take(64) {
+        for (ticket, binding) in candidates {
             if !self
                 .entries
                 .iter()

@@ -10,6 +10,7 @@ impl Application {
             visible,
             &mut crate::device_authorization_config::Config::from_env,
         )
+        .map(|_| ())
     }
     pub(super) fn activate_surface_windows_with(
         &mut self,
@@ -20,7 +21,7 @@ impl Application {
             crate::device_authorization_config::Config,
             crate::device_authorization_config::Error,
         >,
-    ) -> Result<()> {
+    ) -> Result<bool> {
         use crate::surface_live_binding::Lifecycle;
         let now = crate::desktop::surface_windows::now_ms()?;
         // 普通结算和退出泵共用此入口；关闭窗口仍须返还 owner 并保存动作证据。
@@ -101,6 +102,9 @@ impl Application {
             self.surface_windows
                 .accept_activation(outcome, now, visible)
         }) {}
+        // Release confirmed slots before delivering queued mounts; stored outcomes have no wake handle.
+        let retirement_blocked = self.surface_windows.retire_confirmed();
+        self.admit_surface_results()?;
         for window in self.surface_windows.iter_mut() {
             // refresh 可因 JS 终态关闭 HWND；必须先结算再选择 active/inactive，避免丢失最后唤醒。
             window.refresh(now)?;
@@ -141,7 +145,26 @@ impl Application {
             }
         }
         self.dispatch_surface_clicks_with(visible, config);
-        Ok(())
+        // 容量满不领取一次性 owner；已在途的任务结算后再尝试，退出也走同一入口。
+        for failure in self.surface_windows.failures_mut() {
+            if !self.remote_sessions.has_surface_worker_slot() {
+                break;
+            }
+            let Some(owner) = failure.begin_inactive() else {
+                continue;
+            };
+            if let Err(error) = start_transition_with(
+                &mut self.authorization_owner,
+                &mut self.remote_sessions,
+                owner,
+                Lifecycle::Inactive,
+                now,
+                &mut *config,
+            ) {
+                failure.failed_start(error);
+            }
+        }
+        Ok(retirement_blocked || self.surface_windows.retire_confirmed())
     }
     pub(super) fn admit_surface_results(&mut self) -> Result<()> {
         let now = crate::desktop::surface_windows::now_ms()?;
@@ -187,22 +210,6 @@ impl Application {
 }
 
 /// 显示窗口与未建窗附件共用请求边界；新租约必须属于原附件设备。
-pub(super) fn start_transition(
-    authorization: &mut crate::device_authorization_owner::Owner,
-    remote: &mut crate::desktop::composition::relay::sessions::Sessions,
-    owner: crate::surface_lifecycle_owner::Owner,
-    state: crate::surface_live_binding::Lifecycle,
-    now: u64,
-) -> std::result::Result<(), crate::surface_lifecycle_runtime::StartError> {
-    start_transition_with(
-        authorization,
-        remote,
-        owner,
-        state,
-        now,
-        crate::device_authorization_config::Config::from_env,
-    )
-}
 fn start_transition_with(
     authorization: &mut crate::device_authorization_owner::Owner,
     remote: &mut crate::desktop::composition::relay::sessions::Sessions,

@@ -1,28 +1,21 @@
 //! 独立隐藏 HWND 的冻结追加事务验证；真实图片资源、旧窗口与保存回读均走生产路径。
-use super::*;
-use crate::{
-    desktop::{session_binding::Bound, session_candidate::VectorCandidate},
-    workspace_id::UnitId,
-};
+use super::{append::Append, *};
+use crate::{desktop::session_binding::Bound, session_library::Kind, workspace_id::UnitId};
 
 unsafe fn prepare(app: &Application, kind: Kind, id: &str) -> Result<Append> {
     let cancel = AtomicBool::new(false);
     let source = app.restored_session.as_ref().unwrap().original.clone();
-    let document = crate::session_document::decode(&source)
-        .map_err(|error| Error::new(E_FAIL, format!("Fixture: {error:?}")))?;
-    let copy = crate::session_library::candidate::prepare(
-        &document,
+    let (restore, frozen) = (crate::desktop::session_job::frozen::Input {
+        source,
         kind,
-        "entry",
-        UnitId::parse(id).unwrap(),
-        (20.0, 30.0),
-        &cancel,
-    )
+        entry_id: "entry".into(),
+        unit: UnitId::parse(id).unwrap(),
+        mouse: (20.0, 30.0),
+        active: app.workspace.units().to_vec(),
+    })
+    .prepare(None, &cancel)
     .map_err(|error| Error::new(E_FAIL, error))?;
-    let candidate =
-        crate::desktop::session_candidate::prepare(copy.bytes.as_ref().to_vec(), None, &cancel)?;
-    let bound = Bound::prepare_for(VectorCandidate::prepare(candidate, &cancel)?, None, &cancel)
-        .map_err(|error| error.1)?;
+    let bound = Bound::from_prepared(restore, None);
     let states = bound
         .into_parts_for(None, &cancel)
         .ok()
@@ -34,7 +27,7 @@ unsafe fn prepare(app: &Application, kind: Kind, id: &str) -> Result<Append> {
             .physical(placement.rect)
             .map_err(|_| Error::new(E_FAIL, "Frozen fixture frame"))
     })?;
-    app.prepare_frozen_append(windows, source, kind, "entry", space, &cancel)
+    app.prepare_append(windows, frozen.source, frozen.retained, space)
 }
 
 pub(in crate::desktop::application) unsafe fn run(instance: HINSTANCE) -> Result<()> {
@@ -92,7 +85,7 @@ pub(in crate::desktop::application) unsafe fn run(instance: HINSTANCE) -> Result
     let rejected = append.windows.documents[0].window.0;
     let opacity = app.documents[0].state.canvas.borrow().normal_opacity;
     app.documents[0].state.canvas.borrow_mut().normal_opacity = 0.5;
-    let failed = app.publish_frozen_append(append, false).is_err();
+    let failed = app.publish_append(append, false).is_err();
     app.documents[0].state.canvas.borrow_mut().normal_opacity = opacity;
     if !failed
         || IsWindow(Some(rejected)).as_bool()
@@ -110,7 +103,7 @@ pub(in crate::desktop::application) unsafe fn run(instance: HINSTANCE) -> Result
     let append = prepare(&app, Kind::RecycleBin, "stale-source")?;
     let rejected = append.windows.documents[0].window.0;
     app.restored_session.as_mut().unwrap().original = retained.as_ref().to_vec().into();
-    if app.publish_frozen_append(append, false).is_ok() || IsWindow(Some(rejected)).as_bool() {
+    if app.publish_append(append, false).is_ok() || IsWindow(Some(rejected)).as_bool() {
         return Err(Error::new(E_FAIL, "Frozen append accepted replaced source"));
     }
     let original_space = app.restored_session.as_ref().unwrap().space;
@@ -125,7 +118,7 @@ pub(in crate::desktop::application) unsafe fn run(instance: HINSTANCE) -> Result
         let rejected = append.windows.documents[0].window.0;
         let source = app.restored_session.as_ref().unwrap().original.clone();
         app.restored_session.as_mut().unwrap().space = space;
-        let failed = app.publish_frozen_append(append, false).is_err();
+        let failed = app.publish_append(append, false).is_err();
         app.restored_session.as_mut().unwrap().space = original_space;
         if !failed
             || IsWindow(Some(rejected)).as_bool()
@@ -149,7 +142,7 @@ pub(in crate::desktop::application) unsafe fn run(instance: HINSTANCE) -> Result
     ] {
         let append = prepare(&app, kind, id)?;
         let hwnd = append.windows.documents[0].window.0;
-        app.publish_frozen_append(append, false)?;
+        app.publish_append(append, false)?;
         let record = app.restored_session.as_ref().unwrap();
         let document = crate::session_document::decode(&record.original)
             .map_err(|error| Error::new(E_FAIL, format!("Retained frozen document: {error:?}")))?;

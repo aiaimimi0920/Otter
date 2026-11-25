@@ -37,15 +37,6 @@ mod target;
 mod tls;
 #[path = "application_projection_sender_continuous_tests.rs"]
 mod updates;
-struct Class(HINSTANCE);
-impl Drop for Class {
-    fn drop(&mut self) {
-        unsafe {
-            drain_messages();
-            let _ = UnregisterClassW(w!("Otter.Native.Workspace"), Some(self.0));
-        }
-    }
-}
 unsafe fn drain_messages() {
     // 同线程测试重开是新实例；沿现有 checkpoint 夹具排空上一实例的 WM_QUIT，不改生产 GetMessage。
     let mut msg = MSG::default();
@@ -60,17 +51,8 @@ unsafe fn drain_messages() {
     }
     panic!("sender test message drain exceeded existing smoke bound");
 }
-unsafe fn application(root: &std::path::Path) -> (Class, Application) {
-    let instance: HINSTANCE = GetModuleHandleW(None).unwrap().into();
-    assert_ne!(
-        RegisterClassW(&WNDCLASSW {
-            hInstance: instance,
-            lpszClassName: w!("Otter.Native.Workspace"),
-            lpfnWndProc: Some(crate::desktop::procedure::window_proc),
-            ..Default::default()
-        }),
-        0
-    );
+unsafe fn application(root: &std::path::Path) -> Application {
+    let instance = crate::desktop::workspace_window_fixture::register();
     let image = Image {
         width: 32,
         height: 32,
@@ -87,7 +69,7 @@ unsafe fn application(root: &std::path::Path) -> (Class, Application) {
     assert!(app.projection_sender.profile.entries().is_some());
     settle(&mut app);
     assert!(app.projection_sender_scope().is_some());
-    (Class(instance), app)
+    app
 }
 unsafe fn settle(app: &mut Application) {
     let end = Instant::now() + Duration::from_secs(10);

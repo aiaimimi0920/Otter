@@ -28,7 +28,11 @@ impl Application {
         );
         let chrome = super::chrome::Owner::default();
         *initial.state.chrome.borrow_mut() = chrome.bind();
-        initial.state.frozen_library.borrow_mut().source = Some(session.original.clone());
+        {
+            let mut frozen = initial.state.frozen_library.borrow_mut();
+            frozen.source = Some(session.original.clone());
+            frozen.workers.notify = Some(execution_wake.callback());
+        }
         Self {
             chrome,
             edit_palette: initial.state.edit_palette.clone(),
@@ -78,6 +82,8 @@ impl Application {
             frozen_library: initial.state.frozen_library.clone(),
             documents: vec![initial],
             restored_session: Some(session),
+            retired_workflow: None,
+            retired_edits: Default::default(),
             restore_job: None,
             save_job: None,
             save_origin: None,

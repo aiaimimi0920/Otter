@@ -114,9 +114,9 @@ unsafe extern "system" fn procedure(
         return LRESULT(0);
     }
     if composing & 1 == 0
-        && GetWindowLongW(hwnd, GWL_STYLE) as u32 & ES_MULTILINE as u32 == 0
-        && wp.0 == VK_RETURN.0 as usize
         && matches!(message, WM_KEYDOWN | WM_CHAR | WM_KEYUP)
+        && wp.0 == VK_RETURN.0 as usize
+        && GetWindowLongW(hwnd, GWL_STYLE) as u32 & ES_MULTILINE as u32 == 0
     {
         if matches!(message, WM_KEYDOWN | WM_KEYUP) {
             if let Ok(parent) = GetParent(hwnd) {

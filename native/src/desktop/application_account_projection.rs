@@ -1,12 +1,12 @@
 //! v2 单贴纸接管复用真实 Bound/追加/检查点；网络接受、磁盘保存与可见呈现分别结算。
 use super::*;
-use crate::desktop::session_candidate::VectorCandidate;
+use crate::desktop::session_candidate::PreparedRestore;
 use crate::projection_account::scene::Binding;
 #[cfg(test)]
 use crate::projection_account::scene::Index;
 use std::sync::atomic::AtomicBool;
 pub(super) struct Prepared {
-    pub vector: VectorCandidate,
+    pub restore: PreparedRestore,
     pub retained: crate::pixels::Pixels,
     pub binding: Binding,
 }
@@ -89,32 +89,24 @@ impl Destination {
                     && restore_batch::append::same_space(record.space, self.space)
             })
     }
-    /// 必须在后台准备；原会话追加器保留其它 Unit、链接、组及未知元数据。
+    /// 测试从真实后台追加结果装配；仍核对候选中的账号范围和绑定。
     #[cfg(test)]
     pub(super) fn prepare(
         &self,
-        vector: VectorCandidate,
+        restore: PreparedRestore,
         binding: Binding,
-        units: &[crate::workspace_id::UnitId],
-        cancel: &AtomicBool,
+        retained: crate::pixels::Pixels,
     ) -> Result<Prepared> {
         if binding.scope() != self.scope {
             return Err(stale());
         }
-        let index =
-            Index::capture(&vector.candidate.retained_source_record()).map_err(|_| stale())?;
+        let index = Index::capture(&restore.vector.candidate.retained_source_record())
+            .map_err(|_| stale())?;
         if !index.includes(&binding) {
             return Err(stale());
         }
-        let retained = crate::session_append::prepare(
-            &self.source,
-            vector.candidate.original_json(),
-            units,
-            cancel,
-        )
-        .map_err(|message| Error::new(E_INVALIDARG, message))?;
         Ok(Prepared {
-            vector,
+            restore,
             retained,
             binding,
         })
@@ -188,8 +180,7 @@ impl Application {
         }
         let cancel = AtomicBool::new(false);
         let catalog = self.catalog.borrow().loaded.clone();
-        let states = Bound::prepare_for(prepared.vector, catalog.clone(), &cancel)
-            .map_err(|failure| failure.1)?
+        let states = Bound::from_prepared(prepared.restore, catalog.clone())
             .into_parts_for(catalog.as_ref(), &cancel)
             .map_err(|_| stale())?
             .prepare_states(&cancel)?;

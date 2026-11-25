@@ -66,9 +66,7 @@ fn exercise(case: Case) {
     let origin = client.origin.clone();
     let (mut device, first_lease) = lease(&origin);
     let next_lease = Arc::new(device.lease(&origin, now_ms()).unwrap());
-    let root = std::path::PathBuf::from("C:/Users/Public/nas_home/AI/GameEditor/linshi/otter-native-parallel-20261029/main-art-source-cache-1")
-        .join(format!("http-{:?}", unsafe { windows::Win32::System::Com::CoCreateGuid() }.unwrap()));
-    std::fs::create_dir(&root).unwrap();
+    let root = crate::art_cache_fixture::Directory::new();
     let store = crate::device_identity_store::Store::new(&root).unwrap();
     let mut loaded = store.load_or_create().unwrap();
     store.bind_and_save(&mut loaded, "device-1").unwrap();

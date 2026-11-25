@@ -51,16 +51,21 @@ pub(super) fn capture(app: &mut Application) -> Arc<AtomicUsize> {
     capture_size(app, [2, 2])
 }
 pub(super) fn capture_size(app: &mut Application, size: [u32; 2]) -> Arc<AtomicUsize> {
-    capture_kind(app, size, false, None)
+    capture_kind(app, size, false, None, Duration::from_secs(10))
+}
+pub(super) fn capture_joint(app: &mut Application, size: [u32; 2]) -> Arc<AtomicUsize> {
+    // 联测仍由父夹具限制整个流程；源纹理必须活到真正停止发布并断言采集仍存活。
+    capture_kind(app, size, false, None, Duration::from_secs(30))
 }
 pub(super) fn capture_stream(app: &mut Application, color: Arc<AtomicUsize>) -> Arc<AtomicUsize> {
-    capture_kind(app, [2, 2], true, Some(color))
+    capture_kind(app, [2, 2], true, Some(color), Duration::from_secs(15))
 }
 fn capture_kind(
     app: &mut Application,
     size: [u32; 2],
     streaming: bool,
     color: Option<Arc<AtomicUsize>>,
+    lifetime: Duration,
 ) -> Arc<AtomicUsize> {
     let active = Arc::new(AtomicUsize::new(0));
     let (job, window) = crate::live_job::LiveJob::spawn_bound(
@@ -80,7 +85,7 @@ fn capture_kind(
                 ))
                 .unwrap();
             if streaming {
-                let deadline = Instant::now() + Duration::from_secs(15);
+                let deadline = Instant::now() + lifetime;
                 loop {
                     match wait.recv_timeout(Duration::from_millis(100)) {
                         Ok(()) => break,
@@ -112,7 +117,7 @@ fn capture_kind(
                     }
                 }
             } else {
-                wait.recv_timeout(Duration::from_secs(10)).unwrap();
+                wait.recv_timeout(lifetime).unwrap();
             }
             Ok(())
         },
@@ -143,7 +148,7 @@ fn run(mode: u8) {
     std::fs::write(files.root().join("fixture-ca.pem"), pem).unwrap();
     let mut peer = peer::Peer::start(listener, tls, mode == 4, mode == 3);
     unsafe {
-        let (_class, mut app) = fixture::application();
+        let mut app = fixture::application();
         app.authorization.borrow_mut().origin = Some(origin.clone());
         app.authorization_owner
             .start(crate::device_authorization_runtime::Task::Renew { client, store })
@@ -175,7 +180,8 @@ fn run(mode: u8) {
         } else {
             spin(&mut app, files.root(), |app| {
                 peer.received.load(Ordering::Acquire)
-                    && app.remote_sessions.source_status(&source_id) == Some((true, false))
+                    && app.remote_sessions.source_status(&source_id)
+                        == Some(crate::live_relay_source_runtime::Status::Publishing)
             });
             assert_eq!(app.remote_sessions.wait_handles().count(), 2);
             if mode == 6 {

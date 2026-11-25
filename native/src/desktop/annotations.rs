@@ -11,6 +11,7 @@ struct Preview<'a> {
     draft: bool,
     replacement: Option<(usize, &'a Stroke)>,
     group: &'a [(usize, Stroke)],
+    hidden: Option<usize>,
 }
 
 pub unsafe fn draw_preview(
@@ -20,6 +21,28 @@ pub unsafe fn draw_preview(
     viewport: Viewport,
     preview: Option<(usize, Point)>,
     replacement: Option<(usize, &Stroke)>,
+    cache: &mut Cache,
+) -> windows::core::Result<()> {
+    draw_preview_excluding(
+        target,
+        brush,
+        editor,
+        viewport,
+        preview,
+        replacement,
+        None,
+        cache,
+    )
+}
+
+pub(super) unsafe fn draw_preview_excluding(
+    target: &ID2D1RenderTarget,
+    brush: &ID2D1SolidColorBrush,
+    editor: &Editor,
+    viewport: Viewport,
+    preview: Option<(usize, Point)>,
+    replacement: Option<(usize, &Stroke)>,
+    hidden: Option<usize>,
     cache: &mut Cache,
 ) -> windows::core::Result<()> {
     draw_layers(
@@ -32,6 +55,7 @@ pub unsafe fn draw_preview(
             draft: true,
             replacement,
             group: &[],
+            hidden,
         },
         cache,
     )
@@ -55,6 +79,7 @@ pub unsafe fn draw_group_preview(
             draft: true,
             replacement: None,
             group,
+            hidden: None,
         },
         cache,
     )
@@ -77,6 +102,7 @@ pub unsafe fn draw_committed(
             draft: false,
             replacement: None,
             group: &[],
+            hidden: None,
         },
         cache,
     )
@@ -95,19 +121,23 @@ unsafe fn draw_layers(
         draft: include_draft,
         replacement,
         group,
+        hidden,
     } = preview_state;
     let strokes = || {
+        // All group producers build previews in sorted selection order; merge in one pass per rank.
+        let mut group = group.iter().peekable();
         editor
             .elements()
             .iter()
             .enumerate()
-            .map(|(index, stroke)| {
+            .filter(move |(index, _)| Some(*index) != hidden)
+            .map(move |(index, stroke)| {
+                let preview = group
+                    .next_if(|(current, _)| *current == index)
+                    .map(|(_, preview)| preview);
                 (
                     index,
-                    group
-                        .binary_search_by_key(&index, |(index, _)| *index)
-                        .ok()
-                        .map(|position| &group[position].1)
+                    preview
                         .or_else(|| {
                             replacement
                                 .filter(|(selected, _)| *selected == index)
@@ -123,28 +153,34 @@ unsafe fn draw_layers(
                     .map(|stroke| (usize::MAX, stroke)),
             )
     };
+    let (mut ranks, mut blur, mut mosaic) = (0u8, false, false);
+    for (_, stroke) in strokes() {
+        ranks |= 1 << stroke.tool.render_rank();
+        blur |= stroke.tool == Tool::Blur;
+        mosaic |= stroke.tool == Tool::Mosaic;
+    }
     // 撤销/删除最后一个效果后，下一帧释放其缓存，而不是等到窗口销毁。
-    cache.retain_tools(
-        strokes().any(|(_, s)| s.tool == Tool::Blur),
-        strokes().any(|(_, s)| s.tool == Tool::Mosaic),
-    );
-    cache.retain_blurs(strokes().filter_map(|(_, stroke)| stroke.blur.as_ref()));
+    cache.retain_tools(blur, mosaic);
+    if blur {
+        cache.retain_blurs(strokes().filter_map(|(_, stroke)| stroke.blur.as_ref()));
+    }
     // 基线荧光笔统一在其他标注下方，层内涂抹不突破整体 35% 上限。
     for rank in 0..=3 {
-        if !strokes().any(|(_, s)| s.tool.render_rank() == rank) {
+        if ranks & (1 << rank) == 0 {
             continue;
         }
         let _wash = if rank == 0 {
-            let size = target.GetSize();
-            let Some(bounds) = crate::highlighter_bounds::visible(
-                strokes(),
-                viewport,
-                preview,
-                Point {
-                    x: size.width,
-                    y: size.height,
-                },
-            ) else {
+            let (left, top, right, bottom) =
+                super::annotation_rotation::visible_bounds(target, 0.0)?;
+            let clip = crate::highlighter_bounds::Bounds {
+                left,
+                top,
+                right,
+                bottom,
+            };
+            let Some(bounds) =
+                crate::highlighter_bounds::visible(strokes(), viewport, preview, clip)
+            else {
                 continue;
             };
             Some(super::annotation_opacity::push_wash(target, bounds))
@@ -189,7 +225,7 @@ unsafe fn draw_stroke(
     if stroke.tool == Tool::Paintbrush {
         return super::annotation_paintbrush::draw(target, brush, stroke, viewport);
     }
-    let layer = super::annotation_opacity::push(target, stroke, viewport);
+    let layer = super::annotation_opacity::push(target, stroke, viewport)?;
     let result = draw_opaque_stroke(target, brush, stroke, viewport);
     // 包括几何创建失败的路径，都必须先恢复图层栈再传播错误。
     drop(layer);

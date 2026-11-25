@@ -71,8 +71,7 @@ pub(super) fn serve_routed(
                 }
                 if mode == 5 {
                     ready.send(()).unwrap();
-                    let mut byte = [0];
-                    assert!(!stream.read(&mut byte).is_ok_and(|n| n != 0));
+                    assert_peer_disconnected(&mut stream);
                 } else {
                     reply(
                         &mut stream,

@@ -15,6 +15,7 @@ pub(super) fn fresh(host: crate::workspace_id::UnitId) -> restore_batch::Record 
         workflow_delivery: None,
         workflow: None,
         original: br#"{"documentSchemaVersion":1,"documentRevision":0,"stickers":[],"links":[],"groups":[]}"#.to_vec().into(),
+        restored_revision: 0,
         saved_path: None,
         recovery_path: None,
         // 新原生会话以桌面物理像素为保存坐标，不借用某一窗口所在显示器的 DPI。

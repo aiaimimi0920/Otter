@@ -1,6 +1,6 @@
 //! 实际Tile Runtime/已paint Presentation/自有HWND输入与原生选择接缝；管理员不代发event。
 use super::*;
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 pub(super) fn run() {
     let _com = Apartment::new();
     let f = Fixture::new();
@@ -22,6 +22,7 @@ pub(super) fn run() {
     let mut done = std::collections::BTreeSet::new();
     let mut weak = None;
     let mut diagnostic = serde_json::Value::Null;
+    let mut not_ready = BTreeMap::new();
     loop {
         f.pump();
         window.tick().unwrap();
@@ -37,24 +38,26 @@ pub(super) fn run() {
             window.test_identification_escape();
             assert!(window.alive());
         }
-        {
+        let presented = {
             let s = runtime.shared.lock();
-            if let Some(frame) = s
-                .presented_frame
+            s.presented_frame
                 .as_ref()
                 .filter(|_| s.visible(Instant::now()))
-            {
-                let art = frame.arts.values().next().unwrap();
-                if done.contains("dismissed") && done.insert("resumed") {
-                    f.mark("tile-actions-resumed.json", json!({"view":art.view,"generation":art.generation,"nativePresentConfirmed":true}));
-                }
-                weak = Some(Arc::downgrade(art));
-                if done.insert("ready") {
-                    f.mark(
-                        "tile-actions-ready.json",
-                        json!({"nativePresentConfirmed":true,"canonicalSize":art.size}),
-                    );
-                }
+                .map(|frame| frame.arts.values().next().unwrap().clone())
+        };
+        // 先释放共享锁，再解析场景和发布文件信号；回执仍只描述实际呈现的快照。
+        if let Some(art) = presented {
+            if done.contains("dismissed") && done.insert("resumed") {
+                f.mark("tile-actions-resumed.json", json!({"view":art.view,"generation":art.generation,"nativePresentConfirmed":true}));
+            }
+            weak = Some(Arc::downgrade(&art));
+            if done.insert("ready") {
+                f.mark(
+                    "tile-actions-ready.json",
+                    json!({"nativePresentConfirmed":true,"canonicalSize":art.size}),
+                );
+            }
+            if !done.contains("result") {
                 let scene: serde_json::Value = serde_json::from_slice(&art.snapshot.scene).unwrap();
                 if scene["children"][0]["props"]["text"] == "101" && done.insert("result") {
                     f.mark(
@@ -79,8 +82,19 @@ pub(super) fn run() {
                         json!({"uiQueueAccepted":true}),
                     );
                 } else {
-                    let s = runtime.shared.lock();
-                    f.mark(&format!("{name}-not-ready.json"), json!({"uiQueueAccepted":false,"notice":s.actions.notice,"nativeVisible":s.visible(Instant::now()),"generation":s.generation,"frameRevision":s.presented.as_ref().map(|v|v.0.revision)}));
+                    let current = {
+                        let s = runtime.shared.lock();
+                        (
+                            s.actions.notice,
+                            s.visible(Instant::now()),
+                            s.generation,
+                            s.presented.as_ref().map(|v| v.0.revision),
+                        )
+                    };
+                    if not_ready.insert(name, current) != Some(current) {
+                        let (notice, visible, generation, revision) = current;
+                        f.mark(&format!("{name}-not-ready.json"), json!({"uiQueueAccepted":false,"notice":notice,"nativeVisible":visible,"generation":generation,"frameRevision":revision}));
+                    }
                 }
             }
         }
@@ -109,12 +123,18 @@ pub(super) fn run() {
                 );
             }
         }
-        let current = {
+        let (notice, offered, dispatch, states) = {
             let s = runtime.shared.lock();
-            json!({"notice":s.actions.notice,"offered":s.actions.test_offered,"dispatch":s.actions.test_dispatch,
-                "states":s.actions.states.values().map(|s|json!({"revision":s.snapshot.revision,"sequence":s.sequence,
-                    "pending":s.activity.pending.len(),"confirmations":s.activity.confirmations.len(),"failure":s.activity.failure})).collect::<Vec<_>>()})
+            (
+                s.actions.notice,
+                s.actions.test_offered,
+                s.actions.test_dispatch.clone(),
+                s.actions.states.values().cloned().collect::<Vec<_>>(),
+            )
         };
+        let current = json!({"notice":notice,"offered":offered,"dispatch":dispatch,
+            "states":states.iter().map(|s|json!({"revision":s.snapshot.revision,"sequence":s.sequence,
+                "pending":s.activity.pending.len(),"confirmations":s.activity.confirmations.len(),"failure":s.activity.failure})).collect::<Vec<_>>()});
         if current != diagnostic {
             f.mark("tile-action-client-status.json", current.clone());
             diagnostic = current;

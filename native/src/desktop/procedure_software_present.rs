@@ -20,11 +20,7 @@ pub(super) unsafe fn submit(hwnd: HWND, state: &State, pending: Pending) -> Resu
             x: rect.x,
             y: rect.y,
         });
-    let presented = if position.is_some() {
-        pending.present_at(hwnd, position)?
-    } else {
-        pending.present(hwnd)?
-    };
+    let presented = pending.present_at(hwnd, position)?;
     if !owns() {
         return Ok(false);
     }

@@ -39,6 +39,6 @@ impl PreparedHdr {
         self.staged.commit_new(cancel)
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-capture")))]
 #[path = "capture_file_tests.rs"]
 mod tests;

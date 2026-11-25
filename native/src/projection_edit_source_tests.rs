@@ -130,9 +130,30 @@ fn source_initialize_pending_is_exact_and_only_checkpoint_commit_retires_it_not_
     let bytes = ticket.request().bytes().to_vec();
     drop((ticket, store));
     let store = directory.store();
-    let pending = store.pending(&cancel).unwrap().remove(0);
+    let (previous, pending) = store.source_state(&ctx, &cancel).unwrap();
+    assert!(previous.is_none());
+    let pending = pending.unwrap();
     assert_eq!(pending.request().bytes(), bytes);
-    assert!(store.source_document(&ctx, &cancel).unwrap().is_none());
+    let other = crate::projection_edit::journal::Context::new(
+        ctx.scope(),
+        ctx.unit(),
+        ctx.origin(),
+        "other-device",
+    )
+    .unwrap();
+    let same_key = store.pending_for(&other, &cancel).unwrap().unwrap();
+    assert_eq!(same_key.context(), &ctx);
+    assert_eq!(same_key.request().bytes(), bytes);
+    let (wrong_grant_document, wrong_grant_pending) = store.source_state(&other, &cancel).unwrap();
+    assert!(wrong_grant_document.is_none());
+    assert_eq!(wrong_grant_pending.unwrap().context(), &ctx);
+    let stopped = AtomicBool::new(true);
+    assert!(store.source_state(&ctx, &stopped).is_err());
+    assert!(store.pending_for(&ctx, &stopped).is_err());
+    assert!(store
+        .pending_for(&context("https://other.example"), &cancel)
+        .unwrap()
+        .is_none());
     let mut value = document_value();
     value["basis"] = serde_json::to_value(source.basis()).unwrap();
     pending
@@ -142,5 +163,9 @@ fn source_initialize_pending_is_exact_and_only_checkpoint_commit_retires_it_not_
         )
         .unwrap();
     assert!(store.pending(&cancel).unwrap().is_empty());
+    let (previous, pending) = store.source_state(&ctx, &cancel).unwrap();
+    assert_eq!(previous.unwrap().session_id(), SESSION);
+    assert!(pending.is_none());
+    assert!(store.source_state(&other, &cancel).unwrap().0.is_none());
     assert_eq!(store.source(&ctx, &cancel).unwrap(), Some(source));
 }

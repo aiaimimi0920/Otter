@@ -27,6 +27,27 @@ pub(super) unsafe fn draw(
     let Some(end) = stroke.points.get(1) else {
         return Ok(());
     };
+    if let Some(crate::stroke_style::Color(r, g, b)) = stroke.fill.filter(|_| stroke.visible_fill())
+    {
+        let foreground = brush.GetColor();
+        brush.SetColor(&D2D1_COLOR_F {
+            r: f32::from(r) / 255.0,
+            g: f32::from(g) / 255.0,
+            b: f32::from(b) / 255.0,
+            a: stroke.paint_alpha.fill(),
+        });
+        let rect = D2D_RECT_F {
+            left: viewport.origin.x + start.x.min(end.x) * viewport.scale,
+            top: viewport.origin.y + start.y.min(end.y) * viewport.scale,
+            right: viewport.origin.x + start.x.max(end.x) * viewport.scale,
+            bottom: viewport.origin.y + start.y.max(end.y) * viewport.scale,
+        };
+        target.FillRectangle(&rect, brush);
+        brush.SetColor(&foreground);
+    }
+    if stroke.paint_alpha.stroke() == 0.0 {
+        return Ok(());
+    }
     let layout = layout(
         text,
         viewport.scale,

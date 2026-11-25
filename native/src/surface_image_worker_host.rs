@@ -6,22 +6,22 @@ use std::{
     time::{Duration, Instant},
 };
 
-pub(crate) struct Decoded {
+pub struct Decoded {
     pub logical_size: [f32; 2],
     pub width: u32,
     pub height: u32,
     pub pixels: Vec<u8>,
 }
 
-pub(crate) fn require_limits() -> io::Result<()> {
+pub fn require_limits() -> io::Result<()> {
     // 任何 decoder 回调之前先验证 Job；单独调用私有入口也不能绕过硬限制。
     crate::bounded_worker_process::require_limits(128 * 1024 * 1024)
 }
 
-pub(crate) fn run(decode: impl FnOnce(&[u8]) -> io::Result<Decoded>) -> io::Result<()> {
+pub fn run(decode: impl FnOnce(&[u8]) -> io::Result<Decoded>) -> io::Result<()> {
     run_for(wire::Codec::WebP, decode)
 }
-pub(crate) fn run_for(
+pub fn run_for(
     codec: wire::Codec,
     decode: impl FnOnce(&[u8]) -> io::Result<Decoded>,
 ) -> io::Result<()> {

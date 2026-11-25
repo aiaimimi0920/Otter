@@ -89,6 +89,15 @@ fn child_input(child: &mut Session) -> (mpsc::Receiver<()>, mpsc::SyncSender<()>
     child.input_enabled = true;
     (ready, release)
 }
+impl Session {
+    pub(in crate::desktop) fn input_shutdown_fixture(
+        active: &Arc<AtomicUsize>,
+    ) -> (Self, mpsc::Receiver<()>, mpsc::SyncSender<()>) {
+        let mut session = session(active);
+        let (entered, release) = child_input(&mut session);
+        (session, entered, release)
+    }
+}
 fn finish_visibility(owner: &mut Owner) {
     owner.close();
     let deadline = Instant::now() + Duration::from_secs(5);

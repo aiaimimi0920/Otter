@@ -70,6 +70,6 @@ pub(super) fn with_context<T>(
     }))
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "naming_context_tests.rs"]
 mod tests;

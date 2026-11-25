@@ -255,6 +255,6 @@ impl Dispatcher {
         result
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-loom")))]
 #[path = "art_service_offline_tests.rs"]
 mod offline_tests;

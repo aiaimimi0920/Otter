@@ -73,27 +73,29 @@ pub(super) unsafe fn compose(hwnd: HWND, input: &Input) {
         status(hwnd, "无法启动长截图拼接，请重试或取消");
     }
 }
-pub(super) fn completed(input: &Input, completion: &Completion) -> bool {
+pub(super) fn completed(input: &Input, completion: &Completion, covered: bool) -> bool {
     match input.finish.phase.get() {
         Phase::Draining => {
-            let accepted = matches!(
-                completion,
-                Completion::Append(Ok(Append::Added { .. } | Append::Duplicate))
-                    | Completion::SpatialAppend(Ok(
-                        crate::long_capture::SpatialAppend::Added { .. }
-                            | crate::long_capture::SpatialAppend::Duplicate
-                    ))
-                    | Completion::Preview(Ok(_))
-                    | Completion::SpatialPreview(Ok(_))
-            ) || (input.recording.enabled()
-                && matches!(
+            let accepted = covered
+                || matches!(
                     completion,
-                    Completion::Append(Ok(Append::Rejected(_)))
+                    Completion::Append(Ok(Append::Added { .. } | Append::Duplicate))
                         | Completion::SpatialAppend(Ok(
-                            crate::long_capture::SpatialAppend::Rejected(_)
+                            crate::long_capture::SpatialAppend::Added { .. }
+                                | crate::long_capture::SpatialAppend::Duplicate
                         ))
-                ));
-            // 录制的瞬态拒绝帧从未提交，尾采样沿同一规则跳过；真实采集/拼接错误仍须重试。
+                        | Completion::Preview(Ok(_))
+                        | Completion::SpatialPreview(Ok(_))
+                )
+                || (input.recording.enabled()
+                    && matches!(
+                        completion,
+                        Completion::Append(Ok(Append::Rejected(_)))
+                            | Completion::SpatialAppend(Ok(
+                                crate::long_capture::SpatialAppend::Rejected(_)
+                            ))
+                    ));
+            // 未提交的遮挡和瞬态拒绝帧可跳过；其他真实采集/拼接错误仍须重试。
             if !accepted {
                 input.finish.retry();
                 if input.recording.enabled() {

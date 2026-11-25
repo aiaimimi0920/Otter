@@ -32,6 +32,19 @@ impl Owner {
             ..Default::default()
         }
     }
+    pub(super) fn reap_deadline(&self) -> Option<std::time::Instant> {
+        self.job.as_ref().and_then(job::Job::reap_deadline)
+    }
+    fn discard(&mut self, consent: &mut Consent) {
+        // 关闭视图不可发布暂存；保留原 worker 直至退出，不在消息泵同步等待。
+        if let Some(job) = self.job.as_ref() {
+            job.stop();
+        }
+        self.job.take_if(|job| job.finished());
+        if self.job.is_none() {
+            consent.finish_save();
+        }
+    }
     pub(super) fn poll(&mut self, consent: &mut Consent) {
         if self.initial {
             self.initial = false;
@@ -47,8 +60,11 @@ impl Owner {
         let Some(result) = self.job.as_mut().and_then(job::Job::poll) else {
             return;
         };
-        self.job.take();
+        let stopped = self.job.take().unwrap().stopped();
         consent.finish_save();
+        if stopped {
+            return; // 即使重新打开视图，也不能提交已取消的结果。
+        }
         match result.and_then(file::Prepared::commit) {
             Ok((next, retained)) => {
                 consent.install(next.policy());
@@ -104,9 +120,10 @@ impl Application {
         let mut owner = owner;
         if view.closed || self.exit_requested.get() {
             if let Some(owner) = owner {
-                owner.job.take();
+                owner.discard(&mut view.consent);
+            } else {
+                view.consent.finish_save();
             }
-            view.consent.finish_save();
             return;
         }
         if let Some(owner) = owner.as_mut() {
@@ -137,6 +154,6 @@ impl Application {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "application_projection_policy_tests.rs"]
 mod tests;

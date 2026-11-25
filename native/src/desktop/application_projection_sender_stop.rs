@@ -21,6 +21,9 @@ impl Owner {
     }
     pub(super) fn deadline(&self) -> Option<Instant> {
         self.due
+            .into_iter()
+            .chain(self.job.as_ref().and_then(job::Job::deadline))
+            .min()
     }
 }
 pub(super) struct Context {

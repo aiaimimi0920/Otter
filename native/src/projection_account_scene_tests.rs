@@ -95,6 +95,24 @@ fn scene_binding_requires_actual_receiver_unit_and_preserves_unknown_scene_field
     .is_err());
 }
 #[test]
+fn shared_document_keeps_the_exact_source_and_requires_its_scope_proof() {
+    let (_, binding) = fixture(scope(), "receive-1");
+    let bound = binding
+        .replace(&source(), None, &AtomicBool::new(false))
+        .unwrap();
+    let parsed = bound.parse().unwrap();
+    let independent: Source = bound.to_vec().into();
+    assert_eq!(bound.as_slice(), independent.as_slice());
+    let wrong = crate::session_projection_scope::Proof::capture(&independent).unwrap();
+    assert!(scene::Index::capture_parsed(&parsed, Some(&wrong)).is_err());
+    assert!(scene::Index::capture_parsed(&parsed, None).is_err());
+    let proof = crate::session_projection_scope::Proof::capture_parsed(&parsed).unwrap();
+    let index = scene::Index::capture_parsed(&parsed, Some(&proof)).unwrap();
+    assert!(index.is_for(&bound) && index.includes(&binding));
+    assert!(!index.is_for(&independent));
+}
+
+#[test]
 fn scene_cas_rejects_stale_previous_regression_digest_change_and_cancel() {
     let (mut content, initial) = fixture(scope(), "receive-1");
     let cancel = AtomicBool::new(false);

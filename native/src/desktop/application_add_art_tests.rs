@@ -171,7 +171,7 @@ fn synchronous_catalog_replacement_reclaims_unpublished_window_and_keeps_source(
         assert!(before.matches(&app.workspace));
         assert_eq!(app.documents.len(), 1);
         assert_eq!(app.capture_windows.borrow().len(), 2);
-        assert!(!IsWindow(Some(fixture::candidate())).as_bool());
+        assert!(!IsWindow(Some(desktop::workspace_window_fixture::take_candidate())).as_bool());
         assert!(!app.modals.blocked());
         app.shutdown();
     }
@@ -250,7 +250,7 @@ fn local_candidate_rechecks_catalog_explicit_origin_and_session_before_starting_
             let authorization = app.authorization.clone();
             let control = app.session_end.clone();
             let hwnd = app.documents[0].window.0;
-            fixture::during_create(move || match change {
+            desktop::workspace_window_fixture::during_create(move || match change {
                 0 => catalog.borrow_mut().loaded = Some(fixture::catalog(|_| {})),
                 1 => authorization.borrow_mut().origin = Some("https://changed.invalid".into()),
                 _ => {
@@ -271,7 +271,7 @@ fn local_candidate_rechecks_catalog_explicit_origin_and_session_before_starting_
             assert_eq!(app.documents.len(), 1);
             assert_eq!(app.capture_windows.borrow().len(), 2);
             assert!(!app.local_arts.busy());
-            assert!(!IsWindow(Some(fixture::candidate())).as_bool());
+            assert!(!IsWindow(Some(desktop::workspace_window_fixture::take_candidate())).as_bool());
             desktop::session_end::dispatch(
                 hwnd,
                 &app.documents[0].state,

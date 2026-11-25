@@ -7,12 +7,12 @@ pub(super) mod window;
 #[path = "capture_history_worker.rs"]
 pub(super) mod worker;
 impl Application {
-    pub(in crate::desktop) fn install_capture_history(&mut self, hidden: bool) -> Result<()> {
+    pub(in crate::desktop) fn install_capture_history(&mut self) -> Result<()> {
         let selection = crate::settings_profile::select(
             None,
             std::env::var_os("OTTER_NATIVE_PROFILE_DIR").as_deref(),
             std::env::var_os("LOCALAPPDATA").as_deref(),
-            hidden,
+            false,
         )
         .map_err(|error| Error::new(E_INVALIDARG, error))?;
         self.capture_history.install(
@@ -190,8 +190,8 @@ impl Application {
                             && (entry.at, entry.thumbnail.as_str())
                                 == (expected.0, expected.1.as_str())
                     });
-                    if current && view.data.remove(&id) {
-                        view.changed();
+                    if current {
+                        view.remove_screenshot(&id);
                     }
                 }
             }
@@ -200,6 +200,6 @@ impl Application {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-capture")))]
 #[path = "application_capture_history_tests.rs"]
 mod tests;

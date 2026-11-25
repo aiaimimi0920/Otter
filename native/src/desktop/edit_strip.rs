@@ -1,7 +1,7 @@
 //! 钉图的附属编辑条：主干分组布局由 Neuro-mini 绘制，命令和宿主跟随仍由 Otter 拥有。
 use super::{Availability, State, Window};
 use windows::{
-    core::{Result, HSTRING},
+    core::{Error, Result, HSTRING},
     Win32::{Foundation::*, UI::WindowsAndMessaging::*},
 };
 #[path = "edit_strip_catalog.rs"]
@@ -49,6 +49,42 @@ pub(super) unsafe fn create(owner: HWND, state: &State, visible: bool) -> Result
     }
     Ok(panel)
 }
+
+/// 钉图没有旧网格的滚动和属性控件；用真实编辑条 BUTTON 检查选择命令交付。
+pub(in crate::desktop) unsafe fn smoke(owner: HWND, state: &State) -> Result<()> {
+    use crate::editor::Tool;
+    let panel = state.tool_panel.get();
+    super::prepare(panel, state)?;
+    let button = GetDlgItem(Some(panel), i32::from(catalog::MODE))?;
+    for enabled in [true, false] {
+        let _ = SendMessageW(button, BM_CLICK, None, None);
+        let mut message = MSG::default();
+        if !PeekMessageW(
+            &mut message,
+            Some(owner),
+            super::EXECUTE,
+            super::EXECUTE,
+            PM_REMOVE,
+        )
+        .as_bool()
+            || message.wParam.0 != usize::from(catalog::MODE)
+        {
+            return Err(Error::new(E_FAIL, "Pinned edit strip did not route click"));
+        }
+        DispatchMessageW(&message);
+        let canvas = state.canvas.borrow();
+        if canvas.tool != Tool::Select || canvas.selection_enabled != enabled {
+            return Err(Error::new(
+                E_FAIL,
+                "Pinned edit strip did not toggle selection",
+            ));
+        }
+    }
+    super::super::edit_mode::toolbar_mode(owner, state, false)?;
+    println!("native-edit-strip-smoke: button=true selection=true silent=true");
+    Ok(())
+}
+
 fn key(id: u16) -> HSTRING {
     HSTRING::from(format!("Otter.EditStrip.Choice.{id}"))
 }

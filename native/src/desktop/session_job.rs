@@ -2,8 +2,9 @@
 use super::{
     loom_execution_signal::CompletionSignal,
     session_asset_root::Root,
-    session_candidate::{self, VectorCandidate},
+    session_candidate::{self, PreparedRestore},
 };
+use crate::loom_handshake::Handshake;
 #[path = "session_file.rs"]
 pub(super) mod file;
 #[path = "session_frozen_input.rs"]
@@ -21,22 +22,29 @@ use std::{
     thread::JoinHandle,
 };
 
+pub struct Ready {
+    pub restore: PreparedRestore,
+    pub(in crate::desktop) frozen: Option<frozen::Append>,
+}
+
 pub struct Job {
     cancel: Arc<AtomicBool>,
     ready: Arc<AtomicBool>,
-    worker: Option<JoinHandle<Result<VectorCandidate, String>>>,
+    worker: Option<JoinHandle<Result<Ready, String>>>,
 }
 impl Job {
-    pub fn start(
+    #[cfg(test)]
+    pub(crate) fn start(
         bytes: Vec<u8>,
         root: Option<Root>,
         notify: Arc<dyn Fn() + Send + Sync>,
     ) -> std::io::Result<Self> {
-        Self::start_input(Input::Bytes(bytes), root, notify)
+        Self::start_input(Input::Bytes(bytes), root, None, notify)
     }
     pub fn start_input(
         input: Input,
         root: Option<Root>,
+        catalog: Option<Handshake>,
         notify: Arc<dyn Fn() + Send + Sync>,
     ) -> std::io::Result<Self> {
         if matches!(&input, Input::Frozen(input) if !input.valid()) {
@@ -60,28 +68,31 @@ impl Job {
             .name("otter-session-prepare".into())
             .spawn(move || {
                 let _completion = CompletionSignal::new(completed, notify);
-                let (bytes, origin) = match input {
-                    Input::Bytes(bytes) => (bytes, None),
-                    Input::Frozen(input) => (input.prepare(&signal)?, None),
+                let (restore, frozen) = match input {
+                    Input::Frozen(input) => {
+                        drop(root); // 冻结实例不使用外部资产目录。
+                        let (restore, append) = input.prepare(catalog.as_ref(), &signal)?;
+                        (restore, Some(append))
+                    }
+                    Input::Bytes(bytes) => (
+                        PreparedRestore::prepare(bytes, root, catalog.as_ref(), &signal)
+                            .map_err(|error| error.to_string())?,
+                        None,
+                    ),
                     Input::File(path) => {
                         let (bytes, recovery) = file::read_recovering(&path, &signal)
                             .map_err(|error| error.to_string())?;
-                        (
-                            bytes,
-                            Some(session_candidate::Origin {
-                                requested: path,
-                                recovery,
-                            }),
-                        )
+                        let mut restore =
+                            PreparedRestore::prepare(bytes, root, catalog.as_ref(), &signal)
+                                .map_err(|error| error.to_string())?;
+                        restore.vector.candidate.origin = Some(session_candidate::Origin {
+                            requested: path,
+                            recovery,
+                        });
+                        (restore, None)
                     }
                 };
-                let root = root;
-                session_candidate::prepare(bytes, root.as_ref(), &signal)
-                    .and_then(|mut candidate| {
-                        candidate.origin = origin;
-                        VectorCandidate::prepare(candidate, &signal)
-                    })
-                    .map_err(|error| error.to_string())
+                Ok(Ready { restore, frozen })
             })?;
         Ok(Self {
             cancel,
@@ -92,8 +103,16 @@ impl Job {
     pub fn cancel(&self) {
         self.cancel.store(true, Ordering::Release);
     }
-    pub fn poll(&mut self) -> Option<Result<VectorCandidate, String>> {
-        if !self.ready.load(Ordering::Acquire) && !self.worker.as_ref()?.is_finished() {
+    pub fn deadline(&self) -> Option<std::time::Instant> {
+        self.worker.as_ref()?;
+        super::loom_execution_signal::reap_deadline(&self.ready)
+    }
+    #[cfg(test)]
+    fn test_wait_finished(&self) {
+        super::loom_execution_tasks::reap_fixture::wait_finished(self.worker.as_ref().unwrap());
+    }
+    pub fn poll(&mut self) -> Option<Result<Ready, String>> {
+        if !self.worker.as_ref()?.is_finished() {
             return None;
         }
         let result = self

@@ -21,7 +21,7 @@ mod session;
 mod workflow_dispatch;
 #[path = "loom_workflow_exchange_tests.rs"]
 mod workflow_exchange;
-#[cfg(windows)]
+#[cfg(all(windows, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "loom_workflow_sync_tests.rs"]
 mod workflow_sync;
 

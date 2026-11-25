@@ -14,6 +14,7 @@ fn separate_fill(stroke: &Stroke) -> bool {
             | Tool::Ellipse
             | Tool::Triangle
             | Tool::Polygon
+            | Tool::Text
             | Tool::Serial
     )
 }
@@ -91,10 +92,10 @@ pub(super) unsafe fn push<'a>(
     target: &'a ID2D1RenderTarget,
     stroke: &Stroke,
     viewport: Viewport,
-) -> Option<Layer<'a>> {
+) -> windows::core::Result<Option<Layer<'a>>> {
     let opacity = opacity(stroke);
     if opacity >= 1.0 {
-        return None;
+        return Ok(None);
     }
     let mut bounds = D2D_RECT_F {
         left: f32::INFINITY,
@@ -123,18 +124,8 @@ pub(super) unsafe fn push<'a>(
         stroke.width / 2.0
     } * viewport.scale
         + 2.0;
-    let size = target.GetSize();
-    let center = crate::rotation::center(&stroke.points);
-    let center = crate::viewport::Point {
-        x: viewport.origin.x + center.x * viewport.scale,
-        y: viewport.origin.y + center.y * viewport.scale,
-    };
-    // 目标边界先逆变换回标注空间，避免裁掉“旋转后进入画面”的部分。
-    let clip = crate::rotation::bounds(
-        (0.0, 0.0, size.width, size.height),
-        center,
-        -stroke.rotation,
-    );
+    // Layer bounds use drawing coordinates, including the host crop/scale and object rotation.
+    let clip = super::annotation_rotation::visible_bounds(target, 0.0)?;
     bounds.left = (bounds.left - pad).clamp(clip.0, clip.2);
     bounds.top = (bounds.top - pad).clamp(clip.1, clip.3);
     bounds.right = (bounds.right + pad).clamp(clip.0, clip.2);
@@ -147,5 +138,5 @@ pub(super) unsafe fn push<'a>(
     parameters.maskTransform.M11 = 1.0;
     parameters.maskTransform.M22 = 1.0;
     target.PushLayer(&parameters, None);
-    Some(Layer(target))
+    Ok(Some(Layer(target)))
 }

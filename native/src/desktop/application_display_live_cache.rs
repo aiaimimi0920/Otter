@@ -82,13 +82,27 @@ impl Cache {
         }
         changed
     }
-    pub(in crate::desktop::application) fn request_live(
+    fn live_entry(&self, source: &UnitId, identity: &Arc<()>) -> Option<&Entry> {
+        self.entries.iter().find(|entry| {
+            entry.key.source == *source
+                && matches!(&entry.key.origin, Origin::Live(old) if Arc::ptr_eq(old, identity))
+        })
+    }
+    pub(in crate::desktop::application) fn live_image(
+        &self,
+        source: &UnitId,
+        identity: &Arc<()>,
+    ) -> Option<&Image> {
+        self.live_entry(source, identity)?.result.as_ref().ok()
+    }
+    /// true 表示首次图像仍待定；刷新期间已提交的旧图仍可用于显示图。
+    pub(in crate::desktop::application) fn poll_live_source(
         &mut self,
         source: &UnitId,
         identity: Arc<()>,
         capture: impl FnOnce() -> Result<Option<Frame>, ()>,
-        notify: Notify,
-    ) -> Result<Option<Image>, ()> {
+        notify: impl Fn() -> Notify,
+    ) -> bool {
         if self.running.is_none() {
             if let Some(index) = self.live_refreshes.iter().position(|pending| {
                 pending.source == *source && Arc::ptr_eq(&pending.identity, &identity)
@@ -100,18 +114,15 @@ impl Cache {
                         origin: Origin::Live(pending.identity),
                     },
                     pending.frame,
-                    notify.clone(),
+                    notify(),
                 );
             }
         }
-        if let Some(entry) = self.entries.iter().find(|entry| {
-            entry.key.source == *source
-                && matches!(&entry.key.origin, Origin::Live(old) if Arc::ptr_eq(old, &identity))
-        }) {
-            return entry.result.clone().map(Some);
+        if self.live_entry(source, &identity).is_some() {
+            return false;
         }
         if self.running.is_some() {
-            return Ok(None);
+            return true;
         }
         let key = Key {
             source: source.clone(),
@@ -119,16 +130,16 @@ impl Cache {
         };
         let frame = match capture() {
             Ok(Some(frame)) => frame,
-            Ok(None) => return Ok(None),
+            Ok(None) => return true,
             Err(()) => {
                 self.entries.push(Entry {
                     key,
                     result: Err(()),
                 });
-                return Err(());
+                return false;
             }
         };
-        self.start_live(key, frame, notify)
+        self.start_live(key, frame, notify()).is_ok()
     }
     fn start_live(&mut self, key: Key, frame: Frame, notify: Notify) -> Result<Option<Image>, ()> {
         self.start(key, notify, move |cancel| {
@@ -141,5 +152,44 @@ impl Cache {
                 pixels: image.pixels,
             })
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn settled_live_poll_neither_captures_nor_builds_a_notifier() {
+        let source = UnitId::parse("live").unwrap();
+        let owner = Arc::new(());
+        let pixels = vec![0, 0, 0, 255].into();
+        let image = Image {
+            width: 1,
+            height: 1,
+            pixels,
+        };
+        let mut cache = Cache::default();
+        cache.entries.push(Entry {
+            key: Key {
+                source: source.clone(),
+                origin: Origin::Live(owner.clone()),
+            },
+            result: Ok(image.clone()),
+        });
+        assert!(!cache.poll_live_source(
+            &source,
+            owner.clone(),
+            || panic!("settled source must not capture another frame"),
+            || panic!("settled source must not build a notifier"),
+        ));
+        assert!(cache
+            .live_image(&source, &owner)
+            .unwrap()
+            .pixels
+            .same_storage(&image.pixels));
+        assert!(cache.live_image(&source, &Arc::new(())).is_none());
+        assert!(cache.retain_live(|_, _| false));
+        assert!(cache.live_image(&source, &owner).is_none());
     }
 }

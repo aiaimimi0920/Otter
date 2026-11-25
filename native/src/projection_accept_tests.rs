@@ -238,7 +238,7 @@ fn deterministic_session_keeps_projection_and_encoded_budget_without_copying_pix
     let intent = store.begin(&invitation(ORIGIN), "device-1").unwrap();
     let image = verified(ORIGIN).bind_intent(&intent).unwrap();
     let pixels = image.image().pixels.clone();
-    let (bytes, decoded) = image
+    let (bytes, decoded, expected) = image
         .into_session(
             &intent,
             crate::session_projection_scope::Scope::generate().unwrap(),
@@ -256,6 +256,12 @@ fn deterministic_session_keeps_projection_and_encoded_budget_without_copying_pix
         )
         .unwrap();
     assert!(decoded.pixels.same_storage(&pixels));
+    assert!(expected.source_matches(&decoded, || false));
+    assert!(expected.matches_ticket(&intent));
+    let source = bytes.clone().into();
+    assert!(super::super::binding::checkpoint::Index::capture(&source)
+        .unwrap()
+        .includes(&expected));
     let value: Value = serde_json::from_slice(&bytes).unwrap();
     let sticker = &value["stickers"][0];
     assert_eq!(sticker["qrProjection"]["localUnitId"], sticker["id"]);

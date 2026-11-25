@@ -59,6 +59,6 @@ impl Ticket {
         self.store.persist(&mut state, entries, cancel)
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "projection_edit_journal_rejection_tests.rs"]
 mod tests;

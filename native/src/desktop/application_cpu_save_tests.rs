@@ -7,6 +7,74 @@ use crate::{
 };
 
 #[test]
+fn save_promotes_only_the_committed_transient_host() {
+    unsafe {
+        let environment = Environment::new();
+        let fixture = smoke_session_fixture::Directory::new().unwrap();
+        let mut app = Application::new(
+            environment.instance,
+            DocumentWindow::create(
+                environment.instance,
+                State::new(None, false).unwrap(),
+                false,
+            )
+            .unwrap(),
+        );
+        let host = app.documents[0].state.unit_id.clone();
+        let cancel = AtomicBool::new(false);
+        app.request_save_new(fixture.target()).unwrap();
+        save::prepared(&mut app)
+            .unwrap()
+            .commit_ready(&mut app, &cancel)
+            .unwrap();
+        assert_eq!(
+            app.restored_session
+                .as_ref()
+                .unwrap()
+                .transient_host
+                .as_ref(),
+            Some(&host)
+        );
+        let before = std::fs::read(fixture.target()).unwrap();
+        assert!(!crate::session_document::decode(&before)
+            .unwrap()
+            .workspace
+            .contains(&host));
+
+        app.documents[0].state.canvas.borrow_mut().pinned = true;
+        app.request_save_existing().unwrap();
+        let prepared = save::prepared(&mut app).unwrap();
+        // Change only the host classification, after the worker has completed.
+        app.restored_session.as_mut().unwrap().transient_host = None;
+        let rejected = prepared.commit_ready(&mut app, &cancel);
+        assert_eq!(rejected.err().unwrap().code(), E_ABORT);
+        assert_eq!(std::fs::read(fixture.target()).unwrap(), before);
+        assert_eq!(
+            app.restored_session.as_ref().unwrap().original.as_ref(),
+            before
+        );
+
+        app.restored_session.as_mut().unwrap().transient_host = Some(host.clone());
+        app.request_save_existing().unwrap();
+        save::prepared(&mut app)
+            .unwrap()
+            .commit_ready(&mut app, &cancel)
+            .unwrap();
+        assert!(app
+            .restored_session
+            .as_ref()
+            .unwrap()
+            .transient_host
+            .is_none());
+        let after = std::fs::read(fixture.target()).unwrap();
+        assert!(crate::session_document::decode(&after)
+            .unwrap()
+            .workspace
+            .contains(&host));
+    }
+}
+
+#[test]
 fn cpu_edit_undo_save_file_restore_and_repaint_preserve_pixels_and_vectors() {
     unsafe {
         let environment = Environment::new();
@@ -54,7 +122,8 @@ fn cpu_edit_undo_save_file_restore_and_repaint_preserve_pixels_and_vectors() {
         let stroke = doc.state.canvas.borrow().editor.elements()[0].clone();
         let viewport = doc.state.canvas.borrow().viewport;
         let dpi = windows::Win32::UI::HiDpi::GetDpiForWindow(doc.window.0);
-        let path = save_publish::smoke_destination().unwrap();
+        let fixture = smoke_session_fixture::Directory::new().unwrap();
+        let path = fixture.target();
         app.request_save_new(path.clone()).unwrap();
         let output = save::prepared(&mut app).unwrap();
         let expected = output.candidate.bytes.clone();
@@ -131,7 +200,7 @@ fn cpu_edit_undo_save_file_restore_and_repaint_preserve_pixels_and_vectors() {
         assert!(restored.state.canvas.borrow().software_selected());
         assert!(restored.state.canvas.borrow().confirmed_paints > 0);
         assert!(!IsWindowVisible(restored.window.0).as_bool());
-        // 独占 linshi GUID 文件保留为业务回执，不触碰真实 profile 或用户文档。
+        // 文件由独占夹具回收；日志保留通过的恢复与像素断言。
         println!("native-cpu-save-test: file={} pixels=true vectors=true undo=true redo=true restored=true", path.display());
     }
 }

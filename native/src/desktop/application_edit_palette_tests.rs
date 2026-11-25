@@ -2,45 +2,14 @@
 use super::*;
 use crate::{desktop::Apartment, editor::Tool, stroke_style::Color, viewport::Point};
 use neuro_mini_ui::Rgba;
-struct Class {
-    instance: HINSTANCE,
-    owned: bool,
-}
-impl Class {
-    unsafe fn new() -> Self {
-        let instance = HINSTANCE(
-            windows::Win32::System::LibraryLoader::GetModuleHandleW(None)
-                .unwrap()
-                .0,
-        );
-        let owned = RegisterClassW(&WNDCLASSW {
-            hInstance: instance,
-            lpszClassName: w!("Otter.Native.Workspace"),
-            lpfnWndProc: Some(crate::desktop::procedure::window_proc),
-            ..Default::default()
-        }) != 0;
-        assert!(owned || GetLastError() == ERROR_CLASS_ALREADY_EXISTS);
-        Self { instance, owned }
-    }
-}
-impl Drop for Class {
-    fn drop(&mut self) {
-        if self.owned {
-            unsafe {
-                UnregisterClassW(w!("Otter.Native.Workspace"), Some(self.instance)).unwrap();
-            }
-        }
-    }
-}
 #[test]
 fn removal_propagates_defaults_across_documents_without_rewriting_selected_objects_or_new_apply() {
     unsafe {
         let _apartment = Apartment::new().unwrap();
-        let class = Class::new();
+        let instance = crate::desktop::workspace_window_fixture::register();
         let initial =
-            DocumentWindow::create(class.instance, State::new(None, false).unwrap(), false)
-                .unwrap();
-        let mut app = Application::new(class.instance, initial);
+            DocumentWindow::create(instance, State::new(None, false).unwrap(), false).unwrap();
+        let mut app = Application::new(instance, initial);
         let next = app
             .prepare_window(State::new(None, false).unwrap(), false)
             .unwrap();

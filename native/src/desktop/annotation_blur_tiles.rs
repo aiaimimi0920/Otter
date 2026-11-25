@@ -92,6 +92,6 @@ pub(super) unsafe fn draw(
     Ok(())
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-surface")))]
 #[path = "blur_tile_tests.rs"]
 mod tests;

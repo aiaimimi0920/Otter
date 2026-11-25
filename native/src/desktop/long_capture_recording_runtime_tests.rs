@@ -13,6 +13,8 @@ struct Driver {
     stage: u8,
     deadline: Instant,
     error: Option<String>,
+    exercise_cover: bool,
+    cover: Option<crate::desktop::Window>,
 }
 thread_local! { static DRIVER: RefCell<Option<Driver>> = const { RefCell::new(None) }; }
 unsafe fn initialize_process_dpi() {
@@ -79,9 +81,27 @@ unsafe extern "system" fn tick(_: HWND, _: u32, _: usize, _: u32) {
                     )
                     .unwrap();
                     assert!(input.recording.running());
-                    move_content(driver);
-                    emit(driver, input);
-                    driver.stage = 1;
+                    if driver.exercise_cover {
+                        let region = driver.fixture.region;
+                        driver.cover = Some(show_cover(corner_cover(region), true));
+                        assert_center_is_source(region, driver.fixture.hwnd);
+                        driver.stage = 4;
+                    } else {
+                        move_content(driver);
+                        emit(driver, input);
+                        driver.stage = 1;
+                    }
+                }
+                4 if input.recording.covered.get() => {
+                    assert!(input.recording.running());
+                    assert!(input.recording.hook.borrow().is_some());
+                    assert_eq!(input.job.borrow().snapshot().frame_count, 1);
+                    let mut text = [0u16; 128];
+                    let count = GetDlgItemTextW(hwnd, 103, &mut text) as usize;
+                    assert!(String::from_utf16_lossy(&text[..count]).contains("随后自动继续"));
+                    drop(driver.cover.take().unwrap());
+                    driver.exercise_cover = false;
+                    driver.stage = 0;
                 }
                 1 | 2
                     if !input.job.borrow().is_pending()
@@ -94,6 +114,10 @@ unsafe extern "system" fn tick(_: HWND, _: u32, _: usize, _: u32) {
                         emit(driver, input);
                         driver.stage = 2;
                     } else {
+                        assert!(!input.recording.covered.get());
+                        let mut text = [0u16; 32];
+                        let count = GetDlgItemTextW(hwnd, 103, &mut text) as usize;
+                        assert_eq!(String::from_utf16_lossy(&text[..count]), "录制中");
                         super::super::handle(hwnd, WM_COMMAND, WPARAM(112), LPARAM(0));
                         assert!(input.recording.hook.borrow().is_none());
                         super::super::handle(hwnd, WM_COMMAND, WPARAM(1), LPARAM(0));
@@ -181,12 +205,103 @@ fn presented_sample(region: Region, expected: [u8; 4]) -> Image {
         std::thread::sleep(Duration::from_millis(15));
     }
 }
+unsafe fn show_cover(region: Region, raise_over_overlay: bool) -> crate::desktop::Window {
+    use std::sync::OnceLock;
+    use windows::core::w;
+    use windows::Win32::Graphics::{Dwm::DwmFlush, Gdi::*};
+    use windows::Win32::System::LibraryLoader::GetModuleHandleW;
+
+    unsafe extern "system" fn cover_proc(
+        hwnd: HWND,
+        message: u32,
+        wp: WPARAM,
+        lp: LPARAM,
+    ) -> LRESULT {
+        DefWindowProcW(hwnd, message, wp, lp)
+    }
+
+    let class = w!("Otter.LongCapture.OwnedCoverFixture");
+    let instance = GetModuleHandleW(None).unwrap();
+    static CLASS: OnceLock<()> = OnceLock::new();
+    CLASS.get_or_init(|| {
+        assert_ne!(
+            RegisterClassW(&WNDCLASSW {
+                lpfnWndProc: Some(cover_proc),
+                hInstance: instance.into(),
+                hbrBackground: HBRUSH(GetStockObject(WHITE_BRUSH).0),
+                lpszClassName: class,
+                ..Default::default()
+            }),
+            0
+        );
+    });
+    let cover = crate::desktop::Window(
+        CreateWindowExW(
+            WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TOPMOST,
+            class,
+            w!("Otter long capture cover fixture"),
+            WS_POPUP,
+            region.left,
+            region.top,
+            region.width,
+            region.height,
+            None,
+            None,
+            Some(instance.into()),
+            None,
+        )
+        .unwrap(),
+    );
+    let _ = ShowWindow(cover.0, SW_SHOWNOACTIVATE);
+    if raise_over_overlay {
+        // The running recording already owns topmost windows on this desktop.
+        SetWindowPos(
+            cover.0,
+            Some(HWND_TOPMOST),
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+        )
+        .unwrap();
+    }
+    let _ = UpdateWindow(cover.0);
+    DwmFlush().unwrap();
+    let _ = presented_sample(region, [255, 255, 255, 255]);
+    assert_eq!(
+        WindowFromPoint(POINT {
+            x: region.left + region.width / 2,
+            y: region.top + region.height / 2,
+        }),
+        cover.0
+    );
+    cover
+}
 fn move_content(driver: &mut Driver) {
     if driver.drag {
         driver.fixture.drag(driver.axis, driver.forward);
     } else {
         driver.fixture.wheel(driver.axis, driver.forward);
     }
+}
+fn corner_cover(region: Region) -> Region {
+    Region {
+        width: region.width / 3,
+        height: region.height / 3,
+        ..region
+    }
+}
+unsafe fn assert_center_is_source(region: Region, source: HWND) {
+    let center = POINT {
+        x: region.left + region.width / 2,
+        y: region.top + region.height / 2,
+    };
+    assert_eq!(
+        WindowFromPoint(center),
+        source,
+        "center must stay uncovered"
+    );
 }
 #[test]
 #[ignore = "explicit visible owned-window runtime gate; never touches user application input"]
@@ -218,16 +333,19 @@ fn owned_native_window_records_wheel_and_drag_in_four_directions_to_exact_final_
                         stage: 0,
                         deadline: Instant::now() + Duration::from_secs(15),
                         error: None,
+                        exercise_cover: axis == Axis::Vertical && forward && !drag,
+                        cover: None,
                     })
                 });
                 let timer = SetTimer(None, 0, 30, Some(tick));
                 assert_ne!(timer, 0);
                 let result = super::super::show_recording(
                     HWND::default(),
-                    first,
-                    POINT {
-                        x: region.left,
-                        y: region.top,
+                    RECT {
+                        left: region.left,
+                        top: region.top,
+                        right: region.left + region.width,
+                        bottom: region.top + region.height,
                     },
                     &std::rc::Rc::new(Cell::new(true)),
                 );
@@ -309,10 +427,8 @@ fn owned_target_move_is_rejected_without_publishing_new_pixels() {
     };
     let mut fixture = fixture::Fixture::start();
     let region = fixture.region;
-    let first =
-        crate::desktop::capture::region(region.left, region.top, region.width, region.height)
-            .unwrap();
-    let (mut job, _) = long_capture_source::start_recording(region, first.pixels).unwrap();
+    let _ = presented_sample(region, fixture::pixel(136, 136));
+    let (mut job, _) = long_capture_source::start_recording(region).unwrap();
     fixture.move_window();
     job.capture().unwrap();
     let end = Instant::now() + Duration::from_secs(5);
@@ -330,3 +446,6 @@ fn owned_target_move_is_rejected_without_publishing_new_pixels() {
         windows::Win32::UI::HiDpi::SetThreadDpiAwarenessContext(previous);
     }
 }
+
+#[path = "long_capture_first_frame_runtime_tests.rs"]
+mod first_frame;

@@ -202,7 +202,10 @@ impl Session {
     }
     fn read_candidate(&self) -> Result<String> {
         let candidate = self.control.text().and_then(|raw| {
-            let text = normalized(self.kind, &raw).into_owned();
+            let text = match normalized(self.kind, &raw) {
+                std::borrow::Cow::Borrowed(_) => raw,
+                std::borrow::Cow::Owned(text) => text,
+            };
             let units = text.encode_utf16().count();
             // HTML maxlength 只限制用户编辑；已有更长权威值仍允许逐步缩短。
             if units > self.user_limit && units > self.draft.value().encode_utf16().count() {

@@ -1,16 +1,26 @@
 """纯字节检查实际 x64 DLL 的 PE、必需导出及静态 CRT 导入边界；不加载 DLL。"""
 
+import hashlib
+import os
 import re
 import struct
 from pathlib import Path
 
-from toolchain_paths import file_hash
+from toolchain_paths import MAX_HASH_BYTES, checked_path, file_hash
 
 
 class Image:
     def __init__(self, path):
-        self.sha256 = file_hash(path)
-        self.data = path.read_bytes()
+        path = checked_path(str(path), directory=False)
+        with path.open("rb") as stream:
+            size = os.fstat(stream.fileno()).st_size
+            if size > MAX_HASH_BYTES:
+                raise ValueError("PE image exceeds size limit")
+            self.data = stream.read(size + 1)
+        if len(self.data) != size:
+            raise ValueError("PE image size changed during read")
+        # The receipt identifies exactly the bytes inspected below, not an earlier path read.
+        self.sha256 = hashlib.sha256(self.data).hexdigest()
         if self.data[:2] != b"MZ":
             raise ValueError("Missing PE DOS header")
         header = self.number(0x3c)

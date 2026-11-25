@@ -43,20 +43,7 @@ pub(super) fn drain(
                 first.get_or_insert_with(|| Error::new(E_FAIL, error));
             }
         }
-        if let Err(error) = visibility.poll() {
-            first.get_or_insert_with(|| Error::new(E_FAIL, error.to_string()));
-        }
-        let mut index = 0;
-        while index < sessions.len() {
-            if let Some(result) = sessions[index].poll() {
-                sessions.swap_remove(index);
-                if let Err(error) = result {
-                    first.get_or_insert_with(|| Error::new(E_FAIL, error));
-                }
-            } else {
-                index += 1;
-            }
-        }
+        settle_local(sessions, visibility, &mut first);
         if sessions.is_empty()
             && visibility.finished()
             && authorization.finished()
@@ -108,6 +95,29 @@ pub(super) fn drain(
     first.map_or(Ok(()), Err)
 }
 
-#[cfg(test)]
+fn settle_local(
+    sessions: &mut Vec<Session>,
+    visibility: &mut crate::live_visibility_owner::Owner,
+    first: &mut Option<Error>,
+) {
+    let mut index = 0;
+    while index < sessions.len() {
+        if let Some(result) = sessions[index].poll() {
+            sessions.swap_remove(index);
+            if let Err(error) = result {
+                first.get_or_insert_with(|| Error::new(E_FAIL, error));
+            }
+        } else {
+            index += 1;
+        }
+    }
+    // Session polling can release the final source lease after input cleanup. Submit its
+    // retirement before taking the wait-set snapshot; an idle helper cannot wake us for it.
+    if let Err(error) = visibility.poll() {
+        first.get_or_insert_with(|| Error::new(E_FAIL, error.to_string()));
+    }
+}
+
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-live")))]
 #[path = "application_live_shutdown_tests.rs"]
 mod tests;

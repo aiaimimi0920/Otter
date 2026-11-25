@@ -28,6 +28,22 @@ fn source_input_bridge_waits_for_actual_reply_and_rejects_second_inflight() {
     );
 }
 #[test]
+fn source_input_bridge_cancel_wakes_ui_only_once() {
+    let bridge = Bridge::new();
+    // 模拟网络线程先取消，UI 处理唤醒后继续等待输入 worker 释放。
+    let worker = bridge.clone();
+    std::thread::spawn(move || worker.cancel()).join().unwrap();
+    let mut message = MSG::default();
+    assert!(unsafe { PeekMessageW(&mut message, None, 0, 0, PM_REMOVE) }.as_bool());
+    assert_eq!(message.message, WM_NULL);
+    for _ in 0..8 {
+        bridge.cancel();
+    }
+    assert!(!unsafe { PeekMessageW(&mut message, None, 0, 0, PM_REMOVE) }.as_bool());
+    assert!(bridge.stopping());
+}
+
+#[test]
 fn source_input_bridge_cancel_discards_late_request_without_ack_or_requeue() {
     let bridge = Bridge::new();
     let worker = bridge.clone();

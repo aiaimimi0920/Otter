@@ -67,7 +67,7 @@ fn ordinary_product_art_formal_result_continuous_projection_preview_stop_and_res
     let _dpi = Dpi(old);
     let fixture = fixture::Fixture::new();
     let original = fixture.workspace().unwrap()["stickers"][0]["src"].clone();
-    let mut peer = peer::Peer::with_source(&fixture.root, SOURCE);
+    let mut peer = peer::Peer::with_outputs(&fixture.root, SOURCE, false);
     peer.state.lock().unwrap().projection.enabled = true;
     let ui = ui::Ui::new();
     let foreground = foreground::Owner::new();

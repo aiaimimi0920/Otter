@@ -50,6 +50,6 @@ pub(super) unsafe fn dispatch(hwnd: HWND, state: &State, wp: WPARAM, lp: LPARAM)
     LRESULT(0)
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "procedure_wheel_window_tests.rs"]
 mod window_tests;

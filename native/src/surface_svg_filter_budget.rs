@@ -97,6 +97,6 @@ fn list(value: &str, limit: usize, total: &mut usize) -> io::Result<(usize, [f64
     Ok((count, first))
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-surface")))]
 #[path = "surface_svg_filter_budget_tests.rs"]
 mod tests;

@@ -9,7 +9,7 @@ pub(super) unsafe fn drag_position_only(state: &State, msg: u32, lp: LPARAM) -> 
         return false;
     }
     match msg {
-        WM_MOVING | WM_MOVE | super::super::window_geometry_wake::MESSAGE => true,
+        WM_MOVING | WM_MOVE => true,
         WM_WINDOWPOSCHANGED if lp.0 != 0 => {
             let flags = (*(lp.0 as *const WINDOWPOS)).flags;
             flags.contains(SWP_NOSIZE)

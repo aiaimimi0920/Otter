@@ -137,6 +137,6 @@ impl Application {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "application_context_menu_tests.rs"]
 mod tests;

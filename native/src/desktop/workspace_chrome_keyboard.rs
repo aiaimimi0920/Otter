@@ -64,7 +64,6 @@ unsafe fn current(ui: &Ui, port: Port, catalog: &Rc<Catalog>) -> bool {
 unsafe fn available(ui: &Ui, catalog: &Rc<Catalog>) -> Vec<Port> {
     draw::ports(ui)
         .into_iter()
-        .map(|(port, _, _)| port)
         .filter(|port| current(ui, *port, catalog))
         .filter(|port| strip(ui, *port).is_some_and(|hwnd| IsWindowVisible(hwnd).as_bool()))
         .collect()
@@ -342,6 +341,6 @@ pub(super) unsafe fn translate(ui: &Ui, message: &MSG) -> bool {
     }
     true
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "workspace_chrome_keyboard_tests.rs"]
 mod tests;

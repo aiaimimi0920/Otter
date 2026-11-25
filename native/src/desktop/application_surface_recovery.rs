@@ -1,4 +1,4 @@
-//! 磁盘提示到只读恢复查询的认证边界；查询不会重放创建或自动 remount。
+//! 恢复提示到只读查询的认证边界；查询不会重放创建或自动 remount。
 use super::*;
 use crate::{
     desktop::composition::relay::sessions::Sessions,
@@ -36,6 +36,12 @@ pub(super) fn query(
     selected: Option<&str>,
     auth: &mut Owner,
     sessions: &mut Sessions,
+    config: impl FnOnce(
+        &str,
+    ) -> std::result::Result<
+        crate::device_authorization_config::Config,
+        crate::device_authorization_config::Error,
+    >,
 ) -> std::result::Result<(), String> {
     if selected != Some(record.origin()) || sessions.querying_recovery() || sessions.attaching() {
         return Err("服务已变化或恢复查询仍在进行".into());
@@ -45,8 +51,7 @@ pub(super) fn query(
         .lease(record.origin(), now)
         .map_err(|error| format!("请先获取有效授权：{error:?}"))?;
     let request = request(record, record.origin(), lease.device_id())?;
-    let config = crate::device_authorization_config::Config::from_env(record.origin())
-        .map_err(|error| format!("配置无效：{error:?}"))?;
+    let config = config(record.origin()).map_err(|error| format!("配置无效：{error:?}"))?;
     sessions
         .query_surface_recovery(config, lease, Arc::new(request))
         .map_err(|error| format!("恢复查询未启动：{error}"))
@@ -124,7 +129,8 @@ mod tests {
             &record,
             Some(record.origin()),
             &mut Owner::default(),
-            &mut sessions
+            &mut sessions,
+            |_| panic!("unauthorized recovery must not read configuration")
         )
         .is_err());
         assert!(!sessions.querying_recovery());

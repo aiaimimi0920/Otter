@@ -78,9 +78,9 @@ impl ImageValue {
     pub(crate) fn png_base64(encoded: &str, cancel: &AtomicBool) -> Result<Self> {
         let png = super::loom_output_inline::decode_bytes("image/png", encoded, cancel)?;
         let _apartment = super::Apartment::new()?;
-        let image = Image::from_encoded(&png)?;
+        let image = Image::from_encoded_with_cancel(&png, &|| cancel.load(Ordering::Acquire));
         check(cancel)?;
-        Self::from_png(image, png)
+        Self::from_png(image?, png)
     }
 }
 fn check(cancel: &AtomicBool) -> Result<()> {
@@ -91,6 +91,6 @@ fn check(cancel: &AtomicBool) -> Result<()> {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-loom")))]
 #[path = "loom_image_value_tests.rs"]
 mod tests;

@@ -121,13 +121,13 @@ impl Owner {
         self.popup.matches(wp, lp)
     }
     pub fn synchronize(&mut self, state: &State) -> Result<()> {
-        let Some(current) = current(state, &self.focus) else {
-            return Ok(());
-        };
-        self.focus = current;
         let Some(frame) = actions::active(state) else {
             return Ok(());
         };
+        let Some(current) = current_in_frame(state, &self.focus, &frame) else {
+            return Ok(());
+        };
+        self.focus = current;
         let pending = state.shared.lock().actions.preview_pending(
             &self.edit,
             &frame,
@@ -135,7 +135,11 @@ impl Owner {
         );
         match &mut self.control {
             Control::Select(c, accepted) if !pending => {
-                if let Some(field) = actions::values::field(state, self.focus.anchor.pixel) {
+                let field =
+                    state.renderer.borrow().as_ref().and_then(|r| {
+                        r.value(&frame, self.focus.anchor.pixel, actions::modifiers())
+                    });
+                if let Some(field) = field {
                     if let crate::tile_surface_value::Control::Select(o) = field.control {
                         let desired = match local::value(state, &self.focus) {
                             Some(crate::tile_surface_local::Value::Select(v)) => v,
@@ -149,28 +153,36 @@ impl Owner {
                 }
             }
             Control::Slider(c, drag) => {
-                if let Some(field) = state
+                let field = state
                     .renderer
                     .borrow()
                     .as_ref()
-                    .and_then(|r| r.slider(&frame, self.focus.anchor.pixel))
-                {
+                    .and_then(|r| r.slider(&frame, self.focus.anchor.pixel));
+                let source = field.as_ref().map(|field| field.source());
+                if let Some(field) = field {
                     drag.field = field;
                 }
                 if !pending {
-                    let scene =
-                        crate::surface_scene::Scene::parse(&self.focus.anchor.snapshot.scene)
-                            .map_err(|_| Error::new(E_INVALIDARG, "Tile range scene"))?;
-                    if let Some(node) = scene.root().visible_node(&self.focus.node) {
-                        if let Ok(range) = crate::surface_slider::Range::parse(node) {
-                            drag.value = match local::value(state, &self.focus) {
-                                Some(crate::tile_surface_local::Value::Slider(v)) => v,
-                                _ => range.source(),
-                            };
-                            // 同值同步不取消正在原生子控件内持有的鼠标拖动。
-                            if c.value()? != drag.value {
-                                c.set_value(drag.value)?;
-                            }
+                    let source = if source.is_some() {
+                        source
+                    } else {
+                        let scene =
+                            crate::surface_scene::Scene::parse(&self.focus.anchor.snapshot.scene)
+                                .map_err(|_| Error::new(E_INVALIDARG, "Tile range scene"))?;
+                        scene
+                            .root()
+                            .visible_node(&self.focus.node)
+                            .and_then(|node| crate::surface_slider::Range::parse(node).ok())
+                            .map(|range| range.source())
+                    };
+                    if let Some(source) = source {
+                        drag.value = match local::value(state, &self.focus) {
+                            Some(crate::tile_surface_local::Value::Slider(v)) => v,
+                            _ => source,
+                        };
+                        // 同值同步不取消正在原生子控件内持有的鼠标拖动。
+                        if c.value()? != drag.value {
+                            c.set_value(drag.value)?;
                         }
                     }
                 }

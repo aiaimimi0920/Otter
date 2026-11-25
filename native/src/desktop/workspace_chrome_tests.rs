@@ -1,19 +1,7 @@
 //! 自有 HWND/原 Application 事务；不注册热键、不改前台、不注入物理输入。
 use super::*;
 pub(in crate::desktop::application) unsafe fn app() -> Application {
-    let instance = HINSTANCE(
-        windows::Win32::System::LibraryLoader::GetModuleHandleW(None)
-            .unwrap()
-            .0,
-    );
-    let class = WNDCLASSW {
-        hInstance: instance,
-        lpszClassName: w!("Otter.Native.Workspace"),
-        lpfnWndProc: Some(desktop::procedure::window_proc),
-        ..Default::default()
-    };
-    let registered = RegisterClassW(&class);
-    assert!(registered != 0 || GetLastError() == ERROR_CLASS_ALREADY_EXISTS);
+    let instance = crate::desktop::workspace_window_fixture::register();
     Application::new(
         instance,
         DocumentWindow::create(instance, State::new(None, false).unwrap(), false).unwrap(),

@@ -87,6 +87,6 @@ impl<T> WindowSignal<T> {
         Some(self.consumer.try_next())
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-live")))]
 #[path = "composition_live_notify_tests.rs"]
 mod tests;

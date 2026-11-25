@@ -55,6 +55,14 @@ pub(in crate::desktop::application::restore_batch) unsafe fn verify(
         return Err(Error::new(E_FAIL, "Invalid restoration damaged workspace"));
     }
     app.request_restore(EMPTY.to_vec(), None, space)?;
+    app.catalog.borrow_mut().loaded = Some(super::super::smoke::catalog()?);
+    if settle(&mut app).is_ok() || !IsWindow(Some(original)).as_bool() {
+        return Err(Error::new(
+            E_FAIL,
+            "Async restoration accepted a replaced catalog snapshot",
+        ));
+    }
+    app.request_restore(EMPTY.to_vec(), None, space)?;
     settle(&mut app)?;
     if IsWindow(Some(original)).as_bool()
         || app.documents.len() != 1
@@ -80,10 +88,19 @@ unsafe fn verify_offline(
     app: &mut Application,
     space: crate::session_placement::Space,
 ) -> Result<()> {
-    const SESSION: &[u8] = br#"{"stickers":[{"id":"offline-art","type":"art","artId":"unavailable","x":0,"y":0,"w":20,"h":20,"params":{"opaque":"retained"}},{"id":"offline-sticker","x":30,"y":0,"w":20,"h":20}],"links":[]}"#;
+    let png = include_bytes!("../../assets/branding/32x32.png");
+    let url = crate::loom_base64::encode_png_data_url(png, &AtomicBool::new(false))
+        .map_err(|error| Error::new(E_FAIL, format!("Offline Art output fixture: {error:?}")))?;
+    let session = serde_json::json!({"stickers":[
+        {"id":"offline-art","type":"art","artId":"unavailable","x":0,"y":0,"w":20,"h":20,
+         "params":{"opaque":"retained"},"outputs":{"output_image":url.as_str(),"text":"retained"}},
+        {"id":"offline-sticker","x":30,"y":0,"w":20,"h":20}
+    ],"links":[]})
+    .to_string()
+    .into_bytes();
     let old = app.documents[0].window.0;
     app.catalog.borrow_mut().loaded = None;
-    app.request_restore(SESSION.to_vec(), None, space)?;
+    app.request_restore(session.clone(), None, space)?;
     app.catalog.borrow_mut().loaded = Some(super::super::smoke::catalog()?);
     if settle(app).is_ok() || !IsWindow(Some(old)).as_bool() {
         return Err(Error::new(
@@ -92,7 +109,7 @@ unsafe fn verify_offline(
         ));
     }
     app.catalog.borrow_mut().loaded = None;
-    app.request_restore(SESSION.to_vec(), None, space)?;
+    app.request_restore(session.clone(), None, space)?;
     settle(app)?;
     if app.documents.len() != 2
         || IsWindow(Some(old)).as_bool()
@@ -100,7 +117,7 @@ unsafe fn verify_offline(
         || app
             .restored_session
             .as_ref()
-            .is_none_or(|record| record.original.as_slice() != SESSION)
+            .is_none_or(|record| record.original.as_slice() != session)
         || app.documents.iter().any(|doc| {
             doc.state.selected_art.borrow().is_some()
                 || doc.state.execution_results.borrow().active().is_some()
@@ -116,11 +133,26 @@ unsafe fn verify_offline(
         if doc.state.is_art() != expected_art {
             return Err(Error::new(E_FAIL, "Offline Art type degraded to sticker"));
         }
-        if expected_art && crate::desktop::display_edit::prepare_content(&doc.state) {
-            return Err(Error::new(
-                E_FAIL,
-                "Unbound Art admitted sticker-only content editing",
-            ));
+        if expected_art {
+            if crate::desktop::display_edit::prepare_content(&doc.state) {
+                return Err(Error::new(
+                    E_FAIL,
+                    "Unbound Art admitted sticker-only content editing",
+                ));
+            }
+            let results = doc.state.execution_results.borrow();
+            if !results
+                .image_source("output_image")
+                .is_some_and(|source| (source.image.width, source.image.height) == (32, 32))
+                || !results
+                    .save_value_outputs()
+                    .is_some_and(|values| values["text"] == "retained")
+            {
+                return Err(Error::new(
+                    E_FAIL,
+                    "Offline Art discarded worker-prepared formal outputs",
+                ));
+            }
         }
     }
     Ok(())

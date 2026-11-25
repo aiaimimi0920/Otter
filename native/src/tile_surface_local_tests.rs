@@ -141,13 +141,33 @@ fn shared_field_budget_and_type_range_checks_do_not_evict_existing_values() {
     assert_eq!(c.counts(&f.anchor.view), (1, 1));
 }
 #[test]
+fn rejected_edit_still_adopts_changed_authoritative_value() {
+    let _com = Apartment::new();
+    let old = focus(scene("slider", json!(2)));
+    let next = focus(scene("slider", json!(4)));
+    assert!(old.same_local(&next));
+    let mut cache = Cache::default();
+    cache.set(old, Value::Slider(8.), (0, 0)).unwrap();
+    let old_stamp = cache.snapshot()[0].stamp;
+    assert!(cache.set(next.clone(), Value::Slider(3.), (0, 0)).is_err());
+    let rows = cache.snapshot();
+    assert_eq!(rows.len(), 1);
+    assert_ne!(rows[0].stamp, old_stamp);
+    assert_eq!(rows[0].source, Value::Slider(4.));
+    assert_eq!(rows[0].value, Value::Slider(4.));
+    assert!(Arc::ptr_eq(
+        &rows[0].focus.anchor.snapshot,
+        &next.anchor.snapshot
+    ));
+}
+#[test]
 fn handlers_and_disabled_nodes_never_become_local_drafts_or_network_events() {
     let _com = Apartment::new();
     for kind in ["switch", "select", "slider"] {
         let mut s = scene(kind, json!(0));
         s["events"] = json!({"change":"set_value"});
         let f = focus(s);
-        assert!(source(&f).is_none());
+        assert!(Cache::default().value(&f).is_none());
     }
     let mut s = scene("select", json!("a"));
     let f = focus(s.clone());

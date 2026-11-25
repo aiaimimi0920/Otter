@@ -133,6 +133,6 @@ fn check_cancel(cancel: &AtomicBool) -> Result<()> {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-loom")))]
 #[path = "loom_output_shared_tests.rs"]
 mod tests;

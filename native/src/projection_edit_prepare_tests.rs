@@ -59,6 +59,14 @@ fn automatic_checks_role_conflict_suspension_and_sends_only_32_new_changes() {
     assert!(!automatic(&source.suspend(Suspension::BasisChanged)));
     let conflict = source.rejected(protocol::Code::ObjectConflict).unwrap();
     assert!(!automatic(&conflict));
+    for skipped in [
+        state(Role::Receiver, document(), true),
+        state(Role::Source, document(), false),
+        source.suspend(Suspension::BasisChanged),
+        conflict,
+    ] {
+        assert!(request(&skipped, "must-not-send".into(), Action::Automatic).is_err());
+    }
     let receiver = state(Role::Receiver, mode_document(), true);
     assert!(automatic(&receiver));
     let mut objects = receiver.editor_view().unwrap().basis_objects().clone();

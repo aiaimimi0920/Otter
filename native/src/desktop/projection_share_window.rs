@@ -9,7 +9,7 @@ use windows::Win32::{
         Shell::*,
     },
 };
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "projection_share_window_tests.rs"]
 mod tests;
 const USER: i32 = (2 * std::mem::size_of::<isize>()) as i32;

@@ -390,7 +390,10 @@ impl Client {
                     }
                 }
             }
-            check_stop(stop)?;
+            // Live 的认证响应头已确定拒绝；后到的取消只阻止使用成功结果。
+            if !request.path.starts_with("/v1/live/") {
+                check_stop(stop)?;
+            }
             return Ok((status, body));
         }
         if response

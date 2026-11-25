@@ -234,6 +234,16 @@ impl AuthorizedWindow {
             .javascript_queue_click_for_test(&self.window.javascript_first_button_for_test());
     }
     #[cfg(test)]
+    pub(crate) fn fail_next_javascript_click_wake_for_test(&self) {
+        self.javascript
+            .as_ref()
+            .unwrap()
+            .runtime
+            .as_ref()
+            .unwrap()
+            .fail_next_click_wake_for_test();
+    }
+    #[cfg(test)]
     pub(crate) fn javascript_focus_request_for_test(&self, focus: bool) {
         self.window.javascript_focus_request_for_test(focus);
     }

@@ -259,7 +259,7 @@ impl<'a> Views<'a> {
 }
 #[path = "tile_surface_owner_actions.rs"]
 mod actions;
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-surface")))]
 #[path = "tile_surface_owner_tests.rs"]
 mod tests;
 impl Drop for Views<'_> {

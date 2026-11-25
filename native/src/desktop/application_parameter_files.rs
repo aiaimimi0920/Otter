@@ -1,6 +1,6 @@
 //! 文件参数完成后在 UI owner 验证配置/拓扑再提交；单 worker，无后台排队线程或空闲定时器。
 use super::*;
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "application_sticker_input_tests.rs"]
 mod sticker_tests;
 impl Application {

@@ -115,6 +115,10 @@ impl Registration {
         !hwnd.is_invalid() && self.bound.get() == hwnd
     }
 
+    pub fn is_sole_host(&self) -> bool {
+        self.registered.get() && LIVE.with(|live| live.get() == 1)
+    }
+
     fn release(&self, hwnd: HWND) {
         if self.owns(hwnd) {
             self.bound.set(HWND::default());

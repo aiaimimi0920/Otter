@@ -82,16 +82,25 @@ impl Job {
     pub fn take_admission(&self) -> Option<Admission> {
         self.admissions.try_recv().ok()
     }
+    pub fn is_cancelled(&self) -> bool {
+        self.cancel.load(Ordering::Acquire)
+    }
     pub fn cancel(&self) {
         self.cancel.store(true, Ordering::Release);
     }
+    pub fn deadline(&self) -> Option<Instant> {
+        self.worker.as_ref()?;
+        crate::desktop::loom_execution_signal::reap_deadline(&self.completed)
+    }
+    #[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
+    pub(crate) fn test_wait_finished(&self) {
+        crate::desktop::loom_execution_tasks::reap_fixture::wait_finished(
+            self.worker.as_ref().unwrap(),
+        );
+    }
     /// 不把取消后的部分成功报告覆盖为笼统 cancelled，远端已确认状态不能丢失。
     pub fn poll(&mut self) -> Option<Result<Delivery, &'static str>> {
-        if !self
-            .worker
-            .as_ref()
-            .is_some_and(|w| self.completed.load(Ordering::Acquire) || w.is_finished())
-        {
+        if !self.worker.as_ref()?.is_finished() {
             return None;
         }
         Some(
@@ -152,6 +161,6 @@ fn admit(
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "session_workflow_sync_tests.rs"]
 mod tests;

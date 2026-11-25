@@ -1,6 +1,6 @@
 //! 在原读回/保存 worker 内刷新 Live 底图；保留编辑坐标、栅格标注、裁剪及镜像。
 use super::image::Image;
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-live")))]
 #[path = "live_pin_snapshot_tests.rs"]
 mod tests;
 use crate::{editor::Editor, erase_layers::Layers};

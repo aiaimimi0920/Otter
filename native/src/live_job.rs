@@ -1,4 +1,5 @@
 //! Live 后台 owner：复用 CaptureJob 回收线程，关闭帧源唤醒 WGC，限制同时存活的会话任务。
+pub use crate::live_window_target::MAX_SESSIONS;
 use crate::{
     capture_job::CaptureJob,
     live_frames::{Consumer, Source},
@@ -12,7 +13,6 @@ use std::{
     },
 };
 use windows::Win32::Graphics::Gdi::HMONITOR;
-pub const MAX_SESSIONS: usize = 16;
 static ACTIVE: LazyLock<Arc<AtomicUsize>> = LazyLock::new(|| Arc::new(AtomicUsize::new(0)));
 fn require_owner_apartment() -> io::Result<()> {
     use windows::Win32::System::Com::*;
@@ -67,7 +67,7 @@ impl<T: Send + Sync + 'static> LiveJob<T> {
     ) -> io::Result<(Self, Consumer<T>)> {
         Self::spawn_bound(active, Ok, run)
     }
-    pub(crate) fn spawn_bound<U>(
+    pub fn spawn_bound<U>(
         active: &Arc<AtomicUsize>,
         bind: impl FnOnce(Consumer<T>) -> io::Result<U>,
         run: impl FnOnce(&Arc<Source<T>>, &AtomicBool) -> Result<(), String> + Send + 'static,
@@ -235,7 +235,7 @@ impl<T> LiveJob<T> {
             .as_ref()
             .map(crate::live_window_target::Target::process_handle)
     }
-    pub(crate) fn refresh_source(&mut self) {
+    pub fn refresh_source(&mut self) {
         if !self.source_stopped
             && self
                 .source
@@ -279,6 +279,6 @@ impl<T> Drop for LiveJob<T> {
         // CaptureJob 随后 join；已进入的 OS/驱动启动或关闭调用仍可能不可中断。
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-live")))]
 #[path = "live_job_tests.rs"]
 mod tests;

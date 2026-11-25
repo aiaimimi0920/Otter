@@ -136,3 +136,6 @@ pub(super) fn clean(text: &str) -> String {
         .take(128)
         .collect()
 }
+pub(super) fn option_label(text: &str) -> String {
+    clean(text.split_once('：').map_or(text, |(_, label)| label))
+}

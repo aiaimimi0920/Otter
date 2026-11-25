@@ -32,12 +32,12 @@ images and does not convey controllable Live media. See the
   certify every Chromium, WPF, Qt, game or elevated control, nor truly minimized
   or protected windows. Multi-monitor, mixed DPI, HDR and device loss need their
   own checks with the relevant build.
-- Runtime budgets govern capture admission and cadence. See
-  [resource admission](LIVE_RESOURCE_ADMISSION.md),
-  [shared WGC capture](LIVE_SHARED_SOURCE_CAPTURE.md) and
-  [GPU presentation](LIVE_GPU_PRESENTATION.md). Copy/save/edit use snapshot
-  boundaries; per-frame changes are not continuous formal Art outputs.
-- Use the [current joint runner](LIVE_JOINT_TESTING.md) and
-  [receiver diagnostics](LIVE_RELAY_DIAGNOSTICS.md) for controlled evidence.
-  Neither a successful build nor diagnostic counters prove physical display,
-  manual input, real-network performance or acceptance on another device.
+- Capture sharing is scoped to the source identity. Each consumer retains its crop,
+  placement, presentation and input permission. Closing one consumer does not close a
+  source still in use; cleanup retires leases and in-flight work at the owning boundary.
+- Pixel, byte and queue budgets limit capture admission and cadence. A newer frame can
+  replace pending presentation work, but source loss, input release and teardown cannot
+  be dropped. GPU recovery is independent of peer versions. Copy/save/edit use snapshots;
+  per-frame changes are not continuous Art outputs.
+- Use [joint testing and diagnostics](LIVE_JOINT_TESTING.md#诊断与证据边界) for controlled evidence.
+  Counters do not establish physical display, manual input or cross-device performance.

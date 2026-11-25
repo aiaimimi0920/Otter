@@ -13,6 +13,7 @@ fn input(src: &str) -> Input {
             "snapshot":{"id":"old","src":src,"x":0,"y":0,"w":32,"h":32,"extension":{"keep":true}}
         }]})).unwrap().into(),
         kind: Kind::ReferenceLibrary, entry_id:"entry".into(), unit:UnitId::parse("fresh").unwrap(), mouse:(-20.0,30.0),
+        active: Vec::new(),
     }
 }
 
@@ -31,13 +32,28 @@ fn frozen_image_is_prepared_on_worker_without_changing_source() {
     let mut job = Job::start_input(
         session_job::Input::Frozen(input),
         None,
+        None,
         Arc::new(move || {
             tx.send(std::thread::current().id()).unwrap();
         }),
     )
     .unwrap();
     assert_ne!(rx.recv_timeout(Duration::from_secs(5)).unwrap(), caller);
+    job.test_wait_finished();
     let ready = job.poll().unwrap().unwrap();
+    let append = ready.frozen.unwrap();
+    assert!(append.source.same_storage(&source));
+    let retained = crate::session_document::decode(&append.retained).unwrap();
+    assert_eq!(retained.windows[0].id, "fresh");
+    assert_eq!(
+        retained
+            .library(Kind::ReferenceLibrary)
+            .unwrap()
+            .entries()
+            .len(),
+        1
+    );
+    let ready = ready.restore.vector;
     assert_eq!(ready.candidate.placements[0].unit.as_str(), "fresh");
     assert_eq!(ready.candidate.placements[0].rect.x, 30.0);
     assert!(ready.candidate.origin.is_none());
@@ -47,7 +63,73 @@ fn frozen_image_is_prepared_on_worker_without_changing_source() {
         .unwrap()
         .contains("extension"));
     assert_eq!(source.as_ref(), before);
+    assert!(matches!(
+        ready.candidate.into_original_json(),
+        Source::Encoded(_)
+    ));
     assert!(job.poll().is_none());
+}
+
+#[test]
+fn frozen_worker_builds_retention_against_the_captured_active_units() {
+    let mut input = input("");
+    let mut source: serde_json::Value = serde_json::from_slice(&input.source).unwrap();
+    source["documentRevision"] = 7.into();
+    source["stickers"] = serde_json::json!([
+        {"id":"keep","x":0,"y":0,"w":10,"h":10},
+        {"id":"closed","x":0,"y":0,"w":10,"h":10}
+    ]);
+    source["links"] = serde_json::json!([
+        {"id":"edge","fromUnitId":"keep","fromPortId":"out","toUnitId":"closed","toPortId":"in"}
+    ]);
+    source["recycleBin"] = source["referenceLibrary"].clone();
+    input.source = serde_json::to_vec(&source).unwrap().into();
+    input.active = vec![UnitId::parse("keep").unwrap()];
+    input.kind = Kind::RecycleBin;
+    let before = input.source.clone();
+    let (tx, rx) = mpsc::channel();
+    let mut job = Job::start_input(
+        session_job::Input::Frozen(input),
+        None,
+        None,
+        Arc::new(move || tx.send(()).unwrap()),
+    )
+    .unwrap();
+    rx.recv_timeout(Duration::from_secs(5)).unwrap();
+    job.test_wait_finished();
+    let append = job.poll().unwrap().unwrap().frozen.unwrap();
+    assert!(append.source.same_storage(&before));
+    let retained = crate::session_document::decode(&append.retained).unwrap();
+    assert_eq!(retained.revision, 7);
+    assert_eq!(
+        retained
+            .windows
+            .iter()
+            .map(|w| w.id.as_str())
+            .collect::<Vec<_>>(),
+        ["keep", "fresh"]
+    );
+    assert!(retained.workspace.links().is_empty());
+    assert!(retained
+        .library(Kind::RecycleBin)
+        .unwrap()
+        .entries()
+        .is_empty());
+    assert_eq!(
+        retained
+            .library(Kind::ReferenceLibrary)
+            .unwrap()
+            .entries()
+            .len(),
+        1
+    );
+    let original = crate::session_document::decode(&before).unwrap();
+    assert_eq!(original.windows.len(), 2);
+    assert_eq!(original.workspace.links().len(), 1);
+    assert_eq!(
+        original.library(Kind::RecycleBin).unwrap().entries().len(),
+        1
+    );
 }
 
 #[test]
@@ -56,12 +138,14 @@ fn frozen_file_reference_is_not_an_implicit_resource_permission() {
     let mut job = Job::start_input(
         session_job::Input::Frozen(input("Z:/not-authorized.png")),
         None,
+        None,
         Arc::new(move || {
             tx.send(()).unwrap();
         }),
     )
     .unwrap();
     rx.recv_timeout(Duration::from_secs(5)).unwrap();
+    job.test_wait_finished();
     assert!(job.poll().unwrap().is_err());
 }
 
@@ -76,6 +160,7 @@ fn cancelling_frozen_worker_returns_no_candidate_and_drop_releases_source() {
     let mut job = Job::start_input(
         session_job::Input::Frozen(input),
         None,
+        None,
         Arc::new(move || {
             tx.send(()).unwrap();
         }),
@@ -83,6 +168,7 @@ fn cancelling_frozen_worker_returns_no_candidate_and_drop_releases_source() {
     .unwrap();
     job.cancel();
     rx.recv_timeout(Duration::from_secs(5)).unwrap();
+    job.test_wait_finished();
     assert!(job.poll().unwrap().is_err());
     drop(job);
     assert!(weak.upgrade().is_none());
@@ -95,6 +181,7 @@ fn malformed_or_oversized_input_is_rejected_before_spawning() {
     assert!(Job::start_input(
         session_job::Input::Frozen(bad),
         None,
+        None,
         Arc::new(|| panic!("must not start"))
     )
     .is_err());
@@ -103,6 +190,7 @@ fn malformed_or_oversized_input_is_rejected_before_spawning() {
     assert!(Job::start_input(
         session_job::Input::Frozen(bad),
         None,
+        None,
         Arc::new(|| panic!("must not start"))
     )
     .is_err());
@@ -110,6 +198,7 @@ fn malformed_or_oversized_input_is_rejected_before_spawning() {
     bad.source = vec![b' '; crate::session_document::MAX_SESSION_BYTES + 1].into();
     assert!(Job::start_input(
         session_job::Input::Frozen(bad),
+        None,
         None,
         Arc::new(|| panic!("must not start"))
     )

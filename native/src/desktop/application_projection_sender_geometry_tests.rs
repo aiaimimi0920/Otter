@@ -184,7 +184,7 @@ fn native_sender_no_raster_scope_rejects_resize_minify_and_changed_session_space
     let _com = Apartment::new().unwrap();
     let (files, _, _) = Files::new();
     unsafe {
-        let (_class, mut app) = application(files.root());
+        let mut app = application(files.root());
         drop(install(&mut app, source::Case::TargetLive));
         let unit = app.documents[0].state.unit_id.clone();
         let (guard, _) = scope::Scope::capture(&app, &unit).unwrap();
@@ -270,7 +270,7 @@ fn native_sender_no_raster_rejects_already_stale_minified_presentation() {
     let _com = Apartment::new().unwrap();
     let (files, _, _) = Files::new();
     unsafe {
-        let (_class, mut app) = application(files.root());
+        let mut app = application(files.root());
         drop(install(&mut app, source::Case::TargetMini));
         app.documents[0].state.canvas.borrow_mut().editor = crate::editor::Editor::default();
         let unit = app.documents[0].state.unit_id.clone();

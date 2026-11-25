@@ -12,6 +12,8 @@ use crate::{
 };
 use serde_json::json;
 use std::{sync::Arc, thread};
+#[path = "application_shader_color_transfer_joint_tests.rs"]
+mod color_transfer;
 #[path = "application_shader_fallback_tests.rs"]
 mod fallback;
 #[path = "application_shader_mode_tests.rs"]
@@ -62,17 +64,7 @@ unsafe fn run_mode(real: bool, backend: Backend, own: bool, texture: TextureSour
         texture,
         TextureSource::Unit | TextureSource::DeclaredUnit | TextureSource::LinkedUnit
     );
-    let instance: HINSTANCE = GetModuleHandleW(None).unwrap().into();
-    assert_ne!(
-        RegisterClassW(&WNDCLASSW {
-            hInstance: instance,
-            lpszClassName: w!("Otter.Native.Workspace"),
-            lpfnWndProc: Some(crate::desktop::procedure::window_proc),
-            ..Default::default()
-        }),
-        0
-    );
-    let _class = Class(instance);
+    let instance = crate::desktop::workspace_window_fixture::register();
     let (listener, identity, config) = fixture();
     listener.set_nonblocking(true).unwrap();
     let overlay = format!(
@@ -345,7 +337,6 @@ unsafe fn run_mode(real: bool, backend: Backend, own: bool, texture: TextureSour
         }
         app.start_requested_preparations(false);
         let server = (iteration == 0).then(|| {
-        listener.set_nonblocking(false).unwrap();
         let server_listener = listener.try_clone().unwrap();
         let server_identity = identity.clone();
         let server_config = config.clone();
@@ -413,7 +404,6 @@ unsafe fn run_mode(real: bool, backend: Backend, own: bool, texture: TextureSour
         if let Some(server) = server {
             server.join().unwrap();
         }
-        listener.set_nonblocking(true).unwrap();
         assert_eq!(
             listener.accept().unwrap_err().kind(),
             std::io::ErrorKind::WouldBlock

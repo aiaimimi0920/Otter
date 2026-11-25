@@ -56,6 +56,8 @@ pub struct Results {
     display: Option<Image>,
     restored_preview_locked: bool,
     ports: Vec<Port>,
+    // Immutable committed port costs, in port order; Surface replacement invalidates them.
+    port_costs: Option<Vec<usize>>,
     formal_outputs_committed: bool,
     candidates: Option<serde_json::Value>,
     candidate_view: Option<Arc<super::loom_output_batch::candidates::Set>>,
@@ -77,6 +79,7 @@ impl Results {
             display: None,
             restored_preview_locked: false,
             ports: Vec::new(),
+            port_costs: None,
             formal_outputs_committed: false,
             candidates: None,
             candidate_view: None,
@@ -234,24 +237,28 @@ impl Results {
         let retained = self
             .ports
             .iter()
-            .filter(|old| !incoming.iter().any(|new| new.name == old.name));
+            .enumerate()
+            .filter(|(_, old)| !incoming.iter().any(|new| new.name == old.name));
         let count = incoming.len() + retained.clone().count();
         if count > 128 {
             return Err(Error::Capacity);
         }
         let mut bytes = Meter(0);
-        for port in retained.chain(incoming.iter()) {
-            match &port.value {
-                Output::Image(image) => {
-                    bytes.add(image.pixels.len()).map_err(|_| Error::Budget)?;
-                }
-                Output::PngImage(image) => {
-                    bytes.add(image.bytes()).map_err(|_| Error::Budget)?;
-                }
-                Output::Value(value) => {
-                    serde_json::to_writer(&mut bytes, value).map_err(|_| Error::Budget)?
-                }
+        let mut costs = Vec::new();
+        costs
+            .try_reserve_exact(count)
+            .map_err(|_| Error::Allocation)?;
+        for (index, port) in retained {
+            if let Some(cached) = &self.port_costs {
+                let cost = cached[index];
+                bytes.add(cost).map_err(|_| Error::Budget)?;
+                costs.push(cost);
+            } else {
+                costs.push(bytes.charge(&port.value)?);
             }
+        }
+        for port in &incoming {
+            costs.push(bytes.charge(&port.value)?);
         }
         // 所有失败点先处理，再移动旧端口；正式输出总预算采用保守的别名重复计数。
         let mut merged = Vec::new();
@@ -264,6 +271,7 @@ impl Results {
         }
         merged.append(&mut incoming);
         self.ports = merged;
+        self.port_costs = Some(costs);
         self.formal_outputs_committed = true;
         self.output_stamp = output_stamp;
         self.clear_candidates();
@@ -295,6 +303,20 @@ mod surface;
 // 避免为了预算检查先序列化一个同等大小的 JSON 字符串。
 struct Meter(usize);
 impl Meter {
+    fn charge(&mut self, output: &Output) -> Result<usize, Error> {
+        let before = self.0;
+        match output {
+            Output::Image(image) => self.add(image.pixels.len()),
+            Output::PngImage(image) => self.add(image.bytes()),
+            Output::Value(value) => {
+                return serde_json::to_writer(&mut *self, value)
+                    .map(|()| self.0 - before)
+                    .map_err(|_| Error::Budget);
+            }
+        }
+        .map_err(|_| Error::Budget)?;
+        Ok(self.0 - before)
+    }
     fn add(&mut self, count: usize) -> std::io::Result<()> {
         self.0 = self
             .0
@@ -314,6 +336,6 @@ impl std::io::Write for Meter {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-loom")))]
 #[path = "loom_result_state_tests.rs"]
 mod tests;

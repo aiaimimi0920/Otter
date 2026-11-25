@@ -18,7 +18,11 @@ impl Completion {
     }
     /// 每次使用归档/来源计划前复核；即使旧消息全部成功，也不能更新新的工作区。
     pub(in crate::desktop::application) unsafe fn is_current(&self, app: &Application) -> bool {
-        self.receipt.matches(app) && self.delivery.ready.matches_source(&self.receipt.source)
+        self.receipt.matches(app)
+            && self
+                .delivery
+                .ready
+                .matches_retained_source(&self.receipt.source)
     }
     /// 失败和过期结果仍可读取部分成功报告，不把远端已确认状态伪装成回滚。
     pub(in crate::desktop::application) fn report(

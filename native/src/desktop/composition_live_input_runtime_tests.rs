@@ -164,6 +164,11 @@ impl Fixture {
             })
         })
     }
+    unsafe fn close_source(&mut self) {
+        DestroyWindow(self.root).unwrap();
+        self.root = HWND::default();
+        self.child = HWND::default();
+    }
 }
 
 #[path = "composition_live_crop_runtime_tests.rs"]
@@ -181,7 +186,9 @@ mod wheel;
 impl Drop for Fixture {
     fn drop(&mut self) {
         unsafe {
-            let _ = DestroyWindow(self.root);
+            if !self.root.0.is_null() {
+                let _ = DestroyWindow(self.root);
+            }
             let _ = UnregisterClassW(w!("Otter.Native.InputRuntime"), Some(self.instance));
         }
     }
@@ -194,12 +201,35 @@ impl Drop for Dpi {
         }
     }
 }
+const PUMP_BATCH: usize = 64;
+
 unsafe fn pump() {
     let mut msg = MSG::default();
-    while PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE).as_bool() {
+    // Yield to the caller's deadline and capture polling even under a busy queue.
+    for _ in 0..PUMP_BATCH {
+        if !PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE).as_bool() {
+            break;
+        }
         assert_ne!(msg.message, WM_QUIT);
         let _ = TranslateMessage(&msg);
         DispatchMessageW(&msg);
+    }
+}
+
+#[test]
+fn message_pump_yields_with_work_still_queued() {
+    unsafe {
+        let mut msg = MSG::default();
+        let _ = PeekMessageW(&mut msg, None, 0, 0, PM_NOREMOVE);
+        let thread = windows::Win32::System::Threading::GetCurrentThreadId();
+        let marker = WM_APP + 41;
+        for sequence in 0..=PUMP_BATCH {
+            PostThreadMessageW(thread, marker, WPARAM(sequence), LPARAM(0)).unwrap();
+        }
+        pump();
+        assert!(PeekMessageW(&mut msg, None, marker, marker, PM_REMOVE).as_bool());
+        assert_eq!(msg.wParam.0, PUMP_BATCH);
+        assert!(!PeekMessageW(&mut msg, None, marker, marker, PM_NOREMOVE).as_bool());
     }
 }
 unsafe fn pixel(frame: &Texture) -> [u8; 4] {

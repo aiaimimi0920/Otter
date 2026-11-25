@@ -20,10 +20,12 @@ impl Stamp {
             .try_reserve_exact(upstream.len())
             .map_err(|_| "无法保留 Art 输入身份")?;
         units.extend(upstream.into_iter().cloned());
+        // 仅排序成员索引；连线凭证仍保留工作区中的原顺序。
+        units.sort_unstable();
         let count = workspace
             .links()
             .iter()
-            .filter(|link| units.contains(&link.to_unit))
+            .filter(|link| units.binary_search(&link.to_unit).is_ok())
             .count();
         let mut links = Vec::new();
         links
@@ -33,7 +35,7 @@ impl Stamp {
             workspace
                 .links()
                 .iter()
-                .filter(|link| units.contains(&link.to_unit))
+                .filter(|link| units.binary_search(&link.to_unit).is_ok())
                 .cloned(),
         );
         Ok(Self {
@@ -54,7 +56,7 @@ impl Stamp {
         let mut current = workspace
             .links()
             .iter()
-            .filter(|link| self.upstream.contains(&link.to_unit));
+            .filter(|link| self.upstream.binary_search(&link.to_unit).is_ok());
         self.links
             .iter()
             .all(|expected| current.next() == Some(expected))

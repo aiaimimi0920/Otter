@@ -115,7 +115,7 @@ fn projection_display_recovery_reporting_rechecks_other_saved_document_changes()
             let (head, _) = request(&mut stream);
             assert!(head.starts_with("POST /v1/projections/receipt "));
             tx.send(()).unwrap();
-            assert!(!stream.read(&mut [0]).is_ok_and(|n| n != 0));
+            assert_peer_disconnected(&mut stream);
             listener
         }));
         choose(&mut fixture);

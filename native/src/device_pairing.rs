@@ -123,6 +123,6 @@ pub fn register_and_save(
     Ok(changed)
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "device_pairing_tests.rs"]
 mod tests;

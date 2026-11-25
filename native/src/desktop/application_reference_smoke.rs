@@ -58,7 +58,8 @@ pub(in crate::desktop::application) unsafe fn run(instance: HINSTANCE) -> Result
     let first = DocumentWindow::create(instance, State::new(Some(image), false)?, false)?;
     let mut app = Application::new(instance, first);
     let hwnd = app.documents[0].window.0;
-    let path = save_publish::smoke_destination()?;
+    let fixture = smoke_session_fixture::Directory::new()?;
+    let path = fixture.target();
     save(&mut app, Some(path.clone()))?;
     app.sync_frozen_menu();
     let original = app.restored_session.as_ref().unwrap().original.clone();
@@ -215,7 +216,7 @@ pub(in crate::desktop::application) unsafe fn run(instance: HINSTANCE) -> Result
             "Reference disk roundtrip lost baseline or library changes",
         ));
     }
-    // 仅修改本测试独占的 linshi 文件：竞争者改变即使只有空白也不能被覆盖。
+    // 仅修改本测试独占的 夹具文件：竞争者改变即使只有空白也不能被覆盖。
     let mut external = bytes.clone();
     external.push(b' ');
     std::fs::write(&path, &external).map_err(|error| Error::new(E_FAIL, error.to_string()))?;

@@ -13,7 +13,10 @@ impl Drop for ThreadKeys {
     }
 }
 /// 只隔离当前测试线程的修饰键快照；不注入全局输入，正常/展开退出均恢复全部字节。
-pub(super) fn with_modifiers<T>(held: &[VIRTUAL_KEY], action: impl FnOnce() -> T) -> T {
+pub(in crate::desktop::tile_window) fn with_modifiers<T>(
+    held: &[VIRTUAL_KEY],
+    action: impl FnOnce() -> T,
+) -> T {
     unsafe {
         let mut keys = [0; 256];
         GetKeyboardState(&mut keys).unwrap();

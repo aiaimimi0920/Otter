@@ -13,30 +13,52 @@ pub(super) fn toggle_mode(state: &State) {
 }
 
 pub(super) unsafe fn submit(hwnd: HWND, state: &State) {
+    if let Err(error) = submit_with(
+        state,
+        || SetTimer(Some(hwnd), TIMER, 30, None) != 0,
+        || {
+            let _ = KillTimer(Some(hwnd), TIMER);
+        },
+    ) {
+        // 所有状态回滚及 RefCell 借用已结束，弹框重入不会看到半完成提交。
+        let _ = InvalidateRect(Some(hwnd), None, false);
+        report(hwnd, &error);
+    }
+}
+fn submit_with(
+    state: &State,
+    reserve_timer: impl FnOnce() -> bool,
+    cancel_timer: impl FnOnce(),
+) -> Result<(), String> {
     let Some(request) = state.canvas.borrow_mut().erase_pending.take() else {
-        return;
+        return Ok(());
     };
-    let plan = state.canvas.borrow().editor.prepare_raster_edit();
-    let plan = match plan {
-        Ok(Some(plan)) => plan,
-        Ok(None) => return,
-        Err(error) => {
-            report(hwnd, &format!("{error:?}"));
-            return;
-        }
+    if state.erase_job.borrow().is_busy() {
+        // 不覆盖原预览，也不撤销仍负责回收原任务的 timer。
+        return Err(format!("{:?}", crate::erase_job::JobError::Busy));
+    }
+    state.canvas.borrow_mut().erase_display = None;
+    let Some(plan) = state
+        .canvas
+        .borrow()
+        .editor
+        .prepare_raster_edit()
+        .map_err(|error| format!("{error:?}"))?
+    else {
+        return Ok(());
     };
+    // 先保证回收入口，避免启动后 SetTimer 失败触发 Job::drop 的同步 join。
+    if !reserve_timer() {
+        return Err("Cannot schedule erase result".into());
+    }
     state.canvas.borrow_mut().erase_display = Some(request.clone());
     let started = state.erase_job.borrow_mut().start_edit(request, plan);
     if let Err(error) = started {
         state.canvas.borrow_mut().erase_display = None;
-        report(hwnd, &format!("{error:?}"));
-        return;
+        cancel_timer();
+        return Err(format!("{error:?}"));
     }
-    if SetTimer(Some(hwnd), TIMER, 30, None) == 0 {
-        *state.erase_job.borrow_mut() = Default::default();
-        state.canvas.borrow_mut().erase_display = None;
-        report(hwnd, "Cannot schedule erase result");
-    }
+    Ok(())
 }
 pub(super) fn accept(
     canvas: &mut Canvas,
@@ -115,5 +137,8 @@ unsafe fn report(hwnd: HWND, error: &str) {
 }
 
 #[cfg(test)]
+#[path = "erase_input_schedule_tests.rs"]
+mod schedule_tests;
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "erase_input_tests.rs"]
 mod tests;

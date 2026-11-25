@@ -47,12 +47,11 @@ fn failed_registration_is_not_claimed_global_and_failed_unregistration_cannot_ke
         Err(windows::core::Error::new(E_FAIL, "occupied"))
     })
     .unwrap_err();
+    assert!(o.local(b'4' as u32, || 2).is_some());
+    assert!(o.local(b'4' as u32, || 4).is_none());
     assert!(o
-        .local(Chord {
-            key: b'4' as u32,
-            modifiers: 2
-        })
-        .is_some());
+        .local(b'5' as u32, || panic!("unbound key queried modifiers"))
+        .is_none());
     assert!(o
         .global(
             WPARAM(o.bindings[0].id as usize),
@@ -70,10 +69,7 @@ fn failed_registration_is_not_claimed_global_and_failed_unregistration_cannot_ke
     })
     .unwrap_err();
     assert!(o
-        .local(Chord {
-            key: b'4' as u32,
-            modifiers: 2
-        })
+        .local(b'4' as u32, || panic!("retired binding queried modifiers"))
         .is_none());
     assert!(o.bindings[0].definition.is_none());
     // 测试回收注入的虚拟注册，不把它交给真实 OS 释放。

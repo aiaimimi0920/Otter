@@ -3,20 +3,25 @@ use super::{
     capability_job::Source,
     extension_command_bridge::{Mailbox, Packet, Port},
     extension_command_flow::{self, Spec},
-    loom_execution_signal::{CompletionSignal, Notify},
+    loom_execution_signal::{reap_deadline, CompletionSignal, Notify},
 };
 use crate::loom_extension_session::{Error, Session};
 use std::{
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc, Mutex,
-    },
+    sync::{atomic::AtomicBool, Arc, Mutex},
     thread::{self, JoinHandle},
 };
 pub(super) struct Job {
     port: Port,
     ready: Arc<AtomicBool>,
     worker: Option<JoinHandle<Result<(), String>>>,
+}
+struct Published(Arc<Mutex<Mailbox>>);
+impl Drop for Published {
+    fn drop(&mut self) {
+        let mut mailbox = self.0.lock().unwrap_or_else(|e| e.into_inner());
+        mailbox.packet = None;
+        mailbox.interrupt = None;
+    }
 }
 impl Job {
     pub(super) fn start(
@@ -37,7 +42,9 @@ impl Job {
             .name("otter-extension-command".into())
             .spawn(move || {
                 let _completion = CompletionSignal::new(completed, notify);
-                let result = (|| {
+                // 正常结果和 panic 都先清理仍在邮箱中的请求，完成通知后不能再领取遗留 Apply。
+                let _published = Published(worker_port.mailbox.clone());
+                (|| {
                     worker_port.check().map_err(diagnostic)?;
                     let identity = match source {
                         Source::Fixed(identity) => identity,
@@ -57,14 +64,7 @@ impl Job {
                     }
                     extension_command_flow::run(&mut session, spec, &worker_port)
                         .map_err(diagnostic)
-                })();
-                let mut mailbox = worker_port
-                    .mailbox
-                    .lock()
-                    .unwrap_or_else(|e| e.into_inner());
-                mailbox.packet.take();
-                mailbox.interrupt = None;
-                result
+                })()
             })
             .map_err(|e| e.to_string())?;
         Ok(Self {
@@ -90,9 +90,20 @@ impl Job {
             .packet
             .is_some()
     }
+    #[cfg(test)]
+    pub(super) fn apply_pending(&self) -> bool {
+        use super::extension_command_bridge::Request;
+        self.port
+            .mailbox
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .packet
+            .as_ref()
+            .is_some_and(|packet| matches!(&packet.request, Request::Apply { .. }))
+    }
     pub(super) fn poll(&mut self) -> Option<Result<(), String>> {
         let worker = self.worker.as_ref()?;
-        if !self.ready.load(Ordering::Acquire) && !worker.is_finished() {
+        if !worker.is_finished() {
             return None;
         }
         Some(
@@ -102,6 +113,15 @@ impl Job {
                 .join()
                 .unwrap_or_else(|_| Err("extension worker failed".into())),
         )
+    }
+    pub(super) fn deadline(&self) -> Option<std::time::Instant> {
+        self.worker
+            .as_ref()
+            .and_then(|_| reap_deadline(&self.ready))
+    }
+    #[cfg(test)]
+    pub(super) fn test_wait_finished(&self) {
+        super::loom_execution_tasks::reap_fixture::wait_finished(self.worker.as_ref().unwrap());
     }
     pub(super) fn cancel(&self) {
         self.port.cancel();
@@ -118,3 +138,6 @@ impl Drop for Job {
         }
     }
 }
+#[cfg(test)]
+#[path = "extension_command_reap_tests.rs"]
+mod reap_tests;

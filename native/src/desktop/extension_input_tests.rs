@@ -13,17 +13,7 @@ struct Fixture {
 impl Fixture {
     unsafe fn new() -> Self {
         let apartment = crate::desktop::Apartment::new().unwrap();
-        let instance = HINSTANCE(
-            windows::Win32::System::LibraryLoader::GetModuleHandleW(None)
-                .unwrap()
-                .0,
-        );
-        RegisterClassW(&WNDCLASSW {
-            hInstance: instance,
-            lpszClassName: windows::core::w!("Otter.Native.Workspace"),
-            lpfnWndProc: Some(crate::desktop::procedure::window_proc),
-            ..Default::default()
-        });
+        let instance = crate::desktop::workspace_window_fixture::register();
         let state = State::new(
             Some(crate::image_decode::Image {
                 width: 240,

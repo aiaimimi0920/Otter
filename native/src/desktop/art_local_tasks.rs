@@ -1,6 +1,6 @@
 //! 有界本地 Art 下载任务：原 registry 拥有代际/租约，清理中的线程继续占槽。
 //! UI 仅移交配置快照，DNS/TLS/源码验签在 worker；不自动建立信任或创建窗口。
-use super::loom_execution_signal::{CompletionSignal, Notify};
+use super::loom_execution_signal::{reap_deadline, CompletionSignal, Notify};
 use crate::{
     art_execution_grant::wire::Binding,
     art_issuer_trust::Authority,
@@ -12,10 +12,7 @@ use crate::{
     workspace_id::UnitId,
 };
 use std::{
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
+    sync::{atomic::AtomicBool, Arc},
     thread::JoinHandle,
 };
 
@@ -51,6 +48,12 @@ impl Tasks {
     }
     pub fn has_capacity(&self) -> bool {
         self.jobs.len() < MAX_JOBS
+    }
+    pub(super) fn deadline(&self) -> Option<std::time::Instant> {
+        self.jobs
+            .iter()
+            .filter_map(|job| reap_deadline(&job.ready))
+            .min()
     }
     /// 从设备描述到源码验签共用一个 worker 和原 Lease；UI 不先同步获取描述。
     pub fn start_description(
@@ -194,15 +197,10 @@ impl Tasks {
         }
         Ok(())
     }
-    /// 只 join 已发布完成或已终止的 worker，不在普通 UI 轮询等待网络。
-    /// ready 先于 notify 发布，join 可能等待短通知返回，不能将其描述为严格无等待。
+    /// 只 join 已退出的 worker；通知已发布但尚未退出时由 deadline 续接回收。
     /// 迟到成功/失败均丢弃；它们不得修改当前节点的错误状态或撤销新实例。
     pub fn take_settled(&mut self) -> Option<Report> {
-        while let Some(index) = self
-            .jobs
-            .iter()
-            .position(|job| job.ready.load(Ordering::Acquire) || job.worker.is_finished())
-        {
+        while let Some(index) = self.jobs.iter().position(|job| job.worker.is_finished()) {
             let job = self.jobs.remove(index);
             let completion = job.worker.join().unwrap_or_else(|_| {
                 Completion::failed(job.unit.clone(), job.token.clone(), Error::Worker)
@@ -262,6 +260,9 @@ impl Drop for Tasks {
 #[cfg(test)]
 #[path = "art_local_description_tasks_tests.rs"]
 mod description_tests;
+#[cfg(test)]
+#[path = "art_local_reap_tests.rs"]
+mod reap_tests;
 #[cfg(test)]
 #[path = "art_local_tasks_tests.rs"]
 mod tests;

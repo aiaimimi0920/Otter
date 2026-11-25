@@ -71,6 +71,20 @@ fn surface_scroll_moves_text_geometry_and_hit_together_and_clamps() {
     assert!(!wheel(&mut p, 2, 1.));
 }
 #[test]
+fn no_op_scroll_plans_keep_the_shared_snapshot() {
+    let p = Presentation::new(scene(300), style(), context(), [100.; 2]).unwrap();
+    let original = p.scroll_state();
+    let mut plan = original.clone();
+    assert!(!plan.wheel(p.geometry(), "text", 1, -1., false));
+    assert!(!plan.reveal_region(p.geometry(), "text", [10., 10.], [5., 5.]));
+    assert!(!plan.set_bar("root", 1, 0.));
+    assert!(std::sync::Arc::ptr_eq(&original.nodes, &plan.nodes));
+    assert!(plan.set_bar("root", 1, 10.));
+    assert!(!std::sync::Arc::ptr_eq(&original.nodes, &plan.nodes));
+    assert_eq!(original.nodes["root"].offset, [0., 0.]);
+    assert_eq!(plan.nodes["root"].offset, [0., 10.]);
+}
+#[test]
 fn surface_scroll_replacement_preserves_and_clamps_only_current_nodes() {
     let mut p = Presentation::new(scene(300), style(), context(), [100.; 2]).unwrap();
     assert!(wheel(&mut p, 1, 180.));

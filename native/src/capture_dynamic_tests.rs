@@ -114,6 +114,7 @@ fn automatic_sdr_uses_float_frame_without_recapture_and_force_hdr_retains_pq() {
             || Ok(((), display())),
             |_, info| {
                 convert(&input, options(mode), info, &cancel)
+                    .map(WgcFrame::Native)
                     .map_err(|e| Failure::Retryable(format!("{e:?}")))
             },
             || panic!("no second capture after successful FP16 capture"),
@@ -138,6 +139,7 @@ fn automatic_sdr_delivery_preserves_downgrade_and_wgc_session_metadata() {
         || Ok(((), display())),
         |_, info| {
             convert(&input, options(Mode::Auto), info, &cancel)
+                .map(WgcFrame::Native)
                 .map_err(|error| Failure::Retryable(format!("{error:?}")))
         },
         || panic!("automatic SDR must not recapture through GDI"),
@@ -145,7 +147,7 @@ fn automatic_sdr_delivery_preserves_downgrade_and_wgc_session_metadata() {
     .unwrap();
     let captured = crate::capture_job::PreparedCapture::prepare(
         result,
-        std::path::Path::new("C:/Users/Public/nas_home/AI/GameEditor/linshi"),
+        &std::env::temp_dir(),
         "auto-sdr-no-file",
         Default::default(),
         &cancel,
@@ -316,4 +318,109 @@ fn mode_parsing_and_detected_system_options_are_not_guessed() {
             .unwrap()
             .windows_11_or_newer()
     );
+}
+
+#[test]
+fn retryable_hdr_failure_uses_sdr_wgc_before_gdi_and_delivers_the_actual_backend() {
+    let cancel = AtomicBool::new(false);
+    let outcome = execute(
+        options(Mode::Auto),
+        &cancel,
+        || Ok(((), display())),
+        |_, _| {
+            failure::try_sdr_wgc(
+                &cancel,
+                || Err(Failure::Retryable("FP16 unavailable".into())),
+                || Ok(sdr()),
+                || panic!("SDR WGC success already validates the target"),
+            )
+        },
+        || panic!("SDR WGC success must not capture with GDI"),
+    )
+    .unwrap();
+    assert_eq!(outcome.backend, Backend::Wgc);
+    assert_eq!(outcome.reason, Some(Reason::HdrFailed));
+    assert_eq!(outcome.diagnostic.as_deref(), Some("FP16 unavailable"));
+    let captured = crate::capture_job::PreparedCapture::prepare(
+        outcome,
+        std::path::Path::new("unused-sdr-profile"),
+        "test",
+        Default::default(),
+        &cancel,
+    )
+    .unwrap()
+    .commit(&cancel, || true)
+    .unwrap();
+    assert_eq!(captured.backend, "wgc");
+    assert!(captured.downgraded && captured.original.is_none());
+
+    let calls = std::cell::Cell::new(0);
+    let outcome = execute(
+        options(Mode::Hdr),
+        &cancel,
+        || Ok(((), display())),
+        |_, _| {
+            failure::try_sdr_wgc(
+                &cancel,
+                || {
+                    calls.set(1);
+                    Err(Failure::Retryable("FP16 timeout".into()))
+                },
+                || {
+                    assert_eq!(calls.replace(2), 1);
+                    Err(Failure::Retryable("BGRA timeout".into()))
+                },
+                || {
+                    assert_eq!(calls.replace(3), 2);
+                    Ok(())
+                },
+            )
+        },
+        || {
+            assert_eq!(calls.replace(4), 3);
+            Ok(sdr())
+        },
+    )
+    .unwrap();
+    assert_eq!(calls.get(), 4);
+    assert_eq!(outcome.backend, Backend::Gdi);
+    assert_eq!(
+        outcome.diagnostic.as_deref(),
+        Some("HDR WGC: FP16 timeout; SDR WGC: BGRA timeout")
+    );
+}
+
+#[test]
+fn cancelled_or_changed_sdr_attempt_never_reaches_gdi() {
+    for (retry, validate, cancelled) in [(0, false, true), (1, false, false), (2, true, false)] {
+        let cancel = AtomicBool::new(false);
+        let result = execute(
+            options(Mode::Auto),
+            &cancel,
+            || Ok(((), display())),
+            |_, _| {
+                failure::try_sdr_wgc(
+                    &cancel,
+                    || Err(Failure::Retryable("FP16 timeout".into())),
+                    || {
+                        Err(match retry {
+                            0 => Failure::Cancelled,
+                            1 => Failure::Changed,
+                            _ => Failure::Retryable("BGRA timeout".into()),
+                        })
+                    },
+                    || {
+                        assert!(validate);
+                        Err(Failure::Changed)
+                    },
+                )
+            },
+            || panic!("terminal retry must not reach GDI"),
+        );
+        assert!(match result {
+            Err(Error::Cancelled) => cancelled,
+            Err(Error::Changed) => !cancelled,
+            _ => false,
+        });
+    }
 }

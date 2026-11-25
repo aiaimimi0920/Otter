@@ -1,5 +1,20 @@
 //! 使用实际工作区目录验证隐藏系统对话框，不运行可见模态循环或修改工作区。
 use super::*;
+use windows::Win32::UI::Shell::{DefSubclassProc, SetWindowSubclass};
+
+unsafe extern "system" fn reject_insertion(
+    hwnd: HWND,
+    message: u32,
+    wparam: WPARAM,
+    lparam: LPARAM,
+    _: usize,
+    _: usize,
+) -> LRESULT {
+    if message == CB_ADDSTRING {
+        return LRESULT(CB_ERRSPACE as isize);
+    }
+    DefSubclassProc(hwnd, message, wparam, lparam)
+}
 
 pub(crate) unsafe fn verify_outgoing(catalog: Rc<Catalog>, source: usize) {
     let choices: Vec<_> = catalog
@@ -16,6 +31,7 @@ pub(crate) unsafe fn verify_outgoing(catalog: Rc<Catalog>, source: usize) {
         choices,
         fixed: source,
         result: None,
+        failed: false,
     };
     let template = template(true);
     let hwnd = CreateDialogIndirectParamW(
@@ -50,6 +66,16 @@ pub(crate) unsafe fn verify_outgoing(catalog: Rc<Catalog>, source: usize) {
         assert_eq!(selected(hwnd, INPUT), Some(0));
         assert!(dialog.result.is_none());
     }
+    assert!(SetWindowSubclass(input, Some(reject_insertion), 1, 0).as_bool());
+    SendMessageW(
+        hwnd,
+        WM_COMMAND,
+        Some(WPARAM(SOURCE as usize | ((CBN_SELCHANGE as usize) << 16))),
+        Some(LPARAM(choice.0 as isize)),
+    );
+    assert!(dialog.failed);
+    SendMessageW(hwnd, WM_COMMAND, Some(WPARAM(IDOK.0 as usize)), None);
+    assert!(dialog.result.is_none());
     DestroyWindow(hwnd).unwrap();
     for control in [choice, output, input] {
         assert!(!IsWindow(Some(control)).as_bool());
@@ -74,6 +100,7 @@ pub(crate) unsafe fn verify(catalog: Rc<Catalog>, target: usize) {
         choices,
         fixed: target,
         result: None,
+        failed: false,
     };
     let template = template(false);
     let hwnd = CreateDialogIndirectParamW(

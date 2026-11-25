@@ -6,7 +6,16 @@ impl State {
             self.deferred.set(true);
             return Ok(false);
         };
-        let result = operation(&mut host);
+        let policy_revision = self.input_policy_revision.get();
+        let mut result = operation(&mut host);
+        if self.input_policy_revision.get() != policy_revision
+            && self.input_policy_dirty.get()
+            && !self.local_edit.get()
+            && !self.closed.get()
+        {
+            // 忙时收到的撤权先关闭窗口门禁；取出的 Host 在归还前同步关闭原生控件。
+            result = result.and(host.edit_policy(false));
+        }
         if self.pointer_cancel_pending.replace(false) && !self.closed.get() {
             if let Err(error) = host.cancel_javascript_pointers(self.viewport_epoch.get()) {
                 *self.error.borrow_mut() = Some(error);

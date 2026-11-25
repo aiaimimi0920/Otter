@@ -137,7 +137,7 @@ fn closed_sidebar_is_not_in_the_moving_window_batch() {
 
 #[test]
 fn drag_geometry_does_not_refresh_sidebar_fields_but_timer_and_exit_do() {
-    unsafe {
+    crate::desktop::workspace_window_fixture::with_private_desktop(|| unsafe {
         let f = Fixture::new();
         let panel = open(&f);
         let connect = field(panel, 201);
@@ -189,6 +189,7 @@ fn drag_geometry_does_not_refresh_sidebar_fields_but_timer_and_exit_do() {
         let wake = crate::desktop::window_geometry_wake::MESSAGE;
         let mut queued = MSG::default();
         assert!(PeekMessageW(&mut queued, Some(f.owner.0), wake, wake, PM_REMOVE).as_bool());
+        let before_wake = enabled();
         DispatchMessageW(&queued);
         let after_wake = enabled();
         SendMessageW(f.owner.0, WM_TIMER, Some(WPARAM(0xffff)), None);
@@ -196,6 +197,9 @@ fn drag_geometry_does_not_refresh_sidebar_fields_but_timer_and_exit_do() {
         set_busy(false);
         SendMessageW(f.owner.0, WM_EXITSIZEMOVE, None, None);
         assert!(enabled(), "must refresh on drag exit");
-        assert_eq!([while_moving, after_move, after_wake], [true; 3]);
-    }
+        assert_eq!(
+            [while_moving, after_move, before_wake, after_wake],
+            [true; 4]
+        );
+    });
 }

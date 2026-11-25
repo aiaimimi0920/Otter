@@ -4,12 +4,12 @@
   const { Element } = dom.classes, get = dom.get, op = dom.ops;
   const entries = node => { const values = op.array(); op.mapEach(get(node).attrs, (value, name) => op.push(values, [name, value])); return values; };
   const nameOf = value => {
-    const name = op.string(value).toLowerCase();
-    if (name.length > 128 || !/^[a-z_][a-z0-9_-]*$/.test(name)) fail();
+    const name = op.lower(op.string(value));
+    if (name.length > 128 || !op.test(/^[a-z_][a-z0-9_-]*$/, name)) fail();
     return name;
   };
   const allowed = (node, name, value) => {
-    if (op.indexOf(["id", "class", "title", "role"], name) >= 0 || /^(data|aria)-[a-z_][a-z0-9_-]*$/.test(name)) return;
+    if (op.indexOf(["id", "class", "title", "role"], name) >= 0 || op.test(/^(data|aria)-[a-z_][a-z0-9_-]*$/, name)) return;
     if (get(node).tag === "button" && (name === "disabled" || (name === "type" && value === "button"))) return;
     if (get(node).tag === "input") { form.attribute(name, value); return; }
     fail();

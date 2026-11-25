@@ -157,3 +157,53 @@ fn duplicate_failed_mount_cannot_start_a_second_cleanup_transaction() {
     assert!(windows.take_failure().unwrap().lifecycle().is_none());
     assert!(windows.take_failure().is_none());
 }
+
+#[test]
+fn terminal_failures_release_slots_only_if_the_hint_fits() {
+    use super::super::Windows;
+    use crate::surface_recovery_record::MAX_RECORDS;
+    for full in [false, true] {
+        let mut windows = Windows::default();
+        let mut failed = FailedAdmission::new(record(), "unsupported scene".into(), false);
+        let mut owner = failed.begin_inactive().unwrap();
+        acknowledge(&mut owner);
+        assert!(failed
+            .accept(Outcome {
+                owner,
+                result: Ok(None)
+            })
+            .is_ok());
+        if full {
+            let mut records = Vec::new();
+            failed.append_recovery_records(&mut records);
+            windows.retired = vec![records.remove(0); MAX_RECORDS];
+        }
+        windows.failures.push(failed);
+        assert_eq!(windows.retire_confirmed(), full);
+        assert!(
+            !windows.retire_confirmed(),
+            "never repeat the capacity warning"
+        );
+        assert_eq!(
+            windows.can_mount("https://localhost:1234", "node:test"),
+            !full
+        );
+        assert_eq!(windows.recovery_records().len(), usize::from(full));
+        assert_eq!(
+            windows.retired_records().len(),
+            if full { MAX_RECORDS } else { 1 }
+        );
+        if !full {
+            assert!(windows
+                .admit(record(), |_| panic!("stale mount must not authorize"), 0)
+                .is_ok());
+            assert!(windows.failures[0].begin_inactive().is_none());
+            assert!(!windows.retire_confirmed());
+            assert_eq!(
+                windows.recovery_records().len(),
+                1,
+                "keep duplicate evidence"
+            );
+        }
+    }
+}

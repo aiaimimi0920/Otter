@@ -6,10 +6,12 @@ pub struct Options {
     pub settings: Option<PathBuf>,
     pub candidate: Option<PathBuf>,
     pub peer: Option<PathBuf>,
+    pub workspace_check: bool,
 }
 pub fn extract(args: Vec<OsString>) -> Result<(Vec<OsString>, Options), &'static str> {
     let mut rest = Vec::with_capacity(args.len());
     let mut options = Options::default();
+    let mut smoke = false;
     let mut args = args.into_iter();
     while let Some(arg) = args.next() {
         let field = match arg.to_str() {
@@ -33,13 +35,15 @@ pub fn extract(args: Vec<OsString>) -> Result<(Vec<OsString>, Options), &'static
                 arg.to_str(),
                 Some("--session" | "--session-assets" | "--session-origin" | "--session-scale")
             );
+            smoke |= arg == "--smoke-test";
+            options.workspace_check |= arg == "--workspace-check";
             rest.push(arg);
             if takes_value {
                 rest.push(args.next().ok_or("Session option requires a value")?);
             }
         }
     }
-    if options.peer.is_some() && !rest.iter().any(|arg| arg == "--smoke-test") {
+    if options.peer.is_some() && !smoke {
         return Err("--shader-smoke-peer requires --smoke-test");
     }
     Ok((rest, options))
@@ -136,5 +140,32 @@ mod tests {
             extract(args(&["--smoke-test", "--shader-smoke-peer", "peer.json"])).unwrap();
         assert!(options.peer.is_some() && options.candidate.is_none());
         assert!(extract(args(&["--shader-smoke-peer", "peer.json"])).is_err());
+    }
+
+    #[test]
+    fn standalone_modes_are_not_inferred_from_session_values() {
+        for field in [
+            "--session",
+            "--session-assets",
+            "--session-origin",
+            "--session-scale",
+        ] {
+            let arguments = args(&[field, "--workspace-check", "--session-check"]);
+            let (rest, options) = extract(arguments.clone()).unwrap();
+            assert_eq!(rest, arguments);
+            assert!(!options.workspace_check);
+            assert_eq!(
+                extract(args(&[
+                    field,
+                    "--smoke-test",
+                    "--shader-smoke-peer",
+                    "peer.json"
+                ]))
+                .err(),
+                Some("--shader-smoke-peer requires --smoke-test")
+            );
+        }
+        let (_, options) = extract(args(&["--workspace-check"])).unwrap();
+        assert!(options.workspace_check);
     }
 }

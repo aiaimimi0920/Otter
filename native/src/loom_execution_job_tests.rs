@@ -13,6 +13,8 @@ use serde_json::json;
 pub(crate) static SERIAL: std::sync::Mutex<()> = std::sync::Mutex::new(());
 #[path = "loom_execution_delivery_tests.rs"]
 mod delivery;
+#[path = "loom_execution_reap_tests.rs"]
+mod reap;
 #[path = "loom_shader_fetch_tests.rs"]
 pub(crate) mod shader_fetch;
 fn id(value: &str) -> UnitId {

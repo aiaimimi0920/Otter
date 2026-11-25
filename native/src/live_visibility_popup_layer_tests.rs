@@ -62,18 +62,7 @@ fn mirror_removal_close_and_hide_all_restore_and_reap_the_shared_journal() {
 fn original_topmost_menu_is_not_registered_and_pending_close_never_borrows() {
     let f = Fixture::new();
     let lease = f.show();
-    unsafe {
-        SetWindowPos(
-            f.popup.0,
-            Some(HWND_TOPMOST),
-            0,
-            0,
-            0,
-            0,
-            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
-        )
-        .unwrap();
-    }
+    f.popup.set_topmost(true);
     let mut owner = Owner::fixture();
     owner.sync_popup_layers(&[lease]).unwrap();
     assert!(owner.popup_layers.is_empty());
@@ -83,18 +72,7 @@ fn original_topmost_menu_is_not_registered_and_pending_close_never_borrows() {
         f.topmost(),
         "application-owned topmost is not Otter's recovery responsibility"
     );
-    unsafe {
-        SetWindowPos(
-            f.popup.0,
-            Some(HWND_NOTOPMOST),
-            0,
-            0,
-            0,
-            0,
-            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
-        )
-        .unwrap();
-    }
+    f.popup.set_topmost(false);
     let mut owner = Owner::fixture();
     owner.sync_popup_layers(&[lease]).unwrap();
     owner.close();

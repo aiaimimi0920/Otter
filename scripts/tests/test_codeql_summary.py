@@ -438,6 +438,27 @@ def test_top_level_and_nested_rule_indexes_must_agree(tmp_path: Path) -> None:
         summary.summarize(tmp_path)
 
 
+def test_rule_index_uses_source_order_in_the_selected_component(tmp_path: Path) -> None:
+    payload = _extension_payload()
+    run = payload["runs"][0]
+    rules = run["tool"]["extensions"][0]["rules"]
+    selected = rules[0]["id"]
+    other = deepcopy(rules[0])
+    other["id"] = "py/aaa-first-alphabetically"
+    other["properties"]["security-severity"] = "1.2"
+    rules.append(other)
+    second = deepcopy(run["results"][0])
+    second.update(ruleId=other["id"])
+    second["rule"].update(index=1, id=other["id"])
+    run["results"].append(second)
+    _write(tmp_path, payload)
+    rows = summary.summarize(tmp_path)["results"]
+    assert [(row["rule_id"], row["security_severity"]) for row in rows] == [
+        (selected, "7.8"),
+        (other["id"], "1.2"),
+    ]
+
+
 def test_mixed_invocations_preserve_findings_and_only_diagnostic_counts(
     tmp_path: Path, capsys: pytest.CaptureFixture
 ) -> None:

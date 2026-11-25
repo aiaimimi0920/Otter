@@ -161,6 +161,6 @@ fn candidate(region: Region, command: usize, desktop: Region) -> Option<(Region,
         if horizontal { 0 } else { delta },
     ))
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-capture")))]
 #[path = "long_capture_dialog_movement_tests.rs"]
 mod tests;

@@ -2,22 +2,22 @@
 use crate::surface_image_worker_host::{self as host, Decoded};
 use std::{ffi::OsString, io};
 #[path = "surface_svg_filter_budget.rs"]
-mod filter_budget;
+pub mod filter_budget;
 #[cfg(test)]
 #[path = "surface_svg_filter_reference_tests.rs"]
 mod filter_references;
 #[path = "surface_svg_fonts.rs"]
 pub mod fonts;
 #[path = "surface_svg_normalize.rs"]
-mod normalize;
+pub mod normalize;
 #[path = "surface_svg_policy.rs"]
-mod policy;
+pub mod policy;
 #[path = "surface_svg_reference_policy.rs"]
-mod reference_policy;
+pub mod reference_policy;
 #[path = "surface_svg_text_fonts.rs"]
-mod text_fonts;
+pub mod text_fonts;
 #[path = "surface_svg_viewport.rs"]
-mod viewport;
+pub mod viewport;
 pub const FLAG: &str = "--native-svg-worker";
 // 累计滤镜策略积分；不是耗时或峰值内存承诺，不能替代 Job 与 XML 准入限制。
 const MAX_FILTER_WORK: u64 = 4_000_000_000;

@@ -34,6 +34,7 @@ pub(in crate::desktop) struct Frame {
     sampling: Sampling,
     beautify: Option<beautify::Settings>,
     projection: bool,
+    rasterized_source: bool,
 }
 impl From<Size> for Frame {
     fn from(logical: Size) -> Self {
@@ -45,6 +46,7 @@ impl From<Size> for Frame {
             sampling: Sampling::Full,
             beautify: None,
             projection: false,
+            rasterized_source: false,
         }
     }
 }
@@ -93,6 +95,10 @@ impl Frame {
         self.beautify = beautify::Settings::read(edit)?;
         Ok(self)
     }
+    pub(in crate::desktop) fn with_rasterized_source(mut self, rasterized: bool) -> Self {
+        self.rasterized_source = rasterized;
+        self
+    }
     pub(in crate::desktop) fn restored(
         image: &Image,
         logical: Size,
@@ -103,14 +109,9 @@ impl Frame {
             crop.editor_crop()
                 .map_err(|_| Error::new(E_INVALIDARG, "Invalid restored crop"))?;
         }
-        let output = crop.map(|crop| {
-            let density = (image.width as f64 / crop.crop.source.width)
-                .max(image.height as f64 / crop.crop.source.height);
-            (
-                (crop.crop.rect.width * density).round().max(1.0) as u32,
-                (crop.crop.rect.height * density).round().max(1.0) as u32,
-            )
-        });
+        let rasterized_source = crop.is_some_and(|crop| crop.rasterized_source);
+        let output = crop
+            .map(|crop| crop_output(image, crop.crop.source, crop.crop.rect, rasterized_source));
         if output.is_some_and(|size| checked_image_bytes(size.0, size.1).is_none()) {
             return Err(Error::new(
                 E_INVALIDARG,
@@ -127,6 +128,7 @@ impl Frame {
             sampling: Sampling::Full,
             beautify: None,
             projection: false,
+            rasterized_source,
         })
     }
 }
@@ -144,28 +146,21 @@ pub(super) struct Layout {
     pub radius: f32,
 }
 impl Layout {
-    fn for_frame(image: &Image, frame: &Frame, crop: Option<Rect>) -> Result<Self> {
-        let mut layout = Self::new(image, frame.logical, crop)?;
-        if let Some(output) = frame.output {
-            if checked_image_bytes(output.0, output.1).is_none() {
-                return Err(Error::new(E_INVALIDARG, "Invalid source output size"));
-            }
-            layout.output = output;
-        }
-        if let Some(base) = frame.base {
-            layout.base = base;
-        }
-        layout.base_clip = frame.base_clip;
-        layout.sampling = frame.sampling;
-        Ok(layout)
-    }
+    #[cfg(test)]
     fn new(image: &Image, logical: Size, crop: Option<Rect>) -> Result<Self> {
+        Self::for_frame(image, &logical.into(), crop)
+    }
+
+    fn for_frame(image: &Image, frame: &Frame, crop: Option<Rect>) -> Result<Self> {
+        let logical = frame.logical;
+        // Restored crops can have a full logical frame larger than any texture.
+        // Keep the crop geometry ceiling here; PNG admission bounds actual pixels.
         if !logical.width.is_finite()
             || !logical.height.is_finite()
             || logical.width <= 0.0
             || logical.height <= 0.0
-            || logical.width > 8192.0
-            || logical.height > 8192.0
+            || logical.width > 1_000_000.0
+            || logical.height > 1_000_000.0
             || checked_image_bytes(image.width, image.height) != Some(image.pixels.len())
         {
             return Err(Error::new(E_INVALIDARG, "Invalid source-resolution frame"));
@@ -188,16 +183,11 @@ impl Layout {
         {
             return Err(Error::new(E_INVALIDARG, "Invalid source-resolution crop"));
         }
-        let density =
-            (image.width as f64 / logical.width).max(image.height as f64 / logical.height);
-        let output = if crop.is_some() {
-            (
-                (visible.width * density).round().max(1.0) as u32,
-                (visible.height * density).round().max(1.0) as u32,
-            )
-        } else {
-            (image.width, image.height)
-        };
+        let output = frame.output.unwrap_or_else(|| {
+            crop.map_or((image.width, image.height), |crop| {
+                crop_output(image, logical, crop, frame.rasterized_source)
+            })
+        });
         if checked_image_bytes(output.0, output.1).is_none() {
             return Err(Error::new(
                 E_INVALIDARG,
@@ -205,8 +195,11 @@ impl Layout {
             ));
         }
         let scale = (logical.width / image.width as f64).min(logical.height / image.height as f64);
-        let width = image.width as f64 * scale;
-        let height = image.height as f64 * scale;
+        let (width, height) = if frame.rasterized_source {
+            (logical.width, logical.height)
+        } else {
+            (image.width as f64 * scale, image.height as f64 * scale)
+        };
         let x = (logical.width - width) / 2.0;
         let y = (logical.height - height) / 2.0;
         Ok(Self {
@@ -214,17 +207,32 @@ impl Layout {
             visible,
             border: None,
             radius: 0.0,
-            base_clip: None,
-            sampling: Sampling::Full,
-            base: D2D_RECT_F {
+            base_clip: frame.base_clip,
+            sampling: frame.sampling,
+            base: frame.base.unwrap_or(D2D_RECT_F {
                 left: x as f32,
                 top: y as f32,
                 right: (x + width) as f32,
                 bottom: (y + height) as f32,
-            },
+            }),
             interpolation: D2D1_BITMAP_INTERPOLATION_MODE_NEAREST_NEIGHBOR,
         })
     }
+}
+
+fn crop_output(image: &Image, logical: Size, crop: Rect, rasterized: bool) -> (u32, u32) {
+    let x = image.width as f64 / logical.width;
+    let y = image.height as f64 / logical.height;
+    // A materialized grid has independent axis densities; natural sources retain the max-density contract.
+    let (x, y) = if rasterized {
+        (x, y)
+    } else {
+        (x.max(y), x.max(y))
+    };
+    (
+        (crop.width * x).round().max(1.0) as u32,
+        (crop.height * y).round().max(1.0) as u32,
+    )
 }
 
 /// 仅在后台使用。image 必须是当前权威底图，调用方须在捕获时校验 retained source
@@ -282,9 +290,9 @@ pub(in crate::desktop) fn png_source_resolution(
     output.bitmap(&wic, bitmap, cancel)
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "export_source_projection_tests.rs"]
 mod projection_tests;
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-capture")))]
 #[path = "export_source_resolution_tests.rs"]
 mod tests;

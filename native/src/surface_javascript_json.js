@@ -6,13 +6,15 @@
   const descriptors = Object.getOwnPropertyDescriptors, own = Object.hasOwn;
   const create = Object.create, setPrototype = Object.setPrototypeOf, isArray = Array.isArray;
   const finite = Number.isFinite;
-  const copy = value => {
+  const copy = (value, isPrivateCanvasPath) => {
     const pending = setPrototype([], null);
     const prepare = (value, depth) => {
       if (depth > 128) throw new Error("Native JSON depth exceeded");
       if (value === null || typeof value === "string" || typeof value === "boolean") return value;
       if (typeof value === "number" && finite(value)) return value;
       if (typeof value !== "object") throw new Error("Invalid private native JSON value");
+      // 只有 Canvas 私有快照表可以免复制；其它分支仍逐项校验自有描述符。
+      if (isPrivateCanvasPath && isPrivateCanvasPath(value)) return value;
       const output = isArray(value) ? setPrototype([], null) : create(null);
       pending[pending.length] = { value, output, depth }; return output;
     };
@@ -32,5 +34,6 @@
     return output;
   };
   const encode = value => stringify(copy(value));
-  return { encode, decode: value => copy(parse(value)), clone: value => parse(encode(value)), payload: stringify };
+  return { encode, encodeCanvas: (value, isPrivateCanvasPath) => stringify(copy(value, isPrivateCanvasPath)),
+    decode: value => copy(parse(value)), clone: value => parse(encode(value)), payload: stringify };
 })()

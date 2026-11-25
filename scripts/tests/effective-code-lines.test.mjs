@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -12,6 +13,7 @@ import {
   countPhysicalLines,
 } from "../effective-code-lines-lexer.mjs";
 import {
+  createBaseline,
   evaluateRows,
   normalizeRepoPath,
   scanRepository,
@@ -20,6 +22,7 @@ import {
   toolHashes,
   validateExceptions,
 } from "../effective-code-lines.mjs";
+import { scanRepositoryHashes } from "../review-coverage.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const policyPath = path.join(repoRoot, "scripts", "effective-code-lines-policy.json");
@@ -169,16 +172,22 @@ test("exception validation rejects stale, expired, and over-limit records", () =
   );
 });
 
-test("repository scan excludes declared generated paths and rejects symlink inputs", (context) => {
+test("repository scan excludes declared generated paths and counts hand-written inputs", (context) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "effective-lines-"));
   context.after(() => fs.rmSync(root, { recursive: true, force: true }));
   fs.mkdirSync(path.join(root, "src"));
   fs.mkdirSync(path.join(root, "target"));
   fs.writeFileSync(path.join(root, "src", "kept.ts"), "// comment\nconst kept = 1;\n", "utf8");
   fs.writeFileSync(path.join(root, "target", "ignored.ts"), "const ignored = 1;\n", "utf8");
+  fs.writeFileSync(path.join(root, "src", "fixture.cs"), `// Fixture
+/* block
+   comment */
+string Url => "https://example.test/a"; // inline
+int Value => 1;
+`, "utf8");
   const result = scanRepository(root, policy);
-  assert.deepEqual(result.rows.map((entry) => entry.path), ["src/kept.ts"]);
-  assert.equal(result.rows[0].effectiveLines, 1);
+  assert.deepEqual(result.rows.map((entry) => entry.path), ["src/fixture.cs", "src/kept.ts"]);
+  assert.deepEqual(result.rows.map((entry) => entry.effectiveLines), [2, 1]);
   assert.deepEqual(result.diagnostics, []);
 });
 
@@ -190,6 +199,54 @@ test("repository scan hashes LF and CRLF source identically", (context) => {
   const result = scanRepository(root, policy);
   assert.equal(result.rows.length, 2);
   assert.equal(result.rows[0].sourceSha256, result.rows[1].sourceSha256);
+  assert.deepEqual(scanRepositoryHashes(root, policy).rows, result.rows.map(({ path, sourceSha256 }) => ({
+    path, sourceSha256,
+  })));
+});
+
+test("worktree, coverage and Git baseline agree on release and exact file exclusions", (context) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "effective-lines-release-"));
+  context.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const git = (...args) => execFileSync("git", ["-C", root, ...args], {
+    encoding: "utf8",
+    windowsHide: true,
+  }).trim();
+  git("init", "--quiet");
+  const kept = "scripts/release/handwritten.ps1";
+  for (const relativePath of [kept, "release/generated.ps1", "public/javascript-surface-bootstrap.js"]) {
+    const file = path.join(root, relativePath);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, "\uFEFF" + "echo value\n".repeat(501), "utf8");
+    git("-c", "core.autocrlf=false", "add", "-f", "--", relativePath);
+  }
+  const tree = git("write-tree");
+  const commit = git("-c", "user.name=Otter Fixture", "-c", "user.email=fixture@example.test",
+    "-c", "commit.gpgsign=false", "commit-tree", tree, "-m", "Fixture");
+  const fixturePolicy = { ...policy, baselineSourceCommit: commit, baselineSourceTree: tree };
+  const worktree = scanRepository(root, fixturePolicy);
+  const coverage = scanRepositoryHashes(root, fixturePolicy, { filterGroup: "scripts" });
+  const allCoverage = scanRepositoryHashes(root, fixturePolicy);
+  const baseline = createBaseline(root, fixturePolicy, policyPath);
+  for (const scan of [worktree, coverage, allCoverage]) assert.deepEqual(scan.diagnostics, []);
+  assert.deepEqual(worktree.rows.map(({ path }) => path), [kept]);
+  const [{ sourceSha256 }] = worktree.rows;
+  assert.deepEqual(coverage.rows, [{ path: kept, sourceSha256 }]);
+  assert.deepEqual(allCoverage.rows, coverage.rows);
+  assert.deepEqual(baseline.files, [{ path: kept, sourceSha256, effectiveLines: 501, physicalLines: 501 }]);
+});
+
+test("filtered build and CI coverage includes native build support, not product modules", (context) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "effective-lines-build-"));
+  context.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const kept = ["native/build_support/windows_resources.rs", "native/build.rs"];
+  for (const relativePath of [...kept, "native/src/desktop/app.rs", "scripts/build.ps1"]) {
+    const file = path.join(root, relativePath);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, "value\n", "utf8");
+  }
+  const scan = scanRepositoryHashes(root, policy, { filterGroup: "build-and-ci" });
+  assert.deepEqual(scan.diagnostics, []);
+  assert.deepEqual(scan.rows.map(({ path }) => path).sort(), kept.sort());
 });
 
 test("integrity hashes normalize checker and lexer line endings", () => {

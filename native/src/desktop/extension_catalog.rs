@@ -60,6 +60,9 @@ impl Owner {
             super::capability_job::Source::Discovery(crate::loom_discovery::Config::from_env())
         })
     }
+    pub(super) fn deadline(&self) -> Option<std::time::Instant> {
+        self.job.deadline()
+    }
     fn process_with(&mut self, source: impl FnOnce() -> super::capability_job::Source) -> bool {
         let mut changed = false;
         if let Some(event) = self.job.poll() {
@@ -68,6 +71,10 @@ impl Owner {
                 Event::Snapshot(snapshot) => {
                     view.snapshot = Some(snapshot);
                     view.phase = Phase::Ready;
+                }
+                Event::Revoked => {
+                    view.snapshot = None;
+                    view.phase = Phase::Failed;
                 }
                 Event::Stopped(result) => {
                     view.snapshot = None;
@@ -79,8 +86,8 @@ impl Owner {
             }
             changed = true;
         }
-        let requested = std::mem::take(&mut self.view.borrow_mut().requested);
-        if requested && !self.job.is_busy() {
+        // 撤权已可见，但旧线程可能还在通知尾段；保留用户显式重试，不自动重连。
+        if !self.job.is_busy() && std::mem::take(&mut self.view.borrow_mut().requested) {
             let mut view = self.view.borrow_mut();
             view.snapshot = None;
             view.phase = Phase::Loading;
@@ -107,6 +114,6 @@ impl Drop for Owner {
         self.shutdown();
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-loom")))]
 #[path = "extension_catalog_tests.rs"]
 mod tests;

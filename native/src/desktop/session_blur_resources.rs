@@ -1,7 +1,7 @@
 //! 单个恢复窗口的惰性模糊资源缓存；源图只投影一次，精确强度共享，不跨窗口复用。
 use super::{image::Image, session_prepare::Images};
 use crate::{
-    blur::{self, BlurError, Region},
+    blur::{BlurError, Region},
     blur_image::BlurImage,
     crop_geometry::{Crop, Size},
     session_vectors::Error,
@@ -15,6 +15,7 @@ pub(super) struct Resources<'a> {
     frame: Size,
     crop: Option<Crop>,
     editor_crop: Option<crate::session_crop::Restored>,
+    full_working_grid: bool,
     cancel: &'a AtomicBool,
     source: Option<Image>,
     cache: HashMap<u32, BlurImage>,
@@ -31,6 +32,7 @@ impl<'a> Resources<'a> {
             frame,
             crop,
             editor_crop: None,
+            full_working_grid: false,
             cancel,
             source: None,
             cache: HashMap::new(),
@@ -44,6 +46,15 @@ impl<'a> Resources<'a> {
     ) -> Self {
         let mut resources = Self::new(images, restored.crop.source, None, cancel);
         resources.editor_crop = Some(restored);
+        resources
+    }
+    pub(super) fn for_full_working_grid(
+        images: &'a Images,
+        size: Size,
+        cancel: &'a AtomicBool,
+    ) -> Self {
+        let mut resources = Self::new(Some(images), size, None, cancel);
+        resources.full_working_grid = true;
         resources
     }
     pub(super) fn get(&mut self, strength: f32) -> Result<BlurImage, Error> {
@@ -63,6 +74,8 @@ impl<'a> Resources<'a> {
                     let images = self.images.ok_or(Error::Geometry)?;
                     if let Some(restored) = self.editor_crop {
                         images.prepare_cropped_effect_source(restored, self.cancel)
+                    } else if self.full_working_grid {
+                        images.prepare_full_working_effect_source(self.frame, self.cancel)
                     } else {
                         images.prepare_effect_source(self.frame, self.crop, self.cancel)
                     }
@@ -72,7 +85,7 @@ impl<'a> Resources<'a> {
                     if error.code() == E_ABORT {
                         Error::Cancelled
                     } else if error.code() == E_OUTOFMEMORY {
-                        Error::Budget
+                        Error::EffectBudget
                     } else {
                         Error::Geometry
                     }
@@ -80,9 +93,17 @@ impl<'a> Resources<'a> {
             );
         }
         let source = self.source.as_ref().expect("prepared source");
-        let pixels = blur::region_precise(
+        let size = (source.width, source.height);
+        let projection = self
+            .editor_crop
+            .map(|crop| crop.editor_crop().map_err(|_| Error::Geometry))
+            .transpose()?
+            .map(|crop| crop.source)
+            .or_else(|| self.full_working_grid.then_some(self.frame))
+            .and_then(|frame| frame.raster_density(size));
+        let image = BlurImage::prepare(
             &source.pixels,
-            (source.width, source.height),
+            size,
             Region {
                 x: 0,
                 y: 0,
@@ -90,19 +111,18 @@ impl<'a> Resources<'a> {
                 height: source.height,
             },
             strength,
+            projection,
             || self.cancel.load(Ordering::Acquire),
         )
         .map_err(|error| match error {
             BlurError::Cancelled => Error::Cancelled,
-            BlurError::BudgetExceeded => Error::Budget,
+            BlurError::BudgetExceeded => Error::EffectBudget,
             _ => Error::Geometry,
         })?;
-        let image = BlurImage::with_strength(source.width, source.height, pixels, strength)
-            .ok_or(Error::Geometry)?;
         if self.cancel.load(Ordering::Acquire) {
             return Err(Error::Cancelled);
         }
-        self.cache.try_reserve(1).map_err(|_| Error::Budget)?;
+        self.cache.try_reserve(1).map_err(|_| Error::EffectBudget)?;
         self.cache.insert(key, image.clone());
         Ok(image)
     }
@@ -110,6 +130,7 @@ impl<'a> Resources<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::blur;
     #[test]
     fn cropped_editor_effect_retains_outside_source_and_offsets_overlay_once() {
         use crate::crop_geometry::Rect;
@@ -156,6 +177,7 @@ mod tests {
             },
             flipped_x: false,
             flipped_y: false,
+            rasterized_source: false,
         };
         let cancel = AtomicBool::new(false);
         let mut resources = Resources::for_cropped_editor(Some(&images), restored, &cancel);

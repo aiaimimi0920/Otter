@@ -1,7 +1,7 @@
 //! 仅自有隐藏宿主/控件与线程键表；不注入系统输入，不把合成 IME 当人工输入法验收。
 use super::*;
 use desktop::{document_window::DocumentWindow, Apartment};
-use windows::{core::w, Win32::System::LibraryLoader::GetModuleHandleW};
+use windows::core::w;
 pub(in crate::desktop) fn catalog(mut edit: impl FnMut(&mut serde_json::Value)) -> Rc<Loaded> {
     let (_, identity, _) = crate::loom_bridge_client::tests::fixture();
     let mut raw = crate::loom_handshake::tests::fixture();
@@ -18,14 +18,7 @@ pub(in crate::desktop) fn catalog(mut edit: impl FnMut(&mut serde_json::Value)) 
     })
 }
 pub(in crate::desktop) unsafe fn document() -> (HINSTANCE, DocumentWindow) {
-    let instance = HINSTANCE(GetModuleHandleW(None).unwrap().0);
-    let registered = RegisterClassW(&WNDCLASSW {
-        hInstance: instance,
-        lpszClassName: w!("Otter.Native.Workspace"),
-        lpfnWndProc: Some(fixture_proc),
-        ..Default::default()
-    });
-    assert!(registered != 0 || GetLastError() == ERROR_CLASS_ALREADY_EXISTS);
+    let instance = crate::desktop::workspace_window_fixture::register();
     let state = State::new(
         Some(crate::image_decode::Image {
             width: 2,
@@ -38,33 +31,11 @@ pub(in crate::desktop) unsafe fn document() -> (HINSTANCE, DocumentWindow) {
     let document = DocumentWindow::create(instance, state, false).unwrap();
     (instance, document)
 }
-thread_local! {
-    static CREATE: std::cell::RefCell<Option<Box<dyn FnOnce()>>> = const { std::cell::RefCell::new(None) };
-    static CANDIDATE: std::cell::Cell<HWND> = const { std::cell::Cell::new(HWND(std::ptr::null_mut())) };
-}
+use desktop::workspace_window_fixture::during_create;
 pub(in crate::desktop) fn replace_during_create(
     catalog: Rc<std::cell::RefCell<desktop::capability_catalog::Catalog>>,
 ) {
     during_create(move || catalog.borrow_mut().loaded = Some(self::catalog(|_| {})));
-}
-pub(in crate::desktop) fn during_create(action: impl FnOnce() + 'static) {
-    CREATE.with(|slot| {
-        assert!(slot.borrow().is_none());
-        *slot.borrow_mut() = Some(Box::new(action));
-    });
-}
-pub(in crate::desktop) fn candidate() -> HWND {
-    CANDIDATE.with(|slot| slot.get())
-}
-unsafe extern "system" fn fixture_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
-    if msg == WM_NCCREATE {
-        let action = CREATE.with(|slot| slot.borrow_mut().take());
-        if let Some(action) = action {
-            CANDIDATE.with(|slot| slot.set(hwnd));
-            action();
-        }
-    }
-    desktop::procedure::window_proc(hwnd, msg, wp, lp)
 }
 struct Keys([u8; 256]);
 impl Keys {
@@ -141,6 +112,7 @@ fn search_retains_original_indices_and_disabled_or_stale_catalog_cannot_queue() 
         });
         doc.state.catalog.borrow_mut().loaded = Some(loaded);
         let snap = model::Snapshot::capture(doc.window.0, &doc.state);
+        assert_eq!(snap.search("  \t"), vec![0, 1]);
         assert_eq!(snap.search("第二"), vec![1]);
         assert_eq!(snap.search("TEST-ART"), vec![0]);
         assert!(snap.search("missing").is_empty());

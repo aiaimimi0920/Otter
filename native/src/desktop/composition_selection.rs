@@ -71,6 +71,6 @@ pub(super) fn select<T>(
     unreachable!("finite nonempty backend sequence returns success or final failure")
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "composition_selection_tests.rs"]
 mod tests;

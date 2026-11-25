@@ -17,12 +17,9 @@ pub(super) unsafe fn mask(
     let frame = image.frame();
     let x = viewport.origin.x + frame.x as f32 * viewport.scale;
     let y = viewport.origin.y + frame.y as f32 * viewport.scale;
-    let mut matrix = Default::default();
-    target.GetTransform(&mut matrix);
+    let mut matrix = D2D1_LAYER_PARAMETERS::default().maskTransform;
     // 创建局部几何变换而不是修改 render target，宿主缩放/旋转只能应用一次。
     matrix.M11 = scale.0;
-    matrix.M12 = 0.0;
-    matrix.M21 = 0.0;
     matrix.M22 = scale.1;
     matrix.M31 = x * (1.0 - scale.0);
     matrix.M32 = y * (1.0 - scale.1);

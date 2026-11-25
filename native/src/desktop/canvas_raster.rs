@@ -69,6 +69,42 @@ impl Canvas {
     }
 }
 
+/// Keep the base projection and annotation clip in the same viewport for local and mirrored pins.
+pub(super) struct Geometry {
+    pub(super) base: D2D_RECT_F,
+    pub(super) clip: D2D_RECT_F,
+    pub(super) projection: Option<crate::image_projection::Projection>,
+}
+impl Geometry {
+    pub(super) fn new(image: &Image, editor: Option<&Editor>, viewport: Viewport) -> Self {
+        let Viewport { origin, scale, .. } = viewport;
+        let to_display = |r: crate::crop_geometry::Rect| D2D_RECT_F {
+            left: origin.x + r.x as f32 * scale,
+            top: origin.y + r.y as f32 * scale,
+            right: origin.x + (r.x + r.width) as f32 * scale,
+            bottom: origin.y + (r.y + r.height) as f32 * scale,
+        };
+        let projection = editor.and_then(Editor::raster_base_projection);
+        let base = projection.map_or_else(
+            || D2D_RECT_F {
+                left: origin.x,
+                top: origin.y,
+                right: origin.x + image.width as f32 * scale,
+                bottom: origin.y + image.height as f32 * scale,
+            },
+            |mapping| to_display(mapping.target),
+        );
+        let clip = editor
+            .and_then(Editor::annotation_frame)
+            .map_or(base, to_display);
+        Self {
+            base,
+            clip,
+            projection,
+        }
+    }
+}
+
 struct Bitmap {
     pixels: Pixels,
     size: (u32, u32),
@@ -126,6 +162,21 @@ unsafe fn upload(
         .transpose()
 }
 impl Resources {
+    pub(super) unsafe fn sync_frame(
+        &mut self,
+        target: &ID2D1RenderTarget,
+        image: Option<&Image>,
+        editor: Option<&Editor>,
+    ) -> Result<()> {
+        let layers = editor.and_then(Editor::layers);
+        self.sync_sized(
+            target,
+            image,
+            layers.and_then(|layers| layers.annotations.as_ref()),
+            layers.map_or((0, 0), Layers::annotation_dimensions),
+        )
+    }
+
     #[cfg(test)]
     pub(super) unsafe fn sync(
         &mut self,

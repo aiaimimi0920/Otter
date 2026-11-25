@@ -23,14 +23,26 @@ function snapshot(root, metadata) {
   const identities = verifiedSources(root);
   verifyResolution(root, identities, metadata);
   const designFiles = design.sourceFiles(root, metadata);
-  const allowedLocal = new Set(['otter-native', 'otter-live-hover-hook', ...identities.map(p => p.name)]);
+  const allowedLocal = new Set(['otter-native', 'otter-core', 'otter-media', 'otter-runtime', 'otter-live-hover-hook', ...identities.map(p => p.name)]);
   if (metadata.packages.some(p => p.source == null && !allowedLocal.has(p.name))) {
     throw new Error('Uninventoried local Cargo dependency');
   }
   const native = metadata.packages.filter(p => p.name === 'otter-native');
+  const core = metadata.packages.filter(p => p.name === 'otter-core');
+  const media = metadata.packages.filter(p => p.name === 'otter-media');
+  const runtime = metadata.packages.filter(p => p.name === 'otter-runtime');
   const hook = metadata.packages.filter(p => p.name === 'otter-live-hover-hook');
   if (hook.length !== 1 || fs.realpathSync(hook[0].manifest_path) !== path.join(root, 'native', 'hover-hook', 'Cargo.toml')) {
     throw new Error('Native hover package resolution mismatch');
+  }
+  if (core.length !== 1 || fs.realpathSync(core[0].manifest_path) !== path.join(root, 'native', 'otter-core', 'Cargo.toml')) {
+    throw new Error('Native core package resolution mismatch');
+  }
+  if (media.length !== 1 || fs.realpathSync(media[0].manifest_path) !== path.join(root, 'native', 'otter-media', 'Cargo.toml')) {
+    throw new Error('Native media package resolution mismatch');
+  }
+  if (runtime.length !== 1 || fs.realpathSync(runtime[0].manifest_path) !== path.join(root, 'native', 'otter-runtime', 'Cargo.toml')) {
+    throw new Error('Native runtime package resolution mismatch');
   }
   if (native.length !== 1 || fs.realpathSync(native[0].manifest_path) !== path.join(root, 'native', 'Cargo.toml')) {
     throw new Error('Native package resolution mismatch');
@@ -38,14 +50,17 @@ function snapshot(root, metadata) {
   const version = JSON.parse(fs.readFileSync(checkedPath(root, 'version-state.json'), 'utf8'));
   const pkg = JSON.parse(fs.readFileSync(checkedPath(root, 'package.json'), 'utf8'));
   if (!/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(version.publicVersion) || version.publicVersion !== pkg.version ||
-      version.publicVersion !== native[0].version || !Number.isInteger(version.internalRevision) ||
+      version.publicVersion !== native[0].version || version.publicVersion !== core[0].version ||
+      version.publicVersion !== media[0].version || version.publicVersion !== runtime[0].version ||
+      version.publicVersion !== hook[0].version ||
+      !Number.isInteger(version.internalRevision) ||
       version.internalRevision < 1 || version.internalRevision > 65535) throw new Error('Invalid internal build version');
   const names = new Set(['native/Cargo.toml', 'native/Cargo.lock', 'native/build.rs', 'native/windows.manifest',
     'package.json', 'version-state.json', 'third_party/sources.json',
     'scripts/build-native-candidate.ps1', 'scripts/package-native-candidate.ps1', 'scripts/verify-native-package.ps1',
     'scripts/version-identity.ps1', 'scripts/file-hash.ps1', 'THIRD_PARTY_NOTICES.md',
     'scripts/release/PathSafety.ps1', 'scripts/release/third-party-sources.cjs']);
-  for (const directory of ['native/src', 'native/hover-hook', 'native/assets', 'native/tests', 'native/build_support', 'scripts/native-candidate']) {
+  for (const directory of ['native/src', 'native/otter-core', 'native/otter-media', 'native/otter-runtime', 'native/hover-hook', 'native/assets', 'native/tests', 'native/build_support', 'scripts/native-candidate']) {
     filesUnder(root, directory, names);
   }
   for (const directory of ['.cargo', 'native/.cargo']) {

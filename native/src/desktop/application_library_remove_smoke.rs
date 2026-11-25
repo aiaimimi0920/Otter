@@ -1,4 +1,4 @@
-//! 两库第二页“删除此条”经生产队列/worker/提交，并在 linshi 覆盖保存。
+//! 两库第二页“删除此条”经生产队列/worker/提交，并覆盖保存。
 use super::*;
 use crate::session_library::Kind;
 unsafe fn settle(app: &mut Application) -> Result<()> {
@@ -22,7 +22,8 @@ pub(in crate::desktop::application) unsafe fn run(instance: HINSTANCE) -> Result
     let entries: Vec<_> = (0..65).map(|i| serde_json::json!({"entryId":format!("entry-{i}"),"sourceStickerId":format!("source-{i}"),
         "createdAt":"legacy", "snapshot":{"id":format!("source-{i}"),"x":0,"y":0,"w":32,"h":32}})).collect();
     app.restored_session.as_mut().unwrap().original = serde_json::to_vec(&serde_json::json!({"stickers":[],"links":[],"referenceLibrary":entries,"recycleBin":entries})).unwrap().into();
-    let path = save_publish::smoke_destination()?;
+    let fixture = smoke_session_fixture::Directory::new()?;
+    let path = fixture.target();
     reference::smoke::save(&mut app, Some(path.clone()))?;
     for library in 0..2 {
         for mode in 0..3 {

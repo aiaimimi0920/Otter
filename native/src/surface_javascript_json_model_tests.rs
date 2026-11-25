@@ -44,14 +44,19 @@ fn javascript_json_bulk_descriptors_use_captured_intrinsics_and_reject_accessors
     evaluate(
         r#"
       const reject=value=>{let caught=false;try{codec.encode(value)}catch{caught=true}if(!caught)throw Error('accessor accepted')};
-      const value={};Object.defineProperty(value,'x',{enumerable:true,get(){throw Error('getter invoked')}});
+      let calls=0;
+      // getter 返回合法值而不是抛错，避免把调用 getter 的异常误当作拒绝访问器。
+      const value={};Object.defineProperty(value,'x',{enumerable:true,get(){calls++;return 1}});
       reject(value);
-      Object.defineProperty(Object.prototype,'value',{get(){throw Error('inherited descriptor value')},configurable:true});
+      const array=[1,2];Object.defineProperty(array,'extra',{enumerable:true,get(){calls++;return 3}});
+      reject(array);
+      Object.defineProperty(Object.prototype,'value',{get(){calls++;return 2},configurable:true});
       reject(value);
-      Object.prototype.toJSON=()=>{throw Error('inherited toJSON')};
+      Object.prototype.toJSON=Array.prototype.toJSON=()=>{calls++;return 'hook'};
       const deny=()=>{throw Error('public intrinsic')};
       Object.getOwnPropertyDescriptors=Object.getOwnPropertyDescriptor=Object.keys=Object.hasOwn=deny;
       if(codec.encode({safe:[1,2]})!=='{"safe":[1,2]}')throw Error('captured descriptors');
+      if(calls!==0)throw Error('getter or toJSON invoked');
     "#,
     );
 }

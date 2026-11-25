@@ -42,6 +42,7 @@ pub struct Document {
     pub(in crate::desktop) sticker: Option<(crate::desktop::sticker_input::Config, bool)>,
     pub execution: Option<crate::graph_execution_config::Config>,
     pub restored_source: Option<crate::desktop::image::Image>,
+    pub restored_source_rasterized_crop: bool,
     pub local_image: Option<crate::desktop::image::Image>,
 }
 impl Document {
@@ -81,12 +82,30 @@ pub struct Data {
     pub groups: Vec<crate::workspace::Group>,
     pub transient_host: Option<UnitId>,
 }
+/// A library update can encode its requested sticker, never a session candidate.
+pub(super) struct FrozenData(Data);
+#[derive(Clone, Copy)]
+enum Payload<'a> {
+    None,
+    All,
+    Target(&'a UnitId),
+}
+impl Payload<'_> {
+    fn includes(self, unit: &UnitId) -> bool {
+        match self {
+            Self::None => false,
+            Self::All => true,
+            Self::Target(target) => target == unit,
+        }
+    }
+}
 pub struct Receipt {
     projection_scope: crate::session_projection_scope::Scope,
     live: Vec<live::Guard>,
     guard: Guard,
     original: Source,
     space: Space,
+    transient_host: Option<UnitId>,
 }
 /// 自动持久化只记已编码时间点的几何/身份，不保 GPU 帧，也不跟踪流序号。
 pub(super) struct LiveStamp(Vec<live::Guard>);
@@ -95,24 +114,52 @@ impl LiveStamp {
         live::matches(&self.0, app)
     }
 }
-pub(super) fn automatic_ready(app: &Application) -> Result<bool> {
+pub(super) fn automatic_static_ready(app: &Application) -> bool {
     // 后台快照只取交互结束状态，不在滚轮/系统移动热路径冻结并序列化整个工作区。
-    Ok(app.live_freeze_job.is_none()
+    app.live_freeze_job.is_none()
         && !app
             .documents
             .iter()
             .any(|doc| crate::desktop::pin_window::animation::busy(&doc.state))
-        && live::automatic_ready(app)?)
+}
+pub(super) fn automatic_ready(app: &Application) -> Result<bool> {
+    Ok(automatic_static_ready(app) && live::automatic_ready(app)?)
+}
+#[cfg(test)]
+pub(super) fn live_frame_reads_for_test() -> usize {
+    live::FRAME_READS.with(std::cell::Cell::get)
+}
+#[cfg(test)]
+std::thread_local! {
+    static PAYLOAD_DOCUMENTS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+#[cfg(test)]
+pub(super) fn payload_documents_for_test() -> usize {
+    PAYLOAD_DOCUMENTS.with(std::cell::Cell::get)
 }
 impl Receipt {
-    pub(super) fn live_stamp(&self) -> LiveStamp {
-        LiveStamp(self.live.clone())
+    pub(super) fn original(&self) -> &Source {
+        &self.original
+    }
+    pub(super) unsafe fn checked_saved_stamp(
+        &self,
+        app: &Application,
+    ) -> Option<save_state::Stamp> {
+        // Stamp the geometry the worker encoded, not a later window position.
+        self.matches(app).then(|| {
+            save_state::Stamp::from_verified_geometry(
+                app,
+                self.guard.geometries(),
+                LiveStamp(self.live.clone()),
+            )
+        })
     }
     pub unsafe fn matches(&self, app: &Application) -> bool {
         app.restore_job.is_none()
             && app.restored_session.as_ref().is_some_and(|record| {
                 record.original.same_storage(&self.original)
                     && record.projection_scope == Some(self.projection_scope)
+                    && record.transient_host == self.transient_host
                     && record.space.is_some_and(|space| {
                         space.origin == self.space.origin && space.scale == self.space.scale
                     })
@@ -124,6 +171,42 @@ impl Receipt {
 impl Application {
     /// 捕获使用创建或恢复时建立的显式坐标上下文；不猜测历史 DPR，不泵消息。
     pub unsafe fn capture_session_snapshot(&mut self) -> Result<(Receipt, Data)> {
+        let (receipt, data) = self.build_session_capture(None, Payload::All)?;
+        Ok((receipt, data.expect("save must contain payload")))
+    }
+    pub(super) unsafe fn capture_frozen_snapshot(
+        &mut self,
+        target: &UnitId,
+    ) -> Result<(Receipt, FrozenData)> {
+        let (receipt, data) = self.build_session_capture(None, Payload::Target(target))?;
+        Ok((
+            receipt,
+            FrozenData(data.expect("frozen capture must contain payload")),
+        ))
+    }
+    /// 编辑冻结库原文不需要生成新的图像或工作区文档，但必须持有同样的发布凭证。
+    pub(super) unsafe fn capture_session_receipt(&mut self) -> Result<Receipt> {
+        self.build_session_capture(None, Payload::None)
+            .map(|(receipt, _)| receipt)
+    }
+    pub(super) unsafe fn capture_automatic_session_snapshot(
+        &mut self,
+    ) -> Result<Option<(Receipt, Data)>> {
+        // 调用方已检查静态窗口。同次 UI 操作内移交准入用的帧，不跨消息缓存或领取第二次投递。
+        let Some(live) = live::capture(self, true, Payload::All)? else {
+            return Ok(None);
+        };
+        let (receipt, data) = self.build_session_capture(Some(live), Payload::All)?;
+        Ok(Some((
+            receipt,
+            data.expect("automatic save must contain payload"),
+        )))
+    }
+    unsafe fn build_session_capture(
+        &mut self,
+        live: Option<live::Capture>,
+        selection: Payload<'_>,
+    ) -> Result<(Receipt, Option<Data>)> {
         for document in &self.documents {
             crate::desktop::extension_document::observe(&document.state);
         }
@@ -150,11 +233,19 @@ impl Application {
                 "Workspace is busy during save snapshot",
             ));
         }
-        let mut documents = Vec::with_capacity(self.documents.len());
+        let scope = record.projection_scope.unwrap();
+        let capacity = match selection {
+            Payload::All => self.documents.len(),
+            Payload::None => 0,
+            Payload::Target(_) => 1,
+        };
+        let mut documents = Vec::with_capacity(capacity);
         let mut projection_edits = Vec::new();
-        for doc in &self.documents {
-            let mut rect = RECT::default();
-            GetWindowRect(doc.window.0, &mut rect)?;
+        let mut transient_host = record.transient_host.clone();
+        let mut projection_count = 0;
+        // Use the same physical geometry for the payload and its receipt. The
+        // checks above and after Live capture still query the actual windows.
+        for (doc, (rect, dpi)) in self.documents.iter().zip(guard.geometries()) {
             let frame = PinRect {
                 x: rect.left,
                 y: rect.top,
@@ -167,29 +258,44 @@ impl Application {
                 .logical(frame, None)
                 .map_err(|_| Error::new(E_INVALIDARG, "Invalid snapshot geometry"))?;
             let canvas = doc.state.canvas.borrow();
-            let dpi = windows::Win32::UI::HiDpi::GetDpiForWindow(doc.window.0);
-            if dpi == 0
-                || !canvas.viewport.scale.is_finite()
+            if !canvas.viewport.scale.is_finite()
                 || canvas.viewport.scale <= 0.0
                 || !canvas.viewport.origin.x.is_finite()
                 || !canvas.viewport.origin.y.is_finite()
             {
-                return Err(Error::new(E_INVALIDARG, "Invalid snapshot viewport or DPI"));
+                return Err(Error::new(E_INVALIDARG, "Invalid snapshot viewport"));
             }
-            let selected = doc.state.selected_art.borrow();
-            if let Some(owner) = doc.state.projection_edit.borrow().as_ref() {
-                let snapshot = owner.capture(&canvas.editor);
-                if projection_edits.len() >= crate::projection_edit::workspace::MAX_ENTRIES
-                    || !snapshot
-                        .belongs_to(doc.state.unit_id.as_str(), record.projection_scope.unwrap())
+            let projection_edit = doc.state.projection_edit.borrow();
+            if let Some(owner) = projection_edit.as_ref() {
+                if projection_count >= crate::projection_edit::workspace::MAX_ENTRIES
+                    || !owner.belongs_to(doc.state.unit_id.as_str(), scope)
                 {
                     return Err(Error::new(
                         E_ABORT,
                         "Projection edit workspace identity or capacity changed",
                     ));
                 }
-                projection_edits.push((doc.state.unit_id.clone(), snapshot));
+                projection_count += 1;
             }
+            if !selection.includes(&doc.state.unit_id) {
+                continue;
+            }
+            if let Some(owner) = projection_edit.as_ref() {
+                if matches!(selection, Payload::All) {
+                    projection_edits
+                        .push((doc.state.unit_id.clone(), owner.capture(&canvas.editor)));
+                } else if transient_host.as_ref() == Some(&doc.state.unit_id) {
+                    // An edit owner promotes the host, but its collaboration payload does not freeze.
+                    transient_host = None;
+                }
+            }
+            let selected = doc.state.selected_art.borrow();
+            let restored_source = canvas
+                .minified_source
+                .as_ref()
+                .filter(|source| source.matches(&canvas.editor));
+            #[cfg(test)]
+            PAYLOAD_DOCUMENTS.with(|count| count.set(count.get() + 1));
             documents.push(Document {
                 extensions: Some(doc.state.extension_document.borrow().snapshot()),
                 output_images: doc.state.execution_results.borrow().save_output_images(),
@@ -226,16 +332,19 @@ impl Application {
                     )
                 }),
                 execution: selected.as_ref().map(|value| value.execution),
-                restored_source: canvas
-                    .minified_source
-                    .as_ref()
-                    .filter(|source| source.matches(&canvas.editor))
-                    .map(|source| source.image().clone()),
+                restored_source_rasterized_crop: restored_source
+                    .is_some_and(|source| source.rasterized_crop()),
+                restored_source: restored_source.map(|source| source.image().clone()),
                 local_image: canvas.image.clone(),
             });
         }
-        let (live_guard, live_frames) = live::capture(self)?;
-        if !guard.matches(self) || !live::matches(&live_guard, self) {
+        let live = match live {
+            Some(capture) => capture,
+            None => {
+                live::capture(self, false, selection)?.expect("manual Live capture cannot defer")
+            }
+        };
+        if !guard.matches(self) || !live::matches(&live.guards, self) {
             return Err(Error::new(
                 E_ABORT,
                 "Workspace changed during save snapshot",
@@ -244,25 +353,45 @@ impl Application {
         let original = record.original.clone();
         Ok((
             Receipt {
-                projection_scope: record.projection_scope.unwrap(),
-                live: live_guard,
+                projection_scope: scope,
+                live: live.guards,
                 guard,
                 original: original.clone(),
                 space,
+                transient_host: record.transient_host.clone(),
             },
-            Data {
+            (!matches!(selection, Payload::None)).then(|| Data {
                 projection_edits,
                 disk_revision: None,
-                projection_scope: record.projection_scope.unwrap(),
-                live: live_frames,
+                projection_scope: scope,
+                live: live.frames,
                 original,
                 space,
                 documents,
-                links: self.workspace.links().to_vec(),
-                port_visibility: self.workspace.visibility_records().to_vec(),
-                groups: self.workspace.groups().to_vec(),
-                transient_host: record.transient_host.clone(),
-            },
+                // For a frozen sticker, retain only the topology needed to detect an empty host.
+                links: self
+                    .workspace
+                    .links()
+                    .iter()
+                    .filter(|link| {
+                        selection.includes(&link.from_unit) || selection.includes(&link.to_unit)
+                    })
+                    .cloned()
+                    .collect(),
+                port_visibility: self
+                    .workspace
+                    .visibility_records()
+                    .iter()
+                    .filter(|(unit, _)| selection.includes(unit))
+                    .cloned()
+                    .collect(),
+                groups: if matches!(selection, Payload::All) {
+                    self.workspace.groups().to_vec()
+                } else {
+                    Vec::new()
+                },
+                transient_host,
+            }),
         ))
     }
 }

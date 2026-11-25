@@ -27,24 +27,36 @@ pub(super) struct PreparedDocument {
 #[path = "open_image_tests.rs"]
 mod tests;
 impl PreparedDocument {
+    #[cfg(test)]
     pub(super) fn from_capture(
         captured: crate::capture_job::Captured,
         pinned: bool,
         origin: Option<POINT>,
     ) -> Result<Self> {
-        let context = crate::capture_job::Context::region(
-            origin,
-            captured.preview.width,
-            captured.preview.height,
-            captured.backend,
-        );
+        Self::from_capture_with_cancel(captured, pinned, origin, None, || false)
+    }
+    pub(super) fn from_capture_with_cancel(
+        captured: crate::capture_job::Captured,
+        pinned: bool,
+        origin: Option<POINT>,
+        context: Option<crate::capture_job::Context>,
+        cancelled: impl Fn() -> bool,
+    ) -> Result<Self> {
+        let context = context.unwrap_or_else(|| {
+            crate::capture_job::Context::region(
+                origin,
+                captured.preview.width,
+                captured.preview.height,
+                captured.backend,
+            )
+        });
         let metadata = context.metadata(captured.original.is_some(), captured.downgraded);
         let image = Image {
             width: captured.preview.width,
             height: captured.preview.height,
             pixels: captured.preview.pixels,
         };
-        let mut prepared = Self::from_image(image, pinned)?;
+        let mut prepared = Self::from_image_with_cancel(image, pinned, cancelled)?;
         prepared.record_history = true;
         prepared.capture_origin = origin;
         prepared.capture_source = Some(super::canvas::CaptureSource {
@@ -63,11 +75,32 @@ impl PreparedDocument {
         Self::from_image(image, pinned)
     }
     pub(super) fn from_image(image: Image, pinned: bool) -> Result<Self> {
+        Self::from_image_with_cancel(image, pinned, || false)
+    }
+    /// 命中掩码按行观察同一个任务取消信号；关闭窗口不必等整张长图扫描完成。
+    pub(super) fn from_image_with_cancel(
+        image: Image,
+        pinned: bool,
+        cancelled: impl Fn() -> bool,
+    ) -> Result<Self> {
+        if cancelled() {
+            return Err(windows::core::Error::new(
+                E_ABORT,
+                "Image preparation cancelled",
+            ));
+        }
         let region = if pinned {
-            HitRegion::prepare(&image)?
+            HitRegion::prepare_cancellable(&image, None, (image.width, image.height), &cancelled)
         } else {
-            HitRegion::default()
+            Ok(HitRegion::default())
         };
+        if cancelled() {
+            return Err(windows::core::Error::new(
+                E_ABORT,
+                "Image preparation cancelled",
+            ));
+        }
+        let region = region?;
         Ok(Self {
             record_history: false,
             image,

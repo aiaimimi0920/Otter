@@ -235,6 +235,24 @@ impl Store {
             })
             .collect())
     }
+    /// Match the logical key, not the grant: callers must not mistake another
+    /// device's pending operation for an empty slot.
+    pub(crate) fn pending_for(
+        &self,
+        context: &Context,
+        cancel: &AtomicBool,
+    ) -> Result<Option<Ticket>, Error> {
+        let state = self.0.state.lock().map_err(|_| Error::Changed)?;
+        self.baseline(&state, cancel)?;
+        Ok(state
+            .entries
+            .iter()
+            .find(|entry| entry.pending.is_some() && entry.context.same_key(context))
+            .map(|entry| Ticket {
+                store: self.clone(),
+                entry: entry.clone(),
+            }))
+    }
     /// 无pending时才接纳已校验read；初始化日志缺失不能据read猜测原本地编辑。
     pub fn observe(
         &self,
@@ -337,6 +355,6 @@ fn check(cancel: &AtomicBool) -> Result<(), Error> {
         Ok(())
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "projection_edit_journal_tests.rs"]
 mod tests;

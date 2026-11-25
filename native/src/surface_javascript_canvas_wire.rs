@@ -173,6 +173,6 @@ pub(crate) fn encode(size: [u32; 2], mut pixels: Vec<u8>) -> io::Result<String> 
     }
     Ok(STANDARD.encode(output.0))
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-surface")))]
 #[path = "surface_javascript_canvas_encode_tests.rs"]
 mod encode_tests;

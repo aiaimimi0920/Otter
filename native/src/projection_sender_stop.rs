@@ -1,6 +1,6 @@
 //! 稳定解绑的持久减权/成功回执仍归原 Store；回执不授网络能力，ack 只接受精确 canonical proof。
 use super::*;
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "projection_sender_stop_tests.rs"]
 mod tests;
 impl Request {

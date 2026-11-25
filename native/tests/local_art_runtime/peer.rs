@@ -41,6 +41,9 @@ impl Peer {
         Self::with_source(root, package::SOURCE)
     }
     pub fn with_source(root: &Path, source: &str) -> Self {
+        Self::with_outputs(root, source, true)
+    }
+    pub fn with_outputs(root: &Path, source: &str, includes_answer: bool) -> Self {
         // 调用方可传公开SDK示例的已核字节；线程拥有这份有界测试源码，不泄漏static字符串。
         assert!(!source.is_empty() && source.len() <= 1024 * 1024);
         let source = source.to_owned();
@@ -109,7 +112,10 @@ impl Peer {
                     assert!(state.requests.len() < 128, "bounded product request count");
                     state.requests.push(path.clone());
                 }
-                if path.starts_with("/v1/art/") || path.starts_with("/v1/projections/") {
+                if path == package::PREPARE_ROUTE
+                    || path.starts_with("/v1/art/")
+                    || path.starts_with("/v1/projections/")
+                {
                     assert!(headers.contains("authorization: device product-art-test-only\r\n"));
                     let nonce = headers
                         .lines()
@@ -136,7 +142,15 @@ impl Peer {
                 let data = if let Some((_, data)) = projection {
                     data
                 } else if status == 200 {
-                    response(&path, &body, &address, &device_key, &shared, &source)
+                    response(
+                        &path,
+                        &body,
+                        &address,
+                        &device_key,
+                        &shared,
+                        &source,
+                        includes_answer,
+                    )
                 } else {
                     json!({"error":"temporary test-only refusal"})
                 };
@@ -219,6 +233,7 @@ fn response(
     key: &str,
     state: &Mutex<State>,
     source: &str,
+    includes_answer: bool,
 ) -> Value {
     match path {
         "/v1/art/local/issuer" => {
@@ -239,7 +254,9 @@ fn response(
             json!({"protocolVersion":"loom.art.local.describe.v1","descriptor":{"artId":package::ART,"artVersion":"1.0.0",
                 "packageDigest":"b".repeat(64),"sdkVersion":"otter.art.v1","permissions":package::permissions(),"services":[package::SERVICE]}})
         }
-        "/v1/art/local/prepare-package" => package::prepare_source(body, origin, key, source),
+        package::PREPARE_ROUTE => {
+            package::prepare_source(body, origin, key, source, includes_answer)
+        }
         "/v1/art/local/resource" => {
             assert_eq!(body["protocolVersion"], "loom.art.local.resource.v1");
             let id = body["resourceId"].as_str().unwrap();

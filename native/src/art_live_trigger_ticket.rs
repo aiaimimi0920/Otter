@@ -128,6 +128,6 @@ impl Ticket {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-live")))]
 #[path = "art_live_trigger_ticket_tests.rs"]
 mod tests;

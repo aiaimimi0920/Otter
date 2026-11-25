@@ -2,25 +2,27 @@
 use super::*;
 use crate::{surface_container::Measured, surface_grid};
 pub(super) struct Cache {
-    values: BTreeMap<(String, [u32; 2]), Intrinsic>,
+    // NativeMeasure 的 Styles 借用固定场景；只在该 owner 内使用节点地址，不解引用或跨场景复用。
+    values: BTreeMap<(usize, [u32; 2]), Intrinsic>,
     misses: usize,
 }
 impl Cache {
     pub(super) fn for_scene(scene: &Scene) -> Option<Self> {
         let mut pending = vec![scene.root()];
-        let mut grid = false;
         while let Some(node) = pending.pop() {
-            grid |= node.kind() == Kind::Grid;
+            if node.kind() == Kind::Grid {
+                return Some(Self {
+                    values: BTreeMap::new(),
+                    misses: 0,
+                });
+            }
             pending.extend(node.children());
         }
-        grid.then(|| Self {
-            values: BTreeMap::new(),
-            misses: 0,
-        })
+        None
     }
     pub(super) fn get(&self, node: &Node, available: [f32; 2]) -> Option<Intrinsic> {
         self.values
-            .get(&(node.id().to_owned(), available.map(f32::to_bits)))
+            .get(&(node as *const Node as usize, available.map(f32::to_bits)))
             .copied()
     }
     pub(super) fn reserve(&mut self) -> bool {
@@ -29,8 +31,10 @@ impl Cache {
         self.misses <= crate::surface_scene::MAX_NODES * 4
     }
     pub(super) fn insert(&mut self, node: &Node, available: [f32; 2], value: Intrinsic) {
-        self.values
-            .insert((node.id().to_owned(), available.map(f32::to_bits)), value);
+        self.values.insert(
+            (node as *const Node as usize, available.map(f32::to_bits)),
+            value,
+        );
     }
     pub(super) fn clear(&mut self) {
         self.values.clear();

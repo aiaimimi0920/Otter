@@ -23,11 +23,17 @@ pub(in crate::desktop::tile_window) fn close_rect(size: [f32; 2]) -> D2D_RECT_F 
     }
 }
 fn escaped(value: &str) -> String {
-    value.chars().flat_map(|ch| {
-        if ch.is_control() || matches!(ch, '\u{061c}' | '\u{200e}' | '\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}') {
-            ch.escape_unicode().to_string().chars().collect::<Vec<_>>()
-        } else { vec![ch] }
-    }).collect()
+    let mut output = String::with_capacity(value.len());
+    for ch in value.chars() {
+        if ch.is_control()
+            || matches!(ch, '\u{061c}' | '\u{200e}' | '\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}')
+        {
+            output.extend(ch.escape_unicode());
+        } else {
+            output.push(ch);
+        }
+    }
+    output
 }
 pub(super) fn text(marker: &Marker, now: Instant) -> String {
     let endpoint = &marker.endpoint;
@@ -136,6 +142,6 @@ impl Painter {
         Ok(())
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-surface")))]
 #[path = "tile_identification_pixel_tests.rs"]
 mod tests;

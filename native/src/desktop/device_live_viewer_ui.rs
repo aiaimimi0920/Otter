@@ -251,6 +251,6 @@ pub(super) unsafe fn execute(hwnd: HWND, state: &State, command: usize) -> Resul
         queue(hwnd, state, Request::StopLive(key))
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-live")))]
 #[path = "device_live_viewer_ui_tests.rs"]
 mod tests;

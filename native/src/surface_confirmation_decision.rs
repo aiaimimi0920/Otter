@@ -76,16 +76,16 @@ impl Decision {
     pub fn request(&self) -> &Request {
         &self.request
     }
-    pub(crate) fn bytes(&self) -> &[u8] {
+    pub fn bytes(&self) -> &[u8] {
         &self.bytes
     }
-    pub(crate) fn begin_submission(&mut self) {
+    pub fn begin_submission(&mut self) {
         self.attempted = true;
     }
-    pub(crate) fn acknowledge(&mut self) {
+    pub fn acknowledge(&mut self) {
         self.confirmed = true;
     }
-    pub(crate) fn matches(&self, event: &ClickEvent, ack: &Ack) -> bool {
+    pub fn matches(&self, event: &ClickEvent, ack: &Ack) -> bool {
         self.request.binding == *event.binding()
             && self.request.wire.event_id == event.id()
             && self.request.wire.request_id == ack.request_id()

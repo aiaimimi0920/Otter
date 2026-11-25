@@ -23,25 +23,32 @@ pub(super) fn enqueue(queue: &mut VecDeque<Intent>, intent: Intent) {
     queue.push_back(intent);
 }
 
-pub(super) unsafe fn drain(panel: &Panel, state: &State) {
+pub(super) unsafe fn drain(panel: &Panel, state: &State) -> Result<()> {
     let mut intents = panel.ui.pending.take();
     if !panel.ui.available() {
-        return;
+        return Ok(());
     }
     while let Some(intent) = intents.pop_front() {
         if !panel.ui.available() {
             break;
         }
+        let rebuild = matches!(intent, Intent::Page(_) | Intent::Reload);
         let result = if let Intent::Texts(snapshot, edits) = intent {
             submit(panel, state, &snapshot, &edits, &mut intents)
         } else {
             panel.apply(state, intent)
         };
         if let Err(error) = result {
+            // These intents have already retired the old controls on failure.
+            // The application owns teardown; do not leave an empty live panel.
+            if rebuild {
+                return Err(error);
+            }
             panel.ui.error(&format!("未完成：{error}"));
             break;
         }
     }
+    Ok(())
 }
 
 unsafe fn submit(

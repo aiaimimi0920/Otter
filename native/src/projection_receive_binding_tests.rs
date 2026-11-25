@@ -108,6 +108,56 @@ fn index_is_bound_to_exact_shared_source_and_full_expected_binding() {
     }
 }
 #[test]
+fn combined_indices_retain_valid_side_after_other_index_fails() {
+    use crate::projection_delivery::{checkpoint_session, sender::binding::tests as sender};
+    let (_receiver_directory, ticket, receiver) = fixture();
+    let scope = "a".repeat(64);
+    let (_sender_directory, _store, intent) = sender::signed("unit-1", &scope, ORIGIN);
+    let candidate = sender::candidate(
+        &sender::source("unit-1", &scope),
+        &intent,
+        1,
+        intent.digest(),
+    );
+    let mut complete: Value = serde_json::from_slice(candidate.source()).unwrap();
+    let mut incoming = session(&receiver)["stickers"][0].clone();
+    let outgoing = complete["stickers"][0].clone();
+    complete["stickers"] = json!([&incoming, &outgoing]);
+    let bytes = source(&complete);
+    let both = checkpoint_session::capture(&bytes.parse().unwrap());
+    let receive = both.receiver.unwrap();
+    let send = both.sender.unwrap();
+    assert!(receive.is_for(&bytes) && receive.for_ticket(&ticket).is_some());
+    assert!(send.is_for(&bytes) && send.for_intent(&intent).is_some());
+    let same_bytes = bytes.to_vec().into();
+    assert!(!receive.is_for(&same_bytes) && !send.is_for(&same_bytes));
+
+    incoming["qrProjection"]["otterNativeReceive"]["intentId"] = json!("invalid");
+    complete["stickers"][0] = incoming;
+    let bytes = source(&complete);
+    let indices = checkpoint_session::capture(&bytes.parse().unwrap());
+    assert!(indices.receiver.is_none());
+    assert!(indices.sender.unwrap().for_intent(&intent).is_some());
+
+    let incoming = session(&receiver)["stickers"][0].clone();
+    let mut invalid_outgoing = outgoing.clone();
+    invalid_outgoing["projectionSenders"] = json!({});
+    complete["stickers"] = json!([invalid_outgoing, incoming]);
+    let bytes = source(&complete);
+    let indices = checkpoint_session::capture(&bytes.parse().unwrap());
+    assert!(indices.sender.is_none());
+    assert!(indices.receiver.unwrap().for_ticket(&ticket).is_some());
+
+    // 无关扩展的重复键不会使 Document 失效，但原文字段表仍必须拒绝它。
+    complete["stickers"] = json!([&incoming, &outgoing]);
+    let text = serde_json::to_string(&complete).unwrap();
+    let with_duplicate = text.replace("\"future\":{", "\"future\":null,\"future\":{");
+    assert_ne!(with_duplicate, text);
+    let bytes: crate::session_source::Source = with_duplicate.into_bytes().into();
+    let indices = checkpoint_session::capture(&bytes.parse().unwrap());
+    assert!(indices.sender.is_none() && indices.receiver.is_none());
+}
+#[test]
 fn malformed_or_ambiguous_native_binding_never_proves_inclusion_without_breaking_session() {
     let (_directory, _ticket, binding) = fixture();
     for (field, replacement) in [

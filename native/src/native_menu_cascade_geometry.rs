@@ -4,7 +4,9 @@ use super::*;
 impl Cascade {
     pub(super) fn sync_geometry(&mut self) -> Result<()> {
         let mut moved = false;
-        for page in &mut self.pages {
+        let mut preview_anchor_moved = false;
+        let anchor = self.preview.as_ref().map(|view| view.level);
+        for (level, page) in self.pages.iter_mut().enumerate() {
             if !page.panel.alive() {
                 self.cancel();
                 return Ok(());
@@ -26,6 +28,19 @@ impl Cascade {
             }
             page.bounds = bounds;
             moved = true;
+            preview_anchor_moved |= anchor == Some(level);
+        }
+        if self.preview.as_ref().is_some_and(|view| {
+            let mut bounds = RECT::default();
+            preview_anchor_moved
+                || view.level >= self.pages.len()
+                || view.panel.handle().map_or(true, |hwnd| unsafe {
+                    GetWindowRect(hwnd, &mut bounds).is_err() || bounds != view.bounds
+                })
+        }) {
+            // 外部移动、销毁或锚点换位后，旧预览矩形不能继续吞点击和滚轮。
+            self.preview = None;
+            moved = true;
         }
         if moved {
             self.pending_surrogate = None;
@@ -41,6 +56,6 @@ impl Cascade {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "native_menu_cascade_geometry_tests.rs"]
 mod tests;

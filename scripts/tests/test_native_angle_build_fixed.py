@@ -110,5 +110,12 @@ class FixedBuildTests(unittest.TestCase):
                 build_fixed.check_plan(plan)
 
 
+    def test_warning_flag_must_be_an_exact_enabled_argument(self):
+        for args in ('/MT /WX-', '/MT /WXfoo', '/MT /WX /WX-', '/MT /WX "-WX-"', '/MT "folder /WX file.cc"'):
+            with self.subTest(args=args), self.assertRaisesRegex(ValueError, "warnings-as-errors"):
+                build_fixed.check_plan(f"clang-cl.exe {args}\nlld-link.exe")
+        self.assertEqual(build_fixed.check_plan('"C:\\Program Files\\clang-cl.exe" /MT /WX\nlld-link.exe'), 1)
+
+
 if __name__ == "__main__":
     unittest.main()

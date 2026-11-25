@@ -94,7 +94,7 @@ pub use host::{Host, Update};
 pub mod session;
 #[path = "composition_relay_sessions.rs"]
 pub mod sessions;
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-live")))]
 #[path = "composition_relay_tests.rs"]
 mod tests;
 #[path = "composition_relay_window.rs"]

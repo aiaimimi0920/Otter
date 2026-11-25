@@ -1,45 +1,61 @@
 // 严格 fragment 子集：先构造脱离的同型树再交换；不是 HTML5 容错 parser 或 CSS 引擎。
-((dom, fail) => {
+((dom, fail, discard) => {
   "use strict";
   const op = dom.ops, entities = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: "\u00a0" };
-  const decode = value => value.replace(/&(#x[0-9a-f]+|#[0-9]+|[a-z]+);/gi, (raw, token) => {
-    if (token[0] !== "#") return op.own(entities, token) ? entities[token] : raw;
-    const code = token[1].toLowerCase() === "x" ? Number.parseInt(token.slice(2), 16) : Number(token.slice(1));
-    if (!Number.isInteger(code) || code < 1 || code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff)) fail();
-    return String.fromCodePoint(code);
-  });
-  const fragment = input => {
-    const source = op.string(input), holder = new dom.DocumentFragment(), stack = op.array(); op.push(stack, holder);
-    if (source.length > 65536 || source.includes("\0")) fail();
+  const { Element, HTMLCanvasElement } = dom.classes;
+  const setAttribute = Element.prototype.setAttribute, setCanvasAttribute = HTMLCanvasElement.prototype.setAttribute;
+  const parseInt = Number.parseInt, isInteger = Number.isInteger, fromCodePoint = String.fromCodePoint;
+  const decode = value => {
+    const pattern = /&(#x[0-9a-f]+|#[0-9]+|[a-z]+);/gi;
+    let match = op.exec(pattern, value), cursor = 0;
+    if (!match) return value;
+    const output = op.array();
+    do {
+      const token = match[1];
+      op.push(output, op.slice(value, cursor, match.index));
+      if (token[0] !== "#") op.push(output, op.own(entities, token) ? entities[token] : match[0]);
+      else {
+        const code = op.lower(token[1]) === "x" ? parseInt(op.slice(token, 2), 16) : op.number(op.slice(token, 1));
+        if (!isInteger(code) || code < 1 || code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff)) fail();
+        op.push(output, fromCodePoint(code));
+      }
+      cursor = pattern.lastIndex;
+    } while ((match = op.exec(pattern, value)));
+    op.push(output, op.slice(value, cursor));
+    return op.join(output, "");
+  };
+  const starts = Function.prototype.call.bind(String.prototype.startsWith);
+  const fragment = source => {
+    const holder = dom.createStagedNode("#fragment"), stack = op.array(); op.push(stack, holder);
     let cursor = 0;
-    const whitespace = () => { while (/[\t\n\f\r ]/.test(source[cursor] ?? "") && cursor < source.length) cursor++; };
+    const whitespace = () => { while (cursor < source.length && op.test(/[\t\n\f\r ]/, source[cursor])) cursor++; };
     while (cursor < source.length) {
       const parent = stack[stack.length - 1];
-      if (source.startsWith("<!--", cursor)) {
-        const end = source.indexOf("-->", cursor + 4);
+      if (starts(source, "<!--", cursor)) {
+        const end = op.index(source, "-->", cursor + 4);
         if (end < 0) fail();
         cursor = end + 3; continue;
       }
       if (source[cursor] !== "<") {
-        const next = source.indexOf("<", cursor), end = next < 0 ? source.length : next;
-        parent.appendChild(new dom.Text(decode(source.slice(cursor, end)))); cursor = end; continue;
+        const next = op.index(source, "<", cursor), end = next < 0 ? source.length : next;
+        dom.appendStaged(parent, dom.createStagedNode("#text", decode(op.slice(source, cursor, end)))); cursor = end; continue;
       }
-      if (source.startsWith("</", cursor)) {
-        const match = /^<\/([a-z][a-z0-9]*)[\t\n\f\r ]*>/i.exec(source.slice(cursor));
-        if (!match || stack.length === 1 || dom.get(parent).tag !== match[1].toLowerCase()) fail();
+      if (starts(source, "</", cursor)) {
+        const match = op.exec(/^<\/([a-z][a-z0-9]*)[\t\n\f\r ]*>/i, op.slice(source, cursor));
+        if (!match || stack.length === 1 || dom.get(parent).tag !== op.lower(match[1])) fail();
         stack.length--; cursor += match[0].length; continue;
       }
-      const start = /^<([a-z][a-z0-9]*)/i.exec(source.slice(cursor));
+      const start = op.exec(/^<([a-z][a-z0-9]*)/i, op.slice(source, cursor));
       if (!start) fail();
-      const node = dom.createElement(start[1]), seen = op.array();
+      const tag = op.lower(start[1]), node = dom.createStagedNode(tag), seen = op.array();
       cursor += start[0].length;
       while (source[cursor] !== ">") {
         const before = cursor; whitespace();
         if (source[cursor] === ">") break;
         if (before === cursor) fail();
-        const attribute = /^[a-z_][a-z0-9_-]*/i.exec(source.slice(cursor));
+        const attribute = op.exec(/^[a-z_][a-z0-9_-]*/i, op.slice(source, cursor));
         if (!attribute) fail();
-        const name = attribute[0].toLowerCase();
+        const name = op.lower(attribute[0]);
         if (op.indexOf(seen, name) >= 0) fail();
         op.push(seen, name); cursor += attribute[0].length;
         const afterName = cursor; whitespace();
@@ -48,14 +64,14 @@
           cursor++; whitespace();
           const quote = source[cursor++];
           if (quote !== '"' && quote !== "'") fail();
-          const end = source.indexOf(quote, cursor);
+          const end = op.index(source, quote, cursor);
           if (end < 0) fail();
-          value = decode(source.slice(cursor, end)); cursor = end + 1;
+          value = decode(op.slice(source, cursor, end)); cursor = end + 1;
         } else cursor = afterName;
-        node.setAttribute(name, value);
+        op.apply(tag === "canvas" ? setCanvasAttribute : setAttribute, node, [name, value]);
       }
       if (source[cursor] !== ">" || stack.length >= 32) fail();
-      cursor++; parent.appendChild(node); if (dom.get(node).tag !== "input") op.push(stack, node);
+      cursor++; dom.appendStaged(parent, node); if (tag !== "input") op.push(stack, node);
     }
     if (stack.length !== 1) fail();
     return holder;
@@ -87,8 +103,12 @@
     }
     return op.join(output, "");
   };
-  Object.defineProperty(dom.classes.Element.prototype, "innerHTML", {
+  Object.defineProperty(Element.prototype, "innerHTML", {
     get() { return serialize(dom.get(this).children); },
-    set(value) { this.replaceChildren(fragment(value)); },
+    set(value) {
+      const source = op.string(value);
+      if (source.length > 65536 || op.index(source, "\0") >= 0) fail();
+      dom.replaceMarkup(this, source, fragment, discard);
+    },
   });
 })

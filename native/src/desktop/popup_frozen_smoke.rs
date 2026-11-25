@@ -14,7 +14,7 @@ pub(in crate::desktop) fn select_action(
     remove: bool,
 ) -> Result<Choice> {
     let mut tree = Vec::new();
-    let mut model = LibraryMenu::attach(&mut tree, Some(source));
+    let mut model = LibraryMenu::attach(&mut tree, Some(source), Workers::default());
     let mut menu = Cascade::open(hwnd, tree, POINT { x: 30, y: 30 })?;
     model.update(&mut menu)?;
     for _ in 0..=library {

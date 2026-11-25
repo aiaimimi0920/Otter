@@ -2,11 +2,10 @@ use super::*;
 use crate::session_document::workflow_snapshot::{self, Content};
 use serde_json::json;
 fn fixture(second: &str) -> (std::path::PathBuf, Root, Vec<u8>, Plan) {
-    let directory =
-        std::path::PathBuf::from("C:/Users/Public/nas_home/AI/GameEditor/linshi").join(format!(
-            "otter-archive-batch-{}",
-            crate::desktop::document_state::new_unit_id().unwrap()
-        ));
+    let directory = std::env::temp_dir().join(format!(
+        "otter-archive-batch-{}",
+        crate::desktop::document_state::new_unit_id().unwrap()
+    ));
     std::fs::create_dir(&directory).unwrap();
     let root = Root::open(&directory).unwrap();
     let image = crate::desktop::image::Image {
@@ -35,8 +34,6 @@ fn batch_publishes_both_slots_and_keeps_refs_pinned_with_matching_index() {
     let _com = crate::desktop::Apartment::new().unwrap();
     let (directory, root, saved, plan) = fixture("https://example.invalid/not-fetched.png");
     let batch = prepare(&root, &plan, &saved, 123, &AtomicBool::new(false)).unwrap();
-    assert!(batch.matches(&saved));
-    assert!(!batch.matches(b"{}"));
     assert_eq!(batch.assets().len(), 2);
     let first = &batch.assets()[0];
     assert!(std::path::Path::new(&first.src).is_file());
@@ -55,9 +52,7 @@ fn batch_publishes_both_slots_and_keeps_refs_pinned_with_matching_index() {
     );
     assert_eq!(std::fs::read_dir(&directory).unwrap().count(), 2);
     let source_reference = first.src.clone();
-    let prepared = batch
-        .into_candidate(&saved, &AtomicBool::new(false))
-        .unwrap();
+    let prepared = batch.into_candidate(&AtomicBool::new(false)).unwrap();
     assert_eq!(prepared.candidate().expected_revision, 1);
     assert_eq!(prepared.candidate().revision, 2);
     let document: serde_json::Value = serde_json::from_slice(&prepared.candidate().bytes).unwrap();
@@ -131,7 +126,7 @@ fn adopted_origin_is_committed_and_survives_disconnection() {
     assert_eq!(plan.adoptions().len(), 1);
     let prepared = prepare(&root, &plan, &saved, 123, &cancel)
         .unwrap()
-        .into_candidate(&saved, &cancel)
+        .into_candidate(&cancel)
         .unwrap();
     let path = directory.join("adopted.json");
     crate::session_file_write::Staged::prepare(&path, prepared.candidate(), &cancel)

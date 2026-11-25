@@ -1,6 +1,6 @@
 //! sender outbox 只在后台打开一次；恢复快照不授重发权，持久取消项只进入减权队列。
 use super::*;
-use crate::desktop::loom_execution_signal::{CompletionSignal, Notify};
+use crate::desktop::loom_execution_signal::{reap_deadline, CompletionSignal, Notify};
 use std::{
     path::PathBuf,
     sync::{
@@ -24,6 +24,7 @@ pub(super) enum Profile {
 type Opened = std::result::Result<(PathBuf, Store, Vec<Request>), SenderError>;
 pub(super) struct Opening {
     cancel: Arc<AtomicBool>,
+    ready: Arc<AtomicBool>,
     thread: Option<JoinHandle<Opened>>,
 }
 impl Profile {
@@ -33,10 +34,12 @@ impl Profile {
         }
         let cancel = Arc::new(AtomicBool::new(false));
         let signal = cancel.clone();
+        let ready = Arc::new(AtomicBool::new(false));
+        let done = ready.clone();
         let worker = std::thread::Builder::new()
             .name("otter-sender-profile".into())
             .spawn(move || {
-                let _done = CompletionSignal::new(Arc::new(AtomicBool::new(false)), notify);
+                let _done = CompletionSignal::new(done, notify);
                 let store = Store::open(&root, &signal)?;
                 let entries = store
                     .pending(&signal)?
@@ -48,10 +51,17 @@ impl Profile {
         *self = match worker {
             Ok(thread) => Self::Opening(Opening {
                 cancel,
+                ready,
                 thread: Some(thread),
             }),
             Err(_) => Self::Failed,
         };
+    }
+    pub(super) fn deadline(&self) -> Option<std::time::Instant> {
+        match self {
+            Self::Opening(opening) => reap_deadline(&opening.ready),
+            _ => None,
+        }
     }
     pub(super) fn collect(&mut self, terminal: bool) -> bool {
         let Self::Opening(opening) = self else {

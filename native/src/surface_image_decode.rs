@@ -91,7 +91,13 @@ impl Image {
             }
             // 编码图的声明尺寸不是自然尺寸权威；使用 WIC 帧尺寸并在分配前限制。
             let source = orientation::source(&factory, &decoder, mime, &stopped)?;
-            let image = Self::decode_source(&factory, &source, None, MAX_PIXELS, &stopped)?;
+            let image = Self::decode_source(
+                &factory,
+                &source,
+                super::SizePolicy::Any,
+                MAX_PIXELS,
+                &stopped,
+            )?;
             if stopped() {
                 return Err(Error::new(E_INVALIDARG, "Surface image decode cancelled"));
             }

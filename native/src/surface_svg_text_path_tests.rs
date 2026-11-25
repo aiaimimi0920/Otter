@@ -1,19 +1,6 @@
 //! Chrome 已验证的路径文字等价关系；实际字体与栅格化仍由受限 Job child 完成。
 use super::*;
 
-fn assert_same_pixels(actual: &Image, expected: &Image, context: &str) {
-    assert_eq!(
-        (actual.width, actual.height),
-        (expected.width, expected.height)
-    );
-    let difference = actual
-        .pixels
-        .iter()
-        .zip(expected.pixels.iter())
-        .position(|(a, b)| a != b);
-    assert_eq!(difference, None, "{context}: first differing byte");
-}
-
 #[test]
 fn surface_svg_text_paths_anchor_reversed_offsets_without_reordering_glyphs() {
     let style = "font-family='Consolas' font-size='20' fill='red'";

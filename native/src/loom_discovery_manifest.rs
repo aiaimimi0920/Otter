@@ -148,6 +148,6 @@ fn validate_transport(transport: &Transport) -> Result<(), Error> {
     Ok(())
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-loom")))]
 #[path = "loom_discovery_manifest_tests.rs"]
 mod tests;

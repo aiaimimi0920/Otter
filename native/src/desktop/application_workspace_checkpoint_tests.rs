@@ -36,33 +36,12 @@ use std::{
     path::PathBuf,
     time::{Duration, Instant},
 };
-struct Class(HINSTANCE);
-impl Drop for Class {
-    fn drop(&mut self) {
-        unsafe {
-            drain_messages();
-            let _ = UnregisterClassW(w!("Otter.Native.Workspace"), Some(self.0));
-        }
-    }
-}
 unsafe fn run(test: impl FnOnce(HINSTANCE)) {
     let _serial = crate::loom_bridge_client::tests::execution_job::SERIAL
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let _apartment = crate::desktop::Apartment::new().unwrap();
-    let instance: HINSTANCE = windows::Win32::System::LibraryLoader::GetModuleHandleW(None)
-        .unwrap()
-        .into();
-    assert_ne!(
-        RegisterClassW(&WNDCLASSW {
-            hInstance: instance,
-            lpszClassName: w!("Otter.Native.Workspace"),
-            lpfnWndProc: Some(crate::desktop::procedure::window_proc),
-            ..Default::default()
-        }),
-        0
-    );
-    let _class = Class(instance);
+    let instance = crate::desktop::workspace_window_fixture::register();
     test(instance);
 }
 unsafe fn drain_messages() -> bool {

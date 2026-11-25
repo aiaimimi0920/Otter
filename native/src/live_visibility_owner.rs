@@ -35,16 +35,21 @@ impl Protection {
         if source.recalled.get() {
             return Ok(());
         }
-        let ticket = source.ticket.borrow().clone();
-        if !ticket.available() || ticket.rejected() {
-            return Err(io::Error::other("Live recovery registration unavailable"));
-        }
-        if !ticket.ready() {
-            return Ok(());
-        }
-        let snapshot = source.snapshot.borrow_mut().take();
-        if let Some(snapshot) = snapshot {
-            let ticket = ticket.clone();
+        let registration = {
+            let ticket = source.ticket.borrow();
+            if !ticket.available() || ticket.rejected() {
+                return Err(io::Error::other("Live recovery registration unavailable"));
+            }
+            if !ticket.ready() {
+                return Ok(());
+            }
+            source
+                .snapshot
+                .borrow_mut()
+                .take()
+                .map(|snapshot| (snapshot, ticket.clone()))
+        }; // Win32 隐藏和回滚可同步进入窗口过程，不能跨调用借用 ticket。
+        if let Some((snapshot, ticket)) = registration {
             self.lease
                 .arm(snapshot, move || ticket.retire())
                 .map_err(io::Error::other)?;
@@ -56,9 +61,9 @@ impl Protection {
 }
 
 #[path = "live_visibility_popup_layers.rs"]
-mod popup_layers;
+pub mod popup_layers;
 #[path = "live_visibility_resume.rs"]
-mod resume;
+pub mod resume;
 
 #[derive(Default)]
 pub struct Owner {
@@ -74,7 +79,7 @@ pub struct Owner {
 }
 impl Owner {
     #[cfg(test)]
-    pub(crate) fn fixture() -> Self {
+    pub fn fixture() -> Self {
         Self {
             journal: Some(Journal::fixture()),
             simulated_input: true,
@@ -86,18 +91,19 @@ impl Owner {
             return Err(io::Error::other("Live recovery is closing"));
         }
         target.validate().map_err(io::Error::other)?;
+        let existing = self
+            .sources
+            .iter()
+            .find(|source| source.target.same_source(&target));
+        // 先拒绝已请求退休但未收到 ACK 的旧登记，不能给它重新增加使用方。
+        if existing.is_some_and(|source| !source.ticket.borrow().accepting_leases()) {
+            return Err(io::Error::other("Live recovery source is retiring"));
+        }
         let lease = self
             .registry
             .acquire(target.clone())
             .map_err(io::Error::other)?;
-        if let Some(source) = self
-            .sources
-            .iter()
-            .find(|source| source.target.same_source(&target))
-        {
-            if source.ticket.borrow().retired() || !source.ticket.borrow().available() {
-                return Err(io::Error::other("Live recovery source is retiring"));
-            }
+        if let Some(source) = existing {
             return Ok(Protection {
                 lease,
                 source: source.clone(),

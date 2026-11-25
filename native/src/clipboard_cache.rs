@@ -51,31 +51,25 @@ impl Prepared {
         let path = self
             .staged
             .commit_incremented(&self.stem, Some("png"), cancel)?;
-        let lease = if leased {
-            Some(
-                OpenOptions::new()
-                    .read(true)
-                    .share_mode(windows::Win32::Storage::FileSystem::FILE_SHARE_READ.0)
-                    .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT.0)
-                    .open(&path)
-                    .map_err(|error| {
-                        io::Error::other(format!(
-                            "Clipboard PNG retained at {}; original lease failed: {error}",
-                            path.display()
-                        ))
-                    })?,
-            )
-        } else {
-            None
-        };
-        // PNG 已发布后不再按迟到取消撤销；记录失败也保留 PNG，不能假装整个事务回滚。
-        self.receipt.publish(&path).map_err(|error| {
+        let file = receipt::open_published(&path).map_err(|error| {
+            let step = if leased {
+                "original lease"
+            } else {
+                "ownership receipt"
+            };
+            io::Error::other(format!(
+                "Clipboard PNG retained at {}; {step} failed: {error}",
+                path.display()
+            ))
+        })?;
+        // 回执核验与长期租约使用同一只读句柄；发布后失败仍保留 PNG。
+        self.receipt.publish(&path, &file).map_err(|error| {
             io::Error::other(format!(
                 "Clipboard PNG retained at {}; ownership receipt failed: {error}",
                 path.display()
             ))
         })?;
-        Ok((ordinary_path(path)?, lease))
+        Ok((ordinary_path(path)?, leased.then_some(file)))
     }
 }
 
@@ -267,6 +261,6 @@ fn check(cancel: &AtomicBool) -> io::Result<()> {
         Ok(())
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-capture")))]
 #[path = "clipboard_cache_tests.rs"]
 mod tests;

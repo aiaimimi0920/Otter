@@ -133,7 +133,7 @@ impl Control {
         }
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-live")))]
 #[path = "composition_live_input_key_tests.rs"]
 mod key_tests;
 impl LiveWindow {

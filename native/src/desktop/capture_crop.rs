@@ -1,4 +1,4 @@
-//! 冻结截图裁剪；仅复制选区，检查范围并为输出单独保留预算。
+//! 冻结截图裁剪；完整选区共享原帧，局部选区只复制需要的像素。
 use super::image::Image;
 use windows::{
     core::{Error, Result},
@@ -33,6 +33,9 @@ pub(super) fn crop(image: &Image, rect: RECT) -> Result<Image> {
     if crate::viewport::checked_image_bytes(image.width, image.height) != Some(image.pixels.len()) {
         return Err(Error::new(E_INVALIDARG, "Invalid capture pixel storage"));
     }
+    if width == image.width && height == image.height {
+        return Ok(image.clone());
+    }
     let mut lease = crate::pixels::reserve(count)
         .ok_or_else(|| Error::new(E_OUTOFMEMORY, "Capture crop budget exhausted"))?;
     let mut pixels = Vec::new();
@@ -46,9 +49,15 @@ pub(super) fn crop(image: &Image, rect: RECT) -> Result<Image> {
         ));
     }
     let stride = image.width as usize * 4;
-    for y in rect.top..rect.bottom {
-        let start = y as usize * stride + rect.left as usize * 4;
-        pixels.extend_from_slice(&image.pixels[start..start + width as usize * 4]);
+    if width == image.width {
+        pixels.extend_from_slice(
+            &image.pixels[rect.top as usize * stride..rect.bottom as usize * stride],
+        );
+    } else {
+        for y in rect.top..rect.bottom {
+            let start = y as usize * stride + rect.left as usize * 4;
+            pixels.extend_from_slice(&image.pixels[start..start + width as usize * 4]);
+        }
     }
     Ok(Image {
         width,
@@ -135,6 +144,27 @@ mod tests {
         ] {
             assert!(positioned(&image, origin, rect).is_err());
         }
+    }
+    #[test]
+    fn whole_frame_shares_pixels_and_full_width_partial_frame_copies_exact_range() {
+        let image = Image {
+            width: 2,
+            height: 3,
+            pixels: (0..24).collect::<Vec<u8>>().into(),
+        };
+        let rect = RECT {
+            left: 0,
+            top: 0,
+            right: 2,
+            bottom: 3,
+        };
+        let full = crop(&image, rect).unwrap();
+        assert_eq!((full.width, full.height), (2, 3));
+        assert!(full.pixels.same_storage(&image.pixels));
+        let slice = crop(&image, RECT { top: 1, ..rect }).unwrap();
+        assert_eq!((slice.width, slice.height), (2, 2));
+        assert!(!slice.pixels.same_storage(&image.pixels));
+        assert_eq!(&*slice.pixels, &image.pixels[8..]);
     }
     #[test]
     fn reverse_and_outside_drag_crop_exact_rows_without_modifying_source() {

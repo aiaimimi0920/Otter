@@ -54,11 +54,25 @@ pub(super) fn parse(
     Ok((reply, image))
 }
 pub(super) fn decode(image: Image, owner: &Owner) -> Result<ImageResource, Error> {
+    decode_with_budget(image, owner, crate::pixels::reserve)
+}
+
+fn decode_with_budget(
+    image: Image,
+    owner: &Owner,
+    reserve: impl FnOnce(usize) -> Option<crate::byte_budget::Lease>,
+) -> Result<ImageResource, Error> {
     if image.png.len() > 4 * MAX_PNG.div_ceil(3) {
         return Err(Error::Limit);
     }
-    let lease = crate::pixels::reserve(MAX_PNG + 3).ok_or(Error::Limit)?;
-    let bytes = STANDARD.decode(image.png).map_err(|_| Error::Wire)?;
+    // 每四个 Base64 字符最多生成三字节；先为缓冲容量预约，再在原地解码。
+    let capacity = image.png.len().div_ceil(4) * 3;
+    let lease = reserve(capacity).ok_or(Error::Limit)?;
+    let mut bytes = vec![0; capacity];
+    let written = STANDARD
+        .decode_slice(image.png, &mut bytes)
+        .map_err(|_| Error::Wire)?;
+    bytes.truncate(written);
     if bytes.len() > MAX_PNG
         || bytes.len() < 24
         || !bytes.starts_with(b"\x89PNG\r\n\x1a\n")
@@ -78,4 +92,54 @@ pub(super) fn decode(image: Image, owner: &Owner) -> Result<ImageResource, Error
     crate::surface_javascript_wire::images::headers(std::slice::from_ref(&resource))
         .map_err(|_| Error::Limit)?;
     Ok(resource)
+}
+
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-loom")))]
+mod tests {
+    use super::*;
+    use crate::byte_budget::Budget;
+    use serde_json::json;
+
+    #[test]
+    fn image_output_budget_tracks_small_png_until_the_last_clone_drops() {
+        let fixture = crate::surface_javascript_wire::images::tests::resource();
+        let owner: Owner = serde_json::from_value(json!({
+            "binding": {"origin":"https://localhost", "requestId":"request:1",
+                "deviceId":"device:1", "workspaceId":"workspace:1", "instanceId":"instance:1",
+                "generation":1, "artId":"vendor/art", "artVersion":"1.0.0",
+                "packageDigest":"a".repeat(64), "sdkVersion":"otter.art.v1"},
+            "grantId":"grant:1", "callId":"call:1", "service":"capability:vendor:service.run"
+        }))
+        .unwrap();
+        let image = || Image {
+            width: fixture.width,
+            height: fixture.height,
+            digest: format!("{:x}", Sha256::digest(&*fixture.png)),
+            png: STANDARD.encode(&*fixture.png),
+        };
+        let len = fixture.png.len();
+        let budget = Budget::new(len + 2);
+        let reserve = |bytes| budget.reserve(bytes);
+        let mut bad = image();
+        bad.digest.clear();
+        assert!(matches!(
+            decode_with_budget(bad, &owner, reserve),
+            Err(Error::Wire)
+        ));
+        assert_eq!(budget.used(), 0);
+
+        let resource = decode_with_budget(image(), &owner, reserve).unwrap();
+        assert_eq!(&*resource.png, &*fixture.png);
+        let charged = budget.used();
+        assert!((len..=len + 2).contains(&charged));
+        assert!(matches!(
+            decode_with_budget(image(), &owner, reserve),
+            Err(Error::Limit)
+        ));
+        let clone = resource.png.clone();
+        drop(resource);
+        assert_eq!(budget.used(), charged);
+        drop(clone);
+        assert_eq!(budget.used(), 0);
+    }
 }

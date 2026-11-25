@@ -130,6 +130,69 @@ fn all_inline_drafts_commit_atomically_beyond_the_old_sixteen_row_page() {
     }
 }
 #[test]
+fn inline_focus_uses_exact_row_id_with_colons_and_preserves_visibility() {
+    unsafe {
+        let (f, parent) = fixture(Some(serde_json::json!([
+            {"id":"a:b","type":"string","default":"long"},
+            {"id":"a","type":"string","default":"short"}
+        ])));
+        let long = f.binding("a:b:edit").hwnd;
+        let short = f.binding("a:edit").hwnd;
+        assert_eq!(f.panel.ui.bindings.borrow()[0].hwnd, long);
+        let _ = ShowWindow(parent.0, SW_SHOWNOACTIVATE);
+        let candidate = |id| inline::focus_child(&f.panel.ui, id);
+        assert_eq!(candidate("a"), Some(short));
+        assert_eq!(candidate("a:b"), Some(long));
+        assert_eq!(candidate(""), None);
+        let _ = ShowWindow(short, SW_HIDE);
+        assert_eq!(
+            candidate("a"),
+            None,
+            "a hidden row must not fall back to a:b"
+        );
+        f.panel.ui.bindings.borrow_mut()[0].enabled = false;
+        assert_eq!(candidate("a:b"), None);
+    }
+}
+#[test]
+fn inline_option_text_matches_full_panel_budget_without_changing_choice_value() {
+    unsafe {
+        let label = format!("开\t{}", "🙂".repeat(150));
+        let (f, _parent) = fixture(Some(serde_json::json!([
+            {"id":"mode","widget":"select","options":[
+                {"label":"默认","value":"default"},
+                {"label":label,"value":7}
+            ],"default":"default"}
+        ])));
+        let combo = f.binding("mode:options").hwnd;
+        let expected = format!("开 {}", "🙂".repeat(126));
+        let length = SendMessageW(combo, CB_GETLBTEXTLEN, Some(WPARAM(1)), None).0;
+        assert_eq!(length as usize, expected.encode_utf16().count());
+        let mut text = [0u16; 257];
+        let copied = SendMessageW(
+            combo,
+            CB_GETLBTEXT,
+            Some(WPARAM(1)),
+            Some(LPARAM(text.as_mut_ptr() as isize)),
+        )
+        .0;
+        assert_eq!(copied, length);
+        assert_eq!(
+            String::from_utf16(&text[..copied as usize]).unwrap(),
+            expected
+        );
+        SendMessageW(combo, CB_SETCURSEL, Some(WPARAM(1)), None);
+        SendMessageW(
+            f.panel.handle(),
+            WM_COMMAND,
+            Some(WPARAM((CBN_SELCHANGE as usize) << 16)),
+            Some(LPARAM(combo.0 as isize)),
+        );
+        f.tick();
+        assert_eq!(f.value("mode"), 7);
+    }
+}
+#[test]
 fn inline_typed_choices_disable_restore_and_color_clear_reuse_original_actions() {
     unsafe {
         let params = serde_json::json!([

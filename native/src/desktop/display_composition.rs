@@ -103,6 +103,6 @@ fn check_cancel(cancel: &AtomicBool) -> Result<()> {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "display_composition_tests.rs"]
 mod tests;

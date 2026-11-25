@@ -6,10 +6,7 @@ pub(super) mod parameter_panel;
 mod restore_smoke;
 use windows::{
     core::{w, Error, Result},
-    Win32::{
-        Foundation::*,
-        UI::{HiDpi::GetDpiForWindow, WindowsAndMessaging::*},
-    },
+    Win32::{Foundation::*, UI::WindowsAndMessaging::*},
 };
 
 pub(super) struct DocumentWindow {
@@ -19,6 +16,26 @@ pub(super) struct DocumentWindow {
     pub window: Window,
     pub icons: app_icon::Icons,
     pub state: Box<State>,
+}
+
+fn initial_size(width: f32, height: f32, captured: bool) -> (i32, i32) {
+    if captured {
+        // 截图保持 1:1，超出呈现预算时只缩小 HWND；源图和来源坐标不变。
+        let (width, height) = (f64::from(width), f64::from(height));
+        let scale = (8192.0 / width.max(height))
+            .min((16_777_216.0 / (width * height)).sqrt())
+            .min(1.0);
+        (
+            (width * scale).floor().max(1.0) as i32,
+            (height * scale).floor().max(1.0) as i32,
+        )
+    } else {
+        let scale = (1200.0 / width).min(800.0 / height).min(1.0);
+        (
+            (width * scale).round().max(1.0) as i32,
+            (height * scale).round().max(1.0) as i32,
+        )
+    }
 }
 
 impl DocumentWindow {
@@ -56,13 +73,24 @@ impl DocumentWindow {
         // 模拟未来窗口集合扩容。owner 可搬移，传给 Win32 的状态地址不能随之改变。
         owners.reserve_exact(8);
         let moved = owners.pop().unwrap();
-        if (&*moved.state as *const State) as isize != pointer
-            || GetWindowLongPtrW(moved.window.0, GWLP_USERDATA) != pointer
-            || GetWindowLongPtrW(moved.panel.0, GWLP_USERDATA) != moved.window.0 .0 as isize
-        {
+        if (&*moved.state as *const State) as isize != pointer || !moved.is_alive() {
             return Err(Error::new(
                 E_FAIL,
                 "Document owner relocation invalidated window state",
+            ));
+        }
+        // 钉图编辑条的 GWLP_USERDATA 存的是 Neuro-mini 私有状态，不是宿主 HWND。
+        let panel = moved.panel.0;
+        let host = moved.window.0;
+        let panel_owner = if moved.state.canvas.borrow().pinned {
+            neuro_mini_ui::owner(panel) == Some(host)
+        } else {
+            GetWindowLongPtrW(panel, GWLP_USERDATA) == host.0 as isize
+        };
+        if !panel_owner || moved.state.tool_panel.get() != panel {
+            return Err(Error::new(
+                E_FAIL,
+                "Document owner relocation invalidated panel ownership",
             ));
         }
         SendMessageW(moved.window.0, WM_NULL, None, None);
@@ -124,15 +152,7 @@ impl DocumentWindow {
                 .map_or((image.width as f32, image.height as f32), |frame| {
                     (frame.width as f32, frame.height as f32)
                 });
-            let scale = if state.capture_origin.is_some() {
-                1.0
-            } else {
-                (1200.0 / image_width).min(800.0 / image_height).min(1.0)
-            };
-            (
-                (image_width * scale).round().max(1.0) as i32,
-                (image_height * scale).round().max(1.0) as i32,
-            )
+            initial_size(image_width, image_height, state.capture_origin.is_some())
         } else {
             (1000, 720)
         };
@@ -173,23 +193,14 @@ impl DocumentWindow {
             )
         })?);
         if pinned && state.canvas.borrow().image.is_some() {
-            let mut canvas = state.canvas.borrow_mut();
-            canvas.viewport.origin = crate::viewport::Point::default();
-            canvas.viewport.scale = width as f32 * 96.0
-                / GetDpiForWindow(window.0).max(1) as f32
-                / canvas.image.as_ref().unwrap().width as f32;
+            // 用双轴实际客户区适配；极细长图的一像素取整不能让另一轴被裁掉。
+            super::pin_window::fit(window.0, &state);
         }
         let panel = super::smoke_timing::run("document-panel", || {
             tool_panel::create(window.0, &state, visible_panel)
         })?;
-        if pinned && state.canvas.borrow().editor.annotation_frame().is_some() {
-            super::pin_window::fit(window.0, &state);
-        }
         icons.attach(window.0);
         icons.attach(panel.0);
-        if frame.is_some() {
-            super::pin_window::fit(window.0, &state);
-        }
         Ok(Self {
             parameters: None,
             panel,
@@ -213,3 +224,7 @@ impl Drop for DocumentWindow {
         }
     }
 }
+
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
+#[path = "document_window_tests.rs"]
+mod tests;

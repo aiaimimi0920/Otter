@@ -33,6 +33,7 @@ pub(in crate::desktop::application::restore_batch::job) unsafe fn run(
         entry_id: "entry".into(),
         unit: UnitId::parse("must-not-replace").unwrap(),
         mouse: (0.0, 0.0),
+        active: app.workspace.units().to_vec(),
     });
     if app.request_restore_input(bare, None, space).is_ok() {
         return Err(Error::new(
@@ -81,6 +82,18 @@ pub(in crate::desktop::application::restore_batch::job) unsafe fn run(
         ));
     }
     preserved(&app, &source, original)?;
+
+    app.request_frozen(source.clone(), Kind::RecycleBin, "entry".into(), point)?;
+    let replacement: Source = source.as_ref().to_vec().into();
+    app.restored_session.as_mut().unwrap().original = replacement.clone();
+    if settle(&mut app).is_ok() {
+        return Err(Error::new(
+            E_FAIL,
+            "Frozen worker accepted a different source owner",
+        ));
+    }
+    preserved(&app, &replacement, original)?;
+    app.restored_session.as_mut().unwrap().original = source.clone();
 
     app.request_frozen(source.clone(), Kind::RecycleBin, "missing".into(), point)?;
     if settle(&mut app).is_ok() {

@@ -39,7 +39,9 @@ fn every_scroll_reembeds_text_and_local_select_and_planning_restores_the_origina
     assert_eq!(text(&cache["art"], "select"), "Beta");
     let current = cache["art"].presentation.scroll_state();
     let next = super::super::focus::next(&mut cache, &f.frame, None, true).unwrap();
-    assert!(next.is_some());
+    assert_eq!(next.as_ref().unwrap().node, "last");
+    let forward = super::super::focus::next(&mut cache, &f.frame, next.as_ref(), false).unwrap();
+    assert_eq!(forward.unwrap().node, "input");
     assert!(
         cache["art"].presentation.scroll_state() == current,
         "planning has no geometry side effect"

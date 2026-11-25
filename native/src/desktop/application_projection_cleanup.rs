@@ -66,6 +66,12 @@ impl Owner {
     }
     pub(in crate::desktop::application) fn deadline(&self) -> Option<Instant> {
         self.wake
+            .into_iter()
+            .chain(self.mark.as_ref().and_then(mark::Job::reap_deadline))
+            .min()
+    }
+    fn schedule(&mut self, due: Instant) {
+        self.wake = Some(self.wake.map_or(due, |wake| wake.min(due)));
     }
     fn fail_mark(&mut self, now: Instant) {
         self.mark_due = Some(now + delay(self.mark_failures));
@@ -77,7 +83,7 @@ impl Owner {
             .find(|retry| retry.ticket.same_intent(ticket))
             .map(|retry| retry.due)
     }
-    fn retry_network(&mut self, ticket: Arc<Ticket>, now: Instant) {
+    fn retry_network(&mut self, ticket: Arc<Ticket>, now: Instant) -> Instant {
         if let Some(retry) = self
             .retries
             .iter_mut()
@@ -85,12 +91,15 @@ impl Owner {
         {
             retry.due = now + delay(retry.failures);
             retry.failures = retry.failures.saturating_add(1);
+            retry.due
         } else {
+            let due = now + delay(0);
             self.retries.push(Retry {
                 ticket,
                 failures: 1,
-                due: now + delay(0),
+                due,
             });
+            due
         }
     }
     /// 最后 Unit/应用终态先保删除标记，再允许空检查点；不在这里联网或解绑稳定关联。

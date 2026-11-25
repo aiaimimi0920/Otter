@@ -252,28 +252,9 @@ fn confirmed_system_end_still_pumps_worker_and_destroys_live_owner() {
 #[test]
 fn application_error_exit_still_pumps_and_reaps_live_workers() {
     use crate::desktop::document_window::DocumentWindow;
-    use windows::Win32::System::LibraryLoader::GetModuleHandleW;
-    struct Class(HINSTANCE);
-    impl Drop for Class {
-        fn drop(&mut self) {
-            unsafe {
-                let _ = UnregisterClassW(w!("Otter.Native.Workspace"), Some(self.0));
-            }
-        }
-    }
     let _apartment = Apartment::new().unwrap();
     unsafe {
-        let instance: HINSTANCE = GetModuleHandleW(None).unwrap().into();
-        assert_ne!(
-            RegisterClassW(&WNDCLASSW {
-                hInstance: instance,
-                lpszClassName: w!("Otter.Native.Workspace"),
-                lpfnWndProc: Some(crate::desktop::procedure::window_proc),
-                ..Default::default()
-            }),
-            0
-        );
-        let _class = Class(instance);
+        let instance = crate::desktop::workspace_window_fixture::register();
         let target = Window(
             CreateWindowExW(
                 WINDOW_EX_STYLE::default(),
@@ -382,4 +363,86 @@ fn shutdown_drains_capture_and_real_recovery_registration_together() {
         Snapshot::read(&target).unwrap().recovery_record().unwrap(),
         before
     );
+}
+#[test]
+fn final_input_exit_submits_source_retirement_before_waiting() {
+    use crate::{
+        live_visibility_owner::Owner,
+        live_window_target::{snapshot::Snapshot, Target},
+    };
+    use windows::Win32::System::Threading::WaitForSingleObject;
+
+    let _apartment = Apartment::new().unwrap();
+    let source = Window(unsafe {
+        CreateWindowExW(
+            WS_EX_TOOLWINDOW,
+            w!("STATIC"),
+            w!("retirement on final input exit"),
+            WS_POPUP,
+            20,
+            20,
+            32,
+            32,
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap()
+    });
+    let target = Target::bind(source.0).unwrap();
+    let snapshot = || Snapshot::read(&target).unwrap();
+    let before = snapshot().recovery_record().unwrap();
+    let active = Arc::new(AtomicUsize::new(0));
+    let (mut session, releasing, release) = Session::input_shutdown_fixture(&active);
+    let mut visibility = Owner::fixture();
+    session.protect(visibility.acquire(target.clone()).unwrap());
+    let signaled = |handle: std::os::windows::io::BorrowedHandle<'_>| {
+        assert_eq!(
+            unsafe { WaitForSingleObject(HANDLE(handle.as_raw_handle()), 3000) },
+            WAIT_OBJECT_0
+        );
+    };
+    // Start and register are each dispatched by polling; the fixture sends real pipe ACKs.
+    for _ in 0..3 {
+        visibility.poll().unwrap();
+        let Some(handle) = visibility.completion_handle() else {
+            break;
+        };
+        signaled(handle);
+    }
+    assert!(session.poll().is_none());
+    assert_eq!(snapshot().layered.unwrap().alpha, 1);
+    assert!(visibility.completion_handle().is_none());
+    assert!(visibility.child_handle().is_some());
+
+    session.stop();
+    visibility.close();
+    releasing.recv_timeout(Duration::from_secs(2)).unwrap();
+    signaled(session.completion_handle().unwrap());
+    assert_eq!(snapshot().layered.unwrap().alpha, 1);
+    release.send(()).unwrap();
+    signaled(session.input_completion_handle().unwrap());
+
+    let mut sessions = vec![session];
+    let mut first = None;
+    settle_local(&mut sessions, &mut visibility, &mut first);
+    assert!(first.is_none());
+    assert!(sessions.is_empty());
+    assert_eq!(snapshot().recovery_record().unwrap(), before);
+    signaled(
+        visibility
+            .completion_handle()
+            .expect("retirement must have a request worker, not only the idle helper handle"),
+    );
+    drain(
+        &mut sessions,
+        &mut visibility,
+        &mut Default::default(),
+        &mut Default::default(),
+    )
+    .unwrap();
+    assert!(visibility.finished());
+    assert!(visibility.child_handle().is_none());
+    assert_eq!(active.load(Ordering::Acquire), 0);
 }

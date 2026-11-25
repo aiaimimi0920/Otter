@@ -24,7 +24,6 @@ pub(crate) fn prepare(
     if placement.source.id != art.view.instance_id {
         return Err("Art来源已改变");
     }
-    let mut values = crate::surface_form_values::Values::default();
     fn collect(node: &Node, values: &mut crate::surface_form_values::Values) {
         if !node.visible() {
             return;
@@ -48,7 +47,11 @@ pub(crate) fn prepare(
             collect(child, values);
         }
     }
-    collect(p.scene().root(), &mut values);
+    let point = [uv[0] * art.size[0] as f32, uv[1] * art.size[1] as f32];
+    let mut route = p.click_route(point).peekable();
+    if route.peek().is_none() {
+        return Ok(Vec::new());
+    }
     let anchor = Anchor {
         view: art.view.clone(),
         generation: art.generation,
@@ -64,10 +67,23 @@ pub(crate) fn prepare(
     };
     let mut result = Vec::new();
     let mut bytes = 0;
-    let point = [uv[0] * art.size[0] as f32, uv[1] * art.size[1] as f32];
-    for action in p.click_route(point) {
+    let empty = serde_json::Map::new();
+    let mut values = None;
+    for action in route {
+        // 一个冒泡批次最多采集一次；没有动作或未请求表单的动作不遍历场景。
+        let fields = if action.includes_surface_values() {
+            values
+                .get_or_insert_with(|| {
+                    let mut values = crate::surface_form_values::Values::default();
+                    collect(p.scene().root(), &mut values);
+                    values
+                })
+                .entries()
+        } else {
+            &empty
+        };
         let (_, wire) = action
-            .encode_identity(identity, art.snapshot.revision, modifiers, values.entries())
+            .encode_identity(identity, art.snapshot.revision, modifiers, fields)
             .map_err(|_| "Art点击编码失败")?;
         bytes += wire.len();
         if bytes > crate::surface_click_event::MAX_EVENT_BYTES {
@@ -83,3 +99,7 @@ pub(crate) fn prepare(
     }
     Ok(result)
 }
+
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-surface")))]
+#[path = "tile_surface_click_tests.rs"]
+mod tests;

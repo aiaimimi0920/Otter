@@ -384,6 +384,12 @@ unsafe extern "system" fn procedure(hwnd: HWND, message: u32, wp: WPARAM, lp: LP
     ) {
         return result;
     }
+    // 恢复可见时静态源不会再投递帧；默认过程仍负责派发 WM_SIZE/WM_MOVE。
+    if message == WM_WINDOWPOSCHANGED && lp.0 != 0 {
+        if (*(lp.0 as *const WINDOWPOS)).flags.contains(SWP_SHOWWINDOW) {
+            let _ = InvalidateRect(Some(hwnd), None, false);
+        }
+    }
     let result = if let Some(result) = input::handle(hwnd, state, message, wp, lp) {
         result
     } else {

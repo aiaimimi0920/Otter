@@ -4,15 +4,23 @@ use std::sync::{
     Arc,
 };
 
-pub(super) type Notify = Arc<dyn Fn() + Send + Sync>;
+pub(crate) type Notify = Arc<dyn Fn() + Send + Sync>;
 
-pub(super) struct CompletionSignal {
+/// 通知先于线程退出。没有 Win32 等待槽的 owner 在通知后短暂复查，
+/// 仅在线程已退出时 join；未完成工作或空闲时不启用轮询。
+pub(crate) fn reap_deadline(ready: &AtomicBool) -> Option<std::time::Instant> {
+    ready
+        .load(Ordering::Acquire)
+        .then(|| std::time::Instant::now() + std::time::Duration::from_millis(10))
+}
+
+pub(crate) struct CompletionSignal {
     ready: Arc<AtomicBool>,
     notify: Notify,
 }
 impl CompletionSignal {
     /// 必须先于任务输入、许可和网络资源声明，确保逆序析构时最后发布。
-    pub(super) fn new(ready: Arc<AtomicBool>, notify: Notify) -> Self {
+    pub(crate) fn new(ready: Arc<AtomicBool>, notify: Notify) -> Self {
         Self { ready, notify }
     }
 }

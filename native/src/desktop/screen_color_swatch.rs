@@ -1,5 +1,7 @@
-//! 取色预览的原生色块与 HEX 绘制；子类仅属于自身窗口，GDI 临时资源在每次绘制后回收。
+//! 取色预览的原生色块与 HEX 绘制；子类仅属于自身窗口，按窗口复用字体，绘制借用系统画刷。
 use super::*;
+use std::cell::Cell;
+use windows::core::PCWSTR;
 use windows::Win32::UI::Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass};
 const ID: usize = 0x4f5357;
 fn scaled(value: i32, dpi: u32) -> i32 {
@@ -9,9 +11,18 @@ pub(super) fn size(dpi: u32) -> (i32, i32) {
     (scaled(160, dpi), scaled(32, dpi))
 }
 pub(super) unsafe fn attach(hwnd: HWND) -> Result<()> {
-    if !SetWindowSubclass(hwnd, Some(procedure), ID, 0).as_bool() {
+    let cache = Box::new(FontCache::default());
+    if !SetWindowSubclass(
+        hwnd,
+        Some(procedure),
+        ID,
+        &*cache as *const FontCache as usize,
+    )
+    .as_bool()
+    {
         return Err(Error::from_win32());
     }
+    let _ = Box::into_raw(cache); // WM_NCDESTROY owns this allocation after registration.
     Ok(())
 }
 pub(super) unsafe fn update(hwnd: HWND, Color(r, g, b): Color) -> bool {
@@ -21,11 +32,63 @@ pub(super) unsafe fn update(hwnd: HWND, Color(r, g, b): Color) -> bool {
     }
     SetWindowLongPtrW(hwnd, GWLP_USERDATA, value);
     // 自绘不应丢失原生 STATIC 的可访问文本。
-    let text = windows::core::HSTRING::from(crate::desktop::color_dialog::hex(Color(r, g, b)));
-    let _ = SetWindowTextW(hwnd, &text);
+    let text = hex(Color(r, g, b));
+    let _ = SetWindowTextW(hwnd, PCWSTR(text.as_ptr()));
     true
 }
+// The same fixed UTF-16 representation serves both native text and owner-draw.
+fn hex(Color(r, g, b): Color) -> [u16; 8] {
+    let mut text = [0; 8];
+    text[0] = u16::from(b'#');
+    let digits = b"0123456789abcdef";
+    for (pair, byte) in text[1..7].chunks_exact_mut(2).zip([r, g, b]) {
+        pair[0] = u16::from(digits[(byte >> 4) as usize]);
+        pair[1] = u16::from(digits[(byte & 15) as usize]);
+    }
+    text
+}
+#[derive(Default)]
+struct FontCache(Cell<Option<(i32, HGDIOBJ)>>);
+impl FontCache {
+    unsafe fn get(&self, dpi: u32) -> HGDIOBJ {
+        let height = -scaled(14, dpi);
+        if let Some((cached, font)) = self.0.get() {
+            if cached == height {
+                return font;
+            }
+        }
+        let mut description = LOGFONTW {
+            lfHeight: height,
+            ..Default::default()
+        };
+        for (slot, value) in description
+            .lfFaceName
+            .iter_mut()
+            .zip("Segoe UI".encode_utf16())
+        {
+            *slot = value;
+        }
+        let font: HGDIOBJ = CreateFontIndirectW(&description).into();
+        if !font.is_invalid() {
+            if let Some((_, old)) = self.0.replace(Some((height, font))) {
+                let _ = DeleteObject(old);
+            }
+        }
+        font
+    }
+}
+impl Drop for FontCache {
+    fn drop(&mut self) {
+        if let Some((_, font)) = self.0.take() {
+            unsafe {
+                let _ = DeleteObject(font);
+            }
+        }
+    }
+}
+#[cfg(test)]
 struct Object(HGDIOBJ);
+#[cfg(test)]
 impl Drop for Object {
     fn drop(&mut self) {
         unsafe {
@@ -55,7 +118,7 @@ unsafe extern "system" fn procedure(
     wp: WPARAM,
     lp: LPARAM,
     _: usize,
-    _: usize,
+    data: usize,
 ) -> LRESULT {
     std::panic::catch_unwind(|| match msg {
         WM_ERASEBKGND => LRESULT(1),
@@ -65,7 +128,11 @@ unsafe extern "system" fn procedure(
             let mut rect = RECT::default();
             if GetClientRect(hwnd, &mut rect).is_ok() {
                 let value = GetWindowLongPtrW(hwnd, GWLP_USERDATA).saturating_sub(1) as u32;
-                render(dc, rect, GetDpiForWindow(hwnd), COLORREF(value));
+                // Only GDI calls while borrowing the window-owned font; selection is
+                // restored before leaving render, so a later paint can replace it.
+                let cache = &*(data as *const FontCache);
+                let dpi = GetDpiForWindow(hwnd);
+                render(dc, rect, dpi, COLORREF(value), cache);
             }
             LRESULT(0)
         }
@@ -87,13 +154,14 @@ unsafe extern "system" fn procedure(
         }
         WM_NCDESTROY => {
             let _ = RemoveWindowSubclass(hwnd, Some(procedure), ID);
+            drop(Box::from_raw(data as *mut FontCache));
             DefSubclassProc(hwnd, msg, wp, lp)
         }
         _ => DefSubclassProc(hwnd, msg, wp, lp),
     })
     .unwrap_or_else(|_| DefSubclassProc(hwnd, msg, wp, lp))
 }
-unsafe fn render(dc: HDC, rect: RECT, dpi: u32, color: COLORREF) {
+unsafe fn render(dc: HDC, rect: RECT, dpi: u32, color: COLORREF, cache: &FontCache) {
     FillRect(dc, &rect, GetSysColorBrush(COLOR_WINDOW));
     let swatch = RECT {
         left: scaled(6, dpi),
@@ -101,37 +169,22 @@ unsafe fn render(dc: HDC, rect: RECT, dpi: u32, color: COLORREF) {
         right: scaled(26, dpi),
         bottom: scaled(26, dpi),
     };
-    let brush = Object(CreateSolidBrush(color).into());
-    if !brush.0.is_invalid() {
-        FillRect(dc, &swatch, HBRUSH(brush.0 .0));
+    let previous_brush = SetDCBrushColor(dc, color);
+    if previous_brush.0 != u32::MAX {
+        FillRect(dc, &swatch, HBRUSH(GetStockObject(DC_BRUSH).0));
+        SetDCBrushColor(dc, previous_brush);
     }
     FrameRect(dc, &swatch, GetSysColorBrush(COLOR_WINDOWTEXT));
-    let mut description = LOGFONTW {
-        lfHeight: -scaled(14, dpi),
-        ..Default::default()
-    };
-    for (slot, value) in description
-        .lfFaceName
-        .iter_mut()
-        .zip("Segoe UI".encode_utf16())
-    {
-        *slot = value;
-    }
-    let font = Object(CreateFontIndirectW(&description).into());
-    let _selected = if font.0.is_invalid() {
-        None
-    } else {
-        Some(Selected(dc, SelectObject(dc, font.0)))
-    };
+    let font = cache.get(dpi);
+    let _selected = (!font.is_invalid()).then(|| Selected(dc, SelectObject(dc, font)));
     SetBkMode(dc, TRANSPARENT);
     SetTextColor(dc, COLORREF(GetSysColor(COLOR_WINDOWTEXT)));
-    let text = crate::desktop::color_dialog::hex(Color(
+    let text = hex(Color(
         color.0 as u8,
         (color.0 >> 8) as u8,
         (color.0 >> 16) as u8,
     ));
-    let text: Vec<u16> = text.encode_utf16().collect();
-    let _ = TextOutW(dc, scaled(36, dpi), scaled(8, dpi), &text);
+    let _ = TextOutW(dc, scaled(36, dpi), scaled(8, dpi), &text[..7]);
 }
 
 #[cfg(test)]
@@ -145,12 +198,22 @@ mod tests {
             }
         }
     }
+    unsafe fn font_height(font: HGDIOBJ) -> Option<i32> {
+        let mut result = LOGFONTW::default();
+        let read = GetObjectW(
+            font,
+            std::mem::size_of::<LOGFONTW>() as i32,
+            Some((&mut result as *mut LOGFONTW).cast()),
+        );
+        (read > 0).then_some(result.lfHeight)
+    }
     #[test]
     fn native_swatch_draws_correct_rgb_at_multiple_dpis_without_gdi_growth() {
         use windows::Win32::System::Threading::{
             GetCurrentProcess, GetGuiResources, GR_GDIOBJECTS,
         };
         unsafe {
+            let cache = FontCache::default();
             for dpi in [96, 144, 192] {
                 let (width, height) = size(dpi);
                 let dc = Dc(CreateCompatibleDC(None));
@@ -181,12 +244,18 @@ mod tests {
                     bottom: height,
                 };
                 let color = COLORREF(0x00563412);
-                render(dc.0, rect, dpi, color);
+                let previous_brush = COLORREF(0x00774422);
+                SetDCBrushColor(dc.0, previous_brush);
+                render(dc.0, rect, dpi, color, &cache);
                 assert_eq!(GetPixel(dc.0, scaled(12, dpi), scaled(12, dpi)), color);
+                assert_eq!(GetDCBrushColor(dc.0), previous_brush);
+                let font = cache.get(dpi);
+                assert!(!font.is_invalid());
                 let before = GetGuiResources(GetCurrentProcess(), GR_GDIOBJECTS);
                 for _ in 0..16 {
-                    render(dc.0, rect, dpi, color);
+                    render(dc.0, rect, dpi, color, &cache);
                 }
+                assert_eq!(cache.get(dpi), font);
                 let after = GetGuiResources(GetCurrentProcess(), GR_GDIOBJECTS);
                 assert!(after <= before + 1, "GDI count grew: {before} -> {after}");
             }
@@ -226,6 +295,22 @@ mod tests {
             assert!(!update(popup.0, Color(1, 2, 3)));
             assert!(update(popup.0, Color(0, 0, 0)));
             assert!(!IsWindowVisible(popup.0).as_bool());
+            use windows::Win32::UI::Shell::GetWindowSubclass;
+            let mut data = 0;
+            assert!(GetWindowSubclass(popup.0, Some(procedure), ID, Some(&mut data)).as_bool());
+            let cache = &*(data as *const FontCache);
+            let old = cache.get(96);
+            assert_eq!(cache.get(96), old);
+            let next = cache.get(192);
+            assert_ne!(old, next);
+            // Flush the thread's GDI batch before checking retired objects. GetObjectType
+            // can still report the former handle type; read the full descriptor instead.
+            GdiFlush().unwrap();
+            assert_eq!(font_height(old), None);
+            assert_eq!(font_height(next), Some(-28));
+            drop(popup);
+            GdiFlush().unwrap();
+            assert_eq!(font_height(next), None);
         }
     }
 }

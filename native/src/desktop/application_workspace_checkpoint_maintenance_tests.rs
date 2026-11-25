@@ -4,7 +4,7 @@ use serde_json::json;
 
 fn policy(maximum: usize) -> crate::session_library::recycle::policy::Policy {
     crate::settings_source::Source::new(
-        "C:/Users/Public/nas_home/AI/GameEditor/linshi/otter-maintenance-tests.json".into(),
+        std::env::temp_dir().join("otter-maintenance-tests.json"),
         serde_json::to_vec(&json!({"cache":{"recycleBinMaxEntries":maximum}})).unwrap(),
     )
     .unwrap()
@@ -27,7 +27,9 @@ unsafe fn start(app: &mut Application, changing: bool) -> crate::session_source:
     app.recycle_policy = policy(1);
     let source = app.restored_session.as_ref().unwrap().original.clone();
     app.schedule_recycle_maintenance();
+    let exported = save_snapshot::payload_documents_for_test();
     app.start_recycle_maintenance().unwrap();
+    assert_eq!(save_snapshot::payload_documents_for_test(), exported);
     assert!(app.save_job.as_ref().unwrap().1.prune_policy().is_some());
     source
 }

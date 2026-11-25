@@ -15,11 +15,19 @@ pub(super) mod smoke;
 impl Application {
     pub(super) fn sync_frozen_menu(&self) {
         let mut view = self.frozen_library.borrow_mut();
-        view.source = self
+        let source = self
             .restored_session
             .as_ref()
             .filter(|record| record.space.is_some())
-            .map(|record| record.original.clone());
+            .map(|record| &record.original);
+        let unchanged = match (&view.source, source) {
+            (Some(current), Some(next)) => current.same_storage(next),
+            (None, None) => true,
+            _ => false,
+        };
+        if !unchanged {
+            view.source = source.cloned();
+        }
         view.busy =
             self.restore_job.is_some() || self.save_job.is_some() || self.exit_requested.get();
     }

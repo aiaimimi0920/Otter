@@ -162,6 +162,9 @@ fn escape_and_empty_draft_leave_document_untouched() {
         assert!(!f.state.canvas.borrow_mut().editor.undo());
     }
 }
+#[path = "text_inline_style_tests.rs"]
+mod style;
+
 #[test]
 fn owner_escape_cancels_draft_without_closing_pin_or_committing_queued_focus_exit() {
     unsafe {

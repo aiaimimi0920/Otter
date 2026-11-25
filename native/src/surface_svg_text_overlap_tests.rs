@@ -24,12 +24,11 @@ fn surface_svg_overlapping_glyphs_preserve_individual_paint() {
             let actual = decode(&wrap(content.as_str())).unwrap();
             let expected = decode(&wrap(expected.as_str())).unwrap();
             assert!(expected.pixels.chunks_exact(4).any(|p| p[3] != 0));
-            let difference = actual
-                .pixels
-                .iter()
-                .zip(expected.pixels.iter())
-                .position(|(a, b)| a != b);
-            assert_eq!(difference, None, "{attrs}; group opacity={opacity}");
+            assert_same_pixels(
+                &actual,
+                &expected,
+                &format!("{attrs}; group opacity={opacity}"),
+            );
         }
     }
 }
@@ -47,5 +46,5 @@ fn surface_svg_outline_runs_remain_within_child_budget() {
     let short = render(20);
     let long = render(4096);
     assert!(long.pixels.chunks_exact(4).any(|p| p[3] != 0));
-    assert_eq!(short.pixels.as_ref(), long.pixels.as_ref());
+    assert_same_pixels(&short, &long, "clipped outline runs");
 }

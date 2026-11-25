@@ -2,7 +2,7 @@
 use super::*;
 use crate::desktop::canvas::minified_source::Origin;
 use crate::desktop::{canvas::Canvas, display_frame::Frame};
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "application_projection_sender_provenance_tests.rs"]
 mod provenance_tests;
 
@@ -13,6 +13,7 @@ pub(in crate::desktop::application) struct Snapshot {
     pub kind: crate::projection_delivery::sender::Kind,
     pub geometry: Option<crate::desktop::export::projection::Geometry>,
     pub source_logical: Option<crate::crop_geometry::Size>,
+    rasterized_source: bool,
     pub natural_origin: Option<Origin>,
     // 相对于实际选中的像素owner；不是canonical历史crop，也不重复翻转自然坐标。
     pub legacy_pixels: Option<crate::crop_geometry::Rect>,
@@ -22,6 +23,7 @@ pub(super) struct Stamp {
     size: (u32, u32),
     pixels: std::sync::Weak<crate::pixels::Storage>,
     source_logical: Option<crate::crop_geometry::Size>,
+    rasterized_source: bool,
     natural_origin: Option<(super::content::SourceStamp, crate::workspace_id::UnitId)>,
     legacy_pixels: Option<crate::crop_geometry::Rect>,
     pending_content: bool,
@@ -29,6 +31,7 @@ pub(super) struct Stamp {
 struct Selected {
     image: Image,
     logical: Option<crate::crop_geometry::Size>,
+    rasterized_source: bool,
     origin: Option<Origin>,
     legacy_pixels: Option<crate::crop_geometry::Rect>,
     content: bool,
@@ -47,6 +50,7 @@ impl Snapshot {
         let Selected {
             image,
             logical: source_logical,
+            rasterized_source,
             origin: natural_origin,
             legacy_pixels,
             content: pending_content,
@@ -54,6 +58,7 @@ impl Snapshot {
         Some(Self {
             image,
             source_logical,
+            rasterized_source,
             natural_origin,
             legacy_pixels,
             pending_content,
@@ -69,6 +74,7 @@ impl Snapshot {
             size: (self.image.width, self.image.height),
             pixels: self.image.pixels.downgrade(),
             source_logical: self.source_logical,
+            rasterized_source: self.rasterized_source,
             natural_origin: self.natural_origin.as_ref().map(|origin| {
                 (
                     super::content::SourceStamp::capture(&origin.record),
@@ -102,6 +108,7 @@ impl Snapshot {
                         })
                 }),
             source_logical: self.source_logical,
+            rasterized_source: self.rasterized_source,
             baseline: self.natural_origin.as_ref().map(|origin| Baseline {
                 record: origin.record.clone(),
                 unit: origin.unit.clone(),
@@ -127,6 +134,7 @@ impl Stamp {
             |Selected {
                  image,
                  logical,
+                 rasterized_source,
                  origin,
                  legacy_pixels,
                  content,
@@ -134,6 +142,7 @@ impl Stamp {
                 self.size == (image.width, image.height)
                     && self.pixels.ptr_eq(&image.pixels.downgrade())
                     && self.source_logical == logical
+                    && self.rasterized_source == rasterized_source
                     && self.pending_content == content
                     && self.legacy_pixels == legacy_pixels
                     && match (&self.natural_origin, &origin) {
@@ -172,6 +181,7 @@ fn select(
             return Some(Selected {
                 image: source.image().clone(),
                 logical: source.source_logical(&canvas.editor),
+                rasterized_source: source.rasterized_crop(),
                 origin: source.origin(&canvas.editor).cloned(),
                 legacy_pixels: canvas
                     .editor
@@ -194,6 +204,7 @@ fn select(
     Some(Selected {
         image,
         logical: None,
+        rasterized_source: editor.is_some_and(is_restored_grid),
         origin: None,
         legacy_pixels: editor
             .and_then(Editor::raster_crop_view)
@@ -208,25 +219,34 @@ fn select_local(
     upstream: &Canvas,
 ) -> Option<Selected> {
     let image = frame.natural_source(unit, upstream)?;
+    let retained = upstream
+        .minified_source
+        .as_ref()
+        .filter(|source| source.matches(&upstream.editor));
     // source_logical属于自然源，不属于目标框。渲染入口使用目标当前logical逐轴
     // 归一化crop，再映回原sourceSize；目标非等比缩放不应丢弃原图密度凭证。
     Some(Selected {
         image,
         logical: frame.natural_source_logical(unit, upstream),
+        rasterized_source: retained.map_or_else(
+            || is_restored_grid(&upstream.editor),
+            |source| source.rasterized_crop(),
+        ),
         origin: frame.natural_source_origin(unit, upstream),
-        legacy_pixels: if upstream
-            .minified_source
-            .as_ref()
-            .is_some_and(|source| source.matches(&upstream.editor))
-        {
+        legacy_pixels: if retained.is_some() {
             upstream.editor.crop_view()
         } else {
             upstream.editor.raster_crop_view()
         }
         .and_then(|view| view.legacy_pixel_region()),
-        content: upstream
-            .minified_source
-            .as_ref()
-            .is_some_and(|source| source.matches(&upstream.editor)),
+        content: retained.is_some(),
     })
+}
+
+fn is_restored_grid(editor: &Editor) -> bool {
+    editor.layers().is_some()
+        && editor.full_logical_frame().is_some()
+        && editor
+            .crop_view()
+            .is_none_or(|view| view.legacy_pixel_region().is_none())
 }

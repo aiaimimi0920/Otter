@@ -1,16 +1,16 @@
 // 私有桥只负责生命周期/emit/投影；文档状态由独立工厂封装，不解释插件业务代码。
 ((makeTree, attributes, selectors, markup, json, cssGridTracks, cssGrid, cssSpatial, cssValues, cssSelectors, cssDeclarations, cssSheets, cssProjection, makeGeometry, makeAnimation, makeTimers, makeResize, makeCanvas, makeCanvasContext, makeCanvasPath, makeFonts, makeEvents, makeForm, makeFocus, makeHover, makeBorders, makeServices, makeResult, makeImages) => {
   "use strict";
-  const clone = json.clone, freeze = Object.freeze;
+  const clone = json.clone, freeze = Object.freeze, ErrorType = Error;
   let definition, cleanup, snapshot = null, resources = {};
   let mounted = false, suspended = false, disposed = false, emitted, defaultAllowed = null, utf8Length;
   const safe = value => typeof value === "string" && /^[A-Za-z0-9:_-]{1,256}$/.test(value);
-  const fail = () => { throw new Error("Unsupported or invalid native DOM operation"); };
+  const fail = () => { throw new ErrorType("Unsupported or invalid native DOM operation"); };
   const dom = makeTree(fail, makeEvents), { nodes, root, ops: op } = dom;
   emitted = op.array();
   const form = makeForm(dom, fail);
   const focus = makeFocus(dom, fail);
-  attributes(dom, fail, form); const query = selectors(dom, fail).query; markup(dom, fail);
+  attributes(dom, fail, form); const { query, first } = selectors(dom, fail);
   const spatial = cssSpatial(dom, fail);
   const values = cssValues(dom, fail, cssGrid(dom, fail, cssGridTracks(dom, fail)), spatial, makeFonts(dom, fail), makeBorders), declarations = cssDeclarations(dom, fail, values);
   // 工厂构造不求值样式；插件运行前完成同一 Hover owner 的双向接线。
@@ -19,6 +19,7 @@
   hover = makeHover(dom, fail, sheets);
   const images = makeImages(op,json,fail);
   const canvas = makeCanvas(dom, fail, values, json, makeCanvasContext, makeCanvasPath, images);
+  markup(dom, fail, canvas.discardStagedNode);
   const services = makeServices(json, fail, images, canvas);
   const project = cssProjection(dom, fail, values, sheets, spatial, canvas, form);
   const geometry = makeGeometry(dom, fail, project, json);
@@ -38,7 +39,7 @@
       return null;
     },
     querySelectorAll: selector => query(root, selector, true),
-    querySelector: selector => query(root, selector, true)[0] ?? null,
+    querySelector: selector => first(root, selector, true),
     get adoptedStyleSheets() { return sheets.adoptedCopy(); },
     set adoptedStyleSheets(value) { sheets.adopt(value); },
   });
@@ -110,9 +111,10 @@
     } else if (command.type === "click") {
       const target = op.mapGet(nodes, command.target);
       if (suspended || !target || op.mapHas(dom.get(target).attrs, "disabled")) fail();
-      let current = target; const path = op.array();
-      while (current) { op.push(path, current); current = dom.get(current).parent; }
-      if (op.indexOf(path, root) < 0) fail();
+      // 此处只判连通；分派自身仍保留 capture/bubble/composedPath 的路径快照。
+      let current = target;
+      while (current && current !== root) current = dom.get(current).parent;
+      if (!current) fail();
       await dom.events.click(target);
     } else if (command.type === "localInput") {
       if (suspended) fail();

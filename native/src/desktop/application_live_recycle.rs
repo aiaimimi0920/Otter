@@ -33,7 +33,7 @@ impl Application {
                 "Live recycle origin changed or workspace busy",
             ));
         }
-        let (receipt, data) = self.capture_session_snapshot()?;
+        let (receipt, data) = self.capture_frozen_snapshot(&unit)?;
         let request = self.new_recycle_request(unit)?;
         let job =
             save_snapshot::job::Job::start_recycle(data, request, self.execution_wake.callback())

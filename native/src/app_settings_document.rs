@@ -190,6 +190,6 @@ impl Write for BoundedOutput {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "app_settings_document_tests.rs"]
 mod tests;

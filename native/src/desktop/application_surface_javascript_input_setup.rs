@@ -49,6 +49,16 @@ pub(super) unsafe fn mount(app: &mut Application, origin: &str, root: &std::path
         SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER,
     )
     .unwrap();
+    // attach 在上一轮 JS 扫描之后才建窗；再走原泵启动 Runtime，不绕过容量和租约。
+    app.poll_remote_live_with(false, |o| fixture::config(o, root))
+        .unwrap();
+    let window = app.surface_windows.iter_mut().next().unwrap();
+    assert!(
+        window.javascript_pending_for_test(),
+        "JS fixture did not start: needs_start={}, activation_error={:?}",
+        window.javascript_needs_start(),
+        window.activation_error()
+    );
     wait_js(app, true);
     app.poll_remote_live_with(false, |o| fixture::config(o, root))
         .unwrap();

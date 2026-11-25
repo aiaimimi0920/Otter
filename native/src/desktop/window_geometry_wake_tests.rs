@@ -14,10 +14,7 @@ fn position_or_size_changes_coalesce_until_acknowledged() {
         wake.request(SWP_NOMOVE, || panic!("duplicate geometry wake"));
     }
     assert_eq!(count.get(), 1);
-    assert_eq!(
-        unsafe { dispatch(HWND::default(), &wake, MESSAGE, LPARAM(0)) },
-        Some(LRESULT(0))
-    );
+    wake.acknowledge();
     wake.request(SWP_NOMOVE, send);
     assert_eq!(count.get(), 2);
     assert!(wake.pending.get());
@@ -37,7 +34,7 @@ fn failed_post_does_not_latch_and_destroy_disables_future_posts() {
         );
         assert!(!wake.active.get());
         assert!(!wake.pending.get());
-        unsafe { dispatch(HWND::default(), &wake, MESSAGE, LPARAM(0)) };
+        wake.acknowledge();
         wake.request(SWP_NOSIZE, || panic!("destroyed window wake"));
     }
 }

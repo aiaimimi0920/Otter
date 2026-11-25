@@ -48,7 +48,41 @@ struct Builder<'a> {
     y: i32,
     next: usize,
 }
+impl Drop for Builder<'_> {
+    fn drop(&mut self) {
+        // Until publish, placements owns every successfully created child, even
+        // those whose subclass or binding has not been installed yet.
+        unsafe { destroy_children(self.ui.hwnd.get(), self.placements.drain(..)) };
+    }
+}
+unsafe fn destroy_children(parent: HWND, children: impl IntoIterator<Item = (HWND, RECT)>) {
+    if !parent.is_invalid() {
+        for (hwnd, _) in children {
+            if GetParent(hwnd).is_ok_and(|owner| owner == parent) {
+                let _ = DestroyWindow(hwnd);
+            }
+        }
+    }
+}
+#[cfg(test)]
+thread_local! {
+    pub(in super::super) static FAIL_PUBLISH: Cell<bool> = const { Cell::new(false) };
+}
 impl Builder<'_> {
+    fn publish(mut self, status: HWND, height: i32) -> Result<()> {
+        #[cfg(test)]
+        if FAIL_PUBLISH.with(|fail| fail.replace(false)) {
+            return Err(Error::new(
+                E_FAIL,
+                "injected parameter control publish failure",
+            ));
+        }
+        *self.ui.placements.borrow_mut() = std::mem::take(&mut self.placements);
+        *self.ui.bindings.borrow_mut() = std::mem::take(&mut self.bindings);
+        self.ui.status.set(status);
+        self.ui.content_height.set(height);
+        Ok(())
+    }
     unsafe fn child(
         &mut self,
         class: windows::core::PCWSTR,
@@ -143,14 +177,13 @@ pub(super) unsafe fn rebuild(ui: &Ui) -> Result<()> {
     ui.replacing.set(true);
     let old = ui.placements.take();
     ui.bindings.borrow_mut().clear();
-    for (hwnd, _) in old {
-        if IsWindow(Some(hwnd)).as_bool() {
-            let _ = DestroyWindow(hwnd);
-        }
-    }
+    ui.status.set(HWND::default());
+    ui.content_height.set(0);
+    destroy_children(ui.hwnd.get(), old);
     let result = build(ui);
     ui.replacing.set(false);
     result?;
+    ui.sync_status();
     if restore && ui.available() && GetForegroundWindow() == foreground {
         let child = ui
             .bindings
@@ -283,11 +316,10 @@ unsafe fn build(ui: &Ui) -> Result<()> {
         b.y += 34;
     }
     let message = ui.message.borrow().clone();
-    ui.status.set(b.label(&message)?);
-    b.y += 28;
-    ui.content_height.set(b.y);
-    *ui.placements.borrow_mut() = b.placements;
-    *ui.bindings.borrow_mut() = b.bindings;
+    let status = b.label(&message)?;
+    let height = b.y + 28;
+    b.publish(status, height)?;
+    ui.status_dirty.set(*ui.message.borrow() != message);
     Ok(())
 }
 pub(super) unsafe fn availability(ui: &Ui) {

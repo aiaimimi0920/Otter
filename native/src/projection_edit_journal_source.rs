@@ -12,8 +12,8 @@ impl Store {
         frozen.validate().map_err(|_| Error::Format)?;
         let mut state = self.0.state.lock().map_err(|_| Error::Changed)?;
         self.baseline(&state, cancel)?;
-        let mut entries = state.entries.clone();
-        if let Some(old) = entries
+        if let Some(old) = state
+            .entries
             .iter()
             .find(|entry| entry.context.same_key(&context))
         {
@@ -26,9 +26,10 @@ impl Store {
             }
             return Ok(source.clone()); // 原anchor/session/initial不可因重试时当前Editor变化而重造。
         }
-        if entries.len() >= MAX_ENTRIES {
+        if state.entries.len() >= MAX_ENTRIES {
             return Err(Error::Limit);
         }
+        let mut entries = state.entries.clone();
         entries.push(Entry {
             context,
             generation: 1,
@@ -58,17 +59,28 @@ impl Store {
         }
         Ok(entry.source.clone())
     }
-    pub(crate) fn source_document(
+    /// Read both inputs to the source probe under one verified journal baseline.
+    pub(crate) fn source_state(
         &self,
         context: &Context,
         cancel: &AtomicBool,
-    ) -> Result<Option<Document>, Error> {
+    ) -> Result<(Option<Document>, Option<Ticket>), Error> {
         let state = self.0.state.lock().map_err(|_| Error::Changed)?;
         self.baseline(&state, cancel)?;
-        Ok(state
+        let Some(entry) = state
             .entries
             .iter()
-            .find(|entry| entry.context == *context)
-            .and_then(|entry| entry.document.clone()))
+            .find(|entry| entry.context.same_key(context))
+        else {
+            return Ok((None, None));
+        };
+        let document = (entry.context == *context)
+            .then(|| entry.document.clone())
+            .flatten();
+        let pending = entry.pending.as_ref().map(|_| Ticket {
+            store: self.clone(),
+            entry: entry.clone(),
+        });
+        Ok((document, pending))
     }
 }

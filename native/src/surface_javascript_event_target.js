@@ -151,11 +151,12 @@
       value.active = value.stopped = value.immediate = value.passive = false; depth--;
     }
   };
+  const register = target => {
+    if (disposed || created >= 2048) fail();
+    op.weakSet(targets, target, op.array()); created++;
+  };
   class EventTarget {
-    constructor() {
-      if (disposed || created >= 2048) fail();
-      created++; op.weakSet(targets, this, op.array());
-    }
+    constructor() { register(this); }
     addEventListener(type, callback, init) {
       if (arguments.length < 2) fail();
       const list = targetState(this); type = name(type);
@@ -184,6 +185,8 @@
       return result;
   };
   return {
+    register,
+    discardStagedTarget(target) { if (op.weakDelete(targets, target)) created--; },
     Event, KeyboardEvent, MouseEvent, PointerEvent, EventTarget, native, click: target => native(target, "click", true),
     pointer(target, input) {
       const init = op.record(), flags = input.modifiers, terminal = input.phase === "pointerup" || input.phase === "pointercancel";

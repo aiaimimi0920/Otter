@@ -129,6 +129,7 @@ impl Owner {
         });
         expiry
             .into_iter()
+            .chain(self.profile.deadline())
             .chain(self.cleanup.deadline())
             .chain(self.stop.deadline())
             .chain(self.updates.wake)

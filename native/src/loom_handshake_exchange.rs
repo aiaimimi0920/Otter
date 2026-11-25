@@ -22,10 +22,7 @@ pub fn fetch(identity: &Identity, cancel: &AtomicBool) -> Result<Handshake, Erro
     open(identity, cancel).map(|(handshake, _)| handshake)
 }
 /// 同一已认证 WebSocket 上继续协商扩展；不把另一次连接的 hook session 当作凭证。
-pub(crate) fn open(
-    identity: &Identity,
-    cancel: &AtomicBool,
-) -> Result<(Handshake, BridgeSocket), Error> {
+pub fn open(identity: &Identity, cancel: &AtomicBool) -> Result<(Handshake, BridgeSocket), Error> {
     if cancel.load(Ordering::Acquire) {
         return Err(Error::Cancelled);
     }

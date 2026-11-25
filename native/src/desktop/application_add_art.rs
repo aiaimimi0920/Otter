@@ -8,7 +8,7 @@ use crate::desktop::{
 mod live;
 #[path = "application_art_source.rs"]
 pub(super) mod source;
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-loom")))]
 #[path = "application_add_art_tests.rs"]
 mod tests;
 impl Application {

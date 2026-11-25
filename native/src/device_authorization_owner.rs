@@ -47,6 +47,19 @@ pub struct Owner {
     offline_closed: bool,
 }
 impl Owner {
+    // 每个未撤销的在途 origin 已占一席；同源续签与缓存共享这一席。
+    fn has_origin_capacity(&self, origin: &str) -> bool {
+        let cached = |origin: &str| self.sessions.iter().any(|(o, _)| o == origin);
+        cached(origin)
+            || self.sessions.len()
+                + self
+                    .pending
+                    .iter()
+                    .filter(|p| !p.discarded && !cached(&p.origin))
+                    .count()
+                < 8
+    }
+
     /// 只对新进程尚未接触在线会话的origin允许尝试独立离线证明；容量/显式失效不能降级绕过。
     pub(crate) fn can_resume_local(&self, origin: &str) -> bool {
         !self.closed
@@ -83,14 +96,7 @@ impl Owner {
         if self.pending.len() >= 4 {
             return Err(Error::Capacity);
         }
-        // 缓存加在途最多八个不同 origin；不通过静默淘汰仍在使用的凭据来腾空间。
-        let mut origins: Vec<&str> = self.sessions.iter().map(|s| s.0.as_str()).collect();
-        for pending in self.pending.iter().filter(|p| !p.discarded) {
-            if !origins.contains(&pending.origin.as_str()) {
-                origins.push(&pending.origin);
-            }
-        }
-        if !origins.contains(&origin.as_str()) && origins.len() >= 8 {
+        if !self.has_origin_capacity(&origin) {
             return Err(Error::Capacity);
         }
         self.pending.try_reserve(1).map_err(|_| Error::Capacity)?;
@@ -129,7 +135,7 @@ impl Owner {
         {
             return Err(Error::Pending);
         }
-        if !self.sessions.iter().any(|(o, _)| o == origin) && self.sessions.len() >= 8 {
+        if !self.has_origin_capacity(origin) {
             return Err(Error::Capacity);
         }
         self.retiring

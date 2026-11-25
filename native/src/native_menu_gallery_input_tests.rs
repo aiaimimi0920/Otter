@@ -61,6 +61,10 @@ fn sent_root_owner_and_queued_wheels_target_the_gallery_under_the_cursor() {
 }
 #[test]
 fn system_hit_wheels_keep_scrolled_content_after_hover_and_refresh() {
+    crate::desktop::workspace_window_fixture::with_private_desktop(system_hit_wheels);
+}
+
+fn system_hit_wheels() {
     let mut positions = Vec::new();
     for deltas in [vec![-120], vec![-30; 4]] {
         let (_owner, mut menu) = gallery(64);
@@ -343,4 +347,35 @@ fn delete_hover_only_tracks_corner_and_clears_on_scrollbar_and_keyboard() {
     menu.event(1, Event::Move(x, y)).unwrap();
     menu.key(0x28).unwrap();
     assert_eq!(menu.pages[1].panel.delete_hover(), None);
+}
+
+#[test]
+fn scrollbar_contact_retires_gallery_delete_gesture_without_prior_hover() {
+    let (_owner, mut menu) = gallery(64);
+    let rows = (0..64)
+        .map(|n| {
+            let mut row = item(100 + n);
+            row.delete = Some(200 + n);
+            row
+        })
+        .collect();
+    menu.replace_gallery(0, rows).unwrap();
+    let corner = menu.pages[1].layout.delete_rect(0, menu.content_width(1));
+    let (x, y) = (corner.left + 2, corner.top + 2);
+    let bar = menu.bar(1).unwrap();
+    for event in [
+        Event::Move(bar.track.left, bar.thumb.top),
+        Event::Up(bar.track.left, bar.thumb.top),
+        Event::Down(bar.track.left, bar.thumb.top),
+    ] {
+        menu.event(1, Event::Down(x, y)).unwrap();
+        assert_eq!(menu.pages[1].delete_pressed, Some(0));
+        menu.event(1, event).unwrap();
+        assert_eq!(menu.pages[1].delete_pressed, None);
+        menu.event(1, Event::Up(x, y)).unwrap();
+        assert!(menu.take_delete().is_none());
+    }
+    menu.event(1, Event::Down(x, y)).unwrap();
+    menu.event(1, Event::Up(x, y)).unwrap();
+    assert_eq!(menu.take_delete(), Some(200));
 }

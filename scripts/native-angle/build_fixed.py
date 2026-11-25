@@ -52,12 +52,20 @@ class Commands:
 
 
 def check_plan(plan):
-    compiles = [line for line in plan.splitlines() if "clang-cl.exe" in line]
-    if not compiles or not all(re.search(r"(?:^|\s)/MT(?:\s|$)", line) and "/WX" in line for line in compiles):
+    # Match standalone fixed-plan switches, not substrings of flags or quoted paths.
+    count = 0
+    for line in plan.splitlines():
+        if "clang-cl.exe" not in line:
+            continue
+        args = {token.strip('"') for token in re.findall(r'(?:[^\s"]|"[^"]*")+', line)}
+        if not {"/MT", "/WX"} <= args or {"/WX-", "-WX-"} & args:
+            raise ValueError("Static CRT and warnings-as-errors compile plan required")
+        count += 1
+    if not count:
         raise ValueError("Static CRT and warnings-as-errors compile plan required")
     if re.search(r"(?:^|\s)/MDd?(?:\s|$)", plan) or "vcvarsall" in plan or "vs_toolchain.py" in plan or "lld-link.exe" not in plan:
         raise ValueError("Unexpected toolchain in build plan")
-    return len(compiles)
+    return count
 
 
 def execute(stage, expected, output):

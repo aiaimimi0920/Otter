@@ -105,6 +105,6 @@ impl Leases {
 // 不在 Drop 中阻塞网络或创建后台线程。执行 owner 退出前必须显式处理 pending_count，
 // 失败租约应保留在有界重试 owner 中；当前类型本身不保证远端释放已经发生。
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-loom")))]
 #[path = "loom_output_leases_tests.rs"]
 mod tests;

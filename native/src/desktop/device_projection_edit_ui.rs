@@ -24,20 +24,18 @@ pub(in crate::desktop) fn requested_mode(state: &State) -> Option<crate::project
 pub(in crate::desktop) fn mode(state: &State) -> crate::projection_edit::Mode {
     requested_mode(state)
         .or_else(|| {
-            state.projection_edit.borrow().as_ref().map(|owner| {
-                owner
-                    .capture(&state.canvas.borrow().editor)
-                    .document()
-                    .mode()
-            })
+            state
+                .projection_edit
+                .borrow()
+                .as_ref()
+                .map(|owner| owner.authoritative().document().mode())
         })
         .unwrap_or(crate::projection_edit::Mode::OneWay)
 }
 pub(in crate::desktop) fn can_choose_mode(state: &State) -> bool {
     !state.authorization.borrow().closed
         && state.projection_edit.borrow().as_ref().is_none_or(|owner| {
-            owner.capture(&state.canvas.borrow().editor).role()
-                == crate::projection_edit::workspace::Role::Source
+            owner.authoritative().role() == crate::projection_edit::workspace::Role::Source
         })
 }
 pub(in crate::desktop) unsafe fn choose_mode(
@@ -120,28 +118,21 @@ pub(super) unsafe fn append_menu(menu: HMENU, state: &State, view: &super::View)
     if state.projection_edit.borrow().is_none() {
         return append_status(menu, state, view);
     }
+    // 同次菜单只核一次动态编辑视图；权限、方向及冲突直接借用权威字段。
+    let selectable = selectable(state, view);
     AppendMenuW(
         menu,
-        MF_STRING
-            | if selectable(state, view) {
-                MF_ENABLED
-            } else {
-                MF_GRAYED
-            },
+        MF_STRING | if selectable { MF_ENABLED } else { MF_GRAYED },
         SUBMIT,
         w!("提交 / 重试协作修改"),
     )?;
-    let snapshot = state
-        .projection_edit
-        .borrow()
-        .as_ref()
-        .unwrap()
-        .capture(&state.canvas.borrow().editor);
+    let owner = state.projection_edit.borrow();
+    let snapshot = owner.as_ref().unwrap().authoritative();
     for (id, mode, label) in [
         (ONE_WAY, crate::projection_edit::Mode::OneWay, "单向数据"),
         (TWO_WAY, crate::projection_edit::Mode::TwoWay, "双向数据"),
     ] {
-        let enabled = selectable(state, view)
+        let enabled = selectable
             && snapshot.role() == crate::projection_edit::workspace::Role::Source
             && snapshot.document().mode() != mode;
         AppendMenuW(
@@ -162,7 +153,7 @@ pub(super) unsafe fn append_menu(menu: HMENU, state: &State, view: &super::View)
             (KEEP_LOCAL, "保留本地协作修改"),
             (USE_REMOTE, "采用远端协作标注"),
         ] {
-            let enabled = selectable(state, view)
+            let enabled = selectable
                 && (id != KEEP_LOCAL
                     || snapshot.role() == crate::projection_edit::workspace::Role::Source
                     || snapshot.document().mode() == crate::projection_edit::Mode::TwoWay);
@@ -220,12 +211,8 @@ pub(super) unsafe fn execute(hwnd: HWND, state: &State, command: usize) -> Resul
             stamp: state.projection_edit.borrow().as_ref().unwrap().stamp(),
         };
         if matches!(command, ONE_WAY | TWO_WAY) {
-            let snapshot = state
-                .projection_edit
-                .borrow()
-                .as_ref()
-                .unwrap()
-                .capture(&state.canvas.borrow().editor);
+            let owner = state.projection_edit.borrow();
+            let snapshot = owner.as_ref().unwrap().authoritative();
             let mode = if command == ONE_WAY {
                 crate::projection_edit::Mode::OneWay
             } else {
@@ -238,12 +225,8 @@ pub(super) unsafe fn execute(hwnd: HWND, state: &State, command: usize) -> Resul
             }
             Request::SetProjectionEditMode(selection, mode)
         } else if matches!(command, KEEP_LOCAL | USE_REMOTE) {
-            let snapshot = state
-                .projection_edit
-                .borrow()
-                .as_ref()
-                .unwrap()
-                .capture(&state.canvas.borrow().editor);
+            let owner = state.projection_edit.borrow();
+            let snapshot = owner.as_ref().unwrap().authoritative();
             if snapshot.conflict().is_none()
                 || (command == KEEP_LOCAL
                     && snapshot.role() != crate::projection_edit::workspace::Role::Source

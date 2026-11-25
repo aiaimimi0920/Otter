@@ -34,3 +34,26 @@ fn invalid_image_fails_without_replacing_existing_canvas() {
         .pixels
         .same_storage(&original.pixels));
 }
+
+#[test]
+fn image_preparation_stops_during_pin_mask_scan_and_releases_pixels() {
+    for stop_at in [1, 4] {
+        let image = Image {
+            width: 64,
+            height: 256,
+            pixels: vec![255; 64 * 256 * 4].into(),
+        };
+        let weak = image.pixels.downgrade();
+        let checks = std::cell::Cell::new(0);
+        let result = PreparedDocument::from_image_with_cancel(image, true, || {
+            checks.set(checks.get() + 1);
+            checks.get() >= stop_at
+        });
+        assert_eq!(result.err().unwrap().code(), E_ABORT);
+        assert!(
+            checks.get() < 16,
+            "cancelled preparation must stop before scanning every row"
+        );
+        assert!(weak.upgrade().is_none());
+    }
+}

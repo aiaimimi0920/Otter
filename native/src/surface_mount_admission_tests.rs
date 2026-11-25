@@ -9,9 +9,14 @@ use crate::{
     surface_live_binding::Binding,
 };
 fn outcome() -> Outcome {
+    outcome_for("test")
+}
+fn outcome_for(id: &str) -> Outcome {
     let origin = "https://localhost:1234";
-    let bytes = br#"{"instance":{"descriptor":{"instanceId":"instance:test","generation":1},"attachments":{"attachment:test":{"descriptor":{"attachmentId":"attachment:test","instanceId":"instance:test","hookNodeId":"node:test","deviceId":"viewer:test"},"lifecycle":"mounted","lifecycleRevision":1}}}}"#;
-    let binding = Binding::from_mount(bytes, origin, "viewer:test", "node:test").unwrap();
+    let bytes = r#"{"instance":{"descriptor":{"instanceId":"instance:test","generation":1},"attachments":{"attachment:test":{"descriptor":{"attachmentId":"attachment:test","instanceId":"instance:test","hookNodeId":"node:test","deviceId":"viewer:test"},"lifecycle":"mounted","lifecycleRevision":1}}}}"#.replace(":test", &format!(":{id}"));
+    let bytes = bytes.replace(&format!("viewer:{id}"), "viewer:test");
+    let node = format!("node:{id}");
+    let binding = Binding::from_mount(bytes.as_bytes(), origin, "viewer:test", &node).unwrap();
     let report = Report::new(
         vec![Runtime::Declarative],
         vec![],
@@ -22,9 +27,9 @@ fn outcome() -> Outcome {
     .unwrap();
     Outcome {
         origin: origin.into(), device: "viewer:test".into(),
-        request: Arc::new(Request::new("art:test".into(), "node:test".into(), report, Persistence::Temporary).unwrap()),
+        request: Arc::new(Request::new("art:test".into(), node, report, Persistence::Temporary).unwrap()),
         binding: Some(binding), uncertain: false,
-        result: Ok(serde_json::value::RawValue::from_string(r#"{"protocolVersion":"loom.surface.v1","instanceId":"instance:test","attachmentId":"attachment:test","revision":1,"scene":{"id":"root","type":"text","props":{"text":"Native"}}}"#.into()).unwrap()),
+        result: Ok(serde_json::value::RawValue::from_string(r#"{"protocolVersion":"loom.surface.v1","instanceId":"instance:test","attachmentId":"attachment:test","revision":1,"scene":{"id":"root","type":"text","props":{"text":"Native"}}}"#.replace(":test", &format!(":{id}"))).unwrap()),
     }
 }
 #[test]
@@ -106,6 +111,36 @@ fn snapshot_revision_is_retained_without_substituting_lifecycle_revision() {
     assert_eq!(snapshot.revision(), 57);
     assert_eq!(result.binding.as_ref().unwrap().lifecycle_revision(), 1);
     assert_eq!(snapshot.scene().root().id(), "root");
+}
+
+#[test]
+fn mount_scene_borrow_preserves_raw_json_validation() {
+    let mut grant = grant();
+    let lease = grant.lease("https://localhost:1234", 0).unwrap();
+    let mut result = outcome();
+    let raw = result
+        .result
+        .as_ref()
+        .unwrap()
+        .get()
+        .replace("Native", r"N\u0061tive");
+    result.result = Ok(serde_json::value::RawValue::from_string(raw.clone()).unwrap());
+    let snapshot = result.snapshot_for(&lease, 0).unwrap();
+    assert_eq!(snapshot.scene().root().props()["text"], "Native");
+
+    let duplicate = raw.replacen('{', r#"{"scene":{"id":"other","type":"text"},"#, 1);
+    result.result = Ok(serde_json::value::RawValue::from_string(duplicate).unwrap());
+    assert!(matches!(
+        result.snapshot_for(&lease, 0),
+        Err(AdmissionError::Identity)
+    ));
+
+    let invalid = raw.replacen(r#""id":"root""#, r#""id":"""#, 1);
+    result.result = Ok(serde_json::value::RawValue::from_string(invalid).unwrap());
+    assert!(matches!(
+        result.snapshot_for(&lease, 0),
+        Err(AdmissionError::Scene(crate::surface_scene::Error::Identity))
+    ));
 }
 
 #[test]

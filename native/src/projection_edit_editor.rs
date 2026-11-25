@@ -214,6 +214,6 @@ fn encoded(
         })
         .collect()
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "projection_edit_editor_tests.rs"]
 mod tests;

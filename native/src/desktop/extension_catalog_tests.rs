@@ -16,6 +16,19 @@ fn until(owner: &mut Owner, ready: impl Fn(&View) -> bool) {
         std::thread::sleep(Duration::from_millis(2));
     }
 }
+impl Owner {
+    pub(in crate::desktop) fn test_set_notify(&mut self, notify: Notify) {
+        assert!(!self.job.is_busy());
+        self.notify = notify;
+    }
+    pub(in crate::desktop) fn test_start(&mut self, source: super::super::capability_job::Source) {
+        self.view.borrow_mut().requested = true;
+        assert!(self.process_with(|| source));
+    }
+    pub(in crate::desktop) fn test_wait_finished(&self) {
+        self.job.test_wait_finished();
+    }
+}
 #[test]
 fn failed_ui_wakeup_does_not_leave_a_request_or_start_a_worker() {
     let shared = Shared::default();
@@ -48,6 +61,11 @@ fn snapshots_reach_the_shared_view_and_disconnect_clears_it_without_automatic_re
     advance.send(()).unwrap();
     until(&mut owner, |v| v.phase == Phase::Failed);
     assert!(shared.borrow().snapshot.is_none());
+    // Failed 已可在撤权时可见；无重连断言须允许尾段退出后的单次 Stopped 结算。
+    if owner.job.is_busy() {
+        owner.test_wait_finished();
+        owner.process_with(|| panic!("no automatic retry"));
+    }
     for _ in 0..8 {
         assert!(!owner.process_with(|| panic!("no automatic retry")));
     }
@@ -72,5 +90,52 @@ fn shutdown_clears_all_shared_authority_and_rejects_requests_from_remaining_wind
     }
     assert!(!shared.borrow().requested);
     assert!(!owner.process_with(|| panic!("closed owner must not restart")));
+    server.join().unwrap();
+}
+
+#[test]
+fn revoked_tail_preserves_explicit_retry_until_prior_worker_is_reaped() {
+    use crate::desktop::loom_execution_tasks::reap_fixture::{Gate, WAIT};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let _serial = SERIAL.lock().unwrap();
+    let (advance, waiting) = mpsc::channel();
+    let (identity, server) = peer::peer(move |p| {
+        peer::handshake(p, peer::handshake_data());
+        waiting.recv_timeout(WAIT).unwrap();
+        p.close(None).unwrap();
+    });
+    let gate = Gate::new(|| {});
+    let tail = gate.notify.clone();
+    let count = AtomicUsize::new(0);
+    let notify = Arc::new(move || {
+        if count.fetch_add(1, Ordering::AcqRel) == 1 {
+            tail();
+        }
+    });
+    let shared = Shared::default();
+    let mut owner = Owner::new(shared.clone(), notify);
+    owner.test_start(super::super::capability_job::Source::Fixed(identity));
+    until(&mut owner, |v| v.phase == Phase::Ready);
+    advance.send(()).unwrap();
+    gate.noticed.recv_timeout(WAIT).unwrap();
+    assert!(owner.process_with(|| panic!("no automatic retry")));
+    assert!(shared.borrow().snapshot.is_none() && shared.borrow().phase == Phase::Failed);
+    assert!(!owner.process_with(|| panic!("no automatic retry")));
+    // 模拟已由 request_for 成功排队的显式意图；通知尾段不得吃掉它。
+    shared.borrow_mut().requested = true;
+    assert!(!owner.process_with(|| panic!("old worker still owned")));
+    assert!(shared.borrow().requested);
+    gate.release.send(()).unwrap();
+    owner.test_wait_finished();
+    server.join().unwrap();
+    let (identity, server) = peer::peer(|p| {
+        peer::handshake(p, peer::handshake_data());
+        assert!(p.read().is_err());
+    });
+    assert!(owner.process_with(|| super::super::capability_job::Source::Fixed(identity)));
+    assert!(!shared.borrow().requested && shared.borrow().phase == Phase::Loading);
+    until(&mut owner, |v| v.phase == Phase::Ready);
+    assert!(owner.deadline().is_none());
+    owner.shutdown();
     server.join().unwrap();
 }

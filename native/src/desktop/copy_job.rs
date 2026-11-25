@@ -24,6 +24,7 @@ struct Ready {
     editable: Option<Arc<super::clipboard_editable::Content>>,
 }
 pub(super) struct Job {
+    _permit: crate::edit_worker_budget::Permit<'static>,
     worker: Option<JoinHandle<Output>>,
     cancel: Arc<AtomicBool>,
     stamp: super::display_snapshot::Stamp,
@@ -31,6 +32,44 @@ pub(super) struct Job {
     preserve_edits: bool,
     origin: Option<super::clipboard_placement::Origin>,
     next: Option<Next>,
+}
+impl Job {
+    pub(super) fn cancel(&self) {
+        self.cancel.store(true, Ordering::Release);
+        if let Some(next) = &self.next {
+            next.cancel.store(true, Ordering::Release);
+        }
+    }
+
+    pub(super) fn is_finished(&self) -> bool {
+        self.worker.as_ref().is_none_or(JoinHandle::is_finished)
+    }
+}
+
+#[cfg(test)]
+pub(super) fn install_gated(
+    state: &State,
+    release: std::sync::mpsc::Receiver<()>,
+    returned: std::sync::mpsc::Sender<bool>,
+) {
+    let cancel = Arc::new(AtomicBool::new(false));
+    let worker_cancel = cancel.clone();
+    *state.copy_job.borrow_mut() = Some(Job {
+        _permit: crate::edit_worker_budget::Permit::acquire_output().unwrap(),
+        worker: Some(std::thread::spawn(move || {
+            let _ = release.recv_timeout(std::time::Duration::from_secs(5));
+            returned
+                .send(worker_cancel.load(Ordering::Acquire))
+                .unwrap();
+            Ok(None)
+        })),
+        cancel,
+        stamp: super::display_snapshot::Stamp::capture(&state.canvas.borrow(), None),
+        sequence: None,
+        preserve_edits: false,
+        origin: None,
+        next: None,
+    });
 }
 // 新的显式复制最多占一个后继槽；旧编码器先回收，不在按键回调 join 或并行编码。
 struct Next {
@@ -42,11 +81,7 @@ struct Next {
 }
 impl Drop for Job {
     fn drop(&mut self) {
-        self.cancel.store(true, Ordering::Release);
-        if let Some(next) = &self.next {
-            next.cancel.store(true, Ordering::Release);
-        }
-        // WIC 编码不可中断；关闭仍 join，不能遗留无 owner 的任务。
+        self.cancel();
         if let Some(worker) = self.worker.take() {
             let _ = worker.join();
         }
@@ -68,6 +103,8 @@ fn prepare_with_plan(
     let Some((image, editor)) = super::display_snapshot::capture(canvas, frame) else {
         return Ok(None);
     };
+    let permit = crate::edit_worker_budget::Permit::acquire_output()
+        .ok_or("Native output worker limit reached")?;
     let stamp = super::display_snapshot::Stamp::capture(canvas, frame);
     let opacity = canvas.normal_opacity;
     let style = super::export::style::Snapshot::capture(canvas);
@@ -117,6 +154,7 @@ fn prepare_with_plan(
         })
         .map_err(|error| error.to_string())?;
     Ok(Some(Job {
+        _permit: permit,
         worker: Some(worker),
         cancel,
         stamp,
@@ -201,6 +239,10 @@ pub(super) unsafe fn start_guarded_at(
         });
         return;
     }
+    if SetTimer(Some(hwnd), TIMER, 50, None) == 0 {
+        report(hwnd, "无法调度复制任务，剪贴板未修改。");
+        return;
+    }
     let prepared = prepare_with_plan(
         &state.canvas.borrow(),
         state.resolved_display.borrow().as_ref(),
@@ -217,26 +259,20 @@ pub(super) unsafe fn start_guarded_at(
                     .copy_authority
                     .replace(job.cancel.clone())
                     .store(true, Ordering::Release);
+            } else {
+                let _ = KillTimer(Some(hwnd), TIMER);
             }
             *state.copy_job.borrow_mut() = job;
         }
         Err(error) => {
+            let _ = KillTimer(Some(hwnd), TIMER);
             report(hwnd, &error);
-            return;
         }
-    }
-    if state.copy_job.borrow().is_some() && SetTimer(Some(hwnd), TIMER, 50, None) == 0 {
-        let job = state.copy_job.borrow_mut().take();
-        drop(job);
-        report(hwnd, "无法调度复制任务，剪贴板未修改。");
     }
 }
 pub(super) fn cancel(state: &State) {
     if let Some(job) = state.copy_job.borrow().as_ref() {
-        job.cancel.store(true, Ordering::Release);
-        if let Some(next) = &job.next {
-            next.cancel.store(true, Ordering::Release);
-        }
+        job.cancel();
     }
 }
 pub(super) unsafe fn poll(hwnd: HWND, state: &State) {

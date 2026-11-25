@@ -12,7 +12,7 @@ use windows::{
     core::{Error, Result},
     Win32::Foundation::{E_ABORT, E_INVALIDARG},
 };
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "session_states_source_tests.rs"]
 mod source_tests;
 
@@ -34,37 +34,45 @@ impl Parts {
         let Parts {
             candidate,
             catalog,
-            mut arts,
-            mut results,
+            arts,
+            results,
             vectors,
-            mut regions,
-            mut projection_edits,
+            regions,
+            projection_edits,
         } = self;
-        if vectors.len() != candidate.placements.len()
-            || candidate.images.len() != candidate.placements.len()
-            || regions.len() != vectors.len()
+        let units = candidate.workspace.units();
+        let count = units.len();
+        if [
+            candidate.placements.len(),
+            candidate.images.len(),
+            vectors.len(),
+            regions.len(),
+        ]
+        .iter()
+        .any(|&len| len != count)
         {
             return Err(invalid("Session state count mismatch"));
         }
+        // 密集资源与工作区同序；稀疏资源按同一顺序过滤生成，不能跳过不匹配的记录。
+        let mut arts = arts.into_iter();
+        let mut results = results.into_iter();
+        let mut projection_edits = projection_edits.into_iter().peekable();
         let mut states = Vec::<State>::with_capacity(vectors.len());
         let mut annotation_ids = Vec::with_capacity(vectors.len());
-        for (unit, restored) in vectors {
+        for ((((unit, restored), (region_unit, region)), placement), (images, expected)) in vectors
+            .into_iter()
+            .zip(regions)
+            .zip(&candidate.placements)
+            .zip(candidate.images.iter().zip(units))
+        {
             check(cancel)?;
-            if states.iter().any(|state| state.unit_id == unit)
-                || !candidate.workspace.contains(&unit)
+            if unit != *expected
+                || unit != placement.unit
+                || unit != images.unit
+                || unit != region_unit
             {
                 return Err(invalid("Invalid restored state identity"));
             }
-            let placement = candidate
-                .placements
-                .iter()
-                .find(|item| item.unit == unit)
-                .ok_or_else(|| invalid("Missing restored state placement"))?;
-            let images = candidate
-                .images
-                .iter()
-                .find(|item| item.unit == unit)
-                .ok_or_else(|| invalid("Missing restored state image"))?;
             // UI 线程接管后台 alpha 缓存，不重新扫描图片或创建图形设备。
             let mut state = State::new(None, true)?;
             state.unit_id = unit.clone();
@@ -77,8 +85,9 @@ impl Parts {
             state.sticker_input.restore(images.sticker.clone());
             state.accept_upstream.set(images.accept_upstream);
             state.node_settings.set(placement.node_settings);
-            if let Some(index) = projection_edits.iter().position(|(id, _)| *id == unit) {
-                *state.projection_edit.borrow_mut() = Some(projection_edits.swap_remove(index).1);
+            if projection_edits.peek().is_some_and(|(id, _)| *id == unit) {
+                *state.projection_edit.borrow_mut() =
+                    projection_edits.next().map(|(_, owner)| owner);
             }
             state.restored_art = placement.art;
             state.local_art_id = placement.local_art_id.clone().map(|id| {
@@ -89,23 +98,20 @@ impl Parts {
             });
             state.restored_naming_art =
                 crate::desktop::naming_context::RestoredArtId::from_id(placement.art_id.as_deref());
-            let region = regions
-                .iter()
-                .position(|(id, _)| id == &unit)
-                .ok_or_else(|| invalid("Missing restored hit region"))?;
-            *state.hit_region.borrow_mut() = regions.swap_remove(region).1;
+            *state.hit_region.borrow_mut() = region;
             *state.execution_results.borrow_mut() = if placement.art {
-                let index = results
-                    .iter()
-                    .position(|result| result.unit() == &unit)
-                    .ok_or_else(|| invalid("Missing restored Art result"))?;
-                results.swap_remove(index)
+                results
+                    .next()
+                    .filter(|result| result.unit() == &unit)
+                    .ok_or_else(|| invalid("Missing restored Art result"))?
             } else {
                 Results::new(unit.clone())
             };
             {
                 let mut canvas = state.canvas.borrow_mut();
                 canvas.editor = restored.editor;
+                // 恢复位置已对应编辑器当前的可见框；后续同步只能应用相对变化。
+                canvas.applied_crop = canvas.editor.annotation_frame();
                 canvas.frame_style = placement.frame_style;
                 canvas.normal_opacity = placement.opacity_normal as f32;
                 canvas.window_opacity = if placement.minified {
@@ -134,11 +140,13 @@ impl Parts {
                                 image.clone(),
                                 &canvas.editor,
                             )
-                            .with_origin(
-                                crate::desktop::canvas::minified_source::Origin {
-                                    record: candidate.retained_source_record(),
-                                    unit: unit.clone(),
-                                },
+                            .with_origin(crate::desktop::canvas::minified_source::Origin {
+                                record: candidate.retained_source_record(),
+                                unit: unit.clone(),
+                            })
+                            .with_rasterized_crop(
+                                placement.rasterized_full
+                                    || placement.crop.is_some_and(|crop| crop.rasterized_source),
                             );
                             // 保存非等比恢复之前的 sourceSize，不能用当前 Editor 框替代。
                             if let Some(crop) = placement.crop {
@@ -165,11 +173,11 @@ impl Parts {
                 }
             }
             if placement.art {
-                let index = arts
-                    .iter()
-                    .position(|entry| entry.unit == unit)
+                let entry = arts
+                    .next()
+                    .filter(|entry| entry.unit == unit)
                     .ok_or_else(|| invalid("Missing restored Art binding"))?;
-                if let Binding::Ready { restored, .. } = arts.swap_remove(index).binding {
+                if let Binding::Ready { restored, .. } = entry.binding {
                     *state.selected_art.borrow_mut() = Some(Selection {
                         identity: document_state::new_unit_id()?,
                         catalog: catalog
@@ -189,8 +197,8 @@ impl Parts {
             annotation_ids.push((unit, restored.ids));
             states.push(state);
         }
-        if !arts.is_empty() || !results.is_empty() || !projection_edits.is_empty() {
-            return Err(invalid("Unmatched restored Art state"));
+        if arts.next().is_some() || results.next().is_some() || projection_edits.next().is_some() {
+            return Err(invalid("Unmatched restored Art or projection state"));
         }
         check(cancel)?;
         Ok(Prepared {

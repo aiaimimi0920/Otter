@@ -59,6 +59,6 @@ pub(crate) fn permits(state: &State, key: &Key) -> bool {
     })
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-surface")))]
 #[path = "tile_presenter_admission_tests.rs"]
 mod tests;

@@ -18,11 +18,6 @@ enum Case {
     Reject(u16),
 }
 const BYTES: &[u8] = b"package text";
-fn root() -> std::path::PathBuf {
-    let root=std::path::PathBuf::from("C:/Users/Public/nas_home/AI/GameEditor/linshi/otter-native-parallel-20261029/main-art-package-resources-1").join(format!("tls-{:?}",unsafe {windows::Win32::System::Com::CoCreateGuid()}.unwrap()));
-    std::fs::create_dir(&root).unwrap();
-    root
-}
 fn sign(value: &impl serde::Serialize, domain: &[u8]) -> wire::Envelope {
     let payload = serde_json::to_vec(value).unwrap();
     wire::Envelope {
@@ -35,7 +30,7 @@ fn sign(value: &impl serde::Serialize, domain: &[u8]) -> wire::Envelope {
 fn exercise(case: Case) {
     let (listener, client, tls) = fixture();
     let origin = client.origin.clone();
-    let root = root();
+    let root = crate::art_cache_fixture::Directory::new();
     let store = crate::device_identity_store::Store::new(&root).unwrap();
     let mut loaded = store.load_or_create().unwrap();
     store.bind_and_save(&mut loaded, "device-1").unwrap();

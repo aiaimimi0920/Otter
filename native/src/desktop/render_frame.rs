@@ -84,6 +84,6 @@ impl<F: FnOnce()> Drop for Transform<F> {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "render_frame_tests.rs"]
 mod tests;

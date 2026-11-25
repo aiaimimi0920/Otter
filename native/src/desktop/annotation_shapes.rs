@@ -26,7 +26,7 @@ pub(super) unsafe fn draw(
         radiusX: (stroke.corner_radius * scale).min(ellipse.radiusX),
         radiusY: (stroke.corner_radius * scale).min(ellipse.radiusY),
     };
-    if let Some(fill) = stroke.fill {
+    if let Some(fill) = stroke.fill.filter(|_| stroke.paint_alpha.fill() > 0.0) {
         set_color(brush, fill, stroke.paint_alpha.fill());
         match stroke.tool {
             Tool::Rectangle => target.FillRectangle(&rect, brush),

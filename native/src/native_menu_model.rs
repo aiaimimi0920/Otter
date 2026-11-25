@@ -2,9 +2,11 @@
 use super::{invalid, Item};
 use windows::core::Result;
 
+pub(super) const MAX_GALLERY_ITEMS: usize = 4096;
+
 /// 图库的逻辑数据与静态菜单树分开；每页仍只向 HWND 提交最多15张卡片。
 pub(super) fn validate_gallery(items: &[Item]) -> Result<()> {
-    if items.len() > 4096 {
+    if items.len() > MAX_GALLERY_ITEMS {
         return Err(invalid());
     }
     let mut units = 0usize;

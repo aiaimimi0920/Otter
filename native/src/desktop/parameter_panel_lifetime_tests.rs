@@ -13,16 +13,12 @@ fn hidden_real_panel_drop_reclaims_children_and_only_its_identity() {
             .map(|(h, _)| *h)
             .collect();
         assert_eq!(f.state.parameters_ui.hwnd.get(), panel);
-        let Fixture {
-            panel: owner,
-            host,
-            state,
-        } = f;
-        drop(owner);
-        assert!(state.parameters_ui.hwnd.get().is_invalid());
+        // Keep the fixture's host-before-State teardown order after dropping the panel.
+        drop(f.panel);
+        assert!(f.state.parameters_ui.hwnd.get().is_invalid());
         assert!(!IsWindow(Some(panel)).as_bool());
         assert!(children.into_iter().all(|h| !IsWindow(Some(h)).as_bool()));
-        assert!(IsWindow(Some(host.0)).as_bool());
+        assert!(IsWindow(Some(f.host.0)).as_bool());
     }
 }
 #[test]
@@ -120,7 +116,7 @@ fn initial_native_panel_title_is_preserved_before_show() {
 fn new_panel_inherits_capture_exclusion_before_show() {
     unsafe {
         let f = Fixture::new();
-        let Fixture { panel, host, state } = f;
+        let Fixture { state, host, panel } = f;
         drop(panel);
         state.capture_protection_requested.set(true);
         let panel = Panel::new(host.0, &state).unwrap();
@@ -162,7 +158,7 @@ fn full_panel_retirement_clears_expansion_without_resetting_a_new_owner() {
     unsafe {
         let f = Fixture::new();
         f.state.parameters_ui.expanded.set(true);
-        let Fixture { panel, host, state } = f;
+        let Fixture { state, host, panel } = f;
         drop(panel);
         assert!(!state.parameters_ui.expanded.get());
         let old = Panel::new(host.0, &state).unwrap();

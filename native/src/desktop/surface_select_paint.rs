@@ -37,18 +37,16 @@ unsafe fn draw(hwnd: HWND, dc: HDC) -> bool {
     };
     let brush = HBRUSH(GetStockObject(DC_BRUSH).0);
     let enabled = IsWindowEnabled(hwnd).as_bool();
-    SetDCBrushColor(
-        dc,
-        if enabled && messages::hovered(hwnd) {
-            colors::HOVER
-        } else {
-            colors::BACKGROUND
-        },
-    );
+    let background = if enabled && messages::hovered(hwnd) {
+        colors::HOVER
+    } else {
+        colors::BACKGROUND
+    };
+    SetDCBrushColor(dc, background);
     FillRect(dc, &rect, brush);
     let focused = GetFocus() == hwnd;
     let ink = if enabled {
-        color::ink(hwnd, GetDCBrushColor(dc), colors::TEXT)
+        color::ink(hwnd, background, colors::TEXT)
     } else {
         colors::MUTED
     };

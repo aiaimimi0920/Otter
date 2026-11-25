@@ -126,6 +126,10 @@ fn collaboration_same_png_revision_updates_remote_objects_keeps_local_undo_and_s
         );
         cycle(&mut fixture, &rx);
         assert_eq!(snapshot(&fixture).document().revision(), 2);
+        assert_eq!(
+            fixture.app.authorization.borrow().projection.status,
+            "协作标注已同步"
+        );
         assert_eq!(binding(&fixture)["revision"], 5);
         assert!(state(&fixture)
             .canvas

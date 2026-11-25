@@ -10,7 +10,7 @@ pub(super) unsafe fn next(handles: &[HANDLE], message: &mut MSG) -> Result<i32> 
     next_until(handles, message, None)
 }
 /// 截止时间是本次等待的绝对时刻，系统伪唤醒不能把授权截止不断向后延长。
-pub(super) unsafe fn next_until(
+pub(in crate::desktop::application) unsafe fn next_until(
     handles: &[HANDLE],
     message: &mut MSG,
     deadline: Option<Instant>,

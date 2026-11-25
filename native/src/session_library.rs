@@ -138,6 +138,6 @@ pub fn decode(bytes: &[u8], kind: Kind) -> Result<Library<'_>, String> {
     Ok(Library { entries })
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "session_library_tests.rs"]
 mod tests;

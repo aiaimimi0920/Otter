@@ -97,6 +97,6 @@ fn preview(uri: &str, cancel: &AtomicBool, remaining: &mut usize) -> Option<Thum
     Thumbnail::from_image(&image).ok()
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-loom")))]
 #[path = "loom_output_candidates_tests.rs"]
 mod tests;

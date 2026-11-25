@@ -11,14 +11,7 @@ NeuroSurface.define({mount({root}) {
 "#;
 unsafe fn art_app() -> Application {
     let mut app = image_app();
-    app.request_restore_input(crate::desktop::session_job::Input::Bytes(
-        br#"{"documentSchemaVersion":1,"documentRevision":1,"otterNativeCoordinateSpace":{"version":1,"origin":[0,0],"scale":1},"stickers":[{"id":"trigger-art","type":"art","artId":"vendor/application","x":0,"y":0,"w":200,"h":120}],"links":[]}"#.to_vec()),None,None).unwrap();
-    let deadline = Instant::now() + Duration::from_secs(10);
-    while app.restore_job.is_some() {
-        app.process_restore(false).unwrap();
-        assert!(Instant::now() < deadline);
-        std::thread::sleep(Duration::from_millis(1));
-    }
+    restore_local_art(&mut app);
     app
 }
 #[test]
@@ -28,7 +21,23 @@ fn automatic_result_ack_waits_for_actual_results_transaction_and_cancel_preserve
         let _environment = environment();
         for cancel in [false, true] {
             let mut app = art_app();
-            let peer = peer::Peer::with_source(SOURCE, true);
+            use crate::art_execution_grant::package::ports::{Port, Ports};
+            let peer = peer::Peer::with_ports(
+                SOURCE,
+                Ports {
+                    inputs: vec![],
+                    outputs: vec![
+                        Port {
+                            name: "output".into(),
+                            kind: "image".into(),
+                        },
+                        Port {
+                            name: "data".into(),
+                            kind: "value".into(),
+                        },
+                    ],
+                },
+            );
             peer.authorize(&mut app.authorization_owner);
             app.art_issuers = peer.authority();
             let node = app.documents[0].state.unit_id.to_string();

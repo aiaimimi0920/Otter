@@ -7,6 +7,8 @@ pub(in crate::desktop::application) struct Record {
     pub restored_accounts: Option<crate::projection_account::scene::Index>,
     pub restored_senders: Option<crate::projection_delivery::sender::binding::checkpoint::Index>,
     pub original: crate::session_source::Source,
+    /// 由同一后台候选提供，只用于首次恢复后的 checkpoint 基线。
+    pub restored_revision: u64,
     /// 原后台候选解析的只读关联；默认 profile 启动屏障领取，不等于普通导入已落盘。
     pub restored_projections: Option<crate::projection_delivery::binding::checkpoint::Index>,
     pub restored_projection_scope: Option<crate::session_projection_scope::Proof>,
@@ -115,6 +117,7 @@ impl Application {
                 .collect(),
             binding_catalog: batch.catalog.clone(),
             attempted_arts: Vec::new(),
+            restored_revision: batch.candidate.revision,
             original: batch.candidate.into_original_json(),
             saved_path,
             recovery_path,
@@ -130,10 +133,12 @@ impl Application {
         self.workspace = workspace;
         self.workspace_autosave.disable();
         self.reset_projection_inbox();
-        self.restored_session = Some(record);
+        if let Some(mut previous) = self.restored_session.replace(record) {
+            self.retire_workspace_workflow(&mut previous);
+        }
         self.executions.clear();
         self.display_cache.borrow_mut().take();
-        *self.display_composition.borrow_mut() = Default::default();
+        self.display_composition.borrow_mut().invalidate();
         *self.group_catalog.borrow_mut() = groups;
         *self.capture_windows.borrow_mut() = capture_windows;
         // 候选 State 的分组成员/锁定/隐藏状态已由 manifest 校验，不在交换期触发分组命令。

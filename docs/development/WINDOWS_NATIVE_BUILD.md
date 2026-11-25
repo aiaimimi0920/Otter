@@ -11,11 +11,14 @@ npm run dev
 npm run verify:local
 ```
 
-`npm run dev` 同时构建主程序和配套 Live DLL。定向回归示例：
+`npm run dev` 同时构建主程序和配套 Live DLL。快速并行检查、子进程隔离单测与定向回归示例：
 
 ```powershell
-cargo test --locked --manifest-path native/Cargo.toml --lib loom_handshake:: -- --test-threads=1
-node --test scripts/tests/effective-code-lines.test.mjs
+npm run check:fast
+npm run test:nextest -- -p otter-core -p otter-media -p otter-runtime
+cargo nextest run --locked --manifest-path native/Cargo.toml -p otter-native --lib --features test-live -E 'test(/live_hover/)'
+cargo nextest run --locked --manifest-path native/Cargo.toml -p otter-native -E 'test(/loom_handshake/)'
+node --test scripts/tests/effective-code-lines.test.mjs scripts/tests/review-batches.test.mjs scripts/tests/review-ledger-upsert.test.mjs
 python -m unittest discover -s scripts/tests -p 'test_ci_*.py'
 ```
 
@@ -31,7 +34,18 @@ $zip = Get-ChildItem C:/build/otter-package -Filter '*-internal.zip' -File
 python scripts/tests/native-package-runtime.py --package-dir C:/build/otter-package --evidence-dir C:/build/otter-runtime
 ```
 
-原版包、来源摘要及证据互相核对。解包后从 ZIP 启动，以隔离 profile 执行 smoke 和参数拒绝；
+原版包、来源摘要及证据互相核对。解包后从 ZIP 启动，以隔离 profile 执行无图及带图钉图 smoke 和参数拒绝；
+完整 smoke 包含批量窗口创建、恢复和应用功能检查。带图用例还核对编辑条、拖入、Shift 框选和输入 PNG 未被修改。
+每项 smoke 的防卡死预算为 60 秒；两个参数拒绝入口为
+15 秒。保存、归档和工作流自检在本次 `TEMP` 下使用独占夹具；探针核对完成后没有遗留该组会话目录。
+回执同时记录实际耗时、预算、退出码与成功标记；这些预算不作为冷启动性能指标。
 不替换运行中的 Otter。真实桌面联测按 [Live 联合测试](../features/LIVE_JOINT_TESTING.md)
-和[投射联合测试](../features/QR_PROJECTION.md#从仓库运行联合测试)进行。
+和[投射联合测试](JOINT_TESTING.md)进行。
 完整包上手需要保留 EXE 和相邻 DLL；内部包不签名、不对外发布。
+
+## 意外退出排查
+
+保留问题包、工作区与原始诊断，记录 EXE/DLL 摘要、启动参数、PID 与退出码，区分正常退出、
+外部终止与程序错误。先按本页验证 ZIP 的实际启动，再用独立 profile、自有源窗口复现，不关闭
+用户实例或发送全局输入。涉及 Live 时检查源窗口和恢复 journal；进程退出本身不证明输入、
+悬浮窗口或源权限已归还。

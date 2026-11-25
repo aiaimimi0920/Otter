@@ -11,7 +11,11 @@ use crate::{
     loom_art_wire::{Configuration, OutputTransport},
     shader_angle::Backend,
 };
-use std::sync::atomic::AtomicBool;
+use std::{
+    io,
+    net::{TcpListener, TcpStream},
+    sync::atomic::AtomicBool,
+};
 #[path = "loom_shader_fetch_cleanup_tests.rs"]
 mod cleanup;
 
@@ -26,18 +30,51 @@ fn configuration() -> Configuration {
     .unwrap();
     Configuration::shader_from_parameters(&parameters, &["input_path", "reference_path"]).unwrap()
 }
+fn accept_until(listener: &TcpListener, deadline: Instant) -> io::Result<TcpStream> {
+    // 这些回环监听器归夹具独占；保留非阻塞模式给调用方检查是否有额外连接。
+    listener.set_nonblocking(true)?;
+    loop {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            return Err(io::ErrorKind::TimedOut.into());
+        }
+        match listener.accept() {
+            Ok((stream, _)) => return Ok(stream),
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                thread::sleep(remaining.min(Duration::from_millis(1)));
+            }
+            Err(error) => return Err(error),
+        }
+    }
+}
+
+#[test]
+fn shader_fetch_fixture_without_client_exits_with_accept_timeout() {
+    let (listener, _, _) = fixture();
+    let (sent, received) = std::sync::mpsc::channel();
+    let server = thread::spawn(move || {
+        let error = accept_until(&listener, Instant::now() + Duration::from_millis(30))
+            .expect_err("no client was started");
+        sent.send(error.kind()).unwrap();
+    });
+    assert_eq!(
+        received.recv_timeout(Duration::from_secs(3)).unwrap(),
+        io::ErrorKind::TimedOut,
+    );
+    server.join().unwrap();
+}
+
 // tungstenite Callback 固定返回 ErrorResponse；只对此第三方回调签名豁免，不放宽产品错误类型。
 #[allow(clippy::result_large_err)]
 pub(crate) fn authenticated_socket(
-    listener: &std::net::TcpListener,
+    listener: &TcpListener,
     config: Arc<rustls::ServerConfig>,
     identity: &crate::loom_bridge_identity::Identity,
 ) -> tungstenite::WebSocket<StreamOwned<ServerConnection, BridgeStream>> {
-    let mut stream = BridgeStream::new(
-        listener.accept().unwrap().0,
-        Instant::now() + Duration::from_secs(10),
-    )
-    .unwrap();
+    // 分别限制接收连接和已连接 I/O；慢连接不会吃掉既有握手预算。
+    let socket = accept_until(listener, Instant::now() + Duration::from_secs(10))
+        .expect("Shader fixture could not accept client");
+    let mut stream = BridgeStream::new(socket, Instant::now() + Duration::from_secs(10)).unwrap();
     let mut connection = ServerConnection::new(config).unwrap();
     while connection.is_handshaking() {
         connection.complete_io(&mut stream).unwrap();

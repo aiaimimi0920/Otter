@@ -19,7 +19,7 @@ fn entry(accepted: bool) -> Arc<crate::projection_delivery::Invitation> {
 fn same_id_replacement_accepted_and_cross_origin_candidates_cannot_reach_configuration() {
     let _com = Apartment::new().unwrap();
     unsafe {
-        let (_class, mut app) = application();
+        let mut app = application();
         for mode in 0..3 {
             let current = entry(mode == 1);
             let selected = if mode == 0 {
@@ -55,7 +55,7 @@ fn same_id_replacement_accepted_and_cross_origin_candidates_cannot_reach_configu
 fn duplicate_refresh_does_not_clear_an_active_request_or_candidates() {
     let _com = Apartment::new().unwrap();
     unsafe {
-        let (_class, mut app) = application();
+        let mut app = application();
         let selected = entry(false);
         let mut view = app.authorization.borrow_mut();
         view.origin = Some(ORIGIN.into());
@@ -76,7 +76,7 @@ fn duplicate_refresh_does_not_clear_an_active_request_or_candidates() {
 fn queued_inbox_request_cannot_cross_modal_exit_or_restore_start() {
     let _com = Apartment::new().unwrap();
     unsafe {
-        let (_class, mut app) = application();
+        let mut app = application();
         app.authorization.borrow_mut().origin = Some(ORIGIN.into());
         for mode in 0..3 {
             authorization_ui::execute(

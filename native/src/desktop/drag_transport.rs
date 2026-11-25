@@ -143,6 +143,6 @@ fn outcome(status: HRESULT, effect: DROPEFFECT) -> Result<Outcome> {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "drag_transport_tests.rs"]
 mod tests;

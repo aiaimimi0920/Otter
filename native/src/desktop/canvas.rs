@@ -3,30 +3,30 @@ use super::image::Image;
 use super::render_surface::RenderSurface;
 use crate::editor::{Editor, Tool};
 use crate::viewport::{Point, Viewport};
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "canvas_cpu_recovery_tests.rs"]
 mod cpu_recovery_tests;
 #[path = "canvas_creation_admission.rs"]
 mod creation_admission;
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "canvas_d3d12_tests.rs"]
 mod d3d12_tests;
 #[cfg(test)]
 #[path = "canvas_gpu_reselect_tests.rs"]
 mod gpu_reselect_tests;
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "canvas_manual_render_tests.rs"]
 mod manual_render_tests;
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "canvas_recovery_window_tests.rs"]
 mod recovery_window_tests;
 #[path = "canvas_render_recovery.rs"]
 mod render_recovery;
 pub(in crate::desktop) use render_recovery::Destination as RenderChoice;
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-loom")))]
 #[path = "extension_visuals_tests.rs"]
 mod extension_visuals_tests;
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "canvas_frame_style_tests.rs"]
 mod frame_style_tests;
 #[path = "canvas_submission.rs"]
@@ -50,6 +50,9 @@ use windows::{
 mod capture;
 #[path = "canvas_display.rs"]
 mod display;
+#[cfg(test)]
+#[path = "canvas_long_raster_tests.rs"]
+mod long_raster_tests;
 #[path = "canvas_minified.rs"]
 pub(super) mod minified;
 #[path = "canvas_minified_source.rs"]
@@ -128,7 +131,9 @@ pub struct Canvas {
     pub(super) selection_drag: Option<(Point, Point)>,
     pub(super) marquee: Option<super::marquee::Marquee>,
     pub(super) selection_effect_preview: Option<crate::editor::Stroke>,
+    pub(super) inline_text_hidden: Option<usize>,
     pub(super) group_preview: Vec<(usize, crate::editor::Stroke)>,
+    pub(super) group_translation: Option<super::multi_selection::GroupTranslation>,
     pub(super) tool_profiles: crate::tool_profiles::ToolProfiles,
 }
 
@@ -191,7 +196,9 @@ impl Canvas {
             selection_drag: None,
             marquee: None,
             selection_effect_preview: None,
+            inline_text_hidden: None,
             group_preview: Vec::new(),
+            group_translation: None,
             tool_profiles: crate::tool_profiles::ToolProfiles::default(),
         })
     }
@@ -241,6 +248,7 @@ impl Canvas {
         ));
         if frame.is_none() {
             self.validate_scale_display();
+            self.discard_stale_group_translation();
             self.sync_raster_source();
         }
         if width == 0 || height == 0 {
@@ -296,9 +304,15 @@ impl Canvas {
                 return self.draw_minified(size, dpi);
             }
             let selected = self.selected_index();
-            let rotation_handle = super::rotation_handle::position(self);
-            let scale_handle = super::scale_handle::position(self);
-            let group = self.selected_group().map(|indices| indices.to_vec());
+            let (rotation_handle, scale_handle) = super::transform_handle_layout::positions(self);
+            let group = self
+                .multi_selection
+                .as_ref()
+                .filter(|_| {
+                    self.selected_group()
+                        .is_some_and(|indices| indices.len() > 1)
+                })
+                .map(|(indices, _)| indices);
             let preview = if self.selection_effect_preview.is_some() {
                 None
             } else {
@@ -307,16 +321,9 @@ impl Canvas {
             let resources = self.target.as_mut().unwrap();
             resources.surface.resize(size)?;
             let target = resources.surface.resource_target();
-            resources.raster.sync_sized(
-                target,
-                self.image.as_ref(),
-                self.editor
-                    .layers()
-                    .and_then(|layers| layers.annotations.as_ref()),
-                self.editor
-                    .layers()
-                    .map_or((0, 0), |layers| layers.annotation_dimensions()),
-            )?;
+            resources
+                .raster
+                .sync_frame(target, self.image.as_ref(), Some(&self.editor))?;
             target.SetDpi(dpi as f32, dpi as f32);
             let confirmed = resources.surface.draw(|target| {
                 let background = if self.pinned {
@@ -333,30 +340,11 @@ impl Canvas {
                 let frame = super::frame_style_draw::Frame::new(self.frame_style, size, dpi);
                 let rounded = frame.clip(target, &self.factory)?;
                 if let Some(image) = &self.image {
-                    let origin = self.viewport.origin;
-                    let rect = self.editor.raster_base_projection().map_or(
-                        D2D_RECT_F {
-                            left: origin.x,
-                            top: origin.y,
-                            right: origin.x + image.width as f32 * self.viewport.scale,
-                            bottom: origin.y + image.height as f32 * self.viewport.scale,
-                        },
-                        |mapping| {
-                            let r = mapping.target;
-                            D2D_RECT_F {
-                                left: origin.x + r.x as f32 * self.viewport.scale,
-                                top: origin.y + r.y as f32 * self.viewport.scale,
-                                right: origin.x + (r.x + r.width) as f32 * self.viewport.scale,
-                                bottom: origin.y + (r.y + r.height) as f32 * self.viewport.scale,
-                            }
-                        },
-                    );
-                    let clip = self.editor.annotation_frame().map_or(rect, |r| D2D_RECT_F {
-                        left: origin.x + r.x as f32 * self.viewport.scale,
-                        top: origin.y + r.y as f32 * self.viewport.scale,
-                        right: origin.x + (r.x + r.width) as f32 * self.viewport.scale,
-                        bottom: origin.y + (r.y + r.height) as f32 * self.viewport.scale,
-                    });
+                    let raster::Geometry {
+                        base,
+                        clip,
+                        projection,
+                    } = raster::Geometry::new(image, Some(&self.editor), self.viewport);
                     let erasing = self
                         .erase_gesture
                         .as_ref()
@@ -371,10 +359,10 @@ impl Canvas {
                     let clipped = super::render_frame::Clip::push(target, &clip);
                     resources.raster.draw_interleaved(
                         target,
-                        &rect,
+                        &base,
                         &clip,
                         erasing,
-                        (self.viewport, self.editor.raster_base_projection()),
+                        (self.viewport, projection),
                         || frame.border_over_clip(target, &clip),
                     )?;
                     let drawing = if !self.group_preview.is_empty() {
@@ -387,7 +375,7 @@ impl Canvas {
                             &mut resources.effects,
                         )
                     } else {
-                        super::annotations::draw_preview(
+                        super::annotations::draw_preview_excluding(
                             target,
                             &resources.brush,
                             &self.editor,
@@ -397,6 +385,7 @@ impl Canvas {
                                 .as_ref()
                                 .map(|drag| (drag.index, &drag.preview))
                                 .or_else(|| selected.zip(self.selection_effect_preview.as_ref())),
+                            self.inline_text_hidden,
                             &mut resources.effects,
                         )
                     };
@@ -430,8 +419,8 @@ impl Canvas {
                         }
                     }
                 }
-                if let Some(indices) = group.filter(|indices| indices.len() > 1) {
-                    for index in indices {
+                if let Some(indices) = group {
+                    for &index in indices {
                         super::selection::draw_outline(
                             target,
                             &resources.brush,

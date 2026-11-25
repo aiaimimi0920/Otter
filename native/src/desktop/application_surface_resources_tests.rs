@@ -118,7 +118,7 @@ fn run(corrupt: bool, close_before_delivery: bool, encoding: Option<&str>) {
         listener
     });
     unsafe {
-        let (_class, mut app) = fixture::application();
+        let mut app = fixture::application();
         app.authorization.borrow_mut().origin = Some(origin.clone());
         app.authorization_owner
             .start(crate::device_authorization_runtime::Task::Renew { client, store })

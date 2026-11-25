@@ -2,7 +2,6 @@
 use super::*;
 use crate::test_process;
 use std::process::Command;
-const ROOT: &str = "C:/Users/Public/nas_home/AI/GameEditor/linshi/otter-live-checkpoint-tests";
 const PATH_ENV: &str = "OTTER_NATIVE_LIVE_CHECKPOINT_CRASH_ROOT";
 const MODE_ENV: &str = "OTTER_NATIVE_LIVE_CHECKPOINT_CRASH_MODE";
 #[test]
@@ -11,10 +10,11 @@ fn interruption_probe() {
         return;
     };
     let root = PathBuf::from(root);
-    assert_eq!(root.parent(), Some(std::path::Path::new(ROOT)));
+    let expected = fixture_root();
+    assert_eq!(root.parent(), Some(expected.as_path()));
     assert_eq!(
         root.canonicalize().unwrap().parent(),
-        Some(std::path::Path::new(ROOT).canonicalize().unwrap().as_path())
+        Some(expected.canonicalize().unwrap().as_path())
     );
     let mode = std::env::var(MODE_ENV).unwrap();
     assert!(mode == "staged" || mode == "committed");

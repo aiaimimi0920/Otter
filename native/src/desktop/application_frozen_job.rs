@@ -2,11 +2,6 @@
 use super::*;
 use crate::{session_library::Kind, session_source::Source, workspace_id::UnitId};
 
-pub(super) struct Selection {
-    pub source: Source,
-    pub kind: Kind,
-    pub entry_id: String,
-}
 impl Application {
     /// 在菜单模态范围退出后调用；source 是菜单列出条目时保留的同一会话 owner。
     /// 此入口不授权外部文件。嵌入图片可恢复，其他资源仍由既有资源准入拒绝。
@@ -35,23 +30,15 @@ impl Application {
             (physical_mouse.y as f64 - space.origin.1 as f64) / space.scale,
         );
         let input = session_job::Input::Frozen(session_job::frozen::Input {
-            source: source.clone(),
+            source,
             kind,
-            entry_id: entry_id.clone(),
+            entry_id,
             unit: unit.clone(),
             mouse,
+            active: self.workspace.units().to_vec(),
         });
         // 复用 save/restore 互斥、起始 guard、目录快照、唤醒、取消与退出回收。
-        self.start_restore(
-            input,
-            None,
-            Some(space),
-            Some(Selection {
-                source,
-                kind,
-                entry_id,
-            }),
-        )?;
+        self.start_restore(input, None, Some(space))?;
         Ok(unit)
     }
 }

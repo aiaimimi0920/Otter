@@ -185,13 +185,26 @@ impl Job {
             running.cancel.store(true, Ordering::Release);
         }
     }
+    pub(super) fn deadline(&self) -> Option<std::time::Instant> {
+        self.running
+            .as_ref()
+            .and_then(|running| super::loom_execution_signal::reap_deadline(&running.ready))
+    }
     pub(super) fn poll(&mut self) -> Option<Result<Completion, Error>> {
-        if !self.running.as_ref().is_some_and(|running| {
-            running.ready.load(Ordering::Acquire) || running.worker.is_finished()
-        }) {
+        if !self
+            .running
+            .as_ref()
+            .is_some_and(|running| running.worker.is_finished())
+        {
             return None;
         }
         Some(self.join())
+    }
+    #[cfg(test)]
+    pub(crate) fn test_wait_finished(&self) {
+        super::loom_execution_tasks::reap_fixture::wait_finished(
+            &self.running.as_ref().unwrap().worker,
+        );
     }
     pub(super) fn shutdown(&mut self) -> Option<Result<Completion, Error>> {
         self.running.as_ref()?;

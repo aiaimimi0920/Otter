@@ -86,8 +86,13 @@ impl Drop for Apartment {
     }
 }
 pub(super) fn mark_pixels(f: &Fixture, runtime: &Runtime, name: &str) {
-    let s = runtime.shared.lock();
-    let frame = s.frame.as_ref().unwrap();
+    let (frame, presented) = {
+        let s = runtime.shared.lock();
+        (
+            s.frame.as_ref().unwrap().clone(),
+            s.presented.as_ref().unwrap().0.clone(),
+        )
+    };
     let image = frame.images.values().next().unwrap();
     // 手工RGBA红/绿/蓝/白的PBGRA oracle，不从生产转换或绘制代码计算预期。
     assert_eq!((image.width, image.height), (2, 2));
@@ -96,6 +101,6 @@ pub(super) fn mark_pixels(f: &Fixture, runtime: &Runtime, name: &str) {
         &[0, 0, 255, 255, 0, 255, 0, 255, 255, 0, 0, 255, 255, 255, 255, 255]
     );
     assert_eq!(frame.images.len(), 1);
-    assert_eq!(s.presented.as_ref().unwrap().0, frame.key);
+    assert_eq!(presented, frame.key);
     f.mark(name, json!({"revision":frame.key.revision,"sourcePbgra":[0,0,255,255,0,255,0,255,255,0,0,255,255,255,255,255],"nativePresentConfirmed":true}));
 }

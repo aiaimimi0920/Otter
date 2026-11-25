@@ -1,33 +1,16 @@
 //! 隐藏会话周期回归：真实归档后撤销目录，确保新 revision 重准备失败且不发送网络。
 use super::*;
-pub(in crate::desktop::application) unsafe fn verify(app: &mut Application) -> Result<()> {
-    let path = app
-        .restored_session
-        .as_ref()
-        .unwrap()
-        .saved_path
-        .clone()
-        .unwrap();
-    let temporary = std::path::Path::new("C:/Users/Public/nas_home/AI/GameEditor/linshi")
-        .canonicalize()
-        .map_err(|e| Error::new(E_FAIL, e.to_string()))?;
-    if !path
-        .canonicalize()
-        .map_err(|e| Error::new(E_FAIL, e.to_string()))?
-        .starts_with(temporary)
-    {
-        return Err(Error::new(E_ABORT, "Cycle smoke requires linshi fixture"));
-    }
+pub(in crate::desktop::application) unsafe fn verify(
+    app: &mut Application,
+    fixture: &smoke_session_fixture::Directory,
+) -> Result<()> {
+    let path = fixture.require_saved(app)?;
     let original = app.restored_session.as_ref().unwrap().original.clone();
     let revision = crate::session_document::decode(&original)
         .map_err(|_| Error::new(E_FAIL, "Invalid cycle fixture"))?
         .revision;
-    let directory = path.parent().unwrap().join(format!(
-        "cycle-images-{}",
-        crate::desktop::document_state::new_unit_id()?
-    ));
-    std::fs::create_dir(&directory).map_err(|e| Error::new(E_FAIL, e.to_string()))?;
-    let root = Arc::new(Root::open(&directory)?);
+    let directory = fixture.child("cycle-assets")?;
+    let root = Arc::new(Root::open(directory.path())?);
     app.request_workflow_cycle(root.clone(), 123)?;
     if app.request_workflow_cycle(root, 123).is_ok() {
         return Err(Error::new(E_FAIL, "Duplicate workflow cycle admitted"));

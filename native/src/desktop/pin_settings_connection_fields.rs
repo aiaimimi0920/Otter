@@ -93,11 +93,11 @@ pub(super) unsafe fn fields(state: &State, receive: bool) -> Result<Vec<Vec<(Fie
             !receive && auth::editing::can_choose_mode(state),
         ),
     ];
-    let conflict = state.projection_edit.borrow().as_ref().is_some_and(|o| {
-        o.capture(&state.canvas.borrow().editor)
-            .conflict()
-            .is_some()
-    });
+    let conflict = state
+        .projection_edit
+        .borrow()
+        .as_ref()
+        .is_some_and(|o| o.authoritative().conflict().is_some());
     if conflict {
         projection.push(action(
             225,

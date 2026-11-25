@@ -2,9 +2,9 @@
 use super::*;
 use crate::surface_scene::Scene;
 #[path = "surface_select_event_tests.rs"]
-mod select;
+pub mod select;
 #[path = "surface_slider_event_tests.rs"]
-mod slider;
+pub mod slider;
 fn binding() -> Binding {
     Binding::from_mount(br#"{"instance":{"descriptor":{"instanceId":"instance:test","generation":7},"attachments":{"attachment:test":{"descriptor":{"attachmentId":"attachment:test","instanceId":"instance:test","hookNodeId":"node:test","deviceId":"viewer:test"},"lifecycle":"active","lifecycleRevision":3}}}}"#, "https://localhost:1234", "viewer:test", "node:test").unwrap()
 }

@@ -34,18 +34,7 @@ fn topmost(hwnd: HWND) -> bool {
     unsafe { GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as u32 & WS_EX_TOPMOST.0 != 0 }
 }
 fn arm_root(f: &Fixture, popup: &Window) {
-    unsafe {
-        SetWindowPos(
-            f.root.0,
-            Some(HWND_TOPMOST),
-            0,
-            0,
-            0,
-            0,
-            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
-        )
-        .unwrap();
-    }
+    f.root.make_topmost();
     POPUP.with(|slot| slot.set(popup.0));
 }
 fn during_promotion(hwnd: HWND) -> Option<Lease> {

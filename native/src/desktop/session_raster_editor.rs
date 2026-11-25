@@ -10,6 +10,16 @@ impl Images {
     /// 新编辑器以恢复内容为初始基线，不能撤销到恢复之前；后续修改走正常历史事务。
     /// 这里只恢复栅格层，矢量标注、裁剪/变换与持久橡皮擦路径需另行恢复后才能发布窗口。
     pub fn prepare_raster_editor(&self) -> Result<Editor> {
+        self.raster_layers()?.map_or_else(
+            || Ok(Editor::default()),
+            |layers| {
+                Editor::with_layers(layers)
+                    .map_err(|_| Error::new(E_INVALIDARG, "Invalid restored raster layers"))
+            },
+        )
+    }
+
+    pub(super) fn raster_layers(&self) -> Result<Option<Layers>> {
         let Some(source) = &self.source else {
             if self.rasterized_annotations.is_some() {
                 return Err(Error::new(
@@ -17,7 +27,7 @@ impl Images {
                     "Raster annotations require an explicit source coordinate frame",
                 ));
             }
-            return Ok(Editor::default());
+            return Ok(None);
         };
         let layers = Layers {
             size: (source.width, source.height),
@@ -31,8 +41,10 @@ impl Images {
                 .as_ref()
                 .map(|image| image.pixels.clone()),
         };
-        Editor::with_layers(layers)
-            .map_err(|_| Error::new(E_INVALIDARG, "Invalid restored raster layers"))
+        if !layers.valid() {
+            return Err(Error::new(E_INVALIDARG, "Invalid restored raster layers"));
+        }
+        Ok(Some(layers))
     }
 }
 

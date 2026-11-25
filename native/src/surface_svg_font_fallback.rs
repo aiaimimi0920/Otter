@@ -3,7 +3,7 @@ use super::{file, Face, Fonts};
 use std::io;
 use windows::{core::PCWSTR, Win32::Graphics::DirectWrite::*};
 #[path = "surface_svg_text_source.rs"]
-mod source;
+pub mod source;
 #[derive(Clone, Copy)]
 pub struct Properties {
     pub weight: u16,

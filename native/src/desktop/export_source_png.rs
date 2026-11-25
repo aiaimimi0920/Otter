@@ -121,7 +121,7 @@ impl Output {
         )
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-capture")))]
 #[path = "export_source_png_budget_tests.rs"]
 mod tests;
 fn check(cancel: &AtomicBool) -> Result<()> {

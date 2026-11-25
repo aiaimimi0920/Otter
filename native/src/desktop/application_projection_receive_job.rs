@@ -1,8 +1,8 @@
 //! 单个接收候选后台准备；复用原 PNG/会话追加/像素预算，完成复用 Wake，取消后仍待回收。
 use super::*;
 use crate::desktop::{
-    loom_execution_signal::{CompletionSignal, Notify},
-    session_candidate::VectorCandidate,
+    loom_execution_signal::{reap_deadline, CompletionSignal, Notify},
+    session_candidate::PreparedRestore,
 };
 use crate::{
     device_authorization_lease::Lease,
@@ -17,13 +17,13 @@ use std::{
 };
 
 pub(super) struct Prepared {
-    pub vector: VectorCandidate,
+    pub restore: PreparedRestore,
     pub retained: crate::pixels::Pixels,
     pub held: Hold,
     pub expected: crate::projection_delivery::binding::Binding,
 }
 struct Candidate {
-    vector: VectorCandidate,
+    restore: PreparedRestore,
     retained: crate::pixels::Pixels,
     expected: crate::projection_delivery::binding::Binding,
 }
@@ -72,31 +72,27 @@ impl Job {
                         .map_err(|_| stale())
                 };
                 check()?;
-                let expected = crate::projection_delivery::binding::Binding::new(&value, &intent)
-                    .map_err(|_| stale())?;
                 let frame = scope::placement::fit(
                     frame,
                     space,
                     (value.image().width, value.image().height),
                 )?;
-                let vector = crate::desktop::session_candidate::projection::prepare(
-                    value,
-                    &intent,
-                    projection_scope,
-                    space,
-                    frame,
-                    &signal,
-                )?;
-                let retained = crate::session_append::prepare(
-                    &source,
-                    vector.candidate.original_json(),
-                    &units,
-                    &signal,
-                )
-                .map_err(|error| Error::new(E_INVALIDARG, error))?;
+                let (restore, retained, expected) =
+                    crate::desktop::session_candidate::projection::prepare(
+                        value,
+                        &intent,
+                        projection_scope,
+                        space,
+                        frame,
+                        crate::session_append::Target {
+                            original: &source,
+                            active: &units,
+                        },
+                        &signal,
+                    )?;
                 check()?;
                 Ok(Candidate {
-                    vector,
+                    restore,
                     retained,
                     expected,
                 })
@@ -127,7 +123,7 @@ impl Job {
         now().is_ok_and(|now| self.lease.validate(origin, now).is_ok())
     }
     pub(super) fn poll(&mut self) -> Option<Result<Prepared>> {
-        if !self.ready.load(Ordering::Acquire) && !self.thread.as_ref()?.is_finished() {
+        if !self.thread.as_ref()?.is_finished() {
             return None;
         }
         let result = self
@@ -136,11 +132,14 @@ impl Job {
             .join()
             .unwrap_or_else(|_| Err(Error::new(E_FAIL, "Projection preparation panicked")));
         Some(result.map(|candidate| Prepared {
-            vector: candidate.vector,
+            restore: candidate.restore,
             retained: candidate.retained,
             expected: candidate.expected,
             held: self.held.take().unwrap(),
         }))
+    }
+    pub(super) fn reap_deadline(&self) -> Option<std::time::Instant> {
+        reap_deadline(&self.ready)
     }
     #[cfg(test)]
     pub(super) fn finished(&self) -> bool {

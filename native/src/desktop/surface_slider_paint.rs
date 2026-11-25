@@ -13,15 +13,18 @@ impl Drop for Saved {
 pub(super) unsafe fn track(hwnd: HWND) -> Option<(i32, i32, i32, i32)> {
     let mut rect = RECT::default();
     GetClientRect(hwnd, &mut rect).ok()?;
-    let radius = ((7 * GetDpiForWindow(hwnd).clamp(48, 768)).div_ceil(96) as i32)
+    Some(track_geometry(&rect, GetDpiForWindow(hwnd).clamp(48, 768)))
+}
+fn track_geometry(rect: &RECT, dpi: u32) -> (i32, i32, i32, i32) {
+    let radius = ((7 * dpi).div_ceil(96) as i32)
         .min((rect.right / 2).max(1))
         .min((rect.bottom / 2).max(1));
-    Some((
+    (
         radius,
         (rect.right - radius).max(radius),
         rect.bottom / 2,
         radius,
-    ))
+    )
 }
 unsafe fn draw(hwnd: HWND, dc: HDC) -> bool {
     let saved = SaveDC(dc);
@@ -34,9 +37,8 @@ unsafe fn draw(hwnd: HWND, dc: HDC) -> bool {
         return false;
     }
     IntersectClipRect(dc, rect.left, rect.top, rect.right, rect.bottom);
-    let Some((left, right, y, radius)) = track(hwnd) else {
-        return false;
-    };
+    let dpi = GetDpiForWindow(hwnd).clamp(48, 768);
+    let (left, right, y, radius) = track_geometry(&rect, dpi);
     let enabled = IsWindowEnabled(hwnd).as_bool();
     let themed = colors::enabled();
     let background = if themed {
@@ -95,7 +97,7 @@ unsafe fn draw(hwnd: HWND, dc: HDC) -> bool {
     SelectObject(dc, GetStockObject(DC_BRUSH));
     let _ = Ellipse(dc, x - radius, y - radius, x + radius, y + radius);
     if enabled && GetFocus() == hwnd {
-        let thickness = (2 * GetDpiForWindow(hwnd).clamp(48, 768)).div_ceil(96);
+        let thickness = (2 * dpi).div_ceil(96);
         for _ in 0..thickness {
             if rect.right <= rect.left || rect.bottom <= rect.top {
                 break;

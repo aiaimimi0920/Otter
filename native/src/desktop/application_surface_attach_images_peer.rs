@@ -6,6 +6,7 @@ pub(super) fn serve(
     listener: std::net::TcpListener,
     server: std::sync::Arc<rustls::ServerConfig>,
     revoke_ready: bool,
+    reject_window: bool,
 ) -> std::net::TcpListener {
     let mut png = Vec::new();
     {
@@ -26,7 +27,14 @@ pub(super) fn serve(
     );
     let descriptor = serde_json::json!({"attachmentId":"attachment:test",
         "instanceId":"instance:test","hookNodeId":"node:test","deviceId":"device-old"});
-    for stage in 0..if revoke_ready { 5 } else { 6 } {
+    let stages = if reject_window {
+        4
+    } else if revoke_ready {
+        5
+    } else {
+        10
+    };
+    for stage in 0..stages {
         let mut stream = StreamOwned::new(
             ServerConnection::new(server.clone()).unwrap(),
             accept(&listener),
@@ -94,12 +102,15 @@ pub(super) fn serve(
                         }}}
                 }})
             }
-            3 | 5 => {
+            3 | 5 | 8 | 9 => {
                 assert!(head.starts_with("POST /v1/surfaces/instances/instance:test/lifecycle "));
-                let (state, revision) = if stage == 3 {
-                    ("active", 2)
-                } else {
-                    ("inactive", 3)
+                let (state, revision) = match stage {
+                    3 if reject_window => ("inactive", 2),
+                    3 => ("active", 2),
+                    5 => ("inactive", 3),
+                    8 => ("active", 5),
+                    9 => ("inactive", 6),
+                    _ => unreachable!(),
                 };
                 assert_eq!(
                     body,
@@ -108,7 +119,23 @@ pub(super) fn serve(
                 );
                 serde_json::json!({"descriptor":descriptor,"lifecycle":state,"lifecycleRevision":revision})
             }
-            _ => {
+            6 => {
+                assert!(head.starts_with("GET /v1/surfaces/stream?after=0&timeoutMs=0 "));
+                serde_json::json!({"protocolVersion":"loom.surface-stream.v1","next":4,"reset":false,
+                    "messages":[{"method":"loom.surface.snapshot","params":{"hookNodeId":"node:test","generation":1,
+                        "snapshot":{"protocolVersion":"loom.surface.v1","instanceId":"instance:test",
+                        "attachmentId":"attachment:test","artId":"art:test","revision":1}}}]})
+            }
+            7 => {
+                assert!(head.starts_with("POST /v1/surfaces/instances/instance:test/mount "));
+                assert_eq!(body, serde_json::json!({"attachmentId":"attachment:test"}));
+                serde_json::json!({"instance":{"descriptor":{"instanceId":"instance:test","generation":1,"artId":"art:test"},
+                    "attachments":{"attachment:test":{"descriptor":descriptor,"lifecycle":"mounted","lifecycleRevision":4,
+                        "snapshot":{"protocolVersion":"loom.surface.v1","instanceId":"instance:test","attachmentId":"attachment:test",
+                            "artId":"art:test","runtime":"declarative","revision":2,
+                            "scene":{"id":"recovered","type":"text","props":{"text":"Recovered"}}}}}}})
+            }
+            4 => {
                 assert!(head.starts_with(&format!("GET /v1/surfaces/resources/{digest} ")));
                 assert!(head
                     .to_ascii_lowercase()
@@ -116,6 +143,7 @@ pub(super) fn serve(
                 reply(&mut stream, 200, &png);
                 continue;
             }
+            _ => unreachable!(),
         };
         reply(&mut stream, 200, &serde_json::to_vec(&response).unwrap());
     }

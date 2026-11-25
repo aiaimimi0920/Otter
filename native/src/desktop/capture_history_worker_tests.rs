@@ -1,18 +1,13 @@
 //! 有界后台槽、退出排空、迟到载入与坏文件保护，不操作前台或真实profile。
 use super::*;
-fn root() -> PathBuf {
-    let guid = unsafe { windows::Win32::System::Com::CoCreateGuid().unwrap() };
-    let root = PathBuf::from("C:/Users/Public/nas_home/AI/GameEditor/linshi")
-        .join(format!("otter-history-worker-{guid:?}"));
-    std::fs::create_dir(&root).unwrap();
-    root
-}
+use crate::capture_history::store::fixture::Root;
 #[test]
 fn shutdown_drains_capture_then_latest_color_save_and_reopens_both_lists() {
-    let root = root();
+    let fixture = Root::new();
+    let root = fixture.path();
     let view: Shared = Default::default();
     let mut owner = Owner::new(view.clone(), std::sync::Arc::new(|| {}));
-    owner.install(Some(root.clone()));
+    owner.install(Some(root.to_path_buf()));
     view.borrow_mut()
         .color(crate::stroke_style::Color(10, 20, 30));
     view.borrow_mut().capture(
@@ -28,17 +23,18 @@ fn shutdown_drains_capture_then_latest_color_save_and_reopens_both_lists() {
     assert!(view.borrow().status.is_none());
     drop(owner);
     let _com = crate::desktop::Apartment::new().unwrap();
-    let (_, data) = Store::open(&root).unwrap();
+    let (_, data) = Store::open(root).unwrap();
     assert_eq!(data.colors[0].hex, "#0a141e");
     assert_eq!(data.screenshots[0].id, "capture");
 }
 #[test]
 fn bad_load_keeps_session_history_usable_but_never_overwrites_source() {
-    let root = root();
+    let fixture = Root::new();
+    let root = fixture.path();
     std::fs::write(root.join("history.json"), b"broken").unwrap();
     let view: Shared = Default::default();
     let mut owner = Owner::new(view.clone(), std::sync::Arc::new(|| {}));
-    owner.install(Some(root.clone()));
+    owner.install(Some(root.to_path_buf()));
     view.borrow_mut().color(crate::stroke_style::Color(1, 2, 3));
     owner.shutdown();
     assert!(owner.failed);

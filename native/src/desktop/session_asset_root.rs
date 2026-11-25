@@ -138,14 +138,32 @@ fn valid_name(name: &str) -> bool {
     ) && !numbered_device
 }
 fn final_path(file: &File) -> Result<PathBuf> {
-    let mut path = vec![0u16; 32768];
-    let length = unsafe {
+    let query = |path: &mut [u16]| unsafe {
         GetFinalPathNameByHandleW(
             HANDLE(file.as_raw_handle()),
-            &mut path,
+            path,
             GETFINALPATHNAMEBYHANDLE_FLAGS(FILE_NAME_NORMALIZED.0 | VOLUME_NAME_DOS.0),
-        )
-    } as usize;
+        ) as usize
+    };
+    let mut short = [0u16; 260];
+    let length = query(&mut short);
+    if length > 0 && length < short.len() {
+        return Ok(PathBuf::from(std::ffi::OsString::from_wide(
+            &short[..length],
+        )));
+    }
+    if length == 0 {
+        return Err(Error::from_win32());
+    }
+    // A short-buffer result includes the NUL; a successful length excludes it.
+    if length > 32768 {
+        return Err(Error::new(
+            E_INVALIDARG,
+            "Final session asset path exceeds budget",
+        ));
+    }
+    let mut path = vec![0u16; length];
+    let length = query(&mut path);
     if length == 0 {
         return Err(Error::from_win32());
     }
@@ -163,6 +181,7 @@ fn final_path(file: &File) -> Result<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::os::windows::ffi::OsStrExt;
     #[test]
     fn names_and_namespaces_do_not_admit_devices_or_nested_paths() {
         for name in [
@@ -209,6 +228,17 @@ mod tests {
         assert!(admitted
             .open_image(root.join("nested\\image.png").to_str().unwrap())
             .is_err());
+        let long = root.join("a".repeat(230) + ".png");
+        assert!(long.as_os_str().encode_wide().count() >= 260);
+        std::fs::write(&long, [4, 5]).unwrap();
+        let long_file = admitted.open_image(long.to_str().unwrap()).unwrap();
+        assert_eq!(long_file.metadata().unwrap().len(), 2);
+        assert_eq!(
+            final_path(&long_file).unwrap(),
+            long.canonicalize().unwrap()
+        );
+        drop(long_file);
+        std::fs::remove_file(long).unwrap();
         drop(file);
         drop(admitted);
         std::fs::remove_file(path).unwrap();

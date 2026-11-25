@@ -1,5 +1,5 @@
 //! 冻结快照的无副作用实例化；输出只供单窗口准备，绝不能作为整工作区替换命令。
-use super::Kind;
+use super::{Entry, Kind};
 use crate::{session_document::Document, workspace_id::UnitId};
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
@@ -48,6 +48,22 @@ pub fn prepare(
     check(cancel)?;
     let library = source.library(kind)?;
     let entry = library.find(entry_id).ok_or("Frozen entry not found")?;
+    let prepared = encode_selected(source, entry, unit, mouse, cancel)?;
+    crate::session_document::decode(prepared.bytes.as_ref())
+        .map_err(|error| format!("Invalid frozen candidate: {error:?}"))?;
+    check(cancel)?;
+    Ok(prepared)
+}
+
+/// 追加 worker 已从同一来源选中条目，直接把编码结果交给借用该原文的解码。
+pub(crate) fn encode_selected(
+    source: &Document<'_>,
+    entry: &Entry<'_>,
+    unit: UnitId,
+    mouse: (f64, f64),
+    cancel: &AtomicBool,
+) -> Result<Prepared, String> {
+    check(cancel)?;
     if unit.as_str() == entry.source_sticker_id
         || source
             .windows
@@ -96,9 +112,6 @@ pub fn prepare(
     };
     let bytes = crate::session_write::encode_bounded(&envelope, cancel)
         .map_err(|error| format!("Frozen candidate encoding: {error:?}"))?;
-    crate::session_document::decode(bytes.as_ref())
-        .map_err(|error| format!("Invalid frozen candidate: {error:?}"))?;
-    check(cancel)?;
     Ok(Prepared { unit, bytes })
 }
 
@@ -110,6 +123,6 @@ fn check(cancel: &AtomicBool) -> Result<(), String> {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "session_library_candidate_tests.rs"]
 mod tests;

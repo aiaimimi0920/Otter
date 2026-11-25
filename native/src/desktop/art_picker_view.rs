@@ -152,7 +152,6 @@ unsafe fn draw(item: &DRAWITEMSTRUCT, ui: &Ui<'_>) {
     let allowed = !list || (ui.context.allowed)(item.itemData);
     let selected = item.itemState.0 & (ODS_SELECTED.0 | ODS_FOCUS.0) != 0;
     let mut rect = item.rcItem;
-    theme::fill(item.hDC, &rect, SURFACE);
     if list {
         rect.bottom -= (2 * GetDpiForWindow(item.hwndItem).max(96) / 96) as i32;
     }

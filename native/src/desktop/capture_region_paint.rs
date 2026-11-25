@@ -199,15 +199,20 @@ unsafe fn label(dc: HDC, rect: RECT, dpi: u32, opaque: bool) -> Result<()> {
         bottom: rect.top - scale(28) + scale(26),
     };
     // 一像素色块缩放混合，只改变标签背景，不修改冻结图或重新采集桌面。
-    let tint =
-        crate::software_dib::Bitmap::new(windows::Win32::Graphics::Direct2D::Common::D2D_SIZE_U {
-            width: 1,
-            height: 1,
-        })?;
-    if opaque {
-        fill(dc, &panel, PANEL)?;
-    } else {
+    let tint = (!opaque)
+        .then(|| {
+            crate::software_dib::Bitmap::new(
+                windows::Win32::Graphics::Direct2D::Common::D2D_SIZE_U {
+                    width: 1,
+                    height: 1,
+                },
+            )
+        })
+        .transpose()?;
+    if let Some(tint) = &tint {
         blend(dc, tint.dc(), panel, PANEL, 245)?;
+    } else {
+        fill(dc, &panel, PANEL)?;
     }
     let line = scale(1);
     let inner = RECT {
@@ -217,10 +222,10 @@ unsafe fn label(dc: HDC, rect: RECT, dpi: u32, opaque: bool) -> Result<()> {
         bottom: panel.bottom - line,
     };
     for edge in edges(inner, line) {
-        if opaque {
-            fill(dc, &edge, SIGNAL)?;
-        } else {
+        if let Some(tint) = &tint {
             blend(dc, tint.dc(), edge, SIGNAL, 97)?;
+        } else {
+            fill(dc, &edge, SIGNAL)?;
         }
     }
     SetBkMode(dc, TRANSPARENT);
@@ -274,6 +279,6 @@ unsafe fn blend(dc: HDC, source: HDC, rect: RECT, color: COLORREF, alpha: u8) ->
     .ok()
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-capture")))]
 #[path = "capture_region_paint_tests.rs"]
 mod tests;

@@ -1,9 +1,5 @@
 use super::*;
-fn root() -> std::path::PathBuf {
-    let root=std::path::PathBuf::from("C:/Users/Public/nas_home/AI/GameEditor/linshi/otter-native-parallel-20261029/main-art-package-resources-1").join(format!("cache-{:?}", unsafe {windows::Win32::System::Com::CoCreateGuid()}.unwrap()));
-    std::fs::create_dir(&root).unwrap();
-    root
-}
+use crate::art_cache_fixture::Directory;
 fn resource(bytes: &[u8]) -> Resource {
     Resource {
         id: "blob".into(),
@@ -15,7 +11,7 @@ fn resource(bytes: &[u8]) -> Resource {
 }
 #[test]
 fn resources_share_original_entry_and_staging_limits_and_roundtrip_large_chunks() {
-    let root = root();
+    let root = Directory::new();
     let store = Store::new(&root);
     let bytes = vec![153; MAX_SOURCE + 17];
     let r = resource(&bytes);
@@ -37,7 +33,7 @@ fn resources_share_original_entry_and_staging_limits_and_roundtrip_large_chunks(
 }
 #[test]
 fn partial_cancelled_corrupt_or_mismatched_resource_is_never_restored() {
-    let root = root();
+    let root = Directory::new();
     let store = Store::new(&root);
     let bytes = vec![17; MAX_SOURCE + 1];
     let r = resource(&bytes);

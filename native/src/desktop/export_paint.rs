@@ -41,7 +41,24 @@ impl Paint<'_> {
                 source_resolution::frame_clip::push(target, self.factory, layout, &reserve)?
             };
             target.SetTransform(&document);
-            source_resolution::draw(target, self.bitmap, layout, opacity);
+            let sampling = if layout.is_none() {
+                self.editor
+                    .raster_base_projection()
+                    .map(|p| {
+                        let size = self.bitmap.GetPixelSize();
+                        crate::image_projection::Projection::clipped(
+                            p.source,
+                            p.target,
+                            (size.width, size.height),
+                        )
+                        .ok_or_else(|| Error::new(E_INVALIDARG, "Invalid export raster projection"))
+                    })
+                    .transpose()?
+                    .unwrap_or_default()
+            } else {
+                Default::default()
+            };
+            source_resolution::draw(target, self.bitmap, layout, sampling, opacity);
             if let Some(style) = decoration {
                 style.transform(target, output);
                 style.border(target)?;

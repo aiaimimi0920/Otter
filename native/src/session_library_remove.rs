@@ -1,5 +1,6 @@
 //! 按条目身份删除一个冻结记录；不解析图片、不更改活动窗口或其它库，也不推进 revision。
 use super::{candidate, Kind};
+use crate::session_write::Candidate;
 use serde::{ser::SerializeMap, Serialize, Serializer};
 use serde_json::value::RawValue;
 use std::{
@@ -30,15 +31,14 @@ pub fn prepare(
     kind: Kind,
     entry_id: &str,
     cancel: &AtomicBool,
-) -> Result<crate::pixels::Pixels, String> {
+) -> Result<Candidate, String> {
     if cancel.load(Ordering::Acquire) {
         return Err("Frozen removal cancelled".into());
     }
     if crate::workspace_id::UnitId::parse(entry_id).is_none() {
         return Err("Invalid frozen entry identity".into());
     }
-    crate::session_document::decode(original)
-        .map_err(|error| format!("Invalid frozen source: {error:?}"))?;
+    let revision = source_revision(original)?;
     let library = super::decode(original, kind)?;
     if library.find(entry_id).is_none() {
         return Err("Frozen entry no longer exists".into());
@@ -60,7 +60,11 @@ pub fn prepare(
     crate::session_document::decode(&bytes)
         .map_err(|error| format!("Invalid frozen removal: {error:?}"))?;
     super::decode(&bytes, kind)?;
-    Ok(bytes)
+    Ok(Candidate {
+        bytes,
+        expected_revision: revision,
+        revision,
+    })
 }
 
 /// 显式清空只修改选定库的原文；不删除图片文件、不改变另一库或活动窗口。
@@ -68,19 +72,15 @@ pub fn clear(
     original: &[u8],
     kind: Kind,
     cancel: &AtomicBool,
-) -> Result<crate::pixels::Pixels, String> {
+) -> Result<Option<Candidate>, String> {
     if cancel.load(Ordering::Acquire) {
         return Err("Frozen clear cancelled".into());
     }
-    crate::session_document::decode(original)
-        .map_err(|error| format!("Invalid frozen source: {error:?}"))?;
+    let revision = source_revision(original)?;
     let library = super::decode(original, kind)?;
     if library.entries().is_empty() {
-        return crate::session_write::encode_bounded(
-            &serde_json::from_slice::<&RawValue>(original).map_err(|error| error.to_string())?,
-            cancel,
-        )
-        .map_err(|error| format!("Frozen clear encoding: {error:?}"));
+        // 缺失或已空的库不发布任何字节，包括保留导入原文的首尾空白。
+        return Ok(None);
     }
     let root =
         candidate::fields(std::str::from_utf8(original).map_err(|error| error.to_string())?)?;
@@ -99,9 +99,19 @@ pub fn clear(
     .map_err(|error| format!("Frozen clear encoding: {error:?}"))?;
     crate::session_document::decode(&bytes)
         .map_err(|error| format!("Invalid frozen clear: {error:?}"))?;
-    Ok(bytes)
+    Ok(Some(Candidate {
+        bytes,
+        expected_revision: revision,
+        revision,
+    }))
 }
 
-#[cfg(test)]
+fn source_revision(original: &[u8]) -> Result<u64, String> {
+    crate::session_document::decode(original)
+        .map(|document| document.revision)
+        .map_err(|error| format!("Invalid frozen source: {error:?}"))
+}
+
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "session_library_remove_tests.rs"]
 mod tests;

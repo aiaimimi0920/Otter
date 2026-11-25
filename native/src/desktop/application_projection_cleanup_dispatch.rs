@@ -107,10 +107,13 @@ impl Application {
                 && ticket.device() == lease.device_id()
         }) {
             if let Some(due) = owner.due(ticket).filter(|due| *due > now) {
-                owner.wake = Some(owner.wake.map_or(due, |old| old.min(due)));
+                owner.schedule(due);
+            } else if selected.is_some() {
+                // 仍只启动一个任务；若首张启动失败，下一轮可推进另一张。
+                owner.schedule(now);
+                break;
             } else {
                 selected = Some(ticket.clone());
-                break;
             }
         }
         let Some(ticket) = selected else { return };
@@ -128,8 +131,8 @@ impl Application {
             view.projection.busy = true;
             view.projection.status = "正在清理未结投送…".into();
         } else {
-            owner.retry_network(ticket.clone(), now);
-            owner.wake = owner.due(&ticket);
+            let due = owner.retry_network(ticket, now);
+            owner.schedule(due);
         }
     }
 }

@@ -93,6 +93,24 @@ impl Record {
     pub fn in_flight(&self) -> bool {
         self.in_flight
     }
+    /// Only compare with a confirmed, locally staged terminal record, not a disk hint.
+    pub(crate) fn supersedes_mount(&self, binding: &Binding) -> bool {
+        self.origin == binding.origin()
+            && !self.uncertain
+            && !self.in_flight
+            && self.binding.as_ref().is_some_and(|hint| {
+                hint.instance == binding.instance()
+                    && hint.attachment == binding.attachment()
+                    && matches!(
+                        hint.lifecycle,
+                        Some(Lifecycle::Inactive | Lifecycle::Disposed)
+                    )
+                    && hint.revision.is_some_and(|revision| {
+                        (hint.generation, revision)
+                            >= (binding.generation(), binding.lifecycle_revision())
+                    })
+            })
+    }
     pub(crate) fn has_binding(&self) -> bool {
         self.binding.is_some()
     }
@@ -154,6 +172,6 @@ fn invalid() -> io::Error {
     )
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-surface")))]
 #[path = "surface_recovery_record_tests.rs"]
 mod tests;

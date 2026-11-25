@@ -28,9 +28,11 @@ NeuroSurface.define({
     Array.prototype[Symbol.iterator] = function () { throw Error("private iterator dispatched"); };
     Object.defineProperty(Object.prototype, "childNodes", { configurable: true, set() { leaked = true; } });
     Object.defineProperty(Object.prototype, "elements", { configurable: true, set() { leaked = true; } });
+    Object.defineProperty(Object.prototype, "elementChildren", { configurable: true, set() { leaked = true; } });
     label = document.createElement("span"); label.textContent = "integrity";
     delete Object.prototype.childNodes;
     delete Object.prototype.elements;
+    delete Object.prototype.elementChildren;
     root.replaceChildren(label);
     const button = document.createElement("button"); button.textContent = "safe"; root.appendChild(button);
     label.dataset.ref = "label"; label.classList.add("safe");

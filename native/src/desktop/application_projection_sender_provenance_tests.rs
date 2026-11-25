@@ -223,6 +223,48 @@ fn materialized_image_has_no_inferred_natural_source_mapping_or_history() {
 }
 
 #[test]
+fn rasterized_projection_flag_is_bound_to_selected_retained_pixels() {
+    let image = image();
+    let mut canvas = Canvas::new(Some(image.clone())).unwrap();
+    let expected = origin();
+    let logical = Size {
+        width: 8.0,
+        height: 4.0,
+    };
+    let source = |canvas: &Canvas, marked| {
+        Source::new(image.clone(), &canvas.editor)
+            .with_source_logical(logical)
+            .with_origin(expected.clone())
+            .with_rasterized_crop(marked)
+    };
+    canvas.minified_source = Some(source(&canvas, true));
+    let kind = crate::projection_delivery::sender::Kind::Sticker;
+    let captured = Snapshot::capture(&canvas, None, kind, &[]).unwrap();
+    let frame = Frame::capture(expected.unit.clone(), image.clone(), Some(&canvas.editor));
+    assert!(captured.render_input().rasterized_source);
+    assert!(
+        select_local(&frame, &expected.unit, &canvas)
+            .unwrap()
+            .rasterized_source
+    );
+    let stamp = captured.stamp();
+    assert!(stamp.matches(&canvas, None, &[]));
+    canvas.minified_source = Some(source(&canvas, false));
+    assert!(!stamp.matches(&canvas, None, &[]));
+    assert!(
+        !Snapshot::capture(&canvas, None, kind, &[])
+            .unwrap()
+            .render_input()
+            .rasterized_source
+    );
+    assert!(
+        !select_local(&frame, &expected.unit, &canvas)
+            .unwrap()
+            .rasterized_source
+    );
+}
+
+#[test]
 fn cross_unit_mapping_keeps_original_density_and_target_crop_space_separate() {
     let mut upstream = Canvas::new(Some(image())).unwrap();
     let baseline = origin();
@@ -269,6 +311,7 @@ fn cross_unit_mapping_keeps_original_density_and_target_crop_space_separate() {
         kind: crate::projection_delivery::sender::Kind::Sticker,
         geometry: None,
         source_logical: selected.logical,
+        rasterized_source: selected.rasterized_source,
         natural_origin: selected.origin,
         legacy_pixels: selected.legacy_pixels,
         pending_content: selected.content,

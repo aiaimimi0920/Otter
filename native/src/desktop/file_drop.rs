@@ -82,6 +82,6 @@ unsafe fn open(hwnd: HWND, state: &State, paths: Vec<PathBuf>) -> Result<()> {
     super::open_job::start_destination(hwnd, state, super::open_job::Input::Files(paths), true)
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "file_drop_tests.rs"]
 mod tests;

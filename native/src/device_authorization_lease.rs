@@ -14,6 +14,7 @@ pub use watch::Notification;
 mod account;
 #[path = "device_authorization_execution.rs"]
 mod execution;
+pub(crate) use execution::ExecutionStop;
 #[path = "device_authorization_local.rs"]
 mod local;
 #[path = "tile_live_authorization.rs"]
@@ -96,8 +97,7 @@ impl State {
             media.close();
         }
         self.cancel.cancel();
-        self.execution_cancel.cancel();
-        self.execution_watch.revoke();
+        self.stop_execution();
         self.watch.revoke();
     }
 }

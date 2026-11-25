@@ -216,8 +216,17 @@ pub struct Index {
 }
 impl Index {
     pub fn capture(source: &Source) -> Result<Self, Error> {
-        let document = crate::session_document::decode(source).map_err(|_| Error::Response)?;
-        let scope = crate::session_projection_scope::Proof::capture(source)
+        let parsed = source.parse().map_err(|_| Error::Response)?;
+        let proof = crate::session_projection_scope::Proof::capture_parsed(&parsed);
+        Self::capture_parsed(&parsed, proof.as_ref())
+    }
+    pub(crate) fn capture_parsed(
+        parsed: &crate::session_source::Parsed<'_>,
+        proof: Option<&crate::session_projection_scope::Proof>,
+    ) -> Result<Self, Error> {
+        let source = parsed.source();
+        let scope = proof
+            .filter(|proof| proof.is_for(source))
             .ok_or(Error::Response)?
             .scope();
         let root: std::collections::BTreeMap<&str, &serde_json::value::RawValue> =
@@ -243,7 +252,7 @@ impl Index {
             }
             bindings.push(binding);
         }
-        if bindings.len() > document.workspace.units().len() {
+        if bindings.len() > parsed.document().workspace.units().len() {
             return Err(Error::Response);
         }
         Ok(Self {

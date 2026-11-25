@@ -2,7 +2,7 @@
 use super::{Error, Output, Port};
 use crate::desktop::loom_image_value::ImageValue;
 use std::sync::atomic::{AtomicBool, Ordering};
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-loom")))]
 #[path = "loom_result_restore_image_tests.rs"]
 mod tests;
 

@@ -5,6 +5,7 @@ const POLL: Duration = Duration::from_millis(32);
 const REPLY: Duration = Duration::from_millis(10);
 const RECENT: Duration = Duration::from_millis(220);
 const DRAIN: Duration = Duration::from_millis(360);
+const COVER_CHECK: Duration = Duration::from_millis(200);
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Phase {
     Recording,
@@ -77,6 +78,14 @@ impl Schedule {
             self.phase = Phase::Stopped;
         }
         self.clear();
+    }
+    pub fn covered(&mut self, now: Instant) {
+        // 遮挡期间不用滚轮突发反复采样；完成中的最后一帧失败则直接交付可信帧。
+        self.clear();
+        self.latest = None;
+        if self.phase == Phase::Recording {
+            self.poll = Some(now + COVER_CHECK);
+        }
     }
     pub fn cancel(&mut self) {
         self.phase = Phase::Cancelled;
@@ -198,6 +207,6 @@ impl Schedule {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-capture")))]
 #[path = "long_capture_recording_schedule_tests.rs"]
 mod tests;

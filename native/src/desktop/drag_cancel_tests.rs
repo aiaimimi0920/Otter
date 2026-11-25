@@ -3,6 +3,19 @@ use super::*;
 use std::sync::mpsc;
 
 #[test]
+fn uncommitted_gesture_and_active_ole_each_hold_the_busy_gate() {
+    let drag = Session::default();
+    assert!(!drag.is_busy());
+    drag.origin.set(Some((1, 1)));
+    assert!(drag.is_busy());
+    drag.origin.set(None);
+    *drag.active.borrow_mut() = Some(Arc::new(AtomicBool::new(false)));
+    assert!(drag.is_busy());
+    drag.active.borrow_mut().take();
+    assert!(!drag.is_busy());
+}
+
+#[test]
 fn cancelled_worker_keeps_single_owner_without_blocking_input_or_releasing_new_capture() {
     unsafe {
         let fixture = Fixture::new();
@@ -23,6 +36,7 @@ fn cancelled_worker_keeps_single_owner_without_blocking_input_or_releasing_new_c
             stamp,
         });
         state.drag.origin.set(Some((1, 1)));
+        assert!(state.drag.is_busy());
         SetCapture(fixture.hwnd);
         dispatch(fixture.hwnd, &state, WM_LBUTTONUP, WPARAM(0), LPARAM(0));
         assert!(signal.load(Ordering::Acquire));
@@ -32,6 +46,10 @@ fn cancelled_worker_keeps_single_owner_without_blocking_input_or_releasing_new_c
         );
         assert!(state.drag.pending.borrow().is_some());
         assert!(state.drag.origin.get().is_none());
+        assert!(
+            state.drag.is_busy(),
+            "cancel does not release the worker slot"
+        );
         assert_ne!(GetCapture(), fixture.hwnd);
         assert!(dispatch(fixture.hwnd, &state, WM_MOUSEMOVE, WPARAM(0), LPARAM(0)).is_none());
         assert!(start(fixture.hwnd, &state, Ok(fixture.root.clone())).is_err());
@@ -47,6 +65,7 @@ fn cancelled_worker_keeps_single_owner_without_blocking_input_or_releasing_new_c
             panic!("cancelled drag published")
         });
         assert!(state.drag.pending.borrow().is_none());
+        assert!(!state.drag.is_busy());
         assert_eq!(GetCapture(), fixture.hwnd);
         ReleaseCapture().unwrap();
         assert!(!fixture.root.exists());
@@ -54,20 +73,14 @@ fn cancelled_worker_keeps_single_owner_without_blocking_input_or_releasing_new_c
 }
 
 #[test]
-fn destroy_cancels_and_joins_before_losing_window_owner() {
+fn destroy_cancels_but_leaves_unfinished_worker_for_owner_transfer() {
     unsafe {
         let fixture = Fixture::new();
         let state = state();
         let signal = Arc::new(AtomicBool::new(false));
-        let worker_signal = signal.clone();
-        let exited = Arc::new(AtomicBool::new(false));
-        let worker_exited = exited.clone();
+        let (release, wait_release) = mpsc::channel();
         let worker = std::thread::spawn(move || {
-            let deadline = Instant::now() + Duration::from_secs(5);
-            while !worker_signal.load(Ordering::Acquire) && Instant::now() < deadline {
-                std::thread::yield_now();
-            }
-            worker_exited.store(true, Ordering::Release);
+            let _ = wait_release.recv_timeout(Duration::from_secs(5));
             Ok(None)
         });
         let stamp = crate::desktop::display_snapshot::Stamp::capture(&state.canvas.borrow(), None);
@@ -77,8 +90,11 @@ fn destroy_cancels_and_joins_before_losing_window_owner() {
         });
         dispatch(fixture.hwnd, &state, WM_DESTROY, WPARAM(0), LPARAM(0));
         assert!(signal.load(Ordering::Acquire));
-        assert!(exited.load(Ordering::Acquire));
+        let retired = state.drag.retire_preparation().unwrap();
+        assert!(!retired.is_finished());
         assert!(state.drag.pending.borrow().is_none());
+        release.send(()).unwrap();
+        drop(retired);
         assert!(!fixture.root.exists());
     }
 }

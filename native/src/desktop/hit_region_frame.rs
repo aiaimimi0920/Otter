@@ -9,6 +9,7 @@ pub(super) struct Key {
     pub dpi: u32,
     pub viewport: crate::viewport::Viewport,
     pub minified: Option<(crate::session_minified::Views, crate::crop_geometry::Size)>,
+    pub base_projection: Option<Projection>,
     pub style: crate::pin_frame_style::Style,
     pub overlay: usize,
 }
@@ -65,6 +66,7 @@ mod tests {
                     dpi,
                     viewport: Default::default(),
                     minified: None,
+                    base_projection: None,
                     style: crate::pin_frame_style::Style::read(
                         &serde_json::json!({"borderWidth":2,"borderColor":"red","cornerRadius":4}),
                     )

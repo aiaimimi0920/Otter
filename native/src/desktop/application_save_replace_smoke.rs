@@ -1,4 +1,4 @@
-//! 仅消费同组新建的 linshi 文件，验证 Application 的后台替换及最终凭证保护。
+//! 仅消费同组新建的夹具文件，验证 Application 的后台替换及最终凭证保护。
 use super::*;
 use std::{
     path::Path,
@@ -70,9 +70,7 @@ pub(super) unsafe fn verify(app: &mut Application, path: &Path) -> Result<()> {
         .open(path)
         .map_err(io_error)?;
     println!("native-save-replace-smoke: worker=true baseline-updated=true late-stale-preserved=true handles-released=true");
-    exit_save_smoke::verify(app, path)?;
-    open_session::smoke::verify(app.instance, path)?;
-    Ok(())
+    exit_save_smoke::verify(app, path)
 }
 unsafe fn settle(app: &mut Application) -> Result<save_publish::Prepared> {
     let deadline = Instant::now() + Duration::from_secs(10);

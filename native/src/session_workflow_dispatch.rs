@@ -72,10 +72,11 @@ pub fn run(
         }
         match exchange::run(socket, request, budget, cancel) {
             Ok(()) => {
-                let id = request.id().to_owned();
-                // 独占 batch 借用，当前 request 不可能在交换期间被另一个 owner 推进。
-                assert!(batch.acknowledge(&id));
+                batch.consume_pending();
                 report.acknowledged += 1;
+                if batch.remaining() == 0 {
+                    return report;
+                }
             }
             Err(error) => {
                 // Cancelled 可能在发送前，也可能在等待回执时；不能当成明确未提交。

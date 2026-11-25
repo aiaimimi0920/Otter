@@ -100,6 +100,6 @@ pub(crate) fn merge(mut content: Content, assets: &[Asset]) -> Result<Content, (
     }
     Ok(content)
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-loom")))]
 #[path = "art_package_content_tests.rs"]
 mod tests;

@@ -258,6 +258,6 @@ pub(super) fn recovery(
     Ok(cursor)
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-live")))]
 #[path = "live_relay_join_tests.rs"]
 mod tests;

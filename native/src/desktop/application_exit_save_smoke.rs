@@ -1,4 +1,4 @@
-//! 正式保存 UI coordinator 的隐藏集成：只写调用方创建的 linshi 合成会话。
+//! 正式保存 UI coordinator 的隐藏集成：只写调用方创建的 临时合成会话。
 use super::*;
 use std::{
     path::Path,

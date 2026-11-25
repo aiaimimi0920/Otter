@@ -133,11 +133,17 @@ impl Owner {
             Err(errors.join("; "))
         }
     }
-    pub(super) fn local(&self, chord: Chord) -> Option<&Shortcut> {
-        self.bindings
+    pub(super) fn local(&self, key: u32, modifiers: impl FnOnce() -> u32) -> Option<&Shortcut> {
+        // 普通未绑定键不查键盘状态；注销失败只留清理记录，不纳入候选。
+        let mut candidates = self
+            .bindings
             .iter()
             .filter_map(|r| r.definition.as_ref())
-            .find(|d| d.chord == chord)
+            .filter(|d| d.chord.key == key)
+            .peekable();
+        candidates.peek()?;
+        let modifiers = modifiers();
+        candidates.find(|d| d.chord.modifiers == modifiers)
     }
     pub(super) fn global(&self, wp: WPARAM, lp: LPARAM) -> Option<&Shortcut> {
         let value = lp.0 as u32;
@@ -182,6 +188,6 @@ pub(super) fn observe(state: &State, message: u32, wp: WPARAM) {
         }
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-loom")))]
 #[path = "extension_shortcuts_tests.rs"]
 mod tests;

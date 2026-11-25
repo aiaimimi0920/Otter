@@ -80,23 +80,29 @@ impl Window {
         values.into()
     }
     pub(crate) fn test_art_local_submit(&self) -> bool {
-        let before = self.state.shared.lock().actions.test_offered;
-        for _ in 0..6 {
-            if self
-                .state
-                .keyboard
-                .borrow()
-                .focus
-                .as_ref()
-                .is_some_and(|f| f.kind == crate::surface_scene::Kind::Button)
-            {
-                break;
+        keyboard::joint_access::with_modifiers(&[], || {
+            for step in 0..=6 {
+                if self
+                    .state
+                    .keyboard
+                    .borrow()
+                    .focus
+                    .as_ref()
+                    .is_some_and(|f| f.kind == crate::surface_scene::Kind::Button)
+                {
+                    // Navigation can queue a field change; count only the activation.
+                    let before = self.state.shared.lock().actions.test_offered;
+                    unsafe {
+                        SendMessageW(self.hwnd, WM_KEYDOWN, Some(WPARAM(13)), None);
+                        SendMessageW(self.hwnd, WM_KEYUP, Some(WPARAM(13)), None);
+                    }
+                    return self.state.shared.lock().actions.test_offered > before;
+                }
+                if step < 6 {
+                    keyboard::navigate(self.hwnd, &self.state, false);
+                }
             }
-            keyboard::navigate(self.hwnd, &self.state, false);
-        }
-        unsafe {
-            SendMessageW(self.hwnd, WM_KEYDOWN, Some(WPARAM(13)), None);
-        }
-        self.state.shared.lock().actions.test_offered > before
+            false
+        })
     }
 }

@@ -36,9 +36,11 @@ impl Drop for Hook {
         }
     }
 }
-pub(super) fn take_move() -> POINT {
-    QUEUED.with(|queued| queued.set(false));
-    POSITION.with(Cell::get)
+pub(super) fn take_move() -> Option<POINT> {
+    let queued = QUEUED.with(|queued| queued.replace(false));
+    // A terminal message can be queued behind a move. Do not sample or move
+    // the swatch in between button release and handling the terminal message.
+    (queued && !ENDING.with(Cell::get)).then(|| POSITION.with(Cell::get))
 }
 pub(super) fn commit_point() -> POINT {
     COMMITTED.with(Cell::get)
@@ -99,23 +101,9 @@ unsafe fn forward(message: u32, point: POINT) -> bool {
 mod tests {
     use super::*;
     struct Target(HWND);
-    impl Drop for Target {
-        fn drop(&mut self) {
-            unsafe {
-                TARGET.with(|value| value.set(HWND::default()));
-                QUEUED.with(|value| value.set(false));
-                ENDING.with(|value| value.set(false));
-                let mut message = MSG::default();
-                while PeekMessageW(&mut message, Some(self.0), MOVED, CANCEL, PM_REMOVE).as_bool() {
-                }
-                let _ = DestroyWindow(self.0);
-            }
-        }
-    }
-    #[test]
-    fn synthetic_events_coalesce_preserve_physical_coordinates_and_reject_old_generation() {
-        unsafe {
-            let owner = Target(
+    impl Target {
+        unsafe fn new(token: usize) -> Self {
+            let owner = Self(
                 CreateWindowExW(
                     WINDOW_EX_STYLE::default(),
                     w!("STATIC"),
@@ -134,18 +122,43 @@ mod tests {
             );
             // 仅配置隐藏消息目标，绝不调用 SetWindowsHookEx 或发送真实键鼠。
             TARGET.with(|value| value.set(owner.0));
-            GENERATION.with(|value| value.set(7));
+            GENERATION.with(|value| value.set(token));
             QUEUED.with(|value| value.set(false));
             ENDING.with(|value| value.set(false));
+            owner
+        }
+        unsafe fn next(&self) -> Option<MSG> {
+            let mut msg = MSG::default();
+            PeekMessageW(&mut msg, Some(self.0), MOVED, CANCEL, PM_REMOVE)
+                .as_bool()
+                .then_some(msg)
+        }
+    }
+    impl Drop for Target {
+        fn drop(&mut self) {
+            unsafe {
+                TARGET.with(|value| value.set(HWND::default()));
+                QUEUED.with(|value| value.set(false));
+                ENDING.with(|value| value.set(false));
+                let mut message = MSG::default();
+                while PeekMessageW(&mut message, Some(self.0), MOVED, CANCEL, PM_REMOVE).as_bool() {
+                }
+                let _ = DestroyWindow(self.0);
+            }
+        }
+    }
+    #[test]
+    fn synthetic_events_coalesce_preserve_physical_coordinates_and_reject_old_generation() {
+        unsafe {
+            let owner = Target::new(7);
             for i in 0..1000 {
                 assert!(!forward(WM_MOUSEMOVE, POINT { x: i, y: -i }));
             }
-            let mut message = MSG::default();
-            assert!(PeekMessageW(&mut message, Some(owner.0), MOVED, CANCEL, PM_REMOVE).as_bool());
+            let message = owner.next().unwrap();
             assert_eq!(message.message, MOVED);
             assert_eq!(message.wParam.0, 7);
-            assert!(!PeekMessageW(&mut message, Some(owner.0), MOVED, CANCEL, PM_REMOVE).as_bool());
-            let point = take_move();
+            assert!(owner.next().is_none());
+            let point = take_move().unwrap();
             assert_eq!((point.x, point.y), (999, -999));
             assert!(forward(WM_LBUTTONDOWN, POINT::default()));
             assert!(forward(
@@ -158,14 +171,33 @@ mod tests {
             assert!(forward(WM_LBUTTONUP, POINT::default()));
             let point = commit_point();
             assert_eq!((point.x, point.y), (-100_000, 200_000));
-            assert!(PeekMessageW(&mut message, Some(owner.0), MOVED, CANCEL, PM_REMOVE).as_bool());
-            assert_eq!(message.message, COMMIT);
-            assert!(!PeekMessageW(&mut message, Some(owner.0), MOVED, CANCEL, PM_REMOVE).as_bool());
+            assert_eq!(owner.next().unwrap().message, COMMIT);
+            assert!(owner.next().is_none());
             assert!(is_current(7));
             GENERATION.with(|value| value.set(8));
             assert!(!is_current(7));
             assert!(is_current(8));
         }
         assert!(!is_current(8));
+    }
+    #[test]
+    fn queued_move_is_dropped_before_both_terminal_messages() {
+        unsafe {
+            for (input, terminal) in [(WM_LBUTTONUP, COMMIT), (WM_RBUTTONUP, CANCEL)] {
+                let owner = Target::new(9);
+                assert!(!forward(WM_MOUSEMOVE, POINT { x: 80, y: -40 }));
+                let release = POINT { x: -20, y: 60 };
+                assert!(forward(input, release));
+                assert!(!forward(WM_MOUSEMOVE, POINT { x: 90, y: -90 }));
+                assert_eq!(owner.next().unwrap().message, MOVED);
+                assert!(take_move().is_none());
+                assert!(!QUEUED.with(Cell::get));
+                let message = owner.next().unwrap();
+                assert_eq!(message.message, terminal);
+                assert!(is_current(message.wParam.0));
+                assert_eq!(commit_point(), release);
+                assert!(owner.next().is_none());
+            }
+        }
     }
 }

@@ -3,7 +3,7 @@ use crate::{
     cache_policy::Policy,
     capture_color::SdrFrame,
     capture_display::DisplayInfo,
-    capture_dynamic::{Outcome, Reason},
+    capture_dynamic::{Backend, Outcome, Reason},
     clipboard_cache,
 };
 use std::{
@@ -13,6 +13,7 @@ use std::{
 };
 
 pub struct PreparedCapture {
+    backend: Backend,
     preview: SdrFrame,
     original: Option<clipboard_cache::Prepared>,
     reason: Option<Reason>,
@@ -60,6 +61,7 @@ impl PreparedCapture {
         check(cancel)?;
         // 原始 RGB16 编码完立即释放，只将预览和未发布文件移交 UI，不跨线程保留 GPU 资源。
         Ok(Self {
+            backend: outcome.backend,
             preview,
             original,
             reason: outcome.reason,
@@ -92,11 +94,7 @@ impl PreparedCapture {
         };
         // 原图一旦发布就不再因迟到取消删除；与缓存发布的提交点保持一致。
         Ok(Captured {
-            backend: if original.is_some() || self.reason == Some(Reason::AutoSdr) {
-                "wgc"
-            } else {
-                "gdi"
-            },
+            backend: self.backend.as_str(),
             preview: self.preview,
             original,
             original_lease,
@@ -117,6 +115,6 @@ fn check(cancel: &AtomicBool) -> io::Result<()> {
         Ok(())
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-live")))]
 #[path = "capture_delivery_tests.rs"]
 mod tests;

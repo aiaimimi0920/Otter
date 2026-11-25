@@ -8,6 +8,7 @@ const LANGUAGE_BY_EXTENSION = new Map([
   [".jsx", "c-like"],
   [".mjs", "c-like"],
   [".cjs", "c-like"],
+  [".cs", "c-like"],
   [".css", "css"],
   [".scss", "css"],
   [".html", "html"],

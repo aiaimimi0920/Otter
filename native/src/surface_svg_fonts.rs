@@ -1,13 +1,13 @@
-//! SVG child 的按需字体来源；尚未接排版器，不开放 text allowlist。
+//! SVG child 的按需系统字体来源，经 `surface_svg_text_fonts` 接入 usvg。
 use std::{collections::HashMap, io, path::PathBuf, sync::Arc};
 use windows::{
     core::{Interface, BOOL, PCWSTR},
     Win32::Graphics::DirectWrite::*,
 };
 #[path = "surface_svg_font_fallback.rs"]
-mod fallback;
+pub mod fallback;
 #[path = "surface_svg_font_file.rs"]
-mod file;
+pub mod file;
 pub use fallback::{Mapped, Properties};
 const MAX_QUERIES: usize = 256;
 const MAX_BYTES: usize = 48 * 1024 * 1024;

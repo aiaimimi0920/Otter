@@ -198,10 +198,12 @@ impl Application {
         }
     }
     pub(in crate::desktop::application) fn projection_policy_deadline(&self) -> Option<Instant> {
-        match &self.projection_profile {
+        let profile = &self.projection_profile;
+        let inbox = match profile {
             super::super::profile::Owner::Ready { policy, .. } => policy.schedule.wake,
             _ => None,
-        }
+        };
+        inbox.into_iter().chain(profile.reap_deadline()).min()
     }
     pub(in crate::desktop::application) unsafe fn process_projection_automatic(
         &mut self,

@@ -2,13 +2,13 @@
 use super::*;
 use windows::Win32::UI::WindowsAndMessaging::IsIconic;
 impl Protection {
-    pub(crate) fn recalled(&self) -> bool {
+    pub fn recalled(&self) -> bool {
         self.source.recalled.get()
     }
 }
 impl Owner {
     /// 只由本地 B 的实际输入意图调用。false 是旧记录退休/helper 退出待结算，不重试输入边沿。
-    pub(crate) fn resume_minimized(&mut self, protection: &Protection) -> io::Result<bool> {
+    pub fn resume_minimized(&mut self, protection: &Protection) -> io::Result<bool> {
         if self.closing {
             return Err(io::Error::other("Live recovery is closing"));
         }

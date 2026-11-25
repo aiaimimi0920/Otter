@@ -93,14 +93,7 @@ impl Input {
         {
             return Err(identity());
         }
-        let previous = store
-            .source_document(&self.context, cancel)
-            .map_err(journal)?;
-        let pending = store
-            .pending(cancel)
-            .map_err(journal)?
-            .into_iter()
-            .find(|ticket| ticket.context().same_key(&self.context));
+        let (previous, pending) = store.source_state(&self.context, cancel).map_err(journal)?;
         if pending.is_some() && !self.explicit {
             return Err(journal(protocol::journal::Error::Busy));
         }
@@ -166,10 +159,8 @@ impl Input {
                         status: 404,
                         code: protocol::Code::NotFound,
                     }) => {
-                        if let Some(update) = sender::update::Update::prepare(
-                            frozen
-                                .frame(sender::Kind::Sticker, cancel)
-                                .map_err(Error::Sender)?,
+                        if let Some(update) = sender::update::Update::prepare_snapshot(
+                            frozen.snapshot(),
                             &response,
                             cancel,
                         )

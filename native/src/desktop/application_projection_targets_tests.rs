@@ -46,8 +46,7 @@ fn run(mode: u8) {
                         assert_eq!(request_body, serde_json::json!({}));
                         ready_tx.send(()).unwrap();
                         if mode == 4 {
-                            let mut byte = [0];
-                            assert!(!stream.read(&mut byte).is_ok_and(|count| count > 0));
+                            assert_peer_disconnected(&mut stream);
                         } else {
                             let mut value = body();
                             if mode == 5 {
@@ -61,7 +60,7 @@ fn run(mode: u8) {
             listener
         });
     unsafe {
-        let (_class, mut app) = application();
+        let mut app = application();
         // Application::new 会合成空白会话；本用例显式移除，验证目录不依赖保存目标。
         app.restored_session = None;
         assert!(app.restored_session.is_none());
@@ -212,7 +211,7 @@ fn projection_targets_native_missing_grant_and_busy_owner_do_not_prepare_network
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let _com = Apartment::new().unwrap();
     unsafe {
-        let (_class, mut app) = application();
+        let mut app = application();
         app.authorization.borrow_mut().origin = Some("https://loom.example".into());
         app.authorization.borrow_mut().request = Some(Request::ProjectionTargets);
         app.process_authorization_with_projection(|_| {

@@ -127,3 +127,58 @@ fn later_revisions_keep_images_in_global_and_origin_replacement_snapshots() {
         assert_eq!(batch.remaining(), 0);
     }
 }
+
+#[test]
+fn prepared_batch_borrows_layout_and_matches_byte_entry_wire_order() {
+    let (saved, snapshot) = fixture();
+    let cancel = AtomicBool::new(false);
+    let plan = metadata::prepare(&snapshot, &saved, &cancel).unwrap();
+    let mut bytes_entry = Batch::prepare(&snapshot, &saved, &cancel).unwrap();
+    let mut prepared = Batch::from_plan(&snapshot, &plan, &cancel).unwrap();
+    assert!(matches!(&prepared.layouts, Cow::Borrowed(_)));
+    assert_eq!(
+        prepared.layouts.as_ptr(),
+        plan.layouts_for(&snapshot, &cancel).unwrap().as_ptr()
+    );
+    drop(saved); // 两条入口完成准备后都只依赖快照和已验证的索引。
+    let budget = Budget::new(8192);
+    let request = |batch: &mut Batch<'_>| {
+        let next = batch.current(&budget, 4096, &cancel).unwrap().unwrap();
+        let id = next.id().to_owned();
+        let mut wire: Value = serde_json::from_slice(next.bytes()).unwrap();
+        wire["params"].as_object_mut().unwrap().remove("requestId");
+        assert!(batch.acknowledge(&id));
+        wire
+    };
+    for id in [WORKFLOW_ID, "origin-a", "origin-b"] {
+        let actual = request(&mut prepared);
+        assert_eq!(actual["params"]["workflowId"], id);
+        assert_eq!(actual, request(&mut bytes_entry));
+    }
+    assert_eq!(prepared.remaining(), 0);
+    assert_eq!(budget.used(), 0);
+}
+
+#[test]
+fn prepared_batch_rejects_same_revision_from_different_saved_bytes_and_cancel() {
+    let (mut saved, snapshot) = fixture();
+    let cancel = AtomicBool::new(false);
+    let plan = metadata::prepare(&snapshot, &saved, &cancel).unwrap();
+    saved.push(b' ');
+    let other = super::super::prepare(&saved, 1, &cancel, |_, _| {
+        Ok(super::super::Content {
+            parameters: Default::default(),
+            image: Default::default(),
+        })
+    })
+    .unwrap();
+    assert_eq!(snapshot.value(), other.value());
+    assert!(matches!(
+        Batch::from_plan(&other, &plan, &cancel),
+        Err(Error::Revision)
+    ));
+    assert!(matches!(
+        Batch::from_plan(&snapshot, &plan, &AtomicBool::new(true)),
+        Err(Error::Cancelled)
+    ));
+}

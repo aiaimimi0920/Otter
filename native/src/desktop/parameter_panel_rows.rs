@@ -119,12 +119,7 @@ pub(super) unsafe fn build(
                     if !matches!(choice.action, Action::Set(_)) {
                         continue;
                     }
-                    let label = model::clean(
-                        choice
-                            .label
-                            .split_once('：')
-                            .map_or(choice.label.as_str(), |(_, label)| label),
-                    );
+                    let label = model::option_label(&choice.label);
                     if SendMessageW(
                         combo,
                         CB_ADDSTRING,

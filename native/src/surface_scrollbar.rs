@@ -124,7 +124,7 @@ impl Scroll {
         if axis > 1 || !value.is_finite() {
             return false;
         }
-        let Some(entry) = std::sync::Arc::make_mut(&mut self.nodes).get_mut(id) else {
+        let Some(entry) = self.nodes.get(id) else {
             return false;
         };
         if !entry.wheel[axis] {
@@ -134,7 +134,10 @@ impl Scroll {
         if value == entry.offset[axis] {
             return false;
         }
-        entry.offset[axis] = value;
+        std::sync::Arc::make_mut(&mut self.nodes)
+            .get_mut(id)
+            .expect("scroll entry was just read")
+            .offset[axis] = value;
         true
     }
 }

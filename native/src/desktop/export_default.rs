@@ -96,6 +96,6 @@ impl Prepared {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-capture")))]
 #[path = "export_default_tests.rs"]
 mod tests;

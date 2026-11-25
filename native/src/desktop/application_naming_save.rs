@@ -45,6 +45,13 @@ unsafe fn request_kind(hwnd: HWND, state: &State, update: bool) -> Result<()> {
     Ok(())
 }
 impl Application {
+    pub(super) fn naming_save_reap_deadline(&self) -> Option<std::time::Instant> {
+        if self.modals.blocked() {
+            return None;
+        }
+        self.naming_save_job.as_ref()?.job.deadline()
+    }
+
     pub(super) unsafe fn pending_naming_save(&mut self) {
         let message = match self.pending_naming_save_auto_with(|hwnd, state| choose(hwnd, state)) {
             Ok(warning) => warning,
@@ -66,29 +73,20 @@ impl Application {
         if self.modals.blocked() {
             return Ok(None);
         }
-        let automatic = std::mem::take(&mut self.naming_autosave_request);
-        let mut requester = None;
-        for doc in &self.documents {
-            let update = doc.state.naming_update_requested.replace(false);
-            let save_as = doc.state.naming_save_requested.replace(false);
-            if (update || save_as)
-                && doc.is_alive()
-                && requester
-                    .as_ref()
-                    .is_none_or(|(_, _, existing_update)| save_as && *existing_update)
-            {
-                // 同批另存为优先，不将新文件选择隐式改成覆盖。
-                requester = Some((doc.state.unit_id.clone(), doc.window.0, update && !save_as));
-            }
-        }
-        let was_busy = self.naming_save_job.is_some();
-        let mut warning = None;
-        if let Some(result) = self
-            .naming_save_job
-            .as_mut()
-            .and_then(|pending| pending.job.poll())
-        {
+        if let Some(pending) = self.naming_save_job.as_mut() {
+            let Some(result) = pending.job.poll() else {
+                return Ok(None);
+            };
             let pending = self.naming_save_job.take().expect("polled job exists");
+            // 先安排下一轮再结算；即使本任务失败或自动结果被丢弃，也不吞显式请求。
+            if self.documents.iter().any(|doc| {
+                doc.is_alive()
+                    && (doc.state.naming_save_requested.get()
+                        || doc.state.naming_update_requested.get())
+            }) {
+                self.execution_wake.callback()();
+            }
+            let mut warning = None;
             if pending.automatic && !self.naming_autosave.get() {
                 // 关闭自动保存丢弃尚未发布的自动结果；手动保存不受影响。
                 return Ok(None);
@@ -141,13 +139,26 @@ impl Application {
                     self.schedule_recycle_maintenance();
                 }
             }
+            return Ok(warning);
+        }
+        let automatic = std::mem::take(&mut self.naming_autosave_request);
+        let mut requester = None;
+        for doc in &self.documents {
+            let update = doc.state.naming_update_requested.replace(false);
+            let save_as = doc.state.naming_save_requested.replace(false);
+            if (update || save_as)
+                && doc.is_alive()
+                && requester
+                    .as_ref()
+                    .is_none_or(|(_, _, existing_update)| save_as && *existing_update)
+            {
+                // 同批另存为优先，不将新文件选择隐式改成覆盖。
+                requester = Some((doc.state.unit_id.clone(), doc.window.0, update && !save_as));
+            }
         }
         let Some((origin, hwnd, update)) = requester else {
-            return Ok(warning);
+            return Ok(None);
         };
-        if was_busy {
-            return Ok(warning);
-        }
         let before = self.naming.borrow().clone();
         let before_cache = self.cache_policy.get();
         let before_recycle = self.recycle_policy;
@@ -191,7 +202,7 @@ impl Application {
         } else if let Some(path) = choose(hwnd, &doc.state)? {
             path
         } else {
-            return Ok(warning);
+            return Ok(None);
         };
         let owner = doc.state.file_dialog.clone();
         if self.source_window(&origin) != Some(hwnd)
@@ -245,7 +256,7 @@ impl Application {
             job,
             automatic: automatic && update,
         });
-        Ok(warning)
+        Ok(None)
     }
 }
 unsafe fn choose(hwnd: HWND, state: &State) -> Result<Option<PathBuf>> {

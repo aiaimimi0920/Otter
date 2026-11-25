@@ -9,7 +9,9 @@ unsafe fn prepare(app: &mut Application) -> (Destination, Prepared, Binding) {
     let (content, binding) = fixture(destination.scope, "receive-1");
     let candidate_binding = binding.clone();
     let space = destination.space;
-    let vector = std::thread::spawn(move || {
+    let source = app.restored_session.as_ref().unwrap().original.clone();
+    let units = app.workspace.units().to_vec();
+    let (restore, retained) = std::thread::spawn(move || {
         let _com = crate::desktop::Apartment::new().unwrap();
         crate::desktop::session_candidate::account_projection::prepare(
             content,
@@ -21,6 +23,10 @@ unsafe fn prepare(app: &mut Application) -> (Destination, Prepared, Binding) {
                 w: 160.0,
                 h: 80.0,
             },
+            crate::session_append::Target {
+                original: &source,
+                active: &units,
+            },
             &AtomicBool::new(false),
         )
         .unwrap()
@@ -28,12 +34,7 @@ unsafe fn prepare(app: &mut Application) -> (Destination, Prepared, Binding) {
     .join()
     .unwrap();
     let prepared = destination
-        .prepare(
-            vector,
-            binding.clone(),
-            app.workspace.units(),
-            &AtomicBool::new(false),
-        )
+        .prepare(restore, binding.clone(), retained)
         .unwrap();
     (destination, prepared, binding)
 }
@@ -48,10 +49,17 @@ fn account_receive_is_not_saved_until_real_checkpoint_and_reopens_with_same_pixe
             let original_unit = app.documents[0].state.unit_id.clone();
             let original_window = app.documents[0].window.0;
             let (destination, prepared, binding) = prepare(&mut app);
+            // 普通接收钉图不绑定 Art；目录在后台准备后刷新，仍然允许提交该钉图。
+            app.catalog.borrow_mut().loaded =
+                Some(super::super::restore_batch::smoke::catalog().unwrap());
             let receipt = app
                 .publish_account_projection(&destination, prepared)
                 .unwrap();
             assert!(!receipt.saved(&app));
+            let received_state = &app.documents[1].state;
+            assert!(!received_state.is_art());
+            assert!(received_state.selected_art.borrow().is_none());
+            assert!(received_state.execution_results.borrow().ports().is_empty());
             let received = crate::workspace_id::UnitId::parse(binding.unit()).unwrap();
             assert_eq!(app.documents.len(), 2);
             assert_eq!(app.source_window(&original_unit), Some(original_window));

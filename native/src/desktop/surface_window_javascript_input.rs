@@ -147,16 +147,23 @@ impl AuthorizedWindow {
         if !self.javascript_input_idle() || !self.is_shown() || self.binding() != &current.binding {
             return Err(Error::new(E_FAIL, "JS click became stale"));
         }
-        self.window.set_submission_enabled(false)?;
-        let viewport = self.capture_javascript_viewport()?;
-        self.javascript
-            .as_mut()
-            .unwrap()
-            .runtime
-            .as_mut()
-            .unwrap()
-            .click(current, target, viewport)
-            .map_err(|error| Error::new(E_FAIL, error.to_string()))?;
+        let submitted = (|| {
+            self.window.set_submission_enabled(false)?;
+            let viewport = self.capture_javascript_viewport()?;
+            self.javascript
+                .as_mut()
+                .unwrap()
+                .runtime
+                .as_mut()
+                .unwrap()
+                .click(current, target, viewport)
+                .map_err(|error| Error::new(E_FAIL, error.to_string()))
+        })();
+        if let Err(error) = submitted {
+            // 写槽后唤醒可能失败；退役原会话，不恢复或重放点击。
+            self.fail_javascript("JS click submission failed".into())?;
+            return Err(error);
+        }
         Ok(None)
     }
     pub(super) fn accept_javascript_frame(

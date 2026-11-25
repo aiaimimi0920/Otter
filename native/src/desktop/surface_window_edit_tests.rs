@@ -48,6 +48,88 @@ fn mount() -> SurfaceWindow {
 fn child(window: &SurfaceWindow) -> HWND {
     unsafe { FindWindowExW(Some(window.hwnd), None, windows::core::w!("EDIT"), None).unwrap() }
 }
+#[test]
+fn surface_edit_policy_busy_retry_synchronizes_the_native_edit() {
+    let _com = crate::desktop::Apartment::new().unwrap();
+    let window = mount();
+    let edit = child(&window);
+    for editing in [false, true] {
+        let host = window.state.host.borrow_mut().take().unwrap();
+        assert!(window.set_input_policy(editing, editing).is_err());
+        assert!(!window.local_edit_enabled());
+        assert!(!window.pointer_enabled());
+        assert_eq!(unsafe { IsWindowEnabled(edit).as_bool() }, !editing);
+        *window.state.host.borrow_mut() = Some(host);
+        window.set_input_policy(editing, editing).unwrap();
+        assert_eq!(window.local_edit_enabled(), editing);
+        assert_eq!(window.pointer_enabled(), editing);
+        assert_eq!(unsafe { IsWindowEnabled(edit).as_bool() }, editing);
+        assert!(!window.has_pending_edit());
+        assert!(!window.has_pending_click());
+    }
+}
+
+#[test]
+fn surface_edit_policy_busy_revoke_disables_native_edit_before_host_return() {
+    let _com = crate::desktop::Apartment::new().unwrap();
+    let window = mount();
+    let edit = child(&window);
+    assert!(window
+        .state
+        .run(|_| {
+            assert!(window.set_input_policy(false, false).is_err());
+            assert!(!window.local_edit_enabled());
+            assert!(!window.pointer_enabled());
+            Ok(())
+        })
+        .unwrap());
+    assert!(!unsafe { IsWindowEnabled(edit).as_bool() });
+    window.set_input_policy(false, false).unwrap();
+}
+
+#[test]
+fn surface_edit_policy_reentrant_revoke_cannot_publish_a_grant() {
+    use windows::Win32::UI::Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass};
+    struct Probe<'a> {
+        window: &'a SurfaceWindow,
+        saw_revoke: Cell<bool>,
+    }
+    unsafe extern "system" fn revoke(
+        hwnd: HWND,
+        message: u32,
+        wp: WPARAM,
+        lp: LPARAM,
+        _: usize,
+        data: usize,
+    ) -> LRESULT {
+        let probe = &*(data as *const Probe<'_>);
+        if message == WM_ENABLE && wp.0 != 0 {
+            let result = probe.window.set_input_policy(false, false);
+            probe.saw_revoke.set(result.is_err());
+        }
+        DefSubclassProc(hwnd, message, wp, lp)
+    }
+    let _com = crate::desktop::Apartment::new().unwrap();
+    let window = mount();
+    window.set_input_policy(false, false).unwrap();
+    let edit = child(&window);
+    let probe = Probe {
+        window: &window,
+        saw_revoke: Cell::new(false),
+    };
+    unsafe {
+        assert!(SetWindowSubclass(edit, Some(revoke), 1, &probe as *const _ as usize).as_bool());
+        let grant = window.set_input_policy(true, true);
+        let removed = RemoveWindowSubclass(edit, Some(revoke), 1);
+        assert!(removed.as_bool());
+        assert!(grant.is_err());
+        assert!(!IsWindowEnabled(edit).as_bool());
+    }
+    assert!(probe.saw_revoke.get());
+    assert!(!window.local_edit_enabled());
+    assert!(!window.pointer_enabled());
+    window.set_input_policy(false, false).unwrap();
+}
 fn text(hwnd: HWND) -> String {
     let mut buffer = [0u16; 256];
     let count = unsafe { GetWindowTextW(hwnd, &mut buffer) };

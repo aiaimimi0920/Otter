@@ -158,17 +158,27 @@ def local_targets(text):
             yield unquote(parsed.path)
 
 
-def target_exists(root, resolved, tracked):
+def path_index(names):
+    """Include tracked leaf paths and their directory prefixes."""
+    prefixes = set(names)
+    for name in names:
+        parent = name.rpartition("/")[0]
+        while parent and parent not in prefixes:
+            prefixes.add(parent)
+            parent = parent.rpartition("/")[0]
+    return prefixes
+
+
+def target_exists(root, resolved, tracked_paths):
     if not resolved.resolve().is_relative_to(root) or not resolved.exists():
         return False
-    if tracked is None:  # Standalone text checks may use an explicit file fixture.
+    if tracked_paths is None:  # Standalone text checks may use an explicit file fixture.
         return True
     relative = resolved.relative_to(root).as_posix()
-    return relative == "." or relative in tracked or any(
-        name.startswith(relative.rstrip("/") + "/") for name in tracked)
+    return relative == "." or relative in tracked_paths
 
 
-def check_document(root, relative, tracked=None):
+def check_document(root, relative, tracked_paths=None):
     path = root / relative
     if not path.exists():  # A removed file has no remaining text to validate.
         return []
@@ -185,7 +195,7 @@ def check_document(root, relative, tracked=None):
             errors.append(f"{relative}: domain-root link is not repository-relative: {target}")
             continue
         resolved = Path(os.path.abspath(path.parent / target))
-        if not target_exists(root, resolved, tracked):
+        if not target_exists(root, resolved, tracked_paths):
             errors.append(f"{relative}: missing or out-of-repository link: {target}")
     return errors
 
@@ -198,21 +208,25 @@ def main():
     subprocess.run(["git", "diff", "--check", scope["base"], scope["head"], "--"], check=True)
     tracked = {p.decode("utf-8") for p in
                subprocess.check_output(["git", "ls-tree", "-r", "--name-only", "-z", "HEAD"]).split(b"\0") if p}
+    tracked_paths = path_index(tracked)
+    changed = set(scope["paths"])
     errors = []
     for path in scope["paths"]:
         if path.endswith(".md") or path == "LICENSE":
-            errors.extend(check_document(root, path, tracked))
+            errors.extend(check_document(root, path, tracked_paths))
     # Deleted paths can invalidate links to their now-empty parent directories.
-    removed = {(root / p).resolve() for p in scope["paths"] if not (root / p).exists()}
+    removed = {p for p in changed if not (root / p).exists()}
     if removed:
-        for relative in sorted(p for p in tracked if p.endswith(".md")):
+        affected_paths = path_index(removed)
+        for relative in sorted(p for p in tracked - changed if p.endswith(".md")):
             path = root / relative
             for target in local_targets(path.read_text(encoding="utf-8")):
                 if target in SIBLING_CONTRACT_LINKS.get(relative, set()):
                     continue
                 resolved = Path(os.path.abspath(path.parent / target))
-                affected = any(p == resolved or resolved in p.parents for p in removed)
-                if affected and not target_exists(root, resolved, tracked):
+                if (resolved.is_relative_to(root)
+                        and resolved.relative_to(root).as_posix() in affected_paths
+                        and not target_exists(root, resolved, tracked_paths)):
                     errors.append(f"{relative}: link to removed document or directory: {target}")
     if errors:
         raise SystemExit("\n".join(errors))

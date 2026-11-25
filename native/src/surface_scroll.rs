@@ -7,7 +7,7 @@ use crate::{
 use std::collections::BTreeMap;
 #[path = "surface_scrollbar.rs"]
 mod scrollbar;
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-surface")))]
 #[path = "surface_scroll_tests.rs"]
 mod tests;
 pub(crate) use scrollbar::{Bar, Drag};
@@ -109,7 +109,8 @@ impl Scroll {
         let mut index = geometry.nodes().iter().position(|node| node.id() == hit);
         while let Some(i) = index {
             let node = &geometry.nodes()[i];
-            if let Some(entry) = std::sync::Arc::make_mut(&mut self.nodes).get_mut(node.id()) {
+            // Boundary and non-scroll hits must not clone the shared snapshot.
+            if let Some(entry) = self.nodes.get(node.id()) {
                 if !entry.wheel[axis] {
                     index = node.parent();
                     continue;
@@ -121,7 +122,10 @@ impl Scroll {
                 };
                 let value = (entry.offset[axis] + distance).clamp(0., entry.max[axis]);
                 if value != entry.offset[axis] {
-                    entry.offset[axis] = value;
+                    std::sync::Arc::make_mut(&mut self.nodes)
+                        .get_mut(node.id())
+                        .expect("scroll entry was just read")
+                        .offset[axis] = value;
                     return true;
                 }
             }
@@ -165,7 +169,8 @@ impl Scroll {
         let mut changed = false;
         while let Some(index) = parent {
             let node = &geometry.nodes()[index];
-            if let Some(entry) = std::sync::Arc::make_mut(&mut self.nodes).get_mut(node.id()) {
+            if let Some(entry) = self.nodes.get(node.id()) {
+                let mut offsets = entry.offset;
                 for axis in 0..2 {
                     let start = node.origin()[axis] + entry.border.start()[axis];
                     let end = start + entry.page[axis];
@@ -182,8 +187,14 @@ impl Scroll {
                     let delta = nearest(origin[axis], far, start, end);
                     let next = (entry.offset[axis] + delta).clamp(0., entry.max[axis]);
                     origin[axis] -= next - entry.offset[axis];
-                    changed |= next != entry.offset[axis];
-                    entry.offset[axis] = next;
+                    offsets[axis] = next;
+                }
+                if offsets != entry.offset {
+                    std::sync::Arc::make_mut(&mut self.nodes)
+                        .get_mut(node.id())
+                        .expect("scroll entry was just read")
+                        .offset = offsets;
+                    changed = true;
                 }
             }
             parent = node.parent();

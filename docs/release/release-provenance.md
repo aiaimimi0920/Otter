@@ -1,7 +1,9 @@
 # Otter release provenance
 
-`main` produces **internal** Windows packages via the [build and verification guide](../development/WINDOWS_NATIVE_BUILD.md).
-There is no public release or signing entry point for this product in `main`. Existing GitHub releases are not changed.
+`main` produces **unsigned internal Windows x64 ZIPs** via the [build and verification guide](../development/WINDOWS_NATIVE_BUILD.md).
+GitHub Actions artifacts are development candidates, not GitHub Releases or installers. There is no public release
+or signing entry point in `main`; existing GitHub releases are unchanged. See the [signing policy](CODE_SIGNING_POLICY.md)
+for the separate requirements on a future signed release.
 
 - `build-native-candidate.ps1` binds the Git revision/dirty state, input hashes, exact Cargo resolution,
   pinned NeuroDesign input, tool versions and the EXE/DLL digests. It rejects source changes during the build.

@@ -93,6 +93,45 @@ fn javascript_resize_callback_failure_and_loop_reap_same_child() {
         assert_eq!(CAPACITY.used(), 0);
     }
 }
+
+#[test]
+fn javascript_resize_real_child_unobserve_delivery_reobserve_and_cleanup() {
+    let _serial = fixture::SERIAL.lock().unwrap();
+    let (mut session, frame) = Session::mount_in(
+        fixture::binding(),
+        include_str!("../tests/fixtures/javascript-resize-delivery.js").into(),
+        fixture::snapshot(3, 42),
+        fixture::resources(),
+        Some(Viewport::new([800, 480], 192).unwrap()),
+        &|| false,
+    )
+    .unwrap();
+    let probe = session.child.as_ref().unwrap().probe().unwrap();
+    assert_eq!(
+        report(&frame),
+        serde_json::json!({"count":1,"log":"first,microtask,second","width":63,"border":75,"device":126})
+    );
+    assert!(!frame.resize_observed);
+    for mode in 1..=2 {
+        let frame = session
+            .update(
+                fixture::snapshot(3 + mode, mode as i32),
+                fixture::resources(),
+                &|| false,
+            )
+            .unwrap();
+        assert_eq!(report(&frame)["count"], mode);
+        assert_eq!(report(&frame)["width"], if mode == 1 { 63 } else { 88 });
+        assert_eq!(report(&frame)["device"], if mode == 1 { 126 } else { 176 });
+        assert_eq!(frame.resize_observed, mode == 2);
+        assert!(!probe.exited());
+    }
+    session.dispose(&|| false).unwrap();
+    assert!(probe.exited());
+    let peak = probe.peak_job_bytes().unwrap();
+    assert!(peak > 0 && peak <= CHILD_LIMIT);
+    assert_eq!(CAPACITY.used(), 0);
+}
 #[test]
 #[ignore = "requires an explicitly sealed product EXE and its externally expected SHA-256"]
 fn javascript_resize_actual_product_worker_runs_same_native_observer() {

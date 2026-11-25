@@ -24,13 +24,13 @@ impl Viewport {
         value.validate()?;
         Ok(value)
     }
-    pub(crate) fn validate(self) -> Result<()> {
+    pub fn validate(self) -> Result<()> {
         if self.dpi == 0 || self.pixels.iter().any(|v| *v > 32768) {
             return Err(Error::new(E_INVALIDARG, "Invalid Surface viewport"));
         }
         Ok(())
     }
-    pub(crate) fn from_window(hwnd: HWND) -> Result<Self> {
+    pub fn from_window(hwnd: HWND) -> Result<Self> {
         let mut rect = RECT::default();
         unsafe {
             GetClientRect(hwnd, &mut rect)?;
@@ -54,11 +54,11 @@ impl Viewport {
     pub fn logical(self) -> [f32; 2] {
         self.pixels.map(|v| v as f32 * 96. / self.dpi as f32)
     }
-    pub(crate) fn context(self) -> Context {
+    pub fn context(self) -> Context {
         context(self.logical())
     }
 }
-pub(crate) fn style() -> Style<'static> {
+pub fn style() -> Style<'static> {
     Style {
         family: "Segoe UI",
         size: 16.,
@@ -68,7 +68,7 @@ pub(crate) fn style() -> Style<'static> {
         line_height: None,
     }
 }
-pub(crate) fn context(size: [f32; 2]) -> Context {
+pub fn context(size: [f32; 2]) -> Context {
     Context {
         axis: size[0],
         viewport: size,

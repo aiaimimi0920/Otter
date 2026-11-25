@@ -10,14 +10,14 @@
     const id = dom.get(node).key;
     if (!op.mapHas(instances,id)) {
       if (op.mapSize(instances) >= 8) fail();
-      const owner = { node, id, width:300, height:150, reset:true, context:null };
+      const owner = { __proto__:null, node, id, width:300, height:150, reset:true, context:null };
       contexts.reset(owner); op.mapSet(instances,id,owner);
     }
     return op.mapGet(instances,id);
   };
   const flush = owner => {
     if (!owner.reset && owner.commands.length === 0) return;
-    if (!native || !native(json.encode({ id:owner.id, size:[owner.width,owner.height], reset:owner.reset, commands:owner.commands }))) fail();
+    if (!native || !native(contexts.encode({ id:owner.id, size:[owner.width,owner.height], reset:owner.reset, commands:owner.commands }))) fail();
     owner.reset = false; owner.commands = op.array();
   };
   const resize = (node,name,value,remove) => {
@@ -57,6 +57,7 @@
   Object.defineProperty(globalThis,"CanvasRenderingContext2D",{ value:contexts.CanvasRenderingContext2D });
   return {
     begin: contexts.begin,
+    discardStagedNode(node) { op.mapDelete(instances, dom.get(node).key); },
     dimensions(node) { const owner = get(node); return [owner.width,owner.height]; },
     serviceFrames(handles) {
       const owners = op.array(), frames = op.array();

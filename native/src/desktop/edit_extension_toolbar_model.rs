@@ -2,7 +2,7 @@
 use super::*;
 use crate::loom_extension_snapshot::ToolbarItem;
 pub(super) struct Slot {
-    pub id: String,
+    pub sort_key: String,
     pub title: String,
     pub grouped: bool,
     pub items: Vec<ToolbarItem>,
@@ -40,17 +40,22 @@ impl Model {
             .sort_by(|(a, x), (b, y)| x.order.cmp(&y.order).then_with(|| collator.compare(a, b)));
         let mut slots: Vec<Slot> = Vec::new();
         for (_, item) in ordered {
-            let id = format!(
+            let sort_key = format!(
                 "{}:{}",
                 item.plugin,
                 item.group.as_deref().unwrap_or(&item.id)
             );
-            if let Some(slot) = slots.iter_mut().find(|s| s.id == id) {
+            // ID 与 groupId 可同名且可含分隔符；仅精确同插件、同组的贡献合并。
+            if let Some(slot) = slots.iter_mut().find(|slot| {
+                item.group.is_some()
+                    && slot.items[0].plugin == item.plugin
+                    && slot.items[0].group == item.group
+            }) {
                 slot.items.push(item);
                 continue;
             }
             slots.push(Slot {
-                id,
+                sort_key,
                 title: item
                     .group_title
                     .as_ref()
@@ -63,7 +68,7 @@ impl Model {
         }
         let mut ordered: Vec<_> = slots
             .into_iter()
-            .map(|s| (s.id.encode_utf16().collect::<Vec<_>>(), s))
+            .map(|s| (s.sort_key.encode_utf16().collect::<Vec<_>>(), s))
             .collect();
         ordered.sort_by(|(a, x), (b, y)| {
             x.items[0]

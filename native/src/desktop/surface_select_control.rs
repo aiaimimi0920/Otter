@@ -260,6 +260,6 @@ impl Drop for Control {
         }
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-surface")))]
 #[path = "surface_select_control_tests.rs"]
 mod tests;

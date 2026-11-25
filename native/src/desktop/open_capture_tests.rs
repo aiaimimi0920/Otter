@@ -20,10 +20,9 @@ impl Drop for Directory {
 fn document_owns_original_lease_until_image_replacement() {
     let _apartment = super::super::super::Apartment::new().unwrap();
     let directory = Directory(
-        std::path::PathBuf::from("C:/Users/Public/nas_home/AI/GameEditor/linshi")
-            .join(format!("otter-source-lease-{:?}", unsafe {
-                windows::Win32::System::Com::CoCreateGuid().unwrap()
-            })),
+        std::env::temp_dir().join(format!("otter-source-lease-{:?}", unsafe {
+            windows::Win32::System::Com::CoCreateGuid().unwrap()
+        })),
     );
     let cancel = std::sync::atomic::AtomicBool::new(false);
     let bytes: Vec<_> = [0x4000u16; 4]
@@ -32,6 +31,7 @@ fn document_owns_original_lease_until_image_replacement() {
         .collect();
     let raw = crate::capture_color::ScRgb::new(&bytes, 1, 1, 8).unwrap();
     let outcome = crate::capture_dynamic::Outcome {
+        backend: crate::capture_dynamic::Backend::Wgc,
         frame: crate::capture_dynamic::Frame::Hdr {
             image: raw.to_hdr(0.01, 1000.0, 1.0, &cancel).unwrap(),
             preview: raw.to_sdr(320.0, 1.0, &cancel).unwrap(),
@@ -123,4 +123,50 @@ fn replacing_or_changing_document_identity_does_not_expose_previous_capture_sour
     assert!(canvas.capture_source().is_some());
     canvas.replace_image(prepared.image).unwrap();
     assert!(canvas.capture_source().is_none());
+}
+
+#[test]
+fn capture_context_survives_preparation_and_cancelled_scan_releases_the_preview() {
+    let origin = Some(POINT { x: -50, y: 20 });
+    let mut context = crate::capture_job::Context::region(origin, 1, 1, "gdi");
+    context.kind = crate::session_capture::Kind::Long;
+    context.recording = Some(crate::session_capture::Recording {
+        frame_count: 2,
+        direction: None,
+        spatial_position: Some([-1, 2]),
+    });
+    let expected = context.metadata(true, true);
+    let input = captured();
+    let pixels = input.preview.pixels.clone();
+    let prepared =
+        PreparedDocument::from_capture_with_cancel(input, true, origin, Some(context), || false)
+            .unwrap();
+    assert_eq!(
+        prepared
+            .capture_source
+            .as_ref()
+            .unwrap()
+            .session_meta
+            .as_ref(),
+        Some(&expected)
+    );
+    assert!(prepared.image.pixels.same_storage(&pixels));
+    assert_eq!(prepared.capture_origin, origin);
+    assert!(prepared.record_history);
+
+    let mut input = captured();
+    input.preview = SdrFrame {
+        width: 64,
+        height: 256,
+        pixels: vec![255; 64 * 256 * 4].into(),
+    };
+    let weak = input.preview.pixels.downgrade();
+    let checks = std::cell::Cell::new(0);
+    let result = PreparedDocument::from_capture_with_cancel(input, true, origin, None, || {
+        checks.set(checks.get() + 1);
+        checks.get() >= 4
+    });
+    assert_eq!(result.err().unwrap().code(), E_ABORT);
+    assert!(checks.get() < 16);
+    assert!(weak.upgrade().is_none());
 }

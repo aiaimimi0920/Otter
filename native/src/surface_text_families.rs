@@ -137,6 +137,6 @@ impl Families {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-surface")))]
 #[path = "surface_text_families_tests.rs"]
 mod tests;

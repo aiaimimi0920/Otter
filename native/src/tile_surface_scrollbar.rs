@@ -20,7 +20,7 @@ pub(crate) struct Field {
     placement: String,
     layout: [u8; 32],
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-surface")))]
 #[path = "tile_surface_scrollbar_tests.rs"]
 mod tests;
 impl Field {

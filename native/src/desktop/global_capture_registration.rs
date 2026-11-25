@@ -102,6 +102,6 @@ pub(super) fn set_with(
     Ok(None)
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-capture")))]
 #[path = "global_capture_registration_tests.rs"]
 mod tests;

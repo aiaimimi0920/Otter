@@ -44,19 +44,24 @@ impl Host {
         axis: usize,
         direction: i8,
         pixels: [i32; 2],
-    ) -> Result<()> {
-        let Some((bar, point)) = self.scrollbar(pixels)? else {
-            return Ok(());
-        };
-        // 使用当前几何：thumb 到达指针后不反向翻页，也不转交重叠的另一条。
-        if bar.id == id
-            && bar.axis == axis
-            && direction != 0
-            && bar.page_direction(point) == direction
-        {
-            self.set_scrollbar(id, axis, bar.page_value(point))?;
+    ) -> Result<bool> {
+        let before = self.viewport;
+        let hit = self.scrollbar(pixels)?;
+        // 命中查询可能先更新呈现几何，即使本次不翻页也要保留重绘。
+        let reflowed = before.0.width != self.viewport.0.width
+            || before.0.height != self.viewport.0.height
+            || before.1 != self.viewport.1;
+        if let Some((bar, point)) = hit {
+            // thumb 到达指针后不反向翻页，也不转交重叠的另一条。
+            if bar.id == id
+                && bar.axis == axis
+                && direction != 0
+                && bar.page_direction(point) == direction
+            {
+                return Ok(self.set_scrollbar(id, axis, bar.page_value(point))? || reflowed);
+            }
         }
-        Ok(())
+        Ok(reflowed)
     }
     pub(in crate::desktop) fn scrollbar(
         &mut self,
@@ -81,16 +86,13 @@ impl Host {
         }
         let point = pixels.map(|v| v as f32 * 96. / self.viewport.1 as f32);
         self.set_scrollbar(&drag.id, drag.axis, drag.value(point))
+            .map(|_| ())
     }
-    pub(in crate::desktop) fn set_scrollbar(
-        &mut self,
-        id: &str,
-        axis: usize,
-        value: f32,
-    ) -> Result<()> {
-        if self.presentation.set_scrollbar(id, axis, value)? {
+    fn set_scrollbar(&mut self, id: &str, axis: usize, value: f32) -> Result<bool> {
+        let changed = self.presentation.set_scrollbar(id, axis, value)?;
+        if changed {
             self.sync_edits()?;
         }
-        Ok(())
+        Ok(changed)
     }
 }

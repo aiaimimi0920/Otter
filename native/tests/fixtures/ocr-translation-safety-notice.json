@@ -1,0 +1,13 @@
+{
+  "width": 900,
+  "height": 290,
+  "fontSize": 40,
+  "left": 30,
+  "rows": [
+    [25, "Do not open the valve"],
+    [75, "unless the pressure is below 30 kPa."],
+    [210, "Call Lin after 09:30."]
+  ],
+  "targetLanguage": "zh-CN",
+  "paragraphIndices": [[0, 1], [2]]
+}

@@ -2,8 +2,66 @@
 use super::*;
 use crate::device_authorization_config::Action;
 use crate::device_authorization_owner::Event;
-use std::{io::Write, path::Path};
-use windows::Win32::System::Threading::WaitForSingleObject;
+use std::{
+    io::{self, Read, Write},
+    os::windows::fs::{MetadataExt, OpenOptionsExt},
+    path::Path,
+};
+use windows::Win32::{
+    Storage::FileSystem::{FILE_ATTRIBUTE_REPARSE_POINT, FILE_FLAG_OPEN_REPARSE_POINT},
+    System::Threading::WaitForSingleObject,
+};
+
+const INPUT_LIMIT: u64 = 64 * 1024;
+
+fn read_input(root: &Path) -> io::Result<serde_json::Value> {
+    // Check the opened file itself; a descriptor link must not redirect outside the fixture.
+    let file = std::fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT.0)
+        .open(root.join("test-input.json"))?;
+    let metadata = file.metadata()?;
+    if !metadata.is_file()
+        || metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT.0 != 0
+        || metadata.len() > INPUT_LIMIT
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "Invalid Loom fixture input file",
+        ));
+    }
+    let mut bytes = Vec::new();
+    file.take(INPUT_LIMIT + 1).read_to_end(&mut bytes)?;
+    if bytes.len() as u64 > INPUT_LIMIT {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "Loom fixture input exceeds its byte limit",
+        ));
+    }
+    serde_json::from_slice(&bytes).map_err(io::Error::other)
+}
+
+#[test]
+fn descriptor_accepts_limit_and_rejects_larger_input() {
+    let root = Path::new("C:/Users/Public/nas_home/AI/GameEditor/linshi")
+        .join(format!("otter-loom-descriptor-{:?}", unsafe {
+            windows::Win32::System::Com::CoCreateGuid().unwrap()
+        }));
+    std::fs::create_dir(&root).unwrap();
+    let path = root.join("test-input.json");
+    let mut bytes = br#"{"nodeId":"test"}"#.to_vec();
+    bytes.resize(INPUT_LIMIT as usize, b' ');
+    std::fs::write(&path, &bytes).unwrap();
+    assert_eq!(read_input(&root).unwrap()["nodeId"], "test");
+    bytes.push(b' ');
+    std::fs::write(&path, &bytes).unwrap();
+    assert_eq!(
+        read_input(&root).unwrap_err().kind(),
+        io::ErrorKind::InvalidData
+    );
+    std::fs::remove_file(path).unwrap();
+    std::fs::remove_dir(root).unwrap();
+}
 
 fn record(root: &Path, name: &str, value: serde_json::Value) {
     let mut file = std::fs::OpenOptions::new()
@@ -84,8 +142,7 @@ fn isolated_real_loom_pairs_mounts_activates_and_closes() {
     let canonical = std::fs::canonicalize(&root).unwrap();
     let base = std::fs::canonicalize("C:/Users/Public/nas_home/AI/GameEditor/linshi").unwrap();
     assert!(canonical != base && canonical.starts_with(base));
-    let input: serde_json::Value =
-        serde_json::from_slice(&std::fs::read(root.join("test-input.json")).unwrap()).unwrap();
+    let input = read_input(&canonical).expect("invalid isolated Loom test-input.json");
     let origin = input["origin"].as_str().unwrap();
     let url = url::Url::parse(origin).unwrap();
     assert_eq!(url.scheme(), "https");
@@ -99,7 +156,7 @@ fn isolated_real_loom_pairs_mounts_activates_and_closes() {
     );
     let _com = Apartment::new().unwrap();
     unsafe {
-        let (_class, mut app) = fixture::application();
+        let mut app = fixture::application();
         app.authorization.borrow_mut().origin = Some(origin.into());
         let device = match authorize(&mut app, origin, &profile, Action::RequestPairing) {
             Event::Pairing { device, .. } => device,
@@ -181,13 +238,14 @@ fn isolated_real_loom_pairs_mounts_activates_and_closes() {
         wait_remote(&app, "inactive");
         app.poll_remote_live_with(false, |o| fixture::config(o, &profile))
             .unwrap();
-        let window = app.surface_windows.iter_mut().next().unwrap();
-        let owner = window.lifecycle().unwrap();
-        assert!(!owner.uncertain());
-        assert_eq!(
-            owner.binding().lifecycle(),
-            crate::surface_live_binding::Lifecycle::Inactive
-        );
+        assert!(app.surface_windows.iter_mut().next().is_none());
+        let records = app.surface_windows.retired_records();
+        assert_eq!(records.len(), 1);
+        assert!(!records[0].uncertain() && !records[0].in_flight());
+        let hint = serde_json::to_value(&records[0]).unwrap();
+        assert_eq!(hint["binding"]["lifecycle"], "inactive");
+        assert_eq!(hint["binding"]["instance"], instance);
+        assert_eq!(hint["binding"]["attachment"], attachment);
         assert!(app.remote_sessions.wait_handles().next().is_none());
         app.authorization_owner.close();
         assert!(app.authorization_owner.finished());

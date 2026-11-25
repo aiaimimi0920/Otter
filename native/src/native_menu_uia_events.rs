@@ -1,12 +1,8 @@
 //! 从已提交快照生成有界通知；发出事件时不持模型锁或 RefCell 借用。
+use super::scroll::{percent_value, size_value};
 use super::*;
-use crate::native_menu::accessibility::Scroll;
-pub(crate) struct Snapshot {
-    ids: Vec<[i32; 5]>,
-    focused: Option<[i32; 5]>,
-    expanded: Vec<bool>,
-    scroll: Scroll,
-}
+use crate::native_menu::accessibility::NotificationFrame;
+pub(crate) type Snapshot = NotificationFrame;
 pub(crate) enum Change {
     Structure,
     Focus(Node),
@@ -14,67 +10,50 @@ pub(crate) enum Change {
     Percent(f64, f64),
     Size(f64, f64),
 }
-fn percent(scroll: Scroll) -> f64 {
-    if scroll.total <= scroll.visible {
-        UIA_ScrollPatternNoScroll
-    } else {
-        100.0 * scroll.first as f64 / (scroll.total - scroll.visible) as f64
-    }
-}
-fn size(scroll: Scroll) -> f64 {
-    if scroll.total == 0 {
-        100.0
-    } else {
-        (100.0 * scroll.visible as f64 / scroll.total as f64).min(100.0)
-    }
-}
-pub(crate) fn changes(view: &View, previous: &mut Option<Snapshot>) -> Vec<Change> {
-    let nodes = view.nodes();
-    let mut current = Snapshot {
-        ids: Vec::new(),
-        focused: None,
-        expanded: Vec::new(),
-        scroll: view.scroll().unwrap_or_default(),
+pub(crate) fn changes(
+    view: &View,
+    previous: &mut Option<Snapshot>,
+    listening: bool,
+) -> Vec<Change> {
+    let Some(current) = view.notification_frame() else {
+        *previous = None;
+        return Vec::new();
     };
-    let mut focused = None;
-    for node in &nodes {
-        if let (Some(id), Some(entry)) = (node.runtime_id(), node.read()) {
-            current.ids.push(id);
-            current.expanded.push(entry.expanded);
-            if entry.focused {
-                current.focused = Some(id);
-                focused = Some(node.clone());
-            }
-        }
+    // 没有监听时也推进基线，晚订阅后的第一次滚动或展开才有正确旧值。
+    if !listening {
+        *previous = Some(current);
+        return Vec::new();
     }
+    let node = |slot| view.snapshot_node(current.epoch.1, slot);
+    // 同一代际的行槽身份与顺序不变；只为真正发出的通知构造 Node。
+    let focus = |frame: &NotificationFrame| frame.focused.map(|slot| (frame.epoch, slot));
     let mut output = Vec::new();
-    if let Some(old) = previous.as_ref() {
-        if old.ids != current.ids {
-            output.push(Change::Structure);
+    let old = previous.as_ref();
+    if let Some(old) = old {
+        if old.epoch != current.epoch {
+            if !old.expanded.is_empty() || !current.expanded.is_empty() {
+                output.push(Change::Structure);
+            }
         } else {
-            for (index, node) in nodes.iter().enumerate() {
-                if old.expanded[index] != current.expanded[index] {
-                    output.push(Change::Expanded(
-                        node.clone(),
-                        old.expanded[index],
-                        current.expanded[index],
-                    ));
+            for (slot, (&before, &after)) in old.expanded.iter().zip(&current.expanded).enumerate()
+            {
+                if before != after {
+                    output.push(Change::Expanded(node(slot), before, after));
                 }
             }
         }
-        if percent(old.scroll) != percent(current.scroll) {
-            output.push(Change::Percent(
-                percent(old.scroll),
-                percent(current.scroll),
-            ));
+        let (before, after) = (percent_value(old.scroll), percent_value(current.scroll));
+        if before != after {
+            output.push(Change::Percent(before, after));
         }
-        if size(old.scroll) != size(current.scroll) {
-            output.push(Change::Size(size(old.scroll), size(current.scroll)));
+        let (before, after) = (size_value(old.scroll), size_value(current.scroll));
+        if before != after {
+            output.push(Change::Size(before, after));
         }
     }
-    if current.focused != previous.as_ref().and_then(|old| old.focused) {
-        if let Some(node) = focused {
-            output.push(Change::Focus(node));
+    if focus(&current) != old.and_then(focus) {
+        if let Some(slot) = current.focused {
+            output.push(Change::Focus(node(slot)));
         }
     }
     *previous = Some(current);
@@ -97,13 +76,15 @@ pub(crate) fn notify(provider: &IRawElementProviderSimple, changes: Vec<Change>)
                         0,
                     );
                 }
-                Change::Focus(node) if node.read().is_some_and(|entry| entry.focused) => {
+                Change::Focus(node)
+                    if node.with_entry(|entry, active| active && entry.focused) == Some(true) =>
+                {
                     let _ = UiaRaiseAutomationEvent(
                         &child(object, node),
                         UIA_AutomationFocusChangedEventId,
                     );
                 }
-                Change::Expanded(node, before, after) if node.read().is_some() => {
+                Change::Expanded(node, before, after) if node.with_entry(|_, _| ()).is_some() => {
                     let row = child(object, node);
                     let state = |expanded| {
                         if expanded {

@@ -30,6 +30,6 @@ pub fn decode(frame: &Frame) -> Result<Image> {
         Codec::RawBgra => Image::from_bgra(frame.payload(), metadata.width, metadata.height),
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-live")))]
 #[path = "live_relay_image_tests.rs"]
 mod tests;

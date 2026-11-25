@@ -1,5 +1,22 @@
 use super::*;
 #[test]
+fn cover_retries_at_bounded_cadence_and_finishing_uses_trusted_frames() {
+    let now = Instant::now();
+    let mut schedule = Schedule::default();
+    assert!(schedule.start(now));
+    schedule.notify(now);
+    schedule.covered(now);
+    assert_eq!(schedule.wake_after(now, false), Some(COVER_CHECK));
+    assert_eq!(schedule.action(now + POLL, false), Action::Idle);
+    assert_eq!(schedule.action(now + COVER_CHECK, false), Action::Capture);
+
+    schedule.finish(now + COVER_CHECK);
+    schedule.covered(now + COVER_CHECK);
+    assert_eq!(schedule.action(now + COVER_CHECK, false), Action::Compose);
+    assert_eq!(schedule.wake_after(now + COVER_CHECK, false), None);
+}
+
+#[test]
 fn recording_polls_without_wheel_and_thousands_of_hints_coalesce_behind_one_worker() {
     let now = Instant::now();
     let mut schedule = Schedule::default();

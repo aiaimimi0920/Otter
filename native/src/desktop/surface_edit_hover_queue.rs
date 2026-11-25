@@ -91,6 +91,6 @@ impl Queue {
         self.push_edge("", Edge::Hover(hover), "", Instant::now())
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-live")))]
 #[path = "surface_edit_hover_queue_tests.rs"]
 mod tests;

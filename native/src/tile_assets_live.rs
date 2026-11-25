@@ -5,9 +5,11 @@ use crate::{
     tile_live_packet::WallMediaFormat,
     tile_live_queue::Queue,
     tile_live_socket::{Interrupts, Receiver},
-    tile_shared::Frame,
+    tile_shared::Candidate,
 };
 use std::time::{Duration, Instant};
+const MAX_LIVE: usize = 4;
+
 struct Connections<'a> {
     streams: BTreeMap<String, Receiver>,
     interrupts: &'a Interrupts,
@@ -107,7 +109,7 @@ pub(super) fn run(
         .iter()
         .filter(|p| p.source.kind == "surface" && tile.rect.intersects(&p.rect))
         .count();
-    if ids.len() > 16 || live.len() > 4 || art.len() > 4 || art_placements > 16 {
+    if ids.len() > 16 || live.len() > MAX_LIVE || art.len() > 4 || art_placements > 16 {
         return Err("可见来源数量超限");
     }
     cache.retain(|k, _| ids.contains(k));
@@ -131,14 +133,16 @@ pub(super) fn run(
         streams: BTreeMap::new(),
         interrupts,
     };
+    let image_pixels = pixels(cache.values());
     let mut worker = crate::tile_surface_worker::Worker::start(
         client,
         art_lease,
         shared,
         job,
         art.clone(),
-        pixels(cache.values()),
+        image_pixels,
     )?;
+    let empty_arts = BTreeMap::new();
     loop {
         if phase(&shared.lock(), job) == Phase::Held {
             // Freeze只保实际呈现帧和view，不轮询Art/图片、不保Tile媒体连接；不取消源已接受动作。
@@ -185,40 +189,40 @@ pub(super) fn run(
             Phase::Active => {}
         }
         let now = Instant::now();
-        let estimate = shared.lock().clock.estimate(now);
-        let mut images = cache.clone();
-        let mut until = None;
-        let prepared = shared.lock().art.clone();
-        let arts = prepared
-            .as_ref()
-            .map_or_else(BTreeMap::new, |a| a.frames.clone());
+        let (estimate, prepared) = {
+            let state = shared.lock();
+            (state.clock.estimate(now), state.art.clone())
+        };
+        let arts = prepared.as_ref().map_or(&empty_arts, |a| &a.frames);
         let mut complete = arts.len() == art.len();
-        for (id, stream) in &mut connections.streams {
+        let mut total_pixels = image_pixels + prepared.as_ref().map_or(0, |a| a.pixels);
+        let mut until = None;
+        // Polling advances and expires every queue even if the complete frame is unchanged.
+        let mut selected = [None; MAX_LIVE];
+        for ((id, stream), slot) in connections.streams.iter_mut().zip(&mut selected) {
             if let Some(frame) = stream.queue.advance(estimate) {
                 let deadline = Queue::deadline(frame, estimate.unwrap(), now);
                 until = Some(until.map_or(deadline, |v: Instant| v.min(deadline)));
-                images.insert(id.clone(), frame.image.clone());
+                total_pixels += area(&frame.image);
+                *slot = Some((id, &frame.image));
             } else {
                 complete = false;
             }
         }
-        if pixels(images.values()) + prepared.as_ref().map_or(0, |a| a.pixels)
-            > crate::tile_wire::MAX_PIXELS
-        {
+        if total_pixels > crate::tile_wire::MAX_PIXELS {
             return Err("可见内容像素预算不足");
         }
         if complete {
-            shared.publish_prepared(
+            shared.publish_candidate(
                 job.generation,
-                Frame {
-                    key: job.key.clone(),
-                    layout: job.layout.clone(),
+                Candidate {
+                    key: &job.key,
+                    layout: &job.layout,
                     size: job.size,
-                    images,
+                    images: cache.iter().chain(selected.iter().flatten().copied()),
                     arts,
-                    live_until: None,
+                    until,
                 },
-                until,
                 prepared.as_ref(),
             );
         } else {
@@ -237,6 +241,6 @@ fn area(i: &Image) -> u64 {
 fn pixels<'a>(images: impl Iterator<Item = &'a Image>) -> u64 {
     images.map(area).sum()
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-live")))]
 #[path = "tile_assets_live_tests.rs"]
 mod tests;

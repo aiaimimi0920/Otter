@@ -45,7 +45,7 @@ fn place(anchor: RECT, work: RECT, width: i32, height: i32, gap: i32) -> RECT {
     };
     clamp(candidate, work)
 }
-unsafe fn work_area(rect: &RECT) -> Result<RECT> {
+pub(in crate::desktop) unsafe fn work_area(rect: &RECT) -> Result<RECT> {
     let monitor = MonitorFromRect(rect, MONITOR_DEFAULTTONEAREST);
     let mut info = MONITORINFO {
         cbSize: std::mem::size_of::<MONITORINFO>() as u32,

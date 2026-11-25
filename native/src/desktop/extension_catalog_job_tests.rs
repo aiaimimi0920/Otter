@@ -12,7 +12,9 @@ fn next(job: &mut Job) -> Event {
     let end = Instant::now() + Duration::from_secs(5);
     loop {
         if let Some(event) = job.poll() {
-            return event;
+            if !matches!(event, Event::Revoked) {
+                return event;
+            }
         }
         assert!(Instant::now() < end, "extension owner did not publish");
         thread::sleep(Duration::from_millis(2));
@@ -21,9 +23,12 @@ fn next(job: &mut Job) -> Event {
 fn snapshot(event: Event) -> Arc<Snapshot> {
     match event {
         Event::Snapshot(snapshot) => snapshot,
+        Event::Revoked => panic!("unexpected authority revocation"),
         Event::Stopped(error) => panic!("unexpected terminal: {error:?}"),
     }
 }
+#[path = "extension_catalog_reap_tests.rs"]
+mod reap;
 pub(in crate::desktop) fn data(generation: u64) -> serde_json::Value {
     let mut value = crate::loom_extension_snapshot::tests::fixture();
     value["generation"] = json!(generation);

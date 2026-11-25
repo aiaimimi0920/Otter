@@ -1,4 +1,4 @@
-//! 原 Application 的局部/全局消息→唯一执行 owner；全局注册仅在未切换测试 desktop 内运行。
+//! 原 Application 的局部/全局消息→唯一执行 owner；全局夹具不占用日常产品的 Ctrl+4。
 use super::*;
 use crate::{desktop::capability_job::Source, loom_extension_session::test_peer as peer};
 use serde_json::{json, Value};
@@ -37,7 +37,7 @@ fn data(global: bool) -> Value {
         "when":"unit.hasImage","payload":{"permissions":["hook.unit.image.read","hook.unit.attachments.write"]}}));
     v["contributions"]["shortcuts"] = json!([{"id":"recognize-shortcut","pluginId":crate::extension_visual::OCR,
         "scopeId":"scope:ocr","commandId":desktop::extension_command_route::OCR,"when":"unit.hasImage",
-        "payload":{"keys":"Ctrl+4","global":global}}]);
+        "payload":{"keys":if global { "Ctrl+Alt+Shift+F11" } else { "Ctrl+4" },"global":global}}]);
     v
 }
 unsafe fn app(global: bool) -> Application {
@@ -97,7 +97,11 @@ fn local_shortcuts_respect_text_input_repeat_capture_and_the_actual_message_owne
             lParam: LPARAM(if repeat { 1 << 30 } else { 0 }),
             ..Default::default()
         };
+        let mut unbound = key(host, false);
+        unbound.wParam = WPARAM(b'5' as usize);
+        assert!(!app.translate_extension_shortcuts(&unbound));
         assert!(!app.translate_extension_shortcuts(&key(child.0, false)));
+        assert!(!app.translate_extension_shortcuts(&key(child.0, true)));
         assert!(app.translate_extension_shortcuts(&key(host, true)));
         assert!(!desktop::extension_commands::busy(&app.documents[2].state));
         app.capture_active.set(true);
@@ -128,7 +132,7 @@ fn registered_global_message_executes_for_last_selected_unit_not_first_window_an
         let message = MSG {
             message: WM_HOTKEY,
             wParam: WPARAM(0x5900),
-            lParam: LPARAM(((b'4' as u32) << 16 | 2) as isize),
+            lParam: LPARAM(((VK_F11.0 as u32) << 16 | 7) as isize),
             ..Default::default()
         };
         assert!(app.translate_extension_shortcuts(&message));

@@ -5,7 +5,7 @@ use crate::{
 };
 use std::{
     fs::{File, OpenOptions},
-    io::Read,
+    io::{ErrorKind, Read},
     os::windows::fs::{MetadataExt, OpenOptionsExt},
     path::{Path, PathBuf},
     sync::{atomic::AtomicBool, Arc, Mutex},
@@ -274,12 +274,12 @@ impl std::fmt::Debug for Ticket {
             .finish_non_exhaustive()
     }
 }
-fn regular(file: &File) -> Result<(), Error> {
+fn regular(file: &File) -> Result<u64, Error> {
     let meta = file.metadata().map_err(|_| Error::Read)?;
     if !meta.is_file() || meta.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT.0 != 0 {
         return Err(Error::Read);
     }
-    Ok(())
+    Ok(meta.len())
 }
 fn read(path: &Path) -> Result<Option<Pixels>, Error> {
     let file = match OpenOptions::new()
@@ -291,31 +291,37 @@ fn read(path: &Path) -> Result<Option<Pixels>, Error> {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(_) => return Err(Error::Read),
     };
-    regular(&file)?;
-    let mut budget = crate::pixels::reserve(MAX_BYTES + 1).ok_or(Error::Limit)?;
-    let mut bytes = Vec::new();
-    bytes
-        .try_reserve_exact(MAX_BYTES + 1)
-        .map_err(|_| Error::Limit)?;
-    if !budget.grow_to(bytes.capacity()) {
-        return Err(Error::Limit);
-    }
-    // 固定容量读到边界/EOF，避免 read_to_end 在满缓冲的 EOF 探测时再次扩容。
-    bytes.resize(MAX_BYTES + 1, 0);
-    let mut reader = file;
-    let mut length = 0;
-    while length < bytes.len() {
-        let count = reader.read(&mut bytes[length..]).map_err(|_| Error::Read)?;
-        if count == 0 {
-            break;
-        }
-        length += count;
-    }
+    let length = regular(&file)?;
+    read_sized(file, length).map(Some)
+}
+fn read_sized(mut reader: impl Read, length: u64) -> Result<Pixels, Error> {
+    let length = usize::try_from(length).map_err(|_| Error::Limit)?;
     if length > MAX_BYTES {
         return Err(Error::Limit);
     }
-    bytes.truncate(length);
-    Ok(Some(Pixels::from_reserved(bytes, budget)))
+    let mut budget = crate::pixels::reserve(length).ok_or(Error::Limit)?;
+    let mut bytes = Vec::new();
+    bytes.try_reserve_exact(length).map_err(|_| Error::Limit)?;
+    if !budget.grow_to(bytes.capacity()) {
+        return Err(Error::Limit);
+    }
+    bytes.resize(length, 0);
+    reader.read_exact(&mut bytes).map_err(|error| {
+        if error.kind() == ErrorKind::UnexpectedEof {
+            Error::Changed
+        } else {
+            Error::Read
+        }
+    })?;
+    // 栈上探测 EOF：拒绝读期间变长，不把额外容量挂在共享 CAS 基线上。
+    match reader.read_exact(&mut [0]) {
+        Err(error) if error.kind() == ErrorKind::UnexpectedEof => {
+            Ok(Pixels::from_reserved(bytes, budget))
+        }
+        Ok(()) if length == MAX_BYTES => Err(Error::Limit),
+        Ok(()) => Err(Error::Changed),
+        Err(_) => Err(Error::Read),
+    }
 }
 #[cfg(test)]
 #[path = "projection_receive_journal_tests.rs"]

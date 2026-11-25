@@ -17,6 +17,6 @@ impl Application {
         }
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "application_edit_palette_tests.rs"]
 mod tests;

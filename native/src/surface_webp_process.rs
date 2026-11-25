@@ -1,5 +1,5 @@
 //! 图片 child 的固定入口及原有 128/256 MiB 策略；进程/Job 寿命归共用 owner。
-pub(crate) use crate::bounded_worker_process::Child;
+pub use crate::bounded_worker_process::Child;
 use std::{
     io,
     os::windows::io::OwnedHandle,
@@ -19,7 +19,7 @@ fn capacity(
 ) -> io::Result<crate::byte_budget::Lease> {
     crate::bounded_worker_process::capacity(&CAPACITY, CHILD_LIMIT, deadline, stopped)
 }
-pub(super) fn spawn(
+pub fn spawn(
     endpoint: OwnedHandle,
     deadline: Instant,
     stopped: &impl Fn() -> bool,
@@ -31,7 +31,7 @@ pub(super) fn spawn(
     };
     start(endpoint, deadline, stopped, suffix)
 }
-pub(super) fn spawn_svg(
+pub fn spawn_svg(
     endpoint: OwnedHandle,
     deadline: Instant,
     stopped: &impl Fn() -> bool,
@@ -43,7 +43,7 @@ pub(super) fn spawn_svg(
     };
     start(endpoint, deadline, stopped, suffix)
 }
-pub(super) fn start(
+pub fn start(
     endpoint: OwnedHandle,
     deadline: Instant,
     stopped: &impl Fn() -> bool,

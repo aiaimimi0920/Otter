@@ -1,10 +1,10 @@
 //! 删除不重编号未移动对象的原层级；真正重排才重新分配顺序，新增对象接在原最大值后。
 use super::*;
-pub(crate) struct Plan {
+pub struct Plan {
     values: std::collections::HashMap<String, Value>,
 }
 impl Plan {
-    pub(crate) fn new<'a>(editor: &Editor, old: impl Iterator<Item = &'a Value>) -> Self {
+    pub fn new<'a>(editor: &Editor, old: impl Iterator<Item = &'a Value>) -> Self {
         let mut ordered = old
             .filter_map(|v| {
                 Some((
@@ -68,7 +68,7 @@ impl Plan {
         }
         Self { values }
     }
-    pub(crate) fn value(&self, id: &str, index: usize) -> Value {
+    pub fn value(&self, id: &str, index: usize) -> Value {
         self.values.get(id).cloned().unwrap_or_else(|| json!(index))
     }
 }

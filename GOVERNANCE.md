@@ -27,20 +27,19 @@ the signing provider and while the account retains the intended access.
 
 - Changes proposed by contributors without repository write access require
   maintainer review before merge.
-- Release workflows, build scripts, dependency lockfiles, `.signpath/` policy
-  files, and code-signing policy changes receive explicit release-impact
-  review.
-- During the single-maintainer phase, the maintainer records that review in the
-  tagged release checklist and the hosted signing approval rather than claiming
-  an independent second reviewer.
+- Release workflows, build scripts, dependency lockfiles, and code-signing
+  policy changes receive explicit release-impact review.
+- During the single-maintainer phase, the maintainer records that review rather
+  than claiming an independent second reviewer. A signed release must also
+  retain its tagged release checklist and hosted signing approval.
 
 ## Release and signing approval
 
-- Public releases are produced from public `vx.y.z` tags by GitHub Actions;
-  historical `Vx.y.z` tags remain supported, not internal four-part tags.
-- Every SignPath signing request requires manual approval in SignPath.
-- The `signpath-production` GitHub Environment must also have required reviewers
-  configured before its signing secret is added.
+- The current workflow builds internal ZIPs only. It does not publish or sign
+  a public release. Internal four-part versions are not public release tags.
+- Before enabling a future signed public release, configure required reviewers
+  for its protected GitHub Environment before adding signing credentials. The
+  signing provider must also require separate manual approval.
 - Private signing keys are never committed to this repository or exported into
   the workflow.
 - An unsigned artifact must never be published under the signed

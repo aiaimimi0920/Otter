@@ -5,7 +5,7 @@ use windows::{
     Win32::Foundation::{E_INVALIDARG, E_OUTOFMEMORY},
 };
 #[path = "native_menu_panel_thumbnail.rs"]
-pub(crate) mod draw;
+pub mod draw;
 #[derive(Clone)]
 pub struct Thumbnail {
     width: u32,
@@ -13,13 +13,19 @@ pub struct Thumbnail {
     pixels: Pixels,
 }
 impl Thumbnail {
-    pub(crate) fn from_image(image: &Image) -> Result<Self> {
-        Self::sample(image.width, image.height, &image.pixels, false)
+    pub fn from_image(image: &Image) -> Result<Self> {
+        Self::sample(
+            image.width,
+            image.height,
+            &image.pixels,
+            Some(&image.pixels),
+        )
     }
-    pub(crate) fn from_rgba(width: u32, height: u32, pixels: &[u8]) -> Result<Self> {
-        Self::sample(width, height, pixels, true)
+    pub fn from_rgba(width: u32, height: u32, pixels: &[u8]) -> Result<Self> {
+        Self::sample(width, height, pixels, None)
     }
-    fn sample(width: u32, height: u32, pixels: &[u8], straight: bool) -> Result<Self> {
+    // shared 存在时，源为拥有租约的 PBGRA；否则输入是借用的直通 RGBA。
+    fn sample(width: u32, height: u32, pixels: &[u8], shared: Option<&Pixels>) -> Result<Self> {
         if width == 0
             || height == 0
             || width > 8192
@@ -31,6 +37,16 @@ impl Thumbnail {
         let longest = width.max(height).max(64);
         let w = (width * 64 / longest).max(1);
         let h = (height * 64 / longest).max(1);
+        if (w, h) == (width, height) {
+            if let Some(pixels) = shared.filter(|pixels| pixels.is_compact()) {
+                return Ok(Self {
+                    width,
+                    height,
+                    pixels: pixels.clone(),
+                });
+            }
+        }
+        let straight = shared.is_none();
         let size = (w * h * 4) as usize;
         let lease = crate::pixels::reserve(size)
             .ok_or_else(|| Error::new(E_OUTOFMEMORY, "Thumbnail budget exhausted"))?;
@@ -87,6 +103,22 @@ mod tests {
             pixels: vec![0; 3].into()
         })
         .is_err());
+    }
+    #[test]
+    fn unchanged_pbgra_size_reuses_only_compact_storage() {
+        let mut image = Image {
+            width: 64,
+            height: 1,
+            pixels: vec![17; 256].into(),
+        };
+        let thumbnail = Thumbnail::from_image(&image).unwrap();
+        assert!(thumbnail.pixels.same_storage(&image.pixels));
+        let mut padded = Vec::with_capacity(4096);
+        padded.resize(256, 17);
+        image.pixels = padded.into();
+        let copied = Thumbnail::from_image(&image).unwrap();
+        assert!(!copied.pixels.same_storage(&image.pixels));
+        assert_eq!(copied.pixels(), thumbnail.pixels());
     }
     #[test]
     fn straight_service_preview_is_sampled_and_premultiplied_without_copying_a_full_frame() {

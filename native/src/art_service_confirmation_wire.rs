@@ -144,9 +144,10 @@ impl Call<'_> {
                         .strip_prefix("capability:")
                         .ok_or(Error::Identity)?
                         .replacen(':', "/", 1)
-                || challenge.fingerprint != self.fingerprint()?
-                || challenge.expires_at_ms <= now().map_err(Error::Http)?
                 || self.challenge.as_ref().is_some_and(|old| old != challenge)
+                // 已提交调用的输入不可变；仅完整匹配上次已验证的挑战时跳过重算。
+                || (self.challenge.is_none() && challenge.fingerprint != self.fingerprint()?)
+                || challenge.expires_at_ms <= now().map_err(Error::Http)?
             {
                 return Err(Error::Identity);
             }

@@ -87,10 +87,7 @@ impl Application {
             let snapshot = owner.capture(&canvas.editor);
             if snapshot.conflict().is_some() {
                 "协作冲突，保留本地修改"
-            } else if snapshot
-                .editor_view()
-                .is_ok_and(|view| view.basis_objects() != &snapshot.document().live_objects())
-            {
+            } else if snapshot.visible_differs_from_authority() {
                 "已接收协作，本地修改待提交"
             } else {
                 "协作标注已同步"
@@ -112,7 +109,7 @@ impl Application {
         record.restored_projections = Some(update.index);
         self.saved_state = None;
         self.display_cache.borrow_mut().take();
-        *self.display_composition.borrow_mut() = Default::default();
+        self.display_composition.borrow_mut().invalidate();
         self.authorization.borrow_mut().projection.status = if stopped {
             "投送关联已停止，保留最后内容"
         } else {

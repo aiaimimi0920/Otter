@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { create, verify, validateSource } = require('../native-candidate/provenance.cjs');
+const { create, digest, verify, validateSource } = require('../native-candidate/provenance.cjs');
 const { hash, assertUnchanged } = require('../native-candidate/source.cjs');
 const base = process.env.OTTER_NATIVE_CANDIDATE_TEST_ROOT;
 if (!base || !path.isAbsolute(base)) throw new Error('Set absolute OTTER_NATIVE_CANDIDATE_TEST_ROOT');
@@ -40,6 +40,47 @@ test('internal candidate binds content without granting release or runtime accep
   assert.equal(receipt.signed, false);
   assert.equal(receipt.gitDirty, true);
   assert.equal(receipt.files.length, 9);
+});
+test('streamed digests match exact bytes at empty, chunk and multi-chunk sizes', () => {
+  const root = fixture();
+  for (const length of [0, 65536, 65537, 131073]) {
+    const bytes = Buffer.alloc(length, 0xab);
+    const name = 'build.log';
+    fs.writeFileSync(path.join(root, name), bytes);
+    assert.deepEqual(digest(root, name, length), { path: name, bytes: length, sha256: hash(bytes) });
+    if (length > 0) assert.throws(() => digest(root, name, length - 1), /Invalid candidate file/);
+  }
+  assert.throws(() => digest(root, 'payload'), /Invalid candidate file/);
+});
+for (const size of [1, 4]) {
+  test(`digest refuses length ${size} after observing 3 bytes`, t => {
+    const root = fixture();
+    const file = path.join(root, 'build.log');
+    fs.writeFileSync(file, 'abc');
+    const readSync = fs.readSync;
+    const fstatSync = fs.fstatSync;
+    let checkedFd;
+    t.mock.method(fs, 'fstatSync', fd => {
+      const stat = fstatSync(fd);
+      checkedFd = fd;
+      fs.truncateSync(file, size);
+      return stat;
+    });
+    const read = t.mock.method(fs, 'readSync', (...args) => readSync(...args));
+    assert.throws(() => digest(root, 'build.log'), /file size changed while hashing/);
+    assert.ok(read.mock.calls.every(call => call.arguments[2] === 0 && call.arguments[3] <= 3));
+    assert.throws(() => fstatSync(checkedFd), { code: 'EBADF' });
+  });
+}
+test('final staging check refuses a differently sealed but valid candidate', () => {
+  const root = fixture();
+  const first = verify(root);
+  assert.deepEqual(verify(root, first), first);
+  fs.appendFileSync(path.join(root, 'build.log'), 'replacement');
+  const replacement = create(root);
+  write(root, 'provenance.json', replacement);
+  assert.deepEqual(verify(root), replacement);
+  assert.throws(() => verify(root, first), /provenance changed during staging/);
 });
 for (const name of ['payload/otter-native.exe', 'payload/otter_live_hover_hook.dll', 'build.log', 'metadata.json']) {
   test(`tampering is rejected: ${name}`, () => {

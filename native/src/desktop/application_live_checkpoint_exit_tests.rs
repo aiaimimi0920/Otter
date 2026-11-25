@@ -71,7 +71,9 @@ fn final_checkpoint_forces_latest_frame_and_preserves_manual_file_until_window_c
         settle_auto(&mut app);
         assert_eq!(revision(&directory.bytes()), 1);
         source.publish([0, 255, 0, 255]);
+        let reads = save_snapshot::live_frame_reads_for_test();
         begin(&mut app);
+        assert_eq!(save_snapshot::live_frame_reads_for_test() - reads, 1);
         assert!(app.documents[0].is_alive() && IsWindow(Some(hwnd)).as_bool());
         app.exit_requested.set(true);
         assert!(!app.close_requested_with(|_| panic!("duplicate request must not re-prompt")));

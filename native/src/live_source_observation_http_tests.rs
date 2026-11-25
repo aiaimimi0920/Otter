@@ -11,7 +11,7 @@ fn observation() -> Observation {
     Observation::parse(br#"{"observationId":"uia:edit","sequence":1,"state":"observing","source":"ui_automation","confidence":"exact","observedAtMs":100,"locator":{"automationId":"101","controlType":"Edit","ancestorPath":[]},"value":{"value":{"text":"seven","readOnly":false}}}"#).unwrap()
 }
 #[test]
-fn source_observation_ack_loss_reconciles_exact_payload_and_close_uses_current_actor() {
+fn source_observation_ack_loss_reconciles_and_closes_with_viewer_trigger_bindings() {
     let (listener, client, tls) = fixture();
     let session = session(&client.origin, u64::MAX);
     let mut publication =
@@ -46,6 +46,9 @@ fn source_observation_ack_loss_reconciles_exact_payload_and_close_uses_current_a
                 2 | 3 => {
                     assert!(head.starts_with("GET /v1/live/sessions/"));
                     assert!(!head.contains("/observations"));
+                    snapshot["session"]["triggerBindings"] = json!([{
+                        "bindingId":"trigger:viewer", "authorizedBy":"device-viewer", "enabled":stage==2
+                    }]);
                     reply(&mut stream, 200, &serde_json::to_vec(&snapshot).unwrap());
                 }
                 _ => {

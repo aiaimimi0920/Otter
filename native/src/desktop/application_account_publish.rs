@@ -156,7 +156,7 @@ impl Application {
                     .edit_original(source);
                 self.saved_state = None;
                 self.display_cache.borrow_mut().take();
-                *self.display_composition.borrow_mut() = Default::default();
+                self.display_composition.borrow_mut().invalidate();
                 (*binding, None)
             }
         };

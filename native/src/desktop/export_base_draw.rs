@@ -5,11 +5,12 @@ pub(in crate::desktop::export) fn draw(
     target: &ID2D1RenderTarget,
     bitmap: &ID2D1Bitmap,
     layout: Option<&Layout>,
+    sampling: Sampling,
     opacity: f32,
 ) {
     let mut destination = layout.map(|layout| layout.base);
     let mut source = None;
-    match layout.map(|layout| layout.sampling).unwrap_or_default() {
+    match layout.map_or(sampling, |layout| layout.sampling) {
         Sampling::Empty => return,
         Sampling::Region(projection) => {
             destination = Some(rect(projection.target));

@@ -5,12 +5,17 @@ use crate::{
 };
 use serde::Deserialize;
 
+pub(crate) const RASTERIZED_SOURCE_FIELD: &str = "otterNativeRasterizedCropSource";
+pub(crate) const FULL_RASTERIZED_SOURCE_FIELD: &str = "otterNativeRasterizedFullSource";
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Restored {
     pub frame: Rect,
     pub crop: Crop,
     pub flipped_x: bool,
     pub flipped_y: bool,
+    /// The stored base already includes the full logical frame and its margins.
+    pub rasterized_source: bool,
 }
 #[derive(Debug, PartialEq)]
 pub enum Error {
@@ -31,6 +36,10 @@ struct Fields {
     flipped_x: bool,
     #[serde(default)]
     flipped_y: bool,
+    #[serde(default)]
+    otter_native_rasterized_crop_source: bool,
+    #[serde(default)]
+    otter_native_rasterized_full_source: bool,
 }
 impl Restored {
     /// 将持久的源逻辑框归一化到当前显示比例。标注只需加 rect.x/y，不能再次缩放。
@@ -73,13 +82,23 @@ impl Restored {
     }
 }
 pub fn restore(window: &Window<'_>) -> Result<Option<Restored>, Error> {
+    restore_with_full_source(window).map(|(crop, _)| crop)
+}
+
+pub(crate) fn restore_with_full_source(
+    window: &Window<'_>,
+) -> Result<(Option<Restored>, bool), Error> {
     let fields: Fields = match window.image_edit_state {
         Some(raw) => serde_json::from_str(raw.get()).map_err(|_| Error::Shape)?,
-        None => return Ok(None),
+        None => return Ok((None, false)),
     };
+    validate_full_marker(&fields)?;
     // 主干缺任一字段就不启用裁剪；原始字段仍留在完整会话，不做降级写回。
     let (Some(crop), Some(source)) = (fields.crop_rect, fields.source_size) else {
-        return Ok(None);
+        if fields.otter_native_rasterized_crop_source {
+            return Err(Error::Geometry);
+        }
+        return Ok((None, fields.otter_native_rasterized_full_source));
     };
     let frame = window.expanded_rect().ok_or(Error::Geometry)?;
     let restored = Restored {
@@ -103,9 +122,21 @@ pub fn restore(window: &Window<'_>) -> Result<Option<Restored>, Error> {
         },
         flipped_x: fields.flipped_x,
         flipped_y: fields.flipped_y,
+        rasterized_source: fields.otter_native_rasterized_crop_source,
     };
     restored.reset_frame()?;
-    Ok(Some(restored))
+    Ok((Some(restored), false))
+}
+
+fn validate_full_marker(fields: &Fields) -> Result<(), Error> {
+    if fields.otter_native_rasterized_full_source
+        && (fields.crop_rect.is_some()
+            || fields.source_size.is_some()
+            || fields.otter_native_rasterized_crop_source)
+    {
+        return Err(Error::Geometry);
+    }
+    Ok(())
 }
 
 /// 旧cropRect使用自然像素；恢复图片已翻转，故在这里转换到已物化像素的坐标。
@@ -266,6 +297,7 @@ mod tests {
             },
             flipped_x: false,
             flipped_y: false,
+            rasterized_source: false,
         };
         assert_eq!(restored.editor_crop(), Err(Error::Geometry));
     }

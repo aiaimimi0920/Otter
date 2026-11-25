@@ -22,6 +22,35 @@ mod receive_owner;
 mod recovery;
 #[path = "application_projection_targets_tests.rs"]
 mod targets;
+
+fn assert_peer_disconnected(stream: &mut impl Read) {
+    use std::io::ErrorKind;
+    match stream.read(&mut [0]) {
+        Ok(0) => {}
+        // rustls reports UnexpectedEof when the peer drops TCP without close_notify.
+        Err(error)
+            if matches!(
+                error.kind(),
+                ErrorKind::UnexpectedEof
+                    | ErrorKind::ConnectionReset
+                    | ErrorKind::ConnectionAborted
+            ) => {}
+        result => panic!("expected peer disconnect, got {result:?}"),
+    }
+}
+
+#[test]
+#[should_panic(expected = "expected peer disconnect")]
+fn projection_peer_read_timeout_does_not_prove_disconnect() {
+    struct TimeoutRead;
+    impl Read for TimeoutRead {
+        fn read(&mut self, _: &mut [u8]) -> std::io::Result<usize> {
+            Err(std::io::ErrorKind::TimedOut.into())
+        }
+    }
+    assert_peer_disconnected(&mut TimeoutRead);
+}
+
 fn config(
     origin: &str,
     root: &std::path::Path,
@@ -59,7 +88,7 @@ fn run_routed(mode: u8, offline: bool) {
         peer::serve_routed(listener, tls, server_origin, mode, ready_tx, offline)
     });
     unsafe {
-        let (_class, mut app) = application();
+        let mut app = application();
         app.authorization.borrow_mut().origin = Some(origin.clone());
         app.authorization_owner
             .start(Task::Renew { client, store })

@@ -91,6 +91,22 @@ impl Application {
     }
 }
 impl Cycle {
+    pub(super) fn deadline(&self, preparation: Option<&Pending>) -> Option<std::time::Instant> {
+        match &self.phase {
+            Phase::PreparingArchive | Phase::PreparingSync => preparation?.job.deadline(),
+            Phase::Archiving(pending) => pending.deadline(),
+            _ => None,
+        }
+    }
+
+    pub(super) fn into_archive_job(
+        self,
+    ) -> Option<crate::desktop::session_candidate::WorkflowArchiveJob> {
+        match self.phase {
+            Phase::Archiving(pending) => Some(pending.into_job()),
+            _ => None,
+        }
+    }
     unsafe fn step(&mut self, app: &mut Application) -> Result<()> {
         match &mut self.phase {
             Phase::PreparingArchive => {
@@ -133,8 +149,11 @@ impl Cycle {
     }
 }
 
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
+#[path = "application_workflow_real_loom_tests.rs"]
+mod real_loom_tests;
 #[path = "application_workflow_cycle_smoke.rs"]
 pub(in crate::desktop::application) mod smoke;
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "application_workflow_cycle_tests.rs"]
 mod tests;

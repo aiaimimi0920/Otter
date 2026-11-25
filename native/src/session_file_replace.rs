@@ -206,6 +206,6 @@ fn check(cancel: &AtomicBool) -> io::Result<()> {
 #[cfg(test)]
 #[path = "session_file_crash_tests.rs"]
 mod crash_tests;
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "session_file_replace_tests.rs"]
 mod tests;

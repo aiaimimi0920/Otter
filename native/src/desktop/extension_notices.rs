@@ -10,6 +10,15 @@ pub(super) struct Notices {
     entries: Vec<Entry>,
     stack: Option<neuro_mini_ui::NoticeStack>,
 }
+#[cfg(test)]
+impl Notices {
+    pub(super) fn live_unscoped_count(&self) -> usize {
+        self.entries
+            .iter()
+            .filter(|entry| entry.scope.is_none() && entry.notice.window().is_some())
+            .count()
+    }
+}
 pub(super) unsafe fn show(
     hwnd: HWND,
     state: &State,
@@ -86,6 +95,6 @@ pub(super) unsafe fn translate(
         .as_ref()
         .is_some_and(|stack| stack.translate(message))
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-loom")))]
 #[path = "extension_notices_tests.rs"]
 mod tests;

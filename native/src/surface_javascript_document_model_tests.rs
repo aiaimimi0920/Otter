@@ -40,6 +40,68 @@ fn javascript_document_model_rejections_preserve_original_tree() {
     assert_eq!(value["scene"]["children"][0]["props"]["text"], "original");
 }
 #[test]
+fn javascript_document_model_markup_rejection_preserves_node_and_event_capacity() {
+    let value = collect(
+        r#"NeuroSurface.define({mount({root}){
+      root.innerHTML='<span>original</span>';
+      const old=root.firstChild, long='x'.repeat(65537);
+      const reject=source=>{
+        try{root.innerHTML=source}catch(error){return}
+        throw Error('unexpected admission');
+      };
+      for(let i=0;i<2048;i++){
+        reject(long); reject('x\0'); reject('<span></div>');
+      }
+      if(root.firstChild!==old)throw Error('lost identity');
+      // Root plus the first Fragment, span and Text used four identities.
+      for(let i=0;i<2040;i++)document.createElement('span');
+      // This reaches the node boundary mid-construction before the final insert.
+      reject('<span>one</span><span>two</span>');
+      root.innerHTML='<span>next</span>';
+      const probe=document.createElement('span');
+      probe.addEventListener('click',()=>{});
+      reject('<span></span>');
+    }});"#,
+    );
+    assert_eq!(value["scene"]["children"][0]["props"]["text"], "next");
+}
+#[test]
+fn javascript_document_model_markup_converts_before_private_transaction() {
+    let value = collect(
+        r#"NeuroSurface.define({mount({root}){
+      const append=Node.prototype.appendChild, replace=Node.prototype.replaceChildren;
+      const attr=Element.prototype.setAttribute, exec=RegExp.prototype.exec;
+      const starts=String.prototype.startsWith, superType=Object.getPrototypeOf(HTMLElement);
+      const ErrorType=Error, trap=()=>{throw new ErrorType('public hook called')};
+      let retained;
+      Node.prototype.appendChild=Node.prototype.replaceChildren=Element.prototype.setAttribute=trap;
+      RegExp.prototype.exec=String.prototype.startsWith=trap;
+      Object.setPrototypeOf(HTMLElement, class {constructor(){trap()}});
+      globalThis.Error=trap;
+      try{
+        try{root.innerHTML={toString(){
+          root.innerHTML='<span>conversion</span>';retained=root.firstChild;
+          return '<span>&#xD800;</span>';
+        }};throw new ErrorType('unexpected admission')}catch(error){
+          if(error.message!=='Unsupported or invalid native DOM operation')throw error;
+        }
+        if(root.firstChild!==retained)throw new ErrorType('conversion lost');
+        root.innerHTML='<span title="&quot;">&amp;&#65;&#x1F600;&UNKNOWN;</span>';
+        if(root.firstChild.textContent!=='&A😀&UNKNOWN;'||root.firstChild===retained)
+          throw new ErrorType('entity or identity mismatch');
+      }finally{
+        Node.prototype.appendChild=append;Node.prototype.replaceChildren=replace;Element.prototype.setAttribute=attr;
+        RegExp.prototype.exec=exec;String.prototype.startsWith=starts;Object.setPrototypeOf(HTMLElement,superType);
+        globalThis.Error=ErrorType;
+      }
+    }});"#,
+    );
+    assert_eq!(
+        value["scene"]["children"][0]["props"]["text"],
+        "&A😀&UNKNOWN;"
+    );
+}
+#[test]
 fn javascript_document_model_generic_fragment_fixture() {
     let value = collect(include_str!("../tests/fixtures/javascript-document.js"));
     assert_eq!(value["scene"]["children"][0]["props"]["text"], "ready");
@@ -104,4 +166,84 @@ fn javascript_document_model_mutable_intrinsics_cannot_observe_private_tree() {
     );
     assert_eq!(value["scene"]["children"][0]["props"]["text"], "safe");
     assert_eq!(value["scene"]["children"][1]["props"]["label"], "next");
+}
+#[test]
+fn javascript_document_model_first_selector_matches_static_tree_order() {
+    let value = collect(
+        r#"NeuroSurface.define({mount({root}){
+      root.innerHTML='<section><span id="same" class="hit" data-x="v">first</span></section><span id="same" class="hit" data-x="v">last</span>';
+      const fragment=document.createDocumentFragment();
+      fragment.append(document.createTextNode('text'),document.createElement('span'),document.createElement('span'));
+      for(const owner of [document,root,fragment]){
+        for(const selector of ['*','span','.hit','#same','[data-x]','[data-x="v"]','[missing]']){
+          const all=owner.querySelectorAll(selector);
+          if(owner.querySelector(selector)!==(all[0]??null)||!Object.isFrozen(all)||all.item(999)!==null)throw Error('first/static mismatch');
+        }
+      }
+      if(document.querySelector('*')!==root||root.querySelector('*')!==root.firstChild)throw Error('root inclusion');
+      if(root.querySelector('.hit').textContent!=='first')throw Error('preorder');
+      const snapshot=root.querySelectorAll('.hit');root.replaceChildren();
+      if(snapshot.length!==2||snapshot.item(0).textContent!=='first'||root.querySelector('.hit')!==null)throw Error('static collection');
+      root.textContent='selectors';
+    }});"#,
+    );
+    assert_eq!(value["scene"]["children"][0]["props"]["text"], "selectors");
+}
+#[test]
+fn javascript_document_model_first_selector_stops_after_match() {
+    let value = collect(
+        r#"NeuroSurface.define({mount({root}){
+      root.innerHTML='<span data-hit="yes">first</span><span data-hit="yes">last</span>';
+      const original=Element.prototype.hasAttribute;let visits=0;
+      Element.prototype.hasAttribute=function(name){visits++;return original.call(this,name)};
+      try{
+        if(root.querySelector('[data-hit]')!==root.firstChild||visits!==1)throw Error('element scanned later match');
+        visits=0;
+        if(document.querySelector('[data-hit]')!==root.firstChild||visits!==2)throw Error('document scanned later match');
+        visits=0;root.setAttribute('data-hit','yes');
+        if(document.querySelector('[data-hit]')!==root||visits!==1)throw Error('root did not stop');
+        visits=0;
+        if(root.querySelectorAll('[data-hit]').length!==2||visits!==2)throw Error('all stopped early');
+      }finally{Element.prototype.hasAttribute=original}
+      root.textContent='short-circuit';
+    }});"#,
+    );
+    assert_eq!(
+        value["scene"]["children"][0]["props"]["text"],
+        "short-circuit"
+    );
+}
+#[test]
+fn javascript_document_model_selector_validation_and_conversion_keep_timing() {
+    let value = collect(
+        r#"NeuroSurface.define({mount({root}){
+      const fragment=document.createDocumentFragment();
+      for(const owner of [document,root,fragment])for(const method of ['querySelector','querySelectorAll']){
+        let rejected=false;try{owner[method]('div > span')}catch{rejected=true}
+        if(!rejected)throw Error('empty tree accepted invalid selector');
+      }
+      const target=document.createElement('span');target.id='target';
+      if(root.querySelector({toString(){root.append(target);return '#target'}})!==target)throw Error('conversion before walk');
+      if(document.getElementById({toString(){target.remove();return 'target'}})!==target)throw Error('id conversion after collection');
+      root.textContent='conversion';
+    }});"#,
+    );
+    assert_eq!(value["scene"]["children"][0]["props"]["text"], "conversion");
+}
+#[test]
+fn javascript_document_model_query_bounds_and_static_collection_integrity() {
+    let value = collect(include_str!(
+        "../tests/fixtures/javascript-document-query.js"
+    ));
+    assert_eq!(value["scene"]["children"][0]["props"]["text"], "queries");
+}
+#[test]
+fn javascript_document_model_live_children_mutation_and_reentrant_item() {
+    let value = collect(include_str!(
+        "../tests/fixtures/javascript-document-collections.js"
+    ));
+    assert_eq!(
+        value["scene"]["children"][0]["props"]["text"],
+        "collections"
+    );
 }

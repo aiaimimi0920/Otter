@@ -33,7 +33,7 @@ fn run(advertised: bool, revoke: bool, corrupt: bool) {
         peer::serve(listener, server, advertised, revoke, corrupt, download_rx)
     });
     unsafe {
-        let (_class, mut app) = fixture::application();
+        let mut app = fixture::application();
         app.authorization.borrow_mut().origin = Some(origin.clone());
         app.authorization_owner
             .start(crate::device_authorization_runtime::Task::Renew { client, store })
@@ -181,6 +181,8 @@ fn run(advertised: bool, revoke: bool, corrupt: bool) {
                 } else {
                     app.surface_windows.close_all().unwrap();
                     assert!(app.surface_windows.take_closed().is_none()); // 未收割线程不许移除 owner。
+                    assert!(!app.surface_windows.retire_confirmed());
+                    assert!(app.surface_windows.retired_records().is_empty());
                     assert_eq!(app.surface_windows.wait_handles().len(), 1);
                     wait_script(&app, false);
                     app.poll_remote_live_with(false, &mut config).unwrap();
@@ -194,18 +196,19 @@ fn run(advertised: bool, revoke: bool, corrupt: bool) {
                 app.poll_remote_live_with(false, |_| panic!("corrupt script retried"))
                     .unwrap();
             }
-            let window = app.surface_windows.iter_mut().next().unwrap();
-            assert!(!window.is_alive() && !window.is_shown() && !IsWindow(Some(parent)).as_bool());
-            assert!(window.javascript_finished());
-            assert!(!window.lifecycle().unwrap().disposed());
-            assert_eq!(
-                window.binding().lifecycle(),
-                if revoke {
-                    crate::surface_live_binding::Lifecycle::Active
-                } else {
-                    crate::surface_live_binding::Lifecycle::Inactive
-                }
-            );
+            assert!(!IsWindow(Some(parent)).as_bool());
+            if revoke {
+                let window = app.surface_windows.iter_mut().next().unwrap();
+                assert!(!window.is_alive() && !window.is_shown());
+                assert!(window.javascript_finished());
+                assert!(window.lifecycle().unwrap().confirmed_active());
+                assert!(app.surface_windows.retired_records().is_empty());
+            } else {
+                assert!(app.surface_windows.iter_mut().next().is_none());
+                let records = app.surface_windows.retired_records();
+                assert_eq!(records.len(), 1);
+                assert!(!records[0].uncertain() && !records[0].in_flight());
+            }
             assert!(app.surface_windows.wait_handles().is_empty());
             let settled = app.surface_windows.settle_shutdown(
                 &mut app.remote_sessions,

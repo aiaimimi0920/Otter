@@ -2,7 +2,6 @@
 <h1 align="center">Otter</h1>
 <p align="center"><strong>截下画面，留在桌面，改成你想要的样子。</strong><br>连接节点，生成效果。让桌面成为你的创作工作台。</p>
 <p align="center">
-  官网 ·
   <a href="https://github.com/aiaimimi0920/Otter/releases">下载</a> ·
   <a href="./docs/README.md">文档中心</a> ·
   <a href="https://github.com/aiaimimi0920/Otter/issues">反馈</a>
@@ -32,20 +31,17 @@ Otter 是一款免费开源的截图工具，让截图、标注、整理与分�
 
 ## 开始使用
 
-- **截取钉图：** 截取桌面上任意画面，将画面钉在桌面的任意位置。
-- **快速编辑：** 使用编辑栏内的工具，对钉图进行快速的标注处理。
-- **连接流程：** 使用 Loom 的节点工具，进行高级工作流组装处理。
-- **分享画面：** 使用推送工具，将贴图的画面推送给已连接、完成配对授权的 Otter 接收端。
-
 | 从这里开始 | 需要做什么 |
 | --- | --- |
-| [下载 Otter](https://github.com/aiaimimi0920/Otter/releases) | 解压并启动 Otter App，即可开始使用。 |
+| [下载 Otter](https://github.com/aiaimimi0920/Otter/releases) | 历史公开下载按各自发行说明使用；当前内部 ZIP 须完整解压后启动 `otter-native.exe`。 |
 | 下载 Otter + Loom | 解压并启动 Otter App 和 Loom App。在 Loom 中安装 OCR、翻译等能力包，也可按需添加常用的 MCP 工具和 Art 节点，拓展你的创作工作流。 |
 
 1. 按 **`Ctrl+1`** 区域截图、**`Ctrl+2`** 实时截图，或 **`Ctrl+3`** 长截图。
 2. 选中钉图，按 **`Ctrl+E`** 显示或隐藏编辑工具栏，**`Tab`** 展开或收起参数面板；退出编辑或选择状态后，按 **`Esc`** 删除钉图。
 3. 对应 Loom 能力可用时，按 **`Ctrl+4`** 进行 OCR 识别，**`Alt+4`** 切换识别结果显示；按 **`Ctrl+5`** 翻译，**`Alt+5`** 切换翻译结果显示；按 **`Shift+1`** 打开 Art 菜单，添加新的节点。
-4. 选中钉图，打开工具栏，勾选投射目标后点击“确认”。接收端选择“接收”或“自动”即可自动接收；发送端显示等待与已接收数量。两端均使用最新 Otter。
+4. 选中钉图，打开工具栏，勾选投射目标后点击“确认”。接收端选择“接收”或“自动”会自动接受符合授权的投送；发送端显示等待与已接收数量。Otter 与 Loom 使用当前配套版本。
+
+当前原生版本可在 Loom 菜单查询本次会话中已关闭的 Surface，再明确确认候选以重新挂载。
 
 [**完整使用教程 →**](./docs/guide/getting-started.zh-CN.md)
 
@@ -56,7 +52,7 @@ Otter 是一款免费开源的截图工具，让截图、标注、整理与分�
 ## 参与贡献
 
 欢迎反馈问题、参与翻译、改进文档或贡献代码。
-从[社区参与方式](./docs/guide/contributing.zh-CN.md)或[翻译教程](./docs/guide/translating.zh-CN.md)开始，
+从[参与贡献与翻译](./docs/guide/contributing.zh-CN.md)开始，
 也可以从[项目目录说明](./docs/architecture/overview.md#2-repository-layout)了解代码结构。
 新增或移动文件前，请阅读[代码组织与开发规范](./docs/development/CODE_ORGANIZATION.md)。
 代码修改请遵循[工程贡献规范](./CONTRIBUTING.md)，反馈前先搜索[已有 Issues](https://github.com/aiaimimi0920/Otter/issues)。

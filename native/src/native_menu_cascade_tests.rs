@@ -134,6 +134,7 @@ fn accessibility_requests_use_existing_cascade_and_revoke_after_close() {
     parent.enqueue(Action::Expand).unwrap();
     menu.poll().unwrap();
     assert_eq!(menu.pages.len(), 2);
+    assert!(parent.read().unwrap().expanded);
     assert!(menu.take_command().is_none());
     let leaf = menu.pages[1].panel.accessibility_nodes().remove(0);
     leaf.enqueue(Action::Invoke).unwrap();
@@ -142,6 +143,36 @@ fn accessibility_requests_use_existing_cascade_and_revoke_after_close() {
     assert!(menu.closed());
     assert_eq!(menu.take_command(), Some(42));
     assert!(leaf.read().is_none());
+}
+
+#[test]
+fn accessibility_commit_tracks_same_depth_refresh_and_child_only_collapse() {
+    use crate::native_menu::accessibility::Action;
+    let owner = Owner::new();
+    let mut parent = item(1);
+    parent.children = Some(vec![item(42)]);
+    let mut menu = Cascade::open(owner.0, vec![parent, item(2)], POINT { x: 30, y: 30 }).unwrap();
+    assert_eq!(menu.accessibility_pages.get(), Some(1));
+    let root = menu.pages[0].panel.accessibility_nodes();
+    root[0].enqueue(Action::Expand).unwrap();
+    menu.poll().unwrap();
+    let child = root[0].child().unwrap();
+    child.node(0).unwrap().enqueue(Action::Focus).unwrap();
+    menu.poll().unwrap();
+    assert!(child.focused().unwrap().1.read().unwrap().focused);
+    assert!(!root[0].read().unwrap().focused);
+    assert_eq!(menu.accessibility_pages.get(), Some(2));
+    menu.poll().unwrap();
+    root[0].enqueue(Action::Collapse).unwrap();
+    menu.poll().unwrap();
+    assert_eq!(menu.accessibility_pages.get(), Some(1));
+    assert!(root[0].child().is_none());
+    assert!(root[0].read().unwrap().focused);
+    assert!(!root[0].read().unwrap().expanded);
+    root[1].enqueue(Action::Focus).unwrap();
+    root[1].enqueue(Action::Invoke).unwrap();
+    menu.poll().unwrap();
+    assert_eq!(menu.take_command(), Some(2));
 }
 
 #[test]

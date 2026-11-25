@@ -24,12 +24,7 @@ pub(crate) fn invalid() -> io::Error {
 }
 pub(crate) fn pixel_count(width: u32, height: u32) -> io::Result<usize> {
     // 保留旧 ShaderRenderer 的 8192 / 32 MP（含 4K）准入，而非图片通用上限。
-    if width > 8192 || height > 8192 {
-        return Err(invalid());
-    }
-    crate::viewport::checked_image_bytes(width, height)
-        .filter(|count| *count <= 128 * 1024 * 1024)
-        .ok_or_else(invalid)
+    crate::viewport::checked_shader_texture_bytes(width, height).ok_or_else(invalid)
 }
 fn identifier(name: &str) -> io::Result<()> {
     crate::shader_angle::name(name)

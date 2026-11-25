@@ -166,6 +166,9 @@ impl Owner {
             notify,
         }
     }
+    pub(super) fn deadline(&self) -> Option<std::time::Instant> {
+        self.pending.as_ref().and_then(|p| p.job.deadline())
+    }
     pub(super) unsafe fn process(
         &mut self,
         documents: &[DocumentWindow],

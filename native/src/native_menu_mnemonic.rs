@@ -41,7 +41,7 @@ impl Cascade {
         };
         let level = self.pages.len() - 1;
         let page = &self.pages[level];
-        let matches: Vec<usize> = self
+        let mut matches = self
             .items(&page.path)
             .iter()
             .enumerate()
@@ -52,17 +52,19 @@ impl Cascade {
                         .is_some_and(|key| key.to_lowercase().eq(value.to_lowercase())))
                 .then_some(index)
             })
-            .collect();
-        let Some(&first) = matches.first() else {
+            .peekable();
+        let Some(first) = matches.next() else {
             return Ok(());
         };
+        let single = matches.peek().is_none();
         let index = page
             .focus
-            .and_then(|focus| matches.iter().copied().find(|&index| index > focus))
+            .filter(|&focus| focus >= first)
+            .and_then(|focus| matches.find(|&index| index > focus))
             .unwrap_or(first);
         let result = (|| {
             self.focus(level, Some(index))?;
-            if matches.len() == 1 {
+            if single {
                 self.activate(level, index)?;
                 if !self.closed && self.pages.len() > level + 1 {
                     self.navigate(level + 1, 1)?;
@@ -78,6 +80,6 @@ impl Cascade {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "native_menu_mnemonic_tests.rs"]
 mod tests;

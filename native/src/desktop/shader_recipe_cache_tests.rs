@@ -6,6 +6,8 @@ use serde_json::json;
 use std::{sync::atomic::AtomicBool, time::Duration};
 #[path = "shader_recipe_platform_tests.rs"]
 mod platform;
+#[path = "shader_recipe_reap_tests.rs"]
+mod reap;
 fn fixture_state() -> State {
     let state = State::new(None, false).unwrap();
     let (_listener, identity, _) = crate::loom_bridge_client::tests::fixture();

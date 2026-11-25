@@ -89,6 +89,13 @@ impl Tasks {
             }
         }
     }
+    pub(super) fn deadline(&self) -> Option<std::time::Instant> {
+        // 退休任务仍占槽，收到最后的通知后也必须回收。
+        self.entries
+            .iter()
+            .filter_map(|task| task.job.deadline())
+            .min()
+    }
     pub fn poll(&mut self) {
         for task in &mut self.entries {
             if task.result.is_none() {
@@ -145,6 +152,29 @@ impl Drop for Tasks {
 mod tests {
     use super::*;
     #[test]
+    fn retired_notified_owner_keeps_slot_and_deadline_until_thread_exits() {
+        use crate::desktop::loom_execution_tasks::reap_fixture::{Gate, WAIT};
+        let _serial = loom_input_job::TEST_SERIAL.lock().unwrap();
+        let gate = Gate::new(|| {});
+        let mut tasks = Tasks::new(gate.notify.clone());
+        let id = UnitId::parse("retired").unwrap();
+        tasks
+            .start(id.clone(), id.clone(), &Editor::default(), Vec::new())
+            .unwrap();
+        gate.noticed.recv_timeout(WAIT).unwrap();
+        tasks.cancel(&id);
+        tasks.poll();
+        assert_eq!(tasks.discard_retired(), 0);
+        assert_eq!(tasks.len(), 1);
+        assert!(tasks.deadline().is_some());
+        gate.release.send(()).unwrap();
+        tasks.entries[0].job.test_wait_finished();
+        tasks.poll();
+        assert_eq!(tasks.discard_retired(), 1);
+        assert!(tasks.take_completed().is_none());
+        assert!(tasks.deadline().is_none());
+    }
+    #[test]
     fn replaced_ticket_reclaims_only_old_completed_owner() {
         let _serial = loom_input_job::TEST_SERIAL.lock().unwrap();
         let id = |value| UnitId::parse(value).unwrap();
@@ -165,6 +195,9 @@ mod tests {
             receive
                 .recv_timeout(std::time::Duration::from_secs(5))
                 .unwrap();
+        }
+        for task in &tasks.entries {
+            task.job.test_wait_finished();
         }
         tasks.poll();
         tasks.retain_requests(|unit, ticket| *unit == id("unit") && *ticket == id("new"));
@@ -199,6 +232,9 @@ mod tests {
             receive
                 .recv_timeout(std::time::Duration::from_secs(5))
                 .unwrap();
+        }
+        for task in &tasks.entries {
+            task.job.test_wait_finished();
         }
         tasks.poll();
         assert_eq!(tasks.len(), 2);

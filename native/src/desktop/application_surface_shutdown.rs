@@ -14,23 +14,7 @@ impl Application {
             // 错误仍保存在 Outcome，交回窗口后由最终附件门禁报告；不在退出时弹窗。
             let _ = self.remote_sessions.poll_surfaces();
             // closed 准入只登记失败证据，不为退出创建隐藏窗口；迟到挂载也可停用。
-            self.admit_surface_results()?;
             self.activate_surface_windows(false)?;
-            let now = crate::desktop::surface_windows::now_ms()?;
-            for failure in self.surface_windows.failures_mut() {
-                let Some(owner) = failure.begin_inactive() else {
-                    continue;
-                };
-                if let Err(error) = super::super::surface_admission::start_transition(
-                    &mut self.authorization_owner,
-                    &mut self.remote_sessions,
-                    owner,
-                    crate::surface_live_binding::Lifecycle::Inactive,
-                    now,
-                ) {
-                    failure.failed_start(error);
-                }
-            }
             Ok(self
                 .remote_sessions
                 .surface_shutdown_handles()
@@ -79,6 +63,6 @@ fn pump_until(deadline: Instant, mut settle: impl FnMut() -> Result<Vec<HANDLE>>
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-surface")))]
 #[path = "application_surface_shutdown_tests.rs"]
 mod tests;

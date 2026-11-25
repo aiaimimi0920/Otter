@@ -17,14 +17,10 @@ pub(in crate::desktop::tile_window) fn apply(
                         .scene()
                         .root()
                         .visible_node(&r.focus.node)
-                        .and_then(crate::tile_surface_local::source_node)
-                        == Some(r.source)
-                    && p.presentation
-                        .scene()
-                        .root()
-                        .visible_node(&r.focus.node)
-                        .map(crate::tile_surface_local::stamp)
-                        == Some(r.stamp)
+                        .is_some_and(|node| {
+                            crate::tile_surface_local::source_node(node) == Some(r.source)
+                                && crate::tile_surface_local::stamp(node) == r.stamp
+                        })
             })
             .map(|r| (r.focus.node.clone(), r.value))
             .collect();

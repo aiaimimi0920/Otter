@@ -44,7 +44,7 @@ impl Host {
         };
         surface.draw(size)?;
         let pixel = unsafe {
-            super::tests::sample(
+            sample(
                 &surface.composition,
                 size.width as usize / 2,
                 size.height as usize / 2,
@@ -160,4 +160,36 @@ impl Host {
     pub(super) fn surface_for_test(&self) -> Option<&Surface> {
         self.surface.as_ref()
     }
+}
+
+// Shared by application fixtures even when the Live-only suites are disabled.
+#[cfg(test)]
+pub(super) unsafe fn sample(composition: &Composition, x: usize, y: usize) -> [u8; 4] {
+    let device: ID3D11Device = composition.state.chain.GetDevice().unwrap();
+    let context = device.GetImmediateContext().unwrap();
+    let source: ID3D11Texture2D = composition.state.chain.GetBuffer(0).unwrap();
+    let mut desc = D3D11_TEXTURE2D_DESC::default();
+    source.GetDesc(&mut desc);
+    desc.Usage = D3D11_USAGE_STAGING;
+    desc.BindFlags = 0;
+    desc.MiscFlags = 0;
+    desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ.0 as u32;
+    let mut staging = None;
+    device
+        .CreateTexture2D(&desc, None, Some(&mut staging))
+        .unwrap();
+    let staging = staging.unwrap();
+    context.CopyResource(&staging, &source);
+    let mut mapped = D3D11_MAPPED_SUBRESOURCE::default();
+    context
+        .Map(&staging, 0, D3D11_MAP_READ, 0, Some(&mut mapped))
+        .unwrap();
+    let mut result = [0; 4];
+    std::ptr::copy_nonoverlapping(
+        (mapped.pData as *const u8).add(y * mapped.RowPitch as usize + x * 4),
+        result.as_mut_ptr(),
+        4,
+    );
+    context.Unmap(&staging, 0);
+    result
 }

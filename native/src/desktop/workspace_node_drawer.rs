@@ -8,7 +8,7 @@ use neuro_mini_ui::{Drawer, DrawerButton, Icon, DRAWER_TOGGLE};
 mod host;
 #[path = "workspace_node_drawer_model.rs"]
 mod projection;
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "workspace_node_drawer_tests.rs"]
 mod tests;
 const NOTIFY: u32 = WM_APP + 0x674;
@@ -36,7 +36,7 @@ struct Data {
     pending: Cell<Option<(u32, u16)>>,
     root: Cell<HWND>,
     size: Cell<(i32, i32)>,
-    presentation: Cell<(bool, u32)>,
+    presentation: Cell<Option<(bool, u32)>>,
 }
 impl Data {
     fn advance(&self) -> Result<()> {
@@ -76,7 +76,7 @@ impl Open {
             pending: Cell::new(None),
             root: Cell::new(HWND::default()),
             size: Cell::new((20, 10)),
-            presentation: Cell::new((false, 0)),
+            presentation: Cell::new(None),
         });
         let window = host::Window::new(&data)?;
         let drawer = Drawer::new(window.0, NOTIFY, &projection::buttons(&model))?;
@@ -109,11 +109,12 @@ impl Open {
         let changed = *self.data.model.borrow() != model;
         if changed {
             *self.data.model.borrow_mut() = model;
+            self.data.presentation.set(None);
             self.data.advance()?;
         }
         let model = self.data.model.borrow().clone();
         let open = self.data.open.get();
-        let changed = changed || self.data.presentation.get() != (open, node.dpi);
+        let changed = self.data.presentation.get() != Some((open, node.dpi));
         let visible = IsWindowVisible(self.window.0).as_bool();
         // 顶层也保留旧帧，直到 child、三角裁剪及最终居中位置全部完成。
         // 即将隐藏的宿主不冻结：WM_SETREDRAW 恢复可见位不能覆盖最终隐藏状态。
@@ -127,8 +128,9 @@ impl Open {
             node.dpi,
         )?;
         self.data.size.set((layout.width, layout.height));
-        if self.data.presentation.replace((open, node.dpi)) != (open, node.dpi) || changed {
+        if changed {
             layout.apply_region(self.window.0, open, node.dpi)?;
+            self.data.presentation.set(Some((open, node.dpi)));
         }
         self.place_with(node, held)?;
         drop(redraw);
@@ -218,7 +220,7 @@ pub(super) unsafe fn sync(app: &mut Application) -> Result<()> {
             continue;
         }
         let node = node.clone();
-        let model = projection::capture(&doc.state);
+        let mut model = projection::capture(&doc.state);
         let open = match previous
             .iter()
             .find(|o| o.matches(&node) && o.data.model.borrow().art == model.art)
@@ -250,11 +252,13 @@ pub(super) unsafe fn sync(app: &mut Application) -> Result<()> {
                             }
                             None => desktop::execution_start::request(doc.window.0, &doc.state)?,
                         }
+                        // 直接执行可能同步更改文档；无动作路径保留原快照。
+                        model = projection::capture(&doc.state);
                     }
                 }
             }
         }
-        open.update(&node, projection::capture(&doc.state))?;
+        open.update(&node, model)?;
         next.push(open);
     }
     *ui.drawers.borrow_mut() = next;

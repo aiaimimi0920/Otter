@@ -1,9 +1,12 @@
 //! 加载后/配置更新裁剪的真实 worker、原文发布和保存；没有磁盘删除或图片解码。
 use super::*;
 use crate::session_library::Kind;
-fn settings(maximum: usize) -> std::sync::Arc<crate::settings_source::Source> {
+fn settings(
+    path: &std::path::Path,
+    maximum: usize,
+) -> std::sync::Arc<crate::settings_source::Source> {
     crate::settings_source::Source::new(
-        "C:/Users/Public/nas_home/AI/GameEditor/linshi/otter-prune-settings-fixture.json".into(),
+        path.to_owned(),
         serde_json::to_vec(&serde_json::json!({"cache":{"recycleBinMaxEntries":maximum}})).unwrap(),
     )
     .unwrap()
@@ -22,9 +25,11 @@ unsafe fn settle(app: &mut Application) -> Result<()> {
     }
 }
 pub(in crate::desktop::application) unsafe fn run(instance: HINSTANCE) -> Result<()> {
+    let fixture = smoke_session_fixture::Directory::new()?;
+    let settings_path = fixture.path().join("prune-settings.json");
     let first = DocumentWindow::create(instance, State::new(None, false)?, false)?;
     let mut app = Application::new(instance, first);
-    app.install_startup_settings(settings(2))?;
+    app.install_startup_settings(settings(&settings_path, 2))?;
     let entries: Vec<_> = (0..20)
         .map(|i| {
             serde_json::json!({"entryId":format!("e-{i}"),
@@ -57,9 +62,9 @@ pub(in crate::desktop::application) unsafe fn run(instance: HINSTANCE) -> Result
         ));
     }
     let hwnd = app.documents[0].window.0;
-    let path = save_publish::smoke_destination()?;
+    let path = fixture.target();
     reference::smoke::save(&mut app, Some(path.clone()))?;
-    app.install_startup_settings(settings(1))?;
+    app.install_startup_settings(settings(&settings_path, 1))?;
     settle(&mut app)?;
     if app
         .restored_session
@@ -75,7 +80,7 @@ pub(in crate::desktop::application) unsafe fn run(instance: HINSTANCE) -> Result
     }
     reference::smoke::save(&mut app, None)?;
     let before = app.restored_session.as_ref().unwrap().original.clone();
-    app.install_startup_settings(settings(1))?;
+    app.install_startup_settings(settings(&settings_path, 1))?;
     settle(&mut app)?;
     if !app
         .restored_session
@@ -111,7 +116,10 @@ pub(in crate::desktop::application) unsafe fn run(instance: HINSTANCE) -> Result
             app.documents[0].state.canvas.borrow_mut().normal_opacity = 0.4;
         }
         if mode == 2 {
-            app.recycle_policy = settings(3).document().recycle_policy().unwrap();
+            app.recycle_policy = settings(&settings_path, 3)
+                .document()
+                .recycle_policy()
+                .unwrap();
         }
         let result = settle(&mut app);
         app.documents[0].state.canvas.borrow_mut().normal_opacity = 1.0;
@@ -130,7 +138,7 @@ pub(in crate::desktop::application) unsafe fn run(instance: HINSTANCE) -> Result
             ));
         }
     }
-    app.install_startup_settings(settings(1))?;
+    app.install_startup_settings(settings(&settings_path, 1))?;
     settle(&mut app)?;
     reference::smoke::save(&mut app, None)?;
     let disk = std::fs::read(path).map_err(|error| Error::new(E_FAIL, error.to_string()))?;

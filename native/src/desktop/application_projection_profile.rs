@@ -2,7 +2,7 @@
 use crate::{
     desktop::{
         device_authorization_ui::projection::recovery::View,
-        loom_execution_signal::{CompletionSignal, Notify},
+        loom_execution_signal::{reap_deadline, CompletionSignal, Notify},
     },
     projection_delivery::journal::{Store, Ticket},
 };
@@ -90,12 +90,16 @@ impl Owner {
     pub(in crate::desktop::application) fn finish_open(&mut self) {
         self.collect(true);
     }
+    pub(in crate::desktop::application) fn reap_deadline(&self) -> Option<std::time::Instant> {
+        match self {
+            Self::Opening(job) => reap_deadline(&job.ready),
+            Self::Ready { policy, .. } => policy.reap_deadline(),
+            _ => None,
+        }
+    }
     fn collect(&mut self, terminal: bool) {
         let Self::Opening(job) = self else { return };
-        if !terminal
-            && !job.ready.load(Ordering::Acquire)
-            && !job.thread.as_ref().unwrap().is_finished()
-        {
+        if !terminal && !job.thread.as_ref().unwrap().is_finished() {
             return;
         }
         let result = job
@@ -152,15 +156,20 @@ impl Owner {
                 .zip(entries)
                 .all(|(a, b)| Arc::ptr_eq(a, b))
         {
-            view.entries = entries.to_vec();
+            view.entries.clear();
+            view.entries.extend_from_slice(entries);
         }
-        view.saved
-            .retain(|old| entries.iter().any(|entry| Arc::ptr_eq(old, entry)) && included(old));
-        for entry in entries {
-            if included(entry) && !view.saved.iter().any(|old| Arc::ptr_eq(old, entry)) {
-                view.saved.push(entry.clone());
+        // saved 只用于按身份查询；沿 entries 一次更新、只克隆变化项。
+        let mut count = 0;
+        for entry in entries.iter().filter(|entry| included(entry)) {
+            match view.saved.get_mut(count) {
+                Some(old) if !Arc::ptr_eq(old, entry) => old.clone_from(entry),
+                None => view.saved.push(entry.clone()),
+                _ => {}
             }
+            count += 1;
         }
+        view.saved.truncate(count);
         let status = match self {
             Self::Opening(_) => "正在读取未结投送…",
             Self::Failed(error) => error,
@@ -182,4 +191,40 @@ impl Drop for Job {
             let _ = thread.join();
         }
     }
+}
+
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
+#[test]
+fn projection_profile_reaps_only_after_completed_notifier_exits() {
+    use crate::projection_delivery::journal::tests::Directory;
+    use std::{
+        sync::mpsc,
+        time::{Duration, Instant},
+    };
+    let directory = Directory::new();
+    let mut owner = Owner::Disabled;
+    let (notified, notification) = mpsc::channel();
+    let (release, blocked) = mpsc::channel();
+    let blocked = std::sync::Mutex::new(blocked);
+    owner.start(
+        directory.0,
+        Arc::new(move || {
+            notified.send(()).unwrap();
+            let _ = blocked.lock().unwrap().recv_timeout(Duration::from_secs(5));
+        }),
+    );
+    let release = release; // 断言失败时先解除通知，再进入 owner 的同步 Drop。
+    notification.recv_timeout(Duration::from_secs(5)).unwrap();
+    owner.poll();
+    assert!(matches!(owner, Owner::Opening(_)));
+    assert!(owner.reap_deadline().is_some());
+    release.send(()).unwrap();
+    let end = Instant::now() + Duration::from_secs(5);
+    while matches!(owner, Owner::Opening(_)) {
+        owner.poll();
+        assert!(Instant::now() < end);
+        std::thread::sleep(Duration::from_millis(1));
+    }
+    assert!(matches!(owner, Owner::Ready { .. }));
+    assert!(owner.reap_deadline().is_none());
 }

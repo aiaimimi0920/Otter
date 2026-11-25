@@ -25,9 +25,9 @@ pub fn decode(value: &Value, cancel: &AtomicBool) -> Result<Image> {
 pub(super) fn decode_base64(mime: &str, encoded: &str, cancel: &AtomicBool) -> Result<Image> {
     let bytes = decode_bytes(mime, encoded, cancel)?;
     let _apartment = Apartment::new()?;
-    let image = Image::from_encoded(&bytes)?;
+    let image = Image::from_encoded_with_cancel(&bytes, &|| cancel.load(Ordering::Acquire));
     check_cancel(cancel)?;
-    Ok(image)
+    image
 }
 /// 共用有界编码字节 owner；调用者仍须经 WIC 验证后才能把内容当图片发布。
 pub(super) fn decode_bytes(
@@ -84,6 +84,6 @@ fn check_cancel(cancel: &AtomicBool) -> Result<()> {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-loom")))]
 #[path = "loom_output_inline_tests.rs"]
 mod tests;

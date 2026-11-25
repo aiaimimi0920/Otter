@@ -305,3 +305,53 @@ fn long_capture_keeps_adjustment_and_confirmation_in_its_own_mode() {
         }
     );
 }
+
+#[test]
+fn clamped_drag_and_nudge_repaint_only_when_the_visible_rectangle_changes() {
+    let result = select_bounds_with(
+        &image(100, 80),
+        POINT::default(),
+        Vec::new(),
+        false,
+        Mode::Adjust,
+        |hwnd| unsafe {
+            // 隐藏 HWND 不保留更新区域；在隔离桌面显示但不激活，才能观察失效矩形。
+            let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+            assert!(ValidateRect(Some(hwnd), None).as_bool());
+            let at = |x: isize, y: isize| Some(LPARAM(x | (y << 16)));
+            let state = &*(GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *const Selection);
+            SendMessageW(hwnd, WM_LBUTTONDOWN, None, at(10, 10));
+            SendMessageW(hwnd, WM_MOUSEMOVE, None, at(110, 90));
+            assert!(GetUpdateRect(hwnd, None, false).as_bool());
+            assert!(ValidateRect(Some(hwnd), None).as_bool());
+            for (x, y) in [(120, 100), (130, 110)] {
+                SendMessageW(hwnd, WM_MOUSEMOVE, None, at(x, y));
+                assert!(!GetUpdateRect(hwnd, None, false).as_bool());
+                assert_eq!(state.model.get().rect.unwrap().right, 100);
+            }
+            SendMessageW(hwnd, WM_MOUSEMOVE, None, at(90, 70));
+            assert!(GetUpdateRect(hwnd, None, false).as_bool());
+            SendMessageW(hwnd, WM_LBUTTONUP, None, at(100, 80));
+            assert!(ValidateRect(Some(hwnd), None).as_bool());
+            for key in [VK_RIGHT, VK_DOWN] {
+                SendMessageW(hwnd, WM_KEYDOWN, Some(WPARAM(key.0 as usize)), None);
+                assert!(!GetUpdateRect(hwnd, None, false).as_bool());
+            }
+            SendMessageW(hwnd, WM_KEYDOWN, Some(WPARAM(VK_LEFT.0 as usize)), None);
+            assert!(GetUpdateRect(hwnd, None, false).as_bool());
+            SendMessageW(hwnd, WM_KEYDOWN, Some(WPARAM(VK_RETURN.0 as usize)), None);
+            SendMessageW(hwnd, WM_KEYDOWN, Some(WPARAM(VK_ESCAPE.0 as usize)), None);
+        },
+    )
+    .unwrap()
+    .unwrap();
+    assert_eq!(
+        result.0,
+        RECT {
+            left: 9,
+            top: 10,
+            right: 99,
+            bottom: 80
+        }
+    );
+}

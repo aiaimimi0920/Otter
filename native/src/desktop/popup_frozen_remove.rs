@@ -17,13 +17,11 @@ impl LibraryMenu {
                 self.update_reference(menu)?;
             }
         }
-        if self.removing && self.job.is_none() {
+        if self.removing && !self.reload_pending && self.job.is_none() {
             if let Some(source) = remove(None)? {
-                self.job = Some(index::Job::start(source.clone()).map_err(|error| {
-                    windows::core::Error::new(windows::Win32::Foundation::E_FAIL, error.to_string())
-                })?);
                 self.source = Some(source);
                 self.previews.invalidate();
+                self.reload_pending = true;
             }
         }
         Ok(())

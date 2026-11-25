@@ -82,11 +82,29 @@ impl Document {
             presentation: Presentation::capture(&doc.state),
         })
     }
+    pub(super) fn geometry(&self) -> (RECT, u32) {
+        (self.rect, self.dpi)
+    }
     pub(in crate::desktop) unsafe fn matches(&self, doc: &DocumentWindow) -> bool {
         self.mismatch(doc).is_none()
     }
     /// 返回首个失配类别，诊断复用同一围栏，不另维护一套较宽松的条件。
     pub(in crate::desktop) unsafe fn mismatch(&self, doc: &DocumentWindow) -> Option<&'static str> {
+        self.mismatch_using(doc, None)
+    }
+    pub(super) unsafe fn matches_observed(
+        &self,
+        doc: &DocumentWindow,
+        rect: RECT,
+        dpi: u32,
+    ) -> bool {
+        self.mismatch_using(doc, Some((rect, dpi))).is_none()
+    }
+    unsafe fn mismatch_using(
+        &self,
+        doc: &DocumentWindow,
+        geometry: Option<(RECT, u32)>,
+    ) -> Option<&'static str> {
         macro_rules! require {
             ($condition:expr, $reason:literal) => {
                 if !$condition {
@@ -94,7 +112,6 @@ impl Document {
                 }
             };
         }
-        let mut rect = RECT::default();
         require!(self.unit == doc.state.unit_id, "unit");
         require!(
             self.extensions
@@ -104,15 +121,21 @@ impl Document {
         require!(self.window == doc.window.0, "window");
         require!(doc.is_alive(), "lifetime");
         require!(idle::state(&doc.state), "busy");
-        require!(
-            GetWindowRect(doc.window.0, &mut rect).is_ok(),
-            "window-rect-query"
-        );
-        require!(rect == self.rect, "window-rect");
-        require!(
-            windows::Win32::UI::HiDpi::GetDpiForWindow(doc.window.0) == self.dpi,
-            "dpi"
-        );
+        if let Some((rect, dpi)) = geometry {
+            require!(rect == self.rect, "window-rect");
+            require!(dpi == self.dpi, "dpi");
+        } else {
+            let mut rect = RECT::default();
+            require!(
+                GetWindowRect(doc.window.0, &mut rect).is_ok(),
+                "window-rect-query"
+            );
+            require!(rect == self.rect, "window-rect");
+            require!(
+                windows::Win32::UI::HiDpi::GetDpiForWindow(doc.window.0) == self.dpi,
+                "dpi"
+            );
+        }
         require!(
             self.display.matches(
                 &doc.state.canvas.borrow(),
@@ -146,16 +169,6 @@ impl Document {
 mod tests {
     use super::*;
     use crate::desktop::{Apartment, State};
-    use windows::Win32::System::LibraryLoader::GetModuleHandleW;
-
-    struct Class(HINSTANCE);
-    impl Drop for Class {
-        fn drop(&mut self) {
-            unsafe {
-                let _ = UnregisterClassW(w!("Otter.Native.Workspace"), Some(self.0));
-            }
-        }
-    }
 
     #[test]
     fn restoration_document_diagnostics_preserve_first_mismatch_and_reject_all_changed_guards() {
@@ -164,17 +177,7 @@ mod tests {
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         let _com = Apartment::new().unwrap();
         unsafe {
-            let instance: HINSTANCE = GetModuleHandleW(None).unwrap().into();
-            assert_ne!(
-                RegisterClassW(&WNDCLASSW {
-                    hInstance: instance,
-                    lpszClassName: w!("Otter.Native.Workspace"),
-                    lpfnWndProc: Some(crate::desktop::procedure::window_proc),
-                    ..Default::default()
-                }),
-                0
-            );
-            let _class = Class(instance); // 成功注册才取得所有权；在 doc 销毁后注销。
+            let instance = crate::desktop::workspace_window_fixture::register();
             let doc =
                 DocumentWindow::create(instance, State::new(None, false).unwrap(), false).unwrap();
             let check = |guard: &Document, expected: Option<&str>| {
@@ -183,6 +186,8 @@ mod tests {
             };
             let mut guard = Document::capture(&doc).unwrap();
             check(&guard, None);
+            assert!(guard.matches_observed(&doc, guard.rect, guard.dpi));
+            assert!(!guard.matches_observed(&doc, guard.rect, guard.dpi + 1));
             guard.rect.left -= 1;
             guard.dpi = guard.dpi.saturating_add(1);
             guard.presentation.viewport.origin.x += 1.0;
@@ -205,6 +210,23 @@ mod tests {
             check(&guard, Some("presentation"));
             doc.state.group_hidden.set(guard.presentation.hidden);
             check(&guard, None);
+            let (rect, dpi) = guard.geometry();
+            assert_eq!(
+                dpi,
+                windows::Win32::UI::HiDpi::GetDpiForWindow(doc.window.0)
+            );
+            SetWindowPos(
+                doc.window.0,
+                None,
+                rect.left + 7,
+                rect.top,
+                0,
+                0,
+                SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+            )
+            .unwrap();
+            check(&guard, Some("window-rect"));
+            assert_eq!(guard.geometry(), (rect, dpi));
         }
     }
 }

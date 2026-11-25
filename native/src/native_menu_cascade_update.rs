@@ -19,12 +19,21 @@ impl Cascade {
             return Err(Error::new(E_INVALIDARG, "Invalid dynamic action target"));
         }
         let item = &mut self.tree[index];
+        if item.command == command && item.label == label && item.enabled == enabled {
+            return Ok(());
+        }
         item.command = command;
         item.label = label.into();
         item.enabled = enabled;
         self.pending_surrogate = None;
-        self.pages[0].pressed = None;
-        self.refresh(0)
+        let root = &mut self.pages[0];
+        root.pressed = None;
+        root.drag = None;
+        root.panel.discard_pointer_events();
+        // 同名同槽也可能已是另一个命令，不能接收旧节点排队的 Invoke。
+        self.refresh_frame(0, true).inspect_err(|_| self.cancel())?;
+        self.sync_accessibility();
+        Ok(())
     }
     pub fn submenu_open(&self, index: usize) -> bool {
         !self.closed
@@ -51,6 +60,43 @@ impl Cascade {
     /// 只改变指定根子菜单的呈现；仍用同一模型、命令和旧手势退休规则。
     pub(crate) fn replace_gallery(&mut self, index: usize, children: Vec<Item>) -> Result<()> {
         self.replace_layout(index, children, true)
+    }
+    /// A pixel-only update cannot change commands, hit regions, scroll or UIA generation.
+    pub(crate) fn replace_gallery_thumbnails(
+        &mut self,
+        index: usize,
+        previous: &[usize],
+        images: &[(usize, &crate::image_thumbnail::Thumbnail)],
+    ) -> Result<()> {
+        let items = self
+            .galleries
+            .get_mut(&index)
+            .filter(|_| !self.closed)
+            .ok_or_else(|| Error::new(E_INVALIDARG, "Invalid thumbnail gallery"))?;
+        let changed = || {
+            previous
+                .iter()
+                .copied()
+                .chain(images.iter().map(|&(slot, _)| slot))
+        };
+        if changed().any(|slot| slot >= items.len()) {
+            return Err(Error::new(E_INVALIDARG, "Invalid thumbnail slot"));
+        }
+        for &slot in previous {
+            items[slot].thumbnail = None;
+        }
+        for &(slot, image) in images {
+            items[slot].thumbnail = Some(image.clone());
+        }
+        if let Some(page) = self.pages.get(1).filter(|page| page.path == [index]) {
+            let view = page.first..page.first + page.visible;
+            if changed().any(|slot| view.contains(&slot)) {
+                page.panel
+                    .update_thumbnails(|slot| items[slot].thumbnail.clone())
+                    .inspect_err(|_| self.cancel())?;
+            }
+        }
+        Ok(())
     }
     fn replace_layout(&mut self, index: usize, children: Vec<Item>, gallery: bool) -> Result<()> {
         if self.closed
@@ -111,7 +157,7 @@ impl Cascade {
             }
         }
         if reuse {
-            self.resize_gallery()?;
+            self.resize_gallery().inspect_err(|_| self.cancel())?;
             let count = self.items(&[index]).len();
             let page = &mut self.pages[1];
             page.first = page
@@ -122,7 +168,7 @@ impl Cascade {
             if page.first != first {
                 page.panel.set_delete_hover(None);
             }
-            self.refresh_frame(1, true)?;
+            self.refresh_frame(1, true).inspect_err(|_| self.cancel())?;
             if let Some(view) = self.preview.as_ref() {
                 // 删除导致末页上移时，阅读目标跟随原可见卡位，不沿用旧全库索引。
                 let target = view.index.checked_sub(first).and_then(|slot| {
@@ -149,7 +195,7 @@ impl Cascade {
                 self.cancel();
                 return Err(error);
             }
-            self.set_first(1, first)?;
+            self.set_first(1, first).inspect_err(|_| self.cancel())?;
         }
         Ok(())
     }
@@ -195,6 +241,6 @@ impl Cascade {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "native_menu_cascade_update_tests.rs"]
 mod tests;

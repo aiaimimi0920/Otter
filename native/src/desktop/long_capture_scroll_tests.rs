@@ -1,4 +1,10 @@
 use super::*;
+const TEST_REGION: Region = Region {
+    left: 0,
+    top: 0,
+    width: 100,
+    height: 100,
+};
 #[test]
 fn relocating_preserves_identity_or_downgrades_outside_the_window() {
     let identity = Identity {
@@ -13,6 +19,7 @@ fn relocating_preserves_identity_or_downgrades_outside_the_window() {
     let target = Target {
         identity,
         point: (0, 0),
+        region: TEST_REGION,
     };
     let region = Region {
         left: -90,
@@ -23,6 +30,7 @@ fn relocating_preserves_identity_or_downgrades_outside_the_window() {
     let next = target.region_target(region).unwrap().unwrap();
     assert_eq!(next.identity, identity);
     assert_eq!(next.point, (-80, -75));
+    assert_eq!(next.region, region);
     assert_eq!(target.point, (0, 0));
     assert!(target
         .region_target(Region { left: 90, ..region })
@@ -47,6 +55,7 @@ fn relocating_preserves_identity_or_downgrades_outside_the_window() {
             ..identity
         },
         point: (0, 0),
+        region: TEST_REGION,
     };
     assert!(wide
         .region_target(Region {
@@ -118,6 +127,7 @@ fn changed_identity_same_thread_and_cancellation_never_send() {
     let target = Target {
         identity: initial,
         point: (50, 50),
+        region: TEST_REGION,
     };
     let count = std::cell::Cell::new(0);
     assert!(
@@ -186,4 +196,13 @@ fn changed_identity_same_thread_and_cancellation_never_send() {
         ))
         .is_err()
     );
+}
+
+#[test]
+fn sample_witnesses_use_bounded_interior_and_signed_physical_coordinates() {
+    assert_eq!(probe_axis(-100, 1), [-100; 3]);
+    assert_eq!(probe_axis(-100, 2), [-100, -99, -99]);
+    assert_eq!(probe_axis(-100, 64), [-96, -68, -41]);
+    assert_eq!(probe_axis(-100, 1024), [-92, 412, 915]);
+    assert_eq!(probe_axis(i32::MAX - 20, 20)[2], i32::MAX - 2);
 }

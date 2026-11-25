@@ -159,7 +159,7 @@ fn projection_offline_reattach_menu_reads_saves_and_presents_existing_receiver_w
 fn projection_reattach_native_menu_revalidates_arc_and_never_treats_new_as_existing() {
     let _com = Apartment::new().unwrap();
     unsafe {
-        let (_class, mut app) = application();
+        let mut app = application();
         let origin = "https://loom.example";
         let accepted = Arc::new(png::accepted(origin));
         let mut view = app.authorization.borrow_mut();

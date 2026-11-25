@@ -6,7 +6,7 @@ fn native_sender_scope_uses_resolved_frame_and_normal_opacity_and_rejects_later_
     let _com = Apartment::new().unwrap();
     let (files, _, _) = Files::new();
     unsafe {
-        let (_class, mut app) = application(files.root());
+        let mut app = application(files.root());
         let unit = app.documents[0].state.unit_id.clone();
         // 目标拥有逻辑框；本用例只核 resolved 来源/opacity，不额外引入不同宽高比的 contain 留白。
         app.documents[0]
@@ -58,7 +58,7 @@ fn native_sender_stale_directory_never_prepares_network_and_new_unit_has_canonic
     let _com = Apartment::new().unwrap();
     let (files, _, _) = Files::new();
     unsafe {
-        let (_class, mut app) = application(files.root());
+        let mut app = application(files.root());
         let unit = app.documents[0].state.unit_id.clone();
         let (scope, _) = scope::Scope::capture(&app, &unit).unwrap();
         assert!(!scope.source.same_storage(&scope.binding_source));
@@ -125,7 +125,7 @@ fn native_sender_receiver_role_is_rejected_before_preparing_a_signed_intent() {
     let _com = Apartment::new().unwrap();
     let (files, _, _) = Files::new();
     unsafe {
-        let (_class, mut app) = application(files.root());
+        let mut app = application(files.root());
         let unit = app.documents[0].state.unit_id.clone();
         let (scope, _) = scope::Scope::capture(&app, &unit).unwrap();
         let selected = crate::projection_delivery::sender::Selection::new(

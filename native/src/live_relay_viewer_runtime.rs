@@ -69,6 +69,17 @@ pub enum Exit {
     AuthorizationEnded,
 }
 
+impl Exit {
+    fn after_socket(self, stopped: bool) -> Self {
+        // 已解析的认证 Close 是明确终态，不是取消错误。
+        if stopped && self != Self::DeviceRevoked {
+            Self::Stopped
+        } else {
+            self
+        }
+    }
+}
+
 struct Control {
     stop: AtomicBool,
     interrupt: Mutex<Option<Interrupt>>,
@@ -271,9 +282,7 @@ fn run(
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .take();
-        if control.stop.load(Ordering::Acquire) {
-            return Exit::Stopped;
-        }
+        let result = result.after_socket(control.stop.load(Ordering::Acquire));
         let Some(recovery) = recovery.as_mut() else {
             return result;
         };

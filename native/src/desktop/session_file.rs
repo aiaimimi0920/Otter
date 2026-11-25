@@ -33,7 +33,7 @@ pub(in crate::desktop) fn read_limited(
             "Session requires an ordinary absolute file path",
         ));
     }
-    let mut file = OpenOptions::new()
+    let file = OpenOptions::new()
         .read(true)
         .share_mode(FILE_SHARE_READ.0)
         .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT.0 | FILE_FLAG_SEQUENTIAL_SCAN.0)
@@ -61,6 +61,10 @@ pub(in crate::desktop) fn read_limited(
         .ok()
         .filter(|length| *length <= limit)
         .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "Session file exceeds budget"))?;
+    read_file(file, length, cancel)
+}
+
+fn read_file(mut file: impl Read, length: usize, cancel: &AtomicBool) -> io::Result<Vec<u8>> {
     check(cancel)?;
     let mut bytes = Vec::new();
     bytes.try_reserve_exact(length).map_err(|_| {
@@ -89,6 +93,8 @@ pub(in crate::desktop) fn read_limited(
             "Session file grew during read",
         ));
     }
+    // The final probe is also blocking I/O; cancellation while it runs must not return bytes.
+    check(cancel)?;
     Ok(bytes)
 }
 /// 仅原路径缺失时读取唯一恢复副本；不移动文件，来源标记交给发布层提示。
@@ -127,5 +133,35 @@ fn check(cancel: &AtomicBool) -> io::Result<()> {
         ))
     } else {
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn session_file_cancellation_during_eof_probe_rejects_completed_bytes() {
+        use std::io::Cursor;
+
+        for content in [b"".as_slice(), b"data".as_slice()] {
+            let cancel = AtomicBool::new(false);
+            let mut source = Cursor::new(content);
+            let read = |buffer: &mut [u8]| {
+                let count = source.read(buffer)?;
+                if count == 0 {
+                    cancel.store(true, Ordering::Release);
+                }
+                Ok(count)
+            };
+            struct Reader<F>(F);
+            impl<F: FnMut(&mut [u8]) -> io::Result<usize>> Read for Reader<F> {
+                fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+                    (self.0)(buffer)
+                }
+            }
+            let error = read_file(Reader(read), content.len(), &cancel).unwrap_err();
+            assert_eq!(error.kind(), io::ErrorKind::Interrupted);
+        }
     }
 }

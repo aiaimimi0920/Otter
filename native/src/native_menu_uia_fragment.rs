@@ -87,16 +87,15 @@ unsafe extern "system" fn navigate(
             };
         }
     }
-    let nodes = object.view.nodes();
-    let index = match (&object.node, direction.0) {
-        (None, 3) => Some(0),
-        (None, 4) => nodes.len().checked_sub(1),
-        (Some(node), 1) => node.slot().checked_add(1),
-        (Some(node), 2) => node.slot().checked_sub(1),
+    let target = match &object.node {
+        None if direction == NavigateDirection_FirstChild => object.view.node(0),
+        None if direction == NavigateDirection_LastChild => object.view.last_node(),
+        Some(node) if direction == NavigateDirection_NextSibling => node.sibling(true),
+        Some(node) if direction == NavigateDirection_PreviousSibling => node.sibling(false),
         _ => None,
     };
-    match index.and_then(|index| nodes.get(index)) {
-        Some(node) => output(child(object, node.clone()), out),
+    match target {
+        Some(node) => output(child(object, node), out),
         None => S_OK,
     }
 }
@@ -137,9 +136,8 @@ unsafe fn rect(object: &Provider) -> Result<UiaRect> {
     GetWindowRect(object.hwnd, &mut rect)?;
     available(object).ok()?;
     if let Some(node) = &object.node {
-        let local = object
-            .view
-            .item_rect(node.slot(), rect.right - rect.left, object.row)
+        let local = node
+            .item_rect(rect.right - rect.left, object.row)
             .ok_or_else(|| Error::from_hresult(HRESULT(UIA_E_ELEMENTNOTAVAILABLE as i32)))?;
         rect = RECT {
             left: rect.left + local.left,
@@ -249,20 +247,14 @@ unsafe extern "system" fn point(
     {
         return S_OK;
     }
-    let nodes = object.view.nodes();
-    let node = nodes.iter().find(|node| {
-        object
-            .view
-            .item_rect(node.slot(), bounds.width as i32, object.row)
-            .is_some_and(|r| {
-                x - bounds.left >= r.left as f64
-                    && x - bounds.left < r.right as f64
-                    && y - bounds.top >= r.top as f64
-                    && y - bounds.top < r.bottom as f64
-            })
-    });
-    match node {
-        Some(node) => output(child(object, node.clone()), out),
+    // HWND 内坐标非负；取整保留整数像素半开区间的命中结果。
+    match object.view.node_at_point(
+        (x - bounds.left) as i32,
+        (y - bounds.top) as i32,
+        bounds.width as i32,
+        object.row,
+    ) {
+        Some(node) => output(child(object, node), out),
         None => output(root(object), out),
     }
 }

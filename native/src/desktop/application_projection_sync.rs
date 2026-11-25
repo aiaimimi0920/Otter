@@ -132,35 +132,7 @@ impl Application {
         if self.projection_receive.busy() || !self.projection_sync_idle() {
             return;
         }
-        let origin = self.authorization.borrow().origin.clone();
-        let candidates =
-            self.projection_profile
-                .entries()
-                .unwrap_or(&[])
-                .iter()
-                .filter_map(|ticket| {
-                    if ticket.cleanup_pending()
-                        || Some(ticket.origin()) != origin.as_deref()
-                        || !self
-                            .workspace
-                            .units()
-                            .iter()
-                            .any(|unit| unit.as_str() == ticket.unit())
-                    {
-                        return None;
-                    }
-                    let binding = self.projection_sync_index()?.for_ticket(ticket)?.clone();
-                    // 首次自动准入只信真实 canonical 包含；后续连续任务可沿本 owner 的同意图推进。
-                    if self.projection_checkpoint_inclusion(ticket) != Some(&binding)
-                        && !self.projection_receive.1.entries.iter().any(|entry| {
-                            entry.ticket.same_record(ticket) && entry.binding == binding
-                        })
-                    {
-                        return None;
-                    }
-                    Some((ticket.clone(), binding))
-                })
-                .collect();
+        let candidates = self.projection_sync_candidates();
         self.projection_receive.1.reconcile(candidates, now);
         if let Some(index) = self.projection_receive.1.due(now) {
             let entry = &self.projection_receive.1.entries[index];
@@ -180,6 +152,46 @@ impl Application {
                 .map(|entry| entry.due)
                 .min();
         }
+    }
+    fn projection_sync_candidates(&self) -> Vec<(Arc<Ticket>, Binding)> {
+        let (Some(index), Some(tickets)) = (
+            self.projection_sync_index(),
+            self.projection_profile.entries(),
+        ) else {
+            return Vec::new();
+        };
+        let view = self.authorization.borrow();
+        tickets
+            .iter()
+            .filter_map(|ticket| {
+                if ticket.cleanup_pending() || Some(ticket.origin()) != view.origin.as_deref() {
+                    return None;
+                }
+                let binding = index.for_ticket(ticket)?;
+                if binding.stopped()
+                    || !self
+                        .workspace
+                        .units()
+                        .iter()
+                        .any(|unit| unit.as_str() == ticket.unit())
+                {
+                    return None;
+                }
+                // 首次只从已保存基线准入，后续允许本调度器已经跟踪的同一绑定继续。
+                if self.projection_checkpoint_inclusion(ticket) != Some(binding)
+                    && !self
+                        .projection_receive
+                        .1
+                        .entries
+                        .iter()
+                        .any(|entry| entry.ticket.same_record(ticket) && &entry.binding == binding)
+                {
+                    return None;
+                }
+                Some((ticket.clone(), binding.clone()))
+            })
+            .take(schedule::MAX_ENTRIES)
+            .collect()
     }
     unsafe fn start_projection_sync(
         &mut self,
@@ -223,7 +235,9 @@ impl Application {
             .projection_edit
             .borrow()
             .as_ref()
-            .map(|owner| owner.capture(&canvas.editor).document().clone());
+            // The worker compares remote lineage against authority only. Local
+            // editor validation still runs when the update is prepared and published.
+            .map(|owner| owner.authoritative().document().clone());
         drop(canvas);
         let source = self
             .restored_session

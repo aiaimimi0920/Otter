@@ -5,30 +5,65 @@ use std::{
     sync::atomic::AtomicBool,
     time::{Duration, Instant},
 };
-use windows::Win32::System::LibraryLoader::GetModuleHandleW;
-struct Class(HINSTANCE);
-impl Drop for Class {
-    fn drop(&mut self) {
-        unsafe {
-            let _ = UnregisterClassW(w!("Otter.Native.Workspace"), Some(self.0));
-        }
+#[test]
+fn shared_workflow_observation_checks_both_geometry_baselines_and_transient_state() {
+    let _apartment = Apartment::new().unwrap();
+    unsafe {
+        let instance = crate::desktop::workspace_window_fixture::register();
+        let document =
+            DocumentWindow::create(instance, State::new(None, false).unwrap(), false).unwrap();
+        let app = Application::new(instance, document);
+        let hwnd = app.documents[0].window.0;
+        let mut origin = RECT::default();
+        GetWindowRect(hwnd, &mut origin).unwrap();
+        let move_to = |x| {
+            SetWindowPos(
+                hwnd,
+                None,
+                x,
+                origin.top,
+                0,
+                0,
+                SWP_NOZORDER | SWP_NOSIZE | SWP_NOACTIVATE,
+            )
+            .unwrap();
+        };
+        let saved = save_state::Stamp::capture(&app).unwrap();
+        let guard = guard::Guard::capture(&app).unwrap();
+        assert!(guard.matches_saved(&app, &saved));
+        move_to(origin.left + 37);
+        let moved_saved = save_state::Stamp::capture(&app).unwrap();
+        let moved_guard = guard::Guard::capture(&app).unwrap();
+        assert!(moved_guard.matches_saved(&app, &moved_saved));
+        // 已保存状态通过，旧恢复凭证仍必须因相同 HWND 已移动而拒绝。
+        assert!(moved_saved.matches(&app));
+        assert!(!guard.matches_saved(&app, &moved_saved));
+        // 新恢复凭证不能代替旧保存基线。
+        assert!(moved_guard.matches(&app));
+        assert!(!moved_guard.matches_saved(&app, &saved));
+        move_to(origin.left);
+        assert!(guard.matches_saved(&app, &saved));
+        let state = &app.documents[0].state;
+        state.new_window.set(true);
+        assert!(
+            saved.matches(&app),
+            "transient request does not dirty the save"
+        );
+        assert!(!guard.matches_saved(&app, &saved));
+        assert!(
+            state.new_window.get(),
+            "matching must not consume the request"
+        );
+        state.new_window.set(false);
+        assert!(guard.matches_saved(&app, &saved));
     }
 }
+
 #[test]
 fn real_application_cycle_archives_before_sending_committed_revision() {
     let _apartment = Apartment::new().unwrap();
     unsafe {
-        let instance: HINSTANCE = GetModuleHandleW(None).unwrap().into();
-        assert_ne!(
-            RegisterClassW(&WNDCLASSW {
-                hInstance: instance,
-                lpszClassName: w!("Otter.Native.Workspace"),
-                lpfnWndProc: Some(crate::desktop::procedure::window_proc),
-                ..Default::default()
-            }),
-            0
-        );
-        let _class = Class(instance);
+        let instance = crate::desktop::workspace_window_fixture::register();
         let image = crate::desktop::image::Image {
             width: 2,
             height: 1,
@@ -38,11 +73,10 @@ fn real_application_cycle_archives_before_sending_committed_revision() {
             DocumentWindow::create(instance, State::new(Some(image), false).unwrap(), false)
                 .unwrap();
         let mut app = Application::new(instance, document);
-        let directory = std::path::PathBuf::from("C:/Users/Public/nas_home/AI/GameEditor/linshi")
-            .join(format!(
-                "otter-cycle-success-{}",
-                crate::desktop::document_state::new_unit_id().unwrap()
-            ));
+        let directory = std::env::temp_dir().join(format!(
+            "otter-cycle-success-{}",
+            crate::desktop::document_state::new_unit_id().unwrap()
+        ));
         std::fs::create_dir(&directory).unwrap();
         let images = directory.join("images");
         std::fs::create_dir(&images).unwrap();
@@ -61,6 +95,34 @@ fn real_application_cycle_archives_before_sending_committed_revision() {
             .commit_ready(&mut app, &AtomicBool::new(false))
             .unwrap();
         assert_eq!(app.save_status(), save_state::Status::Unchanged);
+        let guard = guard::Guard::capture(&app).unwrap();
+        assert!(guard.matches(&app));
+        app.documents[0].state.new_window.set(true);
+        assert!(!guard::is_idle(&app));
+        assert!(!guard.matches(&app));
+        assert!(app.documents[0].state.new_window.get());
+        app.documents[0].state.new_window.set(false);
+        assert!(guard.matches(&app));
+        let unit = app.documents[0].state.unit_id.clone();
+        let group = crate::workspace_id::UnitId::parse("fixture-group").unwrap();
+        app.workspace
+            .upsert_group(crate::workspace::Group {
+                id: group.clone(),
+                name: "Fixture".into(),
+                hidden: false,
+                locked: false,
+            })
+            .unwrap();
+        assert!(!guard.matches(&app));
+        let grouped = guard::Guard::capture(&app).unwrap();
+        app.workspace
+            .assign_group(std::slice::from_ref(&unit), Some(&group))
+            .unwrap();
+        assert!(!grouped.matches(&app));
+        app.workspace.assign_group(&[unit], None).unwrap();
+        assert!(grouped.matches(&app));
+        assert!(app.workspace.remove_group(&group));
+        assert!(guard.matches(&app));
         let baseline = app.restored_session.as_ref().unwrap().original.clone();
         let revision = crate::session_document::decode(&baseline).unwrap().revision;
         let (listener, identity, config) = crate::loom_bridge_client::tests::fixture();
@@ -154,5 +216,167 @@ fn real_application_cycle_archives_before_sending_committed_revision() {
         );
         drop((app, root));
         std::fs::remove_dir_all(directory).unwrap();
+    }
+}
+
+#[test]
+fn workspace_publication_does_not_wait_for_workflow_handshake_or_receipt() {
+    for after_send in [false, true] {
+        unsafe { verify_workflow_retirement(after_send) };
+    }
+}
+
+unsafe fn verify_workflow_retirement(after_send: bool) {
+    use crate::desktop::application::restore_batch::smoke::prepared;
+    use std::io::{ErrorKind, Read};
+    use std::sync::mpsc;
+
+    let _apartment = Apartment::new().unwrap();
+    let instance = crate::desktop::workspace_window_fixture::register();
+    let image = crate::desktop::image::Image {
+        width: 1,
+        height: 1,
+        pixels: vec![10, 20, 30, 255].into(),
+    };
+    let document =
+        DocumentWindow::create(instance, State::new(Some(image), false).unwrap(), false).unwrap();
+    let mut app = Application::new(instance, document);
+    let previous_hwnd = app.documents[0].window.0;
+    let path = std::env::temp_dir().join(format!(
+        "otter-retire-workflow-{}.json",
+        crate::desktop::document_state::new_unit_id().unwrap()
+    ));
+    struct SavedFile(std::path::PathBuf);
+    impl Drop for SavedFile {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_file(&self.0);
+        }
+    }
+    let _saved_file = SavedFile(path.clone());
+    let cancel = AtomicBool::new(false);
+    app.request_save_new(path).unwrap();
+    wait_for(|| app.take_save_candidate().unwrap())
+        .commit_ready(&mut app, &cancel)
+        .unwrap();
+    let baseline = app.restored_session.as_ref().unwrap().original.clone();
+    let (listener, identity, config) = crate::loom_bridge_client::tests::fixture();
+    listener.set_nonblocking(true).unwrap();
+    let handshake = crate::loom_handshake::response(
+        &serde_json::to_vec(&crate::loom_handshake::tests::fixture()).unwrap(),
+    )
+    .unwrap()
+    .unwrap();
+    let catalog = Rc::new(crate::desktop::capability_job::Loaded {
+        identity,
+        handshake,
+    });
+    app.catalog.borrow_mut().loaded = Some(catalog.clone());
+    let frame = crate::pin_geometry::PinRect {
+        x: 50,
+        y: 50,
+        width: 100,
+        height: 100,
+    };
+    let batch = app
+        .prepare_restored_batch(prepared(&catalog).unwrap(), &cancel, |_| Ok(frame))
+        .unwrap();
+    app.request_workflow_preparation(None).unwrap();
+    let candidate = wait_for(|| app.take_workflow_preparation().unwrap());
+
+    let (phase_tx, phase_rx) = mpsc::sync_channel(1);
+    let (release_tx, release_rx) = mpsc::sync_channel::<()>(1);
+    let peer = std::thread::spawn(move || {
+        let mut tcp = wait_for(|| match listener.accept() {
+            Ok((stream, _)) => Some(stream),
+            Err(error) if error.kind() == ErrorKind::WouldBlock => None,
+            Err(error) => panic!("Loopback listener failed: {error}"),
+        });
+        if after_send {
+            let stream = crate::loom_bridge_stream::BridgeStream::new(
+                tcp,
+                Instant::now() + Duration::from_secs(6),
+            )
+            .unwrap();
+            let mut socket = tungstenite::accept(rustls::StreamOwned::new(
+                rustls::ServerConnection::new(config).unwrap(),
+                stream,
+            ))
+            .unwrap();
+            let request: serde_json::Value =
+                serde_json::from_str(socket.read().unwrap().to_text().unwrap()).unwrap();
+            assert_eq!(request["method"], "loom.hook.workflow.sync");
+            phase_tx.send(()).unwrap();
+            // Do not answer. Closure proves the client released its transport.
+            assert!(matches!(
+                socket.read(),
+                Err(tungstenite::Error::Protocol(
+                    tungstenite::error::ProtocolError::ResetWithoutClosingHandshake
+                )) | Err(tungstenite::Error::Io(_))
+            ));
+        } else {
+            // Confirm TLS started while leaving its response gated until publication returns.
+            tcp.set_nonblocking(false).unwrap();
+            tcp.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            tcp.read_exact(&mut [0]).unwrap();
+            phase_tx.send(()).unwrap();
+            release_rx.recv_timeout(Duration::from_secs(6)).unwrap();
+        }
+        assert!(matches!(listener.accept(), Err(error) if error.kind() == ErrorKind::WouldBlock));
+    });
+    app.request_workflow_sync(candidate).unwrap();
+    wait_for(|| match phase_rx.try_recv() {
+        Ok(()) => Some(()),
+        Err(mpsc::TryRecvError::Empty) => {
+            app.process_workflow_sync();
+            None
+        }
+        Err(error) => panic!("Peer did not reach sync phase: {error}"),
+    });
+    let started = Instant::now();
+    app.publish_restored_batch(batch, false).unwrap();
+    if !after_send {
+        // The old implementation joined the deliberately stalled TLS worker here for ~3 s.
+        assert!(
+            started.elapsed() < Duration::from_secs(2),
+            "Restore waited for TLS"
+        );
+    }
+    assert!(!IsWindow(Some(previous_hwnd)).as_bool());
+    let record = app.restored_session.as_ref().unwrap();
+    assert!(!record.original.same_storage(&baseline));
+    let replacement = record.original.clone();
+    assert!(app.retired_workflow.is_some());
+    let blocked = app.request_workflow_preparation(None).unwrap_err();
+    assert!(blocked.message().contains("Previous workspace workflow"));
+    if !after_send {
+        release_tx.send(()).unwrap();
+    }
+    wait_for(|| {
+        app.process_workflow_sync();
+        app.retired_workflow.is_none().then_some(())
+    });
+    peer.join().unwrap();
+    assert!(app.require_workflow_slot().is_ok());
+    assert!(app
+        .restored_session
+        .as_ref()
+        .unwrap()
+        .original
+        .same_storage(&replacement));
+    assert!(app.take_workflow_delivery().is_none());
+    assert!(app.take_workflow_cycle().is_none());
+}
+
+fn wait_for<T>(mut step: impl FnMut() -> Option<T>) -> T {
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        if let Some(value) = step() {
+            return value;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "Workflow fixture exceeded deadline"
+        );
+        std::thread::sleep(Duration::from_millis(1));
     }
 }

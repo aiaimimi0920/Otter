@@ -16,18 +16,7 @@ fn synchronous_restore_reentry_cannot_discard_cleanup_identity_or_revive_input()
     let f = Fixture::new();
     let popup = Window::new(None);
     let _hooks = Hooks::new();
-    unsafe {
-        SetWindowPos(
-            f.root.0,
-            Some(HWND_TOPMOST),
-            0,
-            0,
-            0,
-            0,
-            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
-        )
-        .unwrap();
-    }
+    f.root.make_topmost();
     POPUP.with(|slot| slot.set(popup.0));
     RETAINED.with(|slot| slot.set(false));
     BUTTON_HANDLER.with(|handler| {
@@ -84,18 +73,7 @@ fn acknowledged_host_marker_survives_button_return_but_hide_restores_synchronous
     let f = Fixture::new();
     let popup = Window::new(None);
     let _hooks = Hooks::new();
-    unsafe {
-        SetWindowPos(
-            f.root.0,
-            Some(HWND_TOPMOST),
-            0,
-            0,
-            0,
-            0,
-            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
-        )
-        .unwrap();
-    }
+    f.root.make_topmost();
     POPUP.with(|slot| slot.set(popup.0));
     BUTTON_HANDLER.with(|handler| {
         handler.set(Some(|| unsafe {

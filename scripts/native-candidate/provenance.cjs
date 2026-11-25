@@ -1,6 +1,7 @@
 // 候选收据只声明构建身份；静态验证不授予发布、签名、运行或功能验收状态。
 const fs = require('node:fs');
 const path = require('node:path');
+const { createHash } = require('node:crypto');
 const { assertUnchanged, hash } = require('./source.cjs');
 const { checkedPath } = require('../release/third-party-sources.cjs');
 
@@ -9,12 +10,27 @@ function read(root, name, limit = 16 * 1024 * 1024) {
   if (fs.statSync(file).size > limit) throw new Error(`Oversized candidate metadata: ${name}`);
   return JSON.parse(fs.readFileSync(file, 'utf8'));
 }
-function digest(root, name) {
+function digest(root, name, limit = 512 * 1024 * 1024) {
   const file = checkedPath(root, name);
-  const stat = fs.statSync(file);
-  if (!stat.isFile() || stat.size > 512 * 1024 * 1024) throw new Error(`Invalid candidate file: ${name}`);
-  const bytes = fs.readFileSync(file);
-  return { path: name, bytes: bytes.length, sha256: hash(bytes) };
+  const fd = fs.openSync(file, 'r');
+  try {
+    const stat = fs.fstatSync(fd);
+    if (!stat.isFile() || stat.size > limit) throw new Error(`Invalid candidate file: ${name}`);
+    const sha = createHash('sha256');
+    const buffer = Buffer.allocUnsafe(Math.min(Math.max(1, stat.size), 64 * 1024));
+    let bytes = 0;
+    while (bytes < stat.size) {
+      const count = fs.readSync(fd, buffer, 0, Math.min(buffer.length, stat.size - bytes), null);
+      if (count === 0) throw new Error(`Candidate file size changed while hashing: ${name}`);
+      sha.update(buffer.subarray(0, count));
+      bytes += count;
+    }
+    // A file that grows after fstat must not turn this into an unbounded read.
+    if (fs.readSync(fd, buffer, 0, 1, null) !== 0) throw new Error(`Candidate file size changed while hashing: ${name}`);
+    return { path: name, bytes, sha256: sha.digest('hex') };
+  } finally {
+    fs.closeSync(fd);
+  }
 }
 function validateSource(source) {
   if (source.schemaVersion !== 1 || source.kind !== 'otter-native-build-inputs' ||
@@ -73,10 +89,13 @@ function create(root) {
     files: ['payload/otter-native.exe', 'payload/otter_live_hover_hook.dll', 'source-before.json', 'source-after.json', 'tools-before.json',
       'tools-after.json', 'build.json', 'build.log', 'metadata.json'].map(name => digest(root, name)) };
 }
-function verify(root) {
+function verify(root, previous = undefined) {
   const actual = read(root, 'provenance.json');
   const expected = create(root);
   if (JSON.stringify(actual) !== JSON.stringify(expected)) throw new Error('Native candidate provenance/content mismatch');
+  if (previous !== undefined && JSON.stringify(previous) !== JSON.stringify(expected)) {
+    throw new Error('Native candidate provenance changed during staging');
+  }
   return expected;
 }
 if (require.main === module) {
@@ -88,4 +107,4 @@ if (require.main === module) {
   process.stdout.write(JSON.stringify({ status: 'build-identity-verified-not-runtime-or-release', buildVersion: result.buildVersion,
     sourceSha256: result.sourceSha256, executable: result.files[0] }) + '\n');
 }
-module.exports = { create, verify, validateSource };
+module.exports = { create, digest, verify, validateSource };

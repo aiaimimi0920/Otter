@@ -60,7 +60,7 @@ impl Drop for Class {
 
 pub(super) fn select(image: Image, origin: POINT, windows: Vec<RECT>) -> Result<Option<Image>> {
     let windows =
-        super::capture_windows::local_rectangles(&windows, origin, image.width, image.height);
+        super::capture_windows::local_rectangles(windows, origin, image.width, image.height);
     select_with(image, origin, windows, true, |_| {})
 }
 fn select_with(
@@ -73,14 +73,17 @@ fn select_with(
     select_positioned_with(image, origin, windows, visible, ready)
         .map(|result| result.map(|(image, _)| image))
 }
-pub(super) fn select_positioned(
+/// 录制的冻结图只用于选区，不进入录像；释放冻结像素后重新采样真实目标。
+pub(super) fn select_recording(
     image: Image,
     origin: POINT,
     windows: Vec<RECT>,
-) -> Result<Option<(Image, POINT)>> {
+) -> Result<Option<RECT>> {
     let windows =
-        super::capture_windows::local_rectangles(&windows, origin, image.width, image.height);
-    select_positioned_with(image, origin, windows, true, |_| {})
+        super::capture_windows::local_rectangles(windows, origin, image.width, image.height);
+    select_bounds_with(&image, origin, windows, true, Mode::Quick, |_| {})?
+        .map(|(rect, _)| capture_crop::screen_rectangle(origin, rect))
+        .transpose()
 }
 fn select_positioned_with(
     image: Image,
@@ -100,7 +103,7 @@ pub(super) fn select_adjustable(
     windows: Vec<RECT>,
 ) -> Result<Option<(Image, POINT)>> {
     let windows =
-        super::capture_windows::local_rectangles(&windows, origin, image.width, image.height);
+        super::capture_windows::local_rectangles(windows, origin, image.width, image.height);
     select_bounds_with(&image, origin, windows, true, Mode::Adjust, |_| {})?
         .map(|(rect, _)| capture_crop::positioned(&image, origin, rect))
         .transpose()
@@ -112,7 +115,7 @@ pub(super) fn select_live(
     windows: Vec<RECT>,
 ) -> Result<Option<(RECT, bool)>> {
     let windows =
-        super::capture_windows::local_rectangles(&windows, origin, image.width, image.height);
+        super::capture_windows::local_rectangles(windows, origin, image.width, image.height);
     select_bounds_with(&image, origin, windows, true, Mode::Live, |_| {})?
         .map(|(rect, whole)| Ok((capture_crop::screen_rectangle(origin, rect)?, whole)))
         .transpose()
@@ -267,14 +270,16 @@ unsafe extern "system" fn procedure(
             if state.pointer.replace(Some(next)) == Some(next) {
                 return LRESULT(0);
             }
+            let before = state.preview_rect();
             let hover = super::capture_windows::pick(&state.windows, next);
-            let hover_changed = state.hover.replace(hover) != hover;
+            state.hover.set(hover);
             if GetCapture() == hwnd {
                 let mut model = state.model.get();
                 model.update(next);
                 state.model.set(model);
-                let _ = InvalidateRect(Some(hwnd), None, false);
-            } else if hover_changed && state.model.get().rect.is_none() {
+            }
+            // 边界外继续拖动时矩形可能不变；只有可见选区改变才重画冻结帧。
+            if before != state.preview_rect() {
                 let _ = InvalidateRect(Some(hwnd), None, false);
             }
         }
@@ -360,9 +365,12 @@ unsafe extern "system" fn procedure(
                 _ => (0, step),
             };
             let mut model = state.model.get();
+            let before = model.rect;
             model.nudge(dx, dy);
             state.model.set(model);
-            let _ = InvalidateRect(Some(hwnd), None, false);
+            if before != model.rect {
+                let _ = InvalidateRect(Some(hwnd), None, false);
+            }
         }
         WM_CAPTURECHANGED | WM_CANCELMODE => {
             let mut model = state.model.get();
@@ -394,6 +402,6 @@ unsafe extern "system" fn procedure(
     LRESULT(0)
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-capture")))]
 #[path = "capture_region_tests.rs"]
 mod tests;

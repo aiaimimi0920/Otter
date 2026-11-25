@@ -186,9 +186,9 @@ pub(in crate::desktop) unsafe fn dispatch(
         }
     } else if matches!(msg, WM_CANCELMODE | WM_DESTROY | WM_NCDESTROY) {
         state.pin_animation.moving.set(false);
+        state.pin_animation.move_escape.borrow_mut().take();
     }
     if matches!(msg, WM_DESTROY | WM_NCDESTROY) {
-        state.pin_animation.move_escape.borrow_mut().take();
         state.pin_animation.parked.set(false);
         super::preview::finish(hwnd, state, false);
     }

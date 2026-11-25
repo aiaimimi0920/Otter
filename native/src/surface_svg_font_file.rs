@@ -183,6 +183,6 @@ fn final_path(file: &File) -> io::Result<PathBuf> {
     Ok(path)
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-surface")))]
 #[path = "surface_svg_font_file_tests.rs"]
 mod tests;

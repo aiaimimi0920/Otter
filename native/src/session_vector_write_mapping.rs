@@ -199,6 +199,6 @@ fn field(object: &mut Map<String, Value>, key: &str, scale: f32, offset: f32) ->
     Ok(())
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "session_vector_write_mapping_tests.rs"]
 mod tests;

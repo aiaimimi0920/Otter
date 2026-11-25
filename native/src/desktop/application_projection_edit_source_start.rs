@@ -32,7 +32,9 @@ impl Application {
             let mut targets = self.projection_source_targets(&unit, &origin);
             if let Some(selected) = &selected {
                 targets.retain(|target| {
-                    selected.contains(&target.binding.envelope().projection_id().to_owned())
+                    selected
+                        .iter()
+                        .any(|id| id == target.binding.envelope().projection_id())
                 });
             }
             if targets.is_empty() {
@@ -47,23 +49,20 @@ impl Application {
                 .ok_or_else(stale)?;
             let canvas = doc.state.canvas.borrow();
             let existing = doc.state.projection_edit.borrow();
-            if existing.as_ref().is_some_and(|owner| {
-                let snapshot = owner.capture(&canvas.editor);
-                snapshot.suspended().is_some()
-                    || snapshot.role() != crate::projection_edit::workspace::Role::Source
+            let expected_session = if let Some(owner) = existing.as_ref() {
+                let snapshot = owner.authoritative();
+                if snapshot.role() != crate::projection_edit::workspace::Role::Source
                     || snapshot.context().origin() != origin
-            }) {
-                return Err(stale());
-            }
+                    || !owner.can_submit(&canvas.editor)
+                {
+                    return Err(stale());
+                }
+                Some(snapshot.document().session_id().to_owned())
+            } else {
+                None
+            };
             let base = Base::capture(&canvas.editor);
             let stamp = existing.as_ref().map(|owner| owner.stamp());
-            let expected_session = existing.as_ref().map(|owner| {
-                owner
-                    .capture(&canvas.editor)
-                    .document()
-                    .session_id()
-                    .to_owned()
-            });
             drop(existing);
             drop(canvas);
             let scheduled = (!explicit && targets.len() == 1)

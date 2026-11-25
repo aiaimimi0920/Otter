@@ -135,8 +135,8 @@ impl Surface {
             painted.and(ended)
         }
     }
-    pub fn present(&self) -> Result<()> {
-        self.composition.present()
+    pub(super) fn present(&self) -> Result<bool> {
+        self.composition.present_confirmed()
     }
 }
 fn invalid(message: &str) -> Error {
@@ -186,5 +186,8 @@ fn bitmap(composition: &Composition, frame: &Texture) -> Result<ID2D1Bitmap1> {
     }
 }
 #[cfg(test)]
+#[path = "composition_live_frame_fixture.rs"]
+mod frame_fixture;
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-live")))]
 #[path = "composition_live_tests.rs"]
 mod tests;

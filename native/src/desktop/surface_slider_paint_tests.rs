@@ -101,16 +101,39 @@ fn surface_slider_control_native_pixels_track_value_disabled_and_restore_dc() {
     let control = control(&parent);
     let hwnd = control.hwnd().unwrap();
     unsafe {
+        use crate::desktop::surface_control_colors as colors;
+        let bgr = |color: COLORREF| [(color.0 >> 16) as u8, (color.0 >> 8) as u8, color.0 as u8];
+        let (background, active, inactive, rail) = if colors::enabled() {
+            (
+                colors::BACKGROUND,
+                colors::FOCUS,
+                colors::MUTED,
+                colors::LINE,
+            )
+        } else {
+            let gray = COLORREF(GetSysColor(COLOR_GRAYTEXT));
+            (
+                COLORREF(GetSysColor(COLOR_WINDOW)),
+                COLORREF(GetSysColor(COLOR_HIGHLIGHT)),
+                gray,
+                gray,
+            )
+        };
         let first = render(hwnd, "slider-middle.png");
-        assert!(first.contains(&[0x20, 0x17, 0x11]));
-        assert!(first.contains(&[0x38, 0xff, 0xd9]));
+        assert!(first.contains(&bgr(background)));
+        assert!(first.contains(&bgr(active)));
         control.set_value(100.).unwrap();
         let last = render(hwnd, "slider-end.png");
-        assert_ne!(first, last);
+        // 系统可配置这些颜色相同；相同像素不能用于证明位置变化。
+        if active != background || active != rail {
+            assert_ne!(first, last);
+        }
         control.set_enabled(false).unwrap();
         let disabled = render(hwnd, "slider-disabled.png");
-        assert!(disabled.contains(&[0x9f, 0x9a, 0x92]));
-        assert!(!disabled.contains(&[0x38, 0xff, 0xd9]));
+        assert!(disabled.contains(&bgr(inactive)));
+        if active != background && active != inactive && active != rail {
+            assert!(!disabled.contains(&bgr(active)));
+        }
     }
     assert!(parent.log.events.is_empty());
 }

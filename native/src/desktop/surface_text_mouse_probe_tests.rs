@@ -100,7 +100,7 @@ unsafe fn mouse(point: POINT, flags: MOUSE_EVENT_FLAGS) -> INPUT {
 unsafe fn send_inputs(inputs: &[INPUT]) {
     let sent = SendInput(inputs, std::mem::size_of::<INPUT>() as i32);
     // 批次正常包含完整 up；部分插入时仅释放本探针已插入的 down，避免留下按住状态。
-    if sent != inputs.len() as u32 && sent >= 2 {
+    if needs_release(inputs, sent as usize) {
         let release = INPUT {
             r#type: INPUT_MOUSE,
             Anonymous: INPUT_0 {
@@ -118,6 +118,49 @@ unsafe fn send_inputs(inputs: &[INPUT]) {
         );
     }
     assert_eq!(sent, inputs.len() as u32, "system input batch incomplete");
+}
+fn needs_release(inputs: &[INPUT], sent: usize) -> bool {
+    sent < inputs.len()
+        && inputs[..sent]
+            .iter()
+            .rev()
+            .filter(|input| input.r#type == INPUT_MOUSE)
+            .map(|input| unsafe { input.Anonymous.mi.dwFlags })
+            .find(|flags| {
+                flags.contains(MOUSEEVENTF_LEFTDOWN) || flags.contains(MOUSEEVENTF_LEFTUP)
+            })
+            .is_some_and(|flags| !flags.contains(MOUSEEVENTF_LEFTUP))
+}
+
+#[test]
+fn text_mouse_probe_partial_batches_release_only_an_unpaired_down() {
+    let input = |flags| INPUT {
+        r#type: INPUT_MOUSE,
+        Anonymous: INPUT_0 {
+            mi: MOUSEINPUT {
+                dwFlags: flags,
+                ..Default::default()
+            },
+        },
+    };
+    let movement = input(MOUSEEVENTF_MOVE);
+    let down = input(MOUSEEVENTF_LEFTDOWN);
+    let up = input(MOUSEEVENTF_LEFTUP);
+    let double = [movement, down, up, down, movement, up];
+    for (sent, expected) in [false, false, true, false, true, true, false]
+        .into_iter()
+        .enumerate()
+    {
+        assert_eq!(
+            needs_release(&double, sent),
+            expected,
+            "double prefix {sent}"
+        );
+    }
+    let drag = [movement, down, movement, up];
+    for (sent, expected) in [false, false, true, true, false].into_iter().enumerate() {
+        assert_eq!(needs_release(&drag, sent), expected, "drag prefix {sent}");
+    }
 }
 fn release_with(mut inject: impl FnMut() -> u32) -> bool {
     for _ in 0..3 {

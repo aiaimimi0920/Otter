@@ -39,14 +39,8 @@ impl Fixture {
         let input = PathBuf::from(
             std::env::var_os("OTTER_PROJECTION_JOINT_INPUT").expect("explicit isolated input"),
         );
-        assert!(input.is_absolute() && fs::metadata(&input).unwrap().len() <= 64 * 1024);
-        let root = input.parent().unwrap().to_path_buf();
-        // canonicalize只用于隔离范围核验；不把Windows verbatim路径交给原profile准入。
-        assert!(root
-            .canonicalize()
-            .unwrap()
-            .starts_with(std::env::temp_dir().canonicalize().unwrap()));
-        let bytes = zeroize::Zeroizing::new(fs::read(input).unwrap());
+        let (root, bytes) = crate::projection_joint_input::load(&input).unwrap();
+        let root = root.to_path_buf();
         let data: Input<'_> = serde_json::from_slice(&bytes).unwrap();
         let url = url::Url::parse(data.origin).unwrap();
         assert_eq!(url.scheme(), "https");

@@ -33,6 +33,29 @@ fn saved_json_outputs_roundtrip_through_real_session_candidate() {
 }
 
 #[test]
+fn projected_sticker_preparation_does_not_skip_outputs_for_an_art_node() {
+    let bytes = br#"{"stickers":[{"id":"art","type":"art","x":0,"y":0,"w":1,"h":1,
+        "outputs":{"bad":"data:image/png;base64,invalid"}}],"links":[]}"#;
+    let error = PreparedRestore::projected_sticker(
+        bytes.to_vec().into(),
+        UnitId::parse("art").unwrap(),
+        crate::image_decode::Image {
+            width: 1,
+            height: 1,
+            pixels: vec![0, 0, 0, 255].into(),
+        },
+        &AtomicBool::new(false),
+        |_| -> Result<()> { panic!("invalid projection must not reach append") },
+    )
+    .err()
+    .expect("projection cannot install an Art node without its output state");
+    assert_eq!(error.code(), E_INVALIDARG);
+    assert!(error
+        .to_string()
+        .contains("Projection requires one sticker"));
+}
+
+#[test]
 fn invalid_later_node_rejects_entire_result_batch_without_mutating_candidate() {
     let bytes = br#"{"stickers":[
         {"id":"first","type":"art","x":0,"y":0,"w":2,"h":2,"outputs":{"ok":1}},

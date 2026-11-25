@@ -1,5 +1,6 @@
 //! 默认原生安装经真实 Application 菜单、认证取码和缓存重渲染；不配置 ANGLE。
 use super::*;
+use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 
 #[test]
 #[ignore = "explicit hidden Application / native GPU integration gate"]

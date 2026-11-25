@@ -64,6 +64,6 @@ impl Queue {
         now + Duration::from_millis(frame.received.saturating_add(1000).saturating_sub(target))
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-live")))]
 #[path = "tile_live_queue_tests.rs"]
 mod tests;

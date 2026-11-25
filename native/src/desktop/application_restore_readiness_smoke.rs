@@ -51,7 +51,7 @@ pub(super) unsafe fn verify_requests(app: &mut Application, catalog: &Rc<Loaded>
 
 pub(super) unsafe fn reject_inconsistent(app: &Application, catalog: &Rc<Loaded>) -> Result<()> {
     let before = windows()?;
-    for case in 0..8 {
+    for case in 0..9 {
         let mut candidate = prepared(catalog)?;
         let first = candidate.states[0].unit_id.clone();
         match case {
@@ -67,7 +67,8 @@ pub(super) unsafe fn reject_inconsistent(app: &Application, catalog: &Rc<Loaded>
                 *candidate.states[1].execution_results.borrow_mut() =
                     crate::desktop::loom_result_state::Results::new(first);
             }
-            _ => candidate.states[0].canvas.borrow_mut().pinned = false,
+            7 => candidate.states[0].canvas.borrow_mut().pinned = false,
+            _ => candidate.candidate.placements.swap(0, 1),
         }
         let mut converted = false;
         let result = app.prepare_restored_batch(candidate, &AtomicBool::new(false), |_| {
@@ -150,4 +151,57 @@ pub(super) unsafe fn verify(app: &Application, batch: &Windows) -> Result<()> {
         ));
     }
     Ok(())
+}
+
+#[cfg(test)]
+#[test]
+fn external_drag_blocks_restore_preparation_and_publication_until_reaped() {
+    use crate::desktop::{self, drag_input};
+    use std::{sync::mpsc, time::Duration};
+    let _com = desktop::Apartment::new().unwrap();
+    unsafe {
+        let instance = desktop::workspace_window_fixture::register();
+        let first =
+            DocumentWindow::create(instance, State::new(None, false).unwrap(), false).unwrap();
+        let mut app = Application::new(instance, first);
+        let catalog = catalog().unwrap();
+        app.catalog.borrow_mut().loaded = Some(catalog.clone());
+        let frame = crate::pin_geometry::PinRect {
+            x: 0,
+            y: 0,
+            width: 100,
+            height: 100,
+        };
+        let stop = AtomicBool::new(false);
+        let batch = app
+            .prepare_restored_batch(prepared(&catalog).unwrap(), &stop, |_| Ok(frame))
+            .unwrap();
+        let (release, gate) = mpsc::channel();
+        let (done, result) = mpsc::channel();
+        let hwnd = app.documents[0].window.0;
+        let unit = app.documents[0].state.unit_id.clone();
+        drag_input::install_gated(&app.documents[0].state, gate, done);
+
+        let rejected = app.prepare_restored_batch(prepared(&catalog).unwrap(), &stop, |_| {
+            panic!("busy source reached coordinate conversion")
+        });
+        assert_eq!(rejected.err().unwrap().code(), E_ABORT);
+        assert_eq!(
+            app.publish_restored_batch(batch, false).unwrap_err().code(),
+            E_ABORT
+        );
+        assert_eq!(app.source_window(&unit), Some(hwnd));
+        assert!(app.documents[0].state.drag.is_busy());
+        assert!(matches!(result.try_recv(), Err(mpsc::TryRecvError::Empty)));
+
+        release.send(()).unwrap();
+        assert!(!result.recv_timeout(Duration::from_secs(5)).unwrap());
+        drop(app.documents[0].state.drag.retire_preparation().unwrap());
+        let batch = app
+            .prepare_restored_batch(prepared(&catalog).unwrap(), &stop, |_| Ok(frame))
+            .unwrap();
+        app.publish_restored_batch(batch, false).unwrap();
+        assert!(!app.workspace.contains(&unit));
+        assert!(!IsWindow(Some(hwnd)).as_bool());
+    }
 }

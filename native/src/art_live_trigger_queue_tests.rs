@@ -68,6 +68,48 @@ fn stop_during_configure_and_late_confirmation_cannot_restore_authorization() {
     assert_eq!(q.registration().unwrap().0.authorization_id, "auth:2");
 }
 #[test]
+fn configure_rejection_preserves_a_later_explicit_stop() {
+    let q = queue();
+    assert!(q.submit(f::condition(), "auth:1".into()));
+    let Some(Command::Configure(r)) = q.take_command() else {
+        panic!("configure expected")
+    };
+    assert!(q.stop());
+    q.reject_configure(&r);
+    assert_eq!(q.phase(), Phase::Pending);
+    assert!(!r.gate.active());
+    let Some(Command::Stop(stop)) = q.take_command() else {
+        panic!("stop expected")
+    };
+    assert_eq!(stop.scope, r.scope);
+    q.confirm(&stop, false);
+    assert_eq!(q.phase(), Phase::Confirmed);
+    assert!(q.poll_registration().is_none());
+}
+#[test]
+fn terminal_error_only_takes_a_distinct_pending_stop_once() {
+    for (stop_already_attempted, paused) in [(false, false), (true, false), (false, true)] {
+        let q = queue();
+        let r = configure(&q, 1, "auth:1");
+        assert!(q.stop());
+        if stop_already_attempted {
+            assert!(matches!(q.take_command(), Some(Command::Stop(_))));
+            assert!(q.stop()); // duplicate UI stop arrived while the first POST was in flight
+        }
+        if paused {
+            q.pause(true);
+        }
+        let stop = q.reject_terminal(!stop_already_attempted);
+        assert_eq!(
+            stop.map(|s| s.scope),
+            (!stop_already_attempted && !paused).then_some(r.scope)
+        );
+        assert_eq!(q.phase(), Phase::Unknown);
+        assert!(!r.gate.active());
+        assert!(q.reject_terminal(true).is_none());
+    }
+}
+#[test]
 fn recovery_and_close_cancel_old_ticket_and_never_reenable_old_gate() {
     let q = queue();
     let r = configure(&q, 1, "auth:1");

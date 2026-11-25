@@ -27,10 +27,14 @@ impl Source {
             ..Self::new(region, Axis::Vertical, Some(target))
         }
     }
-    fn validate(&self) -> Result<(), String> {
+    fn validate_layout(&self) -> Result<(), String> {
         if self.layout.is_some_and(|expected| expected != layout()) {
             return Err("Screen layout changed during recording".into());
         }
+        Ok(())
+    }
+    fn validate(&self) -> Result<(), String> {
+        self.validate_layout()?;
         if let Some(target) = &self.target {
             target.validate()?;
         }
@@ -56,13 +60,10 @@ impl Source {
         capture_headroom(candidate)?;
         let frame = sample(candidate, target.as_ref(), cancel)?;
         check(cancel)?;
+        // 降级手动时仍复核旧目标，候选成功提交后才替换绑定。
         self.validate()?;
         if frame.dimensions() != (candidate.width as u32, candidate.height as u32) {
             return Err("Moved capture dimensions changed".into());
-        }
-        // 降级手动也要复核旧目标；不能用离开窗口绕过关闭/移动/身份变化。
-        if let Some(target) = &self.target {
-            target.validate()?;
         }
         self.pending = Some((candidate, target));
         Ok(frame)
@@ -77,11 +78,11 @@ impl CaptureSource for Source {
     }
     fn capture(&mut self, mode: CaptureMode, cancel: &AtomicBool) -> Result<Frame, String> {
         check(cancel)?;
-        self.validate()?;
+        self.validate_layout()?;
         if mode == CaptureMode::Current {
             capture_headroom(self.region)?;
-            let frame = capture(self.region, cancel)?;
-            self.validate()?;
+            let frame = capture_bound(self.region, self.target.as_ref(), cancel)?;
+            self.validate_layout()?;
             return Ok(frame);
         }
         if self.layout.is_some() {
@@ -144,14 +145,23 @@ fn sample(
 ) -> Result<Frame, String> {
     stable::sample(
         cancel,
-        || {
-            if let Some(target) = target {
-                target.validate()?;
-            }
-            capture(region, cancel)
-        },
+        || capture_bound(region, target, cancel),
         || wait(cancel, std::time::Duration::from_millis(60)),
     )
+}
+fn capture_bound(
+    region: Region,
+    target: Option<&scroll::Target>,
+    cancel: &AtomicBool,
+) -> Result<Frame, String> {
+    if let Some(target) = target {
+        target.validate_sample()?;
+    }
+    let frame = capture(region, cancel)?;
+    if let Some(target) = target {
+        target.validate_sample()?;
+    }
+    Ok(frame)
 }
 fn translated(region: Region, movement: (i32, i32), desktop: Region) -> Result<Region, String> {
     super::super::capture::validate_region(region.left, region.top, region.width, region.height)
@@ -192,6 +202,6 @@ fn translated(region: Region, movement: (i32, i32), desktop: Region) -> Result<R
     }
     Ok(candidate)
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-capture")))]
 #[path = "long_capture_source_owner_tests.rs"]
 mod tests;

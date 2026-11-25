@@ -288,6 +288,7 @@ fn quiet_text_creation_remains_editable_but_existing_text_cannot_be_picked() {
         text: None,
         tool: Tool::Text,
         font: c.tool_profiles.text_font.clone(),
+        style: c.editor.style(),
     };
     assert!(pending
         .commit(&mut c, text("新增"), Point { x: 40.0, y: 24.0 })

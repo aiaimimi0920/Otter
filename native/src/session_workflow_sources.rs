@@ -14,17 +14,6 @@ struct Propagation {
     accept_upstream: Option<bool>,
     locally_edited: Option<bool>,
 }
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct Flags {
-    id: String,
-    sticker_edit_propagation: Option<Propagation>,
-}
-#[derive(Deserialize)]
-struct FlagsDocument {
-    stickers: Vec<Flags>,
-}
-
 /// 消费回调结束前引用有效；不把借用路径转成跨阶段的读取授权。
 pub fn with_sources<T>(
     saved: &[u8],
@@ -34,10 +23,31 @@ pub fn with_sources<T>(
 ) -> Result<T, Error> {
     check(cancel)?;
     let document = crate::session_document::decode(saved).map_err(|_| Error::Session)?;
-    let flags: FlagsDocument = serde_json::from_slice(saved).map_err(|_| Error::Content)?;
-    if flags.stickers.len() != document.windows.len() {
-        return Err(Error::Node);
-    }
+    with_document_sources(&document, catalog, cancel, |sources| {
+        consume(&document, sources)
+    })
+}
+
+pub(crate) fn with_document_sources<T>(
+    document: &crate::session_document::Document<'_>,
+    catalog: &[Value],
+    cancel: &AtomicBool,
+    consume: impl FnOnce(&[Option<&str>]) -> Result<T, Error>,
+) -> Result<T, Error> {
+    check(cancel)?;
+    // 会话解码已经保留每个窗口的原始传播字段；不要再次扫描含内联图片的整个 JSON。
+    let flags = document
+        .windows
+        .iter()
+        .map(|window| {
+            check(cancel)?;
+            window
+                .sticker_edit_propagation
+                .map(|raw| serde_json::from_str::<Propagation>(raw.get()))
+                .transpose()
+                .map_err(|_| Error::Content)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     // 参数/正式输出可能携带 inline 图片；为此次额外 JSON 视图保留有界字节预算。
     let bytes = document
         .windows
@@ -63,11 +73,8 @@ pub fn with_sources<T>(
                 .and_then(Capability::new)
         })
         .collect();
-    for (index, (window, flags)) in document.windows.iter().zip(&flags.stickers).enumerate() {
+    for (index, window) in document.windows.iter().enumerate() {
         check(cancel)?;
-        if window.id != flags.id {
-            return Err(Error::Node);
-        }
         parameters.push(super::content::parameters(window, catalog)?);
         let values: Map<String, Value> = match window.outputs {
             Some(raw) if raw.get() != "null" => {
@@ -135,7 +142,7 @@ pub fn with_sources<T>(
         .iter()
         .enumerate()
         .map(|(index, window)| {
-            let flags = flags.stickers[index].sticker_edit_propagation.as_ref();
+            let flags = flags[index].as_ref();
             Node {
                 id: &document.workspace.units()[index],
                 kind: if window.is_art() {
@@ -180,9 +187,9 @@ pub fn with_sources<T>(
         })
         .collect::<Vec<_>>();
     check(cancel)?;
-    consume(&document, &sources)
+    consume(&sources)
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "session_workflow_sources_tests.rs"]
 mod tests;

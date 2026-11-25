@@ -1,5 +1,8 @@
 //! 自有离屏HWND真实paint/关闭输入；不抢焦点，不向用户程序发键鼠，不截图桌面。
 use super::*;
+// These tests exercise native presentation and input, not deadline expiry.
+// Renderer startup on a busy machine can exhaust a one-second fixture lease.
+const FIXTURE_MARKER_MS: u64 = 15_000;
 fn fixture() -> (
     Arc<Shared>,
     crate::tile_outputs::TileOutput,
@@ -11,11 +14,11 @@ fn fixture() -> (
     let endpoint = crate::tile_wire::Endpoint::image("device-1", &output);
     let t = Instant::now();
     let mut s = shared.lock();
-    s.until = Some(t + std::time::Duration::from_secs(6));
+    s.until = Some(t + std::time::Duration::from_secs(20));
     s.identification.observe(
         Some(&crate::tile_wire::Identification {
             request_id: "11111111-1111-4111-8111-111111111111".into(),
-            remaining_ms: 1000,
+            remaining_ms: FIXTURE_MARKER_MS,
             applied: false,
         }),
         &endpoint,
@@ -95,6 +98,11 @@ fn close_button_uses_current_half_open_bounds_and_authorization_loss_clears_it()
     let window = Window::new(shared.clone(), &output).unwrap();
     window.tick().unwrap();
     window.tick().unwrap();
+    assert!(shared
+        .lock()
+        .identification
+        .marker(Instant::now())
+        .is_some());
     unsafe {
         // 右边界x=576不在按钮内；内点x=320,y=420关闭识别，不关输出。
         SendMessageW(
@@ -173,7 +181,7 @@ fn old_displayed_close_and_escape_cannot_dismiss_a_not_yet_painted_successor() {
     shared.lock().identification.observe(
         Some(&crate::tile_wire::Identification {
             request_id: "22222222-2222-4222-8222-222222222222".into(),
-            remaining_ms: 1000,
+            remaining_ms: FIXTURE_MARKER_MS,
             applied: false,
         }),
         &endpoint,

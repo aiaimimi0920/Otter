@@ -204,6 +204,6 @@ fn compose(inner: &Image, settings: &Settings, cancel: &AtomicBool) -> Result<Im
     })
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-capture")))]
 #[path = "export_beautify_tests.rs"]
 mod tests;

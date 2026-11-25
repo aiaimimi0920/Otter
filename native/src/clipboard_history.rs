@@ -15,8 +15,6 @@ use windows::{
 mod content;
 #[path = "clipboard_history_events.rs"]
 pub mod events;
-#[path = "clipboard_history_list.rs"]
-pub mod list;
 #[path = "clipboard_history_preview.rs"]
 mod preview;
 #[path = "clipboard_history_remove.rs"]
@@ -169,6 +167,6 @@ fn read_with_permit(cancel: &AtomicBool, _permit: ReadPermit) -> Result<Snapshot
     })
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-capture")))]
 #[path = "clipboard_history_tests.rs"]
 mod tests;

@@ -9,6 +9,7 @@ pub(super) struct View {
     pub request: Option<Request>,
     pub reference: Option<super::reference_ui::Request>,
     pub configure_recycle: Option<UnitId>,
+    pub workers: super::popup_menu::Workers,
 }
 pub(super) struct Choice {
     pub remove: bool,

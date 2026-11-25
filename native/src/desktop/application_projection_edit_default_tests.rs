@@ -11,7 +11,7 @@ fn first_projection_initializes_one_way_by_default_and_can_switch_two_way() {
     std::fs::write(files.root().join("ca.pem"), pem).unwrap();
     let _peer = peer::Peer::start(listener, tls, files.root().to_path_buf());
     unsafe {
-        let (_class, mut app) = application(files.root());
+        let mut app = application(files.root());
         groups::authorize(&mut app, &files, identity, client);
         app.authorization.borrow_mut().targets.directory = Some(groups::directory(&origin, 1));
         mark(&app);
@@ -51,7 +51,7 @@ fn two_way_selected_before_projection_reaches_the_real_collaboration_document() 
     std::fs::write(files.root().join("ca.pem"), pem).unwrap();
     let _peer = peer::Peer::start(listener, tls, files.root().to_path_buf());
     unsafe {
-        let (_class, mut app) = application(files.root());
+        let mut app = application(files.root());
         groups::authorize(&mut app, &files, identity, client);
         app.authorization.borrow_mut().targets.directory = Some(groups::directory(&origin, 1));
         ui::editing::choose_mode(&app.documents[0].state, edit::Mode::TwoWay).unwrap();
@@ -105,7 +105,7 @@ fn confirmed_targets_wait_for_ready_and_keep_checked_after_real_sender_checkpoin
     std::fs::write(files.root().join("ca.pem"), pem).unwrap();
     let _peer = peer::Peer::start(listener, tls, files.root().to_path_buf());
     unsafe {
-        let (_class, mut app) = application(files.root());
+        let mut app = application(files.root());
         groups::authorize(&mut app, &files, identity, client);
         app.authorization.borrow_mut().targets.directory = Some(groups::directory(&origin, 2));
         mark(&app);

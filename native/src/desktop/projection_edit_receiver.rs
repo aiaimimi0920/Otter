@@ -137,6 +137,7 @@ impl Prepared {
             bridge: Some(bridge),
             base: Base::capture(editor),
             stamp: Stamp(Arc::default()),
+            validated_editor: RefCell::default(),
         })
     }
 }

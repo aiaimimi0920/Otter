@@ -109,15 +109,12 @@ pub(super) unsafe fn build(ui: &Ui) -> Result<()> {
                     if !matches!(option.action, Action::Set(_)) {
                         continue;
                     }
-                    let label = option
-                        .label
-                        .split_once('：')
-                        .map_or(option.label.as_str(), |(_, label)| label);
+                    let label = model::option_label(&option.label);
                     if SendMessageW(
                         combo,
                         CB_ADDSTRING,
                         None,
-                        Some(LPARAM(HSTRING::from(label).as_ptr() as isize)),
+                        Some(LPARAM(HSTRING::from(&label).as_ptr() as isize)),
                     )
                     .0 < 0
                     {
@@ -159,11 +156,8 @@ pub(super) unsafe fn build(ui: &Ui) -> Result<()> {
             }
         }
     }
-    ui.content_height.set(model.rows.len() as i32 * 36);
     for (child, _) in &b.placements {
         inline_input::install(*child)?;
     }
-    *ui.placements.borrow_mut() = b.placements;
-    *ui.bindings.borrow_mut() = b.bindings;
-    Ok(())
+    b.publish(HWND::default(), model.rows.len() as i32 * 36)
 }

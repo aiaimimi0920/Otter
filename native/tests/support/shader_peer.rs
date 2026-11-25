@@ -112,9 +112,6 @@ impl Peer {
         );
     }
     pub fn serve_native(self) -> TcpListener {
-        self.serve_mode(true)
-    }
-    fn serve_mode(self, native: bool) -> TcpListener {
         let mut socket = self.socket();
         let message: Value =
             serde_json::from_str(socket.read().unwrap().to_text().unwrap()).unwrap();
@@ -140,13 +137,8 @@ impl Peer {
         let mut pixels = vec![0; decoder.output_buffer_size().unwrap()];
         let frame = decoder.next_frame(&mut pixels).unwrap();
         assert_eq!(&pixels[..frame.buffer_size()], &[64, 32, 16, 255]);
-        let payload = if native {
-            assert_eq!(p["parameters"]["shader_abi"], "otter.hlsl.v1");
-            json!({"type":"shader","abi":"otter.hlsl.v1","source":"float4 otter_main(float2 uv){float4 p=u_input.Sample(otter_sampler,uv);return float4(p.rgb*u_gain,p.a);}","uniforms":{"gain":0}})
-        } else {
-            json!({"type":"shader","vertex_shader":"#version 300 es\nin vec2 a_position;out vec2 uv;void main(){uv=(a_position+1.0)*0.5;gl_Position=vec4(a_position,0,1);}",
-                "fragment_shader":"#version 300 es\nprecision highp float;uniform sampler2D u_input;uniform float u_gain;in vec2 uv;out vec4 color;void main(){vec4 p=texture(u_input,uv);color=vec4(p.rgb*u_gain,p.a);}","uniforms":{"gain":0}})
-        };
+        assert_eq!(p["parameters"]["shader_abi"], "otter.hlsl.v1");
+        let payload = json!({"type":"shader","abi":"otter.hlsl.v1","source":"float4 otter_main(float2 uv){float4 p=u_input.Sample(otter_sampler,uv);return float4(p.rgb*u_gain,p.a);}","uniforms":{"gain":0}});
         socket.send(tungstenite::Message::Text(json!({"protocolVersion":"loom.hook.v1","requestId":p["requestId"],"status":"succeeded","data":{
             "protocolVersion":"loom.hook.v1","requestId":p["requestId"],"nodeId":p["nodeId"],"generation":p["generation"],"resultRevision":1,"outputs":{"output":{"kind":"value","value":payload}}}}).to_string())).unwrap();
         drop(socket);

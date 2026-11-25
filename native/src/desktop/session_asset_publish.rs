@@ -68,8 +68,11 @@ impl Root {
         }
         // 解码只是格式/尺寸验证，像素立即释放；原始编码由调用方预算 owner 保持。
         let _apartment = crate::desktop::Apartment::new()?;
-        drop(crate::desktop::image::Image::from_encoded(bytes)?);
+        let image = crate::desktop::image::Image::from_encoded_with_cancel(bytes, &|| {
+            cancel.load(Ordering::Acquire)
+        });
         check(cancel)?;
+        drop(image?);
         let name = filename(sticker_id, &slot, bytes, cancel)?;
         let reference = format!("{}\\{}", self.requested.trim_end_matches('\\'), name);
         if let Ok(file) = self.open_image(&reference) {
@@ -188,6 +191,6 @@ fn invalid(message: &str) -> Error {
     Error::new(E_INVALIDARG, message)
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "session_asset_publish_tests.rs"]
 mod tests;

@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "checkerVersion": 2,
-  "checkerSha256": "56177fa25ee3ad5004108c48697c7dbd9fa0efe9326939fccfe0d9fd8153281a",
-  "lexerSha256": "2a722a339f88e854e70240b1b52564c86b65f172f39d978de7dc075ed50a91fe",
-  "policySha256": "ede073cf27993826220a4b2c02e33d5a3558c7f4162ab0454a7006c4c6bf7faa",
+  "checkerSha256": "307b390ad64ccf6a1e7afef65ab2a4f8e4b8ff1053a2b2475f213045fafe68ea",
+  "lexerSha256": "10559db76afa5e1e218c20c2b1cec56f943b70b8b0a7f383efea0ba629ffbbbc",
+  "policySha256": "45ad5ad2abffc04d2bd6f05a2f168dfd78187f3aa676c0cf8d44c7d9f01552d6",
   "exceptions": []
 }

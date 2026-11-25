@@ -86,6 +86,43 @@ fn imported_extensions_survive_save_and_reimport_without_source_changes() {
 }
 
 #[test]
+fn save_as_queued_during_another_save_keeps_its_chooser_and_latest_source() {
+    unsafe {
+        let _environment = environment();
+        let files = Files::new();
+        let mut app = app();
+        app.naming.borrow_mut().sticker_save_pattern = "first_{shortId}".into();
+        queue_save(&app);
+        app.pending_naming_save_with(|_, _| Ok(Some(files.source())))
+            .unwrap();
+        assert!(app.naming_save_job.is_some());
+        queue_save(&app);
+        queue_save(&app);
+        finish_save(&mut app).unwrap();
+        assert!(files.source().exists());
+        let hwnd = app.documents[0].window.0;
+        let mut choices = 0;
+        app.pending_naming_save_with(|owner, _| {
+            assert_eq!(owner, hwnd);
+            choices += 1;
+            Ok(Some(files.target()))
+        })
+        .unwrap();
+        assert_eq!(
+            choices, 1,
+            "busy save must not consume the next explicit request"
+        );
+        finish_save(&mut app).unwrap();
+        assert_eq!(
+            fs::read(files.source()).unwrap(),
+            fs::read(files.target()).unwrap()
+        );
+        app.pending_naming_save_with(|_, _| panic!("coalesced request delivered twice"))
+            .unwrap();
+    }
+}
+
+#[test]
 fn cancel_modal_and_stale_selection_never_start_disk_save() {
     unsafe {
         let _environment = environment();

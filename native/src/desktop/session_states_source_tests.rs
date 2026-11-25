@@ -134,3 +134,84 @@ fn restored_legacy_view_history_and_save_keep_the_full_natural_source() {
     assert!(canvas.editor.redo());
     assert!(canvas.editor.crop_view().is_none());
 }
+
+#[test]
+fn restored_crop_window_uses_saved_anchor_on_first_sync_reset_and_history() {
+    use crate::desktop::{
+        crop_input, document_window::DocumentWindow, menu_transition, workspace_window_fixture,
+    };
+    use crate::pin_geometry::PinRect;
+    use windows::Win32::{Foundation::RECT, UI::WindowsAndMessaging::*};
+
+    let _apartment = Apartment::new().unwrap();
+    let cancel = AtomicBool::new(false);
+    let image = crate::desktop::image::Image {
+        width: 80,
+        height: 40,
+        pixels: [10, 20, 30, 255].repeat(80 * 40).into(),
+    };
+    let png = crate::desktop::export::png_raw(&image, &cancel).unwrap();
+    let url = crate::loom_base64::encode_png_data_url(&png, &cancel).unwrap();
+    let json = serde_json::json!({"stickers":[{
+        "id":"s", "x":100, "y":100, "w":20, "h":10, "src":url.as_str(),
+        "imageEditState":{"sourceSize":{"w":80,"h":40},
+            "cropRect":{"x":20,"y":10,"w":20,"h":10}}
+    }], "links":[]});
+    let candidate =
+        session_candidate::prepare(serde_json::to_vec(&json).unwrap(), None, &cancel).unwrap();
+    let vectors = session_candidate::VectorCandidate::prepare(candidate, &cancel).unwrap();
+    let mut prepared = Bound::prepare_for(vectors, None, &cancel)
+        .ok()
+        .unwrap()
+        .into_parts_for(None, &cancel)
+        .ok()
+        .unwrap()
+        .prepare_states(&cancel)
+        .unwrap();
+    unsafe {
+        let document = DocumentWindow::create_at(
+            workspace_window_fixture::register(),
+            prepared.states.pop().unwrap(),
+            PinRect {
+                x: 100,
+                y: 100,
+                width: 20,
+                height: 10,
+            },
+        )
+        .unwrap();
+        let hwnd = document.window.0;
+        let state = &document.state;
+        let position = || {
+            let mut rect = RECT::default();
+            GetWindowRect(hwnd, &mut rect).unwrap();
+            (
+                rect.left,
+                rect.top,
+                rect.right - rect.left,
+                rect.bottom - rect.top,
+            )
+        };
+        let cropped = (100, 100, 20, 10);
+        let full = (80, 90, 80, 40);
+        assert_eq!(position(), cropped);
+        // Even an unrelated menu completion synchronises the crop window.
+        menu_transition::finish(hwnd, state).unwrap();
+        assert_eq!(
+            position(),
+            cropped,
+            "restored crop must not be applied twice"
+        );
+        crop_input::command(hwnd, state, crop_input::RESET);
+        assert_eq!(position(), full);
+        assert!(state.canvas.borrow_mut().editor.undo());
+        menu_transition::finish(hwnd, state).unwrap();
+        assert_eq!(position(), cropped);
+        assert!(state.canvas.borrow_mut().editor.redo());
+        menu_transition::finish(hwnd, state).unwrap();
+        assert_eq!(position(), full);
+        assert!(!IsWindowVisible(hwnd).as_bool());
+        drop(document);
+        assert!(!IsWindow(Some(hwnd)).as_bool());
+    }
+}

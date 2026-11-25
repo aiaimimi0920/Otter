@@ -8,7 +8,7 @@ use serde::Deserialize;
 use serde_json::value::RawValue;
 pub const MAX_BYTES: usize = 64 * 1024;
 #[path = "surface_confirmation_decision.rs"]
-mod decision;
+pub mod decision;
 pub use decision::{Choice, Decision, PrepareError};
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Error {
@@ -105,7 +105,7 @@ impl Request {
     pub fn id(&self) -> &str {
         &self.wire.confirmation_id
     }
-    pub(crate) fn same_prompt(&self, other: &Self) -> bool {
+    pub fn same_prompt(&self, other: &Self) -> bool {
         self.wire.risk == other.wire.risk
             && self.wire.expires_at_ms == other.wire.expires_at_ms
             && self.payload().map(RawValue::get) == other.payload().map(RawValue::get)

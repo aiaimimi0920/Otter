@@ -1,9 +1,8 @@
 # Otter code signing policy
 
 The current `main` builds **unsigned internal ZIPs**. It does not publish releases
-or run the historical SignPath/UIAccess workflow. Existing signed or unsigned
-public downloads are unchanged. Do not label a portable ZIP as an installer,
-UIAccess package or signed build.
+or run a signing workflow. Existing public downloads are unchanged. Do not label
+an internal ZIP as an installer, UIAccess package or signed build.
 
 ## Requirements for a future signed release
 
@@ -18,9 +17,8 @@ UIAccess package or signed build.
   protected GitHub Environment approval. No private key or live token may be
   committed or logged. Fail closed if configuration, approval, provenance or
   signature verification is missing. Do not publish an unsigned installer instead.
-- If the SignPath lane is reinstated, document the exact inputs and include the
-  applicable attribution: Free code signing provided by [SignPath.io](https://signpath.io/),
-  certificate by [SignPath Foundation](https://signpath.org/).
+- Document the selected provider, exact signing inputs, and any required
+  attribution before publication.
 
 ## Incident response
 

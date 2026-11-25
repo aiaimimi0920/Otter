@@ -69,7 +69,13 @@ impl Image {
                 (height * 64 / longest).max(1),
                 WICBitmapInterpolationModeFant,
             )?;
-            Self::decode_source(&factory, &scaler.cast()?, None, 64 * 64 * 4, stopped)
+            Self::decode_source(
+                &factory,
+                &scaler.cast()?,
+                super::SizePolicy::Any,
+                64 * 64 * 4,
+                stopped,
+            )
         }
     }
 }

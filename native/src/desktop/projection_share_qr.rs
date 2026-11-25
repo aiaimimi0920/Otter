@@ -1,7 +1,8 @@
 //! QR 编码只读签名 JSON；PNG 解码单槽保有 worker 至真实退出，取消不无限增殖后台任务。
 use super::*;
+use crate::desktop::loom_execution_signal::{reap_deadline, CompletionSignal, Notify};
 use std::{io::Read, path::PathBuf, thread::JoinHandle};
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "projection_share_qr_tests.rs"]
 mod tests;
 pub(super) struct Code {
@@ -20,22 +21,34 @@ pub(in crate::desktop) struct Decode {
     thread: Option<JoinHandle<std::result::Result<String, &'static str>>>,
     target: Weak<Model>,
     cancel: Arc<AtomicBool>,
+    ready: Arc<AtomicBool>,
     epoch: u64,
 }
 impl Decode {
     pub(super) fn start(path: PathBuf, target: &Rc<Model>) -> Result<Self> {
+        let thread_id = unsafe { windows::Win32::System::Threading::GetCurrentThreadId() };
+        Self::start_with_notify(
+            path,
+            target,
+            Arc::new(move || unsafe {
+                let _ = PostThreadMessageW(thread_id, WM_NULL, WPARAM(0), LPARAM(0));
+            }),
+        )
+    }
+    pub(super) fn start_with_notify(
+        path: PathBuf,
+        target: &Rc<Model>,
+        notify: Notify,
+    ) -> Result<Self> {
         let cancel = Arc::new(AtomicBool::new(false));
         let signal = cancel.clone();
-        let thread_id = unsafe { windows::Win32::System::Threading::GetCurrentThreadId() };
+        let ready = Arc::new(AtomicBool::new(false));
+        let complete = ready.clone();
         let thread = std::thread::Builder::new()
             .name("otter-share-qr".into())
             .spawn(move || {
-                let result = std::panic::catch_unwind(|| decode(path, &signal))
-                    .unwrap_or(Err("二维码解码失败"));
-                unsafe {
-                    let _ = PostThreadMessageW(thread_id, WM_NULL, WPARAM(0), LPARAM(0));
-                }
-                result
+                let _completion = CompletionSignal::new(complete, notify);
+                decode(path, &signal)
             })
             .map_err(|_| Error::new(E_FAIL, "Cannot start QR decoder"))?;
         *target.decode_cancel.borrow_mut() = Some(cancel.clone());
@@ -43,8 +56,13 @@ impl Decode {
             thread: Some(thread),
             target: Rc::downgrade(target),
             cancel,
+            ready,
             epoch: target.input_epoch.get(),
         })
+    }
+    pub(in crate::desktop) fn deadline(&self) -> Option<std::time::Instant> {
+        self.thread.as_ref()?;
+        reap_deadline(&self.ready)
     }
     pub(super) fn poll(
         &mut self,

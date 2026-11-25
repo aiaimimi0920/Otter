@@ -217,6 +217,6 @@ fn service_inner<S: Read + Write>(
         Ok(_) => Err(Error::Message),
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-live")))]
 #[path = "live_relay_media_socket_tests.rs"]
 mod tests;

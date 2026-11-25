@@ -3,18 +3,7 @@ use super::*;
 #[path = "application_parameter_paint_tests.rs"]
 mod paint;
 unsafe fn app() -> Application {
-    let instance = HINSTANCE(
-        windows::Win32::System::LibraryLoader::GetModuleHandleW(None)
-            .unwrap()
-            .0,
-    );
-    let registered = RegisterClassW(&WNDCLASSW {
-        hInstance: instance,
-        lpszClassName: w!("Otter.Native.Workspace"),
-        lpfnWndProc: Some(crate::desktop::procedure::window_proc),
-        ..Default::default()
-    });
-    assert!(registered != 0 || GetLastError() == ERROR_CLASS_ALREADY_EXISTS);
+    let instance = crate::desktop::workspace_window_fixture::register();
     let document =
         DocumentWindow::create(instance, State::new(None, false).unwrap(), false).unwrap();
     Application::new(instance, document)

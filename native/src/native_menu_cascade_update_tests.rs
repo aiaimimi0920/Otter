@@ -53,6 +53,53 @@ fn tree() -> Vec<Item> {
     parent.children = Some(vec![item(42)]);
     vec![parent, item(2)]
 }
+
+#[test]
+fn thumbnail_only_patch_preserves_gallery_gesture_and_automation_generation() {
+    use crate::{image_thumbnail::Thumbnail, native_menu::accessibility::Action};
+    let owner = Owner::new();
+    let mut menu = Cascade::open(owner.0, tree(), POINT { x: 30, y: 30 }).unwrap();
+    let thumbnail = Thumbnail::from_rgba(1, 1, &[255, 0, 0, 255]).unwrap();
+    let other = Thumbnail::from_rgba(1, 1, &[0, 255, 0, 255]).unwrap();
+    let mut rows: Vec<_> = (100..164).map(item).collect();
+    rows[0].delete = Some(200);
+    rows[0].thumbnail = Some(thumbnail.clone());
+    menu.replace_gallery(0, rows).unwrap();
+    menu.expand(0, 0).unwrap();
+    let hwnd = menu.pages[1].panel.handle().unwrap();
+    let first = menu.pages[1].first;
+    let node = menu.pages[1].panel.accessibility_nodes().remove(0);
+    let corner = menu.pages[1].layout.delete_rect(0, menu.content_width(1));
+    let (x, y) = (
+        (corner.left + corner.right) / 2,
+        (corner.top + corner.bottom) / 2,
+    );
+    menu.event(1, Event::Down(x, y)).unwrap();
+    assert!(menu
+        .replace_gallery_thumbnails(0, &[0], &[(64, &other)])
+        .is_err());
+    assert!(
+        menu.items(&[0])[0].thumbnail.is_some(),
+        "invalid patch must be atomic"
+    );
+    menu.replace_gallery_thumbnails(0, &[0], &[(1, &other), (63, &thumbnail)])
+        .unwrap();
+    assert!(menu.items(&[0])[0].thumbnail.is_none());
+    assert_eq!(
+        menu.items(&[0])[1].thumbnail.as_ref().unwrap().pixels(),
+        other.pixels()
+    );
+    assert_eq!(
+        menu.items(&[0])[63].thumbnail.as_ref().unwrap().pixels(),
+        thumbnail.pixels()
+    );
+    assert_eq!(menu.pages[1].panel.handle().unwrap(), hwnd);
+    assert_eq!(menu.pages[1].first, first);
+    node.enqueue(Action::Focus).unwrap();
+    menu.event(1, Event::Up(x, y)).unwrap();
+    assert_eq!(menu.take_delete(), Some(200));
+}
+
 #[test]
 fn replacement_preserves_root_capture_and_rejects_old_pressed_row() {
     let owner = Owner::new();
@@ -137,6 +184,32 @@ fn replacing_favorite_command_keeps_root_but_retires_the_old_pressed_gesture() {
 }
 
 #[test]
+fn same_label_replacement_retires_queued_invoke_and_pointer_input() {
+    use crate::native_menu::accessibility::{Action, Rejected};
+    let owner = Owner::new();
+    let row = item(2);
+    let label = row.label.clone();
+    let mut menu = Cascade::open(owner.0, vec![row], POINT { x: 30, y: 30 }).unwrap();
+    let root = menu.pages[0].panel.handle().unwrap();
+    let old = menu.pages[0].panel.accessibility_nodes().remove(0);
+    menu.replace_action(0, 2, &label, true).unwrap();
+    old.enqueue(Action::Invoke).unwrap();
+    for message in [WM_LBUTTONDOWN, WM_LBUTTONUP] {
+        unsafe { SendMessageW(root, message, None, Some(LPARAM(4 | (4 << 16)))) };
+    }
+    menu.replace_action(0, 3, &label, true).unwrap();
+    assert_eq!(old.enqueue(Action::Invoke), Err(Rejected::Unavailable));
+    assert_eq!(menu.pages[0].panel.handle().unwrap(), root);
+    menu.poll().unwrap();
+    assert!(menu.take_command().is_none());
+    menu.pages[0].panel.accessibility_nodes()[0]
+        .enqueue(Action::Invoke)
+        .unwrap();
+    menu.poll().unwrap();
+    assert_eq!(menu.take_command(), Some(3));
+}
+
+#[test]
 fn gallery_append_preserves_window_scroll_and_retires_same_named_automation() {
     use crate::native_menu::accessibility::{Action, Rejected};
     let owner = Owner::new();
@@ -172,7 +245,11 @@ fn gallery_append_preserves_window_scroll_and_retires_same_named_automation() {
     assert_eq!(node.enqueue(Action::Expand), Err(Rejected::Unavailable));
     menu.poll().unwrap();
     assert_eq!(menu.pages.len(), 2);
-    menu.set_first(1, usize::MAX).unwrap();
+    let bar = menu.bar(1).expect("full gallery must keep its scrollbar");
+    let x = bar.track.left + 1;
+    menu.event(1, Event::Down(x, bar.thumb.top)).unwrap();
+    menu.event(1, Event::Move(x, i32::MAX)).unwrap();
+    menu.event(1, Event::Up(x, i32::MAX)).unwrap();
     assert_eq!(menu.gallery_view(0).unwrap().end, 4096);
     assert!(menu.gallery_at_end(0));
     assert!(menu.replace_gallery(0, rows(4097)).is_err());

@@ -19,6 +19,16 @@ pub(super) mod policy;
 pub(super) mod projection;
 #[path = "device_authorization_recovery.rs"]
 mod recovery;
+#[cfg(test)]
+pub(super) use recovery::RECENT_BASE as TEST_RECENT_RECOVERY;
+#[cfg(test)]
+pub(super) unsafe fn confirm_recovery_for_test(
+    hwnd: HWND,
+    state: &State,
+    choose: impl FnOnce(&crate::live_relay_http::RecoveryCandidate) -> bool,
+) -> Result<()> {
+    recovery::confirm_with(hwnd, state, choose)
+}
 #[path = "device_projection_sender_ui.rs"]
 pub(super) mod sender;
 #[path = "device_settings_menu.rs"]
@@ -40,7 +50,6 @@ pub(super) const LOAD_RECOVERY: usize = 0x1098;
 pub(super) const RESTORE_SURFACE: usize = 0x1099;
 pub(super) const CONFIRM_SURFACE: usize = 0x109a;
 pub(super) const RESUME_SURFACE: usize = 0x109b;
-const RECOVERY_BASE: usize = 0x10c0;
 
 pub(super) enum Request {
     AccountProjection(Box<account::Request>),
@@ -99,6 +108,7 @@ pub(super) struct View {
     pub mount_busy: bool,
     pub catalog: Option<crate::live_relay_catalog_runtime::Catalog>,
     pub recovery: Vec<std::sync::Arc<crate::surface_recovery_record::Record>>,
+    pub recent_surface_recovery: Vec<std::sync::Arc<crate::surface_recovery_record::Record>>,
     pub recovery_busy: bool,
     pub restoring: bool,
     pub recovery_status: String,
@@ -124,8 +134,7 @@ pub(super) fn handles(command: usize) -> bool {
         || command == targets::REFRESH
         || sender::handles(command)
         || editing::handles(command)
-        || (RECOVERY_BASE..RECOVERY_BASE + crate::surface_recovery_record::MAX_RECORDS)
-            .contains(&command)
+        || recovery::handles(command)
 }
 pub(super) unsafe fn append_menu(menu: HMENU, state: &State) -> Result<()> {
     let view = state.authorization.borrow();
@@ -207,19 +216,8 @@ pub(super) unsafe fn execute(hwnd: HWND, state: &State, command: usize) -> Resul
         recovery::choose(hwnd, state)
     } else if command == RESTORE_SURFACE {
         recovery::confirm(hwnd, state)
-    } else if (RECOVERY_BASE..RECOVERY_BASE + crate::surface_recovery_record::MAX_RECORDS)
-        .contains(&command)
-    {
-        let record = state
-            .authorization
-            .borrow()
-            .recovery
-            .get(command - RECOVERY_BASE)
-            .cloned();
-        match record {
-            Some(record) => queue(hwnd, state, Request::QueryRecovery(record)),
-            None => Err(Error::new(E_ABORT, "Recovery selection expired")),
-        }
+    } else if recovery::handles(command) {
+        recovery::query(hwnd, state, command)
     } else if command == OPEN_ART {
         surface::choose(hwnd, state, || dialog::show_art(hwnd))
     } else if command == SELECT {

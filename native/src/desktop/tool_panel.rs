@@ -16,7 +16,7 @@ mod children;
 #[path = "tool_panel_content.rs"]
 mod content;
 pub(super) use content::prepare;
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "tool_panel_content_tests.rs"]
 mod content_tests;
 #[path = "tool_panel_draw.rs"]
@@ -27,16 +27,16 @@ pub(super) mod font;
 mod geometry;
 #[path = "tool_panel_keyboard.rs"]
 mod keyboard;
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "tool_panel_layout_tests.rs"]
 mod layout_tests;
 #[path = "edit_strip_popup.rs"]
 pub(super) mod popup;
 #[path = "tool_panel_position.rs"]
-mod position;
+pub(super) mod position;
 #[path = "edit_strip.rs"]
 mod strip;
-pub(super) use strip::{follow, moving_positions};
+pub(super) use strip::{follow, moving_positions, smoke as pinned_smoke};
 #[path = "tool_panel_scroll.rs"]
 mod scroll;
 use children::layout;
@@ -376,12 +376,12 @@ pub(super) unsafe fn refresh(owner: HWND) {
     };
     let tool = canvas.tool;
     let style = canvas.editor.style();
-    drop(canvas);
-    let Some(available) = Availability::capture(state) else {
+    let Some(view) = Availability::read(state, &canvas).map(Availability::presentation) else {
         return;
     };
+    drop(canvas);
     let mask = entries().enumerate().fold(0u64, |mask, (index, (id, _))| {
-        mask | ((available.presentation().allows(id) as u64) << index)
+        mask | ((view.allows(id) as u64) << index)
     });
     if state.tool_panel_enabled.replace(mask) != mask {
         let panel = state.tool_panel.get();

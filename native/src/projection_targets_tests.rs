@@ -83,31 +83,39 @@ fn projection_targets_offline_hash_binding_and_advertised_availability_are_prese
 }
 #[test]
 fn projection_targets_invalid_routes_and_peer_bindings_fail_whole_directory() {
-    for (key, invalid) in [
-        ("deviceId", json!("peer-target:bad")),
-        ("peerId", json!(format!("loom-{}", "b".repeat(64)))),
-        ("remoteDeviceId", json!("remote:other")),
-        ("peerName", json!("")),
-        ("peerName", json!("x\n")),
-        ("peerName", json!("界".repeat(43))),
-        ("route", json!("https://other.invalid")),
-        ("deliveryAvailable", json!("true")),
-        ("transferProtocol", json!("other")),
+    let mut baseline = body();
+    baseline["targets"]
+        .as_array_mut()
+        .unwrap()
+        .push(offline(true));
+    assert_eq!(parse(&baseline).unwrap().targets().len(), 2);
+    for (key, invalid, expected) in [
+        ("deviceId", json!("peer-target:bad"), Error::Entry),
+        (
+            "peerId",
+            json!(format!("loom-{}", "b".repeat(64))),
+            Error::Entry,
+        ),
+        ("remoteDeviceId", json!("remote:other"), Error::Entry),
+        ("peerName", json!(""), Error::Entry),
+        ("peerName", json!("x\n"), Error::Entry),
+        ("peerName", json!("界".repeat(43)), Error::Entry),
+        ("route", json!("https://other.invalid"), Error::Json),
+        ("deliveryAvailable", json!("true"), Error::Json),
+        ("transferProtocol", json!("other"), Error::Entry),
     ] {
-        let mut target = offline(true);
-        target[key] = invalid;
-        assert!(
-            parse(&json!({"targets":[body()["targets"][0].clone(),target]})).is_err(),
-            "{key}"
-        );
+        let mut value = baseline.clone();
+        value["targets"][1][key] = invalid;
+        assert_eq!(parse(&value).unwrap_err(), expected, "{key}");
     }
-    let mut unavailable = offline(false);
-    unavailable["unavailableReason"] = "other".into();
-    assert!(parse(&json!({"targets":[unavailable]})).is_err());
+    baseline["targets"][1] = offline(false);
+    assert_eq!(parse(&baseline).unwrap().targets().len(), 2);
+    baseline["targets"][1]["unavailableReason"] = "other".into();
+    assert_eq!(parse(&baseline).unwrap_err(), Error::Entry);
     for peer in [Value::Null, json!("loom-x")] {
         let mut value = body();
         value["targets"][0]["peerId"] = peer;
-        assert!(parse(&value).is_err());
+        assert_eq!(parse(&value).unwrap_err(), Error::Entry);
     }
 }
 #[test]

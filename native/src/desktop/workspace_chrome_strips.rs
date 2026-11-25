@@ -63,7 +63,6 @@ impl Drop for Strip {
 }
 pub(super) unsafe fn refresh(ui: &Ui, translated: bool) -> Result<()> {
     let handles = ui.input_windows.borrow().clone();
-    let ports = draw::ports(ui);
     let images: Vec<_> = ui
         .nodes
         .borrow()
@@ -91,10 +90,13 @@ pub(super) unsafe fn refresh(ui: &Ui, translated: bool) -> Result<()> {
             let _ = ShowWindow(hwnd, SW_HIDE);
             continue;
         };
-        let mut areas: Vec<_> = ports
-            .iter()
-            .filter(|(p, _, _)| p.node == endpoint && p.side == side)
-            .map(|(p, point, radius)| draw::port_rect(ui, *p, *point, *radius))
+        let geometry = port_visual::SideGeometry::new(ui, &node, side);
+        let mut areas: Vec<_> = geometry
+            .indices()
+            .filter_map(|index| {
+                let layout = geometry.layout(index, true)?;
+                Some(geometry.rect(index, &layout))
+            })
             .collect();
         if side == Side::Output {
             if let Some(auxiliary) = candidate_auxiliary::layout(ui, &node) {
@@ -102,7 +104,7 @@ pub(super) unsafe fn refresh(ui: &Ui, translated: bool) -> Result<()> {
             }
         }
         if side == Side::Input && parameter_rail::active(ui, &node) {
-            if let Some(track) = parameter_rail::layout(ui, &node).and_then(|r| r.track()) {
+            if let Some(track) = geometry.rail.as_ref().and_then(|r| r.track()) {
                 areas.push(RECT {
                     left: track.x,
                     top: track.y,

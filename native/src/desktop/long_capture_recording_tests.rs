@@ -7,7 +7,7 @@ mod overlay_tests;
 mod timer_tests;
 use super::super::tests::{hidden as hidden_dialog, input as manual_input};
 use super::*;
-use crate::long_capture::{CaptureMode, CaptureSource, Frame};
+use crate::long_capture::{CaptureMode, CaptureSource, Frame, OutputTarget};
 use std::{
     collections::VecDeque,
     sync::{
@@ -17,7 +17,10 @@ use std::{
     time::Duration,
 };
 fn frame(x0: u32, y0: u32) -> Frame {
-    let pixels = (0..48u32)
+    frame_with_height(x0, y0, 48)
+}
+fn frame_with_height(x0: u32, y0: u32, height: u32) -> Frame {
+    let pixels = (0..height)
         .flat_map(|y| {
             (0..32u32).flat_map(move |x| {
                 let mut value = (x + x0).wrapping_mul(7919) ^ (y + y0).wrapping_mul(104729);
@@ -27,7 +30,7 @@ fn frame(x0: u32, y0: u32) -> Frame {
             })
         })
         .collect::<Vec<_>>();
-    Frame::new(32, 48, pixels.into()).unwrap()
+    Frame::new(32, height, pixels.into()).unwrap()
 }
 struct Source {
     frames: VecDeque<std::result::Result<Frame, String>>,
@@ -67,10 +70,16 @@ fn setup(
     frames: Vec<std::result::Result<Frame, String>>,
     gate: Option<mpsc::Receiver<()>>,
 ) -> (Input, Arc<AtomicUsize>) {
+    setup_with_first(frame(0, 0), frames, gate)
+}
+fn setup_with_first(
+    first: Frame,
+    frames: Vec<std::result::Result<Frame, String>>,
+    gate: Option<mpsc::Receiver<()>>,
+) -> (Input, Arc<AtomicUsize>) {
     let mut input = manual_input();
     let calls = Arc::new(AtomicUsize::new(0));
-    let first = frame(0, 0);
-    *input.job.borrow_mut() = SessionJob::start_detecting(
+    *input.job.borrow_mut() = SessionJob::start_detecting_for(
         first.clone(),
         Source {
             frames: frames.into(),
@@ -78,6 +87,7 @@ fn setup(
             calls: calls.clone(),
             gate,
         },
+        OutputTarget::Document,
     )
     .unwrap();
     // 仅此测试构造绕开外部 HWND 绑定；生产启用位只由已绑定 Target 构造。
@@ -232,6 +242,70 @@ fn finish_behind_a_slow_capture_still_collects_the_last_dragged_frame() {
         );
     }
 }
+#[test]
+fn covered_final_sample_finishes_with_the_last_trusted_pixels() {
+    unsafe {
+        let first = frame(0, 0);
+        let (input, calls) = setup_with_first(
+            first.clone(),
+            vec![Err(long_capture_source::scroll::TARGET_COVERED.into())],
+            None,
+        );
+        let window = hidden(&input);
+        hint(window.0, &input);
+        command(window.0, 1);
+        assert!(input.finish.pending());
+        pump(window.0, &input);
+        assert_eq!(calls.load(Ordering::Acquire), 1);
+        assert_eq!(input.job.borrow().snapshot().frame_count, 1);
+        assert_eq!(input.recording.schedule.borrow().phase(), Phase::Cancelled);
+        let output = input.output.borrow();
+        let output = output
+            .as_ref()
+            .expect("finish must not require a second click");
+        assert_eq!((output.width, output.height), (32, 48));
+        assert_eq!(&*output.pixels, first.bytes());
+    }
+}
+
+#[test]
+fn document_limit_during_finish_keeps_the_dialog_open_and_last_result_finishable() {
+    unsafe {
+        let first = frame_with_height(0, 0, 16384);
+        let (release, gate) = mpsc::channel();
+        let (input, calls) = setup_with_first(
+            first.clone(),
+            vec![Ok(frame_with_height(0, 4, 16384))],
+            Some(gate),
+        );
+        let window = hidden(&input);
+        input
+            .recording
+            .schedule
+            .borrow_mut()
+            .notify(Instant::now() - Duration::from_millis(25));
+        drive(window.0, &input);
+        assert!(input.job.borrow().is_pending());
+        command(window.0, 1);
+        assert!(input.finish.pending());
+        release.send(()).unwrap();
+        pump(window.0, &input);
+        assert_eq!(calls.load(Ordering::Acquire), 1);
+        assert_eq!(caption(window.0), "已达钉图尺寸上限，可完成已有内容或取消");
+        assert!(!input.recording.running());
+        assert!(!input.finish.pending());
+        assert!(input.output.borrow().is_none());
+        assert_eq!(input.job.borrow().snapshot().frame_count, 1);
+        command(window.0, 1);
+        pump(window.0, &input);
+        let output = input.output.borrow();
+        let output = output.as_ref().unwrap();
+        assert_eq!((output.width, output.height), (32, 16384));
+        assert_eq!(&*output.pixels, first.bytes());
+        assert_eq!(calls.load(Ordering::Acquire), 1);
+    }
+}
+
 #[test]
 fn finish_before_debounce_drains_recent_hint_without_accepting_late_input() {
     unsafe {
@@ -397,7 +471,6 @@ fn accepted_viewfinder_move_keeps_recording_and_refreshes_preview() {
         pump(window.0, &input);
         assert!(input.job.borrow().snapshot().spatial_position.is_some());
         assert_eq!(input.movement.region().left, 1);
-        assert!(!input.recording.revoked.get());
         assert!(input.recording.running());
         assert!(input.preview.borrow().is_some());
         command(window.0, 1);

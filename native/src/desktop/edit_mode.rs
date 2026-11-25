@@ -57,7 +57,7 @@ pub(super) unsafe fn hit_test(hwnd: HWND, state: &State, lp: LPARAM) -> i32 {
             && !c.selection_enabled
             && !c.crop_mode
             && !c.blocks_wheel()
-            && c.selected_indices().is_empty())
+            && c.selected_indices_ref().is_empty())
     {
         return HTCAPTION as i32;
     }
@@ -130,7 +130,7 @@ impl Canvas {
             && !self.crop_mode
             && !self.blocks_wheel()
             && (self.tool == Tool::Pan
-                || (self.tool == Tool::Select && self.selected_indices().is_empty()))
+                || (self.tool == Tool::Select && self.selected_indices_ref().is_empty()))
     }
     pub(super) fn can_select_annotation(&self, index: usize) -> bool {
         self.selection_enabled
@@ -170,7 +170,7 @@ impl Canvas {
             )
         } {
             Ok(Some(index)) if !self.can_select_annotation(index) => return false,
-            Ok(Some(index)) if !self.selected_indices().contains(&index) => {
+            Ok(Some(index)) if !self.selected_indices_ref().contains(&index) => {
                 self.selected = Some((index, self.editor.revision()));
                 self.multi_selection = None;
             }
@@ -181,28 +181,22 @@ impl Canvas {
                 return false;
             }
         }
-        if self.selected_indices().is_empty() {
-            return false;
-        }
         if control {
-            self.begin_rotation_at(screen)
-        } else {
-            let indices = self.selected_indices();
-            if indices.len() > 1 {
-                self.group_preview = indices
-                    .iter()
-                    .map(|index| (*index, self.editor.elements()[*index].clone()))
-                    .collect();
-            } else {
-                let stroke = &self.editor.elements()[indices[0]];
+            return self.begin_rotation_at(screen);
+        }
+        match self.selected_indices_ref() {
+            [] => false,
+            [index] => {
+                let stroke = &self.editor.elements()[*index];
                 self.selection_effect_preview =
                     matches!(stroke.tool, Tool::Blur | Tool::Mosaic).then(|| stroke.clone());
+                self.selection_drag = Some((point, Point::default()));
+                true
             }
-            self.selection_drag = Some((point, Point::default()));
-            true
+            _ => self.begin_group_translation(point),
         }
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "edit_mode_tests.rs"]
 mod tests;

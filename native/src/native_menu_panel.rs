@@ -26,6 +26,8 @@ mod input;
 mod owner_wheel;
 #[path = "native_menu_panel_preview.rs"]
 mod preview;
+#[path = "native_menu_panel_text.rs"]
+mod text;
 pub use preview::Preview;
 const ID: usize = 0x4f4d50;
 
@@ -67,7 +69,7 @@ struct Data {
     provider: RefCell<Option<windows::Win32::UI::Accessibility::IRawElementProviderSimple>>,
     accessibility: super::accessibility::Owner,
     bar: Cell<Option<super::scrollbar::Bar>>,
-    rows: RefCell<Vec<Row>>,
+    rows: RefCell<text::PaintRows>,
     events: RefCell<VecDeque<Event>>,
     failed: Cell<bool>,
     destroyed: Cell<bool>,
@@ -106,6 +108,7 @@ impl Panel {
             if GetWindowThreadProcessId(owner, None) != GetCurrentThreadId() {
                 return Err(invalid());
             }
+            let dpi = windows::Win32::UI::HiDpi::GetDpiForWindow(owner).clamp(48, 768);
             let data = Box::new(Data {
                 _paint_session: crate::desktop::buffered_paint::Session::new()?,
                 delete_hover: Cell::new(None),
@@ -115,15 +118,15 @@ impl Panel {
                 provider: RefCell::new(None),
                 accessibility: super::accessibility::Owner::new(&rows),
                 bar: Cell::new(None),
-                rows: RefCell::new(rows),
+                rows: RefCell::new(text::PaintRows::new(rows)),
                 events: RefCell::new(VecDeque::new()),
                 failed: Cell::new(false),
                 destroyed: Cell::new(false),
                 tray_popup: Cell::new(false),
                 paints: Cell::new(0),
                 row_height,
-                dpi: windows::Win32::UI::HiDpi::GetDpiForWindow(owner).clamp(48, 768),
-                fonts: font::Fonts::new(windows::Win32::UI::HiDpi::GetDpiForWindow(owner))?,
+                dpi,
+                fonts: font::Fonts::new(dpi)?,
             });
             let hwnd = CreateWindowExW(
                 WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
@@ -229,7 +232,7 @@ impl Panel {
         self.data
             .accessibility
             .set_content_width(bar.map_or(bounds.right, |bar| bar.track.left));
-        *self.data.rows.borrow_mut() = rows;
+        self.data.rows.borrow_mut().replace(rows);
         self.data.bar.set(bar);
         unsafe {
             let _ = InvalidateRect(Some(self.hwnd), None, false);
@@ -249,6 +252,21 @@ impl Panel {
                     _ => Event::Automation(index, action),
                 })
         })
+    }
+    pub(super) fn update_thumbnails(
+        &self,
+        image: impl Fn(usize) -> Option<crate::image_thumbnail::Thumbnail>,
+    ) -> Result<()> {
+        if !self.alive() {
+            return Err(invalid());
+        }
+        for row in &mut self.data.rows.borrow_mut().rows {
+            row.thumbnail = image(row.key);
+        }
+        unsafe {
+            let _ = InvalidateRect(Some(self.hwnd), None, false);
+        }
+        Ok(())
     }
     /// 可撤销快照句柄；不暴露命令 ID，也不允许直接调用业务处理器。
     pub fn accessibility_nodes(&self) -> Vec<super::accessibility::Node> {

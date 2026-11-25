@@ -26,6 +26,8 @@ pub enum Error {
     AwaitingApproval,
     Store,
     Tls,
+    DisconnectConfig(crate::device_authorization_config::Error),
+    DisconnectExchange(crate::device_session_client::Error),
     Stopped,
     Worker,
 }
@@ -115,22 +117,28 @@ pub(crate) fn connect(
     }
     connect_local(discovery, profile, cancel)
 }
-pub(crate) fn connect_local(
+fn connect_local(
     discovery: loom_discovery::Config,
     profile: &Path,
     cancel: &Cancel,
 ) -> Result<Connected, Error> {
     let local = http::Local::new(discovery.load_media().map_err(|_| Error::Discovery)?)?;
     let info = local.request("/v1/otter/identity", None, cancel)?;
+    connect_discovered_local(local, info, profile, cancel)
+}
+fn connect_discovered_local(
+    local: http::Local,
+    info: Value,
+    profile: &Path,
+    cancel: &Cancel,
+) -> Result<Connected, Error> {
     if info["protocolVersion"] != "loom.connection.v1" || info["discoverable"] != true {
         return Err(Error::LanDisabled);
     }
-    if !info["loomId"]
+    let loom_id = info["loomId"]
         .as_str()
-        .is_some_and(|id| !id.is_empty() && id.len() <= 256)
-    {
-        return Err(Error::Response);
-    }
+        .filter(|id| crate::projection_delivery::share::loom_id(id))
+        .ok_or(Error::Response)?;
     let origin = info["endpoint"].as_str().ok_or(Error::Response)?;
     let origin =
         crate::device_session_attempt::canonical_origin(origin).map_err(|_| Error::Response)?;
@@ -172,7 +180,11 @@ pub(crate) fn connect_local(
         .map_err(|_| Error::Tls)?;
     cancel.clear();
     let remote: Value = serde_json::from_slice(&bytes).map_err(|_| Error::Response)?;
-    if status != 200 || remote["loomId"] != info["loomId"] || remote["endpoint"] != origin {
+    if status != 200
+        || remote["protocolVersion"] != "loom.connection.v1"
+        || remote["loomId"] != loom_id
+        || remote["endpoint"] != origin
+    {
         return Err(Error::Tls);
     }
     let store = Store::new(profile).map_err(|_| Error::Store)?;
@@ -212,8 +224,8 @@ pub(crate) fn connect_local(
     if cancel.is_stopped() {
         return Err(Error::Stopped);
     }
-    let (loom_id, name) = crate::live_relay_http::Control::new(&client, &session, cancel)
-        .loom_connection_info()
+    let name = crate::live_relay_http::Control::new(&client, &session, cancel)
+        .loom_account(loom_id)
         .map_err(|_| Error::Response)?;
     Ok(Connected {
         origin,
@@ -221,21 +233,24 @@ pub(crate) fn connect_local(
         roots,
         profile: profile.into(),
         name: name.unwrap_or_else(|| "未登录账号".into()),
-        loom_id,
+        loom_id: loom_id.into(),
     })
 }
-pub(crate) fn local_origin(cancel: &Cancel) -> Option<String> {
+pub(crate) fn connect_selected_local(
+    origin: &str,
+    profile: &Path,
+    cancel: &Cancel,
+) -> Option<Result<Connected, Error>> {
     let local = http::Local::new(
         crate::loom_discovery::Config::from_env()
             .load_media()
             .ok()?,
     )
     .ok()?;
-    local.request("/v1/otter/identity", None, cancel).ok()?["endpoint"]
-        .as_str()
-        .map(str::to_owned)
+    let info = local.request("/v1/otter/identity", None, cancel).ok()?;
+    (info["endpoint"] == origin).then(|| connect_discovered_local(local, info, profile, cancel))
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-loom")))]
 #[path = "loom_local_connection_tests.rs"]
 mod tests;

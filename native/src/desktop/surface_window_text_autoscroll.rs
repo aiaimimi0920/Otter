@@ -117,6 +117,6 @@ pub(in crate::desktop::surface_window) fn timer(
     }
     true
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-surface")))]
 #[path = "surface_window_text_autoscroll_tests.rs"]
 mod tests;

@@ -21,12 +21,12 @@ pub(super) unsafe fn saved(fixture: &mut Fixture) {
 }
 pub(super) unsafe fn choose(fixture: &mut Fixture) {
     let doc = &fixture.app.documents[0];
-    crate::desktop::device_authorization_ui::execute(
-        doc.window.0,
-        &doc.state,
-        ui::recovery::DISPLAY_BASE,
-    )
-    .unwrap();
+    // 走真实菜单分派，但直接观察错误，避免阻塞在外层的提示对话框。
+    ui::execute(doc.window.0, &doc.state, ui::recovery::DISPLAY_BASE).unwrap_or_else(|error| {
+        let view = fixture.app.authorization.borrow();
+        panic!("display recovery selection failed: {error}; account_busy={} ({}) projection_busy={} targets_busy={}",
+            view.account.busy, view.account.status, view.projection.busy, view.targets.busy);
+    });
     poll(fixture);
 }
 pub(super) fn poll(fixture: &mut Fixture) {
@@ -166,6 +166,20 @@ pub(super) unsafe fn reopen(fixture: &mut Fixture) {
         WAIT_OBJECT_0
     );
     poll(fixture);
+    // 会话重新生效后，新 Application 要核对本地账号 journal；否则重试会与此任务争抢。
+    // 此处只驱动本地账号 owner，不能让自动 PNG 同步抢先消费专供显式 read 的模拟连接。
+    let end = Instant::now() + Duration::from_secs(10);
+    loop {
+        fixture.app.process_account_projection();
+        if !fixture.app.account_projection.busy() {
+            break;
+        }
+        assert!(
+            Instant::now() < end,
+            "reopened account journal completion deadline"
+        );
+        std::thread::yield_now();
+    }
 }
 pub(super) unsafe fn reopen_workspace(fixture: &mut Fixture) {
     use crate::desktop::{document_window::DocumentWindow, workspace_profile::Profile};

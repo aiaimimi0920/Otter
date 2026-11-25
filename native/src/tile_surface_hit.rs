@@ -65,6 +65,6 @@ pub(crate) fn source(p: &Placement, point: [f64; 2]) -> [f32; 2] {
         (p.source_crop.y + (point[1] - p.rect.y) / p.rect.height * p.source_crop.height) as f32,
     ]
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-surface")))]
 #[path = "tile_surface_hit_tests.rs"]
 mod tests;

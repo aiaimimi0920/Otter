@@ -7,6 +7,7 @@ fn local_art_viewer_menu_proof_is_stable_and_stale_selection_cannot_start_networ
     unsafe {
         let _environment = environment();
         let mut app = app();
+        restore_local_art(&mut app);
         let peer = peer::Peer::new();
         peer.authorize(&mut app.authorization_owner);
         app.art_issuers = peer.authority();

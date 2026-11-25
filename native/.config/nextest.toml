@@ -1,0 +1,29 @@
+# Nextest 配置：每个测试独立子进程执行（根除进程内 SERIAL 锁 PoisonError 连带失败），
+# 纯算法/协议测试 6 并发，桌面窗口/剪贴板/捕获/Live 焦点交互归入串行组防全局句柄争用。
+
+[profile.default]
+test-threads = 6
+fail-fast = false
+slow-timeout = { period = "30s", terminate-after = 3 }
+status-level = "fail"
+final-status-level = "flaky"
+
+[test-groups.win32-serial]
+max-threads = 1
+
+[[profile.default.overrides]]
+filter = 'package(otter-native) or binary(integration) or test(/clipboard|capture|window|focus|popup|hover|uia|live_window_target::input_/)'
+test-group = 'win32-serial'
+
+[profile.headless]
+# 锁屏 / UAC / 无交互桌面（OpenInputDesktop 返回 SecureDesktop）时排除交互式输入焦点测试。
+test-threads = 6
+fail-fast = false
+slow-timeout = { period = "30s", terminate-after = 3 }
+status-level = "fail"
+final-status-level = "flaky"
+default-filter = 'not test(/live_window_target::input_|live_browser_scroll::refresh::tests::|live_source_uia::process::tests::source_uia_owned_edit/)'
+
+[[profile.headless.overrides]]
+filter = 'package(otter-native) or binary(integration) or test(/clipboard|capture|window|focus|popup|hover|uia/)'
+test-group = 'win32-serial'

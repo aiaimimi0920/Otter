@@ -127,57 +127,68 @@ pub(super) fn click(hwnd: HWND, state: &State, pixel: [i32; 2]) {
         && matches!((&a.kind,&b.kind),(Kind::Event(a),Kind::Event(b)) if a["nodeId"] == b["nodeId"] && a["action"] == b["action"])) { return; }
     state.shared.lock().actions.offer(commands, Instant::now());
 }
-fn choices(state: &State) -> Vec<Command> {
+fn choices(state: &State) -> Vec<(Command, String)> {
+    const LIMIT: usize = 64;
     let s = state.shared.lock();
     if state.closed.get() || state.changed.get() || s.stopped || s.expired {
         return Vec::new();
     }
     let mut result = Vec::new();
     let now = Instant::now();
+    let now_ms = crate::tile_runtime::now_ms();
+    let can_review = !s.frozen && s.visible(now);
     for current in s.actions.states.values() {
         if current.view.binding.endpoint_id != s.desired.as_ref().map_or("", |k| &k.endpoint)
             || current.view.binding.lease_id != s.desired.as_ref().map_or("", |k| &k.lease)
         {
             continue;
         }
-        if !s.frozen && s.visible(now) {
+        if can_review {
             for c in &current.activity.confirmations {
-                if let Some(a) =
-                    s.actions
-                        .owns_confirmation(c, current, crate::tile_runtime::now_ms())
-                {
-                    result.push(Command {
-                        edit: None,
-                        anchor: a.anchor.clone(),
-                        kind: Kind::Decision {
-                            confirmation: Box::new(c.clone()),
-                            approved: false,
+                if let Some(a) = s.actions.owns_confirmation(c, current, now_ms) {
+                    result.push((
+                        Command {
+                            edit: None,
+                            anchor: a.anchor.clone(),
+                            kind: Kind::Decision {
+                                confirmation: Box::new(c.clone()),
+                                approved: false,
+                            },
+                            until: now + Duration::from_millis(1500),
                         },
-                        until: now + Duration::from_millis(1500),
-                    });
+                        c.action_id.clone(),
+                    ));
+                    if result.len() == LIMIT {
+                        return result;
+                    }
                 }
             }
         }
         for pending in current.activity.pending.iter().filter(|p| p.cancelable) {
-            result.push(Command {
-                edit: None,
-                anchor: Anchor {
-                    view: current.view.clone(),
-                    generation: current.generation,
-                    snapshot: current.snapshot.clone(),
-                    placement: String::new(),
-                    pixel: [0, 0],
-                    scroll: Default::default(),
+            result.push((
+                Command {
+                    edit: None,
+                    anchor: Anchor {
+                        view: current.view.clone(),
+                        generation: current.generation,
+                        snapshot: current.snapshot.clone(),
+                        placement: String::new(),
+                        pixel: [0, 0],
+                        scroll: Default::default(),
+                    },
+                    kind: Kind::Cancel {
+                        request: pending.ack.request_id().into(),
+                        event: pending.event.clone(),
+                    },
+                    until: now + Duration::from_millis(1500),
                 },
-                kind: Kind::Cancel {
-                    request: pending.ack.request_id().into(),
-                    event: pending.event.clone(),
-                },
-                until: now + Duration::from_millis(1500),
-            });
+                pending.action.clone(),
+            ));
+            if result.len() == LIMIT {
+                return result;
+            }
         }
     }
-    result.truncate(64);
     result
 }
 pub(super) unsafe fn menu(hwnd: HWND, state: &State, point: POINT) {
@@ -206,27 +217,7 @@ pub(super) unsafe fn menu(hwnd: HWND, state: &State, point: POINT) {
     if AppendMenuW(menu, MF_STRING | MF_DISABLED, 0, &label).is_err() {
         return;
     }
-    for (i, option) in options.iter().enumerate() {
-        let action = match &option.kind {
-            Kind::Decision {
-                confirmation: c, ..
-            } => c.action_id.clone(),
-            Kind::Cancel { request, .. } => state
-                .shared
-                .lock()
-                .actions
-                .states
-                .get(&option.anchor.view.instance_id)
-                .and_then(|s| {
-                    s.activity
-                        .pending
-                        .iter()
-                        .find(|p| p.ack.request_id() == request)
-                })
-                .map(|p| p.action.clone())
-                .unwrap_or_default(),
-            Kind::Event(_) => continue,
-        };
+    for (i, (option, action)) in options.iter().enumerate() {
         let action = action.replace('&', "&&");
         let label = match option.kind {
             Kind::Decision { .. } => format!("审阅：{action}"),
@@ -249,7 +240,7 @@ pub(super) unsafe fn menu(hwnd: HWND, state: &State, point: POINT) {
     if index == 0 || state.closed.get() || state.changed.get() || !IsWindowVisible(hwnd).as_bool() {
         return;
     }
-    if let Some(command) = options.into_iter().nth(index - 1) {
+    if let Some((command, _)) = options.into_iter().nth(index - 1) {
         choose(hwnd, state, command, |origin, c| {
             let risk = match c.risk {
                 Risk::Low => "低",
@@ -269,6 +260,22 @@ pub(super) unsafe fn menu(hwnd: HWND, state: &State, point: POINT) {
         });
     }
 }
+fn current_prompt(
+    s: &crate::tile_shared::State,
+    confirmation: &crate::tile_surface_activity::Confirmation,
+) -> bool {
+    !s.frozen
+        && s.visible(Instant::now())
+        && s.actions
+            .states
+            .get(&confirmation.instance_id)
+            .is_some_and(|current| {
+                current.activity.confirmations.contains(confirmation)
+                    && s.actions
+                        .owns_confirmation(confirmation, current, crate::tile_runtime::now_ms())
+                        .is_some()
+            })
+}
 fn choose(
     hwnd: HWND,
     state: &State,
@@ -282,17 +289,7 @@ fn choose(
     {
         let origin = {
             let s = state.shared.lock();
-            if s.frozen
-                || !s.visible(Instant::now())
-                || s.actions
-                    .states
-                    .get(&confirmation.instance_id)
-                    .is_none_or(|current| {
-                        s.actions
-                            .owns_confirmation(confirmation, current, crate::tile_runtime::now_ms())
-                            .is_none()
-                    })
-            {
+            if !current_prompt(&s, confirmation) {
                 return;
             }
             s.actions.origin.clone()
@@ -308,22 +305,7 @@ fn choose(
     }
     if let Kind::Decision { confirmation, .. } = &command.kind {
         let s = state.shared.lock();
-        if s.frozen
-            || !s.visible(Instant::now())
-            || s.actions
-                .states
-                .get(&confirmation.instance_id)
-                .is_none_or(|current| {
-                    s.actions
-                        .owns_confirmation(confirmation, current, crate::tile_runtime::now_ms())
-                        .is_none()
-                        || !current
-                            .activity
-                            .confirmations
-                            .iter()
-                            .any(|c| c == confirmation.as_ref())
-                })
-        {
+        if !current_prompt(&s, confirmation) {
             return;
         }
     }
@@ -345,7 +327,7 @@ pub(super) fn test_value(
 }
 #[cfg(test)]
 pub(super) fn test_choice(hwnd: HWND, state: &State, choice: Option<Choice>) -> bool {
-    let Some(command) = choices(state).into_iter().next() else {
+    let Some((command, _)) = choices(state).into_iter().next() else {
         return false;
     };
     choose(hwnd, state, command, |_, _| Ok(choice));

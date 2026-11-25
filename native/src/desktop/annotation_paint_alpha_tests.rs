@@ -61,6 +61,29 @@ fn polygon_triangle_and_serial_use_independent_fill_and_outline_paints() {
     check(&serial, 18, 32, [48, 0, 32, 80]);
 }
 #[test]
+fn transparent_shape_fill_and_serial_text_preserve_visible_paint() {
+    let _com = Apartment::new().unwrap();
+    for kind in ["rect", "round-rect", "ellipse"] {
+        let mut editor = restored(kind);
+        let style = editor.elements()[0]
+            .style()
+            .with_paint_alpha(PaintAlpha::new(0.25, 0.0).unwrap());
+        assert!(editor.restyle(0, style));
+        let result = render(&editor);
+        check(&result, 32, 32, [0; 4]);
+        check(&result, 14, 32, [0, 0, 32, 32]);
+    }
+    let mut serial = restored("serial");
+    let style = serial.elements()[0]
+        .style()
+        .with_paint_alpha(PaintAlpha::new(0.0, 0.5).unwrap());
+    assert!(serial.restyle(0, style));
+    let result = render(&serial);
+    check(&result, 14, 32, [0; 4]);
+    check(&result, 32, 32, [64, 0, 0, 64]);
+    assert!(result.pixels.chunks_exact(4).all(|pixel| pixel[2] == 0));
+}
+#[test]
 fn zero_stroke_alpha_keeps_fill_and_save_restore_repeats_exact_pixels() {
     let _com = Apartment::new().unwrap();
     let mut editor = restored("rect");
@@ -137,6 +160,39 @@ fn text_color_alpha_is_independent_of_group_opacity() {
         .pixels
         .chunks_exact(4)
         .all(|p| p[0] == 0 && p[1] == 0 && p[2] <= 33 && p[3] <= 33));
+}
+
+#[test]
+fn text_fill_survives_transparent_ink_and_roundtrips_session_pixels() {
+    let _com = Apartment::new().unwrap();
+    let mut editor = Editor::default();
+    editor.set_style(
+        StrokeStyle::default()
+            .with_fill(Some(Color(24, 132, 200)))
+            .with_paint_alpha(PaintAlpha::new(0.0, 128.0 / 255.0).unwrap()),
+    );
+    let text = crate::text_annotation::TextAnnotation::new("abc", "Segoe UI", 18.0, false).unwrap();
+    let size = unsafe { crate::desktop::annotation_text::measure(&text).unwrap() };
+    let metrics = crate::desktop::annotation_text::measure_flip_metrics(&text).unwrap();
+    editor
+        .insert_text(Point { x: 8.0, y: 8.0 }, size, text)
+        .unwrap();
+    let output = render(&editor);
+    check(&output, 9, 9, [100, 66, 12, 128]);
+    check(&output, 7, 7, [0, 0, 0, 0]);
+    let bytes =
+        crate::session_vector_write::encode(&editor, None, |_| Ok(metrics.baseline_from_top))
+            .unwrap();
+    let raw = RawValue::from_string(String::from_utf8(bytes).unwrap()).unwrap();
+    let restored = crate::session_vectors::restore_with_text(Some(&raw), |_| {
+        Ok(crate::session_vectors::TextMetrics {
+            size,
+            baseline: metrics.baseline_from_top,
+        })
+    })
+    .unwrap()
+    .editor;
+    assert_eq!(render(&restored).pixels, output.pixels);
 }
 
 #[test]

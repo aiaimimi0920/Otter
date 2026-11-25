@@ -9,12 +9,15 @@ pub(super) struct Window {
     marker: Box<u8>,
     font: HFONT,
     epoch: usize,
+    backing: Option<desktop::Window>,
+    keyed: bool,
 }
 impl Window {
     pub(super) unsafe fn new(
         owner: HWND,
         initial: &str,
         font: &crate::text_annotation::TextFont,
+        style: crate::stroke_style::StrokeStyle,
         scale: f32,
     ) -> Result<Self> {
         let limit = crate::text_annotation::MAX_TEXT_UNITS;
@@ -43,8 +46,14 @@ impl Window {
         {
             return Err(Error::from_win32());
         }
+        let paint = paint::Style::new(style);
         let hwnd = CreateWindowExW(
-            WS_EX_TOOLWINDOW,
+            WS_EX_TOOLWINDOW
+                | if paint.keyed() {
+                    WS_EX_LAYERED
+                } else {
+                    WINDOW_EX_STYLE(0)
+                },
             class,
             w!("输入标注文本"),
             WS_POPUP | WS_CLIPCHILDREN,
@@ -63,6 +72,8 @@ impl Window {
             marker: Box::new(0),
             font: HFONT::default(),
             epoch,
+            backing: None,
+            keyed: paint.keyed(),
         };
         if let Err(error) = SetPropW(
             hwnd,
@@ -78,6 +89,11 @@ impl Window {
         let mut affinity = 0;
         GetWindowDisplayAffinity(owner, &mut affinity)?;
         SetWindowDisplayAffinity(hwnd, WINDOW_DISPLAY_AFFINITY(affinity))?;
+        paint.install(hwnd)?;
+        ui.backing = paint.backing(class, owner)?;
+        if let Some(backing) = &ui.backing {
+            SetWindowDisplayAffinity(backing.0, WINDOW_DISPLAY_AFFINITY(affinity))?;
+        }
         ui.edit = CreateWindowExW(
             WINDOW_EX_STYLE(0),
             w!("EDIT"),
@@ -104,7 +120,7 @@ impl Window {
             if font.bold() {
                 FW_BOLD.0 as i32
             } else {
-                FW_NORMAL.0 as i32
+                FW_MEDIUM.0 as i32
             },
             0,
             0,
@@ -112,7 +128,12 @@ impl Window {
             DEFAULT_CHARSET,
             OUT_DEFAULT_PRECIS,
             CLIP_DEFAULT_PRECIS,
-            CLEARTYPE_QUALITY,
+            // Anti-aliasing against the key leaves a colored fringe after composition.
+            if ui.keyed {
+                NONANTIALIASED_QUALITY
+            } else {
+                CLEARTYPE_QUALITY
+            },
             DEFAULT_PITCH.0 as u32,
             &HSTRING::from(font.family()),
         );
@@ -150,6 +171,40 @@ impl Window {
     pub(super) unsafe fn contains(&self, hwnd: HWND) -> bool {
         self.alive() && (hwnd == self.hwnd || hwnd == self.edit)
     }
+    pub(super) unsafe fn forward_click(&self, owner: HWND, message: &MSG) -> bool {
+        if message.hwnd != owner
+            || !matches!(
+                message.message,
+                WM_LBUTTONDOWN | WM_LBUTTONDBLCLK | WM_RBUTTONDOWN | WM_MBUTTONDOWN
+            )
+        {
+            return false;
+        }
+        let Some(point) = self.keyed_edit_point(message.pt) else {
+            return false;
+        };
+        // Color-keyed pixels hit the owned document beneath the EDIT. Route only
+        // that document's click, never a click targeting another window.
+        let _ = SetFocus(Some(self.edit));
+        SendMessageW(
+            self.edit,
+            message.message,
+            Some(message.wParam),
+            Some(LPARAM(
+                (u32::from(point.x as u16) | (u32::from(point.y as u16) << 16)) as isize,
+            )),
+        );
+        true
+    }
+    pub(super) unsafe fn keyed_edit_point(&self, mut point: POINT) -> Option<POINT> {
+        let mut rect = RECT::default();
+        (self.keyed
+            && self.alive()
+            && ScreenToClient(self.edit, &mut point).as_bool()
+            && GetClientRect(self.edit, &mut rect).is_ok()
+            && PtInRect(&rect, point).as_bool())
+        .then_some(point)
+    }
     pub(super) unsafe fn place(&self, origin: POINT, size: Point) -> Result<()> {
         if !self.alive() {
             return Err(Error::new(E_HANDLE, "Inline text window retired"));
@@ -163,6 +218,17 @@ impl Window {
             size.y as i32,
             SWP_NOACTIVATE | SWP_NOZORDER,
         )?;
+        if let Some(backing) = &self.backing {
+            SetWindowPos(
+                backing.0,
+                Some(self.hwnd),
+                origin.x,
+                origin.y,
+                size.x as i32,
+                size.y as i32,
+                SWP_NOACTIVATE,
+            )?;
+        }
         SetWindowPos(
             self.edit,
             None,
@@ -187,6 +253,9 @@ impl Window {
         Ok(())
     }
     pub(super) unsafe fn show(&self) -> Result<()> {
+        if let Some(backing) = &self.backing {
+            let _ = ShowWindow(backing.0, SW_SHOWNOACTIVATE);
+        }
         let _ = ShowWindow(self.edit, SW_SHOWNOACTIVATE);
         let _ = ShowWindow(self.hwnd, SW_SHOWNOACTIVATE);
         RedrawWindow(
@@ -212,6 +281,9 @@ impl Window {
     pub(super) unsafe fn hide(&self) {
         if self.alive() {
             let _ = ShowWindow(self.hwnd, SW_HIDE);
+        }
+        if let Some(backing) = &self.backing {
+            let _ = ShowWindow(backing.0, SW_HIDE);
         }
     }
     pub(super) unsafe fn text(&self) -> Result<String> {

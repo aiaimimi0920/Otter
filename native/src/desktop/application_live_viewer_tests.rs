@@ -86,7 +86,11 @@ fn run_host(mode: u8, local_art: bool) {
         peer::Peer::start(listener, tls, mode == 2)
     };
     unsafe {
-        let (_class, mut app) = fixture::application();
+        let mut app = fixture::application();
+        if local_art {
+            // 签名端口只能装入从会话恢复的 Local Art 宿主，不能把普通贴图升级为 Art。
+            app.restore_local_art_fixture("vendor/viewer");
+        }
         app.authorization.borrow_mut().origin = Some(origin.clone());
         app.authorization_owner
             .start(crate::device_authorization_runtime::Task::Renew { client, store })

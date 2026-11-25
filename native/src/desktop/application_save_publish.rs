@@ -12,6 +12,7 @@ pub(in crate::desktop) struct Prepared {
         Option<crate::projection_delivery::binding::checkpoint::Index>,
     pub(super) candidate: Candidate,
     pub(super) staged: Option<save_disk::Disk>,
+    pub(super) promote_host: bool,
     pub(super) receipt: save_snapshot::Receipt,
 }
 impl Prepared {
@@ -45,40 +46,29 @@ impl Prepared {
         disk: save_disk::Disk,
         cancel: &AtomicBool,
     ) -> Result<crate::session_file_replace::Published> {
+        let source = crate::session_source::Source::from(self.candidate.bytes.clone());
+        let stale = || Error::new(E_ABORT, "Save candidate or workspace changed before commit");
         if !disk.is_for(&self.candidate)
-            || !self.receipt.matches(app)
             || self
                 .checkpoint_senders
                 .as_ref()
-                .is_some_and(|index| !index.is_for(&self.candidate.bytes.clone().into()))
+                .is_some_and(|index| !index.is_for(&source))
             || self.checkpoint_scope.as_ref().is_none_or(|proof| {
-                !proof.is_for(&self.candidate.bytes.clone().into())
-                    || app.restored_session.as_ref().unwrap().projection_scope
+                !proof.is_for(&source)
+                    || app
+                        .restored_session
+                        .as_ref()
+                        .and_then(|record| record.projection_scope)
                         != Some(proof.scope())
             })
             || self
                 .checkpoint_projections
                 .as_ref()
-                .is_some_and(|index| !index.is_for(&self.candidate.bytes.clone().into()))
+                .is_some_and(|index| !index.is_for(&source))
         {
-            return Err(Error::new(
-                E_ABORT,
-                "Save candidate or workspace changed before commit",
-            ));
+            return Err(stale());
         }
-        let promote_host = if let Some(host) = app
-            .restored_session
-            .as_ref()
-            .and_then(|record| record.transient_host.as_ref())
-        {
-            crate::session_document::decode(&self.candidate.bytes)
-                .map_err(|_| Error::new(E_FAIL, "Invalid candidate baseline"))?
-                .workspace
-                .contains(host)
-        } else {
-            false
-        };
-        let saved_state = save_state::Stamp::capture_snapshot(app, &self.receipt)?;
+        let saved_state = self.receipt.checked_saved_stamp(app).ok_or_else(stale)?;
         let published = disk.commit(cancel).map_err(|failure| {
             let mut message = format!("Cannot commit session: {}", failure.error);
             if let Some(path) = failure.recovery {
@@ -100,12 +90,13 @@ impl Prepared {
         if record.saved_path.as_ref() != Some(&published.destination) {
             app.workspace_autosave.disable();
         }
-        record.original = self.candidate.bytes.into();
+        record.original = source;
         // 仅沿已提交候选推进只读关联身份；手动文件不授默认Checkpoint的协作ack资格。
         record.restored_projections = self.checkpoint_projections;
         record.disk_original = None;
         record.saved_path = Some(published.destination.clone());
-        if promote_host {
+        // Receipt still names the same transient host the worker encoded.
+        if self.promote_host {
             record.transient_host = None;
         }
         app.saved_state = Some(saved_state);
@@ -113,21 +104,14 @@ impl Prepared {
     }
 }
 
-/// 隐藏回归只在 linshi 发布合成工作区，不改写用户会话。
-pub(super) fn smoke_destination() -> Result<PathBuf> {
-    let root = std::path::Path::new(
-        "C:/Users/Public/nas_home/AI/GameEditor/linshi/otter-native-save-publish",
-    );
-    std::fs::create_dir_all(root).map_err(|error| Error::new(E_FAIL, error.to_string()))?;
-    let path = root.join(format!("{:?}.json", unsafe {
-        windows::Win32::System::Com::CoCreateGuid()?
-    }));
-    Ok(path)
-}
-
-pub(super) unsafe fn verify(app: &mut Application, mut prepared: Prepared) -> Result<()> {
+pub(super) unsafe fn verify(
+    app: &mut Application,
+    mut prepared: Prepared,
+    fixture: &smoke_session_fixture::Directory,
+) -> Result<()> {
     let cancel = AtomicBool::new(false);
-    let path = smoke_destination()?;
+    let failed = fixture.child("failed-commits")?;
+    let path = failed.target();
     verify_failed_commits(app, &prepared.candidate, &path)?;
     let disk = prepared
         .staged
@@ -154,8 +138,15 @@ pub(super) unsafe fn verify(app: &mut Application, mut prepared: Prepared) -> Re
     let revision = prepared.candidate.revision;
     let (old_receipt, _) = app.capture_session_snapshot()?;
     let committed = prepared.commit_new(app, staged, &cancel)?;
+    fixture.require_saved(app)?;
+    if failed.require_saved(app).is_ok() {
+        return Err(Error::new(
+            E_FAIL,
+            "Unrelated fixture admitted the saved workspace",
+        ));
+    }
+    drop(failed);
     let result = std::fs::read(&committed);
-    // 本路径由本次 GUID 创建且只在 linshi；不遍历或删除其他文件。
     if result.map_err(|error| Error::new(E_FAIL, error.to_string()))? != expected.as_ref() {
         return Err(Error::new(
             E_FAIL,
@@ -198,22 +189,21 @@ pub(super) unsafe fn verify(app: &mut Application, mut prepared: Prepared) -> Re
             "Next save did not advance committed baseline",
         ));
     }
-    restore_batch::workflow::smoke::verify(app)?;
-    let replaced = save_replace_smoke::verify(app, &committed);
-    std::fs::remove_file(&committed).map_err(|error| Error::new(E_FAIL, error.to_string()))?;
-    replaced?;
+    restore_batch::workflow::smoke::verify(app, fixture)?;
+    save_replace_smoke::verify(app, &committed)?;
+    open_session::smoke::verify(app.instance, &fixture.target())?;
     println!("native-save-publish-smoke: candidate-bound=true late-stale-rejected=true new-file-roundtrip=true failed-baseline-preserved=true");
     Ok(())
 }
 
-/// 实际走提交失败分支，而不只测试 current；目标仅为上方生成的 linshi GUID 路径。
+/// 实际走提交失败分支，而不只测试 current；目标仅为上方生成的独占路径。
 unsafe fn verify_failed_commits(
     app: &mut Application,
     candidate: &Candidate,
     path: &std::path::Path,
 ) -> Result<()> {
     let io_error = |error: std::io::Error| Error::new(E_FAIL, error.to_string());
-    for mode in 0..3 {
+    for mode in 0..4 {
         let (receipt, _) = app.capture_session_snapshot()?;
         let (unchanged, _) = app.capture_session_snapshot()?;
         let record = app.restored_session.as_ref().unwrap();
@@ -227,6 +217,7 @@ unsafe fn verify_failed_commits(
             ),
             checkpoint_projections: None,
             staged: None,
+            promote_host: false,
             candidate: Candidate {
                 bytes: candidate.bytes.clone(),
                 expected_revision: candidate.expected_revision,
@@ -242,7 +233,7 @@ unsafe fn verify_failed_commits(
         } else if mode == 1 {
             app.documents[0].state.canvas.borrow_mut().normal_opacity =
                 if opacity == 0.5 { 0.6 } else { 0.5 };
-        } else {
+        } else if mode == 2 {
             let mut file = std::fs::OpenOptions::new()
                 .write(true)
                 .create_new(true)
@@ -250,7 +241,36 @@ unsafe fn verify_failed_commits(
                 .map_err(io_error)?;
             std::io::Write::write_all(&mut file, b"existing session sentinel").map_err(io_error)?;
         }
+        let moved = if mode == 3 {
+            let hwnd = app.documents[0].window.0;
+            let mut rect = RECT::default();
+            GetWindowRect(hwnd, &mut rect)?;
+            let reposition = move |x| {
+                SetWindowPos(
+                    hwnd,
+                    None,
+                    x,
+                    rect.top,
+                    0,
+                    0,
+                    SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+                )
+            };
+            reposition(rect.left + 7)?;
+            Some((reposition, rect.left))
+        } else {
+            None
+        };
         let result = prepared.commit_new(app, staged, &cancel);
+        if let Some((reposition, x)) = moved {
+            reposition(x)?;
+            if !result.as_ref().is_err_and(|error| error.code() == E_ABORT) {
+                return Err(Error::new(
+                    E_FAIL,
+                    "Commit did not reject late window movement",
+                ));
+            }
+        }
         app.documents[0].state.canvas.borrow_mut().normal_opacity = opacity;
         let target_preserved = if mode == 2 {
             let bytes = std::fs::read(path).map_err(io_error)?;

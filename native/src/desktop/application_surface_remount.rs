@@ -16,6 +16,12 @@ pub(super) fn start(
     sessions: &mut Sessions,
     windows: &Windows,
     live_count: usize,
+    config: impl FnOnce(
+        &str,
+    ) -> Result<
+        crate::device_authorization_config::Config,
+        crate::device_authorization_config::Error,
+    >,
 ) -> Result<(), String> {
     if view.closed
         || view.busy
@@ -44,8 +50,7 @@ pub(super) fn start(
     if lease.device_id() != candidate.device() {
         return Err("当前设备与候选不一致，请重新查询".into());
     }
-    let config = crate::device_authorization_config::Config::from_env(candidate.origin())
-        .map_err(|error| format!("配置无效：{error:?}"))?;
+    let config = config(candidate.origin()).map_err(|error| format!("配置无效：{error:?}"))?;
     let request =
         crate::surface_attach_runtime::Request::recover(candidate, super::surface_start::report()?);
     sessions
@@ -74,7 +79,8 @@ mod tests {
             &mut Owner::default(),
             &mut sessions,
             &Windows::default(),
-            0
+            0,
+            |_| panic!("rejected recovery must not read configuration"),
         )
         .is_err());
         assert!(view.recovery_candidate.is_none());
@@ -85,7 +91,8 @@ mod tests {
             &mut Owner::default(),
             &mut sessions,
             &Windows::default(),
-            0
+            0,
+            |_| panic!("rejected recovery must not read configuration"),
         )
         .is_err());
         assert!(sessions.finished());
@@ -102,7 +109,8 @@ mod tests {
             &mut Owner::default(),
             &mut sessions,
             &Windows::default(),
-            0
+            0,
+            |_| panic!("rejected recovery must not read configuration"),
         )
         .is_err());
         assert!(Arc::ptr_eq(
@@ -116,6 +124,7 @@ mod tests {
             &mut sessions,
             &Windows::default(),
             16,
+            |_| panic!("rejected recovery must not read configuration"),
         )
         .unwrap_err();
         assert!(error.contains("等待容量"));

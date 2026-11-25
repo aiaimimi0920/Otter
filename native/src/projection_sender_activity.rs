@@ -234,6 +234,6 @@ fn now() -> Result<u64, Error> {
         .and_then(|time| u64::try_from(time.as_millis()).ok())
         .ok_or(Error::Stopped)
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "projection_sender_activity_tests.rs"]
 mod tests;

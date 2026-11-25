@@ -12,7 +12,25 @@ pub fn prepare(
     cancel: &AtomicBool,
     mut bake: impl FnMut(&Window<'_>, &Map<String, Value>, (f64, f64)) -> Result<String, Error>,
 ) -> Result<Snapshot, Error> {
-    super::prepare(saved, revision, cancel, |window, fields| {
+    check(cancel)?;
+    let document = crate::session_document::decode(saved).map_err(|_| Error::Session)?;
+    prepare_from(
+        &document,
+        revision,
+        catalog,
+        cancel,
+        |_, window, fields, size| bake(window, fields, size),
+    )
+}
+
+pub(crate) fn prepare_from(
+    document: &crate::session_document::Document<'_>,
+    revision: u64,
+    catalog: &[Value],
+    cancel: &AtomicBool,
+    mut bake: impl FnMut(usize, &Window<'_>, &Map<String, Value>, (f64, f64)) -> Result<String, Error>,
+) -> Result<Snapshot, Error> {
+    super::prepare_from(document, revision, cancel, |index, window, fields| {
         check(cancel)?;
         let parameters = parameters(window, catalog)?;
         let image = if requires_bake(window, fields)? {
@@ -24,7 +42,7 @@ pub fn prepare(
             } else {
                 (window.w, window.h)
             };
-            let src = bake(window, fields, size)?;
+            let src = bake(index, window, fields, size)?;
             check(cancel)?;
             if src.len() > crate::session_document::MAX_SESSION_BYTES
                 || !src.starts_with("data:image/")
@@ -158,6 +176,6 @@ fn truthy(value: &Value) -> bool {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "session_workflow_content_tests.rs"]
 mod tests;

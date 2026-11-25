@@ -460,7 +460,6 @@ impl Mount {
                 if field.session.value() != before {
                     self.values.update(id, field.session.form_value());
                 }
-                self.intents.settle(event.id());
             }
         }
         Ok(())

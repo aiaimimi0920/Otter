@@ -1,5 +1,5 @@
 //! 面板可用性来自文档/任务 owner；执行时再次判断，过期点击不启动冲突操作。
-use super::{context_menu as menu, State};
+use super::{context_menu as menu, Canvas, State};
 use crate::editor::Tool;
 #[derive(Clone, Copy, Default)]
 pub(super) struct Availability {
@@ -27,6 +27,9 @@ impl Availability {
     }
     pub(super) fn capture(state: &State) -> Option<Self> {
         let canvas = state.canvas.try_borrow().ok()?;
+        Self::read(state, &canvas)
+    }
+    pub(super) fn read(state: &State, canvas: &Canvas) -> Option<Self> {
         let image = canvas.image.is_some() || state.resolved_display.try_borrow().ok()?.is_some();
         let target = if canvas.tool == Tool::Select {
             canvas.selected_index().is_some() || canvas.selected_group().is_some()
@@ -46,7 +49,7 @@ impl Availability {
                 || state.new_pin.try_borrow().ok()?.is_some(),
             blur_tool: canvas.tool == Tool::Blur,
             mosaic_tool: canvas.tool == Tool::Mosaic,
-            selected_blur: super::blur_input::selected_strength(&canvas).is_some(),
+            selected_blur: super::blur_input::selected_strength(canvas).is_some(),
             image,
             busy,
             flipping: state.flip_job.try_borrow().ok()?.is_busy(),

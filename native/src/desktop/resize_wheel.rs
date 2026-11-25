@@ -33,7 +33,7 @@ impl Session {
         self.0.as_ref().is_some_and(|batch| {
             eligible(canvas)
                 && batch.stamp.matches(&canvas.editor)
-                && batch.indices == canvas.selected_indices()
+                && batch.indices.as_slice() == canvas.selected_indices_ref()
         })
     }
     fn push(&mut self, intent: Intent) -> Result<(), EditError> {
@@ -175,7 +175,7 @@ fn prepare(canvas: &mut Canvas, delta: i16, own: bool) -> Result<bool, EditError
     if delta == 0 || !eligible(canvas) {
         return Ok(false);
     }
-    let indices = canvas.selected_indices();
+    let indices = canvas.selected_indices_ref();
     let Some(pivot) =
         crate::group_bounds::center(indices.iter().map(|i| &canvas.editor.elements()[*i]))
     else {
@@ -183,7 +183,7 @@ fn prepare(canvas: &mut Canvas, delta: i16, own: bool) -> Result<bool, EditError
     };
     let factor = (f32::from(delta) * 0.001).exp().clamp(0.5, 1.5);
     canvas.scale_pending = canvas.editor.prepare_resize_many_mode(
-        &indices,
+        indices,
         pivot,
         Point {
             x: factor,
@@ -203,9 +203,9 @@ fn eligible(canvas: &Canvas) -> bool {
         && !canvas.crop_mode
         && !canvas.blocks_wheel()
         && canvas.scale_pending.is_none()
-        && !canvas.selected_indices().is_empty()
+        && !canvas.selected_indices_ref().is_empty()
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "procedure_wheel_tests.rs"]
 mod tests;

@@ -18,5 +18,6 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/loom-connection/
 不会被当作可投射目标。显式清除会话同时暂停自动连接，重启保持暂停，菜单续签或重新导入解除。
 
 独立导入命令也支持显式 `-ConnectionFile`、`-ProfileDirectory` 和可选 `-Executable`。
+连接文件最多 40 KiB，使用 UTF-8；Loom ID 必须为 `loom-` 加 64 位小写十六进制。
 只允许导入可信来源的连接文件；目标变化时重新从正确的 Loom 导出。
 不要复制 `loom.json`、`device-identity.json` 或整个用户 profile。

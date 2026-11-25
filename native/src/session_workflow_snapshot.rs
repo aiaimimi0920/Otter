@@ -96,6 +96,19 @@ pub fn prepare(
 ) -> Result<Snapshot, Error> {
     check(cancel)?;
     let document = super::decode(saved).map_err(|_| Error::Session)?;
+    prepare_from(&document, expected_revision, cancel, |_, window, fields| {
+        content(window, fields)
+    })
+}
+
+pub(super) fn prepare_from(
+    document: &super::Document<'_>,
+    expected_revision: u64,
+    cancel: &AtomicBool,
+    mut content: impl FnMut(usize, &Window<'_>, &Map<String, Value>) -> Result<Content, Error>,
+) -> Result<Snapshot, Error> {
+    check(cancel)?;
+    let saved = document.original_json();
     if expected_revision == 0
         || expected_revision > 9_007_199_254_740_991
         || document.revision != expected_revision
@@ -113,7 +126,7 @@ pub fn prepare(
     nodes
         .try_reserve_exact(records.len())
         .map_err(|_| Error::Budget)?;
-    for (window, record) in document.windows.iter().zip(records) {
+    for (index, (window, record)) in document.windows.iter().zip(records).enumerate() {
         check(cancel)?;
         let Value::Object(mut fields) = record else {
             return Err(Error::Node);
@@ -129,7 +142,7 @@ pub fn prepare(
         {
             return Err(Error::Node);
         }
-        let prepared = content(window, &fields)?;
+        let prepared = content(index, window, &fields)?;
         check(cancel)?;
         if prepared.image.keys().any(|key| {
             !matches!(
@@ -170,11 +183,22 @@ pub fn prepare(
                 data.insert(key.into(), value);
             }
         }
-        nodes.push(
-            json!({"id":window.id,"type":if window.is_art(){"artNode"}else{"sticker"},
-            "position":{"x":window.x,"y":window.y},"data":data,
-            "measured":{"width":window.w,"height":window.h}}),
-        );
+        // 大图字段已拥有 String；直接移入 Value，避免通过 json! 再序列化复制。
+        let kind = if window.is_art() {
+            "artNode"
+        } else {
+            "sticker"
+        };
+        nodes.push(Value::Object(Map::from_iter([
+            ("id".into(), window.id.as_str().into()),
+            ("type".into(), kind.into()),
+            ("position".into(), json!({"x":window.x,"y":window.y})),
+            ("data".into(), Value::Object(data)),
+            (
+                "measured".into(),
+                json!({"width":window.w,"height":window.h}),
+            ),
+        ])));
     }
     let edges: Vec<_> = document.workspace.links().iter().map(|link| json!({
         "id":link.id.as_str(),"source":link.from_unit.as_str(),"target":link.to_unit.as_str(),
@@ -188,11 +212,16 @@ pub fn prepare(
             sha2::Sha256::digest(saved).into()
         },
         revision: expected_revision,
-        value: json!({"nodes":nodes,"edges":edges,
-        "viewport":{"x":0,"y":0,"zoom":1},"documentSchemaVersion":1,"documentRevision":expected_revision}),
+        value: Value::Object(Map::from_iter([
+            ("nodes".into(), Value::Array(nodes)),
+            ("edges".into(), Value::Array(edges)),
+            ("viewport".into(), json!({"x":0,"y":0,"zoom":1})),
+            ("documentSchemaVersion".into(), 1.into()),
+            ("documentRevision".into(), expected_revision.into()),
+        ])),
     })
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "session_workflow_snapshot_tests.rs"]
 mod tests;

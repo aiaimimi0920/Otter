@@ -8,47 +8,17 @@ impl Canvas {
         size: D2D_SIZE_U,
         dpi: u32,
     ) -> Result<()> {
-        let empty = Editor::default();
-        let editor = frame.editor.as_deref().unwrap_or(&empty);
+        let editor = frame.editor.as_deref();
         let image = &frame.image;
         let resources = self.target.as_mut().expect("paint owns target creation");
         resources.surface.resize(size)?;
         let target = resources.surface.resource_target();
-        resources.raster.sync_sized(
-            target,
-            Some(image),
-            editor
-                .layers()
-                .and_then(|layers| layers.annotations.as_ref()),
-            editor
-                .layers()
-                .map_or((0, 0), |layers| layers.annotation_dimensions()),
-        )?;
-        let origin = self.viewport.origin;
-        let scale = self.viewport.scale;
-        let rect = editor.raster_base_projection().map_or(
-            D2D_RECT_F {
-                left: origin.x,
-                top: origin.y,
-                right: origin.x + image.width as f32 * scale,
-                bottom: origin.y + image.height as f32 * scale,
-            },
-            |mapping| {
-                let r = mapping.target;
-                D2D_RECT_F {
-                    left: origin.x + r.x as f32 * scale,
-                    top: origin.y + r.y as f32 * scale,
-                    right: origin.x + (r.x + r.width) as f32 * scale,
-                    bottom: origin.y + (r.y + r.height) as f32 * scale,
-                }
-            },
-        );
-        let clip = editor.annotation_frame().map_or(rect, |r| D2D_RECT_F {
-            left: origin.x + r.x as f32 * scale,
-            top: origin.y + r.y as f32 * scale,
-            right: origin.x + (r.x + r.width) as f32 * scale,
-            bottom: origin.y + (r.y + r.height) as f32 * scale,
-        });
+        resources.raster.sync_frame(target, Some(image), editor)?;
+        let raster::Geometry {
+            base,
+            clip,
+            projection,
+        } = raster::Geometry::new(image, editor, self.viewport);
         target.SetDpi(dpi as f32, dpi as f32);
         resources.surface.draw(|target| {
             let background = if self.pinned {
@@ -67,27 +37,27 @@ impl Canvas {
             let _rounded = frame_style.clip(target, &self.factory)?;
             let clipped = super::super::render_frame::Clip::push(target, &clip);
             // 走无擦除的公共路径同时退休旧擦除几何缓存。
-            resources
-                .raster
-                .draw_interleaved(
+            resources.raster.draw_interleaved(
+                target,
+                &base,
+                &clip,
+                None,
+                (self.viewport, projection),
+                || frame_style.border_over_clip(target, &clip),
+            )?;
+            if let Some(editor) = editor {
+                crate::desktop::annotations::draw_preview(
                     target,
-                    &rect,
-                    &clip,
+                    &resources.brush,
+                    editor,
+                    self.viewport,
                     None,
-                    (self.viewport, editor.raster_base_projection()),
-                    || frame_style.border_over_clip(target, &clip),
-                )
-                .and_then(|_| {
-                    crate::desktop::annotations::draw_preview(
-                        target,
-                        &resources.brush,
-                        editor,
-                        self.viewport,
-                        None,
-                        None,
-                        &mut resources.effects,
-                    )
-                })?;
+                    None,
+                    &mut resources.effects,
+                )?;
+            } else {
+                resources.effects.retain_tools(false, false);
+            }
             drop(clipped);
             if let Some(views) = &self.extension_views {
                 views.draw(

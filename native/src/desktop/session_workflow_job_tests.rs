@@ -5,7 +5,7 @@ use std::{
     sync::{atomic::AtomicUsize, mpsc},
     time::Duration,
 };
-fn input() -> Input {
+pub(super) fn input() -> Input {
     Input {
         saved: br#"{"documentRevision":5,"stickers":[],"links":[]}"#.to_vec(),
         revision: 5,
@@ -13,7 +13,7 @@ fn input() -> Input {
         catalog: Vec::new(),
     }
 }
-fn run(input: Input) -> std::result::Result<Ready, String> {
+pub(super) fn run(input: Input) -> std::result::Result<Ready, String> {
     let (tx, rx) = mpsc::channel();
     let mut job = Job::start(
         input,
@@ -23,6 +23,7 @@ fn run(input: Input) -> std::result::Result<Ready, String> {
     )
     .unwrap();
     rx.recv_timeout(Duration::from_secs(30)).unwrap();
+    job.test_wait_finished();
     let result = job.poll().unwrap();
     assert!(job.poll().is_none());
     result
@@ -59,7 +60,21 @@ fn worker_prepares_actual_image_snapshot_metadata_and_source_identity() {
     .unwrap();
     assert_eq!((decoded.width, decoded.height), (8, 4));
     assert!((127..=128).contains(&decoded.pixels[3]));
-    assert_eq!(ready.components(&cancel).unwrap().len(), 1);
+    let mut batch = ready.batch(&cancel).unwrap();
+    assert_eq!(batch.remaining(), 2);
+    let budget = crate::byte_budget::Budget::new(8192);
+    let global = batch.current(&budget, 8192, &cancel).unwrap().unwrap();
+    let id = global.id().to_owned();
+    assert!(batch.acknowledge(&id));
+    let component = batch.current(&budget, 8192, &cancel).unwrap().unwrap();
+    assert_eq!(component.workflow_id(), "remote");
+    let request: serde_json::Value = serde_json::from_slice(component.bytes()).unwrap();
+    let node = &request["params"]["snapshot"]["nodes"][0];
+    assert_eq!(node["id"], "node");
+    assert_eq!(
+        node["data"]["src"],
+        ready.snapshot().value()["nodes"][0]["data"]["src"]
+    );
     assert!(ready.metadata().matches(&saved));
 }
 #[test]
@@ -85,8 +100,14 @@ fn worker_rejects_revision_mismatch_and_unadmitted_file_access() {
     .is_err());
 }
 #[test]
-fn shared_source_is_copied_on_worker_and_retains_its_budget() {
-    let source: crate::session_source::Source = input().saved.into();
+fn shared_source_keeps_original_buffer_and_budget_until_ready_is_dropped() {
+    let saved = input().saved;
+    let bytes = saved.capacity();
+    let budget = crate::byte_budget::Budget::new(bytes);
+    let source = Source::from(crate::pixels::Pixels::from_reserved(
+        saved,
+        budget.reserve(bytes).unwrap(),
+    ));
     let (tx, rx) = mpsc::channel();
     let mut job = Job::start_shared(
         source.clone(),
@@ -98,12 +119,16 @@ fn shared_source_is_copied_on_worker_and_retains_its_budget() {
     )
     .unwrap();
     rx.recv_timeout(Duration::from_secs(30)).unwrap();
+    job.test_wait_finished();
     let ready = job.poll().unwrap().unwrap();
     assert!(ready.matches_source(&source));
-    assert!(ready._source_lease.as_ref().unwrap().bytes() >= source.len());
-    assert_ne!(ready.source.as_ptr(), source.as_ptr());
+    assert!(ready.matches_retained_source(&source));
+    assert!(ready.source.same_storage(&source));
     drop(source);
+    assert_eq!(budget.used(), bytes);
     assert_eq!(ready.snapshot().revision(), 5);
+    drop(ready);
+    assert_eq!(budget.used(), 0);
 }
 
 #[test]
@@ -121,6 +146,7 @@ fn completed_result_is_discarded_after_cancel_and_notification_is_once() {
     .unwrap();
     rx.recv_timeout(Duration::from_secs(30)).unwrap();
     job.cancel();
+    job.test_wait_finished();
     assert!(job.poll().unwrap().is_err());
     assert!(job.poll().is_none());
     assert_eq!(count.load(Ordering::Acquire), 1);
@@ -148,5 +174,6 @@ fn drop_cancels_and_joins_worker_and_panic_becomes_failure() {
     )
     .unwrap();
     rx.recv_timeout(Duration::from_secs(30)).unwrap();
+    job.test_wait_finished();
     assert!(job.poll().unwrap().is_err());
 }

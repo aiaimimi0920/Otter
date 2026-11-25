@@ -3,50 +3,18 @@ use super::*;
 use crate::desktop::{tray, Apartment};
 use std::cell::Cell;
 
-struct Class {
-    instance: HINSTANCE,
-    owned: bool,
-}
-impl Class {
-    unsafe fn new() -> Self {
-        let instance = HINSTANCE(
-            windows::Win32::System::LibraryLoader::GetModuleHandleW(None)
-                .unwrap()
-                .0,
-        );
-        let owned = RegisterClassW(&WNDCLASSW {
-            hInstance: instance,
-            lpszClassName: w!("Otter.Native.Workspace"),
-            lpfnWndProc: Some(crate::desktop::procedure::window_proc),
-            ..Default::default()
-        }) != 0;
-        assert!(owned || GetLastError() == ERROR_CLASS_ALREADY_EXISTS);
-        Self { instance, owned }
-    }
-    unsafe fn app(&self) -> Application {
-        let document =
-            DocumentWindow::create(self.instance, State::new(None, false).unwrap(), false).unwrap();
-        Application::new(self.instance, document)
-    }
-}
-impl Drop for Class {
-    fn drop(&mut self) {
-        if self.owned {
-            unsafe {
-                assert!(
-                    UnregisterClassW(w!("Otter.Native.Workspace"), Some(self.instance)).is_ok()
-                );
-            }
-        }
-    }
+unsafe fn app() -> Application {
+    let instance = crate::desktop::workspace_window_fixture::register();
+    let document =
+        DocumentWindow::create(instance, State::new(None, false).unwrap(), false).unwrap();
+    Application::new(instance, document)
 }
 
 #[test]
 fn clipboard_cascade_and_current_target_reach_real_staged_windows() {
     unsafe {
         let _apartment = Apartment::new().unwrap();
-        let class = Class::new();
-        let mut app = class.app();
+        let mut app = app();
         crate::desktop::application::paste_smoke::run(&mut app).unwrap();
         // 可见粘贴已创建附属窗口，后续失败导入仍必须完整回滚。
         assert!(app.capture_windows.borrow().len() > app.documents.len() * 2);
@@ -58,8 +26,8 @@ fn clipboard_cascade_and_current_target_reach_real_staged_windows() {
 fn visible_paste_preserves_whole_application_smoke_lifecycle() {
     unsafe {
         let _apartment = Apartment::new().unwrap();
-        let class = Class::new();
-        smoke::run(class.instance, Default::default()).unwrap();
+        let instance = crate::desktop::workspace_window_fixture::register();
+        smoke::run(instance, Default::default()).unwrap();
     }
 }
 
@@ -68,8 +36,7 @@ fn visible_paste_preserves_whole_application_smoke_lifecycle() {
 fn clipboard_system_publication_preserves_source_cascade() {
     unsafe {
         let _apartment = Apartment::new().unwrap();
-        let class = Class::new();
-        let mut app = class.app();
+        let mut app = app();
         crate::desktop::application::paste_smoke::system::run(&mut app).unwrap();
     }
 }
@@ -78,8 +45,7 @@ fn clipboard_system_publication_preserves_source_cascade() {
 fn external_paste_position_does_not_change_initial_scale() {
     unsafe {
         let _apartment = Apartment::new().unwrap();
-        let class = Class::new();
-        let mut app = class.app();
+        let mut app = app();
         let mut pin = crate::desktop::open_image::PreparedDocument::from_image(
             crate::desktop::image::Image {
                 width: 2400,
@@ -112,8 +78,7 @@ fn pasted_pins_start_idle_without_changing_source_toolbar_and_can_be_edited_expl
     use windows::Win32::UI::Input::KeyboardAndMouse::VK_F4;
     unsafe {
         let _apartment = Apartment::new().unwrap();
-        let class = Class::new();
-        let mut app = class.app();
+        let mut app = app();
         let fixture = smoke::image_fixture::ImageFile::new().unwrap();
         app.add_prepared(
             vec![PreparedDocument::open(fixture.path(), true).unwrap()],
@@ -160,8 +125,7 @@ fn pasted_pins_start_idle_without_changing_source_toolbar_and_can_be_edited_expl
 fn startup_presentation_keeps_empty_host_hidden_but_shows_actual_documents() {
     unsafe {
         let _apartment = Apartment::new().unwrap();
-        let class = Class::new();
-        let app = class.app();
+        let app = app();
         let doc = &app.documents[0];
         doc.show_content(SW_SHOWNORMAL);
         assert!(!IsWindowVisible(doc.window.0).as_bool());
@@ -183,8 +147,7 @@ fn startup_presentation_keeps_empty_host_hidden_but_shows_actual_documents() {
 fn initial_loop_installs_one_resident_and_closed_owner_transfers_to_a_live_document() {
     unsafe {
         let _apartment = Apartment::new().unwrap();
-        let class = Class::new();
-        let mut app = class.app();
+        let mut app = app();
         let calls = std::cell::RefCell::new(Vec::new());
         let install = |doc: &DocumentWindow| {
             calls.borrow_mut().push(doc.window.0);
@@ -214,8 +177,7 @@ fn initial_loop_installs_one_resident_and_closed_owner_transfers_to_a_live_docum
 fn whole_owner_replacement_reinstalls_once_without_requiring_a_hide_action() {
     unsafe {
         let _apartment = Apartment::new().unwrap();
-        let class = Class::new();
-        let mut app = class.app();
+        let mut app = app();
         app.ensure_tray_with(|doc| tray::start_with(&doc.state, || Ok(())));
         let previous = app.documents[0].window.0;
         let next = app
@@ -240,8 +202,7 @@ fn whole_owner_replacement_reinstalls_once_without_requiring_a_hide_action() {
 fn unavailable_shell_is_not_retried_on_every_loop_or_hidden_as_a_side_effect() {
     unsafe {
         let _apartment = Apartment::new().unwrap();
-        let class = Class::new();
-        let app = class.app();
+        let app = app();
         let hwnd = app.documents[0].window.0;
         let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
         app.ensure_tray_with(|doc| {
@@ -256,11 +217,77 @@ fn unavailable_shell_is_not_retried_on_every_loop_or_hidden_as_a_side_effect() {
 }
 
 #[test]
+fn unavailable_shell_preserves_commands_on_new_or_recreated_empty_host() {
+    unsafe {
+        let _apartment = Apartment::new().unwrap();
+        for recreate in [false, true] {
+            for global_key in [false, true] {
+                let mut app = app();
+                let initial = app.documents[0].state.unit_id.clone();
+                let attempts = Cell::new(0);
+                let install = |doc: &DocumentWindow| {
+                    attempts.set(attempts.get() + 1);
+                    assert!(!IsWindowVisible(doc.window.0).as_bool());
+                    // 模拟注册结果；夹具不抢占机器的全局快捷键或 Shell 图标。
+                    doc.state.global_capture.set(global_key);
+                    tray::start_with(&doc.state, || {
+                        Err(Error::new(E_FAIL, "Injected unavailable Shell"))
+                    })
+                };
+                if recreate {
+                    DestroyWindow(app.documents[0].window.0).unwrap();
+                    app.resume_empty_with(install).unwrap();
+                    assert!(!app.workspace.contains(&initial));
+                } else {
+                    app.ensure_tray_with(install);
+                }
+                let doc = &app.documents[0];
+                doc.state.global_capture.set(false);
+                assert!(doc.is_alive() && tray::is_resident(&doc.state));
+                assert_eq!(IsWindowVisible(doc.window.0).as_bool(), !global_key);
+                assert_eq!(IsWindowVisible(doc.panel.0).as_bool(), !global_key);
+                assert!(!tray::is_hidden(&doc.state));
+                if !global_key {
+                    let button =
+                        GetDlgItem(Some(doc.panel.0), desktop::capture_input::DEFAULT as i32)
+                            .unwrap();
+                    assert!(IsWindowVisible(button).as_bool());
+                    assert!(
+                        windows::Win32::UI::Input::KeyboardAndMouse::IsWindowEnabled(button)
+                            .as_bool()
+                    );
+                    SendMessageW(
+                        doc.window.0,
+                        WM_SYSCOMMAND,
+                        Some(WPARAM(SC_CLOSE as usize)),
+                        None,
+                    );
+                    assert!(doc.is_alive() && doc.state.exit_requested.replace(false));
+                }
+                app.ensure_tray_with(|_| panic!("failed Shell install must not retry per message"));
+                assert_eq!(attempts.get(), 1);
+                if !global_key {
+                    let fallback = app.documents[0].window.0;
+                    app.add_window(false).unwrap();
+                    SendMessageW(
+                        fallback,
+                        WM_SYSCOMMAND,
+                        Some(WPARAM(SC_CLOSE as usize)),
+                        None,
+                    );
+                    assert!(!app.documents[0].is_alive() && app.documents[1].is_alive());
+                    assert!(!app.documents[0].state.exit_requested.get());
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn deleting_last_pin_recreates_hidden_transient_host_but_explicit_exit_does_not() {
     unsafe {
         let _apartment = Apartment::new().unwrap();
-        let class = Class::new();
-        let mut app = class.app();
+        let mut app = app();
         let old_unit = app.documents[0].state.unit_id.clone();
         DestroyWindow(app.documents[0].window.0).unwrap();
         app.resume_empty_with(|doc| tray::start_with(&doc.state, || Ok(())))

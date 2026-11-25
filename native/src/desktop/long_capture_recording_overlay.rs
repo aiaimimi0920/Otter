@@ -4,6 +4,14 @@ use windows::{core::w, Win32::Graphics::Gdi::*};
 #[path = "long_capture_recording_keyboard.rs"]
 mod keyboard;
 const BACKING: windows::core::PCWSTR = w!("Otter.LongCapture.Preview");
+struct OwnedRegion(HRGN);
+impl Drop for OwnedRegion {
+    fn drop(&mut self) {
+        unsafe {
+            let _ = DeleteObject(self.0.into());
+        }
+    }
+}
 
 pub(super) unsafe fn run(owner: HWND, input: &Input) -> Result<Option<Image>> {
     run_with(owner, input, |_| Ok(()))
@@ -16,7 +24,7 @@ pub(super) unsafe fn run_with(
     input.modeless.set(true);
     let mut template = layout::template();
     // 创建时就使用无框、不激活样式，WM_INITDIALOG 的失败也属于 modeless 生命周期。
-    template[0] = WS_POPUP.0 | DS_SETFONT as u32;
+    template[0] = (WS_POPUP | WS_CLIPCHILDREN).0 | DS_SETFONT as u32;
     template[1] = (WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TOPMOST).0;
     let window = crate::desktop::Window(CreateDialogIndirectParamW(
         None,
@@ -190,66 +198,76 @@ unsafe fn present(hwnd: HWND, input: &Input) -> Result<()> {
     let edge = px(20, dpi);
     let header = px(48, dpi);
     let bottom = (height - px(28, dpi)).max(header + edge);
-    let buttons = [
-        (
-            108,
-            RECT {
-                left: edge,
-                top: header,
-                right: width - edge,
-                bottom: header + edge,
-            },
-        ),
-        (
-            109,
-            RECT {
-                left: 0,
-                top: header + edge,
-                right: edge,
-                bottom,
-            },
-        ),
-        (
-            110,
-            RECT {
-                left: width - edge,
-                top: header + edge,
-                right: width,
-                bottom,
-            },
-        ),
-        (
-            111,
-            RECT {
-                left: edge,
-                top: bottom,
-                right: width - edge,
-                bottom: bottom + edge,
-            },
-        ),
-    ];
-    let combined = CreateRectRgn(0, 0, 0, 0);
-    if combined.is_invalid() {
-        return Err(Error::from_win32());
-    }
-    for (id, r) in buttons {
-        let part = CreateRectRgn(r.left, r.top, r.right, r.bottom);
-        CombineRgn(Some(combined), Some(combined), Some(part), RGN_OR);
-        let _ = DeleteObject(part.into());
-        let control = GetDlgItem(Some(hwnd), id)?;
-        SetWindowPos(
-            control,
-            None,
-            r.left,
-            r.top,
-            r.right - r.left,
-            r.bottom - r.top,
-            SWP_NOACTIVATE | SWP_NOZORDER,
-        )?;
-    }
-    if SetWindowRgn(hwnd, Some(combined), false) == 0 {
-        let _ = DeleteObject(combined.into());
-        return Err(Error::from_win32());
+    // 内容和状态更新沿用箭头几何；只在尺寸或 DPI 改变后重建命中区域。
+    if input.recording.overlay_layout.get() != Some((width, height, dpi)) {
+        let buttons = [
+            (
+                108,
+                RECT {
+                    left: edge,
+                    top: header,
+                    right: width - edge,
+                    bottom: header + edge,
+                },
+            ),
+            (
+                109,
+                RECT {
+                    left: 0,
+                    top: header + edge,
+                    right: edge,
+                    bottom,
+                },
+            ),
+            (
+                110,
+                RECT {
+                    left: width - edge,
+                    top: header + edge,
+                    right: width,
+                    bottom,
+                },
+            ),
+            (
+                111,
+                RECT {
+                    left: edge,
+                    top: bottom,
+                    right: width - edge,
+                    bottom: bottom + edge,
+                },
+            ),
+        ];
+        let combined = OwnedRegion(CreateRectRgn(0, 0, 0, 0));
+        if combined.0.is_invalid() {
+            return Err(Error::from_win32());
+        }
+        for (id, r) in buttons {
+            let part = OwnedRegion(CreateRectRgn(r.left, r.top, r.right, r.bottom));
+            if part.0.is_invalid()
+                || CombineRgn(Some(combined.0), Some(combined.0), Some(part.0), RGN_OR) == RGN_ERROR
+            {
+                return Err(Error::from_win32());
+            }
+            let control = GetDlgItem(Some(hwnd), id)?;
+            SetWindowPos(
+                control,
+                None,
+                r.left,
+                r.top,
+                r.right - r.left,
+                r.bottom - r.top,
+                SWP_NOACTIVATE | SWP_NOZORDER,
+            )?;
+        }
+        if SetWindowRgn(hwnd, Some(combined.0), false) == 0 {
+            return Err(Error::from_win32());
+        }
+        std::mem::forget(combined); // 成功后由窗口拥有区域，错误路径仍由 RAII 释放。
+        input
+            .recording
+            .overlay_layout
+            .set(Some((width, height, dpi)));
     }
     let bitmap =
         crate::software_dib::Bitmap::new(windows::Win32::Graphics::Direct2D::Common::D2D_SIZE_U {
@@ -367,4 +385,74 @@ unsafe fn present(hwnd: HWND, input: &Input) -> Result<()> {
         SWP_NOACTIVATE | SWP_SHOWWINDOW,
     )?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use windows::Win32::System::Threading::{GetCurrentProcess, GetGuiResources, GR_GDIOBJECTS};
+
+    #[test]
+    fn recording_dialog_uses_no_erase_and_a_dark_arrow_fallback() {
+        unsafe {
+            let input = super::super::tests::input();
+            let dialog = super::super::tests::hidden(&input);
+            input.modeless.set(true);
+            let arrow = GetDlgItem(Some(dialog.0), 109).unwrap();
+            let bitmap = crate::software_dib::Bitmap::new(
+                windows::Win32::Graphics::Direct2D::Common::D2D_SIZE_U {
+                    width: 32,
+                    height: 32,
+                },
+            )
+            .unwrap();
+            let dc = bitmap.dc();
+            let sentinel = COLORREF(0x123456);
+            assert_eq!(SetPixel(dc, 3, 3, sentinel), sentinel);
+            let wp = Some(WPARAM(dc.0 as usize));
+            assert_eq!(SendMessageW(dialog.0, WM_ERASEBKGND, wp, None).0, 1);
+            assert_eq!(GetPixel(dc, 3, 3), sentinel);
+
+            let brush = SendMessageW(dialog.0, WM_CTLCOLORBTN, wp, Some(LPARAM(arrow.0 as isize)));
+            assert_eq!(brush.0, GetStockObject(DC_BRUSH).0 as isize);
+            assert_eq!(GetDCBrushColor(dc), COLORREF(0x201711));
+        }
+    }
+
+    #[test]
+    fn failed_arrow_layout_releases_regions_and_does_not_commit_geometry() {
+        unsafe {
+            let input = super::super::tests::input();
+            let dialog = super::super::tests::hidden(&input);
+            let backing = crate::desktop::Window(
+                CreateWindowExW(
+                    WS_EX_LAYERED,
+                    w!("STATIC"),
+                    w!("preview failure fixture"),
+                    WS_POPUP,
+                    0,
+                    0,
+                    1,
+                    1,
+                    None,
+                    None,
+                    None,
+                    None,
+                )
+                .unwrap(),
+            );
+            SetPropW(dialog.0, BACKING, Some(HANDLE(backing.0 .0))).unwrap();
+            // 第四个控件缺失：之前已经创建合并区域并定位了前三个控件。
+            DestroyWindow(GetDlgItem(Some(dialog.0), 111).unwrap()).unwrap();
+            // 首次定位前三个控件可能初始化 Win32 资源；先经过同一失败路径，再测重复失败。
+            assert!(present(dialog.0, &input).is_err());
+            assert!(input.recording.overlay_layout.get().is_none());
+            let before = GetGuiResources(GetCurrentProcess(), GR_GDIOBJECTS);
+            for _ in 0..8 {
+                assert!(present(dialog.0, &input).is_err());
+                assert!(input.recording.overlay_layout.get().is_none());
+                assert_eq!(GetGuiResources(GetCurrentProcess(), GR_GDIOBJECTS), before);
+            }
+        }
+    }
 }

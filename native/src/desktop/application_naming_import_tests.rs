@@ -13,16 +13,7 @@ use std::{
 };
 
 struct Fixture(PathBuf);
-struct Class(HINSTANCE);
-impl Drop for Class {
-    fn drop(&mut self) {
-        unsafe {
-            let _ = UnregisterClassW(w!("Otter.Native.Workspace"), Some(self.0));
-        }
-    }
-}
 struct Environment {
-    _class: Class,
     _apartment: crate::desktop::Apartment,
     _serial: std::sync::MutexGuard<'static, ()>,
 }
@@ -31,20 +22,8 @@ unsafe fn environment() -> Environment {
         .lock()
         .unwrap();
     let apartment = crate::desktop::Apartment::new().unwrap();
-    let instance: HINSTANCE = windows::Win32::System::LibraryLoader::GetModuleHandleW(None)
-        .unwrap()
-        .into();
-    assert_ne!(
-        RegisterClassW(&WNDCLASSW {
-            hInstance: instance,
-            lpszClassName: w!("Otter.Native.Workspace"),
-            lpfnWndProc: Some(crate::desktop::procedure::window_proc),
-            ..Default::default()
-        }),
-        0
-    );
+    crate::desktop::workspace_window_fixture::register();
     Environment {
-        _class: Class(instance),
         _apartment: apartment,
         _serial: serial,
     }
@@ -96,6 +75,57 @@ unsafe fn finish(app: &mut Application) -> Result<()> {
         std::thread::sleep(Duration::from_millis(1));
     }
     Ok(())
+}
+
+#[test]
+fn naming_import_reaps_via_application_wait_after_last_notification() {
+    use crate::desktop::loom_execution_tasks::reap_fixture::{Gate, WAIT};
+    unsafe {
+        let _environment = environment();
+        let fixture = Fixture::new(
+            br#"{"schemaVersion":2,"fileNaming":{"stickerSavePattern":"reaped_{shortId}"}}"#,
+        );
+        let mut app = app();
+        let wake = app.execution_wake.callback();
+        let gate = Gate::new(move || wake());
+        let state = &app.documents[0].state;
+        app.naming_import_job = Some(Pending {
+            origin: state.unit_id.clone(),
+            origin_dialog: state.file_dialog.clone(),
+            before: app.naming.borrow().clone(),
+            before_recycle: app.recycle_policy,
+            job: crate::desktop::naming_import_job::Job::start(
+                fixture.0.clone(),
+                gate.notify.clone(),
+            )
+            .unwrap(),
+        });
+        gate.noticed.recv_timeout(WAIT).unwrap();
+        assert!(PeekMessageW(
+            &mut MSG::default(),
+            None,
+            WM_APP + 92,
+            WM_APP + 92,
+            PM_REMOVE
+        )
+        .as_bool());
+        app.pending_windows(false).unwrap();
+        app.pending_naming_import_with(|_, _| panic!("unexpected dialog"))
+            .unwrap();
+        assert!(app.naming_import_job.is_some());
+        assert_eq!(*app.naming.borrow(), Settings::default());
+        let pump = super::super::execution_test_pump::Pump::new();
+        while pump.step(&mut app) != WM_NULL {}
+        assert!(app.naming_import_job.is_some());
+        gate.release.send(()).unwrap();
+        while app.naming_import_job.is_some() {
+            pump.step(&mut app);
+            app.pending_naming_import_with(|_, _| panic!("unexpected dialog"))
+                .unwrap();
+        }
+        assert_eq!(app.naming.borrow().sticker_save_pattern, "reaped_{shortId}");
+        assert!(gate.noticed.try_recv().is_err());
+    }
 }
 
 #[test]

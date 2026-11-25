@@ -142,6 +142,6 @@ fn names(endpoint: &desktop::link_catalog::Endpoint, side: Side) -> &[String] {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "workspace_chrome_disclosure_tests.rs"]
 mod tests;

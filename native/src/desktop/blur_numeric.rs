@@ -3,7 +3,7 @@ use super::{canvas::Canvas, numeric_style::Kind, State};
 use crate::{blur_job::Request, editor::DocumentStamp};
 use windows::Win32::{Foundation::*, UI::WindowsAndMessaging::*};
 pub(super) const COMMAND: usize = 0x1049;
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "blur_numeric_tests.rs"]
 mod tests;
 struct Pending {

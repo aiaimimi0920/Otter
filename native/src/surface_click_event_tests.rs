@@ -78,6 +78,77 @@ fn primitive_payload_is_preserved_and_oversized_escaped_payload_is_rejected() {
     ));
 }
 #[test]
+fn merged_payload_matches_owned_encoding_byte_for_byte() {
+    use serde_json::{json, value::RawValue, Value};
+    let values = json!({"name":"你好\n","nested":[1,{"enabled":true}]})
+        .as_object()
+        .unwrap()
+        .clone();
+    for payload in [
+        Value::Null,
+        json!(false),
+        json!(0),
+        json!([1, {"nested":[2, 3]}]),
+        json!("configured\n"),
+        json!({}),
+        json!({"a":[{"deep":"value"}],"surfaceValue":1,"surfaceValues":{"old":true},
+            "surfaceValuesExtra":2,"z":"last"}),
+        json!({"z":"last"}),
+    ] {
+        for values in [&serde_json::Map::new(), &values] {
+            let scene = scene("view", payload.clone());
+            let action = ClickRoute::new(&scene, Some("target")).next().unwrap();
+            let event = action
+                .encode_with_values(&binding(), 1, Modifiers::default(), values)
+                .unwrap();
+            let wire: std::collections::BTreeMap<String, Box<RawValue>> =
+                serde_json::from_slice(event.bytes()).unwrap();
+            // 独立保留旧物化算法作字节 oracle，涵盖键顺序与保留键单次覆盖。
+            let mut expected = if payload.is_null() {
+                json!({})
+            } else {
+                payload.clone()
+            };
+            if !values.is_empty() {
+                let mut object = expected.as_object().cloned().unwrap_or_else(|| {
+                    serde_json::Map::from_iter([("configured".to_owned(), expected.clone())])
+                });
+                object.insert("surfaceValues".to_owned(), Value::Object(values.clone()));
+                expected = Value::Object(object);
+            }
+            assert_eq!(
+                wire["payload"].get(),
+                serde_json::to_string(&expected).unwrap()
+            );
+        }
+    }
+}
+#[test]
+fn surface_values_are_opt_in_and_final_escaped_budget_stays_bounded() {
+    let values = serde_json::Map::from_iter([(
+        "name".to_owned(),
+        serde_json::json!("\u{0001}".repeat(MAX_EVENT_BYTES / 5)),
+    )]);
+    for enabled in [false, true] {
+        let scene = Scene::parse(
+            &serde_json::to_vec(&serde_json::json!({
+                "id":"target","type":"button","events":{"click":"run"},
+                "props":{"eventPayload":{"surfaceValues":"original"},"includeSurfaceValues":enabled}
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        let action = ClickRoute::new(&scene, Some("target")).next().unwrap();
+        let result = action.encode_with_values(&binding(), 1, Modifiers::default(), &values);
+        if enabled {
+            assert!(matches!(result, Err(Error::Encoding)));
+        } else {
+            let wire: serde_json::Value = serde_json::from_slice(result.unwrap().bytes()).unwrap();
+            assert_eq!(wire["payload"]["surfaceValues"], "original");
+        }
+    }
+}
+#[test]
 fn bounded_writer_accepts_exact_limit_and_rejects_further_data() {
     let mut output = Bounded(Vec::new());
     output.write_all(&vec![0; MAX_EVENT_BYTES]).unwrap();

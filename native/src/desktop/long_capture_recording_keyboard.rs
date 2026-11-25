@@ -54,12 +54,13 @@ unsafe extern "system" fn callback(code: i32, wp: WPARAM, lp: LPARAM) -> LRESULT
             return false;
         }
         let key = &*(lp.0 as *const KBDLLHOOKSTRUCT);
-        if key.flags.contains(LLKHF_INJECTED) {
+        if key.flags.contains(LLKHF_INJECTED) || !matches!(key.vkCode, 13 | 27) {
             return false;
         }
-        let modifiers = [VK_CONTROL, VK_SHIFT, VK_MENU, VK_LWIN, VK_RWIN]
-            .iter()
-            .any(|k| GetAsyncKeyState(k.0 as i32) < 0);
+        let modifiers = matches!(wp.0 as u32, WM_KEYDOWN | WM_SYSKEYDOWN)
+            && [VK_CONTROL, VK_SHIFT, VK_MENU, VK_LWIN, VK_RWIN]
+                .iter()
+                .any(|k| GetAsyncKeyState(k.0 as i32) < 0);
         route(key.vkCode, wp.0 as u32, modifiers)
     })
     .unwrap_or(false);
@@ -96,19 +97,17 @@ unsafe fn route(key: u32, message: u32, modifiers: bool) -> bool {
     if modifiers {
         return false;
     }
-    if held & bit == 0 {
-        if PostMessageW(
-            Some(hwnd),
-            MESSAGE,
-            WPARAM(TOKEN.with(Cell::get)),
-            LPARAM(key as isize),
-        )
-        .is_err()
-        {
-            return false;
-        }
-        CONSUMED.with(|v| v.set(consumed | bit));
+    if PostMessageW(
+        Some(hwnd),
+        MESSAGE,
+        WPARAM(TOKEN.with(Cell::get)),
+        LPARAM(key as isize),
+    )
+    .is_err()
+    {
+        return false;
     }
+    CONSUMED.with(|v| v.set(consumed | bit));
     true
 }
 pub(super) unsafe fn dispatch(hwnd: HWND, input: &Input, message: &MSG) -> bool {

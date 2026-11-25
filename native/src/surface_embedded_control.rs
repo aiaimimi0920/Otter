@@ -6,6 +6,7 @@ use crate::{
     surface_scene::{Kind, Node},
     surface_text::{Align, Engine, Layout, Style, Whitespace},
 };
+use std::collections::{BTreeMap, HashMap};
 use windows::{
     core::{Error, Result},
     Win32::{
@@ -13,7 +14,7 @@ use windows::{
         Graphics::Direct2D::{Common::*, *},
     },
 };
-pub(crate) struct Marker {
+pub struct Marker {
     pub id: String,
     pub ink: crate::surface_button_visual::PaintColor,
     origin: [f32; 2],
@@ -59,26 +60,52 @@ impl Marker {
     }
 }
 // 布局时冻结的Insets包含canonical viewport/containing width，不按控件自身尺寸另算百分比。
-pub(crate) fn prepare<'a, 'font>(
+pub fn prepare<'a, 'font>(
     scene: &crate::surface_scene::Scene,
     markers: impl Iterator<Item = &'a Marker>,
     font: impl Fn(&str) -> Option<&'font ControlFont>,
-) -> Result<std::collections::BTreeMap<String, Paint>> {
-    fn find<'a>(node: &'a Node, id: &str) -> Option<&'a Node> {
-        if node.id() == id {
-            return Some(node);
+) -> Result<BTreeMap<String, Paint>> {
+    prepare_with(scene, markers, font, Engine::new)
+}
+fn prepare_with<'a, 'font>(
+    scene: &crate::surface_scene::Scene,
+    mut markers: impl Iterator<Item = &'a Marker>,
+    font: impl Fn(&str) -> Option<&'font ControlFont>,
+    create_engine: impl Fn() -> Result<Engine>,
+) -> Result<BTreeMap<String, Paint>> {
+    let Some(first) = markers.next() else {
+        return Ok(BTreeMap::new());
+    };
+    // 场景保证 ID 唯一；只在本批借用控件节点，不改变 marker 顺序或帧所有权。
+    fn index<'a>(node: &'a Node, nodes: &mut HashMap<&'a str, &'a Node>) {
+        if is_control(node.kind()) {
+            nodes.insert(node.id(), node);
         }
-        node.children().iter().find_map(|n| find(n, id))
+        for child in node.children() {
+            index(child, nodes);
+        }
     }
-    let engine = Engine::new()?;
-    markers
+    let mut nodes = HashMap::new();
+    index(scene.root(), &mut nodes);
+    let mut engine = None;
+    std::iter::once(first)
+        .chain(markers)
         .map(|m| {
-            let node = find(scene.root(), &m.id).expect("paint owns scene node");
-            Paint::new(node, m, font(&m.id), &engine, None).map(|p| (m.id.clone(), p))
+            let node = nodes.get(m.id.as_str()).expect("paint owns scene node");
+            let paint = if node.kind() == Kind::Slider {
+                Paint::slider(node, m)?
+            } else {
+                let engine = match &mut engine {
+                    Some(engine) => engine,
+                    slot @ None => slot.insert(create_engine()?),
+                };
+                Paint::text(node, m, font(&m.id), engine, None)?
+            };
+            Ok((m.id.clone(), paint))
         })
         .collect()
 }
-pub(crate) enum Paint {
+pub enum Paint {
     Text {
         layout: Layout,
         origin: [f32; 2],
@@ -92,10 +119,10 @@ pub(crate) enum Paint {
         disabled: bool,
     },
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-surface")))]
 #[path = "surface_embedded_control_tests.rs"]
 mod tests;
-pub(crate) fn is_control(kind: Kind) -> bool {
+pub fn is_control(kind: Kind) -> bool {
     matches!(
         kind,
         Kind::Input | Kind::Textarea | Kind::Number | Kind::Select | Kind::Slider
@@ -105,7 +132,7 @@ fn invalid() -> Error {
     Error::new(E_INVALIDARG, "Invalid embedded Surface control")
 }
 impl Paint {
-    pub(crate) fn text_preview(
+    pub fn text_preview(
         node: &Node,
         marker: &Marker,
         font: Option<&ControlFont>,
@@ -117,9 +144,18 @@ impl Paint {
         ) {
             return Err(invalid());
         }
-        Self::new(node, marker, font, &Engine::new()?, value)
+        Self::text(node, marker, font, &Engine::new()?, value)
     }
-    fn new(
+    fn slider(node: &Node, marker: &Marker) -> Result<Self> {
+        let range = crate::surface_slider::Range::parse(node).map_err(|_| invalid())?;
+        Ok(Self::Slider {
+            rect: Rect::from_box(marker.origin, marker.size),
+            fraction: range.fraction(range.source()).map_err(|_| invalid())? as f32,
+            clip: marker.clip,
+            disabled: node.props().get("disabled") == Some(&serde_json::Value::Bool(true)),
+        })
+    }
+    fn text(
         node: &Node,
         marker: &Marker,
         font: Option<&ControlFont>,
@@ -133,15 +169,6 @@ impl Paint {
             inset,
             ..
         } = *marker;
-        if node.kind() == Kind::Slider {
-            let range = crate::surface_slider::Range::parse(node).map_err(|_| invalid())?;
-            return Ok(Self::Slider {
-                rect: Rect::from_box(origin, size),
-                fraction: range.fraction(range.source()).map_err(|_| invalid())? as f32,
-                clip,
-                disabled: node.props().get("disabled") == Some(&serde_json::Value::Bool(true)),
-            });
-        }
         let font = font.ok_or_else(invalid)?;
         let text = if node.kind() == Kind::Select {
             let options = crate::surface_select::Options::parse(node).map_err(|_| invalid())?;

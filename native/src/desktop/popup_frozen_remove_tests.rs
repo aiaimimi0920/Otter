@@ -10,7 +10,7 @@ pub(in crate::desktop) fn exercise(
     remove: &mut super::super::Remove<'_>,
 ) {
     let mut tree = Vec::new();
-    let frozen = LibraryMenu::attach(&mut tree, Some(source));
+    let frozen = LibraryMenu::attach(&mut tree, Some(source), Workers::default());
     let root = frozen.roots[library];
     let mut contents = super::super::Contents {
         tree: Vec::new(),

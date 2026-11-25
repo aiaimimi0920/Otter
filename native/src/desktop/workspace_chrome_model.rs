@@ -123,6 +123,7 @@ impl Node {
             },
         })
     }
+    #[cfg(test)]
     pub fn radius(&self) -> i32 {
         let logical = if self.minified { 4 } else { 14 };
         (logical * self.dpi.clamp(96, 768) as i32 / 96).max(1)
@@ -150,6 +151,6 @@ pub(super) fn moved(start: Point, current: Point, dpi: u32) -> bool {
     // 避免跨极端屏幕坐标时平方溢出；先比较绝对轴长。
     x.abs() >= threshold || y.abs() >= threshold || x * x + y * y >= threshold * threshold
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "workspace_chrome_model_tests.rs"]
 mod tests;

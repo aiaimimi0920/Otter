@@ -9,7 +9,7 @@ fn stale_selection(source_changed: bool) {
     std::fs::write(files.root().join("ca.pem"), pem).unwrap();
     let server = peer::start_stopping(listener, tls, files.root().to_owned(), 6, false);
     unsafe {
-        let (_class, mut app) = application(files.root());
+        let mut app = application(files.root());
         authorize(&mut app, &files, identity, client);
         send_both(&mut app, &files, &origin);
         let original = std::fs::read(files.root().join("projection-sender.json")).unwrap();

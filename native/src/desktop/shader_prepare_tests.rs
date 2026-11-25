@@ -254,3 +254,34 @@ fn shader_prepare_rejects_missing_input_uris_invalid_png_and_cancel_without_part
     )
     .is_err());
 }
+
+#[test]
+fn shader_prepare_preserves_cancellation_returned_during_decode() {
+    use windows::Win32::Foundation::E_INVALIDARG;
+
+    // Simulate both decoders returning at the callback boundary. Neither an error
+    // nor a completed output may conceal cancellation raised inside the stage.
+    for succeeds in [false, true] {
+        let cancel = AtomicBool::new(false);
+        let result = {
+            cancel.store(true, Ordering::Release);
+            if succeeds {
+                Ok(())
+            } else {
+                Err(windows::core::Error::new(
+                    E_INVALIDARG,
+                    "decode interrupted",
+                ))
+            }
+        };
+        assert!(matches!(
+            decode_result(result, &cancel),
+            Err(Error::Cancelled)
+        ));
+    }
+    let invalid = windows::core::Error::new(E_INVALIDARG, "invalid image");
+    assert!(matches!(
+        decode_result::<()>(Err(invalid), &AtomicBool::new(false)),
+        Err(Error::Decode)
+    ));
+}

@@ -1,6 +1,9 @@
 //! 共享连线层、每节点独立外框及至多两个端点条；不为每端口建立 HWND。
 use super::*;
-use std::sync::OnceLock;
+use std::{
+    collections::{HashMap, HashSet},
+    sync::OnceLock,
+};
 use windows::Win32::{Graphics::Gdi::*, System::LibraryLoader::GetModuleHandleW};
 pub(super) const CLASS: windows::core::PCWSTR = w!("Otter.Native.WorkspaceChrome");
 pub(super) const MAX_PIXELS: i64 = 33_554_432;
@@ -50,17 +53,20 @@ impl Windows {
         }
         border::sync(&self.ui, &nodes)?;
         backing::sync(&self.ui, &nodes)?;
-        self.inputs
-            .retain(|strip| nodes.iter().any(|node| strip.matches(node)));
+        let by_endpoint: HashMap<_, _> = nodes.iter().map(|node| (node.endpoint, node)).collect();
+        let mut present = HashSet::with_capacity(self.inputs.len());
+        self.inputs.retain(|strip| {
+            by_endpoint
+                .get(&strip.endpoint)
+                .is_some_and(|node| strip.matches(node))
+                && present.insert((strip.endpoint, strip.side))
+        });
         for node in &nodes {
             for (side, count) in [(Side::Input, node.inputs), (Side::Output, node.outputs)] {
                 if (count > 0
                     || side == Side::Output
                         && candidate_auxiliary::layout(&self.ui, node).is_some())
-                    && !self
-                        .inputs
-                        .iter()
-                        .any(|strip| strip.matches(node) && strip.side == side)
+                    && present.insert((node.endpoint, side))
                 {
                     self.inputs
                         .push(strips::Strip::new(self.ui.clone(), node, side)?);
@@ -144,12 +150,15 @@ fn bounds(nodes: &[Node]) -> Option<Rect> {
         rect.right = rect.right.max(node.rect.right);
         rect.bottom = rect.bottom.max(node.rect.bottom);
     }
-    Some(Rect {
-        left: rect.left.saturating_sub(800),
-        top: rect.top.saturating_sub(100),
-        right: rect.right.saturating_add(800),
-        bottom: rect.bottom.saturating_add(100),
-    })
+    Some(rect)
+}
+fn padded(rect: Rect, x: i32, y: i32) -> Rect {
+    Rect {
+        left: rect.left.saturating_sub(x),
+        top: rect.top.saturating_sub(y),
+        right: rect.right.saturating_add(x),
+        bottom: rect.bottom.saturating_add(y),
+    }
 }
 pub(super) unsafe fn refresh(ui: &Ui) -> Result<()> {
     refresh_at(ui, false)
@@ -172,12 +181,12 @@ pub(super) unsafe fn refresh_at(ui: &Ui, translated: bool) -> Result<()> {
 }
 pub(super) unsafe fn refresh_drawing(ui: &Ui) -> Result<()> {
     let nodes = ui.nodes.borrow().clone();
-    let Some(mut rect) = bounds(&nodes).filter(|_| !ui.blocked()) else {
+    let Some(base) = bounds(&nodes).filter(|_| !ui.blocked()) else {
         hide(ui);
         return Ok(());
     };
     let backdrops = draw::backdrops::Backdrops::default();
-    rect = backdrops.include_bounds(rect);
+    let mut rect = backdrops.include_bounds(padded(base, 800, 100));
     if let Some(press) = ui.press.borrow().as_ref() {
         rect.left = rect.left.min(press.current.x.saturating_sub(160));
         rect.right = rect.right.max(press.current.x.saturating_add(160));
@@ -186,43 +195,19 @@ pub(super) unsafe fn refresh_drawing(ui: &Ui) -> Result<()> {
     }
     let vx = GetSystemMetrics(SM_XVIRTUALSCREEN);
     let vy = GetSystemMetrics(SM_YVIRTUALSCREEN);
-    rect.left = rect.left.max(vx);
-    rect.top = rect.top.max(vy);
-    rect.right = rect
-        .right
-        .min(vx.saturating_add(GetSystemMetrics(SM_CXVIRTUALSCREEN)));
-    rect.bottom = rect
-        .bottom
-        .min(vy.saturating_add(GetSystemMetrics(SM_CYVIRTUALSCREEN)));
+    let right = vx.saturating_add(GetSystemMetrics(SM_CXVIRTUALSCREEN));
+    let bottom = vy.saturating_add(GetSystemMetrics(SM_CYVIRTUALSCREEN));
+    let clip = |r: Rect| Rect {
+        left: r.left.max(vx),
+        top: r.top.max(vy),
+        right: r.right.min(right),
+        bottom: r.bottom.min(bottom),
+    };
+    rect = clip(rect);
     // 线层已有富余空间时保持 HWND/DIB 尺寸，只提交像素；连续滚轮不能每帧重建全局外框表面。
     let mut existing = RECT::default();
     if ui.surface.borrow().is_some() && GetWindowRect(ui.drawing.get(), &mut existing).is_ok() {
-        let needed = backdrops.include_bounds(Rect {
-            left: nodes
-                .iter()
-                .map(|n| n.rect.left.saturating_sub(160))
-                .min()
-                .unwrap_or(rect.left)
-                .max(vx),
-            top: nodes
-                .iter()
-                .map(|n| n.rect.top.saturating_sub(16))
-                .min()
-                .unwrap_or(rect.top)
-                .max(vy),
-            right: nodes
-                .iter()
-                .map(|n| n.rect.right.saturating_add(160))
-                .max()
-                .unwrap_or(rect.right)
-                .min(vx.saturating_add(GetSystemMetrics(SM_CXVIRTUALSCREEN))),
-            bottom: nodes
-                .iter()
-                .map(|n| n.rect.bottom.saturating_add(16))
-                .max()
-                .unwrap_or(rect.bottom)
-                .min(vy.saturating_add(GetSystemMetrics(SM_CYVIRTUALSCREEN))),
-        });
+        let needed = backdrops.include_bounds(clip(padded(base, 160, 16)));
         if ui.press.borrow().is_none()
             && existing.left <= needed.left
             && existing.top <= needed.top
@@ -230,8 +215,8 @@ pub(super) unsafe fn refresh_drawing(ui: &Ui) -> Result<()> {
             && existing.bottom >= needed.bottom
             && existing.left >= vx
             && existing.top >= vy
-            && existing.right <= vx.saturating_add(GetSystemMetrics(SM_CXVIRTUALSCREEN))
-            && existing.bottom <= vy.saturating_add(GetSystemMetrics(SM_CYVIRTUALSCREEN))
+            && existing.right <= right
+            && existing.bottom <= bottom
         {
             rect = Rect {
                 left: existing.left,

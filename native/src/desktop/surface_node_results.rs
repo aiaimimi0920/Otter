@@ -74,6 +74,7 @@ impl Results {
         let stamp = OutputStamp(Arc::new(()));
         // 到此所有可失败工作已结束；Surface outputs 是完整替换，空 map 也须清旧端口。
         self.ports = ports;
+        self.port_costs = None;
         self.formal_outputs_committed = true;
         self.output_stamp = stamp;
         self.surface.as_mut().expect("checked surface").revision = commit.revision();
@@ -168,6 +169,23 @@ mod tests {
     fn normal_loom_execution_revokes_surface_writer_without_clearing_prior_outputs() {
         let binding = binding("instance:test");
         let mut results = Results::new(UnitId::parse("node:test").unwrap());
+        let earlier = Request {
+            id: UnitId::parse("request:earlier").unwrap(),
+            generation: 1,
+        };
+        let value_batch = |name: &str, value: serde_json::Value| {
+            crate::desktop::loom_output_batch::decode(
+                &serde_json::json!({(name):{"kind":"value","value":value}}),
+                None,
+                &std::sync::atomic::AtomicBool::new(false),
+            )
+            .unwrap()
+        };
+        results.begin(earlier.clone());
+        results
+            .finish(&earlier, value_batch("output", serde_json::json!("larger")))
+            .unwrap();
+        assert_eq!(results.port_costs.as_deref(), Some(&[8][..]));
         results.bind_surface(&binding).unwrap();
         let commit = commit(
             &binding,
@@ -175,6 +193,7 @@ mod tests {
             serde_json::json!({"output":{"kind":"value","value":0}}),
         );
         results.apply_surface_result(&binding, &commit).unwrap();
+        assert!(results.port_costs.is_none());
         let stamp = results.output_stamp();
         let request = Request {
             id: UnitId::parse("request:loom").unwrap(),
@@ -193,5 +212,10 @@ mod tests {
         assert!(stamp.matches(&results));
         assert!(results.cancel(&request));
         assert_eq!(results.bind_surface_if_unbound(&binding), Err(Error::Stale));
+        results.begin(request.clone());
+        results
+            .finish(&request, value_batch("next", serde_json::json!(null)))
+            .unwrap();
+        assert_eq!(results.port_costs.as_deref(), Some(&[1, 4][..]));
     }
 }

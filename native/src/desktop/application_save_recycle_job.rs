@@ -1,5 +1,5 @@
 //! 关闭前回收编码：共享单 worker 生命周期，不销毁窗口、不发布原文或暂存磁盘。
-use super::{Data, Job, Output, Purpose};
+use super::{FrozenData, Job, Output, Purpose};
 use crate::{session_library::recycle, session_write::Candidate, workspace_id::UnitId};
 use std::sync::Arc;
 
@@ -12,24 +12,24 @@ pub struct Request {
 }
 impl Job {
     pub fn start_recycle(
-        data: Data,
+        data: FrozenData,
         request: Request,
         notify: Arc<dyn Fn() + Send + Sync>,
     ) -> std::io::Result<Self> {
         let unit = request.unit.clone();
         let mut job = Self::start_with(notify, move |cancel| {
-            let original = data.original.clone();
-            let revision = crate::session_document::decode(&original)
-                .map_err(|error| format!("Invalid recycle source: {error:?}"))?
-                .revision;
+            let original = data.original().clone();
+            let source = crate::session_document::decode(&original)
+                .map_err(|error| format!("Invalid recycle source: {error:?}"))?;
+            let revision = source.revision;
             // 必须编码当前模型；旧磁盘快照只用于保留非目标窗口和未知字段。
             let snapshot = data
-                .encode(cancel)
+                .encode(&source, &request.unit, cancel)
                 .map_err(|error| format!("Recycle snapshot: {error:?}"))?;
             let bytes = recycle::prepare(
                 &original,
                 recycle::Request {
-                    snapshot: &snapshot.bytes,
+                    snapshot: &snapshot,
                     unit: &request.unit,
                     entry_id: &request.entry_id,
                     created_at: &request.created_at,
@@ -38,19 +38,11 @@ impl Job {
                 request.now_ms,
                 cancel,
             )?;
-            Ok(Output {
-                checkpoint_accounts: None,
-                checkpoint_senders: None,
-                checkpoint_scope: None,
-                checkpoint_projections: None,
-                library_changed: true,
-                candidate: Candidate {
-                    bytes,
-                    expected_revision: revision,
-                    revision,
-                },
-                staged: None,
-            })
+            Ok(Output::unstaged(Candidate {
+                bytes,
+                expected_revision: revision,
+                revision,
+            }))
         })?;
         job.purpose = Purpose::Recycle(unit);
         Ok(job)
@@ -64,41 +56,9 @@ impl Job {
         now_ms: i64,
         notify: Arc<dyn Fn() + Send + Sync>,
     ) -> std::io::Result<Self> {
-        let mut job = Self::start_with(notify, move |cancel| {
-            let revision = crate::session_document::decode(&source)
-                .map_err(|error| format!("Invalid prune source: {error:?}"))?
-                .revision;
-            let candidate =
-                crate::session_library::prune::prepare(&source, policy, now_ms, cancel)?;
-            let library_changed = candidate.is_some();
-            let bytes = match candidate {
-                Some(bytes) => bytes,
-                None => match &source {
-                    crate::session_source::Source::Encoded(bytes) => bytes.clone(),
-                    crate::session_source::Source::Imported(_) => {
-                        // 未变更的导入原文只做有界传递，不在提交时更换其共享来源或置脏。
-                        let raw: &serde_json::value::RawValue =
-                            serde_json::from_slice(&source).map_err(|error| error.to_string())?;
-                        crate::session_write::encode_bounded(&raw, cancel)
-                            .map_err(|error| format!("Prune source encoding: {error:?}"))?
-                    }
-                },
-            };
-            Ok(Output {
-                checkpoint_accounts: None,
-                checkpoint_senders: None,
-                checkpoint_scope: None,
-                checkpoint_projections: None,
-                candidate: Candidate {
-                    bytes,
-                    expected_revision: revision,
-                    revision,
-                },
-                staged: None,
-                library_changed,
-            })
+        let mut job = Self::start_library(notify, move |cancel| {
+            crate::session_library::prune::prepare(&source, policy, now_ms, cancel)
         })?;
-        job.purpose = Purpose::LibraryUpdate;
         job.prune_policy = Some(policy);
         Ok(job)
     }

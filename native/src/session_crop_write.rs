@@ -87,6 +87,6 @@ fn take_object(fields: &mut Map<String, Value>, key: &str) -> Result<Map<String,
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "session_crop_write_tests.rs"]
 mod tests;

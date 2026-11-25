@@ -7,13 +7,32 @@ function Write-NativeCandidateJson {
 function Invoke-NativeCandidateTool {
     param([string]$Executable, [string[]]$Arguments, [string]$LogPath)
     $previous = $ErrorActionPreference
+    # Acquire the evidence file before launching and stream each merged record.
+    $log = [IO.File]::Open($LogPath, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::Read)
     try {
-        $ErrorActionPreference = 'Continue' # Windows PowerShell 将正常 stderr 包装为 ErrorRecord。
-        $global:LASTEXITCODE = $null # 原生命令更新全局退出码；局部同名变量会遮蔽它。
-        $lines = @(& $Executable @Arguments 2>&1)
-        $code = $global:LASTEXITCODE
-    } finally { $ErrorActionPreference = $previous }
-    [IO.File]::WriteAllText($LogPath, (($lines | ForEach-Object { $_.ToString() }) -join "`n") + "`n", [Text.UTF8Encoding]::new($false))
+        $writer = [IO.StreamWriter]::new($log, [Text.UTF8Encoding]::new($false), 4096, $true)
+        try {
+            $writer.NewLine = "`n"
+            $wroteRecord = $false
+            $ErrorActionPreference = 'Continue' # Windows PowerShell 将正常 stderr 包装为 ErrorRecord。
+            $global:LASTEXITCODE = $null # 原生命令更新全局退出码；局部同名变量会遮蔽它。
+            try {
+                & $Executable @Arguments 2>&1 | ForEach-Object -ErrorAction Stop {
+                    $writer.WriteLine($_.ToString())
+                    $wroteRecord = $true
+                }
+            } catch [Management.Automation.CommandNotFoundException] {
+                # A launch failure can terminate the pipeline before it emits a record.
+                $writer.WriteLine($_.ToString())
+                $wroteRecord = $true
+            }
+            $code = $global:LASTEXITCODE
+            if (-not $wroteRecord) { $writer.WriteLine() }
+        } finally {
+            $ErrorActionPreference = $previous
+            $writer.Dispose()
+        }
+    } finally { $log.Dispose() }
     if ($null -eq $code -or $code -ne 0) { throw "Native candidate command failed ($code); see $LogPath" }
 }
 # 缓存锁覆盖 Cargo 退出到产物复制的窗口；调用者必须在 finally 释放。

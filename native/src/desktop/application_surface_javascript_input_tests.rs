@@ -64,7 +64,7 @@ fn assert_geometry_label(
 fn run(mode: u8) {
     let _serial = crate::surface_javascript::fixture::SERIAL.lock().unwrap();
     let _com = Apartment::new().unwrap();
-    crate::surface_javascript::fixture::foreground_startup();
+    let (input_ready, wait_for_input) = input_peer::foreground_gate(mode);
     let (files, store, _) = Files::new();
     let (listener, client, server, pem) = fixture_with_pem();
     let origin = format!(
@@ -72,9 +72,10 @@ fn run(mode: u8) {
         listener.local_addr().unwrap().port()
     );
     std::fs::write(files.root().join("fixture-ca.pem"), pem).unwrap();
-    let peer = std::thread::spawn(move || input_peer::serve(listener, server, mode));
+    let peer =
+        std::thread::spawn(move || input_peer::serve(listener, server, mode, wait_for_input));
     unsafe {
-        let (_class, mut app) = fixture::application();
+        let mut app = fixture::application();
         app.authorization.borrow_mut().origin = Some(origin.clone());
         app.authorization_owner
             .start(crate::device_authorization_runtime::Task::Renew { client, store })
@@ -98,6 +99,12 @@ fn run(mode: u8) {
             app.authorization.borrow_mut().busy = true;
         }
         let parent = setup::mount(&mut app, &origin, files.root());
+        if let Some(input_ready) = input_ready {
+            // The launcher grant can expire on user input; request it immediately before
+            // focusing the mounted HWND, not before TLS startup.
+            crate::surface_javascript::fixture::foreground_startup();
+            input_ready.send(()).expect("input peer readiness expired");
+        }
         let text_edit = matches!(mode, 14 | 15 | 18).then(|| text::child(parent));
         let _foreground = (15..=18)
             .contains(&mode)
@@ -133,6 +140,26 @@ fn run(mode: u8) {
         if (3..=5).contains(&mode) {
             let window = app.surface_windows.iter_mut().next().unwrap();
             assert_geometry_label(window, "原生🙂:42:0");
+        }
+        if mode == 21 {
+            let window = app.surface_windows.iter_mut().next().unwrap();
+            assert!(window.is_alive() && window.is_shown());
+            assert!(app.remote_sessions.surface_input_ready(window.binding()));
+            window.fail_next_javascript_click_wake_for_test();
+            window.javascript_click_for_test();
+            app.poll_remote_live_with(true, |o| fixture::config(o, files.root()))
+                .unwrap();
+            let window = app.surface_windows.iter_mut().next().unwrap();
+            assert!(!window.is_alive() && !window.is_shown());
+            assert_eq!(window.snapshot_revision(), 1);
+            assert_eq!(
+                window.activation_error(),
+                Some("JS click submission failed")
+            );
+            assert!(app
+                .remote_sessions
+                .surface_batch_receipt_for_test()
+                .is_none());
         }
         if mode == 4 || mode == 5 {
             app.surface_windows
@@ -171,6 +198,7 @@ fn run(mode: u8) {
         }
         for round in 0..if mode == 4
             || mode == 5
+            || mode == 21
             || ((7..=12).contains(&mode) && mode != 11)
             || (16..=17).contains(&mode)
         {
@@ -296,13 +324,17 @@ fn run(mode: u8) {
                 assert!(receipt.events.iter().all(|event| event.attempted()
                     && event.is_javascript()
                     && event.revision() == round + 1));
-                if matches!(
-                    receipt.presentation,
-                    Err(crate::desktop::surface_authorized_window::PresentationError::Pending(_))
-                ) {
+                if let Err(crate::desktop::surface_authorized_window::PresentationError::Pending(
+                    staged,
+                )) = &receipt.presentation
+                {
                     let window = app.surface_windows.iter_mut().next().unwrap();
+                    assert_eq!(*staged, round + 2);
                     assert!(!app.remote_sessions.surface_input_ready(window.binding()));
-                    assert_eq!(window.snapshot_revision(), round + 1);
+                    // A refresh can install the staged frame before the receipt settles.
+                    // Neither phase may admit input until the receipt confirms presentation.
+                    let installed = window.snapshot_revision();
+                    assert!(installed == round + 1 || installed == *staged);
                 }
             }
             if mode == 2 {
@@ -407,12 +439,12 @@ fn run(mode: u8) {
         app.poll_remote_live_with(false, |_| panic!("inactive repeated"))
             .unwrap();
         assert!(probe.exited() && !IsWindow(Some(parent)).as_bool());
-        let window = app.surface_windows.iter_mut().next().unwrap();
-        assert_eq!(
-            window.binding().lifecycle(),
-            crate::surface_live_binding::Lifecycle::Inactive
-        );
-        assert!(window.javascript_finished());
+        assert!(app.surface_windows.iter_mut().next().is_none());
+        let records = app.surface_windows.retired_records();
+        assert_eq!(records.len(), 1);
+        assert!(!records[0].uncertain() && !records[0].in_flight());
+        let hint = serde_json::to_value(&records[0]).unwrap();
+        assert_eq!(hint["binding"]["lifecycle"], "inactive");
         let listener = peer.join().unwrap();
         assert!(matches!(listener.accept(), Err(e) if e.kind() == std::io::ErrorKind::WouldBlock));
         app.authorization_owner.close();
@@ -467,4 +499,8 @@ fn application_javascript_geometry_stale_viewport_discards_emit_without_replayin
 #[test]
 fn application_javascript_geometry_accepted_but_held_emit_keeps_viewport_until_submission() {
     run(5);
+}
+#[test]
+fn application_javascript_click_wake_failure_retires_without_replay() {
+    run(21);
 }

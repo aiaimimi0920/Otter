@@ -1,53 +1,159 @@
 //! 从已解码会话图像建立空闲结果 owner；显示图与正式执行端口保持分离。
 use super::*;
-use crate::desktop::loom_result_state::Results;
+use crate::{
+    desktop::loom_result_state::Results, loom_handshake::Handshake, session_art_batch::Entry,
+};
 #[cfg(test)]
 #[path = "session_candidate_output_tests.rs"]
 mod output_tests;
 
+pub(in crate::desktop) struct PreparedArts {
+    pub arts: Vec<Entry>,
+    pub results: Vec<Results>,
+}
+
+/// 可跨线程移交的整批恢复资源，不持有 UI 目录 owner 或窗口。
+pub struct PreparedRestore {
+    pub vector: VectorCandidate,
+    pub(in crate::desktop) arts: PreparedArts,
+}
+impl PreparedRestore {
+    /// 接收端生成的单贴纸不含 Art。消耗后台像素并保留协作矢量，无需 UI 再扫描内联 PNG。
+    pub(super) fn projected_sticker<T>(
+        bytes: crate::pixels::Pixels,
+        unit: UnitId,
+        image: crate::image_decode::Image,
+        cancel: &AtomicBool,
+        retain: impl FnOnce(&session_document::Document<'_>) -> Result<T>,
+    ) -> Result<(Self, T)> {
+        let source = bytes.into();
+        let parsed = parse_source(&source, cancel)?;
+        let document = parsed.document();
+        let images = vec![Images {
+            sticker: Default::default(),
+            accept_upstream: true,
+            capture_original: None,
+            unit,
+            source: Some(image),
+            preview: None,
+            rasterized_annotations: None,
+            restored_preview_locked: false,
+        }];
+        let placements = placements::prepare(document, &images, cancel)?;
+        if !matches!(placements.as_slice(), [placement] if !placement.art && placement.unit == images[0].unit)
+        {
+            return Err(Error::new(E_INVALIDARG, "Projection requires one sticker"));
+        }
+        let vectors = VectorResources::prepare(&placements, &images, document, cancel)?;
+        // 追加在转移工作区之前借用同一个文档；只有拥有型资源才送往 UI。
+        let retained = retain(document)?;
+        let candidate = finish_source(parsed, placements, images, cancel)?;
+        Ok((
+            Self {
+                vector: vectors.with_candidate(candidate),
+                arts: PreparedArts {
+                    arts: Vec::new(),
+                    results: Vec::new(),
+                },
+            },
+            retained,
+        ))
+    }
+
+    pub(in crate::desktop) fn prepare(
+        bytes: Vec<u8>,
+        root: Option<Root>,
+        catalog: Option<&Handshake>,
+        cancel: &AtomicBool,
+    ) -> Result<Self> {
+        let source = bytes.into();
+        Self::prepare_parsed(parse_source(&source, cancel)?, root, catalog, cancel)
+    }
+
+    pub(in crate::desktop) fn prepare_parsed(
+        parsed: crate::session_source::Parsed<'_>,
+        root: Option<Root>,
+        catalog: Option<&Handshake>,
+        cancel: &AtomicBool,
+    ) -> Result<Self> {
+        // 文档只借用至全部后台资源准备完成；最终候选接管工作区，不持有自引用。
+        let document = parsed.document();
+        let (placements, images) = prepare_inputs(document, root.as_ref(), cancel)?;
+        drop(root); // 外部文件根目录只服务基础图像准备。
+        let vectors = VectorResources::prepare(&placements, &images, document, cancel)?;
+        let arts = Candidate::prepare_arts_from(&placements, &images, document, catalog, cancel)?;
+        let candidate = finish_source(parsed, placements, images, cancel)?;
+        Ok(Self {
+            vector: vectors.with_candidate(candidate),
+            arts,
+        })
+    }
+}
+
 impl Candidate {
+    pub(in crate::desktop) fn prepare_arts(
+        &self,
+        catalog: Option<&Handshake>,
+        cancel: &AtomicBool,
+    ) -> Result<PreparedArts> {
+        Self::prepare_arts_from(
+            &self.placements,
+            &self.images,
+            &self.decode_retained(cancel)?,
+            catalog,
+            cancel,
+        )
+    }
+
+    fn prepare_arts_from(
+        placements: &[Placement],
+        images: &[Images],
+        document: &session_document::Document<'_>,
+        catalog: Option<&Handshake>,
+        cancel: &AtomicBool,
+    ) -> Result<PreparedArts> {
+        let results = Self::prepare_results_from(placements, images, document, cancel)?;
+        let arts = Self::resolve_arts_from(document, catalog, cancel)?;
+        Ok(PreparedArts { arts, results })
+    }
+
+    #[cfg(test)]
+    pub fn prepare_results(&self, cancel: &AtomicBool) -> Result<Vec<Results>> {
+        Self::prepare_results_from(
+            &self.placements,
+            &self.images,
+            &self.decode_retained(cancel)?,
+            cancel,
+        )
+    }
+
     /// 仅生成 Art 状态。钉图底图属于 Canvas，不应伪装为 Art 结果。
     /// 像素通过共享所有权传递；窗口安装仍需处理编辑层与 restored_preview_locked。
-    pub fn prepare_results(&self, cancel: &AtomicBool) -> Result<Vec<Results>> {
+    fn prepare_results_from(
+        placements: &[Placement],
+        images: &[Images],
+        document: &session_document::Document<'_>,
+        cancel: &AtomicBool,
+    ) -> Result<Vec<Results>> {
         check(cancel)?;
-        if self.images.len() != self.placements.len() {
-            return Err(Error::new(E_INVALIDARG, "Session image count mismatch"));
+        if document.windows.len() != placements.len() || placements.len() != images.len() {
+            return Err(Error::new(E_INVALIDARG, "Session result count mismatch"));
         }
         let mut results = Vec::new();
-        let document = session_document::decode(&self.original)
-            .map_err(|_| Error::new(E_INVALIDARG, "Invalid retained session results"))?;
-        for placement in &self.placements {
+        for ((window, placement), images) in document.windows.iter().zip(placements).zip(images) {
             check(cancel)?;
-            let mut matches = self
-                .images
-                .iter()
-                .filter(|images| images.unit == placement.unit);
-            let images = matches
-                .next()
-                .ok_or_else(|| Error::new(E_INVALIDARG, "Missing session image record"))?;
-            if matches.next().is_some() || !self.workspace.contains(&placement.unit) {
+            if window.id != placement.unit.as_str()
+                || images.unit != placement.unit
+                || window.is_art() != placement.art
+            {
                 return Err(Error::new(E_INVALIDARG, "Session result identity mismatch"));
             }
             if placement.art {
-                if results
-                    .iter()
-                    .any(|result: &Results| result.unit() == &placement.unit)
-                {
-                    return Err(Error::new(
-                        E_INVALIDARG,
-                        "Duplicate session result identity",
-                    ));
-                }
                 let mut result = Results::from_restored_display(
                     placement.unit.clone(),
                     images.display().cloned(),
                     images.restored_preview_locked,
                 );
-                let window = document
-                    .windows
-                    .iter()
-                    .find(|window| window.id == placement.unit.as_str())
-                    .ok_or_else(|| Error::new(E_INVALIDARG, "Missing retained result identity"))?;
                 if let Some(outputs) = window.outputs {
                     result.restore_outputs(outputs, cancel).map_err(|error| {
                         Error::new(E_INVALIDARG, format!("Invalid saved outputs: {error:?}"))
@@ -184,6 +290,45 @@ mod tests {
         );
         assert!(candidate.prepare_vectors(&AtomicBool::new(true)).is_err());
     }
+    #[test]
+    #[ignore = "must run alone because it reserves the process-wide pixel budget"]
+    fn cropped_blur_pressure_reports_resource_failure_and_can_retry() {
+        use crate::pixels::{reserve, DECODED_PIXEL_LIMIT};
+        let bytes = br##"{"stickers":[{
+            "id":"u","x":1,"y":2,"w":4,"h":2,
+            "imageEditState":{"cropRect":{"x":2,"y":1,"w":4,"h":2},"sourceSize":{"w":8,"h":4}},
+            "annotationState":{"serialCounter":0,"elements":[{
+                "id":"b","type":"blur","zIndex":0,"points":[{"x":1,"y":1},{"x":2,"y":1}],
+                "brushWidth":2,"strength":2.5,"style":{"width":1,"color":"#fff"}
+            }]}}],"links":[]}"##;
+        let cancel = AtomicBool::new(false);
+        for overlay in [false, true] {
+            let mut candidate = prepare(bytes.to_vec(), None, &cancel).unwrap();
+            candidate.images[0].source = Some(Image {
+                width: 8,
+                height: 4,
+                pixels: vec![255; 128].into(),
+            });
+            candidate.images[0].rasterized_annotations = overlay.then(|| Image {
+                width: 1,
+                height: 1,
+                pixels: vec![128; 4].into(),
+            });
+            let held = reserve(DECODED_PIXEL_LIMIT - 128 - usize::from(overlay) * 4).unwrap();
+            let failure = candidate.prepare_vectors(&cancel).err().unwrap();
+            assert_eq!(failure.code(), E_OUTOFMEMORY);
+            assert_eq!(candidate.original_json(), bytes);
+            drop(held);
+            let restored = VectorCandidate::prepare(candidate, &cancel).unwrap();
+            let editor = &restored.vectors[0].1.editor;
+            assert!(editor.crop_view().is_some());
+            assert!(editor.elements()[0].blur.is_some());
+            assert_eq!(editor.layers().unwrap().annotations.is_some(), overlay);
+            drop(restored);
+            assert!(reserve(DECODED_PIXEL_LIMIT).is_some());
+        }
+    }
+
     #[test]
     fn cropped_vectors_and_blur_texture_share_full_source_coordinates() {
         let bytes = serde_json::to_vec(&serde_json::json!({"stickers":[{

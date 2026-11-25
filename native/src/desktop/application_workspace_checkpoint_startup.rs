@@ -22,7 +22,10 @@ impl Application {
                     break;
                 }
                 let mut message = MSG::default();
-                if GetMessageW(&mut message, None, 0, 0).0 <= 0 {
+                let deadline = self.restore_reap_deadline();
+                if crate::desktop::application::live::wait::next_until(&[], &mut message, deadline)?
+                    == 0
+                {
                     return Err(Error::new(E_ABORT, "Workspace startup interrupted"));
                 }
                 let _ = TranslateMessage(&message);
@@ -30,9 +33,7 @@ impl Application {
             }
             let record = self.restored_session.as_mut().expect("restored checkpoint");
             let owner = self.workspace_checkpoint.as_mut().unwrap();
-            owner.revision = crate::session_document::decode(&record.original)
-                .map_err(|_| Error::new(E_FAIL, "Invalid restored checkpoint baseline"))?
-                .revision;
+            owner.revision = record.restored_revision;
             owner.original = Some(record.original.clone());
             owner.stopped = record.recovery_path.is_some();
             if !owner.stopped {

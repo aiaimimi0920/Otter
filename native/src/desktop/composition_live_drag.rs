@@ -185,6 +185,6 @@ unsafe fn update(hwnd: HWND, state: &State, lp: LPARAM) {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-live")))]
 #[path = "composition_live_drag_tests.rs"]
 mod tests;

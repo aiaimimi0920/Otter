@@ -82,14 +82,19 @@ impl FailedAdmission {
             .is_some_and(|lifecycle| lifecycle.owner().is_none())
     }
     pub(super) fn settled(&self) -> bool {
-        self.rejected.is_none()
-            && self.lifecycle().is_some_and(|owner| {
-                !owner.uncertain()
-                    && matches!(
-                        owner.binding().lifecycle(),
-                        Lifecycle::Inactive | Lifecycle::Disposed
-                    )
-            })
+        self.terminal_owner().is_some()
+    }
+    pub(super) fn terminal_owner(&self) -> Option<&Owner> {
+        if self.rejected.is_some() {
+            return None;
+        }
+        self.lifecycle().filter(|owner| {
+            !owner.uncertain()
+                && matches!(
+                    owner.binding().lifecycle(),
+                    Lifecycle::Inactive | Lifecycle::Disposed
+                )
+        })
     }
     pub(in crate::desktop) fn begin_inactive(&mut self) -> Option<Owner> {
         self.lifecycle.as_mut()?.take_inactive()
@@ -125,6 +130,6 @@ impl FailedAdmission {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-surface")))]
 #[path = "surface_failed_admission_tests.rs"]
 mod tests;

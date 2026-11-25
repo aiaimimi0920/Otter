@@ -129,6 +129,9 @@ impl Session {
     pub(in crate::desktop) fn input_identity(&self) -> std::sync::Arc<()> {
         self.input_identity.clone()
     }
+    pub(in crate::desktop) fn input_identity_ref(&self) -> &std::sync::Arc<()> {
+        &self.input_identity
+    }
     pub(in crate::desktop) fn bind_workspace(&mut self, workspace: &crate::workspace::Workspace) {
         if self.workspace.is_none() {
             self.workspace = Some(workspace.identity_stamp());
@@ -390,12 +393,12 @@ impl Drop for Session {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-live")))]
 #[path = "composition_live_input_backpressure_tests.rs"]
 mod input_backpressure_tests;
 #[cfg(test)]
 #[path = "composition_live_input_runtime_tests.rs"]
 mod input_runtime_tests;
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-live")))]
 #[path = "composition_live_session_tests.rs"]
 mod tests;

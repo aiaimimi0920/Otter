@@ -28,7 +28,8 @@ pub(in crate::desktop::application) unsafe fn run(instance: HINSTANCE) -> Result
     let first = DocumentWindow::create(instance, State::new(Some(image.clone()), false)?, false)?;
     let mut app = Application::new(instance, first);
     app.add_state(State::new(Some(image), false)?, false)?;
-    let path = save_publish::smoke_destination()?;
+    let fixture = smoke_session_fixture::Directory::new()?;
+    let path = fixture.target();
     reference::smoke::save(&mut app, Some(path.clone()))?;
     let source = app.restored_session.as_ref().unwrap().original.clone();
     let target = app.documents[0].window.0;

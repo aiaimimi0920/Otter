@@ -196,6 +196,7 @@ fn fetch_case(
         reply(&mut stream, status, &serde_json::to_vec(&data).unwrap());
     });
     notified.recv_timeout(Duration::from_secs(5)).unwrap();
+    tasks.test_wait_finished(0);
     let result = tasks.take_settled().unwrap().result.map_err(|e| match e {
         crate::art_local_requests::Error::Download(crate::art_issuer_trust::Error::Prepare(e)) => e,
         _ => ArtError::Input,
@@ -388,6 +389,7 @@ fn revoking_original_lease_interrupts_inflight_download() {
         .unwrap();
     assert!(lease.is_revoked());
     notified.recv_timeout(Duration::from_secs(5)).unwrap();
+    tasks.test_wait_finished(0);
     assert!(tasks.take_settled().is_none());
     assert!(!tasks.busy());
     peer.join().unwrap();
@@ -435,6 +437,7 @@ fn revoking_original_lease_interrupts_inflight_description() {
     tasks.cancel(&unit);
     assert!(lease.is_revoked());
     notified.recv_timeout(Duration::from_secs(5)).unwrap();
+    tasks.test_wait_finished(0);
     assert!(tasks.take_settled().is_none());
     assert!(!tasks.busy());
     peer.join().unwrap();

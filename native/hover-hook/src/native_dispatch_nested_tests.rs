@@ -88,18 +88,7 @@ fn nested_completion_keeps_parent_menu_topmost_until_parent_returns() {
     let f = Fixture::new();
     let popup = Window::new(None);
     let _hooks = Hooks::new();
-    unsafe {
-        SetWindowPos(
-            f.root.0,
-            Some(HWND_TOPMOST),
-            0,
-            0,
-            0,
-            0,
-            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
-        )
-        .unwrap();
-    }
+    f.root.make_topmost();
     ENTER_PUMP.with(|slot| slot.set(false));
     POPUP.with(|slot| slot.set(popup.0));
     BUTTON_HANDLER.with(|handler| {

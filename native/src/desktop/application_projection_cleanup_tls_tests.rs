@@ -17,7 +17,7 @@ fn until_pending(fixture: &mut Fixture) {
     while !fixture.app.remote_sessions.projection_pending() {
         poll(fixture);
         assert!(Instant::now() < end, "cleanup dispatch deadline");
-        std::thread::yield_now();
+        std::thread::sleep(Duration::from_millis(1));
     }
 }
 fn peer(fixture: &mut Fixture, mode: u8, expected: serde_json::Value) {
@@ -156,7 +156,7 @@ unsafe fn run_routed(mode: u8, offline: bool) {
                 panic!("wrong origin must not prepare HTTP")
             });
             assert!(Instant::now() < end);
-            std::thread::yield_now();
+            std::thread::sleep(Duration::from_millis(1));
         }
         no_request(&fixture);
         fixture
@@ -234,4 +234,59 @@ fn projection_offline_cleanup_false_receipt_keeps_marker_and_real_retry_backoff(
 #[test]
 fn projection_offline_cleanup_wrong_origin_and_revocation_wait_for_renewal() {
     unsafe { run_routed(3, true) }
+}
+
+#[test]
+fn projection_cleanup_start_failure_preserves_earlier_retry_and_advances_other_due_tickets() {
+    let _serial = crate::loom_bridge_client::tests::execution_job::SERIAL
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let _com = Apartment::new().unwrap();
+    let mut fixture = unsafe { Fixture::new() };
+    drop(unsafe { fixture.accepted(false) });
+    fixture.app.reset_projection_inbox();
+    let add = |fixture: &mut Fixture, id: u32| {
+        let mut wire = crate::projection_delivery::tests::invitation(&fixture.origin, false);
+        wire["envelope"]["projectionId"] = format!("projection:{id:032x}").into();
+        let inbox = crate::projection_delivery::Inbox::parse(
+            &serde_json::to_vec(&serde_json::json!({"invitations":[wire]})).unwrap(),
+            &fixture.origin,
+        )
+        .unwrap();
+        fixture
+            .store
+            .begin(&inbox.entries()[0], "device-old")
+            .unwrap()
+            .queue_cleanup()
+            .unwrap();
+        fixture.app.projection_profile.refresh();
+    };
+    let now = Instant::now();
+    let later = now + Duration::from_millis(200);
+    let first_due = now + Duration::from_secs(1);
+    let later_due = later + Duration::from_secs(1);
+    add(&mut fixture, 1);
+    let tick = |fixture: &mut Fixture, at, attempts| {
+        let mut actual = 0;
+        fixture.app.poll_projection_cleanup(at);
+        fixture.app.dispatch_projection_cleanup(
+            &mut |origin| {
+                assert_eq!(origin, fixture.origin);
+                actual += 1;
+                Err(crate::device_authorization_config::Error::Profile)
+            },
+            at,
+        );
+        assert_eq!(actual, attempts);
+        assert!(!fixture.app.remote_sessions.projection_pending());
+        no_request(fixture);
+        fixture.app.projection_cleanup.deadline()
+    };
+    assert_eq!(tick(&mut fixture, now, 1), Some(first_due));
+    add(&mut fixture, 2);
+    add(&mut fixture, 3);
+    assert_eq!(tick(&mut fixture, later, 1), Some(later));
+    assert_eq!(tick(&mut fixture, later, 1), Some(first_due));
+    assert_eq!(tick(&mut fixture, later, 0), Some(first_due));
+    assert_eq!(tick(&mut fixture, first_due, 1), Some(later_due));
 }

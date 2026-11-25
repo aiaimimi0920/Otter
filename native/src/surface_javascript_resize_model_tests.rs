@@ -159,3 +159,42 @@ fn javascript_resize_model_deeper_delivery_uses_current_layout_and_microtasks() 
     }});"#).unwrap();
     assert_eq!(output.scene["children"][1]["props"]["text"], "75");
 }
+
+#[test]
+fn javascript_resize_model_unobserve_keeps_active_entry_and_native_read_budget() {
+    let (mut engine, output) = mount(include_str!(
+        "../tests/fixtures/javascript-resize-delivery.js"
+    ))
+    .unwrap();
+    assert_eq!(
+        report(&output),
+        serde_json::json!({"count":1,"log":"first,microtask,second","width":63,"border":75,"device":126})
+    );
+    assert!(!output.resize_observed);
+    let reads = |engine: &Engine| {
+        engine
+            .geometry
+            .borrow()
+            .trace
+            .iter()
+            .filter(|(stage, _)| *stage == "read-admission")
+            .count()
+    };
+    // 三个 gather + 两个交付；取消的第三批次不读，第二批次仍重测微任务修改。
+    assert_eq!(reads(&engine), 5);
+    for mode in 1..=2 {
+        let output = engine
+            .apply(
+                Command::Update {
+                    snapshot: crate::surface_javascript::fixture::snapshot(3 + mode, mode as i32),
+                    resources: crate::surface_javascript::fixture::resources(),
+                },
+                view(),
+            )
+            .unwrap();
+        assert_eq!(report(&output)["count"], mode);
+        assert_eq!(report(&output)["border"], if mode == 1 { 75 } else { 100 });
+        assert_eq!(output.resize_observed, mode == 2);
+        assert_eq!(reads(&engine), if mode == 1 { 0 } else { 3 });
+    }
+}

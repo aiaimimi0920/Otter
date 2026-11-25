@@ -12,22 +12,14 @@ impl Application {
     pub(super) unsafe fn sync_groups(&self) {
         *self.group_catalog.borrow_mut() = self.workspace.groups().to_vec();
         for document in &self.documents {
-            *document.state.group_id.borrow_mut() = self
-                .workspace
-                .group_of(&document.state.unit_id)
-                .map(|group| group.id.clone());
-            let hidden = self
-                .workspace
-                .group_of(&document.state.unit_id)
-                .is_some_and(|group| group.hidden);
+            let group = self.workspace.group_of(&document.state.unit_id);
+            *document.state.group_id.borrow_mut() = group.map(|group| group.id.clone());
+            let hidden = group.is_some_and(|group| group.hidden);
             if document.state.group_hidden.replace(hidden) && !hidden {
                 super::super::tray::restore_window(document.window.0, &document.state);
             }
-            let changed = document.state.group_locked.replace(
-                self.workspace
-                    .group_of(&document.state.unit_id)
-                    .is_some_and(|group| group.locked),
-            ) != document.state.group_locked.get();
+            let locked = group.is_some_and(|group| group.locked);
+            let changed = document.state.group_locked.replace(locked) != locked;
             if changed {
                 super::super::tool_panel::refresh(document.window.0);
                 let _ = windows::Win32::Graphics::Gdi::InvalidateRect(

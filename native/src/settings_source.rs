@@ -46,7 +46,7 @@ impl Source {
             recovery_target: None,
         }))
     }
-    pub(crate) fn from_document(path: PathBuf, document: Document) -> Result<Arc<Self>, String> {
+    pub fn from_document(path: PathBuf, document: Document) -> Result<Arc<Self>, String> {
         if !path.is_absolute() {
             return Err("Settings source path must be absolute".into());
         }
@@ -72,7 +72,7 @@ impl Source {
     pub fn document(&self) -> &Arc<Document> {
         &self.document
     }
-    pub(crate) fn bytes(&self) -> &Pixels {
+    pub fn bytes(&self) -> &Pixels {
         &self.bytes
     }
 }

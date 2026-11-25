@@ -145,6 +145,6 @@ pub(super) unsafe fn translate_property(state: &State, message: &MSG) -> bool {
     neuro_mini_ui::translate_properties(state.tool_panel.get(), message)
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "tool_panel_keyboard_tests.rs"]
 mod tests;

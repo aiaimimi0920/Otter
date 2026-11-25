@@ -7,10 +7,10 @@ impl Application {
         &mut self,
         startup: Option<desktop::SessionStartup>,
     ) -> Result<()> {
-        self.ensure_tray();
         self.enable_local_loom();
         let initial = &self.documents[0];
         desktop::global_capture::install(initial.window.0, &initial.state);
+        self.ensure_tray();
         desktop::extension_catalog::request(initial.window.0, &initial.state)?;
         for doc in &self.documents {
             doc.observe_priority()?;
@@ -171,7 +171,10 @@ impl Application {
     unsafe fn ensure_tray(&self) {
         self.ensure_tray_with(|doc| desktop::tray::start(doc.window.0, &doc.state));
     }
-    unsafe fn ensure_tray_with(&self, install: impl FnOnce(&DocumentWindow) -> Result<()>) {
+    pub(super) unsafe fn ensure_tray_with(
+        &self,
+        install: impl FnOnce(&DocumentWindow) -> Result<()>,
+    ) {
         if self
             .documents
             .iter()
@@ -183,6 +186,7 @@ impl Application {
         if let Some(doc) = self.documents.iter().find(|doc| doc.is_alive()) {
             if let Err(error) = install(doc) {
                 eprintln!("native-tray-start: {error}");
+                desktop::tray::expose_empty_host(doc.window.0, &doc.state);
             }
         }
     }

@@ -67,6 +67,10 @@ impl<'a> Transition<'a> {
             owns,
             _thread: PhantomData,
         };
+        // 没有样式写入时不触发重入；提交阶段仍复核 ULW 后的样式。
+        if original == desired {
+            return Ok(transaction);
+        }
         if let Err(error) = replace_bits(hwnd, desired, owns) {
             if let Err(rollback) = transaction.rollback() {
                 return Err(Error::new(
@@ -172,6 +176,6 @@ unsafe fn replace_bits(hwnd: HWND, bits: u32, owns: Option<&dyn Fn() -> bool>) -
     Ok(())
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "software_window_style_tests.rs"]
 mod tests;

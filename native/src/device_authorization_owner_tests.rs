@@ -183,3 +183,37 @@ fn invalidate_one_origin_preserves_other_origin_and_expiry_is_checked() {
         Err(OwnerError::Origin)
     );
 }
+
+#[test]
+fn local_install_preserves_the_pending_origins_capacity_until_poll() {
+    let (_files, store, _) = super::pairing::Files::new();
+    let (listener, client, config) = fixture();
+    let pending_origin = client.origin.clone();
+    let peer = std::thread::spawn(move || session_reply(&listener, &config, "completed-token"));
+    let mut owner = Owner::new();
+    let install = |owner: &mut Owner, index| {
+        let origin = format!("https://loom-{index}.test");
+        owner.install(&origin, super::session(&origin, 10_000), 0)
+    };
+    for index in 1..=7 {
+        install(&mut owner, index).unwrap();
+    }
+    owner.start(Task::Renew { client, store }).unwrap();
+    wait(&owner);
+    peer.join().unwrap();
+    assert!(matches!(
+        owner.install(&pending_origin, super::session(&pending_origin, 10_000), 0,),
+        Err(OwnerError::Pending)
+    ));
+    assert_eq!(install(&mut owner, 8), Err(OwnerError::Capacity));
+    // 满额仍允许替换同一个已缓存的 origin，不挤占在途名额。
+    install(&mut owner, 1).unwrap();
+    assert!(matches!(
+        owner.poll().as_slice(),
+        [Event::Authorized { origin, .. }] if origin == &pending_origin
+    ));
+    assert_eq!(owner.token(&pending_origin, 0), Some("completed-token"));
+    assert_eq!(install(&mut owner, 8), Err(OwnerError::Capacity));
+    owner.invalidate(&pending_origin).unwrap();
+    install(&mut owner, 8).unwrap();
+}

@@ -1,7 +1,7 @@
 //! 旧history.json可能含原图fallback；先限制容器与声明尺寸，再由WIC缩到240。
 use super::*;
 impl Image {
-    pub(crate) fn from_capture_history(bytes: &[u8]) -> Result<Self> {
+    pub(crate) fn from_capture_history(bytes: &[u8], declared_png: bool) -> Result<(Self, bool)> {
         if bytes.is_empty() || bytes.len() > crate::capture_history::MAX_BYTES {
             return Err(Error::new(
                 E_INVALIDARG,
@@ -26,15 +26,28 @@ impl Image {
             })?;
             let (w, h) = crate::capture_history::image::size(width, height)
                 .ok_or_else(|| Error::new(E_INVALIDARG, "Invalid history dimensions"))?;
-            let scaler = factory.CreateBitmapScaler()?;
-            scaler.Initialize(&frame, w, h, WICBitmapInterpolationModeFant)?;
-            Self::decode_source(
+            let unscaled = (w, h) == (width, height);
+            let source = if unscaled {
+                frame.cast::<IWICBitmapSource>()?
+            } else {
+                let scaler = factory.CreateBitmapScaler()?;
+                scaler.Initialize(&frame, w, h, WICBitmapInterpolationModeFant)?;
+                scaler.cast()?
+            };
+            let image = Self::decode_source(
                 &factory,
-                &scaler.cast()?,
-                None,
+                &source,
+                super::SizePolicy::Any,
                 (crate::capture_history::image::EDGE.pow(2) * 4) as usize,
                 &|| false,
-            )
+            )?;
+            let reusable_png = unscaled
+                && declared_png
+                && decoder
+                    .GetContainerFormat()
+                    .is_ok_and(|format| format == GUID_ContainerFormatPng)
+                && decoder.GetFrameCount().is_ok_and(|count| count == 1);
+            Ok((image, reusable_png))
         }
     }
 }

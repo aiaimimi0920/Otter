@@ -71,8 +71,11 @@ fn run(
             .control(client)
             .map_err(|_| Error::Lease)?;
         let batch = match control.events(snapshot.identity().session(), &cursor) {
+            Err(error @ live_relay_http::Error::AuthorizationRequired) => {
+                return Err(Error::Http(error));
+            }
+            _ if signal.stop.load(Ordering::Acquire) => return Ok(()),
             Ok(batch) => batch,
-            Err(_) if signal.stop.load(Ordering::Acquire) => return Ok(()),
             Err(error) if error.retryable_read() && attempts < 4 => {
                 if attempts == 0 {
                     interaction
@@ -104,7 +107,9 @@ fn run(
                 || signal.control_recovering.load(Ordering::Acquire))
                 && action != input::Action::Release
             {
-                next.suspend();
+                // 不可在已经跳过 Enable 的同一批中恢复投递；已验证的 None 仍有效。
+                blocked = true;
+                next.discard_delivery();
                 continue;
             }
             if let Err(error) = interaction.bridge.dispatch(action, || {

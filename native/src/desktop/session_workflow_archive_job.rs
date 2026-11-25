@@ -47,11 +47,10 @@ pub struct Job {
     completed: Arc<AtomicBool>,
     worker: Option<JoinHandle<Result<Staged, String>>>,
 }
-/// 归档不发送图片快照；源字节租约必须继续存活，不能随烘焙快照一起提前归还。
+/// 归档不发送图片快照；原文 owner 自身保留字节预算，不随烘焙快照提前归还。
 struct ArchiveInput {
     source: crate::session_source::Source,
     metadata: crate::session_document::workflow_snapshot::metadata::Plan,
-    _source_lease: Option<crate::byte_budget::Lease>,
 }
 impl ArchiveInput {
     fn from_ready(ready: Ready) -> Self {
@@ -59,15 +58,10 @@ impl ArchiveInput {
             prepared,
             source,
             metadata,
-            _source_lease,
         } = ready;
         // 在 worker 内释放，避免 UI 为失效的大快照承担析构；新 revision 将重新准备。
         drop(prepared);
-        Self {
-            source,
-            metadata,
-            _source_lease,
-        }
+        Self { source, metadata }
     }
 }
 impl Job {
@@ -94,7 +88,7 @@ impl Job {
                     archive::prepare(&root, &input.metadata, &input.source, timestamp_ms, &signal)
                         .map_err(|_| "Workflow resource archive failed")?;
                 let prepared = batch
-                    .into_candidate(&input.source, &signal)
+                    .into_candidate(&signal)
                     .map_err(|_| "Workflow archive session assembly failed")?;
                 let replacement = Replacement::prepare(
                     &destination,
@@ -118,12 +112,12 @@ impl Job {
     pub fn cancel(&self) {
         self.cancel.store(true, Ordering::Release);
     }
+    pub fn deadline(&self) -> Option<std::time::Instant> {
+        self.worker.as_ref()?;
+        crate::desktop::loom_execution_signal::reap_deadline(&self.completed)
+    }
     pub fn poll(&mut self) -> Option<Result<Staged, String>> {
-        if !self
-            .worker
-            .as_ref()
-            .is_some_and(|w| self.completed.load(Ordering::Acquire) || w.is_finished())
-        {
+        if !self.worker.as_ref()?.is_finished() {
             return None;
         }
         let result = self
@@ -147,6 +141,6 @@ impl Drop for Job {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "session_workflow_archive_job_tests.rs"]
 mod tests;

@@ -84,6 +84,10 @@ unsafe fn run_routed(case: u8, offline: bool) {
         assert!(fixture.app.capture_session_snapshot().is_err());
         assert!(!restore_batch::guard::is_idle(&fixture.app));
         if case == 3 {
+            // Pretend the lease is already expired: before cancellation it is due now.
+            let started = Instant::now();
+            let expiry = fixture.app.projection_receive.deadline(u64::MAX).unwrap();
+            assert!((started..=Instant::now()).contains(&expiry));
             fixture.app.reset_projection_inbox();
         }
         // 有意不 poll UI：后台错误/取消已经结束后，原槽与许可仍须由未领取的 Job 保留。
@@ -101,11 +105,12 @@ unsafe fn run_routed(case: u8, offline: bool) {
         }
         assert!(fixture.app.projection_receive.preparing());
         if case == 3 {
-            assert!(fixture
-                .app
-                .projection_receive
-                .deadline(crate::desktop::surface_windows::now_ms().unwrap())
-                .is_none());
+            // The cancelled lease must not impose a zero wait, but a completed
+            // unclaimed job still needs the notification-to-reap fallback.
+            let started = Instant::now();
+            let reap = fixture.app.projection_receive.deadline(u64::MAX).unwrap();
+            let interval = Duration::from_millis(10);
+            assert!((started + interval..=Instant::now() + interval).contains(&reap));
         }
         let mut retry = fixture.ticket().retry();
         assert_eq!(
@@ -144,19 +149,7 @@ unsafe fn run_routed(case: u8, offline: bool) {
             DestroyWindow(doc.window.0).unwrap();
         }
         // 与 run_loop 相同，先消费真实 WM_QUIT，再进入空工作区收尾；不跳过主循环前提。
-        let mut message = MSG::default();
-        let end = Instant::now() + Duration::from_secs(10);
-        loop {
-            let status = fixture.app.next_live_message(&mut message).unwrap();
-            assert!(status >= 0);
-            if status == 0 {
-                assert_eq!(message.wParam.0, 0);
-                break;
-            }
-            assert!(Instant::now() < end, "last Unit quit deadline");
-            let _ = TranslateMessage(&message);
-            DispatchMessageW(&message);
-        }
+        crate::desktop::application::execution_test_pump::Pump::new().expect_quit(&mut fixture.app);
         fixture.app.finish_deleted_workspace().unwrap();
         assert!(!fixture.app.projection_receive.busy());
         assert!(fixture.app.workspace.units().is_empty());

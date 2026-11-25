@@ -71,6 +71,6 @@ impl Settings {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "unit_node_settings_tests.rs"]
 mod tests;

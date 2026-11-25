@@ -72,19 +72,29 @@ pub fn windows(pid: u32, class: &str, title: Option<&str>, owner: Option<HWND>) 
     };
     search.found
 }
+struct Apartment;
+impl Drop for Apartment {
+    fn drop(&mut self) {
+        unsafe { CoUninitialize() };
+    }
+}
 pub struct Ui {
-    pub client: std::mem::ManuallyDrop<IUIAutomation2>,
+    // 字段按声明顺序析构；接口先于 apartment，初始化失败也走同一 guard。
+    pub client: IUIAutomation2,
+    _apartment: Apartment,
 }
 impl Ui {
     pub fn new() -> Self {
         unsafe {
             CoInitializeEx(None, COINIT_MULTITHREADED).ok().unwrap();
+            let apartment = Apartment;
             let client: IUIAutomation2 =
                 CoCreateInstance(&CUIAutomation8, None, CLSCTX_INPROC_SERVER).unwrap();
             client.SetConnectionTimeout(3000).unwrap();
             client.SetTransactionTimeout(3000).unwrap();
             Self {
-                client: std::mem::ManuallyDrop::new(client),
+                client,
+                _apartment: apartment,
             }
         }
     }
@@ -152,7 +162,9 @@ impl Ui {
             .unwrap()
         };
         until(product, "owned menu", |pid| {
-            windows(pid, "STATIC", None, Some(hwnd)).first().copied()
+            let menus = windows(pid, "STATIC", Some("Otter 菜单"), Some(hwnd));
+            assert!(menus.len() <= 1, "ambiguous owned menu");
+            menus.first().copied()
         })
     }
     pub fn menu_row(&self, menu: HWND, name: &str) -> IUIAutomationElement {
@@ -296,15 +308,6 @@ impl Ui {
                 "owned product exit drain timed out"
             );
             std::thread::sleep(Duration::from_millis(10));
-        }
-    }
-}
-impl Drop for Ui {
-    fn drop(&mut self) {
-        // COM接口必须先于所属apartment释放；普通字段在Drop返回后才自动析构。
-        unsafe {
-            std::mem::ManuallyDrop::drop(&mut self.client);
-            CoUninitialize()
         }
     }
 }

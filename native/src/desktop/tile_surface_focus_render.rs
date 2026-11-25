@@ -54,23 +54,25 @@ pub(in crate::desktop::tile_window::render) fn next(
         }) else {
             continue;
         };
-        for g in p
+        for (index, _) in p
             .presentation
             .geometry()
             .nodes()
             .iter()
-            .filter(|g| p.presentation.can_focus(g.id()))
+            .enumerate()
+            .filter(|(_, g)| p.presentation.can_focus(g.id()))
         {
-            candidates.push((placement, g.id().to_owned()));
+            candidates.push((placement, index));
         }
     }
     if candidates.is_empty() {
         return Ok(None);
     }
     let index = current.and_then(|c| {
-        candidates
-            .iter()
-            .position(|(p, id)| p.placement_id == c.anchor.placement && *id == c.node)
+        candidates.iter().position(|(p, index)| {
+            p.placement_id == c.anchor.placement
+                && cache[&p.source.id].presentation.geometry().nodes()[*index].id() == c.node
+        })
     });
     let start = match (index, reverse) {
         (Some(i), true) => (i + candidates.len() - 1) % candidates.len(),
@@ -85,15 +87,17 @@ pub(in crate::desktop::tile_window::render) fn next(
         } else {
             (start + n) % candidates.len()
         };
-        let (placement, node) = &candidates[index];
+        let (placement, position) = candidates[index];
         let p = cache.get_mut(&placement.source.id).unwrap();
+        // 每次尝试恢复到同一场景和滚动快照，沿用原投影顺序；只复制即将试探的 ID。
+        let node = p.presentation.geometry().nodes()[position].id().to_owned();
         let before = p.presentation.scroll_state();
         let result = (|| {
             let Some(viewport) = crate::tile_surface_geometry::viewport(frame, &p.owner, placement)
             else {
                 return Ok(None);
             };
-            if !p.presentation.reveal_focus_in(node, viewport)? {
+            if !p.presentation.reveal_focus_in(&node, viewport)? {
                 return Ok(None);
             }
             crate::tile_surface_focus::find(
@@ -101,7 +105,7 @@ pub(in crate::desktop::tile_window::render) fn next(
                 &p.owner,
                 &p.presentation,
                 placement,
-                node,
+                &node,
                 &mut budget,
             )
             .map_err(|e| Error::new(E_INVALIDARG, e))

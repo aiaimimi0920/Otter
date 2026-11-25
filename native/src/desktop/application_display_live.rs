@@ -7,16 +7,17 @@ pub(super) struct Entry {
     pub image: Image,
 }
 impl Application {
-    pub(super) fn live_display_images(&self) -> (Vec<Entry>, bool) {
-        let wanted = |unit: &UnitId| {
-            self.workspace
-                .links()
-                .iter()
-                .any(|link| &link.from_unit == unit)
-        };
+    fn wants_live_display(&self, unit: &UnitId) -> bool {
+        self.workspace
+            .links()
+            .iter()
+            .any(|link| &link.from_unit == unit)
+    }
+
+    pub(super) fn poll_live_display(&self) -> bool {
         let mut cache = self.display_composition.borrow_mut();
         let changed = cache.retain_live(|unit, identity| {
-            wanted(unit)
+            self.wants_live_display(unit)
                 && self.live_sessions.iter().any(|session| {
                     session.unit_id() == unit
                         && session.is_alive()
@@ -34,7 +35,7 @@ impl Application {
                 }
                 if !session.is_alive()
                     || !session.belongs_to(&self.workspace)
-                    || !wanted(session.unit_id())
+                    || !self.wants_live_display(session.unit_id())
                     || self
                         .workspace
                         .group_of(session.unit_id())
@@ -59,25 +60,18 @@ impl Application {
                 }
             }
         }
-        let mut entries = Vec::new();
         let mut pending = false;
         for session in self.live_sessions.iter().filter(|session| {
-            session.is_alive() && session.belongs_to(&self.workspace) && wanted(session.unit_id())
+            session.is_alive()
+                && session.belongs_to(&self.workspace)
+                && self.wants_live_display(session.unit_id())
         }) {
-            match cache.request_live(
+            pending |= cache.poll_live_source(
                 session.unit_id(),
                 session.input_identity(),
                 || session.snapshot_frame().map_err(|_| ()),
-                self.execution_wake.callback(),
-            ) {
-                Ok(Some(image)) => entries.push(Entry {
-                    unit: session.unit_id().clone(),
-                    key: format!("live:{}", session.unit_id()),
-                    image,
-                }),
-                Ok(None) => pending = true,
-                Err(()) => {}
-            }
+                || self.execution_wake.callback(),
+            );
         }
         let updates = if self.modals.blocked() {
             Vec::new()
@@ -91,7 +85,25 @@ impl Application {
                 self.propagate_live_snapshot(&unit);
             }
         }
-        (entries, pending)
+        pending
+    }
+
+    // 只有显示图需要重建时才创建键和像素引用，顺序仍与 Live 会话一致。
+    pub(super) fn live_display_images(&self) -> Vec<Entry> {
+        let cache = self.display_composition.borrow();
+        self.live_sessions
+            .iter()
+            .filter(|session| session.is_alive() && session.belongs_to(&self.workspace))
+            .filter_map(|session| {
+                let unit = session.unit_id();
+                let image = cache.live_image(unit, &session.input_identity())?;
+                Some(Entry {
+                    unit: unit.clone(),
+                    key: format!("live:{unit}"),
+                    image: image.clone(),
+                })
+            })
+            .collect()
     }
 }
 pub(super) fn publish(

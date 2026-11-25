@@ -73,7 +73,7 @@ impl Data {
     }
     fn decode_with(
         bytes: &[u8],
-        prepare: impl Fn(&str) -> Result<image::Preview, String>,
+        prepare: impl Fn(&str) -> Result<(image::Preview, Option<String>), String>,
     ) -> Result<Self, String> {
         if bytes.len() > MAX_BYTES {
             return Err("History exceeds 8 MiB".into());
@@ -129,8 +129,8 @@ impl Data {
                     continue;
                 }
                 // 资源/COM暂态失败不等于坏数据；保留原条目，后续取色不能永久删掉它。
-                if let Ok(preview) = prepare(&entry.thumbnail) {
-                    if let Ok(encoded) = image::encode(&preview.image) {
+                if let Ok((preview, normalized)) = prepare(&entry.thumbnail) {
+                    if let Some(encoded) = normalized {
                         entry.thumbnail = encoded;
                     }
                     entry.preview = Some(preview);
@@ -155,6 +155,6 @@ impl Data {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-capture")))]
 #[path = "capture_history_tests.rs"]
 mod tests;

@@ -103,6 +103,6 @@ fn topology(
     }
     Ok(next)
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-loom")))]
 #[path = "art_local_ports_tests.rs"]
 mod tests;

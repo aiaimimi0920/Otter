@@ -148,8 +148,8 @@ fn layered_style_reenters_after_model_borrow_is_released() {
                 w!("Otter.Software.Submission.Test"),
                 w!(""),
                 WS_POPUP,
-                0,
-                0,
+                19,
+                23,
                 16,
                 16,
                 None,
@@ -182,6 +182,26 @@ fn layered_style_reenters_after_model_borrow_is_released() {
         OWNER.with(|owner| assert!(owner.borrow().is_none()));
         let mut rect = RECT::default();
         GetWindowRect(window.0, &mut rect).unwrap();
+        assert_eq!((rect.left, rect.top), (19, 23));
         assert_eq!((rect.right - rect.left, rect.bottom - rect.top), (32, 32));
+
+        let mut next = surface(24);
+        next.draw(red).unwrap();
+        STYLE_CALLS.set(0);
+        let transition =
+            crate::desktop::software_surface::window_style::Transition::begin(window.0, true)
+                .unwrap();
+        next.prepare_present(true, 1.0)
+            .unwrap()
+            .present_at(window.0, Some(POINT { x: -17, y: 29 }))
+            .unwrap();
+        transition.commit().unwrap();
+        assert_eq!(STYLE_CALLS.get(), 0);
+        GetWindowRect(window.0, &mut rect).unwrap();
+        assert_eq!(
+            (rect.left, rect.top, rect.right, rect.bottom),
+            (-17, 29, 7, 53)
+        );
+        assert!(!IsWindowVisible(window.0).as_bool());
     }
 }

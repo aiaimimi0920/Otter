@@ -11,7 +11,7 @@ mod local;
 #[path = "export_blur_sampling.rs"]
 mod sampling;
 pub(in crate::desktop) use active::prepare_active;
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-capture")))]
 #[path = "export_blur_local_resource_tests.rs"]
 mod tests;
 
@@ -35,19 +35,30 @@ pub(in crate::desktop) fn prepare_restored(
         .transpose()
         .map_err(|_| Error::new(E_INVALIDARG, "Invalid blur edit state"))?
         .unwrap_or(serde_json::Value::Null);
-    let original = sampling::original(
-        image,
-        (
-            edit["flippedX"].as_bool() == Some(true),
-            edit["flippedY"].as_bool() == Some(true),
-        ),
-        cancel,
-    )?;
+    // Natural sources use the historical unflipped sampling contract. A saved
+    // working grid already has the orientation and padding used by the editor.
+    let original = if geometry.rasterized_source {
+        image.clone()
+    } else {
+        sampling::original(
+            image,
+            (
+                edit["flippedX"].as_bool() == Some(true),
+                edit["flippedY"].as_bool() == Some(true),
+            ),
+            cancel,
+        )?
+    };
     let layout = Layout::for_frame(
         image,
         geometry,
         editor.crop_view().map(|crop| crop.source.rect),
     )?;
+    let coordinates = if geometry.rasterized_source {
+        local::Coordinates::WorkingGrid(geometry.logical)
+    } else {
+        local::Coordinates::Natural(restored_crop)
+    };
     let mut cache = HashMap::<[u64; 5], BlurImage>::new();
     editor.export_snapshot_with_blur_strokes(|stroke| {
         check(cancel)?;
@@ -65,7 +76,7 @@ pub(in crate::desktop) fn prepare_restored(
         if let Some(image) = cache.get(&key) {
             return Ok(image.clone());
         }
-        let image = local::prepare(&original, &layout, *rect, restored_crop, strength, cancel)?;
+        let image = local::prepare(&original, &layout, *rect, coordinates, strength, cancel)?;
         cache.try_reserve(1).map_err(|_| {
             Error::new(
                 windows::Win32::Foundation::E_OUTOFMEMORY,

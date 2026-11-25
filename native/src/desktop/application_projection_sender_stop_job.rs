@@ -1,6 +1,6 @@
 //! 单槽后台减权/metadata patch/ack；不持有 HWND，结果安装前必须重核当前 canonical 与 Record allocation。
 use super::*;
-use crate::desktop::loom_execution_signal::{CompletionSignal, Notify};
+use crate::desktop::loom_execution_signal::{reap_deadline, CompletionSignal, Notify};
 use std::{
     sync::{atomic::AtomicBool, Arc},
     thread::JoinHandle,
@@ -23,6 +23,7 @@ pub(super) struct Job {
     pub request: Request,
     pub begin: bool,
     pub ack: bool,
+    ready: Arc<AtomicBool>,
     thread: Option<JoinHandle<std::result::Result<Output, SenderError>>>,
 }
 impl Job {
@@ -30,11 +31,13 @@ impl Job {
         let begin = matches!(&work, Work::Begin);
         let ack = matches!(&work, Work::Ack(_));
         let worker = request.clone();
+        let ready = Arc::new(AtomicBool::new(false));
+        let signal = ready.clone();
         let thread = std::thread::Builder::new()
             .name("otter-sender-stop".into())
             .spawn(move || {
                 let cancel = Arc::new(AtomicBool::new(false));
-                let _done = CompletionSignal::new(cancel.clone(), notify);
+                let _done = CompletionSignal::new(signal, notify);
                 match work {
                     Work::Begin => {
                         worker.request_stop()?;
@@ -66,11 +69,15 @@ impl Job {
             request,
             begin,
             ack,
+            ready,
             thread: Some(thread),
         })
     }
     pub(super) fn finished(&self) -> bool {
         self.thread.as_ref().unwrap().is_finished()
+    }
+    pub(super) fn deadline(&self) -> Option<std::time::Instant> {
+        reap_deadline(&self.ready)
     }
     pub(super) fn join(&mut self) -> std::result::Result<Output, SenderError> {
         self.thread

@@ -57,8 +57,8 @@ pub(super) fn replace(
     png: Option<&str>,
     cancel: &AtomicBool,
 ) -> Result<Source, Error> {
-    let document = crate::session_document::decode(source).map_err(|_| Error::Response)?;
-    if crate::session_projection_scope::Proof::capture(source)
+    let parsed = source.parse().map_err(|_| Error::Response)?;
+    if crate::session_projection_scope::Proof::capture_parsed(&parsed)
         .is_none_or(|proof| proof.scope() != next.scope)
     {
         return Err(Error::Response);
@@ -102,7 +102,7 @@ pub(super) fn replace(
             png,
         });
     }
-    if !found || document.workspace.units().len() != windows.len() {
+    if !found || parsed.document().workspace.units().len() != windows.len() {
         return Err(Error::Response);
     }
     let bytes =

@@ -5,10 +5,9 @@ struct Directory(PathBuf);
 impl Directory {
     fn new() -> Self {
         Self(
-            PathBuf::from("C:/Users/Public/nas_home/AI/GameEditor/linshi")
-                .join(format!("otter-wait-cached-{:?}", unsafe {
-                    windows::Win32::System::Com::CoCreateGuid().unwrap()
-                })),
+            std::env::temp_dir().join(format!("otter-wait-cached-{:?}", unsafe {
+                windows::Win32::System::Com::CoCreateGuid().unwrap()
+            })),
         )
     }
     fn entries(&self) -> usize {

@@ -1,5 +1,8 @@
 //! Tile无handler值的UI本地状态；不改权威scene、不持像素，不参与文本表单或网络动作。
-use crate::{surface_scene::Kind, tile_surface_focus::Focus};
+use crate::{
+    surface_scene::{Kind, Node, Scene},
+    tile_surface_focus::Focus,
+};
 use std::{rc::Rc, sync::Arc};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -19,13 +22,8 @@ pub(crate) struct Entry {
 pub(crate) struct Cache {
     rows: Rc<Vec<Entry>>,
 }
-/// 只接受无对应handler的真实值控件；索引/数值存储固定大小，不复制标签/整份Art资源。
-pub(crate) fn source(focus: &Focus) -> Option<Value> {
-    let scene = crate::surface_scene::Scene::parse(&focus.anchor.snapshot.scene).ok()?;
-    let node = scene.root().visible_node(&focus.node)?;
-    source_node(node)
-}
-pub(crate) fn source_node(node: &crate::surface_scene::Node) -> Option<Value> {
+/// 只接受无对应 handler 的真实值控件；索引/数值存储固定大小，不保留标签或场景副本。
+pub(crate) fn source_node(node: &Node) -> Option<Value> {
     if node.props().get("disabled") == Some(&serde_json::Value::Bool(true)) {
         return None;
     }
@@ -50,16 +48,12 @@ pub(crate) fn source_node(node: &crate::surface_scene::Node) -> Option<Value> {
         _ => None,
     }
 }
-pub(crate) fn stamp(node: &crate::surface_scene::Node) -> [u8; 32] {
+pub(crate) fn stamp(node: &Node) -> [u8; 32] {
     let bytes = serde_json::to_vec(&node.props().get("value")).expect("JSON value encoding");
     ring::digest::digest(&ring::digest::SHA256, &bytes)
         .as_ref()
         .try_into()
         .expect("SHA256 length")
-}
-fn source_stamp(focus: &Focus) -> Option<[u8; 32]> {
-    let scene = crate::surface_scene::Scene::parse(&focus.anchor.snapshot.scene).ok()?;
-    Some(stamp(scene.root().visible_node(&focus.node)?))
 }
 impl Cache {
     pub fn snapshot(&self) -> Rc<Vec<Entry>> {
@@ -81,34 +75,53 @@ impl Cache {
         }
         changed
     }
-    pub fn value(&mut self, focus: &Focus) -> Option<Value> {
-        let index = self.rows.iter().position(|e| {
+    fn index(&self, focus: &Focus) -> Option<usize> {
+        self.rows.iter().position(|e| {
             e.focus.anchor.view.instance_id == focus.anchor.view.instance_id
                 && e.focus.node == focus.node
-        });
-        if let Some(index) = index {
-            let e = &self.rows[index];
-            if e.focus.same_local(focus) {
-                if Arc::ptr_eq(&e.focus.anchor.snapshot, &focus.anchor.snapshot)
-                    && e.focus.anchor.scroll == focus.anchor.scroll
-                {
-                    return Some(e.value);
+        })
+    }
+    fn current(&self, index: usize, focus: &Focus) -> bool {
+        let entry = &self.rows[index];
+        entry.focus.same_local(focus)
+            && Arc::ptr_eq(&entry.focus.anchor.snapshot, &focus.anchor.snapshot)
+            && entry.focus.anchor.scroll == focus.anchor.scroll
+    }
+    fn refresh(
+        &mut self,
+        index: usize,
+        focus: &Focus,
+        source: Option<(&Node, Value)>,
+    ) -> Option<Value> {
+        if self.rows[index].focus.same_local(focus) {
+            if let Some((node, source)) = source {
+                let stamp = stamp(node);
+                let entry = &mut Rc::make_mut(&mut self.rows)[index];
+                if stamp != entry.stamp {
+                    entry.value = source;
                 }
-                if let Some(source) = source(focus) {
-                    let stamp = source_stamp(focus)?;
-                    let e = &mut Rc::make_mut(&mut self.rows)[index];
-                    if stamp != e.stamp {
-                        e.value = source;
-                    }
-                    e.source = source;
-                    e.stamp = stamp;
-                    e.focus = focus.clone();
-                    return Some(e.value);
-                }
+                entry.source = source;
+                entry.stamp = stamp;
+                entry.focus = focus.clone();
+                return Some(entry.value);
             }
-            Rc::make_mut(&mut self.rows).remove(index);
         }
-        source(focus)
+        Rc::make_mut(&mut self.rows).remove(index);
+        None
+    }
+    pub fn value(&mut self, focus: &Focus) -> Option<Value> {
+        let index = self.index(focus);
+        if let Some(index) = index.filter(|&i| self.current(i, focus)) {
+            return Some(self.rows[index].value);
+        }
+        let scene = Scene::parse(&focus.anchor.snapshot.scene).ok();
+        let source = scene
+            .as_ref()
+            .and_then(|s| s.root().visible_node(&focus.node))
+            .and_then(|node| Some((node, source_node(node)?)));
+        index
+            .and_then(|i| self.refresh(i, focus, source))
+            .or_else(|| source.map(|(_, value)| value))
     }
     /// 与文本会话合计沿用每view64/总256字段，不挤出旧字段或静默扩大预算。
     pub fn set(
@@ -117,33 +130,25 @@ impl Cache {
         value: Value,
         text: (usize, usize),
     ) -> Result<(), &'static str> {
-        let source = self
-            .value(&focus)
-            .and_then(|_| source(&focus))
-            .ok_or("Art本地字段已失效")?;
+        // 校验、换代和指纹共用同一个已解析节点，不读取用于呈现的本地覆盖值。
+        let scene = Scene::parse(&focus.anchor.snapshot.scene).ok();
+        let source = scene
+            .as_ref()
+            .and_then(|s| s.root().visible_node(&focus.node))
+            .and_then(|node| Some((node, source_node(node)?)));
+        if let Some(index) = self.index(&focus).filter(|&i| !self.current(i, &focus)) {
+            self.refresh(index, &focus, source);
+        }
+        let (node, source) = source.ok_or("Art本地字段已失效")?;
         let valid = match (source, value) {
             (Value::Switch(_), Value::Switch(_)) => true,
             (Value::Select(_), Value::Select(index)) => {
-                let scene = crate::surface_scene::Scene::parse(&focus.anchor.snapshot.scene)
-                    .map_err(|_| "Art本地选项失效")?;
-                let node = scene
-                    .root()
-                    .visible_node(&focus.node)
-                    .ok_or("Art本地选项失效")?;
                 let options =
                     crate::surface_select::Options::parse(node).map_err(|_| "Art本地选项失效")?;
                 index.is_none_or(|i| options.value_at(i).is_some())
             }
-            (Value::Slider(_), Value::Slider(v)) => {
-                let scene = crate::surface_scene::Scene::parse(&focus.anchor.snapshot.scene)
-                    .map_err(|_| "Art本地滑块失效")?;
-                let node = scene
-                    .root()
-                    .visible_node(&focus.node)
-                    .ok_or("Art本地滑块失效")?;
-                crate::surface_slider::Range::parse(node)
-                    .is_ok_and(|r| r.normalize(v).is_ok_and(|n| n == v))
-            }
+            (Value::Slider(_), Value::Slider(v)) => crate::surface_slider::Range::parse(node)
+                .is_ok_and(|r| r.normalize(v).is_ok_and(|n| n == v)),
             _ => false,
         };
         if !valid {
@@ -160,7 +165,7 @@ impl Cache {
         if total + text.0 >= 256 || per_view + text.1 >= 64 {
             return Err("Art本地字段预算不足");
         }
-        let stamp = source_stamp(&focus).ok_or("Art本地字段源失效")?;
+        let stamp = stamp(node);
         Rc::make_mut(&mut self.rows).push(Entry {
             focus,
             source,
@@ -186,6 +191,6 @@ impl Cache {
         !Rc::ptr_eq(&old, &self.rows)
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-surface")))]
 #[path = "tile_surface_local_tests.rs"]
 mod tests;

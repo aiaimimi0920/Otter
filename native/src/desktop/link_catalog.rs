@@ -15,6 +15,16 @@ use windows::core::Result;
 use windows::Win32::{Foundation::*, UI::WindowsAndMessaging::*};
 #[path = "link_port_presentation.rs"]
 mod presentation;
+use super::composition::live::session::Session;
+
+fn live_endpoints<'a>(
+    sessions: &'a [Session],
+    workspace: &'a Workspace,
+) -> impl Iterator<Item = &'a Session> + Clone {
+    sessions.iter().filter(|session| {
+        session.is_alive() && !session.pin_attached() && session.belongs_to(workspace)
+    })
+}
 pub(super) struct Endpoint {
     pub unit: UnitId,
     pub label: String,
@@ -42,7 +52,7 @@ pub(super) struct Creation {
 impl Catalog {
     pub fn capture(
         documents: &[DocumentWindow],
-        sessions: &[super::composition::live::session::Session],
+        sessions: &[Session],
         workspace: &Workspace,
     ) -> Rc<Self> {
         let mut endpoints: Vec<_> = documents
@@ -178,9 +188,7 @@ impl Catalog {
                 }
             })
             .collect();
-        for session in sessions.iter().filter(|session| {
-            session.is_alive() && !session.pin_attached() && session.belongs_to(workspace)
-        }) {
+        for session in live_endpoints(sessions, workspace) {
             endpoints.push(Endpoint {
                 unit: session.unit_id().clone(),
                 label: format!("{} · Live", endpoints.len() + 1),
@@ -211,17 +219,13 @@ impl Catalog {
     pub fn matches(
         &self,
         documents: &[DocumentWindow],
-        sessions: &[super::composition::live::session::Session],
+        sessions: &[Session],
         workspace: &Workspace,
     ) -> bool {
+        let live = live_endpoints(sessions, workspace);
         self.topology.matches(workspace)
             && self.appearance.matches(workspace)
-            && self.endpoints.len()
-                == documents.len()
-                    + sessions
-                        .iter()
-                        .filter(|s| s.is_alive() && !s.pin_attached() && s.belongs_to(workspace))
-                        .count()
+            && self.endpoints.len() == documents.len() + live.clone().count()
             && self.endpoints.iter().zip(documents).all(|(endpoint, doc)| {
                 endpoint.unit == doc.state.unit_id
                     && endpoint
@@ -232,16 +236,17 @@ impl Catalog {
                                 && output.matches(&doc.state.execution_results.borrow())
                         })
             })
-            && self.endpoints.iter().skip(documents.len()).all(|endpoint| {
-                endpoint.live.as_ref().is_some_and(|identity| {
-                    sessions.iter().any(|s| {
-                        s.unit_id() == &endpoint.unit
-                            && s.is_alive()
-                            && s.belongs_to(workspace)
-                            && std::sync::Arc::ptr_eq(identity, &s.input_identity())
+            && self
+                .endpoints
+                .iter()
+                .skip(documents.len())
+                .zip(live)
+                .all(|(endpoint, session)| {
+                    endpoint.live.as_ref().is_some_and(|identity| {
+                        session.unit_id() == &endpoint.unit
+                            && std::sync::Arc::ptr_eq(identity, session.input_identity_ref())
                     })
                 })
-            })
     }
     pub fn permits(&self, link: &Link) -> bool {
         link.from_unit != link.to_unit

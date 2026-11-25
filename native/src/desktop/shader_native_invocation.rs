@@ -43,18 +43,29 @@ impl Invocation {
             uniforms: &uniforms,
         })
     }
-    pub fn validate(&self) -> hlsl::Result<()> {
+    fn validate_counts(&self) -> hlsl::Result<()> {
         if self.textures.len() > 32 || self.uniforms.len() > 256 {
             return Err(hlsl::Error::Budget);
         }
+        Ok(())
+    }
+    pub fn validate(&self) -> hlsl::Result<()> {
+        self.validate_counts()?;
         self.with_request(hlsl::validate)
     }
     pub fn render(
         &self,
         stopped: &impl Fn() -> bool,
     ) -> Result<hlsl::Frame, hlsl::process::Failure> {
-        self.validate().map_err(hlsl::process::Failure::Backend)?;
-        // 默认只派发一个 Auto child；是否退到 D3D11 由原生设备创建阶段决定。
-        self.with_request(|request| hlsl::process::render(request, hlsl::Backend::Auto, stopped))
+        self.validate_counts()
+            .map_err(hlsl::process::Failure::Backend)?;
+        self.with_request(|request| {
+            #[cfg(test)]
+            let result =
+                hlsl::process::render_in_test_harness(request, hlsl::Backend::Auto, stopped);
+            #[cfg(not(test))]
+            let result = hlsl::process::render(request, hlsl::Backend::Auto, stopped);
+            result
+        })
     }
 }

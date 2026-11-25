@@ -4,9 +4,9 @@ import { createRequire } from "node:module";
 import { createServer } from "node:http";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { writeFileSync } from "node:fs";
 import { setTimeout as delay } from "node:timers/promises";
 import { nativeProjectionLifecycle } from "./application-lifecycle.mjs";
+import { runWithReceipt } from "./fixture-receipt.mjs";
 
 const platform = process.env.OTTER_TEST_PLATFORM_REPO;
 const load = (path) => import(pathToFileURL(join(platform, path)).href);
@@ -75,10 +75,12 @@ const server = createServer(async (request, response) => {
     response.end('{"error":{"code":"fixture_failed"}}');
   }
 });
-try {
+await runWithReceipt(join(process.env.OTTER_APPLICATION_EVIDENCE_ROOT, "evidence.json"), async () => {
   await new Promise((done, reject) => { server.once("error", reject); server.listen(0, "127.0.0.1", done); });
   origin = `http://127.0.0.1:${server.address().port}`;
-  await Promise.all([a.start(), b.start()]);
+  const started = await Promise.allSettled([a.start(), b.start()]);
+  const startErrors = started.filter(result => result.status === "rejected").map(result => result.reason);
+  if (startErrors.length) throw new AggregateError(startErrors, "owned daemon startup failed");
   const pending = [];
   for (const runtime of [a, b]) {
     const result = await runtime.request("/v1/account/start", { origin, deviceName: "Otter fixture" },
@@ -100,15 +102,19 @@ try {
   assert.notEqual(sessions[0].accountId, sessions[1].accountId);
   assert.notEqual(sessions[0].deviceId, sessions[1].deviceId);
   const checks = await nativeProjectionLifecycle(a, b, object);
-  writeFileSync(join(process.env.OTTER_APPLICATION_EVIDENCE_ROOT, "evidence.json"), JSON.stringify({
+  return {
     status: "passed", checks, realOAuthTested: false, crossMachineNetworkingTested: false,
     publicNetworkTested: false, distinctAccountsTested: true, daemonPids: [...a.pids, ...b.pids],
-  }, null, 2) + "\n", { encoding: "utf8", flag: "wx" });
-  console.log("Otter account projection Application lifecycle passed");
-} finally {
-  server.closeAllConnections();
-  await new Promise((done) => server.close(done));
-  redis.disconnect();
-  const cleanup = await Promise.allSettled([a.dispose(), b.dispose()]);
-  assert.ok(cleanup.every((result) => result.status === "fulfilled"), "owned daemon cleanup failed");
-}
+  };
+}, [
+  async () => {
+    if (!server.listening) return;
+    const closed = new Promise((done, reject) => server.close(error => error ? reject(error) : done()));
+    server.closeAllConnections();
+    await closed;
+  },
+  () => redis.disconnect(),
+  () => a.dispose(),
+  () => b.dispose(),
+]);
+console.log("Otter account projection Application lifecycle passed");

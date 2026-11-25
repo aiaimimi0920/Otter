@@ -135,6 +135,7 @@ mod tests {
     fn prepared() -> crate::capture_job::PreparedCapture {
         crate::capture_job::PreparedCapture::prepare(
             crate::capture_dynamic::Outcome {
+                backend: crate::capture_dynamic::Backend::Gdi,
                 frame: crate::capture_dynamic::Frame::Sdr(crate::capture_color::SdrFrame {
                     width: 1,
                     height: 1,

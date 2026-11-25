@@ -50,17 +50,37 @@ pub(super) unsafe fn start(hwnd: HWND, state: &State, command: usize) {
             return;
         }
     };
+    if let Err(error) = submit_with(
+        state,
+        plan,
+        || SetTimer(Some(hwnd), TIMER, 30, None) != 0,
+        || {
+            let _ = KillTimer(Some(hwnd), TIMER);
+        },
+    ) {
+        report(hwnd, &error);
+    }
+}
+fn submit_with(
+    state: &State,
+    plan: crate::editor::FlipPlan,
+    reserve_timer: impl FnOnce() -> bool,
+    cancel_timer: impl FnOnce(),
+) -> Result<(), String> {
+    if busy(state) {
+        return Err("Busy".into());
+    }
+    // 先确保回收入口；预约失败不启动 Flip，也不取消仍有用的 Blur。
+    if !reserve_timer() {
+        return Err("Cannot schedule flip result".into());
+    }
     state.blur_job.borrow_mut().cancel();
     let started = state.flip_job.borrow_mut().start(plan);
     if let Err(error) = started {
-        report(hwnd, &format!("{error:?}"));
-        return;
+        cancel_timer();
+        return Err(format!("{error:?}"));
     }
-    // 定时器仅在任务活动期间存在；调度失败必须取消并回收任务。
-    if SetTimer(Some(hwnd), TIMER, 30, None) == 0 {
-        drop(std::mem::take(&mut *state.flip_job.borrow_mut()));
-        report(hwnd, "Cannot schedule flip result");
-    }
+    Ok(())
 }
 fn accept(canvas: &mut Canvas, plan: RasterRefreshPlan) -> std::result::Result<bool, EditError> {
     if canvas.selection_drag.is_some()
@@ -112,6 +132,9 @@ unsafe fn report(hwnd: HWND, error: &str) {
     );
 }
 
+#[cfg(test)]
+#[path = "flip_input_schedule_tests.rs"]
+mod schedule_tests;
 #[cfg(test)]
 mod tests {
     use super::*;

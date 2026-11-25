@@ -132,7 +132,7 @@ impl Application {
             }
             self.enable_local_loom();
         }
-        let Some(result) = self.local_loom.poll(self.execution_wake.callback()) else {
+        let Some(result) = self.local_loom.poll(|| self.execution_wake.callback()) else {
             return;
         };
         let mut view = self.authorization.borrow_mut();

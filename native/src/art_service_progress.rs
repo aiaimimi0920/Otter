@@ -77,6 +77,6 @@ impl Channel {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-loom")))]
 #[path = "art_service_progress_tests.rs"]
 mod tests;

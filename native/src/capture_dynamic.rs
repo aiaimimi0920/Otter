@@ -80,7 +80,21 @@ impl Frame {
         }
     }
 }
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Backend {
+    Wgc,
+    Gdi,
+}
+impl Backend {
+    pub(crate) fn as_str(self) -> &'static str {
+        match self {
+            Self::Wgc => "wgc",
+            Self::Gdi => "gdi",
+        }
+    }
+}
 pub struct Outcome {
+    pub backend: Backend,
     pub frame: Frame,
     pub reason: Option<Reason>,
     pub downgraded: bool,
@@ -93,6 +107,10 @@ pub enum Error {
     Cancelled,
     Changed,
     Sdr(String),
+}
+enum WgcFrame {
+    Native(Frame),
+    Fallback(SdrFrame, String),
 }
 enum Failure {
     Cancelled,
@@ -120,18 +138,24 @@ pub fn region(
             Ok((target, info))
         },
         |target, info| {
-            let frame = target
-                .capture(cancel, |frame| convert(frame, options, info, cancel))
-                .map_err(failure::classify)?;
-            if cancel.load(Ordering::Acquire) {
-                return Err(Failure::Cancelled);
-            }
-            // HDR 开关/白电平可能变化而显示器矩形不变；不交付使用旧颜色配置转换的结果。
-            let current = capture_display::query(target.monitor()).map_err(|_| Failure::Changed)?;
-            if current != info {
-                return Err(Failure::Changed);
-            }
-            Ok(frame)
+            failure::try_sdr_wgc(
+                cancel,
+                || {
+                    let frame = target
+                        .capture(cancel, |frame| convert(frame, options, info, cancel))
+                        .map_err(failure::classify)?;
+                    check(cancel).map_err(|_| Failure::Cancelled)?;
+                    // Color state can change even when the monitor rectangle did not move.
+                    let current =
+                        capture_display::query(target.monitor()).map_err(|_| Failure::Changed)?;
+                    if current != info {
+                        return Err(Failure::Changed);
+                    }
+                    Ok(frame)
+                },
+                || target.capture_sdr(cancel).map_err(failure::classify),
+                || target.validate().map_err(|_| Failure::Changed),
+            )
         },
         sdr,
     )?;
@@ -168,10 +192,7 @@ fn convert(
 ) -> Result<Frame, capture_color::Error> {
     if options.mode == Mode::Sdr
         || (options.mode == Mode::Auto
-            && !capture_color::exceeds_sdr_white(
-                frame.analyze(options.gain, cancel)?,
-                info.sdr_white_nits,
-            ))
+            && !frame.exceeds_sdr_white(info.sdr_white_nits, options.gain, cancel)?)
     {
         frame
             .to_sdr(info.sdr_white_nits, options.gain, cancel)
@@ -188,7 +209,7 @@ fn execute<C>(
     options: Options,
     cancel: &AtomicBool,
     probe: impl FnOnce() -> Result<(C, DisplayInfo), Reason>,
-    hdr: impl FnOnce(C, DisplayInfo) -> Result<Frame, Failure>,
+    hdr: impl FnOnce(C, DisplayInfo) -> Result<WgcFrame, Failure>,
     sdr: impl FnOnce() -> Result<SdrFrame, String>,
 ) -> Result<Outcome, Error> {
     check(cancel)?;
@@ -210,16 +231,26 @@ fn execute<C>(
                     (Reason::UnsupportedOs, true)
                 } else {
                     match hdr(target, info) {
-                        Ok(frame) => {
+                        Ok(result) => {
                             check(cancel)?;
-                            let reason = matches!(frame, Frame::Sdr(_)).then_some(Reason::AutoSdr);
+                            let (frame, reason, diagnostic) = match result {
+                                WgcFrame::Native(frame) => {
+                                    let reason =
+                                        matches!(frame, Frame::Sdr(_)).then_some(Reason::AutoSdr);
+                                    (frame, reason, None)
+                                }
+                                WgcFrame::Fallback(frame, error) => {
+                                    (Frame::Sdr(frame), Some(Reason::HdrFailed), Some(error))
+                                }
+                            };
                             return Ok(Outcome {
+                                backend: Backend::Wgc,
                                 frame,
                                 reason,
                                 // 对齐主干：HDR 源成功采集后转为 SDR 仍须记录降级，非采集失败。
-                                downgraded: reason == Some(Reason::AutoSdr),
+                                downgraded: reason.is_some(),
                                 display,
-                                diagnostic: None,
+                                diagnostic,
                             });
                         }
                         Err(Failure::Cancelled) => return Err(Error::Cancelled),
@@ -236,6 +267,7 @@ fn execute<C>(
     check(cancel)?;
     let frame = result.map_err(Error::Sdr)?;
     Ok(Outcome {
+        backend: Backend::Gdi,
         frame: Frame::Sdr(frame),
         reason: Some(reason),
         downgraded,
@@ -250,9 +282,9 @@ fn check(cancel: &AtomicBool) -> Result<(), Error> {
         Ok(())
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-capture")))]
 #[path = "capture_preview_tests.rs"]
 mod preview_tests;
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-capture")))]
 #[path = "capture_dynamic_tests.rs"]
 mod tests;

@@ -13,7 +13,7 @@ pub(crate) const PREPARE: &str = "loom.art.local.prepare-package.v1";
 pub(crate) const RESOURCE: &str = "loom.art.local.resource.v1";
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub(crate) struct Resource {
+pub struct Resource {
     pub id: String,
     pub mime_type: String,
     pub size: u64,

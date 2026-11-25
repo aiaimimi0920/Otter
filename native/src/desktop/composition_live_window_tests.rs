@@ -152,7 +152,7 @@ pub(super) unsafe fn publish(source: &Source<Texture>) {
     .unwrap();
     let protection: ID3D11Multithread = device.GetImmediateContext().unwrap().cast().unwrap();
     let _ = protection.SetMultithreadProtected(true);
-    let frame = super::super::tests::frame(&device, [0, 255, 0, 255]);
+    let frame = super::super::frame_fixture::frame(&device, [0, 255, 0, 255]);
     source
         .publish(Arc::try_unwrap(frame).ok().unwrap().resource)
         .unwrap();
@@ -354,16 +354,8 @@ fn reentrant_notification_is_redrawn_after_outer_host_operation() {
         // 隐藏 HWND 不保证维护可见更新区；检查调度成功及单次性，再显式派发绘制。
         assert!(!reschedule(window.hwnd, &window.state));
         SendMessageW(window.hwnd, WM_PAINT, None, None);
-        assert_eq!(
-            window
-                .state
-                .with_host(|host| host.paint(D2D_SIZE_U {
-                    width: 64,
-                    height: 64
-                }))
-                .unwrap(),
-            Some(true)
-        );
+        // 该夹具验证重入后真的领取到帧，而不是要求隐藏窗口完成显示提交。
+        assert!(window.frame_for_test().is_some());
         assert!(window.is_alive());
         assert!(window.take_error().is_none());
     }
@@ -474,5 +466,49 @@ fn owner_relocation_and_user_close_keep_state_safe_and_release_subscription() {
         drop(window);
         assert!(!IsWindow(Some(hwnd)).as_bool());
         assert!(!source.has_consumers());
+    }
+}
+
+#[test]
+#[ignore = "shows an owned synthetic Live window and requires an interactive compositor"]
+fn showing_live_repaints_static_frame_without_new_source_delivery() {
+    let _apartment = Apartment::new().unwrap();
+    unsafe {
+        let source = Source::new();
+        let window = LiveWindow::new(source.subscribe().unwrap(), 128, 128).unwrap();
+        publish(&source);
+        let frame = window.snapshot_frame().unwrap().unwrap();
+        // 已领取帧；排空通知，后续更新区只能来自显示窗口而非源再次投递。
+        let mut message = MSG::default();
+        while PeekMessageW(
+            &mut message,
+            Some(window.hwnd),
+            notification::MESSAGE,
+            notification::MESSAGE,
+            PM_REMOVE,
+        )
+        .as_bool()
+        {
+            DispatchMessageW(&message);
+        }
+        window.show().unwrap();
+        assert!(UpdateWindow(window.hwnd).as_bool());
+        assert_eq!(
+            window.state.presented.get([128, 128]).unwrap().0,
+            frame.sequence
+        );
+        let _ = ShowWindow(window.hwnd, SW_HIDE);
+        window.state.presented.clear();
+        let _ = ValidateRect(Some(window.hwnd), None);
+        window.show().unwrap();
+        assert!(UpdateWindow(window.hwnd).as_bool());
+        assert_eq!(
+            window.state.presented.get([128, 128]).unwrap().0,
+            frame.sequence
+        );
+        assert!(Arc::ptr_eq(
+            &frame,
+            &window.snapshot_frame().unwrap().unwrap()
+        ));
     }
 }

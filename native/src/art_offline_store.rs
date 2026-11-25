@@ -189,6 +189,6 @@ impl Slot {
         art_source_cache_file::write(&self.path, &bytes, stopped)
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-loom")))]
 #[path = "art_offline_store_tests.rs"]
 mod tests;

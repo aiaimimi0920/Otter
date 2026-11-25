@@ -70,6 +70,6 @@ impl Layout {
         Err(invalid())
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-surface")))]
 #[path = "surface_text_line_edge_tests.rs"]
 mod tests;

@@ -55,7 +55,7 @@ fn source_create_and_close_keep_identity_nonce_dimensions_and_no_remote_input() 
 }
 #[test]
 fn source_response_rejects_substituted_identity_geometry_capability_and_close() {
-    for mutation in 0..6 {
+    for mutation in 0..9 {
         let (listener, client, tls) = fixture();
         let session = session(&client.origin, u64::MAX);
         let publication =
@@ -71,16 +71,32 @@ fn source_response_rejects_substituted_identity_geometry_capability_and_close() 
                 2 => source["frameStream"]["width"] = json!(2),
                 3 => source["interactionCapabilities"] = json!(["keyboard"]),
                 4 => source["sourceWindowIdentity"]["processId"] = json!(43),
+                8 => source["triggerBindings"] = json!(["unadvertised"]),
                 _ => {}
             }
             let response =
                 json!({"session":source,"epoch":if mutation==5 {2}else{1},"closed":false});
-            reply(&mut stream, 201, &serde_json::to_vec(&response).unwrap());
+            let mut wire = response.to_string();
+            // 重复键的后一个值合法：若先用 Value 解析，这两个回执会被误收。
+            if mutation == 6 {
+                wire = wire.replacen(r#""epoch":1"#, r#""epoch":9,"epoch":1"#, 1);
+            } else if mutation == 7 {
+                wire = wire.replacen(
+                    r#""sourceHookId":"hook:test""#,
+                    r#""sourceHookId":"other","sourceHookId":"hook:test""#,
+                    1,
+                );
+            }
+            reply(&mut stream, 201, wire.as_bytes());
         });
         let cancel = Cancel::default();
-        assert!(Control::new(&client, &session, &cancel)
-            .publish_source(&publication)
-            .is_err());
+        let result = Control::new(&client, &session, &cancel).publish_source(&publication);
+        let expected = if matches!(mutation, 6 | 7) {
+            crate::live_relay_http::Error::Protocol(crate::live_relay_viewer_identity::Error::Json)
+        } else {
+            crate::live_relay_http::Error::Input
+        };
+        assert_eq!(result.err(), Some(expected), "mutation {mutation}");
         peer.join().unwrap();
     }
     for size in [[0, 1], [16385, 1], [8192, 8192]] {
@@ -93,7 +109,7 @@ fn source_response_rejects_substituted_identity_geometry_capability_and_close() 
 }
 #[test]
 fn authenticated_source_progress_rejects_substitution_ahead_closed_and_missing_metadata() {
-    for mode in 0..9 {
+    for mode in 0..10 {
         let (listener, client, tls) = fixture();
         let session = session(&client.origin, u64::MAX);
         let publication = Publication::new("hook:test", [3, 2], None).unwrap();
@@ -119,6 +135,7 @@ fn authenticated_source_progress_rejects_substitution_ahead_closed_and_missing_m
                         6 => response["lastFrameId"] = json!(8),
                         7 => response["closed"] = json!(true),
                         8 => response["sourceConnected"] = serde_json::Value::Null,
+                        9 => response["session"]["triggerBindings"] = json!([{}]),
                         _ => {}
                     }
                 }
@@ -128,7 +145,8 @@ fn authenticated_source_progress_rejects_substitution_ahead_closed_and_missing_m
         let cancel = Cancel::default();
         let control = Control::new(&client, &session, &cancel);
         control.publish_source(&publication).unwrap();
-        let result = control.source_progress(&publication, 7);
+        let result =
+            control.source_progress(&publication, 7, Instant::now() + Duration::from_secs(3));
         match mode {
             0 => assert_eq!(result, Ok(Some(7))),
             1 | 2 => assert_eq!(result, Ok(None)),

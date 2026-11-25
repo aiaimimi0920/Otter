@@ -1,6 +1,9 @@
 //! 原Live控制worker内串行配置/领取/ACK；与键鼠共享actor游标，无额外网络线程。
 use super::*;
-use crate::art_live_trigger::{queue::Command, Status};
+use crate::art_live_trigger::{
+    queue::{Command, Registration},
+    Status,
+};
 use serde_json::json;
 impl Sender {
     pub(super) fn drive_local_trigger(
@@ -9,17 +12,44 @@ impl Sender {
         target: &LocalArtTarget,
         owner: &mut Owner,
     ) -> Result<(), HttpError> {
-        let result = self.local_trigger_step(control, target, owner);
+        let mut stop_attempted = false;
+        let result = self.local_trigger_step(control, target, owner, &mut stop_attempted);
         if result.is_err() {
-            self.queue.local_triggers.reject(true);
+            let queue = &self.queue.local_triggers;
+            if let Some(stop) = queue.reject_terminal(!stop_attempted) {
+                // This is the separately requested reduction, not a retry of the failed POST.
+                // Preserve the original failure and do not claim the remote stop was confirmed.
+                let _ = Self::send_local_stop(control, target, owner, &stop);
+            }
         }
         result
+    }
+    fn send_local_stop(
+        control: &Control<'_>,
+        target: &LocalArtTarget,
+        owner: &Owner,
+        r: &Registration,
+    ) -> Result<(), HttpError> {
+        match control.local_art_trigger(
+            owner.identity(),
+            &target.proof,
+            &r.scope,
+            &r.condition,
+            json!({"kind":"stop","scope":r.scope}),
+            true,
+        ) {
+            Ok(reply) if reply.status == Status::Stopped && !reply.enabled => Ok(()),
+            Err(HttpError::Status(404)) => Ok(()),
+            Err(error) => Err(error),
+            _ => Err(HttpError::Input),
+        }
     }
     fn local_trigger_step(
         &mut self,
         control: &Control<'_>,
         target: &LocalArtTarget,
         owner: &mut Owner,
+        stop_attempted: &mut bool,
     ) -> Result<(), HttpError> {
         let queue = &self.queue.local_triggers;
         queue.expire();
@@ -30,21 +60,9 @@ impl Sender {
         if let Some(command) = queue.take_command() {
             match command {
                 Command::Stop(r) => {
-                    match control.local_art_trigger(
-                        owner.identity(),
-                        &target.proof,
-                        &r.scope,
-                        &r.condition,
-                        json!({"kind":"stop","scope":r.scope}),
-                        true,
-                    ) {
-                        Ok(reply) if reply.status == Status::Stopped && !reply.enabled => {
-                            queue.confirm(&r, false)
-                        }
-                        Err(HttpError::Status(404)) => queue.confirm(&r, false),
-                        Err(error) => return Err(error),
-                        _ => return Err(HttpError::Input),
-                    }
+                    *stop_attempted = true;
+                    Self::send_local_stop(control, target, owner, &r)?;
+                    queue.confirm(&r, false);
                 }
                 Command::Configure(r) => {
                     let next = self.next()?;
@@ -59,7 +77,7 @@ impl Sender {
                     let reply = match sent {
                         Ok(reply) => Some(reply),
                         Err(HttpError::Status(400..=499)) if after == before => {
-                            queue.reject(false);
+                            queue.reject_configure(&r);
                             self.queue.notify_trigger();
                             return Ok(());
                         }
@@ -92,12 +110,16 @@ impl Sender {
             self.queue.notify_trigger();
         }
         if let Some((r, ticket, receipt)) = queue.take_receipt() {
-            let reply=control.local_art_trigger(owner.identity(),&target.proof,&r.scope,&r.condition,
-                json!({"kind":"ack","scope":r.scope,"deliveryId":ticket.event().delivery.delivery_id,"receipt":receipt}),false)?;
-            if reply.status != Status::Acknowledged
-                || reply.receipt.as_ref() != Some(&receipt)
-                || reply.delivery.is_some()
-            {
+            let delivery_id = &ticket.event().delivery.delivery_id;
+            let reply = control.local_art_trigger(
+                owner.identity(),
+                &target.proof,
+                &r.scope,
+                &r.condition,
+                json!({"kind":"ack","scope":r.scope,"deliveryId":delivery_id,"receipt":receipt}),
+                false,
+            )?;
+            if !reply.confirms_ack(delivery_id, &receipt) {
                 return Err(HttpError::Input);
             }
             queue.acknowledged();

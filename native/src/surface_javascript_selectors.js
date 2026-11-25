@@ -2,6 +2,8 @@
 ((dom, fail) => {
   "use strict";
   const { Element, DocumentFragment } = dom.classes, op = dom.ops;
+  const define = Object.defineProperty, describe = Object.getOwnPropertyDescriptor;
+  const setPrototype = Object.setPrototypeOf, arrayPrototype = Array.prototype;
   const compile = value => {
     const selector = op.string(value).trim();
     if (!selector || selector.length > 256) fail();
@@ -11,32 +13,46 @@
       return selector[0] === "#" ? node => node.id === selector.slice(1) : node => node.classList.contains(selector.slice(1));
     }
     const attr = /^\[([a-z_][a-z0-9_-]*)(?:=(?:"([^"\r\n]*)"|'([^'\r\n]*)'))?\]$/i.exec(selector);
-    if (!attr) fail();
+    if (!attr || attr[1].length > 128) fail();
     const name = attr[1].toLowerCase(), expected = attr[2] ?? attr[3];
     return expected === undefined ? node => node.hasAttribute(name) : node => node.getAttribute(name) === expected;
   };
-  const query = (node, selector, includeRoot = false) => {
-    const matches = compile(selector), result = op.array();
-    if (includeRoot && matches(node)) op.push(result, node);
+  const search = (node, selector, includeRoot, firstOnly) => {
+    const matches = compile(selector), result = firstOnly ? null : op.array();
+    if (includeRoot && matches(node)) {
+      if (firstOnly) return node;
+      op.push(result, node);
+    }
     const pending = op.array(), initial = dom.get(node).children;
     for (let i = initial.length - 1; i >= 0; i--) op.push(pending, initial[i]);
     while (pending.length) {
       const child = pending[pending.length - 1]; pending.length--;
       const state = dom.get(child);
       if (state.tag === "#text") continue;
-      if (matches(child)) op.push(result, child);
+      if (matches(child)) {
+        if (firstOnly) return child;
+        op.push(result, child);
+      }
       for (let i = state.children.length - 1; i >= 0; i--) op.push(pending, state.children[i]);
     }
-    // 静态集合与 live children 分离；防止调用者改结果影响真实树。
-    // 返回值不包含私有数组，恢复普通静态 Array 接口供 Array.from/迭代/forEach 使用。
-    const output = [];
-    for (let i = 0; i < result.length; i++) output[i] = result[i];
-    Object.defineProperty(output, "item", { value: index => output[Number(index)] ?? null });
-    return op.freeze(output);
+    if (firstOnly) return null;
+    // result 是本次查询独占的节点快照，不是树的 children；恢复公开 Array 接口无需再复制。
+    // 填充时无原型，descriptor 也无原型，避免继承 setter/getter 污染静态集合。
+    const item = op.record();
+    item.value = index => {
+      // Number 可由插件改写；一次 ToPropertyKey 只取自有数据项，不读取继承的数字属性。
+      const entry = describe(result, Number(index));
+      return entry ? entry.value ?? null : null;
+    };
+    define(result, "item", item);
+    return op.freeze(setPrototype(result, arrayPrototype));
   };
+  // 单结果查询在首次命中后停止，不再收集、复制和冻结全部匹配项。
+  const query = (node, selector, includeRoot = false) => search(node, selector, includeRoot, false);
+  const first = (node, selector, includeRoot = false) => search(node, selector, includeRoot, true);
   for (const prototype of [Element.prototype, DocumentFragment.prototype]) Object.assign(prototype, {
     querySelectorAll(selector) { return query(this, selector); },
-    querySelector(selector) { return query(this, selector)[0] ?? null; },
+    querySelector(selector) { return first(this, selector); },
   });
   Object.assign(Element.prototype, {
     matches(selector) { return compile(selector)(this); },
@@ -46,5 +62,5 @@
       return null;
     },
   });
-  return { query };
+  return { query, first };
 })

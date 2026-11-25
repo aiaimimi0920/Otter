@@ -32,7 +32,7 @@ impl Application {
         if self.display_composition.borrow_mut().poll() {
             self.display_cache.borrow_mut().take();
         }
-        let (live_images, live_pending) = self.live_display_images();
+        let live_pending = self.poll_live_display();
         if !live_pending
             && self
                 .display_cache
@@ -42,6 +42,7 @@ impl Application {
         {
             return;
         }
+        let live_images = self.live_display_images();
         self.display_composition
             .borrow_mut()
             .retain(|id, image, stamp| {

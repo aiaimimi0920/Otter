@@ -141,22 +141,62 @@ fn success_requires_separate_zero_cursor_refresh_and_yields_snapshot_once() {
 }
 #[test]
 fn later_failure_in_refresh_batch_prevents_snapshot_delivery_and_preserves_failure_ack() {
+    use crate::surface_action_ack::Status;
     let event = event();
+    for (status, accepted, expected_status, expected_error) in [
+        ("failed", true, Status::Failed, Error::Action),
+        ("cancelled", true, Status::Cancelled, Error::Action),
+        ("interrupted", true, Status::Interrupted, Error::Action),
+        ("unknown", true, Status::Unknown, Error::Unknown),
+        ("succeeded", false, Status::Succeeded, Error::Action),
+    ] {
+        let mut state = Tracker::new(&event, &initial(&event, "succeeded")).unwrap();
+        let mut message = message_ack(&event, status);
+        message["params"]["accepted"] = accepted.into();
+        message["params"]["error"] =
+            serde_json::json!({"code":"late","message":"保留远端终态","detail":null});
+        assert_eq!(
+            state.apply(&batch(0, 9, vec![snapshot(58), message])),
+            Err(expected_error)
+        );
+        assert_eq!(state.failure(), Some(expected_error));
+        assert!(state.take_snapshot().is_none());
+        assert_eq!(state.ack().status(), expected_status);
+        assert_eq!(state.ack().accepted(), accepted);
+        assert_eq!(state.ack().failure().unwrap().message(), "保留远端终态");
+    }
+}
+#[test]
+fn successful_ack_survives_nonterminal_replays_and_invalid_request_update() {
+    let event = event();
+    for status in [
+        "accepted",
+        "awaiting_confirmation",
+        "queued",
+        "running",
+        "cancel_requested",
+    ] {
+        let mut state = Tracker::new(&event, &initial(&event, "succeeded")).unwrap();
+        state
+            .apply(&batch(
+                0,
+                9,
+                vec![message_ack(&event, status), snapshot(58)],
+            ))
+            .unwrap();
+        assert!(state.ack().succeeded());
+        assert_eq!(state.take_snapshot().unwrap().revision, 58);
+    }
     let mut state = Tracker::new(&event, &initial(&event, "succeeded")).unwrap();
+    let mut message = message_ack(&event, "failed");
+    message["params"]["requestId"] = "request:other".into();
     assert_eq!(
-        state.apply(&batch(
-            0,
-            9,
-            vec![snapshot(58), message_ack(&event, "failed")]
-        )),
-        Err(Error::Action)
+        state.apply(&batch(0, 9, vec![snapshot(58), message])),
+        Err(Error::Ack(crate::surface_action_ack::Error::Identity))
     );
-    assert_eq!(state.failure(), Some(Error::Action));
+    assert!(state.ack().succeeded());
+    assert_eq!(state.ack().request_id(), "request:test");
     assert!(state.take_snapshot().is_none());
-    assert_eq!(
-        state.ack().status(),
-        crate::surface_action_ack::Status::Failed
-    );
 }
 #[test]
 fn foreign_and_old_snapshots_do_not_satisfy_refresh() {

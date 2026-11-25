@@ -27,17 +27,23 @@ fn workflow_sources_prefer_preview_except_with_independent_raster_layer() {
 }
 #[test]
 fn workflow_sources_honor_upstream_manual_and_propagation_switches() {
+    use base64::{engine::general_purpose::STANDARD, Engine};
     let mut a = sticker("a");
     a["previewSrc"] = json!("upstream");
     let mut b = sticker("b");
-    b["params"] = json!({"image_path":"data:image/png;base64,manual"});
+    // 图片参数现在校验内联 Base64；用实际 PNG 保持这个用例专测源的优先级。
+    let manual = format!(
+        "data:image/png;base64,{}",
+        STANDARD.encode(include_bytes!("../assets/branding/32x32.png"))
+    );
+    b["params"] = json!({"image_path":manual});
     assert_eq!(
         resolve(vec![a.clone(), b.clone()], link(), &[])[1].as_deref(),
         Some("upstream")
     );
     assert_eq!(
         resolve(vec![a.clone(), b.clone()], json!([]), &[])[1].as_deref(),
-        Some("data:image/png;base64,manual")
+        Some(manual.as_str())
     );
     for flag in [
         json!({"acceptUpstream":false}),
@@ -55,6 +61,19 @@ fn workflow_sources_honor_upstream_manual_and_propagation_switches() {
         resolve(vec![a, b], link(), &[])[1].as_deref(),
         Some("preview")
     );
+}
+#[test]
+fn workflow_sources_reject_invalid_propagation_before_consuming_sources() {
+    let mut unit = sticker("a");
+    unit["stickerEditPropagation"] = json!({"locallyEdited":"not a boolean"});
+    let saved =
+        serde_json::to_vec(&json!({"documentRevision":1,"stickers":[unit],"links":[]})).unwrap();
+    assert!(matches!(
+        with_sources::<()>(&saved, &[], &AtomicBool::new(false), |_, _| panic!(
+            "invalid propagation reached consumer"
+        )),
+        Err(Error::Content)
+    ));
 }
 #[test]
 fn workflow_sources_use_formal_art_output_not_visual_preview() {

@@ -16,7 +16,7 @@ impl Presentation {
             let focusable = crate::surface_focus::buttons(&self.scene, &frame.geometry);
             // 不可显露候选不能先滚动视图；准备成功且可见才一起提交。
             if focusable.iter().any(|candidate| candidate == id) {
-                self.install_frame(frame, scroll);
+                self.install_frame_with_focus(frame, scroll, focusable);
                 return Ok(true);
             }
             Ok(false)

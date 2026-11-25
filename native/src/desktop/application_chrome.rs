@@ -166,9 +166,6 @@ impl Ui {
         let (x, y) = port_visual::layout(self, port)?.connection();
         Some(Point { x, y })
     }
-    fn visible(&self, port: Port) -> bool {
-        self.point(port).is_some()
-    }
     unsafe fn cancel(&self) {
         self.rail_drag.set(None);
         self.keyboard.cancel_link();

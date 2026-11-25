@@ -1,6 +1,17 @@
 //! 单贴纸原文事务的身份/容量/取消及未知字段保护，不涉及远程授权或库条目消费。
 use super::*;
 use serde_json::{json, Value};
+fn prepare(
+    original: &[u8],
+    instance: &[u8],
+    active: &[UnitId],
+    cancel: &AtomicBool,
+) -> Result<crate::pixels::Pixels, String> {
+    let source = decode_source(original)?;
+    let instance = session_document::decode(instance)
+        .map_err(|error| format!("Invalid instance: {error:?}"))?;
+    Prepared::new(&source, &instance, active)?.finish(None, cancel)
+}
 fn unit(id: &str) -> Value {
     json!({"id":id,"type":"sticker","x":0,"y":0,"w":100,"h":80,"params":{}})
 }
@@ -90,4 +101,13 @@ fn malformed_duplicate_root_and_missing_arrays_never_panic_or_partially_publish(
         &AtomicBool::new(false)
     )
     .is_err());
+}
+#[test]
+fn decoded_instance_cannot_skip_strict_raw_field_checks() {
+    let bytes = br#"{"stickers":[{"id":"new","type":"sticker","x":0,"y":0,"w":1,"h":1,"params":{}}],"links":[],"future":1,"future":2}"#;
+    let original = source();
+    let source = decode_source(&original).unwrap();
+    let instance = session_document::decode(bytes).unwrap();
+    let error = Prepared::new(&source, &instance, &[]).err().unwrap();
+    assert!(error.contains("Session field limit or duplicate"));
 }

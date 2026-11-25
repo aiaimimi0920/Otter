@@ -1,7 +1,7 @@
 //! 单槽策略暂存 worker；发布仍在 UI 结算点，退出/丢弃只清理本任务暂存。
 use super::file::{File, Prepared};
 use crate::{
-    desktop::loom_execution_signal::{CompletionSignal, Notify},
+    desktop::loom_execution_signal::{reap_deadline, CompletionSignal, Notify},
     projection_receive_policy::Change,
 };
 use std::{
@@ -35,8 +35,20 @@ impl Job {
             worker: Some(worker),
         })
     }
+    pub(super) fn stop(&self) {
+        self.cancel.store(true, Ordering::Release);
+    }
+    pub(super) fn stopped(&self) -> bool {
+        self.cancel.load(Ordering::Acquire)
+    }
+    pub(super) fn finished(&self) -> bool {
+        self.worker.as_ref().is_some_and(JoinHandle::is_finished)
+    }
+    pub(super) fn reap_deadline(&self) -> Option<std::time::Instant> {
+        reap_deadline(&self.ready)
+    }
     pub(super) fn poll(&mut self) -> Option<Result<Prepared, String>> {
-        if !self.ready.load(Ordering::Acquire) && !self.worker.as_ref()?.is_finished() {
+        if !self.finished() {
             return None;
         }
         Some(
@@ -49,7 +61,7 @@ impl Job {
 }
 impl Drop for Job {
     fn drop(&mut self) {
-        self.cancel.store(true, Ordering::Release);
+        self.stop();
         if let Some(worker) = self.worker.take() {
             let _ = worker.join();
         }

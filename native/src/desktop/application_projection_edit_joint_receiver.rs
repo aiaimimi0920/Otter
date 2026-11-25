@@ -7,7 +7,7 @@ fn native_edit_application_receiver_automatic_readonly_resolution_and_reopen() {
     let _com = Apartment::new().unwrap();
     let (f, _client, _store) = fixture::Fixture::load();
     unsafe {
-        let (_class, mut app) = application(&f.profile);
+        let mut app = application(&f.profile);
         app.projection_profile
             .start(f.profile.clone(), app.execution_wake.callback());
         until(&mut app, &f, |app| {

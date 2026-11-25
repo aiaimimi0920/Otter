@@ -8,7 +8,7 @@ use windows::{
 };
 #[path = "text_inline.rs"]
 pub(super) mod inline;
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "text_input_tests.rs"]
 mod tests;
 
@@ -20,6 +20,7 @@ pub(super) struct Pending {
     text: Option<TextAnnotation>,
     tool: Tool,
     font: crate::text_annotation::TextFont,
+    style: crate::stroke_style::StrokeStyle,
 }
 impl Pending {
     fn at_point(canvas: &mut Canvas, screen: Point) -> windows::core::Result<Option<Self>> {
@@ -58,6 +59,7 @@ impl Pending {
             pixels: canvas.image.as_ref()?.pixels.clone(),
             stamp: canvas.editor.document_stamp(),
             font: text.font().clone(),
+            style: stroke.style(),
             text: Some(text),
             tool: canvas.tool,
         })
@@ -93,7 +95,7 @@ impl Pending {
         } else {
             let index = canvas
                 .editor
-                .insert_text(self.point, size, text)
+                .insert_text_with_style(self.point, size, text, self.style)
                 .map_err(edit_error)?;
             if let Some(index) = index {
                 canvas.select_created_annotation(index);
@@ -168,6 +170,7 @@ pub(super) unsafe fn insert(hwnd: HWND, state: &State, point: Point) {
                 text: None,
                 tool: Tool::Text,
                 font: canvas.tool_profiles.text_font.clone(),
+                style: canvas.editor.style(),
             })
         })
     };

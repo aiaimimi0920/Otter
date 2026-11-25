@@ -97,7 +97,7 @@ fn native_receiver_joint_two_loom_menu_display_update_reopen_and_terminal() {
     let (f, client, store) = fixture::Fixture::load();
     assert!(f.peer.is_some());
     unsafe {
-        let (_class, mut app) = application(&f.profile);
+        let mut app = application(&f.profile);
         app.projection_profile
             .start(f.profile.clone(), app.execution_wake.callback());
         app.authorization.borrow_mut().origin = Some(f.origin.clone());

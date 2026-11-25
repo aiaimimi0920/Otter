@@ -128,6 +128,6 @@ fn content(batch: &PreparedBatch) -> Result<Content, &'static str> {
         images,
     })
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-loom")))]
 #[path = "art_local_images_tests.rs"]
 mod tests;

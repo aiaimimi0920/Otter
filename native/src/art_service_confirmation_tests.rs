@@ -141,6 +141,31 @@ fn art_service_confirmation_rejects_forged_input_before_asking_user() {
 }
 
 #[test]
+fn art_service_confirmation_repeated_challenge_does_not_allow_replacement() {
+    let mut expected = Value::Null;
+    let (mut prepared, client, _device, _lease, peer) =
+        setup_source(3, SOURCE, move |index, head, body, response| {
+            if index == 0 {
+                expected = challenge(body);
+                envelope(response, expected.clone());
+            } else {
+                assert!(head.starts_with("POST /v1/art/local/service/poll-confirmable "));
+                let mut offered = expected.clone();
+                if index == 2 {
+                    offered["nonce"] = json!("challenge:replacement");
+                }
+                envelope(response, offered);
+            }
+        });
+    let mut call = Call::new(&mut prepared, &client, SERVICE, json!({"n":7}), 5000).unwrap();
+    call.request_confirmation().unwrap();
+    call.submit().unwrap();
+    call.poll().unwrap();
+    assert_eq!(call.poll(), Err(ServiceError::Identity));
+    peer.join().unwrap();
+}
+
+#[test]
 fn art_service_confirmation_remote_scope_failure_retires_unanswered_host_ticket() {
     let _serial = js::SERIAL.lock().unwrap();
     let (prepared, client, _device, _lease, peer) =

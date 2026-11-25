@@ -29,7 +29,10 @@ pub unsafe extern "system" fn window_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: 
         let result = dispatch(hwnd, msg, wp, lp);
         if super::host_lifetime::owns(hwnd)
             // 预提交阶段附属条已经按目标位置移动，不能用尚未提交的宿主位置拉回旧帧。
-            && !matches!(msg, WM_WINDOWPOSCHANGING | WM_NCCALCSIZE)
+            && !matches!(
+                msg,
+                WM_WINDOWPOSCHANGING | WM_NCCALCSIZE | super::window_geometry_wake::MESSAGE
+            )
         {
             let state = &*(GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *const State);
             if !state.session_end.paused() && !geometry::drag_position_only(state, msg, lp) {
@@ -48,6 +51,8 @@ pub unsafe extern "system" fn window_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: 
 
 unsafe fn dispatch(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
     if msg == WM_NCCREATE {
+        #[cfg(test)]
+        super::workspace_window_fixture::on_create(hwnd);
         if !super::host_lifetime::attach(hwnd, lp) {
             return LRESULT(0);
         }
@@ -59,6 +64,11 @@ unsafe fn dispatch(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
         return DefWindowProcW(hwnd, msg, wp, lp);
     }
     let state = &*pointer;
+    if msg == super::window_geometry_wake::MESSAGE {
+        // 排队唤醒只确认几何通知；应用循环仍结算，不重入字段刷新。
+        state.geometry_wake.acknowledge();
+        return LRESULT(0);
+    }
     if let Some(result) = super::live_pin_document::dispatch(hwnd, state, msg, lp) {
         return result;
     }
@@ -75,6 +85,7 @@ unsafe fn dispatch(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
     }
     if matches!(msg, WM_DESTROY | WM_NCDESTROY) {
         render_recovery::close(hwnd);
+        super::open_job::cancel(state);
     }
     if let Some(result) = super::window_geometry_wake::dispatch(hwnd, &state.geometry_wake, msg, lp)
     {

@@ -1,5 +1,6 @@
 //! 已有回收站的后台裁剪；只改回收数组，未知条目值/其他库/活动窗口与 revision 保留。
 use super::{candidate, recycle::policy::Policy, Kind};
+use crate::session_write::Candidate;
 use serde::{ser::SerializeMap, Serialize, Serializer};
 use serde_json::value::RawValue;
 use std::{
@@ -30,13 +31,14 @@ pub fn prepare(
     policy: Policy,
     now_ms: i64,
     cancel: &AtomicBool,
-) -> Result<Option<crate::pixels::Pixels>, String> {
+) -> Result<Option<Candidate>, String> {
     if cancel.load(Ordering::Acquire) {
         return Err("Recycle pruning cancelled".into());
     }
     let policy = policy.validate()?;
-    crate::session_document::decode(original)
-        .map_err(|error| format!("Invalid prune source: {error:?}"))?;
+    let revision = crate::session_document::decode(original)
+        .map_err(|error| format!("Invalid prune source: {error:?}"))?
+        .revision;
     let library = super::decode(original, Kind::RecycleBin)?;
     let mut retained: Vec<_> = library
         .entries()
@@ -59,9 +61,13 @@ pub fn prepare(
     let bytes = crate::session_write::encode_bounded(&Updated { root, retained }, cancel)
         .map_err(|error| format!("Recycle prune encoding: {error:?}"))?;
     super::decode(&bytes, Kind::RecycleBin)?;
-    Ok(Some(bytes))
+    Ok(Some(Candidate {
+        bytes,
+        expected_revision: revision,
+        revision,
+    }))
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "session_library_prune_tests.rs"]
 mod tests;

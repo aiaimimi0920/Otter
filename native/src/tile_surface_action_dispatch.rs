@@ -115,8 +115,8 @@ pub(crate) fn validate(
     shared: &Shared,
 ) -> bool {
     let a = &command.anchor;
-    let s = shared.lock();
-    if !eligible(command, state, job, &s) {
+    // 其余准备只读当前 worker 的不可变快照；实际发送前仍复核共享状态和票据。
+    if !eligible(command, state, job, &shared.lock()) {
         return false;
     }
     if matches!(command.kind, Kind::Cancel { .. }) {
@@ -157,7 +157,6 @@ pub(crate) fn validate(
             if !compatible {
                 return false;
             }
-            drop(s);
             // 仅在用户排入动作时做最小新鲜布局；COM/Pixels仍留在此唯一worker内，不跨线程移交。
             let Ok(scene) = crate::surface_scene::Scene::parse(&state.snapshot.scene) else {
                 return false;

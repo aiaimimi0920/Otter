@@ -118,3 +118,31 @@ fn read(path: &Path) -> io::Result<Option<crate::pixels::Pixels>> {
     file.read_exact(&mut bytes)?;
     Ok(Some(crate::pixels::Pixels::from_reserved(bytes, lease)))
 }
+
+#[cfg(test)]
+pub(crate) mod fixture {
+    use std::path::{Path, PathBuf};
+
+    pub(crate) struct Root(PathBuf);
+    impl Root {
+        pub(crate) fn new() -> Self {
+            let id = unsafe { windows::Win32::System::Com::CoCreateGuid().unwrap() };
+            let path = std::env::temp_dir().join(format!("otter-capture-history-{id:?}"));
+            std::fs::create_dir(&path).unwrap();
+            Self(path)
+        }
+        pub(crate) fn path(&self) -> &Path {
+            &self.0
+        }
+    }
+    impl Drop for Root {
+        fn drop(&mut self) {
+            // Only retire expected files in the directory created by this fixture.
+            // Unexpected recovery files remain available for diagnosis.
+            for name in ["history.json", "history.lock"] {
+                let _ = std::fs::remove_file(self.0.join(name));
+            }
+            let _ = std::fs::remove_dir(&self.0);
+        }
+    }
+}

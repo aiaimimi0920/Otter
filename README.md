@@ -2,7 +2,6 @@
 <h1 align="center">Otter</h1>
 <p align="center"><strong>Capture it. Pin it. Make it yours.</strong><br>Connect nodes. Create effects. Turn your desktop into a creative workspace.</p>
 <p align="center">
-  Website ·
   <a href="https://github.com/aiaimimi0920/Otter/releases">Download</a> ·
   <a href="./docs/README.md">Documentation</a> ·
   <a href="https://github.com/aiaimimi0920/Otter/issues">Feedback</a>
@@ -34,11 +33,6 @@ explore more possibilities for the images you capture.
 
 ## Get started
 
-- **Capture and pin:** Capture any area of your desktop and pin it anywhere on the desktop.
-- **Edit quickly:** Use the editing toolbar to quickly annotate pinned images.
-- **Connect a workflow:** Use Loom's node tools to assemble advanced workflows.
-- **Share the view:** Use the push tools to send a pinned image's content to connected, paired and authorized Otter receivers.
-
 | Start here | What you need to do |
 | --- | --- |
 | [Download Otter](https://github.com/aiaimimi0920/Otter/releases) | For an older public download, follow its release instructions. Launch `otter-native.exe` from a current internal package. |
@@ -49,6 +43,8 @@ explore more possibilities for the images you capture.
 3. With the corresponding Loom capabilities available, press **`Ctrl+4`** for OCR and **`Alt+4`** to toggle recognition results; press **`Ctrl+5`** to translate and **`Alt+5`** to toggle translation results; press **`Shift+1`** to open the Art menu and add a new node.
 4. Select a pinned image, open the toolbar, check projection targets, and click Confirm. Receivers using Receive or Auto accept automatically; the sender shows waiting and received counts. Use the current Otter and Loom together.
 
+In the current native build, use the Loom menu to query a Surface closed in this session, then confirm the recovery candidate to remount it.
+
 [**Complete usage guide →**](./docs/guide/getting-started.md)
 
 ## Development and previous versions
@@ -58,8 +54,7 @@ explore more possibilities for the images you capture.
 ## Contributing
 
 Bug reports, translations, documentation improvements and code contributions are welcome.
-Start with [ways to contribute](./docs/guide/contributing.md) or the
-[translation guide](./docs/guide/translating.md), and explore the
+Start with [contributing and translating](./docs/guide/contributing.md), and explore the
 [repository layout](./docs/architecture/overview.md#2-repository-layout) to understand the code structure.
 Code changes follow the [engineering contribution guide](./CONTRIBUTING.md).
 File placement and module ownership follow the [code organization standard](./docs/development/CODE_ORGANIZATION.md).

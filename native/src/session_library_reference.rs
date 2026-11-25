@@ -1,30 +1,14 @@
 //! 收藏写入只替换 referenceLibrary；快照来自已编码的当前模型，不推进磁盘 revision。
-use super::{candidate, freeze::Entry, Kind, MAX_ENTRIES};
-use crate::{pixels::Pixels, session_document, workspace_id::UnitId};
-use serde::{
-    ser::{SerializeMap, SerializeSeq},
-    Serialize, Serializer,
+use super::{
+    candidate,
+    freeze::{self, Entries},
+    Kind, MAX_ENTRIES,
 };
+use crate::{pixels::Pixels, session_document, workspace_id::UnitId};
+use serde::{ser::SerializeMap, Serialize, Serializer};
 use serde_json::value::RawValue;
 use std::{borrow::Cow, collections::BTreeMap, sync::atomic::AtomicBool};
 
-struct Entries<'a> {
-    retained: Vec<&'a RawValue>,
-    next: Option<Entry<'a>>,
-}
-impl Serialize for Entries<'_> {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let mut sequence = serializer
-            .serialize_seq(Some(self.retained.len() + usize::from(self.next.is_some())))?;
-        for entry in &self.retained {
-            sequence.serialize_element(entry)?;
-        }
-        if let Some(next) = &self.next {
-            sequence.serialize_element(next)?;
-        }
-        sequence.end()
-    }
-}
 struct Updated<'a> {
     root: BTreeMap<String, Cow<'a, RawValue>>,
     entries: Entries<'a>,
@@ -42,13 +26,18 @@ impl Serialize for Updated<'_> {
     }
 }
 
-/// snapshot=None 是按源身份取消收藏，不要求重新编码图片。调用者在发布前验证来源和编辑凭证。
+pub struct Addition<'a> {
+    /// Encoded current window object, not a session envelope.
+    pub snapshot: &'a [u8],
+    pub entry_id: &'a str,
+    pub created_at: &'a str,
+}
+
+/// addition=None 是按源身份取消收藏，不要求重新编码图片。调用者在发布前验证来源和编辑凭证。
 pub fn prepare(
     original: &[u8],
-    snapshot: Option<&[u8]>,
+    addition: Option<Addition<'_>>,
     unit: &UnitId,
-    entry_id: &str,
-    created_at: &str,
     cancel: &AtomicBool,
 ) -> Result<Pixels, String> {
     if cancel.load(std::sync::atomic::Ordering::Acquire) {
@@ -68,22 +57,21 @@ pub fn prepare(
         .filter(|entry| entry.source_sticker_id != unit.as_str())
         .map(|entry| entry.original)
         .collect();
-    let next = if let Some(snapshot) = snapshot {
-        if UnitId::parse(entry_id).is_none()
-            || created_at.is_empty()
-            || created_at.len() > 128
-            || created_at.chars().any(char::is_control)
-            || library
-                .entries()
-                .iter()
-                .any(|entry| entry.entry_id == entry_id)
+    let next = if let Some(Addition {
+        snapshot,
+        entry_id,
+        created_at,
+    }) = addition
+    {
+        if library
+            .entries()
+            .iter()
+            .any(|entry| entry.entry_id == entry_id)
             || retained.len() >= MAX_ENTRIES
         {
-            return Err("Invalid reference identity, timestamp or capacity".into());
+            return Err("Reference entry identity conflict or capacity exceeded".into());
         }
-        Some(super::freeze::capture(
-            snapshot, unit, entry_id, created_at,
-        )?)
+        Some(freeze::capture(snapshot, unit, entry_id, created_at)?)
     } else {
         None
     };
@@ -101,6 +89,6 @@ pub fn prepare(
     Ok(bytes)
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "session_library_reference_tests.rs"]
 mod tests;

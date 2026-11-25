@@ -1,14 +1,13 @@
 //! 真实 HWND 请求和保存调度，注入目录选择/通知出口，不显示对话框或发送网络。
 use super::*;
-pub(in crate::desktop::application) unsafe fn verify(app: &mut Application) -> Result<()> {
-    let directory =
-        std::path::PathBuf::from("C:/Users/Public/nas_home/AI/GameEditor/linshi").join(format!(
-            "otter-workflow-ui-{}",
-            crate::desktop::document_state::new_unit_id()?
-        ));
-    std::fs::create_dir(&directory).map_err(|e| Error::new(E_FAIL, e.to_string()))?;
-    verify_dialog_catalog_change(app, &directory)?;
-    let mut root = Some(Root::open(&directory)?);
+pub(in crate::desktop::application) unsafe fn verify(
+    app: &mut Application,
+    fixture: &smoke_session_fixture::Directory,
+) -> Result<()> {
+    fixture.require_saved(app)?;
+    let directory = fixture.child("ui-assets")?;
+    verify_dialog_catalog_change(app, directory.path())?;
+    let mut root = Some(Root::open(directory.path())?);
     let mut notices = Vec::new();
     request(app.documents[0].window.0, &app.documents[0].state, ENABLE)?;
     app.pending_workflow_ui_with(
@@ -82,7 +81,6 @@ pub(in crate::desktop::application) unsafe fn verify(app: &mut Application) -> R
         ));
     }
     app.restored_session.as_mut().unwrap().workflow_settings = None;
-    std::fs::remove_dir(directory).map_err(|e| Error::new(E_FAIL, e.to_string()))?;
     Ok(())
 }
 unsafe fn verify_dialog_catalog_change(

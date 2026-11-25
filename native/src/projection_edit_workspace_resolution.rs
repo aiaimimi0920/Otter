@@ -59,6 +59,6 @@ impl Snapshot {
         Ok(value)
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "projection_edit_workspace_resolution_tests.rs"]
 mod tests;

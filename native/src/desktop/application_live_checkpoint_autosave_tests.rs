@@ -15,7 +15,9 @@ fn file_autosave_waits_for_first_frame_then_saves_only_model_changes() {
         assert!(app.workspace_autosave.enabled());
         assert_eq!(std::fs::read(&path).unwrap(), before);
         source.publish([0, 0, 255, 255]);
+        let reads = save_snapshot::live_frame_reads_for_test();
         tick(&mut app);
+        assert_eq!(save_snapshot::live_frame_reads_for_test() - reads, 1);
         assert!(app.automatic_save_pending());
         // worker 已捕获红帧；在交付前流变绿不能改变本次候选/基线。
         source.publish([0, 255, 0, 255]);
@@ -24,9 +26,11 @@ fn file_autosave_waits_for_first_frame_then_saves_only_model_changes() {
         let first = std::fs::read(&path).unwrap();
         assert_eq!(revision(&first), revision(&before) + 1);
         pixels(&first, &id, [0, 0, 255, 255]);
+        let reads = save_snapshot::live_frame_reads_for_test();
         for _ in 0..4 {
             settle_auto(&mut app);
         }
+        assert_eq!(save_snapshot::live_frame_reads_for_test(), reads);
         assert_eq!(std::fs::read(&path).unwrap(), first);
         assert_eq!(app.save_status(), save_state::Status::Changed);
         SetWindowPos(
@@ -69,9 +73,16 @@ fn inflight_move_and_busy_live_gesture_expire_normally_then_save_the_latest_fram
             source.publish([0, 0, 255, 255]);
             settle_auto(&mut app);
             let before = std::fs::read(&path).unwrap();
+            // Even with a new frame in the mailbox, an unchanged workspace does not sample it.
+            source.publish([0, 255, 0, 255]);
+            let reads = save_snapshot::live_frame_reads_for_test();
+            tick(&mut app);
+            assert!(app.save_job.is_none());
+            assert_eq!(save_snapshot::live_frame_reads_for_test(), reads);
             app.documents[0].state.canvas.borrow_mut().normal_opacity = 0.6;
             tick(&mut app);
             assert!(app.automatic_save_pending());
+            assert_eq!(save_snapshot::live_frame_reads_for_test() - reads, 1);
             ready(&app);
             // 只改线程键盘快照，驱动自有隐藏 HWND 的真实拖动，不注入全局输入。
             crate::desktop::composition::live::window::local::tests::with_keys(

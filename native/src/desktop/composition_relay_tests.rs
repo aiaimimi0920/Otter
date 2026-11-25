@@ -1,5 +1,5 @@
 //! 隐藏 HWND 的真实 D2D 上传/交换链读回；不启动在线网络或可见窗口。
-use super::*;
+use super::{host::sample, *};
 use crate::{
     desktop::{Apartment, Window},
     live_relay_frame::{Codec, ColorSpace},
@@ -46,35 +46,6 @@ fn frame(id: u64, width: u32, pixels: Pixels) -> PixelFrame {
         pixels,
     )
     .unwrap()
-}
-pub(super) unsafe fn sample(composition: &Composition, x: usize, y: usize) -> [u8; 4] {
-    let device: ID3D11Device = composition.state.chain.GetDevice().unwrap();
-    let context = device.GetImmediateContext().unwrap();
-    let source: ID3D11Texture2D = composition.state.chain.GetBuffer(0).unwrap();
-    let mut desc = D3D11_TEXTURE2D_DESC::default();
-    source.GetDesc(&mut desc);
-    desc.Usage = D3D11_USAGE_STAGING;
-    desc.BindFlags = 0;
-    desc.MiscFlags = 0;
-    desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ.0 as u32;
-    let mut staging = None;
-    device
-        .CreateTexture2D(&desc, None, Some(&mut staging))
-        .unwrap();
-    let staging = staging.unwrap();
-    context.CopyResource(&staging, &source);
-    let mut mapped = D3D11_MAPPED_SUBRESOURCE::default();
-    context
-        .Map(&staging, 0, D3D11_MAP_READ, 0, Some(&mut mapped))
-        .unwrap();
-    let mut result = [0; 4];
-    std::ptr::copy_nonoverlapping(
-        (mapped.pData as *const u8).add(y * mapped.RowPitch as usize + x * 4),
-        result.as_mut_ptr(),
-        4,
-    );
-    context.Unmap(&staging, 0);
-    result
 }
 #[test]
 fn remote_bitmap_upload_reuses_size_and_preserves_premultiplied_pixels() {

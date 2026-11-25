@@ -194,6 +194,6 @@ pub(super) unsafe fn queue(hwnd: HWND, state: &State, request: Request) -> Resul
     Ok(true)
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "parameter_file_input_tests.rs"]
 mod tests;

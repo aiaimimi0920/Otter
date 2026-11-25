@@ -28,9 +28,9 @@ pub fn load(mut file: File, cancel: &AtomicBool) -> Result<Image> {
     drop(file); // 完成读取后即释放句柄；WIC 从拥有的内存解码，不重新打开路径。
     check(cancel)?;
     let _apartment = Apartment::new()?;
-    let image = Image::from_encoded(&bytes)?;
+    let image = Image::from_encoded_with_cancel(&bytes, &|| cancel.load(Ordering::Acquire));
     check(cancel)?;
-    Ok(image)
+    image
 }
 fn io_error(error: io::Error) -> Error {
     Error::new(E_FAIL, format!("Session image read failed: {error}"))
@@ -97,6 +97,6 @@ fn read(
     Ok(crate::pixels::Pixels::from_reserved(bytes, lease))
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "session_image_file_tests.rs"]
 mod tests;

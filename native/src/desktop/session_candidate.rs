@@ -7,14 +7,17 @@ use crate::{session_document, session_window::Rect, workspace::Workspace, worksp
 use std::sync::atomic::{AtomicBool, Ordering};
 use windows::{
     core::{Error, Result},
-    Win32::Foundation::{E_ABORT, E_ACCESSDENIED, E_INVALIDARG},
+    Win32::Foundation::{E_ABORT, E_ACCESSDENIED, E_INVALIDARG, E_OUTOFMEMORY},
 };
 #[path = "session_account_projection_candidate.rs"]
 pub mod account_projection;
+#[path = "session_candidate_placements.rs"]
+mod placements;
 #[path = "session_projection_candidate.rs"]
 pub mod projection;
 #[path = "session_candidate_results.rs"]
 mod results;
+pub use results::PreparedRestore;
 #[path = "session_workflow_bake.rs"]
 mod workflow_bake;
 pub use workflow_bake::workflow::job::archive::{
@@ -45,6 +48,7 @@ pub struct Placement {
     pub saved_rect: Option<Rect>,
     pub crop_offset: Option<crate::session_window::Offset>,
     pub crop: Option<crate::session_crop::Restored>,
+    pub rasterized_full: bool,
     pub opacity_normal: f64,
     pub opacity_mini: f64,
     pub frame_style: crate::pin_frame_style::Style,
@@ -80,38 +84,60 @@ pub struct VectorCandidate {
 impl VectorCandidate {
     /// 在工作线程调用；DirectWrite 接口只在测量调用内持有，不随结果跨线程。
     pub fn prepare(candidate: Candidate, cancel: &AtomicBool) -> Result<Self> {
-        let mut vectors = candidate.prepare_vectors(cancel)?;
-        let document = session_document::decode(candidate.original_json())
-            .map_err(|_| Error::new(E_INVALIDARG, "Invalid retained crop source"))?;
-        for (unit, restored) in &mut vectors {
+        let document = candidate.decode_retained(cancel)?;
+        Ok(
+            VectorResources::prepare(&candidate.placements, &candidate.images, &document, cancel)?
+                .with_candidate(candidate),
+        )
+    }
+}
+
+// 只含拥有型资源，允许各准备阶段在移交 Candidate 前共用借用解析。
+struct VectorResources {
+    projection_edits: Vec<(UnitId, super::projection_edit_workspace::Owner)>,
+    vectors: Vec<(UnitId, crate::session_vectors::Restored)>,
+    regions: Vec<(UnitId, super::hit_region::HitRegion)>,
+}
+impl VectorResources {
+    fn prepare(
+        placements: &[Placement],
+        images: &[Images],
+        document: &session_document::Document<'_>,
+        cancel: &AtomicBool,
+    ) -> Result<Self> {
+        let mut vectors = Candidate::prepare_vectors_from(placements, images, document, cancel)?;
+        // 矢量准备已校验密集批次等长、顺序和身份；后续装配不再按 ID 搜索。
+        for (((window, (_, restored)), placement), images) in document
+            .windows
+            .iter()
+            .zip(&mut vectors)
+            .zip(placements)
+            .zip(images)
+        {
             check(cancel)?;
-            let placement = candidate
-                .placements
-                .iter()
-                .find(|placement| placement.unit == *unit)
-                .ok_or_else(|| Error::new(E_INVALIDARG, "Missing restored editor placement"))?;
             let frame = placement
                 .expanded_rect()
                 .ok_or_else(|| Error::new(E_INVALIDARG, "Invalid restored editor frame"))?;
-            let images = candidate
-                .images
-                .iter()
-                .find(|images| images.unit == *unit)
-                .ok_or_else(|| Error::new(E_INVALIDARG, "Missing restored editor images"))?;
-            let layers = if let Some(crop) = placement.crop {
-                let geometry = crop
-                    .editor_crop()
-                    .map_err(|_| Error::new(E_INVALIDARG, "Invalid restored raster crop"))?;
+            let geometry = placement
+                .crop
+                .map(|crop| crop.editor_crop())
+                .transpose()
+                .map_err(|_| Error::new(E_INVALIDARG, "Invalid restored raster crop"))?;
+            let size = crate::crop_geometry::Size {
+                width: frame.w,
+                height: frame.h,
+            };
+            let layers = if let Some(geometry) = geometry {
                 // Canvas 将独立标注映射到可见框；不要装入已为效果计算投影到完整源框的纹理。
-                images.prepare_editor_layers(geometry.source, cancel)?
-            } else {
-                images.prepare_editor_layers(
-                    crate::crop_geometry::Size {
-                        width: frame.w,
-                        height: frame.h,
-                    },
+                images.prepare_full_crop_layers(
+                    geometry,
+                    placement.crop.is_some_and(|crop| crop.rasterized_source),
                     cancel,
                 )?
+            } else if placement.rasterized_full {
+                images.prepare_rasterized_full_layers(size, cancel)?
+            } else {
+                images.prepare_editor_layers(size, cancel)?
             };
             if let Some(layers) = layers {
                 let editor = std::mem::take(&mut restored.editor);
@@ -119,27 +145,20 @@ impl VectorCandidate {
                     .with_restored_layers(layers)
                     .map_err(|_| Error::new(E_INVALIDARG, "Invalid restored editor assembly"))?;
                 if placement.crop.is_none() {
-                    restored.editor = std::mem::take(&mut restored.editor)
-                        .with_restored_size(crate::crop_geometry::Size {
-                            width: frame.w,
-                            height: frame.h,
-                        })
-                        .map_err(|_| Error::new(E_INVALIDARG, "Invalid restored logical frame"))?;
+                    let editor = std::mem::take(&mut restored.editor);
+                    restored.editor = if placement.rasterized_full {
+                        editor.with_restored_working_size(size)
+                    } else {
+                        editor.with_restored_size(size)
+                    }
+                    .map_err(|_| Error::new(E_INVALIDARG, "Invalid restored logical frame"))?;
                 }
             }
-            if let Some(crop) = placement.crop {
-                let geometry = crop
-                    .editor_crop()
-                    .map_err(|_| Error::new(E_INVALIDARG, "Invalid restored crop view"))?;
+            if let Some(geometry) = geometry {
                 restored.editor = std::mem::take(&mut restored.editor)
                     .with_restored_crop(geometry)
                     .map_err(|_| Error::new(E_INVALIDARG, "Cannot install restored crop view"))?;
             } else if restored.editor.layers().is_some() {
-                let window = document
-                    .windows
-                    .iter()
-                    .find(|window| window.id == unit.as_str())
-                    .ok_or_else(|| Error::new(E_INVALIDARG, "Missing legacy crop source"))?;
                 if let Some(image) = images.source.as_ref() {
                     if let Some(pixels) =
                         crate::session_crop::legacy_pixels(window, (image.width, image.height))
@@ -164,26 +183,17 @@ impl VectorCandidate {
                 .map_err(|_| Error::new(E_INVALIDARG, "Cannot install restored mirror state"))?;
         }
         let projection_edits =
-            super::session_projection_edit::prepare(&document, &mut vectors, cancel)?;
+            super::session_projection_edit::prepare(document, &mut vectors, cancel)?;
         let mut regions = Vec::with_capacity(vectors.len());
-        for (unit, restored) in &vectors {
+        for (((unit, restored), placement), images) in vectors.iter().zip(placements).zip(images) {
             check(cancel)?;
-            let images = candidate
-                .images
-                .iter()
-                .find(|images| images.unit == *unit)
-                .ok_or_else(|| Error::new(E_INVALIDARG, "Missing restored hit source"))?;
             let layers = restored.editor.layers();
             let committed = layers.map(|layers| super::image::Image {
                 width: layers.size.0,
                 height: layers.size.1,
                 pixels: layers.base.clone(),
             });
-            let minified = candidate
-                .placements
-                .iter()
-                .any(|placement| placement.unit == *unit && placement.minified);
-            let image = if minified {
+            let image = if placement.minified {
                 images.source.as_ref().or(images.preview.as_ref())
             } else {
                 committed.as_ref().or(images.display())
@@ -207,10 +217,18 @@ impl VectorCandidate {
         check(cancel)?;
         Ok(Self {
             projection_edits,
-            candidate,
             vectors,
             regions,
         })
+    }
+
+    fn with_candidate(self, candidate: Candidate) -> VectorCandidate {
+        VectorCandidate {
+            projection_edits: self.projection_edits,
+            vectors: self.vectors,
+            regions: self.regions,
+            candidate,
+        }
     }
 }
 impl Placement {
@@ -234,38 +252,68 @@ impl Candidate {
     pub(in crate::desktop) fn into_original_json(self) -> crate::session_source::Source {
         self.original
     }
-    /// 基础矢量候选；任何不支持/损坏标注使整批失败，不修改正在显示的文档。
-    pub fn prepare_vectors(
+    fn decode_retained(&self, cancel: &AtomicBool) -> Result<session_document::Document<'_>> {
+        check(cancel)?;
+        let document = session_document::decode(self.original_json())
+            .map_err(|_| Error::new(E_INVALIDARG, "Invalid retained session"))?;
+        check(cancel)?;
+        Ok(document)
+    }
+    #[cfg(test)]
+    fn prepare_vectors(
         &self,
         cancel: &AtomicBool,
     ) -> Result<Vec<(UnitId, crate::session_vectors::Restored)>> {
-        check(cancel)?;
-        let document = session_document::decode(&self.original)
-            .map_err(|_| Error::new(E_INVALIDARG, "Invalid retained session"))?;
-        let mut restored = Vec::new();
-        for window in &document.windows {
+        Self::prepare_vectors_from(
+            &self.placements,
+            &self.images,
+            &self.decode_retained(cancel)?,
+            cancel,
+        )
+    }
+    /// 基础矢量候选；任何不支持/损坏标注使整批失败，不修改正在显示的文档。
+    fn prepare_vectors_from(
+        placements: &[Placement],
+        images: &[Images],
+        document: &session_document::Document<'_>,
+        cancel: &AtomicBool,
+    ) -> Result<Vec<(UnitId, crate::session_vectors::Restored)>> {
+        if document.windows.len() != placements.len() || placements.len() != images.len() {
+            return Err(Error::new(E_INVALIDARG, "Session vector count mismatch"));
+        }
+        let mut restored = Vec::with_capacity(document.windows.len());
+        for ((window, placement), images) in document.windows.iter().zip(placements).zip(images) {
             check(cancel)?;
-            let frame = window
+            if window.id != placement.unit.as_str() || images.unit != placement.unit {
+                return Err(Error::new(E_INVALIDARG, "Session vector identity mismatch"));
+            }
+            let frame = placement
                 .expanded_rect()
                 .ok_or_else(|| Error::new(E_INVALIDARG, "Invalid effect frame"))?;
-            let crop = crate::session_crop::restore(window)
-                .map_err(|_| Error::new(E_INVALIDARG, "Invalid effect crop"))?;
-            let images = self
-                .images
-                .iter()
-                .find(|images| images.unit.as_str() == window.id);
+            let crop = placement.crop;
             let mut effects = if let Some(restored) = crop {
                 super::session_blur_resources::Resources::for_cropped_editor(
-                    images, restored, cancel,
+                    Some(images),
+                    restored,
+                    cancel,
                 )
-            } else {
-                super::session_blur_resources::Resources::new(
+            } else if placement.rasterized_full {
+                super::session_blur_resources::Resources::for_full_working_grid(
                     images,
                     crate::crop_geometry::Size {
                         width: frame.w,
                         height: frame.h,
                     },
-                    crop.map(|crop| crop.crop),
+                    cancel,
+                )
+            } else {
+                super::session_blur_resources::Resources::new(
+                    Some(images),
+                    crate::crop_geometry::Size {
+                        width: frame.w,
+                        height: frame.h,
+                    },
+                    None,
                     cancel,
                 )
             };
@@ -285,10 +333,10 @@ impl Candidate {
             )
             .map_err(|error| {
                 Error::new(
-                    if error == crate::session_vectors::Error::Cancelled {
-                        E_ABORT
-                    } else {
-                        E_INVALIDARG
+                    match error {
+                        crate::session_vectors::Error::Cancelled => E_ABORT,
+                        crate::session_vectors::Error::EffectBudget => E_OUTOFMEMORY,
+                        _ => E_INVALIDARG,
                     },
                     format!("Session vector restore rejected: {error:?}"),
                 )
@@ -305,9 +353,7 @@ impl Candidate {
                     })
                     .map_err(|_| Error::new(E_INVALIDARG, "Invalid restored vector offset"))?;
             }
-            let unit = UnitId::parse(&window.id)
-                .ok_or_else(|| Error::new(E_INVALIDARG, "Invalid session unit"))?;
-            restored.push((unit, editor));
+            restored.push((placement.unit.clone(), editor));
         }
         check(cancel)?;
         Ok(restored)
@@ -318,10 +364,15 @@ impl Candidate {
         catalog: Option<&crate::loom_handshake::Handshake>,
         cancel: &AtomicBool,
     ) -> Result<Vec<crate::session_art_batch::Entry>> {
-        check(cancel)?;
-        let document = session_document::decode(&self.original)
-            .map_err(|_| Error::new(E_INVALIDARG, "Invalid retained session"))?;
-        crate::session_art_batch::resolve_optional(&document, catalog, cancel).map_err(|error| {
+        Self::resolve_arts_from(&self.decode_retained(cancel)?, catalog, cancel)
+    }
+
+    fn resolve_arts_from(
+        document: &session_document::Document<'_>,
+        catalog: Option<&crate::loom_handshake::Handshake>,
+        cancel: &AtomicBool,
+    ) -> Result<Vec<crate::session_art_batch::Entry>> {
+        crate::session_art_batch::resolve_optional(document, catalog, cancel).map_err(|error| {
             let code = if error == crate::session_art_batch::Error::Cancelled {
                 E_ABORT
             } else {
@@ -333,122 +384,74 @@ impl Candidate {
 }
 /// 仅准备拓扑/窗口元数据/图片。参数、编辑历史等仍在 original 中，不能据此发布完整恢复。
 pub fn prepare(bytes: Vec<u8>, root: Option<&Root>, cancel: &AtomicBool) -> Result<Candidate> {
-    prepare_source(bytes.into(), root, None, cancel)
+    prepare_source(&bytes.into(), root, cancel)
 }
+
 fn prepare_source(
-    bytes: crate::session_source::Source,
+    source: &crate::session_source::Source,
     root: Option<&Root>,
-    images: Option<Vec<Images>>,
     cancel: &AtomicBool,
 ) -> Result<Candidate> {
+    let parsed = parse_source(source, cancel)?;
+    let (placements, images) = prepare_inputs(parsed.document(), root, cancel)?;
+    finish_source(parsed, placements, images, cancel)
+}
+
+fn prepare_inputs(
+    document: &session_document::Document<'_>,
+    root: Option<&Root>,
+    cancel: &AtomicBool,
+) -> Result<(Vec<Placement>, Vec<Images>)> {
+    let images = session_prepare::images(document, cancel, |reference| {
+        root.ok_or_else(|| {
+            Error::new(
+                E_ACCESSDENIED,
+                "Session file resources require an admitted root",
+            )
+        })?
+        .open_image(reference)
+    })?;
+    let placements = placements::prepare(document, &images, cancel)?;
+    Ok((placements, images))
+}
+fn parse_source<'a>(
+    source: &'a crate::session_source::Source,
+    cancel: &AtomicBool,
+) -> Result<crate::session_source::Parsed<'a>> {
     check(cancel)?;
-    let document = session_document::decode(&bytes)
+    let parsed = source
+        .parse()
         .map_err(|error| Error::new(E_INVALIDARG, format!("Session decode rejected: {error:?}")))?;
     check(cancel)?;
-    let images = match images {
-        Some(images) => images,
-        None => session_prepare::images(&document, cancel, |reference| {
-            root.ok_or_else(|| {
-                Error::new(
-                    E_ACCESSDENIED,
-                    "Session file resources require an admitted root",
-                )
-            })?
-            .open_image(reference)
-        })?,
-    };
-    let mut placements = Vec::new();
-    for window in &document.windows {
-        check(cancel)?;
-        let intrinsic = images
-            .iter()
-            .find(|images| images.unit.as_str() == window.id)
-            .and_then(|images| images.source.as_ref().or(images.preview.as_ref()))
-            .map(|image| crate::crop_geometry::Size {
-                width: image.width as f64,
-                height: image.height as f64,
-            });
-        placements.push(Placement {
-            node_settings: crate::unit_node_settings::Settings::read(window)
-                .map_err(|message| Error::new(E_INVALIDARG, message))?,
-            extension_state: crate::unit_attachment_store::Store::restore(window.extension_state),
-            legacy_text: crate::sticker_extra_text::Legacy::restore(
-                window.ocr_result,
-                window.translation_result,
-            ),
-            extension_propagation: window
-                .sticker_edit_propagation
-                .map(|raw| std::sync::Arc::from(raw.to_owned())),
-            mirror: crate::editor::MirrorState::read_raw(window.image_edit_state)
-                .map_err(|message| Error::new(E_INVALIDARG, message))?,
-            frame_style: crate::pin_frame_style::Style::read_raw(window.image_edit_state)
-                .map_err(|message| Error::new(E_INVALIDARG, message))?,
-            capture_meta: window.capture_meta.map(|value| value.get().to_owned()),
-            unit: UnitId::parse(&window.id)
-                .ok_or_else(|| Error::new(E_INVALIDARG, "Invalid session unit"))?,
-            art: window.is_art(),
-            art_id: window.art_id.clone(),
-            local_art_ports: window
-                .otter_native_local_art_ports
-                .map(|raw| {
-                    if !window.otter_native_local_art || raw.get().len() > 16 * 1024 {
-                        return Err(Error::new(E_INVALIDARG, "Invalid local Art port record"));
-                    }
-                    let record: crate::art_execution_grant::package::ports::Record =
-                        serde_json::from_str(raw.get()).map_err(|_| {
-                            Error::new(E_INVALIDARG, "Invalid local Art port record")
-                        })?;
-                    record
-                        .validate(window.art_id.as_deref().unwrap_or_default())
-                        .map_err(|_| Error::new(E_INVALIDARG, "Invalid local Art port binding"))?;
-                    Ok(record)
-                })
-                .transpose()?,
-            local_art_id: if window.otter_native_local_art {
-                Some(
-                    window
-                        .art_id
-                        .as_ref()
-                        .filter(|id| {
-                            window.is_art()
-                                && !id.is_empty()
-                                && id.len() <= 256
-                                && !id.chars().any(char::is_control)
-                        })
-                        .ok_or_else(|| Error::new(E_INVALIDARG, "Invalid local Art identity"))?
-                        .clone(),
-                )
-            } else {
-                None
-            },
-            rect: window.rect(),
-            minified: window.is_minified(),
-            minified_views: crate::session_minified::restore(window, intrinsic)
-                .map_err(|_| Error::new(E_INVALIDARG, "Invalid restored minified viewport"))?,
-            saved_rect: window.saved_rect,
-            crop_offset: window.crop_offset,
-            crop: crate::session_crop::restore(window)
-                .map_err(|_| Error::new(E_INVALIDARG, "Invalid restored crop geometry"))?,
-            opacity_normal: window.opacity(false),
-            opacity_mini: window.opacity(true),
-        });
-    }
+    Ok(parsed)
+}
+fn finish_source(
+    parsed: crate::session_source::Parsed<'_>,
+    placements: Vec<Placement>,
+    images: Vec<Images>,
+    cancel: &AtomicBool,
+) -> Result<Candidate> {
+    let document = parsed.document();
     check(cancel)?;
-    Ok(Candidate {
-        account_index: if document.projection_scope.is_some() {
-            Some(
-                crate::projection_account::scene::Index::capture(&bytes).map_err(|error| {
-                    Error::new(E_INVALIDARG, format!("Invalid account scene: {error:?}"))
-                })?,
+    let projection_scope = crate::session_projection_scope::Proof::capture_parsed(&parsed);
+    let account_index = document
+        .projection_scope
+        .map(|_| {
+            crate::projection_account::scene::Index::capture_parsed(
+                &parsed,
+                projection_scope.as_ref(),
             )
-        } else {
-            None
-        },
-        projection_index: crate::projection_delivery::binding::checkpoint::Index::capture(&bytes),
-        sender_index: crate::projection_delivery::sender::binding::checkpoint::Index::capture(
-            &bytes,
-        ),
-        projection_scope: crate::session_projection_scope::Proof::capture(&bytes),
+            .map_err(|error| Error::new(E_INVALIDARG, format!("Invalid account scene: {error:?}")))
+        })
+        .transpose()?;
+    let indices = crate::projection_delivery::checkpoint_session::capture(&parsed);
+    let original = parsed.source().clone();
+    let document = parsed.into_document();
+    Ok(Candidate {
+        account_index,
+        projection_index: indices.receiver,
+        sender_index: indices.sender,
+        projection_scope,
         origin: None,
         schema_version: document.schema_version,
         revision: document.revision,
@@ -456,7 +459,7 @@ fn prepare_source(
         workspace: document.workspace,
         placements,
         images,
-        original: bytes,
+        original,
     })
 }
 fn check(cancel: &AtomicBool) -> Result<()> {

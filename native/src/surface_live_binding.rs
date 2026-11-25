@@ -226,6 +226,6 @@ impl Binding {
             && self.generation == generation
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-live")))]
 #[path = "surface_live_binding_tests.rs"]
 mod tests;

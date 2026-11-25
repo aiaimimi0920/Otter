@@ -1,7 +1,7 @@
 //! 单个扩展目录订阅 worker；只发布最新不可变快照，失败/取消终止连接，不自动重连。
 use super::{
     capability_job::Source,
-    loom_execution_signal::{CompletionSignal, Notify},
+    loom_execution_signal::{reap_deadline, CompletionSignal, Notify},
 };
 use crate::{
     loom_bridge_stream::Interrupt,
@@ -62,9 +62,11 @@ struct Running {
     cancel: Arc<AtomicBool>,
     mailbox: Arc<Mutex<Mailbox>>,
     worker: JoinHandle<Result<(), Error>>,
+    revoked: bool,
 }
 pub(super) enum Event {
     Snapshot(Arc<Snapshot>),
+    Revoked,
     Stopped(Result<(), Error>),
 }
 #[derive(Default)]
@@ -74,6 +76,15 @@ pub(super) struct Job {
 impl Job {
     pub(super) fn is_busy(&self) -> bool {
         self.running.is_some()
+    }
+    pub(super) fn deadline(&self) -> Option<std::time::Instant> {
+        self.running.as_ref().and_then(|r| reap_deadline(&r.ready))
+    }
+    #[cfg(test)]
+    pub(super) fn test_wait_finished(&self) {
+        super::loom_execution_tasks::reap_fixture::wait_finished(
+            &self.running.as_ref().unwrap().worker,
+        );
     }
     pub(super) fn start(&mut self, source: Source, notify: Notify) -> Result<(), Error> {
         if self.is_busy()
@@ -132,6 +143,7 @@ impl Job {
             cancel,
             mailbox,
             worker,
+            revoked: false,
         });
         Ok(())
     }
@@ -146,10 +158,14 @@ impl Job {
         }
     }
     pub(super) fn poll(&mut self) -> Option<Event> {
-        let running = self.running.as_ref()?;
-        if running.ready.load(Ordering::Acquire) || running.worker.is_finished() {
+        let running = self.running.as_mut()?;
+        if running.worker.is_finished() {
             // 终止优先于未读快照；失败连接不得把已排队的旧 authority 再交给 UI。
             return Some(Event::Stopped(self.join()));
+        }
+        if running.ready.load(Ordering::Acquire) {
+            // 完成通知仍可能持有线程尾段；先撤权一次，保留 owner 等待真实退出。
+            return (!std::mem::replace(&mut running.revoked, true)).then_some(Event::Revoked);
         }
         let mut mailbox = running.mailbox.lock().unwrap_or_else(|e| e.into_inner());
         if running.cancel.load(Ordering::Acquire) {

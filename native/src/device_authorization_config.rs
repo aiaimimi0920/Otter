@@ -190,6 +190,6 @@ impl Config {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "device_authorization_config_tests.rs"]
 mod tests;

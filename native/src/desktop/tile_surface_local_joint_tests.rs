@@ -25,18 +25,16 @@ pub(super) fn run() {
     loop {
         f.pump();
         window.tick().unwrap();
-        let scene = {
+        let presented = {
             let s = runtime.shared.lock();
             s.presented_frame
                 .as_ref()
                 .filter(|_| s.visible(Instant::now()))
-                .map(|frame| {
-                    let art = frame.arts.values().next().unwrap();
-                    weak = Some(Arc::downgrade(art));
-                    serde_json::from_slice::<serde_json::Value>(&art.snapshot.scene).unwrap()
-                })
+                .map(|frame| frame.arts.values().next().unwrap().clone())
         };
-        if let Some(scene) = scene {
+        if let Some(art) = presented {
+            weak = Some(Arc::downgrade(&art));
+            let scene: serde_json::Value = serde_json::from_slice(&art.snapshot.scene).unwrap();
             let label = scene["children"][0]["props"]["text"].as_str().unwrap();
             if done.insert("ready") {
                 f.mark("local-ready.json", json!({"nativePresentConfirmed":true}));
@@ -90,8 +88,11 @@ pub(super) fn run() {
             }
             let values = window.test_art_local_values();
             assert_eq!(values, json!({"switch":false,"select":0,"slider":100.}));
-            assert_eq!(runtime.shared.lock().actions.test_offered, 0);
-            assert!(runtime.shared.lock().actions.pending.is_empty());
+            {
+                let s = runtime.shared.lock();
+                assert_eq!(s.actions.test_offered, 0);
+                assert!(s.actions.pending.is_empty());
+            }
             f.mark(
                 "local-edited.json",
                 json!({"values":values,"queuedActions":0,"keyboard":keyboard}),

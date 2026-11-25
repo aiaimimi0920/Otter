@@ -27,14 +27,12 @@ impl Progress {
                 self.requested = true;
             }
         }
-        let recovering = app.remote_sessions.source_recovering(identity);
+        use crate::live_relay_source_runtime::Status;
+        let status = app.remote_sessions.source_status(identity);
+        let recovering = status == Some(Status::Recovering);
         let phase = if !self.observed && recovering {
             "source-disconnected.json"
-        } else if self.observed
-            && !self.resumed
-            && !recovering
-            && app.remote_sessions.source_status(identity) == Some((true, false))
-        {
+        } else if self.observed && !self.resumed && status == Some(Status::Publishing) {
             "source-resumed.json"
         } else {
             return;

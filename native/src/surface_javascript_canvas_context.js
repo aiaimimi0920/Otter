@@ -2,6 +2,7 @@
 ((dom, fail, values, json, makePath, images) => {
   "use strict";
   const op = dom.ops, states = new op.Weak(), define = Object.defineProperties, seal = Object.seal, from = Array.from;
+  const pathSnapshots = new op.Weak(), isPathSnapshot = value => op.weakHas(pathSnapshots, value);
   const copy = list => op.map(list, value => value);
   const defaults = () => ({ transform: [1,0,0,1,0,0], fillStyle: "#000000", strokeStyle: "#000000", globalAlpha: 1,
     lineWidth: 1, lineCap: "butt", lineJoin: "miter", miterLimit: 10, lineDashOffset: 0, dash: op.array(), font: "10px sans-serif", textAlign: "start", textBaseline: "alphabetic", imageSmoothingEnabled: true });
@@ -30,7 +31,10 @@
     const value = get(owner);
     if (rule !== "nonzero" && rule !== "evenodd") fail();
     if (value.pathTransform) for (let i = 0; i < 6; i++) if (value.pathTransform[i] !== value.state.transform[i]) fail();
-    record(owner, { kind: "path", path: json.clone(value.path), state: state(owner, stroke), stroke, evenodd: rule === "evenodd" });
+    // 标记的是独立、稠密的私有无原型列表，不是仍可追加的当前路径。
+    const snapshot = copy(value.path);
+    record(owner, { kind: "path", path: snapshot, state: state(owner, stroke), stroke, evenodd: rule === "evenodd" });
+    op.weakSet(pathSnapshots, snapshot, true);
   };
   const key = {};
   class CanvasRenderingContext2D {
@@ -104,6 +108,7 @@
     return text;
   });
   return { CanvasRenderingContext2D, defaults, begin() { commands = 0; },
+    encode: batch => json.encodeCanvas(batch, isPathSnapshot),
     create(owner) { return new CanvasRenderingContext2D(key,owner); },
     reset(owner) { owner.state = defaults(); owner.stack = op.array(); owner.path = op.array(); owner.pathTransform = null; owner.commands = op.array(); },
   };

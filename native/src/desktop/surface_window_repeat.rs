@@ -31,7 +31,10 @@ pub(super) fn start(
             return Ok(());
         }
     }
-    state.run(|host| host.page_scrollbar(&bar.id, bar.axis, direction, pixels))?;
+    state.run(|host| {
+        host.page_scrollbar(&bar.id, bar.axis, direction, pixels)
+            .map(|_| ())
+    })?;
     Ok(())
 }
 pub(super) fn timer(hwnd: HWND, state: &State, id: usize, now: Instant) -> bool {
@@ -57,19 +60,25 @@ pub(super) fn timer(hwnd: HWND, state: &State, id: usize, now: Instant) -> bool 
                 .map(|ready| ready.then(|| (r.node.clone(), r.axis, r.direction, r.point)))
         })
     };
+    let mut changed = false;
     let result = match next {
-        Some(Ok(Some((node, axis, direction, point)))) => {
-            state.run(|host| host.page_scrollbar(&node, axis, direction, point))
-        }
+        Some(Ok(Some((node, axis, direction, point)))) => state.run(|host| {
+            changed = host.page_scrollbar(&node, axis, direction, point)?;
+            Ok(())
+        }),
         Some(Err(error)) => Err(error),
         _ => return true,
     };
-    if let Err(error) = result {
-        *state.error.borrow_mut() = Some(error);
-        pointer::invalidate(hwnd, state);
-    }
-    unsafe {
-        let _ = InvalidateRect(Some(hwnd), None, false);
+    match result {
+        Err(error) => {
+            *state.error.borrow_mut() = Some(error);
+            pointer::invalidate(hwnd, state);
+        }
+        // Host 被同步重入借走时，保留原有的 deferred paint 唤醒。
+        Ok(ran) if (changed || !ran) && !state.closed.get() => unsafe {
+            let _ = InvalidateRect(Some(hwnd), None, false);
+        },
+        Ok(_) => {}
     }
     true
 }

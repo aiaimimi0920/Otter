@@ -47,6 +47,6 @@ impl LiveWindow {
         .then_some(self.hwnd)
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-live")))]
 #[path = "composition_live_art_tests.rs"]
 mod tests;

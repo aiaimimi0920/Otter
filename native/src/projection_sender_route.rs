@@ -134,6 +134,6 @@ pub(super) fn decode(
         }
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "projection_sender_route_tests.rs"]
 mod tests;

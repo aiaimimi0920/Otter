@@ -34,7 +34,7 @@ fn source_mode_menu_waits_real_checkpoint_and_keeps_network_period_edit_for_auto
     std::fs::write(files.root().join("ca.pem"), pem).unwrap();
     let peer = peer::Peer::start(listener, tls, files.root().to_path_buf());
     unsafe {
-        let (_class, mut app) = application(files.root());
+        let mut app = application(files.root());
         initialized(&mut app, &files, identity, client, 1);
         command(&mut app, &files, ui::editing::TWO_WAY);
         completed(&app);
@@ -97,7 +97,7 @@ fn source_automatic_failure_and_cancel_never_replay_unknown_request_without_expl
         std::fs::write(files.root().join("ca.pem"), pem).unwrap();
         let peer = peer::Peer::start(listener, tls, files.root().to_path_buf());
         unsafe {
-            let (_class, mut app) = application(files.root());
+            let mut app = application(files.root());
             initialized(&mut app, &files, identity, client, 1);
             shift(&app, 2.0);
             peer.fail_apply.store(!cancel, Ordering::Release);
@@ -163,7 +163,7 @@ fn source_successful_read_reclaims_receipt_budget_through_original_checkpoint_op
     std::fs::write(files.root().join("ca.pem"), pem).unwrap();
     let peer = peer::Peer::start(listener, tls, files.root().to_path_buf());
     unsafe {
-        let (_class, mut app) = application(files.root());
+        let mut app = application(files.root());
         initialized(&mut app, &files, identity, client, 1);
         peer.receipts.store(224, Ordering::Release);
         sync(&mut app, &files);
@@ -195,7 +195,7 @@ fn source_lost_mode_reply_survives_real_reopen_and_only_explicit_submit_retries_
     std::fs::write(files.root().join("ca.pem"), pem).unwrap();
     let peer = peer::Peer::start(listener, tls, files.root().to_path_buf());
     unsafe {
-        let (_class, mut app) = application(files.root());
+        let mut app = application(files.root());
         initialized(&mut app, &files, identity, client, 1);
         peer.lose_mode.store(true, Ordering::Release);
         ui::editing::choose_mode(&app.documents[0].state, edit::Mode::TwoWay).unwrap();

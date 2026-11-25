@@ -24,7 +24,13 @@ pub(super) unsafe fn run(
     icons.verify(window.0)?;
     icons.verify(_tool_panel.0)?;
     println!("native-icon-smoke: host=true panel=true embedded=true");
-    smoke_timing::run("tool-panel-smoke", || tool_panel::smoke(window.0, state))?;
+    smoke_timing::run("tool-panel-smoke", || {
+        if pinned {
+            tool_panel::pinned_smoke(window.0, state)
+        } else {
+            tool_panel::smoke(window.0, state)
+        }
+    })?;
     smoke_timing::run("capture-protection-smoke", || {
         capture_protection::smoke(window.0, state)
     })?;

@@ -2,7 +2,8 @@
 use super::*;
 use crate::live_hover_owner::Control as ParentControl;
 use crate::live_window_target::{popup::Scope, Target};
-#[cfg(test)]
+use std::rc::Rc;
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-live")))]
 #[path = "composition_live_popup_focus_tests.rs"]
 mod popup_focus_tests;
 
@@ -11,7 +12,7 @@ pub(in crate::desktop) struct Focus {
     armed: bool,
     pending: Option<HWND>,
     active: Option<Scope>,
-    family: Vec<Scope>,
+    family: Option<Rc<Vec<Scope>>>,
     // 只给失败恢复去重，不构成输入授权；暂停/失焦不能清掉这条历史而触发同周期重试。
     parent_cycle: Option<(usize, usize, usize)>,
 }
@@ -22,7 +23,7 @@ impl Focus {
     }
 }
 impl LiveWindow {
-    pub(in crate::desktop) fn popup_scopes(&self, scopes: Vec<Scope>) {
+    pub(in crate::desktop) fn popup_scopes(&self, scopes: Option<Rc<Vec<Scope>>>) {
         // 仅由本 Session 的有界附属集合提供；仍在实际焦点转移时逐项重验。
         self.state.popup_focus.borrow_mut().family = scopes;
     }
@@ -75,11 +76,15 @@ impl LiveWindow {
                 _ => Scope::bind(root, self.hover_identity(), foreground)
                     .ok()
                     .or_else(|| {
-                        family.into_iter().find(|scope| {
-                            scope
-                                .target()
-                                .is_ok_and(|target| target.hwnd() == foreground)
-                        })
+                        family
+                            .as_deref()?
+                            .iter()
+                            .find(|scope| {
+                                scope
+                                    .target()
+                                    .is_ok_and(|target| target.hwnd() == foreground)
+                            })
+                            .cloned()
                     }),
             }
         });

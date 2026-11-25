@@ -58,7 +58,7 @@ unsafe fn windows() -> Result<usize> {
 pub(in crate::desktop::application) unsafe fn run(app: &mut Application) -> Result<()> {
     use crate::desktop::smoke_timing::run as timed;
     timed("frozen-append", || {
-        super::frozen_append::smoke::run(app.instance)
+        super::frozen_append_smoke::run(app.instance)
     })?;
     timed("restore-job", || super::job::smoke::verify(app.instance))?;
     timed("restore-publish", || {

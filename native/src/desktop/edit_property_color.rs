@@ -84,6 +84,6 @@ unsafe fn accept(
     }
     Ok(())
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "edit_property_color_tests.rs"]
 mod tests;

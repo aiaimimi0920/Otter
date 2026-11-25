@@ -24,13 +24,8 @@ impl<'a> ObservationSubmission<'a> {
 }
 impl Control<'_> {
     fn source_snapshot(&self, publication: &Publication) -> Result<(u64, Value), Error> {
-        let bytes = self.send(
-            "GET",
-            &path(publication.session(), None)?,
-            &[],
-            Duration::from_secs(3),
-        )?;
-        let (_, actual) = self.validate_source(publication, &bytes)?;
+        let actual =
+            self.read_source_snapshot(publication, Instant::now() + Duration::from_secs(3))?;
         let cursor = &actual["requesterControl"];
         let sequence = cursor["controlSequence"].as_u64().ok_or(Error::Cursor)?;
         let previous = publication.actor.load(Ordering::Acquire);

@@ -92,7 +92,7 @@ fn run(mode: Mode) {
         mode == Mode::NetworkFailure,
     );
     unsafe {
-        let (_class, mut app) = application(files.root());
+        let mut app = application(files.root());
         authorize(&mut app, &files, identity, client);
         send_both(&mut app, &files, &origin);
         let source = app.restored_session.as_ref().unwrap().original.clone();

@@ -2,7 +2,7 @@
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
-    fs::OpenOptions,
+    fs::{File, OpenOptions},
     io,
     os::windows::{
         fs::{MetadataExt, OpenOptionsExt},
@@ -37,6 +37,14 @@ pub(super) struct Draft {
     sha256: [u8; 32],
     created: u64,
 }
+pub(super) fn open_published(path: &Path) -> io::Result<File> {
+    OpenOptions::new()
+        .read(true)
+        .share_mode(FILE_SHARE_READ.0)
+        .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT.0)
+        .open(path)
+}
+
 impl Draft {
     pub fn new(bytes: &[u8]) -> io::Result<Self> {
         Self::from_digest(bytes.len() as u64, Sha256::digest(bytes).into())
@@ -53,16 +61,11 @@ impl Draft {
             created,
         })
     }
-    pub fn publish(self, path: &Path) -> io::Result<()> {
+    pub fn publish(self, path: &Path, file: &File) -> io::Result<()> {
         let name = path
             .file_name()
             .and_then(|name| name.to_str())
             .ok_or_else(|| io::Error::other("Invalid cache receipt filename"))?;
-        let file = OpenOptions::new()
-            .read(true)
-            .share_mode(FILE_SHARE_READ.0)
-            .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT.0)
-            .open(path)?;
         let metadata = file.metadata()?;
         if !metadata.is_file()
             || metadata.len() != self.bytes

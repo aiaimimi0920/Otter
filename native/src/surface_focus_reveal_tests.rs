@@ -24,6 +24,11 @@ fn surface_focus_reveal_tab_reaches_offscreen_button_and_reverse_restores_first(
     assert_eq!(origin(&p, "last")[1], 60.);
     assert_eq!(next(&mut p, Some("last"), true).as_deref(), Some("first"));
     assert_eq!(origin(&p, "first")[1], 0.);
+    p.reflow(style(), context(), [100.; 2]).unwrap();
+    assert!(p.focusable("first"));
+    assert!(!p.focusable("last"));
+    assert!(p.can_focus("last"));
+    assert_eq!(next(&mut p, Some("first"), false).as_deref(), Some("last"));
 }
 #[test]
 fn surface_focus_reveal_hidden_axis_can_focus_but_still_cannot_wheel() {

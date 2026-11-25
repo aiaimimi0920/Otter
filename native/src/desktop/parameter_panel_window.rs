@@ -31,6 +31,8 @@ impl Panel {
             scroll_x: Cell::new(0),
             content_height: Cell::new(0),
             status: Cell::default(),
+            status_dirty: Cell::default(),
+            status_writing: Cell::default(),
             message: RefCell::default(),
             capture_windows: state.capture_windows.clone(),
         };

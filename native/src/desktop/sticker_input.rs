@@ -37,25 +37,25 @@ impl Config {
         self.asset.is_some() || self.disabled || !self.parameters.is_empty()
     }
     pub fn restore(raw: Option<&serde_json::value::RawValue>, cancel: &AtomicBool) -> Result<Self> {
-        let mut parameters =
-            crate::sticker_image_params::read(raw).map_err(|e| Error::new(E_INVALIDARG, e))?;
+        let (mut parameters, asset) =
+            crate::sticker_image_params::read_with_image(raw, |values, image| {
+                image
+                    .map(|image| {
+                        Asset::restore_checked(
+                            image,
+                            values
+                                .get("image_filename")
+                                .and_then(Value::as_str)
+                                .unwrap_or(""),
+                            cancel,
+                        )
+                    })
+                    .transpose()
+            })
+            .map_err(|e| Error::new(E_INVALIDARG, e))?;
+        let asset = asset?;
         let disabled =
             parameters.get("image").and_then(Value::as_str) == Some(crate::graph_params::DISABLED);
-        let asset = parameters
-            .get("image_path")
-            .and_then(Value::as_str)
-            .filter(|uri| !uri.is_empty())
-            .map(|uri| {
-                Asset::restore(
-                    uri,
-                    parameters
-                        .get("image_filename")
-                        .and_then(Value::as_str)
-                        .unwrap_or(""),
-                    cancel,
-                )
-            })
-            .transpose()?;
         parameters.remove("image_path");
         parameters.remove("image_filename");
         Ok(Self {

@@ -36,7 +36,20 @@ impl Assets {
         art: Arc<Lease>,
         shared: Arc<Shared>,
     ) -> std::io::Result<Self> {
+        use windows::Win32::System::Com::*;
+        Self::start_with_com(client, lease, art, shared, || unsafe {
+            CoInitializeEx(None, COINIT_MULTITHREADED)
+        })
+    }
+    fn start_with_com(
+        client: Client,
+        lease: Arc<Lease>,
+        art: Arc<Lease>,
+        shared: Arc<Shared>,
+        initialize: impl FnOnce() -> windows::core::HRESULT + Send + 'static,
+    ) -> std::io::Result<Self> {
         let (sender, receiver) = mpsc::sync_channel::<Job>(1);
+        let (ready, startup) = mpsc::sync_channel(1);
         let token = lease.clone();
         let art_token = art.clone();
         let busy = Arc::new(AtomicBool::new(false));
@@ -44,18 +57,12 @@ impl Assets {
         let interrupts = crate::tile_live_socket::Interrupts::default();
         let revoked = interrupts.clone();
         let ended = shared.clone();
-        lease.notify_revocation(Arc::new(move || {
-            ended.stop();
-            for handle in revoked.lock().unwrap_or_else(|e| e.into_inner()).drain(..) {
-                let _ = handle.cancel();
-            }
-        }));
         let thread = std::thread::Builder::new()
             .name("otter-tile-images".into())
             .spawn(move || {
                 use windows::Win32::System::Com::*;
-                if unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) }.is_err() {
-                    shared.lock().status = "图片线程初始化失败";
+                if let Err(error) = initialize().ok() {
+                    let _ = ready.send(Err(error));
                     return;
                 }
                 struct Com;
@@ -67,6 +74,9 @@ impl Assets {
                     }
                 }
                 let _com = Com;
+                if ready.send(Ok(())).is_err() {
+                    return;
+                }
                 let mut cache = BTreeMap::new();
                 while let Ok(job) = receiver.recv() {
                     if shared.lock().stopped {
@@ -90,6 +100,21 @@ impl Assets {
                     }
                 }
             })?;
+        // 只在后台 presenter 等待 COM 初始化；失败线程先回收，不开始 Wall 网络请求。
+        if let Err(error) = startup
+            .recv()
+            .map_err(std::io::Error::other)
+            .and_then(|result| result.map_err(std::io::Error::other))
+        {
+            let _ = thread.join();
+            return Err(error);
+        }
+        lease.notify_revocation(Arc::new(move || {
+            ended.stop();
+            for handle in revoked.lock().unwrap_or_else(|e| e.into_inner()).drain(..) {
+                let _ = handle.cancel();
+            }
+        }));
         Ok(Self {
             sender: Some(sender),
             thread: Some(thread),
@@ -98,18 +123,56 @@ impl Assets {
             busy,
         })
     }
-    pub fn submit(&self, job: Job) -> bool {
+    pub fn submit(&self, job: impl FnOnce() -> Job) -> bool {
         if self.busy.swap(true, Ordering::AcqRel) {
             return false;
         }
         let sent = self
             .sender
             .as_ref()
-            .is_some_and(|s| s.try_send(job).is_ok());
+            .is_some_and(|s| s.try_send(job()).is_ok());
         if !sent {
             self.busy.store(false, Ordering::Release);
         }
         sent
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::device_session_client::tests::{fixture_with_pem, session};
+
+    #[test]
+    fn tile_assets_reports_com_failure_before_accepting_jobs() {
+        let (_, client, _, _) = fixture_with_pem();
+        let origin = client.origin();
+        let mut grant = crate::device_authorization_lease::Grant::new(session(origin, u64::MAX));
+        let images = Arc::new(grant.lease(origin, 0).unwrap());
+        let art = Arc::new(grant.lease(origin, 0).unwrap());
+        let Err(error) =
+            Assets::start_with_com(client, images, art, Arc::new(Shared::default()), || {
+                windows::Win32::Foundation::E_FAIL
+            })
+        else {
+            panic!("failed COM initialization must not publish an asset worker");
+        };
+        let cause = error
+            .get_ref()
+            .and_then(|e| e.downcast_ref::<windows::core::Error>())
+            .unwrap();
+        assert_eq!(cause.code(), windows::Win32::Foundation::E_FAIL);
+    }
+
+    #[test]
+    fn tile_assets_busy_rejection_does_not_construct_job() {
+        let (_, client, _, _) = fixture_with_pem();
+        let origin = client.origin();
+        let mut grant = crate::device_authorization_lease::Grant::new(session(origin, u64::MAX));
+        let images = Arc::new(grant.lease(origin, 0).unwrap());
+        let art = Arc::new(grant.lease(origin, 0).unwrap());
+        let assets = Assets::start(client, images, art, Arc::new(Shared::default())).unwrap();
+        assets.busy.store(true, Ordering::Release);
+        assert!(!assets.submit(|| panic!("busy worker must not construct a job")));
     }
 }
 impl Drop for Assets {

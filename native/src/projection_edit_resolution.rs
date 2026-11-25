@@ -24,10 +24,9 @@ pub(super) fn read(
         return Err(Failure::Protocol(protocol::Error::Response));
     }
     if store
-        .pending(cancel)
+        .pending_for(snapshot.context(), cancel)
         .map_err(Failure::Journal)?
-        .iter()
-        .any(|ticket| ticket.context().same_key(snapshot.context()))
+        .is_some()
     {
         return Err(Failure::Journal(protocol::journal::Error::Busy));
     }

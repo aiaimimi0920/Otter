@@ -16,7 +16,7 @@ mod fields;
 mod font_picker;
 #[path = "edit_property_menus.rs"]
 mod menus;
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "edit_property_tests.rs"]
 mod tests;
 pub(super) const STROKE: u16 = 1;

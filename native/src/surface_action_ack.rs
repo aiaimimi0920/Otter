@@ -79,6 +79,14 @@ impl Ack {
     }
     /// 后续 ACK 必须仍属于同一 request；不允许另一次请求接管原动作。
     pub fn update(&mut self, bytes: &[u8], event: &ClickEvent) -> Result<(), Error> {
+        self.replace_checked(bytes, event).map(drop)
+    }
+    /// 移出旧证据供流收敛回滚；校验失败仍完整保留当前 ACK。
+    pub(crate) fn replace_checked(
+        &mut self,
+        bytes: &[u8],
+        event: &ClickEvent,
+    ) -> Result<Self, Error> {
         let next = Self::parse(bytes, event)?;
         if next.0.instance_id != self.0.instance_id
             || next.0.event_id != self.0.event_id
@@ -86,8 +94,7 @@ impl Ack {
         {
             return Err(Error::Identity);
         }
-        *self = next;
-        Ok(())
+        Ok(std::mem::replace(self, next))
     }
     pub fn request_id(&self) -> &str {
         &self.0.request_id

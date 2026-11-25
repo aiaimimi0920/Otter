@@ -26,10 +26,7 @@ impl Application {
         if let Some(record) = self.restored_session.as_mut() {
             record.transient_host = Some(unit);
         }
-        let doc = &self.documents[0];
-        if let Err(error) = install(doc) {
-            eprintln!("native-resident-start: {error}");
-        }
+        self.ensure_tray_with(install);
         Ok(())
     }
 }

@@ -31,7 +31,7 @@ impl Recovery {
         signal.recovery(true);
         let delay = Duration::from_millis((400u64 << self.attempts).min(2000));
         self.attempts += 1;
-        wait(client, lease, signal, delay)
+        wait_until(client, lease, signal, Instant::now() + delay)
     }
     pub fn confirm(
         &mut self,
@@ -47,29 +47,63 @@ impl Recovery {
         let deadline = Instant::now() + Duration::from_secs(3);
         loop {
             check(client, lease, signal)?;
-            if lease
-                .control(client)
-                .map_err(|_| Exit::Lease)?
-                .source_progress(publication, sent)
-                .map_err(Exit::Http)?
-                .is_some()
-            {
-                self.attempts = 0;
-                self.active = false;
-                signal.recovery(false);
-                return Ok(());
+            if signal.restart_media.load(Ordering::Acquire) {
+                return Err(media_restart());
             }
             if Instant::now() >= deadline {
-                return Err(Exit::Media(
-                    crate::live_relay_media_transport::Error::Media(
-                        crate::live_relay_media_socket::Error::Liveness,
-                    ),
-                ));
+                break;
             }
-            wait(client, lease, signal, Duration::from_millis(100))?;
+            let progress = lease
+                .execution_control(client)
+                .map_err(|_| Exit::Lease)?
+                .source_progress(publication, sent, deadline);
+            // 不使用停止后的水位，但不能丢掉已收到的授权终态。
+            let progress = progress_after_check(progress, || {
+                check(client, lease, signal)?;
+                if signal.restart_media.load(Ordering::Acquire) {
+                    return Err(media_restart());
+                }
+                Ok(())
+            })?;
+            let observed_at = Instant::now();
+            if observed_at >= deadline {
+                break;
+            }
+            if progress.is_some() {
+                if !signal.finish_media_recovery() {
+                    return Err(media_restart());
+                }
+                self.attempts = 0;
+                self.active = false;
+                return Ok(());
+            }
+            // 等待与 HTTP 消耗同一轮额度，不为慢响应重新开始计时。
+            wait_until(
+                client,
+                lease,
+                signal,
+                (observed_at + Duration::from_millis(100)).min(deadline),
+            )?;
         }
+        Err(media_restart())
     }
 }
+pub(super) fn media_restart() -> Exit {
+    Exit::Media(crate::live_relay_media_transport::Error::Media(
+        crate::live_relay_media_socket::Error::Liveness,
+    ))
+}
+pub(super) fn progress_after_check(
+    progress: Result<Option<u64>, live_relay_http::Error>,
+    check: impl FnOnce() -> Result<(), Exit>,
+) -> Result<Option<u64>, Exit> {
+    if let Err(error @ live_relay_http::Error::AuthorizationRequired) = progress {
+        return Err(Exit::Http(error));
+    }
+    check()?;
+    progress.map_err(Exit::Http)
+}
+
 pub(super) fn check(
     client: &crate::device_session_client::Client,
     lease: &Lease,
@@ -82,13 +116,12 @@ pub(super) fn check(
         .validate(client.origin(), now()?)
         .map_err(|_| Exit::Lease)
 }
-fn wait(
+fn wait_until(
     client: &crate::device_session_client::Client,
     lease: &Lease,
     signal: &Signal,
-    delay: Duration,
+    deadline: Instant,
 ) -> Result<(), Exit> {
-    let deadline = Instant::now() + delay;
     loop {
         check(client, lease, signal)?;
         let remaining = deadline.saturating_duration_since(Instant::now());

@@ -9,17 +9,7 @@ fn shader_modes_reject_connected_images_before_worker_and_preserve_old_request_a
     let _input = crate::desktop::loom_input_job::TEST_SERIAL.lock().unwrap();
     let _apartment = Apartment::new().unwrap();
     unsafe {
-        let instance: HINSTANCE = GetModuleHandleW(None).unwrap().into();
-        assert_ne!(
-            RegisterClassW(&WNDCLASSW {
-                hInstance: instance,
-                lpszClassName: w!("Otter.Native.Workspace"),
-                lpfnWndProc: Some(crate::desktop::procedure::window_proc),
-                ..Default::default()
-            }),
-            0
-        );
-        let _class = Class(instance);
+        let instance = crate::desktop::workspace_window_fixture::register();
         for ports in [
             vec!["mode"],
             vec!["output_mode"],

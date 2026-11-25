@@ -78,7 +78,7 @@ fn select_with(
             height as u32,
         )),
         windows: super::super::capture_windows::local_rectangles(
-            &windows,
+            windows,
             origin,
             width as u32,
             height as u32,
@@ -231,7 +231,9 @@ unsafe extern "system" fn procedure(hwnd: HWND, message: u32, wp: WPARAM, lp: LP
             state.redraw();
         }
         WM_MOUSEMOVE => {
-            state.pointer.set(Some(point));
+            if state.pointer.replace(Some(point)) == Some(point) {
+                return LRESULT(0);
+            }
             let before = state.preview();
             state
                 .hover
@@ -289,6 +291,6 @@ unsafe extern "system" fn procedure(hwnd: HWND, message: u32, wp: WPARAM, lp: LP
     LRESULT(0)
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-capture")))]
 #[path = "capture_region_release_tests.rs"]
 mod tests;

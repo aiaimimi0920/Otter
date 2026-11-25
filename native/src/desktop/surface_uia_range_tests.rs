@@ -48,6 +48,52 @@ unsafe fn range(window: &super::super::SurfaceWindow) -> IRangeValueProvider {
         .unwrap()
 }
 #[test]
+fn uia_range_focus_round_trips_through_native_slider() {
+    let _com = crate::desktop::Apartment::new().unwrap();
+    let window = mount();
+    unsafe {
+        let slider = provider(&window);
+        let fragment = slider.cast::<IRawElementProviderFragment>().unwrap();
+        let root = fragment.FragmentRoot().unwrap();
+        let property = |id| bool::try_from(&slider.GetPropertyValue(id).unwrap()).unwrap();
+        let child =
+            FindWindowExW(Some(window.hwnd), None, windows::core::w!("STATIC"), None).unwrap();
+        assert!(property(UIA_IsKeyboardFocusablePropertyId));
+        fragment.SetFocus().unwrap();
+        assert_eq!(
+            windows::Win32::UI::Input::KeyboardAndMouse::GetFocus(),
+            child
+        );
+        assert!(property(UIA_HasKeyboardFocusPropertyId));
+        // GetFocus 新建 COM 包装；同一场景节点由 AutomationId 标识。
+        assert_eq!(
+            root.GetFocus()
+                .unwrap()
+                .cast::<IRawElementProviderSimple>()
+                .unwrap()
+                .GetPropertyValue(UIA_AutomationIdPropertyId)
+                .unwrap()
+                .to_string(),
+            "slider"
+        );
+        assert!(!window.has_pending_edit());
+        assert!(window.take_click().is_none());
+        window.set_input_policy(false, false).unwrap();
+        assert!(!property(UIA_IsKeyboardFocusablePropertyId));
+        assert!(!property(UIA_HasKeyboardFocusPropertyId));
+        assert_eq!(
+            fragment.SetFocus().unwrap_err().code().0,
+            UIA_E_ELEMENTNOTENABLED as i32
+        );
+        window.set_input_policy(true, true).unwrap();
+        window.replace(scene(true)).unwrap();
+        assert_eq!(
+            fragment.SetFocus().unwrap_err().code().0,
+            UIA_E_ELEMENTNOTAVAILABLE as i32
+        );
+    }
+}
+#[test]
 fn uia_range_live_value_identity_edges_permissions_and_revocation() {
     let _com = crate::desktop::Apartment::new().unwrap();
     let window = mount();

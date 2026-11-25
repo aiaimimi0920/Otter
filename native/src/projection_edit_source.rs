@@ -64,7 +64,7 @@ struct Data {
     session: String,
     layout: Layout,
     initial: Objects,
-    snapshot: sender::snapshot::Snapshot,
+    snapshot: Arc<sender::snapshot::Snapshot>,
 }
 #[derive(Clone)]
 pub(crate) struct Frozen(Arc<Data>);
@@ -87,7 +87,7 @@ impl Frozen {
             session: session.into(),
             layout,
             initial,
-            snapshot,
+            snapshot: Arc::new(snapshot),
         }));
         value.validate()?;
         Ok(value)
@@ -126,6 +126,9 @@ impl Frozen {
     }
     pub(crate) fn same_basis(&self, other: &Self) -> bool {
         self.basis() == other.basis()
+    }
+    pub(crate) fn snapshot(&self) -> Arc<sender::snapshot::Snapshot> {
+        self.0.snapshot.clone()
     }
     pub(crate) fn frame(
         &self,
@@ -177,6 +180,6 @@ impl Serialize for Frozen {
         .serialize(serializer)
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "projection_edit_source_tests.rs"]
 mod tests;

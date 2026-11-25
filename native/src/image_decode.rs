@@ -33,8 +33,17 @@ pub struct Image {
     pub pixels: crate::pixels::Pixels,
 }
 
+enum SizePolicy {
+    Any,
+    AtMost(u32),
+    Exact(u32, u32),
+}
+
 impl Image {
     pub fn open(path: &Path) -> Result<Self> {
+        Self::open_with_cancel(path, &|| false)
+    }
+    pub(crate) fn open_with_cancel(path: &Path, stopped: &impl Fn() -> bool) -> Result<Self> {
         let mut name: Vec<u16> = path.as_os_str().encode_wide().collect();
         if name.contains(&0) {
             return Err(Error::new(E_INVALIDARG, "Image path contains NUL"));
@@ -50,17 +59,30 @@ impl Image {
                 GENERIC_READ,
                 WICDecodeMetadataCacheOnDemand,
             )?;
-            Self::decode(&factory, &decoder, None, 256 * 1024 * 1024)
+            let frame = decoder.GetFrame(0)?;
+            Self::decode_source(
+                &factory,
+                &frame.cast()?,
+                SizePolicy::Any,
+                256 * 1024 * 1024,
+                stopped,
+            )
         }
     }
     pub(crate) fn from_encoded(bytes: &[u8]) -> Result<Self> {
+        Self::from_encoded_with_cancel(bytes, &|| false)
+    }
+    pub(crate) fn from_encoded_with_cancel(
+        bytes: &[u8],
+        stopped: &impl Fn() -> bool,
+    ) -> Result<Self> {
         if bytes.is_empty() || bytes.len() > 257 * 1024 * 1024 {
             return Err(Error::new(
                 E_INVALIDARG,
                 "Encoded image exceeds input budget",
             ));
         }
-        Self::from_encoded_expected(bytes, None)
+        Self::from_encoded_limits(bytes, SizePolicy::Any, 256 * 1024 * 1024, stopped)
     }
     /// Relay 的声明尺寸必须在像素分配前核对，不能用通用图片嗅探接受伪装容器。
     pub(crate) fn from_relay_jpeg(bytes: &[u8], width: u32, height: u32) -> Result<Self> {
@@ -73,25 +95,30 @@ impl Image {
                 "Invalid relay JPEG representation",
             ));
         }
-        Self::from_encoded_expected(bytes, Some((width, height)))
+        Self::from_encoded_limits(
+            bytes,
+            SizePolicy::Exact(width, height),
+            256 * 1024 * 1024,
+            &|| false,
+        )
     }
-    fn from_encoded_expected(bytes: &[u8], expected: Option<(u32, u32)>) -> Result<Self> {
-        Self::from_encoded_limits(bytes, expected, 256 * 1024 * 1024, u32::MAX)
-    }
-    pub(crate) fn from_clipboard_history(bytes: &[u8]) -> Result<Self> {
+    pub(crate) fn from_clipboard_history(
+        bytes: &[u8],
+        stopped: &impl Fn() -> bool,
+    ) -> Result<Self> {
         if bytes.is_empty() || bytes.len() > crate::clipboard_history::MAX_IMAGE_BYTES {
             return Err(Error::new(
                 E_INVALIDARG,
                 "Clipboard image input exceeds budget",
             ));
         }
-        Self::from_encoded_limits(bytes, None, 64 * 1024 * 1024, 8192)
+        Self::from_encoded_limits(bytes, SizePolicy::AtMost(8192), 64 * 1024 * 1024, stopped)
     }
     fn from_encoded_limits(
         bytes: &[u8],
-        expected: Option<(u32, u32)>,
+        size: SizePolicy,
         limit: usize,
-        max_side: u32,
+        stopped: &impl Fn() -> bool,
     ) -> Result<Self> {
         unsafe {
             let factory: IWICImagingFactory =
@@ -104,39 +131,20 @@ impl Image {
                 std::ptr::null(),
                 WICDecodeMetadataCacheOnDemand,
             )?;
-            if expected.is_some() && decoder.GetContainerFormat()? != GUID_ContainerFormatJpeg {
+            if matches!(size, SizePolicy::Exact(..))
+                && decoder.GetContainerFormat()? != GUID_ContainerFormatJpeg
+            {
                 return Err(Error::new(E_INVALIDARG, "Relay container is not JPEG"));
             }
-            if max_side != u32::MAX {
-                let frame = decoder.GetFrame(0)?;
-                let (mut width, mut height) = (0, 0);
-                frame.GetSize(&mut width, &mut height)?;
-                if width > max_side || height > max_side {
-                    return Err(Error::new(
-                        E_INVALIDARG,
-                        "Image dimensions exceed input policy",
-                    ));
-                }
-            }
-            Self::decode(&factory, &decoder, expected, limit)
-        }
-    }
-    unsafe fn decode(
-        factory: &IWICImagingFactory,
-        decoder: &IWICBitmapDecoder,
-        expected: Option<(u32, u32)>,
-        limit: usize,
-    ) -> Result<Self> {
-        unsafe {
             let frame = decoder.GetFrame(0)?;
-            Self::decode_source(factory, &frame.cast()?, expected, limit, &|| false)
+            Self::decode_source(&factory, &frame.cast()?, size, limit, stopped)
         }
     }
     // Surface 可以传入方向变换源；普通打开及 Relay 仍使用原始帧和原始尺寸合同。
     unsafe fn decode_source(
         factory: &IWICImagingFactory,
         source: &IWICBitmapSource,
-        expected: Option<(u32, u32)>,
+        size: SizePolicy,
         limit: usize,
         stopped: &impl Fn() -> bool,
     ) -> Result<Self> {
@@ -144,7 +152,7 @@ impl Image {
             Self::decode_pixels(
                 factory,
                 source,
-                expected,
+                size,
                 limit,
                 &GUID_WICPixelFormat32bppPBGRA,
                 stopped,
@@ -160,7 +168,7 @@ impl Image {
     unsafe fn decode_pixels(
         factory: &IWICImagingFactory,
         source: &IWICBitmapSource,
-        expected: Option<(u32, u32)>,
+        size: SizePolicy,
         limit: usize,
         format: &windows::core::GUID,
         stopped: &impl Fn() -> bool,
@@ -168,11 +176,20 @@ impl Image {
         unsafe {
             let (mut width, mut height) = (0, 0);
             source.GetSize(&mut width, &mut height)?;
-            if expected.is_some_and(|size| size != (width, height)) {
-                return Err(Error::new(
-                    E_INVALIDARG,
-                    "Relay JPEG dimensions differ from metadata",
-                ));
+            match size {
+                SizePolicy::Exact(w, h) if (w, h) != (width, height) => {
+                    return Err(Error::new(
+                        E_INVALIDARG,
+                        "Relay JPEG dimensions differ from metadata",
+                    ));
+                }
+                SizePolicy::AtMost(max) if width > max || height > max => {
+                    return Err(Error::new(
+                        E_INVALIDARG,
+                        "Image dimensions exceed input policy",
+                    ));
+                }
+                _ => {}
             }
             let count = checked_image_bytes(width, height)
                 .filter(|count| *count <= limit)

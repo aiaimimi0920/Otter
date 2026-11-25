@@ -104,7 +104,7 @@ fn application_forms_poll_owns_dispatch_config_retry_snapshot_and_cleanup() {
         listener
     });
     unsafe {
-        let (_class, mut app) = fixture::application();
+        let mut app = fixture::application();
         app.authorization.borrow_mut().origin = Some(origin.clone());
         app.authorization_owner
             .start(crate::device_authorization_runtime::Task::Renew { client, store })
@@ -235,18 +235,12 @@ fn application_forms_poll_owns_dispatch_config_retry_snapshot_and_cleanup() {
         app.poll_remote_live_with(false, |_| panic!("inactive was requested twice"))
             .unwrap();
         assert!(!IsWindow(Some(parent)).as_bool());
-        let owner = app
-            .surface_windows
-            .iter_mut()
-            .next()
-            .unwrap()
-            .lifecycle()
-            .unwrap();
-        assert_eq!(
-            owner.binding().lifecycle(),
-            crate::surface_live_binding::Lifecycle::Inactive
-        );
-        assert!(!owner.disposed());
+        assert!(app.surface_windows.iter_mut().next().is_none());
+        let records = app.surface_windows.retired_records();
+        assert_eq!(records.len(), 1);
+        assert!(!records[0].uncertain() && !records[0].in_flight());
+        let hint = serde_json::to_value(&records[0]).unwrap();
+        assert_eq!(hint["binding"]["lifecycle"], "inactive");
         let listener = peer.join().unwrap();
         assert!(
             matches!(listener.accept(), Err(error) if error.kind() == std::io::ErrorKind::WouldBlock)

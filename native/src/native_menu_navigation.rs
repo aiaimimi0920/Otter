@@ -6,7 +6,7 @@ pub(super) struct State {
     pub pending: Option<usize>,
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "native_menu_navigation_tests.rs"]
 mod tests;
 impl Cascade {

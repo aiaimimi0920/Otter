@@ -139,6 +139,6 @@ pub fn connect_default(timeout: Duration) -> Result<BridgeSocket, Error> {
     loom_bridge_client::connect(&identity, timeout).map_err(Error::Connect)
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-loom")))]
 #[path = "loom_discovery_tests.rs"]
 mod tests;

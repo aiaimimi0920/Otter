@@ -73,6 +73,6 @@ impl Presentation {
         Ok(true)
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-surface")))]
 #[path = "surface_selection_reveal_tests.rs"]
 mod tests;

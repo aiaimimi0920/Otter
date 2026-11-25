@@ -10,6 +10,12 @@ fn wrapped_text_height_propagates_through_auto_container_to_following_sibling() 
         .find(|p| p.node.id() == "tail")
         .unwrap()
         .origin[1];
+    let Err(error) = owner.prepare_bounded(&scene, [100., 1000.], context(), 1) else {
+        panic!("the first pass must require feedback");
+    };
+    assert_eq!(error.code(), windows::Win32::Foundation::E_FAIL);
+    assert!(error.message().contains("did not converge"));
+    assert!(owner.reflow.is_empty(), "no feedback for an unused pass");
     let prepared = owner.prepare(&scene, [100., 1000.], context()).unwrap();
     assert!(prepared.passes() >= 2 && prepared.passes() <= 8);
     let row = prepared

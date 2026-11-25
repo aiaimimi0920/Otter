@@ -81,7 +81,7 @@ fn actual_wgc_crop_move_resize_input_and_terminal_cleanup() {
         let _dpi = Dpi(old);
         for style in [WS_POPUP, WS_OVERLAPPEDWINDOW] {
             for end in [End::Stop, End::Shrink, End::Close] {
-                let fixture = Fixture::with_style(style);
+                let mut fixture = Fixture::with_style(style);
                 PATTERN.set(true);
                 repaint(&fixture, false);
                 let target = Target::bind(fixture.root).unwrap();
@@ -187,7 +187,7 @@ fn actual_wgc_crop_move_resize_input_and_terminal_cleanup() {
                         SWP_NOMOVE | SWP_NOACTIVATE | SWP_NOZORDER,
                     )
                     .unwrap(),
-                    End::Close => DestroyWindow(fixture.root).unwrap(),
+                    End::Close => fixture.close_source(),
                 }
                 let result = finish(&mut session, &mut owner);
                 if matches!(end, End::Stop) {

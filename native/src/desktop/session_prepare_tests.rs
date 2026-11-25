@@ -110,13 +110,12 @@ fn failure_or_cancel_does_not_return_partial_batch_or_fallback_to_original_file(
 #[test]
 fn admitted_managed_file_is_opened_once_for_the_entire_batch() {
     use base64::Engine;
-    let directory =
-        std::path::PathBuf::from("C:/Users/Public/nas_home/AI/GameEditor/linshi").join(format!(
-            "otter-session-batch-{}",
-            super::super::document_state::new_unit_id()
-                .unwrap()
-                .as_str()
-        ));
+    let directory = std::env::temp_dir().join(format!(
+        "otter-session-batch-{}",
+        super::super::document_state::new_unit_id()
+            .unwrap()
+            .as_str(),
+    ));
     std::fs::create_dir(&directory).unwrap();
     let path = directory.join("source.png");
     let image = uri();
@@ -156,4 +155,32 @@ fn admitted_managed_file_is_opened_once_for_the_entire_batch() {
     drop(prepared);
     std::fs::remove_file(path).unwrap();
     std::fs::remove_dir(directory).unwrap();
+}
+
+#[test]
+fn workflow_manual_image_uses_the_checked_payload_and_keeps_the_root_boundary() {
+    let reference = uri();
+    let bytes = serde_json::to_vec(&serde_json::json!({"stickers":[{
+        "id":"one","x":0,"y":0,"w":1,"h":1,
+        "params":{"image_path":reference,"image_filename":"C:/untrusted.png"}
+    }],"links":[]}))
+    .unwrap();
+    let document = crate::session_document::decode(&bytes).unwrap();
+    let window = &document.windows[0];
+    let image = workflow_image(window, &reference, None, &AtomicBool::new(false)).unwrap();
+    assert_eq!(&image.pixels[..], &[10, 20, 30, 255]);
+    assert_eq!(
+        workflow_image(window, &reference, None, &AtomicBool::new(true))
+            .err()
+            .unwrap()
+            .code(),
+        E_ABORT
+    );
+    assert_eq!(
+        workflow_image(window, "C:/untrusted.png", None, &AtomicBool::new(false))
+            .err()
+            .unwrap()
+            .code(),
+        windows::Win32::Foundation::E_ACCESSDENIED
+    );
 }

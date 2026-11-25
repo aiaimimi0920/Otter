@@ -37,8 +37,7 @@ impl Application {
                 "Frozen removal source changed or workspace busy",
             ));
         }
-        let (receipt, data) = self.capture_session_snapshot()?;
-        drop(data); // 删除只需要编辑凭证和原文，不让 worker 持有或编码图片。
+        let receipt = self.capture_session_receipt()?;
         let job = save_snapshot::job::Job::start_library_remove(
             choice.source,
             choice.kind,
@@ -78,33 +77,50 @@ impl Application {
         {
             return Err(Error::new(E_ABORT, "Reference source or target changed"));
         }
-        let (receipt, data) = self.capture_session_snapshot()?;
-        let job = if let Some(kind) = clear {
-            let source = data.original.clone();
-            drop(data);
-            save_snapshot::job::Job::start_library_clear(
-                source,
-                kind,
-                self.execution_wake.callback(),
+        let wake = self.execution_wake.callback();
+        let (receipt, job) = if let Some(kind) = clear {
+            (
+                self.capture_session_receipt()?,
+                save_snapshot::job::Job::start_library_clear(request.source, kind, wake),
             )
         } else if request.action == Action::Recycle {
-            save_snapshot::job::Job::start_recycle(
-                data,
-                self.new_recycle_request(request.unit)?,
-                self.execution_wake.callback(),
+            let (receipt, data) = self.capture_frozen_snapshot(&request.unit)?;
+            (
+                receipt,
+                save_snapshot::job::Job::start_recycle(
+                    data,
+                    self.new_recycle_request(request.unit)?,
+                    wake,
+                ),
             )
         } else {
-            let (id, timestamp) = entry_identity()?;
-            save_snapshot::job::Job::start_reference(
-                data,
-                request.unit,
-                request.action == crate::desktop::reference_ui::Action::Remove,
-                id,
-                timestamp,
-                self.execution_wake.callback(),
+            let (receipt, addition) = if request.action == Action::Set {
+                let (receipt, data) = self.capture_frozen_snapshot(&request.unit)?;
+                let (entry_id, created_at) = entry_identity()?;
+                (
+                    receipt,
+                    Some(save_snapshot::job::ReferenceAddition {
+                        data,
+                        entry_id,
+                        created_at,
+                    }),
+                )
+            } else {
+                (self.capture_session_receipt()?, None)
+            };
+            (
+                receipt,
+                save_snapshot::job::Job::start_reference(
+                    request.source,
+                    request.unit,
+                    addition,
+                    wake,
+                ),
             )
-        }
-        .map_err(|error| Error::new(E_FAIL, format!("Cannot start reference worker: {error}")))?;
+        };
+        let job = job.map_err(|error| {
+            Error::new(E_FAIL, format!("Cannot start reference worker: {error}"))
+        })?;
         self.save_job = Some((receipt, job));
         Ok(())
     }
@@ -116,7 +132,11 @@ impl Application {
         {
             return Ok(());
         }
-        let Some(result) = self.save_job.as_mut().and_then(|(_, job)| job.poll()) else {
+        let Some(result) = self
+            .save_job
+            .as_mut()
+            .and_then(|(_, job)| job.poll_library_update())
+        else {
             return Ok(());
         };
         let (receipt, job) = self.save_job.take().unwrap();
@@ -126,25 +146,21 @@ impl Application {
         {
             return Err(Error::new(E_ABORT, "Recycle policy changed during pruning"));
         }
-        let output = result.map_err(|message| Error::new(E_ABORT, message))?;
-        if output.staged.is_some()
-            || output.candidate.expected_revision != output.candidate.revision
-        {
-            return Err(Error::new(E_ABORT, "Reference update cancelled or stale"));
-        }
-        // 成功的无变更维护不发布任何字节；首次呈现等模型变化不能把它变成阻塞宿主的失败。
-        // worker取消、策略变化和异常候选仍在前面拒绝；真正写库仍复核完整Receipt。
-        if !output.library_changed {
+        // 无变更不发布字节；策略变化和 worker 取消仍拒绝，真正写库仍复核完整 Receipt。
+        let Some(candidate) = result.map_err(|message| Error::new(E_ABORT, message))? else {
             return Ok(());
-        }
-        if !receipt.matches(self) || self.exit_requested.get() {
+        };
+        if candidate.expected_revision != candidate.revision
+            || !receipt.matches(self)
+            || self.exit_requested.get()
+        {
             return Err(Error::new(E_ABORT, "Reference update cancelled or stale"));
         }
         // Receipt 已验证来源/全工作区/坐标；最后核验后不泵消息，发布不触及 HWND 和磁盘。
         self.restored_session
             .as_mut()
             .unwrap()
-            .edit_original(output.candidate.bytes.into());
+            .edit_original(candidate.bytes.into());
         self.saved_state = None;
         Ok(())
     }
@@ -204,7 +220,7 @@ fn entry_identity() -> Result<(String, String)> {
     ))
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "application_library_clear_tests.rs"]
 mod clear_tests;
 #[path = "application_reference_smoke.rs"]

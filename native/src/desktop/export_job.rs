@@ -29,11 +29,42 @@ fn snapshot_if_current(
     super::display_snapshot::capture(canvas, frame)
 }
 
-pub(super) struct ExportJob(Option<JoinHandle<Result<(), String>>>);
+pub(super) struct ExportJob {
+    worker: Option<JoinHandle<Result<(), String>>>,
+    _permit: crate::edit_worker_budget::Permit<'static>,
+}
+impl ExportJob {
+    pub(super) fn start(
+        operation: impl FnOnce() -> Result<(), String> + Send + 'static,
+    ) -> Result<Self, String> {
+        let permit = crate::edit_worker_budget::Permit::acquire_output()
+            .ok_or("Native output worker limit reached")?;
+        let worker = std::thread::Builder::new()
+            .name("otter-export".into())
+            .spawn(operation)
+            .map_err(|error| error.to_string())?;
+        Ok(Self {
+            worker: Some(worker),
+            _permit: permit,
+        })
+    }
+
+    pub(super) fn is_finished(&self) -> bool {
+        self.worker.as_ref().is_some_and(JoinHandle::is_finished)
+    }
+
+    pub(super) fn complete(mut self) -> Result<(), String> {
+        self.worker
+            .take()
+            .unwrap()
+            .join()
+            .unwrap_or_else(|_| Err("Export worker failed".into()))
+    }
+}
 impl Drop for ExportJob {
     fn drop(&mut self) {
         // 不把未结束的文件写入泄漏成无人负责的后台任务。退出等待本次导出完成。
-        if let Some(worker) = self.0.take() {
+        if let Some(worker) = self.worker.take() {
             let _ = worker.join();
         }
     }
@@ -105,43 +136,35 @@ unsafe fn spawn(
     state: &State,
     operation: impl FnOnce() -> Result<(), String> + Send + 'static,
 ) {
-    match std::thread::Builder::new()
-        .name("otter-export".into())
-        .spawn(operation)
-    {
-        Ok(worker) => {
-            *state.export.borrow_mut() = Some(ExportJob(Some(worker)));
-            if SetTimer(Some(hwnd), EXPORT_TIMER, 100, None) == 0 {
-                // 无法调度完成回执时同步收尾，不能遗留无人观察的线程。
-                finish(hwnd, state, true);
-            }
+    if SetTimer(Some(hwnd), EXPORT_TIMER, 100, None) == 0 {
+        report(hwnd, "Cannot schedule export result");
+        return;
+    }
+    match ExportJob::start(operation) {
+        Ok(job) => *state.export.borrow_mut() = Some(job),
+        Err(error) => {
+            let _ = KillTimer(Some(hwnd), EXPORT_TIMER);
+            report(hwnd, &format!("Cannot start export: {error}"));
         }
-        Err(error) => report(hwnd, &format!("Cannot start export: {error}")),
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-capture")))]
 #[path = "export_job_tests.rs"]
 mod tests;
 
-pub(super) unsafe fn finish(hwnd: HWND, state: &State, force: bool) {
-    let ready = state.export.borrow().as_ref().is_some_and(|job| {
-        job.0
-            .as_ref()
-            .is_some_and(|thread| force || thread.is_finished())
-    });
+pub(super) unsafe fn finish(hwnd: HWND, state: &State) {
+    let ready = state
+        .export
+        .borrow()
+        .as_ref()
+        .is_some_and(ExportJob::is_finished);
     if !ready {
         return;
     }
-    let mut job = state.export.borrow_mut().take().unwrap();
+    let job = state.export.borrow_mut().take().unwrap();
     let _ = KillTimer(Some(hwnd), EXPORT_TIMER);
-    let result = job
-        .0
-        .take()
-        .unwrap()
-        .join()
-        .unwrap_or_else(|_| Err("Export worker failed".into()));
-    if let Err(error) = result {
+    if let Err(error) = job.complete() {
         report(hwnd, &error);
     }
 }

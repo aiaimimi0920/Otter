@@ -39,8 +39,12 @@ impl Job {
             worker: Some(worker),
         })
     }
+    pub(super) fn deadline(&self) -> Option<std::time::Instant> {
+        self.worker.as_ref()?;
+        super::loom_execution_signal::reap_deadline(&self.ready)
+    }
     pub fn poll(&mut self) -> Option<Result<Arc<Source>, String>> {
-        if !self.ready.load(Ordering::Acquire) && !self.worker.as_ref()?.is_finished() {
+        if !self.worker.as_ref()?.is_finished() {
             return None;
         }
         Some(

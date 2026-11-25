@@ -199,7 +199,7 @@ fn batch_bakes_keep_each_parsed_node_style_and_identity() {
     second["opacityNormal"] = json!(0.25);
     second["imageEditState"] = json!({"cornerRadius":4});
     document["stickers"].as_array_mut().unwrap().push(second);
-    let candidate = VectorCandidate::prepare(
+    let mut candidate = VectorCandidate::prepare(
         prepare(serde_json::to_vec(&document).unwrap(), None, &cancel).unwrap(),
         &cancel,
     )
@@ -221,6 +221,20 @@ fn batch_bakes_keep_each_parsed_node_style_and_identity() {
     // 保留单张公共入口的身份校验；不存在的节点不能复用批量路径中的其它图片。
     assert!(candidate
         .bake_source_png(&UnitId::parse("missing").unwrap(), &cancel)
+        .is_err());
+    candidate.vectors.swap(0, 1);
+    assert!(candidate
+        .prepare_workflow_snapshot(&catalog, &cancel)
+        .is_err());
+    candidate.vectors.swap(0, 1);
+    candidate.candidate.images.swap(0, 1);
+    assert!(candidate
+        .prepare_workflow_snapshot(&catalog, &cancel)
+        .is_err());
+    candidate.candidate.images.swap(0, 1);
+    candidate.candidate.placements.swap(0, 1);
+    assert!(candidate
+        .prepare_workflow_snapshot(&catalog, &cancel)
         .is_err());
 }
 

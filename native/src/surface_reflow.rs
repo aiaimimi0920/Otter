@@ -44,6 +44,15 @@ impl<'scene> NativeMeasure<'scene, '_> {
         available: [f32; 2],
         context: Context,
     ) -> Result<PreparedScene<'scene>> {
+        self.prepare_bounded(scene, available, context, MAX_PASSES)
+    }
+    pub(super) fn prepare_bounded(
+        &mut self,
+        scene: &'scene Scene,
+        available: [f32; 2],
+        context: Context,
+        max_passes: usize,
+    ) -> Result<PreparedScene<'scene>> {
         if self.styles.get(scene.root()).is_none() || !valid(available) {
             return Err(invalid());
         }
@@ -55,7 +64,7 @@ impl<'scene> NativeMeasure<'scene, '_> {
             cache.clear();
         }
         self.intrinsic(scene.root(), available, context, 1)?;
-        for pass in 1..=MAX_PASSES {
+        for pass in 1..=max_passes {
             let tree = Tree::build(scene, available, context, self)
                 .map_err(|_| Error::new(E_FAIL, "Surface tree layout failed"))?;
             let text = self.text_frame(&tree)?;
@@ -84,6 +93,10 @@ impl<'scene> NativeMeasure<'scene, '_> {
                     passes: pass,
                 });
             }
+            // 最后一轮仍允许收敛，但失败时不再计算无人消费的下一轮固有尺寸。
+            if pass == max_passes {
+                break;
+            }
             self.reflow = next;
             self.image_reflow = images;
             self.containers.clear();
@@ -94,7 +107,7 @@ impl<'scene> NativeMeasure<'scene, '_> {
         }
         Err(Error::new(
             E_FAIL,
-            "Surface text/image reflow did not converge within 8 passes",
+            format!("Surface text/image reflow did not converge within {max_passes} passes"),
         ))
     }
 }

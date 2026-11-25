@@ -54,6 +54,73 @@ fn workflow_ack_requires_protocol_request_and_workflow_identity() {
 }
 
 #[test]
+fn selective_workflow_ack_validates_complete_wire_reply() {
+    use exchange::Error;
+    let cancel = AtomicBool::new(false);
+    let saved = br#"{"documentRevision":1,"stickers":[],"links":[]}"#;
+    let snapshot = workflow_snapshot::prepare(saved, 1, &cancel, |_, _| unreachable!()).unwrap();
+    let mut batch = Batch::prepare(&snapshot, saved, &cancel).unwrap();
+    let budget = Budget::new(4096);
+    let request = batch.current(&budget, 4096, &cancel).unwrap().unwrap();
+    let prefix = format!(
+        r#"{{"protocolVersion":"loom.hook.v1","requestId":"{}","status":"succeeded""#,
+        request.id()
+    );
+    let payload = "A".repeat(512 * 1024);
+    let data = r#","data":{"workflowId":"hook-live"}"#;
+    let reply = |extra: &str| format!("{prefix}{extra}}}");
+    let deep_value = format!("{}0{}", "[".repeat(130), "]".repeat(130));
+    let cases = [
+        (
+            reply(&format!(
+                r#"{data},"unrelated":{{"image":"{payload}","parts":[null,true,5,4.2,[]]}}"#
+            )),
+            Ok(true),
+        ),
+        (
+            reply(
+                r#","data":{"workflowId":"discard","workflowId":"hook-\u006cive"},"method":"event","method":null"#,
+            ),
+            Ok(true),
+        ),
+        (reply(&format!(r#"{data},"method":false"#)), Ok(false)),
+        (
+            reply(&format!(
+                r#"{data},"requestId":{{"unexpected":"{payload}"}}"#
+            )),
+            Ok(false),
+        ),
+        (
+            reply(&format!(r#"{data},"data":[]"#)),
+            Err(Error::InvalidResponse),
+        ),
+        (
+            reply(&format!(r#"{data},"status":false"#)),
+            Err(Error::InvalidResponse),
+        ),
+        (
+            reply(&format!(r#"{data},"status":"cancelled""#)),
+            Err(Error::Rejected),
+        ),
+        (reply(&format!(r#"{data},"unused":"\uD800""#)), Ok(false)),
+        (reply(&format!(r#"{data},"unused":1e999"#)), Ok(false)),
+        (
+            reply(&format!(r#"{data},"unused":{deep_value}"#)),
+            Ok(false),
+        ),
+        (format!("{} null", reply(data)), Ok(false)),
+        ("[1,{},null]".into(), Ok(false)),
+    ];
+    for (index, (bytes, expected)) in cases.into_iter().enumerate() {
+        assert_eq!(
+            exchange::response(bytes.as_bytes(), request),
+            expected,
+            "case {index}"
+        );
+    }
+}
+
+#[test]
 fn workflow_exchange_validates_remote_identity_and_does_not_advance_batch() {
     for mode in ["success", "wrong-workflow", "rejected", "cancel"] {
         let (listener, identity, config) = fixture();

@@ -33,7 +33,8 @@ fn live_save_receipt_rejects_appearance_change_then_snapshot_and_freeze_reopen_k
         app.workspace
             .set_port_visibility(&id, value.clone())
             .unwrap();
-        let path = save_publish::smoke_destination().unwrap();
+        let fixture = smoke_session_fixture::Directory::new().unwrap();
+        let path = fixture.target();
         app.request_save_new(path).unwrap();
         let output = save::prepared(&mut app).unwrap();
         let decoded = crate::session_document::decode(&output.candidate.bytes).unwrap();

@@ -311,19 +311,25 @@ impl Presentation {
             self.selection = None;
         }
     }
-    pub fn selected_text(&self) -> Result<Option<String>> {
-        let Some(selection) = self
+    fn copyable_text_range(&self) -> Option<(&TextItem, Range<u32>)> {
+        let selection = self
             .selection
             .as_ref()
-            .filter(|s| !s.cross_node() && s.anchor != s.focus)
-        else {
-            return Ok(None);
-        };
+            .filter(|s| !s.cross_node() && s.anchor != s.focus)?;
         self.text
             .items()
             .iter()
             .find(|item| item.node_id() == selection.node && item.selectable())
-            .map(|item| item.layout().selected_text(selection.range()))
+            .map(|item| (item, selection.range()))
+    }
+    pub(crate) fn has_copyable_text(&self) -> bool {
+        // 布局来自合法 UTF-16；范围合法时，判定无需转码或分配字符串。
+        self.copyable_text_range()
+            .is_some_and(|(item, range)| item.layout().validate_range(range).is_ok())
+    }
+    pub fn selected_text(&self) -> Result<Option<String>> {
+        self.copyable_text_range()
+            .map(|(item, range)| item.layout().selected_text(range))
             .transpose()
     }
 }

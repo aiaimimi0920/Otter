@@ -15,8 +15,11 @@ impl Application {
         self.shader_installation = installation;
     }
 }
-fn rejected() -> Error {
-    Error::new(E_FAIL, "Shader startup application smoke failed")
+fn rejected(stage: &str) -> Error {
+    Error::new(
+        E_FAIL,
+        format!("Shader startup application smoke failed: {stage}"),
+    )
 }
 fn modules_absent() -> bool {
     unsafe {
@@ -32,9 +35,9 @@ pub(super) unsafe fn smoke(
         return Ok(());
     };
     if !modules_absent() {
-        return Err(rejected());
+        return Err(rejected("legacy module loaded before startup"));
     }
-    let lease = crate::pixels::reserve(4).ok_or_else(rejected)?;
+    let lease = crate::pixels::reserve(4).ok_or_else(|| rejected("input pixel budget"))?;
     let state = State::new(
         Some(Image {
             width: 1,
@@ -61,13 +64,13 @@ pub(super) unsafe fn smoke(
         capability_job::Source::Fixed(identity),
         app.execution_wake.callback(),
     )
-    .map_err(|_| rejected())?;
+    .map_err(|_| rejected("start catalog job"))?;
     let catalog = loop {
         if let Some(result) = job.poll() {
-            break Rc::new(result.map_err(|_| rejected())?);
+            break Rc::new(result.map_err(|_| rejected("read catalog"))?);
         }
         if Instant::now() >= deadline {
-            return Err(rejected());
+            return Err(rejected("catalog deadline"));
         }
         thread::sleep(Duration::from_millis(1));
     };
@@ -78,9 +81,9 @@ pub(super) unsafe fn smoke(
         .iter()
         .filter_map(crate::loom_capability::Capability::new)
         .find(|art| art.id == "shader-startup" && art.runtime().shader)
-        .ok_or_else(rejected)?;
-    let parameters =
-        crate::loom_parameter_state::Parameters::new(&capability).map_err(|_| rejected())?;
+        .ok_or_else(|| rejected("missing shader capability"))?;
+    let parameters = crate::loom_parameter_state::Parameters::new(&capability)
+        .map_err(|_| rejected("admit parameters"))?;
     let mut selection = Selection {
         execution: Default::default(),
         identity: crate::desktop::document_state::new_unit_id()?,
@@ -95,10 +98,10 @@ pub(super) unsafe fn smoke(
             .selected_art
             .borrow_mut()
             .as_mut()
-            .ok_or_else(rejected)?
+            .ok_or_else(|| rejected("missing shader selection"))?
             .parameters
             .set("gain", Some(serde_json::json!(gain)))
-            .map_err(|_| rejected())?;
+            .map_err(|_| rejected("set gain"))?;
         let document = &app.documents[0];
         crate::desktop::context_menu::execute(
             document.window.0,
@@ -118,31 +121,65 @@ pub(super) unsafe fn smoke(
             {
                 break;
             }
-            if state.preparation_error.borrow().is_some() || Instant::now() >= deadline {
-                return Err(rejected());
+            if state.preparation_error.borrow().is_some() {
+                return Err(rejected(&format!(
+                    "iteration={iteration} input preparation"
+                )));
+            }
+            if Instant::now() >= deadline {
+                return Err(rejected(&format!(
+                    "iteration={iteration} deadline status={status:?}"
+                )));
             }
             thread::sleep(Duration::from_millis(1));
         }
-        if !app.executions.is_idle() || !modules_absent() {
-            return Err(rejected());
+        if !app.executions.is_idle() {
+            return Err(rejected(&format!(
+                "iteration={iteration} registry still owned"
+            )));
+        }
+        if !modules_absent() {
+            return Err(rejected(&format!(
+                "iteration={iteration} legacy module loaded"
+            )));
         }
         let results = app.documents[0].state.execution_results.borrow();
         if results.status() != Status::Completed {
-            return Err(rejected());
+            // Execution commit maps errors to stable local messages, not raw peer data.
+            return Err(rejected(&format!(
+                "iteration={iteration} commit status={:?}: {}",
+                results.status(),
+                results.error().unwrap_or("no result error")
+            )));
         }
-        let image = results.image_source("output").ok_or_else(rejected)?.image;
-        if *image.pixels != expected || image.width != 1 || image.height != 1 {
-            return Err(rejected());
+        let image = results
+            .image_source("output")
+            .ok_or_else(|| rejected("missing formal output"))?
+            .image;
+        if image.width != 1 || image.height != 1 {
+            return Err(rejected(&format!(
+                "iteration={iteration} formal image size={}x{}",
+                image.width, image.height
+            )));
         }
-        let decoded = Image::from_encoded(image.encoded_png().ok_or_else(rejected)?)?;
+        if *image.pixels != expected {
+            return Err(rejected(&format!(
+                "iteration={iteration} formal pixels={:?}, expected={expected:?}",
+                image.pixels.get(..4)
+            )));
+        }
+        let decoded =
+            Image::from_encoded(image.encoded_png().ok_or_else(|| rejected("missing PNG"))?)?;
         if *decoded.pixels != expected {
-            return Err(rejected());
+            return Err(rejected(&format!(
+                "iteration={iteration} PNG pixel mismatch"
+            )));
         }
         println!("native-shader-product-smoke: iteration={iteration} menu=true formal-input=true uniforms=true child=true committed=true png=true parent-loaded=false cache-hit={} first-fetch={}", iteration > 0, iteration == 0);
     }
     app.input_jobs.shutdown();
     if !app.execution_jobs.shutdown().is_empty() {
-        return Err(rejected());
+        return Err(rejected("execution shutdown had unsettled jobs"));
     }
     Ok(())
 }

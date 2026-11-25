@@ -105,9 +105,9 @@ impl Snapshot {
             return Err(Error::Identity);
         }
         self.document.validate().map_err(|_| Error::Format)?;
+        // 真实尺寸的视图已完整校验 visible，无需再构造固定 1×1 的副本。
         self.editor_view()?;
         self.to_view()?;
-        self.view(Size::new(1.0, 1.0).map_err(|_| Error::Format)?)?;
         if serde_json::to_vec(self).map_or(true, |v| v.len() > MAX_RECORD - 128) {
             return Err(Error::Limit);
         }
@@ -133,6 +133,15 @@ impl Snapshot {
     }
     pub fn conflict(&self) -> Option<Code> {
         self.conflict
+    }
+    /// Status-only comparison on an already validated snapshot, not a submit diff.
+    pub(crate) fn visible_differs_from_authority(&self) -> bool {
+        !self.visible.iter().eq(self
+            .document
+            .objects()
+            .iter()
+            .filter(|(_, object)| !object.value().is_null())
+            .map(|(id, object)| (id, object.value())))
     }
     pub fn suspended(&self) -> Option<Suspension> {
         self.suspended

@@ -8,7 +8,7 @@ function runQuality(tool, { root = process.cwd(), execute = spawnSync, env = pro
   const reportPath = path.join(directory, 'results.json');
   const commands = {
     lines: [process.execPath, ['scripts/effective-code-lines.mjs', '--mode', 'ratchet', '--json', reportPath]],
-    format: ['cargo', ['fmt', '--check', '--manifest-path', 'native/Cargo.toml', '--', '--color', 'never']],
+    format: ['cargo', ['fmt', '--all', '--check', '--manifest-path', 'native/Cargo.toml', '--', '--color', 'never']],
   };
   if (!Object.hasOwn(commands, tool)) throw new Error('Unknown quality tool.');
   fs.mkdirSync(directory, { recursive: true });

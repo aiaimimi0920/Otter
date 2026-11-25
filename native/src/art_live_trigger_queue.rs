@@ -147,18 +147,36 @@ impl Queue {
         }
         s.phase = Phase::Confirmed;
     }
-    pub fn reject(&self, unknown: bool) {
+    pub fn reject_configure(&self, rejected: &Registration) {
         let mut s = self.state();
+        if s.closed
+            || s.paused
+            || s.registration
+                .as_ref()
+                .is_none_or(|r| !Arc::ptr_eq(&r.gate, &rejected.gate))
+        {
+            return;
+        }
+        rejected.gate.stop();
+        if !matches!(s.command, Some(Command::Stop(_))) {
+            s.phase = Phase::Rejected;
+        }
+    }
+    /// Take only an explicitly queued reduction before the worker exits. Never requeue it.
+    pub fn reject_terminal(&self, allow_stop: bool) -> Option<Registration> {
+        let mut s = self.state();
+        let command = s.command.take();
         if let Some(r) = &s.registration {
             r.gate.stop();
         }
         s.ticket = None;
-        s.command = None;
-        s.phase = if unknown {
-            Phase::Unknown
-        } else {
-            Phase::Rejected
-        };
+        s.delivered = false;
+        s.ack_sent = false;
+        s.phase = Phase::Unknown;
+        match command {
+            Some(Command::Stop(r)) if allow_stop && !s.closed && !s.paused => Some(r),
+            _ => None,
+        }
     }
     /// 媒体/控制失联后须新用户授权；重连不恢复旧注册。
     pub fn retire(&self) {
@@ -279,6 +297,6 @@ impl Queue {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-live")))]
 #[path = "art_live_trigger_queue_tests.rs"]
 mod tests;

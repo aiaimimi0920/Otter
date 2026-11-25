@@ -116,10 +116,14 @@ impl Session {
                     self.pending = false;
                     self.started = now;
                     self.state = State::Loading;
+                    changed = true;
                 }
-                Err(_) => self.state = State::Unavailable,
+                Err(_) => {
+                    // 提供方仍占用许可时继续节流重试，但不重复重建同一个不可用菜单。
+                    changed |= self.state != State::Unavailable;
+                    self.state = State::Unavailable;
+                }
             }
-            changed = true;
         }
         changed
     }

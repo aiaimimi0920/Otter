@@ -180,6 +180,6 @@ impl Request {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-capture")))]
 #[path = "clipboard_placement_tests.rs"]
 mod tests;

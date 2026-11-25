@@ -67,12 +67,12 @@ impl Application {
                     .iter()
                     .filter(|doc| doc.is_alive())
                     .find_map(|doc| {
-                        let canvas = doc.state.canvas.borrow();
-                        let owner = doc.state.projection_edit.borrow();
-                        let owner = owner.as_ref()?;
-                        let snapshot = owner.capture(&canvas.editor);
                         let mut preference = doc.state.projection_mode.borrow_mut();
                         let choice = preference.as_mut()?;
+                        let owner = doc.state.projection_edit.borrow();
+                        let owner = owner.as_ref()?;
+                        let canvas = doc.state.canvas.borrow();
+                        let snapshot = owner.authoritative();
                         if !choice.stamp.same_document(&canvas.editor)
                             || choice.mode == snapshot.document().mode()
                         {
@@ -80,8 +80,8 @@ impl Application {
                             return None;
                         }
                         if choice.submitted
-                            || snapshot.suspended().is_some()
                             || snapshot.role() != crate::projection_edit::workspace::Role::Source
+                            || !owner.can_submit(&canvas.editor)
                         {
                             return None;
                         }
@@ -130,7 +130,9 @@ impl Application {
         action: Action,
     ) -> bool {
         let result = (|| {
-            if !self.projection_edit_available() {
+            let available = self.projection_edit_available();
+            let automatic = matches!(action, Action::Automatic);
+            if !available && !automatic {
                 return Err(stale());
             }
             let doc = self
@@ -144,6 +146,12 @@ impl Application {
                 .filter(|owner| owner.stamp() == selection.stamp)
                 .ok_or_else(stale)?;
             let snapshot = owner.capture(&doc.state.canvas.borrow().editor);
+            if automatic && !crate::projection_delivery_runtime::edit::automatic(&snapshot) {
+                return Ok(None);
+            }
+            if !available {
+                return Err(stale());
+            }
             if snapshot.suspended().is_some()
                 || self
                     .restored_session
@@ -228,15 +236,15 @@ impl Application {
                 action,
             };
             let job = Job::start_edit(configuration, lease, input).map_err(|_| stale())?;
-            Ok(Pending {
+            Ok(Some(Pending {
                 fence,
                 job,
                 cancelled: false,
                 remaining,
-            })
+            }))
         })();
         match result {
-            Ok(pending) => {
+            Ok(Some(pending)) => {
                 self.projection_edit
                     .1
                     .block(&self.workspace, &selection.unit);
@@ -245,6 +253,7 @@ impl Application {
                 self.edit_status("正在提交协作修改…");
                 true
             }
+            Ok(None) => false,
             Err(error) => {
                 self.edit_error(&format!("协作提交未启动：{error}"));
                 false

@@ -11,7 +11,6 @@ use crate::{
 
 pub(super) struct Fixture {
     pub app: Application,
-    _class: Class,
     pub store: Store,
     pub ticket: Option<Ticket>,
     pub origin: String,
@@ -155,7 +154,7 @@ impl Fixture {
             }
             listener
         });
-        let (class, mut app) = application();
+        let mut app = application();
         app.install_workspace_checkpoint(Some(Profile::open(files.root()).unwrap()), false)
             .unwrap();
         until(&mut app, |app| {
@@ -184,7 +183,6 @@ impl Fixture {
         app.process_authorization();
         Self {
             app,
-            _class: class,
             store,
             ticket: None,
             origin,

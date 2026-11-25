@@ -1,4 +1,4 @@
-//! Application 测试的真实回环 TLS 服务；仅签发测试源码，临时身份/CA 保留在 linshi。
+//! Application 测试的真实回环 TLS 服务；仅签发测试源码，临时身份和 CA 写入独立测试目录。
 use crate::device_session_client::tests::{accept, fixture_with_host, reply, request};
 use crate::{
     art_execution_grant::wire,
@@ -90,11 +90,8 @@ impl Peer {
         // listener 仅绑 IPv4；配置重解析不能先对无 listener 的 ::1 各等两秒。
         let (listener, client, tls, pem) = fixture_with_host("127.0.0.1");
         let origin = client.origin().to_owned();
-        let root = PathBuf::from(
-            "C:/Users/Public/nas_home/AI/GameEditor/linshi/otter-native-v450-local-application",
-        )
-        .join(format!(
-            "application-peer-{:?}",
+        let root = std::env::temp_dir().join(format!(
+            "otter-application-peer-{:?}",
             unsafe { windows::Win32::System::Com::CoCreateGuid() }.unwrap()
         ));
         std::fs::create_dir(&root).unwrap();

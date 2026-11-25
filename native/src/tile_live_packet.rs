@@ -54,6 +54,6 @@ pub(crate) fn decode(
         image,
     })
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-live")))]
 #[path = "tile_live_packet_tests.rs"]
 mod tests;

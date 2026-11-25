@@ -113,6 +113,38 @@ fn cancelled_pending_session_and_owner_close_do_not_hide_source() {
 }
 
 #[test]
+fn unarmed_source_cannot_be_reacquired_between_retirement_request_and_ack() {
+    let window = Window::new();
+    let target = window.target();
+    let before = window.record();
+    let mut owner = owner();
+    let abandoned = owner.acquire(target.clone()).unwrap();
+    let ticket = abandoned.source.ticket.borrow().clone();
+    advance(&mut owner, |_| ticket.ready()); // 登记完成，但是原使用方从未尝试隐藏。
+    assert!(!abandoned.source.armed.get());
+    drop(abandoned);
+    // 与 Owner::poll 的无使用方分支相同，先设置退休意图、稍后等待 ACK。
+    assert_eq!(ticket.retire().unwrap_err().code(), RETIREMENT_PENDING);
+    assert!(!ticket.retired());
+    assert!(matches!(owner.acquire(target.clone()), Err(error)
+        if error.to_string() == "Live recovery source is retiring"));
+    assert_eq!(window.record(), before);
+    advance(&mut owner, Owner::finished);
+    assert!(ticket.retired());
+
+    owner.journal = Some(Journal::fixture());
+    let fresh = owner.acquire(target).unwrap();
+    advance(&mut owner, |_| {
+        fresh.poll().unwrap();
+        fresh.source.armed.get()
+    });
+    assert_ne!(window.record(), before);
+    drop(fresh);
+    advance(&mut owner, Owner::finished);
+    assert_eq!(window.record(), before);
+}
+
+#[test]
 fn vanished_protected_source_finishes_without_retaining_idle_helper() {
     let window = Window::new();
     let mut owner = owner();

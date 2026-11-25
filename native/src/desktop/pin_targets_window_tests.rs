@@ -1,5 +1,19 @@
 //! 用真实 LISTBOX 消息验证窄头行、稳定 HWND、无变化不重绘及草稿事件，不使用用户设备。
 use super::*;
+unsafe extern "system" fn count_selection_queries(
+    hwnd: HWND,
+    msg: u32,
+    wp: WPARAM,
+    lp: LPARAM,
+    _: usize,
+    data: usize,
+) -> LRESULT {
+    if msg == LB_GETSEL {
+        let count = unsafe { &*(data as *const Cell<usize>) };
+        count.set(count.get() + 1);
+    }
+    unsafe { DefSubclassProc(hwnd, msg, wp, lp) }
+}
 #[test]
 fn empty_catalog_click_is_safe_and_loaded_names_are_painted() {
     unsafe {
@@ -182,6 +196,7 @@ unsafe fn painted_control(hwnd: HWND) -> (usize, Vec<u8>) {
 }
 #[test]
 fn picker_preserves_native_selection_during_idle_refresh_and_emits_only_draft_events() {
+    let queries = Cell::new(0usize);
     unsafe {
         let owner = CreateWindowExW(
             WS_EX_TOOLWINDOW,
@@ -256,16 +271,39 @@ fn picker_preserves_native_selection_during_idle_refresh_and_emits_only_draft_ev
         );
         ValidateRect(Some(list), None).ok().unwrap();
         ValidateRect(Some(hwnd), None).ok().unwrap();
+        assert!(SetWindowSubclass(
+            list,
+            Some(count_selection_queries),
+            2,
+            &queries as *const _ as usize
+        )
+        .as_bool());
         for _ in 0..16 {
-            menu.update(&rows, false, true, false);
+            menu.update_draft(&rows, Some(&BTreeMap::new()), false, true, false);
         }
+        let removed = RemoveWindowSubclass(list, Some(count_selection_queries), 2);
+        assert!(removed.as_bool());
+        assert_eq!(queries.get(), 0);
         assert_eq!(menu.0.hwnd.get(), Some(hwnd));
         assert!(!GetUpdateRect(list, None, false).as_bool());
         assert!(!GetUpdateRect(hwnd, None, false).as_bool());
         let before = painted_row(&menu, list);
         let mut checked_rows = rows.clone();
         checked_rows[0].checked = true;
-        menu.update(&checked_rows, false, true, false);
+        menu.update_draft(
+            &rows,
+            Some(&[("a".into(), true)].into()),
+            false,
+            true,
+            false,
+        );
+        let mut reordered_commands = checked_rows.clone();
+        reordered_commands[0].command += 100;
+        menu.update(&reordered_commands, false, true, false);
+        assert_eq!(
+            menu.0.rows.borrow()[0].command,
+            reordered_commands[0].command
+        );
         let after = painted_row(&menu, list);
         assert_eq!(rect(hwnd), bounds);
         let width = (bounds.right - bounds.left) as usize;

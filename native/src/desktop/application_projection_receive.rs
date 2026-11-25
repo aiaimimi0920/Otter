@@ -84,8 +84,13 @@ impl Owner {
         }
     }
     pub(in crate::desktop::application) fn deadline(&self, now: u64) -> Option<std::time::Instant> {
+        let reap = match &self.0 {
+            Phase::Preparing(pending) => pending.job.reap_deadline(),
+            _ => None,
+        };
         self.phase_deadline(now)
             .into_iter()
+            .chain(reap)
             .chain(self.1.wake)
             .min()
     }
@@ -251,8 +256,7 @@ impl Application {
         }
         let cancel = AtomicBool::new(false);
         let catalog = self.catalog.borrow().loaded.clone();
-        let states = Bound::prepare_for(prepared.vector, catalog.clone(), &cancel)
-            .map_err(|failure| failure.1)?
+        let states = Bound::from_prepared(prepared.restore, catalog.clone())
             .into_parts_for(catalog.as_ref(), &cancel)
             .map_err(|_| stale())?
             .prepare_states(&cancel)?;

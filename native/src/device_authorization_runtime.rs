@@ -212,6 +212,6 @@ fn run(task: Task, cancel: &Cancel) -> Result<Output, Error> {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "device_authorization_runtime_tests.rs"]
 mod tests;

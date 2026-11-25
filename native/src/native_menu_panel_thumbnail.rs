@@ -18,17 +18,12 @@ fn composite(source: &[u8], background: u32, output: &mut [u8]) {
     }
 }
 
-pub(crate) unsafe fn draw(dc: HDC, rect: RECT, thumbnail: &Thumbnail, background: u32) -> bool {
+pub unsafe fn draw(dc: HDC, rect: RECT, thumbnail: &Thumbnail, background: u32) -> bool {
     let (width, height) = (rect.right - rect.left - 2, rect.bottom - rect.top - 4);
     draw_fitted(dc, rect, thumbnail, background, width, height, false)
 }
 /// 候选卡片沿主干 object-fit: cover 居中裁切；菜单的小图仍保留完整图像和内边距。
-pub(crate) unsafe fn draw_cover(
-    dc: HDC,
-    rect: RECT,
-    thumbnail: &Thumbnail,
-    background: u32,
-) -> bool {
+pub unsafe fn draw_cover(dc: HDC, rect: RECT, thumbnail: &Thumbnail, background: u32) -> bool {
     draw_fitted(
         dc,
         rect,

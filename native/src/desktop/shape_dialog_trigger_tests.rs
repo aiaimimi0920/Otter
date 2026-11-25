@@ -41,6 +41,53 @@ fn actual_trigger_dialog_accepts_complete_config_and_rejects_generic_json() {
 }
 
 #[test]
+fn affinity_failure_retires_modal_before_draft_or_submit_is_available() {
+    use std::cell::Cell;
+    thread_local! {
+        static INIT: Cell<Option<(bool, bool, bool)>> = const { Cell::new(None) };
+        static SHOWN: Cell<bool> = const { Cell::new(false) };
+    }
+    unsafe extern "system" fn observe(hwnd: HWND, message: u32, wp: WPARAM, lp: LPARAM) -> isize {
+        let result = procedure(hwnd, message, wp, lp);
+        if message == WM_INITDIALOG {
+            let empty =
+                GetDlgItem(Some(hwnd), INPUT).is_ok_and(|edit| GetWindowTextLengthW(edit) == 0);
+            let unattached = GetWindowLongPtrW(hwnd, WINDOW_LONG_PTR_INDEX(DWLP_USER)) == 0;
+            let blocked = procedure(hwnd, WM_COMMAND, WPARAM(IDOK.0 as usize), LPARAM(0)) == 0;
+            INIT.with(|value| value.set(Some((empty, unattached, blocked))));
+            // Prevent a broken regression from leaving a visible dialog waiting for input.
+            let _ = PostMessageW(Some(hwnd), WM_CLOSE, WPARAM(0), LPARAM(0));
+        } else if message == WM_SHOWWINDOW && wp.0 != 0 {
+            SHOWN.with(|value| value.set(true));
+        }
+        result
+    }
+    for mode in [Mode::Trigger, Mode::LocalTrigger] {
+        let mut state = InputState {
+            value: VALID.into(),
+            mode,
+            result: None,
+        };
+        let data = template(mode);
+        FAIL_TRIGGER_AFFINITY.with(|fail| fail.set(true));
+        let result = unsafe {
+            DialogBoxIndirectParamW(
+                None,
+                data.as_ptr().cast(),
+                None,
+                Some(observe),
+                LPARAM(&mut state as *mut _ as isize),
+            )
+        };
+        assert_eq!(result, 0);
+        assert_eq!(INIT.with(Cell::take), Some((true, true, true)));
+        assert!(!SHOWN.with(Cell::take));
+        assert!(!FAIL_TRIGGER_AFFINITY.with(Cell::get));
+        assert!(state.result.is_none());
+    }
+}
+
+#[test]
 fn hidden_local_trigger_controls_require_explicit_auto_consent_and_strict_condition() {
     for accepted in [true, false] {
         let value = if accepted {

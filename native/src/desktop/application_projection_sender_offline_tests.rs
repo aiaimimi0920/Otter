@@ -203,7 +203,7 @@ fn offline_sender_mixed_group_same_named_devices_keep_routes_through_canonical_s
         assert!(matches!(listener.accept(),Err(e) if e.kind()==std::io::ErrorKind::WouldBlock));
     });
     unsafe {
-        let (_class, mut app) = application(files.root());
+        let mut app = application(files.root());
         app.authorization.borrow_mut().origin = Some(origin.clone());
         app.authorization.borrow_mut().consent.install_paused(true);
         app.authorization_owner

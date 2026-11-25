@@ -28,6 +28,7 @@ pub(in crate::desktop) struct Source {
     document: DocumentStamp,
     backing: Option<Backing>,
     source_logical: Option<Size>,
+    rasterized_crop: bool,
     origin: Option<Origin>,
 }
 impl Source {
@@ -36,6 +37,7 @@ impl Source {
             image,
             document: editor.document_stamp(),
             source_logical: None,
+            rasterized_crop: false,
             origin: None,
             backing: editor.layers().map(|layers| Backing {
                 pixels: layers.base.clone(),
@@ -63,6 +65,13 @@ impl Source {
         self.matches(editor)
             .then_some(self.source_logical)
             .flatten()
+    }
+    pub(in crate::desktop) fn with_rasterized_crop(mut self, rasterized: bool) -> Self {
+        self.rasterized_crop = rasterized;
+        self
+    }
+    pub(in crate::desktop) fn rasterized_crop(&self) -> bool {
+        self.rasterized_crop
     }
     pub(in crate::desktop) fn with_origin(mut self, origin: Origin) -> Self {
         self.origin = Some(origin);

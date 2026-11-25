@@ -125,6 +125,6 @@ pub(in crate::desktop::tile_window::render) fn matches(
             && p.presentation.scroll_state() == *scroll
     })
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-surface")))]
 #[path = "tile_surface_scroll_render_tests.rs"]
 mod tests;

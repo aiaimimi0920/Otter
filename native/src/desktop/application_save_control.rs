@@ -13,6 +13,18 @@ impl Application {
         self.request_save(Some(save_disk::Destination::New(destination)))
     }
     pub unsafe fn request_save_existing(&mut self) -> Result<()> {
+        self.request_save(Some(self.existing_save_destination()?))
+    }
+    pub(super) unsafe fn request_automatic_save_existing(&mut self) -> Result<bool> {
+        self.check_save_slot()?;
+        let destination = self.existing_save_destination()?;
+        let Some((receipt, data)) = self.capture_automatic_session_snapshot()? else {
+            return Ok(false);
+        };
+        self.start_save(receipt, data, Some(destination))?;
+        Ok(true)
+    }
+    fn existing_save_destination(&self) -> Result<save_disk::Destination> {
         let path = self
             .restored_session
             .as_ref()
@@ -24,16 +36,28 @@ impl Application {
             .as_ref()
             .unwrap_or(&record.original)
             .clone();
-        self.request_save(Some(save_disk::Destination::Replace(path, expected)))
+        Ok(save_disk::Destination::Replace(path, expected))
     }
     unsafe fn request_save(&mut self, destination: Option<save_disk::Destination>) -> Result<()> {
+        self.check_save_slot()?;
+        let (receipt, data) = self.capture_session_snapshot()?;
+        self.start_save(receipt, data, destination)
+    }
+    fn check_save_slot(&self) -> Result<()> {
         if self.save_job.is_some() {
             return Err(Error::new(
                 E_ABORT,
                 "A session save preparation is already running",
             ));
         }
-        let (receipt, data) = self.capture_session_snapshot()?;
+        Ok(())
+    }
+    fn start_save(
+        &mut self,
+        receipt: save_snapshot::Receipt,
+        data: save_snapshot::Data,
+        destination: Option<save_disk::Destination>,
+    ) -> Result<()> {
         let job = save_snapshot::job::Job::start(data, destination, self.execution_wake.callback())
             .map_err(|error| Error::new(E_FAIL, format!("Cannot start session save: {error}")))?;
         self.save_job = Some((receipt, job));
@@ -85,6 +109,7 @@ impl Application {
             checkpoint_projections: output.checkpoint_projections,
             candidate: output.candidate,
             staged: output.staged,
+            promote_host: output.promote_host,
             receipt,
         })))
     }
@@ -98,9 +123,10 @@ pub(super) unsafe fn verify(app: &mut Application) -> Result<()> {
     if !source.state.save_session_requested.replace(false) {
         return Err(Error::new(E_FAIL, "Save UI request was not queued"));
     }
+    let fixture = smoke_session_fixture::Directory::new()?;
     for mode in 0..3 {
         if mode == 0 {
-            app.request_save_new(save_publish::smoke_destination()?)?;
+            app.request_save_new(fixture.target())?;
         } else {
             app.request_save_candidate()?;
         }
@@ -154,7 +180,7 @@ pub(super) unsafe fn verify(app: &mut Application) -> Result<()> {
             (0, Ok(Some(prepared))) => {
                 crate::session_document::decode(&prepared.candidate.bytes)
                     .map_err(|_| Error::new(E_FAIL, "Save worker returned invalid candidate"))?;
-                save_publish::verify(app, prepared)?;
+                save_publish::verify(app, prepared, &fixture)?;
             }
             (1 | 2, Err(error)) if error.code() == E_ABORT && app.save_job.is_none() => {}
             (_, Err(error)) => return Err(error),

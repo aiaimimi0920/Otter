@@ -2,6 +2,40 @@
 use super::*;
 use crate::session_library::Kind;
 
+#[test]
+fn frozen_gallery_retirement_outlives_menu_and_reaps_after_its_only_notification() {
+    use crate::desktop::loom_execution_tasks::reap_fixture::{Gate, WAIT};
+
+    unsafe {
+        let _apartment = crate::desktop::Apartment::new().unwrap();
+        let (mut app, _) = fixture(2);
+        let pump = execution_test_pump::Pump::new();
+        let wake = app.execution_wake.callback();
+        let gate = Gate::new(move || wake());
+        let mut workers = app.frozen_library.borrow().workers.clone();
+        workers.notify = Some(gate.notify);
+        popup::test_close_index_menu(workers.clone());
+        gate.noticed.recv_timeout(WAIT).unwrap();
+        assert!(PeekMessageW(
+            &mut MSG::default(),
+            None,
+            WM_APP + 92,
+            WM_APP + 92,
+            PM_REMOVE
+        )
+        .as_bool());
+        app.pending_windows(false).unwrap();
+        assert!(workers.deadline().is_some());
+        while pump.step(&mut app) != WM_NULL {}
+        assert!(workers.deadline().is_some());
+        gate.release.send(()).unwrap();
+        while workers.deadline().is_some() {
+            pump.step(&mut app);
+        }
+        assert!(gate.noticed.try_recv().is_err());
+    }
+}
+
 unsafe fn fixture(count: usize) -> (Application, ui::Pending) {
     let app = chrome::tests::app();
     let entries: Vec<_> = (0..count).map(|n| serde_json::json!({

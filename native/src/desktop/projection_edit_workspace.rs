@@ -9,7 +9,10 @@ use crate::{
     session_vectors::{Error as VectorError, TextMetrics},
     text_annotation::TextAnnotation,
 };
-use std::sync::{Arc, Weak};
+use std::{
+    cell::RefCell,
+    sync::{Arc, Weak},
+};
 use windows::{
     core::{Error, Result},
     Win32::Foundation::E_INVALIDARG,
@@ -31,6 +34,7 @@ pub(super) struct Owner {
     bridge: Option<Bridge>,
     base: Base,
     stamp: Stamp,
+    validated_editor: RefCell<Option<DocumentStamp>>,
 }
 pub(in crate::desktop) struct Base {
     document: DocumentStamp,
@@ -164,11 +168,50 @@ impl Owner {
                 bridge,
                 base,
                 stamp: Stamp(Arc::default()),
+                validated_editor: RefCell::default(),
             },
         ))
     }
     pub(super) fn stamp(&self) -> Stamp {
         self.stamp.clone()
+    }
+    /// 权威字段不随 capture 的编辑视图或暂停原因变化。
+    pub(super) fn authoritative(&self) -> &Snapshot {
+        &self.snapshot
+    }
+    pub(super) fn can_submit(&self, editor: &Editor) -> bool {
+        // 草稿不更新提交 revision，底图也有独立身份，不能被缓存命中掩盖。
+        if self.snapshot.suspended().is_some()
+            || editor.draft().is_some()
+            || !self.base.matches(editor)
+        {
+            return false;
+        }
+        // 未发布的恢复 API 可在 revision 0 直接追加/平移标注。
+        let stable = editor.revision() != 0 || editor.elements().is_empty();
+        if stable
+            && self
+                .validated_editor
+                .borrow()
+                .as_ref()
+                .is_some_and(|stamp| stamp.matches(editor))
+        {
+            return true;
+        }
+        let allowed = self.capture_active(editor).suspended().is_none();
+        // 仅缓存确定性的无文字成功；失败和 DirectWrite 状态仍可重查。
+        if allowed && stable && !editor.elements().iter().any(|stroke| stroke.text.is_some()) {
+            self.validated_editor.replace(Some(editor.document_stamp()));
+        }
+        allowed
+    }
+    /// 保存时导出的视图可以变化，但不会改变 owner 的工作区或节点身份。
+    pub(in crate::desktop) fn belongs_to(
+        &self,
+        unit: &str,
+        scope: crate::session_projection_scope::Scope,
+    ) -> bool {
+        self.snapshot.belongs_to(unit, scope)
     }
     pub(super) fn capture(&self, editor: &Editor) -> Snapshot {
         if self.snapshot.suspended().is_some() {
@@ -178,6 +221,9 @@ impl Owner {
         if !self.base.matches(editor) {
             return self.snapshot.suspend(Suspension::BasisChanged);
         }
+        self.capture_active(editor)
+    }
+    fn capture_active(&self, editor: &Editor) -> Snapshot {
         match self.bridge.as_ref().unwrap().current(editor, metrics) {
             Ok(view) => self
                 .snapshot

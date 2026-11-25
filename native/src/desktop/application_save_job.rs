@@ -1,6 +1,6 @@
 //! 保存候选 worker；UI Receipt 不进入线程，完成通知不代表允许提交。
 use super::super::save_disk::{Destination, Disk};
-use super::Data;
+use super::{Data, FrozenData};
 use crate::{desktop::loom_execution_signal::CompletionSignal, session_write::Candidate};
 use std::{
     sync::{
@@ -15,9 +15,27 @@ pub struct Output {
     pub checkpoint_senders: Option<crate::projection_delivery::sender::binding::checkpoint::Index>,
     pub checkpoint_scope: Option<crate::session_projection_scope::Proof>,
     pub checkpoint_projections: Option<crate::projection_delivery::binding::checkpoint::Index>,
-    pub library_changed: bool,
     pub candidate: Candidate,
     pub staged: Option<Disk>,
+    pub promote_host: bool,
+}
+impl Output {
+    fn unstaged(candidate: Candidate) -> Self {
+        Self {
+            checkpoint_accounts: None,
+            checkpoint_senders: None,
+            checkpoint_scope: None,
+            checkpoint_projections: None,
+            candidate,
+            staged: None,
+            promote_host: false,
+        }
+    }
+}
+/// 库操作不产生磁盘暂存或检查点；未改动时没有候选字节。
+enum Completion {
+    Prepared(Output),
+    Library(Option<Candidate>),
 }
 /// 回收候选会移除活动窗口，不能被仅更新库原文或磁盘保存的消费者领取。
 enum Purpose {
@@ -31,12 +49,18 @@ mod recycle;
 pub use recycle::Request as RecycleRequest;
 #[path = "application_save_library_clear.rs"]
 mod library_clear;
+pub(in crate::desktop::application) struct ReferenceAddition {
+    pub data: FrozenData,
+    pub entry_id: String,
+    pub created_at: String,
+}
+
 pub struct Job {
     prune_policy: Option<crate::session_library::recycle::policy::Policy>,
     purpose: Purpose,
     cancel: Arc<AtomicBool>,
     ready: Arc<AtomicBool>,
-    worker: Option<JoinHandle<Result<Output, String>>>,
+    worker: Option<JoinHandle<Result<Completion, String>>>,
 }
 impl Job {
     pub fn prune_policy(&self) -> Option<crate::session_library::recycle::policy::Policy> {
@@ -68,51 +92,40 @@ impl Job {
             _ => None,
         }
     }
-    pub fn start_reference(
-        data: Data,
+    pub(in crate::desktop::application) fn start_reference(
+        original: crate::session_source::Source,
         unit: crate::workspace_id::UnitId,
-        remove: bool,
-        entry_id: String,
-        created_at: String,
+        addition: Option<ReferenceAddition>,
         notify: Arc<dyn Fn() + Send + Sync>,
     ) -> std::io::Result<Self> {
-        let mut job = Self::start_with(notify, move |cancel| {
-            let original = data.original.clone();
-            let revision = crate::session_document::decode(&original)
-                .map_err(|error| format!("Invalid reference source: {error:?}"))?
-                .revision;
-            let snapshot = if remove {
-                None
-            } else {
-                Some(
-                    data.encode(cancel)
-                        .map_err(|error| format!("Reference snapshot: {error:?}"))?,
-                )
-            };
-            let bytes = crate::session_library::reference::prepare(
-                &original,
-                snapshot.as_ref().map(|candidate| candidate.bytes.as_ref()),
-                &unit,
-                &entry_id,
-                &created_at,
-                cancel,
-            )?;
-            Ok(Output {
-                checkpoint_accounts: None,
-                checkpoint_senders: None,
-                checkpoint_scope: None,
-                checkpoint_projections: None,
-                library_changed: true,
-                candidate: Candidate {
-                    bytes,
-                    expected_revision: revision,
-                    revision,
-                },
-                staged: None,
-            })
-        })?;
-        job.purpose = Purpose::LibraryUpdate;
-        Ok(job)
+        Self::start_library(notify, move |cancel| {
+            let source = crate::session_document::decode(&original)
+                .map_err(|error| format!("Invalid reference source: {error:?}"))?;
+            let revision = source.revision;
+            let encoded = addition
+                .map(|addition| {
+                    addition
+                        .data
+                        .encode(&source, &unit, cancel)
+                        .map(|bytes| (bytes, addition.entry_id, addition.created_at))
+                        .map_err(|error| format!("Reference snapshot: {error:?}"))
+                })
+                .transpose()?;
+            use crate::session_library::reference::{prepare, Addition};
+            let addition = encoded
+                .as_ref()
+                .map(|(snapshot, entry_id, created_at)| Addition {
+                    snapshot,
+                    entry_id,
+                    created_at,
+                });
+            let bytes = prepare(&original, addition, &unit, cancel)?;
+            Ok(Some(Candidate {
+                bytes,
+                expected_revision: revision,
+                revision,
+            }))
+        })
     }
     pub fn start_library_remove(
         source: crate::session_source::Source,
@@ -120,27 +133,9 @@ impl Job {
         entry_id: String,
         notify: Arc<dyn Fn() + Send + Sync>,
     ) -> std::io::Result<Self> {
-        let mut job = Self::start_with(notify, move |cancel| {
-            let revision = crate::session_document::decode(&source)
-                .map_err(|error| format!("Invalid frozen removal source: {error:?}"))?
-                .revision;
-            let bytes = crate::session_library::remove::prepare(&source, kind, &entry_id, cancel)?;
-            Ok(Output {
-                checkpoint_accounts: None,
-                checkpoint_senders: None,
-                checkpoint_scope: None,
-                checkpoint_projections: None,
-                library_changed: true,
-                candidate: Candidate {
-                    bytes,
-                    expected_revision: revision,
-                    revision,
-                },
-                staged: None,
-            })
-        })?;
-        job.purpose = Purpose::LibraryUpdate;
-        Ok(job)
+        Self::start_library(notify, move |cancel| {
+            crate::session_library::remove::prepare(&source, kind, &entry_id, cancel).map(Some)
+        })
     }
     pub fn start(
         data: Data,
@@ -148,6 +143,7 @@ impl Job {
         notify: Arc<dyn Fn() + Send + Sync>,
     ) -> std::io::Result<Self> {
         Self::start_with(notify, move |cancel| {
+            let transient_host = data.transient_host.clone();
             let candidate = data
                 .encode(cancel)
                 .map_err(|error| format!("Save encoding failed: {error:?}"))?;
@@ -156,34 +152,54 @@ impl Job {
                 .map(|destination| destination.prepare(&candidate, cancel))
                 .transpose()
                 .map_err(|error| format!("Save staging failed: {error}"))?;
+            // 所有包含凭证共享一次会话解码，且绑定同一份将要发布的字节。
+            let source = candidate.bytes.clone().into();
+            let parsed = crate::session_source::Source::parse(&source).map_err(|_| {
+                format!(
+                    "Account projection checkpoint: {:?}",
+                    crate::projection_account::Error::Response
+                )
+            })?;
+            let checkpoint_scope = crate::session_projection_scope::Proof::capture_parsed(&parsed);
+            let checkpoint_accounts = crate::projection_account::scene::Index::capture_parsed(
+                &parsed,
+                checkpoint_scope.as_ref(),
+            )
+            .map_err(|error| format!("Account projection checkpoint: {error:?}"))?;
+            let indices = crate::projection_delivery::checkpoint_session::capture(&parsed);
+            // Reuse the decoded candidate here, not on the HWND commit path.
+            let promote_host =
+                transient_host.is_some_and(|host| parsed.document().workspace.contains(&host));
             Ok(Output {
-                checkpoint_accounts: Some(
-                    crate::projection_account::scene::Index::capture(
-                        &candidate.bytes.clone().into(),
-                    )
-                    .map_err(|error| format!("Account projection checkpoint: {error:?}"))?,
-                ),
-                checkpoint_senders:
-                    crate::projection_delivery::sender::binding::checkpoint::Index::capture(
-                        &candidate.bytes.clone().into(),
-                    ),
-                checkpoint_scope: crate::session_projection_scope::Proof::capture(
-                    &candidate.bytes.clone().into(),
-                ),
+                checkpoint_accounts: Some(checkpoint_accounts),
+                checkpoint_senders: indices.sender,
+                checkpoint_scope,
                 // 原 Save 候选即使稍后才选择目标，也可经 commit_new 真正落盘；库更新不走这里。
-                checkpoint_projections:
-                    crate::projection_delivery::binding::checkpoint::Index::capture(
-                        &candidate.bytes.clone().into(),
-                    ),
+                checkpoint_projections: indices.receiver,
                 candidate,
                 staged,
-                library_changed: true,
+                promote_host,
             })
         })
     }
     fn start_with(
         notify: Arc<dyn Fn() + Send + Sync>,
         work: impl FnOnce(&AtomicBool) -> Result<Output, String> + Send + 'static,
+    ) -> std::io::Result<Self> {
+        Self::start_worker(notify, move |cancel| work(cancel).map(Completion::Prepared))
+    }
+    fn start_library(
+        notify: Arc<dyn Fn() + Send + Sync>,
+        work: impl FnOnce(&AtomicBool) -> Result<Option<Candidate>, String> + Send + 'static,
+    ) -> std::io::Result<Self> {
+        let mut job =
+            Self::start_worker(notify, move |cancel| work(cancel).map(Completion::Library))?;
+        job.purpose = Purpose::LibraryUpdate;
+        Ok(job)
+    }
+    fn start_worker(
+        notify: Arc<dyn Fn() + Send + Sync>,
+        work: impl FnOnce(&AtomicBool) -> Result<Completion, String> + Send + 'static,
     ) -> std::io::Result<Self> {
         let cancel = Arc::new(AtomicBool::new(false));
         let ready = Arc::new(AtomicBool::new(false));
@@ -207,6 +223,18 @@ impl Job {
         self.cancel.store(true, Ordering::Release);
     }
     pub fn poll(&mut self) -> Option<Result<Output, String>> {
+        Some(self.poll_completion()?.and_then(|result| match result {
+            Completion::Prepared(output) => Ok(output),
+            Completion::Library(_) => Err("Save result purpose mismatch".into()),
+        }))
+    }
+    pub fn poll_library_update(&mut self) -> Option<Result<Option<Candidate>, String>> {
+        Some(self.poll_completion()?.and_then(|result| match result {
+            Completion::Library(change) => Ok(change),
+            Completion::Prepared(_) => Err("Library result purpose mismatch".into()),
+        }))
+    }
+    fn poll_completion(&mut self) -> Option<Result<Completion, String>> {
         if !self.is_ready() {
             return None;
         }
@@ -221,11 +249,15 @@ impl Job {
             result
         })
     }
-    /// 仅观察完成状态，不消费结果或释放磁盘准备 owner。
+    /// 只认真实线程退出，供普通与模态图库消费者安全领取。
     pub fn is_ready(&self) -> bool {
         self.worker
             .as_ref()
-            .is_some_and(|worker| self.ready.load(Ordering::Acquire) || worker.is_finished())
+            .is_some_and(|worker| worker.is_finished())
+    }
+    pub fn deadline(&self) -> Option<std::time::Instant> {
+        self.worker.as_ref()?;
+        crate::desktop::loom_execution_signal::reap_deadline(&self.ready)
     }
 }
 impl Drop for Job {
@@ -241,6 +273,7 @@ impl Drop for Job {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::desktop::loom_execution_tasks::reap_fixture::{wait_finished, Gate, WAIT};
     use crate::session_file_write::Staged;
     fn candidate() -> Candidate {
         Candidate {
@@ -252,30 +285,21 @@ mod tests {
     #[test]
     fn completion_is_delivered_once_and_late_cancel_discards_ready_candidate() {
         for cancelled in [false, true] {
-            let (tx, rx) = std::sync::mpsc::channel();
-            let mut job = Job::start_with(
-                Arc::new(move || {
-                    let _ = tx.send(());
-                }),
-                |_| {
-                    Ok(Output {
-                        checkpoint_accounts: None,
-                        checkpoint_senders: None,
-                        checkpoint_scope: None,
-                        checkpoint_projections: None,
-                        library_changed: true,
-                        candidate: candidate(),
-                        staged: None,
-                    })
-                },
-            )
-            .unwrap();
-            rx.recv_timeout(std::time::Duration::from_secs(5)).unwrap();
+            let gate = Gate::new(|| {});
+            let mut job =
+                Job::start_with(gate.notify, |_| Ok(Output::unstaged(candidate()))).unwrap();
+            gate.noticed.recv_timeout(WAIT).unwrap();
+            assert!(!job.is_ready());
+            assert!(job.poll().is_none());
+            assert!(job.deadline().is_some());
             if cancelled {
                 job.cancel();
             }
+            gate.release.send(()).unwrap();
+            wait_finished(job.worker.as_ref().unwrap());
             assert_eq!(job.poll().unwrap().is_err(), cancelled);
             assert!(job.poll().is_none());
+            assert!(job.deadline().is_none());
         }
     }
     #[test]
@@ -289,6 +313,7 @@ mod tests {
         )
         .unwrap();
         rx.recv_timeout(std::time::Duration::from_secs(5)).unwrap();
+        wait_finished(job.worker.as_ref().unwrap());
         assert_eq!(
             job.poll().unwrap().err().as_deref(),
             Some("Save worker panicked")
@@ -308,16 +333,11 @@ mod tests {
 
     #[test]
     fn late_cancel_or_drop_reclaims_completed_staging_without_publishing() {
-        let root = std::path::Path::new(
-            "C:/Users/Public/nas_home/AI/GameEditor/linshi/otter-native-save-job-tests",
-        );
-        std::fs::create_dir_all(root).unwrap();
         for poll_cancelled in [false, true] {
-            let directory = root.join(format!("{:?}", unsafe {
-                windows::Win32::System::Com::CoCreateGuid().unwrap()
-            }));
-            std::fs::create_dir(&directory).unwrap();
-            let destination = directory.join("session.json");
+            let fixture =
+                crate::desktop::application::smoke_session_fixture::Directory::new().unwrap();
+            let directory = fixture.path();
+            let destination = fixture.target();
             let target = destination.clone();
             let (tx, rx) = std::sync::mpsc::channel();
             let mut job = Job::start_with(
@@ -330,7 +350,9 @@ mod tests {
                     };
                     let staged = Staged::prepare(&target, &candidate, cancel)
                         .map_err(|error| error.to_string())?;
-                    Ok(Output { checkpoint_accounts: None, checkpoint_senders: None, checkpoint_scope: None, checkpoint_projections: None, candidate, staged: Some(Disk::New(staged)), library_changed: true })
+                    let mut output = Output::unstaged(candidate);
+                    output.staged = Some(Disk::New(staged));
+                    Ok(output)
                 },
             ).unwrap();
             rx.recv_timeout(std::time::Duration::from_secs(5)).unwrap();
@@ -338,13 +360,15 @@ mod tests {
             assert_eq!(std::fs::read_dir(&directory).unwrap().count(), 1);
             if poll_cancelled {
                 job.cancel();
+                wait_finished(job.worker.as_ref().unwrap());
                 assert!(job.poll().unwrap().is_err());
             }
             drop(job);
             assert!(!destination.exists());
             assert_eq!(std::fs::read_dir(&directory).unwrap().count(), 0);
-            // 仅移除本测试在 linshi 创建的空目录，不递归清理。
-            std::fs::remove_dir(directory).unwrap();
+            let directory = directory.to_owned();
+            drop(fixture);
+            assert!(!directory.exists());
         }
     }
 }

@@ -225,6 +225,6 @@ unsafe extern "system" fn procedure<T>(hwnd: HWND, message: u32, wp: WPARAM, lp:
         _ => 0,
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-capture")))]
 #[path = "capture_wait_tests.rs"]
 mod tests;

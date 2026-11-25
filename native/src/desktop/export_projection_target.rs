@@ -127,6 +127,6 @@ fn read_selected<'a>(
     })
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "export_projection_target_tests.rs"]
 mod tests;

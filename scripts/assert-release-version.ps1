@@ -30,6 +30,14 @@ $versions = [ordered]@{
     "native/Cargo.toml" = $cargoTomlMatch.Groups[1].Value
     "native/Cargo.lock" = $cargoLockMatch.Groups[1].Value
 }
+foreach ($subcrate in @("native/otter-core/Cargo.toml", "native/otter-media/Cargo.toml", "native/otter-runtime/Cargo.toml", "native/hover-hook/Cargo.toml")) {
+    $subPath = Join-Path $repoRoot $subcrate
+    if (Test-Path -LiteralPath $subPath) {
+        $subMatch = [regex]::Match((Get-Content -LiteralPath $subPath -Raw), '(?m)^version\s*=\s*"([^"]+)"')
+        if (-not $subMatch.Success) { throw "Could not read version from $subcrate." }
+        $versions[$subcrate] = $subMatch.Groups[1].Value
+    }
+}
 
 $metadataVersion = [string]$packageJson.version
 if ($metadataVersion -notmatch '^\d+\.\d+\.\d+$') {
@@ -57,14 +65,14 @@ if (($RequireTagAtHead -or -not [string]::IsNullOrWhiteSpace($RequireReachableFr
 if (-not [string]::IsNullOrWhiteSpace($Tag)) {
     Push-Location -LiteralPath $repoRoot
     try {
-        $tagCommit = (& git rev-parse "$Tag^{commit}").Trim()
-        if ($LASTEXITCODE -ne 0) {
+        $tagCommit = [string](& git rev-parse --verify "$Tag^{commit}")
+        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($tagCommit)) {
             throw "Could not resolve release tag $Tag."
         }
 
         if ($RequireTagAtHead) {
-            $headCommit = (& git rev-parse HEAD).Trim()
-            if ($LASTEXITCODE -ne 0) {
+            $headCommit = [string](& git rev-parse --verify HEAD)
+            if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($headCommit)) {
                 throw "Could not resolve HEAD."
             }
 
@@ -74,8 +82,8 @@ if (-not [string]::IsNullOrWhiteSpace($Tag)) {
         }
 
         if (-not [string]::IsNullOrWhiteSpace($RequireReachableFromBranch)) {
-            $branchCommit = (& git rev-parse "$RequireReachableFromBranch^{commit}").Trim()
-            if ($LASTEXITCODE -ne 0) {
+            $branchCommit = [string](& git rev-parse --verify "$RequireReachableFromBranch^{commit}")
+            if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($branchCommit)) {
                 throw "Could not resolve protected release branch $RequireReachableFromBranch."
             }
 

@@ -7,6 +7,10 @@ use sha2::{Digest, Sha256};
 pub const ART: &str = "vendor/product-package";
 pub const SERVICE: &str = "capability:vendor:service.run";
 pub const SOURCE: &str = include_str!("source.js");
+pub const PREPARE_ROUTE: &str = "/v3/art/local/prepare-package";
+const PREPARE: &str = "loom.art.local.prepare-package.v3";
+const PACKAGE: &str = "loom.art.local.package.v3";
+const PACKAGE_DOMAIN: &[u8] = b"loom.art.local.package.v3\0";
 pub fn key() -> Ed25519KeyPair {
     Ed25519KeyPair::from_seed_unchecked(&[47; 32]).unwrap()
 }
@@ -47,8 +51,14 @@ fn signed(domain: &[u8], value: &Value) -> Value {
     json!({"algorithm":"ed25519","keyId":"product-issuer","payload":STANDARD.encode(payload),
         "signature":STANDARD.encode(signature.as_ref())})
 }
-pub fn prepare_source(body: &Value, origin: &str, device_key: &str, source: &str) -> Value {
-    assert_eq!(body["protocolVersion"], "loom.art.local.prepare-package.v1");
+pub fn prepare_source(
+    body: &Value,
+    origin: &str,
+    device_key: &str,
+    source: &str,
+    includes_answer: bool,
+) -> Value {
+    assert_eq!(body["protocolVersion"], PREPARE);
     assert_eq!(body["permissions"], permissions());
     assert_eq!(body["services"], json!([SERVICE]));
     let binding: wire::Binding = serde_json::from_value(body["binding"].clone()).unwrap();
@@ -77,7 +87,16 @@ pub fn prepare_source(body: &Value, origin: &str, device_key: &str, source: &str
                 "dimensions":if id=="picture" {[2,2]} else {[0,0]}})
     })
     .collect();
-    json!({"protocolVersion":"loom.art.local.prepare-package.v1","source":STANDARD.encode(source),
-        "grant":signed(wire::DOMAIN,&grant),"package":signed(b"loom.art.local.package.v1\0",&json!({
-            "protocolVersion":"loom.art.local.package.v1","grant":grant,"devicePublicKey":device_key,"resources":resources}))})
+    let mut outputs = vec![json!({"name":"output_image","type":"image"})];
+    if includes_answer {
+        outputs.push(json!({"name":"answer","type":"value"}));
+    }
+    outputs.push(json!({"name":"mode","type":"value"}));
+    let proof = json!({"protocolVersion":PACKAGE,
+        "package":{"protocolVersion":"loom.art.local.package.v1","grant":grant,
+            "devicePublicKey":device_key,"resources":resources},
+        "ports":{"inputs":[{"name":"input_image","type":"image"}],"outputs":outputs},
+        "visibility":{"inputs":[true],"outputs":vec![true; outputs.len()]}});
+    json!({"protocolVersion":PREPARE,"source":STANDARD.encode(source),
+        "grant":signed(wire::DOMAIN,&grant),"package":signed(PACKAGE_DOMAIN,&proof)})
 }

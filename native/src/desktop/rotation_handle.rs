@@ -1,6 +1,8 @@
 //! 旋转柄手势拥有固定起点与版本；几何预览不写历史，松开整组提交，取消释放缓冲。
 use super::canvas::Canvas;
-use crate::{editor::Tool, transform_gesture::Gesture, viewport::Point};
+#[cfg(test)]
+use crate::editor::Tool;
+use crate::{transform_gesture::Gesture, viewport::Point};
 use windows::Win32::Graphics::Direct2D::{Common::*, *};
 
 pub(super) struct Drag {
@@ -11,45 +13,12 @@ pub(super) struct Drag {
     angle: f32,
 }
 
+#[cfg(test)]
 pub(super) fn position(canvas: &Canvas) -> Option<Point> {
-    if canvas.tool != Tool::Select {
-        return None;
-    }
-    let indices = canvas.selected_indices();
-    let mut low = Point {
-        x: f32::INFINITY,
-        y: f32::INFINITY,
-    };
-    let mut high = Point {
-        x: f32::NEG_INFINITY,
-        y: f32::NEG_INFINITY,
-    };
-    for index in indices {
-        let bounds = super::transform_handle_layout::preview_bounds(canvas, index)?;
-        low.x = low.x.min(bounds.low.x);
-        low.y = low.y.min(bounds.low.y);
-        high.x = high.x.max(bounds.high.x);
-        high.y = high.y.max(bounds.high.y);
-    }
-    super::transform_handle_layout::fit(
-        Point {
-            x: canvas.viewport.origin.x + (low.x + high.x) * 0.5 * canvas.viewport.scale,
-            y: canvas.viewport.origin.y + low.y * canvas.viewport.scale - 24.0,
-        },
-        canvas.client_size,
-    )
+    super::transform_handle_layout::positions(canvas).0
 }
 
 impl Canvas {
-    pub(super) fn begin_rotation_handle(&mut self, screen: Point) -> bool {
-        let Some(handle) = position(self) else {
-            return false;
-        };
-        if (handle.x - screen.x).hypot(handle.y - screen.y) > 7.0 {
-            return false;
-        }
-        self.begin_rotation_at(screen)
-    }
     pub(super) fn begin_rotation_at(&mut self, screen: Point) -> bool {
         let indices = self.selected_indices();
         let Some(pivot) = crate::group_bounds::center(

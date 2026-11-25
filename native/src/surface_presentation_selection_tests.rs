@@ -50,6 +50,25 @@ fn text_selection_uses_one_owner_and_preserves_completed_range_until_clear() {
     assert_eq!(owner.selected_text().unwrap(), None);
 }
 #[test]
+fn text_selection_copyable_range_matches_copy_without_materializing_text() {
+    let scene = Scene::parse(br#"{"id":"root","type":"text","props":{"text":"A\ud83d\ude00B","selectable":true},"layout":{"width":180,"height":40}}"#).unwrap();
+    let mut owner = Presentation::new(scene, style(), context(), [200., 100.]).unwrap();
+    owner.begin_text_selection([0.1, 8.]).unwrap();
+    assert!(!owner.has_copyable_text());
+    owner.update_text_selection([1000., 8.]).unwrap();
+    assert!(owner.text_selection_dragging());
+    assert!(owner.has_copyable_text());
+    assert_eq!(owner.selected_text().unwrap().as_deref(), Some("A😀B"));
+    owner.selection.as_mut().unwrap().focus = 2;
+    assert!(!owner.has_copyable_text());
+    assert!(owner.selected_text().is_err());
+    owner.selection.as_mut().unwrap().focus = 3;
+    assert!(owner.has_copyable_text());
+    owner.selection.as_mut().unwrap().focus_node = "other".into();
+    assert!(!owner.has_copyable_text());
+    assert_eq!(owner.selected_text().unwrap(), None);
+}
+#[test]
 fn text_selection_cancel_replace_and_reflow_do_not_retarget_old_text() {
     let mut owner = owner();
     owner.begin_text_selection([0.1, 8.]).unwrap();

@@ -51,17 +51,13 @@ impl View {
         let mut focused = None;
         // 与菜单深度预算一致，即使关联损坏也不会无限遍历。
         for _ in 0..16 {
-            if let Some(node) = view
-                .nodes()
-                .into_iter()
-                .find(|node| node.read().is_some_and(|entry| entry.focused))
-            {
-                focused = Some((view.clone(), node));
-            }
             let next = {
                 let state = view.0.lock().ok()?;
                 if !state.alive {
                     break;
+                }
+                if let Some(index) = state.focused_slot() {
+                    focused = Some((view.clone(), view.snapshot_node(state.generation, index)));
                 }
                 state.child.as_ref().and_then(|(_, child)| child.upgrade())
             };
@@ -88,7 +84,7 @@ impl View {
             generation: parent.generation,
             index: parent.index,
         };
-        node.read()?;
+        node.with_entry(|_, _| ())?;
         Some((View(snapshot), node))
     }
 }

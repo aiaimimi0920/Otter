@@ -88,6 +88,7 @@ pub(super) fn width(owner: HWND, rows: &[Row]) -> Result<i32> {
     let _dc = MeasureDc(owner, dc, saved);
     let mut label_width = 0;
     let mut shortcut_width = 0;
+    let mut units = Vec::new();
     for row in rows.iter().filter(|row| !row.separator) {
         let (label, shortcut) = row.label.split_once('\t').unwrap_or((&row.label, ""));
         for (value, bold, flags, target) in [
@@ -95,7 +96,8 @@ pub(super) fn width(owner: HWND, rows: &[Row]) -> Result<i32> {
             (shortcut, false, DT_NOPREFIX, &mut shortcut_width),
         ] {
             let mut rect = RECT::default();
-            let mut units: Vec<u16> = value.encode_utf16().collect();
+            units.clear();
+            units.extend(value.encode_utf16());
             unsafe {
                 SelectObject(dc, fonts.object(bold));
                 if !units.is_empty()

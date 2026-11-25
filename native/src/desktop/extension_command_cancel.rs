@@ -32,10 +32,17 @@ fn key(catalog: &Snapshot, context: &Context, id: &str) -> Option<(Key, bool)> {
                 scope: command.scope().into(),
                 context: input.unwrap_or(id).into(),
             },
-            payload
-                .get("toggleAttachmentType")
-                .and_then(serde_json::Value::as_str)
-                .is_some_and(|s| !s.is_empty()),
+            // OCR declares repeat cancellation directly; translation retains its
+            // existing toggle-attachment opt-in.
+            (id == OCR
+                && payload
+                    .get("cancellable")
+                    .and_then(serde_json::Value::as_bool)
+                    == Some(true))
+                || payload
+                    .get("toggleAttachmentType")
+                    .and_then(serde_json::Value::as_str)
+                    .is_some_and(|s| !s.is_empty()),
         ))
     })
 }

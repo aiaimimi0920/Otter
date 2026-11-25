@@ -182,7 +182,7 @@ impl Application {
             && source.candidate.is_none()
             && slot
                 .as_ref()
-                .is_some_and(|owner| owner.capture(&canvas.editor).document() == &ready.document);
+                .is_some_and(|owner| owner.authoritative().document() == &ready.document);
         pending
             .guard
             .targets
@@ -198,10 +198,7 @@ impl Application {
             return Ok(());
         }
         let route = route
-            .or_else(|| {
-                slot.as_ref()
-                    .map(|owner| owner.capture(&canvas.editor).route())
-            })
+            .or_else(|| slot.as_ref().map(|owner| owner.authoritative().route()))
             .ok_or("源端anchor不可用")?;
         let owner = crate::desktop::projection_edit_workspace::source::prepare(
             slot.as_ref(),
@@ -227,7 +224,7 @@ impl Application {
         }
         self.saved_state = None;
         self.display_cache.borrow_mut().take();
-        *self.display_composition.borrow_mut() = Default::default();
+        self.display_composition.borrow_mut().invalidate();
         let _ = windows::Win32::Graphics::Gdi::InvalidateRect(Some(doc.window.0), None, false);
         self.projection_edit.0 = super::super::Phase::Source(Box::new(Phase::Checkpoint(Saved {
             guard: pending.guard,

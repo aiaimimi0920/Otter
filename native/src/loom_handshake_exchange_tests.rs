@@ -40,7 +40,8 @@ fn catalog_worker_notifies_once_and_rejects_cancelled_completed_result() {
         if cancelled {
             job.cancel();
         }
-        let result = job.poll().expect("notification publishes completion");
+        job.test_wait_finished();
+        let result = job.poll().expect("finished worker publishes completion");
         if cancelled {
             assert!(matches!(result, Err(JobError::Cancelled)));
         } else {

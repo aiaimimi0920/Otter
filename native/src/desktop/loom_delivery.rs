@@ -131,6 +131,6 @@ impl Delivery {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-live")))]
 #[path = "loom_delivery_tests.rs"]
 mod tests;

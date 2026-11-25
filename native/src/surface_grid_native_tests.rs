@@ -104,3 +104,40 @@ fn grid_native_baseline_view_explicit_height_aligns_with_real_directwrite_baseli
     assert!((nodes[2].origin[1] + layout.baseline() - 30.).abs() < 0.01);
     assert!(nodes[0].size[1] >= 30. + layout.size()[1] - layout.baseline() - 0.01);
 }
+
+#[test]
+fn grid_measure_cache_keeps_node_constraint_identity_and_resets_budget() {
+    let scene = parse(json!({"id":"root","type":"grid"}));
+    let other = parse(json!({"id":"root","type":"grid"}));
+    let mut cache = grid_measure::Cache::for_scene(&scene).unwrap();
+    let value = Intrinsic {
+        size: [17., 29.],
+        baseline: Some(11.),
+    };
+    cache.insert(scene.root(), [0., 20.], value);
+    let cached = cache.get(scene.root(), [0., 20.]).unwrap();
+    assert_eq!(cached.size, value.size);
+    assert_eq!(cached.baseline, value.baseline);
+    assert!(cache.get(scene.root(), [-0., 20.]).is_none());
+    assert!(cache.get(scene.root(), [0., 21.]).is_none());
+    assert!(cache.get(other.root(), [0., 20.]).is_none());
+    for _ in 0..crate::surface_scene::MAX_NODES * 4 {
+        assert!(cache.reserve());
+    }
+    assert!(!cache.reserve());
+    cache.clear();
+    assert!(cache.get(scene.root(), [0., 20.]).is_none());
+    assert!(cache.reserve());
+}
+
+#[test]
+fn grid_measure_cache_is_only_created_for_scenes_containing_grid() {
+    let plain = parse(json!({"id":"root","type":"column","children":[
+        {"id":"text","type":"text","props":{"text":"plain"}}
+    ]}));
+    assert!(grid_measure::Cache::for_scene(&plain).is_none());
+    let nested = parse(json!({"id":"root","type":"column","children":[
+        {"id":"nested","type":"grid","children":[{"id":"leaf","type":"view"}]}
+    ]}));
+    assert!(grid_measure::Cache::for_scene(&nested).is_some());
+}

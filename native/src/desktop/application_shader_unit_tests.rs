@@ -1,4 +1,4 @@
-//! 未连接 Unit 图片引用的真实应用来源/参数一致性与 freshness；复用原 Class/COM/TLS。
+//! 未连接 Unit 图片引用的真实应用来源/参数一致性与 freshness；复用原窗口/COM/TLS。
 use super::*;
 use crate::workspace_id::UnitId;
 

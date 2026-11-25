@@ -129,6 +129,7 @@ impl Application {
         if let Some(host) = host.take() {
             record.transient_host = Some(host.state.unit_id.clone());
             let old = std::mem::replace(&mut self.documents[index], host);
+            self.retired_edits.take_from(&old.state);
             drop(old);
             self.workspace = next_workspace.unwrap();
             // 最后宿主是原位 owner 替换，collect_closed 无法据数量变化发现旧代际条目。

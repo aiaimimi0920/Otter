@@ -36,7 +36,7 @@ test('actual product source and license inventory include the locked theme', () 
   assert.ok(designFiles.every(row => source.files.some(file => file.path === row.path && file.sha256 === row.sha256)));
   const paths = new Set(source.files.map(row => row.path));
   for (const name of ['native/assets/edit-strip/Settings.svg', 'native/assets/branding/icon.ico',
-    'native/src/tile_outputs.rs', 'native/src/tile_live_wire.rs', 'native/tests/fixtures/wall-media.v1.json']) {
+    'native/otter-runtime/src/tile_outputs.rs', 'native/src/tile_live_wire.rs', 'native/tests/fixtures/wall-media.v1.json']) {
     assert.ok(paths.has(name), `Missing build input: ${name}`);
   }
   assert.ok(!paths.has('scripts/export-native-edit-icons.cjs'));

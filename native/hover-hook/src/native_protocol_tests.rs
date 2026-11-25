@@ -71,6 +71,25 @@ impl Window {
             .unwrap()
         })
     }
+    fn make_topmost(&self) {
+        unsafe {
+            SetWindowPos(
+                self.0,
+                Some(HWND_TOPMOST),
+                0,
+                0,
+                0,
+                0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER,
+            )
+            .unwrap();
+            // Win32 成功返回不等于样式已设置；失败应停在夹具初始化。
+            assert_ne!(
+                GetWindowLongPtrW(self.0, GWL_EXSTYLE) as u32 & WS_EX_TOPMOST.0,
+                0
+            );
+        }
+    }
 }
 impl Drop for Window {
     fn drop(&mut self) {
@@ -428,18 +447,7 @@ fn source_topmost_menu_restores_on_hide_and_after_epoch_revocation() {
     let f = Fixture::new();
     let popup = Window::new(None);
     let _hooks = Hooks::new();
-    unsafe {
-        SetWindowPos(
-            f.root.0,
-            Some(HWND_TOPMOST),
-            0,
-            0,
-            0,
-            0,
-            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
-        )
-        .unwrap();
-    }
+    f.root.make_topmost();
     POPUP.with(|slot| slot.set(popup.0));
     BUTTONS.with(|count| count.set(0));
     BUTTON_HANDLER.with(|handler| {

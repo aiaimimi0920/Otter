@@ -81,8 +81,10 @@ impl Owner {
                 Ok((store, mut loaded)) => {
                     let mut view = self.view.borrow_mut();
                     let revision = view.revision;
-                    loaded.merge_recent(std::mem::take(&mut view.data));
-                    view.data = loaded;
+                    loaded.merge_recent(std::sync::Arc::unwrap_or_clone(std::mem::take(
+                        &mut view.data,
+                    )));
+                    view.data = loaded.into();
                     if view
                         .data
                         .screenshots
@@ -98,11 +100,7 @@ impl Owner {
                 Err(error) => self.error(error),
             },
             Output::Captured(result) => match result {
-                Ok(entry) => {
-                    let mut view = self.view.borrow_mut();
-                    view.data.screenshot(entry);
-                    view.changed();
-                }
+                Ok(entry) => self.view.borrow_mut().screenshot(entry),
                 Err(error) => {
                     self.view.borrow_mut().status = Some(format!("截图未加入历史：{error}"));
                 }

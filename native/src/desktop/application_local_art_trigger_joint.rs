@@ -4,6 +4,79 @@ use crate::desktop::composition::relay::window::trigger::{
     local_registration_test, local_stop_test, local_submit_test,
 };
 use crate::live_relay_viewer_trigger_queue::Phase;
+use std::time::Duration;
+
+unsafe fn wait_for_restore(app: &mut Application, deadline: Instant) -> Result<()> {
+    use crate::desktop::application::live::wait::next_until;
+    while app.restore_job.is_some() {
+        if Instant::now() >= deadline {
+            app.cancel_restore();
+            return Err(Error::new(
+                E_FAIL,
+                "Local Art fixture restoration timed out",
+            ));
+        }
+        // Clear the coalescing flag before reading results, matching the application pump.
+        app.execution_wake.acknowledge();
+        app.process_restore(false)?;
+        if app.restore_job.is_none() {
+            break;
+        }
+        let mut message = MSG::default();
+        match next_until(&[], &mut message, Some(deadline)) {
+            Ok(0) => {
+                app.cancel_restore();
+                PostQuitMessage(message.wParam.0 as i32);
+                return Err(Error::new(E_ABORT, "Local Art fixture received WM_QUIT"));
+            }
+            Err(error) => {
+                app.cancel_restore();
+                return Err(error);
+            }
+            Ok(_) if !message.hwnd.is_invalid() => {
+                let _ = TranslateMessage(&message);
+                DispatchMessageW(&message);
+            }
+            Ok(_) => {}
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn local_art_restore_wait_publishes_and_honors_an_expired_deadline() {
+    let _com = Apartment::new().unwrap();
+    unsafe {
+        let mut app = fixture::application();
+        let before = app.documents[0].window.0;
+        let start = |app: &mut Application| {
+            app.request_restore(
+                br#"{"stickers":[],"links":[],"extension":{"fixture":true}}"#.to_vec(),
+                None,
+                crate::session_placement::Space {
+                    origin: (0, 0),
+                    scale: 1.0,
+                },
+            )
+            .unwrap();
+        };
+        start(&mut app);
+        assert_eq!(
+            wait_for_restore(&mut app, Instant::now())
+                .unwrap_err()
+                .code(),
+            E_FAIL
+        );
+        wait_for_restore(&mut app, Instant::now() + Duration::from_secs(10)).unwrap();
+        assert!(IsWindow(Some(before)).as_bool());
+
+        start(&mut app);
+        wait_for_restore(&mut app, Instant::now() + Duration::from_secs(10)).unwrap();
+        assert!(!IsWindow(Some(before)).as_bool());
+        assert!(app.restore_job.is_none());
+    }
+}
+
 unsafe fn spin(
     c: &context::Context,
     app: &mut Application,
@@ -30,7 +103,7 @@ fn local_art_automatic_trigger_real_loom_lan_result_and_stop() {
     let c = context::Context::load();
     let _com = Apartment::new().unwrap();
     unsafe {
-        let (_class, mut app) = fixture::application();
+        let mut app = fixture::application();
         c.authorize(&mut app);
         app.art_issuers =
             crate::art_issuer_trust::Authority::new(crate::art_issuer_trust::Document {
@@ -43,11 +116,7 @@ fn local_art_automatic_trigger_real_loom_lan_result_and_stop() {
             .unwrap();
         app.request_restore_input(crate::desktop::session_job::Input::Bytes(
             br#"{"documentSchemaVersion":1,"documentRevision":1,"otterNativeCoordinateSpace":{"version":1,"origin":[0,0],"scale":1},"stickers":[{"id":"trigger-art","type":"art","artId":"publisher.test/local-counter","x":0,"y":0,"w":200,"h":120}],"links":[]}"#.to_vec()),None,None).unwrap();
-        let restore_deadline = Instant::now() + Duration::from_secs(10);
-        while app.restore_job.is_some() {
-            app.process_restore(false).unwrap();
-            assert!(Instant::now() < restore_deadline);
-        }
+        wait_for_restore(&mut app, Instant::now() + Duration::from_secs(10)).unwrap();
         let unit = app.documents[0].state.unit_id.to_string();
         let editor = app.documents[0]
             .state

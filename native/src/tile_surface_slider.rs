@@ -71,6 +71,9 @@ pub(crate) fn hit(
     })
 }
 impl Field {
+    pub(crate) fn source(&self) -> f64 {
+        self.range.source()
+    }
     /// 只保留手势身份，不授新输入；旧呈现撤下到新帧实际paint前，Prepared/候选可先后到达。
     pub(crate) fn awaiting_frame(&self, state: &crate::tile_shared::State, now: Instant) -> bool {
         !state.stopped

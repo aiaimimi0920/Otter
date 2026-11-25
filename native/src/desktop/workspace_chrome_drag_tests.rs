@@ -241,6 +241,37 @@ fn connection_cache_redraws_changed_endpoints_and_clears_removed_lines() {
             start,
             "unchanged connected scene must reuse its submitted pixels"
         );
+
+        let mut committed = RECT::default();
+        GetWindowRect(ui.drawing.get(), &mut committed).unwrap();
+        let shifted = Rect {
+            left: committed.left + 1,
+            top: committed.top,
+            right: committed.right + 1,
+            bottom: committed.bottom,
+        };
+        let failure = Error::new(E_FAIL, "injected curve failure");
+        let error = draw::present_with(ui, shifted, Default::default(), |_, _, _| {
+            Err(failure.clone())
+        })
+        .unwrap_err();
+        assert_eq!(error.message(), failure.message());
+        let mut after_failure = RECT::default();
+        GetWindowRect(ui.drawing.get(), &mut after_failure).unwrap();
+        assert_eq!(
+            after_failure, committed,
+            "a partial frame must not reach ULW"
+        );
+        assert!(
+            ui.surface.borrow().is_none(),
+            "partial DIB must not be cached"
+        );
+        window::refresh_drawing(ui).unwrap();
+        let start = count();
+        assert_eq!(start, 1, "unchanged scene must be submitted on retry");
+        window::refresh_drawing(ui).unwrap();
+        assert_eq!(count(), start, "success makes the completed frame reusable");
+
         let host = app.documents[0].window.0;
         SetWindowPos(
             host,

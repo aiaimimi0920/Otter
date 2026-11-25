@@ -80,11 +80,10 @@ impl Input {
             if let Action::Resolve { keep_local } = self.action {
                 return resolution::read(self.snapshot, keep_local, store, control, cancel);
             }
-            let pending = store.pending(cancel).map_err(Failure::Journal)?;
-            let ticket = if let Some(ticket) = pending
-                .into_iter()
-                .find(|ticket| ticket.context().same_key(self.snapshot.context()))
-            {
+            let pending = store
+                .pending_for(self.snapshot.context(), cancel)
+                .map_err(Failure::Journal)?;
+            let ticket = if let Some(ticket) = pending {
                 if matches!(self.action, Action::Automatic | Action::Mode(_)) {
                     return Err(Failure::Journal(protocol::journal::Error::Busy));
                 }
@@ -183,6 +182,6 @@ fn prepare(snapshot: &Snapshot, op_id: String) -> Result<(Request, Objects), Fai
     .map_err(Failure::Protocol)?;
     Ok((request, acknowledged.basis_objects().clone()))
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "projection_edit_submit_tests.rs"]
 mod tests;

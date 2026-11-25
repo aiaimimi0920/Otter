@@ -14,10 +14,15 @@ pub(in crate::desktop::application) struct Job {
     catalog: Option<Rc<Loaded>>,
     space: Option<crate::session_placement::Space>,
     cancelled: bool,
-    frozen: Option<frozen::Selection>,
 }
 
 impl Application {
+    pub(in crate::desktop::application) fn restore_reap_deadline(
+        &self,
+    ) -> Option<std::time::Instant> {
+        self.restore_job.as_ref()?.worker.deadline()
+    }
+
     /// CLI 检查模式消费真实消息唤醒，但不进入注册热键/显示首窗口的 run()。
     pub(in crate::desktop) unsafe fn check_restored_startup(mut self) -> Result<()> {
         loop {
@@ -37,8 +42,8 @@ impl Application {
                 ));
             }
             let mut message = MSG::default();
-            let status = GetMessageW(&mut message, None, 0, 0).0;
-            if status <= 0 {
+            // 此循环只结算恢复与冻结库，不引入普通应用任务的截止。
+            if self.next_session_check_message(&mut message)? == 0 {
                 self.cancel_restore();
                 return Err(Error::new(
                     E_FAIL,
@@ -120,6 +125,16 @@ impl Application {
         }
         Ok(())
     }
+
+    unsafe fn next_session_check_message(&self, message: &mut MSG) -> Result<i32> {
+        let deadline = self
+            .restore_reap_deadline()
+            .into_iter()
+            .chain(self.save_reap_deadline())
+            .min();
+        live::wait::next_until(&[], message, deadline)
+    }
+
     /// bytes/root 是调用方显式选择的数据；不读取默认用户配置，也不猜历史 DPR。
     pub unsafe fn request_restore(
         &mut self,
@@ -141,7 +156,7 @@ impl Application {
                 "Frozen input requires append request ownership",
             ));
         }
-        self.start_restore(input, root, space.into(), None)
+        self.start_restore(input, root, space.into())
     }
 
     unsafe fn start_restore(
@@ -149,14 +164,7 @@ impl Application {
         input: session_job::Input,
         root: Option<Root>,
         space: Option<crate::session_placement::Space>,
-        frozen: Option<frozen::Selection>,
     ) -> Result<()> {
-        if matches!(&input, session_job::Input::Frozen(_)) != frozen.is_some() {
-            return Err(Error::new(
-                E_INVALIDARG,
-                "Session input publication mode mismatch",
-            ));
-        }
         if self.restore_job.is_some() || self.save_job.is_some() {
             return Err(Error::new(
                 E_ABORT,
@@ -175,8 +183,10 @@ impl Application {
             ));
         }
         let catalog = self.catalog.borrow().loaded.clone();
-        let worker = session_job::Job::start_input(input, root, self.execution_wake.callback())
-            .map_err(|error| {
+        let handshake = catalog.as_ref().map(|loaded| loaded.handshake.clone());
+        let worker =
+            session_job::Job::start_input(input, root, handshake, self.execution_wake.callback())
+                .map_err(|error| {
                 Error::new(E_FAIL, format!("Cannot start session preparation: {error}"))
             })?;
         self.restore_job = Some(Job {
@@ -185,7 +195,6 @@ impl Application {
             catalog,
             space,
             cancelled: false,
-            frozen,
         });
         Ok(())
     }
@@ -224,7 +233,10 @@ impl Application {
         if job.cancelled {
             return Ok(());
         }
-        let candidate = result.map_err(|message| Error::new(E_FAIL, message))?;
+        let session_job::Ready {
+            restore: prepared,
+            frozen,
+        } = result.map_err(|message| Error::new(E_FAIL, message))?;
         if !job.origin.matches(self)
             || !crate::desktop::session_binding::catalog_matches(
                 &job.catalog,
@@ -236,7 +248,8 @@ impl Application {
                 "Workspace or capability catalog changed while loading session",
             ));
         }
-        let supplied = if job.space.is_none() && candidate.candidate.coordinate_space.is_none() {
+        let embedded = prepared.vector.candidate.coordinate_space;
+        let supplied = if job.space.is_none() && embedded.is_none() {
             let Some(space) = choose(self)? else {
                 return Ok(());
             };
@@ -256,13 +269,11 @@ impl Application {
                 "Workspace changed during coordinate input",
             ));
         }
-        let space =
-            crate::session_coordinates::select(supplied, candidate.candidate.coordinate_space)
-                .map_err(|message| Error::new(E_INVALIDARG, message))?;
+        let space = crate::session_coordinates::select(supplied, embedded)
+            .map_err(|message| Error::new(E_INVALIDARG, message))?;
         let cancel = AtomicBool::new(false);
-        let prepared = Bound::prepare_for(candidate, job.catalog.clone(), &cancel)
-            .map_err(|failure| failure.1)?
-            .into_parts_for(job.catalog.as_ref(), &cancel)
+        let prepared = Bound::from_prepared(prepared, job.catalog)
+            .into_parts_for(self.catalog.borrow().loaded.as_ref(), &cancel)
             .map_err(|_| Error::new(E_ABORT, "Session binding became stale"))?
             .prepare_states(&cancel)?;
         let batch = self.prepare_restored_batch(prepared, &cancel, |placement| {
@@ -270,16 +281,16 @@ impl Application {
                 Error::new(E_INVALIDARG, "Session window coordinate conversion failed")
             })
         })?;
-        if let Some(selection) = job.frozen {
-            let append = self.prepare_frozen_append(
-                batch,
-                selection.source,
-                selection.kind,
-                &selection.entry_id,
-                space,
-                &cancel,
-            )?;
-            return self.publish_frozen_append(append, visible);
+        if let Some(frozen) = frozen {
+            // 追加原文按任务开始时的活跃集合构造；建窗期间若有重入，仍须核对原任务凭证。
+            if !job.origin.matches(self) {
+                return Err(Error::new(
+                    E_ABORT,
+                    "Workspace changed before frozen append",
+                ));
+            }
+            let append = self.prepare_append(batch, frozen.source, frozen.retained, space)?;
+            return self.publish_append(append, visible);
         }
         self.publish_restored_batch(batch, visible)?;
         self.restored_session
@@ -308,5 +319,75 @@ impl Application {
             );
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::desktop::{
+        loom_execution_tasks::{
+            reap_fixture::{Gate, WAIT},
+            shader_tests::SERIAL,
+        },
+        Apartment,
+    };
+
+    #[test]
+    fn session_check_reaps_restore_after_its_only_notification() {
+        let _serial = SERIAL.lock().unwrap();
+        let _apartment = Apartment::new().unwrap();
+        unsafe {
+            let instance = crate::desktop::workspace_window_fixture::register();
+            let first =
+                DocumentWindow::create(instance, State::new(None, false).unwrap(), false).unwrap();
+            let mut app = Application::new(instance, first);
+            let _watchdog = execution_test_pump::Pump::new();
+            let wake = app.execution_wake.callback();
+            let gate = Gate::new(move || wake());
+            let worker = session_job::Job::start(
+                br#"{"stickers":[],"links":[]}"#.to_vec(),
+                None,
+                gate.notify,
+            )
+            .unwrap();
+            app.restore_job = Some(Job {
+                worker,
+                origin: guard::Guard::capture(&app).unwrap(),
+                catalog: None,
+                space: Some(crate::session_placement::Space {
+                    origin: (0, 0),
+                    scale: 1.0,
+                }),
+                cancelled: false,
+            });
+            gate.noticed.recv_timeout(WAIT).unwrap();
+            let mut message = MSG::default();
+            assert!(
+                PeekMessageW(&mut message, None, WM_APP + 92, WM_APP + 92, PM_REMOVE).as_bool()
+            );
+            app.execution_wake.acknowledge();
+            app.process_restore(false).unwrap();
+            assert!(app.restore_job.is_some(), "notifier has not exited");
+            assert!(app.restore_reap_deadline().is_some());
+            // 忽略可能仍排队的隐藏窗口消息；WM_NULL 必须来自 CLI 自己的截止。
+            loop {
+                assert_eq!(app.next_session_check_message(&mut message).unwrap(), 1);
+                if message.message == WM_NULL && message.hwnd.is_invalid() {
+                    break;
+                }
+                assert_ne!(
+                    message.message,
+                    WM_APP + 997,
+                    "session check missed reap deadline"
+                );
+                let _ = TranslateMessage(&message);
+                DispatchMessageW(&message);
+            }
+            assert!(app.restore_job.is_some());
+            gate.release.send(()).unwrap();
+            app.check_restored_startup().unwrap();
+            assert!(gate.noticed.try_recv().is_err());
+        }
     }
 }

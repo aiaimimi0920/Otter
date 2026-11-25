@@ -17,7 +17,7 @@ fn receive_policy_reject_automatically_queries_and_rejects_over_original_tls_sin
     let (tx, _rx) = mpsc::sync_channel(1);
     let server = std::thread::spawn(move || peer::serve(listener, tls, server_origin, 0, tx));
     unsafe {
-        let (_class, mut app) = application();
+        let mut app = application();
         app.install_workspace_checkpoint(Some(Profile::open(files.root()).unwrap()), false)
             .unwrap();
         let end = Instant::now() + Duration::from_secs(10);

@@ -2,7 +2,7 @@
 use crate::{surface_click_route::ClickAction, surface_live_binding::Binding};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use ring::rand::{SecureRandom, SystemRandom};
-use serde::Serialize;
+use serde::{ser::SerializeMap, Serialize, Serializer};
 use std::io::{self, Write};
 
 pub const MAX_EVENT_BYTES: usize = 64 * 1024;
@@ -59,7 +59,7 @@ impl ClickEvent {
 }
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-struct Wire<'a> {
+struct Wire<'a, P> {
     protocol_version: &'static str,
     instance_id: &'a str,
     attachment_id: &'a str,
@@ -72,11 +72,11 @@ struct Wire<'a> {
     base_revision: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     modifiers: Option<Modifiers>,
-    payload: &'a serde_json::Value,
+    payload: P,
 }
 /// 仅用于纯wire编码，不表示普通Surface挂载或Wall输入授权。
 #[derive(Clone, Copy)]
-pub(crate) struct Identity<'a> {
+pub struct Identity<'a> {
     pub instance: &'a str,
     pub attachment: &'a str,
     pub generation: u64,
@@ -91,6 +91,10 @@ impl<'a> From<&'a Binding> for Identity<'a> {
     }
 }
 impl ClickAction<'_> {
+    pub(crate) fn includes_surface_values(&self) -> bool {
+        self.node.props().get("includeSurfaceValues") == Some(&serde_json::Value::Bool(true))
+    }
+
     /// 无表单调用者保持原 payload；生产宿主使用 encode_with_values。
     pub fn encode(
         &self,
@@ -131,25 +135,7 @@ impl ClickAction<'_> {
             .get("eventPayload")
             .filter(|value| !value.is_null())
             .unwrap_or(&empty);
-        let merged;
-        let payload = if self.node.props().get("includeSurfaceValues")
-            == Some(&serde_json::Value::Bool(true))
-            && !values.is_empty()
-        {
-            let mut object = payload.as_object().cloned().unwrap_or_else(|| {
-                let mut object = serde_json::Map::new();
-                object.insert("configured".to_owned(), payload.clone());
-                object
-            });
-            object.insert(
-                "surfaceValues".to_owned(),
-                serde_json::Value::Object(values.clone()),
-            );
-            merged = serde_json::Value::Object(object);
-            &merged
-        } else {
-            payload
-        };
+        let values = (self.includes_surface_values() && !values.is_empty()).then_some(values);
         encode_identity(
             identity,
             revision,
@@ -160,19 +146,51 @@ impl ClickAction<'_> {
                 class: "discrete",
                 modifiers: (self.node.kind() != crate::surface_scene::Kind::Button)
                     .then_some(modifiers),
-                payload,
+                payload: ClickPayload { payload, values },
             },
         )
     }
 }
+/// 借用配置与表单值直接写最终有界输出，不先物化第二份 JSON 树。
+struct ClickPayload<'a> {
+    payload: &'a serde_json::Value,
+    values: Option<&'a serde_json::Map<String, serde_json::Value>>,
+}
+impl Serialize for ClickPayload<'_> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let Some(values) = self.values else {
+            return self.payload.serialize(serializer);
+        };
+        let mut map = serializer.serialize_map(None)?;
+        let mut inserted = false;
+        if let Some(object) = self.payload.as_object() {
+            // 当前 serde_json Map 按键排序；在原位置替换保留键，禁止输出重复键。
+            for (key, value) in object {
+                if !inserted && key.as_str() >= "surfaceValues" {
+                    map.serialize_entry("surfaceValues", values)?;
+                    inserted = true;
+                }
+                if key != "surfaceValues" {
+                    map.serialize_entry(key, value)?;
+                }
+            }
+        } else {
+            map.serialize_entry("configured", self.payload)?;
+        }
+        if !inserted {
+            map.serialize_entry("surfaceValues", values)?;
+        }
+        map.end()
+    }
+}
 /// 各输入类型在其 owner 校验后提供声明，共用不可变 ID/字节及同一个序列化预算。
-pub(crate) struct Declaration<'a> {
+pub(crate) struct Declaration<'a, P = &'a serde_json::Value> {
     pub node_id: &'a str,
     pub event: &'a str,
     pub action: &'a str,
     pub class: &'static str,
     pub modifiers: Option<Modifiers>,
-    pub payload: &'a serde_json::Value,
+    pub payload: P,
 }
 pub(crate) fn encode(
     binding: &Binding,
@@ -189,10 +207,10 @@ pub(crate) fn encode(
         javascript: false,
     })
 }
-pub(crate) fn encode_identity(
+pub(crate) fn encode_identity<P: Serialize>(
     identity: Identity<'_>,
     revision: u64,
-    declaration: Declaration<'_>,
+    declaration: Declaration<'_, P>,
 ) -> Result<(String, Vec<u8>), Error> {
     if revision == 0 {
         return Err(Error::Revision);
@@ -250,6 +268,6 @@ impl Write for Bounded {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-surface")))]
 #[path = "surface_click_event_tests.rs"]
 mod tests;

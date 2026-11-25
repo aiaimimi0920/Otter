@@ -71,8 +71,10 @@
       for (;;) {
         const nextTarget = op.mapNext(observed); if (nextTarget.done) break;
         const target = nextTarget.value[0], item = nextTarget.value[1];
-        const value = sizeOf(entry(target), item.mode);
-        if (value.inlineSize === item.width && value.blockSize === item.height) continue;
+        // 比较只读原生尺寸；完整冻结 entry 仍在交付前重新测量并构造。
+        const value = geometry.read(target), offset = item.mode === "border-box" ? 2 :
+          item.mode === "device-pixel-content-box" ? 10 : 6;
+        if (value[offset] === item.width && value[offset + 1] === item.height) continue;
         if (depthOf(target) <= depth) { skipped = true; continue; }
         op.push(active, { target, item });
       }

@@ -155,6 +155,6 @@ fn groups<'de, D: Deserializer<'de>>(decoder: D) -> Result<Vec<SessionGroup>, D:
     bounded::<D, SessionGroup, MAX_UNITS>(decoder)
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "session_document_tests.rs"]
 mod tests;

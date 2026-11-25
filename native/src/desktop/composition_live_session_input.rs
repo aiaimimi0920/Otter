@@ -89,10 +89,6 @@ impl Session {
         }
         // 只保留一条在途输入；慢源的后续移动留在窗口队列合并，不能提前灌满 worker。
         // 回复沿原 WM_NULL 唤醒继续发送；关键边沿仍按 FIFO，取消不等待此准入条件。
-        let browser = self
-            .target
-            .as_ref()
-            .is_some_and(crate::live_browser_scroll::eligible);
         while self.input_enabled
             && self
                 .input
@@ -100,11 +96,11 @@ impl Session {
                 .is_some_and(|worker| !worker.stopping() && worker.outstanding() == 0)
         {
             let Some(event) = self.window.as_ref().and_then(|window| {
-                if browser {
-                    window.pop_browser_input()
-                } else {
-                    window.pop_input()
-                }
+                window.pop_dispatch_input(|| {
+                    self.target
+                        .as_ref()
+                        .is_some_and(crate::live_browser_scroll::eligible)
+                })
             }) else {
                 break;
             };
@@ -195,7 +191,11 @@ impl Session {
                 }
             })?;
         let create = if local {
-            Backend::new_local
+            #[cfg(test)]
+            let local = Backend::new_local_in_test_harness;
+            #[cfg(not(test))]
+            let local = Backend::new_local;
+            local
         } else {
             Backend::new
         };
@@ -417,6 +417,6 @@ impl Session {
         }
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-live")))]
 #[path = "composition_live_input_epoch_tests.rs"]
 mod epoch_tests;

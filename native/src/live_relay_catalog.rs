@@ -58,6 +58,6 @@ fn parse(bytes: &[u8], device: &str) -> Result<Vec<CatalogEntry>, Error> {
     entries.sort_by(|a, b| a.identity.session().cmp(b.identity.session()));
     Ok(entries)
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-live")))]
 #[path = "live_relay_catalog_tests.rs"]
 mod tests;

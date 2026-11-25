@@ -66,31 +66,25 @@ unsafe fn paint_frame(dc: HDC, bounds: RECT, data: &Data) {
             super::preview::paint(dc, content, bounds, data);
             return;
         }
-        let rows = data.rows.borrow();
+        let mut rows = data.rows.borrow_mut();
         if data.columns.get() == 3 {
             gallery::paint(
                 dc,
                 data,
-                &rows,
+                &mut rows,
                 bar.map_or(bounds.right, |bar| bar.track.left),
             );
             data.paints.set(data.paints.get().saturating_add(1));
             return;
         }
-        let shortcut_width = rows
-            .iter()
-            .filter_map(|row| row.label.split_once('\t').map(|(_, shortcut)| shortcut))
-            .map(|shortcut| {
-                let units: Vec<u16> = shortcut.encode_utf16().collect();
-                let mut size = SIZE::default();
-                if !GetTextExtentPoint32W(dc, &units, &mut size).as_bool() {
-                    data.failed.set(true);
-                }
-                size.cx
-            })
-            .max()
-            .unwrap_or(0);
-        for (index, row) in rows.iter().enumerate() {
+        let Some(shortcut_width) = rows.shortcut_width(dc) else {
+            data.failed.set(true);
+            return;
+        };
+        let super::text::PaintRows {
+            rows, text: texts, ..
+        } = &mut *rows;
+        for (index, (row, content)) in rows.iter().zip(texts).enumerate() {
             let top = index as i32 * data.row_height;
             if top >= bounds.bottom {
                 break;
@@ -117,7 +111,7 @@ unsafe fn paint_frame(dc: HDC, bounds: RECT, data: &Data) {
                 fill(dc, &marker, 0x38ffd9);
             }
             let layout = columns::columns(rect, data.dpi, shortcut_width);
-            let (label, shortcut) = row.label.split_once('\t').unwrap_or((&row.label, ""));
+            let (label, shortcut) = content.parts();
             SelectObject(dc, data.fonts.object(false));
             if let Some(image) = &row.thumbnail {
                 if !thumbnail::draw(
@@ -132,29 +126,18 @@ unsafe fn paint_frame(dc: HDC, bounds: RECT, data: &Data) {
                 ) {
                     data.failed.set(true);
                 }
-            } else {
-                text(
-                    dc,
-                    if row.checked {
-                        if row.radio {
-                            "●"
-                        } else {
-                            "✓"
-                        }
-                    } else {
-                        ""
-                    },
-                    layout.mark,
-                    DT_CENTER | DT_NOPREFIX,
-                );
+            } else if row.checked {
+                let mut glyph = [if row.radio {
+                    '●' as u16
+                } else {
+                    '✓' as u16
+                }];
+                text(dc, &mut glyph, layout.mark, DT_CENTER | DT_NOPREFIX);
             }
             text(dc, shortcut, layout.shortcut, DT_RIGHT | DT_NOPREFIX);
-            text(
-                dc,
-                if row.submenu { "›" } else { "" },
-                layout.arrow,
-                DT_CENTER | DT_NOPREFIX,
-            );
+            if row.submenu {
+                text(dc, &mut ['›' as u16], layout.arrow, DT_CENTER | DT_NOPREFIX);
+            }
             SelectObject(dc, data.fonts.object(row.default));
             text(dc, label, layout.label, DT_LEFT);
         }
@@ -162,14 +145,14 @@ unsafe fn paint_frame(dc: HDC, bounds: RECT, data: &Data) {
     }
 }
 
-unsafe fn text(dc: HDC, value: &str, mut rect: RECT, flags: DRAW_TEXT_FORMAT) {
+unsafe fn text(dc: HDC, value: &mut [u16], mut rect: RECT, flags: DRAW_TEXT_FORMAT) {
     if value.is_empty() || rect.left >= rect.right || rect.top >= rect.bottom {
         return;
     }
-    let mut units: Vec<u16> = value.encode_utf16().collect();
+    // 不使用 DT_MODIFYSTRING，GDI 不改写供后续重绘复用的字串。
     DrawTextW(
         dc,
-        &mut units,
+        value,
         &mut rect,
         flags | DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS,
     );

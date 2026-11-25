@@ -2,7 +2,7 @@
 use crate::desktop::capture_history_ui::{Action, Origin, Shared};
 use std::{
     cell::{Cell, RefCell},
-    sync::OnceLock,
+    sync::{Arc, OnceLock},
 };
 use windows::{
     core::{w, Error, Result, HRESULT, HSTRING},
@@ -20,7 +20,7 @@ mod layout;
 struct State {
     view: Shared,
     origin: Origin,
-    data: RefCell<crate::capture_history::Data>,
+    data: RefCell<Arc<crate::capture_history::Data>>,
     status: RefCell<String>,
     scroll: Cell<i32>,
     children: RefCell<Vec<HWND>>,
@@ -100,17 +100,24 @@ impl Window {
             }
         }
         let view = self.state.view.borrow();
-        let status = view.status.clone().unwrap_or_default();
-        if self.revision == view.revision && *self.state.status.borrow() == status {
-            return Ok(());
+        let data_changed = self.revision != view.revision;
+        if data_changed {
+            self.revision = view.revision;
+            *self.state.data.borrow_mut() = view.data.clone();
         }
-        self.revision = view.revision;
-        *self.state.data.borrow_mut() = view.data.clone();
-        *self.state.status.borrow_mut() = status;
+        let status = view.status.as_deref().unwrap_or_default();
+        let status_changed = self.state.status.borrow().as_str() != status;
+        if status_changed {
+            status.clone_into(&mut self.state.status.borrow_mut());
+        }
         drop(view);
+        // Status text is painted by the parent; it never changes button geometry or identity.
         unsafe {
-            layout::update(hwnd, &self.state)?;
-            let _ = InvalidateRect(Some(hwnd), None, false);
+            if data_changed {
+                layout::update(hwnd, &self.state)?;
+            } else if status_changed {
+                let _ = InvalidateRect(Some(hwnd), None, false);
+            }
         }
         Ok(())
     }
@@ -204,10 +211,10 @@ unsafe extern "system" fn procedure(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM
                 rect.bottom - rect.top,
                 SWP_NOZORDER | SWP_NOACTIVATE,
             );
-            let _ = layout::update(hwnd, state);
+            let _ = layout::resize(hwnd, state);
         }
         WM_SIZE => {
-            let _ = layout::update(hwnd, state);
+            let _ = layout::resize(hwnd, state);
         }
         WM_VSCROLL | WM_MOUSEWHEEL => {
             layout::scroll(hwnd, state, msg, wp);
@@ -264,6 +271,6 @@ unsafe extern "system" fn procedure(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-capture")))]
 #[path = "capture_history_window_tests.rs"]
 mod tests;

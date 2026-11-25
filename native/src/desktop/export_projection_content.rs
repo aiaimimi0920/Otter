@@ -27,6 +27,7 @@ impl Target<'_> {
                 crop: view.source,
                 flipped_x: false,
                 flipped_y: false,
+                rasterized_source: false,
             });
         let visible = editor.annotation_frame().unwrap_or(Rect {
             x: 0.0,
@@ -92,7 +93,8 @@ impl Target<'_> {
     ) -> Result<crate::image_projection::Sampling> {
         let logical = self.logical.ok_or_else(invalid)?;
         let window = self.window(logical.width, logical.height);
-        let crop = crate::session_crop::restore(&window).map_err(|_| invalid())?;
+        let (crop, rasterized_full) =
+            crate::session_crop::restore_with_full_source(&window).map_err(|_| invalid())?;
         let visible_crop = crop
             .map(|crop| crop.editor_crop())
             .transpose()
@@ -100,6 +102,9 @@ impl Target<'_> {
         let full = visible_crop.map_or(logical, |crop| crop.source);
         let edit = self.layout_edit(crop.is_none(), None)?;
         source_resolution::Frame::restored(image, full, crop)?
+            .with_rasterized_source(
+                rasterized_full || crop.is_some_and(|crop| crop.rasterized_source),
+            )
             .with_content(image, &window, crop, &edit)?
             .history_mapping(image, visible_crop.map(|crop| crop.rect))
     }

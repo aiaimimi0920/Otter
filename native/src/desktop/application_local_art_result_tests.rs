@@ -1,5 +1,6 @@
 //! 真实隐藏 Application：签名 child 正式结果进入既有端口/保存恢复，不覆盖发起截图。
 use super::*;
+use crate::art_execution_grant::package::ports::{Port, Ports};
 const RESULT_SOURCE: &str = r#"
 NeuroSurface.define({mount({root}) {
  const c=document.createElement('canvas');c.id='result';c.width=2;c.height=1;root.appendChild(c);
@@ -15,15 +16,7 @@ fn local_art_formal_result_enters_session_save_restore_but_image_host_is_not_a_t
         for art_target in [true, false] {
             let mut app = image_app();
             if art_target {
-                app.request_restore_input(crate::desktop::session_job::Input::Bytes(
-                    br#"{"documentSchemaVersion":1,"documentRevision":1,"otterNativeCoordinateSpace":{"version":1,"origin":[0,0],"scale":1},"stickers":[{"id":"local-art","type":"art","artId":"vendor/application","x":0,"y":0,"w":200,"h":120}],"links":[]}"#.to_vec()
-                ), None, None).unwrap();
-                let deadline = Instant::now() + Duration::from_secs(10);
-                while app.restore_job.is_some() {
-                    app.process_restore(false).unwrap();
-                    assert!(Instant::now() < deadline);
-                    std::thread::sleep(Duration::from_millis(1));
-                }
+                restore_local_art(&mut app);
             }
             let node = app.documents[0].state.unit_id.to_string();
             let pixels = app.documents[0]
@@ -33,7 +26,23 @@ fn local_art_formal_result_enters_session_save_restore_but_image_host_is_not_a_t
                 .image
                 .as_ref()
                 .map(|image| image.pixels.clone());
-            let peer = peer::Peer::with_source(RESULT_SOURCE, true);
+            // 当前发布的包携带签名端口；仅恢复的 Local Art 宿主能接收这些端口。
+            let peer = peer::Peer::with_ports(
+                RESULT_SOURCE,
+                Ports {
+                    inputs: vec![],
+                    outputs: vec![
+                        Port {
+                            name: "output".into(),
+                            kind: "image".into(),
+                        },
+                        Port {
+                            name: "data".into(),
+                            kind: "value".into(),
+                        },
+                    ],
+                },
+            );
             peer.authorize(&mut app.authorization_owner);
             app.art_issuers = peer.authority();
             app.start_local_art(
@@ -79,6 +88,7 @@ fn local_art_formal_result_enters_session_save_restore_but_image_host_is_not_a_t
                     &[0, 0, 255, 255, 0, 0, 255, 255]
                 );
             } else {
+                assert_eq!(app.authorization.borrow().status, "Art 宿主类型已变化");
                 assert!(app.documents[0]
                     .state
                     .execution_results

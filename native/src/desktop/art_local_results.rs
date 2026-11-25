@@ -13,6 +13,9 @@ impl Owner {
         }
         let mut error = None;
         for entry in &mut self.entries {
+            if entry.window.is_none() {
+                continue;
+            }
             let valid = entry.active && current(entry, documents, workspace, sessions);
             let unit = &entry.unit;
             let stamp = &entry.stamp;

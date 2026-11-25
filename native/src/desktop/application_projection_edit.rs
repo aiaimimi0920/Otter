@@ -166,14 +166,13 @@ impl Fence {
                         .borrow()
                         .as_ref()
                         .is_some_and(|owner| {
-                            let snapshot = owner.capture(&doc.state.canvas.borrow().editor);
                             owner.stamp() == self.stamp
-                                && snapshot.suspended().is_none()
                                 && app
                                     .restored_session
                                     .as_ref()
                                     .and_then(|record| record.projection_scope)
-                                    == Some(snapshot.context().scope())
+                                    == Some(owner.authoritative().context().scope())
+                                && owner.can_submit(&doc.state.canvas.borrow().editor)
                         })
             })
     }

@@ -7,14 +7,14 @@ use crate::{
 };
 use windows::Win32::Graphics::Direct2D::{Common::*, *};
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "bezier_handle_tests.rs"]
 mod tests;
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "line_handle_tests.rs"]
 mod line_tests;
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "shape_handle_tests.rs"]
 mod shape_tests;
 

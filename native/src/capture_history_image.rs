@@ -3,6 +3,7 @@ use crate::{image_decode::Image, image_thumbnail::Thumbnail};
 use base64::{engine::general_purpose::STANDARD, Engine};
 
 pub(crate) const EDGE: u32 = 240;
+const PNG_KIND: &str = "data:image/png;base64";
 #[derive(Clone)]
 pub(crate) struct Preview {
     pub image: Image,
@@ -22,6 +23,9 @@ pub(crate) fn prepare(image: &Image) -> Result<Preview, String> {
         return Err("Invalid capture history source".into());
     }
     let (width, height) = size(image.width, image.height).ok_or("Invalid history dimensions")?;
+    if (width, height) == (image.width, image.height) && image.pixels.is_compact() {
+        return preview(image.clone());
+    }
     let count = (width * height * 4) as usize;
     let lease = crate::pixels::reserve(count).ok_or("History pixel budget exhausted")?;
     let mut bytes = vec![0; count];
@@ -76,16 +80,16 @@ pub(crate) fn encode(image: &Image) -> Result<String, String> {
             .write_image_data(&rgba)
             .map_err(|e| e.to_string())?;
     }
-    Ok(format!("data:image/png;base64,{}", STANDARD.encode(bytes)))
+    Ok(format!("{PNG_KIND},{}", STANDARD.encode(bytes)))
 }
-pub(crate) fn decode(url: &str) -> Result<Preview, String> {
+pub(super) fn decode(url: &str) -> Result<(Preview, Option<String>), String> {
     if url.len() > super::MAX_BYTES {
         return Err("History image exceeds input budget".into());
     }
     let (kind, payload) = url.split_once(',').ok_or("Invalid history data URL")?;
     if !matches!(
         kind,
-        "data:image/png;base64"
+        PNG_KIND
             | "data:image/jpeg;base64"
             | "data:image/bmp;base64"
             | "data:image/gif;base64"
@@ -96,7 +100,16 @@ pub(crate) fn decode(url: &str) -> Result<Preview, String> {
     let bytes = STANDARD
         .decode(payload)
         .map_err(|_| "Invalid history base64")?;
-    preview(Image::from_capture_history(&bytes).map_err(|e| e.to_string())?)
+    let (image, reusable_png) =
+        Image::from_capture_history(&bytes, kind == PNG_KIND).map_err(|e| e.to_string())?;
+    let preview = preview(image)?;
+    // 只有容器、尺寸和实际预览都已确认的 PNG 才保留原编码；其他旧数据照常归一化。
+    let normalized = if reusable_png {
+        None
+    } else {
+        encode(&preview.image).ok()
+    };
+    Ok((preview, normalized))
 }
 pub(crate) fn capture(id: String, image: &Image, at: u64) -> Result<super::Screenshot, String> {
     let preview = prepare(image)?;

@@ -179,21 +179,32 @@ impl Host {
             drop(surface);
         }
     }
-    /// 宿主负责 BeginPaint/EndPaint。零尺寸释放呈现资源，不自发重绘。
+    /// 只有交换链确认提交才返回 true。零尺寸释放呈现资源，不自发重绘。
     pub fn paint(&mut self, size: D2D_SIZE_U) -> Result<bool> {
+        self.paint_with(size, Surface::present)
+    }
+    fn paint_with(
+        &mut self,
+        size: D2D_SIZE_U,
+        present: impl FnOnce(&Surface) -> Result<bool>,
+    ) -> Result<bool> {
         self.refresh()?;
         if size.width == 0 || size.height == 0 {
             self.suspend();
             return Ok(false);
         }
-        let result = self.paint_inner(size);
+        let result = self.paint_inner(size, present);
         if result.is_err() {
             // 设备丢失/无效输入不留住 GPU owner，也不形成重绘重试风暴。
             self.close();
         }
         result
     }
-    fn paint_inner(&mut self, size: D2D_SIZE_U) -> Result<bool> {
+    fn paint_inner(
+        &mut self,
+        size: D2D_SIZE_U,
+        present: impl FnOnce(&Surface) -> Result<bool>,
+    ) -> Result<bool> {
         if let Some(frame) = self.pending.take() {
             match self.surface.as_mut() {
                 Some(surface) => {
@@ -205,11 +216,18 @@ impl Host {
         let Some(surface) = self.surface.as_mut() else {
             return Ok(false);
         };
-        surface.resize(size)?;
+        if surface.composition.state.size != size {
+            // ResizeBuffers 换掉旧背板，即使之后改回旧尺寸也不能复用坐标。
+            self.presented.clear();
+            surface.resize(size)?;
+        }
         surface.set_opacity(self.opacity)?;
         surface.set_pin_editor(self.pin_editor.clone())?;
         surface.draw_pin_chrome(self.chrome_visible, self.pin_selected)?;
-        surface.present()?;
+        if !present(surface)? {
+            // 非确认不是终止：保留最新帧供快照与下一次绘制，不主动循环重试。
+            return Ok(false);
+        }
         let destination = [size.width, size.height];
         self.presented
             .0

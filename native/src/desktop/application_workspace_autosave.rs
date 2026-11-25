@@ -97,21 +97,20 @@ impl Application {
         if self.save_requires_destination(false) {
             return Err(Error::new(E_ABORT, "请先保存工作区，再开启自动保存。"));
         }
-        if !save_snapshot::automatic_ready(self)? {
-            return Ok(());
-        }
-        if self
-            .saved_state
-            .as_ref()
-            .is_some_and(|stamp| stamp.matches_automatic(self))
+        if !save_snapshot::automatic_static_ready(self)
+            || self
+                .saved_state
+                .as_ref()
+                .is_some_and(|stamp| stamp.matches_automatic(self))
         {
             return Ok(());
         }
         if !restore_batch::guard::is_idle(self) {
             return Ok(()); // 等手势/后台任务的正常完成消息，不丢草稿、不新增定时器。
         }
-        self.request_save_existing()?;
-        self.workspace_autosave_pending = Some(self.workspace_autosave.generation.get());
+        if self.request_automatic_save_existing()? {
+            self.workspace_autosave_pending = Some(self.workspace_autosave.generation.get());
+        }
         Ok(())
     }
     unsafe fn poll_workspace_autosave(&mut self) -> Result<()> {
@@ -162,6 +161,6 @@ impl Application {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "application_workspace_autosave_tests.rs"]
 mod tests;

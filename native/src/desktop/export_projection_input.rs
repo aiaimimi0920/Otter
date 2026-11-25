@@ -14,6 +14,8 @@ pub(in crate::desktop) struct Input {
     pub logical: Option<Size>,
     /// 自然来源原始逻辑sourceSize；非等比恢复后它不等于当前Editor完整框。
     pub source_logical: Option<Size>,
+    /// Selected pixels already cover the complete logical source frame, padding included.
+    pub rasterized_source: bool,
     /// 只解释自然来源的历史/布局，不提供目标当前crop、标注或外观。
     pub baseline: Option<Baseline>,
     /// 仅尚未物化的目标轴翻转；已翻转像素必须传 false。

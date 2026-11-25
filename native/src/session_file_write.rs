@@ -38,16 +38,20 @@ impl Staged {
         {
             return Err(invalid("Invalid session candidate revision"));
         }
-        let mut staged = Self::prepare_bytes(destination, candidate.bytes.clone(), cancel)?;
+        let mut staged = Self::write_bytes(destination, &candidate.bytes, cancel)?;
+        staged.bytes = Some(candidate.bytes.clone());
         staged.revisions = Some((candidate.expected_revision, candidate.revision));
         Ok(staged)
     }
     /// 已由所属格式验证的不可变编码结果；不绑定会话候选身份。
-    pub(crate) fn prepare_bytes(
+    pub fn prepare_bytes(
         destination: &Path,
         bytes: crate::pixels::Pixels,
         cancel: &AtomicBool,
     ) -> io::Result<Self> {
+        Self::write_bytes(destination, &bytes, cancel)
+    }
+    fn write_bytes(destination: &Path, bytes: &[u8], cancel: &AtomicBool) -> io::Result<Self> {
         let size = Some(bytes.len());
         let mut staged = crate::session_file_trace::run("staging-open", size, || {
             Self::prepare_file(destination, cancel)
@@ -61,11 +65,10 @@ impl Staged {
         })?;
         crate::session_file_trace::run("sync", size, || staged.file.as_ref().unwrap().sync_all())?;
         check(cancel)?;
-        staged.bytes = Some(bytes);
         Ok(staged)
     }
     /// 格式 owner 流式写入本次独占文件；不保留完整编码缓冲，也不伪造会话候选身份。
-    pub(crate) fn prepare_stream(
+    pub fn prepare_stream(
         destination: &Path,
         cancel: &AtomicBool,
         write: impl FnOnce(&mut File, &AtomicBool) -> io::Result<()>,
@@ -154,7 +157,7 @@ impl Staged {
 
     /// 已编码资源的递增发布；复用同一个暂存文件，同名冲突不重写内容。
     /// 仅供无会话修订绑定的资源使用；会话仍必须发布到用户确认的确切路径。
-    pub(crate) fn commit_incremented(
+    pub fn commit_incremented(
         mut self,
         stem: &str,
         extension: Option<&str>,
@@ -216,6 +219,6 @@ fn check(cancel: &AtomicBool) -> io::Result<()> {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "session_file_write_tests.rs"]
 mod tests;

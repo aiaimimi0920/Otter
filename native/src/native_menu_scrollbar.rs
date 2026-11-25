@@ -16,7 +16,12 @@ impl Bar {
         visible: usize,
         first: usize,
     ) -> Option<Self> {
-        if width <= 0 || height <= 0 || row <= 0 || visible == 0 || total <= visible || total > 1024
+        if width <= 0
+            || height <= 0
+            || row <= 0
+            || visible == 0
+            || total <= visible
+            || total > super::model::MAX_GALLERY_ITEMS
         {
             return None;
         }

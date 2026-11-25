@@ -7,6 +7,7 @@ use std::{
     cell::{Cell, RefCell},
     collections::VecDeque,
     rc::Rc,
+    sync::Arc,
 };
 pub(super) type Shared = Rc<RefCell<View>>;
 pub(super) struct Capture {
@@ -27,7 +28,8 @@ pub(super) enum Action {
 }
 #[derive(Default)]
 pub(super) struct View {
-    pub data: Data,
+    // Window actions and the save worker keep the exact revision they observed.
+    pub data: Arc<Data>,
     pub revision: u64,
     pub toggle: Option<Origin>,
     pub action: Option<(Origin, Action)>,
@@ -39,8 +41,17 @@ impl View {
         self.revision = self.revision.saturating_add(1);
     }
     pub fn color(&mut self, color: Color) {
-        self.data.color(color, now());
+        Arc::make_mut(&mut self.data).color(color, now());
         self.changed();
+    }
+    pub fn screenshot(&mut self, entry: crate::capture_history::Screenshot) {
+        Arc::make_mut(&mut self.data).screenshot(entry);
+        self.changed();
+    }
+    pub fn remove_screenshot(&mut self, id: &str) {
+        if Arc::make_mut(&mut self.data).remove(id) {
+            self.changed();
+        }
     }
     pub fn capture(&mut self, id: String, image: Image) {
         if self.captures.len() >= 4 {

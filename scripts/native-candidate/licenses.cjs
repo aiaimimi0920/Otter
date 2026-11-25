@@ -69,8 +69,16 @@ function collect(repo, metadata, output, registryRoot) {
     } else if (pkg.name === design.NAME) {
       directory = design.directory(repo, pkg);
     } else if (pkg.source == null) {
-      if (pkg.name === 'otter-live-hover-hook') {
-        if (fs.realpathSync(pkg.manifest_path) !== fs.realpathSync(path.join(repo, 'native/hover-hook/Cargo.toml'))) throw new Error('Invalid hover license root');
+      const workspaceDirs = {
+        'otter-live-hover-hook': 'native/hover-hook/Cargo.toml',
+        'otter-core': 'native/otter-core/Cargo.toml',
+        'otter-media': 'native/otter-media/Cargo.toml',
+        'otter-runtime': 'native/otter-runtime/Cargo.toml',
+      };
+      if (workspaceDirs[pkg.name]) {
+        if (fs.realpathSync(pkg.manifest_path) !== fs.realpathSync(path.join(repo, workspaceDirs[pkg.name]))) {
+          throw new Error(`Invalid workspace license root: ${pkg.name}`);
+        }
         directory = repo;
       } else {
         const local = sources.find(s => s.name === pkg.name && s.version === pkg.version);

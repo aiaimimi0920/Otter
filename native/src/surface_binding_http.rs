@@ -13,13 +13,11 @@ impl MountedSurface {
     pub fn declarative_scene(
         &self,
     ) -> Result<crate::surface_scene::Scene, crate::surface_scene::Error> {
-        declarative_scene(self.snapshot.get())
+        scene_for_runtime(
+            self.snapshot.get(),
+            crate::surface_host_capabilities::Runtime::Declarative,
+        )
     }
-}
-pub(crate) fn declarative_scene(
-    raw: &str,
-) -> Result<crate::surface_scene::Scene, crate::surface_scene::Error> {
-    scene_for_runtime(raw, crate::surface_host_capabilities::Runtime::Declarative)
 }
 /// 期望 runtime 必须来自宿主原始准入，不能从待收敛响应自身推断执行许可。
 pub(crate) fn scene_for_runtime(
@@ -27,12 +25,13 @@ pub(crate) fn scene_for_runtime(
     expected: crate::surface_host_capabilities::Runtime,
 ) -> Result<crate::surface_scene::Scene, crate::surface_scene::Error> {
     #[derive(Deserialize)]
-    struct SceneSnapshot {
+    struct SceneSnapshot<'a> {
         #[serde(default)]
         runtime: crate::surface_host_capabilities::Runtime,
-        scene: Box<serde_json::value::RawValue>,
+        #[serde(borrow)]
+        scene: &'a serde_json::value::RawValue,
     }
-    let snapshot: SceneSnapshot =
+    let snapshot: SceneSnapshot<'_> =
         serde_json::from_str(raw).map_err(|_| crate::surface_scene::Error::Json)?;
     if snapshot.runtime != expected {
         return Err(crate::surface_scene::Error::Runtime);

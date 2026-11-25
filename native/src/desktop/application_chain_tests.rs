@@ -5,15 +5,6 @@ use std::{
     rc::Rc,
     time::{Duration, Instant},
 };
-use windows::Win32::System::LibraryLoader::GetModuleHandleW;
-struct Class(HINSTANCE);
-impl Drop for Class {
-    fn drop(&mut self) {
-        unsafe {
-            let _ = UnregisterClassW(w!("Otter.Native.Workspace"), Some(self.0));
-        }
-    }
-}
 fn node(catalog: &Rc<Loaded>) -> State {
     let state = State::new(None, false).unwrap();
     let parameters =
@@ -62,17 +53,7 @@ fn chain_with_shader(image_chain: bool, blocked: Option<(usize, usize)>, real_sh
     let _input = crate::desktop::loom_input_job::TEST_SERIAL.lock().unwrap();
     let _apartment = Apartment::new().unwrap();
     unsafe {
-        let instance: HINSTANCE = GetModuleHandleW(None).unwrap().into();
-        assert_ne!(
-            RegisterClassW(&WNDCLASSW {
-                hInstance: instance,
-                lpszClassName: w!("Otter.Native.Workspace"),
-                lpfnWndProc: Some(crate::desktop::procedure::window_proc),
-                ..Default::default()
-            }),
-            0
-        );
-        let _class = Class(instance);
+        let instance = crate::desktop::workspace_window_fixture::register();
         let (listener, identity, tls_config) = crate::loom_bridge_client::tests::fixture();
         listener.set_nonblocking(true).unwrap();
         let mut raw = crate::loom_handshake::tests::fixture();

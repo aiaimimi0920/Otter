@@ -2,7 +2,7 @@
 use crate::{
     byte_budget::Budget,
     device_authorization_config::Config,
-    device_authorization_lease::Lease,
+    device_authorization_lease::{ExecutionStop, Lease},
     live_frames::Consumer,
     live_relay_http::{self, source::Publication},
     live_texture::Texture,
@@ -71,8 +71,16 @@ pub struct Outcome {
     pub exit: Exit,
     pub cleanup: Cleanup,
 }
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Status {
+    Starting,
+    Publishing,
+    Recovering,
+    Stopping,
+}
 struct Signal {
     stop: AtomicBool,
+    progress_stop: ExecutionStop,
     socket: Mutex<Option<Interrupt>>,
     worker: Mutex<Option<std::thread::Thread>>,
     ready: AtomicBool,
@@ -94,15 +102,14 @@ impl Signal {
     fn restart_media(&self) {
         // 控制失联必须在服务产生可靠controller=None屏障；仅由原媒体owner重连，不新增写请求。
         // socket尚未安装时仍保留请求，避免首次控制GET先于WSS建立的竞争。
-        self.restart_media.store(true, Ordering::Release);
-        self.recovery(true);
-        if let Some(socket) = self
-            .socket
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .as_ref()
         {
-            let _ = socket.cancel();
+            // 发布请求与选择取消对象共用连接槽；不能中断随后才安装的替代连接。
+            let owner = self.socket.lock().unwrap_or_else(|e| e.into_inner());
+            self.recovery(true);
+            self.restart_media.store(true, Ordering::Release);
+            if let Some(socket) = owner.as_ref() {
+                let _ = socket.cancel();
+            }
         }
         if let Some(worker) = self
             .worker
@@ -123,6 +130,8 @@ impl Signal {
     }
     fn stop(&self) {
         self.stop.store(true, Ordering::Release);
+        // 只中断水位 GET；显式停止后仍须用本租约关闭原会话。
+        self.progress_stop.stop();
         if let Some(interaction) = &self.interaction {
             interaction.cancel();
         }
@@ -145,6 +154,18 @@ impl Signal {
         {
             worker.unpark();
         }
+    }
+    fn finish_media_recovery(&self) -> bool {
+        // 与轮换请求串行：旧连接返回的水位不能解除本次输入屏障。
+        let _owner = self.socket.lock().unwrap_or_else(|e| e.into_inner());
+        if self.restart_media.load(Ordering::Acquire) {
+            return false;
+        }
+        self.recovery(false);
+        true
+    }
+    fn retire_media(&self) {
+        self.socket.lock().unwrap_or_else(|e| e.into_inner()).take();
     }
     fn install(&self, socket: Interrupt) {
         let mut owner = self.socket.lock().unwrap_or_else(|e| e.into_inner());
@@ -216,6 +237,7 @@ impl Runtime {
         let event = unsafe { CreateEventW(None, true, false, None) }.map_err(io::Error::other)?;
         let signal = Arc::new(Signal {
             stop: AtomicBool::new(false),
+            progress_stop: lease.execution_stop_handle(),
             socket: Mutex::new(None),
             worker: Mutex::new(None),
             ready: AtomicBool::new(false),
@@ -274,8 +296,22 @@ impl Runtime {
         self.signal.stop.load(Ordering::Acquire)
     }
     pub fn ready(&self) -> bool {
+        self.status() == Status::Publishing
+    }
+    pub(crate) fn status(&self) -> Status {
+        // 先消费事件再观察状态；期间到达的新变化仍可唤醒消息泵。
         let _ = unsafe { ResetEvent(HANDLE(self.signal.event.as_raw_handle())) };
-        self.signal.ready.load(Ordering::Acquire) && !self.stopping() && !self.recovering()
+        let ready = self.signal.ready.load(Ordering::Acquire);
+        let recovering = self.recovering();
+        if self.stopping() {
+            Status::Stopping
+        } else if recovering {
+            Status::Recovering
+        } else if ready {
+            Status::Publishing
+        } else {
+            Status::Starting
+        }
     }
     pub(crate) fn recovering(&self) -> bool {
         self.signal.recovering.load(Ordering::Acquire)
@@ -289,6 +325,10 @@ impl Runtime {
             .interaction
             .as_ref()
             .is_some_and(|i| i.test_disconnect())
+    }
+    #[cfg(test)]
+    pub(crate) fn test_request_media_restart(&self) {
+        self.signal.restart_media();
     }
     #[cfg(test)]
     pub(crate) fn test_disconnect_media(&self) -> bool {
@@ -417,25 +457,8 @@ fn run(
         .lock()
         .unwrap_or_else(|e| e.into_inner())
         .take();
-    let exit = match control_result {
-        Some(Err(error)) => Exit::Control(error),
-        _ if observation_result.is_some_and(|result| result.is_err()) => {
-            Exit::Observation(observation_result.unwrap().unwrap_err())
-        }
-        _ if requested => Exit::Stopped,
-        _ => result.err().unwrap_or(Exit::Stopped),
-    };
-    if matches!(
-        exit,
-        Exit::Revoked
-            | Exit::Http(live_relay_http::Error::AuthorizationRequired)
-            | Exit::Control(control::Error::Http(
-                live_relay_http::Error::AuthorizationRequired
-            ))
-            | Exit::Observation(observation::Error::Http(
-                live_relay_http::Error::AuthorizationRequired
-            ))
-    ) {
+    let exit = source_exit(requested, result, control_result, observation_result);
+    if exit.authorization_ended() {
         lease.revoke();
     }
     let cleanup = if now()
@@ -443,13 +466,27 @@ fn run(
         .is_none_or(|now| lease.validate(client.origin(), now).is_err())
     {
         Cleanup::AuthorizationEnded
-    } else if lease
-        .control(&client)
-        .is_ok_and(|control| control.close_source(&publication).is_ok())
-    {
-        Cleanup::Confirmed
     } else {
-        Cleanup::Unconfirmed
+        match lease
+            .control(&client)
+            .map(|control| control.close_source(&publication))
+        {
+            Ok(Ok(())) => Cleanup::Confirmed,
+            Ok(Err(live_relay_http::Error::AuthorizationRequired)) => {
+                lease.revoke();
+                Cleanup::AuthorizationEnded
+            }
+            _ if lease.is_revoked() => Cleanup::AuthorizationEnded,
+            _ => Cleanup::Unconfirmed,
+        }
     };
     Outcome { exit, cleanup }
 }
+
+#[path = "live_relay_source_outcome.rs"]
+mod outcome;
+use outcome::source_exit;
+
+#[cfg(test)]
+#[path = "live_relay_source_exit_tests.rs"]
+mod exit_tests;

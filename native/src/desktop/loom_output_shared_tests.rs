@@ -15,8 +15,19 @@ impl Drop for Fixture {
         }
     }
 }
+struct WriteView(MEMORY_MAPPED_VIEW_ADDRESS);
+impl Drop for WriteView {
+    fn drop(&mut self) {
+        unsafe {
+            let _ = UnmapViewOfFile(self.0);
+        }
+    }
+}
 impl Fixture {
     fn new(bytes: &[u8]) -> Self {
+        Self::create(bytes, |_| {})
+    }
+    fn create(bytes: &[u8], mapped: impl FnOnce(&str)) -> Self {
         let name = format!(
             "Loom_Buffer_native_test_{}_{}",
             std::process::id(),
@@ -33,15 +44,35 @@ impl Fixture {
                 PCWSTR(wide.as_ptr()),
             )
             .unwrap();
-            let view = MapViewOfFile(handle, FILE_MAP_WRITE, 0, 0, bytes.len());
-            assert!(!view.Value.is_null());
-            std::ptr::copy_nonoverlapping(bytes.as_ptr(), view.Value.cast(), bytes.len());
-            UnmapViewOfFile(view).unwrap();
-            Self { handle, name }
+            let fixture = Self { handle, name };
+            let address = MapViewOfFile(fixture.handle, FILE_MAP_WRITE, 0, 0, bytes.len());
+            assert!(!address.Value.is_null());
+            let view = WriteView(address);
+            mapped(&fixture.name);
+            std::ptr::copy_nonoverlapping(bytes.as_ptr(), view.0.Value.cast(), bytes.len());
+            fixture
         }
     }
     fn descriptor(&self, width: u32, height: u32) -> Value {
         json!({"kind":"shared_memory","handle":self.name,"format":"rgba8","width":width,"height":height,"size":width as u64*height as u64*4})
+    }
+}
+#[test]
+fn fixture_releases_named_mapping_if_construction_unwinds() {
+    let mut name = String::new();
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        Fixture::create(&[0; 4], |mapped_name| {
+            name = mapped_name.to_owned();
+            panic!("injected failure after mapping");
+        });
+    }));
+    assert!(result.is_err());
+    assert!(name.starts_with("Loom_Buffer_native_test_"));
+    let wide: Vec<u16> = name.encode_utf16().chain(Some(0)).collect();
+    let reopened = unsafe { OpenFileMappingW(FILE_MAP_READ.0, false, PCWSTR(wide.as_ptr())) };
+    if let Ok(handle) = reopened {
+        unsafe { CloseHandle(handle).unwrap() };
+        panic!("fixture leaked its named mapping");
     }
 }
 #[test]

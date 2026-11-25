@@ -26,6 +26,6 @@ pub(in crate::live_relay_http::art_prepare) fn fetch(
         )
         .map_err(Error::Http)
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-loom")))]
 #[path = "art_prepare_package_discovery_tests.rs"]
 mod tests;

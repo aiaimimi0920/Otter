@@ -108,6 +108,13 @@ pub(crate) struct Reply {
     pub delivery: Option<Delivery>,
 }
 impl Reply {
+    pub fn confirms_ack(&self, delivery_id: &str, receipt: &Receipt) -> bool {
+        self.status == Status::Acknowledged
+            && self.delivery_id.as_deref() == Some(delivery_id)
+            && self.receipt.as_ref() == Some(receipt)
+            && self.delivery.is_none()
+    }
+
     pub fn parse(
         bytes: &[u8],
         binding: &Binding,

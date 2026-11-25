@@ -52,6 +52,6 @@ impl Drop for Frame {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "buffered_paint_tests.rs"]
 mod tests;

@@ -101,25 +101,28 @@ unsafe extern "system" fn horizontal_percent(this: *mut c_void, out: *mut f64) -
     number(this, out, |_| UIA_ScrollPatternNoScroll)
 }
 unsafe extern "system" fn vertical_percent(this: *mut c_void, out: *mut f64) -> HRESULT {
-    number(this, out, |state| {
-        if state.total <= state.visible {
-            UIA_ScrollPatternNoScroll
-        } else {
-            100.0 * state.first as f64 / (state.total - state.visible) as f64
-        }
-    })
+    number(this, out, percent_value)
 }
 unsafe extern "system" fn horizontal_size(this: *mut c_void, out: *mut f64) -> HRESULT {
     number(this, out, |_| 100.0)
 }
 unsafe extern "system" fn vertical_size(this: *mut c_void, out: *mut f64) -> HRESULT {
-    number(this, out, |state| {
-        if state.total == 0 {
-            100.0
-        } else {
-            (100.0 * state.visible as f64 / state.total as f64).min(100.0)
-        }
-    })
+    number(this, out, size_value)
+}
+// 属性查询与变更通知使用相同的 UIA 单位和无滚动哨兵值。
+pub(super) fn percent_value(state: Scroll) -> f64 {
+    if state.total <= state.visible {
+        UIA_ScrollPatternNoScroll
+    } else {
+        100.0 * state.first as f64 / (state.total - state.visible) as f64
+    }
+}
+pub(super) fn size_value(state: Scroll) -> f64 {
+    if state.total == 0 {
+        100.0
+    } else {
+        (100.0 * state.visible as f64 / state.total as f64).min(100.0)
+    }
 }
 unsafe fn boolean(this: *mut c_void, out: *mut windows::core::BOOL, vertical: bool) -> HRESULT {
     if out.is_null() {

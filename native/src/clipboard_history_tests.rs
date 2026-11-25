@@ -196,9 +196,36 @@ fn bitmap_dimensions_and_pixel_bytes_are_rejected_before_pixel_allocation() {
             writer.finish().unwrap();
         }
         assert!(bytes.len() < MAX_IMAGE_BYTES);
-        let error = crate::image_decode::Image::from_clipboard_history(&bytes)
+        let error = crate::image_decode::Image::from_clipboard_history(&bytes, &|| false)
             .err()
             .unwrap();
         assert!(error.message().contains(message));
+    }
+}
+
+#[test]
+fn bitmap_decode_observes_cancellation_before_allocation_and_after_copy() {
+    let _apartment = Apartment::new().unwrap();
+    let png = include_bytes!("../assets/branding/32x32.png");
+    for stop_at in [1, 2] {
+        let calls = std::cell::Cell::new(0);
+        let result = crate::image_decode::Image::from_clipboard_history(png, &|| {
+            calls.set(calls.get() + 1);
+            calls.get() == stop_at
+        });
+        assert_eq!(calls.get(), stop_at);
+        assert!(result
+            .err()
+            .unwrap()
+            .message()
+            .contains("Image decode cancelled"));
+    }
+    for (cancel, deadline) in [
+        (true, Instant::now() + Duration::from_secs(5)),
+        (false, Instant::now()),
+    ] {
+        // 无效容器不能先于已取消/超时的历史请求进入 WIC。
+        let result = content::decode_bitmap(b"not an image", &AtomicBool::new(cancel), deadline);
+        assert_eq!(result.err().unwrap().code(), E_ABORT);
     }
 }

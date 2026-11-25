@@ -54,7 +54,7 @@ pub(super) unsafe fn run_routed(mode: Mode, offline: bool) {
     } else {
         peer::start(listener, tls, mode)
     };
-    let (_class, mut app) = application(files.root());
+    let mut app = application(files.root());
     mosaic(&app);
     app.authorization.borrow_mut().origin = Some(origin.clone());
     app.authorization.borrow_mut().consent.install_paused(true);
@@ -322,7 +322,7 @@ fn native_sender_content_cache_metadata_checkpoint_does_not_retire_original_sour
     let _com = Apartment::new().unwrap();
     let (files, _, _) = Files::new();
     unsafe {
-        let (_class, mut app) = application(files.root());
+        let mut app = application(files.root());
         let unit = &app.documents[0].state.unit_id;
         let (captured, _) = scope::Scope::capture(&app, unit).unwrap();
         let (cache, _) = scope::Scope::capture(&app, unit).unwrap();

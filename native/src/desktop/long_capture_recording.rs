@@ -13,7 +13,8 @@ pub(super) struct State {
     schedule: RefCell<Schedule>,
     hook: RefCell<Option<hook::Hook>>,
     preview_due: Cell<bool>,
-    revoked: Cell<bool>,
+    covered: Cell<bool>,
+    pub(super) overlay_layout: Cell<Option<(i32, i32, u32)>>,
 }
 impl State {
     pub fn new(target: Option<long_capture_source::scroll::Target>) -> Self {
@@ -23,7 +24,8 @@ impl State {
             schedule: RefCell::new(Schedule::default()),
             hook: RefCell::new(None),
             preview_due: Cell::new(true),
-            revoked: Cell::new(false),
+            covered: Cell::new(false),
+            overlay_layout: Cell::new(None),
         }
     }
     pub fn enabled(&self) -> bool {
@@ -33,11 +35,14 @@ impl State {
         self.schedule.borrow().phase() == Phase::Recording
     }
     pub fn cancel(&self) {
+        self.covered.set(false);
+        self.overlay_layout.set(None);
         self.hook.borrow_mut().take();
         self.schedule.borrow_mut().cancel();
         self.preview_due.set(false);
     }
     pub fn stop(&self) {
+        self.covered.set(false);
         self.hook.borrow_mut().take();
         self.schedule.borrow_mut().stop();
     }
@@ -47,11 +52,7 @@ pub(super) unsafe fn start(hwnd: HWND, input: &Input) {
     let Some(target) = &state.target else {
         return;
     };
-    if state.revoked.get()
-        || input.finish.pending()
-        || input.job.borrow().is_pending()
-        || state.running()
-    {
+    if input.finish.pending() || input.job.borrow().is_pending() || state.running() {
         return;
     }
     let result = target
@@ -98,6 +99,7 @@ pub(super) unsafe fn notify(hwnd: HWND, input: &Input, wp: WPARAM) {
 unsafe fn receive(hwnd: HWND, input: &Input, wheel: hook::Wheel) {
     let state = &input.recording;
     if !state.running()
+        || state.covered.get()
         || windows::Win32::System::SystemInformation::GetTickCount64().saturating_sub(wheel.time_ms)
             > 220
     {
@@ -137,10 +139,32 @@ pub(super) unsafe fn finish(hwnd: HWND, input: &Input) {
     controls(hwnd, input, input.job.borrow().is_pending());
     drive(hwnd, input);
 }
-pub(super) fn completed(input: &Input, completion: &Completion) {
+/// 返回本次失败是否已由遮挡暂停分支投影到 UI。
+pub(super) unsafe fn completed(hwnd: HWND, input: &Input, completion: &Completion) -> bool {
     let state = &input.recording;
     if !state.enabled() {
-        return;
+        return false;
+    }
+    match completion {
+        Completion::CaptureFailed(error)
+            if error == long_capture_source::scroll::TARGET_COVERED
+                && matches!(
+                    state.schedule.borrow().phase(),
+                    Phase::Recording | Phase::Draining
+                ) =>
+        {
+            state.schedule.borrow_mut().covered(Instant::now());
+            if state.running() && !state.covered.replace(true) {
+                status(hwnd, "录制暂停：请移开遮挡窗口，随后自动继续");
+            }
+            return true;
+        }
+        Completion::Append(Ok(_)) | Completion::SpatialAppend(Ok(_)) => {
+            if state.covered.replace(false) && state.running() {
+                status(hwnd, "录制中");
+            }
+        }
+        _ => {}
     }
     match completion {
         Completion::Append(Ok(Append::Added { .. }))
@@ -162,6 +186,7 @@ pub(super) fn completed(input: &Input, completion: &Completion) {
         Completion::Preview(Ok(_)) | Completion::SpatialPreview(Ok(_)) => {}
         _ => state.stop(),
     }
+    false
 }
 pub(super) unsafe fn drive(hwnd: HWND, input: &Input) {
     drive_with_timer(hwnd, input, |delay| {
@@ -239,10 +264,7 @@ pub(super) unsafe fn update_control(hwnd: HWND, input: &Input, busy: bool) {
         let _ = ShowWindow(control, if state.enabled() { SW_SHOW } else { SW_HIDE });
         let _ = EnableWindow(
             control,
-            state.enabled()
-                && !state.revoked.get()
-                && !input.finish.pending()
-                && (state.running() || !busy),
+            state.enabled() && !input.finish.pending() && (state.running() || !busy),
         );
     }
     let _ = SetDlgItemTextW(
@@ -260,6 +282,6 @@ pub(super) const MESSAGE: u32 = hook::MESSAGE;
 #[cfg(test)]
 #[path = "long_capture_recording_runtime_tests.rs"]
 mod runtime_tests;
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-capture")))]
 #[path = "long_capture_recording_tests.rs"]
 mod tests;

@@ -62,7 +62,6 @@ pub fn reconcile(
         )
     });
     // current是唯一完整本地真值；不把旧conflict payload重新叠回，否则undo会复活旧编辑。
-    validate_changes(&changes)?;
     let visible = remote.overlay(&changes)?;
     let code = sticky.or(race.then_some(Code::ObjectConflict));
     let conflict = code.map(|code| Conflict {

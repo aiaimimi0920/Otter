@@ -77,6 +77,6 @@ impl Presentation {
             .then_some(scroll)
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-surface")))]
 #[path = "surface_presentation_scroll_state_tests.rs"]
 mod tests;

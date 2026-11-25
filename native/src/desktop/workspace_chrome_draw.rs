@@ -21,7 +21,7 @@ pub(super) struct Content {
 #[cfg(test)]
 #[path = "workspace_chrome_frame_tests.rs"]
 mod frame_tests;
-pub(super) fn ports(ui: &Ui) -> Vec<(Port, Point, i32)> {
+pub(super) fn ports(ui: &Ui) -> Vec<Port> {
     let mut ports = Vec::new();
     for node in ui
         .nodes
@@ -29,44 +29,16 @@ pub(super) fn ports(ui: &Ui) -> Vec<(Port, Point, i32)> {
         .iter()
         .filter(|node| node.ports(ui.mode.get(), node.hide_collapsed_endpoints))
     {
-        for (side, count) in [(Side::Input, node.inputs), (Side::Output, node.outputs)] {
-            for index in 0..count {
-                let port = Port {
-                    node: node.endpoint,
-                    side,
-                    index,
-                };
-                if let Some(point) = ui.point(port) {
-                    ports.push((
-                        Port {
-                            node: node.endpoint,
-                            side,
-                            index,
-                        },
-                        point,
-                        node.radius(),
-                    ));
+        for side in [Side::Input, Side::Output] {
+            let geometry = port_visual::SideGeometry::new(ui, node, side);
+            for index in geometry.indices() {
+                if geometry.layout(index, true).is_some() {
+                    ports.push(geometry.port(index));
                 }
             }
         }
     }
     ports
-}
-pub(super) fn port_rect(ui: &Ui, port: Port, _: Point, _: i32) -> RECT {
-    let frame = port_visual::layout(ui, port)
-        .expect("rendered port has current geometry")
-        .frame;
-    let mut rect = RECT {
-        left: frame.x,
-        top: frame.y,
-        right: frame.x.saturating_add(frame.width),
-        bottom: frame.y.saturating_add(frame.height),
-    };
-    if let Some(clip) = parameter_rail::clip(ui, port) {
-        rect.top = rect.top.max(clip.top);
-        rect.bottom = rect.bottom.min(clip.bottom);
-    }
-    rect
 }
 struct Object(HGDIOBJ);
 impl Drop for Object {
@@ -112,17 +84,27 @@ pub(super) unsafe fn frame(dc: HDC, origin: POINT, rect: Rect, dpi: u32) {
     fill(outer_left, top, left, bottom);
     fill(right, top, outer_right, bottom);
 }
-unsafe fn line(dc: HDC, origin: POINT, a: Point, b: Point, color: COLORREF, dashed: bool) {
+unsafe fn line(
+    dc: HDC,
+    origin: POINT,
+    a: Point,
+    b: Point,
+    color: COLORREF,
+    dashed: bool,
+) -> Result<()> {
     let pen = CreatePen(
         if dashed { PS_DASH } else { PS_SOLID },
         if dashed { 1 } else { 2 },
         color,
     );
     if pen.is_invalid() {
-        return;
+        return Err(Error::new(E_FAIL, "Workspace chrome CreatePen failed"));
     }
     let _pen = Object(HGDIOBJ(pen.0));
     let old = SelectObject(dc, HGDIOBJ(pen.0));
+    if old.is_invalid() {
+        return Err(Error::new(E_FAIL, "Workspace chrome pen selection failed"));
+    }
     let shift = ((i64::from(b.x) - i64::from(a.x)).abs() / 2).clamp(40, 160) as i32;
     let p = |x: i32, y: i32| POINT {
         x: x.saturating_sub(origin.x),
@@ -134,8 +116,12 @@ unsafe fn line(dc: HDC, origin: POINT, a: Point, b: Point, color: COLORREF, dash
         p(b.x.saturating_sub(shift), b.y),
         p(b.x, b.y),
     ];
-    let _ = PolyBezier(dc, &points);
-    SelectObject(dc, old);
+    let drawn = PolyBezier(dc, &points);
+    let restored = SelectObject(dc, old);
+    if !drawn.as_bool() || restored.is_invalid() {
+        return Err(Error::new(E_FAIL, "Workspace chrome curve draw failed"));
+    }
+    Ok(())
 }
 pub(super) unsafe fn paint(hwnd: HWND, ui: &Ui) {
     let mut paint = PAINTSTRUCT::default();
@@ -177,6 +163,16 @@ pub(super) unsafe fn paint(hwnd: HWND, ui: &Ui) {
     }
 }
 pub(super) unsafe fn present(ui: &Ui, rect: Rect, backdrops: backdrops::Backdrops) -> Result<()> {
+    present_with(ui, rect, backdrops, |dc, origin, (a, b, color, dashed)| {
+        line(dc, origin, a, b, color, dashed)
+    })
+}
+pub(super) unsafe fn present_with(
+    ui: &Ui,
+    rect: Rect,
+    backdrops: backdrops::Backdrops,
+    mut draw_line: impl FnMut(HDC, POINT, (Point, Point, COLORREF, bool)) -> Result<()>,
+) -> Result<()> {
     if ui.presenting.replace(true) {
         return Ok(()); // ULW 同步尺寸消息不能再修改尚在提交的 DIB。
     }
@@ -215,14 +211,16 @@ pub(super) unsafe fn present(ui: &Ui, rect: Rect, backdrops: backdrops::Backdrop
         right: size.cx,
         bottom: size.cy,
     };
-    clear(surface.dc(), &area);
+    // The reused DIB now becomes scratch. No old or new identity survives a failed frame.
+    surface.content = None;
+    clear(surface.dc(), &area)?;
     let origin = POINT {
         x: rect.left,
         y: rect.top,
     };
     content.backdrops.paint(ui, surface.dc(), origin)?;
-    for &(a, b, color, dashed) in &content.lines {
-        line(surface.dc(), origin, a, b, color, dashed);
+    for &curve in &content.lines {
+        draw_line(surface.dc(), origin, curve)?;
     }
     let result = surface.present(ui.drawing.get(), rect);
     if result.is_ok() {
@@ -233,13 +231,20 @@ pub(super) unsafe fn present(ui: &Ui, rect: Rect, backdrops: backdrops::Backdrop
     }
     result
 }
-unsafe fn clear(dc: HDC, area: &RECT) {
-    SetDCBrushColor(dc, COLORREF(0));
-    FillRect(dc, area, HBRUSH(GetStockObject(DC_BRUSH).0));
-    SetBkMode(dc, TRANSPARENT);
+unsafe fn clear(dc: HDC, area: &RECT) -> Result<()> {
+    if SetDCBrushColor(dc, COLORREF(0)) == COLORREF(u32::MAX)
+        || FillRect(dc, area, HBRUSH(GetStockObject(DC_BRUSH).0)) == 0
+        || SetBkMode(dc, TRANSPARENT) == 0
+    {
+        return Err(Error::new(
+            E_FAIL,
+            "Workspace chrome background draw failed",
+        ));
+    }
+    Ok(())
 }
 unsafe fn contents(hwnd: HWND, ui: &Ui, dc: HDC, area: &RECT, origin: POINT) -> Result<()> {
-    clear(dc, area);
+    clear(dc, area)?;
     if ui.blocked() {
         return Ok(());
     }
@@ -254,9 +259,7 @@ fn lines(ui: &Ui) -> Lines {
                 else {
                     continue;
                 };
-                if !ui.visible(edge.from) || !ui.visible(edge.to) {
-                    continue;
-                }
+                // point 本身用裁剪后的端口布局判定可见性，不再另算端口位置。
                 let (Some(a), Some(b)) = (ui.point(edge.from), ui.point(edge.to)) else {
                     continue;
                 };

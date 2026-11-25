@@ -1,0 +1,28 @@
+[package]
+name = "otter-core"
+version = "0.2.33"
+edition = "2021"
+license = "MIT"
+publish = false
+description = "Otter core geometry, pixel, brush, and protocol value models"
+
+[features]
+test-support = []
+
+[dependencies]
+ring = "=0.17.14"
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = { version = "=1.0.151", features = ["raw_value", "float_roundtrip"] }
+url = "=2.5.8"
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "=0.60.0", features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Gdi",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+[dev-dependencies]
+base64 = "=0.22.1"
+png = "=0.18.1"

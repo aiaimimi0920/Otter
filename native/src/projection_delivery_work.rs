@@ -92,8 +92,9 @@ impl Work {
                 invitation,
                 journal,
             }) => {
+                // 写前只验证来件；发送体必须取自可能复用的原持久意图。
                 invitation
-                    .accept_body(client.origin())
+                    .validate_for(client.origin())
                     .map_err(Error::Decode)?;
                 let intent = attempt.begin(&journal, &invitation, task.device_id())?;
                 // 写前意图成功后才允许 HTTP accept；失败/撤权不能抹掉不确定副作用。

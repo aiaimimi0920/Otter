@@ -1,37 +1,88 @@
 //! 已发布图片引用的归档索引候选；不写资源或会话，不推进文档 revision。
 use super::{check, Error, Plan};
-use serde_json::{json, Map, Value};
-use std::{collections::BTreeMap, sync::atomic::AtomicBool};
+use serde::Deserialize;
+use serde_json::{json, value::RawValue, Map, Value};
+use std::{borrow::Cow, collections::BTreeMap, sync::atomic::AtomicBool};
 
 pub struct Asset<'a> {
     pub sticker_id: &'a str,
     pub src: &'a str,
     pub preview_src: Option<&'a str>,
 }
-/// 必须在资源发布成功后调用，传入处理后的引用；本函数不从路径推断读取权限。
-/// 返回可嵌入下一次 session_write 候选的索引，不代表磁盘提交已完成。
-pub fn prepare(
+/// 精确绑定保存原文。解析图像引用及原索引时借用 JSON，不分配未转义的大字符串。
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Fields<'a> {
+    #[serde(borrow, deserialize_with = "stickers")]
+    stickers: Vec<Sticker<'a>>,
+    #[serde(borrow)]
+    workflow_asset_archive_index: Option<&'a RawValue>,
+}
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct Sticker<'a> {
+    #[serde(borrow)]
+    pub id: Cow<'a, str>,
+    #[serde(default, borrow)]
+    pub src: Cow<'a, str>,
+    #[serde(
+        default,
+        borrow,
+        deserialize_with = "crate::session_assets::optional_text"
+    )]
+    pub preview_src: Option<Cow<'a, str>>,
+}
+fn stickers<'de: 'a, 'a, D: serde::Deserializer<'de>>(
+    decoder: D,
+) -> Result<Vec<Sticker<'a>>, D::Error> {
+    crate::session_document::bounded::<D, Sticker<'a>, { crate::workspace::MAX_UNITS }>(decoder)
+}
+
+pub(crate) struct Source<'a> {
+    plan: &'a Plan,
+    fields: Fields<'a>,
+}
+impl<'a> Source<'a> {
+    pub fn read(plan: &'a Plan, saved: &'a [u8], cancel: &AtomicBool) -> Result<Self, Error> {
+        check(cancel)?;
+        if !plan.matches(saved) {
+            return Err(Error::Revision);
+        }
+        let fields = serde_json::from_slice(saved).map_err(|_| Error::Session)?;
+        check(cancel)?;
+        Ok(Self { plan, fields })
+    }
+    pub fn take_stickers(&mut self) -> Vec<Sticker<'a>> {
+        std::mem::take(&mut self.fields.stickers)
+    }
+    /// 资源发布成功后使用最终引用；索引不会改变已绑定的保存基线。
+    pub fn index(
+        self,
+        assets: &[Asset<'_>],
+        timestamp_ms: u64,
+        cancel: &AtomicBool,
+    ) -> Result<Value, Error> {
+        check(cancel)?;
+        if assets.len() > crate::workspace::MAX_UNITS {
+            return Err(Error::Budget);
+        }
+        let index = self
+            .fields
+            .workflow_asset_archive_index
+            .map(|raw| serde_json::from_str(raw.get()).map_err(|_| Error::Session))
+            .transpose()?
+            .unwrap_or_default();
+        build_index(self.plan, index, assets, timestamp_ms, cancel)
+    }
+}
+
+fn build_index(
     plan: &Plan,
-    saved: &[u8],
+    mut index: Map<String, Value>,
     assets: &[Asset<'_>],
     timestamp_ms: u64,
     cancel: &AtomicBool,
 ) -> Result<Value, Error> {
-    check(cancel)?;
-    if assets.len() > crate::workspace::MAX_UNITS {
-        return Err(Error::Budget);
-    }
-    if !plan.matches(saved) {
-        return Err(Error::Revision);
-    }
-    #[derive(serde::Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    struct Root {
-        workflow_asset_archive_index: Option<Map<String, Value>>,
-    }
-    // 只反序列化索引，跳过会话中的大图片和其他字段，不构造第二份完整文档树。
-    let root: Root = serde_json::from_slice(saved).map_err(|_| Error::Session)?;
-    let mut index = root.workflow_asset_archive_index.unwrap_or_default();
     let version = index
         .get("version")
         .map(Value::as_u64)
@@ -119,6 +170,6 @@ pub fn prepare(
     Ok(value)
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "session_workflow_archive_tests.rs"]
 mod tests;

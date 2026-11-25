@@ -2,7 +2,7 @@
 use super::*;
 fn model(count: usize) -> LibraryMenu {
     let mut tree = Vec::new();
-    let mut model = LibraryMenu::attach(&mut tree, Some(b"{}".to_vec().into()));
+    let mut model = LibraryMenu::attach(&mut tree, Some(b"{}".to_vec().into()), Workers::default());
     model.data = Some([0, 1].map(|library| {
         Ok((0..count)
             .map(|i| index::Entry {
@@ -75,7 +75,8 @@ fn bad_library_is_isolated_from_valid_library_and_worker_is_reaped() {
     let source = serde_json::to_vec(&serde_json::json!({"recycleBin":42,"referenceLibrary":[{
         "entryId":"entry","sourceStickerId":"old","createdAt":"A&B","snapshot":{"id":"old","x":0,"y":0,"w":32,"h":32}
     }]})).unwrap().into();
-    let mut job = index::Job::start(source).unwrap();
+    let slot = worker::Slot::default();
+    let mut job = index::Job::start(&slot, source, None).unwrap().unwrap();
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
     let result = loop {
         if let Some(result) = job.poll() {

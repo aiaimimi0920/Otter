@@ -1,8 +1,8 @@
 // 从已验证候选生成内部分发目录；不复制机器环境/凭证，不授予发布状态。
 const fs = require('node:fs');
 const path = require('node:path');
-const { verify } = require('./provenance.cjs');
-const { snapshot, assertUnchanged, hash } = require('./source.cjs');
+const { digest, verify } = require('./provenance.cjs');
+const { snapshot, assertUnchanged } = require('./source.cjs');
 const { collect } = require('./licenses.cjs');
 const { checkedPath } = require('../release/third-party-sources.cjs');
 
@@ -30,10 +30,7 @@ function stage(repo, candidate, output) {
       const relativeFile = relative ? `${relative}/${name}` : name;
       const file = checkedPath(output, relativeFile);
       if (fs.statSync(file).isDirectory()) walk(relativeFile);
-      else {
-        const bytes = fs.readFileSync(file);
-        files.push({ path: relativeFile, bytes: bytes.length, sha256: hash(bytes) });
-      }
+      else files.push(digest(output, relativeFile, 64 * 1024 * 1024));
     }
   }
   walk();
@@ -42,7 +39,7 @@ function stage(repo, candidate, output) {
   const hook = files.find(f => f.path === 'otter_live_hover_hook.dll');
   if (hook.sha256 !== receipt.files[1].sha256 || hook.bytes !== receipt.files[1].bytes) throw new Error('Candidate hook changed during staging');
   assertUnchanged(source, snapshot(repo, metadata));
-  verify(candidate);
+  verify(candidate, receipt);
   const manifest = { schemaVersion: 1, kind: 'otter-native-internal-package', buildVersion: receipt.buildVersion,
     sourceSha256: receipt.sourceSha256, publishable: false, signed: false, runtimeVerified: false, files };
   fs.writeFileSync(path.join(output, 'package-manifest.json'), JSON.stringify(manifest, null, 2) + '\n', { flag: 'wx' });

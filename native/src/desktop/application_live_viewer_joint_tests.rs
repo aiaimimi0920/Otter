@@ -31,7 +31,7 @@ fn run_mode(triggers: bool, video: bool) {
     let context = context::Context::load();
     let _com = Apartment::new().unwrap();
     unsafe {
-        let (_class, mut app) = fixture::application();
+        let mut app = fixture::application();
         context.authorize(&mut app);
         super::super::super::super::super::surface_start::start_with(
             &context.origin,

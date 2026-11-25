@@ -6,14 +6,20 @@ pub(super) unsafe fn run(instance: HINSTANCE) -> Result<()> {
     let image = crate::desktop::image::Image::from_encoded(
         crate::desktop::application::smoke::image_fixture::PNG,
     )?;
-    let first = DocumentWindow::create(instance, State::new(Some(image), false)?, false)?;
+    let first = DocumentWindow::create(instance, State::new(Some(image.clone()), false)?, false)?;
     let mut app = Application::new(instance, first);
+    let other = DocumentWindow::create(instance, State::new(Some(image), false)?, false)?;
+    let unrelated = other.window.0;
+    app.workspace
+        .add_units([other.state.unit_id.clone()])
+        .map_err(|_| Error::new(E_FAIL, "Cannot attach recycle smoke control window"))?;
+    app.documents.push(other);
     let source = app.restored_session.as_ref().unwrap().original.clone();
     let unit = app.documents[0].state.unit_id.clone();
     let hwnd = app.documents[0].window.0;
     for mode in 0..3 {
         app.documents[0].state.canvas.borrow_mut().normal_opacity = 0.65;
-        let (receipt, data) = app.capture_session_snapshot()?;
+        let (receipt, data) = app.capture_frozen_snapshot(&unit)?;
         let job = Job::start_recycle(
             data,
             RecycleRequest {
@@ -42,7 +48,7 @@ pub(super) unsafe fn run(instance: HINSTANCE) -> Result<()> {
             ));
         }
         if mode == 1 {
-            app.documents[0].state.canvas.borrow_mut().normal_opacity = 0.4;
+            app.documents[1].state.canvas.borrow_mut().normal_opacity = 0.4;
         }
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
         while !app.save_job.as_ref().unwrap().1.is_ready() {
@@ -88,6 +94,7 @@ pub(super) unsafe fn run(instance: HINSTANCE) -> Result<()> {
             }
         }
         if !IsWindow(Some(hwnd)).as_bool()
+            || !IsWindow(Some(unrelated)).as_bool()
             || !app
                 .restored_session
                 .as_ref()

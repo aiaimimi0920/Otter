@@ -12,6 +12,8 @@ mod lifetime;
 mod node_settings;
 #[path = "parameter_panel_paint_tests.rs"]
 mod paint;
+#[path = "parameter_panel_status_tests.rs"]
+mod status;
 #[path = "parameter_panel_sticker_tests.rs"]
 mod sticker;
 #[path = "parameter_panel_transaction_tests.rs"]
@@ -197,5 +199,62 @@ fn panel_uses_real_edit_combo_slider_and_secret_free_shared_snapshot() {
         assert_eq!(f.value("enabled"), true);
         assert!(f.state.pending_start.borrow().is_some());
         assert!(f.state.execution_cancel.borrow().is_some());
+    }
+}
+
+#[test]
+fn panel_commits_finite_large_slider_value_through_native_notification() {
+    use windows::Win32::UI::Controls::{TBM_SETPOS, TB_ENDTRACK, TB_THUMBTRACK};
+    unsafe {
+        let f = Fixture::with_parameters(serde_json::json!([
+            {"id":"n","widget":"slider","default":0,"min":0,"max":1.6e308,"step":4e307}
+        ]));
+        let slider = f.binding("n:slider").hwnd;
+        let edit = f.binding("n:edit").hwnd;
+        let notify = |code| {
+            SendMessageW(
+                f.panel.handle(),
+                WM_HSCROLL,
+                Some(WPARAM(code as usize)),
+                Some(LPARAM(slider.0 as isize)),
+            );
+        };
+        SendMessageW(slider, TBM_SETPOS, Some(WPARAM(0)), Some(LPARAM(5000)));
+        notify(TB_THUMBTRACK);
+        assert_eq!(controls::text(edit).unwrap().parse::<f64>().unwrap(), 8e307);
+        assert_eq!(f.value("n").as_f64(), Some(0.0));
+        notify(TB_ENDTRACK);
+        f.tick();
+        assert_eq!(f.value("n").as_f64(), Some(8e307));
+    }
+}
+
+#[test]
+fn failed_reload_destroys_unpublished_controls_for_both_panel_kinds() {
+    unsafe {
+        let f = Fixture::new();
+        let verify = |panel: &Panel| {
+            assert!(!panel.ui.placements.borrow().is_empty());
+            panel.ui.pending.borrow_mut().push_back(Intent::Reload);
+            controls::FAIL_PUBLISH.with(|fail| fail.set(true));
+            let error = panel.update(&f.state).unwrap_err();
+            assert_eq!(
+                error.message(),
+                "injected parameter control publish failure"
+            );
+            assert!(IsWindow(Some(panel.handle())).as_bool());
+            assert!(GetWindow(panel.handle(), GW_CHILD).is_err());
+            assert!(panel.ui.placements.borrow().is_empty());
+            assert!(panel.ui.bindings.borrow().is_empty());
+            assert!(panel.ui.status.get().is_invalid());
+            assert!(!panel.ui.replacing.get());
+
+            controls::rebuild(&panel.ui).unwrap();
+            assert!(GetWindow(panel.handle(), GW_CHILD).is_ok());
+            assert!(!panel.ui.bindings.borrow().is_empty());
+        };
+        verify(&f.panel);
+        let inline = Panel::inline(f.host.0, &f.state, f.panel.handle()).unwrap();
+        verify(&inline);
     }
 }

@@ -62,6 +62,53 @@ fn row(key: usize) -> Row {
         default: false,
     }
 }
+
+#[test]
+fn notification_diff_preserves_identity_order_and_generation_boundaries() {
+    use super::events::Change;
+    use crate::native_menu::accessibility::Scroll;
+    let mut parent = row(0);
+    parent.submenu = true;
+    let mut leaf = row(1);
+    let owner = Owner::new(&[parent.clone(), leaf.clone()]);
+    let view = owner.view();
+    let mut previous = None;
+    assert!(changes(&view, &mut previous, false).is_empty());
+    let old = view.node(1).unwrap();
+    owner.set_expanded(Some(0));
+    owner.set_scroll(Scroll {
+        first: 1,
+        visible: 2,
+        total: 4,
+    });
+    leaf.focused = true;
+    owner.replace(&[parent.clone(), leaf.clone()]);
+    let delta = changes(&view, &mut previous, true);
+    assert!(matches!(
+        delta.as_slice(),
+        [Change::Expanded(parent, false, true), Change::Percent(before, after), Change::Size(_, size), Change::Focus(focused)]
+            if parent.slot() == 0 && *before == UIA_ScrollPatternNoScroll && *after == 50.0
+                && *size == 50.0 && focused.runtime_id() == old.runtime_id()
+    ));
+    assert!(changes(&view, &mut previous, true).is_empty());
+    owner.set_active(false);
+    assert!(changes(&view, &mut previous, true).is_empty());
+    owner.set_active(true);
+    assert!(matches!(
+        changes(&view, &mut previous, true).as_slice(),
+        [Change::Focus(_)]
+    ));
+    owner.replace_fresh(&[parent, leaf]);
+    assert!(old.read().is_none());
+    assert!(matches!(
+        changes(&view, &mut previous, true).as_slice(),
+        [Change::Structure, Change::Focus(focused)] if focused.read().unwrap().focused
+    ));
+    owner.revoke();
+    assert!(changes(&view, &mut previous, true).is_empty());
+    assert!(previous.is_none());
+}
+
 #[test]
 fn com_tree_names_geometry_identity_and_invoke_follow_snapshot_lifetime() {
     let fixture = Fixture::new();
@@ -121,6 +168,58 @@ fn com_tree_names_geometry_identity_and_invoke_follow_snapshot_lifetime() {
         assert!(first.BoundingRectangle().is_err());
         fixture.owner.revoke();
         assert!(root.GetPropertyValue(UIA_NamePropertyId).is_err());
+    }
+}
+
+#[test]
+fn fragment_point_and_siblings_return_only_current_matching_rows() {
+    let fixture = Fixture::new();
+    fixture.owner.set_content_width(183);
+    let root = create(fixture.hwnd, fixture.owner.view(), 28).unwrap();
+    let fragment: IRawElementProviderFragment = root.cast().unwrap();
+    let hit: IRawElementProviderFragmentRoot = root.cast().unwrap();
+    unsafe {
+        let name = |node: IRawElementProviderFragment| {
+            node.cast::<IRawElementProviderSimple>()
+                .unwrap()
+                .GetPropertyValue(UIA_NamePropertyId)
+                .unwrap()
+                .to_string()
+        };
+        let last = fragment.Navigate(NavigateDirection_LastChild).unwrap();
+        assert_eq!(name(last.clone()), "命令 1");
+        let first = last.Navigate(NavigateDirection_PreviousSibling).unwrap();
+        assert_eq!(name(first.clone()), "命令 0");
+        assert_eq!(
+            name(first.Navigate(NavigateDirection_NextSibling).unwrap()),
+            "命令 1"
+        );
+        assert_eq!(
+            name(hit.ElementProviderFromPoint(212.9, 57.9).unwrap()),
+            "命令 0"
+        );
+        assert_eq!(
+            name(hit.ElementProviderFromPoint(212.9, 58.0).unwrap()),
+            "命令 1"
+        );
+        assert_eq!(
+            name(hit.ElementProviderFromPoint(213.0, 58.0).unwrap()),
+            "Otter 菜单"
+        );
+        assert!(hit.ElementProviderFromPoint(f64::NAN, 58.0).is_err());
+        fixture.owner.replace_fresh(&[row(2), row(3)]);
+        assert_eq!(
+            first
+                .Navigate(NavigateDirection_NextSibling)
+                .unwrap_err()
+                .code()
+                .0,
+            UIA_E_ELEMENTNOTAVAILABLE as i32
+        );
+        assert_eq!(
+            name(hit.ElementProviderFromPoint(212.9, 58.0).unwrap()),
+            "命令 3"
+        );
     }
 }
 

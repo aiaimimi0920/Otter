@@ -1,18 +1,18 @@
-//! 临时文件只放 linshi；不读取真实会话，测试结束仅删除自己 create_new 创建的文件。
+//! 测试只读写系统临时目录内自己创建的文件，不依赖真实会话或机器固定路径。
 use super::*;
 use std::{io::Write, path::PathBuf, sync::mpsc, time::Duration};
 struct Fixture(PathBuf);
 impl Fixture {
     fn new(bytes: &[u8], length: Option<u64>) -> Self {
-        let root = PathBuf::from(
-            "C:/Users/Public/nas_home/AI/GameEditor/linshi/otter-native-session-files",
-        );
-        std::fs::create_dir_all(&root).unwrap();
         let unique = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let path = root.join(format!("{}-{unique}.json", std::process::id()));
+        let root =
+            std::env::temp_dir().join(format!("otter-session-{}-{unique}", std::process::id()));
+        // 恢复读取会枚举父目录；独立夹具目录不受真实 TEMP 条目数量影响。
+        std::fs::create_dir(&root).unwrap();
+        let path = root.join("session.json");
         let mut file = std::fs::OpenOptions::new()
             .write(true)
             .create_new(true)
@@ -25,10 +25,18 @@ impl Fixture {
         drop(file);
         Self(path)
     }
+
+    fn recovery_path(&self) -> PathBuf {
+        let mut name = self.0.file_name().unwrap().to_os_string();
+        name.push(".otter-recovery-01234567-89AB-CDEF-0123-456789ABCDEF.json");
+        self.0.with_file_name(name)
+    }
 }
 impl Drop for Fixture {
     fn drop(&mut self) {
         let _ = std::fs::remove_file(&self.0);
+        let _ = std::fs::remove_file(self.recovery_path());
+        let _ = std::fs::remove_dir(self.0.parent().unwrap());
     }
 }
 
@@ -77,16 +85,18 @@ fn file_input_runs_in_worker_and_preserves_original_utf8() {
     let mut job = Job::start_input(
         Input::File(fixture.0.clone()),
         None,
+        None,
         Arc::new(move || {
             let _ = tx.send(std::thread::current().id());
         }),
     )
     .unwrap();
     assert_ne!(rx.recv_timeout(Duration::from_secs(5)).unwrap(), caller);
-    let candidate = job.poll().unwrap().unwrap();
-    assert_eq!(candidate.candidate.original_json(), original);
-    assert!(candidate.candidate.images.is_empty());
-    let origin = candidate.candidate.origin.as_ref().unwrap();
+    job.test_wait_finished();
+    let candidate = job.poll().unwrap().unwrap().restore.vector.candidate;
+    assert_eq!(candidate.original_json(), original);
+    assert!(candidate.images.is_empty());
+    let origin = candidate.origin.as_ref().unwrap();
     assert_eq!(origin.requested, fixture.0);
     assert!(origin.recovery.is_none());
     assert!(job.poll().is_none());
@@ -96,13 +106,12 @@ fn file_input_runs_in_worker_and_preserves_original_utf8() {
 fn missing_file_worker_reads_unique_recovery_and_records_actual_source_without_renaming() {
     let original = br#"{"documentRevision":4,"stickers":[],"links":[]}"#;
     let fixture = Fixture::new(original, None);
-    let mut name = fixture.0.file_name().unwrap().to_os_string();
-    name.push(".otter-recovery-01234567-89AB-CDEF-0123-456789ABCDEF.json");
-    let recovery = fixture.0.with_file_name(name);
+    let recovery = fixture.recovery_path();
     std::fs::rename(&fixture.0, &recovery).unwrap();
     let (tx, rx) = mpsc::channel();
     let mut job = Job::start_input(
         Input::File(fixture.0.clone()),
+        None,
         None,
         Arc::new(move || {
             let _ = tx.send(());
@@ -110,12 +119,12 @@ fn missing_file_worker_reads_unique_recovery_and_records_actual_source_without_r
     )
     .unwrap();
     rx.recv_timeout(Duration::from_secs(5)).unwrap();
-    let candidate = job.poll().unwrap().unwrap();
-    assert_eq!(candidate.candidate.original_json(), original);
-    let origin = candidate.candidate.origin.as_ref().unwrap();
+    job.test_wait_finished();
+    let candidate = job.poll().unwrap().unwrap().restore.vector.candidate;
+    assert_eq!(candidate.original_json(), original);
+    let origin = candidate.origin.as_ref().unwrap();
     assert_eq!(origin.requested, fixture.0);
     assert_eq!(origin.recovery.as_ref(), Some(&recovery));
     assert!(!fixture.0.exists());
     assert_eq!(std::fs::read(&recovery).unwrap(), original);
-    std::fs::remove_file(recovery).unwrap();
 }

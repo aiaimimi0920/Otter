@@ -118,6 +118,6 @@ impl PendingDescription {
         }
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-loom")))]
 #[path = "art_local_description_tests.rs"]
 mod tests;

@@ -13,38 +13,15 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
-use windows::{
-    core::w,
-    Win32::{
-        Foundation::HINSTANCE, System::LibraryLoader::GetModuleHandleW, UI::WindowsAndMessaging::*,
-    },
-};
+use windows::Win32::UI::WindowsAndMessaging::*;
 
-struct Class(HINSTANCE);
-impl Drop for Class {
-    fn drop(&mut self) {
-        unsafe {
-            let _ = UnregisterClassW(w!("Otter.Native.Workspace"), Some(self.0));
-        }
-    }
-}
 #[test]
 fn hidden_application_starts_commits_and_rejects_changed_preparation() {
     let _serial = SERIAL.lock().unwrap();
     let _input_serial = crate::desktop::loom_input_job::TEST_SERIAL.lock().unwrap();
     let _apartment = Apartment::new().unwrap();
     unsafe {
-        let instance: HINSTANCE = GetModuleHandleW(None).unwrap().into();
-        assert_ne!(
-            RegisterClassW(&WNDCLASSW {
-                hInstance: instance,
-                lpszClassName: w!("Otter.Native.Workspace"),
-                lpfnWndProc: Some(crate::desktop::procedure::window_proc),
-                ..Default::default()
-            }),
-            0
-        );
-        let _class = Class(instance);
+        let instance = crate::desktop::workspace_window_fixture::register();
         let pixels: crate::pixels::Pixels = vec![10, 20, 30, 255, 40, 50, 60, 255].into();
         let image = crate::desktop::image::Image {
             width: 2,
@@ -219,16 +196,11 @@ fn hidden_application_starts_commits_and_rejects_changed_preparation() {
             app.documents[0].state.execution_results.borrow().status(),
             Status::Running
         );
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let pump = super::super::execution_test_pump::Pump::new();
         while app.documents[0].state.execution_results.borrow().status() == Status::Running {
-            let mut message = MSG::default();
-            // 只有 worker 的应用消息到达才运行消费，不用反复轮询任务冒充唤醒集成。
-            if PeekMessageW(&mut message, None, WM_APP + 92, WM_APP + 92, PM_REMOVE).as_bool() {
-                app.pending_windows(false).unwrap();
-            }
-            assert!(Instant::now() < deadline, "application execution timeout");
-            thread::sleep(Duration::from_millis(1));
+            pump.step(&mut app);
         }
+        drop(pump);
         {
             let results = app.documents[0].state.execution_results.borrow();
             assert_eq!(results.status(), Status::Completed);

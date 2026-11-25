@@ -79,3 +79,49 @@ fn empty_global_hint_is_preserved_and_stale_source_or_cancel_is_rejected() {
         Err(Error::Cancelled)
     ));
 }
+
+#[test]
+fn decoded_source_matches_byte_entry_and_preserves_origin_validation() {
+    let cancel = AtomicBool::new(false);
+    let saved = source(false);
+    let snapshot = snapshot(&saved);
+    let original = std::str::from_utf8(&saved).unwrap();
+    let document = crate::session_document::decode(&saved).unwrap();
+    let expected = prepare(&snapshot, &saved, &cancel).unwrap();
+    let plan = prepare_from(&snapshot, &document, &cancel).unwrap();
+    assert_eq!(expected.adoptions(), plan.adoptions());
+    assert_eq!(expected.archive_hints(), plan.archive_hints());
+    let altered = format!("{original} ");
+    let changed = crate::session_document::decode(altered.as_bytes()).unwrap();
+    assert!(matches!(
+        prepare_from(&snapshot, &changed, &cancel),
+        Err(Error::Revision)
+    ));
+    assert!(matches!(
+        prepare_from(&snapshot, &document, &AtomicBool::new(true)),
+        Err(Error::Cancelled)
+    ));
+}
+
+#[test]
+fn source_origin_fields_still_reject_duplicates_and_default_empty_ids() {
+    let source = source(false);
+    let original = std::str::from_utf8(&source).unwrap();
+    let cancel = AtomicBool::new(false);
+    let duplicate = original.replace(
+        r#""originNodeId":"remote-a""#,
+        r#""originNodeId":"remote-a","originNodeId":"a""#,
+    );
+    assert!(matches!(
+        prepare(
+            &snapshot(duplicate.as_bytes()),
+            duplicate.as_bytes(),
+            &cancel
+        ),
+        Err(Error::Session)
+    ));
+
+    let empty = original.replace(r#""id":"b""#, r#""id":"b","originNodeId":"""#);
+    let plan = prepare(&snapshot(empty.as_bytes()), empty.as_bytes(), &cancel).unwrap();
+    assert_eq!(plan.adoptions()[0].origin_node_id, "b");
+}

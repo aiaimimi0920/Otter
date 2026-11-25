@@ -1,6 +1,6 @@
 //! 关闭前候选验证：当前快照、拓扑裁剪、顺序/时间策略及硬预算；无窗口或磁盘副作用。
 use super::*;
-const SNAPSHOT: &[u8] = br#"{"stickers":[{"id":"a","type":"sticker","x":20,"y":30,"w":32,"h":40,"params":{},"inputs":[],"outputs":{},"extensionState":{"huge":123456789012345678901234567890}}],"links":[]}"#;
+const SNAPSHOT: &[u8] = br#"{"id":"a","type":"sticker","x":20,"y":30,"w":32,"h":40,"params":{},"inputs":[],"outputs":{},"extensionState":{"huge":123456789012345678901234567890}}"#;
 fn entry(id: &str, date: &str) -> serde_json::Value {
     serde_json::json!({"entryId":id,"sourceStickerId":"a","createdAt":date,"extension":{"kept":true},"snapshot":{"id":"a","x":0,"y":0,"w":10,"h":10}})
 }

@@ -4,13 +4,13 @@ use super::*;
 mod document;
 #[path = "application_restore_idle.rs"]
 mod idle;
-use crate::{
-    workspace::{Group, TopologyStamp},
-    workspace_id::UnitId,
-};
+use crate::workspace::{GroupStamp, TopologyStamp};
 pub(in crate::desktop::application) use document::Document;
 pub(in crate::desktop::application) fn is_idle(app: &Application) -> bool {
-    idle::application(app) && !app.modals.blocked() && !app.exit_requested.get()
+    services_idle(app) && app.documents.iter().all(|doc| idle::state(&doc.state))
+}
+fn services_idle(app: &Application) -> bool {
+    idle::services(app) && !app.modals.blocked() && !app.exit_requested.get()
 }
 pub(in crate::desktop::application) struct Guard {
     hotkey_enabled: bool,
@@ -18,8 +18,7 @@ pub(in crate::desktop::application) struct Guard {
     live_hotkey_enabled: bool,
     topology: TopologyStamp,
     appearance: crate::workspace::ports::AppearanceStamp,
-    groups: Vec<Group>,
-    membership: Vec<Option<UnitId>>,
+    groups: GroupStamp,
     documents: Vec<Document>,
 }
 impl Guard {
@@ -34,43 +33,44 @@ impl Guard {
             live_hotkey_enabled: app.live_hotkey_enabled.get(),
             topology: app.workspace.topology_stamp(),
             appearance: app.workspace.appearance_stamp(),
-            groups: app.workspace.groups().to_vec(),
-            membership: app
-                .workspace
-                .units()
-                .iter()
-                .map(|unit| app.workspace.group_of(unit).map(|group| group.id.clone()))
-                .collect(),
+            groups: app.workspace.group_stamp(),
             documents,
         })
     }
+    /// Captured physical geometry, in the same document order checked by `matches`.
+    pub(in crate::desktop::application) fn geometries(
+        &self,
+    ) -> impl Iterator<Item = (RECT, u32)> + '_ {
+        self.documents.iter().map(Document::geometry)
+    }
+    fn matches_header(&self, app: &Application) -> bool {
+        // 单窗验证包含相同的 idle::state，不先按整批重复检查。
+        services_idle(app)
+            && self.topology.matches(&app.workspace)
+            && self.appearance.matches(&app.workspace)
+            && self.hotkey_enabled == app.hotkey_enabled.get()
+            && self.long_hotkey_enabled == app.long_hotkey_enabled.get()
+            && self.live_hotkey_enabled == app.live_hotkey_enabled.get()
+            && self.groups.matches(&app.workspace)
+            && self.documents.len() == app.documents.len()
+    }
     pub(in crate::desktop::application) unsafe fn matches(&self, app: &Application) -> bool {
-        if !is_idle(app) {
-            return false;
-        }
-        if !self.topology.matches(&app.workspace)
-            || !self.appearance.matches(&app.workspace)
-            || self.hotkey_enabled != app.hotkey_enabled.get()
-            || self.long_hotkey_enabled != app.long_hotkey_enabled.get()
-            || self.live_hotkey_enabled != app.live_hotkey_enabled.get()
-            || self.groups != app.workspace.groups()
-            || self.documents.len() != app.documents.len()
-        {
-            return false;
-        }
-        if !self
-            .membership
-            .iter()
-            .zip(app.workspace.units())
-            .all(|(group, unit)| {
-                group.as_ref() == app.workspace.group_of(unit).map(|group| &group.id)
+        self.matches_header(app)
+            && self
+                .documents
+                .iter()
+                .zip(&app.documents)
+                .all(|(before, doc)| before.matches(doc))
+    }
+    pub(in crate::desktop::application) unsafe fn matches_saved(
+        &self,
+        app: &Application,
+        saved: &save_state::Stamp,
+    ) -> bool {
+        // 两份基线仍独立比较；同一个 HWND 的物理观测只读一次。
+        self.matches_header(app)
+            && saved.matches_with_restore(app, |index, doc, rect, dpi| {
+                self.documents[index].matches_observed(doc, rect, dpi)
             })
-        {
-            return false;
-        }
-        self.documents
-            .iter()
-            .zip(&app.documents)
-            .all(|(before, doc)| before.matches(doc))
     }
 }

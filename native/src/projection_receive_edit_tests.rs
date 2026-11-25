@@ -79,7 +79,7 @@ fn editing_session_has_scope_vectors_and_digest_bound_snapshot_without_baking() 
             .unwrap();
         let pixels = value.image().pixels.clone();
         let scope = crate::session_projection_scope::Scope::generate().unwrap();
-        let (bytes, image) = value
+        let (bytes, image, expected) = value
             .into_session(
                 &ticket,
                 scope,
@@ -97,6 +97,7 @@ fn editing_session_has_scope_vectors_and_digest_bound_snapshot_without_baking() 
             )
             .unwrap();
         assert!(image.pixels.same_storage(&pixels));
+        assert!(expected.matches_ticket(&ticket));
         assert_eq!(&*pixels, &[0, 0, 255, 255, 0, 128, 0, 128]);
         let value: Value = serde_json::from_slice(&bytes).unwrap();
         let shape = &value["stickers"][0]["annotationState"]["elements"][0];

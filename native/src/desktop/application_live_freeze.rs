@@ -12,6 +12,13 @@ pub(in crate::desktop::application) struct Pending {
     pin_key: Option<(usize, isize, [u8; 256])>,
 }
 impl Application {
+    pub(super) fn live_freeze_reap_deadline(&self) -> Option<std::time::Instant> {
+        if self.modals.blocked() || self.automatic_save_pending() {
+            return None;
+        }
+        self.live_freeze_job.as_ref()?.job.deadline()
+    }
+
     pub(super) unsafe fn process_live_freeze(&mut self, visible: bool) -> Result<()> {
         if self.modals.blocked() || self.automatic_save_pending() {
             return Ok(());

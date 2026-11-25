@@ -1,7 +1,7 @@
 use super::*;
 use crate::{
     capture_color::SdrFrame,
-    capture_dynamic::{Frame, Reason},
+    capture_dynamic::{Backend, Frame, Reason},
 };
 use std::{
     sync::mpsc,
@@ -9,6 +9,7 @@ use std::{
 };
 fn outcome() -> Outcome {
     Outcome {
+        backend: Backend::Gdi,
         frame: Frame::Sdr(SdrFrame {
             width: 1,
             height: 1,

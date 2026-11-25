@@ -361,6 +361,6 @@ impl Write for Sink<'_> {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "session_write_tests.rs"]
 mod tests;

@@ -122,6 +122,8 @@ fn composition_suppresses_intermediate_events_and_escape_does_not_close_it() {
 }
 #[test]
 fn textarea_normalizes_crlf_and_number_rejects_invalid_then_steps_and_commits() {
+    use super::super::keyboard::joint_access::with_modifiers;
+    use windows::Win32::UI::Input::KeyboardAndMouse::{GetFocus, VK_CONTROL, VK_MENU, VK_SHIFT};
     let _com = crate::desktop::Apartment::new().unwrap();
     let (f, w) = setup(scene("textarea"));
     let h = edit(&w, [4, 4]);
@@ -159,9 +161,17 @@ fn textarea_normalizes_crlf_and_number_rejects_invalid_then_steps_and_commits() 
             .value(),
         "2"
     );
-    unsafe {
-        SendMessageW(h, WM_KEYDOWN, Some(WPARAM(38)), None);
+    assert_eq!(unsafe { GetFocus() }, h);
+    // SendMessage 不建立键盘快照；显式隔离环境修饰键，同时保留组合键不步进的契约。
+    for modifier in [VK_CONTROL, VK_MENU, VK_SHIFT] {
+        with_modifiers(&[modifier], || unsafe {
+            SendMessageW(h, WM_KEYDOWN, Some(WPARAM(38)), None);
+        });
+        assert!(events(&f).is_empty());
     }
+    with_modifiers(&[], || unsafe {
+        SendMessageW(h, WM_KEYDOWN, Some(WPARAM(38)), None);
+    });
     let actual = events(&f);
     assert_eq!(actual.len(), 2);
     assert_eq!(actual[0]["payload"]["value"], 4.0);
@@ -233,11 +243,12 @@ fn stale_popup_epoch_is_ignored_and_hide_dpi_freeze_stop_destroy_release_all_fie
     }
 }
 #[test]
-fn preparation_failure_cancels_all_tickets_of_the_unpublished_batch() {
+fn close_preparation_failure_keeps_active_draft_and_retries_once() {
     let _com = crate::desktop::Apartment::new().unwrap();
     let (f, w) = setup(scene("input"));
-    edit(&w, [4, 4]);
-    text::run(&w.state, |owner| {
+    let child = edit(&w, [4, 4]);
+    let mut held = Vec::new();
+    assert!(text::run(&w.state, |owner| {
         let id = owner.active.clone().unwrap();
         let slot = owner.fields.get_mut(&id).unwrap();
         let s = crate::surface_scene::Scene::parse(&slot.field.anchor.snapshot.scene).unwrap();
@@ -248,7 +259,8 @@ fn preparation_failure_cancels_all_tickets_of_the_unpublished_batch() {
             generation: a.generation,
         };
         for _ in 0..62 {
-            slot.session
+            let (ticket, _) = slot
+                .session
                 .prepare_unbound(
                     s.root(),
                     identity,
@@ -256,15 +268,42 @@ fn preparation_failure_cancels_all_tickets_of_the_unpublished_batch() {
                     crate::surface_input_event::Phase::Input,
                     Some("held"),
                 )
+                .unwrap()
                 .unwrap();
+            held.push(ticket);
         }
         slot.session.control().set_text("local")?;
-        slot.capture(true)?;
-        assert!(owner.flush_one(&id, &w.state).is_err());
-        assert_eq!(owner.fields[&id].session.pending(), 62);
         Ok(())
-    });
-    assert!(events(&f).is_empty());
+    }));
+    for _ in 0..2 {
+        assert!(!text::commit_for_click(&w.state));
+        let owner = w.state.text.borrow();
+        let owner = owner.as_ref().unwrap();
+        let slot = &owner.fields[owner.active.as_ref().expect("active draft")];
+        assert_eq!(slot.session.pending(), 62);
+        assert_eq!(slot.session.value(), "local");
+        assert!(unsafe { IsWindowVisible(child) }.as_bool());
+        assert!(events(&f).is_empty());
+    }
+    assert!(text::run(&w.state, |owner| {
+        let id = owner.active.as_ref().unwrap();
+        let slot = owner.fields.get_mut(id).unwrap();
+        for ticket in held {
+            slot.session.cancel(&ticket);
+        }
+        Ok(())
+    }));
+    assert!(text::commit_for_click(&w.state));
+    assert!(w.state.text.borrow().as_ref().unwrap().active.is_none());
+    assert!(!unsafe { IsWindowVisible(child) }.as_bool());
+    assert!(text::commit_for_click(&w.state));
+    let queued = events(&f);
+    assert_eq!(queued.len(), 2);
+    assert_eq!(queued[0]["event"], "input");
+    assert_eq!(queued[1]["event"], "change");
+    assert!(queued
+        .iter()
+        .all(|event| event["payload"]["value"] == "local"));
 }
 #[path = "tile_surface_text_form_tests.rs"]
 mod forms;

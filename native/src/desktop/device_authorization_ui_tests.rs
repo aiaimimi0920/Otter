@@ -1,6 +1,8 @@
 //! 隐藏 HWND 测试菜单和模态事务；不读取真实身份、不访问用户选择的服务。
 use super::*;
 use crate::desktop::Window;
+#[path = "device_projection_edit_ui_tests.rs"]
+mod projection_edit;
 #[path = "device_projection_inbox_ui_tests.rs"]
 mod projection_inbox;
 #[test]

@@ -30,6 +30,7 @@ impl Pending {
             self.frame.framed(padding, border)
         }
     }
+    #[cfg(test)]
     pub fn present(self, hwnd: HWND) -> Result<Presented> {
         self.present_at(hwnd, None)
     }

@@ -1,11 +1,17 @@
 //! 每个持久效果框独立取样/卷积；框外像素透明，输出裁切与白色覆盖分开处理。
 use super::*;
 
+#[derive(Clone, Copy)]
+pub(super) enum Coordinates {
+    Natural(Option<crate::session_crop::Restored>),
+    WorkingGrid(Size),
+}
+
 pub(super) fn prepare(
     image: &Image,
     parent: &Layout,
     effect: Rect,
-    crop: Option<crate::session_crop::Restored>,
+    coordinates: Coordinates,
     strength: f32,
     cancel: &AtomicBool,
 ) -> Result<BlurImage> {
@@ -25,7 +31,7 @@ pub(super) fn prepare(
         width: output.0 as f64 / sx,
         height: output.1 as f64 / sy,
     };
-    let sampling = projection(image, parent, effect, crop)?;
+    let sampling = projection(image, parent, effect, coordinates)?;
     let layout = Layout {
         output,
         visible,
@@ -92,7 +98,7 @@ fn projection(
     image: &Image,
     parent: &Layout,
     effect: Rect,
-    crop: Option<crate::session_crop::Restored>,
+    coordinates: Coordinates,
 ) -> Result<Sampling> {
     let left = effect.x.max(0.0);
     let top = effect.y.max(0.0);
@@ -112,7 +118,16 @@ fn projection(
         y: top - effect.y,
         ..clipped
     };
-    let source = if let Some(crop) = crop {
+    let source = if let Coordinates::WorkingGrid(full) = coordinates {
+        let sx = image.width as f64 / full.width;
+        let sy = image.height as f64 / full.height;
+        Rect {
+            x: (parent.visible.x + left) * sx,
+            y: (parent.visible.y + top) * sy,
+            width: clipped.width * sx,
+            height: clipped.height * sy,
+        }
+    } else if let Coordinates::Natural(Some(crop)) = coordinates {
         Rect {
             x: crop.crop.rect.x + left,
             y: crop.crop.rect.y + top,

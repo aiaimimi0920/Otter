@@ -1,119 +1,42 @@
 # Otter Privacy Policy
 
-This privacy policy describes the behavior of the open-source Otter desktop
-application and its public release repository.
+This policy describes the current Otter desktop application. Historical downloads have their own behavior.
 
-## Summary
+## Local data
 
-Otter is primarily a local desktop screenshot and sticker-editing tool.
+Ordinary capture, pinning and editing do not require a cloud account or upload the captured image by themselves.
+Otter does not bundle third-party advertising or analytics SDKs. Depending on use, it can store settings, workspace
+snapshots and recovery data, image and clipboard caches, capture history, and runtime diagnostics locally.
 
-Local capture does not require a cloud account. Native Otter does, however,
-discover and connect to authenticated local Loom by default. A previously
-authorized global Loom connection can also reconnect after restart. These
-connection defaults are separate from initiating OCR, translation or projection;
-the configured integration and active workflow determine what data is exchanged.
+Settings and the ordinary workspace default to `%LOCALAPPDATA%/OtterNative`. An explicit absolute
+`OTTER_NATIVE_PROFILE_DIR` selects a separate profile. Exports and temporary files may be written outside the profile.
+The current device identity uses Windows data protection for private material; do not export a whole profile to share a connection.
 
-Outside the default authenticated local bridge and explicitly configured or
-requested integrations described below, Otter
-will not transfer any information to other networked systems.
-This is not a promise of zero network activity when those integrations are active.
+## Connections and optional workflows
 
-For the ordinary capture, pinning, annotation, and local session workflow:
+- **Local discovery:** Otter can use an authenticated local Loom bridge by default when a trusted local connection is available.
+  Set `OTTER_ENABLE_LOOM_OTTER=0` before launch to disable that bridge. The old `HOOK_ENABLE_LOOM_HOOK` fallback is read only
+  when the canonical variable is absent, as implemented in [`loom_discovery.rs`](../../native/src/loom_discovery.rs).
+  A saved device connection is separate; explicitly disconnect it to cancel restart reconnect.
+  See [Loom connection](../features/LOOM_CONNECTION.md).
+- **OCR, translation and Art:** An invoked capability receives the inputs and permissions needed for that request.
+  What the capability processes locally or sends to another provider depends on the capability and Loom configuration.
+  A Loom connection by itself is not consent for every capability.
+- **Projection:** An authorized delivery may transmit image content and routing or association metadata through Loom.
+  Account-based sharing uses the configured account service for invitation and association coordination; it does not
+  require the receiver to use the same account. See the [projection boundaries](../features/QR_PROJECTION.md#内容与边界).
+- **Live:** Authorized sharing can transmit frames and, when separately granted, control events. Frames are not saved in
+  the Otter workspace as a recording. Local/private Loom does not require a cloud account and does not imply public relay.
+  See the [Live protocol](../features/LIVE_SCREENSHOT_PROTOCOL.md).
 
-- screenshots and sticker content stay on the user's machine;
-- local session state and logs stay on the user's machine;
-- Otter does not ship built-in third-party advertising or analytics SDKs.
+GitHub and any separate service used to deliver downloads may process network metadata under their own policies.
 
-## Data Otter stores locally
+## User control and reporting
 
-Depending on the feature being used, Otter may store local desktop data such as:
+Use Loom to manage capability permissions and device authorizations. Disconnect saved connections or pause receiving
+when appropriate. To remove local data, exit Otter and remove the relevant exports, caches, or profile only after
+backing up any work you want to keep. Removing files locally does not delete copies already sent to other devices.
 
-- captured images and temporary screenshot files;
-- clipboard-cache files;
-- local session graph/workspace state;
-- sticker editing history and tool settings;
-- runtime logs;
-- the canonical `com.yamiyu.hook` local app-data directory.
-- global application settings such as user-configured file-naming templates.
-
-These files are stored in local app-data, temp-cache, or nearby runtime paths
-described by the app configuration and release scripts.
-
-## Network behavior
-
-Otter's core screenshot/sticker workflow is local-first.
-
-The native local Loom bridge is enabled by default and uses authenticated local
-discovery. Set `OTTER_ENABLE_LOOM_OTTER=0` before starting Otter to disable that
-bridge. The old `HOOK_ENABLE_LOOM_HOOK` is a fallback only when the canonical
-variable is absent; see [environment precedence](../release/VERSIONING.md).
-Pure browser preview does not establish this native bridge. A saved global Loom
-connection has a separate [restart/reconnect lifecycle](../features/LOOM_CONNECTION.md);
-disconnect it explicitly to cancel its remembered restart intent.
-
-However, some optional features can talk to user-selected or locally configured
-services, for example:
-
-- local capability bridges such as **Loom** or **Talk** over loopback
-  addresses;
-- voice or workflow-related service calls;
-- Tea ticket/intake integrations when that feature is configured by the user or
-  maintainer environment.
-
-When those optional integrations are used, the data sent depends on the feature
-that the user triggers and the service endpoint that is configured.
-
-Live collaboration remains usable against a local/private Loom without a cloud
-account. The current build does not configure a Cloud Relay or TURN/SFU provider
-and does not persist live frame bytes or OCR source text in a cloud service.
-Its local network capability report contains no device token, pairing secret, or
-proxy credential. Runtime and panic logs apply bounded credential and URL-query
-redaction before writing diagnostics.
-
-## What Otter does not do by default
-
-Otter does not claim a built-in cloud-sync account system for ordinary screenshot
-usage.
-
-Otter also does not include built-in third-party telemetry products such as
-advertising trackers or hosted analytics SDKs in the normal desktop capture
-path.
-
-## Third-party services and downloads
-
-When you browse the public repository, download releases from GitHub, or use a
-signing/distribution service linked from the project, those third parties may
-process your network metadata under their own terms.
-
-Examples include:
-
-- GitHub
-- a code-signing provider used for release publication
-
-Those third-party policies are separate from Otter's own application behavior.
-
-## User control
-
-Because Otter is local-first, the main user controls are local machine controls:
-
-- delete local screenshots or exported files;
-- remove local app-data/runtime files;
-- avoid enabling optional integrations you do not want to use;
-- disable the default local Loom bridge before launch when it is not wanted,
-  and explicitly disconnect saved global Loom connections rather than only closing their dialog;
-- uninstall the app and remove local runtime directories if you no longer want
-  Otter on the machine.
-
-For package-specific install/uninstall notes, see [UIAccess distribution](../guide/packages.md).
-
-## Policy updates
-
-If Otter introduces a new hosted service, bundled telemetry system, or default
-remote sync behavior, this policy must be updated before that release is
-published.
-
-## Contact
-
-Privacy-related public questions can be filed at:
-
-- GitHub Issues: `https://github.com/aiaimimi0920/Otter/issues`
+Before sharing diagnostics, remove user images, text, invitations, tokens and personal paths. Use
+[GitHub Issues](https://github.com/aiaimimi0920/Otter/issues) for public privacy questions and the
+[private reporting process](../../SECURITY.md#reporting-a-vulnerability) for suspected exposure or vulnerabilities.

@@ -15,14 +15,26 @@ function New-NativeCandidateArchive {
 }
 function Test-NativeCandidateArchive {
     param([Parameter(Mandatory = $true)][string]$ZipPath)
-    $entries = @(Get-OtterArchiveEntries -ZipPath $ZipPath -MaxEntries 4096 -MaxUncompressedBytes 128MB)
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $archive = [System.IO.Compression.ZipFile]::OpenRead($ZipPath)
+    try {
+        # 一次打开、一次索引；清单、摘要和回执核对始终使用同一 ZIP。
+        $index = Get-OtterArchiveEntryIndex -Archive $archive -MaxEntries 4096 -MaxUncompressedBytes 128MB
+        Test-NativeCandidateArchiveIndex -Index $index
+    } finally {
+        $archive.Dispose()
+    }
+}
+function Test-NativeCandidateArchiveIndex {
+    param([Parameter(Mandatory = $true)]$Index)
+    $entries = @($Index.Keys | ForEach-Object { $_.Replace('/', '\') })
     # 原生产品包不允许重新夹带已退役的 ANGLE DLL，清单有无登记均拒绝。
     foreach ($name in $entries) {
         if ([IO.Path]::GetFileName($name) -imatch '^lib(EGL|GLESv2)\.dll$') {
             throw 'Retired ANGLE DLL in native package'
         }
     }
-    $manifest = (Read-OtterArchiveEntryText -ZipPath $ZipPath -EntryName 'package-manifest.json' -MaxBytes 4MB) | ConvertFrom-Json
+    $manifest = (Read-OtterArchiveEntryText -Index $Index -EntryName 'package-manifest.json' -MaxBytes 4MB) | ConvertFrom-Json
     if ($manifest.schemaVersion -ne 1 -or $manifest.kind -ne 'otter-native-internal-package' -or
         $manifest.buildVersion -notmatch '^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)\.[1-9]\d*$' -or
         $manifest.sourceSha256 -notmatch '^[a-f0-9]{64}$' -or $manifest.publishable -isnot [bool] -or
@@ -38,7 +50,7 @@ function Test-NativeCandidateArchive {
             $file.bytes -isnot [ValueType] -or [long]$file.bytes -ne $file.bytes -or $file.bytes -lt 0 -or $file.bytes -gt 64MB) {
             throw 'Invalid native package file record'
         }
-        $digest = Get-OtterArchiveEntryDigest -ZipPath $ZipPath -EntryName $file.path -MaxBytes 64MB
+        $digest = Get-OtterArchiveEntryDigest -Index $Index -EntryName $file.path -MaxBytes 64MB
         if ($digest.bytes -ne $file.bytes -or $digest.sha256 -cne $file.sha256) { throw "Native ZIP content mismatch: $name" }
         $records[$name] = $file
     }
@@ -46,7 +58,7 @@ function Test-NativeCandidateArchive {
     foreach ($required in @('otter-native.exe', 'otter_live_hover_hook.dll', 'README.txt', 'build-provenance.json', 'licenses\inventory.json')) {
         if (-not $records.ContainsKey($required)) { throw "Missing native package component: $required" }
     }
-    $receipt = (Read-OtterArchiveEntryText -ZipPath $ZipPath -EntryName 'build-provenance.json' -MaxBytes 4MB) | ConvertFrom-Json
+    $receipt = (Read-OtterArchiveEntryText -Index $Index -EntryName 'build-provenance.json' -MaxBytes 4MB) | ConvertFrom-Json
     $exe = $records['otter-native.exe']
     if ($receipt.kind -ne 'otter-native-internal-candidate' -or $receipt.buildVersion -cne $manifest.buildVersion -or
         $receipt.sourceSha256 -cne $manifest.sourceSha256 -or $receipt.publishable -isnot [bool] -or
@@ -57,7 +69,7 @@ function Test-NativeCandidateArchive {
     $hook = $records['otter_live_hover_hook.dll']
     if ($receipt.files[1].path -cne 'payload/otter_live_hover_hook.dll' -or
         $receipt.files[1].sha256 -cne $hook.sha256 -or $receipt.files[1].bytes -ne $hook.bytes) { throw 'Native ZIP hook build identity mismatch' }
-    $licenses = (Read-OtterArchiveEntryText -ZipPath $ZipPath -EntryName 'licenses/inventory.json' -MaxBytes 4MB) | ConvertFrom-Json
+    $licenses = (Read-OtterArchiveEntryText -Index $Index -EntryName 'licenses/inventory.json' -MaxBytes 4MB) | ConvertFrom-Json
     if ($licenses.schemaVersion -ne 1 -or $licenses.kind -ne 'otter-native-license-materials' -or
         $licenses.legalClearance -isnot [bool] -or $licenses.legalClearance -cne $false -or @($licenses.packages).Count -lt 1) { throw 'Invalid native license inventory' }
     $licensePaths = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)

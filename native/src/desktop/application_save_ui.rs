@@ -161,9 +161,8 @@ impl Application {
         &mut self,
         source: &crate::workspace_id::UnitId,
     ) -> Result<()> {
-        let (receipt, data) = self.capture_session_snapshot()?;
-        // 此处只需凭证；不要在模态对话框期间额外保留整套编辑器快照。
-        drop(data);
+        // Save New captures the actual payload after the modal and receipt check.
+        let receipt = self.capture_session_receipt()?;
         let document = self
             .documents
             .iter()

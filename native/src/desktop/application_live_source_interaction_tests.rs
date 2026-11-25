@@ -104,7 +104,7 @@ fn run(mode: u8) {
             .unwrap();
         }
         let target = crate::live_window_target::Target::bind(source.hwnd).unwrap();
-        let (_class, mut app) = fixture::application();
+        let mut app = fixture::application();
         app.authorization.borrow_mut().origin = Some(origin.clone());
         app.authorization_owner
             .start(crate::device_authorization_runtime::Task::Renew { client, store })

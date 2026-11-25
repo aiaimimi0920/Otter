@@ -194,7 +194,7 @@ impl Fixture {
             let protection: windows::Win32::Graphics::Direct3D11::ID3D11Multithread =
                 device.GetImmediateContext().unwrap().cast().unwrap();
             let _ = protection.SetMultithreadProtected(true);
-            let frame = super::super::tests::frame(&device, [0, 255, 0, 255]);
+            let frame = super::super::frame_fixture::frame(&device, [0, 255, 0, 255]);
             source
                 .publish(Arc::try_unwrap(frame).ok().unwrap().resource)
                 .unwrap();

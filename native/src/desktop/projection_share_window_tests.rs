@@ -82,6 +82,51 @@ fn invitation() -> Binding {
     source_fixture("https://loom.example")
 }
 #[test]
+fn share_qr_decode_retains_slot_until_notifier_exits() {
+    use std::{
+        sync::{mpsc, Mutex},
+        time::{Duration, Instant},
+    };
+    unsafe {
+        let f = Fixture::new(true, true);
+        let (entered, notice) = mpsc::channel();
+        let (release, tail) = mpsc::channel();
+        let tail = Mutex::new(tail);
+        let decoder = qr::Decode::start_with_notify(
+            Default::default(),
+            &f.popup.model,
+            Arc::new(move || {
+                let _ = entered.send(());
+                let _ = tail.lock().unwrap().recv_timeout(Duration::from_secs(5));
+            }),
+        )
+        .unwrap();
+        f.view.borrow_mut().share_decode = Some(decoder);
+        notice.recv_timeout(Duration::from_secs(5)).unwrap();
+        assert!(f
+            .view
+            .borrow()
+            .share_decode
+            .as_ref()
+            .unwrap()
+            .deadline()
+            .is_some());
+        let deadline = Instant::now() + Duration::from_secs(5);
+        super::super::refresh(&f.view);
+        assert!(f.view.borrow().share_decode.is_some());
+        release.send(()).unwrap();
+        loop {
+            super::super::refresh(&f.view);
+            if f.view.borrow().share_decode.is_none() {
+                break;
+            }
+            assert!(Instant::now() < deadline);
+            std::thread::yield_now();
+        }
+        assert_eq!(*f.popup.model.status.borrow(), "无法读取二维码图片");
+    }
+}
+#[test]
 fn account_receive_panel_exposes_unlink_for_existing_binding() {
     unsafe {
         let f = Fixture::new(true, false);
@@ -305,6 +350,9 @@ fn account_stop_uses_only_the_current_loom_binding() {
                     if binding.origin() == "https://loom.example")));
     }
 }
+
+#[path = "projection_share_lan_window_tests.rs"]
+mod lan;
 
 #[test]
 fn background_work_allows_scope_navigation_and_preserves_receiver_input() {

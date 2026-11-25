@@ -65,6 +65,13 @@ pub struct Node {
     index: usize,
 }
 
+pub(crate) struct NotificationFrame {
+    pub epoch: (u64, u64),
+    pub focused: Option<usize>,
+    pub expanded: Vec<bool>,
+    pub scroll: Scroll,
+}
+
 impl Owner {
     pub fn new(rows: &[Row]) -> Self {
         static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
@@ -183,25 +190,14 @@ impl Owner {
     }
 }
 impl View {
-    pub(crate) fn item_rect(
-        &self,
-        slot: usize,
-        width: i32,
-        row: i32,
-    ) -> Option<windows::Win32::Foundation::RECT> {
+    pub(crate) fn node_at_point(&self, x: i32, y: i32, width: i32, row: i32) -> Option<Node> {
         let state = self.0.lock().ok()?;
-        (state.alive && slot < state.entries.len()).then(|| {
-            super::layout::Layout {
-                columns: state.columns,
-                row,
-            }
-            .rect(
-                slot,
-                state
-                    .content_width
-                    .map_or(width, |content| content.min(width)),
-            )
-        })
+        if !state.alive {
+            return None;
+        }
+        let (layout, width) = state.geometry(width, row);
+        let slot = layout.hit(x, y, width, state.entries.len())?;
+        Some(self.snapshot_node(state.generation, slot))
     }
     pub fn scroll(&self) -> Option<Scroll> {
         let state = self.0.lock().ok()?;
@@ -236,12 +232,54 @@ impl View {
             return Vec::new();
         }
         (0..state.entries.len())
-            .map(|index| Node {
-                snapshot: self.0.clone(),
-                generation: state.generation,
-                index,
-            })
+            .map(|index| self.snapshot_node(state.generation, index))
             .collect()
+    }
+    pub(crate) fn node(&self, index: usize) -> Option<Node> {
+        let state = self.0.lock().ok()?;
+        (state.alive && index < state.entries.len())
+            .then(|| self.snapshot_node(state.generation, index))
+    }
+    pub(crate) fn last_node(&self) -> Option<Node> {
+        let state = self.0.lock().ok()?;
+        let index = state.entries.len().checked_sub(1)?;
+        state
+            .alive
+            .then(|| self.snapshot_node(state.generation, index))
+    }
+    pub(crate) fn snapshot_node(&self, generation: u64, index: usize) -> Node {
+        Node {
+            snapshot: self.0.clone(),
+            generation,
+            index,
+        }
+    }
+    pub(crate) fn notification_frame(&self) -> Option<NotificationFrame> {
+        let state = self.0.lock().ok()?;
+        state.alive.then(|| NotificationFrame {
+            epoch: (state.identity, state.generation),
+            focused: state.focused_slot(),
+            expanded: state.entries.iter().map(|entry| entry.expanded).collect(),
+            scroll: state.scroll,
+        })
+    }
+}
+impl Snapshot {
+    fn geometry(&self, width: i32, row: i32) -> (super::layout::Layout, i32) {
+        (
+            super::layout::Layout {
+                columns: self.columns,
+                row,
+            },
+            self.content_width
+                .map_or(width, |content| content.min(width)),
+        )
+    }
+    fn focused_slot(&self) -> Option<usize> {
+        // 展开的祖先高亮仍用于绘制，但不是第二个 UIA 键盘焦点。
+        self.active
+            .then(|| self.entries.iter().position(|entry| entry.focused))
+            .flatten()
     }
 }
 fn take(snapshot: &Mutex<Snapshot>) -> Option<(usize, Action)> {
@@ -268,8 +306,37 @@ impl Drop for Owner {
     }
 }
 impl Node {
+    #[cfg(test)]
     pub(crate) fn slot(&self) -> usize {
         self.index
+    }
+    pub(crate) fn sibling(&self, next: bool) -> Option<Node> {
+        let state = self.snapshot.lock().ok()?;
+        let index = if next {
+            self.index.checked_add(1)?
+        } else {
+            self.index.checked_sub(1)?
+        };
+        // 旧节点不得借当前位置进入刷新后的新一代菜单。
+        (state.alive && state.generation == self.generation && index < state.entries.len()).then(
+            || Node {
+                snapshot: self.snapshot.clone(),
+                generation: self.generation,
+                index,
+            },
+        )
+    }
+    pub(crate) fn item_rect(
+        &self,
+        width: i32,
+        row: i32,
+    ) -> Option<windows::Win32::Foundation::RECT> {
+        let state = self.snapshot.lock().ok()?;
+        (state.alive && state.generation == self.generation && self.index < state.entries.len())
+            .then(|| {
+                let (layout, width) = state.geometry(width, row);
+                layout.rect(self.index, width)
+            })
     }
     pub(crate) fn runtime_id(&self) -> Option<[i32; 5]> {
         let state = self.snapshot.lock().ok()?;
@@ -282,14 +349,19 @@ impl Node {
         ])
     }
     pub fn read(&self) -> Option<Entry> {
+        self.with_entry(|entry, active| {
+            let mut entry = entry.clone();
+            entry.focused &= active;
+            entry
+        })
+    }
+    // 此闭包只提取行数据，不调用 COM 或其他可能重入快照的代码。
+    pub(crate) fn with_entry<T>(&self, read: impl FnOnce(&Entry, bool) -> T) -> Option<T> {
         let state = self.snapshot.lock().ok()?;
         if !state.alive || state.generation != self.generation {
             return None;
         }
-        let mut entry = state.entries.get(self.index)?.clone();
-        // 展开祖先的视觉高亮不是第二个键盘焦点，不改变绘制层的选中状态。
-        entry.focused &= state.active;
-        Some(entry)
+        Some(read(state.entries.get(self.index)?, state.active))
     }
     pub fn enqueue(&self, action: Action) -> Result<(), Rejected> {
         let mut state = self.snapshot.lock().map_err(|_| Rejected::Unavailable)?;
@@ -349,6 +421,6 @@ fn entry(row: &Row) -> Entry {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "native_menu_accessibility_tests.rs"]
 mod tests;

@@ -47,7 +47,9 @@ pub(super) unsafe fn run_window(
         return startup_smoke::run(instance, &document, image_path, &settings, shader);
     }
     let mut app = application::Application::new(instance, document);
-    app.install_capture_history(hidden_check)?;
+    if !hidden_check {
+        app.install_capture_history()?;
+    }
     app.install_shader(shader.installation);
     app.install_profile_target(settings.default_target);
     if let Some(settings) = settings.source {

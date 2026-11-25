@@ -13,6 +13,8 @@ use std::{rc::Rc, sync::Arc};
 pub(in crate::desktop::application) mod archive;
 #[path = "application_workflow_cycle.rs"]
 pub(in crate::desktop::application) mod cycle;
+#[path = "application_workflow_retirement.rs"]
+pub(in crate::desktop::application) mod retirement;
 #[path = "application_workflow_sync.rs"]
 pub(in crate::desktop::application) mod sync;
 #[path = "application_workflow_ui.rs"]
@@ -27,7 +29,6 @@ impl Receipt {
     unsafe fn matches(&self, app: &Application) -> bool {
         app.restore_job.is_none()
             && app.save_job.is_none()
-            && app.save_status() == save_state::Status::Unchanged
             && app.restored_session.as_ref().is_some_and(|record| {
                 record.saved_path.is_some() && record.original.same_storage(&self.source)
             })
@@ -35,7 +36,10 @@ impl Receipt {
                 &self.catalog,
                 app.catalog.borrow().loaded.as_ref(),
             )
-            && self.guard.matches(app)
+            && app
+                .saved_state
+                .as_ref()
+                .is_some_and(|saved| self.guard.matches_saved(app, saved))
     }
 }
 pub(in crate::desktop::application) struct Pending {
@@ -48,17 +52,36 @@ pub(in crate::desktop::application) struct Candidate {
 }
 impl Candidate {
     pub(in crate::desktop::application) unsafe fn matches(&self, app: &Application) -> bool {
-        self.receipt.matches(app) && self.ready.matches_source(&self.receipt.source)
+        self.receipt.matches(app) && self.ready.matches_retained_source(&self.receipt.source)
     }
     pub(in crate::desktop::application) fn ready(&self) -> &WorkflowReady {
         &self.ready
     }
 }
 impl Application {
+    pub(in crate::desktop::application) fn workflow_reap_deadline(
+        &self,
+    ) -> Option<std::time::Instant> {
+        let record = self.restored_session.as_ref();
+        self.retired_workflow
+            .as_ref()
+            .and_then(retirement::Jobs::deadline)
+            .into_iter()
+            .chain(record.and_then(|record| {
+                record
+                    .workflow_cycle
+                    .as_ref()?
+                    .deadline(record.workflow.as_ref())
+            }))
+            .chain(record.and_then(|record| record.workflow_sync.as_ref()?.deadline()))
+            .min()
+    }
+
     pub(in crate::desktop::application) unsafe fn request_workflow_preparation(
         &mut self,
         root: Option<Arc<Root>>,
     ) -> Result<()> {
+        self.require_workflow_slot()?;
         let record = self
             .restored_session
             .as_ref()

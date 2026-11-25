@@ -14,8 +14,19 @@ use std::{
     time::{Duration, Instant},
 };
 const LEASE: &str = "extension-auth:01234567-89ab-4cde-8123-0123456789ab";
+impl Owner {
+    pub(in crate::desktop) fn test_set_notify(&mut self, notify: Notify) {
+        assert!(self.pending.is_none());
+        self.notify = notify;
+    }
+    pub(in crate::desktop) fn test_wait_finished(&self) {
+        self.pending.as_ref().unwrap().job.test_wait_finished();
+    }
+}
 #[path = "extension_command_cancel_tests.rs"]
 mod cancellation;
+#[path = "extension_command_ocr_joint_tests.rs"]
+mod ocr_joint;
 #[path = "extension_command_surface_tests.rs"]
 mod surface;
 struct Fixture {
@@ -25,30 +36,24 @@ struct Fixture {
 }
 impl Fixture {
     unsafe fn new(data: &Value) -> Self {
-        let apartment = super::super::Apartment::new().unwrap();
-        let instance = HINSTANCE(
-            windows::Win32::System::LibraryLoader::GetModuleHandleW(None)
-                .unwrap()
-                .0,
-        );
-        RegisterClassW(&WNDCLASSW {
-            hInstance: instance,
-            lpszClassName: windows::core::w!("Otter.Native.Workspace"),
-            lpfnWndProc: Some(super::super::procedure::window_proc),
-            ..Default::default()
-        });
-        let state = State::new(
-            Some(super::super::image::Image {
-                width: 64,
-                height: 32,
-                pixels: vec![255; 64 * 32 * 4].into(),
-            }),
-            true,
+        let image = super::super::image::Image {
+            width: 64,
+            height: 32,
+            pixels: vec![255; 64 * 32 * 4].into(),
+        };
+        Self::with_image(
+            Arc::new(Snapshot::parse(&serde_json::to_vec(data).unwrap()).unwrap()),
+            || image,
         )
-        .unwrap();
-        state.extensions.borrow_mut().snapshot = Some(Arc::new(
-            Snapshot::parse(&serde_json::to_vec(data).unwrap()).unwrap(),
-        ));
+    }
+    unsafe fn with_image(
+        snapshot: Arc<Snapshot>,
+        image: impl FnOnce() -> super::super::image::Image,
+    ) -> Self {
+        let apartment = super::super::Apartment::new().unwrap();
+        let instance = crate::desktop::workspace_window_fixture::register();
+        let state = State::new(Some(image()), true).unwrap();
+        state.extensions.borrow_mut().snapshot = Some(snapshot);
         extension_document::observe(&state);
         let owner = Owner::new(state.extension_commands.clone(), Arc::new(|| {}));
         let document = DocumentWindow::create(instance, state, false).unwrap();
@@ -86,27 +91,7 @@ impl Fixture {
             .canvas
             .borrow_mut()
             .select_tool(crate::editor::Tool::Brush);
-        // 真实编辑条 OCR 控件 ID；不注入全局鼠标/键盘。
-        SendMessageW(
-            GetDlgItem(
-                Some(document.panel.0),
-                if translation { 0x6109 } else { 0x6108 },
-            )
-            .unwrap(),
-            BM_CLICK,
-            None,
-            None,
-        );
-        let mut message = MSG::default();
-        assert!(PeekMessageW(
-            &mut message,
-            Some(document.window.0),
-            super::super::tool_panel::EXECUTE,
-            super::super::tool_panel::EXECUTE,
-            PM_REMOVE
-        )
-        .as_bool());
-        DispatchMessageW(&message);
+        self.click_button(translation);
         assert_eq!(
             self.state().canvas.borrow().tool,
             crate::editor::Tool::Select
@@ -117,6 +102,27 @@ impl Fixture {
             .process_with(&self.documents, &Default::default(), || {
                 Source::Fixed(identity)
             });
+    }
+    unsafe fn click_button(&self, translation: bool) {
+        let document = &self.documents[0];
+        // 真实编辑条控件；不注入全局鼠标/键盘。
+        let child = GetDlgItem(
+            Some(document.panel.0),
+            if translation { 0x6109 } else { 0x6108 },
+        )
+        .unwrap();
+        assert!(windows::Win32::UI::Input::KeyboardAndMouse::IsWindowEnabled(child).as_bool());
+        SendMessageW(child, BM_CLICK, None, None);
+        let mut message = MSG::default();
+        assert!(PeekMessageW(
+            &mut message,
+            Some(document.window.0),
+            super::super::tool_panel::EXECUTE,
+            super::super::tool_panel::EXECUTE,
+            PM_REMOVE
+        )
+        .as_bool());
+        DispatchMessageW(&message);
     }
     unsafe fn tick(&mut self) {
         self.owner

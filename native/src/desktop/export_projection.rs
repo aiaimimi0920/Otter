@@ -125,7 +125,13 @@ fn render(
     let border = source_resolution::frame_border::Border::read(&target.edit)?;
     let radius = source_resolution::frame_clip::radius(&target.edit)?;
     // 在翻转、局部效果及历史擦除分配之前准入源/内框/外框，不为过大来源先做昂贵工作。
-    let mut geometry = source_frame::prepare(image, editor, logical, input.source_logical)?;
+    let mut geometry = source_frame::prepare(
+        image,
+        editor,
+        logical,
+        input.source_logical,
+        input.rasterized_source,
+    )?;
     if input.content || input.legacy_pixels.is_some() {
         // 布局只交换小几何，先确定legacy输出尺寸再准入；无需先分配翻转像素。
         geometry = target.content(image, editor, geometry, logical, &input, baseline.as_ref())?;

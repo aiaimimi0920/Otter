@@ -12,6 +12,11 @@ pub(super) struct Pending {
     before_recycle: crate::session_library::recycle::policy::Policy,
     job: crate::desktop::naming_import_job::Job,
 }
+impl Pending {
+    pub(super) fn deadline(&self) -> Option<std::time::Instant> {
+        self.job.deadline()
+    }
+}
 pub(super) unsafe fn request(hwnd: HWND, state: &State) -> Result<()> {
     if state.modals.blocked() {
         return Ok(());

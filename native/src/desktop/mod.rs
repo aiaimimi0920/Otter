@@ -149,7 +149,7 @@ pub mod loom_delivery;
 pub mod loom_execution_job;
 pub mod loom_execution_prepare;
 pub mod loom_execution_session;
-mod loom_execution_signal;
+pub(crate) mod loom_execution_signal;
 pub mod loom_execution_tasks;
 mod loom_execution_work;
 pub mod loom_image_value;
@@ -275,6 +275,8 @@ mod tray;
 mod window_geometry_wake;
 mod window_input_event;
 mod window_priority;
+#[cfg(test)]
+pub(crate) mod workspace_window_fixture;
 
 use canvas::Canvas;
 mod startup_entry;

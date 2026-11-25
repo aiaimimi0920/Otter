@@ -75,7 +75,6 @@ fn javascript_diagnostic_canvas_success_records_real_snapshot_and_sticky_failure
         Stage::CanvasBitmapReady,
         Stage::CanvasTargetReady,
         Stage::CanvasBindReady,
-        Stage::CanvasInitialEndDraw,
         Stage::CanvasBackingReady,
         Stage::CanvasImagesReady,
         Stage::CanvasCommandsBegin,

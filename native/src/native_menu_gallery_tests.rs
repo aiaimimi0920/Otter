@@ -94,13 +94,24 @@ fn gallery_accessibility_uses_the_same_columns_and_excludes_the_scrollbar() {
         .collect();
     let owner = crate::native_menu::accessibility::Owner::new(&rows);
     owner.set_columns(3);
-    owner.set_content_width(240);
+    owner.set_content_width(241);
     let view = owner.view();
     let layout = crate::native_menu::layout::Layout {
         columns: 3,
         row: 80,
     };
     for slot in 0..6 {
-        assert_eq!(view.item_rect(slot, 248, 80), Some(layout.rect(slot, 240)));
+        let node = view.node(slot).unwrap();
+        let rect = layout.rect(slot, 241);
+        assert_eq!(node.item_rect(248, 80), Some(rect));
+        for (x, y) in [(rect.left, rect.top), (rect.right - 1, rect.bottom - 1)] {
+            assert_eq!(
+                view.node_at_point(x, y, 248, 80).unwrap().runtime_id(),
+                node.runtime_id()
+            );
+        }
+    }
+    for (x, y) in [(80, 20), (120, 80), (242, 20), (40, 165)] {
+        assert!(view.node_at_point(x, y, 248, 80).is_none());
     }
 }

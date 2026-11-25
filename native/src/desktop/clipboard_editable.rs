@@ -145,6 +145,6 @@ impl Content {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-capture")))]
 #[path = "clipboard_editable_tests.rs"]
 mod tests;

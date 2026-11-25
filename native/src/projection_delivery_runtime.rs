@@ -329,6 +329,6 @@ impl Drop for Job {
         }
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-live")))]
 #[path = "projection_receive_attempt_tests.rs"]
 mod attempt_tests;

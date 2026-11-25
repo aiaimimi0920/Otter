@@ -1,6 +1,6 @@
 //! 单槽 Live GPU 读回任务；完整帧和取消 owner 随线程持有，退出必须 join。
 use crate::desktop::{
-    loom_execution_signal::{CompletionSignal, Notify},
+    loom_execution_signal::{reap_deadline, CompletionSignal, Notify},
     open_image::PreparedDocument,
 };
 use std::{
@@ -64,7 +64,7 @@ impl Job {
         })
     }
     pub fn poll(&mut self) -> Option<Result<PreparedDocument, String>> {
-        if !self.ready.load(Ordering::Acquire) && !self.worker.as_ref()?.is_finished() {
+        if !self.worker.as_ref()?.is_finished() {
             return None;
         }
         Some(
@@ -75,6 +75,10 @@ impl Job {
                 .and_then(|result| result),
         )
     }
+    pub fn deadline(&self) -> Option<std::time::Instant> {
+        self.worker.as_ref()?;
+        reap_deadline(&self.ready)
+    }
 }
 impl Drop for Job {
     fn drop(&mut self) {
@@ -82,5 +86,50 @@ impl Drop for Job {
         if let Some(worker) = self.worker.take() {
             let _ = worker.join();
         }
+    }
+}
+
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-live")))]
+mod tests {
+    use super::*;
+    use std::{sync::mpsc, time::Duration};
+
+    #[test]
+    fn freeze_worker_reaps_only_after_completion_notifier_returns() {
+        let ready = Arc::new(AtomicBool::new(false));
+        let completed = ready.clone();
+        let (entered, notice) = mpsc::channel();
+        let (release, tail) = mpsc::channel();
+        let tail = std::sync::Mutex::new(tail);
+        let worker = std::thread::spawn(move || {
+            let _completion = CompletionSignal::new(
+                completed,
+                Arc::new(move || {
+                    let _ = entered.send(());
+                    let _ = tail.lock().unwrap().recv_timeout(Duration::from_secs(5));
+                }),
+            );
+            Err("freeze fixture result".into())
+        });
+        let mut job = Job {
+            cancel: Arc::new(AtomicBool::new(false)),
+            ready,
+            worker: Some(worker),
+        };
+        notice.recv_timeout(Duration::from_secs(5)).unwrap();
+        assert!(job.poll().is_none());
+        assert!(job.deadline().is_some());
+        release.send(()).unwrap();
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        loop {
+            if let Some(result) = job.poll() {
+                assert_eq!(result.err().as_deref(), Some("freeze fixture result"));
+                break;
+            }
+            assert!(std::time::Instant::now() < deadline);
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        assert!(job.poll().is_none());
+        assert!(job.deadline().is_none());
     }
 }

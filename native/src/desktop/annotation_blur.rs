@@ -9,7 +9,7 @@ use windows::{
 };
 #[path = "annotation_blur_geometry.rs"]
 mod geometry;
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-surface")))]
 #[path = "blur_local_tile_tests.rs"]
 mod local_tile_tests;
 #[path = "annotation_blur_tiles.rs"]
@@ -74,17 +74,17 @@ unsafe fn draw_impl(
             );
         }
     }
-    let wash = target.CreateSolidColorBrush(
-        &D2D1_COLOR_F {
-            r: 1.0,
-            g: 1.0,
-            b: 1.0,
-            a: 0.08,
-        },
-        None,
-    )?;
     let bounds = geometry::wash_bounds(image, viewport, bounds);
     if bounds.right > bounds.left && bounds.bottom > bounds.top {
+        let wash = target.CreateSolidColorBrush(
+            &D2D1_COLOR_F {
+                r: 1.0,
+                g: 1.0,
+                b: 1.0,
+                a: 0.08,
+            },
+            None,
+        )?;
         target.FillRectangle(&bounds, &wash);
     }
     Ok(())

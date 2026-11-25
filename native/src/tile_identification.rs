@@ -159,6 +159,6 @@ impl Identification {
             .filter(|p| p.identity.endpoint == endpoint && p.identity.lease == lease)
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-surface")))]
 #[path = "tile_identification_tests.rs"]
 mod tests;

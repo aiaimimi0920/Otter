@@ -133,6 +133,7 @@ impl Owner {
             .iter()
             .filter(|entry| entry.active)
             .filter_map(|entry| entry.window.as_ref().and_then(Window::deadline))
+            .chain(self.tasks.deadline())
             .min()
     }
     pub fn start(

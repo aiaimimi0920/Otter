@@ -7,27 +7,31 @@ use std::{
 };
 pub(crate) static SERIAL: Mutex<()> = Mutex::new(());
 #[test]
-fn completion_notification_allows_immediate_poll_after_permit_release() {
+fn notification_releases_permit_but_poll_waits_for_thread_exit() {
+    use crate::desktop::loom_execution_tasks::reap_fixture::{Gate, WAIT};
     let _serial = SERIAL.lock().unwrap();
     let editor = Editor::default();
     let mut job = Job::default();
-    let (send, receive) = std::sync::mpsc::channel();
+    assert!(job.deadline().is_none());
+    let gate = Gate::new(|| {});
     job.start_with_notify(
         id("target"),
         &editor,
         vec![source("image", "source", &editor)],
-        Arc::new(move || {
-            send.send(ACTIVE.load(Ordering::Acquire)).unwrap();
-        }),
+        gate.notify.clone(),
     )
     .unwrap();
-    assert_eq!(receive.recv_timeout(Duration::from_secs(10)).unwrap(), 0);
-    let batch = job
-        .poll()
-        .expect("completion notification must make poll ready")
-        .unwrap();
+    gate.noticed.recv_timeout(WAIT).unwrap();
+    assert_eq!(ACTIVE.load(Ordering::Acquire), 0);
+    assert!(job.deadline().is_some());
+    assert!(job.poll().is_none());
+    assert!(job.is_busy());
+    gate.release.send(()).unwrap();
+    job.test_wait_finished();
+    let batch = job.poll().unwrap().unwrap();
     assert_eq!(batch.descriptors().len(), 1);
     assert!(!job.is_busy());
+    assert!(job.deadline().is_none());
     assert!(job.poll().is_none());
 }
 #[test]

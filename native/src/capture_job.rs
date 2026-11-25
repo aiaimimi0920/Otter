@@ -116,6 +116,6 @@ impl<T> Drop for CaptureJob<T> {
         }
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-capture")))]
 #[path = "capture_job_tests.rs"]
 mod tests;

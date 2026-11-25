@@ -114,6 +114,6 @@ fn merge(installed: Vec<String>) -> Result<Vec<String>> {
     result.extend(order::sorted(names)?);
     Ok(result)
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "installed_fonts_tests.rs"]
 mod tests;

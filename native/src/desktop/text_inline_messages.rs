@@ -75,9 +75,6 @@ unsafe extern "system" fn key(
     }
     result
 }
-fn color(rgb: u32) -> COLORREF {
-    COLORREF(((rgb & 255) << 16) | (rgb & 0xff00) | ((rgb >> 16) & 255))
-}
 pub(super) unsafe extern "system" fn popup(
     hwnd: HWND,
     msg: u32,
@@ -95,24 +92,12 @@ unsafe fn route(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
             send(hwnd, CHANGE, false);
             LRESULT(0)
         }
-        WM_CTLCOLOREDIT | WM_CTLCOLORSTATIC => {
-            let dc = HDC(wp.0 as *mut _);
-            SetTextColor(dc, color(neuro_mini_ui::Palette::default().text));
-            SetBkColor(dc, color(0x0e1218));
-            SetDCBrushColor(dc, color(0x0e1218));
-            LRESULT(GetStockObject(DC_BRUSH).0 as isize)
-        }
+        WM_CTLCOLOREDIT | WM_CTLCOLORSTATIC => paint::edit(hwnd, HDC(wp.0 as *mut _)),
         WM_ERASEBKGND => LRESULT(1),
-        WM_PAINT => {
-            let mut ps = PAINTSTRUCT::default();
-            let dc = BeginPaint(hwnd, &mut ps);
-            let mut rect = RECT::default();
-            if GetClientRect(hwnd, &mut rect).is_ok() {
-                SetDCBrushColor(dc, color(neuro_mini_ui::Palette::default().signal));
-                FillRect(dc, &rect, HBRUSH(GetStockObject(DC_BRUSH).0));
-            }
-            let _ = EndPaint(hwnd, &ps);
-            LRESULT(0)
+        WM_PAINT => paint::popup(hwnd),
+        WM_NCDESTROY => {
+            paint::retire(hwnd);
+            DefWindowProcW(hwnd, msg, wp, lp)
         }
         WM_CLOSE => {
             send(hwnd, CANCEL, false);

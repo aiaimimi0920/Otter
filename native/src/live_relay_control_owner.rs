@@ -227,6 +227,6 @@ impl Drop for Owner {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-live")))]
 #[path = "live_relay_control_owner_tests.rs"]
 mod tests;

@@ -57,13 +57,10 @@ pub fn images(
     cache
         .try_reserve(document.windows.len() * 3)
         .map_err(|_| Error::new(E_OUTOFMEMORY, "Cannot allocate session image cache"))?;
-    for window in &document.windows {
+    // Topology::restore 在同一窗口顺序下建立唯一的工作区身份。
+    for (window, unit) in document.windows.iter().zip(document.workspace.units()) {
         check(cancel)?;
-        let unit = UnitId::parse(&window.id)
-            .ok_or_else(|| Error::new(E_INVALIDARG, "Invalid restored unit identity"))?;
-        if !document.workspace.contains(&unit)
-            || prepared.iter().any(|item: &Images| item.unit == unit)
-        {
+        if unit.as_str() != window.id {
             return Err(Error::new(E_INVALIDARG, "Session window topology mismatch"));
         }
         let references = References::from_window(window);
@@ -114,7 +111,7 @@ pub fn images(
                     })
                 })
                 .transpose()?,
-            unit,
+            unit: unit.clone(),
             source,
             preview,
             rasterized_annotations,
@@ -132,30 +129,31 @@ pub(super) fn workflow_image(
     root: Option<&super::session_asset_root::Root>,
     cancel: &AtomicBool,
 ) -> Result<Image> {
-    let parameters = if window.is_art() {
+    let manual = if window.is_art() {
         None
     } else {
-        Some(
-            crate::sticker_image_params::read(window.params)
-                .map_err(|e| Error::new(E_INVALIDARG, e))?,
-        )
-    };
-    let manual = parameters
-        .as_ref()
-        .filter(|p| p.get("image_path").and_then(serde_json::Value::as_str) == Some(reference));
-    let image = if let Some(parameters) = manual {
-        Some(
-            super::sticker_input::Asset::restore(
-                reference,
-                parameters
+        use super::sticker_input::Asset;
+        use serde_json::Value;
+        let (_, manual) =
+            crate::sticker_image_params::read_with_image(window.params, |values, image| {
+                if values.get("image_path").and_then(Value::as_str) != Some(reference) {
+                    return None;
+                }
+                let filename = values
                     .get("image_filename")
-                    .and_then(serde_json::Value::as_str)
-                    .unwrap_or(""),
-                cancel,
-            )?
-            .image
-            .clone(),
-        )
+                    .and_then(Value::as_str)
+                    .unwrap_or("");
+                Some(match image {
+                    Some(image) => Asset::restore_checked(image, filename, cancel),
+                    // An explicitly empty manual reference keeps its original rejection.
+                    None => Asset::restore(reference, filename, cancel),
+                })
+            })
+            .map_err(|e| Error::new(E_INVALIDARG, e))?;
+        manual.transpose()?
+    };
+    let image = if let Some(asset) = manual {
+        Some(asset.image.clone())
     } else {
         load(Some(reference), &mut HashMap::new(), cancel, &mut |path| {
             root.ok_or_else(|| {
@@ -209,6 +207,6 @@ fn check(cancel: &AtomicBool) -> Result<()> {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "session_prepare_tests.rs"]
 mod tests;

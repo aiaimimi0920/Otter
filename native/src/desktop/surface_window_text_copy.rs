@@ -16,11 +16,11 @@ pub(in crate::desktop::surface_window) unsafe fn message(
         return false;
     }
     if message != WM_KEYDOWN || (lp.0 as usize & (1 << 30)) != 0 {
-        return state.host.borrow().as_ref().is_some_and(|host| {
-            host.presentation()
-                .selected_text()
-                .is_ok_and(|text| text.is_some())
-        });
+        return state
+            .host
+            .borrow()
+            .as_ref()
+            .is_some_and(|host| host.presentation().has_copyable_text());
     }
     copy_with(hwnd, state, |text, current| unsafe {
         crate::desktop::clipboard::copy_text_checked(hwnd, text, current)
@@ -71,6 +71,6 @@ unsafe fn copy_with(
     }
     true
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-surface")))]
 #[path = "surface_window_text_copy_tests.rs"]
 mod tests;

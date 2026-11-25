@@ -4,7 +4,7 @@ use crate::{
     editor::{DocumentStamp, Editor},
     workspace_id::UnitId,
 };
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "display_frame_source_tests.rs"]
 mod source_tests;
 pub(super) struct Frame {

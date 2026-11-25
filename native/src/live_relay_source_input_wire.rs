@@ -156,8 +156,12 @@ impl State {
     pub fn closed(&self) -> bool {
         self.closed
     }
-    pub fn suspend(&mut self) {
+    pub(super) fn discard_delivery(&mut self) {
+        // 本批动作未投递，后续输入必须重新启用桥；不重置已验证的控制权历史。
         self.enabled = false;
+    }
+    pub fn suspend(&mut self) {
+        self.discard_delivery();
         self.suspended = true;
     }
     pub fn prepare(&self, events: &[ControlEvent]) -> Result<(Self, Vec<Action>), Error> {
@@ -243,6 +247,6 @@ impl State {
         Ok((next, actions))
     }
 }
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-live")))]
 #[path = "live_relay_source_input_wire_tests.rs"]
 mod tests;

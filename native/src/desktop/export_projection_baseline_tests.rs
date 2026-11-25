@@ -65,6 +65,117 @@ fn pixel(image: &Image, x: usize, y: usize) -> &[u8] {
 }
 
 #[test]
+fn projection_rasterized_source_preserves_padding_for_crop_propagation_and_reset() {
+    let _com = Apartment::new().unwrap();
+    let mut source = image(8, 8);
+    let mut pixels = source.pixels.to_vec();
+    for row in pixels.chunks_exact_mut(32) {
+        row[..8].fill(0);
+    }
+    source.pixels = pixels.into();
+    let logical = Size {
+        width: 16.0,
+        height: 8.0,
+    };
+    let mut editor = Editor::with_layers(crate::erase_layers::Layers {
+        size: (16, 8),
+        base: vec![0; 16 * 8 * 4].into(),
+        annotations: None,
+        annotation_size: None,
+    })
+    .unwrap()
+    .with_restored_crop(crate::crop_geometry::Crop {
+        source: logical,
+        rect: Rect {
+            x: 2.0,
+            y: 2.0,
+            width: 8.0,
+            height: 4.0,
+        },
+    })
+    .unwrap();
+    let target = record(
+        "target",
+        8.0,
+        4.0,
+        json!(null),
+        json!({
+            "upstreamSourceFrame":{"w":8,"h":4},"upstreamContentFrame":{"x":4,"y":0,"w":4,"h":4}
+        }),
+    );
+    let mut input = Input {
+        source_logical: Some(logical),
+        rasterized_source: true,
+        ..Input::default()
+    };
+    let plain = render(&target, &source, &editor, input.clone());
+    assert_eq!((plain.width, plain.height), (4, 4));
+    assert_eq!(pixel(&plain, 0, 2), &[0; 4]);
+    assert_eq!(pixel(&plain, 1, 2), &[20, 40, 60, 255]);
+    input.content = true;
+    let propagated = render(&target, &source, &editor, input.clone());
+    assert_eq!((propagated.width, propagated.height), (4, 4));
+    assert_eq!(pixel(&propagated, 1, 2), &[0; 4]);
+    assert_eq!(pixel(&propagated, 3, 2), &[20, 40, 60, 255]);
+    assert!(editor.reset_crop());
+    input.content = false;
+    let reset = render(&target, &source, &editor, input);
+    assert_eq!(reset.pixels, source.pixels);
+}
+
+#[test]
+fn projection_high_zoom_crop_keeps_natural_png_density() {
+    let _com = Apartment::new().unwrap();
+    let mut natural = image(4096, 8);
+    let mut pixels = natural.pixels.to_vec();
+    for row in pixels.chunks_exact_mut(4096 * 4) {
+        row[64 * 4..128 * 4].copy_from_slice(&[90, 100, 110, 255].repeat(64));
+    }
+    natural.pixels = pixels.into();
+    let logical = Size {
+        width: 32_768.0,
+        height: 128.0,
+    };
+    let size = logical.crop_raster_size().unwrap();
+    let editor = Editor::with_layers(crate::erase_layers::Layers {
+        size,
+        base: vec![0; crate::viewport::checked_image_bytes(size.0, size.1).unwrap()].into(),
+        annotations: None,
+        annotation_size: None,
+    })
+    .unwrap()
+    .with_restored_crop(crate::crop_geometry::Crop {
+        source: logical,
+        rect: Rect {
+            x: 512.0,
+            // The natural image occupies y=32..96 after contain.
+            y: 32.0,
+            width: 512.0,
+            height: 48.0,
+        },
+    })
+    .unwrap();
+    let target = record("target", 512.0, 48.0, json!(null), json!(null));
+    let decoded = render(
+        &target,
+        &natural,
+        &editor,
+        Input {
+            source_logical: Some(Size {
+                width: 4096.0,
+                height: 8.0,
+            }),
+            content: true,
+            ..Input::default()
+        },
+    );
+    assert_eq!((decoded.width, decoded.height), (64, 3));
+    for (index, pixel) in decoded.pixels.chunks_exact(4).enumerate() {
+        assert_eq!(pixel, [90, 100, 110, 255], "pixel {index}");
+    }
+}
+
+#[test]
 fn projection_source_logical_preserves_nonuniform_crop_density_and_reset_undo() {
     let _com = Apartment::new().unwrap();
     let natural = image(16, 16);

@@ -1,7 +1,10 @@
 //! 有界任务占槽、通知、旧失败、panic、撤销和回收；通过通道同步而非 sleep 刷绿。
 use super::*;
 use crate::art_local_requests::tests as fixture;
-use std::{sync::mpsc, time::Duration};
+use std::{
+    sync::{atomic::Ordering, mpsc},
+    time::Duration,
+};
 const WAIT: Duration = Duration::from_secs(5);
 fn tasks() -> (Tasks, mpsc::Receiver<()>) {
     let (tx, rx) = mpsc::channel();
@@ -67,11 +70,13 @@ fn replaced_failure_is_discarded_and_retiring_worker_keeps_capacity() {
     assert!(tasks.take_settled().is_none());
     release_old.send(()).unwrap();
     done.recv_timeout(WAIT).unwrap();
+    tasks.test_wait_finished(0);
     assert!(tasks.take_settled().is_none());
     assert!(tasks.busy());
     assert!(!current.is_revoked());
     release_new.send(()).unwrap();
     done.recv_timeout(WAIT).unwrap();
+    tasks.test_wait_finished(0);
     let report = tasks.take_settled().unwrap();
     assert_eq!(report.unit, fixture::id());
     assert!(matches!(report.result, Err(Error::Configuration(_))));
@@ -95,6 +100,7 @@ fn worker_panic_notifies_and_revokes_current_request() {
         )
         .unwrap();
     done.recv_timeout(WAIT).unwrap();
+    tasks.test_wait_finished(0);
     assert!(matches!(
         tasks.take_settled().unwrap().result,
         Err(Error::Worker)
@@ -131,6 +137,7 @@ fn deleted_nodes_and_cancelled_results_cannot_be_delivered() {
         assert!(tasks.busy());
         release.send(()).unwrap();
         done.recv_timeout(WAIT).unwrap();
+        tasks.test_wait_finished(0);
         assert!(tasks.take_settled().is_none());
         assert!(!tasks.busy());
     }
@@ -221,6 +228,7 @@ fn client_preparation_failure_uses_same_completion_and_releases_original_lease()
         .start(fixture::id(), request, lease.clone(), &mut trust, config)
         .unwrap();
     done.recv_timeout(WAIT).unwrap();
+    tasks.test_wait_finished(0);
     assert!(matches!(
         tasks.take_settled().unwrap().result,
         Err(Error::Configuration(

@@ -18,6 +18,7 @@ impl Candidate {
         root: Arc<Root>,
         timestamp_ms: u64,
     ) -> Result<Pending> {
+        app.require_workflow_slot()?;
         if !self.matches(app) {
             return Err(Error::new(
                 E_ABORT,
@@ -46,6 +47,12 @@ impl Candidate {
     }
 }
 impl Pending {
+    pub(super) fn into_job(self) -> WorkflowArchiveJob {
+        self.job
+    }
+    pub(super) fn deadline(&self) -> Option<std::time::Instant> {
+        self.job.deadline()
+    }
     pub(in crate::desktop::application) unsafe fn poll(
         &mut self,
         app: &Application,

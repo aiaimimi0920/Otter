@@ -55,74 +55,141 @@ fn cancelled_or_unencodable_batch_never_connects_or_requests_admission() {
 #[test]
 fn batch_dispatch_checks_each_request_and_preserves_partial_progress() {
     for mode in ["success", "deny-second", "reject-second"] {
-        let (listener, identity, config) = fixture();
-        let worker = thread::spawn(move || {
-            let mut ids = Vec::new();
-            for index in 0..2 {
-                let stream = BridgeStream::new(
-                    listener.accept().unwrap().0,
-                    Instant::now() + Duration::from_secs(3),
-                )
-                .unwrap();
-                let mut socket = tungstenite::accept(StreamOwned::new(
-                    ServerConnection::new(config.clone()).unwrap(),
-                    stream,
-                ))
-                .unwrap();
-                if mode == "deny-second" && index == 1 {
-                    assert!(socket.read().is_err());
-                    break;
-                }
-                let text = socket.read().unwrap();
-                let value: serde_json::Value =
-                    serde_json::from_str(text.to_text().unwrap()).unwrap();
-                assert_eq!(
-                    value["params"]["workflowId"],
-                    if index == 0 { "hook-live" } else { "origin" }
-                );
-                let id = value["params"]["requestId"].as_str().unwrap().to_owned();
-                assert!(!ids.contains(&id));
-                ids.push(id.clone());
-                socket.send(Message::Text(json!({"protocolVersion":"loom.hook.v1","requestId":id,"status":if index == 1 && mode == "reject-second" {"failed"} else {"succeeded"},"data":{"workflowId":value["params"]["workflowId"]}}).to_string())).unwrap();
+        dispatch_two_requests(mode);
+    }
+}
+
+#[test]
+fn batch_dispatch_preserves_first_ack_when_second_connection_closes() {
+    dispatch_two_requests("close-second");
+}
+
+#[test]
+fn batch_dispatch_preserves_first_ack_when_second_reply_times_out() {
+    dispatch_two_requests("timeout-second");
+}
+
+fn dispatch_two_requests(mode: &'static str) {
+    let (listener, identity, config) = fixture();
+    // Bound fixture failures too: a regression that never connects must
+    // not leave the harness waiting in a blocking accept.
+    listener.set_nonblocking(true).unwrap();
+    let worker = thread::spawn(move || {
+        let mut ids = Vec::new();
+        for index in 0..2 {
+            let stream = BridgeStream::new(
+                accept_before(&listener, Instant::now() + Duration::from_secs(10)),
+                Instant::now() + Duration::from_secs(3),
+            )
+            .unwrap();
+            let mut socket = tungstenite::accept(StreamOwned::new(
+                ServerConnection::new(config.clone()).unwrap(),
+                stream,
+            ))
+            .unwrap();
+            if mode == "deny-second" && index == 1 {
+                assert!(socket.read().is_err());
+                break;
             }
-        });
-        let saved = serde_json::to_vec(&json!({"documentRevision":1,"stickers":[{"id":"local","x":0,"y":0,"w":10,"h":10,"originWorkflowId":"origin"}],"links":[]})).unwrap();
-        let cancel = AtomicBool::new(false);
-        let snapshot = workflow_snapshot::prepare(&saved, 1, &cancel, |_, _| {
-            Ok(workflow_snapshot::Content {
-                parameters: Default::default(),
-                image: Default::default(),
-            })
-        })
-        .unwrap();
-        let mut batch = Batch::prepare(&snapshot, &saved, &cancel).unwrap();
-        let budget = Budget::new(8192);
-        let mut admissions = Vec::new();
-        let report = dispatch::run(&mut batch, &identity, &budget, 4096, &cancel, |request| {
-            admissions.push(request.id().to_owned());
-            !(mode == "deny-second" && admissions.len() == 2)
-        });
-        assert_eq!(admissions.len(), 2);
-        assert_eq!(report.acknowledged, if mode == "success" { 2 } else { 1 });
-        assert_eq!(
-            report.failure,
-            match mode {
-                "success" => None,
-                "deny-second" => Some(Failure::NotAdmitted),
-                _ => Some(Failure::Exchange(exchange::Error::Rejected)),
-            }
-        );
-        assert_eq!(report.may_have_reached_remote, mode == "reject-second");
-        assert_eq!(batch.remaining(), usize::from(mode != "success"));
-        if mode != "success" {
+            let text = socket.read().unwrap();
+            let value: serde_json::Value = serde_json::from_str(text.to_text().unwrap()).unwrap();
             assert_eq!(
-                batch.current(&budget, 4096, &cancel).unwrap().unwrap().id(),
-                admissions[1]
+                value["params"]["workflowId"],
+                if index == 0 { "hook-live" } else { "origin" }
             );
-            assert_eq!(budget.used(), 4096);
+            let id = value["params"]["requestId"].as_str().unwrap().to_owned();
+            assert!(!ids.contains(&id));
+            ids.push(id.clone());
+            if index == 1 && mode == "close-second" {
+                break;
+            }
+            if index == 1 && mode == "timeout-second" {
+                // A result for another request cannot settle the current one.
+                socket
+                    .send(Message::Text(
+                        json!({
+                            "protocolVersion":"loom.hook.v1", "requestId":"unrelated",
+                            "status":"succeeded", "data":{"workflowId":"origin"}
+                        })
+                        .to_string(),
+                    ))
+                    .unwrap();
+                socket
+                    .get_mut()
+                    .sock
+                    .operation_deadline(Duration::from_secs(9))
+                    .unwrap();
+                let closed = socket.read().unwrap_err();
+                assert!(!matches!(closed, tungstenite::Error::Io(ref error)
+                        if matches!(error.kind(), std::io::ErrorKind::TimedOut | std::io::ErrorKind::WouldBlock)));
+                break;
+            }
+            socket.send(Message::Text(json!({"protocolVersion":"loom.hook.v1","requestId":id,"status":if index == 1 && mode == "reject-second" {"failed"} else {"succeeded"},"data":{"workflowId":value["params"]["workflowId"]}}).to_string())).unwrap();
         }
-        drop(batch);
-        assert_eq!(budget.used(), 0);
-        worker.join().unwrap();
+        listener
+    });
+    let saved = serde_json::to_vec(&json!({"documentRevision":1,"stickers":[{"id":"local","x":0,"y":0,"w":10,"h":10,"originWorkflowId":"origin"}],"links":[]})).unwrap();
+    let cancel = AtomicBool::new(false);
+    let snapshot = workflow_snapshot::prepare(&saved, 1, &cancel, |_, _| {
+        Ok(workflow_snapshot::Content {
+            parameters: Default::default(),
+            image: Default::default(),
+        })
+    })
+    .unwrap();
+    let mut batch = Batch::prepare(&snapshot, &saved, &cancel).unwrap();
+    let budget = Budget::new(8192);
+    let mut admissions = Vec::new();
+    let report = dispatch::run(&mut batch, &identity, &budget, 4096, &cancel, |request| {
+        admissions.push(request.id().to_owned());
+        !(mode == "deny-second" && admissions.len() == 2)
+    });
+    assert_eq!(admissions.len(), 2);
+    assert_eq!(report.acknowledged, if mode == "success" { 2 } else { 1 });
+    assert_eq!(
+        report.failure,
+        match mode {
+            "success" => None,
+            "deny-second" => Some(Failure::NotAdmitted),
+            "reject-second" => Some(Failure::Exchange(exchange::Error::Rejected)),
+            "close-second" => Some(Failure::Exchange(exchange::Error::Closed)),
+            "timeout-second" => Some(Failure::Exchange(exchange::Error::Timeout)),
+            _ => unreachable!("Invalid fixture mode: {mode}"),
+        }
+    );
+    assert_eq!(
+        report.may_have_reached_remote,
+        !matches!(mode, "success" | "deny-second")
+    );
+    assert_eq!(batch.remaining(), usize::from(mode != "success"));
+    if mode != "success" {
+        assert_eq!(
+            batch.current(&budget, 4096, &cancel).unwrap().unwrap().id(),
+            admissions[1]
+        );
+        assert_eq!(budget.used(), 4096);
+    }
+    drop(batch);
+    assert_eq!(budget.used(), 0);
+    // Reuse the original listener: a duplicated Windows socket can block
+    // here even when the original listener was set nonblocking.
+    let listener = worker.join().unwrap();
+    assert_eq!(
+        listener.accept().unwrap_err().kind(),
+        std::io::ErrorKind::WouldBlock,
+        "The dispatcher must not open another connection to retry or advance"
+    );
+}
+
+fn accept_before(listener: &std::net::TcpListener, deadline: Instant) -> std::net::TcpStream {
+    loop {
+        match listener.accept() {
+            Ok((stream, _)) => return stream,
+            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                assert!(Instant::now() < deadline, "No workflow connection");
+                thread::sleep(Duration::from_millis(1));
+            }
+            Err(error) => panic!("Workflow fixture failed to accept: {error}"),
+        }
     }
 }

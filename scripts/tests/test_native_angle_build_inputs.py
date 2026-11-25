@@ -1,12 +1,14 @@
 """外部 stage 预期身份、精确文件集合、构建后不变和纯 PE 的拒绝合同。"""
 
+import hashlib
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from native_angle_build_fixture import build_fixture, pe
 from build_binary import Image, verify_dll
 from build_inputs import new_output, verify_stage
-from toolchain_paths import read_json
+from toolchain_paths import anchors, file_hash, layout, read_json
 
 
 class BuildInputsTests(unittest.TestCase):
@@ -98,6 +100,65 @@ class BuildInputsTests(unittest.TestCase):
         verify_dll(path, ["eglExample"], system.parent)
         with self.assertRaisesRegex(ValueError, "executable"):
             verify_dll(path, ["optionalData"], system.parent)
+
+
+    def test_pe_receipt_hash_binds_parsed_bytes_and_rechecks_path(self):
+        system = self.root / "system/System32"
+        system.mkdir(parents=True)
+        (system / "KERNEL32.dll").write_bytes(b"synthetic system data")
+        path = pe(self.root / "valid.dll")
+        alternate = self.root / "alternate.dll"
+        original = path.read_bytes()
+        alternate.write_bytes(original + b"different snapshot")
+        record = verify_dll(path, ["eglExample"], system.parent)
+        self.assertEqual((record["bytes"], record["sha256"]), (len(original), hashlib.sha256(original).hexdigest()))
+        real_open = Path.open
+        reads = 0
+
+        def different_second_open(candidate, *args, **kwargs):
+            nonlocal reads
+            if candidate == path:
+                reads += 1
+                if reads == 2:
+                    return real_open(alternate, *args, **kwargs)
+            return real_open(candidate, *args, **kwargs)
+
+        with patch.object(Path, "open", different_second_open), self.assertRaisesRegex(ValueError, "changed during PE verification"):
+            verify_dll(path, ["eglExample"], system.parent)
+        self.assertEqual(reads, 2)
+
+
+    def test_pe_snapshot_and_recheck_enforce_actual_byte_limits(self):
+        path = pe(self.root / "bounded.dll")
+        size = path.stat().st_size
+        with patch("build_binary.MAX_HASH_BYTES", size):
+            self.assertEqual(len(Image(path).data), size)
+        with patch("build_binary.MAX_HASH_BYTES", size - 1), self.assertRaisesRegex(ValueError, "size limit"):
+            Image(path)
+        alternate = self.root / "larger.dll"
+        alternate.write_bytes(path.read_bytes() + b"x")
+        real_open = Path.open
+
+        def larger_open(candidate, *args, **kwargs):
+            return real_open(alternate if candidate == path else candidate, *args, **kwargs)
+
+        with patch("toolchain_paths.MAX_HASH_BYTES", size):
+            self.assertEqual(file_hash(path), hashlib.sha256(path.read_bytes()).hexdigest())
+            with patch.object(Path, "open", larger_open), self.assertRaisesRegex(ValueError, "size limit"):
+                file_hash(path)
+
+
+    def test_shared_anchors_are_hashed_once_per_scan_not_across_scans(self):
+        roots = layout(self.config)
+        with patch("toolchain_paths.file_hash", wraps=file_hash) as read:
+            first = anchors(self.config, roots)
+            self.assertEqual(len(first), 17)
+            self.assertEqual(read.call_count, len(first))
+            target = roots["msvc"] / "include/vcruntime.h"
+            target.write_bytes(b"changed shared anchor")
+            second = anchors(self.config, roots)
+            self.assertEqual(read.call_count, len(first) * 2)
+            self.assertEqual({key for key in first if first[key] != second[key]}, {str(target)})
 
 
 if __name__ == "__main__":

@@ -73,6 +73,6 @@ impl Target {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-loom")))]
 #[path = "loom_media_target_tests.rs"]
 mod tests;
