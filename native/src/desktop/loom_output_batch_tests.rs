@@ -1,4 +1,4 @@
-//! 多端口原子交付与主输出选择；不发布窗口或触碰远端租约。
+//! Atomic multiport delivery/primary-output selection; no window publication or remote-lease operations.
 use super::*;
 use serde_json::json;
 #[test]

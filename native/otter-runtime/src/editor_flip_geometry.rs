@@ -1,8 +1,8 @@
-//! 翻转标注保持文字可读及盒形对象朝向；路径/效果镜像采样点，不翻转共享效果像素。
+//! Annotation flips preserve readable text and box-object orientation; paths/effects mirror sample points, not shared effect pixels.
 use super::*;
 use crate::{crop_geometry::Rect, raster_flip::Axis};
 
-/// 由布局层提供的文字锚点，均为未缩放逻辑单位，不含对象旋转。
+/// Layout-supplied text anchors use unscaled logical units without object rotation.
 #[derive(Debug, Clone, Copy)]
 pub struct TextFlipMetrics {
     pub advance_width: f32,
@@ -11,8 +11,8 @@ pub struct TextFlipMetrics {
 }
 
 impl Stroke {
-    /// frame 使用保留源坐标，允许框外标注；不截断负坐标或改变绘制顺序。
-    /// 文字/序号采用原生布局已测量的包围框，不在后台调用字体 API。
+    /// frame uses retained source coordinates and allows outside annotations; neither truncate negatives nor change drawing order.
+    /// Text/serial labels use native-measured layout bounds; background workers call no font APIs.
     pub fn flipped_in_frame(&self, frame: Rect, axis: Axis) -> Result<Self, EditError> {
         self.flipped_with_text_metrics(frame, axis, None)
     }
@@ -69,7 +69,7 @@ impl Stroke {
                 return Err(EditError::InvalidPoint);
             }
             let start = self.points[0];
-            // 主干 x'=W-x-textWidth，y'=H-y+fontSize；先转成文字锚点再转回布局框。
+            // Baseline x'=W-x-textWidth, y'=H-y+fontSize; convert to text anchors first, then back into layout bounds.
             match axis {
                 Axis::Horizontal => Point {
                     x: (2.0 * frame.x + frame.width
@@ -234,12 +234,12 @@ mod tests {
                 .unwrap();
             if source.tool == Tool::Text {
                 assert!(source.flipped_in_frame(frame(), Axis::Vertical).is_err());
-                // 原基线 15+17=32；主干镜像基线为 70-32+16=54。
+                // Original baseline 15+17=32; baseline mirrored position is 70-32+16=54.
                 assert_eq!(flipped.points[0].y + 17.0, 54.0);
                 let horizontal = source
                     .flipped_with_text_metrics(frame(), Axis::Horizontal, metrics)
                     .unwrap();
-                // 原文本 x=20+4=24；新文本 x=120-24-22=74。
+                // Original text x=20+4=24; new text x=120-24-22=74.
                 assert_eq!(horizontal.points[0].x + 4.0, 74.0);
             }
             assert_eq!(flipped.text, source.text);

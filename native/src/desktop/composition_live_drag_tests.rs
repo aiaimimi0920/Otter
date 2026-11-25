@@ -1,4 +1,4 @@
-//! 隐藏 HWND 的真实拖动路由与捕获；线程键盘快照不注入用户桌面输入。
+//! Real drag routing/capture on hidden HWNDs; thread-keyboard snapshots inject no user-desktop input.
 use super::*;
 use crate::{desktop::Apartment, live_frames::Source};
 unsafe fn window() -> (Source<Texture>, LiveWindow) {
@@ -85,7 +85,7 @@ fn live_drag_superseded_placement_never_retries_or_rolls_back_newer_geometry() {
             || {
                 checks.set(checks.get() + 1);
                 if checks.get() == 2 {
-                    // 注入 SetWindowPos 返回后的同步重入：新位置提交且旧手势取消。
+                    // Inject synchronous reentrancy after SetWindowPos returns: the new position is committed and the old gesture cancelled.
                     cancel(window.hwnd, &window.state);
                     place(window.hwnd, newer).unwrap();
                 }
@@ -109,7 +109,7 @@ fn live_drag_moves_from_screen_origin_and_keeps_local_capture_during_source_stat
         begin(&window, false);
         assert_eq!(window.take_input_request(), Some(false));
         assert!(window.pop_input().is_none());
-        // Session 每轮刷新源控制状态；不得释放本地 owner 的捕获。
+        // Session refreshes source-control state each round; it must not release the local owner's capture.
         window.input_status(false, false, None);
         assert_eq!(GetCapture(), window.hwnd);
         mouse(&window, WM_RBUTTONUP, (-300, -300));

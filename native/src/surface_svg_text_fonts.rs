@@ -1,4 +1,4 @@
-//! usvg 的按需字体适配；回传 resolver 错误，并检查已布局结果中的缺字。
+//! On-demand font adaptation for usvg; propagate resolver errors and check laid-out results for missing glyphs.
 use super::fonts::{Face, Fonts, Properties};
 use resvg::usvg::{self, fontdb};
 use skrifa::{instance::Size, MetadataProvider};
@@ -7,7 +7,7 @@ use std::{
     io,
     sync::{Arc, Mutex},
 };
-// 固定当前已实测旧宿主的默认族；不是依据 navigator.language 推断跨机器配置。
+// Pin the default family of the currently measured old host, not a cross-machine configuration inferred from navigator.language.
 pub(super) const DEFAULT_FAMILY: &str = "Microsoft YaHei";
 pub(super) struct TextFonts(Arc<Mutex<State>>);
 struct State {
@@ -73,10 +73,10 @@ impl TextFonts {
         validate_layout(tree.root())
     }
 }
-// resolver 成功不保证 shaping 成功：usvg 的 fallback 可在 glyph 数量不匹配时
-// 提前退出并保留 glyph 0。检查真实布局而不是通过“有非透明像素”推断文字完整。
-// 布局前的字体加载失败由 validate_font 单独防守，不依赖 surviving node 数量。
-// 这里不审计 convert_span/零 bbox 提前丢弃的内容，不能当作源文字完整性证明。
+// Resolver success does not guarantee shaping success: usvg fallback may exit early on glyph-count
+// mismatch and retain glyph 0. Inspect actual layout rather than infer text completeness from nontransparent pixels.
+// validate_font separately guards font-load failures before layout, independently of surviving-node counts.
+// This does not audit content discarded early by convert_span/zero bbox and is not proof of source-text completeness.
 fn validate_layout(group: &usvg::Group) -> io::Result<()> {
     for node in group.children() {
         if let usvg::Node::Text(text) = node {
@@ -166,7 +166,7 @@ impl State {
                 fontdb::Style::Oblique => 1,
             },
         };
-        // 当前只作为单字符候选来源，不宣称保留 DWrite 的整段 shaping 语义。
+        // Currently only a single-character candidate source; no claim of preserving DWrite's whole-range shaping semantics.
         let mapped = self
             .fonts
             .map_text(&c.to_string(), &family, properties, "zh-CN", false)?;
@@ -177,15 +177,15 @@ impl State {
         if excluded.contains(&id) {
             return Err(invalid());
         }
-        // fallback 回调没有携带 variations；所有本次实际选择过的设计空间都必须
-        // 能加载。保守拒绝比让库在未知 span 上静默丢弃文字安全，数量受 256 预算约束。
+        // Fallback callbacks carry no variations; every design space actually selected during this request
+        // must load. Conservative rejection is safer than silent library text loss on unknown spans; counts obey the 256 budget.
         for font in self.selections.keys() {
             validate_font(db, id, font.variations())?;
         }
         Ok(id)
     }
     fn install(&mut self, face: Face, db: &mut Arc<fontdb::Database>) -> io::Result<fontdb::ID> {
-        // 不伪造模拟字重/斜体，也不忽略 fallback scale；后续需单独接真实轮廓变换。
+        // Never fabricate simulated weight/italic or ignore fallback scale; real outline transforms require separate integration later.
         if face.simulations != 0 {
             return Err(invalid());
         }
@@ -213,8 +213,8 @@ impl State {
     }
 }
 
-// 与固定 usvg 0.48.1 的 load_font 可失败条件对齐，使用同版本 skrifa 解析器。
-// fontdb FaceInfo 存在只证明目录解析成功，不证明排版所需 metrics 可用。
+// Match pinned usvg 0.48.1 load_font failure conditions using the same-version skrifa parser.
+// fontdb FaceInfo existence proves only successful directory parsing, not availability of layout-required metrics.
 fn validate_font(
     db: &fontdb::Database,
     id: fontdb::ID,

@@ -1,4 +1,4 @@
-//! 私有 WebP renderer：格式解析/ICC/PBGRA；受限管道和帧验证归图片 worker host。
+//! Private WebP renderer: format parsing/ICC/PBGRA; the image worker host owns restricted pipes and frame validation.
 use crate::{
     surface_image_worker_host::{self as host, Decoded},
     surface_webp_header::{inspect, invalid, MAX_INPUT},
@@ -34,7 +34,7 @@ pub fn run_session_inherited() -> io::Result<()> {
 }
 fn decode(bytes: &[u8]) -> io::Result<Decoded> {
     let (width, height) = inspect(bytes)?;
-    // 普通 Surface 的 Chromium WebP 基线忽略 EXIF 方向；不套用 JPEG/TIFF 的旋转规则。
+    // Ordinary Surface's Chromium WebP baseline ignores EXIF orientation; do not apply JPEG/TIFF rotation rules.
     let mut decoder =
         image_webp::WebPDecoder::new(std::io::Cursor::new(bytes)).map_err(io::Error::other)?;
     if decoder.is_animated() || decoder.dimensions() != (width, height) {
@@ -46,14 +46,14 @@ fn decode(bytes: &[u8]) -> io::Result<Decoded> {
     if decoder.output_buffer_size() != Some(len) {
         return Err(invalid());
     }
-    // 此 API 不限制静态工作内存；实际硬边界由父进程 Job 提供。
+    // This API does not limit static working memory; the parent process Job provides the actual hard boundary.
     decoder.set_memory_limit(MAX_INPUT);
     let mut pixels = vec![0u8; count];
     decoder
         .read_image(&mut pixels[..len])
         .map_err(io::Error::other)?;
     color::apply(bytes, &mut pixels[..len], channels)?;
-    // 从尾部扩展 RGB，或原地预乘 RGBA；不另建一份全图 PBGRA。
+    // Expand RGB from the tail or premultiply RGBA in place without another full-image PBGRA allocation.
     for index in (0..count / 4).rev() {
         let at = index * channels;
         let (r, g, b) = (pixels[at], pixels[at + 1], pixels[at + 2]);

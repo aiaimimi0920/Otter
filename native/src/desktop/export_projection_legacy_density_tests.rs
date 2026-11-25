@@ -1,4 +1,4 @@
-//! 自然8×4、逻辑8×8的旧式伸展；完整和二次crop都保留逐轴自然密度。
+//! Legacy stretching from natural 8x4 to logical 8x8; full views and secondary crops both preserve per-axis natural density.
 use super::*;
 
 #[test]

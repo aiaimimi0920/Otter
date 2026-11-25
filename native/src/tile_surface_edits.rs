@@ -1,4 +1,4 @@
-//! 原32槽队列的Slider尾合并/依赖取消；不合并commit、click或已开始的HTTP，不拥有另一worker。
+//! Slider tail merging/dependency cancellation in the original 32-slot queue; no merging commits, clicks, or started HTTP, and no second worker.
 use crate::tile_surface_actions::{Command, Kind, Queue};
 use std::{collections::VecDeque, sync::Arc};
 fn same(a: &Command, b: &Command) -> bool {
@@ -18,7 +18,7 @@ pub(crate) fn replace_tail(pending: &VecDeque<Command>, commands: &[Command]) ->
     })
 }
 impl Queue {
-    /// UI草稿只观察原队列/受理槽，不持另一份完成队列或将accepted误当业务结果。
+    /// UI drafts observe only original queues/acceptance slots, without another completion queue or treating accepted as a business result.
     pub(crate) fn edit_event_pending(
         &self,
         id: &str,
@@ -34,7 +34,7 @@ impl Queue {
                     && matches!(&c.kind, Kind::Event(e) if e["eventId"] == id)
             })
     }
-    /// 只暂停同Edit前置请求拥有的派发时钟；没有在途/受理身份的普通事件仍按原1500ms过期。
+    /// Pause only dispatch clocks owned by the same Edit's prerequisite requests; ordinary events without in-flight/accepted identities still expire after the original 1500ms.
     pub(super) fn waiting_edit(&self, command: &Command, now: std::time::Instant) -> bool {
         command.edit.as_ref().is_some_and(|edit| {
             edit.active()
@@ -55,7 +55,7 @@ impl Queue {
                     }))
         })
     }
-    /// 仅新鲜state确认前缀终态时授一次原1500ms派发窗口，轮询/重复GET不续期。
+    /// Grant one original 1500ms dispatch window only when fresh state confirms prefix termination; polling/repeated GETs never renew it.
     pub(super) fn release_ready_edits(
         &mut self,
         state: &crate::tile_surface_wire::State,
@@ -92,7 +92,7 @@ impl Queue {
             }
         }
     }
-    /// 单个UI预览可跨抬起保留；已派发动作仍由原worker拥有，不建立第二队列或延长意图期限。
+    /// One UI preview may survive release; original workers still own dispatched actions, without a second queue or longer intent deadlines.
     pub(crate) fn preview_pending(
         &self,
         edit: &Arc<crate::tile_surface_edit::Edit>,
@@ -122,7 +122,7 @@ impl Queue {
             .retain(|c| c.edit.as_ref().is_none_or(|e| !e.same_group(edit)));
     }
 }
-/// 只忽略本手势Slider的权威value；祖先click同样不能忽略任何其它节点/属性变化。
+/// Ignore only this gesture's Slider authoritative value; ancestor clicks also cannot ignore any other node/attribute changes.
 pub(crate) fn same_contracts(
     before: &serde_json::Value,
     after: &serde_json::Value,

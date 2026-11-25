@@ -1,4 +1,4 @@
-//! 交互连线与底层导入合同分开验证；所有失败比较完整边集合，不能只比较数量。
+//! Verify interactive-connection and underlying import contracts separately; compare complete edge sets on every failure, not just counts.
 use super::*;
 fn id(value: &str) -> UnitId {
     UnitId::parse(value).unwrap()

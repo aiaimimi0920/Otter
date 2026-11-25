@@ -1,4 +1,4 @@
-//! 文件仅在用户选择后由唯一文件worker读取；内联恢复不把文件名或URL当读取权限。
+//! The sole file worker reads files only after user selection; inline restore treats neither filenames nor URLs as read permission.
 use super::super::{image::Image, Apartment};
 use crate::sticker_image_params::{checked_image, InlineImage, MAX_FILENAME_BYTES, MAX_FILE_BYTES};
 use base64::{engine::general_purpose::STANDARD, Engine};
@@ -120,7 +120,7 @@ impl Asset {
     ) -> Result<Arc<Self>> {
         check(cancel)?;
         let (declared, encoded) = image.parts();
-        // 与Loom共用有界编码缓冲及预算租约，但不扩大它的MIME白名单。
+        // Share bounded encoding buffers and budget leases with Loom without broadening its MIME allowlist.
         let bytes = super::super::loom_output_inline::decode_bytes(declared, encoded, cancel)?;
         if bytes.len() > MAX_FILE_BYTES || mime(&bytes) != Some(declared) {
             return Err(invalid("贴图图片格式或容量不符"));

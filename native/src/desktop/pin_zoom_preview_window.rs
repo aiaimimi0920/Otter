@@ -1,4 +1,4 @@
-//! 预览 HWND 只转发到已验证宿主；点击先结束预览，避免第二套拖动/编辑状态。
+//! The preview HWND forwards only to a verified host; clicking ends the preview first to avoid a second drag/edit state.
 use super::*;
 use std::sync::OnceLock;
 use windows::{core::w, Win32::System::LibraryLoader::GetModuleHandleW};

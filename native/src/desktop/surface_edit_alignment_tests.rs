@@ -1,4 +1,4 @@
-//! 比较真实 EDIT WM_PRINTCLIENT 像素位置，而不只检查 GWL_STYLE。
+//! Compare actual EDIT WM_PRINTCLIENT pixel positions, not merely GWL_STYLE.
 use super::*;
 fn ink_left(image: &[u8], empty: &[u8]) -> usize {
     image

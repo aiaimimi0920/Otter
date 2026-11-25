@@ -1,4 +1,4 @@
-//! 只创建自有隐藏 HWND，验证 nonce/撤销/析构，不移动鼠标或向其他程序发消息。
+//! Owned hidden HWNDs only verify nonce/revocation/destruction, without mouse movement/messages to other programs.
 use super::*;
 use windows::core::w;
 struct Window(HWND);

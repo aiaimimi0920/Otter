@@ -1,4 +1,4 @@
-//! 生产窗口手势/定时器/主循环验证暂存接管与异步擦除，不访问用户窗口或剪贴板。
+//! Production window gestures/timers/main loop verify staged takeover and asynchronous erasure, without accessing user windows or the clipboard.
 use super::Application;
 use crate::editor::Tool;
 use std::time::{Duration, Instant};
@@ -27,7 +27,7 @@ pub(super) unsafe fn verify(app: &mut Application) {
             .borrow()
             .editor
             .document_stamp();
-        // 居中显示后左上角可能是透明留白；擦除必须从真实内容内部开始。
+        // Centered display may leave transparent space at the upper-left corner; erasure must start inside actual content.
         let mut client = RECT::default();
         GetClientRect(hwnd, &mut client).unwrap();
         let point = LPARAM((client.right / 2) as isize | (((client.bottom / 2) as isize) << 16));

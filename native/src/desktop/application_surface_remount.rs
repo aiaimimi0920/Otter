@@ -1,4 +1,4 @@
-//! 显式候选的一次性恢复入口；不把磁盘提示或重复确认升级成新的创建请求。
+//! One-shot recovery entry for explicit candidates; disk hints and repeated confirmation must not become new creation requests.
 use crate::{
     desktop::{
         composition::relay::sessions::Sessions, device_authorization_ui::View,
@@ -35,7 +35,7 @@ pub(super) fn start(
     {
         return Err("恢复候选已变化，请重新查询".into());
     }
-    // 消费本次明确选择；任何失败都要求重新查询，不保留可被双击重放的候选。
+    // Consume this explicit selection; any failure requires a fresh query, retaining no candidate that a double-click could replay.
     view.recovery_candidate = None;
     if sessions.attaching() || !windows.can_mount(candidate.origin(), candidate.node()) {
         return Err("节点已有附件或待处理记录，不能重复挂载".into());

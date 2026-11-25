@@ -1,4 +1,4 @@
-//! 有界 DIB/DIBV5 解码；不访问外部 ICC、不信任 sizeImage、不按输入尺寸直接分配。
+//! Bounded DIB/DIBV5 decoding; no external ICC access, trust in sizeImage, or direct allocation from input dimensions.
 use super::image::Image;
 #[path = "clipboard_dib_rle.rs"]
 mod rle;
@@ -91,9 +91,9 @@ fn layout(bytes: &[u8]) -> Result<Layout> {
         return Err(invalid());
     }
     if header >= 108 && dword(bytes, 56)? == 0 && bytes[60..108].iter().any(|byte| *byte != 0) {
-        return Err(invalid()); // 尚不支持校准色彩变换，不能静默误解颜色。
+        return Err(invalid()); // Calibrated color transforms are not yet supported; do not silently misinterpret colors.
     }
-    // 不跟随 PROFILE_LINKED，也不在不支持 ICC 的路径悄悄忽略嵌入配置。
+    // Do not follow PROFILE_LINKED or silently ignore embedded profiles on paths without ICC support.
     if header == 124 && (dword(bytes, 112)? != 0 || dword(bytes, 116)? != 0) {
         return Err(invalid());
     }
@@ -121,7 +121,7 @@ fn layout(bytes: &[u8]) -> Result<Layout> {
             },
         ];
     } else if bits == 32 && header >= 56 {
-        // 常见 V5 生产者在 BI_RGB 下仍填写 alpha mask，保留其透明通道。
+        // Common V5 producers fill alpha masks even with BI_RGB; preserve their alpha channel.
         masks[3] = dword(bytes, 52)?;
     }
     if bits >= 16 && !masks_valid(masks, bits) {
@@ -218,7 +218,7 @@ pub(super) fn decode_with_cancel(bytes: &[u8], cancelled: impl Fn() -> bool) -> 
         let source = &bytes[layout.offset + source_y * layout.stride..];
         for (x, pixel) in row.chunks_exact_mut(4).enumerate() {
             if layout.bits <= 8 {
-                // DIB 的子字节索引从高位开始；RGBQUAD 的保留字节不是 alpha。
+                // DIB sub-byte indices start at the high bits; RGBQUAD's reserved byte is not alpha.
                 let bit = x * layout.bits as usize;
                 let shift = 8 - layout.bits as usize - bit % 8;
                 let index =

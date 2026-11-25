@@ -1,4 +1,4 @@
-//! UIA 实时屏幕几何；先同步视口，沿用绘制/输入的滚动投影与裁剪，不创建 D2D target。
+//! UIA live screen geometry; synchronize the viewport, reuse painting/input scroll projection and clipping, and create no D2D target.
 use super::*;
 use windows::Win32::{
     Graphics::Gdi::ClientToScreen,
@@ -55,7 +55,7 @@ impl Host {
         }
         self.switch_value(id).ok_or_else(unavailable)
     }
-    /// 调用方已同步/显露并复查权限；提交点不再进入 Win32，避免检查后重入。
+    /// Callers already synchronized/revealed and rechecked permissions; the commit point avoids Win32 calls and post-check reentrancy.
     pub(in crate::desktop) fn accessibility_commit_toggle(&mut self, id: &str) -> Result<bool> {
         self.edits.toggle_switch(id)
     }
@@ -88,7 +88,7 @@ impl Host {
             return Err(Error::from_win32());
         }
         let scale = self.viewport.1 as f64 / 96.;
-        // BoundingRectangle 不截去部分不可见区域；可见性单独按祖先裁剪和 HWND 判断。
+        // BoundingRectangle retains partially invisible areas; determine visibility separately using ancestor clipping and HWND state.
         let rect = UiaRect {
             left: origin.x as f64 + node.origin()[0] as f64 * scale,
             top: origin.y as f64 + node.origin()[1] as f64 * scale,

@@ -1,4 +1,4 @@
-//! 从已解码会话图像建立空闲结果 owner；显示图与正式执行端口保持分离。
+//! Create idle result owners from decoded session images; keep displayed images separate from official execution ports.
 use super::*;
 use crate::{
     desktop::loom_result_state::Results, loom_handshake::Handshake, session_art_batch::Entry,
@@ -12,13 +12,13 @@ pub(in crate::desktop) struct PreparedArts {
     pub results: Vec<Results>,
 }
 
-/// 可跨线程移交的整批恢复资源，不持有 UI 目录 owner 或窗口。
+/// A complete batch of restore resources transferable across threads, holding no UI catalog owner or window.
 pub struct PreparedRestore {
     pub vector: VectorCandidate,
     pub(in crate::desktop) arts: PreparedArts,
 }
 impl PreparedRestore {
-    /// 接收端生成的单贴纸不含 Art。消耗后台像素并保留协作矢量，无需 UI 再扫描内联 PNG。
+    /// Receiver-generated single stickers contain no Art. Consume background pixels and retain collaborative vectors without UI rescanning of inline PNG.
     pub(super) fn projected_sticker<T>(
         bytes: crate::pixels::Pixels,
         unit: UnitId,
@@ -45,7 +45,7 @@ impl PreparedRestore {
             return Err(Error::new(E_INVALIDARG, "Projection requires one sticker"));
         }
         let vectors = VectorResources::prepare(&placements, &images, document, cancel)?;
-        // 追加在转移工作区之前借用同一个文档；只有拥有型资源才送往 UI。
+        // Append while borrowing the same document before workspace transfer; send only owned resources to the UI.
         let retained = retain(document)?;
         let candidate = finish_source(parsed, placements, images, cancel)?;
         Ok((
@@ -76,10 +76,10 @@ impl PreparedRestore {
         catalog: Option<&Handshake>,
         cancel: &AtomicBool,
     ) -> Result<Self> {
-        // 文档只借用至全部后台资源准备完成；最终候选接管工作区，不持有自引用。
+        // Borrow the document only until all background resources are ready; the final candidate owns the workspace without self-references.
         let document = parsed.document();
         let (placements, images) = prepare_inputs(document, root.as_ref(), cancel)?;
-        drop(root); // 外部文件根目录只服务基础图像准备。
+        drop(root); // The external-file root serves only basic image preparation.
         let vectors = VectorResources::prepare(&placements, &images, document, cancel)?;
         let arts = Candidate::prepare_arts_from(&placements, &images, document, catalog, cancel)?;
         let candidate = finish_source(parsed, placements, images, cancel)?;
@@ -127,8 +127,8 @@ impl Candidate {
         )
     }
 
-    /// 仅生成 Art 状态。钉图底图属于 Canvas，不应伪装为 Art 结果。
-    /// 像素通过共享所有权传递；窗口安装仍需处理编辑层与 restored_preview_locked。
+    /// Generate only Art state. A pin's base image belongs to Canvas and must not masquerade as an Art result.
+    /// Transfer pixels through shared ownership; window installation must still handle edit layers and restored_preview_locked.
     fn prepare_results_from(
         placements: &[Placement],
         images: &[Images],
@@ -269,7 +269,7 @@ mod tests {
             "annotationState":{"serialCounter":0,"elements":[effect("a"),effect("b")]}}],"links":[]})).unwrap();
         let cancel = AtomicBool::new(false);
         let mut candidate = prepare(bytes, None, &cancel).unwrap();
-        // 未提供底图时失败；之后只填入合成测试图，不读取屏幕或真实会话。
+        // Fail without a base image; afterward supply only synthetic test images, never screen or real-session data.
         assert!(candidate.prepare_vectors(&cancel).is_err());
         candidate.images[0].source = Some(Image {
             width: 2,

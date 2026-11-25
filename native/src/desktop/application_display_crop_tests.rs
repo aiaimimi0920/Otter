@@ -1,4 +1,4 @@
-//! 继承裁剪的重置使用实际菜单与应用结算；不改变来源文档。
+//! Reset inherited cropping through the actual menu and application settlement, without changing the source document.
 use super::Application;
 use crate::{desktop::image::Image, editor::Tool};
 use windows::Win32::UI::WindowsAndMessaging::*;

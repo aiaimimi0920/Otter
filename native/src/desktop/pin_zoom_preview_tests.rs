@@ -1,4 +1,4 @@
-//! 真正 popup fixture：可见帧归代理，宿主区域全程为空；交接不改 GPU 选择或文档。
+//! A real popup fixture: the proxy owns the visible frame and the host region remains empty; handoff changes neither GPU selection nor the document.
 use super::*;
 use std::time::Duration;
 use windows::Win32::Graphics::Gdi::{CreateRectRgn, DeleteObject, GetWindowRgn, NULLREGION};

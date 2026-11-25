@@ -1,4 +1,4 @@
-//! 真实受限child中的图片安装、正式结果及取消回收；不替代Application产品链测试。
+//! Image installation, committed results, and cancellation cleanup in real restricted children; not a substitute for Application product-chain tests.
 use super::*;
 use crate::surface_javascript_wire::images;
 fn input() -> services::Mount {

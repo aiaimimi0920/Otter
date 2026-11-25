@@ -1,4 +1,4 @@
-//! 进度值、原生布局与叶子边界，不把只读指示器当作输入控件。
+//! Progress values, native layout, and leaf boundaries; read-only indicators are not input controls.
 use super::*;
 #[test]
 fn progress_values_are_finite_clamped_and_follow_numeric_defaults() {

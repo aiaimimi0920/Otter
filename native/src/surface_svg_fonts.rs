@@ -1,4 +1,4 @@
-//! SVG child 的按需系统字体来源，经 `surface_svg_text_fonts` 接入 usvg。
+//! On-demand system-font sources for SVG children, connected to usvg through `surface_svg_text_fonts`.
 use std::{collections::HashMap, io, path::PathBuf, sync::Arc};
 use windows::{
     core::{Interface, BOOL, PCWSTR},
@@ -13,13 +13,13 @@ const MAX_QUERIES: usize = 256;
 const MAX_BYTES: usize = 48 * 1024 * 1024;
 const MAX_FILES: usize = 16;
 
-/// 单一 face 的来源；调用方必须保留集合索引和模拟标记，不能只加载第零个 face。
+/// Source for one face; callers must retain collection indexes and simulation flags instead of loading only face zero.
 pub struct Face {
     pub bytes: Arc<Vec<u8>>,
     pub index: u32,
     pub simulations: u32,
 }
-/// 不枚举/预载系统字体，不接受字体文件路径；每个 SVG 请求单独拥有此预算。
+/// Never enumerate/preload system fonts or accept font-file paths; each SVG request owns this budget independently.
 pub struct Fonts {
     collection: IDWriteFontCollection,
     fallback: IDWriteFontFallback,
@@ -29,7 +29,7 @@ pub struct Fonts {
     queries: usize,
 }
 impl Fonts {
-    /// 仅允许已有生产级图片 Job 内创建；父侧仍负责 deadline 和取消后的终止回收。
+    /// Creation is allowed only inside existing production-grade image Jobs; parents still own deadlines and termination/cleanup after cancellation.
     pub fn new() -> io::Result<Self> {
         crate::surface_image_worker_host::require_limits()?;
         let root = file::Root::system()?;
@@ -54,8 +54,8 @@ impl Fonts {
             queries: 0,
         })
     }
-    /// style: 0 normal、1 oblique、2 italic；stretch 按 DirectWrite 1..=9。
-    /// 未安装的 family 返回 None，不能将其解释为缺字 fallback 已完成。
+    /// style: 0 normal, 1 oblique, 2 italic; stretch follows DirectWrite 1..=9.
+    /// Uninstalled families return None; this does not mean missing-glyph fallback is complete.
     pub fn select(
         &mut self,
         family: &str,
@@ -105,7 +105,7 @@ impl Fonts {
     }
     fn load_font(&mut self, font: IDWriteFont) -> io::Result<Face> {
         unsafe {
-            // 只取 reference，不先创建/解析 face；collection 的元数据仍由 OS 管理。
+            // Obtain only the reference without creating/parsing the face first; the OS still manages collection metadata.
             let font: IDWriteFont3 = font.cast().map_err(io::Error::other)?;
             let face = font.GetFontFaceReference().map_err(io::Error::other)?;
             let path = face_path(&face)?;

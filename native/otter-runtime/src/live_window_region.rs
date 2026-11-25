@@ -1,4 +1,4 @@
-//! 用户确认的窗口 frame 局部像素；捕获和输入共用同一裁剪，不以屏幕位置重新绑定来源。
+//! User-confirmed local pixels in a window frame; capture and input share the same crop without rebinding sources by screen position.
 use crate::capture_readback::Region;
 use windows::{
     core::{Error, Result},
@@ -44,7 +44,7 @@ impl Crop {
             height: self.0.height,
         }
     }
-    /// 固定局部像素跟随移动，不随窗口缩放而拉伸；缩小到选区之外时明确拒绝。
+    /// Fixed local pixels follow movement without stretching on window resize; explicitly reject shrinking beyond the selected region.
     pub fn screen(self, frame: RECT) -> Result<RECT> {
         let width = i64::from(frame.right) - i64::from(frame.left);
         let height = i64::from(frame.bottom) - i64::from(frame.top);
@@ -60,8 +60,8 @@ impl Crop {
             bottom: (i64::from(frame.top) + bottom) as i32,
         })
     }
-    /// DWM frame 与 WGC 内容必须一一对应，不能猜阴影偏移或按比例纠正。
-    /// resize 期间的旧帧可跳过；不包含裁剪的真实新边界则返回错误。
+    /// DWM frames and WGC content must correspond one-to-one; never guess shadow offsets or proportionally correct them.
+    /// Old frames during resize may be skipped; actual new bounds that do not contain the crop return an error.
     pub fn matches_texture(self, frame: RECT, size: [u32; 2]) -> Result<bool> {
         self.screen(frame)?;
         Ok(

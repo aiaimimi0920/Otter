@@ -1,9 +1,9 @@
-//! 普通应用的采集坐标及同步 motion 入口；浏览器、远程与现有 modal 保留原路径。
+//! Capture coordinates and synchronous motion entry point for ordinary applications; browsers, remote control, and existing modals retain their original paths.
 use super::*;
 impl Backend {
     pub(super) fn ignore_inactive_motion(&mut self, event: Event) -> bool {
-        // 普通应用打开模态框时会禁用原窗口。只消费无边沿的新指针输入，
-        // 不向正在换窗的 root 发同步 motion，也不丢弃原 held 的 up/cleanup。
+        // Ordinary applications disable the original window when opening a modal dialog. Consume only new pointer input without edges,
+        // without synchronous motion to a root changing windows or discarding the original held up/cleanup.
         let ignore = self.local
             && matches!(
                 event,
@@ -34,7 +34,7 @@ impl Backend {
                 ));
             }
             if !control.valid() {
-                // 撤销只可静默结束确定未发送的新操作，不能遮住原在途 modal 的未知结果。
+                // Revocation may silently end only new operations known not to have been sent; it must not hide unknown outcomes of an original in-flight modal.
                 self.modal.check_revoked_control().map_err(Error::Message)?;
                 return Err(Error::ControlRevoked);
             }
@@ -59,8 +59,8 @@ impl Backend {
                         .map_err(|e| Error::NativePopup(e.to_string()))?,
                 );
             }
-            // Native hooks 也包含系统 Leave 过滤；仅安装而不发布绑定不能保持悬浮。
-            // activate 自行复核真实鼠标所在 B，迟到样本不能夺取其他镜像的槽。
+            // Native hooks also include system Leave filtering; installing without publishing a binding cannot preserve hover.
+            // activate rechecks the B containing the real mouse; late samples must not take another mirror's slot.
             self.hover_binding
                 .as_ref()
                 .unwrap()
@@ -72,7 +72,7 @@ impl Backend {
     }
     pub(super) fn local_button_modal(&self, event: Event) -> bool {
         use live_input::Button;
-        // 只有左键、右键释放及左键补偿需要这个判定；保留每条相关消息的实时分类。
+        // Only left/right button releases and left-button compensation need this decision; retain live classification for each relevant message.
         self.local
             && matches!(event, Event::Button { button, down, .. }
                 if button == Button::Left || (button == Button::Right && !down))

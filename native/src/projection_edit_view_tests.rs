@@ -1,4 +1,4 @@
-//! 独立常量核非等比、完整wire域和身份；预期不调用被测逆映射或普通session writer。
+//! Independent constants check nonuniform scaling, full wire domains, and identity; expectations never call tested inverse mapping/ordinary session writers.
 use super::{test_fixture::*, *};
 use crate::projection_edit::{
     fixture::{DIGEST, PROJECTION, SESSION},
@@ -56,7 +56,7 @@ fn text_and_serial_anchors_scale_by_axis_while_fonts_and_radius_use_forward_mean
     assert_eq!(text["fontFamily"], "");
     assert_eq!(text["text"], " 甲\r\n乙 ");
     assert_eq!(text["rotation"], 36000);
-    assert_eq!(local["serial"]["fontSize"], 24.0); // round(14*1.15)=16，再乘1.5。
+    assert_eq!(local["serial"]["fontSize"], 24.0); // round(14*1.15)=16, then multiply by 1.5.
     assert_eq!(local["serial"]["style"]["cornerRadius"], 21.0);
     assert_eq!(local["serial"]["style"]["width"], 0.0);
     let mut changed = local;
@@ -72,7 +72,7 @@ fn text_and_serial_anchors_scale_by_axis_while_fonts_and_radius_use_forward_mean
         result.basis_objects()["serial"]["style"]["cornerRadius"],
         14.5
     );
-    assert_eq!(result.basis_objects()["serial"]["fontSize"], 16.0); // 不按新radius偷偷重算字体。
+    assert_eq!(result.basis_objects()["serial"]["fontSize"], 16.0); // Do not silently recompute fonts from the new radius.
 }
 
 #[test]
@@ -211,7 +211,7 @@ fn edit_comparison_matches_numeric_precision_but_not_text_or_array_reordering() 
 
 #[test]
 fn large_local_coordinates_do_not_merge_adjacent_representable_numeric_changes() {
-    // 独立Node Math.round oracle：两者乘1e6分别为2^52+1和2^52+2，必须不同。
+    // Independent Node Math.round oracle: multiplying by 1e6 yields 2^52+1 and 2^52+2 respectively, which must differ.
     assert!(!edit_equal(
         &json!(4503599627.370497_f64),
         &json!(4503599627.370498_f64)
@@ -232,7 +232,7 @@ fn large_local_coordinates_do_not_merge_adjacent_representable_numeric_changes()
 fn font_defaults_do_not_expand_valid_near_limit_wire_objects_or_create_noop_edits() {
     let mut object = json!({"id":"text","type":"text","zIndex":0,"x":10,"y":20,
         "text":"","style":{"color":"#000","width":1}});
-    let count = (16 * 1024 - serde_json::to_vec(&object).unwrap().len()) / 6; // JSON每个控制字符编码为六字节。
+    let count = (16 * 1024 - serde_json::to_vec(&object).unwrap().len()) / 6; // JSON encodes each control character as six bytes.
     object["text"] = "\u{0001}".repeat(count).into();
     assert!(count <= 4096);
     let mut explicit = object.clone();

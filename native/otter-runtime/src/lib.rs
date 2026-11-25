@@ -1,4 +1,4 @@
-//! Otter 领域模型、矢量标注编辑、工作区拓扑、Loom 图参数、WGC 窗口目标与受限子进程运行时。
+//! Otter domain models, vector-annotation editing, workspace topology, Loom graph parameters, WGC window targets, and constrained subprocess runtimes.
 pub use otter_core::*;
 pub use otter_media::*;
 

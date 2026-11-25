@@ -1,4 +1,4 @@
-//! 冲突恢复的真实TLS对端；每步独立核固定路由、认证、操作和像素坐标，不使用生产合并生成预期。
+//! Real TLS peer for conflict recovery; independently check fixed routes, authentication, operations, and pixel coordinates at each step, without production merge-generated expectations.
 use super::*;
 pub(super) fn document(fixture: &Fixture, revision: u64, two_way: bool, x: f64) -> Value {
     let mut value = serde_json::to_value(snapshot(fixture).document()).unwrap();

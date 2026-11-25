@@ -1,4 +1,4 @@
-//! 接受请求的写前队列；原文件 CAS/暂存/恢复共用 session 文件 owner，只确认解绑后退休。
+//! Accept-request write-ahead queue shares session file owners for original-file CAS/staging/recovery; retire only after confirmed unlink.
 use crate::{
     pixels::Pixels,
     projection_delivery::{Envelope, Invitation},
@@ -32,7 +32,7 @@ pub enum Error {
     Limit,
     Changed,
     Write,
-    /// 新队列已经提交，但旧恢复副本退休失败；不能伪报全未提交，也不继续发 accept。
+    /// The new queue committed, but old recovery-copy retirement failed; neither claim nothing committed nor continue accept.
     RecoveryRetained,
     Busy,
 }
@@ -71,7 +71,7 @@ pub struct Ticket {
     permit: Option<activity::Permit>,
 }
 impl Store {
-    /// 只在 worker 上执行；根目录由宿主显式给出，不在这里读取环境或发现身份。
+    /// Worker only; hosts explicitly supply the root, without environment reads or identity discovery here.
     pub fn open(root: &Path) -> Result<Self, Error> {
         let directories = crate::profile_directory::pin(root).map_err(|_| Error::Path)?;
         let lease = OpenOptions::new()
@@ -93,7 +93,7 @@ impl Store {
             {
                 let bytes = read(&recovery)?.ok_or(Error::Read)?;
                 Document::decode(&bytes)?;
-                // 唯一旧恢复副本只读保留；无覆盖重建规范路径，不能降级为空队列。
+                // Retain the sole old recovery copy read-only; reconstruct canonical paths without overwriting, never downgrade to empty queues.
                 crate::session_file_write::Staged::prepare_bytes(
                     &path,
                     bytes.clone(),
@@ -117,12 +117,12 @@ impl Store {
             _directories: directories,
         })))
     }
-    /// 幂等重试使用原意图的 expectedRevision/digest，不因收件箱更新而换请求身份。
+    /// Idempotent retries use original intent expectedRevision/digest; inbox changes never replace request identity.
     pub fn begin(&self, invitation: &Invitation, device: &str) -> Result<Ticket, Error> {
         self.begin_attempt(invitation, device)
             .map(|(ticket, _)| ticket)
     }
-    /// 原子区分新建与复用；复用意图可能属于其他已保存工作区，不自动授予补偿资格。
+    /// Atomically distinguish creation/reuse; reused intent may belong to another saved workspace and gains no automatic-compensation eligibility.
     pub(crate) fn begin_attempt(
         &self,
         invitation: &Invitation,
@@ -140,7 +140,7 @@ impl Store {
             {
                 return Err(Error::Changed);
             }
-            // 重试也必须核完整磁盘基线，不能以旧内存状态绕过外部修改/删除。
+            // Retries still check full disk baselines; old in-memory state cannot bypass external mutation/deletion.
             let expected = state.original.as_ref().ok_or(Error::Changed)?;
             let _guard = crate::session_file_guard::Guard::open(
                 &self.0.path,
@@ -172,7 +172,7 @@ impl Store {
             true,
         ))
     }
-    /// 仅返回补偿候选，不执行 accept、不自动换授权或在新工作区发布内容。
+    /// Return compensation candidates only; no accept, automatic authorization switch, or content publication in new workspaces.
     pub fn pending(&self) -> Result<Vec<Ticket>, Error> {
         let state = self.0.state.lock().map_err(|_| Error::Changed)?;
         Ok(state
@@ -216,7 +216,7 @@ impl Ticket {
     pub(crate) fn intent_id(&self) -> &str {
         &self.record.intent_id
     }
-    /// 同一持久记录的串行重试快照；不复制活动许可，worker 仍必须 activate 后才能发网。
+    /// Serial retry snapshot of the same persistent record; no active-permit copy, and workers must activate before networking.
     pub(crate) fn retry(&self) -> Self {
         Self {
             store: self.store.clone(),
@@ -251,7 +251,7 @@ impl Ticket {
     pub(crate) fn invitation(&self) -> Invitation {
         self.record.invitation()
     }
-    /// 仅由已拿到 unlinked:true 的串行网络 owner 调用；失败保留磁盘记录以供幂等重试。
+    /// Only serial network owners receiving unlinked:true may call; failures retain disk records for idempotent retries.
     pub(crate) fn retire(mut self) -> Result<(), Error> {
         self.activate()?;
         let mut state = self.store.0.state.lock().map_err(|_| Error::Changed)?;
@@ -313,7 +313,7 @@ fn read_sized(mut reader: impl Read, length: u64) -> Result<Pixels, Error> {
             Error::Read
         }
     })?;
-    // 栈上探测 EOF：拒绝读期间变长，不把额外容量挂在共享 CAS 基线上。
+    // Probe EOF on the stack: reject growth during reads without attaching extra capacity to shared CAS baselines.
     match reader.read_exact(&mut [0]) {
         Err(error) if error.kind() == ErrorKind::UnexpectedEof => {
             Ok(Pixels::from_reserved(bytes, budget))

@@ -1,4 +1,4 @@
-// 通用原生输入夹具；真实 EDIT、child 和产品门共用，不复制股票业务。
+// Generic native-input fixture shared by actual EDIT, children, and product gates, without copying stock-market business logic.
 let field, status, count = 0;
 NeuroSurface.define({
   mount({ root }) {
@@ -25,7 +25,7 @@ NeuroSurface.define({
       event.preventDefault();
       if (event.defaultPrevented || event.composed !== (event.type === 'input')) throw Error('post-edit event flags');
       status.textContent = `${event.type}|${field.value}|${++count}`;
-      // 没有声明式事件的 DOM 字段也必须进入本地 listener，不能自动成为远端 action。
+      // DOM fields without declarative events must also reach local listeners, never automatically become remote actions.
       if (event.type === 'change') for (let phase = 1; phase <= 2; phase++) {
         if (!NeuroSurface.emit({nodeId:'refresh',event:'click',action:'refresh',class:'discrete',payload:{count:count / 2,phase,quote:NeuroSurface.snapshot().state.quote}})) throw Error('emit');
       }

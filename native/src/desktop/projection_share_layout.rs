@@ -1,4 +1,4 @@
-//! 分享浮层独立于钉图尺寸；只布局当前视图，几何和可见性不变时不触发重绘。
+//! The sharing popup is independent of pin size; lay out only the current view and do not repaint when geometry/visibility are unchanged.
 use super::*;
 pub(super) fn template() -> Vec<u32> {
     fn text(out: &mut Vec<u16>, value: &str) {
@@ -140,7 +140,7 @@ pub(super) unsafe fn arrange(hwnd: HWND, m: &Model, dpi: u32) {
                     true,
                 );
             }
-            // 父窗尚未显示时 IsWindowVisible 恒为 false；必须比较子控件自身的显示标记。
+            // IsWindowVisible is always false before the parent appears; compare each child's own visibility flag instead.
             if (GetWindowLongW(control, GWL_STYLE) as u32 & WS_VISIBLE.0 != 0) != visible {
                 let _ = ShowWindow(control, if visible { SW_SHOWNA } else { SW_HIDE });
             }

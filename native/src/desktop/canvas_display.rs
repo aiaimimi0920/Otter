@@ -1,4 +1,4 @@
-//! 外部显示快照复用窗口绘制目标；不交换文档编辑器，不带入目标的草稿和选择手柄。
+//! External display snapshots reuse the window render target, without swapping document editors or importing target drafts/selection handles.
 use super::*;
 
 impl Canvas {
@@ -36,7 +36,7 @@ impl Canvas {
                 crate::desktop::frame_style_draw::Frame::new(self.frame_style, size, dpi);
             let _rounded = frame_style.clip(target, &self.factory)?;
             let clipped = super::super::render_frame::Clip::push(target, &clip);
-            // 走无擦除的公共路径同时退休旧擦除几何缓存。
+            // Use the shared non-erasing path and retire the old eraser-geometry cache too.
             resources.raster.draw_interleaved(
                 target,
                 &base,

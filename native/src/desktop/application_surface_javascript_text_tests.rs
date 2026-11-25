@@ -1,4 +1,4 @@
-//! 原 Application harness 的 EDIT 输入模式；本地 input 不联网，change emit 才走原双事件批次。
+//! EDIT input mode of the original Application harness; local input does not network, and only change emit enters the original two-event batch.
 use super::*;
 use windows::{
     core::HSTRING,
@@ -12,7 +12,7 @@ fn text(edit: HWND) -> String {
     let n = unsafe { GetWindowTextW(edit, &mut buffer) };
     String::from_utf16(&buffer[..n as usize]).unwrap()
 }
-// 调用方持有本线程 Apartment/Application；与原 harness 相同的 HWND 消息泵前提。
+// The caller owns this thread's Apartment/Application, with the same HWND-message-pump preconditions as the original harness.
 pub(super) unsafe fn prepare(
     app: &mut Application,
     root: &std::path::Path,

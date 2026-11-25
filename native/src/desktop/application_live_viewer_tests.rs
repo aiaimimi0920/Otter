@@ -1,4 +1,4 @@
-//! 真实Application/菜单队列/TLS/WSS/NOACTIVATE帧与回收；Surface由原合成夹具认证，非真实Loom。
+//! Real Application/menu queue/TLS/WSS/NOACTIVATE frames and cleanup; Surface is authenticated by the original synthetic fixture, not real Loom.
 use super::*;
 use crate::desktop::device_authorization_ui::{live, Request};
 use std::time::{Duration, Instant};
@@ -88,7 +88,7 @@ fn run_host(mode: u8, local_art: bool) {
     unsafe {
         let mut app = fixture::application();
         if local_art {
-            // 签名端口只能装入从会话恢复的 Local Art 宿主，不能把普通贴图升级为 Art。
+            // Signed ports may be installed only in a Local Art host restored from a session; ordinary pins must not be upgraded into Art.
             app.restore_local_art_fixture("vendor/viewer");
         }
         app.authorization.borrow_mut().origin = Some(origin.clone());
@@ -224,7 +224,7 @@ fn run_host(mode: u8, local_art: bool) {
                 assert!(app.remote_sessions.finished());
                 return;
             }
-            // Ready后关闭发起Surface不撤销独立观看；显式停止/撤权才关窗。
+            // Closing the initiating Surface after Ready does not revoke independent viewing; only explicit stop/revocation closes the window.
             if local_art {
                 app.local_arts.reset();
             } else {

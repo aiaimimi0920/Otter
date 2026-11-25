@@ -1,4 +1,4 @@
-//! 实际编辑栏 BUTTON→授权意图；缓存真正修改另由执行 owner 的 TLS 回归覆盖。
+//! Real edit-strip BUTTON-to-authorization intent; execution-owner TLS regressions separately cover actual cache modification.
 use super::*;
 use crate::{
     desktop::{extension_document, extension_overlay},

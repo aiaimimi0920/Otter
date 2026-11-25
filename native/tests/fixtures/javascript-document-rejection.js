@@ -1,4 +1,4 @@
-// 拒绝不支持/非法文档操作时必须保留原树、identity 和 live 集合。
+// Rejecting unsupported/invalid document operations must preserve the original tree, identity, and live collections.
 NeuroSurface.define({ mount({ root }) {
   root.innerHTML = '<span id="keep">original</span><button disabled title="meta">button</button>';
   const original = root.innerHTML, first = root.firstChild, childNodes = root.childNodes;

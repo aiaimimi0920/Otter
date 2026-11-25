@@ -1,4 +1,4 @@
-//! 后台原文 patch：大型图片/未知根字段均借用，更新关联时保留小对象的未知扩展。
+//! Background original-text patches borrow large images/unknown root fields and preserve small-object unknown extensions while updating associations.
 use super::*;
 use serde::{ser::SerializeMap, Serializer};
 use serde_json::{value::RawValue, Value};

@@ -1,4 +1,4 @@
-//! 裁剪源坐标、独立栅格标注及预计算效果纹理经缩略变换后的真实像素验证。
+//! Real-pixel verification of cropped source coordinates, independent raster annotations, and precomputed effect textures after minified transforms.
 use super::*;
 use crate::{
     crop_geometry::{Crop, Rect},
@@ -27,7 +27,7 @@ fn cropped_external_effect_and_overlay_share_document_mapping_at_multiple_dpis()
     editor.set_style(
         crate::stroke_style::StrokeStyle::new(1.0, crate::stroke_style::Color(255, 0, 0)).unwrap(),
     );
-    // 用红色标记预计算效果纹理，区分蓝色底图与绿色栅格标注；本测试不验证卷积算法。
+    // Mark precomputed effect textures red to distinguish blue base images and green raster annotations; this test does not verify convolution.
     let effect =
         crate::blur_image::BlurImage::new(8, 4, [0, 0, 200, 255].repeat(32).into(), 2).unwrap();
     editor

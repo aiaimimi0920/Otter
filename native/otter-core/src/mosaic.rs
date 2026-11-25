@@ -1,5 +1,5 @@
-//! 不读取源图的遮挡网格；绝对网格哈希与主干 stickerEffects.ts 保持一致。
-//! 只分配目标区域，整数像素边界向外覆盖，避免小数坐标造成透明接缝。
+//! Occlusion grids without source-image reads; absolute-grid hashing matches mainline stickerEffects.ts.
+//! Allocate only target regions and cover integer pixel bounds outward, avoiding transparent seams from fractional coordinates.
 use crate::{
     pixels::{self, Pixels},
     viewport::{checked_image_bytes, Point},
@@ -23,7 +23,7 @@ pub enum MosaicError {
 }
 
 fn color(column: i32, row: i32) -> [u8; 4] {
-    // wrapping_mul 和无符号右移对应 JavaScript Math.imul / >>>。
+    // wrapping_mul and unsigned right shift correspond to JavaScript Math.imul / >>>.
     let mut h = (column as u32 ^ 0x9e3779b9).wrapping_mul(0x85ebca6b);
     h = (h ^ (h >> 13) ^ row as u32).wrapping_mul(0xc2b2ae35);
     h ^= h >> 16;
@@ -37,7 +37,7 @@ fn color(column: i32, row: i32) -> [u8; 4] {
     [rgb[2], rgb[1], rgb[0], 255]
 }
 
-/// 返回不透明 PBGRA；接口故意不接收原图，防止未来误引入内容采样。
+/// Return opaque PBGRA; the interface deliberately excludes original images to prevent future accidental content sampling.
 pub fn generate(width: u32, height: u32, cell: f32, origin: Point) -> Result<Pixels, MosaicError> {
     let count = checked_image_bytes(width, height).ok_or(MosaicError::InvalidInput)?;
     if !cell.is_finite()
@@ -49,7 +49,7 @@ pub fn generate(width: u32, height: u32, cell: f32, origin: Point) -> Result<Pix
     {
         return Err(MosaicError::InvalidInput);
     }
-    // Math.round 的负半数规则不影响结果，因为最小格宽为 2。
+    // Math.round's negative-half rule does not affect results because minimum cell width is 2.
     let size = f64::from(cell.round().max(2.0));
     let x = f64::from(origin.x);
     let y = f64::from(origin.y);
@@ -63,7 +63,7 @@ pub fn generate(width: u32, height: u32, cell: f32, origin: Point) -> Result<Pix
     }
     bytes.resize(count, 0);
     let stride = width as usize * 4;
-    // 按主干的行优先顺序覆盖重叠边界，网格身份不随裁剪区域原点改变。
+    // Overwrite overlapping boundaries in mainline row-major order; grid identity stays independent of cropped-region origins.
     for row in (y / size).floor() as i32..((y + f64::from(height)) / size).ceil() as i32 {
         let top = (f64::from(row) * size - y).floor().max(0.0) as usize;
         let bottom = ((f64::from(row) + 1.0) * size - y)

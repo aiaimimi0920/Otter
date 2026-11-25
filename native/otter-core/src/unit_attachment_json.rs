@@ -1,4 +1,4 @@
-//! 附件的同主干 JSON 预算和规范摘要；排序按 UTF-16，保证跨前端/原生的来源凭证一致。
+//! Mainline-compatible attachment JSON budgets/canonical digests; UTF-16 sorting keeps provenance receipts consistent across frontend/native.
 use serde_json::Value;
 
 pub fn bounded(value: &Value, bytes: usize) -> Result<(), ()> {
@@ -29,8 +29,8 @@ pub fn bounded(value: &Value, bytes: usize) -> Result<(), ()> {
     Ok(())
 }
 
-// serde_json 的最短 IEEE-754 数字采用相同的舍入规则；这里仅投影 ECMAScript 的
-// 十进制/指数阈值、正指数符号和 -0。整数也先经过 JS Number 的 f64 语义。
+// serde_json shortest IEEE-754 numbers use the same rounding rules; project only ECMAScript's
+// decimal/exponent thresholds, positive exponent signs, and -0. Integers also pass through JS Number f64 semantics first.
 fn number(value: &serde_json::Number) -> String {
     let value = value.as_f64().expect("finite JSON number");
     if value == 0.0 {

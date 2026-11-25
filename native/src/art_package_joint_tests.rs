@@ -1,4 +1,4 @@
-//! 真Loom资源准入和完整缓存离线消费；固定2x2像素oracle不依赖包资源转换实现。
+//! Real Loom resource admission and offline consumption of the complete cache; a fixed 2x2 pixel oracle independent of package-resource conversion.
 use super::*;
 use crate::{
     art_issuer_trust::{Authority, Document, Entry},
@@ -30,7 +30,7 @@ fn art_package_joint_real_loom() {
     })
     .unwrap();
     let mut owner;
-    // Registry拥有原停止租约；必须活到挂载/正式结果消费结束，不能在准备分支末尾退休。
+    // The Registry owns the original stop lease and must survive mounting/final-result consumption; do not retire it at the end of preparation.
     let mut registry_owner = None;
     let prepared = if online {
         fs::write(

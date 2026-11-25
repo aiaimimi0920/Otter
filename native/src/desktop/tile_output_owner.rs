@@ -1,4 +1,4 @@
-//! 一个稳定物理输出的单代际owner；先销毁旧窗口/排空旧线程，才允许同Grant的新绑定。
+//! Single-generation owner for one stable physical output; destroy old windows/drain old threads before permitting a new binding under the same Grant.
 use super::*;
 use crate::desktop::tile_window::Window;
 use crate::tile_outputs::TileOutput;
@@ -32,7 +32,7 @@ impl Output {
             stopped: false,
         }
     }
-    /// 成功枚举也必须唯一匹配原ID；不追随枚举顺序、不自动接管另一屏。
+    /// Even successful enumeration must uniquely match the original ID; never follow enumeration order or automatically take another monitor.
     pub fn observe(&mut self, inventory: std::result::Result<Vec<TileOutput>, String>) {
         if self.stopped {
             return;
@@ -59,7 +59,7 @@ impl Output {
     }
     pub fn drain(&mut self) -> bool {
         if self.retiring.as_ref().is_some_and(Runtime::finished) {
-            self.retiring.take(); // finished之后Drop仍执行原join/凭据清理。
+            self.retiring.take(); // After finished, Drop still performs original join/credential cleanup.
         }
         self.active.is_none() && self.retiring.is_none()
     }
@@ -97,7 +97,7 @@ impl Output {
             .as_ref()
             .is_some_and(|a| a.window.output_changed())
         {
-            // DPI消息不保证物理矩形改变；必须等下一次新鲜枚举，不能立即复用旧探测值。
+            // DPI messages do not guarantee physical-rectangle changes; await fresh enumeration rather than immediately reuse old probe values.
             self.observed = None;
             self.retire();
         } else if self
@@ -175,7 +175,7 @@ impl Output {
 impl Drop for Output {
     fn drop(&mut self) {
         self.stop();
-        // 正常路径由UI泵排空；仅异常早退才使用Runtime的有界请求/join兜底。
+        // Normal paths drain through the UI pump; only exceptional early returns use Runtime's bounded request/join fallback.
         self.retiring.take();
     }
 }

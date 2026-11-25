@@ -1,4 +1,4 @@
-// 污染跨 collect/update/dispose；新 parser/展开/反射只能调用预捕获 intrinsic。
+// Pollution spans collect/update/dispose; new parsing/expansion/reflection may call only precaptured intrinsics.
 let host, sheet, leaks = 0;
 NeuroSurface.define({
   mount({ root }) {

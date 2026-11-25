@@ -1,4 +1,4 @@
-//! 自有Application的外观事务；可见窗仅在runner的隔离desktop中使用。
+//! Appearance transactions in owned Applications; visible windows are used only on runner-isolated desktops.
 use super::*;
 use crate::workspace::ports::Visibility;
 #[path = "workspace_port_visibility_tests.rs"]

@@ -1,4 +1,4 @@
-//! 旧history.json可能含原图fallback；先限制容器与声明尺寸，再由WIC缩到240。
+//! Old history.json may contain original-image fallbacks; bound containers/declared dimensions before WIC scales to 240.
 use super::*;
 impl Image {
     pub(crate) fn from_capture_history(bytes: &[u8], declared_png: bool) -> Result<(Self, bool)> {

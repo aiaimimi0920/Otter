@@ -1,4 +1,4 @@
-//! 常驻图标的主循环接续；使用隐藏 Application，注入通知，不操作系统托盘。
+//! Main-loop continuation for resident icons; hidden Application with injected notifications, without operating the system tray.
 use super::*;
 use crate::desktop::{tray, Apartment};
 use std::cell::Cell;
@@ -16,7 +16,7 @@ fn clipboard_cascade_and_current_target_reach_real_staged_windows() {
         let _apartment = Apartment::new().unwrap();
         let mut app = app();
         crate::desktop::application::paste_smoke::run(&mut app).unwrap();
-        // 可见粘贴已创建附属窗口，后续失败导入仍必须完整回滚。
+        // Visible paste already created auxiliary windows; later failed imports must still roll back completely.
         assert!(app.capture_windows.borrow().len() > app.documents.len() * 2);
         crate::desktop::application::drop_smoke::run(&mut app).unwrap();
     }
@@ -87,7 +87,7 @@ fn pasted_pins_start_idle_without_changing_source_toolbar_and_can_be_edited_expl
         .unwrap();
         let source_index = app.documents.len() - 1;
         let source = &app.documents[source_index];
-        // 普通打开图片的自动显示规则不变；只让粘贴的新窗口保持收起。
+        // Ordinary image opens retain automatic-display rules; keep only newly pasted windows collapsed.
         assert!(IsWindowVisible(source.panel.0).as_bool());
         SendMessageW(source.panel.0, WM_CLOSE, None, None);
         let key = |hwnd| SendMessageW(hwnd, WM_KEYDOWN, Some(WPARAM(VK_F4.0 as usize)), None);
@@ -164,7 +164,7 @@ fn initial_loop_installs_one_resident_and_closed_owner_transfers_to_a_live_docum
         assert_eq!(*calls.borrow(), [first]);
         let second = app.documents[1].window.0;
         DestroyWindow(first).unwrap();
-        // 即使 collect_closed 尚未释放旧 State，也不能把已销毁的 resident 当成可用。
+        // Even before collect_closed releases old State, a destroyed resident must not count as usable.
         app.ensure_tray_with(install);
         app.collect_closed();
         app.ensure_tray_with(install);
@@ -228,7 +228,7 @@ fn unavailable_shell_preserves_commands_on_new_or_recreated_empty_host() {
                 let install = |doc: &DocumentWindow| {
                     attempts.set(attempts.get() + 1);
                     assert!(!IsWindowVisible(doc.window.0).as_bool());
-                    // 模拟注册结果；夹具不抢占机器的全局快捷键或 Shell 图标。
+                    // Simulate registration results; fixtures occupy neither global machine shortcuts nor Shell icons.
                     doc.state.global_capture.set(global_key);
                     tray::start_with(&doc.state, || {
                         Err(Error::new(E_FAIL, "Injected unavailable Shell"))

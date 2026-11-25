@@ -1,4 +1,4 @@
-//! 面板行文字与正常字体的快捷键宽度随快照保存，不在重绘时反复转换。
+//! Snapshot panel-row text and normal-font shortcut widths, avoiding repeated conversion during redraw.
 use super::*;
 
 pub(super) struct PaintRows {
@@ -40,7 +40,7 @@ impl PaintRows {
         }
     }
     pub(super) fn replace(&mut self, rows: Vec<Row>) {
-        // 焦点、勾选、缩略图及同文案换代不改变字体度量。
+        // Focus, checks, thumbnails, and same-text generation changes do not alter font metrics.
         if self.rows.len() != rows.len()
             || self
                 .rows
@@ -53,7 +53,7 @@ impl PaintRows {
             self.rows = rows;
         }
     }
-    /// 调用方已选入面板的正常字体；面板 DPI 改变时关闭而非复用旧度量。
+    /// Callers already selected the panel's normal font; close on panel DPI changes rather than reuse stale metrics.
     pub(super) unsafe fn shortcut_width(&mut self, dc: HDC) -> Option<i32> {
         if let Some(width) = self.shortcut_width {
             return Some(width);

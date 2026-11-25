@@ -1,4 +1,4 @@
-//! 解析合同不读取网络/文件，覆盖旧源选择外的拒绝与有界取消。
+//! Parsing contracts without network/file reads, covering rejection beyond old source selection and bounded cancellation.
 use super::*;
 #[test]
 fn inline_data_percent_and_forgiving_base64() {

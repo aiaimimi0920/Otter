@@ -1,4 +1,4 @@
-//! 显式跨进程验证；子进程是本测试二进制，只捕获它创建的纯色窗口。
+//! Explicit cross-process verification: the child is this test binary and captures only the solid-color window it creates.
 #![cfg(windows)]
 use otter_native::{live_job::LiveJob, live_window_target::Target};
 use std::{
@@ -55,7 +55,7 @@ impl FixtureProcess {
         let output = owner.child.stdout.take().unwrap();
         let (send, ready) = mpsc::sync_channel(1);
         owner.reader = Some(std::thread::spawn(move || {
-            // 只解析自己启动的测试进程，不信任标题或枚举结果来选择目标。
+            // Resolve only the test process we started; do not trust titles or enumeration results to choose a target.
             for line in BufReader::new(output)
                 .take(64 * 1024)
                 .lines()
@@ -99,7 +99,7 @@ impl FixtureProcess {
 }
 impl Drop for FixtureProcess {
     fn drop(&mut self) {
-        // 仅终止本对象持有的子进程 handle，不按进程名/PID 扫描或结束其它应用。
+        // Terminate only the child-process handle held by this object; do not scan names/PIDs or terminate other applications.
         let _ = self.child.kill();
         let _ = self.child.wait();
         if let Some(reader) = self.reader.take() {
@@ -117,7 +117,7 @@ unsafe fn pump() {
 #[test]
 #[ignore = "requires interactive desktop; captures only its own fixture child process"]
 fn actual_wgc_external_process_normal_and_forced_exit() {
-    // 与实际桌面应用一致：UI STA 在所有采集 worker 之前建立、之后释放。
+    // Match the real desktop application: establish the UI STA before all capture workers and release it after them.
     unsafe {
         CoInitializeEx(None, COINIT_APARTMENTTHREADED).ok().unwrap();
     }
@@ -154,7 +154,7 @@ fn actual_wgc_external_process_normal_and_forced_exit() {
                 PostMessageW(Some(fixture.hwnd), WM_CLOSE, WPARAM(0), LPARAM(0)).unwrap();
             }
         }
-        // 此处故意不泵 WinEvent：真实进程句柄能独立报告退出，不能依赖销毁通知。
+        // Deliberately do not pump WinEvent here: the real process handle must report exit independently of destruction notifications.
         assert_eq!(
             unsafe {
                 WaitForSingleObject(

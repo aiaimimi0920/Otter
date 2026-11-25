@@ -1,4 +1,4 @@
-//! 无按键 HWND hover/ancestor leave 沿原 Application/TLS/Grant/batch，两轮不换 child。
+//! Button-free HWND hover/ancestor leave through original Application/TLS/Grant/batch paths; both rounds retain the same child.
 use super::*;
 use windows::Win32::UI::Controls::WM_MOUSELEAVE;
 use windows::Win32::UI::Input::KeyboardAndMouse::{GetCapture, GetFocus};

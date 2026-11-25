@@ -1,4 +1,4 @@
-//! TLS测试的独立常量业务oracle；不调用产品formatter或触发执行，不使用真实设备。
+//! Independent constant business oracle for TLS tests; no product formatter calls, execution triggers, or real devices.
 use super::*;
 fn observation(sequence: u64, value: u64) -> Value {
     json!({"observationId":"progress","sequence":sequence,"state":"stable","source":"app_adapter","confidence":"high","observedAtMs":100+sequence,"stableSinceMs":100,"value":{"progress":value}})

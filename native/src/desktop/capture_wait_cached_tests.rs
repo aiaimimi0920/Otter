@@ -1,4 +1,4 @@
-//! 隐藏真实 HWND 与合成 HDR 数据验证等待窗口不提前发布，取消清理跨线程暂存。
+//! Real hidden HWNDs and synthetic HDR data verify no premature wait-window publication and cross-thread staging cleanup on cancellation.
 use super::*;
 use std::{fs, path::PathBuf, sync::atomic::AtomicBool};
 struct Directory(PathBuf);

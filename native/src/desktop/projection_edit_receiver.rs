@@ -1,4 +1,4 @@
-//! 只读协作接收的Editor候选；先核Context/单调Document/当前view，矢量与可选新底图原子交换。
+//! Read-only collaboration receiver Editor candidates; verify Context/monotonic Document/current view first, then atomically swap vectors and an optional new base image.
 use super::*;
 use crate::projection_edit::{
     self as edit,
@@ -56,7 +56,7 @@ pub(in crate::desktop) fn prepare(
         let bridge = Bridge::from_checkpoint(empty.clone(), editor, mapping, metrics)
             .map_err(|_| invalid())?;
         let current = bridge.current(editor, metrics).map_err(|_| invalid())?;
-        // 首次接入时旧Editor的标注是本地变化，不伪装成已经收到的远端基线。
+        // On first connection, annotations in the old Editor are local changes, not a purportedly received remote baseline.
         let sticky = (document.mode() == edit::Mode::OneWay
             && !empty
                 .changes_to(&current)

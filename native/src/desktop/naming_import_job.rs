@@ -1,4 +1,4 @@
-//! 单槽命名配置只读任务；容量准入在读文件前执行，退出取消并 join。
+//! Single-slot read-only naming-configuration task; capacity admission precedes file reads, with cancellation/join on exit.
 use super::loom_execution_signal::{CompletionSignal, Notify};
 use crate::settings_source::Source;
 use std::{
@@ -59,7 +59,7 @@ impl Job {
 impl Drop for Job {
     fn drop(&mut self) {
         self.cancel.store(true, Ordering::Release);
-        // 操作系统阻塞读取不能强制中断；不遗留无 owner 后台线程。
+        // Blocking OS reads cannot be forcibly interrupted; leave no unowned background thread.
         if let Some(worker) = self.worker.take() {
             let _ = worker.join();
         }

@@ -1,4 +1,4 @@
-// 收据合同测试不执行编译器；所有合成候选只写入调用者指定的临时目录。
+// Receipt-contract tests execute no compilers; write all synthetic candidates only to caller-specified temporary directories.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');

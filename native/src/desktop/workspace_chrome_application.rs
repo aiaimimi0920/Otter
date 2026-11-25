@@ -1,4 +1,4 @@
-//! 应用快照/快捷键与唯一连线提交的接缝；UI手势计入恢复、保存、结束会话空闲门。
+//! Seam between application snapshots/shortcuts and the sole link commit; UI gestures count toward restore/save/session-end idle gates.
 use super::*;
 use windows::Win32::{Graphics::Gdi::InvalidateRect, UI::Input::KeyboardAndMouse::*};
 impl Application {
@@ -16,7 +16,7 @@ impl Application {
             self.chrome.ui.keyboard.retire();
             self.chrome.ui.cancel();
             self.chrome.ui.pending.borrow_mut().take();
-            return; // 截图只阻止交互，不把已有外框隐藏后再整体闪回。
+            return; // Screenshots block interaction only, without hiding existing borders and flashing everything back.
         }
         if !visible
             || self.modals.blocked()

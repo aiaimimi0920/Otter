@@ -1,4 +1,4 @@
-//! 默认退出保存场景后重开；不导出图片、不触碰用户 profile 或显示确认框。
+//! Reopen the scene saved by default exit; no image export, user-profile access, or confirmation dialogs.
 use super::*;
 
 #[test]
@@ -36,7 +36,7 @@ fn default_exit_saves_last_layout_and_reopens_without_manual_file_confirmation()
                 app.documents[0].state.canvas.borrow_mut().normal_opacity = 0.55;
                 assert_ne!(app.save_status(), save_state::Status::Unchanged);
                 app.exit_requested.set(true);
-                // 调用真正默认入口；旧实现会进入 MessageBox 而无法完成此测试。
+                // Call the real default entry point; the old implementation would enter MessageBox and prevent this test from finishing.
                 assert!(!app.close_requested());
                 assert!(app.checkpoint_exit_waiting() && app.checkpoint_pending());
                 assert!(IsWindow(Some(hwnd)).as_bool());
@@ -113,7 +113,7 @@ fn stopped_scene_save_keeps_unsaved_windows_and_consumes_default_exit() {
             assert!(app.documents[0].is_alive());
             assert_eq!(std::fs::read(directory.path()).unwrap(), before);
             assert!(!app.close_requested_automatically_with_notify(|_, _| panic!("no latent exit")));
-            // 明确另存成功后仍可退出，不把故障状态变成无法退出的永久门禁。
+            // Exit remains possible after explicit save-as succeeds; a failure state must not become a permanent no-exit gate.
             crate::desktop::application::frozen_menu::reference::smoke::save(
                 &mut app,
                 Some(directory.0.join("rescue.json")),

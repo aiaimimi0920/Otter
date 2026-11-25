@@ -35,18 +35,11 @@ the signing provider and while the account retains the intended access.
 
 ## Release and signing approval
 
-- The current workflow builds internal ZIPs only. It does not publish or sign
-  a public release. Internal four-part versions are not public release tags.
-- Before enabling a future signed public release, configure required reviewers
-  for its protected GitHub Environment before adding signing credentials. The
-  signing provider must also require separate manual approval.
-- Private signing keys are never committed to this repository or exported into
-  the workflow.
-- An unsigned artifact must never be published under the signed
-  installer/UIAccess package name.
-
-The normative signing rules are in
-[`docs/release/CODE_SIGNING_POLICY.md`](docs/release/CODE_SIGNING_POLICY.md).
+The current workflow produces unsigned internal ZIPs, not signed public releases.
+See [versioning and provenance](docs/release/release-provenance.md) for artifact identity.
+Future signing approval, account protection and artifact naming follow
+[the signing policy](docs/release/CODE_SIGNING_POLICY.md); the role assignments above
+do not assert that a signing account or protected release environment has already been provisioned.
 
 ## Security and privacy contact
 

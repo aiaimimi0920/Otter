@@ -1,4 +1,4 @@
-//! COMBOBOX Tab 接缝；无会话裸指针，先收起列表再向 Surface 导航，其他键交系统。
+//! COMBOBOX Tab seam; no raw session pointers, collapse before Surface navigation, and leave other keys to the system.
 use super::*;
 use windows::Win32::UI::{
     Input::KeyboardAndMouse::{GetKeyState, VK_SHIFT, VK_TAB},
@@ -52,7 +52,7 @@ unsafe extern "system" fn procedure(
             cbSize: std::mem::size_of::<windows::Win32::UI::Controls::COMBOBOXINFO>() as u32,
             ..Default::default()
         };
-        // 只接受当前 COMBOBOX 的实际 list HWND，不给任意消息附带的窗口套用配色。
+        // Accept only the current COMBOBOX's actual list HWND; do not apply colors to arbitrary message-supplied windows.
         if windows::Win32::UI::Controls::GetComboBoxInfo(hwnd, &mut info).is_ok()
             && info.hwndList == HWND(lp.0 as *mut _)
         {
@@ -79,7 +79,7 @@ unsafe extern "system" fn procedure(
         {
             let marker = GetPropW(hwnd, OWNER);
             SendMessageW(hwnd, CB_SHOWDROPDOWN, Some(WPARAM(0)), None);
-            // 收起会同步通知父窗口；重入关闭/撤销 owner 后不能继续向缓存句柄导航。
+            // Collapse synchronously notifies parents; after reentrant closing/owner revocation, never navigate using cached handles.
             if !marker.is_invalid()
                 && IsWindow(Some(hwnd)).as_bool()
                 && GetPropW(hwnd, OWNER) == marker

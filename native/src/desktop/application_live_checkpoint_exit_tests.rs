@@ -1,4 +1,4 @@
-//! 正常退出保存最后时间点；隐藏 HWND/合成流，不向用户桌面注入输入。
+//! Normal exit saves the final time point; hidden HWNDs/synthetic streams, without injecting input into the user's desktop.
 use super::*;
 use crate::desktop::application::exit::Choice;
 #[path = "application_live_checkpoint_exit_failure_tests.rs"]

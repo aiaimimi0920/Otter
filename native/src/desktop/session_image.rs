@@ -1,4 +1,4 @@
-//! 会话内联图像的后台加载入口；借用 Data URL，复用共享像素预算和 WIC 解码 owner。
+//! Background loading of session inline images; borrow Data URLs and reuse shared pixel budgets and the WIC decoder owner.
 use super::image::Image;
 use std::sync::atomic::{AtomicBool, Ordering};
 use windows::{
@@ -6,8 +6,8 @@ use windows::{
     Win32::Foundation::{E_ABORT, E_INVALIDARG},
 };
 
-/// 仅接受内联 Data URL；路径/网络资源须经独立授权入口，不作为 Base64 回退。
-/// 调用方需在后台调用；取消检查不能强制中断 WIC 正在执行的原生调用。
+/// Accept inline Data URLs only; paths/network resources require separate authorization, never Base64 fallback.
+/// Callers must run this in the background; cancellation checks cannot forcibly interrupt an executing native WIC call.
 pub fn inline(reference: &str, cancel: &AtomicBool) -> Result<Image> {
     if cancel.load(Ordering::Acquire) {
         return Err(Error::new(E_ABORT, "Session image cancelled"));

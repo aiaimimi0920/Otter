@@ -1,4 +1,4 @@
-//! 单个串行设备授权任务的取消 owner；共享停止标志、当前 socket 与可唤醒等待。
+//! Cancellation owner for one serial device-authorization task; shared stop flag/current socket/wakeable waits.
 use crate::loom_bridge_stream::Interrupt;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -52,7 +52,7 @@ impl Cancel {
             let _ = handle.cancel();
         }
     }
-    /// 一个 owner 只允许一个串行请求链；登记与取消共用锁，避免握手前漏掉取消。
+    /// One serial request chain per owner; registration/cancellation share a lock to prevent missed cancellation before handshakes.
     pub fn install(&self, handle: Interrupt) {
         let mut socket = self.socket.lock().unwrap_or_else(|e| e.into_inner());
         if self.is_stopped() {
@@ -61,7 +61,7 @@ impl Cancel {
             *socket = Some(handle);
         }
     }
-    /// 网络操作已返回后释放 clone，避免等待批准期间保留已完成请求的 socket。
+    /// Release clones after network operations return, avoiding completed-request sockets retained during approval waits.
     pub fn clear(&self) {
         self.socket.lock().unwrap_or_else(|e| e.into_inner()).take();
     }
@@ -80,7 +80,7 @@ impl Cancel {
     }
     pub fn wait(&self, duration: Duration) -> bool {
         let socket = self.socket.lock().unwrap_or_else(|e| e.into_inner());
-        // 与 cancel 的锁配合，不会在检查标志与进入等待之间丢失唤醒。
+        // Coordinate with cancel's lock to prevent lost wakeups between flag checks and waits.
         let _guard = self
             .wake
             .wait_timeout_while(socket, duration, |_| !self.is_stopped())

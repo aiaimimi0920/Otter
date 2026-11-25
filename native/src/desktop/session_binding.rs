@@ -1,4 +1,4 @@
-//! UI 线程的会话目录绑定：共享目录而非复制；旧目录结果不能提交到新目录。
+//! UI-thread session-catalog binding: share rather than copy the catalog; old-catalog results cannot commit to a new catalog.
 use super::{
     capability_job::Loaded,
     session_candidate::{Candidate, PreparedRestore, VectorCandidate},
@@ -28,7 +28,7 @@ pub struct Bound {
         crate::session_vectors::Restored,
     )>,
 }
-/// 成功验证后交给后续窗口事务的资源。目录随结果同行，不跨版本解释 capability_index。
+/// Resources for subsequent window transactions after successful verification. The catalog accompanies results; never interpret capability_index across versions.
 pub struct Parts {
     pub(in crate::desktop) projection_edits: Vec<(
         crate::workspace_id::UnitId,
@@ -46,7 +46,7 @@ pub struct Parts {
     )>,
 }
 impl Bound {
-    /// 解析阶段只借用候选；失败将原 owner 返回调用方，成功后转入绑定 owner。
+    /// Parsing only borrows the candidate; failure returns the original owner to the caller, while success transfers it to the binding owner.
     pub fn prepare(
         prepared: VectorCandidate,
         catalog: Rc<Loaded>,
@@ -72,7 +72,7 @@ impl Bound {
         }
     }
 
-    /// 调用方仍持有准备时的目录 owner；先核对当前目录身份，再发布。
+    /// The caller still holds the preparation-time catalog owner; check current catalog identity before publication.
     pub(in crate::desktop) fn from_prepared(
         prepared: PreparedRestore,
         catalog: Option<Rc<Loaded>>,
@@ -96,7 +96,7 @@ impl Bound {
     pub fn matches(&self, current: &Rc<Loaded>) -> bool {
         catalog_matches(&self.catalog, Some(current))
     }
-    /// 失败返回原 owner，调用方可重新绑定或放弃；不丢原始会话，也不部分交付节点。
+    /// Failure returns the original owner for rebinding or abandonment; neither lose the original session nor partially deliver nodes.
     pub fn into_parts(
         self,
         current: &Rc<Loaded>,
@@ -122,7 +122,7 @@ impl Bound {
             regions: self.regions,
         })
     }
-    /// 目录变动后必须重新解析整批，而非沿用旧 secret 策略或仅替换目录指针。
+    /// Catalog changes require reparsing the whole batch, not retaining old secret policies or merely replacing the catalog pointer.
     pub fn rebind(&mut self, catalog: Rc<Loaded>, cancel: &AtomicBool) -> Result<()> {
         let arts = self
             .candidate
@@ -133,7 +133,7 @@ impl Bound {
     }
 }
 
-/// 离线快照也是一个精确状态；None 与后来出现的真实目录不能互换。
+/// An offline snapshot is also an exact state; None is not interchangeable with an actual catalog that appears later.
 pub(in crate::desktop) fn catalog_matches(
     snapshot: &Option<Rc<Loaded>>,
     current: Option<&Rc<Loaded>>,
@@ -183,7 +183,7 @@ mod tests {
         let canvas = prepared.states[0].canvas.borrow();
         let source = canvas.capture_source().unwrap();
         assert_eq!(source.original_label(), "HDR PNG");
-        assert!(source.original.is_none()); // 不从内联资源伪造可访问的外部原图路径。
+        assert!(source.original.is_none()); // Do not fabricate an accessible external source-image path from inline resources.
         let file = source.original_lease.as_ref().unwrap();
         assert_eq!(
             crate::capture_file::encode_inline(file, &cancel)
@@ -303,7 +303,7 @@ mod tests {
     #[test]
     fn mixed_host_states_keep_document_order_and_reject_misaligned_resources() {
         let cancel = AtomicBool::new(false);
-        // 非字典序，且普通钉图夹在两个 Art 之间。
+        // Nonlexicographic order, with an ordinary pin between two Art nodes.
         let bytes = br#"{"stickers":[
             {"id":"z","type":"art","x":0,"y":0,"w":2,"h":2,"outputs":{"value":42}},
             {"id":"pin","x":0,"y":0,"w":2,"h":2},

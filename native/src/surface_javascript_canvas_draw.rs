@@ -1,4 +1,4 @@
-//! 实际 D2D/DirectWrite 绘制；调用方持有离屏 bitmap 并成对 BeginDraw/EndDraw。
+//! Actual D2D/DirectWrite drawing; callers own offscreen bitmaps and pair BeginDraw/EndDraw.
 use super::commands::{self, Draw, State};
 use windows::{
     core::Result,
@@ -165,7 +165,7 @@ pub(super) fn layout(
 ) -> Result<crate::surface_text::Layout> {
     let (size, family) = commands::font(font)
         .map_err(|_| windows::core::Error::from(windows::Win32::Foundation::E_INVALIDARG))?;
-    // Canvas 单行文本将 ASCII 空白变成普通空格，不套用 DOM 的合并空白/换行模型。
+    // Single-line Canvas text converts ASCII whitespace to ordinary spaces without applying DOM whitespace-collapsing/newline rules.
     let text: String = text
         .chars()
         .map(|ch| {

@@ -1,8 +1,8 @@
-//! 仅标注替换：准备时冻结来源、提交核文档身份；底图、裁剪与逻辑画框始终由原Editor拥有。
+//! Annotation-only replacement: freeze provenance during preparation and validate document identity on commit; original Editor always owns base images, crops, and logical frames.
 use super::*;
 use crate::edit_history::{Annotations, Entry};
 
-/// 有界的一次性候选，不持来源栅格/历史，不允许按相同revision套用到另一份文档。
+/// Bounded one-shot candidates hold no source raster/history and cannot apply to different documents merely sharing revisions.
 pub struct AnnotationReplacement {
     expected: DocumentStamp,
     annotations: Annotations,
@@ -40,11 +40,11 @@ impl Editor {
     }
 }
 impl AnnotationReplacement {
-    /// 宿主仍须先核自身工作区/窗口及取消围栏；这里仅负责Editor身份和已提交文档事务。
+    /// Hosts must first validate their workspace/window and cancellation fences; this layer owns only Editor identity/committed-document transactions.
     pub fn apply(self, target: &mut Editor) -> Result<bool, EditError> {
         self.apply_rebased(target, None)
     }
-    /// 接收协作首次冻结basis时，矢量和已准备底图必须原子发布；所有可恢复拒绝先于交换。
+    /// On initial collaboration-basis freezing, publish vectors/prepared bases atomically; every recoverable rejection precedes swaps.
     pub fn apply_rebased(
         self,
         target: &mut Editor,
@@ -63,7 +63,7 @@ impl AnnotationReplacement {
         }) {
             return Ok(false);
         }
-        // 以下只转移所有权，所有可恢复校验都已完成；原历史和工具样式不接管来源状态。
+        // Only ownership transfer follows, with all recoverable validation complete; original history/tool styles do not adopt source state.
         let previous = Annotations {
             elements: std::mem::replace(&mut target.elements, self.annotations.elements),
             serial: std::mem::replace(&mut target.serial_count, self.annotations.serial),

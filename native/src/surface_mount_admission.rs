@@ -1,4 +1,4 @@
-//! 挂载结果到本地场景的交付检查；仅借用结果，拒绝时保留恢复证据。
+//! Delivery checks from mount results to local scenes; borrow results only and preserve recovery evidence on rejection.
 use super::Outcome;
 use crate::{
     device_authorization_lease::{Error as LeaseError, Lease},
@@ -11,7 +11,7 @@ pub enum AdmissionError {
     Identity,
     Scene(SceneError),
 }
-/// 同一已验证快照的场景与版本；不得用 lifecycleRevision 替代此 revision。
+/// Scene and revision from the same verified snapshot; lifecycleRevision cannot replace this revision.
 #[derive(Debug)]
 pub struct AdmittedSnapshot {
     scene: Scene,
@@ -38,7 +38,7 @@ impl AdmittedSnapshot {
     }
 }
 impl Outcome {
-    /// 这是交付时刻检查，不是长期显示许可；窗口存活期间仍须处理撤销和过期。
+    /// A delivery-time check, not long-term display permission; handle revocation and expiry throughout the window lifetime.
     pub fn snapshot_for(
         &self,
         lease: &Lease,
@@ -87,14 +87,14 @@ impl Outcome {
             return Err(AdmissionError::Identity);
         }
         use crate::surface_host_capabilities::Runtime;
-        // JS 的 scene 只授予动作权威并准备隐藏 HWND；绝不能作为执行后的呈现场景显示。
+        // JS scenes grant only action authority and prepare hidden HWNDs; never display them as post-execution presentation scenes.
         if header.runtime != Runtime::Declarative
             && !(header.runtime == Runtime::Javascript
                 && self.request.supports(Runtime::Javascript))
         {
             return Err(AdmissionError::Scene(SceneError::Runtime));
         }
-        // 角色与 runtime 已验证，直接解析借用的场景，不重复扫描快照封套。
+        // Role and runtime are verified; parse the borrowed scene directly without rescanning the snapshot envelope.
         let scene = Scene::parse(header.scene.get().as_bytes()).map_err(AdmissionError::Scene)?;
         lease
             .validate(&self.origin, now_ms)

@@ -1,4 +1,4 @@
-//! 单宿主外框的透明度、层序、显隐与拖动合成帧交接；只使用隔离窗口。
+//! Single-host border opacity, Z-order, visibility, and drag-composite handoff; isolated windows only.
 use super::*;
 
 #[test]
@@ -30,8 +30,8 @@ fn pure_z_order_changes_keep_each_border_immediately_above_its_host() {
                 chain.push(entry);
                 entry = GetWindow(entry, GW_HWNDNEXT).unwrap_or_default();
             }
-            // HWND_TOPMOST 改变置顶类别，不作为两宿主实际顺序的测试替身。
-            // 根据真实链检查每个框都紧邻宿主；另记录宿主确实发生过顺序交换。
+            // HWND_TOPMOST changes topmost categories; it is not a substitute for actual ordering between two hosts.
+            // Check the actual chain for each border's adjacency to its host, and separately record an actual host-order swap.
             let rank = |hwnd| chain.iter().position(|entry| *entry == hwnd).unwrap();
             for endpoint in 0..2 {
                 assert_eq!(

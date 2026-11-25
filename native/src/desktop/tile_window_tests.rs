@@ -1,4 +1,4 @@
-//! 自有离屏窗口同步绘制重入销毁；不强制复用系统HWND，不注入用户输入。
+//! Synchronous painting/reentrant destruction on owned offscreen windows; no forced system-HWND reuse or user-input injection.
 use super::*;
 use windows::Win32::System::Com::*;
 #[path = "tile_identification_window_tests.rs"]
@@ -42,8 +42,8 @@ fn synchronous_paint_close_stops_owner_and_drops_frame_and_renderer() {
     output.y = -30000;
     let window = Window::new(shared.clone(), &output).unwrap();
     unsafe {
-        // 隐藏窗口的 UpdateWindow 不保证同步派发 paint；先显示自有离屏窗口，
-        // 再安装销毁回调，确保本测试实际覆盖 tick 内的同步绘制重入。
+        // UpdateWindow on hidden windows may not dispatch paint synchronously; show the owned offscreen window first,
+        // then install destruction callbacks so this test actually covers synchronous paint reentrancy within tick.
         let _ = ShowWindow(window.hwnd, SW_SHOWNOACTIVATE);
         assert!(IsWindowVisible(window.hwnd).as_bool());
         let prior = SetWindowLongPtrW(
@@ -60,7 +60,7 @@ fn synchronous_paint_close_stops_owner_and_drops_frame_and_renderer() {
     assert!(shared.lock().presented.is_none());
     assert!(window.state.frame.borrow().is_none());
     assert!(window.state.renderer.borrow().is_none());
-    // 后续tick同样不得重启或重新创建已关闭窗口。
+    // Later ticks must likewise not restart or recreate closed windows.
     window.tick().unwrap();
     window.hide();
     unsafe {

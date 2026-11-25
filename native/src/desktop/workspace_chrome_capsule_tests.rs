@@ -1,4 +1,4 @@
-//! 局部展开/F2 与 Tab 共用真实行内 owner；不注册热键或合成全局输入。
+//! Local expansion/F2 and Tab share actual inline owners; no hotkey registration or synthetic global input.
 use super::*;
 use windows::Win32::{Graphics::Gdi::*, UI::Input::KeyboardAndMouse::*};
 #[path = "workspace_chrome_capsule_reentry_tests.rs"]
@@ -116,7 +116,7 @@ unsafe fn key(app: &Application, key: u16, repeat: bool) -> bool {
         lParam: LPARAM(if repeat { 1 << 30 } else { 0 }),
         ..Default::default()
     };
-    // 仿真实消息泵：chrome 未消费时再交文档参数控件，不重复生产分派。
+    // Emulate the real pump: pass to document parameter controls only if chrome did not consume, without duplicating production dispatch.
     app.translate_workspace_chrome(&msg)
         || app
             .documents

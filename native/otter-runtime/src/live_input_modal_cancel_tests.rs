@@ -1,4 +1,4 @@
-//! 模态取消的完成观察：短延迟可结算，未完成仍失败，均不得重放右键。
+//! Observe modal-cancellation completion: short delays can settle, unfinished operations still fail, and neither may replay right-clicks.
 use super::*;
 
 #[test]
@@ -144,7 +144,7 @@ fn second_escape_press_keeps_both_pairs_ordered_on_cancel() {
         controller.dispatch_status(5, escape(true)),
         Ok(live_input::Delivery::Pending)
     );
-    // 新周期欠下的 up 也必须 posted，不能越过已入队的第一对和第二次 down。
+    // The up owed by the new epoch must also be posted, without overtaking the queued first pair and second down.
     assert!(controller.cancel().failed > 0);
     unsafe {
         RemovePropW(hwnd, w!("Otter.Test.ModalPumpHold")).unwrap();
@@ -219,7 +219,7 @@ fn cancellation_collects_menu_completion_within_release_budget() {
         controller.dispatch_status(2, button(false)),
         Ok(live_input::Delivery::Pending)
     );
-    // 与真实失焦相同：取消开始时菜单仍在嵌套消息泵中，稍后才退出。
+    // As with real focus loss, the menu remains inside its nested message pump when cancellation begins and exits later.
     let close = std::thread::spawn(move || {
         std::thread::sleep(Duration::from_millis(10));
         unsafe {

@@ -1,4 +1,4 @@
-//! 内容橡皮擦的预乘 BGRA 内核；圆帽圆连接，原图只读，取消不返回半成品。
+//! Premultiplied-BGRA content-eraser kernel with round caps/joins; original images are read-only, and cancellation returns no partial result.
 use crate::{
     pixels::{self, Pixels},
     viewport::{checked_image_bytes, Point},
@@ -37,8 +37,8 @@ fn valid(point: Point) -> bool {
         && point.y.abs() <= 1_000_000.0
 }
 
-/// 4×4 子像素覆盖取并集；重复点、自交和重复段不会叠加擦除软边。
-/// UI 尺寸范围与主干一致（4–96）；调用者负责把逻辑坐标换算到像素坐标。
+/// Union 4x4 subpixel coverage; repeated points/self-intersections/repeated segments never accumulate soft-edge erasure.
+/// UI dimensions match mainline, 4-96; callers convert logical coordinates to pixels.
 pub fn apply(
     source: &Pixels,
     size: (u32, u32),
@@ -74,7 +74,7 @@ fn apply_scaled(
         return Err(EraseError::Cancelled);
     }
     let logical_radius = width as f64 / 2.0;
-    // 椭圆胶囊的圆形外包只用于保守扫描；实际覆盖在逻辑坐标中计算。
+    // Circular bounds of elliptical capsules are only conservative scan bounds; actual coverage uses logical coordinates.
     let radius = logical_radius * scale.0.max(scale.1);
     let region = span::region(points, radius, size);
     if cancelled() {
@@ -83,7 +83,7 @@ fn apply_scaled(
     let Some([region_left, region_top, region_right, region_bottom]) = region else {
         return Ok(source.clone());
     };
-    // 整个受影响范围均透明时，不分配掩码或候选整图；逐行仍可取消。
+    // If the entire affected region is transparent, allocate no mask/whole-image candidate; cancellation remains per-row.
     let mut has_content = false;
     for y in region_top..region_bottom {
         if cancelled() {
@@ -104,7 +104,7 @@ fn apply_scaled(
     let mask_len = mask_width * mask_height;
     let (mut coverage, _mask_lease) = reserve_buffer::<u16>(mask_len)?;
     coverage.resize(mask_len, 0);
-    // 4×4 子采样点相对像素中心最大偏移为 (±0.375/sx, ±0.375/sy)；中心距离超出阈值可整像素跳过或置满。
+    // 4x4 subsamples offset from pixel centers by at most (+/-0.375/sx, +/-0.375/sy); center-distance thresholds can skip/fill whole pixels.
     let margin = 0.38 * (1.0 / scale.0).hypot(1.0 / scale.1);
     let inner_sq = (logical_radius > margin).then(|| (logical_radius - margin).powi(2));
     let outer_sq = (logical_radius + margin).powi(2);
@@ -185,7 +185,7 @@ fn apply_scaled(
             Ok(source.clone())
         };
     }
-    // 所有笔迹段合并覆盖度后只做一遍像素混合，直到首个像素实际改变才复制底图。
+    // Merge all stroke-segment coverage before one pixel blend; copy base images only when the first pixel actually changes.
     let mut output: Option<(Vec<u8>, crate::byte_budget::Lease)> = None;
     for y in region_top..region_bottom {
         if cancelled() {

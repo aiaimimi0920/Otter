@@ -1,4 +1,4 @@
-//! 旧字段合同、按库隔离和预算回归；不访问剪贴板、用户文件或系统时钟。
+//! Legacy-field contracts, library isolation, and budget regressions; no clipboard, user-file, or system-clock access.
 use super::*;
 #[test]
 fn standalone_reader_rejects_future_schema_and_byte_budget_before_parsing() {

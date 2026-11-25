@@ -1,4 +1,4 @@
-// 通用事件路径、取消与接收者；合成事件不冒充原生键盘/指针交付。
+// Generic event paths, cancellation, and receivers; synthetic events do not impersonate native keyboard/pointer delivery.
 NeuroSurface.define({ mount({ root }) {
   const check = (value, message) => { if (!value) throw Error(message); };
   root.innerHTML = '<div><button>event</button></div>';

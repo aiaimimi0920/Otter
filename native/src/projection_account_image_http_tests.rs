@@ -1,4 +1,4 @@
-//! 超过旧普通 JSON 上限的实际 PNG 仍使用独立 v2 的 6MiB 上限，不放宽传统请求。
+//! Actual PNGs exceeding old ordinary-JSON limits still use independent v2's 6MiB limit, without relaxing traditional requests.
 use super::*;
 pub(super) fn large_image() -> Image {
     let (width, height) = (1024, 512);

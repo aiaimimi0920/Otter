@@ -1,4 +1,4 @@
-//! 真实隐藏批次的双侧变化检查，不显示窗口、不消费待处理命令。
+//! Two-sided change checks on actual hidden batches, without showing windows or consuming pending commands.
 use super::*;
 
 pub(super) unsafe fn verify_requests(app: &mut Application, catalog: &Rc<Loaded>) -> Result<()> {
@@ -44,7 +44,7 @@ pub(super) unsafe fn verify_requests(app: &mut Application, catalog: &Rc<Loaded>
         }
         Ok(())
     })();
-    // 只清理本 smoke 的独立请求项，不重置其它节点的代际和执行记录。
+    // Clear only this smoke test's independent requests, not other nodes' generations or execution records.
     app.executions.retain_units(|id| id != &unit);
     result
 }

@@ -1,4 +1,4 @@
-//! 有界输入 worker：最多 16 个未消费命令，满载撤销，停止不排在输入队列后面。
+//! Bounded input workers: at most 16 unconsumed commands, revoke on full capacity, and stop bypasses queued inputs.
 use crate::live_input::{Backend, Cleanup, Controller, Error, Event};
 use std::{
     io,
@@ -40,7 +40,7 @@ pub enum Command {
 }
 #[derive(Debug)]
 pub struct Reply<E> {
-    /// None 是没有对应新命令的异步终态错误，不释放命令准入占位。
+    /// None is an asynchronous terminal error without a corresponding new command; it does not release command-admission reservations.
     pub command: Option<Command>,
     pub result: Result<crate::live_input::Delivery, Error<E>>,
 }
@@ -68,7 +68,7 @@ pub struct StopSignal {
     sender: mpsc::SyncSender<Command>,
 }
 impl StopSignal {
-    /// 只撤销；Enable 仅用于唤醒 recv，worker 在执行前检查不可逆 stop 标志。
+    /// Revocation only; Enable merely wakes recv, and workers check irreversible stop flags before execution.
     pub fn request(&self) {
         self.stop.store(true, Ordering::Release);
         let _ = self.sender.try_send(Command::Enable);
@@ -83,19 +83,19 @@ pub struct Worker<E> {
     outstanding: usize,
 }
 impl<E: Send + 'static> Worker<E> {
-    /// factory 和 Controller 都在 worker 内构建；调用 start 本身不启用输入。
+    /// Construct factory/Controller inside workers; calling start alone does not enable input.
     pub fn start<B: Backend<Error = E> + 'static>(
         factory: impl FnOnce() -> Result<B, String> + Send + 'static,
     ) -> io::Result<Self> {
         Self::start_inner(factory, None)
     }
-    /// UI 线程拥有此 worker；回复用 WM_NULL 唤醒消息泵，只需额外等待完成句柄。
+    /// UI threads own workers; replies wake message pumps with WM_NULL, requiring only extra completion-handle waits.
     pub fn start_for_ui<B: Backend<Error = E> + 'static>(
         factory: impl FnOnce() -> Result<B, String> + Send + 'static,
     ) -> io::Result<Self> {
         use windows::Win32::{System::Threading::GetCurrentThreadId, UI::WindowsAndMessaging::*};
         unsafe {
-            // 保证接收线程已经有消息队列；不移除任何现有消息。
+            // Ensure receiver threads already have message queues without removing existing messages.
             let _ = PeekMessageW(&mut MSG::default(), None, 0, 0, PM_NOREMOVE);
             Self::start_inner(factory, Some(GetCurrentThreadId()))
         }
@@ -109,7 +109,7 @@ impl<E: Send + 'static> Worker<E> {
         let wake = Arc::new(unsafe { OwnedHandle::from_raw_handle(raw.0) });
         let stop = Arc::new(AtomicBool::new(false));
         let (sender, commands) = mpsc::sync_channel(CAPACITY);
-        // 最多 16 条普通回执，另留唯一异步终态事件槽；不增加输入准入容量。
+        // At most 16 ordinary receipts plus one asynchronous-terminal-event slot, without extra input-admission capacity.
         let (results, replies) = mpsc::sync_channel(CAPACITY + 1);
         let signal = stop.clone();
         let event = wake.clone();
@@ -117,7 +117,7 @@ impl<E: Send + 'static> Worker<E> {
             .name("otter-live-input".into())
             .spawn(move || {
                 let _slot = slot;
-                // Controller 的 Drop 在展开时仍尝试清理；线程句柄是终止结果的独立唤醒源。
+                // Controller Drop still attempts cleanup during unwinding; thread handles independently wake terminal-result observation.
                 let exit = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                     if signal.load(Ordering::Acquire) {
                         return Exit {
@@ -147,7 +147,7 @@ impl<E: Send + 'static> Worker<E> {
                     reason: Reason::Panicked,
                     cleanup: None,
                 });
-                // 退出失败仍可由真实线程句柄观察；不把此事件当作线程已经回收。
+                // Actual thread handles still expose exit failures; this event does not prove thread reclamation.
                 signal.store(true, Ordering::Release);
                 let _ = unsafe { SetEvent(HANDLE(event.as_raw_handle())) };
                 exit
@@ -163,7 +163,7 @@ impl<E: Send + 'static> Worker<E> {
     }
 }
 impl<E> Worker<E> {
-    /// Full 会停止整个控制 owner，避免丢失关键边沿后继续留下按下状态。
+    /// Full stops the entire control owner, preventing retained pressed states after losing critical edges.
     pub fn submit(&mut self, command: Command) -> Result<(), SubmitError> {
         if self.stopping() || self.worker.as_ref().is_none_or(JoinHandle::is_finished) {
             return Err(SubmitError::Stopped);
@@ -213,7 +213,7 @@ impl<E> Worker<E> {
     pub fn completion_handle(&self) -> Option<BorrowedHandle<'_>> {
         self.worker.as_ref().map(AsHandle::as_handle)
     }
-    /// 先复位再读，避免丢失并发通知；取到一项后保持事件，下一次空读再复位。
+    /// Reset before reading to avoid lost concurrent notices; keep signaled after taking an item, resetting on the next empty read.
     pub fn poll_reply(&mut self) -> io::Result<Option<Reply<E>>> {
         unsafe { ResetEvent(HANDLE(self.wake.as_raw_handle())) }.map_err(io::Error::other)?;
         match self.replies.try_recv() {
@@ -232,7 +232,7 @@ impl<E> Worker<E> {
         if let Some(sender) = &self.sender {
             let _ = sender.try_send(Command::Enable);
         }
-        // 外部 StopSignal 可能仍持有发送端，因此先显式唤醒；stop 标志抑制所有排队输入。
+        // External StopSignal may retain senders, so explicitly wake first; stop flags suppress all queued input.
         self.sender = None;
     }
     pub fn take_exit(&mut self) -> Option<Exit> {
@@ -251,7 +251,7 @@ impl<E> Worker<E> {
 impl<E> Drop for Worker<E> {
     fn drop(&mut self) {
         self.stop();
-        // 常规 UI 关闭须保留 owner 并等待 take_exit；Drop 是最终防泄漏兜底，不保证无阻塞。
+        // Normal UI close retains owners/awaits take_exit; Drop is the final leak safeguard, not guaranteed nonblocking.
         if let Some(worker) = self.worker.take() {
             let _ = worker.join();
         }
@@ -269,8 +269,8 @@ fn run<B: Backend>(
         if stop.load(Ordering::Acquire) {
             break;
         }
-        // pending 查询也可能处理完成回调，必须先采样再检查结果。沿用采样值，
-        // 避免第二次查询清掉 token 后带着未上报错误进入无限 recv。
+        // pending queries may process completion callbacks; sample before checking outcomes and reuse that sample,
+        // avoiding a second query clearing tokens before entering endless recv with unreported errors.
         let pending = controller.pending_delivery();
         let (command, result) = if let Err(error) = controller.idle() {
             (None, Err(error))

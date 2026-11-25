@@ -1,4 +1,4 @@
-//! 已开始的真实单指滚动在撤权/换场景后不得被后续输入或惯性复活。
+//! An already-started actual single-finger scroll must not revive through later input/inertia after revocation or scene replacement.
 use super::*;
 
 #[test]
@@ -44,7 +44,7 @@ fn surface_slider_system_touch_probe_lifecycle_cutoff() {
                 );
                 let mut end = start;
                 for step in 1..=8 {
-                    // 后续触点保持在自有父窗口范围；不在销毁整个窗口后继续注入。
+                    // Subsequent contacts remain within the owned parent window; do not continue injection after destroying the whole window.
                     end = POINT {
                         x: start.x,
                         y: start.y - step * 12,

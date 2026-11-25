@@ -1,4 +1,4 @@
-//! 独立TLS wire oracle，只记录自有viewer消息；无真实设备/配置或全局输入。
+//! Independent TLS wire oracle records only owned viewer messages; no real devices/configuration or global input.
 use super::*;
 use std::{
     sync::{atomic::AtomicUsize, Mutex},

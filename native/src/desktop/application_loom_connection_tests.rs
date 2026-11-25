@@ -1,4 +1,4 @@
-//! 由真实 Loom 父进程启动：全新 DPAPI 身份、生产连接 owner 与原菜单发送管线。
+//! Launched by a real Loom parent process: fresh DPAPI identity, production connection owner, and the original menu-send pipeline.
 use super::*;
 use serde_json::json;
 use std::path::{Path, PathBuf};
@@ -68,7 +68,7 @@ fn native_local_loom_bootstrap_and_sender() {
         let origin = authorize(&mut app);
         assert!(app.authorization.borrow().connected);
         let loom_id = app.authorization.borrow().loom_id.clone().unwrap();
-        // 再次选择同一服务不能停止自动续签；不需要用户再点“获取授权”。
+        // Selecting the same service again must not stop automatic renewal; users need not request authorization again.
         app.authorization.borrow_mut().request = Some(ui::Request::Select(origin.clone()));
         app.process_authorization();
         assert!(app.local_loom.deadline().is_some());
@@ -84,7 +84,7 @@ fn native_local_loom_bootstrap_and_sender() {
             .unwrap()
             .device_id()
             .to_owned();
-        // 同一 owner 的远端续签也必须保留已签出的在途租约。
+        // Remote renewal by the same owner must also preserve checked-out in-flight leases.
         let prior = app.authorization_owner.lease(&origin, now).unwrap();
         app.local_loom.refresh();
         let until = Instant::now() + Duration::from_secs(10);
@@ -111,7 +111,7 @@ fn native_local_loom_bootstrap_and_sender() {
             );
             std::thread::sleep(Duration::from_millis(2));
         }
-        // 产品启动自动发现；不通过测试手工排一个刷新请求来掩盖缺失的入口。
+        // Product startup performs automatic discovery; do not hide a missing entry point by manually queuing a refresh request in the test.
         let until = Instant::now() + Duration::from_secs(10);
         while app.authorization.borrow().targets.directory.is_none() {
             app.process_authorization();
@@ -167,7 +167,7 @@ fn native_local_loom_bootstrap_and_sender() {
         app.shutdown();
         drop(app);
         drain_messages();
-        // 同一 profile 重连不重复批准，不能更换设备 epoch 或公钥。
+        // Reconnecting the same profile must neither repeat approval nor change the device epoch or public key.
         let mut again = application(&profile);
         again
             .authorization
@@ -189,7 +189,7 @@ fn native_local_loom_bootstrap_and_sender() {
         again.process_authorization();
         assert!(again.authorization_owner.token(&origin, now).is_none());
         assert!(!again.local_loom.enabled());
-        // 自动续签已停；应用等待器仍须回收真实 Loom 断开任务及其完成通知。
+        // Automatic renewal has stopped; the application waiter must still reap the real Loom disconnect task and its completion notification.
         let until = Instant::now() + Duration::from_secs(10);
         loop {
             again.process_authorization();

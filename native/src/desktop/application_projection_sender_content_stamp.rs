@@ -1,4 +1,4 @@
-//! 持续更新只缓存弱身份；64项历史内容不能延长会话原文或像素预算租约。
+//! Continuous updates cache weak identities only; 64 historical content entries must not extend session-source or pixel-budget leases.
 use super::*;
 use crate::session_source::Source;
 use std::sync::{Arc, Weak};

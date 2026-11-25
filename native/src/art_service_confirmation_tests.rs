@@ -1,4 +1,4 @@
-//! 真实signed child/TLS与宿主票据；程序化批准仅为夹具，不冒充真实可见用户确认。
+//! Real signed child/TLS and host tickets; programmatic approval is only a fixture, not real visible user confirmation.
 use super::*;
 use crate::surface_javascript::{fixture as js, signed::runtime::Runtime};
 use sha2::{Digest, Sha256};

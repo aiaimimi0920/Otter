@@ -1,4 +1,4 @@
-//! 三类来源同一实际呈现帧的独立像素oracle与生命周期；不采样用户桌面。
+//! Independent pixel oracles and lifecycle for three source types in one actual presentation frame; no user-desktop sampling.
 use super::*;
 use crate::tile_shared::Frame;
 
@@ -55,7 +55,7 @@ pub(super) fn run() {
         (false, false, false, false, false);
     let mut weak = Vec::new();
     let mut frozen_frame = None;
-    // Oracle为独立手写PBGRA，非调用生产转换来产生expected。
+    // Oracle is independently handwritten PBGRA, not expected values produced through production conversion.
     let before = [[0, 0, 255, 255], [17, 83, 211, 255], [0, 255, 0, 255]];
     let after = [[255, 0, 0, 255], [193, 29, 71, 255], [255, 255, 0, 255]];
     let expected = if lifecycle { before } else { after };

@@ -1,4 +1,4 @@
-//! chrome 与截图共用提交层：自有 DIB 验证局部坐标、取消帧和提交前目标不变。
+//! Chrome and screenshots share a submission layer: owned DIBs verify local coordinates, frame cancellation, and unchanged targets before commit.
 use super::*;
 use windows::Win32::{Foundation::*, Graphics::Gdi::*};
 

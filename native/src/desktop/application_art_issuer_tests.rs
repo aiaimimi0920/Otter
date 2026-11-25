@@ -1,4 +1,4 @@
-//! 真实 Application/隐藏窗口、后台读取与显式确认；不自动操纵用户信任配置。
+//! Real Application/hidden windows, background reads, and explicit confirmation; do not automatically manipulate user trust settings.
 use super::*;
 use crate::art_issuer_trust::{Document as Trust, Entry};
 use base64::{engine::general_purpose::STANDARD, Engine};

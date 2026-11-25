@@ -105,7 +105,7 @@ fn concurrent_publication_reuses_one_exact_resource_without_temporary_leaks() {
     std::fs::remove_dir_all(directory).unwrap();
 }
 
-// 模拟改名已可见但发布者 DELETE 句柄尚未关闭的窗口，不放宽 Published 的共享模式。
+// Simulate the interval where rename is visible but the publisher's DELETE handle remains open, without relaxing Published's sharing mode.
 fn delete_access(directory: &std::path::Path, png: &Pixels) -> File {
     use std::os::windows::fs::OpenOptionsExt;
     use windows::Win32::Storage::FileSystem::{

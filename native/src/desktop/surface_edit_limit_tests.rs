@@ -1,4 +1,4 @@
-//! 从真实 EDIT 通知验证 maxlength；程序权威值与用户编辑限制分开。
+//! Verify maxlength through actual EDIT notifications; distinguish authoritative programmatic values from user-edit limits.
 use super::*;
 fn area(value: &str, limit: serde_json::Value) -> Scene {
     Scene::parse(serde_json::json!({"id":"field","type":"textarea","props":{"value":value,"maxLength":limit},"events":{"input":"typing"}}).to_string().as_bytes()).unwrap()

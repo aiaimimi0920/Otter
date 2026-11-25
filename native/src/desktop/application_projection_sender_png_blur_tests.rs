@@ -1,4 +1,4 @@
-//! 活动blur必须经真实菜单/TLS带上当前传播布局；oracle仅用独立Gaussian和source-over。
+//! Active blur must carry current propagation layout through real menu/TLS paths; the oracle uses only independent Gaussian and source-over.
 use super::*;
 use crate::{
     blur_image::BlurImage,
@@ -46,8 +46,8 @@ pub(super) unsafe fn install(app: &mut Application) -> Image {
         .edit_original(serde_json::to_vec(&value).unwrap().into());
     settle(app);
 
-    // 完整16×16源contain到传播8×16内容，底图占[8,16)×[4,12)。
-    // 64px点遮罩覆盖全图，blur之上原绘制器再做8%白wash，最后source-over到底图。
+    // Contain the complete 16x16 source within propagated 8x16 content; the base image occupies [8,16)x[4,12).
+    // A 64px point mask covers the full image; the original renderer applies an 8% white wash over blur, then source-over onto the base.
     let weight = |offset: i32| {
         if offset.abs() > 3 {
             return 0.0;

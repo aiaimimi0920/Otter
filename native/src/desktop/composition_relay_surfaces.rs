@@ -1,4 +1,4 @@
-//! 远程集合中的 Surface 事务；完成结果保留 owner，直到 UI 显式取走前继续占容量。
+//! Surface transactions in remote collections; completed results retain owners and capacity until explicitly collected by the UI.
 use super::*;
 use crate::{
     surface_lifecycle_owner::Owner,
@@ -18,7 +18,7 @@ pub enum Error {
     BatchDecisionMerge,
 }
 impl Sessions {
-    /// 正常回收之后快照未交付证据；仍在途时拒绝伪造一份完整快照。
+    /// Snapshot undelivered evidence after normal reclamation; reject fabricated complete snapshots while still in flight.
     pub fn surface_recovery_records(
         &self,
     ) -> io::Result<Vec<crate::surface_recovery_record::Record>> {
@@ -32,7 +32,7 @@ impl Sessions {
         }
         self.attachment_recovery_records()
     }
-    /// 同时快照两类恢复提示；只复制脱敏元数据，不提前取走或清空内存证据。
+    /// Snapshot both recovery-hint categories together; copy only sanitized metadata without prematurely taking/clearing in-memory evidence.
     pub fn surface_recovery_bundle(
         &self,
     ) -> io::Result<(
@@ -131,7 +131,7 @@ impl Sessions {
         }
         Ok(records)
     }
-    /// 优雅退出等待挂载与生命周期事务，不能被无关帧事件或未消费结果反复唤醒。
+    /// Graceful shutdown waits for mount/lifecycle transactions and must not repeatedly wake for unrelated frame events or unconsumed results.
     pub fn surface_shutdown_handles(&self) -> impl Iterator<Item = BorrowedHandle<'_>> {
         self.surface_jobs
             .iter()
@@ -172,7 +172,7 @@ impl Sessions {
                     .filter_map(crate::surface_attach_runtime::Job::wait_handle),
             )
     }
-    /// 线程回收不等于附件结算；未被接纳的结果必须继续作为待处理证据。
+    /// Thread reclamation is not attachment settlement; unadmitted results must remain as pending evidence.
     pub fn surface_cleanup_pending(&self) -> bool {
         !self.batch_continuation_jobs.is_empty()
             || !self.resource_jobs.is_empty()
@@ -196,7 +196,7 @@ impl Sessions {
         &mut self,
         mut deliver: impl FnMut(SurfaceOutcome) -> Result<(), Box<SurfaceOutcome>>,
     ) -> bool {
-        // 有界扫描，未匹配恢复结果不能挡住后面的激活完成；拒收项原位保留。
+        // Bounded scan: unmatched recovery results must not block later activation completions; retain rejected entries in place.
         for index in (0..self.surface_outcomes.len()).rev() {
             let outcome = self.surface_outcomes.remove(index);
             match deliver(outcome) {
@@ -253,7 +253,7 @@ impl Sessions {
                 error,
             });
         }
-        // 完成缓存提前预留，避免回收线程后才因分配失败丢失 owner。
+        // Reserve completion caches early to prevent allocation failure after thread reclamation from losing owners.
         if let Err(error) = self
             .surface_outcomes
             .try_reserve(self.surface_jobs.len() + 1)
@@ -280,12 +280,12 @@ impl Sessions {
         for job in &self.surface_jobs {
             job.request_stop();
         }
-        // 服务切换/退出后不交付旧场景，但保留 owner 的已确认版本或 unknown。
+        // Do not deliver old scenes after service switches/exit, but preserve the owner's confirmed revision or unknown state.
         for outcome in &mut self.surface_outcomes {
             outcome.result = Err(LifecycleError::Stopped);
         }
     }
-    /// 返回一次性错误提示，结果中的 owner 本身保存在集合，不由错误提示消费。
+    /// Return a one-shot error notice; the collection retains the result's owner, which the notice does not consume.
     pub fn poll_surfaces(&mut self) -> Vec<(String, Error)> {
         self.poll_recovery_file();
         let mut errors = self.poll_attaches();

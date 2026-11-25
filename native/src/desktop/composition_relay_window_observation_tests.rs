@@ -1,4 +1,4 @@
-//! 自有离屏NOACTIVATE窗口，核真实EDIT/菜单/重入/回收，不使用全局输入或真实profile。
+//! Owned offscreen NOACTIVATE windows verify real EDIT/menu/reentrancy/reclamation; no global input or real profiles.
 use super::*;
 use crate::live_relay_viewer_business::Business;
 use serde_json::json;
@@ -55,7 +55,7 @@ fn explicit_menu_reuses_one_readonly_capture_excluded_window_and_preserves_selec
         assert!(text(edit).contains("值：7"));
         assert_eq!(open(&window), (panel, edit));
         SendMessageW(edit, EM_SETSEL, Some(WPARAM(2)), Some(LPARAM(7)));
-        // 普通media/input/state notice即使发布新的Business Arc，也不应重写EDIT及清空用户选区。
+        // Ordinary media/input/state notices must not rewrite EDIT or clear user selections even if they publish a new Business Arc.
         media
             .publish_business(&permit, Arc::new(b.as_ref().clone()))
             .unwrap();

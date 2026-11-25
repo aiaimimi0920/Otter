@@ -1,4 +1,4 @@
-//! 主干会话的拓扑适配；字段与 SessionSticker/Link/Group 对齐，不负责图片/编辑器或磁盘写入。
+//! Baseline session-topology adapter with fields aligned to SessionSticker/Link/Group; no image/editor or disk-write responsibility.
 use crate::{
     workspace::{Error as ModelError, Group, Link, Workspace, MAX_LINKS, MAX_UNITS},
     workspace_id::UnitId,
@@ -30,7 +30,7 @@ pub struct SessionGroup {
     #[serde(default)]
     pub locked: bool,
 }
-/// 仅拓扑切片，不可把它序列化后覆盖完整旧会话，否则会丢失图片/标注等字段。
+/// Topology slice only; serializing it over a complete old session would lose fields such as images/annotations.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Topology {
     pub stickers: Vec<Sticker>,
@@ -88,7 +88,7 @@ impl Topology {
                 .collect(),
         }
     }
-    /// 先完整构造独立候选。调用者还需验证其他会话资源，全部成功后才交换当前工作区。
+    /// Fully construct an independent candidate first. Callers must also validate other session resources, swapping the current workspace only after everything succeeds.
     pub fn restore(&self) -> Result<Workspace, Error> {
         if self.stickers.len() > MAX_UNITS
             || self.groups.len() > MAX_UNITS
@@ -132,7 +132,7 @@ impl Topology {
             }) {
                 return Err(ModelError::InvalidPort.into());
             }
-            // 恢复不是交互 connect：保留旧会话的边顺序/身份，不用单输入替换规则改写数据。
+            // Restoration is not interactive connect: retain legacy session edge order/identity without rewriting data using single-input replacement rules.
             workspace.add_link(Link {
                 id: id(&link.id)?,
                 from_unit: id(&link.from_unit_id)?,

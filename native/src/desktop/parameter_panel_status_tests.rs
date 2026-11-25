@@ -1,4 +1,4 @@
-//! 隐藏的实际 STATIC 子窗：确认写入、重建及 WM_SETTEXT 重入。
+//! Actual hidden STATIC children: verify writes, rebuilds, and WM_SETTEXT reentrancy.
 use super::*;
 use windows::Win32::UI::Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass};
 

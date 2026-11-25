@@ -1,4 +1,4 @@
-//! 工作流实际 PNG 回归：传播留白、整框翻转、裁剪 clip 与目标坐标擦除。
+//! Actual workflow PNG regressions: propagated padding, whole-box flips, crop clipping, and erasing in target coordinates.
 use super::*;
 #[path = "session_workflow_crop_projection_tests.rs"]
 mod crop_projection;
@@ -37,7 +37,7 @@ fn render_pixels(edit: Value, propagation: Value, pixels: Vec<u8>) -> crate::des
     .unwrap()
 }
 fn propagation(x: f64, y: f64, w: f64, h: f64) -> Value {
-    // source frame 的真实 wire 形状只有 w/h，不要求不存在的 x/y。
+    // The actual source-frame wire shape has only w/h; do not require nonexistent x/y.
     json!({"upstreamSourceFrame":{"w":8,"h":4},"upstreamContentFrame":{"x":x,"y":y,"w":w,"h":h}})
 }
 fn pixel(image: &crate::desktop::image::Image, x: u32, y: u32) -> &[u8] {
@@ -95,7 +95,7 @@ fn nonuniform_crop_contains_in_viewport_instead_of_stretching_old_source() {
         Value::Null,
     );
     assert_eq!((image.width, image.height), (4, 4));
-    // viewport 16x4，8x4 图片居中于 x=4；裁剪 x=4，恰好保留整图，无拉伸。
+    // Viewport 16x4, with the 8x4 image centered at x=4; cropping at x=4 retains the whole image without stretching.
     for y in 0..4 {
         assert!(pixel(&image, 0, y)[0] > 80);
         assert!(pixel(&image, 3, y)[1] > 80);
@@ -117,7 +117,7 @@ fn propagated_erase_uses_visible_coordinates_after_flip() {
 fn legacy_pixel_crop_samples_before_whole_frame_flip_without_changing_output_size() {
     let _com = crate::desktop::Apartment::new().unwrap();
     for flipped in [false, true] {
-        // 原图左半蓝色，右半绿色；只取左侧，不能对已翻转图误取左侧绿色。
+        // The source's left half is blue and right half green; take only the left, not green from the already flipped image.
         let image = render(
             json!({"cropRect":{"x":0,"y":0,"w":4,"h":4},"flippedX":flipped}),
             Value::Null,
@@ -175,7 +175,7 @@ fn legacy_outside_source_preserves_transparent_area_and_visible_erase_coordinate
         "contentEraseStrokes":[{"width":2,"points":[{"x":5,"y":1}]}]}),
         propagation(0.0, 0.0, 4.0, 2.0),
     );
-    // 输出坐标 4×4 覆盖：圆形笔迹在该角像素仅覆盖 13/16，不应提前在源图抹平软边。
+    // Output-coordinate 4x4 coverage: the circular stroke covers this corner pixel by only 13/16; do not flatten its soft edge early in source space.
     assert!((23..=25).contains(&pixel(&image, 4, 0)[3]));
     assert!(pixel(&image, 7, 0)[0] > 80);
 }
@@ -183,7 +183,7 @@ fn legacy_outside_source_preserves_transparent_area_and_visible_erase_coordinate
 #[test]
 fn legacy_vertical_crop_selects_original_rows_before_flip() {
     let _com = crate::desktop::Apartment::new().unwrap();
-    // 上下不同色；仅检查占用矩形不足以证明 Y 轴取样区域正确。
+    // Top and bottom colors differ; occupied bounds alone cannot prove the correct Y sampling region.
     let pixels = [[200, 0, 0, 255].repeat(16), [0, 200, 0, 255].repeat(16)].concat();
     for flipped in [false, true] {
         let image = render_pixels(

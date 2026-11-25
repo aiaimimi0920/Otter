@@ -1,4 +1,4 @@
-//! 自有隐藏 HWND 的滚轮消息回归；只改线程键态，不注入全局输入或代替前台手测。
+//! Wheel-message regressions with owned hidden HWNDs; change only thread key state, without global input injection or substituting for foreground manual tests.
 use super::*;
 use crate::desktop::{Apartment, Window};
 use crate::editor::Tool;
@@ -75,7 +75,7 @@ impl Fixture {
             )
             .unwrap(),
         );
-        // 使用原有显式 CPU 选择，使真实 WM_PAINT 回归不依赖测试机 GPU。
+        // Use the existing explicit CPU selection so real WM_PAINT regressions do not depend on the test machine's GPU.
         crate::desktop::render_commands::execute(
             window.0,
             &state,
@@ -144,7 +144,7 @@ fn alt_wheel_changes_opacity_and_paints_without_resizing_or_editing_pixels() {
         fixture.wheel(&[VK_MENU], -120);
         fixture.opacity(0.88, 0.9, 0.88);
         assert_eq!(fixture.rect(), rect);
-        // 隐藏 HWND 没有系统更新区；显式驱动原绘制链验证透明度提交及像素不变。
+        // Hidden HWNDs have no system update region; explicitly drive the original paint chain to verify opacity commits and unchanged pixels.
         SendMessageW(fixture.window.0, WM_PAINT, None, None);
         assert!(fixture.state.error.borrow().is_none());
         assert_eq!(fixture.state.canvas.borrow().confirmed_paints, 1);
@@ -181,7 +181,7 @@ fn alt_wheel_clamps_and_other_modifiers_keep_original_zoom_behavior() {
             fixture.opacity(0.97, 0.9, 0.97);
             assert_eq!(fixture.rect(), rect);
         }
-        // 动画只驱动可见宿主；本测试始终运行在未切换的私有 desktop。
+        // Animation drives only visible hosts; this test always runs on a private desktop that is never switched to.
         let _ = ShowWindow(fixture.window.0, SW_SHOWNOACTIVATE);
         let rect = fixture.rect();
         fixture.wheel(&[VK_CONTROL], -120);

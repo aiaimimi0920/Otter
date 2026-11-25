@@ -1,4 +1,4 @@
-//! 真实 MTA ToggleState 订阅：缓存身份、二态载荷、拒绝不发送及 COM 清理。
+//! Actual MTA ToggleState subscriptions: cached identity, binary payloads, no notifications on rejection, and COM cleanup.
 use super::*;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -82,7 +82,7 @@ fn expect(receiver: &Receiver<Evidence>, expected: ToggleState) -> Result<()> {
             expected.0
         )
     );
-    // 默认 UIA 可能重复交付，重复项也必须有同一状态与身份；循环有界。
+    // Default UIA may duplicate delivery; duplicates must have identical state/identity, and the loop is bounded.
     for _ in 0..4 {
         match receiver.recv_timeout(Duration::from_millis(100)) {
             Ok(value) => assert_eq!(value.unwrap(), item),
@@ -139,7 +139,7 @@ fn receive(hwnd: usize) -> Result<()> {
         pattern.Toggle()?;
         expect(&recv, ToggleState_Off)?;
         assert_eq!(super::super::abi::toggle_notifications(), emitted + 2);
-        // 仅向自有窗口分派输入消息，验证物理输入处理路径共用通知出口。
+        // Dispatch input messages only to owned windows, verifying the physical-input handling path shares the notification outlet.
         SendMessageW(hwnd, WM_LBUTTONDOWN, None, Some(LPARAM(10 | (9 << 16))));
         SendMessageW(hwnd, WM_LBUTTONUP, None, Some(LPARAM(10 | (9 << 16))));
         expect(&recv, ToggleState_On)?;
@@ -150,7 +150,7 @@ fn receive(hwnd: usize) -> Result<()> {
         expect(&recv, ToggleState_Off)?;
         assert_eq!(pattern.CurrentToggleState()?, ToggleState_Off);
         assert_eq!(super::super::abi::toggle_notifications(), emitted + 4);
-        // 仅禁用本测试拥有的 HWND；不操作其他程序或注入桌面输入。
+        // Disable only this test's HWND; do not operate other programs or inject desktop input.
         let _ = EnableWindow(hwnd, false);
         let rejected = pattern.Toggle();
         let _ = EnableWindow(hwnd, true);

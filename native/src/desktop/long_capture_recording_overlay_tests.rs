@@ -1,4 +1,4 @@
-//! 真实非模态消息循环：保持源窗启用、箭头在预览之上、中心穿透、完成后成对释放窗口。
+//! Real modeless loops: keep sources enabled, arrows above previews, centers click-through, and release window pairs after completion.
 use super::super::super as dialog;
 use super::*;
 use windows::Win32::UI::Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass};
@@ -118,7 +118,7 @@ fn modeless_preview_has_only_arrow_hits_and_finishes_without_disabling_owner() {
                 "status must still reach the backing"
             );
             input.job.borrow_mut().append(frame(0, 4)).unwrap();
-            // 只领取采集回复；settle 会连新预览回复一起领取，无法观察旧预览阶段。
+            // Collect capture replies only; settle also collects new preview replies, preventing observation of the old-preview stage.
             let deadline = Instant::now() + Duration::from_secs(5);
             while input.job.borrow().snapshot().frame_count < 2 {
                 dialog::handle(hwnd, WM_TIMER, WPARAM(TIMER), LPARAM(0));

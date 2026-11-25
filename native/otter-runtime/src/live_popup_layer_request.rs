@@ -1,4 +1,4 @@
-//! 独立恢复 owner 的单槽 posted 请求；未知结果保留原窗口/身份，不阻塞 UI、不重放输入。
+//! Single-slot posted requests for the independent recovery owner; unknown outcomes retain original windows/identities, without blocking UI or replaying input.
 use crate::{
     live_native_hooks::{Hooks, Kind},
     live_window_target::Target,
@@ -120,7 +120,7 @@ impl Channel {
         self.run(p::Operation::Acquire)
     }
     pub fn restore(&mut self) -> Result<()> {
-        // 原显示对象已消失是权威终态；迟到 Acquire 也因同一实例检查不能再修改新对象。
+        // Disappearance of the original display object is an authoritative terminal state; the same-instance check also prevents late Acquire from modifying a new object.
         if !self.lease.same_instance() {
             self.withdraw()?;
             self.pending = None;
@@ -149,7 +149,7 @@ impl Channel {
         else {
             return Ok(());
         };
-        // 顺序不可颠倒：先撤 COMMIT，未领取的旧快照在 CLAIMED 后复读时必被拒绝。
+        // Order must not reverse: revoke COMMIT first so unclaimed old snapshots are rejected when reread after CLAIMED.
         self.withdraw()?;
         if !pending.request.matches() {
             return Err(Error::new(E_ABORT, "Popup request identity changed"));
@@ -161,7 +161,7 @@ impl Channel {
             self.acquired = false;
             return Ok(());
         }
-        // 已领取但未完成时保留原槽；不能先发布 Restore 或先退休 journal。
+        // Retain the original slot while claimed but unfinished; do not publish Restore or retire the journal first.
         let _ = self.observe()?;
         self.acquired = false;
         Ok(())
@@ -176,7 +176,7 @@ impl Channel {
             }
             let result = self.observe()?;
             if result == p::PENDING {
-                // 源端明确在修改前拒绝忙状态，才允许稍后新请求；未知结果绝不走此分支。
+                // Only explicit source rejection of busy state before mutation permits a later new request; unknown outcomes never enter this branch.
                 self.retry_at = Some(Instant::now() + POLL);
                 return Err(in_flight());
             }
@@ -264,7 +264,7 @@ impl Channel {
                 WPARAM(self.window.0 .0 as usize),
                 LPARAM(nonce as isize),
             ) {
-                // PostMessage 失败没有入队；仍先撤提交，再确认未领取才清槽。
+                // Failed PostMessage did not enqueue; still revoke commit first, and clear the slot only after confirming it was not claimed.
                 self.withdraw()?;
                 if value(self.window.0, p::CLAIMED) != nonce {
                     self.pending = None;
@@ -277,7 +277,7 @@ impl Channel {
 }
 impl Drop for Channel {
     fn drop(&mut self) {
-        // 正常 owner 必须先 drain 恢复；异常析构撤销迟到 Acquire，独立 child 保留记录。
+        // Normal owners must drain recovery first; abnormal destruction revokes late Acquire while the independent child retains records.
         if let Err(error) = self.withdraw() {
             eprintln!("native-live-popup-request-cancel: {error}");
         }

@@ -1,4 +1,4 @@
-//! Shell 拖动图像边界；只复制有界缩略图，不在 UI 线程解码 PNG 或访问文件。
+//! Shell drag-image boundary; copy only bounded thumbnails, without UI-thread PNG decoding or file access.
 use windows::{
     core::{Error, Result},
     Win32::{Foundation::*, Graphics::Gdi::*, System::Com::*, UI::Shell::*},
@@ -64,7 +64,7 @@ pub(super) fn attach(
             crColorKey: COLORREF(0xffff_ffff),
         };
         helper.InitializeFromBitmap(&image, object)?;
-        // 成功后由 Shell 图像管理器接管；失败路径仍由本地 RAII 回收。
+        // Shell image managers take ownership on success; local RAII reclaims failure paths.
         std::mem::forget(bitmap);
         Ok(())
     }

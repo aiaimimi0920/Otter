@@ -1,4 +1,4 @@
-//! 决定结果经统一事件交付到真实 HWND；模拟协议证据，不连接真实服务。
+//! Decision results reach real HWNDs through unified event delivery; simulated protocol evidence without real service connections.
 use super::*;
 use crate::{
     surface_confirmation::{Choice, Decision, Request as Prompt},

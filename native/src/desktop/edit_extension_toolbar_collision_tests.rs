@@ -1,4 +1,4 @@
-//! 合法的同名与分隔符不构成槽身份；每个按钮/组项均路由自己的命令。
+//! Valid duplicate names/delimiters are not slot identities; each button/group item routes its own command.
 use super::*;
 
 fn catalog(rows: &[(&str, &str, Option<&str>)]) -> serde_json::Value {
@@ -43,7 +43,7 @@ fn catalog(rows: &[(&str, &str, Option<&str>)]) -> serde_json::Value {
 unsafe fn assert_routes(rows: &[(&str, &str, Option<&str>)], expected: &[Vec<usize>]) {
     for (slot_index, members) in expected.iter().enumerate() {
         for (selection, member) in members.iter().enumerate() {
-            // 真正提交会置 busy，每次路由用独立 HWND/状态，不绕过单槽门禁。
+            // Real submission sets busy; each routing check uses an independent HWND/state without bypassing single-slot admission.
             let f = Fixture::new();
             setup(&f, catalog(rows));
             let visible = (ext::FIRST..ext::FIRST + 8)

@@ -1,4 +1,4 @@
-//! 每文档底部设置条的应用 owner；独立展开状态不入持久化，动作复用参数提交事务。
+//! Application owner of per-document bottom settings strips; independent expansion is not persisted, and actions reuse parameter-commit transactions.
 use super::*;
 use desktop::{
     configuration_stamp::Stamp, document_window::parameter_panel, node_settings::Action,
@@ -57,7 +57,7 @@ impl Data {
     }
 }
 pub(super) struct Open {
-    // Child 与顶层先于回调数据释放；Data 对 chrome 只持 Weak，不能形成 Rc 环。
+    // Release child/top-level windows before callback data; Data holds only Weak references to chrome, preventing Rc cycles.
     drawer: Drawer,
     window: host::Window,
     data: Rc<Data>,
@@ -116,8 +116,8 @@ impl Open {
         let open = self.data.open.get();
         let changed = self.data.presentation.get() != Some((open, node.dpi));
         let visible = IsWindowVisible(self.window.0).as_bool();
-        // 顶层也保留旧帧，直到 child、三角裁剪及最终居中位置全部完成。
-        // 即将隐藏的宿主不冻结：WM_SETREDRAW 恢复可见位不能覆盖最终隐藏状态。
+        // Top-level windows also retain old frames until children, triangle clipping, and final centering all finish.
+        // Do not freeze hosts about to hide: WM_SETREDRAW visibility restoration must not overwrite final hidden state.
         let held = changed && visible && self.shown(node);
         let redraw = held.then(|| neuro_mini_ui::paint_batch::Hold::new(self.window.0));
         let layout = self.drawer.update(
@@ -252,7 +252,7 @@ pub(super) unsafe fn sync(app: &mut Application) -> Result<()> {
                             }
                             None => desktop::execution_start::request(doc.window.0, &doc.state)?,
                         }
-                        // 直接执行可能同步更改文档；无动作路径保留原快照。
+                        // Direct execution may synchronously change documents; no-action paths retain the original snapshot.
                         model = projection::capture(&doc.state);
                     }
                 }
@@ -265,7 +265,7 @@ pub(super) unsafe fn sync(app: &mut Application) -> Result<()> {
     window::order_drawing(&ui)?;
     Ok(())
 }
-/// 只有真正的 Tab 总开关同步底部抽屉；左侧属性栏收起端点不是 Tab 操作。
+/// Only the actual master Tab toggle synchronizes bottom drawers; collapsing endpoints via left properties is not a Tab action.
 pub(in crate::desktop::application) unsafe fn tab(binding: &Binding, host: HWND, expanded: bool) {
     if let Some(ui) = binding.borrow().upgrade() {
         for open in ui.drawers.borrow().iter().filter(|o| o.data.host == host) {
@@ -279,7 +279,7 @@ pub(in crate::desktop::application) unsafe fn tab(binding: &Binding, host: HWND,
     }
 }
 pub(super) fn handles(ui: &Ui) -> Vec<HWND> {
-    // 强制销毁后的旧 owner 可短暂与重建 owner 共存；不能把退休句柄送入层序批次。
+    // Forcibly destroyed old owners may briefly coexist with rebuilt ones; retired handles must not enter Z-order batches.
     ui.drawers
         .borrow()
         .iter()
@@ -329,7 +329,7 @@ pub(super) unsafe fn translate(ui: &Ui, msg: &MSG) -> bool {
             if ui.blocked() {
                 return false;
             }
-            // 附着条不是独立文档；编辑栏快捷键仍交给原宿主，Tab 保留标准控件导航。
+            // Attached strips are not independent documents; edit-strip shortcuts still go to original hosts, while Tab retains standard control navigation.
             if msg.message == WM_KEYDOWN
                 && (msg.wParam.0 == windows::Win32::UI::Input::KeyboardAndMouse::VK_F4.0 as usize
                     || (msg.wParam.0 == 0x45

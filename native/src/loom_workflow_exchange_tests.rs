@@ -1,4 +1,4 @@
-//! 真实固定证书 TLS/WS 回环；不读取用户发现配置，不连接运行中的 Loom。
+//! Real pinned-certificate TLS/WS loopback, without user discovery configuration or running Loom connections.
 use super::*;
 use crate::{
     byte_budget::Budget,

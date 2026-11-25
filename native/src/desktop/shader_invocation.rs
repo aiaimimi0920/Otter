@@ -1,4 +1,4 @@
-//! 单个桌面请求只选择一条派发路径；HLSL 帧不会被当作旧预乘 Canvas 帧处理。
+//! Each desktop request selects exactly one dispatch path; HLSL frames must not be treated as legacy premultiplied Canvas frames.
 pub enum Invocation {
     Native(super::shader_native_invocation::Invocation),
     Legacy(crate::shader_process::OwnedInvocation),

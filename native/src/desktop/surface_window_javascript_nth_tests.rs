@@ -1,4 +1,4 @@
-//! 同一 child 的位置规则经真实 HWND/Presentation/D2D 验证；不注入全局输入。
+//! Position rules from the same child verified through actual HWND/Presentation/D2D, without global input injection.
 use super::*;
 #[test]
 fn javascript_nth_child_real_hwnd_grid_pixels_follow_reorder_and_same_child_update() {

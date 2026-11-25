@@ -1,4 +1,4 @@
-//! 单场景呈现状态；准备成功后原子替换，绘制路径复用已持有的 DirectWrite 布局。
+//! Single-scene presentation state; replace atomically after successful preparation and reuse owned DirectWrite layouts during painting.
 use crate::{
     surface_geometry::Geometry,
     surface_length::Context,
@@ -8,7 +8,7 @@ use crate::{
     surface_text::Style,
 };
 use windows::core::Result;
-/// 仅用于已经完成当前场景来源校验的 UI 像素；按节点 ID 索引，不是跨 revision 缓存。
+/// Only for UI pixels already validated against current-scene sources; indexed by node ID, not a cross-revision cache.
 pub type Images =
     std::collections::BTreeMap<String, std::rc::Rc<crate::surface_image_paint::Bitmap>>;
 #[path = "surface_focus_navigation.rs"]
@@ -40,7 +40,7 @@ pub struct Presentation {
     images: Images,
 }
 impl Presentation {
-    /// 仅改嵌入绘制缓存；不改scene、权威snapshot或正式结果，清除预览时重新读取声明值。
+    /// Change only embedded paint caches, not scene, authoritative snapshot, or committed results; reread declared values when clearing previews.
     pub(crate) fn preview_slider(&mut self, id: &str, value: Option<f64>) -> bool {
         let Some(node) = self.scene.root().visible_node(id) else {
             return false;
@@ -60,7 +60,7 @@ impl Presentation {
     ) -> Option<&crate::surface_embedded_control::Paint> {
         self.paint.embedded_control(id)
     }
-    /// 非交互嵌入宿主不创建EDIT/COMBO子窗口，仍在原有z序/opacity/clip指令流绘制声明值。
+    /// Noninteractive embedded hosts create no EDIT/COMBO child windows, but paint declared values in the original z-order/opacity/clip command stream.
     pub(crate) fn embed_controls(&mut self) -> Result<()> {
         self.paint
             .embed_controls(&self.scene, |id| self.cache.control_font(id))
@@ -148,7 +148,7 @@ impl Presentation {
         let frame = cache.project_with_images(scene, scroll, images)?;
         Ok((frame, cache))
     }
-    /// 场景及其快照一起更新；不保留无界历史，也不把错误候选暴露给绘制方。
+    /// Update scenes and snapshots together; retain no unbounded history and expose no invalid candidates to painters.
     pub fn replace(
         &mut self,
         scene: Scene,
@@ -158,7 +158,7 @@ impl Presentation {
     ) -> Result<()> {
         self.replace_with_images(scene, style, context, size, Images::new())
     }
-    /// 新场景必须显式提交其资源；绝不按相同节点 ID 自动继承旧图片。
+    /// New scenes must explicitly submit their resources; never inherit old images automatically by matching node IDs.
     pub fn replace_with_images(
         &mut self,
         scene: Scene,
@@ -171,7 +171,7 @@ impl Presentation {
         *self = next;
         Ok(())
     }
-    /// 同一权威场景只更新图片就绪投影；保留文字未变的选区，不把异步图片当作新场景。
+    /// Update only image-readiness projection for the same authoritative scene; preserve selections when text is unchanged and do not treat async images as new scenes.
     pub(crate) fn refresh_images(
         &mut self,
         scene: Scene,
@@ -188,7 +188,7 @@ impl Presentation {
         *self = next;
         Ok(())
     }
-    /// 尺寸或样式变化才重新测量；调用方必须传入与新视口一致的 Context。
+    /// Remeasure only when dimensions or styles change; callers must supply a Context matching the new viewport.
     pub fn reflow(&mut self, style: Style<'_>, context: Context, size: [f32; 2]) -> Result<()> {
         let mut scroll = self.scroll.clone();
         let (frame, cache) =
@@ -219,7 +219,7 @@ impl Presentation {
         self.paint = frame.paint;
         self.scroll = scroll;
     }
-    /// 只重投影已测量快照，成功后提交偏移与整帧，不创建 DirectWrite 布局。
+    /// Reproject only measured snapshots, committing offsets and complete frames on success without creating DirectWrite layouts.
     pub(crate) fn wheel(
         &mut self,
         point: [f32; 2],
@@ -253,7 +253,7 @@ impl Presentation {
     pub fn next_focus(&self, current: Option<&str>, reverse: bool) -> Option<&str> {
         crate::surface_focus::next(&self.focusable, current, reverse)
     }
-    /// 键盘激活验证当前可聚焦按钮，不借助伪造坐标绕过目标校验。
+    /// Keyboard activation validates the current focusable button without fabricated coordinates that bypass target checks.
     pub fn keyboard_events(
         &self,
         id: &str,
@@ -287,7 +287,7 @@ impl Presentation {
     pub fn text(&self) -> &TextFrame {
         &self.text
     }
-    /// 绘制按场景顺序交织背景与文字；复用画刷并恢复调用方原颜色。
+    /// Painting interleaves backgrounds and text in scene order, reusing brushes and restoring the caller's original colors.
     pub fn draw(
         &self,
         target: &windows::Win32::Graphics::Direct2D::ID2D1RenderTarget,
@@ -343,7 +343,7 @@ impl Presentation {
     pub fn size(&self) -> [f32; 2] {
         self.size
     }
-    /// 只替换嵌入文本绘制缓存，场景、布局和正式值仍是权威快照。
+    /// Replace only embedded text paint caches; scene, layout, and committed values remain the authoritative snapshot.
     pub(crate) fn preview_text(&mut self, id: &str, value: Option<&str>) -> Result<bool> {
         let font = self.control_font(id).cloned();
         self.paint
@@ -352,7 +352,7 @@ impl Presentation {
     pub fn geometry(&self) -> &Geometry {
         &self.geometry
     }
-    /// 输入为宿主逻辑坐标；仅返回最上层节点，不代表该节点已授权执行动作。
+    /// Input uses host logical coordinates; return only the topmost node without implying authorization to execute its actions.
     pub fn hit_test(&self, point: [f32; 2]) -> Option<&str> {
         if self.scrollbar_at(point).is_some() {
             return None;
@@ -373,11 +373,11 @@ impl Presentation {
         )
         .then(|| self.focusable(node.id()))
     }
-    /// 仅解析 click 声明；输入 owner 必须先处理选择手势、穿透、授权和生命周期。
+    /// Parse click declarations only; input owners must first handle selection gestures, pass-through, authorization, and lifecycle.
     pub fn click_route(&self, point: [f32; 2]) -> crate::surface_click_route::ClickRoute<'_> {
         crate::surface_click_route::ClickRoute::new(&self.scene, self.hit_test(point))
     }
-    /// 全批准备成功才返回，避免祖先 payload 超限时仅提交部分冒泡动作。
+    /// Return only after preparing the entire batch, preventing partial bubbling-action submission when ancestor payloads exceed limits.
     pub fn click_events(
         &self,
         point: [f32; 2],

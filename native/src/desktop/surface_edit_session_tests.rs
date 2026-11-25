@@ -1,4 +1,4 @@
-//! 使用真实隐藏 EDIT 验证会话；不发送网络请求或模拟已完成人工 IME 验收。
+//! Verify sessions with real hidden EDIT controls, without network requests or claims of completed manual IME acceptance.
 use super::*;
 use crate::{desktop::surface_window::SurfaceWindow, surface_scene::Scene};
 #[path = "surface_edit_unbound_tests.rs"]

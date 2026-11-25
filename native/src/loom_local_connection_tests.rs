@@ -1,4 +1,4 @@
-//! 本机管理通道和自己的公钥授权边界；不访问真实用户 profile。
+//! Local management channel and own-public-key authorization boundaries; no real user profiles.
 use super::*;
 #[test]
 fn local_loom_renewal_preserves_inflight_lease_but_explicit_revoke_cancels_both() {

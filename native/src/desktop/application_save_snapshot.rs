@@ -1,4 +1,4 @@
-//! 保存快照：UI 线程冻结已提交模型，后台仅消费无 HWND/Rc 的数据；提交前复核凭证。
+//! Save snapshots: the UI thread freezes committed models; background work consumes only HWND/Rc-free data, with credentials rechecked before commit.
 use super::restore_batch::guard::Guard;
 #[path = "application_save_assemble.rs"]
 mod assemble;
@@ -46,7 +46,7 @@ pub struct Document {
     pub local_image: Option<crate::desktop::image::Image>,
 }
 impl Document {
-    /// 与双击展开共用位移算法，显式区分历史无 savedRect 与主动缩略。
+    /// Share the double-click expansion displacement algorithm, explicitly distinguishing historical absence of savedRect from intentional minimization.
     pub fn geometry(&self) -> Result<crate::session_window_write::Geometry> {
         let expanded = match (self.minified.is_some(), self.transition) {
             (false, None) => None,
@@ -107,7 +107,7 @@ pub struct Receipt {
     space: Space,
     transient_host: Option<UnitId>,
 }
-/// 自动持久化只记已编码时间点的几何/身份，不保 GPU 帧，也不跟踪流序号。
+/// Automatic persistence records only geometry/identity at the encoded time point, retaining no GPU frames and tracking no stream sequence numbers.
 pub(super) struct LiveStamp(Vec<live::Guard>);
 impl LiveStamp {
     pub(super) fn matches(&self, app: &Application) -> bool {
@@ -115,7 +115,7 @@ impl LiveStamp {
     }
 }
 pub(super) fn automatic_static_ready(app: &Application) -> bool {
-    // 后台快照只取交互结束状态，不在滚轮/系统移动热路径冻结并序列化整个工作区。
+    // Background snapshots capture only post-interaction state; never freeze and serialize the whole workspace on wheel/system-move hot paths.
     app.live_freeze_job.is_none()
         && !app
             .documents
@@ -169,7 +169,7 @@ impl Receipt {
     }
 }
 impl Application {
-    /// 捕获使用创建或恢复时建立的显式坐标上下文；不猜测历史 DPR，不泵消息。
+    /// Capture uses explicit coordinate context established at creation or restoration; do not guess historical DPR or pump messages.
     pub unsafe fn capture_session_snapshot(&mut self) -> Result<(Receipt, Data)> {
         let (receipt, data) = self.build_session_capture(None, Payload::All)?;
         Ok((receipt, data.expect("save must contain payload")))
@@ -184,7 +184,7 @@ impl Application {
             FrozenData(data.expect("frozen capture must contain payload")),
         ))
     }
-    /// 编辑冻结库原文不需要生成新的图像或工作区文档，但必须持有同样的发布凭证。
+    /// Editing the frozen-library source document requires no new image or workspace document, but must retain the same publication credentials.
     pub(super) unsafe fn capture_session_receipt(&mut self) -> Result<Receipt> {
         self.build_session_capture(None, Payload::None)
             .map(|(receipt, _)| receipt)
@@ -192,7 +192,7 @@ impl Application {
     pub(super) unsafe fn capture_automatic_session_snapshot(
         &mut self,
     ) -> Result<Option<(Receipt, Data)>> {
-        // 调用方已检查静态窗口。同次 UI 操作内移交准入用的帧，不跨消息缓存或领取第二次投递。
+        // The caller already checked the static window. Transfer the admission frame within the same UI operation, without caching across messages or consuming a second delivery.
         let Some(live) = live::capture(self, true, Payload::All)? else {
             return Ok(None);
         };
@@ -210,7 +210,7 @@ impl Application {
         for document in &self.documents {
             crate::desktop::extension_document::observe(&document.state);
         }
-        // 仅生成固定 32 字节随机身份，不解析原文或访问磁盘；失败不降级为路径/UnitId。
+        // Generate only a fixed 32-byte random identity, without parsing source content or accessing disk; failure must not fall back to a path/UnitId.
         if let Some(record) = &mut self.restored_session {
             if record.projection_scope.is_none() {
                 record.projection_scope = Some(crate::session_projection_scope::Scope::generate()?);

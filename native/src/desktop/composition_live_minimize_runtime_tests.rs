@@ -1,4 +1,4 @@
-//! 自有源最小化期间释放输入、保留控制意图，恢复后台渲染后继续点击和滚动。
+//! Release input while owned sources are minimized, preserve control intent, and resume clicks/scrolling after background-rendering recovery.
 use super::*;
 
 #[test]
@@ -63,7 +63,7 @@ unsafe fn exercise(cropped: bool) {
             });
             let _ = ShowWindow(fixture.root, SW_SHOWMINNOACTIVE);
             assert!(IsIconic(fixture.root).as_bool());
-            // 输入 worker 在 UI owner 处理最小化通知前已收到本条；不重放这次动作。
+            // The input worker received this before the UI owner handled minimization; do not replay the action.
             session
                 .send_input(
                     session.last_input_sequence + 1,
@@ -102,7 +102,7 @@ unsafe fn exercise(cropped: bool) {
             );
             assert_eq!(Snapshot::read(&target).unwrap().layered.unwrap().alpha, 1);
             assert_eq!(session.input_cleanup().unwrap().failed, 0);
-            // 确认恢复的不只是 HWND 状态：真实 WGC 必须交付释放鼠标后的新像素。
+            // Verify more than restored HWND state: real WGC must deliver new pixels after mouse release.
             let _ = UpdateWindow(fixture.child);
             until(&mut session, &mut owner, "pixels after minimize", |s| {
                 let frame = s.window.as_ref().unwrap().frame_for_test().unwrap();
@@ -117,7 +117,7 @@ unsafe fn exercise(cropped: bool) {
                         }
                     })
             });
-            // 新手势恢复准入，首个滚轮仍送达源，不能要求系统菜单手动重启控制。
+            // New gestures restore admission and deliver the first wheel event; do not require manually restarting control from the system menu.
             let mut point = POINT { x: 50, y: 50 };
             assert!(ClientToScreen(window, &mut point).as_bool());
             let at = LPARAM(
@@ -131,7 +131,7 @@ unsafe fn exercise(cropped: bool) {
             assert!(session.take_input_error().is_none());
             eprintln!("native-live-minimize: cropped={cropped} cycle={cycle} released=true new-pixels=true resumed=true notice=false");
         }
-        // 用户已召回的源不再由隐藏 lease 接管；最小化期间静默等待，手动还原后可继续。
+        // A source recalled by the user is no longer taken over by the hidden lease; wait silently while minimized and continue after manual restoration.
         session.protection.take();
         until(&mut session, &mut owner, "recalled source", |_| {
             Snapshot::read(&target).unwrap().extended_style == original.extended_style

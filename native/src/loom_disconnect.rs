@@ -1,4 +1,4 @@
-//! 主动断开使用一次性的原会话凭据；任务有界且退出时回收，不轮换设备身份。
+//! Explicit disconnect uses original session credentials once; tasks are bounded/reaped on exit, without rotating device identity.
 use super::{Error, Task};
 use crate::desktop::loom_execution_signal::Notify;
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};

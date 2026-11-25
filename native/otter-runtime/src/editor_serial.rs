@@ -1,4 +1,4 @@
-//! 序号创建与计数器是同一次历史事务；删除/复制不重排已有标签。
+//! Serial-label creation/counters share one history transaction; deletion/duplication does not reorder existing labels.
 use super::*;
 use crate::text_annotation::TextAnnotation;
 impl Editor {

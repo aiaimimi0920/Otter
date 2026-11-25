@@ -1,4 +1,4 @@
-//! 已知取景框位移先验证共同区域，再在同一借用区域分析页面的剩余轴向滚动。
+//! Verify shared regions for known viewport displacement, then analyze residual axial page scrolling in the same borrowed region.
 use super::{view::View, *};
 use std::sync::atomic::Ordering;
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -6,8 +6,8 @@ pub enum SpatialMatch {
     Offset { x: i64, y: i64, mean_error: f64 },
     Rejected(ApproximateMatch),
 }
-/// movement 是物理取景框位移，不是未经验证的图像坐标。成功仍不改变任何会话状态。
-/// 已知位移的共同区域逐像素复核；剩余滚动复用有界采样分析，不宣称逐像素精确证明。
+/// movement is physical viewport displacement, not unverified image coordinates. Success still changes no session state.
+/// Recheck known-displacement shared regions pixelwise; residual scrolling reuses bounded sampling without claiming exact per-pixel proof.
 pub fn match_spatial(
     previous: &Frame,
     current: &Frame,
@@ -25,7 +25,7 @@ pub fn match_spatial(
         return Err(Error::Dimensions);
     }
     let (dx, dy) = movement;
-    // 切换后普通滚动仍应保留一维精确匹配能力；不能仅因渐变纹理低就拒绝唯一精确位移。
+    // Ordinary scrolling after switching retains 1D exact matching; low gradient texture alone cannot reject uniquely exact displacement.
     if movement == (0, 0) {
         match match_exact(previous, current, axis, options.minimum_overlap, cancel)? {
             Match::Duplicate => {
@@ -77,7 +77,7 @@ pub fn match_spatial(
     }
     let ceiling = options.maximum_mean_error.min(3.0);
     let error = overlap_error(a, b, ceiling, cancel)?;
-    // 已知移动不要求纹理；同色内容仍能验证，不能据此推断一个未知残差位移。
+    // Known movement requires no texture; same-color content can validate but cannot imply unknown residual displacement.
     if error <= ceiling {
         return Ok(SpatialMatch::Offset {
             x: dx,
@@ -116,13 +116,13 @@ fn overlap_error(
         for x in 0..a.width {
             let pa = a.pixel(Axis::Vertical, y, x);
             let pb = b.pixel(Axis::Vertical, y, x);
-            // 与主干 RGB 截图一致，不把 alpha 差异当作页面运动。
+            // Match mainline RGB captures; alpha differences are not page motion.
             total += (0..3)
                 .map(|c| u64::from(pa[c].abs_diff(pb[c])))
                 .sum::<u64>();
         }
-        // 完整区域的分母给出误差下界；超过阈值后直接进入残余滚动分析。
-        // 只有失败候选提前结束，接受候选的 mean_error 仍来自全部 RGB 像素。
+        // Full-region denominators bound minimum error; exceeding thresholds directly enters residual-scrolling analysis.
+        // Only failed candidates terminate early; accepted mean_error still includes all RGB pixels.
         if total as f64 / count > ceiling {
             check(cancel)?;
             return Ok(f64::INFINITY);

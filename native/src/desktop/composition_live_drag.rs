@@ -1,4 +1,4 @@
-//! Live 本地拖动独占捕获；以初始屏幕坐标计算，不在移动后的客户区累计误差。
+//! Live local dragging exclusively owns capture; calculate from initial screen coordinates instead of accumulating error in the moving client area.
 use super::*;
 use crate::pin_geometry::PinRect;
 
@@ -12,7 +12,7 @@ pub(in crate::desktop::composition::live::window) struct Drag {
 }
 pub(in crate::desktop::composition::live::window) unsafe fn cancel(hwnd: HWND, state: &State) {
     state.drag_starting.set(false);
-    // 先退休状态，再释放捕获；ReleaseCapture 会同步重入 WM_CAPTURECHANGED。
+    // Retire state before releasing capture; ReleaseCapture synchronously reenters WM_CAPTURECHANGED.
     if state.drag.take().is_some() && GetCapture() == hwnd {
         let _ = ReleaseCapture();
     }
@@ -80,7 +80,7 @@ pub(in crate::desktop::composition::live::window) unsafe fn handle(
             update(hwnd, state, lp);
             return true;
         }
-        // 不允许滚轮或第二个按钮在同一捕获事务中建立另一个本地几何操作。
+        // Do not allow wheel events or a second button to create another local geometry operation within the same capture transaction.
         if matches!(
             message,
             WM_MOUSEWHEEL | WM_MOUSEHWHEEL | WM_LBUTTONDOWN | WM_RBUTTONDOWN | WM_MBUTTONDOWN
@@ -115,7 +115,7 @@ unsafe fn begin_with(
     resize: bool,
     retire_source: impl FnOnce(),
 ) -> bool {
-    // 撤销源输入会同步重入；内层 begin 不能覆盖尚未完成的所有权移交。
+    // Revoking source input may reenter synchronously; an inner begin cannot overwrite an unfinished ownership handoff.
     if state.drag_starting.replace(true) {
         return true;
     }

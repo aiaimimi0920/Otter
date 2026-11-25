@@ -1,4 +1,4 @@
-//! 跨进程订阅 owner：回调只读缓存，证据有界传递，注销先于 COM apartment 退出。
+//! Cross-process subscription owner: callbacks read only caches, transfer bounded evidence, and unregister before exiting COM apartments.
 use super::*;
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
@@ -113,7 +113,7 @@ impl Subscription {
                 .unwrap(),
             expected
         );
-        // 系统可能重复交付同一 raise；核对每条身份/载荷，不把回调数当动作数。
+        // The system may deliver one raise repeatedly; verify each identity/payload, never equating callback count with action count.
         for _ in 0..8 {
             match self.receiver.recv_timeout(Duration::from_millis(100)) {
                 Ok(item) => assert_eq!(item.unwrap(), expected),

@@ -1,4 +1,4 @@
-//! UI 线程内的唯一长截图结束路由；共享采集身份、窗口属性和递增代次共同拒绝迟到消息。
+//! Sole UI-thread scrolling-capture finish route; shared capture identity, window properties, and increasing generations jointly reject late messages.
 use std::{
     cell::{Cell, RefCell},
     rc::{Rc, Weak},
@@ -76,7 +76,7 @@ impl Registration {
         true
     }
 }
-/// 不同步重入对话框；至多排队一个通知，只有同一 Application 的在途采集可以领取。
+/// Do not reenter dialogs synchronously; enqueue at most one notice, collectible only by in-flight capture in the same Application.
 pub(in crate::desktop) unsafe fn request(capture: &Rc<Cell<bool>>) -> bool {
     let route = ACTIVE.with(|active| active.borrow().upgrade());
     let Some(route) = route else {
@@ -92,7 +92,7 @@ pub(in crate::desktop) unsafe fn request(capture: &Rc<Cell<bool>>) -> bool {
             eprintln!("native-long-capture-finish: {error}");
         }
     }
-    // 即使系统队列失败，也不能把第二次按键降级成另一次选区；用户仍可点击完成或重试。
+    // Even system-queue failure must not downgrade a second keystroke into another selection; users can still click Finish or retry.
     true
 }
 #[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-capture")))]

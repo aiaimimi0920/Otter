@@ -1,4 +1,4 @@
-//! stack 的共享区域重叠布局；保留场景顺序，不引入行列 gap 或 grow。
+//! Shared-region overlapping stack layout; preserve scene order without row/column gap or grow.
 use super::*;
 pub(super) fn arrange<'a>(
     node: &'a Node,
@@ -9,7 +9,7 @@ pub(super) fn arrange<'a>(
     context: Context,
     font: &dyn Fn(&Node) -> Option<f32>,
 ) -> Result<Vec<Box<'a>>, Error> {
-    // 多轨道和内容分布需独立 grid 算法，不能借用 flex justify 冒充。
+    // Multiple tracks and content distribution need a separate grid algorithm; flex justify is not a substitute.
     if node
         .layout()
         .get("justify")

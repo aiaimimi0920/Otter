@@ -1,9 +1,9 @@
-//! 栅格化原子事务：图层替换和矢量移除共享一个历史项，保留原索引与对象所有权。
+//! Atomic rasterization: layer replacement/vector removal share one history item, preserving original indices/object ownership.
 use super::*;
 use crate::erase_layers::Layers;
 
 impl Editor {
-    /// 只克隆待栅格化矢量，不携带底图、草稿或历史；用于独立后台合成。
+    /// Clone only vectors pending rasterization for independent background composition, without bases, drafts, or history.
     pub fn rasterize_snapshot(&self, indices: &[usize]) -> Result<Self, EditError> {
         if indices.is_empty()
             || indices.iter().any(|i| *i >= self.elements.len())
@@ -23,7 +23,7 @@ impl Editor {
             ..Self::default()
         })
     }
-    /// indices 必须严格递增；后台合成完成后调用，过期结果不修改文档。
+    /// indices must strictly increase; call after background composition, with stale results leaving documents unchanged.
     pub fn commit_rasterized(
         &mut self,
         revision: u64,

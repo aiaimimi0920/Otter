@@ -1,4 +1,4 @@
-//! 不同完整框的真实上游自然源：目标crop/reset/undo不得丢失原sourceSize密度。
+//! Real upstream natural sources with different full frames; target crop/reset/undo must preserve original sourceSize density.
 use super::*;
 use crate::{
     crop_geometry::{Rect, Size},
@@ -94,8 +94,8 @@ pub(super) unsafe fn install(app: &mut Application, case: Case) -> Image {
     );
     *app.documents[0].state.resolved_display.borrow_mut() = Some(frame);
 
-    // 独立oracle：16×16自然图contain于目标16×8，底图占x=4..12。
-    // crop的原sourceSize归一化为4×4，密度2，故输出8×8而非16×8。
+    // Independent oracle: contain a natural 16x16 image within a 16x8 target, with the base image at x=4..12.
+    // Normalize crop's original sourceSize to 4x4 at density 2, yielding 8x8 output rather than 16x8.
     if !matches!(case, Case::CrossNaturalReset) {
         return Image {
             width: 8,

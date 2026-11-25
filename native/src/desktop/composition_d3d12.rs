@@ -1,4 +1,4 @@
-//! D3D12 队列/交换链的窗口后端；由 RenderSurface 优先选择，D2D 经 11On12 共享队列绘制。
+//! Window backend with D3D12 queues/swap chains; RenderSurface prefers it, with D2D drawing through the shared 11On12 queue.
 #[path = "composition_d3d12_buffers.rs"]
 mod buffers;
 #[path = "composition_d3d12_device.rs"]
@@ -36,7 +36,7 @@ struct State {
     failed: bool,
     present_trace: super::composition_present_status::Trace,
     retirement: Option<retirement::Retirement>,
-    // 设备最后释放；视图只属于此窗口，不复制业务文档或创建第二条交换链。
+    // Release the device last; views belong only to this window, without copying business documents or creating a second swap chain.
     device: Rc<device::Device>,
     _lease: lifetime::Lease,
 }
@@ -56,8 +56,8 @@ impl CompositionD3d12 {
             state.composition.Commit()
         })
     }
-    // 所有关联操作必须在完整 owner 建立之后执行；失败凭证不是安全析构许可。
-    // 此处仍返回原 HRESULT，不把异步退休开始误当作允许下一候选接管 HWND。
+    // Perform all association operations only after constructing the complete owner; failure evidence is not permission for safe destruction.
+    // Return the original HRESULT here; starting asynchronous retirement does not authorize another candidate to take over the HWND.
     fn attach_with(
         mut self,
         attach: impl FnOnce(&mut State) -> Result<()>,
@@ -77,14 +77,14 @@ impl CompositionD3d12 {
     pub fn resize(&mut self, size: D2D_SIZE_U) -> Result<()> {
         self.0.resize(size)
     }
-    /// 仅供同设备画刷/位图等资源创建；帧起止仍由 draw 独占管理。
+    /// Only for creating same-device brushes/bitmaps and similar resources; draw exclusively controls frame boundaries.
     pub fn resource_target(&self) -> &ID2D1RenderTarget {
         &self.0.context
     }
     pub fn set_opacity(&mut self, opacity: f32) -> Result<()> {
         self.0.set_opacity(opacity)
     }
-    /// 仅报告后端资源失效，不把业务绘制闭包返回的任意错误升级为设备故障。
+    /// Report only backend-resource invalidation; arbitrary errors returned by business drawing closures are not device failures.
     pub fn requires_rebuild(&self) -> bool {
         self.0.retirement.is_some()
             || self.0.failed
@@ -171,7 +171,7 @@ impl State {
         if opacity == self.opacity {
             return Ok(());
         }
-        // 合成视觉透明度不改 backbuffer、文档像素或导出；只在 Commit 成功后更新已提交值。
+        // Composition opacity changes neither backbuffers, document pixels, nor exports; update the committed value only after Commit succeeds.
         let result = (|| unsafe {
             let effect = match &self.opacity_effect {
                 Some(effect) => effect.clone(),
@@ -185,7 +185,7 @@ impl State {
             Ok(())
         })();
         if result.is_err() {
-            // DComp 待提交属性可能已变，不能把旧值当成可靠回滚后继续提交其他操作。
+            // Pending DComp properties may have changed; do not treat the old value as a reliable rollback and continue committing other operations.
             self.failed = true;
             self.ready = false;
         }
@@ -240,7 +240,7 @@ impl State {
         unsafe {
             self.context.SetTarget(None);
             self.buffers.clear();
-            // 包装资源延迟销毁先 Flush，之后才能 ResizeBuffers；失败保留不可绘制状态。
+            // Flush deferred wrapped-resource destruction before ResizeBuffers; retain an undrawable state on failure.
             self.device.immediate.ClearState();
             self.device.immediate.Flush();
             self.chain.ResizeBuffers(
@@ -296,8 +296,8 @@ impl Drop for CompositionD3d12 {
             }
             if let Err(error) = state.device.drain() {
                 if state.device.device12.GetDeviceRemovedReason().is_ok() {
-                    // 未确认完成：毒化共享代际，完整窗口图连同租约保持，拒绝继续借用。
-                    // 不能把 fence 超时当正常关闭，也不能强制 RemoveDevice 影响进程共享设备。
+                    // Unconfirmed completion: poison the shared generation, retain the complete window graph and leases, and reject further borrowing.
+                    // Do not treat fence timeouts as normal closure or force RemoveDevice on a process-shared device.
                     state.device.poison();
                     eprintln!(
                         "native-d3d12-close-unconfirmed-retained: {:?}",

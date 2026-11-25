@@ -1,4 +1,4 @@
-//! 真正 Job child 的私有 Promise/服务往返；不是已授权 Loom 联合测试。
+//! Private Promise/service round trips in real Job children; not authorized Loom joint testing.
 use super::*;
 use services::{Call, Dispatcher, Mount, ResultValue};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -32,7 +32,7 @@ impl Dispatcher for ReplyWith {
         assert!(!stopped() && Instant::now() < deadline);
         assert_eq!(call.service, "capability:vendor:service.run");
         self.count.fetch_add(1, Ordering::SeqCst);
-        // 超过原 JS 250ms；原执行预算必须暂停而非重置，最终帧不能先返回。
+        // Exceeds the original JS 250ms; pause rather than reset the original execution budget, and do not return the final frame early.
         std::thread::sleep(Duration::from_millis(350));
         if self.cancel {
             self.cancelled.store(true, Ordering::SeqCst);

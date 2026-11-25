@@ -1,4 +1,4 @@
-//! 原生闭合路径共用顶点合同；填充、虚线边框及外层透明度均复用形状管线。
+//! Native closed paths share the vertex contract; fill, dashed borders, and outer opacity reuse the shape pipeline.
 use crate::{
     editor::{Stroke, Tool},
     polygon_geometry,

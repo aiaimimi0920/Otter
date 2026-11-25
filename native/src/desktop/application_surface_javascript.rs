@@ -1,4 +1,4 @@
-//! 结算真实 Application JS 挂载；与图片共用原 Grant/任务容量，不在 UI 上准备 Client。
+//! Settle real Application JS mounts, sharing original Grant/task capacity with images; do not prepare Client on the UI thread.
 use super::*;
 impl Application {
     pub(super) fn poll_surface_javascript_with(
@@ -12,7 +12,7 @@ impl Application {
         >,
     ) -> Result<()> {
         let now = crate::desktop::surface_windows::now_ms()?;
-        // 同一应用输入策略先收紧再交付回复；模态/撤权后的旧请求不能趁 refresh 抢焦点。
+        // Tighten the same application input policy before delivering replies; old requests after modal entry/revocation cannot steal focus during refresh.
         let origin = self.surface_input_origin(visible);
         for window in self.surface_windows.iter_mut() {
             if origin.as_deref() != Some(window.binding().origin()) {
@@ -49,7 +49,7 @@ impl Application {
                 }
             };
             if let Err(error) = window.start_javascript(config, lease) {
-                // 未启动的容量竞争可等现有任务完成再试；一旦创建 Runtime 则不重放挂载。
+                // Before startup, capacity contention may retry after existing tasks finish; once Runtime exists, never replay mounting.
                 if error.kind() == std::io::ErrorKind::WouldBlock {
                     continue;
                 }

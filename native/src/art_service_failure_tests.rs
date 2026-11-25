@@ -1,4 +1,4 @@
-//! 真实signed child/TLS：暂态错误拒绝Promise但保留本地交互；取消只作用原call，旧结果不发布。
+//! Real signed child/TLS: transient errors reject Promise but preserve local interaction; cancellation targets only the original call, and old results are never published.
 use super::*;
 use crate::surface_javascript::fixture as js;
 const SOURCE: &str = r#"

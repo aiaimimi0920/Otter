@@ -1,4 +1,4 @@
-//! 本机操作与响应预期一起保存；不开放任意路径、中心操作、账号凭据或 endpoint 参数。
+//! Save local operations with response expectations; no arbitrary paths, central operations, account credentials, or endpoint parameters.
 use super::*;
 use zeroize::Zeroizing;
 pub enum Operation<'a> {
@@ -23,7 +23,7 @@ pub enum Operation<'a> {
         revision: u64,
         image: &'a Image,
     },
-    /// receiver_unit=None 表示本机源；接收侧必须保留精确 Unit 和原邀请，不按网络回复换绑。
+    /// receiver_unit=None means local source; receivers retain the exact Unit/original invitation, never rebind from network replies.
     Read {
         envelope: &'a Envelope,
         known_revision: u64,
@@ -112,7 +112,7 @@ impl Operation<'_> {
         }
     }
     pub(super) fn body(&self) -> Result<Zeroizing<Vec<u8>>, Error> {
-        // 借用 image/envelope 序列化；不用 Value 克隆整张 Base64 PNG。
+        // Serialize borrowed image/envelope; never clone an entire Base64 PNG through Value.
         #[derive(Serialize)]
         #[serde(
             tag = "kind",

@@ -1,4 +1,4 @@
-//! 保留连续滚轮的亚像素几何，只在提交 HWND 时取整；外部移动或调整后重新建立基准。
+//! Preserve continuous-wheel subpixel geometry and round only at HWND commit; rebuild references after external movement/resizing.
 use super::PinRect;
 #[derive(Clone, Copy, Default)]
 pub struct WheelZoom {
@@ -37,7 +37,7 @@ impl WheelZoom {
             width: next_width.round().max(1.0) as u32,
             height: next_height.round().max(1.0) as u32,
         };
-        // 取整可能让极限尺寸超过像素预算；只在此边界向内取整，不损失精确累计值。
+        // Rounding may push extreme dimensions over pixel budgets; round inward only here, preserving exact accumulated values.
         let next = if u64::from(next.width) * u64::from(next.height) > 16_777_216 {
             PinRect {
                 width: next_width.floor().max(1.0) as u32,

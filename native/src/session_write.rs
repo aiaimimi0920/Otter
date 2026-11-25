@@ -1,4 +1,4 @@
-//! 整会话内存候选：按身份合并，保留未知根字段；磁盘提交者必须校验 expected_revision。
+//! Whole-session memory candidates: merge by identity and preserve unknown root fields; disk committers must validate expected_revision.
 #[path = "session_archive_write.rs"]
 pub mod archive;
 use crate::{
@@ -63,7 +63,7 @@ pub struct Candidate {
     pub revision: u64,
 }
 
-/// 窗口字段与新编码字符串的预算共同交付；字段先释放，租约后释放。
+/// Deliver window fields with budgets for newly encoded strings; release fields before leases.
 #[derive(serde::Serialize)]
 #[serde(transparent)]
 pub struct WindowCandidate {
@@ -91,13 +91,13 @@ impl WindowCandidate {
             leases: Vec::new(),
         }
     }
-    /// 移动同一字符串 allocation，不能先释放其预算再交给 serde。
+    /// Move the same string allocation; do not release its budget before handing it to serde.
     pub fn insert_encoded(&mut self, key: &str, value: crate::loom_base64::Encoded) {
         let (text, lease) = value.into_parts();
         self.fields.insert(key.into(), Value::String(text));
         self.leases.push(lease);
     }
-    /// 图片端口与标量端口合为同一对象，字符串预算保持到整个候选释放。
+    /// Merge image and scalar ports into one object, retaining string budgets until the entire candidate is released.
     pub fn insert_encoded_output(
         &mut self,
         key: &str,
@@ -122,8 +122,8 @@ impl WindowCandidate {
     }
 }
 
-/// build 消费旧窗口对象而不复制图片字符串；新对象收到空 Map，必须提供完整窗口内容。
-/// 回调只构造内存，不允许发布副作用。错误、取消或回读失败均不交付部分候选。
+/// build consumes old window objects without copying image strings; new objects receive an empty Map and must supply complete window content.
+/// Callbacks construct memory only, with no published side effects. Errors, cancellation, or readback failure deliver no partial candidate.
 pub fn assemble(
     original: &[u8],
     topology: &Topology,
@@ -135,7 +135,7 @@ pub fn assemble(
     })
 }
 
-/// 带预算的资源安装入口；所有窗口租约保持到完整 JSON 树释放后。
+/// Budgeted resource-installation entry point; retain all window leases until the complete JSON tree is released.
 pub fn assemble_owned(
     original: &[u8],
     topology: &Topology,
@@ -145,7 +145,7 @@ pub fn assemble_owned(
     assemble_owned_with_space(original, topology, cancel, None, build)
 }
 
-/// 原生保存携带明确坐标空间；旧调用不猜测或改写来源空间。
+/// Native saves carry explicit coordinate space; old callers neither guess nor rewrite source space.
 pub fn assemble_owned_with_space(
     original: &[u8],
     topology: &Topology,
@@ -156,7 +156,7 @@ pub fn assemble_owned_with_space(
     assemble_owned_at_revision(original, topology, cancel, space, None, None, build)
 }
 
-/// 独立恢复检查点可有自己的磁盘修订；仍由同一组装/预算/回读 owner 编码一次。
+/// Independent recovery checkpoints may have their own disk revisions; the same assembly/budget/readback owner still encodes once.
 pub(crate) fn assemble_owned_at_revision(
     original: &[u8],
     topology: &Topology,
@@ -194,8 +194,8 @@ fn assemble_with_reserve(
     let revision = expected_revision.checked_add(1).ok_or(Error::Revision)?;
     topology.restore().map_err(|_| Error::Topology)?;
     drop(source);
-    // 按顶层 RawValue 借用原文，未改动的冻结图库/扩展大字段零分配透传。
-    // JSON 字段名可含转义；只拥有这些小键，字段值仍借用原文而不复制大资源。
+    // Borrow source content through top-level RawValue; unchanged frozen galleries/large extension fields pass through allocation-free.
+    // JSON field names may contain escapes; own only these small keys while values borrow source content without copying large resources.
     let mut raw_root: BTreeMap<String, &RawValue> =
         serde_json::from_slice(original).map_err(|_| Error::Source)?;
     let parse_entry = |raw: Option<&RawValue>| -> Result<Option<Value>, Error> {
@@ -232,7 +232,7 @@ fn assemble_with_reserve(
         check(cancel)?;
         let old = windows.remove(&sticker.id).unwrap_or_default();
         let mut window = build(sticker, old)?;
-        // 身份/分组由已验证拓扑拥有；回调不能偷偷引入另一份对象或悬空分组。
+        // Validated topology owns identities/groups; callbacks cannot secretly introduce another object or dangling group.
         if window
             .fields
             .get("id")
@@ -277,11 +277,11 @@ fn assemble_with_reserve(
     root.insert("documentSchemaVersion".into(), RootEntry::Value(json!(1)));
     root.insert("documentRevision".into(), RootEntry::Value(json!(revision)));
     check(cancel)?;
-    // 不另保留整套窗口编码缓冲；共享预算只需最终输出及原有窗口资源租约。
+    // Retain no separate complete set of encoded-window buffers; shared budget needs only final output and existing window-resource leases.
     let length = match measure(&root, cancel) {
         Ok(length) => length,
         Err(Error::Budget) => {
-            // 合法旧文件可能恰好达上限；仅在此慢路径压缩未知字段的空白，且不重跑 build。
+            // Valid legacy files may exactly meet the limit; compact whitespace in unknown fields only on this slow path, without rerunning build.
             for entry in root.values_mut() {
                 check(cancel)?;
                 if let RootEntry::Raw(raw) = entry {
@@ -311,7 +311,7 @@ fn assemble_with_reserve(
         revision,
     })
 }
-/// 共用有界序列化；输出持有像素共享预算，失败不交付部分字节。
+/// Shared bounded serialization; output holds the shared pixel budget, and failure delivers no partial bytes.
 pub(crate) fn encode_bounded(
     value: &impl serde::Serialize,
     cancel: &AtomicBool,

@@ -1,4 +1,4 @@
-//! 异步 JS 呈现完成后才释放原收据/输出门；不改写 ACK/动作结果，也不重放提交。
+//! Release original receipt/output gates only after asynchronous JS presentation completes; neither rewrite ACK/action results nor replay commits.
 use super::*;
 use crate::{desktop::surface_authorized_window::PresentationError, surface_live_binding::Binding};
 impl Sessions {

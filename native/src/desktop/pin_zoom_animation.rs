@@ -1,4 +1,4 @@
-//! 滚轮立即提交完整目标；timer 只负责空闲后的预览回收，不插值或排队追赶。
+//! The wheel immediately commits the complete target; the timer only retires previews after idle, without interpolation or queued catch-up.
 use super::{PinRect, State};
 use std::{
     cell::{Cell, RefCell},
@@ -64,8 +64,8 @@ pub unsafe fn wheel(hwnd: HWND, state: &State, wp: WPARAM, lp: LPARAM) {
     let Some(mut target) = zoom.next(current, pointer, f32::from(delta) / 120.0) else {
         return;
     };
-    // 只折叠同源同修饰键输入；自发的几何 ack 不构成用户输入屏障。
-    // 不越过键盘、其他窗口或模式消息，不丢增量，不为过时尺寸各绘一帧。
+    // Coalesce only inputs from the same source with the same modifiers; self-generated geometry acks are not user-input barriers.
+    // Do not cross keyboard, other-window, or mode messages, lose deltas, or render a frame for every obsolete size.
     let proxy = super::preview::handle(state);
     for _ in 0..255 {
         let mut queued = MSG::default();
@@ -73,7 +73,7 @@ pub unsafe fn wheel(hwnd: HWND, state: &State, wp: WPARAM, lp: LPARAM) {
             break;
         }
         if queued.hwnd == hwnd && queued.message == crate::desktop::window_geometry_wake::MESSAGE {
-            // 此消息只清 pending 标记；应用仍在本次滚轮返回后结算，不在每个旧尺寸保存。
+            // This message only clears the pending flag; the application settles after this wheel handler returns, not at every old size.
             if PeekMessageW(
                 &mut queued,
                 Some(hwnd),
@@ -128,7 +128,7 @@ pub unsafe fn wheel(hwnd: HWND, state: &State, wp: WPARAM, lp: LPARAM) {
         *state.error.borrow_mut() = Some(error);
         return;
     }
-    // 昂贵的软件绘制先完成；随后提交宿主几何和一直存在的共享白框。
+    // Finish expensive software painting first, then commit host geometry and the continuously present shared white border.
     super::fit_size(hwnd, state, (target.width as i32, target.height as i32));
     if let Err(error) = super::preview::present(hwnd, state, target) {
         cancel(hwnd, state);

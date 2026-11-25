@@ -1,4 +1,4 @@
-//! Surface 原生文字测量和绘制共用 DirectWrite 布局；由渲染 owner 持有，无全局缓存。
+//! Native Surface text measurement and painting share DirectWrite layouts held by render owners, with no global cache.
 use windows::{
     core::{w, Error, Result, HSTRING},
     Win32::{
@@ -62,7 +62,7 @@ pub struct Layout {
     native: IDWriteTextLayout,
     metrics: DWRITE_TEXT_METRICS,
     baseline: f32,
-    // DirectWrite 索引对应规范化 UTF-16，不得索引原始 props.text；克隆布局共享内容。
+    // DirectWrite indexes refer to normalized UTF-16, never original props.text; cloned layouts share content.
     text: std::rc::Rc<[u16]>,
 }
 #[cfg(test)]
@@ -112,7 +112,7 @@ impl Engine {
             formats: Default::default(),
         })
     }
-    /// 返回已安装的单一 native family，供文字和原生字段共用；缓存随 Engine 释放。
+    /// Return one installed native family shared by text and native fields; release the cache with Engine.
     pub fn resolve_family(&self, source: &str) -> Result<std::rc::Rc<str>> {
         self.families.borrow_mut().resolve(&self.factory, source)
     }
@@ -200,7 +200,7 @@ impl Engine {
             native.GetLineMetrics(Some(&mut lines), &mut count)?;
             let mut baseline = lines[0].baseline;
             if let Some(height) = style.line_height {
-                // 平分额外行距，保留字体实际 ascent/descent，而不是固定百分比猜测基线。
+                // Split extra line spacing evenly while preserving actual font ascent/descent rather than guessing baselines with fixed percentages.
                 baseline += (height - lines[0].height) / 2.;
                 if !baseline.is_finite() || baseline < 0. {
                     return Err(invalid());
@@ -250,7 +250,7 @@ impl Layout {
     pub fn line_count(&self) -> u32 {
         self.metrics.lineCount
     }
-    /// 调用方负责 BeginDraw/EndDraw 和目标线程；共享布局确保测量与绘制一致。
+    /// Callers own BeginDraw/EndDraw and target-thread handling; shared layouts keep measurement and painting consistent.
     pub fn draw(
         &self,
         target: &ID2D1RenderTarget,

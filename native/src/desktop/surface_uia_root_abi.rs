@@ -1,5 +1,5 @@
-//! IRawElementProviderSimple 的窄 ABI owner。windows 0.60 的生成 trait 无法表示
-//! S_OK + NULL pattern；这里显式实现该合同，不构造空的非空 Rust COM 接口。
+//! Narrow ABI owner for IRawElementProviderSimple. Generated windows 0.60 traits cannot represent
+//! S_OK + NULL patterns; implement that contract explicitly rather than creating empty non-null Rust COM interfaces.
 use super::*;
 use std::{
     ffi::c_void,
@@ -104,11 +104,11 @@ pub(super) fn create(
         node: None,
         root: None,
     });
-    // repr(C) 首字段是静态 vtable，初始引用转交 COM，最终 Release 恢复 Box。
+    // The first repr(C) field is a static vtable; transfer the initial reference to COM, and final Release reconstructs Box.
     unsafe { IRawElementProviderSimple::from_raw(Box::into_raw(object).cast()) }
 }
 unsafe fn object<'a>(this: *mut c_void) -> &'a Provider {
-    // 所有入口仅由有效 COM 接口调用，调用期间至少持有一个引用。
+    // All entries are invoked only through valid COM interfaces with at least one reference held during calls.
     &*this.cast::<Provider>()
 }
 fn available(object: &Provider) -> HRESULT {
@@ -173,7 +173,7 @@ unsafe extern "system" fn query(
 }
 unsafe extern "system" fn add_ref(this: *mut c_void) -> u32 {
     let previous = object(this).references.fetch_add(1, Ordering::Relaxed);
-    // 不能让计数回绕或让 panic 穿过 COM ABI。
+    // Never let counts wrap or panics cross the COM ABI.
     if previous >= i32::MAX as u32 {
         std::process::abort();
     }
@@ -197,7 +197,7 @@ unsafe extern "system" fn options(this: *mut c_void, out: *mut ProviderOptions) 
         return status;
     }
     let mut options = ProviderOptions_ServerSideProvider | ProviderOptions_UseComThreading;
-    // 自绘 Slider 必须走自己的子 HWND 焦点桥，不能让 UIA 代选最近窗口。
+    // Owner-drawn Sliders must use their own child-HWND focus bridge, not let UIA pick the nearest window.
     if object(this).node.is_none() || object(this).rangeable {
         options |= ProviderOptions_ProviderOwnsSetFocus;
     }
@@ -245,7 +245,7 @@ unsafe extern "system" fn property(
         return status;
     }
     if hwnd_override::is_edit(object(this)) && !object(this).rangeable {
-        // EDIT 的模式/焦点/值/几何由系统 provider 提供；这里只补声明式身份及标签。
+        // System providers supply EDIT patterns/focus/values/geometry; supplement only declarative identity and labels here.
         if let Some(entry) = object(this).node.as_ref().and_then(|node| node.read()) {
             if id == UIA_AutomationIdPropertyId
                 || id == UIA_FrameworkIdPropertyId
@@ -323,7 +323,7 @@ unsafe extern "system" fn property(
     } else {
         VARIANT::default()
     };
-    // 未支持属性 VT_EMPTY，交回 HWND host provider；不编造 focus/enabled/geometry。
+    // Return VT_EMPTY for unsupported properties, delegating to the HWND host provider; fabricate no focus/enabled/geometry.
     out.write(value);
     S_OK
 }
@@ -348,7 +348,7 @@ unsafe extern "system" fn host(this: *mut c_void, out: *mut *mut c_void) -> HRES
     };
     match UiaHostProviderFromHwnd(hwnd) {
         Ok(provider) => {
-            // 系统调用可能重入关闭；再次复核，不能把撤销后的 HWND provider 交出去。
+            // System calls may reenter closure; recheck before returning HWND providers after revocation.
             let status = available(object);
             if status.is_err() {
                 return status;

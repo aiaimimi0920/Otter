@@ -1,4 +1,4 @@
-//! 线程内端点焦点与单槽键盘连线；只SetFocus自有条，不激活其他应用或注入输入。
+//! Thread-local endpoint focus and single-slot keyboard linking; SetFocus only on owned strips, without activating other applications or injecting input.
 use super::*;
 use windows::Win32::UI::Input::KeyboardAndMouse::*;
 #[path = "workspace_chrome_keyboard_model.rs"]
@@ -81,7 +81,7 @@ unsafe fn focus(ui: &Ui, port: Port, catalog: Rc<Catalog>, origin: Node) -> bool
         origin,
     });
     *ui.keyboard.focus.borrow_mut() = Some(candidate.clone());
-    // SetFocus可同步调用旧/新窗口过程；不跨Win32持RefCell借用，返回后核同一候选。
+    // SetFocus may synchronously call old/new procedures; hold no RefCell borrow across Win32 and recheck the same candidate afterward.
     let _ = SetFocus(Some(hwnd));
     let same = ui
         .keyboard
@@ -237,7 +237,7 @@ pub(super) unsafe fn translate(ui: &Ui, message: &MSG) -> bool {
         && ui.keyboard.releases.get() & bit != 0
         && (ui.keyboard.focused().is_none() || ui.pending.borrow().is_some() || ui.blocked())
     {
-        // Esc/F6回到宿主后，同一次长按仍由端点条消费，不能落入文档删除或Live源输入。
+        // After Esc/F6 returns to the host, endpoint strips still consume the same held key, preventing document deletion or Live-source input.
         return true;
     }
     if ui.blocked() || ui.press.borrow().is_some() || ui.pending.borrow().is_some() {

@@ -1,4 +1,4 @@
-//! 两字段 Win32 输入；以整数精确保留字节配额，不把非整 MiB 的配置值偷偷四舍五入。
+//! Two-field Win32 input; preserve byte quotas exactly as integers without silently rounding nonintegral MiB settings.
 use crate::cache_policy::Policy;
 use windows::{
     core::HSTRING,

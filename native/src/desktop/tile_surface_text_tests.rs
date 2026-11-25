@@ -1,4 +1,4 @@
-//! 自有离屏HWND/EDIT真实通知；IME只模拟系统消息边沿，不冒充人工输入法验收。
+//! Actual owned offscreen HWND/EDIT notifications; IME simulates only system-message edges, not manual IME acceptance.
 use super::*;
 use crate::tile_surface_actions::{tests::Fixture, Kind};
 use crate::tile_surface_value::tests::fixture;
@@ -22,7 +22,7 @@ fn setup(scene: Value) -> (Fixture, Window) {
         live_until: None,
     };
     f.job.size = frame.size;
-    // 夹具重设初始输出，不经同key内容去重（生产输出几何换代由新租约/key负责）。
+    // The fixture resets initial output without same-key content deduplication; production output-geometry changes use new leases/keys.
     {
         let mut s = f.shared.lock();
         s.frame = Some(Arc::new(frame));
@@ -162,7 +162,7 @@ fn textarea_normalizes_crlf_and_number_rejects_invalid_then_steps_and_commits() 
         "2"
     );
     assert_eq!(unsafe { GetFocus() }, h);
-    // SendMessage 不建立键盘快照；显式隔离环境修饰键，同时保留组合键不步进的契约。
+    // SendMessage creates no keyboard snapshot; explicitly isolate ambient modifiers while preserving the contract that combined keys do not step.
     for modifier in [VK_CONTROL, VK_MENU, VK_SHIFT] {
         with_modifiers(&[modifier], || unsafe {
             SendMessageW(h, WM_KEYDOWN, Some(WPARAM(38)), None);

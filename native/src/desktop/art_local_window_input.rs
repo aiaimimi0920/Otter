@@ -1,4 +1,4 @@
-//! 本地 Art 单槽输入与定时排程；复用 SurfaceWindow FIFO，未知交付失败终止而不重放。
+//! Local Art single-slot input and timer scheduling; reuse SurfaceWindow FIFO, terminating unknown-delivery failures without replay.
 use super::*;
 use crate::{surface_javascript::signed::runtime::Operation, surface_viewport::Viewport};
 use std::time::{Duration, Instant};
@@ -51,7 +51,7 @@ impl Input {
         timer: Option<u32>,
         observed: bool,
     ) {
-        // timer 回复不能推迟尚未消费的 rAF；派发 Animation 时才清除其期限。
+        // Timer replies must not postpone unconsumed rAF; clear its deadline only when dispatching Animation.
         self.animation =
             animation.then(|| self.animation.unwrap_or(now + Duration::from_millis(16)));
         self.timer = timer.map(|delay| now + Duration::from_millis(u64::from(delay)));

@@ -1,4 +1,4 @@
-//! Live 首次/显式刷新共用显示单槽；每个 owner 只排队最新固定帧，不逐帧 CPU 读回。
+//! Initial/explicit Live refresh shares one display slot; queue only the latest fixed frame per owner, with no per-frame CPU readback.
 use super::*;
 type Frame = Arc<crate::live_frames::Frame<crate::live_texture::Texture>>;
 pub(super) struct Refresh {
@@ -7,7 +7,7 @@ pub(super) struct Refresh {
     frame: Frame,
 }
 impl Cache {
-    // 只在成功读回后替换缓存并排队通知；失败保留上一张有效画面。
+    // Replace the cache and queue notifications only after successful readback; failure preserves the last valid image.
     pub(super) fn accept_live_result(&mut self, key: &Key, success: bool) -> bool {
         let Origin::Live(identity) = &key.origin else {
             return true;
@@ -52,7 +52,7 @@ impl Cache {
                 running.cancel.store(true, Ordering::Release);
             }
         }
-        // 每个 owner 仅保留最新固定帧，整个集合受 Live 会话上限约束。
+        // Retain only the latest fixed frame per owner; the Live session limit bounds the entire collection.
         self.live_refreshes.push(Refresh {
             source,
             identity,
@@ -95,7 +95,7 @@ impl Cache {
     ) -> Option<&Image> {
         self.live_entry(source, identity)?.result.as_ref().ok()
     }
-    /// true 表示首次图像仍待定；刷新期间已提交的旧图仍可用于显示图。
+    /// true means the first image is still pending; the old committed image remains available to the display graph during refresh.
     pub(in crate::desktop::application) fn poll_live_source(
         &mut self,
         source: &UnitId,

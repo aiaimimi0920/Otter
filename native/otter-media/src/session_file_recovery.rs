@@ -1,4 +1,4 @@
-//! 按显式目标发现同目录恢复副本；只读、有界、歧义拒绝，不恢复路径或删除任何文件。
+//! Discover same-directory recovery copies for an explicit target; read-only, bounded, and ambiguity-rejecting, without restoring paths or deleting files.
 use std::{
     io,
     os::windows::ffi::OsStrExt,

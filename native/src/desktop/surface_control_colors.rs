@@ -1,4 +1,4 @@
-//! Surface 系统字段共用 Neuro 颜色；借用 DC_BRUSH，不创建或销毁共享 GDI 对象。
+//! Surface system fields share Neuro colors; borrow DC_BRUSH without creating/destroying shared GDI objects.
 use windows::Win32::{
     Foundation::*,
     Graphics::Gdi::*,
@@ -18,7 +18,7 @@ pub(super) unsafe fn enabled() -> bool {
         cbSize: std::mem::size_of::<HIGHCONTRASTW>() as u32,
         ..Default::default()
     };
-    // 无法读取或系统要求高对比度时保留系统绘制，不覆盖用户的辅助功能配色。
+    // If reading fails or high contrast is requested, retain system painting rather than override accessibility colors.
     if SystemParametersInfoW(
         SPI_GETHIGHCONTRAST,
         contrast.cbSize,

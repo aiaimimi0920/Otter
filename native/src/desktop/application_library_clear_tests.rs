@@ -1,4 +1,4 @@
-//! 清空走真实菜单命令、单槽 worker 和原 Receipt；仅内存夹具，不清理用户文件。
+//! Clearing uses real menu commands, the single-slot worker, and the original Receipt; in-memory fixtures only, with no user-file cleanup.
 use super::*;
 use crate::{desktop::reference_ui as ui, session_library::Kind};
 #[test]

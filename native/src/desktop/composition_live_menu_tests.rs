@@ -1,4 +1,4 @@
-//! 无框菜单、角命中和反馈的隐藏 HWND 测试；不在测试桌面弹出菜单或对话框。
+//! Hidden-HWND tests for frameless menus, corner hits, and feedback; no menus/dialogs shown on the test desktop.
 use super::*;
 use crate::{desktop::Apartment, live_frames::Source};
 unsafe fn window() -> (Source<Texture>, LiveWindow) {

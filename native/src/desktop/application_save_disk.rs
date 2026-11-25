@@ -1,4 +1,4 @@
-//! 磁盘准备结果的排他类型；新文件和替换事务不能同时出现或互相冒充。
+//! Exclusive types for disk-preparation results; new-file and replacement transactions cannot coexist or masquerade as each other.
 use crate::{
     session_file_replace::{Failure, Published, Replacement},
     session_file_write::Staged,

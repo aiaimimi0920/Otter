@@ -1,4 +1,4 @@
-//! 组菜单身份、busy与有界结果；不准备网络，不通过同字节目录绕过选择身份。
+//! Group-menu identity, busy state, and bounded results; no network preparation or bypass of selection identity through byte-identical catalogs.
 use super::*;
 #[test]
 fn group_menu_has_real_command_and_stale_directory_never_prepares_config() {

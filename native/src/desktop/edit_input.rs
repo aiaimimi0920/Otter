@@ -1,4 +1,4 @@
-//! 宿主手势适配；编辑模型只接收图像坐标，失焦和捕获丢失取消未提交草稿。
+//! Host gesture adapter; editing models receive image coordinates only, and focus/capture loss cancels uncommitted drafts.
 use super::canvas::Canvas;
 use crate::{editor::Tool, viewport::Point};
 
@@ -7,7 +7,7 @@ use crate::{editor::Tool, viewport::Point};
 mod crop_tests;
 
 impl Canvas {
-    /// 活动手势期间保持 viewport 不变，避免松手坐标与预览使用不同变换。
+    /// Keep viewport unchanged during active gestures so release coordinates and previews use the same transform.
     pub(super) fn blocks_wheel(&self) -> bool {
         self.editor.draft().is_some()
             || self.erase_gesture.is_some()
@@ -45,7 +45,7 @@ impl Canvas {
             if self.pinned && self.begin_quick_transform(point, control, alt) {
                 return true;
             }
-            // 原有端点/延伸柄优先，避免通用变换柄抢占专用路径编辑入口。
+            // Existing endpoint/extension handles take precedence so generic transform handles cannot steal dedicated path-editing entry.
             if self.selected_index().is_some() && self.begin_path_handle(point) {
                 return true;
             }
@@ -403,7 +403,7 @@ impl Canvas {
         self.editor.cancel() || moved || erased || rotated || scaled || cropped || marquee
     }
 
-    /// Shift 可将自由笔迹草稿收束为直线；无 Shift 的按键不追加采样点。
+    /// Shift may constrain freehand drafts to straight lines; keystrokes without Shift append no sample points.
     pub fn refresh_constraints(&mut self, shift: bool, control: bool) -> bool {
         let Some(draft) = self.editor.draft() else {
             return false;

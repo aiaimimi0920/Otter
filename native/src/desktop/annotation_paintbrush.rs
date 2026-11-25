@@ -1,4 +1,4 @@
-//! 笔刷每层将圆盘与连接带合并为一个 winding 路径，自交只合成一次透明度。
+//! Each brush layer merges disks and connecting strips into one winding path, compositing opacity only once at self-intersections.
 use crate::{
     editor::Stroke,
     paintbrush_samples::{bands, Disk, Samples},

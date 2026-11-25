@@ -1,4 +1,4 @@
-//! 真实受限 child 的坏帧、停滞、容量和取消门；不需要 ANGLE 夹具的测试默认执行。
+//! Bad-frame, stall, capacity, and cancellation gates for real restricted children; tests requiring no ANGLE fixture run by default.
 use super::*;
 use crate::{
     bounded_worker_process as process,

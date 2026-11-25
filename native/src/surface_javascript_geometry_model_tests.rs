@@ -1,4 +1,4 @@
-//! 同原生度量 owner 的独立预算/缓存诊断；不依赖 JS 异常文字或放宽产品时限。
+//! Independent budget/cache diagnostics using the native measurement owner; no dependence on JS exception text or relaxed product deadlines.
 use super::*;
 use crate::surface_viewport::Viewport;
 fn geometry() -> Geometry {
@@ -92,6 +92,6 @@ fn javascript_resize_geometry_content_box_reuses_containing_width_and_button_def
     let content: Vec<f32> = serde_json::from_str(&value.read(source, "box")).unwrap();
     assert_eq!(&content[6..10], &[56., 36., 20., 20.]);
     let button: Vec<f32> = serde_json::from_str(&value.read(source, "button")).unwrap();
-    // 默认按钮还具有 1px border，内容尺寸需同时扣除；padding 字段仍为 12/6。
+    // Default buttons also have a 1px border that must be deducted from content dimensions; padding remains 12/6.
     assert_eq!(&button[6..10], &[74., 26., 12., 6.]);
 }

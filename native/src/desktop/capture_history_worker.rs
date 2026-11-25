@@ -1,4 +1,4 @@
-//! 应用历史的单后台槽；载入/缩略图/保存串行，空闲无线程，退出join不遗留任务。
+//! One application-history background slot; serialize loading/thumbnails/saving, keep no idle thread, and join all tasks on exit.
 use crate::capture_history::{self as history, store::Store, Data};
 use crate::desktop::capture_history_ui::Shared;
 use std::{path::PathBuf, thread::JoinHandle};
@@ -62,7 +62,7 @@ impl Owner {
     }
     fn error(&mut self, error: String) {
         self.failed = true;
-        // 不记录截图/颜色/文件内容；短状态只在历史窗显示。
+        // Do not log screenshots/colors/file contents; brief status appears only in the history window.
         eprintln!("native-capture-history: operation failed");
         self.view.borrow_mut().status = Some(format!("历史记录未保存：{error}"));
     }
@@ -144,7 +144,7 @@ impl Owner {
         }
     }
     pub fn shutdown(&mut self) {
-        // 历史是便利缓存，不阻止工作区退出；但所有本批worker始终有join owner。
+        // History is a convenience cache and does not block workspace exit; every worker in this batch still always has a join owner.
         loop {
             if self.job.is_some() {
                 self.settle();

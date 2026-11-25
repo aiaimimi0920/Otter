@@ -1,4 +1,4 @@
-//! 上下行命中复用实际 DirectWrite 排版，保留列坐标而非按字符数猜测下一行。
+//! Vertical line hits reuse actual DirectWrite layout, preserving column coordinates rather than guessing the next line from character counts.
 use super::*;
 impl Layout {
     pub(crate) fn point_caret(&self, point: [f32; 2]) -> Result<[f32; 2]> {
@@ -47,7 +47,7 @@ impl Layout {
         self.vertical_text_step(position, down, preferred)
             .map(|(position, point, _)| (position, point))
     }
-    /// moved 表示实际进入相邻排版行；软换行可能移动了行但 UTF-16 偏移不变。
+    /// moved means entering an adjacent laid-out line; soft wraps may change lines without changing UTF-16 offsets.
     pub(crate) fn vertical_text_step(
         &self,
         position: u32,
@@ -94,7 +94,7 @@ impl Layout {
                 false,
             ));
         }
-        // 略越过当前行的真实上下边界，让 DirectWrite 在相邻行选择最近 cluster。
+        // Step just beyond the actual current-line boundary so DirectWrite selects the nearest cluster on the adjacent line.
         let epsilon = (hit.height * 0.001).min(0.25);
         let y = if down {
             hit.top + hit.height + epsilon
@@ -102,7 +102,7 @@ impl Layout {
             hit.top - epsilon
         };
         let next = self.hit_text([x, y])?;
-        // 保留实际目标行探针，避免软换行末端的同一个 UTF-16 索引被下一次误认作下一行。
+        // Retain the actual target-line probe so a shared UTF-16 index at a soft-wrap end is not mistaken for the next line later.
         Ok((next.position, [x, y], true))
     }
 }

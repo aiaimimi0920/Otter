@@ -1,4 +1,4 @@
-//! 需求期 UI 线程 hooks；回调仅更新有界手势状态并置事件，不恢复窗口、不进行协议 I/O。
+//! On-demand UI-thread hooks; callbacks only update bounded gesture state and signal events, without restoring windows or performing protocol I/O.
 #[path = "live_reclaim_input.rs"]
 pub mod input;
 use crate::live_reclaim::Intent;
@@ -114,7 +114,7 @@ impl Watcher {
 }
 impl Drop for Watcher {
     fn drop(&mut self) {
-        // 先撤销回调可见的事件，再注销 hook，最后 OwnedHandle 关闭事件。
+        // First revoke the event visible to callbacks, then unregister the hook, and finally let OwnedHandle close the event.
         EVENT.with(|event| event.set(HANDLE::default()));
         unsafe {
             if let Some(hook) = self.keyboard {

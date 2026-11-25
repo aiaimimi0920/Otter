@@ -1,4 +1,4 @@
-//! 部分夹具已与真实 Chromium range 归一结果对照；不是 HWND/交互验收。
+//! Some fixtures have been compared with actual Chromium range normalization; this is not HWND/interaction acceptance.
 use super::*;
 use crate::surface_scene::Scene;
 fn range(props: serde_json::Value) -> Result<Range, Error> {

@@ -1,4 +1,4 @@
-//! 松手选择后的最终捕获；普通选区不预采集像素，保留原动态范围和交付事务。
+//! Final capture after release selection; ordinary selections do not pre-capture pixels, preserving original dynamic range and delivery transactions.
 use super::*;
 pub(super) enum Delivery {
     Recording(super::long_capture_dialog::Output),
@@ -71,7 +71,7 @@ pub(super) unsafe fn prepare(hwnd: HWND, state: &State, screen: RECT) -> Result<
         .map_err(|error| Error::new(E_FAIL, error))?
         .and_then(|selection| selection.path.parent().map(|path| path.to_owned()))
         .ok_or_else(|| Error::new(E_FAIL, "Missing native capture profile"))?;
-    // 选择窗口已销毁；等待其 DWM 变化提交后捕获最终桌面，普通截图保留已有钉图。
+    // The selection window is destroyed; wait for its DWM changes to commit before capturing the final desktop. Ordinary captures preserve existing pins.
     super::super::smoke_timing::run("capture-release-flush", || DwmFlush())?;
     super::super::smoke_timing::run("capture-acquire-and-stage", || {
         super::super::capture::wait_cached(

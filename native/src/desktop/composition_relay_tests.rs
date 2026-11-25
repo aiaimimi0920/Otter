@@ -1,4 +1,4 @@
-//! 隐藏 HWND 的真实 D2D 上传/交换链读回；不启动在线网络或可见窗口。
+//! Real D2D uploads/swap-chain readback on hidden HWNDs; no online networking or visible windows.
 use super::{host::sample, *};
 use crate::{
     desktop::{Apartment, Window},

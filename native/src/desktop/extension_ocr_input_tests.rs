@@ -1,4 +1,4 @@
-//! 主干命名输入的精确白名单、边界和配置；不使用真实模型、用户资源或网络。
+//! Exact whitelists, boundaries, and configuration for baseline named input; no real models, user resources, or network.
 use super::*;
 use crate::unit_attachment_store::tests as fixture;
 fn attachment() -> Value {

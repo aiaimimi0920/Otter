@@ -1,4 +1,4 @@
-//! 真实后台保存/Checkpoint和同profile重开：标注alpha独立于未烘焙底图与整体opacity。
+//! Real background save/Checkpoint and same-profile reopening: annotation alpha remains independent of the unbaked base image and overall opacity.
 use super::*;
 use crate::{
     editor::Tool,

@@ -1,4 +1,4 @@
-//! 系统注销/关机只消费现有持久化凭证；不授新保存路径、丢弃批准或外部动作。
+//! System logoff/shutdown consumes only existing persistence credentials; no new save-path authorization, discard approval, or external actions.
 use super::*;
 impl Application {
     pub(super) unsafe fn session_end_ready(&self) -> bool {

@@ -1,4 +1,4 @@
-//! Surface 静态位图与原始 RGBA 解码；共享 Pixels 预算，不生成临时文件或跨线程 COM。
+//! Surface static bitmap and raw RGBA decoding; share the Pixels budget without temporary files or cross-thread COM.
 use super::*;
 #[path = "surface_image_orientation.rs"]
 mod orientation;
@@ -8,7 +8,7 @@ mod webp;
 mod worker_client;
 const MAX_PIXELS: usize = 64 * 1024 * 1024;
 impl Image {
-    /// Surface 安装保留逻辑尺寸；通用 Image 仍只携带栅格，不能用于推导 SVG 布局。
+    /// Surface installation retains logical dimensions; generic Image carries only the raster and cannot determine SVG layout.
     pub(crate) fn from_surface_sized(
         bytes: &[u8],
         mime: &str,
@@ -24,7 +24,7 @@ impl Image {
         dimensions: Option<(u32, u32)>,
         stopped: impl Fn() -> bool,
     ) -> Result<(Self, [f32; 2])> {
-        // 池键的容量只是优化准入，不得缩窄原有 inline 图像解码合同。
+        // Pool-key capacity is only an optimization admission gate and must not narrow the original inline-image decoding contract.
         let scope =
             scope.filter(|s| !s.is_empty() && s.len() <= 512 && !s.chars().any(char::is_control));
         if crate::surface_image_format::svg(mime) {
@@ -91,13 +91,13 @@ impl Image {
             return Self::from_surface_sized(bytes, mime, dimensions, stopped)
                 .map(|(image, _)| image);
         }
-        // 普通 Surface 由已验字节决定容器，不套用 Tile/Wall 的声明 MIME 严格匹配合同。
+        // Ordinary Surface containers are determined by verified bytes, not Tile/Wall's strict declared-MIME matching contract.
         let mime = crate::surface_image_format::encoded_mime(bytes, mime)
             .ok_or_else(|| Error::new(E_INVALIDARG, "Unsupported Surface image representation"))?;
         if mime == "image/webp" {
             return webp::decode(bytes, &stopped);
         }
-        // 实际动画仍待独立合同，不静默只取首帧。
+        // Actual animation still requires a separate contract; never silently take only the first frame.
         let container = match mime {
             "image/png" => GUID_ContainerFormatPng,
             "image/jpeg" => GUID_ContainerFormatJpeg,
@@ -129,7 +129,7 @@ impl Image {
                     "Surface image container or frame count unsupported",
                 ));
             }
-            // 编码图的声明尺寸不是自然尺寸权威；使用 WIC 帧尺寸并在分配前限制。
+            // Declared encoded-image dimensions are not authoritative natural dimensions; use WIC frame dimensions and bound them before allocation.
             let source = orientation::source(&factory, &decoder, mime, &stopped)?;
             let image = Self::decode_source(
                 &factory,

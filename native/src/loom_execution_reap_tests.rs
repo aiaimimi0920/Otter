@@ -1,4 +1,4 @@
-//! 回环 TLS 的真实远端执行：通知尾段不能阻塞 UI，待清理报告不能留下空转截止。
+//! Actual remote execution over loopback TLS: notification tails must not block UI, and pending-cleanup reports must not leave spinning deadlines.
 use super::*;
 use crate::{
     desktop::{

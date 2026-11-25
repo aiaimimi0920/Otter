@@ -1,4 +1,4 @@
-//! 仅内存 DIB 夹具；覆盖 padding、行方向、掩码、截断和透明度，不读剪贴板。
+//! In-memory DIB fixtures only; cover padding, row direction, masks, truncation, and transparency without clipboard reads.
 use super::*;
 
 fn compressed(bits: u16, width: i32, height: i32, stream: &[u8]) -> Vec<u8> {
@@ -89,7 +89,7 @@ fn rle_rejects_overrun_truncation_bad_index_and_top_down() {
         assert!(decode(&compressed(bits, 3, -2, &[0, 1])).is_err());
     }
     assert!(decode(&compressed(8, 3, 2, &[1, 16, 0, 1])).is_err());
-    // RLE4 五个绝对像素需要三个数据字节和一个填充字节。
+    // Five absolute RLE4 pixels require three data bytes and one padding byte.
     assert!(decode(&compressed(4, 5, 1, &[0, 5, 0x12, 0x34, 0x50])).is_err());
     let image = decode(&compressed(4, 5, 1, &[0, 5, 0x12, 0x34, 0x50, 0, 0, 1])).unwrap();
     assert_eq!(

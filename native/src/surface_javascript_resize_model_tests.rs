@@ -1,4 +1,4 @@
-//! 真实 QuickJS + 原生测量的 observer 顺序、内容盒、暂停、容量和反例；不是 JS 尺寸 mock。
+//! Real QuickJS plus native measurement for observer order, content boxes, pause, capacity, and counterexamples; not JS dimension mocks.
 use super::*;
 use crate::surface_viewport::Viewport;
 fn view() -> Option<Viewport> {
@@ -180,7 +180,7 @@ fn javascript_resize_model_unobserve_keeps_active_entry_and_native_read_budget()
             .filter(|(stage, _)| *stage == "read-admission")
             .count()
     };
-    // 三个 gather + 两个交付；取消的第三批次不读，第二批次仍重测微任务修改。
+    // Three gathers plus two deliveries; do not read the canceled third batch, while the second still remeasures microtask changes.
     assert_eq!(reads(&engine), 5);
     for mode in 1..=2 {
         let output = engine

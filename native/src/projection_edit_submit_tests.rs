@@ -1,4 +1,4 @@
-//! 独立对象/数值oracle：32项确认边界、期间编辑、日志基线推进与原请求围栏。
+//! Independent object/numeric oracle for 32-entry acknowledgement boundaries, intervening edits, journal-baseline advancement, and original-request fences.
 use super::*;
 use crate::projection_edit::{fixture::*, view::Size, workspace::Role, Operation};
 use serde_json::json;

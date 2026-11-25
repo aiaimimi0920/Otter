@@ -1,4 +1,4 @@
-//! 将声明式 text 节点适配到原生布局；继承样式由树布局 owner 显式传入。
+//! Adapt declarative text nodes to native layout; tree-layout owners explicitly supply inherited styles.
 use crate::{
     surface_length::Context,
     surface_scene::{Kind, Node},
@@ -9,11 +9,11 @@ use windows::{
     Win32::Foundation::E_INVALIDARG,
 };
 
-/// 不改写节点或父样式；非法白名单属性遵循主干规则，保留继承值。
+/// Do not rewrite nodes or parent styles; invalid allowlisted attributes follow mainline rules and retain inherited values.
 pub fn resolve_style<'a>(node: &Node, mut inherited: Style<'a>, mut context: Context) -> Style<'a> {
-    // em 字号相对于父字体，而不是调用方缓存中可能过期的当前节点字号。
+    // em font sizes are relative to parent fonts, not potentially stale current-node sizes in caller caches.
     context.font = inherited.size;
-    // font-size 百分比同样相对父字号，不是布局容器的宽度。
+    // font-size percentages also reference parent font sizes, not layout-container width.
     context.axis = inherited.size;
     if let Some(size) = node
         .style_length("fontSize")
@@ -42,11 +42,11 @@ pub fn resolve_style<'a>(node: &Node, mut inherited: Style<'a>, mut context: Con
         Some("right") => Align::End,
         _ => inherited.align,
     };
-    // line-height 的 em/% 使用节点已解析字号；父行高按已计算值继承。
+    // line-height em/% uses the node's resolved font size; inherit parent line height as its computed value.
     context.font = inherited.size;
     context.axis = inherited.size;
     if node.style().get("lineHeight").and_then(|v| v.as_str()) == Some("normal") {
-        // CSS shorthand 的 normal 必须清除祖先显式行距，由实际字体重新提供基线。
+        // CSS shorthand normal must clear ancestors' explicit line spacing and let actual fonts supply baselines again.
         inherited.line_height = None;
     } else if let Some(height) = node
         .style_length("lineHeight")

@@ -185,7 +185,7 @@ fn session_keeps_input_owner_after_capture_completion_until_cleanup_finishes() {
     .unwrap();
     let mut session = Session::new(job, window);
     capture_wait.recv_timeout(Duration::from_secs(2)).unwrap();
-    // 没有窗口授权的区域/测试会话不能通过公开入口开启控制。
+    // Region/test sessions without window authorization cannot enable control through public entry points.
     assert_eq!(
         session.enable_input().unwrap_err().kind(),
         io::ErrorKind::PermissionDenied

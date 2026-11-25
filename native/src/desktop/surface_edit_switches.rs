@@ -1,4 +1,4 @@
-//! Switch 与共享编辑 FIFO 的接缝；不复用受 submitting 限制的 Click 单槽。
+//! Switch/shared-edit-FIFO seam; do not reuse Click's submitting-limited single slot.
 use super::*;
 impl Mount {
     pub(super) fn sync_switches(
@@ -12,7 +12,7 @@ impl Mount {
                 node.kind() == Kind::Switch && contracts.get(id.as_str()) == Some(&field.contract)
             })
         });
-        // 必须先清旧身份的 waiting/prepared，再创建同 ID 新会话；否则旧值会改投新 action。
+        // Clear waiting/prepared state for the old identity before creating a same-ID session, or old values would be redirected to a new action.
         self.intents.retain(|id| {
             self.fields.contains_key(id)
                 || self.switches.contains_key(id)
@@ -49,7 +49,7 @@ impl Mount {
     pub fn switch_value(&self, id: &str) -> Option<bool> {
         self.switches.get(id).map(switch_session::Session::value)
     }
-    /// 准入失败不修改可见值；在同一 UI owner 借用内完成 ticket/队列/本地值更新。
+    /// Failed admission leaves visible values unchanged; update ticket/queue/local value within one UI-owner borrow.
     pub fn toggle_switch(&mut self, id: &str) -> Result<bool> {
         if !self.editing {
             return Ok(false);

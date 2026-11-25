@@ -1,4 +1,4 @@
-//! 应用级后台通知：同一时刻最多排队一个线程消息，不启动空闲定时器。
+//! Application-wide background notifications: at most one queued thread message at a time, with no idle timer.
 use std::sync::{Arc, Mutex};
 use windows::Win32::{
     Foundation::{LPARAM, WPARAM},
@@ -16,7 +16,7 @@ pub(in crate::desktop) struct Wake {
     thread: u32,
 }
 impl Wake {
-    /// 调用方必须已创建窗口，使当前 UI 线程的消息队列存在。
+    /// The caller must already have created a window so the current UI thread has a message queue.
     pub(super) fn new() -> Self {
         Self {
             state: Arc::new(Mutex::new(State {
@@ -35,12 +35,12 @@ impl Wake {
             });
         })
     }
-    /// 必须先清 pending 再读取任务邮箱；并发更新由本次读取或下一条消息覆盖。
+    /// Clear pending before reading task mailboxes; concurrent updates are covered by this read or the next message.
     pub(super) fn acknowledge(&self) {
         self.state.lock().unwrap_or_else(|e| e.into_inner()).pending = false;
     }
     pub(super) fn close(&self) {
-        // 与投递互斥，close 返回后即使线程 ID 复用，旧 callback 也不能再投递。
+        // Exclude posting while closing; after close returns, old callbacks cannot post even if the thread ID is reused.
         self.state.lock().unwrap_or_else(|e| e.into_inner()).active = false;
     }
 }
@@ -52,7 +52,7 @@ impl Drop for Wake {
 fn post(state: &Mutex<State>, send: impl FnOnce() -> bool) {
     let mut state = state.lock().unwrap_or_else(|e| e.into_inner());
     if state.active && !state.pending {
-        // 投递失败不占 pending，后续通知可重试；队列满时已有消息驱动应用轮询。
+        // Failed posting does not occupy pending, allowing later notifications to retry; a full queue already contains messages that drive application polling.
         state.pending = send();
     }
 }

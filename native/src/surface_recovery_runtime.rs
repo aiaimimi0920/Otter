@@ -1,4 +1,4 @@
-//! 只读恢复查询的后台生命周期；结果不修改原挂载 unknown，不自动接受候选。
+//! Background lifecycle for read-only recovery queries; results neither change original mount unknown nor automatically accept candidates.
 use crate::{
     device_authorization_config::{Config, Error as PrepareError},
     device_authorization_lease::Lease,
@@ -24,7 +24,7 @@ pub struct Outcome {
     pub origin: String,
     pub device: String,
     pub request: Arc<Request>,
-    /// None 只是未找到候选，不能作为原创建没有生效的证据。
+    /// None means only that no candidate was found, not evidence that original creation had no effect.
     pub result: Result<Option<RecoveryCandidate>, Error>,
 }
 enum Connection {
@@ -110,7 +110,7 @@ impl Job {
 impl Drop for Job {
     fn drop(&mut self) {
         self.request_stop();
-        // 正常应用流程等待完成再回收，Drop 仅作不遗留线程的兜底。
+        // Normal application flow waits for completion before cleanup; Drop is only a fallback against orphaned threads.
         if let Some(thread) = self.thread.take() {
             let _ = thread.join();
         }

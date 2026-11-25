@@ -1,4 +1,4 @@
-//! 剪贴板格式快照到独立窗口的真实线程链；不打开或修改系统剪贴板。
+//! Real thread chain from clipboard-format snapshot to an independent window, without opening or modifying the system clipboard.
 use super::*;
 #[path = "application_paste_editable_smoke.rs"]
 mod editable;
@@ -61,7 +61,7 @@ pub(super) unsafe fn run(app: &mut Application) -> Result<()> {
             true,
             POINT { x: -750, y: 125 },
         )?;
-        // 强制等待真实工作线程结束；不读取用户剪贴板，也不显示对话框。
+        // Force waiting for the actual worker thread to finish; do not read the user clipboard or show dialogs.
         open_job::finish(source.window.0, &source.state, true);
         if !stamp.matches(&source.state.canvas.borrow().editor)
             || source.state.new_pin.borrow().is_none()

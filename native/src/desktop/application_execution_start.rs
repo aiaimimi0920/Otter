@@ -1,4 +1,4 @@
-//! 应用调度手动/参数请求；自动触发检查策略及缺图，窗口回调不编码或联网。
+//! Application scheduling for manual/parameter requests; automatic triggers check policy and missing images, while window callbacks neither encode nor use the network.
 use super::Application;
 use crate::desktop::{
     document_state::new_unit_id,
@@ -26,7 +26,7 @@ impl Application {
                 state.pending_start.borrow_mut().take();
                 continue;
             }
-            // 旧 worker/待领取结果仍占槽时保留最新请求；完成通知会再次进入主循环。
+            // Retain the latest request while an old worker/uncollected result occupies the slot; completion notification reenters the main loop.
             if !crate::desktop::execution_start::ready(state)
                 || self.input_jobs.len() >= 2
                 || self.execution_jobs.len() >= 2
@@ -54,7 +54,7 @@ impl Application {
                     runtime.shader && !runtime.surface && !runtime.formal_after_preview
                 });
                 if shader.is_some() {
-                    // 只解除已接通本地取码链的 ShaderOnly 门；自动触发/Surface/正式执行策略不放宽。
+                    // Lift only the ShaderOnly gate for the connected local code-fetch chain; do not relax automatic-trigger/Surface/committed-execution policy.
                     runtime.shader = false;
                 }
                 if selected.execution.gate(request.trigger, runtime).is_err() {

@@ -1,4 +1,4 @@
-//! 展开期间持有历史会话；粘贴与删除均绑定绘制时的条目 ID，不记录私有内容。
+//! Hold the history session while expanded; paste and delete bind the entry ID used for painting without logging private content.
 use crate::{
     clipboard_history::{
         session::{Session, State},
@@ -66,7 +66,7 @@ impl History {
         self.present(menu, just_opened || changed)
     }
     fn present(&mut self, menu: &mut Cascade, changed: bool) -> Result<()> {
-        // 刷新期间保留已绘制内容；Session 在 pending/task 状态拒绝旧 ID 的动作。
+        // Retain painted content during refresh; Session rejects old-ID actions in pending/task states.
         if self
             .session
             .as_ref()

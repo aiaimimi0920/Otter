@@ -1,4 +1,4 @@
-//! 实际引擎图像追加、预算事务及参数重入；旧图片不会被重名结果替换。
+//! Image appends, budget transactions, and argument reentrancy in the actual engine; same-name results never replace old images.
 use super::*;
 use serde_json::json;
 fn result(id: &str) -> wire::service::ResultValue {

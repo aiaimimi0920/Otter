@@ -1,4 +1,4 @@
-//! 验证 UI 队列暂停/Leave 立即撤销 DLL 可见资格，不依赖慢 worker 的退出回执。
+//! Verify UI queue pause/Leave immediately revokes DLL-visible eligibility, independently of slow-worker exit receipts.
 use super::*;
 use otter_live_hover_hook::scope::ACTIVE;
 struct Window(HWND);

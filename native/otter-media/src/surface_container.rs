@@ -1,4 +1,4 @@
-//! 已测量场景子节点的行列布局接线；保留节点身份和显式定位边界。
+//! Row/column layout wiring for measured scene children; preserve node identities and explicit positioning boundaries.
 #[path = "surface_position.rs"]
 pub mod positioning;
 #[path = "surface_stack.rs"]
@@ -35,7 +35,7 @@ pub fn arrange<'a>(
 ) -> Result<Vec<Box<'a>>, Error> {
     arrange_with_fonts(node, measured, size, context, &|_| None)
 }
-/// 字号已经按场景继承解析；布局层只使用计算值，不重复解析 fontSize。
+/// Font sizes are already resolved through scene inheritance; the layout layer uses computed values without reparsing fontSize.
 pub fn arrange_with_fonts<'a>(
     node: &'a Node,
     measured: &[Measured<'_>],
@@ -110,7 +110,7 @@ pub fn arrange_in<'a>(
         }
     }
     context.axis = size[0];
-    // cqw/cqh 使用宿主查询容器，不能被每层普通 row/column 的尺寸替换。
+    // cqw/cqh use the host query container, not the dimensions of each ordinary row/column level.
     if crate::surface_length::Length::Scalar(0., crate::surface_length::Unit::Px)
         .resolve(context)
         .is_none()
@@ -167,7 +167,7 @@ pub fn arrange_in<'a>(
             (get(key), minimum, get(max).unwrap_or(32768.).max(minimum))
         };
         let (explicit, mut minimum, maximum) = axis(main);
-        // 替换元素的 auto 主轴最小值保留内容/比例基准；不能把两张图任意压扁。
+        // Replaced elements' auto main-axis minimum preserves the content/aspect-ratio basis; do not arbitrarily squash two images.
         let min_key = if main == 0 { "minWidth" } else { "minHeight" };
         if child.kind() == Kind::Image
             && child

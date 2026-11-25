@@ -1,4 +1,4 @@
-// 通用 author cascade/inline 更新负载，不包含股票业务或宿主旁路。
+// Generic author-cascade/inline-update workload, without stock-market business logic or host bypasses.
 let first, second, base, accent;
 NeuroSurface.define({
   mount({ root, emit }) {

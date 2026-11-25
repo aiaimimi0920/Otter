@@ -1,4 +1,4 @@
-//! 仅保留可辨认的传输损失；协议/TLS验证/资源超限不能伪装成临时网错。这里不自动重试。
+//! Retain only identifiable transport loss; protocol/TLS-validation/resource-limit errors cannot masquerade as transient networking failures. No automatic retries here.
 use super::Error;
 use std::io;
 pub(super) fn transient_io(error: &io::Error) -> bool {

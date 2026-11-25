@@ -1,7 +1,7 @@
-//! 按需绘制有界缩略图，不缓存位图或 GPU 资源。
+//! Draw bounded thumbnails on demand, without bitmap/GPU caches.
 use crate::desktop::image::Image;
 use windows::Win32::{Graphics::Gdi::*, UI::Controls::DRAWITEMSTRUCT};
-/// 仅在收到新预览时处理透明区域；不修改采集覆盖数据，opaque 图像直接共享原存储。
+/// Process transparency only upon new previews; preserve capture coverage data, and opaque images share original storage directly.
 pub(super) fn prepare(image: Image) -> Result<Image, crate::long_capture::Error> {
     prepare_with(image, crate::pixels::reserve)
 }
@@ -100,7 +100,7 @@ mod tests {
     #[test]
     fn transparent_holes_render_as_checkerboard_without_changing_covered_black_or_source() {
         let mut bytes = vec![0; 16 * 4];
-        bytes[3] = 255; // 真正的黑色像素不能变成棋盘格。
+        bytes[3] = 255; // Actual black pixels must not become checkerboards.
         bytes[8..12].copy_from_slice(&[100, 100, 100, 128]);
         let source: crate::pixels::Pixels = bytes.into();
         let image = prepare(Image {

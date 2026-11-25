@@ -1,4 +1,4 @@
-//! 局域网邀请复用发送绑定和接收 journal；链接只含签名邀请，不包含会话凭据。
+//! LAN invitations reuse send bindings and receive journals; links contain only signed invitations, never session credentials.
 use super::*;
 use crate::projection_delivery::{sender::binding::Binding, share};
 use windows::Win32::UI::HiDpi::GetDpiForWindow;
@@ -210,7 +210,7 @@ impl Model {
         self.link.borrow_mut().clear();
         self.cancel_decode();
         self.set_status("");
-        // 两个范围的窗口尺寸相同，但接收端的解绑按钮仅在账号关联中可见。
+        // Both scopes use the same window size, but the receiver's unbind button is visible only for account associations.
         if let Some(hwnd) = self.hwnd.get() {
             if !self.receive {
                 window::input(hwnd, "");

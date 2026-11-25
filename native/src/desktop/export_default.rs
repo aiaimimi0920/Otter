@@ -1,4 +1,4 @@
-//! 默认 PNG 保存：目录与主干隔离；只在显式命令时冻结快照，目录创建/编码/分配在 worker。
+//! Default PNG saving isolates directories from the baseline; freeze snapshots only on explicit commands, with directory creation/encoding/allocation in workers.
 use super::{export, State};
 use std::path::{Path, PathBuf};
 use windows::Win32::{Foundation::HWND, UI::WindowsAndMessaging::IsWindow};
@@ -10,7 +10,7 @@ pub(in crate::desktop) unsafe fn start(hwnd: HWND, state: &State) {
     }
     let override_root = std::env::var_os("OTTER_NATIVE_PROFILE_DIR");
     let local = std::env::var_os("LOCALAPPDATA");
-    // --settings 只指定配置文件，不把任意导入文件的父目录授权为默认图片输出位置。
+    // --settings selects configuration only; arbitrary imported-file parent directories are not authorized as default image-output destinations.
     let root =
         crate::settings_profile::select(None, override_root.as_deref(), local.as_deref(), false)
             .and_then(|selection| {
@@ -78,7 +78,7 @@ impl Prepared {
             return Err("Default save directory must be absolute".into());
         }
         let directory = self.root.join("saved");
-        // 不接受已存在的最终重解析目录；这不是对恶意祖先路径竞态的完整沙箱。
+        // Reject existing final reparse-point directories; this is not a complete sandbox against malicious ancestor-path races.
         for path in [&self.root, &directory] {
             crate::profile_directory::validate(path).map_err(|e| e.to_string())?;
         }

@@ -1,4 +1,4 @@
-//! 原OpenArt/输入队列/结果/Save：暂态服务失败不替换本地实例，用户显式再调用独立成功。
+//! Original OpenArt/input queue/results/Save: transient service failure preserves the local instance; a later explicit user call succeeds independently.
 use super::*;
 const SOURCE: &str = r#"
 NeuroSurface.define({mount({root,snapshot}) {
@@ -70,7 +70,7 @@ fn application_service_failure_keeps_instance_and_formal_save_then_explicit_retr
             assert!(!state.requests.iter().any(|s| s.ends_with("/poll")));
         }
         peer.state.lock().unwrap().release = true;
-        // 正式结果由Application在poll后领取；下一轮才恢复输入，不能绕过单槽背压强行点击。
+        // Application collects committed results after poll; input resumes next turn, so do not force clicks past single-slot backpressure.
         pump(&mut app, "input resumed after formal result", |app| {
             app.local_arts
                 .test_window()

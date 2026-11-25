@@ -1,4 +1,4 @@
-//! 收件元数据全量校验后合并；offline origin只取发起请求，跨路由ID冲突或超限不截断。
+//! Fully validate inbox metadata before merging; offline origin comes only from initiating requests, without truncating cross-route ID conflicts/oversized lists.
 use super::*;
 use serde_json::value::RawValue;
 #[derive(Deserialize)]

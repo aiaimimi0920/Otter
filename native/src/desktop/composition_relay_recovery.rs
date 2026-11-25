@@ -1,4 +1,4 @@
-//! 恢复查询与现有挂载共用集合容量；候选只供显式确认，不自动发起 remount。
+//! Recovery queries share collection capacity with existing attachments; candidates require explicit confirmation and never trigger automatic remount.
 use super::*;
 use crate::{
     surface_attach_runtime::Request,

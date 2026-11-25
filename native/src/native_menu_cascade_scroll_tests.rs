@@ -1,4 +1,4 @@
-//! 真实面板的滚动与点击隔离；极端坐标验证拖出窗口时仍有界。
+//! Real-panel scrolling/click isolation; extreme coordinates verify boundedness when dragging outside windows.
 use super::*;
 use windows::core::w;
 struct Owner(HWND);

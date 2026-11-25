@@ -1,4 +1,4 @@
-//! 正常退出的最终时间点；原单槽提交前不销毁 HWND，过期/失败不留下潜伏退出。
+//! Final time point for normal exit; preserve HWNDs until the original slot commits, and leave no latent exit after stale results/failures.
 use super::*;
 
 pub(super) struct Pending {
@@ -33,7 +33,7 @@ impl Application {
             .as_ref()
             .filter(|owner| !owner.stopped)
         else {
-            return Ok(false); // 无 profile/只读恢复副本没有新的写授权；沿明确退出选择。
+            return Ok(false); // No profile/read-only recovery copies grant no new write authority; follow the explicit exit choice.
         };
         let revision = owner
             .revision
@@ -48,14 +48,14 @@ impl Application {
         self.workspace_checkpoint.as_mut().unwrap().exit = Some(Pending { intent, revision });
         Ok(true)
     }
-    /// Some(false) 也消费此次退出；不能让后来一次普通保存复活旧批准。
+    /// Some(false) also consumes this exit attempt; a later ordinary save must not revive old approval.
     pub(in crate::desktop::application) unsafe fn finish_checkpoint_exit(
         &mut self,
     ) -> Option<bool> {
         if !self.checkpoint_exit_waiting() {
             return None;
         }
-        self.exit_requested.set(false); // 重复点击退出不使自己的 Receipt 过时。
+        self.exit_requested.set(false); // Repeated exit clicks must not stale their own Receipt.
         if self.checkpoint_pending() {
             return Some(false);
         }

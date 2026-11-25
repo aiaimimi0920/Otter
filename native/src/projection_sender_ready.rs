@@ -1,4 +1,4 @@
-//! 发送结果保原四槽/租约/同意图活动许可，工作区持久绑定前不退休原写前记录。
+//! Sender results retain original four-slot/lease/same-intent activity permits; no retirement of write-ahead records before persistent workspace binding.
 use super::*;
 use crate::projection_delivery::sender::{Active, Request, Response};
 pub(super) struct Connected {
@@ -31,8 +31,8 @@ impl Ready {
         }
         Ok(&self.value.response)
     }
-    /// 后台调用：完整 outbox 基线和原会话 patch 均可能有大 I/O/编码，不能在 UI 菜单执行。
-    /// 返回的候选保原日志；调用方仍须复核源/工作区/授权，并等自己的精确 checkpoint 提交。
+    /// Background only: full outbox baselines/original-session patches may require large I/O/encoding, never UI menu execution.
+    /// Returned candidates preserve original journals; callers still recheck source/workspace/authorization and await their exact checkpoint commit.
     pub fn prepare_binding(
         &self,
         source: &crate::session_source::Source,

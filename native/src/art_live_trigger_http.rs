@@ -1,4 +1,4 @@
-//! Device/nonce原通道上的精确本地自动触发操作；不会重放任何未知POST。
+//! Exact local automatic-trigger operations over the original Device/nonce channel; never replay an unknown-outcome POST.
 use super::*;
 use crate::{
     art_live_trigger::{self as trigger, Reply, Scope},

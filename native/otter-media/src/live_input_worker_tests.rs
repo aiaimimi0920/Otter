@@ -111,7 +111,7 @@ fn full_queue_revokes_and_never_executes_queued_edges() {
             down: true,
         },
     });
-    // 先放行夹具，断言失败也不会在 Drop 中等待一个尚未释放的测试闸门。
+    // Release fixtures first so failed assertions never wait in Drop on unreleased test gates.
     go_tx.send(()).unwrap();
     assert_eq!(rejected, Err(SubmitError::Full));
     assert!(worker.stopping());

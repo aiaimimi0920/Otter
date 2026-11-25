@@ -1,4 +1,4 @@
-//! 重启 journal→真实确认菜单→授权→HTTPS unlink→持久退休；失败/撤权/切换不伪报成功。
+//! Restart journal -> real confirmation menu -> authorization -> HTTPS unlink -> durable retirement; failure/revocation/switching never falsely reports success.
 use super::*;
 use crate::{
     desktop::{
@@ -146,7 +146,7 @@ fn run_recovery(mode: u8) {
             std::fs::read(files.root().join("projection-receive.json")).unwrap(),
             bytes
         );
-        assert!(!app.remote_sessions.projection_pending()); // 启动/授权均不自动联网解绑。
+        assert!(!app.remote_sessions.projection_pending()); // Neither startup nor authorization automatically networks to unlink.
         let pixels = app.documents[1]
             .state
             .canvas

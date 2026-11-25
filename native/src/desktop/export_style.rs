@@ -1,4 +1,4 @@
-//! 输出快照显式携带 node-owned 内容样式；不塞进 Editor，不修改或重复烘焙可编辑像素。
+//! Output snapshots explicitly carry node-owned content styles; do not put them in Editor or modify/rebake editable pixels.
 use super::*;
 use crate::{crop_geometry::Rect, pin_frame_style::Style};
 

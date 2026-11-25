@@ -1,4 +1,4 @@
-//! 显式 CLR/WinForms 门禁；只启动指定 fixture，并验证 HWND 属于持有的子进程。
+//! Explicit CLR/WinForms gate; start only the specified fixture and verify its HWND belongs to the held subprocess.
 use super::*;
 use crate::live_input::{Button, Controller};
 use std::{
@@ -11,7 +11,7 @@ use windows::Win32::{Foundation::*, UI::WindowsAndMessaging::*};
 struct Process(Child);
 impl Drop for Process {
     fn drop(&mut self) {
-        // 只回收本测试直接创建的 fixture，不按名称搜索或终止用户应用。
+        // Reclaim only the fixture directly created by this test; do not find or terminate user applications by name.
         let _ = self.0.kill();
         let _ = self.0.wait();
     }

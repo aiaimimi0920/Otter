@@ -1,4 +1,4 @@
-//! 本地回复呈现事务：视口/宿主前后复核，原 FIFO ticket 按结算→焦点→默认动作完成。
+//! Local-reply presentation transaction: recheck viewport/host before and after, completing the original FIFO ticket in settlement, focus, then default-action order.
 use super::*;
 impl Window {
     fn check_viewport(&self, expected: Option<crate::surface_viewport::Viewport>) -> Result<()> {

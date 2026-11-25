@@ -1,4 +1,4 @@
-//! 会话候选转为未发布宿主状态；不建 HWND、不执行 Art、不触及现有工作区。
+//! Convert session candidates into unpublished host state; create no HWNDs, execute no Art, and leave the existing workspace untouched.
 use super::{Candidate, Parts};
 use crate::desktop::{
     capability_selection::Selection, document_state, loom_result_state::Results, State,
@@ -17,7 +17,7 @@ use windows::{
 mod source_tests;
 
 pub struct Prepared {
-    // 完整会话和缺失能力身份保留在候选原文中；此 owner 不是持久化提交凭证。
+    // The candidate's original text retains the complete session and missing capability identities; this owner is not a persistence-commit credential.
     pub candidate: Candidate,
     pub catalog: Option<Rc<crate::desktop::capability_job::Loaded>>,
     pub(in crate::desktop) states: Vec<State>,
@@ -53,7 +53,7 @@ impl Parts {
         {
             return Err(invalid("Session state count mismatch"));
         }
-        // 密集资源与工作区同序；稀疏资源按同一顺序过滤生成，不能跳过不匹配的记录。
+        // Dense resources match workspace order; sparse resources are filtered in that same order, never skipping mismatched records.
         let mut arts = arts.into_iter();
         let mut results = results.into_iter();
         let mut projection_edits = projection_edits.into_iter().peekable();
@@ -73,7 +73,7 @@ impl Parts {
             {
                 return Err(invalid("Invalid restored state identity"));
             }
-            // UI 线程接管后台 alpha 缓存，不重新扫描图片或创建图形设备。
+            // The UI thread takes the background alpha cache without rescanning images or creating graphics devices.
             let mut state = State::new(None, true)?;
             state.unit_id = unit.clone();
             *state.extension_document.borrow_mut() =
@@ -110,7 +110,7 @@ impl Parts {
             {
                 let mut canvas = state.canvas.borrow_mut();
                 canvas.editor = restored.editor;
-                // 恢复位置已对应编辑器当前的可见框；后续同步只能应用相对变化。
+                // Restored positions already match the editor's current visible box; subsequent synchronization may apply only relative changes.
                 canvas.applied_crop = canvas.editor.annotation_frame();
                 canvas.frame_style = placement.frame_style;
                 canvas.normal_opacity = placement.opacity_normal as f32;
@@ -148,14 +148,14 @@ impl Parts {
                                 placement.rasterized_full
                                     || placement.crop.is_some_and(|crop| crop.rasterized_source),
                             );
-                            // 保存非等比恢复之前的 sourceSize，不能用当前 Editor 框替代。
+                            // Save sourceSize from before nonuniform restoration; do not substitute the current Editor box.
                             if let Some(crop) = placement.crop {
                                 source.with_source_logical(crop.crop.source)
                             } else {
                                 source
                             }
                         });
-                // 预览只供显示；绝不能写入可编辑底图或生成正式输出端口。
+                // Previews are display-only; never write them into editable base images or create official output ports from them.
                 if canvas.image.is_none() {
                     canvas.image = images.display().cloned();
                 }

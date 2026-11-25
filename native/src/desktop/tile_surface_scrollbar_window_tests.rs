@@ -1,4 +1,4 @@
-//! 自有离屏HWND；逻辑时钟驱动原真实timer，不移动鼠标、不向用户应用注入消息。
+//! Owned offscreen HWNDs; logical clocks drive original real timers without mouse movement or messages injected into user applications.
 use super::*;
 use crate::tile_surface_actions::{tests::Fixture, Kind};
 use serde_json::{json, Value};

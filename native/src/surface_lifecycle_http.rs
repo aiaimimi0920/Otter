@@ -1,4 +1,4 @@
-//! 生命周期 HTTP 仅在后台调用；active 必须由实际 UI 挂载确认触发，不由 remount 自动上报。
+//! Background-only lifecycle HTTP; active requires actual UI mount confirmation, never automatic reporting from remount.
 use super::*;
 use crate::{surface_lifecycle_owner::Owner, surface_live_binding::Lifecycle};
 impl Control<'_> {
@@ -30,7 +30,7 @@ impl Control<'_> {
         let body = serde_json::to_vec(&serde_json::json!({"protocolVersion":"loom.surface.v1",
             "instanceId":instance,"attachmentId":attachment,"state":state,"revision":revision}))
         .map_err(|_| Error::Input)?;
-        // 这里开始任一错误均保留 unknown；不根据 HTTP 错误猜测远端是否已经提交。
+        // Every error from here onward preserves unknown; do not infer remote commit status from HTTP errors.
         let bytes = self.send("POST", url.path(), &body, Duration::from_secs(10))?;
         owner
             .acknowledge(&bytes, state, revision)

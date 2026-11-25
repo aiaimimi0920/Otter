@@ -1,4 +1,4 @@
-//! 准备阶段只读输入，使用仓库夹具，不创建文件或显示对话框。
+//! Preparation reads inputs only using repository fixtures, without file creation/dialog display.
 use super::*;
 #[path = "open_capture_tests.rs"]
 mod capture;

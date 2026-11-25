@@ -1,4 +1,4 @@
-//! 每个文档只允许一个擦除提交任务；不排队也不覆盖手势，关闭时取消并回收线程。
+//! Allow only one erase-commit job per document; neither queue nor overwrite gestures, and cancel/reclaim the thread on close.
 use crate::{
     edit_worker_budget::Permit,
     erase::EraseError,
@@ -16,9 +16,9 @@ use std::{
 
 #[derive(Clone)]
 pub struct Request {
-    /// 一次手势的进程内身份；宿主路径只追加，克隆提交请求保留同一身份。
+    /// In-process identity of one gesture; the host path is append-only, and cloned commit requests retain the same identity.
     pub preview_identity: Arc<()>,
-    /// 手势开始时的标注层目标框；路径仍为文档源坐标。
+    /// Annotation-layer target rectangle at gesture start; the path remains in document source coordinates.
     pub annotation_frame: Option<crate::crop_geometry::Rect>,
     pub base_projection: Option<crate::image_projection::Projection>,
     pub source: Layers,
@@ -173,7 +173,7 @@ impl Job {
             running.cancel.store(true, Ordering::Release);
         }
     }
-    /// 不阻塞消息线程；只有线程完成后才 join，取消的结果不提交。
+    /// Do not block the message thread; join only after the thread finishes, and never commit canceled results.
     pub fn poll(&mut self) -> Option<Completed> {
         if !self
             .running
@@ -330,7 +330,7 @@ mod tests {
             job.start(work).unwrap();
             let layers = finish(&mut job).unwrap().result.unwrap();
             let overlay = layers.annotations.as_ref().unwrap();
-            // 源坐标 (20,12) 对应标注纹理中心 (16,16)，而非底图的 (20,12)。
+            // Source coordinate (20,12) corresponds to annotation-texture center (16,16), not base-image coordinate (20,12).
             assert_eq!(overlay[(16 * 32 + 16) * 4 + 3], 0);
             assert_eq!(overlay[(8 * 32 + 16) * 4 + 3], 128);
             assert_eq!(

@@ -1,4 +1,4 @@
-//! 经 mount 身份约束的图片字节获取。这里只验证传输，不解码、不缓存、不发布 UI。
+//! Fetch image bytes bound to mount identity. Validate transport only, without decoding, caching, or publishing UI.
 use super::*;
 use crate::surface_live_binding::Binding;
 use serde::Deserialize;
@@ -38,7 +38,7 @@ struct Lease {
     transport: Transport,
     expires_at_ms: u64,
 }
-/// 字段私有；只能从当前挂载的受限快照取得，不能构造任意 URL 或头。
+/// Private fields obtainable only from the current mount's restricted snapshot; arbitrary URLs or headers cannot be constructed.
 pub struct ResourceLease {
     binding: Binding,
     revision: u64,
@@ -169,7 +169,7 @@ impl ResourceLease {
         if self.size() == 0 || self.size() > 16 * 1024 * 1024 {
             return Err(ResourceError::Limit);
         }
-        // shared_memory/stream 留给各自安全 owner，不降级为路径读取或网络访问。
+        // Leave shared_memory/stream to their respective secure owners; never degrade them into path reads or network access.
         if lease.transport.kind != "loom_resource" {
             return Err(ResourceError::Unsupported);
         }
@@ -193,7 +193,7 @@ impl VerifiedResource {
     pub(crate) fn into_parts(self) -> (ResourceLease, Zeroizing<Vec<u8>>) {
         (self.request, self.bytes)
     }
-    /// 消费前必须提交当前 mount；换代/租约替换/到期的迟到结果不可取出字节。
+    /// Supply the current mount before consumption; late results after generation changes/lease replacement/expiry cannot yield bytes.
     pub fn bytes<'a>(
         &'a self,
         current: &MountedSurface,
@@ -213,7 +213,7 @@ impl VerifiedResource {
     }
 }
 impl Control<'_> {
-    /// 阻塞方法只供后台 owner 使用；复用固定地址 TLS、取消、截止时间与 Device 401 语义。
+    /// Blocking method for background owners only; reuse pinned-address TLS, cancellation, deadlines, and Device 401 semantics.
     pub fn fetch_image_resource(
         &self,
         request: ResourceLease,

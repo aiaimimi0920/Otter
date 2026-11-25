@@ -1,8 +1,8 @@
-//! 纯滚动呈现缓存：持有未平移几何和共享 DirectWrite 布局，绝不跨场景/重排复用。
+//! Pure-scroll presentation cache owns untranslated geometry and shared DirectWrite layouts; never reuse across scenes/reflows.
 use super::*;
 use crate::surface_layout_tree::{Snapshot, Tree};
 use std::collections::BTreeMap;
-/// 原生字段使用与测量相同的已解析字体；不在滚动路径重新解析继承或相对单位。
+/// Native fields use the same resolved fonts as measurement; scroll paths never reparse inheritance or relative units.
 #[derive(Clone)]
 pub struct ControlFont {
     pub family: String,
@@ -135,7 +135,7 @@ impl Cache {
     }
 }
 
-/// 只描述未滚动布局/样式，不包含权威值；本地滚动不能伪装成布局换代，也不能掩盖真换代。
+/// Describe only unscrolled layout/styles, not authoritative values; local scrolling must neither impersonate nor hide real layout-generation changes.
 fn layout_identity(tree: &Tree<'_>) -> [u8; 32] {
     let mut hash = ring::digest::Context::new(&ring::digest::SHA256);
     for value in tree.viewport() {

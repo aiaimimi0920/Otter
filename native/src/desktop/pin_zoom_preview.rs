@@ -1,4 +1,4 @@
-//! 单个滚轮过渡的完整预览；宿主保持几何/焦点身份，但空 region 阻止旧 GPU 帧曝光。
+//! A complete preview for one wheel transition; the host retains geometry/focus identity, but an empty region prevents old GPU frames from appearing.
 use super::{PinRect, State};
 use crate::desktop::{canvas::Canvas, display_snapshot::Stamp};
 use std::{
@@ -25,7 +25,7 @@ pub(super) struct Click {
     point: POINT,
     at: std::time::Instant,
 }
-// 首击落到预览、次击落到宿主时，保留系统双击的时间和空间边界。
+// When the first click hits the preview and the second the host, preserve system double-click time and space boundaries.
 pub(in crate::desktop) unsafe fn click_dispatch(
     hwnd: HWND,
     state: &State,
@@ -121,7 +121,7 @@ pub(super) unsafe fn begin(hwnd: HWND, state: &State, rect: PinRect) -> Result<(
         stamp: RefCell::new(stamp),
         padding: Cell::new(0),
     });
-    // 像素、透明度和外框先在内存完成；不能先覆盖半透明宿主再花时间准备遮罩。
+    // Finish pixels, opacity, and border in memory first; do not cover a translucent host before spending time preparing the mask.
     let frame = preview.prepare(hwnd, state, rect)?;
     if !state.lifetime.owns(hwnd) {
         return Ok(());
@@ -164,7 +164,7 @@ impl Preview {
         self.window.sync_affinity(hwnd)?;
         self.window.sync_order(hwnd)?;
         let dpi = GetDpiForWindow(hwnd).clamp(96, 768);
-        // 活跃预览中的图片和外框使用同一 HWND/位图，不能再由另一窗口追赶。
+        // The active preview's image and border share one HWND/bitmap; no other window may chase them.
         let border = crate::desktop::application::chrome::border_visible(&state.chrome, hwnd);
         let padding = if border {
             crate::desktop::pin_border_style::width(dpi)
@@ -185,7 +185,7 @@ impl Preview {
                 .take_submission(false)
                 .expect("preview owns a software target")
         };
-        // Canvas 借用已释放；ULW 的重入回调只持稳定的 HWND+身份标记。
+        // The Canvas borrow is released; reentrant ULW callbacks hold only stable HWND+identity tokens.
         Ok((pending.prepare_preview(padding, border)?, padding))
     }
     unsafe fn submit(
@@ -243,7 +243,7 @@ pub(super) unsafe fn move_cached(hwnd: HWND, state: &State, rect: PinRect) -> Re
             || current.right - current.left != (rect.width + 2 * expected_padding) as i32
             || current.bottom - current.top != (rect.height + 2 * expected_padding) as i32
         {
-            // 跨 DPI/系统 resize 不是纯移动，必须重建相应尺寸的完整帧。
+            // Cross-DPI/system resize is not pure movement; rebuild a complete frame at the corresponding size.
             super::fit_size(hwnd, state, (rect.width as i32, rect.height as i32));
             return preview.present(hwnd, state, rect);
         }
@@ -258,7 +258,7 @@ pub(super) unsafe fn move_cached(hwnd: HWND, state: &State, rect: PinRect) -> Re
                 bottom: rect.y + rect.height as i32,
             },
         )?;
-        // 只移动已经完成的图框整帧，不重绘/复制图片，不排队补历史位置。
+        // Move only the completed image/border frame, without redrawing/copying images or queuing historical-position catch-up.
         crate::desktop::application::chrome::move_frame(
             &state.chrome,
             hwnd,
@@ -296,13 +296,13 @@ pub(in crate::desktop) unsafe fn hit_update(hwnd: HWND, state: &State) -> Result
     }
 }
 pub(super) unsafe fn finish(hwnd: HWND, state: &State, restore: bool) {
-    // 先移出槽，解除 mask 围栏；本地 Rc 让预览保持到宿主完整重绘之后。
+    // Move out of the slot and release the mask fence first; the local Rc keeps the preview until the host is fully repainted.
     let preview = state.pin_animation.preview.borrow_mut().take();
     let Some(preview) = preview else {
         return;
     };
     if restore && state.lifetime.owns(hwnd) {
-        // 仍为空 region 时完成最终原生帧，不能先露出旧尺寸的 GPU 缓冲。
+        // Finish the final native frame while the region is still empty; do not expose an old-size GPU buffer first.
         let mut rect = RECT::default();
         if let Err(error) = GetWindowRect(hwnd, &mut rect) {
             *state.error.borrow_mut() = Some(error);
@@ -320,8 +320,8 @@ pub(super) unsafe fn finish(hwnd: HWND, state: &State, restore: bool) {
             state.pin_resize.rect.set(None);
             let prepared = state.pin_resize.prepared.replace(false);
             if !prepared && state.lifetime.owns(hwnd) && IsWindowVisible(hwnd).as_bool() {
-                // 失败时保留最后完整帧和输入入口；后续点击/取消可重试交接，销毁仍回收。
-                // 不发布未准备的旧 GPU 帧，也不新增自动重试 timer。
+                // On failure retain the last complete frame and input entry; later clicks/cancellation may retry handoff, and destruction still reclaims resources.
+                // Publish no unprepared old GPU frame and add no automatic retry timer.
                 if state.error.borrow().is_none() {
                     *state.error.borrow_mut() = Some(windows::core::Error::new(
                         E_FAIL,
@@ -331,7 +331,7 @@ pub(super) unsafe fn finish(hwnd: HWND, state: &State, restore: bool) {
                 *state.pin_animation.preview.borrow_mut() = Some(preview);
                 return;
             }
-            // 等待期间宿主仍无可见像素，半透明图片不会被两层重复混合。
+            // The host still has no visible pixels while waiting, preventing double blending of translucent images across two layers.
             if let Err(error) = windows::Win32::Graphics::Dwm::DwmFlush() {
                 eprintln!("native-zoom-handoff: {error}");
             }
@@ -366,8 +366,8 @@ pub(super) unsafe fn finish(hwnd: HWND, state: &State, restore: bool) {
             return;
         }
     }
-    // 恢复宿主后立刻撤掉代理，中间不重绘/排序边框，不等待额外 DWM 帧。
-    // 否则半透明内容和两套边框会短暂叠加，形成停手后的亮度脉冲。
+    // Remove the proxy immediately after restoring the host, without intervening border repaint/reordering or another DWM-frame wait.
+    // Otherwise translucent content and two borders briefly overlap, causing a brightness pulse after input stops.
     drop(preview);
     crate::desktop::application::chrome::composite_frame(&state.chrome, hwnd, false);
 }

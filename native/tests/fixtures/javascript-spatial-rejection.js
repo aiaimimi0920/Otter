@@ -1,4 +1,4 @@
-// 每次错误都必须保留原四边/两轴；不能先写一半，再在最后一个值失败。
+// Every error must preserve the original four sides/two axes; never write half first and then fail on the last value.
 NeuroSurface.define({ mount({ root }) {
   root.style.cssText = "position:relative;inset:1px 2px 3px 4px;overflow:hidden";
   const reject = operation => { const old = root.style.cssText; let failed = false;

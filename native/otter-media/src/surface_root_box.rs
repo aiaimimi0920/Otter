@@ -1,4 +1,4 @@
-//! 根盒约束与宿主视口分离；显式尺寸可溢出，但不得改变宿主裁剪范围。
+//! Separate root-box constraints from the host viewport; explicit dimensions may overflow but must not change the host clip range.
 use crate::{surface_length::Context, surface_scene::Node};
 
 pub fn origin(node: &Node, viewport: [f32; 2], size: [f32; 2], mut context: Context) -> [f32; 2] {
@@ -16,7 +16,7 @@ pub fn origin(node: &Node, viewport: [f32; 2], size: [f32; 2], mut context: Cont
     {
         context.axis = viewport[axis];
         let get = |key| crate::surface_layout_value::length(node, key, context);
-        // LTR 起始边优先；relative 的末端偏移为负，absolute 从宿主末端扣最终尺寸。
+        // The LTR start edge takes precedence; relative end offsets are negative, while absolute positioning subtracts final size from the host end.
         result[axis] = get(start).unwrap_or_else(|| {
             get(end).map_or(0., |offset| {
                 if position == Some("absolute") {
@@ -49,7 +49,7 @@ pub fn resolve(
         let minimum = get(min).unwrap_or(0.).max(floor);
         let maximum = get(max).unwrap_or(32768.).max(minimum);
         let mut automatic = if axis == 0 { viewport[0] } else { intrinsic[1] };
-        // 默认容器满宽由统一取值器返回；仅真正的 auto 使用下面的回退尺寸。
+        // The shared value resolver returns default full container width; only actual auto uses the fallback size below.
         if node
             .layout()
             .get("position")

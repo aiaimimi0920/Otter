@@ -1,4 +1,4 @@
-//! EDIT 声明配色及销毁接线；不依赖可重入期间暂时移出的 Host，不持有业务指针。
+//! EDIT declared-color and destruction wiring; independent of temporarily removed reentrant Hosts, with no business-state pointers.
 use super::*;
 use crate::desktop::{surface_control_color as owner, surface_control_colors as theme};
 use windows::Win32::UI::Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass};
@@ -26,7 +26,7 @@ impl Control {
     }
 }
 pub(in crate::desktop) unsafe fn paint(parent: HWND, hwnd: HWND, dc: HDC) -> Option<LRESULT> {
-    // 颜色不是授权凭证：仍校验实际父窗口和 EDIT owner marker，仅接管呈现。
+    // Colors are not authorization credentials: still verify the actual parent window and EDIT owner marker, taking over presentation only.
     if dc.is_invalid()
         || GetParent(hwnd).ok() != Some(parent)
         || GetPropW(hwnd, OWNER).is_invalid()
@@ -34,11 +34,11 @@ pub(in crate::desktop) unsafe fn paint(parent: HWND, hwnd: HWND, dc: HDC) -> Opt
     {
         return None;
     }
-    let palette = owner::current(hwnd); // 复制后不跨 Win32 调用借用 property。
+    let palette = owner::current(hwnd); // Copy first, retaining no property borrow across Win32 calls.
     if palette == owner::Palette::default() {
         return None;
     }
-    // Classic EDIT 是不透明 GDI 子窗口；alpha 背景暂以控件底色预合成，非任意父像素透明。
+    // Classic EDIT is an opaque GDI child; alpha backgrounds currently precompose with the control base color, not arbitrary parent-pixel transparency.
     let background = owner::blend(palette.background, theme::BACKGROUND);
     let foreground = palette
         .foreground

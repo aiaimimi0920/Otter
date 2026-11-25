@@ -1,42 +1,49 @@
-# 笔迹、直线与贝塞尔曲线
+# Freehand strokes, lines and Bezier curves
 
-## 铅笔与画笔
+## Pencil and brush
 
-Ctrl+E 打开主编辑栏，在铅笔按钮下拉菜单中选择“铅笔”或“画笔”。主按钮记住本次选择，点击可继续使用同一工具。
+Press Ctrl+E to open the main edit strip, then choose Pencil or Brush from the pencil button's dropdown. The main button remembers your selection for subsequent use.
 
-- 铅笔保持等宽笔触；画笔采用稍饱满的圆起笔、随移动速度变化的行笔和更细的收笔。鼠标慢画较饱满、快划较轻细，宽度变化经过缓动，边缘仅轻微柔化；不声称已支持数位笔原生压感。
-- 两者共用颜色选择器，分别记住粗细、不透明度和平滑度。粗细范围 1–999；不透明度和平滑度范围 0–100。数字输入支持上下步进。
-- 铅笔默认平滑度为 0，保持原有手绘轨迹；画笔默认粗细 16、平滑度 50。平滑度仅影响新绘制的笔迹，不会重写已有标注。
-- 铅笔保留荧光开关。荧光与其他参数可以同时使用：不透明度在荧光基础强度上继续调节，平滑度照常处理轨迹，开启荧光不会隐藏任何属性。
-- 单击可画圆点，拖动绘制笔迹，Shift 可约束直线。松手提交一次历史记录，Escape 或指针取消不提交未完成笔迹。
-- 支持已有标注的选择、移动、旋转、缩放、撤销、重做和栅格化。
+- Pencil strokes have a constant width. Brush strokes have a slightly fuller rounded start, speed-dependent width and a finer finish. Slow mouse movement produces fuller strokes; fast movement produces lighter, thinner strokes. Width transitions are eased and edges are only lightly softened. Native pen-pressure support is not claimed.
+- Both tools share a color picker but remember their own width, opacity and smoothing. Width ranges from 1–999; opacity and smoothing range from 0–100. Numeric inputs support increment/decrement steps.
+- Pencil smoothing defaults to 0 to preserve the original freehand path. Brush defaults to width 16 and smoothing 50. Smoothing affects only new strokes, not existing annotations.
+- Pencil retains its highlighter toggle. Other parameters remain available: opacity adjusts the base highlight intensity, smoothing still processes the path, and enabling highlighting hides no properties.
+- Click to draw a dot, drag to draw a stroke, or hold Shift to constrain a straight line. Releasing commits one history entry; Escape or pointer cancellation does not commit an unfinished stroke.
+- Existing annotations support selection, movement, rotation, scaling, undo, redo and rasterization.
 
-原生画笔保存中心线和粗细权重，重新加载不按速度重新计算笔迹；铅笔仍为等宽。
-实现见[`annotation_paintbrush.rs`](../../native/src/desktop/annotation_paintbrush.rs)。
+The native brush stores its centerline and width weights, so reloading does not recompute the stroke from speed. Pencil remains constant-width.
+See [`annotation_paintbrush.rs`](../../native/src/desktop/annotation_paintbrush.rs).
 
-## 直线与贝塞尔曲线
+## Lines and Bezier curves
 
-- Ctrl+E 打开主编辑栏，在直线按钮的下拉菜单中选择“贝塞尔曲线”。
-- 按下并拖动确定起点、终点；松开后创建一条初始弯曲的三次贝塞尔曲线，并自动进入选择模式。
-- 白色圆点是端点或中间节点，每段有两个黄色控制点。拖动控制点独立调整曲率；拖动节点时相邻控制点跟随平移。
-- 双击曲线任意非端点位置可添加节点，使用精确分段保持原曲线外形。新增白色节点可移动，其两侧黄色控制柄可以分别调整。
-- 拖动起点或终点旁的 `+` 向外继续画，可反复增加曲线段；整条路径始终是同一个对象。点击 `+` 也会增加一小段。
-- 右键白色节点打开“删除节点”。删除中间节点会连接相邻两段并保留两侧外端控制柄，附近形状可能改变；删除起点或终点会移除首段或末段。黄色控制柄不能单独删除，至少保留一段曲线，删除支持撤销和重做。
-- 点击空白处取消选择，再点击曲线可继续编辑。选择模式下拖动曲线本身可以整体移动。
-- 属性栏提供描边颜色、线宽、线型和箭头；已有直线、箭头和曲线单选后也可以修改这些属性。
-- 新直线额外提供角度吸附；曲线不显示此开关。直线和曲线分别保存线宽、线型和箭头默认设置。
-- 每次完整拖动只提交一次历史记录，支持撤销和重做。取消绘制或控制点拖动不提交未完成形状。
+- Press Ctrl+E to open the main edit strip, then choose Bezier Curve from the line button's dropdown.
+- Press and drag to set the start and end points. Releasing creates an initially curved cubic Bezier and automatically enters selection mode.
+- White dots are endpoints or intermediate nodes; each segment has two yellow control points. Drag control points to adjust curvature independently. Moving a node translates its adjacent control points with it.
+- Double-click any non-endpoint position on the curve to add a node. Exact subdivision preserves the original shape. You can move the new white node and adjust its two yellow control handles independently.
+- Drag outward from the `+` beside either endpoint to extend the curve repeatedly. The entire path remains one object. Clicking `+` also adds a short segment.
+- Right-click a white node to choose Delete Node. Deleting an intermediate node joins its adjacent segments and retains their outer control handles; the nearby shape may change. Deleting an endpoint removes the first or last segment. Yellow handles cannot be deleted individually, and at least one segment must remain. Deletion supports undo and redo.
+- Click empty space to deselect, then click the curve to resume editing. In selection mode, dragging the curve itself moves the whole object.
+- The properties strip offers stroke color, width, style and arrows. These properties can also be changed for a single selected existing line, arrow or curve.
+- New straight lines additionally offer angle snapping; curves do not show this toggle. Lines and curves store separate defaults for width, style and arrows.
+- Each completed drag commits one history entry, with undo and redo support. Canceling drawing or a control-point drag does not commit an unfinished shape.
 
-原生模型保存 `3n+1` 个点（起点，随后每段两个控制点与终点），最多 64 段；不保存采样折线。
-屏幕、命中和导出使用原生几何，控制柄只属于编辑层。参见[`editor_bezier.rs`](../../native/src/editor_bezier.rs)
-和[`annotation_bezier.rs`](../../native/src/desktop/annotation_bezier.rs)。
+The native model stores `3n+1` points: the initial point, then two control points and an endpoint per segment, up to 64 segments. It does not store a sampled polyline.
+Rendering, hit testing and export use native geometry; control handles belong only to the editing layer.
+See [`editor_bezier.rs`](../../native/otter-runtime/src/editor_bezier.rs)
+and [`annotation_bezier.rs`](../../native/src/desktop/annotation_bezier.rs).
 
-## 验证
+## Verification
+
+The model, history and stroke timing live in `otter-runtime`; native hit testing, rendering and export live in the host. Test them separately:
 
 ```powershell
-cargo test --locked --manifest-path native/Cargo.toml --lib bezier
-cargo test --locked --manifest-path native/Cargo.toml --lib paintbrush
+cargo nextest run --locked --manifest-path native/Cargo.toml -p otter-runtime --lib -E 'test(bezier) | test(editor::brush_motion::)'
+cargo nextest run --locked --manifest-path native/Cargo.toml -p otter-native --lib --features test-canvas -E 'test(bezier) | test(paintbrush)'
 ```
 
-单元测试不替代对实际 EXE 的拖动、取消、撤销和导出验收。普通 PNG 投射只投递合成图像，
-不要据此推断接收端可同步编辑每个底层标注对象。
+`editor::brush_motion::` covers weight, timing and cancellation regressions in
+[`editor_brush_motion.rs`](../../native/otter-runtime/src/editor_brush_motion.rs).
+Filtering only for `paintbrush` in the host does not run these model tests.
+Unit tests do not replace drag, cancellation, undo and export acceptance checks on the actual EXE.
+Ordinary PNG projection delivers only a composited image; it does not imply synchronized editing
+of each underlying annotation object on the receiver.

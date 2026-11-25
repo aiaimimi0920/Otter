@@ -1,4 +1,4 @@
-//! 独立原生入口；使用隔离的 OtterNative profile，--settings 优先，不自动访问主干目录。
+//! Standalone native entry using an isolated OtterNative profile; --settings takes priority, without automatic mainline-directory access.
 #![cfg_attr(windows, windows_subsystem = "windows")]
 #[cfg(windows)]
 mod startup_session;
@@ -7,7 +7,7 @@ mod startup_settings;
 #[cfg(windows)]
 fn main() -> windows::core::Result<()> {
     let args: Vec<_> = std::env::args_os().skip(1).collect();
-    // 已退役的 ANGLE child 不得进入任何私有 worker 或读取设置/继承句柄。
+    // Retired ANGLE children must not enter private workers or read settings/inherited handles.
     if args.iter().any(|arg| arg == "--native-shader-worker") {
         return Err(windows::core::Error::new(
             windows::Win32::Foundation::E_INVALIDARG,
@@ -77,7 +77,7 @@ fn main() -> windows::core::Result<()> {
             windows::core::Error::new(windows::Win32::Foundation::E_FAIL, e.to_string())
         });
     }
-    // 恢复子进程必须在设置、会话和桌面初始化之前分流，不能访问用户 profile。
+    // Route recovery children before settings/session/desktop initialization; they cannot access user profiles.
     if let Some(parent) = otter_native::live_recovery_runtime::parse(&args).map_err(|error| {
         windows::core::Error::new(windows::Win32::Foundation::E_INVALIDARG, error.to_string())
     })? {
@@ -95,7 +95,7 @@ fn main() -> windows::core::Result<()> {
     if let Some(command) = otter_native::tile_cli::parse(&args).map_err(|message| {
         windows::core::Error::new(windows::Win32::Foundation::E_INVALIDARG, message)
     })? {
-        // 输出枚举只打印 JSON 后退出；常驻 Tile 仍需 watchdog。
+        // Output enumeration prints JSON and exits; resident Tile still requires a watchdog.
         let _emergency = (command != otter_native::tile_cli::Command::Outputs)
             .then(otter_native::emergency_watchdog::install);
         return otter_native::desktop::tile_terminal::run(command);
@@ -111,7 +111,7 @@ fn main() -> windows::core::Result<()> {
         .map_err(|error| {
             windows::core::Error::new(windows::Win32::Foundation::E_INVALIDARG, error.to_string())
         })?;
-    // 候选目录必须原样为绝对本地路径，不能将相对/设备路径预先绝对化或 canonicalize。
+    // Candidate directories must already be absolute local paths; never first absolutize/canonicalize relative/device paths.
     let startup = otter_native::desktop::Startup {
         settings: settings.as_deref(),
         shader_candidate: options.candidate.as_deref(),

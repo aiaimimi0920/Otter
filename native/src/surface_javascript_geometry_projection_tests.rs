@@ -1,4 +1,4 @@
-//! 同生产工厂/真实 QuickJS 验证投影缓存；fake boxes 不替代原生布局、预算或 HWND 门。
+//! Verify projection caching with the production factory/real QuickJS; fake boxes do not replace native layout, budget, or HWND gates.
 use super::*;
 
 fn model(script: &str) {
@@ -7,13 +7,13 @@ fn model(script: &str) {
     runtime.set_max_stack_size(256 * 1024);
     let context = Context::full(&runtime).unwrap();
     let factory = include_str!("surface_javascript_geometry.js");
-    // 在cache miss处计数，不增加函数包装栈；故障注入只存在于测试求值的副本。
+    // Count at cache misses without adding wrapper stack frames; fault injection exists only in the test-evaluated copy.
     let counted = factory.replace(
         "const source = json.encode(project(dom.root));",
         "projections++; const source = json.encode(project(dom.root)); if(projectionMutation){projectionMutation=false;dom.root.title='during-projection'}",
     );
     assert_ne!(factory, counted);
-    // 比对同一场景投影，不在 mount 的 JS 调用栈内提前刷出 Canvas 命令。
+    // Compare projections of the same scene without flushing Canvas commands early inside mount's JS call stack.
     let bootstrap = BOOTSTRAP.replacen(factory, &counted, 1).replacen(
         "    collect: () => protocol.encode(",
         "    projectScene: () => protocol.encode(project(root)), collect: () => protocol.encode(",
@@ -36,7 +36,7 @@ fn model(script: &str) {
         "#
     );
     context.with(|ctx| {
-        // 像Engine一样从Rust交付operation；模型不额外嵌套eval/async调度栈或放宽256KiB。
+        // Deliver operations from Rust as Engine does; the model adds no nested eval/async scheduling stack or relaxed 256KiB limit.
         let result = (|| {
             ctx.eval::<(), _>("let projections=0,projectionMutation=false;")?;
             let bridge: Object = ctx.eval(bootstrap)?;

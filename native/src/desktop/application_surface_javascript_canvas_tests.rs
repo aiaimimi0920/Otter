@@ -1,4 +1,4 @@
-//! 原 TLS/Application owner 的 observer→rAF→Canvas 像素与空闲回收；不制造服务端业务结果。
+//! Original TLS/Application owner observer -> rAF -> Canvas pixels and idle reaping; no manufactured server business results.
 use super::*;
 pub(super) unsafe fn exercise(app: &mut Application, root: &std::path::Path) {
     {

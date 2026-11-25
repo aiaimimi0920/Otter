@@ -51,7 +51,7 @@ fn bound_window_crop_copies_exact_bgra_pixels_and_uses_same_input_offset() {
         let mut consumer = source.subscribe().unwrap();
         source.publish(copied).unwrap();
         let prepared = consumer.try_next().unwrap().unwrap().frame;
-        // 源池复用不能污染裁剪后的独立快照。
+        // Source-pool reuse must not contaminate the cropped independent snapshot.
         context.UpdateSubresource(&texture, 0, None, [0u8; 16].as_ptr().cast(), 8, 16);
         let read = crate::live_texture::readback::read(prepared, &AtomicBool::new(false)).unwrap();
         assert_eq!((read.width, read.height), (1, 2));

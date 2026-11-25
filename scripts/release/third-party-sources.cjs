@@ -1,4 +1,4 @@
-// 校验受审查的依赖副本；补丁身份绑定实际文件字节，而非同版本号假定。
+// Verify reviewed dependency copies; bind patch identity to actual file bytes, not assumptions based on matching version numbers.
 const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
@@ -106,7 +106,7 @@ function verifyResolution(root, sources, metadata) {
 
 function resolvedSources(root) {
   const sources = verifiedSources(root);
-  // 不只信任 lock 中缺少 source 的同名包：配置覆盖和另一路径也必须被发现。
+  // Do not trust only same-named lockfile packages lacking source; also detect configuration overrides and alternative paths.
   const result = spawnSync("cargo", ["metadata", "--manifest-path", path.resolve(root, "native/Cargo.toml"),
     "--format-version", "1", "--locked"],
     { cwd: root, encoding: "utf8", timeout: 180000, maxBuffer: 16 * 1024 * 1024, windowsHide: true });

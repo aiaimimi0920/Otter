@@ -1,4 +1,4 @@
-//! 更新回执只在原来源/Lease/canonical全部存活时交原Checkpoint；失败绝不补偿解绑稳定关联。
+//! Update receipts reach original Checkpoint only while original source/Lease/canonical all survive; failure never compensates by unlinking stable associations.
 use super::*;
 impl Application {
     pub(in crate::desktop::application::projection_sender) unsafe fn finish_sender_update(

@@ -1,4 +1,4 @@
-//! 真 TLS/原 Grant/原 HWND 点击→后台 listener→原批次→收敛→同 child update；无全局输入。
+//! Real TLS/original Grant/original HWND click -> background listener -> original batch -> convergence -> same-child update; no global input.
 use super::*;
 #[path = "application_surface_javascript_animation_tests.rs"]
 mod animation;
@@ -95,7 +95,7 @@ fn run(mode: u8) {
             [crate::device_authorization_owner::Event::Authorized { .. }]
         ));
         if (6..=12).contains(&mode) {
-            // 在原 mount 最后一次启用输入之前设置策略，避免测试先提交一帧再断言尚未开始。
+            // Set policy before the original mount's final input enablement, so the test cannot commit a frame before asserting it has not started.
             app.authorization.borrow_mut().busy = true;
         }
         let parent = setup::mount(&mut app, &origin, files.root());
@@ -177,7 +177,7 @@ fn run(mode: u8) {
                 assert!(app.surface_windows.iter_mut().next().unwrap().is_alive());
                 assert_eq!(app.remote_sessions.wait_handles().count(), 0);
             }
-            // listener 已运行并准备 emit；交付前改变真实客户区，必须关闭而非重跑或发旧事件。
+            // The listener has run and prepared an emit; changing the actual client area before delivery must close it, not rerun or send stale events.
             SetWindowPos(
                 parent,
                 None,
@@ -244,7 +244,7 @@ fn run(mode: u8) {
                 app.poll_remote_live_with(true, |o| fixture::config(o, files.root()))
                     .unwrap();
                 if mode != 15 {
-                    assert_eq!(app.remote_sessions.wait_handles().count(), 0); // listener 只在原后台 child 执行。
+                    assert_eq!(app.remote_sessions.wait_handles().count(), 0); // The listener runs only in the original background child.
                     assert!(app
                         .surface_windows
                         .iter_mut()

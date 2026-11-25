@@ -1,4 +1,4 @@
-//! Canvas 左键捕获 owner；只采集原生消息，所有边沿进入原 Mount FIFO，不同步等待 child。
+//! Canvas left-button capture owner; collect native messages only, sending all edges through original Mount FIFO without synchronous child waits.
 use super::*;
 use crate::surface_javascript_wire::{PointerInput, PointerPhase};
 #[path = "surface_window_javascript_hover.rs"]
@@ -68,7 +68,7 @@ pub(super) fn cancel(state: &State) {
         return;
     }
     clear(state);
-    // 捕获结束不等于 FIFO 已交付；连已排 up 的 waiting 也要撤销，在途证据仍保留。
+    // Capture completion does not mean FIFO delivery; revoke waiting entries even for queued up, while retaining in-flight evidence.
     if !state.closed.get() && state.local_edit.get() {
         match state.run(|host| host.cancel_javascript_pointers(state.viewport_epoch.get())) {
             Ok(false) => state.pointer_cancel_pending.set(true),
@@ -86,7 +86,7 @@ unsafe fn release(hwnd: HWND, state: &State) {
     }
     state.pointer_releasing.set(false);
 }
-/// 仅供软背压/JS 同节点帧/同 HWND 下一 Canvas 手势；其他 invalidate 都是硬取消。
+/// Only for soft backpressure/JS same-node frames/the next Canvas gesture on the same HWND; all other invalidation is hard cancellation.
 pub(super) unsafe fn preservable(hwnd: HWND, state: &State) -> bool {
     let press = state.javascript_pointer.borrow().active.clone();
     let Some(press) = press else {
@@ -146,7 +146,7 @@ pub(super) unsafe fn message(
         let Some(node) = target(state, pixels) else {
             return false;
         };
-        // 未获准的 Canvas 消息也不落回旧 click，不能在后台补出激活。
+        // Unauthorized Canvas messages must not fall back to old click handling and fabricate background activation.
         if !state.local_edit.get() || !state.pointer.borrow().enabled() {
             return true;
         }
@@ -186,7 +186,7 @@ pub(super) unsafe fn message(
             .is_some_and(|p| p.gesture == gesture);
         if !owns {
             return true;
-        } // 同 HWND 的后来 scrollbar/capture owner 不由本次释放。
+        } // This release does not own a later scrollbar/capture owner on the same HWND.
         if !preservable(hwnd, state)
             || target(state, pixels).as_deref() != Some(press.input.target.as_str())
         {

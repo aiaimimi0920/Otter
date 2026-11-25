@@ -1,4 +1,4 @@
-//! 默认 profile 的接收 journal 生命周期；后台只打开一次，内存快照不授予联网或显示权。
+//! Default-profile receive-journal lifecycle; open once in the background, and memory snapshots grant neither network nor display permission.
 use crate::{
     desktop::{
         device_authorization_ui::projection::recovery::View,
@@ -47,7 +47,7 @@ impl Owner {
     }
     pub(in crate::desktop::application) fn start(&mut self, root: PathBuf, notify: Notify) {
         if !matches!(self, Self::Disabled) {
-            return; // 工作区切换不重开同一 profile 的独占 Store，也不隐式重试失败。
+            return; // Workspace switches neither reopen the same profile's exclusive Store nor implicitly retry failures.
         }
         let cancel = Arc::new(AtomicBool::new(false));
         let signal = cancel.clone();
@@ -86,7 +86,7 @@ impl Owner {
     pub(in crate::desktop::application) fn poll(&mut self) {
         self.collect(false);
     }
-    /// 仅应用终态：删除最后 Unit 仍须取得原 Store，不能把 Opening 当空 journal。
+    /// Application terminal state only: deleting the final Unit still requires the original Store; Opening is not an empty journal.
     pub(in crate::desktop::application) fn finish_open(&mut self) {
         self.collect(true);
     }
@@ -123,7 +123,7 @@ impl Owner {
     pub(in crate::desktop::application) fn recorded(&self, ticket: &Ticket) -> bool {
         matches!(self, Self::Ready { entries, .. } if entries.iter().any(|old| old.same_record(ticket)))
     }
-    /// 只在任务已回收时同步 Store 的内存提交结果；即使完成通知被取消也不复活已退休项。
+    /// Synchronize Store's in-memory commit results only after task reaping; canceled completion notifications must not revive retired entries.
     pub(in crate::desktop::application) fn refresh(&mut self) {
         let Self::Ready { store, entries, .. } = self else {
             return;
@@ -159,7 +159,7 @@ impl Owner {
             view.entries.clear();
             view.entries.extend_from_slice(entries);
         }
-        // saved 只用于按身份查询；沿 entries 一次更新、只克隆变化项。
+        // saved serves only identity lookup; update entries in one pass and clone only changed items.
         let mut count = 0;
         for entry in entries.iter().filter(|entry| included(entry)) {
             match view.saved.get_mut(count) {
@@ -186,7 +186,7 @@ impl Owner {
 impl Drop for Job {
     fn drop(&mut self) {
         self.cancel.store(true, Ordering::Release);
-        // 文件系统调用不能强制中止；只在应用终态等待回收，不遗留无 owner 线程。
+        // Filesystem calls cannot be forcibly aborted; wait for reaping only at application terminal state, leaving no ownerless threads.
         if let Some(thread) = self.thread.take() {
             let _ = thread.join();
         }
@@ -213,7 +213,7 @@ fn projection_profile_reaps_only_after_completed_notifier_exits() {
             let _ = blocked.lock().unwrap().recv_timeout(Duration::from_secs(5));
         }),
     );
-    let release = release; // 断言失败时先解除通知，再进入 owner 的同步 Drop。
+    let release = release; // On assertion failure, disconnect notification before entering the owner's synchronous Drop.
     notification.recv_timeout(Duration::from_secs(5)).unwrap();
     owner.poll();
     assert!(matches!(owner, Owner::Opening(_)));

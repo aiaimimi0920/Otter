@@ -1,4 +1,4 @@
-//! 圆角子树裁剪几何；按 render target 的工厂惰性缓存，禁止跨工厂复用 COM 几何。
+//! Rounded subtree-clip geometry; cache lazily per render-target factory, never reusing COM geometry across factories.
 use std::cell::{Ref, RefCell};
 use windows::{
     core::{Interface, Result},
@@ -34,7 +34,7 @@ impl Clips {
             .as_ref()
             .is_some_and(|cache| cache.factory.as_raw() == factory.as_raw());
         if !same {
-            // 整批成功后才换缓存；失败不会留下半份几何或继续使用旧工厂对象。
+            // Replace the cache only after the whole batch succeeds; failure neither leaves partial geometry nor continues using old factory objects.
             let geometries = self
                 .shapes
                 .iter()

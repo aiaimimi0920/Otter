@@ -1,4 +1,4 @@
-//! 服务端收敛只暂存权威快照；真实同 child update/DOM 交付之前不报告呈现成功。
+//! Server convergence only stages authoritative snapshots; report no presentation success before actual same-child update/DOM delivery.
 use super::*;
 impl AuthorizedWindow {
     pub(in crate::desktop::surface_authorized_window) fn stage_javascript_snapshot(

@@ -1,4 +1,4 @@
-//! 端点条精确键位；不读取全局前台或注入键盘输入。
+//! Exact endpoint-strip key mappings; no global foreground reads or keyboard injection.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Action {
     EnterRail(bool),

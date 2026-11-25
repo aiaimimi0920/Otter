@@ -1,4 +1,4 @@
-//! 真实 TLS→持久后台 owner；UI 不调用 refresh，闲置撤权/到期也必须回收 child。
+//! Real TLS -> persistent background owner; UI never calls refresh, and idle revocation/expiry must also reap children.
 use super::*;
 use crate::surface_javascript::authorized::Runtime;
 #[path = "surface_javascript_interaction_tests.rs"]

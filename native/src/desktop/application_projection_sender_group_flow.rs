@@ -1,4 +1,4 @@
-//! 组队列只由应用循环推进；原Retry阻住后续，显式取消不回滚已确认的发送关联。
+//! Only the application loop advances group queues; original Retry blocks later entries, and explicit cancellation does not roll back confirmed send associations.
 use super::*;
 use crate::device_authorization_config::Config;
 impl Application {
@@ -43,7 +43,7 @@ impl Application {
         let Some(mut batch) = self.projection_sender.group.take() else {
             return;
         };
-        // Waiting/Checkpoint沿原owner核来源；本批自己已发布但尚未落盘的原文不冒充外部换代。
+        // Waiting/Checkpoint checks source through the original owner; source content published by this batch but not yet persisted is not external replacement.
         if !matches!(self.projection_sender.phase, Phase::Idle) {
             batch.report(self);
             self.projection_sender.group = Some(batch);

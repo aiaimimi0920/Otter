@@ -1,4 +1,4 @@
-//! 同一任务槽内区分远端租约与本地 Shader；共享退休/回收调度，不伪造远端身份或清理确认。
+//! Distinguish remote leases/local Shaders within the same task slot; share retirement/reclamation scheduling without fabricating remote identity or cleanup confirmation.
 use super::{loom_execution_job as remote, shader_execution_job as shader};
 
 pub enum Completion {

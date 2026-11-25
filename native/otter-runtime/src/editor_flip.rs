@@ -1,4 +1,4 @@
-//! 整图翻转候选：UI 线程提供文字度量，后台翻转栅格并重算模糊，统一历史原子交付。
+//! Whole-image flip candidates: UI supplies text metrics, background flips rasters/recomputes blur, and unified history delivers atomically.
 use super::*;
 use crate::{
     erase_layers::Layers,
@@ -19,7 +19,7 @@ pub struct FlipPlan {
 }
 impl FlipPlan {
     pub fn compute(self, cancelled: impl Fn() -> bool) -> Result<RasterRefreshPlan, FlipError> {
-        // 主干底图翻转全源，标注层则重绘到当前可见框；两层全部成功才交付。
+        // Baseline base flipping covers full sources; annotation layers redraw into current visible bounds, delivering only after both succeed.
         let base = raster_flip::image(&self.source.base, self.source.size, self.axis, &cancelled)
             .map_err(FlipError::Pixels)?;
         let annotations = self
@@ -73,7 +73,7 @@ impl Editor {
         if self.retained_points + extra > MAX_TOTAL_POINTS {
             return Err(FlipError::Edit(EditError::BudgetExceeded));
         }
-        // 矢量在标注源坐标中翻转；恢复文档的逻辑框可能小于整数像素缓冲。
+        // Flip vectors in annotation-source coordinates; restored logical frames may be smaller than integer pixel buffers.
         let frame = self
             .annotation_frame()
             .unwrap_or(crate::crop_geometry::Rect {
@@ -109,7 +109,7 @@ impl Editor {
         Ok(Some(FlipPlan {
             source: source.clone(),
             axis,
-            // 只为裁剪视图重拟合标注纹理；完整源仍使用原整数像素尺寸。
+            // Refit annotation textures only for cropped views; full sources retain original integer pixel dimensions.
             annotation_size: self.crop.map_or(source.size, |view| {
                 let rect = view.source.rect;
                 (

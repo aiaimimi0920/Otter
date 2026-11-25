@@ -1,4 +1,4 @@
-//! 有界 NV12 缓冲转换到预算内的 PBGRA；2D surface 先由 MF 复制到已知范围。
+//! Convert bounded NV12 buffers to budgeted PBGRA; MF first copies 2D surfaces into a known range.
 use super::{
     samples::{Locked, MAX_BUFFER},
     Layout,
@@ -27,7 +27,7 @@ pub(super) fn decode(
             if surface.GetContiguousLength()? as usize != size {
                 return Err(invalid("Decoded surface size mismatch"));
             }
-            // Lock2D 的 scanline/pitch 不证明整个 NV12 backing 范围，不能据此构造 UV 裸切片。
+            // Lock2D scanline/pitch do not establish the full NV12 backing range and cannot justify constructing a raw UV slice.
             let (mut storage, _lease) = allocate_zeroed(size)?;
             surface.ContiguousCopyTo(&mut storage)?;
             convert(&storage, layout.width as usize, layout)
@@ -106,7 +106,7 @@ fn convert(source: &[u8], stride: usize, layout: Layout) -> Result<pixels::Pixel
     let total = w * h * 4;
     let (mut out, lease) = reserve_vec(total)?;
     let channel = |n: i32| ((n + 128) >> 8).clamp(0, 255) as u8;
-    // 按 2x2 像素块复用同一对 UV 色度，并直接写满预留输出，省去整帧预清零与 3/4 色度乘法。
+    // Reuse each UV chroma pair for a 2x2 pixel block and fill the reserved output directly, avoiding full-frame zeroing and 3/4 of the chroma multiplications.
     for (y, rows) in (0..h)
         .step_by(2)
         .zip(out.spare_capacity_mut()[..total].chunks_exact_mut(w * 8))
@@ -142,7 +142,7 @@ fn convert(source: &[u8], stride: usize, layout: Layout) -> Result<pixels::Pixel
             write_pair(y1, out1);
         }
     }
-    // w/h 均为正偶数；上面逐 2 行、逐 2 像素恰好初始化 total 个字节，无裸源指针读。
+    // w/h are positive and even; the two-row, two-pixel traversal above initializes exactly total bytes without raw source-pointer reads.
     unsafe { out.set_len(total) };
     Ok(pixels::Pixels::from_reserved(out, lease))
 }

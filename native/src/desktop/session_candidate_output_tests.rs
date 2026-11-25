@@ -1,4 +1,4 @@
-//! 会话准备阶段的结果恢复集成测试；无网络访问，不发布活动窗口。
+//! Result-restoration integration tests for session preparation; no network access or active-window publication.
 use super::*;
 
 #[test]

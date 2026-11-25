@@ -1,4 +1,4 @@
-//! 后台任务和版本防护测试不显示文件对话框，也不触及真实用户数据。
+//! Background-task/revision-guard tests show no file dialogs and touch no real user data.
 use super::*;
 use crate::{editor::Tool, viewport::Point};
 
@@ -16,7 +16,7 @@ fn captured_memory_image_is_prepared_without_copy_and_released_on_cancel() {
     assert!(prepared.image.pixels.same_storage(&pixels));
     assert_eq!((prepared.image.width, prepared.image.height), (2, 2));
     drop(pixels);
-    // 钉图命中区域也共享原像素；其 owner 释放后才能验证取消任务不残留引用。
+    // Pin hit regions also share original pixels; release their owner before verifying cancelled tasks retain no references.
     drop(prepared.region);
     let weak = prepared.image.pixels.downgrade();
     assert!(

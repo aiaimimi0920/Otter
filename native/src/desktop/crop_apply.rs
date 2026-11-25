@@ -1,4 +1,4 @@
-//! 裁剪与模糊的单任务交付；活动期间保留旧视图，完成后同步窗口，不产生中间历史。
+//! Single-task delivery for crop/blur; retain old views while active and synchronize windows on completion, without intermediate history.
 use super::{canvas::Canvas, State};
 use crate::{
     blur::BlurError, crop_geometry::Rect, edit_worker_budget::Permit, editor::RasterRefreshPlan,

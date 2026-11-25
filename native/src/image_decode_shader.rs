@@ -1,4 +1,4 @@
-//! Shader 纹理只接受静态 PNG，保留 straight RGBA；不经 PBGRA 往返或读取路径/网络。
+//! Shader textures accept only static PNG and retain straight RGBA; no PBGRA round trips or path/network reads.
 use super::*;
 
 pub(crate) struct Texture {
@@ -6,7 +6,7 @@ pub(crate) struct Texture {
     pub height: u32,
     pub rgba: crate::pixels::Pixels,
 }
-/// COM 归调用线程。PNG alpha 不预乘、不另翻 Y；颜色配置/其它容器尚未获得浏览器等价证明。
+/// COM belongs to the calling thread. PNG alpha is not premultiplied or Y-flipped; color profiles/other containers lack browser-equivalence proof.
 pub(crate) fn png(bytes: &[u8], remaining: usize, stopped: &impl Fn() -> bool) -> Result<Texture> {
     if bytes.is_empty()
         || bytes.len() > 64 * 1024 * 1024

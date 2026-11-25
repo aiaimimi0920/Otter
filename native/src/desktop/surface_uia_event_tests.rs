@@ -1,4 +1,4 @@
-//! 真正 MTA 订阅 Invoked；回调只读取 cache，并通过有界 channel 交还证据。
+//! Actual MTA Invoked subscriptions; callbacks read cache only and return evidence through bounded channels.
 use super::*;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -30,7 +30,7 @@ impl IUIAutomationEventHandler_Impl for Handler_Impl {
             ))
         })()
         .map_err(|error: windows::core::Error| error.code());
-        // COM 回调不能阻塞 UIA 线程，也不保存 sender 或访问 UI 线程 State。
+        // COM callbacks must not block UIA threads, retain senders, or access UI-thread State.
         let _ = self.sender.try_send(evidence);
         Ok(())
     }
@@ -120,7 +120,7 @@ fn receive(hwnd: usize) -> Result<(i32, String, String)> {
             UIA_E_INVALIDOPERATION as i32
         );
         assert_eq!(super::super::abi::invoke_notifications(), emitted + 1);
-        // 系统可能重复交付同一次 raise；逐个核验身份，不把回调次数当动作次数。
+        // The system may deliver the same raise repeatedly; verify each identity rather than equating callback counts with action counts.
         for _ in 0..4 {
             match recv.recv_timeout(Duration::from_millis(100)) {
                 Ok(value) => assert_eq!(value.unwrap(), evidence),
@@ -139,7 +139,7 @@ fn receive(hwnd: usize) -> Result<(i32, String, String)> {
             dropped.load(Ordering::Acquire),
             "UIA handler retained after unsubscribe"
         );
-        // 明确切焦撤销首个未消费候选，再触发同一节点；不执行任何远端动作。
+        // Explicitly switch focus to revoke the first unconsumed candidate before triggering the same node; execute no remote actions.
         element.SetFocus()?;
         invoke.Invoke()?;
         let extra = recv.recv_timeout(Duration::from_millis(250));

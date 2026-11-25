@@ -1,4 +1,4 @@
-//! 只映射当前挂载 EDIT/COMBOBOX；不缓存裸 HWND、不遍历外部窗口、不复制系统模式。
+//! Map only currently mounted EDIT/COMBOBOX controls; no raw-HWND cache, external-window traversal, or duplication of system patterns.
 use super::*;
 pub(in crate::desktop::surface_window) fn focus(parent: HWND, node: &Handle) -> Result<()> {
     let state = state(parent)?;

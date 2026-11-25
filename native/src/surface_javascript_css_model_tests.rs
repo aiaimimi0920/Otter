@@ -1,4 +1,4 @@
-//! 同生产 bootstrap/真实 QuickJS 的 cascade 语义诊断；进程预算、HWND 与像素另验。
+//! Cascade-semantic diagnostics with production bootstrap and real QuickJS; process budgets, HWNDs, and pixels are verified separately.
 use super::document_model_tests::collect;
 #[test]
 fn javascript_font_family_model_inherits_and_rejected_declarations_are_atomic() {

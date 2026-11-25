@@ -1,4 +1,4 @@
-//! 裁剪选区仅保存起止点；松手一次提交，失焦/捕获丢失取消，不生成像素预览缓冲。
+//! Crop selection stores only endpoints; commit once on release, cancel on focus/capture loss, and allocate no pixel-preview buffer.
 use super::{canvas::Canvas, State};
 use crate::{
     crop_geometry::Rect,
@@ -33,7 +33,7 @@ impl Canvas {
             end: point,
             revision: self.editor.revision(),
         });
-        // 共用手势准入标记，使滚轮和异步交付不会在拖动中改变坐标系。
+        // Share gesture-admission markers so wheel input/asynchronous delivery cannot change coordinate systems during dragging.
         self.selection_drag = Some((point, Point::default()));
         true
     }

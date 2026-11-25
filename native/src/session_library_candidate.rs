@@ -1,4 +1,4 @@
-//! 冻结快照的无副作用实例化；输出只供单窗口准备，绝不能作为整工作区替换命令。
+//! Side-effect-free frozen-snapshot instantiation; output is only single-window preparation, never a whole-workspace replacement command.
 use super::{Entry, Kind};
 use crate::{session_document::Document, workspace_id::UnitId};
 use serde::{Deserialize, Serialize};
@@ -11,7 +11,7 @@ use std::{
 
 pub struct Prepared {
     pub unit: UnitId,
-    /// 有界、独立的单窗口会话；不是原会话的可保存替代品。
+    /// Bounded independent single-window session, not a savable replacement for the original session.
     pub bytes: crate::pixels::Pixels,
 }
 
@@ -35,8 +35,8 @@ struct Coordinates<'a> {
 
 pub(super) use crate::session_json_fields::fields;
 
-/// 调用方提供新生成的身份；发布时仍须复核当前工作区，不能把准备时检查当作锁。
-/// 两种库均只读；回收站条目必须由后续成功发布事务消费，而非在这里删除。
+/// Callers supply fresh identity; publication still rechecks current workspace, since preparation-time checks are not locks.
+/// Both libraries are read-only; later successful publication transactions consume recycle-bin entries, not deletion here.
 pub fn prepare(
     source: &Document<'_>,
     kind: Kind,
@@ -55,7 +55,7 @@ pub fn prepare(
     Ok(prepared)
 }
 
-/// 追加 worker 已从同一来源选中条目，直接把编码结果交给借用该原文的解码。
+/// Append workers already selected entries from the same source; pass encoded results directly to decoding that borrows original text.
 pub(crate) fn encode_selected(
     source: &Document<'_>,
     entry: &Entry<'_>,
@@ -74,7 +74,7 @@ pub(crate) fn encode_selected(
     }
     let (x, y) = (mouse.0 + 50.0, mouse.1 + 50.0);
     let mut fields = fields(entry.snapshot_json())?;
-    // 不能继承原窗口的分组、节点端口、执行状态或编辑传播所有权。
+    // Never inherit original-window groups, node ports, execution state, or edit-propagation ownership.
     for key in [
         "groupId",
         "artId",

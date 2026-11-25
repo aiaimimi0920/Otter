@@ -1,4 +1,4 @@
-//! 显式历史空间的独立椭圆覆盖oracle、Empty和失败交换原子性。
+//! Independent elliptical-coverage oracle for explicit history space, Empty cases, and atomic swaps on failure.
 use super::*;
 use serde_json::json;
 

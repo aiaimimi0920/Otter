@@ -1,4 +1,4 @@
-//! 非文本编辑键的本地滚动语义；从锚点向祖先消费一次，hidden 轴保持不可手动滚动。
+//! Local scroll semantics for non-text-editing keys; consume once from anchor toward ancestors, leaving hidden axes manually unscrollable.
 use super::*;
 #[derive(Clone, Copy)]
 pub(crate) enum Command {

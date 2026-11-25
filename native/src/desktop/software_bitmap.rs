@@ -1,4 +1,4 @@
-//! 软件呈现的 top-down BGRA DIB；先恢复选入 DC 的旧对象，再释放位图/DC/像素预算。
+//! Top-down BGRA DIB for software presentation; restore the DC's previous selected object before releasing bitmap/DC/pixel budgets.
 use std::{marker::PhantomData, ptr::NonNull, rc::Rc};
 use windows::{
     core::{Error, Result},
@@ -74,7 +74,7 @@ impl Bitmap {
     pub fn dc(&self) -> HDC {
         self.dc.0
     }
-    /// 只在 EndDraw 成功后读取；排空本线程 GDI 批次，不泄露 DIB 指针或改变所有权。
+    /// Read only after EndDraw succeeds; drain this thread's GDI batch without exposing DIB pointers or changing ownership.
     pub fn copy_into(&self, output: &mut [u8]) -> Result<()> {
         if output.len() != byte_count(self.size)? {
             return Err(Error::new(E_INVALIDARG, "Software DIB copy size mismatch"));
@@ -99,7 +99,7 @@ impl Bitmap {
 impl Drop for Bitmap {
     fn drop(&mut self) {
         unsafe {
-            // panic 路径可能只完成 EndDraw；本线程 GDI 批次必须先于 DIB 释放。
+            // A panic path may have completed only EndDraw; drain this thread's GDI batch before releasing the DIB.
             let _ = GdiFlush();
             let _ = SelectObject(self.dc.0, self.old);
         }

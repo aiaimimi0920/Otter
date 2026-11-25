@@ -1,5 +1,5 @@
-//! 已授权设备获取精确本地 Art；复用固定 origin HTTP、原租约取消及真实 signed child。
-//! 不建立 issuer 信任，不缓存授权；准备结果持有原租约，不能换新凭据绕过撤销。
+//! Authorized devices obtain exact local Art; reuse fixed-origin HTTP, original-lease cancellation, and a real signed child.
+//! Neither establishes issuer trust nor caches authorization; prepared results hold the original lease and cannot bypass revocation with new credentials.
 use super::{now, Client, Control};
 use crate::{
     art_execution_grant::{self as grant, wire, Expected, Issuer, Permit},
@@ -36,7 +36,7 @@ pub enum Error {
     Grant(grant::Error),
     Mount(signed::Error),
 }
-/// 来自宿主请求 owner，而不是响应；本类型不自动证明 workspace 存在或防止重复请求。
+/// From the host request owner, not the response; this type alone neither proves workspace existence nor prevents duplicate requests.
 #[derive(Serialize)]
 pub struct Request {
     pub binding: wire::Binding,
@@ -52,7 +52,7 @@ impl Request {
         }
     }
 }
-/// 只能由已认证配置/配对 owner 提供，不从 issuer 路由响应自动建立。
+/// Only authenticated configuration/pairing owners may supply this; never establish it automatically from issuer-route responses.
 #[derive(Clone)]
 pub struct Pin {
     pub key_id: String,
@@ -79,7 +79,7 @@ pub struct Prepared {
     envelope: Vec<u8>,
     source: Vec<u8>,
     lease: Arc<Lease>,
-    // 保留第一次准入的单调时间和不可逆状态，不能靠延迟 mount 重新开始期限。
+    // Retain initial-admission monotonic time and irreversible state; delaying mount cannot restart the deadline.
     permit: Arc<Mutex<Permit>>,
     client: Option<Client>,
     resumed: bool,
@@ -91,7 +91,7 @@ impl Prepared {
     pub(crate) fn online(&self) -> bool {
         !self.resumed
     }
-    /// 仅暴露此前宿主请求的绑定，供挂载 owner 建立本地 view；不是从响应反推身份。
+    /// Expose only the binding previously requested by the host for the mount owner's local view; never infer identity from responses.
     pub fn binding(&self) -> &wire::Binding {
         &self.request.binding
     }
@@ -106,7 +106,7 @@ impl Prepared {
             .deadline(online);
         (wall.min(self.lease.expires_at_ms()), monotonic)
     }
-    /// 后台串行调用；同一 lease 不允许同时承担其他请求。撤销直接中断既有网络链。
+    /// Call serially in the background; the same lease cannot serve concurrent requests. Revocation directly interrupts the existing network chain.
     pub(crate) fn fetch(
         client: &Client,
         lease: Arc<Lease>,
@@ -176,7 +176,7 @@ impl Prepared {
             visibility: None,
         })
     }
-    /// 消费准备结果，仅原请求可挂载一次；调用方仍负责生命周期取消和当前 view 身份。
+    /// Consume prepared results; only the original request may mount once, and callers still own lifecycle cancellation and current-view identity.
     pub fn mount(
         self,
         view: Binding,
@@ -186,7 +186,7 @@ impl Prepared {
     ) -> Result<(signed::Local, Frame), Error> {
         self.mount_in(view, snapshot, online, None, cancelled)
     }
-    /// 视口只来自宿主已创建的 HWND，不从远端响应推导或猜测 DPI。
+    /// The viewport comes only from the HWND already created by the host; never derive it from remote responses or guess DPI.
     pub(crate) fn mount_in(
         self,
         view: Binding,

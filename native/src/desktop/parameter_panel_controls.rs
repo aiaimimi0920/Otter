@@ -1,4 +1,4 @@
-//! 原生控件拥有本地草稿；绑定固定快照索引，UI 不解释最新参数目录或直接改业务状态。
+//! Native controls own local drafts bound to fixed snapshot indices; the UI neither interprets the latest parameter catalog nor directly changes business state.
 use super::*;
 #[path = "parameter_panel_candidates.rs"]
 pub(super) mod candidates;
@@ -129,7 +129,7 @@ impl Builder<'_> {
         self.child(
             w!("STATIC"),
             text,
-            WINDOW_STYLE::default(), // Win32 STATIC 的 SS_LEFT 为零。
+            WINDOW_STYLE::default(), // Win32 STATIC's SS_LEFT is zero.
             12,
             416,
             22,
@@ -164,7 +164,7 @@ impl Builder<'_> {
 }
 pub(super) unsafe fn rebuild(ui: &Ui) -> Result<()> {
     let _redraw = neuro_mini_ui::paint_batch::Hold::new(ui.hwnd.get());
-    // 所有旧 handle/草稿先移出借用再销毁；同步失焦不能提交被替换的控件。
+    // Move all old handles/drafts out of the borrow before destroying them; synchronous focus loss cannot commit replaced controls.
     let focus = GetFocus();
     let focused = ui
         .bindings
@@ -263,7 +263,7 @@ unsafe fn build(ui: &Ui) -> Result<()> {
         )?;
         b.y += 32;
         for (prefix, ports) in [("输入", &endpoint.inputs), ("输出", &endpoint.outputs)] {
-            // 只列真实目录名称，不复制像素或把只读端口清单冒充连线画布。
+            // List only actual catalog names; do not copy pixels or present a read-only port list as a wiring canvas.
             b.label(&format!(
                 "{prefix} · {}",
                 ports

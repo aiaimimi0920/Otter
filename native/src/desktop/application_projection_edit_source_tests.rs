@@ -1,4 +1,4 @@
-//! 实际菜单/原Job/隔离TLS/Checkpoint源端闭环；不注册hook、不激活自有窗口或投送真实设备。
+//! Actual menu/original Job/isolated TLS/Checkpoint source-side flow; no hook registration, owned-window activation, or real-device delivery.
 use super::*;
 use crate::{
     editor::Tool,
@@ -114,7 +114,7 @@ unsafe fn initialized(
     completed(app);
     poll(app, files);
     assert!(journal(files)["entries"][0]["pending"].is_object());
-    // 真实commit前的额外轮询不能丢失owner，也不能把候选索引当durable凭证退休pending。
+    // Extra polling before actual commit must neither lose the owner nor retire pending state by treating candidate indexes as durable credentials.
     assert!(app.projection_sender_scope().is_none());
     for _ in 0..2 {
         poll(app, files);

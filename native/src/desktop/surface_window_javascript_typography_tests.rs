@@ -1,4 +1,4 @@
-//! 同 child 的字体 shorthand/行高真正进入 HWND Presentation 的度量和像素。
+//! Font shorthand/line height from the same child actually reach HWND Presentation measurements and pixels.
 use super::*;
 #[test]
 fn javascript_typography_real_hwnd_uses_actual_line_spacing_and_font_reset() {

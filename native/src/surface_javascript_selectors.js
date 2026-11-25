@@ -1,4 +1,4 @@
-// 有界简单选择器共用匹配器；不把未支持的 CSS 组合器默认为匹配或空结果。
+// Bounded simple selectors share one matcher; unsupported CSS combinators must not default to a match or an empty result.
 ((dom, fail) => {
   "use strict";
   const { Element, DocumentFragment } = dom.classes, op = dom.ops;
@@ -36,18 +36,18 @@
       for (let i = state.children.length - 1; i >= 0; i--) op.push(pending, state.children[i]);
     }
     if (firstOnly) return null;
-    // result 是本次查询独占的节点快照，不是树的 children；恢复公开 Array 接口无需再复制。
-    // 填充时无原型，descriptor 也无原型，避免继承 setter/getter 污染静态集合。
+    // result is this query's exclusively owned node snapshot, not the tree's children; restoring the public Array interface needs no further copy.
+    // Use no prototypes while populating, including on descriptors, so inherited setters/getters cannot contaminate static collections.
     const item = op.record();
     item.value = index => {
-      // Number 可由插件改写；一次 ToPropertyKey 只取自有数据项，不读取继承的数字属性。
+      // Plugins may replace Number; one ToPropertyKey reads only own data entries, never inherited numeric properties.
       const entry = describe(result, Number(index));
       return entry ? entry.value ?? null : null;
     };
     define(result, "item", item);
     return op.freeze(setPrototype(result, arrayPrototype));
   };
-  // 单结果查询在首次命中后停止，不再收集、复制和冻结全部匹配项。
+  // Single-result queries stop at the first match instead of collecting, copying, and freezing every match.
   const query = (node, selector, includeRoot = false) => search(node, selector, includeRoot, false);
   const first = (node, selector, includeRoot = false) => search(node, selector, includeRoot, true);
   for (const prototype of [Element.prototype, DocumentFragment.prototype]) Object.assign(prototype, {

@@ -1,4 +1,4 @@
-//! 协作颜色进入既有Editor和canonical格式后的语义往返；预期常量独立于解析器。
+//! Semantic round trips after collaboration colors enter existing Editor/canonical formats; expected constants are parser-independent.
 use super::*;
 use serde_json::json;
 

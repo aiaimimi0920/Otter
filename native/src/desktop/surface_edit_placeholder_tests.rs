@@ -1,4 +1,4 @@
-//! 真实 EDIT 的 WM_PRINTCLIENT 像素与值隔离，不读取屏幕或用户剪贴板。
+//! Actual EDIT WM_PRINTCLIENT pixels isolated from values, without screen or user-clipboard reads.
 use super::*;
 use windows::Win32::UI::Input::KeyboardAndMouse::EnableWindow;
 #[path = "surface_edit_alignment_tests.rs"]
@@ -31,8 +31,8 @@ fn pixels(hwnd: HWND) -> Vec<u8> {
         );
         assert!(GdiFlush().as_bool());
         let mut result = std::slice::from_raw_parts(bits.cast::<u8>(), 200 * 100 * 4).to_vec();
-        // 32-bit BI_RGB 的高字节未定义，并非 alpha；v6 主题绘制会改变它。
-        // 归一化保留全部 B/G/R 像素精确比较，不把未定义填充值当成显示差异。
+        // The high byte of 32-bit BI_RGB is undefined, not alpha; v6 theme rendering may change it.
+        // Normalization preserves exact comparison of all B/G/R pixels rather than treating undefined padding as display differences.
         for pixel in result.chunks_exact_mut(4) {
             pixel[3] = 0;
         }

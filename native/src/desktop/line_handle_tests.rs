@@ -1,4 +1,4 @@
-//! 直线与箭头端点复用路径控制柄；旋转、预览和撤销均走真实 Canvas。
+//! Line/arrow endpoints reuse path handles; rotation, previews, and undo all use real Canvas.
 use super::super::image::Image;
 use super::*;
 fn p(x: f32, y: f32) -> Point {

@@ -1,4 +1,4 @@
-//! 隐藏 Application 消费最后通知后，用生产 deadline 回收扩展任务；watchdog 只报告失败。
+//! After hidden Application consumes the final notification, reap extension tasks through the production deadline; watchdogs report failure only.
 use super::super::execution_test_pump::Pump;
 use super::*;
 use crate::desktop::{
@@ -18,7 +18,7 @@ unsafe fn consume_last_wake(app: &mut Application) {
     let mut message = MSG::default();
     assert!(PeekMessageW(&mut message, None, WM_APP + 92, WM_APP + 92, PM_REMOVE).as_bool());
     app.pending_windows(false).unwrap();
-    // 清除创建/请求留下的消息，不能把旧 WM_NULL 当作截止唤醒。
+    // Clear messages left by creation/requests; never mistake an old WM_NULL for a deadline wakeup.
     for _ in 0..256 {
         if !PeekMessageW(&mut message, None, 0, 0, PM_REMOVE).as_bool() {
             return;
@@ -91,7 +91,7 @@ fn failed_and_cancelled_commands_settle_after_the_last_notification() {
         let instance = crate::desktop::workspace_window_fixture::register();
         let document = DocumentWindow::create(instance, state(), false).unwrap();
         let mut app = Application::new(instance, document);
-        // 复用宿主，避免两次销毁末窗口的 WM_QUIT 污染第二轮等待。
+        // Reuse the host to keep WM_QUIT from two final-window destructions from contaminating the second wait.
         for cancelled in [false, true] {
             let source = crate::loom_extension_snapshot::tests::fixture();
             app.extensions.view.borrow_mut().snapshot = Some(Arc::new(

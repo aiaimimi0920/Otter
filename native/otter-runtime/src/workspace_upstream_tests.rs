@@ -1,4 +1,4 @@
-//! 依赖子图边界：方向、导入环、分叉和最长受支持链。
+//! Dependency-subgraph boundaries: direction, imported cycles, branches, and the longest supported chain.
 use super::*;
 fn id(value: &str) -> UnitId {
     UnitId::parse(value).unwrap()

@@ -1,4 +1,4 @@
-//! 恢复子进程会话：先认证再握手，坏流永久封闭，已登记 owner 保留到原父进程退出。
+//! Recovery-child session: authenticate before handshake, permanently close bad streams, and retain registered owners until the original parent exits.
 use crate::{
     live_recovery_handshake::{read_hello, write_ready},
     live_recovery_parent::Parent,
@@ -21,14 +21,14 @@ pub struct Session {
     exchange: Exchange<Binding>,
 }
 impl Session {
-    /// pipe 必须是父进程预先创建并交付的 overlapped 客户端端点。
+    /// pipe must be the overlapped client endpoint created and delivered beforehand by the parent.
     pub fn accept(expected_parent: u32, pipe: Pipe) -> io::Result<Self> {
         let parent = Parent::authenticate(expected_parent, pipe.handle(), pipe.handle())
             .map_err(io::Error::other)?;
         let exchange = Exchange::accept(pipe, parent.handle(), OPERATION_BUDGET)?;
         Ok(Self { parent, exchange })
     }
-    /// true 表示已确认空登记 Shutdown。错误不会删除此前接受的恢复责任。
+    /// true means an empty-registry Shutdown was confirmed. Errors do not remove previously accepted recovery responsibilities.
     pub fn step(&mut self) -> io::Result<bool> {
         self.exchange.step(self.parent.handle(), |record| {
             Binding::bind(record).map_err(io::Error::other)
@@ -37,14 +37,14 @@ impl Session {
     pub fn pending(&self) -> usize {
         self.exchange.service.pending()
     }
-    /// 仅原父句柄确认退出后恢复；EOF/坏帧不提前改变仍存活父进程的窗口。
-    /// 失败记录留在 Session 中，调用者必须保留本 owner 并安排恢复重试。
+    /// Restore only after the original parent handle confirms exit; EOF/bad frames must not alter windows while the parent is still alive.
+    /// Failed records remain in Session; callers must retain this owner and arrange recovery retries.
     pub fn wait_and_recover(&mut self) -> io::Result<()> {
         self.exchange.failed = true;
         match unsafe { WaitForSingleObject(HANDLE(self.parent.handle().as_raw_handle()), INFINITE) }
         {
             WAIT_OBJECT_0 => self.exchange.service.recover(|_, binding| {
-                // helper 没有产品 UI 消息泵；先清自己的完成通知，且不跨 RefCell 借用。
+                // The helper has no product UI message pump; clear its own completion notifications first, without spanning RefCell borrows.
                 binding.drain_helper_notifications();
                 binding.restore_or_retire().map_err(restoration_error)
             }),
@@ -60,7 +60,7 @@ fn restoration_error(error: windows::core::Error) -> io::Error {
     } else {
         io::ErrorKind::Other
     };
-    io::Error::new(kind, error) // 保留原 HRESULT；Pending 只表示等待，不是恢复成功。
+    io::Error::new(kind, error) // Preserve the original HRESULT; Pending means waiting, not successful restoration.
 }
 
 struct Exchange<T> {
@@ -90,12 +90,12 @@ impl<T> Exchange<T> {
         if self.failed || self.service.shutdown_accepted() {
             return Err(io::Error::other("Live recovery channel is terminal"));
         }
-        // 先标记失败，只有整次请求及 ACK 成功后才重开；半包或写失败绝不重同步猜测边界。
+        // Mark failed first, reopening only after the entire request and ACK succeed; partial frames/write failures must never trigger guessed resynchronization.
         self.failed = true;
         let mut first = [0u8; 1];
         self.pipe.io(None, Some(peer)).read_exact(&mut first)?;
         let mut channel = self.pipe.io(Some(Instant::now() + self.budget), Some(peer));
-        // 空闲首字节无限等待，但收到首字节后的半包和 ACK 共享一个绝对期限。
+        // Wait indefinitely for the first idle byte, but partial frames and ACK share one absolute deadline after that byte arrives.
         let request =
             read_request(&mut first.as_slice().chain(&mut channel))?.ok_or_else(|| {
                 io::Error::new(io::ErrorKind::UnexpectedEof, "Missing recovery request")

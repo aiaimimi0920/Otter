@@ -1,4 +1,4 @@
-//! 原生就绪等待覆盖写背压、数据后 EOF，以及读写超时后的永久取消。
+//! Native readiness waits cover write backpressure, EOF after data, and permanent cancellation after read/write timeouts.
 use super::*;
 use std::os::windows::io::AsRawSocket;
 use windows::Win32::Networking::WinSock::*;
@@ -48,7 +48,7 @@ fn backpressured_write_is_cancelled_by_event_not_peer_or_long_timeout() {
     );
     assert_eq!(result.unwrap(), io::ErrorKind::ConnectionAborted);
     assert!(started.elapsed() < Duration::from_secs(2));
-    // stream/socket 已销毁，独立取消事件仍由 Interrupt 保活，重复取消安全。
+    // stream/socket are destroyed, but Interrupt keeps the independent cancellation event alive, making repeated cancellation safe.
     interrupt.cancel().unwrap();
 }
 #[test]

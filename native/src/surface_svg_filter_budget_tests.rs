@@ -1,4 +1,4 @@
-//! 预算边界测试不代表滤镜准入；真正 worker 仍整体拒绝未开放滤镜。
+//! Budget-boundary tests do not admit filters; actual workers still reject unopened filters as a whole.
 use super::*;
 
 #[test]

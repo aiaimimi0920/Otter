@@ -1,4 +1,4 @@
-//! 热 worker 的帧间边界：拒绝已知退出/尾随输出，轮转退出仍核验 exit code 与 EOF。
+//! Inter-frame boundaries for warm workers reject known exit/trailing output; rotation exits still check exit code/EOF.
 use super::Child;
 use crate::live_recovery_pipe::Pipe;
 use std::{
@@ -18,7 +18,7 @@ fn invalid() -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, "Worker session boundary failed")
 }
 
-/// 不读取/丢弃字节。只能证明当前边界干净，不承诺仍在运行的进程今后不会失败。
+/// Never read/discard bytes. Proves only that the current boundary is clean, not future success of running processes.
 pub fn idle(pipe: &Pipe, child: &Child) -> io::Result<()> {
     quiet(pipe)?;
     match unsafe { WaitForSingleObject(HANDLE(child.handle().as_raw_handle()), 0) } {

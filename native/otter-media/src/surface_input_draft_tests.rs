@@ -1,4 +1,4 @@
-//! 主干异步草稿语义的有界版本；请求乱序、重复、旧作用域必须不覆盖新编辑。
+//! Bounded version of mainline asynchronous draft semantics; out-of-order, duplicate, or old-scope requests must not overwrite new edits.
 use super::*;
 #[test]
 fn surface_input_draft_dispatch_failure_releases_reservation_without_losing_text() {

@@ -24,7 +24,7 @@ fn metadata() -> Metadata {
 }
 #[test]
 fn main_golden_header_is_exact_and_payload_is_borrowed() {
-    // main live_relay_protocol_tests 的 2x1 BGRA 用例，按既有协议固定字节而非自循环推导。
+    // The 2x1 BGRA case from main live_relay_protocol_tests, with bytes fixed by the existing protocol rather than derived by self-roundtrip.
     let golden: [u8; 64] = [
         78, 76, 76, 86, 1, 1, 0, 64, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0,
         0, 0, 100, 0, 0, 0, 0, 0, 0, 0, 110, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 3, 0, 0, 0, 8, 1, 1,

@@ -1,4 +1,4 @@
-// 通用长标题：真实 CSS、同步 native 几何及同 child 更新，不复制任何业务应用。
+// Generic long titles: actual CSS, synchronous native geometry, and same-child updates, without copying any business application.
 let title, report, stage = 0;
 const text = '长标题 e\u0301 😀 Native text with a hidden suffix';
 const read = () => {

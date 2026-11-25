@@ -1,4 +1,4 @@
-//! 双轴条范围、命中遮挡和绝对拖动；不以 GUI 截图替代模型边界。
+//! Dual-axis bar ranges, hit occlusion, and absolute dragging; GUI screenshots do not replace model boundaries.
 use super::*;
 #[test]
 fn surface_scrollbar_short_track_keeps_nonzero_drag_travel() {
@@ -40,7 +40,7 @@ fn surface_scrollbar_thumb_drag_clamps_without_measuring_or_drifting() {
         .set_scrollbar("root", 0, horizontal.page_value([80., 95.]))
         .unwrap());
     assert_eq!(origin(&p, "content")[0], -100.);
-    // 滚轮落在滚动条上仍交给其所属容器，而非被覆盖的内容。
+    // Wheel input over a scrollbar still goes to its owning container rather than covered content.
     assert!(p.wheel([95., 50.], 1, 10., false).unwrap());
 }
 #[test]

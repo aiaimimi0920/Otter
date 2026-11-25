@@ -1,4 +1,4 @@
-//! 原 TLS/Grant harness 的焦点模式；真实 blur 产生 change，仍只由 listener 显式 emit。
+//! Focus mode of the original TLS/Grant harness; real blur produces change, still emitted explicitly by listeners only.
 use super::*;
 use windows::{
     core::HSTRING,
@@ -10,7 +10,7 @@ pub(super) unsafe fn prepare(
     parent: HWND,
     round: u64,
 ) {
-    // TLS/服务端批次之间可能失去前台；每段驱动只在发送前获取，不重放失败请求。
+    // Foreground may be lost between TLS/server batches; acquire it only before each driven segment's send, without replaying failed requests.
     let _foreground = crate::surface_javascript::fixture::focus_foreground(parent);
     let edit = text::child(parent);
     let _ = windows::Win32::UI::Input::KeyboardAndMouse::SetFocus(Some(parent));
@@ -65,9 +65,9 @@ pub(super) unsafe fn prepare(
         parent,
         "blur fixture lost foreground after delivery"
     );
-    // blur来自真实input listener，而非点另一个按钮本身带来的系统失焦。
+    // blur comes from the real input listener, not system focus loss caused merely by clicking another button.
     assert_eq!(GetFocus(), parent);
-    // 同一poll可在后续refresh接纳很快的change回复并开始原emit批次；不能假设仍pending。
+    // Later refresh in the same poll may accept a fast change reply and start the original emit batch; do not assume it remains pending.
     assert!(app.remote_sessions.wait_handles().count() <= 1);
 }
 pub(super) fn updated(
@@ -87,7 +87,7 @@ pub(super) fn updated(
         window.javascript_text_for_test(),
         format!("change|typed:{round}🙂")
     );
-    // 焦点在 prepare 的实际交付边界已验证；网络批次期间不拥有用户前台，更新只验数据。
+    // Focus was checked at prepare's actual delivery boundary; the test does not own user foreground during network batches, so updates validate data only.
 }
 pub(super) unsafe fn stale(
     app: &mut Application,
@@ -95,7 +95,7 @@ pub(super) unsafe fn stale(
     parent: HWND,
     policy: bool,
 ) {
-    // 过期/策略负向也须从有效前台开始，避免因另一拒绝条件而虚假通过。
+    // Staleness/policy negatives must also start with valid foreground state to avoid false passes from another rejection condition.
     let _foreground = crate::surface_javascript::fixture::focus_foreground(parent);
     let edit = text::child(parent);
     assert_eq!(GetFocus(), parent);

@@ -1,4 +1,4 @@
-//! v2 已接受图片复用后台单钉图准备；不借用另一条接收路径的回执。
+//! Accepted v2 images reuse background single-pin preparation; never borrow receipts from another receive path.
 use super::*;
 use crate::projection_account::{scene::Binding, Content};
 pub(in crate::desktop) fn prepare(

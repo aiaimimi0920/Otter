@@ -1,4 +1,4 @@
-//! 隐藏宿主默认不显示；显式可见门验证 NOACTIVATE、焦点、几何、失败恢复和隐藏意图。
+//! Hidden hosts stay hidden by default; the explicit visibility gate verifies NOACTIVATE, focus, geometry, failure recovery, and hiding intent.
 use super::*;
 use std::cell::Cell;
 use windows::{core::w, Win32::UI::Input::KeyboardAndMouse::*};
@@ -103,7 +103,7 @@ fn visible_reset_preserves_focus_and_restores_on_error_without_showing_hidden_in
         assert_eq!(geometry, after);
         {
             let mut reset = Reset::begin(window.0, true, &owns, &allowed).unwrap();
-            allow.set(false); // 重入选择分组/托盘隐藏，不得被恢复步骤反向显示。
+            allow.set(false); // Reentrant group/tray hiding must not be reversed by restoration.
             reset.restore().unwrap();
         }
         assert!(!IsWindowVisible(window.0).as_bool());

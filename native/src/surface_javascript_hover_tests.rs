@@ -1,4 +1,4 @@
-//! 同一通用悬停夹具贯穿真实 child；产品路径须额外绑定实际 EXE 摘要。
+//! The same generic hover fixture through real children; product paths additionally bind actual EXE digests.
 use super::*;
 use wire::{HoverInput, LocalInput};
 pub(crate) const SOURCE: &str = include_str!("../tests/fixtures/javascript-native-hover.js");

@@ -1,4 +1,4 @@
-//! 控制消息身份、释放边界与回执状态；无共享内存操作。
+//! Control-message identity, release boundaries, and receipt status; no shared-memory operations.
 use super::*;
 fn id(value: &str) -> UnitId {
     UnitId::parse(value).unwrap()

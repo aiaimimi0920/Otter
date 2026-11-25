@@ -1,4 +1,4 @@
-//! 已提交标注的窗口私有 DWrite/D2D 几何与样式缓存；随 Target 释放，按活动标注即时裁剪。
+//! Window-private DWrite/D2D geometry and style caches for committed annotations; released with Target and pruned immediately to active annotations.
 use crate::{
     editor::{Stroke, Tool},
     stroke_style::DashPattern,
@@ -131,7 +131,7 @@ impl Cache {
             self.text_builds += 1;
         }
         self.texts.retain(|e| e.id != id);
-        // 文档按固定顺序重绘；满额时临时绘制，不能让扫描驱逐全部仍活动的缓存。
+        // Documents redraw in a fixed order; draw transiently at capacity so a scan cannot evict every still-active cache entry.
         if self.texts.len() >= MAX_TEXT_ENTRIES {
             return Ok(layout);
         }
@@ -256,7 +256,7 @@ impl Cache {
         {
             self.path_builds += 1;
         }
-        // 退化箭头的 Arrow(None) 和普通曲线 fallback 是同一标注的不同几何类型。
+        // Arrow(None) for a degenerate arrow and the ordinary curve fallback are distinct geometry types for the same annotation.
         self.paths.retain(|e| e.id != id || e.kind != kind);
         if self.paths.len() >= MAX_PATH_ENTRIES {
             return Ok(value);

@@ -1,15 +1,15 @@
-//! Live 所依赖的既有 Surface 附件恢复；只恢复服务器状态，不冒充已完成原生渲染挂载。
+//! Restore existing Surface attachments required by Live; restore server state only, without claiming completed native-renderer mounting.
 use super::*;
 use crate::surface_live_binding::{Binding, Error as BindingError};
 use serde::Deserialize;
 use std::collections::BTreeMap;
 pub struct MountedSurface {
     pub binding: Binding,
-    /// 仅已验证身份的原始场景快照；renderer 仍须验证 scene/resources 等业务内容。
+    /// Raw scene snapshots with verified identity only; the renderer must still validate scene/resources and other business contents.
     pub snapshot: Box<serde_json::value::RawValue>,
 }
 impl MountedSurface {
-    /// 取得渲染前场景模型，不执行场景；JS/shader/remote 必须走各自 runtime。
+    /// Obtain the pre-render scene model without executing it; JS/shader/remote must use their respective runtimes.
     pub fn declarative_scene(
         &self,
     ) -> Result<crate::surface_scene::Scene, crate::surface_scene::Error> {
@@ -19,7 +19,7 @@ impl MountedSurface {
         )
     }
 }
-/// 期望 runtime 必须来自宿主原始准入，不能从待收敛响应自身推断执行许可。
+/// The expected runtime must come from the host's original admission, not execution permission inferred from the response awaiting convergence.
 pub(crate) fn scene_for_runtime(
     raw: &str,
     expected: crate::surface_host_capabilities::Runtime,
@@ -59,14 +59,14 @@ struct Header {
     revision: u64,
 }
 impl Control<'_> {
-    /// 同步网络方法，仅后台 owner 调用；成功不代表 UI 已挂载，不自动发送 active。
+    /// Synchronous network method for background owners only; success does not mean UI mounting and does not automatically send active.
     pub fn remount_surface(&self, expected: &Binding) -> Result<MountedSurface, Error> {
         if expected.origin() != self.client.origin()
             || expected.device() != self.session.device_id()
         {
             return Err(Error::SurfaceBinding(BindingError::Identity));
         }
-        // ID 从绑定合同取得，仍检查点段，避免 URL 规范化改写实例路径。
+        // IDs come from the binding contract, but still check dot segments to prevent URL normalization from rewriting instance paths.
         if matches!(expected.instance(), "." | "..") {
             return Err(Error::Input);
         }

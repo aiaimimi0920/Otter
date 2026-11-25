@@ -1,4 +1,4 @@
-"""构建前后验证外部暂存身份和实际文件集合；外部预期摘要必须由调用者独立取得。"""
+"""Verify external-stage identity and actual file sets before/after builds; callers must obtain expected external digests independently."""
 
 import os
 import re
@@ -36,7 +36,7 @@ def actual_files(root, *, built):
             checked_path(str(path), directory=name in directories)
         for name in files:
             relative = (Path(base) / name).relative_to(root).as_posix()
-            # 仅构建缓存允许新文件；源码/工具/profile 不能混入隐式 Python 或 GN 输入。
+            # Only build caches permit new files; source/tools/profiles must not acquire implicit Python or GN inputs.
             if not built or not relative.startswith("src/out/otter/"):
                 result.add(relative)
             if len(result) > MAX_FILES + 100:

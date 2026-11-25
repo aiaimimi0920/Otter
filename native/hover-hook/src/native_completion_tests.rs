@@ -1,4 +1,4 @@
-//! 已执行操作的完成不是新授权；自有源窗口的销毁/撤销不能确认新请求或恢复弹窗来源。
+//! Completion of executed operations is not new authorization; owned source-window destruction/revocation cannot confirm new requests or restore popup provenance.
 use super::*;
 use crate::native_dispatch as dispatch;
 use std::cell::Cell;
@@ -125,7 +125,7 @@ fn old_callback_cannot_confirm_a_new_nonce_or_replacement_identity() {
     assert!(current.finish_returned().unwrap());
     assert!(!old.finish_returned().unwrap());
     assert_eq!(value(f.owner.0, FINISHED), 304);
-    // 即使复用同一数字 nonce，换掉 B cookie 也不是旧回调的 publication。
+    // Even with the same numeric nonce, replacing B's cookie is not the old callback's publication.
     f.publish(303);
     put(f.owner.0, scope::COOKIE, 102);
     put(f.owner.0, COOKIE, 102);

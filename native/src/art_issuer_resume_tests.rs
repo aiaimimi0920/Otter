@@ -1,4 +1,4 @@
-//! 减权前身份读取失败必须阻止在线链；Missing兼容与独占锁/损坏明确分开。
+//! Identity-read failure before privilege reduction must block the online chain; distinguish Missing compatibility from exclusive-lock/corruption failures.
 use super::*;
 use std::os::windows::fs::OpenOptionsExt;
 

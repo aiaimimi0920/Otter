@@ -1,4 +1,4 @@
-//! 后台任务的完成栅栏；最后一个局部 owner 释放后再通知，避免 UI 提前轮询漏掉完成。
+//! Background-task completion fence; notify after the final local owner drops so early UI polling cannot miss completion.
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
@@ -6,8 +6,8 @@ use std::sync::{
 
 pub(crate) type Notify = Arc<dyn Fn() + Send + Sync>;
 
-/// 通知先于线程退出。没有 Win32 等待槽的 owner 在通知后短暂复查，
-/// 仅在线程已退出时 join；未完成工作或空闲时不启用轮询。
+/// Notification precedes thread exit. Owners without Win32 wait slots briefly recheck after notification,
+/// joining only exited threads; do not enable polling while work remains unfinished or idle.
 pub(crate) fn reap_deadline(ready: &AtomicBool) -> Option<std::time::Instant> {
     ready
         .load(Ordering::Acquire)
@@ -19,7 +19,7 @@ pub(crate) struct CompletionSignal {
     notify: Notify,
 }
 impl CompletionSignal {
-    /// 必须先于任务输入、许可和网络资源声明，确保逆序析构时最后发布。
+    /// Declare before task inputs, permits, and network resources so reverse destruction publishes last.
     pub(crate) fn new(ready: Arc<AtomicBool>, notify: Notify) -> Self {
         Self { ready, notify }
     }
@@ -27,7 +27,7 @@ impl CompletionSignal {
 impl Drop for CompletionSignal {
     fn drop(&mut self) {
         self.ready.store(true, Ordering::Release);
-        // 通知失败或第三方回调 panic 不得把正在展开的 worker 变成双重 panic。
+        // Notification failures/third-party callback panics must not cause a second panic in unwinding workers.
         let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| (self.notify)()));
     }
 }

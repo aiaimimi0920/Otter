@@ -1,4 +1,4 @@
-//! 自有隐藏Viewer的菜单准入/同一配置提交接缝/关闭围栏；不执行网络或人工菜单导航。
+//! Menu admission, same-configuration commit boundary, and close fences for owned hidden Viewers; no networking or manual menu navigation.
 use super::*;
 use crate::live_relay_control_runtime::interaction::Queue;
 #[test]

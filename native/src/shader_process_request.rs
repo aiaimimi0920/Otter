@@ -1,4 +1,4 @@
-//! 父侧跨线程 Shader 请求：源码归本请求，纹理共享预算像素；可信 bundle 独立于 Art 数据。
+//! Parent-side cross-thread Shader request: the request owns source code, textures share budgeted pixels, and the trusted bundle is separate from Art data.
 use super::*;
 use crate::{
     pixels::Pixels,
@@ -22,7 +22,7 @@ pub struct OwnedInvocation {
     pub uniforms: Vec<(String, f32)>,
 }
 impl OwnedInvocation {
-    /// 线程启动前复用 wire 准入，不通过复制全图或序列化大缓冲来延长借用。
+    /// Reuse wire admission before starting the thread; do not extend borrows by copying entire images or serializing large buffers.
     pub fn validate(&self) -> io::Result<()> {
         self.with_invocation(|value| crate::shader_worker_wire::Header::for_invocation(&value))??;
         Ok(())

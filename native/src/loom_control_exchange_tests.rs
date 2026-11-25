@@ -1,4 +1,4 @@
-//! 取消与释放控制消息在真实 TLS/WS 回环上的回执确认。
+//! Receipt acknowledgement for cancellation/release control messages over real TLS/WS loopback.
 use super::*;
 use crate::{graph_requests::Request, loom_art_control, loom_art_wire, workspace_id::UnitId};
 #[test]

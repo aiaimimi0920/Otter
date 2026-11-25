@@ -1,4 +1,4 @@
-//! 固定原预算下的同步读/变更/视口/失败与回收；产品门另绑定外部预期摘要。
+//! Synchronous reads/changes/viewports/failures and cleanup under the fixed original budget; product gates separately bind external expected digests.
 use super::*;
 use crate::surface_viewport::Viewport;
 use sha2::{Digest, Sha256};
@@ -155,7 +155,7 @@ fn javascript_geometry_intrinsic_pollution_cannot_change_private_boxes_or_roundi
     session.dispose(&|| false).unwrap();
     assert_eq!(CAPACITY.used(), 0);
 }
-// 仅复用已有产品worker启动接缝；所有场景仍经过原Session/Job/容量与期限门。
+// Reuse only the existing product-worker launch seam; every scene still passes original Session/Job/capacity/deadline gates.
 pub(super) fn mount_product(
     path: &std::path::Path,
     source: &str,

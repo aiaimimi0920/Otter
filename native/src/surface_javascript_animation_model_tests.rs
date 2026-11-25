@@ -1,4 +1,4 @@
-//! 同一 QuickJS 的 rAF 顺序/取消/时钟/暂停/容量与污染合同；宿主排程另由 Application 验证。
+//! rAF ordering/cancellation/clock/pause/capacity and pollution contracts in the same QuickJS; Application verifies host scheduling separately.
 use super::*;
 fn mount(source: &str) -> (Engine, Output) {
     let mut engine = Engine::new().unwrap();

@@ -1,4 +1,4 @@
-//! 主干临时缓存合同；0 禁用对应软策略，资源/扫描硬边界独立保留。
+//! Mainline temporary-cache contract; 0 disables the corresponding soft policy while independent resource/scan hard limits remain.
 use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", default)]

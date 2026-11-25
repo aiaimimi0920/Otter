@@ -1,4 +1,4 @@
-//! 应用资源结算：精确路由 Ready，轮转窗口请求，不让单个场景占满共享容量。
+//! Application resource settlement: route Ready exactly and round-robin window requests so no scene monopolizes shared capacity.
 use super::*;
 use crate::surface_resource_runtime::{request::Request, Ready};
 pub(crate) enum StartImageError {
@@ -13,7 +13,7 @@ impl Windows {
                 && w.snapshot_revision() == ready.revision()
         }) else {
             return;
-        }; // 过时结果消费释放，不永久留在 Ready 队列占容量。
+        }; // Consume/release stale results instead of permanently occupying Ready-queue capacity.
         if let Err(error) = window.install_resource(ready, now) {
             window.record_image_error(&format!("图片安装失败：{error:?}"));
         }
@@ -30,7 +30,7 @@ impl Windows {
         self.image_cursor = (first + 1) % self.entries.len();
         let (before, after) = self.entries.split_at_mut(first);
         for window in after.iter_mut().chain(before.iter_mut()) {
-            // 无效候选没有完成句柄：本轮有界跳过，不能让后续有效候选永远等不到唤醒。
+            // Invalid candidates have no completion handle; skip boundedly this round so later valid candidates do not wait forever without wakes.
             for _ in 0..64 {
                 let request = match window.next_image_request(now) {
                     Ok(Some(request)) => request,

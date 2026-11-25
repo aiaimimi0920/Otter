@@ -1,4 +1,4 @@
-//! 批次线程在取消/迟到撤权/共享容量失败时仍返还全部事件和唯一 owner。
+//! Batch threads return every event and the unique owner on cancellation, late revocation, or shared-capacity failure.
 use super::*;
 use crate::{
     device_authorization_lease::Grant,

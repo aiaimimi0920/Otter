@@ -1,4 +1,4 @@
-//! 冻结帧选区窗口；阻塞消息循环、事件触发绘制，窗口销毁后才释放帧及状态。
+//! Frozen-frame selection window; blocking message loop and event-driven drawing, with frame/state released only after window destruction.
 use super::{capture_crop, image::Image, Window};
 use std::cell::Cell;
 #[path = "capture_region_paint.rs"]
@@ -73,7 +73,7 @@ fn select_with(
     select_positioned_with(image, origin, windows, visible, ready)
         .map(|result| result.map(|(image, _)| image))
 }
-/// 录制的冻结图只用于选区，不进入录像；释放冻结像素后重新采样真实目标。
+/// Recording's frozen image is for selection only, not video; release frozen pixels before resampling the real target.
 pub(super) fn select_recording(
     image: Image,
     origin: POINT,
@@ -96,7 +96,7 @@ fn select_positioned_with(
         .map(|(rect, _)| capture_crop::positioned(&image, origin, rect))
         .transpose()
 }
-/// 长截图保留选区确认阶段，不能让普通截图的松手提交改变其专用流程。
+/// Scrolling capture retains selection confirmation; ordinary capture's release-to-submit must not change this specialized flow.
 pub(super) fn select_adjustable(
     image: Image,
     origin: POINT,
@@ -108,7 +108,7 @@ pub(super) fn select_adjustable(
         .map(|(rect, _)| capture_crop::positioned(&image, origin, rect))
         .transpose()
 }
-/// Live 不复制冻结帧的裁剪像素；返回选择意图，窗口身份由调用方冻结前的快照拥有。
+/// Live does not copy cropped frozen pixels; return selection intent, with window identity owned by the caller's pre-freeze snapshot.
 pub(super) fn select_live(
     image: Image,
     origin: POINT,
@@ -232,7 +232,7 @@ unsafe extern "system" fn procedure(
         return DefWindowProcW(hwnd, message, wparam, lparam);
     }
     let state = &*pointer;
-    // 松手提交后冻结结果，避免释放鼠标捕获或销毁窗口期间的重入输入改写选区。
+    // Freeze the result after release submission so reentrant input during capture release/window destruction cannot rewrite selection.
     if state.done.get()
         && matches!(
             message,
@@ -278,7 +278,7 @@ unsafe extern "system" fn procedure(
                 model.update(next);
                 state.model.set(model);
             }
-            // 边界外继续拖动时矩形可能不变；只有可见选区改变才重画冻结帧。
+            // Continued dragging beyond bounds may leave the rectangle unchanged; redraw the frozen frame only when visible selection changes.
             if before != state.preview_rect() {
                 let _ = InvalidateRect(Some(hwnd), None, false);
             }
@@ -303,7 +303,7 @@ unsafe extern "system" fn procedure(
             let _ = InvalidateRect(Some(hwnd), None, false);
         }
         WM_LBUTTONDBLCLK if state.mode == Mode::Live => {
-            // 同一选择表面选取当前 Z 序悬停窗口；身份/边界在退出消息泵后重新校验。
+            // Select the hovered window in current Z order on the same selection surface; revalidate identity/bounds after leaving the message loop.
             if let Some(rect) = super::capture_windows::pick(&state.windows, point()) {
                 let mut model = state.model.get();
                 model.cancel_drag();

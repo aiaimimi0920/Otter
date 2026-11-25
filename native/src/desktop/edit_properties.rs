@@ -1,4 +1,4 @@
-//! 二级编辑条的目标凭证、字段提交与工具栏接线；控件/外壳唯一归主题库。
+//! Secondary edit-strip target evidence, field commits, and toolbar wiring; the theme library exclusively owns controls/shells.
 use super::{
     canvas::Canvas, popup_menu::target::MenuTarget, tool_panel_availability::Availability, State,
 };

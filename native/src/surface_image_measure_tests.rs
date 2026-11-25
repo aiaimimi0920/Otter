@@ -1,4 +1,4 @@
-//! 已解码自然尺寸进入生产布局；数值来自旧组件及实际 Chromium 基线。
+//! Decoded natural dimensions enter production layout; values come from old components and an actual Chromium baseline.
 use super::*;
 #[test]
 fn inline_image_unavailable_has_layout_without_fake_natural_pixels() {
@@ -237,7 +237,7 @@ fn surface_image_presentation_replacement_does_not_inherit_old_node_pixels() {
     assert_eq!(p.geometry().nodes()[1].size(), [300., 150.]);
     p.reflow(base(), context(), [40., 180.]).unwrap();
     assert_eq!(p.geometry().nodes()[1].size(), [40., 20.]);
-    // 候选缺资源必须失败并保留旧帧；不能静默按相同 ID 使用旧图。
+    // Missing candidate resources must fail and preserve the old frame; never silently reuse an old image with the same ID.
     assert!(p.replace(scene(), base(), context(), [300., 180.]).is_err());
     assert_eq!(p.geometry().nodes()[1].size(), [40., 20.]);
     assert!(weak.upgrade().is_some());
@@ -340,7 +340,7 @@ fn inline_image_placeholder_refresh_preserves_cross_node_selection_without_alt()
         .finish_text_selection([end[0] + 60., end[1] + 5.])
         .unwrap());
     assert!(frame.text_selection_keyboard_ready("first", true));
-    // selected_text 只导出单节点范围；跨节点范围没有借此扩大剪贴板能力。
+    // selected_text exports only single-node ranges; cross-node ranges do not expand clipboard capabilities through it.
     assert!(frame.selected_text().unwrap().is_none());
     assert!(!frame
         .text()

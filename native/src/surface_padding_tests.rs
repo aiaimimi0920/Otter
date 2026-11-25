@@ -1,4 +1,4 @@
-//! 四边内缩跨真实 DirectWrite、内容流、Grid 和图片比例反馈，不复制布局算法。
+//! Four-side insets across real DirectWrite, content flow, Grid, and image-aspect feedback without copying layout algorithms.
 use super::*;
 use crate::surface_box::{self, Insets};
 use serde_json::json;

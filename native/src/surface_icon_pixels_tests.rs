@@ -1,4 +1,4 @@
-//! WIC/Direct2D 实际像素验证字形、主题色、居中与遮挡，不依赖截图猜测。
+//! Actual WIC/Direct2D pixels verify glyphs, theme colors, centering, and occlusion without screenshot guesses.
 use super::paint_pixels::{render, WIDTH};
 #[test]
 fn surface_icon_large_glyph_stays_inside_narrow_parent_clip() {

@@ -1,4 +1,4 @@
-//! 活动blur以独立高斯公式和像素锚点验证源密度、裁剪邻域与失败原子性。
+//! Verify active blur source density, crop neighborhoods, and failure atomicity using independent Gaussian formulas/pixel anchors.
 use super::*;
 use crate::{
     blur_image::BlurImage,
@@ -172,7 +172,7 @@ fn projection_active_blur_budget_failure_releases_partial_work_and_keeps_active_
     let editor = blur_editor();
     let stamp = editor.document_stamp();
     let original = editor.elements()[0].blur.as_ref().unwrap().pixels().clone();
-    // 仅预占现有全局预算，不分配大像素或放宽上限；串行运行后全部租约释放。
+    // Reserve only existing global budget, without allocating large pixels or raising limits; serial execution releases every lease afterward.
     let mut leases = Vec::new();
     let mut bytes = crate::pixels::DECODED_PIXEL_LIMIT;
     while bytes > 0 {

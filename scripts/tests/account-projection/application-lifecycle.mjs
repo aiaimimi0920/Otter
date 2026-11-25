@@ -1,4 +1,4 @@
-// 每步重新启动真实 Application，核验落盘恢复及接收像素，不复制生产投射逻辑。
+// Restart the actual Application each step to verify disk restoration and received pixels, without duplicating production projection logic.
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { closeSync, openSync, readFileSync, writeFileSync } from "node:fs";

@@ -1,4 +1,4 @@
-//! 直线端点约束，与基线的先角度、后坐标步进顺序保持一致。
+//! Straight-line endpoint constraints preserve baseline angle-first, coordinate-step-second order.
 use crate::viewport::Point;
 
 pub fn endpoint(start: Point, current: Point, shift: bool, control: bool) -> Point {
@@ -35,7 +35,7 @@ pub fn configured_endpoint(
     }
 }
 
-// JS Math.round 的负半整数向正无穷舍入，不使用 Rust 的远离零舍入。
+// JS Math.round rounds negative half-integers toward positive infinity, not Rust's away-from-zero rounding.
 fn js_round(value: f32) -> f32 {
     (value + 0.5).floor()
 }

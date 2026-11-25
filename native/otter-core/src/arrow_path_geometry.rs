@@ -1,4 +1,4 @@
-//! 多点箭头沿最后有效锚段取向；借用前缀且仅保存一个头，不复制采样点或按长度分配。
+//! Multipoint arrows follow the last valid anchor segment; borrow prefixes/store one head without sample copies or length-dependent allocation.
 use super::{straight, Arrow};
 use crate::viewport::Point;
 
@@ -15,8 +15,8 @@ impl PathArrow<'_> {
     }
 }
 
-/// 与实时Web标注相同：先找距末点至少2单位的锚点，否则回退到最后非重合点。
-/// 末尾重复/极短样本位于箭头内，不生成回折箭杆；仅一个点或全部重合时没有头。
+/// Match live Web annotations: first find an anchor at least 2 units from the endpoint, otherwise use the last distinct point.
+/// Repeated/tiny trailing samples stay inside the head without folded-back shafts; one point/all coincident points produce no head.
 pub fn build_path(points: &[Point], width: f32) -> Option<PathArrow<'_>> {
     let &end = points.last()?;
     if points.len() < 2 || !width.is_finite() || width <= 0.0 {

@@ -1,4 +1,4 @@
-//! 真实缓存启动在空输入绑定处失败；只验证 worker/租约回收，不代表渲染成功。
+//! An actual cache start fails at empty-input binding; verify only worker/lease reclamation, not rendering success.
 use super::*;
 use crate::{
     desktop::{

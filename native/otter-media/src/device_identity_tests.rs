@@ -17,7 +17,7 @@ fn legacy(seed: &[u8], public: &[u8]) -> Vec<u8> {
 
 #[test]
 fn rfc8032_vector_preserves_legacy_seed_public_key_and_signature() {
-    // RFC 8032 section 7.1 TEST 3，公开测试向量，非用户凭据。
+    // RFC 8032 section 7.1 TEST 3, a public test vector, not user credentials.
     let seed = hex("c5aa8df43f9f837bedb7442f31dcb7b166d38535076f094b85ce3a2e0b4458f7");
     let public = hex("fc51cd8e6218a1a38da47ed00230f0580816ed13ba3303ac5deb911548908025");
     let expected = hex("6291d657deec24024827e69c3abe01a30ce548a284743a445e3680d7db5ac3ac18ff9b538d16f290ae67f760984dc6594a7c15e9716ed28dc027beceea1ec40a");

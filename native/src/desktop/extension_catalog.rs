@@ -1,4 +1,4 @@
-//! 应用级扩展目录投影；启动请求支持声明式快捷键，后台推送刷新，失败仅显式重开编辑栏重试。
+//! Application-level extension-catalog projection; startup requests support declarative shortcuts/background push refresh, with retries only on explicitly reopening edit strips.
 use super::{
     extension_catalog_job::{Event, Job},
     loom_execution_signal::Notify,
@@ -86,7 +86,7 @@ impl Owner {
             }
             changed = true;
         }
-        // 撤权已可见，但旧线程可能还在通知尾段；保留用户显式重试，不自动重连。
+        // Revocation is visible while old threads may still finish notification tails; preserve explicit user retries without automatic reconnection.
         if !self.job.is_busy() && std::mem::take(&mut self.view.borrow_mut().requested) {
             let mut view = self.view.borrow_mut();
             view.snapshot = None;

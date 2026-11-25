@@ -1,4 +1,4 @@
-//! 普通EXE真实Art/UIA/菜单/Checkpoint到隔离TLS投送，预览不可冒充正式结果。
+//! Real Art/UIA/menu/Checkpoint delivery from an ordinary EXE to isolated TLS; previews cannot stand in for committed results.
 use super::*;
 use serde_json::Value;
 use std::time::Duration;
@@ -51,7 +51,7 @@ fn revision(document: &Value) -> Option<u64> {
     art(document)["projectionSenders"][0]["link"]["revision"].as_u64()
 }
 fn sender_requests(state: &peer::State) -> Vec<String> {
-    // 普通产品仍可轮询空收件箱；停止发送不能借此关闭无关接收能力。
+    // The ordinary product may still poll an empty inbox; stopping sends must not disable unrelated receiving capabilities.
     state
         .requests
         .iter()

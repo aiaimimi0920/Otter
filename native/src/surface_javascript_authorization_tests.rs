@@ -1,4 +1,4 @@
-//! 就绪移交和闲置/操作前后的撤权门；只回收自有测试 child，不伪造系统全局输入。
+//! Ready handoff and revocation gates while idle and before/after operations; reap only owned test children without fabricating global system input.
 use super::*;
 #[test]
 fn javascript_entry_cannot_revive_expired_execution_or_change_lifecycle_without_revision() {

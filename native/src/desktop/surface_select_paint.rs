@@ -1,4 +1,4 @@
-//! 仅接管 COMBOBOX 收起区域绘制；系统仍拥有选择、弹出、键盘、焦点与 UIA。
+//! Draw only the collapsed COMBOBOX area; the system retains selection, popup, keyboard, focus, and UIA ownership.
 use super::*;
 use crate::desktop::surface_control_colors as colors;
 use windows::Win32::UI::{
@@ -69,7 +69,7 @@ unsafe fn draw(hwnd: HWND, dc: HDC) -> bool {
             DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS | DT_NOPREFIX,
         );
     }
-    // 共享 DC pen/brush 随 SaveDC 恢复，禁止删除系统 stock 对象。
+    // SaveDC restores shared DC pen/brush state; never delete system stock objects.
     SelectObject(dc, GetStockObject(DC_PEN));
     SelectObject(dc, GetStockObject(DC_BRUSH));
     SetDCPenColor(dc, ink);
@@ -131,7 +131,7 @@ pub(super) unsafe fn message(hwnd: HWND, message: u32, wp: WPARAM) -> Option<LRE
     if dc.is_invalid() {
         return None;
     }
-    // 直接绘制避免先出现白色系统背景；失败时在同一已取得 DC 上回退系统绘制。
+    // Direct painting avoids an initial white system background; on failure, fall back to system drawing on the same acquired DC.
     if !draw(hwnd, dc) {
         DefSubclassProc(
             hwnd,

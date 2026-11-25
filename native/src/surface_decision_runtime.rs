@@ -1,4 +1,4 @@
-//! 决定提交后的有界后台事务；唯一 owner 与决定证据完整返回，不重放原事件。
+//! Bounded background transactions after decision submission; return the unique owner and complete decision evidence without replaying the original event.
 use crate::{
     device_authorization_config::{Config, Error as PrepareError},
     device_authorization_lease::{Error as LeaseError, Lease},
@@ -23,12 +23,12 @@ pub struct Input {
     pub event: ClickEvent,
     pub ack: Ack,
     pub decision: Decision,
-    /// 从当前呈现 owner 读取的版本，不是重新取 event.revision 冒充检查。
+    /// Revision read from the current presentation owner, not a fresh read of event.revision masquerading as a check.
     pub revision: u64,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Error {
-    /// 未创建后台任务；原输入仍通过统一结果链路返还，不代表网络尝试失败。
+    /// No background task was created; original input still returns through the unified result path, which does not imply a failed network attempt.
     NotStarted,
     Stopped,
     Panicked,
@@ -38,12 +38,12 @@ pub enum Error {
 }
 pub struct Outcome {
     pub input: Input,
-    /// HTTP 决定提交结果，不代表动作执行结果。
+    /// HTTP decision-submission result, not the action-execution result.
     pub submission: Result<(), Error>,
     pub convergence: Option<Result<Snapshot, Error>>,
     pub delivery: Result<(), LeaseError>,
 }
-/// 进入统一事件收据的决定证据；与动作 ACK/呈现结果分开，不能被错误提示消费。
+/// Decision evidence entering the unified event receipt; separate from action ACKs/presentation results and not consumable by error notifications.
 pub struct Evidence {
     pub decision: Decision,
     pub revision: u64,
@@ -143,7 +143,7 @@ impl Job {
                             &mut input.decision,
                         )
                         .map_err(Error::Submit)?;
-                    // 提交成功和后续收敛是两份证据；后续异常不能改写决定接收事实。
+                    // Successful submission and subsequent convergence are separate evidence; later exceptions must not rewrite decision receipt.
                     let observed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                         control.converge_decided_surface(
                             &input.event,
@@ -193,7 +193,7 @@ impl Job {
     pub fn wait_handle(&self) -> Option<BorrowedHandle<'_>> {
         self.thread.as_ref().map(|thread| thread.as_handle())
     }
-    /// 完成线程仍占共享槽位，直到 UI 显式收割；结果使用前仍须再次核验授权。
+    /// Finished threads retain shared slots until explicitly reaped by the UI; recheck authorization before using their results.
     pub fn try_join(&mut self, now_ms: u64) -> Option<Outcome> {
         if !self.thread.as_ref()?.is_finished() {
             return None;
@@ -218,7 +218,7 @@ impl Job {
 impl Drop for Job {
     fn drop(&mut self) {
         self.request_stop();
-        // 正常应用路径先 wait/try_join 保存证据；兜底不遗留后台线程。
+        // The normal application path first wait/try_join to save evidence; fallback leaves no background threads behind.
         if let Some(thread) = self.thread.take() {
             let _ = thread.join();
         }

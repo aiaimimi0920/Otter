@@ -1,4 +1,4 @@
-// 私有请求不读取公开反射/方法，也不通过被污染的 collection intrinsic 或 thenable。
+// Private requests neither read public reflection/methods nor use polluted collection intrinsics or thenables.
 NeuroSurface.define({mount({root}){
   root.innerHTML='<p>integrity</p><input><button>request</button>';
   const field=root.children[1],focus=field.focus,blur=field.blur;

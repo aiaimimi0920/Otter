@@ -76,7 +76,7 @@ fn finish_drains_recent_hint_once_then_composes_and_never_authorizes_new_events(
     schedule.start(now);
     schedule.notify(now);
     schedule.finish(now);
-    schedule.notify(now + DELAY); // listener 已卸载，迟到通知也不能延长 drain。
+    schedule.notify(now + DELAY); // The listener is uninstalled; late notifications must not extend draining.
     assert_eq!(schedule.action(now + DELAY, false), Action::Capture);
     assert_eq!(schedule.action(now + DRAIN, true), Action::Idle);
     schedule.completed(now + DRAIN);
@@ -173,7 +173,7 @@ fn slow_matching_does_not_add_another_poll_period_after_the_reply() {
     let ready = now + POLL * 5;
     assert_eq!(schedule.action(ready, true), Action::Idle);
     schedule.completed(ready);
-    assert_eq!(schedule.action(ready, false), Action::Idle); // 预览有机会使用同一槽。
+    assert_eq!(schedule.action(ready, false), Action::Idle); // Previews get a chance to use the same slot.
     assert_eq!(
         schedule.action(ready + Duration::from_millis(1), false),
         Action::Capture

@@ -1,4 +1,4 @@
-//! 有界源端协作TLS夹具；独立blue像素与固定rect坐标oracle，不复用产品合并/初始化实现。
+//! Bounded source-side collaboration TLS fixture; independent blue pixels and fixed rect-coordinate oracle, without reusing product merge/initialization.
 use super::*;
 use base64::Engine;
 use sha2::Digest;
@@ -268,7 +268,7 @@ impl Peer {
                         }
                         _ => panic!("unexpected edit operation: {body}"),
                     }
-                    // apply 已提交后客户端可合法取消；保留对端以验证显式重试读取同一回执。
+                    // The client may legitimately cancel after apply commits; retain the peer to verify explicit retry reads the same receipt.
                     if let Err(error) = crate::device_session_client::tests::reply_result(
                         &mut stream,
                         200,

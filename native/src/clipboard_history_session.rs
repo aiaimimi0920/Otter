@@ -1,4 +1,4 @@
-//! 打开的历史菜单会话：事件合并、异步刷新与可选择快照的唯一 owner。
+//! Open history-menu session: sole owner of event coalescing, asynchronous refresh, and selectable snapshots.
 use super::{events::Events, task::Task, Entry, Snapshot, Status};
 use std::time::{Duration, Instant};
 use windows::core::Result;
@@ -41,7 +41,7 @@ impl Session {
         self.events.signal();
     }
 
-    /// 由菜单打开手势调用；订阅失败交给 UI 显示，不偷偷改成轮询系统历史。
+    /// Called by the menu-opening gesture; UI displays subscription failures, without secretly switching to system-history polling.
     pub fn open() -> Result<Self> {
         Ok(Self::new(Events::subscribe()?, Instant::now()))
     }
@@ -69,7 +69,7 @@ impl Session {
             .map_or(&[], |snapshot| &snapshot.entries)
     }
 
-    /// UI 定时器只查询本地通道/原子标记；真正读取仅在有待处理变化时启动。
+    /// The UI timer only queries local channels/atomic flags; start actual reads only for pending changes.
     pub fn tick(&mut self) -> bool {
         self.tick_with(Instant::now(), Task::start)
     }
@@ -95,13 +95,13 @@ impl Session {
                     };
                     return true;
                 }
-                // 读取期间发生变化：该快照不再可选，等待下一次读取。
+                // Changes occurred during the read: this snapshot is no longer selectable; wait for the next read.
                 if !self.pending {
                     self.accept(result);
                     changed = true;
                 }
             } else if now.saturating_duration_since(self.started) >= Duration::from_secs(6) {
-                // UI 超时只关闭通道，不等待提供方；后台许可仍保护其资源生命周期。
+                // UI timeout only closes the channel without waiting for the provider; the background permit still protects resource lifetime.
                 self.task = None;
                 self.deleting = false;
                 self.state = State::Unavailable;
@@ -119,7 +119,7 @@ impl Session {
                     changed = true;
                 }
                 Err(_) => {
-                    // 提供方仍占用许可时继续节流重试，但不重复重建同一个不可用菜单。
+                    // Keep throttling retries while the provider holds the permit, without repeatedly rebuilding the same unavailable menu.
                     changed |= self.state != State::Unavailable;
                     self.state = State::Unavailable;
                 }
@@ -146,8 +146,8 @@ impl Session {
         }
     }
 
-    /// 点击前再次消费事件，避免最后一次绘制之后的变化使用旧命中索引。
-    /// 调用者随后仍须检查窗口/文档目标，并关闭菜单后再交付内容。
+    /// Consume events again before clicking so changes since the last draw cannot use an old hit index.
+    /// Callers still check window/document targets afterward, then close the menu before delivering content.
     pub fn take_entry(&mut self, index: usize, painted_id: &str) -> Option<Entry> {
         if self.events.take_changed() {
             self.pending = true;
@@ -166,7 +166,7 @@ impl Session {
         self.state = State::Empty;
         Some(entry)
     }
-    /// 与取用共用最新快照身份校验；只在显式删除手势后启动有界后台任务。
+    /// Share latest-snapshot identity checks with retrieval; start bounded background work only after an explicit deletion gesture.
     pub fn delete_entry(&mut self, index: usize, painted_id: &str) -> bool {
         self.delete_with(index, painted_id, Task::delete)
     }

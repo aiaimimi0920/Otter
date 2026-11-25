@@ -1,4 +1,4 @@
-//! 二维已定位截图合成；帧的几何范围决定覆盖，输出 alpha 标记该像素已写入。
+//! Composition of positioned 2D captures; frame geometry determines coverage, and output alpha marks written pixels.
 use super::*;
 use std::sync::atomic::Ordering;
 #[path = "long_capture_coverage.rs"]
@@ -62,14 +62,14 @@ pub(super) fn bounds(
         .and_then(|n| u32::try_from(n).ok())
         .ok_or(Error::OutputLimit)?;
     output_bytes(width, height)?;
-    // 与主干二维画布一致：覆盖画布上限独立于一维长图上限。
+    // Match mainline 2D canvases: coverage-canvas limits are independent of 1D long-image limits.
     if u64::from(width) * u64::from(height) > 64 * 1024 * 1024 {
         return Err(Error::OutputLimit);
     }
     Ok((left, top, width, height))
 }
-/// 位置须由上层完成重叠验证；此函数不把任意已定位帧当作匹配成功的证据。
-/// 先裁出最大完整矩形，只为实际交付的范围分配像素。
+/// Upper layers must validate positional overlap; arbitrary positioned frames are not proof of successful matching.
+/// Crop the largest complete rectangle first, allocating pixels only for the delivered region.
 pub fn stitch_spatial(
     frames: &[SpatialFrame],
     cancel: &AtomicBool,

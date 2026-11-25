@@ -1,4 +1,4 @@
-//! Live 断线复用连线菜单快照；应用模态结束后重验 owner/拓扑，沿唯一图状态提交。
+//! Live unlinking reuses link-menu snapshots; after application modal scope ends, recheck owner/topology and commit through the sole graph state.
 use super::Application;
 use crate::{
     desktop::link_menu::{Request, Snapshot},
@@ -63,7 +63,7 @@ impl Application {
                 "Live unlink endpoints changed during menu",
             ));
         }
-        // 显示缓存、保存脏状态和运行取消继续由既有拓扑凭证消费者收口。
+        // Existing topology-credential consumers still finalize display-cache retirement, save dirty state, and execution cancellation.
         self.workspace.remove_link(&request.link.id);
         Ok(true)
     }

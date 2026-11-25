@@ -1,4 +1,4 @@
-//! Art 参数候选的公共边界：默认值与手动覆盖合并，凭据和内部控制字段永不进入候选。
+//! Public boundary for Art parameter candidates: merge defaults and manual overrides, never admitting credentials or internal control fields.
 use crate::graph_image::{Error, Output, MAX_PORTS};
 use crate::graph_param_coercion::{coerce, Value, Widget};
 pub const DISABLED: &str = "__DISABLED__";
@@ -8,7 +8,7 @@ pub struct Param<'a> {
     pub secret: bool,
     pub widget: Widget<'a>,
 }
-/// None 表示主干中的 undefined；与显式 null 区分，不能自动改成默认值。
+/// None represents undefined in the baseline; distinguish it from explicit null and do not automatically replace it with a default.
 pub struct Params<'a> {
     entries: Vec<(&'a str, Option<Value<'a>>)>,
     declared: &'a [Param<'a>],
@@ -60,7 +60,7 @@ impl<'a> Params<'a> {
                 result.put(param.id, value);
             }
         }
-        // 与主干相同：手动项最终覆盖默认值，包含显式 null 和未声明但非内部的项。
+        // As in the baseline, manual entries ultimately override defaults, including explicit null and undeclared but noninternal entries.
         for (name, value) in manual {
             if !result.excluded(name) {
                 crate::graph_image::validate_outputs(&[(name, *value)])?;
@@ -105,8 +105,8 @@ impl<'a> Params<'a> {
             .iter()
             .map(|(name, value)| (*name, value.as_ref().map(Value::as_output)))
     }
-    /// 输入须已经过 widget 转换；未声明、secret、控制字段和手动禁用项均拒绝连线覆盖。
-    /// 缺失/空正式输出不覆盖原值，后续字段转换失败同样应传 None。
+    /// Input must already have passed widget conversion; undeclared, secret, control, and manually disabled fields all reject connected overrides.
+    /// Missing/empty formal outputs do not override the original value; subsequent field-conversion failures should likewise pass None.
     pub fn apply_linked(&mut self, name: &str, value: Option<Output<'a>>) -> bool {
         self.apply_widget_linked(
             name,
@@ -118,7 +118,7 @@ impl<'a> Params<'a> {
             value,
         )
     }
-    /// 转换候选完成后才交换；失败保留原值，生成文本的 owner 随参数候选释放。
+    /// Swap only after candidate conversion completes; failure preserves the original value, and generated-text owners are freed with the parameter candidate.
     pub fn apply_widget_linked(
         &mut self,
         name: &str,

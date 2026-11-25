@@ -1,4 +1,4 @@
-//! 无框 Live 的菜单与关闭键；复用原系统菜单，模态退出后重验 HWND owner。
+//! Menus and close keys for frameless Live; reuse the original system menu and revalidate HWND ownership after modal exit.
 use super::*;
 use windows::Win32::UI::Input::KeyboardAndMouse::*;
 pub(super) unsafe fn install(hwnd: HWND) -> Result<()> {
@@ -94,7 +94,7 @@ pub(super) unsafe fn handle(
         });
         return true;
     }
-    // 黄角右键属于菜单，不向源窗口发送孤立的 down。
+    // Right-clicking yellow corners belongs to the menu; never send an isolated down to the source window.
     if state.drag.get().is_none() && message == WM_RBUTTONDOWN && corner(hwnd, state, lp) {
         input::suspend(hwnd, state);
         return true;

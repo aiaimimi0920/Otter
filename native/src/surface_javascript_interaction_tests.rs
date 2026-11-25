@@ -1,4 +1,4 @@
-//! 后台 listener/update 使用同 child；未消费帧、旧快照及收据唤醒不得被越过。
+//! Background listeners/updates use the same child; unconsumed frames, old snapshots, and receipt wakeups cannot be overtaken.
 use super::*;
 fn viewport() -> crate::surface_viewport::Viewport {
     crate::surface_viewport::Viewport::new([800, 600], 96).unwrap()
@@ -12,7 +12,7 @@ fn javascript_runtime_async_click_update_and_presentation_notification_preserve_
         .unwrap()
         .unwrap()
         .unwrap();
-    // Text 也有稳定 identity；从真实投影找按钮，不依赖文档创建计数。
+    // Text also has stable identity; find buttons in the actual projection without relying on document-creation counts.
     let target = frame
         .scene
         .root()

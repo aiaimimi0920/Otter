@@ -1,4 +1,4 @@
-//! 缓存所有权记录：只记录本次已编码内容与已发布文件身份，为后续保守清理提供凭证。
+//! Cache ownership records bind this encoded content to the published file identity as evidence for later conservative cleanup.
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
@@ -49,7 +49,7 @@ impl Draft {
     pub fn new(bytes: &[u8]) -> io::Result<Self> {
         Self::from_digest(bytes.len() as u64, Sha256::digest(bytes).into())
     }
-    /// 仅接收所属编码器的有界流式写入统计，不接受外部文件声明的长度/哈希。
+    /// Accept only bounded streaming-write statistics from the owning encoder, not lengths/hashes declared by external files.
     pub fn from_digest(bytes: u64, sha256: [u8; 32]) -> io::Result<Self> {
         let created = SystemTime::now()
             .duration_since(UNIX_EPOCH)

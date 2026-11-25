@@ -1,4 +1,4 @@
-//! 焦点转移失败保原owner，IME/同步重入与键盘控件内鼠标拖动的自有HWND回归。
+//! Owned-HWND regressions for retaining original owners on focus-transfer failure, IME/reentrancy, and mouse dragging inside keyboard controls.
 use super::*;
 use windows::Win32::UI::{Input::KeyboardAndMouse::GetCapture, Shell::*};
 fn value_scene(kind: &str) -> Value {
@@ -97,7 +97,7 @@ fn unchanged_slider_tick_keeps_capture_until_real_move_and_release_commit() {
     let (f, w) = setup(value_scene("slider"));
     navigate(w.hwnd, &w.state, false);
     let h = child(&w);
-    // x=16落在声明值2的step区间，按下不产生preview。
+    // x=16 falls in declared value 2's step interval; pressing produces no preview.
     let point = |x: isize| LPARAM(x | (32isize << 16));
     unsafe {
         SendMessageW(h, WM_LBUTTONDOWN, None, Some(point(16)));

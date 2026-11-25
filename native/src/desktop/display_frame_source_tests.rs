@@ -1,4 +1,4 @@
-//! 跨 Unit 自然源必须匹配真实来源文档；不依赖 PNG 渲染实现生成期望结果。
+//! Cross-Unit natural sources must match actual source documents; expected results do not depend on PNG rendering implementations.
 use super::*;
 use crate::desktop::canvas::{minified_source::Source, Canvas};
 use crate::{editor::Tool, viewport::Point};

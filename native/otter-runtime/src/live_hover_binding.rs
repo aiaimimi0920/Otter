@@ -1,4 +1,4 @@
-//! 输入 worker 的线程定向钩子；仅同包绝对路径 DLL，不安装全局钩子或提升权限。
+//! Thread-targeted hooks for the input worker; only an absolute-path DLL from the same package, with no global hooks or privilege elevation.
 use crate::{
     live_hover_owner::Identity,
     live_native_hooks::{Hooks, Kind},
@@ -57,8 +57,8 @@ impl Binding {
                 || GetAncestor(WindowFromPoint(cursor), GA_ROOT) != self.owner.window()
             {
                 return Ok(());
-            } // 迟到样本不能夺走鼠标当前所在 B 的过滤槽。
-              // 多个 B 共享 A 时，最后实际交互的 B 获得过滤槽；完整 cookie 对不上就放行。
+            } // Late samples must not take the filter slot from B, where the mouse currently resides.
+              // When multiple Bs share A, the last B actually interacted with gets the filter slot; allow through if the full cookie does not match.
             let root = self.target.hwnd();
             SetPropW(root, SOURCE_COOKIE, Some(HANDLE::default()))?;
             SetPropW(self.owner.window(), SOURCE, Some(HANDLE(root.0)))?;
@@ -71,7 +71,7 @@ impl Binding {
         if self.hooks.closed() {
             return Ok(());
         }
-        // 原 Source/Owner 身份不匹配时只能放弃写入；源 HWND 销毁会自动移除属性。
+        // If the original Source/Owner identity mismatches, abandon the write; destroying the source HWND automatically removes its properties.
         if let Ok(_guard) = PROPERTY_WRITE.lock() {
             unsafe {
                 if self.target.validate().is_ok()

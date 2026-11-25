@@ -1,4 +1,4 @@
-//! 父侧发布门：单一绝对期限覆盖容量/传输/退出，完整帧、正常退出与 EOF 后才交付。
+//! Parent-side publication gate: one absolute deadline covers capacity/transport/exit; deliver only after a complete frame, normal exit, and EOF.
 use super::*;
 use crate::{bounded_worker_process::Child, live_recovery_pipe::Pipe, shader_worker_wire as wire};
 use std::{io::Read, os::windows::io::OwnedHandle};

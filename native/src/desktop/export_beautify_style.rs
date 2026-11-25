@@ -1,4 +1,4 @@
-//! 对齐主干美化预设与布局；未知背景回退默认日落，输出尺寸仍受像素预算限制。
+//! Match baseline beautification presets/layout; unknown backgrounds default to sunset, and pixel budgets still constrain output dimensions.
 use super::*;
 pub(in crate::desktop) struct Settings {
     pub padding: u32,

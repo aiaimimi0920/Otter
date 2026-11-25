@@ -1,4 +1,4 @@
-//! Live 初始客户区的物理定位；先进入目标显示器再计算非客户区，不改变捕获范围。
+//! Physical positioning of the initial Live client area; enter the target monitor before calculating nonclient bounds, without changing capture scope.
 use super::*;
 use windows::Win32::UI::HiDpi::{AdjustWindowRectExForDpi, GetDpiForWindow};
 
@@ -25,7 +25,7 @@ fn outer(screen: RECT, inset: RECT) -> Result<RECT> {
     })
 }
 impl LiveWindow {
-    /// 调用方须处于 PMv2 上下文；返回前仍隐藏，捕获排除和定位成功后才允许 worker 启动。
+    /// Callers require PMv2 context; remain hidden on return and start workers only after successful capture exclusion and positioning.
     pub fn new_at(consumer: Consumer<Texture>, screen: RECT) -> Result<Self> {
         Self::create_at_with(consumer, screen, |window, size| {
             window.place_content(screen, size)
@@ -44,7 +44,7 @@ impl LiveWindow {
     fn place_content(&self, screen: RECT, size: D2D_SIZE_U) -> Result<()> {
         let window = self;
         unsafe {
-            // 不抢焦点、不改变 Z 顺序；第一次移动用于确定目标 monitor 的 HWND DPI。
+            // Do not steal focus or change Z order; the first move determines HWND DPI for the target monitor.
             SetWindowPos(
                 window.hwnd,
                 None,
@@ -58,11 +58,11 @@ impl LiveWindow {
         place_client(self.hwnd, screen)
     }
 }
-/// 调整现有客户区；与初始化共用非客户区补偿，不把标题栏尺寸纳入图像缩放比。
+/// Adjust existing client areas using initialization's nonclient compensation; exclude title-bar dimensions from image scaling ratios.
 pub(super) fn place_client(hwnd: HWND, screen: RECT) -> Result<()> {
     place_client_while(hwnd, screen, || true)
 }
-/// 每次可重入定位前后复核凭证，旧拖动不能覆盖更新操作或取消结果。
+/// Revalidate evidence before/after each reentrant positioning call; old drags must not override newer operations or cancellation results.
 pub(super) fn place_client_while(
     hwnd: HWND,
     screen: RECT,
@@ -70,7 +70,7 @@ pub(super) fn place_client_while(
 ) -> Result<()> {
     let size = dimensions(screen)?;
     unsafe {
-        // 非客户区扩展可能跨越不同 DPI 显示器的接缝；只做有界校正，不形成重定位循环。
+        // Nonclient expansion may cross mixed-DPI monitor seams; apply bounded correction, never a repositioning loop.
         for _ in 0..3 {
             if !current() {
                 return Err(Error::new(E_ABORT, "Live placement superseded"));
@@ -100,14 +100,14 @@ pub(super) fn place_client_while(
                 frame.top,
                 frame.right - frame.left,
                 frame.bottom - frame.top,
-                // 初始精确定位不是用户拖边；避免默认最小跟踪宽度扩大合法的窄选区。
-                // 仍接收 WM_WINDOWPOSCHANGED/WM_SIZE，保留正常呈现尺寸失效。
+                // Precise initial positioning is not user edge-dragging; prevent default minimum tracking width from enlarging valid narrow selections.
+                // Still receive WM_WINDOWPOSCHANGED/WM_SIZE to preserve normal presentation-size invalidation.
                 SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOSENDCHANGING,
             )?;
             if !current() {
                 return Err(Error::new(E_ABORT, "Live placement superseded"));
             }
-            // 精确验证客户区而非只验证外框，拒绝系统约束导致的静默偏移/缩放。
+            // Verify exact client bounds, not just outer bounds, rejecting silent offsets/scaling from system constraints.
             let mut origin = POINT::default();
             let mut client = RECT::default();
             GetClientRect(hwnd, &mut client)?;

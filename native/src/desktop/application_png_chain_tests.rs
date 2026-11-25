@@ -1,4 +1,4 @@
-//! 复用真实隐藏应用/中继 fixture，验证新正式 PNG 的显示、传播准入和下游编码；不请求用户服务。
+//! Reuse real hidden-application/relay fixtures to verify new committed PNG display, propagation admission, and downstream encoding; no user-service requests.
 use super::*;
 use crate::desktop::{
     loom_input_job::Job,
@@ -86,7 +86,7 @@ pub(super) fn verify(app: &mut Application) {
         app.propagate_result(&source);
     }
     assert!(app.documents[1].state.pending_start.borrow().is_some());
-    // 不启动第二次远端执行；恢复共享 fixture，旧测试继续验证原有行为。
+    // Do not start a second remote execution; restore the shared fixture so old tests continue verifying existing behavior.
     for document in &app.documents {
         document.state.pending_start.borrow_mut().take();
     }

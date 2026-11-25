@@ -1,4 +1,4 @@
-//! 启动 smoke 的隐藏恢复窗口验证；不用用户图片、剪贴板、真实会话或全局热键。
+//! Hidden restoration-window verification for startup smoke tests; no user images, clipboard, real sessions, or global hotkeys.
 use super::*;
 #[path = "minified_display_region_smoke.rs"]
 mod display_region;

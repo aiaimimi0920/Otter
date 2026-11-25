@@ -1,4 +1,4 @@
-//! 可控单调时钟验证 timer 算法；真实 Engine 另保护逐 callback microtask/原预算。
+//! Controllable monotonic clocks verify timer algorithms; the real Engine separately protects per-callback microtasks/original budgets.
 use super::*;
 fn model(script: &str) {
     let runtime = Runtime::new().unwrap();

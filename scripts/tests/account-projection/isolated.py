@@ -1,4 +1,4 @@
-"""在从未切换到前台的私有桌面运行单步 HWND 夹具；继承联合 runner 的进程 Job。"""
+"""Run single-step HWND fixtures on private desktops never switched to foreground; inherit the integration runner's process Job."""
 
 import ctypes as C
 from contextlib import ExitStack
@@ -21,7 +21,7 @@ runtime = RUN / ("test-runtime-" + LABEL)
 runtime.mkdir()
 actor_profile = os.environ.get("OTTER_PROJECTION_ACCOUNT_PROFILE")
 profile = Path(actor_profile).resolve() if actor_profile else runtime / "profile"
-# 每次重启沿用 actor 的设备身份和本次连接取得的 TLS 信任根。
+# Each restart retains the actor's device identity and the TLS trust root obtained for this connection.
 profile.mkdir(parents=True, exist_ok=True)
 os.environ.update(TEMP=str(runtime), TMP=str(runtime), OTTER_NATIVE_PROFILE_DIR=str(profile))
 K = C.WinDLL("kernel32", use_last_error=True)
@@ -66,7 +66,7 @@ def checked(value):
 
 
 def reap_process(process):
-    # 只终止自有进程；外层 Job 负责该进程的后代。
+    # Terminate only the owned process; the outer Job owns its descendants.
     status = K.WaitForSingleObject(process, 0)
     if status == 0x102:
         checked(K.TerminateProcess(process, 124))
@@ -82,7 +82,7 @@ info = Process()
 forced = False
 start = time.monotonic()
 with ExitStack() as cleanup:
-    # 不请求 DESKTOP_SWITCHDESKTOP，也不调用 SwitchDesktop 或发送系统输入。
+    # Neither request DESKTOP_SWITCHDESKTOP nor call SwitchDesktop or send system input.
     desktop = checked(U.CreateDesktopW(name, None, None, 0, 0xC3, None))
     cleanup.callback(lambda: checked(U.CloseDesktop(desktop)))
     with (RUN / (LABEL + ".log")).open("xb") as log, open(os.devnull, "rb") as null:

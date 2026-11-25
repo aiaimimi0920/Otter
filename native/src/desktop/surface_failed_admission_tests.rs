@@ -1,4 +1,4 @@
-//! 未建窗附件的停用与证据转交；纯协议夹具，不创建窗口或发送网络请求。
+//! Deactivation/evidence transfer for windowless attachments; pure protocol fixtures without windows or network requests.
 use super::*;
 use crate::{
     live_relay_http::Persistence,

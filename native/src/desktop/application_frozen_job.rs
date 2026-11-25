@@ -1,10 +1,10 @@
-//! 冻结恢复/参考复制复用应用单任务恢复 owner；整个后台周期持有同一来源与坐标凭证。
+//! Frozen restoration/reference copying reuse the application's single-task restore owner and retain the same source and coordinate credentials throughout background work.
 use super::*;
 use crate::{session_library::Kind, session_source::Source, workspace_id::UnitId};
 
 impl Application {
-    /// 在菜单模态范围退出后调用；source 是菜单列出条目时保留的同一会话 owner。
-    /// 此入口不授权外部文件。嵌入图片可恢复，其他资源仍由既有资源准入拒绝。
+    /// Call after leaving the menu's modal scope; source is the same session owner retained when the menu listed its entries.
+    /// This entry point does not authorize external files. Embedded images can be restored; existing resource admission still rejects other resources.
     pub(in crate::desktop::application) unsafe fn request_frozen(
         &mut self,
         source: Source,
@@ -37,7 +37,7 @@ impl Application {
             mouse,
             active: self.workspace.units().to_vec(),
         });
-        // 复用 save/restore 互斥、起始 guard、目录快照、唤醒、取消与退出回收。
+        // Reuse save/restore exclusion, the startup guard, catalog snapshot, wakeups, cancellation, and exit reaping.
         self.start_restore(input, None, Some(space))?;
         Ok(unit)
     }

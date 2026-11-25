@@ -1,4 +1,4 @@
-//! 候选准备发生在执行worker；只用合成内联像素，不访问网络、路径或真实profile。
+//! Candidate preparation runs in execution workers; synthetic inline pixels only, without network, paths, or real profiles.
 use super::*;
 use serde_json::json;
 fn png() -> String {

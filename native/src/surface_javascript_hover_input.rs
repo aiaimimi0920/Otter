@@ -1,4 +1,4 @@
-//! 非捕获鼠标位置；None 是离开文档，不携带窗口/远端权限或宿主默认动作。
+//! Uncaptured mouse position; None means leaving the document and carries no window/remote permissions or host default actions.
 use super::invalid;
 use serde::{Deserialize, Serialize};
 use std::io;

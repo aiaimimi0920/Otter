@@ -1,4 +1,4 @@
-//! 真实隐藏 HWND 的滚动消息及子 EDIT 几何同步；不注入系统输入或改系统偏好。
+//! Actual hidden-HWND scroll messages and child-EDIT geometry synchronization; no system input injection or preference changes.
 use super::*;
 use windows::Win32::UI::HiDpi::GetDpiForWindow;
 #[path = "surface_window_gesture_tests.rs"]

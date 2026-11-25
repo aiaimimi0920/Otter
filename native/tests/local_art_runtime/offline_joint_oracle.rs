@@ -1,4 +1,4 @@
-//! 独立条带像素oracle；不调用产品合成器，不从实际输出生成预期。
+//! Independent stripe-pixel oracle; neither calls the product compositor nor derives expectations from actual output.
 use base64::{engine::general_purpose::STANDARD, Engine};
 use serde_json::Value;
 
@@ -13,7 +13,7 @@ pub(super) fn expected(stage: u64) -> (u32, u32, Vec<u8>) {
         .flat_map(|_| {
             (0..w).flat_map(|x| {
                 if stage == 3 {
-                    // 32→320的原恢复底图在flip后成为权威owner；独立有理数双线性条带。
+                    // The original 32-to-320 restored base image becomes the authoritative owner after flipping; use independent rational bilinear stripes.
                     let red = (329_i32 - 2 * x as i32).clamp(0, 20) as u32;
                     return [
                         ((255 * red + 10) / 20) as u8,

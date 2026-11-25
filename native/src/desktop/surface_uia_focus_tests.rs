@@ -1,4 +1,4 @@
-//! 真实 HWND/COM 焦点回归；不注入按键，不产生业务动作。
+//! Actual HWND/COM focus regressions, without injected keystrokes or business actions.
 use super::*;
 use windows::{core::Interface, Win32::UI::WindowsAndMessaging::*};
 

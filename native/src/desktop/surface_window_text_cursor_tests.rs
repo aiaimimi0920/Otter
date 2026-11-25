@@ -1,4 +1,4 @@
-//! 只查自有窗口的正式命中决策，不移动系统指针或改写用户光标。
+//! Query only production hit decisions for owned windows, without moving system pointers or changing user cursors.
 use super::*;
 fn window(json: &[u8]) -> SurfaceWindow {
     let window = SurfaceWindow::new(Scene::parse(json).unwrap(), 240, 160).unwrap();

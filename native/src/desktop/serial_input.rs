@@ -1,4 +1,4 @@
-//! 序号后续创建半径的原生入口；仅变更会话工具配置，不创建编辑历史。
+//! Native entry for the radius of subsequently created serial markers; change only session tool configuration without creating edit history.
 use super::State;
 use crate::editor::Tool;
 use windows::{

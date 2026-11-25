@@ -1,4 +1,4 @@
-//! 长截图控制窗口，使用系统对话框字体及键盘导航。
+//! Scrolling-capture control windows use system dialog fonts and keyboard navigation.
 use windows::Win32::UI::WindowsAndMessaging::*;
 pub(super) fn template() -> Vec<u32> {
     fn string(data: &mut Vec<u16>, value: &str) {

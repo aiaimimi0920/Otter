@@ -1,4 +1,4 @@
-//! 系统 UIA 订阅真实数值通知；不在 UI owner 内等待回调。
+//! System UIA subscriptions receive actual value notifications; no waiting for callbacks inside UI owners.
 use super::*;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -65,7 +65,7 @@ impl Drop for Subscription {
         let _ = self.remove();
     }
 }
-/// 跨进程退出测试保留实际系统订阅，而不是只保留 RangeValue 接口。
+/// Cross-process exit tests retain actual system subscriptions, not merely RangeValue interfaces.
 pub(in crate::desktop::surface_window::uia) struct Observer {
     subscription: Subscription,
     receiver: Receiver<Evidence>,
@@ -120,7 +120,7 @@ impl Observer {
             assert_eq!(event.2, expected[index]);
             index += 1;
         }
-        // 默认 UIA 允许重复最后值，排空有界；之后新实例不得向此订阅发送。
+        // Default UIA permits repeats of the last value; drain boundedly, after which new instances must not notify this subscription.
         for _ in 0..16 {
             match self.receiver.recv_timeout(Duration::from_millis(50)) {
                 Ok(event) => assert_eq!(
@@ -173,7 +173,7 @@ fn expect(receiver: &Receiver<Evidence>, expected: f64) -> Result<()> {
         item,
         (UIA_RangeValueValuePropertyId.0, "slider".into(), expected)
     );
-    // UIA 可重复交付；有界排空只接受相同身份及状态。
+    // UIA may deliver duplicates; bounded draining accepts only matching identity and state.
     for _ in 0..4 {
         match receiver.recv_timeout(Duration::from_millis(100)) {
             Ok(value) => assert_eq!(value.unwrap(), item),
@@ -227,7 +227,7 @@ pub(in crate::desktop::surface_window::uia) fn receive(hwnd: usize) -> Result<()
         pattern.SetValue(60.0)?;
         assert!(pattern.SetValue(101.0).is_err());
         assert!(recv.recv_timeout(Duration::from_millis(200)).is_err());
-        // 真实子 HWND 键盘路径必须共用通知出口，而非只覆盖 SetValue。
+        // Actual child-HWND keyboard paths must share the notification outlet, not merely cover SetValue.
         subscription.element.SetFocus()?;
         assert!(
             subscription.element.CurrentHasKeyboardFocus()?.as_bool(),

@@ -1,4 +1,4 @@
-//! 真实 COM ABI 与节点撤销；跨线程系统发现另由客户端回归覆盖。
+//! Real COM ABI/node revocation; client regressions separately cover cross-thread system discovery.
 #[path = "native_menu_uia_focus_tests.rs"]
 mod focus;
 #[path = "native_menu_uia_status_tests.rs"]

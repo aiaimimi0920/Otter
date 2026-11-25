@@ -1,4 +1,4 @@
-//! RLE4/8 直接写入已预算的 PBGRA 输出，不分配中间索引图；每条指令可取消。
+//! RLE4/8 writes directly to budgeted PBGRA output, without an intermediate index image; every instruction is cancellable.
 use super::{invalid, Layout};
 use windows::core::Result;
 
@@ -10,7 +10,7 @@ pub(super) fn decode(
 ) -> Result<()> {
     let palette = &bytes[layout.palette.clone()];
     let background = palette.get(..3).ok_or_else(invalid)?;
-    // Delta/提前 EOB 未覆盖区域确定为调色板零色，不暴露未初始化数据。
+    // Regions skipped by Delta/early EOB deterministically use palette color zero, never exposing uninitialized data.
     for row in output.chunks_exact_mut(layout.width as usize * 4) {
         check()?;
         for pixel in row.chunks_exact_mut(4) {

@@ -1,4 +1,4 @@
-//! 贴图区域缓存和内容样式命中：边框补入透明底图区域，圆角只裁 Pan 内容。
+//! Pin-region caches and content-style hit testing: borders supplement transparent base regions, while rounded corners crop Pan content only.
 use super::*;
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct Key {

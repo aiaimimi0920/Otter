@@ -1,4 +1,4 @@
-"""在全新仓库外目录生成固定上游的工具链适配片段；不运行上游或包内工具。"""
+"""Generate pinned-upstream toolchain-adapter fragments in fresh out-of-repository directories; run no upstream or packaged tools."""
 
 import argparse
 import hashlib
@@ -31,14 +31,14 @@ def adapted_setup(original):
 
 '''
     source = source[:start] + replacement + source[end:]
-    # GN/Windows 可丢失空位置参数；精确标记只代表空值，不授予任何 runtime 路径。
+    # GN/Windows may lose empty positional arguments; exact markers represent empty values only, granting no runtime paths.
     source = source.replace("  runtime_dirs = sys.argv[3]\n", """  runtime_dirs = sys.argv[3]
   if runtime_dirs == 'otter-no-runtime-dirs':
     runtime_dirs = ''
   if runtime_dirs:
     raise ValueError('External runtime_dirs are not admitted by the Otter adapter')
 """, 1)
-    # 即使 runtime_dirs 为空，上游原拼接也会留下可搜索 CWD 的空 PATH 段。
+    # Even with empty runtime_dirs, original upstream concatenation leaves an empty PATH segment that searches CWD.
     source = source.replace("      env['PATH'] = runtime_dirs + os.pathsep + env['PATH']\n", "", 1)
     source = source.replace("      include_I = ['/I' + i for i in include]\n", """      # SDK packages need not use the system's Windows Kits directory spelling.
       windows_kits_dir = relflag(os.path.join(win_sdk_path, 'Include', SDK_VERSION))
@@ -68,7 +68,7 @@ def prepare(build_source, config_file, output):
     config = read_json(config_file)
     manifest = create_manifest(config)
     output = Path(output)
-    # 只允许现有、无链接父目录下的新名字；不创建父目录，不清理失败目录。
+    # Permit only new names under existing link-free parents; neither create parents nor clean failed directories.
     parent = checked_path(str(output.parent))
     if not output.is_absolute() or output.name in ("", ".", ".."):
         raise ValueError("Absolute new output directory required")
@@ -78,7 +78,7 @@ def prepare(build_source, config_file, output):
     ))):
         if output.is_relative_to(protected) or protected.is_relative_to(output):
             raise ValueError("Output overlaps a protected input tree")
-    # 用同一规则检查尚不存在的末段，避免 Windows 路径别名绕过 exclusive mkdir。
+    # Check nonexistent final components by the same rules, preventing Windows path aliases from bypassing exclusive mkdir.
     checked_path(str(parent / output.name)) if output.exists() else checked_path(str(parent))
     if any(char in output.name for char in ';"%!?&|<>$`:\\/') or output.name.endswith((".", " ")):
         raise ValueError("Unsafe output directory name")

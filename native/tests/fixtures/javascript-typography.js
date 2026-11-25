@@ -1,4 +1,4 @@
-// 与业务无关的字体 shorthand/cascade；拒绝整项后不得安装部分字号或 family。
+// Business-agnostic font shorthand/cascade; rejecting an entire declaration must not install a partial font size or family.
 let first, second;
 const reject = operation => {
   try { operation(); } catch (error) {

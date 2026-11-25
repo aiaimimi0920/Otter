@@ -1,4 +1,4 @@
-//! 系统 HLSL 编译，固定 vertex/pixel ABI；无 include handler、路径/宏参数入口。
+//! System HLSL compilation with fixed vertex/pixel ABI; no include handler or path/macro argument entry points.
 use super::*;
 use std::fmt::Write;
 use windows::{
@@ -13,13 +13,13 @@ const VERTEX: &str = "float4 main(uint id:SV_VertexID):SV_Position { float2 p=fl
 pub(super) struct Program {
     pub vertex: ID3DBlob,
     pub pixel: ID3DBlob,
-    // Blob 的 vtable 来自 compiler DLL；先释放两个 Blob，最后解除模块租约。
+    // Blob vtables come from the compiler DLL; release both Blobs before releasing the module lease.
     _compiler: compiler_api::Compiler,
 }
 pub(super) struct CompilerSession {
     vertex: ID3DBlob,
     cached: Option<(String, Program)>,
-    // 首次编译失败时 cached 仍为空；会话自身也必须先释放 Blob 再卸载 DLL。
+    // cached remains empty on first-compilation failure; the session must also release Blobs before unloading the DLL.
     compiler: compiler_api::Compiler,
 }
 impl CompilerSession {
@@ -96,7 +96,7 @@ pub(super) fn source(request: &Request<'_>) -> String {
         )
         .unwrap();
     }
-    // 固定 entry 名避免远端拼入命令行/路径。#line 仅提供合成诊断名，不打开文件。
+    // Fixed entry names prevent remote command-line/path injection. #line supplies only synthetic diagnostic names and opens no files.
     text.push_str("#line 1 \"otter.hlsl\"\n");
     text.push_str(request.source);
     text.push_str("\n#line 1 \"otter.host\"\nfloat4 main(float4 p:SV_Position):SV_Target { return otter_main(p.xy/otter_size); }\n");

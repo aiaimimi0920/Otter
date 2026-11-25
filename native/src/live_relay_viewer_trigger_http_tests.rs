@@ -1,4 +1,4 @@
-//! 隔离TLS固定wire oracle；确认包含authorizer/完整配置/双游标，错误不盲重放。
+//! Isolated TLS fixed-wire oracle; confirmation includes authorizer/complete configuration/dual cursors, without blind error replay.
 use super::*;
 use crate::live_relay_http::RequesterCursor;
 use crate::{live_relay_trigger_command::Command, live_relay_viewer_identity::Snapshot};
@@ -53,7 +53,7 @@ fn exact_committed_trigger_recovers_lost_reply_and_requires_full_identity_and_cu
                     assert_eq!(body["target"]["surfaceAttachmentId"], "a:1");
                     if scenario == 1 {
                         continue;
-                    } // 真正丢失已提交请求的回复，后续只有只读GET。
+                    } // Actually lose the response to a committed request; only read-only GET follows.
                     reply(
                         &mut stream,
                         if matches!(scenario, 10 | 11) {

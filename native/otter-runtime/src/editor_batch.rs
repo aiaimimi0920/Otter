@@ -1,8 +1,8 @@
-//! 多对象事务按严格递增索引一次提交；先验证整个集合，历史持有原对象以精确恢复。
+//! Multiobject transactions commit strictly increasing indices once; validate the entire set first and retain originals in history for exact restoration.
 use super::*;
 
 impl Editor {
-    /// 组移动先检查全部坐标与共享点预算，失败不改变文档或重做分支。
+    /// Check all coordinates/shared point budgets before group movement; failure changes neither document nor redo branch.
     pub fn translate_many(&mut self, indices: &[usize], offset: Point) -> Result<bool, EditError> {
         validate(offset)?;
         if indices.iter().any(|index| *index >= self.elements.len())
@@ -28,7 +28,7 @@ impl Editor {
                 })?;
             }
         }
-        // 所有可恢复错误在此之前返回；候选完整建立后才开始交换文档对象。
+        // All recoverable errors return before this point; swap document objects only after building complete candidates.
         let mut replacements: Vec<_> = indices
             .iter()
             .map(|index| {

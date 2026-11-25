@@ -1,4 +1,4 @@
-//! 屏外键盘目标、嵌套显露和不可达节点跳过；可见动作资格仍单独检查。
+//! Offscreen keyboard targets, nested reveal, and skipping unreachable nodes; visible action eligibility is still checked separately.
 use super::*;
 fn presentation(json: &str) -> Presentation {
     Presentation::new(

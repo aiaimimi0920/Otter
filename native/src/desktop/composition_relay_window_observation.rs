@@ -1,4 +1,4 @@
-//! 显式只读查看入口；复用原Host快照/notice，失败仅关闭查看窗，不破坏观看或文档。
+//! Explicit read-only viewing entry; reuse original Host snapshots/notices, closing only the inspection window on failure without disturbing viewing/documents.
 use super::*;
 #[path = "composition_relay_observation_window.rs"]
 mod window;
@@ -50,7 +50,7 @@ pub(super) unsafe fn handle(hwnd: HWND, state: &State, message: u32, wp: WPARAM)
     if state.closed.get() {
         return true;
     }
-    // 即使由系统菜单之外的自有消息入口打开，也先释放远端键鼠，避免本地查看时误控Source。
+    // Even when opened through owned messages outside the system menu, release remote keys/buttons first to avoid accidentally controlling Source during local inspection.
     input::release(hwnd, state);
     let previous = state.observation.borrow_mut().take();
     let window = previous

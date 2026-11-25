@@ -1,4 +1,4 @@
-//! Live 关闭回收：复用保存单槽和冻结策略，只有候选仍有效且窗口销毁成功才发布。
+//! Live close-and-recycle: reuse the save slot and freeze policy; publish only if the candidate remains valid and window destruction succeeds.
 use super::*;
 impl Application {
     pub(super) unsafe fn process_live_recycle(&mut self) -> Result<()> {
@@ -57,7 +57,7 @@ impl Application {
             .ok_or_else(|| Error::new(E_ABORT, "Live recycle requester closed"))?;
         session.close_for_recycle()?;
         self.retain_workspace_owners();
-        // 不再执行可失败的准备。保留保存前磁盘基线，库只在随后保存会话时落盘。
+        // Perform no further fallible preparation. Preserve the pre-save disk baseline; the library persists only when the session is subsequently saved.
         self.restored_session
             .as_mut()
             .expect("verified recycle source")

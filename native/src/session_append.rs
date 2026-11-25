@@ -1,4 +1,4 @@
-//! 单贴纸追加的有界原文事务；保留未知字段，裁掉已关闭窗口，不推进磁盘修订。
+//! Bounded original-text transaction for single-sticker append; preserve unknown fields, remove closed windows, and leave disk revision unchanged.
 use crate::{session_document, session_json_fields::fields, workspace_id::UnitId};
 use serde::{ser::SerializeMap, Serialize, Serializer};
 use serde_json::value::RawValue;

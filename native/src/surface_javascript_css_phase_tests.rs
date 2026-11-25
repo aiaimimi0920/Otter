@@ -1,5 +1,5 @@
-//! 测试副本的阶段归因，非生产Engine/吞吐门：仅此诊断允许至2秒以观察超250ms的尾部。
-//! 原Engine/child/产品仍执行原250ms压力断言；不从该诊断退出码推断预算通过。
+//! Phase attribution in a test copy, not a production Engine/throughput gate: only this diagnostic allows up to 2s to observe tails beyond 250ms.
+//! Original Engine/child/product still enforce the original 250ms stress assertions; diagnostic exit codes do not establish budget compliance.
 use super::*;
 
 #[test]

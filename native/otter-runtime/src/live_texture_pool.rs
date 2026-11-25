@@ -1,4 +1,4 @@
-//! 会话级有界 GPU 快照纹理池：仅回收已无消费者引用的同规格纹理，会话关闭即清空。
+//! Session-scoped bounded GPU snapshot-texture pool: recycle only matching textures with no consumer references, clearing the pool on session close.
 use super::{Error, Texture};
 use std::sync::{atomic::AtomicBool, Arc, Mutex, Weak};
 use windows::{
@@ -18,7 +18,7 @@ struct Key {
 
 pub(super) struct Allocation {
     pub texture: ID3D11Texture2D,
-    // 活跃帧与 idle 池传递同一 owner；先释放 COM，再归还字节预算。
+    // Active frames and the idle pool transfer the same owner; release COM before returning the byte budget.
     _lease: crate::byte_budget::Lease,
 }
 
@@ -44,7 +44,7 @@ impl Pool {
     }
 
     /// # Safety
-    /// 与 `live_texture::snapshot` 相同。
+    /// Same as `live_texture::snapshot`.
     pub unsafe fn snapshot(
         &self,
         context: &ID3D11DeviceContext,
@@ -62,7 +62,7 @@ impl Pool {
     }
 
     /// # Safety
-    /// 与 `live_texture::snapshot_region` 相同。
+    /// Same as `live_texture::snapshot_region`.
     pub unsafe fn snapshot_region(
         &self,
         context: &ID3D11DeviceContext,
@@ -142,7 +142,7 @@ pub(super) unsafe fn acquire(
             }
             state.idle.pop()
         });
-        // 换设备/规格先释放旧 idle，且不在池锁内执行 COM 析构。
+        // Release old idle textures before changing device/specification, without running COM destruction under the pool lock.
         drop(retired);
         if let Some(allocation) = reused {
             return Ok((allocation, returner));

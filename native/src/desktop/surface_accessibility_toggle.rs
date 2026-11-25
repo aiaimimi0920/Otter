@@ -1,4 +1,4 @@
-//! Toggle 读取实时编辑会话；沿用 change FIFO 与祖先 click 前缀屏障，不发送动作。
+//! Toggle reads the live edit session, retaining change FIFO and ancestor-click prefix barriers without sending actions.
 use super::*;
 use crate::surface_scene::Kind;
 use windows::Win32::UI::{Accessibility::*, Input::KeyboardAndMouse::IsWindowEnabled};
@@ -65,7 +65,7 @@ pub(in crate::desktop::surface_window) fn change(
             click,
         ))
     })?;
-    // 提交与入槽间无系统调用；祖先 click 使用 Toggle 之前的表单/屏障，保持既有次序。
+    // No system calls occur between commit and slot insertion; ancestor click uses pre-Toggle form/barrier state, preserving existing order.
     if let Some((values, fence)) = click {
         let queued = state
             .pointer

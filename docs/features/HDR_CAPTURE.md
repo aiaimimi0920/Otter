@@ -23,7 +23,13 @@ HDR PNG files contain:
 - mastering display metadata (`mDCV`);
 - content light level metadata (`cLLI`).
 
-The capture response also reports `dynamicRange`, `bitDepth`, `colorSpace`, `captureBackend`, and `downgradedFromHdr`.
+The [capture origin metadata](../../native/src/capture_context.rs) records
+`dynamicRange`, `bitDepth`, `colorSpace`, `captureBackend`, and `downgradedFromHdr`.
+These fields describe the captured source, not a separate HTTP capture response.
+
+For HDR output, Otter retains the HDR original and an SDR preview for the current
+canvas. Both come from the same captured floating-point frame; the preview is not
+a second capture or the HDR original. See [`capture_dynamic.rs`](../../native/src/capture_dynamic.rs).
 
 ## Resource lifetime
 

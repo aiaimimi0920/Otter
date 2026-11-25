@@ -1,4 +1,4 @@
-//! 传统投送的有界菜单数据和显式请求；不持凭据、不联网、不冒充保存或呈现。
+//! Bounded menu data and explicit requests for legacy delivery; no credentials, networking, or claims of saving/presentation.
 use super::{Request as AuthorizationRequest, View as AuthorizationView};
 use crate::projection_delivery::{Invitation, MAX_INVITATIONS};
 use std::sync::Arc;

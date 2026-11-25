@@ -1,4 +1,4 @@
-//! 本地浏览器滚动协议与独立 Edge 集成入口；不会自行发现或控制用户浏览器。
+//! Local browser-scroll protocol and standalone Edge integration entry point; never automatically discover or control user browsers.
 use super::*;
 #[test]
 fn only_startup_pipe_timeout_is_a_pre_action_transition() {
@@ -38,7 +38,7 @@ fn navigation_query_timeout_is_recoverable_only_before_any_action() {
         response_error("query", process::failure_reply(&denied, false)).kind(),
         io::ErrorKind::Other
     );
-    // 即使 child 标记查询过渡，也不把权限错误变成可恢复状态。
+    // Even if the child marks a query transition, do not turn permission errors into recoverable states.
     let mut reply = process::failure_reply(&denied, false);
     reply[0] = 3;
     assert_eq!(response_error("query", reply).kind(), io::ErrorKind::Other);

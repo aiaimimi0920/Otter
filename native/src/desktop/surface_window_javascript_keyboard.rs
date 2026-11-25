@@ -1,4 +1,4 @@
-//! 同步消息只捕获 Enter；异步默认动作在原字段 owner 结算，不等待 child 或重放 WM_KEYDOWN。
+//! Synchronous messages capture only Enter; asynchronous defaults settle in the original field owner, without child waits or WM_KEYDOWN replay.
 use super::*;
 use crate::desktop::surface_edit_messages::ENTER_KEY;
 use windows::Win32::UI::Input::KeyboardAndMouse::{GetFocus, IsWindowEnabled};
@@ -34,7 +34,7 @@ pub(super) unsafe fn message(
         return None;
     }
     let child = HWND(lp.0 as *mut _);
-    // JS 窗口即使已撤权也消费 Enter，不能落回同步 COMMIT 绕开 listener。
+    // JS windows consume Enter even after revocation, preventing fallback to synchronous COMMIT that bypasses listeners.
     if wp.0 <= 127
         && !state.closed.get()
         && state.local_edit.get()

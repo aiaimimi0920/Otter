@@ -1,4 +1,4 @@
-//! 退出批准是一次性的；晚到文件/Live 请求不被最终保存或自动续退越过。
+//! Exit approval is one-shot; final saving or automatic exit continuation must not overtake late file/Live requests.
 use super::*;
 #[test]
 fn late_save_open_freeze_and_recycle_cancel_exit_without_consuming_requests() {

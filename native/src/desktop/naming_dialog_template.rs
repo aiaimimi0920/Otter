@@ -1,4 +1,4 @@
-//! Win32 对话框布局；以 dialog units 和系统字体布局，控件按字段顺序参与键盘导航。
+//! Win32 dialog layout in dialog units/system fonts; controls participate in keyboard navigation in field order.
 use windows::Win32::UI::WindowsAndMessaging::*;
 pub(super) fn template() -> Vec<u32> {
     fn string(data: &mut Vec<u16>, text: &str) {

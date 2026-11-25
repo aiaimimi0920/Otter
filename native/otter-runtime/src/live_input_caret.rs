@@ -1,4 +1,4 @@
-//! 已授权源的系统 caret 只读观测；不附加输入队列、不聚焦，也不读取控件文本。
+//! Read-only observation of the authorized source's system caret; no input-queue attachment, focus changes, or control-text reads.
 use super::{Dpi, Target};
 use crate::live_window_target::region::Crop;
 use windows::{
@@ -15,14 +15,14 @@ pub struct Observation {
     pub point: [f64; 2],
     pub size: [u32; 2],
 }
-/// 返回相对采集帧/crop 的连续位置，可能在 0..1 之外；仅供显示，不能作为输入授权。
+/// Return continuous coordinates relative to the capture frame/crop, potentially outside 0..1; display only, never input authorization.
 pub fn sample(root: &Target, crop: Option<Crop>) -> Result<Option<Observation>> {
     sample_with(root, crop, || {
         let mut info = GUITHREADINFO {
             cbSize: std::mem::size_of::<GUITHREADINFO>() as u32,
             ..Default::default()
         };
-        // 没有 GUI 队列或正在切换激活时可以没有系统 caret，保留点击后备定位。
+        // There may be no system caret without a GUI queue or during activation changes; retain click-based fallback positioning.
         unsafe { GetGUIThreadInfo(root.identity.thread, &mut info) }
             .ok()
             .map(|_| info)
@@ -45,8 +45,8 @@ fn sample_with(
     let point = physical(&before)?;
     let after = read();
     root.validate()?;
-    // 源可以在读坐标期间移动 caret、换焦点、销毁/复用控件或移动整个窗口。
-    // 不使用不一致的两次观测，也不将无关线程的焦点/caret 绑定成新的源。
+    // The source may move the caret, change focus, destroy/reuse controls, or move its entire window while coordinates are read.
+    // Do not use two inconsistent observations or bind an unrelated thread's focus/caret as a new source.
     let Some(after) = after.filter(|info| in_scope(root, info) && same(&before, info)) else {
         return Ok(None);
     };
@@ -79,7 +79,7 @@ fn rect(r: RECT) -> [i32; 4] {
 }
 
 fn physical(info: &GUITHREADINFO) -> Result<POINT> {
-    // rcCaret 始终属于 caret 窗口的逻辑客户坐标，不随调用方 DPI 虚拟化。
+    // rcCaret always uses the caret window's logical client coordinates, independent of caller DPI virtualization.
     let _dpi = Dpi::enter(info.hwndCaret)
         .map_err(|_| Error::new(E_FAIL, "Live caret DPI context unavailable"))?;
     let mut point = POINT {
@@ -109,7 +109,7 @@ fn relative(frame: RECT, crop: Option<Crop>, point: POINT) -> Result<Observation
     if width <= 0 || height <= 0 {
         return Err(Error::new(E_FAIL, "Live caret frame bounds unavailable"));
     }
-    // 不夹紧：已知 caret 在选区之外时应隐藏该定位，而不是使用旧点击假装仍在选区内。
+    // Do not clamp: if the caret is known to be outside the selection, hide its position rather than using an old click to pretend it remains inside.
     Ok(Observation {
         point: [
             (i64::from(point.x) - i64::from(bounds.left)) as f64 / width as f64,

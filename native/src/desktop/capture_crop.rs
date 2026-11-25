@@ -1,4 +1,4 @@
-//! 冻结截图裁剪；完整选区共享原帧，局部选区只复制需要的像素。
+//! Crop frozen screenshots; full selections share the original frame, and partial selections copy only required pixels.
 use super::image::Image;
 use windows::{
     core::{Error, Result},

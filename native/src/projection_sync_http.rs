@@ -1,4 +1,4 @@
-//! 持续 read 复用固定 origin/Device nonce/取消/原响应预算；只识别封闭终态错误码。
+//! Continuous read reuses fixed origin/Device nonce/cancellation/original-response budgets; recognize only closed-set terminal error codes.
 use super::*;
 use delivery::{accept::Read, binding::Binding, journal::Ticket};
 impl Control<'_> {
@@ -32,7 +32,7 @@ impl Control<'_> {
         if !budget.grow_to(bytes.capacity()) {
             return Err(Error::Projection(delivery::Error::Budget));
         }
-        // 401 是授权问题，不把不相关 HTTP 状态推断成关联已终止。
+        // 401 is an authorization issue; unrelated HTTP statuses cannot imply association termination.
         if status == 401 {
             return Err(Error::AuthorizationRequired);
         }

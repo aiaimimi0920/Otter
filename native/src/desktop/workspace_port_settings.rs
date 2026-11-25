@@ -1,4 +1,4 @@
-//! 自有端口设置入口：回调只排一份Open，Application安全调度段打开草稿并复核后提交。
+//! Owned port-settings entry: callbacks queue one Open, then Application's safe scheduling opens drafts and revalidates before commit.
 use super::*;
 #[path = "port_visibility_dialog.rs"]
 mod dialog;
@@ -135,7 +135,7 @@ impl Application {
         catalog: &Catalog,
         visibility: crate::workspace::ports::Visibility,
     ) {
-        // 模态消息泵可改变 owner、目录和全局门；取消、过期、结束会话均不能发布外观。
+        // Modal pumps may change owners, catalogs, and global gates; cancellation, expiry, or session end cannot publish appearance.
         if self.port_settings_ready()
             && self.port_settings_current(request)
             && catalog.matches(&self.documents, &self.live_sessions, &self.workspace)

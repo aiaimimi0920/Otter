@@ -1,4 +1,4 @@
-//! 桌面任务持有 HLSL 输入的适配层；驱动、隔离、容量与私有协议仍完全归 shader_hlsl。
+//! Desktop-task adapter owning HLSL inputs; drivers, isolation, capacity, and the private protocol remain entirely with shader_hlsl.
 use crate::{pixels::Pixels, shader_hlsl as hlsl};
 
 pub struct Texture {

@@ -1,4 +1,4 @@
-"""暂存目录的 Windows 名称空间、独占写入、容量及逐文件内容身份 owner。"""
+"""Owner of staging-directory Windows namespaces, exclusive writes, capacity, and per-file content identity."""
 
 import hashlib
 import io

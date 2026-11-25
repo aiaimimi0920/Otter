@@ -1,4 +1,4 @@
-//! 真实 Win32 STATIC 类名与退出菜单匹配；离屏自有 HWND，不请求前台或注入输入。
+//! Match real Win32 STATIC class names and the exit menu using off-screen owned HWNDs, without requesting foreground or injecting input.
 use super::*;
 
 struct Window(HWND);

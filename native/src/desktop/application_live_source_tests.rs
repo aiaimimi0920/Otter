@@ -1,4 +1,4 @@
-//! 真实Live菜单→Application→原授权/后台TLS/WARP读回及完整回收；不接触用户桌面输入。
+//! Real Live menu -> Application -> original authorization/background TLS/WARP readback and complete cleanup; no user-desktop input access.
 use super::*;
 use crate::desktop::composition::live::{
     session::Session,
@@ -54,7 +54,7 @@ pub(super) fn capture_size(app: &mut Application, size: [u32; 2]) -> Arc<AtomicU
     capture_kind(app, size, false, None, Duration::from_secs(10))
 }
 pub(super) fn capture_joint(app: &mut Application, size: [u32; 2]) -> Arc<AtomicUsize> {
-    // 联测仍由父夹具限制整个流程；源纹理必须活到真正停止发布并断言采集仍存活。
+    // The parent fixture still bounds the entire joint test; keep the source texture alive until publication truly stops and capture liveness is asserted.
     capture_kind(app, size, false, None, Duration::from_secs(30))
 }
 pub(super) fn capture_stream(app: &mut Application, color: Arc<AtomicUsize>) -> Arc<AtomicUsize> {
@@ -91,7 +91,7 @@ fn capture_kind(
                         Ok(()) => break,
                         Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
                             assert!(Instant::now() < deadline);
-                            // 最后Consumer可在超时返回后退出；该次publish的关闭结果是正常退休。
+                            // The last Consumer may exit after a timeout return; this publish's close result is normal retirement.
                             match source.publish(
                                 crate::live_relay_source_runtime::test_texture::texture(
                                     size,
@@ -192,7 +192,7 @@ fn run(mode: u8) {
                 peer.finish();
                 return;
             }
-            // 重复发布不重建source或第二套捕获；旧identity不能停止当前owner。
+            // Repeated publication does not rebuild source or create another capture pipeline; old identity cannot stop the current owner.
             assert!(!app.remote_sessions.stop_source(&Arc::new(())));
             SendMessageW(hwnd, WM_SYSCOMMAND, Some(WPARAM(PUBLISH)), None);
             match mode {

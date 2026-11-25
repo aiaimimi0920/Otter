@@ -1,7 +1,7 @@
-//! 独立恢复进程的有界协议；结构校验不等于传输鉴权或窗口身份验证。
+//! Bounded protocol for the separate recovery process; structural validation is not transport authentication or window-identity verification.
 use serde::{Deserialize, Serialize};
 use std::io::{self, Read, Write};
-// 私有同 EXE 父子协议；类型化恢复状态不兼容旧的混合快照，握手即拒绝混用。
+// Private same-EXE parent/child protocol; typed recovery state is incompatible with old mixed snapshots, so reject mixed versions at handshake.
 pub const SCHEMA: u8 = 2;
 pub const MAX_FRAME_BYTES: usize = 4096;
 pub const MAX_RECORDS: usize = 16;
@@ -15,7 +15,7 @@ pub struct Record {
     pub process_created: u64,
     pub restoration: Restoration,
 }
-/// 互斥恢复职责：菜单层级没有位置/可见性/分层属性的恢复许可或伪造后备值。
+/// Mutually exclusive recovery responsibilities: menu hierarchy has no permission or fabricated fallback values for restoring position/visibility/layered attributes.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(
     tag = "kind",
@@ -41,7 +41,7 @@ pub struct WindowState {
     pub iconic: bool,
     pub visible: bool,
 }
-/// 只恢复借用的置顶位；显示实例不匹配时不得触碰重用窗口，也不恢复位置/可见性。
+/// Restore only the borrowed topmost bit; if the display instance differs, do not touch a reused window or restore position/visibility.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PopupLayer {
@@ -91,7 +91,7 @@ impl Record {
 }
 impl WindowState {
     fn validate(&self) -> io::Result<()> {
-        // WS_EX_LAYERED / LWA_* 是协议数值；本模块不依赖 Windows 或调用任何窗口 API。
+        // WS_EX_LAYERED / LWA_* are protocol values; this module neither depends on Windows nor calls any window API.
         let layered = self.extended_style & 0x0008_0000 != 0;
         let rect_valid = |rect: [i32; 4]| {
             let width = i64::from(rect[2]) - i64::from(rect[0]);
@@ -167,7 +167,7 @@ fn invalid(message: &str) -> io::Error {
 }
 pub fn read_payload(reader: &mut impl Read) -> io::Result<Option<Vec<u8>>> {
     let mut header = [0u8; 4];
-    // 只有首字节前的 EOF 是正常结束；部分头/正文必须作为截断错误保留。
+    // Only EOF before the first byte is normal completion; partial headers/bodies must remain truncation errors.
     match reader.read_exact(&mut header[..1]) {
         Err(error) if error.kind() == io::ErrorKind::UnexpectedEof => return Ok(None),
         result => result?,

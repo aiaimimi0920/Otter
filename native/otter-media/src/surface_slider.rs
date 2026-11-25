@@ -1,4 +1,4 @@
-//! Slider 的有限数值/步长合同；复用浏览器 range 归一规则，不持有 draft 或动作权限。
+//! Slider finite-value/step contract; reuse browser range normalization without holding drafts or action permission.
 use crate::surface_scene::{Kind, Node};
 #[derive(Debug, PartialEq, Eq)]
 pub enum Error {
@@ -19,7 +19,7 @@ fn tolerance(value: f64) -> f64 {
 }
 fn nearest(value: f64) -> f64 {
     let lower = value.floor();
-    // 十进制浮点误差不能把精确中点改成向下舍入；range 中点必须取较大的值。
+    // Decimal floating-point error must not turn an exact midpoint into downward rounding; range midpoints must choose the larger value.
     if value - lower >= 0.5 - tolerance(value) {
         lower + 1.
     } else {
@@ -48,7 +48,7 @@ impl Range {
         };
         let span = max - min;
         let quotient = span / step;
-        // 不截断为 i32 网格或静默改步长；无法可靠区分的极端步距显式拒绝，留给后续扩展。
+        // Do not truncate to an i32 grid or silently change step size; explicitly reject indistinguishable extreme steps for future extension.
         if !quotient.is_finite()
             || quotient >= (1_u64 << 52) as f64
             || (span > 0. && min + step == min)
@@ -68,7 +68,7 @@ impl Range {
             last,
             source: min,
         };
-        // JSX 显式 value 缺省为 0，不采用裸 HTML range 缺省中点 50。
+        // JSX explicitly defaults value to 0, not the bare HTML range default midpoint of 50.
         range.source = range.normalize(number("value", 0.))?;
         Ok(range)
     }
@@ -94,7 +94,7 @@ impl Range {
         let index = (value.clamp(self.min, self.max) - self.min) / self.step;
         Ok(self.value_at(nearest(index)))
     }
-    /// 输入位置必须来自当前控件几何；不接受 NaN 或无限值，不产生无界迭代。
+    /// Input positions must come from current control geometry; reject NaN/infinity and avoid unbounded iteration.
     pub fn at_fraction(&self, fraction: f64) -> Result<f64, Error> {
         if !fraction.is_finite() {
             return Err(Error::Value);

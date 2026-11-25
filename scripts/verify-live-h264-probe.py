@@ -1,4 +1,4 @@
-"""独立解码 C1 合成视频，不连接产品。FFmpeg 仅是显式提供的本地验证工具。"""
+"""Independently decode synthetic C1 video without connecting to the product. FFmpeg is only an explicitly supplied local verification tool."""
 import argparse
 import hashlib
 import json
@@ -20,7 +20,7 @@ def expected_luma(index, input_kind):
     if input_kind == "synthetic_cpu_nv12":
         return level
     if input_kind in {"synthetic_gpu_bgra_nv12", "wgc_owned_window_bgra_nv12"}:
-        # GPU 输入为 full-range 灰度 RGB；BT.709 limited-range Y = 16 + 219*RGB/255。
+        # GPU input is full-range grayscale RGB; BT.709 limited-range Y = 16 + 219*RGB/255.
         return (16 * 255 + 219 * level + 127) // 255
     raise ValueError("unsupported synthetic input contract")
 
@@ -60,7 +60,7 @@ def main():
     probe = args.probe_dir.resolve(strict=True)
     ffmpeg = args.ffmpeg.resolve(strict=True)
     output = args.output_dir.absolute()
-    # 只创建全新证据目录，FFmpeg 同时使用 -n；不覆盖或清理历史证据。
+    # Create fresh evidence directories only, with FFmpeg also using -n; never overwrite or clean historical evidence.
     output.mkdir()
     report = {"status": "failed", "scope": "synthetic-hardware-encode-independent-decode"}
     try:
@@ -95,7 +95,7 @@ def main():
         report["input"] = input_kind
         report["streamSha256"] = hashlib.sha256(stream).hexdigest()
         report["summarySha256"] = hashlib.sha256(summary_bytes).hexdigest()
-        # 用读取并校验后的快照，避免解码时源文件变化导致回执绑定错误。
+        # Use the read and validated snapshot so source-file changes during decoding cannot misbind receipts.
         full = output / "full.h264"
         full.write_bytes(stream)
         report["fullSequence"] = decode(ffmpeg, full, output / "full.nv12", 0, 24, input_kind)

@@ -1,4 +1,4 @@
-//! OCR→命名文本→翻译的单连接顺序；每次真正读取图片/附件前重新申请单次许可。
+//! OCR to named text to translation over one sequential connection; obtain a fresh one-shot permit before every actual image/attachment read.
 use super::{
     extension_command_bridge::{Port, Reply, Request},
     extension_command_route::{Context, OCR, OCR_OVERLAY, TRANSLATE, TRANSLATION_OVERLAY},
@@ -53,7 +53,7 @@ pub(super) fn run(session: &mut Session, mut spec: Spec, port: &Port) -> Result<
         )
     })?;
     let input = if context {
-        // 命名输入有独立 checkOnly；不能凭翻译插件的 opaque 读取权泄露 OCR 附件。
+        // Named input has independent checkOnly; translation-plugin opaque read authority must not expose OCR attachments.
         spec.context.with(|context| {
             session.authorize(&spec.command, context, &spec.target, &port.cancel)
         })?;

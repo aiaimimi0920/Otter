@@ -1,4 +1,4 @@
-//! Canvas 当前路径转换为 D2D 几何；不把闭合、圆弧或多个子路径压平成股票专用图形。
+//! Convert the current Canvas path to D2D geometry without flattening closures, arcs, or multiple subpaths into stock-specific shapes.
 use super::commands::Segment;
 use windows::{
     core::Result,
@@ -117,7 +117,7 @@ pub(super) fn geometry(
                 }
                 Segment::Close if current.is_some() => {
                     sink.EndFigure(D2D1_FIGURE_END_CLOSED);
-                    // closePath 后当前点回到起点，后续 lineTo 可以继续同一起点。
+                    // closePath returns the current point to the start, allowing subsequent lineTo from that same start.
                     sink.BeginFigure(point(start), D2D1_FIGURE_BEGIN_FILLED);
                     current = Some(start);
                 }

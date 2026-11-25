@@ -1,4 +1,4 @@
-//! 授权/准备/执行各阶段失效都不能交付 effects，也不在失败后重放请求。
+//! Invalidation during authorization/preparation/execution must never deliver effects or replay requests after failure.
 use super::*;
 use std::{sync::mpsc, thread};
 #[test]

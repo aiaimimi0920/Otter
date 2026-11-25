@@ -1,4 +1,4 @@
-//! 先建立最多 1025 个共享帧片段（含固定首尾），再一次分配输出。
+//! Build at most 1025 shared frame fragments, including fixed ends, then allocate output once.
 use super::*;
 use std::{collections::VecDeque, sync::atomic::Ordering};
 #[path = "long_capture_preview.rs"]
@@ -162,7 +162,7 @@ pub(super) fn stitch_edges(
     let plan = plan(axis, frames, cancel, edges)?;
     cancelled(cancel)?;
     if plan.segments.len() == 1 {
-        // 单帧或完全重复覆盖无需分配输出，继续共享原像素租约。
+        // Single-frame/fully duplicated coverage needs no output allocation; keep sharing original pixel leases.
         let frame = &frames[0].frame;
         return Ok(Composite {
             width: plan.width,

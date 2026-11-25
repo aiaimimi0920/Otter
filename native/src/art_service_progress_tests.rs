@@ -33,7 +33,7 @@ fn service_progress_coalesces_bursts_and_never_wakes_under_lock() {
         let weak = weak.clone();
         let received = received.clone();
         Channel::new(Arc::new(move || {
-            // 若回归到持锁调用，try_lock 立即失败；断言留在 catch_unwind 之外。
+            // If callbacks regress to running under the lock, try_lock fails immediately; keep the assertion outside catch_unwind.
             let Some(channel) = weak.upgrade() else {
                 return;
             };

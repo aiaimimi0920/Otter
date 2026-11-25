@@ -1,4 +1,4 @@
-//! 路径控制柄手势；直线端点与贝塞尔控制点共用预览、取消和历史提交生命周期。
+//! Path-handle gestures; line endpoints and Bezier control points share preview, cancellation, and history-commit lifetimes.
 use super::canvas::Canvas;
 use crate::{
     editor::{Stroke, Tool},

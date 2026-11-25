@@ -1,4 +1,4 @@
-//! 私有、逐 operation 的焦点请求；不接受 HWND、路径、远端动作或激活权限。
+//! Private per-operation focus requests; accept no HWNDs, paths, remote actions, or activation permissions.
 use crate::surface_javascript_wire as wire;
 use serde::{Deserialize, Serialize};
 #[derive(Debug, Serialize, Deserialize)]

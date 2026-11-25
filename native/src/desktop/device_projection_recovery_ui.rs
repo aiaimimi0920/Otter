@@ -1,4 +1,4 @@
-//! 未结投送的显式解绑/已保存回执恢复；不持凭据，不自动恢复权限或显示隐藏图。
+//! Explicit unbinding/saved-receipt recovery for unsettled delivery; no credential ownership, automatic authority restoration, or hidden-image display.
 use super::*;
 use crate::{
     desktop::State,

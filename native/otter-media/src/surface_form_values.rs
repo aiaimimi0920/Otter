@@ -1,4 +1,4 @@
-//! 表单提交快照：与前端相同的字段数和 UTF-8 总预算，不改变控件可见草稿。
+//! Form-submission snapshot: same field count and total UTF-8 budget as the frontend, without changing visible control drafts.
 use serde_json::{Map, Value};
 
 const MAX_FIELDS: usize = 16;
@@ -9,7 +9,7 @@ pub struct Values {
     bytes: usize,
 }
 impl Values {
-    /// 按首次登记顺序占用名额；场景移除字段不清除值，attachment 换绑才重置。
+    /// Occupy slots in first-registration order; scene removal does not clear field values, while attachment rebinding resets them.
     pub fn update(&mut self, id: &str, value: &str) {
         let previous = self.entries.get(id).and_then(Value::as_str);
         if previous.is_none() && self.entries.len() >= MAX_FIELDS {
@@ -21,7 +21,7 @@ impl Values {
         while !value.is_char_boundary(end) {
             end -= 1;
         }
-        // UTF-8 的 48KiB 上限也保证不超过前端 64Ki UTF-16 单元上限。
+        // The 48KiB UTF-8 limit also guarantees the frontend's 64Ki UTF-16-code-unit limit is not exceeded.
         let bounded = &value[..end];
         if previous != Some(bounded) {
             self.entries

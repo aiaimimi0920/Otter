@@ -1,4 +1,4 @@
-//! 滚动命令通过真实唯一worker/TLS；接收端独立核节点/负载/事件ID与恰一次POST。
+//! Scroll commands pass through the actual unique worker/TLS; receivers independently verify nodes/payloads/event IDs and exactly one POST.
 use super::*;
 #[test]
 fn scrolled_button_is_validated_in_saved_geometry_and_posts_exactly_once() {

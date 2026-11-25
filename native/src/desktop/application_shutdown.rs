@@ -1,4 +1,4 @@
-//! 应用主循环结束后的统一任务回收；保持停止通知、停止采集、最后回收后台执行的顺序。
+//! Unified task reaping after the application main loop ends; preserve order: stop notifications, stop capture, then reap background execution.
 use super::*;
 impl Application {
     pub(super) fn shutdown(&mut self) {
@@ -9,7 +9,7 @@ impl Application {
         crate::desktop::device_authorization_ui::share::shutdown(&self.authorization);
         self.capture_history.shutdown();
         self.local_loom.shutdown();
-        // 不在单个窗口 WM_CLOSE 回调中等待网络或驱动清理。
+        // Do not wait for network or driver cleanup in individual-window WM_CLOSE callbacks.
         self.execution_wake.close();
         self.extension_commands.shutdown();
         unsafe {
@@ -33,7 +33,7 @@ impl Application {
             view.mount_busy = false;
             view.catalog = None;
         }
-        // 保留授权给一次有界停用；随后无论成功失败都撤权并执行原有强制回收。
+        // Retain authorization for one bounded deactivation attempt, then revoke it and run existing forced cleanup regardless of success.
         if let Err(error) = self.finish_surface_transitions() {
             self.error.get_or_insert(error);
         }
@@ -41,8 +41,8 @@ impl Application {
         if let Err(error) = self.shutdown_live() {
             self.error.get_or_insert(error);
         }
-        self.remote_sessions.finish_projection(); // drain 出错也先回收原 Accept，再保其减权责任。
-        self.collect_projection_abandoned(); // drain 关闭普通 UI Event，但不能丢原新建 Accept 意图。
+        self.remote_sessions.finish_projection(); // Even if drain fails, reap original Accept first, then preserve its revocation responsibility.
+        self.collect_projection_abandoned(); // drain closes ordinary UI Event delivery but must not lose the original newly created Accept intent.
         if let Err(error) = self.flush_projection_sender() {
             self.error.get_or_insert(error);
         }
@@ -57,7 +57,7 @@ impl Application {
                 )
             });
         }
-        // 即使 drain 失败也回交已完成的 owner；时钟异常采用失效时点，不恢复显示。
+        // Return completed owners even if drain fails; clock anomalies use the invalidation instant without restoring display.
         let now = crate::desktop::surface_windows::now_ms().unwrap_or(u64::MAX);
         if let Err(error) = self
             .surface_windows

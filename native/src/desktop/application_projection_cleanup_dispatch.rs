@@ -1,11 +1,11 @@
-//! 从原 checkpoint/工作区身份取得删除资格；持久标记完成后才用当前原设备授权减权。
+//! Obtain deletion eligibility from original checkpoint/workspace identity; use current original device authorization for revocation only after the durable marker completes.
 use super::*;
 use crate::device_authorization_config::Config;
 
 impl Application {
     pub(in crate::desktop::application) unsafe fn collect_deleted_projections(&mut self) {
         if self.exit_requested.get() || self.checkpoint_is_exiting() {
-            return; // 普通退出不是删除；整体 workspace 交换也不经过 closed 列表。
+            return; // Ordinary exit is not deletion; a full workspace swap also bypasses the closed list.
         }
         if matches!(self.projection_profile, profile::Owner::Disabled) {
             return;
@@ -109,7 +109,7 @@ impl Application {
             if let Some(due) = owner.due(ticket).filter(|due| *due > now) {
                 owner.schedule(due);
             } else if selected.is_some() {
-                // 仍只启动一个任务；若首张启动失败，下一轮可推进另一张。
+                // Still start only one task; if the first item fails to start, the next turn may advance another.
                 owner.schedule(now);
                 break;
             } else {

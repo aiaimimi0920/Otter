@@ -1,4 +1,4 @@
-//! 显式地址连接：复用已保存信任；首次 LAN 发现固定该地址证书后执行正常 TLS 校验。
+//! Explicit-address connections reuse saved trust; initial LAN discovery pins that address's certificate before normal TLS verification.
 use crate::{
     device_request_cancel::Cancel,
     loom_local_connection::{Connected, Error},
@@ -21,7 +21,7 @@ pub(crate) fn connect(
             return remote.connect_with_password(profile, cancel, password);
         }
     }
-    // 本机清单已经提供信任；不能让旧远端配置覆盖用户刚选的本机地址。
+    // Local manifests already provide trust; old remote configuration cannot override the user's newly selected local address.
     if let Some(result) =
         crate::loom_local_connection::connect_selected_local(origin, profile, cancel)
     {

@@ -1,4 +1,4 @@
-//! 独立客户端核签名域、端口形状/总预算、离线换绑及精确保存提示；无网络或UI。
+//! Independent client checks for signature domains, port shape/total budget, offline rebinding, and exact save hints; no network or UI.
 use super::*;
 use package::ports::{Package, Port, Ports, Record, DOMAIN, PROTOCOL};
 #[path = "art_execution_visibility_tests.rs"]

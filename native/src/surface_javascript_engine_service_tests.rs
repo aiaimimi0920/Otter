@@ -1,4 +1,4 @@
-//! 真实 QuickJS Promise 续接与协议边界；等待使用合成 dispatcher，不调用网络。
+//! Real QuickJS Promise continuation and protocol boundaries; waiting uses a synthetic dispatcher without networking.
 use super::*;
 use serde_json::json;
 fn mount(source: &str) -> Command {

@@ -1,4 +1,4 @@
-//! 结算只移动同一事务的租约；自有窗口忽略 Z-order 时不能假报已改变。
+//! Settlement moves only same-transaction leases; never falsely report changes when owned windows ignore Z-order.
 use super::*;
 use windows::{core::w, Win32::System::LibraryLoader::GetModuleHandleW};
 

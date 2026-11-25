@@ -1,4 +1,4 @@
-//! 后台生成有界协作包含凭证；不持栅格/Document副本，也不授予磁盘已提交事实。
+//! Background generation of bounded collaborative inclusion evidence; no raster/Document copies or claims of committed disk state.
 use super::{
     journal::Context,
     workspace::{Role, Snapshot},

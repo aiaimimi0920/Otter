@@ -1,4 +1,4 @@
-//! 每连接单个在途探测；超时仅清除测量，不替代授权或连接关闭策略。
+//! One in-flight probe per connection; a timeout only clears the measurement, not authorization or connection-close policy.
 use std::time::{Duration, Instant};
 
 const INTERVAL: Duration = Duration::from_secs(2);
@@ -18,7 +18,7 @@ pub struct Liveness {
 }
 
 impl Liveness {
-    /// 每次新连接创建新实例，不跨重连沿用在途状态。
+    /// Create a new instance for each connection; do not carry in-flight state across reconnections.
     pub fn new(now: Instant) -> Self {
         Self {
             last: now,
@@ -46,7 +46,7 @@ impl Liveness {
         Ok(Some(sequence.to_be_bytes()))
     }
 
-    /// 迟到、乱序和非本连接的 Pong 均不能更新 RTT。
+    /// Late, out-of-order, or foreign-connection Pong messages cannot update RTT.
     pub fn observe(&mut self, payload: &[u8], now: Instant) -> bool {
         let Some((sequence, sent)) = self.pending else {
             return false;

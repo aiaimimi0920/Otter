@@ -1,4 +1,4 @@
-//! 实际认证目录与选中身份绑定；首次选择不要求既有成员，来源替换禁止 POST 加入。
+//! Actual authenticated catalog and selected-identity binding; first selection needs no existing membership, and source replacement forbids POST join.
 use super::*;
 use crate::live_relay_http::Join;
 fn list(mut value: serde_json::Value) -> Vec<u8> {

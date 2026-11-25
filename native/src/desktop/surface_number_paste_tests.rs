@@ -1,4 +1,4 @@
-//! 使用注入快照经过真实 HWND 粘贴事务，不读写用户剪贴板。
+//! Injected snapshots traverse actual HWND paste transactions, without reading/writing the user's clipboard.
 use super::*;
 use crate::desktop::surface_edit_messages::number_paste::paste_with;
 fn snapshot(text: &str) -> Option<Vec<u16>> {
@@ -67,7 +67,7 @@ fn surface_number_paste_invalid_busy_and_malformed_snapshot_preserve_prior_undo(
     unsafe {
         paste_with(edit, || snapshot("4"));
     }
-    assert_eq!(text(edit), "4"); // 每条拒绝路径都释放临时 owner。
+    assert_eq!(text(edit), "4"); // Every rejection path releases the temporary owner.
     assert!(window.take_error().is_none());
 }
 #[test]

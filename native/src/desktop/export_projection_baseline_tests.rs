@@ -1,4 +1,4 @@
-//! 来源历史始终绑定冻结原文；独立像素坐标验证跨Unit、保存后朝向及当前crop/reset。
+//! Source history always binds to frozen originals; independent pixel coordinates verify cross-Unit behavior, post-save orientation, and current crop/reset.
 use super::*;
 use crate::crop_geometry::{Rect, Size};
 use serde_json::json;
@@ -421,7 +421,7 @@ fn projection_large_original_logical_source_does_not_expand_or_reject_small_natu
                 ..Input::default()
             },
         );
-        // 原逻辑crop/source都同比增长，自然密度反比缩小；最终仍是原8×8图的一半。
+        // Original logical crop/source grow proportionally while natural density shrinks inversely; output remains half the original 8x8 image.
         assert_eq!((output.width, output.height), (4, 4));
         assert!(output
             .pixels

@@ -1,4 +1,4 @@
-//! 不发送网络；检查资源快照的大小、身份、代际及生命周期推进。
+//! No networking; check resource-snapshot size, identity, generation, and lifecycle advancement.
 use super::*;
 pub(crate) fn id() -> String {
     format!("sha256:{}", "a".repeat(64))

@@ -1,4 +1,4 @@
-//! 悬停共用原 FIFO；同目标队尾 move 可合并，离开槽/序号与 Canvas terminal 一起计入32槽。
+//! Hover shares the original FIFO; same-target tail moves coalesce, and leave slots/sequences count with Canvas terminals toward the 32-slot limit.
 use super::*;
 use crate::surface_javascript_wire::HoverInput;
 #[derive(Clone)]

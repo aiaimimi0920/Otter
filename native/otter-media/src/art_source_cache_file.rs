@@ -1,4 +1,4 @@
-//! 缓存同目录暂存/原子替换；只清理本次create_new拥有的临时文件，不删除旧目标。
+//! Same-directory cache staging/atomic replacement; clean only this create_new-owned temporary file, never old targets.
 use std::{
     fs::{File, OpenOptions},
     io::{self, Write},

@@ -1,4 +1,4 @@
-//! 用可辨认像素和独立坐标oracle验证待应用delta，禁止复活canonical旧裁剪。
+//! Recognizable pixels and independent coordinate oracles verify pending deltas, prohibiting revival of old canonical crops.
 use super::*;
 use crate::crop_geometry::{Rect, Size};
 use serde_json::json;

@@ -1,4 +1,4 @@
-//! 仅合成profile/pinned TLS；真实Application原accept/read/Checkpoint，不设新增生产入口。
+//! Synthetic profiles/pinned TLS only; real Application original accept/read/Checkpoint paths, without adding production entry points.
 use super::*;
 use crate::projection_edit::workspace::Snapshot;
 use serde_json::Value;

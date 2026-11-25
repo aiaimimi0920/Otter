@@ -1,4 +1,4 @@
-// 无业务替身：观察真实盒，observer 只排 rAF，rAF 才消费新 bounds 并改变可见颜色。
+// No business substitute: observe actual boxes; observers only queue rAF, and rAF alone consumes new bounds and changes visible colors.
 let host, target, label, observer, count = 0, frames = 0, entry, bounds = 0;
 const report = () => { label.textContent = JSON.stringify({ count, frames, entry, bounds }); };
 NeuroSurface.define({

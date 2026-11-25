@@ -1,4 +1,4 @@
-//! 有界流编码合同；全部用合成字节，不读取用户文件。
+//! Bounded streaming-encoding contract; synthetic bytes only, without reading user files.
 use super::*;
 use std::io::Cursor;
 

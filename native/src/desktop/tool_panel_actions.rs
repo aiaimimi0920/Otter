@@ -1,4 +1,4 @@
-//! 工具面板的属性/文档操作目录；命令 ID 与菜单共享，标签只读取真实样式。
+//! Tool-panel property/document-operation catalog; command IDs share menus, and labels read actual styles only.
 use super::{context_menu as menu, State};
 use windows::{
     core::{Result, HSTRING},
@@ -22,7 +22,7 @@ pub(super) const ACTIONS: &[(usize, &str)] = &[
     (super::blur_numeric::COMMAND, "选中模糊…"),
     (super::numeric_style::MOSAIC, "色块大小…"),
 ];
-// 可用性缓存有固定容量，新增目录项超限必须在编译期失败，而不是运行时截断高位。
+// Availability caches have fixed capacity; excess new catalog entries must fail at compile time rather than truncate high bits at runtime.
 const _: () = assert!(ACTIONS.len() + super::tool_commands::TOOLS.len() <= u64::BITS as usize);
 pub(super) fn label(command: usize, state: &State) -> Option<String> {
     let name = ACTIONS.iter().find(|entry| entry.0 == command)?.1;
@@ -34,7 +34,7 @@ pub(super) fn label(command: usize, state: &State) -> Option<String> {
         _ => name.to_owned(),
     })
 }
-// Owner-draw 不会自动更新 HWND 文本。保持原生名称与绘制标签一致，且不重复发送 WM_SETTEXT。
+// Owner drawing does not automatically update HWND text. Keep native names consistent with painted labels without repeated WM_SETTEXT.
 pub(super) unsafe fn caption_matches(button: HWND, expected: &str) -> bool {
     let mut buffer = [0u16; 128];
     let length = GetWindowTextW(button, &mut buffer) as usize;

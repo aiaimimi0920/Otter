@@ -1,4 +1,4 @@
-//! 显式文件事务计时：不记录路径、内容或错误文本，不参与准入/取消/持久化策略。
+//! Explicit file-transaction timing: records no paths, contents, or error text, and does not participate in admission/cancellation/persistence policy.
 use std::{
     ffi::OsStr,
     io::{self, Write},
@@ -22,7 +22,7 @@ pub fn run<T, E>(
         bytes,
         action,
         |line| {
-            // 诊断管道断开不能把成功的文件事务变成失败或 panic。
+            // A disconnected diagnostic pipe must not turn a successful file transaction into failure or panic.
             writeln!(io::stderr().lock(), "{line}")
         },
     )
@@ -38,7 +38,7 @@ fn measure<T, E>(
     if !enabled {
         return action();
     }
-    // ID 只供同一进程内并发日志配对，不是文件身份、权限或业务凭证。
+    // IDs only pair concurrent logs within one process; they are not file identities, permissions, or business credentials.
     static NEXT: AtomicU64 = AtomicU64::new(1);
     let id = NEXT.fetch_add(1, Ordering::Relaxed);
     let bytes = bytes.map_or_else(|| "unknown".into(), |value| value.to_string());

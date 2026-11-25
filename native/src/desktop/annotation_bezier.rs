@@ -1,4 +1,4 @@
-//! 屏幕、导出与命中共用 D2D 三次曲线路径，不将控制折线当作可见笔迹。
+//! Screen rendering, export, and hit testing share D2D cubic paths; the control polygon is not visible ink.
 use crate::{
     editor::Stroke,
     viewport::{Point, Viewport},

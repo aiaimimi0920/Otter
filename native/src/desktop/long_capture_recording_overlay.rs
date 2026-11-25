@@ -1,4 +1,4 @@
-//! 录制使用不抢焦点的稀疏箭头窗与穿透预览；业务继续由原 Input/SessionJob 拥有。
+//! Recording uses sparse non-focus-stealing arrow windows and click-through previews; original Input/SessionJob retain business ownership.
 use super::*;
 use windows::{core::w, Win32::Graphics::Gdi::*};
 #[path = "long_capture_recording_keyboard.rs"]
@@ -23,7 +23,7 @@ pub(super) unsafe fn run_with(
 ) -> Result<Option<Image>> {
     input.modeless.set(true);
     let mut template = layout::template();
-    // 创建时就使用无框、不激活样式，WM_INITDIALOG 的失败也属于 modeless 生命周期。
+    // Use borderless/nonactivating styles at creation; WM_INITDIALOG failures also follow modeless lifecycles.
     template[0] = (WS_POPUP | WS_CLIPCHILDREN).0 | DS_SETFONT as u32;
     template[1] = (WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TOPMOST).0;
     let window = crate::desktop::Window(CreateDialogIndirectParamW(
@@ -198,7 +198,7 @@ unsafe fn present(hwnd: HWND, input: &Input) -> Result<()> {
     let edge = px(20, dpi);
     let header = px(48, dpi);
     let bottom = (height - px(28, dpi)).max(header + edge);
-    // 内容和状态更新沿用箭头几何；只在尺寸或 DPI 改变后重建命中区域。
+    // Content/state updates reuse arrow geometry; rebuild hit regions only after dimension/DPI changes.
     if input.recording.overlay_layout.get() != Some((width, height, dpi)) {
         let buttons = [
             (
@@ -263,7 +263,7 @@ unsafe fn present(hwnd: HWND, input: &Input) -> Result<()> {
         if SetWindowRgn(hwnd, Some(combined.0), false) == 0 {
             return Err(Error::from_win32());
         }
-        std::mem::forget(combined); // 成功后由窗口拥有区域，错误路径仍由 RAII 释放。
+        std::mem::forget(combined); // The window owns the region on success; RAII still releases error paths.
         input
             .recording
             .overlay_layout
@@ -442,9 +442,9 @@ mod tests {
                 .unwrap(),
             );
             SetPropW(dialog.0, BACKING, Some(HANDLE(backing.0 .0))).unwrap();
-            // 第四个控件缺失：之前已经创建合并区域并定位了前三个控件。
+            // The fourth control is missing; the combined region and first three control positions already exist.
             DestroyWindow(GetDlgItem(Some(dialog.0), 111).unwrap()).unwrap();
-            // 首次定位前三个控件可能初始化 Win32 资源；先经过同一失败路径，再测重复失败。
+            // Initial positioning may initialize Win32 resources; run the same failure path once before measuring repeated failures.
             assert!(present(dialog.0, &input).is_err());
             assert!(input.recording.overlay_layout.get().is_none());
             let before = GetGuiResources(GetCurrentProcess(), GR_GDIOBJECTS);

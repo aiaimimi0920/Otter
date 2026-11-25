@@ -1,4 +1,4 @@
-//! 单槽中间态以 CLAIMED/FINISHED 定点模拟；成功路径必须经自有 HWND 的真实源 hook。
+//! Precisely simulate single-slot intermediate states with CLAIMED/FINISHED; successful paths must pass through the real source hook on an owned HWND.
 use super::*;
 use crate::live_window_target::recovery::popup_layer::{
     fixture::{pump, settle, Fixture},

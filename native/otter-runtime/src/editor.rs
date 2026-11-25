@@ -1,4 +1,4 @@
-//! 图像坐标中的编辑事务；草稿不进入历史，提交不复制像素或已有标注。
+//! Editing transactions in image coordinates; drafts stay outside history, and commits copy neither pixels nor existing annotations.
 use crate::edit_history::{Entry, History};
 use crate::stroke_style::{Color, StrokeStyle};
 use crate::viewport::Point;
@@ -99,8 +99,8 @@ pub enum Tool {
 }
 
 impl Tool {
-    /// 与主干合成一致：荧光笔底层，模糊在马赛克之下，普通标注在效果之上。
-    /// 同层仍按文档顺序；命中查询必须使用逆序。
+    /// Match baseline composition: highlighters at the bottom, blur below mosaic, ordinary annotations above effects.
+    /// Preserve document order within layers; hit queries must traverse in reverse.
     pub fn render_rank(self) -> u8 {
         match self {
             Self::Highlighter => 0,
@@ -151,25 +151,25 @@ pub struct Editor {
     retained_points: usize,
     draft: Option<Stroke>,
     draft_motion: Option<crate::brush_dynamics::Motion>,
-    // 仅当前草稿的采样来源；提交仍存为既有 Highlighter，不新增持久化类型。
+    // Sampling provenance for the current draft only; commits retain existing Highlighter representation without new persistence types.
     draft_brush_highlighter: bool,
     raster: Option<crate::erase_layers::Layers>,
     crop: Option<CropView>,
-    // 恢复文档的完整逻辑框可含小数；不能由像素缓冲的 ceil 尺寸反推。
+    // Restored documents' full logical bounds may be fractional; never infer from ceil-rounded pixel buffers.
     logical_size: Option<crate::crop_geometry::Size>,
     mirror: MirrorState,
     pending_pin: Option<PinValue>,
 }
 
 impl Editor {
-    /// 包含重做分支和草稿，避免打开新图时静默丢弃暂时不可见的编辑内容。
+    /// Include redo branches/drafts to avoid silently discarding temporarily invisible edits when opening new images.
     pub fn has_edit_state(&self) -> bool {
         !self.elements.is_empty() || !self.history.is_empty() || self.draft.is_some()
     }
     pub fn style(&self) -> StrokeStyle {
         self.style
     }
-    /// 设置只影响下一次手势；不改旧标注或当前草稿，也不污染文档历史。
+    /// Settings affect only the next gesture, not old annotations/current drafts or document history.
     pub fn set_style(&mut self, style: StrokeStyle) {
         self.style = style;
     }
@@ -226,7 +226,7 @@ impl Editor {
         self.extend_constrained(point, false)
     }
 
-    /// 临时直线只替换当前自由笔迹草稿，保留起点；不复制历史或已有标注。
+    /// Temporary straight lines replace only current freehand drafts and preserve start points, without history/existing-annotation copies.
     pub fn extend_constrained(&mut self, point: Point, straight: bool) -> Result<bool, EditError> {
         validate(point)?;
         let Some(stroke) = &mut self.draft else {
@@ -357,7 +357,7 @@ impl Editor {
         true
     }
 
-    /// 删除记录持有被移除对象，恢复原始顺序；草稿存在时拒绝修改已提交文档。
+    /// Deletion records own removed objects and restore original order; reject committed-document changes while drafts exist.
     pub fn remove(&mut self, index: usize) -> bool {
         if self.draft.is_some() || index >= self.elements.len() {
             return false;
@@ -374,7 +374,7 @@ impl Editor {
             .is_some_and(|index| self.remove(index))
     }
 
-    /// 样式历史只保存固定大小的属性，不克隆笔迹点，也不消耗点预算。
+    /// Style history retains fixed-size properties only, without cloning stroke points or consuming point budgets.
     pub fn restyle(&mut self, index: usize, style: StrokeStyle) -> bool {
         if self.draft.is_some() {
             return false;
@@ -417,7 +417,7 @@ impl Editor {
         Ok(true)
     }
 
-    /// 提交时只复制被移动标注；历史保存原坐标，撤销不靠反向浮点运算。
+    /// Copy only moved annotations at commit; history retains original coordinates so undo needs no reverse floating-point operations.
     pub fn translate(&mut self, index: usize, offset: Point) -> Result<bool, EditError> {
         validate(offset)?;
         if self.draft.is_some() || offset == Point::default() {

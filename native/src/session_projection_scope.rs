@@ -1,4 +1,4 @@
-//! 逻辑工作区的持久投送身份；不是授权、路径摘要或运行期 Workspace 指针凭证。
+//! Durable delivery identity of a logical workspace; not authorization, a path digest, or a runtime Workspace-pointer credential.
 use crate::session_source::Source;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt;
@@ -23,7 +23,7 @@ impl Scope {
         }
         Ok(Self(bytes))
     }
-    /// 已有字段只能原样保留；格式错误或另一 scope 不能被保存操作静默修复/替换。
+    /// Existing fields may only remain unchanged; saving must not silently repair/replace malformed values or another scope.
     pub(crate) fn install(
         self,
         root: &mut serde_json::Map<String, serde_json::Value>,
@@ -87,10 +87,10 @@ impl<'de> Deserialize<'de> for Scope {
         decoder.deserialize_str(Hex)
     }
 }
-/// 缺省旧文档可迁移；显式 null/坏值必须失败，不能借兼容入口换逻辑身份。
+/// Legacy documents with absent fields may migrate; explicit null/invalid values must fail, never changing logical identity through compatibility paths.
 pub(crate) fn optional<'de, D: Deserializer<'de>>(decoder: D) -> Result<Option<Scope>, D::Error> {
     let raw = <&serde_json::value::RawValue>::deserialize(decoder)?;
-    // 64 个 ASCII 字符即使全部使用 \uXXXX 也只有 386 字节，先界定再解码转义。
+    // 64 ASCII characters require only 386 bytes even entirely escaped as \uXXXX; bound first, then decode escapes.
     if raw.get().len() > 386 {
         return Err(de::Error::custom("Workspace scope exceeds limit"));
     }
@@ -99,7 +99,7 @@ pub(crate) fn optional<'de, D: Deserializer<'de>>(decoder: D) -> Result<Option<S
         .map_err(de::Error::custom)
 }
 
-/// 后台解析的精确字节包含关系；提交者仍须另核真实磁盘提交和当前 Workspace 身份。
+/// Exact byte-inclusion relationship parsed in the background; committers must separately verify actual disk commit and current Workspace identity.
 pub struct Proof {
     source: Source,
     scope: Scope,
@@ -123,7 +123,7 @@ impl Proof {
     pub fn scope(&self) -> Scope {
         self.scope
     }
-    /// UI 可读的 allocation 凭证；不重新扫描 JSON 或访问磁盘。
+    /// UI-readable allocation credentials; no JSON rescanning or disk access.
     pub fn is_for(&self, source: &Source) -> bool {
         self.source.same_storage(source)
     }

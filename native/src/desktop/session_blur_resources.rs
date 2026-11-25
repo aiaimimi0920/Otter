@@ -1,4 +1,4 @@
-//! 单个恢复窗口的惰性模糊资源缓存；源图只投影一次，精确强度共享，不跨窗口复用。
+//! Lazy blur-resource cache for one restored window; project the source once, share exact intensities, and never reuse across windows.
 use super::{image::Image, session_prepare::Images};
 use crate::{
     blur::{BlurError, Region},
@@ -38,7 +38,7 @@ impl<'a> Resources<'a> {
             cache: HashMap::new(),
         }
     }
-    /// 完整源坐标的编辑器恢复入口；保留惰性分配，窗口中没有模糊标注则不生成效果图。
+    /// Editor restoration in full source coordinates; retain lazy allocation and generate no effect image for windows without blur annotations.
     pub(super) fn for_cropped_editor(
         images: Option<&'a Images>,
         restored: crate::session_crop::Restored,

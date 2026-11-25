@@ -1,4 +1,4 @@
-//! TLS 实际分片/半帧跨短读超时仍须恢复；不连接真实 Loom。
+//! Actual TLS fragments/partial frames must recover across short read timeouts; no real Loom connection.
 use super::*;
 use crate::{
     desktop::loom_execution_session::Session, graph_requests::Request, workspace_id::UnitId,
@@ -42,7 +42,7 @@ fn fragmented_final_and_partial_frame_survive_repeated_read_timeouts() {
             .format(&mut second)
             .unwrap();
         let middle = second.len() / 2;
-        // 绕过 WebSocket 写封装，仅分拆测试帧的传输；TLS 仍为真实认证连接。
+        // Bypass WebSocket write wrapping only to fragment test-frame transport; TLS remains an actual authenticated connection.
         socket.get_mut().write_all(&second[..middle]).unwrap();
         socket.get_mut().flush().unwrap();
         thread::sleep(Duration::from_millis(400));

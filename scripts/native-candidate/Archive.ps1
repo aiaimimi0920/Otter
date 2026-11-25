@@ -1,4 +1,4 @@
-# 内部 ZIP 的内容一致性门；不执行归档内容，不把无签名清单当成可信发布证明。
+# Content-consistency gate for internal ZIPs; never execute archived content or treat unsigned manifests as trusted release evidence.
 function New-NativeCandidateArchive {
     param([string]$Directory, [string]$ZipPath)
     if (Test-Path -LiteralPath $ZipPath) { throw 'Native ZIP already exists' }
@@ -18,7 +18,7 @@ function Test-NativeCandidateArchive {
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $archive = [System.IO.Compression.ZipFile]::OpenRead($ZipPath)
     try {
-        # 一次打开、一次索引；清单、摘要和回执核对始终使用同一 ZIP。
+        # Open and index once; manifest, digest, and receipt checks always use the same ZIP.
         $index = Get-OtterArchiveEntryIndex -Archive $archive -MaxEntries 4096 -MaxUncompressedBytes 128MB
         Test-NativeCandidateArchiveIndex -Index $index
     } finally {
@@ -28,7 +28,7 @@ function Test-NativeCandidateArchive {
 function Test-NativeCandidateArchiveIndex {
     param([Parameter(Mandatory = $true)]$Index)
     $entries = @($Index.Keys | ForEach-Object { $_.Replace('/', '\') })
-    # 原生产品包不允许重新夹带已退役的 ANGLE DLL，清单有无登记均拒绝。
+    # Native product packages must not reintroduce retired ANGLE DLLs; reject them whether listed in the manifest or not.
     foreach ($name in $entries) {
         if ([IO.Path]::GetFileName($name) -imatch '^lib(EGL|GLESv2)\.dll$') {
             throw 'Retired ANGLE DLL in native package'

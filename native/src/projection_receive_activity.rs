@@ -1,4 +1,4 @@
-//! 同意图的网络/Ready/消费所有权；不持 Mutex 跨 HTTP，Drop 只归还内存许可、不触盘。
+//! Same-intent network/Ready/consumption ownership; no Mutex across HTTP, and Drop returns only memory permits without disk I/O.
 use super::{Error, Store, Ticket};
 use std::{
     collections::BTreeSet,
@@ -11,7 +11,7 @@ pub(super) struct Permit {
     intent: String,
 }
 impl Ticket {
-    /// worker 发网前领取；许可贯穿 Ready→消费者，旧/重复 Ticket 不得并行解绑或重收。
+    /// Workers claim before networking; permits span Ready -> consumers, preventing old/duplicate Tickets from parallel unlink/rereceive.
     pub(crate) fn activate(&mut self) -> Result<(), Error> {
         if self.permit.is_some() {
             return Ok(());

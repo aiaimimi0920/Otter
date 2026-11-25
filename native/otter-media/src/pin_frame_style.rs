@@ -1,4 +1,4 @@
-//! 贴图内容外观以窗口逻辑像素保存；不烘焙到底图，也不拥有 HWND 或选择框。
+//! Pin-content appearance is stored in window logical pixels; not baked into the base image and does not own HWND or selection boxes.
 use crate::surface_color::Color;
 use serde_json::{Map, Value};
 
@@ -11,7 +11,7 @@ pub struct Style {
 impl Style {
     pub fn read_raw(raw: Option<&serde_json::value::RawValue>) -> Result<Self, &'static str> {
         raw.map(|raw| {
-            // 只借用三项原文；未知的擦除/扩展数组不为读取外观而复制整份 Value。
+            // Borrow only the three original entries; do not copy the whole Value, including unknown erase/extension arrays, just to read appearance.
             #[derive(serde::Deserialize)]
             #[serde(rename_all = "camelCase")]
             struct Fields<'a> {
@@ -85,7 +85,7 @@ impl Style {
             ..self
         })
     }
-    /// 同色再按关闭；异色则换色并保留正宽，沿用主干默认的 4 DIP。
+    /// Pressing the same color again turns it off; a different color replaces it and preserves positive width, using the mainline default of 4 DIP.
     pub fn toggle(self, color: Color) -> Self {
         if self.border().is_some_and(|(_, current)| current == color) {
             Self {

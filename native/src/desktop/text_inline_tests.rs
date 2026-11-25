@@ -1,4 +1,4 @@
-//! 真实无标题输入层与文档事务回归；隔离 desktop 内仅创建合成钉图，不操作用户实例。
+//! Actual captionless input-layer/document-transaction regressions; create only synthetic pins on an isolated desktop, without user instances.
 use super::*;
 use windows::Win32::{System::LibraryLoader::GetModuleHandleW, UI::Controls::*};
 struct Fixture {
@@ -114,7 +114,7 @@ fn click_opens_empty_anchored_nonmodal_input_and_enter_commits_one_undo_step() {
         let mut point = POINT { x: 30, y: 40 };
         ClientToScreen(f.hwnd, &mut point).ok().unwrap();
         assert_eq!((before.left, before.top), (point.x, point.y));
-        // 多行 EDIT 的 WM_SETTEXT 不发 EN_CHANGE；通过真实编辑消息验证输入扩展。
+        // Multiline EDIT WM_SETTEXT sends no EN_CHANGE; use actual edit messages to verify input expansion.
         SendMessageW(
             edit,
             EM_REPLACESEL,
@@ -355,7 +355,7 @@ fn capture_affinity_and_original_text_limits_are_kept() {
             .0 & EIMES_COMPLETECOMPSTRKILLFOCUS as isize,
             0
         );
-        let content = "中".repeat(20_000); // 大于 Surface 字段48KB预算，仍属于原有标注的合法范围。
+        let content = "中".repeat(20_000); // Exceeds the Surface field's 48KB budget but remains valid for existing annotations.
         SetWindowTextW(edit, &HSTRING::from(content.clone())).unwrap();
         enter(edit);
         assert_eq!(
@@ -376,12 +376,12 @@ fn queued_focus_exit_cannot_commit_a_newer_input_session() {
         let (old_popup, edit) = f.start();
         SetWindowTextW(edit, w!("旧输入")).unwrap();
         let old_epoch = WPARAM(GetPropW(old_popup, window::EPOCH).0 as usize);
-        let _ = SetFocus(Some(f.hwnd)); // 排队失焦，不在系统回调里销毁窗口。
+        let _ = SetFocus(Some(f.hwnd)); // Queue focus loss without destroying windows inside system callbacks.
         assert!(f.state.inline_text.borrow().is_some());
         finish(f.hwnd, &f.state, false).unwrap();
         let (new_popup, edit) = f.start();
         SetWindowTextW(edit, w!("新输入")).unwrap();
-        // 即使系统复用了相同 HWND，旧 epoch 也不拥有新草稿。
+        // Even if the system reuses the same HWND, an old epoch does not own a new draft.
         SendMessageW(
             f.hwnd,
             messages::FINISH,
@@ -417,7 +417,7 @@ fn save_shortcut_commits_then_reaches_owner_once_instead_of_retired_edit() {
         if msg == WM_KEYDOWN && wp.0 == 0x53 {
             let calls = &*(data as *const std::cell::Cell<u32>);
             calls.set(calls.get() + 1);
-            return LRESULT(0); // 不在自动化中打开文件选择器。
+            return LRESULT(0); // Do not open file selectors during automation.
         }
         if msg == WM_NCDESTROY {
             let _ = RemoveWindowSubclass(hwnd, Some(observe), id);

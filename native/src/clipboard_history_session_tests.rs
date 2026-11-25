@@ -1,4 +1,4 @@
-//! 使用合成订阅和有界后台任务验证会话，不访问系统历史或注册系统事件。
+//! Test sessions with synthetic subscriptions/bounded background tasks, without system-history access or system-event registration.
 use super::*;
 use crate::clipboard_history::Content;
 use std::sync::mpsc;
@@ -138,7 +138,7 @@ fn events_during_read_discard_old_result_and_coalesce_refresh() {
     }
     session.tick_with(now, || panic!("Must not overlap"));
     send.send(()).unwrap();
-    wait(&mut session, now); // 未到刷新节流时间。
+    wait(&mut session, now); // The refresh-throttle interval has not elapsed.
     assert!(session.entries().is_empty());
     assert!(session.pending);
     session.tick_with(now + Duration::from_secs(1), ready);

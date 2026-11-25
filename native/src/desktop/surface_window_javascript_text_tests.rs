@@ -1,4 +1,4 @@
-//! 真 EDIT 通知→原草稿/FIFO/fence→同 child；后续输入不被前帧/旧 ticket 覆盖。
+//! Actual EDIT notifications -> original draft/FIFO/fence -> same child; later input must not be overwritten by earlier frames/old tickets.
 use super::*;
 use windows::{
     core::HSTRING,

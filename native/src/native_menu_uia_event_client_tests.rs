@@ -1,4 +1,4 @@
-//! MTA 订阅真实焦点、结构和属性事件；回调仅提取缓存并写入有界通道。
+//! MTA subscriptions to real focus/structure/property events; callbacks only extract cached data into bounded channels.
 use super::*;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -122,7 +122,7 @@ fn subscribe_and_operate(hwnd: usize) -> Result<()> {
         .into();
         let structure = focus.cast::<IUIAutomationStructureChangedEventHandler>()?;
         let property = focus.cast::<IUIAutomationPropertyChangedEventHandler>()?;
-        // 先建立清理 owner，任何注册中途失败仍会尝试撤销已经成功的订阅。
+        // Create cleanup owners first so any mid-registration failure still attempts to revoke successful subscriptions.
         let subscription = Subscription {
             client,
             root,

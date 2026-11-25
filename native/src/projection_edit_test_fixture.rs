@@ -1,4 +1,4 @@
-//! 独立固定v1 wire夹具；预期文档不经过被测Request或合并实现生成。
+//! Independent fixed v1 wire fixtures; expected documents are not generated through Request/merge implementations under test.
 use super::*;
 use serde_json::{json, Value};
 pub(crate) const PROJECTION: &str = "projection:11111111111111111111111111111111";

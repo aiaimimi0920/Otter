@@ -1,4 +1,4 @@
-//! 独立全图采样参考，不使用行裁剪或候选区间，防止优化漏擦圆帽和斜线边缘。
+//! Independent whole-image sampling reference without row clipping/candidate spans, protecting optimized round-cap/diagonal-edge coverage.
 use super::*;
 
 fn reference(source: &Pixels, size: (u32, u32), points: &[Point], width: f32) -> Vec<u8> {

@@ -1,4 +1,4 @@
-//! 当前真实参数按钮沿同一快照事务提交，保护底部设置迁移前的完整业务语义。
+//! Current real parameter buttons commit through the same snapshot transaction, protecting complete business semantics from before bottom-settings migration.
 use super::*;
 use desktop::node_settings::Action;
 

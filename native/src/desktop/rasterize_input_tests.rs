@@ -1,4 +1,4 @@
-//! 实际 WIC 工作线程→Canvas→仅标注擦除→混合历史恢复的回归。
+//! Regression through actual WIC worker -> Canvas -> annotation-only erasing -> mixed-history restoration.
 use super::*;
 use crate::{editor::Tool, erase_layers::Mode, viewport::Point};
 fn canvas() -> Canvas {
@@ -236,7 +236,7 @@ fn partial_rasterization_refreshes_remaining_blurs_and_restores_interleaved_indi
         }
         assert!(canvas.editor.redo());
     }
-    // 放弃重做分支时，已移出的矢量与效果候选均按历史预算释放。
+    // Discarding the redo branch releases removed vector/effect candidates under the history budget.
     assert!(canvas.editor.undo());
     canvas
         .editor

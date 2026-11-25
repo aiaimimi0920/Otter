@@ -1,4 +1,4 @@
-//! 单槽账号任务：借原 Device Lease 的 socket 取消与完成信号；回收前不启动下一条链。
+//! Single-slot account tasks: borrow socket cancellation and completion signals from the original Device Lease; start no subsequent chain before reaping.
 use super::*;
 use crate::{device_authorization_lease::Lease, projection_account as account};
 use std::{

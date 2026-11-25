@@ -1,4 +1,4 @@
-//! 文字编辑事务；尺寸由原生排版层提供，不在模型中猜测字体度量。
+//! Text-editing transactions; dimensions come from native layout, not guessed font metrics in the model.
 use super::*;
 use crate::text_annotation::TextAnnotation;
 #[path = "editor_text_batch.rs"]
@@ -88,7 +88,7 @@ impl Editor {
         if !matches!(source.tool, Tool::Text | Tool::Serial) || source.points.len() != 2 {
             return Ok(false);
         }
-        // 序号文字与圆框尺寸分离；编辑显示内容不能把圆框变成文字布局矩形。
+        // Keep sequence-label text separate from circle dimensions; editing displayed content must not turn the circle into a text-layout rectangle.
         let end = if source.tool == Tool::Serial {
             source.points[1]
         } else {

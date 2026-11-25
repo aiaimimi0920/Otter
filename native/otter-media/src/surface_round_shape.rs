@@ -1,4 +1,4 @@
-//! 非对称内容边圆角；只生成帧内几何，工厂缓存和 COM 生命周期仍归 Clips。
+//! Asymmetric content-edge rounded corners; generates only within-frame geometry, while Clips still owns factory caches and COM lifetimes.
 use crate::surface_box::Insets;
 use windows::{
     core::{Interface, Result},
@@ -8,7 +8,7 @@ use windows::{
 #[derive(Clone, Copy)]
 pub struct Shape {
     pub(super) rect: D2D_RECT_F,
-    // 顺时针 TL/TR/BR/BL，各自的水平和垂直半径。
+    // Clockwise TL/TR/BR/BL, each with horizontal and vertical radii.
     pub(super) radii: [[f32; 2]; 4],
 }
 impl From<D2D1_ROUNDED_RECT> for Shape {
@@ -37,7 +37,7 @@ impl Shape {
                 *radius = [0.; 2];
             }
         }
-        // 相邻弧不能重叠；和外边圆角相同，使用共同缩放保持椭圆比例。
+        // Adjacent arcs must not overlap; as with outer corners, use one common scale to preserve elliptical proportions.
         let mut scale = 1_f32;
         for (axis, first, last, extent) in [
             (0, 0, 1, rect.right - rect.left),

@@ -1,4 +1,4 @@
-//! 两个普通EXE的实际菜单/编辑/接收/重开/停止；由真实双Loom父夹具显式启动。
+//! Actual menu/edit/receive/reopen/stop flows in two ordinary EXEs, explicitly launched by the real dual-Loom parent fixture.
 use super::*;
 use serde_json::Value;
 #[path = "offline_joint_fixture.rs"]
@@ -28,7 +28,7 @@ fn source_frame(document: &Value) -> native::pin_geometry::PinRect {
         .unwrap()
 }
 fn source_workspace(side: &files::Side, product: &mut fixture::Product) -> HWND {
-    // 保存可能规范化位置；从当前canonical的明确source身份和坐标空间定位，不按枚举顺序猜。
+    // Saving may normalize position; locate the current canonical source identity and coordinate space explicitly rather than guessing enumeration order.
     let frame = source_frame(&side.files.workspace().unwrap());
     ui::until(product, "visible canonical source workspace", |pid| {
         let matches: Vec<_> = ui::windows(pid, "Otter.Native.Workspace", None, None)
@@ -88,7 +88,7 @@ fn authorize(
 ) -> HWND {
     fg.allow(product);
     let hwnd = source_workspace(side, product);
-    // 不注入 CA，不手动选择或续签；必须由普通消息泵完成本机 Loom 接入。
+    // Do not inject a CA or manually select or renew; the ordinary message pump must connect to local Loom.
     assert!(!ui.status(product, hwnd, "本机 Loom 已连接"));
     hwnd
 }
@@ -143,7 +143,7 @@ fn ordinary_product_offline_two_loom_send_receive_reset_flip_reopen_and_stop() {
     assert_eq!(b.source, a.origin);
     let ui = ui::Ui::new();
     files::publish(&root, "started.json", &json!({"ordinaryProducts":true}));
-    // 父端先把本测试进程登记进独占Job，再放行产品spawn；失败也不能留下孤儿产品。
+    // The parent registers this test process in its exclusive Job before allowing product spawn; failures must not leave orphaned product processes.
     files::wait(&root, "parent-ready");
     let fg = foreground::Owner::new();
     let mut sender = a.launch("sender-online");

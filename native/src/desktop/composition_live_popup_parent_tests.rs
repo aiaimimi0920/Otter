@@ -1,4 +1,4 @@
-//! 复用 Family 自有窗口夹具，验证源菜单与镜像的最近父级关系。
+//! Reuse Family's owned-window fixtures to verify nearest-parent relationships between source menus and mirrors.
 use super::*;
 
 #[test]

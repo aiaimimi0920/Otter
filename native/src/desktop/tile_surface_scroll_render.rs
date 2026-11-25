@@ -1,4 +1,4 @@
-//! Tile滚动只重投影原Presentation；候选搜索回滚、不消耗草稿，提交后重装嵌入绘制缓存。
+//! Tile scrolling only reprojects original Presentation; candidate searches roll back without consuming drafts, and commit reinstalls embedded drawing caches.
 use super::*;
 use crate::{surface_scroll::Scroll, tile_surface_focus::Focus, tile_surface_text::Field};
 #[path = "tile_surface_scroll_memory.rs"]

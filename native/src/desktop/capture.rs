@@ -1,4 +1,4 @@
-//! 一次性 GDI 截图；不常驻采集，不读取剪贴板，不创建文件。
+//! One-shot GDI capture; no persistent capture, clipboard reads, or file creation.
 use super::image::Image;
 #[path = "capture_dynamic_source.rs"]
 mod dynamic;
@@ -80,7 +80,7 @@ pub(super) fn virtual_desktop() -> Result<Frame> {
 pub(super) fn validate_region(left: i32, top: i32, width: i32, height: i32) -> Result<()> {
     dimensions(left, top, width, height).map(|_| ())
 }
-/// 物理屏幕坐标；每次只创建选区大小的 DIB，不先分配整屏截图。
+/// Physical screen coordinates; allocate only a selection-sized DIB per capture, not a full-screen screenshot first.
 pub(super) fn region(left: i32, top: i32, width: i32, height: i32) -> Result<Image> {
     dimensions(left, top, width, height)?;
     unsafe {
@@ -111,7 +111,7 @@ unsafe fn capture_with(
     fill: impl FnOnce(HDC) -> Result<()>,
 ) -> Result<Image> {
     let count = dimensions(0, 0, width, height)?;
-    // DIB 与最终共享像素同时存在，分别持有预算，避免峰值只计算一份。
+    // The DIB and final shared pixels coexist with separate budgets, avoiding counting only one copy at peak usage.
     let _dib_lease = crate::pixels::reserve(count)
         .ok_or_else(|| Error::new(E_OUTOFMEMORY, "Capture bitmap budget exhausted"))?;
     let mut lease = crate::pixels::reserve(count)
@@ -148,7 +148,7 @@ unsafe fn capture_with(
         return Err(Error::new(E_FAIL, "Cannot select capture bitmap"));
     }
     let _selection = Selection { dc: dc.0, previous };
-    // 覆盖虚拟桌面中没有显示器的间隙；失败不得返回未初始化内容。
+    // Cover monitorless gaps in the virtual desktop; failures must not return uninitialized contents.
     std::ptr::write_bytes(data.cast::<u8>(), 0, count);
     fill(dc.0)?;
     if !GdiFlush().as_bool() {
@@ -162,7 +162,7 @@ unsafe fn capture_with(
         return Err(Error::new(E_OUTOFMEMORY, "Capture capacity exceeds budget"));
     }
     bytes.extend_from_slice(std::slice::from_raw_parts(data.cast::<u8>(), count));
-    // GDI 不保证 alpha，桌面截图为不透明 BGRA，因而也符合 PBGRA 格式。
+    // GDI does not guarantee alpha; desktop captures use opaque BGRA and therefore also satisfy PBGRA.
     for pixel in bytes.chunks_exact_mut(4) {
         pixel[3] = 255;
     }
@@ -209,7 +209,7 @@ mod tests {
     #[test]
     fn synthetic_capture_has_top_down_bgra_and_opaque_alpha() {
         unsafe {
-            // 仅内存 DC；不调用 GetDC(None)，不读取用户屏幕。
+            // Memory DCs only; never call GetDC(None) or read the user's screen.
             let base = MemoryDc(CreateCompatibleDC(None));
             let image = capture_with(base.0, 2, 2, |dc| {
                 SetPixelV(dc, 0, 0, COLORREF(0x000000ff)).ok()?;

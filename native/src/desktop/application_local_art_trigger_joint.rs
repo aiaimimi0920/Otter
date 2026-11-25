@@ -1,4 +1,4 @@
-//! 真实Loom LAN/WSS和公开SDK原字节的自动回调→Application正式结果/Save/ACK/停止。
+//! Real Loom LAN/WSS and automatic callbacks from original public-SDK bytes -> Application committed results/Save/ACK/stop.
 use super::*;
 use crate::desktop::composition::relay::window::trigger::{
     local_registration_test, local_stop_test, local_submit_test,
@@ -196,7 +196,7 @@ fn local_art_automatic_trigger_real_loom_lan_result_and_stop() {
             app.local_arts
                 .viewer_proofs(&app.documents, &app.workspace, &app.live_sessions);
         assert_eq!(proofs.len(), 1);
-        // 仅留在隔离TEMP供父门认证Inspect；不复制到公开/普通证据输出。
+        // Keep only in isolated TEMP for the parent gate's authenticated Inspect; do not copy to public/ordinary evidence output.
         c.record("local-trigger-private-inspect.json",serde_json::json!({"protocolVersion":crate::art_live_trigger::PROTOCOL,
             "binding":proofs[0].binding(),"grant":proofs[0].test_envelope(),"operation":{"kind":"inspect","scope":scope}}));
         c.record("local-trigger-updated.json",serde_json::json!({"scope":scope,"condition":condition,"signedPackage":true,"wssPixel":[17,83,211,255],"configurationSeam":true}));

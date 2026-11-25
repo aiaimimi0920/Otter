@@ -1,4 +1,4 @@
-//! 真实内联 PNG 恢复、像素复用、预览优先级和失败原子性。
+//! Real inline PNG restoration, pixel reuse, preview precedence, and failure atomicity.
 use super::*;
 use crate::{
     desktop::{

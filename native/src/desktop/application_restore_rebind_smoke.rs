@@ -1,11 +1,11 @@
-//! 在已离线恢复的独立隐藏工作区验证迟到目录；不联网、不执行节点。
+//! Verify late catalogs in an isolated hidden workspace restored offline; no networking or node execution.
 use super::*;
 use crate::desktop::capability_job::Loaded;
 use std::rc::Rc;
 
 pub(in crate::desktop::application) fn verify(app: &mut Application) -> Result<()> {
     let base = crate::desktop::application::restore_batch::smoke::catalog()?;
-    // 缺失能力只记一次尝试；后续新的目录身份必须允许重试。
+    // Record only one attempt for a missing capability; a subsequent new catalog identity must permit retry.
     app.catalog.borrow_mut().loaded = Some(base.clone());
     app.rebind_restored_arts()?;
     app.rebind_restored_arts()?;
@@ -43,7 +43,7 @@ pub(in crate::desktop::application) fn verify(app: &mut Application) -> Result<(
     if app.documents[index].state.selected_art.borrow().is_some() {
         return Err(Error::new(E_FAIL, "Rebinding changed modal workspace"));
     }
-    // 使用常规目录处理入口，验证完成后的应用循环实际安装绑定。
+    // Use the ordinary catalog-handling entry point to verify the post-completion application loop actually installs bindings.
     app.process_catalog();
     let identity = {
         let selected = app.documents[index].state.selected_art.borrow();
@@ -59,7 +59,7 @@ pub(in crate::desktop::application) fn verify(app: &mut Application) -> Result<(
         selected.identity.clone()
     };
     app.rebind_restored_arts()?;
-    // 已选中的节点不被更新目录覆盖，即使新目录不再提供该能力。
+    // Updated catalogs must not overwrite selected nodes, even if the new catalog no longer provides that capability.
     app.catalog.borrow_mut().loaded = Some(base);
     app.rebind_restored_arts()?;
     let state = &app.documents[index].state;

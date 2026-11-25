@@ -1,4 +1,4 @@
-//! 接续集合的完整预算与退出收割；使用已撤权租约，不访问网络。
+//! Complete-budget and exit-harvesting tests for continuation collections; revoked leases, without network access.
 use super::*;
 use crate::desktop::surface_authorized_window::BatchContinuationInput;
 #[test]

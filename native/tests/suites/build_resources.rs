@@ -1,5 +1,5 @@
-//! 检查 RC 生成和暂存发布边界；实际 EXE 资源由 exe_resources 集成测试验证。
-#[allow(dead_code)] // 真实编译器入口由 build.rs 调用。
+//! Check RC generation and staged-publication boundaries; exe_resources integration tests verify resources in the actual EXE.
+#[allow(dead_code)] // build.rs invokes the actual compiler entry point.
 #[path = "../../build_support/windows_resources.rs"]
 mod resources;
 use std::{fs, path::Path, process, time::SystemTime};

@@ -1,4 +1,4 @@
-//! 大日志只借用图片/字段，数组在第 65 项即拒绝；小 envelope 过字节门后才分配。
+//! Large journals borrow images/fields and reject arrays at entry 65; allocate small envelopes only after byte gates.
 use super::super::snapshot::Wire as Snapshot;
 use super::{Envelope, Error, Selection, MAX_ENTRIES};
 use serde::{

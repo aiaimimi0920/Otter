@@ -1,4 +1,4 @@
-//! 不可撤销的远端源基线推进；保留本地层、几何和全部 undo/redo 游标。
+//! Nonundoable remote-source baseline advancement; preserve local layers, geometry, and every undo/redo cursor.
 use super::*;
 impl Editor {
     pub fn source_replaceable(&self) -> bool {

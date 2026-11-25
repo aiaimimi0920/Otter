@@ -1,4 +1,4 @@
-//! 轨道重复接线；每次 tick 重新核验 capture、本地权限和当前轨道命中。
+//! Track-repeat wiring; revalidate capture, local permission, and current track hits every tick.
 use super::*;
 use std::time::Instant;
 use windows::Win32::UI::Input::KeyboardAndMouse::{GetCapture, SetCapture};
@@ -18,7 +18,7 @@ pub(super) fn start(
     *state.scroll_repeat.borrow_mut() = Some(repeat);
     unsafe {
         let _ = SetCapture(hwnd);
-        // 同步重入可能取消或替换手势；旧 start 不能驱动或清掉新 owner。
+        // Synchronous reentrancy may cancel/replace gestures; an old start must neither drive nor clear a new owner.
         let current = state.scroll_repeat.borrow().as_ref().map(|r| r.id());
         if current != Some(id) {
             if current.is_none() {
@@ -74,7 +74,7 @@ pub(super) fn timer(hwnd: HWND, state: &State, id: usize, now: Instant) -> bool 
             *state.error.borrow_mut() = Some(error);
             pointer::invalidate(hwnd, state);
         }
-        // Host 被同步重入借走时，保留原有的 deferred paint 唤醒。
+        // Retain the original deferred-paint wake while Host is borrowed by synchronous reentrancy.
         Ok(ran) if (changed || !ran) && !state.closed.get() => unsafe {
             let _ = InvalidateRect(Some(hwnd), None, false);
         },

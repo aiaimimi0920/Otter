@@ -1,4 +1,4 @@
-//! 隐藏 HWND 的框选消息链；只修改当前线程键盘状态，测试后恢复文档及选择。
+//! Hidden-HWND marquee message chain; change only current-thread keyboard state and restore documents/selections afterward.
 use super::State;
 use crate::{
     editor::{Editor, Tool},
@@ -63,7 +63,7 @@ unsafe fn pointer(hwnd: HWND, state: &State, message: u32, x: f32, y: f32) {
     let _ = SendMessageW(hwnd, message, Some(WPARAM(0)), Some(LPARAM(value as isize)));
 }
 unsafe fn exercise(hwnd: HWND, state: &State, keys: &Keyboard) -> Result<()> {
-    // 普通窗口可直接框选；钉图空白拖动留给移动窗口，按 Shift 才框选。
+    // Ordinary windows allow direct marquee selection; empty-space pin drags move windows, with Shift required for marquee selection.
     keys.shift(state.canvas.borrow().pinned)?;
     let revision = state.canvas.borrow().editor.revision();
     pointer(hwnd, state, WM_LBUTTONDOWN, 1.0, 1.0);

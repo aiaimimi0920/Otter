@@ -1,4 +1,4 @@
-//! 滚动条是宿主覆盖层：绘制与命中共用矩形，先于内容鼠标动作消费。
+//! Scrollbars are host overlays: drawing and hit testing share rectangles and consume input before content mouse actions.
 use super::*;
 use crate::surface_scroll::Bar;
 use windows::Win32::Graphics::Direct2D::{Common::*, *};
@@ -15,7 +15,7 @@ impl Presentation {
         if !changed {
             return Ok(false);
         }
-        // 两轴只投影一次，不在中间帧重命中或重新测量文字。
+        // Project both axes only once without intermediate-frame hit testing or text remeasurement.
         let frame = self
             .cache
             .project_with_images(&self.scene, &mut scroll, &self.images)?;
@@ -69,7 +69,7 @@ impl Presentation {
             let previous = brush.GetColor();
             for bar in self.scrollbars() {
                 target.PushAxisAlignedClip(&rect(bar.clip), D2D1_ANTIALIAS_MODE_ALIASED);
-                // Neuro control 与 textMuted 中性色；覆盖层不抢占信号色语义。
+                // Neuro control and textMuted neutral colors; overlays do not take over signal-color semantics.
                 brush.SetColor(&D2D1_COLOR_F {
                     r: 17. / 255.,
                     g: 23. / 255.,

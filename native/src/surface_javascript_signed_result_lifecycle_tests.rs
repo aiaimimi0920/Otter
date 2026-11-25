@@ -1,4 +1,4 @@
-//! 已排队的正式结果仍须领取时授权；换工作区/撤权不发布，原 child/像素随终止回收。
+//! Queued committed results still require claim-time authorization; workspace changes/revocation prevent publication, and termination reaps original children/pixels.
 use super::*;
 #[test]
 fn queued_result_is_rejected_after_revocation_or_workspace_change() {

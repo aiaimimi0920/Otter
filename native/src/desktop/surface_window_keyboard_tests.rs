@@ -1,4 +1,4 @@
-//! 实际 HWND 键盘消息验证焦点、按键时机及旧候选失效；不发送外部动作。
+//! Actual HWND keyboard messages verify focus, key timing, and old-candidate invalidation without external actions.
 use super::*;
 #[test]
 fn surface_edit_policy_scene_update_preserves_valid_focus_but_never_old_candidate() {
@@ -72,7 +72,7 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
     VK_SHIFT, VK_SPACE, VK_TAB,
 };
 
-// 只改变当前测试线程的键盘表，恢复完整256字节；不发送全局输入或改系统按键。
+// Change only this test thread's keyboard table, restoring all 256 bytes; no global input or system-key changes.
 struct ThreadKeys([u8; 256]);
 impl ThreadKeys {
     unsafe fn modifiers(held: &[VIRTUAL_KEY]) -> Self {
@@ -113,7 +113,7 @@ fn buttons() -> SurfaceWindow {
     SurfaceWindow::new(Scene::parse(br#"{"id":"root","type":"column","children":[{"id":"a","type":"button","props":{"label":"A"},"events":{"click":"first"}},{"id":"disabled","type":"button","props":{"disabled":true}},{"id":"b","type":"button","props":{"label":"B"},"events":{"click":"second"}}]}"#).unwrap(), 240, 240).unwrap()
 }
 unsafe fn key(window: &SurfaceWindow, message: u32, key: u16, repeat: bool) {
-    // 本夹具表达无修饰键输入，不继承交互桌面的 Ctrl/Alt/Win/Shift。
+    // This fixture represents unmodified input, without inheriting interactive-desktop Ctrl/Alt/Win/Shift.
     let _neutral = ThreadKeys::modifiers(&[]);
     assert_eq!(
         GetFocus(),
@@ -194,7 +194,7 @@ fn surface_button_keyboard_rejects_changed_focus_and_cancels_space_on_disable() 
         key(&window, WM_KEYDOWN, VK_RETURN.0, false);
         let candidate = window.take_click().unwrap();
         key(&window, WM_KEYDOWN, VK_TAB.0, false);
-        // 即使切回同一 ID，也不能复活焦点切换前已经领取的候选。
+        // Returning to the same ID must not revive candidates claimed before focus changed.
         key(&window, WM_KEYDOWN, VK_TAB.0, false);
         assert!(window
             .click_events_for_candidate(candidate, &binding(), 1)

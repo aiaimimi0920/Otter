@@ -1,4 +1,4 @@
-//! 接收路由来自对当前配对Loom的请求，不改source签名origin，不信任网络提供transport地址。
+//! Receive routes come from requests to currently paired Loom, preserving signed source origin and distrusting network-supplied transport addresses.
 use super::{envelope, Error, Invitation};
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
@@ -49,7 +49,7 @@ pub(super) fn path(offline: bool, operation: Operation) -> &'static str {
         (true, Operation::Unlink) => "/v1/offline-projections/unlink",
     }
 }
-// 路由字段仅在对应传输中存在；显式 null 不能冒充无路由。
+// Route fields exist only for corresponding transports; explicit null cannot impersonate no route.
 pub(super) fn some<'de, D: serde::Deserializer<'de>, T: Deserialize<'de>>(
     de: D,
 ) -> Result<Option<T>, D::Error> {

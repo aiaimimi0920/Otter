@@ -1,4 +1,4 @@
-//! 普通Source共享远程四槽/编码预算和退出等待；停止未join仍占来源身份。
+//! Ordinary Sources share four remote slots, encoding budgets, and exit waits; stopped but unjoined sources still occupy their identities.
 use super::*;
 use crate::{
     live_relay_http::source::Publication,

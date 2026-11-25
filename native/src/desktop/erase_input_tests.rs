@@ -1,4 +1,4 @@
-//! 真实工作线程到 Canvas 的擦除提交链，不读取用户图片或启动系统对话框。
+//! Real worker-to-Canvas erase-commit chain, without user-image reads or system dialogs.
 use super::*;
 use crate::{
     editor::Tool,

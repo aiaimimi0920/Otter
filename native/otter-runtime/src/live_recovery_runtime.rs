@@ -1,10 +1,10 @@
-//! 私有恢复进程入口，不创建 UI、不读用户配置、不向协议流输出日志。
+//! Private recovery-process entry point; no UI creation, user-configuration reads, or logging to the protocol stream.
 use crate::{live_recovery_pipe::Pipe, live_recovery_session::Session};
 use std::{ffi::OsString, io, os::windows::io::AsHandle, time::Duration};
 
 pub const FLAG: &str = "--native-recovery-parent";
 
-/// 私有模式必须独占参数；拒绝与普通启动参数混用，不能落回 UI 启动。
+/// Private mode must exclusively own arguments; reject mixing with ordinary startup arguments and never fall back to UI startup.
 pub fn parse(args: &[OsString]) -> io::Result<Option<u32>> {
     if !args.iter().any(|arg| arg == FLAG) {
         return Ok(None);
@@ -41,7 +41,7 @@ fn run(mut session: Session) -> io::Result<()> {
             Ok(true) => return Ok(()),
             Ok(false) => {}
             Err(error) => {
-                // 没有登记责任时可安全退出；有记录时必须继续持有 owner 等待父死。
+                // Exit safely without registration responsibility; with records, retain the owner and wait for parent death.
                 if session.pending() == 0 {
                     return Err(error);
                 }
@@ -57,7 +57,7 @@ fn run(mut session: Session) -> io::Result<()> {
                 if error.kind() != io::ErrorKind::WouldBlock {
                     eprintln!("native-live-recovery-restore: {error}");
                 }
-                // Pending 继续观察原单槽，不重发；不能让正常异步开始也增长失败退避。
+                // Pending keeps observing the original single slot without resending; normal asynchronous startup must not increase failure backoff.
                 std::thread::sleep(recovery_delay(&error, &mut delay));
             }
         }
@@ -67,7 +67,7 @@ fn recovery_delay(error: &io::Error, delay: &mut Duration) -> Duration {
     if error.kind() == io::ErrorKind::WouldBlock {
         return crate::live_popup_layer_request::POLL;
     }
-    // 只对真实失败沿用原有有界退避；失败登记不能限次后丢弃。
+    // Retain the original bounded backoff only for real failures; failed registrations must not be discarded after a retry limit.
     let current = *delay;
     *delay = next_delay(current);
     current

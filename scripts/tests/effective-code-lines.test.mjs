@@ -22,7 +22,6 @@ import {
   toolHashes,
   validateExceptions,
 } from "../effective-code-lines.mjs";
-import { scanRepositoryHashes } from "../review-coverage.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const policyPath = path.join(repoRoot, "scripts", "effective-code-lines-policy.json");
@@ -199,12 +198,9 @@ test("repository scan hashes LF and CRLF source identically", (context) => {
   const result = scanRepository(root, policy);
   assert.equal(result.rows.length, 2);
   assert.equal(result.rows[0].sourceSha256, result.rows[1].sourceSha256);
-  assert.deepEqual(scanRepositoryHashes(root, policy).rows, result.rows.map(({ path, sourceSha256 }) => ({
-    path, sourceSha256,
-  })));
 });
 
-test("worktree, coverage and Git baseline agree on release and exact file exclusions", (context) => {
+test("worktree and Git baseline agree on release and exact file exclusions", (context) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "effective-lines-release-"));
   context.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const git = (...args) => execFileSync("git", ["-C", root, ...args], {
@@ -224,29 +220,11 @@ test("worktree, coverage and Git baseline agree on release and exact file exclus
     "-c", "commit.gpgsign=false", "commit-tree", tree, "-m", "Fixture");
   const fixturePolicy = { ...policy, baselineSourceCommit: commit, baselineSourceTree: tree };
   const worktree = scanRepository(root, fixturePolicy);
-  const coverage = scanRepositoryHashes(root, fixturePolicy, { filterGroup: "scripts" });
-  const allCoverage = scanRepositoryHashes(root, fixturePolicy);
   const baseline = createBaseline(root, fixturePolicy, policyPath);
-  for (const scan of [worktree, coverage, allCoverage]) assert.deepEqual(scan.diagnostics, []);
+  assert.deepEqual(worktree.diagnostics, []);
   assert.deepEqual(worktree.rows.map(({ path }) => path), [kept]);
   const [{ sourceSha256 }] = worktree.rows;
-  assert.deepEqual(coverage.rows, [{ path: kept, sourceSha256 }]);
-  assert.deepEqual(allCoverage.rows, coverage.rows);
   assert.deepEqual(baseline.files, [{ path: kept, sourceSha256, effectiveLines: 501, physicalLines: 501 }]);
-});
-
-test("filtered build and CI coverage includes native build support, not product modules", (context) => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "effective-lines-build-"));
-  context.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  const kept = ["native/build_support/windows_resources.rs", "native/build.rs"];
-  for (const relativePath of [...kept, "native/src/desktop/app.rs", "scripts/build.ps1"]) {
-    const file = path.join(root, relativePath);
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, "value\n", "utf8");
-  }
-  const scan = scanRepositoryHashes(root, policy, { filterGroup: "build-and-ci" });
-  assert.deepEqual(scan.diagnostics, []);
-  assert.deepEqual(scan.rows.map(({ path }) => path).sort(), kept.sort());
 });
 
 test("integrity hashes normalize checker and lexer line endings", () => {
@@ -259,7 +237,7 @@ test("integrity hashes normalize checker and lexer line endings", () => {
   assert.equal(hashes.lexerSha256, digest(lexer));
 });
 
-test("summary uses the exact Phase 79 tiers", () => {
+test("summary uses the policy thresholds", () => {
   assert.deepEqual(
     summarizeRows([
       row("a.ts", 500),

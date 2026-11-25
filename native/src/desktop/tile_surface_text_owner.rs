@@ -1,4 +1,4 @@
-//! UI字段会话：复用原Session/草稿ticket，只有当前paint身份才把意图交给原Art队列。
+//! UI field sessions reuse original Session/draft tickets; only current paint identity sends intents to the original Art queue.
 use super::*;
 use crate::desktop::surface_edit_session::Session;
 use crate::{
@@ -272,7 +272,7 @@ impl Owner {
         slot.reconcile(state)?;
         Ok(())
     }
-    /// 值来自当前本地会话，而非旧权威scene；复用表单的16字段/48KiB预算及64KiB事件门。
+    /// Values come from current local sessions, not old authoritative scenes; reuse form budgets of 16 fields/48 KiB and the 64 KiB event gate.
     pub fn decorate(&self, commands: &mut [Command]) -> Result<()> {
         let mut total = 0;
         for command in commands {
@@ -405,7 +405,7 @@ impl Slot {
         Ok(())
     }
     fn reconcile(&mut self, state: &State) -> Result<()> {
-        // 新权威已到但尚未paint时，不能用旧scene结算ticket并短暂回滚活动EDIT。
+        // When new authority arrives before paint, do not settle tickets using old scenes and briefly roll active EDIT back.
         if state
             .shared
             .lock()

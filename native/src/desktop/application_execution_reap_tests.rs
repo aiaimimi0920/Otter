@@ -1,4 +1,4 @@
-//! 真实 Application 等待器与隐藏 HWND 验证通知后的截止接续，不注册全局输入。
+//! Real Application waiters and hidden HWNDs verify deadline continuation after notification, without registering global input.
 use super::*;
 use crate::desktop::{
     loom_execution_tasks::{
@@ -20,7 +20,7 @@ fn application_reaps_current_and_retired_execution_after_last_notification() {
         let document =
             DocumentWindow::create(instance, State::new(None, false).unwrap(), false).unwrap();
         let mut app = Application::new(instance, document);
-        // 两轮共享一个宿主；不能把上轮最后窗口销毁的 WM_QUIT 带进下一轮等待。
+        // Both rounds share one host; do not carry WM_QUIT from destroying the previous round's final window into the next wait.
         for retired in [false, true] {
             let wake = app.execution_wake.callback();
             let gate = Gate::new(move || wake());
@@ -69,7 +69,7 @@ fn application_reaps_current_and_retired_execution_after_last_notification() {
             );
             assert!(app.execution_jobs.deadline().is_some());
             let pump = Pump::new();
-            // 通知已经消费；必须由真实 Application 的截止返回，而非辅助线程发第二次通知。
+            // The notification is already consumed; the real Application deadline must return, not a second notification from a helper thread.
             while pump.step(&mut app) != WM_NULL {}
             assert_eq!(app.execution_jobs.len(), 1);
             gate.release.send(()).unwrap();
@@ -131,7 +131,7 @@ fn application_reaps_invalidated_display_after_last_notification() {
         app.pending_windows(false).unwrap();
         assert!(app.display_composition.borrow().is_busy());
 
-        // 已消费唯一完成消息，后续只能依靠真实应用截止时间回收。
+        // The sole completion message was consumed; subsequent reaping must rely only on the real application deadline.
         let pump = Pump::new();
         while pump.step(&mut app) != WM_NULL {}
         assert!(app.display_composition.borrow().is_busy());

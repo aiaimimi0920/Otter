@@ -1,4 +1,4 @@
-//! rAF/timer 复用应用阻塞等待的 deadline；背压/无 owner 时不贡献定时唤醒。
+//! rAF/timers reuse application blocking-wait deadlines; contribute no timer wakes under backpressure or without an owner.
 use super::*;
 impl AuthorizedWindow {
     fn javascript_resize_dirty(&self) -> bool {
@@ -9,7 +9,7 @@ impl AuthorizedWindow {
     pub(super) fn capture_javascript_viewport(
         &mut self,
     ) -> Result<crate::surface_viewport::Viewport> {
-        // 捕获消息代次，而非消费 boolean；在途再次 resize 不可被旧回复清除。
+        // Capture message generation rather than consuming a boolean; an old reply must not clear another resize that occurred in flight.
         self.javascript.as_mut().unwrap().submitted_viewport_epoch = self.window.viewport_epoch();
         self.javascript.as_mut().unwrap().submitted_focus_epoch =
             self.window.javascript_focus_epoch();
@@ -40,7 +40,7 @@ impl AuthorizedWindow {
         };
         self.expires_at_ms().min(animation)
     }
-    /// 仅由 sync_input 在应用当前策略已核定后调用；refresh/begin_batch 不能抢单槽。
+    /// Called only by sync_input after current application policy is established; refresh/begin_batch cannot seize the single slot.
     pub(in crate::desktop::surface_authorized_window) fn schedule_javascript_animation(
         &mut self,
         now: u64,
@@ -85,10 +85,10 @@ impl AuthorizedWindow {
         observed: bool,
         timer_delay_ms: Option<u32>,
     ) -> Result<()> {
-        // Instant 单调计时由 child 提供；此墙钟仅与原应用授权等待 deadline 接合。
+        // The child provides monotonic Instant timing; this wall clock only integrates with original application authorization-wait deadlines.
         let now = crate::desktop::surface_windows::now_ms()?;
         let js = self.javascript.as_mut().unwrap();
-        // timer-only task 不能把既有 rAF 期限不断往后推，避免高频 timer 饿死绘制。
+        // timer-only tasks must not continually postpone existing rAF deadlines, preventing high-frequency timers from starving painting.
         js.animation_due =
             pending.then(|| js.animation_due.unwrap_or_else(|| now.saturating_add(16)));
         js.timer_due = timer_delay_ms.map(|delay| now.saturating_add(u64::from(delay)));

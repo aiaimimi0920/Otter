@@ -1,4 +1,4 @@
-//! 真实 common-control 鼠标消息与同步通知；不向用户桌面注入输入。
+//! Actual common-control mouse messages and synchronous notifications, without injecting user-desktop input.
 use super::*;
 fn spinner(window: &SurfaceWindow) -> HWND {
     unsafe { FindWindowExW(Some(window.hwnd), None, UPDOWN_CLASSW, None).unwrap() }

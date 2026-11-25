@@ -1,4 +1,4 @@
-//! 在真实尺寸通知处观察新帧准备顺序；分别覆盖默认 GPU、兼容 GPU 和原子软件提交。
+//! Observe new-frame preparation order at real size notifications; separately cover default GPU, compatibility GPU, and atomic software submission.
 use super::*;
 use std::cell::Cell;
 use windows::Win32::UI::Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass};

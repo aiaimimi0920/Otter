@@ -1,4 +1,4 @@
-//! UI 线程 COM/HWND 生命周期与宿主计数；工具面板不是独立文档，不能决定应用退出。
+//! UI-thread COM/HWND lifetimes and host counts; tool panels are not independent documents and cannot decide application exit.
 use std::cell::Cell;
 use windows::Win32::{Foundation::*, UI::WindowsAndMessaging::*};
 
@@ -20,7 +20,7 @@ impl Drop for Apartment {
     }
 }
 
-// 由创建窗口的线程持有；显式销毁后的 Drop 不重复销毁 HWND。
+// Owned by the creating thread; Drop after explicit destruction must not destroy HWND again.
 pub(super) struct Window(pub(super) HWND);
 impl Drop for Window {
     fn drop(&mut self) {
@@ -32,12 +32,12 @@ impl Drop for Window {
     }
 }
 
-/// 在任何 State 路由前固定 HWND 身份；重复候选不安装指针，失败清理不能碰原文档。
+/// Fix HWND identity before routing into State; duplicate candidates install no pointer, and failure cleanup must not touch original documents.
 pub(super) unsafe fn attach(hwnd: HWND, lp: LPARAM) -> bool {
     let create = &*(lp.0 as *const CREATESTRUCTW);
     let pointer = create.lpCreateParams as *const super::State;
     if pointer.is_null() {
-        return true; // 未绑定的隐藏候选只走 DefWindowProc，不拥有文档登记。
+        return true; // Unbound hidden candidates use only DefWindowProc and own no document registration.
     }
     let state = &*pointer;
     if !state.lifetime.bind(hwnd) {
@@ -98,7 +98,7 @@ thread_local! {
 pub(super) struct Registration {
     registered: Cell<bool>,
     bound: Cell<HWND>,
-    // 登记与销毁必须发生在拥有 HWND 的 UI 线程，禁止状态被跨线程转移。
+    // Register/destroy on the HWND-owning UI thread; forbid cross-thread state transfer.
     _thread: std::marker::PhantomData<std::rc::Rc<()>>,
 }
 
@@ -139,7 +139,7 @@ impl Registration {
         })
     }
 
-    /// 只在一个实际登记的宿主关闭后，才可能报告最后一个窗口已结束。
+    /// Report the last window finished only after an actually registered host closes.
     pub fn destroyed(&self) -> bool {
         if !self.registered.replace(false) {
             return false;

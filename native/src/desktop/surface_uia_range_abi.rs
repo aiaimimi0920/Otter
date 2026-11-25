@@ -1,4 +1,4 @@
-//! Slider RangeValue ABI，共享 canonical IUnknown 和 UI owner 的实时准入。
+//! Slider RangeValue ABI shares canonical IUnknown and UI-owner live admission.
 use super::*;
 use windows::core::BOOL;
 pub(super) unsafe fn notify_readonly(

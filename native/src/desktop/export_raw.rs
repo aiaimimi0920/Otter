@@ -1,4 +1,4 @@
-//! 会话图片资源编码：仅 WIC 像素转换，不创建 D2D 设备、不合成标注/裁剪/窗口透明度。
+//! Session-image encoding uses WIC pixel conversion only, without D2D devices or annotation/crop/window-opacity composition.
 use super::*;
 use std::sync::atomic::{AtomicBool, Ordering};
 #[path = "export_raw_alpha.rs"]
@@ -23,7 +23,7 @@ pub(in crate::desktop) fn png_raw(
     )
 }
 
-/// 持久化底图需可逆恢复；不改变普通导出既有WIC取整或Shader的straight合同。
+/// Persisted base images require reversible restoration; preserve ordinary export's existing WIC rounding and Shader's straight contract.
 pub(in crate::desktop) fn png_checkpoint(
     image: &Image,
     cancel: &AtomicBool,
@@ -37,7 +37,7 @@ pub(in crate::desktop) fn png_checkpoint(
     )
 }
 
-/// Shader 已完成浏览器合同反预乘；保留 straight BGRA，禁止再经 PBGRA 舍入。
+/// Shader already unpremultiplied according to browser contracts; retain straight BGRA without another PBGRA rounding pass.
 pub(in crate::desktop) fn png_straight_bgra(
     width: u32,
     height: u32,
@@ -62,7 +62,7 @@ fn encode_pixels(
         ));
     }
     let _apartment = Apartment::new()?;
-    // WIC 从输入复制像素；单独计入共享预算，不能把这份内存当作零复制。
+    // WIC copies input pixels; charge shared budgets separately instead of treating this memory as zero-copy.
     let bitmap_lease = crate::pixels::reserve(pixels.len()).ok_or_else(|| {
         Error::new(
             windows::Win32::Foundation::E_OUTOFMEMORY,
@@ -93,7 +93,7 @@ fn encode_pixels(
         ));
     }
     let pixels = stream_pixels(stream, size)?;
-    // WIC 和流复制本身不能强制打断；迟到取消也不得交付结果。
+    // WIC and stream copying cannot be forcibly interrupted; even late cancellation forbids result delivery.
     check(cancel)?;
     Ok(pixels)
 }

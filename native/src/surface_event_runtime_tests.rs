@@ -1,4 +1,4 @@
-//! 真实 TLS 后台任务的取消、迟到撤权与共享容量；不操作真实服务。
+//! Cancellation, late revocation, and shared capacity in real TLS background tasks; no real service operations.
 use super::*;
 use crate::{
     device_authorization_lease::Grant,

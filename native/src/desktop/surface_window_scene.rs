@@ -1,4 +1,4 @@
-//! HWND 场景提交接缝；替换时撤销旧无障碍身份，复用宿主及重入门禁。
+//! HWND scene-commit seam; replacement revokes old accessibility identities while reusing host/reentrancy admission.
 use super::*;
 impl SurfaceWindow {
     pub(in crate::desktop) fn viewport_epoch(&self) -> u64 {
@@ -30,7 +30,7 @@ impl SurfaceWindow {
     pub fn replace(&self, scene: Scene) -> Result<()> {
         self.replace_with_images(scene, crate::surface_presentation::Images::new())
     }
-    /// 同节点 ID 不继承旧图；调用方负责资源版本、租约及可重入调用后的授权复核。
+    /// Same node IDs do not inherit old images; callers own resource versions, leases, and post-reentrancy authorization revalidation.
     pub fn replace_with_images(
         &self,
         scene: Scene,
@@ -64,7 +64,7 @@ impl SurfaceWindow {
         }
         let accessibility = crate::surface_accessibility::Owner::new(&scene);
         self.state.notifications.borrow_mut().clear();
-        // 替换期间先撤销旧描述；失败时保持不可用，不把部分替换当作旧合同。
+        // Revoke old descriptions before replacement; failure remains unavailable rather than treating partial replacement as the old contract.
         self.state.accessibility.borrow_mut().take();
         structure_notifications::schedule(&self.state);
         if !self.state.run(|host| {

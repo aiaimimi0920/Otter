@@ -1,4 +1,4 @@
-//! 独立标注纹理尺寸的底层合同；宿主接入前不允许静默按底图尺寸解释该层。
+//! Primitive contracts for independent annotation-texture dimensions; no silent base-image-sized interpretation before host integration.
 use super::*;
 fn layers() -> Layers {
     Layers {

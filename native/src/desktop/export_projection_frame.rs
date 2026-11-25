@@ -1,4 +1,4 @@
-//! 当前crop映回已校验原源坐标，只复用原Frame::restored的自然输出密度合同。
+//! Map current crop back to validated original source coordinates, reusing only Frame::restored's natural output-density contract.
 use super::*;
 use crate::crop_geometry::{Crop, Rect, Size};
 
@@ -25,7 +25,7 @@ pub(super) fn prepare(
     }
     let crop = editor
         .crop_view()
-        // legacy是自然像素伸展视图，不是sourceSize/contain现代裁剪。
+        // legacy is a natural-pixel stretch view, not modern sourceSize/contain cropping.
         .filter(|view| view.legacy_pixel_region().is_none())
         .map(|view| crate::session_crop::Restored {
             frame: Rect {

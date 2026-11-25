@@ -1,4 +1,4 @@
-"""固定 GN profile 的生成与拒绝合同；合成工具从不执行，真实 GN 门另行运行。"""
+"""Generation/rejection contracts for fixed GN profiles; synthetic tools never execute, and actual GN gates run separately."""
 
 import json
 import os
@@ -28,7 +28,7 @@ class GNProfileTests(unittest.TestCase):
         self.output = self.root / "profile"
 
     def prepare(self):
-        # 允许读取已经审阅的上游文件，但不能执行任何编译工具、GN 或发现脚本。
+        # Reading reviewed upstream files is allowed, but executing compilers, GN, or discovery scripts is not.
         with patch("subprocess.Popen", side_effect=AssertionError("Profile preparation executed a tool")):
             return prepare(self.angle, self.build, self.configuration, self.output)
 

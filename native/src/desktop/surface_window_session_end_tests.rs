@@ -1,4 +1,4 @@
-//! 系统准入封住父窗口和既有EDIT subclass；真实文本/通知、取消恢复与销毁可独立观察。
+//! System admission gates both parent windows and existing EDIT subclasses; actual text/notifications, cancellation recovery, and destruction are independently observable.
 use super::*;
 use crate::desktop::session_end::{with_owner, with_query, Control};
 #[test]

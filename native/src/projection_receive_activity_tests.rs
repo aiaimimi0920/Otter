@@ -1,4 +1,4 @@
-//! 同 key 单一消费许可；跨 key 保并行、未完成/旧 Ticket 不能抢先解绑，Drop 无磁盘写入。
+//! Single-consumption permit per key with cross-key parallelism; unfinished/old Tickets cannot unlink early, and Drop performs no disk writes.
 use super::*;
 use crate::projection_delivery::{accept::tests::invitation, journal::tests::Directory};
 const ORIGIN: &str = "https://loom.example";
@@ -8,7 +8,7 @@ fn permit_is_exclusive_until_ticket_drop_and_does_not_rewrite_the_journal() {
     let store = Store::open(&directory.0).unwrap();
     let mut first = store.begin(&invitation(ORIGIN), "device-1").unwrap();
     first.activate().unwrap();
-    first.activate().unwrap(); // 同一移动 owner 可沿 Ready 移交补偿，不产生第二许可。
+    first.activate().unwrap(); // The same moved owner transfers compensation through Ready without a second permit.
     let mut competing = store.pending().unwrap().pop().unwrap();
     assert_eq!(competing.activate(), Err(Error::Busy));
     assert_eq!(

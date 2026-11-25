@@ -1,4 +1,4 @@
-//! JS 栈退出后才进入私有宿主交换；只扣除该等待，不增加执行/布局/绘制预算。
+//! Enter private host exchange only after the JS stack exits; deduct only that wait without increasing execution/layout/drawing budgets.
 use super::*;
 impl Engine {
     pub(super) fn settle_services(
@@ -39,7 +39,7 @@ impl Engine {
                 };
             };
             call.validate()?;
-            // JS已在调用时flush选中Canvas；这里只编码该原生状态，不读取后续JS命令。
+            // JS flushed the selected Canvas at call time; encode only that native state here without reading subsequent JS commands.
             if !call.canvases.is_empty() {
                 self.canvas.borrow_mut().snapshots(&mut call.canvases)?;
                 call.validate()?;
@@ -53,7 +53,7 @@ impl Engine {
             }
             let id = call.id;
             let timeout = std::time::Duration::from_millis(u64::from(call.timeout_ms));
-            // 没有 JS 在此时运行；等待由父侧绝对服务期限、取消和 Job owner 限制。
+            // No JS runs here; the parent's absolute service deadline, cancellation, and Job owner bound the wait.
             let start = Instant::now();
             let image_output = call.image_output;
             let mut result = dispatch(call)?;
@@ -74,7 +74,7 @@ impl Engine {
                 }
                 let png = png.as_ref().ok_or_else(wire::invalid)?;
                 if self.canvas.borrow_mut().append_image(image, png).is_err() {
-                    // 本地安装事务失败不破坏旧资源/Canvas；只拒绝当前Promise。
+                    // Local installation-transaction failure preserves old resources/Canvas and rejects only the current Promise.
                     result = wire::service::ResultValue::Failed {
                         error: "image_install_failed".into(),
                     };

@@ -1,4 +1,4 @@
-//! UI 线程上的本地结果领取与正式端口事务；不重入，不给源截图写入 Art 输出。
+//! Local-result collection and official-port transactions on the UI thread; no reentrancy or writing Art output into source screenshots.
 use super::*;
 impl Owner {
     pub(in crate::desktop) fn apply_results(
@@ -39,7 +39,7 @@ impl Owner {
                     .iter()
                     .find(|doc| &doc.state.unit_id == unit)
                     .ok_or(())?;
-                // 只有实际 Art 节点可以拥有正式端口；一般截图只是界面发起者，不隐式升级。
+                // Only actual Art nodes may own official ports; ordinary screenshots merely initiate the UI action and are not implicitly upgraded.
                 if !host() || !document.state.is_art() || !window.can_commit_result() {
                     return Err(());
                 }

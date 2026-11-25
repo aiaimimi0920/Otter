@@ -1,4 +1,4 @@
-//! 自有 HWND 观察重复 region 通知、截图显隐及缩放绘制时序；只在隔离 desktop 运行。
+//! Owned HWNDs observe repeated region notifications, capture visibility, and zoom-paint timing on isolated desktops only.
 use super::*;
 struct Probe {
     hwnd: HWND,
@@ -310,7 +310,7 @@ fn check_zoom_chrome(command: Option<usize>) {
         let chrome_dc = app.chrome.ui.surface.borrow().as_ref().unwrap().dc();
         let confirmed = doc.state.canvas.borrow().confirmed_paints;
         let painted = doc.state.canvas.borrow().paints;
-        // 两倍灵敏度下仍保持本用例“只在已有留量内缩放”的前提。
+        // At double sensitivity, retain this test's premise of zooming only within existing spare space.
         for delta in [60i16, 60, -60, 15, -15, -60] {
             desktop::pin_window::wheel(
                 doc.window.0,
@@ -327,14 +327,14 @@ fn check_zoom_chrome(command: Option<usize>) {
                 "zoom inside reserved bounds must reuse the shared border surface"
             );
         }
-        // 软件缩放直接完成原子 ULW 提交，不应为增加 WM_PAINT 计数而重复绘制。
+        // Software scaling completes atomic ULW submission directly; do not draw again merely to increase WM_PAINT counts.
         if command.is_some() {
             assert!(doc.state.canvas.borrow().confirmed_paints > confirmed);
         } else {
             assert!(doc.state.canvas.borrow().paints > painted);
             assert!(probe.zoom_frames.get() > 0);
         }
-        // ULW 软件提交不保证发 WINDOWPOSCHANGING；逐帧表面复用和白框分别检查。
+        // Software ULW submission does not guarantee WINDOWPOSCHANGING; verify per-frame surface reuse and white borders separately.
         assert!(
             !probe.missing_zoom_frame.get(),
             "target border must exist before host geometry changes"

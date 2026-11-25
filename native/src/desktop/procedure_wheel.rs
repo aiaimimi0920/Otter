@@ -1,4 +1,4 @@
-//! 滚轮按主干精确区分钉图缩放、透明度和标注缩放；不把 Ctrl+Alt 误路由到拖窗呈现。
+//! Precisely distinguish mainline pin zoom, opacity, and annotation scaling; never misroute Ctrl+Alt to window-drag presentation.
 use crate::{
     desktop::{self, State},
     viewport::Point,

@@ -1,4 +1,4 @@
-//! 将已验证窗口字段与图像尺寸装配为恢复位置，不取得工作区或原文所有权。
+//! Assemble validated window fields and image sizes into restore placements without taking workspace/original-text ownership.
 use super::*;
 
 pub(super) fn prepare(

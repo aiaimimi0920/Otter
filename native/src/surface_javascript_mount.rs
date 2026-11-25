@@ -1,4 +1,4 @@
-//! Session首次准入/资源安装事务；失败由局部Session回收原Job，禁止重放半个协议流。
+//! Session initial-admission/resource-installation transaction; local Session reaps the original Job on failure and never replays a partial protocol stream.
 use super::*;
 impl Session {
     pub(super) fn mount_options(
@@ -45,7 +45,7 @@ impl Session {
             allow_results,
         };
         if let Some(headers) = headers {
-            // 安装与mount共用原绝对期限；二进制不经过MAX_FRAME/内联字符串门。
+            // Installation and mount share the original absolute deadline; binary data bypasses MAX_FRAME/inline-string gates.
             let child = session.child.as_ref().ok_or_else(wire::invalid)?;
             session.sequence = 1;
             let mut channel = session

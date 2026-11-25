@@ -1,4 +1,4 @@
-//! 真实隐藏 Application 的 scope 分配/提交/恢复；沿原检查点与保存事务，不联网。
+//! Real hidden Application scope allocation/commit/restoration through original checkpoint/save transactions, without networking.
 use super::*;
 use crate::session_projection_scope::{Proof, Scope, FIELD};
 

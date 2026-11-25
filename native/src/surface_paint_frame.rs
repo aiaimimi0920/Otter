@@ -1,4 +1,4 @@
-//! 提交布局时生成有序绘制指令；绘制期间不解析样式、不重新分配 native 画刷。
+//! Generate ordered paint commands at layout commit; do not parse styles or reallocate native brushes during painting.
 #[path = "surface_paint_controls.rs"]
 mod controls;
 use crate::{
@@ -41,7 +41,7 @@ pub(crate) struct PaintFrame {
 }
 impl Drop for PaintFrame {
     fn drop(&mut self) {
-        // 即使外部像素 owner 仍存活，旧帧退场也不能把旧 target 留在不可见图片中。
+        // Even if external pixel owners remain alive, retiring old frames must not retain old targets inside invisible images.
         self.release_device_resources();
     }
 }
@@ -77,7 +77,7 @@ impl PaintFrame {
                 },
             )
         });
-        // 组层覆盖子树可见范围，而非只用父盒子裁掉 overflow:visible 的子节点。
+        // Group layers cover subtree visibility rather than clipping overflow:visible children to the parent box alone.
         let mut bounds: Vec<_> = tree
             .nodes()
             .iter()
@@ -136,7 +136,7 @@ impl PaintFrame {
                     .unwrap_or(Color([17. / 255., 23. / 255., 32. / 255., 1.]));
                 edit_colors.insert(placed.node.id().to_owned(), [foreground, background]);
             }
-            // 控件 class 有自己的默认文字色；只有节点声明覆盖默认，currentcolor 使用父计算值。
+            // Control classes have their own default text colors; only node declarations override defaults, while currentcolor uses the parent's computed value.
             if placed.node.kind() == crate::surface_scene::Kind::Select {
                 if let Some(color) = declared {
                     select_ink.insert(placed.node.id().to_owned(), color);
@@ -169,7 +169,7 @@ impl PaintFrame {
             let rounded = shape.as_ref().and_then(|shape| {
                 shape.padding_round(crate::surface_box::borders(placed.node, local))
             });
-            // 替换元素裁剪到 content edge；与容器子树的 padding edge 圆角不同。
+            // Replaced elements clip to the content edge, unlike container subtrees' rounded padding edges.
             let image_round = (placed.node.kind() == crate::surface_scene::Kind::Image)
                 .then(|| {
                     shape.as_ref().and_then(|shape| {
@@ -286,7 +286,7 @@ impl PaintFrame {
                     commands.push(Command::Pop);
                 }
             }
-            // 使用计算值：单轴 hidden/auto 会把另一轴 visible 归一为 auto。
+            // Use computed values: hidden/auto on one axis normalizes visible on the other to auto.
             if !placed.node.children().is_empty()
                 && crate::surface_overflow::computed(placed.node)
                     .iter()
@@ -463,7 +463,7 @@ fn native_rect(rect: Rect) -> D2D_RECT_F {
         bottom: rect.bottom,
     }
 }
-// 文字绘制失败也必须弹出所有已入栈组层，不能污染调用方后续绘制。
+// Pop all pushed group layers even if text drawing fails, so later caller drawing is not contaminated.
 struct Layers<'a> {
     target: &'a ID2D1RenderTarget,
     depth: usize,

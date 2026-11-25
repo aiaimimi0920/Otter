@@ -1,4 +1,4 @@
-//! 单击时按绘制逆序查询 D2D 几何，不逐帧命中；容差按视口缩放转换到图像坐标。
+//! Query D2D geometry in reverse drawing order on clicks, not every frame; convert tolerance to image coordinates using viewport scale.
 use crate::{
     editor::{Editor, Stroke, Tool},
     viewport::{Point, Viewport},
@@ -225,7 +225,7 @@ unsafe fn contains(
     if !stroke.visible_outline() && !matches!(stroke.tool, Tool::Mosaic | Tool::Blur) {
         return Ok(false);
     }
-    // 选择容差允许点中虚线间隙，避免细短虚线难以操作；不改变实际绘制。
+    // Selection tolerance permits hits in dash gaps so thin short dashes remain usable; actual rendering is unchanged.
     let cap = if matches!(
         stroke.tool,
         Tool::Brush | Tool::Highlighter | Tool::Polyline | Tool::Mosaic | Tool::Blur

@@ -1,4 +1,4 @@
-// 元数据属性统一反射；不接受 CSS、URL、事件代码或未实现的表单语义。
+// Unified metadata attribute reflection; rejects CSS, URLs, event code and unimplemented form semantics.
 ((dom, fail, form) => {
   "use strict";
   const { Element } = dom.classes, get = dom.get, op = dom.ops;

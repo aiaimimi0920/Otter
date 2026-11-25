@@ -1,4 +1,4 @@
-//! v2 邀请的本地有界验签；签名正确不等于账号授权，后者只由本机 Loom 执行。
+//! Bounded local verification of v2 invitation signatures; valid signatures do not imply account authorization, enforced only by local Loom.
 use super::*;
 use base64::{
     engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD},
@@ -47,7 +47,7 @@ impl std::fmt::Debug for Envelope {
     }
 }
 impl Envelope {
-    /// JSON 或 v2 链接仅本地解析；不请求 QR 地址，不自动登录或接受邀请。
+    /// Parse JSON/v2 links locally only; no QR-address requests, automatic login, or invitation acceptance.
     pub fn parse(text: &str) -> Result<Self, Error> {
         if text.len() > 8192 {
             return Err(Error::Envelope);

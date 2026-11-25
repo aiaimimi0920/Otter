@@ -1,4 +1,4 @@
-//! Canvas 与原 Mount/FIFO 的接缝；不伪造文本字段/Session，不保存第二套 DOM。
+//! Seam between Canvas and original Mount/FIFO; no fabricated text fields/Sessions or second DOM copy.
 use super::*;
 use crate::surface_javascript_wire::{LocalInput, PointerInput, PointerPhase};
 pub(crate) fn canvas_node(presentation: &Presentation, id: &str) -> bool {

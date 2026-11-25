@@ -1,15 +1,15 @@
-//! 阻塞等待句柄、窗口消息或显式截止；不使用定时器、辅助线程或周期轮询。
+//! Block on handles, window messages, or explicit deadlines; no timers, helper threads, or periodic polling.
 use std::time::Instant;
 use windows::{
     core::{Error, Result},
     Win32::{Foundation::*, System::Threading::INFINITE, UI::WindowsAndMessaging::*},
 };
 
-/// handles 必须在整个调用期间有效且互不重复；仅接受应用保活的采集/恢复任务和进程句柄。
+/// handles must remain valid and distinct throughout the call; accept only capture/restore task and process handles kept alive by the application.
 pub(super) unsafe fn next(handles: &[HANDLE], message: &mut MSG) -> Result<i32> {
     next_until(handles, message, None)
 }
-/// 截止时间是本次等待的绝对时刻，系统伪唤醒不能把授权截止不断向后延长。
+/// The deadline is an absolute instant for this wait; spurious system wakeups must not keep extending authorization expiry.
 pub(in crate::desktop::application) unsafe fn next_until(
     handles: &[HANDLE],
     message: &mut MSG,
@@ -37,7 +37,7 @@ pub(in crate::desktop::application) unsafe fn next_until(
                 if remaining.is_zero() {
                     return settle(message);
                 }
-                // 向上取整避免亚毫秒截止形成零超时忙循环；保留 INFINITE 特殊值。
+                // Round up to avoid zero-timeout busy loops at submillisecond deadlines; reserve the special INFINITE value.
                 remaining
                     .as_nanos()
                     .div_ceil(1_000_000)
@@ -53,11 +53,11 @@ pub(in crate::desktop::application) unsafe fn next_until(
             return Err(Error::from_win32());
         }
         if result.0 < WAIT_OBJECT_0.0 + handles.len() as u32 {
-            // 合成一次普通结算事件，不往系统消息队列投递，也不再次等待已完成线程。
+            // Synthesize one ordinary settlement event without posting to the system message queue or waiting again on a completed thread.
             return settle(message);
         }
-        // WAIT_TIMEOUT 也回到绝对截止检查，兼容超长等待的 u32 分段。
-        // 系统事件也可能唤醒；再次 Peek 处理，不以 GetMessage 阻塞掉线程完成信号。
+        // WAIT_TIMEOUT also returns to the absolute-deadline check, supporting u32-sized segments for very long waits.
+        // System events may also wake us; Peek again rather than blocking on GetMessage and missing thread completion signals.
     }
 }
 fn settle(message: &mut MSG) -> Result<i32> {

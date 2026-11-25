@@ -1,4 +1,4 @@
-//! 复制/导出的当前显示快照及新鲜度凭证；快照共享像素，凭证不保留图片。
+//! Current-display snapshots/freshness evidence for copy/export; snapshots share pixels while evidence retains no images.
 use super::{canvas::Canvas, display_frame::Frame, image::Image};
 use crate::editor::{DocumentStamp, Editor};
 use std::sync::Arc;
@@ -51,7 +51,7 @@ pub(super) fn capture(canvas: &Canvas, frame: Option<&Frame>) -> Option<(Image, 
     }
 }
 
-/// 与 PNG 合成共用尺寸准入；不克隆编辑器历史或图像缓冲。
+/// Share dimension admission with PNG composition; no editor-history or image-buffer cloning.
 pub(super) fn dimensions(canvas: &Canvas, frame: Option<&Frame>) -> Option<(u32, u32)> {
     if let Some(frame) = frame {
         super::export::dimensions(&frame.image, frame.editor.as_deref()).ok()

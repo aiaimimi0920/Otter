@@ -1,4 +1,4 @@
-//! ANGLE 可信 bundle 的唯一 DLL owner；发行指纹必须来自调用方可信清单，不能来自 Art 响应。
+//! Sole DLL owner for trusted ANGLE bundles; distribution fingerprints come from caller-trusted manifests, never Art responses.
 use super::{Error, Result};
 #[cfg(test)]
 use sha2::{Digest, Sha256};
@@ -37,7 +37,7 @@ pub struct Identity {
 }
 pub(super) struct Library {
     module: HMODULE,
-    // 禁止 DLL 在核验与加载间或整个映射寿命内被改写/删除。
+    // Prevent DLL modification/deletion between verification and loading and throughout the mapped lifetime.
     _file: File,
 }
 impl Drop for Library {
@@ -94,16 +94,16 @@ fn verified(path: &Path, identity: Fingerprint) -> Result<File> {
     Ok(file)
 }
 impl Libraries {
-    // 历史验证保留在测试目标，生产库不编译 ANGLE 的文件核验及 DLL 加载路径。
+    // Historical verification remains in test targets; production libraries do not compile ANGLE file-verification/DLL-loading paths.
     #[cfg(not(test))]
     pub fn load(_directory: &Path, _identity: Identity) -> Result<Self> {
         Err(Error::Library)
     }
     #[cfg(test)]
     pub fn load(directory: &Path, identity: Identity) -> Result<Self> {
-        // 调用方必须提供可信 ACL 的固定目录；哈希不授权执行来自 Art 的 DLL。
+        // Callers must supply a fixed directory with trusted ACLs; hashes do not authorize execution of Art-provided DLLs.
         let directory = directory.canonicalize().map_err(|_| Error::Library)?;
-        // 清单只允许两个 DLL；目录枚举不是防并发写入的安全边界。
+        // The manifest allows only two DLLs; directory enumeration is not a security boundary against concurrent writes.
         for entry in std::fs::read_dir(&directory).map_err(|_| Error::Library)? {
             let entry = entry.map_err(|_| Error::Library)?;
             let name = entry.file_name().to_string_lossy().to_ascii_lowercase();

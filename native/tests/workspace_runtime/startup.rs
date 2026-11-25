@@ -1,4 +1,4 @@
-//! 普通无参 GUI 产品：不使用 CREATE_NO_WINDOW，不显示空工作区/面板，保留可响应的宿主。
+//! Ordinary no-argument GUI product: no CREATE_NO_WINDOW or empty workspace/panel, while retaining a responsive host.
 use super::*;
 use std::io::{Read, Seek, SeekFrom};
 
@@ -66,9 +66,9 @@ fn fresh_and_restored_empty_workspace_start_without_console_or_visible_panels() 
             );
             std::thread::sleep(Duration::from_millis(20));
         }
-        // 等待真正恢复/检查点准入；隐藏宿主仍能完成原正常退出事务。
+        // Wait for actual recovery/checkpoint admission; the hidden host can still complete the original normal-exit transaction.
         let hwnd = until(&mut child, "hidden-host-session-admission", |pid| unsafe {
-            // 恢复会替换初始 HWND，每次查询重新找到当前 owner；销毁中的旧 HWND 只重试发现。
+            // Recovery replaces the initial HWND; find the current owner on every query and retry discovery for an old HWND being destroyed.
             let mut search = Search { pid, hwnd: None };
             EnumWindows(Some(enumerate), LPARAM(&mut search as *mut Search as isize)).ok()?;
             let hwnd = search.hwnd?;

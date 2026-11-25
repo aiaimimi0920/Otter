@@ -1,4 +1,4 @@
-//! 真实 Loom LAN Source 联合消费者，沿系统菜单/Application；WGC 场景使用自有窗口。
+//! Real Loom LAN Source joint consumer through system menus/Application; WGC scenarios use owned windows.
 use super::*;
 use base64::Engine;
 #[path = "application_live_source_joint_observe.rs"]
@@ -177,7 +177,7 @@ fn run(mode: u8) {
             recovery.poll(root, &mut app, &identity, hwnd);
             if let Some(target) = &target {
                 let source = &app.live_sessions[0];
-                // Bridge在发布期间保留控制资格；本门核原输入线程已回收及真实cleanup，不能等Bridge退休。
+                // Bridge retains control eligibility while publishing; this gate checks the original input thread is reaped and actual cleanup occurred, without waiting for Bridge retirement.
                 let released = !source.input_enabled()
                     && source.input_completion_handle().is_none()
                     && source

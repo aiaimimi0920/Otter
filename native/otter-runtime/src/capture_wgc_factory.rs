@@ -1,4 +1,4 @@
-//! WGC 工厂只在当前 apartment 内借用，不能复用最后一个 COM owner 退出前的静态指针。
+//! Borrow WGC factories only within current apartments; do not reuse static pointers surviving the final COM owner's exit.
 use windows::{
     core::{factory, Interface, Type},
     Graphics::{
@@ -11,7 +11,7 @@ use windows::{
 pub(super) fn supported() -> windows::core::Result<bool> {
     let factory = factory::<GraphicsCaptureSession, IGraphicsCaptureSessionStatics>()?;
     let mut value = false;
-    // windows-rs 的静态方法缓存跨越 apartment 退出；局部引用在本轮 RoUninitialize 前释放。
+    // windows-rs static-method caches outlive apartment exit; release local references before this round's RoUninitialize.
     unsafe { (factory.vtable().IsSupported)(factory.as_raw(), &mut value).ok()? };
     Ok(value)
 }
@@ -24,7 +24,7 @@ pub(super) fn pool(
 ) -> windows::core::Result<Direct3D11CaptureFramePool> {
     let factory = factory::<Direct3D11CaptureFramePool, IDirect3D11CaptureFramePoolStatics2>()?;
     let mut result = std::ptr::null_mut();
-    // 与生成绑定相同的 ABI/所有权：成功后由 FramePool 接管唯一返回引用，失败原样传播。
+    // Same ABI/ownership as generated bindings: FramePool takes the sole returned reference on success, and failures propagate unchanged.
     unsafe {
         (factory.vtable().CreateFreeThreaded)(
             factory.as_raw(),

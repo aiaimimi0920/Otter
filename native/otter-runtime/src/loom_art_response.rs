@@ -1,4 +1,4 @@
-//! 主干 Art 响应合同；持有单条有界 JSON 的输出，不执行图片解码或 UI 发布。
+//! Baseline Art response contract; own the output of one bounded JSON message, without image decoding or UI publication.
 use crate::{graph_requests::Request, workspace_id::UnitId};
 use serde_json::Value;
 pub const MAX_BYTES: usize = 64 * 1024 * 1024;
@@ -92,7 +92,7 @@ fn take(value: &mut Value, field: &str) -> Value {
         .unwrap_or(Value::Null)
 }
 fn failure(value: &Value) -> Event {
-    // 远端错误仅作文本，限制 UI 驻留长度；不得当作格式串、路径或脚本执行。
+    // Remote errors are text only, with bounded UI-resident length; never execute them as format strings, paths, or scripts.
     Event::Failure(
         value["error"]["message"]
             .as_str()

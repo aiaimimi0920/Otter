@@ -1,4 +1,4 @@
-//! 策略和sticky回退保护，不通过重建encoder绕开本连接失败终态。
+//! Policy/sticky-fallback protection; encoder reconstruction cannot bypass this connection's terminal failure.
 use super::*;
 fn policy(allowed: bool, sequence: u64) -> VideoPolicy {
     VideoPolicy {
@@ -62,7 +62,7 @@ fn system_policy_requests_periodic_idr_transition_and_sticky_alpha_fallback() {
     assert!(!video.policy.h264_allowed);
     video.policy(policy(true, 2)).unwrap();
     assert!(video.encode(&bgra, 37, &stop).unwrap().keyframe);
-    // 同会话换尺寸必须立即给新 SPS/IDR，尺寸往返后不能遗留旧编码器租约。
+    // Same-session dimension changes require immediate new SPS/IDR; dimension round trips must not leave old encoder leases.
     let original_budget = budget.used();
     video.resize([96, 80], &budget);
     let resized = [17, 83, 211, 255].repeat(96 * 80);

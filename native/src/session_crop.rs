@@ -1,4 +1,4 @@
-//! 读取主干逻辑源框裁剪，不把窗口尺寸或 cropRect 误当作自然图片像素。
+//! Read mainline logical-source-box crops; window dimensions/cropRect are not natural-image pixels.
 use crate::{
     crop_geometry::{self, Crop, Rect, Size},
     session_window::Window,
@@ -42,8 +42,8 @@ struct Fields {
     otter_native_rasterized_full_source: bool,
 }
 impl Restored {
-    /// 将持久的源逻辑框归一化到当前显示比例。标注只需加 rect.x/y，不能再次缩放。
-    /// 不取整：像素缓冲的 ceil 尺寸不能反过来改变裁剪和矢量坐标。
+    /// Normalize persistent logical source boxes to current display scale. Annotations only add rect.x/y, without scaling again.
+    /// Do not round: ceil pixel-buffer dimensions cannot alter crop/vector coordinates in reverse.
     pub fn editor_crop(&self) -> Result<Crop, Error> {
         let full = self.reset_frame()?;
         let rect = Rect {
@@ -59,11 +59,11 @@ impl Restored {
                 height: full.height,
             },
         };
-        // 独立校验局部坐标；屏幕位置相消不能掩盖无效的局部偏移。
+        // Validate local coordinates independently; cancelling screen positions cannot hide invalid local offsets.
         crop_geometry::reset(rect, Some(crop)).map_err(|_| Error::Geometry)?;
         Ok(crop)
     }
-    /// 仍在屏幕逻辑框中计算；安装 HWND 前由平台层执行 DPI/坐标转换。
+    /// Still calculate in logical screen boxes; platform layers perform DPI/coordinate conversion before HWND installation.
     pub fn reset_frame(&self) -> Result<Rect, Error> {
         crop_geometry::reset(self.frame, Some(self.crop))
             .map(|change| change.frame)
@@ -93,7 +93,7 @@ pub(crate) fn restore_with_full_source(
         None => return Ok((None, false)),
     };
     validate_full_marker(&fields)?;
-    // 主干缺任一字段就不启用裁剪；原始字段仍留在完整会话，不做降级写回。
+    // Missing either mainline field disables cropping; retain original fields in complete sessions without downgraded writeback.
     let (Some(crop), Some(source)) = (fields.crop_rect, fields.source_size) else {
         if fields.otter_native_rasterized_crop_source {
             return Err(Error::Geometry);
@@ -139,8 +139,8 @@ fn validate_full_marker(fields: &Fields) -> Result<(), Error> {
     Ok(())
 }
 
-/// 旧cropRect使用自然像素；恢复图片已翻转，故在这里转换到已物化像素的坐标。
-/// 不把旧区域当作逻辑sourceSize，也不夹紧越界区域（越界部分应保持透明）。
+/// Legacy cropRect uses natural pixels; restored images are already flipped, so convert here to materialized-pixel coordinates.
+/// Do not treat legacy regions as logical sourceSize or clamp out-of-bounds regions, which must remain transparent.
 pub fn legacy_pixels(window: &Window<'_>, size: (u32, u32)) -> Result<Option<Rect>, Error> {
     let Some(raw) = window.image_edit_state else {
         return Ok(None);
@@ -207,7 +207,7 @@ mod tests {
                 height: 400.0
             }
         );
-        // 正方形自然图 contain-fit 到 800x400 的完整逻辑源框，再按裁剪偏移显示。
+        // Contain-fit the square natural image to the full 800x400 logical source box, then display using crop offsets.
         assert_eq!(
             restored.image_placement(1000, 1000).unwrap(),
             Rect {
@@ -258,7 +258,7 @@ mod tests {
                 height: 121.0
             }
         );
-        // 原图在完整源框中的 contain-fit，再减裁剪偏移，与主干可见框投影一致。
+        // Contain-fit the original image in the full source box, then subtract crop offsets, matching mainline visible-box projection.
         let local = crop_geometry::image_placement(
             crop.rect,
             crop,

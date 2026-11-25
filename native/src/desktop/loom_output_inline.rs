@@ -1,4 +1,4 @@
-//! Loom 内联图片输出转原生 PBGRA；仅后台调用，不信任响应中的尺寸提示。
+//! Convert Loom inline image outputs to native PBGRA in background only; do not trust response dimension hints.
 use super::{image::Image, Apartment};
 use base64::Engine;
 use serde_json::Value;
@@ -9,7 +9,7 @@ use windows::{
 };
 const MAX_ENCODED: usize = 64 * 1024 * 1024;
 
-/// 编码缓冲和解码像素均计入共享预算，WIC 内部工作内存沿用现有解码边界。
+/// Charge encoded buffers/decoded pixels to shared budgets; WIC internal working memory retains existing decoding boundaries.
 pub fn decode(value: &Value, cancel: &AtomicBool) -> Result<Image> {
     check_cancel(cancel)?;
     if value["kind"].as_str() != Some("inline_resource") {
@@ -21,7 +21,7 @@ pub fn decode(value: &Value, cancel: &AtomicBool) -> Result<Image> {
         cancel,
     )
 }
-/// 借用编码文本供参数与会话资源共用，不构造另一份 JSON/Base64 副本。
+/// Borrow encoded text for shared parameter/session-resource use, without another JSON/Base64 copy.
 pub(super) fn decode_base64(mime: &str, encoded: &str, cancel: &AtomicBool) -> Result<Image> {
     let bytes = decode_bytes(mime, encoded, cancel)?;
     let _apartment = Apartment::new()?;
@@ -29,7 +29,7 @@ pub(super) fn decode_base64(mime: &str, encoded: &str, cancel: &AtomicBool) -> R
     check_cancel(cancel)?;
     image
 }
-/// 共用有界编码字节 owner；调用者仍须经 WIC 验证后才能把内容当图片发布。
+/// Share bounded encoded-byte owners; callers must still validate through WIC before publishing contents as images.
 pub(super) fn decode_bytes(
     mime: &str,
     encoded: &str,

@@ -1,4 +1,4 @@
-//! 已准入 WebSocket 的单步媒体服务；连接/认证/TLS/重连由 transport owner 负责。
+//! Single-step media service for admitted WebSockets; the transport owner handles connection/authentication/TLS/reconnection.
 use crate::{
     byte_budget::Budget,
     live_relay_frame::{HEADER_LEN, MAX_FRAME_BYTES},
@@ -77,8 +77,8 @@ pub fn config() -> WebSocketConfig {
         ..Default::default()
     }
 }
-/// transport 必须先完成可信端点/TLS/凭据/实际子协议验证，并配置有限 read/write timeout。
-/// 非阻塞/超时读取返回 Idle；本方法不生成凭据，也不从 payload 推断协商 profile。
+/// transport must first validate trusted endpoint/TLS/credentials/actual subprotocol and configure finite read/write timeouts.
+/// Nonblocking/timed-out reads return Idle; this method neither generates credentials nor infers negotiated profiles from payloads.
 pub fn service<S: Read + Write>(
     socket: &mut WebSocket<S>,
     profile: Profile,
@@ -102,7 +102,7 @@ pub fn service<S: Read + Write>(
     }
     result
 }
-/// 只由同一授权/epoch的恢复owner使用；传输损失保留原worker，协议/预算错误仍失败关闭。
+/// Only same-authorization/epoch recovery owners may use this; transport loss preserves the original worker, while protocol/budget errors still fail closed.
 pub(super) fn service_resumable<S: Read + Write>(
     socket: &mut WebSocket<S>,
     profile: Profile,
@@ -171,7 +171,7 @@ fn service_inner<S: Read + Write>(
         Ok(Message::Binary(bytes)) => {
             let frame = Frame::from_message(bytes, profile, budget).map_err(|_| Error::Frame)?;
             let metadata = frame.metadata();
-            // H264重连需要旧IDR预热参考链；raw/JPEG重复帧不能重新发布或误作新进度。
+            // H264 reconnects need old-IDR reference-chain warmup; duplicate raw/JPEG frames cannot republish or count as fresh progress.
             if metadata.codec != crate::live_relay_frame::Codec::H264
                 && after
                     .is_some_and(|c| c.epoch == metadata.epoch && metadata.frame_id <= c.frame_id)
@@ -212,7 +212,7 @@ fn service_inner<S: Read + Write>(
         {
             Ok((Step::Idle, None))
         }
-        // 无Close的EOF可恢复；其余协议/UTF-8错误不是临时网络损失。
+        // EOF without Close is recoverable; other protocol/UTF-8 errors are not transient network loss.
         Err(error) => Err(Error::from_socket(error)),
         Ok(_) => Err(Error::Message),
     }

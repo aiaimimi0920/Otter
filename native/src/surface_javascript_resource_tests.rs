@@ -1,4 +1,4 @@
-//! 真 HTTPS/Device/资源租约→真实 JS child；不声明 Application/FIFO/真实 Loom 已接通。
+//! Real HTTPS/Device/resource leases -> real JS children; no claim that Application/FIFO/real Loom are connected.
 use super::*;
 use crate::{
     device_authorization_lease::Grant,
@@ -132,7 +132,7 @@ fn javascript_authenticated_source_projects_to_hwnd_rebinds_updates_and_reaps() 
     let ready = job.try_join().unwrap().unwrap();
     peer.join().unwrap();
     let mut runtime = ready.transfer(&destination, &mount).unwrap();
-    drop(job); // 成功 join 的任务释放不能撤销已移交的运行时。
+    drop(job); // Releasing successfully joined tasks must not revoke the transferred runtime.
     let probe = runtime.probe();
     let frame = runtime.take_initial(&mount).unwrap();
     let target = frame.scene.root().children()[1].id().to_owned();

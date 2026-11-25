@@ -1,4 +1,4 @@
-//! 字段提交准备与 click 前缀截止；不拥有第二份队列，不执行发送或结算。
+//! Field-commit preparation and click-prefix cutoff; no second queue ownership, sending, or settlement.
 use super::*;
 impl Mount {
     pub fn prepare(
@@ -49,7 +49,7 @@ impl Mount {
                     "Keyboard input requires JavaScript owner",
                 ));
             };
-            // 无 handler 的前缀也可能被本次循环耗尽；不得越过 click 的封存边沿。
+            // This loop may also exhaust prefixes without handlers; never cross click's sealed edge.
             if let Some(fence) = until {
                 match self.intents.state(fence) {
                     FenceState::Ready | FenceState::InFlight => return Ok(Vec::new()),

@@ -1,10 +1,10 @@
-//! 应用决定任务集合：与点击任务共用容量/退出泵，完成证据保留至显式交付。
+//! Decision-application task collection shares click-task capacity/exit pumps; completion evidence persists until explicit delivery.
 use super::*;
 use crate::surface_decision_runtime::{
     Error as DecisionError, Input, Job as DecisionJob, StartError,
 };
 pub enum ConfirmationAction {
-    /// 取消或 UI 准备失败必须完整返还原收据，不能按通知直接丢弃。
+    /// Cancellation or UI preparation failure must return the entire original receipt, not discard it based on notification.
     Keep(crate::desktop::surface_authorized_window::EventReceipt),
     Start(Config, Lease, Input),
 }
@@ -12,7 +12,7 @@ impl Sessions {
     pub fn pending_surface_confirmation(&self, origin: &str, now_ms: u64) -> Option<&str> {
         self.pending_surface_confirmation_for(origin, now_ms, |_| true)
     }
-    /// 应用在同一次选择中复核窗口；无可用 HWND 的旧收据不能挡住其他附件。
+    /// The application revalidates windows during the same selection; old receipts without usable HWNDs must not block other attachments.
     pub fn pending_surface_confirmation_for(
         &self,
         origin: &str,
@@ -28,7 +28,7 @@ impl Sessions {
             })
             .map(|receipt| receipt.event.id())
     }
-    /// 只处理明确选中的事件；不轮询弹窗、不自动决定。调用方不能在回调中遗失证据。
+    /// Process only explicitly selected events; no popup polling or automatic decisions. Callers must not lose evidence inside callbacks.
     pub fn dispatch_surface_confirmation(
         &mut self,
         event_id: &str,
@@ -54,7 +54,7 @@ impl Sessions {
         if self.occupied() >= MAX_SESSIONS {
             return Err(io::ErrorKind::WouldBlock.into());
         }
-        // 在 UI 消费提示和窗口移交 owner 之前保证失败结果有存放空间。
+        // Ensure failure-result storage before the UI consumes prompts and windows transfer owners.
         self.event_outcomes
             .try_reserve(self.event_jobs.len() + self.decision_jobs.len() + 1)
             .map_err(io::Error::other)?;
@@ -68,7 +68,7 @@ impl Sessions {
                 match self.start_surface_decision(config, lease, input) {
                     Ok(()) => Ok(true),
                     Err(failure) => {
-                        // 不重发决定；主循环与退出泵负责将 owner 和证据结算回窗口。
+                        // Do not resend decisions; main/exit pumps settle owners and evidence back into windows.
                         self.event_outcomes.push(
                             crate::surface_decision_runtime::Outcome {
                                 input: *failure.input,
@@ -108,7 +108,7 @@ impl Sessions {
                 error,
             });
         }
-        // 完成前预留缓存，不能在释放线程槽位后因分配失败丢失决定和 owner。
+        // Reserve caches before completion; allocation failure after releasing thread slots must not lose decisions or owners.
         if let Err(error) = self
             .event_outcomes
             .try_reserve(self.decision_jobs.len() + self.event_jobs.len() + 1)

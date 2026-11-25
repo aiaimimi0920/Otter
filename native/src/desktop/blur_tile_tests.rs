@@ -1,4 +1,4 @@
-//! 实际 WIC 目标对照整图绘制，覆盖块接缝、分数缩放和有界可见上传。
+//! Compare real WIC targets with whole-image drawing, covering tile seams, fractional zoom, and bounded visible uploads.
 use super::*;
 use crate::viewport::Point;
 use windows::{
@@ -94,8 +94,8 @@ fn tiled_blur_matches_full_bitmap_across_seams_and_reuses_visible_tiles() {
             (1.0, -450.0, 17.0, false),
             (0.75, -20.0, 0.0, true),
         ] {
-            // 非旋转使用高频对抗纹理；旋转对照真实高斯输出，包含透明边界。
-            // D2D 对旋转高频四边形的子像素采样随四边形分割有差异，不宣称任意原图逐字节等价。
+            // Use high-frequency adversarial textures without rotation; rotated cases compare real Gaussian output, including transparent boundaries.
+            // D2D subpixel sampling of rotated high-frequency quads varies with tessellation; do not claim byte-for-byte equivalence for arbitrary originals.
             let image = if angle == 0.0 { &image } else { &blurred };
             let mapped_image = mapped.then(|| {
                 image
@@ -182,8 +182,8 @@ fn tiled_blur_matches_full_bitmap_across_seams_and_reuses_visible_tiles() {
                         < 1.0 / scale
                         || source_y.abs().min((source_y - image.height() as f32).abs())
                             < 1.0 / scale;
-                    // 旋转后的外轮廓由不同四边形光栅化，允许一个屏幕像素带内的覆盖率量化差；
-                    // 内部块接缝和其他所有像素仍必须满足单量化级误差。
+                    // Different quads rasterize the rotated outer contour; allow coverage-quantization differences within a one-screen-pixel band;
+                    // internal tile seams and every other pixel must still stay within one quantization level.
                     let tolerance = if angle != 0.0 && outer_edge { 16 } else { 1 };
                     assert!(
                         a.abs_diff(*b) <= tolerance,
@@ -192,7 +192,7 @@ fn tiled_blur_matches_full_bitmap_across_seams_and_reuses_visible_tiles() {
                 }
             }
         }
-        // 固定网格在不同足迹桶中分别复用；缩小时增加邻域，不能复用过窄的上传区。
+        // Reuse the fixed grid separately within each footprint bucket; downscaling expands neighborhoods and cannot reuse overly narrow uploads.
         assert_eq!(cache.blur_uploads, 11);
         let previous = cache.blur_uploads;
         for rect in [

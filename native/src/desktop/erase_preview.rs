@@ -1,4 +1,4 @@
-//! 实时擦除只改变栅格合成遮罩；不生成 PNG，不重算模糊，不触碰矢量标注。
+//! Live erasure changes only raster-composition masks; no PNG generation, blur recomputation, or vector-annotation changes.
 use crate::{erase_job::Request, viewport::Viewport};
 use std::sync::Arc;
 use windows::{
@@ -37,7 +37,7 @@ impl Cache {
             viewport,
             bounds: [bounds.left, bounds.top, bounds.right, bounds.bottom],
         };
-        // 宿主在同一身份下只追加点；新手势必须分配新身份，不能原地改写旧路径。
+        // Hosts only append points under the same identity; new gestures need new identities and must not rewrite old paths in place.
         if let Some((identity, stored, geometry)) = &self.entry {
             if Arc::ptr_eq(identity, &request.preview_identity) && *stored == key {
                 return Ok(geometry.clone());

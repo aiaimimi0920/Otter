@@ -1,4 +1,4 @@
-"""固定上游 GN 的唯一 Clang/D3D11 静态 CRT profile；不裁剪应用 JS/Shader 合同。"""
+"""The sole Clang/D3D11 static-CRT profile for pinned upstream GN; do not trim application JS/Shader contracts."""
 
 import hashlib
 import json
@@ -13,7 +13,7 @@ ANCHORS = {
 
 
 def gn_string(value):
-    # 路径已由配置边界校验；GN 的 $ 仍需拒绝，不能把 JSON 引号当作 GN 求值隔离。
+    # Configuration boundaries already validate paths, but GN's $ must still be rejected; JSON quoting is not GN evaluation isolation.
     if "$" in value:
         raise ValueError("GN interpolation is not admitted")
     return json.dumps(value.replace("\\", "/"), ensure_ascii=False)
@@ -32,7 +32,7 @@ def profile_files(originals, config, python):
     text = originals[path].decode("utf-8")
     start = text.index('if (visual_studio_path == "") {')
     end = text.index("visual_studio_version_logs =", start)
-    # 显式根和 marker 拒绝发现/外部运行库目录；不伪造 WDK。
+    # Explicit roots and markers reject discovery/external runtime-library directories; never fabricate WDK.
     replacement = f'''# Otter explicit desktop profile; never discover VS/SDK or invent a WDK.
 assert(visual_studio_path == {gn_string(config['visualStudioRoot'])})
 assert(visual_studio_version == "2022")
@@ -47,7 +47,7 @@ visual_studio_runtime_dirs = "otter-no-runtime-dirs"
     text = originals[path].decode("utf-8")
     start = text.index("# Copy the VS runtime DLL")
     end = text.index('if (target_cpu == "x86"', start)
-    # 仅此 /MT、无符号、非 component profile 无需 CRT/debugger/DIA staging。
+    # Only this /MT, symbol-free, non-component profile needs no CRT/debugger/DIA staging.
     replacement = '''# Otter static-CRT profile; no runtime/debugger/DIA DLL staging.
 assert(!is_debug && !is_component_build && symbol_level == 0)
 assert(target_cpu == "x64" && target_os == "win")

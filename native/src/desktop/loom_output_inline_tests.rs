@@ -1,4 +1,4 @@
-//! 真实 WIC PNG 编解码回环及正式输出校验，不发布图片或访问用户资源。
+//! Real WIC PNG codec round-trips and official-output validation, without image publication/user-resource access.
 use super::*;
 use crate::{editor::Editor, loom_art_wire::Input};
 use serde_json::json;

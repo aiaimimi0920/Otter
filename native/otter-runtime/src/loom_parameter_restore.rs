@@ -1,4 +1,4 @@
-//! 会话参数初始化：保留当前能力未声明的公共值，但不把它们变成可编辑声明或连线端口。
+//! Session-parameter initialization: retain public values undeclared by the current capability without turning them into editable declarations or connection ports.
 use super::*;
 impl Parameters {
     pub fn from_persisted(
@@ -12,7 +12,7 @@ impl Parameters {
             .map(|parameter| parameter.id)
             .collect();
         values.retain(|id, _| !crate::graph_params::internal(id) && !secret.contains(&id.as_str()));
-        // 先验证借用候选，再移入 owner；未知字段与声明字段共享同一字节/节点/条目预算。
+        // Validate borrowed candidates before moving them into the owner; unknown and declared fields share one byte/node/entry budget.
         validate(
             candidate
                 .values

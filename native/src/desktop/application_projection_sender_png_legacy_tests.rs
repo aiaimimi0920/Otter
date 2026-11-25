@@ -1,4 +1,4 @@
-//! legacy有效凭证必须来自真实恢复；菜单发送覆盖reset/undo及canonical保存再恢复。
+//! Valid legacy credentials must come from actual restoration; menu sending covers reset/undo and canonical save followed by restoration.
 use super::*;
 use crate::desktop::{session_binding::Bound, session_candidate};
 use serde_json::json;
@@ -23,7 +23,7 @@ pub(super) unsafe fn restore_canvas(app: &mut Application, bytes: Vec<u8>) {
     assert_eq!(restored.unit_id, app.documents[0].state.unit_id);
     let mut recovered = restored.canvas.borrow_mut();
     let mut canvas = app.documents[0].state.canvas.borrow_mut();
-    // 保留实际恢复所创建的Editor文档身份及其retained关联，不手工设置active标志。
+    // Preserve the Editor document identity and retained association created by actual restoration; do not manually set active flags.
     canvas.editor = std::mem::take(&mut recovered.editor);
     canvas.minified_source = recovered.minified_source.take();
     canvas.image = recovered.image.take();
@@ -71,7 +71,7 @@ pub(super) unsafe fn install(app: &mut Application, case: Case) -> Image {
         case,
         Case::NaturalLegacySaveReopen | Case::NaturalLegacyResetSaveReopen
     ) {
-        // 原Save/Checkpoint完成后只从已确认canonical读回；不把暂存候选当恢复凭证。
+        // After original Save/Checkpoint completion, read back only from confirmed canonical; staged candidates are not recovery credentials.
         settle(app);
         let saved = app
             .workspace_checkpoint

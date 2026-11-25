@@ -1,4 +1,4 @@
-//! 同步升级的原生产品只请求当前 v3；没有发现协商、旧路由探测或失败重放。
+//! The synchronously upgraded native product requests only current v3; no discovery negotiation, legacy-route probes, or failure replay.
 use super::*;
 fn encode(mut request: serde_json::Value) -> Result<Vec<u8>, Error> {
     request["protocolVersion"] = grant::package::visibility::PREPARE.into();

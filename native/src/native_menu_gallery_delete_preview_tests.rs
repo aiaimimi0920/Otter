@@ -1,4 +1,4 @@
-//! 删除确认前保留阅读帧，确认后复用 HWND；只使用合成条目和自有窗口。
+//! Retain reading frames until deletion confirmation and reuse HWND afterward; synthetic entries/owned windows only.
 use super::*;
 use crate::native_menu::panel::Preview;
 
@@ -41,13 +41,13 @@ fn corner_deletion_keeps_preview_through_pending_and_refresh_until_empty() {
         menu.event(1, Event::Up(x, y)).unwrap();
         assert_eq!(menu.take_delete(), Some(200 + first));
         assert_preview(&menu, window, bounds, &format!("preview-{first}"));
-        // 后台尚未确认时保留原画面；抬起不能重放删除。
+        // Keep original imagery until background confirmation; release cannot replay deletion.
         menu.event(1, Event::Up(x, y)).unwrap();
         assert!(menu.take_delete().is_none());
         if first < 2 {
             menu.replace_gallery(0, entries(first + 1, 3)).unwrap();
             assert_preview(&menu, window, bounds, &format!("preview-{}", first + 1));
-            // 同一位置的后续 hover 不能再次创建或重绘已经更新的预览。
+            // Later hover at the same position must not recreate/redraw already-updated previews.
             unsafe { UpdateWindow(window).ok().unwrap() };
             menu.event(1, Event::Move(x, y)).unwrap();
             assert!(!unsafe { GetUpdateRect(window, None, false) }.as_bool());

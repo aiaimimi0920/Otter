@@ -1,4 +1,4 @@
-//! 主干 Art VIEW 声明的只读投影；呈现元数据不是包证明或执行授权。
+//! Read-only projection of baseline Art VIEW declarations; presentation metadata is neither package evidence nor execution authorization.
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use std::collections::HashSet;
@@ -38,13 +38,13 @@ pub struct View<'a> {
     pub height: u32,
 }
 
-/// 借用已接纳的目录，不复制 metadata；调用者仍须保有目录/来源身份租约。
+/// Borrow admitted catalogs without metadata copies; callers must still retain catalog/provenance identity leases.
 pub struct Views<'a> {
     entries: Vec<View<'a>>,
     default: Option<&'a str>,
 }
 
-// 与 ECMAScript String.trim 一致；Rust trim 会遗漏 FEFF，却额外去掉 0085。
+// Match ECMAScript String.trim; Rust trim omits FEFF but additionally removes 0085.
 fn whitespace(value: char) -> bool {
     matches!(value, '\u{0009}'..='\u{000d}' | '\u{0020}' | '\u{00a0}' | '\u{1680}'
         | '\u{2000}'..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}'
@@ -53,7 +53,7 @@ fn whitespace(value: char) -> bool {
 
 fn dimension(value: &Value) -> Option<u32> {
     let number = value.as_f64()?;
-    // JSON 的 100 和 100.0 都是主干接受的整数；不四舍五入无效的尺寸。
+    // JSON 100 and 100.0 are both integers accepted by the baseline; never round invalid dimensions.
     ((1.0..=16384.0).contains(&number) && number.fract() == 0.0).then_some(number as u32)
 }
 
@@ -74,7 +74,7 @@ fn view(value: &Value) -> Option<View<'_>> {
 
 impl<'a> Views<'a> {
     pub fn from_manifest(surface: Option<&'a Value>) -> Self {
-        // 上游目录有整体字节预算；这里线性过滤并保留首个有效同 ID 声明。
+        // Upstream catalogs have an overall byte budget; filter linearly here, retaining the first valid declaration for each ID.
         let mut seen = HashSet::new();
         let entries = surface
             .and_then(|value| value.get("views"))

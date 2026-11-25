@@ -1,4 +1,4 @@
-//! 保存准备结果继续持有 UI Receipt；临时文件写完后、最终提交前再次核对。
+//! Prepared save results retain the UI Receipt; recheck after the temporary file is written and before final commit.
 use super::*;
 #[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 use crate::session_file_write::Staged;
@@ -24,7 +24,7 @@ impl Prepared {
     unsafe fn current(&self, app: &Application, staged: &Staged) -> bool {
         staged.is_for(&self.candidate) && self.receipt.matches(app)
     }
-    /// UI 线程不得在校验与 rename 之间泵消息；成功后同步交换基线，失败不改旧记录。
+    /// The UI thread must not pump messages between validation and rename; swap the baseline synchronously on success and preserve the old record on failure.
     #[cfg(any(test, debug_assertions, feature = "smoke-test"))]
     pub(super) unsafe fn commit_new(
         self,
@@ -97,7 +97,7 @@ impl Prepared {
             app.workspace_autosave.disable();
         }
         record.original = source;
-        // 仅沿已提交候选推进只读关联身份；手动文件不授默认Checkpoint的协作ack资格。
+        // Advance read-only association identity only through committed candidates; manual files do not grant the collaboration ack eligibility of the default Checkpoint.
         record.restored_projections = self.checkpoint_projections;
         record.disk_original = None;
         record.saved_path = Some(published.destination.clone());
@@ -203,7 +203,7 @@ pub(super) unsafe fn verify(
     Ok(())
 }
 
-/// 实际走提交失败分支，而不只测试 current；目标仅为上方生成的独占路径。
+/// Exercise the actual commit-failure branch, not just current; the target is only the exclusive path generated above.
 #[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 unsafe fn verify_failed_commits(
     app: &mut Application,

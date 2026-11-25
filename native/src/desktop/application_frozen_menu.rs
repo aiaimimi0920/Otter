@@ -1,4 +1,4 @@
-//! 菜单请求在窗口回调返回后交付到已有单任务追加协调器；再次验证请求窗口和来源。
+//! Deliver menu requests to the existing single-task append coordinator after window callbacks return; revalidate the requesting window and source.
 use super::*;
 #[path = "application_recycle_maintenance.rs"]
 pub(super) mod maintenance;

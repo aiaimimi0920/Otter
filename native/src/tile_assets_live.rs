@@ -1,4 +1,4 @@
-//! 图片与最多四个Wall流沿原Assets线程；Art独立有界HTTP，只有完整且身份仍当前的画布才发布。
+//! Images and at most four Wall streams use the original Assets thread; Art has independent bounded HTTP, publishing only complete canvases whose identity is still current.
 use super::*;
 use crate::{
     image_decode::Image,
@@ -47,7 +47,7 @@ pub(crate) fn phase(s: &crate::tile_shared::State, job: &Job) -> Phase {
 pub(crate) fn current(shared: &Shared, job: &Job) -> bool {
     phase(&shared.lock(), job) == Phase::Active
 }
-// 取消与完成都在同一代际围栏之后解释；冻结不把HTTP/Live取消升级为view退休。
+// Interpret cancellation and completion after the same generation fence; freeze does not upgrade HTTP/Live cancellation into view retirement.
 fn after_poll(
     shared: &Shared,
     job: &Job,
@@ -145,7 +145,7 @@ pub(super) fn run(
     let empty_arts = BTreeMap::new();
     loop {
         if phase(&shared.lock(), job) == Phase::Held {
-            // Freeze只保实际呈现帧和view，不轮询Art/图片、不保Tile媒体连接；不取消源已接受动作。
+            // Freeze preserves only the actually presented frame and view, without Art/image polling or Tile media connections; it does not cancel source-accepted actions.
             connections.streams.clear();
             connections
                 .interrupts

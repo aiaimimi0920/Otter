@@ -1,4 +1,4 @@
-//! 选择结果与请求准入的回归；只建自有隐藏HWND，不打开系统模态或读取文件。
+//! Selection-result/request-admission regressions; owned hidden HWNDs only, without system modals or file reads.
 use super::*;
 
 struct Fixture {

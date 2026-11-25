@@ -1,4 +1,4 @@
-//! 同步 MFT 的 sample 边界；所有输出事件及失败 sample 均在本次调用内释放。
+//! Sample boundaries for synchronous MFTs; release all output events and failed samples within this call.
 use std::mem::ManuallyDrop;
 use windows::{
     core::{Error, Result},
@@ -64,7 +64,7 @@ pub(super) fn receive_bounded(transform: &IMFTransform, maximum: u32) -> Result<
         };
         let mut status = 0;
         let result = transform.ProcessOutput(0, std::slice::from_mut(&mut buffer), &mut status);
-        // 在匹配 HRESULT 前取回所有 COM 所有权，包含 NEED_MORE_INPUT/STREAM_CHANGE 分支。
+        // Reclaim all COM ownership before matching HRESULT, including the NEED_MORE_INPUT/STREAM_CHANGE branches.
         drop(ManuallyDrop::take(&mut buffer.pEvents));
         let sample = ManuallyDrop::take(&mut buffer.pSample);
         match result {

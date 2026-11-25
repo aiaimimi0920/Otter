@@ -1,4 +1,4 @@
-//! 应用拥有输入准备任务，最多两槽；未领取结果也占槽，关闭只取消而不阻塞 UI。
+//! Application-owned input-preparation tasks, at most two slots; uncollected results still occupy slots, and closure cancels without blocking UI.
 use super::{
     loom_execution_signal::Notify,
     loom_input_job::{self, Job, PreparedBatch, Source},
@@ -90,7 +90,7 @@ impl Tasks {
         }
     }
     pub(super) fn deadline(&self) -> Option<std::time::Instant> {
-        // 退休任务仍占槽，收到最后的通知后也必须回收。
+        // Retired tasks still occupy slots and must be reclaimed even after the final notification.
         self.entries
             .iter()
             .filter_map(|task| task.job.deadline())
@@ -103,14 +103,14 @@ impl Tasks {
             }
         }
     }
-    /// 只丢弃已经 join 的退休结果；仍在取消/编码中的 owner 保留，不在 UI 上等待。
+    /// Discard only already-joined retired results; retain owners still cancelling/encoding, without UI waits.
     pub fn discard_retired(&mut self) -> usize {
         let before = self.entries.len();
         self.entries
             .retain(|task| !(task.retired && task.result.is_some()));
         before - self.entries.len()
     }
-    /// 领取后仍须核验配置 ticket 和 PreparedBatch 的全部文档凭证。
+    /// After collection still validate configuration tickets and every PreparedBatch document evidence item.
     pub fn take_completed(&mut self) -> Option<Report> {
         self.take_matching(|_, _| true)
     }

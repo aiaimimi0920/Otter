@@ -1,4 +1,4 @@
-//! 显式受管图片目录的直接子文件准入；固定目录句柄，文件按最终句柄路径再次核验。
+//! Admit direct child files of an explicit managed-image directory; pin the directory handle and revalidate each file's final handle path.
 #[path = "session_asset_archive.rs"]
 pub mod archive;
 #[path = "session_asset_publish.rs"]
@@ -26,7 +26,7 @@ pub struct Root {
     resolved: PathBuf,
 }
 impl Root {
-    /// root 必须由应用配置/明确选择提供，不能从待恢复会话自身推导授权目录。
+    /// root must come from application configuration/explicit selection; never derive the authorized directory from the session being restored.
     pub fn open(root: &Path) -> Result<Self> {
         let requested = normalize(root.to_str().ok_or_else(denied)?)?;
         let directory = OpenOptions::new()
@@ -56,7 +56,7 @@ impl Root {
         if !valid_name(name) {
             return Err(denied());
         }
-        // 从固定的实际目录路径打开，仅共享读；禁止跟随最终文件的重解析点。
+        // Open from the fixed actual directory path with read sharing only; do not follow reparse points on the final file.
         let file = OpenOptions::new()
             .read(true)
             .share_mode(FILE_SHARE_READ.0)
@@ -86,7 +86,7 @@ fn denied() -> Error {
     )
 }
 fn io_error(error: std::io::Error) -> Error {
-    // 保留系统错误身份，使发布 owner 能区分短暂共享冲突与永久拒绝；不解析本地化消息。
+    // Preserve system error identity so the publication owner distinguishes transient sharing conflicts from permanent rejection; do not parse localized messages.
     let code = error.raw_os_error().map_or(E_FAIL, |code| {
         windows::core::HRESULT::from_win32(code as u32)
     });

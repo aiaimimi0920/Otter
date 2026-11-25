@@ -1,4 +1,4 @@
-//! 真正 Surface 挂载→子 HWND→父通知→共享 FIFO→wire；不直接调用 notify 绕过消息链。
+//! Actual Surface mount -> child HWND -> parent notification -> shared FIFO -> wire; no direct notify bypass of the message chain.
 use super::*;
 #[path = "surface_slider_bubble_tests.rs"]
 mod bubble;

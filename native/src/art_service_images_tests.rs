@@ -1,4 +1,4 @@
-//! 当前安装图→真实signed child→TLS新请求→原JSON结果；预期PNG来自独立png库。
+//! Currently installed image -> real signed child -> new TLS request -> original JSON result; expected PNG comes from the independent png library.
 use super::*;
 use crate::surface_javascript::{fixture as js, signed::runtime::Content};
 const IMAGE_SERVICE: &str = r#"
@@ -23,7 +23,7 @@ fn art_service_images_signed_child_transfers_exact_original_png_and_polls_origin
     let _serial = js::SERIAL.lock().unwrap();
     let mut installed = image();
     let mut png = installed.png.to_vec();
-    // 保留独立2x2有效PNG，合法IEND后尾部让正文越过普通1MiB门；WIC仍须实际解码成功。
+    // Keep an independent valid 2x2 PNG; bytes after valid IEND push the body over the ordinary 1MiB gate, and WIC must still actually decode it.
     png.resize(1024 * 1024 + 1, 0);
     installed.png = png.into();
     let expected = installed.png.clone();

@@ -1,4 +1,4 @@
-//! 部分恢复不重放位置/可见性，不要求仍有 B 控制资格，不触碰另一显示实例。
+//! Partial restoration does not replay position/visibility, require continued B control eligibility, or touch another display instance.
 use super::*;
 use fixture::{settle, Fixture};
 #[test]
@@ -40,7 +40,7 @@ fn no_borrow_or_new_display_instance_cannot_restore_an_unrelated_topmost_value()
     let f = Fixture::new();
     let first = f.show();
     let bound = Binding::bind(&f.record(first)).unwrap();
-    // 尚未完成接管的记录不能撤回源应用本身的值。
+    // Records whose takeover is incomplete must not revoke the source application's own value.
     f.popup.set_topmost(true);
     settle(|| bound.restore_or_retire());
     assert!(f.topmost());
@@ -113,7 +113,7 @@ fn helper_drains_bounded_own_completion_notices_without_consuming_source_message
     unsafe {
         let id = otter_live_hover_hook::native_layer_dispatch::message_id();
         let mut message = MSG::default();
-        // 仅移除源请求，保留 hook 真实 FINISHED 所投递的完成通知供下方验证。
+        // Remove only source requests; retain completion notifications posted by the hook's real FINISHED for verification below.
         assert!(PeekMessageW(&mut message, Some(f.popup.0), id, id, PM_REMOVE).as_bool());
         recovery.acquire().unwrap();
         assert!(f.topmost());

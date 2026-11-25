@@ -1,4 +1,4 @@
-//! 共享命名设置编辑；模态期间不持有设置借用，校验后整体应用，失败保留旧配置。
+//! Shared naming-settings editing; no settings borrow during modals, apply complete validated configurations, and preserve old settings on failure.
 use super::State;
 use crate::file_naming_settings::Settings;
 #[path = "naming_dialog.rs"]
@@ -66,7 +66,7 @@ pub(super) unsafe fn verify(
             "Cancelled naming input changed settings",
         ));
     }
-    // 模态期间的新设置不能被旧草稿覆盖；回调执行时不持有 RefCell 借用。
+    // New settings during modals must not be overwritten by old drafts; callbacks hold no RefCell borrow.
     let stale = edit_with(first.window.0, &first.state, |draft| {
         first.state.naming.borrow_mut().title_max_length = 17;
         Some(draft)

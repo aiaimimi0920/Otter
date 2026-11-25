@@ -1,4 +1,4 @@
-//! UI 到输入 worker 的原来源快照；只传保活 Target/数值，不重绑定当前显示或 unsafe Send HWND。
+//! Original-source snapshot from UI to input worker; transfer only kept-alive Targets/values, without rebinding current displays or unsafe Send HWNDs.
 use super::*;
 
 pub enum Transfer {
@@ -54,7 +54,7 @@ impl Scope {
             },
         }
     }
-    /// 仅供原 held/hover/modal 收尾；B/控制 epoch 撤销不抹去责任，新显示实例不能接收旧清理。
+    /// Only for original held/hover/modal cleanup; B/control-epoch revocation does not erase responsibility, and new display instances must not receive old cleanup.
     pub fn cleanup_target(&self) -> Result<Target> {
         match self {
             Self::Owned(scope) => scope.target(),
@@ -109,8 +109,8 @@ impl Transfer {
                 instance,
                 descendant,
             } => {
-                // Scope::bind 已保证这四个 lease 字段与原 Target/Identity 一致。
-                // 这里还原旧快照，不读取当前 Lease、更不重新授予新显示实例。
+                // Scope::bind already guarantees these four lease fields match the original Target/Identity.
+                // Restore the old snapshot here without reading the current Lease, much less granting it anew to a new display instance.
                 let lease = otter_live_hover_hook::native_popup::Lease {
                     popup: anchor.hwnd(),
                     root: root.hwnd(),

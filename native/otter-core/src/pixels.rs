@@ -1,4 +1,4 @@
-//! 共享像素与预算租约位于同一个 Arc 内，缓存或导出克隆不能提前释放预算。
+//! Shared pixels/budget leases share one Arc; cache/export clones cannot release budgets prematurely.
 use crate::byte_budget::{Budget, Lease};
 use std::{
     ops::Deref,
@@ -30,7 +30,7 @@ impl Pixels {
             _lease: lease,
         }))
     }
-    // 长寿命小预览不应因共享而保留带大量剩余容量的工作缓冲。
+    // Long-lived small previews must not retain working buffers with large unused capacities through sharing.
     pub fn is_compact(&self) -> bool {
         self.0.bytes.capacity() == self.0.bytes.len()
     }

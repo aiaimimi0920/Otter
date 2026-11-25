@@ -1,4 +1,4 @@
-//! 原生取消菜单只捕获请求身份并唤醒应用，不在 Win32 回调内等待后台清理。
+//! Native Cancel menus only capture request identity and wake the application, without waiting for background cleanup in Win32 callbacks.
 use super::State;
 use crate::{graph_requests, workspace_id::UnitId};
 use windows::{
@@ -25,7 +25,7 @@ fn snapshot(state: &State) -> Request {
             .or_else(|| state.execution_results.borrow().active().cloned()),
     }
 }
-/// 显式停止包含排队请求；参数编辑退休旧执行时仍使用 request，不能删除新请求。
+/// Explicit stop includes queued requests; parameter-edit retirement still uses request and must not delete new requests.
 pub(super) unsafe fn stop(hwnd: HWND, state: &State) -> Result<()> {
     if !IsWindow(Some(hwnd)).as_bool() {
         return Err(windows::core::Error::from_win32());

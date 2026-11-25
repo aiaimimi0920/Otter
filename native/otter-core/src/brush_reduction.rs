@@ -1,4 +1,4 @@
-//! 固定 128 段窗口的迭代 RDP；窗口锚定笔迹起点，追加尾部不重分割已完成窗口。
+//! Iterative RDP with fixed 128-segment windows anchored at stroke start; appending tails never repartitions completed windows.
 use crate::{paintbrush_samples::Disk, viewport::Point};
 const WINDOW: usize = 129;
 const EMPTY: Disk = Disk {

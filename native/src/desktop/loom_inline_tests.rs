@@ -1,4 +1,4 @@
-//! 真实 WIC 合成/编解码链；夹具只在内存中，不访问用户剪贴板、文件或网络。
+//! Real WIC composition/codec chain; in-memory fixtures only, without user clipboard, files, or network.
 use super::*;
 use crate::{crop_geometry::Rect, erase_layers::Layers};
 fn decode_base64(text: &str) -> Vec<u8> {

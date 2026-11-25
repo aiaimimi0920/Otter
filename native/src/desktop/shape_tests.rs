@@ -1,4 +1,4 @@
-//! 原生形状像素回归：填充、边框、圆角及整组透明度。
+//! Native-shape pixel regressions: fill, border, rounded corners, and whole-group opacity.
 use super::*;
 use crate::{
     editor::Tool,

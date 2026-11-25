@@ -1,4 +1,4 @@
-//! Live 时间点检查点：真实 WARP 帧、磁盘与隐藏恢复，不捕获用户桌面或重连权限。
+//! Live point-in-time checkpoints: real WARP frames, disk, and hidden restoration, without capturing the user's desktop or restoring reconnect permission.
 use super::*;
 use crate::desktop::workspace_profile::Profile;
 use std::path::PathBuf;
@@ -23,7 +23,7 @@ impl Directory {
             windows::Win32::System::Com::CoCreateGuid().unwrap()
         }));
         std::fs::create_dir(&path).unwrap();
-        Self(path) // 保留隔离文件作为失败/成功证据，不递归清理。
+        Self(path) // Retain isolated files as failure/success evidence; do not clean up recursively.
     }
     fn path(&self) -> PathBuf {
         self.0.join("workspace.json")

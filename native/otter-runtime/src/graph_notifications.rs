@@ -1,10 +1,10 @@
-//! 正式结果通知穿过可用图片中继，到下一个 Art 为止；不更新显示、不执行节点。
+//! Formal-result notifications pass through available image relays to the next Art; no display updates or node execution.
 use super::*;
 impl<'a> Graph<'a> {
     pub fn notification_targets(&self, source: &UnitId) -> Result<Vec<&'a UnitId>, Error> {
         self.notification_targets_with(source, |_| true)
     }
-    /// 通知策略只限制向外传播；不改变图片解析、显示刷新或端口连通性。
+    /// Notification policy restricts outward propagation only; it does not change image resolution, display refresh, or port connectivity.
     pub fn notification_targets_with(
         &self,
         source: &UnitId,

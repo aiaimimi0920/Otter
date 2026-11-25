@@ -1,4 +1,4 @@
-//! 自有嵌套消息泵：按钮各阶段准入、正常松开及 held 取消必须恰好投递一次。
+//! Owned nested message pump: admission at every button phase, normal release, and held cancellation must each deliver exactly once.
 use super::*;
 
 #[test]

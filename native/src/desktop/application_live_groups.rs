@@ -1,4 +1,4 @@
-//! Live 分组选择由应用循环发布；只接受当前工作区及菜单打开时的完整分组快照。
+//! Publish Live group selections in the application loop; accept only the current workspace and complete group snapshot captured when the menu opened.
 use super::*;
 #[path = "application_live_group_name.rs"]
 mod name;

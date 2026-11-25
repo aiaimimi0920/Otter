@@ -1,4 +1,4 @@
-//! 真实菜单命令→退休计时器→CPU 首帧；失败/重入不能借手动操作清除关联门禁。
+//! Real menu command to retirement timer to first CPU frame; failure/reentrancy must not use manual actions to clear association gates.
 use super::*;
 use crate::desktop::{context_menu, render_commands};
 use windows::{
@@ -36,7 +36,7 @@ fn busy_shape_dialog_rejects_without_menu_finish_invalidation() {
         use windows::Win32::Graphics::Gdi::{GetUpdateRect, ValidateRect};
         let guard = crate::desktop::file_dialog::Guard::begin(&state.file_dialog).unwrap();
         let stamp = state.canvas.borrow().editor.document_stamp();
-        // 两个既有自定义形状命令；不得弹窗或进入 menu_transition::finish。
+        // Two existing custom-shape commands; neither may open dialogs or enter menu_transition::finish.
         for command in [0x101C, 0x101D] {
             assert!(ValidateRect(Some(hwnd), None).as_bool());
             assert!(!GetUpdateRect(hwnd, None, false).as_bool());
@@ -72,7 +72,7 @@ fn manual_cpu_menu_retires_each_hardware_backend_and_preserves_document() {
             let stamp = state.canvas.borrow().editor.document_stamp();
             let before = state.canvas.borrow().confirmed_paints;
             *state.error.borrow_mut() = Some(Error::new(E_FAIL, "keep until successful CPU frame"));
-            state.group_locked.set(true); // 渲染维护不修改锁定文档。
+            state.group_locked.set(true); // Render maintenance must not modify locked documents.
             context_menu::execute(hwnd, state, render_commands::SOFTWARE).unwrap();
             assert!(state.error.borrow().is_some());
             assert!(stamp.matches(&state.canvas.borrow().editor));
@@ -161,7 +161,7 @@ fn manual_request_cannot_unlock_pending_failed_or_missing_gpu_retirement_owner()
                 .unwrap()
                 .identity
         ));
-        // 测试释放真实图预算；底层晚到完成仍不得解除窗口终态。
+        // The test releases the real graph budget; late underlying completion must not clear the window's terminal state.
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
         loop {
             let status = state
@@ -183,7 +183,7 @@ fn manual_request_cannot_unlock_pending_failed_or_missing_gpu_retirement_owner()
     });
     software_tests::fixture(|state, hwnd| unsafe {
         state.canvas.borrow_mut().software_renderer = false;
-        state.canvas.borrow_mut().suspend_render(); // 缺 owner 不是已确认完成的凭证。
+        state.canvas.borrow_mut().suspend_render(); // A missing owner is not evidence of confirmed completion.
         assert_render_rejected(hwnd, state);
         assert!(state.canvas.borrow().render_suspended());
     });
@@ -192,7 +192,7 @@ fn manual_request_cannot_unlock_pending_failed_or_missing_gpu_retirement_owner()
 #[test]
 fn explicitly_selected_cpu_without_a_target_can_retry_but_destroyed_host_cannot() {
     software_tests::fixture(|state, hwnd| unsafe {
-        state.canvas.borrow_mut().suspend_render(); // CPU 创建前失败，没有 GPU 图。
+        state.canvas.borrow_mut().suspend_render(); // Failure precedes CPU creation; no GPU graph exists.
         context_menu::execute(hwnd, state, render_commands::RETRY).unwrap();
         SendMessageW(hwnd, WM_PAINT, None, None);
         assert_eq!(state.canvas.borrow().confirmed_paints, 1);

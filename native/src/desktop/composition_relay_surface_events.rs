@@ -1,4 +1,4 @@
-//! 应用 Surface 事件任务集合：完成缓存仍占容量，拒收/取消不得丢失事件证据。
+//! Application Surface-event task collection; completion caches still consume capacity, and rejection/cancellation must preserve event evidence.
 use super::*;
 use crate::{
     desktop::surface_authorized_window::EventReceipt,
@@ -8,7 +8,7 @@ use crate::{
     },
     surface_lifecycle_owner::Owner,
 };
-// 收据独立于网络槽位，不能堵住附件停用；尚未持久化的动作最多保留 32 个。
+// Receipts are independent of network slots and must not block attachment deactivation; retain at most 32 unpersisted actions.
 pub(super) const MAX_EVENT_RECEIPTS: usize = 32;
 impl Sessions {
     pub(super) fn event_backlog(&self) -> usize {
@@ -40,7 +40,7 @@ impl Sessions {
                 error,
             });
         }
-        // 为所有在途任务的完成缓存预留空间，回收后不能因分配失败丢失 owner。
+        // Reserve completion-cache space for every in-flight task so allocation failure after reclamation cannot lose owners.
         if let Err(error) = self
             .event_outcomes
             .try_reserve(self.event_jobs.len() + self.decision_jobs.len() + 1)
@@ -59,13 +59,13 @@ impl Sessions {
         for job in &self.event_jobs {
             job.request_stop();
         }
-        // 已收割结果保留 ACK/失败，只撤销交付资格。
+        // Harvested results retain ACK/failure evidence; revoke only delivery eligibility.
         for outcome in &mut self.event_outcomes {
             outcome.delivery = Err(crate::device_authorization_lease::Error::Revoked);
         }
     }
     pub(super) fn poll_surface_events(&mut self) -> Vec<(String, surfaces::Error)> {
-        // 时钟失败采用失效时刻，绝不凭时间 0 延长授权；没有周期定时器。
+        // On clock failure use expiry time, never extending authorization with time 0; no periodic timer.
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .ok()
@@ -110,7 +110,7 @@ impl Sessions {
         }
         errors
     }
-    /// 返回 false 时原结果仍留在集合；旧附件的拒收结果不阻塞后面的匹配结果。
+    /// false leaves the original result in the collection; rejected results for old attachments must not block later matching results.
     pub fn deliver_surface_event(
         &mut self,
         mut deliver: impl FnMut(EventOutcome) -> Result<(), Box<EventOutcome>>,
@@ -127,7 +127,7 @@ impl Sessions {
     pub fn take_surface_event_outcome(&mut self) -> Option<EventOutcome> {
         self.event_outcomes.pop()
     }
-    /// 在调用窗口之前预留收据内存；拒收保留完整结果，不阻塞其他匹配事件。
+    /// Reserve receipt memory before calling windows; preserve complete rejected results without blocking other matching events.
     pub fn settle_surface_events(
         &mut self,
         mut deliver: impl FnMut(EventOutcome) -> Result<EventReceipt, Box<EventOutcome>>,
@@ -152,7 +152,7 @@ impl Sessions {
         }
         Ok(accepted)
     }
-    /// 显式转移证据所有权；调用方必须负责后续保存，不能按普通 UI 通知丢弃。
+    /// Explicitly transfer evidence ownership; callers must handle later persistence rather than discard it as ordinary UI notification.
     pub fn take_surface_event_receipt(&mut self) -> Option<EventReceipt> {
         self.event_receipts.pop()
     }

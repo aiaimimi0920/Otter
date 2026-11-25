@@ -1,4 +1,4 @@
-//! 模态截图等待界面；先设置捕获排除再启动 worker，取消保持泵消息直至后台资源释放。
+//! Modal capture waiting UI; set capture exclusion before starting workers, and keep pumping after cancellation until background resources are released.
 use crate::{
     capture_dynamic::{Mode, Outcome},
     capture_job::{CaptureJob, PreparedCapture},
@@ -41,10 +41,10 @@ impl<T> Input<T> {
         }
     }
 }
-/// 调用方负责单活动请求、隐藏原窗口及返回后的文档/窗口代次验证；本函数不发布截图。
+/// The caller ensures one active request, hides original windows, and revalidates document/window generations on return; this function publishes no screenshots.
 ///
 /// # Safety
-/// owner 必须属于调用线程且存活；在其 UI 线程调用，不得在调用期间销毁栈上的模态状态。
+/// owner must be live and belong to the calling thread; call on its UI thread and never destroy stack-allocated modal state during the call.
 pub unsafe fn show(
     owner: HWND,
     screen: RECT,
@@ -58,7 +58,7 @@ pub unsafe fn show(
     );
     run(owner, input)
 }
-/// 单次捕获及缓存目的地快照；不得在模态消息重入时读取可变设置。
+/// Snapshot one capture and cache destination; never read mutable settings during modal-message reentrancy.
 pub struct CachedRequest {
     pub screen: RECT,
     pub mode: Mode,
@@ -68,10 +68,10 @@ pub struct CachedRequest {
     pub stem: String,
     pub policy: crate::cache_policy::Policy,
 }
-/// 等待采集和原图编码，但不发布缓存文件；返回后调用方须复核 owner 再 commit。
+/// Wait for capture and original-image encoding without publishing cache files; callers must revalidate owner after return before commit.
 ///
 /// # Safety
-/// 与 show 相同：owner 属于当前 UI 线程且存活，模态状态不得在调用中被销毁。
+/// As with show: owner is live on the current UI thread, and modal state must not be destroyed during the call.
 pub unsafe fn show_cached(
     owner: HWND,
     request: CachedRequest,
@@ -108,7 +108,7 @@ unsafe fn run<T>(owner: HWND, input: Input<T>) -> Result<Option<T>, String> {
         Some(procedure::<T>),
         LPARAM(&input as *const _ as isize),
     );
-    // 对话框创建失败、外部销毁等路径仍由任务 owner 取消并 join。
+    // The task owner still cancels and joins on dialog-creation failure, external destruction, and similar paths.
     input.job.borrow_mut().take();
     if result == -1 {
         return Err(windows::core::Error::from_win32().to_string());
@@ -190,7 +190,7 @@ unsafe extern "system" fn procedure<T>(hwnd: HWND, message: u32, wp: WPARAM, lp:
                     return 1;
                 }
             }
-            // 可见等待框保留原计时器；普通区域截图直接等待原 worker 线程完成。
+            // Visible waiting dialogs retain their original timer; ordinary region captures wait directly for the original worker thread.
             if !input.quiet && SetTimer(Some(hwnd), TIMER, 25, None) == 0 {
                 finish(
                     hwnd,

@@ -1,4 +1,4 @@
-//! 接收意图与本地 Unit 的持久关联；本地元数据不是远端授权或 displayed 证明。
+//! Persistent association between receive intent/local Unit; local metadata is neither remote authorization nor displayed proof.
 use super::{accept::Verified, envelope, journal::Ticket, receive_route, Envelope, Error};
 use serde::{Deserialize, Serialize};
 
@@ -149,7 +149,7 @@ pub mod checkpoint;
 #[path = "projection_binding_source.rs"]
 mod source;
 
-/// 只保合同中的终态短码；不存服务端任意错误正文或凭证。
+/// Retain only contractual terminal short codes, never arbitrary server error bodies/credentials.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum StopReason {

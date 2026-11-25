@@ -1,4 +1,4 @@
-//! 与主干 DPAPI1/schema 2 兼容的 Windows 用户级密钥保护；不弹 UI、不降级明文。
+//! Windows user-level key protection compatible with mainline DPAPI1/schema 2; no UI or plaintext downgrade.
 use base64::{engine::general_purpose::STANDARD, Engine};
 use windows::{
     core::w,
@@ -21,7 +21,7 @@ struct LocalBlob(CRYPT_INTEGER_BLOB);
 impl Drop for LocalBlob {
     fn drop(&mut self) {
         if !self.0.pbData.is_null() {
-            // OS 分配的输出只由此 guard 释放；明文错误路径也清零。
+            // Only this guard frees OS-allocated output; plaintext is zeroized on error paths too.
             unsafe {
                 std::slice::from_raw_parts_mut(self.0.pbData, self.0.cbData as usize).zeroize();
                 let _ = LocalFree(Some(HLOCAL(self.0.pbData.cast())));

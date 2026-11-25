@@ -1,4 +1,4 @@
-//! UI 线程只共享权威像素及已提交编辑；retained source 必须先匹配活动 editor。
+//! UI shares only authoritative pixels and committed edits; retained source must first match the active editor.
 use super::*;
 use crate::desktop::canvas::minified_source::Origin;
 use crate::desktop::{canvas::Canvas, display_frame::Frame};
@@ -15,7 +15,7 @@ pub(in crate::desktop::application) struct Snapshot {
     pub source_logical: Option<crate::crop_geometry::Size>,
     rasterized_source: bool,
     pub natural_origin: Option<Origin>,
-    // 相对于实际选中的像素owner；不是canonical历史crop，也不重复翻转自然坐标。
+    // Relative to the actually selected pixel owner, not canonical historical crop; do not flip natural coordinates twice.
     pub legacy_pixels: Option<crate::crop_geometry::Rect>,
     pending_content: bool,
 }
@@ -46,7 +46,7 @@ impl Snapshot {
         if canvas.editor.draft().is_some() {
             return None;
         }
-        // export_snapshot 会创建新的文档身份，不能在那之后再验证 Source::matches。
+        // export_snapshot creates a new document identity; Source::matches must be checked before that.
         let Selected {
             image,
             logical: source_logical,
@@ -62,7 +62,7 @@ impl Snapshot {
             natural_origin,
             legacy_pixels,
             pending_content,
-            // resolved 的 editor 可能属于上游，只可证明底图，不能接管目标标注/裁剪。
+            // resolved's editor may belong upstream and can prove only the base image; it must not take ownership of target annotations/cropping.
             editor: canvas.editor.export_snapshot(),
             opacity: canvas.normal_opacity,
             kind,
@@ -98,8 +98,8 @@ impl Snapshot {
                     height: frame.height,
                 })
                 .or_else(|| {
-                    // 普通非恢复Editor没有logical_size，但活动底图仍给出完整逻辑框。
-                    // 不回退到可能尚未保存的canonical窗口尺寸，也不使用裁剪后的visible框。
+                    // Ordinary non-restored Editor has no logical_size, but its active base image still supplies the full logical frame.
+                    // Do not fall back to canonical window dimensions that may not yet be saved, or use the cropped visible frame.
                     self.editor
                         .layers()
                         .map(|layers| crate::crop_geometry::Size {
@@ -113,11 +113,11 @@ impl Snapshot {
                 record: origin.record.clone(),
                 unit: origin.unit.clone(),
             }),
-            // 恢复路径已物化flip；实时flip替换底图并使retained失效，不能重放canonical标志。
+            // Restoration already materialized flip; live flip replaces the base image and invalidates retained, so canonical flags must not be replayed.
             flip: (false, false),
             historical_erase: self.natural_origin.is_some(),
             content: self.pending_content,
-            // 旧式crop没有活动Editor凭证时不能从canonical复活；需独立恢复/重置合同。
+            // Legacy crop without active Editor credentials must not be revived from canonical; it needs a separate restoration/reset contract.
             legacy_crop: false,
             legacy_pixels: self.legacy_pixels,
         }
@@ -164,13 +164,13 @@ fn select(
     if let Some(frame) = frame.filter(|frame| frame.has_local_source()) {
         let source = documents
             .iter()
-            // DocumentWindow 由 UI 线程拥有；这里只查询现有 HWND，不分发消息。
+            // DocumentWindow is UI-thread-owned; query only existing HWNDs here, without dispatching messages.
             .find(|doc| frame.is_from(&doc.state.unit_id) && unsafe { doc.is_alive() })?;
         let upstream = source.state.canvas.borrow();
         return select_local(frame, &source.state.unit_id, &upstream);
     }
     let (image, editor) = if let Some(frame) = frame {
-        // resolved 像素/底图可能属于上游；目标 retained source 不能替换它。
+        // resolved pixels/base images may belong upstream; the target's retained source must not replace them.
         (&frame.image, frame.editor.as_deref())
     } else {
         if let Some(source) = canvas
@@ -192,7 +192,7 @@ fn select(
         }
         (canvas.image.as_ref()?, Some(&canvas.editor))
     };
-    // 底图擦除会替换 layers.base，但宿主 image 仍可能是旧图；不从宿主复活内容。
+    // Base-image erasure replaces layers.base while host image may remain old; never revive content from the host.
     let image = editor.and_then(Editor::layers).map_or_else(
         || image.clone(),
         |layers| Image {
@@ -223,8 +223,8 @@ fn select_local(
         .minified_source
         .as_ref()
         .filter(|source| source.matches(&upstream.editor));
-    // source_logical属于自然源，不属于目标框。渲染入口使用目标当前logical逐轴
-    // 归一化crop，再映回原sourceSize；目标非等比缩放不应丢弃原图密度凭证。
+    // source_logical belongs to the natural source, not the target frame. The rendering entry point uses current target logical dimensions to normalize crop per axis,
+    // then maps back to original sourceSize; nonuniform target resizing must preserve original-image density credentials.
     Some(Selected {
         image,
         logical: frame.natural_source_logical(unit, upstream),

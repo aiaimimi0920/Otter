@@ -1,4 +1,4 @@
-//! D2D只接收裁到纹理边界的有界源/目标框；空区域不回退成整图。
+//! D2D receives only bounded source/target rectangles clipped to texture boundaries; empty regions never fall back to the whole image.
 use super::*;
 
 pub(super) unsafe fn draw(

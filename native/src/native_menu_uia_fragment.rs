@@ -1,4 +1,4 @@
-//! UIA Fragment 导航和当前窗口几何；不保存外部节点或调用业务。
+//! UIA Fragment navigation/current-window geometry without retaining external nodes or invoking business actions.
 use super::*;
 use windows::Win32::{
     System::{Ole::*, Variant::VT_I4},
@@ -70,7 +70,7 @@ unsafe extern "system" fn navigate(
     if object.node.is_some() && direction == NavigateDirection_Parent {
         return output(root(object), out);
     }
-    // 弹出 HWND 仍使用自己的 host provider；只重设其逻辑父节点。
+    // Popup HWNDs still use their own host providers; only logical parents change.
     if object.node.is_none() && direction == NavigateDirection_Parent {
         if let Some((view, node)) = object.view.parent() {
             return match linked(view) {
@@ -247,7 +247,7 @@ unsafe extern "system" fn point(
     {
         return S_OK;
     }
-    // HWND 内坐标非负；取整保留整数像素半开区间的命中结果。
+    // HWND coordinates are nonnegative; rounding preserves integer-pixel half-open-interval hit results.
     match object.view.node_at_point(
         (x - bounds.left) as i32,
         (y - bounds.top) as i32,

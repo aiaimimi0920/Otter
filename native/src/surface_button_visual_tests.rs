@@ -1,4 +1,4 @@
-//! 状态色的真实 WIC 像素合同，覆盖禁用和显式样式优先级；共用现有资源还原断言。
+//! Real WIC pixel contracts for state colors, covering disabled state and explicit-style precedence; reuse existing resource-restoration assertions.
 use super::*;
 use crate::surface_button_visual::State;
 

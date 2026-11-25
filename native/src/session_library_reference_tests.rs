@@ -1,4 +1,4 @@
-//! 收藏同源替换/取消、原文字段保真和失败原子性，不借助 HWND 或磁盘。
+//! Same-source favorites replacement/removal, source-field fidelity, and failure atomicity, without HWNDs or disk.
 use super::*;
 use std::sync::atomic::AtomicBool;
 const ORIGINAL: &[u8] = br#"{"documentSchemaVersion":1,"documentRevision":7,"stickers":[],"links":[],"extension":{"huge":123456789012345678901234567890},"recycleBin":42}"#;
@@ -79,7 +79,7 @@ fn freezes_current_snapshot_preserves_unknown_raw_and_does_not_advance_disk_revi
         root["extension"].get(),
         r#"{"huge":123456789012345678901234567890}"#
     );
-    assert_eq!(root["recycleBin"].get(), "42"); // 不相关坏库不妨碍收藏，也不能顺手修复/清空。
+    assert_eq!(root["recycleBin"].get(), "42"); // An unrelated corrupt library must neither block favorites nor be opportunistically repaired/cleared.
 }
 #[test]
 fn same_source_replaces_and_remove_by_source_keeps_other_entries() {

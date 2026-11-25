@@ -1,4 +1,4 @@
-//! 真实 BUTTON 通知、目录/源凭证和分组选择；只在模态返回边界注入选择，不访问 Loom 或用户输入。
+//! Real BUTTON notifications, catalog/source evidence, and group selection; inject choices only at modal-return boundaries, without Loom/user input.
 use super::*;
 use crate::desktop::{edit_extension_toolbar as ext, extension_commands, extension_document};
 use serde_json::json;

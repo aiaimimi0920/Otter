@@ -1,4 +1,4 @@
-// 受支持 Grid 声明展开/端点/对齐；只输出 longhand，负线/放置仍由原生 owner 求值。
+// Supported Grid declaration expansion/endpoints/alignment; outputs only longhands, leaving negative lines and placement to the native owner.
 ((dom, fail, tracks) => {
   "use strict";
   const op = dom.ops, pairs = new op.MapType(), alignments = new op.MapType();
@@ -25,7 +25,7 @@
       op.push(output, { name: pair.names[0], value: op.trim(items[0]) });
       op.push(output, { name: pair.names[1], value: items.length === 2 ? op.trim(items[1]) : lines ? "auto" : output[0].value });
     }
-    // 不通过 validate→expand→single→track 的层叠递归；保留原 heap/stack/时间预算。
+    // Avoid cascading validate->expand->single->track recursion; preserve the original heap/stack/time budgets.
     for (let i = 0; i < output.length; i++) {
       const item = output[i], name = item.name; let value = item.value;
       if (op.index(name, "grid-template-") === 0 || name === "grid-auto-columns" || name === "grid-auto-rows") {

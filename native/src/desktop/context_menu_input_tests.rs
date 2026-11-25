@@ -1,4 +1,4 @@
-//! 真实隐藏宿主的右键→菜单消息路由；只截获菜单边界，不替代普通前台菜单验收。
+//! Right-click-to-menu message routing with real hidden hosts; intercept only the menu boundary, not a substitute for ordinary foreground-menu acceptance.
 use super::*;
 use crate::desktop::{Apartment, Window};
 use std::cell::Cell;
@@ -25,7 +25,7 @@ unsafe extern "system" fn observe(
 ) -> LRESULT {
     if message == WM_CONTEXTMENU {
         let seen = &*(data as *const Seen);
-        // 原生同步发送时不得继续借用 Canvas；在边界实际取得可变借用来保护重入。
+        // Do not retain Canvas borrows during native synchronous sends; acquire a real mutable borrow at the boundary to protect against reentrancy.
         let _canvas = (*seen.state.get()).canvas.borrow_mut();
         seen.count.set(seen.count.get() + 1);
         seen.last.set((wp.0, lp.0));

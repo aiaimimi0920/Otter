@@ -1,6 +1,6 @@
-"""已审阅 D3D11/Clang profile 的固定 Git 对象与工具归档；不自动解析最新版。"""
+"""Pinned Git objects and tool archives for reviewed D3D11/Clang profiles; never resolve latest versions automatically."""
 
-# key、src 内挂载点、commit、tree。缺省 gitlink 不下载，逐项记入输出清单。
+# key, mount point within src, commit, tree. Do not download omitted gitlinks; record each in the output manifest.
 SOURCES = (
     ("angle", "", "ded782bca9d5f165d1c4a70124cdc5384043a8b3", "a6899d5ff36cff7d8b05ceb886be7931bbcca4ff"),
     ("build", "build", "8a46ede8ea86151737d9c284f82d238b3c701fa7", "ee8c6f5518fa56c29f312bd2b2bfedc9e88c266a"),

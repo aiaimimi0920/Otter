@@ -1,4 +1,4 @@
-//! 仅状态和取消按钮，不增加持续动画或解释型文案。
+//! Status and a Cancel button only; no continuous animation or explanatory text.
 use windows::Win32::UI::WindowsAndMessaging::*;
 pub(super) fn template() -> Vec<u32> {
     fn text(data: &mut Vec<u16>, value: &str) {

@@ -172,7 +172,7 @@ fn fixture_with_class(button: bool, browser: bool) -> (Fixture, Target, usize) {
 fn browser_pointer_and_keyboard_do_not_require_scroll_provider() {
     use crate::live_input::Backend as _;
     let (mut fixture, target, child) = fixture_with_class(false, true);
-    // 五个同源 Live 超过滚动池的四份容量，但仅点击/键盘不应申请滚动资源。
+    // Five same-source Live instances exceed the scroll pool's capacity of four, but clicks/keyboard input alone must not request scroll resources.
     let mut backends = Vec::new();
     for _ in 0..5 {
         let mut backend = Backend::new_local_in_test_harness(target.clone(), None).unwrap();
@@ -214,7 +214,7 @@ fn browser_pointer_and_keyboard_do_not_require_scroll_provider() {
     }
     assert!(controller.enabled());
     assert_eq!(controller.cancel().failed, 0);
-    // 首次滚动才启动真实受限 child，之后复用；无 Document 的自有窗口允许原消息路径。
+    // Only the first scroll starts a real constrained child, which is then reused; owned windows without a Document may use the original message path.
     let mut backend = backends.pop().unwrap();
     let wheel = Event::Wheel {
         point: [0.2; 2],
@@ -243,7 +243,7 @@ fn browser_pointer_and_keyboard_do_not_require_scroll_provider() {
         probe.exited(),
         "Failed scroll child must be retired before returning"
     );
-    // 新用户输入可建立新流，但失败的滚动不重放。
+    // New user input may establish a new stream, but failed scrolling is not replayed.
     assert_eq!(backend.send_timeout_ms(wheel), 5750);
     let destination = backend.resolve(wheel, None).unwrap();
     backend.send(destination, wheel, 0, 5750).unwrap();
@@ -331,7 +331,7 @@ fn actual_controller_routes_holds_moves_releases_and_rejects_closed_source() {
             },
         )
         .unwrap();
-    // 拖出子控件仍向原目标发送，不重新命中 root。
+    // Dragging outside the child control still sends to the original target rather than hit-testing root again.
     controller
         .dispatch(3, Event::Move { point: [0.9; 2] })
         .unwrap();
@@ -396,7 +396,7 @@ fn actual_cleanup_falls_back_to_root_coordinates_then_skips_destroyed_source() {
             },
         )
         .unwrap();
-    // 仅销毁已知夹具子 HWND，模拟 held 目标在源仍存活时消失。
+    // Destroy only the known fixture child HWND to simulate a held target disappearing while its source remains alive.
     let completed = unsafe {
         SendMessageTimeoutW(
             HWND(child as *mut _),

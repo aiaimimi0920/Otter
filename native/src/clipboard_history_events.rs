@@ -1,4 +1,4 @@
-//! 历史菜单的事件订阅生命周期；回调只合并失效信号，不读取内容、不访问窗口。
+//! History-menu event-subscription lifecycle; callbacks only coalesce invalidation signals, never read content or access windows.
 use super::Apartment;
 use std::{
     marker::PhantomData,
@@ -19,7 +19,7 @@ type Remove = fn(i64) -> Result<()>;
 struct Tokens(Vec<(i64, Remove)>);
 impl Drop for Tokens {
     fn drop(&mut self) {
-        // 包含部分注册失败的路径；一项注销失败也继续尝试其他订阅。
+        // Includes partial-registration failures; failure to unregister one subscription does not prevent trying the others.
         for (token, remove) in self.0.drain(..).rev() {
             let _ = remove(token);
         }
@@ -32,11 +32,11 @@ fn invalidate(dirty: &Weak<AtomicBool>) {
     }
 }
 
-/// 在拥有消息泵的 UI STA 创建和销毁；不能跨线程移动。
-/// 读取刷新标记后启动 Task，读取期间的新事件保留给下一次刷新。
+/// Create/destroy on the UI STA with a message pump; not movable across threads.
+/// Start Task after reading the refresh flag; retain events arriving during the read for the next refresh.
 pub struct Events {
     dirty: Arc<AtomicBool>,
-    // 按字段顺序先注销，最后退出 apartment；迟到回调仅捕获 Weak。
+    // Field order unregisters first and exits the apartment last; late callbacks capture only Weak.
     _tokens: Tokens,
     _apartment: Apartment,
     _thread: PhantomData<Rc<()>>,
@@ -97,7 +97,7 @@ impl Events {
         })
     }
 
-    /// 非阻塞合并通知；初次返回 true，事件洪泛不会积累队列或历史内容。
+    /// Nonblocking coalesced notification; initially true, with no queue/history-content accumulation during event floods.
     pub fn take_changed(&self) -> bool {
         self.dirty.swap(false, Ordering::AcqRel)
     }

@@ -1,4 +1,4 @@
-//! 私有 child 服务交换：脚本只提供服务/JSON，绝不提供执行许可或宿主身份。
+//! Private child service exchange: scripts provide only service/JSON, never execution permission or host identity.
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io;

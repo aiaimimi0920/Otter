@@ -1,4 +1,4 @@
-//! 钉图首次编辑前接管当前显示；不编辑来源窗口，不替换整个 Editor 或重置视口。
+//! Take over current display before first pin edit; do not edit source windows, replace entire Editors, or reset viewports.
 use super::{image::Image, State};
 use crate::{
     editor::{Editor, Tool},
@@ -14,7 +14,7 @@ pub(super) struct Pending {
     frame: Option<super::display_frame::Frame>,
 }
 
-/// 只能在事件处理返回后结算；后台编辑持有临时文档身份期间必须继续保留 owner。
+/// Settle only after event handling returns; retain the owner while background edits hold temporary document identity.
 pub(super) fn settle(state: &State) -> bool {
     if state.pending_adoption.borrow().is_none()
         || state.file_dialog.get()
@@ -69,7 +69,7 @@ pub(super) fn settle(state: &State) -> bool {
     owner.take();
     if outcome != AdoptionOutcome::Superseded {
         if outcome == AdoptionOutcome::Committed {
-            // 最终内容与临时内容顺序相同，只更新文档版本，不丢失用户选择。
+            // Final and temporary contents have identical order; update document revision only, preserving user selection.
             let revision = canvas.editor.revision();
             canvas.selected = selected.first().map(|index| (*index, revision));
             canvas.multi_selection = (selected.len() > 1).then_some((selected, revision));

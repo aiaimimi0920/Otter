@@ -1,4 +1,4 @@
-//! 未知写入的完整独立快照oracle；旧cursor不授重发资格，错来源/尺寸/载荷不授成功。
+//! Complete independent snapshot oracle for unknown writes; old cursors never authorize resend, and wrong source/dimensions/payload never prove success.
 use super::*;
 #[test]
 fn source_observation_reconcile_rejects_payload_identity_geometry_and_duplicate_mismatches() {

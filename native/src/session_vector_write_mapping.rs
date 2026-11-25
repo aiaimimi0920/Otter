@@ -1,4 +1,4 @@
-//! Editor -> 窗口 DIP -> 物理像素 -> 会话局部逻辑单位；屏幕位置由窗口几何 owner 另行写出。
+//! Editor -> window DIPs -> physical pixels -> session-local logical units; the window-geometry owner writes screen position separately.
 use super::*;
 #[derive(Clone, Copy, Debug)]
 pub struct Mapping {
@@ -6,7 +6,7 @@ pub struct Mapping {
     offset: Point,
 }
 impl Mapping {
-    /// 仅有界仿射接缝使用；普通保存仍从明确viewport/annotation frame构造。
+    /// For bounded affine seams only; ordinary saves still construct from explicit viewport/annotation frames.
     pub fn from_components(scale: f32, offset: Point) -> Result<Self, Error> {
         if scale <= 0.0 {
             return Err(Error::Geometry);
@@ -31,8 +31,8 @@ impl Mapping {
     pub fn then(self, next: Self) -> Result<Self, Error> {
         Self::from_components(self.scale * next.scale, next.point(self.offset)?)
     }
-    /// 缩略标注保存到展开参考框；cropOffset 由窗口字段拥有，不能在此重复减去。
-    /// 当前主干样式只有标量线宽/字号，非等比变换不能伪装为无损写出。
+    /// Save minimized annotations in the expanded reference frame; window fields own cropOffset, so do not subtract it again here.
+    /// Current mainline styles have scalar stroke/font sizes only; nonuniform transforms must not pretend to serialize losslessly.
     pub fn from_annotation_frame(
         frame: Option<crate::crop_geometry::Rect>,
         target: crate::crop_geometry::Size,
@@ -62,7 +62,7 @@ impl Mapping {
         }
         let sx = target.width / frame.width;
         let sy = target.height / frame.height;
-        // 只容忍 f32 转换看不见的数值误差，不用容差掩盖实际的横纵拉伸。
+        // Tolerate only numerical error invisible to f32 conversion, never use tolerance to conceal actual unequal axis scaling.
         if sx as f32 != sy as f32 {
             return Err(Error::Unsupported);
         }
@@ -147,7 +147,7 @@ impl Mapping {
                 .ok_or(Error::Unsupported)?;
             object.insert("fontSize".into(), finite(text.font_size())?);
             if stroke.tool == Tool::Text {
-                // 主干文字的 4px 锚点偏移不是文档内容，不能随画布缩放重复放大。
+                // Mainline text's 4px anchor offset is not document content and must not repeatedly grow with canvas scaling.
                 let (start, _) = bounds(&stroke.points)?;
                 let start = self.point(start)?;
                 let base = baseline(&text)?;

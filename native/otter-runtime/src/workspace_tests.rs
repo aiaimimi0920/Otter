@@ -1,4 +1,4 @@
-//! 身份批次原子性、主干删除级联规则和资源上限；不创建窗口或读写用户数据。
+//! Identity-batch atomicity, baseline deletion-cascade rules, and resource limits; no windows or user-data reads/writes.
 use super::*;
 #[test]
 fn instance_identity_survives_edits_and_empty_host_replacement_but_not_restore() {

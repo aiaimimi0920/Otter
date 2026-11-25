@@ -1,4 +1,4 @@
-//! 目录发现后台任务；与观看共用四任务上限，完成未回收仍占槽位，不在 UI 加载 CA/DNS。
+//! Background catalog discovery shares the four-task viewing limit; completed/unreaped tasks retain slots, and UI never loads CA/DNS.
 use crate::{
     device_authorization_config::{Config, Error as PrepareError},
     device_authorization_lease::Lease,
@@ -86,7 +86,7 @@ impl Job {
         }
         let result = self.thread.take()?.join().unwrap_or(Err(Error::Panicked));
         self.slot.take();
-        // 目录成功已完成也不能越过服务切换/授权撤销，使用方应申请新租约重新查询。
+        // Even completed successful catalogs cannot bypass service switches/revocation; consumers need a fresh lease and query.
         Some(if self.lease.is_revoked() {
             Err(Error::Stopped)
         } else {
@@ -97,7 +97,7 @@ impl Job {
 impl Drop for Job {
     fn drop(&mut self) {
         self.request_stop();
-        // 正常路径必须 wait/try_join；此处不 detach，只作阻塞防泄漏兜底。
+        // Normal paths must wait/try_join; no detach here, only a blocking leak-prevention fallback.
         if let Some(thread) = self.thread.take() {
             let _ = thread.join();
         }

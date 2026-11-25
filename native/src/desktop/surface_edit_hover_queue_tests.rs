@@ -1,4 +1,4 @@
-//! Hover 与 Pointer 共用 FIFO 的容量、合并、取消和在途证据，不增加第二队列。
+//! Capacity, coalescing, cancellation, and in-flight evidence for Hover/Pointer's shared FIFO; no second queue.
 use super::*;
 fn hover(target: Option<&str>, x: f64) -> HoverIntent {
     HoverIntent {
@@ -142,7 +142,7 @@ fn javascript_hover_queue_retention_failure_clear_and_unstarted_return_preserve_
     assert!(q.push_hover(hover(Some("dom:1"), 1.)));
     q.prepared(Some("move"));
     q.clear_waiting();
-    assert!(q.has_hovers()); // clear 保留在途证据，settle 才释放。
+    assert!(q.has_hovers()); // clear retains in-flight evidence; only settle releases it.
     q.complete_local("move", None);
     assert!(!q.has_hovers());
 }

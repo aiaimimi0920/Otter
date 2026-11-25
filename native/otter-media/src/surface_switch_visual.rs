@@ -1,4 +1,4 @@
-//! Switch 的 Neuro 派生状态色；只决定画刷颜色，不修改草稿或授予交互权限。
+//! Neuro-derived Switch state colors; only selects brush colors, without changing drafts or granting interaction permission.
 use crate::surface_control_colors::{ACTIVE, HOVER, LINE, MUTED, ON_ACTIVE, TRACK};
 use windows::Win32::Graphics::Direct2D::Common::D2D1_COLOR_F;
 pub(super) struct Palette {

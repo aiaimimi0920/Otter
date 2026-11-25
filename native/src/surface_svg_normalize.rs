@@ -1,4 +1,4 @@
-//! 已通过 policy 的 SVG 到固定 renderer 的语义适配；不读取文件或解析外部引用。
+//! Semantic adaptation from policy-approved SVG to the fixed renderer; no file reads or external-reference resolution.
 use super::{invalid, viewport::Viewport};
 use resvg::usvg::roxmltree::Node;
 use std::io;
@@ -52,8 +52,8 @@ pub(super) fn normalize_if_needed(
             if children.peek().is_some()
                 && children.all(|n| matches!(n.tag_name().name(), "title" | "desc"))
             {
-                // Chrome 的描述子元素阻止模板内容继承；usvg 会先剔除它们，
-                // 从而误用 href 内容。空组保留“有自身内容”的语义，不影响属性继承。
+                // Chrome's descriptive children prevent template-content inheritance, but usvg removes them first,
+                // incorrectly using href content. Empty groups preserve own-content semantics without affecting attribute inheritance.
                 let range = node.range();
                 let close = source[range.clone()].rfind("</").ok_or_else(invalid)? + range.start;
                 edits.push((
@@ -63,8 +63,8 @@ pub(super) fn normalize_if_needed(
             }
         }
         if node.tag_name().name() == "symbol" {
-            // 走 renderer 的嵌套 SVG 实例分支：use 尺寸只解析一次，内容百分比
-            // 使用实例 viewBox。defs 保证未引用的 symbol 仍不直接绘制。
+            // Use the renderer's nested-SVG instance branch: resolve use dimensions once, and content percentages
+            // use the instance viewBox. defs ensures unreferenced symbols still are not painted directly.
             let start = node.range().start;
             let end = name_end(source, node)?;
             let qname = &source[start + 1..end];
@@ -81,8 +81,8 @@ pub(super) fn normalize_if_needed(
                 edits.push((close..tail, format!("</{prefix}svg></defs>")));
             }
         }
-        // 浏览器不在 mask 定义元素自身应用 mask；usvg 会应用并递归关联。
-        // 只移除此处的 presentation attribute，不影响 mask 子内容上的正常遮罩。
+        // Browsers do not apply masks to mask-definition elements themselves; usvg applies them and creates recursive associations.
+        // Remove only this presentation attribute here, preserving normal masks on child content.
         if node.tag_name().name() == "mask" {
             if let Some(attr) = node
                 .attributes()
@@ -92,7 +92,7 @@ pub(super) fn normalize_if_needed(
             }
         }
         let target = if node.tag_name().name() == "use" {
-            // roxmltree attribute("href") 不限定 namespace，不能用于此优先级。
+            // roxmltree attribute("href") does not restrict namespaces and cannot implement this precedence.
             node.attributes()
                 .find(|a| a.namespace().is_none() && a.name() == "href")
                 .map(|a| a.value())
@@ -106,8 +106,8 @@ pub(super) fn normalize_if_needed(
         if node == root || (node.tag_name().name() != "svg" && target.is_none()) {
             continue;
         }
-        // usvg 的零尺寸嵌套 viewport 会退回父 viewBox 并继续绘制。
-        // 保留子树/ID，不删除可能被其他 use 引用的定义。
+        // usvg's zero-size nested viewports fall back to the parent's viewBox and continue drawing.
+        // Preserve subtrees/IDs rather than deleting definitions potentially referenced by other use elements.
         let zero = ["width", "height"].iter().any(|name| {
             node.attribute(*name)
                 .or_else(|| target.and_then(|n| n.attribute(*name)))
@@ -130,7 +130,7 @@ pub(super) fn normalize_if_needed(
         return Ok(None);
     }
     let mut output = source.to_owned();
-    // 全部 range 来自原文；仅替换独立属性/插入 QName 后，不删除父子元素整段。
+    // All ranges come from original content; replace only individual attributes/insert after QName without deleting whole parent-child element regions.
     edits.sort_by_key(|(range, _)| std::cmp::Reverse(range.start));
     for (range, value) in edits {
         output.replace_range(range, &value);

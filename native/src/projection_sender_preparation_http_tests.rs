@@ -1,4 +1,4 @@
-//! 后台配置准备与既有签名者核验；缺失/更换身份不自动生成，错误授权不建立连接。
+//! Background configuration preparation/existing-signer verification; missing/changed identities never auto-generate, and bad authorization starts no connection.
 use super::*;
 #[test]
 fn sender_configured_worker_reads_scoped_ca_and_dns_without_repairing_identity() {

@@ -1,4 +1,4 @@
-//! 隔离真实TLS覆盖写前/丢回复/冲突/取消，复用Device与nonce框架，不访问真实设备。
+//! Isolated real TLS covers write-ahead/lost replies/conflicts/cancellation, reusing Device/nonce infrastructure without real devices.
 use super::*;
 use crate::projection_edit::{fixture::*, journal::Store, Code, Failure, Route};
 fn begin(directory: &Directory, origin: &str) -> (Store, crate::projection_edit::journal::Ticket) {

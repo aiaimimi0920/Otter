@@ -1,4 +1,4 @@
-// 同 child/HWND/产品共用帧消费者；尺寸读取仍调用真实原生测量，非手动推进业务状态。
+// The same frame consumer serves child/HWND/product; dimension reads still use actual native measurement, not manual business-state advancement.
 let animatedBox, animationReport, animationTicks = 0, previousFrame = -1;
 function animateFrame(timestamp) {
   if (this !== globalThis || !Number.isFinite(timestamp) || timestamp < previousFrame || timestamp > performance.now()) throw Error("frame clock");

@@ -1,4 +1,4 @@
-//! 观察者和 rAF 读取同一 HWND 布局；验证内容盒、最终像素、代次与同 child 清理。
+//! Observers and rAF read the same HWND layout; verify content boxes, final pixels, generations, and same-child cleanup.
 use super::{
     css_tests::{geometry, pixel, pixels},
     *,

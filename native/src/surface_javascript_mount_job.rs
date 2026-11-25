@@ -1,4 +1,4 @@
-//! 单次后台入口获取/求值；完成但未消费的结果仍占共享槽，移交只接受同一 Grant。
+//! One-shot background entry fetch/evaluation; completed unconsumed results still occupy shared slots, and handoff accepts only the same Grant.
 use super::prepare::{prepare, Connection};
 use super::*;
 use crate::{
@@ -93,7 +93,7 @@ impl Job {
 }
 impl Drop for Job {
     fn drop(&mut self) {
-        // Ready/Mounted 接管时仍共享原请求租约；成功 join 后 Drop 不得撤销已移交会话。
+        // Ready/Mounted takeover still shares the original request lease; after successful join, Drop must not revoke the transferred session.
         if let Some(thread) = self.thread.take() {
             self.request_stop();
             let _ = thread.join();

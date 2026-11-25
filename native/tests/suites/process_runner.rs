@@ -1,5 +1,5 @@
 #![cfg(windows)]
-//! 独立验证测试进程 runner，不启动可见窗口或操作用户数据。
+//! Independently verify the test-process runner without opening visible windows or touching user data.
 #[path = "../support/process.rs"]
 mod process;
 use std::{io, process::Command, time::Duration};

@@ -1,4 +1,4 @@
-//! stage写前/原initial/精确请求恢复；合成PNG和文档oracle不经过被测网络流程。
+//! Stage write-ahead/original initial/exact-request recovery; synthetic PNG/document oracles bypass the network flow under test.
 use super::*;
 use crate::projection_edit::{fixture::*, journal::Store, Operation, Request, Route};
 use serde_json::json;

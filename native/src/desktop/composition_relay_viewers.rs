@@ -1,4 +1,4 @@
-//! 观看身份与待加入围栏复用原Session；已打开窗口不依赖发起面板继续存活。
+//! Viewer identities and pending-join fences reuse original Sessions; opened windows do not depend on initiating panels remaining alive.
 use super::*;
 use crate::surface_live_binding::Binding;
 use std::sync::OnceLock;
@@ -29,7 +29,7 @@ pub struct ViewerState {
     pub stopping: bool,
     pub shown: bool,
 }
-/// 生命周期revision不属于附件身份；同一附件的正常ACK不能取消已发起的加入。
+/// Lifecycle revision is not attachment identity; ordinary ACKs for the same attachment must not cancel joins already started.
 pub(crate) fn same_binding(left: &Binding, right: &Binding) -> bool {
     left.matches(
         right.origin(),
@@ -117,7 +117,7 @@ impl Sessions {
             })
             .collect()
     }
-    /// 同设备只能有一份同源会话观看；停止但尚未join的owner也继续占身份和四槽。
+    /// Only one view of the same source session per device; stopped but unjoined owners still occupy identity and four-slot capacity.
     pub fn start_viewing(
         &mut self,
         config: Config,
@@ -144,7 +144,7 @@ impl Sessions {
         {
             return Err(io::ErrorKind::InvalidInput.into());
         }
-        // 进程共享一份原协议最大编码帧预算，不按窗口复制配额；解码仍走原Pixels全局预算。
+        // The process shares one original-protocol maximum encoded-frame budget, not one quota per window; decoding retains the original global Pixels budget.
         self.start(config, lease, target, encoded_budget(), read_only)?;
         self.entries
             .last_mut()
@@ -229,7 +229,7 @@ impl Sessions {
             entry.session.stop();
         }
     }
-    /// 必须在poll领取Ready前调用；旧附件迟到成功不建窗。已Ready的独立观看由原授权结束。
+    /// Call before poll collects Ready; late success for old attachments creates no window. Already-Ready independent viewers end through original authorization.
     pub(crate) fn cancel_pending_viewers(&mut self, mut current: impl FnMut(&ViewerHost) -> bool) {
         for entry in &mut self.entries {
             if !entry.session.joined()
@@ -253,10 +253,10 @@ pub(super) fn encoded_budget() -> Arc<Budget> {
         })
         .clone()
 }
-/// 原Owner先事务校验并发布Business/状态；此只读适配器不执行source输入或Surface动作。
-/// 未知业务不默默ACK；已知观察/审计由原Host保留，后续UI可读同一快照。
+/// The original Owner validates transactions and publishes Business/state first; this read-only adapter performs no source input or Surface actions.
+/// Do not silently ACK unknown business events; the original Host retains known observations/audits for later UI reads of the same snapshot.
 fn read_only(events: &[ControlEvent]) -> Result<(), ()> {
-    // trigger_condition已由Loom登记，input_event只由source执行；viewer不二次执行。
+    // Loom already registered trigger_condition, and only source executes input_event; viewer must not execute again.
     if events.iter().all(|event| {
         matches!(
             event.kind(),

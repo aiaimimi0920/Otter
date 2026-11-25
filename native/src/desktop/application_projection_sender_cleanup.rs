@@ -1,4 +1,4 @@
-//! sender 清理先后台持久减权，再以当前原设备授权沿原 Job unlink；失败有界退避并保全部原文。
+//! Sender cleanup first persists revocation in the background, then unlinks through the original Job using current original device authorization; bounded failure backoff preserves all source content.
 use super::*;
 use crate::desktop::loom_execution_signal::{reap_deadline, CompletionSignal, Notify};
 use std::{
@@ -204,7 +204,7 @@ impl Application {
         >,
     ) {
         let owner = &mut self.projection_sender;
-        // discard/closed 会过滤 Event，但原 Job 已回收；不能留下幽灵清理身份吞掉后续 Send。
+        // discard/closed filters Event but the original Job is already reaped; leave no ghost cleanup identity that swallows later Send requests.
         if !self.remote_sessions.projection_pending() {
             if let Some(request) = owner.cleanup.network.take() {
                 let retired = request.published_retired();

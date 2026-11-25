@@ -1,4 +1,4 @@
-//! 私有desktop自有HWND和线程键表；无全局激活、SendInput或用户窗口操作。
+//! Owned HWNDs/thread key tables on private desktops; no global activation, SendInput, or user-window operations.
 use super::*;
 use windows::Win32::UI::Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass};
 

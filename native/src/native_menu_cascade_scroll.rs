@@ -1,4 +1,4 @@
-//! 根菜单捕获保持不变；滑块拖动只拥有页面偏移，不可产生行命令。
+//! Root-menu capture remains unchanged; scrollbar dragging owns only page offset and cannot generate row commands.
 use super::*;
 use crate::native_menu::scrollbar::Bar;
 impl Cascade {

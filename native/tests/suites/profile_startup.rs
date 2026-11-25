@@ -1,5 +1,5 @@
 #![cfg(windows)]
-//! 子进程显式覆盖 profile 到 linshi；不读取真实 LOCALAPPDATA，不在启动时创建目录。
+//! Explicitly override child-process profiles into linshi; do not read real LOCALAPPDATA or create directories at startup.
 use std::{
     fs,
     io::Write,
@@ -61,7 +61,7 @@ impl Drop for Fixture {
             first_error.get_or_insert(error);
         }
         if let Some(error) = first_error {
-            // 保留被测程序意外生成的文件；清理失败不能掩盖正在展开的断言。
+            // Preserve files unexpectedly created by the program under test; cleanup failures must not mask an unwinding assertion.
             let message = format!(
                 "profile fixture cleanup failed at {}: {error}",
                 self.root.display()

@@ -1,4 +1,4 @@
-//! 非激活菜单期间，owner 同步收到的滚轮也交给菜单；随模态作用域撤销子类。
+//! While menus are nonactivating, route owner-synchronously-received wheels to menus too; revoke subclassing with the modal scope.
 use super::*;
 const WHEEL_ID: usize = 0x4f4d57;
 struct Target {

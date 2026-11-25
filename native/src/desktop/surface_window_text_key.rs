@@ -1,4 +1,4 @@
-//! 已有文字选区的键盘操作优先于页面滚动；不抢占 EDIT 或其他节点焦点。
+//! Existing text-selection keyboard operations precede page scrolling without taking EDIT or other-node focus.
 use super::*;
 pub(in crate::desktop::surface_window) unsafe fn message(
     hwnd: HWND,
@@ -68,7 +68,7 @@ unsafe fn route(
         handled = true;
     }
     if handled && message == WM_KEYDOWN {
-        // 保留已完成选区，废弃旧点击/手势；键盘操作永远不生成远端 click/edit。
+        // Retain completed selection and discard old clicks/gestures; keyboard operations never generate remote click/edit.
         super::super::invalidate_candidates(hwnd, state);
     }
     handled

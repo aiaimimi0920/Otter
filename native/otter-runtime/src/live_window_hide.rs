@@ -1,11 +1,11 @@
-//! 与主干一致的逻辑隐藏；仅由已 arm 的共享 lease 调用，不使用 SW_HIDE 或延时 sleep。
+//! Logical hiding consistent with the baseline; called only by armed shared leases, without SW_HIDE or delayed sleep.
 use super::*;
 impl Snapshot {
     pub fn apply_hidden(&self) -> Result<()> {
         self.target.validate()?;
         unsafe {
             let hwnd = self.target.hwnd();
-            // 先登记原始最小化快照，再恢复可采集窗口；不能在 ACK 前更改源。
+            // Register the original minimized snapshot before restoring a capturable window; do not change the source before ACK.
             if IsIconic(hwnd).as_bool() {
                 let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
                 self.target.validate()?;

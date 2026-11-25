@@ -1,4 +1,4 @@
-//! 将已提交 DIP 布局转为 EDIT 客户区像素；原生区域归 Windows 持有。
+//! Convert committed DIP layout to EDIT client pixels; Windows owns native regions.
 use crate::surface_geometry::NodeGeometry;
 #[path = "surface_edit_box.rs"]
 mod textarea;
@@ -24,7 +24,7 @@ pub fn place(
 ) -> Result<bool> {
     place_inner(hwnd, geometry, later, overlays, dpi, part, true)
 }
-/// 相同 Select 锚点只刷新遮挡区域；v6 COMBOBOX 的冗余 SetWindowPos 会关闭下拉。
+/// For unchanged Select anchors, refresh only occlusion regions; redundant SetWindowPos closes v6 COMBOBOX dropdowns.
 pub fn refresh_select(
     hwnd: HWND,
     geometry: &NodeGeometry,
@@ -34,7 +34,7 @@ pub fn refresh_select(
 ) -> Result<bool> {
     place_inner(hwnd, geometry, later, overlays, dpi, Part::Select, false)
 }
-/// Slider 几何未变时仅刷新遮挡裁剪，不中断进行中的捕获手势。
+/// When Slider geometry is unchanged, refresh only occlusion clipping without interrupting active capture gestures.
 pub fn refresh_slider(
     hwnd: HWND,
     geometry: &NodeGeometry,
@@ -104,8 +104,8 @@ fn place_inner(
                 return Err(error);
             }
         }
-        // HWND 子控件天然置于父 D2D 内容上方；减去后绘制节点的命中盒，避免被遮挡的
-        // 字段仍截获输入。区域至多与场景节点数同阶，不建立逐像素掩码。
+        // HWND children naturally sit above parent D2D content; subtract hit boxes of later-painted nodes so occluded
+        // fields cannot intercept input. Region complexity is at most proportional to scene nodes, without per-pixel masks.
         for cover in later
             .iter()
             .map(NodeGeometry::clip)

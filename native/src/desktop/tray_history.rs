@@ -1,4 +1,4 @@
-//! 托盘历史复用菜单交付；仅文字选择恢复原窗口，恢复之后再次验证原目标。
+//! Tray history reuses menu delivery; only text selection restores original windows, then revalidates original targets.
 use super::*;
 use crate::{
     clipboard_history::{Content, Entry},

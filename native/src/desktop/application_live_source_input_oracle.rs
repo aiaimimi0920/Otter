@@ -1,4 +1,4 @@
-//! 自建离屏窗口独立记录实际Win32消息；不移动鼠标、不切前台、不触用户应用。
+//! Dedicated offscreen windows independently record actual Win32 messages; no cursor movement, foreground switching, or user-application access.
 use std::sync::Mutex;
 use windows::{
     core::w,

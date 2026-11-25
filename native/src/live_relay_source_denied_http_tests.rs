@@ -1,4 +1,4 @@
-//! 真实本机 TLS/WSS 验证授权拒绝是终态，不等待错误正文或继续发请求。
+//! Real local TLS/WSS verifies authorization denial is terminal, without waiting for error bodies or continuing requests.
 use super::*;
 
 #[test]
@@ -22,7 +22,7 @@ fn source_progress_denied_without_body_never_reconnects_or_sends_close() {
         let (head, _) = request(&mut progress);
         assert!(head.starts_with("GET /v1/live/sessions/") && !head.contains("/events"));
         deny_without_body(&mut progress);
-        // 保持错误体未发送且连接未关；不能等三秒的 HTTP 正文截止才退出。
+        // Keep the error body unsent and the connection open; exit must not wait for the three-second HTTP-body deadline.
         done.recv_timeout(Duration::from_secs(2)).unwrap();
         assert!(matches!(listener.accept(), Err(e) if e.kind() == std::io::ErrorKind::WouldBlock));
     });

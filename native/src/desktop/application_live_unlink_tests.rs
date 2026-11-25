@@ -1,4 +1,4 @@
-//! 隐藏 Live 的系统命令和注入菜单选择贯通断线、显示退休、保存及过期保护。
+//! Hidden Live system commands and injected menu choices cover unlinking, display retirement, saving, and stale-state protection end to end.
 use super::*;
 use crate::desktop::link_menu::FIRST;
 
@@ -106,7 +106,7 @@ fn live_unlink_cancel_error_empty_and_foreign_selection_do_not_mutate() {
         let environment = Environment::new();
         let mut app = environment.app();
         let (hwnd, unit) = live(&mut app, true);
-        // 无连线的系统命令经过完整应用分派后直接返回，不打开菜单。
+        // With no links, system commands return after full application dispatch without opening a menu.
         SendMessageW(hwnd, WM_SYSCOMMAND, Some(WPARAM(0x1f90)), Some(LPARAM(0)));
         app.pending_link_changes();
         assert!(!app.live_sessions[0].take_unlink_request());
@@ -192,7 +192,7 @@ fn live_unlink_stale_closed_locked_hidden_busy_and_replaced_requests_are_rejecte
             assert!(result.is_err(), "mode {mode}");
             assert_eq!(app.workspace.links(), &[edge]);
             if mode >= 8 {
-                // 被注入的另一窗口模态仍归原 owner，不应被本次菜单 guard 清除。
+                // An injected modal state in another window still belongs to its original owner and must not be cleared by this menu guard.
                 assert!(app.modals.blocked());
                 app.documents[mode - 8].state.file_dialog.set(false);
             }

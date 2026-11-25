@@ -1,4 +1,4 @@
-// 通用四边框：同一 child 读取 native 客户盒并更新/恢复，不复制股票业务。
+// Generic four-sided borders: the same child reads native client boxes and updates/restores them without copying stock-market business logic.
 let box, text, report, stage = 0;
 const initial = '2px solid red';
 const restore = () => { box.style.border = initial; box.style.borderLeft = '8px solid blue'; box.style.borderBottom = '6px solid green'; };

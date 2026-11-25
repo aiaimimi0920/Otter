@@ -1,4 +1,4 @@
-//! 源端单目标probe→原PNG CAS→initialize/attach；每次沿原Job/Slot，精确Checkpoint前不退休。
+//! Source single-target probe -> original PNG CAS -> initialize/attach; every step uses original Job/Slot, with no retirement before exact Checkpoint.
 use super::*;
 use crate::projection_delivery::sender::{
     self,
@@ -146,7 +146,7 @@ impl Input {
             {
                 return Err(identity());
             }
-            Some(ticket) // 只重放精确原请求；不重新CAS、不重造initial。
+            Some(ticket) // Replay only the exact original request; no new CAS or reconstructed initial.
         } else {
             if observed.is_none() {
                 match control.read_projection_edit(&self.context, &wanted, route, previous.as_ref())
@@ -177,7 +177,7 @@ impl Input {
             if response.digest() != frozen.basis().digest() {
                 return Err(identity());
             }
-            // 兼容未在普通read内携带editing的服务；probe已确认的会话只读恢复，不重复写入。
+            // Support services omitting editing from ordinary reads; sessions confirmed by probe recover read-only without repeated writes.
             if observed.is_some() {
                 None
             } else {

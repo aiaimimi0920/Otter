@@ -1,4 +1,4 @@
-//! 常驻托盘生命周期；Shell 通知全部注入，仅操作测试自有窗口。
+//! Resident-tray lifecycle; all Shell notifications are injected, operating only test-owned windows.
 use super::*;
 
 unsafe fn window() -> crate::desktop::Window {
@@ -44,7 +44,7 @@ fn startup_hide_restore_and_visible_callback_keep_the_resident_icon() {
         restore_with(owner.0, &state, |_, _| {}, |_| {});
         assert!(!is_hidden(&state) && state.tray.installed.get());
         assert_eq!(*calls.borrow(), [NIM_ADD, NIM_SETVERSION]);
-        // 恢复状态下的图标也必须能激活宿主，而非只有 hidden=true 才接收回调。
+        // Icons in restored state must also activate hosts, not accept callbacks only when hidden=true.
         assert!(!IsWindowVisible(owner.0).as_bool());
         dispatch(
             owner.0,

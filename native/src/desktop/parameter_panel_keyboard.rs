@@ -1,4 +1,4 @@
-//! 宿主裸 Tab 打开参数窗；窗内 Tab 导航，Enter 提交草稿，IME 和打开的列表先消费键盘。
+//! Bare Tab on the host opens parameters; inside, Tab navigates and Enter commits drafts, while IME and open lists consume keys first.
 use super::*;
 use windows::Win32::UI::Shell::{
     DefSubclassProc, GetWindowSubclass, RemoveWindowSubclass, SetWindowSubclass,
@@ -61,7 +61,7 @@ pub(super) unsafe fn translate(ui: &Ui, msg: &MSG) -> bool {
             }
             return true;
         }
-        // 标准 COMBOBOX 已展开时，Esc/Enter 属于列表而非面板关闭或执行。
+        // When a standard COMBOBOX is open, Esc/Enter belong to the list, not panel closing or execution.
         let binding = ui
             .bindings
             .borrow()

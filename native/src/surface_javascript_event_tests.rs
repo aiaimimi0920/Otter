@@ -1,4 +1,4 @@
-//! 事件模型进入真实 child/native click/同文档更新；动作仍由原权威快照与父侧重新验证。
+//! Event models enter real children/native clicks/same-document updates; original authoritative snapshots and the parent still revalidate actions.
 use super::*;
 use sha2::{Digest, Sha256};
 const SOURCES: [&str; 4] = [

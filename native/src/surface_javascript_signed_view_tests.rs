@@ -1,4 +1,4 @@
-//! 实际签名线程/child 的同版本 VIEW 更新、单槽与撤权；不代替编辑栏 HWND 接线。
+//! Same-revision VIEW updates, single-slot behavior, and revocation in actual signed threads/children; not a replacement for editor-bar HWND wiring.
 use super::*;
 use crate::surface_javascript::fixture::text;
 const SOURCE: &str = include_str!("../tests/fixtures/javascript-view.js");

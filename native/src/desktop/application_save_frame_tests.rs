@@ -1,4 +1,4 @@
-//! 保存读取同一组主干字段，不将样式烘焙到底图，后续恢复和工作流仍只合成一次。
+//! Save reads the same mainline fields without baking styles into the base image; later restoration and workflows still compose only once.
 use super::*;
 use crate::{
     desktop::{session_binding::Bound, session_candidate},

@@ -1,4 +1,4 @@
-//! 默认工作区持续检查点：共享原保存单槽/Receipt，只推进独立磁盘基线，不标记文件已保存。
+//! Continuous default-workspace checkpoints: share the existing save slot/Receipt, advancing only an independent disk baseline without marking the file saved.
 use super::*;
 use crate::{desktop::workspace_profile::Profile, session_source::Source};
 use std::sync::atomic::AtomicBool;
@@ -39,7 +39,7 @@ impl Owner {
         workspace: &crate::workspace::Workspace,
         unit: &str,
     ) -> Option<&crate::projection_delivery::binding::Binding> {
-        // 只授减权资格：普通编辑保工作区身份，整体交换不能借旧 checkpoint 删除新关联。
+        // Grant only revocation eligibility: ordinary edits preserve workspace identity, while a full swap cannot use an old checkpoint to delete new associations.
         if !self.projection_workspace.as_ref()?.matches(workspace) {
             return None;
         }
@@ -73,7 +73,7 @@ impl Owner {
     }
 }
 impl Application {
-    /// 仅供只读系统退出准入；必须是实际commit的完整当前检查点，不能借用在途Receipt。
+    /// Only for read-only system-exit admission; requires the complete current checkpoint actually committed, never an in-flight Receipt.
     pub(super) unsafe fn session_checkpoint_current(&self) -> bool {
         self.documents
             .iter()
@@ -88,7 +88,7 @@ impl Application {
                             && self.restored_session.as_ref().is_some_and(|record| {
                                 source.same_storage(&record.original)
                                     && owner.projection_scope.as_ref().is_some_and(|proof| {
-                                        // stamp的source是保留输入；Proof绑定真实落盘候选，不能混用两份身份。
+                                        // stamp's source is the retained input; Proof binds the actually persisted candidate, so these identities must not be mixed.
                                         owner
                                             .original
                                             .as_ref()
@@ -191,7 +191,7 @@ impl Application {
             }
             None => save_disk::Destination::New(owner.profile.path.clone()),
         };
-        // 已验证修订随磁盘基线一同推进；UI 热路径不重复解析整个检查点。
+        // Advance the validated revision with the disk baseline; do not reparse the entire checkpoint on UI hot paths.
         let revision = owner.revision;
         let Some((receipt, data)) = self.capture_automatic_session_snapshot()? else {
             return Ok(false);
@@ -220,14 +220,14 @@ impl Application {
             return Ok(());
         }
         self.workspace_checkpoint.as_mut().unwrap().pending = false;
-        // 在途期间保留的 Live freeze/recycle 等意图须自行续进，不能等下一条偶然输入。
+        // Live freeze/recycle and other intents retained during in-flight work must resume themselves, without waiting for incidental input.
         PostMessageW(None, WM_NULL, WPARAM(0), LPARAM(0))?;
         if cancelled {
-            return Ok(()); // 退出正常使 Receipt 过时；不篡改 exit flag 来绕过校验。
+            return Ok(()); // Exiting normally makes Receipt stale; do not tamper with the exit flag to bypass validation.
         }
         if let save_control::Poll::Ready(mut prepared) = result? {
             if !self.checkpoint_exit_matches() {
-                return Ok(()); // 新显式意图不能被最终快照或下一轮关窗越过。
+                return Ok(()); // Neither the final snapshot nor next-turn window closure may overtake new explicit intent.
             }
             let disk = prepared
                 .staged
@@ -260,7 +260,7 @@ impl Application {
                 return Err(stale());
             }
             if !save_snapshot::automatic_ready(self)? {
-                return Ok(()); // 新的 Live 手势/显式意图使后台时间点正常过期。
+                return Ok(()); // New Live gestures/explicit intent normally invalidate the background time point.
             }
             let stamp = prepared
                 .receipt
@@ -268,7 +268,7 @@ impl Application {
                 .ok_or_else(stale)?;
             let display = projection_proof::capture(self, prepared.checkpoint_projections.as_ref());
             let source = self.restored_session.as_ref().unwrap().original.clone();
-            // 不泵 UI；成功前不改变 profile 基线，成功后不触碰手动文件/dirty/workflow。
+            // Do not pump UI messages; leave the profile baseline unchanged until success, then leave manual files/dirty/workflow untouched.
             let published = disk.commit(&AtomicBool::new(false)).map_err(|failure| {
                 Error::new(E_FAIL, format!("Cannot commit checkpoint: {failure:?}"))
             })?;
@@ -291,7 +291,7 @@ impl Application {
             owner.revision = prepared.candidate.revision;
             owner.original = Some(candidate_source);
             owner.stamp = Some((stamp, source));
-            // 先记真实发布事实；旧恢复副本未退休的独立错误不能抹掉已经提交的包含关系。
+            // Record actual publication first; a separate failure to retire an old recovery copy must not erase the committed inclusion relationship.
             owner.projections = prepared.checkpoint_projections;
             owner.senders = prepared.checkpoint_senders;
             owner.accounts = prepared.checkpoint_accounts;
@@ -307,7 +307,7 @@ impl Application {
         }
         Ok(())
     }
-    /// 删除最后 Unit 后 WM_QUIT 已排队；在 Wake 关闭前完成空工作区，不把应用退出写为空。
+    /// WM_QUIT is queued after the last Unit is deleted; finish the empty workspace before Wake closes, without recording application exit itself as empty.
     pub(super) unsafe fn finish_deleted_workspace(&mut self) -> Result<()> {
         if self
             .workspace_checkpoint
@@ -320,14 +320,14 @@ impl Application {
         if !self.documents.is_empty() {
             return Ok(());
         }
-        // 最后来源已销毁，手动/库/恢复候选均不能再发布；沿原 Job Drop 取消并回收。
+        // The final source is destroyed, so manual/library/restore candidates can no longer publish; cancel and reap through the original Job Drop.
         self.remote_sessions.finish_projection();
         self.collect_projection_abandoned();
         self.flush_projection_sender()?;
         self.projection_receive
             .shutdown(&mut self.projection_cleanup);
         self.projection_profile.finish_open();
-        self.projection_profile.refresh(); // direct 终态 join 也须同步本次新建意图，不能以旧 entries 剪掉。
+        self.projection_profile.refresh(); // A direct terminal join must also synchronize newly created intent instead of pruning it using old entries.
         self.projection_cleanup.resolve(&self.projection_profile);
         self.projection_cleanup.flush().map_err(|error| {
             Error::new(
@@ -335,7 +335,7 @@ impl Application {
                 format!("Cannot persist projection cleanup: {error:?}"),
             )
         })?;
-        // 这里只是应用终态，不在单个 HWND 回调或仍有文档时同步等待编码。
+        // This is application terminal state only; never wait synchronously for encoding in an individual HWND callback or while documents remain.
         self.cancel_restore();
         self.restore_job.take();
         self.save_origin = None;
@@ -346,7 +346,7 @@ impl Application {
             self.save_job.take();
         }
         loop {
-            self.pending_windows(false)?; // 退休最后来源的输入/执行任务，完成仍由原 Wake 推进。
+            self.pending_windows(false)?; // Retire the final source's input/execution tasks; completion still proceeds through the original Wake.
             self.poll_checkpoint()?;
             self.start_checkpoint()?;
             if !self.checkpoint_pending() && restore_batch::guard::is_idle(self) {

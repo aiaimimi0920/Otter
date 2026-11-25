@@ -1,4 +1,4 @@
-//! 工作流准备 worker：无窗口/网络权限，结果不等于保存提交或发送授权。
+//! Workflow-preparation worker: no window/network permissions; results imply neither save commit nor send authorization.
 use super::*;
 use crate::{
     desktop::{loom_execution_signal::CompletionSignal, session_asset_root::Root},
@@ -13,7 +13,7 @@ pub mod sync;
 pub struct Input {
     pub saved: Vec<u8>,
     pub revision: u64,
-    // 只能传显式准入的根目录 owner，不能从会话内的路径自行扩权。
+    // Pass only an explicitly admitted root owner; session paths must not expand access autonomously.
     pub root: Option<Arc<Root>>,
     pub catalog: Vec<serde_json::Value>,
 }
@@ -39,7 +39,7 @@ impl Ready {
         self.metadata.matches(saved)
     }
     pub fn matches_retained_source(&self, saved: &Source) -> bool {
-        // 同一只读 owner 已在 worker 绑定摘要，不在消息泵重新遍历会话。
+        // The same read-only owner already bound the digest in the worker; do not traverse the session again in the message pump.
         self.source.same_storage(saved) || self.matches_source(saved)
     }
 }
@@ -55,7 +55,7 @@ fn prepare(
     if candidate.revision == 0 || expected_revision.is_some_and(|r| r != candidate.revision) {
         return Err("Workflow saved revision mismatch".into());
     }
-    // 矢量、图片源选择和快照共用借用文档；候选持有的是同一原文的另一句柄。
+    // Vectors, image-source selection, and snapshots share the borrowed document; candidates hold another handle to the same original text.
     let parsed = parse_source(&source, cancel).map_err(|e| e.to_string())?;
     let document = parsed.document();
     let candidate =
@@ -82,7 +82,7 @@ pub struct Job {
     worker: Option<JoinHandle<std::result::Result<Ready, String>>>,
 }
 impl Job {
-    /// UI 只转交共享基线；共享原文及其预算，解析留在工作线程。
+    /// The UI only transfers the shared baseline; share original text and its budget, leaving parsing on the worker thread.
     pub fn start_shared(
         source: Source,
         root: Option<Arc<Root>>,
@@ -156,7 +156,7 @@ impl Job {
 impl Drop for Job {
     fn drop(&mut self) {
         self.cancel();
-        // WIC 原生调用不可强制中断；owner 等待取消边界回收，不遗留无主线程。
+        // Native WIC calls are uninterruptible; the owner waits for cancellation-boundary reclamation, leaving no ownerless thread.
         if let Some(worker) = self.worker.take() {
             let _ = worker.join();
         }

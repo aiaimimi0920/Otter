@@ -1,4 +1,4 @@
-//! 会话保存的 Live 帧快照；UI 只移交 GPU owner，既有保存 worker 读回并编码。
+//! Live frame snapshots for session saving; UI transfers GPU owners only, and the existing save worker reads back and encodes.
 use super::{Application, Document, Payload};
 use crate::{
     desktop::composition::live::session::Session, live_frames::Frame, live_texture::Texture,
@@ -29,8 +29,8 @@ pub(super) struct Capture {
 }
 
 fn members(app: &Application) -> impl Iterator<Item = &Session> {
-    // 回收先移除图节点，worker 可继续保留到实际退出；它不再是下一份保存的成员。
-    // 不以 is_alive 过滤，仍在图内却意外关闭的 Live 必须继续失败关闭。
+    // Recycling removes the graph node first; the worker may retain it until actual exit, but it no longer belongs to the next save.
+    // Do not filter by is_alive; unexpectedly closed Live nodes still in the graph must continue failing closed.
     app.live_sessions.iter().filter(|session| {
         !session.pin_attached()
             && session.belongs_to(&app.workspace)
@@ -62,7 +62,7 @@ fn observe(session: &Session, automatic: bool) -> Result<Option<(Arc<Frame<Textu
     };
     match session.freeze_rect([frame.resource.width, frame.resource.height]) {
         Ok(rect) => Ok(Some((frame, rect))),
-        // 与首帧和忙手势一样，暂不可冻结的几何只延期，不停用自动保存。
+        // Like first-frame waits and busy gestures, temporarily unfreezable geometry defers work without disabling autosave.
         Err(_) if automatic => Ok(None),
         Err(error) => Err(error),
     }
@@ -145,7 +145,7 @@ impl Snapshot {
             height: image.height,
             pixels: image.pixels,
         };
-        // 保存当前帧及本地标注，不序列化采集目标、授权或运行句柄。
+        // Save the current frame and local annotations, not capture targets, authorization, or runtime handles.
         let (editor, image) = if let Some(editor) = self.editor {
             crate::desktop::live_pin_snapshot::refresh(editor, image, || {
                 cancel.load(std::sync::atomic::Ordering::Acquire)

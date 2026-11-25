@@ -1,4 +1,4 @@
-//! HDR 缓存流式编码与哈希；复用同一配额/排他锁/所有权回执，不缓存整份压缩 PNG。
+//! Streaming HDR-cache encoding/hashing; reuse the same quota/exclusive lock/ownership receipt without buffering the whole compressed PNG.
 use super::*;
 use sha2::{Digest, Sha256};
 use std::io::Write;
@@ -21,7 +21,7 @@ pub fn stage(
             "Invalid HDR cache pixels",
         ));
     }
-    // 与 PNG sink 一致的保守上界。提前准入整个上界，不能编码后才发现配额已被其它进程占用。
+    // The same conservative upper bound as the PNG sink. Reserve it all up front, before another process can consume quota during encoding.
     let limit = raw as u64 + raw as u64 / 100 + 65536;
     let (directory, lock) = admit_staging(profile, stem, limit, cancel, policy)?;
     let mut draft = None;

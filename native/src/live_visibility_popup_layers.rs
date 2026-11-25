@@ -1,4 +1,4 @@
-//! 复用应用恢复 journal 接管仍显示的无 owner 菜单；ACK 前不持久借用层级。
+//! Reuse the application recovery journal to adopt still-visible ownerless menus; no persistent hierarchy borrow before ACK.
 use super::*;
 use crate::live_window_target::recovery::popup_layer::{self, Recovery};
 use otter_live_hover_hook::{
@@ -56,7 +56,7 @@ impl Layers {
             entry.wanted = requested.contains(&entry.lease);
         }
         for &lease in requested {
-            // 已登记或被拒绝的项不再重复查询 HWND；poll 仍独立复核已登记项。
+            // Do not query HWND again for already-registered/rejected entries; poll independently rechecks registered entries.
             if self.rejected.contains(&lease)
                 || self
                     .entries
@@ -72,8 +72,8 @@ impl Layers {
             match Entry::register(lease, journal) {
                 Ok(entry) => self.entries.push(entry),
                 Err(error) if lease.valid() => return Err(error),
-                // 菜单可在发现后正常隐藏/销毁；尚未借用层级，不将旧显示实例的
-                // 登记竞争升级为整个应用的退出错误，也不改绑或重放输入。
+                // Menus may normally hide/destroy after discovery; hierarchy is not yet borrowed, so do not escalate an old display instance's
+                // registration race to an application-exit error, rebind, or replay input.
                 Err(_) => {}
             }
         }
@@ -85,7 +85,7 @@ impl Layers {
             if entry.ticket.rejected() && !self.rejected.contains(&entry.lease) {
                 self.rejected.push(entry.lease);
             }
-            // 正在归还或已归还的项只等待退休，避免继续查询源窗口和层级属性。
+            // Entries being returned/already returned only await retirement, avoiding further source-window/hierarchy-property queries.
             let keep = !closing
                 && entry.wanted
                 && !entry.retiring
@@ -116,7 +116,7 @@ impl Entry {
         let target = Target::bind(lease.popup).map_err(io::Error::other)?;
         let layer = popup_layer::wire(lease);
         let recovery = Recovery::bind(target.clone(), &layer).map_err(io::Error::other)?;
-        // 只登记精确显示实例的层级责任，不读取或伪造 UpdateLayeredWindow 的原属性。
+        // Register only hierarchy responsibility for the exact display instance; never read/fabricate original UpdateLayeredWindow properties.
         let record = recovery.record().map_err(io::Error::other)?;
         let ticket = journal.register(record)?;
         Ok(Self {
@@ -133,7 +133,7 @@ impl Entry {
         if !self.lease.valid() {
             return self.retire();
         }
-        // ACK 后才准入单槽；借用前保护退休责任。posted 准入不代表源已执行/返回。
+        // Admit the single slot only after ACK and protect retirement responsibility before borrowing. Posted admission does not mean source execution/return.
         self.ticket.require_restore();
         self.borrowed = true;
         let result = self.recovery.acquire();
@@ -147,7 +147,7 @@ impl Entry {
         }
     }
     fn retire(&mut self) -> Result<()> {
-        self.retiring = true; // 已开始异步归还的同一登记不能因 wanted 再次开启而重新借用。
+        self.retiring = true; // The same registration, already returning asynchronously, cannot be borrowed again when wanted is re-enabled.
         if !self.restored {
             if self.borrowed {
                 self.recovery.restore()?;
@@ -159,7 +159,7 @@ impl Entry {
 }
 impl Drop for Entry {
     fn drop(&mut self) {
-        // 应用异常展开/最终析构仍先尝试本地归还；未确认的记录仍由独立子进程持有。
+        // Application unwinding/final destruction still first attempts local return; unconfirmed records remain held by the independent child.
         if self.borrowed && !self.restored {
             match self.recovery.restore() {
                 Ok(()) => {

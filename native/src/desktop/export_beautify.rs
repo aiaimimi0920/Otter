@@ -1,4 +1,4 @@
-//! 合成完成后的美化包装；只在后台处理，不改变内部标注/裁剪坐标。
+//! Beautification wrapper after composition; background-only processing, without changing internal annotation/crop coordinates.
 use super::*;
 #[path = "export_beautify_style.rs"]
 mod style;
@@ -62,7 +62,7 @@ pub(super) fn apply(
     compose(&inner, settings, cancel)
 }
 
-// 4×4 子像素覆盖；与原生内容擦除采用相同采样精度，不承诺浏览器边缘逐字节一致。
+// 4x4 subpixel coverage matches native content erasure precision, without promising byte-identical browser edges.
 fn coverage(x: u32, y: u32, width: u32, height: u32, radius: f64) -> f64 {
     let r = radius.min(width.min(height) as f64 / 2.0);
     if r <= 0.0 {
@@ -93,7 +93,7 @@ fn shadow(
         return Ok(None);
     }
     let offset = settings.shadow_offset;
-    // 底部阴影源可能超出输出框，先保留完整偏移卡片，再卷积/裁剪，避免边界漏算。
+    // Bottom-shadow sources may exceed output bounds; retain the complete offset card before convolution/clipping to avoid missing boundary contributions.
     let source_size = (
         size.0,
         size.1
@@ -111,7 +111,7 @@ fn shadow(
         }
     }
     let source = crate::pixels::Pixels::from_reserved(bytes, lease);
-    // WHATWG Canvas shadows：标准差为 shadowBlur/2，阴影颜色 alpha 在卷积后应用。
+    // WHATWG Canvas shadows: standard deviation is shadowBlur/2, and shadow-color alpha applies after convolution.
     let sigma = settings.shadow_sigma;
     crate::blur::region_scaled(
         &source,
@@ -169,7 +169,7 @@ fn compose(inner: &Image, settings: &Settings, cancel: &AtomicBool) -> Result<Im
                 .as_ref()
                 .map_or(1.0, |pixels| 1.0 - pixels[at + 3] as f64 / 255.0 * 0.35);
             for channel in 0..3 {
-                let index = 2 - channel; // CSS RGB -> 预乘 BGRA；背景始终不透明。
+                let index = 2 - channel; // CSS RGB to premultiplied BGRA; the background is always opaque.
                 bytes[at + channel] = ((settings.colors.0[index] as f64 * (1.0 - t)
                     + settings.colors.1[index] as f64 * t)
                     * shade)
@@ -186,7 +186,7 @@ fn compose(inner: &Image, settings: &Settings, cancel: &AtomicBool) -> Result<Im
                 let from = ((iy * inner.width + ix) * 4) as usize;
                 let cover = coverage(ix, iy, inner.width, inner.height, settings.radius);
                 for channel in 0..3 {
-                    // 分别执行白卡片填充和圆角裁剪的图片绘制，保留两次覆盖的边缘语义。
+                    // Perform white-card fill and rounded-clipped image drawing separately, preserving edge semantics from two coverage passes.
                     let card = 255.0 * cover + bytes[at + channel] as f64 * (1.0 - cover);
                     let alpha = inner.pixels[from + 3] as f64 / 255.0 * cover;
                     bytes[at + channel] = (inner.pixels[from + channel] as f64 * cover

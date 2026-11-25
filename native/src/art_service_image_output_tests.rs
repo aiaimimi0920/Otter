@@ -1,4 +1,4 @@
-//! 真signed child/隔离TLS图像回复；像素oracle独立声明，非由新适配器生成预期。
+//! Real signed child/isolated TLS image replies; independently declared pixel oracle, not expectations produced by the new adapter.
 use super::*;
 use crate::surface_javascript::fixture as js;
 const SOURCE_OUTPUT: &str = r#"

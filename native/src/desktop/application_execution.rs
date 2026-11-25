@@ -1,4 +1,4 @@
-//! 应用线程交付已完成的节点结果；短借用模型，不联网、不运行嵌套消息循环。
+//! The application thread delivers completed node results with short model borrows, no networking, and no nested message loop.
 use super::Application;
 #[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-loom")))]
 #[path = "application_execution_tests.rs"]
@@ -51,7 +51,7 @@ impl Application {
     }
     pub(super) fn start_pending_executions(&mut self) {
         for document in &self.documents {
-            // 清理中的 worker 同样占槽，不能把暂时繁忙当成执行失败或丢弃已编码输入。
+            // Workers being cleaned up still occupy slots; temporary contention is neither execution failure nor reason to discard encoded input.
             if self.execution_jobs.len() >= 2 {
                 break;
             }
@@ -60,7 +60,7 @@ impl Application {
             };
             let unit = execution.unit.clone();
             let request = execution.request.clone();
-            // 来源窗口不能借用另一节点的请求；过期排队请求不能结束替换后的请求。
+            // A source window cannot borrow another node's request; a stale queued request cannot finish its replacement.
             if unit != document.state.unit_id || !self.executions.is_latest(&unit, &request) {
                 continue;
             }
@@ -88,7 +88,7 @@ impl Application {
                 super::super::execution_configuration::clear(&document.state, &request);
                 continue;
             }
-            // 已替换注册令牌时先取消旧 worker，仍在清理的 owner 继续占槽。
+            // If the registration token has been replaced, cancel the old worker first; an owner still cleaning up continues occupying the slot.
             self.execution_jobs.retire_stale(&self.executions);
             self.shader_cache.bind(&document.state, &mut execution);
             if self
@@ -127,7 +127,7 @@ impl Application {
                 mut delivery,
             }) = updates.preview
             {
-                // Session 只发布已释放租约的预览；这里仍核对交付身份和领取条件。
+                // Session publishes only previews whose leases are released; still check delivery identity and collection eligibility here.
                 if delivery.unit() == &document.state.unit_id
                     && delivery.request() == &updates.request
                 {
@@ -148,7 +148,7 @@ impl Application {
                 self.executions.finish(&report.unit, &report.request);
                 continue;
             };
-            // 自引用输出也可能是依赖，先做短只读检查，再借用目标结果；中间不得重入 UI。
+            // Self-referencing output may also be a dependency; perform a brief read-only check before borrowing target results, with no intervening UI reentry.
             let current = report.dependencies_current(|unit, stamp| {
                 stamp.matches_owners(unit, &self.documents, &self.live_sessions, &self.workspace)
             });
@@ -161,7 +161,7 @@ impl Application {
                 );
             }
             if let Err(error) = result {
-                // 不把服务原始响应/认证信息放进 UI 状态；详细原因由类型区分。
+                // Do not put raw service responses/authentication information into UI state; types distinguish detailed causes.
                 let message = match error {
                     crate::desktop::loom_execution_tasks::CommitError::Stale => {
                         "执行期间文档或请求已变化，结果未应用"
@@ -185,7 +185,7 @@ impl Application {
             drop(results);
             if committed {
                 self.shader_cache.record(&document.state, &mut report);
-                // 结果事务结束并释放借用后再通知；派发仍由主循环统一准入。
+                // Notify only after the result transaction ends and borrows are released; dispatch admission still belongs to the main loop.
                 unsafe {
                     self.propagate_result(&report.unit);
                 }

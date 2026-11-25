@@ -1,4 +1,4 @@
-//! 让位时清理输入，在模型借用结束后改变 Z-order，防止同步消息重入。
+//! Clean input when yielding; change Z-order after the model borrow ends to prevent synchronous-message reentrancy.
 use super::{window_priority, State};
 use windows::{
     core::Result,
@@ -37,7 +37,7 @@ pub(super) unsafe fn refresh(hwnd: HWND, state: &State, claim: bool) -> Result<(
             let _ = InvalidateRect(Some(hwnd), None, false);
         }
     }
-    // 只在实际锚点变化时重新排序；后台刷新不能不断抢回 topmost。
+    // Reorder only when the actual anchor changes; background refreshes must not continually reclaim topmost.
     SetWindowPos(
         hwnd,
         Some(anchor.unwrap_or(HWND_TOPMOST)),

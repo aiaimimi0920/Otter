@@ -1,4 +1,4 @@
-// 通用字体合同，不包含真实插件业务；声明失败不提交，主动转换 mutation 仍保留。
+// Generic font contracts without actual plugin business logic; failed declarations do not commit, while mutations performed during conversion remain.
 let root, sheet;
 NeuroSurface.define({
   mount(context) {
@@ -13,7 +13,7 @@ NeuroSurface.define({
     catch (error) { if (error.message !== 'Unsupported or invalid native DOM operation') throw error; byteRejected = true; }
     if (!byteRejected || root.style.cssText !== before) throw Error('font raw UTF-8 admission');
     for (const value of ['', 'url(x)', 'inherit', 'cursive', 'ui-serif', 'a,', '"a,b"', '"abc', 'a'.repeat(32), Array(9).fill('a').join(','), Array(8).fill('a'.repeat(30)).join(','), Array(3).fill('一'.repeat(31)).join(',')]) {
-      if (!value) continue; // 空值是 CSS removeProperty，不是非法替换。
+      if (!value) continue; // Empty values mean CSS removeProperty, not invalid replacement.
       let rejected = false;
       try { root.style.cssText = 'color:red;font-family:' + value; }
       catch (error) { if (error.message !== 'Unsupported or invalid native DOM operation') throw error; rejected = true; }

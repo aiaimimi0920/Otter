@@ -1,4 +1,4 @@
-//! 父端恢复进程 owner；只能在后台调用阻塞握手/请求，UI 通过原进程句柄等待退出。
+//! Parent-side recovery-process owner; blocking handshakes/requests run only in the background, while UI waits for exit through the original process handle.
 use crate::{
     live_recovery_handshake::{read_ready, write_hello},
     live_recovery_pipe::Pipe,
@@ -30,7 +30,7 @@ use std::{
 };
 
 pub struct Client {
-    // 先关闭管道，再释放进程句柄。Drop 不杀进程：可能仍有已接受或 ACK 不确定的记录。
+    // Close the pipe before releasing the process handle. Drop does not kill the process: accepted records or records with uncertain ACKs may remain.
     pipe: Pipe,
     child: spawn::Process,
     session: [u8; 16],
@@ -51,7 +51,7 @@ impl Client {
             .to_u128()
             .to_le_bytes();
         let mut child = Starting(Some(spawn::spawn(&command, endpoint.into_handle())?));
-        // 命令仅携带路径/参数/测试环境；spawn 已关闭本地临时可继承句柄副本。
+        // The command carries only paths/arguments/test environment; spawn already closed local temporary inheritable-handle copies.
         drop(command);
         let process = child.0.as_ref().unwrap();
         let mut channel = pipe.io(Some(Instant::now() + BUDGET), Some(process.as_handle()));
@@ -80,8 +80,8 @@ impl Client {
             _ => Err(io::Error::other("Unexpected recovery child wait status")),
         }
     }
-    /// 返回 Accepted 才能修改源窗口；I/O 错误表示 ACK 不确定，不代表登记回滚。
-    /// 失败流不可重用；调用方须保留本地快照及恢复 owner，不得直接杀掉子进程。
+    /// Only an Accepted result permits source-window changes; I/O errors mean uncertain ACKs, not registration rollback.
+    /// Failed streams cannot be reused; callers must retain local snapshots and the recovery owner, never directly killing the subprocess.
     pub fn request(&mut self, command: Operation) -> io::Result<Status> {
         if !self.healthy()? {
             return Err(io::Error::new(
@@ -112,7 +112,7 @@ impl Client {
         self.failed = false;
         Ok(ack.status)
     }
-    /// 只允许已收到空登记 Shutdown ACK 后等待正常退出，不在 UI 消息处理中调用。
+    /// Wait for normal exit only after an empty-registry Shutdown ACK arrives; do not call during UI message handling.
     pub fn join_shutdown(&mut self) -> io::Result<()> {
         if !self.shutdown {
             return Err(io::Error::other("Recovery shutdown has not been accepted"));
@@ -146,7 +146,7 @@ struct Starting(Option<spawn::Process>);
 impl Drop for Starting {
     fn drop(&mut self) {
         if let Some(child) = self.0.as_mut() {
-            // Ready 前没有任何登记，可安全终止本次自建失败子进程并回收。
+            // No registrations exist before Ready, so this newly created failed subprocess may safely be terminated and reclaimed.
             let _ = child.kill();
             let _ = child.wait();
         }

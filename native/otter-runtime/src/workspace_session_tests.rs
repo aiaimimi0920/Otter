@@ -1,4 +1,4 @@
-//! 合成旧会话字段的拓扑往返；不接触用户会话文件。
+//! Topology round trip over synthetic legacy-session fields; no user-session-file access.
 use super::*;
 fn fixture() -> Topology {
     Topology {

@@ -1,4 +1,4 @@
-//! 跨源线程 dialog 只从已核验焦点/既有成员补入；不枚举全进程或操作系统前台。
+//! Add cross-source-thread dialogs only from verified focus/existing members; no process-wide enumeration or system foreground operations.
 use super::*;
 use std::sync::mpsc::{self, Receiver, SyncSender, TryRecvError};
 
@@ -29,7 +29,7 @@ fn receive<T>(reply: Receiver<T>) -> T {
             Err(TryRecvError::Disconnected) => panic!("popup source thread disconnected"),
         }
         assert!(Instant::now() < until, "popup source thread timed out");
-        // 创建/销毁跨线程 owned HWND 时允许源回调，不移动鼠标或切换前台。
+        // Allow source callbacks when creating/destroying cross-thread owned HWNDs, without moving the mouse or switching foreground.
         pump();
         std::thread::sleep(Duration::from_millis(1));
     }
@@ -121,7 +121,7 @@ fn authenticated_cross_thread_focus_is_discovered_and_existing_member_survives_b
         .into_iter()
         .find(|s| s.target().unwrap().hwnd() == popup.hwnd)
         .unwrap();
-    // focus.active 会在回到 B 时清除；已认证成员必须继续进入 present，不能立刻 stop。
+    // focus.active clears on returning to B; authenticated members must still enter present rather than immediately stop.
     assert!(contains(
         &discover(&target, None, &[(&member, None)], &[]).unwrap(),
         popup.hwnd

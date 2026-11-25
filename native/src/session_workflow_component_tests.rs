@@ -1,4 +1,4 @@
-//! 连通分量来源选择、身份重映射和精确会话绑定。
+//! Connected-component source selection, identity remapping, and exact session binding.
 use super::*;
 use serde_json::json;
 fn bytes(origins: &[Option<(&str, &str)>], links: &[(usize, usize)]) -> Vec<u8> {

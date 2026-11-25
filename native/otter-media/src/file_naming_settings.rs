@@ -1,4 +1,4 @@
-//! 运行时命名设置模型；字段与主干一致，不自动读写主干配置目录。
+//! Runtime naming-settings model matches mainline fields without automatic mainline-configuration-directory I/O.
 use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]

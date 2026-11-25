@@ -1,4 +1,4 @@
-//! GPU 层身份、原子上传和宿主撤销后的栅格视图同步。
+//! GPU layer identity, atomic uploads, and raster-view synchronization after host cancellation.
 use super::*;
 use windows::{
     core::Interface,
@@ -284,7 +284,7 @@ fn erase_preview_reveals_base_or_transparency_without_reuploading_layers() {
                 resources.annotations.as_ref().unwrap().bitmap.as_raw()
             );
         }
-        // 取消只移除预览遮罩，原有纹理不需要重新上传。
+        // Cancellation removes only the preview mask; existing textures need no reupload.
         target.BeginDraw();
         target.Clear(Some(&D2D1_COLOR_F::default()));
         resources

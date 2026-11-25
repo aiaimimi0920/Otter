@@ -1,4 +1,4 @@
-//! 对照主干 action_dispatch 的控制协议，验证全局/来源身份和边界，而非前端 action 包。
+//! Compare against mainline action_dispatch control protocol, checking global/source identities and boundaries rather than frontend action packets.
 use super::*;
 use crate::session_document::workflow_snapshot::{self, Content};
 use serde_json::{json, Value};

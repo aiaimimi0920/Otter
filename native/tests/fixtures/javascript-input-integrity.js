@@ -1,4 +1,4 @@
-// 本地入口不能读取可被插件覆盖的 value/event/collection 方法或 Promise species。
+// Local entries must not read plugin-overridable value/event/collection methods or Promise species.
 NeuroSurface.define({ mount({ root }) {
   const status=document.createElement('p'), field=document.createElement('input');
   status.textContent='integrity-ready'; root.append(status,field);

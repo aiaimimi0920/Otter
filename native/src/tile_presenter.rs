@@ -1,4 +1,4 @@
-//! 一次未知写不重放；断线丢弃本地租约，读状态/CAS 后显式建立新的 presenter。
+//! Never replay an uncertain write; discard local leases on disconnection and explicitly establish a new presenter after state reads/CAS.
 use super::*;
 use crate::{
     device_session_client::Client,
@@ -63,7 +63,7 @@ pub(super) fn run(
             }
             if presenter.is_none() {
                 let lease = control.wall_connect(&endpoint.endpoint_id).map_err(|e| {
-                    // 丢失 connect 回复时不知道 leaseId；不得自动再次创建未知租约。
+                    // A lost connect reply leaves leaseId unknown; never automatically create another unknown lease.
                     if matches!(e, crate::live_relay_http::Error::Http(_)) {
                         shared.stop();
                     }
@@ -125,12 +125,12 @@ pub(super) fn run(
                     s.presented_frame = None;
                     s.status = "正在识别物理输出";
                 }
-                // 没有新鲜控制心跳，独立窗口 watchdog 必须清屏，不能由下载延长许可。
+                // Without fresh control heartbeats, the independent window watchdog must clear the screen; downloads cannot extend permission.
                 if s.until.is_none() {
                     s.until = Some(deadline(token, p.ttl));
                 }
                 s.activate_at = scene.map_or(0, |v| v.activate_at_ms);
-                // 已广告 scheduledPresentation，缺失权威时钟必须拒绝而非立即提前显示。
+                // Once scheduledPresentation is advertised, reject missing authoritative clocks rather than displaying immediately and early.
                 if state.timing.is_none() {
                     return Err("服务未提供 Wall 场景时钟");
                 }
@@ -218,7 +218,7 @@ pub(super) fn run(
                 });
             }
             if let Some(report) = identification_report {
-                // 一次发送，不因未知报告结果重放；原错误链撤销此presenter并清屏。
+                // Send once without replaying uncertain report outcomes; the original error chain revokes this presenter and clears the screen.
                 control
                     .wall_identification_report(&report)
                     .map_err(|e| failure(token, e, "输出识别回报失败"))?;

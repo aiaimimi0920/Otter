@@ -1,4 +1,4 @@
-//! 会话媒体发布 gate；state→frames 固定锁序，关闭/授权失效与发布不可交错。
+//! Session media-publication gate; fixed state -> frames lock order prevents interleaving publication with close/authorization invalidation.
 use crate::{
     live_relay_frame::Metadata,
     live_relay_pixels::PixelFrame,
@@ -30,7 +30,7 @@ pub struct Permit {
     stop: Arc<AtomicBool>,
 }
 impl Permit {
-    /// 只作 worker/codec 取消信号；发布授权仍必须通过同锁 commit 复核。
+    /// Only a worker/codec cancellation signal; publication authorization still requires same-lock commit revalidation.
     pub fn stop(&self) -> &AtomicBool {
         &self.stop
     }
@@ -64,7 +64,7 @@ impl ViewerSession {
     pub(super) fn matches_media_target(&self, session: &str, device: &str) -> bool {
         self.identity.session() == session && self.device == device
     }
-    /// 新 owner 总是暂停；identity/设备来自已认证加入流程，不从媒体包构造。
+    /// New owners always start paused; identity/device come from authenticated joining, never media packets.
     pub fn new(identity: Identity, device: String) -> Result<Self, Error> {
         if !authority::identifier(&device) {
             return Err(Error::Authority);
@@ -86,14 +86,14 @@ impl ViewerSession {
             }),
         })
     }
-    /// 仅由可信控制 owner 在认证、bootstrap 重放及业务校验完成后调用。
-    /// 本方法验证成员/来源合同，不执行认证；每次激活都撤销旧工作许可并丢弃旧缓存。
+    /// Only trusted control owners call after authentication, bootstrap replay, and business validation.
+    /// This method validates membership/source contracts, not authentication; every activation revokes old work permits and discards old caches.
     pub fn activate(&self, snapshot: &Snapshot) -> Result<(), Error> {
         let mut state = self.state.lock().map_err(|_| Error::Poisoned)?;
         if state.closed {
             return Err(Error::Closed);
         }
-        // 迟到快照不能覆盖较新的控制状态，也不能无故撤销新代次的工作。
+        // Late snapshots cannot overwrite newer control state or unjustifiably revoke new-generation work.
         if snapshot.revision() < state.revision {
             return Err(Error::Authority);
         }
@@ -130,7 +130,7 @@ impl ViewerSession {
         }
         self.invalidate(&mut state)
     }
-    /// 旧 worker 的回收请求不得撤销后来激活的新代次。
+    /// Old-worker reclamation requests must not revoke a later-activated new generation.
     pub fn suspend_if_current(&self, permit: &Permit) -> Result<(), Error> {
         let mut state = self.state.lock().map_err(|_| Error::Poisoned)?;
         self.verify(&state, permit)?;
@@ -160,7 +160,7 @@ impl ViewerSession {
         if frame.metadata().epoch != permit.epoch {
             return Err(Error::Epoch);
         }
-        // 保持 gate 锁直到缓存提交完成；不会在此锁内解码、做网络 I/O 或等待 worker。
+        // Hold the gate lock until cache commit completes; no decoding, network I/O, or worker waits under this lock.
         let result = state
             .frames
             .commit(frame, allow_warmup)
@@ -170,12 +170,12 @@ impl ViewerSession {
         }
         Ok(result)
     }
-    /// worker 开始工作/发送控制前复核固定许可；不能靠重新 admit 绕过代次失效。
+    /// Recheck fixed permits before worker execution/control sending; readmission cannot bypass generation invalidation.
     pub fn validate(&self, permit: &Permit) -> Result<(), Error> {
         let state = self.state.lock().map_err(|_| Error::Poisoned)?;
         self.verify(&state, permit)
     }
-    /// 恢复只读已真正提交的像素水位；UI取走缓存不丢水位，不从wire/排队冒充解码成功。
+    /// Recovery reads only actually committed pixel watermarks; UI cache consumption preserves them, and wire/queued data cannot impersonate decode success.
     pub(super) fn committed(&self, permit: &Permit) -> Result<Cursor, Error> {
         let state = self.state.lock().map_err(|_| Error::Poisoned)?;
         self.verify(&state, permit)?;
@@ -185,7 +185,7 @@ impl ViewerSession {
             .map(|status| status.cursor)
             .map_err(|_| Error::Cache)
     }
-    /// 同一许可的控制进度只更新 revision，不重建帧缓存；旧控制 owner 不能复活新代次。
+    /// Control progress for the same permit updates only revision, not frame caches; old control owners cannot revive new generations.
     pub(super) fn advance_control(&self, permit: &Permit, revision: u64) -> Result<(), Error> {
         let mut state = self.state.lock().map_err(|_| Error::Poisoned)?;
         self.verify(&state, permit)?;
@@ -212,16 +212,16 @@ impl ViewerSession {
         Self::ready(&state)?;
         state.frames.take(cursor).map_err(|_| Error::Cache)
     }
-    /// 单个 UI consumer 等待此合并事件并调用 poll_frame；句柄不可比 Session 活得更久。
+    /// One UI consumer waits on this coalesced event and calls poll_frame; the handle cannot outlive Session.
     #[cfg(windows)]
     pub fn change_handle(&self) -> std::os::windows::io::BorrowedHandle<'_> {
         self.changed.handle()
     }
-    /// 同锁清除通知并取最新帧；暂停/关闭也会唤醒，调用者必须撤下旧显示资源。
+    /// Clear notification/take the latest frame under one lock; pause/close also wakes consumers, which must remove old display resources.
     pub fn poll_frame(&self, after: Cursor) -> Result<Option<PixelFrame>, Error> {
         self.poll_update(after).map(|update| update.frame)
     }
-    /// 同一次锁内获取帧与业务快照并确认通知，避免业务更新与 reset 交错丢失唤醒。
+    /// Get frame/business snapshot and acknowledge notification within one lock, avoiding lost wakeups from interleaved business updates/reset.
     pub fn poll_update(&self, after: Cursor) -> Result<Update, Error> {
         let state = self.state.lock().map_err(|_| Error::Poisoned)?;
         self.changed.reset();
@@ -270,7 +270,7 @@ impl ViewerSession {
         state.frames.close();
         self.changed.signal();
     }
-    /// 只处理当前媒体连接的权威撤销；旧连接不得关闭后来激活的新代次。
+    /// Handle only authoritative revocation of the current media connection; old connections cannot close later-activated generations.
     pub fn close_if_current(&self, permit: &Permit) -> Result<(), Error> {
         let mut state = self.state.lock().map_err(|_| Error::Poisoned)?;
         self.verify(&state, permit)?;
@@ -282,7 +282,7 @@ impl ViewerSession {
         self.changed.signal();
         Ok(())
     }
-    /// 迟到 open 只表示远端快照开放，不激活本地 gate。HTTP 错误不可送作关闭事实。
+    /// Late open indicates only an open remote snapshot, not local-gate activation. HTTP errors cannot be submitted as closure evidence.
     pub fn observe_terminal(&self, bytes: &[u8]) -> Result<bool, Error> {
         let closed = authority::terminal_snapshot(bytes, &self.identity, &self.device)
             .map_err(|_| Error::Authority)?;

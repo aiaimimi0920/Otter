@@ -1,4 +1,4 @@
-//! 签名 worker 复用原 LocalInput/视口/rAF/timer 协议，不授予远端 emit 或服务权限。
+//! Signed workers reuse original LocalInput/viewport/rAF/timer protocols without granting remote emit or service permissions.
 use super::*;
 use crate::{
     surface_javascript_wire::{InputPhase, KeyPhase, KeyboardInput, TextInput},
@@ -26,7 +26,7 @@ fn signed_worker_accepts_text_keyboard_animation_and_timer_through_original_slot
     let field = first.scene.root().children()[1].id().to_owned();
     let binding = runtime.binding.clone();
     let viewport = Viewport::new([640, 480], 96).unwrap();
-    // AnimationFrame 也执行到期 timer；先单独验证 Timer，避免依赖回调覆盖顺序。
+    // AnimationFrame also executes due timers; verify Timer separately first to avoid depending on callback overwrite order.
     runtime
         .submit(&binding, Operation::Timer(viewport))
         .unwrap();

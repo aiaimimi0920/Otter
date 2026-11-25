@@ -1,7 +1,7 @@
-//! 通用变换柄布局使用客户区 DIP，与绘制/命中共用；不改变文档的变换中心。
+//! Generic transform-handle layout uses client DIPs shared by drawing/hit testing; document transform centers remain unchanged.
 use super::canvas::Canvas;
 use crate::{editor::Tool, viewport::Point};
-/// 与画布预览同源；已物化的组/路径/效果预览不再叠加单选平移偏移。
+/// Same source as canvas previews; materialized group/path/effect previews do not add single-selection translation again.
 pub(super) fn preview_bounds(
     canvas: &super::canvas::Canvas,
     index: usize,
@@ -89,7 +89,7 @@ pub(super) fn fit(point: Point, size: Option<Point>) -> Option<Point> {
         return None;
     }
     let Some(size) = size else { return Some(point) };
-    // 最小 24 DIP 保留命中半径与边缘间距；过小窗口隐藏，而非 clamp 产生倒置区间。
+    // A minimum 24 DIP preserves hit radius/edge gaps; hide in smaller windows rather than clamp into inverted ranges.
     if !size.x.is_finite() || !size.y.is_finite() || size.x < 24.0 || size.y < 24.0 {
         return None;
     }
@@ -306,7 +306,7 @@ mod movement_tests {
                     for (actual, expected) in handles(&c).into_iter().zip(preview) {
                         close(actual, expected);
                     }
-                    // 第二次拖动从已经平移后的中心开始，不拿旧坐标命中小尺寸标注的操作柄。
+                    // The second drag starts at the translated center, not stale coordinates for small-annotation handles.
                     assert!(c.pointer_down(last));
                     assert!(
                         c.selection_drag.is_some()

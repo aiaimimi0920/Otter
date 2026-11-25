@@ -1,4 +1,4 @@
-//! 同目录分阶段另存为；只提交新文件，不提供覆盖已有会话的伪 CAS 接口。
+//! Same-directory phased Save As commits only new files, without fake CAS for overwriting existing sessions.
 use crate::{session_document::decode, session_write::Candidate};
 use std::os::windows::ffi::OsStrExt;
 use std::{
@@ -24,7 +24,7 @@ pub struct Staged {
     revisions: Option<(u64, u64)>,
 }
 impl Staged {
-    /// 调用者显式选择目标；只写本次唯一临时文件，取消/失败不触碰已有目标。
+    /// Callers explicitly select targets; write only this unique temporary file, and cancellation/failure never touches existing targets.
     pub fn prepare(
         destination: &Path,
         candidate: &Candidate,
@@ -46,7 +46,7 @@ impl Staged {
         staged.revisions = Some((candidate.expected_revision, candidate.revision));
         Ok(staged)
     }
-    /// 已由所属格式验证的不可变编码结果；不绑定会话候选身份。
+    /// Immutable encoded results already validated by owning formats, without session-candidate identity binding.
     pub fn prepare_bytes(
         destination: &Path,
         bytes: crate::pixels::Pixels,
@@ -70,7 +70,7 @@ impl Staged {
         check(cancel)?;
         Ok(staged)
     }
-    /// 格式 owner 流式写入本次独占文件；不保留完整编码缓冲，也不伪造会话候选身份。
+    /// Format owners stream into this exclusive file; no full encoded buffers or fabricated session-candidate identity.
     pub fn prepare_stream(
         destination: &Path,
         cancel: &AtomicBool,
@@ -121,15 +121,15 @@ impl Staged {
         };
         Ok(staged)
     }
-    /// 绑定同一不可变编码结果，不以碰巧相同的修订号或字节长度冒充同一候选。
+    /// Bind the same immutable encoded result; coincidentally equal revisions/byte lengths do not prove the same candidate.
     pub fn is_for(&self, candidate: &Candidate) -> bool {
         self.bytes
             .as_ref()
             .is_some_and(|bytes| bytes.same_storage(&candidate.bytes))
             && self.revisions == Some((candidate.expected_revision, candidate.revision))
     }
-    /// 提交前调用者仍须复核 UI Receipt；不覆盖，不跨卷退化为 copy/delete。
-    /// 成功后即使收到迟到取消也不删除已发布文件；断电持久性取决于实际文件系统。
+    /// Callers still recheck UI Receipt before commit; no overwriting or cross-volume copy/delete fallback.
+    /// After success, late cancellation never deletes published files; power-loss durability depends on the actual filesystem.
     pub fn commit_new(mut self, cancel: &AtomicBool) -> io::Result<PathBuf> {
         check(cancel)?;
         self.file.take();
@@ -158,8 +158,8 @@ impl Staged {
         Ok(self.destination.clone())
     }
 
-    /// 已编码资源的递增发布；复用同一个暂存文件，同名冲突不重写内容。
-    /// 仅供无会话修订绑定的资源使用；会话仍必须发布到用户确认的确切路径。
+    /// Incremental publication of encoded resources reuses the same staged file without rewriting content for name conflicts.
+    /// Only resources without session-revision bindings use this; sessions still publish to the exact user-confirmed path.
     pub fn commit_incremented(
         mut self,
         stem: &str,
@@ -185,7 +185,7 @@ impl Staged {
             crate::file_naming::allocate::allocate_with(parent, stem, extension, cancel, |path| {
                 let target: Vec<u16> = path.as_os_str().encode_wide().chain([0]).collect();
                 check(cancel)?;
-                // 不设置 REPLACE_EXISTING 或 COPY_ALLOWED，始终同卷无覆盖重命名。
+                // Set neither REPLACE_EXISTING nor COPY_ALLOWED; always same-volume no-overwrite rename.
                 unsafe {
                     MoveFileExW(
                         PCWSTR(source.as_ptr()),
@@ -203,7 +203,7 @@ impl Drop for Staged {
     fn drop(&mut self) {
         self.file.take();
         if !self.committed {
-            // 只清理本对象 create_new 成功创建的路径；不删除目标或扫描整个目录。
+            // Clean only paths this object successfully created with create_new; never delete targets or scan whole directories.
             let _ = std::fs::remove_file(&self.temporary);
         }
     }

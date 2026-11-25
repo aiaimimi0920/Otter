@@ -1,4 +1,4 @@
-//! 已有协作会话的单批Apply；复用原Job/Slot/Lease，网络前持久化，HTTP后仍保留pending。
+//! Single-batch Apply for existing collaboration sessions reuses original Job/Slot/Lease; persist before networking and retain pending after HTTP.
 use super::*;
 use crate::projection_edit::{
     self as protocol,
@@ -102,7 +102,7 @@ impl Input {
                 {
                     return Err(Failure::Protocol(protocol::Error::Identity));
                 }
-                ticket // 显式重试只恢复原opId/基线/32项；不能用当前Editor重造未知副作用。
+                ticket // Explicit retry restores only original opId/baseline/32 entries; current Editor cannot reconstruct unknown side effects.
             } else {
                 let (request, acknowledged) =
                     preparation::request(&self.snapshot, self.op_id, self.action)?;
@@ -118,7 +118,7 @@ impl Input {
                     .map_err(Failure::Journal)?
             };
             let ticket = if ticket.rejection().is_some() {
-                ticket // 明确拒绝已落盘，重开/显式重试只read，不再发旧Apply。
+                ticket // Explicit rejection is persisted; reopen/explicit retry only reads and never resends old Apply.
             } else {
                 match control.projection_edit(&ticket) {
                     Ok(document) => {

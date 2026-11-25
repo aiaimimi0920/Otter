@@ -1,4 +1,4 @@
-//! 传统投送合同；全量校验后发布，不复制凭据，接收响应不等于已经持久化或呈现。
+//! Traditional delivery contract; publish after complete validation without copying credentials, and receipt does not mean persistence/presentation.
 use serde::{Deserialize, Serialize};
 #[path = "projection_envelope.rs"]
 mod envelope;
@@ -81,13 +81,13 @@ impl Invitation {
     pub fn accepted(&self) -> bool {
         self.accepted
     }
-    /// 仅拒绝仍待本机同意的新邀请；不能把新的接收策略套在既有 accepted 关联上。
+    /// Reject only new invitations awaiting local consent; new receive policies must not affect existing accepted associations.
     pub(crate) fn reject_body(&self, origin: &str) -> Result<Vec<u8>, Error> {
         self.validate_for(origin)?;
         if self.accepted {
             return Err(Error::AlreadyAccepted);
         }
-        // 拒绝不增加接收权；过期邀请仍可交由服务端记录/清理，不套用 accept 的期限。
+        // Rejection grants no receive rights; expired invitations may still be recorded/cleaned by servers, without accept deadlines.
         serde_json::to_vec(&serde_json::json!({
             "projectionId":self.envelope.projection_id(), "status":"rejected"
         }))
@@ -103,7 +103,7 @@ impl Inbox {
     pub fn entries(&self) -> &[Invitation] {
         &self.entries
     }
-    /// 离线查询未完成时保留标记；成功合并才清除，不把共享结果当完整跨Loom收件箱。
+    /// Keep markers while offline queries are incomplete and clear only after successful merge; shared results are not complete cross-Loom inboxes.
     pub fn has_offline_peers(&self) -> bool {
         self.offline_peers
     }
@@ -126,7 +126,7 @@ pub(crate) fn receipt(bytes: &[u8]) -> Result<(), Error> {
         Err(Error::Receipt)
     }
 }
-/// 解绑只减权；仍严格绑定原 HTTPS 来源，由协议 owner 统一验证 envelope。
+/// Unlink only reduces privileges; still bind original HTTPS origin strictly and let protocol owners uniformly validate envelopes.
 pub(crate) fn unlink_body(envelope: &Envelope, origin: &str) -> Result<Vec<u8>, Error> {
     envelope.validate(origin)?;
     serde_json::to_vec(&serde_json::json!({"projectionId": envelope.projection_id()}))

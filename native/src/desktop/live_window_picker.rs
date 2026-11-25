@@ -1,4 +1,4 @@
-//! 有界原生窗口菜单；只读外部顶层窗口标题，选择绑定对象而非按标题再次查找。
+//! Bounded native-window menus; read only external top-level titles and bind selections to objects rather than rediscovering by title.
 use crate::live_window_target::Target;
 use windows::{
     core::{w, Error, Result, HSTRING},
@@ -51,7 +51,7 @@ unsafe extern "system" fn enumerate(hwnd: HWND, parameter: LPARAM) -> windows::c
     }
     let mut process = 0;
     GetWindowThreadProcessId(hwnd, Some(&mut process));
-    // 不列出 Otter 自己，避免递归捕获；也避免向本进程窗口同步发送 WM_GETTEXT。
+    // Exclude Otter itself to prevent recursive capture and synchronous WM_GETTEXT to same-process windows.
     if process == 0 || process == GetCurrentProcessId() {
         return true.into();
     }

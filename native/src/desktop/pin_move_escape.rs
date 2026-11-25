@@ -1,4 +1,4 @@
-//! 将拖动中的 Esc 原位转换为关闭消息，系统不再收到可触发位置回滚的按键。
+//! Convert Esc during dragging in place to a close message, so the system never receives the key that could roll back position.
 use std::cell::Cell;
 use windows::{
     core::Result,
@@ -48,6 +48,6 @@ unsafe extern "system" fn filter(code: i32, wp: WPARAM, lp: LPARAM) -> LRESULT {
             }
         }
     }
-    // 不在 hook 栈里销毁窗口；由原消息循环分派 WM_CLOSE，既不回滚也不先恢复宿主帧。
+    // Do not destroy windows on the hook stack; let the original loop dispatch WM_CLOSE, without rollback or restoring the host frame first.
     CallNextHookEx(None, code, wp, lp)
 }

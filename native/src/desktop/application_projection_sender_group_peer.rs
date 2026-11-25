@@ -1,4 +1,4 @@
-//! 合成TLS接收端独立验证每份PNG尺寸/像素/digest；只识别测试目录中的设备，不用真实服务。
+//! Synthetic TLS receiver independently checks each PNG's dimensions/pixels/digest; recognizes only test-catalog devices and uses no real service.
 use super::*;
 use base64::Engine;
 use serde_json::{json, Value};

@@ -1,4 +1,4 @@
-//! 本地无像素标记；复用前景色/裁剪/透明层，不创建控件、纹理或事件。
+//! Local no-pixel markers; reuse foreground colors/clipping/opacity layers without creating controls, textures, or events.
 use super::*;
 pub(crate) struct Paint {
     origin: [f32; 2],

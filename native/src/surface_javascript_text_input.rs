@@ -1,4 +1,4 @@
-//! 私有文本输入 carrier；只有有界值/目标/阶段，不含远端 action、凭据或 HWND。
+//! Private text-input carrier containing only bounded values/targets/phases, never remote actions, credentials, or HWNDs.
 use serde::{Deserialize, Serialize};
 use std::io;
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]

@@ -1,4 +1,4 @@
-//! 汇总发布、控制和观察的退出原因；已收到的授权终态优先于普通失败。
+//! Aggregate publishing/control/observation exit reasons; received terminal authorization states outrank ordinary failure.
 use super::*;
 
 impl Exit {
@@ -23,7 +23,7 @@ pub(super) fn source_exit(
     let control = control.and_then(Result::err).map(Exit::Control);
     let observation = observation.and_then(Result::err).map(Exit::Observation);
     let source = source.err();
-    // 清理权限取决于三条链实际收到的授权终态，不由普通错误的展示顺序决定。
+    // Cleanup permission depends on actual terminal authorization states received by all three chains, not ordinary-error display order.
     [control, observation, source]
         .into_iter()
         .flatten()

@@ -1,4 +1,4 @@
-// 通用 fragment/查询/属性委托真正接入 Application listener/FIFO/update；不是股票适配。
+// Generic fragments/queries/attribute delegation actually connect to Application listener/FIFO/update; not a stock-market adapter.
 let label, current, count = 0;
 NeuroSurface.define({
   async mount({ root, snapshot, emit }) {

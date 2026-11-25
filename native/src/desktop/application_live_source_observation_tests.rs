@@ -1,4 +1,4 @@
-//! 实际菜单/Application→受限MTA/UIA→原TLS发布/稳定/变更/停止；不读取用户窗口。
+//! Actual menu/Application -> restricted MTA/UIA -> original TLS publication/stability/change/stop; no user-window reads.
 use super::*;
 use crate::desktop::composition::live::window::publication::PUBLISH_OBSERVE;
 use crate::live_source_uia_test_window::Window;

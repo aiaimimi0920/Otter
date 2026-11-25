@@ -1,4 +1,4 @@
-//! 共享滚动快照的独立几何/布局身份oracle；不把滚动状态写入权威scene。
+//! Independent geometry/layout-identity oracles for shared scroll snapshots; never write scroll state into authoritative scene.
 use super::*;
 const SCENE: &[u8] = br#"{"id":"root","type":"scroll","layout":{"width":64,"height":64},"children":[{"id":"first","type":"input","layout":{"height":20,"minHeight":20},"props":{"value":"source"}},{"id":"gap","type":"view","layout":{"height":80,"minHeight":80}},{"id":"last","type":"button","layout":{"height":20,"minHeight":20}}]}"#;
 fn p() -> Presentation {

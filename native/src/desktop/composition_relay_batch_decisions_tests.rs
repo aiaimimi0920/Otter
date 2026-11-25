@@ -1,4 +1,4 @@
-//! 已撤权批次决定通过真实线程进入应用结果队列；不访问网络或自动重放。
+//! Revoked batch decisions enter application result queues through real threads, without networking or automatic replay.
 use super::*;
 #[path = "composition_relay_batch_continuations_tests.rs"]
 mod continuations;

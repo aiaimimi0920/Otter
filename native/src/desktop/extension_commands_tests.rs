@@ -1,4 +1,4 @@
-//! 隐藏真实宿主→首次 OCR/翻译→TLS/WS→附件 CAS→原 Canvas；不访问真实 Loom/系统剪贴板。
+//! Real hidden host to first OCR/translation to TLS/WS to attachment CAS to original Canvas; no real Loom/system clipboard.
 use super::*;
 use crate::{
     desktop::extension_command_route::{OCR, TRANSLATE},
@@ -105,7 +105,7 @@ impl Fixture {
     }
     unsafe fn click_button(&self, translation: bool) {
         let document = &self.documents[0];
-        // 真实编辑条控件；不注入全局鼠标/键盘。
+        // Real edit-strip controls, without global mouse/keyboard injection.
         let child = GetDlgItem(
             Some(document.panel.0),
             if translation { 0x6109 } else { 0x6108 },

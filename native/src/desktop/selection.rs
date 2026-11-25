@@ -1,4 +1,4 @@
-//! 单选引用绑定文档版本；历史切换后旧索引失效，不能误删或修改另一个标注。
+//! Single-selection references bind the document version; history changes invalidate old indices so another annotation cannot be deleted or modified accidentally.
 use super::canvas::Canvas;
 use crate::{
     editor::{Stroke, Tool},
@@ -139,7 +139,7 @@ impl Canvas {
         let Some(index) = self.selected_index() else {
             return false;
         };
-        // 文字不能直接拉伸包围框；按目标字号重新排版，失败时不改文档。
+        // Text bounding boxes cannot stretch directly; re-layout at the target font size, leaving the document unchanged on failure.
         let result = if self.editor.elements()[index].tool == Tool::Text {
             let Some(text) = self.editor.elements()[index]
                 .text

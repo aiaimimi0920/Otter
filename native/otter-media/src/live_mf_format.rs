@@ -1,4 +1,4 @@
-//! 同步 H264→NV12 媒体类型协商；失败消费整个 owner，不暴露半初始化 transform。
+//! Synchronous H264 -> NV12 media-type negotiation; failure consumes entire owners without partially initialized transforms.
 use super::{DecoderOwner, Layout};
 use windows::{
     core::{Error, Interface, Result},
@@ -12,7 +12,7 @@ impl ConfiguredDecoder {
     pub fn layout(&self) -> Layout {
         self.layout
     }
-    /// 验证 owner 仍持有已协商的输出；不把缓存 layout 当作未来 stream-change 的结果。
+    /// Verify owners retain negotiated output; cached layouts do not stand in for future stream-change results.
     pub fn current_layout(&self) -> Result<Layout> {
         let media = unsafe { self.owner._transform.transform.GetOutputCurrentType(0)? };
         Layout::read(
@@ -51,8 +51,8 @@ impl DecoderOwner {
     }
 }
 fn validate_size(width: u32, height: u32) -> Result<()> {
-    // 系统 H264 decoder 的最小分辨率为 48×48；协商成功不代表较小尺寸会出图。
-    // wire 仍允许小图，连接 owner 应将 codec 拒绝映射为 JPEG/raw fallback。
+    // System H264 decoders require at least 48x48; successful negotiation does not prove smaller dimensions produce images.
+    // Wire still permits small images; connection owners map codec rejection to JPEG/raw fallback.
     if width < 48
         || height < 48
         || width > 4096

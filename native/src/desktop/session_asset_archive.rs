@@ -1,4 +1,4 @@
-//! 工作流归档资源批次；逐张发布并持有文件句柄，成功后才交付完整引用和索引。
+//! Workflow archive asset batches; publish images individually and hold file handles, delivering complete references/indices only on success.
 use super::{
     publish::{Published, Slot},
     Root,
@@ -19,9 +19,9 @@ pub struct Batch<'a> {
     assets: Vec<Asset>,
     index: serde_json::Value,
     adoptions: &'a [crate::session_document::workflow_snapshot::metadata::Adoption],
-    // 候选只能从发布资源时已验证的同一份原文生成，无法传入另一份字节。
+    // Candidates can be generated only from the same original text verified during asset publication; different bytes cannot be supplied.
     saved: &'a [u8],
-    // 会话候选使用引用期间必须保持 Batch 存活；最后才释放资源文件句柄。
+    // Keep Batch alive while session candidates use references; release asset file handles last.
     _pins: Vec<Published>,
 }
 pub struct Prepared {
@@ -29,7 +29,7 @@ pub struct Prepared {
     _pins: Vec<Published>,
 }
 impl Prepared {
-    /// 只借出会话候选，资源句柄随 Prepared 保留到调用方结束磁盘提交。
+    /// Lend only the session candidate; Prepared retains asset handles until the caller finishes disk commit.
     pub fn candidate(&self) -> &crate::session_write::Candidate {
         &self.candidate
     }
@@ -137,7 +137,7 @@ fn publish(
     cancel: &AtomicBool,
 ) -> Result<String> {
     if !reference.starts_with("data:image") {
-        // 与主干一致保留普通引用；不隐式访问任意文件/URL，也不声称其内容已归档。
+        // Retain ordinary references as mainline does; never implicitly access arbitrary files/URLs or claim their content was archived.
         if reference.len() > 32 * 1024 || reference.contains('\0') {
             return Err(invalid("Archive reference exceeds bounds"));
         }

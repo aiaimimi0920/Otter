@@ -1,4 +1,4 @@
-//! 测试只读写系统临时目录内自己创建的文件，不依赖真实会话或机器固定路径。
+//! Tests read/write only files they create in the system temporary directory, independent of real sessions or machine-specific fixed paths.
 use super::*;
 use std::{io::Write, path::PathBuf, sync::mpsc, time::Duration};
 struct Fixture(PathBuf);
@@ -10,7 +10,7 @@ impl Fixture {
             .as_nanos();
         let root =
             std::env::temp_dir().join(format!("otter-session-{}-{unique}", std::process::id()));
-        // 恢复读取会枚举父目录；独立夹具目录不受真实 TEMP 条目数量影响。
+        // Recovery reads enumerate the parent directory; an independent fixture directory avoids dependence on actual TEMP entry counts.
         std::fs::create_dir(&root).unwrap();
         let path = root.join("session.json");
         let mut file = std::fs::OpenOptions::new()
@@ -45,7 +45,7 @@ fn bounded_file_read_rejects_oversize_devices_and_cancel_without_leaking_handle(
     let cancel = AtomicBool::new(false);
     let fixture = Fixture::new(&vec![b'x'; 70_000], None);
     assert_eq!(file::read(&fixture.0, &cancel).unwrap(), vec![b'x'; 70_000]);
-    // 读句柄不再占用，能够重新获得独占写访问。
+    // The read handle no longer holds the file, allowing exclusive write access again.
     use std::os::windows::fs::OpenOptionsExt;
     assert!(std::fs::OpenOptions::new()
         .write(true)

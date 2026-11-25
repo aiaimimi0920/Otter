@@ -1,4 +1,4 @@
-//! 借用会话原文字段；统一拒绝重复键与小字段洪泛，不重新解析或复制大型图片值。
+//! Borrow original session-text fields; consistently reject duplicate keys/small-field floods without reparsing/copying large image values.
 use serde::Deserializer;
 use serde_json::value::RawValue;
 use std::{borrow::Cow, collections::BTreeMap};

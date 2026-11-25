@@ -1,4 +1,4 @@
-//! 将会话节点绑定到已匹配的能力；只构造候选，不执行、不修改活动文档。
+//! Bind session nodes to matched capabilities; construct candidates only, without execution or active-document mutation.
 use crate::{
     graph_execution_config::Config, loom_capability::Capability, loom_parameter_state::Parameters,
     session_parameters, session_window::Window,
@@ -16,8 +16,8 @@ pub enum Error {
     Parameters(session_parameters::Error),
 }
 
-/// 调用方按主干规则精确查找 ID；防止错能力的 secret 策略被套用。
-/// 禁用能力仍允许恢复状态；能否执行由执行入口另行检查。
+/// Callers resolve exact IDs under mainline rules, preventing application of another capability's secret policy.
+/// Disabled capabilities still allow state restoration; execution entries separately determine executability.
 pub fn restore(window: &Window<'_>, capability: &Capability<'_>) -> Result<Restored, Error> {
     if !window.is_art() || window.art_id.as_deref() != Some(capability.id) {
         return Err(Error::Identity);
@@ -25,7 +25,7 @@ pub fn restore(window: &Window<'_>, capability: &Capability<'_>) -> Result<Resto
     let explicit: Option<serde_json::Value> = window
         .execution_config
         .map(|raw| {
-            // 配置只含少量开关。限制解析分配，不将任意会话大字段复制进执行状态。
+            // Configuration has only a few switches. Bound parse allocations without copying arbitrary large session fields into execution state.
             if raw.get().len() > 64 * 1024 {
                 return Err(Error::ExecutionCapacity);
             }

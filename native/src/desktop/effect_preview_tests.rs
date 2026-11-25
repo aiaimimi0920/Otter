@@ -1,4 +1,4 @@
-//! 真实 D2D 像素与宿主手势回归：效果预览不能移动源图采样坐标。
+//! Real D2D pixels and host-gesture regressions: effect previews must not move source-image sampling coordinates.
 use super::super::{canvas::Canvas, effect_cache::Cache};
 use super::*;
 use crate::{blur_image::BlurImage, editor::Tool};
@@ -117,7 +117,7 @@ fn group_drag_preserves_effect_sampling_layer_order_and_single_history() {
             .unwrap();
         canvas.editor.extend(Point { x: 44.0, y: 42.0 }).unwrap();
         assert!(canvas.editor.commit());
-        // 反向选择顺序不改变合成顺序，荧光笔仍处于效果下方。
+        // Reverse selection order does not change composition order; highlighters remain beneath effects.
         assert!(canvas.toggle_selection_at(Point { x: 30.0, y: 42.0 }));
         assert!(canvas.toggle_selection_at(Point { x: 24.0, y: 24.0 }));
         assert_eq!(canvas.selected_indices(), vec![0, 2]);
@@ -268,7 +268,7 @@ fn rotated_blur_mask_keeps_original_source_sampling_coordinates() {
     let index = (26 * 64 + 40) * 4;
     let source = &canvas.image.as_ref().unwrap().pixels;
     for channel in 0..4 {
-        // 模糊呈现保留主干的 8% 白色覆盖，不能直接比较未覆盖的源像素。
+        // Blur presentation retains baseline 8% white overlay; do not compare directly with uncovered source pixels.
         let expected = if channel == 3 {
             255.0
         } else {
@@ -302,7 +302,7 @@ fn single_effect_rotation_matches_geometry_rotation_without_rotating_source() {
                 assert!((rendered[index + channel] as f32 - expected).abs() <= 1.0);
             }
             assert_eq!(rendered[index + 3], 255);
-            // 原水平遮罩的左端在旋转后应消失。
+            // The original horizontal mask's left endpoint should disappear after rotation.
             assert_eq!(rendered[(24 * 64 + 16) * 4 + 3], 0);
         }
     }
@@ -393,7 +393,7 @@ fn blur_scale_release_retains_preview_through_capture_loss_until_handoff() {
     let plan = canvas.scale_pending.take().unwrap();
     assert!(canvas.scale_display_revision.is_some());
     let pointer = canvas.group_preview[0].1.points.as_ptr();
-    // 宿主先接管候选，再 ReleaseCapture；捕获丢失不能清除待交付显示。
+    // The host takes the candidate before ReleaseCapture; capture loss must not clear display awaiting delivery.
     canvas.cancel_gesture();
     canvas.validate_scale_display();
     assert_eq!(canvas.group_preview[0].1.points.as_ptr(), pointer);

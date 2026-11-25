@@ -1,4 +1,4 @@
-//! 合并/确认/失败/销毁与非几何变更；真实 HWND 和保存链由 checkpoint geometry tests 保护。
+//! Coalescing/acknowledgement/failure/destruction and nongeometry changes; checkpoint geometry tests protect actual HWND/save chains.
 use super::*;
 
 #[test]

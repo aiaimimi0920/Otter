@@ -1,4 +1,4 @@
-//! 仅本测试进程的被动前台事件证明：允许用户切换其他程序，不允许receiver曾经激活。
+//! Passive foreground-event proof limited to this test process: users may switch to other programs, but the receiver must never have activated.
 use super::*;
 use std::{cell::Cell, marker::PhantomData, rc::Rc};
 use windows::Win32::{System::Threading::GetCurrentProcessId, UI::Accessibility::*};
@@ -50,7 +50,7 @@ impl Watch {
 }
 impl Drop for Watch {
     fn drop(&mut self) {
-        OBSERVED.with(|v| v.set((0, false))); // 先撤登记，迟到事件不能污染后续会话。
+        OBSERVED.with(|v| v.set((0, false))); // Unregister first so late events cannot contaminate subsequent sessions.
         assert!(unsafe { UnhookWinEvent(self.hook) }.as_bool());
     }
 }
@@ -94,7 +94,7 @@ fn passive_foreground_monitor_detects_own_event_and_unregisters_without_activati
             0,
         );
         watch.assert_passive();
-        // 仅调用检测回调证明正向断言，不真实SetForegroundWindow，不抢用户焦点。
+        // Invoke only the detection callback to prove the positive assertion; do not actually call SetForegroundWindow or take user focus.
         event(
             watch.hook,
             EVENT_SYSTEM_FOREGROUND,

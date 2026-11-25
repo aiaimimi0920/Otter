@@ -1,4 +1,4 @@
-//! 已提交内容快照：共享像素，隔离矢量、历史、草稿和文档身份。
+//! Committed-content snapshots share pixels and isolate vectors, history, drafts, and document identity.
 use super::*;
 
 impl Editor {
@@ -24,7 +24,7 @@ impl Editor {
         }
         Ok(snapshot)
     }
-    /// 导出候选独立替换效果资源；失败丢弃局部快照，不写入活动历史或修订号。
+    /// Export candidates replace effect resources independently; discard local snapshots on failure without active-history/revision writes.
     pub fn export_snapshot_with_blurs<E>(
         &self,
         mut prepare: impl FnMut(
@@ -33,7 +33,7 @@ impl Editor {
     ) -> Result<Self, E> {
         self.export_snapshot_with_blur_strokes(|stroke| prepare(stroke.blur.as_ref().unwrap()))
     }
-    /// 按稳定标注身份准备局部效果；闭包只读原 stroke，替换仅发生在独立快照内。
+    /// Prepare local effects by stable annotation identity; closures read original strokes only, replacing within independent snapshots.
     pub fn export_snapshot_with_blur_strokes<E>(
         &self,
         mut prepare: impl FnMut(&Stroke) -> Result<crate::blur_image::BlurImage, E>,
@@ -46,7 +46,7 @@ impl Editor {
         }
         Ok(snapshot)
     }
-    /// 临时编辑 Art 覆盖层时绑定当前显示底图；不改变原文档或把旧栅格内容带入。
+    /// Bind current displayed bases while temporarily editing Art overlays; preserve original documents and exclude old raster contents.
     pub fn export_overlay_with_base(
         &self,
         base: crate::erase_layers::Layers,
@@ -59,22 +59,22 @@ impl Editor {
         snapshot.raster = Some(base);
         Ok(snapshot)
     }
-    /// Art 显示只使用矢量/裁剪覆盖层；底图由生成结果提供，不带入旧栅格历史。
+    /// Art display uses only vector/crop overlays; generated results supply bases, excluding old raster history.
     pub fn export_overlay_snapshot(&self) -> Self {
         let mut snapshot = self.export_snapshot();
         snapshot.raster = None;
         snapshot.mirror = MirrorState::default();
         snapshot
     }
-    /// 协作basis只移除可共享矢量；已物化栅格、裁剪和逻辑几何必须原样保留。
+    /// Collaboration basis removes shareable vectors only; preserve materialized rasters, crops, and logical geometry unchanged.
     pub fn export_without_annotations(&self) -> Self {
         self.snapshot_with_elements(Vec::new())
     }
-    /// 导出只复制已提交的标注，不包含草稿、重做分支或图像像素。
+    /// Export copies committed annotations only, without drafts, redo branches, or image pixels.
     pub fn export_snapshot(&self) -> Self {
         self.snapshot_with_elements(self.elements().to_vec())
     }
-    // 无标注 basis 不应先复制整套笔迹再丢弃；两类快照共用其余模型状态。
+    // Annotation-free basis must not copy all strokes just to discard them; both snapshot types share other model state.
     fn snapshot_with_elements(&self, elements: Vec<Stroke>) -> Self {
         let retained_points = elements.iter().map(|stroke| stroke.points.len()).sum();
         Self {

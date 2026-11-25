@@ -1,4 +1,4 @@
-//! 真实 Job/pipe child，坏帧/退出/停滞与取消均核验已回收；不把这些合成故障当驱动 hang。
+//! Real Job/pipe children, with reclamation verified for bad frames/exit/stalls/cancellation; these synthetic faults are not driver hangs.
 use super::*;
 use crate::shader_hlsl::contract_tests::with_request;
 static TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());

@@ -1,4 +1,4 @@
-//! 同步 worker 与 UI 的单槽逐条准入握手；后台不读取任何窗口或 Rc 状态。
+//! Single-slot per-item admission handshake between synchronous workers and UI; background work reads no window or Rc state.
 use super::Ready;
 use crate::{
     byte_budget::Budget, desktop::loom_execution_signal::CompletionSignal,
@@ -26,7 +26,7 @@ impl Admission {
     pub fn workflow_id(&self) -> &str {
         &self.workflow_id
     }
-    /// 消费一次性应答；过期/丢弃的请求不能给下一条消息授权。
+    /// Consume a one-shot response; expired/discarded requests cannot authorize the next message.
     pub fn resolve(self, allowed: bool) {
         let _ = self.reply.try_send(allowed);
     }
@@ -98,7 +98,7 @@ impl Job {
             self.worker.as_ref().unwrap(),
         );
     }
-    /// 不把取消后的部分成功报告覆盖为笼统 cancelled，远端已确认状态不能丢失。
+    /// Do not replace partial-success reports after cancellation with generic cancelled; retain remotely confirmed state.
     pub fn poll(&mut self) -> Option<Result<Delivery, &'static str>> {
         if !self.worker.as_ref()?.is_finished() {
             return None;
@@ -140,7 +140,7 @@ fn admit(
     {
         return false;
     }
-    // 邮箱先发布再唤醒；通知 panic 与 UI 无应答均按拒绝处理，不永久挂起 worker。
+    // Publish the mailbox before waking; notification panics and missing UI replies both reject rather than suspend workers forever.
     if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| notify())).is_err() {
         return false;
     }

@@ -1,4 +1,4 @@
-//! 原Live控制worker内串行配置/领取/ACK；与键鼠共享actor游标，无额外网络线程。
+//! Serial configure/claim/ACK inside the original Live control worker; share the keyboard/mouse actor cursor without extra network threads.
 use super::*;
 use crate::art_live_trigger::{
     queue::{Command, Registration},
@@ -146,7 +146,7 @@ impl Sender {
             (Status::Claimed, Some(delivery)) => {
                 queue.publish(&r, delivery);
             }
-            // Claimed无payload是未知领取，不允许从Inspect或旧观察重造执行。
+            // Claimed without payload means an unknown claim; never reconstruct execution from Inspect or old observations.
             _ => return Err(HttpError::Cursor),
         }
         self.queue.notify_trigger();

@@ -1,4 +1,4 @@
-//! 真实 HWND 消息路由、删除目标隔离与悬浮窗回收；只使用合成条目。
+//! Real HWND message routing, deletion-target isolation, and hover-window cleanup; synthetic entries only.
 use super::*;
 fn wheel(menu: &Cascade, slot: usize, delta: i16) -> MSG {
     let (x, y) = center(menu, slot);

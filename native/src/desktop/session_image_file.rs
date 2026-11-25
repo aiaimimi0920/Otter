@@ -1,4 +1,4 @@
-//! 已准入会话文件句柄的后台解码；不解析路径，不隐式访问会话中的网络地址。
+//! Background decoding of admitted session-file handles; no path parsing or implicit access to session network addresses.
 use super::{image::Image, Apartment};
 use std::{
     fs::File,
@@ -11,8 +11,8 @@ use windows::{
 };
 const MAX_BYTES: usize = 64 * 1024 * 1024;
 
-/// 调用者先完成路径/资源权限检查并打开句柄；本函数不把路径字符串视作授权。
-/// 应在后台线程调用。文件读取/WIC 系统调用不能强制中断，取消在相邻操作边界生效。
+/// Callers validate path/resource permissions and open handles first; this function does not treat path strings as authorization.
+/// Call on a background thread. File-read/WIC system calls are uninterruptible; cancellation takes effect at adjacent operation boundaries.
 pub fn load(mut file: File, cancel: &AtomicBool) -> Result<Image> {
     check(cancel)?;
     let metadata = file.metadata().map_err(io_error)?;
@@ -25,7 +25,7 @@ pub fn load(mut file: File, cancel: &AtomicBool) -> Result<Image> {
     let length = usize::try_from(metadata.len())
         .map_err(|_| Error::new(E_INVALIDARG, "Session image exceeds file budget"))?;
     let bytes = read(&mut file, length, cancel)?;
-    drop(file); // 完成读取后即释放句柄；WIC 从拥有的内存解码，不重新打开路径。
+    drop(file); // Release the handle immediately after reading; WIC decodes owned memory without reopening the path.
     check(cancel)?;
     let _apartment = Apartment::new()?;
     let image = Image::from_encoded_with_cancel(&bytes, &|| cancel.load(Ordering::Acquire));

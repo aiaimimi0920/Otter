@@ -1,4 +1,4 @@
-// 真实 ES module 夹具；不把 JS 改写为 JSON Scene，DOM 操作由原生适配器消费。
+// Actual ES-module fixture; do not rewrite JS as JSON Scene, and let native adapters consume DOM operations.
 const ready = await Promise.resolve("原生🙂");
 let label, button, current, count = 0, cleaned = false;
 const assert = value => { if (!value) throw new Error("fixture invariant"); };
@@ -28,7 +28,7 @@ NeuroSurface.define({
   },
   async update({ snapshot }) {
     current = snapshot; label.textContent = `${ready}:${current.state.quote}:${count}`;
-    // API 返回的是副本，脚本不能改写下一次 emit 的权威状态或事件合同。
+    // The API returns copies; scripts cannot rewrite authoritative state or event contracts for the next emit.
     const copy = NeuroSurface.snapshot(); copy.revision = 9999;
     Promise.resolve().then(async () => {
       await Promise.resolve(); await Promise.resolve();

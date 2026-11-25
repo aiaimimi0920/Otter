@@ -1,5 +1,5 @@
-//! 按帧合同分流；旧 premultiplied Canvas 反预乘，新 HLSL straight 帧进入独立无损适配。
-//! 只准备完整结果，不发布应用状态；调用者须在后台运行并另验 request/source stamp。
+//! Route by frame contract: unpremultiply legacy premultiplied Canvas frames; new straight HLSL frames use separate lossless adaptation.
+//! Prepare only complete results without publishing application state; callers run in the background and separately validate request/source stamps.
 use crate::{byte_budget::Lease, image_decode::Image, pixels::Pixels, shader_angle::Frame};
 use std::sync::atomic::{AtomicBool, Ordering};
 use windows::{
@@ -12,7 +12,7 @@ pub struct Prepared {
     pub png: Pixels,
 }
 impl Prepared {
-    /// 只构造本地正式输出批次，不伪造远端 lease/delivery，也不绕过提交方的请求/来源核验。
+    /// Construct only local official-output batches; neither fabricate remote lease/delivery nor bypass the committer's request/source checks.
     pub fn into_batch(
         self,
     ) -> std::result::Result<super::loom_output_batch::Batch, super::loom_output_batch::Error> {
@@ -22,8 +22,8 @@ impl Prepared {
     }
 }
 
-/// 适用于旧 ShaderRenderer 的默认 premultipliedAlpha=true；不是通用 straight RGBA 转换。
-/// 输入/双像素缓冲/WIC 副本/编码结果沿用共享预算；WIC 内部工作不能强制中断。
+/// For legacy ShaderRenderer's default premultipliedAlpha=true, not general straight-RGBA conversion.
+/// Input, dual pixel buffers, WIC copies, and encoded output share the existing budget; internal WIC work cannot be forcibly interrupted.
 pub fn prepare(
     frame: impl Into<super::shader_invocation::Frame>,
     cancel: &AtomicBool,
@@ -51,7 +51,7 @@ fn prepare_with(
     let (image, straight) = convert(frame, &|| cancel.load(Ordering::Acquire), reserve)?;
     let png = encode(image.width, image.height, &straight, cancel)?;
     drop(straight);
-    // WIC 返回后再验一次：迟到取消不得发布半个结果或成功 PNG。
+    // Check again after WIC returns: late cancellation must publish neither half a result nor a successful PNG.
     check(&|| cancel.load(Ordering::Acquire))?;
     Ok(Prepared { image, png })
 }
@@ -83,7 +83,7 @@ fn convert(
             .zip(straight.chunks_exact_mut(4))
         {
             let alpha = source[3];
-            // PNG 反预乘后再预乘恰好等于 min(raw, alpha)，不是 raw 再乘一次 alpha。
+            // PNG unpremultiplication then premultiplication equals exactly min(raw, alpha), not raw multiplied by alpha again.
             display.copy_from_slice(&[
                 source[2].min(alpha),
                 source[1].min(alpha),
@@ -115,8 +115,8 @@ fn convert(
 }
 
 fn unpremultiply(channel: u8, scale: f32) -> u8 {
-    // 逐步 f32 归一化/倒数/乘法和 ties-to-even 已与真实 Canvas PNG 的完整 256² 矩阵精确对照。
-    // 不可化简为 c*255/a 或整数四舍五入：半整数附近的舍入将改变。
+    // Stepwise f32 normalization/reciprocal/multiplication and ties-to-even were compared exactly against the full 256-squared actual Canvas PNG matrix.
+    // Do not simplify to c*255/a or integer rounding: rounding near half-integers would change.
     ((f32::from(channel) * (1.0 / 255.0)) * scale * 255.0)
         .round_ties_even()
         .clamp(0.0, 255.0) as u8

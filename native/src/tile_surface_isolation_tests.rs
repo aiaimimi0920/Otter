@@ -1,4 +1,4 @@
-//! 产品Runtime/真实TLS/WSS/自有窗口：挂住图片超过Live5秒，或在途停止/撤权，独立源像素oracle。
+//! Product Runtime/real TLS/WSS/owned windows: stall images beyond Live's 5 seconds or stop/revoke in flight, with independent source-pixel oracles.
 use super::*;
 use crate::{device_authorization_lease::Grant, tile_runtime::Runtime, tile_wire::Endpoint};
 use serde_json::{json, Value};

@@ -1,4 +1,4 @@
-"""暂存合同只写显式临时根；Git 为真实数据工具，合成编译工具永不执行。"""
+"""Staging contracts write only explicit temporary roots; Git is a real data tool, while synthetic compilers never execute."""
 
 import hashlib
 import io
@@ -38,7 +38,7 @@ def git_source(root):
                + b"160000 stub\0" + bytes.fromhex("1" * 40))
     commit = obj("commit", (f"tree {tree}\nauthor Fixture <fixture@example.invalid> 1700000000 +0000\n"
         "committer Fixture <fixture@example.invalid> 1700000000 +0000\n\nFixture\nCr-Commit-Position: refs/heads/main@{#1}\n").encode())
-    # 与对象内容故意不同；materialization 不能消费 worktree 或换行过滤器。
+    # Deliberately differs from object content; materialization must not consume worktrees or newline filters.
     (source / "data.txt").write_text("worktree must not be consumed", encoding="utf-8")
     return executable, source, commit, tree, data
 

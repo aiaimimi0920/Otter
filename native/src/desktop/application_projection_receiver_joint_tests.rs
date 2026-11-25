@@ -1,4 +1,4 @@
-//! 两真实Loom的原生接收消费者：菜单/后台接纳/Checkpoint/真实帧后回执/持续更新/真正重开。
+//! Native receiver consumer with two real Loom instances: menu/background admission/Checkpoint/receipt after real frame/continuous updates/actual reopening.
 use super::*;
 use crate::desktop::application::projection;
 use crate::device_authorization_config::Action;
@@ -116,7 +116,7 @@ fn native_receiver_joint_two_loom_menu_display_update_reopen_and_terminal() {
             WAIT_OBJECT_0
         );
         tick(&mut app, &f);
-        // 使用真实策略菜单及后台原子提交，不只把内存Consent改成允许。
+        // Use the real policy menu and background atomic commit, not just changing in-memory Consent to allow.
         ui::execute(
             app.documents[0].window.0,
             &app.documents[0].state,

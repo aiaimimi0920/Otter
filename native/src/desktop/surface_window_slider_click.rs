@@ -1,4 +1,4 @@
-//! Slider 子 HWND 鼠标完成边沿；只复用父 click 单槽与既有 FIFO fence，不发送网络。
+//! Slider child-HWND mouse-completion edges; reuse only parent click's single slot and existing FIFO fence, without networking.
 use super::*;
 use crate::desktop::surface_slider_control::{CLICK_BEGIN, CLICK_CANCEL, CLICK_END};
 pub(super) struct Press {
@@ -23,7 +23,7 @@ unsafe fn point_in_parent(
     {
         return None;
     }
-    // 本控件坐标转宿主坐标；MapWindowPoints 返回 0 也可能是合法零偏移。
+    // Convert control coordinates to host coordinates; MapWindowPoints returning 0 may mean a valid zero offset.
     MapWindowPoints(Some(child), Some(parent), std::slice::from_mut(&mut point));
     Some([point.x, point.y])
 }
@@ -125,7 +125,7 @@ pub(in crate::desktop::surface_window) unsafe fn message(
     if previous.is_none_or(|press| press.node != node) {
         return true;
     }
-    // Slider change 已经入队，祖先 click 必须等待它，而非采用 Switch 的前置 fence。
+    // Slider change is already queued, so ancestor click must await it rather than use Switch's preceding fence.
     let Some((values, fence)) = form_snapshot(state) else {
         return true;
     };

@@ -1,4 +1,4 @@
-//! 只读确定进度的预计算几何；不分配原生子窗口，不启动动画或轮询。
+//! Precomputed geometry for read-only determinate progress; no native child windows, animation, or polling.
 use crate::{surface_clip::Rect, surface_layout_tree::Placed, surface_scene::Node};
 use windows::Win32::Graphics::Direct2D::{Common::D2D_RECT_F, *};
 
@@ -47,7 +47,7 @@ impl Progress {
             right: self.clip.right,
             bottom: self.clip.bottom,
         };
-        // 外层 PaintFrame 恢复原画刷颜色；本模块严格配对自身的裁剪栈。
+        // The outer PaintFrame restores the original brush color; this module strictly balances its own clip stack.
         unsafe {
             target.PushAxisAlignedClip(&clip, D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
             brush.SetColor(&crate::surface_control_colors::TRACK);

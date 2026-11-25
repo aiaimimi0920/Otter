@@ -1,4 +1,4 @@
-//! 主干缩略是取景而非整图缩放；图片与标注分别对应 stickerFrameGeometry 的两个 viewport。
+//! Mainline minimization reframes rather than scales the full image; image and annotations use stickerFrameGeometry's two separate viewports.
 use crate::{crop_geometry::Size, session_window::Window};
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct View {
@@ -10,7 +10,7 @@ pub struct Views {
     pub image: View,
     pub annotations: View,
 }
-/// 文档坐标到缩略逻辑客户区的轴向变换，绘制与命中共同消费。
+/// Axis-aligned transform from document coordinates to minimized logical client coordinates, shared by drawing and hit testing.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Mapping {
     pub scale: (f64, f64),

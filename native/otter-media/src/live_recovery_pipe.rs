@@ -1,4 +1,4 @@
-//! 本地 overlapped 管道：截止时间/对端退出通过事件等待，不创建读写线程或空闲轮询。
+//! Local overlapped pipes: wait on events for deadlines/peer exit, without read/write threads or idle polling.
 use std::{
     io::{self, Read, Write},
     os::windows::io::{AsHandle, AsRawHandle, BorrowedHandle, FromRawHandle, OwnedHandle},
@@ -25,7 +25,7 @@ impl Pipe {
         pair::create()
     }
     /// # Safety
-    /// handle 必须是 FILE_FLAG_OVERLAPPED 创建的管道，且无尚未完成的操作。
+    /// handle must be a pipe created with FILE_FLAG_OVERLAPPED and have no pending operations.
     pub unsafe fn from_overlapped(handle: OwnedHandle) -> Self {
         Self { handle }
     }
@@ -35,9 +35,9 @@ impl Pipe {
     pub fn handle(&self) -> BorrowedHandle<'_> {
         self.handle.as_handle()
     }
-    /// 截止时间覆盖整个 Channel，不因短读写刷新。超时可能已有部分传输，
-    /// 调用方必须废弃协议流或显式保留解码状态，不能盲目重发整帧。
-    /// 取消后会等待内核操作结束，因此不承诺包含取消清理的硬实时上界。
+    /// The deadline covers the entire Channel and is not refreshed by short reads/writes. A timeout may follow a partial transfer;
+    /// callers must discard the protocol stream or explicitly retain decoding state, not blindly resend the entire frame.
+    /// Cancellation waits for the kernel operation to finish, so no hard real-time bound including cancellation cleanup is promised.
     pub fn io<'a>(
         &'a mut self,
         deadline: Option<Instant>,
@@ -50,7 +50,7 @@ impl Pipe {
             cancelled: None,
         }
     }
-    /// 仅显式调用者启用取消轮询；恢复责任管道的默认事件等待行为不变。
+    /// Only explicit callers enable cancellation polling; the recovery-responsibility pipe's default event-wait behavior is unchanged.
     pub fn cancellable_io<'a>(
         &'a mut self,
         deadline: Instant,
@@ -162,7 +162,7 @@ impl Drop for Pending {
             unsafe {
                 let _ = CancelIoEx(self.handle, Some(&*self.overlapped));
                 let mut count = 0;
-                // CancelIoEx 只请求取消；确认结束后，调用方才能释放/复用缓冲区。
+                // CancelIoEx only requests cancellation; callers may release/reuse buffers only after completion is confirmed.
                 let _ = GetOverlappedResult(self.handle, &*self.overlapped, &mut count, true);
             }
         }
@@ -225,7 +225,7 @@ impl Write for Channel<'_> {
         )
     }
     fn flush(&mut self) -> io::Result<()> {
-        // 每次 write 已确认传输完成；不用 FlushFileBuffers 等待对端消费造成无界阻塞。
+        // Each write has confirmed transfer completion; do not use FlushFileBuffers to wait for peer consumption and block indefinitely.
         Ok(())
     }
 }

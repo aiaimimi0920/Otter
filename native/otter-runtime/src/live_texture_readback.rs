@@ -1,4 +1,4 @@
-//! 显式 Live 快照的 BGRA 读回；不捕获桌面，不在连续呈现路径复制 CPU 像素。
+//! BGRA readback for explicit Live snapshots; no desktop capture or CPU-pixel copying on the continuous presentation path.
 use super::Texture;
 use crate::{capture_color::SdrFrame, live_frames::Frame};
 use std::{
@@ -21,11 +21,11 @@ struct CachedStaging {
     width: u32,
     height: u32,
     texture: ID3D11Texture2D,
-    // staging 跨调用保留时预算同样保留；字段顺序保证 COM 先于租约释放。
+    // Budget is retained with staging across calls; field order ensures COM releases before the lease.
     lease: crate::byte_budget::Lease,
 }
 
-/// 单流独占的复用的 CPU staging 纹理缓存；断开或尺寸变化时立即替换，不跨流共享。
+/// Reusable CPU staging-texture cache exclusively owned by one stream; immediately replace on disconnection/size changes, without cross-stream sharing.
 #[derive(Default)]
 pub struct Scratch(Option<CachedStaging>);
 impl Scratch {
@@ -77,9 +77,9 @@ fn check(cancel: &AtomicBool) -> Result<(), Error> {
     }
 }
 
-/// 后台调用；完整 frame owner 在返回前保留预算。只接受独立发布的不可变 BGRA 帧。
-/// immediate context 必须启用 D3D 多线程保护，每个 API 调用由驱动串行化；
-/// staging 仅本次读回使用，不把等待锁持有到 UI 呈现或采集线程上。
+/// Call in the background; the full frame owner retains budget until return. Accept only independently published immutable BGRA frames.
+/// The immediate context must enable D3D multithread protection, with the driver serializing each API call;
+/// staging is used only for this readback, without carrying a waiting lock onto UI presentation or capture threads.
 pub fn read(frame: Arc<Frame<Texture>>, cancel: &AtomicBool) -> Result<SdrFrame, Error> {
     unsafe { read_inner(&frame.resource, cancel, crate::pixels::reserve, None) }
 }
@@ -118,7 +118,7 @@ unsafe fn read_inner(
     if slot.as_ref().is_none_or(|entry| {
         entry.device != device_id || entry.width != desc.Width || entry.height != desc.Height
     }) {
-        // 替换前先释放旧规格，避免新旧 staging 同时占预算。
+        // Release the old specification before replacement so old and new staging do not consume budget simultaneously.
         *slot = None;
         let lease = reserve(size).ok_or(Error::Budget)?;
         desc.Usage = D3D11_USAGE_STAGING;
@@ -154,7 +154,7 @@ unsafe fn read_inner(
             )?;
             Ok(mapped)
         })?;
-        // 映射成功立即安装 guard；取消、预算不足、布局异常和 panic 都必须 Unmap。
+        // Install a guard immediately after successful mapping; cancellation, insufficient budget, invalid layout, and panic must all Unmap.
         let _mapping = Mapping(&context, &staging.texture);
         check(cancel)?;
         let row = desc.Width as usize * 4;
@@ -188,7 +188,7 @@ unsafe fn read_inner(
         })
     })();
     if result.is_err() {
-        // Map 已解除后再淘汰失败资源，尤其不能保留 padding 扩容失败的欠额租约。
+        // Evict failed resources only after Map is released, especially underfunded leases whose padding expansion failed.
         *slot = None;
     }
     result
@@ -210,7 +210,7 @@ fn wait<T>(
         if start.elapsed() >= limit {
             return Err(Error::Timeout);
         }
-        // 先短自旋/让出以吸收微秒级 GPU 复制完成，避免立即落入 ~15.6ms 的默认睡眠粒度。
+        // Briefly spin/yield first to absorb microsecond-scale GPU-copy completion rather than immediately hitting the default ~15.6ms sleep granularity.
         if attempts < 8 {
             std::hint::spin_loop();
         } else if attempts < 16 {

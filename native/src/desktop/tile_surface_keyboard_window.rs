@@ -1,4 +1,4 @@
-//! Tile键盘入口与焦点生命周期；只操作本owned tree，不注入输入、不注册全局hook。
+//! Tile keyboard entry/focus lifecycle; operate only this owned tree, without input injection or global hooks.
 use super::*;
 use crate::{
     desktop::surface_edit_messages as messages, surface_scene::Kind, tile_surface_focus::Focus,
@@ -74,7 +74,7 @@ pub(super) fn retire(state: &State) {
     retire_focus(state);
 }
 fn retire_focus(state: &State) -> Rc<()> {
-    // 在DestroyWindow等同步回调前换代；回调中的取消/导航/后继编辑可永久否决旧恢复。
+    // Advance generation before synchronous callbacks such as DestroyWindow; cancellation/navigation/successor edits inside callbacks may permanently veto old restoration.
     let next = Keyboard::default();
     let identity = next.identity.clone();
     *state.keyboard.borrow_mut() = next;
@@ -104,7 +104,7 @@ pub(super) fn dismiss(hwnd: HWND, state: &State) {
     if !Rc::ptr_eq(&identity, &state.keyboard.borrow().identity) {
         return;
     }
-    // 取消的是原Edit与未发后缀，不是整个Tile或逻辑Tab位置；失效/prepare期不恢复资格。
+    // Cancel the original Edit and unsent suffix, not the entire Tile or logical Tab position; invalidation/preparation does not restore eligibility.
     state.keyboard.borrow_mut().focus = focus;
     dirty(state);
     let focused = state.keyboard.borrow().focus.is_some();
@@ -146,7 +146,7 @@ pub(super) fn pointer(hwnd: HWND, state: &State, pixel: [i32; 2]) {
     close_value(state, false);
     adopt(state, pixel);
     let focused = state.keyboard.borrow().focus.is_some();
-    // 正常鼠标激活由系统完成。后台程序化消息不能借SetFocus激活本输出并抢用户前台。
+    // The system handles ordinary mouse activation; background programmatic messages must not use SetFocus to activate output and steal user foreground.
     let owns_foreground = unsafe { GetAncestor(GetForegroundWindow(), GA_ROOTOWNER) == hwnd };
     if focused && owns_foreground {
         unsafe {
@@ -173,7 +173,7 @@ pub(super) fn navigate(hwnd: HWND, state: &State, reverse: bool) {
     cancel_press(state);
     let current = state.keyboard.borrow().focus.clone();
     let Some(frame) = actions::active(state) else {
-        // 与正常tick共用同view等待围栏；空隙里不提交、不换焦或销毁旧控件。
+        // Share the same-view waiting fence with normal ticks; gaps must not commit, change focus, or destroy old controls.
         if !current
             .as_ref()
             .is_some_and(|f| f.awaiting(&state.shared.lock(), Instant::now()))
@@ -189,7 +189,7 @@ pub(super) fn navigate(hwnd: HWND, state: &State, reverse: bool) {
         .map(|r| r.next_focus(&frame, current.as_ref(), reverse));
     transfer(hwnd, state, next);
 }
-/// 搜索是只读准备；失败不销毁当前HWND、提交草稿或改变逻辑焦点。
+/// Search is read-only preparation; failure neither destroys current HWND, commits drafts, nor changes logical focus.
 fn transfer(hwnd: HWND, state: &State, next: Option<Result<Option<Focus>>>) {
     let identity = state.keyboard.borrow().identity.clone();
     let next = match next {
@@ -207,7 +207,7 @@ fn transfer(hwnd: HWND, state: &State, next: Option<Result<Option<Focus>>>) {
         return;
     }
     close_value(state, false);
-    // 旧popup销毁可同步取消或开启后继导航；旧栈不得覆盖或退休新owner。
+    // Old-popup destruction may synchronously cancel/start successor navigation; old stacks must not overwrite or retire new owners.
     if !navigation_current(state, &identity) {
         return;
     }
@@ -232,7 +232,7 @@ fn transfer(hwnd: HWND, state: &State, next: Option<Result<Option<Focus>>>) {
             return;
         }
     }
-    // Hide/DestroyWindow/ReleaseCapture可以同步重入；旧候选不能重新挂回。
+    // Hide/DestroyWindow/ReleaseCapture may synchronously reenter; never reattach old candidates.
     if actions::active(state).is_none()
         || next.as_ref().is_some_and(|f| current(state, f).is_none())
     {

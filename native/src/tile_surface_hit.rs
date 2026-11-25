@@ -1,4 +1,4 @@
-//! 物理像素中心到最上层Wall placement与canonical Art坐标；遮挡不穿透，四向旋转只应用一次。
+//! Physical pixel centers to topmost Wall placements and canonical Art coordinates; no occlusion pass-through, with four-way rotation applied once.
 use crate::{
     tile_geometry::rotate,
     tile_wire::{Layout, Placement, Size},
@@ -36,7 +36,7 @@ pub(crate) fn hit<'a>(
     }
     Some((p, source(p, point)))
 }
-/// 捕获后的拖动允许离开控件；只转换坐标，不授命中/动作权限。
+/// Captured dragging may leave controls; transform coordinates only without granting hit/action permissions.
 pub(crate) fn point(
     layout: &Layout,
     endpoint: &str,

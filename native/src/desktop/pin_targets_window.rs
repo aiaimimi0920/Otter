@@ -1,4 +1,4 @@
-//! 目标选择器的窄窗口：标准多选列表负责鼠标、键盘、滚动和可访问性，业务只消费稳定 ID。
+//! A narrow target-selector window: the standard multi-select list owns mouse, keyboard, scrolling, and accessibility; business logic consumes only stable IDs.
 use super::*;
 #[path = "pin_targets_template.rs"]
 mod layout;
@@ -170,7 +170,7 @@ impl Window {
         let Ok(list) = GetDlgItem(Some(hwnd), LIST) else {
             return;
         };
-        // LISTBOX 在按下时选中、松开时才发 SELCHANGE；中途刷新不能撤回这次手势。
+        // LISTBOX selects on press but sends SELCHANGE only on release; intervening refreshes must not revoke this gesture.
         if windows::Win32::UI::Input::KeyboardAndMouse::GetCapture() == list {
             return;
         }
@@ -450,7 +450,7 @@ unsafe fn draw(m: &Model, item: &DRAWITEMSTRUCT) {
     };
     SetDCBrushColor(item.hDC, color(bg));
     FillRect(item.hDC, &item.rcItem, HBRUSH(GetStockObject(DC_BRUSH).0));
-    // 空列表的焦点通知使用 itemID == -1；没有行就只擦背景，不能传空 Vec 给 DrawTextW。
+    // Empty-list focus notifications use itemID == -1; erase only the background when there are no rows, never pass an empty Vec to DrawTextW.
     let Some(row) = row else { return };
     let _ = SetBkMode(item.hDC, TRANSPARENT);
     let enabled = row.enabled;
@@ -460,7 +460,7 @@ unsafe fn draw(m: &Model, item: &DRAWITEMSTRUCT) {
     );
     let mut rect = item.rcItem;
     let mut text = {
-        // 固定勾选框和文本起点，不能依赖不同 Unicode 字形的字宽。
+        // Fix checkbox and text starting positions rather than depending on widths of different Unicode glyphs.
         let dpi = GetDpiForWindow(item.hwndItem).max(96) as i32;
         let size = 14 * dpi / 96;
         let left = rect.left + 6 * dpi / 96;

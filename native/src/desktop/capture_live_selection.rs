@@ -1,4 +1,4 @@
-//! Live 的冻结前身份快照与选区交付；不按标题重查来源，不在窗口失败后静默捕获桌面。
+//! Pre-freeze identity snapshots and selection delivery for Live; never rediscover sources by title or silently capture the desktop after window failure.
 use super::Request;
 use crate::live_window_target::{region::Crop, Target};
 use windows::{
@@ -78,7 +78,7 @@ fn resolve(candidates: Vec<Candidate>, screen: RECT, whole: bool) -> Result<Requ
             .map_err(|error| Error::new(E_FAIL, format!("Invalid Live target: {error:?}")))?;
         return Ok(Request::Region(screen));
     };
-    // 选区期间移动/resize/关闭不重新解释同一屏幕 RECT；用户应重新选择。
+    // Movement/resize/closure during selection must not reinterpret the same screen RECT; the user should select again.
     if candidate.target.frame_bounds()? != candidate.bounds {
         return Err(Error::new(E_ABORT, "Live source moved during selection"));
     }

@@ -1,4 +1,4 @@
-//! 真D2D/WIC、DirectWrite及命中；像素oracle为固定色块，不由新适配器生成。
+//! Real D2D/WIC, DirectWrite, and hit testing; pixel oracles use fixed color blocks, not the new adapter.
 use super::*;
 use serde_json::{json, Value};
 fn restore(object: Value) -> Editor {

@@ -37,7 +37,7 @@ fn unread_peer_causes_bounded_write_timeout_and_safe_buffer_release() {
     let (mut parent, _child) = Pipe::pair().unwrap();
     let buffer = vec![0xabu8; crate::live_recovery_wire::MAX_FRAME_BYTES];
     let mut channel = parent.io(deadline(), None);
-    // 对端始终不消费；有限次数写入填满系统管道配额，不能生成无界队列。
+    // The peer never consumes data; a finite number of writes fills the system pipe quota without creating an unbounded queue.
     let mut timed_out = false;
     for _ in 0..256 {
         match channel.write_all(&buffer) {
@@ -50,14 +50,14 @@ fn unread_peer_causes_bounded_write_timeout_and_safe_buffer_release() {
         }
     }
     assert!(timed_out, "Unread pipe must eventually apply backpressure");
-    // 取消已完成，缓冲区可释放；不假定部分写入回滚，也不复用该协议流。
+    // Cancellation is complete and the buffer can be released; do not assume partial writes roll back or reuse this protocol stream.
     drop(buffer);
 }
 #[test]
 fn peer_completion_handle_wakes_infinite_io_wait() {
     let (mut parent, _child) = Pipe::pair().unwrap();
     let peer = std::thread::spawn(|| {});
-    // 线程与进程均为可等待句柄；本测试不用启动/结束任何外部应用。
+    // Threads and processes both have waitable handles; this test need not launch/terminate any external application.
     let error = parent
         .io(None, Some(peer.as_handle()))
         .read(&mut [0u8; 1])

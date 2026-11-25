@@ -1,7 +1,7 @@
 use super::*;
 use windows::Win32::System::Threading::WaitForSingleObject;
 
-// 仅装配真实事件 owner，不安装全局 hook、不发送键鼠，也不监听用户输入。
+// Assemble only the real event owner; do not install global hooks, send keyboard/mouse input, or monitor user input.
 fn fixture() -> Watcher {
     assert!(EVENT.with(|event| event.get().is_invalid()));
     let event = unsafe { CreateEventW(None, true, false, None) }.unwrap();
@@ -79,7 +79,7 @@ fn reentrant_input_update_fails_closed_and_wakes_ui() {
 #[test]
 #[ignore = "explicit native hook installation lifecycle gate; does not synthesize input"]
 fn actual_hooks_install_unregister_and_reinstall_on_owner_thread() {
-    // 只短暂安装/卸载，不泵用户输入，不创建 Intent 或操作任何用户窗口。
+    // Install/uninstall only briefly, without pumping user input, creating an Intent, or operating on any user window.
     for _ in 0..3 {
         let watcher = Watcher::install().unwrap();
         assert!(watcher.keyboard.is_some() && watcher.mouse.is_some());

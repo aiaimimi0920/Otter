@@ -1,4 +1,4 @@
-//! 经验证的单附件值；宿主显隐和摘要不属于 invocation，不能通过 Deserialize 绕过边界。
+//! Validated single-attachment values; host visibility and summaries are outside invocation and cannot bypass boundaries through Deserialize.
 use crate::loom_extension_snapshot::{text, MAX_INTEGER};
 use serde::{Deserialize, Serialize, Serializer};
 use serde_json::Value;

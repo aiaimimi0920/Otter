@@ -1,4 +1,4 @@
-//! 只接管标准下拉框的项像素；系统仍拥有字符串、索引、键盘和可访问性。
+//! Take over only standard dropdown item pixels; the system still owns strings, indices, keyboard handling, and accessibility.
 use super::*;
 use windows::Win32::UI::Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass};
 const ID: usize = 0x4f54504f;
@@ -67,7 +67,7 @@ pub(in crate::desktop) unsafe fn draw(item: &DRAWITEMSTRUCT) {
     if item.itemID != u32::MAX {
         let index = Some(WPARAM(item.itemID as usize));
         let length = SendMessageW(item.hwndItem, CB_GETLBTEXTLEN, index, None).0;
-        // 插入时已清洗到128字符；UTF-16最多256单元，不按外部长度分配。
+        // Sanitized to 128 characters on insertion: at most 256 UTF-16 units, with no allocation based on external length.
         if (0..=256).contains(&length) {
             let mut text = [0u16; 257];
             let actual = SendMessageW(

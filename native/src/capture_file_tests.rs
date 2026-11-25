@@ -52,7 +52,7 @@ fn original_copy_preserves_png_bytes_without_publishing_until_commit() {
     assert!(!target.target().exists());
     staged.commit_new(&cancel).unwrap();
     assert_eq!(fs::read(target.target()).unwrap(), expected);
-    // 第二次从相同句柄复制不能依赖前一次留下的游标；冲突目标仍不覆盖。
+    // A second copy from the same handle cannot depend on the previous cursor; still never overwrite conflicting targets.
     let staged = prepare_original(&file, &target.target(), &cancel).unwrap();
     assert!(staged.commit_new(&cancel).is_err());
     assert_eq!(fs::read(target.target()).unwrap(), expected);
@@ -68,7 +68,7 @@ fn original_copy_rejects_invalid_format_extension_and_cancel_without_final_files
     assert!(prepare_original(&file, &target.target(), &cancel).is_err());
     assert_eq!(target.entries(), 0);
     drop(file);
-    // 使用另一个 fixture，避免为测试覆盖已有文件。
+    // Use another fixture to avoid overwriting existing files for the test.
     let valid = Fixture::new();
     PreparedHdr::prepare(&valid.target(), &frame(), &cancel)
         .unwrap()

@@ -1,4 +1,4 @@
-//! 候选区附着于右侧显式输出之后；几何与真实 strip HRGN、同批移动共用。
+//! Attach candidate areas after explicit right-side outputs; share geometry with actual strip HRGNs and batched movement.
 use super::*;
 #[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "workspace_candidate_auxiliary_tests.rs"]

@@ -1,4 +1,4 @@
-//! 自然图片子矩形到目标框的有界映射；不构造放大后的完整图片坐标。
+//! Bounded mapping from natural-image subrectangles to target boxes, without constructing full upscaled-image coordinates.
 use crate::crop_geometry::Rect;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -101,7 +101,7 @@ impl Projection {
         })
     }
 
-    /// 输入必须是已翻转像素中的源框及镜像后的目标框；源越界部分保留透明。
+    /// Inputs must use source boxes in already-flipped pixels and mirrored target boxes; out-of-source areas remain transparent.
     pub fn clipped(source: Rect, target: Rect, size: (u32, u32)) -> Option<Sampling> {
         let valid = |r: Rect| {
             [r.x, r.y, r.width, r.height, r.x + r.width, r.y + r.height]
@@ -120,7 +120,7 @@ impl Projection {
         if right <= x || bottom <= y {
             return Some(Sampling::Empty);
         }
-        // 先取 [0,1] 比例再乘目标尺寸；极窄 source 不产生巨大中间 placement。
+        // Compute [0,1] ratios before multiplying target dimensions; narrow sources cannot create huge intermediate placements.
         let target = Rect {
             x: target.x + (x - source.x) / source.width * target.width,
             y: target.y + (y - source.y) / source.height * target.height,

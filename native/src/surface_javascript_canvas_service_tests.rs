@@ -1,4 +1,4 @@
-//! 私有服务快照实际child/封存产品worker；无网络/用户配置，也不冒称已授权产品UI。
+//! Private service snapshots in real children/sealed product workers; no networking/user configuration or claims of authorized product UI.
 use super::*;
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use std::sync::atomic::{AtomicUsize, Ordering};

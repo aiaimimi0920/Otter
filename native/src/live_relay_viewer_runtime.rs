@@ -1,4 +1,4 @@
-//! 单代次后台观看任务：网络线程拥有连接与 codec worker，UI 只停止并等待完成句柄。
+//! Single-generation background viewing task: network thread owns connection/codec worker; UI only stops and waits for completion handles.
 use crate::{
     byte_budget::Budget,
     live_relay_media_endpoint::Prepared,
@@ -71,7 +71,7 @@ pub enum Exit {
 
 impl Exit {
     fn after_socket(self, stopped: bool) -> Self {
-        // 已解析的认证 Close 是明确终态，不是取消错误。
+        // A parsed authentication Close is explicit terminal state, not a cancellation error.
         if stopped && self != Self::DeviceRevoked {
             Self::Stopped
         } else {
@@ -98,7 +98,7 @@ impl Control {
     }
     fn stop(&self) {
         self.stop.store(true, Ordering::Release);
-        // 先撤销像素发布，再中断 socket；只影响原许可，旧任务不能暂停新代次。
+        // Revoke pixel publication before interrupting sockets; affect only the original permit so old tasks cannot pause new generations.
         let _ = self.session.suspend_if_current(&self.permit);
         let handle = self
             .interrupt
@@ -134,7 +134,7 @@ impl Runtime {
     pub(crate) fn test_disconnect(&self) -> Disconnect {
         Disconnect(Arc::downgrade(&self.control))
     }
-    /// session/permit 必须已通过控制流授权与 bootstrap；本方法不自动激活会话。
+    /// session/permit must already pass control authorization/bootstrap; this method never automatically activates sessions.
     pub fn start(
         prepared: Prepared,
         addresses: Vec<SocketAddr>,
@@ -144,7 +144,7 @@ impl Runtime {
     ) -> io::Result<Self> {
         Self::start_observed(prepared, addresses, session, permit, budget, |_| {})
     }
-    /// 完成回调在网络线程运行，必须有界且不等待 UI；先保存终态再唤醒其他 owner。
+    /// Completion callbacks run on the network thread and must be bounded without waiting on UI; save terminal state before waking other owners.
     pub(super) fn start_observed(
         prepared: Prepared,
         addresses: Vec<SocketAddr>,
@@ -222,7 +222,7 @@ impl Runtime {
 impl Drop for Runtime {
     fn drop(&mut self) {
         self.request_stop();
-        // UI 正常路径必须先等待完成并 try_join；这里只是防遗留线程的阻塞兜底。
+        // The normal UI path must first await completion and try_join; this is only a blocking orphan-thread fallback.
         if let Some(thread) = self.thread.take() {
             let _ = thread.join();
         }
@@ -276,7 +276,7 @@ fn run(
                 }
                 Err(error) => Exit::Transport(error),
             };
-        // 关闭原socket及其interrupt后才重建；一个Runtime始终只有一个network/codec线程。
+        // Close original socket/interrupt before rebuilding; one Runtime always has only one network/codec thread.
         control
             .interrupt
             .lock()
@@ -294,7 +294,7 @@ fn run(
             prepared.viewer_legacy();
         }
     }
-    // worker 的 Drop 在此网络线程停止/join codec 线程；UI 不参与阻塞回收。
+    // worker Drop stops/joins the codec thread on this network thread; UI does not participate in blocking cleanup.
 }
 
 fn service(
@@ -305,7 +305,7 @@ fn service(
     recovery: &mut Option<Recovery>,
     cursor: &mut crate::live_relay_viewer_frames::Cursor,
 ) -> Exit {
-    // 只忽略本次连接最初的旧图像预热；新帧出现后重复/回退仍由原pipeline失败关闭。
+    // Ignore only initial old-image warmup on this connection; duplicates/rollbacks after fresh frames still fail closed in the original pipeline.
     let mut warmup = Some(*cursor);
     loop {
         if control.stop.load(Ordering::Acquire) {

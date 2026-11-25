@@ -139,7 +139,7 @@ fn pending_status_preserves_first_mouse_capture_until_source_acknowledges() {
             window.pop_input(),
             Some(crate::live_input::Event::Button { down: false, .. })
         ));
-        // 点击主动聚焦可能在异步准入期间产生暂停/恢复；恢复请求是幂等的，不能取消手势。
+        // Click-driven focus may pause/resume during asynchronous admission; recovery requests are idempotent and must not cancel gestures.
         assert_ne!(window.take_input_request(), Some(false));
         assert_ne!(GetCapture(), window.hwnd);
     }
@@ -311,7 +311,7 @@ fn owned_window_dispatches_live_notifications_paints_and_closes_without_quitting
         assert!(window.take_error().is_none());
         assert!(window.is_alive());
         source.close();
-        // 不分发关闭通知，实际 WM_PAINT 的补偿读取也必须销毁窗口并释放订阅。
+        // Without dispatching close notifications, real WM_PAINT compensating reads must still destroy windows and release subscriptions.
         SendMessageW(window.hwnd, WM_PAINT, None, None);
         assert!(!window.is_alive());
         assert!(!source.has_consumers());
@@ -351,10 +351,10 @@ fn reentrant_notification_is_redrawn_after_outer_host_operation() {
         assert!(window.state.deferred.get());
         assert!(reschedule(window.hwnd, &window.state));
         assert!(!window.state.deferred.get());
-        // 隐藏 HWND 不保证维护可见更新区；检查调度成功及单次性，再显式派发绘制。
+        // Hidden HWNDs do not guarantee visible update-region maintenance; verify successful single scheduling, then dispatch paint explicitly.
         assert!(!reschedule(window.hwnd, &window.state));
         SendMessageW(window.hwnd, WM_PAINT, None, None);
-        // 该夹具验证重入后真的领取到帧，而不是要求隐藏窗口完成显示提交。
+        // This fixture verifies actual frame collection after reentrancy, not successful display submission by hidden windows.
         assert!(window.frame_for_test().is_some());
         assert!(window.is_alive());
         assert!(window.take_error().is_none());
@@ -381,7 +381,7 @@ fn actual_minimize_releases_surface_and_restore_reuses_static_frame() {
             let _ = ShowWindow(window.hwnd, SW_SHOWMINNOACTIVE);
             assert!(IsIconic(window.hwnd).as_bool());
             assert_eq!(has_surface(), Some(false));
-            // 即使显式投递 paint，最小化状态也不能重新分配呈现链。
+            // Even explicitly posted paint must not reallocate presentation chains while minimized.
             SendMessageW(window.hwnd, WM_PAINT, None, None);
             assert_eq!(has_surface(), Some(false));
             assert!(source.has_consumers());
@@ -391,7 +391,7 @@ fn actual_minimize_releases_surface_and_restore_reuses_static_frame() {
             assert_eq!(has_surface(), Some(true));
             assert!(window.take_error().is_none());
         }
-        // 全程只发布一次；恢复不能依赖新帧。关闭仍由已有源通知/补读处理。
+        // Publish only once throughout; recovery must not depend on new frames. Existing source notifications/compensating reads still handle closure.
         let _ = ShowWindow(window.hwnd, SW_SHOWMINNOACTIVE);
         source.close();
         window.refresh().unwrap();
@@ -416,8 +416,8 @@ fn minimized_size_message_releases_surface_before_next_paint() {
             Some(WPARAM(SIZE_MINIMIZED as usize)),
             None,
         );
-        // 合成消息不真的最小化窗口。新设备可重建而非触发旧 surface 的跨设备拒绝，
-        // 证明 WndProc 已释放呈现 owner；不改变任何用户窗口状态。
+        // Synthetic messages do not actually minimize windows. A new device can rebuild rather than trigger old-surface cross-device rejection,
+        // proving WndProc released the presentation owner, without changing any user-window state.
         publish(&source);
         SendMessageW(window.hwnd, WM_PAINT, None, None);
         assert!(window.is_alive());
@@ -478,7 +478,7 @@ fn showing_live_repaints_static_frame_without_new_source_delivery() {
         let window = LiveWindow::new(source.subscribe().unwrap(), 128, 128).unwrap();
         publish(&source);
         let frame = window.snapshot_frame().unwrap().unwrap();
-        // 已领取帧；排空通知，后续更新区只能来自显示窗口而非源再次投递。
+        // The frame is already collected; drain notifications so later update regions come only from showing the window, not new source delivery.
         let mut message = MSG::default();
         while PeekMessageW(
             &mut message,

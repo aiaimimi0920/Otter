@@ -1,4 +1,4 @@
-//! 本批真实LAN联合的测试客户端；不增加产品source入口、不读取真实身份。
+//! Test client for this batch's real LAN joint tests; no new product source entry or real-identity reads.
 use super::*;
 use std::net::TcpStream;
 use tungstenite::{client::IntoClientRequest, http::HeaderValue, Message};

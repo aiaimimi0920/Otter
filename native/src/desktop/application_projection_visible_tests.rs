@@ -1,4 +1,4 @@
-//! 合成 profile/真实 TLS/显式菜单→保存→可见新帧→displayed；不触碰真实设备或激活用户窗口。
+//! Synthetic profile/real TLS/explicit menu -> save -> visible new frame -> displayed; no real-device access or activation of user windows.
 use super::*;
 use crate::desktop::device_authorization_ui::projection as ui;
 use crate::projection_delivery::accept::tests as png;
@@ -82,7 +82,7 @@ unsafe fn run_routed(mode: u8, offline: bool) {
             body,
             serde_json::json!({"projectionId":png::invitation("https://unused.example").envelope().projection_id(), "status":"displayed"})
         );
-        // 真实磁盘已包含同一 intent；不是网络成功后再保存，也不是仅凭 Unit 存在。
+        // Actual disk already includes the same intent; this is neither saving after network success nor relying only on Unit existence.
         let value: serde_json::Value =
             serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
         let sticker = value["stickers"]
@@ -124,7 +124,7 @@ unsafe fn run_routed(mode: u8, offline: bool) {
         }
         listener
     }));
-    // 尚未 checkpoint 时消费多次也不显示、不发回执。
+    // Repeated consumption before checkpoint still neither displays nor sends receipts.
     for _ in 0..3 {
         fixture
             .app
@@ -173,7 +173,7 @@ unsafe fn run_routed(mode: u8, offline: bool) {
     drop(slots);
     if mode == 2 {
         fixture.app.reset_projection_inbox();
-        assert!(fixture.app.projection_receive.busy()); // 不 poll，仍保原 Job/Hold。
+        assert!(fixture.app.projection_receive.busy()); // Without polling, retain the original Job/Hold.
         assert!(fixture
             .app
             .projection_receive

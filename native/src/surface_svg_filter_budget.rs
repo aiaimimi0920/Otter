@@ -1,4 +1,4 @@
-//! 在 usvg 分配滤镜列表/执行循环前做流式预算检查；不是功能准入或总运行时保证。
+//! Streaming budget checks before usvg allocates filter lists/executes loops; not feature admission or total-runtime guarantees.
 use super::invalid;
 use resvg::usvg::roxmltree::{Document, Node};
 use std::io;
@@ -23,7 +23,7 @@ pub(super) fn validate(doc: &Document<'_>) -> io::Result<()> {
                 return Err(invalid());
             }
         } else if name.starts_with("fe") {
-            // 包含 merge/function/light 子节点，防止藏在子结构中绕过累计预算。
+            // Include merge/function/light children to prevent cumulative-budget bypass through nested structures.
             primitives += 1;
             if primitives > MAX_TOTAL_PRIMITIVES {
                 return Err(invalid());
@@ -47,11 +47,11 @@ pub(super) fn validate(doc: &Document<'_>) -> io::Result<()> {
                     | "k3" | "k4" | "scale" | "surfaceScale" | "diffuseConstant"
                     | "specularConstant" | "specularExponent" | "azimuth" | "elevation"
                     | "pointsAtX" | "pointsAtY" | "pointsAtZ" | "limitingConeAngle" => 1,
-                    _ => continue, // 长度、枚举与引用由独立语义准入负责，不能误当纯数值。
+                    _ => continue, // Separate semantic admission owns lengths, enums, and references; do not mistake them for pure numbers.
                 };
                 let (count, first) = list(attr.value(), limit, &mut numbers)?;
-                // usvg 的 octave 先转 f32 再 round；order 则直接从 f64 向零截断。
-                // 不能共用 f32/round，否则 9.5 或接近整数的 f64 会被错误拒绝。
+                // usvg converts octave to f32 before round, while order truncates directly from f64 toward zero.
+                // Sharing f32/round would incorrectly reject 9.5 or f64 values near integers.
                 if attr.name() == "numOctaves"
                     && (count != 1 || !(0.0..=MAX_OCTAVES).contains(&(first[0] as f32).round()))
                 {
@@ -72,7 +72,7 @@ pub(super) fn validate(doc: &Document<'_>) -> io::Result<()> {
 }
 
 fn children(node: Node<'_, '_>) -> usize {
-    // 描述节点不产生滤镜工作；其 XML 数量仍由共同 nodes_limit 约束。
+    // Descriptive nodes produce no filter work; the shared nodes_limit still bounds their XML count.
     node.children()
         .filter(|n| n.is_element() && !matches!(n.tag_name().name(), "title" | "desc"))
         .take(MAX_PRIMITIVES + 1)
@@ -82,7 +82,7 @@ fn children(node: Node<'_, '_>) -> usize {
 fn list(value: &str, limit: usize, total: &mut usize) -> io::Result<(usize, [f64; 2])> {
     let mut count = 0;
     let mut first = [0.0; 2];
-    // 不收集攻击者控制的 Vec；只保存 order/octave 需要的前两个数。
+    // Do not collect attacker-controlled Vecs; retain only the first two numbers needed for order/octave.
     for number in svgtypes::NumberListParser::from(value) {
         let number = number.map_err(|_| invalid())?;
         if count == limit || *total == MAX_NUMBERS || !(number as f32).is_finite() {

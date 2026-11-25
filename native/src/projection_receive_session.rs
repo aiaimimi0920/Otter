@@ -1,4 +1,4 @@
-//! 已验证投送生成确定身份的单贴纸会话；保留完整 qrProjection，不能替代活动工作区。
+//! Verified deliveries create deterministic-identity single-sticker sessions, preserving complete qrProjection without replacing active workspaces.
 use super::{super::binding::Binding, Error, Verified};
 use crate::{session_placement::Space, session_window::Rect};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -49,7 +49,7 @@ impl Verified {
         window
             .write_projection_edit(collaboration.as_ref().map(|v| &v.0))
             .map_err(|_| Error::Response)?;
-        // 同一字符串allocation及租约移入window，序列化不再复制大Base64。
+        // Move the same string allocation/lease into window; serialization no longer copies large Base64.
         #[derive(serde::Serialize)]
         struct Session {
             #[serde(rename = "documentSchemaVersion")]
@@ -88,7 +88,7 @@ impl Verified {
         if cancel.load(Ordering::Acquire) {
             return Err(Error::Stopped);
         }
-        // 同一关联既写入候选，也交给检查点调用方比较；不再为比较重新哈希像素。
+        // Write the same association into candidates and give it to checkpoint callers for comparison, without rehashing pixels.
         Ok((bytes, self.image, binding))
     }
 }

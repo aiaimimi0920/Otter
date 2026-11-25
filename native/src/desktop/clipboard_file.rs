@@ -1,4 +1,4 @@
-//! CF_HDROP 的有界文件列表解析；ANSI 使用系统代码页，不调用 DragFinish、不访问文件系统。
+//! Bounded CF_HDROP file-list parsing; ANSI uses the system code page, without DragFinish or filesystem access.
 use std::{ffi::OsString, os::windows::ffi::OsStringExt, path::PathBuf};
 use windows::core::{Error, Result};
 use windows::Win32::Foundation::E_INVALIDARG;
@@ -76,7 +76,7 @@ pub(super) fn parse(bytes: &[u8]) -> Result<Vec<PathBuf>> {
 }
 
 fn ansi_path(bytes: &[u8], code_page: u32) -> Result<PathBuf> {
-    // 先查询 UTF-16 长度，拒绝损坏的多字节序列，避免替换字符意外指向另一文件。
+    // Query UTF-16 length first and reject malformed multibyte sequences so replacement characters cannot accidentally refer to another file.
     let length = unsafe { MultiByteToWideChar(code_page, MB_ERR_INVALID_CHARS, bytes, None) };
     if length == 0 {
         return Err(Error::from_win32());

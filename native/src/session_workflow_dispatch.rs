@@ -1,4 +1,4 @@
-//! 后台顺序派送：每条连接建立后重新准入，成功才推进；不自动重试或回滚远端。
+//! Sequential background dispatch: readmit after each connection and advance only on success; no automatic retries or remote rollback.
 use super::{exchange, Batch, Request};
 use crate::{byte_budget::Budget, loom_bridge_client, loom_bridge_identity::Identity};
 use std::{
@@ -19,15 +19,15 @@ pub enum Failure {
 }
 #[derive(Debug, PartialEq)]
 pub struct Report {
-    /// 仅本次调用收到严格匹配成功回执的数量，不包含之前调用已确认的消息。
+    /// Count only strictly matching successful receipts received by this call, excluding messages confirmed by previous calls.
     pub acknowledged: usize,
     pub failure: Option<Failure>,
-    /// 当前消息是否可能到达远端；false 也不能否定此前尝试已经提交。
+    /// Whether the current message may have reached the remote endpoint; false still cannot disprove commit by a prior attempt.
     pub may_have_reached_remote: bool,
 }
-/// 必须在后台执行。admit 不可直接访问 HWND/Rc 状态，应由 owner 提供线程安全
-/// 门禁或与 UI 握手；返回 true 只授权当前请求，不给整批永久授权。
-/// 失败保留 batch 的当前请求及 ID；调用方不得未经重新核查就再次调用来自动重试。
+/// Must run in the background. admit cannot directly access HWND/Rc state; the owner provides a thread-safe
+/// gate or UI handshake. Returning true authorizes only the current request, not the entire batch permanently.
+/// Failure preserves the batch's current request and ID; callers must not invoke again for automatic retry without fresh validation.
 pub fn run(
     batch: &mut Batch<'_>,
     identity: &Identity,
@@ -61,7 +61,7 @@ pub fn run(
                 return report;
             }
         };
-        // 连接可能耗时；只有连接完成后的新门禁可以授权消息内容的发送。
+        // Connecting may take time; only a fresh post-connection gate authorizes sending message content.
         if cancel.load(Ordering::Acquire) {
             report.failure = Some(Failure::Cancelled);
             return report;
@@ -79,7 +79,7 @@ pub fn run(
                 }
             }
             Err(error) => {
-                // Cancelled 可能在发送前，也可能在等待回执时；不能当成明确未提交。
+                // Cancelled may occur before sending or while waiting for receipts; it does not prove absence of commit.
                 report.may_have_reached_remote = !matches!(error, exchange::Error::Budget);
                 report.failure = Some(Failure::Exchange(error));
                 return report;

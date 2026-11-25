@@ -1,4 +1,4 @@
-//! 真实产品 child → Canvas alpha 桥接 → PNG；oracle 来自独立解码的真实浏览器矩阵。
+//! Real product child -> Canvas alpha bridge -> PNG; the oracle comes from an independently decoded real-browser matrix.
 use super::*;
 use crate::desktop::shader_image::{self, tests as oracle};
 use std::{io::Read, sync::atomic::AtomicBool};
@@ -149,7 +149,7 @@ fn actual_product_loom_shader_png_and_display_match_browser_raw_plus_alpha_oracl
                 },
                 true,
             );
-            // 旧三组 legacy_png_rgba 是 PNG→Canvas2D 后值，不误作编码 PNG 的 straight oracle。
+            // The three old legacy_png_rgba groups contain post-PNG-to-Canvas2D values, not straight-alpha oracles for the encoded PNG.
             let size = assert_bridge(result.unwrap(), &expected(&case.expected_raw_rgba, &matrix));
             eprintln!("native-shader-image-loom: backend={backend:?} case={} exact-png=true exact-display=true png-bytes={size} peak-job-bytes={peak}", case.name);
         }

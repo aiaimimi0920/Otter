@@ -1,4 +1,4 @@
-//! 端点/曲线同属连接组：真实 Win32 层序、焦点、显隐和节点回收；只操作隔离自有窗口。
+//! Endpoints/curves form one connection group: actual Win32 Z-order, focus, visibility, and node reclamation using isolated owned windows only.
 use super::*;
 
 unsafe fn pin_order(ui: &Ui) -> Vec<isize> {
@@ -104,7 +104,7 @@ fn port_focus_preview_and_reshow_keep_the_entire_connection_group_below_unchange
         for endpoint in [0, 1, 0] {
             let (strip, port, point) = port(&ui, endpoint, Side::Output);
             let _ = SetFocus(Some(app.documents[endpoint].window.0));
-            // 先完成夹具主动选择宿主；之后端点获取焦点不得再改变图片相对顺序。
+            // Finish fixture-driven host selection first; endpoint focus afterward must not alter relative image order.
             let before = pin_order(&ui);
             let _ = SetFocus(Some(strip));
             assert_eq!(GetFocus(), strip);
@@ -217,7 +217,7 @@ fn one_order_transaction_demotes_every_topmost_member_without_reordering_pins() 
             .chain([ui.drawing.get()])
             .collect();
         for mask in 1..1usize << layers.len() {
-            // 夹具暂时抑制同步纠正，制造各成员旧 TOPMOST 状态不同的完整批次。
+            // Temporarily suppress synchronous correction in the fixture to create a complete batch with differing previous TOPMOST states.
             assert!(!ui.ordering.replace(true));
             for (index, hwnd) in layers.iter().enumerate() {
                 if mask & (1 << index) != 0 {
@@ -336,7 +336,7 @@ fn closing_a_pin_hides_its_ports_immediately_without_destroying_the_other_connec
         assert!(IsWindowVisible(drawing).as_bool());
         app.sync_link_menus();
         app.sync_workspace_chrome(true);
-        // 单个宿主销毁已同步移出 nodes；显式执行资源 owner 的 sync，不依赖应用轮询剪枝。
+        // Single-host destruction already removed nodes synchronously; explicitly sync resource owners rather than rely on application polling/pruning.
         app.chrome.windows.as_mut().unwrap().sync().unwrap();
         assert!(closed.iter().all(|h| !IsWindow(Some(*h)).as_bool()));
         assert!(retained.iter().all(|h| IsWindowVisible(*h).as_bool()));

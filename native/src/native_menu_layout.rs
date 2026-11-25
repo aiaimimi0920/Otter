@@ -1,4 +1,4 @@
-//! 列表与三列卡片共享的像素布局；绘制、命中、子菜单锚点和 UIA 使用相同矩形。
+//! Shared pixel layout for lists/three-column cards; drawing, hit tests, submenu anchors, and UIA use the same rectangles.
 use windows::Win32::Foundation::RECT;
 
 #[derive(Clone, Copy)]

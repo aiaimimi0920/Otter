@@ -1,4 +1,4 @@
-//! 标记、标签、快捷键和箭头各自裁剪；窄面板不会让快捷键覆盖标签。
+//! Clip markers, labels, shortcuts, and arrows separately; shortcuts cannot overlap labels on narrow panels.
 use super::*;
 pub(super) struct Columns {
     pub mark: RECT,

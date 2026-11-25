@@ -1,11 +1,11 @@
-//! 正式结果提交后的 Art 通知；可经图片钉图中继，不以预览触发，不在此联网。
+//! Art notifications after committed results; may relay through image pins, never trigger on previews, and perform no networking here.
 use super::Application;
 use crate::{loom_capability::Capability, workspace_id::UnitId};
 #[cfg(test)]
 #[path = "application_propagation_policy_tests.rs"]
 mod policy_tests;
 impl Application {
-    /// 新建连接复用原通知链；从 Art 出发仍必须尊重源 notify，不制造手动执行。
+    /// New links reuse the original notification chain; starting from Art still honors source notify and never fabricates manual execution.
     pub(super) unsafe fn propagate_created_child(&self, source: &UnitId) {
         if self
             .documents
@@ -182,7 +182,7 @@ impl Application {
             if !accepts {
                 continue;
             }
-            // 捕获旧执行取消令牌后才排入新通知，旧结果不会在新请求前重新覆盖。
+            // Capture the old execution cancellation token before queuing new notifications, so old results cannot overwrite again before the new request.
             if super::super::execution_cancel::request(document.window.0, state).is_ok() {
                 super::super::execution_start::upstream_changed(state);
             }
@@ -222,7 +222,7 @@ impl Application {
             child.pending_start.borrow().as_ref().unwrap().trigger,
             crate::graph_execution_config::Trigger::Upstream
         );
-        // 重复边/通知合并在同一个槽；显式手动操作优先级不会被后台通知降低。
+        // Duplicate edges/notifications coalesce into one slot; background notifications cannot lower explicit manual-operation priority.
         *child.pending_start.borrow_mut() = Some(execution_start::Request {
             stamp: crate::desktop::configuration_stamp::Stamp::capture(child),
             trigger: crate::graph_execution_config::Trigger::Manual,
@@ -237,7 +237,7 @@ impl Application {
         self.propagate_result(&source);
         assert!(child.pending_start.borrow().is_none());
         child.group_locked.set(false);
-        // 导入接口允许已有环，自动通知必须终止而不是触发无尽网络执行。
+        // Imports allow existing cycles; automatic notifications must terminate rather than trigger endless network executions.
         self.workspace
             .add_link(Link {
                 id: new_unit_id().unwrap(),

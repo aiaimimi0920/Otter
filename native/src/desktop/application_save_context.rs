@@ -1,4 +1,4 @@
-//! 新建工作区的显式保存上下文；与导入会话的历史 CSS/DPR 上下文分开建立。
+//! Explicit save context for new workspaces, established separately from the historical CSS/DPR context of imported sessions.
 use super::*;
 
 pub(super) fn fresh(host: crate::workspace_id::UnitId) -> restore_batch::Record {
@@ -18,8 +18,8 @@ pub(super) fn fresh(host: crate::workspace_id::UnitId) -> restore_batch::Record 
         restored_revision: 0,
         saved_path: None,
         recovery_path: None,
-        // 新原生会话以桌面物理像素为保存坐标，不借用某一窗口所在显示器的 DPI。
-        // 标注仍由保存映射按每个窗口实际 DPI 转换到此空间；负屏幕坐标合法。
+        // New native sessions save in physical desktop pixels, without borrowing the DPI of any window's monitor.
+        // Save mapping still converts annotations into this space using each window's actual DPI; negative screen coordinates are valid.
         space: Some(crate::session_placement::Space { origin: (0, 0), scale: 1.0 }),
         annotation_ids: Vec::new(),
         transient_host: Some(host),
@@ -29,7 +29,7 @@ pub(super) fn fresh(host: crate::workspace_id::UnitId) -> restore_batch::Record 
     }
 }
 
-/// 使用刚创建的隐藏 HWND 捕获完整候选，不写文件、不替换实际恢复上下文。
+/// Capture a complete candidate using a newly created hidden HWND, without writing files or replacing the actual restore context.
 #[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 pub(super) unsafe fn verify(app: &mut Application) -> Result<()> {
     if app.save_status() != save_state::Status::Unsaved {

@@ -1,4 +1,4 @@
-//! 仅创建进程内 DataPackage，不访问 Windows 当前剪贴板或系统历史。
+//! Create only in-process DataPackage objects; never access Windows' current clipboard or system history.
 use super::*;
 use windows::{
     core::HSTRING,
@@ -224,7 +224,7 @@ fn bitmap_decode_observes_cancellation_before_allocation_and_after_copy() {
         (true, Instant::now() + Duration::from_secs(5)),
         (false, Instant::now()),
     ] {
-        // 无效容器不能先于已取消/超时的历史请求进入 WIC。
+        // Invalid containers must not enter WIC before an already-cancelled/timed-out history request is rejected.
         let result = content::decode_bitmap(b"not an image", &AtomicBool::new(cancel), deadline);
         assert_eq!(result.err().unwrap().code(), E_ABORT);
     }

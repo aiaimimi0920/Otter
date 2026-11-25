@@ -1,4 +1,4 @@
-//! 仅测试自有离屏NOACTIVATE标准控件；无全局hook、焦点请求或外部输入。
+//! Test only owned offscreen NOACTIVATE standard controls; no global hooks, focus requests, or external input.
 use windows::{
     core::w,
     Win32::{Foundation::*, UI::WindowsAndMessaging::*},

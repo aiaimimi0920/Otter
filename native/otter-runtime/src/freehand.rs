@@ -1,4 +1,4 @@
-//! 普通画笔的基线采样与提交平滑；三轮邻域平滑原地执行，不克隆点数组。
+//! Baseline sampling and commit smoothing for ordinary pens; perform three neighborhood-smoothing passes in place without cloning the point array.
 use crate::viewport::Point;
 pub const MAX_POINTS: usize = 2048;
 

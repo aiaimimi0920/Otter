@@ -1,4 +1,4 @@
-//! Ctrl+E 与 F4 只控制既有编辑工具面板；不抢 Tab、不打开参数/Art，也不注入全局输入。
+//! Ctrl+E/F4 control only existing edit-tool panels; do not take Tab, open parameters/Art, or inject global input.
 use super::*;
 
 fn toggles(message: u32, key: usize, control: bool, shift: bool, alt: bool) -> bool {
@@ -69,7 +69,7 @@ pub(super) unsafe fn dispatch(
                 eprintln!("native-tool-panel-position: {error}");
             }
         }
-        // fit/ShowWindow 可同步重入；不能沿用已销毁/替换宿主或在重入后绕过模态门。
+        // fit/ShowWindow may synchronously reenter; do not reuse destroyed/replaced hosts or bypass modal gates afterward.
         if current(owner, panel, state) && available(state) {
             if neuro_mini_ui::is_toolbar(panel) {
                 if let Err(error) = super::super::edit_mode::toolbar_mode(owner, state, showing) {
@@ -85,7 +85,7 @@ pub(super) unsafe fn dispatch(
             }
         }
     }
-    Some(LRESULT(0)) // 自动重复仍消费，不能透传成编辑命令或多次显隐。
+    Some(LRESULT(0)) // Consume auto-repeat too; do not pass it through as edit commands or repeated visibility toggles.
 }
 
 pub(super) unsafe fn translate(state: &State, message: &MSG) -> bool {
@@ -107,7 +107,7 @@ pub(super) unsafe fn translate(state: &State, message: &MSG) -> bool {
     }
     if first_press(message.lParam) && available(state) && IsWindowVisible(panel).as_bool() {
         if message.wParam.0 == VK_ESCAPE.0 as usize && neuro_mini_ui::is_toolbar(panel) {
-            // 空闲钉图 Esc 由宿主统一删除；属性 EDIT 和模态菜单已在前置翻译中消费取消。
+            // The host uniformly deletes idle pins on Esc; property EDIT/modal menus already consumed cancellation during pretranslation.
             SendMessageW(
                 owner,
                 WM_KEYDOWN,

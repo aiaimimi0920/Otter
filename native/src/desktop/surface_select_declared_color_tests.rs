@@ -1,4 +1,4 @@
-//! 真实 HWND 像素验证声明覆盖、currentcolor、alpha 和恢复默认，不注入全局输入。
+//! Actual HWND pixels verify declared overrides, currentcolor, alpha, and default restoration, without global input injection.
 use super::*;
 fn current(window: &SurfaceWindow) -> HWND {
     unsafe {
@@ -57,7 +57,7 @@ fn surface_select_declared_color_override_currentcolor_invalid_and_reset_reach_p
         (serde_json::Value::Null, [0xef, 0xf8, 0xf7]),
     ] {
         window.replace(colored(value)).unwrap();
-        // 节点样式属于编辑合同，替换会撤销旧 HWND；必须验证当前真实控件。
+        // Node styles belong to edit contracts, and replacement revokes the old HWND; verify the current actual control.
         let hwnd = current(&window);
         unsafe {
             let image = pixels(hwnd, "select-declared.png");

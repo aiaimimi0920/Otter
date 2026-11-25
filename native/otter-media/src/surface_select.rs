@@ -1,4 +1,4 @@
-//! Select 的有界声明快照；严格字符串与旧前端一致，不创建文本 draft 或表单值。
+//! Bounded Select declaration snapshot; strict strings match the legacy frontend, without creating text drafts or form values.
 use crate::surface_scene::{Kind, Node};
 use serde_json::Value;
 pub const MAX_OPTIONS: usize = 2048;
@@ -57,7 +57,7 @@ impl Options {
         }
         let mut total = 0;
         validate(source, &mut total)?;
-        // 全部检查先于复制，拒绝时不返回截断的可见列表或部分候选。
+        // Complete all checks before copying; rejection must not return a truncated visible list or partial candidates.
         for item in items {
             validate(text(item.get("value")), &mut total)?;
             validate(text(item.get("label")), &mut total)?;
@@ -79,11 +79,11 @@ impl Options {
     pub fn items(&self) -> &[OptionItem] {
         &self.items
     }
-    /// 不把未匹配的声明值静默改成第一个选项；重复 value 保留，定位首个匹配项。
+    /// Do not silently replace an unmatched declared value with the first option; preserve duplicate values and locate the first match.
     pub fn source_index(&self) -> Option<usize> {
         self.items.iter().position(|item| item.value == self.source)
     }
-    /// HWND 索引须经范围检查，不能把 CB_ERR/-1 强转后读入任意值。
+    /// Range-check HWND indices; do not cast CB_ERR/-1 and read arbitrary values.
     pub fn value_at(&self, index: usize) -> Option<&str> {
         self.items.get(index).map(OptionItem::value)
     }

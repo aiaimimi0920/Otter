@@ -1,4 +1,4 @@
-//! Live 呈现专用边角；物理客户区像素，同一几何用于绘制和 L 形命中，不修改源帧。
+//! Live-specific presentation corners; physical client pixels and shared drawing/L-shaped hit geometry, without changing source frames.
 use super::*;
 const LINE: f32 = 2.0;
 const ARM: f32 = 16.0;

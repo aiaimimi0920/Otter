@@ -1,4 +1,4 @@
-//! 已解码投送结果保留原 Lease/全局槽；同 Grant 的后续 owner 才能领取，不复制 token。
+//! Decoded delivery results retain original Lease/global slot; only successor owners of the same Grant may claim, without token copying.
 use super::{Error, Lease, Slot};
 use crate::projection_delivery::accept::{Received, Verified};
 use std::sync::Arc;

@@ -1,4 +1,4 @@
-//! Live 系统分组菜单：父系统菜单拥有 HMENU，选择只交付快照绑定的单槽请求。
+//! Live system grouping menu: the parent system menu owns HMENU, and selection delivers only a snapshot-bound single-slot request.
 use super::*;
 use crate::{
     workspace::{Group, Workspace},
@@ -149,7 +149,7 @@ impl LiveWindow {
             groups: workspace.groups().to_vec(),
             current: group.map(|group| group.id.clone()),
         };
-        // 更新失败时旧命令也不可执行，避免部分菜单与旧数组错位。
+        // Old commands are also disabled on update failure, preventing partial menus from becoming misaligned with old arrays.
         control.view = None;
         let menu = control
             .menu

@@ -1,4 +1,4 @@
-//! 来源映射与恢复原文一并围栏；相同像素不代表可以复用另一份历史编辑基线。
+//! Fence source mappings together with restored source content; identical pixels do not permit reuse of another historical edit baseline.
 use super::*;
 use crate::{crop_geometry::Size, desktop::canvas::minified_source::Source};
 
@@ -91,7 +91,7 @@ fn legacy_snapshot_tracks_active_region_and_reset_invalidates_same_pixel_owner()
     assert!(!stamp.matches(&canvas, None, &[]));
     assert!(canvas.editor.undo());
     assert_eq!(capture(&canvas).legacy_pixels, before.legacy_pixels);
-    // 来源凭证可再次相同；完整发送生命周期另以DocumentStamp拒绝旧revision。
+    // Source credentials may match again; the full send lifecycle separately uses DocumentStamp to reject old revisions.
     assert!(!reset.stamp().matches(&canvas, None, &[]));
 }
 
@@ -195,7 +195,7 @@ fn snapshot_keeps_source_mapping_and_rejects_same_pixels_with_another_origin() {
     assert!(!input.legacy_crop);
     let stamp = captured.stamp();
     assert!(stamp.matches(&canvas, None, &[]));
-    // 字节相同但分配/恢复身份不同，不得假定它与已经捕获的历史是同一份。
+    // Identical bytes with different allocation/restoration identity must not be assumed to share the captured history.
     canvas.minified_source = Some(
         Source::new(image, &canvas.editor)
             .with_source_logical(logical)
@@ -301,7 +301,7 @@ fn cross_unit_mapping_keeps_original_density_and_target_crop_space_separate() {
         upstream.editor.layers().unwrap().size,
         target.editor.layers().unwrap().size
     );
-    // 普通Editor未设置恢复logical_size；生产接缝必须从完整底图取框，不能取visible crop。
+    // Ordinary Editor has no restored logical_size; the production seam must take bounds from the full base image, not the visible crop.
     assert!(target.editor.full_logical_frame().is_none());
     let selected = select_local(&frame, &baseline.unit, &upstream).unwrap();
     let snapshot = Snapshot {
@@ -331,7 +331,7 @@ fn cross_unit_mapping_keeps_original_density_and_target_crop_space_separate() {
         .unwrap()
         .record
         .same_storage(&baseline.record));
-    // 目标reset不改来源密度；来源自身修改则旧resolved立即失效。
+    // Target reset does not change source density; changes to the source itself immediately invalidate old resolved state.
     assert!(target.editor.reset_crop());
     assert_eq!(
         select_local(&frame, &baseline.unit, &upstream)

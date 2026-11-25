@@ -1,4 +1,4 @@
-//! 固定wire oracle核协作与压缩PNG的绑定，不由新解码器生成预期。
+//! Fixed-wire oracle checks collaboration/compressed-PNG binding without new-decoder-generated expectations.
 use super::*;
 use serde_json::{json, Value};
 const ORIGIN: &str = "https://loom.example";

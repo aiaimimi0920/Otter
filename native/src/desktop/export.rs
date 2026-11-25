@@ -1,4 +1,4 @@
-//! 已提交裁剪区域合成与 PNG 编码；复用标注渲染，不受宿主视口缩放和平移影响。
+//! Compose committed crop regions and encode PNG; reuse annotation rendering independently of host viewport zoom/pan.
 use super::{annotations, image::Image, Apartment};
 #[cfg(test)]
 #[path = "export_annotation_domain_tests.rs"]
@@ -75,7 +75,7 @@ fn save_allocated(
         .map_err(|error| error.to_string())?;
     let (stream, size) = encode_bitmap(&wic, &bitmap.bitmap).map_err(|error| error.to_string())?;
     drop(bitmap);
-    // create_new 原子拒绝已有文件；不先截断目标，失败时也不删除任何既有用户内容。
+    // create_new atomically rejects existing files; never truncate targets first or delete existing user content on failure.
     let (mut file, path) = allocate().map_err(|error| format!("Cannot create export: {error}"))?;
     copy_stream(&stream, size, &mut file).map_err(|error| {
         format!(
@@ -93,12 +93,12 @@ fn save_allocated(
 }
 
 pub(super) struct ComposedImage {
-    // 字段顺序保证 WIC 缓冲先释放，预算后归还。
+    // Field order releases WIC buffers before returning budgets.
     pub(super) bitmap: IWICBitmap,
     _lease: crate::byte_budget::Lease,
 }
 
-/// 文件名和编码共用已提交裁剪尺寸；视口缩放、平移与窗口尺寸不参与。
+/// Filenames and encoding share committed crop dimensions; viewport zoom, pan, and window size do not participate.
 pub(super) fn dimensions(image: &Image, editor: Option<&Editor>) -> Result<(u32, u32)> {
     let source = editor
         .and_then(Editor::layers)
@@ -168,7 +168,7 @@ fn compose_frame(
     if !opacity.is_finite() || !(0.0..=1.0).contains(&opacity) {
         return Err(Error::new(E_INVALIDARG, "Invalid base image opacity"));
     }
-    // 编辑器已拥有栅格历史时，它的已提交快照才是导出权威；旧宿主 image 仅作兼容输入。
+    // When Editor owns raster history, its committed snapshot is authoritative for export; old host image is compatibility input only.
     let current = editor
         .layers()
         .filter(|_| layout.is_none())
@@ -195,7 +195,7 @@ fn compose_frame(
         .len()
         .checked_add(annotation_bytes)
         .ok_or_else(|| Error::new(E_INVALIDARG, "Export upload size overflow"))?;
-    // 原图共享预算之外，WIC 输出与 D2D 上传副本同时存在；均先准入再分配。
+    // Beyond the shared original-image budget, WIC output and D2D upload copies coexist; admit all before allocating.
     let output_lease = reserve(output_bytes).ok_or_else(|| {
         Error::new(
             windows::Win32::Foundation::E_OUTOFMEMORY,
@@ -327,7 +327,7 @@ fn encode_bitmap(wic: &IWICImagingFactory, bitmap: &IWICBitmap) -> Result<(IStre
     }
 }
 
-/// 两种格式使用同一个合成快照，不重复绘制；不写文件或访问系统剪贴板。
+/// Both formats share one composited snapshot without redrawing; no file writes or system-clipboard access.
 #[cfg(test)]
 pub(super) fn clipboard_payload(
     image: &Image,
@@ -370,7 +370,7 @@ fn stream_pixels(stream: IStream, size: u64) -> Result<crate::pixels::Pixels> {
     Ok(crate::pixels::Pixels::from_reserved(bytes, lease))
 }
 
-/// Loom 内联资源复用已提交快照合成，不额外生成剪贴板 DIB；返回实际裁剪输出尺寸。
+/// Loom inline resources reuse committed-snapshot composition without extra clipboard DIBs; return actual cropped output dimensions.
 pub(super) fn png_payload(
     image: &Image,
     editor: &Editor,
@@ -395,7 +395,7 @@ fn copy_stream(
     mut remaining: u64,
     output: &mut impl Write,
 ) -> std::result::Result<(), String> {
-    // 仅保留固定写入缓冲；不再复制整个 PNG，编码器/合成位图此时已经释放。
+    // Retain only a fixed write buffer, without recopying the entire PNG; encoders/composition bitmaps are already released.
     let mut buffer = [0u8; 64 * 1024];
     while remaining != 0 {
         let requested = remaining.min(buffer.len() as u64) as u32;

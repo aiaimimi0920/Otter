@@ -1,4 +1,4 @@
-//! 子 Art 的源身份；Live 保稳定会话身份，不借同 ID 冻结后的文档替代原源 owner。
+//! Child-Art source identity; Live retains stable session identity and never substitutes a frozen document with the same ID for the original source owner.
 use super::*;
 use crate::workspace_id::UnitId;
 enum Owner {

@@ -1,7 +1,7 @@
-//! 明确的 straight RGBA→PBGRA 适配；不复用旧 WebGL 反预乘，也不拥有 PNG/提交事务。
+//! Explicit straight RGBA-to-PBGRA adaptation; no reuse of legacy WebGL unpremultiplication or ownership of PNG/commit transactions.
 use super::*;
 impl Frame {
-    /// 只供原生显示桥接。原 straight 帧仍用于 PNG，不从 PBGRA 反推有损的原通道。
+    /// Native-display bridging only. PNG still uses the original straight frame, without reconstructing lossy original channels from PBGRA.
     pub fn pbgra(&self, stopped: &impl Fn() -> bool, deadline: Instant) -> Result<Pixels> {
         check(stopped, deadline)?;
         let count = contract::image_bytes(self.width, self.height)?;

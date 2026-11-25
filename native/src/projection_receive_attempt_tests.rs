@@ -1,4 +1,4 @@
-//! 确定性 worker panic：不依赖网络竞态，沿真实 Job join/Attempt/Slot 验证回收交接。
+//! Deterministic worker panic without network races; verify reclamation handoff through real Job join/Attempt/Slot.
 use super::*;
 use crate::projection_delivery::{
     accept::tests as png,
@@ -88,7 +88,7 @@ fn panicked_recovery(drop_job: bool) {
         drop(job);
     } else {
         assert!(matches!(job.try_join(), Some(Err(Error::Panicked))));
-        // recovered 的 fresh=false：回收只放许可，不排 cleanup 或自动解绑。
+        // recovered has fresh=false: reclamation releases only permits, never queues cleanup or automatic unlink.
         assert!(job.take_abandoned().is_none());
     }
     retry.activate().unwrap();

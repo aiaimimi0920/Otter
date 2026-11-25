@@ -1,4 +1,4 @@
-//! 稀疏放置、空网格和新属性严格准入的反例；通用长度默认值沿既有 Scene 合同。
+//! Negative cases for sparse placement, empty grids, and strict admission of new properties; general length defaults follow the existing Scene contract.
 use super::*;
 #[test]
 fn grid_axis_overlapping_spans_charge_work_even_with_a_small_final_rectangle() {

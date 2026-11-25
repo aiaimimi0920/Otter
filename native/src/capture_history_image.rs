@@ -1,4 +1,4 @@
-//! 历史图像只保存最长边240的PNG；后台准备240复用图及64显示图，共用Pixels预算。
+//! History stores PNGs with longest edge 240; background work prepares 240-pixel reuse and 64-pixel display images under the shared Pixels budget.
 use crate::{image_decode::Image, image_thumbnail::Thumbnail};
 use base64::{engine::general_purpose::STANDARD, Engine};
 
@@ -103,7 +103,7 @@ pub(super) fn decode(url: &str) -> Result<(Preview, Option<String>), String> {
     let (image, reusable_png) =
         Image::from_capture_history(&bytes, kind == PNG_KIND).map_err(|e| e.to_string())?;
     let preview = preview(image)?;
-    // 只有容器、尺寸和实际预览都已确认的 PNG 才保留原编码；其他旧数据照常归一化。
+    // Preserve original encoding only for PNGs with confirmed container, dimensions, and actual preview; normalize other old data as before.
     let normalized = if reusable_png {
         None
     } else {

@@ -1,4 +1,4 @@
-//! 行/列容器主轴分配；纯数值计算，不创建窗口或分配像素，保留最小尺寸造成的溢出。
+//! Main-axis allocation for row/column containers; pure numeric computation, without windows or pixel allocation, preserving overflow caused by minimum sizes.
 #[derive(Clone, Copy, Debug)]
 pub struct Item {
     pub basis: f32,
@@ -59,7 +59,7 @@ pub fn arrange(items: &[Item], available: f32, gap: f32, justify: Justify) -> Re
             overflow: 0.,
         });
     }
-    // f64 中间值避免大树累加使边界判断因 f32 舍入来回振荡。
+    // f64 intermediates prevent boundary decisions from oscillating due to f32 rounding when accumulating large trees.
     let gap_total = f64::from(gap) * (items.len() - 1) as f64;
     let target = f64::from(available) - gap_total;
     let mut sizes: Vec<f64> = items
@@ -71,7 +71,7 @@ pub fn arrange(items: &[Item], available: f32, gap: f32, justify: Justify) -> Re
     let bases = sizes.clone();
     let mut active = vec![true; items.len()];
     let mut weights = vec![0.; items.len()];
-    // 每轮至少冻结一个边界项，或者消耗全部可分配空间，循环有节点数上界。
+    // Each round freezes at least one boundary item or consumes all distributable space, bounding iterations by node count.
     for _ in 0..=items.len() {
         let used: f64 = (0..items.len())
             .map(|i| if active[i] { bases[i] } else { sizes[i] })
@@ -93,7 +93,7 @@ pub fn arrange(items: &[Item], available: f32, gap: f32, justify: Justify) -> Re
         if total == 0. {
             break;
         }
-        // grow 总和小于 1 时不强行填满；剩余空间留给 justify。
+        // Do not force a full fill when the grow sum is below 1; leave remaining space to justify.
         let budget = if growing {
             remaining.min(initial_free * total.min(1.))
         } else {

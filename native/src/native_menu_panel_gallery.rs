@@ -1,4 +1,4 @@
-//! 图片卡片沿主干三列平铺并居中裁切；删除按钮单独响应悬停且避开选中边框。
+//! Image cards follow mainline three-column tiling/centered cropping; delete buttons hover independently and avoid selection borders.
 use super::*;
 
 pub(super) unsafe fn paint(
@@ -209,7 +209,7 @@ mod tests {
                     GetPixel(buffer.0, button.left, button.top),
                     COLORREF(0x18120e)
                 );
-                // ClearType 在 125% 下可能没有纯前景色像素；仍须有可见红色字形。
+                // At 125%, ClearType may produce no pure foreground-color pixels; visible red glyphs are still required.
                 let red_pixels = (button.top..button.bottom)
                     .flat_map(|y| (button.left..button.right).map(move |x| (x, y)))
                     .filter(|&(x, y)| {

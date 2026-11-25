@@ -1,4 +1,4 @@
-// 仅记录当前 operation 的有界焦点意图；实际键盘焦点/草稿仍由宿主唯一 HWND owner 决定。
+// Record only bounded focus intent for the current operation; the host's sole HWND owner still decides actual keyboard focus and drafts.
 ((dom, fail) => {
   "use strict";
   const op = dom.ops, define = Object.defineProperty;

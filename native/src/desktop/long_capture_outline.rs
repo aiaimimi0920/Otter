@@ -1,4 +1,4 @@
-//! 四条窄顶层窗口标识采集边界；不覆盖整块桌面、不激活、不接收鼠标，关闭即销毁。
+//! Four narrow top-level windows mark capture boundaries; no full-desktop overlay, activation, or mouse input, and closure destroys them.
 use super::*;
 use windows::{
     core::w,
@@ -33,7 +33,7 @@ impl Outline {
                 None,
                 None,
             )?);
-            // Layered + TRANSPARENT 才明确提供跨窗口鼠标穿透；不可用时不显示候选窗口。
+            // Only Layered + TRANSPARENT explicitly provides cross-window mouse passthrough; do not show candidate windows if unavailable.
             SetLayeredWindowAttributes(window.0, COLORREF(0), 255, LWA_ALPHA)?;
             if protect {
                 SetWindowDisplayAffinity(window.0, WDA_EXCLUDEFROMCAPTURE)?;
@@ -45,7 +45,7 @@ impl Outline {
     }
     pub unsafe fn position(&self, region: Region) -> Result<()> {
         let mut dpi = GetDpiForWindow(self.windows[0].0).max(96);
-        // 跨显示器定位可能改变 DPI，最多校正一次；不安装布局计时器。
+        // Cross-monitor positioning may change DPI; correct at most once, without layout timers.
         for _ in 0..2 {
             let rects = rectangles(region, dpi)?;
             for (window, rect) in self.windows.iter().zip(rects) {

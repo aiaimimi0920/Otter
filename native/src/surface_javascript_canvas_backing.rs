@@ -1,4 +1,4 @@
-//! Canvas 的线程绑定软件 D2D/DIB 背板；复用软件呈现的叶资源，不创建窗口或 GPU 呈现图。
+//! Canvas thread-bound software D2D/DIB backing; reuse software-presentation leaf resources without creating windows or GPU presentation graphs.
 use crate::{
     byte_budget,
     software_dib::Bitmap,
@@ -14,11 +14,11 @@ use windows::Win32::{
 };
 
 pub(super) struct Backing {
-    // target 必须先于其 BindDC 指向的 DIB/DC 释放；不向外交付可保留的 COM 克隆。
+    // Release target before the DIB/DC referenced by BindDC; never hand out retainable COM clones.
     pub(super) target: ID2D1DCRenderTarget,
     bitmap: Bitmap,
     _logical: byte_budget::Lease,
-    // 和软件呈现一致，为 D2D 内部中间位图预留两份；Job 仍是整 child 的硬界。
+    // As in software presentation, reserve two copies for D2D internal intermediate bitmaps; the Job remains the whole-child hard limit.
     _scratch: byte_budget::Lease,
 }
 impl Backing {

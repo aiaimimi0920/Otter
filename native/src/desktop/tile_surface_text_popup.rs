@@ -1,4 +1,4 @@
-//! Tile的原生编辑层：owned popup在DComp之上，只转发自有EDIT通知，不持Rust会话裸指针。
+//! Tile native edit layer: owned popup above DComp, forwarding only owned EDIT notifications without raw Rust-session pointers.
 use super::DISMISS;
 use windows::{
     core::{w, Error, Result, HRESULT},
@@ -188,8 +188,8 @@ unsafe extern "system" fn key(
                 return LRESULT(0);
             }
         }
-        // 首个Esc交给真实打开的系统列表；其余边沿仍吞掉，不能再次取消整个编辑层。
-        // 只有明确安装为Select的控件才能消费Combo消息，不能向任意EDIT猜测其类型。
+        // First Esc belongs to an actually open system list; consume remaining edges so they cannot cancel the entire edit layer again.
+        // Only explicitly installed Select controls may consume Combo messages; never guess arbitrary EDIT types.
         if composing & 2 != 0 && SendMessageW(hwnd, CB_GETDROPPEDSTATE, None, None).0 != 0 {
             if msg == WM_KEYDOWN {
                 let _ = SetWindowSubclass(hwnd, Some(key), 0x54455854, composing | 4);

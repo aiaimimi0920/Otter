@@ -1,4 +1,4 @@
-//! 主干 captureMeta 的有界只读合同；缺失字段不猜测，未知扩展仍由原始会话 JSON 保留。
+//! Bounded read-only mainline captureMeta contract; never infer missing fields, and original session JSON preserves unknown extensions.
 use serde::Deserialize;
 use std::borrow::Cow;
 #[path = "session_capture_long.rs"]

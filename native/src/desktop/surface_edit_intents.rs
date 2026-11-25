@@ -1,4 +1,4 @@
-//! UI 编辑意图 FIFO；只合并队尾同字段 input，预留在途槽以便未启动时归还。
+//! UI edit-intent FIFO; coalesce only same-field tail input, reserving in-flight slots for return when not started.
 use crate::surface_input_event::Phase;
 use std::collections::{BTreeMap, VecDeque};
 use std::rc::Rc;
@@ -146,7 +146,7 @@ pub struct Queue {
     sealed_tail: bool,
     scope: Rc<()>,
     sequence: u64,
-    // 只预留终止槽/序号，不另建 Pointer 队列；bool 表示 down 已交付准备。
+    // Reserve only terminal slots/sequences, not another Pointer queue; bool indicates down was delivered for preparation.
     pointer_reservation: Option<(u64, bool)>,
     pointer_delivered: Option<PointerIntent>,
     hover_reserved: bool,
@@ -156,7 +156,7 @@ impl Queue {
     pub fn can_push_change(&self) -> bool {
         self.room(1)
     }
-    /// UI owner 持有期间不会有第二个 writer；在修改 HWND 前为步进双边沿准入。
+    /// While the UI owner is held there is no second writer; admit both step edges before modifying HWND.
     pub fn can_push_step(&self, node: &str) -> bool {
         let coalesces = !self.sealed_tail
             && self.waiting.back().is_some_and(|last| {
@@ -220,7 +220,7 @@ impl Queue {
         self.sealed_tail = false;
         true
     }
-    /// 离散激活建立合并边界；此后输入不得覆盖点击之前的尚未派发值。
+    /// Discrete activation creates a coalescing boundary; subsequent input cannot overwrite undispatched pre-click values.
     pub fn seal(&mut self) -> Fence {
         self.sealed_tail = true;
         Fence {
@@ -261,7 +261,7 @@ impl Queue {
     pub(super) fn default_current(&self, intent: &Intent) -> bool {
         Rc::ptr_eq(&intent.scope, &self.scope) && Instant::now() < intent.expires
     }
-    /// 默认动作替换原在途槽/序号，不能 append 到后续键盘、点击 fence 或文本之后。
+    /// Default actions replace the original in-flight slot/sequence rather than appending behind later keyboard events, click fences, or text.
     pub(super) fn complete_local(&mut self, id: &str, change: Option<&str>) {
         if let Some(mut intent) = self.prepared.remove(id) {
             if let Some(value) = change {
@@ -301,7 +301,7 @@ impl Queue {
     pub fn settle(&mut self, event: &str) {
         self.prepared.remove(event);
     }
-    /// 仅当前会话登记的前置事件可截断依赖链；旧会话回执不得清掉新输入。
+    /// Only prerequisite events registered by the current session may truncate dependency chains; old-session receipts cannot clear new input.
     pub fn failed(&mut self, event: &str) -> Option<String> {
         let intent = self.prepared.remove(event)?;
         self.waiting.clear();
@@ -314,7 +314,7 @@ impl Queue {
     }
     pub fn retain(&mut self, mut keep: impl FnMut(&str) -> bool) {
         let before = self.waiting.len() + self.prepared.len();
-        // Canvas 不属于 fields；其 target/epoch 由 Pointer 准备入口复验，cancel 可指向已脱树节点。
+        // Canvas is not among fields; Pointer preparation rechecks its target/epoch, and cancel may reference detached nodes.
         self.waiting
             .retain(|i| matches!(i.edge, Edge::Pointer(_) | Edge::Hover(_)) || keep(&i.node));
         self.prepared
@@ -331,7 +331,7 @@ impl Queue {
         self.hover_delivered = None;
         self.scope = Rc::new(());
     }
-    /// 未发前置意图过期时截断整个依赖链；在途证据不受本地排队期限改写。
+    /// Expiry of unsent prerequisite intents truncates the whole dependency chain; local queue deadlines do not rewrite in-flight evidence.
     pub fn expire(&mut self, now: Instant) -> bool {
         if self.waiting.iter().any(|intent| now >= intent.expires) {
             self.clear_waiting();

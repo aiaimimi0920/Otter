@@ -1,4 +1,4 @@
-//! 精确样式输入：校验有限数值、保留其他属性，模态返回后校验目标再应用。
+//! Exact style input: validate finite numbers, preserve other properties, and revalidate targets after modal return before applying.
 use super::{canvas::Canvas, State};
 use crate::{
     editor::{DocumentStamp, Tool},

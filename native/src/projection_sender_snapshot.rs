@@ -1,4 +1,4 @@
-//! 发送快照仅完整解码一次；压缩 PNG、Base64 和解码像素全部沿原共享预算。
+//! Fully decode sender snapshots once; compressed PNG, Base64, and decoded pixels all use original shared budgets.
 use super::{check, Error};
 use crate::{
     loom_base64::Encoded,
@@ -92,7 +92,7 @@ impl Snapshot {
         check(cancel)?;
         Ok(format!("{:x}", digest.finalize()))
     }
-    /// 预览只消费摘要和尺寸；仍完整验证像素，但不再生成无人消费的 Base64。
+    /// Previews consume only digests/dimensions; still fully validate pixels without producing unused Base64.
     pub(crate) fn inspect(wire: &Wire<'_>, cancel: &AtomicBool) -> Result<String, Error> {
         let png = Self::decode_png(wire, cancel)?;
         Self::validated_digest(&png, wire.width, wire.height, cancel)
@@ -101,7 +101,7 @@ impl Snapshot {
         let png = Self::decode_png(&wire, cancel)?;
         Self::from_png(&png, wire.width, wire.height, cancel)
     }
-    /// 已验签/已验尺寸的不可变快照仍用同一有界Base64入口，不造第二份codec。
+    /// Signature/dimension-verified immutable snapshots still use the same bounded Base64 entry, without a second codec.
     pub(crate) fn png(&self, cancel: &AtomicBool) -> Result<Pixels, Error> {
         Self::decode_png(&self.wire(), cancel)
     }

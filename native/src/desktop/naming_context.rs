@@ -1,4 +1,4 @@
-//! 对齐主干 buildUnitFileNamingContext：标题/标签是能力名称，process 是 artId，不查询 OS。
+//! Match baseline buildUnitFileNamingContext: title/label are capability names, process is artId, without OS queries.
 use super::State;
 use crate::{
     file_naming::{Context, MAX_CONTEXT_BYTES},
@@ -21,7 +21,7 @@ impl RestoredArtId {
         }
     }
 }
-/// 借用当前选择的不可变目录，不克隆参数、目录或图像；回调不能跨模态留存上下文。
+/// Borrow the selected immutable catalog without cloning parameters, catalogs, or images; callbacks must not retain context across modals.
 pub(super) fn with_context<T>(
     state: &State,
     dimensions: (u32, u32),

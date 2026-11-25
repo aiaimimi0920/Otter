@@ -1,4 +1,4 @@
-//! 真实产品的菜单→共享设置→保存线程→原子落盘→重新恢复；只用 合成会话。
+//! Real product menu -> shared settings -> save thread -> atomic persistence -> restoration; synthetic sessions only.
 use super::*;
 use std::time::{Duration, Instant};
 

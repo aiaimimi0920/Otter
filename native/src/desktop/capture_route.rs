@@ -1,4 +1,4 @@
-//! 截图命令的获取/交付策略；全屏路径不能启动区域选择或窗口枚举。
+//! Acquisition/delivery policy for capture commands; full-screen capture must not start region selection or window enumeration.
 use super::*;
 use crate::desktop::capture::Frame;
 

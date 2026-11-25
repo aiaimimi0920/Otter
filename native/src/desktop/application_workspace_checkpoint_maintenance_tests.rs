@@ -1,4 +1,4 @@
-//! 自动库维护与保存共用单槽；无变更不发布，真正过期或取消结果仍拒绝。
+//! Automatic library maintenance and saving share one slot; unchanged results do not publish, while genuinely stale or canceled results still reject.
 use super::*;
 use serde_json::json;
 
@@ -44,7 +44,7 @@ fn no_op_maintenance_finishes_after_model_change_without_replacing_source_or_dir
             assert!(!app.save_job.as_ref().unwrap().0.matches(&app));
             app.saved_state = Some(save_state::Stamp::capture(&app).unwrap());
             ready(&app);
-            // 走产品真正的领取入口；旧实现会返回E_ABORT并在可见模式打开模态警告。
+            // Use the real product collection entry point; the old implementation returned E_ABORT and opened a modal warning in visible mode.
             app.process_reference(false).unwrap();
             assert!(app.save_job.is_none());
             assert!(!app.recycle_maintenance_pending);

@@ -1,4 +1,4 @@
-//! 工作流源分辨率 PNG：显式权威底图与逻辑坐标分离，不改变普通导出尺寸合同。
+//! Workflow source-resolution PNGs separate explicit authoritative base images from logical coordinates, preserving ordinary export-dimension contracts.
 use super::*;
 use crate::crop_geometry::{Rect, Size};
 use crate::image_projection::{Projection, Sampling};
@@ -51,7 +51,7 @@ impl From<Size> for Frame {
     }
 }
 impl Frame {
-    /// 发送专用准入必须在合成前完成；复用同一布局计算最终尺寸，不从 PNG 头猜测。
+    /// Send-specific admission must finish before composition; reuse identical layout calculations for final dimensions, never infer from PNG headers.
     pub(in crate::desktop) fn for_projection(
         mut self,
         image: &Image,
@@ -63,7 +63,7 @@ impl Frame {
         Ok((self, output.size))
     }
     fn layout(&self, image: &Image, editor: &Editor) -> Result<Layout> {
-        // 完整逻辑框不是裁剪，否则不同宽高比会错误使用 max-density。
+        // Complete logical bounds are not crops, or differing aspect ratios would incorrectly use max-density.
         let crop = editor.annotation_frame().filter(|frame| {
             editor.crop_view().is_some()
                 || frame.x != 0.0
@@ -73,7 +73,7 @@ impl Frame {
         });
         Layout::for_frame(image, self, crop)
     }
-    /// 从实际编码布局导出editor→协作view的平移；轴密度由View按basis尺寸统一处理。
+    /// Derive editor-to-collaboration-view translation from actual encoding layout; View handles axis density uniformly using basis dimensions.
     pub(in crate::desktop) fn edit_layout(
         &self,
         image: &Image,
@@ -104,7 +104,7 @@ impl Frame {
         logical: Size,
         crop: Option<crate::session_crop::Restored>,
     ) -> Result<Self> {
-        // 持久裁剪的源坐标不能用按当前窗口非等比归一化后的 Editor 坐标代替。
+        // Persistent crop source coordinates cannot be replaced by Editor coordinates nonuniformly normalized to the current window.
         if let Some(crop) = crop {
             crop.editor_crop()
                 .map_err(|_| Error::new(E_INVALIDARG, "Invalid restored crop"))?;
@@ -121,8 +121,8 @@ impl Frame {
         Ok(Self {
             logical,
             output,
-            // logical 已是当前非等比裁剪 viewport。Layout 在此框内 uniform contain，
-            // 不能先 contain 到旧 sourceSize 再逐轴拉伸自然图片。
+            // logical is already the current nonuniform crop viewport. Layout performs uniform contain within these bounds,
+            // not contain-fitting old sourceSize first and stretching natural images axis by axis afterward.
             base: None,
             base_clip: None,
             sampling: Sampling::Full,
@@ -235,8 +235,8 @@ fn crop_output(image: &Image, logical: Size, crop: Rect, rasterized: bool) -> (u
     )
 }
 
-/// 仅在后台使用。image 必须是当前权威底图，调用方须在捕获时校验 retained source
-/// 身份；不能用旧源覆盖底图擦除。editor 提供逻辑矢量/独立标注，layers.base 不取代 image。
+/// Background use only. image must be the current authoritative base; callers must validate retained-source
+/// identity during capture and never overwrite base erasure with old sources. editor supplies logical vectors/independent annotations; layers.base does not replace image.
 pub(in crate::desktop) fn png_source_resolution(
     image: &Image,
     editor: &Editor,

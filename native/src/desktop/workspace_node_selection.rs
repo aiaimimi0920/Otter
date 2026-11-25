@@ -1,4 +1,4 @@
-//! 节点选择是显式指针意图，不从前台焦点或扩展快捷键的最后目标推断。
+//! Node selection is explicit pointer intent, not inferred from foreground focus or the last extension-shortcut target.
 use super::*;
 use windows::Win32::UI::Input::KeyboardAndMouse::{GetKeyState, VK_CONTROL};
 pub(in crate::desktop) unsafe fn observe(binding: &Binding, hwnd: HWND, msg: u32) {

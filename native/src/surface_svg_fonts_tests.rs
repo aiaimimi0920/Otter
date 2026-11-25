@@ -1,4 +1,4 @@
-//! 字体来源沿实际共享 launcher 进入 Job，私有测试入口不进入正式 CLI。
+//! Font sources enter Jobs through the actual shared launcher; private test entries do not enter the product CLI.
 use super::*;
 #[path = "surface_svg_font_fallback_tests.rs"]
 pub mod fallback_checks;
@@ -59,8 +59,8 @@ fn svg_session_font_query_budget_is_per_image_in_same_child() {
     use crate::surface_image_worker_wire::{self as wire, Codec};
     use windows::Win32::{Foundation::HANDLE, System::Threading::GetProcessId};
 
-    // 每图至少 13 次选择（12 个不存在的族 + Arial）；21 张累计超过 256，
-    // 但低于 session 的 32 张轮转上限，不能借进程重启掩盖预算污染。
+    // At least 13 selections per image (12 nonexistent families + Arial); 21 images exceed 256 cumulatively,
+    // but remain below the session's 32-image rotation limit, so process restarts cannot hide budget contamination.
     let families = (0..12)
         .map(|index| format!("OtterMissingSessionFont{index}"))
         .chain(Some("Arial".to_owned()))
@@ -152,7 +152,7 @@ fn child_check() -> io::Result<()> {
     }
     fonts.queries = MAX_QUERIES;
     assert!(fonts.select("Arial", 400, 5, 0).is_err());
-    // 人为耗尽剩余预算，再请求尚未加载的字体，不能分配后才报超限。
+    // Deliberately exhaust the remaining budget, then request an unloaded font; reject before allocation rather than afterward.
     fonts.queries = 0;
     fonts.bytes = MAX_BYTES;
     assert!(fonts.select("Arial", 400, 5, 0).is_err());

@@ -1,4 +1,4 @@
-//! 独立不可信控制JSON oracle：仅本view身份、执行状态集合、容量与脱敏失败。
+//! Independent untrusted-control-JSON oracles: only this view's identity, execution-state sets, capacity, and sanitized failures.
 use super::*;
 use crate::tile_surface_actions::tests::{ack_value, confirmation, value, Fixture};
 use serde_json::json;

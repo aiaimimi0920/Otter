@@ -1,4 +1,4 @@
-//! 旋转柄手势拥有固定起点与版本；几何预览不写历史，松开整组提交，取消释放缓冲。
+//! Rotation-handle gestures own a fixed starting point and version; previews do not write history, release commits the group, and cancellation frees buffers.
 use super::canvas::Canvas;
 #[cfg(test)]
 use crate::editor::Tool;
@@ -41,7 +41,7 @@ impl Canvas {
             gesture,
             angle: 0.0,
         });
-        // 共用活动变换标记，保持打开图片/异步结果/滚轮的既有准入边界。
+        // Share the active-transform marker, preserving existing admission boundaries for image opening, asynchronous results, and wheel input.
         self.selection_drag = Some((start, Point::default()));
         true
     }
@@ -60,7 +60,7 @@ impl Canvas {
             return false;
         }
         let old_angle = drag.angle;
-        // 如后续对象越界，恢复已更新对象到上一有效角度，避免部分组预览。
+        // If later objects exceed bounds, restore updated objects to the previous valid angle to avoid partial-group previews.
         for position in 0..self.group_preview.len() {
             let (index, preview) = &mut self.group_preview[position];
             let original = &self.editor.elements()[*index];
@@ -170,7 +170,7 @@ mod tests {
             assert!(canvas.editor.commit());
             canvas.select_tool(Tool::Select);
             canvas.rotation_axis = axis;
-            // 移动约束不参与旋转角度计算。
+            // Movement constraints do not participate in rotation-angle calculation.
             canvas.move_axis = if axis == Axis::X { Axis::Y } else { Axis::X };
             let revision = canvas.editor.revision();
             canvas.selected = Some((0, revision));

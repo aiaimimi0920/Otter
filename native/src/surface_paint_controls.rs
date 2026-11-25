@@ -1,4 +1,4 @@
-//! 嵌入控件的绘制缓存准备/瞬态预览；不改变scene或普通Surface子HWND的交互所有权。
+//! Embedded-control paint-cache preparation/transient previews; never change scene or ordinary Surface child-HWND interaction ownership.
 use super::{Command, PaintFrame};
 use crate::surface_embedded_control::Paint;
 impl PaintFrame {

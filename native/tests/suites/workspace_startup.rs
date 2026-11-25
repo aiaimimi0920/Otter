@@ -1,5 +1,5 @@
 #![cfg(windows)]
-//! 真实 EXE 默认发现/恢复屏障；只读检查必须显式隔离，不读取真实用户 profile。
+//! Default discovery/recovery barrier through the real EXE; read-only checks require explicit isolation and never read the real user profile.
 use std::{path::PathBuf, process::Command, time::Duration};
 #[path = "../support/process.rs"]
 mod process;

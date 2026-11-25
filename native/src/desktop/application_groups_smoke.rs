@@ -1,4 +1,4 @@
-//! 自有隐藏窗口验证分组请求/菜单/关闭链；不依赖人工输入名称或操作系统键鼠。
+//! Owned hidden windows verify group request/menu/close flows, without manual name input or operating-system keyboard/mouse interaction.
 use super::*;
 use crate::desktop::group_menu::{self, Request};
 
@@ -6,7 +6,7 @@ pub(super) unsafe fn run(instance: HINSTANCE) -> Result<()> {
     let first = DocumentWindow::create(instance, State::new(None, false)?, false)?;
     let mut app = Application::new(instance, first);
     app.add_window(false)?;
-    app.add_window(false)?; // 第三个窗口不入组，验证关闭组不等于退出应用。
+    app.add_window(false)?; // The third window remains ungrouped, verifying that closing a group does not exit the application.
     let source = &app.documents[0];
     group_menu::queue(
         source.window.0,

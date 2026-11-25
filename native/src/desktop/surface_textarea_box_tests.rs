@@ -1,4 +1,4 @@
-//! 真实 textarea 的格式矩形、裁剪、CTLCOLOR 与像素；不读取用户屏幕。
+//! Actual textarea format rectangles, clipping, CTLCOLOR, and pixels, without reading the user's screen.
 use super::*;
 fn scene(padding: Option<u32>) -> Scene {
     let mut value = serde_json::json!({"id":"field","type":"textarea","props":{"value":""},"layout":{"width":180,"height":80},

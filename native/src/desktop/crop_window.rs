@@ -1,4 +1,4 @@
-//! 将已提交的源裁剪框同步到钉图物理窗口；Win32 调用前释放 Canvas 借用。
+//! Synchronize committed source-crop bounds to physical pin windows; release Canvas borrows before Win32 calls.
 use super::State;
 use crate::{crop_geometry::Rect, pin_geometry::PinRect};
 use windows::{
@@ -19,7 +19,7 @@ fn placement(window: PinRect, old: Rect, new: Rect, scale: f64) -> Option<PinRec
     {
         return None;
     }
-    // 恢复完整源图可能超过当前缩放下的交换链预算，必要时降低显示比例。
+    // Restoring the full source may exceed swap-chain budgets at current zoom; reduce display scale if needed.
     let scale = scale
         .min(8192.0 / new.width.max(new.height))
         .min((16_777_216.0 / (new.width * new.height)).sqrt());

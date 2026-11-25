@@ -1,4 +1,4 @@
-//! 单次点击冒泡批次：先完整预检，后台顺序提交，十秒总预算，不自动跨确认继续。
+//! Single-click bubbling batch: complete preflight, sequential background submission, ten-second total budget, and no automatic continuation past confirmation.
 use super::*;
 use crate::{
     surface_action_ack::{Ack, Status},
@@ -22,12 +22,12 @@ pub enum BatchStop {
     Panicked,
 }
 pub struct BatchSubmission {
-    /// 与输入的连续前缀逐项对应；提交错误项没有 ACK，原事件仍保留 attempted 事实。
+    /// Corresponds item-by-item to a contiguous input prefix; submission failures have no ACK, while original events retain the attempted fact.
     pub acknowledgements: Vec<Ack>,
     pub stop: BatchStop,
 }
 impl Control<'_> {
-    /// 不更新场景或 owner；调用方保留整批原事件，并负责后续 ACK 收敛与窗口交付。
+    /// Does not update scenes or owners; callers retain the entire original event batch and handle subsequent ACK convergence and window delivery.
     pub fn submit_surface_click_batch(
         &self,
         owner: &Owner,
@@ -47,7 +47,7 @@ impl Control<'_> {
                 stop = BatchStop::Deadline;
                 break;
             }
-            // 后续单项异常不能丢失此前已经收到的 ACK；当前事件 attempted 仍保留。
+            // Later per-item exceptions must not lose earlier received ACKs; the current event retains attempted.
             let submitted = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 self.submit_surface_click_with_timeout(owner, current_revision, event, remaining)
             }));

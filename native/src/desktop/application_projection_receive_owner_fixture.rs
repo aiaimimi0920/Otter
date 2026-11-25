@@ -1,4 +1,4 @@
-//! 接收 owner 测试只用既有合成身份/CA/隐藏窗口；服务器仅接受授权两步和一次 accept。
+//! Receiver-owner tests use only existing synthetic identities/CA/hidden windows; the server accepts only two authorization steps and one accept.
 use super::*;
 use crate::projection_delivery_runtime::{Job, Operation, Output, Ready};
 use crate::{
@@ -277,7 +277,7 @@ impl Drop for Fixture {
                 Ok(listener) => self.listener = Some(listener),
                 Err(error) => {
                     if std::thread::panicking() {
-                        // 保主失败可被 harness 领取；次生 peer panic 不能在 Drop 中 abort 进程。
+                        // Keep the primary failure available to the harness; a secondary peer panic must not abort the process during Drop.
                         eprintln!(
                             "receive-owner-peer-panic-during-unwind: {}",
                             self.files.root().display()
@@ -350,5 +350,5 @@ pub(super) unsafe fn checkpoint(app: &mut Application) {
         assert!(Instant::now() < end, "receive checkpoint deadline");
         std::thread::yield_now();
     }
-    // 只完成原保存 owner；下一轮 UI 结算才允许 show/present，测试可在该真实边界注入取消。
+    // Complete only the original save owner; show/present is allowed at the next UI settlement, enabling cancellation injection at that real boundary.
 }

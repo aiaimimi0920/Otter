@@ -1,4 +1,4 @@
-//! 来源快照的固定标量槽；COUNT 显式区分无来源和缺字段，外层 COMMIT 最后发布。
+//! Fixed scalar slots for provenance snapshots; COUNT explicitly distinguishes no provenance from missing fields, and outer COMMIT publishes last.
 use super::*;
 use windows::core::{w, PCWSTR};
 
@@ -110,7 +110,7 @@ impl Snapshot {
         }
         Some(snapshot)
     }
-    /// 调用方拥有该 B 的单在途槽，并已撤 COMMIT；这里只写原值，不读当前来源重新授权。
+    /// Callers own B's single-in-flight slot and have revoked COMMIT; write only original values, without rereading current provenance to reauthorize.
     pub fn publish(self, owner: HWND) -> windows::core::Result<()> {
         unsafe {
             let _ = RemovePropW(owner, COUNT);

@@ -1,4 +1,4 @@
-//! 已有协作会话的提交owner；一个原网络Job/写前意图，精确默认Checkpoint后才允许后台ack。
+//! Commit owner for existing collaboration sessions; one original network Job/write-ahead intent, with background ack allowed only after the exact default Checkpoint.
 use super::*;
 use crate::{
     desktop::device_authorization_ui::{editing::Selection, Request},
@@ -139,7 +139,7 @@ impl Owner {
     }
     pub(super) fn shutdown(&mut self) {
         self.stop();
-        self.0 = Phase::Idle; // 终态Drop回收原Job；未知网络结果保留磁盘pending，不自动重发。
+        self.0 = Phase::Idle; // Terminal Drop reaps the original Job; unknown network outcomes retain disk pending state without automatic resend.
     }
 }
 impl Fence {

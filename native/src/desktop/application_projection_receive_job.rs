@@ -1,4 +1,4 @@
-//! 单个接收候选后台准备；复用原 PNG/会话追加/像素预算，完成复用 Wake，取消后仍待回收。
+//! Background preparation of one receiver candidate; reuse original PNG/session append/pixel budgets and Wake completion, still awaiting reaping after cancellation.
 use super::*;
 use crate::desktop::{
     loom_execution_signal::{reap_deadline, CompletionSignal, Notify},
@@ -45,7 +45,7 @@ impl Job {
         let (value, held) = ready.transfer(current, now()?).map_err(|_| stale())?;
         let lease = held.lease().clone();
         lease.notify_revocation(notify.clone());
-        // worker 只借原记录的无许可快照；失败或 panic 也不能早于 UI 回收释放 Slot/活动许可。
+        // The worker only borrows a permission-free snapshot of the original record; failure or panic must not release Slot/activity permission before UI reaping.
         let intent = held.ticket().retry();
         let worker_lease = lease.clone();
         let source = scope.source.clone();
@@ -60,7 +60,7 @@ impl Job {
             .name("otter-projection-prepare".into())
             .spawn(move || {
                 let _completion = CompletionSignal::new(worker_ready, notify);
-                // 捕获输入转成后声明的局部 owner，正常/错误/panic 都先清理再发布完成。
+                // Convert captured inputs into later-declared local owners; normal/error/panic paths all clean up before publishing completion.
                 let (source, units, intent, worker_lease, signal, value) = input;
                 let _com = crate::desktop::Apartment::new()?;
                 let check = || {
@@ -148,7 +148,7 @@ impl Job {
 }
 impl Drop for Job {
     fn drop(&mut self) {
-        // 正常移交后不能撤销仍被 Hold 拥有的同一 Lease；只有未领取的线程才走兜底取消。
+        // Normal transfer must not revoke the same Lease still owned by Hold; only uncollected threads use fallback cancellation.
         if self.thread.is_some() {
             self.stop();
             let _ = self.thread.take().unwrap().join();

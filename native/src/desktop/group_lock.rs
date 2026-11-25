@@ -1,4 +1,4 @@
-//! 分组锁定阻止用户修改输入，不拦截生命周期/绘制/任务回收；应用只在编辑任务空闲时锁定。
+//! Group locks block user-editing input, not lifecycle/drawing/task reclamation; applications lock only while editing tasks are idle.
 use super::{context_menu as menu, State};
 use windows::Win32::{
     Foundation::*,

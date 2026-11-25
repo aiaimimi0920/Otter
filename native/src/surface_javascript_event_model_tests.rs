@@ -1,4 +1,4 @@
-//! 同生产 bootstrap 的事件身份/阶段/生命周期；真实 child/产品与 HWND 另验。
+//! Event identity/phases/lifecycle with production bootstrap; real children/products and HWNDs are verified separately.
 use super::document_model_tests::collect;
 use super::{Command, Engine};
 #[test]

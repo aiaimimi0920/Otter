@@ -1,4 +1,4 @@
-//! 附属镜像输入许可与组内焦点移交；不改变普通 Live 的暂停/释放语义。
+//! Attached-mirror input permits and within-group focus handoff; ordinary Live pause/release semantics stay unchanged.
 use super::*;
 use crate::live_hover_owner::Control as ParentControl;
 use crate::live_window_target::{popup::Scope, Target};
@@ -13,7 +13,7 @@ pub(in crate::desktop) struct Focus {
     pending: Option<HWND>,
     active: Option<Scope>,
     family: Option<Rc<Vec<Scope>>>,
-    // 只给失败恢复去重，不构成输入授权；暂停/失焦不能清掉这条历史而触发同周期重试。
+    // Only deduplicate failure recovery, not authorize input; pause/focus loss must not clear this history and trigger same-cycle retries.
     parent_cycle: Option<(usize, usize, usize)>,
 }
 impl Focus {
@@ -24,14 +24,14 @@ impl Focus {
 }
 impl LiveWindow {
     pub(in crate::desktop) fn popup_scopes(&self, scopes: Option<Rc<Vec<Scope>>>) {
-        // 仅由本 Session 的有界附属集合提供；仍在实际焦点转移时逐项重验。
+        // Supplied only by this Session's bounded attached set; each entry is still revalidated on actual focus transfer.
         self.state.popup_focus.borrow_mut().family = scopes;
     }
     pub(in crate::desktop) fn enable_popup_focus(&self) {
         self.state.popup_focus.borrow_mut().armed = true;
     }
     pub(in crate::desktop) fn focused_source_popup(&self) -> Option<Scope> {
-        // 只暴露 Session 已核验的 active，WndProc 暂存的 pending 不是发现凭据。
+        // Expose only Session-verified active; WndProc's staged pending is not discovery evidence.
         self.popup_control_allowed()
             .then(|| self.state.popup_focus.borrow().active.clone())
             .flatten()
@@ -45,7 +45,7 @@ impl LiveWindow {
             self.resolve_popup_focus_at(root, unsafe { GetForegroundWindow() });
         }
     }
-    // 只在 Session poll 中验证源身份，不在 WndProc 中打开进程或遍历 owner 链。
+    // Validate source identity only during Session poll, never opening processes or traversing owner chains in WndProc.
     fn resolve_popup_focus_at(&self, root: Option<&Target>, foreground: HWND) {
         let (pending, active, family) = {
             let mut focus = self.state.popup_focus.borrow_mut();
@@ -59,7 +59,7 @@ impl LiveWindow {
             return;
         }
         if !self.popup_control_allowed() {
-            return; // 停止/远程接管之后不得因迟到的焦点判断重新启用。
+            return; // Late focus decisions must not reenable control after stopping/remote takeover.
         }
         let foreground = unsafe { GetAncestor(foreground, GA_ROOT) };
         if foreground == self.hwnd || self.state.popup_peers.borrow().contains(&foreground) {
@@ -159,14 +159,14 @@ pub(super) unsafe fn focus_handoff(
 unsafe fn focus_handoff_to(hwnd: HWND, state: &State, message: u32, next: HWND) -> bool {
     if message == WM_CAPTURECHANGED && (next == hwnd || state.popup_peers.borrow().contains(&next))
     {
-        return false; // 无非镜像前台候选，仍按捕获丢失取消；不凭 capture HWND 授权源。
+        return false; // Without a nonmirror foreground candidate, cancel as capture loss; capture HWND alone never authorizes a source.
     }
     if !next.0.is_null() && state.popup_peers.borrow().contains(&next) {
         state.popup_focus.borrow_mut().pending = None;
         return state.input.borrow_mut().handoff_keys();
     }
-    // 源在 down 内激活 dialog 时，不能用停止 worker 去释放按住状态，否则也会取消
-    // 仍在途的源模态调用。先按原 FIFO 排 up，Session 在后续输入处理前核验唯一候选。
+    // If the source activates a dialog within down, stopping the worker to release held input would also cancel
+    // the in-flight source modal call. Enqueue up in the original FIFO first; Session validates the sole candidate before later input.
     let defer = !next.0.is_null()
         && resumable(state)
         && !state.menu_open.get()
@@ -177,7 +177,7 @@ unsafe fn focus_handoff_to(hwnd: HWND, state: &State, message: u32, next: HWND) 
         };
     if defer {
         state.popup_focus.borrow_mut().pending = Some(next);
-        // 不跨 ReleaseCapture 持有借用；重入 WM_CAPTURECHANGED 已没有 UI held 按钮。
+        // Hold no borrow across ReleaseCapture; reentrant WM_CAPTURECHANGED sees no UI-held button.
         if GetCapture() == hwnd {
             let _ = ReleaseCapture();
         }
@@ -185,7 +185,7 @@ unsafe fn focus_handoff_to(hwnd: HWND, state: &State, message: u32, next: HWND) 
     }
     state.popup_focus.borrow_mut().clear();
     if state.popup.get() && message == WM_KILLFOCUS {
-        // 焦点离开整组时撤销父 B；组内移交不能触发源模态菜单取消。
+        // Revoke parent B when focus leaves the whole group; within-group handoff must not cancel source modal menus.
         cancel_peers(hwnd, state);
     }
     false

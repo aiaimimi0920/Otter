@@ -1,4 +1,4 @@
-//! 自建宿主的真实 WM_MOUSEWHEEL 路由；只改当前测试线程键态，不注入全局输入。
+//! Actual WM_MOUSEWHEEL routing on an owned host; change only the current test thread's key state, without global input injection.
 use super::*;
 use crate::editor::Tool;
 use desktop::Window;

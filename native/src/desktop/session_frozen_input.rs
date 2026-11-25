@@ -1,4 +1,4 @@
-//! 后台冻结实例化输入；不可变来源随任务同行，不携带 HWND 或隐式资源路径授权。
+//! Background frozen-instantiation input; immutable sources travel with tasks, without HWNDs or implicit resource-path authorization.
 use crate::desktop::session_candidate::PreparedRestore;
 use crate::{
     session_library::{self, Kind},
@@ -12,9 +12,9 @@ pub struct Input {
     pub kind: Kind,
     pub entry_id: String,
     pub unit: UnitId,
-    /// 已在请求时从物理桌面位置转换为会话逻辑坐标。
+    /// Already converted from physical desktop position to session logical coordinates at request time.
     pub mouse: (f64, f64),
-    /// 与应用恢复凭证在同一次 UI 请求中捕获；发布前仍须拒绝拓扑变化。
+    /// Captured in the same UI request as the application restore credential; topology changes must still be rejected before publication.
     pub active: Vec<UnitId>,
 }
 
@@ -61,7 +61,7 @@ impl Input {
             &self.entry_id,
             cancel,
         )?;
-        // 保留带预算的同一编码缓冲，不为候选再复制一次内嵌图片；冻结来源没有外部文件根目录。
+        // Retain the same budgeted encoded buffer without copying embedded images again for candidates; frozen sources have no external-file root.
         let restore = PreparedRestore::prepare_parsed(parsed, None, catalog, cancel)
             .map_err(|error| error.to_string())?;
         Ok((

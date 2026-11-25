@@ -1,4 +1,4 @@
-//! 最多 64 个已接受关联的最旧到期优先调度；单任务复用原 receive owner/全局四槽。
+//! Earliest-deadline-first scheduling for at most 64 accepted associations; one task reuses the original receive owner/global four slots.
 use super::*;
 use std::time::{Duration, Instant};
 pub(super) const MAX_ENTRIES: usize = 64;
@@ -18,7 +18,7 @@ pub(super) struct Entry {
 }
 impl Schedule {
     pub(in crate::desktop::application) fn defer_foreground(&mut self, now: Instant) {
-        // 显式操作结算后重新等待正常间隔，不在同一轮抢跑；不得缩短原失败退避。
+        // After explicit-operation settlement, wait the normal interval again rather than running in the same turn; never shorten existing failure backoff.
         let resume = now + Duration::from_millis(750);
         for entry in &mut self.entries {
             entry.due = entry.due.max(resume);

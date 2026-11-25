@@ -1,4 +1,4 @@
-//! 所有工作窗口共享授权请求和展示状态；不持有令牌，不在菜单回调中访问网络或磁盘。
+//! All work windows share authorization requests/display state; no token ownership or network/disk access in menu callbacks.
 use super::State;
 #[path = "device_live_viewer_ui.rs"]
 pub(super) mod live;
@@ -337,7 +337,7 @@ unsafe fn queue(hwnd: HWND, state: &State, request: Request) -> Result<()> {
         return Err(Error::new(E_ABORT, "Authorization request unavailable"));
     }
     view.request = Some(request);
-    // 线程消息不随发起窗口销毁而丢失；失败回滚，不能遗留永远不消费的 busy 请求。
+    // Thread messages survive initiating-window destruction; roll back failures rather than leaving permanently unconsumed busy requests.
     if let Err(error) = PostMessageW(None, WM_NULL, WPARAM(0), LPARAM(0)) {
         view.request = None;
         return Err(error);

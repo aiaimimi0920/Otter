@@ -1,4 +1,4 @@
-//! 共享线层完整绘制后用 ULW 同时提交位置、尺寸和色键像素，不能先搬动旧外框。
+//! After fully drawing shared line layers, ULW commits position/size/color-key pixels together; never move old borders first.
 use super::super::{window::MAX_PIXELS, Rect};
 use windows::{
     core::{Error, Result},
@@ -71,7 +71,7 @@ impl Surface {
     ) -> Result<()> {
         #[cfg(test)]
         self.submissions.set(self.submissions.get() + 1);
-        // GDI 批次先完成；DWM 从未观察到清空半帧或新位置上的旧尺寸内容。
+        // Finish the GDI batch first; DWM never sees cleared partial frames or old-size content at new positions.
         GdiFlush().ok()?;
         UpdateLayeredWindow(
             hwnd,

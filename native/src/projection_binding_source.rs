@@ -1,4 +1,4 @@
-//! 已验证原始像素身份随 Binding 保存；重编码 PNG 不改变证明，烘焙本地擦除则不匹配。
+//! Binding retains verified original-pixel identity; PNG re-encoding preserves proof, while baked local erasure does not match.
 use super::*;
 use crate::image_decode::Image;
 use sha2::{Digest, Sha256};
@@ -34,7 +34,7 @@ impl Binding {
             .as_ref()
             .map(|proof| (proof.width, proof.height))
     }
-    /// 只在后台计算大像素 SHA；缺旧证明时仍可 read 元数据/终态，不能覆盖不明本地图。
+    /// Compute large-pixel SHA only in background; missing old proof still permits metadata/terminal reads, never overwriting unknown local images.
     pub(crate) fn source_matches(&self, image: &Image, cancelled: impl FnMut() -> bool) -> bool {
         self.source_pixels
             .as_ref()

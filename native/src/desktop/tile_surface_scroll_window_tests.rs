@@ -1,4 +1,4 @@
-//! 滚动/Tab使用自有离屏HWND；预期几何与表单值是独立字面量，不从新实现反算。
+//! Scroll/Tab tests use owned offscreen HWNDs; expected geometry/form values are independent literals, not reverse-derived from new implementations.
 use super::*;
 use crate::desktop::tile_window::scroll;
 fn scrolling_scene(kind: &str) -> Value {
@@ -124,7 +124,7 @@ fn ime_rejects_scroll_or_reveal_without_losing_current_focus_hwnd_or_draft() {
 fn handlerless_value_survives_hidden_scroll_and_does_not_gain_network_action() {
     let _com = crate::desktop::Apartment::new().unwrap();
     let mut scene = scrolling_scene("input");
-    // Switch沿既有label/span合同忽略自身layout；由固定行容器承载，不能靠无效minHeight防收缩。
+    // Switch ignores its own layout under the existing label/span contract; use fixed row containers, not ineffective minHeight to prevent shrinkage.
     scene["children"][0] = json!({"id":"row","type":"view","layout":{"width":64,"height":20,"minHeight":20},
         "children":[{"id":"first","type":"switch","props":{"value":false}}]});
     let (f, w) = setup(scene);

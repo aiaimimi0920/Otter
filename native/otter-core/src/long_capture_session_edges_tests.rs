@@ -1,4 +1,4 @@
-//! 留白误认固定栏的四向回归；验证最终像素和坐标，真实固定栏变化仍拒绝提交。
+//! Four-direction regressions for whitespace misclassified as fixed bars; verify final pixels/coordinates and still reject actual fixed-bar changes.
 use super::*;
 
 fn pixels(axis: Axis, origin: u32, blank: (u32, u32), reverse: bool, length: u32) -> Vec<u8> {
@@ -135,7 +135,7 @@ fn disappearing_fixed_chrome_cannot_be_reinterpreted_as_historical_content() {
             let output = session.compose(&cancel).unwrap();
             let previous = make(18);
             let mut changed = make(27).bytes().to_vec();
-            // 工具栏消失，本帧露出的正文与上一帧运动完全吻合，但与早期固定栏证据矛盾。
+            // The toolbar disappeared; newly exposed content perfectly matches previous-frame motion but contradicts earlier fixed-bar evidence.
             for line in 0..7 {
                 let (a, b) = if reverse {
                     (63 - line - 9, 63 - line)

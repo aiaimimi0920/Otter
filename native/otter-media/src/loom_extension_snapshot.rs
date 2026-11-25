@@ -1,4 +1,4 @@
-//! 扩展目录信任边界：同主干预算、scope 归属和 when 条件；快照本身不授权资源读取。
+//! Extension-catalog trust boundary: mainline budgets, scope ownership, and when conditions; the snapshot itself does not authorize resource reads.
 use crate::extension_when::{Context, Predicate};
 use serde::Deserialize;
 use serde_json::Value;
@@ -148,7 +148,7 @@ fn compact_fingerprint(bytes: &[u8]) -> Result<[u8; 32], Error> {
 }
 impl Snapshot {
     pub fn parse(bytes: &[u8]) -> Result<Self, Error> {
-        // 先限制 wire 输入，再核对 JSON.stringify 对应的紧凑快照字节预算。
+        // Limit wire input first, then check the compact snapshot byte budget corresponding to JSON.stringify.
         if bytes.len() > 64 * 1024 * 1024 {
             return Err(Error::Budget);
         }
@@ -240,7 +240,7 @@ impl Snapshot {
     pub fn generation(&self) -> u64 {
         self.0.generation
     }
-    /// 独立执行连接必须匹配目录的完整来源，不能只比较可能在 daemon 重启后复用的 generation。
+    /// A separate execution connection must match the catalog's complete provenance, not just a generation that may be reused after daemon restart.
     pub fn same_catalog(&self, other: &Self) -> bool {
         self.1 == other.1
     }
@@ -281,7 +281,7 @@ impl Command<'_> {
     pub fn payload(&self) -> Option<&serde_json::Map<String, Value>> {
         self.contribution.payload()
     }
-    /// 声明的权限必须由同 scope 的有效 grant 覆盖；此处不签发资源许可。
+    /// Declared permissions must be covered by a valid grant in the same scope; no resource permission is issued here.
     pub fn permits(&self, permission: &str) -> bool {
         self.permissions()
             .is_some_and(|items| items.contains(&permission))

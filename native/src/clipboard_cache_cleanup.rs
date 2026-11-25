@@ -1,4 +1,4 @@
-//! 仅在缓存排他锁内运行；不信任文件名或记录，身份/内容匹配后通过同一句柄退休。
+//! Run only under the exclusive cache lock; distrust filenames/records and retire through the same handle after identity/content checks.
 #[cfg(test)]
 use super::MAX_ENTRIES;
 use super::{receipt, MAX_BYTES};
@@ -82,7 +82,7 @@ pub(super) fn run_with_retention(
             Ok(true) => report.removed += 1,
             Ok(false) => {}
             Err(error) if error.kind() == io::ErrorKind::Interrupted => return Err(error),
-            Err(_) => report.skipped += 1, // 保留未知/损坏/忙/已改变的文件；不扩大删除范围。
+            Err(_) => report.skipped += 1, // Preserve unknown/corrupt/busy/changed files; never broaden deletion scope.
         }
     }
     report.hashed_bytes = read_bytes;
@@ -186,9 +186,9 @@ pub(super) fn retire_matching(
         return Err(invalid());
     }
     super::check(cancel)?;
-    // 两句柄都仍拒绝写入/删除共享，不先 close 再按可变路径删除。
+    // Both handles still deny write/delete sharing; do not close first and then delete through a mutable path.
     crate::session_file_rename::retire(&png)?;
-    // 这一步失败可留下孤立记录，但绝不据此重新按路径删除 PNG。
+    // Failure here may leave an orphan record, but never use it to retry deleting the PNG by path.
     crate::session_file_rename::retire(&record_file)?;
     Ok(Some(freed))
 }

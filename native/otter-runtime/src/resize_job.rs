@@ -1,4 +1,4 @@
-//! 组缩放效果的单任务后台计算；无队列，同强度共享结果，取消/失败不交付部分候选。
+//! Single-task background calculation for group-resize effects; no queue, shared results for equal intensity, and no partial candidates on cancellation/failure.
 use crate::{blur, blur_image::BlurImage, edit_worker_budget::Permit, editor::ResizePlan};
 use std::{
     collections::BTreeMap,
@@ -77,7 +77,7 @@ impl Job {
             running.cancel.store(true, Ordering::Release);
         }
     }
-    /// 只回收已结束线程；取消后的结果即使计算成功也不交付。
+    /// Reclaim only finished threads; canceled results are not delivered even if computation succeeds.
     pub fn poll(&mut self) -> Option<Result<ResizePlan, Error>> {
         if !self
             .running

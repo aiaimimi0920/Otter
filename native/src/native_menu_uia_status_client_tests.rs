@@ -1,4 +1,4 @@
-//! 经 Windows UIA MTA 客户端读取真实菜单标记，不触发菜单命令。
+//! Read real menu markers through Windows UIA MTA clients without triggering menu commands.
 use super::*;
 
 fn read_statuses(hwnd: usize) -> Result<Vec<String>> {

@@ -1,4 +1,4 @@
-//! 不sleep的跨组同view在途围栏；新字段仍走原120秒上限和一次1500ms放行。
+//! No-sleep same-view in-flight fences across groups; new fields retain the original 120-second limit and one 1500ms release window.
 use super::*;
 use crate::tile_surface_actions::{tests::Fixture, Kind};
 use std::time::{Duration, Instant};
@@ -18,7 +18,7 @@ fn rejected_before_http_or_early_return_always_releases_the_weak_inflight_identi
         s.actions.cancel_edit(&edit);
     }
     assert!(!edit.in_flight_at(now + Duration::from_secs(2)));
-    assert!(s.actions.inflight.as_ref().unwrap().2.upgrade().is_some()); // 弱身份可存，但不得继续授等待。
+    assert!(s.actions.inflight.as_ref().unwrap().2.upgrade().is_some()); // Weak identities may remain, but must not continue granting waits.
 }
 #[test]
 fn a_new_explicit_edit_group_cannot_expire_behind_the_same_views_inflight_prefix() {

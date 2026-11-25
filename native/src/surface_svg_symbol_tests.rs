@@ -1,4 +1,4 @@
-//! symbol/use 的真实 Job 子进程与 Chrome 155 img→canvas 像素基线。
+//! Real Job children and Chrome 155 img-to-canvas pixel baselines for symbol/use.
 use super::*;
 #[test]
 fn surface_svg_symbols_resolve_content_in_each_instance_viewport() {
@@ -94,7 +94,7 @@ fn surface_svg_symbols_match_browser_viewport_and_clipping() {
                 failures.push(format!(
                     "{content} at {x},{y}: {pixel:?} expected {expected:?}"
                 ));
-                break; // 记录该案例首个差异，继续检查其余案例；任何差异仍令整个测试失败。
+                break; // Record each case's first difference and continue checking remaining cases; any difference still fails the entire test.
             }
         }
     }

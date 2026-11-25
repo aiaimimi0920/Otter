@@ -1,4 +1,4 @@
-//! 当前授权 Loom 的 TLS 边界；覆盖地址别名、真实大图、401 及 socket 取消。
+//! TLS boundary for currently authorized Loom, covering address aliases, actual large images, 401, and socket cancellation.
 use super::*;
 use crate::device_session_client::tests::fixture_with_pem;
 use rustls::{ServerConfig, ServerConnection, StreamOwned};

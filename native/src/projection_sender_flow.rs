@@ -1,4 +1,4 @@
-//! 原网络 Job 内的当前帧准备与请求交接；先登记持久意图，任何结果过滤都不能丢取消责任。
+//! Current-frame preparation/request handoff inside original network Jobs; register persistent intent first so result filtering never loses cancellation responsibility.
 use super::*;
 use crate::projection_delivery::sender::{binding::Candidate, Request};
 use std::sync::Mutex;
@@ -40,7 +40,7 @@ impl Job {
             None,
         )
     }
-    /// 只移动内存快照；必须在完成回收后、closed/discarded UI 过滤前领取。
+    /// Move only in-memory snapshots; claim after completion reclamation but before closed/discarded UI filtering.
     pub(crate) fn take_sender_request(&mut self) -> Option<Request> {
         self.thread
             .is_none()
@@ -55,7 +55,7 @@ pub(super) fn run(
     attempt: &Attempt,
 ) -> Result<Completed, Error> {
     let input = prepare(task, &|request| attempt.record(request))?;
-    // prepare 返回后尚未 activate/HTTP；撤权也仍登记 Request，供后台减权接管。
+    // After prepare returns, activate/HTTP has not run; even revocation registers Request for background privilege-reduction takeover.
     attempt.record(input.request.clone());
     let mut connected = send(&input.request, control, task)?;
     let candidate = crate::projection_delivery::sender::binding::Binding::prepare(
@@ -95,7 +95,7 @@ pub(super) fn send(
     })
 }
 impl SenderReady {
-    /// UI 只核租约代次/时效，不进行 outbox 磁盘基线 I/O；候选已由原 worker 完整核验。
+    /// UI checks only lease generation/validity, without outbox-baseline disk I/O; original workers already fully validated candidates.
     pub(crate) fn authorized(&self, current: &Lease, now: u64) -> bool {
         let lease = self.value.active.lease();
         lease.same_grant(current)

@@ -1,4 +1,4 @@
-//! 隐藏Application真实签名child→Results→Save；自动回执不等child返回或磁盘保存。
+//! Hidden Application with a real signed child -> Results -> Save; automatic receipts wait for neither child return nor disk save.
 use super::*;
 use crate::art_live_trigger::{tests as f, Receipt};
 const SOURCE: &str = r#"

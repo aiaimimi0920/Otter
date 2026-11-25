@@ -1,4 +1,4 @@
-//! EDIT 和按钮共享焦点序列；组合中的按键仍留给系统输入法。
+//! EDIT and buttons share focus order; composition-time keys remain with the system IME.
 use super::*;
 #[test]
 fn surface_focus_reveal_real_tab_scrolls_between_edit_and_button_preserving_draft() {
@@ -26,7 +26,7 @@ fn surface_focus_reveal_real_tab_scrolls_between_edit_and_button_preserving_draf
         assert_eq!(GetFocus(), window.hwnd);
         assert_eq!(window.state.keyboard.borrow().focused(), Some("button"));
         assert!(eligible("button"));
-        // 本地导航不授予提交权，即使目标已滚入视野也不能激活动作。
+        // Local navigation grants no commit permission; revealing a target by scrolling still cannot activate actions.
         SendMessageW(
             window.hwnd,
             WM_KEYDOWN,

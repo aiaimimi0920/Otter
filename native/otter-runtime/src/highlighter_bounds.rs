@@ -1,4 +1,4 @@
-//! 共享荧光层的可见范围；无临时点数组，包含旋转、笔宽和抗锯齿安全边。
+//! Visible bounds of the shared highlighter layer; no temporary point arrays, with rotation, pen width, and antialiasing margins included.
 use crate::{
     editor::{Stroke, Tool},
     rotation,

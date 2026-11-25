@@ -1,4 +1,4 @@
-//! B 的悬浮资格由窗口输入层拥有；暂停/离开同步撤销，不等待输入 worker 排空。
+//! Window-input layers own B's hover eligibility; pause/leave revokes synchronously without waiting for input-worker drain.
 use otter_live_hover_hook::native_protocol;
 use otter_live_hover_hook::scope::*;
 use std::cell::Cell;
@@ -16,7 +16,7 @@ pub struct Identity {
     pub cookie: usize,
 }
 impl Identity {
-    /// 在 UI 准入时固定控制周期；worker 不得在发布旧操作时重新领取当前 epoch。
+    /// Fix control epochs at UI admission; workers cannot reacquire current epochs while publishing old operations.
     pub fn capture_control(self) -> Result<Control> {
         let epoch = native_protocol::value(self.window(), native_protocol::EPOCH);
         let control = Control {
@@ -87,7 +87,7 @@ impl Owner {
     pub fn identity(&self) -> Identity {
         self.0
     }
-    /// 独立于鼠标 Leave：只有控制暂停/恢复才更新弹窗租约的代数。
+    /// Independent of mouse Leave: only control pause/resume advances popup-lease generations.
     pub fn control(&self, enabled: bool) -> Result<()> {
         if !self.0.valid() {
             return Ok(());
@@ -136,7 +136,7 @@ impl Drop for Owner {
     fn drop(&mut self) {
         if self.0.valid() {
             unsafe {
-                // 属性随 HWND 一起消失；复用后的 HWND 不得被旧 owner 写入。
+                // Properties disappear with HWNDs; old owners must not write reused HWNDs.
                 for key in [ACTIVE, SOURCE, COOKIE, native_protocol::EPOCH] {
                     let _ = RemovePropW(self.0.window(), key);
                 }

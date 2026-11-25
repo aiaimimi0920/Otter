@@ -1,10 +1,10 @@
-//! 工作流内容策略：匹配能力过滤参数，显式请求已编辑贴图烘焙，不回退泄漏原始内容。
+//! Workflow content policy: filter parameters against matching capabilities and explicitly bake edited pins, never leak originals through fallback.
 use super::{check, Content, Error, Snapshot};
 use crate::{loom_capability::Capability, session_window::Window};
 use serde_json::{Map, Value};
 use std::sync::atomic::AtomicBool;
 
-/// bake 在后台准备原始分辨率合成；尺寸遵循主干缩略贴图 savedRect 规则。
+/// bake prepares original-resolution composition in the background; dimensions follow mainline minimized-pin savedRect rules.
 pub fn prepare(
     saved: &[u8],
     revision: u64,
@@ -117,7 +117,7 @@ fn direct_image(window: &Window<'_>) -> Map<String, Value> {
     image
 }
 
-/// 对齐 requiresBakedStickerSyncImage；异常结构不当作无需烘焙而跳过。
+/// Match requiresBakedStickerSyncImage; malformed structures must not be skipped as requiring no baking.
 fn requires_bake(window: &Window<'_>, fields: &Map<String, Value>) -> Result<bool, Error> {
     if window.is_art() {
         return Ok(false);

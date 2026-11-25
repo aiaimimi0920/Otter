@@ -1,4 +1,4 @@
-//! 菜单关闭且 MenuTarget 通过后交付历史内容；不改写系统剪贴板或替换当前图片。
+//! Deliver history content after the menu closes and MenuTarget passes; neither rewrite the system clipboard nor replace the current image.
 use super::super::State;
 use crate::{
     clipboard_history::{Content, Entry},
@@ -33,7 +33,7 @@ fn import_text(state: &State, content: &str) -> Result<bool> {
     let (font, screen) = {
         let canvas = state.canvas.borrow();
         let display = state.resolved_display.borrow();
-        // 准入必须基于正在显示的快照；底层文档可能为空或尺寸不同。
+        // Admission must use the displayed snapshot; the underlying document may be empty or differently sized.
         let point = match display.as_ref() {
             Some(frame) => frame
                 .editor
@@ -60,7 +60,7 @@ fn import_text(state: &State, content: &str) -> Result<bool> {
         )
     };
     let lines = prepare(content, &font)?;
-    // 空内容不触发显示接管，避免产生没有文字的编辑事务。
+    // Empty content does not trigger display takeover, avoiding an edit transaction with no text.
     if lines.is_empty() || !super::super::display_edit::prepare_text_at(state, screen) {
         return Ok(false);
     }
@@ -131,7 +131,7 @@ fn prepare(content: &str, font: &TextFont) -> Result<Vec<(f32, Point, TextAnnota
             offset += font.font_size() * 1.25;
             continue;
         }
-        // 一行保持一个对象；正文、历史及快照受模型共享预算约束，不截断或拆段。
+        // Keep one object per line; body, history, and snapshots share the model's budget, without truncation or splitting.
         let text = TextAnnotation::new(line, font.family(), font.font_size(), font.bold())
             .ok_or_else(|| Error::new(E_INVALIDARG, "历史文字超出内容预算或格式无效。"))?;
         let size = unsafe { super::super::annotation_text::measure(&text)? };

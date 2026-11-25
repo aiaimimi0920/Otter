@@ -1,4 +1,4 @@
-//! 通知关闭不能阻断图片显示，也不能通过中继或导入环重新触发执行。
+//! Disabling notifications must neither block image display nor retrigger execution through relays or imported cycles.
 use super::super::tests::{id, link, sticker};
 use super::*;
 
@@ -25,7 +25,7 @@ fn source_and_intermediate_policy_stop_notifications_not_image_resolution() {
             Some("formal-source")
         );
     }
-    // 目标自己的 notify 只影响它的后继，不应阻止它接收本次上游通知。
+    // The target's own notify affects only its successors and must not prevent it from receiving this upstream notification.
     assert_eq!(
         graph
             .notification_targets_with(&ids[0], |unit| unit != &ids[2])

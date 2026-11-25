@@ -1,4 +1,4 @@
-//! Canvas 软件适配：只生成离屏帧，窗口提交由释放模型借用后的 paint owner 执行。
+//! Canvas software adapter: generate only offscreen frames; the paint owner submits to windows after releasing model borrows.
 use crate::desktop::software_surface::{SoftwareSurface, Submission};
 use windows::{
     core::Result,
@@ -39,10 +39,10 @@ impl Software {
         self.surface.resize(size)
     }
     pub fn draw(&mut self, paint: impl FnOnce(&ID2D1RenderTarget) -> Result<()>) -> Result<bool> {
-        self.pending = None; // 未取走的旧帧取消；绝不重新提交旧像素。
+        self.pending = None; // Cancel any unclaimed old frame; never resubmit old pixels.
         self.surface.draw(paint)?;
         self.pending = Some(self.surface.prepare_present(self.pinned, self.opacity)?);
-        Ok(false) // 离屏成功不代表 HWND 已呈现。
+        Ok(false) // Offscreen success does not mean the HWND has presented.
     }
     pub fn take_submission(&mut self) -> Option<Submission> {
         self.pending.take()

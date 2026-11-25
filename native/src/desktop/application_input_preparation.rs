@@ -1,4 +1,4 @@
-//! 准备 ticket 与不可变配置配对后才注册执行请求，不重新读取可变 UI 参数。
+//! Register an execution request only after pairing the prepared ticket with immutable configuration; never reread mutable UI parameters.
 use super::Application;
 impl Application {
     pub(super) fn retire_preparations(&mut self) {

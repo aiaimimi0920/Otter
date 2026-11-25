@@ -1,4 +1,4 @@
-//! 本地 Shader 的按需 worker：受限 child 完全退出后准备 Image+PNG，不接触 HWND 或远端 lease。
+//! On-demand local Shader worker: prepare Image+PNG after the restricted child fully exits, without HWNDs or remote leases.
 use super::shader_invocation::Invocation as OwnedInvocation;
 use super::{
     loom_execution_signal::{CompletionSignal, Notify},
@@ -17,7 +17,7 @@ use std::{
 pub struct Execution {
     pub unit: UnitId,
     pub request: Request,
-    /// 调用方从这些已准备输入解码/绑定纹理；凭证只证来源新鲜度，不证明任意纹理同源。
+    /// Callers decode/bind textures from these prepared inputs; credentials prove source freshness only, not that arbitrary textures share a source.
     pub inputs: PreparedBatch,
     pub shader: OwnedInvocation,
 }
@@ -65,7 +65,7 @@ pub struct Job {
     running: Option<Running>,
 }
 impl Job {
-    /// 缓存命中是纯本地任务；不建立 Session，不构造远端 Delivery，也不发送租约控制。
+    /// Cache hits are entirely local tasks; create no Session or remote Delivery and send no lease control.
     pub(super) fn start_cached(
         &mut self,
         mut execution: super::loom_execution_job::Execution,
@@ -115,7 +115,7 @@ impl Job {
             },
         )
     }
-    // 所有生产/测试路径共用许可、取消、完成栅栏与 join；替换 runner 只供确定性生命周期测试。
+    // All production/test paths share permits, cancellation, completion fences, and join; runner replacement is only for deterministic lifecycle tests.
     pub(super) fn start_runner(
         &mut self,
         unit: UnitId,
@@ -142,7 +142,7 @@ impl Job {
         }
         ACTIVE
             .fetch_update(Ordering::AcqRel, Ordering::Acquire, |count| {
-                // 与统一 Tasks 的两个槽一致；实际 child 仍由 shader_process 的唯一容量池串行准入。
+                // Match the two slots in unified Tasks; actual children still serialize admission through shader_process's sole capacity pool.
                 (count < 2).then_some(count + 1)
             })
             .map_err(|_| Error::WorkerLimit)?;
@@ -157,7 +157,7 @@ impl Job {
                 let _completion = CompletionSignal::new(completed, notify);
                 let _permit = permit;
                 let prepared = inputs;
-                // 提前取消时 runner 尚未调用；也必须先释放其捕获纹理，再发布完成通知。
+                // On early cancellation the runner is uncalled; still release its captured textures before publishing completion.
                 let run = run;
                 if stopped.load(Ordering::Acquire) {
                     return Err(Error::Cancelled);

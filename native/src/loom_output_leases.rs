@@ -1,4 +1,4 @@
-//! 每次 formal 交付的远端租约 owner；保留执行身份，释放失败不得静默丢掉待释放列表。
+//! Remote-lease owner for each formal delivery; retain execution identity and never silently drop pending releases on failure.
 use crate::{
     graph_requests::Request,
     loom_art_control::{self, Outcome},
@@ -23,7 +23,7 @@ pub struct Leases {
     attempt: Option<UnitId>,
 }
 impl Leases {
-    /// 扫描正式输出的顶层资源，不把任意 value JSON 内的同名字段当成可释放句柄。
+    /// Scan top-level formal-output resources; same-named fields in arbitrary value JSON are not releasable handles.
     pub fn outputs(unit: UnitId, execution: Request, outputs: &Value) -> Result<Self, Error> {
         let map = outputs.as_object().ok_or(Error::InvalidOutputs)?;
         if map.len() > 128 {
@@ -75,7 +75,7 @@ impl Leases {
     pub fn pending_count(&self) -> usize {
         self.handles.len()
     }
-    /// 编码成功后才登记尝试。调用方为每次尝试提供全新 ID；失败回执不能覆盖后一次尝试。
+    /// Register attempts only after successful encoding. Callers supply a fresh ID per attempt; failed receipts cannot overwrite later attempts.
     pub fn begin_release(&mut self, release_id: UnitId) -> Result<String, Error> {
         if self.attempt.is_some() {
             return Err(Error::Busy);
@@ -90,7 +90,7 @@ impl Leases {
         self.attempt = Some(release_id);
         Ok(message)
     }
-    /// 只有当前尝试的成功回执能清空租约。None 表示传输失败，可再次尝试；不伪造成功。
+    /// Only the current attempt's success receipt clears leases. None means transport failure and permits another attempt, not fabricated success.
     pub fn complete_release(&mut self, release_id: &UnitId, outcome: Option<Outcome>) -> bool {
         if self.attempt.as_ref() != Some(release_id) {
             return false;
@@ -102,8 +102,8 @@ impl Leases {
         true
     }
 }
-// 不在 Drop 中阻塞网络或创建后台线程。执行 owner 退出前必须显式处理 pending_count，
-// 失败租约应保留在有界重试 owner 中；当前类型本身不保证远端释放已经发生。
+// Do not block on networking or spawn threads in Drop. Execution owners must explicitly handle pending_count before exit;
+// retain failed leases in a bounded retry owner. This type alone does not guarantee remote release occurred.
 
 #[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-loom")))]
 #[path = "loom_output_leases_tests.rs"]

@@ -1,4 +1,4 @@
-//! 使用独立隐藏 Application 验证实际 owner 交换；不触碰用户窗口、文件或全局热键。
+//! An independent hidden Application verifies actual owner swaps without touching user windows, files, or global hotkeys.
 use super::*;
 #[path = "application_restore_empty_smoke.rs"]
 mod empty;
@@ -75,7 +75,7 @@ pub(in crate::desktop::application::restore_batch) unsafe fn run(
             "Restoration publication owner/registry mismatch",
         ));
     }
-    // 发布后的常规循环可使用新工作区，不能保留已释放旧 HWND 的缓存。
+    // Normal loops after publication can use the new workspace; retain no caches pointing to released old HWNDs.
     app.pending_windows(false)?;
     if targets
         .iter()
@@ -168,7 +168,7 @@ fn verify_hotkey_compensation(previous: &[DocumentWindow], next: &[DocumentWindo
         }
         Ok(())
     })();
-    // 即使验证失败，也在 HWND 析构前退休所有模拟注册状态；不向系统注销用户快捷键。
+    // Even if validation fails, retire all simulated registration state before HWND destruction; never unregister user hotkeys from the system.
     for (state, (actual, shared)) in states.into_iter().zip(saved) {
         for (flag, value) in [
             &state.global_capture,

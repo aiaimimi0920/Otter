@@ -1,4 +1,4 @@
-//! raw RGBA 成功帧与有界编译诊断分离；未知状态、伪造尺寸和不完整像素不能发布。
+//! Separate raw RGBA success frames from bounded compiler diagnostics; unknown status, forged dimensions, and incomplete pixels cannot be published.
 use super::*;
 use crate::shader_angle::{Error, Frame};
 const MAX_DIAGNOSTIC: usize = 4096;
@@ -87,7 +87,7 @@ pub(crate) fn read_response(
     let mut bytes = vec![0; count];
     reader.read_exact(&mut bytes)?;
     let message = String::from_utf8(bytes).map_err(|_| invalid())?;
-    // 与后端同样不允许诊断注入终端控制字符；不回显完整 shader 或图片。
+    // Like the backend, reject terminal control characters in diagnostics; never echo entire shaders or images.
     if message
         .chars()
         .any(|c| c.is_control() && c != '\n' && c != '\t')

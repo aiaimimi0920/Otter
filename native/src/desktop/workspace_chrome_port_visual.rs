@@ -1,4 +1,4 @@
-//! 端口绘制、命中矩形和连线锚点消费同一主题几何；不改变连接层的 HWND 层序。
+//! Port painting, hit rectangles, and link anchors consume identical theme geometry without changing connection-layer HWND Z-order.
 use super::*;
 use neuro_mini_ui::{
     CapsuleAction, CapsuleAppearance, CapsuleLayout, CapsuleSide, CapsuleSize, RailLayout,
@@ -132,7 +132,7 @@ fn geometry(
         },
     ))
 }
-/// 行内主体不是连接点；仅 anchor 启动展开/连线手势，眼睛操作有自己的命中槽。
+/// Inline bodies are not connection points; only anchors start expansion/link gestures, while eye actions have separate hit slots.
 pub(super) fn anchor_hit(ui: &Ui, port: Port, point: Point) -> bool {
     let Some(node) = ui.node(port.node) else {
         return false;

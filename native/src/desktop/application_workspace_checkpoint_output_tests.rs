@@ -1,4 +1,4 @@
-//! 正式输出身份独立于Editor：原保存/Checkpoint追踪提交，不持有预览或额外像素副本。
+//! Committed-output identity is independent of Editor; original save/Checkpoint tracks commits without retaining previews or extra pixel copies.
 use super::*;
 use crate::desktop::{image::Image, loom_output_batch::Batch};
 use crate::surface_javascript_wire::result::{Resolved, ResolvedOutput};

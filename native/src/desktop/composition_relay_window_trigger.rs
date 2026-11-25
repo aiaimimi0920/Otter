@@ -1,4 +1,4 @@
-//! 显式配置菜单；同步UI只提交单槽意图，Surface/attachment始终锁定本次观看宿主。
+//! Explicit configuration menu; synchronous UI submits only single-slot intent, and Surface/attachment stay bound to this viewing host.
 use super::*;
 use crate::{
     live_relay_trigger_command::Command,
@@ -129,7 +129,7 @@ unsafe fn choose(hwnd: HWND, b: &crate::live_relay_viewer_business::Business) ->
         w!("新增触发条件"),
     )?;
     for (i, r) in b.registrations().iter().enumerate() {
-        // wire identifier仅ASCII合法字符，不能用远端文本注入菜单快捷键或换行。
+        // Wire identifiers allow only legal ASCII characters; remote text cannot inject menu shortcuts or newlines.
         AppendMenuW(
             menu.0,
             MF_STRING,

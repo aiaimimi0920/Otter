@@ -1,4 +1,4 @@
-//! 使用独立预算，证明编码前准入及错误/成功后的租约回收，不耗尽全局像素池。
+//! Independent budgets prove pre-encoding admission and lease reclamation after success/errors, without exhausting global pixel pools.
 use super::*;
 #[test]
 fn projection_encoding_budget_precedes_wic_and_releases_after_success_or_failure() {

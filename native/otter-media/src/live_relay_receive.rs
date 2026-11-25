@@ -1,4 +1,4 @@
-//! 已授权媒体连接的有界单帧接收；不创建网络连接，也不把完整封装视为可信码流。
+//! Bounded single-frame receive for authorized media connections; does not create network connections or treat a complete envelope as a trusted bitstream.
 use crate::{
     byte_budget::{Budget, Lease},
     live_relay_frame::{self as wire, Codec, Metadata},
@@ -12,7 +12,7 @@ pub enum Profile {
     H264,
 }
 impl Profile {
-    /// 必须来自实际 WebSocket 握手的选择值，不从 payload 猜测或自动升级。
+    /// Must come from the actual WebSocket handshake selection, not payload guessing or automatic upgrades.
     pub fn negotiated(protocol: Option<&str>) -> Result<Self, Error> {
         match protocol {
             Some("loom.live.v1") => Ok(Self::Legacy),
@@ -39,7 +39,7 @@ pub enum Error {
     Poisoned,
 }
 
-/// bytes 先于 lease 析构；下游仍需校验 epoch/帧序及 JPEG/H264 内容后才能呈现。
+/// bytes is dropped before lease; downstream must still validate epoch/frame order and JPEG/H264 content before presentation.
 pub struct Frame {
     metadata: Metadata,
     bytes: Vec<u8>,
@@ -53,8 +53,8 @@ impl Frame {
     pub fn payload(&self) -> &[u8] {
         &self.bytes[self.offset..]
     }
-    /// 接管 WebSocket 已有分配，不复制 payload。transport 必须在读取前限制消息大小；
-    /// 此租约只约束接管后的保留容量，不声称覆盖 WebSocket 自身的临时分配峰值。
+    /// Take over the existing WebSocket allocation without copying the payload. The transport must limit message size before reading;
+    /// this lease bounds only retained capacity after takeover and does not claim to cover WebSocket's own temporary allocation peak.
     pub fn from_message(
         bytes: Vec<u8>,
         profile: Profile,
@@ -79,7 +79,7 @@ pub struct PendingFrame {
     failed: bool,
 }
 impl PendingFrame {
-    /// 一次只拥有一帧。transport 应先取固定 64 字节头，准入后才读取 body。
+    /// Own only one frame at a time. The transport should read the fixed 64-byte header first, then read the body only after admission.
     pub fn begin(header: &[u8], profile: Profile, budget: &Arc<Budget>) -> Result<Self, Error> {
         let (metadata, length) = wire::decode_header(header).map_err(Error::Wire)?;
         if !profile.accepts(metadata.codec) {
@@ -90,7 +90,7 @@ impl PendingFrame {
         bytes
             .try_reserve_exact(length)
             .map_err(|_| Error::Allocation)?;
-        // 预算核算 Vec 实际 capacity；不把逻辑长度误当可归还的全部保留空间。
+        // Budget actual Vec capacity; do not mistake logical length for all retained space that can be returned.
         if !lease.grow_to(bytes.capacity()) {
             return Err(Error::Budget);
         }
@@ -109,7 +109,7 @@ impl PendingFrame {
     pub fn remaining(&self) -> usize {
         self.frame.bytes.len() - self.received
     }
-    /// 只接收该帧 payload；多余字节不能隐式解释成下一帧，溢出后整个候选作废。
+    /// Receive only this frame's payload; extra bytes cannot implicitly become the next frame, and overflow invalidates the whole candidate.
     pub fn push(&mut self, chunk: &[u8]) -> Result<(), Error> {
         if self.failed {
             return Err(Error::Poisoned);
@@ -123,7 +123,7 @@ impl PendingFrame {
         self.received = end;
         Ok(())
     }
-    /// 消费唯一 owner；截断/取消由 Drop 回收，不发布部分内容，不增加整帧复制。
+    /// Consume the sole owner; Drop reclaims truncation/cancellation without publishing partial content or adding a full-frame copy.
     pub fn finish(self) -> Result<Frame, Error> {
         if self.failed {
             return Err(Error::Poisoned);

@@ -1,4 +1,4 @@
-//! HDR PNG 两阶段新文件发布；复用同目录暂存/无覆盖提交，不缓存完整编码文件。
+//! Two-phase publication of new HDR PNG files; reuse same-directory staging/no-overwrite commits without buffering a complete encoded file.
 use crate::{capture_color::HdrFrame, session_file_write::Staged};
 #[path = "capture_file_original.rs"]
 mod original;
@@ -13,7 +13,7 @@ pub struct PreparedHdr {
     staged: Staged,
 }
 impl PreparedHdr {
-    /// 后台编码及 sync_all；不会创建最终目标。调用者只能为已授权的新文件目的地调用。
+    /// Background encoding and sync_all; never creates the final target. Call only for an authorized new-file destination.
     pub fn prepare(destination: &Path, frame: &HdrFrame, cancel: &AtomicBool) -> io::Result<Self> {
         if !destination
             .extension()
@@ -34,7 +34,7 @@ impl PreparedHdr {
         })?;
         Ok(Self { staged })
     }
-    /// UI owner 必须先复核请求/窗口/文档代次。无覆盖提交成功后不因迟到取消删除文件。
+    /// The UI owner must first recheck request/window/document generations. Never delete a successfully committed no-overwrite file for late cancellation.
     pub fn commit_new(self, cancel: &AtomicBool) -> io::Result<PathBuf> {
         self.staged.commit_new(cancel)
     }

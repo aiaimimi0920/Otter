@@ -1,4 +1,4 @@
-//! 单应用单 worker 的显示合成缓存；无任务队列，完成通知唤醒，过期结果不发布。
+//! One display-composition cache worker per application; no task queue, completion-notification wakeups, and no publication of stale results.
 use crate::{
     desktop::{
         display_composition,
@@ -58,7 +58,7 @@ impl Cache {
     pub fn deadline(&self) -> Option<std::time::Instant> {
         reap_deadline(&self.running.as_ref()?.ready)
     }
-    /// 替换工作区或发布新来源时撤销旧结果；仍占用原单槽，直到线程退出。
+    /// Revoke old results when replacing the workspace or publishing a new source; the original single slot stays occupied until the thread exits.
     pub fn invalidate(&mut self) {
         self.entries.clear();
         self.live_refreshes.clear();
@@ -87,7 +87,7 @@ impl Cache {
         }
         true
     }
-    /// 清除关闭或改变的来源；只取消，不在 UI 更新路径等待正在运行的原生调用。
+    /// Clear closed or changed sources; only cancel, without waiting for running native calls on the UI update path.
     pub fn retain(&mut self, mut current: impl FnMut(&UnitId, &Image, &DocumentStamp) -> bool) {
         let mut keep = |key: &Key| match &key.origin {
             Origin::Document { image, stamp } => current(&key.source, image, stamp),
@@ -100,7 +100,7 @@ impl Cache {
             }
         }
     }
-    /// None 表示等待现有任务或新任务；Err 在相同来源版本下缓存，避免失败循环。
+    /// None means waiting for an existing or new task; cache Err for the same source version to avoid failure loops.
     pub fn request(
         &mut self,
         source: &UnitId,
@@ -203,7 +203,7 @@ mod tests {
             .unwrap()
             .is_none());
         rx.recv_timeout(std::time::Duration::from_secs(5)).unwrap();
-        // 已完成但尚未交付的结果也必须服从断连/关闭取消。
+        // Completed but undelivered results must also honor disconnect/close cancellation.
         cache.retain(|_, _, _| false);
         wait_finished(&cache.running.as_ref().unwrap().worker);
         assert!(cache.poll());

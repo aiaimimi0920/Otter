@@ -1,4 +1,4 @@
-//! 验证 Wall 源摘要后复用已有受预算解码器；不落盘、不接收源 URL。
+//! Verify Wall source digests before reusing existing budgeted decoders; no disk writes or source URLs.
 use crate::{image_decode::Image, tile_wire::Result};
 use base64::{engine::general_purpose::STANDARD, Engine};
 use serde::Deserialize;
@@ -57,7 +57,7 @@ pub(crate) fn decode(bytes: &[u8], id: &str, stopped: impl Fn() -> bool) -> Resu
     {
         return Err("tile_image_format");
     }
-    // Tile 必须在分配前限制单边与总像素，且声明尺寸不能悄悄与实际不符。
+    // Tile must bound each dimension and total pixels before allocation; declared dimensions cannot silently differ from actual dimensions.
     let image = Image::from_tile(&data, &d.mime, d.width.zip(d.height), stopped)
         .map_err(|_| "tile_image_decode")?;
     if d.width.is_some_and(|w| w != image.width) || d.height.is_some_and(|h| h != image.height) {

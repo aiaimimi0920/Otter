@@ -1,5 +1,5 @@
-//! 单工作线程、单待处理请求；新请求取消旧计算，过期结果不交付。
-//! 宿主轮询仅检查完成状态，Drop 先取消再 join，绝不遗留计算线程。
+//! One worker thread and one pending request; new requests cancel old computation, and stale results are never delivered.
+//! Host polling checks completion only; Drop cancels before joining and never leaves computation threads behind.
 use crate::{
     blur::{BlurError, Region},
     edit_worker_budget::Permit,
@@ -17,9 +17,9 @@ use std::{
 
 #[derive(Clone)]
 pub struct Request {
-    /// 世代凭证原样往返工作线程；宿主提交前必须验证。
+    /// Generation evidence round-trips unchanged through workers; hosts must validate before commit.
     pub stamp: crate::editor::DocumentStamp,
-    /// None 准备后续笔迹；Some 更新指定索引，宿主仍须核验版本与选择。
+    /// None prepares subsequent strokes; Some updates the specified index, with hosts still validating revision/selection.
     pub target: Option<usize>,
     pub annotation_frame: Option<crate::crop_geometry::Rect>,
     pub base_projection: Option<crate::image_projection::Projection>,
@@ -27,7 +27,7 @@ pub struct Request {
     pub size: (u32, u32),
     pub area: Region,
     pub sigma: f32,
-    /// 宿主文档版本；提交结果时还须核验 source.same_storage。
+    /// Host document revision; committing results also requires source.same_storage validation.
     pub revision: u64,
 }
 pub struct Completed {
@@ -93,7 +93,7 @@ impl Job {
     pub fn is_busy(&self) -> bool {
         self.running.is_some() || self.pending.is_some()
     }
-    /// 请求不复制源像素；替换 pending 会立即释放其快照引用。
+    /// Requests do not copy source pixels; replacing pending immediately releases its snapshot references.
     pub fn request(&mut self, request: Request) -> Result<(), JobError> {
         if let Some(running) = &self.running {
             running.cancel.store(true, Ordering::Release);
@@ -111,7 +111,7 @@ impl Job {
         let handle = thread::Builder::new()
             .name("otter-blur".into())
             .spawn(move || {
-                // 合成与卷积都在同一个可取消工作线程中，UI 只持有共享快照。
+                // Composition and convolution share one cancellable worker; UI holds shared snapshots only.
                 let cancelled = || worker_cancel.load(Ordering::Acquire);
                 let result = if work.size != work.source.size {
                     Err(BlurError::InvalidInput)
@@ -152,7 +152,7 @@ impl Job {
             running.cancel.store(true, Ordering::Release);
         }
     }
-    /// 不等待未完成线程。新请求的计算只在旧线程真正结束后开始。
+    /// Never wait for unfinished threads. New computation starts only after the old thread actually exits.
     pub fn poll(&mut self) -> Option<Completed> {
         if !self
             .running
@@ -169,7 +169,7 @@ impl Job {
             _ => Err(JobError::WorkerFailed),
         };
         if let Some(next) = self.pending.take() {
-            // 释放旧结果/源图后再启动，避免无用快照挤占新请求的像素预算。
+            // Release old results/source images before starting, preventing useless snapshots from consuming new requests' pixel budgets.
             drop(result);
             drop(running.request);
             let request = next.clone();

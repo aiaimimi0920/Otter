@@ -1,8 +1,8 @@
-//! 输入 worker 固定原弹窗来源；输入权限与原实例的收尾资格分离，不从当前 HWND 重建授权。
+//! The input worker fixes the original popup source; separate input permissions from original-instance cleanup eligibility, without rebuilding authorization from current HWNDs.
 use super::*;
 use crate::live_window_target::popup::Transfer;
 impl Backend {
-    /// 仅在 worker 构建时消费 UI 快照；远程不能取得本地弹窗来源能力。
+    /// Consume the UI snapshot only when constructing the worker; remote control cannot obtain local-popup source capabilities.
     pub fn with_popup_scope(mut self, transfer: Option<Transfer>) -> Result<Self, Error> {
         if transfer.is_some() && !self.local {
             return Err(Error::InvalidDelivery);

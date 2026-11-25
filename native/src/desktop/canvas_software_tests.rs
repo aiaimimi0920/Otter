@@ -1,4 +1,4 @@
-//! 真实 Canvas/生产 WM_PAINT 软件路径；内部显式选择 CPU，不伪造当前机器硬件不可用。
+//! Real Canvas/production WM_PAINT software path; explicitly select CPU internally without pretending the current machine lacks hardware.
 use super::*;
 use crate::desktop::{Apartment, State, Window};
 use windows::{
@@ -12,7 +12,7 @@ impl Drop for Class {
         unsafe {
             let _ = UnregisterClassW(w!("Otter.Canvas.Software.Test"), Some(self.0));
             let mut message = MSG::default();
-            // 仅消费本测试线程最后宿主关闭产生的 WM_QUIT，不把它留给后续测试。
+            // Consume only WM_QUIT produced by this test thread's last host closing; do not leave it for later tests.
             while PeekMessageW(&mut message, None, WM_QUIT, WM_QUIT, PM_REMOVE).as_bool() {
                 assert_eq!(message.wParam.0, 0, "unexpected ABI panic");
             }
@@ -233,7 +233,7 @@ fn stale_or_failed_software_submission_never_confirms_a_new_target() {
         let presented = pending.present(hwnd).unwrap();
         let mut canvas = state.canvas.borrow_mut();
         let target = std::rc::Rc::clone(&canvas.target.as_ref().unwrap().identity);
-        canvas.editor = Editor::default(); // 只改变文档身份，保留同一 Target。
+        canvas.editor = Editor::default(); // Change document identity only, retaining the same Target.
         assert!(std::rc::Rc::ptr_eq(
             &target,
             &canvas.target.as_ref().unwrap().identity

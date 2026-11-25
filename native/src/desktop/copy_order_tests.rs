@@ -1,4 +1,4 @@
-//! 注入剪贴板序号和最终发布，真实 worker/文件/隐藏 HWND 共用生产生命周期。
+//! Inject clipboard sequences and final publication; real workers/files/hidden HWNDs share production lifecycles.
 use super::*;
 fn wait_ready(state: &State) {
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);

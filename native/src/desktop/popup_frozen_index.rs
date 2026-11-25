@@ -1,4 +1,4 @@
-//! 冻结库菜单索引 worker：只读不可变原文，输出有界文本，不解码图片或授权文件。
+//! Frozen-library menu-index worker: read immutable original text, emit bounded text, and neither decode images nor authorize files.
 use super::worker::{self, Slot};
 use crate::{
     desktop::loom_execution_signal::Notify,

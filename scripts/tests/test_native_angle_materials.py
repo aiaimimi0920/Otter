@@ -1,4 +1,4 @@
-"""材料编排、独立封存核验和失败保留；合成 DLL 不可当作真实构建/运行证据。"""
+"""Materials orchestration, independent archive verification, and failure retention; synthetic DLLs are not actual build/runtime evidence."""
 
 import unittest
 from unittest.mock import patch
@@ -20,7 +20,7 @@ class MaterialsTests(unittest.TestCase):
             return angle_materials.create(self.stage, self.stage_sha, self.build, self.build_sha, self.output)
 
     def seal(self, manifest):
-        # 反例显式提供新摘要：不是只测外层 hash 拒绝。
+        # Counterexamples explicitly provide new digests, testing more than outer hash rejection.
         save(self.output / "materials.json", manifest)
         return file_hash(self.output / "materials.json")
 

@@ -10,11 +10,11 @@ No browser extension or pinned-page mode is required or supplied.
 
 ## Watch from another device
 
-On the source Live sticker, use **实时投射 → 发布到 Loom**. On the receiver,
+On the source Live sticker, use **Live Projection → Publish to Loom**. On the receiver,
 open a Surface-capable Art's parameters, refresh the LiveRelay list, select the
-session and choose **加入观看**. Joining requires a current authorized Surface
+session and choose **Join Viewer**. Joining requires a current authorized Surface
 attachment and does not grant input control. Closing the panel during join cancels
-a late result; an existing viewer has independent lifetime. **重新配对** submits
+a late result; an existing viewer has independent lifetime. **Pair Again** submits
 the existing device identity after Loom deletes the registration; approval and
 joining again are separate actions. An old revoked viewer is not revived.
 
@@ -39,5 +39,5 @@ images and does not convey controllable Live media. See the
   replace pending presentation work, but source loss, input release and teardown cannot
   be dropped. GPU recovery is independent of peer versions. Copy/save/edit use snapshots;
   per-frame changes are not continuous Art outputs.
-- Use [joint testing and diagnostics](LIVE_JOINT_TESTING.md#诊断与证据边界) for controlled evidence.
-  Counters do not establish physical display, manual input or cross-device performance.
+- Use [joint testing and diagnostics](LIVE_JOINT_TESTING.md#diagnostics-and-evidence-boundaries) for test
+  procedures, metric interpretation and the limits of controlled evidence.

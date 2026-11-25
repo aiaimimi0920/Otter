@@ -1,4 +1,4 @@
-//! 隐藏启动验收序列；复用生产 owner，不拥有 HWND、期限或系统输入。
+//! Hidden startup acceptance sequence; reuse production owners without owning HWNDs, deadlines, or system input.
 use super::*;
 
 pub(super) unsafe fn run(
@@ -82,12 +82,12 @@ pub(super) unsafe fn run(
         smoke_timing::run("marquee-smoke", || marquee_smoke::run(window.0, state))?;
     }
     let before_paints = state.canvas.borrow().paints;
-    // 隐藏窗口也真实创建 D2D target 并提交像素；不是人工显示验收。
+    // Hidden windows also create actual D2D targets and submit pixels; this is not manual display acceptance.
     smoke_timing::run("final-first-paint", || {
         let _ = SendMessageW(window.0, WM_PAINT, None, None);
         Ok::<(), Error>(())
     })?;
-    // 模拟设备资源失效；模型和 CPU 像素必须能在下一次绘制重建呈现资源。
+    // Simulate device-resource invalidation; the model and CPU pixels must rebuild presentation resources on the next draw.
     smoke_timing::run("final-discard-device", || {
         state.canvas.borrow_mut().discard_device();
         Ok::<(), Error>(())
@@ -138,9 +138,9 @@ fn retire_canvas(state: &State) -> Result<()> {
     let mut has_composition = false;
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
     loop {
-        // 仅隐藏启动自检允许在此轮询；默认消息循环/WM_PAINT 不调用此等待流程。
-        // 不分发待绘制消息；退休 owner 两秒后进入终态，不代表系统等待已被终止。
-        // 自检另设外层上限，防止未来实现误复位 owner 期限而无限轮询。
+        // Only hidden startup self-tests may poll here; default message loops/WM_PAINT never call this waiting procedure.
+        // Do not dispatch pending paint messages; retired owners reach terminal state after two seconds, which does not mean system waits ended.
+        // Self-tests also impose an outer limit, preventing endless polling if a future implementation incorrectly resets owner deadlines.
         if std::time::Instant::now() >= deadline {
             return Err(Error::new(
                 E_FAIL,

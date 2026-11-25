@@ -1,4 +1,4 @@
-//! 测试专属 Application/认证挂载输入；真实授权与 GET 仍走生产后台路径。
+//! Test-specific Application/authenticated mount inputs; real authorization and GET still follow production background paths.
 use super::*;
 use crate::{
     desktop::{document_window::DocumentWindow, surface_authorized_window::AuthorizedWindow},

@@ -1,4 +1,4 @@
-//! 贝塞尔局部控制点事务；一项操作只复制目标曲线，旧值归历史所有。
+//! Local Bezier control-point transactions; each operation copies only the target curve, with history owning old values.
 use super::*;
 
 const MAX_SEGMENTS: usize = 64;
@@ -11,7 +11,7 @@ fn valid(stroke: &Stroke) -> bool {
 }
 
 impl Editor {
-    /// point 位于标注未旋转的局部图像坐标；宿主负责逆变换鼠标坐标。
+    /// point is in the annotation's unrotated local image coordinates; hosts inverse-transform mouse coordinates.
     pub fn move_bezier_handle(
         &mut self,
         index: usize,
@@ -41,7 +41,7 @@ impl Editor {
 }
 
 impl Stroke {
-    /// 有界预览副本；不接触文档版本或历史，提交与屏幕预览使用同一计算。
+    /// Bounded preview copies leave document revisions/history untouched; commits and screen previews share calculations.
     pub fn preview_bezier_handle(
         &self,
         handle: usize,
@@ -63,7 +63,7 @@ impl Stroke {
             x: p.x + offset.x,
             y: p.y + offset.y,
         };
-        // 端点携带相邻切线；先验证所有目标，避免一侧合法、另一侧越界的部分提交。
+        // Endpoints carry adjacent tangents; validate all targets first to prevent partial commits with one valid side and one out-of-bounds side.
         let adjacent = [
             handle.checked_sub(1),
             handle.checked_add(1).filter(|&h| h < source.points.len()),
@@ -173,7 +173,7 @@ impl Stroke {
 }
 
 fn preserve_rotation_center(source: &Stroke, changed: &mut Stroke) -> Result<(), EditError> {
-    // 控制点变化会移动包围中心；补偿旋转轴变化，保持旧点的屏幕位置。
+    // Control-point changes move bounding centers; compensate for rotation-axis changes to preserve old points' screen positions.
     crate::rotation::preserve_center(&source.points, &mut changed.points, source.rotation);
     for &point in &changed.points {
         validate(point)?;

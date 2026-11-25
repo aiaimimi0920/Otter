@@ -1,4 +1,4 @@
-//! 取消/布局变化贯穿各层错误；这些终止信号不能被通用 SDR fallback 吞掉。
+//! Propagate cancellation/layout changes through all error layers; generic SDR fallback must not swallow these terminal signals.
 use super::*;
 use crate::{capture_readback as readback, capture_wgc as wgc};
 pub(super) fn classify(error: capture_target::Error) -> Failure {

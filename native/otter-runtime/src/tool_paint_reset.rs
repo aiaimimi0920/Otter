@@ -1,4 +1,4 @@
-//! 删除会话调色板颜色只重置工具创建默认槽，不修改已有标注或其历史。
+//! Deleting a session-palette color resets only tool-creation default slots, without changing existing annotations or their history.
 use crate::stroke_style::{Color, StrokeStyle};
 pub(super) fn reset(mut style: StrokeStyle, serial: bool, color: Color, alpha: u8) -> StrokeStyle {
     let matches = |actual: Option<Color>, opacity: f32| {

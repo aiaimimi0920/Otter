@@ -1,4 +1,4 @@
-//! 普通 Surface 的有限静态位图识别；未知头拒绝，不新增浏览器或脚本渲染路径。
+//! Limited static-bitmap recognition for ordinary Surface; reject unknown headers without adding browser or script-rendering paths.
 fn space(c: char) -> bool {
     matches!(c, '\t' | '\n' | '\r' | ' ')
 }
@@ -8,7 +8,7 @@ fn token(bytes: &[u8]) -> bool {
             .iter()
             .all(|b| b.is_ascii_alphanumeric() || b"!#$%&'*+-.^_`|~".contains(b))
 }
-/// 只提取 MIME essence，参数不影响位图解码。无效声明作为未知类型，不作为字节授权。
+/// Extract only the MIME essence; parameters do not affect bitmap decoding. Invalid declarations are unknown types, not byte authorization.
 pub fn essence(mime: &str) -> Option<&str> {
     let head = mime
         .trim_matches(space)
@@ -19,7 +19,7 @@ pub fn essence(mime: &str) -> Option<&str> {
     (token(kind.as_bytes()) && token(subtype.as_bytes())).then_some(head)
 }
 pub fn svg(mime: &str) -> bool {
-    // 旧资源由 data URL 交给浏览器，URL 解析会去掉 TAB/CR/LF；不能绕过 SVG 分流。
+    // Legacy resources reach the browser through data URLs, whose parsing removes TAB/CR/LF; this must not bypass SVG routing.
     if mime.bytes().any(|b| matches!(b, b'\t' | b'\r' | b'\n')) {
         let normalized: String = mime
             .chars()
@@ -29,9 +29,9 @@ pub fn svg(mime: &str) -> bool {
     }
     essence(mime).is_some_and(|v| v.eq_ignore_ascii_case("image/svg+xml"))
 }
-/// 仅识别现有静态容器；WIC 仍须再次核对容器、帧数与像素上限。
+/// Recognize only existing static containers; WIC must still recheck the container, frame count, and pixel limits.
 pub fn encoded_mime(bytes: &[u8], declared: &str) -> Option<&'static str> {
-    // Chromium 的 SVG 图片分支不把 PNG 字节回退为位图；SVG 另需独立安全渲染 owner。
+    // Chromium's SVG-image branch does not fall back to bitmap decoding for PNG bytes; SVG needs its own safe-rendering owner.
     if svg(declared) {
         return None;
     }

@@ -1,4 +1,4 @@
-//! 外部源恢复快照；读取不改变窗口，不代表已取得隐藏授权或已登记崩溃恢复。
+//! External-source recovery snapshot; reads do not change windows or imply hiding authorization/crash-recovery registration.
 #[path = "live_window_hide.rs"]
 pub mod hide;
 #[path = "live_window_restore.rs"]
@@ -16,7 +16,7 @@ pub struct Layered {
     pub flags: LAYERED_WINDOW_ATTRIBUTES_FLAGS,
 }
 
-/// 保留原始值而不是由当前窗口重新推断；后续恢复操作必须再次校验 target。
+/// Retain original values instead of inferring them again from the current window; later restoration must revalidate target.
 pub struct Snapshot {
     pub target: Target,
     pub rect: RECT,
@@ -51,7 +51,7 @@ impl Snapshot {
                     alpha: 0,
                     flags: LAYERED_WINDOW_ATTRIBUTES_FLAGS::default(),
                 };
-                // UpdateLayeredWindow 等路径未必能读回此属性。失败必须拒绝，不能猜默认值。
+                // Paths such as UpdateLayeredWindow may not permit reading this attribute. Reject failures rather than guessing defaults.
                 GetLayeredWindowAttributes(
                     hwnd,
                     Some(&mut attributes.color),

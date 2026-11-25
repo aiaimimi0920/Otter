@@ -1,4 +1,4 @@
-//! 批次确认选择事务：取消完整返还，启动失败保留决定，绝不拆散整批证据。
+//! Batch-confirmation selection transaction: return everything on cancellation, preserve decisions on startup failure, and never split batch evidence.
 use super::*;
 use crate::{
     desktop::surface_authorized_window::BatchReceipt,
@@ -60,7 +60,7 @@ impl Sessions {
         if self.occupied() >= MAX_SESSIONS {
             return Err(io::ErrorKind::WouldBlock.into());
         }
-        // 在提示消费及 owner 移交之前，预留成功/异常两种返还位置。
+        // Reserve both success/failure return locations before consuming prompts or transferring owners.
         self.reserve_batch_outcomes()?;
         self.batch_decision_rejected
             .try_reserve(self.batch_decision_jobs.len() + 1)

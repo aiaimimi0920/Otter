@@ -1,4 +1,4 @@
-//! 有界四字段原生命名编辑器；对话框只持有草稿，取消不修改共享设置或文件。
+//! Bounded four-field native naming editor; dialogs hold drafts only, and cancellation changes neither shared settings nor files.
 use crate::file_naming_settings::Settings;
 use windows::{
     core::HSTRING,
@@ -83,7 +83,7 @@ unsafe extern "system" fn procedure(hwnd: HWND, message: u32, wp: WPARAM, lp: LP
     if input.is_null() {
         return 0;
     }
-    // 多取一个字符以拒绝超限输入，不把截断后的前缀当作合法草稿。
+    // Read one extra character to reject oversized input rather than accepting truncated prefixes as valid drafts.
     let fields = std::array::from_fn(|index| {
         let mut buffer = [0u16; LIMIT + 2];
         let count = GetDlgItemTextW(hwnd, 101 + index as i32, &mut buffer) as usize;

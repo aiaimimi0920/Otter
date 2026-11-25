@@ -1,7 +1,7 @@
-//! 声明式 click 冒泡路径；只借用当前场景，不创建事件、授予权限或发送动作。
+//! Declarative click-bubbling paths; borrow only the current scene without creating events, granting permissions, or sending actions.
 use crate::surface_scene::{Kind, Node, Scene, MAX_DEPTH};
 
-/// 与当前场景同寿命的动作声明。payload 仍是不可信配置，发送端须执行协议校验。
+/// An action declaration sharing the current scene's lifetime. The payload remains untrusted configuration requiring sender-side protocol validation.
 pub struct ClickAction<'a> {
     pub node: &'a Node,
     pub action: &'a str,
@@ -47,7 +47,7 @@ impl<'a> Iterator for ClickRoute<'a> {
             let node = self.path[self.remaining]?;
             match node.kind() {
                 Kind::Button => {
-                    // 主干按钮始终阻止冒泡，包括未声明 click 的按钮。
+                    // Mainline buttons always stop bubbling, including buttons without a declared click.
                     self.remaining = 0;
                     if node.props().get("disabled") == Some(&serde_json::Value::Bool(true)) {
                         return None;
@@ -55,7 +55,7 @@ impl<'a> Iterator for ClickRoute<'a> {
                 }
                 Kind::View | Kind::Row | Kind::Column | Kind::Stack | Kind::Scroll | Kind::Grid => {
                 }
-                // 文字、装饰及其他控件没有通用 click handler。
+                // Text, decorations, and other controls have no generic click handler.
                 _ => continue,
             }
             if let Some(action) = node.events().get("click") {

@@ -1,4 +1,4 @@
-//! 设置面板的缓存全文读取；不依赖覆盖层显隐或在线目录，不执行扩展命令。
+//! Read cached full text for the settings panel; independent of overlay visibility or online catalogs, without executing extension commands.
 use crate::{extension_visual as visual, unit_attachment_store::Store};
 use serde::Deserialize;
 use serde_json::value::RawValue;
@@ -16,7 +16,7 @@ pub struct Legacy {
     source_revision: Option<u64>,
 }
 impl Legacy {
-    // 仅后台恢复边界解析旧会话；保留原文本，不改写持久化数据或注册旧扩展。
+    // Parse legacy sessions only at the background recovery boundary; preserve original text without rewriting persisted data or registering legacy extensions.
     pub fn restore(ocr: Option<&RawValue>, translation: Option<&RawValue>) -> Self {
         #[derive(Deserialize)]
         #[serde(rename_all = "camelCase")]

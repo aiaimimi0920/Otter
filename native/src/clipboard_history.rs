@@ -1,4 +1,4 @@
-//! Windows 历史快照和显式单条删除；仅后台 STA 调用，内容不落盘、不写当前剪贴板。
+//! Windows history snapshots and explicit single-item deletion; background STA only, with no persistence or writes to the current clipboard.
 use std::{
     sync::atomic::{AtomicBool, Ordering},
     time::{Duration, Instant},
@@ -99,8 +99,8 @@ pub(super) fn check(cancel: &AtomicBool, deadline: Instant) -> Result<()> {
     }
 }
 
-/// 调用方必须在专属后台线程执行；进程级许可防止阻塞提供方积累并发读取。
-/// WinRT 同步调用自身不受硬超时保证，许可必须保持到该读取真正返回。
+/// Call on a dedicated background thread; process-wide permits prevent blocking providers from accumulating concurrent reads.
+/// Synchronous WinRT calls themselves have no hard-timeout guarantee; retain the permit until the read truly returns.
 pub fn read(cancel: &AtomicBool) -> Result<Snapshot> {
     check(cancel, Instant::now() + Duration::from_secs(5))?;
     read_with_permit(cancel, ReadPermit::acquire()?)
@@ -127,7 +127,7 @@ fn read_with_permit(cancel: &AtomicBool, _permit: ReadPermit) -> Result<Snapshot
     let mut remaining = MAX_TOTAL_BYTES;
     for index in 0..items.Size()?.min(MAX_ITEMS) {
         check(cancel, deadline)?;
-        // 过期或不支持的条目不遮蔽其余历史；取消仍在下一边界传播。
+        // Expired/unsupported entries do not hide other history; cancellation still propagates at the next boundary.
         let entry = (|| {
             let item = items.GetAt(index)?;
             let id = item.Id()?;

@@ -1,4 +1,4 @@
-//! 合成认证挂载 + 真实续签/TLS GET + 完整应用 poll 安装；不手动 start/install。
+//! Synthetic authenticated mount + real renewal/TLS GET + installation through full application poll; no manual start/install.
 use super::*;
 use crate::{
     desktop::Apartment,
@@ -30,7 +30,7 @@ fn run(corrupt: bool, close_before_delivery: bool, encoding: Option<&str>) {
     let _com = Apartment::new().unwrap();
     let (files, store, _) = Files::new();
     let (listener, client, server, pem) = fixture_with_pem();
-    // Client 的 origin 私有；由已知 listener 端口构造完全相同的规范 origin。
+    // Client's origin is private; construct the identical canonical origin from the known listener port.
     let origin = format!(
         "https://localhost:{}",
         listener.local_addr().unwrap().port()
@@ -153,7 +153,7 @@ fn run(corrupt: bool, close_before_delivery: bool, encoding: Option<&str>) {
             app.poll_remote_live_with(false, |o| fixture::config(o, files.root()))
                 .unwrap();
             assert_eq!(app.remote_sessions.wait_handles().count(), 0);
-            drop(occupied); // WouldBlock 没有消费候选；容量恢复后仍能启动第一张图。
+            drop(occupied); // WouldBlock did not consume the candidate; the first image can still start once capacity returns.
         }
         let _catalog_competitors = if !corrupt && !close_before_delivery {
             let occupied: Vec<_> = (0..3)
@@ -164,15 +164,15 @@ fn run(corrupt: bool, close_before_delivery: bool, encoding: Option<&str>) {
                 .discover(fixture::config(&origin, files.root()).unwrap(), lease)
                 .unwrap();
             fixture::wait(&app);
-            // 已完成目录仍持有第四槽。完整 poll 必须先回收目录，再启动图片；
-            // 否则图片遇 Busy，目录随后消耗最后完成信号，排队项没有后续唤醒。
+            // The completed catalog still holds the fourth slot. Full poll must reap the catalog before starting images;
+            // otherwise images hit Busy, the catalog then consumes the last completion signal, and queued entries have no subsequent wakeup.
             occupied
         } else {
             Vec::new()
         };
         app.poll_remote_live_with(false, |o| fixture::config(o, files.root()))
             .unwrap();
-        // 第一轮只起一个任务，随后完成句柄驱动下一请求，无额外用户消息。
+        // The first turn starts one task only; completion handles then drive the next request without extra user messages.
         fixture::wait(&app);
         if close_before_delivery {
             app.surface_windows.close_all().unwrap();
@@ -182,7 +182,7 @@ fn run(corrupt: bool, close_before_delivery: bool, encoding: Option<&str>) {
                 .poll_remote_live_with(false, |o| fixture::config(o, files.root()))
                 .is_err());
         } else if close_before_delivery {
-            // 仅验证生产资源取消/安装段；完整生命周期退出会另发 inactive HTTP。
+            // Verify only production resource cancellation/installation here; full lifecycle exit separately sends inactive HTTP.
             app.remote_sessions.cancel_surface_resources(|_, _| true);
             assert!(app.remote_sessions.poll_surfaces().is_empty());
             app.poll_surface_images_with(|o| fixture::config(o, files.root()))
@@ -225,7 +225,7 @@ fn run(corrupt: bool, close_before_delivery: bool, encoding: Option<&str>) {
             assert!(window.take_error().is_none());
             assert_eq!(window.uploaded_images_for_test(), 2);
         }
-        // 不伪造远端停用 ACK：此夹具仅拥有资源 GET 服务端，显式关闭本地窗口/授权并 drain。
+        // Do not fabricate remote deactivation ACK: this fixture owns only the resource GET server, so explicitly close local windows/authorization and drain.
         app.surface_windows.close_all().unwrap();
         app.authorization_owner.close();
         app.remote_sessions.close();

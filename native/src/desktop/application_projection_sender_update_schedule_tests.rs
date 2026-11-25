@@ -1,4 +1,4 @@
-//! 不变时钟验证公平性/有界重试/删除；不靠sleep或放宽产品期限。
+//! Fixed-clock tests verify fairness/bounded retries/deletion, without sleep or relaxed product deadlines.
 use super::*;
 use crate::projection_delivery::sender::tests::{prepare, selection, setup};
 fn candidates() -> Vec<(Request, Binding)> {

@@ -1,5 +1,5 @@
 #![cfg(windows)]
-//! 真实 EXE 的外部图片准入；只读合成源文件，所有夹具和清理严格限定在 linshi。
+//! External-image admission through the real EXE; read synthetic source files only, with all fixtures and cleanup strictly confined to linshi.
 use std::{
     fs,
     io::Write,
@@ -80,7 +80,7 @@ impl Fixture {
 }
 impl Drop for Fixture {
     fn drop(&mut self) {
-        // 仅删除 create_new 成功登记的文件与本夹具目录；不递归扫描或跟随目录链接。
+        // Delete only files successfully registered by create_new and this fixture's directory; do not recursively scan or follow directory links.
         assert_eq!(self.root.parent(), Some(Path::new(BASE)));
         for (path, _) in &self.files {
             let _ = fs::remove_file(path);
@@ -148,7 +148,7 @@ fn external_images_require_exact_directory_and_remain_read_only_in_real_exe() {
         }
         fixture.assert_unchanged();
     }
-    // EXE 退出后的图片和授权目录必须可移动；验证 OS 句柄未被外部残留进程持有。
+    // Images and authorized directories must be movable after EXE exit, proving no leftover external process retains their OS handles.
     let moved = assets.join("moved.png");
     fs::rename(&image, &moved).unwrap();
     fs::rename(&moved, &image).unwrap();

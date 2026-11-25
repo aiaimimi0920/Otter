@@ -1,4 +1,4 @@
-//! 有界子进程回归：运行期间同时排空两条管道，诊断保留有上限，超时仅回收自有 child。
+//! Bounded child-process regressions: drain both pipes concurrently, cap retained diagnostics and reclaim only owned children on timeout.
 use std::{
     io::{self, Read},
     process::{Child, Command, Output, Stdio},
@@ -10,7 +10,7 @@ const OUTPUT_LIMIT: usize = 256 * 1024;
 struct OwnedChild(Child);
 impl Drop for OwnedChild {
     fn drop(&mut self) {
-        // 异常路径也不得留下本测试启动的进程；不按名称搜索或清理其他实例。
+        // Exceptional paths must not leave processes started by this test behind; do not search by name or clean other instances.
         let _ = self.0.kill();
         let _ = self.0.wait();
     }
@@ -26,12 +26,12 @@ fn drain(mut pipe: impl Read) -> io::Result<Vec<u8>> {
         }
         let keep = count.min(OUTPUT_LIMIT - output.len());
         output.extend_from_slice(&buffer[..keep]);
-        // 达到诊断上限后继续读取并丢弃，不能再次让写端卡在已满的管道上。
+        // Keep reading and discarding after the diagnostic limit is reached, so a full pipe cannot block the writer again.
     }
 }
 
 pub fn run(command: &mut Command, timeout: Duration) -> io::Result<Output> {
-    // 隐藏测试不能继承开发者的真实 profile；只有测试显式传入的隔离覆盖才保留。
+    // Hidden tests must not inherit the developer's real profile; retain only isolated overrides explicitly supplied by the test.
     if !command.get_envs().any(|(key, _)| {
         key.to_string_lossy()
             .eq_ignore_ascii_case("OTTER_NATIVE_PROFILE_DIR")
@@ -66,7 +66,7 @@ pub fn run(command: &mut Command, timeout: Duration) -> io::Result<Output> {
         let _ = child.0.kill();
         let _ = child.0.wait();
     }
-    // 本 runner 仅用于不派生继承管道子孙的测试命令；等待本次两个 reader 回收。
+    // This runner is only for test commands that do not spawn descendants inheriting the pipes; wait for both readers from this run to finish.
     let stdout = stdout
         .join()
         .map_err(|_| io::Error::other("stdout reader panicked"))??;

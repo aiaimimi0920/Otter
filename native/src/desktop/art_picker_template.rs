@@ -1,4 +1,4 @@
-//! 紧凑无标题搜索菜单；DialogBox 继续拥有模态、焦点及退出，不复制能力业务。
+//! Compact titleless search menu; DialogBox retains modal, focus, and exit ownership, without duplicating capability business logic.
 use super::*;
 pub(super) fn template() -> Vec<u32> {
     fn string(data: &mut Vec<u16>, text: &str) {

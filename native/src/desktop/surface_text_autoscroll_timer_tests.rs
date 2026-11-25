@@ -1,4 +1,4 @@
-//! 实际 Win32 timer 队列证据：不修改 due、不合成 WM_TIMER、不注入桌面输入。
+//! Actual Win32 timer-queue evidence: no due changes, synthesized WM_TIMER, or desktop-input injection.
 use super::*;
 fn wait_timer(window: &SurfaceWindow, id: usize, remove: PEEK_MESSAGE_REMOVE_TYPE) -> MSG {
     let deadline = Instant::now() + Duration::from_secs(3);
@@ -23,7 +23,7 @@ fn assert_stopped(window: &SurfaceWindow, id: usize) {
     assert!(window.state.pointer.borrow().selection_owner.is_none());
     let before = y(window);
     let text = selected(window);
-    // KillTimer 不保证移除已经生成的消息；先派发该 HWND 的残留，再验证不会新生成。
+    // KillTimer does not guarantee removal of generated messages; dispatch this HWND's residue before verifying no new messages appear.
     let mut message = MSG::default();
     for _ in 0..16 {
         if !unsafe {
@@ -98,7 +98,7 @@ fn text_autoscroll_system_timer_queued_before_cancel_cannot_mutate_after_cancel(
     for revoke in [false, true] {
         let window = window();
         let id = start(&window);
-        // PM_NOREMOVE 促使系统生成真实消息，并刻意让它留在队列中跨过撤销。
+        // PM_NOREMOVE prompts actual system-message generation and deliberately leaves it queued across cancellation.
         wait_timer(&window, id, PM_NOREMOVE);
         assert_eq!(y(&window), 0.);
         if revoke {

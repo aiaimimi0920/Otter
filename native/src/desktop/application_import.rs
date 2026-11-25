@@ -1,4 +1,4 @@
-//! 批次窗口先全部准备，再一次加入应用；容量/建窗失败释放暂存 owner，不展示半批。
+//! Prepare all batch windows before adding them to the application together; capacity/window-creation failures release staged owners without showing a partial batch.
 use super::*;
 #[path = "application_paste_target.rs"]
 mod paste_target;
@@ -69,7 +69,7 @@ impl Application {
             let origin = pin.paste_origin;
             let document = prepare(self, State::from_prepared(pin)?, visible, frame)?;
             if let Some(cursor) = origin.filter(|_| frame.is_none()) {
-                // 只定位隐藏的暂存窗口；不借用 capture_origin 的截图 1:1 尺寸语义。
+                // Position only hidden staged windows; do not borrow capture_origin's 1:1 screenshot-size semantics.
                 SetWindowPos(
                     document.window.0,
                     None,
@@ -112,7 +112,7 @@ impl Application {
         if visible {
             for (document, (_, show_panel)) in self.documents[start..].iter().zip(presentation) {
                 let _ = ShowWindow(document.window.0, SW_SHOWNORMAL);
-                // 截图和粘贴默认自由拖动；普通文件导入沿用原显示规则。
+                // Screenshots and pasted images default to free dragging; ordinary file imports retain the original display rules.
                 if show_panel {
                     let _ = ShowWindow(document.panel.0, SW_SHOWNOACTIVATE);
                 }

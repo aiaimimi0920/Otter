@@ -1,4 +1,4 @@
-//! 临时队列过载释放输入，但不能等同于用户关闭控制；积压不重放。
+//! Temporary queue overload releases input but does not mean the user disabled control; never replay backlog.
 use super::*;
 
 #[test]

@@ -1,13 +1,13 @@
-//! 子进程验证真实 Win32/D2D 启动与关闭；不操作用户桌面或正式配置。
+//! Child processes verify real Win32/D2D startup and shutdown without manipulating the user's desktop or production configuration.
 #![cfg(windows)]
 use std::process::Command;
 #[path = "../support/process.rs"]
 mod process;
 
 fn run_bounded(command: &mut Command) -> std::process::Output {
-    // 三个完整 smoke 共用桌面/图形资源；libtest 并发会把独立启动功能回归变成负载测试。
-    // 只串行本测试二进制的子进程，不减少场景/断言或放宽每个 child 的 15 秒期限。
-    // 失败不能毒化其余场景；等待准入不计入尚未启动 child 的运行期限。
+    // Three full smoke cases share desktop/graphics resources; libtest concurrency would turn independent startup regressions into load tests.
+    // Serialize only this test binary's children, without reducing cases/assertions or relaxing each child's 15-second deadline.
+    // A failure must not poison the other cases; admission waiting does not count against a child that has not started.
     static DESKTOP_SCENARIO: std::sync::Mutex<()> = std::sync::Mutex::new(());
     let _scenario = DESKTOP_SCENARIO
         .lock()
@@ -17,7 +17,7 @@ fn run_bounded(command: &mut Command) -> std::process::Output {
 
 #[cfg(any(debug_assertions, feature = "smoke-test"))]
 fn assert_default_shader_is_configured_without_execution(stdout: &str) {
-    // 原生路由默认可用不等于启动worker；无显式peer时不能取码或提交正式Shader结果。
+    // A native route being available by default does not start a worker; without an explicit peer, it must neither fetch code nor submit committed Shader results.
     let configured: Vec<_> = stdout
         .lines()
         .filter(|line| line.starts_with("native-shader-startup:"))

@@ -1,4 +1,4 @@
-//! 选区目标绑定的单步滚轮传输；不移动指针、不抢焦点、不广播，也不假定消息成功等于已滚动。
+//! One-step wheel transport bound to selection targets; no pointer movement, focus stealing, broadcast, or assumption that message success means scrolling.
 use super::Region;
 use crate::long_capture::Axis;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -18,7 +18,7 @@ struct Identity {
     child_bounds: (i32, i32, i32, i32),
     dpi: u32,
 }
-/// 仅保存标识与物理坐标，不持有 HWND 所有权；每次操作重新检查，不跨线程传递 UI 状态。
+/// Retain only identifiers/physical coordinates, not HWND ownership; revalidate every operation, without cross-thread UI state.
 #[derive(Clone)]
 pub struct Target {
     identity: Identity,
@@ -45,7 +45,7 @@ fn center(region: Region) -> Result<(i32, i32), String> {
         .top
         .checked_add(region.height / 2)
         .ok_or("Scroll point overflow")?;
-    // WM_MOUSE(W)HEEL 的坐标是有符号 16 位，拒绝截断到另一显示器。
+    // WM_MOUSE(W)HEEL coordinates are signed 16-bit; reject truncation into another monitor.
     i16::try_from(x).map_err(|_| "Scroll point exceeds message coordinate range")?;
     i16::try_from(y).map_err(|_| "Scroll point exceeds message coordinate range")?;
     Ok((x, y))
@@ -105,7 +105,7 @@ fn send_checked(
     if target.identity != current {
         return Err("Scroll target changed or moved".into());
     }
-    // 同线程 SendMessageTimeout 会忽略超时；禁止该路径，而非声称仍有超时保护。
+    // Same-thread SendMessageTimeout ignores timeouts; forbid this path rather than claiming timeout protection remains.
     if current.thread == caller_thread {
         return Err("Scroll target must use a different thread".into());
     }
@@ -131,7 +131,7 @@ impl Target {
     pub(in crate::desktop) fn root(&self) -> isize {
         self.identity.root
     }
-    /// 通知只提供采样提示；同一根窗口里的无关子窗也不能重新授权目标。
+    /// Notifications provide sampling hints only; unrelated child windows under the same root cannot reauthorize targets.
     pub(in crate::desktop) fn accepts_point(&self, point: POINT) -> Result<bool, String> {
         self.validate()?;
         unsafe {
@@ -141,7 +141,7 @@ impl Target {
                 && (hit == bound || IsChild(bound, hit).as_bool()))
         }
     }
-    /// 仅更新同一目标内的物理滚轮坐标，不重新命中或授权另一个窗口。
+    /// Update only physical wheel coordinates within the same target; never re-hit-test/authorize another window.
     pub fn relocate(&self, region: Region) -> Result<Option<Self>, String> {
         self.validate()?;
         self.region_target(region)
@@ -162,7 +162,7 @@ impl Target {
         if region.left < left || region.top < top || moved_right > right || moved_bottom > bottom {
             return Ok(None);
         }
-        // 超出原窗口或滚轮坐标范围只撤销滚动能力，不限制桌面取景框移动或授权新窗口。
+        // Exceeding original-window/wheel-coordinate bounds revokes scrolling only, without restricting desktop viewfinder movement or authorizing new windows.
         let Ok(point) = center(region) else {
             return Ok(None);
         };
@@ -211,7 +211,7 @@ impl Target {
         }
         Ok(())
     }
-    /// 必须在显示长截图控制窗口前、用户确认选区后绑定。禁止将 Otter 自己作为滚动目标。
+    /// Bind after user selection confirmation but before showing scrolling-capture controls; Otter itself cannot be a scroll target.
     pub fn bind(region: Region) -> Result<Self, String> {
         let point = center(region)?;
         unsafe {
@@ -238,8 +238,8 @@ impl Target {
             })
         }
     }
-    /// 只能从独立 worker 调用。一次发送一格，不提升权限、不重试或转发到父窗口。
-    /// 返回成功仅证明消息交付，后续仍必须用截图分析判断实际运动。
+    /// Call only from independent workers. Send one notch at a time, without privilege escalation, retries, or forwarding to parents.
+    /// Success proves only message delivery; subsequent screenshot analysis must still determine actual movement.
     pub fn step(&self, axis: Axis, forward: bool, cancel: &AtomicBool) -> Result<(), String> {
         if cancel.load(Ordering::Acquire) {
             return Err("Scroll cancelled".into());

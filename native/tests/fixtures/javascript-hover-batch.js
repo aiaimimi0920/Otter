@@ -1,4 +1,4 @@
-// ancestor listener 处理无按键 move/leave；沿原测试 Grant 发两项动作，业务不固定在 Rust。
+// Ancestor listeners handle button-free move/leave; send two actions under the original test Grant, without hardcoding business logic in Rust.
 let status, quote, count = 0, hovering = false;
 NeuroSurface.define({
   mount({ root, snapshot, emit }) {

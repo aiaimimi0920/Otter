@@ -1,4 +1,4 @@
-//! 按桌面 Z 序缓存有限窗口边界；选区悬停不反复枚举窗口，不读取标题或进程数据。
+//! Cache bounded window bounds in desktop Z order; selection hover does not repeatedly enumerate windows or read titles/process data.
 use windows::{
     core::Result,
     Win32::{Foundation::*, Graphics::Dwm::*, UI::WindowsAndMessaging::*},
@@ -8,7 +8,7 @@ const LIMIT: usize = 2048;
 pub(super) fn snapshot() -> Result<Vec<RECT>> {
     collect(|_, rect| rect)
 }
-/// Live 使用相同的准入规则，随后根据 HWND 绑定来源身份。
+/// Live uses the same admission rules, then binds source identity from HWND.
 pub(super) fn handles() -> Result<Vec<HWND>> {
     collect(|hwnd, _| hwnd)
 }
@@ -16,7 +16,7 @@ fn collect<T, F: FnMut(HWND, RECT) -> T>(project: F) -> Result<Vec<T>> {
     let mut windows = Vec::new();
     let mut state = (&mut windows, project);
     unsafe {
-        // EnumWindows 同步回调，state 在所有回调结束前保持有效。
+        // EnumWindows callbacks are synchronous; state remains valid until every callback returns.
         EnumWindows(
             Some(enumerate::<T, F>),
             LPARAM(&mut state as *mut (&mut Vec<T>, F) as isize),
@@ -29,7 +29,7 @@ unsafe extern "system" fn enumerate<T, F: FnMut(HWND, RECT) -> T>(
     parameter: LPARAM,
 ) -> windows::core::BOOL {
     let (windows, project) = &mut *(parameter.0 as *mut (&mut Vec<T>, F));
-    // 达到上限后不再查询窗口，但不能把正常截断当成枚举失败。
+    // Stop querying windows at the limit, but do not treat normal truncation as enumeration failure.
     if windows.len() < LIMIT {
         if let Some(rect) = eligible_bounds(hwnd) {
             windows.push(project(hwnd, rect));

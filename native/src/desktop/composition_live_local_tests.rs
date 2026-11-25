@@ -1,4 +1,4 @@
-//! 当前线程键盘快照和隐藏 HWND 验证，不向桌面注入输入。
+//! Verification with current-thread keyboard snapshots and hidden HWNDs; no desktop input injection.
 use super::*;
 use crate::{desktop::Apartment, live_frames::Source};
 struct Keys([u8; 256]);

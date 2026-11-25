@@ -1,4 +1,4 @@
-//! 显式分享/接受固定当前工作区和原菜单来源；后台只获得不可变值，不携带 HWND。
+//! Explicit sharing/acceptance fixes the current workspace and original menu source; background work receives only immutable values, never HWNDs.
 use super::*;
 use crate::desktop::device_authorization_ui::account::Request;
 impl Application {

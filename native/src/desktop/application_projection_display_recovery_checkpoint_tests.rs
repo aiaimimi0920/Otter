@@ -1,4 +1,4 @@
-//! 原始像素/逻辑投影、manual save 新 Source 与非 canonical 恢复副本边界。
+//! Original pixels/logical projection, new Source from manual save, and noncanonical recovery-copy boundaries.
 use super::*;
 
 #[test]

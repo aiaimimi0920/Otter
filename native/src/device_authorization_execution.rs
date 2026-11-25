@@ -1,7 +1,7 @@
-//! 执行停止与认证撤销分离；只为同一串行 owner 留下有界清理机会。
+//! Separate execution stop from authentication revocation; leave bounded cleanup opportunity only for the same serial owner.
 use super::*;
 
-/// 停止方仅持有取消能力，不借用或转移原凭据。
+/// The stopper holds only cancellation capability, without borrowing or transferring original credentials.
 pub(crate) struct ExecutionStop(Arc<State>);
 impl ExecutionStop {
     pub(crate) fn stop(&self) {
@@ -17,7 +17,7 @@ impl State {
 }
 
 impl Lease {
-    /// 宿主停止立即中断执行网络/child 等待，但不是撤销认证，也不允许恢复执行。
+    /// Host stop immediately interrupts execution-network/child waits; it neither revokes authentication nor permits execution resumption.
     pub(crate) fn stop_execution(&self) {
         self.state.stop_execution();
     }
@@ -30,7 +30,7 @@ impl Lease {
     pub(crate) fn execution_notification(&self) -> std::io::Result<Notification> {
         self.state.execution_watch.notification()
     }
-    /// 执行与清理仍串行，不新建凭据或租约；授权撤销同时取消两个网络信号。
+    /// Execution/cleanup remain serial without new credentials or leases; authorization revocation cancels both network signals.
     pub(crate) fn execution_control<'a>(
         &'a self,
         client: &'a Client,

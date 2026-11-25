@@ -1,4 +1,4 @@
-//! 用户明确的 HTTPS OpenArt 意图进入本地链；消费时重新检查发起节点，绝不从旧 WSS 目录猜 origin。
+//! Explicit user HTTPS OpenArt intent enters the local chain; recheck the initiating node at consumption and never guess origin from an old WSS catalog.
 use super::Application;
 use crate::device_authorization_config::Config;
 impl Application {
@@ -20,13 +20,13 @@ impl Application {
             .iter()
             .find(|document| {
                 document.state.unit_id.as_str() == node
-                    // Application 在所属 UI 线程持有 DocumentWindow，检查同时比较 userdata 身份。
+                    // Application owns DocumentWindow on its UI thread; validation also compares userdata identity.
                     && unsafe { document.is_alive() }
                     && self.workspace.contains(&document.state.unit_id)
             })
             .ok_or("Art 发起节点已关闭或被替换")?;
         let now = crate::desktop::surface_windows::now_ms().map_err(|_| "无法读取授权时钟")?;
-        // 只允许新owner中无在线会话的origin尝试离线；拒绝/容量不足不降级。
+        // Only origins without an online session in the new owner may attempt offline use; rejection/capacity exhaustion never falls back.
         let lease = match self.authorization_owner.lease(origin, now) {
             Ok(lease) => lease,
             Err(crate::device_authorization_owner::Error::Credential)

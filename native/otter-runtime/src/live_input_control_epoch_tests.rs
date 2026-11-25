@@ -1,4 +1,4 @@
-//! 后端固定原控制周期与原 held 清理；只使用自有 fixture，不安装 DLL 或操作外部应用。
+//! The backend fixes the original control epoch and original held cleanup; owned fixtures only, without installing DLLs or operating external applications.
 use super::*;
 use crate::live_input::Backend as _;
 use crate::live_input_worker::{Command, Reason, Worker};
@@ -39,7 +39,7 @@ fn revoked_worker_rejects_preflight_send_and_native_preparation_before_installin
     assert!(backend.hover_binding.is_none());
     assert!(backend.hovered.is_none());
     assert!(backend.mouse.is_none());
-    // 清理资格不随控制周期一起丢弃：原目标仍必须能接收欠下的释放。
+    // Cleanup eligibility survives control-epoch removal: the original target must still receive outstanding releases.
     assert!(backend.cleanup_target(target).is_some());
     assert_eq!(backend.leave().failed, 0);
     let current = fixture.owner.identity().capture_control().unwrap();

@@ -1,4 +1,4 @@
-//! JS 输入沿原 HWND 候选身份和 batch owner；一个 listener/emit 批次未消费前不接第二次点击。
+//! JS input retains original HWND-candidate identity and batch ownership; accept no second click before a listener/emit batch is consumed.
 use super::*;
 impl AuthorizedWindow {
     pub(in crate::desktop::surface_authorized_window) fn validate_javascript_input_viewport(
@@ -116,7 +116,7 @@ impl AuthorizedWindow {
                 Ok(())
             })();
             if let Err(error) = submitted {
-                // 邮箱唤醒失败可能已交付命令；销毁自有会话，不能把 ticket 归队后重放。
+                // Mailbox wake failure may follow command delivery; destroy the owned session rather than requeue/replay the ticket.
                 self.fail_javascript("JS text input submission failed".into())?;
                 return Err(error);
             }
@@ -131,7 +131,7 @@ impl AuthorizedWindow {
             return Ok(None);
         }
         let target = pending.target().to_owned();
-        // 与声明式点击共用场景身份、命中和键盘焦点门；DOM 不得直接声明远端动作。
+        // Share scene identity, hit testing, and keyboard-focus gates with declarative clicks; DOM cannot directly declare remote actions.
         if !self
             .window
             .prepare_deferred(pending, &current.binding, self.snapshot_revision)?
@@ -160,7 +160,7 @@ impl AuthorizedWindow {
                 .map_err(|error| Error::new(E_FAIL, error.to_string()))
         })();
         if let Err(error) = submitted {
-            // 写槽后唤醒可能失败；退役原会话，不恢复或重放点击。
+            // Waking after slot writes may fail; retire the original session without restoring/replaying clicks.
             self.fail_javascript("JS click submission failed".into())?;
             return Err(error);
         }
@@ -170,7 +170,7 @@ impl AuthorizedWindow {
         &mut self,
         frame: crate::surface_javascript::Frame,
     ) -> Result<()> {
-        // 后台只读 operation 开始的视口；resize/DPI 竞态不重跑 listener，也不提交过期尺寸。
+        // Background work reads only the operation-start viewport; resize/DPI races neither rerun listeners nor commit stale dimensions.
         if self
             .javascript
             .as_ref()
@@ -227,7 +227,7 @@ impl AuthorizedWindow {
         if let Some(id) = &local_input {
             self.window.settle_javascript_ticket(id)?;
         }
-        // 回复仅含意图；过期/失焦/后台/撤权不重试，也不能绕过真实 change/FIFO。
+        // Replies carry intent only; expiry, focus loss, background state, or revocation permit no retries or bypass of actual change/FIFO.
         let input_authorized = self.is_shown()
             && self.stopped.is_none()
             && self.lifecycle.owner().is_some_and(Owner::confirmed_active);
@@ -244,7 +244,7 @@ impl AuthorizedWindow {
             )?;
         }
         if let Some(id) = local_input {
-            // blur 的真实失焦先进入原 FIFO，再核焦点/epoch；取消或失效默认不归队重放。
+            // Actual blur focus loss enters the original FIFO before focus/epoch checks; cancelled/invalid defaults are not requeued/replayed.
             self.window.complete_javascript_edit(
                 &id,
                 frame

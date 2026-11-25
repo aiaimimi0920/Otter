@@ -1,4 +1,4 @@
-//! 单字段异步草稿；权威值更新与请求完成分离，不把提交中的本地编辑提前覆盖。
+//! Single-field asynchronous draft; separate authoritative-value updates from request completion without prematurely overwriting local edits during submission.
 use std::{collections::BTreeSet, rc::Rc};
 
 pub const MAX_VALUE_BYTES: usize = 48 * 1024;
@@ -52,7 +52,7 @@ impl Draft {
         self.value = value.to_owned();
         Ok(())
     }
-    /// 同一作用域、未变化的权威字符串不能冲掉无异步 handler 的本地输入。
+    /// Within the same scope, an unchanged authoritative string must not overwrite local input without an asynchronous handler.
     pub fn synchronize(&mut self, source: &str) -> Result<(), Error> {
         validate(source)?;
         if source != self.source {
@@ -63,7 +63,7 @@ impl Draft {
         }
         Ok(())
     }
-    /// 异步派发前预留容量；派发未启动时 cancel，实际结果返回时 settle。不是动作权限。
+    /// Reserve capacity before asynchronous dispatch; cancel if dispatch never starts, and settle when the actual result returns. This is not action permission.
     pub fn begin(&mut self) -> Result<Ticket, Error> {
         if self.pending.len() >= MAX_PENDING {
             return Err(Error::Pending);
@@ -76,7 +76,7 @@ impl Draft {
             sequence,
         })
     }
-    /// 旧 scope、外来或重复回执不生效；所有当前请求结算后才采用最新权威值。
+    /// Old-scope, foreign, or duplicate replies have no effect; adopt the latest authoritative value only after all current requests settle.
     pub fn settle(&mut self, ticket: Ticket) -> bool {
         if !self.cancel(ticket) {
             return false;
@@ -86,11 +86,11 @@ impl Draft {
         }
         true
     }
-    /// 未成功启动的任务释放预留，不把用户尚未提交的本地值回滚到旧权威值。
+    /// Release reservations for tasks that did not start successfully, without rolling back the user's unsubmitted local value to an old authoritative value.
     pub fn cancel(&mut self, ticket: Ticket) -> bool {
         Rc::ptr_eq(&self.scope, &ticket.scope) && self.pending.remove(&ticket.sequence)
     }
-    /// binding/node 身份变化时由上层明确重置；不能仅因 revision 变化就重置。
+    /// The upper layer explicitly resets when binding/node identity changes; a revision change alone must not reset it.
     pub fn reset(&mut self, source: &str) -> Result<(), Error> {
         let next = Self::new(source)?;
         *self = next;

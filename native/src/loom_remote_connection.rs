@@ -1,4 +1,4 @@
-//! 显式导入的远端 Loom 配置；只保存公开地址和证书，身份与会话沿现有设备协议。
+//! Explicitly imported remote Loom configuration stores only public addresses/certificates; identity/sessions use existing device protocols.
 use crate::{
     device_identity_store::Store,
     device_request_cancel::Cancel,
@@ -153,7 +153,7 @@ fn read_identity(client: &Client, cancel: &Cancel) -> Result<String, Error> {
         .ok_or(Error::Response)
 }
 
-/// 只在同一次连接内移交已核验的配置、客户端与信任根；续签重新读取 TLS 身份。
+/// Transfer verified configuration/client/trust roots only within the same connection; renewal rereads TLS identity.
 pub(crate) struct Verified {
     document: Document,
     client: Client,
@@ -196,7 +196,7 @@ impl Verified {
         }
         let store = Store::new(profile).map_err(|_| Error::Store)?;
         let mut loaded = store.load_or_create().map_err(|_| Error::Store)?;
-        // 只在首次明确导入连接且尚无设备关联时注册；撤权或续签失败绝不重新配对。
+        // Register only on first explicit connection import when no device association exists; never re-pair after revocation/renewal failure.
         if document.device_id.is_none() {
             let name = std::env::var("COMPUTERNAME").unwrap_or_else(|_| "Otter".into());
             let body = zeroize::Zeroizing::new(serde_json::to_vec(&serde_json::json!({"name":name,"publicKey":loaded.identity().public_key().map_err(|_| Error::Store)?,"password":password})).map_err(|_| Error::Response)?);

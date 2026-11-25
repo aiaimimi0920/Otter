@@ -1,7 +1,7 @@
-//! 真实自有控件→受限MTA child；独立常量oracle、密码排除、取消/进程与容量回收。
+//! Real owned controls to constrained MTA child; independent constant oracle, password exclusion, cancellation/process/capacity reclamation.
 use super::*;
 use crate::live_source_uia_test_window::Window;
-// 两个父测试检查同一进程内的累计额度；并行 libtest 时避免互相影响零值断言。
+// Two parent tests inspect cumulative quotas in the same process; prevent interference with zero-value assertions under parallel libtest.
 static CAPACITY_TEST: std::sync::Mutex<()> = std::sync::Mutex::new(());
 #[test]
 fn source_uia_private_mode_and_frame_limits_are_strict() {

@@ -1,4 +1,4 @@
-//! 工具属性与已提交标注分离；构造时约束数值，避免异常线宽进入 GPU。
+//! Tool properties remain separate from committed annotations; bound numbers at construction to keep invalid stroke widths out of GPU.
 #[path = "stroke_paint_alpha.rs"]
 pub mod paint_alpha;
 pub use paint_alpha::PaintAlpha;
@@ -13,7 +13,7 @@ pub enum DashPattern {
     DashDot,
 }
 impl DashPattern {
-    /// 旧格式 dash-1/dash-2 的图像空间长度，不随线宽改变。
+    /// Image-space lengths for legacy dash-1/dash-2, independent of stroke width.
     pub fn segments(self) -> &'static [f32] {
         match self {
             Self::Solid => &[],
@@ -71,7 +71,7 @@ impl StrokeStyle {
         }
         self.with_mosaic_cell_value(cell as f32)
     }
-    // 输入控件限制 2–64，但变换必须保留小数及超出控件范围的有效尺寸。
+    // Input controls limit 2-64, but transformations must preserve valid fractional/out-of-control-range dimensions.
     pub fn with_mosaic_cell_value(mut self, cell: f32) -> Option<Self> {
         if !cell.is_finite() || cell <= 0.0 || cell > 1_000_000.0 {
             return None;
@@ -93,7 +93,7 @@ impl StrokeStyle {
             ..Self::default()
         })
     }
-    /// 恢复/变换域独立于控件域；wire缩放后仍有界，不饱和截断合法值。
+    /// Restore/transform domains are independent of controls; scaled wire values remain bounded without saturating valid values.
     pub fn restored(width: f32, color: Color) -> Option<Self> {
         Self::default().with_color(color).with_width_value(width)
     }
@@ -192,7 +192,7 @@ mod tests {
     use super::*;
     #[test]
     fn defaults_match_baseline_creation_settings() {
-        // 固定基线 stickerEditingDefaults.ts，避免恢复为早期原生演示参数。
+        // Fix the stickerEditingDefaults.ts baseline rather than restoring early native-demo parameters.
         let style = StrokeStyle::default();
         assert_eq!(style.width(), 3.0);
         assert_eq!(style.color(), Color(239, 68, 68));

@@ -1,4 +1,4 @@
-//! 主干贴图设置的逻辑像素几何；最终才转换物理像素，并遵守原生渲染预算。
+//! Logical-pixel geometry for mainline pin settings; convert to physical pixels only at the end and honor native rendering budgets.
 use crate::pin_geometry::PinRect;
 use windows::Win32::Foundation::RECT;
 fn round(value: f64) -> f64 {

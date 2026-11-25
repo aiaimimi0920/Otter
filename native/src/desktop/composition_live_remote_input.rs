@@ -1,4 +1,4 @@
-//! 远程控制复用Session唯一输入worker；后台单槽请求须等真实执行/释放结果，保护生命期不变。
+//! Remote control reuses Session's sole input worker; background single-slot requests await actual execution/release results, preserving protection lifetime.
 use super::*;
 use crate::live_relay_source_runtime::input::{Action, Bridge, Error as InputError, Request};
 use std::sync::Arc;

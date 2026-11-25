@@ -1,4 +1,4 @@
-//! 上下行选择走正式消息、Host 与自动显露；线程键状态在退出时恢复。
+//! Up/down line selection uses production messages, Host, and automatic reveal; restore thread-key state on exit.
 use super::*;
 fn multiline() -> SurfaceWindow {
     let scene = Scene::parse(br#"{"id":"root","type":"scroll","layout":{"width":100,"height":45},"children":[{"id":"text","type":"text","props":{"text":"WWWW\nI\nWWWW\nI\nWWWW","selectable":true},"style":{"fontSize":20,"whiteSpace":"pre"},"layout":{"width":100,"height":200,"minHeight":200}}]}"#).unwrap();

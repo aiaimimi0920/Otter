@@ -1,4 +1,4 @@
-//! 与主干形状设置相同的有界文本输入；解析失败不得覆盖当前配置。
+//! Bounded text input matching mainline shape settings; parsing failures never overwrite current configuration.
 pub fn ratio(text: &str) -> Option<f32> {
     if text.encode_utf16().count() > 32 {
         return None;

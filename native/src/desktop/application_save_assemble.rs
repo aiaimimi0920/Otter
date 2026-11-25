@@ -1,4 +1,4 @@
-//! 冻结工作区到整会话候选；内容编码由调用方提供，禁止把几何候选直接提交磁盘。
+//! Freeze a workspace into a complete session candidate; the caller supplies content encoding, and geometry-only candidates must never commit directly to disk.
 use super::{Data, Document, FrozenData};
 use crate::{
     session_write::{self, Candidate, Error, WindowCandidate},
@@ -8,7 +8,7 @@ use serde_json::{Map, Value};
 use std::sync::atomic::AtomicBool;
 
 impl Data {
-    /// 后台完整内容候选入口；仍须在 UI 复核 Receipt 并由磁盘事务提交，不能直接发布。
+    /// Background complete-content candidate entry point; still requires UI Receipt revalidation and a disk-transaction commit, not direct publication.
     pub fn encode(mut self, cancel: &AtomicBool) -> Result<Candidate, Error> {
         if cancel.load(std::sync::atomic::Ordering::Acquire) {
             return Err(Error::Cancelled);
@@ -43,7 +43,7 @@ impl Data {
             Ok(candidate)
         })
     }
-    /// 仅跳过仍为空的初始宿主。曾编辑、钉图、分组、连线或选择 Art 后必须成为保存对象。
+    /// Skip only an initial host that remains empty. Editing, pinning, grouping, linking, or selecting Art makes it a required save object.
     fn omit_host(&self, doc: &Document) -> bool {
         self.transient_host.as_ref() == Some(&doc.unit)
             && !self
@@ -82,7 +82,7 @@ impl Data {
                 .any(|link| link.from_unit == doc.unit || link.to_unit == doc.unit)
     }
 
-    /// content 必须完成图片、裁剪和标注编码；它消费快照，不能访问活动 HWND 或发布副作用。
+    /// content must encode images, cropping, and annotations; it consumes snapshots and must neither access active HWNDs nor publish side effects.
     pub fn assemble(
         self,
         cancel: &AtomicBool,
@@ -123,7 +123,7 @@ impl Data {
                 })
                 .collect(),
         };
-        // 先验证原始列表，不能让 HashMap 的覆盖语义掩盖重复窗口身份。
+        // Validate the original list first so HashMap overwrite semantics cannot hide duplicate window identities.
         let mut ids = std::collections::HashSet::new();
         if self
             .documents
@@ -229,7 +229,7 @@ fn merge_document(
     else {
         return Err(Error::Window);
     };
-    // 缺少当前会话owner时不能把原文中的旧快照原样带回，避免删除/reset后复活。
+    // Without the current session owner, do not carry old snapshots unchanged from source content and revive them after deletion/reset.
     fields.remove(crate::projection_edit::workspace::FIELD);
     if let Some(extensions) = &doc.extensions {
         extensions.write(&mut fields).map_err(|_| Error::Window)?;

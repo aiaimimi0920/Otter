@@ -1,4 +1,4 @@
-//! 显式菜单请求驱动原生确认与决定任务；消息泵返回后再次检查退出/服务切换。
+//! Explicit menu requests drive native confirmation and decision tasks; recheck exit/service switches after returning from the message pump.
 use super::*;
 use crate::desktop::composition::relay::sessions::ConfirmationAction;
 use crate::surface_decision_runtime::{Error as DecisionError, Evidence};

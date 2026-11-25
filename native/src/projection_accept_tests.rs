@@ -1,4 +1,4 @@
-//! 严格响应/完整 PNG/确定会话身份；图片与协议夹具供原 TLS/runtime 测试共用。
+//! Strict responses/complete PNGs/deterministic session identity; image/protocol fixtures shared by original TLS/runtime tests.
 use super::*;
 use serde_json::{json, Value};
 pub(crate) fn png() -> Vec<u8> {

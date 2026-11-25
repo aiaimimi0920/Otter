@@ -1,4 +1,4 @@
-//! 冻结帧的单像素取色；不绘制局部放大图，不复制采样块或重新截图。
+//! Single-pixel color sampling from frozen frames; no local magnifier drawing, sample-block copies, or recapture.
 use super::image::Image;
 use windows::Win32::Foundation::POINT;
 

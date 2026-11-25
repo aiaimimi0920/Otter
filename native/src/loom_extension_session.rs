@@ -1,4 +1,4 @@
-//! 原生扩展会话、授权和命令交换；沿用本机 TLS/Hook 身份，结果副作用仍由文档 owner 审核提交。
+//! Native extension sessions, authorization, and command exchange use local TLS/Hook identity; document owners still review/commit result effects.
 use crate::{
     extension_when::Context,
     loom_bridge_client::BridgeSocket,
@@ -81,7 +81,7 @@ fn request_id() -> Result<String, Error> {
     ))
 }
 impl Session {
-    /// 只供后台 owner 调用；本函数不读取发现文件、不创建线程，不接受 UI 任意 URL。
+    /// Background owners only; no discovery-file reads, thread creation, or arbitrary UI URLs.
     pub fn open(identity: &Identity, cancel: &AtomicBool) -> Result<Self, Error> {
         if cancel.load(Ordering::Acquire) {
             return Err(Error::Cancelled);
@@ -124,12 +124,12 @@ impl Session {
     pub fn supports_ocr_text(&self) -> bool {
         self.ocr_text
     }
-    /// 只读目录投影，不签发资源许可；会话 owner 必须在终止时撤销其 UI 引用。
+    /// Read-only catalog projection, not resource-permit issuance; session owners must revoke UI references on termination.
     pub fn snapshot_handle(&self) -> Option<Arc<Snapshot>> {
         self.socket.as_ref()?;
         self.snapshot.clone()
     }
-    /// 后台订阅阻塞等待真正的目录换代；不发轮询 RPC，取消沿现有 Interrupt 唤醒。
+    /// Background subscriptions block for actual catalog-generation changes; no polling RPCs, and cancellation wakes through existing Interrupt.
     pub fn wait_update(&mut self, cancel: &AtomicBool) -> Result<(), Error> {
         let result = wire::wait_update(
             self.socket.as_mut().ok_or(Error::Closed)?,
@@ -150,7 +150,7 @@ impl Session {
             .interrupt_handle()
             .map_err(|_| Error::Closed)
     }
-    /// 真实远端 checkOnly 校验，不签发资源 lease；执行和附件 CAS 仍需各自事务。
+    /// Actual remote checkOnly validation without resource-lease issuance; execution and attachment CAS still require their own transactions.
     pub fn authorize(
         &mut self,
         command: &str,
@@ -179,7 +179,7 @@ impl Session {
             Duration::from_secs(5),
             cancel,
         );
-        // 目录换代后连成功响应也不代表旧按钮的权限仍有效，不重放这个请求。
+        // After catalog-generation changes, even successful responses do not prove old-button permissions remain valid; never replay this request.
         let result = result.and_then(|data| {
             if data["authorized"] != true {
                 return Err(Error::Denied);
@@ -204,7 +204,7 @@ impl Session {
         result
     }
     fn stop(&mut self) {
-        // 不保留失败会话的旧 authority 或空闲连接；由同一 owner 关闭，无后台重试。
+        // Do not retain failed sessions' old authority or idle connections; the same owner closes them without background retries.
         self.snapshot = None;
         self.socket = None;
     }
@@ -230,7 +230,7 @@ fn remaining(
         .map_err(|_| transport_error(cancel))
 }
 
-// Interrupt 可在调用前的取消检查与实际 I/O 之间生效；错误分类必须再次观察取消 owner。
+// Interrupt can take effect between pre-call cancellation checks and actual I/O; error classification must recheck the cancellation owner.
 fn transport_error(cancel: &AtomicBool) -> Error {
     if cancel.load(Ordering::Acquire) {
         Error::Cancelled

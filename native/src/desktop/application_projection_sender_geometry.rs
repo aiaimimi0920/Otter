@@ -1,4 +1,4 @@
-//! 仅无 raster/logical frame 的发送回退读取 HWND；复用原 Document 围栏，不新增窗口或持久化 owner。
+//! Only send fallback without a raster/logical frame reads HWND geometry; reuse the original Document fence without new windows or persistence owners.
 use super::*;
 use crate::{
     desktop::export::projection::Geometry, pin_geometry::PinRect, session_placement::Space,
@@ -25,7 +25,7 @@ impl Captured {
             if !mini.matches(&canvas.editor) {
                 return Err(stale());
             }
-            // annotations 是当前 expanded/savedRect 外框；image 可能是 contain/crop 源框。
+            // annotations uses the current expanded/savedRect outer frame; image may use a contain/crop source frame.
             Geometry::Expanded(mini.geometry().0.annotations.size)
         } else {
             let mut rect = RECT::default();

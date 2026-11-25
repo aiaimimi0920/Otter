@@ -1,8 +1,8 @@
-//! 键盘扩选按场景顺序进入相邻可选择 owner，上下行转换列坐标；不跨出当前 Surface。
+//! Keyboard extension enters adjacent selectable owners in scene order and converts column coordinates across lines; never leave the current Surface.
 use super::*;
 pub(super) fn adjacent(selection: &mut Selection, text: &TextFrame, forward: bool) {
     if let Some(item) = neighbor(text, &selection.focus_node, forward) {
-        // 跨节点这一步只进入端点，不额外跳过目标的首个/末个字素。
+        // This cross-node step only enters the endpoint without additionally skipping the target's first/last grapheme.
         selection.focus_node = item.node_id().to_owned();
         selection.focus = if forward { 0 } else { item.layout().text_len() };
     }
@@ -31,7 +31,7 @@ pub(super) fn vertical(selection: &mut Selection, text: &TextFrame, down: bool) 
         if let Some(next) = neighbor(text, &selection.focus_node, down) {
             let edge = if down { 0 } else { next.layout().text_len() };
             let (_, row) = next.layout().line_edge(edge, !down, None)?;
-            // 保留全局列意图，转换成新 owner 的局部列；不能直接复用旧局部 x。
+            // Preserve global column intent and convert it to the new owner's local column; never directly reuse the old local x.
             let target = [point[0] + item.origin()[0] - next.origin()[0], row[1]];
             let hit = next.layout().hit_text(target)?;
             selection.focus_node = next.node_id().to_owned();

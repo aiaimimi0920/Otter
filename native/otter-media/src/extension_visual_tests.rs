@@ -1,4 +1,4 @@
-//! 对照主干的 OCR/译文缓存显隐、来源凭证与场景白名单；只使用合成目录和附件。
+//! Match mainline OCR/translation-cache visibility, provenance receipts, and scene allowlists using synthetic catalogs/attachments only.
 use super::*;
 use crate::{unit_attachment_json, unit_attachment_store::tests as f};
 use serde_json::json;

@@ -1,4 +1,4 @@
-//! 在当前获授权窗口与 Art 节点间交付正式输出；不删除收据、不下载描述符资源。
+//! Deliver committed outputs between currently authorized windows and Art nodes, without deleting receipts or downloading descriptor resources.
 use super::*;
 impl Application {
     pub(in crate::desktop::application) fn apply_surface_outputs(&mut self, now: u64) {
@@ -9,7 +9,7 @@ impl Application {
             }
             view.origin.clone()
         };
-        // 附件 owner 的一次性注册先于结果消费；普通交付不再自行首次绑定/换绑。
+        // One-shot attachment-owner registration precedes result consumption; ordinary delivery no longer performs initial binding/rebinding itself.
         for window in self.surface_windows.iter_mut() {
             if !window.result_binding_pending()
                 || origin.as_deref() != Some(window.binding().origin())
@@ -50,7 +50,7 @@ impl Application {
                 self.authorization.borrow_mut().status = format!("Surface 节点绑定未完成：{error}");
             }
         }
-        // 无新结果时不分配通知缓存；首次写入前一次预留每节点最多一条通知。
+        // With no new results, allocate no notification cache; reserve once before the first write for at most one notification per node.
         let mut changed = Vec::new();
         self.remote_sessions
             .visit_surface_outputs(|binding, commit, revision| {
@@ -74,7 +74,7 @@ impl Application {
                 {
                     return;
                 }
-                // refresh 之后再借用状态，防止窗口关闭同步重入时发生 RefCell 冲突。
+                // Borrow state after refresh to prevent RefCell conflicts from synchronous reentry during window closure.
                 let view = self.authorization.borrow();
                 if view.closed
                     || view.busy
@@ -116,7 +116,7 @@ impl Application {
                     }
                 }
             });
-        // 所有结果借用已释放，再调用既有传播入口；执行仍由主循环统一准入。
+        // Release all result borrows before invoking existing propagation; execution admission still belongs to the main loop.
         for unit in changed {
             unsafe {
                 self.propagate_result(unit);

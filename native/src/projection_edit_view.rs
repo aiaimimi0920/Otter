@@ -1,4 +1,4 @@
-//! 协作视图保留basis真值；本地缩放不是用户编辑，也不能借普通session重编号或裁剪wire。
+//! Collaborative views preserve authoritative basis; local scaling is not user editing and ordinary sessions cannot renumber/crop wire data.
 use super::{objects, Basis, Change, Document, Objects};
 use serde_json::Value;
 use std::{collections::BTreeSet, sync::Arc};
@@ -8,7 +8,7 @@ mod mapping;
 mod merge;
 pub use merge::{reconcile, Conflict, Reconciliation};
 
-// 内部派生坐标最多扩大JSON数值的位数；网络、日志及单对象预算仍是原v1门。
+// Internally derived coordinates may only increase JSON numeric digit counts; network/journal/per-object budgets remain original v1 gates.
 const MAX_LOCAL_BYTES: usize = super::MAX_BYTES * 4;
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Size {
@@ -43,7 +43,7 @@ pub enum Error {
 pub struct View {
     basis: Basis,
     size: Size,
-    // resize只共享这一棵有界不可变basis树，不累乘平均轴倍率，也不复制像素或历史。
+    // resize shares only this bounded immutable basis tree, without compounding mean-axis scales or copying pixels/history.
     objects: Arc<Objects>,
 }
 impl View {
@@ -53,7 +53,7 @@ impl View {
         }
         bounded(&objects, super::MAX_BYTES)?;
         objects::validate(&objects).map_err(Error::Protocol)?;
-        // 缺省字号只在local派生时补齐，不能让合法的临界16KiB原对象因新增字段被拒绝。
+        // Add default font sizes only during local derivation; added fields must not reject valid original objects at the 16KiB boundary.
         Ok(Self {
             basis: basis.clone(),
             size,
@@ -73,7 +73,7 @@ impl View {
     pub fn basis_objects(&self) -> &Objects {
         &self.objects
     }
-    /// 只输出wire锚点；text的4px inset/字体baseline与serial圆框由平台Editor适配器处理。
+    /// Output only wire anchors; platform Editor adapters handle text's 4px inset/font baseline and serial circular frames.
     pub fn local_objects(&self) -> Result<Objects, Error> {
         let result = mapping::forward(&self.objects, &self.basis, self.size)?;
         bounded(&result, MAX_LOCAL_BYTES)?;
@@ -85,7 +85,7 @@ impl View {
             ..self.clone()
         }
     }
-    /// 全部本地候选先逆映射并通过原v1门；失败不更改当前view或部分发布对象。
+    /// Inverse-map all local candidates and pass original v1 gates first; failure leaves current view unchanged without partial publication.
     pub fn edited(&self, mut local: Objects) -> Result<Self, Error> {
         bounded(&local, MAX_LOCAL_BYTES)?;
         mapping::font_defaults(&mut local);
@@ -93,10 +93,10 @@ impl View {
         let objects = mapping::inverse(&local, &self.objects, &expected, &self.basis, self.size)?;
         Self::from_basis(&self.basis, self.size, objects)
     }
-    /// 稳定ID排序，删除输出null；zIndex不由数组位置重新生成。
+    /// Sort stable IDs and emit null for deletion; never regenerate zIndex from array positions.
     pub fn changes_to(&self, current: &Self) -> Result<Vec<Change>, Error> {
         self.same_basis(current)?;
-        // Web容差作用于当前local空间，不能在basis上舍掉大倍率下真实可见的小改动。
+        // Web tolerance applies in current local space; basis-space rounding must not discard small edits visible at high scale.
         let expected = self.resized(current.size).local_objects()?;
         let local = current.local_objects()?;
         let ids: BTreeSet<_> = expected.keys().chain(local.keys()).collect();
@@ -130,7 +130,7 @@ impl View {
 }
 
 fn validate_changes(changes: &[Change]) -> Result<(), Error> {
-    // 两份各256对象的视图可产生256删除+256新增；发送时仍必须按原32项分批。
+    // Two 256-object views may yield 256 deletions + 256 additions; sending must still use original 32-entry batches.
     if changes.len() > 512 {
         return Err(Error::Limit);
     }
@@ -150,14 +150,14 @@ fn validate_changes(changes: &[Change]) -> Result<(), Error> {
     Ok(())
 }
 
-// 与Web editEqual相同的1e-6舍入边界；不分配第二棵规范化树，数组顺序仍有意义。
+// Same 1e-6 rounding boundary as Web editEqual; no second normalized tree, and array order remains meaningful.
 fn edit_equal(a: &Value, b: &Value) -> bool {
     match (a, b) {
         (Value::Number(a), Value::Number(b)) => {
             let round = |v: &serde_json::Number| {
                 let scaled = v.as_f64().unwrap() * 1e6;
                 let floor = scaled.floor();
-                // 不能floor(n+0.5)：2^52附近的加法本身会舍入，错误合并相邻有效坐标。
+                // Do not use floor(n+0.5): addition near 2^52 itself rounds and wrongly merges adjacent valid coordinates.
                 (if scaled - floor >= 0.5 {
                     floor + 1.0
                 } else {
@@ -182,7 +182,7 @@ fn equal_optional(a: Option<&Value>, b: Option<&Value>) -> bool {
 }
 
 fn bounded(objects: &Objects, limit: usize) -> Result<(), Error> {
-    // 先拒绝深层未知扩展，防止通用Value序列化/复制递归受不可信嵌套控制。
+    // Reject deeply nested unknown extensions first so untrusted nesting cannot control general Value serialization/copy recursion.
     if objects.len() > 256 {
         return Err(Error::Limit);
     }

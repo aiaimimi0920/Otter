@@ -1,4 +1,4 @@
-//! Divider 固定有效属性、布局及原始输入边界。
+//! Divider's fixed effective attributes, layout, and raw-input boundaries.
 use super::*;
 
 #[test]

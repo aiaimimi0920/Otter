@@ -1,4 +1,4 @@
-//! 传统投送的严格 PNG 解码入口；复用 WIC 像素 owner，不改变 Relay 的 JPEG 合同。
+//! Strict PNG decoding for traditional delivery; reuse the WIC pixel owner without changing Relay's JPEG contract.
 use super::*;
 impl Image {
     pub(crate) fn from_projection_png(

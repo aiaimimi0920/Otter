@@ -1,4 +1,4 @@
-//! 原生连线选择框；三个下拉框只引用打开时目录，确认后排队，不在模态中改工作区。
+//! Native link picker; three dropdowns reference opening catalogs only, enqueue on confirmation, and never modify workspaces inside modals.
 use super::link_catalog::Catalog;
 #[cfg(test)]
 use super::State;
@@ -105,7 +105,7 @@ pub(super) unsafe fn apply(
     Ok(true)
 }
 
-/// 调用方拥有应用模态域和确认后来源复核；此处只选择端点，不修改工作区。
+/// Callers own application modal scope and post-confirmation provenance revalidation; this layer selects endpoints without modifying workspaces.
 pub(super) unsafe fn show_outgoing(
     hwnd: HWND,
     catalog: Rc<Catalog>,

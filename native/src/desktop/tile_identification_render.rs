@@ -1,4 +1,4 @@
-//! 原Tile画面内绘制临时识别；只有一个DirectWrite格式，无子窗口/定时器/额外像素面。
+//! Draw temporary identification within existing Tile output; one DirectWrite format, no child windows/timers/extra pixel surfaces.
 use crate::tile_identification::Marker;
 use std::time::Instant;
 use windows::{
@@ -107,7 +107,7 @@ impl Painter {
         let mut metrics = DWRITE_TEXT_METRICS::default();
         layout.GetMetrics(&mut metrics)?;
         if metrics.height > height {
-            // 长物理名称/稳定ID必须完整保留；压缩字号而不是截掉关键身份。
+            // Retain long physical names/stable IDs in full; reduce font size instead of truncating crucial identity.
             layout.SetFontSize(
                 (18. * height / metrics.height).max(0.1),
                 DWRITE_TEXT_RANGE {

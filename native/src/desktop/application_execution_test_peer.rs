@@ -1,4 +1,4 @@
-//! 菜单/参数执行回归专用回环 TLS 对端：验证实际消息与像素，不访问用户服务。
+//! Dedicated loopback TLS peer for menu/parameter execution regressions: verify actual messages and pixels without accessing user services.
 use std::{
     net::TcpListener,
     sync::{atomic::AtomicBool, Arc},

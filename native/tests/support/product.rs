@@ -1,4 +1,4 @@
-//! 集成测试可固定待验收的实际包；显式路径必须绑定摘要，并固定文件到子进程创建后。
+//! Integration tests may pin an actual package for acceptance; explicit paths must bind a digest and keep the file pinned until after child creation.
 use sha2::{Digest, Sha256};
 use std::{
     ffi::OsString,
@@ -56,7 +56,7 @@ impl Product {
                 return Err(invalid());
             }
         }
-        // 只共享读取；hash 完成后仍持有文件，禁止启动前写入/替换候选。
+        // Share read access only; retain the file after hashing to prevent candidate writes/replacement before launch.
         let mut file = std::fs::OpenOptions::new()
             .read(true)
             .share_mode(1)

@@ -1,4 +1,4 @@
-//! 实时选区的自有隐藏 HWND 回归；不采集桌面、不发送系统输入。
+//! Owned hidden-HWND regressions for live selection; no desktop capture or system input.
 use super::*;
 
 fn screen() -> RECT {
@@ -41,7 +41,7 @@ fn transparent_selection_returns_release_bounds_and_destroys_both_layers() {
         assert!(!state(hwnd).done.get());
         SendMessageW(hwnd, WM_LBUTTONUP, None, at(120, 90));
         assert!(state(hwnd).done.get() && state(hwnd).accepted.get());
-        // 终态不接受第二次拖选或取消，仍提交第一次松手矩形。
+        // Terminal state rejects further drag selections/cancellation and still submits the first release rectangle.
         SendMessageW(hwnd, WM_LBUTTONDOWN, None, at(1, 1));
         SendMessageW(hwnd, WM_LBUTTONUP, None, at(2, 2));
         cancel(hwnd);

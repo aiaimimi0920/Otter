@@ -242,7 +242,7 @@ fn failed_last_drop_retains_recovery_until_successful_retry() {
         .arm(Snapshot::read(&window.target()).unwrap(), || Ok(()))
         .unwrap();
     window.change();
-    // 仅夹具破坏快照，稳定注入恢复失败，不依赖权限/系统竞争。
+    // Only the fixture corrupts the snapshot to inject restoration failure deterministically, without relying on permissions/system races.
     let original_rect = {
         let mut saved = lease.0.snapshot.borrow_mut();
         let snapshot = &mut Rc::get_mut(saved.as_mut().unwrap()).unwrap().snapshot;
@@ -310,7 +310,7 @@ fn retirement_failure_is_retained_and_retry_does_not_rewrite_restored_window() {
     assert!(lease
         .arm(Snapshot::read(&window.target()).unwrap(), || Ok(()))
         .is_err());
-    // 窗口已成功恢复后，用户的新修改不能被记录退休重试再次覆盖。
+    // After successful window restoration, registration-retirement retries must not overwrite the user's new changes again.
     window.change();
     ready.set(true);
     lease.restore().unwrap();

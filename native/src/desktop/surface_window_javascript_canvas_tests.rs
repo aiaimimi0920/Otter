@@ -1,4 +1,4 @@
-//! 真 child 的 Canvas 像素经生产图片 owner 进入 HWND；不走测试专用绘图器。
+//! Canvas pixels from actual children enter HWNDs through production image owners, not test-only renderers.
 use super::{
     css_tests::{geometry, pixel, pixels},
     *,
@@ -47,7 +47,7 @@ fn javascript_canvas_real_hwnd_pixels_nonuniform_fit_geometry_frames_resize_and_
     assert_eq!(
         window.javascript_canvas_pixel_for_test(85, 20),
         [0, 255, 0, 255]
-    ); // fill 而非 contain 留黑边。
+    ); // fill rather than contain with black padding.
     install(&window, session.animation_frame(&|| false).unwrap());
     assert_eq!(
         window.javascript_canvas_pixel_for_test(2, 2),

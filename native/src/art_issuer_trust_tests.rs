@@ -1,4 +1,4 @@
-//! 显式配置、真实设置事务与原租约撤销；不读默认 profile，也不信任网络 key。
+//! Explicit configuration, real settings transactions, and original-lease revocation; no default-profile reads or trust in network keys.
 use super::*;
 use crate::{
     device_authorization_lease::Grant, device_identity::Identity, device_session_attempt::Attempt,
@@ -137,6 +137,6 @@ fn settings_commit_reload_and_stale_write_preserve_existing_configuration() {
         .replace(removed.document().art_issuer_trust().unwrap())
         .unwrap();
     assert!(lease.is_revoked());
-    // 测试环境 TEMP/TMP 必须由本批 gate 指向 linshi；只回收本测试自建目录。
+    // This batch's gate must point test TEMP/TMP to linshi; reclaim only directories created by this test.
     std::fs::remove_dir_all(root).unwrap();
 }

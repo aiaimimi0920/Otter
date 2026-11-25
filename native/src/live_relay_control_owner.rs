@@ -1,4 +1,4 @@
-//! 独占控制游标与媒体许可；只在完整消费后提交，暂态GET损失交原runtime有限恢复，其余失败关闭。
+//! Exclusive control cursor/media permission; commit only after full consumption, bounded original-runtime recovery for transient GET loss, otherwise fail closed.
 use crate::{
     live_relay_http::{Control, Error as HttpError, Prepared, RequesterCursor},
     live_relay_viewer_identity::{ControlBatch, ControlCursor, ControlEvent, Snapshot},
@@ -75,7 +75,7 @@ impl Owner {
     pub fn after(&self) -> u64 {
         self.cursor.after()
     }
-    /// 只更新已对账注册，不推进可靠cursor或导入可能超前的observation/audit。
+    /// Update only reconciled registration, without advancing reliable cursor or importing potentially newer observation/audit.
     pub(crate) fn registrations(
         &mut self,
         registrations: Vec<crate::live_relay_trigger_registration::Registration>,
@@ -100,8 +100,8 @@ impl Owner {
         self.media.validate(permit).map_err(|_| Error::Media)?;
         Ok(permit.clone())
     }
-    /// 仅后台调用。业务 consumer 收到全部事件（包含 observation/trigger），不得隐式丢弃。
-    /// consumer 必须完成自己的批次校验/提交，失败不会推进控制游标，并使本观看关闭。
+    /// Background only. Business consumers receive every event, including observation/trigger, without implicit dropping.
+    /// Consumers must validate/commit their own batches; failure leaves the control cursor unchanged and closes this viewing session.
     pub fn poll(
         &mut self,
         control: &Control<'_>,
@@ -121,10 +121,10 @@ impl Owner {
         let batch =
             match control.events_wait(self.snapshot.identity().session(), &self.cursor, wait) {
                 Ok(batch) => batch,
-                // 没有批次被解析/消费/提交；保原cursor、Permit及媒体，不能重新bootstrap跳过历史。
+                // No batch was parsed/consumed/committed; preserve the original cursor, Permit, and media, never bootstrap again to skip history.
                 Err(error) if error.retryable_read() => return Err(Error::Http(error)),
                 Err(error) => {
-                    // 服务端可能关闭后直接返回 404；先停旧媒体，再单独验证成员关闭事实。
+                    // The server may return 404 immediately after closing; stop old media before separately verifying membership closure.
                     self.close();
                     if error == HttpError::Status(404)
                         && control.terminal(self.snapshot.identity()) == Ok(true)
@@ -170,7 +170,7 @@ impl Owner {
             self.controller.clone(),
             self.visibility,
         )?;
-        // 成员缺失或 closed 是不可逆终态；同批次较晚的重新加入不得抹去撤权。
+        // Missing/closed membership is irreversibly terminal; later rejoining in the same batch cannot erase revocation.
         if reduced.closed {
             self.close();
         }

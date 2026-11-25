@@ -1,4 +1,4 @@
-// 严格 fragment 子集：先构造脱离的同型树再交换；不是 HTML5 容错 parser 或 CSS 引擎。
+// Strict fragment subset: construct a detached tree of the same type before swapping; not an HTML5 error-tolerant parser or a CSS engine.
 ((dom, fail, discard) => {
   "use strict";
   const op = dom.ops, entities = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: "\u00a0" };
@@ -76,7 +76,7 @@
     if (stack.length !== 1) fail();
     return holder;
   };
-  // 原 256 KiB 引擎栈下不能叠加 Map callback 和多层 RegExp.replace native 调用。
+  // The original 256 KiB engine stack cannot accommodate nested Map callbacks and multiple RegExp.replace native calls.
   const escape = value => {
     const output = op.array();
     for (let i = 0; i < value.length; i++) {

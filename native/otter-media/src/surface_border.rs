@@ -1,4 +1,4 @@
-//! 实心边框环及四边分区；共享工厂缓存，透明中心和半透明接角不能重复着色。
+//! Solid border rings and four-side partitions; shared factory cache, with no double coloring of transparent centers or translucent joins.
 use crate::{
     surface_background::Background, surface_box::Insets, surface_clip::Rect,
     surface_round_clip::Shape,
@@ -59,7 +59,7 @@ impl Border {
                 || (self.side.is_some() && cache.sectors.is_empty())
         });
         if rebuild {
-            // 每节点四边共用一份 ring/sector；整批成功后替换，不积累历史工厂。
+            // All four sides of each node share one ring/sector set; replace only after the whole batch succeeds, without accumulating historical factories.
             *owner.cache.borrow_mut() = Some(owner.build(factory, self.side.is_some())?);
         }
         let cache = owner.cache.borrow();
@@ -84,7 +84,7 @@ impl Border {
                 target.PushLayer(&parameters, None);
                 std::mem::ManuallyDrop::drop(&mut parameters.geometricMask);
                 let antialias = target.GetAntialiasMode();
-                // 分色接缝只有一个像素 owner；外圆角仍由 ring mask 抗锯齿。
+                // Color seams have only one pixel owner; the ring mask still antialiases outer corners.
                 target.SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
                 target.FillGeometry(&cache.sectors[side], brush, None);
                 target.SetAntialiasMode(antialias);

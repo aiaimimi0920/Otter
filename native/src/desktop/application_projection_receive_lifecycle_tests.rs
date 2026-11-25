@@ -1,4 +1,4 @@
-//! Ready/准备/隐藏追加的终止补偿；保留本地图像，复用原真实 TLS peer 和唯一 cleanup owner。
+//! Terminal compensation for Ready/preparation/hidden append; preserve local images and reuse the original real TLS peer and sole cleanup owner.
 use super::*;
 #[path = "application_projection_receive_persistence_tests.rs"]
 mod persistence;
@@ -33,7 +33,7 @@ fn assert_marker(fixture: &mut Fixture, journal: &[u8], marked: bool) {
     );
     let mut ticket = fixture.store.pending().unwrap().pop().unwrap();
     assert!(ticket.same_intent(fixture.ticket()));
-    ticket.activate().unwrap(); // 已交接的 marker 不得仍持原 Hold 活动许可。
+    ticket.activate().unwrap(); // A transferred marker must no longer retain the original Hold's activity permission.
 }
 unsafe fn ready_rejected(case: u8) {
     let _serial = crate::loom_bridge_client::tests::execution_job::SERIAL
@@ -129,7 +129,7 @@ unsafe fn unpublished(case: u8) {
         _ => fixture.app.shutdown(),
     }
     assert!(!fixture.app.projection_receive.busy());
-    assert!(fixture.unit_present()); // 自动减权不是删除本地用户数据。
+    assert!(fixture.unit_present()); // Automatic revocation is not deletion of local user data.
     assert_marker(&mut fixture, &journal, true);
 }
 #[test]

@@ -1,4 +1,4 @@
-//! 设备组只固定目录身份和Unit；逐目标发送/持久化由Application的原单在途链拥有。
+//! Device groups freeze only catalog identity/Unit; Application's original single-in-flight chain owns per-target sending/persistence.
 use super::*;
 use crate::projection_delivery::targets::MAX_GROUPS;
 pub(in crate::desktop) const BASE: usize = 0x1700;

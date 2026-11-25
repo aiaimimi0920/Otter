@@ -1,4 +1,4 @@
-//! Loom 工作流控制请求编码；借用快照大字段，不执行发送或推断连接权限。
+//! Loom workflow-control request encoding; borrow large snapshot fields without sending or inferring connection permission.
 use super::{check, Error};
 use std::{
     io::Write,
@@ -67,7 +67,7 @@ pub(super) fn encode<T: serde::Serialize>(
             }
             let needed = self.bytes.len() + bytes.len();
             if needed > self.bytes.capacity() {
-                // 有界几何增长，避免 serde 的短片段写入每次都重新分配/复制大 payload。
+                // Bounded geometric growth avoids reallocating/copying large payloads for every short serde write.
                 let capacity = needed
                     .max(self.bytes.capacity().saturating_mul(2).max(256))
                     .min(self.limit);

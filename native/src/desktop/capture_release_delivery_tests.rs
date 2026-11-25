@@ -1,4 +1,4 @@
-//! 松手采集次序和取消合同；不捕获用户桌面。
+//! Release-capture ordering and cancellation contracts; no user-desktop capture.
 use super::*;
 use std::cell::Cell;
 

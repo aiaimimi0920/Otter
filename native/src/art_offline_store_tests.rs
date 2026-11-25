@@ -1,4 +1,4 @@
-//! 隔离profile存储测试；保留失败现场，不操作真实用户配置。
+//! Isolated-profile storage tests; preserve failure artifacts and never operate on real user configuration.
 use super::*;
 fn root() -> PathBuf {
     let root=PathBuf::from("C:/Users/Public/nas_home/AI/GameEditor/linshi/otter-native-parallel-20261029/main-art-offline-resume-1/runtime")

@@ -1,4 +1,4 @@
-//! 只借出已呈现的正式结果；原始 Commit 留在收据中用于恢复，不赋予资源访问权。
+//! Lend only presented official results; retain original Commit in receipts for recovery, without granting resource access.
 use super::*;
 use crate::{surface_live_binding::Binding, surface_result_commit::Commit};
 impl Sessions {

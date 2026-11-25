@@ -1,4 +1,4 @@
-//! 独立 Chromium 155 img→sRGB Canvas 样本：真实 mft2、曲线、暗部和 alpha。
+//! Independent Chromium 155 img-to-sRGB-Canvas samples: actual mft2, curves, shadows, and alpha.
 use super::*;
 use base64::Engine;
 
@@ -24,8 +24,8 @@ fn surface_webp_icc_lut_matches_chromium_through_real_child() {
     }
 }
 
-// 自建 ICC 仅含 A2B0(mft2) 和 wtpt，没有 matrix/TRC 快路；LittleCMS 独立接受。
-// curve0 输出表为 identity；curve1 为 [0,8000,30000,50000,65535]，覆盖截断附近。
+// Custom ICC contains only A2B0(mft2) and wtpt, with no matrix/TRC fast path; LittleCMS accepts it independently.
+// curve0 has an identity output table; curve1 is [0,8000,30000,50000,65535], covering values near truncation.
 const CASES: &[(&str, [u8; 32])] = &[
     // otter-lut-curve0-alpha255
     ("UklGRpIBAABXRUJQVlA4WAoAAAAgAAAABwAAAAAASUNDUCwBAAAAAAEsAAAAAAIQAABtbnRyUkdCIFhZWiAH6gAKABUAAAAAAABhY3NwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA9tYAAQAAAADTLQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAJBMkIwAAAAnAAAAHx3dHB0AAABGAAAABRtZnQyAAAAAAMDAgAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAgACAAD//wAA//8AAP//AAAAAAAAElAHwltqMUpbwwxuQ5pjhWfYN9EcewHJSiIkPV0zaRt4Pg42e2yAAGmgAAD//wAA//8AAP//WFlaIAAAAAAAAPbWAAEAAAAA0y1WUDhMQAAAAC8HAAAAP0AgQNEFX8zgvjtuEAlAqCb4YZYRNjtAQQAyjCoyaG5L9+c/AP5PpM2aEgWcXIFAgIwtaNGiRUT/4xA=", [160, 137, 89, 255, 89, 160, 124, 255, 124, 89, 170, 255, 137, 137, 137, 255, 0, 0, 0, 255, 188, 188, 188, 255, 34, 50, 71, 255, 186, 179, 172, 255]),

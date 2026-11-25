@@ -1,4 +1,4 @@
-//! 生产 Presentation 的无像素替代内容：真实 D2D 裁剪、文字与成功替换。
+//! Production Presentation's no-pixel replacement content: real D2D clipping, text, and successful replacement.
 use super::*;
 fn style() -> crate::surface_text::Style<'static> {
     crate::surface_text::Style {
@@ -57,7 +57,7 @@ fn inline_image_placeholder_paints_alt_icon_and_clips_without_pixels() {
     let faded = render("缺图", 64, 0.5, 0);
     assert!(faded.chunks_exact(4).all(|p| p[3] <= 128));
     if let Some(path) = std::env::var_os("OTTER_IMAGE_PLACEHOLDER_PNG") {
-        // 显式测试产物路径由 runner 放入 linshi；仅导出本测试的合成像素。
+        // The runner places the explicit test-artifact path in linshi; export only this test's synthetic pixels.
         let mut rgba = named;
         for p in rgba.chunks_exact_mut(4) {
             p.swap(0, 2);

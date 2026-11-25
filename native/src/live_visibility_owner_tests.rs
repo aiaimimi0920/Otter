@@ -120,10 +120,10 @@ fn unarmed_source_cannot_be_reacquired_between_retirement_request_and_ack() {
     let mut owner = owner();
     let abandoned = owner.acquire(target.clone()).unwrap();
     let ticket = abandoned.source.ticket.borrow().clone();
-    advance(&mut owner, |_| ticket.ready()); // 登记完成，但是原使用方从未尝试隐藏。
+    advance(&mut owner, |_| ticket.ready()); // Registration completed, but the original consumer never attempted hiding.
     assert!(!abandoned.source.armed.get());
     drop(abandoned);
-    // 与 Owner::poll 的无使用方分支相同，先设置退休意图、稍后等待 ACK。
+    // As in Owner::poll's no-consumer branch, record retirement intent first and await ACK later.
     assert_eq!(ticket.retire().unwrap_err().code(), RETIREMENT_PENDING);
     assert!(!ticket.retired());
     assert!(matches!(owner.acquire(target.clone()), Err(error)
@@ -222,7 +222,7 @@ fn preexisting_and_cancelled_intents_do_not_reclaim_hidden_source() {
     owner
         .observe_reclaim(2, tracker.snapshot(10), 10, |_| false)
         .unwrap();
-    // 登记仍在途时出现的新手势也属于隐藏前意图，不能等 ACK 后立即召回。
+    // New gestures while registration is in flight are also pre-hide intent; they must not trigger immediate recall after ACK.
     tracker.record(11, 2);
     owner
         .observe_reclaim(2, tracker.snapshot(11), 11, |_| false)
@@ -296,7 +296,7 @@ fn explicit_b_input_rearms_recalled_minimized_source_for_all_peers() {
     let Restoration::Window(minimized) = minimized.restoration else {
         panic!("window fixture")
     };
-    // 沿既有归还契约展开最小化源；验证用的是新快照，而不是首次隐藏前的 invisible 状态。
+    // Expand the minimized source under the existing return contract; validate a fresh snapshot, not its invisible state before first hiding.
     assert!(!restored.iconic);
     assert_eq!(restored.visible, minimized.visible);
     assert_eq!(restored.extended_style, minimized.extended_style);

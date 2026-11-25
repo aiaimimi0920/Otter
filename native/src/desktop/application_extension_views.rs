@@ -1,4 +1,4 @@
-//! 外层消息结算同步扩展视图；目录/源/附件未变时只比较凭证，不解析 JSON 或重建文字布局。
+//! Synchronize extension views during outer message settlement; unchanged catalogs/sources/attachments require only credential comparison, not JSON parsing or text-layout rebuilding.
 use super::*;
 impl Application {
     pub(super) unsafe fn sync_extension_views(&mut self) {

@@ -1,4 +1,4 @@
-//! 普通 Surface 的浏览器图片上下文兼容；不外推 Tile/Wall 的严格格式合同。
+//! Browser-image-context compatibility for ordinary Surface; do not extend this to Tile/Wall's strict format contract.
 use super::*;
 #[test]
 fn surface_format_static_png_uses_bytes_not_supplied_mime() {

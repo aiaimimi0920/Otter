@@ -1,4 +1,4 @@
-//! 单个扩展目录订阅 worker；只发布最新不可变快照，失败/取消终止连接，不自动重连。
+//! One extension-catalog subscription worker publishes only the latest immutable snapshot; failure/cancellation closes connections without automatic reconnection.
 use super::{
     capability_job::Source,
     loom_execution_signal::{reap_deadline, CompletionSignal, Notify},
@@ -132,7 +132,7 @@ impl Job {
                         .snapshot_handle()
                         .ok_or(Error::Exchange(ExchangeError::Closed))?;
                     updates.lock().unwrap_or_else(|e| e.into_inner()).snapshot = Some(snapshot);
-                    // 不跨邮箱锁调用通知；外层 Wake 合并消息，不为每次推送排队一份目录。
+                    // Do not notify while holding mailbox locks; outer Wake coalesces messages instead of queuing a catalog for every push.
                     notify();
                     session.wait_update(&signal).map_err(Error::Exchange)?;
                 }
@@ -160,11 +160,11 @@ impl Job {
     pub(super) fn poll(&mut self) -> Option<Event> {
         let running = self.running.as_mut()?;
         if running.worker.is_finished() {
-            // 终止优先于未读快照；失败连接不得把已排队的旧 authority 再交给 UI。
+            // Termination precedes unread snapshots; failed connections must not deliver queued stale authority back to UI.
             return Some(Event::Stopped(self.join()));
         }
         if running.ready.load(Ordering::Acquire) {
-            // 完成通知仍可能持有线程尾段；先撤权一次，保留 owner 等待真实退出。
+            // Completion notification may still hold thread-tail work; revoke once first, retaining ownership until actual exit.
             return (!std::mem::replace(&mut running.revoked, true)).then_some(Event::Revoked);
         }
         let mut mailbox = running.mailbox.lock().unwrap_or_else(|e| e.into_inner());

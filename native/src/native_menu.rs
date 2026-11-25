@@ -1,4 +1,4 @@
-//! 自绘菜单使用既有 HMENU 构造结果的只读快照，不拥有句柄，也不复制业务命令。
+//! Custom-drawn menus use read-only snapshots of existing HMENU construction results, without owning handles or copying business commands.
 use std::collections::HashSet;
 use windows::{
     core::{Error, Result, PWSTR},
@@ -24,14 +24,14 @@ pub struct Item {
     pub preview: Option<panel::Preview>,
     pub thumbnail: Option<crate::image_thumbnail::Thumbnail>,
     pub command: usize,
-    /// 保留 & 助记符和制表符快捷键；绘制层负责解析，不修改业务标签。
+    /// Preserve & mnemonics and tab-separated shortcuts; drawing parses them without changing business labels.
     pub label: String,
     pub enabled: bool,
     pub checked: bool,
     pub radio: bool,
     pub default: bool,
     pub separator: bool,
-    /// Some(empty) 与普通命令不同：空子菜单不能被误执行。
+    /// Some(empty) differs from ordinary commands: empty submenus must not execute accidentally.
     pub children: Option<Vec<Item>>,
 }
 
@@ -46,8 +46,8 @@ fn invalid() -> Error {
     Error::new(E_INVALIDARG, "Unsupported or oversized native menu")
 }
 
-/// 仅在构造菜单的 UI 线程调用；调用期间不得修改/销毁树，不泵消息或保留 HWND。
-/// 显式拒绝尚未支持的 bitmap/owner-draw，不能无声丢失其业务呈现。
+/// Call only on the menu-building UI thread; do not mutate/destroy the tree, pump messages, or retain HWND during the call.
+/// Explicitly reject unsupported bitmap/owner-draw items rather than silently losing their business presentation.
 pub fn snapshot(menu: HMENU) -> Result<Vec<Item>> {
     read(menu, 0, &mut Budget::default())
 }
@@ -84,7 +84,7 @@ fn read(menu: HMENU, depth: usize, budget: &mut Budget) -> Result<Vec<Item>> {
             GetMenuItemInfoW(menu, index, true, &mut info)?;
         }
         if info.fType.0 & !(MFT_SEPARATOR.0 | MFT_RADIOCHECK.0) != 0
-            // HBMMENU_CALLBACK = -1 也是绘制请求，不能按普通无效 GDI 句柄忽略。
+            // HBMMENU_CALLBACK = -1 also requests drawing; do not ignore it as an ordinary invalid GDI handle.
             || !info.hbmpItem.0.is_null()
             || !info.hbmpChecked.0.is_null()
             || !info.hbmpUnchecked.0.is_null()

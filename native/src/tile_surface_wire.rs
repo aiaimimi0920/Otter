@@ -1,4 +1,4 @@
-//! Wall view 的身份/版本合同；不伪造普通 Surface Binding，输入许可由独立动作owner复核。
+//! Wall-view identity/revision contracts without fabricated ordinary Surface Bindings; independent action owners recheck input permission.
 use crate::tile_wire::{self as wall, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -52,7 +52,7 @@ pub(super) fn id(v: &Value) -> Result<&str> {
         .filter(|s| wall::identifier(s))
         .ok_or("tile_surface_identity")
 }
-// JSON 已受10MiB HTTP门；进一步限制嵌套、累计键/字符串与节点，防大属性绕过场景门。
+// JSON already obeys the 10MiB HTTP gate; further bound nesting, cumulative keys/strings, and nodes so large properties cannot bypass scene gates.
 fn bounded(root: &Value) -> Result<()> {
     let mut stack = vec![(root, 0)];
     let (mut nodes, mut chars) = (0, 0);
@@ -109,7 +109,7 @@ impl State {
         let height = integer(&v["height"])?;
         require((1..=4096).contains(&width) && (1..=4096).contains(&height))?;
         let generation = integer(&v["generation"])?;
-        // Loom新建实例从0开始；这里只核安全整数，换代仍由下方单调/完整view围栏约束。
+        // New Loom instances start at 0; check only safe integers here, while monotonic/complete-view fences below still constrain generation changes.
         let sequence = integer(&v["sequence"])?;
         let preview_revision =
             commit_revision(&v["preview"], "previewRevision", instance, generation)?;

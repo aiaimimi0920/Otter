@@ -1,4 +1,4 @@
-//! 单 UI 线程的文档集合；创建请求在回调返回后执行，避免持有模型借用时重入建窗。
+//! Single-UI-thread document collection; execute creation requests after callbacks return to avoid reentrant window creation while borrowing the model.
 use super::{document_window::DocumentWindow, State};
 use windows::{
     core::{w, Error, Result, HSTRING},
@@ -215,7 +215,7 @@ pub(super) struct Application {
     display_cache: std::cell::RefCell<Option<display::Cache>>,
     workspace: crate::workspace::Workspace,
     executions: crate::graph_requests::Requests,
-    // 字段按声明顺序析构：异常退出同样先停通知，再回收后台任务。
+    // Fields drop in declaration order: even abnormal exits stop notifications before reaping background tasks.
     pub(super) execution_wake: wake::Wake,
     extensions: super::extension_catalog::Owner,
     extension_commands: super::extension_commands::Owner,
@@ -322,13 +322,13 @@ impl Application {
     }
 
     unsafe fn pending_windows(&mut self, visible: bool) -> Result<()> {
-        // 先确认旧通知再读取邮箱/启动新任务，避免快速完成被旧 pending 合并后失去唤醒。
+        // Acknowledge old notifications before reading the mailbox or starting new tasks, so fast completion is not merged into an old pending wakeup and lost.
         self.execution_wake.acknowledge();
         self.settle_edit_palette();
         self.process_capture_history(visible);
         self.process_restore(visible)?;
         self.sync_frozen_menu();
-        // 回收旧 owner 后才创建新 HWND，防止句柄复用与旧 owner 的析构相交。
+        // Create new HWNDs only after reaping old owners, so handle reuse cannot overlap an old owner's destruction.
         self.collect_closed();
         self.process_live(visible)?;
         self.process_frozen_menu(visible)?;
@@ -363,7 +363,7 @@ impl Application {
         self.process_parameter_panels(visible);
         self.sync_workspace_chrome(visible);
         self.start_pending_executions();
-        // 先领取/回收已有任务，再调度保留的最新请求；最后一个完成通知也能推进队列。
+        // Collect/reap existing tasks before scheduling the retained latest request; even the final completion notification can advance the queue.
         self.start_requested_preparations(visible);
         let requests: Vec<_> = self
             .documents
@@ -450,7 +450,7 @@ impl Application {
     pub(super) unsafe fn run(mut self, startup: Option<super::SessionStartup>) -> Result<()> {
         let control = std::rc::Rc::clone(&self.session_end);
         super::session_end::with_owner(&control, || {
-            // 所有主循环错误先经过统一清理，不能让 ? 或非零 WM_QUIT 绕过 Live 消息泵。
+            // All main-loop errors go through shared cleanup first; neither ? nor a nonzero WM_QUIT may bypass the Live message pump.
             let result = self.run_loop(startup);
             self.collect_closed();
             self.shutdown();
@@ -480,7 +480,7 @@ mod tests {
         }
         assert!(!state.new_window.get());
         state.file_dialog.set(false);
-        // HWND -2 不是合法目标；NULL 则表示线程消息，不能用作失败夹具。
+        // HWND -2 is not a valid target; NULL denotes a thread message and cannot serve as a failure fixture.
         assert!(unsafe { request(HWND(-2isize as *mut _), &state) }.is_err());
         assert!(!state.new_window.get());
     }

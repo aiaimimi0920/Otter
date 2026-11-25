@@ -1,4 +1,4 @@
-//! 所有效果创建顺序都必须保持遮挡层级，命中对象与可见最上层一致。
+//! Every effect-creation order must preserve occlusion order, with hit targets matching the visible topmost object.
 use super::*;
 use crate::{editor::Tool, stroke_style::Color};
 

@@ -1,4 +1,4 @@
-//! 结构引用图准入；拒绝环及过深展开，不依赖 renderer 栈溢出。滤镜功能准入仍独立。
+//! Structural-reference graph admission rejects cycles and excessive expansion depth before renderer stack overflow; filter-feature admission remains separate.
 use super::invalid;
 use resvg::usvg::roxmltree::Document;
 use std::{collections::HashMap, io};
@@ -16,14 +16,14 @@ pub(super) fn validate(doc: &Document<'_>) -> io::Result<()> {
     let mut ids = HashMap::new();
     for node in doc.descendants().filter(|n| n.is_element()) {
         if let Some(id) = node.attribute("id") {
-            // 不依赖 renderer 对重复 ID 的 first/last-wins 选择，否则引用图可能不同。
+            // Never depend on renderer first/last-wins handling of duplicate IDs, which could produce a different reference graph.
             if ids.insert(id, node.id().get() as usize).is_some() {
                 return Err(invalid());
             }
         }
     }
     let mut edges = vec![Vec::new(); doc.descendants().count()];
-    // marker 属性可继承。按文档先序传递状态，避免逐节点回溯深祖先造成平方开销。
+    // Marker attributes inherit. Propagate state in document preorder to avoid quadratic deep-ancestor backtracking per node.
     let mut inherited_markers = vec![[None::<usize>; 3]; edges.len()];
     for node in doc.descendants().filter(|n| n.is_element()) {
         let links = &mut edges[node.id().get() as usize];
@@ -32,7 +32,7 @@ pub(super) fn validate(doc: &Document<'_>) -> io::Result<()> {
                 .filter(|n| n.is_element())
                 .map(|n| n.id().get() as usize),
         );
-        // mask 定义自身的 mask 属性按浏览器行为在 normalize 移除，不形成绘制依赖。
+        // normalize removes mask attributes on mask definitions following browser behavior, so they create no paint dependency.
         for attribute in ["mask", "clip-path", "filter"] {
             if attribute == "mask" && node.tag_name().name() == "mask" {
                 continue;
@@ -63,7 +63,7 @@ pub(super) fn validate(doc: &Document<'_>) -> io::Result<()> {
         }
         links.extend(marker_refs.iter().flatten().copied());
         inherited_markers[node.id().get() as usize] = marker_refs;
-        // 图案内容可通过 fill/stroke 重新引用图案；须在 renderer 前拒绝递归。
+        // Pattern contents can reference patterns again through fill/stroke; reject recursion before the renderer.
         for attribute in ["fill", "stroke"] {
             if let Some(value) = node.attribute(attribute) {
                 if let svgtypes::Paint::FuncIRI(id, _) =
@@ -79,7 +79,7 @@ pub(super) fn validate(doc: &Document<'_>) -> io::Result<()> {
             node.tag_name().name(),
             "use" | "pattern" | "linearGradient" | "radialGradient" | "textPath" | "filter"
         ) {
-            // 两种 href 均保守计入，避免解析器优先级差异绕过准入。
+            // Conservatively count both href forms to prevent parser-precedence differences from bypassing admission.
             for attr in node.attributes().filter(|a| a.name() == "href") {
                 if let Some(target) = attr.value().strip_prefix('#').and_then(|id| ids.get(id)) {
                     links.push(*target);

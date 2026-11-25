@@ -1,4 +1,4 @@
-//! 声明解析/层叠/非继承与污染边界；最终布局和像素由独立 native/child 门保护。
+//! Declaration parsing/cascade/noninheritance and pollution boundaries; independent native/child gates protect final layout and pixels.
 use super::document_model_tests::collect;
 #[test]
 fn javascript_text_overflow_model_cascade_noninheritance_and_atomic_rejections() {

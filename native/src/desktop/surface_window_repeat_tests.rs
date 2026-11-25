@@ -1,4 +1,4 @@
-//! 真实 HWND + 可控单调 tick；不睡眠或注入全局输入来伪造长按时序。
+//! Actual HWND plus controllable monotonic ticks; no sleeping/global input injection to fabricate hold timing.
 use super::*;
 use std::time::{Duration, Instant};
 use windows::Win32::UI::Input::KeyboardAndMouse::GetCapture;
@@ -88,7 +88,7 @@ fn surface_scroll_repeat_delays_bounds_ticks_and_pauses_outside_track() {
     assert_eq!(offset(&window), 200.);
     assert!(tick(&window, id, after));
     assert_eq!(offset(&window), 200.);
-    // 一次晚到的 tick 只翻一页，不追赶积压的 20 次间隔。
+    // One late tick pages once, without catching up 20 accumulated intervals.
     assert!(tick(&window, id, after + Duration::from_secs(1)));
     assert_eq!(offset(&window), 300.);
     unsafe {
@@ -121,7 +121,7 @@ fn surface_scroll_repeat_invalidates_only_when_page_moves() {
     let window = SurfaceWindow::new(long_scene(), 240, 200).unwrap();
     window.set_input_policy(true, false).unwrap();
     unsafe {
-        // 隐藏 HWND 不提供可供 GetUpdateRect 观察的重绘区域。
+        // Hidden HWNDs provide no repaint region observable through GetUpdateRect.
         let _ = ShowWindow(window.hwnd, SW_SHOWNOACTIVATE);
         send(&window, WM_LBUTTONDOWN, [95., 90.]);
     }

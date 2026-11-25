@@ -1,4 +1,4 @@
-//! 仅绘制空字段提示，不写入 EDIT 文本；兼容 classic EDIT 与多行字段，不依赖 v6 manifest。
+//! Paint only empty-field hints without writing EDIT text; support classic EDIT and multiline fields without requiring a v6 manifest.
 use std::{cell::Cell, rc::Rc};
 use windows::{
     core::{w, Error, Result},
@@ -77,9 +77,9 @@ unsafe fn paint(hwnd: HWND, dc: HDC, hint: &Hint) {
         SelectObject(dc, HGDIOBJ(font.0 as *mut _));
     }
     SetBkMode(dc, TRANSPARENT);
-    // Neuro textMuted #929a9f。此提示不是禁用值，不因 disabled 降到不可读对比度。
+    // Neuro textMuted #929a9f. This hint is not a disabled value; disabled state must not reduce it to unreadable contrast.
     SetTextColor(dc, COLORREF(0x9f9a92));
-    // DrawTextW 的可变 slice API 要求独立缓冲；仅空字段绘制，大小受字段预算限制。
+    // DrawTextW's mutable slice API requires an independent buffer; paint only empty fields, with size bounded by field budgets.
     let mut text = hint.text.clone();
     DrawTextW(
         dc,
@@ -108,13 +108,13 @@ unsafe extern "system" fn procedure(
     data: usize,
 ) -> LRESULT {
     let pointer = data as *const Hint;
-    // 每次回调临时持有强引用，默认过程重入并销毁窗口也不能释放当前提示数据。
+    // Temporarily retain a strong reference per callback; default handling may reenter/destroy the window without freeing current hint data.
     Rc::increment_strong_count(pointer);
     let hint = Rc::from_raw(pointer);
     if message == WM_NCDESTROY {
         let _ = RemovePropW(hwnd, OWNER);
         let _ = RemoveWindowSubclass(hwnd, Some(procedure), ID);
-        drop(Rc::from_raw(pointer)); // 释放窗口所持引用；当前回调仍持有 hint。
+        drop(Rc::from_raw(pointer)); // Release the window-held reference; the current callback still holds hint.
         return DefSubclassProc(hwnd, message, wp, lp);
     }
     if message == WM_IME_STARTCOMPOSITION {

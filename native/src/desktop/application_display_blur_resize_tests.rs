@@ -1,4 +1,4 @@
-//! 模糊与普通标注的外部显示组缩放；验证真实 worker 结算、选择和取消身份。
+//! External-display group resizing for blur and ordinary annotations; verify real worker settlement, selection, and cancellation identity.
 use super::Application;
 use crate::{desktop::image::Image, editor::Tool, viewport::Point};
 use windows::Win32::{Foundation::WPARAM, UI::WindowsAndMessaging::*};

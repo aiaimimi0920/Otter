@@ -1,4 +1,4 @@
-//! 客户区文字/按钮光标使用 Windows 共享资源；与正式命中、输入准入保持一致。
+//! Client text/button cursors use shared Windows resources, consistent with production hit testing/input admission.
 use super::*;
 #[derive(Debug, PartialEq, Eq)]
 enum Cursor {

@@ -1,4 +1,4 @@
-//! PNG 使用已提交栅格快照，擦除/撤销不重建矢量效果，也不误用旧宿主底图。
+//! PNG uses committed raster snapshots; erasing/undo neither rebuilds vector effects nor mistakenly uses an old host base image.
 use super::*;
 use crate::{
     editor::Tool,

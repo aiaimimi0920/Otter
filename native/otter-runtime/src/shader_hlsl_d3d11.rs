@@ -1,4 +1,4 @@
-//! 专属 child 内的 D3D11 hardware/WARP 单帧。无 HWND、交换链、全局设备或隐藏重试。
+//! D3D11 hardware/WARP single frames inside dedicated children; no HWNDs, swap chains, global devices, or hidden retries.
 use super::{compile, contract, *};
 use std::time::Duration;
 use windows::Win32::{
@@ -67,7 +67,7 @@ impl Device {
     ) -> Result<Frame> {
         check(stopped, deadline)?;
         let count = contract::image_bytes(request.width, request.height)?;
-        // 明确纹理像素副本预算；COM/驱动开销另外由 Job 限制，并非总显存实测值。
+        // Explicit texture-pixel-copy budget; Job separately limits COM/driver overhead, and this is not measured total GPU memory usage.
         let gpu_bytes = request
             .textures
             .iter()
@@ -75,7 +75,7 @@ impl Device {
                 sum.checked_add(t.rgba.len()).ok_or(Error::Budget)
             })?;
         let _gpu_lease = crate::pixels::reserve(gpu_bytes).ok_or(Error::Budget)?;
-        // 所有 context 提交均在 guard 作用域内；先解除绑定，再归还 GPU 预算。
+        // All context submissions occur within the guard scope; unbind before returning GPU budget.
         let _bindings = Bindings(&self.context);
         let (mut output, output_lease) = contract::allocate(count)?;
         let resource = |e| api(Stage::Resource, e);
@@ -177,7 +177,7 @@ impl Device {
                 )
                 .map_err(pipeline)?;
             check(stopped, deadline)?;
-            // discard/clip 不会写入目标；透明黑基线不能依赖驱动的初始内容。
+            // discard/clip does not write the target; the transparent-black baseline must not rely on driver-initialized contents.
             self.context
                 .ClearRenderTargetView(rtv.as_ref().ok_or(Error::Unsupported)?, &[0.; 4]);
             self.context.RSSetState(raster.as_ref());

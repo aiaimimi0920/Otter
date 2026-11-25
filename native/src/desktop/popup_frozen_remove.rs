@@ -1,4 +1,4 @@
-//! 单条删除只在原事务确认后换来源；重读期间保留图库、滚动和缩略图。
+//! Single-entry deletion switches sources only after the original transaction confirms; retain the gallery, scrolling, and thumbnails during rereads.
 use super::*;
 impl LibraryMenu {
     pub(in crate::desktop::popup_menu) fn remove(

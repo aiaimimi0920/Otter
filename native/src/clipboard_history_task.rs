@@ -1,4 +1,4 @@
-//! 菜单读取任务：先取得进程许可再启动线程，UI 关闭只取消，不等待提供方。
+//! Menu-read tasks acquire a process permit before spawning; UI close only cancels, without waiting for the provider.
 use super::{ReadPermit, Snapshot};
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -10,8 +10,8 @@ use windows::{
     Win32::Foundation::E_FAIL,
 };
 
-/// 每个任务独占结果通道；旧菜单销毁后，旧结果无法进入新菜单的任务。
-/// 消费者仍须在应用结果前核验窗口、文档和菜单目标身份。
+/// Each task owns its result channel; results from a destroyed old menu cannot enter a new menu's task.
+/// Consumers still verify window/document/menu target identity before applying results.
 pub struct Task {
     cancel: Arc<AtomicBool>,
     receiver: Option<Receiver<Result<Snapshot>>>,
@@ -28,7 +28,7 @@ impl Task {
     pub(super) fn spawn(
         read: impl FnOnce(&AtomicBool, ReadPermit) -> Result<Snapshot> + Send + 'static,
     ) -> Result<Self> {
-        // 必须在 spawn 前占位；阻塞的提供方不能导致重复菜单创建无限线程。
+        // Reserve before spawn; blocking providers must not let repeated menu creation spawn unlimited threads.
         let permit = ReadPermit::acquire()?;
         let cancel = Arc::new(AtomicBool::new(false));
         let worker_cancel = Arc::clone(&cancel);
@@ -38,7 +38,7 @@ impl Task {
             .spawn(move || {
                 let result = read(&worker_cancel, permit);
                 if !worker_cancel.load(Ordering::Acquire) {
-                    // 单个有界结果；接收端消失时内容随发送失败自动释放。
+                    // One bounded result; if the receiver disappears, failed sending automatically releases its contents.
                     let _ = sender.send(result);
                 }
             })
@@ -49,7 +49,7 @@ impl Task {
         })
     }
 
-    /// 非阻塞且结果只交付一次。None 表示尚未完成，或已经消费/取消。
+    /// Nonblocking, one-time result delivery. None means unfinished or already consumed/cancelled.
     pub fn poll(&mut self) -> Option<Result<Snapshot>> {
         let receiver = self.receiver.as_ref()?;
         let result = match receiver.try_recv() {
@@ -72,7 +72,7 @@ impl Task {
 
 impl Drop for Task {
     fn drop(&mut self) {
-        // 不 join：提供方可能不响应 Cancel；后台线程继续持有许可及 COM 资源。
+        // Do not join: the provider may ignore Cancel; its background thread retains the permit and COM resources.
         self.cancel();
     }
 }

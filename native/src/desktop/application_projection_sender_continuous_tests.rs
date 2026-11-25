@@ -1,11 +1,11 @@
-//! 真实菜单/Job/TLS/Checkpoint持续更新及迟到隔离；不占前台，不伪造接收端呈现。
+//! Real menu/Job/TLS/Checkpoint continuous updates and late-result isolation; no foreground takeover or fabricated receiver presentation.
 use super::*;
 use serde_json::{json, Value};
 #[path = "application_projection_sender_update_peer.rs"]
 mod peer;
 pub(super) use peer::Mode;
 fn mosaic(app: &Application) {
-    // 图像范围外的马赛克仍要求 PNG 通道；保留纯色完整像素 oracle，不弱化网络/CAS 断言。
+    // Mosaic outside image bounds still requires the PNG channel; preserve the solid-color full-pixel oracle without weakening network/CAS assertions.
     let mut canvas = app.documents[0].state.canvas.borrow_mut();
     canvas
         .editor
@@ -136,7 +136,7 @@ pub(super) unsafe fn run_routed(mode: Mode, offline: bool) {
         cycle(&mut app, files.root());
     }
     let mut prior_workspace = None;
-    // worker已结束，尚未消费：模拟来源换代/用户停止，不依赖不确定的网络时序。
+    // The worker finished but remains unconsumed: simulate source replacement/user stop without relying on nondeterministic network timing.
     if mode == Mode::Stale {
         app.documents[0]
             .state
@@ -195,7 +195,7 @@ pub(super) unsafe fn run_routed(mode: Mode, offline: bool) {
         assert_eq!(binding(&app).envelope(), original.envelope());
     }
     if mode == Mode::Normal {
-        // 第一次canonical变化至多多渲染一次；同PNG必须只read，不再次update。
+        // The first canonical change may render at most once more; identical PNG requires read only, not another update.
         cycle(&mut app, files.root());
         app.process_authorization_with_projection(|origin| config(origin, files.root()));
         assert_eq!(binding(&app).revision(), 2);
@@ -241,7 +241,7 @@ pub(super) unsafe fn run_routed(mode: Mode, offline: bool) {
     drain_messages();
     let listener = server.join().unwrap();
     assert!(matches!(listener.accept(),Err(error) if error.kind()==std::io::ErrorKind::WouldBlock));
-    // 同profile重开只从实际canonical恢复版本；没有Device Session时绝不自动更新或解绑。
+    // Reopening the same profile restores versions only from actual canonical state; without Device Session, never automatically update or unlink.
     let instance = GetModuleHandleW(None).unwrap().into();
     let document =
         DocumentWindow::create(instance, State::new(None, false).unwrap(), false).unwrap();
@@ -330,7 +330,7 @@ fn native_sender_content_cache_metadata_checkpoint_does_not_retire_original_sour
         assert!(cache.matches(&app));
         let mut rect = RECT::default();
         GetWindowRect(app.documents[0].window.0, &mut rect).unwrap();
-        // 移动自有隐藏贴图只改变持久位置；原文/像素/Editor不换代，但确实产生新canonical。
+        // Moving an owned hidden pin changes only persistent position; source/pixels/Editor generations stay unchanged, but a new canonical is genuinely produced.
         SetWindowPos(
             app.documents[0].window.0,
             None,

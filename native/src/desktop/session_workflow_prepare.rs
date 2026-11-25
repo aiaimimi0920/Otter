@@ -1,11 +1,11 @@
-//! 恢复候选到真实工作流快照：参数策略和原生烘焙串接，编码租约不早于快照释放。
+//! Restored candidates to actual workflow snapshots: chain parameter policy and native baking; encoding leases outlive snapshots.
 use super::*;
 use crate::session_document::workflow_snapshot::{self, content, Snapshot};
 #[path = "session_workflow_job.rs"]
 pub mod job;
 
 pub struct Prepared {
-    // 字段释放顺序是合同：包含 Data URL 的快照先释放，预算租约随后释放。
+    // Field-release order is contractual: release the Data URL-containing snapshot before its budget lease.
     snapshot: Snapshot,
     _leases: Vec<crate::byte_budget::Lease>,
 }
@@ -15,7 +15,7 @@ impl Prepared {
     }
 }
 impl VectorCandidate {
-    /// 工作线程调用；候选来自已保存版本，但此方法不证明持久化/授权，不发送网络请求。
+    /// Worker-thread call; candidates come from saved versions, but this method proves neither persistence nor authorization and sends no network requests.
     pub fn prepare_workflow_snapshot(
         &self,
         catalog: &[serde_json::Value],

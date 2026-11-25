@@ -1,4 +1,4 @@
-//! 菜单专用 COM owner；STA 回调只读可撤销快照或排队，不借用菜单/业务模型。
+//! Menu-specific COM owner; STA callbacks read revocable snapshots or enqueue only, without menu/business-model borrows.
 use super::accessibility::{Action, Node, Rejected, View};
 use std::{
     ffi::c_void,
@@ -28,7 +28,7 @@ pub(super) fn notify_invoked(provider: &IRawElementProviderSimple, node: Node) {
     unsafe {
         let object = object(provider.as_raw());
         if available(object).is_ok() && node.with_entry(|_, _| ()).is_some() {
-            // 表示菜单选择已被接受，外层文档目标准入和业务结果仍独立核验。
+            // Indicates menu selection was accepted; outer document-target admission/business outcomes still need independent checks.
             let _ = UiaRaiseAutomationEvent(&child(object, node), UIA_Invoke_InvokedEventId);
         }
     }
@@ -225,7 +225,7 @@ unsafe extern "system" fn pattern(
     if id == UIA_ScrollPatternId && object(this).node.is_none() {
         return query(this, &IScrollProvider::IID, out);
     }
-    // 未支持模式必须是 S_OK + NULL，不能伪造非空 Rust COM 接口。
+    // Unsupported patterns must return S_OK + NULL, not fabricated nonnull Rust COM interfaces.
     S_OK
 }
 unsafe extern "system" fn property(
@@ -278,8 +278,8 @@ unsafe extern "system" fn property(
     } else if id == UIA_AcceleratorKeyPropertyId {
         VARIANT::from(entry.as_ref().map_or("", |entry| entry.shortcut.as_str()))
     } else if id == UIA_ItemStatusPropertyId {
-        // HMENU 未勾选项不携带 checkbox 角色；不能把普通命令猜成未选中开关。
-        // 仅呈现已知标记，不承诺 Toggle/SelectionItem 的操作或分组语义。
+        // Unchecked HMENU items have no checkbox role; do not infer ordinary commands as unchecked toggles.
+        // Present only known markers without promising Toggle/SelectionItem operation/group semantics.
         VARIANT::from(match entry.as_ref() {
             Some(entry) if !entry.separator && entry.radio && entry.checked => "已选中",
             Some(entry) if !entry.separator && entry.radio => "未选中",

@@ -1,4 +1,4 @@
-//! 多选样式事务只保存属性；几何、文本和效果像素保持原所有权，不消耗额外点预算。
+//! Multiselection style transactions retain properties only; geometry, text, and effect pixels keep original ownership without extra point budgets.
 use super::*;
 
 impl Editor {
@@ -15,7 +15,7 @@ impl Editor {
         if self.draft.is_some() || indices.is_empty() {
             return Ok(false);
         }
-        // 先建立完整历史候选，再写入属性；不把未变化对象加入历史。
+        // Build complete history candidates before writing properties; unchanged objects do not enter history.
         let previous: Vec<_> = indices
             .iter()
             .filter_map(|index| {

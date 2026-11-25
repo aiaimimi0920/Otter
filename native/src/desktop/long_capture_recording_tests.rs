@@ -1,4 +1,4 @@
-//! 隐藏控件/真实 worker 的录制状态测试；合成源与通知，不读取屏幕。timer 子模块另验真实 hook 清理。
+//! Recording-state tests with hidden controls/real workers; synthetic sources/notifications, no screen reads. Timer submodules separately verify real-hook cleanup.
 #[path = "long_capture_recording_movement_tests.rs"]
 mod movement_tests;
 #[path = "long_capture_recording_overlay_tests.rs"]
@@ -90,13 +90,13 @@ fn setup_with_first(
         OutputTarget::Document,
     )
     .unwrap();
-    // 仅此测试构造绕开外部 HWND 绑定；生产启用位只由已绑定 Target 构造。
+    // Only this test construction bypasses external HWND binding; production enable flags come only from bound Targets.
     input.recording.enabled = true;
     (input, calls)
 }
 unsafe fn hidden(input: &Input) -> crate::desktop::Window {
     let window = hidden_dialog(input);
-    // 产品在 overlay 创建/布局完成后才起录，夹具同样不能把创建控件的耗时算进周期。
+    // Production starts recording after overlay creation/layout; fixtures likewise exclude control-creation time from sampling periods.
     input.recording.schedule.borrow_mut().start(Instant::now());
     status(window.0, "录制中");
     window
@@ -215,7 +215,7 @@ fn finish_behind_a_slow_capture_still_collects_the_last_dragged_frame() {
         drive(window.0, &input);
         assert!(input.job.borrow().is_pending());
         command(window.0, 1);
-        // 实际 worker 保持在途超过 tail 截止，最后帧还没有进入唯一任务槽。
+        // The actual worker stays in flight beyond the tail deadline; the final frame has not entered the sole task slot.
         std::thread::sleep(Duration::from_millis(400));
         release.send(()).unwrap();
         let deadline = Instant::now() + Duration::from_secs(5);
@@ -315,7 +315,7 @@ fn finish_before_debounce_drains_recent_hint_without_accepting_late_input() {
         assert!(!input.job.borrow().is_pending());
         command(window.0, 1);
         command(window.0, 1);
-        input.recording.schedule.borrow_mut().notify(Instant::now()); // Draining 不接纳新提示。
+        input.recording.schedule.borrow_mut().notify(Instant::now()); // Draining accepts no new hints.
         pump(window.0, &input);
         assert_eq!(calls.load(Ordering::Acquire), 3);
         assert_eq!(

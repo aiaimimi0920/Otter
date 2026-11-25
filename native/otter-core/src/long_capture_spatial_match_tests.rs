@@ -155,7 +155,7 @@ fn overlap_pruning_preserves_thresholds_rgb_mean_and_cropped_strides() {
             for channel in &mut pixel[..3] {
                 *channel += noise;
             }
-            pixel[3] = 0; // 空间共同区域按 RGB 比较，alpha 不影响页面位移。
+            pixel[3] = 0; // Compare spatial shared regions by RGB; alpha does not affect page displacement.
         }
         let second = Frame::new(32, 40, bytes.into()).unwrap();
         let a = View::new(&first, 3, 4, 24, 28).unwrap();

@@ -1,4 +1,4 @@
-//! 自有隐藏窗口验证 owner 链准入和撤销；不触碰用户应用，不依赖窗口标题。
+//! Owned hidden windows verify owner-chain admission and revocation; no user applications or window-title dependencies.
 use super::*;
 use windows::core::w;
 
@@ -208,7 +208,7 @@ fn leased_popup_and_owned_descendant_are_bound_to_exact_live_owner_and_epoch() {
     assert!(nested.target().is_ok());
     assert!(Scope::bind(&target, None, popup.0).is_err());
     assert!(Scope::bind(&target, Some(other.identity()), popup.0).is_err());
-    // 第二个无 owner 弹窗属于第一层 popup 的独立 B，不能直接冒充主 B 的 lease。
+    // The second ownerless popup belongs to the first-level popup's independent B and cannot impersonate the main B's lease.
     let second = Window::new(None, false);
     SHOW_POPUP.with(|slot| slot.set(second.0));
     otter_live_hover_hook::native_input_scope::Snapshot::default()

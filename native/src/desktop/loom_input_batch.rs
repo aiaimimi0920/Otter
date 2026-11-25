@@ -1,4 +1,4 @@
-//! 不可变图像快照、批次原子准备和交付前新鲜度检查；资源描述符借用整个批次 owner。
+//! Immutable image snapshots, atomic batch preparation, and pre-delivery freshness checks; resource descriptors borrow the entire batch owner.
 use super::super::loom_input_stamp::SourceStamp;
 #[cfg(test)]
 #[path = "loom_input_output_source_tests.rs"]
@@ -91,9 +91,9 @@ impl Source {
     ) -> Result<Self, Error> {
         Self::capture_raster(port, unit, width, height, pixels, editor, true)
     }
-    /// Shader 自身 src 只取底图；预览/标注另归显示 owner，不能再次烘焙进 u_input。
+    /// Shader's own src uses base images only; display owners separately own previews/annotations, which must not be rebaked into u_input.
     pub(crate) fn capture_base(port: String, unit: UnitId, editor: &Editor) -> Result<Self, Error> {
-        // Canvas.image 可能只是会话恢复的 preview；只有编辑 owner 的真实底图可作为 src。
+        // Canvas.image may be only a restored-session preview; only the editing owner's real base image may serve as src.
         let base = editor.layers().ok_or(Error::InvalidInput)?;
         Self::capture_raster(
             port,
@@ -142,7 +142,7 @@ impl Source {
             },
         })
     }
-    /// 手动输入不烘焙来源画布标注；与原图共享同一文档/配置新鲜度边界。
+    /// Manual inputs do not bake source-canvas annotations; share the same document/configuration freshness boundary with original images.
     pub(crate) fn capture_sticker(
         port: String,
         unit: UnitId,
@@ -159,7 +159,7 @@ impl Source {
             false,
         )
     }
-    /// 正式输出已包含完整图像，不能叠加来源窗口标注或使用预览；原始 PNG 一并移交。
+    /// Official outputs already contain complete images; never overlay source-window annotations or use previews, and transfer original PNGs too.
     pub fn capture_output(
         port: String,
         unit: UnitId,
@@ -193,7 +193,7 @@ pub struct PreparedBatch {
     target_stamp: DocumentStamp,
     resources: Vec<Resource>,
 }
-/// 只保留有界身份凭证，不延长编码输入和像素快照的生命周期。
+/// Retain bounded identity evidence only, without extending encoded-input/pixel-snapshot lifetimes.
 pub(crate) struct Freshness {
     documents: Vec<(UnitId, SourceStamp)>,
 }

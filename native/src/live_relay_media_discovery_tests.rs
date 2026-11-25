@@ -1,4 +1,4 @@
-//! 真实 loopback HTTP upgrade 验证清单→请求→连接，不模拟远端 Device 签发。
+//! Real loopback HTTP upgrade verifies manifest -> request -> connection without simulating remote Device issuance.
 use super::*;
 
 #[test]

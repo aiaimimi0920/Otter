@@ -1,4 +1,4 @@
-//! 合成配置的兼容、容量与失败不变性；不访问用户配置目录。
+//! Synthetic settings compatibility, capacity, and failure atomicity; never access user configuration directories.
 use super::*;
 use serde_json::json;
 

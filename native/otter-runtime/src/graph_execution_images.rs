@@ -1,4 +1,4 @@
-//! 执行输入解析对齐 executionImageInputs；主输入缺失不能用 Art 预览冒充就绪。
+//! Align execution-input resolution with executionImageInputs; an Art preview must not pretend readiness when the primary input is missing.
 use super::*;
 type Images<'a> = Vec<(&'a str, &'a str)>;
 fn primary(name: &str) -> bool {
@@ -29,7 +29,7 @@ fn insert<'a>(images: &mut Images<'a>, name: &'a str, value: &'a str) -> Result<
     Ok(())
 }
 impl<'a> Graph<'a> {
-    /// 有连接但输出未就绪时返回 None；仅无连接的钉图允许回退到自己的图像解析。
+    /// Return None when a connection exists but its output is not ready; only unconnected pins may fall back to their own image resolution.
     pub fn execution_image(&self, id: &UnitId) -> Option<&'a str> {
         let index = self.index(id)?;
         match self.input(index) {
@@ -38,7 +38,7 @@ impl<'a> Graph<'a> {
             _ => None,
         }
     }
-    /// 所有声明图片输入：连接优先，其次同名手动参数。借用值，不复制载荷。
+    /// All declared image inputs: connections take priority, followed by same-name manual parameters. Borrow values without copying payloads.
     pub fn execution_images(
         &self,
         id: &UnitId,
@@ -78,7 +78,7 @@ impl<'a> Graph<'a> {
         }
         Ok(images)
     }
-    /// 主干辅助图片执行只使用 Art 能力声明，不把任意对象字段自动升级为执行端口。
+    /// Baseline auxiliary-image execution uses only Art capability declarations; do not automatically promote arbitrary object fields to execution ports.
     pub fn auxiliary_execution_images(
         &self,
         id: &UnitId,

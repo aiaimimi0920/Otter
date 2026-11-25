@@ -1,4 +1,4 @@
-//! 焦点通知只观察现有 owner；单消息延后、无借用跨 UIA，系统 EDIT 自行通知。
+//! Focus notifications observe existing owners only; defer one message, hold no borrow across UIA, and let system EDIT notify itself.
 use super::*;
 use accessibility_bridge::focus::{self, Focus};
 use windows::Win32::UI::Accessibility::*;
@@ -50,7 +50,7 @@ fn flush_with(hwnd: HWND, state: &State, mut notify: impl FnMut(&IRawElementProv
         return;
     }
     if state.host.borrow().is_none() {
-        return; // 外层 State.run 恢复 Host 后重排，不能空转私有消息。
+        return; // The outer State.run reschedules after restoring Host; do not spin private messages.
     }
     pending.flushing.set(true);
     let _guard = Flushing(state);
@@ -79,7 +79,7 @@ fn flush_with(hwnd: HWND, state: &State, mut notify: impl FnMut(&IRawElementProv
                         | crate::surface_scene::Kind::Number
                 )
             }) {
-                // 根查询返回承载节点；实际 EDIT 焦点事件仍交系统 provider，避免双重来源。
+                // Root queries return hosting nodes; actual EDIT focus events remain with system providers to avoid duplicate sources.
                 pending.last.set(None);
                 return;
             }
@@ -96,7 +96,7 @@ fn flush_with(hwnd: HWND, state: &State, mut notify: impl FnMut(&IRawElementProv
         node.map_or_else(|| Some(root.provider()), |handle| root.node(handle).ok())
     });
     if let Some(provider) = provider {
-        // 先保存身份再调用：回调重入只能排下一轮，不会倒送已过期的焦点。
+        // Save identity before calling: reentrant callbacks can schedule only the next round, never send stale focus backward.
         pending.last.set(Some(identity));
         notify(&provider);
     }

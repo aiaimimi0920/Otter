@@ -1,6 +1,6 @@
-//! 真实应用 deadline 唤醒/模态背压/外借 owner fence；复用原 TLS peer/批次和挂载夹具。
+//! Real application deadline wakeups/modal backpressure/borrowed-owner fences; reuse original TLS peer/batches/mount fixtures.
 use super::*;
-// 调用者须位于夹具的 COM/UI owner 线程，沿用原 Application polling 的 HWND 安全前提。
+// Callers must run on the fixture's COM/UI-owner thread, preserving original Application polling's HWND-safety preconditions.
 pub(super) unsafe fn tick(app: &mut Application, root: &std::path::Path) {
     if !app
         .surface_windows
@@ -107,8 +107,8 @@ pub(super) unsafe fn stale(app: &mut Application, root: &std::path::Path, parent
         .unwrap();
     let window = app.surface_windows.iter_mut().next().unwrap();
     assert!(!window.is_alive() && window.snapshot_revision() == 1);
-    // JS 可能已回收并在同轮排入 inactive；聚合等待句柄不等于 JS 事件任务。
-    // 直接保护零事件/收据，统一 teardown 的 peer 还须确认唯一 inactive 且无 events。
+    // JS may already be reaped and inactive queued in the same turn; aggregate wait handles do not imply JS event tasks.
+    // Directly assert zero events/receipts; the shared teardown peer must also confirm exactly one inactive and no events.
     assert_eq!(app.remote_sessions.surface_event_backlog_for_test(), 0);
 }
 #[test]

@@ -1,10 +1,10 @@
-//! 隐藏 HWND 保存链上的真实 worker 验证；不发送网络请求、不打开对话框。
+//! Real-worker verification on hidden-HWND save paths; no network requests or dialogs.
 use super::*;
 pub(in crate::desktop::application) unsafe fn verify(
     app: &mut Application,
     fixture: &smoke_session_fixture::Directory,
 ) -> Result<()> {
-    // 保存回归允许使用已绑定 Art 而没有当前全局目录；工作流必须显式提供匹配目录。
+    // Save regressions allow already bound Art without a current global catalog; workflows must explicitly supply a matching catalog.
     let catalog = app.documents.iter().find_map(|doc| {
         doc.state
             .selected_art
@@ -62,7 +62,7 @@ unsafe fn verify_current(
                 archive::smoke::verify(app, candidate, mode == 5, fixture)?
             }
             (3, Ok(Some(candidate))) => {
-                // 合成完成报告只测试本地消费凭证，不宣称网络同步已经成功。
+                // Synthetic completion reports test local consumption credentials only, not successful network sync.
                 let completion = sync::completion::Completion::new(
                     candidate.receipt,
                     crate::desktop::session_candidate::WorkflowDelivery {
@@ -119,7 +119,7 @@ unsafe fn verify_current(
                 if request.workflow_id() != "hook-live" || request.bytes().is_empty() {
                     return Err(Error::new(E_FAIL, "Workflow batch global request invalid"));
                 }
-                // 未发送，不能伪造 ACK；丢弃批次必须释放待发送缓冲。
+                // Nothing was sent, so do not fabricate ACK; discarding the batch must release pending-send buffers.
                 drop(batch);
                 if budget.used() != 0 {
                     return Err(Error::new(E_FAIL, "Workflow batch leaked budget"));

@@ -1,4 +1,4 @@
-//! Tile单手势Slider：复用canonical Range/编辑合同，只有真实paint命中才能建立拖动。
+//! Single-gesture Tile Slider reuses canonical Range/editing contracts; only actual painted hits can establish dragging.
 use crate::tile_surface_edit::Edit;
 use crate::{
     surface_input_event::{Phase, Value},
@@ -74,7 +74,7 @@ impl Field {
     pub(crate) fn source(&self) -> f64 {
         self.range.source()
     }
-    /// 只保留手势身份，不授新输入；旧呈现撤下到新帧实际paint前，Prepared/候选可先后到达。
+    /// Retain gesture identity only, granting no new input; Prepared/candidates may arrive at different times between retiring old presentation and actually painting new frames.
     pub(crate) fn awaiting_frame(&self, state: &crate::tile_shared::State, now: Instant) -> bool {
         !state.stopped
             && !state.expired
@@ -116,7 +116,7 @@ impl Field {
         let point =
             crate::tile_surface_hit::point(&frame.layout, &frame.key.endpoint, frame.size, pixel)?;
         let uv = crate::tile_surface_hit::source(placement, point);
-        // 与嵌入绘制同一个5px拇指轨道；先变换到canonical坐标，再clamp/step一次。
+        // Use the same 5px thumb track as embedded painting; transform to canonical coordinates first, then clamp/step once.
         let left = self.rect[0] + 5.;
         let span = (self.rect[2] - 10.).max(0.);
         let fraction = if span == 0. {

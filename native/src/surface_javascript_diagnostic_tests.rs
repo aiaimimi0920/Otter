@@ -1,4 +1,4 @@
-//! 原 Engine 的固定阶段/隐私回归；不读取 JS 异常属性，不改变原失败与期限。
+//! Fixed-phase/privacy regressions in the original Engine; no JS exception-property reads or changes to original failures/deadlines.
 use super::*;
 use crate::{
     surface_javascript::fixture, surface_javascript_wire::diagnostics::Stage,
@@ -62,7 +62,7 @@ fn javascript_diagnostic_canvas_success_records_real_snapshot_and_sticky_failure
         &mut engine,
         include_str!("../tests/fixtures/javascript-canvas.js"),
     );
-    // 显式运行此用例时保留成功/失败双方阶段；只输出固定枚举和单调时间。
+    // Explicit execution retains phases for both success and failure; output only fixed enums and monotonic times.
     wire::diagnostics::log(Some(&engine.diagnostic()));
     let output = result.unwrap();
     assert_eq!(output.canvases.len(), 1);
@@ -90,7 +90,7 @@ fn javascript_diagnostic_canvas_success_records_real_snapshot_and_sticky_failure
         );
     }
     assert!(!report.canvas_failed);
-    // 沿原 Store 注入不存在的背板；begin 不得清除粘性失败。
+    // Inject nonexistent backing through the original Store; begin must not clear sticky failure.
     let mut unknown = [wire::canvas::CanvasFrame {
         id: "unknown".into(),
         width: 1,

@@ -1,4 +1,4 @@
-//! 后台单次 Art 消息交换；不创建线程或队列，预览由调用者即时接管资源生命周期。
+//! One-shot background Art message exchange; no threads/queues, with callers immediately taking preview-resource lifetime ownership.
 use crate::{
     graph_requests::Request,
     loom_art_response::{self, Event},
@@ -21,8 +21,8 @@ pub enum Error {
     Cancelled,
 }
 
-/// 输入资源 owner 必须活到本调用返回。on_update 返回 false 会结束交换并关闭本地连接。
-/// 调用者必须使用完整请求令牌过滤 UI 更新，并负责 preview/result 内资源的释放协议。
+/// Input-resource owners must survive this call. on_update returning false terminates exchange and closes the local connection.
+/// Callers must filter UI updates with complete request tokens and own the preview/result resource-release protocol.
 pub fn run(
     socket: BridgeSocket,
     message: String,
@@ -33,7 +33,7 @@ pub fn run(
 ) -> Result<Event, Error> {
     run_cancellable(socket, message, unit, request, timeout, None, on_update)
 }
-/// 取消任务以 250 ms 读预算复核标志，避免只依赖 Windows shutdown 唤醒竞态。
+/// Cancelled tasks recheck flags with a 250 ms read budget, avoiding sole reliance on Windows shutdown wake races.
 pub fn run_cancellable(
     mut socket: BridgeSocket,
     message: String,
@@ -92,7 +92,7 @@ pub fn run_cancellable(
                 }
             },
             Message::Ping(_) => {
-                // Tungstenite 已排队 Pong；单独有界 flush，不能因心跳刷新总响应期限。
+                // Tungstenite already queued Pong; perform a separately bounded flush without heartbeat extension of the total response deadline.
                 set_deadline(&mut socket, deadline, Some(Duration::from_secs(5)))?;
                 socket.flush().map_err(|_| Error::Closed)?;
             }

@@ -1,4 +1,4 @@
-//! 原生长截图的可选来源扩展；保留未知轴，方向来自已接受位移而非滚轮提示。
+//! Optional source extension for native scrolling captures; preserve unknown axes, with direction from accepted displacement rather than wheel hints.
 use serde::{Deserialize, Serialize};
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
@@ -28,7 +28,7 @@ impl Recording {
         {
             return false;
         }
-        // 单轴会话方向须与已确定轴一致；显式二维移动可带独立空间坐标。
+        // Single-axis session direction must match the established axis; explicit 2D movement may carry independent spatial coordinates.
         if self.spatial_position.is_none() {
             match (axis, self.direction) {
                 (None, Some(_)) => return false,

@@ -1,4 +1,4 @@
-//! 实际Application Viewer配置接缝→原控制线程；独立Loom父门核终态与业务，不冒充人工菜单导航。
+//! Actual Application Viewer configuration seam -> original control thread; an independent Loom parent gate checks terminal state and business behavior, not manual menu navigation.
 use super::*;
 use crate::desktop::composition::relay::window::trigger::{phase_test, submit_test};
 use crate::live_relay_viewer_trigger_queue::Phase;

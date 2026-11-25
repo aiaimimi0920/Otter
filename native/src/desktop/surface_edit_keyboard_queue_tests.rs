@@ -1,4 +1,4 @@
-//! 默认动作保持原 sequence/capacity/fence；取消、过期和策略代次不复活旧请求。
+//! Default actions preserve original sequence/capacity/fence; cancellation, expiry, and policy generations cannot revive old requests.
 use super::*;
 #[test]
 fn javascript_native_enter_default_replaces_its_slot_before_keyup_later_input_and_click_fence() {

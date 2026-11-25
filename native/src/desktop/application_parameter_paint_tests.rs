@@ -1,4 +1,4 @@
-//! 在未切换 desktop 核同步首帧及后续 Application 调度，不把已绘完的控件误判为饥饿。
+//! Check the synchronous first frame and later Application scheduling without switching desktops, so already-painted controls are not mistaken for starvation.
 use super::*;
 use windows::Win32::Graphics::Gdi::GetUpdateRect;
 use windows::Win32::UI::Input::KeyboardAndMouse::{GetFocus, SetFocus};
@@ -44,7 +44,7 @@ unsafe fn check_pump(focused: bool) {
             1,
             "the ordinary image row has one inline upload control, not the old standalone form"
         );
-        // 首帧现由完整帧发布同步完成；另使同一真实 child 失效，验证正常消息泵的后续重绘。
+        // Complete-frame publication now finishes the first frame synchronously; invalidate the same real child separately to verify subsequent normal-message-pump repaint.
         for child in &children {
             assert!(
                 !GetUpdateRect(*child, None, false).as_bool(),

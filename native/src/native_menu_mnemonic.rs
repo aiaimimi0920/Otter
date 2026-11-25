@@ -1,4 +1,4 @@
-//! 菜单助记符只读取标签部分；转义 && 是字面符号，不从快捷键列猜测命令。
+//! Menu mnemonics read only labels; escaped && is literal, and shortcut columns never infer commands.
 use super::*;
 fn mnemonic(label: &str) -> Option<char> {
     let mut chars = label.split('\t').next()?.chars();
@@ -26,7 +26,7 @@ fn character(pending: &mut Option<u16>, unit: u16) -> Option<char> {
     char::from_u32(u32::from(unit)).filter(|value| !value.is_control())
 }
 impl Cascade {
-    /// WM_CHAR/WM_SYSCHAR 为 UTF-16 单元；无效代理项不触发命令。
+    /// WM_CHAR/WM_SYSCHAR carry UTF-16 units; invalid surrogates never trigger commands.
     pub fn character(&mut self, unit: u16) -> Result<()> {
         self.sync_geometry()?;
         if self.closed || self.pages.is_empty() {

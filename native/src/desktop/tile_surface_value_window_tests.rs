@@ -1,4 +1,4 @@
-//! 实际自有离屏HWND与Win32菜单；选择回调注入不操作用户鼠标或焦点。
+//! Actual owned offscreen HWNDs and Win32 menus; injected selection callbacks do not operate user mouse/focus.
 use super::*;
 use crate::tile_surface_value::tests::{fixture, select, switch};
 use windows::Win32::System::Com::*;

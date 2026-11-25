@@ -1,4 +1,4 @@
-//! Relay窗口只记录显式控制意图和有界输入；网络、续租和释放归原控制线程。
+//! Relay windows record only explicit control intent and bounded input; original control threads own networking, renewal, and release.
 use super::*;
 use crate::{
     desktop::window_input_event as event,
@@ -151,7 +151,7 @@ pub(super) unsafe fn handle(
     if !queue.status().enabled || !event::recognized(message) {
         return false;
     }
-    // 本地Alt+Space/Alt+F4继续归系统，进入菜单/关闭将撤销控制。
+    // Local Alt+Space/Alt+F4 remain system-owned; menu entry/closure revokes control.
     if message == WM_SYSKEYDOWN && (wp.0 == 0x20 || wp.0 == 0x73) {
         return false;
     }

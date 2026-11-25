@@ -1,4 +1,4 @@
-//! Application观看准入：真实Surface或在线本地Art独立证明；共享目录/新Lease和取消围栏。
+//! Application viewer admission: independent proof from a real Surface or online local Art; shared catalog/new Lease and cancellation fences.
 use super::*;
 use crate::{
     desktop::composition::relay::sessions::ViewerHost,
@@ -27,7 +27,7 @@ impl Application {
         );
         Ok(bindings)
     }
-    /// 在领取Ready之前结算发起附件；不将已打开观看绑定到面板/工作区寿命。
+    /// Settle the initiating attachment before collecting Ready; an open viewer is not bound to panel/workspace lifetime.
     pub(super) fn settle_live_viewers(&mut self) -> Result<()> {
         let bindings = self.live_viewer_bindings()?;
         self.remote_sessions.cancel_pending_viewers(|expected| {
@@ -82,7 +82,7 @@ impl Application {
                 .map(|()| "正在加入远程观看…"),
             _ => unreachable!(),
         };
-        // stop可能同步销毁HWND；不跨它持有菜单View借用。
+        // stop may synchronously destroy HWNDs; do not hold a menu View borrow across it.
         self.authorization.borrow_mut().live.watching = self.remote_sessions.viewers();
         self.authorization.borrow_mut().live.status = match result {
             Ok(status) => status.into(),

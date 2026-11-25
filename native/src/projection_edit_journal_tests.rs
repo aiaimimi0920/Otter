@@ -1,4 +1,4 @@
-//! 写前、确认、同请求恢复与单在途；只创建linshi内独占合成目录，保留失败现场。
+//! Write-ahead, acknowledgement, same-request recovery, and single-in-flight tests use exclusive synthetic linshi directories and retain failure artifacts.
 use super::*;
 use crate::projection_edit::fixture::*;
 #[path = "projection_edit_journal_storage_tests.rs"]

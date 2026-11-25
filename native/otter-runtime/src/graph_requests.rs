@@ -1,4 +1,4 @@
-//! 执行请求所有者：每对象一个当前请求，代际匹配阻断过期交付；不持有线程或网络连接。
+//! Execution-request owner: one current request per object, with generation matching blocking stale delivery; owns no threads or network connections.
 use crate::{workspace::MAX_UNITS, workspace_id::UnitId};
 pub const MAX_PREVIEW_BYTES: usize = 65536;
 pub const MAX_TOTAL_PREVIEW_BYTES: usize = 1024 * 1024;
@@ -32,7 +32,7 @@ pub enum Error {
     PreviewTooLarge,
 }
 impl Requests {
-    /// 保留历史代际不算忙碌；任何节点的活动请求都阻止工作区整体替换。
+    /// Retained historical generations are not busy; an active request on any node prevents whole-workspace replacement.
     pub fn is_idle(&self) -> bool {
         self.entries.iter().all(|entry| entry.active.is_none())
     }
@@ -46,7 +46,7 @@ impl Requests {
             None => Ok(1),
         }
     }
-    /// 调用方提供新 request UUID；即使误复用 ID，仍要求交付方匹配完整代际令牌。
+    /// Callers provide a new request UUID; even if an ID is mistakenly reused, delivery must match the full generation token.
     pub fn begin(&mut self, unit: UnitId, id: UnitId) -> Result<Request, Error> {
         let index = match self.entries.iter().position(|entry| entry.unit == unit) {
             Some(index) => index,
@@ -87,7 +87,7 @@ impl Requests {
     pub fn is_latest(&self, unit: &UnitId, request: &Request) -> bool {
         self.active(unit) == Some(request)
     }
-    /// 已由协议解码器限制消息字节；这里接管字符串所有权，不额外复制图片引用。
+    /// The protocol decoder already limits message bytes; take ownership of strings here without additionally copying image references.
     pub fn mark_preview(
         &mut self,
         unit: &UnitId,
@@ -128,13 +128,13 @@ impl Requests {
         self.preview_bytes -= entry.retire();
         true
     }
-    /// 取消保留 generation；下一次 begin 单调增加，旧回调不能重新成为当前请求。
+    /// Cancellation preserves generation; the next begin increases it monotonically, so old callbacks cannot become current again.
     pub fn invalidate(&mut self, unit: &UnitId) {
         if let Some(entry) = self.entries.iter_mut().find(|entry| &entry.unit == unit) {
             self.preview_bytes -= entry.retire();
         }
     }
-    /// 对象关闭时移除元数据并释放预算；同一工作区的新对象必须使用新 UnitId。
+    /// Remove metadata and release budget when an object closes; new objects in the same workspace must use new UnitIds.
     pub fn retain_units(&mut self, mut keep: impl FnMut(&UnitId) -> bool) {
         self.entries.retain(|entry| keep(&entry.unit));
         self.preview_bytes = self

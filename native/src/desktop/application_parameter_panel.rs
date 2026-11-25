@@ -1,4 +1,4 @@
-//! 参数窗是有界文档 owner；隐藏/托盘/关闭销毁草稿，动作在既有 UI 调度段串行提交。
+//! Parameter windows are bounded document owners; hiding/tray/closure destroys drafts, and actions commit serially in existing UI dispatch segments.
 use super::*;
 use crate::desktop::document_window::parameter_panel::{self, Panel};
 const MAX_OPEN: usize = 4;

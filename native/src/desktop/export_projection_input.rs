@@ -1,7 +1,7 @@
-//! 宿主在来源身份校验后捕获的待应用操作；像素大小不能证明逻辑框或物化状态。
+//! Pending operations captured after host provenance validation; pixel dimensions do not prove logical bounds or materialization state.
 use crate::crop_geometry::{Rect, Size};
 
-/// 由宿主验证过的自然像素恢复原文；普通保存的新canonical不能替换它。
+/// Host-validated originals for natural-pixel restoration; new canonical data from ordinary saves cannot replace them.
 #[derive(Clone)]
 pub(in crate::desktop) struct Baseline {
     pub record: crate::session_source::Source,
@@ -10,22 +10,22 @@ pub(in crate::desktop) struct Baseline {
 
 #[derive(Clone, Default)]
 pub(in crate::desktop) struct Input {
-    /// 完整 Editor 坐标框，不是当前裁剪可见框或自然像素尺寸。
+    /// Complete Editor coordinate bounds, not current visible crop or natural-pixel dimensions.
     pub logical: Option<Size>,
-    /// 自然来源原始逻辑sourceSize；非等比恢复后它不等于当前Editor完整框。
+    /// Original logical sourceSize of natural provenance; after nonuniform restoration it differs from current full Editor bounds.
     pub source_logical: Option<Size>,
     /// Selected pixels already cover the complete logical source frame, padding included.
     pub rasterized_source: bool,
-    /// 只解释自然来源的历史/布局，不提供目标当前crop、标注或外观。
+    /// Interpret only natural-source history/layout, not target current crop, annotations, or appearance.
     pub baseline: Option<Baseline>,
-    /// 仅尚未物化的目标轴翻转；已翻转像素必须传 false。
+    /// Only target-axis flips not yet materialized; already-flipped pixels must pass false.
     pub flip: (bool, bool),
-    /// 自然来源尚未包含baseline的历史擦除；当前layers.base不得重放。
+    /// Historical erasure not yet included in natural-source baseline; current layers.base must not replay it.
     pub historical_erase: bool,
-    /// 自然来源尚未物化传播 placement；不影响独立标注的坐标。
+    /// Natural-source propagation placement not yet materialized; independent annotation coordinates are unaffected.
     pub content: bool,
-    /// 只有宿主证明仍有效的旧式像素 crop 才可重放；reset 后必须 false。
+    /// Replay only legacy pixel crops proven current by the host; false is required after reset.
     pub legacy_crop: bool,
-    /// 当前像素owner已物化flip后的有效区域；独立于content，优先于旧原文crop。
+    /// Valid post-flip region materialized by the current pixel owner; independent of content and preferred over old original crop.
     pub legacy_pixels: Option<Rect>,
 }

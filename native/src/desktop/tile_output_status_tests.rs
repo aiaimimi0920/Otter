@@ -1,4 +1,4 @@
-//! 自有短状态窗的关闭与同步重入；不抢用户焦点、不装hook或注入输入。
+//! Owned short-status-window closure and synchronous reentrancy; no user-focus stealing, hooks, or input injection.
 use super::*;
 
 thread_local! {

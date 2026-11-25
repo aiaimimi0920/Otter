@@ -1,8 +1,8 @@
-//! 点击批次准备事务：容量检查和结果预留先于窗口 owner 移交，启动失败仍结算。
+//! Click-batch preparation transaction: check capacity/reserve results before transferring window ownership, and settle even on startup failure.
 use super::*;
 use crate::surface_event_batch_runtime::{Error, Input, Outcome};
 impl Sessions {
-    /// 未结算、未呈现或尚有输出待应用时，不让新点击改变同一附件的场景。
+    /// New clicks must not change an attachment's scene while unsettled, unpresented, or awaiting output application.
     pub fn surface_input_ready(&self, binding: &crate::surface_live_binding::Binding) -> bool {
         self.surface_input_ready_with(binding, |_| false)
     }
@@ -41,7 +41,7 @@ impl Sessions {
                         }))
         })
     }
-    /// 回调只能准备不超过 limit 的原事件；未移交 owner 时可返回 None。
+    /// Callbacks may prepare at most limit original events; None is allowed before ownership transfer.
     pub fn dispatch_surface_batch(
         &mut self,
         config: Config,

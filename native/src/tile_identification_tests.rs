@@ -1,4 +1,4 @@
-//! 独立单调时间oracle；识别不变布局、不以HTTP接纳冒充绘制，也不恢复已退休请求。
+//! Independent monotonic-time oracles; identification neither changes layout, treats HTTP acceptance as painting, nor restores retired requests.
 use super::*;
 fn fixture() -> (Identification, Endpoint, Command, Instant) {
     (

@@ -1,4 +1,4 @@
-//! 从实际已绘制Presentation生成不可变点击事件；普通与Wall共用编码，不构造挂载Binding。
+//! Generate immutable click events from actually painted Presentation; ordinary and Wall hosts share encoding without constructing mount Bindings.
 use crate::{
     surface_click_event::{Identity, Modifiers},
     surface_presentation::Presentation,
@@ -70,7 +70,7 @@ pub(crate) fn prepare(
     let empty = serde_json::Map::new();
     let mut values = None;
     for action in route {
-        // 一个冒泡批次最多采集一次；没有动作或未请求表单的动作不遍历场景。
+        // Collect at most once per bubbling batch; actions absent or not requesting forms do not traverse scenes.
         let fields = if action.includes_surface_values() {
             values
                 .get_or_insert_with(|| {

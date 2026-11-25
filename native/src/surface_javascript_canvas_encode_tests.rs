@@ -1,4 +1,4 @@
-//! 固定快速滤波仍为逐像素无损PNG，不改变alpha、尺寸或输出预算。
+//! Fixed fast filtering remains pixel-lossless PNG without changing alpha, dimensions, or output budgets.
 use super::*;
 fn decode(size: [u32; 2], bgra: Vec<u8>) -> Vec<u8> {
     let encoded = encode(size, bgra).unwrap();
@@ -35,7 +35,7 @@ fn canvas_fast_png_filter_preserves_all_alpha_values_and_transparent_clearing() 
     for alpha in 0..=255u8 {
         let pixel = [alpha / 3, alpha / 2, alpha, alpha];
         bgra.extend_from_slice(&pixel);
-        // 独立浮点oracle，不调用生产的整数反预乘或新编码函数产生预期。
+        // Independent floating-point oracle; expectations do not use production integer unpremultiplication or the new encoder.
         for value in [pixel[2], pixel[1], pixel[0]] {
             rgba.push(if alpha == 0 {
                 0

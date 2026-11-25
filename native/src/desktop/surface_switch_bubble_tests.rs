@@ -1,4 +1,4 @@
-//! Switch 单次激活的祖先 click 先于 change；不复制 DOM label 转发的重复 click。
+//! A Switch activation's ancestor click precedes change; do not duplicate DOM label-forwarded clicks.
 use super::*;
 use crate::desktop::surface_edit_mount::FenceState;
 fn nested() -> SurfaceWindow {
@@ -38,7 +38,7 @@ fn surface_switch_bubble_mouse_orders_one_ancestor_batch_before_change() {
     let pending = window
         .defer_click(window.take_click().unwrap(), &binding(), 1)
         .unwrap();
-    // 自身 change 仍在 waiting，但不属于祖先 click 的前置依赖。
+    // Its own change remains waiting but is not a prerequisite of the ancestor click.
     assert_eq!(window.deferred_state(&pending), FenceState::Ready);
     assert!(window.has_pending_edit());
     ancestors(&window, &pending);

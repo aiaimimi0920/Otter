@@ -1,4 +1,4 @@
-//! 恢复缩略窗口的展开事务；物理坐标来自同一次恢复转换，不猜测历史 DPR。
+//! Expansion transaction for restored minimized windows; physical coordinates come from the same restore conversion, not guessed historical DPR.
 use super::*;
 use windows::core::{Error, Result};
 use windows::Win32::Graphics::Gdi::SetWindowRgn;

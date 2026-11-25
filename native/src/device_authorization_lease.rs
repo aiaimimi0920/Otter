@@ -1,4 +1,4 @@
-//! 单个串行后台请求链的凭据租约；缓存替换/撤销同步取消请求并关闭绑定媒体。
+//! Credential lease for one serial background request chain; cache replacement/revocation synchronously cancels requests and closes bound media.
 use crate::{
     device_request_cancel::Cancel, device_session_attempt::Session, device_session_client::Client,
     live_relay_http::Control, live_relay_viewer_session::ViewerSession,
@@ -29,7 +29,7 @@ pub enum Error {
     Bound,
 }
 
-// Session 不复制 token。最后一个后台租约退出后，由 Session 的 Zeroizing 擦除。
+// Session does not copy tokens. Its Zeroizing erases them after the final background lease exits.
 pub(super) struct Grant {
     session: Arc<Session>,
     leases: Vec<Weak<State>>,
@@ -91,7 +91,7 @@ impl Drop for Grant {
 }
 impl State {
     fn revoke(&self) {
-        // 与绑定共用锁；先关闭媒体，再唤醒网络，不等待线程 join。
+        // Share the binding lock; close media before waking network operations, without waiting for thread join.
         let media = self.media.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(media) = media.as_ref().and_then(Weak::upgrade) {
             media.close();
@@ -106,15 +106,15 @@ impl Lease {
     pub(crate) fn test_disconnect_request(&self) -> bool {
         self.state.cancel.test_disconnect()
     }
-    /// 惰性创建独立手动重置事件，撤销后永久有信号；不占网络取消的唤醒槽。
+    /// Lazily create an independent manual-reset event, permanently signaled after revocation; do not consume the network-cancellation wake slot.
     pub fn revocation_notification(&self) -> std::io::Result<Notification> {
         self.state.watch.notification()
     }
-    /// 原串行链的长期结果复用宿主 Wake；注册与撤销原子衔接，不新增等待句柄。
+    /// Long-lived results of the original serial chain reuse host Wake; registration/revocation interlock atomically without new wait handles.
     pub(crate) fn notify_revocation(&self, notify: Arc<dyn Fn() + Send + Sync>) {
         self.state.watch.notify(notify);
     }
-    /// 仅用于安排授权截止等待；不是 token，也不能替代 validate。
+    /// Only schedules authorization-deadline waits; not a token or a substitute for validate.
     pub fn expires_at_ms(&self) -> u64 {
         self.session
             .as_ref()
@@ -130,11 +130,11 @@ impl Lease {
     pub fn is_revoked(&self) -> bool {
         self.state.cancel.is_stopped()
     }
-    /// 后台有界编码共用原请求停止标志，不能用独立的 false 标志绕过撤权。
+    /// Bounded background encoding shares the original request stop flag; an independent false flag cannot bypass revocation.
     pub(crate) fn preparation_cancel(&self) -> &std::sync::atomic::AtomicBool {
         self.state.cancel.flag()
     }
-    /// 已完成资源仅能移交给同一 Grant 的长期 owner；相同 origin/device 不足以证明同一凭据代际。
+    /// Completed resources may transfer only to a long-lived owner of the same Grant; matching origin/device does not prove the same credential generation.
     pub(crate) fn same_grant(&self, other: &Self) -> bool {
         match (&self.session, &other.session) {
             (Some(a), Some(b)) => Arc::ptr_eq(a, b),
@@ -142,7 +142,7 @@ impl Lease {
             _ => false,
         }
     }
-    /// 本地交付前复核，不返回或复制 token；调用方必须传入当前时间。
+    /// Recheck before local delivery without returning/copying tokens; callers must supply current time.
     pub fn validate(&self, origin: &str, now_ms: u64) -> Result<(), Error> {
         if self.is_revoked() {
             return Err(Error::Revoked);
@@ -170,8 +170,8 @@ impl Lease {
         }
         Ok(())
     }
-    /// 每个租约只属于一个串行请求链；并行连接必须从缓存申请独立租约。
-    /// Control 在每次请求前后另行检查 origin/过期；取消信号覆盖借用后发生的撤销。
+    /// Each lease belongs to one serial request chain; parallel connections request separate leases from the cache.
+    /// Control separately checks origin/expiry before and after every request; cancellation covers revocation occurring after borrowing.
     pub fn control<'a>(&'a self, client: &'a Client) -> Result<Control<'a>, Error> {
         if self.is_revoked() {
             return Err(Error::Revoked);
@@ -182,7 +182,7 @@ impl Lease {
             &self.state.cancel,
         ))
     }
-    /// 图片结果持有原请求租约，消费不得换成另一个未取消的 Cancel 绕过撤权。
+    /// Image results hold the original request lease; consumers cannot bypass revocation by substituting another uncancelled Cancel.
     pub(crate) fn validate_resource(
         &self,
         resource: &crate::live_relay_http::ResourceLease,
@@ -197,7 +197,7 @@ impl Lease {
         }
         resource.matches(current, now)
     }
-    /// 一租约只绑定一个媒体 owner；终态 close 防止撤销与后续 activate 交错复活。
+    /// Bind only one media owner per lease; terminal close prevents resurrection through interleaved revocation/later activate.
     pub fn bind_media(&self, media: &Arc<ViewerSession>) -> Result<(), Error> {
         let mut slot = self.state.media.lock().unwrap_or_else(|e| e.into_inner());
         if self.is_revoked() {
@@ -216,7 +216,7 @@ impl Lease {
     pub(super) fn wait(&self, duration: std::time::Duration) -> bool {
         self.state.cancel.wait(duration)
     }
-    /// 配置快照到 Client 的准备也属于此串行租约，撤销可唤醒原生 DNS 等待。
+    /// Configuration-snapshot-to-Client preparation also belongs to this serial lease; revocation can wake native DNS waits.
     pub(super) fn prepare_client(
         &self,
         config: &crate::device_authorization_config::Config,

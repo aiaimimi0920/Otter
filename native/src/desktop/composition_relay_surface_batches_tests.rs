@@ -1,4 +1,4 @@
-//! 批次应用等待/预算/收据测试：已撤权租约，不访问远端。
+//! Batch-application waits/budgets/receipts with revoked leases, without remote access.
 use super::*;
 use crate::surface_event_batch_runtime::{Error as BatchError, Input, Outcome as BatchOutcome};
 #[test]

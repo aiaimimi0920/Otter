@@ -1,4 +1,4 @@
-//! 无 OS 调用的物理 shell 手势分类；只保存修饰键位，不保存文本或输入历史。
+//! Physical shell-gesture classification without OS calls; retain only modifier bits, not text or input history.
 use crate::live_reclaim::{Intent, IntentTracker};
 
 #[derive(Default)]

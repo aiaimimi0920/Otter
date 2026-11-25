@@ -1,4 +1,4 @@
-//! HWND override ABI 身份、空结果、当前挂载、替换撤销；不接受外部或未挂载 HWND。
+//! HWND override ABI identity, empty results, current mounts, and replacement revocation; reject external/unmounted HWNDs.
 use super::*;
 use windows::{
     core::{IUnknown, Interface},

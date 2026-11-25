@@ -1,4 +1,4 @@
-//! 纯合成会话的隐藏窗口事务；固定占位目录不连接 Loom，不读取真实发现凭据。
+//! Hidden-window transactions for entirely synthetic sessions; fixed placeholder catalogs neither connect to Loom nor read actual discovery credentials.
 use super::*;
 #[path = "application_restore_readiness_smoke.rs"]
 mod readiness;
@@ -104,7 +104,7 @@ unsafe fn verify(app: &Application, catalog: &Rc<Loaded>) -> Result<()> {
         return Err(Error::new(E_FAIL, "Restored batch identity mismatch"));
     }
     let source = &app.documents[0].state;
-    // Ctrl+2 实际注册和共享降级状态必须进入原工作区与隐藏候选的恢复凭证。
+    // Actual Ctrl+2 registration and shared fallback state must enter restore credentials for both the original workspace and hidden candidates.
     for flag in [
         &source.global_live_capture,
         &app.live_hotkey_enabled,

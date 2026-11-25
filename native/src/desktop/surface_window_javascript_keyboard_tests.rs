@@ -1,4 +1,4 @@
-//! 真实 EDIT 定向消息验证取消先于默认 change；保留草稿、焦点 ABA 和原唯一 FIFO。
+//! Actual EDIT targeted messages verify cancellation before default change; retain drafts, focus ABA, and the original sole FIFO.
 use super::*;
 use crate::surface_javascript::{keyboard_tests::SOURCE, Frame};
 #[test]
@@ -211,7 +211,7 @@ fn javascript_native_enter_real_hwnd_stale_focus_policy_contract_and_hidden_do_n
         }
         let native_focus_changed = window.javascript_focus_epoch() != captured_epoch;
         accept(&window, &prepared.id, frame);
-        // ABA 的真实失焦可已有一个 change；只核新 default 槽没有被补入。
+        // Actual ABA focus loss may already produce a change; check only that no new default slot was inserted.
         let mut changes = 0;
         while window.has_pending_edit() {
             let (_, count) = next(&window, &mut session);
@@ -313,7 +313,7 @@ fn javascript_native_enter_real_hwnd_background_edges_are_not_queued_or_replayed
             let _background = fixture::focus_foreground(other.hwnd);
             assert_ne!(GetForegroundWindow(), window.hwnd);
             assert!(IsWindowEnabled(hwnd).as_bool() && IsWindowVisible(hwnd).as_bool());
-            // 定向消息不等于真实键盘资格；后台边沿必须被消费且不能进入原 FIFO。
+            // Targeted messages are not actual keyboard eligibility; consume background edges without letting them enter the original FIFO.
             key(hwnd, false, false);
             key(hwnd, true, false);
             assert!(!window.has_pending_edit());

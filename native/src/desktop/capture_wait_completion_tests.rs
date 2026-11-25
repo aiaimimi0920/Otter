@@ -1,4 +1,4 @@
-//! 完成通知回归只使用隐藏 HWND 和合成像素；不读取桌面或注入系统输入。
+//! Completion-notification regressions use only hidden HWNDs and synthetic pixels; no desktop reads or system input injection.
 use super::*;
 thread_local! { static TICKS: Cell<usize> = const { Cell::new(0) }; }
 unsafe extern "system" fn count_timer(code: i32, wp: WPARAM, lp: LPARAM) -> LRESULT {

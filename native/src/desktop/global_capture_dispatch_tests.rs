@@ -1,4 +1,4 @@
-//! 隐藏 HWND 上验证真实准入/命令分派；最终选择回调注入，不读取桌面或注册系统热键。
+//! Real admission/command dispatch on hidden HWNDs; inject only final selection callbacks, without desktop reads/system hotkey registration.
 use super::*;
 use std::{cell::Cell, rc::Rc};
 unsafe fn window() -> crate::desktop::Window {
@@ -55,7 +55,7 @@ fn live_hotkey_dispatches_live_only_and_pending_request_prevents_a_second_select
         assert!(stamp.matches(&state.canvas.borrow().editor));
         assert!(state.new_pin.borrow().is_none());
         assert!(!state.capture_active.get() && !state.file_dialog.get());
-        state.live_request.borrow_mut().take(); // 取消/结算后下一次按键可以重新选区。
+        state.live_request.borrow_mut().take(); // After cancellation/settlement, the next keystroke may select again.
         trigger(window.0, &state, |command| {
             assert_eq!(command, crate::desktop::capture_input::live::COMMAND);
             count += 1;

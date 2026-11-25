@@ -1,4 +1,4 @@
-//! 修正跟随真实鼠标创建的源菜单；只改变本次已认证 SHOW 的位置，不改 owner/层级。
+//! Correct source menus created at real mouse positions; move only this authenticated SHOW without changing owner/z-order.
 use crate::native_protocol::Request;
 use windows::Win32::{Foundation::*, Graphics::Gdi::*, UI::WindowsAndMessaging::*};
 
@@ -9,7 +9,7 @@ pub(crate) struct Anchor {
 }
 impl Anchor {
     pub(crate) fn read(request: Request) -> Option<Self> {
-        // 与源窗口过程使用相同 DPI 上下文；不能混入宿主的物理屏幕坐标。
+        // Use the same DPI context as source window procedures; never mix host physical-screen coordinates.
         let mut source = POINT {
             x: request.lp as u16 as i16 as i32,
             y: ((request.lp as u32) >> 16) as u16 as i16 as i32,
@@ -26,7 +26,7 @@ impl Anchor {
 
     pub(crate) fn place(self, popup: HWND) -> windows::core::Result<()> {
         unsafe {
-            // 普通 dialog 可能本来就应居中，不能对所有弹窗施加 A-B 偏移。
+            // Ordinary dialogs may legitimately be centered; do not apply A-B offsets to every popup.
             if GetWindowLongPtrW(popup, GWL_EXSTYLE) as u32 & WS_EX_NOACTIVATE.0 == 0 {
                 return Ok(());
             }
@@ -76,7 +76,7 @@ fn relocated(rect: RECT, cursor: POINT, source: POINT, work: RECT) -> Option<POI
     }
     let x = i64::from(rect.left) + i64::from(source.x) - i64::from(cursor.x);
     let y = i64::from(rect.top) + i64::from(source.y) - i64::from(cursor.y);
-    // 超过工作区大小的菜单保持尺寸，由应用自行滚动，不偷偷缩放客户区。
+    // Menus exceeding work-area size retain dimensions for application scrolling; never silently scale client areas.
     Some(POINT {
         x: x.clamp(
             i64::from(work.left),
@@ -142,7 +142,7 @@ mod tests {
             assert_eq!(GetWindowLongPtrW(popup, GWL_EXSTYLE), style);
             assert_eq!(GetWindowLongPtrW(popup, GWLP_HWNDPARENT), 0);
             assert_eq!(GetForegroundWindow(), foreground);
-            // 普通 dialog 不应沿用菜单的坐标修正。
+            // Ordinary dialogs must not reuse menu-coordinate corrections.
             SetWindowLongPtrW(
                 popup,
                 GWL_EXSTYLE,

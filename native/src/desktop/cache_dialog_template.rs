@@ -1,4 +1,4 @@
-//! 缓存对话框静态布局，控件顺序即键盘导航顺序。
+//! Static cache-dialog layout; control order defines keyboard navigation order.
 use windows::Win32::UI::WindowsAndMessaging::*;
 pub(super) fn template() -> Vec<u32> {
     fn string(data: &mut Vec<u16>, text: &str) {

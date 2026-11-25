@@ -1,4 +1,4 @@
-//! Explorer 文件选择缓冲解析；单文件完整路径，多文件为目录加有界文件名列表。
+//! Parse Explorer file-selection buffers: complete single-file paths, or a directory plus bounded filename list for multiple files.
 use std::{
     ffi::OsString,
     os::windows::ffi::{OsStrExt, OsStringExt},

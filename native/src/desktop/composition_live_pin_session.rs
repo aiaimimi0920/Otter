@@ -1,4 +1,4 @@
-//! Live 采集 owner 保留普通钉图编辑历史；编辑宿主交给 Application 时不重复登记节点。
+//! The Live capture owner retains ordinary pin edit history; handing the edit host to Application must not register duplicate nodes.
 use super::*;
 use crate::desktop::document_window::DocumentWindow;
 use windows::{
@@ -51,7 +51,7 @@ impl Session {
         )?;
         Ok(())
     }
-    /// 所有可失败准备都在文档仍归 Application 时完成，之后只转移 owner。
+    /// Complete all fallible preparation while Application still owns the document, then transfer ownership only.
     pub(in crate::desktop) unsafe fn retain_pin(&mut self, doc: DocumentWindow, visible: bool) {
         let _ = ShowWindow(doc.panel.0, SW_HIDE);
         let _ = ShowWindow(doc.window.0, SW_HIDE);

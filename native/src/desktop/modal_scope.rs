@@ -1,4 +1,4 @@
-//! 应用范围的模态状态观察；弱引用不延长文档寿命，也不改变各文档独立的 Guard。
+//! Application-wide modal-state observation; weak references neither extend document lifetime nor change independent document Guards.
 use std::{
     cell::{Cell, RefCell},
     rc::{Rc, Weak},
@@ -18,7 +18,7 @@ impl Scope {
     }
 
     pub fn blocked(&self) -> bool {
-        // 查询只读 Cell，不调用 Win32，也不跨模态消息循环持有列表借用。
+        // Query read-only Cells without Win32 or list borrows across modal message loops.
         self.0
             .borrow()
             .iter()

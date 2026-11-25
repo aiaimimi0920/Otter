@@ -1,4 +1,4 @@
-//! 显式确认协议适配；本地不可变输入指纹必须匹配，runtime进度不能构造挑战。
+//! Explicit-confirmation protocol adapter; local immutable-input fingerprints must match, and runtime progress cannot construct challenges.
 use super::*;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -145,7 +145,7 @@ impl Call<'_> {
                         .ok_or(Error::Identity)?
                         .replacen(':', "/", 1)
                 || self.challenge.as_ref().is_some_and(|old| old != challenge)
-                // 已提交调用的输入不可变；仅完整匹配上次已验证的挑战时跳过重算。
+                // Submitted-call inputs are immutable; skip recomputation only when fully matching the last validated challenge.
                 || (self.challenge.is_none() && challenge.fingerprint != self.fingerprint()?)
                 || challenge.expires_at_ms <= now().map_err(Error::Http)?
             {

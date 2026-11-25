@@ -1,4 +1,4 @@
-//! Tile控制、图片/媒体与Art各持同Grant独立串行Lease；UI独立探测输出/超时清屏。
+//! Tile control, image/media, and Art each own independent serial Leases from the same Grant; UI independently probes outputs and clears on timeout.
 use crate::{
     device_authorization_config::Config, device_authorization_lease::Lease, tile_assets::Assets,
     tile_outputs::TileOutput, tile_shared::Shared,
@@ -44,7 +44,7 @@ impl Runtime {
             + Send
             + 'static,
     ) -> std::io::Result<Self> {
-        // 并行HTTP必须独立租约且来自同一Grant，不能借另一个设备/新凭据延长旧会话。
+        // Parallel HTTP requires separate leases from the same Grant; another device/new credentials cannot extend an old session.
         if !lease.same_grant(&images) || !lease.same_grant(&art) {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidInput,
@@ -99,7 +99,7 @@ impl Runtime {
     pub fn status(&self) -> &'static str {
         self.shared.lock().status
     }
-    /// 输出重绑定只沿原Grant；被服务撤销/过期的旧owner不能借几何变化重新启动。
+    /// Output rebinding uses only the original Grant; server-revoked/expired owners cannot restart through geometry changes.
     pub(crate) fn authorization_valid(&self, origin: &str) -> bool {
         self.lease.validate(origin, now_ms()).is_ok()
     }

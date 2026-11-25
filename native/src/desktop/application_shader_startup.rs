@@ -1,4 +1,4 @@
-//! 产品启动接入及显式回环冒烟：真实目录握手/首次取码/child/commit，不预填配方缓存。
+//! Product startup integration and explicit loopback smoke test: real catalog handshake/initial code fetch/child/commit, without prepopulating the recipe cache.
 use super::*;
 use crate::desktop::shader_prepare::Installation;
 #[cfg(any(test, debug_assertions, feature = "smoke-test"))]
@@ -80,7 +80,7 @@ pub(super) unsafe fn smoke(
         }
         thread::sleep(Duration::from_millis(1));
     };
-    // 专用 peer 必须声明此 ID，不能在无关目录中任选一个真实 Art 执行。
+    // The dedicated peer must declare this ID; never execute an arbitrary real Art from an unrelated catalog.
     let capability = catalog
         .handshake
         .arts()

@@ -1,4 +1,4 @@
-//! 呈现快照与系统 EDIT 的接缝；只消费已经通过上层证据门禁的场景。
+//! Seam between presented snapshots and system EDIT controls; consume only scenes accepted by upper-layer evidence gates.
 use super::super::surface_window::Activation;
 use super::*;
 use crate::{surface_click_event::ClickEvent, surface_live_binding::Binding};
@@ -74,7 +74,7 @@ impl Host {
         self.edits.seal_input_edge();
         self.edits.values().clone()
     }
-    /// 候选固定用户激活边沿的值；布局与动作资格仍按当前已验证场景复核。
+    /// Candidates freeze values at the user activation edge; recheck layout/action eligibility against the current verified scene.
     pub(crate) fn candidate_events(
         &mut self,
         click: &super::super::surface_window::Click,

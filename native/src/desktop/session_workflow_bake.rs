@@ -1,10 +1,10 @@
-//! 已恢复候选的源分辨率烘焙入口；不从活动窗口重新获取或猜测原图身份。
+//! Source-resolution baking for restored candidates; do not reacquire from active windows or guess source-image identity.
 use super::*;
 #[path = "session_workflow_prepare.rs"]
 pub mod workflow;
 
 impl VectorCandidate {
-    /// 只接受未继续编辑的恢复候选，防止以保留原图覆盖新擦除；未实现效果显式拒绝。
+    /// Accept only restored candidates without further edits, preventing retained originals from overwriting new erasures; explicitly reject unimplemented effects.
     pub fn bake_source_png(
         &self,
         unit: &UnitId,
@@ -21,7 +21,7 @@ impl VectorCandidate {
         self.bake_window_image_png(index, window, None, cancel)
     }
 
-    /// 候选按源会话顺序组织；索引访问仍检查身份，防止错序时取到其他节点资源。
+    /// Candidates follow source-session order; indexed access still checks identity to avoid fetching another node's resources if order differs.
     fn bake_window_image_png(
         &self,
         index: usize,
@@ -38,8 +38,8 @@ impl VectorCandidate {
                 .map_err(|_| Error::new(E_INVALIDARG, "Invalid bake edit state"))?;
             border = super::super::export::source_resolution::frame_border::Border::read(&edit)?;
             radius = super::super::export::source_resolution::frame_clip::radius(&edit)?;
-            // 主干合成器不读取 imageEditState.rotation；这是遗留元数据，不应在此
-            // 拒绝会话或发明整图旋转。标注自身的 rotation 由标注绘制路径处理。
+            // The mainline compositor does not read imageEditState.rotation; this is legacy metadata and must not cause
+            // session rejection or invented whole-image rotation here. The annotation drawing path handles each annotation's own rotation.
             edit_state = edit;
         }
         let placement = self
@@ -104,7 +104,7 @@ impl VectorCandidate {
                         || crop.is_some_and(|crop| crop.rasterized_source),
                 )
                 .with_beautify(&edit_state)?;
-        // 主干模糊采样使用整个 unit 框，不使用传播内容框；不能随底图一起平移。
+        // Mainline blur sampling uses the whole unit box, not propagated content bounds; do not translate it with the base image.
         let prepared = super::super::export::source_resolution::source_blur::prepare_restored(
             source, editor, &geometry, window, crop, cancel,
         )?;

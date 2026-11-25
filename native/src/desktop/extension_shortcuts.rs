@@ -1,4 +1,4 @@
-//! 应用 UI 线程独占扩展热键；目录撤销立即停路由，注册失败不冒充全局可用，不加 hook/轮询。
+//! Application UI threads exclusively own extension hotkeys; catalog revocation stops routing immediately, registration failures never claim global availability, and no hooks/polling are added.
 use super::State;
 use crate::{
     loom_extension_snapshot::{Chord, Shortcut, Snapshot},
@@ -63,7 +63,7 @@ impl Owner {
             return Ok(());
         }
         let definitions = catalog.as_ref().map(|s| s.shortcuts()).transpose();
-        // 即使新目录解析失败也撤销旧路由，不能让旧权限因 UI 投影错误继续生效。
+        // Revoke old routes even if new-catalog parsing fails; UI projection errors must not keep old permissions effective.
         self.catalog = catalog;
         let mut errors = Vec::new();
         let definitions = match definitions {
@@ -97,7 +97,7 @@ impl Owner {
                 );
                 if let Err(e) = change(r.id, chord, false) {
                     errors.push(format!("unregister extension shortcut {}: {e}", r.id));
-                    r.definition = None; // 注销失败的注册只留清理 owner，绝不能继续执行。
+                    r.definition = None; // Failed-unregistration records retain cleanup ownership only and must never keep executing.
                     next.push(r);
                 }
             }
@@ -108,7 +108,7 @@ impl Owner {
                 break;
             }
             let id = self.next;
-            self.next += 1; // 不复用旧 ID，队列里的旧 WM_HOTKEY 不能命中新命令。
+            self.next += 1; // Never reuse IDs; queued old WM_HOTKEY messages must not match new commands.
             let registered = definition.global
                 && match change(id, definition.chord, true) {
                     Ok(()) => true,
@@ -134,7 +134,7 @@ impl Owner {
         }
     }
     pub(super) fn local(&self, key: u32, modifiers: impl FnOnce() -> u32) -> Option<&Shortcut> {
-        // 普通未绑定键不查键盘状态；注销失败只留清理记录，不纳入候选。
+        // Ordinary unbound keys do not query keyboard state; failed-unregistration cleanup records are excluded from candidates.
         let mut candidates = self
             .bindings
             .iter()

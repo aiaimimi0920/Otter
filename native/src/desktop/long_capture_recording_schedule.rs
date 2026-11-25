@@ -1,4 +1,4 @@
-//! 录制期间串行周期采样，覆盖拖动/滚动条/键盘移动；滚轮只加速，不作为位移证据。
+//! Serial periodic sampling during recording covers dragging, scrollbars, and keyboard movement; wheel hints accelerate only, never prove displacement.
 use std::time::{Duration, Instant};
 const DELAY: Duration = Duration::from_millis(24);
 const POLL: Duration = Duration::from_millis(32);
@@ -80,7 +80,7 @@ impl Schedule {
         self.clear();
     }
     pub fn covered(&mut self, now: Instant) {
-        // 遮挡期间不用滚轮突发反复采样；完成中的最后一帧失败则直接交付可信帧。
+        // Do not repeatedly sample wheel bursts during occlusion; if the final finishing frame fails, deliver trusted frames directly.
         self.clear();
         self.latest = None;
         if self.phase == Phase::Recording {
@@ -108,20 +108,20 @@ impl Schedule {
         {
             self.clear();
         }
-        // 拖动没有 wheel 提示；立即完成也必须收取松手后的最后画面。
+        // Dragging has no wheel hint; immediate finish must still collect the final post-release image.
         if recording {
             self.final_sample = true;
             self.dirty = true;
             self.due.get_or_insert(now + DELAY);
         }
     }
-    /// 只在唯一 worker 任务已被领取后调用；在途的新事件仍保留一个 dirty 位。
+    /// Call only after collecting the sole worker task; new in-flight events retain one dirty bit.
     pub fn completed(&mut self, now: Instant) {
         if !matches!(self.phase, Phase::Recording | Phase::Draining) {
             return;
         }
         if self.phase == Phase::Recording {
-            // 保留采样开始时的截止；仅让出一个消息机会给预览，不再完成后额外等待一整周期。
+            // Keep the deadline from sampling start; yield one message opportunity to previews without waiting a full extra period after completion.
             self.poll = Some(self.poll.unwrap_or(now).max(now + Duration::from_millis(1)));
         }
         if !self.dirty
@@ -146,7 +146,7 @@ impl Schedule {
             }
             self.clear();
         }
-        // 360ms 只约束额外尾采样；慢的在途任务不能挤掉尚未开始的完成后首张截图。
+        // 360ms bounds additional tail sampling only; slow in-flight tasks must not displace the first not-yet-started post-finish capture.
         if self.phase == Phase::Draining
             && !self.final_sample
             && self.drain.is_some_and(|end| now >= end)
@@ -173,7 +173,7 @@ impl Schedule {
         Action::Idle
     }
     pub fn needs_timer(&self, busy: bool) -> bool {
-        // 待处理突发与周期截止分开；周期等待期间可以占用同一 worker 生成预览。
+        // Separate pending bursts from periodic deadlines; previews may use the same worker during periodic waits.
         busy || self.dirty || self.phase == Phase::Draining
     }
     pub fn wake_after(&self, now: Instant, busy: bool) -> Option<Duration> {
@@ -194,7 +194,7 @@ impl Schedule {
         None
     }
     fn limited(&self, now: Instant) -> bool {
-        // 帧数/像素上限归 SessionJob；周期抓到的重复帧不能耗尽保留帧额度。
+        // SessionJob owns frame/pixel limits; duplicate periodic frames must not exhaust retained-frame quotas.
         self.started
             .is_some_and(|start| now.saturating_duration_since(start) >= Duration::from_secs(300))
     }

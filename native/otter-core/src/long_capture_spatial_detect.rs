@@ -1,4 +1,4 @@
-//! 未锁轴的取景框移动只提交物理坐标；首次可靠的剩余页面运动才确定滚动轴。
+//! Unlocked-axis viewport movement commits physical coordinates only; the first reliable residual page motion determines scrolling axis.
 use super::*;
 
 pub(super) fn match_frame(

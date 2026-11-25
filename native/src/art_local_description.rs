@@ -1,8 +1,8 @@
-//! 描述和 prepare 在同一后台链串行执行；登记先于网络，替换/撤信任可中断描述阶段。
+//! Description and prepare run serially in one background chain; registration precedes network I/O so replacement/trust removal can interrupt description.
 use super::*;
 use crate::live_relay_http::art_describe::Descriptor;
 
-/// 只含宿主上下文；未知的包版本、digest 和权限不能用占位元数据伪造。
+/// Contains only host context; unknown package version, digest, and permissions cannot be fabricated with placeholder metadata.
 pub struct Request {
     pub origin: String,
     pub workspace: String,
@@ -27,7 +27,7 @@ impl Registry {
         if request.workspace != self.workspace {
             return Err(Error::Workspace);
         }
-        // 这里只作宿主输入有界检查；网络描述和完整 grant 仍分别经过严格合同校验。
+        // Only bound-check host input here; network descriptions and complete grants still undergo their own strict contract validation.
         if request.art.is_empty()
             || request.art.len() > 257
             || request.instance.is_empty()
@@ -103,7 +103,7 @@ impl PendingDescription {
                     self.token.generation,
                 )
                 .map_err(Error::Description)?;
-            // token 在描述之前由原 Registry 分配；不采纳任何响应提供的请求身份。
+            // The original Registry allocates the token before description; never accept request identity from a response.
             request.binding.request_id = self.token.id.to_string();
             match cache {
                 Some(cache) => self.authorization.prepare_cached(client, request, cache),

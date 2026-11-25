@@ -1,4 +1,4 @@
-//! 真正Tile Runtime/原生EDIT→串行worker→Loom；消息只发给自有离屏窗口。
+//! Actual Tile Runtime/native EDIT -> serial worker -> Loom; messages target owned offscreen windows only.
 use super::*;
 use std::{collections::BTreeSet, sync::Arc};
 pub(super) fn run() {

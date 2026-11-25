@@ -1,4 +1,4 @@
-//! 移动真实面板 HWND 后复核路由；不冒充物理鼠标或多显示器 DPI 验收。
+//! Recheck routing after moving real panel HWNDs; not physical-mouse or multi-monitor DPI acceptance.
 use super::*;
 use windows::core::w;
 

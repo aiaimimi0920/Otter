@@ -1,4 +1,4 @@
-//! 真实 WIC/D2D 路径，保护自然分辨率、小数逻辑坐标和底图透明度。
+//! Real WIC/D2D paths protect natural resolution, fractional logical coordinates, and base-image opacity.
 use super::*;
 #[test]
 fn raster_annotation_keeps_its_opacity_when_source_is_transparent() {
@@ -38,7 +38,7 @@ fn raster_annotation_keeps_its_opacity_when_source_is_transparent() {
         .unwrap();
         let decoded = super::super::decode_png(png.to_vec());
         assert_eq!((decoded.width, decoded.height), (4, 2));
-        // 独立红色标注覆盖蓝色边框，且不继承底图透明度。
+        // Independent red annotations cover blue borders without inheriting base-image opacity.
         assert!(decoded
             .pixels
             .chunks_exact(4)

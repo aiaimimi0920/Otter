@@ -1,4 +1,4 @@
-//! 文档菜单的单目标发送请求；只固定 Unit/目录快照，不编码、不签名、不访问磁盘或网络。
+//! Single-target send requests from document menus; freeze only Unit/catalog snapshots, without encoding, signing, disk access, or networking.
 use super::*;
 use crate::{
     projection_delivery::{

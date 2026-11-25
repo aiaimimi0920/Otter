@@ -1,4 +1,4 @@
-//! 镜像元数据与物化像素共用同一事务、身份和历史；快照不重新翻转像素。
+//! Mirror metadata/materialized pixels share transactions, identities, and history; snapshots never flip pixels again.
 use super::*;
 use crate::{erase_layers::Layers, raster_flip::Axis};
 

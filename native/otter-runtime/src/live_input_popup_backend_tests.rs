@@ -1,4 +1,4 @@
-//! 原 popup 来源随生产 Worker 保留；只操作自有源线程 hook/窗口，不运行 WGC 或加载外部应用。
+//! The production Worker retains the original popup source; owned source-thread hooks/windows only, without WGC or external-application loading.
 use super::*;
 use crate::live_input::{Backend as _, Delivery};
 use crate::live_input_worker::{Command, Exit, Reason, Worker};

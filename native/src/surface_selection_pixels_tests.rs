@@ -1,4 +1,4 @@
-//! 真实 WIC/D2D 像素比较：高亮改变选区而不越过内容裁剪，绘制不泄漏画刷状态。
+//! Real WIC/D2D pixel comparisons: highlights change selection without crossing content clips, and painting leaks no brush state.
 use super::*;
 use windows::Win32::{
     Graphics::{Dxgi::Common::DXGI_FORMAT_B8G8R8A8_UNORM, Imaging::*},

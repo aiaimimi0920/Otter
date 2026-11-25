@@ -1,4 +1,4 @@
-//! 原生菜单→共享授权 owner→后台固定 TLS→typed 目录；不需要可保存的工作区。
+//! Native menu -> shared authorization owner -> background pinned TLS -> typed catalog; no savable workspace required.
 use super::*;
 use crate::desktop::application::projection;
 use crate::desktop::device_authorization_ui::targets as ui_targets;
@@ -61,7 +61,7 @@ fn run(mode: u8) {
         });
     unsafe {
         let mut app = application();
-        // Application::new 会合成空白会话；本用例显式移除，验证目录不依赖保存目标。
+        // Application::new synthesizes a blank session; explicitly remove it here to prove the catalog does not require a save target.
         app.restored_session = None;
         assert!(app.restored_session.is_none());
         assert!(projection::receive::Scope::capture(&mut app).is_err());

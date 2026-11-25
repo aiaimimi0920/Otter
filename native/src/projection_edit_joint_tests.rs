@@ -1,4 +1,4 @@
-//! 显式双真实Loom消费者；只覆盖协议/写前事务，不把模拟checkpoint当Application保存验收。
+//! Explicit dual real-Loom consumers cover protocol/write-ahead transactions only; simulated checkpoints are not Application-save acceptance.
 use super::{
     fixture::{annotation, SESSION},
     *,
@@ -123,7 +123,7 @@ fn apply(projection: &str, op: &str, previous: &Document, id: &str, value: Value
     .unwrap()
 }
 fn ack(ticket: &journal::Ticket, doc: Document) -> Document {
-    // 专属fixture显式扮演持久checkpoint完成；产品接线尚未开放，不能据此宣称canonical保存通过。
+    // The dedicated fixture explicitly simulates completed persistent checkpoints; product wiring is not enabled, so this cannot prove canonical saving.
     ticket
         .commit_after_checkpoint(doc.clone(), &AtomicBool::new(false))
         .unwrap();
@@ -157,7 +157,7 @@ fn native_edit_joint_shared_offline_replay_merge_checkpoint_and_conflict() {
     let original = ticket.request().bytes().to_vec();
     let first = sc.projection_edit(&ticket).unwrap();
     assert_eq!(first.revision(), 1);
-    // 已成功但尚未确认的写前记录在重新open后仍重放同一请求，服务端revision不能增加。
+    // Successful but unacknowledged write-ahead records replay the same request after reopen; server revision must not increase.
     drop((ticket, ss));
     let ss = source.open();
     let mut pending = ss.pending(&AtomicBool::new(false)).unwrap();

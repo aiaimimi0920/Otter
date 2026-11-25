@@ -1,4 +1,4 @@
-//! 稳定身份不是数组下标：删除/复制/历史/快照均走真实 Editor 操作。
+//! Stable identity is not an array index: deletion, duplication, history, and snapshots all use actual Editor operations.
 use super::*;
 
 fn restored() -> Editor {

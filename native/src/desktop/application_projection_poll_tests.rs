@@ -1,4 +1,4 @@
-//! 原生手动模式自动查询及暂停代次；真实 TLS 单槽，不依赖可追加目标或全局输入。
+//! Automatic queries and pause generations in native manual mode; real TLS single slot, independent of appendable targets or global input.
 use super::*;
 
 fn enable(app: &mut Application) {
@@ -42,7 +42,7 @@ fn receive_policy_confirm_automatically_polls_without_append_scope_and_never_acc
     let _com = Apartment::new().unwrap();
     unsafe {
         let mut fixture = inbox();
-        fixture.app.restored_session = None; // 没有保存目标也必须能查询/显示待确认邀请。
+        fixture.app.restored_session = None; // Querying/displaying invitations awaiting confirmation must work even without a save target.
         enable(&mut fixture.app);
         poll(&mut fixture);
         assert!(fixture.app.authorization.borrow().request.is_none());
@@ -188,7 +188,7 @@ fn receive_policy_pause_suppresses_polling_and_away_back_discards_completed_inbo
         enable(&mut fixture.app);
         poll(&mut fixture);
         wait_remote(&fixture.app);
-        joined(&mut fixture); // 已经完成的旧快照仍占原槽，暂停/恢复都不能使它复活。
+        joined(&mut fixture); // A completed old snapshot still occupies its original slot; neither pause nor resume may revive it.
         pause(&mut fixture, true);
         for _ in 0..1000 {
             fixture.app.process_projection_automatic(

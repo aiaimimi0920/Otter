@@ -1,4 +1,4 @@
-//! 真实引擎的显式结果生命周期；排队不是正式工作区提交，旧 Session 仍失败关闭。
+//! Explicit-result lifecycle in the real engine; queuing is not committed workspace submission, and old Sessions still fail closed.
 use super::*;
 fn mount(source: &str) -> Command {
     Command::Mount {

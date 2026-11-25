@@ -1,4 +1,4 @@
-//! IME 定位的坐标、失效与采样预算回归；不启动输入法或向其他进程发送消息。
+//! IME-positioning coordinate, invalidation, and sampling-budget regressions; no IME startup or messages to other processes.
 use super::*;
 use crate::live_viewport::Viewport;
 

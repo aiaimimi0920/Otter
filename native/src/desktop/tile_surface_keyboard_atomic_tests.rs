@@ -1,4 +1,4 @@
-//! 原生销毁/滚动paint重入不得把旧Tab候选写回；由未切换的独立desktop运行。
+//! Native destruction/scroll-paint reentrancy must not restore old Tab candidates; run on an independent desktop never switched to.
 use super::*;
 use windows::Win32::UI::Shell::*;
 

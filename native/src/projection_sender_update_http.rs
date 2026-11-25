@@ -1,4 +1,4 @@
-//! 持续发送只读既有ID再CAS；更新不确定时只读一次对账，不重发、不Create、不扩大取消。
+//! Continuous sending reads existing IDs then CAS; uncertain updates reconcile with one read, never resend/Create/broaden cancellation.
 use super::*;
 use delivery::sender::{binding::Binding, update::Update};
 impl Control<'_> {

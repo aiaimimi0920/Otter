@@ -1,4 +1,4 @@
-//! 按需的单次扩展执行 owner；使用独立认证连接，不借用目录订阅 socket，不自动重放。
+//! On-demand one-shot extension execution owner; independent authenticated connections, without borrowing catalog-subscription sockets or automatic replay.
 use super::{
     capability_job::Source,
     extension_command_bridge::{Mailbox, Packet, Port},
@@ -42,7 +42,7 @@ impl Job {
             .name("otter-extension-command".into())
             .spawn(move || {
                 let _completion = CompletionSignal::new(completed, notify);
-                // 正常结果和 panic 都先清理仍在邮箱中的请求，完成通知后不能再领取遗留 Apply。
+                // Normal results and panics both clear mailbox requests first; completion notification must leave no stale Apply to collect.
                 let _published = Published(worker_port.mailbox.clone());
                 (|| {
                     worker_port.check().map_err(diagnostic)?;

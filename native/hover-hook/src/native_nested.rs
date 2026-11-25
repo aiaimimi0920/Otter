@@ -1,4 +1,4 @@
-//! 嵌套按钮只准进入当前事务的源弹窗与镜像后代，不以同进程代替来源关系。
+//! Nested buttons may enter only current-transaction source popups/mirrored descendants; same process is not a provenance relationship.
 use crate::{native_popup::Lease, native_protocol::Request};
 use windows::Win32::{Foundation::*, UI::WindowsAndMessaging::*};
 

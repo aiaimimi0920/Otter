@@ -1,4 +1,4 @@
-//! Live 转静态提交：读回期间保留原会话，静态文档准备/登记成功后才停止源。
+//! Live-to-static commit: retain the original session during readback and stop the source only after static-document preparation/registration succeeds.
 use super::*;
 #[path = "live_freeze_job.rs"]
 mod job;
@@ -30,7 +30,7 @@ impl Application {
             .and_then(|pending| pending.job.poll())
         {
             let pending = self.live_freeze_job.take().expect("ready freeze owner");
-            // 只在归还单槽时唤醒；其他 Live 的意图仍留在原窗口，不忙轮询。
+            // Wake only when returning the single slot; other Live intents remain in their original windows, without busy polling.
             PostMessageW(None, WM_NULL, WPARAM(0), LPARAM(0))?;
             let pin = result.map_err(|error| Error::new(E_FAIL, error))?;
             if let Some(key) = pending.pin_key {
@@ -47,7 +47,7 @@ impl Application {
         {
             return Ok(());
         }
-        // destructive read 只能领取一个，且不能先领取再发现 worker 忙碌。
+        // A destructive read can collect only one item; never collect first and discover afterward that the worker is busy.
         let Some((unit, pin_key)) = self.live_sessions.iter().find_map(|session| {
             if session.take_freeze_request() {
                 Some((session.unit_id().clone(), None))
@@ -130,7 +130,7 @@ impl Application {
         let opacity = session
             .opacity()
             .ok_or_else(|| Error::new(E_ABORT, "Live freeze opacity owner closed"))?;
-        // 已登记的 Live 身份转交给 Document，不重复 add_units，也不先删除其连线/分组。
+        // Transfer the registered Live identity to Document, without duplicate add_units or first deleting its links/groups.
         if !self.workspace.contains(&id) || self.documents.iter().any(|doc| doc.state.unit_id == id)
         {
             return Err(Error::new(

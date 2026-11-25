@@ -1,4 +1,4 @@
-//! 按表示差异回填原字段，不以f32、缺省值或控件范围重写未编辑的wire。
+//! Restore original fields according to representation differences; f32/defaults/control ranges must not rewrite unedited wire values.
 use super::*;
 use std::collections::BTreeSet;
 pub(super) fn merge(

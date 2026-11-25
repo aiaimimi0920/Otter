@@ -1,4 +1,4 @@
-//! 独立声明/事件oracle；复用Wall夹具，验证实际hit、值合同和新鲜派发围栏。
+//! Independent declaration/event oracles reuse Wall fixtures to verify actual hits, value contracts, and fresh dispatch fences.
 use super::*;
 use crate::tile_surface_actions::{
     tests::{value, Fixture},

@@ -1,4 +1,4 @@
-//! 裁剪后的输入仍存储源坐标；不同缩放/平移下拒绝框外起点并夹紧拖动终点。
+//! Cropped input still stores source coordinates; reject starts outside bounds and clamp drag endpoints across zoom/pan settings.
 use super::*;
 use crate::crop_geometry::Rect;
 
@@ -117,7 +117,7 @@ fn crop_drag_reversed_repeat_cancel_and_stale_document() {
     let point = Point { x: 20.0, y: 15.0 };
     assert!(canvas.pointer_down(point));
     let revision = canvas.editor.revision();
-    assert!(canvas.pointer_up(point)); // 零面积不提交。
+    assert!(canvas.pointer_up(point)); // Zero-area selections do not commit.
     assert_eq!(canvas.editor.revision(), revision);
     assert!(canvas.pointer_down(point));
     canvas.editor.undo();

@@ -1,4 +1,4 @@
-//! 持续 read 不锁住用户保存/真实工作区替换；迟到结果不能越过旧来源/授权/模态边界。
+//! Continuous read does not lock user saves/actual workspace replacement; late results cannot cross old source/authorization/modal boundaries.
 use super::*;
 use crate::desktop::device_authorization_ui::Request;
 unsafe fn prepare_save(

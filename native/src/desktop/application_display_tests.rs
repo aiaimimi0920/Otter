@@ -1,4 +1,4 @@
-//! 用生产应用 owner 验证断链、来源编辑与撤销后的显示快照生命周期。
+//! Use the production application owner to verify display-snapshot lifetimes after unlinking, source editing, and undo.
 use super::Application;
 use crate::{desktop::image::Image, editor::Tool, viewport::Point};
 
@@ -23,7 +23,7 @@ pub(super) fn verify_display_edit(app: &mut Application) {
         use windows::Win32::UI::WindowsAndMessaging::*;
         let mut rect = windows::Win32::Foundation::RECT::default();
         GetClientRect(relay.window.0, &mut rect).unwrap();
-        // 从实际居中内容内部开始编辑，而不是点击透明留白的左上角。
+        // Start editing inside the actual centered content, rather than clicking the upper-left transparent margin.
         let point = windows::Win32::Foundation::LPARAM(
             (rect.right / 2) as isize | (((rect.bottom / 2) as isize) << 16),
         );
@@ -42,7 +42,7 @@ pub(super) fn verify_display_edit(app: &mut Application) {
         assert_eq!(canvas.viewport, viewport);
         assert_eq!(&*canvas.image.as_ref().unwrap().pixels, &[10, 20, 30, 255]);
         assert_eq!(canvas.editor.elements().len(), 1);
-        assert!(canvas.editor.undo()); // 本次笔画与接管为同一步
+        assert!(canvas.editor.undo()); // This stroke and takeover form a single step.
         canvas.sync_raster_source();
         assert!(canvas.image.is_none());
         assert!(canvas.editor.layers().is_none());
@@ -68,7 +68,7 @@ pub(super) fn verify_display_lifetime(app: &mut Application) {
     app.sync_display_frames();
     assert!(app.documents[2].state.resolved_display.borrow().is_some());
 
-    // 把来源切换为本地已编辑钉图，确保旧 Art 正式输出不再成为显示来源。
+    // Switch the source to a locally edited pin so the old Art's committed output can no longer supply the display.
     let source = &app.documents[0].state;
     source.selected_art.borrow_mut().take();
     {
@@ -104,7 +104,7 @@ pub(super) fn verify_display_lifetime(app: &mut Application) {
     let current = current.as_ref().unwrap();
     assert!(current.editor.as_ref().unwrap().elements().is_empty());
     assert!(current.image.pixels.same_storage(&old.image.pixels));
-    // 新快照不能反向修改仍被消费者持有的旧编辑快照。
+    // A new snapshot must not mutate old edit snapshots still held by consumers.
     assert_eq!(old.editor.as_ref().unwrap().elements().len(), 1);
     let relay = &app.documents[2];
     let mut canvas = relay.state.canvas.borrow_mut();
@@ -167,7 +167,7 @@ pub(super) fn verify_display_lifetime(app: &mut Application) {
             )
             .unwrap();
             GetClientRect(relay.window.0, &mut client).unwrap();
-            // 旧夹具是 captioned HWND，系统最小宽度可能扩大客户区；按真实尺寸核居中。
+            // The old fixture is a captioned HWND, whose system minimum width may enlarge the client area; verify centering against actual dimensions.
             let span = client.right.min(client.bottom);
             let left = ((client.right - span) as f32 * 0.5).round() as i32;
             let top = ((client.bottom - span) as f32 * 0.5).round() as i32;

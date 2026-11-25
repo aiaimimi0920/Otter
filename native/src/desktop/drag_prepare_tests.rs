@@ -125,7 +125,7 @@ fn worker_encodes_committed_crop_opacity_and_publishes_only_on_explicit_commit()
         .chunks_exact(4)
         .all(|pixel| (127..=128).contains(&pixel[3])));
     assert!(job.take_ready().is_none());
-    assert_eq!(fixture.entries(), 2); // lock + 独占暂存，尚无 PNG/归属记录。
+    assert_eq!(fixture.entries(), 2); // lock plus exclusive staging; no PNG/ownership record yet.
     let path = staged.commit(&AtomicBool::new(false)).unwrap();
     assert_eq!(path.file_name().unwrap(), "拖出 🦦.png");
     let image = super::super::image::Image::open(&path).unwrap();

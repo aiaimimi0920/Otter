@@ -1,4 +1,4 @@
-//! 未知连接写与撤权只终止旧 owner，不自动重放 connect，也不恢复旧候选。
+//! Uncertain connection writes and revocation terminate only old owners, without automatically replaying connect or restoring old candidates.
 use super::*;
 use crate::{
     device_authorization_lease::{Grant, Notification},
@@ -78,7 +78,7 @@ fn terminal(unauthorized: bool) {
     }
     assert!(runtime.shared.lock().frame.is_none());
     assert!(runtime.shared.lock().presented.is_none());
-    // Runtime/Grant 析构也会触发撤权，必须先验证 401 自身已结束旧授权链。
+    // Runtime/Grant destruction also triggers revocation; first verify that 401 itself terminated the old authorization chain.
     if let Some(notices) = notices {
         for (label, notice) in &notices {
             assert_revocation(label, notice, true);

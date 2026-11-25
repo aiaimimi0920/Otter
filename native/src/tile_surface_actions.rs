@@ -1,4 +1,4 @@
-//! UI到原Art串行worker的32槽动作队列；64个短期确认锚点不拥有像素或授权租约。
+//! 32-slot action queue from UI to the original serial Art worker; 64 short-lived confirmation anchors own neither pixels nor authorization leases.
 use crate::{
     surface_action_ack::{Ack, Status},
     tile_surface_wire::{State, View},
@@ -52,7 +52,7 @@ pub(crate) struct Queue {
     pub notice: &'static str,
     pub origin: String,
     pub device: String,
-    // 原唯一worker的弱在途身份；新显式字段不能用新Group绕过同view串行前缀。
+    // Weak in-flight identity of the original unique worker; new explicit fields cannot use new Groups to bypass same-view serial prefixes.
     pub(super) inflight: Option<(View, u64, std::sync::Weak<crate::tile_surface_edit::Edit>)>,
     #[cfg(test)]
     pub test_offered: u64,
@@ -87,8 +87,8 @@ impl Queue {
         }
         self.pending
             .retain(|c| matches!(c.kind, Kind::Cancel { .. }));
-        // 暂停视觉不关闭view；保留有界/会过期的ACK身份，恢复后仍须显式审阅新鲜提示。
-        // 真正的布局/租约/代际换代由clear或observe淘汰，不能把暂停当作隐式拒绝。
+        // Pausing visuals does not close views; retain bounded, expiring ACK identities, and still require explicit review of fresh prompts after resuming.
+        // clear or observe retires actual layout/lease/generation changes; pause is not implicit rejection.
     }
     pub fn offer(&mut self, commands: Vec<Command>, now: Instant) -> bool {
         self.prune(now);
@@ -101,7 +101,7 @@ impl Queue {
             self.notice = "Art操作队列已满";
             return false;
         }
-        // 保守地逐锚点计费（共享Arc也计一次），使旧场景/提示/JSON累计不超过8MiB。
+        // Charge conservatively per anchor, including each shared Arc, so accumulated old scenes/prompts/JSON stay within 8MiB.
         let bytes = self
             .pending
             .iter()
@@ -307,7 +307,7 @@ impl Queue {
                     self.cancel_edit(&edit);
                 }
             }
-            // Slider批准后仍跟踪原request，直到新鲜state证明执行终态；否则取消/失败会丢失依赖。
+            // After Slider approval, keep tracking the original request until fresh state proves terminal execution; otherwise cancellation/failure loses dependencies.
             if !approved
                 || rejected
                 || self

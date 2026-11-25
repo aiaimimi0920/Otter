@@ -1,4 +1,4 @@
-//! Live 帧池纹理的独立快照：仅 GPU 复制，预算随纹理存活；最后一个消费者释放后方可归还有界会话池。
+//! Independent snapshots of Live frame-pool textures: GPU copies only, with budget tied to texture lifetime; return to the bounded session pool only after the last consumer releases.
 use std::{
     mem::ManuallyDrop,
     sync::{
@@ -22,7 +22,7 @@ pub struct Texture {
     pub format: DXGI_FORMAT,
 }
 impl Texture {
-    /// 仅借用。呈现者必须持有整个共享帧，不得只克隆 COM 指针而提前释放预算 owner。
+    /// Borrow only. Presenters must retain the entire shared frame, not just clone COM pointers and prematurely release the budget owner.
     pub fn texture(&self) -> &ID3D11Texture2D {
         &self.allocation.texture
     }
@@ -61,8 +61,8 @@ fn bytes(desc: &D3D11_TEXTURE2D_DESC) -> Result<usize, Error> {
     }
 }
 /// # Safety
-/// 调用者串行拥有 immediate context，或已启用并遵守 D3D 多线程保护；源不能正在映射。
-/// GPU 命令按同设备 context 顺序消费；此函数不代表跨设备共享/fence 同步已经完成。
+/// The caller serially owns the immediate context, or enables and obeys D3D multithread protection; the source must not be mapped.
+/// GPU commands are consumed in same-device context order; this function does not establish completed cross-device sharing/fence synchronization.
 pub unsafe fn snapshot(
     context: &ID3D11DeviceContext,
     source: &ID3D11Texture2D,
@@ -71,7 +71,7 @@ pub unsafe fn snapshot(
     copy(context, source, None, cancel)
 }
 /// # Safety
-/// 与 snapshot 相同；region 为源纹理内物理像素，必须完整包含，不允许隐式裁剪。
+/// Same as snapshot; region uses physical pixels within the source texture and must be fully contained, with no implicit clipping.
 pub unsafe fn snapshot_region(
     context: &ID3D11DeviceContext,
     source: &ID3D11Texture2D,
@@ -177,7 +177,7 @@ pub fn region_box(
     })
 }
 /// # Safety
-/// 与 snapshot 相同。无消费者时不分配、不复制；准备期间最后一个消费者离开则丢弃快照。
+/// Same as snapshot. No allocation/copy without consumers; discard the snapshot if the last consumer leaves during preparation.
 pub unsafe fn publish(
     destination: &crate::live_frames::Source<Texture>,
     context: &ID3D11DeviceContext,

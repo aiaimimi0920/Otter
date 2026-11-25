@@ -1,4 +1,4 @@
-//! 显式Live发布的Application围栏；旧工作区/来源/授权不能接纳迟到Ready，失败保本地采集。
+//! Application fence for explicit Live publication; old workspaces/sources/authorization cannot accept late Ready, and failures preserve local capture.
 use super::*;
 #[path = "application_live_direct_source.rs"]
 mod direct;

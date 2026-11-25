@@ -1,4 +1,4 @@
-//! 同 JS child 的二维 CSS → 生产 Grid/DirectWrite/D2D/命中；不抢前台或模拟全局输入。
+//! Two-dimensional CSS from the same JS child -> production Grid/DirectWrite/D2D/hits, without foreground stealing or simulated global input.
 use super::{
     css_tests::{geometry, pixel, pixels},
     *,
@@ -20,7 +20,7 @@ fn javascript_grid_real_hwnd_pixels_hits_click_reflow_hidden_and_update() {
     let second = frame.scene.root().children()[1].id().to_owned();
     let third = frame.scene.root().children()[2].id().to_owned();
     let root = frame.scene.root().id().to_owned();
-    // Window::new 参数是外框尺寸；剩余 fr 宽使用真实 client 的原几何，不假定边框/DPI。
+    // Window::new takes outer dimensions; remaining fr width uses actual client geometry, without assumptions about borders/DPI.
     let window = SurfaceWindow::new(frame.scene, 200, 140).unwrap();
     let width = geometry(&window, &root).unwrap().1[0];
     assert!(width > 120. && width <= 200.);
@@ -133,7 +133,7 @@ fn javascript_grid_real_hwnd_hidden_items_do_not_reserve_auto_cells() {
     assert!(geometry(&window, &ids[0]).is_none());
     assert_eq!(geometry(&window, &ids[1]).unwrap().0, [0., 0.]);
     assert_eq!(geometry(&window, &ids[2]).unwrap().0, [48., 0.]);
-    // 语法合法但原生不支持的依赖轴/负隐式轨道必须整次拒绝，保持旧几何与命中。
+    // Syntactically valid but natively unsupported dependent axes/negative implicit tracks must reject the whole update, preserving old geometry/hits.
     for extra in [
         "root.style.gridTemplateRows='20%'",
         "root.firstChild.style.cssText='display:flex;grid-column:-4'",

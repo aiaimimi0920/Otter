@@ -1,4 +1,4 @@
-//! 原 Application/TLS harness 的 Enter 模式；定向 EDIT 消息，不用 parent COMMIT 冒充键盘。
+//! Enter mode of the original Application/TLS harness; directed EDIT messages, not parent COMMIT impersonating keyboard input.
 use super::*;
 use windows::{
     core::HSTRING,
@@ -6,7 +6,7 @@ use windows::{
 };
 unsafe fn key(edit: HWND, up: bool) {
     let parent = GetParent(edit).unwrap();
-    // 定向 SendMessage 不会建立真实前台；必须在发送前证明产品准入条件，而非事后重放。
+    // Directed SendMessage does not establish real foreground state; prove product admission conditions before sending, not through later replay.
     assert_eq!(
         GetForegroundWindow(),
         parent,
@@ -25,7 +25,7 @@ unsafe fn key(edit: HWND, up: bool) {
         Some(LPARAM(0)),
     );
 }
-// 原 harness 已持有本线程 Apartment；调用方与其使用同一 HWND owner。
+// The original harness already owns this thread's Apartment; callers use the same HWND owner.
 unsafe fn poll(app: &mut Application, root: &std::path::Path) {
     app.poll_remote_live_with(true, |o| fixture::config(o, root))
         .unwrap();
@@ -45,7 +45,7 @@ pub(super) unsafe fn prepare(
     parent: HWND,
     round: u64,
 ) {
-    // TLS/服务端批次期间不假设前台仍归本测试；每段真实键盘驱动独立建立并恢复前台。
+    // Do not assume test foreground ownership during TLS/server batches; each actual keyboard segment establishes and restores foreground independently.
     let _foreground = crate::surface_javascript::fixture::focus_foreground(parent);
     let edit = text::child(parent);
     let _ = SetFocus(Some(edit));
@@ -80,7 +80,7 @@ pub(super) unsafe fn prepare(
             .javascript_text_for_test(),
         canceled
     );
-    // 同一字段下一次 Enter 不取消；直到默认 change listener 的显式 emit 才允许联网。
+    // The next Enter on the same field is not canceled; network access waits for the default change listener's explicit emit.
     key(edit, false);
     for step in 0..16 {
         poll(app, root);

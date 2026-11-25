@@ -1,4 +1,4 @@
-//! 自有窗口验证模态菜单内的按钮，不访问用户应用或系统输入。
+//! Owned windows verify buttons inside modal menus, without user applications or system input.
 use super::*;
 use crate::native_dispatch as dispatch;
 use std::cell::Cell;

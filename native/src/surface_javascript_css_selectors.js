@@ -1,12 +1,12 @@
-// Author sheet 的有界 matcher；动态 :hover 仅借原 Hover owner 的私有谓词。
+// Bounded author-sheet matcher; dynamic :hover uses only the original Hover owner's private predicate.
 ((dom, fail, hovering) => {
   "use strict";
   const op = dom.ops, get = dom.get, Pattern = RegExp;
-  // 与原树共用 mutation identity；每代每父仅扫一次，避免每条规则/节点重复扫描兄弟。
-  // WeakMap 不保留已断开的节点，换代直接丢弃索引，不创建第二份树或生命周期历史。
+  // Share mutation identity with the original tree; scan each parent only once per generation instead of rescanning siblings for each rule/node.
+  // WeakMap does not retain disconnected nodes; discard the index on generation changes without creating a second tree or lifecycle history.
   let indexedRevision, positions, indexedParents;
   const nth = value => {
-    // 有界的 ASCII An+B 子集；不吞未知 of-selector/嵌套函数，整数均精确可表示。
+    // Bounded ASCII An+B subset; reject unknown of-selectors/nested functions, and keep all integers exactly representable.
     if (!op.exec(/^[\t\n\f\r 0-9a-z+-]+$/i, value)) fail();
     value = op.lower(op.trim(value)); let a = 0, b;
     if (value === "odd" || value === "even") { a = 2; b = value === "odd" ? 1 : 0; }
@@ -37,7 +37,7 @@
           const value = token[2];
           if (token[1] === "#") { ids++; op.push(tests, s => op.mapGet(s.attrs, "id") === value); }
           else {
-            // token只含已准入ASCII标识符；私有固定边界正则不分配逐字符words数组。
+            // Tokens contain only admitted ASCII identifiers; the private fixed-boundary regex avoids allocating a per-character words array.
             const pattern = new Pattern("(?:^|[\\t\\n\\f\\r ])" + value + "(?:[\\t\\n\\f\\r ]|$)");
             classes++; op.push(tests, s => op.exec(pattern, op.mapGet(s.attrs, "class") ?? "") !== null);
           }
@@ -76,10 +76,10 @@
       if (index === source.length) fail();
     }
     const simple = (node, tests, context) => {
-      // 同一computed调用中的规则共享目标状态/序号；谓词均私有纯函数，无插件重入或跨帧持有。
+      // Rules in one computed call share target state/indices; predicates are private pure functions with no plugin reentry or cross-frame retention.
       const current = context && context.node === node;
       const state = current ? context.state : get(node); if (state.tag === "#text" || state.tag === "#fragment") return false;
-      // 同步几何可从插件深栈重入；在调用谓词前完成索引，不叠加 predicate→position→get。
+      // Synchronous geometry can reenter from a deep plugin stack; finish indexing before invoking predicates without nesting predicate->position->get.
       let ordinal = 1;
       if (positioned && current && context.ordinal !== undefined) ordinal = context.ordinal;
       else if (positioned && state.parent) {
@@ -102,9 +102,9 @@
       return true;
     };
     return { specificity: [ids, classes, tags], matches(node, context) {
-      // 单段选择器没有祖先约束，直接匹配；不为每条规则/节点分配回溯工作数组。
+      // Single-part selectors have no ancestor constraints and match directly; do not allocate a backtracking work array for each rule/node.
       if (parts.length === 1) return simple(node, parts[0], context);
-      // 祖先深度 32，去重可达状态；避免重复 descendant 导致组合式回溯/堆增长。
+      // Ancestor depth is 32; deduplicate reachable states to avoid combinatorial backtracking/heap growth from repeated descendants.
       const ancestors = op.array();
       for (let current = node; current; current = get(current).parent) op.push(ancestors, current);
       let reachable = op.array(); reachable[0] = true;
@@ -123,7 +123,7 @@
     } };
   };
   const list = source => {
-    // 属性值中的逗号不是选择器分隔符；nth-child不接受逗号/of-selector或嵌套函数。
+    // Commas in attribute values are not selector separators; nth-child rejects commas, of-selectors and nested functions.
     const result = op.array(); let start = 0, bracket = false, quote = "";
     for (let i = 0; i <= source.length; i++) {
       const c = source[i];

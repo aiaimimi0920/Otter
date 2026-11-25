@@ -34,7 +34,7 @@ fn lifecycle_unknown_blocks_replay_until_authenticated_remount_then_disposes() {
                 );
                 let mut ack = response["instance"]["attachments"]["attachment:1"].clone();
                 ack["lifecycle"] = body["state"].clone();
-                // 模拟服务端已切换，但响应版本损坏；客户端不能自行重试 revision 8。
+                // Simulate a server that switched state but returned a corrupt revision; clients must not retry revision 8 themselves.
                 ack["lifecycleRevision"] = 9.into();
                 reply(&mut stream, 200, &serde_json::to_vec(&ack).unwrap());
             }

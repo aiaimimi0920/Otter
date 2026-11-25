@@ -1,4 +1,4 @@
-//! 验证跨接口身份、nullable 输出、SAFEARRAY 所有权及场景撤销。
+//! Verify cross-interface identity, nullable outputs, SAFEARRAY ownership, and scene revocation.
 use super::*;
 use crate::{surface_accessibility::Owner, surface_scene::Scene};
 use windows::{
@@ -118,7 +118,7 @@ fn uia_fragment_tree_identity_runtime_and_foreign_owner_isolation() {
             S_OK
         );
         assert!(output.is_null());
-        // 此 ABI 夹具的 Owner 与真实窗口不同，不能借同名节点读取另一个快照几何。
+        // This ABI fixture's Owner differs from the actual window; same-named nodes cannot read another snapshot's geometry.
         assert_eq!(
             first.BoundingRectangle().unwrap_err().code().0,
             UIA_E_ELEMENTNOTAVAILABLE as i32

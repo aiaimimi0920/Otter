@@ -1,4 +1,4 @@
-//! 生产 QuickJS/CSS 的四边语义；不以 scene 字符串代替原生测量或实际产品。
+//! Four-side semantics in production QuickJS/CSS; scene strings do not replace native measurement or actual products.
 use super::document_model_tests::collect;
 #[test]
 fn javascript_padding_model_shorthand_cascade_reflection_and_atomic_rejection() {

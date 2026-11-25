@@ -1,4 +1,4 @@
-//! 一条串行Source后台链；UI不做DNS/HTTP/GPU读回，也不因停止而绕过原授权关闭会话。
+//! One serial Source background chain; UI performs no DNS/HTTP/GPU readback, and stopping cannot bypass original authorization to close sessions.
 use crate::{
     byte_budget::Budget,
     device_authorization_config::Config,
@@ -100,10 +100,10 @@ impl Signal {
         }
     }
     fn restart_media(&self) {
-        // 控制失联必须在服务产生可靠controller=None屏障；仅由原媒体owner重连，不新增写请求。
-        // socket尚未安装时仍保留请求，避免首次控制GET先于WSS建立的竞争。
+        // Control disconnection must establish a reliable controller=None barrier on the service; only the original media owner reconnects, without new writes.
+        // Retain requests even before socket installation, avoiding the race where first control GET precedes WSS establishment.
         {
-            // 发布请求与选择取消对象共用连接槽；不能中断随后才安装的替代连接。
+            // Request publication and cancellation-object selection share the connection slot; do not interrupt a replacement installed afterward.
             let owner = self.socket.lock().unwrap_or_else(|e| e.into_inner());
             self.recovery(true);
             self.restart_media.store(true, Ordering::Release);
@@ -130,7 +130,7 @@ impl Signal {
     }
     fn stop(&self) {
         self.stop.store(true, Ordering::Release);
-        // 只中断水位 GET；显式停止后仍须用本租约关闭原会话。
+        // Interrupt only watermark GET; explicit stop must still close the original session using this lease.
         self.progress_stop.stop();
         if let Some(interaction) = &self.interaction {
             interaction.cancel();
@@ -156,7 +156,7 @@ impl Signal {
         }
     }
     fn finish_media_recovery(&self) -> bool {
-        // 与轮换请求串行：旧连接返回的水位不能解除本次输入屏障。
+        // Serialize with rotation requests; watermarks from old connections cannot release this input barrier.
         let _owner = self.socket.lock().unwrap_or_else(|e| e.into_inner());
         if self.restart_media.load(Ordering::Acquire) {
             return false;
@@ -269,7 +269,7 @@ impl Runtime {
                     exit: Exit::Panicked,
                     cleanup: Cleanup::Unconfirmed,
                 });
-                // 配置/预授权早退或panic同样撤销输入桥，不能遗留独占的Session输入资格。
+                // Configuration/preauthorization early returns or panics also revoke the input bridge, never leaving exclusive Session-input eligibility behind.
                 worker.stop();
                 worker
                     .socket
@@ -299,7 +299,7 @@ impl Runtime {
         self.status() == Status::Publishing
     }
     pub(crate) fn status(&self) -> Status {
-        // 先消费事件再观察状态；期间到达的新变化仍可唤醒消息泵。
+        // Consume events before observing state; changes arriving meanwhile can still wake the message pump.
         let _ = unsafe { ResetEvent(HANDLE(self.signal.event.as_raw_handle())) };
         let ready = self.signal.ready.load(Ordering::Acquire);
         let recovering = self.recovering();
@@ -343,7 +343,7 @@ impl Runtime {
         self.thread
             .iter()
             .map(AsHandle::as_handle)
-            // 停止后只等真实线程；Ready不再消费，不能常亮信号忙转或扩张退出等待预算。
+            // After stop, wait only for the actual thread; never consume Ready, busy-spin on a signaled event, or extend the exit-wait budget.
             .chain((!self.stopping()).then(|| self.signal.event.as_handle()))
     }
     pub fn try_join(&mut self) -> Option<Outcome> {
@@ -361,7 +361,7 @@ impl Runtime {
 impl Drop for Runtime {
     fn drop(&mut self) {
         self.request_stop();
-        // 正常退出由Application泵消息回收；这里只是防孤儿线程兜底。
+        // Normal exit is reclaimed by Application message pumping; this is only an orphan-thread fallback.
         if let Some(thread) = self.thread.take() {
             let _ = thread.join();
         }
@@ -401,7 +401,7 @@ fn run(
             cleanup: Cleanup::NotCreated,
         };
     }
-    // encoder在原媒体线程建立/销毁，成功才广告能力；不支持/预算不足沿原raw创建/关闭。
+    // Create/destroy encoders on the original media thread and advertise capability only on success; unsupported/insufficient-budget cases retain original raw create/close.
     let video = video::Video::new(publication.size(), budget);
     publication.set_h264(video.available());
     let publication = Arc::new(publication);
@@ -451,7 +451,7 @@ fn run(
         controller.map(|thread| thread.join().unwrap_or(Err(control::Error::Panicked)));
     let observation_result =
         observer.map(|thread| thread.join().unwrap_or(Err(observation::Error::Panicked)));
-    // 先断媒体，再尝试原身份的有界HTTP关闭。停止不换租约；丢响应不能声称已关闭。
+    // Disconnect media before attempting bounded HTTP close with original identity. Stop does not replace leases; lost responses cannot prove closure.
     signal
         .socket
         .lock()

@@ -1,4 +1,4 @@
-//! 生产 profile 启动后的单次后台 journal owner；检查模式隔离、失败保现场、退出释放租约。
+//! One-shot background journal owner after production-profile startup; check-mode isolation, failure-state retention, and lease release on exit.
 use super::*;
 use crate::desktop::application::projection::profile::Owner as ProjectionOwner;
 use crate::projection_delivery::{accept::tests::invitation, journal::Store};

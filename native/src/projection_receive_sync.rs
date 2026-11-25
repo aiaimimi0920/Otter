@@ -1,4 +1,4 @@
-//! 单向 PNG 持续同步的后台阶段；许可仍归原 Job/Attempt，永不 reaccept/displayed/unlink。
+//! Background phase of continuous one-way PNG synchronization; original Job/Attempt retain permits, with no reaccept/displayed/unlink.
 use super::*;
 use crate::projection_delivery::{
     accept::Read,
@@ -104,7 +104,7 @@ impl Request {
                         editing,
                     )
                 } else {
-                    // 破坏性本地编辑/旧未证明的持久源只暂停像素更新，read/终态仍能收敛。
+                    // Destructive local edits/old unproven persistent sources pause only pixel updates; read/terminal state can still converge.
                     if !self.replaceable
                         || !self.original.as_ref().is_some_and(|image| {
                             self.expected.source_matches(image, || lease.is_revoked())
@@ -151,8 +151,8 @@ impl Request {
             }
             Err(error) => return Err(Error::Http(error)),
         };
-        // 首次接入即使远端附带合法PNG，也不能把未换新的本地像素误认成同一basis。
-        // 已有owner由UI弱像素身份围栏保护，不在每轮metadata read重复hash整图。
+        // On initial attachment, even valid remote PNG cannot make unchanged local pixels count as the same basis.
+        // UI weak-pixel-identity fences protect existing owners; do not hash whole images on every metadata read.
         if self.editing.is_none()
             && image.is_none()
             && editing.as_ref().is_some_and(|document| {

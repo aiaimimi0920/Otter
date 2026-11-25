@@ -1,4 +1,4 @@
-//! 主干 CSS 会话框到屏幕物理框：backendRects.ts 的 Math.round，再加覆盖窗口客户区原点。
+//! Mainline CSS session frames to physical screen frames: backendRects.ts Math.round followed by the overlay window's client origin.
 use crate::{pin_geometry::PinRect, session_window::Rect};
 #[path = "session_placement_inverse.rs"]
 pub mod inverse;
@@ -6,7 +6,7 @@ pub mod inverse;
 #[derive(Debug, Clone, Copy)]
 pub struct Space {
     pub origin: (i32, i32),
-    /// 兼容主干覆盖窗口的 devicePixelRatio；不是待创建钉图所在显示器的 DPI。
+    /// Compatible with mainline overlay devicePixelRatio, not the DPI of the monitor hosting the pin to be created.
     pub scale: f64,
 }
 #[derive(Debug, PartialEq)]
@@ -27,7 +27,7 @@ impl Space {
         {
             return Err(Error::Geometry);
         }
-        // JS 半整数向正无穷取整；Rust f64::round 在负半整数上不同，不能替换。
+        // JS rounds half-integers toward positive infinity; Rust f64::round differs for negative halves and cannot substitute.
         let round = |value: f64| (value * self.scale + 0.5).floor();
         let x = round(rect.x) + f64::from(self.origin.0);
         let y = round(rect.y) + f64::from(self.origin.1);

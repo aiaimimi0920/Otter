@@ -1,4 +1,4 @@
-//! 来源绑定当前 Unit，既有回执与来源失效不被同名替代复活；测试只写自有临时 journal。
+//! Bind the source to the current Unit; same-named replacements cannot revive existing receipts or invalid sources. Tests write only owned temporary journals.
 use super::*;
 use crate::projection_delivery::{
     accept::tests::invitation,

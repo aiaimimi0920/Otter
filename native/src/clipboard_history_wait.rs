@@ -1,11 +1,11 @@
-//! STA 等待仅泵本线程消息；取消异步操作，绝不在 UI 线程轮询。
+//! STA waits pump only this thread's messages; cancel asynchronous operations, never poll on the UI thread.
 use windows::Win32::UI::WindowsAndMessaging::{
     DispatchMessageW, PeekMessageW, TranslateMessage, MSG, PM_REMOVE,
 };
 pub(super) fn pump() {
     unsafe {
         let mut message = MSG::default();
-        // 限制单轮消息量，避免消息洪泛推迟取消检查。
+        // Bound each message batch so message floods cannot delay cancellation checks.
         for _ in 0..32 {
             if !PeekMessageW(&mut message, None, 0, 0, PM_REMOVE).as_bool() {
                 break;
@@ -29,9 +29,9 @@ macro_rules! operation {
                     stopped = Some(error);
                 }
             }
-            // Cancel 只是请求。直到操作离开 Started 才释放读取许可，避免超时后
-            // 重开菜单累积仍在执行的提供方操作；UI owner 不得阻塞 join 本线程。
-            // windows-future 0.1.1 的 AsyncStatus::Started ABI 值为 0。
+            // Cancel is only a request. Keep the read permit until the operation leaves Started, preventing timed-out
+            // menu reopenings from accumulating still-running provider operations; the UI owner must not block joining this thread.
+            // windows-future 0.1.1 uses ABI value 0 for AsyncStatus::Started.
             if operation.Status()?.0 != 0 {
                 break match stopped { Some(error) => Err(error), None => operation.GetResults() };
             }

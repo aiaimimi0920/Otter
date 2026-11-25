@@ -1,4 +1,4 @@
-//! 实际接收会话→菜单Apply→独立TLS oracle→精确Checkpoint→ack/重开；未冒充普通可见双端。
+//! Actual receiver session -> menu Apply -> independent TLS oracle -> exact Checkpoint -> ack/reopen; not ordinary visible dual-endpoint testing.
 use super::*;
 #[path = "application_projection_edit_receiver_automation_tests.rs"]
 mod automation;
@@ -54,7 +54,7 @@ unsafe fn submitted(offline: bool) {
         snapshot(&fixture).editor_view().unwrap().basis_objects()["remote"]["x"].as_f64(),
         Some(0.5)
     );
-    // HTTP成功、当前Editor呈现、甚至新候选生成均不是磁盘提交事实。
+    // HTTP success, current Editor presentation, and even new candidate generation are not evidence of disk commit.
     assert!(journal(&fixture)["entries"][0]["pending"].is_object());
     let old = crate::session_source::Source::from(
         std::fs::read(fixture.files.root().join("workspace.json")).unwrap(),

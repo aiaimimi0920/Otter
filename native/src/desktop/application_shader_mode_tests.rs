@@ -1,4 +1,4 @@
-//! 强制模式/图片重名必须在输入 worker 和请求替换前拒绝；复用原隐藏应用夹具。
+//! Reject forced-mode/image-name conflicts before input workers or request replacement; reuse original hidden-application fixtures.
 use super::*;
 
 #[test]
@@ -27,7 +27,7 @@ fn shader_modes_reject_connected_images_before_worker_and_preserve_old_request_a
                 .iter()
                 .map(|name| json!({"name":name,"type":"image","required":true}))
                 .collect();
-            // 不声明同名标量，仍必须基于真实图片端口而非参数声明检查冲突。
+            // Even without a same-named scalar declaration, check conflicts against actual image ports rather than parameter declarations.
             art["parameters"] = json!([]);
             let handshake = crate::loom_handshake::response(&serde_json::to_vec(&raw).unwrap())
                 .unwrap()
@@ -96,7 +96,7 @@ fn shader_modes_reject_connected_images_before_worker_and_preserve_old_request_a
                 )),
                 backend: Backend::D3d11,
             });
-            // 注册表旧令牌与已提交输出分别保存；没有活动 worker，不用 busy 门掩盖配置拒绝。
+            // Preserve old registry tokens and committed outputs separately; no worker is active, so busy gates cannot hide configuration rejection.
             let old = app
                 .executions
                 .begin(target.clone(), new_unit_id().unwrap())

@@ -1,4 +1,4 @@
-//! 物理屏幕几何及三态规则；不读取 HWND、图像、参数值或执行权限。
+//! Physical screen geometry and three-state rules; no HWND, image, parameter-value, or execution-permission reads.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(super) enum Mode {
     #[default]
@@ -90,7 +90,7 @@ impl Node {
         if index >= count || !self.rect.valid() || !shown(index) {
             return None;
         }
-        // 主干 visibility:hidden 保留正常 rail 行空位；只有小图标记按可见端口均分。
+        // Mainline visibility:hidden retains normal rail-row gaps; only small-image markers divide space among visible ports.
         let (rank, count) = if self.minified {
             (
                 (0..index).filter(|&i| shown(i)).count(),
@@ -148,7 +148,7 @@ pub(super) fn moved(start: Point, current: Point, dpi: u32) -> bool {
     let x = i64::from(current.x) - i64::from(start.x);
     let y = i64::from(current.y) - i64::from(start.y);
     let threshold = i64::from(dpi.clamp(96, 768)) * 5 / 96;
-    // 避免跨极端屏幕坐标时平方溢出；先比较绝对轴长。
+    // Avoid squared overflow across extreme screen coordinates by comparing absolute axis lengths first.
     x.abs() >= threshold || y.abs() >= threshold || x * x + y * y >= threshold * threshold
 }
 #[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]

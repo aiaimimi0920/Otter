@@ -1,4 +1,4 @@
-//! 应用层单文件 worker；配置凭证留在 UI owner，线程只接收路径与取消标志。
+//! Application single-file workers; UI owners retain configuration evidence, while threads receive paths/cancellation flags only.
 use super::{
     loom_execution_signal::{CompletionSignal, Notify},
     parameter_file_input::Request,
@@ -93,7 +93,7 @@ impl Job {
 impl Drop for Job {
     fn drop(&mut self) {
         self.cancel();
-        // 文件系统阻塞调用不能强制中断；退出时等待回收，不留下无 owner 线程。
+        // Blocking filesystem calls cannot be forcibly interrupted; wait for reclamation on exit without unowned threads.
         if let Some(worker) = self.worker.take() {
             let _ = worker.join();
         }

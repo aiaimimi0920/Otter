@@ -1,4 +1,4 @@
-//! 恢复窗口只准备隐藏 owner；共享应用控制状态，但不发布文档、分组或工作区变化。
+//! Restored windows prepare only hidden owners; they share application control state without publishing document, group, or workspace changes.
 use super::*;
 
 impl Application {
@@ -58,7 +58,7 @@ pub(super) unsafe fn smoke(app: &Application) -> Result<()> {
             "Restored window shared state or publication mismatch",
         ));
     }
-    // 模态登记仅持有弱引用；候选释放后不应留下阻塞或隐式活动窗口。
+    // Modal registration holds only weak references; releasing a candidate must leave neither blockers nor implicitly active windows.
     document.state.file_dialog.set(true);
     if !app.modals.blocked() {
         return Err(Error::new(

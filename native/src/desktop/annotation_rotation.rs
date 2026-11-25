@@ -1,9 +1,9 @@
-//! 临时 D2D 变换在所有返回路径恢复，避免一条标注的角度污染后续绘制。
+//! Restore temporary D2D transforms on every return path so one annotation's angle cannot affect subsequent drawing.
 use crate::{editor::Stroke, rotation, viewport::Viewport};
 use windows::Win32::Graphics::Direct2D::ID2D1RenderTarget;
 
-/// 当前变换已经包含对象旋转及宿主裁剪/缩放。将目标四角完整逆变换，
-/// 而非只逆对象角度，否则裁剪导出会错误剔除仍可见的效果区域。
+/// The current transform already includes object rotation and host clipping/scaling. Fully inverse-transform all four target corners,
+/// not just the object angle, or cropped exports will incorrectly cull still-visible effect regions.
 pub(super) unsafe fn visible_bounds(
     target: &ID2D1RenderTarget,
     margin: f32,
@@ -65,7 +65,7 @@ pub(super) unsafe fn apply<'a>(
     let mut original = Default::default();
     target.GetTransform(&mut original);
     if stroke.rotation != 0.0 {
-        // 已恢复局部效果按持久框中心旋转；普通工具仍使用原来的笔迹中心。
+        // Restored local effects rotate around the persistent frame center; ordinary tools retain the original stroke center.
         let center = stroke
             .blur
             .as_ref()

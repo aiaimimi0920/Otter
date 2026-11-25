@@ -1,4 +1,4 @@
-//! 真实 WIC 像素、尺寸准入与 RGBA 预乘；仅内存夹具，不读取用户图片。
+//! Real WIC pixels, dimension admission, and RGBA premultiplication; memory-only fixtures without reading user images.
 use super::*;
 #[path = "surface_image_format_tests.rs"]
 mod format;

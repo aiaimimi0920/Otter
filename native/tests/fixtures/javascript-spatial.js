@@ -1,4 +1,4 @@
-// 通用定位/裁剪消费者；child、真实 HWND、封存产品共用，不包含股票业务分支。
+// Generic positioning/clipping consumer shared by children, actual HWNDs, and sealed product builds, without stock-market business branches.
 let spatialRoot, spatialStage, spatialFill, spatialOverlay, spatialFlow, spatialReport;
 const spatialEncode = JSON.stringify;
 function spatialMeasure() {

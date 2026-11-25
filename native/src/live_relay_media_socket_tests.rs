@@ -66,7 +66,7 @@ fn actual_loopback_websocket_publishes_to_worker_and_joins_after_peer_close() {
                 Err(e) => panic!("fixture accept: {e}"),
             }
         };
-        // Windows 的 accepted socket 可能继承 listener 的非阻塞模式。
+        // Windows accepted sockets may inherit the listener's nonblocking mode.
         tcp.set_nonblocking(false).unwrap();
         tcp.set_read_timeout(Some(Duration::from_secs(3))).unwrap();
         tcp.set_write_timeout(Some(Duration::from_secs(3))).unwrap();

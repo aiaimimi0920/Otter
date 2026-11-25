@@ -1,4 +1,4 @@
-//! 实际系统 ICU 和 DirectWrite 的规范化文字，不用 ASCII 分词替身。
+//! Normalized text from actual system ICU and DirectWrite, not ASCII tokenization substitutes.
 use super::*;
 #[test]
 fn word_boundaries_preserve_unicode_and_dictionary_segments() {

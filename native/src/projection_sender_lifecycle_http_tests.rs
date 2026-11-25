@@ -1,4 +1,4 @@
-//! 同意图及四槽随未领取/Ready 保留；显式解绑才退休，晚撤权不得发布或静默抹账。
+//! Same-intent/four-slot ownership persists through unclaimed/Ready states; retire only on explicit unlink, and late revocation cannot publish or silently erase records.
 use super::*;
 use crate::live_relay_control_runtime::Slot;
 #[path = "projection_sender_cancel_http_tests.rs"]
@@ -182,7 +182,7 @@ fn sender_completed_then_revoked_cannot_publish_and_requires_explicit_background
     wait(&job);
     drop(grant);
     assert!(matches!(job.try_join(), Some(Err(JobError::Stopped))));
-    // 晚撤销不在 UI join/Drop 内写大日志或联网；原记录完整保留，不自动重试 Create。
+    // Late revocation does no large-journal writes/networking inside UI join/Drop; retain original records intact without automatic Create retries.
     assert_eq!(std::fs::read(directory.path()).unwrap(), original);
     let listener = peer.join().unwrap();
     no_request(&listener);

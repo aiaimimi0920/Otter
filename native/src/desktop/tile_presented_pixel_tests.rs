@@ -1,4 +1,4 @@
-//! 同一产品Tile Renderer的已提交目标读回；固定矩阵oracle，不调用WIC重画作为预期。
+//! Committed-target readback from the same production Tile Renderer; fixed-matrix oracles, not WIC redraws as expected output.
 use super::*;
 use crate::{
     desktop::{Apartment, Window},

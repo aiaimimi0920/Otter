@@ -1,4 +1,4 @@
-//! 实际 Application 的扩展目录共享与关闭撤权；不启动发现、托盘、全局输入或用户实例。
+//! Actual Application extension-catalog sharing and close-time revocation; no discovery, tray, global input, or user instances.
 use super::*;
 use std::{rc::Rc, sync::Arc};
 #[cfg(any(not(feature = "scoped-tests"), feature = "test-loom"))]

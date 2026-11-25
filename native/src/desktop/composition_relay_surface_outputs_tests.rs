@@ -1,4 +1,4 @@
-//! 输出访问不消费收据，输入资格取决于节点确已应用，而不是原始 Commit 被删除。
+//! Output access does not consume receipts; input eligibility depends on actual node application, not deletion of original Commit.
 use super::*;
 fn presented() -> crate::desktop::surface_authorized_window::EventReceipt {
     let mut receipt = receipt(completed());

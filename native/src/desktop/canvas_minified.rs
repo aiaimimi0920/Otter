@@ -1,4 +1,4 @@
-//! 恢复缩略窗口的独立取景呈现；共享原图，不把 contain 留白再次当成原图缩放。
+//! Independent framing for restored minified windows; share the original image without scaling contain padding as if it were source pixels.
 use super::*;
 use crate::{
     crop_geometry::Size,
@@ -14,7 +14,7 @@ pub(in crate::desktop) struct Presentation {
 }
 
 impl Presentation {
-    /// 仅限没有改变像素/裁剪/标注的呈现历史；几何和透明度不使既有取景失效。
+    /// Only presentation history that leaves pixels/cropping/annotations unchanged; geometry and opacity do not invalidate existing framing.
     pub(in crate::desktop) fn refresh_presentation_stamp(&mut self, editor: &Editor) {
         self.stamp = editor.document_stamp();
     }
@@ -106,7 +106,7 @@ impl Presentation {
         })
     }
 
-    // 仅绘制已提交文档；后续编辑/切换入口必须重新准备呈现，不能沿用旧原图。
+    // Draw only committed documents; later editing/switching entry points must prepare presentation again rather than reuse the old original.
     unsafe fn paint(
         &self,
         target: &ID2D1RenderTarget,
@@ -137,7 +137,7 @@ impl Presentation {
             .annotations
             .document_mapping(self.editor_frame(editor))
             .map_err(|_| Error::new(E_INVALIDARG, "Invalid minified document mapping"))?;
-        // 物理框四舍五入可能造成两轴比例略有差别；不要累计修正文档坐标。
+        // Rounding physical bounds may slightly alter the two axis ratios; do not accumulate corrections to document coordinates.
         let mut original = Default::default();
         target.GetTransform(&mut original);
         let _restore = super::super::render_frame::save_transform(target);
@@ -204,7 +204,7 @@ impl Presentation {
             effects,
         )
     }
-    // WIC 像素测试仍自有一个事务；真实窗口改由 RenderSurface 独占事务，不嵌套 BeginDraw。
+    // WIC pixel tests still own one transaction; real windows give RenderSurface exclusive transaction ownership, without nested BeginDraw.
     #[cfg(test)]
     unsafe fn draw(
         &self,

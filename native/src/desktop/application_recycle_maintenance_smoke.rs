@@ -1,4 +1,4 @@
-//! 加载后/配置更新裁剪的真实 worker、原文发布和保存；没有磁盘删除或图片解码。
+//! Real worker/source-content publication/saving for post-load or settings-update pruning; no disk deletion or image decoding.
 use super::*;
 use crate::session_library::Kind;
 fn settings(

@@ -1,4 +1,4 @@
-//! 连续真实 WGC 生命周期：同会话多次换尺寸、重启输入 owner，跨会话恢复源并回收 child。
+//! Continuous real WGC lifecycles: repeated resizing/input-owner restarts within a session, and source restoration/child reclamation across sessions.
 use super::*;
 
 unsafe fn redraw(fixture: &Fixture, black: bool) {
@@ -85,7 +85,7 @@ fn actual_wgc_repeated_resize_input_restart_and_source_restore() {
                 for cycle in 0..3 {
                     let fixture = Fixture::with_style(style);
                     let target = Target::bind(fixture.root).unwrap();
-                    // 和 Application 一样先保存可见选区，之后才允许保护 owner 恢复最小化源。
+                    // Like Application, save the visible selection before allowing the protection owner to restore the minimized source.
                     let screen = target.frame_bounds().unwrap();
                     if minimized {
                         let _ = ShowWindow(fixture.root, SW_SHOWMINNOACTIVE);
@@ -135,7 +135,7 @@ fn actual_wgc_repeated_resize_input_restart_and_source_restore() {
                     }
                     for restart in 0..2 {
                         let hwnd = session.window.as_ref().unwrap().hwnd_for_test();
-                        // 默认控制或失焦后的恢复都由内容鼠标事件驱动，不切换用户控制意图。
+                        // Mouse events over content drive both default control and recovery after focus loss, without toggling user control intent.
                         SendMessageW(hwnd, WM_MOUSEMOVE, None, Some(LPARAM(32 | (32 << 16))));
                         until(
                             &mut session,
@@ -172,7 +172,7 @@ fn actual_wgc_repeated_resize_input_restart_and_source_restore() {
                     let restored = Snapshot::read(&target).unwrap();
                     assert_eq!(restored.extended_style, original.extended_style);
                     assert_eq!(restored.visible, original.visible);
-                    // 原合同恢复最小化源时展开；不是重新最小化或沿用测试期的尺寸。
+                    // The original contract expands minimized sources on restoration; it neither reminimizes nor retains test-time dimensions.
                     assert!(!restored.iconic);
                     assert_eq!(
                         restored.placement.rcNormalPosition,

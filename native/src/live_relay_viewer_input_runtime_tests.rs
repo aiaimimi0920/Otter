@@ -1,4 +1,4 @@
-//! 同一串行HTTP owner的释放屏障、actor序列和不隐式接管控制回归。
+//! Regressions for release barriers, actor sequences, and no implicit control takeover in the same serial HTTP owner.
 use super::*;
 use crate::device_session_client::tests::{accept, fixture_with_pem, reply, request, session};
 use rustls::{ServerConnection, StreamOwned};

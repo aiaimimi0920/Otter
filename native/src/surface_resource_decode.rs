@@ -1,4 +1,4 @@
-//! worker 内解码已验摘要的字节；COM 不离开本线程，编码缓冲返回前清零释放。
+//! Decode digest-verified bytes within workers; COM stays on this thread, and encoded buffers are zeroed and released before returning.
 use super::{request::Request, Error, Lease};
 use crate::{image_decode::Image, live_relay_http::VerifiedResource};
 use windows::Win32::System::Com::{CoInitializeEx, CoUninitialize, COINIT_APARTMENTTHREADED};
@@ -32,7 +32,7 @@ pub(super) fn decode(resource: VerifiedResource, lease: &Lease) -> Result<Decode
     unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED).ok() }
         .map_err(|error| Error::Decode(error.code().0))?;
     let _apartment = Apartment;
-    // WIC 调用本身不可强制中断；取消在调用前后检查，RGBA 转换逐行检查。
+    // WIC calls themselves cannot be forcibly interrupted; check cancellation before/after calls and per row during RGBA conversion.
     let decoded = Image::from_surface_sized_scoped(
         Some(request.binding().origin()),
         &bytes,

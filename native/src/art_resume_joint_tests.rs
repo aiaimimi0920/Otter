@@ -1,4 +1,4 @@
-//! 真Loom签发后跨两个Otter测试进程；第二进程没有Device Session，服务端已退出。
+//! Real Loom issuance followed by two Otter test processes; the second has no Device Session and the server has exited.
 use super::*;
 use crate::{
     art_issuer_trust::{Authority, Document, Entry},

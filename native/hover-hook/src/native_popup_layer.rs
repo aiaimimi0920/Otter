@@ -1,4 +1,4 @@
-//! 源线程菜单定位/层级变更与归还；同 HWND 重入不能丢恢复身份或重授显示租约。
+//! Source-thread menu placement/z-order changes and return; same-HWND reentry must preserve recovery identity without regranting display leases.
 use crate::{native_popup::Lease, native_protocol::Request};
 use std::cell::RefCell;
 use windows::{
@@ -18,8 +18,8 @@ thread_local! {
 struct Mutation(Lease);
 impl Mutation {
     fn for_request(lease: Lease) -> windows::core::Result<Self> {
-        // 两种拒绝（同 HWND 重入或有界槽已满）均发生在源窗口修改前。
-        // 固定请求用明确 Pending 区分已结算的忙状态与未知的在途结果。
+        // Both rejection cases, same-HWND reentry and full bounded slots, precede source-window mutation.
+        // Fixed requests use explicit Pending to distinguish settled busy state from unknown in-flight results.
         Self::enter(lease).map_err(|_| {
             windows::core::Error::new(
                 crate::native_layer_protocol::PENDING,
@@ -66,7 +66,7 @@ fn set_topmost(popup: HWND, enabled: bool) -> windows::core::Result<()> {
             0,
             SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER,
         )?;
-        // 桌面策略或源窗口过程可能忽略 Z-order，Win32 返回成功仍须核对实际结果。
+        // Desktop policy/source window procedures may ignore Z-order; verify actual results even after Win32 success.
         if (GetWindowLongPtrW(popup, GWL_EXSTYLE) as u32 & WS_EX_TOPMOST.0 != 0) != enabled {
             return Err(windows::core::Error::new(
                 E_FAIL,
@@ -82,8 +82,8 @@ pub(crate) fn prepare(lease: Lease) -> windows::core::Result<()> {
         return Ok(());
     }
     let result = {
-        // 定位同样会同步进入应用；必须在定位之前保护这一代显示身份，而不是
-        // 等定位返回后重新读取一个可能已被 hide/show 替换的新 lease。
+        // Placement also synchronously enters applications; protect this display generation before placement, rather than
+        // rereading a potentially hide/show-replaced lease after placement returns.
         let _mutation = Mutation::enter(lease)?;
         (|| {
             crate::native_dispatch::place_popup(lease.popup)?;
@@ -91,8 +91,8 @@ pub(crate) fn prepare(lease: Lease) -> windows::core::Result<()> {
         })()
     };
     if result.is_err() || !lease.valid() {
-        // 重入的 hide 只撤输入、不清身份。外层变更返回后再归还已实际借用的
-        // 层级；原本置顶或只定位过的窗口没有本协议标志，不能擅自降级。
+        // Reentrant hide revokes input without clearing identity. After outer mutation returns, restore the actually borrowed
+        // z-order; originally topmost/placement-only windows have no protocol marker and must not be demoted.
         let tracked = PROMOTED.with(|entries| {
             let mut entries = entries.borrow_mut();
             let before = entries.len();
@@ -132,7 +132,7 @@ fn promote(lease: Lease) -> windows::core::Result<()> {
                 0x800700AAu32 as i32,
             )));
         }
-        // 状态先入槽且不跨 Win32 持借用：SetWindowPos 可重入 hide/destroy。
+        // Store state in slots first, without borrows across Win32: SetWindowPos can reenter hide/destroy.
         SetPropW(
             lease.popup,
             TEMPORARY,
@@ -144,17 +144,17 @@ fn promote(lease: Lease) -> windows::core::Result<()> {
 }
 
 fn restore(lease: Lease) -> windows::core::Result<()> {
-    // 取消可先撤销 B epoch，所以这里只用源侧显示实例防 HWND 复用，不要求控制仍有效。
+    // Cancellation may revoke B epoch first, so use source display-instance identity against HWND reuse without requiring valid control.
     if !lease.same_instance() {
         return Ok(());
     }
-    // SetWindowPos 会同步重入应用。内层 hide/show 必须保留身份且拒绝重获授权，
-    // 不能在外层确认恢复之前清空恢复标志或递归恢复同一 HWND。
+    // SetWindowPos synchronously reenters applications. Inner hide/show must retain identity and reject reauthorization,
+    // without clearing recovery markers or recursively restoring the same HWND before outer restoration is confirmed.
     let _mutation = Mutation::enter(lease)?;
     restore_inner(lease)
 }
 
-// 调用方已持原显示实例的 Mutation；不能递归进入 guard 或跨 Win32 持 Vec 借用。
+// Callers already hold original-display-instance Mutation; do not recursively enter guards or hold Vec borrows across Win32.
 fn restore_inner(lease: Lease) -> windows::core::Result<()> {
     unsafe {
         if GetWindowLongPtrW(lease.popup, GWL_EXSTYLE) as u32 & WS_EX_TOPMOST.0 != 0 {
@@ -196,7 +196,7 @@ pub(crate) fn acquire_managed(
                     .iter()
                     .any(|key| crate::native_protocol::value(lease.popup, *key) == lease.instance)
         {
-            return Err(changed()); // 原应用自己的 TOPMOST 不能被登记借用。
+            return Err(changed()); // The original application's own TOPMOST cannot be registered as borrowed.
         }
         SetPropW(lease.popup, MANAGED, Some(HANDLE(lease.instance as *mut _)))?;
         let result = if topmost {
@@ -218,11 +218,11 @@ pub(crate) fn acquire_managed(
 
 pub(crate) fn restore_managed(lease: Lease) -> windows::core::Result<()> {
     if !lease.same_instance() {
-        return Ok(()); // 原对象已消失，不对后来显示的实例修改层级。
+        return Ok(()); // The original object disappeared; never change z-order of subsequently displayed instances.
     }
     let _mutation = Mutation::for_request(lease)?;
     if crate::native_protocol::value(lease.popup, MANAGED) != lease.instance {
-        return Ok(()); // 尚未接管时不能收回源在途事务的临时层级。
+        return Ok(()); // Before takeover, never reclaim temporary z-order from in-flight source transactions.
     }
     restore_inner(lease)
 }
@@ -252,14 +252,14 @@ pub(crate) fn release(popup: HWND, destroying: bool) -> bool {
             }
         } else if let Err(error) = restore(lease) {
             eprintln!("native-live-popup-layer-restore: {error}");
-            return false; // 保留窗口上的显示身份和恢复标志，不能先 revoke 丢失责任。
+            return false; // Preserve window display identity/recovery markers; revoking first must not lose responsibility.
         }
     }
     true
 }
 
 fn take_finished(entries: &mut Vec<Lease>, request: Request) -> [Option<Lease>; MAX_PROMOTED] {
-    // 与入槽上限相同；保留未完成事务的容量及两边的原次序。
+    // Same limit as slot admission; retain unfinished-transaction capacity and original ordering on both sides.
     let mut finished = [None; MAX_PROMOTED];
     let mut next = 0;
     entries.retain(|lease| {
@@ -278,14 +278,14 @@ fn take_finished(entries: &mut Vec<Lease>, request: Request) -> [Option<Lease>; 
 }
 
 pub(crate) fn finish(request: Request) {
-    // 子菜单按钮返回不得恢复仍在运行的父菜单层级；不跨窗口调用持有借用。
+    // Submenu-button return must not restore still-running parent-menu z-order; hold no borrows across window calls.
     let leases = PROMOTED.with(|entries| take_finished(&mut entries.borrow_mut(), request));
     for lease in leases.into_iter().flatten() {
         if crate::native_protocol::value(lease.popup, MANAGED) != lease.instance {
             if let Err(error) = restore(lease) {
                 eprintln!("native-live-popup-layer-finish: {error}");
             }
-        } // 宿主仅在恢复 journal ACK 后写 MANAGED；hide/destroy 仍由 release 收尾。
+        } // Hosts write MANAGED only after recovery-journal ACK; release still completes hide/destroy cleanup.
     }
 }
 

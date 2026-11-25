@@ -1,4 +1,4 @@
-//! 发现→actor 专属游标→加入→历史起点；准备完成仍不代表控制历史已应用或媒体可发布。
+//! Discovery -> actor-specific cursor -> join -> history start; prepared state does not mean control history applied or media publishable.
 use super::*;
 use serde::Deserialize;
 
@@ -16,7 +16,7 @@ pub struct Join<'a> {
     pub session: &'a str,
     pub surface: &'a str,
     pub attachment: &'a str,
-    /// Some 表示旧观看的续签；不得因旧成员已移除而静默重新加入。
+    /// Some means renewal of an old viewing session; never silently rejoin after its membership was removed.
     pub expected: Option<&'a Identity>,
 }
 pub struct Prepared {
@@ -83,7 +83,7 @@ impl Control<'_> {
     pub fn prepare_viewer(&self, request: Join<'_>) -> Result<Prepared, Error> {
         self.prepare(request, None)
     }
-    /// 显式从目录选择允许首次加入，但目录身份必须在请求前后保持一致。
+    /// Explicit catalog selection permits first join, but catalog identity must remain unchanged before/after the request.
     pub fn prepare_selected_viewer(
         &self,
         request: Join<'_>,
@@ -92,7 +92,7 @@ impl Control<'_> {
         self.prepare(request, Some(selected))
     }
     fn prepare(&self, request: Join<'_>, selected: Option<&Identity>) -> Result<Prepared, Error> {
-        // 在第一次网络请求前验证全部用户输入；无效选择不得产生远端加入副作用。
+        // Validate all user input before the first network request; invalid selections must not cause remote join side effects.
         path(request.session, None)?;
         if !protocol::identifier(request.surface)
             || !protocol::identifier(request.attachment)
@@ -212,7 +212,7 @@ fn discovery(bytes: &[u8], session: &str) -> Result<Snapshot, Error> {
     }
     let mut found = None;
     for raw in response.sessions {
-        // viewerDevices 必须存在；缺字段不能被当成空成员列表，从而跳过序列恢复。
+        // viewerDevices is mandatory; missing fields cannot mean an empty membership list that bypasses sequence recovery.
         let entry: Entry = serde_json::from_str(raw.get()).map_err(|_| Error::Discovery)?;
         if entry.session.session_id != session {
             continue;

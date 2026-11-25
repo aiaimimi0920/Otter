@@ -1,4 +1,4 @@
-//! Otter 拥有钉图附着策略；主题仅投影附属行，纯移动不重排工具或访问应用模型。
+//! Otter owns pin attachment policy; themes project attached rows only, and pure movement neither relayouts tools nor accesses application models.
 use super::super::position::work_area;
 use super::*;
 pub(in crate::desktop::tool_panel) unsafe fn place(

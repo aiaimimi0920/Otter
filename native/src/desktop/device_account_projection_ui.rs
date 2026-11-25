@@ -1,4 +1,4 @@
-//! 账号投射 UI 只持公开关联与显式请求；账号、网络和持久化由原本机 Loom/工作区拥有。
+//! Account-projection UI holds only public associations and explicit requests; existing local Loom/workspaces own accounts, networking, and persistence.
 use super::*;
 use crate::projection_account::{scene::Binding, Envelope};
 use std::sync::{atomic::AtomicBool, Arc};

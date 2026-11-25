@@ -1,4 +1,4 @@
-//! 发送目标目录的原子校验；目录广告不是离线发送能力，也不构造任何创建请求。
+//! Atomic send-target catalog validation; advertisements are not offline-send capability and create no requests.
 use super::{envelope, Error, MAX_JSON};
 use serde::Deserialize;
 use std::collections::BTreeSet;

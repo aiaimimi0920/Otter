@@ -1,4 +1,4 @@
-//! 原 Canvas 内的扩展视图；只准备声明式 Surface，不创建覆盖层 HWND 或独立呈现层。
+//! Extension views within original Canvas; prepare declarative Surfaces only, without overlay HWNDs or independent presentation layers.
 use super::canvas::Canvas;
 use super::{display_frame::Frame, extension_document::Source};
 use crate::{
@@ -71,7 +71,7 @@ impl Views {
         {
             return Ok(());
         }
-        // 仅 Unit 尺寸的主干 fallback/占位重排，声明式固定场景不重新解析或测量。
+        // Relayout only unit-sized baseline fallbacks/placeholders; fixed declarative scenes are neither reparsed nor remeasured.
         for (v, p) in &self.items {
             if matches!(v.bounds, Bounds::UnitInset(_)) {
                 let bounds = v.bounds.resolve(unit_size);

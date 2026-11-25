@@ -1,4 +1,4 @@
-//! 保存基线上的工作流准备单槽；完成仍保留可复核凭证，不赋予网络发送权限。
+//! Single-slot workflow preparation against the saved baseline; completion retains recheckable credentials without granting network-send permission.
 use super::*;
 use crate::{
     desktop::{

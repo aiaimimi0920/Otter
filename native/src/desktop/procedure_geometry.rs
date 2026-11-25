@@ -1,9 +1,9 @@
-//! HWND 几何提交前准备滚轮帧，提交后仍沿默认尺寸通知适配视口及共享 chrome。
+//! Prepare wheel frames before HWND geometry commits; afterward retain default size notifications for viewport/shared-chrome adaptation.
 use super::State;
 use windows::Win32::{Foundation::*, UI::WindowsAndMessaging::*};
 
-// 系统拖动只用附属窗口的原几何跟随路径。保留默认消息派发和排队唤醒，
-// 但它们不应反复重算工具及设置字段；尺寸、DPI、任务和拖动结束照常刷新。
+// System dragging uses only the attached windows' existing geometry-following path. Preserve default message dispatch and queued wakes,
+// but they must not repeatedly recalculate tool/settings fields; size, DPI, task, and drag-end refreshes remain unchanged.
 pub(super) unsafe fn drag_position_only(state: &State, msg: u32, lp: LPARAM) -> bool {
     if !crate::desktop::pin_window::animation::moving(state) {
         return false;
@@ -56,7 +56,7 @@ pub(super) unsafe fn dispatch(
                 } else {
                     (pos.x, pos.y)
                 };
-                // 普通移动也在宿主位置生效前准备目标外框，不在移动旧图后追画白框。
+                // Ordinary movement also prepares the target border before host position takes effect, rather than chasing the moved old image with a white border.
                 let size = if pos.flags.contains(SWP_NOSIZE) {
                     (old.right - old.left, old.bottom - old.top)
                 } else {
@@ -88,7 +88,7 @@ pub(super) unsafe fn dispatch(
         } else if msg == WM_NCCALCSIZE {
             crate::desktop::pin_window::presentation::before_geometry(hwnd, state, wp, lp);
         } else if msg == WM_WINDOWPOSCHANGED && state.pin_resize.rect.get().is_none() {
-            // 默认过程先派发 WM_SIZE 并适配视口，透明叠层才可同步触发宿主绘制。
+            // The default procedure first dispatches WM_SIZE and adapts the viewport; only then may transparent overlays synchronously trigger host painting.
             crate::desktop::application::chrome::geometry(&state.chrome, hwnd, msg);
             crate::desktop::tool_panel::follow(hwnd, state, msg);
             crate::desktop::device_authorization_ui::share::follow(hwnd, state);

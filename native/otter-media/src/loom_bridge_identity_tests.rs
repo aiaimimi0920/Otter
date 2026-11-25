@@ -1,4 +1,4 @@
-//! 摘要夹具不是真实证书：TLS 层仍必须解析证书、验证链并固定叶证书。
+//! Digest fixtures are not real certificates: the TLS layer must still parse certificates, validate the chain, and pin the leaf certificate.
 use super::*;
 const INSTANCE: &str = "d2f4f738-09d9-4f46-829e-262381e63387";
 const PIN: &str = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";

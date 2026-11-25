@@ -1,4 +1,4 @@
-//! 快速区域截图只泵消息，不显示瞬时等待框；取消/退出仍由原任务 owner 统一回收。
+//! Quick region capture only pumps messages, without flashing a wait dialog; the original task owner still reclaims cancellation/exit uniformly.
 use super::*;
 use std::os::windows::io::AsRawHandle;
 use windows::Win32::System::Threading::INFINITE;
@@ -17,7 +17,7 @@ pub(super) unsafe fn run<T>(owner: HWND, input: &Input<T>) -> Result<(), String>
     );
     let mut message = MSG::default();
     while input.result.borrow().is_none() && IsWindow(Some(window.0)).as_bool() {
-        // 先领取消息再借线程句柄；Peek/Dispatch 可重入，不得跨它保留任务借用。
+        // Collect messages before borrowing thread handles; Peek/Dispatch may reenter, so retain no task borrow across them.
         if PeekMessageW(&mut message, None, 0, 0, PM_REMOVE).as_bool() {
             if message.message == WM_QUIT {
                 PostQuitMessage(message.wParam.0 as i32);
@@ -30,7 +30,7 @@ pub(super) unsafe fn run<T>(owner: HWND, input: &Input<T>) -> Result<(), String>
                 DispatchMessageW(&message);
             }
         }
-        // 输入队列持续有消息时也及时领取结果，不等队列完全空闲。
+        // Collect results promptly even with continuous input messages; do not wait for the queue to become completely idle.
         poll(window.0, input);
         if input.result.borrow().is_some() || !IsWindow(Some(window.0)).as_bool() {
             break;
@@ -44,7 +44,7 @@ pub(super) unsafe fn run<T>(owner: HWND, input: &Input<T>) -> Result<(), String>
                     .map(|handle| HANDLE(handle.as_raw_handle()))
             })
             .ok_or("Capture wait lost its pending worker")?;
-        // 此等待不分派窗口消息；下一次 Peek 前结束句柄借用，任务仍由 Input 持有。
+        // This wait dispatches no window messages; end handle borrows before the next Peek while Input retains task ownership.
         if MsgWaitForMultipleObjectsEx(Some(&[handle]), INFINITE, QS_ALLINPUT, MWMO_INPUTAVAILABLE)
             == WAIT_FAILED
         {

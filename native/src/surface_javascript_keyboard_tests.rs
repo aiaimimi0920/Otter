@@ -1,4 +1,4 @@
-//! 真实 child / 实际产品共用 Enter 夹具；取消结果只回宿主，不伪造默认 change。
+//! Real children/actual products share Enter fixtures; cancellation returns only to the host without fabricating default change.
 use super::*;
 use wire::{KeyPhase, KeyboardInput};
 pub(crate) const SOURCE: &str = include_str!("../tests/fixtures/javascript-native-enter.js");

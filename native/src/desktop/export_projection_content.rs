@@ -1,4 +1,4 @@
-//! 把当前Editor几何适配到已有传播布局合同；canonical crop不能覆盖活动crop/reset。
+//! Adapt current Editor geometry to existing propagation-layout contracts; canonical crop must not override active crop/reset.
 use super::*;
 use crate::{
     crop_geometry::{Rect, Size},
@@ -42,7 +42,7 @@ impl Target<'_> {
         };
         let mut window = self.window(visible.width, visible.height);
         if !input.content {
-            // 工作纹理已物化历史布局，但当前legacy视图仍有效，不能重放旧传播/朝向。
+            // Working textures materialize historical layout, but current legacy views remain valid; do not replay old propagation/orientation.
             window.sticker_edit_propagation = None;
         }
         if let Some(pixels) = input.legacy_pixels {
@@ -53,7 +53,7 @@ impl Target<'_> {
 
     fn layout_edit(&self, legacy_crop: bool, baseline: Option<&Target<'_>>) -> Result<Value> {
         let mut edit = Map::new();
-        // 布局朝向绑定自然像素恢复基线；目标save清除canonical flip不改变该来源。
+        // Layout orientation binds to the natural-pixel restoration baseline; clearing canonical flip during target save does not change provenance.
         if let Some(raw) = baseline.unwrap_or(self).edit_state {
             let fields = crate::session_json_fields::fields(raw.get()).map_err(|_| invalid())?;
             for key in ["flippedX", "flippedY"] {
@@ -86,7 +86,7 @@ impl Target<'_> {
         Ok(edit.into())
     }
 
-    /// 仅为自然来源构造其原历史空间；不会把此crop安装到当前目标Editor。
+    /// Construct original history space only for natural sources; never install this crop into the current target Editor.
     pub(in crate::desktop) fn history_mapping(
         &self,
         image: &Image,
@@ -110,7 +110,7 @@ impl Target<'_> {
     }
 
     fn window(&self, width: f64, height: f64) -> Window<'_> {
-        // with_content只消费expanded_rect、传播几何和传入的小型edit；不载入src或历史。
+        // with_content consumes only expanded_rect, propagation geometry, and the small supplied edit; it loads neither src nor history.
         Window {
             id: self.id.to_string(),
             x: 0.0,

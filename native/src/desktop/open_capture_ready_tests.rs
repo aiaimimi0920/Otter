@@ -1,4 +1,4 @@
-//! 即时交付只操作自有隐藏窗口及合成图；不捕获桌面、不发送系统输入。
+//! Immediate delivery touches only owned hidden windows/synthetic images, without desktop capture/system input.
 use super::*;
 use std::time::{Duration, Instant};
 

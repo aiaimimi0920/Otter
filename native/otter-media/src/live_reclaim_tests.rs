@@ -7,7 +7,7 @@ fn explicit_shell_activation_and_foreground_taskbar_toggle_are_single_use() {
     assert!(tracker.record(10, 2));
     assert!(state.observe(1, 1, false, tracker.snapshot(10), 10));
     assert!(!state.observe(1, 1, true, tracker.snapshot(11), 11));
-    // 同一毫秒也必须生成不同序号，且不制造未来时间戳。
+    // Even within the same millisecond, generate distinct sequence numbers without inventing future timestamps.
     assert!(tracker.record(10, 1));
     assert!(state.observe(1, 1, true, tracker.snapshot(10), 10));
 }

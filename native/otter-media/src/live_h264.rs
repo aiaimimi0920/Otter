@@ -1,4 +1,4 @@
-//! 与 main baseline H264 约束一致的 codec 前置检查；不是完整语法/像素解码器。
+//! Codec prechecks matching main baseline H264 constraints; not complete syntax/pixel decoding.
 #[path = "live_h264_bits.rs"]
 pub mod bits;
 #[path = "live_h264_sps.rs"]
@@ -20,7 +20,7 @@ fn prefix(bytes: &[u8], at: usize) -> Option<usize> {
         None
     }
 }
-/// 仅在完整有界 AU 上调用；逐单元借用，不建立 NAL 列表或复制压缩帧。
+/// Call only on complete bounded AUs; borrow per unit without NAL lists/compressed-frame copies.
 pub fn validate(bytes: &[u8], width: u32, height: u32, keyframe: bool) -> Result<()> {
     require(
         !bytes.is_empty() && bytes.len() <= 1024 * 1024,

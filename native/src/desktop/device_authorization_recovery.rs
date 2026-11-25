@@ -1,4 +1,4 @@
-//! 恢复文件和记录只由明确菜单动作选择；路径不在回调中读取，旧提示不授予权限。
+//! Select recovery files/records only through explicit menu actions; do not read paths in callbacks, and stale prompts grant no authority.
 use super::*;
 use crate::surface_recovery_record::{Record, MAX_RECORDS};
 use std::{os::windows::ffi::OsStringExt, path::PathBuf, sync::Arc};

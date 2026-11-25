@@ -27,7 +27,7 @@ impl Fixture {
 }
 impl Drop for Fixture {
     fn drop(&mut self) {
-        // 只清理本测试在 linshi 创建的唯一文件和空目录。
+        // Clean only this test's unique files/empty directories created in linshi.
         let _ = std::fs::remove_file(&self.path);
         let _ = std::fs::remove_dir(&self.directory);
     }

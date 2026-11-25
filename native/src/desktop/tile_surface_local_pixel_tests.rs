@@ -1,4 +1,4 @@
-//! 实际WIC/D2D像素：独立颜色/坐标oracle及既有权威Select基准，不截图用户屏幕。
+//! Actual WIC/D2D pixels with independent color/coordinate oracles and existing authoritative Select baselines; no user-screen screenshots.
 use super::*;
 use crate::tile_surface_local::{Cache, Value};
 use serde_json::json;
@@ -38,7 +38,7 @@ fn local_switch_and_slider_draw_real_pixels_without_mutating_authoritative_scene
     let rows = rows(&f, Value::Switch(true));
     let baseline = unsafe { tests::render(&f) };
     let actual = unsafe { tests::render_local(&f, &rows) };
-    // Switch按既有合同忽略layout高度，根自然高19；轨道中心在y=9而不是32。
+    // Under its existing contract, Switch ignores layout height and has natural root height 19; track center is y=9, not 32.
     assert_eq!(pixel(&baseline, 32, 9), &[32, 23, 17, 255]);
     assert_eq!(pixel(&actual, 32, 9), &[56, 255, 217, 255]);
     assert_eq!(

@@ -1,4 +1,4 @@
-//! 拖出缩略图：后台从已合成的 WIC 位图缩放，输出非预乘 BGRA；最长边 256 像素。
+//! Drag-out thumbnails: scale composed WIC bitmaps in background into nonpremultiplied BGRA, with a 256-pixel longest edge.
 use windows::{
     core::{Error, Result},
     Win32::{Foundation::*, Graphics::Imaging::*},
@@ -29,7 +29,7 @@ pub(super) fn prepare(factory: &IWICImagingFactory, source: &IWICBitmap) -> Resu
         let (width, height) = dimensions(width, height)?;
         let scaler = factory.CreateBitmapScaler()?;
         scaler.Initialize(source, width, height, WICBitmapInterpolationModeFant)?;
-        // Shell helper 自行预乘，必须交付直通 alpha，避免半透明图再次变暗。
+        // Shell helpers premultiply internally; deliver straight alpha to avoid darkening translucent images again.
         let converted = WICConvertBitmapSource(&GUID_WICPixelFormat32bppBGRA, &scaler)?;
         let size = (width * height * 4) as usize;
         let mut lease = crate::pixels::reserve(size)

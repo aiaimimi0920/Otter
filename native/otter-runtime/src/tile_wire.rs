@@ -1,4 +1,4 @@
-//! Wall v1 的有界不可变快照；图片/raw/PNG已实现，不伪造Art或输入附件。
+//! Bounded immutable Wall v1 snapshot; images/raw/PNG are implemented, without fabricated Art or input attachments.
 use serde::{Deserialize, Serialize};
 #[path = "tile_wire_validation.rs"]
 pub mod validation;

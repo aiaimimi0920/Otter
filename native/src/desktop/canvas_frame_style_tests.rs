@@ -1,4 +1,4 @@
-//! 生产 Canvas 和完整软件快照的像素回归；不采集物理桌面，不切换用户 renderer。
+//! Pixel regressions for production Canvas and complete software snapshots; no physical-desktop capture or user-renderer switching.
 use super::*;
 use crate::{desktop::presentation_readback_test::Pixels, pin_frame_style::Style};
 fn style() -> Style {
@@ -8,7 +8,7 @@ fn at(p: &Pixels, x: usize, y: usize) -> &[u8] {
     &p.bytes[(y * p.size[0] as usize + x) * 4..(y * p.size[0] as usize + x + 1) * 4]
 }
 fn read(c: &mut Canvas) -> Pixels {
-    // 只读本测试的离屏帧：先归还提交租约，不向物理桌面提交像素。
+    // Read only this test's offscreen frame: return the submission lease first, without submitting pixels to the physical desktop.
     drop(c.take_submission(false).unwrap());
     c.target.as_ref().unwrap().surface.readback_for_test()
 }
@@ -40,7 +40,7 @@ fn normal_external_and_zoom_snapshot_keep_same_style_and_fixed_dip_width() {
         assert_eq!(at(&external, 20, 1), &[0, 0, 255, 255]);
         let mut copy = c.zoom_snapshot(Some(&frame)).unwrap().unwrap();
         assert_eq!(copy.frame_style, c.frame_style);
-        // 生产缩放入口会继续传递 resolved Frame；外部像素不伪装为本地栅格文档。
+        // The production zoom entry point continues passing the resolved Frame; external pixels do not masquerade as a local raster document.
         copy.paint_display(hwnd, 40, 40, 96, Some(&frame)).unwrap();
         assert_eq!(&*read(&mut copy).bytes, &*external.bytes);
         assert!(stamp.matches(&c.editor));

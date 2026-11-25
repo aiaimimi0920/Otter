@@ -1,4 +1,4 @@
-//! 单个本机连接任务；UI 只收已完成结果，显式选择/取消后迟到结果不得安装。
+//! One local connection task; UI receives only completed results, and late results after explicit selection/cancellation cannot install.
 use super::{Connected, Error};
 use crate::device_request_cancel::Cancel;
 use std::{
@@ -128,11 +128,11 @@ impl Owner {
                 self.next = self.profile.as_ref().map(|_| Instant::now() + delay);
                 output = Some(result);
             } else if self.profile.is_some() {
-                // 清除后再次显式连接：先回收已取消任务，再启动新的身份校验。
+                // Explicit connection after clearing: reclaim cancelled tasks before starting new identity validation.
                 self.next = Some(Instant::now());
             }
         }
-        // 断开撤销旧设备会话结束后才允许签发新会话，避免迟到的断开踢掉新连接。
+        // Issue a new session only after disconnect finishes revoking the old device session, preventing late disconnect from kicking the new connection.
         if self.disconnect.is_none()
             && self.pending.is_none()
             && self.next.is_some_and(|at| at <= Instant::now())

@@ -1,10 +1,10 @@
-//! 写出可见框坐标与配套视图信息；只逆转导入平移，不重新缩放、裁掉框外标注或改屏幕位置。
+//! Write visible-frame coordinates and matching view metadata; undo only import translation, without rescaling, clipping outside annotations, or changing screen position.
 use super::*;
 use crate::{crop_geometry::Rect, editor::CropView};
 
 pub struct Visible {
     pub annotations: Vec<u8>,
-    /// 窗口封装层须与这个逻辑可见框配套，不能直接混用旧窗口尺寸。
+    /// Window wrappers must match this logical visible frame; do not mix in old window dimensions directly.
     pub frame: Option<Rect>,
     pub crop: Option<CropView>,
 }
@@ -44,7 +44,7 @@ pub(super) fn translate(element: &mut Value, origin: Point) -> Result<(), Error>
         return Ok(());
     }
     let object = element.as_object_mut().ok_or(Error::Shape)?;
-    // 仅处理我们刚编码的坐标，不递归平移未知扩展字段中的同名键。
+    // Process only coordinates just encoded, without recursively translating same-named keys in unknown extension fields.
     coordinate(object, "x", origin.x)?;
     coordinate(object, "y", origin.y)?;
     if let Some(points) = object.get_mut("points") {

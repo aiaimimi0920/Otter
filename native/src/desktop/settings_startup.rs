@@ -1,4 +1,4 @@
-//! 启动期只读配置：显式路径、同一有界文件准入，错误在任何截图或窗口创建之前返回。
+//! Read-only startup configuration: explicit paths and the same bounded file admission; return errors before any screenshot or window creation.
 use crate::app_settings_document::Document;
 use std::{
     path::Path,

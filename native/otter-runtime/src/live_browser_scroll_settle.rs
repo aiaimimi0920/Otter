@@ -1,4 +1,4 @@
-//! 已成功 Scroll 后有界观察 UIA 位置更新，避免下一格基于 Chromium 的旧可访问性树。
+//! Bounded observation of UIA position updates after successful Scroll prevents the next notch from using Chromium's stale accessibility tree.
 use std::time::{Duration, Instant};
 use windows::core::Result;
 
@@ -10,7 +10,7 @@ pub(super) fn observe(
     action_deadline: Instant,
     mut percent: impl FnMut() -> Result<f64>,
 ) -> Result<()> {
-    // -1 是 UIA 的 NoScroll；已在方向边界时允许成功的无动作，不等待不可能的位移。
+    // -1 is UIA NoScroll; allow a successful no-op at the directional boundary without waiting for impossible movement.
     if before < 0.0 || (increment && before >= 100.0) || (!increment && before <= 0.0) {
         return Ok(());
     }
@@ -19,14 +19,14 @@ pub(super) fn observe(
     while Instant::now() < deadline {
         let current = percent()?;
         let now = Instant::now();
-        // 调用方已请求源刷新；见到新位置即可继续，不能再为每格添加固定静止等待。
+        // The caller already requested a source refresh; continue once a new position appears, without adding fixed idle waits per notch.
         if progressed(before, current) {
             break;
         }
         std::thread::sleep(Duration::from_millis(10).min(deadline.saturating_duration_since(now)));
     }
-    // Scroll 已返回成功；CSS snap/脚本可能保持原位置。观察到期不伪造位移、重发动作，
-    // 也不把合法无位移变成控制失败。RPC 错误仍传播，全部等待留在原动作预算内。
+    // Scroll already returned success; CSS snap/scripts may preserve the position. Observation expiry must not fake movement, replay actions,
+    // or turn legitimate nonmovement into control failure. RPC errors still propagate, and all waiting stays within the original action budget.
     Ok(())
 }
 

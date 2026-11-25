@@ -1,4 +1,4 @@
-//! 手写数值/事件oracle；模型、尾合并、依赖失败、几何/合同与预览不改权威scene。
+//! Handwritten numeric/event oracles; models, tail merging, dependency failures, geometry/contracts, and previews never change authoritative scene.
 use super::*;
 use crate::tile_surface_value::tests::{fixture, presentation};
 use serde_json::{json, Value as Json};
@@ -23,7 +23,7 @@ fn drag_uses_source_resolution_track_step_and_exact_input_then_commit_wire() {
     let f = fixture(scene());
     let mut drag = Drag::new(field(&f));
     assert!(drag.commit().unwrap().is_none());
-    // 2px输出映射64px canonical；像素中心16/48，轨道5..59，独立算得-6/6。
+    // 2px output maps to 64px canonical; pixel centers 16/48 and track 5..59 independently yield -6/6.
     for (pixel, value) in [([0, 0], -6), ([1, 0], 6), ([-100, 0], -10), ([100, 0], 10)] {
         let mut c = drag.sample(&f.frame, pixel).unwrap().unwrap();
         assert_eq!(event(&c)["payload"], json!({"value":value as f64}));
@@ -115,7 +115,7 @@ fn tail_only_coalescing_preserves_commit_barrier_and_never_exceeds_original_32_s
     assert!(q
         .actions
         .offer(vec![d.sample(&f.frame, [-100, 0]).unwrap().unwrap()], now));
-    assert_eq!(q.actions.pending.len(), 3); // 不跨commit合并。
+    assert_eq!(q.actions.pending.len(), 3); // Never merge across commits.
     q.actions.clear();
     q.actions.observe(f.state.clone(), "o", "d", now);
     d = Drag::new(field(&f));
@@ -330,7 +330,7 @@ fn successful_input_tracking_is_bounded_to_active_request_and_preview_retires_af
     assert!(s.actions.accepted.is_empty());
     assert!(!s.actions.preview_pending(&drag.edit, &f.frame, "art"));
     assert!(drag.edit.active());
-    // 同一手势已成功的前缀允许继续；失败/取消由另两回归证明不可复活。
+    // Successful prefixes of the same gesture may continue; two other regressions prove failure/cancellation cannot revive them.
     assert!(drag.sample(&f.frame, [0, 0]).unwrap().is_some());
 }
 #[test]
@@ -377,7 +377,7 @@ fn approved_input_keeps_dependency_tracking_until_terminal_or_expiry() {
         assert_eq!(d.edit.active(), approve);
         assert_eq!(s.actions.accepted.len(), usize::from(approve));
         if approve {
-            // 首次未终态GET保原请求，明确取消仍能找到Edit。
+            // The first nonterminal GET preserves the original request so explicit cancellation can still find Edit.
             let pending = activity(
                 &f,
                 json!([{"ack":crate::tile_surface_actions::tests::ack_value(id,"running"),"actionId":"adjust","cancelable":true}]),

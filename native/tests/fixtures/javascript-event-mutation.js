@@ -1,4 +1,4 @@
-// 每个目标/阶段快照、移除标记、固定路径、停止与嵌套分派。
+// Per-target/phase snapshots, removal markers, fixed paths, stopping, and nested dispatch.
 NeuroSurface.define({ mount({ root }) {
   const check = (value, message) => { if (!value) throw Error(message); };
   root.innerHTML = '<div><button>mutation</button></div>';

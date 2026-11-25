@@ -1,4 +1,4 @@
-//! 真实 Live 系统命令/隐藏选择控件加注入选择，验证连线事务；不冒充可见模态人工验收。
+//! Real Live system commands/hidden selection controls plus injected choices verify link transactions; not visible-modal manual acceptance.
 use super::*;
 unsafe fn request(app: &Application, hwnd: HWND) {
     SendMessageW(hwnd, WM_SYSCOMMAND, Some(WPARAM(0x1fa0)), Some(LPARAM(0)));

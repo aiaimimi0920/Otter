@@ -1,4 +1,4 @@
-//! 每条交换链最多记录16次原始Present状态变化；不重试、不改变提交资格、不含用户内容。
+//! Log at most 16 raw Present-status changes per swap chain; no retries, submission-eligibility changes, or user content.
 use std::cell::Cell;
 use windows::core::HRESULT;
 

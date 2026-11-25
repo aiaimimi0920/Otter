@@ -1,4 +1,4 @@
-//! 同 child → CSS → 生产 HWND/Presentation → DirectWrite/D2D 像素和同几何命中。
+//! Same child -> CSS -> production HWND/Presentation -> DirectWrite/D2D pixels and same-geometry hits.
 use super::*;
 use crate::surface_presentation::Presentation;
 use windows::Win32::{
@@ -91,7 +91,7 @@ fn javascript_css_real_hwnd_layout_pixels_hits_click_hidden_and_update() {
     assert_eq!(pixel(&before, 1, 1), [255, 0, 0, 255]);
     assert_eq!(pixel(&before, 8, 8), [0, 255, 0, 255]);
     assert_eq!(pixel(&before, 48, 8), [0, 255, 0, 255]);
-    // 确有来自继承 color 的白色字形，不以 Scene 的字符串代替 DirectWrite/D2D。
+    // Actual white glyphs must come from inherited color; Scene strings do not replace DirectWrite/D2D.
     assert!((10..42).any(|y| (7..36).any(|x| pixel(&before, x, y)[..3].iter().all(|v| *v > 220))));
     window.set_pointer_enabled(true).unwrap();
     window.javascript_queue_click_for_test(&first);

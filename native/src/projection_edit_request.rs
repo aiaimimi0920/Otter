@@ -1,4 +1,4 @@
-//! 六种既有v1操作的不可变请求；prepare后字节固定，重试不得换op/session/base版本。
+//! Immutable requests for six existing v1 operations; bytes freeze after prepare, and retries cannot change op/session/base version.
 use super::*;
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -164,8 +164,8 @@ impl Request {
         if let Some(previous) = previous {
             doc.follows(previous)?;
         }
-        // 幂等重试可能返回后来已被其他操作修改的当前文档，不能要求value仍等于原payload。
-        // 但每种成功操作必须跨过其原围栏；HTTP 200不能把未执行的旧文档确认掉。
+        // Idempotent retries may return current documents changed by later operations, so value need not equal original payload.
+        // Every successful operation must still cross its original fence; HTTP 200 cannot acknowledge an unexecuted old document.
         let accepted = match &self.operation {
             Operation::Mode {
                 base_mode_revision, ..

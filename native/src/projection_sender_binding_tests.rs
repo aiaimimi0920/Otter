@@ -1,4 +1,4 @@
-//! 合成身份/会话验证旧字段保留、容量、幂等身份及跨重试单调性；候选不授发布权。
+//! Synthetic identities/sessions verify old-field preservation, capacity, idempotent identity, and retry monotonicity; candidates grant no publication rights.
 use super::super::tests::{frame, Directory};
 use super::*;
 use serde_json::{json, Value};

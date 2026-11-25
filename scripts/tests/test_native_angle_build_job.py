@@ -1,4 +1,4 @@
-"""真实 Python 子进程验证 Job 生命周期；不执行合成编译工具或产品程序。"""
+"""Actual Python children verify Job lifetimes; execute neither synthetic compilers nor product programs."""
 
 import ctypes as C
 import os
@@ -26,7 +26,7 @@ class BuildJobTests(unittest.TestCase):
         handle = open_process(0x100000 | 0x1000, False, pid)
         if handle:
             try:
-                # Job 的 active=0 可先于被终止进程对象完成 rundown；等待同一 handle 的有界信号。
+                # Job active=0 may precede terminated-process object rundown; wait boundedly for the same handle's signal.
                 self.assertEqual(build_job.wait(handle, 30000), 0, f"Process {pid} did not finish termination")
             finally:
                 build_job.close(handle)

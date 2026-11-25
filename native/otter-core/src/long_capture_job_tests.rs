@@ -224,7 +224,7 @@ fn worker_is_single_flight_and_composes_after_acknowledgement() {
 fn cancellation_discards_even_completed_output_and_stops_idle_worker() {
     let mut job = job();
     job.compose().unwrap();
-    // 将真实已完成结果放入受控回复槽，确定性覆盖取消发生在发布之前的竞态。
+    // Place actually completed results in controlled reply slots to deterministically cover cancellation-before-publication races.
     let reply = ready(&mut job);
     let (sender, receiver) = mpsc::sync_channel(1);
     sender.send(reply).unwrap();

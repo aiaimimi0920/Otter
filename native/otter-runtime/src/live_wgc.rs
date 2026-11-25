@@ -1,4 +1,4 @@
-//! 持续 WGC 显示器/窗口会话：事件通知、两帧池、同线程 GPU 提取，显式 owner 关闭全部资源。
+//! Continuous WGC monitor/window sessions: event notifications, a two-frame pool, same-thread GPU extraction, and an explicit owner closing all resources.
 use super::{device, lifetime, pending, same_size};
 use crate::{
     live_frames::Source,
@@ -75,13 +75,13 @@ pub struct Session {
     )>,
     resize_allowed: bool,
     _budget: Option<crate::byte_budget::Lease>,
-    // Apartment 最后析构；Rc marker 禁止把线程初始化 owner 移到另一线程。
+    // Apartment is destroyed last; an Rc marker prevents moving the thread-initialization owner to another thread.
     _apartment: lifetime::Apartment,
     _thread: PhantomData<Rc<()>>,
 }
 impl Session {
-    /// 仅用于用户明确授权的显示器 Live 请求；调用线程持有并最终析构整个会话。
-    /// 启动前必须已有消费者；调用者负责隐藏宿主/捕获排除及目标身份授权。
+    /// Only for monitor Live requests explicitly authorized by the user; the calling thread owns and ultimately destroys the entire session.
+    /// Consumers must exist before startup; callers own host hiding/capture exclusion and target-identity authorization.
     pub fn monitor(monitor: HMONITOR, frames: Arc<Source<Texture>>) -> Result<Self, Error> {
         Self::start_monitor(monitor, None, frames)
     }
@@ -92,8 +92,8 @@ impl Session {
     ) -> Result<Self, Error> {
         Self::start_monitor(monitor, Some(region), frames)
     }
-    /// 绑定一个已获授权的窗口，不退化为桌面区域；移动跟随由 WGC item 负责。
-    /// 调用方在后续 next_frame_checked 中继续复核 Target；窗口尺寸变化按预算重建帧池。
+    /// Bind an authorized window without degrading to a desktop region; the WGC item tracks movement.
+    /// Callers continue validating Target in subsequent next_frame_checked calls; window-size changes rebuild the frame pool within budget.
     pub fn window(
         target: &crate::live_window_target::Target,
         frames: Arc<Source<Texture>>,
@@ -185,7 +185,7 @@ impl Session {
             _apartment: apartment,
             _thread: PhantomData,
         };
-        // MTA 已移交 owner；先释放局部 COM 引用，保证后续启动失败时 Apartment 最后退出。
+        // MTA ownership has transferred; release local COM references first so Apartment exits last if later startup fails.
         drop(_device);
         let wake = owner.signal.clone();
         owner.close_token = Some(owner.item.Closed(&TypedEventHandler::<
@@ -208,11 +208,11 @@ impl Session {
     pub fn stop_handle(&self) -> Stop {
         Stop(self.signal.clone())
     }
-    /// 在会话 owner 线程等待并交付下一帧；不在 UI 线程调用。任何终止错误关闭此会话。
+    /// Wait for and deliver the next frame on the session-owner thread, never UI. Any terminal error closes this session.
     pub fn next_frame(&mut self) -> Result<u64, Error> {
         self.next_frame_checked(|| true)
     }
-    /// 调用者在 GPU 复制前后复核目标身份；未通过的快照不得进入共享交付源。
+    /// Callers revalidate target identity before and after GPU copies; rejected snapshots must not enter the shared delivery source.
     pub fn next_frame_checked(&mut self, mut validate: impl FnMut() -> bool) -> Result<u64, Error> {
         let result = self.next_inner(&mut validate);
         if result.is_err() {
@@ -237,14 +237,14 @@ impl Session {
                 return Err(Error::TargetChanged);
             }
             let content = frame.0.ContentSize()?;
-            // 全窗口与裁剪窗口都保留最小化前的最后一帧，不呈现任务栏缩略尺寸。
+            // Both full-window and cropped-window capture retain the last pre-minimization frame, without presenting taskbar-thumbnail dimensions.
             if self.window_target.as_ref().is_some_and(|target| unsafe {
                 windows::Win32::UI::WindowsAndMessaging::IsIconic(target.hwnd()).as_bool()
             }) {
                 continue;
             }
             if let Some((target, crop)) = &self.window_crop {
-                // 最小化不重建零池；resize 的旧帧不交付为另一个偏移的画面。
+                // Minimization does not rebuild a zero-sized pool; old resize frames must not be delivered as a differently offset image.
                 if content.Width == 0 || content.Height == 0 {
                     continue;
                 }
@@ -253,7 +253,7 @@ impl Session {
                 }
                 let bounds = match target.frame_bounds() {
                     Ok(bounds) => bounds,
-                    // 读边界前源可能刚最小化；身份仍有效时等待恢复，不把过渡当成换源。
+                    // The source may have just minimized before bounds are read; if identity remains valid, wait for restoration rather than treating the transition as a source change.
                     Err(_)
                         if target.validate().is_ok()
                             && unsafe {
@@ -273,7 +273,7 @@ impl Session {
                 resize::Plan::Same => {}
                 resize::Plan::Suspend => continue,
                 resize::Plan::Recreate => {
-                    // 旧帧先 Close，再重建池；这张尺寸变化帧不作为可交付快照使用。
+                    // Close the old frame before rebuilding the pool; this size-change frame is not used as a deliverable snapshot.
                     drop(frame);
                     self.recreate(content)?;
                     self.signal.check()?;
@@ -292,7 +292,7 @@ impl Session {
             if desc.Width != self.size.Width as u32 || desc.Height != self.size.Height as u32 {
                 return Err(Error::Resized);
             }
-            // 仅本线程提取/复制，D3D 多线程保护由共享设备工厂开启；Frame guard 先于下一轮归还。
+            // Extract/copy only on this thread; the shared-device factory enables D3D multithread protection, and the Frame guard is returned before the next iteration.
             let prepared = snapshot_checked(validate, || unsafe {
                 match self.region {
                     Some(region) => live_texture::snapshot_region(
@@ -333,7 +333,7 @@ impl Session {
         }
         if let Some(session) = self.resources.session.take() {
             if let Err(error) = drain::finish(&self.context) {
-                // 失败不等于资源已释放；保留诊断并继续原 Close，不丢弃 owner 冒充成功。
+                // Failure does not mean resources were released; retain diagnostics and continue the original Close rather than dropping the owner to pretend success.
                 eprintln!("native-live-close-gpu: {error}");
             }
             #[cfg(test)]
@@ -372,7 +372,7 @@ fn latest_frame<T>(mut next: impl FnMut() -> Result<Option<T>, Error>) -> Result
     let Some(first) = next()? else {
         return Ok(None);
     };
-    // 合并通知时最多消费两池槽，不无限追赶生产者；旧 Frame guard 自动归还。
+    // Consume at most two pool slots when coalescing notifications, without endlessly chasing the producer; old Frame guards return automatically.
     Ok(Some(next()?.unwrap_or(first)))
 }
 fn snapshot_checked<T>(

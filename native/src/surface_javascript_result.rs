@@ -1,4 +1,4 @@
-//! 本地 Art 显式结果请求；不是预览或 emit，不接受 URL、文件路径及脚本自报宿主身份。
+//! Explicit local Art result requests; not previews or emits, and no URLs, file paths, or script-declared host identities.
 use super::{encode, invalid};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -75,7 +75,7 @@ impl Request {
         }
         Ok(())
     }
-    /// 只共享同一已验证帧的像素租约；先验证全部引用，失败不交付半个端口集合。
+    /// Share pixel leases only within the same verified frame; validate all references first and never deliver a partial port set on failure.
     pub(crate) fn resolve(
         self,
         images: &BTreeMap<String, crate::image_decode::Image>,

@@ -1,4 +1,4 @@
-//! 异步输入准备期间持有的不可变公共配置；不保留图借用、secret 或图片数据。
+//! Immutable public configuration retained during asynchronous input preparation; holds no graph borrows, secrets, or image data.
 use super::*;
 pub struct Configuration {
     pub(super) art_id: String,
@@ -6,7 +6,7 @@ pub struct Configuration {
     pub(super) tail: String,
 }
 impl Configuration {
-    /// 图层已完成公共字段筛选及连线转换；编码期间不回读 UI 状态。
+    /// The graph layer has completed public-field filtering and connection conversion; do not reread UI state during encoding.
     pub fn from_resolved(
         art_id: &str,
         parameters: &crate::graph_params::Params<'_>,
@@ -14,7 +14,7 @@ impl Configuration {
     ) -> Result<Self, Error> {
         Self::resolved_mode(art_id, parameters, images, false, false)
     }
-    /// Shader 取码与本地绑定消费同份已解析公共参数；模式强制不受手动禁用影响。
+    /// Shader-code retrieval and local binding consume the same resolved public parameters; forced mode is unaffected by manual disabling.
     pub fn shader_from_resolved(
         art_id: &str,
         parameters: &crate::graph_params::Params<'_>,
@@ -22,7 +22,7 @@ impl Configuration {
     ) -> Result<Self, Error> {
         Self::resolved_mode(art_id, parameters, images, true, false)
     }
-    /// ABI 由当前宿主安装决定，不接受脚本/连线/禁用参数覆盖。
+    /// The current host installation determines the ABI; scripts/connections/disabled parameters cannot override it.
     pub fn native_shader_from_resolved(
         art_id: &str,
         parameters: &crate::graph_params::Params<'_>,
@@ -42,7 +42,7 @@ impl Configuration {
         json.raw(",\"parameters\":{")?;
         let mut first = true;
         if shader {
-            // Loom 合并 inputs/parameters；不能丢弃真实图片或以同名强制模式覆盖它。
+            // Loom merges inputs/parameters; do not discard real images or override them with a same-name forced mode.
             if image_ports.iter().any(|name| {
                 matches!(name.as_str(), "mode" | "output_mode") || (native && name == "shader_abi")
             }) {
@@ -55,7 +55,7 @@ impl Configuration {
             first = false;
         }
         for (name, value) in parameters.entries() {
-            // Loom 将 inputs 与 parameters 合并为同一个参数对象；图片来源替代同名标量。
+            // Loom merges inputs and parameters into one parameter object; image sources replace same-name scalars.
             if image_ports.iter().any(|port| port == name) {
                 continue;
             }
@@ -106,14 +106,14 @@ impl Configuration {
         }
         finish(art_id, image_ports, json, prepared.disabled.iter().copied())
     }
-    /// 从已筛选且有界的公共编辑状态生成独立快照，不绕过 Params 的 secret/内部字段边界。
+    /// Create an independent snapshot from filtered, bounded public editing state without bypassing Params' secret/internal-field boundaries.
     pub fn from_parameters(
         parameters: &crate::loom_parameter_state::Parameters,
         images: &[&str],
     ) -> Result<Self, Error> {
         Self::parameters_mode(parameters, images, false)
     }
-    /// 仍只从公共 Parameters 读取；强制预取 Shader 模式，图片沿正式 inputs 描述符传输。
+    /// Still read only public Parameters; force Shader-prefetch mode and transmit images through formal inputs descriptors.
     pub fn shader_from_parameters(
         parameters: &crate::loom_parameter_state::Parameters,
         images: &[&str],
@@ -130,7 +130,7 @@ impl Configuration {
         json.raw(",\"parameters\":{")?;
         let mut first = true;
         if shader {
-            // 与 resolved 快照保持同一准入规则；普通 Art 仍允许这两个图片端口名。
+            // Use the same admission rules as resolved snapshots; ordinary Art still allows these two image-port names.
             if image_ports
                 .iter()
                 .any(|name| matches!(name.as_str(), "mode" | "output_mode"))

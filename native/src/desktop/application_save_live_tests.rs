@@ -1,4 +1,4 @@
-//! 复用隐藏 Live/WARP fixture，验证生产保存 worker、磁盘提交和实际 PNG 恢复。
+//! Reuse hidden Live/WARP fixtures to verify the production save worker, disk commit, and actual PNG restoration.
 use super::*;
 use crate::desktop::composition::live::window::local::tests::wheel;
 use windows::Win32::UI::Input::KeyboardAndMouse::VK_MENU;
@@ -38,7 +38,7 @@ fn live_save_publishes_same_id_pixels_without_stopping_capture_and_roundtrips() 
         let image = restored.images[0].source.as_ref().unwrap();
         assert_eq!([image.width, image.height], [2, 2]);
         assert_eq!(&*image.pixels, &[0, 0, 255, 255].repeat(4));
-        // 同一 Live 再保存复用身份/磁盘基线，不追加重复 sticker。
+        // Saving the same Live again reuses identity/disk baseline without appending a duplicate sticker.
         app.request_save_existing().unwrap();
         let second = prepared(&mut app).unwrap();
         assert_eq!(second.candidate.revision, 2);

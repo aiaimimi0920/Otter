@@ -1,4 +1,4 @@
-//! 普通贴图独有的图片参数预算；不放宽 Art 参数或整个会话的容量/结构限制。
+//! Image-parameter budget exclusive to ordinary stickers; does not relax Art parameters or whole-session capacity/structural limits.
 use serde_json::{Map, Value};
 
 pub const MAX_FILE_BYTES: usize = 32 * 1024 * 1024;
@@ -101,7 +101,7 @@ fn validate_with_image(
     }) {
         return Err("贴图文件名无效或过长");
     }
-    // 用空值替代唯一的大图字段，仍把该键计入128项上限；未知字段不获得大值例外。
+    // Replace the sole large-image field with null while still counting its key toward the 128-entry limit; unknown fields get no large-value exception.
     let empty = Value::Null;
     crate::loom_parameter_state::validate(values.iter().map(|(key, value)| {
         (

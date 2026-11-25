@@ -1,4 +1,4 @@
-//! 发现清单的本机管理通道；固定 loopback、禁代理/重定向、限时限量，不接受远端地址。
+//! Local management channel for discovery manifests: fixed loopback, no proxies/redirects, bounded time/size, and no remote addresses.
 use super::Error;
 use crate::{device_request_cancel::Cancel, loom_media_target::Target};
 use serde_json::Value;
@@ -14,7 +14,7 @@ impl Local {
     pub(super) fn new(target: Target) -> Result<Self, Error> {
         let (origin, token) = target.local_control().map_err(|_| Error::LocalOnly)?;
         let mut url = url::Url::parse(origin).map_err(|_| Error::LocalOnly)?;
-        // localhost 固定到 loopback，不由 DNS 将本机管理员凭据带出机器。
+        // Pin localhost to loopback so DNS cannot take local-administrator credentials off-machine.
         if url.host_str() == Some("localhost") {
             url.set_host(Some("127.0.0.1"))
                 .map_err(|_| Error::LocalOnly)?;

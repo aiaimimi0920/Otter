@@ -1,4 +1,4 @@
-//! 已有回收站的后台裁剪；只改回收数组，未知条目值/其他库/活动窗口与 revision 保留。
+//! Background pruning of existing recycle bins; mutate only recycling arrays, preserving unknown entry values/other libraries/active windows/revision.
 use super::{candidate, recycle::policy::Policy, Kind};
 use crate::session_write::Candidate;
 use serde::{ser::SerializeMap, Serialize, Serializer};

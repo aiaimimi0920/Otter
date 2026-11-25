@@ -1,4 +1,4 @@
-//! 重复触发取消通过真实 BUTTON、原 UI owner 与 TLS；不调用模型、剪贴板或全局输入。
+//! Repeated-trigger cancellation through real BUTTONs, original UI owners, and TLS; no model, clipboard, or global input.
 use super::*;
 use std::sync::atomic::AtomicBool;
 use windows::Win32::UI::Input::KeyboardAndMouse::IsWindowEnabled;
@@ -87,7 +87,7 @@ fn real_button_cancels_blocked_authorization_and_the_original_connection_is_recl
         let data = cancellable_catalog();
         let mut f = Fixture::new(&data);
         let original = f.state().extension_document.borrow().store.stamp();
-        // 用户取消时编辑条早已存在；建条/首次投影不属于 worker 中断的时限。
+        // Edit strips already exist at user cancellation; strip creation/initial projection are outside worker-interruption timing limits.
         super::super::super::tool_panel::prepare(f.documents[0].panel.0, f.state()).unwrap();
         let (ready, wait) = mpsc::channel();
         let (identity, server) = peer::peer(move |p| {
@@ -118,7 +118,7 @@ fn real_button_cancels_blocked_authorization_and_the_original_connection_is_recl
             .intent
             .cancel
             .load(Ordering::Acquire));
-        // 隐藏 BUTTON 的消息往返另行记录；本门限保护已接纳取消后的原 worker 回收。
+        // Hidden BUTTON round-trip timing is recorded separately; this limit protects original-worker reclamation after admitted cancellation.
         let start = Instant::now();
         f.finish();
         eprintln!("cancel timing: settled_ms={}", start.elapsed().as_millis());

@@ -1,4 +1,4 @@
-//! 编译器仅在 child 按 SYSTEM32 加载，避免静态导入让父 UI 常驻 compiler 或搜索邻接 DLL。
+//! Load the compiler only in the child from SYSTEM32, avoiding static imports that keep it resident in parent UI or search adjacent DLLs.
 use super::*;
 use std::ffi::c_void;
 use windows::{

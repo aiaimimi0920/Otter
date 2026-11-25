@@ -1,4 +1,4 @@
-//! 显式接续原批次：已完成前缀不重发，未尝试后缀与原证据始终共同持有。
+//! Explicit continuation of the original batch: never resend the completed prefix; retain the unattempted suffix with original evidence.
 use super::*;
 use crate::{live_relay_http::BatchStop, surface_confirmation::Choice};
 pub struct BatchContinuationInput {
@@ -8,7 +8,7 @@ pub struct BatchContinuationInput {
     pub next: usize,
 }
 impl BatchReceipt {
-    /// 返回唯一可接续边界；不是发送许可，窗口必须再次核对当前授权和版本。
+    /// Return the sole continuation boundary, not send permission; the window must recheck current authorization and version.
     pub fn continuation_boundary(&self) -> Option<usize> {
         if self.delivery.is_err()
             || !matches!(
@@ -62,7 +62,7 @@ impl BatchReceipt {
                 }
             }
         }
-        // stop=Confirmation 必须有对应的已确认批准，不能仅凭状态字段跨过提示。
+        // stop=Confirmation requires matching confirmed approval; status fields alone cannot bypass prompts.
         observed.items.last()?.decision.as_ref()?;
         Some(next)
     }

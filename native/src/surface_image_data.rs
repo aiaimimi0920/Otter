@@ -1,4 +1,4 @@
-//! 有界 data URL 解码；百分号不是表单编码，base64 遵循 forgiving 规则。
+//! Bounded data URL decoding; percent encoding is not form encoding, and base64 follows forgiving rules.
 use super::ResourceError;
 #[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-surface")))]
 #[path = "surface_image_data_tests.rs"]
@@ -28,7 +28,7 @@ fn header_mime(url: &url::Url) -> Result<String, ResourceError> {
         .and_then(|v| v.split_once(','))
         .ok_or(ResourceError::Input)?
         .0;
-    // SVG 声明由后台受限 XML child 处理，不能回退位图嗅探。
+    // Declared SVG is handled by a restricted background XML child and must not fall back to bitmap sniffing.
     Ok(crate::surface_image_format::essence(header)
         .unwrap_or_default()
         .to_ascii_lowercase())
@@ -63,7 +63,7 @@ pub(crate) fn decode(source: &str, cancelled: impl Fn() -> bool) -> Result<Vec<u
         }
     }
     while index < raw.len() {
-        // 百分号一次消费三个字节，可能跨过检查边界，不能要求索引恰好对齐。
+        // Percent sequences consume three bytes at once and may cross a check boundary; exact index alignment cannot be required.
         if index >= next_check {
             if cancelled() {
                 return Err(ResourceError::Identity);
@@ -101,7 +101,7 @@ pub(crate) fn decode(source: &str, cancelled: impl Fn() -> bool) -> Result<Vec<u
     if bytes.len() % 4 == 1 {
         return Err(ResourceError::Input);
     }
-    // 原地转换，避免额外一份编码缓冲；残余不足八位按 forgiving 算法丢弃。
+    // Convert in place to avoid another encoded buffer; discard residual bits shorter than eight under the forgiving algorithm.
     let (mut accumulator, mut bits, mut write) = (0u32, 0u32, 0usize);
     for read in 0..bytes.len() {
         if read % 4096 == 0 && cancelled() {

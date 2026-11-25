@@ -1,4 +1,4 @@
-//! 比较最终送入自绘宿主的菜单树，防止通用弹层偷偷给托盘追加钉图功能。
+//! Compare the final menu tree passed to the owner-drawn host, preventing generic popups from silently adding pin features to the tray.
 use super::*;
 use crate::desktop::{context_menu, reference_ui as reference};
 struct Menu(HMENU);
@@ -48,7 +48,7 @@ fn pin_tree_matches_main_order_and_only_adds_clipboard() {
         assert_eq!(tree[1].command, reference::RECYCLE);
         assert_eq!(tree[3].command, reference::CLEAR_RECYCLE);
         assert_eq!(tree[7].command, reference::CLEAR_REFERENCE);
-        assert!(!tree[5].enabled); // 后台索引尚未完成，不猜测收藏状态。
+        assert!(!tree[5].enabled); // Background indexing is incomplete; do not guess favorite status.
     }
 }
 #[test]

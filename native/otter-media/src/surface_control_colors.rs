@@ -1,4 +1,4 @@
-//! 原生 Surface 控件的 Neuro 语义颜色；动态主题 owner 接入前的默认深色基线。
+//! Neuro semantic colors for native Surface controls; default dark baseline until dynamic theme-owner integration.
 use windows::Win32::Graphics::Direct2D::Common::D2D1_COLOR_F;
 pub const TRACK: D2D1_COLOR_F = rgb(17, 23, 32);
 pub const HOVER: D2D1_COLOR_F = rgb(24, 34, 44);
@@ -10,7 +10,7 @@ pub const LINE: D2D1_COLOR_F = D2D1_COLOR_F {
     b: 1.,
     a: 0.12,
 };
-// Neuro on-yellow = signalYellow 14% + black，不引入第二种强调色。
+// Neuro on-yellow = signalYellow 14% + black, without introducing a second accent color.
 pub const ON_ACTIVE: D2D1_COLOR_F = D2D1_COLOR_F {
     r: 217. / 255. * 0.14,
     g: 0.14,

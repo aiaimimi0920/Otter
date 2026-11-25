@@ -1,4 +1,4 @@
-//! 左侧设置只组合已有授权/投射菜单；弹层结束复核目录身份，不复制请求或网络执行器。
+//! Left settings only compose existing authorization/projection menus; revalidate catalog identity after popup exit without duplicating requests/network executors.
 use super::*;
 #[path = "device_settings_target.rs"]
 mod target;
@@ -47,7 +47,7 @@ pub(in crate::desktop) unsafe fn items(
         }
     }
     let mut result = crate::native_menu::snapshot(menu.0)?;
-    // 投射目标原来挂在全局右键菜单下；附属入口直接呈现同一目录，省去重复一级菜单。
+    // Projection targets originally lived under global context menus; attached entries show the same catalog directly, avoiding a redundant menu level.
     if matches!(section, Section::Devices | Section::Groups) && result.len() == 1 {
         if let Some(children) = result[0].children.take() {
             result = children;
@@ -93,8 +93,8 @@ pub(in crate::desktop) unsafe fn show(
     section: Section,
     anchor: RECT,
 ) -> Result<()> {
-    // 子栏的真实 EDIT/BUTTON 会激活其顶层；菜单跟随同一 owner 家族的当前前台，
-    // 业务提交仍复核原钉图。不能强抢焦点，也不能把外部应用当菜单 owner。
+    // Real EDIT/BUTTON controls in subbars activate their top-level windows; menus follow current foreground within the same owner family,
+    // while business commits still revalidate original pins. Never force focus or use external applications as menu owners.
     let surface = GetForegroundWindow();
     if surface.is_invalid()
         || GetAncestor(surface, GA_ROOTOWNER) != GetAncestor(owner, GA_ROOTOWNER)
@@ -145,7 +145,7 @@ pub(in crate::desktop) unsafe fn choose_with(
         }
         && permits(&items(section, state)?, command)
     {
-        // 仍沿原请求单槽、权限、来源和持久化路径；不会在菜单回调里访问远端。
+        // Retain original single request slots, permissions, provenance, and persistence paths; no remote access inside menu callbacks.
         if matches!(section, Section::TrayReceive) && command == live::WATCH_DIRECT {
             live::choose_direct(owner, state, true)?;
         } else {

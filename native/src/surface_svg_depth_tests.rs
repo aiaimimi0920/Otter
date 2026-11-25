@@ -1,4 +1,4 @@
-//! 深层 XML 与文字经过真实 worker；不放宽 Job、字体预算或属性准入。
+//! Deep XML and text through real workers without relaxing Job limits, font budgets, or attribute admission.
 use super::{decode, svg};
 
 #[test]

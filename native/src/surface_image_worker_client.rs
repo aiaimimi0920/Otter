@@ -1,4 +1,4 @@
-//! 父侧共用接收门：先校验 child 尺寸再领取 Pixels，完整退出/EOF/撤销后才发布。
+//! Shared parent-side receive gate: validate child dimensions before claiming Pixels, then publish only after full exit/EOF/revocation checks.
 use super::*;
 #[cfg(test)]
 #[path = "surface_svg_wire_tests.rs"]

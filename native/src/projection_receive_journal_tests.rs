@@ -1,4 +1,4 @@
-//! 写前意图只用 linshi 独占目录；异常/成功均保现场，不读取或删除真实 profile。
+//! Write-ahead intents use exclusive linshi directories only; retain both success/failure artifacts, without real-profile reads/deletion.
 use super::*;
 #[path = "projection_receive_cleanup_tests.rs"]
 mod cleanup;
@@ -196,7 +196,7 @@ fn unique_valid_recovery_is_restored_without_deleting_it_and_ambiguity_fails_clo
     assert_eq!(std::fs::read(directory.path()).unwrap(), bytes);
     assert_eq!(std::fs::read(&recovery).unwrap(), bytes);
     drop(store);
-    // 模拟规范路径丢失；两个可识别副本必须拒绝，而不是猜最新或回退为空。
+    // Simulate missing canonical paths; reject two recognizable copies rather than guess newest or fall back to empty.
     std::fs::remove_file(directory.path()).unwrap();
     let other = directory
         .0
@@ -281,7 +281,7 @@ fn lease_process_probe() {
     if std::env::var_os("OTTER_NATIVE_RECEIVE_JOURNAL_EXIT_TEST").is_some() {
         let store = Store::open(&root).unwrap();
         store.begin(&invitation(1), "device-1").unwrap();
-        std::process::exit(81); // 故意跳过全部 Drop；真实 OS 回收句柄，持久意图仍需恢复。
+        std::process::exit(81); // Intentionally bypass all Drop; real OS handle reclamation occurs, but persistent intent still needs recovery.
     }
     assert_eq!(Store::open(&root).err(), Some(Error::Lock));
 }

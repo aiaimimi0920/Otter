@@ -1,4 +1,4 @@
-//! 普通启动后的托盘菜单退出；只操作自启 PID 的工作区及其临时菜单。
+//! Tray-menu exit after ordinary startup; touch only the self-started PID's workspace and temporary menu.
 use super::*;
 use windows::Win32::{System::Com::*, UI::Accessibility::*};
 #[path = "matcher.rs"]
@@ -15,10 +15,10 @@ unsafe extern "system" fn dialog(hwnd: HWND, parameter: LPARAM) -> BOOL {
     if pid == search.pid {
         let mut class = [0u16; 64];
         let size = GetClassNameW(hwnd, &mut class);
-        // Win32 返回规范类名 Static；注册名不区分 ASCII 大小写，其他身份条件不放宽。
+        // Win32 returns the canonical class name Static; registered names are ASCII case-insensitive, without relaxing other identity checks.
         if size > 0
             && String::from_utf16_lossy(&class[..size as usize]).eq_ignore_ascii_case("STATIC")
-            // GetWindowTextW 不保证跨进程读取 STATIC 文本；用 PID+精确 owner+类鉴别。
+            // GetWindowTextW does not guarantee cross-process STATIC text reads; identify by PID, exact owner and class.
             && IsWindowVisible(hwnd).as_bool()
             && GetWindow(hwnd, GW_OWNER).ok() == Some(search.owner)
         {
@@ -55,7 +55,7 @@ unsafe fn invoke_exit(menu: HWND) {
             scroll.CurrentVerticallyScrollable().unwrap().as_bool(),
             "Exit is missing from the complete tray menu"
         );
-        // 退出是最后一行；异步滚动必须等提供者发布新快照，不能对旧页重复发请求。
+        // Exit is the last row; asynchronous scrolling must wait for the provider's new snapshot, not send repeated requests against the old page.
         scroll
             .SetScrollPercent(UIA_ScrollPatternNoScroll, 100.0)
             .unwrap();
@@ -101,7 +101,7 @@ fn ordinary_tray_menu_exit_persists_final_workspace() {
     let hwnd = window(&mut child);
     unsafe {
         SetWindowPos(hwnd, None, 40, 40, 160, 160, SWP_NOZORDER | SWP_NOACTIVATE).unwrap();
-        let _ = SetForegroundWindow(hwnd); // 只请求一次，拒绝时等待真实原生输入，不绕过门禁。
+        let _ = SetForegroundWindow(hwnd); // Request only once; on refusal, wait for real native input rather than bypassing the gate.
     }
     until(&mut child, "owned-product-foreground", |_| unsafe {
         (GetForegroundWindow() == hwnd).then_some(())
@@ -120,8 +120,8 @@ fn ordinary_tray_menu_exit_persists_final_workspace() {
             SWP_NOZORDER | SWP_NOACTIVATE,
         )
         .unwrap();
-        // 托盘使用 NOTIFYICON_VERSION_4 协议：低字为事件，高字为图标 ID。
-        // 只向自启且前台的 owner 交付通知；未模拟 Explorer 点击，也不直接发送退出命令。
+        // The tray uses NOTIFYICON_VERSION_4: the low word is the event and the high word is the icon ID.
+        // Deliver the notification only to the self-started foreground owner; neither simulate an Explorer click nor directly send an exit command.
         assert_eq!(
             GetForegroundWindow(),
             hwnd,
@@ -147,7 +147,7 @@ fn ordinary_tray_menu_exit_persists_final_workspace() {
     unsafe {
         invoke_exit(menu);
     }
-    // 正常退出默认保存场景，不显示是否另存的确认框。
+    // Normal exit saves the scene by default without a Save As confirmation.
     let end = Instant::now() + Duration::from_secs(15);
     let status = loop {
         if let Some(status) = child.0.try_wait().unwrap() {

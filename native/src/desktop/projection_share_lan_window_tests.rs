@@ -1,4 +1,4 @@
-//! LAN 邀请通过真实分享按钮验证绑定退休前后的命令边界。
+//! Real sharing buttons verify LAN-invitation command boundaries before and after binding retirement.
 use super::*;
 use crate::projection_delivery::sender::{
     self, binding,

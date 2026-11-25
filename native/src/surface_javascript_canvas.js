@@ -1,4 +1,4 @@
-// 文档 Canvas identity、位图尺寸重置和 native 提交；不公开 bridge，不增加文件/网络入口。
+// Document Canvas identity, bitmap-size resets and native submission; exposes no bridge and adds no file/network entry points.
 ((dom, fail, values, json, makeContext, makePath, images) => {
   "use strict";
   const op = dom.ops, instances = new op.MapType(), contexts = makeContext(dom,fail,values,json,makePath,images);
@@ -70,7 +70,7 @@
         if (!owner.width || !owner.height || op.indexOf(owners,owner) >= 0) fail();
         op.push(owners,owner);
       }
-      // 同步提交调用时的命令；后续JS修改只进入新队列，不能改变在途快照。
+      // Submit the commands present at the time of the synchronous call; later JS changes enter a new queue and cannot alter the in-flight snapshot.
       for (let i = 0; i < owners.length; i++) {
         const owner = owners[i]; flush(owner);
         op.push(frames,{ id:owner.id,width:owner.width,height:owner.height,png:"" });

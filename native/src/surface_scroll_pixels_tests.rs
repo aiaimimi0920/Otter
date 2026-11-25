@@ -1,4 +1,4 @@
-//! WIC/Direct2D 实际绘制滚动后内容，验证裁剪没有随内容一起漂移。
+//! WIC/Direct2D actually paints scrolled content and verifies clipping does not drift with it.
 use super::*;
 #[test]
 fn surface_scroll_pixels_shift_content_inside_stationary_clip() {
@@ -14,7 +14,7 @@ fn surface_scroll_pixels_shift_content_inside_stationary_clip() {
     assert_eq!(pixel(&after, 10, 10), [255, 0, 0, 255]);
     assert_eq!(pixel(&after, 10, 40), [0, 0, 0, 0]);
     assert_eq!(pixel(&after, 40, 10), [0, 0, 0, 0]);
-    // 中性色轨道与 thumb 真实落到 D2D 像素，滚动后 thumb 移到轨道末端。
+    // Neutral tracks and thumbs reach real D2D pixels; scrolling moves the thumb to the track's end.
     assert_eq!(pixel(&before, 27, 3), [159, 154, 146, 255]);
     assert_eq!(pixel(&after, 27, 3), [32, 23, 17, 255]);
     assert_eq!(pixel(&after, 27, 29), [159, 154, 146, 255]);

@@ -1,4 +1,4 @@
-//! 唯一接收状态的保存→呈现→认证回执；沿原 Job 移交 Hold，不复制槽、许可或网络 owner。
+//! Sole receiver state's save -> presentation -> authenticated receipt; transfer Hold through the original Job without duplicating slots, permissions, or network owners.
 use super::*;
 use crate::{
     device_authorization_config::Config,
@@ -47,7 +47,7 @@ impl Application {
             self.projection_receive.0 = Phase::Checkpoint(saved);
             return Ok("正在保存接收投送…");
         }
-        // 模态期间不建新可见窗口；已有循环/消息会驱动后续结算，不增加计时器。
+        // Create no new visible windows while modal; existing loops/messages drive later settlement, without additional timers.
         if self.modals.blocked() {
             self.projection_receive.0 = Phase::Checkpoint(saved);
             return Ok("投送已保存，等待呈现");
@@ -70,7 +70,7 @@ impl Application {
                 "Projection saved proof changed after presentation",
             ));
         }
-        // 无目标分享没有服务端 displayed 合同；真实保存/可见证明之后保留 journal，释放原 Hold。
+        // Untargeted sharing has no server displayed contract; after real save/visibility proof, retain the journal and release the original Hold.
         if !saved.held.ticket().invitation().requires_receipt() {
             return Ok("分享已接收并呈现");
         }
@@ -133,7 +133,7 @@ impl Application {
                     .retain(|entry| entry.envelope() != envelope);
                 Ok("投送已呈现")
             }
-            // 只输出封闭错误类别；不自动重试/退休/解绑或格式化持有的内容。
+            // Emit only closed-set error categories; do not automatically retry/retire/unlink or format retained content.
             Some(Err(error)) => Err(Error::new(
                 E_ABORT,
                 format!(

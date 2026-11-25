@@ -1,4 +1,4 @@
-//! 恢复替换只在无待交付工作时准备；不隐式取消执行或丢弃用户尚未提交的手势。
+//! Prepare restore replacement only with no pending deliveries; never implicitly cancel execution or discard uncommitted user gestures.
 use super::Application;
 pub(super) fn services(app: &Application) -> bool {
     !app.capture_active.get()

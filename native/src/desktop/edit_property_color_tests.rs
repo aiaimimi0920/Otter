@@ -1,4 +1,4 @@
-//! 精确 RGBA、单选历史和调色板删除的业务回归；不打开屏幕采样或剪贴板。
+//! Business regressions for exact RGBA, single-selection history, and palette deletion; no screen sampling or clipboard access.
 use super::*;
 use crate::{editor::Tool, stroke_style::PaintAlpha, viewport::Point};
 fn state() -> State {

@@ -1,4 +1,4 @@
-//! 实际解码 JSON 到图转换器的借用适配，保持一层解包和结构预算。
+//! Borrowed adaptation of actual decoded JSON to graph converters, preserving single-level unwrapping and structural budgets.
 use super::*;
 use crate::graph_param_coercion::{coerce, Widget};
 use serde_json::json;

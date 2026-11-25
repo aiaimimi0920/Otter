@@ -1,4 +1,4 @@
-// 同一 operation 内读取、移位、移除、重插，再跨 update 读取；不维护影子几何。
+// Read, move, remove, and reinsert within one operation, then read across update; maintain no shadow geometry.
 let rootNode, a, b, c, output, values;
 const widths = () => [a,b,c].map(node => node.getBoundingClientRect().width);
 NeuroSurface.define({

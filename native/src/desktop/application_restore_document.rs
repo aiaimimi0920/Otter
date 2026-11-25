@@ -1,4 +1,4 @@
-//! 恢复事务的单窗口凭证：同时用于原工作区和隐藏候选，不持有像素副本。
+//! Per-window restore-transaction credentials, shared by original workspace and hidden candidates without retaining pixel copies.
 use super::{idle, *};
 use crate::desktop::{configuration_stamp, display_snapshot, loom_result_state::OutputStamp};
 
@@ -88,7 +88,7 @@ impl Document {
     pub(in crate::desktop) unsafe fn matches(&self, doc: &DocumentWindow) -> bool {
         self.mismatch(doc).is_none()
     }
-    /// 返回首个失配类别，诊断复用同一围栏，不另维护一套较宽松的条件。
+    /// Return the first mismatch category; diagnostics reuse the same fence, not a separate looser condition set.
     pub(in crate::desktop) unsafe fn mismatch(&self, doc: &DocumentWindow) -> Option<&'static str> {
         self.mismatch_using(doc, None)
     }
@@ -194,7 +194,7 @@ mod tests {
             check(&guard, Some("window-rect"));
             doc.state.new_window.set(true);
             check(&guard, Some("busy"));
-            assert!(doc.state.new_window.get()); // 诊断不消费待处理请求。
+            assert!(doc.state.new_window.get()); // Diagnostics do not consume pending requests.
             doc.state.new_window.set(false);
             guard.rect.left += 1;
             check(&guard, Some("dpi"));

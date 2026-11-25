@@ -1,4 +1,4 @@
-//! 跨进程稳定根结构通知：订阅完成后才请求子进程 UI owner 替换场景。
+//! Cross-process stable-root structure notifications; request child UI-owner scene replacement only after subscription completes.
 use super::*;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -109,7 +109,7 @@ pub(super) fn verify(
                 0
             );
         }
-        // 同一次通知可能重复交付，所有重复项都应指向稳定根并具有同一类型。
+        // One notification may arrive repeatedly; all duplicates must reference the stable root and have the same type.
         for _ in 0..8 {
             match receiver.recv_timeout(Duration::from_millis(100)) {
                 Ok(item) => assert_eq!(item.unwrap(), expected),

@@ -1,10 +1,10 @@
-//! Surface border-box 内容内缩；统一测量和排版，避免边框只绘制却不占布局空间。
+//! Surface border-box content insets; unify measurement and layout so borders occupy layout space rather than being only painted.
 use crate::{
     surface_length::{Context, Length, Unit},
     surface_scene::Node,
 };
 
-/// 逻辑像素中的四边内缩；起点与两轴总量分离，禁止用某一边代替整轴。
+/// Four-side insets in logical pixels; separate the origin from axis totals, never substituting one side for an entire axis.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Insets {
     pub left: f32,
@@ -47,8 +47,8 @@ fn width(node: &Node, key: &str, context: Context) -> f32 {
     if !node.style().contains_key(key) {
         return 0.;
     }
-    // 前端只要提供 borderWidth 就启用 solid；无效宽度回到 CSS medium（3px）。
-    // border-width 不接受百分比、auto、fr 或定位表达式。
+    // The frontend enables solid whenever borderWidth is provided; invalid widths fall back to CSS medium (3px).
+    // border-width accepts no percentages, auto, fr, or positioning expressions.
     match node.style_length(key) {
         Some(
             length @ (Length::Scalar(
@@ -61,7 +61,7 @@ fn width(node: &Node, key: &str, context: Context) -> f32 {
     }
 }
 
-/// 非继承的四边 longhand 只覆盖各自方向；保留既有声明式单值与非法值回退语义。
+/// Non-inherited side longhands override only their own directions; preserve existing declarative single-value and invalid-value fallback semantics.
 pub fn borders(node: &Node, context: Context) -> Insets {
     let uniform = border(node, context);
     let side = |key| {
@@ -79,7 +79,7 @@ pub fn borders(node: &Node, context: Context) -> Insets {
     }
 }
 
-/// 保留声明式单值 padding；独立 longhand 覆盖对应边，缺省来自控件而非修改原声明。
+/// Preserve declarative single-value padding; independent longhands override their sides, with defaults from controls rather than rewriting the original declaration.
 pub fn padding(node: &Node, width: f32, mut context: Context, default: [f32; 2]) -> Insets {
     context.axis = width;
     let uniform = node

@@ -1,4 +1,4 @@
-//! 来源标注的全部栅格化：真实后台渲染、窗口定时器、暂存结算与取消。
+//! Full rasterization of source annotations: real background rendering, window timers, staged settlement, and cancellation.
 use super::Application;
 use crate::{editor::Tool, viewport::Point};
 use windows::Win32::{Foundation::WPARAM, UI::WindowsAndMessaging::*};

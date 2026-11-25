@@ -1,4 +1,4 @@
-//! 路由查询不消费迟到回调；完成/拒绝只在显式观察时结算，不替代真实调度回归。
+//! Routing queries do not consume late callbacks; completion/rejection settles only on explicit observation, not as a substitute for real scheduling regression tests.
 use super::*;
 
 fn assert_routed(modal: &Modal, target: &Destination, nonce: usize) {
@@ -20,7 +20,7 @@ fn late_rejection_cannot_be_consumed_by_a_route_query_after_preflight() {
     let fixture = Fixture::new();
     let (mut modal, target) = publication(&fixture, 611);
     modal.check_result().unwrap();
-    // 注入前置结果检查之后的回调到达；原请求没有源 FINISHED，不能改称成功。
+    // Inject callback arrival after the preliminary result check; the original request has no source FINISHED and must not be relabeled successful.
     unsafe { completed(target.hwnd(), 0, 611, LRESULT(0)) };
     assert_routed(&modal, &target, 611);
     assert_eq!(protocol::value(fixture.b.0, protocol::COMMIT), 611);
@@ -41,7 +41,7 @@ fn late_success_stays_pending_until_an_explicit_result_observation() {
     let wire = modal.publication.as_ref().unwrap().message().unwrap();
     unsafe { SendMessageW(target.hwnd(), wire.id, Some(wire.wp), Some(wire.lp)) };
     assert!(modal.publication.as_ref().unwrap().finished());
-    // 成功确认由真实自有源 hook 产生；这里只模拟回调到达状态。
+    // Success confirmation comes from the real owned source hook; simulate only callback-arrival state here.
     unsafe { completed(target.hwnd(), wire.id, 612, LRESULT(0)) };
     assert_routed(&modal, &target, 612);
     modal.check_result().unwrap();

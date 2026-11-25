@@ -1,4 +1,4 @@
-//! 固定双缓冲的 11On12/D2D 视图；保持底层 D3D12 资源直到队列排空与所有包装视图释放。
+//! Fixed double-buffered 11On12/D2D views; retain underlying D3D12 resources until the queue drains and all wrapped views are released.
 use super::{device::Device, *};
 use windows::Win32::Graphics::{Direct3D11::*, Direct3D11on12::*, Direct3D12::*};
 
@@ -17,8 +17,8 @@ pub(super) fn create(
         unsafe {
             let resource: ID3D12Resource = chain.GetBuffer(index)?;
             let mut wrapped: Option<ID3D11Resource> = None;
-            // 当前切片没有先行 D3D12 原生绘制，输入与输出均为 PRESENT。
-            // 11On12 负责实际 D2D 使用时的状态转换；后续原生 Shader 必须显式协商输入状态。
+            // This slice performs no preceding native D3D12 drawing; both input and output states are PRESENT.
+            // 11On12 handles state transitions for actual D2D use; future native Shaders must explicitly negotiate input state.
             device.bridge.CreateWrappedResource(
                 &resource,
                 &D3D11_RESOURCE_FLAGS {
@@ -55,7 +55,7 @@ pub(super) fn create(
     Ok(buffers)
 }
 
-/// panic/错误同样解除 target 和包装资源，不能让下一帧继承 acquired 状态。
+/// Unbind targets and wrapped resources even on panic/error so the next frame cannot inherit acquired state.
 pub(super) struct Frame<'a> {
     device: &'a Device,
     context: &'a ID2D1DeviceContext,

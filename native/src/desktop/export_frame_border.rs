@@ -1,4 +1,4 @@
-//! 工作流外框在底图之后、独立标注之前绘制；不继承底图透明度。
+//! Draw workflow outer frames after base images but before independent annotations; do not inherit base-image opacity.
 use super::*;
 
 #[derive(Clone, Copy)]

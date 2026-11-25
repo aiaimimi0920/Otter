@@ -1,4 +1,4 @@
-//! 专属有界TLS/WSS夹具：独立构造目录/控制流/固定像素；不是实际Loom服务。
+//! Dedicated bounded TLS/WSS fixture with independently constructed catalog/control flow/fixed pixels; not an actual Loom service.
 use super::*;
 use rustls::ServerConfig;
 use serde_json::{json, Value};

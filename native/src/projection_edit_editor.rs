@@ -1,4 +1,4 @@
-//! View与现有Editor的标注适配；basis/原字段仍为真值，不引入第二编辑器或栅格写入。
+//! Annotation adapter between View/existing Editor; basis/original fields remain authoritative, without another editor or raster writes.
 use super::{view::View, Objects};
 use crate::{
     editor::{AnnotationReplacement, DocumentStamp, Editor},
@@ -25,7 +25,7 @@ pub struct Prepared {
     replacement: AnnotationReplacement,
     mapping: Option<crate::session_vector_write::Mapping>,
 }
-/// expected仅为f32 Editor投影；source保留未修改wire的f64/缺省/颜色词法与稳定层级。
+/// expected is only an f32 Editor projection; source preserves unchanged wire f64/defaults/color lexemes/stable hierarchy.
 pub struct Bridge {
     source: View,
     expected: Objects,
@@ -39,7 +39,7 @@ pub fn prepare(
 ) -> Result<Prepared, Error> {
     prepare_in(view, target, None, measure)
 }
-/// 恢复后的Editor可有canonical留白/尺度；复用原session映射，不把位置误当basis缩放。
+/// Restored Editor may have canonical padding/scale; reuse original session mapping without mistaking position for basis scaling.
 pub fn prepare_mapped(
     view: &View,
     target: &Editor,
@@ -82,7 +82,7 @@ fn prepare_in(
     })
 }
 impl Prepared {
-    /// 宿主还须核工作区/窗口/取消；过期或换文档不产生bridge，不发布部分标注。
+    /// Hosts also check workspace/window/cancellation; expiry/document changes produce no bridge or partial annotations.
     pub fn apply(self, target: &mut Editor) -> Result<Option<Bridge>, Error> {
         self.apply_rebased(target, None)
     }
@@ -107,7 +107,7 @@ impl Prepared {
     }
 }
 impl Bridge {
-    /// staged初始view早于网络；expected必须来自该view的Editor投影，不能把现在的Editor当旧基线。
+    /// The staged initial view predates networking; expected must come from that view's Editor projection, not the current Editor as an old baseline.
     pub(crate) fn from_staged(
         source: View,
         editor: &Editor,
@@ -122,7 +122,7 @@ impl Bridge {
             mapping: prepared.mapping,
         })
     }
-    /// 仅宿主核过精确canonical内容/身份后绑定；不重写Editor或增加恢复undo。
+    /// Bind only after host validation of exact canonical contents/identity; no Editor rewriting or added recovery undo.
     pub fn from_checkpoint(
         source: View,
         editor: &Editor,
@@ -133,7 +133,7 @@ impl Bridge {
             return Err(Error::Identity);
         }
         let mut expected = encoded(editor, &mut measure, Some(mapping))?;
-        // source未观察过的Editor对象是本地新增，不可因expected=current而被当作缺失原值。
+        // Editor objects never observed by source are local additions, not missing original values just because expected=current.
         expected.retain(|id, _| source.basis_objects().contains_key(id));
         Ok(Self {
             source,
@@ -145,7 +145,7 @@ impl Bridge {
     pub fn source(&self) -> &View {
         &self.source
     }
-    /// 每次异步结果后由宿主重读当前Editor；不能拿旧快照盖掉保存期间的新修改或undo。
+    /// After every asynchronous result, hosts reread current Editor; old snapshots must not overwrite edits/undo made during saving.
     pub fn current(
         &self,
         editor: &Editor,
@@ -156,7 +156,7 @@ impl Bridge {
         }
         let current = encoded(editor, &mut measure, self.mapping)?;
         let original = self.source.local_objects().map_err(Error::View)?;
-        // 与canonical共用层级计划；按Editor实际顺序分配新增值，溢出时整体重编号。
+        // Share canonical hierarchy plans; assign new values in actual Editor order and renumber all on overflow.
         let order = crate::session_vector_write::OrderPlan::new(editor, original.values());
         let mut result = Objects::new();
         for (index, stroke) in editor.elements().iter().enumerate() {

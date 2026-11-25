@@ -1,4 +1,4 @@
-//! 原生弹出菜单的模态范围；退出嵌套消息循环后释放门禁，再由调用者执行命令。
+//! Native popup-menu modal scope; release admission after exiting the nested message loop, then let the caller execute the command.
 use super::State;
 use std::cell::Cell;
 use windows::core::Result;
@@ -98,15 +98,15 @@ impl Contents {
     }
 }
 pub(super) fn contents(state: &State, menu: HMENU, tray: bool) -> Result<Contents> {
-    // HMENU 仍由业务构建器持有；自绘宿主只消费有界只读快照。
-    // 失败不回退到另一个嵌套菜单，避免重放输入或绕过捕获/前台保护。
+    // The business builder still owns HMENU; the owner-drawn host consumes only bounded read-only snapshots.
+    // Do not fall back to another nested menu on failure, avoiding input replay or bypass of capture/foreground protection.
     let mut tree = crate::native_menu::snapshot(menu)?;
     let (source, workers) = {
         let view = state.frozen_library.borrow();
         let source = if view.busy { None } else { view.source.clone() };
         (source, view.workers.clone())
     };
-    // 主干托盘没有剪贴板或冻结库；仅钉图菜单追加这些入口。
+    // The mainline tray has no clipboard or frozen library; only pin menus add these entries.
     let frozen = (!tray).then(|| {
         let mut frozen = frozen::LibraryMenu::attach(&mut tree, source, workers);
         frozen.bind_reference(
@@ -186,7 +186,7 @@ pub(in crate::desktop) use frozen::smoke::select as smoke_frozen_selection;
 #[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 pub(in crate::desktop) use frozen::smoke::select_action as smoke_frozen_action;
 
-/// 菜单已关闭，且调用者仍须提供原目标凭证；冒烟测试与生产共用这条交付路径。
+/// The menu is closed, and callers must still supply the original target credential; smoke tests and production share this delivery path.
 pub(in crate::desktop) unsafe fn deliver_history(
     hwnd: HWND,
     state: &State,
@@ -199,7 +199,7 @@ pub(in crate::desktop) unsafe fn deliver_history(
     delivery::deliver(hwnd, state, entry)
 }
 
-/// 托盘 owner 保持隐藏，只有临时菜单根面板参与前台激活。
+/// The tray owner remains hidden; only the temporary menu root panel participates in foreground activation.
 pub(super) unsafe fn track_tray(
     hwnd: HWND,
     state: &State,

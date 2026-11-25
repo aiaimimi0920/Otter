@@ -1,4 +1,4 @@
-//! 批次交付与呈现分离：整批成功才提交候选场景，所有非场景证据移入收据。
+//! Separate batch delivery and presentation: commit candidate scenes only after whole-batch success, moving all nonscene evidence into receipts.
 use super::*;
 use crate::{
     live_relay_http::{BatchStop, BatchSubmission},
@@ -32,7 +32,7 @@ impl AuthorizedWindow {
             };
             return Err(Box::new(outcome));
         }
-        // Scene 不进入结果缓存；各事件版本与 commit 仍留在 observation.items 中。
+        // Scene does not enter the result cache; each event's version and commit remain in observation.items.
         let snapshot = outcome
             .observation
             .as_mut()
@@ -160,8 +160,8 @@ impl AuthorizedWindow {
                         })
                 }))
         {
-            // 前置编辑失败/证据不足时丢弃后续意图；保留可见草稿和完整结果证据。
-            // 明确 awaiting-confirmation 是暂停等待，不是失败；继续由确认/准入门禁拦住发送。
+            // On prerequisite-edit failure/insufficient evidence, discard subsequent intents while retaining visible drafts and complete result evidence.
+            // Explicit awaiting-confirmation is a suspended wait, not failure; confirmation/admission gates continue blocking sends.
             self.window.fail_edits(&events);
         }
         Ok(BatchReceipt {

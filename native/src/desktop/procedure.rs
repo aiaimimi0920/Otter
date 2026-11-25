@@ -1,4 +1,4 @@
-//! 消息转发不得持有跨重入 Win32 调用的 RefCell 借用；panic 不跨越 ABI。
+//! Message forwarding must not hold RefCell borrows across reentrant Win32 calls; panics must not cross the ABI.
 use super::State;
 use crate::editor::Tool;
 use crate::viewport::Point;
@@ -28,7 +28,7 @@ pub unsafe extern "system" fn window_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: 
     match std::panic::catch_unwind(|| {
         let result = dispatch(hwnd, msg, wp, lp);
         if super::host_lifetime::owns(hwnd)
-            // 预提交阶段附属条已经按目标位置移动，不能用尚未提交的宿主位置拉回旧帧。
+            // Attached strips already moved to target positions during precommit; do not pull them back with the host's uncommitted position.
             && !matches!(
                 msg,
                 WM_WINDOWPOSCHANGING | WM_NCCALCSIZE | super::window_geometry_wake::MESSAGE
@@ -56,7 +56,7 @@ unsafe fn dispatch(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
         if !super::host_lifetime::attach(hwnd, lp) {
             return LRESULT(0);
         }
-        // 默认创建过程保存初始窗口标题；绑定成功不等于可以跳过系统初始化。
+        // Default creation saves the initial window title; successful binding does not permit skipping system initialization.
         return DefWindowProcW(hwnd, msg, wp, lp);
     }
     let pointer = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *const State;
@@ -65,7 +65,7 @@ unsafe fn dispatch(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
     }
     let state = &*pointer;
     if msg == super::window_geometry_wake::MESSAGE {
-        // 排队唤醒只确认几何通知；应用循环仍结算，不重入字段刷新。
+        // Queued wakes only acknowledge geometry notifications; the application loop still settles without reentering field refresh.
         state.geometry_wake.acknowledge();
         return LRESULT(0);
     }
@@ -232,7 +232,7 @@ unsafe fn dispatch(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
             if matches!(tool, Tool::Select | Tool::Text) {
                 super::text_input::edit_at(hwnd, state, logical_point(hwnd, lp));
             } else {
-                // CS_DBLCLKS 将第二次按下变为双击消息，其他绘图工具仍需正常开始手势。
+                // CS_DBLCLKS turns the second press into a double-click message; other drawing tools must still start gestures normally.
                 return dispatch(hwnd, WM_LBUTTONDOWN, wp, lp);
             }
             LRESULT(0)
@@ -377,7 +377,7 @@ unsafe fn dispatch(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
                 );
                 return LRESULT(0);
             }
-            // 已投递到画布的 Esc 始终取消，不能被仍按住的 Ctrl 屏蔽。
+            // Esc delivered to the canvas always cancels; a still-held Ctrl must not suppress it.
             let handled = key == 0x1B
                 || if control {
                     matches!(key, 0x5A | 0x59 | 0x0D | 0x44)
@@ -451,7 +451,7 @@ unsafe fn dispatch(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
                 let _ = ReleaseCapture();
             }
             if changed {
-                // 空命中区域可能没有 WM_PAINT；工具切换必须先恢复可交互区域。
+                // An empty hit region may receive no WM_PAINT; tool switches must first restore an interactive region.
                 if let Err(error) = super::crop_window::sync(hwnd, state) {
                     eprintln!("native-crop-window: {error}");
                 }
@@ -464,10 +464,10 @@ unsafe fn dispatch(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
             LRESULT(0)
         }
         WM_NCRBUTTONUP => {
-            // 无边框钉图用 HTCAPTION 实现拖动；DefWindowProc 不会为它生成 WM_CONTEXTMENU。
+            // Borderless pins drag via HTCAPTION; DefWindowProc does not generate WM_CONTEXTMENU for them.
             let pinned = state.canvas.borrow().pinned;
             if pinned && wp.0 == HTCAPTION as usize {
-                // 释放 Canvas 借用后重入原菜单入口，保留模态/会话/拖出围栏及屏幕坐标。
+                // Release the Canvas borrow before reentering the original menu entry, preserving modal/session/drag-out fences and screen coordinates.
                 SendMessageW(
                     hwnd,
                     WM_CONTEXTMENU,

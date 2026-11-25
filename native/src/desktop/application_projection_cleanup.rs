@@ -1,4 +1,4 @@
-//! 接收删除/新建 Accept 未结意图的清理状态；只保原 Ticket，网络仍归原 Sessions 单槽。
+//! Cleanup state for receiver deletion/new Accept's unsettled intent; retain only the original Ticket, while networking stays in the original Sessions slot.
 use super::*;
 use crate::projection_delivery::journal::{Error as JournalError, Ticket, MAX_ENTRIES};
 use std::{
@@ -56,7 +56,7 @@ impl Owner {
     }
     fn enqueue(&mut self, ticket: Arc<Ticket>) {
         if !ticket.cleanup_pending() && !self.queued.iter().any(|old| old.same_intent(&ticket)) {
-            // 一个 profile 最多 128 个原意图；未落盘的删除围栏阻止准入新接收。
+            // At most 128 original intents per profile; an unpersisted deletion fence prevents new receive admission.
             debug_assert!(self.queued.len() < MAX_ENTRIES);
             self.queued.push(ticket);
         }
@@ -102,7 +102,7 @@ impl Owner {
             due
         }
     }
-    /// 最后 Unit/应用终态先保删除标记，再允许空检查点；不在这里联网或解绑稳定关联。
+    /// At final-Unit/application terminal state, preserve deletion markers before allowing an empty checkpoint; do not network or unlink stable associations here.
     pub(in crate::desktop::application) fn flush(
         &mut self,
     ) -> std::result::Result<(), JournalError> {

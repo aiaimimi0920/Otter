@@ -1,4 +1,4 @@
-// 单 operation 有界服务 Promise；宿主桥/resolve 不暴露给脚本，身份仍归父进程。
+// Bounded service Promises per operation; scripts cannot access the host bridge/resolve, and identity remains parent-owned.
 ((json, fail, images, canvas) => {
   "use strict";
   const PromiseType = Promise, ErrorType = Error, integer = Number.isInteger, freeze = Object.freeze;
@@ -21,7 +21,7 @@
   const invoke = (service, input, timeoutMs, imageIds, canvases, configure) => {
     if (!active || preparing || pending || sequence >= 32 || typeof service !== "string" ||
         !test(validName, service) || !integer(timeoutMs) || timeoutMs < 1 || timeoutMs > 60000) fail();
-    // 私有编码拒绝 getter/toJSON，父侧再次按真实 UTF-8 字节数检查。
+    // Private encoding rejects getter/toJSON; the parent rechecks actual UTF-8 byte counts.
     let request;
     preparing = true;
     try {
@@ -33,7 +33,7 @@
       if (configure) configure(request);
       if (!integer(request.timeoutMs) || request.timeoutMs < 1 || request.timeoutMs > 60000) fail();
     } finally { preparing = false; }
-    // 参数准备可能触发Proxy trap；禁止重入抢占pending，失败也不制造私有序号缺口。
+    // Argument preparation may invoke Proxy traps; prevent reentrant takeover of pending, without creating private sequence gaps even on failure.
     sequence++;
     return new PromiseType((resolve, reject) => { pending = { request, resolve, reject }; });
   };

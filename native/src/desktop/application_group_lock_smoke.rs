@@ -1,4 +1,4 @@
-//! 分组锁定的真实 HWND 输入门禁；使用内嵌图片及窗口消息，不注入系统键鼠。
+//! Real HWND input gates for group locking; use embedded images and window messages, with no system keyboard/mouse injection.
 use super::*;
 use crate::desktop::{context_menu, group_menu, image::Image, open_job};
 use windows::Win32::UI::{HiDpi::GetDpiForWindow, Input::KeyboardAndMouse::VK_DELETE};

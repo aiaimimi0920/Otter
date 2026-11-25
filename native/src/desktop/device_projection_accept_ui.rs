@@ -1,4 +1,4 @@
-//! 显式接受风险确认；前后保同一邀请/发起窗口，不跨原生模态循环借用共享 View。
+//! Explicit risk-acceptance confirmation; preserve the same invitation/initiator before and after, without shared View borrows across native modal loops.
 use super::*;
 use crate::desktop::State;
 use windows::Win32::Foundation::HWND;

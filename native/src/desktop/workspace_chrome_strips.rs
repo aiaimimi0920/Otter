@@ -1,4 +1,4 @@
-//! 左右端点条按所属钉图管理层序；不绑定原生 owner，节点身份与回收归 Strip。
+//! Manage left/right endpoint-strip Z-order by owning pin; no native-owner binding, with Strip owning node identity/reclamation.
 use super::*;
 pub(super) struct Strip {
     pub hwnd: HWND,
@@ -168,7 +168,7 @@ pub(super) unsafe fn refresh(ui: &Ui, translated: bool) -> Result<()> {
             for area in &areas {
                 combine(region, bounds, *area, RGN_OR)?;
             }
-            // region 同时扣除图片及可见白框；不依赖 owned 窗口层级去压住半透明边框。
+            // Regions subtract both images and visible white borders, rather than relying on owned-window hierarchy to cover translucent borders.
             for image in &images {
                 combine(
                     region,
@@ -182,7 +182,7 @@ pub(super) unsafe fn refresh(ui: &Ui, translated: bool) -> Result<()> {
                     RGN_DIFF,
                 )?;
             }
-            // 相同 region 也会生成 WM_WINDOWPOSCHANGED；静止端点不应随其他钉图反复重置。
+            // Identical regions still generate WM_WINDOWPOSCHANGED; stationary endpoints must not repeatedly reset as other pins move.
             let previous = CreateRectRgn(0, 0, 0, 0);
             if previous.is_invalid() {
                 return Err(Error::from_win32());
@@ -218,7 +218,7 @@ pub(super) unsafe fn refresh(ui: &Ui, translated: bool) -> Result<()> {
                     | SWP_NOOWNERZORDER,
             )?;
         }
-        // 纯平移已搬动缓存端口；只在裁剪/尺寸改变时重画，不能让一个钉图拖动重画所有端点。
+        // Pure translation already moved cached ports; redraw only on clip/size changes, not every endpoint when one pin drags.
         if redraw || region_changed {
             InvalidateRect(Some(hwnd), None, false).ok()?;
         }
@@ -227,7 +227,7 @@ pub(super) unsafe fn refresh(ui: &Ui, translated: bool) -> Result<()> {
 }
 
 unsafe fn combine(region: HRGN, bounds: RECT, area: RECT, mode: RGN_COMBINE_MODE) -> Result<()> {
-    // 先求屏幕交集，既跳过无关图片，也保证转换到窗口坐标时差值受像素预算约束。
+    // Find screen intersections first, skipping unrelated images and bounding window-coordinate differences by pixel budgets.
     let (left, top, right, bottom) = (
         area.left.max(bounds.left),
         area.top.max(bounds.top),

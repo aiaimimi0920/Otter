@@ -1,4 +1,4 @@
-//! 自动保存只通过生产调度器写合成配置；不使用常驻计时器或真实用户目录。
+//! Autosave writes synthetic configuration only through the production scheduler; no persistent timer or real user directory.
 use super::*;
 #[path = "application_cache_save_tests.rs"]
 mod cache_tests;

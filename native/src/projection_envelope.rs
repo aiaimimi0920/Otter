@@ -1,4 +1,4 @@
-//! 传统签名邀请的有界形状与来源校验；签名真实性仍由获认证的 Loom 验证，不在本地臆造授权。
+//! Bounded shape/origin checks for traditional signed invitations; authenticated Loom still verifies signatures, without invented local authorization.
 use super::Error;
 use serde::{Deserialize, Serialize};
 #[path = "projection_sender_signing.rs"]
@@ -40,7 +40,7 @@ struct Signature {
 }
 impl std::fmt::Debug for Envelope {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // 邀请可能作为后续接收凭据，Debug 不输出签名、nonce 或完整 wire。
+        // Invitations may become later receive credentials; Debug omits signatures, nonces, and full wire data.
         f.debug_struct("ProjectionEnvelope")
             .field("projection_id", &self.projection_id)
             .finish_non_exhaustive()

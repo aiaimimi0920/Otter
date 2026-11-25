@@ -52,7 +52,7 @@ fn four_way_expansion_preserves_earlier_pixels_and_marks_black_pixels_covered() 
 #[test]
 fn holes_are_cropped_and_equal_area_prefers_top_then_left() {
     let cancel = AtomicBool::new(false);
-    // L 形覆盖，两种面积均为 8，选择更靠上的竖条；未采集区域不能成为黑色内容。
+    // L-shaped coverage with both candidate areas equal to 8; prefer the higher vertical strip, and never turn uncaptured regions black.
     let result = stitch_spatial(&[frame(0, 0, 2, 4, 11), frame(2, 2, 2, 2, 22)], &cancel).unwrap();
     assert_eq!(
         (result.x, result.y, result.width, result.height),

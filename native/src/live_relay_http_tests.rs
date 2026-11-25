@@ -1,4 +1,4 @@
-//! 真实回环 HTTPS 合同：Device/nonce、路径转义、加入与控制历史；不操作在线 Loom。
+//! Real loopback HTTPS contracts: Device/nonce, path escaping, joining, and control history; no online Loom operations.
 use super::*;
 use crate::{
     device_request_cancel::Cancel,

@@ -1,4 +1,4 @@
-//! Live 本地操作借用普通钉图宿主；同 ID 单一逻辑 owner，采集线程在编辑期间继续存活。
+//! Local Live operations borrow an ordinary pin host; one logical owner per ID, with the capture thread alive throughout editing.
 use super::*;
 use windows::Win32::UI::Input::KeyboardAndMouse::*;
 
@@ -40,7 +40,7 @@ impl Application {
             .try_reserve(1)
             .map_err(|_| Error::new(E_OUTOFMEMORY, "Cannot reserve Live pin"))?;
         let document = if let Some(doc) = self.live_sessions[index].pin_document() {
-            // 失败时旧文档仍归 Session；不能先取走 owner 再执行可失败的窗口操作。
+            // On failure, Session still owns the old document; do not take its owner before a fallible window operation.
             SetWindowPos(
                 doc.window.0,
                 None,
@@ -94,7 +94,7 @@ impl Application {
             let _ = SetForegroundWindow(hwnd);
             let _ = SetFocus(Some(hwnd));
         }
-        // 首个按键在后台读回前已松开也必须按按下时的修饰键执行；随后恢复线程键态。
+        // Even if the first key is released before background readback, use its key-down modifiers, then restore the thread keyboard state.
         let mut prior = [0; 256];
         GetKeyboardState(&mut prior)?;
         SetKeyboardState(&key.2)?;
@@ -127,7 +127,7 @@ impl Application {
                 continue;
             }
             let Some(session) = session.filter(|s| self.live_sessions[*s].is_alive()) else {
-                // 源已退出，当前编辑快照继续作为普通钉图保留。
+                // The source has exited; retain the current edit snapshot as an ordinary pin.
                 doc.state.live_pin.set(false);
                 doc.state.canvas.borrow_mut().live_pin = false;
                 index += 1;

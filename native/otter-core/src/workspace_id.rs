@@ -1,10 +1,10 @@
-//! 工作区对象的持久身份值；不绑定 HWND、像素资源或编辑版本，旧 ID 原样保留。
+//! Persistent workspace-object identity values, unbound to HWND/pixel resources/edit versions; preserve old IDs unchanged.
 use std::fmt;
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub struct UnitId(Box<str>);
 impl UnitId {
-    /// 兼容已有工作区的不透明字符串 ID，不要求旧数据一定使用 UUID。
+    /// Opaque string IDs compatible with existing workspaces; old data need not use UUIDs.
     pub fn parse(value: &str) -> Option<Self> {
         if value.is_empty() || value.len() > 256 || value.chars().any(char::is_control) {
             return None;

@@ -1,4 +1,4 @@
-//! 本地 Art 的正式端口替换；输入已由签名执行 owner 复核，不借用远端 completion。
+//! Replace local Art's official ports; the signed execution owner has revalidated input, without borrowing remote completion.
 use super::*;
 use crate::surface_javascript_wire::result::{Resolved, ResolvedOutput};
 impl Results {
@@ -54,7 +54,7 @@ impl Results {
         if !allowed() {
             return Err(Error::Cancelled);
         }
-        // 完整替换（包括空结果）；全部可失败准备先结束，随后没有 UI 重入或外部回调。
+        // Replace completely, including empty results; finish all fallible preparation first, with no subsequent UI reentrancy or external callbacks.
         self.ports = ports;
         self.output_stamp = stamp;
         self.clear_candidates();

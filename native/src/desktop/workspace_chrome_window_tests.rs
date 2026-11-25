@@ -1,4 +1,4 @@
-//! 自有 HWND 的 region/捕获/几何/拓扑与资源门；由隔离 desktop runner 执行。
+//! Owned-HWND regions/capture/geometry/topology/resource gates, executed by isolated-desktop runners.
 use super::*;
 use windows::Win32::{
     Graphics::Gdi::*,
@@ -46,7 +46,7 @@ unsafe fn visible_app() -> Application {
     }
     app.sync_link_menus();
     app.sync_workspace_chrome(true);
-    // layered端点在首个真实paint前仍穿透；与普通消息泵完成首显后的输入前提一致。
+    // Layered endpoints remain click-through until first actual paint, matching ordinary-pump input prerequisites after initial display.
     for hwnd in app.chrome.handles() {
         UpdateWindow(hwnd).ok().unwrap();
     }
@@ -102,7 +102,7 @@ fn port(ui: &Ui, node: usize, side: Side) -> (HWND, Port, Point) {
     };
     let mut point = ui.point(port).unwrap();
     let node = ui.node(node).unwrap();
-    // 命中样本必须位于新白框裁剪范围之外，小图的半径/2 恰好可能落在白框里。
+    // Hit samples must lie outside new white-border clipping; small-image radius/2 may fall exactly inside the border.
     let offset = (node.radius() / 2).max(desktop::pin_border_style::width(node.dpi) as i32 + 1);
     point.x += if side == Side::Input { -offset } else { offset };
     (hwnd, port, point)
@@ -184,7 +184,7 @@ fn host_moves_paint_current_frame_and_ports_before_returning_without_a_message_p
     let _apartment = desktop::Apartment::new().unwrap();
     unsafe {
         let mut app = visible_app();
-        // WS_EX_TRANSPARENT 必须等底下的同线程窗口首绘；真实拖动从已显示的钉图开始。
+        // WS_EX_TRANSPARENT waits for underlying same-thread windows' initial painting; actual dragging begins from displayed pins.
         for doc in &app.documents {
             let _ = UpdateWindow(doc.window.0);
             assert!(!GetUpdateRect(doc.window.0, None, false).as_bool());
@@ -208,7 +208,7 @@ fn host_moves_paint_current_frame_and_ports_before_returning_without_a_message_p
                 let frame = scene::frame(host).unwrap();
                 assert_eq!(ui.node(0).unwrap().rect, frame);
                 assert_eq!(ui.node(1).unwrap().rect, other);
-                // 直接检查完成提交的外框像素，不再把空闲 WM_PAINT 次数当成呈现凭证。
+                // Inspect committed border pixels directly rather than treating idle WM_PAINT counts as presentation credentials.
                 assert!(ui.failure.borrow().is_none());
                 for (x, y) in [(frame.left - 1, frame.top - 1), (frame.right, frame.bottom)] {
                     assert!(border_covers(&ui, 0, Point { x, y }));
@@ -254,7 +254,7 @@ fn click_discloses_and_drag_cancel_retains_topology_and_expands_preview_bounds()
         assert!(!ui.idle());
         mouse(ui, hwnd, WM_LBUTTONUP, point);
         assert_eq!(ui.disclosed.borrow().get(&source), Some(&true));
-        // 展开后的 anchor 已移到外侧；原坐标是 body，不能再用它伪造连接拖动。
+        // Expanded anchors have moved outward; old coordinates are body, not a valid basis for fabricated connection drags.
         let (_, _, point) = port(ui, 0, Side::Output);
         mouse(ui, hwnd, WM_LBUTTONDOWN, point);
         let far = Point {
@@ -277,7 +277,7 @@ fn click_discloses_and_drag_cancel_retains_topology_and_expands_preview_bounds()
 fn actual_drop_queues_once_and_reconnect_cancel_preserves_original_edge() {
     unsafe {
         let mut app = visible_app();
-        // 使用钉图真实的无边框宿主；系统非客户区不能作为端点上方的额外 resize 框。
+        // Use actual borderless pin hosts; system nonclient areas must not become extra resize borders above endpoints.
         for doc in &app.documents {
             SetWindowLongPtrW(doc.window.0, GWL_STYLE, (WS_POPUP | WS_VISIBLE).0 as isize);
             SetWindowPos(
@@ -353,7 +353,7 @@ fn capture_retires_gestures_without_hiding_and_host_destruction_retires_every_ch
         app.sync_workspace_chrome(true);
         assert!(app.chrome.idle());
         assert!(app.chrome.ui.blocked());
-        // 无连续展开行的底板保持隐藏；截图不能隐藏原可见窗口，也不能显示原隐藏窗口。
+        // Backdrops without consecutively expanded rows stay hidden; screenshots neither hide previously visible windows nor show previously hidden ones.
         for (hwnd, visible) in visibility {
             assert_eq!(IsWindowVisible(hwnd).as_bool(), visible);
         }

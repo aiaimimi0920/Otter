@@ -1,4 +1,4 @@
-//! 通用原生输入对话框的既有验证矩阵；独立测试叶，不改变原模块测试身份。
+//! Existing verification matrix for generic native input dialogs; an independent test leaf preserving the original module's test identities.
 use super::*;
 #[test]
 fn group_name_dialog_accepts_unicode_and_rejects_empty_or_byte_overflow() {
@@ -34,7 +34,7 @@ unsafe extern "system" fn test_procedure(
 ) -> isize {
     let result = procedure(hwnd, message, wparam, lparam);
     if message == WM_INITDIALOG {
-        // 无用户输入：先提交，若验证失败则由随后排队的取消关闭，避免测试悬挂。
+        // No user input: submit first, then queued cancellation closes on validation failure to prevent hung tests.
         let _ = PostMessageW(Some(hwnd), WM_COMMAND, WPARAM(IDOK.0 as usize), LPARAM(0));
         let _ = PostMessageW(
             Some(hwnd),
@@ -146,7 +146,7 @@ fn native_dialog_template_accepts_valid_input_and_rejects_invalid_input() {
         ("7", false, false, true),
         ("-1", false, false, false),
         ("你好 Otter\r\n第二行 🦦", false, true, true),
-        // 编辑恢复允许原文为空/空白；新建文字仍由text_input的new构造拒绝。
+        // Edit restoration permits empty/whitespace original text; text_input's new constructor still rejects it for new text.
         (" \r\n ", false, true, true),
         ("", false, true, true),
     ] {

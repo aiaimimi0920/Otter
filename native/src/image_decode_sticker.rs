@@ -1,4 +1,4 @@
-//! 贴图上传专属尺寸合同；100MP上限不改变其他解码入口或512MiB共享像素总预算。
+//! Sticker-upload-specific dimension contract; the 100MP limit changes neither other decode entries nor the shared 512MiB total pixel budget.
 use super::*;
 use std::sync::atomic::{AtomicBool, Ordering};
 impl Image {

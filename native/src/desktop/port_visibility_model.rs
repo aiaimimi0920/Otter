@@ -1,4 +1,4 @@
-//! 对话框草稿只持有公开名称和显示策略；同名双侧沿原portVisibility合同共用覆盖。
+//! Dialog drafts hold only public names and display policies; same-named ports on both sides share overrides under the original portVisibility contract.
 use crate::{desktop::link_catalog::Endpoint, workspace::ports::Visibility};
 pub(super) struct Row {
     pub name: String,

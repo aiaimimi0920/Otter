@@ -1,4 +1,4 @@
-//! 从恢复图片准备逻辑可见框的效果源图；不混入矢量效果，避免递归模糊。
+//! Prepare effect-source images for logical visible bounds from restored images; exclude vector effects to avoid recursive blur.
 use super::*;
 use crate::crop_geometry::{self, Crop, Rect, Size};
 impl Images {
@@ -30,7 +30,7 @@ impl Images {
         })
     }
 
-    /// 裁剪文档的编辑效果使用完整源框，而不是仅可见区域；重置裁剪时框外纹理仍然存在。
+    /// Cropped-document edit effects use the full source box, not just visible bounds; textures outside the box remain when cropping resets.
     pub fn prepare_cropped_effect_source(
         &self,
         restored: crate::session_crop::Restored,
@@ -42,7 +42,7 @@ impl Images {
         let layers = self
             .prepare_full_crop_layers(crop, restored.rasterized_source, cancel)?
             .ok_or_else(|| Error::new(E_INVALIDARG, "Restored crop requires full image source"))?;
-        // 直接按可见框采样独立标注，避免额外分配并遍历一张完整源图尺寸的透明工作纹理。
+        // Sample independent annotations directly against visible bounds, avoiding allocation and traversal of another full-source-size transparent work texture.
         let pixels = crate::raster_source::compose_in_frames(
             &layers,
             crop.source.raster_density(layers.size),
@@ -57,8 +57,8 @@ impl Images {
             pixels,
         })
     }
-    /// frame 只取正常展开后的逻辑尺寸，屏幕位置不得进入像素采样。
-    /// 底图已应用持久翻转；标注纹理已在保存时翻转，不能再次镜像。
+    /// frame uses only normally expanded logical dimensions; screen position must never affect pixel sampling.
+    /// The base image already has persistent flips; annotation textures were flipped when saved and must not be mirrored again.
     pub fn prepare_effect_source(
         &self,
         frame: Size,

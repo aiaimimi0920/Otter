@@ -1,8 +1,8 @@
-//! 后台 Session 的私有服务交换。Dispatcher 是宿主接缝，不是授权；默认无派发权。
+//! Private service exchange for background Sessions. Dispatcher is a host seam, not authorization; dispatch is denied by default.
 use super::*;
 pub use wire::service::{Call, ResultValue};
 
-/// 实现者必须在调用前后复核原授权，并让绝对期限/停止信号中断网络等待。
+/// Implementations must recheck original authorization before and after calls and let absolute deadlines/stop signals interrupt network waits.
 pub trait Dispatcher: Send {
     fn invoke(
         &mut self,
@@ -28,7 +28,7 @@ pub(super) struct Options {
     pub allow_results: bool,
 }
 impl Session {
-    /// 仅供已授权后台 owner；此 API 不验签，不建立网络/设备凭据。
+    /// For authorized background owners only; this API verifies no signatures and creates no network/device credentials.
     pub fn mount_serviced(input: Mount, stopped: &impl Fn() -> bool) -> io::Result<(Self, Frame)> {
         Self::mount_options(
             input.binding,
@@ -113,7 +113,7 @@ impl Session {
             if !image_output && matches!(result, ResultValue::Image { .. }) {
                 return Err(wire::invalid());
             }
-            // 仅排除同步 dispatcher 的等待，不重置 operation 的两秒传输/验证期限。
+            // Exclude only synchronous dispatcher waits; do not reset the operation's two-second transport/validation deadline.
             deadline = deadline.checked_add(elapsed).ok_or_else(wire::invalid)?;
             let png = match &result {
                 ResultValue::Image { png, .. } => Some(png.clone().ok_or_else(wire::invalid)?),

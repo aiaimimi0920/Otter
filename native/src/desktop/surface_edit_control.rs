@@ -1,4 +1,4 @@
-//! 单线程原生 EDIT owner；仅提供有界编辑与资源生命周期，Surface 事件/草稿由上层拥有。
+//! Single-threaded native EDIT owner; only bounded editing and resource lifetime, with upper layers owning Surface events/drafts.
 use std::{marker::PhantomData, rc::Rc};
 use windows::Win32::UI::Controls::EM_SETLIMITTEXT;
 use windows::{
@@ -51,7 +51,7 @@ fn size(rect: RECT) -> Result<(i32, i32)> {
     Ok((width, height))
 }
 impl Control {
-    /// 隐藏创建，调用方在绑定通知/草稿身份之后才显示，不能跨 HWND 线程使用。
+    /// Create hidden; callers display only after binding notifications/draft identity. Never use across HWND threads.
     pub fn new(parent: HWND, rect: RECT, multiline: bool, limit: usize) -> Result<Self> {
         let (width, height) = size(rect)?;
         if !(1..=MAX_UNITS).contains(&limit) {
@@ -107,7 +107,7 @@ impl Control {
                 _thread: PhantomData,
             };
             SendMessageW(hwnd, EM_SETLIMITTEXT, Some(WPARAM(limit)), None);
-            // 共享系统字体不归本 owner 销毁；后续样式字体必须另设显式 owner。
+            // This owner must not destroy shared system fonts; later styled fonts require separate explicit ownership.
             SendMessageW(
                 hwnd,
                 WM_SETFONT,
@@ -132,7 +132,7 @@ impl Control {
     }
     pub fn show(&self) -> Result<()> {
         unsafe {
-            // 返回的是此前可见性，不是显示操作的成功标志。
+            // The return value is prior visibility, not display-operation success.
             let _ = ShowWindow(self.hwnd()?, SW_SHOWNOACTIVATE);
         }
         Ok(())
@@ -176,7 +176,7 @@ impl Control {
     pub fn focus(&self) -> Result<()> {
         unsafe {
             let hwnd = self.hwnd()?;
-            // 返回值是先前焦点 HWND；原本无焦点时 NULL 不代表聚焦失败。
+            // The return value is the previous focused HWND; NULL with no prior focus does not mean focus failed.
             let _ = SetFocus(Some(hwnd));
             if self.hwnd()? != hwnd || GetFocus() != hwnd {
                 return Err(Error::new(E_FAIL, "Edit focus not acquired"));
@@ -198,7 +198,7 @@ impl Control {
             )
         }
     }
-    /// WM_SETTEXT 不受 EM_SETLIMITTEXT 保护，写入前独立验证两个容量和 NUL 边界。
+    /// EM_SETLIMITTEXT does not protect WM_SETTEXT; independently validate both capacities and NUL boundaries before writing.
     pub fn set_text(&self, text: &str) -> Result<()> {
         self.validate_text(text)?;
         unsafe { SetWindowTextW(self.hwnd()?, &HSTRING::from(text)) }
@@ -213,7 +213,7 @@ impl Control {
         }
         Ok(())
     }
-    /// 不以外部 HWND 长度决定分配；超限/畸形 UTF-16 返回错误，不静默截断用户输入。
+    /// Never allocate from external HWND text length; oversized/malformed UTF-16 returns errors rather than silently truncating user input.
     pub fn text(&self) -> Result<String> {
         let hwnd = self.hwnd()?;
         unsafe {
@@ -221,7 +221,7 @@ impl Control {
             if length < 0 || length as usize > self.limit {
                 return Err(invalid("Edit text exceeds unit limit"));
             }
-            // 长度已先验证上限；普通短文本不为每个按键分配完整 64K 缓冲。
+            // The length limit is already checked; ordinary short text does not allocate a full 64K buffer per keystroke.
             let mut buffer = vec![0_u16; length as usize + 1];
             let count = GetWindowTextW(hwnd, &mut buffer) as usize;
             if count != length as usize || !self.is_alive() || GetWindowTextLengthW(hwnd) != length

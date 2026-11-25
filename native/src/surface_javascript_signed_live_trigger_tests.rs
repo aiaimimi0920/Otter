@@ -1,4 +1,4 @@
-//! 固定回调走真实签名child；不伪造click/焦点，不恢复暂停timer，停止拒绝迟到结果。
+//! Fixed callbacks use real signed children; no fabricated clicks/focus or resumed paused timers, and stop rejects late results.
 use super::*;
 use crate::art_live_trigger::{tests as f, ticket::Ticket};
 const SOURCE: &str = r#"

@@ -1,4 +1,4 @@
-//! 真实 Application 授权/attach/取码/隐藏 DOM/激活/关闭；显式测试报告，不开放默认 JS。
+//! Real Application authorization/attach/code fetch/hidden DOM/activation/close; explicit test reporting, without enabling JS by default.
 use super::*;
 #[path = "application_surface_javascript_peer.rs"]
 pub(super) mod peer;
@@ -84,7 +84,7 @@ fn run(advertised: bool, revoke: bool, corrupt: bool) {
             assert!(app.remote_sessions.poll_surfaces().is_empty());
             app.admit_surface_results().unwrap();
             assert_eq!(app.surface_windows.wait_handles().len(), 1);
-            assert_eq!(app.surface_windows.wait_budget(), 3); // Runtime 尚未启动也必须预留。
+            assert_eq!(app.surface_windows.wait_budget(), 3); // Reserve capacity even before Runtime starts.
             assert!(crate::desktop::application::live::fits_wait_budget(
                 15,
                 app.surface_windows.wait_budget()
@@ -96,7 +96,7 @@ fn run(advertised: bool, revoke: bool, corrupt: bool) {
         }
         let admitted = app.poll_remote_live_with(false, &mut config);
         if !advertised {
-            assert!(admitted.is_err()); // HTTP owner 已拒绝未协商 runtime；不得绕过成可显示场景。
+            assert!(admitted.is_err()); // HTTP owner already rejected the unnegotiated runtime; do not bypass this into a displayable scene.
             app.admit_surface_results().unwrap();
             assert!(app.surface_windows.iter_mut().next().is_none());
             assert!(
@@ -118,7 +118,7 @@ fn run(advertised: bool, revoke: bool, corrupt: bool) {
                 );
                 assert!(window.lifecycle().is_some());
                 let parent = window.edit_test_parent();
-                // 唯一可见路径也只移到屏幕外且不激活；不向用户全局发送输入。
+                // Even the sole visible path remains offscreen and nonactivating; no global user input.
                 SetWindowPos(
                     parent,
                     None,
@@ -171,16 +171,16 @@ fn run(advertised: bool, revoke: bool, corrupt: bool) {
                     SendMessageW(parent, WM_PAINT, None, None);
                     assert!(window.take_error().is_none());
                 }
-                assert_eq!(reads.get(), 2); // source + active，空闲不得重复取码/配置。
+                assert_eq!(reads.get(), 2); // source + active; idle must not repeat code/configuration fetches.
                 if revoke {
                     app.authorization_owner.close();
-                    wait_script(&app, false); // 没有 Application refresh 也已结束 child。
+                    wait_script(&app, false); // The child already ended without Application refresh.
                     assert!(probe.exited());
                     app.poll_remote_live_with(false, |_| panic!("revoked JS read configuration"))
                         .unwrap();
                 } else {
                     app.surface_windows.close_all().unwrap();
-                    assert!(app.surface_windows.take_closed().is_none()); // 未收割线程不许移除 owner。
+                    assert!(app.surface_windows.take_closed().is_none()); // Do not remove the owner while its thread remains uncollected.
                     assert!(!app.surface_windows.retire_confirmed());
                     assert!(app.surface_windows.retired_records().is_empty());
                     assert_eq!(app.surface_windows.wait_handles().len(), 1);
@@ -192,7 +192,7 @@ fn run(advertised: bool, revoke: bool, corrupt: bool) {
                     assert!(probe.exited());
                 }
             } else {
-                fixture::wait(&app); // 摘要失败只走 inactive，不得 active 或显示 authority scene。
+                fixture::wait(&app); // Digest failure allows only inactive, never active or display of the authority scene.
                 app.poll_remote_live_with(false, |_| panic!("corrupt script retried"))
                     .unwrap();
             }

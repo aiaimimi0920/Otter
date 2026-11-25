@@ -1,4 +1,4 @@
-//! 真实 EDIT 草稿进入鼠标/键盘按钮 wire；不发网络请求。
+//! Actual EDIT drafts enter mouse/keyboard button wire data without network requests.
 use super::*;
 #[test]
 fn surface_edit_dependency_deferred_click_expiry_is_monotonic_and_bounded() {

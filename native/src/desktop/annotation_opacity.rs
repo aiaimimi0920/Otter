@@ -1,4 +1,4 @@
-//! 单色路径将颜色alpha与整体opacity一次合成；形状的填充/描边独立绘制后再合成整体opacity。
+//! Single-color paths combine color alpha and overall opacity once; shapes draw fill/stroke separately before applying overall opacity.
 use crate::{
     editor::{Stroke, Tool},
     viewport::Viewport,
@@ -57,7 +57,7 @@ pub(super) unsafe fn push_mask_mode<'a>(
     parameters.maskTransform.M11 = 1.0;
     parameters.maskTransform.M22 = 1.0;
     target.PushLayer(&parameters, None);
-    // windows-rs 的 COM 结构字段为 ManuallyDrop；PushLayer 已持有所需引用。
+    // windows-rs COM structure fields use ManuallyDrop; PushLayer already holds the required references.
     std::mem::ManuallyDrop::drop(&mut parameters.geometricMask);
     Layer(target)
 }
@@ -111,14 +111,14 @@ pub(super) unsafe fn push<'a>(
         bounds.top = bounds.top.min(y);
         bounds.bottom = bounds.bottom.max(y);
     }
-    // 箭头基底在端点连线内，额外覆盖半个头宽；层范围不能超过实际 render target。
+    // The arrow base lies along the endpoint segment, with an extra half-head-width margin; layer bounds must not exceed the actual render target.
     let pad = if stroke.tool == Tool::Bezier && stroke.arrow {
-        // 切线基底可能在控制点包围框外，保守覆盖头长与半头宽。
+        // The tangent base may lie outside the control-point bounds; conservatively cover head length and half its width.
         (stroke.width * 6.0).max(24.0) + (stroke.width * 5.0).max(16.0) / 2.0
     } else if stroke.has_straight_arrow() {
         (stroke.width * 5.0).max(16.0) / 2.0
     } else if matches!(stroke.tool, Tool::Triangle | Tool::Polygon) {
-        // 尖角的 miter 可能越过半线宽，按最大 miter limit 保守保留。
+        // Sharp-corner miters may extend beyond half the stroke width; conservatively allow the maximum miter limit.
         stroke.width * 5.0
     } else {
         stroke.width / 2.0

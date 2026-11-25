@@ -1,4 +1,4 @@
-//! D3D12 有预算资源、上传/读回映射与 barrier；临时 union COM clone 显式释放。
+//! Budgeted D3D12 resources, upload/readback mapping, and barriers; explicitly release temporary union COM clones.
 use super::*;
 use crate::byte_budget::Lease;
 use std::{ffi::c_void, mem::ManuallyDrop};

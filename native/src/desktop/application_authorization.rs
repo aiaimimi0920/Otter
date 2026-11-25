@@ -1,4 +1,4 @@
-//! 授权 owner 仅由应用循环访问；菜单共享状态只提供有界请求和无凭据的结果。
+//! Only the application loop accesses the authorization owner; shared menu state provides only bounded requests and credential-free results.
 use super::*;
 use crate::{
     desktop::device_authorization_ui::Request,
@@ -45,7 +45,7 @@ impl Application {
         if let Some(id) = resume {
             self.resume_surface_batch(&id);
         }
-        // 对话框不能跨消息循环持有 View 的 RefCell 借用。
+        // Dialogs must not hold View's RefCell borrow across message-loop turns.
         let confirmation = {
             let mut view = self.authorization.borrow_mut();
             if matches!(view.request, Some(Request::ConfirmSurface(_))) {
@@ -87,7 +87,7 @@ impl Application {
                 self.start_projection_display_recovery(ticket, &mut config);
             }
         }
-        // Scope可为旧工作区分配一次持久身份；不能跨这一步保留View的RefCell借用。
+        // Scope may allocate a persistent identity once for an old workspace; do not retain View's RefCell borrow across this step.
         let receive_kind = {
             let view = self.authorization.borrow();
             match &view.request {
@@ -124,7 +124,7 @@ impl Application {
         if invalidate_sender {
             self.stop_projection_sender();
         }
-        // OpenArt 消费前释放 View 借用；本地链使用显式 HTTPS origin，不走旧远端 attach。
+        // Release the View borrow before consuming OpenArt; the local chain uses an explicit HTTPS origin, not the old remote attach path.
         let local_request = {
             let mut view = self.authorization.borrow_mut();
             if !view.closed && matches!(view.request, Some(Request::OpenArt { .. })) {
@@ -156,13 +156,13 @@ impl Application {
             matches!(&view.request, Some(Request::Cancel | Request::Start(_)))
                 || matches!(&view.request,Some(Request::Select(origin)) if view.origin.as_ref()!=Some(origin))
         };
-        // 原本离线租约不属于Device会话；显式授权/清除/换服务必须在无view借用时停止本地HWND。
+        // Existing offline leases are not part of Device sessions; explicit authorization/clearing/service changes must stop local HWNDs without a view borrow.
         if retire_local {
             self.local_arts.reset();
             self.remote_sessions.cancel_viewers();
         }
         let mut view = self.authorization.borrow_mut();
-        // 先消费撤销/切换，再收割完成结果；旧请求即使已经完成也不能覆盖新选择。
+        // Consume revocation/switches before collecting completed results; an old request cannot overwrite a new selection even if already complete.
         if let Some(request) = view.request.take().filter(|_| !view.closed) {
             match request {
                 Request::AccountProjection(_) => {
@@ -332,7 +332,7 @@ impl Application {
                     {
                         view.status = "本地会话已清除；服务端设备批准状态不变".into();
                     }
-                    // 无本地Art信任的旧会话不触及profile；配置捕获无IO，减权沿原有界后台owner提交。
+                    // Old sessions without local Art trust do not touch the profile; configuration capture performs no I/O, and revocation commits through the existing bounded background owner.
                     if let Some(origin) = view
                         .origin
                         .as_deref()

@@ -1,7 +1,7 @@
-//! 长截图控件投影与任务等待；禁用按钮不替代命令执行时的准入复核。
+//! Scrolling-capture control projection/task waits; disabled buttons do not replace admission checks at command execution.
 use super::*;
 use crate::long_capture::{Error as CaptureError, Snapshot};
-/// 模态和录制浮层共用消息边界；异常也沿实际窗口类型退出，不能留下 modeless 循环。
+/// Modals and recording overlays share message boundaries; errors exit through actual window types without leaving modeless loops.
 pub(super) unsafe extern "system" fn procedure(
     hwnd: HWND,
     message: u32,
@@ -57,7 +57,7 @@ pub(super) unsafe fn capture_error(
 }
 pub(super) unsafe fn frame_status(hwnd: HWND, input: &Input, count: usize) {
     if input.recording.enabled() {
-        // 逐帧回复只刷新预览，题头由开始、完成、停止和错误边界更新。
+        // Per-frame replies refresh previews only; start, completion, stop, and error boundaries update headings.
         overlay::refresh(hwnd);
     } else {
         let mode = if input.job.borrow().can_scroll() {

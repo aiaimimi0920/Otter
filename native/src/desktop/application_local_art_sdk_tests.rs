@@ -1,4 +1,4 @@
-//! 公开SDK示例原字节经原签名包/真实child/TLS/Application运行；不复制示例业务或浏览器模拟。
+//! Run original public-SDK example bytes through the original signed package/real child/TLS/Application; no copied example business logic or browser simulation.
 use super::*;
 unsafe fn offline_reopen(bytes: Vec<u8>, peer: &package_peer::Peer, root: &Path) {
     let mut app = image_app();

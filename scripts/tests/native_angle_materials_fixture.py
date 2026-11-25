@@ -1,4 +1,4 @@
-"""材料合同的合成成功回执；只模拟 PE 门，任何进程启动均由测试 tripwire 拒绝。"""
+"""Synthetic success receipts for materials contracts; simulate only PE gates, with test tripwires rejecting every process launch."""
 
 import sys
 from contextlib import contextmanager

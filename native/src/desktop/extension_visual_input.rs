@@ -1,4 +1,4 @@
-//! 覆盖场景的局部命中与单根文字手势；不调用 Win32、不发布剪贴板、不执行命令。
+//! Local overlay-scene hit testing and single-root text gestures; no Win32 calls, clipboard publication, or command execution.
 use super::*;
 use crate::{surface_click_event::Modifiers, surface_clip::Rect};
 pub(super) struct Press {
@@ -164,7 +164,7 @@ impl Views {
         }
         captured
     }
-    /// HRGN 只补 selectable root 和声明 click 节点，文字块外不占整个 overlay bounds。
+    /// HRGN supplements only selectable roots and declared click nodes; text blocks do not occupy full overlay bounds outside themselves.
     pub(in crate::desktop) fn rects(&self) -> std::cell::Ref<'_, [Rect]> {
         std::cell::Ref::map(self.regions.borrow(), |r| r.as_slice())
     }

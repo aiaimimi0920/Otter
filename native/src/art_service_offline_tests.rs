@@ -1,4 +1,4 @@
-//! 离线调用固定失败而不连网，范围和取消仍失败关闭。
+//! Offline calls fail deterministically without networking; scope and cancellation still fail closed.
 use super::*;
 use services::Dispatcher as _;
 #[test]

@@ -1,4 +1,4 @@
-//! 有界、可取消的预乘 BGRA 镜像，不解码/编码或合成图层，不改变颜色与 alpha。
+//! Bounded cancellable premultiplied-BGRA mirroring, without decoding/encoding/layer composition or color/alpha changes.
 pub use crate::raster_flip_resize::resized_image;
 use crate::{
     erase_layers::Layers,
@@ -33,7 +33,7 @@ pub fn image(
     )
 }
 
-/// 两轴镜像在同一次分配/遍历中完成，避免同时持有源图、中间图和最终图。
+/// Mirror both axes in one allocation/pass, avoiding simultaneous source/intermediate/final images.
 pub fn image_axes(
     source: &Pixels,
     size: (u32, u32),
@@ -83,8 +83,8 @@ pub fn image_axes(
     Ok(Pixels::from_reserved(output, lease))
 }
 
-/// 两层都成功才交付候选；取消/预算失败时丢弃临时结果，源图完全不动。
-/// 当前作用于完整源图，裁剪可见框的栅格适配由上层事务负责。
+/// Deliver candidates only after both layers succeed; cancellation/budget failure discards temporary results, leaving sources untouched.
+/// Currently applies to full source images; upper-layer transactions adapt rasters to cropped visible boxes.
 pub fn layers(source: &Layers, axis: Axis, cancelled: impl Fn() -> bool) -> Result<Layers, Error> {
     if !source.valid() {
         return Err(Error::InvalidInput);

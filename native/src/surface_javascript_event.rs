@@ -1,4 +1,4 @@
-//! JS emit 的父侧复核；DOM 输出不授予动作，绑定/版本与随机事件身份只能由宿主填写。
+//! Parent-side validation of JS emits; DOM output grants no actions, and only the host may fill bindings/revisions/random event identities.
 use super::surface_javascript_wire::{self as wire, Emitted};
 use crate::{
     surface_click_event::{self as click, ClickEvent},

@@ -1,4 +1,4 @@
-//! 独立wire oracle：整批拒绝不产生部分输入，控制切换/取消与多轴鼠标/按键保持原能力边界。
+//! Independent wire oracle: whole-batch rejection yields no partial input, and control switches/cancellation/multi-axis mouse/keys retain original capability boundaries.
 use super::*;
 use crate::live_relay_viewer_identity::{ControlCursor, Snapshot};
 use serde_json::{json, Value};
@@ -6,7 +6,7 @@ fn events(rows: Vec<(&str, Value)>) -> Vec<ControlEvent> {
     let snapshot=Snapshot::parse(br#"{"session":{"protocolVersion":"loom.live.v1","sessionId":"live:test","sourceDeviceId":"source","sourceHookId":"hook","revision":1,"viewerDevices":[]},"epoch":1,"closed":false}"#,"live:test").unwrap();
     let cursor = ControlCursor::new(snapshot.identity().clone(), 0);
     let bytes=serde_json::to_vec(&json!({"protocolVersion":"loom.live.v1","next":rows.len(),"reset":false,"events":rows.into_iter().enumerate().map(|(i,(kind,payload))|json!({"protocolVersion":"loom.live.v1","sessionId":"live:test","epoch":1,"sequence":i+1,"messageType":kind,"payload":payload})).collect::<Vec<_>>()})).unwrap();
-    // 独立构造envelope后经既有游标验证，再解析业务payload。
+    // Build envelopes independently, validate through the existing cursor, then parse business payloads.
     cursor.prepare(&bytes).unwrap().events().iter().map(|e|serde_json::from_value(json!({"protocolVersion":"loom.live.v1","sessionId":"live:test","epoch":1,"sequence":e.sequence(),"messageType":e.kind(),"payload":serde_json::from_str::<Value>(e.payload()).unwrap()})).unwrap()).collect()
 }
 fn state(controller: Value) -> Value {

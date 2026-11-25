@@ -1,4 +1,4 @@
-//! 原菜单/原Application/真实TLS/WSS/自有窗口消息闭环；不向用户窗口发送输入，不代表物理跨端。
+//! Original menu/original Application/real TLS/WSS/owned-window messages end to end; no input to user windows and no claim of physical cross-device coverage.
 use super::*;
 use crate::desktop::composition::relay::{
     sessions::ViewerKey,

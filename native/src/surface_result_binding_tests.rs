@@ -1,4 +1,4 @@
-//! 真实 HWND 挂载的单次结果注册；失败保留资格，普通执行撤销后不得重复注册。
+//! One-shot result registration on real HWND mounts; failure preserves eligibility, and ordinary execution cannot reregister after revocation.
 use super::*;
 use crate::{desktop::loom_result_state::Results, graph_requests::Request, workspace_id::UnitId};
 

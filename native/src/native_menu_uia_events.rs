@@ -1,4 +1,4 @@
-//! 从已提交快照生成有界通知；发出事件时不持模型锁或 RefCell 借用。
+//! Generate bounded notices from committed snapshots; hold neither model locks nor RefCell borrows while emitting events.
 use super::scroll::{percent_value, size_value};
 use super::*;
 use crate::native_menu::accessibility::NotificationFrame;
@@ -19,13 +19,13 @@ pub(crate) fn changes(
         *previous = None;
         return Vec::new();
     };
-    // 没有监听时也推进基线，晚订阅后的第一次滚动或展开才有正确旧值。
+    // Advance baselines even without listeners so the first scroll/expand after late subscription has correct old values.
     if !listening {
         *previous = Some(current);
         return Vec::new();
     }
     let node = |slot| view.snapshot_node(current.epoch.1, slot);
-    // 同一代际的行槽身份与顺序不变；只为真正发出的通知构造 Node。
+    // Row-slot identity/order remain unchanged within one generation; construct Nodes only for actually emitted notices.
     let focus = |frame: &NotificationFrame| frame.focused.map(|slot| (frame.epoch, slot));
     let mut output = Vec::new();
     let old = previous.as_ref();
@@ -66,7 +66,7 @@ pub(crate) fn notify(provider: &IRawElementProviderSimple, changes: Vec<Change>)
             if available(object).is_err() {
                 break;
             }
-            // 客户端通知可能重入；每项通知前复核撤销状态，失败不重放业务操作。
+            // Client notices may reenter; recheck revocation before each notice, without replaying business operations on failure.
             match change {
                 Change::Structure => {
                     let _ = UiaRaiseStructureChangedEvent(

@@ -1,4 +1,4 @@
-//! 直接控制各链结果与取消的可见顺序，不靠调度竞争构造终态。
+//! Directly control visibility order of chain results/cancellation, without scheduling races to fabricate terminal states.
 use super::*;
 use live_relay_http::Error::{AuthorizationRequired, Status};
 

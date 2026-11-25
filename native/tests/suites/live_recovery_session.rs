@@ -1,5 +1,5 @@
 #![cfg(windows)]
-//! 真实同 executable 父子进程协议；辅助入口仅由本测试创建并接收已知 overlapped 管道。
+//! Real parent/child protocol using the same executable; only this test creates the helper entry and supplies known overlapped pipes.
 use otter_native::{
     live_recovery_handshake::{read_ready, write_hello},
     live_recovery_pipe::Pipe,
@@ -43,7 +43,7 @@ fn authenticated_child_completes_real_session_and_rejects_unbound_source() {
                 std::process::id().to_string(),
             )
             .stdin(Stdio::from(client.into_handle()))
-            // 测试框架 stdout 不参与协议，避免其标题/结果污染私有 duplex 管道。
+            // Test-harness stdout is outside the protocol so its headers/results cannot contaminate the private duplex pipe.
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .spawn()
@@ -55,7 +55,7 @@ fn authenticated_child_completes_real_session_and_rejects_unbound_source() {
     );
     write_hello(&mut channel, [9; 16]).unwrap();
     read_ready(&mut channel, [9; 16]).unwrap();
-    // 结构合法但不可能绑定的 HWND，不创建或更改真实外部窗口。
+    // A structurally valid HWND that cannot bind; no real external window is created or changed.
     let record = Record {
         hwnd: u64::MAX,
         process_id: std::process::id(),

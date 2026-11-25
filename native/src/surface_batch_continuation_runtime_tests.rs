@@ -1,4 +1,4 @@
-//! 真实 TLS 接续只发送后缀；失败和撤权仍返还原批准与前缀 ACK。
+//! Real TLS continuation sends only the suffix; failures and revocation still return the original approval and prefix ACKs.
 use super::*;
 use crate::{
     desktop::surface_authorized_window::BatchContinuationInput,

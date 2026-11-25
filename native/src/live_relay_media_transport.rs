@@ -1,4 +1,4 @@
-//! 媒体 TCP/TLS/WebSocket 连接；仅后台调用，解析地址由可信发现/解析 owner 提供。
+//! Media TCP/TLS/WebSocket connections; background only, with addresses from trusted discovery/resolution owners.
 use crate::{
     byte_budget::Budget,
     live_relay_media_endpoint::Prepared,
@@ -45,13 +45,13 @@ pub struct Connection {
     liveness: Liveness,
 }
 impl Connection {
-    /// 地址必须对应 Prepared 的固定 host；最多四个候选，每次连接最多两秒。
-    /// TLS 始终按原始 hostname 验证，而不是把解析出的 IP 当信任身份。
+    /// Addresses must match Prepared's fixed host; at most four candidates, with at most two seconds per connection.
+    /// TLS always verifies the original hostname, never treating a resolved IP as the trusted identity.
     pub fn connect(prepared: Prepared, addresses: &[SocketAddr]) -> Result<Self, Error> {
         Self::connect_cancellable(prepared, addresses, &AtomicBool::new(false), |_| {})
     }
 
-    /// TCP 建立后立即交付 interrupt，覆盖 TLS/upgrade 阶段；回调只能快速登记句柄。
+    /// Deliver interrupt immediately after TCP connection to cover TLS/upgrade; callbacks may only quickly register handles.
     pub fn connect_cancellable(
         prepared: Prepared,
         addresses: &[SocketAddr],
@@ -92,7 +92,7 @@ impl Connection {
         self.liveness.rtt()
     }
 
-    /// 每步共用 250ms 总 I/O 预算，不能由碎片流量无限延长；失败撤销媒体 worker。
+    /// Each step shares a 250ms total I/O budget that fragmented traffic cannot extend indefinitely; failure revokes the media worker.
     pub fn service(&mut self, budget: &Arc<Budget>, worker: &Worker) -> Result<Step, Error> {
         if self
             .socket

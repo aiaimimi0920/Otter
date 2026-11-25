@@ -1,4 +1,4 @@
-//! JS/真实 HWND 测试共用的协议夹具；只有测试构建可用，不创建访问权或网络服务。
+//! Protocol fixtures shared by JS/real HWND tests; test builds only, creating no access rights or network services.
 use crate::surface_live_binding::Binding;
 use serde_json::{json, Value};
 pub(crate) static SERIAL: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -18,12 +18,12 @@ pub(crate) fn resources() -> Value {
 pub(crate) fn text(scene: &crate::surface_scene::Scene) -> &str {
     scene.root().children()[0].props()["text"].as_str().unwrap()
 }
-// 原生焦点 positive path 必须在交互桌面验证；仅恢复同进程窗口，不接管用户输入队列。
+// Native-focus positive paths require an interactive desktop; restore only same-process windows without taking over user input queues.
 pub(crate) struct Foreground {
     previous: windows::Win32::Foundation::HWND,
     target: windows::Win32::Foundation::HWND,
 }
-// 跨进程夹具由目标线程确认激活；此处只登记恢复 owner，不发起第二次激活或跨线程 SetFocus。
+// The target thread confirms cross-process fixture activation; register only the restoration owner here without a second activation or cross-thread SetFocus.
 pub(crate) unsafe fn guard_foreground(parent: windows::Win32::Foundation::HWND) -> Foreground {
     let previous = windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow();
     Foreground {
@@ -41,15 +41,15 @@ unsafe fn owned_window(hwnd: windows::Win32::Foundation::HWND) -> bool {
         windows::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId(hwnd, Some(&mut pid));
     thread != 0 && pid == std::process::id()
 }
-// 显式原生探针的授权握手，不是产品等待/重试。等待期间不得消耗 TLS 单请求期限。
-// 外层以 120 秒期限回收本测试进程，收到 G 也仍须验证真正前台。
+// Authorization handshake for explicit native probes, not product waiting/retry; waiting must not consume the TLS single-request deadline.
+// The outer 120-second deadline reaps this test process; receiving G still requires verifying the actual foreground window.
 pub(crate) fn foreground_startup() {
     static SPONSORED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
     if std::env::var("OTTER_NATIVE_FOREGROUND_SPONSOR").as_deref() == Ok("1")
         && !SPONSORED.swap(true, std::sync::atomic::Ordering::SeqCst)
     {
         use std::io::{Read, Write};
-        // 先建立本线程 USER 消息队列；尚未初始化的挂起进程不能接收前台授权。
+        // Create this thread's USER message queue first; an uninitialized suspended process cannot receive foreground authorization.
         unsafe {
             use windows::Win32::UI::WindowsAndMessaging::*;
             let _ = PeekMessageW(&mut MSG::default(), None, 0, 0, PM_NOREMOVE);
@@ -82,7 +82,7 @@ pub(crate) unsafe fn focus_foreground(parent: windows::Win32::Foundation::HWND) 
     .unwrap();
     let _ = ShowWindow(parent, SW_SHOWNOACTIVATE);
     let _ = SetForegroundWindow(parent);
-    // 前台锁拒绝时不关联外部线程或合成激活；显式启动器授权也不能替代下方真实断言。
+    // On foreground-lock rejection, do not attach external threads or synthesize activation; explicit launcher authorization does not replace the real assertion below.
     let _ = SetFocus(Some(parent));
     assert_eq!(
         GetForegroundWindow(),
@@ -96,8 +96,8 @@ impl Drop for Foreground {
         use windows::Win32::UI::WindowsAndMessaging::*;
         unsafe {
             let current = GetForegroundWindow();
-            // 只归还仍由本guard持有的前台；失焦后不覆盖用户/其他窗口的新选择。
-            // 自有target已销毁且前台暂空时仍恢复旧窗口；系统切换不是可原子锁定的资源。
+            // Restore foreground only while this guard still owns it; after focus loss, do not overwrite the user's/another window's new choice.
+            // Restore the old window if the owned target is destroyed and foreground is temporarily empty; system switching is not atomically lockable.
             if owned_window(self.previous)
                 && (current == self.target
                     || (current.0.is_null() && !IsWindow(Some(self.target)).as_bool()))

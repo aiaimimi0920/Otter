@@ -1,4 +1,4 @@
-//! 图片来源的类型化身份；资源分支仍完全委托原远端租约合同。
+//! Typed image-source identities; the resource branch still delegates entirely to the original remote-lease contract.
 use crate::{
     device_authorization_lease::Lease,
     live_relay_http::{MountedSurface, ResourceError, ResourceLease},
@@ -45,7 +45,7 @@ impl Request {
     pub fn expires_at_ms(&self) -> u64 {
         match self {
             Self::Resource(request) => request.expires_at_ms(),
-            Self::Inline(_) => u64::MAX, // 只受真实 Grant 截止约束，没有伪造资源租约。
+            Self::Inline(_) => u64::MAX, // Bound only by the real Grant deadline, without fabricated resource leases.
         }
     }
     pub fn mime(&self) -> &str {

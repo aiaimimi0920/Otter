@@ -1,4 +1,4 @@
-//! 内联图片通过真实授权/完整应用轮询；图片阶段不允许准备网络配置。
+//! Inline images through real authorization/full application polling; image stages must not prepare network configuration.
 use super::*;
 fn png_source() -> String {
     use base64::Engine;

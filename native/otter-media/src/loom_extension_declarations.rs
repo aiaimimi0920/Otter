@@ -1,4 +1,4 @@
-//! 已验证目录中的活跃声明投影；没有 socket/资源访问能力，不单独签发权限。
+//! Active-declaration projection from a verified catalog; no socket/resource access and no independent permission issuance.
 use super::*;
 pub struct Owner<'a> {
     pub plugin: &'a str,
@@ -12,7 +12,7 @@ pub struct Declaration<'a> {
     pub payload: Option<&'a Value>,
 }
 impl Snapshot {
-    /// 执行和附件写入仍只接受 trusted；视觉准入不构成此处的授权。
+    /// Execution and attachment writes still accept only trusted; visual admission does not constitute authorization here.
     pub fn owner(&self, scope: &str) -> Option<Owner<'_>> {
         self.0
             .plugins
@@ -31,14 +31,14 @@ impl Snapshot {
         self.raw_declarations(category)
             .filter(|d| self.owner(d.scope).is_some())
     }
-    /// 主干的显示 scope 包括开发模式；通知可保留，但不能据此执行命令或写附件。
+    /// Mainline display scope includes development mode; notifications may remain, but cannot authorize commands or attachment writes.
     pub fn display_active(&self, scope: &str) -> bool {
         self.0.plugins.iter().any(|p| {
             p.scope_id == scope
                 && matches!(p.trust_status, Trust::Trusted | Trust::UnsignedDeveloper)
         })
     }
-    /// 只读场景及其命令声明存在性；真正点击仍必须经过 Snapshot::command。
+    /// Read only whether a scene and its command declaration exist; actual clicks must still pass through Snapshot::command.
     pub fn visual_declarations<'a>(
         &'a self,
         category: &'a str,

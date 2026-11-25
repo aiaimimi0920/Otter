@@ -1,4 +1,4 @@
-//! 自有 HWND/原 Application 事务；不注册热键、不改前台、不注入物理输入。
+//! Owned HWNDs/original Application transactions; no hotkey registration, foreground changes, or physical-input injection.
 use super::*;
 pub(in crate::desktop::application) unsafe fn app() -> Application {
     let instance = crate::desktop::workspace_window_fixture::register();

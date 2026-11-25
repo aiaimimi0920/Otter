@@ -1,5 +1,5 @@
-//! 非破坏性裁剪坐标合同：源框是逻辑坐标而非像素，保留框外内容以供重置。
-//! 对照主干 stickerEditingGeometry / stickerCropImage；只计算布局，不分配图像。
+//! Nondestructive crop-coordinate contract: source boxes use logical coordinates, not pixels, retaining outside content for reset.
+//! Corresponds to mainline stickerEditingGeometry/stickerCropImage; layout only, without image allocation.
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Size {
@@ -25,7 +25,7 @@ pub struct Crop {
 pub struct Change {
     pub frame: Rect,
     pub crop: Option<Crop>,
-    /// 现有标注/擦除轨迹只平移，不缩放或删除框外几何。
+    /// Existing annotation/erasure paths translate only, without scaling or removing out-of-box geometry.
     pub edit_offset: (f64, f64),
 }
 
@@ -96,7 +96,7 @@ impl Crop {
     }
 }
 
-/// selection 使用当前可见框的局部坐标；在原有裁剪上累积，不重采样源图。
+/// selection uses current visible-box local coordinates; accumulate over existing crops without resampling sources.
 pub fn next(
     frame: Rect,
     existing: Option<Crop>,
@@ -140,7 +140,7 @@ pub fn next(
     })
 }
 
-/// 恢复完整源框并保持当前显示比例；清除旧 sourceSize，下一轮裁剪从恢复后的框开始。
+/// Restore complete source boxes/current display scale; clear old sourceSize so subsequent crops start from restored boxes.
 pub fn reset(frame: Rect, crop: Option<Crop>) -> Result<Change, InvalidGeometry> {
     if !frame.valid() || crop.is_some_and(|crop| !crop.valid()) {
         return Err(InvalidGeometry);
@@ -170,7 +170,7 @@ pub fn reset(frame: Rect, crop: Option<Crop>) -> Result<Change, InvalidGeometry>
     })
 }
 
-/// 先在保留的完整源框 contain-fit，再按裁剪窗口偏移；不拉伸或丢掉留白。
+/// Contain-fit within retained full source boxes before crop-window offsets; no stretching or dropped padding.
 pub fn image_placement(frame: Rect, crop: Crop, pixels: Size) -> Result<Rect, InvalidGeometry> {
     if !frame.valid() || !crop.valid() || !pixels.valid() {
         return Err(InvalidGeometry);

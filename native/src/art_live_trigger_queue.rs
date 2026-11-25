@@ -1,4 +1,4 @@
-//! 原Live控制worker和UI之间的独立显式授权单槽；配置/Stop/回执共用原线程。
+//! Separate explicitly authorized single slot between the original Live control worker and UI; configuration/Stop/receipts share the original thread.
 use super::ticket::{Authorization, Ticket};
 use super::*;
 use crate::live_relay_viewer_trigger_queue::Phase;
@@ -107,7 +107,7 @@ impl Queue {
         s.phase = Phase::Pending;
         true
     }
-    /// 立即取消本地执行，HTTP仅负责随后减权；不等待网络才封住迟到结果。
+    /// Cancel local execution immediately; HTTP only reduces privileges afterward, without waiting on the network to block late results.
     pub fn stop(&self) -> bool {
         let mut s = self.state();
         if s.closed {
@@ -141,7 +141,7 @@ impl Queue {
         }
         if enabled && !r.gate.active() {
             return;
-        } // Stop在HTTP期间到达，旧成功不能恢复授权。
+        } // Stop arrived during HTTP; old success cannot restore authorization.
         if let Some(current) = &mut s.registration {
             current.confirmed = enabled;
         }
@@ -178,7 +178,7 @@ impl Queue {
             _ => None,
         }
     }
-    /// 媒体/控制失联后须新用户授权；重连不恢复旧注册。
+    /// New user authorization is required after media/control disconnection; reconnection never restores the old registration.
     pub fn retire(&self) {
         let mut s = self.state();
         Self::retire_locked(&mut s);

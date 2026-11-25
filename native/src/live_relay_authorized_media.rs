@@ -1,4 +1,4 @@
-//! 媒体启动只从授权租约取得 token，沿用控制 Client 的固定 origin、TLS 和解析地址。
+//! Media startup obtains tokens only from authorized leases, retaining the control Client's fixed origin, TLS, and resolved addresses.
 use super::*;
 use crate::{
     byte_budget::Budget,
@@ -34,7 +34,7 @@ impl Lease {
             .source(session, self.device_id(), Credential::Device(token))
             .map_err(Error::Endpoint)
     }
-    /// 每次重建都重新验证同一Grant/固定origin/到期及owner，签发新nonce；不做HTTP或续签。
+    /// Every rebuild rechecks the same Grant/fixed origin/expiry/owner and issues a fresh nonce; no HTTP or renewal.
     fn viewer_media(
         &self,
         client: &Client,
@@ -82,7 +82,7 @@ impl Lease {
         }
         Ok(prepared)
     }
-    /// 直接调用者保留单次连接合同；产品控制owner使用下方同身份恢复入口。
+    /// Direct callers retain the single-connection contract; the product control owner uses the same-identity recovery entry below.
     #[cfg(test)]
     pub(crate) fn start_media(
         &self,

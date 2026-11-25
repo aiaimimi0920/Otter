@@ -1,4 +1,4 @@
-//! 取景框四向命令与 UI 参考坐标；候选坐标只在 worker 接受后提交。
+//! Four-way viewfinder commands and UI reference coordinates; commit candidate coordinates only after worker acceptance.
 use super::*;
 use std::collections::VecDeque;
 const QUEUED_MOVES: usize = 16;
@@ -85,7 +85,7 @@ unsafe fn dispatch_with(hwnd: HWND, input: &Input, command: usize, desktop: Regi
     }
     begin(hwnd, input, command, desktop);
 }
-// 周期截图和预览占用同一 worker；点击先保留，空闲后先执行用户的移动。
+// Periodic capture and previews share one worker; retain clicks first and prioritize user movement when idle.
 pub(super) unsafe fn drive(hwnd: HWND, input: &Input) {
     if !input.recording.running() || input.finish.pending() {
         if input.movement.queued() {

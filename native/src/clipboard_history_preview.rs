@@ -1,4 +1,4 @@
-//! 在已有历史解码 worker 中生成360像素阅读图；预算包含预览，UI不重新解码。
+//! Generate 360-pixel reading previews in the existing history decode worker; budget includes previews, without UI re-decoding.
 use crate::{image_decode::Image, pixels::Pixels};
 use windows::{
     core::{Error, Result},
@@ -18,7 +18,7 @@ pub(super) fn image(source: &Image) -> Result<Image> {
                 * 4) as usize;
             let to = ((y * width + x) * 4) as usize;
             let pixel = &source.pixels[from..from + 4];
-            // 与菜单面板相同的 #0e1218 背景；预乘像素只合成一次。
+            // Same #0e1218 background as menu panels; composite premultiplied pixels only once.
             for (channel, background) in [0x18u16, 0x12, 0x0e].into_iter().enumerate() {
                 bytes[to + channel] = (u16::from(pixel[channel])
                     + (background * u16::from(255 - pixel[3]) + 127) / 255)

@@ -1,4 +1,4 @@
-//! 当前采集的来源坐标与工作负载；来源矩形不是编辑后的输出大小。
+//! Source coordinates and workload for the current capture; the source rectangle is not the edited output size.
 use crate::session_capture::{Axis, Kind};
 pub(crate) struct Context {
     pub kind: Kind,

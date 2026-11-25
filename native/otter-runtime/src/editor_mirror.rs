@@ -1,4 +1,4 @@
-//! 已物化像素的镜像朝向只投影按钮状态，绝不再次驱动渲染或 canonical flip。
+//! Mirror orientation for materialized pixels projects button state only, never drives rendering/canonical flips again.
 use super::*;
 use serde::{Deserialize, Serialize};
 
@@ -17,7 +17,7 @@ impl MirrorState {
         }
         self
     }
-    /// 旧主干只有 canonical 标志；像素仍由原 session_image_flip 物化一次。
+    /// The legacy baseline has only canonical flags; original session_image_flip still materializes pixels once.
     pub fn read_raw(raw: Option<&serde_json::value::RawValue>) -> Result<Self, &'static str> {
         #[derive(Default, Deserialize)]
         #[serde(rename_all = "camelCase")]
@@ -36,7 +36,7 @@ impl MirrorState {
             y: stored.flipped_y.unwrap_or(false),
         }))
     }
-    /// 保留其它 imageEditState 扩展；包括 false，避免沿用原文的旧朝向。
+    /// Preserve other imageEditState extensions, including false, avoiding old original orientation reuse.
     pub fn write(self, state: &mut serde_json::Value) -> Result<(), &'static str> {
         state
             .as_object_mut()
@@ -49,7 +49,7 @@ impl Editor {
     pub fn mirror_state(&self) -> MirrorState {
         self.mirror
     }
-    /// 只允许会话候选初始化；活动文档的朝向必须和像素事务一起提交。
+    /// Only session-candidate initialization; active-document orientation must commit together with pixel transactions.
     pub fn with_restored_mirror(mut self, mirror: MirrorState) -> Result<Self, EditError> {
         if self.revision != 0 || !self.history.is_empty() || self.draft.is_some() {
             return Err(EditError::InvalidPoint);

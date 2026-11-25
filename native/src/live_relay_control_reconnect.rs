@@ -1,4 +1,4 @@
-//! 原串行控制线程的GET恢复：同可靠游标、有限退避，不重放写请求或重复消费已提交事件。
+//! GET recovery in the original serial control thread: same reliable cursor and bounded backoff, without write replay or repeated committed-event consumption.
 use super::*;
 pub(super) fn poll(
     control: &crate::live_relay_http::Control<'_>,
@@ -31,7 +31,7 @@ pub(super) fn poll(
                 );
             }
             let result = applied.unwrap();
-            // 可靠批次已提交时只重试注册GET，不能再消费同一批次或遗失待刷新的注册。
+            // After reliable-batch commit, retry only registration GET; never consume the batch again or lose pending registration refresh.
             if !result.closed && refresh {
                 let (_, registrations) = control
                     .trigger_snapshot(owner.identity())

@@ -1,4 +1,4 @@
-//! 无矢量basis独立像素/几何oracle；不通过新basis renderer生成预期值。
+//! Independent pixel/geometry oracles for vector-free basis; never generate expectations using the new basis renderer.
 use super::*;
 use crate::crop_geometry::Rect;
 use serde_json::json;
@@ -51,8 +51,8 @@ fn basis_excludes_vector_and_normal_opacity_but_keeps_raster_annotations_crop_an
     for y in 0..4 {
         for x in 0..4 {
             let expected = if (x, y) == (1, 1) {
-                // 原栅格层完整8x8映到4x4可见框；双线性在(2.5,2.5)取样，绿色权重1/4。
-                // source-over: green=round(255/4)=64，blue=255-64=191；不是源框直裁剪。
+                // The full original 8x8 raster maps into a 4x4 visible frame; bilinear sampling at (2.5,2.5) gives green weight 1/4.
+                // source-over: green=round(255/4)=64, blue=255-64=191; this is not direct source-rectangle cropping.
                 [191, 64, 0, 255]
             } else {
                 [255, 0, 0, 255]
@@ -110,7 +110,7 @@ fn basis_geometry_uses_actual_nonuniform_crop_density_and_pixel_padding_for_init
         &AtomicBool::new(false),
     )
     .unwrap();
-    // 16/8源密度=2，4x4裁剪输出8x8，再各侧2px；view为6x6，原点-1,-1。
+    // Source density 16/8=2 turns a 4x4 crop into 8x8 output, plus 2px on each side; view is 6x6 with origin -1,-1.
     assert_eq!((frame.width, frame.height), (12, 12));
     assert_eq!(
         layout.size().unwrap(),

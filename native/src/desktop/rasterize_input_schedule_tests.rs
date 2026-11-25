@@ -1,4 +1,4 @@
-//! WIC/D2D 线程只在预约成功后启动；启动拒绝不留下 timer。
+//! WIC/D2D threads start only after successful reservation; rejected starts leave no timer.
 use super::*;
 use crate::{editor::Tool, viewport::Point};
 use std::{
@@ -41,7 +41,7 @@ fn finish(state: &State) -> (Request, Result<RasterRefreshPlan, String>) {
         if ready {
             let mut job = state.rasterize_job.borrow_mut().take().unwrap();
             let result = job.worker.take().unwrap().join().unwrap();
-            // Job 实现 Drop，已领取 refresh 后仅复制 accept 所需的请求身份。
+            // Job implements Drop; after claiming refresh, copy only the request identity needed by accept.
             let request = Request {
                 source: job.request.source.clone(),
                 revision: job.request.revision,

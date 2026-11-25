@@ -1,4 +1,4 @@
-//! 本地编辑事务持久形状；不保存设备token/私钥，逐项及总编码预算均核真实字节。
+//! Persistent local-edit transaction shape without device tokens/private keys; per-item/total encoding budgets measure actual bytes.
 use super::*;
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]

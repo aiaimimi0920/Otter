@@ -1,4 +1,4 @@
-//! 真实TLS控制GET矩阵；只消费测试Bridge，不触碰用户窗口。真实媒体屏障另由LAN联合验证。
+//! Real TLS control-GET matrix consuming only a test Bridge, never user windows. Real media barriers are verified separately by LAN joint tests.
 use super::*;
 use crate::device_authorization_lease::Grant;
 use crate::device_session_client::tests::{accept, fixture_with_host, reply, request, session};
@@ -127,9 +127,9 @@ fn source_control_transport_loss_keeps_cursor_consumes_old_input_and_requires_no
                     ("input_event", key("a", 2, 66)),
                     ("session_state", state(Value::Null, false)),
                     ("session_state", state(json!("b"), false)),
-                    ("input_event", key("b", 1, 67)), // 恢复批仍不得投递。
+                    ("input_event", key("b", 1, 67)), // The recovery batch still must not deliver input.
                 ],
-                3 => vec![("input_event", key("b", 2, 68))], // 不要求再等一次 None。
+                3 => vec![("input_event", key("b", 2, 68))], // No need to wait for another None.
                 _ => vec![("session_state", state(Value::Null, true))],
             };
             reply(&mut stream, 200, &history(after + 1, rows));
@@ -144,7 +144,7 @@ fn source_control_transport_loss_keeps_cursor_consumes_old_input_and_requires_no
             if !sent && signal.restart_media.swap(false, Ordering::AcqRel) {
                 assert!(signal.control_recovering.load(Ordering::Acquire));
                 assert!(signal.recovering.load(Ordering::Acquire));
-                // 单元门仅证明状态隔离；真实WSS退休/服务None由独立联合门证明。
+                // The unit gate proves only state isolation; a separate joint gate proves real WSS retirement/service None.
                 signal.recovery(false);
                 ready.send(()).unwrap();
                 sent = true;

@@ -1,4 +1,4 @@
-//! 观察完整图框和编辑条的所有中间位置，而非仅检查宿主提交后的最终坐标。
+//! Observe every intermediate position of complete image/border frames and edit strips, not just final coordinates after host commit.
 use super::*;
 use std::time::Instant;
 type PositionSample = (HWND, u32, (i32, i32));

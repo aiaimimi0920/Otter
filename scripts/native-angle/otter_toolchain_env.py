@@ -1,4 +1,4 @@
-"""固定 Chromium setup_toolchain 的显式数据入口；没有发现或回退分支。"""
+"""Explicit data entry for pinned Chromium setup_toolchain, without discovery or fallback branches."""
 
 import copy
 import os
@@ -21,7 +21,7 @@ def create_manifest(config):
 
 
 def load_environment(manifest_path, cpu, toolchain_root, sdk_dir, target_store):
-    """只返回固定路径环境；上游调用者不能加入 runtime_dirs 或系统旧 SDK。"""
+    """Return only fixed-path environments; upstream callers cannot add runtime_dirs or legacy system SDKs."""
     if os.environ.get("DEPOT_TOOLS_WIN_TOOLCHAIN") != "0":
         raise ValueError("Explicit DEPOT_TOOLS_WIN_TOOLCHAIN=0 required")
     if not manifest_path:
@@ -45,7 +45,7 @@ def load_environment(manifest_path, cpu, toolchain_root, sdk_dir, target_store):
     includes, libraries, binaries = paths_for(config, roots, cpu)
     if manifest["anchorSha256"] != anchors(config, roots):
         raise ValueError("Toolchain anchor identity changed")
-    # 不继承 PATH/INCLUDE/LIB/LIBPATH。Python 自身及完整 SDK/MSVC 闭包仍须独立绑定。
+    # Do not inherit PATH/INCLUDE/LIB/LIBPATH. Python itself and complete SDK/MSVC closures still require independent binding.
     python_dir = Path(os.path.realpath(sys.executable)).parent
     checked_path(str(python_dir))
     return {
@@ -54,7 +54,7 @@ def load_environment(manifest_path, cpu, toolchain_root, sdk_dir, target_store):
         "LIBPATH": ";".join(map(str, libraries)),
         "PATH": os.pathsep.join(map(str, [*binaries, python_dir, roots["systemRoot"] / "System32"])),
         "PATHEXT": ".COM;.EXE;.BAT;.CMD",
-        # 显式请求英文诊断；若本机没有英文资源，消费方仍须验证真实 /showIncludes 前缀。
+        # Explicitly request English diagnostics; without local English resources, consumers must still verify actual /showIncludes prefixes.
         "VSLANG": "1033",
         "SYSTEMROOT": str(roots["systemRoot"]),
         "TEMP": str(roots["tempRoot"]),

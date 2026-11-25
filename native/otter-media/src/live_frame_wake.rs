@@ -1,4 +1,4 @@
-//! 消费者通知合并；读取时在源锁内确认，防止读帧与重新允许通知之间丢失唤醒。
+//! Coalesced consumer notices acknowledged under source locks during reads, preventing lost wakes between frame reads/notification reenabling.
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 pub(super) struct Wake {
     state: AtomicU64,
@@ -32,11 +32,11 @@ impl Wake {
             return;
         };
         let ticket = previous + 1;
-        // 回调异常也不得使 worker 析构时再次 panic，或永久卡住 pending。
+        // Callback exceptions must not repanic during worker destruction or permanently strand pending.
         let sent = self.active.load(Ordering::Acquire)
             && std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| (self.post)()))
                 .unwrap_or(false);
-        // 失败只撤销自己的通知代次，不能覆盖期间 acknowledge 后的新一次成功投递。
+        // Failure revokes only its own notification generation, not a newer successful delivery after intervening acknowledge.
         if !sent {
             let _ = self
                 .failures

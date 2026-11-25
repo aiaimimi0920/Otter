@@ -1,4 +1,4 @@
-//! 真实准备结果、同步 worker 与逐条 UI 应答的 TLS/WS 贯通，不访问用户服务。
+//! TLS/WS end-to-end checks using real prepared results, synchronous workers, and per-item UI replies; no user services.
 use super::*;
 use crate::desktop::session_candidate::{WorkflowInput, WorkflowJob, WorkflowSyncJob};
 use crate::session_document::workflow_snapshot::batch::dispatch::Failure;
@@ -57,7 +57,7 @@ fn sync_worker_waits_for_admission_and_returns_owned_preparation_and_report() {
         assert!(admission.request_id().starts_with("workflow-sync:"));
         assert!(sync.take_admission().is_none());
         if mode == 2 {
-            // UI 已取走请求但未应答，任务 owner 析构仍须取消并回收线程/连接。
+            // UI has taken the request without replying; task-owner destruction must still cancel/reap threads/connections.
             drop(sync);
             admission.resolve(true);
             assert_eq!(budget.used(), 0);

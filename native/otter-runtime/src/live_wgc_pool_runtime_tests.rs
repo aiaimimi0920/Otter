@@ -1,4 +1,4 @@
-//! 自有静止源与故意陈旧的池尺寸；无后续重绘也必须交付完整像素，超时先取消并 join。
+//! Owned stationary source with deliberately stale pool dimensions; complete pixels must arrive without later repaint, and timeout first cancels and joins.
 use super::*;
 use crate::{live_frames::Source, live_texture::Texture, live_window_target::Target};
 use std::{
@@ -130,7 +130,7 @@ fn stale_pool_size_delivers_full_static_frame_without_source_redraw() {
                     .IsBorderRequired()
                     .unwrap());
                 sender.send(session.stop_handle()).unwrap();
-                // 强制重现 Size 在恢复前读取、实际内容已恢复的边界，不再重绘源。
+                // Force the boundary where Size is read before restoration but actual content is already restored, without repainting the source again.
                 session
                     .recreate(SizeInt32 {
                         Width: stale[0],
@@ -167,7 +167,7 @@ fn stale_pool_size_delivers_full_static_frame_without_source_redraw() {
                 }
                 std::thread::sleep(Duration::from_millis(5));
             }
-            // 先唤醒采集线程再 join；失败也不留下永远阻塞在无帧通知上的 worker。
+            // Wake the capture thread before join; failures must not leave a worker permanently blocked waiting for a frame notification.
             if let Some(stop) = stop.or_else(|| receiver.try_recv().ok()) {
                 stop.cancel();
             }

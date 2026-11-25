@@ -1,4 +1,4 @@
-//! 自有隐藏 Application 的 accepted 菜单/目标/保存/呈现链；NEW 策略不是既有关联撤权。
+//! accepted menu/target/save/presentation flow in an owned hidden Application; NEW policy does not revoke existing associations.
 use super::*;
 use crate::{projection_delivery::accept::tests as png, projection_receive_policy::Policy};
 #[path = "application_projection_poll_reattach_tests.rs"]
@@ -87,7 +87,7 @@ unsafe fn run_routed(offline: bool) {
         select(&mut fixture);
         assert!(!fixture.unit_present());
         assert!(!fixture.app.projection_cleanup.pending_local());
-        // 网络已结束而尚未领取；新的策略代次/保存中状态不能撤销旧 receiver。
+        // Networking finished but remains uncollected; a new policy generation or saving state must not revoke the old receiver.
         fixture.app.authorization.borrow_mut().consent.begin_save();
         until(&mut fixture.app, |app| {
             !app.projection_receive.preparing() && !app.remote_sessions.projection_pending()
@@ -106,7 +106,7 @@ unsafe fn run_routed(offline: bool) {
             .projection_checkpoint_inclusion(fixture.ticket())
             .is_none());
         assert!(!fixture.ticket().cleanup_pending());
-        // checkpoint 之前 listener 无 receipt；显式保存后才允许原呈现围栏。
+        // Before checkpoint, the listener has no receipt; allow the original presentation fence only after explicit saving.
         assert!(
             matches!(fixture.listener.as_ref().unwrap().accept(), Err(e) if e.kind() == std::io::ErrorKind::WouldBlock)
         );
@@ -185,7 +185,7 @@ fn projection_reattach_native_menu_revalidates_arc_and_never_treats_new_as_exist
             ))
             .is_err()
         );
-        // 直接排队也必须在配置/网络前再次拒绝 NEW。
+        // Directly queued NEW requests must also be rejected again before configuration/network access.
         app.authorization.borrow_mut().request = Some(Request::Projection(ui::Request::Reattach(
             Arc::new(png::invitation(origin)),
         )));

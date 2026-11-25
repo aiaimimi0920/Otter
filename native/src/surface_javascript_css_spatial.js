@@ -1,4 +1,4 @@
-// 定位/裁剪只接已有原生 owner；直接包含块和绘制顺序不满足子集时明确拒绝。
+// Positioning/clipping connects only to existing native owners; explicitly reject containing blocks or paint order outside the supported subset.
 ((dom, fail) => {
   "use strict";
   const op = dom.ops, pairs = new op.MapType(), sides = op.words("top right bottom left");
@@ -19,7 +19,7 @@
       else if (item !== "auto") {
         const match = op.exec(/^(0|(?:\d+(?:\.\d*)?|\.\d+)(px|%))$/, item);
         if (!match || op.float(item) > (match[2] === "%" ? 1000 : 8192)) fail();
-        // 原生 decimal 不接受 .N/N.；规范化而非让非法长度静默落回默认值。
+        // Native decimal rejects .N/N.; normalize rather than silently falling back to defaults for invalid lengths.
         if (item[0] === ".") item = "0" + item;
         item = op.slice(item, 0, item.length - (match[2]?.length ?? 0));
         if (item[item.length - 1] === ".") item = op.slice(item, 0, item.length - 1);
@@ -37,14 +37,14 @@
     const container = op.setHas(dom.containers, state.tag);
     const x = css["overflow-x"] ?? "visible", y = css["overflow-y"] ?? "visible";
     const text = !container && op.indexOf(["canvas", "input", "button", "#text"], state.tag) < 0;
-    // 混合轴会按 CSS 计算成 auto；未接通 JS 滚动状态前不得意外开放滚动容器。
+    // Mixed axes compute to auto under CSS; do not accidentally enable scroll containers before JS scroll state is connected.
     if (x !== y || (!container && (op.own(css, "overflow-x") || op.own(css, "overflow-y")) && (!text || x !== "hidden"))) fail();
-    // 省略只接文字叶的水平单行 consumer；不继承/截断字符串或把未实现的 inline flow 当成支持。
+    // Ellipsis uses only the horizontal single-line text-leaf consumer; do not inherit/truncate strings or claim support for unimplemented inline flow.
     if (op.own(css, "text-overflow") && (!text || (css["text-overflow"] === "ellipsis" &&
         (x !== "hidden" || css["white-space"] !== "nowrap" || (css["text-align"] ?? "left") !== "left")))) fail();
     for (let i = 0; i < sides.length; i++) if (anchored(sides[i]) && !positioned(css)) fail();
     if (positioned(css) && state.parent && !positioned(parent) && (absolute || state.parent !== dom.root)) fail();
-    // 尚无 CSS definite-height 分析；非根 relative 的纵向百分比不能按最终父高猜算。
+    // CSS definite-height analysis is not implemented; do not guess vertical percentages for non-root relative elements from the final parent height.
     if (css.position === "relative" && state.parent)
       for (let i = 0; i < 2; i++) { const value = css[i ? "bottom" : "top"]; if (value && op.index(value, "%") >= 0 && op.float(value) !== 0) fail(); }
     if (!absolute) return;

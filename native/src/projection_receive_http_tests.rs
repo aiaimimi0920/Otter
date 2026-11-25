@@ -1,4 +1,4 @@
-//! accept 真实 HTTPS→后台完整 PNG→原 Grant 交付；不访问真实 Loom，不发送虚假 displayed。
+//! Real accept HTTPS -> background complete PNG -> original Grant delivery; no real Loom or false displayed.
 use super::*;
 use crate::{
     device_authorization_lease::Grant,
@@ -65,7 +65,7 @@ fn authenticated_accept_returns_compressed_pixels_but_does_not_report_displayed(
     let received = Control::new(&client, &authorized, &cancel)
         .accept_projection(&pixels::invitation(client.origin()))
         .unwrap();
-    // HTTP 结果仍未经过 COM 解码；Debug 不泄露图片/签名/nonce。
+    // HTTP results have not yet undergone COM decoding; Debug never exposes images/signatures/nonces.
     let debug = format!("{received:?}");
     assert!(!debug.contains("imageBase64") && !debug.contains(&"s".repeat(86)));
     peer.join().unwrap();
@@ -87,7 +87,7 @@ fn shared_loom_busy_before_accept_retries_the_exact_logged_request() {
         let (retry_head, retry_body) = request(&mut second);
         assert!(retry_head.starts_with("POST /v1/projections/accept "));
         assert_eq!(retry_body, body);
-        assert_ne!(head, retry_head); // 独立 nonce，不重放原 HTTP 请求。
+        assert_ne!(head, retry_head); // Independent nonce, not replay of original HTTP requests.
         reply(
             &mut second,
             200,

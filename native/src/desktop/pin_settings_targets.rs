@@ -1,4 +1,4 @@
-//! 目标草稿只在确认后派发；查询空窗保留呈现，已确认批次使用固定设备 ID。
+//! Dispatch target drafts only after confirmation; retain presentation during query gaps, and use fixed device IDs for confirmed batches.
 use super::*;
 use std::collections::{BTreeMap, VecDeque};
 #[path = "pin_targets_entries.rs"]
@@ -92,7 +92,7 @@ impl Popup {
             .as_ref()
             .expect("confirmed current directory");
         for (id, wanted) in changed {
-            // 组/用户在确认时展开，后续目录刷新不得扩大已确认的投射范围。
+            // Expand groups/users at confirmation; later catalog refreshes must not broaden the confirmed projection scope.
             let targets = if self.kind == DEVICES {
                 vec![id]
             } else if self.kind == GROUPS {
@@ -122,7 +122,7 @@ impl Popup {
         match self.advance(owner, state) {
             Ok(open) => Ok(open),
             Err(error) => {
-                // 失败保留用户草稿，只有权威绑定成功才能宣告完成。
+                // Retain user drafts on failure; declare completion only after authoritative binding succeeds.
                 self.applying = false;
                 self.failed = true;
                 self.inflight = None;
@@ -138,7 +138,7 @@ impl Popup {
         use windows::Win32::UI::Input::KeyboardAndMouse::{
             GetAsyncKeyState, VK_ESCAPE, VK_LBUTTON,
         };
-        // 目标选择属于钉图身份；正常编辑和协作回写不能撤销用户已确认的批次。
+        // Target selection belongs to pin identity; ordinary editing and collaboration writeback must not revoke user-confirmed batches.
         if state.authorization.borrow().origin != self.origin
             || !self.target.same_document(&state.canvas.borrow().editor)
         {
@@ -270,7 +270,7 @@ impl Popup {
                 self.rows = rows;
             }
         }
-        // 投射失败由显式刷新/重试清除，后台空目录提示不能覆盖失败原因。
+        // Clear projection failures only through explicit refresh/retry; background empty-catalog hints must not overwrite failure causes.
         if !self.failed {
             if self.rows.is_empty() {
                 self.menu.status(&directory_status(state));
@@ -297,7 +297,7 @@ fn next_choice(
     rows: &[Entry],
     ready: impl Fn(usize) -> bool,
 ) -> Option<(String, bool, usize)> {
-    // 只遍历本轮已有意图，暂不可操作的一项不能堵住其余目标。
+    // Visit only intents already present in this round; one temporarily unavailable item must not block other targets.
     for _ in 0..queue.len() {
         let (id, wanted) = queue.pop_front()?;
         let Some(row) = rows.iter().find(|row| row.id == id) else {

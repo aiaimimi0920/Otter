@@ -1,4 +1,4 @@
-//! 组旋转事务；调用方提供视觉组中心，效果路径旋转几何而不旋转源图采样空间。
+//! Group-rotation transaction; callers supply visual group centers, rotating effect geometry without rotating source-sampling space.
 use super::*;
 
 impl Editor {
@@ -50,7 +50,7 @@ impl Editor {
             changed.update_rotation_preview(original, pivot, degrees)?;
             replacements.push((index, changed));
         }
-        // 候选全部通过才交换；失败时原文档、版本、历史及重做分支均不变。
+        // Swap only after every candidate passes; failure preserves original document, revision, history, and redo branches.
         for (index, changed) in &mut replacements {
             std::mem::swap(changed, &mut self.elements[*index]);
         }

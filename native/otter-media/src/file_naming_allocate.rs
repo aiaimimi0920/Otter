@@ -1,4 +1,4 @@
-//! 同名输出原子分配；只创建一个新文件，不创建目录、不覆盖、不负责完成后的文件寿命。
+//! Atomic same-name output allocation creates one new file, without directories/overwriting/completed-file lifetime ownership.
 use std::{
     fs::{File, OpenOptions},
     io,
@@ -7,13 +7,13 @@ use std::{
 };
 const ATTEMPTS: u32 = 9999;
 
-/// 显式文件名保持原样，冲突直接返回；调用方不能把失败解释成可覆盖授权。
+/// Preserve explicit filenames and return conflicts directly; failure cannot imply overwrite permission.
 pub fn create_exact(path: &Path) -> io::Result<File> {
     OpenOptions::new().write(true).create_new(true).open(path)
 }
 
-/// 与主干一致：首个名称不带后缀，之后为 _2 到 _9999，总 stem 最多 120 字符。
-/// 成功时所有权交给调用方；取消只在分配前生效，成功后不再删除或撤销文件。
+/// Match mainline: the first name has no suffix, followed by _2 through _9999, with each filename stem, including its numeric suffix, limited to 120 characters (excluding the extension).
+/// Success transfers ownership to callers; cancellation applies only before allocation, never deleting/revoking successful files.
 pub fn create_unique_file(
     directory: &Path,
     stem: &str,

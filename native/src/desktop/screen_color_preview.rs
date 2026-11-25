@@ -1,4 +1,4 @@
-//! 实时 GDI 单像素取色与不激活的原生预览窗口；DC 每次采样后立即释放。
+//! Live GDI single-pixel sampling and a nonactivating native preview window; release the DC immediately after each sample.
 use super::*;
 use windows::Win32::{Graphics::Gdi::*, UI::HiDpi::GetDpiForWindow};
 #[path = "screen_color_swatch.rs"]
@@ -21,7 +21,7 @@ pub(super) unsafe fn sample(point: POINT, popup: Option<HWND>) -> Option<Color> 
             && point.y >= rect.top
             && point.y < rect.bottom
         {
-            // 鼠标跳进旧预览矩形时先隐藏并等合成刷新，不能把自己的预览文字当屏幕颜色。
+            // If the mouse jumps into the old preview rectangle, hide it and await composition refresh first; never sample the preview's own text as screen color.
             let _ = ShowWindow(popup, SW_HIDE);
             windows::Win32::Graphics::Dwm::DwmFlush().ok()?;
         }
@@ -70,7 +70,7 @@ pub(super) unsafe fn show(hwnd: HWND, point: POINT, color: Color) {
     }
     let rect = info.rcWork;
     let mut dpi = GetDpiForWindow(hwnd);
-    // 跨屏移动可能在第一次定位时改变 DPI；最多再校正一次，不创建布局轮询。
+    // Cross-monitor movement may change DPI during initial positioning; correct at most once more without layout polling.
     for _ in 0..2 {
         let (width, height) = swatch::size(dpi);
         let x = place(point.x, rect.left, rect.right, width);

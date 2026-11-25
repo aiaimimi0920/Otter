@@ -1,4 +1,4 @@
-//! 先逐项持久受理再沿原公平stop调度排空；取消只丢未受理项，持久请求可跨实例恢复。
+//! Durably accept entries one by one, then drain through original fair stop scheduling; cancellation drops only unaccepted entries, and durable requests recover across instances.
 use super::*;
 impl Application {
     pub(in crate::desktop) unsafe fn start_projection_stop_group(
@@ -60,7 +60,7 @@ impl Application {
                 .iter_mut()
                 .find(|entry| entry.state == State::Queued)
             {
-                // 仅对固定canonical中的原关联受理；Request/身份已在capture核验，未携带网络授权。
+                // Accept only original associations in the fixed canonical; capture already checked Request/identity, which carries no network authorization.
                 if let Some(request) = entry
                     .request
                     .as_ref()

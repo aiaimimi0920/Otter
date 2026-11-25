@@ -1,4 +1,4 @@
-//! 自有带框窗口的只读映射回归；不发送源输入、不加载 DLL、不移动系统鼠标。
+//! Read-only mapping regression tests on owned framed windows; no source input, DLL loading, or system-mouse movement.
 use super::*;
 use crate::{
     live_input::{Backend as _, Event},
@@ -78,7 +78,7 @@ fn full_capture_and_local_hit_test_share_frame_not_client_coordinates() {
             child
         );
 
-        // 旧远程整窗输入仍按客户区，不随本地普通应用改动协议。
+        // Legacy remote full-window input still uses the client area; local ordinary-application changes must not alter its protocol.
         let mut remote = Backend::new(root.clone(), None).unwrap();
         assert_eq!(
             remote.resolve(Event::Move { point }, None).unwrap().hwnd(),
@@ -97,14 +97,14 @@ fn full_capture_and_local_hit_test_share_frame_not_client_coordinates() {
             mapped.destination_client
         );
 
-        // 整帧角点保留非客户区偏移，不能夹紧/拉伸到客户区或伪造 NC 鼠标消息。
+        // Full-frame corners retain nonclient offsets; no clamping/stretching into the client area or fake NC mouse messages.
         let corner = map_capture(&root, &destination, [0.0; 2], None).unwrap();
         assert_eq!(corner.screen, [bounds.left, bounds.top]);
         assert!(corner.root_client[1] < 0);
         let end = map_capture(&root, &destination, [1.0; 2], None).unwrap();
         assert_eq!(end.screen, [bounds.right - 1, bounds.bottom - 1]);
 
-        // 已选择的局部像素仍使用原裁剪语义，不重复加标题栏偏移。
+        // Selected local pixels retain the original crop semantics without adding the title-bar offset twice.
         let region = Some(FrameRegion {
             left: (screen.x - bounds.left) as u32,
             top: (screen.y - bounds.top) as u32,

@@ -1,4 +1,4 @@
-//! 小图使用固定栈缓冲按当前背景合成；无解码、HBITMAP 或跨帧 DC 所有权。
+//! Thumbnails composite against current background using fixed stack buffers; no decoding, HBITMAP, or cross-frame DC ownership.
 use crate::image_thumbnail::Thumbnail;
 use windows::Win32::{Foundation::RECT, Graphics::Gdi::*};
 
@@ -22,7 +22,7 @@ pub unsafe fn draw(dc: HDC, rect: RECT, thumbnail: &Thumbnail, background: u32) 
     let (width, height) = (rect.right - rect.left - 2, rect.bottom - rect.top - 4);
     draw_fitted(dc, rect, thumbnail, background, width, height, false)
 }
-/// 候选卡片沿主干 object-fit: cover 居中裁切；菜单的小图仍保留完整图像和内边距。
+/// Candidate cards use mainline centered object-fit: cover cropping; menu thumbnails preserve full images/padding.
 pub unsafe fn draw_cover(dc: HDC, rect: RECT, thumbnail: &Thumbnail, background: u32) -> bool {
     draw_fitted(
         dc,

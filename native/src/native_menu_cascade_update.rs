@@ -1,8 +1,8 @@
-//! 异步内容替换保留图库 HWND/滚动位置；旧手势和可访问性节点退休。
+//! Asynchronous content replacement preserves gallery HWND/scroll position while retiring old gestures/accessibility nodes.
 use super::*;
 
 impl Cascade {
-    /// 后台索引完成后更新原根命令；不换 HWND，不复用旧按下手势。
+    /// Update original root commands after background indexing; do not replace HWNDs or reuse old press gestures.
     pub(crate) fn replace_action(
         &mut self,
         index: usize,
@@ -30,7 +30,7 @@ impl Cascade {
         root.pressed = None;
         root.drag = None;
         root.panel.discard_pointer_events();
-        // 同名同槽也可能已是另一个命令，不能接收旧节点排队的 Invoke。
+        // Matching labels/slots may now hold different commands; never accept queued Invoke from old nodes.
         self.refresh_frame(0, true).inspect_err(|_| self.cancel())?;
         self.sync_accessibility();
         Ok(())
@@ -57,7 +57,7 @@ impl Cascade {
     pub fn replace_submenu(&mut self, index: usize, children: Vec<Item>) -> Result<()> {
         self.replace_layout(index, children, false)
     }
-    /// 只改变指定根子菜单的呈现；仍用同一模型、命令和旧手势退休规则。
+    /// Change only the selected root submenu's presentation; retain model, commands, and old-gesture retirement rules.
     pub(crate) fn replace_gallery(&mut self, index: usize, children: Vec<Item>) -> Result<()> {
         self.replace_layout(index, children, true)
     }
@@ -107,7 +107,7 @@ impl Cascade {
         {
             return Err(Error::new(E_INVALIDARG, "Invalid dynamic submenu target"));
         }
-        // 图库只存有界逻辑行，静态菜单继续受原整树预算约束。
+        // Galleries hold only bounded logical rows; static menus retain original whole-tree budgets.
         if gallery {
             if self.galleries.len() >= 3 && !self.galleries.contains_key(&index) {
                 return Err(Error::new(E_INVALIDARG, "Gallery count limit"));
@@ -170,7 +170,7 @@ impl Cascade {
             }
             self.refresh_frame(1, true).inspect_err(|_| self.cancel())?;
             if let Some(view) = self.preview.as_ref() {
-                // 删除导致末页上移时，阅读目标跟随原可见卡位，不沿用旧全库索引。
+                // When deletion shifts the last page upward, reading targets follow original visible card slots, not old whole-library indices.
                 let target = view.index.checked_sub(first).and_then(|slot| {
                     (slot < self.pages[1].visible).then_some(self.pages[1].first + slot)
                 });
@@ -191,7 +191,7 @@ impl Cascade {
             self.sync_accessibility();
         } else if reopen {
             if let Err(error) = self.expand(0, index) {
-                // 窗口重建失败不能让新模型与旧呈现继续响应命令。
+                // Window-recreation failure cannot leave new models and old presentations responding to commands.
                 self.cancel();
                 return Err(error);
             }

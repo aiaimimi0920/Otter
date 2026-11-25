@@ -1,4 +1,4 @@
-//! 托盘工作流只路由已有命令；菜单快照不授权执行，恢复宿主后再次检查可用性。
+//! Tray workflows only route existing commands; menu snapshots authorize nothing, and availability is rechecked after host restoration.
 use super::*;
 use crate::desktop::{
     capture_input, context_menu, open_image, tool_panel_availability::Availability,
@@ -66,7 +66,7 @@ pub(in crate::desktop) fn execute_with(
         return false;
     }
     restore();
-    // 恢复窗口可能重入消息循环；不沿用弹出菜单前的任务/模态状态。
+    // Window restoration may reenter the message loop; never reuse pre-popup task/modal state.
     if ready() {
         run();
     }
@@ -154,7 +154,7 @@ mod tests {
             let state = State::new(None, true).unwrap();
             let menu = Menu(CreatePopupMenu().unwrap());
             append(menu.0, &state).unwrap();
-            // 独立列出主干产品入口，防止误加迁移分支命令或接错命令。
+            // List mainline product entries separately to prevent adding migration-branch commands or wiring incorrect ones.
             let expected = [
                 capture_input::NEW_PIN,
                 capture_input::live::COMMAND,

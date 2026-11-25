@@ -1,4 +1,4 @@
-//! 复用 Session/真实 Worker；无后续输入的异步错误不能被当成正常周期退休。
+//! Reuse Session/real Worker; asynchronous errors without subsequent input must not be treated as normal cycle retirement.
 use super::*;
 use std::sync::atomic::AtomicBool;
 
@@ -95,7 +95,7 @@ fn asynchronous_rejection_marks_session_unavailable_without_new_input_or_replay(
         settle(&mut session, |session| {
             session.input.as_ref().unwrap().outstanding() == 0
         });
-        // 在原周期已撤销/新周期请求尚待恢复时收到真实拒绝，不能按 ControlRevoked 吞掉。
+        // A real rejection while the original cycle is revoked and the new one awaits recovery must not be swallowed as ControlRevoked.
         let window = session.window.as_ref().unwrap();
         window.suspend_source_input();
         window.request_default_input();

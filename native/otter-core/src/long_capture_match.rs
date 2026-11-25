@@ -1,11 +1,11 @@
-//! 精确重叠快速路径：线签名与 KMP 保持线性扫描；最终比较原像素，不信任哈希碰撞。
+//! Exact-overlap fast path: line signatures/KMP keep scans linear; final comparison uses original pixels, never trusting hash collisions.
 use super::{Axis, Error, Frame};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Match {
     Duplicate,
-    /// 当前帧相对前帧的轴向起点偏移，负值表示向上/左扩展。
+    /// Current-frame axial-origin offset relative to previous frame; negative means upward/leftward extension.
     Offset(i64),
     Ambiguous,
     NoOverlap,
@@ -27,7 +27,7 @@ fn length(frame: &Frame, axis: Axis) -> usize {
 fn signatures(frame: &Frame, axis: Axis, cancel: &AtomicBool) -> Result<Vec<u64>, Error> {
     let mut result = vec![0xcbf29ce484222325u64; length(frame, axis)];
     let stride = frame.width as usize * 4;
-    // 两个轴都顺序读取物理行；横向累计各列签名，保留每列原有的字节顺序。
+    // Both axes read physical rows sequentially; horizontal processing accumulates column signatures while preserving each column's byte order.
     for (y, row) in frame.pixels.chunks_exact(stride).enumerate() {
         check(cancel)?;
         match axis {
@@ -49,7 +49,7 @@ fn signatures(frame: &Frame, axis: Axis, cancel: &AtomicBool) -> Result<Vec<u64>
     }
     Ok(result)
 }
-// 返回所有满足下限的后缀/前缀重叠；只保留两个即可证明歧义，避免候选平方增长。
+// Return suffix/prefix overlaps meeting minimums; two suffice to prove ambiguity, avoiding quadratic candidate growth.
 fn overlaps(text: &[u64], pattern: &[u64], minimum: usize) -> Vec<usize> {
     let mut prefix = vec![0; pattern.len()];
     for index in 1..pattern.len() {
@@ -92,7 +92,7 @@ fn equal_region(
         Axis::Vertical => (start_a * stride, start_b * stride, length, stride),
         Axis::Horizontal => (start_a * 4, start_b * 4, a.height as usize, length * 4),
     };
-    // BGRA 按行连续；整段比较让标准切片比较处理批量字节，避免逐像素索引和跨行读取。
+    // BGRA is row-contiguous; whole-span slice comparisons process bulk bytes without per-pixel indexing/cross-row reads.
     for row in 0..rows {
         check(cancel)?;
         let a_start = offset_a + row * stride;
@@ -104,8 +104,8 @@ fn equal_region(
     Ok(true)
 }
 
-/// 等尺寸截图的精确平移识别。低纹理/周期内容不猜测；近似匹配与固定栏需独立分析。
-/// 签名不持久缓存，每次内存上界由帧轴上限约束（小于 1 MiB），没有像素副本。
+/// Exact translation detection for equal-sized captures. Never guess low-texture/periodic content; approximate matches/fixed bars need separate analysis.
+/// No persistent signature cache; frame-axis limits bound each allocation below 1 MiB, without pixel copies.
 pub fn match_exact(
     previous: &Frame,
     current: &Frame,

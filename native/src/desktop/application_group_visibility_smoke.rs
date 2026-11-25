@@ -1,4 +1,4 @@
-//! 分组隐藏恢复链注入托盘安装/显示适配器，不注册系统通知图标或抢占前景窗口。
+//! Group hide/restore flow injects tray-install/display adapters, without registering system notification icons or taking foreground focus.
 use super::*;
 use crate::desktop::{
     group_menu::{self, Request},

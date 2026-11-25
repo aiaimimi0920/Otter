@@ -1,4 +1,4 @@
-//! 文件参数只排队路径和配置凭证；系统文件框中不借用参数，不执行读取。
+//! File parameters enqueue only paths/configuration evidence; system file dialogs neither borrow parameters nor read files.
 use super::{configuration_stamp::Stamp, State};
 use std::{path::PathBuf, sync::Arc};
 use windows::{
@@ -22,7 +22,7 @@ pub(super) struct Request {
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Outcome {
-    /// 请求已接纳；文件内容仍由原worker读取，不表示正式参数已提交。
+    /// The request is admitted; original workers still read content, so this does not mean official parameter commit.
     Accepted,
     Cancelled,
     Rejected,
@@ -165,7 +165,7 @@ unsafe fn finish_choice(
     request: Option<Request>,
     owner_current: &dyn Fn() -> bool,
 ) -> Result<Outcome> {
-    // 取消不是准入失败，且不得伪造请求、配置变化或提交凭证。
+    // Cancellation is not admission failure and must not fabricate requests, configuration changes, or commit evidence.
     let Some(request) = request else {
         return Ok(Outcome::Cancelled);
     };

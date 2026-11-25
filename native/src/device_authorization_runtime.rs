@@ -1,4 +1,4 @@
-//! 设备授权后台任务 owner：有界任务数、取消、完成句柄和非阻塞结果回收。
+//! Device-authorization background task owner: bounded task count, cancellation, completion handles, and nonblocking result reclamation.
 use crate::{
     device_approval, device_identity_store::Store, device_pairing, device_request_cancel::Cancel,
     device_session_attempt::Session, device_session_client::Client,
@@ -36,7 +36,7 @@ impl Drop for Slot {
     }
 }
 
-/// 分开显式配对、首次批准等待和续签，禁止续签失败后偷偷改为重新配对。
+/// Separate explicit pairing, first-approval waits, and renewal; never silently re-pair after renewal failure.
 pub enum Task {
     ClearOffline {
         config: crate::device_authorization_config::Config,
@@ -69,7 +69,7 @@ impl Task {
         }
     }
 }
-// 包含凭据的结果不实现 Debug/Clone/Serialize。
+// Credential-bearing results do not implement Debug/Clone/Serialize.
 pub enum Output {
     OfflineCleared,
     Pairing { device: String, changed: bool },
@@ -88,7 +88,7 @@ pub enum Error {
 pub struct Runtime {
     cancel: Arc<Cancel>,
     thread: Option<JoinHandle<Result<Output, Error>>>,
-    // 完成但未回收的 token/线程句柄也占用名额，不允许无限堆积已完成任务。
+    // Completed but unreaped tokens/thread handles still occupy slots, preventing unbounded completed-task accumulation.
     slot: Option<Slot>,
 }
 struct Clear(Arc<Cancel>);
@@ -131,7 +131,7 @@ impl Runtime {
         }
         let result = self.thread.take()?.join().unwrap_or(Err(Error::Panicked));
         self.slot.take();
-        // 即使后台已成功返回，关闭/替换任务后也不能交出旧凭据；被丢弃 token 会清零。
+        // Even after background success, closed/replaced tasks cannot deliver old credentials; discarded tokens are zeroized.
         if self.cancel.is_stopped() {
             Some(Err(Error::Stopped))
         } else {
@@ -142,14 +142,14 @@ impl Runtime {
 impl Drop for Runtime {
     fn drop(&mut self) {
         self.request_stop();
-        // 正常 UI 路径必须等待完成句柄并 try_join；Drop 只是防孤儿线程的阻塞兜底。
+        // The normal UI path must wait for completion handles and try_join; Drop is only a blocking orphan-thread safeguard.
         if let Some(thread) = self.thread.take() {
             let _ = thread.join();
         }
     }
 }
 fn run(task: Task, cancel: &Cancel) -> Result<Output, Error> {
-    // 明确减权不同于可取消的联网请求：关闭只丢弃回执，不能取消已经接受的持久清除意图。
+    // Explicit privilege reduction differs from cancellable network requests: close discards receipts but cannot cancel accepted persistent-clear intent.
     if let Task::ClearOffline { config } = task {
         config.clear_offline().map_err(Error::Preparation)?;
         return Ok(Output::OfflineCleared);

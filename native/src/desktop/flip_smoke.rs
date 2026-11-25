@@ -1,4 +1,4 @@
-//! 隐藏窗口翻转链路验证：真实定时器消息、像素、撤销及 Esc；不注入系统输入。
+//! Hidden-window flip-chain verification: real timer messages, pixels, undo, and Esc, without system input injection.
 use super::{flip_input, State};
 use crate::{erase_layers::Layers, raster_flip::Axis};
 use windows::Win32::UI::Input::KeyboardAndMouse::{
@@ -9,7 +9,7 @@ use windows::{
     Win32::{Foundation::*, UI::WindowsAndMessaging::*},
 };
 
-// 仅改变当前测试线程的输入状态表，不产生系统输入；任何提前返回均恢复原表。
+// Change only this test thread's input-state table, producing no system input; restore the original table on every early return.
 struct KeyboardState([u8; 256]);
 impl KeyboardState {
     unsafe fn control(down: bool) -> Result<Self> {
@@ -50,7 +50,7 @@ unsafe fn finish(hwnd: HWND, state: &State) -> Result<()> {
             "Flip smoke window destroyed",
         )?;
         let mut message = MSG::default();
-        // 只处理本窗口消息，避免消费调用线程的退出消息或其他窗口输入。
+        // Process only this window's messages, avoiding caller-thread quit messages or other-window input.
         while PeekMessageW(&mut message, Some(hwnd), 0, 0, PM_REMOVE).as_bool() {
             let _ = TranslateMessage(&message);
             DispatchMessageW(&message);
@@ -67,7 +67,7 @@ fn mirrored(source: &Layers, actual: &Layers, axis: Axis) -> bool {
         return false;
     }
     let (width, height) = source.size;
-    // 独立坐标公式，不用被测翻转函数生成预期值。
+    // Independent coordinate formulas, without generating expectations through the flip function under test.
     let check = |before: &[u8], after: &[u8]| {
         if before.len() != after.len() {
             return false;

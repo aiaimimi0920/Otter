@@ -1,4 +1,4 @@
-// Unitless 继承保留乘数；每次节点字号变化都由原 native 测量 owner 重新解析。
+// Unitless inheritance preserves multipliers; the original native-measurement owner resolves again whenever a node's font size changes.
 let text, report;
 const read = () => {
   const before = text.getBoundingClientRect().height;

@@ -1,4 +1,4 @@
-//! 裁剪只影响回收数组；无变化、时间/数量顺序、取消与原文边界。
+//! Pruning affects only the recycle array; unchanged results, time/count ordering, cancellation, and source-content boundaries.
 use super::*;
 fn input() -> Vec<u8> {
     let entries: Vec<_> = ["1970-01-01T00:00:00Z", "legacy", "1970-01-02T00:00:00Z", "1970-01-03T00:00:00Z"]

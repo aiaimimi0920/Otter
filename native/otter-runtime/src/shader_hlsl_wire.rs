@@ -1,4 +1,4 @@
-//! 新 HLSL 私有 v1 帧，不复用含 ANGLE bundle/GLSL 的 OSQ1；逐项计费和流式传输。
+//! New private HLSL v1 frames, without reusing OSQ1 containing ANGLE bundles/GLSL; per-item accounting and streaming transfer.
 use super::*;
 use std::io::{self, Read, Write};
 #[path = "shader_hlsl_wire_request.rs"]

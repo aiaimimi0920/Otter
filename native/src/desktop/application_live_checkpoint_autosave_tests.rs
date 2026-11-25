@@ -1,4 +1,4 @@
-//! 显式文件自动保存与 Live 首帧/流变化/忙手势；不改变手动 dirty 或开关授权。
+//! Explicit-file autosave and Live first-frame/stream changes/busy gestures; preserve manual dirty semantics and toggle authorization.
 use super::*;
 #[test]
 fn file_autosave_waits_for_first_frame_then_saves_only_model_changes() {
@@ -19,7 +19,7 @@ fn file_autosave_waits_for_first_frame_then_saves_only_model_changes() {
         tick(&mut app);
         assert_eq!(save_snapshot::live_frame_reads_for_test() - reads, 1);
         assert!(app.automatic_save_pending());
-        // worker 已捕获红帧；在交付前流变绿不能改变本次候选/基线。
+        // The worker captured a red frame; the stream turning green before delivery must not change this candidate/baseline.
         source.publish([0, 255, 0, 255]);
         ready(&app);
         settle_auto(&mut app);
@@ -84,7 +84,7 @@ fn inflight_move_and_busy_live_gesture_expire_normally_then_save_the_latest_fram
             assert!(app.automatic_save_pending());
             assert_eq!(save_snapshot::live_frame_reads_for_test() - reads, 1);
             ready(&app);
-            // 只改线程键盘快照，驱动自有隐藏 HWND 的真实拖动，不注入全局输入。
+            // Change only the thread keyboard snapshot to drive real dragging of owned hidden HWNDs; no global input injection.
             crate::desktop::composition::live::window::local::tests::with_keys(
                 &[windows::Win32::UI::Input::KeyboardAndMouse::VK_MENU],
                 || {

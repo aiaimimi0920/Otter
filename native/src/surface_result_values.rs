@@ -1,4 +1,4 @@
-//! Surface 正式输出到节点值：描述符仍是数据，不能套用 Loom 图片/共享内存解码器。
+//! Surface committed outputs to node values: descriptors remain data and must not use Loom image/shared-memory decoders.
 use super::*;
 pub(super) fn output_values(
     raw: &RawValue,
@@ -7,7 +7,7 @@ pub(super) fn output_values(
         return Err(Error::Limit);
     }
     let wire: Wire<'_> = serde_json::from_str(raw.get()).map_err(|_| Error::Protocol)?;
-    // 重用端口身份/类型/数量规则，不能用 Value 的 map 解码掩盖重复端口。
+    // Reuse port identity/type/count rules; Value map decoding must not hide duplicate ports.
     let ports = crate::surface_result_ports::parse(wire.outputs)?;
     let raw_ports: std::collections::HashMap<String, &RawValue> =
         serde_json::from_str(wire.outputs.get()).map_err(|_| Error::Protocol)?;
@@ -17,7 +17,7 @@ pub(super) fn output_values(
             crate::surface_result_ports::Value::Value { value } => {
                 serde_json::from_str(value.get()).map_err(|_| Error::Protocol)?
             }
-            // 保留原描述符未知字段，与前端写入 resource/stream 对象的行为一致。
+            // Preserve unknown fields in original descriptors, matching frontend writes of resource/stream objects.
             crate::surface_result_ports::Value::Resource { .. }
             | crate::surface_result_ports::Value::Stream { .. } => {
                 let mut value: serde_json::Value =

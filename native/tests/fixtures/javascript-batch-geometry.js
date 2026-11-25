@@ -1,4 +1,4 @@
-// 与既有 FIFO 夹具同协议，额外把每次真实同步客户区/DPI 读取呈现在文字中。
+// Retain the existing FIFO fixture protocol, additionally displaying each actual synchronous client-area/DPI read as text.
 let label, host, spatialButton, current, count = 0;
 function paintGeometryLabel() {
   spatialButton.style.left = (8 + count * 4) + "px";

@@ -1,5 +1,5 @@
-//! 真 JS child → DOM → DirectWrite/D2D HWND → 原生点击候选 → JS emit → 新快照 → 关闭。
-//! 自有隐藏窗口和定向消息，不抢前台/全局输入；不是用户可见产品或真实 Loom 验收。
+//! Actual JS child -> DOM -> DirectWrite/D2D HWND -> native click candidate -> JS emit -> new snapshot -> close.
+//! Owned hidden windows and targeted messages, without foreground stealing/global input; not user-visible product or actual Loom acceptance.
 use super::super::*;
 use crate::surface_javascript::{fixture, Session};
 #[path = "surface_window_javascript_animation_tests.rs"]
@@ -122,7 +122,7 @@ impl SurfaceWindow {
     pub(crate) fn javascript_apartment_for_test() -> impl Drop {
         super::super::super::Apartment::new().unwrap()
     }
-    // 只用于本地/授权 HTTPS 两个真 child 夹具；不扩大产品 HWND/点击 API 的可见性。
+    // Only for the local/authorized-HTTPS actual-child fixtures; do not broaden production HWND/click API visibility.
     pub(crate) fn javascript_paint_click_for_test(
         &self,
         button: &str,
@@ -142,7 +142,7 @@ impl SurfaceWindow {
             .is_empty());
         target
     }
-    /// 不开权限、不消费候选；Application 必须自己完成 sync_input/listener/batch 排程。
+    /// Grant no permission or consume candidates; Application must schedule sync_input/listener/batch itself.
     pub(crate) fn javascript_queue_click_for_test(&self, button: &str) {
         assert!(self.pointer_enabled());
         unsafe {

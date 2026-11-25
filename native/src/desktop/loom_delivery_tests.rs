@@ -1,4 +1,4 @@
-//! 交付失败、取消和释放重试均保留租约；控制回调注入，不访问真实服务。
+//! Delivery failures, cancellation, and release retries preserve leases; injected control callbacks, without real services.
 use super::*;
 use serde_json::json;
 fn id(value: &str) -> UnitId {

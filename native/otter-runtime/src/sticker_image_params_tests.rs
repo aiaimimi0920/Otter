@@ -1,4 +1,4 @@
-//! 大图例外只属于image_path；未知参数、Art和整会话预算不被扩张。
+//! The large-image exception belongs only to image_path; unknown parameters, Art, and whole-session budgets are not expanded.
 use super::*;
 use serde_json::json;
 fn read_value(value: Value) -> Result<Map<String, Value>, &'static str> {

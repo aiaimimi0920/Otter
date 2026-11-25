@@ -1,4 +1,4 @@
-//! 模型边界、独立wire oracle及六操作相关性；不以编码自身生成成功预期。
+//! Model boundaries, independent wire oracle, and six-operation correlation; encoding itself never generates success expectations.
 use super::{fixture::*, *};
 use serde_json::{json, Value};
 fn parse(v: &Value) -> Result<Document, Error> {

@@ -1,5 +1,5 @@
-//! UI 的非阻塞 JS owner：一个未消费操作占一个槽；完成回复和线程终态分别唤醒。
-//! 正常关闭须等待 take_exit 再移除 owner；Drop 只作为最终防泄漏兜底。
+//! Nonblocking JS owner for UI: each unconsumed operation occupies one slot; completed replies and thread termination wake separately.
+//! Normal closure waits for take_exit before removing the owner; Drop is only the final leak-prevention fallback.
 use super::{
     prepare::{prepare, Connection},
     *,
@@ -80,7 +80,7 @@ impl Runtime {
                     worker::run(connection, task.clone(), current, viewport, &mailbox)
                 }))
                 .unwrap_or(Err(Error::Panicked));
-                // 线程完成之前 Mounted/child 已回收；失效回复不得被 UI 当成可交付结果。
+                // Mounted/child are reaped before thread completion; the UI must not treat invalid replies as deliverable results.
                 task.revoke();
                 result
             })?;
@@ -120,8 +120,8 @@ impl Runtime {
     pub(crate) fn wait_reply_for_test(&mut self) -> Result<(), Error> {
         use std::os::windows::io::AsRawHandle;
         use windows::Win32::{Foundation::*, System::Threading::WaitForMultipleObjects};
-        // 成功回复不是终态通知。错误退出也必须唤醒测试，并保留原错误而非等满八秒。
-        // 线程在前：同时就绪时与生产 settle_javascript 一样，终态优先且不接纳旧回复。
+        // Successful replies are not termination notifications. Error exits must also wake tests and preserve original errors rather than waiting eight seconds.
+        // Thread first: when both are ready, termination wins as in production settle_javascript, and stale replies are rejected.
         let handles: Vec<_> = self
             .wait_handles()
             .map(|h| HANDLE(h.as_raw_handle()))
@@ -139,11 +139,11 @@ impl Runtime {
             _ => Err(Error::Execution(io::ErrorKind::Other)),
         }
     }
-    /// 只排入当前快照的生命周期同步，不执行 JS/HTTP，也不等待后台。
+    /// Queue only lifecycle synchronization for the current snapshot; no JS/HTTP execution or background waiting.
     pub fn rebind(&mut self, current: MountedSurface) -> io::Result<()> {
         self.submit(current, Operation::Rebind)
     }
-    /// HWND 已验证的目标进入同一后台 owner；不在 UI 执行 listener。
+    /// HWND-verified targets enter the same background owner; listeners never execute in the UI.
     pub fn click(
         &mut self,
         current: MountedSurface,
@@ -156,7 +156,7 @@ impl Runtime {
         viewport.validate().map_err(io::Error::other)?;
         self.submit(current, Operation::Click(target, viewport))
     }
-    /// 收敛快照仍经原入口/租约验证；同 child 执行，不重取或重建脚本。
+    /// Convergence snapshots still pass original entry/lease validation; execute in the same child without refetching or rebuilding scripts.
     pub fn update(
         &mut self,
         current: MountedSurface,
@@ -207,7 +207,7 @@ impl Runtime {
         viewport.validate().map_err(io::Error::other)?;
         self.submit(current, Operation::TimerTick(viewport))
     }
-    /// 初始帧/ACK 完成仍须核对原 Grant 与 UI 当前快照，不能跨代际或过期交付。
+    /// Initial frame/ACK completion still requires checking the original Grant and current UI snapshot; no cross-generation or expired delivery.
     pub fn take_reply(
         &mut self,
         destination: &Lease,

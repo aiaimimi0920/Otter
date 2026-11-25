@@ -1,4 +1,4 @@
-//! 原 Job 准备回调的确定性失败/晚撤权/四槽交接；不把 worker 退出当意图已经清理。
+//! Deterministic preparation-callback failure/late revocation/four-slot handoff for original Jobs; worker exit does not mean intent cleanup.
 use super::*;
 fn configured(
     client: &Client,
@@ -144,7 +144,7 @@ fn sender_ui_join_never_rereads_outbox_but_later_validation_still_requires_basel
             start(&client, &mut grant, request)
         };
         wait(&job);
-        // 内容未变，worker 已退出；独占句柄确定性阻断任何 join-time 基线重读。
+        // Content is unchanged and worker exited; exclusive handles deterministically block any join-time baseline reread.
         let exclusive = std::fs::OpenOptions::new()
             .read(true)
             .share_mode(0)
@@ -155,7 +155,7 @@ fn sender_ui_join_never_rereads_outbox_but_later_validation_still_requires_basel
         };
         let current = grant.lease(client.origin(), 0).unwrap();
         assert!(ready.authorized(&current, 0));
-        // Ready 元数据不是后续网络许可；完整校验仍须后台读原基线。
+        // Ready metadata is not later network permission; full validation still reads original baselines in background.
         assert!(ready.validate(&current, 0).is_err());
         drop(exclusive);
         assert!(ready.validate(&current, 0).is_ok());

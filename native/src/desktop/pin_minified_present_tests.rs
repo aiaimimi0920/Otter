@@ -1,4 +1,4 @@
-//! 双击形态切换在几何变更时已有完整代理且宿主被遮罩，返回前恢复原后端。
+//! Double-click form changes already have a complete proxy and masked host at geometry changes; restore the original backend before returning.
 use super::*;
 use std::cell::Cell;
 use windows::Win32::{Graphics::Gdi::*, UI::Shell::*};

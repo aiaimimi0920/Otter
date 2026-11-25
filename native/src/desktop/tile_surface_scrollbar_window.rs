@@ -1,4 +1,4 @@
-//! 单槽本地滚动条捕获；复用Surface Repeat，Win32前移出owner，旧同步回调不能回挂新手势。
+//! Single-slot local scrollbar capture; reuse Surface Repeat and move owners out before Win32, so old synchronous callbacks cannot reattach new gestures.
 use super::*;
 use crate::{desktop::surface_scroll_repeat::Repeat, tile_surface_scrollbar::Field};
 use std::rc::Rc;
@@ -262,7 +262,7 @@ pub(super) unsafe fn message(hwnd: HWND, state: &State, msg: u32, wp: WPARAM, lp
     };
     match result {
         Ok(handled) => handled,
-        // begin/drive只退休自身token；同步paint中接管的successor不能被外层错误清理。
+        // begin/drive retire only their own tokens; outer error cleanup must not remove successors installed during synchronous paint.
         Err(error) => {
             state.shared.lock().actions.notice = "Art滚动条未完成";
             #[cfg(test)]

@@ -1,5 +1,5 @@
-# Nextest 配置：每个测试独立子进程执行（根除进程内 SERIAL 锁 PoisonError 连带失败），
-# 纯算法/协议测试 6 并发，桌面窗口/剪贴板/捕获/Live 焦点交互归入串行组防全局句柄争用。
+# Run each test in a separate process to prevent cascaded PoisonError failures from in-process SERIAL locks.
+# Run six pure algorithm/protocol tests concurrently; serialize desktop-window/clipboard/capture/Live focus tests to avoid global-handle contention.
 
 [profile.default]
 test-threads = 6
@@ -16,7 +16,7 @@ filter = 'package(otter-native) or binary(integration) or test(/clipboard|captur
 test-group = 'win32-serial'
 
 [profile.headless]
-# 锁屏 / UAC / 无交互桌面（OpenInputDesktop 返回 SecureDesktop）时排除交互式输入焦点测试。
+# Exclude interactive input-focus tests on a locked/UAC/noninteractive desktop when OpenInputDesktop returns SecureDesktop.
 test-threads = 6
 fail-fast = false
 slow-timeout = { period = "30s", terminate-after = 3 }

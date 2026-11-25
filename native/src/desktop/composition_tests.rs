@@ -1,4 +1,4 @@
-//! 读回仅用于测试：证明交换链存储真实预乘 alpha，并覆盖 ResizeBuffers 的引用释放。
+//! Readback is test-only: prove swap chains store real premultiplied alpha and cover reference release for ResizeBuffers.
 use super::super::{Apartment, Window};
 use super::*;
 use windows::{

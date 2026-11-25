@@ -1,4 +1,4 @@
-//! 只读恢复会话中的效果框；身份匹配不依赖 JSON 顺序，不从笔迹重新猜测几何。
+//! Read-only effect frames from restored sessions; identity matching does not depend on JSON order or re-infer geometry from strokes.
 use super::*;
 use serde::Deserialize;
 use serde_json::value::RawValue;

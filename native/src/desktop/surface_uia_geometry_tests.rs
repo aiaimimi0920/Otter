@@ -1,4 +1,4 @@
-//! 根点命中与子节点几何经真实 COM vtable 接入实时窗口桥接。
+//! Root-point hits and child geometry connect to live window bridges through actual COM vtables.
 use super::*;
 use windows::{core::Interface, Win32::UI::WindowsAndMessaging::*};
 

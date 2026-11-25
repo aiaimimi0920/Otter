@@ -1,4 +1,4 @@
-//! 随机命名、单实例、本机 duplex 管道；两端均由当前进程创建，客户端可显式交给子进程。
+//! Randomly named, single-instance local duplex pipe; both ends are created by the current process, and the client can be explicitly handed to a child.
 use super::*;
 use windows::{
     core::PCWSTR,

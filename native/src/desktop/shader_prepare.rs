@@ -1,4 +1,4 @@
-//! 在既有执行 worker 中从同份准备输入与正式取码结果构造纹理；不创建线程、队列或临时文件。
+//! Build textures from the same prepared inputs and official code-fetch results in the existing execution worker; no new threads, queues, or temporary files.
 pub use super::shader_payload::Error;
 use super::{
     loom_input_job::PreparedBatch, shader_native_invocation, shader_payload::Payload, Apartment,
@@ -23,7 +23,7 @@ pub struct Runtime {
     textures: std::collections::BTreeMap<String, String>,
     prepared_textures: Vec<String>,
 }
-/// 无 bundle 为原生 Auto；显式旧 bundle 仅由可信本地安装 owner 提供，不按运行失败回退。
+/// No bundle means native Auto; only a trusted local-installation owner supplies explicit legacy bundles, never as runtime-failure fallback.
 pub struct Installation {
     pub bundle: Option<Arc<TrustedBundle>>,
     pub backend: Backend,
@@ -56,8 +56,8 @@ impl Installation {
             bindings.uniforms,
         )?;
         runtime.textures = bindings.textures;
-        // 同名公共图片参数走原图输入准备 owner；连接图优先于参数内联图和响应初值。
-        // 未声明名称也必须由应用显式捕获 Unit 来源；reference/主图不提升为辅助纹理。
+        // Same-named public image parameters use the original-image input owner; connected images outrank parameter inline images and response defaults.
+        // Even undeclared names require application-captured Unit sources; reference/main images are not promoted to auxiliary textures.
         runtime.prepared_textures = bindings.prepared;
         runtime.reference_port = capability.shader_requires_reference().then(|| {
             capability
@@ -74,8 +74,8 @@ impl Runtime {
         target: &crate::workspace_id::UnitId,
         selection: &crate::workspace_id::UnitId,
     ) {
-        // Selection.identity 在新建/恢复/重绑时更新；前缀长度消除任意旧 UnitId 的拼接歧义。
-        // 不用 Art ID 作 node scope，也不让合法长 Art ID 承担会话键的长度限制。
+        // Update Selection.identity on creation/restore/rebinding; prefix lengths eliminate concatenation ambiguity for arbitrary legacy UnitIds.
+        // Do not use Art IDs as node scope or impose session-key length limits on valid long Art IDs.
         self.scope_id = Some(format!(
             "{}:{}{}",
             target.as_str().len(),
@@ -83,7 +83,7 @@ impl Runtime {
             selection.as_str()
         ));
     }
-    /// Some(bundle) 必须由可信安装 owner 提供；None 只使用原生 Auto，不读取 Art 的 DLL 路径。
+    /// Some(bundle) must come from a trusted installation owner; None uses only native Auto and never reads Art DLL paths.
     pub fn new(
         bundle: Option<Arc<TrustedBundle>>,
         backend: Backend,
@@ -199,7 +199,7 @@ impl Runtime {
             .iter()
             .map(|(name, value)| (name.as_str(), value.as_str()))
             .collect();
-        // 单次快照按旧参数覆盖优先级安装，避免两个异步 texture load 的完成顺序竞争。
+        // Install one snapshot using legacy parameter-override precedence, avoiding completion-order races between two asynchronous texture loads.
         for (name, uri) in &self.textures {
             response_textures.insert(name, uri);
         }

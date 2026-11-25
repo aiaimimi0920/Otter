@@ -1,4 +1,4 @@
-//! 已呈现的离散值动作；只读声明值，不创建文本草稿或伪造普通Surface挂载。
+//! Presented discrete-value actions read declared values only, without text drafts or fabricated ordinary Surface mounts.
 use crate::{
     surface_input_event::{Phase, Value},
     surface_presentation::Presentation,
@@ -48,7 +48,7 @@ pub(crate) fn hit(
         Kind::Select => Control::Select(crate::surface_select::Options::parse(current).ok()?),
         _ => return None,
     };
-    // 同普通Switch，祖先click属于激活边沿，先于change；Select子控件不合成click。
+    // As with ordinary Switch, ancestor clicks belong to the activation edge before change; Select child controls synthesize no clicks.
     let prefix = if current.kind() == Kind::Switch {
         crate::tile_surface_click::prepare(frame, art, p, pixel, modifiers).ok()?
     } else {
@@ -115,7 +115,7 @@ impl Field {
         )
         .map_err(|_| "Art字段编码失败")?;
         let Some((_, bytes)) = encoded else {
-            // 无change仍保Switch激活边沿的祖先click，不伪造值动作。
+            // Without change, retain ancestor clicks on the Switch activation edge without fabricating value actions.
             return Ok(self.prefix);
         };
         let event = serde_json::from_slice(&bytes).map_err(|_| "Art字段编码失败")?;
@@ -144,7 +144,7 @@ impl Field {
         Ok(self.prefix)
     }
 }
-/// 新鲜Presentation重新核真实节点/选项/动作；不能把任意JSON改投change。
+/// Fresh Presentation rechecks actual nodes/options/actions; arbitrary JSON cannot be redirected into change.
 pub(crate) fn validates(p: &Presentation, point: [f32; 2], event: &serde_json::Value) -> bool {
     let Some(id) = event["nodeId"]
         .as_str()

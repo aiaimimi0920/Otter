@@ -1,4 +1,4 @@
-//! 独立固定值oracle；失败候选不commit、两样本/心跳/丢失/恢复与容量。
+//! Independent fixed-value oracle; failed candidates do not commit, covering two-sample stabilization/heartbeats/loss/recovery/capacity.
 use super::*;
 fn sample(value: &str) -> Sample {
     let mut sample = root_error("unused");

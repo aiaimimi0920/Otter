@@ -1,4 +1,4 @@
-//! 只验证信号与清理协议，不注册真实系统剪贴板监听。
+//! Verify only signaling/cleanup protocols, without registering real system-clipboard listeners.
 use super::*;
 use std::sync::Mutex;
 use windows::{core::Error, Win32::Foundation::E_FAIL};

@@ -1,4 +1,4 @@
-//! 同一真实 child 的原生点击回传、软背压和宿主撤销；只显示自有屏外非激活窗口。
+//! Native click round-trips, soft backpressure, and host revocation for the same real child; show only owned offscreen nonactivating windows.
 use super::*;
 #[test]
 fn timer_replies_preserve_unconsumed_animation_deadline() {
@@ -12,7 +12,7 @@ fn timer_replies_preserve_unconsumed_animation_deadline() {
         assert_eq!(input.animation, Some(original));
         assert_eq!(input.timer, Some(now + Duration::from_millis(1)));
     }
-    // 已派发的 rAF 可以重新预约；取消请求和停止必须清空排程。
+    // Dispatched rAF may be rescheduled; cancellation requests and stopping must clear the schedule.
     input.animation = None;
     let next = start + Duration::from_millis(40);
     input.schedule_at(next, true, None, false);
@@ -88,7 +88,7 @@ fn host_revocation_discards_queued_native_click_without_replaying_it() {
     let window = owner.window.as_ref().unwrap();
     window.javascript_queue_click_for_test(&window.javascript_first_button_for_test());
     owner.poll(|| false, true).unwrap();
-    // poll 可能已经领取后台终态，此时线程句柄已关闭，不再等待空句柄集。
+    // poll may already have collected background terminal state and closed thread handles; do not wait on an empty handle set.
     if !owner.finished() {
         wait(&owner, 0);
     }

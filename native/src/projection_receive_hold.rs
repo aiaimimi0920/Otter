@@ -1,4 +1,4 @@
-//! 跨后台准备/追加/checkpoint 保留原 Grant、共享容量与同 intent 移动许可；不是落盘或显示证明。
+//! Retain original Grant/shared capacity/same-intent movable permits across background preparation/append/checkpoint; not proof of persistence/display.
 use super::{Error, Lease, Slot};
 use crate::projection_delivery::journal::Ticket;
 use std::sync::Arc;
@@ -16,7 +16,7 @@ impl Hold {
     pub(crate) fn cleanup_ticket(&self) -> Option<Ticket> {
         self.fresh.then(|| self.intent.retry())
     }
-    /// 实际保存后放弃自动补偿；索引未知可保守降级，不因此授予 durable 或显示证明。
+    /// Relinquish automatic compensation after actual saving; unknown indexes may conservatively downgrade without granting durable/display proof.
     pub(crate) fn stabilize(&mut self) {
         self.fresh = false;
     }

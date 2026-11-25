@@ -1,4 +1,4 @@
-//! 单贴纸追加的共同窗口事务；冻结库与投送共享唯一发布 owner，不替换现有工作区。
+//! Shared window transaction for single-sticker append; frozen libraries and delivery share one publication owner without replacing the existing workspace.
 use super::*;
 use crate::session_source::Source;
 pub(in crate::desktop::application) struct Append {
@@ -80,7 +80,7 @@ impl Application {
         if visible {
             append.windows.documents[0].observe_priority()?;
         }
-        // 系统监听安装可能重入；最终复核后不调用 Win32、不派发消息，原文和窗口一起接管。
+        // Installing system listeners may reenter; after final validation, call no Win32 APIs or dispatch messages, and take over source content and windows together.
         if !valid(self) {
             return Err(Error::new(E_ABORT, "Append changed during publication"));
         }

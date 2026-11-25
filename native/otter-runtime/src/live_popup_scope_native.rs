@@ -1,4 +1,4 @@
-//! 将已持有 Scope 展平为最多四段原始来源；不 bind HWND 或刷新 lease/父控制周期。
+//! Flatten a held Scope into at most four original-source segments; do not bind HWNDs or refresh leases/parent control epochs.
 use super::*;
 use otter_live_hover_hook::native_input_scope::{Link, Snapshot};
 
@@ -28,7 +28,7 @@ impl Scope {
                 owner,
                 epoch,
             } => {
-                // bind_descendant 的 child 只可能是 Owned/Leased；父链按原顺序完整保留。
+                // bind_descendant's child can only be Owned/Leased; preserve the entire parent chain in its original order.
                 if control.is_some() {
                     return Err(denied());
                 }

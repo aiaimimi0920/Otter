@@ -1,4 +1,4 @@
-//! 分数强度从选择、连续调节、工作线程到历史和菜单模型的端到端回归。
+//! End-to-end regressions for fractional intensity from selection and continuous adjustment through worker execution, history, and menu models.
 use super::*;
 
 #[test]

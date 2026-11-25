@@ -1,4 +1,4 @@
-//! when 词法边界与主干的字符串转义、ECMAScript 空白及 UTF-16 字符预算一致。
+//! when lexical boundaries match mainline string escapes, ECMAScript whitespace, and UTF-16 character budgets.
 use super::Error;
 #[derive(Debug, PartialEq)]
 pub(super) enum Token {

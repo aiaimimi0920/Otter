@@ -1,4 +1,4 @@
-"""从用户激活的自有窗口，逐项授权 Surface 真前台测试；不主动抢焦点。"""
+"""Authorize Surface real-foreground tests individually from a user-activated owned window, without proactively stealing focus."""
 
 import argparse
 import ctypes as C

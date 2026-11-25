@@ -1,4 +1,4 @@
-//! 经过 Windows 输入路由的滚轮回归；仅在自有 Live 位于指针下时注入一次滚轮。
+//! Wheel regressions through Windows input routing; inject one wheel event only while owned Live is beneath the pointer.
 use super::*;
 use windows::Win32::UI::Input::KeyboardAndMouse::*;
 

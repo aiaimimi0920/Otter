@@ -1,4 +1,4 @@
-//! 同步 SHOW 的实例租约；不改应用 owner，不以同进程/时间接近追认已有窗口。
+//! Synchronous SHOW instance leases; never change application owners or retroactively authorize existing windows by process/time proximity.
 use crate::{native_dispatch, native_protocol as protocol, scope};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use windows::{
@@ -80,14 +80,14 @@ impl Lease {
         Self::read(self.popup) == Some(self)
     }
 
-    /// 仅供撤销后的状态恢复；此检查不授予输入权限，不要求 B 的控制 epoch 仍有效。
+    /// Only for state restoration after revocation; grants no input permission and does not require B's control epoch to remain valid.
     pub fn same_instance(self) -> bool {
         self.instance != 0 && Self::snapshot(self.popup) == self
     }
 }
 
 fn revoke(popup: HWND) -> bool {
-    // 先撤销输入权限，再恢复层级；恢复失败仍保留实例供重试，但不能在下次 SHOW 复活旧授权。
+    // Revoke input permission before restoring z-order; failure retains instances for retry but cannot revive old authorization on next SHOW.
     let previous = Lease::snapshot(popup);
     if previous.instance != 0 {
         unsafe {
@@ -102,10 +102,10 @@ fn revoke(popup: HWND) -> bool {
         return false;
     }
     if Lease::snapshot(popup) != previous {
-        return true; // 同步恢复重入了销毁/另一显示实例，不能清掉新实例的属性。
+        return true; // Synchronous restoration reentered destruction/another display instance; never clear the new instance's properties.
     }
     unsafe {
-        // 只写本协议属性；不恢复/修改用户应用的窗口样式或 owner。
+        // Write only this protocol's properties; never restore/change user-application styles or owners.
         for key in [
             COMMIT, OWNER, COOKIE, EPOCH, ROOT, REQUEST, PENDING, REVOKED,
         ] {
@@ -116,8 +116,8 @@ fn revoke(popup: HWND) -> bool {
 }
 
 fn shown(popup: HWND) -> windows::core::Result<()> {
-    // 外层定位/层级调用尚未返回，内层 SHOW 不能提交另一代身份。这是预期的
-    // 延后结算，不应将其记录成恢复失败；hide 已负责撤销旧输入资格。
+    // Outer placement/z-order calls have not returned; inner SHOW cannot commit another identity generation. This is expected
+    // deferred settlement, not a restoration failure; hide already revoked old input eligibility.
     if crate::native_popup_layer::mutating(popup) {
         return Ok(());
     }
@@ -125,7 +125,7 @@ fn shown(popup: HWND) -> windows::core::Result<()> {
         return Ok(());
     };
     unsafe {
-        // WINDOWPOSCHANGING 时必须尚不可见；已有可见窗口的普通移动不建立租约。
+        // Must still be invisible at WINDOWPOSCHANGING; ordinary movement of visible windows does not establish leases.
         if protocol::value(popup, PENDING) != request.nonce {
             return Ok(());
         }
@@ -140,9 +140,9 @@ fn shown(popup: HWND) -> windows::core::Result<()> {
             return Ok(());
         }
         if GetWindowLongPtrW(popup, GWLP_HWNDPARENT) != 0 {
-            // Owned 菜单无需 lease，但也会按真实鼠标（B）创建。只处理本次
-            // 同步 SHOW 且真实 owner 链回到原 root 的菜单，防止映射时再次叠加 A-B 偏移。
-            // 先消费 PENDING，定位的同步重入不能对同一次 SHOW 再移动一次。
+            // Owned menus need no lease but may also be created at the real mouse (B). Handle only this
+            // synchronous SHOW whose actual owner chain reaches original root, preventing a second A-B offset during mapping.
+            // Consume PENDING first so placement's synchronous reentry cannot move the same SHOW twice.
             let _ = RemovePropW(popup, PENDING);
             if crate::native_input_scope::owned_by(
                 request.root.0 as usize,
@@ -174,7 +174,7 @@ fn shown(popup: HWND) -> windows::core::Result<()> {
         ] {
             SetPropW(popup, key, Some(HANDLE(value as *mut _)))?;
         }
-        // 提交前再验，取消/新请求不得借迟到 SHOW 恢复租约。
+        // Recheck before commit; cancellation/new requests cannot restore leases through late SHOW.
         if native_dispatch::collecting() == Some(request) {
             SetPropW(popup, COMMIT, Some(HANDLE(instance as *mut _)))?;
             if let Some(lease) = Lease::read(popup) {
@@ -186,7 +186,7 @@ fn shown(popup: HWND) -> windows::core::Result<()> {
 }
 
 /// # Safety
-/// call 来自有效 WH_CALLWNDPROC，WINDOWPOSCHANGING 的 LPARAM 在回调期间有效。
+/// call comes from valid WH_CALLWNDPROC; WINDOWPOSCHANGING LPARAM stays valid during callbacks.
 pub unsafe fn before(call: &CWPSTRUCT) {
     if call.message != WM_WINDOWPOSCHANGING || call.lParam.0 == 0 {
         return;
@@ -205,7 +205,7 @@ pub unsafe fn before(call: &CWPSTRUCT) {
 }
 
 /// # Safety
-/// 非负 code 的 lp 来自 WH_CALLWNDPROCRET，窗口位置消息的 LPARAM 由 Windows 保活。
+/// Nonnegative-code lp comes from WH_CALLWNDPROCRET; Windows retains window-position-message LPARAM.
 #[no_mangle]
 pub unsafe extern "system" fn otter_live_native_return(
     code: i32,

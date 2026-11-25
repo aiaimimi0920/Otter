@@ -1,4 +1,4 @@
-//! 动作结果的身份与容量边界；保留有界原文，不执行 outputs/resource/statePatch。
+//! Action-result identity and capacity boundaries; preserve bounded original content without executing outputs/resource/statePatch.
 use crate::{surface_action_ack::Ack, surface_click_event::ClickEvent};
 use serde::Deserialize;
 use serde_json::value::RawValue;
@@ -31,15 +31,15 @@ impl Commit {
             wire.instance_id == binding.instance() && wire.generation == binding.generation()
         })
     }
-    /// 对齐前端 surfacePortValue：只解包描述符，不解析路径、下载资源或订阅流。
-    /// 返回独立有界值用于节点原子更新；失败不消费原始提交证据。
+    /// Match frontend surfacePortValue: unwrap descriptors only, without parsing paths, downloading resources, or subscribing to streams.
+    /// Return independent bounded values for atomic node updates; failures do not consume original submission evidence.
     pub fn output_values(&self) -> Result<serde_json::Map<String, serde_json::Value>, Error> {
         output_values(&self.raw)
     }
     pub fn revision(&self) -> u64 {
         self.revision
     }
-    /// 原文中的资源引用仍不可信；实际使用时须经过对应资源授权与类型校验。
+    /// Resource references in original content remain untrusted; actual use requires corresponding resource authorization and type validation.
     pub fn json(&self) -> &RawValue {
         &self.raw
     }

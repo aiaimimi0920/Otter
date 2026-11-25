@@ -1,4 +1,4 @@
-//! 局域网分享携带稳定源 Loom ID；接收请求始终发给当前已认证 Loom。
+//! LAN sharing carries stable source Loom IDs; receive requests always target the currently authenticated Loom.
 use super::{envelope, Envelope, Error, Invitation};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use serde::{Deserialize, Serialize};

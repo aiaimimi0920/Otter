@@ -1,4 +1,4 @@
-//! 行内右键恢复/禁用及滚轮分流；subclass 随真实 child 销毁，不保留 State 裸指针。
+//! Inline right-click restore/disable and wheel routing; the subclass dies with its actual child and retains no raw State pointer.
 use super::*;
 use windows::Win32::UI::Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass};
 const SUBCLASS: usize = 0x4f545249;
@@ -88,7 +88,7 @@ unsafe extern "system" fn procedure(
     }
     let parent = GetParent(hwnd).unwrap_or_default();
     if msg == WM_MOUSEWHEEL {
-        // 展开的系统列表自己消费滚轮；其余控件只滚动参数 rail，不意外更改字段。
+        // An open system list consumes its own wheel events; other controls scroll only the parameter rail without accidentally changing fields.
         if SendMessageW(hwnd, CB_GETDROPPEDSTATE, None, None).0 != 1 {
             return SendMessageW(parent, msg, Some(wp), Some(lp));
         }

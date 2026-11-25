@@ -1,4 +1,4 @@
-//! 已测量内容贡献的轨道分配；固定下限不因窄宿主被压扁，fr 只分配剩余空间。
+//! Track allocation from measured content contributions; fixed minima do not collapse in narrow hosts, and fr distributes only remaining space.
 use super::{
     placement::Area,
     tracks::{Bound, Track},
@@ -60,7 +60,7 @@ pub(super) fn distribution(value: Option<&serde_json::Value>) -> Result<(Justify
     })
 }
 fn increase_limited(states: &mut [State], mut active: Vec<usize>, mut amount: f32) {
-    // 每轮至少冻结一个满额轨道；循环不超过轨道数，不按像素迭代。
+    // Each round freezes at least one full track; iterations cannot exceed track count and are not per-pixel.
     while amount > 0.001 && !active.is_empty() {
         let share = amount / active.len() as f32;
         let mut used = 0.;
@@ -138,7 +138,7 @@ pub(super) fn resolve(
             Err(Error::Input)
         };
     }
-    // 尚不实现 indefinite 轴的百分比循环依赖；拒绝而不是当作 auto。
+    // Percentage cycles on indefinite axes are not implemented yet; reject rather than treating them as auto.
     if available.is_none()
         && tracks.iter().any(|t| {
             [t.min, t.max]
@@ -178,7 +178,7 @@ pub(super) fn resolve(
         increase_evenly(span, (contributions[index] - occupied).max(0.), |s| {
             s.intrinsic
         });
-        // auto 上限采用实际内容贡献；固定 minmax 上限不被内容任意抬高。
+        // auto maxima use actual content contributions; content cannot arbitrarily raise fixed minmax maxima.
         let auto = span.iter().filter(|s| s.auto).count();
         if auto != 0 {
             let existing = span.iter().map(|s| s.limit.max(s.base)).sum::<f32>() + gutters;
@@ -270,7 +270,7 @@ pub(super) fn resolve(
     {
         return Err(Error::Input);
     }
-    // 复用无 shrink 的单轴分布，不重复绘制/命中几何。
+    // Reuse single-axis distribution without shrink, rather than duplicating drawing/hit-test geometry.
     let items = states
         .iter()
         .map(|s| flow::Item {
@@ -288,7 +288,7 @@ pub(super) fn resolve(
         distribution.0,
     )
     .map_err(|_| Error::Input)?;
-    // flow 的旧安全对齐会钳制负 free；Grid 的 center/end 则保留两侧溢出。
+    // flow's legacy safe alignment clamps negative free space; Grid center/end preserve overflow on both sides.
     let overflow_offset = match distribution.0 {
         Justify::Center => available.map_or(0., |v| (v - extent).min(0.) / 2.),
         Justify::End => available.map_or(0., |v| (v - extent).min(0.)),

@@ -1,4 +1,4 @@
-//! 用受控 worker 阻塞点验证非阻塞取消，不以机器速度/毫秒阈值断言代替所有权验证。
+//! Verify nonblocking cancellation using controlled worker barriers; ownership evidence, not machine-speed/millisecond thresholds.
 use super::*;
 use std::sync::mpsc;
 
@@ -53,7 +53,7 @@ fn cancelled_worker_keeps_single_owner_without_blocking_input_or_releasing_new_c
         assert_ne!(GetCapture(), fixture.hwnd);
         assert!(dispatch(fixture.hwnd, &state, WM_MOUSEMOVE, WPARAM(0), LPARAM(0)).is_none());
         assert!(start(fixture.hwnd, &state, Ok(fixture.root.clone())).is_err());
-        // 新编辑手势接管捕获后，旧任务即使被回收也不能抢走它。
+        // After a new editing gesture takes capture, old task reclamation must not steal it.
         SetCapture(fixture.hwnd);
         finish::poll_using(fixture.hwnd, &state, true, |_, _| {
             panic!("cancelled drag published")

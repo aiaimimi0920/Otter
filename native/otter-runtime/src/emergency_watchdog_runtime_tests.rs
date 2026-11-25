@@ -1,4 +1,4 @@
-//! 真实同EXE认证/握手/进程回收；确定性键位仅存在于cfg(test)牺牲进程。
+//! Real same-EXE authentication, handshake, and process reclamation; deterministic key states exist only in cfg(test) sacrificial processes.
 use super::*;
 use std::{
     io::{Read, Write},
@@ -16,8 +16,8 @@ use windows::Win32::UI::WindowsAndMessaging::{
     PeekMessageW, PostThreadMessageW, MSG, PM_NOREMOVE, WM_INPUT,
 };
 
-// 仅唤醒本夹具 watchdog 的私有消息队列，不发送系统键盘输入。
-// 合成键位仍经过生产事件循环、Gate 与父进程认证，避免测到旧轮询实现。
+// Wake only this fixture watchdog's private message queue; do not send system keyboard input.
+// Synthetic key states still pass through the production event loop, Gate, and parent authentication to avoid testing the old polling implementation.
 struct FixtureWake {
     stopped: Arc<AtomicBool>,
     thread: Option<std::thread::JoinHandle<()>>,
@@ -66,7 +66,7 @@ impl Drop for WatchdogHandle {
         unsafe {
             let handle = HANDLE(self.0.as_raw_handle());
             if WaitForSingleObject(handle, 0) == WAIT_TIMEOUT {
-                // 只回收本夹具由DuplicateHandle转交的自建child，不按外部PID打开。
+                // Reclaim only the self-created child transferred to this fixture through DuplicateHandle; do not open it by an external PID.
                 let _ = TerminateProcess(handle, 99);
                 let _ = WaitForSingleObject(handle, 5000);
             }
@@ -135,7 +135,7 @@ fn deterministic_chords_terminate_only_authenticated_sacrificial_parent_and_chil
                 if mode == "shutdown" { 40000 } else { 15000 },
             )
         };
-        // 仅读取已到达字节，失败时不能因后代继承stdout而无限等EOF。
+        // Read only bytes that have arrived; failures must not wait indefinitely for EOF because descendants inherited stdout.
         let mut output = parent.0.stdout.take().unwrap();
         let mut available = 0;
         unsafe {
@@ -264,7 +264,7 @@ fn parent_fixture() {
     if mode == "shutdown" {
         owner.begin_shutdown().unwrap();
     }
-    // 故意不泵UI或处理键盘：独立child必须能终止一个阻塞的原父进程。
+    // Intentionally do not pump UI messages or process keyboard input: the independent child must terminate a blocked original parent.
     std::thread::sleep(Duration::from_secs(if mode == "shutdown" {
         35
     } else {

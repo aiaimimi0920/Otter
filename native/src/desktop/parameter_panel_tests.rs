@@ -1,4 +1,4 @@
-//! 自有 HWND/线程键表的隔离测试；不注册全局热键，不以合成消息冒充人工 IME/普通前台验收。
+//! Isolated tests with owned HWNDs/thread key tables; no global hotkeys or synthetic messages passed off as manual IME/ordinary-foreground acceptance.
 use super::*;
 #[path = "parameter_panel_candidates_tests.rs"]
 mod candidates;

@@ -1,4 +1,4 @@
-//! 原规模压力经过真实持久child/实际产品，校验完整帧、同一文档和Job回收；不改预算。
+//! Original-scale stress through real persistent children/actual products verifies complete frames, the same document, and Job cleanup without changing budgets.
 use super::*;
 use sha2::{Digest, Sha256};
 const SOURCE: &str = include_str!("../tests/fixtures/javascript-css-pressure.js");

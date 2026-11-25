@@ -1,4 +1,4 @@
-//! line/arrow共用多点路径：平头零长路径为空，箭头前缀和头与命中/边界共用纯几何。
+//! line/arrow share multipoint paths: zero-length flat-capped paths are empty; arrow shafts and heads share pure geometry with hit testing/bounds.
 use crate::{
     editor::Stroke,
     viewport::{Point, Viewport},

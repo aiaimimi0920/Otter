@@ -23,7 +23,7 @@ impl Fixture {
 }
 impl Drop for Fixture {
     fn drop(&mut self) {
-        // 只清理本测试在固定 linshi 根下创建的单层唯一目录，不递归追随链接。
+        // Clean only this test's unique single-level directory under fixed linshi, without recursively following links.
         if let Ok(entries) = std::fs::read_dir(&self.0) {
             for entry in entries.flatten() {
                 let _ = std::fs::remove_file(entry.path());
@@ -33,7 +33,7 @@ impl Drop for Fixture {
     }
 }
 fn legacy() -> Vec<u8> {
-    let seed = [7u8; 32]; // 公开、固定测试 seed，不是用户身份。
+    let seed = [7u8; 32]; // Public fixed test seed, not user identity.
     let key = Ed25519KeyPair::from_seed_unchecked(&seed).unwrap();
     serde_json::to_vec(
         &serde_json::json!({"schemaVersion":1,"deviceId":"device:existing",
@@ -153,7 +153,7 @@ fn cooperating_lock_and_failed_commit_preserve_destination_and_remove_only_owned
         .unwrap()
         .map(|e| e.unwrap().file_name())
         .collect::<Vec<_>>();
-    assert_eq!(names.len(), 2); // 仅正式身份与持久 lock 文件，失败暂存已回收。
+    assert_eq!(names.len(), 2); // Only final identity/persistent lock files remain; failed staging was reclaimed.
 }
 
 #[test]

@@ -1,4 +1,4 @@
-//! 显式控制恢复；仅成功且身份/成员匹配时交付新序列，不从 409 正文猜测游标。
+//! Explicit control recovery; return new sequences only on success with matching identity/membership, never guess cursors from 409 bodies.
 use super::*;
 pub struct Resumed {
     pub snapshot: Snapshot,

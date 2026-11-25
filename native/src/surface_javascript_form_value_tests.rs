@@ -1,4 +1,4 @@
-//! 值校验边界和污染通过同一child/实际产品；本地失败不产生emit或改变权限。
+//! Value-validation boundaries and pollution through the same child/actual product; local failures produce no emits or permission changes.
 use super::*;
 const SOURCE: &str = include_str!("../tests/fixtures/javascript-form-value-boundaries.js");
 const CASES: usize = 28;

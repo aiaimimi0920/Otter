@@ -1,4 +1,4 @@
-//! 隐藏 HWND、实际 worker/PNG/锁；仅替换最终 OLE 调用，不注入真实键鼠或系统剪贴板。
+//! Hidden HWNDs and actual workers/PNGs/locks; replace only the final OLE call, without real keyboard/mouse injection or system clipboard access.
 use super::*;
 use std::{
     fs,
@@ -251,6 +251,6 @@ fn transport_failure_releases_modal_and_file_guard_but_retains_published_cache()
         assert!(state.drag.active.borrow().is_none());
         let files = fixture.files();
         assert_eq!(files.len(), 1);
-        fs::remove_file(&files[0]).unwrap(); // 原生文件保护句柄已释放；仅删除本测试自己的 linshi 文件。
+        fs::remove_file(&files[0]).unwrap(); // Native file-protection handles have been released; delete only this test's own linshi file.
     }
 }

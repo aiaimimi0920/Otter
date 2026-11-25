@@ -1,4 +1,4 @@
-//! Unit 字符串只提升当前 workspace 已拥有的图片；秘密/路径/预览不获得来源权。
+//! Unit strings promote only images already owned by the current workspace; secrets/paths/previews gain no source authority.
 use super::*;
 use crate::{
     graph_image::{Kind, Node},

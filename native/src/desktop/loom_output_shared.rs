@@ -1,4 +1,4 @@
-//! Loom RGBA 映射复制到有预算的原生像素；本地映射 RAII 不等于远端资源租约释放。
+//! Copy Loom RGBA mappings into budgeted native pixels; local mapping RAII is not remote-lease release.
 use super::image::Image;
 use serde_json::Value;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -51,7 +51,7 @@ impl Descriptor {
             size,
         })
     }
-    /// 无论复制成功或失败，调用方都必须按原执行身份处理远端 release。
+    /// Whether copying succeeds or fails, callers must handle remote release under original execution identity.
     pub fn handle(&self) -> &str {
         &self.handle
     }
@@ -84,7 +84,7 @@ impl Mapping {
     }
 }
 
-/// 对端须按 formal 租约保持映射内容不变直到 release；本函数不验证映射创建者身份。
+/// Peers must keep mapped contents unchanged under formal leases until release; this function does not validate mapping-creator identity.
 pub fn read(descriptor: &Descriptor, cancel: &AtomicBool) -> Result<Image> {
     check_cancel(cancel)?;
     let mut lease = crate::pixels::reserve(descriptor.size)
@@ -106,7 +106,7 @@ pub fn read(descriptor: &Descriptor, cancel: &AtomicBool) -> Result<Image> {
         if index % 16384 == 0 {
             check_cancel(cancel)?;
         }
-        // 不创建跨进程内存的 Rust 共享引用；只在已成功映射的限定范围读取。
+        // Create no Rust shared references into cross-process memory; read only within successfully mapped bounds.
         let rgba = unsafe {
             std::array::from_fn::<_, 4, _>(|channel| {
                 source.add(index * 4 + channel).read_volatile()

@@ -1,4 +1,4 @@
-//! 创建失败的候选准入凭证；原始错误与 HWND 关联状态分离，不猜测 HRESULT 或错误字符串。
+//! Admission evidence for candidates whose creation failed; separate original errors from HWND association state, without guessing from HRESULTs/error strings.
 use windows::core::Error;
 
 #[derive(Debug)]
@@ -15,7 +15,7 @@ impl Failure {
             fallback_allowed: self.fallback_allowed,
         }
     }
-    /// 已尝试关联，即使异步退休已经开始也不能直接准许下一候选接管。
+    /// Once association has been attempted, even starting asynchronous retirement cannot directly authorize the next candidate to take over.
     pub(super) fn attached(error: Error) -> Self {
         Self {
             error,

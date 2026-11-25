@@ -1,4 +1,4 @@
-//! 软件 DC 位图像素与真实隐藏 HWND 提交；没有 D3D device/交换链或 DComp 构造调用。
+//! Software-DC bitmap pixels and actual hidden-HWND submission; no D3D device/swap-chain or DComp construction.
 use super::*;
 use crate::desktop::{Apartment, Window};
 use windows::{

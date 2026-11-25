@@ -1,4 +1,4 @@
-//! 隔离 desktop 上的真实宿主消息回归；不注入输入、不代替普通前台手测。
+//! Real host-message regressions on an isolated desktop; no input injection or substitution for ordinary-foreground manual testing.
 use super::*;
 use crate::desktop::{Apartment, Window};
 use crate::editor::Tool;
@@ -145,7 +145,7 @@ fn drawing_escape_cancels_then_a_fresh_idle_escape_closes_without_switching_tool
         assert_eq!(fixture.state.canvas.borrow().tool, Tool::Brush);
         let mut client = RECT::default();
         GetClientRect(fixture.owner.0, &mut client).unwrap();
-        // 钉图内容会等比居中；客户区左上角可能是留白，不是有效的落笔位置。
+        // Pinned content is centered with preserved aspect ratio; the client's top-left corner may be padding rather than a valid drawing position.
         let center = LPARAM((client.right / 2) as isize | ((client.bottom / 2) as isize) << 16);
         SendMessageW(fixture.owner.0, WM_LBUTTONDOWN, None, Some(center));
         assert!(fixture.state.canvas.borrow().editor.draft().is_some());
@@ -305,7 +305,7 @@ fn system_move_escape_becomes_close_without_exiting_or_rolling_back_first() {
         assert!(!selected.alive());
         assert!(!IsWindow(Some(selected.panel.0)).as_bool());
         assert!(other.alive());
-        // 已退出的线程过滤器不能污染下一次普通移动。
+        // A retired thread filter must not contaminate the next ordinary move.
         assert_eq!(move_escape(&other, false).message, WM_KEYDOWN);
         SendMessageW(other.owner.0, WM_ENTERSIZEMOVE, None, None);
         SendMessageW(other.owner.0, WM_EXITSIZEMOVE, None, None);
@@ -374,7 +374,7 @@ fn actual_system_move_loop_dispatches_escape_as_close() {
             LPARAM(0),
         )
         .unwrap();
-        // 真正进入 DefWindowProc 的系统移动循环；只向隔离测试窗口排队，不注入桌面输入。
+        // Actually enter DefWindowProc's system move loop; enqueue only to the isolated test window without injecting desktop input.
         SendMessageW(
             fixture.owner.0,
             WM_SYSCOMMAND,

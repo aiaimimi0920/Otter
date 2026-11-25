@@ -1,4 +1,4 @@
-//! 首次空间追加与后续追加必须发布相同的轴和方向，失败不能推进任何证据。
+//! First spatial/subsequent appends must publish identical axes/directions; failure advances no evidence.
 use super::*;
 
 fn frame(x: i64, y: i64) -> Frame {
@@ -61,7 +61,7 @@ fn first_spatial_append_commits_residual_direction_for_detecting_and_linear_sess
                 assert_eq!(snapshot.spatial_position, Some(next));
                 assert_eq!(snapshot.frame_count, if locked { 3 } else { 2 });
 
-                // 重复、拒绝和取消均不改变刚提交的方向及坐标。
+                // Duplication/rejection/cancellation never changes just-committed directions/coordinates.
                 assert!(matches!(
                     active.append(frame(100 + next.0, 100 + next.1), &cancel),
                     Completion::SpatialAppend(Ok(SpatialAppend::Duplicate))
@@ -78,7 +78,7 @@ fn first_spatial_append_commits_residual_direction_for_detecting_and_linear_sess
                 ));
                 assert_eq!(active.snapshot(), snapshot);
 
-                // 随后只移动取景框，保留已有页面方向。
+                // Subsequent viewport-only movement preserves existing page direction.
                 active.append_at(frame(102 + next.0, 102 + next.1), (2, 2), &cancel);
                 assert_eq!(active.snapshot().direction, snapshot.direction);
                 assert_eq!(

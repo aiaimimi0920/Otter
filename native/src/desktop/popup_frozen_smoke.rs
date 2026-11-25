@@ -1,4 +1,4 @@
-//! 真菜单模型/后台索引/滚底追加验证，不进入系统剪贴板或借用应用模型。
+//! Verify real menu models/background indexing/bottom-scroll appending without entering the system clipboard or borrowing the application model.
 use super::*;
 use windows::{
     core::Error,
@@ -35,7 +35,7 @@ pub(in crate::desktop) fn select_action(
     {
         return Err(Error::new(E_FAIL, "Frozen menu fixture index mismatch"));
     }
-    // 无焦点时向上到当前最后一张卡，视口抵底后自动追加末条。
+    // With no focus, move upward to the current last card; reaching the viewport bottom automatically appends the final entry.
     menu.key(0x26)?;
     if menu.closed() || menu.take_command().is_some() {
         return Err(Error::new(E_FAIL, "Gallery scrolling closed menu"));
@@ -46,7 +46,7 @@ pub(in crate::desktop) fn select_action(
     }
     menu.key(0x27)?;
     menu.key(0x0d)?;
-    // 向右选新增末条；Enter 展开后聚焦首个动作，删除才再向下移动一次。
+    // Move right to select the appended final entry; Enter expands and focuses its first action, then one more downward move selects delete.
     if remove {
         menu.key(0x28)?;
     }

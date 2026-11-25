@@ -1,5 +1,5 @@
-//! 签名源码执行许可的客户端准入与不可逆终止；不自行建立 issuer 信任，也不启动 JS。
-//! 包签名、资源 lease 和 Device token 均不能替代此合同；网络与文件接口不因许可自动开放。
+//! Client admission and irreversible termination for signed-source execution grants; neither establishes issuer trust nor starts JS.
+//! Package signatures, resource leases, and Device tokens cannot replace this contract; grants do not automatically expose network or file interfaces.
 #[path = "art_execution_package.rs"]
 pub(crate) mod package;
 #[path = "art_execution_resume.rs"]
@@ -24,7 +24,7 @@ pub enum Error {
     Stopped,
 }
 
-/// 必须由已认证的配置/握手提供；响应自带的 key 不得成为 pin。
+/// Must come from authenticated configuration/handshake; a response-supplied key must never become a pin.
 pub struct Issuer<'a> {
     pub key_id: &'a str,
     pub public_key: &'a [u8; 32],
@@ -101,8 +101,8 @@ impl Permit {
     pub(crate) fn grant_id(&self) -> &str {
         &self.grant.grant_id
     }
-    /// 完整签名、精确请求身份、授权范围和下载源码全部通过后才产生 permit。
-    /// 原子缓存/持久化时钟高水位、issuer 配对和生产挂载仍由上层 owner 接线。
+    /// Create a permit only after verifying the full signature, exact request identity, authorization scope, and downloaded source.
+    /// The upper-level owner still wires atomic caching/persistent clock high-water marks, issuer pairing, and production mounting.
     pub fn accept(
         bytes: &[u8],
         issuer: Issuer<'_>,
@@ -149,7 +149,7 @@ impl Permit {
     pub fn stop(&mut self) {
         self.stopped = true;
     }
-    /// 仅安排等待，不能替代 authorize；沿用首次准入的单调截止，不能从挂载时重新计时。
+    /// Only schedules waiting, not a substitute for authorize; retain the first-admission monotonic deadline rather than restarting at mount.
     pub(crate) fn deadline(&self, online: bool) -> (u64, Instant) {
         let remaining = if online {
             self.remaining
@@ -167,7 +167,7 @@ impl Permit {
     pub(crate) fn observed_wall(&self) -> u64 {
         self.last_wall
     }
-    /// 仅撤销已提交的服务；允许本地执行已停止，但绝不恢复执行许可或返回 Grant。
+    /// Cancel only submitted services; local execution may already have stopped, but never restore execution permission or return a Grant.
     pub(crate) fn authorize_cancel(&mut self, current: &Binding, now: u64) -> Result<(), Error> {
         if current != &self.grant.binding {
             return Err(Error::Binding);
@@ -192,7 +192,7 @@ impl Permit {
         self.check(current, now, online, revoked, self.started.elapsed())?;
         Ok(&self.grant)
     }
-    /// UI宿主资格只读检查，不推进worker共享时钟；否则可能误判已取样的服务请求发生时钟回退。
+    /// Read-only UI-host eligibility check; do not advance the worker's shared clock and falsely classify an already-sampled service request as clock rollback.
     pub(crate) fn validate_online_host(&self, current: &Binding, now: u64) -> Result<(), Error> {
         self.invalid(current, now, true, false, self.started.elapsed())
             .map_or(Ok(()), Err)
@@ -206,7 +206,7 @@ impl Permit {
         elapsed: Duration,
     ) -> Result<(), Error> {
         if let Some(error) = self.invalid(current, now, online, revoked, elapsed) {
-            self.stop(); // 过期/撤权/换实例/时钟回退后不能被晚到结果复活。
+            self.stop(); // Late results cannot revive an expired/revoked/rebound/clock-rollback grant.
             return Err(error);
         }
         self.last_wall = now;
@@ -242,7 +242,7 @@ impl Permit {
     }
 }
 
-/// 描述消费和签名准入共享请求约束；此校验本身不产生执行许可。
+/// Description consumption and signed admission share request constraints; this validation alone grants no execution permission.
 pub(crate) fn validate_expected(expected: &Expected<'_>) -> Result<(), Error> {
     let b = expected.binding;
     if b.sdk_version != wire::SDK

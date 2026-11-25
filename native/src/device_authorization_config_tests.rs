@@ -5,7 +5,7 @@ fn isolated_profile_and_explicit_origin_are_selected_without_filesystem_side_eff
     let config = Config::from_lookup("https://LOOM.example:443/", |key| match key {
         "LOCALAPPDATA" => Some("C:/Fixture/Local".into()),
         "COMPUTERNAME" => Some(" 中文电脑 ".into()),
-        // CA scope 不能覆盖所选服务地址。
+        // CA scope cannot override the selected service address.
         "OTTER_LOOM_TLS_ORIGIN" => Some("https://different.example".into()),
         _ => None,
     })

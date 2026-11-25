@@ -1,4 +1,4 @@
-//! 真实 WIC/D2D 输出验证，不把模型中的透明度数值当作合成正确性证据。
+//! Real WIC/D2D output verification; model opacity numbers are not evidence of correct compositing.
 #[path = "annotation_paint_alpha_tests.rs"]
 mod paint_alpha;
 use super::*;

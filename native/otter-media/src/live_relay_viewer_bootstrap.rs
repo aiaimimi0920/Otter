@@ -1,4 +1,4 @@
-//! 从本次加入事件前一位开始重放；不盲信 next，不跳过加入之后的撤权事件。
+//! Replay from the position immediately before this join event; do not blindly trust next or skip revocation events after joining.
 use super::events::Response;
 use super::{identifier, parse, Error, Snapshot, PROTOCOL};
 use serde::Deserialize;
@@ -43,7 +43,7 @@ pub fn join_cursor(attached: &Snapshot, device: &str, bytes: &[u8]) -> Result<u6
         .checked_sub(1)
         .ok_or(Error::History)?;
     let mut next = cursor;
-    // reset 可表示加入之前的历史被淘汰，但从本次加入开始的完整连续后缀不能缺失。
+    // reset may indicate eviction of pre-join history, but the complete contiguous suffix starting at this join must be present.
     for event in &response.events[start..] {
         if event.protocol_version != PROTOCOL
             || event.session_id != identity.session()

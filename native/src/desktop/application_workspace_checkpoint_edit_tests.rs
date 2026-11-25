@@ -1,4 +1,4 @@
-//! 真实隔离Application的协作权威/本地view保存恢复；不以此冒充网络或模式菜单已接通。
+//! Real isolated Application saves/restores collaboration authority/local view; not proof of network or mode-menu integration.
 use super::*;
 use crate::{
     projection_edit::{
@@ -37,7 +37,7 @@ fn metrics(
     }
 }
 unsafe fn attach(app: &mut Application) -> Snapshot {
-    // 模拟已校验权威交给宿主的接缝；不是新增产品授权/网络入口。
+    // Simulate the seam handing validated authority to the host; this is no new product authorization/network entry point.
     let (receipt, _) = app.capture_session_snapshot().unwrap();
     assert!(receipt.matches(app));
     let scope = app

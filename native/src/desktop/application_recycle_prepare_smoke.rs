@@ -1,4 +1,4 @@
-//! 真 HWND/图片快照到回收 worker 的隔离验证；候选只检查，不执行关闭提交。
+//! Isolated real HWND/image snapshot through recycle worker verification; inspect candidates only, without committing closure.
 use super::*;
 use crate::desktop::application::save_snapshot::job::{Job, RecycleRequest};
 
@@ -39,7 +39,7 @@ pub(super) unsafe fn run(instance: HINSTANCE) -> Result<()> {
         if app.request_save_candidate().is_ok() || app.take_save_candidate().is_ok() {
             return Err(Error::new(E_FAIL, "Recycle candidate admitted as save"));
         }
-        // 收藏轮询必须不消费此任务，即使 worker 已经完成。
+        // Favorites polling must not consume this task, even when its worker has finished.
         app.poll_reference()?;
         if app.save_job.is_none() {
             return Err(Error::new(
@@ -58,7 +58,7 @@ pub(super) unsafe fn run(instance: HINSTANCE) -> Result<()> {
             crate::desktop::smoke_timing::sleep(std::time::Duration::from_millis(1));
         }
         if mode == 0 {
-            app.cancel_save_candidate(); // 已完成、未领取的结果也必须丢弃。
+            app.cancel_save_candidate(); // Completed but uncollected results must also be discarded.
         }
         app.poll_reference()?;
         let (receipt, mut job) = app.save_job.take().unwrap();

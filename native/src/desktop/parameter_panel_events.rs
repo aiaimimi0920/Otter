@@ -1,4 +1,4 @@
-//! 控件通知只排有界意图；提交/模态及快照刷新在 Application 调度段执行。
+//! Control notifications enqueue only bounded intents; Application scheduling performs commits, modal operations, and snapshot refreshes.
 use super::*;
 pub(super) unsafe extern "system" fn procedure(
     hwnd: HWND,

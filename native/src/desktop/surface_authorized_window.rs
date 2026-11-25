@@ -1,4 +1,4 @@
-//! 认证挂载结果的窗口 owner；本地关闭不冒充服务端 disposed，不自动重放请求。
+//! Window owner for authenticated mount results; local closing does not impersonate server disposed, and requests never replay automatically.
 use super::surface_window::SurfaceWindow;
 use crate::{
     device_authorization_lease::{Error as LeaseError, Lease, Notification},
@@ -77,11 +77,11 @@ impl AuthorizedWindow {
     pub fn binding(&self) -> &crate::surface_live_binding::Binding {
         self.lifecycle.binding()
     }
-    /// 当前呈现场景的快照版本；生命周期 ACK 不能推进场景版本。
+    /// Snapshot version of the currently presented scene; lifecycle ACKs cannot advance scene versions.
     pub fn snapshot_revision(&self) -> u64 {
         self.snapshot_revision
     }
-    /// 仅新挂载窗口拥有一次换绑资格，普通结果不能重置此标记。
+    /// Only a newly mounted window gets one rebinding opportunity; ordinary results cannot reset this marker.
     pub fn result_binding_pending(&self) -> bool {
         self.result_binding_pending
     }
@@ -100,14 +100,14 @@ impl AuthorizedWindow {
         {
             return Ok(false);
         }
-        // refresh 可能同步关闭 HWND；节点/View 借用只能在刷新后的回调内获取。
+        // refresh may synchronously close HWND; acquire node/View borrows only within the post-refresh callback.
         let bound = bind(self.binding())?;
         if bound {
             self.result_binding_pending = false;
         }
         Ok(bound)
     }
-    /// 准备前后检查授权与当前呈现身份；未发送，调用 begin_event 时仍须再次复核。
+    /// Check authorization and current presentation identity before/after preparation; nothing was sent, so begin_event must revalidate again.
     pub fn prepare_click(
         &mut self,
         click: super::surface_window::Click,
@@ -137,7 +137,7 @@ impl AuthorizedWindow {
         }
         Ok(events)
     }
-    /// 无候选时避免在主循环反复准备租约和客户端配置。
+    /// When there is no candidate, avoid repeatedly preparing leases and client configuration in the main loop.
     pub fn has_pending_click(&self) -> bool {
         if self.javascript.is_some() {
             return self.javascript_has_input();
@@ -146,14 +146,14 @@ impl AuthorizedWindow {
             || self.window.has_pending_click()
             || self.window.has_pending_edit()
     }
-    /// 应用意图不是授权；实际显示与唯一 owner 状态共同决定本地输入资格。
+    /// Application intent is not authorization; actual display and unique-owner state jointly determine local-input eligibility.
     pub fn sync_pointer(&mut self, requested: bool, now_ms: u64) -> Result<bool> {
         self.sync_input(requested, requested, now_ms)
     }
-    /// 本地编辑可跨动作 owner 移交存活；提交资格仍要求唯一已确认 owner 和应用门禁。
+    /// Local edits may survive action-owner handoffs; commit eligibility still requires the sole confirmed owner and application admission.
     pub fn sync_input(&mut self, editing: bool, submitting: bool, now_ms: u64) -> Result<bool> {
         self.refresh(now_ms)?;
-        // JS 仅在 listener/update/呈现收据均空闲时捕获下一候选，emit 仍经原 batch FIFO。
+        // JS captures the next candidate only when listener/update/presentation receipts are all idle; emit still uses the original batch FIFO.
         let editing = editing
             && self.stopped.is_none()
             && self.is_shown()
@@ -180,7 +180,7 @@ impl AuthorizedWindow {
         }
         Ok(())
     }
-    /// 字段前缀经同一授权门禁准备；到达点击 fence 后不得先派发更晚的 change。
+    /// Prepare field prefixes through the same authorization gate; after reaching a click fence, later changes must not dispatch first.
     pub fn take_prepared_click(
         &mut self,
         now_ms: u64,
@@ -278,7 +278,7 @@ impl AuthorizedWindow {
     }
     pub fn cancel_prepared_input(&mut self, events: Vec<crate::surface_click_event::ClickEvent>) {
         if let Some(js) = self.javascript.as_mut() {
-            // 未移交 owner/未尝试的完整 emit 保留原 ID/字节，不重新执行 listener。
+            // Complete unattempted emits whose owner was not transferred retain original IDs/bytes without rerunning listeners.
             if js.events.is_none() && events.iter().all(|event| !event.attempted()) {
                 js.events = Some(events);
             }
@@ -286,7 +286,7 @@ impl AuthorizedWindow {
             self.window.cancel_edits(&events);
         }
     }
-    /// 输入任务只从当前已显示、仍获授权且版本匹配的窗口取得唯一 owner。
+    /// Input tasks acquire the sole owner only from the currently displayed, still-authorized, version-matching window.
     pub fn begin_event(
         &mut self,
         event: &crate::surface_click_event::ClickEvent,
@@ -302,7 +302,7 @@ impl AuthorizedWindow {
         }
         Ok(self.lifecycle.take_event(event))
     }
-    /// 整批从当前呈现窗口取得唯一 owner，预检版本/身份/容量后才转移。
+    /// Acquire the whole batch's sole owner from the currently presented window; transfer only after version/identity/capacity preflight.
     pub fn begin_batch(
         &mut self,
         events: &[crate::surface_click_event::ClickEvent],
@@ -335,7 +335,7 @@ impl AuthorizedWindow {
         }
         Ok(owner)
     }
-    /// 仅恢复批次 owner，不接纳任何场景；全部结果仍由调用方负责保存。
+    /// Restore only the batch owner without accepting any scenes; callers remain responsible for retaining all results.
     pub fn finish_batch(
         &mut self,
         events: &[crate::surface_click_event::ClickEvent],
@@ -343,7 +343,7 @@ impl AuthorizedWindow {
     ) -> std::result::Result<(), Box<Owner>> {
         self.lifecycle.restore_batch(events, owner)
     }
-    /// 仅返还 owner；ACK 和交付资格仍由调用方保留，恢复 owner 不重新显示窗口。
+    /// Return only the owner; callers retain ACK/delivery eligibility, and restoring the owner does not redisplay the window.
     pub fn finish_event(
         &mut self,
         event: &crate::surface_click_event::ClickEvent,
@@ -373,7 +373,7 @@ impl AuthorizedWindow {
     }
     pub(super) fn failed_start(&mut self, error: crate::surface_lifecycle_runtime::StartError) {
         self.activation_error = Some(error.error.to_string());
-        // StartError 合同返还原 owner；即使合同被破坏也保留拒收的证据。
+        // StartError contractually returns the original owner; preserve rejection evidence even if that contract is broken.
         if let Err(owner) = self.finish_activation(*error.owner) {
             self.rejected_owner = Some(owner);
         }
@@ -390,7 +390,7 @@ impl AuthorizedWindow {
     pub fn stopped(&self) -> Option<LeaseError> {
         self.stopped
     }
-    /// 应用等待集合必须登记此句柄，并在 expires_at_ms 到期时结束等待。
+    /// The application's wait set must register this handle and stop waiting at expires_at_ms.
     pub fn revocation_handle(&self) -> BorrowedHandle<'_> {
         self.notice.handle()
     }
@@ -404,7 +404,7 @@ impl AuthorizedWindow {
             .min(self.lease.expires_at_ms())
             .min(self.javascript_deadline())
     }
-    /// 在应用消息结算点及显示前调用；本地关闭后仍保留附件绑定和版本。
+    /// Call at application message-settlement points and before display; local closing still retains attachment bindings and versions.
     pub fn refresh(&mut self, now_ms: u64) -> Result<()> {
         if let Err(error) = self
             .lease
@@ -425,7 +425,7 @@ impl AuthorizedWindow {
             if self.javascript.is_none() {
                 self.refresh_images(now_ms)?;
             }
-            // 到期投影可能调用 HWND；同步重入之后必须再次检查撤权。
+            // Expiry projection may call HWND APIs; recheck revocation after synchronous reentrancy.
             if let Err(error) = self.lease.validate(self.binding().origin(), now_ms) {
                 self.stopped = Some(error);
                 self.close()?;
@@ -441,12 +441,12 @@ impl AuthorizedWindow {
         if self.stopped.is_some() || !self.window.is_alive() {
             return Err(Error::new(E_FAIL, "Surface authorization ended"));
         }
-        // 等待后台同步 Active ACK，不把尚未 ready 记录为永久激活错误。
+        // Wait for the background synchronous Active ACK; not-yet-ready state is not a permanent activation error.
         if !self.javascript_ready() {
             return Ok(());
         }
         if !self.shown {
-            // 激活 ACK 会推进 binding 的生命周期版本；不能沿用 mounted 阶段的绑定。
+            // Activation ACK advances binding lifecycle version; do not reuse the mounted-stage binding.
             self.window.bind_edits(self.binding())?;
             self.window.show()?;
             self.shown = true;
@@ -467,7 +467,7 @@ impl AuthorizedWindow {
     pub fn take_error(&self) -> Option<Error> {
         self.window.take_error()
     }
-    /// 关闭本地窗口后把生命周期 owner 和租约交给串行后台事务；不发送隐式请求。
+    /// After local window closure, hand the lifecycle owner and lease to a serial background transaction; no implicit requests.
     pub fn into_lifecycle(self) -> (Option<Owner>, Lease) {
         let Self {
             window,

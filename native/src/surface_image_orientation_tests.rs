@@ -1,4 +1,4 @@
-//! 内存 WIC 编码夹具；独立位置表验证 EXIF 八方向，不读取用户照片。
+//! In-memory WIC-encoded fixtures; independent position tables verify all eight EXIF orientations without reading user photos.
 use super::*;
 use windows::core::w;
 use windows::Win32::{

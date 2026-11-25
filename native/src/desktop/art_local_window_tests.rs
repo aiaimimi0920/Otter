@@ -1,4 +1,4 @@
-//! 隐藏真实 HWND 首帧呈现与宿主换代后撤销/回收；不抢前台，不冒充完整节点或交互验收。
+//! First-frame presentation in a real hidden HWND and cancellation/reclamation after host generation changes; no foreground stealing or claims of full node/interaction acceptance.
 use super::*;
 #[path = "art_local_window_input_tests.rs"]
 mod input_tests;
@@ -75,7 +75,7 @@ fn hidden_initial_frame_is_shown_once_without_another_reply() {
         IsWindowVisible, SetWindowPos, ShowWindow, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER,
         SW_HIDE,
     };
-    // 屏外非激活窗口验证可见性，不覆盖用户当前前台。
+    // Offscreen nonactivating windows verify visibility without replacing the user's current foreground.
     unsafe {
         SetWindowPos(
             hwnd,

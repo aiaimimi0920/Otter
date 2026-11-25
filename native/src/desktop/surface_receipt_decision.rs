@@ -1,4 +1,4 @@
-//! 收据到决定任务的单次所有权交接；失败完整返还，不重新构造事件或丢弃用户选择。
+//! One-time ownership handoff from receipt to decision task; failure returns everything without reconstructing events or discarding user choices.
 use super::*;
 use crate::{surface_confirmation::Decision, surface_decision_runtime::Input};
 
@@ -8,7 +8,7 @@ pub struct ReceiptDecisionError {
     pub error: Error,
 }
 impl AuthorizedWindow {
-    /// 仅消费 prepare_decision/prompt_decision 返回的未尝试决定及其原收据。
+    /// Consume only unattempted decisions returned by prepare_decision/prompt_decision and their original receipts.
     pub fn begin_receipt_decision(
         &mut self,
         receipt: EventReceipt,
@@ -16,7 +16,7 @@ impl AuthorizedWindow {
         now_ms: u64,
     ) -> std::result::Result<Input, Box<ReceiptDecisionError>> {
         let transfer = (|| {
-            // 待决定收据不应包含已消费输出或另一份提示/决定。禁止静默丢弃这些证据。
+            // Pending-decision receipts must contain neither consumed outputs nor another prompt/decision; silently discarding that evidence is forbidden.
             if receipt.confirmation.is_some()
                 || receipt.decision.is_some()
                 || receipt.commit.is_some()

@@ -30,7 +30,7 @@ fn active_original_lease_blocks_replacement_and_cache_retirement_until_released(
     let report = cleanup::run(&directory.cache(), future, &cancel).unwrap();
     assert_eq!(report.removed, 0);
     assert!(path.is_file());
-    // 只租赁原图，不占缓存排他锁；其它截图仍可暂存。
+    // Lease only the original image, not the exclusive cache lock; other captures can still stage.
     drop(
         stage_hdr(
             &directory.0,

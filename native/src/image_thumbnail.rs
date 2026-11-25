@@ -1,4 +1,4 @@
-//! 有界只读 PBGRA 缩略图；后台从已解码图片采样，克隆共享像素预算租约。
+//! Bounded read-only PBGRA thumbnails; background sampling of decoded images, with clones sharing pixel-budget leases.
 use crate::{image_decode::Image, pixels::Pixels};
 use windows::{
     core::{Error, Result},
@@ -24,7 +24,7 @@ impl Thumbnail {
     pub fn from_rgba(width: u32, height: u32, pixels: &[u8]) -> Result<Self> {
         Self::sample(width, height, pixels, None)
     }
-    // shared 存在时，源为拥有租约的 PBGRA；否则输入是借用的直通 RGBA。
+    // With shared, the source is leased PBGRA; otherwise input is borrowed straight RGBA.
     fn sample(width: u32, height: u32, pixels: &[u8], shared: Option<&Pixels>) -> Result<Self> {
         if width == 0
             || height == 0

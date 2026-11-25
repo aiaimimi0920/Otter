@@ -1,4 +1,4 @@
-//! 独立检查Source wire合同与错来源响应；实际TLS，不联系真实Loom。
+//! Independent Source wire-contract/wrong-source-response checks over actual TLS, without real Loom contact.
 use super::*;
 use crate::live_relay_http::source::Publication;
 use serde_json::json;
@@ -77,7 +77,7 @@ fn source_response_rejects_substituted_identity_geometry_capability_and_close() 
             let response =
                 json!({"session":source,"epoch":if mutation==5 {2}else{1},"closed":false});
             let mut wire = response.to_string();
-            // 重复键的后一个值合法：若先用 Value 解析，这两个回执会被误收。
+            // The later duplicate-key value is valid: parsing through Value first would wrongly accept both receipts.
             if mutation == 6 {
                 wire = wire.replacen(r#""epoch":1"#, r#""epoch":9,"epoch":1"#, 1);
             } else if mutation == 7 {

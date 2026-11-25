@@ -1,4 +1,4 @@
-//! 受信宿主的只读滚动快照与原子重投影；不是网络提供的偏移，也不授予事件权限。
+//! Trusted-host read-only scroll snapshots and atomic reprojection; not network-provided offsets and no event permissions.
 use super::*;
 impl Presentation {
     pub(crate) fn reveal_focus_in(
@@ -9,7 +9,7 @@ impl Presentation {
         if !self.can_focus(id) || viewport.empty() {
             return Ok(false);
         }
-        // 内层scrollport可能先在crop外；外层显露后再核内层，次数受场景深度门约束。
+        // Inner scrollports may initially lie outside the crop; reveal outer ones before rechecking inner ones, bounded by scene depth.
         let before = self.scroll_state();
         for _ in 0..crate::surface_scene::MAX_DEPTH {
             let Some(g) = self.geometry.nodes().iter().find(|g| g.id() == id) else {

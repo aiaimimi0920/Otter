@@ -1,4 +1,4 @@
-//! 模拟后台提供方，不访问用户剪贴板；通道握手而非依赖线程调度时序。
+//! Simulated background providers without user-clipboard access; use channel handshakes, not thread-scheduling timing.
 use super::*;
 use crate::clipboard_history::Status;
 use std::time::{Duration, Instant};
@@ -48,7 +48,7 @@ fn dismissal_detaches_but_keeps_permit_until_provider_returns() {
     })
     .unwrap();
     started_rx.recv_timeout(Duration::from_secs(5)).unwrap();
-    drop(task); // 若 Drop 等待，提供方将超时并导致以下许可断言失败。
+    drop(task); // If Drop waits, the provider times out and the following permit assertion fails.
     assert!(Task::spawn(|_, _| panic!("Busy worker must not spawn")).is_err());
     release_tx.send(()).unwrap();
     finished_rx.recv_timeout(Duration::from_secs(5)).unwrap();

@@ -1,4 +1,4 @@
-//! 实际产品 EXE 的 child 分流验收；不依赖 libtest 私有入口，不读写用户资源。
+//! Child-dispatch acceptance for actual product EXEs; independent of libtest private entries and without user-resource reads/writes.
 pub fn run() -> windows::core::Result<()> {
     use windows::{core::Error, Win32::Foundation::E_FAIL};
     let mut bytes = Vec::new();
@@ -15,7 +15,7 @@ pub fn run() -> windows::core::Result<()> {
         return Err(Error::new(E_FAIL, "WebP native child smoke mismatch"));
     }
     println!("native-webp-child-smoke: isolated=true pixels=true profile=false network=false");
-    // 同一 smoke 验证新增 SVG 私有 CLI，不能仅依赖 libtest 入口。
+    // The same smoke test verifies the new SVG private CLI, not just libtest entries.
     let svg = br#"<svg xmlns="http://www.w3.org/2000/svg" width="2" height="1"><rect width="1" height="1" fill="red"/><rect x="1" width="1" height="1" fill="lime" opacity="0.5"/></svg>"#;
     let image = crate::image_decode::Image::from_surface(svg, "image/svg+xml", None, || false)?;
     if (image.width, image.height) != (2, 1) || *image.pixels != [0, 0, 255, 255, 0, 128, 0, 128] {

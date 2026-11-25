@@ -1,4 +1,4 @@
-//! 应用领取更新/完成的身份检查，使用自建 TLS 服务，不访问真实 Loom。
+//! Application identity checks for claiming updates/completion using owned TLS services, not real Loom.
 use super::*;
 use crate::{desktop::loom_execution_tasks::Tasks, graph_requests::Requests};
 

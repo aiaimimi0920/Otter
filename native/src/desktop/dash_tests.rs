@@ -1,4 +1,4 @@
-//! 校验真实虚线像素，尤其是 D2D 线宽单位与 SVG 图像单位的转换。
+//! Verify real dash pixels, especially conversion between D2D stroke-width units and SVG image units.
 use super::*;
 use crate::{
     editor::Tool,

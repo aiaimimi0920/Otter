@@ -1,4 +1,4 @@
-//! 从会话恢复纯数据端口；不恢复执行状态、Surface owner 或远端资源访问权限。
+//! Restore data-only ports from sessions, not execution state, Surface ownership, or remote-resource access authority.
 use super::{Error, Output, OutputStamp, Port, Results};
 use serde::{
     de::{self, MapAccess, Visitor},
@@ -42,14 +42,14 @@ impl<'de> Deserialize<'de> for Ports {
 }
 
 impl Results {
-    /// 只用于尚未发布的新结果 owner；全部解析成功后安装，原有显示图保持不变。
+    /// Only for new unpublished result owners; install after all parsing succeeds, preserving existing display images.
     pub fn restore_value_outputs(
         &mut self,
         raw: &serde_json::value::RawValue,
     ) -> Result<(), Error> {
         self.restore_with(raw, |_| Ok(()))
     }
-    /// 后台完整恢复入口：只物化内联图片；保留显式恢复预览优先级。
+    /// Full background restoration entry: materialize inline images only and preserve explicit restored-preview precedence.
     pub fn restore_outputs(
         &mut self,
         raw: &serde_json::value::RawValue,
@@ -95,7 +95,7 @@ impl Results {
         self.ports = ports;
         self.formal_outputs_committed = true;
         self.output_stamp = OutputStamp(Arc::new(()));
-        // 磁盘里的 outputs 不提供旧 Surface 写入授权；只有新挂载能显式注册。
+        // On-disk outputs grant no old Surface write authority; only new mounts may register explicitly.
         self.surface_revoked = true;
         Ok(())
     }
@@ -132,7 +132,7 @@ mod tests {
                 .collect::<serde_json::Map<_, _>>(),
         )
         .unwrap();
-        // 构造 JSON 对象时保留重复键的原文，以免 Map 提前合并。
+        // Preserve original text with duplicate keys when constructing JSON objects, avoiding premature Map merging.
         for text in ["[]", "{\"x\":1,\"x\":2}", "{\"\":1}", &excess] {
             let mut results = Results::new(UnitId::parse("node:test").unwrap());
             let stamp = results.output_stamp();

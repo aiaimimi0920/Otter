@@ -1,6 +1,6 @@
-//! 跨节点范围按 TextFrame 的场景先序投影；不按屏幕坐标排序，不聚合剪贴板文本。
+//! Cross-node ranges follow TextFrame scene preorder without screen-coordinate sorting or aggregated clipboard text.
 use super::*;
-/// 每次 draw 只解析一次端点；不跨布局提交缓存，不拥有文字或分配逐节点数组。
+/// Resolve endpoints once per draw; no cache across layout commits, text ownership, or per-node array allocation.
 #[derive(Clone, Copy)]
 pub(crate) struct ProjectedSelection {
     low: usize,
@@ -70,7 +70,7 @@ impl Selection {
             .position(|item| item.node_id() == self.focus_node);
         a.zip(b).is_some_and(|(a, b)| a < b)
     }
-    // 保留旧算法作为测试 oracle；生产逐项绘制不再做三次线性查找。
+    // Retain the old algorithm as a test oracle; production per-item painting no longer performs three linear searches.
     #[cfg(test)]
     pub(super) fn item_range(&self, item: &TextItem, text: &TextFrame) -> Option<Range<u32>> {
         if !item.selectable() {
@@ -120,7 +120,7 @@ impl Presentation {
         let Some((old, new)) = extent(&self.text).zip(extent(next)) else {
             return false;
         };
-        // 图片 alt 等不可选择绘制项的出现/消失不改变用户选中的文本范围。
+        // Appearance/disappearance of unselectable paint items such as image alt text does not change the user's selected text range.
         let mut old = self.text.items()[old]
             .iter()
             .filter(|item| item.selectable());

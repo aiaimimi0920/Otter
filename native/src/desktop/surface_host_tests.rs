@@ -1,4 +1,4 @@
-//! 隐藏 HWND 运行测试；不显示窗口，不注册热键，不读取用户配置。
+//! Hidden-HWND runtime tests; no displayed windows, hotkeys, or user-configuration reads.
 use super::*;
 use windows::{
     core::w,

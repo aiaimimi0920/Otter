@@ -1,4 +1,4 @@
-//! 真实 HWND 激活 + 合成完整结果证据，验证编辑前缀、依赖点击、后续输入顺序。
+//! Real HWND activation plus synthetic complete result evidence verifies edit prefixes, dependent clicks, and subsequent input order.
 use super::*;
 #[test]
 fn surface_edit_dependency_handlerless_prefix_releases_click_in_same_dispatch() {
@@ -99,7 +99,7 @@ fn surface_edit_dependency_click_waits_for_verified_prefix_but_not_post_click_in
         type_text(field(&window), "after click");
         let (first, wire) = take(&mut window);
         assert_eq!(wire["event"], "input");
-        // 仅在失败时读取诊断，不改变激活/取队列顺序或补发点击。
+        // Read diagnostics only on failure without changing activation/dequeue order or submitting missing clicks.
         assert_eq!(
             wire["payload"]["value"],
             "at click",

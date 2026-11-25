@@ -104,7 +104,7 @@ fn hidden_surface_window_dispatches_paint_replace_resize_and_close() {
         "second"
     );
     let hwnd = window.hwnd;
-    // 模拟 D2D 调用期间的同步关闭消息：取出的 Host 不能被放回已关闭状态。
+    // Simulate synchronous closure during D2D calls: a removed Host must not return to already closed state.
     assert!(window
         .state
         .run(|_| {

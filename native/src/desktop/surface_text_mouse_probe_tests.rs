@@ -1,4 +1,4 @@
-//! 显式系统鼠标探针：命中保护、带标记输入、完整 down/up 批次；不发布剪贴板。
+//! Explicit system-mouse probes: hit protection, tagged input, and complete down/up batches; no clipboard publication.
 use super::*;
 use std::time::{Duration, Instant};
 use windows::Win32::UI::{HiDpi::*, Shell::*};
@@ -99,7 +99,7 @@ unsafe fn mouse(point: POINT, flags: MOUSE_EVENT_FLAGS) -> INPUT {
 }
 unsafe fn send_inputs(inputs: &[INPUT]) {
     let sent = SendInput(inputs, std::mem::size_of::<INPUT>() as i32);
-    // 批次正常包含完整 up；部分插入时仅释放本探针已插入的 down，避免留下按住状态。
+    // Normal batches include complete up events; partial insertion releases only this probe's inserted down events, avoiding stuck presses.
     if needs_release(inputs, sent as usize) {
         let release = INPUT {
             r#type: INPUT_MOUSE,
@@ -195,7 +195,7 @@ fn text_selection_system_mouse_probe() {
         let _dpi = Dpi(SetThreadDpiAwarenessContext(
             DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2,
         ));
-        // 有用户按键或本线程已有捕获时拒绝运行；前台与实际命中另行校验。
+        // Reject if user keys are pressed or this thread already has capture; separately verify foreground and actual hits.
         for key in [
             VK_LBUTTON, VK_RBUTTON, VK_MBUTTON, VK_SHIFT, VK_CONTROL, VK_MENU, VK_LWIN, VK_RWIN,
         ] {
@@ -237,7 +237,7 @@ fn text_selection_system_mouse_probe() {
         assert_eq!(GetForegroundWindow(), window.hwnd);
         assert_eq!(WindowFromPoint(start), window.hwnd);
         assert_eq!(WindowFromPoint(end), window.hwnd);
-        // SendInput 的单批输入不可与其他输入穿插；保留 move 以便证明生产拖选路径。
+        // One SendInput batch cannot interleave with other input; retain move events to prove the production drag-selection path.
         send_inputs(&[
             mouse(start, MOUSE_EVENT_FLAGS(0)),
             mouse(start, MOUSEEVENTF_LEFTDOWN),
@@ -248,7 +248,7 @@ fn text_selection_system_mouse_probe() {
         let mut current = POINT::default();
         GetCursorPos(&mut current).unwrap();
         if current.x == end.x && current.y == end.y && GetForegroundWindow() == window.hwnd {
-            // 只恢复指针位置；绝不恢复/发布剪贴板，也不重新激活其他窗口。
+            // Restore only pointer position; never restore/publish clipboard contents or reactivate other windows.
             SetCursorPos(original.x, original.y).unwrap();
         }
         println!(

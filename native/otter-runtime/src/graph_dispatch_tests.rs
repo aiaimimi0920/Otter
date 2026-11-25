@@ -1,4 +1,4 @@
-//! 正式执行候选的组合回归；不注册请求、不执行节点、不发送网络消息。
+//! Combined regression tests for formal-execution candidates; do not register requests, execute nodes, or send network messages.
 use super::super::tests::{id, link, sticker};
 use super::*;
 use crate::graph_param_coercion::Widget;

@@ -1,4 +1,4 @@
-//! 菜单可访问性快照及有界操作队列；句柄不借用 HWND、Panel 或业务模型。
+//! Menu accessibility snapshots/bounded action queues; handles borrow neither HWND, Panel, nor business models.
 use super::panel::Row;
 use std::sync::{Arc, Mutex};
 #[path = "native_menu_accessibility_links.rs"]
@@ -109,8 +109,8 @@ impl Owner {
         let Ok(mut state) = self.0.lock() else { return };
         let mut entries: Vec<_> = rows.iter().map(entry).collect();
         let keys: Vec<_> = rows.iter().map(|row| row.key).collect();
-        // 焦点改变不撤销节点，允许 SetFocus 后对同一节点 Invoke；滚动后的
-        // 同名行则由模型索引区别，不能用文案或可见槽位充当身份。
+        // Focus changes do not revoke nodes, permitting SetFocus then Invoke on one node; identically labeled rows after scrolling
+        // are distinguished by model index, never label text or visible slots as identity.
         if !fresh
             && keys == state.keys
             && entries.iter().zip(&state.entries).all(|(new, old)| {
@@ -276,7 +276,7 @@ impl Snapshot {
         )
     }
     fn focused_slot(&self) -> Option<usize> {
-        // 展开的祖先高亮仍用于绘制，但不是第二个 UIA 键盘焦点。
+        // Expanded-ancestor highlights still affect drawing but are not additional UIA keyboard focus.
         self.active
             .then(|| self.entries.iter().position(|entry| entry.focused))
             .flatten()
@@ -317,7 +317,7 @@ impl Node {
         } else {
             self.index.checked_sub(1)?
         };
-        // 旧节点不得借当前位置进入刷新后的新一代菜单。
+        // Old nodes must not use current positions to enter refreshed menu generations.
         (state.alive && state.generation == self.generation && index < state.entries.len()).then(
             || Node {
                 snapshot: self.snapshot.clone(),
@@ -355,7 +355,7 @@ impl Node {
             entry
         })
     }
-    // 此闭包只提取行数据，不调用 COM 或其他可能重入快照的代码。
+    // This closure only extracts row data; no COM or other snapshot-reentrant code.
     pub(crate) fn with_entry<T>(&self, read: impl FnOnce(&Entry, bool) -> T) -> Option<T> {
         let state = self.snapshot.lock().ok()?;
         if !state.alive || state.generation != self.generation {

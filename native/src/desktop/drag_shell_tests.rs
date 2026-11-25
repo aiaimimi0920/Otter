@@ -1,4 +1,4 @@
-//! 对真实 Shell 文件夹目标交付本测试的导出副本；不运行鼠标拖动、不触碰用户目录。
+//! Deliver this test's export copies to real Shell folder targets; no mouse dragging or user-directory access.
 use super::*;
 use std::{
     fs,
@@ -15,7 +15,7 @@ use windows::{
 fn shift_drop_moves_only_the_export_copy_and_retains_original_and_cache_lease() {
     unsafe {
         let _apartment = Apartment::new().unwrap();
-        // Shell parsing names 使用本机反斜杠路径；Win32 文件 IO 接受的混合分隔符不是 Shell 合同。
+        // Shell parsing names require native backslash paths; mixed separators accepted by Win32 file I/O are not the Shell contract.
         let root = PathBuf::from(r"C:\Users\Public\nas_home\AI\GameEditor\linshi")
             .join(format!("otter-shell-drop-{:?}", CoCreateGuid().unwrap()));
         let folder = root.join("target");
@@ -65,7 +65,7 @@ fn shift_drop_moves_only_the_export_copy_and_retains_original_and_cache_lease() 
         target
             .Drop(&payload.object, MK_SHIFT, point, &mut effect)
             .unwrap();
-        // 优化移动已由目标删除副本，pdwEffect 可为 NONE；仍须确认 Shell 的逻辑 MOVE 回执。
+        // The target deleted the copy during optimized movement, so pdwEffect may be NONE; still verify Shell's logical MOVE receipt.
         assert_eq!(
             data::logical_effect(&payload.object).unwrap(),
             Some(DROPEFFECT_MOVE)
@@ -90,6 +90,6 @@ fn shift_drop_moves_only_the_export_copy_and_retains_original_and_cache_lease() 
             .open(root.join("clipboard_cache/cache.lock"))
             .is_err());
         drop((file, lease, payload, target, item));
-        // 留存本次 linshi 输出以便复核，不做目录清理或用户文件删除。
+        // Retain this run's linshi output for review; no directory cleanup or user-file deletion.
     }
 }

@@ -1,4 +1,4 @@
-//! Live 后台 owner：复用 CaptureJob 回收线程，关闭帧源唤醒 WGC，限制同时存活的会话任务。
+//! Live background owner: reuse CaptureJob thread reclamation, close frame sources to wake WGC, and bound simultaneous session tasks.
 pub use crate::live_window_target::MAX_SESSIONS;
 use crate::{
     capture_job::CaptureJob,
@@ -53,7 +53,7 @@ impl<T> Drop for CloseSource<T> {
     }
 }
 pub struct LiveJob<T> {
-    // WinEvent hook 必须在安装线程销毁；窗口任务 owner 留在泵消息的 UI 线程。
+    // Destroy WinEvent hooks on their installation thread; the window-task owner remains on the message-pumping UI thread.
     watcher: Option<crate::live_window_target::Watcher>,
     source: Option<crate::live_window_target::Target>,
     source_stopped: bool,
@@ -77,9 +77,9 @@ impl<T: Send + Sync + 'static> LiveJob<T> {
         let consumer = frames
             .subscribe()
             .map_err(|error| io::Error::other(format!("{error:?}")))?;
-        // 两个 guard 在闭包外创建：即使线程创建失败或取消使闭包未执行，也会回收。
+        // Create both guards outside the closure so failed thread creation or cancellation before invocation still reclaims them.
         let close = CloseSource(frames.clone());
-        // UI 绑定（包括窗口捕获排除）先成功，才允许创建采集线程。
+        // UI binding, including capture exclusion, must succeed before creating the capture thread.
         let bound = bind(consumer)?;
         let worker = CaptureJob::spawn(move |cancel| {
             let _slot = slot;
@@ -100,8 +100,8 @@ impl<T: Send + Sync + 'static> LiveJob<T> {
     }
 }
 impl LiveJob<Texture> {
-    /// Target 必须在用户选择时绑定；跨线程传递数字身份和原进程 owner，不读取窗口标题。
-    /// 调用线程必须持续泵窗口消息；LiveJob owner 留在该线程以接收并注销销毁事件监听。
+    /// Bind Target at user selection; pass numeric identity/original process owner across threads, without reading window titles.
+    /// The calling thread must keep pumping window messages; LiveJob stays there to receive/unregister destruction-event listeners.
     pub fn start_window_bound<U>(
         target: crate::live_window_target::Target,
         bind: impl FnOnce(Consumer<Texture>) -> io::Result<U>,
@@ -151,7 +151,7 @@ impl LiveJob<Texture> {
         job.source = Some(target);
         Ok((job, bound))
     }
-    /// 显式授权的显示器捕获；宿主需先完成目标选择与捕获排除，不得在启动应用时自动调用。
+    /// Explicitly authorized monitor capture; the host must first select the target and configure capture exclusion, never call automatically at app startup.
     pub fn start_monitor(monitor: HMONITOR) -> io::Result<(Self, Consumer<Texture>)> {
         if monitor.0.is_null() {
             return Err(io::Error::new(
@@ -173,13 +173,13 @@ impl LiveJob<Texture> {
             )
         })
     }
-    /// 物理屏幕区域；后台绑定单显示器，交付前后复核布局，跨屏不隐式截断。
+    /// Physical screen region; background work binds one monitor and rechecks layout before/after delivery, without implicitly clipping cross-monitor regions.
     pub fn start_region(
         screen: windows::Win32::Foundation::RECT,
     ) -> io::Result<(Self, Consumer<Texture>)> {
         Self::start_region_bound(screen, Ok)
     }
-    /// 绑定在调用线程同步执行；失败不会启动捕获，成功后才启动 worker。
+    /// Bind synchronously on the calling thread; failure starts no capture, and the worker starts only after success.
     pub fn start_region_bound<U>(
         screen: windows::Win32::Foundation::RECT,
         bind: impl FnOnce(Consumer<Texture>) -> io::Result<U>,
@@ -226,7 +226,7 @@ fn run_session(
     Ok(())
 }
 impl<T> LiveJob<T> {
-    /// 与线程句柄一起等待；同一目标的克隆可能共享此句柄，等待集合必须去重。
+    /// Wait alongside thread handles; same-target clones may share this handle, so deduplicate wait sets.
     pub fn source_process_handle(&self) -> Option<std::os::windows::io::BorrowedHandle<'_>> {
         if self.source_stopped {
             return None;
@@ -242,7 +242,7 @@ impl<T> LiveJob<T> {
                 .as_ref()
                 .is_some_and(|source| source.validate().is_err())
         {
-            // 不设置用户取消标志，保留 worker 的源失效错误；只唤醒静止的帧等待。
+            // Do not set user-cancellation flags; preserve worker source-invalid errors and only wake idle frame waits.
             self.source_stopped = true;
             self.watcher.take();
             self.frames.close();
@@ -256,7 +256,7 @@ impl<T> LiveJob<T> {
     }
     pub fn cancel(&self) {
         self.worker.cancel();
-        // 只设置 AtomicBool 不足以唤醒静止画面的事件等待；关闭源触发已注册 idle 回调。
+        // Setting AtomicBool alone cannot wake idle-image event waits; closing the source invokes registered idle callbacks.
         self.frames.close();
     }
     pub fn take_ready(&mut self) -> Option<Result<(), String>> {
@@ -276,7 +276,7 @@ impl<T> Drop for LiveJob<T> {
     fn drop(&mut self) {
         self.watcher.take();
         self.cancel();
-        // CaptureJob 随后 join；已进入的 OS/驱动启动或关闭调用仍可能不可中断。
+        // CaptureJob joins afterward; entered OS/driver startup/shutdown calls may still be uninterruptible.
     }
 }
 #[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-live")))]

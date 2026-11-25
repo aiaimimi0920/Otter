@@ -1,4 +1,4 @@
-//! 单槽后台减权/metadata patch/ack；不持有 HWND，结果安装前必须重核当前 canonical 与 Record allocation。
+//! Single-slot background revocation/metadata patch/ack; hold no HWNDs and recheck current canonical and Record allocation before installing results.
 use super::*;
 use crate::desktop::loom_execution_signal::{reap_deadline, CompletionSignal, Notify};
 use std::{

@@ -1,4 +1,4 @@
-"""完整暂存编排的输入/输出/失败合同；仅真实 Git 执行，profile 与工具均用合成数据。"""
+"""Input/output/failure contracts for complete staging orchestration; execute only actual Git, with synthetic profile/tool data."""
 
 import json
 import unittest

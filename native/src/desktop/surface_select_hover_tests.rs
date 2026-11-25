@@ -1,4 +1,4 @@
-//! 向自有 HWND 发送局部指针消息；不移动光标、不注入全局输入。
+//! Send local pointer messages to owned HWNDs without moving the cursor or injecting global input.
 use super::*;
 use windows::Win32::UI::Controls::WM_MOUSELEAVE;
 unsafe fn enter(hwnd: HWND) {
@@ -49,7 +49,7 @@ fn surface_select_hover_cancel_hide_and_outside_coordinates_clear_highlight() {
         let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
         background(hwnd, "select-hover-reshown.png", [0x20, 0x17, 0x11]);
         enter(hwnd);
-        // 捕获期间可能收到客户区外坐标；低 16 位必须按有符号值解析。
+        // Capture may deliver coordinates outside the client area; decode the low 16 bits as signed.
         SendMessageW(hwnd, WM_MOUSEMOVE, None, Some(LPARAM(0xffff | (5 << 16))));
         background(hwnd, "select-hover-outside.png", [0x20, 0x17, 0x11]);
         assert_eq!(index(hwnd), 0);

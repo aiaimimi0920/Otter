@@ -1,4 +1,4 @@
-//! 合并、忙时延后、身份撤销和通知回调重入；不依赖系统 listener 是否存在。
+//! Coalescing, busy deferral, identity revocation, and notification-callback reentrancy, independent of system-listener presence.
 use super::*;
 use windows::Win32::UI::Accessibility::*;
 fn scene(value: bool) -> Scene {

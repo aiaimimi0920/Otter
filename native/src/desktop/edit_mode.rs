@@ -1,4 +1,4 @@
-//! 选择开关与静默命中；变换只由当前标注操作柄/修饰键发起，不另存变换模式。
+//! Selection toggle and silent hit testing; only current annotation handles/modifiers initiate transforms, without separate transform-mode state.
 use super::{canvas::Canvas, State};
 use crate::{editor::Tool, viewport::Point};
 use windows::{
@@ -42,7 +42,7 @@ pub(super) unsafe fn pointer_down(c: &mut Canvas, point: Point, time: f64) -> bo
     )
 }
 
-/// 空白/静默命中放行给系统拖窗；当前新建标注的操作柄仍归标注输入。
+/// Empty/silent hits pass through to system window dragging; handles on newly created annotations still belong to annotation input.
 pub(super) unsafe fn hit_test(hwnd: HWND, state: &State, lp: LPARAM) -> i32 {
     use windows::Win32::{
         Graphics::Gdi::ScreenToClient,
@@ -139,7 +139,7 @@ impl Canvas {
                 .selected_group()
                 .is_some_and(|indices| indices.contains(&index))
     }
-    /// 静默只禁止重新点选；刚创建的标注保留一次当前选择，仍能直接调整。
+    /// Silent mode only forbids reselection; newly created annotations retain their current selection once and remain directly adjustable.
     pub(super) fn select_created_annotation(&mut self, index: usize) {
         if self.pinned && (!self.selection_enabled || self.tool == Tool::Bezier) {
             let enabled = self.selection_enabled;
@@ -148,7 +148,7 @@ impl Canvas {
             self.selected = Some((index, self.editor.revision()));
         }
     }
-    /// 修饰键只改变本次手势，不切换工具栏模式；空白处仍沿原选择/拖窗规则处理。
+    /// Modifiers affect only this gesture, not toolbar modes; empty space retains original selection/window-dragging rules.
     pub(super) fn begin_quick_transform(
         &mut self,
         screen: Point,

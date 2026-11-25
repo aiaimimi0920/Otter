@@ -1,4 +1,4 @@
-//! 一次性退出批准；只保持久模型/来源/Live 窗口状态，不保帧或持续捕获权限。
+//! One-shot exit approval; retain only persistent model/source/Live-window state, never frames or continuous-capture permission.
 use super::*;
 use crate::{session_source::Source, workspace_id::UnitId};
 
@@ -30,7 +30,7 @@ impl Intent {
         })
     }
     pub(super) unsafe fn matches(&self, app: &Application) -> bool {
-        // 无 profile 的明确放弃沿原路径清理执行；完整快照空闲只归 checkpoint 边界。
+        // Explicit discard without a profile cleans up execution through the original path; full-snapshot idle requirements belong only to the checkpoint boundary.
         !app.modals.blocked()
             && app.chrome.idle()
             && !app.exit_requested.get()

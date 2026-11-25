@@ -1,4 +1,4 @@
-//! 主干 workflowAssetArchiveHints 形状与来源采用边界。
+//! Mainline workflowAssetArchiveHints shape and source-adoption boundaries.
 use super::*;
 use serde_json::{json, Value};
 fn source(empty: bool) -> Vec<u8> {

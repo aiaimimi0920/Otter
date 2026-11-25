@@ -1,4 +1,4 @@
-"""解包并验证当前内部产品包的实际启动；所有配置与运行证据写入独立目录。"""
+"""Unpack and verify actual startup of the current internal product package; write all configuration and runtime evidence to an isolated directory."""
 
 import argparse
 import hashlib
@@ -74,8 +74,8 @@ def main():
         "otterNativeCoordinateSpace": {"version": 1, "origin": [0, 0], "scale": 1},
     }).encode("utf-8")
     session_file.write_bytes(session_bytes)
-    # 正式 Release 包已剥离开发 smoke 自检模块；探针通过隐藏只读启动检查验证实际 EXE、
-    # D2D 绘制/设备重建与外部资产解码，并核验 --smoke-test 及非法参数均按预期拒绝。
+    # Release packages exclude development smoke modules; hidden read-only startup probes verify the actual EXE,
+    # D2D drawing/device recreation and external-asset decoding, plus expected rejection of --smoke-test and invalid arguments.
     for label, arguments, expected, markers, timeout in [
         ("workspace-check", ["--workspace-check"], 0, (
             "native-workspace-startup: loaded=false readonly=false manual-target=false",
@@ -102,7 +102,7 @@ def main():
         env = {key: value for key, value in os.environ.items()
                if not key.upper().startswith(("OTTER_", "LOOM_"))}
         env.update(TEMP=str(temp), TMP=str(temp), OTTER_NATIVE_PROFILE_DIR=str(profile))
-        # 只启动本次解包产物，失败和超时由已有 Job owner 收回进程树。
+        # Start only this run's unpacked artifact; the existing Job owner reclaims its process tree on failure or timeout.
         with (work / "stdout.log").open("xb") as out, (work / "stderr.log").open("xb") as err:
             result = job.run_job([str(exe), *arguments], work, env, out, err, timeout=timeout)
         output = (work / ("stdout.log" if expected == 0 else "stderr.log")).read_text(encoding="utf-8")

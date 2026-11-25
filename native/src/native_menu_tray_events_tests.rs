@@ -1,4 +1,4 @@
-//! 真实 WinEvent hook 验证托盘根菜单周期；不将自有 HWND 冒充 Explorer 验收。
+//! Real WinEvent hooks verify tray-root menu lifecycles; owned HWNDs are not Explorer acceptance.
 use super::*;
 use std::cell::{Cell, RefCell};
 use windows::Win32::{

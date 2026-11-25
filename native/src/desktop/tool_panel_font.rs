@@ -1,4 +1,4 @@
-//! 面板拥有一个 DPI 字体；属性只保存句柄，替换/销毁负责释放，绘制仅借用。
+//! Panels own one DPI font; properties store only handles, replacement/destruction releases them, and drawing borrows.
 use windows::{
     core::{w, Error, Result},
     Win32::{Foundation::*, Graphics::Gdi::*, UI::WindowsAndMessaging::*},
@@ -47,7 +47,7 @@ pub(in crate::desktop) unsafe fn update(hwnd: HWND, dpi: u32) -> Result<()> {
         return Err(Error::from_win32());
     }
     SetPropW(hwnd, KEY, Some(HANDLE(font.0 .0)))?;
-    std::mem::forget(font); // 从这里开始由窗口属性 owner 负责释放。
+    std::mem::forget(font); // The window-property owner is responsible for release from here.
     if !old.is_invalid() {
         let _ = DeleteObject(HGDIOBJ(old.0));
     }
@@ -199,7 +199,7 @@ mod tests {
                 ),
                 0
             );
-            release(window.0); // 清理幂等，不释放系统默认字体。
+            release(window.0); // Cleanup is idempotent and never releases the system-default font.
         }
     }
     #[test]

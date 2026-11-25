@@ -1,4 +1,4 @@
-//! 分享只使用账号 v2；二维码解析不联网，只有创建/导入/解绑按钮排队业务。
+//! Sharing uses account v2 only; QR parsing is offline, and only create/import/unbind buttons enqueue business work.
 use super::*;
 use crate::desktop::device_authorization_ui::account::Request as AccountRequest;
 use windows::Win32::UI::HiDpi::GetDpiForWindow;

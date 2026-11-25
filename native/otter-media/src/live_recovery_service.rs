@@ -1,5 +1,5 @@
-//! 恢复子进程的有界登记状态机；传输须已认证，bind 必须绑定原源进程身份并保活句柄。
-//! 使用单请求在途协议：未收到 ACK 时只能原样重发，不能流水线发送下一序号。
+//! Bounded registration state machine for the recovery child; transport must be authenticated, and bind must pin the original source-process identity and keep its handle alive.
+//! Use a single-request-in-flight protocol: without an ACK, only resend the unchanged request; do not pipeline the next sequence number.
 use crate::live_recovery_wire::{Ack, Command, Record, Request, Status, MAX_RECORDS, SCHEMA};
 use std::io;
 
@@ -69,7 +69,7 @@ impl<T> Service<T> {
                 if *id <= self.highest_id {
                     false
                 } else {
-                    // 即使本次拒绝也消费 id；退休后不可用旧 id 重新登记另一代窗口状态。
+                    // Consume the id even on rejection; after retirement, an old id cannot register another generation of window state.
                     self.highest_id = *id;
                     if self.entries.len() >= MAX_RECORDS
                         || self
@@ -120,8 +120,8 @@ impl<T> Service<T> {
         self.last = Some((request, ack.clone()));
         Ok(ack)
     }
-    /// 仅在可信 owner 确认应进入终止恢复后调用；不能仅因 EOF 猜测父进程已死。
-    /// 成功记录释放，失败记录和原源 owner 保留供重试；进入恢复后不接受任何新命令。
+    /// Call only after a trusted owner confirms that terminal recovery should begin; do not infer parent death from EOF alone.
+    /// Release successful records; retain failed records and the original source owner for retries. Accept no new commands after entering recovery.
     pub fn recover(
         &mut self,
         mut restore: impl FnMut(&Record, &mut T) -> io::Result<()>,
@@ -136,7 +136,7 @@ impl<T> Service<T> {
                     self.entries.remove(index);
                 }
                 Err(error) => {
-                    // 异步等待不能遮住同轮其他源的真实恢复失败，两个类型的责任都保留。
+                    // Asynchronous waiting must not hide actual restoration failures for other sources in the same round; retain both kinds of responsibility.
                     if first.as_ref().is_none_or(|previous| {
                         previous.kind() == io::ErrorKind::WouldBlock
                             && error.kind() != io::ErrorKind::WouldBlock

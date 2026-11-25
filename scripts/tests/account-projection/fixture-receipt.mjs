@@ -1,4 +1,4 @@
-// 成功回执只在业务和本进程的资源清理均成功后独占创建。
+// Create success receipts exclusively only after both business work and this process's resource cleanup succeed.
 import { writeFileSync } from "node:fs";
 
 export async function runWithReceipt(path, run, cleanup) {
@@ -9,7 +9,7 @@ export async function runWithReceipt(path, run, cleanup) {
   } catch (error) {
     failures.push(error);
   }
-  // 即使单个 owner 同步抛错，其他 owner 仍会完成清理。
+  // Even if one owner throws synchronously, all other owners still complete cleanup.
   const results = await Promise.allSettled(cleanup.map(async close => close()));
   const primaryCount = failures.length;
   for (const result of results) {

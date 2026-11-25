@@ -1,4 +1,4 @@
-//! 真实 GDI 字体句柄：DPI 往返、重复更新与 HWND 生命周期，不读取桌面画面。
+//! Actual GDI font handles: DPI round trips, repeated updates, and HWND lifecycle, without desktop-image reads.
 use super::*;
 unsafe fn descriptor(font: HGDIOBJ) -> LOGFONTW {
     let mut value = LOGFONTW::default();

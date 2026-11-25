@@ -1,4 +1,4 @@
-//! 普通截图只用近透明输入层和穿透装饰层选矩形；不冻结或读取桌面像素。
+//! Ordinary capture selects rectangles using only a nearly transparent input layer and click-through decoration layer; no desktop freezing or pixel reads.
 use super::*;
 #[path = "capture_region_release_paint.rs"]
 mod paint;
@@ -123,12 +123,12 @@ fn select_with(
             .map(Window)
         };
         let input = create(WINDOW_EX_STYLE::default(), None)?;
-        // alpha=1 保留整个输入面的命中，底层桌面仍实时可见；不能用透明色挖洞放走按下事件。
+        // alpha=1 preserves hits over the entire input surface while the live desktop remains visible; do not punch transparent-color holes that let presses escape.
         SetLayeredWindowAttributes(input.0, COLORREF(0), 1, LWA_ALPHA)?;
         let outline = create(WS_EX_TRANSPARENT | WS_EX_NOACTIVATE, Some(input.0))?;
         state.outline.set(outline.0);
         SetLayeredWindowAttributes(outline.0, paint::KEY, 255, LWA_COLORKEY)?;
-        // 两层都排除，并在最终采集前销毁；不把描边或近透明输入层混入截图。
+        // Exclude both layers and destroy them before final capture; neither strokes nor the nearly transparent input layer belong in screenshots.
         for window in [input.0, outline.0] {
             SetWindowDisplayAffinity(window, WDA_EXCLUDEFROMCAPTURE)?;
         }

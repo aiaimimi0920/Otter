@@ -1,4 +1,4 @@
-//! UI 线程的远程观看 owner；窗口先关闭显示，后台完成后才交付终态并释放线程句柄。
+//! UI-thread remote-viewing owner; close display first, then deliver terminal state and release thread handles after background completion.
 use super::window::RelayWindow;
 use crate::{
     byte_budget::Budget,
@@ -84,7 +84,7 @@ impl Session {
             .transpose()
             .map(Option::flatten)
     }
-    /// 仅启动后台任务，不显示窗口；consumer 是实际业务处理，不允许静默忽略事件。
+    /// Start background tasks only, without showing windows; consumer handles real business events and must not silently ignore them.
     pub fn start(
         config: Config,
         lease: Lease,
@@ -106,7 +106,7 @@ impl Session {
             window_error: None,
         }
     }
-    /// 可在 Ready 前记录用户显示意图；已停止的会话不能通过 show 复活。
+    /// Record user visibility intent even before Ready; show must not revive stopped sessions.
     pub fn show(&mut self) -> windows::core::Result<()> {
         if self.stopping || self.completed {
             return Err(windows::core::Error::new(
@@ -129,7 +129,7 @@ impl Session {
     pub(super) fn stopping(&self) -> bool {
         self.stopping
     }
-    /// 调用者在等待期间必须保活 Session，不得同时 poll/停止并销毁窗口句柄。
+    /// Callers must keep Session alive while waiting and must not concurrently poll/stop and destroy window handles.
     pub fn wait_handles(&self) -> impl Iterator<Item = BorrowedHandle<'_>> {
         let ready = (!self.stopping && !self.ready_seen && !self.completed)
             .then(|| self.runtime.ready_handle());
@@ -147,7 +147,7 @@ impl Session {
         self.window.take();
         self.runtime.request_stop();
     }
-    /// 在消息分发后或句柄唤醒时调用；只有真实线程 join 完成才返回一次 Outcome。
+    /// Call after message dispatch or handle wakeup; return Outcome once, only after actual thread join completes.
     pub fn poll(&mut self) -> Option<Outcome> {
         if self.completed {
             return None;
@@ -174,7 +174,7 @@ impl Session {
                         self.window_error = Some(error.to_string());
                         self.stop();
                     }
-                    Err(_) => {} // 许可已失效：保留后台终态，不把撤权误记为窗口构造失败。
+                    Err(_) => {} // The permit is invalid: retain background terminal state rather than recording revocation as window-construction failure.
                 }
             }
         }
@@ -188,7 +188,7 @@ impl Session {
             if self.window_error.is_some() {
                 self.stop();
             } else if !window.is_alive() {
-                // 媒体许可失效会主动关闭窗口；等待后台报告原始终态，不能抢先取消改写原因。
+                // Media-permit invalidation actively closes windows; await original background terminal state instead of preemptively cancelling and rewriting the reason.
                 let user_closed = window.is_authorized();
                 self.window.take();
                 if user_closed {
@@ -214,6 +214,6 @@ impl Session {
 impl Drop for Session {
     fn drop(&mut self) {
         self.stop();
-        // 应用正常退出必须先泵消息/等待并 poll；Runtime Drop 是阻塞防泄漏兜底。
+        // Normal application exit must first pump/wait and poll; Runtime Drop is the blocking leak-prevention fallback.
     }
 }

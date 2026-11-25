@@ -1,4 +1,4 @@
-//! Rust UTF-16解码/UTF-8计数作为独立语义oracle；模型测试不替代原child的预算门。
+//! Rust UTF-16 decoding/UTF-8 counting as independent semantic oracles; model tests do not replace original-child budget gates.
 use super::document_model_tests::collect;
 
 #[test]

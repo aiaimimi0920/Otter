@@ -1,5 +1,5 @@
 #![cfg(windows)]
-//! 真实 EXE 的隐藏会话入口；所有文件仅在 linshi，超时只终止本测试创建的子进程。
+//! Hidden session entry through the real EXE; keep all files in linshi and terminate only this test's child on timeout.
 use std::{
     io::Write,
     path::PathBuf,
@@ -21,7 +21,7 @@ impl Fixture {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        // Windows 时钟分辨率不保证并发调用唯一；序号隔离线程，create_new 保护历史文件。
+        // Windows clock resolution does not ensure uniqueness across concurrent calls; sequence numbers isolate threads and create_new protects historical files.
         for _ in 0..32 {
             let sequence = NEXT_FIXTURE.fetch_add(1, Ordering::Relaxed);
             let path = root.join(format!(
@@ -240,7 +240,7 @@ fn nonfinite_scale_with_valid_json_fails_before_restoring_session() {
 
 #[test]
 fn restored_image_text_blur_and_minified_canvas_rebuild_in_real_exe() {
-    // 合成的 2×2 全白 RGBA PNG；不依赖私有像素构造器或用户文件。
+    // Synthetic all-white 2x2 RGBA PNG; no private pixel constructor or user files.
     let base64 = "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAADklEQVR4nGP4DwUMMAYAj4IP8TylVlEAAAAASUVORK5CYII=";
     for minified in [false, true] {
         let session = serde_json::json!({"stickers":[{

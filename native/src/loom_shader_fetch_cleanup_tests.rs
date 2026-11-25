@@ -1,4 +1,4 @@
-//! 新取码模式仍使用原网络取消/清理 owner；拒绝未确认租约，不尝试本地渲染。
+//! New code-fetch mode retains original network cancellation/cleanup owners; reject unconfirmed leases without attempting local rendering.
 use super::*;
 use crate::desktop::{loom_execution_session::Failure, loom_execution_tasks::Completion};
 
@@ -103,7 +103,7 @@ fn shader_fetch_unreleased_remote_output_stays_owned_and_cannot_reach_local_rend
     while Instant::now() < deadline {
         tasks.poll();
         assert!(tasks.take_settled(&registry).is_none());
-        // 让 worker 的补偿和完成栅栏结束；未确认资源仍占同一个槽。
+        // Let worker compensation/completion fences finish; unconfirmed resources still occupy the same slot.
         if let Some(report) = tasks.take_completed(&registry) {
             let Completion::Remote(Ok(mut completion)) = report.completion else {
                 panic!("remote completion expected")
@@ -114,7 +114,7 @@ fn shader_fetch_unreleased_remote_output_stays_owned_and_cannot_reach_local_rend
                 panic!("lease owner lost")
             };
             assert_eq!(delivery.pending_release_count(), 1);
-            // 本测试服务的虚构租约显式终结；不把未确认的真实远端资源丢进本地成功分支。
+            // Explicitly terminate this test service's fictional lease; never route unconfirmed real remote resources into local-success handling.
             delivery
                 .release_with(staging::id("fixture-final-release"), |_, _| {
                     Ok(crate::loom_art_control::Outcome::Succeeded)

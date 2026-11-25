@@ -1,4 +1,4 @@
-//! 异步终态不需要新输入，也不能充当其他命令的 ACK；闸门有界且先于 Worker 释放。
+//! Asynchronous terminal state needs no new input and cannot ACK other commands; bounded gates release before Worker.
 use super::*;
 use crate::live_input::Delivery;
 use std::sync::atomic::AtomicUsize;
@@ -39,7 +39,7 @@ impl Backend for Probe {
         }
     }
     fn pending_delivery(&mut self) -> bool {
-        // 模拟生产 Modal::pending 在查询内处理完成回调并清 token。
+        // Simulate production Modal::pending processing completion callbacks/clearing tokens inside queries.
         if self.state.finish_in_pending.swap(false, Ordering::AcqRel) {
             self.rejected = true;
             self.state.pending.store(false, Ordering::Release);
@@ -99,7 +99,7 @@ impl Drop for Resume {
     }
 }
 struct Harness {
-    // 字段析构顺序保证断言失败也会先打开闸门，再等待 Worker。
+    // Field destruction order opens gates before awaiting Worker even after assertion failure.
     resume: Resume,
     worker: Worker<&'static str>,
     entered: mpsc::Receiver<()>,

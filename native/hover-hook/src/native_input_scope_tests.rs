@@ -1,4 +1,4 @@
-//! 原来源随精确输入进入源线程；复用自有窗口/真实 hook，不运行用户应用。
+//! Original provenance accompanies exact input into source threads; reuse owned windows/real hooks without running user applications.
 use super::*;
 use crate::{
     native_dispatch as dispatch,

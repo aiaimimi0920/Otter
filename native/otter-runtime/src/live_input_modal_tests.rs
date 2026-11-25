@@ -1,4 +1,4 @@
-//! 自有窗口复现模态按钮；准入和回调完成分开，取消不重发且有界收取回调。
+//! Owned windows reproduce modal buttons; separate admission from callback completion, with no cancellation replay and bounded callback collection.
 use super::*;
 use std::time::Instant;
 const CLOSE_MODAL: u32 = WM_APP + 21;
@@ -86,13 +86,13 @@ pub(super) unsafe fn handle(window: HWND, message: u32, wp: WPARAM, lp: LPARAM) 
         }
         let mut msg = MSG::default();
         while unsafe { PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE) }.as_bool() {
-            // 测试断言失败也会析构 fixture；不能吞掉外层线程退出消息。
+            // The fixture is destroyed even when test assertions fail; do not swallow the outer thread's quit message.
             if msg.message == WM_QUIT {
                 unsafe { PostQuitMessage(msg.wParam.0 as i32) };
                 let _ = unsafe { RemovePropW(window, w!("Otter.Test.ModalActive")) };
                 return Some(LRESULT(0));
             }
-            // 原生菜单的键盘处理发生在嵌套消息泵中；SendMessage 不经过这里。
+            // Native-menu keyboard handling occurs in the nested message pump; SendMessage does not pass through here.
             if msg.hwnd == window && msg.message == WM_KEYDOWN && msg.wParam.0 == 0x1b {
                 TRACE.with(|trace| {
                     trace.borrow_mut().push((
@@ -234,7 +234,7 @@ fn escape_closes_modal_queue_and_allows_next_right_gesture() {
         !controller.pending_delivery(),
         "Escape must close the modal queue before its fixture deadline"
     );
-    // 菜单已关闭但物理键仍按住时，系统自动重复 down 也不能撤销控制。
+    // If the menu closes while the physical key is still held, automatic repeated downs must not revoke control either.
     assert_eq!(
         controller.dispatch_status(
             4,
@@ -407,7 +407,7 @@ fn pending_modal_consumes_repeated_right_gesture_without_cleanup_release() {
         Ok(live_input::Delivery::IgnoredWhileModal)
     );
     assert!(controller.enabled());
-    // 菜单关闭后新手势必须正常投递，不能由消费状态永久屏蔽右键。
+    // New gestures after menu closure must deliver normally; consumed state must not permanently block right-clicks.
     assert_eq!(
         controller.dispatch_status(7, event(true)),
         Ok(live_input::Delivery::Completed)

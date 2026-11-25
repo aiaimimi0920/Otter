@@ -1,7 +1,7 @@
-//! 胶囊段与像素行的保守候选区间，避免细长斜线扫描整个二维包围框。
+//! Conservative capsule-segment/pixel-row candidate intervals avoid scanning entire 2D bounds for thin diagonals.
 use crate::viewport::Point;
 
-/// 整次手势的图像内覆盖范围；不按未裁剪的外部坐标跨度分配。
+/// In-image coverage of the whole gesture; never allocate based on unclipped external-coordinate spans.
 pub(super) fn region(points: &[Point], radius: f64, size: (u32, u32)) -> Option<[u32; 4]> {
     let first = *points.first()?;
     let (mut left, mut top, mut right, mut bottom) = (first.x, first.y, first.x, first.y);
@@ -18,7 +18,7 @@ pub(super) fn region(points: &[Point], radius: f64, size: (u32, u32)) -> Option<
     (left < right && top < bottom).then_some([left, top, right, bottom])
 }
 
-/// 调用者已经校验有限坐标、正半径及图像尺寸；输出为右开区间。
+/// Callers already validated finite coordinates/positive radii/image dimensions; output intervals are right-open.
 pub(super) fn row(a: Point, b: Point, radius: f64, y: u32, width: u32) -> Option<(u32, u32)> {
     let (ax, ay, bx, by) = (a.x as f64, a.y as f64, b.x as f64, b.y as f64);
     let low = y as f64 - radius;
@@ -40,7 +40,7 @@ pub(super) fn row(a: Point, b: Point, radius: f64, y: u32, width: u32) -> Option
     };
     let x0 = ax + (bx - ax) * start;
     let x1 = ax + (bx - ax) * end;
-    // 额外一个像素抵御超大坐标相减/除法舍入；最终覆盖仍由精确子像素测试决定。
+    // One extra pixel guards subtraction/division rounding at huge coordinates; exact subpixel tests still determine final coverage.
     let left = ((x0.min(x1) - radius).floor() - 1.0)
         .max(0.0)
         .min(width as f64) as u32;

@@ -1,4 +1,4 @@
-//! 发送写前链路只使用隔离身份/PNG/目录；不触真实 profile，不联网，不占前台。
+//! Sender write-ahead chains use isolated identity/PNG/directories only; no real profiles, network, or foreground takeover.
 use super::*;
 use serde_json::{json, Value};
 #[path = "projection_sender_lifetime_tests.rs"]

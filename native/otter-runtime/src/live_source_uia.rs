@@ -1,4 +1,4 @@
-//! 显式共享来源的只读UIA树；仅受限child内MTA使用，COM接口不跨进程/线程。
+//! Read-only UIA tree for explicitly shared sources; MTA use only inside constrained children, with no COM interfaces crossing processes/threads.
 use crate::live_relay_observation::Locator;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -76,7 +76,7 @@ impl Scanner {
                 if visited > 256 || ancestors.len() > 16 {
                     return Err(Error::from(E_BOUNDS));
                 }
-                // 密码控件/跨进程子树不读名称、值或后代。失败也不推测为非密码。
+                // Do not read names, values, or descendants of password controls/cross-process subtrees. Failures must not imply nonpassword status.
                 if element.CurrentProcessId()? != target.process_id() as i32
                     || element.CurrentIsPassword()?.as_bool()
                 {
@@ -85,7 +85,7 @@ impl Scanner {
                 let identity = sample::Identity::read(&element)?;
                 let label = identity.label();
                 let sampled = sample::read(&element, identity, ancestors.clone(), bounds, is_root)?;
-                // Provider属性不是原子快照；至少在返回值/进入后代前再检查隐私与同PID边界。
+                // Provider properties are not atomic snapshots; at least recheck privacy and same-PID boundaries before returning values/entering descendants.
                 if element.CurrentProcessId()? != target.process_id() as i32
                     || element.CurrentIsPassword()?.as_bool()
                 {
@@ -122,8 +122,8 @@ impl Scanner {
 fn optional<T>(result: Result<T>) -> Result<Option<T>> {
     match result {
         Ok(value) => Ok(Some(value)),
-        // windows-core 0.60把成功的null接口转换成Error::empty(S_OK)。
-        // 仅树walker的空端点适用；真正E_POINTER/其他失败不能被吞成完整扫描。
+        // windows-core 0.60 converts successful null interfaces into Error::empty(S_OK).
+        // Applies only to empty tree-walker endpoints; real E_POINTER/other failures must not be swallowed as complete scans.
         Err(e) if e.code() == S_OK => Ok(None),
         Err(e) => Err(e),
     }

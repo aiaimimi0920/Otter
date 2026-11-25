@@ -1,4 +1,4 @@
-//! 本机 Loom 的生产投射入口：清单授权只做本机登记，LAN 始终使用签名 Device 会话。
+//! Production projection entry for local Loom: manifest authorization only registers locally; LAN always uses signed Device sessions.
 use crate::{
     device_identity_store::Store, device_request_cancel::Cancel, device_session_attempt::Session,
     device_session_client::Client, loom_discovery,
@@ -163,7 +163,7 @@ fn connect_discovered_local(
     )
     .map_err(|_| Error::Tls)?;
     let client = Client::new(&origin, roots.clone(), addresses).map_err(|_| Error::Tls)?;
-    // 在登记前完成真实 TLS 身份读取；不把清单或广播声明当作握手成功。
+    // Read actual TLS identity before registration; manifest/broadcast claims never count as successful handshakes.
     let (status, bytes) = client
         .exchange(
             crate::device_session_client::Request {

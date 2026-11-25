@@ -1,4 +1,4 @@
-//! 将 MF 存储 surface 和可见尺寸分开；只接受原合同的右/下宏块 padding。
+//! Separate MF storage surfaces from visible dimensions; accept only the original contract's right/bottom macroblock padding.
 use windows::{
     core::{Error, Result},
     Win32::{Foundation::E_INVALIDARG, Media::MediaFoundation::*},
@@ -44,7 +44,7 @@ impl Layout {
     }
 }
 fn valid_surface(sw: u32, sh: u32, width: u32, height: u32, aperture: bool) -> bool {
-    // 同时校验调用方尺寸，避免未来 stream-change 接线绕过初始 configure 的边界。
+    // Also validate caller dimensions so future stream-change wiring cannot bypass the initial configure boundary.
     (2..=4096).contains(&width)
         && (2..=4096).contains(&height)
         && width.is_multiple_of(2)

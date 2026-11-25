@@ -1,4 +1,4 @@
-//! 真实OpenArt在线预热后关闭TLS服务，重建无Device会话的Application离线执行并保存恢复。
+//! Warm up real OpenArt online, stop TLS service, then rebuild Application without a Device session for offline execution and save/restore.
 use super::*;
 const SOURCE: &str =
     "NeuroSurface.define({mount(){NeuroSurface.commitResult({answer:{kind:'value',value:42}})}});";

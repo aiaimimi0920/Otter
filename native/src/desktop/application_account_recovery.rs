@@ -1,4 +1,4 @@
-//! 每次工作区/来源检查全部写前记录；失败意图保留，只有显式导入才重试未知接受。
+//! Check all write-ahead records on each workspace/source check; preserve failed intent and retry unknown acceptance only through explicit import.
 use super::*;
 impl Application {
     pub(super) unsafe fn start_account_recovery(&mut self) -> Result<bool> {
@@ -76,7 +76,7 @@ impl Application {
                     .iter()
                     .any(|binding| binding.stopped() && intent.matches(binding))
                 {
-                    // 仅已提交的停止记录允许退休；网络失败和取消不会走这里。
+                    // Only committed stop records may retire; network failures and cancellation never reach this path.
                     store.retire(&intent, cancel).map_err(job::failure)?;
                 } else if !units.iter().any(|unit| unit.as_str() == intent.unit) {
                     recover.push(intent);

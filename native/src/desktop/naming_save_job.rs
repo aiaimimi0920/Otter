@@ -1,4 +1,4 @@
-//! 配置另存为 worker：编码与暂存，不在后台发布；UI 检查凭证后消费 Staged。
+//! Configuration Save As workers encode/stage without background publication; UI consumes Staged after evidence validation.
 use super::loom_execution_signal::{CompletionSignal, Notify};
 use crate::{
     app_settings_document::Document, file_naming_settings::Settings, session_file_write::Staged,
@@ -32,7 +32,7 @@ impl Job {
         notify: Notify,
     ) -> std::io::Result<Self> {
         Self::spawn(notify, move |signal| {
-            // 只在显式保存时复制有界配置；不在 UI 热路径或空闲时复制。
+            // Copy bounded configurations only on explicit saves, never in UI hot paths or while idle.
             let mut document = (*source).clone();
             document.set_naming(naming)?;
             document.set_cache_policy(policy)?;
@@ -110,7 +110,7 @@ impl Drop for Job {
     fn drop(&mut self) {
         self.cancel.store(true, Ordering::Release);
         if let Some(worker) = self.worker.take() {
-            // join 返回的未发布 Staged 随结果析构，只清理本任务临时文件。
+            // Unpublished Staged returned by join drops with results, cleaning only this task's temporary files.
             let _ = worker.join();
         }
     }

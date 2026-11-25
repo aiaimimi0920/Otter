@@ -1,4 +1,4 @@
-//! 显式选择会话图片目录；系统路径字符串和 COM 对象均由本次对话框 owner 回收。
+//! Explicit session-image-directory selection; this dialog's owner reclaims both system path strings and COM objects.
 use super::session_asset_root::Root;
 use std::{os::windows::ffi::OsStringExt, path::PathBuf};
 use windows::{
@@ -55,6 +55,6 @@ unsafe fn choose_with_title(owner: HWND, title: windows::core::PCWSTR) -> Result
         ));
     }
     let path = PathBuf::from(std::ffi::OsString::from_wide(wide));
-    // 权限由显式选择创建，不从 JSON 或会话文件父目录推导。
+    // Explicit selection creates permission; never derive it from JSON or the session file's parent directory.
     Root::open(&path).map(Some)
 }

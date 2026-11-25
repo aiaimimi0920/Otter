@@ -1,17 +1,18 @@
-# Otter 功能与快捷键 / Features and shortcuts
+# Otter features and shortcuts
 
-当前主干；历史下载以自己的发行说明为准。涉及 Loom 的功能取决于当前设备的授权、能力目录和安装状态。
+Quick reference for the current main branch; older downloads follow their own release notes.
+OCR and translation use shortcut bindings supplied by Loom's capability catalog, not built-in
+features available without installation. Loom actions depend on current device authorization,
+the capability catalog, and installed capabilities.
 
-| 功能 / Feature | 操作 / Controls |
+| Feature | Controls |
 | --- | --- |
-| 区域、实时和长截图 / Region, Live and scrolling capture | `Ctrl+1` / `Ctrl+2` / `Ctrl+3` |
-| 钉图编辑 / Pin editing | `Ctrl+E`；裁剪、画笔、文字、形状、模糊、马赛克；`Ctrl+Z`/`Ctrl+Y` 撤销／重做 |
-| 参数与节点 / Parameters and nodes | `Tab` 展开参数，`Shift+1` 打开 Art 菜单；`F6` 导航端点、`Ctrl+Enter` 键盘连线、`F2` 聚焦对应公开参数 |
-| OCR 与翻译 / OCR and translation | 有相应授权时 `Ctrl+4`/`Ctrl+5` 执行，`Alt+4`/`Alt+5` 切换结果 |
-| 保存及拖出 / Save and export | `Ctrl+S` 保存；空闲钉图支持 `Shift` 拖出 PNG 副本 |
-| 投射 / Projection | 钉图设置选择经授权的设备，确认发送；二维码或链接使用独立的当前 v2 分享流程 |
+| Region, Live and scrolling capture | `Ctrl+1` / `Ctrl+2` / `Ctrl+3` |
+| Pin editing | `Ctrl+E` for crop, brush, text, shapes, blur and mosaic; `Ctrl+Z`/`Ctrl+Y` to undo/redo |
+| Parameters and nodes | With a pin focused, `Tab` opens parameters and `Shift+1` opens the Art menu. `F6` enters/leaves the endpoint strip; use `Tab`/arrow keys within it, `Ctrl+Enter` to connect valid endpoints, and `F2` to focus the corresponding public parameter. |
+| OCR and translation | With the required authorization, `Ctrl+4`/`Ctrl+5` execute commands and `Alt+4`/`Alt+5` toggle results. |
+| Save and export | `Ctrl+S` saves; in browse/pan mode, hold `Shift` and drag a pin out to export a PNG copy. |
+| Projection | Select authorized devices in pin settings and confirm sending. QR/link sharing has separate LAN v1 and public account v2 paths; neither is a fallback for the other. |
 
-[中文使用教程](guide/getting-started.zh-CN.md) · [English guide](guide/getting-started.md) ·
-[实时截图](features/LIVE_CAPTURE.md) · [投射](features/QR_PROJECTION.md)
-
-开发验证从[构建与验证](development/WINDOWS_NATIVE_BUILD.md)和[联合验收](development/JOINT_TESTING.md)进入。
+[English guide](guide/getting-started.md) · [Simplified Chinese guide](guide/getting-started.zh-CN.md) ·
+[Live capture](features/LIVE_CAPTURE.md) · [Projection](features/QR_PROJECTION.md)

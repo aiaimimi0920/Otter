@@ -1,4 +1,4 @@
-//! 只给隔离联合测试调用自有HWND；环境开关不编译进产品，不向外部应用注入输入。
+//! Only isolated integration tests may call owned HWNDs; environment switches are excluded from production, with no external-application input injection.
 use super::*;
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     GetKeyboardState, SetKeyboardState, VIRTUAL_KEY, VK_CONTROL, VK_LCONTROL, VK_LMENU, VK_LSHIFT,
@@ -12,7 +12,7 @@ impl Drop for ThreadKeys {
         }
     }
 }
-/// 只隔离当前测试线程的修饰键快照；不注入全局输入，正常/展开退出均恢复全部字节。
+/// Isolate only current-test-thread modifier snapshots; no global input, restoring every byte on normal/unwind exit.
 pub(in crate::desktop::tile_window) fn with_modifiers<T>(
     held: &[VIRTUAL_KEY],
     action: impl FnOnce() -> T,
@@ -78,7 +78,7 @@ impl Window {
                     "Tab did not reach send: {}",
                     self.test_art_keyboard_queue()
                 );
-                // Tab自己可能新增change；只有Enter之后新增的意图才是按钮已受理证明。
+                // Tab itself may add change; only intents added after Enter prove button acceptance.
                 let before = self.state.shared.lock().actions.test_offered;
                 let prior = self.test_art_keyboard_queue();
                 key(self.hwnd, 13);
@@ -104,7 +104,7 @@ impl Window {
     }
     pub(crate) fn test_art_keyboard_select(&self, selected: Option<usize>) -> bool {
         let before = self.state.shared.lock().actions.test_offered;
-        // 从当前逻辑焦点沿真实Tab序到Select，不伪造CBN_SELCHANGE。
+        // Follow actual Tab order from current logical focus to Select, without fabricating CBN_SELCHANGE.
         for _ in 0..3 {
             if self
                 .state

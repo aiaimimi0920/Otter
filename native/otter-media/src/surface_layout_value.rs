@@ -1,4 +1,4 @@
-//! 布局长度与节点类默认值；不把缺失宽度和显式 auto 混为一谈。
+//! Layout lengths and node-class defaults; do not conflate missing widths with explicit auto.
 use crate::{
     surface_length::{Context, Length},
     surface_scene::{Kind, Node},

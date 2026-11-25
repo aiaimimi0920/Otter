@@ -1,4 +1,4 @@
-//! 当前文档的手动后端选择/重试；不重置关联门禁、不保存全局偏好、不改变文档和编辑历史。
+//! Manual backend selection/retry for the current document; no attachment-gate reset, global preference saving, or document/edit-history changes.
 use super::{canvas::RenderChoice, State};
 #[cfg(test)]
 use windows::{core::w, Win32::UI::WindowsAndMessaging::*};
@@ -24,7 +24,7 @@ fn available(state: &State, retry: bool) -> bool {
         .is_ok_and(|canvas| canvas.can_request_render() && (!retry || canvas.software_selected()))
 }
 pub(super) unsafe fn execute(hwnd: HWND, state: &State, command: usize) -> Result<()> {
-    // 菜单快照可能已过期；进入事务前再次检查宿主、paint 和退休状态。
+    // The menu snapshot may be stale; recheck host, paint, and retirement state before entering the transaction.
     if !handles(command) || !state.lifetime.owns(hwnd) || !available(state, command == RETRY) {
         return Err(Error::new(
             E_ABORT,

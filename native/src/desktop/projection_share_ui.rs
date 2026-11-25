@@ -1,4 +1,4 @@
-//! 单一非模态分享浮层：只排队显式业务请求，关闭撤销未提交结果，不销毁已保存关联。
+//! One modeless sharing popup: enqueue only explicit business requests; closing revokes uncommitted results without destroying saved associations.
 use super::{Request, State, View};
 use crate::workspace_id::UnitId;
 const MAX_TEXT: usize = 8192;
@@ -182,7 +182,7 @@ impl Model {
         if self.account_import.get() || self.qr.replace(qr) == qr {
             return;
         }
-        // 两种视图共享已解析邀请；只取消未完成的图片识别，不丢弃输入。
+        // Both views share the parsed invitation; cancel only unfinished image recognition, without discarding input.
         self.cancel_decode();
         if self.receive {
             let input = self.inputs.borrow()[usize::from(self.public.get())].clone();
@@ -291,7 +291,7 @@ pub(in crate::desktop) fn shutdown(view: &Rc<RefCell<View>>) {
         (view.share.take(), view.share_decode.take())
     };
     drop(popup);
-    // 退出阶段在无 UI 借用时 join 原线程，不将关闭浮层当作 worker 已退出。
+    // At shutdown join the original thread without UI borrows; closing the popup does not mean the worker has exited.
     drop(decoder);
 }
 impl Drop for Window {

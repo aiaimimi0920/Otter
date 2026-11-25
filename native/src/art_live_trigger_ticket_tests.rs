@@ -1,4 +1,4 @@
-//! 固定墙钟/单调期限及Stop与canonical事务的串行围栏，不修改系统时钟。
+//! Fixed wall-clock/monotonic deadlines and serialized fencing of Stop against canonical transactions; no system-clock changes.
 use super::*;
 use crate::art_live_trigger::tests as f;
 #[test]
@@ -8,7 +8,7 @@ fn fixed_deadline_wall_high_water_and_binding_are_not_extended_by_queries() {
     assert!(t.time_current_at(now, t.0.deadline - Duration::from_nanos(1)));
     assert!(!t.time_current_at(now, t.0.deadline));
     assert!(!t.time_current_at(t.event().delivery.expires_at_ms, Instant::now()));
-    assert!(!t.time_current_at(now, Instant::now())); // 前跳后不能回退为有效。
+    assert!(!t.time_current_at(now, Instant::now())); // A forward jump cannot become valid again through rollback.
     let (gate, t) = f::ticket(f::binding());
     let mut other = f::binding();
     other.generation += 1;

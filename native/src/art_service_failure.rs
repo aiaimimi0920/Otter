@@ -1,4 +1,4 @@
-//! 服务暂态失败只拒绝该Promise；清理消费原Call，不重放、不建立离线资格或延长原授权。
+//! Transient service failures reject only that Promise; cleanup consumes the original Call without replay, offline eligibility, or authorization extension.
 use super::*;
 
 fn recoverable(error: Error) -> Option<&'static str> {
@@ -6,11 +6,11 @@ fn recoverable(error: Error) -> Option<&'static str> {
     match error {
         Error::Http(Http::Status(429)) => Some("service_busy"),
         Error::Http(Http::Status(502..=504)) => Some("service_unavailable"),
-        // Client细分的Transport保留原Http断流语义；只拒绝当前Promise，仍不重放submit。
+        // Client's finer Transport errors retain original Http disconnection semantics; reject only the current Promise, still without replaying submit.
         Error::Http(Http::Http(Network::Connect | Network::Transport | Network::Http)) => {
             Some("service_transport")
         }
-        // TLS信任、限额、身份/序号/wire及认证错误从不转换成本地继续执行的依据。
+        // TLS trust, quota, identity/sequence/wire, and authentication errors never justify continued local execution.
         _ => None,
     }
 }
@@ -38,7 +38,7 @@ impl Dispatcher {
         stopped: &dyn Fn() -> bool,
     ) -> io::Result<services::ResultValue> {
         if self.lease.execution_stopped() || stopped() {
-            // submit可能已执行但未收到Accepted；认证撤销仍阻止任何清理联网。
+            // submit may have executed without Accepted arriving; authentication revocation still forbids any cleanup networking.
             let _ = call.abandon(deadline);
             return Err(failure(error));
         }
@@ -47,7 +47,7 @@ impl Dispatcher {
         };
         self.continuation(deadline, stopped)?;
         if let Err(cleanup) = call.abandon(deadline) {
-            // 404只表示没有该原调用；不构造成功结果。清理传输失败仍依赖服务原期限回收。
+            // 404 only means the original call is absent, not success. Cleanup transport failure still relies on the service's original expiry for reclamation.
             if recoverable(cleanup).is_none()
                 && !matches!(
                     cleanup,

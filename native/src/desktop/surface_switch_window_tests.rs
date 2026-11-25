@@ -1,4 +1,4 @@
-//! 真实隐藏 HWND 的 Switch 激活/共享编辑 FIFO；不注入桌面输入或发送网络动作。
+//! Actual hidden-HWND Switch activation/shared-edit FIFO; no desktop-input injection or network actions.
 use super::*;
 #[path = "surface_switch_bubble_tests.rs"]
 mod bubble;

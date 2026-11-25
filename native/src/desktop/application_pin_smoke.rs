@@ -1,4 +1,4 @@
-//! 注入截图像素，通过真实后台准备/定时器交付创建钉图，不读取桌面或丢弃源文档。
+//! Inject screenshot pixels and create pins through real background preparation/timer delivery, without reading the desktop or discarding the source document.
 use super::*;
 use crate::{desktop::image::Image, editor::Tool, viewport::Point};
 

@@ -1,4 +1,4 @@
-//! 三进程恢复验证：源窗口留在观察者中，登记父进程退出，独立恢复子进程继续存活。
+//! Three-process recovery verification: source windows stay in the observer, the registering parent exits, and the independent recovery child remains alive.
 use super::*;
 use crate::{
     live_recovery_wire::{Record, Restoration},
@@ -33,7 +33,7 @@ impl Drop for RecoveryFixture {
         unsafe {
             let handle = HANDLE(self.0.as_raw_handle());
             if WaitForSingleObject(handle, 0) == WAIT_TIMEOUT {
-                // 该句柄由本测试父进程从自建 Child 复制，绝不按外部 PID 猜测终止对象。
+                // This test parent duplicated the handle from its self-created Child; never guess termination targets from external PIDs.
                 let _ = TerminateProcess(handle, 99);
                 let _ = WaitForSingleObject(handle, 5000);
             }
@@ -149,8 +149,8 @@ fn run_parent(before: &Record, abrupt: bool) {
         }
         std::thread::sleep(Duration::from_millis(5));
     };
-    // 只读取已退出父进程留下的现有字节；不能等待 EOF 阻塞窗口消息泵。
-    // 后代意外继承输出句柄时，EOF 可能晚于父进程退出。
+    // Read only existing bytes left by the exited parent; waiting for EOF must not block the window message pump.
+    // If descendants accidentally inherit output handles, EOF may arrive after parent exit.
     let mut stdout = parent.0.stdout.take().unwrap();
     let mut available = 0;
     unsafe {
@@ -177,7 +177,7 @@ fn run_parent(before: &Record, abrupt: bool) {
         .expect("Fixture must transfer owned recovery handle")
         .parse::<usize>()
         .unwrap();
-    // 仅接受本次受控子进程经 DuplicateHandle 转交到当前进程的句柄，不是外部 PID。
+    // Accept only handles transferred by this controlled subprocess into the current process through DuplicateHandle, not external PIDs.
     let recovery = RecoveryFixture(unsafe { OwnedHandle::from_raw_handle(raw as *mut _) });
     assert!(output.contains("RECOVERY_FIXTURE_EOF_HELD"), "{output}");
     assert_eq!(
@@ -241,7 +241,7 @@ fn registration_parent() {
         Status::Accepted
     );
     let hwnd = HWND(record.hwnd as usize as *mut _);
-    // 已收到真实 ACK；保留请求 owner 但不主动恢复，退出后由独立 child 收尾。
+    // A real ACK has arrived; retain the request owner without proactively restoring, so the independent child performs cleanup after exit.
     let mut layer_owner = None;
     let altered = match &record.restoration {
         Restoration::PopupLayer(layer) => {
@@ -275,5 +275,5 @@ fn registration_parent() {
     if std::env::var("OTTER_RECOVERY_RUNTIME_ABRUPT").unwrap() == "1" {
         std::process::exit(23);
     }
-    drop(layer_owner); // Drop 只撤销请求，不以父进程退出前的本地归还替代 child 验收。
+    drop(layer_owner); // Drop only revokes requests; local restoration before parent exit must not substitute for child acceptance testing.
 }

@@ -1,4 +1,4 @@
-//! 当前用户登录启动；仅显式菜单操作写入，不自动接管其他安装的 Otter 启动项。
+//! Current-user login startup; writes require explicit menu actions, without automatically taking over other Otter installations' startup entries.
 use std::{io, path::Path};
 #[path = "autostart_registry.rs"]
 pub mod registry;
@@ -20,7 +20,7 @@ fn command(executable: &Path) -> io::Result<Vec<u8>> {
         return Err(invalid());
     }
     let command = format!("\"{path}\"");
-    // Run 的命令行限制为 260 个字符；不经 cmd/PowerShell 展开或解释。
+    // Run command lines are limited to 260 characters, without cmd/PowerShell expansion or interpretation.
     if command.encode_utf16().count() > 260 {
         return Err(invalid());
     }
@@ -64,7 +64,7 @@ fn set(store: &impl Store, expected: &[u8], enabled: bool) -> io::Result<Status>
         ));
     }
     if enabled {
-        // 先读审批项，读取错误不能留下半写入；后续写入失败则报告，不伪称回滚成功。
+        // Read approval entries first so read errors leave no partial writes; report subsequent write failure without fabricated rollback success.
         let approval = store.approval()?;
         store.set_command(Some(expected))?;
         if approval.is_some() {

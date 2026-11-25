@@ -1,4 +1,4 @@
-// 污染公开方法/intrinsic 不触达私有登记；returnValue 仍遵守 cancelable/passive。
+// Polluting public methods/intrinsics must not reach private registrations; returnValue still honors cancelable/passive.
 let saved;
 NeuroSurface.define({ mount({ root }) {
   saved = root;

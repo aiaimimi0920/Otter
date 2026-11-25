@@ -1,4 +1,4 @@
-//! 本机发送签名保留旧协议的十一项消息；重开只能验原签名，不能重新签名。
+//! Local sender signatures retain the old protocol's eleven-field message; reopen verifies original signatures only, never re-signs.
 use super::*;
 use crate::device_identity::Identity;
 use base64::{

@@ -1,4 +1,4 @@
-//! wire 字段、payload 默认规则和输出预算；不发送网络请求。
+//! Wire fields, payload defaults, and output budgets; no network requests.
 use super::*;
 #[path = "surface_convergence_tests.rs"]
 mod convergence;
@@ -103,7 +103,7 @@ fn merged_payload_matches_owned_encoding_byte_for_byte() {
                 .unwrap();
             let wire: std::collections::BTreeMap<String, Box<RawValue>> =
                 serde_json::from_slice(event.bytes()).unwrap();
-            // 独立保留旧物化算法作字节 oracle，涵盖键顺序与保留键单次覆盖。
+            // Independently retain the old materialization algorithm as a byte oracle, covering key order and single overwrite of reserved keys.
             let mut expected = if payload.is_null() {
                 json!({})
             } else {

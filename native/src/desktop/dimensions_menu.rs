@@ -1,4 +1,4 @@
-//! 线宽与工具尺寸菜单；命令编号由菜单宿主提供，操作仍由现有属性入口处理。
+//! Stroke-width/tool-size menus; menu hosts provide command IDs, while existing property entry points handle actions.
 use crate::{editor::Tool, stroke_style::StrokeStyle};
 use windows::{
     core::{w, Result, HSTRING},

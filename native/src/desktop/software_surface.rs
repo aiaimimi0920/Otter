@@ -1,4 +1,4 @@
-//! 软件 D2D → GDI DIB → HWND/分层窗口；不创建 D3D/DXGI/DirectComposition 呈现资源。
+//! Software D2D -> GDI DIB -> HWND/layered window; create no D3D/DXGI/DirectComposition presentation resources.
 use crate::software_dib as bitmap;
 #[path = "software_submission.rs"]
 mod submission;
@@ -20,12 +20,12 @@ use windows::{
 };
 
 pub struct SoftwareSurface {
-    // target 必须先于它绑定的 DC/DIB 析构。
+    // Destroy target before its bound DC/DIB.
     target: ID2D1DCRenderTarget,
     bitmap: Rc<bitmap::Bitmap>,
-    // BindDC 失败后的绑定状态不作猜测；两个 DC 都保留到 target 释放，禁止悬空引用。
+    // Do not guess binding state after BindDC failure; retain both DCs until target releases, preventing dangling references.
     _failed_bitmap: Option<Rc<bitmap::Bitmap>>,
-    // 内部位图按两份历史最大像素预留，缩小时不假定 D2D 已释放缓存；对象/驱动开销仍须实测。
+    // Reserve internal bitmaps for twice the historical maximum pixels; shrinking does not assume D2D released caches. Object/driver overhead still needs measurement.
     scratch: crate::byte_budget::Lease,
     ready: bool,
     failed: bool,
@@ -71,7 +71,7 @@ impl SoftwareSurface {
             })
         }
     }
-    // 仅内部 Canvas 同步资源适配；不得保存 target 或绕过 draw 自行开启帧。
+    // Only internal Canvas synchronous-resource adaptation; never retain target or start frames outside draw.
     pub(in crate::desktop) fn resource_target(&self) -> &ID2D1RenderTarget {
         &self.target
     }
@@ -98,14 +98,14 @@ impl SoftwareSurface {
         self.bitmap = next;
         Ok(())
     }
-    /// 内部可信绘制适配：闭包不得保存/克隆 target 到作用域外，也不得自行 BeginDraw/EndDraw。
-    /// 租约保护覆盖本 owner 的绘制入口；不是对绕过接口的任意 unsafe COM 操作的隔离。
+    /// Trusted internal drawing adapter: closures must neither retain/clone target outside the scope nor call BeginDraw/EndDraw themselves.
+    /// Lease protection covers this owner's drawing entry, not arbitrary unsafe COM operations bypassing the interface.
     pub fn draw(&mut self, paint: impl FnOnce(&ID2D1RenderTarget) -> Result<()>) -> Result<()> {
         self.ready = false;
         if self.failed {
             return Err(Error::new(E_FAIL, "Software surface requires rebuild"));
         }
-        // 未提交的帧拥有同一 DIB 时，不允许后续绘制覆盖其像素；取消/提交后自动恢复。
+        // If an unsubmitted frame owns the same DIB, later drawing cannot overwrite its pixels; cancellation/submission restores access automatically.
         if Rc::strong_count(&self.bitmap) != 1 {
             return Err(Error::new(
                 E_FAIL,
@@ -113,19 +113,19 @@ impl SoftwareSurface {
             ));
         }
         super::render_frame::draw(&self.target, || paint(&self.target))?;
-        // EndDraw 将内部位图送到 GDI；读取 DIB/提交窗口前排空本线程的 GDI 批次。
+        // EndDraw transfers the internal bitmap to GDI; drain this thread's GDI batch before reading the DIB/submitting the window.
         unsafe {
             GdiFlush().ok()?;
         }
         self.ready = true;
         Ok(())
     }
-    /// 调用者拥有 HWND 样式；本候选不擅自切换窗口的重定向/分层标记。
+    /// Callers own HWND styles; this candidate never changes window redirection/layered flags autonomously.
     pub fn present(&mut self, hwnd: HWND, pinned: bool, opacity: f32) -> Result<()> {
         self.prepare_present(pinned, opacity)?.present(hwnd)
     }
-    /// 只转移不可变像素租约，不调用 HWND API；窗口 owner 应释放模型借用后再提交。
-    /// 此后同一 DIB 禁止绘制，直到提交或丢弃；resize 的新 DIB 仍受共享预算约束。
+    /// Transfer only an immutable pixel lease without HWND API calls; window owners submit after releasing model borrows.
+    /// Do not draw into the same DIB until submission/discard; newly resized DIBs remain subject to the shared budget.
     pub fn prepare_present(&mut self, pinned: bool, opacity: f32) -> Result<Submission> {
         submission::validate(pinned, opacity)?;
         if !std::mem::take(&mut self.ready) {

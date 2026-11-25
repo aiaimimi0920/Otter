@@ -1,4 +1,4 @@
-//! 主干二级栏的字段投影；业务值与控件表现之间只作一次明确映射。
+//! Field projections for baseline secondary bars; map business values to control presentation explicitly once.
 use super::*;
 use crate::{
     editor::Tool,
@@ -310,7 +310,7 @@ pub(super) fn fields(c: &Canvas) -> Vec<Field> {
         ],
         _ => Vec::new(),
     };
-    // 普通文字动作不叠画图标；Dropdown 由主题布局图标、值和展开箭头。
+    // Ordinary text actions do not overlay icons; the theme lays out Dropdown icons, values, and expansion arrows.
     for f in &mut result {
         if matches!(f.kind,Kind::Action{ref value,..} if !value.is_empty()) {
             f.icon = None;

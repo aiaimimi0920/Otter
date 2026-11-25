@@ -1,4 +1,4 @@
-//! 原生发布固定 UI 准入周期；自有源 hook/窗口，不加载产品 DLL 或执行媒体操作。
+//! Native publication fixes the UI admission epoch; owned source hooks/windows, without loading the product DLL or performing media operations.
 use super::*;
 use crate::live_window_target::recovery::popup_layer::fixture::Fixture;
 
@@ -139,7 +139,7 @@ fn committed_pending_or_rejected_modal_cannot_be_classified_as_unsent_revocation
     CALLBACK.with(|slot| slot.set((207, false)));
     fixture.owner.control(false).unwrap();
     assert_eq!(modal.check_revoked_control(), Err(Error::DeliveryFailed));
-    // 回调已返回但源未确认也仍失败，不因 epoch 改变而伪装成确定未投递。
+    // A returned callback without source confirmation still fails; an epoch change must not disguise it as certain nondelivery.
     CALLBACK.with(|slot| slot.set((207, true)));
     assert_eq!(modal.check_revoked_control(), Err(Error::DeliveryFailed));
     assert_eq!(modal.token, 0);

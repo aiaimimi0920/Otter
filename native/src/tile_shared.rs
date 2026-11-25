@@ -1,4 +1,4 @@
-//! 单槽帧候选/实际呈现回执；网络线程不持 HWND，窗口线程不能延长六秒服务授权。
+//! Single-slot frame candidates/actual presentation receipts; network threads hold no HWNDs, and window threads cannot extend six-second service authorization.
 use crate::{
     image_decode::Image,
     tile_clock::Clock,
@@ -119,7 +119,7 @@ impl State {
     }
     pub fn expire(&mut self, now: Instant) {
         self.identification.expire(now);
-        // 媒体过期只清候选/回执，保留desired/generation以允许原任务继续准备；冻结保实际已呈现快照。
+        // Media expiry clears only candidates/receipts, retaining desired/generation so original tasks can keep preparing; freeze preserves the actually presented snapshot.
         if !self.frozen {
             if self
                 .frame
@@ -291,7 +291,7 @@ impl Shared {
         }) {
             Stage::ArtChangedDuringPaint
         } else {
-            // paint期间后台可发布下一帧；冻结只能保留实际完成呈现的这一完整快照。
+            // Background work may publish the next frame during paint; freeze preserves only this complete snapshot that actually finished presentation.
             s.presented_frame = Some(frame.clone());
             if let Some((time, error)) = s.clock.estimate(now) {
                 if s.presented.as_ref().is_none_or(|p| p.0 != frame.key) {

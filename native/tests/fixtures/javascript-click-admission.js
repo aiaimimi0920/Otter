@@ -1,4 +1,4 @@
-// 走宿主 Command::Click：准入与分派路径分别验证，微任务必须在收集结果前完成。
+// Use host Command::Click: verify admission and dispatch separately, with microtasks complete before result collection.
 let host, parent, button, label, mode = 0, log = [];
 const check = (value, message) => { if (!value) throw Error(message); };
 NeuroSurface.define({

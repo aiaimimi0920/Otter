@@ -1,4 +1,4 @@
-//! 接收原图的同步呈现围栏；只证明可见 HWND 的新帧已提交，不宣称物理屏幕扫描输出。
+//! Synchronous presentation fence for received originals; proves only that a new frame was committed to a visible HWND, not physical display scanout.
 use super::*;
 use crate::desktop::document_window::DocumentWindow;
 use windows::Win32::Graphics::Gdi::{RedrawWindow, RDW_INVALIDATE, RDW_UPDATENOW};
@@ -132,7 +132,7 @@ impl Visual {
                 ),
             ));
         }
-        // 不跨可重入 Win32 调用保留 RefCell 借用；再次检查同 HWND/State/文档/像素。
+        // Do not retain RefCell borrows across reentrant Win32 calls; recheck the same HWND/State/document/pixels afterward.
         let _ = ShowWindow(self.hwnd, SW_SHOWNOACTIVATE);
         if !self.visible(doc) {
             return Err(Error::new(

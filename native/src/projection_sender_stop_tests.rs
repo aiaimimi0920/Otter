@@ -1,4 +1,4 @@
-//! 隔离日志的显式停止/成功事实/重启/精确 ack；Active::retire 在此只模拟已确认 HTTP 的调用边界。
+//! Explicit stop/success facts/restart/exact ACK on isolated journals; Active::retire only simulates the confirmed-HTTP call boundary here.
 use super::*;
 use crate::device_authorization_lease::Grant;
 use binding::{stop::Acknowledgement, tests as fixture};

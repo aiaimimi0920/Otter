@@ -1,4 +1,4 @@
-//! 无 raster 目标的实时逻辑框：独立像素 oracle 与隐藏菜单/TLS，不等待保存或占用前台。
+//! Live logical frame for raster-less targets: independent pixel oracle and hidden menus/TLS, without waiting for save or taking foreground focus.
 use super::*;
 use crate::{crop_geometry::Size, session_window::Rect};
 
@@ -118,7 +118,7 @@ pub(super) unsafe fn install(app: &mut Application, case: source::Case) -> Image
     assert_eq!(before["stickers"][0]["h"], 32.0);
     resize(app, 32.0, 16.0);
     if matches!(case, source::Case::TargetMini | source::Case::ArtLive) {
-        // 当前 expanded 与 canonical/mini HWND 三者均不同；Art 必须忽略 sticker savedRect 分支。
+        // Current expanded, canonical, and mini HWND frames all differ; Art must ignore the sticker savedRect branch.
         mini(
             app,
             Size {
@@ -195,7 +195,7 @@ fn native_sender_no_raster_scope_rejects_resize_minify_and_changed_session_space
             "HWND resize without editor revision is stale"
         );
         resize(&app, 32.0, 16.0);
-        // resize 会改变 viewport；恢复同一 HWND 外框不表示旧完整 Document 凭证复活。
+        // resize changes viewport; restoring the same HWND outer frame does not revive the old complete Document credentials.
         let (guard, _) = scope::Scope::capture(&app, &unit).unwrap();
         assert!(guard.matches(&app));
         mini(

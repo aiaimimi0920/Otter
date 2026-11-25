@@ -1,4 +1,4 @@
-//! 同一恢复 journal 的真实子进程登记/退休；只借用自有 fixture 菜单。
+//! Real child registration/retirement using the same recovery journal; borrow only owned fixture menus.
 use super::*;
 use crate::live_window_target::recovery::popup_layer::fixture::{pump, Fixture};
 use std::time::{Duration, Instant};
@@ -12,7 +12,7 @@ fn advance(owner: &mut Owner, done: impl Fn(&Owner) -> bool) {
             return;
         }
         assert!(Instant::now() < deadline, "Popup layer journal timed out");
-        // 真实 ACK 来自后台 worker；只泵自有窗口，不抢系统前台。
+        // Real ACK comes from background workers; pump only owned windows without taking system foreground.
         std::thread::sleep(Duration::from_millis(1));
     }
 }
@@ -155,7 +155,7 @@ fn rapid_reopen_waits_for_old_registration_retirement_before_borrowing_new_insta
 fn acknowledged_layered_menu_does_not_require_full_snapshot_and_reaps_on_close() {
     let f = Fixture::new();
     f.layered_without_attributes();
-    // per-pixel 样式/内容先于本轮 SHOW，不沿用之前的显示实例。
+    // Per-pixel style/content precedes this SHOW; do not reuse the previous display instance.
     let lease = f.show();
     let target = Target::bind(f.popup.0).unwrap();
     assert!(Snapshot::read(&target).is_err());
@@ -196,7 +196,7 @@ fn same_lease_becoming_wanted_during_posted_restore_cannot_reborrow_retiring_reg
     owner.sync_popup_layers(&[lease]).unwrap();
     advance(&mut owner, |_| f.topmost());
     owner.sync_popup_layers(&[]).unwrap();
-    owner.poll().unwrap(); // Restore 已入队，还未被源线程 PM_REMOVE 执行。
+    owner.poll().unwrap(); // Restore is queued but the source thread has not executed it with PM_REMOVE.
     assert!(owner.popup_layers.entries[0].retiring);
     assert!(!owner.popup_layers.entries[0].restored);
     assert!(owner.deadline().is_some());

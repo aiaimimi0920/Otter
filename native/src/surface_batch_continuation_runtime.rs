@@ -1,4 +1,4 @@
-//! 显式接续 worker：完整收据随唯一 owner 返回，只提交未经尝试的后缀。
+//! Explicit continuation worker: return the complete receipt with the unique owner and submit only the unattempted suffix.
 use super::*;
 pub use crate::desktop::surface_authorized_window::BatchContinuationInput as Input;
 pub struct Outcome {
@@ -131,7 +131,7 @@ fn execute(control: &crate::live_relay_http::Control<'_>, input: &mut Input) -> 
         .as_mut()
         .expect("validated result");
     let remaining = receipt.events.len() - input.next;
-    // 网络副作用前为原批次追加结果预留空间，不能在接收 ACK 后才发现无法保存。
+    // Reserve space for appending original-batch results before network side effects, not after receiving an ACK that cannot be saved.
     submitted
         .acknowledgements
         .try_reserve(remaining)
@@ -144,7 +144,7 @@ fn execute(control: &crate::live_relay_http::Control<'_>, input: &mut Input) -> 
     let mut tail = control
         .submit_surface_click_batch(&input.owner, input.revision, events)
         .map_err(Error::Batch)?;
-    // 内层提交保留逐项 ACK；观察异常独立处理，不覆盖已发送证据或原前缀。
+    // Inner submission preserves per-item ACKs; handle observation failures separately without overwriting sent evidence or the original prefix.
     let observation = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         observation::observe(control, events, &mut tail)
     }))
@@ -163,7 +163,7 @@ fn execute(control: &crate::live_relay_http::Control<'_>, input: &mut Input) -> 
             }
         }
         Err(error) => {
-            // 每个已收到的 ACK 都保留一项失败观察，不伪造版本或擦除前缀。
+            // Preserve one failed observation per received ACK without fabricating revisions or erasing the prefix.
             observed
                 .items
                 .extend((0..tail.acknowledgements.len()).map(|_| ObservedItem {
@@ -181,7 +181,7 @@ fn execute(control: &crate::live_relay_http::Control<'_>, input: &mut Input) -> 
     Ok(())
 }
 impl Outcome {
-    /// 结果已在完整收据内更新；外层错误单独返回供应用通知，原证据不被替换。
+    /// Results are already updated in the complete receipt; return outer errors separately for application notification without replacing original evidence.
     pub fn into_batch(self) -> (super::Outcome, Result<(), Error>) {
         let Input {
             owner,

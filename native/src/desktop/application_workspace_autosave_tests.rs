@@ -1,4 +1,4 @@
-//! 自动保存的取消/代际/冲突/显式请求和退出边界；仅自有隐藏 HWND 与 文件。
+//! Autosave cancellation/generation/conflict/explicit-request/exit boundaries; owned hidden HWNDs and files only.
 use super::*;
 use std::time::{Duration, Instant};
 

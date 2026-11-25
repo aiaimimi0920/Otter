@@ -57,7 +57,7 @@ fn authenticated_remount_uses_fixed_origin_nonce_and_escaped_instance() {
         .unwrap();
     assert_eq!(result.binding, expected);
     assert!(result.snapshot.get().contains("scene"));
-    // 保留 Loom 的原始 null 快照，由生产场景边界解释，而不是 HTTP 层删除字段。
+    // Preserve Loom's original null snapshot for the production scene boundary to interpret, rather than deleting fields in the HTTP layer.
     let raw: serde_json::Value = serde_json::from_str(result.snapshot.get()).unwrap();
     assert_eq!(raw["scene"]["props"], serde_json::Value::Null);
     let scene = result.declarative_scene().unwrap();

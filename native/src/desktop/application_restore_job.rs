@@ -1,4 +1,4 @@
-//! 应用级单任务恢复协调：启动即冻结来源凭证，完成后再绑定目录、建窗与发布。
+//! Application-wide single-task restore coordination: freeze source credentials at start, then bind the catalog, create windows, and publish after completion.
 use super::*;
 use crate::desktop::{session_asset_root::Root, session_binding::Bound, session_job};
 #[cfg(any(test, debug_assertions, feature = "smoke-test"))]
@@ -25,7 +25,7 @@ impl Application {
         self.restore_job.as_ref()?.worker.deadline()
     }
 
-    /// CLI 检查模式消费真实消息唤醒，但不进入注册热键/显示首窗口的 run()。
+    /// CLI check mode consumes real message wakeups without entering run(), which registers hotkeys and shows the first window.
     pub(in crate::desktop) unsafe fn check_restored_startup(mut self) -> Result<()> {
         loop {
             self.execution_wake.acknowledge();
@@ -44,7 +44,7 @@ impl Application {
                 ));
             }
             let mut message = MSG::default();
-            // 此循环只结算恢复与冻结库，不引入普通应用任务的截止。
+            // This loop settles only restoration and frozen-library work, without adding deadlines for ordinary application tasks.
             if self.next_session_check_message(&mut message)? == 0 {
                 self.cancel_restore();
                 return Err(Error::new(
@@ -137,7 +137,7 @@ impl Application {
         live::wait::next_until(&[], message, deadline)
     }
 
-    /// bytes/root 是调用方显式选择的数据；不读取默认用户配置，也不猜历史 DPR。
+    /// bytes/root are explicitly selected by the caller; do not read default user settings or guess the historical DPR.
     pub unsafe fn request_restore(
         &mut self,
         bytes: Vec<u8>,
@@ -201,7 +201,7 @@ impl Application {
         Ok(())
     }
 
-    /// 只发取消信号；不在 UI 线程等待 WIC/文件调用，完成通知仍负责回收。
+    /// Only signal cancellation; do not wait for WIC/file calls on the UI thread. Completion notifications still drive reaping.
     pub fn cancel_restore(&mut self) {
         if let Some(job) = &mut self.restore_job {
             job.cancelled = true;
@@ -259,7 +259,7 @@ impl Application {
         } else {
             job.space
         };
-        // 模态输入可能派发窗口/目录消息；确认后重新核对原来源，不能覆盖期间新增编辑。
+        // Modal input may dispatch window/catalog messages; recheck the original source after confirmation without overwriting intervening edits.
         if !job.origin.matches(self)
             || !crate::desktop::session_binding::catalog_matches(
                 &job.catalog,
@@ -284,7 +284,7 @@ impl Application {
             })
         })?;
         if let Some(frozen) = frozen {
-            // 追加原文按任务开始时的活跃集合构造；建窗期间若有重入，仍须核对原任务凭证。
+            // Build the appended source document from the active set at task start; reentry during window creation still requires checking the original task credentials.
             if !job.origin.matches(self) {
                 return Err(Error::new(
                     E_ABORT,
@@ -312,7 +312,7 @@ impl Application {
             if !visible {
                 return Err(error);
             }
-            // 加载失败不能终止应用或关闭原窗口；可见模式报告一次后清除本次任务。
+            // A load failure must not terminate the application or close existing windows; visible mode reports it once, then clears this task.
             MessageBoxW(
                 self.documents.first().map(|doc| doc.window.0),
                 &HSTRING::from(format!("无法恢复会话，原工作区保留。\n{error}")),
@@ -372,7 +372,7 @@ mod tests {
             app.process_restore(false).unwrap();
             assert!(app.restore_job.is_some(), "notifier has not exited");
             assert!(app.restore_reap_deadline().is_some());
-            // 忽略可能仍排队的隐藏窗口消息；WM_NULL 必须来自 CLI 自己的截止。
+            // Ignore hidden-window messages that may still be queued; WM_NULL must come from the CLI's own deadline.
             loop {
                 assert_eq!(app.next_session_check_message(&mut message).unwrap(), 1);
                 if message.message == WM_NULL && message.hwnd.is_invalid() {

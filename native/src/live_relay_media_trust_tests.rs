@@ -1,4 +1,4 @@
-//! 操作员 PEM 加载后的真实 TLS 验证；跨端口不能复用附加 CA。
+//! Real TLS verification after operator PEM loading; additional CAs cannot be reused across ports.
 use super::*;
 use crate::loom_tls_trust::Trust;
 use base64::Engine;

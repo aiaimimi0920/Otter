@@ -1,4 +1,4 @@
-//! 声明式 Surface 的窗口 owner；隐藏创建，按需绘制，关闭时先释放原生呈现资源。
+//! Window owner for declarative Surfaces; create hidden, paint on demand, and release native presentation resources first on closing.
 use super::surface_host::Host;
 use windows::Win32::UI::Controls::WM_MOUSELEAVE;
 #[path = "surface_window_accessibility.rs"]
@@ -106,7 +106,7 @@ impl SurfaceWindow {
             crate::surface_presentation::Images::new(),
         )
     }
-    /// 显式交付当前场景像素；不从节点 URL/文件路径读取，也不代替上层来源授权。
+    /// Explicitly deliver current-scene pixels; neither read node URLs/file paths nor replace upper-layer source authorization.
     pub fn with_images(
         scene: Scene,
         width: u32,
@@ -204,14 +204,14 @@ impl SurfaceWindow {
     pub fn take_error(&self) -> Option<Error> {
         self.state.error.borrow_mut().take()
     }
-    /// 声明式节点描述句柄；场景替换撤销旧身份，UIA 控制模式仍经窗口权限门禁。
+    /// Declarative node-description handles; scene replacement revokes old identities, and UIA control patterns remain window-permission-gated.
     pub fn accessibility_node(&self, id: &str) -> Option<crate::surface_accessibility::Handle> {
         if !self.is_alive() {
             return None;
         }
         self.state.accessibility.borrow().as_ref()?.node(id)
     }
-    /// 有效窗口的客户区像素命中；仅返回身份，调用方仍须验证授权和生命周期。
+    /// Client-pixel hits for valid windows return identity only; callers must still validate authorization and lifecycle.
     pub fn hit_test(&self, client_pixels: [i32; 2]) -> Result<Option<String>> {
         if !self.is_alive() {
             return Err(Error::new(E_FAIL, "Surface window closed"));
@@ -235,7 +235,7 @@ impl SurfaceWindow {
         }
         Ok(())
     }
-    /// 只准备有界事件，不发送；返回前复核窗口，重入关闭不得泄漏旧场景动作。
+    /// Prepare bounded events without sending; recheck windows before returning so reentrant closure cannot leak old-scene actions.
     pub fn click_events(
         &self,
         client_pixels: [i32; 2],
@@ -303,8 +303,8 @@ unsafe extern "system" fn procedure(hwnd: HWND, message: u32, wp: WPARAM, lp: LP
     if pointer.is_null() {
         return DefWindowProcW(hwnd, message, wp, lp);
     }
-    // userdata 指向仍由窗口 owner 持有的 Rc 数据。当前回调独立保活，防止同步重入
-    // 释放 SurfaceWindow 后，外层消息继续访问 State；from_raw 消费刚增加的引用。
+    // userdata points to Rc data still held by the window owner. Independently retain it for this callback, preventing synchronous reentrancy
+    // from releasing SurfaceWindow while the outer message still accesses State; from_raw consumes the just-added reference.
     Rc::increment_strong_count(pointer);
     let owner = Rc::from_raw(pointer);
     let state = &*owner;
@@ -365,7 +365,7 @@ unsafe extern "system" fn procedure(hwnd: HWND, message: u32, wp: WPARAM, lp: LP
                     }
                 }
             }
-            // 不跨 UIA 调用持有 RefCell；系统可同步重入并销毁窗口。
+            // Hold no RefCell borrow across UIA calls; the system may synchronously reenter and destroy windows.
             let provider = state.uia.borrow().as_ref().map(uia::Root::provider);
             return windows::Win32::UI::Accessibility::UiaReturnRawElementProvider(
                 hwnd,
@@ -413,7 +413,7 @@ unsafe extern "system" fn procedure(hwnd: HWND, message: u32, wp: WPARAM, lp: LP
         WM_PAINT => {
             let mut paint = PAINTSTRUCT::default();
             BeginPaint(hwnd, &mut paint);
-            // 绘制可能同步重入窗口消息，不能跨 D2D 调用持有 RefCell 借用。
+            // Drawing may synchronously reenter window messages; hold no RefCell borrow across D2D calls.
             let focus = state.keyboard.borrow().indicator().map(str::to_owned);
             let hover = state.pointer.borrow().hovered().map(str::to_owned);
             let pressed = state
@@ -461,7 +461,7 @@ unsafe extern "system" fn procedure(hwnd: HWND, message: u32, wp: WPARAM, lp: LP
             pointer::invalidate(hwnd, state);
             if lp.0 != 0 {
                 let rect = &*(lp.0 as *const RECT);
-                // checked_sub 防止畸形建议矩形溢出；不改变激活状态或 Z 序。
+                // checked_sub prevents overflow from malformed suggested rectangles; activation and Z-order remain unchanged.
                 let size = rect
                     .right
                     .checked_sub(rect.left)

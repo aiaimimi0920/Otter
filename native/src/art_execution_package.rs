@@ -1,4 +1,4 @@
-//! 客户端独立包证明DTO/验签；绑定同次完整grant和有界资源，路径从不进入本地执行设施。
+//! Independent client package-proof DTOs/signature verification; bind the same complete grant and bounded resources, never passing paths into local execution facilities.
 use super::*;
 use serde::{Deserialize, Serialize};
 #[path = "art_execution_ports.rs"]

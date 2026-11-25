@@ -1,4 +1,4 @@
-//! 预约失败不启动计算；原有单槽、取消和一次性历史提交保持不变。
+//! Scheduling failures start no computation; preserve existing single slots, cancellation, and one-shot history commits.
 use super::*;
 use crate::{blur::Region, blur_job::Request, editor::FlipPlan};
 use std::time::{Duration, Instant};

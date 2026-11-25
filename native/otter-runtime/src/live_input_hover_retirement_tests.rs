@@ -1,4 +1,4 @@
-//! 菜单销毁与悬浮清理竞争：只确认不存在的 hover 终态，不伪造 held 释放成功。
+//! Menu-destruction/hover-cleanup race: confirm only the terminal state of nonexistent hover, without faking successful held releases.
 use super::*;
 
 #[test]
@@ -15,7 +15,7 @@ fn leave_cleanup_accepts_destruction_during_delivery() {
     }
     assert!(message::release_to_with_timeout(&target, Message::leave(), 250).is_ok());
     assert!(!unsafe { IsWindow(Some(target.hwnd())) }.as_bool());
-    // 同一旧目标再清理 hover 无需投递；普通输入与 held 边沿绝不能报成功。
+    // Repeated hover cleanup of the same old target needs no delivery; ordinary input and held edges must never report success.
     assert!(message::release_to_with_timeout(&target, Message::leave(), 250).is_ok());
     assert!(message::send_to(&target, Message::motion([0, 0], 0).unwrap()).is_err());
     assert!(message::release_to(&target, Message::key(0x41, false).unwrap()).is_err());

@@ -1,4 +1,4 @@
-//! 显式请求的一次性显示器捕获；独立设备、两帧池，完成后关闭而非常驻。
+//! Explicit one-shot monitor capture; independent device/two-frame pool, closed on completion rather than kept resident.
 use crate::{
     capture_color::{self, ScRgb, SdrFrame},
     capture_readback::{self, Format},
@@ -41,8 +41,8 @@ pub enum Error {
     Api(windows::core::Error),
     Readback(capture_readback::Error),
 }
-/// 必须由显式获授权的截图请求调用，并在后台 MTA 线程执行；不弹 picker、不修改显示设置。
-/// 保留系统捕获边框，不请求关闭边框权限；回调不得执行 UI 等待或启动另一捕获。
+/// Call only for explicitly authorized capture requests on background MTA threads; no picker or display-setting changes.
+/// Preserve system capture borders without requesting border-removal permission; callbacks must neither wait for UI nor start another capture.
 pub fn monitor<T>(
     monitor: HMONITOR,
     cancel: &AtomicBool,
@@ -58,7 +58,7 @@ pub fn monitor<T>(
         },
     )
 }
-/// region 使用目标显示器内部的物理像素；跨显示器选区须由上层单独处理，不隐式截断。
+/// region uses physical pixels within the target monitor; upper layers separately handle cross-monitor selections without implicit truncation.
 pub fn monitor_region<T>(
     monitor: HMONITOR,
     region: capture_readback::Region,
@@ -146,7 +146,7 @@ fn capture<T>(
     if desc.Width != size.Width as u32 || desc.Height != size.Height as u32 {
         return Err(Error::Resized);
     }
-    // 每次调用独立创建 context，不发布给其它线程；帧 guard 在整个复制/映射期间持有池帧。
+    // Create independent contexts per call without publishing to other threads; frame guards retain pool frames throughout copy/mapping.
     let output = consume(&context, &texture).map_err(Error::Readback)?;
     check(cancel)?;
     drop(texture);
@@ -176,7 +176,7 @@ fn device() -> windows::core::Result<(ID3D11Device, ID3D11DeviceContext, IDirect
         let device = device.ok_or_else(windows::core::Error::empty)?;
         let context = context.ok_or_else(windows::core::Error::empty)?;
         let multithread: ID3D11Multithread = context.cast()?;
-        // 返回的是此前状态，不是成功标志；本次独立设备始终启用保护。
+        // The return value is previous state, not success; always enable protection on this independent device.
         let _ = multithread.SetMultithreadProtected(true);
         let dxgi: IDXGIDevice = device.cast()?;
         let winrt = CreateDirect3D11DeviceFromDXGIDevice(&dxgi)?.cast()?;
@@ -218,7 +218,7 @@ fn same_size(expected: SizeInt32, actual: SizeInt32) -> bool {
 fn pending<T>(result: windows::core::Result<T>) -> windows::core::Result<Option<T>> {
     match result {
         Ok(frame) => Ok(Some(frame)),
-        // windows-core 0.60 将成功的空接口表示为 Error::empty / S_OK，不能吞掉 E_POINTER。
+        // windows-core 0.60 represents successful null interfaces as Error::empty / S_OK; do not swallow E_POINTER.
         Err(error) if error.code() == S_OK => Ok(None),
         Err(error) => Err(error),
     }

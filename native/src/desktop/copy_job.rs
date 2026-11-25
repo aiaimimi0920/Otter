@@ -1,4 +1,4 @@
-//! 显式复制命令的单任务图像准备；取消或文档变化时禁止迟到结果覆盖系统剪贴板。
+//! Single-task image preparation for explicit copy commands; cancellation/document changes prohibit late results from overwriting the system clipboard.
 use super::{canvas::Canvas, State};
 use std::{
     sync::{
@@ -71,7 +71,7 @@ pub(super) fn install_gated(
         next: None,
     });
 }
-// 新的显式复制最多占一个后继槽；旧编码器先回收，不在按键回调 join 或并行编码。
+// New explicit copy requests occupy at most one successor slot; reclaim old encoders first, without key-callback joins or parallel encoding.
 struct Next {
     stamp: super::display_snapshot::Stamp,
     plan: Option<file_plan::Plan>,
@@ -195,7 +195,7 @@ unsafe fn start_guarded(
     plan: Option<file_plan::Plan>,
     sequence: Option<u32>,
 ) {
-    // 在准备像素/启动 worker 前采样，与主干复制入口的鼠标时刻一致。
+    // Sample before preparing pixels/starting workers, matching the pointer timing of the baseline copy entry.
     let origin = super::clipboard_placement::Origin::capture(hwnd, state);
     start_guarded_at(hwnd, state, plan, sequence, origin);
 }
@@ -254,7 +254,7 @@ pub(super) unsafe fn start_guarded_at(
                 job.sequence = sequence;
                 job.preserve_edits &= !state.is_art();
                 job.origin = origin;
-                // 跨窗口取消旧 worker；旧结果仍由原窗口回收，不转移 HWND 或 State。
+                // Cancel old workers across windows; original windows still reclaim old results, without HWND/State transfer.
                 state
                     .copy_authority
                     .replace(job.cancel.clone())
@@ -286,7 +286,7 @@ pub(super) unsafe fn poll(hwnd: HWND, state: &State) {
     );
 }
 
-// 测试仅替换最终外部副作用；任务回收、取消和文档校验与生产路径完全共用。
+// Tests replace only the final external side effect; reclamation, cancellation, and document validation fully share production paths.
 pub(super) unsafe fn poll_using(
     hwnd: HWND,
     state: &State,
@@ -339,7 +339,7 @@ unsafe fn poll_guarded(
         .unwrap_or_else(|_| Err("Copy worker failed".into()));
     if let Some(next) = job.next.take() {
         drop(result);
-        // 只继续仍属于这次按键的内容；后来的编辑、其它复制和取消均不能被覆盖。
+        // Continue only content still belonging to this keystroke; never overwrite later edits, other copies, or cancellation.
         if IsWindow(Some(hwnd)).as_bool()
             && !state.modals.blocked()
             && !next.cancel.load(Ordering::Acquire)
@@ -384,7 +384,7 @@ unsafe fn poll_guarded(
                     return;
                 }
             };
-            // 一旦开始发布，失败可能已转移部分格式；保留 backing file，不能在此删除。
+            // After publication begins, failure may follow partial format transfer; retain backing files and never delete them here.
             match publish(hwnd, &ready.payload, &paths, job.sequence) {
                 Ok(Some(sequence)) => state.editable_clipboard.borrow_mut().published_at(
                     sequence,

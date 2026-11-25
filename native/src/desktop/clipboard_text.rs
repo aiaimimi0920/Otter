@@ -1,4 +1,4 @@
-//! 显式文本复制的有界 UTF-16 暂存；复用剪贴板内存预算和所有权转移。
+//! Bounded UTF-16 staging for explicit text copy; reuse clipboard memory budgets and ownership transfer.
 use super::*;
 fn units(text: &str) -> Result<Vec<u16>> {
     bounded_units(text, 65536, 256 * 1024, false)
@@ -51,7 +51,7 @@ pub(in crate::desktop) unsafe fn copy_full_checked(
     text: &str,
     current: impl FnOnce() -> bool,
 ) -> Result<()> {
-    // 全文入口不沿扩展命令的截取策略；超限/无效文本在触碰原剪贴板前明确拒绝。
+    // Full-text entry does not use extension-command truncation; explicitly reject oversized/invalid text before touching the original clipboard.
     let prepared = prepare_units(full_units(text)?)?;
     publish(owner, prepared, current)
 }
@@ -63,7 +63,7 @@ pub(in crate::desktop) unsafe fn copy_extension_checked(
     text: &str,
     current: impl FnOnce() -> bool,
 ) -> Result<()> {
-    // 主干扩展复制截取至 1 Mi UTF-16 字符；保留完整 Unicode scalar，不切开代理对。
+    // Baseline extension copy truncates at 1 Mi UTF-16 characters; preserve complete Unicode scalars without splitting surrogate pairs.
     let mut count = 0;
     let end = text
         .char_indices()
@@ -106,7 +106,7 @@ pub(in crate::desktop) fn capture_extension_copy(run: impl FnOnce()) -> Vec<Vec<
 unsafe fn publish(owner: HWND, prepared: Prepared, current: impl FnOnce() -> bool) -> Result<()> {
     OpenClipboard(Some(owner))?;
     let _clipboard = Clipboard;
-    // 持锁后、清空前复核窗口/选区；失败不得擦除用户原剪贴板。
+    // Revalidate window/selection after locking but before clearing; failures must not erase the user's original clipboard.
     if !current() {
         return Err(Error::new(
             E_ABORT,
@@ -114,7 +114,7 @@ unsafe fn publish(owner: HWND, prepared: Prepared, current: impl FnOnce() -> boo
         ));
     }
     EmptyClipboard()?;
-    prepared.transfer(13) // CF_UNICODETEXT；系统发布失败无法恢复原第三方格式。
+    prepared.transfer(13) // CF_UNICODETEXT; system publication failure cannot restore original third-party formats.
 }
 #[cfg(test)]
 mod tests {

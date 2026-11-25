@@ -1,4 +1,4 @@
-//! 本地任务的身份/容量/取消/异常事务；runner 替身不作为真实 GLSL 平台证据。
+//! Local-task identity/capacity/cancellation/exception transactions; substitute runners are not actual GLSL platform evidence.
 use super::*;
 use crate::{
     desktop::{

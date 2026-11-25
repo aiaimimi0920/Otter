@@ -1,4 +1,4 @@
-//! HWND 复制任务验证；不泵系统消息，直接调用共用轮询，唯一发布回调永不访问剪贴板。
+//! HWND copy-task verification; no system-message pumping, direct shared polling, and the sole publication callback never accesses the clipboard.
 use super::{copy_job, State};
 use windows::{
     core::{Error, Result},
@@ -21,7 +21,7 @@ unsafe fn finish(hwnd: HWND, state: &State) -> Result<usize> {
             std::time::Instant::now() < deadline,
             "Copy smoke worker timeout",
         )?;
-        // 不 DispatchMessage，避免 WM_TIMER 进入真实剪贴板发布。共用 poll 会 KillTimer。
+        // Do not DispatchMessage, preventing WM_TIMER from entering real clipboard publication. Shared poll calls KillTimer.
         copy_job::poll_using(hwnd, state, |owner, payload| {
             publications += 1;
             valid &= owner == hwnd
@@ -33,7 +33,7 @@ unsafe fn finish(hwnd: HWND, state: &State) -> Result<usize> {
         crate::desktop::smoke_timing::sleep(std::time::Duration::from_millis(1));
     }
     require(valid, "Copy smoke malformed representations")?;
-    // 过期定时器即使再次轮询也不能再次交付。
+    // Expired timers must not redeliver even when polled again.
     copy_job::poll_using(hwnd, state, |_, _| {
         publications += 1;
         Ok(())
@@ -47,7 +47,7 @@ pub(super) unsafe fn run(hwnd: HWND, state: &State) -> Result<()> {
         state.copy_job.borrow().is_some(),
         "Copy smoke task not started",
     )?;
-    copy_job::start_with_plan(hwnd, state, None); // 重复复制不增加待处理队列。
+    copy_job::start_with_plan(hwnd, state, None); // Repeated copy does not enlarge the pending queue.
     require(
         finish(hwnd, state)? == 1,
         "Copy smoke did not publish exactly once",

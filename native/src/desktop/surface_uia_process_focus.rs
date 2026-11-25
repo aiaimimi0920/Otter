@@ -1,4 +1,4 @@
-//! 系统焦点订阅先按自启进程 PID 过滤；不记录其他应用的节点身份或抢占前台。
+//! System-focus subscriptions filter self-started process PID first; no recording other applications' node identities or stealing foreground.
 use super::*;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -16,7 +16,7 @@ impl IUIAutomationFocusChangedEventHandler_Impl for Handler_Impl {
     fn HandleFocusChangedEvent(&self, sender: Ref<'_, IUIAutomationElement>) -> Result<()> {
         if let Some(element) = sender.as_ref() {
             unsafe {
-                // 焦点订阅是系统全局接口，只检查 cache PID，不查询其他应用实时属性。
+                // Focus subscriptions are system-global; check only cached PID, never querying other applications' live properties.
                 if element.CachedProcessId().ok().map(|pid| pid as u32) != Some(self.pid) {
                     return Ok(());
                 }
@@ -115,7 +115,7 @@ pub(super) fn verify(
         switch.SetFocus().unwrap();
         assert!(switch.CurrentHasKeyboardFocus().unwrap().as_bool());
         assert!(receiver.recv_timeout(Duration::from_millis(250)).is_err());
-        // 恢复调用者即将操作的按钮焦点，不激活桌面前台。
+        // Restore focus to the button the caller will operate next, without activating desktop foreground.
         button.SetFocus().unwrap();
     }
 }

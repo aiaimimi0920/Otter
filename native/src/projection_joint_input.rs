@@ -1,4 +1,4 @@
-//! 真 Loom 联合测试输入：从同一句柄核对路径、文件类型和读取上限，再交由各夹具解析。
+//! Real-Loom joint-test inputs: verify path/file type/read limits through the same handle before fixture parsing.
 use std::{
     ffi::OsString,
     fs::{File, OpenOptions},
@@ -49,7 +49,7 @@ fn load_under<'a>(input: &'a Path, temp: &Path) -> io::Result<(&'a Path, Zeroizi
         .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT.0 | FILE_FLAG_SEQUENTIAL_SCAN.0)
         .open(input)?;
     let bytes = read_open(file, &resolved_root)?;
-    // 保留启动脚本传入的普通路径；下游 profile 不接收 Win32 verbatim 路径。
+    // Preserve ordinary paths passed by launch scripts; downstream profiles reject Win32 verbatim paths.
     Ok((root, bytes))
 }
 
@@ -87,7 +87,7 @@ fn final_path(handle: HANDLE) -> io::Result<PathBuf> {
         0 => Err(io::Error::last_os_error()),
         1..260 => Ok(OsString::from_wide(&short[..length]).into()),
         260..=32768 => {
-            // 不足返回值包含 NUL；成功返回值不包含 NUL。
+            // Insufficient-buffer return values include NUL; successful return values exclude NUL.
             let mut long = vec![0; length];
             match query(&mut long) {
                 0 => Err(io::Error::last_os_error()),

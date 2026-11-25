@@ -1,4 +1,4 @@
-//! 独立wire常量核全部类型/边界和原值往返，不用适配器输出构造预期。
+//! Independent wire constants check all types/boundaries/original-value round trips; adapter output never generates expectations.
 use super::*;
 use crate::{
     editor::Tool,
@@ -243,7 +243,7 @@ fn maximum_layer_is_preserved_until_new_objects_require_bounded_renumbering() {
         let source = view(vec![object], (120.0, 100.0));
         let (mut editor, bridge) = install(&source);
         assert_eq!(bridge.current(&editor, metrics).unwrap(), source);
-        // 同时保护普通canonical写入：不能因next已越界而改写未变对象。
+        // Also protect ordinary canonical writes: out-of-range next must not rewrite unchanged objects.
         let saved: Value = serde_json::from_slice(
             &crate::session_vector_write::encode(&editor, None, |_| unreachable!()).unwrap(),
         )

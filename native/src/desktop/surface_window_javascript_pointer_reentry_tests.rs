@@ -1,4 +1,4 @@
-//! 自有 HWND 的同步 capture-change 重入；只观察原 FIFO，不注入全局输入。
+//! Synchronous capture-change reentrancy on owned HWNDs; observe only the original FIFO without global input injection.
 use super::*;
 use crate::surface_javascript_wire::PointerPhase;
 use std::cell::Cell;
@@ -17,7 +17,7 @@ unsafe extern "system" fn hide_on_capture_change(
 ) -> LRESULT {
     let probe = &*(data as *const Probe);
     if message == WM_CAPTURECHANGED && !probe.fired.replace(true) {
-        // 先标记再重入，不跨 ShowWindow 保存 mutable borrow。
+        // Mark before reentering, with no mutable borrow across ShowWindow.
         let _ = ShowWindow(probe.target, SW_HIDE);
     }
     DefSubclassProc(hwnd, message, wp, lp)
@@ -89,7 +89,7 @@ fn javascript_pointer_real_hwnd_release_reentry_hard_cancels_before_prepare_fall
     assert!(observer.probe.fired.get());
     assert!(!unsafe { IsWindowVisible(window.hwnd) }.as_bool());
     assert_ne!(unsafe { GetCapture() }, window.hwnd);
-    // 领取入口也能兜底取消；在调用它前观察 FIFO，避免错误实现被兜底掩盖。
+    // The claim entry can also cancel defensively; inspect FIFO before calling it so fallback cannot mask incorrect implementation.
     assert_eq!(
         window
             .state

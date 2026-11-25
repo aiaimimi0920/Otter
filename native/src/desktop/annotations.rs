@@ -1,4 +1,4 @@
-//! 基础标注的原生呈现；坐标由视口转换，图像裁剪由调用者持有。
+//! Native rendering for basic annotations; the viewport transforms coordinates and the caller owns image clipping.
 use super::effect_cache::Cache;
 use crate::{
     editor::{Editor, Stroke, Tool},
@@ -157,15 +157,15 @@ unsafe fn draw_layers(
         blur |= stroke.tool == Tool::Blur;
         mosaic |= stroke.tool == Tool::Mosaic;
     }
-    // 预览保留正式 ID，但不得替换正式几何缓存；隐藏/变形期间也保留其已提交条目。
+    // Previews retain official IDs but must not replace committed geometry caches; committed entries also survive hiding/transforms.
     active_ids.extend(editor.elements().iter().map(Stroke::annotation_id));
-    // 撤销/删除最后一个效果后，下一帧释放其缓存，而不是等到窗口销毁。
+    // After undoing/deleting the last effect, release its cache on the next frame rather than waiting for window destruction.
     cache.retain_tools(blur, mosaic);
     if blur {
         cache.retain_blurs(strokes().filter_map(|(_, stroke, _)| stroke.blur.as_ref()));
     }
     cache.annotations.retain_active(&active_ids);
-    // 基线荧光笔统一在其他标注下方，层内涂抹不突破整体 35% 上限。
+    // Baseline highlighters all sit below other annotations; overpainting within the layer never exceeds the overall 35% cap.
     for rank in 0..=3 {
         if ranks & (1 << rank) == 0 {
             continue;
@@ -223,7 +223,7 @@ unsafe fn draw_stroke(
     if stroke.tool == Tool::Blur {
         return super::annotation_blur::draw(target, stroke, viewport, cache);
     }
-    // 遮挡工具不继承普通画笔透明度/虚线，避免共享样式意外泄露底图。
+    // Obscuring tools do not inherit ordinary brush opacity/dashes, preventing shared styles from accidentally exposing the base image.
     if stroke.tool == Tool::Mosaic {
         return super::annotation_mosaic::draw(target, stroke, viewport, &mut cache.mosaic);
     }
@@ -246,7 +246,7 @@ unsafe fn draw_stroke(
         cacheable,
         &mut cache.annotations,
     );
-    // 包括几何创建失败的路径，都必须先恢复图层栈再传播错误。
+    // Restore the layer stack before propagating errors, including geometry-creation failures.
     drop(layer);
     result
 }

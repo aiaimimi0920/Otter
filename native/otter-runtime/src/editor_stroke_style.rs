@@ -1,4 +1,4 @@
-//! 活动 Stroke 与下一次手势样式的完整桥；历史恢复不能遗漏独立颜色 alpha。
+//! Complete bridge between active Stroke and next-gesture styles; history restoration must preserve independent color alpha.
 use super::{Stroke, StrokeStyle, Tool};
 impl Stroke {
     pub fn has_straight_arrow(&self) -> bool {

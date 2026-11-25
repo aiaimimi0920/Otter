@@ -1,11 +1,11 @@
-//! 菜单与键盘共用工具命令映射，不通过模拟按键触发工具选择。
+//! Menus/keyboards share tool-command mapping, without selecting tools through simulated keys.
 use crate::editor::Tool;
 pub(super) struct ToolCommand {
     pub id: usize,
     pub label: &'static str,
     pub tool: Tool,
 }
-// 菜单与后续原生工具栏共享顺序、名称和快捷键；模糊必须走后台准备入口。
+// Menus and subsequent native toolbars share order, names, and shortcuts; blur must use background preparation.
 pub(super) const TOOLS: &[ToolCommand] = &[
     ToolCommand {
         id: 0x56,

@@ -1,4 +1,4 @@
-//! 字段 input/change 编码，复用既有不可变事件/提交预算；不授权或发送动作。
+//! Field input/change encoding reuses existing immutable events/submission budgets without authorizing or sending actions.
 use crate::{
     surface_click_event::{self, ClickEvent, Declaration},
     surface_live_binding::Binding,
@@ -34,7 +34,7 @@ pub fn encode(
         surface_click_event::encode(binding, revision, declaration)
     })
 }
-/// Wall 与普通宿主只共享 wire 编码；此身份不授普通 Surface 挂载权。
+/// Wall and ordinary hosts share only wire encoding; this identity grants no ordinary Surface mount rights.
 pub fn encode_identity(
     node: &Node,
     identity: surface_click_event::Identity<'_>,
@@ -58,7 +58,7 @@ fn encode_using<T>(
     ) {
         return Err(Error::Kind);
     }
-    // Switch/Select 的既有合同只产生 change，不伪造连续事件或文本 draft。
+    // Existing Switch/Select contracts produce only change, not fabricated continuous events or text drafts.
     if matches!(node.kind(), Kind::Switch | Kind::Select) && matches!(phase, Phase::Input) {
         return Ok(None);
     }
@@ -82,7 +82,7 @@ fn encode_using<T>(
         }
         (Kind::Slider, Value::Number(None)) => return Err(Error::Value),
         (Kind::Number | Kind::Slider, Value::Number(number)) => match number {
-            // HTML valueAsNumber 的空/无效值经 JSON 编码为 null，不伪造为零。
+            // Empty/invalid HTML valueAsNumber values serialize to JSON null, not fabricated zero.
             None => serde_json::Value::Null,
             Some(number) => serde_json::Number::from_f64(number)
                 .map(serde_json::Value::Number)

@@ -1,4 +1,4 @@
-//! Chromium range 混合输入对照：键盘提交重置拖动基线，Tab 提交未结束手势。
+//! Chromium range mixed-input comparison: keyboard commits reset drag baselines, and Tab commits without ending gestures.
 use super::*;
 #[test]
 fn surface_slider_mixed_focus_commit_callback_may_destroy_control() {

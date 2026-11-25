@@ -1,4 +1,4 @@
-//! Invoke 只提交请求；通知或业务结果不用于重放操作。
+//! Invoke only submits requests; notices/business outcomes never replay operations.
 use super::*;
 unsafe fn base(this: *mut c_void) -> *mut c_void {
     this.cast::<u8>()

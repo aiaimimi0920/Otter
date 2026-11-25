@@ -1,4 +1,4 @@
-//! Win32 帧合并通知：按状态锁复位，无定时轮询，无通知队列增长。
+//! Win32 coalesced frame notices: reset under the state lock, without timed polling or notification-queue growth.
 use super::*;
 use std::os::windows::io::AsRawHandle;
 use windows::Win32::{

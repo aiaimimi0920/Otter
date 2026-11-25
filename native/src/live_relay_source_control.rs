@@ -1,4 +1,4 @@
-//! Source控制轮询与媒体独立，使用第二Lease/Cancel；所有输入经单槽桥交回原Session worker。
+//! Source control polling is separate from media and uses a second Lease/Cancel; all input returns to the original Session worker through a single-slot bridge.
 use super::*;
 use crate::{
     device_session_client::Client,
@@ -107,7 +107,7 @@ fn run(
                 || signal.control_recovering.load(Ordering::Acquire))
                 && action != input::Action::Release
             {
-                // 不可在已经跳过 Enable 的同一批中恢复投递；已验证的 None 仍有效。
+                // Do not resume delivery within the same batch that skipped Enable; validated None remains effective.
                 blocked = true;
                 next.discard_delivery();
                 continue;
@@ -134,7 +134,7 @@ fn run(
             return Ok(());
         }
     }
-    // UI来源/组状态可先撤销输入桥，即使此后没有新输入，也须结束发布owner。
+    // UI source/group state can revoke the input bridge first; the publishing owner must terminate even without subsequent input.
     signal.stop();
     Ok(())
 }
@@ -146,7 +146,7 @@ fn release_after_loss(
 ) -> Result<bool, Error> {
     let current = signal.generation.load(Ordering::Acquire);
     if current != *generation {
-        // 只由原串行输入owner释放。旧事件仍验证/提交，但旧controller须经过可靠None屏障。
+        // Only the original serial input owner releases this. Old events still validate/commit, but old controllers must cross a reliable None barrier.
         interaction
             .bridge
             .dispatch(input::Action::Release, || {

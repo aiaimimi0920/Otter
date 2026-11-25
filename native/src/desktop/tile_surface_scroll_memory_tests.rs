@@ -1,4 +1,4 @@
-//! 独立常量核空隙前后56px偏移；减权/身份变化不复活旧偏移，不保旧Art或图片。
+//! Independent constants verify 56px offsets across gaps; reduced permissions/identity changes cannot revive old offsets, and no old Art/images are retained.
 use super::*;
 use serde_json::json;
 fn fixture() -> crate::tile_surface_actions::tests::Fixture {

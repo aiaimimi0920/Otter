@@ -1,4 +1,4 @@
-//! 会话基础矢量导入：局部 Editor 构造成功后交付，未知类型不静默丢失。
+//! Basic session-vector import: deliver only after successful local Editor construction, without silently losing unknown types.
 use crate::{
     editor::{Editor, Tool},
     stroke_style::{Color, DashPattern, PaintAlpha, StrokeStyle},
@@ -7,7 +7,7 @@ use crate::{
 use serde_json::{value::RawValue, Value};
 pub struct Restored {
     pub editor: Editor,
-    /// 初始恢复清单；活动编辑后的身份必须读取 Stroke::annotation_id，不能继续按此下标套用。
+    /// Initial restoration manifest; after active editing, read identity from Stroke::annotation_id rather than continuing to apply this index.
     pub ids: Vec<String>,
     pub serial_counter: u32,
 }
@@ -96,7 +96,7 @@ fn style_impl(
         })
 }
 
-/// 无平台测量入口支持形状/路径/序号；普通文字需使用 restore_with_text 注入真实字体测量。
+/// The entry point without platform measurement supports shapes/paths/sequence labels; ordinary text needs restore_with_text with real font measurement.
 pub fn restore(raw: Option<&RawValue>) -> Result<Restored, Error> {
     restore_with_text(raw, |_| Err(Error::Unsupported))
 }
@@ -106,7 +106,7 @@ pub fn restore_with_text(
 ) -> Result<Restored, Error> {
     restore_with_resources(raw, measure, |_| Err(Error::Unsupported))
 }
-/// blur 提供方必须按当前恢复底图/坐标框计算资源，可共享相同强度结果；不得联网或返回旧文档纹理。
+/// blur providers must compute resources from the current restored base image/coordinate box and may share equal-intensity results; no network or old-document textures.
 pub fn restore_with_resources(
     raw: Option<&RawValue>,
     mut measure: impl FnMut(&crate::text_annotation::TextAnnotation) -> Result<TextMetrics, Error>,

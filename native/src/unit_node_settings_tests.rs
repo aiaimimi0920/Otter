@@ -24,7 +24,7 @@ fn baseline_defaults_and_boolean_policy_restore_without_art_authority() {
     );
     let text =
         window(serde_json::json!({"executionConfig":{"propagation":{"notifyDownstream":"false"}}}));
-    assert!(read(&text).notify_downstream); // 与主干 Config 一致，字符串不充当布尔。
+    assert!(read(&text).notify_downstream); // As in mainline Config, strings are not booleans.
     assert!(
         serde_json::from_str::<crate::session_window::Window<'_>>(&window(
             serde_json::json!({"hideCollapsedEndpoints":"true"})

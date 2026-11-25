@@ -1,4 +1,4 @@
-//! 原协议golden和独立像素常量，覆盖raw透明及WIC PNG；不以新实现生成expected。
+//! Original protocol goldens and independent pixel constants cover raw transparency and WIC PNG; expected values never come from the new implementation.
 use super::*;
 fn golden(name: &str) -> Vec<u8> {
     let value: serde_json::Value =

@@ -1,4 +1,4 @@
-//! 同一 child/CSS→真实 HWND/Presentation，裁剪/像素/同步 bounds/命中使用相同布局。
+//! Same child/CSS -> actual HWND/Presentation; clipping, pixels, synchronous bounds, and hits share one layout.
 use super::{
     css_tests::{geometry, pixel, pixels},
     *,
@@ -62,7 +62,7 @@ fn javascript_spatial_real_hwnd_anchors_clip_pixels_hits_click_and_update() {
     let target = verify(&window, frame);
     let buffer = pixels(&window);
     assert_eq!(pixel(&buffer, 1, 1), [0, 255, 0, 255]);
-    assert_eq!(pixel(&buffer, 10, 10), [255, 0, 0, 255]); // inset:0 填充 padding box，覆盖正常流白块。
+    assert_eq!(pixel(&buffer, 10, 10), [255, 0, 0, 255]); // inset:0 fills the padding box, covering the normal-flow white block.
     assert_eq!(pixel(&buffer, 80, 20), [0, 0, 255, 255]);
     assert_eq!(pixel(&buffer, 105, 20), [16, 16, 16, 255]);
     assert_eq!(hit(&window, [80., 20.]).as_deref(), Some(target.as_str()));

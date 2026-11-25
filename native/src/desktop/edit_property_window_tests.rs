@@ -1,4 +1,4 @@
-//! 真实属性 HWND → 工具条通知 → 文档事务的接线，及旧目标/截图保护生命周期。
+//! Wiring from real property HWNDs through toolbar notifications to document transactions, plus stale-target/capture-protection lifecycles.
 use super::*;
 use crate::desktop::{edit_properties, tool_panel};
 use crate::editor::Tool;

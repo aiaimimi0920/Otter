@@ -1,4 +1,4 @@
-//! 左键5 CSS px阈值；旧边保留到有效drop提交，空白/取消/失去capture不删拓扑。
+//! Left-button threshold of 5 CSS px; retain old edges until valid drop commit, with blank/cancel/capture-loss leaving topology intact.
 use super::*;
 use windows::Win32::{Graphics::Gdi::ClientToScreen, UI::Input::KeyboardAndMouse::*};
 pub(super) struct Press {
@@ -130,7 +130,7 @@ pub(super) unsafe fn mouse(hwnd: HWND, ui: &Ui, msg: u32, lp: LPARAM) {
             let _ = windows::Win32::Graphics::Gdi::InvalidateRect(Some(hwnd), None, false);
             return;
         }
-        // 仅扩线层范围；端点 region 不随每个鼠标事件重建。
+        // Expand only line-layer bounds; endpoint regions are not rebuilt per mouse event.
         if window::refresh_drawing(ui).is_err() {
             window::hide(ui);
         }
@@ -169,7 +169,7 @@ pub(super) unsafe fn mouse(hwnd: HWND, ui: &Ui, msg: u32, lp: LPARAM) {
             ui.repaint();
             return;
         };
-        // 捕获后的坐标可以在任意窗口外；只接收当前自有端点条实际命中的输入，不点击/注入目标。
+        // Captured coordinates may lie outside any window; accept only actual hits on currently owned endpoint strips, without target clicking/injection.
         let target_hwnd = WindowFromPoint(POINT {
             x: point.x,
             y: point.y,

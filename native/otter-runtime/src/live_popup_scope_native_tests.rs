@@ -1,4 +1,4 @@
-//! 宿主来源展平保留原父链、TID 和 lease 实例；只使用自有源 hook/窗口。
+//! Host-source flattening preserves original parent chains, TIDs, and lease instances; owned source hooks/windows only.
 use super::*;
 use crate::live_window_target::recovery::popup_layer::fixture::Fixture;
 

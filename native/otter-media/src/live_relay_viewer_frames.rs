@@ -1,4 +1,4 @@
-//! Viewer 的三帧窗口与终止边界；同一锁提交帧序和缓冲，避免 close 后迟到帧复活。
+//! Viewer's three-frame window and terminal boundary; commit frame order and buffers under one lock so late frames cannot revive state after close.
 use crate::{live_relay_frame::Metadata, live_relay_receive::Frame};
 use std::{collections::VecDeque, sync::Mutex};
 const CAPACITY: usize = 3;
@@ -34,7 +34,7 @@ pub struct Status {
     pub overwritten: u64,
     pub closed: bool,
 }
-/// 缓存只读取身份，不赋予授权；不复制或改变帧的底层存储。
+/// The cache only reads identity and grants no authorization; it neither copies nor changes the frame's backing storage.
 pub trait CachedFrame {
     fn metadata(&self) -> Metadata;
 }
@@ -58,7 +58,7 @@ pub struct FrameStore<F: CachedFrame>(Mutex<State<F>>);
 pub type ViewerFrames = FrameStore<Frame>;
 pub type ViewerPixels = FrameStore<crate::live_relay_pixels::PixelFrame>;
 impl<F: CachedFrame> FrameStore<F> {
-    /// 每个授权会话单独持有一个 owner；本模块不从媒体帧推导会话授权。
+    /// Each authorized session holds its own owner; this module does not infer session authorization from media frames.
     pub fn new(epoch: u64) -> Result<Self, Error> {
         if epoch == 0 {
             return Err(Error::InvalidEpoch);
@@ -70,7 +70,7 @@ impl<F: CachedFrame> FrameStore<F> {
             closed: false,
         })))
     }
-    /// 压缩帧仍须媒体验证；调用方只能在允许的处理阶段提交，不能据此直接显示。
+    /// Compressed frames still require media validation; callers may commit only at permitted processing stages, not display directly on this basis.
     pub fn commit(&self, frame: F, allow_warmup: bool) -> Result<Commit, Error> {
         let mut state = self.0.lock().map_err(|_| Error::Poisoned)?;
         if state.closed {
@@ -101,7 +101,7 @@ impl<F: CachedFrame> FrameStore<F> {
             closed: state.closed,
         })
     }
-    /// 同时比较 epoch 和 frame_id；新 epoch 的帧号可以重新从 1 开始。
+    /// Compare both epoch and frame_id; a new epoch may restart frame numbering at 1.
     pub fn latest_after(&self, after: Cursor) -> Result<Option<Metadata>, Error> {
         let state = self.0.lock().map_err(|_| Error::Poisoned)?;
         if state.closed {
@@ -113,7 +113,7 @@ impl<F: CachedFrame> FrameStore<F> {
             .map(CachedFrame::metadata)
             .filter(|metadata| Cursor::from(*metadata) > after))
     }
-    /// 按完整身份移交唯一 frame owner，丢弃更早缓存；租约随输出存活，不提前归还。
+    /// Transfer the sole frame owner by complete identity and discard older cached frames; the lease lives with the output and is not returned early.
     pub fn take(&self, cursor: Cursor) -> Result<Option<F>, Error> {
         let mut state = self.0.lock().map_err(|_| Error::Poisoned)?;
         if state.closed {
@@ -129,7 +129,7 @@ impl<F: CachedFrame> FrameStore<F> {
         let frame = state.frames.drain(..=index).next_back();
         Ok(frame)
     }
-    /// 不等待网络线程。即使其他调用 panic 导致锁 poison，也必须清空本地帧并终止准入。
+    /// Do not wait for network threads. Even if another call panics and poisons the lock, clear local frames and terminate admission.
     pub fn close(&self) {
         let mut state = self.0.lock().unwrap_or_else(|poison| poison.into_inner());
         state.closed = true;

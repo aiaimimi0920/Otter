@@ -1,4 +1,4 @@
-//! 与 main NLLV v1 兼容的有界帧封装；不授权连接、不验证压缩码流、不分配像素。
+//! Bounded frame envelope compatible with main NLLV v1; does not authorize connections, validate compressed bitstreams, or allocate pixels.
 pub const HEADER_LEN: usize = 64;
 pub const MAX_FRAME_BYTES: usize = 64 * 1024 * 1024;
 pub const MAX_JPEG_BYTES: usize = 16 * 1024 * 1024;
@@ -78,7 +78,7 @@ impl Metadata {
             Err(Error::Profile)
         }
     }
-    /// 只生成固定头；发送者可与原 payload 分段写出，避免构造第二份整帧缓冲。
+    /// Generate only the fixed header; senders can write it separately from the original payload to avoid a second full-frame buffer.
     pub fn encode_header(self, payload_len: usize) -> Result<[u8; HEADER_LEN], Error> {
         self.validate(payload_len)?;
         let mut header = [0; HEADER_LEN];
@@ -108,7 +108,7 @@ impl Metadata {
     }
 }
 
-/// 封装解析后的借用视图。压缩 payload 仍是不可信码流，必须在媒体层检查和解码。
+/// Borrowed view of the parsed envelope. The compressed payload remains an untrusted bitstream and must be checked and decoded in the media layer.
 pub struct Envelope<'a> {
     pub metadata: Metadata,
     pub payload: &'a [u8],
@@ -123,7 +123,7 @@ pub fn decode_envelope(bytes: &[u8]) -> Result<Envelope<'_>, Error> {
         payload: &bytes[HEADER_LEN..],
     })
 }
-/// 可在读取/分配 payload 之前调用；长度上限及 codec 的尺寸约束在此生效。
+/// May be called before reading/allocating the payload; length limits and codec dimension constraints take effect here.
 pub fn decode_header(bytes: &[u8]) -> Result<(Metadata, usize), Error> {
     if bytes.len() != HEADER_LEN
         || &bytes[..4] != b"NLLV"

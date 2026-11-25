@@ -1,4 +1,4 @@
-//! 原生打开流程：默认新钉图，显式替换才确认；模态调用期间不持有 RefCell。
+//! Native opening defaults to new pins, confirming only explicit replacement; hold no RefCell across modals.
 use super::{hit_region::HitRegion, image::Image, State};
 use std::path::Path;
 #[path = "open_paths.rs"]
@@ -77,7 +77,7 @@ impl PreparedDocument {
     pub(super) fn from_image(image: Image, pinned: bool) -> Result<Self> {
         Self::from_image_with_cancel(image, pinned, || false)
     }
-    /// 命中掩码按行观察同一个任务取消信号；关闭窗口不必等整张长图扫描完成。
+    /// Hit masks check the same task-cancellation signal row by row; window closure need not await a whole long-image scan.
     pub(super) fn from_image_with_cancel(
         image: Image,
         pinned: bool,

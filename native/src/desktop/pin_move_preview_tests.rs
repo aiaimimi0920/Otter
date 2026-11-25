@@ -1,4 +1,4 @@
-//! 图框同一缓存窗口在系统移动中保持同一几何；结束/取消/销毁不遗留代理。
+//! The same cached image/border window retains its geometry during system moves; completion/cancellation/destruction leave no proxy.
 use super::*;
 
 #[test]

@@ -1,4 +1,4 @@
-//! 弹层期间保留工具条的真实外观；业务互斥仍由原模态门禁负责，不把菜单打开当成全栏禁用。
+//! Preserve actual toolbar appearance while popups are open; original modal gates still own business exclusion, and open menus do not disable the entire bar.
 use super::State;
 use windows::{
     core::{w, Result},

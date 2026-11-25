@@ -1,4 +1,4 @@
-//! 独立TLS/WSS oracle：故意挂住Art图片回复，媒体持续发包并记录真实Ping，不放宽产品期限。
+//! Independent TLS/WSS oracle deliberately stalls Art image replies while media keeps sending packets and records actual Pings, without relaxing product deadlines.
 use super::*;
 use std::sync::atomic::{AtomicUsize, Ordering};
 pub(super) struct Signals {
@@ -155,7 +155,7 @@ pub(super) fn serve(
                     assert!(head.starts_with("POST /v1/walls/heartbeat ") || head.starts_with("POST /v1/walls/disconnect ") || head.starts_with("POST /v1/walls/surfaces/close "), "unexpected {head}");
                     json!({"protocolVersion":"loom.wall.v1","accepted":true})
                 };
-                // 取消用例允许客户端已断开；服务端仍尝试交付迟到内容。
+                // Cancellation cases allow already-disconnected clients; the server still attempts late-content delivery.
                 let _ = reply_result(&mut stream, 200, &serde_json::to_vec(&response).unwrap());
             }));
         }

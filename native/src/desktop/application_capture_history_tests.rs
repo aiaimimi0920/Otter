@@ -1,4 +1,4 @@
-//! 真实隐藏Application：捕获提交→后台历史→缩略图新钉图，失败和普通打开均不入栈。
+//! Real hidden Application: capture commit -> background history -> new pin from thumbnail; failures and ordinary opens never enter history.
 use super::*;
 struct Environment {
     instance: HINSTANCE,

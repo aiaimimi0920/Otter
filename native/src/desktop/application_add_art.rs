@@ -1,4 +1,4 @@
-//! Add Art 意图的唯一发布事务；窗口和连接均先准备，再复核源/目录/工作区后一起发布。
+//! Sole publication transaction for Add Art intent; prepare windows and connections first, then recheck source/catalog/workspace before publishing them together.
 use super::*;
 use crate::desktop::{
     self,
@@ -76,7 +76,7 @@ impl Application {
             .capability(request.index)
             .ok_or_else(|| Error::from(E_INVALIDARG))?;
         if let Route::Local(origin) = &request.route {
-            // origin 只来自显式 HTTPS 选择；WSS 目录只提供 ID 提示，真正包/权限仍由原本地链验证。
+            // origin comes only from explicit HTTPS selection; the WSS catalog provides ID hints only, while the original local chain still validates actual packages/permissions.
             let config = crate::device_authorization_config::Config::from_env(origin)
                 .map_err(|_| Error::new(E_INVALIDARG, "Art 服务配置无效"))?;
             return self.open_local_art_child(

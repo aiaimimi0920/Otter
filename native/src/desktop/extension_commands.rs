@@ -1,4 +1,4 @@
-//! 应用级一个扩展命令任务；按钮只登记轻量意图，资源准备和结果提交在外层消息结算复核。
+//! One application-level extension-command task; buttons register lightweight intents only, with resource preparation/result commits revalidated at outer-message settlement.
 use super::{
     capability_job::Source,
     document_window::DocumentWindow,
@@ -101,7 +101,7 @@ pub(super) unsafe fn request_input(
         return Ok(());
     }
     if state.extension_commands.borrow().busy {
-        // 先确认能唤醒原 owner，再标记取消。原子标记也使已排队的 Apply 立即失效。
+        // Ensure the original owner can be awakened before marking cancellation. The atomic flag also immediately invalidates queued Apply.
         PostMessageW(Some(hwnd), WM_NULL, WPARAM(0), LPARAM(0))?;
         if let Some(active) = &state.extension_commands.borrow().active {
             active.cancel();
@@ -275,7 +275,7 @@ impl Owner {
             view.busy = false;
             view.active = None;
         }
-        // 排队时已取消的任务没有 worker 完成消息；清槽也必须恢复实际按钮可用性。
+        // Tasks cancelled while queued have no worker-completion message; clearing slots must still restore actual button availability.
         for document in documents {
             super::tool_panel::refresh(document.window.0);
         }
@@ -368,7 +368,7 @@ unsafe fn handle(
                 outcome,
                 &intent.cancel,
             );
-            // 只接管本事务已完成的独立 CAS；后续真实用户编辑仍会使新 stamp 失效。
+            // Take over only independent CAS updates completed by this transaction; later real user edits still invalidate the new stamp.
             intent.stamp = state.extension_document.borrow().stamp();
             super::extension_overlay::sync(hwnd, state).map_err(|_| Error::Unavailable)?;
             super::tool_panel::refresh(hwnd);

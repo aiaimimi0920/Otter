@@ -1,4 +1,4 @@
-//! 模糊准备只在显式选工具时启动；结果入画布前核验源图、尺寸、版本和工具。
+//! Start blur preparation only on explicit tool selection; verify source image, dimensions, revision, and tool before admitting results to the canvas.
 use super::blur_selection::increment as selection_request;
 use super::{canvas::Canvas, State};
 #[cfg(test)]
@@ -132,7 +132,7 @@ pub(super) unsafe fn submit(hwnd: HWND, state: &State, request: Request) {
             let _ = KillTimer(Some(hwnd), TIMER);
         },
     );
-    // 工具/强度可能已变更；失败时也先刷新显示，所有借用结束后再弹框。
+    // Tool/intensity may have changed; refresh display even on failure, then show the dialog after all borrows end.
     let _ = super::hit_region::update(hwnd, state);
     let _ = InvalidateRect(Some(hwnd), None, false);
     if let Err(error) = result {
@@ -145,7 +145,7 @@ fn submit_with(
     reserve_timer: impl FnOnce() -> bool,
     cancel_timer: impl FnOnce(),
 ) -> Result<(), String> {
-    // latest-wins 复用原 timer，不能重预约失败后销毁仍待回收的旧线程。
+    // latest-wins reuses the original timer; failed rescheduling must not destroy an old thread still awaiting reclamation.
     let was_busy = state.blur_job.borrow().is_busy();
     if !was_busy && !reserve_timer() {
         return Err("无法启动模糊任务定时器。".into());
@@ -332,8 +332,8 @@ mod tests {
         assert!(!canvas.tool_profiles.set_blur_strength(65.0));
         assert!(canvas.tool_profiles.set_blur_strength(16.0));
         let revision = canvas.editor.revision();
-        stale.request.revision = revision; // 只让强度不同，独立验证强度准入。
-        assert!(!canvas.pointer_down(point)); // 旧准备快照不能被当作新强度使用。
+        stale.request.revision = revision; // Make only intensity differ to verify intensity admission independently.
+        assert!(!canvas.pointer_down(point)); // A stale preparation snapshot must not serve as the new intensity.
         assert!(!accept(&mut canvas, stale).unwrap());
         let current = completed(&canvas);
         assert!(accept(&mut canvas, current).unwrap());
@@ -456,7 +456,7 @@ mod tests {
             .editor
             .replace_layers(canvas.editor.revision(), &original, changed)
             .unwrap();
-        // 排除版本差异，仅靠完整层身份也必须拒绝旧结果和旧输入快照。
+        // Exclude revision differences; complete layer identity alone must reject stale results and input snapshots.
         stale.request.revision = canvas.editor.revision();
         assert!(!accept(&mut canvas, stale).unwrap());
         assert!(!canvas.pointer_down(crate::viewport::Point { x: 25.0, y: 25.0 }));

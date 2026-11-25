@@ -1,4 +1,4 @@
-//! 本地 UI 准入状态：松开只归持有 down 的 B，交接后迟到 up 不得改绑或挤占队列。
+//! Local UI admission state: release belongs only to B holding down; late up after handoff must not rebind or occupy queue capacity.
 use super::*;
 
 fn control() -> Control {
@@ -62,7 +62,7 @@ fn unmatched_release_cannot_fill_queue_or_turn_a_full_queue_into_false_overload(
     assert_eq!(input.events.len(), queue::CAPACITY);
     assert!(input.enabled);
     assert_eq!(input.request, None);
-    // 真正的新边沿仍按原容量失败并暂停，不能借去重放宽有界队列。
+    // Genuinely new edges still fail at original capacity and pause; deduplication must not relax queue bounds.
     assert!(!input.push(key(65, true)));
     assert!(!input.enabled);
     assert_eq!(input.request, Some(false));
@@ -81,7 +81,7 @@ fn pause_or_cancel_clears_release_ownership_before_a_fresh_enable() {
         }
         assert_eq!(input.held_keys, [0; 4]);
         assert!(input.events.is_empty());
-        // 模拟原 worker 清理后的一次明确新启用，不复活上一周期的 held。
+        // Simulate one explicit new enable after original-worker cleanup, without resurrecting held state from the previous cycle.
         input.enabled = true;
         input.desired = true;
         input.request = None;

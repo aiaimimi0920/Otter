@@ -1,4 +1,4 @@
-//! Tile 的独立 HWND；不注册托盘/全局 hook，不激活其他窗口，六秒 watchdog 不等待 HTTP。
+//! Independent Tile HWND; no tray/global hooks or activation of other windows, and the six-second watchdog does not await HTTP.
 #[path = "tile_surface_action_window.rs"]
 mod actions;
 #[path = "tile_surface_keyboard_window.rs"]
@@ -363,14 +363,14 @@ unsafe extern "system" fn procedure(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM
             LRESULT(0)
         }
         WM_DISPLAYCHANGE | WM_DPICHANGED => {
-            // 不采用建议矩形迁移旧图；先隐藏并冻结旧代际，再由唯一输出owner重新枚举。
+            // Do not move old images using suggested rectangles; hide/freeze the old generation, then let the sole output owner enumerate again.
             state.changed.set(true);
             state.shared.stop();
             let _ = ShowWindow(hwnd, SW_HIDE);
             LRESULT(0)
         }
         WM_KEYDOWN if wp.0 == 27 => {
-            // 编辑层取消后可把焦点还给Tile；同一次Esc的长按重复不能顺便关闭整个输出。
+            // Edit-layer cancellation may restore Tile focus; held repeats of the same Esc must not also close all output.
             if lp.0 as usize & (1 << 30) == 0 {
                 let _ = DestroyWindow(hwnd);
             }
@@ -384,7 +384,7 @@ unsafe extern "system" fn procedure(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM
         WM_PAINT => {
             let mut paint = PAINTSTRUCT::default();
             let dc = BeginPaint(hwnd, &mut paint);
-            // 隐藏窗口的WM_PAINT只验证更新区；软件提交可能没有有效DC，且不能确认已呈现。
+            // Hidden-window WM_PAINT only validates update regions; software submission may lack a valid DC and cannot confirm presentation.
             if !IsWindowVisible(hwnd).as_bool() {
                 state.shared.trace.observe(Stage::HiddenPaint);
                 state.painted.set(false);
@@ -419,7 +419,7 @@ unsafe extern "system" fn procedure(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM
                 state.shared.trace.observe(Stage::RendererMissing);
                 Ok(false)
             };
-            // 绘制/提交可能重入关闭；原指针仍由外层 Window owner 持有，不能重新挂回资源。
+            // Drawing/submission may reenter closure; the outer Window owner still holds the original pointer, so never reattach resources.
             if !state.closed.get() && !state.changed.get() {
                 *state.renderer.borrow_mut() = renderer;
             }

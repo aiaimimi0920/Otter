@@ -1,4 +1,4 @@
-//! 自有 HWND 无按键 hover→原 FIFO→同 child/rAF/像素；定向消息，不移动系统光标。
+//! Owned-HWND button-free hover -> original FIFO -> same child/rAF/pixels; targeted messages without moving the system cursor.
 use super::*;
 #[path = "surface_window_javascript_hover_lifetime_tests.rs"]
 mod lifetime;

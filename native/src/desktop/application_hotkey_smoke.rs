@@ -1,4 +1,4 @@
-//! 真实窗口上的应用热键调度；注册适配器替换为内存夹具，不占用系统快捷键。
+//! Application hotkey scheduling on real windows; replace the registration adapter with an in-memory fixture without occupying system shortcuts.
 use super::*;
 use windows::core::Error;
 
@@ -76,7 +76,7 @@ pub(in crate::desktop) unsafe fn run(documents: &[DocumentWindow]) -> Result<()>
             "Application hotkey enable was not shared/coalesced",
         ));
     }
-    // 未注册窗口的销毁清理是幂等空操作，不能把共享菜单状态改为关闭。
+    // Destruction cleanup for an unregistered window is an idempotent no-op and must not switch shared menu state off.
     super::super::global_capture::set(second.window.0, &second.state, false)?;
     if !checked(&second.state)? {
         return Err(Error::new(

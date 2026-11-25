@@ -1,4 +1,4 @@
-//! 文档与附属面板的捕获排除；失败回滚并保留准确状态，惰性面板创建时继承请求。
+//! Capture exclusion for documents and attached panels; roll back failures while retaining accurate state, and inherit requests when lazy panels are created.
 use super::State;
 use std::cell::Cell;
 use windows::{
@@ -76,7 +76,7 @@ unsafe fn set(hwnd: HWND, state: &State, enabled: bool) -> Result<()> {
     ];
     apply(&state.capture_protection, enabled, |index, value| {
         if index >= 2 && windows[index].is_invalid() {
-            return Ok(()); // 尚未创建的面板没有泄露面；创建必须显式继承请求才允许显示。
+            return Ok(()); // Uncreated panels expose nothing; creation must explicitly inherit the request before allowing display.
         }
         SetWindowDisplayAffinity(
             windows[index],

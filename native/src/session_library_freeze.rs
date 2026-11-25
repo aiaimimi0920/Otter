@@ -1,4 +1,4 @@
-//! 收藏与回收共用当前编码窗口的冻结边界；只借用原文，不复制图片或运行时所有权。
+//! Favorites/recycling share the current encoded-window freezing boundary; borrow original text without copying images/runtime ownership.
 use super::candidate;
 use crate::{session_window::Window, workspace_id::UnitId};
 use serde::{ser::SerializeSeq, Serialize, Serializer};

@@ -1,4 +1,4 @@
-"""独立审核摘要、原始构建证据、声明原字节及 SBOM 的拒绝门。"""
+"""Rejection gates for independently reviewed digests, original build evidence, verbatim notices, and SBOMs."""
 
 import unittest
 from unittest.mock import patch

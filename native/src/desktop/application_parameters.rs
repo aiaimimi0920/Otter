@@ -1,4 +1,4 @@
-//! 同一 UI 调度段借用正式输出解析参数，编码后仅保留配置字符串和版本凭证。
+//! Resolve parameters by borrowing committed outputs within one UI dispatch segment; after encoding, retain only configuration strings and version credentials.
 use super::Application;
 use crate::desktop::{
     configuration_stamp::Stamp, document_window::DocumentWindow, loom_input_stamp::SourceStamp,
@@ -39,7 +39,7 @@ impl Application {
             capability,
             manual,
             |resolved| {
-                // 来源、取码配置与本地纹理使用同一次公共参数解析，不再于准备之后重读参数。
+                // Source, code-fetch configuration, and local textures share one common parameter resolution; do not reread parameters after preparation.
                 let Some(inputs) = inputs(resolved)? else {
                     return Ok(None);
                 };
@@ -110,7 +110,7 @@ impl Application {
                             port.name.as_str(),
                             match &port.value {
                                 ResultOutput::Value(value) => Output::from_json(value),
-                                // 图像内存不是路径字符串，不把像素或显示预览伪装为标量引用。
+                                // Image memory is not a path string; never disguise pixels or display previews as scalar references.
                                 ResultOutput::Image(_) | ResultOutput::PngImage(_) => Output::Null,
                             },
                         )

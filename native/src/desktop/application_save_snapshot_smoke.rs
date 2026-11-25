@@ -1,4 +1,4 @@
-//! 真隐藏 Application 保存快照，不写磁盘；验证数据可传 worker、共享原文及过期拒绝。
+//! Real hidden Application save snapshots without disk writes; verify worker-transferable data, shared source content, and stale rejection.
 use super::*;
 pub(in crate::desktop::application) unsafe fn verify(app: &mut Application) -> Result<()> {
     fn send<T: Send>() {}

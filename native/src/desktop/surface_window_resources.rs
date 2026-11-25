@@ -1,4 +1,4 @@
-//! 资源请求与像素消费使用当前授权窗口快照；不在这里发请求。
+//! Resource requests/pixel consumption use the current authorized-window snapshot; send no requests here.
 use super::*;
 use crate::{
     live_relay_http::{MountedSurface, ResourceError, ResourceLease},
@@ -31,7 +31,7 @@ impl AuthorizedWindow {
             .mount(self.binding(), self.snapshot_revision)
             .map_err(ImageError::Snapshot)
     }
-    /// 隐藏待激活窗口也可准备 GET；完整 Binding 取当前生命周期版本而非初始 mount。
+    /// Hidden pending-activation windows may also prepare GET; complete Binding uses current lifecycle version, not initial mount.
     pub fn image_resource(
         &mut self,
         id: &str,
@@ -41,7 +41,7 @@ impl AuthorizedWindow {
             .image_resource(id, now)
             .map_err(ImageError::Resource)
     }
-    /// 仅交付共享像素；安装方在任何可重入 HWND 调用之后仍须重新检查当前版本与授权。
+    /// Deliver shared pixels only; installers still recheck current version/authorization after any reentrant HWND call.
     pub fn resource_image(
         &mut self,
         ready: &Ready,

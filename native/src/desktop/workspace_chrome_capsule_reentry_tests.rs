@@ -1,4 +1,4 @@
-//! 同步 child 消息不能复活已关闭 owner、覆盖后继焦点或按新目录解释旧索引。
+//! Synchronous child messages cannot revive closed owners, overwrite successor focus, or interpret old indices with new catalogs.
 use super::*;
 use windows::Win32::UI::Shell::{DefSubclassProc, SetWindowSubclass};
 struct Replace<'a> {

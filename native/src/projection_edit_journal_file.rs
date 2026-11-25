@@ -1,4 +1,4 @@
-//! 编辑日志复用原session原子写/完整CAS/恢复副本，不另造磁盘事务或清理策略。
+//! Edit journals reuse original session atomic-write/full-CAS/recovery-copy facilities, without new disk transactions/cleanup policies.
 use super::*;
 use std::{
     fs::OpenOptions,
@@ -113,7 +113,7 @@ impl Store {
                 .map_err(|_| cancelled(cancel, Error::Changed))?;
             false
         };
-        // 即使退休恢复副本失败，真实已发布的字节仍成为当前基线，但禁止继续网络副作用。
+        // Even failed recovery-copy retirement adopts truly published bytes as the current baseline, but forbids further network effects.
         state.original = Some(bytes);
         state.entries = ledger.entries;
         state.retained = retained;

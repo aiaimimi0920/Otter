@@ -1,4 +1,4 @@
-//! 当前场景队列、版本重置、无效候选和窗口轮转；使用真实隐藏 HWND。
+//! Current-scene queues, revision resets, invalid candidates, and window rotation using real hidden HWNDs.
 use super::*;
 fn queued(grant: &mut Grant, hex: char) -> AuthorizedWindow {
     let mut result = outcome();
@@ -42,7 +42,7 @@ fn resource_window_queue_waits_activation_and_consumes_once_per_scene() {
             .resource_id(),
         id()
     );
-    // 未接纳的请求仍在队首；只有调度成功/终态失败才显式消费。
+    // Unaccepted requests remain at the queue head; consume explicitly only after successful scheduling or terminal failure.
     assert!(window.next_image_request(0).unwrap().is_some());
     window.finish_image_request();
     assert!(window.next_image_request(0).unwrap().is_none());

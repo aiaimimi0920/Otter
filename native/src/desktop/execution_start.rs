@@ -1,4 +1,4 @@
-//! 用户启动命令只捕获配置身份并唤醒应用；不在 Win32 回调中编码图片或连接 Loom。
+//! User Start commands capture only configuration identity and wake the application; no image encoding/Loom connections inside Win32 callbacks.
 use super::{configuration_stamp::Stamp, State};
 #[cfg(test)]
 use windows::core::w;
@@ -14,7 +14,7 @@ pub(super) struct Request {
     pub stamp: Stamp,
     pub trigger: crate::graph_execution_config::Trigger,
 }
-/// 参数事务完成后合并为最新配置；旧执行先由取消队列退休，不能在编辑回调启动 worker。
+/// After parameter transactions, coalesce to latest configuration; cancellation queues retire old execution first, without workers starting in edit callbacks.
 pub(super) fn parameter_changed(state: &State) {
     automatic_changed(
         state,
@@ -28,7 +28,7 @@ fn automatic_changed(state: &State, automatic: crate::graph_execution_config::Tr
     if state.group_locked.get() || state.selected_art.borrow().is_none() {
         return;
     }
-    // 真正的参数/上游变动解除恢复预览保持，即使自动执行开关稍后拒绝后端请求。
+    // Actual parameter/upstream changes release restored-preview retention even if automatic-execution settings later reject backend requests.
     state
         .execution_results
         .borrow_mut()
@@ -50,7 +50,7 @@ fn automatic_changed(state: &State, automatic: crate::graph_execution_config::Tr
 pub(super) fn available(state: &State) -> bool {
     ready(state) && state.pending_start.borrow().is_none()
 }
-/// 调度器检查不包含待启动槽本身，避免排队请求把自己永久判为繁忙。
+/// Scheduler checks exclude the pending-start slot itself, preventing queued requests from permanently declaring themselves busy.
 pub(super) fn ready(state: &State) -> bool {
     state.selected_art.borrow().is_some()
         && !state.group_locked.get()
@@ -79,7 +79,7 @@ pub(super) unsafe fn request(hwnd: HWND, state: &State) -> Result<()> {
         .invalidate_restored_preview();
     Ok(())
 }
-/// modeless 草稿提交后的同次显式运行：只升级当前参数触发，不丢弃/覆盖别的启动请求。
+/// Same explicit run after modeless draft commit: upgrade only the current parameter trigger, without dropping/overwriting other start requests.
 pub(super) unsafe fn request_after_parameter(hwnd: HWND, state: &State) -> Result<()> {
     if !IsWindow(Some(hwnd)).as_bool() || !ready(state) {
         return Ok(());
@@ -99,7 +99,7 @@ pub(super) unsafe fn request_after_parameter(hwnd: HWND, state: &State) -> Resul
         return request(hwnd, state);
     }
     PostMessageW(Some(hwnd), WM_NULL, WPARAM(0), LPARAM(0))?;
-    // PostMessage 不同步重入，入队成功后再升级；失败保留原自动触发。
+    // PostMessage does not reenter synchronously; upgrade after successful enqueue, preserving the original automatic trigger on failure.
     state.pending_start.borrow_mut().as_mut().unwrap().trigger =
         crate::graph_execution_config::Trigger::Manual;
     Ok(())

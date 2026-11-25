@@ -1,4 +1,4 @@
-//! 缩略展开事务的几何与来源；运行时缺省回退不等于可持久化的 savedRect。
+//! Geometry/source of minified-expansion transactions; runtime fallback is not a persistable savedRect.
 use crate::pin_geometry::PinRect;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -130,7 +130,7 @@ mod tests {
         );
         assert_eq!(fallback.saved_target((-1700, -150)), Some(None));
         assert!(transition.target((i32::MAX, 0)).is_none());
-        // 即使展开框与缩略框碰巧相同，主动缩略也必须保留持久化语义。
+        // Explicit minification must retain persistence semantics even when expanded and minified rectangles happen to match.
         assert!(Transition {
             persist_expanded: true,
             ..fallback

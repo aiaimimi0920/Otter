@@ -1,4 +1,4 @@
-//! 端口显示是独立外观状态：不修改拓扑/执行凭证；旧同名输入输出共用用户覆盖。
+//! Port visibility is independent appearance state, without changing topology/execution tokens; legacy same-name inputs/outputs share user overrides.
 use super::{Error, UnitId, Workspace};
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use std::{collections::BTreeMap, fmt, sync::Arc};

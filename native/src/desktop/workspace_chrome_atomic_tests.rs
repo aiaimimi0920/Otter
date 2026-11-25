@@ -1,4 +1,4 @@
-//! 共享外框不得先搬动旧画面再重绘；仅操作隔离 desktop 的自有窗口。
+//! Shared borders must not move old frames before repainting; use only owned windows on isolated desktops.
 use super::*;
 struct Probe {
     hwnd: HWND,
@@ -42,7 +42,7 @@ unsafe extern "system" fn observe(
         }
         if !position.flags.contains(SWP_NOMOVE) || !position.flags.contains(SWP_NOSIZE) {
             let mut flags = LAYERED_WINDOW_ATTRIBUTES_FLAGS::default();
-            // SetLayeredWindowAttributes 的重定向内容会先被整张移位；ULW 随新像素一并定位。
+            // SetLayeredWindowAttributes redirection content moves as a whole first; ULW positions together with new pixels.
             if GetLayeredWindowAttributes(hwnd, None, None, Some(&mut flags)).is_ok() {
                 probe
                     .stale_transactions
@@ -320,7 +320,7 @@ fn pure_pin_reordering_lowers_only_links_before_return_without_a_geometry_refres
         for index in [0, 1, 0, 1] {
             let host = app.documents[index].window.0;
             let before = ui.node(index).unwrap().rect;
-            // 人为把自有宿主放到线层后；同步位置通知必须立即纠正，不能等应用轮询。
+            // Deliberately place the owned host behind the line layer; synchronous position notifications must correct immediately, not await application polling.
             SetWindowPos(
                 host,
                 Some(ui.drawing.get()),

@@ -1,4 +1,4 @@
-//! 原生自绘 Slider 子窗口 owner；浮点值不映射为低精度整数刻度，不拥有业务提交权。
+//! Native owner-drawn Slider child-window owner; no low-precision integer-tick mapping of floats or business-commit authority.
 use crate::surface_slider::Range;
 use std::{marker::PhantomData, rc::Rc};
 use windows::{
@@ -16,7 +16,7 @@ mod messages;
 mod paint;
 const OWNER: windows::core::PCWSTR = w!("Otter.Surface.Slider.Owner");
 const STATE: windows::core::PCWSTR = w!("Otter.Surface.Slider.State");
-/// 私有同线程通知：wp=0 input、wp=1 change；lp=实际 HWND。接收者仍须验证挂载身份。
+/// Private same-thread notifications: wp=0 input, wp=1 change; lp=actual HWND. Receivers must still validate mount identity.
 pub const NOTIFY: u32 = WM_APP + 0x55d;
 pub const CLICK_BEGIN: u32 = WM_APP + 0x55e;
 pub const CLICK_CANCEL: u32 = WM_APP + 0x55f;
@@ -199,7 +199,7 @@ impl Control {
 }
 impl Drop for Control {
     fn drop(&mut self) {
-        // 初始化失败时可能尚无 State，但已创建的自有窗口仍必须销毁。
+        // Initialization failure may precede State creation, but the already-created owned window must still be destroyed.
         if self.owns() {
             unsafe {
                 let _ = RemovePropW(self.hwnd, OWNER);

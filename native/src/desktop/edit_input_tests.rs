@@ -1,4 +1,4 @@
-//! 使用真实 Canvas 状态验证宿主映射，图像内容为内存夹具，不读用户数据。
+//! Verify host mapping with real Canvas state and in-memory image fixtures, without user-data reads.
 use super::{canvas::Canvas, image::Image};
 use crate::{editor::Tool, viewport::Point};
 
@@ -190,7 +190,7 @@ fn linear_modifiers_use_image_coordinates_and_release_state() {
         let mut canvas = canvas();
         canvas.viewport.scale = 2.0;
         canvas.select_tool(tool);
-        canvas.pointer_down(p(40.0, 60.0)); // 图像起点 (10,20)。
+        canvas.pointer_down(p(40.0, 60.0)); // Image start point (10,20).
         canvas.pointer_move_modified(p(100.0, 100.0), true, true);
         assert_eq!(canvas.editor.draft().unwrap().points[1], p(40.0, 50.0));
         assert!(canvas.editor.elements().is_empty());
@@ -232,7 +232,7 @@ fn shift_converts_brush_and_highlighter_to_angle_locked_segment() {
         let points = &canvas.editor.draft().unwrap().points;
         assert_eq!(points.len(), 2);
         assert!(((points[1].x - 10.0) - (points[1].y - 10.0)).abs() < 0.001);
-        // Ctrl 不将画笔端点进一步量化，松开 Shift 后只在指针事件继续采样。
+        // Ctrl does not further quantize brush endpoints; after releasing Shift, sampling continues only on pointer events.
         assert!((points[1].x - 35.495).abs() < 0.001);
         assert!(!canvas.refresh_constraints(false, false));
         canvas.pointer_up_modified(p(70.0, 55.0), false, false);
@@ -255,7 +255,7 @@ fn shape_modifiers_preserve_square_at_edges_and_commit_final_state() {
         let mut canvas = canvas();
         canvas.viewport.scale = 2.0;
         canvas.select_tool(tool);
-        canvas.pointer_down(p(180.0, 100.0)); // 图像 (80,40)。
+        canvas.pointer_down(p(180.0, 100.0)); // Image coordinates (80,40).
         canvas.pointer_move_modified(p(280.0, 160.0), true, true);
         assert_eq!(canvas.editor.draft().unwrap().points[1], p(100.0, 60.0));
         canvas.pointer_up_modified(p(210.0, 170.0), false, true);

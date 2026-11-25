@@ -1,10 +1,10 @@
-//! 正式 JSON 端口的会话快照；不下载描述符、不把本地像素伪装成 JSON 资源。
+//! Session snapshots of official JSON ports; no descriptor downloads or disguising local pixels as JSON resources.
 use super::{Output, Results};
 use serde_json::{Map, Value};
 
 impl Results {
-    /// None 保留导入的输出；Some(empty) 表示已经完成的空结果，须清除历史端口。
-    /// 必须与 save_output_images 一起保存，图片端口由后台编码后补入同一输出对象。
+    /// None preserves imported outputs; Some(empty) means a completed empty result and must clear historical ports.
+    /// Save with save_output_images; background encoding adds image ports to the same output object.
     pub fn save_value_outputs(&self) -> Option<Map<String, Value>> {
         if !self.formal_outputs_committed {
             return None;
@@ -21,7 +21,7 @@ impl Results {
                 .collect(),
         )
     }
-    /// 只共享像素及原始 PNG owner；不复制缓冲区，也不在 UI 线程编码。
+    /// Share only pixels/original PNG owners; no buffer copies or UI-thread encoding.
     pub fn save_output_images(
         &self,
     ) -> Vec<(String, crate::desktop::loom_image_value::ImageValue)> {

@@ -1,4 +1,4 @@
-//! 真实持久 child 的 Grid 声明、上下文与回收；实际产品另绑定封存 EXE 摘要。
+//! Grid declarations, context, and cleanup in real persistent children; actual products separately bind sealed EXE digests.
 use super::*;
 use sha2::{Digest, Sha256};
 const SOURCE: &str = include_str!("../tests/fixtures/javascript-grid.js");

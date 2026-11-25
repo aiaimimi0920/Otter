@@ -9,7 +9,7 @@ fn real_child_owner_handshakes_shuts_down_and_joins() {
     let mut client = Client::start_command(fixture("serve")).unwrap();
     assert!(client.healthy().unwrap());
     assert!(client.join_shutdown().is_err());
-    // 本地非法请求不占序号、不毒化会话。
+    // Invalid local requests consume no sequence numbers and do not poison the session.
     assert!(client.request(Operation::Retire { id: 0 }).is_err());
     assert!(client.healthy().unwrap());
     assert_eq!(
@@ -29,7 +29,7 @@ fn real_child_owner_handshakes_shuts_down_and_joins() {
 fn failed_handshake_is_reaped_and_child_exit_prevents_new_requests() {
     assert!(Client::start_command(fixture("exit")).is_err());
     let mut client = Client::start_command(fixture("serve")).unwrap();
-    // 只终止本测试创建的空登记子进程，绝不触碰用户应用。
+    // Terminate only this test's empty-registry subprocess, never user applications.
     client.child.kill().unwrap();
     client.child.wait().unwrap();
     assert!(!client.healthy().unwrap());
@@ -46,7 +46,7 @@ fn child_entry() {
     assert!(matches!(mode.as_str(), "serve" | "shutdown-hang"));
     if let Ok(raw) = std::env::var("OTTER_RECOVERY_INHERIT_EVENT") {
         let raw = raw.parse::<usize>().unwrap();
-        // 只能影响父测试专门创建的事件，不枚举其他句柄。
+        // Affect only the event specially created by the parent test; do not enumerate other handles.
         let _ = unsafe { SetEvent(HANDLE(raw as *mut _)) };
     }
     let parent = std::env::var("OTTER_RECOVERY_CLIENT_PARENT")
@@ -55,7 +55,7 @@ fn child_entry() {
         .unwrap();
     crate::live_recovery_runtime::run_inherited(parent).unwrap();
     if mode == "shutdown-hang" {
-        // 模拟已发空登记 Shutdown ACK、但进程析构仍未结束；父测试负责回收。
+        // Simulate an empty-registry Shutdown ACK already sent while process destruction remains unfinished; the parent test owns reclamation.
         std::thread::sleep(Duration::from_secs(60));
     }
 }

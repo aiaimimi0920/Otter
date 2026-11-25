@@ -1,4 +1,4 @@
-//! 主干 250×300 搜索菜单的原生布局与绘制；目录、授权和创建事务仍由 picker 拥有。
+//! Native layout/rendering for the baseline 250x300 search menu; picker still owns catalog, authorization, and creation transactions.
 use super::*;
 use windows::Win32::{Graphics::Gdi::*, UI::Controls::*};
 const SURFACE: u32 = 0x120d0a;

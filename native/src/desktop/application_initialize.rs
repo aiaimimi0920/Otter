@@ -1,4 +1,4 @@
-//! 应用初始化的唯一入口；从首窗口共享状态建立 owner，保持字段析构顺序不变。
+//! Sole application initialization entry point; build owners from the first window's shared state while preserving field destruction order.
 use super::*;
 use crate::desktop::{loom_execution_tasks, loom_input_tasks};
 

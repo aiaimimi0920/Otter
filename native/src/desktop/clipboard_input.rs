@@ -1,4 +1,4 @@
-//! 画布剪贴板快捷键和复制定时器路由；不在消息总入口累积编解码或生命周期逻辑。
+//! Canvas clipboard shortcuts and copy-timer routing; do not accumulate codecs or lifecycle logic in the main message entry point.
 use super::State;
 use windows::Win32::{
     Foundation::*,
@@ -33,7 +33,7 @@ pub(super) unsafe fn dispatch(
     Some(LRESULT(0))
 }
 
-// 附属按钮仍属于钉图；文本输入保留文字复制，不提升为全局快捷键。
+// Attached buttons still belong to the pin; text input retains text copy and does not become a global shortcut.
 pub(super) unsafe fn translate(owner: HWND, message: &MSG) -> bool {
     if message.message != WM_KEYDOWN
         || message.wParam.0 != 0x43

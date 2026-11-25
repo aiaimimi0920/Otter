@@ -1,4 +1,4 @@
-//! 自有隐藏HWND的系统会话消息合同；不调用ExitWindowsEx，不碰真实profile或前台。
+//! System-session message contracts on owned hidden HWNDs; no ExitWindowsEx, real profiles, or foreground interaction.
 use super::*;
 use crate::desktop::session_end::with_query;
 

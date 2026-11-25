@@ -1,4 +1,4 @@
-//! 批次应用集合：以事件数计未保存预算，完成后保留 owner，收据不占网络槽位。
+//! Batch-application collection: count unsaved budget by events, retain owners after completion, and keep receipts outside network slots.
 use super::*;
 use crate::{
     desktop::surface_authorized_window::BatchReceipt,
@@ -104,7 +104,7 @@ impl Sessions {
         }
         errors
     }
-    /// 分配发生在窗口副作用之前；拒收原样保留，不阻塞其他附件的可接纳结果。
+    /// Allocate before window side effects; retain rejected results unchanged without blocking admissible results for other attachments.
     pub fn settle_surface_batches(
         &mut self,
         mut deliver: impl FnMut(Outcome) -> Result<BatchReceipt, Box<Outcome>>,

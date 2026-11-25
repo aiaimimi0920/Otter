@@ -1,4 +1,4 @@
-//! Source只接受既有window-message能力；完整批次预检后才投递，无远程文本/焦点或全局输入。
+//! Source accepts only existing window-message capability; precheck the entire batch before delivery, without remote text/focus/global input.
 use super::input::Action;
 use crate::{
     live_input::{Button, Event, MAX_SEQUENCE},
@@ -157,7 +157,7 @@ impl State {
         self.closed
     }
     pub(super) fn discard_delivery(&mut self) {
-        // 本批动作未投递，后续输入必须重新启用桥；不重置已验证的控制权历史。
+        // This batch's actions were not delivered, so subsequent input must re-enable the bridge; preserve validated control history.
         self.enabled = false;
     }
     pub fn suspend(&mut self) {

@@ -1,4 +1,4 @@
-//! 真实Live菜单单槽、worker保存及同ID冻结的显隐连续性。
+//! Visibility continuity through the real Live menu slot, worker saving, and same-ID freezing.
 use super::*;
 use crate::workspace::ports::Visibility;
 #[test]

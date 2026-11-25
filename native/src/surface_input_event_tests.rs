@@ -1,4 +1,4 @@
-//! 真实 wire 合同，不发送网络请求，不把编码成功当授权或控件挂载成功。
+//! Real wire contracts without network requests; successful encoding is not authorization or successful control mounting.
 use super::*;
 use crate::surface_scene::Scene;
 #[path = "surface_select_event_tests.rs"]

@@ -1,4 +1,4 @@
-"""从当前 Otter/Loom 源码验证单 Loom 的局域网 Live；不代表双 Loom 或普通产品验收。"""
+"""Verify single-Loom LAN Live from current Otter/Loom sources; not dual-Loom or ordinary-product acceptance."""
 
 import argparse
 import hashlib
@@ -89,7 +89,7 @@ def main():
         shutil.copy2(artifacts[0], frozen)
         return frozen
 
-    # 两仓可共享 Cargo 缓存，但构建串行；测试路径只来自本次 Cargo artifact。
+    # Both repositories may share Cargo caches, but builds are serial; test paths come only from this run's Cargo artifacts.
     otter = build("build-otter", REPO, ["--manifest-path", str(REPO / "native/Cargo.toml")], "otter_native")
     daemon = build("build-loom", loom, ["-p", "loom-daemon"], "loom_daemon")
     selected = list(dict.fromkeys(args.case or CASES))

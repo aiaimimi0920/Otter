@@ -1,4 +1,4 @@
-//! 用户从 B 恢复已召回且最小化的 A：新快照/恢复 ACK 先于再次透明后台渲染。
+//! User restores recalled/minimized A from B: fresh snapshot/restoration ACK precede transparent background rendering again.
 use super::*;
 use windows::Win32::UI::WindowsAndMessaging::IsIconic;
 impl Protection {
@@ -7,7 +7,7 @@ impl Protection {
     }
 }
 impl Owner {
-    /// 只由本地 B 的实际输入意图调用。false 是旧记录退休/helper 退出待结算，不重试输入边沿。
+    /// Call only for actual input intent on local B. false means old-record retirement/helper exit awaits settlement, never input-edge retry.
     pub fn resume_minimized(&mut self, protection: &Protection) -> io::Result<bool> {
         if self.closing {
             return Err(io::Error::other("Live recovery is closing"));
@@ -23,7 +23,7 @@ impl Owner {
         if self.draining || !source.ticket.borrow().retired() {
             return Ok(false);
         }
-        // 旧记录已 ACK 退休，清理其 registry 槽；不得用旧可见快照覆盖用户的新最小化状态。
+        // Old-record retirement is ACKed; clear its registry slot without overwriting the user's new minimized state with an old visible snapshot.
         self.registry
             .restore_source(&source.target)
             .map_err(io::Error::other)?;
@@ -49,7 +49,7 @@ impl Owner {
             self.journal = Some(journal);
         }
         let ticket = self.journal.as_mut().unwrap().register(record)?;
-        // 原 Source 被全部同源 peer 共享；不另建并行 lease，不遗漏其他 B 的恢复保护。
+        // All same-source peers share original Source; no separate parallel lease or omission of other B windows' restoration protection.
         *source.ticket.borrow_mut() = ticket;
         *source.snapshot.borrow_mut() = Some(snapshot);
         source.armed.set(false);

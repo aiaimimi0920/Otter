@@ -1,4 +1,4 @@
-//! UI 线程不可变软件帧：持有 DIB/像素预算，不借 Canvas、D2D target 或窗口状态。
+//! Immutable software frames on the UI thread: own DIB/pixel budgets without borrowing Canvas, D2D targets, or window state.
 use super::bitmap::Bitmap;
 use std::rc::Rc;
 use windows::{
@@ -9,7 +9,7 @@ use windows::{
     },
 };
 
-/// 单次消费的提交凭证。Rc 限定 UI 线程并延长 DC/DIB 生命期；不复制像素、不建立后台队列。
+/// A single-consumption submission credential. Rc confines it to the UI thread and extends DC/DIB lifetime; no pixel copies or background queue.
 pub struct Submission {
     bitmap: Rc<Bitmap>,
     pinned: bool,
@@ -30,9 +30,9 @@ impl Submission {
             opacity,
         }
     }
-    /// 调用方拥有目标 HWND，并应在释放 Canvas/State 借用后调用；成功才可确认呈现计数。
-    /// UpdateLayeredWindow 可同步发送尺寸消息，本凭证在重入期间独立保持源像素。
-    /// 成功或失败均消费凭证，不在这里重试或更改窗口样式。
+    /// Callers own the target HWND and call after releasing Canvas/State borrows; confirm presentation counts only on success.
+    /// UpdateLayeredWindow may synchronously send size messages; this credential independently retains source pixels during reentrancy.
+    /// Success and failure both consume the credential; do not retry or change window styles here.
     pub fn present(self, hwnd: HWND) -> Result<()> {
         self.present_at(hwnd, None)
     }
@@ -57,7 +57,7 @@ impl Submission {
             }
             let size = self.bitmap.size;
             if self.pinned {
-                // 未指定新位置时由 ULW 原地更新，不读回窗口坐标。
+                // Without a new position, ULW updates in place without reading back window coordinates.
                 UpdateLayeredWindow(
                     hwnd,
                     None,
@@ -95,7 +95,7 @@ impl Submission {
                     0,
                     SRCCOPY | NOMIRRORBITMAP,
                 );
-                // 在释放 DC 和源位图前只刷新一次，并保留传输或刷新失败。
+                // Flush only once before releasing the DC/source bitmap, preserving transfer or flush failures.
                 let flushed = GdiFlush().ok();
                 copied.and(flushed)
             }

@@ -1,4 +1,4 @@
-//! 连续旋转复用预览点缓冲；始终相对原始几何计算，先完整校验再写入。
+//! Continuous rotation reuses preview point buffers; always calculate from original geometry and validate fully before writes.
 use super::*;
 
 impl Stroke {
@@ -36,7 +36,7 @@ impl Stroke {
                 }
             }
         };
-        // 指针越界不能留下前半条笔迹已更新的预览。
+        // Out-of-bounds pointers must not leave partially updated stroke previews.
         for &point in &original.points {
             validate(transformed(point))?;
         }

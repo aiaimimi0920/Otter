@@ -1,4 +1,4 @@
-//! 导出局部模糊资源：持久框与绘制半径共同决定缓存，不修改活动编辑历史。
+//! Local blur resources for export: persistent frames and drawing radius jointly determine caches, without modifying active edit history.
 use super::*;
 use crate::blur_image::BlurImage;
 use std::collections::HashMap;
@@ -15,7 +15,7 @@ pub(in crate::desktop) use active::prepare_active;
 #[path = "export_blur_local_resource_tests.rs"]
 mod tests;
 
-/// 已恢复会话导出必须使用持久效果框；无 blur 时不解析标注或分配取样纹理。
+/// Restored-session exports must use persistent effect frames; without blur, do not parse annotations or allocate sampling textures.
 pub(in crate::desktop) fn prepare_restored(
     image: &Image,
     editor: &Editor,

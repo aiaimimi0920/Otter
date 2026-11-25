@@ -1,4 +1,4 @@
-//! 固定来源/工作区/目录身份与当前 resolved PNG 的失败关闭测试；不联网、不占前台。
+//! Fail-closed tests for fixed source/workspace/catalog identity and current resolved PNG; no networking or foreground takeover.
 use super::*;
 #[test]
 fn native_sender_scope_uses_resolved_frame_and_normal_opacity_and_rejects_later_display() {
@@ -8,7 +8,7 @@ fn native_sender_scope_uses_resolved_frame_and_normal_opacity_and_rejects_later_
     unsafe {
         let mut app = application(files.root());
         let unit = app.documents[0].state.unit_id.clone();
-        // 目标拥有逻辑框；本用例只核 resolved 来源/opacity，不额外引入不同宽高比的 contain 留白。
+        // The target owns a logical frame; this case checks only resolved source/opacity without introducing contain margins from a different aspect ratio.
         app.documents[0]
             .state
             .canvas

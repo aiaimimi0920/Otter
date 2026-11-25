@@ -1,4 +1,4 @@
-//! 独立Wall场景/ACK oracle与队列生命周期；夹具不走生产编码计算预期状态。
+//! Independent Wall scene/ACK oracles and queue lifecycles; fixtures do not derive expected state through production encoding.
 use super::*;
 use crate::{
     tile_assets::Job,
@@ -80,7 +80,7 @@ impl Fixture {
         shared.publish(1, frame);
         let frame = shared.lock().frame.clone().unwrap();
         shared.confirm(&frame, Instant::now());
-        // 本夹具只模拟已成功的布局ACK；延迟/失败ACK由独立TLS与生命周期测试覆盖。
+        // This fixture simulates only successful layout ACKs; independent TLS and lifecycle tests cover delayed/failed ACKs.
         {
             let mut s = shared.lock();
             crate::tile_shared::admission::Heartbeat::capture(

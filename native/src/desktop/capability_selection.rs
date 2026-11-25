@@ -1,4 +1,4 @@
-//! 原生目录选择使用不可变快照，菜单索引不跨目录版本解释；选择本身不执行能力。
+//! Native catalog selection uses immutable snapshots; menu indices are never reinterpreted across catalog versions, and selection itself does not execute capabilities.
 use super::capability_job::Loaded;
 #[cfg(test)]
 use super::State;
@@ -78,7 +78,7 @@ impl Snapshot {
             AppendMenuW(menu.0, MF_STRING | MF_GRAYED, 0, w!("没有可用节点能力"))?;
         }
         AppendMenuW(parent, MF_POPUP, menu.0 .0 as usize, w!("选择节点能力"))?;
-        // 父菜单接管子菜单，异常路径由局部 guard 回收。
+        // The parent menu takes ownership of submenus; a local guard reclaims failure paths.
         std::mem::forget(menu);
         Ok(())
     }
@@ -118,7 +118,7 @@ impl Snapshot {
         {
             return Ok(false);
         }
-        // 先构造完整候选，失败不能取消旧执行或留下半初始化的选择。
+        // Build a complete candidate first; failures must neither cancel old execution nor leave half-initialized selections.
         let parameters = crate::loom_parameter_state::Parameters::new(&art).map_err(|_| {
             windows::core::Error::new(
                 windows::Win32::Foundation::E_INVALIDARG,
@@ -175,7 +175,7 @@ mod tests {
         };
         state.execution_results.borrow_mut().begin(request.clone());
         unsafe {
-            // 内置 STATIC 类的隐藏窗口；不注册热键、不捕获桌面、不连接真实服务。
+            // Hidden windows of the built-in STATIC class; no hotkey registration, desktop capture, or real-service connections.
             let window = Window(
                 CreateWindowExW(
                     WINDOW_EX_STYLE::default(),

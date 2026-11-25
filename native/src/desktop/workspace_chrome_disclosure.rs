@@ -1,4 +1,4 @@
-//! 每行展开覆盖与 Tab 总开关同步；只保存瞬态几何意图，不改变端口显隐或连接图。
+//! Per-row expansion overrides synchronize with the master Tab toggle; store only transient geometry intents without port-visibility or graph changes.
 use super::*;
 
 pub(super) fn expanded(ui: &Ui, port: Port, node: &Node) -> bool {
@@ -23,7 +23,7 @@ pub(super) unsafe fn toggle(ui: &Ui, port: Port) -> bool {
     next
 }
 
-/// 同一宿主/字段可跨目录换代保留；Tab 边沿重置该节点所有局部覆盖，不能影响其它节点。
+/// The same host/field may survive catalog generations; Tab edges reset all local overrides for that node, not others.
 pub(super) unsafe fn sync(ui: &Ui, next: &Rc<Catalog>, nodes: &[Node]) {
     for node in nodes.iter().filter(|node| node.expanded) {
         if ui
@@ -94,7 +94,7 @@ pub(super) unsafe fn sync(ui: &Ui, next: &Rc<Catalog>, nodes: &[Node]) {
     *ui.disclosed.borrow_mut() = restored;
 }
 
-/// 复用属性栏的同步关闭入口；Live 宿主不是 State，不能把其 USERDATA 解引用为文档。
+/// Reuse property-strip synchronous closure; Live hosts are not State, so never dereference their USERDATA as documents.
 pub(super) unsafe fn close_settings(node: &Node) {
     let host = HWND(node.hwnd as *mut _);
     if GetWindowLongPtrW(host, GWLP_USERDATA) == node.marker
@@ -110,7 +110,7 @@ pub(super) unsafe fn close_settings(node: &Node) {
     }
 }
 
-/// 左侧属性栏显示前同步收起两侧内容；只变呈现，不销毁参数事务或更改底部抽屉。
+/// Collapse both sides synchronously before showing left properties; presentation only, without destroying parameter transactions or changing bottom drawers.
 pub(in crate::desktop) unsafe fn collapse_for_settings(state: &State, host: HWND) -> Result<()> {
     state.parameters_ui.expanded.set(false);
     state.parameters_ui.toggle.set(false);
@@ -131,7 +131,7 @@ pub(in crate::desktop) unsafe fn collapse_for_settings(state: &State, host: HWND
     ui.disclosed
         .borrow_mut()
         .retain(|port, _| port.node != endpoint);
-    // 同步移除 child/候选可见区，不能等 Application 空闲时才修正重叠。
+    // Synchronously remove child/candidate visible regions; do not await Application idle to fix overlap.
     window::refresh(&ui)
 }
 

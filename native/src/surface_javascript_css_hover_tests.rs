@@ -1,4 +1,4 @@
-//! Author :hover 贯穿真实 child/产品；不把合成事件或公开树属性当可信输入。
+//! Author :hover through real children/products; synthetic events or public-tree properties are not trusted input.
 use super::*;
 use sha2::{Digest, Sha256};
 pub(crate) const SOURCE: &str = include_str!("../tests/fixtures/javascript-css-hover.js");

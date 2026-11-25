@@ -1,4 +1,4 @@
-//! HWND/COM 生命周期限定在此模块；测试入口不注册全局快捷键或读取正式数据。
+//! HWND/COM lifetimes stay within this module; test entries register no global shortcuts and read no production data.
 mod annotation_bezier;
 mod annotation_blur;
 mod annotation_dash;
@@ -345,9 +345,9 @@ pub(super) struct State {
     extension_overlay: RefCell<extension_overlay::Cache>,
     authorization: std::rc::Rc<RefCell<device_authorization_ui::View>>,
     selected_art: RefCell<Option<capability_selection::Selection>>,
-    /// 会话 Art 类型独立于能力可用性；缺失绑定不能退化为普通钉图。
+    /// Session Art type is independent of capability availability; missing bindings must not degrade into ordinary pins.
     restored_art: bool,
-    // 本地执行的节点身份是数据，不是执行许可；恢复/打开仍须重新授权。
+    // Local-execution node identity is data, not execution permission; restoration/opening still requires renewed authorization.
     local_art_id: Option<document_state::local_art::Config>,
     restored_naming_art: naming_context::RestoredArtId,
     parameter_view: RefCell<Option<parameter_view::View>>,

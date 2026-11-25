@@ -1,4 +1,4 @@
-//! 显式触发配置意图；不执行条件，不包含凭据，Surface身份固定为本次真实观看宿主。
+//! Explicit trigger-configuration intent; evaluates no conditions, contains no credentials, and fixes Surface identity to this actual viewing host.
 use crate::live_relay_trigger_registration::{Binding, Condition, Error, Registration, Target};
 use serde::{Deserialize, Serialize};
 pub const MAX_TEXT: usize = 16 * 1024;
@@ -47,7 +47,7 @@ impl Command {
             && actual.condition == expected.condition
             && actual.target == expected.target
     }
-    /// 更新与禁用均创建新revision；不能借禁用承诺取消已reserved的Surface动作。
+    /// Updates and disabling both create a new revision; disabling cannot promise cancellation of already reserved Surface actions.
     pub fn update(registration: &Registration, disable: bool) -> Option<Self> {
         let mut condition = registration.condition.clone();
         condition.revision = condition.revision.checked_add(1)?;

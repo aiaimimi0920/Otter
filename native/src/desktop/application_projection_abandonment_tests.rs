@@ -1,4 +1,4 @@
-//! 原生产菜单/Sessions→取消或丢回复→原 cleanup owner；仅合成 profile/回环 TLS/隐藏 HWND。
+//! Original production menu/Sessions -> cancellation or lost replies -> original cleanup owner; synthetic profiles/loopback TLS/hidden HWNDs only.
 use super::*;
 use crate::desktop::device_authorization_ui::{projection as ui, Request};
 use crate::projection_delivery::accept::tests as png;
@@ -90,7 +90,7 @@ unsafe fn run(case: u8) {
     let (release, released) = mpsc::sync_channel(1);
     let mut fixture = Fixture::with_accept(move |_, _| {
         sent.send(()).unwrap();
-        released.recv_timeout(Duration::from_secs(10)).unwrap(); // 接受副作用可能已发生，故意丢全部回复。
+        released.recv_timeout(Duration::from_secs(10)).unwrap(); // Acceptance may already have taken effect; deliberately drop all replies.
     });
     start(&mut fixture);
     received.recv_timeout(Duration::from_secs(5)).unwrap();
@@ -103,12 +103,12 @@ unsafe fn run(case: u8) {
             Request::Select("https://other.example".into())
         });
         poll(&mut fixture);
-        // 原授权取消后既不能呈现旧像素，也不能偷偷为清理恢复授权。
+        // After original authorization is canceled, neither display old pixels nor secretly restore authorization for cleanup.
         assert!(!fixture.app.projection_receive.busy());
     }
     release.send(()).unwrap();
     if case == 3 {
-        fixture.app.shutdown(); // 原 drain 丢弃 UI Event，仍须先领取精确票据再 flush。
+        fixture.app.shutdown(); // The original drain discards UI Event, but must still collect the exact ticket before flush.
         fixture.finish_accept();
         assert!(fixture.store.pending().unwrap()[0].cleanup_pending());
         assert!(!fixture.unit_present());
@@ -127,7 +127,7 @@ unsafe fn run(case: u8) {
             "no ordinary poll may refresh the profile before direct terminal reap"
         );
         let mut message = MSG::default();
-        // WM_QUIT 是低优先级生成消息；沿原 smoke 的有界窗口泵，不调用会刷新 profile 的 Application poll。
+        // WM_QUIT is a low-priority generated message; use the original smoke test's bounded window pump, not Application poll, which refreshes the profile.
         let mut quit = false;
         for _ in 0..1024 {
             if !PeekMessageW(&mut message, None, 0, 0, PM_REMOVE).as_bool() {

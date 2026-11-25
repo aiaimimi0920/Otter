@@ -1,4 +1,4 @@
-//! 与旧形状合同一致的顶点和圆角；边数固定上限，几何不依赖 Win32。
+//! Vertices/rounded corners match legacy shape contracts; bounded side counts and Win32-independent geometry.
 use crate::viewport::Point;
 
 pub fn vertices(a: Point, b: Point, triangle: bool, sides: u8) -> Vec<Point> {

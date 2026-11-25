@@ -1,4 +1,4 @@
-//! 非对称像素通过真实读取/翻转、PNG 写出和再次读取，防止重复物化翻转。
+//! Asymmetric pixels through actual read/flip, PNG write, and reread prevent materializing flips twice.
 use super::*;
 use serde_json::json;
 

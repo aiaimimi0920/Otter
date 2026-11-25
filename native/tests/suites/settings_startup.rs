@@ -1,5 +1,5 @@
 #![cfg(windows)]
-//! 真实 EXE 显式配置启动；只用 linshi 合成文档，不读取用户设置或执行真实截图。
+//! Explicit configuration startup through the real EXE; use only synthetic documents in linshi, without reading user settings or taking real screenshots.
 use std::{
     fs,
     io::Write,

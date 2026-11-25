@@ -1,4 +1,4 @@
-//! 独立profile历史存储；坏源停止写，完整字节基线/原有恢复事务保护竞争写者。
+//! Independent-profile history storage; corrupt sources stop writes, while full-byte baselines/original recovery transactions protect competing writers.
 use super::{Data, MAX_BYTES};
 use std::{
     fs::{File, OpenOptions},
@@ -18,7 +18,7 @@ pub(crate) struct Store {
     _directories: Vec<File>,
 }
 impl Store {
-    /// 只读取调用者选定的原生profile，不自动探测其他 profile。
+    /// Read only the caller-selected native profile; do not automatically probe other profiles.
     pub fn open(root: &Path) -> Result<(Self, Data), String> {
         let directories = crate::profile_directory::pin(root).map_err(|e| e.to_string())?;
         let lease = OpenOptions::new()
@@ -48,7 +48,7 @@ impl Store {
         ))
     }
     pub fn save(&mut self, data: &Data) -> Result<(), String> {
-        // 根扩展最多来自8MiB输入，加上两份24条候选，编码峰值仍有界。
+        // Root extensions come from at most 8MiB input; with two 24-entry candidates, peak encoding memory remains bounded.
         let bytes = serde_json::to_vec(data).map_err(|e| e.to_string())?;
         if bytes.len() > MAX_BYTES {
             return Err("History output exceeds 8 MiB; original preserved".into());
@@ -69,7 +69,7 @@ impl Store {
             .map_err(|e| format!("History publication failed: {e:?}"))?;
             self.expected = Some(bytes);
             if published.retained_recovery.is_some() {
-                // 新候选已成功发布，旧恢复文件保留；不重放写入。
+                // The new candidate has been published successfully; retain the old recovery file and do not replay the write.
                 return Err(
                     "History saved with retained recovery file; further writes stopped".into(),
                 );

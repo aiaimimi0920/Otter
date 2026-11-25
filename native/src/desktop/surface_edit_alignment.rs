@@ -1,4 +1,4 @@
-//! EDIT 对齐只改变呈现样式位，不回写文本、不重建控件或结束组合输入。
+//! EDIT alignment changes only presentation style bits, without text writeback, control recreation, or ending composition.
 use super::*;
 impl Control {
     pub fn set_alignment(&self, value: Option<&str>) -> Result<()> {
@@ -18,7 +18,7 @@ impl Control {
             if SetWindowLongPtrW(hwnd, GWL_STYLE, next) == 0 && GetLastError() != WIN32_ERROR(0) {
                 return Err(Error::from_win32());
             }
-            // STYLECHANGED 可重入；仅在原 owner 仍存活时安排重绘。
+            // STYLECHANGED can reenter; schedule repaint only while the original owner survives.
             InvalidateRect(Some(self.hwnd()?), None, true).ok()?;
             Ok(())
         }

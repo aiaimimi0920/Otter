@@ -1,4 +1,4 @@
-//! 节点 chrome 与普通贴图通知设置；只读写已有会话字段，不拥有图像或 Art 执行策略。
+//! Node chrome and ordinary image-pin notification settings; read/write only existing session fields, without image ownership or Art execution policies.
 use serde_json::{Map, Value};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -23,7 +23,7 @@ impl Settings {
             .map_err(|_| "Invalid node execution config")?;
         Ok(Self {
             hide_collapsed_endpoints: window.hide_collapsed_endpoints.unwrap_or(false),
-            // Art 的通知权威仍为 Selection.execution；此值只供普通贴图使用。
+            // Selection.execution remains authoritative for Art notifications; this value is only for ordinary image pins.
             notify_downstream: execution
                 .as_ref()
                 .and_then(|value| value.get("propagation"))
@@ -45,7 +45,7 @@ impl Settings {
             .and_then(|propagation| propagation.get("notifyDownstream"))
             .and_then(Value::as_bool)
             .is_some();
-        // 未理解的既有配置原样保留；缺省 true 不应把 null 或扩展字段改写成新配置。
+        // Preserve unrecognized existing configuration unchanged; default true must not rewrite null or extension fields into new configuration.
         if !art && (!self.notify_downstream || declared) {
             let config = fields
                 .entry("executionConfig")

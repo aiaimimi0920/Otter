@@ -1,4 +1,4 @@
-//! 会话图片引用的只读视图；不解码、不读取路径，也不自动请求网络资源。
+//! Read-only views of session image references; no decoding/path reads/automatic network-resource requests.
 use serde::{
     de::{self, Visitor},
     Deserializer,
@@ -36,7 +36,7 @@ impl<'a> References<'a> {
     }
 }
 
-/// Option<Cow<str>> 默认派生会拥有字符串；显式 visitor 保留未转义 JSON 字符串的借用。
+/// Default-derived Option<Cow<str>> owns strings; explicit visitors preserve borrowing for unescaped JSON strings.
 pub(crate) fn optional_text<'de: 'a, 'a, D: Deserializer<'de>>(
     decoder: D,
 ) -> Result<Option<Cow<'a, str>>, D::Error> {

@@ -1,4 +1,4 @@
-//! 有界纯色解析；不执行 CSS 表达式或查找资源，主题变量由未来主题 owner 处理。
+//! Bounded solid-color parsing; no CSS expression execution or resource lookup, with theme variables left to a future theme owner.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Color(pub [f32; 4]);
 impl Color {
@@ -57,7 +57,7 @@ impl Color {
         let a = if alpha { channel(parts[3], 1.)? } else { 1. };
         match name {
             "rgb" | "rgba" => {
-                // 逗号形式遵循传统 CSS 通道语法，不把混合百分比误解释为有效声明。
+                // Comma forms follow legacy CSS channel syntax; do not misinterpret mixed percentages as valid declarations.
                 if parts[..3]
                     .iter()
                     .any(|p| p.ends_with('%') != parts[0].ends_with('%'))

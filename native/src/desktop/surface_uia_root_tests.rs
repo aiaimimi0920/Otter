@@ -1,4 +1,4 @@
-//! 真实 COM ABI 合同与 HWND 根 provider 测试，不替代跨进程 UIA 客户端验收。
+//! Actual COM ABI contracts and HWND root-provider tests; not a substitute for cross-process UIA-client acceptance.
 use super::*;
 use windows::{
     core::{IUnknown, Interface, GUID},
@@ -83,7 +83,7 @@ fn uia_root_references_release_object_and_wrong_thread_is_rejected() {
     let root = Root::new(window.hwnd).unwrap();
     let alive = Arc::downgrade(&root.alive);
     let provider = root.provider();
-    // 故意绕过 COM marshal 验证防御检查；仅传地址数值，不跨线程调用 HWND。
+    // Deliberately bypass COM marshaling to verify defensive checks; pass only address numbers, never call HWND across threads.
     let raw = provider.as_raw() as usize;
     let result = std::thread::spawn(move || unsafe {
         let borrowed =

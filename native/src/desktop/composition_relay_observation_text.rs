@@ -1,4 +1,4 @@
-//! 只读语义投影；敏感值仅在显式查看时格式化，不写日志/磁盘，不把审计当执行命令。
+//! Read-only semantic projection; format sensitive values only on explicit viewing, never log/write them to disk or treat audits as executable commands.
 use crate::{
     live_relay_observation::{Confidence, Source, State, Summary},
     live_relay_trigger_audit::Outcome,
@@ -37,7 +37,7 @@ impl Text {
         self.units += used + 2;
     }
 }
-// 不允许远端名称/原因以NUL、换行或bidi控制伪造UI字段；原业务对象不变。
+// Remote names/reasons cannot forge UI fields using NUL, newlines, or bidi controls; original business objects remain unchanged.
 fn clean(value: &str, limit: usize) -> String {
     let mut result = String::new();
     let mut chars = value.chars();
@@ -126,7 +126,7 @@ pub(super) fn render(business: Option<&Business>) -> String {
             ));
         }
         if let Some(value) = &o.value {
-            // 单个已校验值至多64KiB；显示单值最多512字符，总窗口另有UTF-16门。
+            // Each validated value is at most 64 KiB; display at most 512 characters per value, with a separate whole-window UTF-16 gate.
             text.line(&format!("  值：{}", clean(&value.to_string(), 512)));
         }
         if let Some(reason) = &o.reason {

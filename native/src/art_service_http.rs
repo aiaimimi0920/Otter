@@ -1,5 +1,5 @@
-//! 已验签 Prepared 的串行服务交换；仅后台调用，不自动重试，不建立新凭据或延长许可。
-//! Call 借用原 Prepared/Permit/Lease，网络等待不进入 JS child 的执行预算。
+//! Serial service exchange for signature-verified Prepared; background only, with no automatic retries, new credentials, or grant extension.
+//! Call borrows the original Prepared/Permit/Lease; network waits do not consume the JS child's execution budget.
 use super::{now, wire as grant_wire, Client, Prepared};
 use crate::art_execution_grant;
 use base64::Engine as _;
@@ -56,7 +56,7 @@ pub struct Call<'a> {
     challenge: Option<confirmation_wire::Challenge>,
     decision: Option<confirmation_wire::Decision>,
 }
-// 只借原授权，不持 MutexGuard 跨网络；停止回调可安全重入同一个 Permit。
+// Borrow only original authorization, never holding MutexGuard across network I/O; stop callbacks can safely reenter the same Permit.
 struct Authority<'a> {
     permit: &'a std::sync::Mutex<art_execution_grant::Permit>,
     lease: &'a crate::device_authorization_lease::Lease,
@@ -75,7 +75,7 @@ struct Request<'a> {
     timeout_ms: Option<u64>,
 }
 impl<'a> Call<'a> {
-    /// SDK 只提供服务名和 JSON；callId、完整绑定与许可只能来自宿主。
+    /// The SDK supplies only service name and JSON; callId, complete binding, and grant must come from the host.
     pub fn new(
         prepared: &'a mut Prepared,
         client: &'a Client,
@@ -240,7 +240,7 @@ impl<'a> Call<'a> {
         }
         self.exchange("/v1/art/local/service/cancel", false)
     }
-    /// 消费失败链，只尽力取消原call一次；不恢复submit/poll，也不延长调用原期限。
+    /// Consume the failed chain and best-effort cancel the original call once; never resume submit/poll or extend the original deadline.
     fn abandon(mut self, deadline: Instant) -> Result<Reply, Error> {
         if !self.submitted {
             return Err(Error::Sequence);

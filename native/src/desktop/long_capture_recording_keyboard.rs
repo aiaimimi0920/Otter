@@ -1,4 +1,4 @@
-//! 录制期专属 Enter/Esc 路由；只消费裸键边沿，不记录文本，不改变源窗口焦点。
+//! Recording-only Enter/Esc routing; consume unmodified key edges only, without recording text or changing source-window focus.
 use super::*;
 use windows::Win32::{System::LibraryLoader::GetModuleHandleW, UI::Input::KeyboardAndMouse::*};
 const MESSAGE: u32 = WM_APP + 0x5c2;

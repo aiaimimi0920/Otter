@@ -1,7 +1,7 @@
-//! 组缩放先完成文字排版及全部候选，随后一次提交；路径按图像轴变换，形状保留局部角度。
+//! Group resizing completes text layout/all candidates before one commit; transform paths along image axes and preserve local shape angles.
 use super::*;
 
-/// 未提交候选独占几何缓冲、共享图像；后台计算可补充效果，不能直接改动文档。
+/// Uncommitted candidates exclusively own geometry buffers/share images; background computation may add effects but never directly alter documents.
 pub struct ResizePlan {
     scale: f32,
     identity: std::sync::Arc<()>,

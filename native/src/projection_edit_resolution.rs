@@ -1,4 +1,4 @@
-//! 显式选择先只读最新权威；未知pending不被read、模式变化或用户选择退休。
+//! Explicit choices first read the latest authority; read/mode changes/user choices never retire unknown pending state.
 use super::*;
 use std::sync::atomic::AtomicBool;
 #[derive(Clone, Copy)]
@@ -71,7 +71,7 @@ impl Ready {
                     .observe(&source.context, self.document, lease.preparation_cancel())
                     .map_err(|error| Error::Edit(Failure::Journal(error)))?;
             }
-            return Ok(()); // 只读选择没有网络副作用；仍等实际Checkpoint后才释放独占Store。
+            return Ok(()); // Read-only choices have no network side effects; still wait for actual Checkpoint before releasing exclusive Store.
         };
         let result = if self.rejection.is_some() {
             ticket.commit_rejected_after_checkpoint(self.document, lease.preparation_cancel())

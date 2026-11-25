@@ -1,4 +1,4 @@
-//! 平台协作会话只拥有权威记录与Editor桥；无网络/线程/凭据，失效后保存而不重放旧视图。
+//! Platform collaboration sessions own only authoritative records and the Editor bridge; no network/threads/credentials, and invalidated sessions save without replaying old views.
 use crate::{
     editor::{DocumentStamp, Editor},
     pixels::Pixels,
@@ -144,7 +144,7 @@ impl Owner {
         .map_err(|_| invalid())?;
         receiver::candidate(next, &current, editor)?.apply(editor, None)
     }
-    /// 只操作未发布候选。完整恢复事务失败时，原Application/原图不变。
+    /// Operate only on unpublished candidates. If the complete restore transaction fails, the original Application/image remains unchanged.
     pub(super) fn restore(snapshot: Snapshot, editor: Editor) -> Result<(Editor, Self)> {
         let (editor, bridge) = if snapshot.suspended().is_none() {
             if editor.crop_view().is_some()
@@ -175,19 +175,19 @@ impl Owner {
     pub(super) fn stamp(&self) -> Stamp {
         self.stamp.clone()
     }
-    /// 权威字段不随 capture 的编辑视图或暂停原因变化。
+    /// Authoritative fields do not change with capture's edit view or pause reason.
     pub(super) fn authoritative(&self) -> &Snapshot {
         &self.snapshot
     }
     pub(super) fn can_submit(&self, editor: &Editor) -> bool {
-        // 草稿不更新提交 revision，底图也有独立身份，不能被缓存命中掩盖。
+        // Drafts do not update committed revision, and the base image has its own identity; cache hits must not conceal either.
         if self.snapshot.suspended().is_some()
             || editor.draft().is_some()
             || !self.base.matches(editor)
         {
             return false;
         }
-        // 未发布的恢复 API 可在 revision 0 直接追加/平移标注。
+        // The unpublished restore API can directly append/translate annotations at revision 0.
         let stable = editor.revision() != 0 || editor.elements().is_empty();
         if stable
             && self
@@ -199,13 +199,13 @@ impl Owner {
             return true;
         }
         let allowed = self.capture_active(editor).suspended().is_none();
-        // 仅缓存确定性的无文字成功；失败和 DirectWrite 状态仍可重查。
+        // Cache only deterministic text-free successes; failures and DirectWrite state remain recheckable.
         if allowed && stable && !editor.elements().iter().any(|stroke| stroke.text.is_some()) {
             self.validated_editor.replace(Some(editor.document_stamp()));
         }
         allowed
     }
-    /// 保存时导出的视图可以变化，但不会改变 owner 的工作区或节点身份。
+    /// The exported view may change when saving without changing the owner's workspace or node identity.
     pub(in crate::desktop) fn belongs_to(
         &self,
         unit: &str,
@@ -217,7 +217,7 @@ impl Owner {
         if self.snapshot.suspended().is_some() {
             return self.snapshot.clone();
         }
-        // 不支持的本地底图/几何改变不能阻止正常保存，更不能在重开时用旧basis盖回新图。
+        // Unsupported local base-image/geometry changes must not block normal saves, much less overwrite the new image with an old basis on reopening.
         if !self.base.matches(editor) {
             return self.snapshot.suspend(Suspension::BasisChanged);
         }

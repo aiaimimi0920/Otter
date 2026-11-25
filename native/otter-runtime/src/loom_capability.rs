@@ -1,4 +1,4 @@
-//! 能力目录的借用视图，对齐主干 artCapabilityNormalization；不复制目录或凭据默认值。
+//! Borrowed capability-catalog view aligned with baseline artCapabilityNormalization; do not copy the catalog or credential defaults.
 use serde_json::Value;
 use std::borrow::Cow;
 #[path = "loom_capability_defaults.rs"]
@@ -112,7 +112,7 @@ impl<'a> Capability<'a> {
             raw,
             id,
             label: text(raw, "label").unwrap_or(id),
-            // 与主干一致：只有 JSON boolean false 禁用，不能把缺失当 false。
+            // Match the baseline: only JSON boolean false disables; missing must not be treated as false.
             enabled: raw["enabled"].as_bool() != Some(false),
         })
     }
@@ -120,7 +120,7 @@ impl<'a> Capability<'a> {
         let declarations = self.raw.get("parameters").and_then(Value::as_array);
         declarations.into_iter().flatten().filter_map(move |raw| {
             let id = text(raw, "id")?;
-            // 同名声明任意一项为 secret 都禁止默认值外泄，不能被后续公共声明覆盖。
+            // If any same-name declaration is secret, prevent default-value disclosure; later public declarations must not override this.
             let secret = declarations
                 .into_iter()
                 .flatten()

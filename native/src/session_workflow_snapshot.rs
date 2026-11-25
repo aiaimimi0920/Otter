@@ -1,4 +1,4 @@
-//! 从已保存会话准备 hook-live 快照；不执行保存、烘焙或网络发送，不推断授权。
+//! Prepare hook-live snapshots from saved sessions; no saving, baking, network sends, or inferred authorization.
 use crate::session_window::Window;
 use serde_json::{json, Map, Value};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -27,8 +27,8 @@ pub enum Error {
     RequestIdentity,
 }
 
-/// 调用方须按当前 capability 过滤参数，并按主干规则烘焙有编辑的贴图。
-/// 图片字段使用白名单；未知字段不得混入同步 payload。
+/// Callers filter parameters by current capability and bake edited pins according to mainline rules.
+/// Image fields use an allowlist; unknown fields must not enter sync payloads.
 pub struct Content {
     pub parameters: Map<String, Value>,
     pub image: Map<String, Value>,
@@ -45,11 +45,11 @@ impl Snapshot {
     pub fn value(&self) -> &Value {
         &self.value
     }
-    /// 仅生成 sync_workflow 的 payload；上层仍须重新确认授权与已提交会话身份。
+    /// Generate sync_workflow payload only; upper layers still reconfirm authorization and committed-session identity.
     pub fn encode_payload(&self, limit: usize, cancel: &AtomicBool) -> Result<Vec<u8>, Error> {
         encode_payload(WORKFLOW_ID, &self.value, limit, cancel)
     }
-    /// Loom 控制请求，不是前端 action 包装；requestId 由发送 owner 分配并保持唯一。
+    /// Loom control request, not a frontend action wrapper; the send owner allocates and maintains unique requestId values.
     pub fn encode_request(
         &self,
         request_id: &str,
@@ -87,7 +87,7 @@ fn check(cancel: &AtomicBool) -> Result<(), Error> {
     }
 }
 
-/// 仅接受调用方指定的已保存版本；候选生成成功不代表该版本已经落盘。
+/// Accept only the caller-specified saved version; successful candidate generation does not prove persistence.
 pub fn prepare(
     saved: &[u8],
     expected_revision: u64,
@@ -183,7 +183,7 @@ pub(super) fn prepare_from(
                 data.insert(key.into(), value);
             }
         }
-        // 大图字段已拥有 String；直接移入 Value，避免通过 json! 再序列化复制。
+        // Large image fields already own String; move directly into Value instead of reserializing/copying through json!.
         let kind = if window.is_art() {
             "artNode"
         } else {

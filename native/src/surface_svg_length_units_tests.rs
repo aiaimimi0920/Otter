@@ -1,4 +1,4 @@
-//! 长度单位等价关系经过生产解析、字体代理、布局及 child 绘制，不使用替身。
+//! Length-unit equivalence through production parsing, font brokers, layout, and child drawing without substitutes.
 use super::{decode, svg};
 
 fn assert_equivalent(wrap: impl Fn(&str) -> String, length: &str, user_units: &str) {

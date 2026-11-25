@@ -1,8 +1,6 @@
 # Otter code signing policy
 
-The current `main` builds **unsigned internal ZIPs**. It does not publish releases
-or run a signing workflow. Existing public downloads are unchanged. Do not label
-an internal ZIP as an installer, UIAccess package or signed build.
+For the current unsigned internal package process and its limits, see [release provenance](release-provenance.md).
 
 ## Requirements for a future signed release
 

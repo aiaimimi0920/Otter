@@ -1,4 +1,4 @@
-//! 首次授权的有界批准等待；续签继续使用 Client::issue_once，不隐式进入此循环。
+//! Bounded first-authorization approval wait; renewal keeps using Client::issue_once without implicitly entering this loop.
 use crate::{
     device_identity::Identity,
     device_request_cancel::Cancel,
@@ -14,7 +14,7 @@ pub enum Error {
     Request(device_session_client::Error),
 }
 
-/// 仅后台执行，最多等待九十秒；请求与等待间隔共用总期限，不启动定时线程。
+/// Background only, up to ninety seconds; requests/wait intervals share one deadline without timer threads.
 pub fn wait(client: &Client, identity: &Identity, cancel: &Cancel) -> Result<Session, Error> {
     wait_until(
         client,

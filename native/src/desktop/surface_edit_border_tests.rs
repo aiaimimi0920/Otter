@@ -1,7 +1,7 @@
-//! 真实 EDIT 四边 HWND 投影/非对称内角 region；更新不重建 HWND、不丢 draft。
+//! Actual EDIT four-side HWND projection/asymmetric inner-corner regions; updates neither recreate HWND nor lose drafts.
 use super::*;
 fn scene(updated: bool) -> Scene {
-    // 只改变祖先计算字体；字段自身合同不变，才能合法继承 HWND/draft。
+    // Change only the ancestor's computed font; the field contract remains unchanged so HWND/draft inheritance is valid.
     let field = serde_json::json!({"id":"field","type":"textarea","props":{"value":"source"},
         "events":{"input":"typing"},"layout":{"width":100,"height":64,"padding":3},
         "style":{"borderLeftWidth":"1.125em","borderTopWidth":"0.125em","borderRightWidth":"0.375em",

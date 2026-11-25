@@ -1,4 +1,4 @@
-//! 有界 CSS 字体列表到本机 family 的唯一解析/选择 owner；不加载网络字体或枚举全集。
+//! Sole bounded CSS font-list parsing/selection owner for native families; no network fonts or full enumeration.
 use std::{collections::BTreeMap, rc::Rc};
 use windows::{
     core::{Result, HSTRING},
@@ -27,7 +27,7 @@ fn generic(name: &str) -> Option<&'static [&'static str]> {
         _ => None,
     }
 }
-// 与 CSS 准入共用合同：最多8项/256 UTF-8 bytes、每项31 UTF-16 units，适配 GDI face。
+// Share CSS admission contracts: at most 8 entries/256 UTF-8 bytes, 31 UTF-16 units per entry, compatible with GDI faces.
 fn parse(source: &str) -> Result<Vec<Family>> {
     if source.is_empty() || source.len() > 256 {
         return Err(super::invalid());
@@ -90,7 +90,7 @@ impl Families {
             return Ok(found.clone());
         }
         let families = parse(source)?;
-        // 无 fontFamily 的场景不查询集合；固定该 Engine 的安装字体视图，不触发更新/下载。
+        // Scenes without fontFamily do not query collections; pin this Engine's installed-font view without updates/downloads.
         if self.collection.is_none() {
             unsafe { factory.GetSystemFontCollection(&mut self.collection, false)? };
         }
@@ -119,7 +119,7 @@ impl Families {
                 break;
             }
         }
-        // 全部缺失时与 CSS 缺省 sans-serif 相同；不能把逗号列表交给 DWrite/GDI 各自猜测。
+        // If all are missing, use the CSS default sans-serif; never let DWrite/GDI separately guess from comma-separated lists.
         if chosen.is_none() {
             for name in generic("sans-serif").unwrap() {
                 if installed(name)? {

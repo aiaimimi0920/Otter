@@ -1,4 +1,4 @@
-//! CF_HDROP 输出合同；只编码调用方拥有的绝对路径，不读取文件、不隐式授予目录权限。
+//! CF_HDROP output contract; encode only caller-owned absolute paths, without reading files or implicitly granting directory authority.
 use std::{
     os::windows::ffi::OsStrExt,
     path::{Component, PathBuf, Prefix},
@@ -12,7 +12,7 @@ pub(in crate::desktop) fn encode(paths: &[PathBuf]) -> Result<Vec<u8>> {
     if paths.is_empty() || paths.len() > crate::desktop::open_job::MAX_BATCH {
         return Err(invalid());
     }
-    let mut size = 22usize; // DROPFILES + 最后一个空字符串；每条路径另含 NUL。
+    let mut size = 22usize; // DROPFILES plus the final empty string; each path separately includes NUL.
     for path in paths {
         if !path.is_absolute()
             || !matches!(path.components().next(), Some(Component::Prefix(prefix)) if matches!(prefix.kind(), Prefix::Disk(_) | Prefix::UNC(_, _)))

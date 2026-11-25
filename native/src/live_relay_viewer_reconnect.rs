@@ -1,4 +1,4 @@
-//! 同一授权媒体链的有限恢复；不续签、不加入、不更换epoch、不重放控制命令。
+//! Bounded recovery of the same authorized media chain; no renewal/join/epoch change/control-command replay.
 use super::*;
 use crate::live_relay_viewer_frames::Cursor;
 use std::time::{Duration, Instant};
@@ -49,7 +49,7 @@ impl Recovery {
                 .committed(&control.permit)
                 .map_err(|_| Exit::Stopped)?,
         );
-        // 一个无像素进度的故障周期最多四次，握手成功/重复预热帧不刷新次数。
+        // At most four attempts per failure cycle without pixel progress; handshake success/duplicate warmup frames do not reset the count.
         if self.attempts >= 4 {
             return Err(exit);
         }

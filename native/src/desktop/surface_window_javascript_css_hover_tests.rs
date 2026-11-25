@@ -1,4 +1,4 @@
-//! Author :hover 的同 child 经真实 HWND/FIFO/Presentation/D2D；仅定向自有消息。
+//! Author :hover from the same child through actual HWND/FIFO/Presentation/D2D; only targeted owned messages.
 use super::*;
 use crate::surface_javascript::{css_hover_tests::SOURCE, Frame};
 use windows::Win32::UI::Input::KeyboardAndMouse::{GetCapture, GetFocus};

@@ -1,4 +1,4 @@
-//! 自有 Win32 菜单面板；只绘制和收集有界输入，不执行业务命令。
+//! Owned Win32 menu panels only draw/collect bounded input, never execute business commands.
 use std::{
     cell::{Cell, RefCell},
     collections::VecDeque,
@@ -34,7 +34,7 @@ const ID: usize = 0x4f4d50;
 #[derive(Clone)]
 pub struct Row {
     pub deletable: bool,
-    /// 当前面板模型内的稳定条目索引；滚动后不能用可见槽位替代。
+    /// Stable item index within the current panel model; visible slots cannot replace it after scrolling.
     pub key: usize,
     pub thumbnail: Option<crate::image_thumbnail::Thumbnail>,
     pub label: String,
@@ -80,7 +80,7 @@ struct Data {
     fonts: font::Fonts,
 }
 
-/// 非激活 owned popup；级联控制器负责焦点路由、捕获、滚动及命令授权。
+/// Nonactivating owned popup; cascade controllers own focus routing, capture, scrolling, and command authorization.
 pub struct Panel {
     hwnd: HWND,
     data: Box<Data>,
@@ -90,7 +90,7 @@ impl Panel {
     pub(crate) fn preferred_width(owner: HWND, rows: &[Row]) -> Result<i32> {
         font::width(owner, rows)
     }
-    /// 只供同线程控制器路由焦点/捕获；每次使用前重新验证实例身份。
+    /// Only same-thread controllers may route focus/capture; revalidate instance identity before every use.
     pub fn handle(&self) -> Result<HWND> {
         if self.alive() {
             Ok(self.hwnd)
@@ -132,7 +132,7 @@ impl Panel {
                 WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
                 w!("STATIC"),
                 w!("Otter 菜单"),
-                // STATIC 默认命中穿透，系统滚轮会落到后方窗口；菜单必须可命中。
+                // STATIC defaults to hit-test transparency, routing system wheels behind it; menus must be hittable.
                 WS_POPUP | WINDOW_STYLE(windows::Win32::System::SystemServices::SS_NOTIFY.0),
                 bounds.left,
                 bounds.top,
@@ -173,7 +173,7 @@ impl Panel {
         Ok(())
     }
     pub(crate) fn announce_tray_popup(&self) -> Result<()> {
-        // 自绘托盘根页也必须通知 Shell 菜单生命周期；通知可同步重入销毁窗口。
+        // Custom-drawn tray roots must also notify Shell of menu lifecycles; notifications can synchronously reenter window destruction.
         if self.notification_guard(|| {
             if !self.data.tray_popup.replace(true) {
                 unsafe {
@@ -219,7 +219,7 @@ impl Panel {
         if !valid(&rows) || !self.alive() {
             return Err(invalid());
         }
-        // 数据替换原子退休旧 UIA 节点及排队动作；普通焦点重绘仍可 Focus → Invoke。
+        // Data replacement atomically retires old UIA nodes/queued actions; ordinary focus redraw still permits Focus -> Invoke.
         if fresh {
             self.data.accessibility.replace_fresh(&rows);
         } else {
@@ -268,7 +268,7 @@ impl Panel {
         }
         Ok(())
     }
-    /// 可撤销快照句柄；不暴露命令 ID，也不允许直接调用业务处理器。
+    /// Revocable snapshot handle; exposes neither command IDs nor direct business-handler invocation.
     pub fn accessibility_nodes(&self) -> Vec<super::accessibility::Node> {
         if self.alive() {
             self.data.accessibility.nodes()
@@ -324,7 +324,7 @@ impl Panel {
 }
 impl Data {
     fn end_tray_popup(&self, hwnd: HWND) {
-        // 先退休标记，隐藏和销毁（包括通知重入）只能发送一次结束通知。
+        // Retire the flag first; hiding/destruction, including notification reentry, sends only one end notice.
         if self.tray_popup.replace(false) {
             unsafe {
                 windows::Win32::UI::Accessibility::NotifyWinEvent(
@@ -339,7 +339,7 @@ impl Data {
 }
 impl Drop for Panel {
     fn drop(&mut self) {
-        // 核验子类实例身份，不能销毁复用同一 HWND 数值的新窗口。
+        // Check subclass-instance identity; never destroy a new window reusing the same HWND value.
         if self.alive() {
             unsafe {
                 let _ = DestroyWindow(self.hwnd);

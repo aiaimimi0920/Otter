@@ -1,4 +1,4 @@
-//! 精确输入的原 popup 来源值快照；最多四段，不从当前 lease 重新取得授权。
+//! Original popup-provenance value snapshots for exact input; at most four segments, without reacquiring authorization from current leases.
 use crate::{native_popup::Lease, native_protocol, scope};
 use windows::Win32::{Foundation::*, UI::WindowsAndMessaging::*};
 
@@ -36,7 +36,7 @@ impl Snapshot {
         self.len += 1;
         true
     }
-    /// 既供宿主提交前复核，也供源线程 read/claim 复核；进程权限仍归原 Destination。
+    /// Used for host pre-submit rechecks and source-thread read/claim checks; process permissions remain with original Destination.
     pub fn valid_for(self, root: HWND, owner: HWND) -> bool {
         if self.len == 0 {
             return true;

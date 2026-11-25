@@ -1,4 +1,4 @@
-//! 从已验证 owner 捕获公共端口/几何；不让隐藏组或过期 HWND 留下悬空连线。
+//! Capture public ports/geometry from verified owners; hidden groups/stale HWNDs must not leave dangling links.
 use super::*;
 pub(super) struct Gates {
     pub modals: desktop::modal_scope::Scope,
@@ -83,7 +83,7 @@ impl Scene {
                 (hwnd, false, false, true, opacity, false, false)
             };
             let marker = GetWindowLongPtrW(hwnd, GWLP_USERDATA);
-            // 宿主几何消息直接更新标量；Live 的帧通知不重复读取客户区或重建图。
+            // Host geometry messages update scalars directly; Live frame notifications do not reread clients or rebuild graphs.
             let rect = cached
                 .iter()
                 .find(|node| node.hwnd == hwnd.0 as isize && node.marker == marker)
@@ -132,7 +132,7 @@ impl Scene {
             else {
                 continue;
             };
-            // 图不随暂时隐藏改变；绘制时才按当前nodes过滤，恢复无需换Catalog。
+            // Temporary hiding does not change the graph; filter current nodes only when drawing, so restoration needs no Catalog replacement.
             let Some(output) = catalog.endpoints[from]
                 .outputs
                 .iter()

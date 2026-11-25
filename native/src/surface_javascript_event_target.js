@@ -1,4 +1,4 @@
-// 单文档事件 owner；私有登记/分派状态不进入 DOM 投影或远端动作合同。
+// Per-document event owner; private registration/dispatch state does not enter DOM projection or remote action contracts.
 ((op, fail, parent) => {
   "use strict";
   const define = Object.defineProperty, PromiseType = Promise;
@@ -16,7 +16,7 @@
     const capture = !!value?.capture;
     if (!full) return { capture };
     const once = !!value?.once, passive = !!value?.passive, signal = value?.signal;
-    // AbortSignal 还没有原生生命周期 owner；不能悄悄保存 signal 却不响应撤销。
+    // AbortSignal has no native lifecycle owner yet; do not silently store a signal while ignoring cancellation.
     if (signal != null) fail();
     return { capture, once, passive };
   };
@@ -74,7 +74,7 @@
       const value = eventState(this).keyboard; if (!value) fail(); return value[key];
     } });
   }
-  // 鼠标字段仍保存在同一事件私有状态；公开 getter 不作为宿主取消或权限依据。
+  // Mouse fields remain in the same private event state; public getters are not authoritative for host cancellation or permissions.
   const numeric = (value, fallback, low, high, integer = false) => {
     value = op.number(value ?? fallback);
     if (!op.finite(value) || value < low || value > high || (integer && value % 1)) fail();
@@ -114,7 +114,7 @@
     entry.removed = true;
     const index = op.indexOf(list, entry); if (index >= 0) op.remove(list, index);
   };
-  // native 入口由原 Engine 的 job 边界直接调用，不把 apply/invoke 栈叠到同步 CSS/几何。
+  // The original Engine's job boundary calls the native entry directly, without adding apply/invoke stacks to synchronous CSS/geometry.
   const dispatch = (target, event, trusted = true) => {
     if (trusted) { const input = target; target = input.node; event = input.pointer ? new PointerEvent(input.type, input.pointer) : input.keyboard ? new KeyboardEvent(input.type, input.keyboard) : new Event(input.type, { bubbles: true, cancelable: input.cancelable, composed: input.composed }); }
     targetState(target); const value = eventState(event);
@@ -123,7 +123,7 @@
     for (let node = target; node; node = parent(node)) { if (path.length >= 32) fail(); op.push(path, node); }
     value.trusted = trusted; value.target = target; value.path = path; value.active = true; depth++;
     try {
-      // 路径在首个回调前固定；每个目标/阶段分别取快照，后阶段可见新登记。
+      // Fix the path before the first callback; snapshot each target/phase separately so later phases can see new registrations.
       for (let step = 0; step < path.length * 2; step++) {
         if (value.stopped) break;
         const capture = step < path.length, index = capture ? path.length - step - 1 : step - path.length;
@@ -133,7 +133,7 @@
         for (let i = 0; i < snapshot.length; i++) {
           const entry = snapshot[i];
           if (entry.removed || entry.type !== value.type || entry.capture !== capture) continue;
-          // 在回调前删除 once，递归分派也不能再见到它；移除标记影响旧快照。
+          // Remove once before invoking the callback so recursive dispatch cannot see it again; removal markers affect old snapshots.
           if (entry.once) erase(list, entry);
           value.passive = entry.passive;
           try {
@@ -146,7 +146,7 @@
       }
       return !value.canceled;
     } finally {
-      // 保留原宿主的异常终止边界，不用吞 listener 异常伪造浏览器 ErrorEvent 成功。
+      // Preserve the original host's exception termination boundary; do not swallow listener exceptions to fabricate successful browser ErrorEvent handling.
       value.current = null; value.phase = 0; value.path = op.array();
       value.active = value.stopped = value.immediate = value.passive = false; depth--;
     }
@@ -176,7 +176,7 @@
     dispatchEvent(event) { return dispatch(this, event, false); }
   }
   const native = (target, type, cancelable, composed = true, keyboard, pointer) => {
-      // 非 thenable 私有 carrier，既不读取 Node.then，也不经过插件的 Promise species/then。
+      // Private non-thenable carrier; neither reads Node.then nor passes through plugin Promise species/then.
       const value = op.record(); value.node = target; value.type = type; value.cancelable = cancelable; value.composed = composed; value.keyboard = keyboard; value.pointer = pointer;
       const pending = new PromiseType(resolve => resolve(value));
       define(pending, "constructor", { value: constructor });

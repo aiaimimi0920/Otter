@@ -1,4 +1,4 @@
-//! Number 的系统步进按钮 owner；不允许系统控件回写整数，浮点草稿仍由 Session 拥有。
+//! Number's system spinner-button owner; system controls cannot write integer values back, and Session still owns floating-point drafts.
 use std::{marker::PhantomData, rc::Rc};
 use windows::{
     core::{w, Error, Result},
@@ -30,7 +30,7 @@ impl Spinner {
                 dwICC: ICC_UPDOWN_CLASS,
             })
             .ok()?;
-            // 无 buddy、SETBUDDYINT、ARROWKEYS；系统只拥有命中、捕获和重复计时。
+            // No buddy, SETBUDDYINT, or ARROWKEYS; the system owns only hit testing, capture, and repeat timing.
             let hwnd = CreateWindowExW(
                 WINDOW_EX_STYLE(0),
                 UPDOWN_CLASSW,

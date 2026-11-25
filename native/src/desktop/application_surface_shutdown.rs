@@ -1,4 +1,4 @@
-//! 退出前给已知附件一次停用机会；绝对截止后由原有撤权/drain 回收，不重放 unknown。
+//! Give known attachments one deactivation opportunity before exit; after the absolute deadline, original revocation/drain reaps without replaying unknown outcomes.
 use super::*;
 use std::time::{Duration, Instant};
 
@@ -7,13 +7,13 @@ const GRACE: Duration = Duration::from_secs(2);
 impl Application {
     pub(in crate::desktop::application) fn finish_surface_transitions(&mut self) -> Result<()> {
         self.surface_windows.close_all()?;
-        // 图片 GET 不需要远端停用；立即取消，给附件生命周期事务让出共享槽位。
+        // Image GET needs no remote deactivation; cancel immediately to release shared slots for attachment lifecycle transactions.
         self.remote_sessions.cancel_surface_resources(|_, _| true);
         let deadline = Instant::now() + GRACE;
         pump_until(deadline, || {
-            // 错误仍保存在 Outcome，交回窗口后由最终附件门禁报告；不在退出时弹窗。
+            // Errors remain in Outcome and are reported by the final attachment gate after return to the window; no exit-time dialogs.
             let _ = self.remote_sessions.poll_surfaces();
-            // closed 准入只登记失败证据，不为退出创建隐藏窗口；迟到挂载也可停用。
+            // closed admission records failure evidence only, without creating hidden windows for exit; late mounts can still deactivate.
             self.activate_surface_windows(false)?;
             Ok(self
                 .remote_sessions
@@ -38,8 +38,8 @@ impl Drop for Quit {
     }
 }
 
-/// settle 回调必须保持返回句柄存活至下一次回调；不得重复返回已回收任务的句柄。
-/// 每轮先结算，再阻塞等待，不建定时器或辅助线程；截止不会因消息而重置。
+/// settle callbacks must keep returned handles alive until the next callback and never return handles of reaped tasks again.
+/// Settle before blocking each turn, without timers or helper threads; messages do not reset the deadline.
 fn pump_until(deadline: Instant, mut settle: impl FnMut() -> Result<Vec<HANDLE>>) -> Result<()> {
     let mut quit = Quit(None);
     loop {
@@ -53,7 +53,7 @@ fn pump_until(deadline: Instant, mut settle: impl FnMut() -> Result<Vec<HANDLE>>
         let mut message = MSG::default();
         unsafe {
             if wait::next_until(&handles, &mut message, Some(deadline))? == 0 {
-                // 先移出 WM_QUIT，结束时再交给原 drain/外层；不能重新入队造成忙循环。
+                // Remove WM_QUIT first and return it to original drain/outer handling at the end; never requeue it into a busy loop.
                 quit.0 = Some(message.wParam.0 as i32);
             } else {
                 let _ = TranslateMessage(&message);

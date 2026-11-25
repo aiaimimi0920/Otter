@@ -1,4 +1,4 @@
-//! 同Grant的真实TLS/WSS恢复：精确水位、新nonce、无再次加入，撤销后原许可与资源退休。
+//! Real same-Grant TLS/WSS recovery: exact watermarks, new nonces, no rejoin, and retirement of original permits/resources after revocation.
 use super::*;
 use crate::live_relay_control_runtime::interaction;
 use crate::{

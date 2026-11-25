@@ -1,4 +1,4 @@
-//! 授权配置快照：前台仅校验/捕获配置，文件信任加载与原生解析在授权线程执行。
+//! Authorization configuration snapshots: foreground only validates/captures configuration; trust-file loading/native parsing runs on the authorization thread.
 use crate::{
     device_authorization_runtime::Task, device_identity_store::Store,
     device_request_cancel::Cancel, device_session_client::Client, loom_tls_trust::Trust,
@@ -37,8 +37,8 @@ pub struct Config {
     local_roots: Option<rustls::RootCertStore>,
 }
 impl Config {
-    /// origin 必须由连接选择明确传入；TLS_ORIGIN 只限定 CA，绝不是默认服务地址。
-    /// 不读取身份/CA 文件、不创建目录、不做 DNS，适合菜单回调外的请求准备。
+    /// Connection selection must explicitly supply origin; TLS_ORIGIN scopes only the CA, never a default service address.
+    /// No identity/CA file reads, directory creation, or DNS; suitable for request preparation outside menu callbacks.
     pub fn from_env(origin: &str) -> Result<Self, Error> {
         Self::from_lookup(origin, |key| std::env::var_os(key))
     }
@@ -81,7 +81,7 @@ impl Config {
         }
         Ok(config)
     }
-    /// 显式路径用于选定 profile/测试；不自动继承任何当前用户 TLS 环境配置。
+    /// Explicit paths select profiles/tests; never automatically inherit the current user's TLS environment configuration.
     pub fn new(origin: &str, root: &Path, name: &str) -> Result<Self, Error> {
         let origin =
             crate::device_session_attempt::canonical_origin(origin).map_err(|_| Error::Origin)?;
@@ -105,7 +105,7 @@ impl Config {
     pub fn identity_root(&self) -> &Path {
         &self.root
     }
-    /// 显式清除的减权提交不可被随后关闭撤销；无网络、无身份创建，只有有界原子磁盘提交。
+    /// Subsequent close cannot undo an explicit privilege-reducing clear; no network/identity creation, only a bounded atomic disk commit.
     pub(super) fn clear_offline(self) -> Result<(), Error> {
         let now = u64::try_from(
             std::time::SystemTime::now()
@@ -141,7 +141,7 @@ impl Config {
             Action::Renew => Task::Renew { client, store },
         })
     }
-    /// 只在后台执行；Live 使用已签出租约，不需要重新打开或创建身份存储。
+    /// Background only; Live uses already-issued leases without reopening or creating identity stores.
     pub(super) fn prepare_client(&self, cancel: &Cancel) -> Result<Client, Error> {
         if cancel.is_stopped() {
             return Err(Error::Stopped);

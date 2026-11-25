@@ -1,4 +1,4 @@
-//! 面板可用性来自文档/任务 owner；执行时再次判断，过期点击不启动冲突操作。
+//! Panel availability comes from document/task owners; recheck during execution so stale clicks cannot start conflicting operations.
 use super::{context_menu as menu, Canvas, State};
 use crate::editor::Tool;
 #[derive(Clone, Copy, Default)]
@@ -17,7 +17,7 @@ pub(super) struct Availability {
     minified: bool,
 }
 impl Availability {
-    /// 镜像保留已提交画面，不发布整栏短暂灰态；此投影只用于绘制，执行仍使用 capture。
+    /// Mirroring retains committed appearance without briefly graying the whole strip; this projection is paint-only, while execution still uses capture.
     pub(super) fn presentation(mut self) -> Self {
         self.flipping = false;
         self

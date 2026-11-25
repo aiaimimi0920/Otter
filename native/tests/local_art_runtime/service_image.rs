@@ -1,5 +1,5 @@
-//! 同份公开serviceImage示例在普通EXE的菜单、UIA、原签名包/TLS和checkpoint链。
-//! 只触及自启PID及独立profile；像素预期复用独立PNG解码常量，不调用生产渲染器。
+//! The same public serviceImage example through an ordinary EXE's menu, UIA, original signed package/TLS and checkpoint path.
+//! Touch only self-started PIDs and isolated profiles; pixel expectations reuse independent PNG-decoding constants, not the production renderer.
 use super::*;
 
 #[test]

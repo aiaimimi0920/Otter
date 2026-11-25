@@ -1,4 +1,4 @@
-//! 工作区内的协作权威/可见视图；不是凭据、自动重放许可或网络日志确认。
+//! Workspace collaborative authority/visible views; not credentials, automatic-replay permits, or network-journal acknowledgement.
 use super::{
     journal::Context,
     view::{Size, View},
@@ -105,7 +105,7 @@ impl Snapshot {
             return Err(Error::Identity);
         }
         self.document.validate().map_err(|_| Error::Format)?;
-        // 真实尺寸的视图已完整校验 visible，无需再构造固定 1×1 的副本。
+        // The actual-sized view fully validated visible already; no need for another fixed 1x1 copy.
         self.editor_view()?;
         self.to_view()?;
         if serde_json::to_vec(self).map_or(true, |v| v.len() > MAX_RECORD - 128) {
@@ -163,7 +163,7 @@ impl Snapshot {
         )
         .map_err(|_| Error::Format)
     }
-    /// 首次接入沿像素fit的同一内容框；View尺寸不包括旧逻辑框中的letterbox。
+    /// Initial attachment uses the same pixel-fit content box; View dimensions exclude letterboxing in the old logical box.
     pub fn in_editor_frame(&self, frame: crate::crop_geometry::Rect) -> Result<Self, Error> {
         if self.layout.width != frame.width || self.layout.height != frame.height {
             return Err(Error::Identity);
@@ -175,7 +175,7 @@ impl Snapshot {
         value.validate()?;
         Ok(value)
     }
-    /// 源端可含crop平移和beautify留白；View按实际PNG逐轴密度映射，不猜全Editor框。
+    /// Sources may have crop translation/beautify padding; View maps actual PNG per-axis density rather than guessing the whole Editor box.
     pub(crate) fn in_source_layout(&self, layout: super::source::Layout) -> Result<Self, Error> {
         if self.editor_view()?.size() != layout.size().map_err(|_| Error::Format)? {
             return Err(Error::Identity);
@@ -188,7 +188,7 @@ impl Snapshot {
         value.validate()?;
         Ok(value)
     }
-    /// 新canonical坐标先逆本次保存映射，再到原View参考空间；不将20DIP留白误当图像缩放。
+    /// Inverse-map new canonical coordinates through this save mapping, then to original View reference space; 20DIP padding is not image scaling.
     pub fn for_save(&self, mapping: crate::session_vector_write::Mapping) -> Result<Self, Error> {
         let (scale, offset) = mapping
             .inverse()
@@ -223,7 +223,7 @@ impl Snapshot {
             ..self.clone()
         }
     }
-    /// read不确认任何网络pending；只推进同一basis/session的权威，当前本地值始终重读。
+    /// read acknowledges no network pending; advance only same-basis/session authority and always reread current local values.
     pub fn received(&self, document: Document, current: &View) -> Result<Self, Error> {
         if self.suspended.is_some() {
             return Err(Error::ContentChanged);
@@ -252,7 +252,7 @@ impl Snapshot {
         value.validate()?;
         Ok(value)
     }
-    /// Apply只确认本请求实际发送的32项；其余及网络期间编辑仍由current覆盖，不误清本地变化。
+    /// Apply acknowledges only this request's actual 32 entries; current retains the rest/intervening edits without clearing local changes accidentally.
     pub(crate) fn applied(
         &self,
         document: Document,
@@ -275,12 +275,12 @@ impl Snapshot {
         value.validate()?;
         Ok(value)
     }
-    /// 编码器在图片/标注全部写好后调用；失败不交付部分工作区候选。
+    /// Encoders call after writing all images/annotations; failure delivers no partial workspace candidates.
     pub fn install(&self, fields: &mut Map<String, Value>) -> Result<(), Error> {
         self.validate()?;
         record::install(self, fields)
     }
-    /// 缺字段是旧普通工作区；显式null/坏记录/身份或内容不匹配均不静默修复。
+    /// Missing fields mean old ordinary workspaces; explicit null/corrupt records/identity or content mismatch never silently repairs.
     pub fn restore(
         window: &crate::session_window::Window<'_>,
         scope: Option<Scope>,

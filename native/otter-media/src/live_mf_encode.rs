@@ -1,4 +1,4 @@
-//! 线程绑定的同步系统H264编码器；单输入/输出，失败即退休，不跨帧积压sample。
+//! Thread-bound synchronous system H264 encoders; single input/output, immediate failure retirement, without cross-frame sample backlogs.
 use super::{samples, Runtime};
 use crate::byte_budget::{Budget, Lease};
 use std::sync::{
@@ -60,7 +60,7 @@ pub struct VideoEncoder {
     size: [u32; 2],
     last_time: Option<i64>,
 }
-/// 编码Vec自己的租约晚于字节释放，不能随codec提前归还。
+/// Encoded Vec leases outlive their bytes and cannot return early with codecs.
 pub struct Encoded {
     pub bytes: Vec<u8>,
     pub keyframe: bool,
@@ -69,7 +69,7 @@ pub struct Encoded {
 impl VideoEncoder {
     pub fn create(size: [u32; 2], budget: &Arc<Budget>) -> Result<Self> {
         let nv12 = format::validate_size(size)?;
-        // 为显式NV12、最多四份参考面及有界MFT输出留额度；不声称控制系统codec的所有内部堆。
+        // Reserve for explicit NV12, at most four reference surfaces, and bounded MFT output; not control over all internal system-codec heaps.
         let mut buffers = budget
             .reserve(nv12 * 5 + MAX_AU)
             .ok_or_else(|| invalid("Encoder buffer budget exhausted"))?;
@@ -78,7 +78,7 @@ impl VideoEncoder {
         let transform =
             Transform(unsafe { CoCreateInstance(&CMSH264EncoderMFT, None, CLSCTX_INPROC_SERVER)? });
         let output_max = format::configure(&transform.0, size)?;
-        // 系统1080p声明约3.9MiB输出buffer，和1MiB wire AU不是同一个上限。
+        // System 1080p declares roughly 3.9MiB output buffers, distinct from the 1MiB wire-AU limit.
         if !buffers.grow_to(nv12 * 5 + output_max as usize) {
             return Err(invalid("Encoder reported output buffer budget exhausted"));
         }
@@ -142,7 +142,7 @@ impl VideoEncoder {
             check_stop(stop)?;
             transform.ProcessInput(0, &sample, 0)?;
             self.last_time = Some(timestamp);
-            // bool low-latency必须得到同一timestamp的同步输出；无输出不缓存/错配成下一帧。
+            // bool low-latency requires synchronous output with the same timestamp; absent output is neither buffered nor mismatched to later frames.
             let samples::Output::Frame(output) =
                 samples::receive_bounded(transform, configured.output_max)?
             else {

@@ -1,4 +1,4 @@
-//! 私有滚动 child 协议；仅本地输入 owner 创建，不复用只读观测权限或远程协议。
+//! Private scroll-child protocol; created only by the local input owner, without reusing read-only observation permissions or remote protocols.
 use super::*;
 use std::{ffi::OsString, os::windows::io::AsHandle};
 use windows::Win32::Foundation::HWND;
@@ -65,7 +65,7 @@ pub fn run_inherited() -> io::Result<()> {
         )?;
     }
 }
-// 仅查询阶段的明确瞬态可暂停；一旦调用 Scroll，连超时也不能宣称没有动作。
+// Only explicit transients in the query phase may pause; once Scroll is called, even a timeout cannot claim no action occurred.
 pub(super) fn transient(code: i32) -> bool {
     use windows::Win32::UI::Accessibility::{UIA_E_ELEMENTNOTAVAILABLE, UIA_E_TIMEOUT};
     code == UIA_E_TIMEOUT as i32

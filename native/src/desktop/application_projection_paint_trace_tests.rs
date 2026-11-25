@@ -1,4 +1,4 @@
-//! 显式恢复的只读 WM_PAINT 诊断；只观察当前夹具 HWND，不改变消息、期限或呈现条件。
+//! Read-only WM_PAINT diagnostics for explicit restoration; observe only current fixture HWNDs, without changing messages, deadlines, or presentation conditions.
 use super::*;
 use std::cell::Cell;
 use windows::Win32::{
@@ -59,7 +59,7 @@ impl Drop for Trace {
             if !RemoveWindowSubclass(self.hwnd, Some(observe), ID).as_bool()
                 && IsWindow(Some(self.hwnd)).as_bool()
             {
-                // 异常移除失败时宁可保留这一个夹具计数器，也不把悬垂地址留给活窗口回调。
+                // If abnormal removal fails, retain this one fixture counter rather than leave a dangling address for a live-window callback.
                 let _ = Box::leak(self.counts.take().unwrap());
                 eprintln!("projection-paint-trace: subclass removal failed; counter retained");
             }
@@ -84,7 +84,7 @@ unsafe extern "system" fn observe(
                 .map(|_| (rect.right - rect.left, rect.bottom - rect.top)),
         );
     }
-    // 完整转发原过程，计数器不触碰 BeginPaint、update region 或 Canvas。
+    // Forward fully to the original procedure; counters do not touch BeginPaint, the update region, or Canvas.
     let result = DefSubclassProc(hwnd, message, wp, lp);
     if message == WM_PAINT {
         counts.returned.set(counts.returned.get().saturating_add(1));

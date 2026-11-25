@@ -1,9 +1,9 @@
-//! Application 持有菜单循环；消息间只推进本菜单的删除，不重入通用业务泵。
+//! Application owns the menu loop; between messages, advance only this menu's deletion work without reentering the general business pump.
 use super::*;
 use crate::desktop::{context_menu as ui, popup_menu as popup};
 use std::cell::Cell;
 
-// 仅在不泵消息的事务准入/发布期间暂停本菜单门禁；其它窗口的模态仍生效。
+// Suspend this menu's gate only during transaction admission/publication that pumps no messages; other windows' modal gates remain active.
 struct Transaction<'a>(&'a Cell<bool>);
 impl Drop for Transaction<'_> {
     fn drop(&mut self) {
@@ -97,7 +97,7 @@ impl Application {
         if !current(self, pending) || self.modals.blocked() {
             return Ok(());
         }
-        // 独立快照和 Rc 门禁不借用 documents，后台完成可以安全回到 Application。
+        // Independent snapshots and Rc gates do not borrow documents, so background completion can safely return to Application.
         let (hwnd, flag, contents) = {
             let doc = self
                 .documents

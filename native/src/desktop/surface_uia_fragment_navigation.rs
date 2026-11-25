@@ -1,4 +1,4 @@
-//! Fragment 关系与属性映射；挂载 EDIT 通过 HWND override 合并系统 provider。
+//! Fragment relationship/property mapping; mounted EDIT merges system providers through HWND override.
 use super::*;
 use crate::surface_accessibility::{Direction, Entry, Handle};
 use crate::surface_scene::Kind;
@@ -120,7 +120,7 @@ pub(super) fn property(entry: &Entry, id: UIA_PROPERTY_ID) -> VARIANT {
         };
         VARIANT::from(kind.0)
     } else if id == UIA_IsControlElementPropertyId || id == UIA_IsContentElementPropertyId {
-        // 无 alt 的非交互 Image 是纯装饰，保留 raw provider 但不污染 control/content view。
+        // Noninteractive Images without alt are decorative; retain raw providers without polluting control/content views.
         VARIANT::from(
             entry.kind != Kind::Image
                 || entry.label.as_ref().is_some_and(|label| !label.is_empty()),
@@ -142,7 +142,7 @@ pub(super) unsafe fn point(
         .lock()
         .map_err(|_| Error::from_hresult(E_FAIL))?
         .clone();
-    // 可见树为空时允许没有命中；不要把合法的空树变成损坏的 UIA 元素。
+    // An empty visible tree may legitimately have no hit; do not turn valid emptiness into a corrupt UIA element.
     let Some(scene) = scene else {
         return Ok(None);
     };

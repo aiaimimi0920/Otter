@@ -1,4 +1,4 @@
-//! 当前child调用时Canvas快照复用原图片HTTP出口；不接脚本PNG或新资源身份。
+//! Canvas snapshots at current-child invocation reuse the original image HTTP egress; no script PNGs or new resource identities.
 use super::{Error, Image, Uploads};
 use crate::surface_javascript_wire::canvas::{self, CanvasFrame};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
@@ -26,7 +26,7 @@ pub(super) fn prepare(frames: Vec<CanvasFrame>) -> Result<Uploads, Error> {
         {
             return Err(Error::Input);
         }
-        // 解码分配前预留，逐图完整校验后立即释放像素；原Base64只移动到HTTP请求，不重复编码。
+        // Reserve before decode allocation and release pixels after fully validating each image; move original Base64 into HTTP requests without re-encoding.
         let _png = crate::pixels::reserve(frame.png.len()).ok_or(Error::Limit)?;
         let bytes = STANDARD.decode(&frame.png).map_err(|_| Error::Wire)?;
         let _validated = canvas::decode(size, &bytes).map_err(|_| Error::Wire)?;

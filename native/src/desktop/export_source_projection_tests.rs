@@ -1,4 +1,4 @@
-//! 有界源分辨率出口的真实 PNG 回归；不是 retained-source/目标 metadata 的生产捕获证明。
+//! Real PNG regressions for bounded source-resolution export; not production-capture evidence for retained-source/target metadata.
 use super::*;
 use serde_json::json;
 fn image(width: u32, height: u32) -> Image {
@@ -86,7 +86,7 @@ fn projection_beautify_wraps_source_pixels_without_scaling_padding_or_fading_bac
 #[test]
 fn projection_checks_source_inner_and_wrapped_dimensions_before_composition() {
     let editor = Editor::default();
-    // 合法源图即使裁剪成 1×1，仍须拒绝超长自然源，不借裁剪规避准入。
+    // Even a valid source cropped to 1x1 must reject excessive natural-source length; cropping cannot bypass admission.
     let source = image(8193, 1);
     let logical = Size {
         width: 1.0,

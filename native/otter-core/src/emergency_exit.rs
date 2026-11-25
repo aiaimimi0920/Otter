@@ -1,4 +1,4 @@
-//! 原版已实现的完整Esc+Delete组合语义；事件主循环与独立watchdog共用纯状态机。
+//! Complete original Esc+Delete combination semantics; event main loops/independent watchdogs share a pure state machine.
 use std::time::{Duration, Instant};
 
 const WINDOW: Duration = Duration::from_millis(400);
@@ -45,8 +45,8 @@ impl Tracker {
         if !matches!(message, 0x0100 | 0x0101 | 0x0104 | 0x0105) || !matches!(key, 0x1b | 0x2e) {
             return false;
         }
-        // 局部消息可能漏收keyup或经过模态循环；不把历史事件当作仍按住的物理状态。
-        // 延迟消息漏记组合是安全降级，独立watchdog仍观察完整物理键位。
+        // Local messages may miss keyup or traverse modal loops; historical events do not prove physically held keys.
+        // Missing combinations from delayed messages is safe degradation; independent watchdogs still observe complete physical key state.
         let (escape, delete) = observed();
         self.state(escape, delete, now)
     }
@@ -133,12 +133,12 @@ mod tests {
         let at = Instant::now();
         let mut t = Tracker::default();
         assert!(!t.message(0x100, 0x1b, at, || (true, false)));
-        // Escape已松开但keyup被其他窗口/嵌套泵消费；Delete单键不能算组合。
+        // Escape was released but keyup consumed by other windows/nested pumps; Delete alone cannot count as the combination.
         for _ in 0..4 {
             assert!(!t.message(0x100, 0x2e, at, || (false, true)));
             assert!(!t.message(0x101, 0x2e, at, || (false, false)));
         }
-        // 队列迟到的down在物理释放后处理，不累计旧组合。
+        // Queued late down events processed after physical release must not accumulate old combinations.
         assert!(!t.message(0x100, 0x1b, at, || (false, false)));
         for index in 0..3 {
             assert_eq!(t.message(0x100, 0x2e, at, || (true, true)), index == 2);

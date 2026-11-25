@@ -1,4 +1,4 @@
-//! 真实TLS配置与控制同actor串行；固定wire和下一控制命令序号独立核验。
+//! Real TLS configuration/control serialized on one actor; independently verify fixed wire and the next control-command sequence.
 use super::*;
 use crate::device_session_client::tests::{accept, fixture_with_pem, reply, request, session};
 use crate::live_relay_trigger_command::Command;
@@ -50,7 +50,7 @@ fn release_precedes_trigger_and_confirmation_advances_same_actor_before_acquire(
     .unwrap();
     let identity = snapshot.identity().clone();
     let cursor = crate::live_relay_viewer_identity::ControlCursor::new(identity.clone(), 0);
-    // 批次必须由随后移交Owner的同一个cursor准备，不能伪造另一owner的许可。
+    // The batch must be prepared by the same cursor later transferred to Owner, never fabricate another owner's permit.
     let bootstrap = cursor.prepare(br#"{"protocolVersion":"loom.live.v1","next":1,"reset":false,"events":[{"protocolVersion":"loom.live.v1","sessionId":"live:queue","epoch":1,"sequence":1,"messageType":"session_state","payload":{"revision":2,"reason":"viewer_joined","visibility":"visible","viewers":["device-1"]}}]}"#).unwrap();
     let prepared = crate::live_relay_http::Prepared {
         business: crate::live_relay_viewer_business::Business::from_snapshot(

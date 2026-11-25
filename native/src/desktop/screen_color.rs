@@ -1,4 +1,4 @@
-//! 显式屏幕取色会话；事件驱动单像素采样，临时 hook 随会话释放，无空闲定时器。
+//! Explicit screen-color sessions; event-driven single-pixel sampling, session-owned temporary hooks, and no idle timer.
 use super::State;
 use crate::{
     editor::{DocumentStamp, Tool},
@@ -54,7 +54,7 @@ unsafe fn start_mode(hwnd: HWND, state: &State, fill: Option<bool>) -> Result<()
     }
     let cursor = LoadCursorW(None, IDC_CROSS)?;
     let mut session = prepare(hwnd, state, fill)?;
-    // 用户显式取色才激活宿主，以接收 Escape；跨进程鼠标输入由临时 hook 转发。
+    // Activate the host only for explicit user color picking to receive Escape; a temporary hook forwards cross-process mouse input.
     let _ = SetForegroundWindow(hwnd);
     if GetForegroundWindow() != hwnd {
         return Err(Error::new(

@@ -1,4 +1,4 @@
-//! UI线程共享历史快照和有界意图；回调不读写磁盘、不创建窗口、不启动线程。
+//! UI-thread shared history snapshots and bounded intents; callbacks do no disk I/O, window creation, or thread startup.
 use super::State;
 use crate::{
     capture_history::Data, image_decode::Image, stroke_style::Color, workspace_id::UnitId,
@@ -77,7 +77,7 @@ pub(super) fn record(state: &State) {
         canvas.capture_source().and_then(|_| canvas.image.clone())
     };
     if let Some(image) = image {
-        // 原版按capture unit身份去重；多次替换同unit也更新而不是重复新增。
+        // The original implementation deduplicates by capture unit identity; replacing the same unit repeatedly updates rather than appends.
         state
             .capture_history
             .borrow_mut()

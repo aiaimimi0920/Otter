@@ -1,4 +1,4 @@
-//! WARP 真 GPU 资源读回；合成像素，不捕获用户桌面。
+//! Readback of real WARP GPU resources; synthetic pixels, without capturing the user's desktop.
 use super::*;
 use windows::Win32::{Foundation::HMODULE, Graphics::Direct3D::D3D_DRIVER_TYPE_WARP};
 unsafe fn fixture() -> (
@@ -110,7 +110,7 @@ fn rejects_cancel_metadata_unprotected_context_and_budget_without_leaking() {
 fn mapping_budget_failure_releases_leases_and_later_readback_still_succeeds() {
     unsafe {
         let (_, _, frame, bytes) = fixture();
-        // 注入映射后无法扩展的 staging 租约，确保覆盖 Map 后错误路径，不依赖驱动 padding。
+        // Inject a staging lease that cannot expand after mapping to cover post-Map error paths without relying on driver padding.
         let budget = crate::byte_budget::Budget::new(0);
         let calls = std::cell::Cell::new(0);
         let result = read_inner(
@@ -183,7 +183,7 @@ fn scratch_reuses_staging_for_matching_layout_and_clears_explicitly() {
     assert_eq!(&*first.pixels, bytes);
     drop(first);
     assert_eq!(budget.used(), retained);
-    // 仅留输出所需余量；同规格复用不得再次为 staging 申请预算。
+    // Leave only the headroom needed for output; matching-specification reuse must not request staging budget again.
     let occupied = budget.reserve(4096 - retained - bytes.len()).unwrap();
     let second = unsafe {
         read_inner(

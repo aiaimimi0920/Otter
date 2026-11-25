@@ -1,4 +1,4 @@
-//! 原始 HDR PNG 按字节另存：读已有租约而非重开路径；显式偏移避免共享文件游标竞争。
+//! Save original HDR PNG bytes from the existing lease, without reopening paths; explicit offsets avoid shared-file-cursor races.
 use super::*;
 pub(crate) fn encode_inline(
     source: &std::fs::File,
@@ -61,7 +61,7 @@ pub(crate) fn prepare(
             "Invalid HDR original signature",
         ));
     }
-    // 所属捕获编码器已验证格式；此处保留字节，不尝试解码色彩或接受任意外部路径。
+    // The owning capture encoder already validated the format; preserve bytes without decoding color or accepting arbitrary external paths.
     Staged::prepare_stream(destination, cancel, |output, cancel| {
         let mut buffer = [0u8; 64 * 1024];
         let mut offset = 0;

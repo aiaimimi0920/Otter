@@ -1,4 +1,4 @@
-//! Otter 图像采集、Surface 排版绘制与 Live 基础运行时。
+//! Otter image capture, Surface layout/drawing, and foundational Live runtime.
 pub use otter_core::*;
 
 pub mod art_source_cache;

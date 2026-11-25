@@ -1,4 +1,4 @@
-//! 真 timer child 的 DOM/几何/像素沿生产 Presentation 进入 HWND，不手动改图。
+//! Actual timer-child DOM/geometry/pixels enter HWNDs via production Presentation, without manually modifying the graph.
 use super::{
     css_tests::{geometry, pixel, pixels},
     *,

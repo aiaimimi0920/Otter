@@ -1,4 +1,4 @@
-//! 主干命名占位符的有界渲染；只返回安全文件名 stem，不读写文件或解析路径权限。
+//! Bounded mainline naming-placeholder rendering returns safe filename stems only, without file I/O/path-permission resolution.
 #[path = "file_naming_allocate.rs"]
 pub mod allocate;
 #[path = "file_naming_sanitize.rs"]

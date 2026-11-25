@@ -1,5 +1,5 @@
-//! 面板子按钮按当前 DIP/滚动几何直接创建；布局只定位发生变化的真实 HWND。
-//! 成功发布前由临时 Window 集合拥有，失败回滚；发布后交给父面板，不缓存几何。
+//! Create panel child buttons directly from current DIP/scroll geometry; layout positions only actual HWNDs whose geometry changed.
+//! Temporary Window collections own them until successful publication, rolling back failures; afterward the parent panel owns them without geometry caching.
 use super::{entries, geometry, scroll, Window};
 use windows::{
     core::{w, Result, HSTRING},
@@ -20,7 +20,7 @@ pub(super) unsafe fn create_checked(
     mut before: impl FnMut(usize) -> Result<()>,
 ) -> Result<Vec<Window>> {
     let dpi = GetDpiForWindow(panel);
-    // 范围来自固定目录和客户区，不依赖按钮已存在；保留最终 layout 处理 DPI/尺寸变化。
+    // Ranges derive from fixed catalogs/client areas, independent of button existence; final layout still handles DPI/size changes.
     let offset = scroll::sync(panel);
     let mut controls = Vec::with_capacity(entries().count());
     for (index, (id, label)) in entries().enumerate() {
@@ -71,7 +71,7 @@ pub(super) unsafe fn layout(panel: HWND) {
             if matches(button, panel, rect, offset) {
                 continue;
             }
-            // 读取失败时仍沿既有 best-effort 定位路径；真实 resize/滚动不能被缓存吞掉。
+            // Read failures retain existing best-effort positioning; caches must not swallow actual resizing/scrolling.
             let _ = SetWindowPos(
                 button,
                 None,

@@ -1,4 +1,4 @@
-//! Slider 数值 input/continuous 与 change/commit 分离；不进入文本草稿或表单集合。
+//! Separate Slider numeric input/continuous from change/commit; neither enters text drafts or form collections.
 use super::*;
 #[test]
 fn surface_slider_event_preserves_number_phase_and_binding() {

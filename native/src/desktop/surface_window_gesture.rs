@@ -1,4 +1,4 @@
-//! 系统 pan/惯性消息接缝；只持有一个本地序列，不自建惯性线程或定时器。
+//! System pan/inertia-message seam; hold one local sequence without custom inertia threads/timers.
 use super::*;
 use windows::Win32::System::SystemServices::*;
 use windows::Win32::UI::Input::Touch::*;
@@ -29,7 +29,7 @@ pub(super) unsafe fn configure(hwnd: HWND) -> Result<()> {
     )
 }
 struct OwnedGesture(HGESTUREINFO);
-/// 系统默认过程会转发子 HWND 手势，但目标仍是子窗口；只准入当前挂载 Slider。
+/// System default handling forwards child-HWND gestures but keeps the child as target; admit only currently mounted Sliders.
 pub(super) fn accepts_target(hwnd: HWND, state: &State, target: HWND) -> bool {
     if target == hwnd {
         return true;
@@ -60,9 +60,9 @@ pub(super) unsafe fn message(hwnd: HWND, state: &State, lp: LPARAM) -> bool {
     if GetGestureInfo(handle, &mut info).is_err() {
         return false;
     }
-    // BEGIN/END 也必须先验身份，不能让其他子窗口取消当前候选或滚动序列。
+    // BEGIN/END also require identity checks first; other children cannot cancel current candidates or scroll sequences.
     if !accepts_target(hwnd, state, info.hwndTarget) {
-        // 挂载消失或 Host 重入暂忙时撤销本序列，不把遗漏位移积压到下一次消息。
+        // Revoke this sequence if the mount disappears or Host is temporarily busy with reentrancy; do not accumulate missed movement for later messages.
         if state
             .pan
             .borrow()
@@ -73,7 +73,7 @@ pub(super) unsafe fn message(hwnd: HWND, state: &State, lp: LPARAM) -> bool {
         }
         return false;
     }
-    // 泛型 BEGIN/END 和其他手势仍交 DefWindowProc，由默认处理器关闭其句柄。
+    // Generic BEGIN/END and other gestures still reach DefWindowProc, whose default handler closes their handles.
     if info.dwID == GID_BEGIN.0 {
         pointer::invalidate(hwnd, state);
         return false;
@@ -111,7 +111,7 @@ pub(super) unsafe fn message(hwnd: HWND, state: &State, lp: LPARAM) -> bool {
     );
     true
 }
-/// 可控输入 seam 验证状态机；生产坐标只来自成功解码的系统 GESTUREINFO。
+/// A controllable input seam verifies the state machine; production coordinates come only from successfully decoded system GESTUREINFO.
 #[cfg(test)]
 pub(super) fn pan(hwnd: HWND, state: &State, sequence: u32, flags: u32, point: [i32; 2]) {
     pan_from(hwnd, state, hwnd, sequence, flags, point);
@@ -165,7 +165,7 @@ pub(super) fn pan_from(
         return;
     };
     pan.last = point;
-    // 先更新坐标；Host 暂忙时不积压位移，重入取消后也不得恢复旧序列。
+    // Update coordinates first; do not accumulate displacement while Host is busy or restore old sequences after reentrant cancellation.
     *state.pan.borrow_mut() = if flags & GF_END == 0 {
         Some(pan.clone())
     } else {

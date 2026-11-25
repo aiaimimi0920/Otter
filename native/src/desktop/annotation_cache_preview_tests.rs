@@ -1,4 +1,4 @@
-//! 变形/分组预览必须临时绘制，不能覆盖同 ID 的已提交几何。
+//! Transform/group previews must draw transiently, without replacing committed geometry with the same ID.
 use super::Cache;
 use crate::{
     editor::{Editor, Stroke, Tool},

@@ -1,9 +1,9 @@
-//! 真实系统 COMBOBOX 模式与声明式父级，不实现另一套 Selection provider。
+//! Actual system COMBOBOX patterns and declarative parents, without another Selection-provider implementation.
 use super::*;
 use windows::Win32::System::Variant::VARIANT;
 use windows::Win32::UI::Controls::{GetComboBoxInfo, COMBOBOXINFO};
 use windows::{core::w, Win32::UI::Input::KeyboardAndMouse::GetFocus};
-// 失败现场绑定 HWND 与 owner；不靠失败后的旧 HWND 查询推断夺焦进程。
+// Bind HWND and owner at failure time; do not infer the focus-stealing process from later stale-HWND queries.
 fn foreground_owner() -> (HWND, u32, u32) {
     unsafe {
         let hwnd = GetForegroundWindow();
@@ -96,8 +96,8 @@ fn uia_select_unmodified_system_baseline() {
             None,
         );
     }
-    // 验收客户端实际使用的 v6 UIA 路径；旧 MSAA 子对象导航缺陷独立归档，
-    // 不让不经过 UIA 的系统诊断阻止此处执行真实树遍历断言。
+    // Validate the v6 UIA path actually used by clients; archive legacy MSAA child-navigation defects separately,
+    // without allowing non-UIA system diagnostics to prevent actual tree-traversal assertions here.
     query(window.0 .0 as usize, baseline);
 }
 pub(in crate::desktop::surface_window::uia) fn receive(hwnd: usize) -> Result<()> {
@@ -134,7 +134,7 @@ fn receive_traced(hwnd: usize, stage: &mut &str) -> Result<()> {
                 .to_string(),
             "group"
         );
-        // 仅记录失败阶段；成功路径不额外查询 COM、泵送、激活或重试焦点。
+        // Record only failed stages; success adds no COM queries, pumping, activation, or focus retries.
         *stage = "set focus";
         select.SetFocus()?;
         *stage = "read focus";
@@ -174,7 +174,7 @@ fn receive_traced(hwnd: usize, stage: &mut &str) -> Result<()> {
         )?;
         let count = items.Length()?;
         if count != 2 {
-            // 失败时只读状态，不重试展开或改变焦点，以保留原始失败条件。
+            // On failure, read state only; do not retry expansion or change focus, preserving original failure conditions.
             let combo = FindWindowExW(Some(HWND(hwnd as *mut _)), None, w!("COMBOBOX"), None)?;
             eprintln!(
                 "UIA Select missing items: count={count}, root={hwnd:#x}, combo={combo:?}, foreground_owner={:?}, own_pid={}, focus={:?}, expanded={:?}, selected={}, dropped={}",
@@ -211,7 +211,7 @@ fn receive_traced(hwnd: usize, stage: &mut &str) -> Result<()> {
             }
         }
         assert_eq!(count, 2);
-        // 系统 COMBOBOX 可把 Selection 委托给下属 List，不强求容器自身提供模式。
+        // System COMBOBOX may delegate Selection to its child List; the container need not supply the pattern itself.
         *stage = "find list";
         let list = select.FindFirst(
             TreeScope_Descendants,
@@ -277,12 +277,12 @@ fn uia_select_system_relocation_preserves_selection_expand_and_change_queue() {
     let combo = unsafe { FindWindowExW(Some(window.hwnd), None, w!("COMBOBOX"), None).unwrap() };
     let _trace = InputTrace::new(combo);
     let _parent_trace = InputTrace::new(window.hwnd);
-    // 保留系统 HasKeyboardFocus 原断言，先由真实点击授权建立自有前台。
+    // Retain the original system HasKeyboardFocus assertion, establishing owned foreground through actual click authorization first.
     let _foreground = unsafe { crate::surface_javascript::fixture::focus_foreground(window.hwnd) };
     query(window.hwnd.0 as usize, receive);
     let pending = window.has_pending_edit();
     if !pending {
-        // 只在已失败分支采证，最终仍断言原结果；不能靠额外泵送把失败改成通过。
+        // Collect evidence only in failed branches and still assert the original result; extra pumping must not turn failure into success.
         unsafe {
             let combo = FindWindowExW(Some(window.hwnd), None, w!("COMBOBOX"), None).unwrap();
             eprintln!(

@@ -1,4 +1,4 @@
-//! 原生协作编辑合同与写前事务；不拥有Loom合并权威，也不自动启用产品双向入口。
+//! Native collaborative-edit contracts/write-ahead transactions; no Loom merge authority or automatic product bidirectional entry enablement.
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 #[path = "projection_edit_document.rs"]
@@ -114,7 +114,7 @@ pub enum Code {
     Other,
 }
 impl Code {
-    /// 只包含服务端明确未接受的编辑冲突；超时、未知状态、busy及身份错误不提供退休资格。
+    /// Only edit conflicts explicitly not accepted by servers; timeout/unknown/busy/identity errors grant no retirement eligibility.
     pub(crate) fn recoverable(self) -> bool {
         matches!(
             self,

@@ -1,4 +1,4 @@
-//! 真实 WIC/D2D 四边像素、圆角、透明中心、塌缩与 alpha 接角，不以 source-string 当绘制证明。
+//! Real WIC/D2D pixels for all four borders, rounded corners, transparent centers, collapse, and alpha joins; source strings are not drawing evidence.
 use super::paint_pixels::{render, WIDTH};
 fn pixel(pixels: &[u8], x: usize, y: usize) -> &[u8] {
     &pixels[(y * WIDTH + x) * 4..(y * WIDTH + x + 1) * 4]

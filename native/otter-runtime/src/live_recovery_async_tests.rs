@@ -69,7 +69,7 @@ fn shutdown_ack_has_bounded_exit_wait_and_preserves_child_for_cleanup() {
     owner.request(Operation::Shutdown).unwrap();
     let result = wait(&mut owner);
     let retained = owner.child_handle().unwrap().as_raw_handle() == original;
-    // 在断言前回收本测试的空登记 helper，即使旧实现错误地返回 Accepted 也不残留。
+    // Reclaim this test's empty-registry helper before assertions, leaving none behind even if the old implementation incorrectly returns Accepted.
     owner.stop_after_restore().unwrap();
     assert_eq!(
         unsafe { WaitForSingleObject(HANDLE(original), 10000) },
@@ -126,7 +126,7 @@ fn request_panic_preserves_original_child_but_poisoned_channel_cannot_be_reused(
         unsafe { WaitForSingleObject(HANDLE(original), 0) },
         WAIT_TIMEOUT
     );
-    // 此夹具没有登记记录，可显式收尾；生产由 Journal 检查所有恢复意图。
+    // This fixture has no registered records and may explicitly finish cleanup; production Journal checks all recovery intents.
     owner.stop_after_restore().unwrap();
     assert_eq!(
         unsafe { WaitForSingleObject(HANDLE(original), 10000) },

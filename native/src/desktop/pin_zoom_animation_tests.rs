@@ -1,4 +1,4 @@
-//! 使用实际 WM_TIMER 队列检查中间矩形，而不是只看滚轮结束后的尺寸。
+//! Use the actual WM_TIMER queue to inspect intermediate rectangles, not merely the size after wheel input ends.
 use super::*;
 use std::time::{Duration, Instant};
 
@@ -51,7 +51,7 @@ fn wheel_coalescing_preserves_intervening_messages_and_proxy_input() {
         let fixture = Fixture::new();
         input(&fixture, 30);
         let proxy = preview::handle(&fixture.state).unwrap();
-        // 先完成创建/定位产生的宿主通知，再构造无中间业务消息的连续输入 burst。
+        // Finish host notifications from creation/positioning before constructing a continuous input burst without intervening business messages.
         let mut pending = MSG::default();
         for _ in 0..64 {
             if !PeekMessageW(&mut pending, Some(fixture.window.0), 0, 0, PM_REMOVE).as_bool() {
@@ -282,7 +282,7 @@ fn equal_wheel_distance_survives_packet_timing_and_control_key_edges() {
                 input(&fixture, delta);
                 std::thread::sleep(Duration::from_millis(delay));
                 pump(&fixture);
-                // 只发给本 fixture，不注入用户键盘；覆盖通用及左右 Ctrl。
+                // Send only to this fixture, not the user's keyboard; cover generic and left/right Ctrl.
                 for key in [0x11, 0xa2, 0xa3] {
                     SendMessageW(fixture.window.0, WM_KEYDOWN, Some(WPARAM(key)), None);
                     SendMessageW(fixture.window.0, WM_KEYUP, Some(WPARAM(key)), None);

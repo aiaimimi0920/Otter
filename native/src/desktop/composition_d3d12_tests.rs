@@ -1,4 +1,4 @@
-//! 真实 D3D12 queue/交换链与 11On12 D2D 像素；隐藏自有 HWND，不读取用户 profile 或模拟全局输入。
+//! Real D3D12 queues/swap chains and 11On12 D2D pixels; hidden owned HWNDs, without user-profile reads or global input simulation.
 use super::*;
 use crate::desktop::{Apartment, Window};
 use windows::{
@@ -86,7 +86,7 @@ fn with_surface(test: impl FnOnce(&mut State)) {
             },
         )
         .unwrap();
-        // 不以一个 D3D11 device 冒充 D3D12：交换链和队列均能返回同一个实际 D3D12 device。
+        // A D3D11 device is not a D3D12 substitute: both swap chain and queue return the same actual D3D12 device.
         let actual: windows::Win32::Graphics::Direct3D12::ID3D12Device =
             surface.0.chain.GetDevice().unwrap();
         assert_eq!(actual, surface.0.device.device12);
@@ -174,7 +174,7 @@ fn paint(target: &ID2D1RenderTarget) -> Result<()> {
     Ok(())
 }
 
-// 仅测试读回：生产窗口不会增加 GPU→CPU→GPU 往返或整图副本。
+// Test-only readback: production windows add no GPU-to-CPU-to-GPU round-trip or whole-image copy.
 struct Acquired<'a>(&'a State, &'a ID3D11Resource);
 impl Drop for Acquired<'_> {
     fn drop(&mut self) {
@@ -280,7 +280,7 @@ fn multiple_windows_share_generation_but_keep_independent_frames() {
             assert_ne!(first.context, sibling.0.context);
             assert_ne!(first.chain, sibling.0.chain);
         }
-        // 在一个真实帧中尝试另窗绘制会被拒绝，外层帧仍能结束和提交。
+        // Drawing another window during a real frame is rejected, while the outer frame can still end and submit.
         first
             .draw(|target| {
                 assert!(siblings[0].draw(paint).is_err());
@@ -319,7 +319,7 @@ fn multiple_windows_share_generation_but_keep_independent_frames() {
 #[test]
 fn shared_generation_rejects_poison_and_releases_frame_admission() {
     with_surface(|_| {
-        // 独立空设备没有 GPU 在途，毒化不会模拟或宣称真实驱动故障。
+        // The independent empty device has no in-flight GPU work; poisoning it neither simulates nor claims an actual driver failure.
         let device = device::Device::new().unwrap();
         {
             let lease = device.begin_frame().unwrap();

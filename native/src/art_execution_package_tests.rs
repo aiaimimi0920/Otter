@@ -1,4 +1,4 @@
-//! 独立客户端资源证明验证；签名预期由固定测试issuer直接产生，不调用待测包验签器。
+//! Independent client resource-proof verification; a fixed test issuer generates expected signatures directly, without calling the package verifier under test.
 use super::package::{Package, Resource};
 use super::*;
 fn resource() -> Resource {

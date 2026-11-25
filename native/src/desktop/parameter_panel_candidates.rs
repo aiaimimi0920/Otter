@@ -1,4 +1,4 @@
-//! 参数窗候选卡片复用同一Snapshot提交result_index，再排唯一显式执行；绘制无I/O。
+//! Candidate cards reuse the same Snapshot to commit result_index, then schedule the sole explicit execution; painting performs no I/O.
 use super::*;
 use std::sync::Arc;
 type Set = desktop::loom_output_batch::candidates::Set;
@@ -69,14 +69,14 @@ impl Choice {
             return Ok(false);
         };
         let text = self.set.items[self.item].index.to_string();
-        // 验证原Spec；相同index也允许显式重跑，但绝不发布缩略图为正式图像。
+        // Validate the original Spec; explicit reruns of the same index are allowed, but thumbnails must never become official images.
         let Action::Edit(spec, _) = &snapshot.choices[parameter].action else {
             return Ok(false);
         };
         let Some(value) = spec.parse(&text) else {
             return Ok(false);
         };
-        // 数值控件允许clamp，但选择候选必须精确指向该index，不能悄悄选择另一项。
+        // Numeric controls may clamp, but candidate selection must identify that exact index rather than silently choose another item.
         if !spec.number || value != self.set.items[self.item].index {
             return Ok(false);
         }

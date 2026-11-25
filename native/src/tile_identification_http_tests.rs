@@ -1,4 +1,4 @@
-//! 原TLS/nonce/单次POST合同；不向终端开放管理员identify请求。
+//! Original TLS/nonce/one-shot POST contracts; no administrator identify requests exposed to terminals.
 use super::*;
 use crate::tile_identification::{Identity, Outcome, Report};
 #[test]

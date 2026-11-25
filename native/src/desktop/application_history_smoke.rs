@@ -1,4 +1,4 @@
-//! 自建历史条目经过生产准入和交付；真实窗口/后台解码，不访问系统历史。
+//! Dedicated history entries pass production admission and delivery; real windows/background decoding, with no system-history access.
 use super::*;
 use crate::{
     clipboard_history::{Content, Entry},

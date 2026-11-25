@@ -1,4 +1,4 @@
-//! 自有 HWND 的内存绘制，验证轨道/拇指/禁用色与借用 DC 恢复，不读取桌面。
+//! Owned-HWND memory painting verifies track/thumb/disabled colors and borrowed-DC restoration without desktop reads.
 use super::*;
 unsafe fn render(hwnd: HWND, name: &str) -> Vec<[u8; 3]> {
     render_size(hwnd, name, None)
@@ -124,7 +124,7 @@ fn surface_slider_control_native_pixels_track_value_disabled_and_restore_dc() {
         assert!(first.contains(&bgr(active)));
         control.set_value(100.).unwrap();
         let last = render(hwnd, "slider-end.png");
-        // 系统可配置这些颜色相同；相同像素不能用于证明位置变化。
+        // The system may configure these colors identically; identical pixels cannot prove position changes.
         if active != background || active != rail {
             assert_ne!(first, last);
         }

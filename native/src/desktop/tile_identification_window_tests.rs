@@ -1,4 +1,4 @@
-//! 自有离屏HWND真实paint/关闭输入；不抢焦点，不向用户程序发键鼠，不截图桌面。
+//! Actual paint/close input on owned offscreen HWNDs; no focus stealing, user-application input, or desktop screenshots.
 use super::*;
 // These tests exercise native presentation and input, not deadline expiry.
 // Renderer startup on a busy machine can exhaust a one-second fixture lease.
@@ -65,7 +65,7 @@ fn unassigned_output_reports_only_after_real_paint_and_escape_dismisses_without_
     }
     unsafe {
         SendMessageW(window.hwnd, WM_KEYDOWN, Some(WPARAM(27)), Some(LPARAM(0)));
-        // 同一按键的repeat/迟到消息在新鲜普通周期之前不能把输出顺便关闭。
+        // Same-key repeats/late messages must not also close output before a fresh ordinary cycle.
         SendMessageW(window.hwnd, WM_KEYDOWN, Some(WPARAM(27)), Some(LPARAM(0)));
     }
     assert!(window.alive());
@@ -104,7 +104,7 @@ fn close_button_uses_current_half_open_bounds_and_authorization_loss_clears_it()
         .marker(Instant::now())
         .is_some());
     unsafe {
-        // 右边界x=576不在按钮内；内点x=320,y=420关闭识别，不关输出。
+        // Right boundary x=576 lies outside the button; interior x=320,y=420 closes identification, not output.
         SendMessageW(
             window.hwnd,
             WM_LBUTTONUP,

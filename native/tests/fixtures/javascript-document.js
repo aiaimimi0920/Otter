@@ -1,4 +1,4 @@
-// 非业务专用文档夹具：真实树、查询、反射、移动、委托和同闭包 update。
+// Business-agnostic document fixture: actual trees, queries, reflection, moves, delegation, and update in the same closure.
 const check = (ok, stage) => { if (!ok) throw new Error(`document fixture: ${stage}`); };
 let label, button, count = 0;
 NeuroSurface.define({

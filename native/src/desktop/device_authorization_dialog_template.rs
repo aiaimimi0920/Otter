@@ -1,4 +1,4 @@
-//! 单一服务地址输入布局；无浏览器、外部字体或驻留渲染线程。
+//! Single service-address input layout; no browser, external fonts, or persistent render thread.
 use windows::Win32::UI::WindowsAndMessaging::*;
 pub(super) fn template(art: bool) -> Vec<u32> {
     fn string(data: &mut Vec<u16>, text: &str) {

@@ -1,4 +1,4 @@
-//! 标准有界列表/选择控件；沿Win32 Dialog键盘、Enter/Escape和owner模态生命周期。
+//! Standard bounded list/selection controls; retain Win32 Dialog keyboard, Enter/Escape, and owner-modal lifetimes.
 use super::*;
 pub(super) fn template() -> Vec<u32> {
     fn string(data: &mut Vec<u16>, text: &str) {

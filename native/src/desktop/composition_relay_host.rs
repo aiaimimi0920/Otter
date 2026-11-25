@@ -1,4 +1,4 @@
-//! 单窗口远程像素消费者；固定许可不能被重新 admit 替换，失败关闭显示 owner。
+//! Single-window remote pixel consumer; fixed permits cannot be replaced by readmission, and failures close the display owner.
 use super::*;
 use crate::{
     live_relay_viewer_frames::Cursor,
@@ -52,7 +52,7 @@ impl Host {
         };
         Ok(Some((surface.metadata, pixel)))
     }
-    /// 必须在所属 HWND 销毁前析构；一个媒体 Session 只能绑定一个消费窗口。
+    /// Destroy before the owning HWND; a media Session may bind only one consumer window.
     pub fn bind(hwnd: HWND, media: Arc<ViewerSession>, permit: Permit) -> Result<Self> {
         media
             .validate(&permit)
@@ -115,7 +115,7 @@ impl Host {
             }
         }
     }
-    /// 调用者负责 BeginPaint/EndPaint；无新帧时仅重绘既有位图，不重新上传。
+    /// Callers own BeginPaint/EndPaint; without new frames, redraw existing bitmaps only, without reupload.
     pub fn paint(&mut self, size: D2D_SIZE_U) -> Result<bool> {
         if self.refresh() == Update::Closed {
             return Ok(false);
@@ -135,7 +135,7 @@ impl Host {
                 Some(surface) => surface.set_frame(&frame)?,
                 None => self.surface = Some(Surface::new(self.hwnd, size, &frame)?),
             }
-            // 上传结束即释放 CPU 帧/预算；GPU 位图保留到更换尺寸或关闭。
+            // Release CPU frames/budgets immediately after upload; retain GPU bitmaps until resize or closure.
         }
         if self.media.validate(&self.permit).is_err() {
             self.close();
@@ -149,7 +149,7 @@ impl Host {
         surface.presented = Some([size.width, size.height]);
         Ok(true)
     }
-    /// 只释放本窗口显示资源；媒体线程与控制租约仍由上层会话 owner 停止/回收。
+    /// Release only this window's display resources; upper session owners still stop/reclaim media threads and control leases.
     pub fn close(&mut self) {
         self.closed = true;
         self.pending = None;

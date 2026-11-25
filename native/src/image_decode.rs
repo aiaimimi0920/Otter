@@ -1,4 +1,4 @@
-//! 共享 WIC 解码；调用线程拥有 COM，结果只保留受预算约束的像素，不保留解码器或文件锁。
+//! Shared WIC decoding; the calling thread owns COM, and results retain only budgeted pixels, not decoders or file locks.
 use crate::viewport::checked_image_bytes;
 use std::{os::windows::ffi::OsStrExt, path::Path};
 use windows::{
@@ -49,7 +49,7 @@ impl Image {
             return Err(Error::new(E_INVALIDARG, "Image path contains NUL"));
         }
         name.push(0);
-        // COM 已由宿主在同一线程初始化。所有 decoder/converter 在返回时释放。
+        // The host already initialized COM on this thread. Release all decoders/converters on return.
         unsafe {
             let factory: IWICImagingFactory =
                 CoCreateInstance(&CLSID_WICImagingFactory, None, CLSCTX_INPROC_SERVER)?;
@@ -84,7 +84,7 @@ impl Image {
         }
         Self::from_encoded_limits(bytes, SizePolicy::Any, 256 * 1024 * 1024, stopped)
     }
-    /// Relay 的声明尺寸必须在像素分配前核对，不能用通用图片嗅探接受伪装容器。
+    /// Check Relay's declared dimensions before pixel allocation; generic image sniffing must not admit disguised containers.
     pub(crate) fn from_relay_jpeg(bytes: &[u8], width: u32, height: u32) -> Result<Self> {
         if bytes.len() > crate::live_relay_frame::MAX_JPEG_BYTES
             || !bytes.starts_with(&[0xff, 0xd8])
@@ -124,7 +124,7 @@ impl Image {
             let factory: IWICImagingFactory =
                 CoCreateInstance(&CLSID_WICImagingFactory, None, CLSCTX_INPROC_SERVER)?;
             let stream = factory.CreateStream()?;
-            // bytes 在 decoder/converter 销毁前始终存活；没有临时落盘或跨线程 COM。
+            // bytes remain alive until decoders/converters are destroyed; no temporary files or cross-thread COM.
             stream.InitializeFromMemory(bytes)?;
             let decoder = factory.CreateDecoderFromStream(
                 &stream,
@@ -140,7 +140,7 @@ impl Image {
             Self::decode_source(&factory, &frame.cast()?, size, limit, stopped)
         }
     }
-    // Surface 可以传入方向变换源；普通打开及 Relay 仍使用原始帧和原始尺寸合同。
+    // Surface may supply an orientation-transformed source; ordinary open and Relay retain original-frame/original-dimension contracts.
     unsafe fn decode_source(
         factory: &IWICImagingFactory,
         source: &IWICBitmapSource,
@@ -164,7 +164,7 @@ impl Image {
             pixels,
         })
     }
-    // 像素分配/转换只有一个 owner；调用方明确选择格式，不把 straight RGBA 暴露为 Image。
+    // One owner for pixel allocation/conversion; callers explicitly select the format, never exposing straight RGBA as Image.
     unsafe fn decode_pixels(
         factory: &IWICImagingFactory,
         source: &IWICBitmapSource,

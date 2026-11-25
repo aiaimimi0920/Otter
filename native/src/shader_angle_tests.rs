@@ -1,4 +1,4 @@
-//! 模型门与显式 ANGLE 平台门分离；不从用户环境自动寻找 DLL，不启动浏览器或真实 Art。
+//! Separate model gates from explicit ANGLE platform gates; never discover DLLs from the user environment or launch a browser or real Art.
 use super::*;
 use std::sync::atomic::AtomicBool;
 pub(crate) const VERTEX: &str = "#version 300 es\nin vec2 a_position; out vec2 uv; void main(){uv=(a_position+1.0)*0.5;uv.y=1.0-uv.y;gl_Position=vec4(a_position,0,1);}";
@@ -91,7 +91,7 @@ fn actual_verified_angle_raw_glsl_pixels_uniforms_failures_and_recreation() {
                 let description = renderer.description().unwrap();
                 assert!(description.version.starts_with("OpenGL ES 3.0"));
                 assert!(description.renderer.contains("Direct3D11"));
-                // 持有已核验文件的读共享句柄，验证加载期间不能重新打开写权限。
+                // Hold a read-sharing handle to the verified file and verify that it cannot be reopened for writing during loading.
                 assert!(std::fs::OpenOptions::new().write(true).open(directory.join("libEGL.dll")).is_err());
                 let pixels = [255,0,0,255,0,255,0,255,0,0,255,255,64,32,16,128];
                 let textures = [Texture { name: "input", width: 2, height: 2, rgba: &pixels }];

@@ -1,4 +1,4 @@
-//! 连线选择的共享只读目录；只保留端口名和身份凭证，不持有像素或参数值。
+//! Shared read-only catalog for link selection; retain only port names/identity evidence, without pixels or parameter values.
 #[cfg(test)]
 use super::State;
 use super::{
@@ -327,7 +327,7 @@ impl Catalog {
     }
 }
 fn add(ports: &mut Vec<String>, name: &str) {
-    // 声明输入与公共参数各最多 128 项；去重后至多 256，不构造源/目标笛卡尔积。
+    // Declared inputs and public parameters each cap at 128; at most 256 after deduplication, without source/target Cartesian products.
     if ports.len() < 256 && !ports.iter().any(|port| port == name) {
         ports.push(name.into());
     }

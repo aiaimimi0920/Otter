@@ -1,4 +1,4 @@
-//! 历史擦除有界逐笔适配到原擦除器，不复制完整edit/history或触及共享源像素。
+//! Adapt historical erasure to the original eraser one bounded stroke at a time, without copying full edit/history or touching shared source pixels.
 use super::*;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -65,7 +65,7 @@ impl Target<'_> {
             if stroke.points.is_empty() {
                 continue;
             }
-            // 只保留一笔的x/y；未知扩展、图片和其余历史始终保持借用。
+            // Retain x/y for only one stroke; unknown extensions, images, and other history remain borrowed.
             let _lease = crate::pixels::reserve(stroke.points.len() * 1024).ok_or_else(|| {
                 Error::new(
                     windows::Win32::Foundation::E_OUTOFMEMORY,

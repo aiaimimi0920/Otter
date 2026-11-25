@@ -1,4 +1,4 @@
-//! 输入快照不接受跨文档、跨工具、跨选择或待处理强度变化。
+//! Input snapshots reject cross-document, cross-tool, cross-selection, and pending-intensity changes.
 use super::*;
 fn fixture() -> Canvas {
     let mut canvas = Canvas::new(Some(crate::desktop::image::Image {

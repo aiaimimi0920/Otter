@@ -1,4 +1,4 @@
-//! 原生 Surface 长度白名单与布局求值；不执行 CSS，auto/fr 的上下文由布局 owner 提供。
+//! Native Surface length allowlist and layout evaluation; no CSS execution, with auto/fr context supplied by the layout owner.
 use serde_json::Value;
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Unit {
@@ -83,7 +83,7 @@ impl Length {
         if let Some((n, u)) = scalar(text) {
             return Some(Self::Scalar(n, u));
         }
-        // 只接受协议已有的固定 min/calc 结构，没有通用表达式求值器。
+        // Accept only the protocol's existing fixed min/calc structures; no general expression evaluator.
         let text: String = text
             .chars()
             .filter(|c| c.is_ascii_whitespace().not())

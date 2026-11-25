@@ -1,4 +1,4 @@
-//! 真实联合门的隔离身份/固定CA/消息泵；仅使用测试临时目录中的新profile。
+//! Isolated identity/fixed CA/message pump for the real joint gate; use only fresh profiles in the test temporary directory.
 use super::*;
 use base64::Engine;
 use std::path::PathBuf;

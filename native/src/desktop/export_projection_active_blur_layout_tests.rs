@@ -1,4 +1,4 @@
-//! 独立矩形高斯oracle：传播/legacy取样与底图clip必须先于活动blur重建。
+//! Independent rectangular Gaussian oracle: propagation/legacy sampling and base-image clip must precede active-blur reconstruction.
 use super::*;
 use serde_json::{json, Value};
 #[path = "export_projection_legacy_blur_tests.rs"]
@@ -232,7 +232,7 @@ fn projection_pipeline_resolves_content_before_blur_and_applies_final_wash_only_
     .unwrap();
     assert_eq!((output.width, output.height), (8, 8));
     let decoded = crate::desktop::export::decode_png(output.png.to_vec());
-    // x=0距离内容至少4px，sigma=1的有限3px核无贡献；这里仅有原绘制器8%白wash。
+    // x=0 is at least 4px from content, beyond the finite 3px kernel for sigma=1; only the original renderer's 8% white wash remains.
     let pixel = &decoded.pixels[(4 * 8) * 4..(4 * 8) * 4 + 4];
     assert!(
         pixel.iter().all(|value| (19..=21).contains(value)),

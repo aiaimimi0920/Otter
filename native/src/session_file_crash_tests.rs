@@ -1,4 +1,4 @@
-//! 子进程直接退出跳过 Rust Drop，检验实际句柄回收和四个持久化边界；不模拟断电。
+//! Children exit directly, bypassing Rust Drop, to verify actual handle reclamation/four persistence boundaries; not simulated power loss.
 use super::*;
 use crate::test_process as process;
 use std::{io::Write, process::Command, time::Duration};
@@ -31,7 +31,7 @@ impl Fixture {
 }
 impl Drop for Fixture {
     fn drop(&mut self) {
-        // 唯一 linshi 目录；中断遗留的普通暂存/恢复文件由父测试负责清理，不递归。
+        // Unique linshi directory; parent tests clean ordinary staging/recovery files left by interruption, without recursion.
         assert_eq!(self.directory.parent(), Some(Path::new(ROOT)));
         for entry in std::fs::read_dir(&self.directory).unwrap().flatten() {
             if entry.file_type().unwrap().is_file() {
@@ -167,7 +167,7 @@ fn actual_process_exit_preserves_complete_source_or_published_file_at_each_bound
         for path in temporary {
             assert_eq!(std::fs::read(path).unwrap(), NEW);
         }
-        // 子进程句柄确实由系统回收，非仅内存模型改了标记。
+        // System actually reclaims child handles; not merely changed flags in an in-memory model.
         OpenOptions::new().write(true).open(&chosen).unwrap();
         if mode == "retired" {
             assert_eq!(std::fs::read_dir(&fixture.directory).unwrap().count(), 1);

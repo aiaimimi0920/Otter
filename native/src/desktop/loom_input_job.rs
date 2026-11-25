@@ -1,4 +1,4 @@
-//! 有界 Loom 输入准备 worker；不创建执行 request，不修改文档，不发送网络消息。
+//! Bounded Loom input-preparation workers; no execution-request creation, document changes, or network messages.
 use super::loom_execution_signal::{CompletionSignal, Notify};
 use super::loom_inline::{self, Inline};
 use crate::{
@@ -66,7 +66,7 @@ impl Job {
     ) -> Result<(), Error> {
         self.start_with_notify(target, target_editor, sources, Arc::new(|| {}))
     }
-    /// 通知只唤醒 UI owner，不得阻塞；发布完成前释放准备线程的并发许可。
+    /// Notifications wake UI owners only and must not block; release preparation-thread concurrency permits before publishing completion.
     pub fn start_with_notify(
         &mut self,
         target: UnitId,
@@ -122,7 +122,7 @@ impl Job {
         }
         Some(self.join())
     }
-    /// 最终退出时先取消再 join；正常交付使用完成通知和 poll。
+    /// On final exit cancel before joining; ordinary delivery uses completion notifications/poll.
     pub fn shutdown(&mut self) -> Option<Result<PreparedBatch, Error>> {
         self.running.as_ref()?;
         self.cancel();

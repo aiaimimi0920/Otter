@@ -1,4 +1,4 @@
-// 第一方主题的路径白名单、输入身份与许可证合同；夹具只写入显式临时根。
+// First-party theme path-allowlist, input-identity, and license contracts; fixtures write only to explicit temporary roots.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');

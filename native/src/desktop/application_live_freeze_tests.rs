@@ -1,4 +1,4 @@
-//! 隐藏 HWND + WARP 合成帧贯通生产系统菜单、后台读回及同 ID 静态发布。
+//! Hidden HWNDs and synthetic WARP frames exercise the production system menu, background readback, and same-ID static publication end to end.
 use super::*;
 #[path = "application_live_add_art_tests.rs"]
 mod add_art;
@@ -182,7 +182,7 @@ fn freeze_uses_commit_time_image_region_after_live_move_and_resize() {
         let (hwnd, id) = live(&mut app, true);
         queue(hwnd);
         app.process_live_freeze(false).unwrap();
-        // 读回在后台进行；最终位置以提交时客户区为准，而非排队时的旧位置。
+        // Readback runs in the background; final position follows the client area at commit, not the old queued position.
         SetWindowPos(
             hwnd,
             None,
@@ -262,7 +262,7 @@ fn menu_freezes_current_pixels_with_same_identity_and_stops_only_after_publish()
         let environment = Environment::new();
         let mut app = environment.app();
         let (hwnd, id) = live(&mut app, true);
-        // 与最后静态文档回收的空宿主替换使用同一实例身份路径。
+        // Use the same instance-identity path as empty-host replacement when recycling the last static document.
         app.workspace = app
             .workspace
             .replacement_unit(
@@ -318,7 +318,7 @@ fn workspace_replacement_before_request_rejects_old_live_and_failed_admission_ke
                 queue(hwnd);
                 assert!(app.process_live_freeze(false).is_err());
             } else {
-                // 重复静态 owner 不得覆盖 Live 的已登记身份。
+                // Duplicate static owners must not overwrite Live's registered identity.
                 app.documents[0].state.unit_id = id;
                 queue(hwnd);
                 app.process_live_freeze(false).unwrap();

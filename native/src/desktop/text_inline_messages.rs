@@ -1,4 +1,4 @@
-//! 原生 EDIT 保留剪贴板、选择和 IME 默认处理；只在组合结束后解释提交/取消。
+//! Native EDIT retains default clipboard, selection, and IME handling; interpret commit/cancel only after composition ends.
 use super::*;
 use windows::Win32::UI::Shell::*;
 pub(super) const FINISH: u32 = WM_APP + 0x583;
@@ -69,7 +69,7 @@ unsafe extern "system" fn key(
     }
     if msg == WM_KILLFOCUS {
         if let Ok(parent) = GetParent(hwnd) {
-            // WM_KILLFOCUS 中不关窗/激活其他窗口；随后核验实例身份再提交回收。
+            // Do not close/activate windows within WM_KILLFOCUS; later verify instance identity before commit/reclamation.
             send(parent, FINISH, true);
         }
     }

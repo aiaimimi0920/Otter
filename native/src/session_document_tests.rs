@@ -1,4 +1,4 @@
-//! 会话只读边界；不读写用户磁盘，未知业务字段保留在原始字节中。
+//! Read-only session boundary; no user-disk I/O, with unknown business fields preserved in original bytes.
 use super::*;
 #[test]
 fn original_session_bytes_and_metadata_survive_topology_inspection() {

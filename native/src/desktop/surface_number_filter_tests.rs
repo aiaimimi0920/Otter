@@ -1,4 +1,4 @@
-//! 数字编辑态过滤的真实 HWND 接缝；整段替换模拟粘贴结果，不访问系统剪贴板。
+//! Real-HWND seam for numeric edit-state filtering; whole-range replacement simulates paste results without system-clipboard access.
 use super::*;
 #[test]
 fn surface_number_filter_preflight_matches_native_character_repeat_semantics() {
@@ -14,7 +14,7 @@ fn surface_number_filter_preflight_matches_native_character_repeat_semantics() {
             Some(LPARAM(2)),
         );
     }
-    // 真实 classic EDIT 会展开低 16 位重复数，预检必须验证完整结果而非单字符。
+    // Actual classic EDIT expands the low-16-bit repeat count; preflight must validate the full result, not one character.
     assert_eq!(text(plain_edit), "..");
     let window = mount(serde_json::json!("1"));
     let edit = child(&window);

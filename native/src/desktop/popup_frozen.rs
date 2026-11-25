@@ -1,4 +1,4 @@
-//! 两个根级冻结库滚到底逐批追加；命令绑定不可变来源与全库条目身份。
+//! Append batches at the bottom of both root-level frozen libraries; commands bind immutable sources and identities across the full library.
 use crate::{
     desktop::loom_execution_signal::Notify,
     native_menu::{cascade::Cascade, Item},

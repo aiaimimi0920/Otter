@@ -1,4 +1,4 @@
-//! worker 持有采集区域与候选；候选截图失败/取消不更新区域或滚动目标。
+//! Workers own capture regions/candidates; failed/cancelled candidate capture updates neither regions nor scroll targets.
 use super::*;
 use crate::long_capture::CaptureSource;
 use std::sync::atomic::AtomicBool;
@@ -60,7 +60,7 @@ impl Source {
         capture_headroom(candidate)?;
         let frame = sample(candidate, target.as_ref(), cancel)?;
         check(cancel)?;
-        // 降级手动时仍复核旧目标，候选成功提交后才替换绑定。
+        // Manual fallback still revalidates old targets; replace bindings only after successful candidate commit.
         self.validate()?;
         if frame.dimensions() != (candidate.width as u32, candidate.height as u32) {
             return Err("Moved capture dimensions changed".into());
@@ -93,7 +93,7 @@ impl CaptureSource for Source {
             return Err("Long capture scroll attempt limit reached".into());
         }
         capture_headroom(self.region)?;
-        self.remaining -= 1; // 已交付但随后失败的输入也计数，不自动重发。
+        self.remaining -= 1; // Delivered input counts even if it later fails; never resend automatically.
         target.step(self.axis, mode == CaptureMode::ScrollForward, cancel)?;
         settle(cancel)?;
         sample(self.region, Some(target), cancel)

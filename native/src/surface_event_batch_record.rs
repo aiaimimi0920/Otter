@@ -1,4 +1,4 @@
-//! 批次退出提示：仅保存有序身份和阶段，不保存可执行 payload、提示或场景。
+//! Batch exit hints: retain only ordered identities and phases, not executable payloads, prompts, or scenes.
 use super::*;
 use crate::{
     desktop::surface_authorized_window::BatchReceipt,
@@ -80,7 +80,7 @@ fn records(
             None if ack.is_some() && matches!(observation, Some(Err(_))) => Stage::Failed,
             None => Stage::NotStarted,
         };
-        // 只有最高候选版本的快照真正被应用；其他项的整体呈现状态记录在 batch 中。
+        // Only the highest candidate revision's snapshot is actually applied; other items' overall presentation state is recorded in the batch.
         let applied = match &presentation {
             Stage::Succeeded(revision) if convergence == Stage::Succeeded(*revision) => {
                 presentation.clone()

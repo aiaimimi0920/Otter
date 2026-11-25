@@ -1,4 +1,4 @@
-//! 独立构造能力与队列状态；不依赖HTTP接受回包充当实际Source执行。
+//! Independently construct capability/queue state; HTTP acceptance replies never stand in for actual Source execution.
 use super::*;
 fn configured(names: &[&str]) -> Queue {
     let queue = Queue::default();

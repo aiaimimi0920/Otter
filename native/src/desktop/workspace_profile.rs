@@ -1,4 +1,4 @@
-//! 默认工作区的路径/目录/进程租约；与旧版目录隔离，检查入口绝不发现真实 profile。
+//! Default-workspace path/directory/process leases; isolated from legacy directories, with inspection entries never discovering actual profiles.
 use std::{
     fs::{File, OpenOptions},
     io,
@@ -13,7 +13,7 @@ use windows::Win32::Storage::FileSystem::{
 pub(super) struct Profile {
     pub(super) path: PathBuf,
     pub(super) restore: bool,
-    // 文件先于目录析构；持有期间不允许替换租约文件或重命名任何路径祖先。
+    // Destroy files before directories; while held, neither replace lease files nor rename any path ancestor.
     _lease: File,
     _directories: Vec<File>,
 }
@@ -52,7 +52,7 @@ impl Profile {
                 "Workspace lease must be a regular non-reparse file",
             ));
         }
-        // 不读内容、不猜图片权限；真实有界读取/格式验证仍由 session_job 完成。
+        // Read no content or infer image permissions; session_job still owns actual bounded reads/format validation.
         let restore = match std::fs::symlink_metadata(&path) {
             Ok(_) => true,
             Err(error) if error.kind() == io::ErrorKind::NotFound => {

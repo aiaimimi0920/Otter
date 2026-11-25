@@ -1,4 +1,4 @@
-//! 稀疏 row 自动放置：显式占位先于自动项，保留 DOM 绘制顺序和允许的显式重叠。
+//! Sparse row auto-placement: explicit occupancy precedes auto items, preserving DOM drawing order and permitted explicit overlap.
 use super::{
     tracks::{MAX_CELLS, MAX_COLUMNS},
     Error,
@@ -105,7 +105,7 @@ fn fits(rows: &[u64], area: Area, work: &mut usize) -> Result<bool, Error> {
     if end > MAX_NODES {
         return Err(Error::Limit);
     }
-    // 按可能访问的行收费，而非只约束最终 cell 数；失败搜索也必须有界。
+    // Charge for potentially visited rows, not just final cell count; failed searches must also be bounded.
     *work += area.span[1];
     if *work > MAX_CELLS * 16 {
         return Err(Error::Limit);

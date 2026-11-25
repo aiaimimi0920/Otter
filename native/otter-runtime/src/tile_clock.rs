@@ -1,4 +1,4 @@
-//! 与 Wall v1 同义的最小 RTT 时钟估计；只用单调时间推进，旧 daemon 时钟不继承场景。
+//! Minimum-RTT clock estimation matching Wall v1; advance only with monotonic time, and do not carry scenes over from an old daemon clock.
 use crate::tile_wire::Timing;
 use std::time::{Duration, Instant};
 #[derive(Clone)]

@@ -1,4 +1,4 @@
-//! 离线启动只从当前profile已有设备身份、受信pin与独立签名恢复凭证取精确包；不访问网络。
+//! Offline startup obtains the exact package only from the current profile's existing device identity, trusted pin, and independently signed resume credential; no network.
 use super::*;
 use crate::{
     art_execution_grant::{resume::Ticket, wire},
@@ -22,7 +22,7 @@ impl Authorization {
         };
         let loaded = match store.load_existing() {
             Ok(loaded) => loaded,
-            // 旧在线调用者可能没有持久身份；锁冲突/损坏不能冒充“不存在”跳过减权。
+            // Older online callers may lack persistent identity; lock contention/corruption must not masquerade as absence to bypass privilege reduction.
             Err(crate::device_identity_store::Error::Missing) => return Ok(()),
             Err(_) => return Err(Error::Trust),
         };

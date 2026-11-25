@@ -1,4 +1,4 @@
-//! 极窄旧裁剪的实际 D2D/WIC 回归；大比例放大不能退回巨大整图坐标。
+//! Actual D2D/WIC regression for extremely narrow legacy crops; large magnification must not fall back to huge whole-image coordinates.
 use super::*;
 
 fn narrow(vertical: bool, flipped: bool, erase: bool) -> crate::desktop::image::Image {

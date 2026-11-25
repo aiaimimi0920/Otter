@@ -1,4 +1,4 @@
-//! 通用可见 DOM 命中与 Hover 的原 Mount 准备接缝；不伪造文本字段或远端动作。
+//! Original Mount-preparation seam for generic visible-DOM hits and Hover; no fabricated text fields or remote actions.
 use super::*;
 use crate::surface_javascript_wire::{HoverInput, LocalInput};
 pub(crate) fn dom_node(presentation: &Presentation, id: &str) -> bool {
@@ -24,7 +24,7 @@ impl Mount {
         if !self.editing || self.binding.is_none() {
             return Err(Error::new(E_FAIL, "Hover input inactive"));
         }
-        // 高速 move 的非终止样本可在满队列时拒绝；已经预留的离开不能被其他writer占用。
+        // Nonterminal high-speed move samples may be rejected when full; other writers cannot occupy the reserved leave slot.
         self.intents.push_hover(intents::HoverIntent {
             input,
             viewport_epoch: epoch,

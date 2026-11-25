@@ -1,4 +1,4 @@
-"""ANGLE 工具链清单的纯文件边界；不发现、安装或执行任何工具。"""
+"""Pure file boundaries for ANGLE toolchain manifests; discover, install, and execute no tools."""
 
 import hashlib
 import json
@@ -15,10 +15,10 @@ CONFIG_KEYS = {
 
 
 def checked_path(value, *, directory=True):
-    """拒绝链接祖先、UNC、设备路径及可污染环境/命令行的路径字符。"""
+    """Reject linked ancestors, UNC/device paths, and path characters that can contaminate environments/command lines."""
     if not isinstance(value, str) or not value or re.search(r'[\x00-\x1f;"%!?&|<>$`]', value):
         raise ValueError("Unsafe toolchain path")
-    # Path 会消去显式 ./，因此必须在构造 Path 前检查原始分量。
+    # Path removes explicit ./ components, so inspect raw components before constructing it.
     if any(part in (".", "..") for part in re.split(r"[\\/]", value)):
         raise ValueError("Noncanonical toolchain path")
     path = Path(value)
@@ -71,7 +71,7 @@ def read_json(path, *, limit=65536):
 
 
 def layout(config):
-    """仅支持显式 x86/x64 桌面工具链，不用存在性推断版本或架构。"""
+    """Support only explicit x86/x64 desktop toolchains; never infer versions or architectures from existence."""
     if not isinstance(config, dict) or set(config) != CONFIG_KEYS:
         raise ValueError("Unexpected toolchain configuration fields")
     if type(config["schemaVersion"]) is not int or config["schemaVersion"] != 1:
@@ -107,7 +107,7 @@ def paths_for(config, roots, cpu):
 
 
 def anchors(config, roots):
-    # 这些是错误版本/架构/关键工具替换检测点，不是完整 SDK/MSVC 内容闭包。
+    # These detect wrong versions/architectures or replacement of critical tools, not a complete SDK/MSVC content closure.
     result = {}
     for cpu in config["architectures"]:
         includes, libraries, binaries = paths_for(config, roots, cpu)

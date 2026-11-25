@@ -1,4 +1,4 @@
-//! 绘制目标私有的有界 LRU；不能跨 D2D 目标复用，目标销毁时一起释放。
+//! Render-target-private bounded LRU; no cross-D2D-target reuse, and release with target destruction.
 use crate::viewport::Point;
 use std::collections::VecDeque;
 use windows::{
@@ -47,7 +47,7 @@ impl Cache {
         {
             return Err(Error::new(E_INVALIDARG, "Invalid mosaic cache tile"));
         }
-        // 网格生成最终使用 round/max(2)，等价尺寸共享位图但模型仍保留小数。
+        // Grid generation ultimately uses round/max(2); equivalent dimensions share bitmaps while models preserve fractions.
         let cell = cell.round().max(2.0) as u32;
         let key = Key {
             x,
@@ -62,7 +62,7 @@ impl Cache {
             self.entries.push_back(entry);
             return Ok(bitmap);
         }
-        // 先释放最旧应用引用，再分配新块；失败不缓存半成品。
+        // Release oldest application references before allocating new tiles; failures cache no partial results.
         if self.entries.len() == CAPACITY {
             self.entries.pop_front();
         }
@@ -149,7 +149,7 @@ mod tests {
                 other_cell.as_raw()
             );
             assert!(cache.bitmap(&target, 0, 0, 32, 32, f32::NAN).is_err());
-            // 不同尺寸不能误用旧纹理；失败调用也不污染合法键。
+            // Different dimensions must not reuse stale textures; failed calls must not contaminate valid keys.
             assert_ne!(
                 cache.bitmap(&target, 0, 0, 16, 16, 12.0).unwrap().as_raw(),
                 first.as_raw()

@@ -1,4 +1,4 @@
-//! 原生触发JSON模态框的真实控件验证；仅自有对话框消息，不向用户程序注入输入。
+//! Actual native trigger-JSON modal controls; only owned-dialog messages, without injecting input into user applications.
 use super::*;
 const VALID: &str = r#"{"bindingId":"b","enabled":false,"target":{"surfaceInstanceId":"s","surfaceAttachmentId":"a","surfaceNodeId":"n","surfaceEvent":"click","surfaceAction":"x"},"condition":{"conditionId":"c","revision":2,"observationId":"o","operator":"equals","operand":{"path":"/value/text","value":"完成"},"stableForMs":1000,"risingEdge":false,"rearm":true,"minimumConfidence":"exact"}}"#;
 unsafe extern "system" fn test_proc(hwnd: HWND, message: u32, wp: WPARAM, lp: LPARAM) -> isize {
@@ -102,7 +102,7 @@ fn hidden_local_trigger_controls_require_explicit_auto_consent_and_strict_condit
         };
         let data = template(state.mode);
         unsafe {
-            // 非模态隐藏自有控件，不运行会显示/激活的DialogBox测试。
+            // Modeless hidden owned controls only; do not run DialogBox tests that display/activate windows.
             unsafe extern "system" fn hidden(
                 hwnd: HWND,
                 message: u32,

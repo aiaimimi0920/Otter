@@ -1,4 +1,4 @@
-//! 同步 DirectWrite 分析的有界 UTF-16 backing store；COM 指针不越过此次调用生命周期。
+//! Bounded UTF-16 backing store for synchronous DirectWrite analysis; COM pointers never outlive this call.
 use std::io;
 use windows::{
     core::{implement, OutRef, Result},
@@ -120,7 +120,7 @@ impl IDWriteTextAnalysisSource_Impl for Source_Impl {
         if position as usize >= self.text.len() {
             return Err(E_INVALIDARG.into());
         }
-        // 只提供原始字符；不隐式改变数字。完整数字替换属于后续排版合同。
+        // Provide original characters only without implicit digit changes. Full number substitution belongs to a later layout contract.
         unsafe {
             *length = self.text.len() as u32 - position;
         }

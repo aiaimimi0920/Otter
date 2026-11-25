@@ -1,4 +1,4 @@
-//! Tile键盘焦点身份及有界可命中像素搜索；不把控件中心或滚轮方向当可见性证据。
+//! Tile keyboard-focus identities and bounded hittable-pixel searches; control centers or wheel direction are not visibility evidence.
 use crate::{
     surface_presentation::Presentation,
     surface_scene::Kind,
@@ -23,7 +23,7 @@ pub(crate) struct Focus {
     layout: [u8; 32],
 }
 impl Focus {
-    /// 本地草稿身份忽略滚动平移，但仍核完整未滚动布局；不可据此激活隐藏字段。
+    /// Local-draft identity ignores scroll translation but checks complete unscrolled layout; this cannot activate hidden fields.
     pub(crate) fn same_local(&self, other: &Self) -> bool {
         self.key == other.key
             && self.anchor.view == other.anchor.view
@@ -62,7 +62,7 @@ impl Focus {
         let mut next = self.clone();
         next.anchor.snapshot = art.snapshot.clone();
         next.anchor.scroll = p.scroll_state();
-        // 被动保留也更新真实几何；屏外空矩形不授输入资格，部分显露后再命中则保留本地值。
+        // Passive retention also updates actual geometry; offscreen empty rectangles grant no input, while hits after partial reveal retain local values.
         next.geometry = (
             geometry.origin(),
             geometry.size(),
@@ -166,8 +166,8 @@ pub(crate) fn at(
         layout: p.layout_identity(),
     })
 }
-/// 整数像素区域二分，最终每个候选都经Tile最上层与Surface圆角/scrollbar双重回验。
-/// 预算耗尽是明确失败，不将尚未搜索的控件谎报不可见；只在导航时执行，不常驻采样。
+/// Bisect integer-pixel regions; every final candidate is rechecked against both Tile topmost hits and Surface rounded-corner/scrollbar rules.
+/// Budget exhaustion is explicit failure, not a false invisibility report for unsearched controls; run only during navigation, without continuous sampling.
 pub(crate) fn find(
     frame: &Frame,
     art: &Arc<Art>,

@@ -1,4 +1,4 @@
-//! 显式 GPU 门只运行自有离屏纹理；真实平台失败不能 ignored/0 tests 冒充通过。
+//! The explicit GPU gate runs only owned offscreen textures; real platform failures must not pass as ignored/0 tests.
 use super::*;
 const COPY: &str = "float4 otter_main(float2 uv){return u_input.Sample(otter_sampler,uv);}";
 fn frame(
@@ -176,7 +176,7 @@ fn actual(backend: Backend, expected: SelectedBackend) {
             matches!(frame(backend, 1, 1, &[0; 4], source, &[], &[]), Err(process::Failure::Backend(Error::Compile(message))) if !message.is_empty() && message.len() <= 4096)
         );
     }
-    // 同一个后端在编译失败 child 完全退出后仍可创建，不保留失败程序/纹理。
+    // The same backend remains creatable after a compilation-failure child fully exits, without retaining failed programs/textures.
     assert!(matches!(frame(backend, 1, 1, &[0;4], "Texture2D<float4> foreign:register(t99); float4 otter_main(float2 uv){return foreign.Sample(otter_sampler,uv);}", &[], &[]), Err(process::Failure::Backend(Error::Layout))));
     assert_eq!(
         &*frame(backend, 3, 2, &pixels, COPY, &[], &[]).unwrap().rgba,

@@ -1,4 +1,4 @@
-//! 独立暂停字段沿原事务保存；旧文档兼容、失败减权与重新打开都不改设备 NEW 同意。
+//! Persist the independent pause field through original transactions; legacy-document compatibility, failure revocation, and reopening preserve device NEW consent.
 use super::*;
 
 #[test]

@@ -1,4 +1,4 @@
-//! 固定设备认证edit端点；修改必须持有效写前Ticket，失败/取消不退休pending、不自动重发。
+//! Fixed device-authenticated edit endpoint; writes require valid write-ahead Ticket, while failure/cancellation preserves pending without automatic resend.
 use super::*;
 use crate::projection_edit::{
     self as edit,
@@ -74,7 +74,7 @@ impl Control<'_> {
             return Err(Failure::Transport(Error::AuthorizationRequired));
         }
         if !(200..300).contains(&status) {
-            // 只取已知固定错误码，不把远端正文/凭据写入日志，也不跟随重定向。
+            // Read only known fixed error codes; no raw remote bodies/credentials in logs or following redirects.
             let code = edit::json::parse(&bytes, edit::MAX_BYTES)
                 .ok()
                 .and_then(|v| v["error"]["code"].as_str().map(|s| Code::parse(status, s)))

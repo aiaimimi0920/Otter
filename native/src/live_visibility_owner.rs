@@ -1,4 +1,4 @@
-//! 应用级源可见性协调：同源共享登记，Session 持 lease，后台 ACK 与 UI 恢复分离。
+//! Application-wide source-visibility coordination: shared same-source registration, Session leases, and separate background ACK/UI restoration.
 use crate::{
     live_reclaim::{Activation, Intent},
     live_recovery_client::journal::{Journal, Ticket},
@@ -24,14 +24,14 @@ struct Source {
     activation: RefCell<Option<Activation>>,
 }
 pub struct Protection {
-    // lease 必须先析构，完成恢复/设置退休意图后才放弃 Source 引用。
+    // Destroy lease first, completing restoration/recording retirement intent before releasing the Source reference.
     lease: Lease,
     source: Rc<Source>,
 }
 impl Protection {
     pub fn poll(&self) -> io::Result<()> {
         let source = &self.source;
-        // 显式召回只退出隐藏事务，不释放采集会话；退休/关闭 helper 后也不能再隐藏。
+        // Explicit recall exits only the hiding transaction, not capture sessions; no further hiding after helper retirement/close.
         if source.recalled.get() {
             return Ok(());
         }
@@ -48,7 +48,7 @@ impl Protection {
                 .borrow_mut()
                 .take()
                 .map(|snapshot| (snapshot, ticket.clone()))
-        }; // Win32 隐藏和回滚可同步进入窗口过程，不能跨调用借用 ticket。
+        }; // Win32 hiding/rollback may synchronously enter window procedures; do not borrow ticket across calls.
         if let Some((snapshot, ticket)) = registration {
             self.lease
                 .arm(snapshot, move || ticket.retire())
@@ -95,7 +95,7 @@ impl Owner {
             .sources
             .iter()
             .find(|source| source.target.same_source(&target));
-        // 先拒绝已请求退休但未收到 ACK 的旧登记，不能给它重新增加使用方。
+        // Reject old registrations with retirement requested but no ACK yet; never add consumers to them again.
         if existing.is_some_and(|source| !source.ticket.borrow().accepting_leases()) {
             return Err(io::Error::other("Live recovery source is retiring"));
         }
@@ -148,7 +148,7 @@ impl Owner {
         if let Some(journal) = &mut self.journal {
             journal.poll();
         }
-        // 最后 lease 恢复失败时不能直接 retire；继续由 registry 重试原快照。
+        // Failed restoration of the last lease cannot directly retire; registry continues retrying the original snapshot.
         let mut restore = self.restore_pending();
         for source in &self.sources {
             if Rc::strong_count(source) == 1 && !source.armed.get() {
@@ -175,14 +175,14 @@ impl Owner {
             journal.poll();
         }
         if self.journal.as_ref().is_some_and(Journal::finished) {
-            // 本次第二次 poll 可能刚确认子进程退出；先结算新完成的退休，避免
-            // 剩下本地条目却已无等待句柄，宿主只能错误退出或空等下一条 UI 消息。
+            // The second poll may just confirm child exit; settle newly completed retirement first to avoid
+            // remaining local entries without wait handles, forcing the host to fail exit or wait idly for another UI message.
             let previous = restore
                 .err()
                 .filter(|error| error.code() != RETIREMENT_PENDING);
             restore = self.restore_pending();
             if let Some(error) = previous {
-                // 后一次结算成功也不能抹去本轮已经观察到的真实恢复失败。
+                // Later successful settlement cannot erase a real restoration failure already observed this round.
                 restore = Err(error);
             }
             if restore.is_ok() {
@@ -204,7 +204,7 @@ impl Owner {
         if self.sources.iter().all(|source| source.recalled.get()) {
             self.watcher.take();
         }
-        // E_PENDING 是异步退休等待，不是窗口恢复失败。
+        // E_PENDING means asynchronous retirement wait, not window-restoration failure.
         match restore {
             Err(error) if error.code() != RETIREMENT_PENDING => Err(io::Error::other(error)),
             _ => Ok(()),
@@ -224,8 +224,8 @@ impl Owner {
         }
         first.map_or(Ok(()), Err)
     }
-    /// 输入 watcher 传入最新（可已取消）的意图快照；前台变化本身不授予召回。
-    /// 初次观察吸收旧意图，必须在隐藏开始前调用，之后由源事件驱动调用。
+    /// Input watchers pass the latest, possibly cancelled, intent snapshot; foreground changes alone do not authorize recall.
+    /// Initial observation absorbs old intent and must occur before hiding starts; source events drive later calls.
     pub fn observe_reclaim(
         &mut self,
         foreground: usize,
@@ -264,7 +264,7 @@ impl Owner {
             };
             if reclaim {
                 source.recalled.set(true);
-                // 若隐藏尚未真正发生，后续 poll 也不再尝试隐藏；恢复/退休允许异步待定。
+                // If hiding has not actually happened, later polls no longer attempt it; restoration/retirement may remain asynchronously pending.
             }
         }
     }

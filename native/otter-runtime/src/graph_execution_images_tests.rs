@@ -1,4 +1,4 @@
-//! 对照主干执行输入判定：显示回退不等于执行就绪，辅助输入只来自能力声明。
+//! Check against baseline execution-input rules: display fallback is not execution readiness, and auxiliary inputs come only from capability declarations.
 use super::super::tests::{id, link, sticker};
 use super::*;
 #[test]
@@ -120,7 +120,7 @@ fn missing_primary_does_not_use_manual_and_deduplicates_declared_ports() {
         ("__proto__", Output::Image("safe-field")),
     ];
     let graph = Graph::new(&nodes, &[]).unwrap();
-    // 主干 missing 判定的主输入只查连接，手动值只补充辅助端口，不能悄悄改变这一语义。
+    // The baseline missing check looks only at connections for the primary input; manual values supplement auxiliary ports only, and must not silently change this meaning.
     assert_eq!(
         graph.missing_execution_images(&unit, &manual).unwrap(),
         ["IMAGE"]

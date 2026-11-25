@@ -1,4 +1,4 @@
-//! 已发布图片引用的归档索引候选；不写资源或会话，不推进文档 revision。
+//! Archive-index candidates for published image references; no resource/session writes or document-revision advancement.
 use super::{check, Error, Plan};
 use serde::Deserialize;
 use serde_json::{json, value::RawValue, Map, Value};
@@ -9,7 +9,7 @@ pub struct Asset<'a> {
     pub src: &'a str,
     pub preview_src: Option<&'a str>,
 }
-/// 精确绑定保存原文。解析图像引用及原索引时借用 JSON，不分配未转义的大字符串。
+/// Bind exact saved source content. Borrow JSON when parsing image references and original indexes, without allocating large unescaped strings.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Fields<'a> {
@@ -55,7 +55,7 @@ impl<'a> Source<'a> {
     pub fn take_stickers(&mut self) -> Vec<Sticker<'a>> {
         std::mem::take(&mut self.fields.stickers)
     }
-    /// 资源发布成功后使用最终引用；索引不会改变已绑定的保存基线。
+    /// Use final references after successful resource publication; indexes never change their bound save baseline.
     pub fn index(
         self,
         assets: &[Asset<'_>],
@@ -107,7 +107,7 @@ fn build_index(
             return Err(Error::Node);
         }
         for reference in [Some(asset.src), asset.preview_src].into_iter().flatten() {
-            // Inline 内容必须先交资源 owner 发布，不能把大图片复制进每个工作流索引。
+            // Inline content must first be published by the resource owner; do not copy large images into every workflow index.
             if reference.starts_with("data:image")
                 || reference.len() > 32 * 1024
                 || reference.contains('\0')
@@ -134,12 +134,12 @@ fn build_index(
                 }),
             );
         }
-        // 与主干一致：命中工作流整体替换 nodes，未命中的旧工作流原样保留。
+        // Match mainline: replace nodes wholesale in matching workflows and preserve unmatched old workflows unchanged.
         workflows.insert(id.clone(), json!({"updatedAt":timestamp,"nodes":nodes}));
     }
     index.insert("workflows".into(), Value::Object(workflows));
     let value = Value::Object(index);
-    // 统一编码上限覆盖旧索引与新增节点；不得将任意大的旧字段带进下一次保存。
+    // A unified encoding limit covers old indexes and new nodes; never carry arbitrarily large legacy fields into the next save.
     struct Count<'a> {
         remaining: usize,
         cancel: &'a AtomicBool,

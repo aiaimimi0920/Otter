@@ -1,4 +1,4 @@
-//! 钉图中继开关只修改文档策略；依赖凭证在主循环退休旧准备/执行，不在菜单中等待。
+//! Pin-relay switches change only document policy; dependency credentials retire old preparation/execution in the main loop, never waiting in menus.
 use super::State;
 #[cfg(test)]
 use windows::core::w;

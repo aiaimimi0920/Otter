@@ -1,4 +1,4 @@
-//! 用真实 GDI 区域查询确认缩略图片、独立标注和矢量坐标，而不是模拟命中。
+//! Real GDI region queries verify minified images, independent annotations, and vector coordinates, not simulated hits.
 use super::*;
 use crate::viewport::Point;
 

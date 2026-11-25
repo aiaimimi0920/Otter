@@ -1,4 +1,4 @@
-//! 软件帧离开 Canvas 借用作用域后提交；按 target 身份和文档凭证确认，不把旧代帧记入新文档。
+//! Submit software frames after leaving the Canvas borrow scope; confirm target identity and document evidence without attributing old-generation frames to new documents.
 use super::Canvas;
 use std::rc::Rc;
 use windows::{

@@ -1,4 +1,4 @@
-//! 贴图专有设置投影；主题库只拥有纵向控件，目标、几何、命令和生命周期归本模块。
+//! Pin-specific settings projection; the theme library owns only vertical controls, while this module owns targets, geometry, commands, and lifecycle.
 use super::{popup_menu::target::MenuTarget, tool_panel_availability::Availability, State};
 use crate::{
     editor::{DocumentStamp, Tool},
@@ -212,7 +212,7 @@ unsafe fn refresh_at(owner: HWND, state: &State) -> Result<()> {
         s.display = identity;
         s.style = c.frame_style;
     }
-    // 平移不改变字段语义，不退休输入草稿；提交仍校验最新屏幕矩形，尺寸变化仍换代。
+    // Translation does not change field semantics or retire drafts; commits still validate the latest screen rectangle, and size changes still advance generation.
     s.frame = Some(frame);
     let mirror = state
         .resolved_display

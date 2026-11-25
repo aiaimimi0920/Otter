@@ -1,4 +1,4 @@
-//! 发送写前记录独立于 receiver；scope 是宿主稳定工作区身份的摘要，不存路径/凭据。
+//! Sender write-ahead records are independent of receivers; scope hashes stable host-workspace identity without storing paths/credentials.
 use super::snapshot::Snapshot;
 use super::{check, Error, Selection};
 use crate::projection_delivery::Envelope;
@@ -23,7 +23,7 @@ pub(super) struct Record {
     pub(super) cancelled: bool,
     pub(super) stop: Option<Stop>,
 }
-/// 仅显式稳定解绑使用；确认事实保留到 canonical metadata 的精确 ack。
+/// Only explicit stable unlink uses this; retain confirmed facts until exact canonical-metadata ACK.
 #[derive(Clone, Copy, Serialize, serde::Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub(super) enum Stop {

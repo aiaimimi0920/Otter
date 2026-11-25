@@ -1,4 +1,4 @@
-//! 声明式文字场景的 HWND 后端；窗口 owner 负责消息循环和销毁顺序。
+//! HWND backend for declarative text scenes; the window owner manages message loops and destruction order.
 use crate::{
     surface_presentation::{Images, Presentation},
     surface_scene::Scene,
@@ -29,7 +29,7 @@ pub struct Host {
     presentation: Presentation,
     viewport: (D2D_SIZE_U, u32),
     edits: super::surface_edit_mount::Mount,
-    // HWND 与单线程 D2D 工厂不得转移到工作线程。
+    // HWNDs and single-threaded D2D factories must not move to worker threads.
     _thread: PhantomData<Rc<()>>,
 }
 fn logical(size: D2D_SIZE_U, dpi: u32) -> [f32; 2] {
@@ -48,11 +48,11 @@ fn viewport(hwnd: HWND) -> Result<(D2D_SIZE_U, u32)> {
     ))
 }
 impl Host {
-    /// 调用方必须在 HWND 所属线程使用，并在窗口销毁前释放 Host。
+    /// Callers must use the HWND's thread and release Host before window destruction.
     pub fn bind(hwnd: HWND, scene: Scene) -> Result<Self> {
         Self::bind_with_images(hwnd, scene, Images::new())
     }
-    /// 图片必须已由调用方核对当前场景来源；此层只拥有布局、像素与 target 生命周期。
+    /// Callers must already verify images against current scene sources; this layer owns only layout, pixels, and target lifetimes.
     pub fn bind_with_images(hwnd: HWND, scene: Scene, images: Images) -> Result<Self> {
         if unsafe { windows::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId(hwnd, None) }
             != unsafe { windows::Win32::System::Threading::GetCurrentThreadId() }
@@ -130,7 +130,7 @@ impl Host {
         self.viewport = view;
         self.sync_edits()
     }
-    /// 同步几何但不创建渲染 target；命中不能等待一次 WM_PAINT 才看见新视口。
+    /// Synchronize geometry without creating rendering targets; hit testing cannot wait for WM_PAINT to see a new viewport.
     fn sync_viewport(&mut self) -> Result<bool> {
         let view = viewport(self.hwnd)?;
         if view.0.width == 0 || view.0.height == 0 {
@@ -147,7 +147,7 @@ impl Host {
             self.presentation.release_device_resources();
             self.target = None;
             if let Err(error) = self.sync_edits() {
-                // 不缓存失败的控件布局，否则下一次输入会跳过准入并使用部分更新几何。
+                // Do not cache failed control layout, or the next input would skip admission and use partially updated geometry.
                 self.viewport = previous;
                 return Err(error);
             }
@@ -208,7 +208,7 @@ impl Host {
             .keyboard_events_with_values(id, binding, revision, modifiers, self.edits.values())
             .map_err(|_| Error::new(E_INVALIDARG, "Surface keyboard preparation failed"))
     }
-    /// 焦点选择与点击一样先同步视口，不使用已过期的布局快照。
+    /// Focus selection, like clicking, synchronizes the viewport first instead of using stale layout snapshots.
     pub(super) fn next_focus(
         &mut self,
         current: Option<&str>,
@@ -224,7 +224,7 @@ impl Host {
     pub(super) fn focusable(&mut self, id: &str) -> Result<bool> {
         Ok(self.sync_viewport()? && self.presentation.focusable(id))
     }
-    /// WM_PAINT 调用方管理 BeginPaint/EndPaint；此处不启动定时器或循环重绘。
+    /// WM_PAINT callers manage BeginPaint/EndPaint; start no timers or repaint loops here.
     pub fn paint(&mut self) -> Result<()> {
         self.paint_with_visual(Default::default())
     }
@@ -277,7 +277,7 @@ impl Host {
             let finish = target.EndDraw(None, None);
             draw.and(finish)
         };
-        // 设备错误后释放目标；下一次外部重绘请求再创建，避免故障忙循环。
+        // Release targets after device errors; recreate on the next external repaint request to avoid fault busy loops.
         if result.is_err() {
             self.presentation.release_device_resources();
             self.target = None;

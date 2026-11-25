@@ -1,4 +1,4 @@
-//! 单窗口几何合并候选；不写磁盘，不修改图片/参数/标注字段。
+//! Single-window geometry merge candidates; no disk writes or image/parameter/annotation-field changes.
 use crate::{
     pin_geometry::PinRect,
     session_placement::{Error, Space},
@@ -9,8 +9,8 @@ use serde_json::{json, Value};
 pub struct Geometry {
     pub frame: PinRect,
     pub minified: bool,
-    /// 当前缩略窗展开后的实际物理框，调用方须先应用拖动位移，不能传初始旧框。
-    /// 无 savedRect 的历史缩略节点须传 None，不能用其运行时同框展开回退伪造 savedRect。
+    /// Actual physical frame after expanding the current minimized window; callers first apply drag displacement, not the initial old frame.
+    /// Legacy minimized nodes without savedRect must pass None; their runtime same-frame expansion fallback must not fabricate savedRect.
     pub expanded: Option<PinRect>,
     pub normal_opacity: f32,
     pub mini_opacity: f32,
@@ -76,9 +76,9 @@ pub fn merge(mut original: Value, state: Geometry, space: Space) -> Result<Value
         );
         object.insert("cropOffset".into(), json!({"x":offset.x,"y":offset.y}));
     } else {
-        // 无展开框的历史缩略节点保持无框语义；不能沿用上一次的旧 savedRect。
+        // Legacy minimized nodes without expanded frames retain that absence; do not reuse a previous stale savedRect.
         object.remove("savedRect");
-        // 缺少 savedRect 仍可能有独立取景偏移，退出缩略前不能丢弃。
+        // Even without savedRect, independent framing offsets may exist and must survive until leaving minimized mode.
         if !state.minified {
             object.remove("cropOffset");
         }

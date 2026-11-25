@@ -1,4 +1,4 @@
-//! Chrome 已验证的路径文字等价关系；实际字体与栅格化仍由受限 Job child 完成。
+//! Chrome-verified path-text equivalence; restricted Job children still provide actual fonts and rasterization.
 use super::*;
 
 #[test]

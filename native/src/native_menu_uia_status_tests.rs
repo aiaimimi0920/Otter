@@ -1,4 +1,4 @@
-//! 标记状态只读呈现；刷新撤销旧节点，不推断不存在的选择分组。
+//! Read-only marker-state presentation; refresh revokes old nodes without inventing selection groups.
 use super::*;
 
 #[test]

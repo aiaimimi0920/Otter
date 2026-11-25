@@ -1,4 +1,4 @@
-//! 28 DIP 胶囊内的真实控件；类型选项/数值/多行对话框仍沿原 Snapshot 和提交事务。
+//! Real controls inside a 28-DIP capsule; typed options, numbers, and multiline dialogs retain the original Snapshot and commit transaction.
 use super::*;
 pub(super) unsafe fn build(ui: &Ui) -> Result<()> {
     let model = ui.model.borrow().clone();
@@ -64,7 +64,7 @@ pub(super) unsafe fn build(ui: &Ui) -> Result<()> {
                     enabled: choice.enabled,
                 });
                 if spec.number {
-                    // number 和 slider 同样提供滑轨；范围和步长由已有 Spec 唯一解释。
+                    // Numbers and sliders both provide a track; the existing Spec alone interprets range and step.
                     if let Some(range) = spec.slider(initial) {
                         let rect = RECT {
                             left: 104,

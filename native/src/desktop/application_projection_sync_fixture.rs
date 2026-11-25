@@ -1,4 +1,4 @@
-//! 真实 750ms deadline/TLS/read 接缝；不点菜单或伪造完成结果，沿原 Application poll。
+//! Real 750ms deadline/TLS/read seam; no menu clicks or fabricated completion values, using original Application poll.
 use super::*;
 use base64::{engine::general_purpose::STANDARD, Engine};
 use sha2::{Digest, Sha256};
@@ -99,7 +99,7 @@ pub(super) fn peer_with_renew(
                     value = changed(&origin);
                     if mode == 1 {
                         revision = 6;
-                    } // mode 4 明确核拒绝提交后的旧 knownRevision。
+                    } // mode 4 explicitly checks the old knownRevision after commit rejection.
                 } else {
                     value["revision"] = revision.into();
                     value["snapshot"] = serde_json::Value::Null;
@@ -146,7 +146,7 @@ pub(super) unsafe fn completed(fixture: &mut Fixture, received: &mpsc::Receiver<
         assert!(Instant::now() < end, "continuous read start deadline");
         std::thread::sleep(Duration::from_millis(1));
     }
-    // 开始后不再 poll：精确停在真实 worker 已完成、UI 尚未领取的边界。
+    // Stop polling after startup, exactly at the boundary where the real worker finished but UI has not collected it.
     received.recv_timeout(Duration::from_secs(5)).unwrap();
     let handle = fixture.app.projection_receive.wait_handle().unwrap();
     assert_eq!(

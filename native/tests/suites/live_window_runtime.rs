@@ -1,4 +1,4 @@
-//! 显式运行的交互桌面验证：仅捕获本测试创建的纯色 HWND，不枚举窗口或读取桌面。
+//! Explicit interactive-desktop verification: capture only this test's solid-color HWND, without enumerating windows or reading the desktop.
 #![cfg(windows)]
 use otter_native::{
     desktop::composition::live::host::{Host, Update},
@@ -180,7 +180,7 @@ unsafe fn frame(
             "fixture frame timed out; worker={:?}",
             job.take_ready()
         );
-        // 仅显式测试的有界等待；生产捕获与 UI 不使用此轮询。
+        // Bounded waiting only for this explicit test; production capture and UI do not use this polling.
         std::thread::sleep(Duration::from_millis(5));
     }
 }

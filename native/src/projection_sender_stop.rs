@@ -1,4 +1,4 @@
-//! 稳定解绑的持久减权/成功回执仍归原 Store；回执不授网络能力，ack 只接受精确 canonical proof。
+//! Original Store owns stable-unlink persistent privilege reduction/success receipts; receipts grant no network capability, and ACK accepts only exact canonical proof.
 use super::*;
 #[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-save")))]
 #[path = "projection_sender_stop_tests.rs"]
@@ -20,7 +20,7 @@ impl Request {
             })
         })
     }
-    /// 后台显式用户意图；两次 revoke 封住 activate 登记竞争，不能由普通退出隐式调用。
+    /// Explicit background user intent; two revoke calls close activate-registration races, never implicitly invoked by ordinary exit.
     pub(crate) fn request_stop(&self) -> Result<(), Error> {
         let intent = &self.intent();
         let store = &intent.store;
@@ -42,7 +42,7 @@ impl Request {
         next[index].stop = Some(record::Stop::Requested);
         store.persist(&mut state, next, &cancel)
     }
-    /// proof 仅由 canonical commit owner 构造；这里仍后台重核完整日志基线和原成功回执。
+    /// Only canonical commit owners construct proof; background work still rechecks full journal baselines/original success receipts.
     pub(crate) fn acknowledge_stop(
         &self,
         proof: &binding::stop::Acknowledgement,

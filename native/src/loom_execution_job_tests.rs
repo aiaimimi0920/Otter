@@ -1,4 +1,4 @@
-//! 真实后台线程、认证连接和单槽交付，只有自建回环服务。
+//! Real background threads, authenticated connections, and single-slot delivery using only owned loopback services.
 use super::*;
 use crate::{
     desktop::{
@@ -340,7 +340,7 @@ fn task_collection_retires_closed_or_replaced_requests_without_blocking_ui_owner
         } else {
             tasks.retire_changed(|_, _| false);
         }
-        // 取消后槽仍归旧 owner，直到后台完成被显式领取。
+        // After cancellation, the slot remains with the old owner until background completion is explicitly claimed.
         assert_eq!(tasks.len(), 1);
         let deadline = Instant::now() + Duration::from_secs(5);
         let report = loop {

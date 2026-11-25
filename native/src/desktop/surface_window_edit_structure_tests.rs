@@ -1,4 +1,4 @@
-//! 同场景 EDIT 挂载/rebind 改变 HWND 结构；空操作和纯同步不发送结构事件。
+//! Same-scene EDIT mount/rebind changes HWND structure; no-op/pure synchronization sends no structure events.
 use super::*;
 use windows::core::Interface;
 fn binding(generation: u64) -> crate::surface_live_binding::Binding {
@@ -59,7 +59,7 @@ fn uia_edit_mount_and_rebind_notify_but_identical_binding_and_sync_do_not() {
         .accessibility_edit_hwnd("field")
         .unwrap();
     unsafe {
-        // HWND 数值允许复用；只对不再是当前控件的数值断言 NULL。
+        // HWND values may be reused; assert NULL only for values no longer representing current controls.
         if old != new {
             let mut output = std::ptr::dangling_mut();
             assert_eq!(

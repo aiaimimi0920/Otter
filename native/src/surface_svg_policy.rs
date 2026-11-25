@@ -1,4 +1,4 @@
-//! 首批静态矢量准入。未实现内容整体失败，不能交给 usvg 静默忽略。
+//! Initial static-vector admission. Unsupported content fails as a whole rather than being silently ignored by usvg.
 use super::invalid;
 use resvg::usvg::roxmltree::{Document, ParsingOptions};
 use std::io;
@@ -58,7 +58,7 @@ pub(super) fn validate(doc: &Document<'_>) -> io::Result<()> {
         {
             return Err(invalid());
         }
-        // 嵌套 viewport 由 renderer 的 transform/clip 管理；只有根参与自然尺寸规范化。
+        // Renderer transforms/clips manage nested viewports; only the root participates in natural-size normalization.
         for attr in node.attributes() {
             if attr.namespace().is_some()
                 && !(attr.namespace() == Some(XLINK) && attr.name() == "href")

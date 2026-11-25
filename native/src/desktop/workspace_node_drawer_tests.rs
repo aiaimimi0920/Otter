@@ -1,4 +1,4 @@
-//! 原 Application、自有 HWND 和真实 BUTTON 消息回归；不操作前台或用户窗口。
+//! Original Application, owned HWNDs, and real BUTTON-message regressions; no foreground/user-window operations.
 use super::*;
 use windows::Win32::{Graphics::Gdi::*, UI::Input::KeyboardAndMouse::*};
 #[path = "workspace_pin_settings_disclosure_tests.rs"]
@@ -45,7 +45,7 @@ fn repeated_caret_clicks_publish_centered_drawer_and_leave_no_black_caret_box() 
                 assert_eq!(open.drawer.handle(), root);
                 let mut pin = RECT::default();
                 let mut drawer = RECT::default();
-                // 抽屉附着实际图片客户区，不包含普通窗口的不可见 resize frame。
+                // Drawers attach to actual image client areas, excluding ordinary windows' invisible resize frames.
                 let host = app.documents[0].window.0;
                 GetClientRect(host, &mut pin).unwrap();
                 let mut origin = POINT::default();
@@ -189,7 +189,7 @@ fn art_bottom_buttons_commit_existing_parameter_drafts_before_setting_or_run() {
                 (!before, !before)
             );
         }
-        // 草稿提交会排入原参数触发；设置换代使它过期，由原调度入口退休，不启动网络。
+        // Draft commits enqueue original parameter triggers; settings-generation changes expire them, and original scheduling retires them without networking.
         app.start_requested_preparations(false);
         app.sync_workspace_chrome(true);
         assert!(app.documents[0].state.pending_start.borrow().is_none());

@@ -1,4 +1,4 @@
-//! 活文档显式停止：原 Store 减权→canonical pending→原 unlink/持久回执→canonical 移除→后台 ack。
+//! Explicit stop for live documents: original Store revocation -> canonical pending -> original unlink/durable receipt -> canonical removal -> background ack.
 use super::*;
 use crate::session_source::Source;
 use std::time::{Duration, Instant};
@@ -59,7 +59,7 @@ impl Application {
             && !self.remote_sessions.projection_pending()
             && self.sender_stop_available()
     }
-    // Begin只需精确内存快照；不读Store锁，可立即中断Updating并在原后台链持久减权。
+    // Begin needs only an exact memory snapshot, without reading the Store lock; it can immediately interrupt Updating and persist revocation through the original background chain.
     pub(super) fn sender_stop_available(&self) -> bool {
         self.projection_sender.group.is_none()
             && (matches!(self.projection_sender.phase, Phase::Idle)
@@ -124,7 +124,7 @@ impl Application {
         self.sender_status("停止尚未完成；原意图与回执保留");
     }
     pub(super) unsafe fn poll_sender_stop(&mut self) {
-        // 到期唤醒必须消费；工作区暂不可用或 Begin 未落盘时也不能留下过期 WM_NULL 自旋。
+        // Consume deadline wakeups; temporary workspace unavailability or unpersisted Begin must not leave expired WM_NULL spinning.
         if self
             .projection_sender
             .stop
@@ -159,13 +159,13 @@ impl Application {
                 }
                 Ok(job::Output::Begun | job::Output::Patched(..)) => {}
                 Err(_) if job.ack && job.request.published_retired() => {
-                    // persist 可能已真实提交，但保留恢复副本而报错；不让原 profile 变成幽灵条目。
+                    // persist may have actually committed but report an error because a recovery copy remains; do not leave a ghost entry in the original profile.
                     self.projection_sender.profile.retired(&job.request);
                     self.projection_sender.stop.due = None;
                     self.sender_status("发送关联已停止；日志恢复副本保留");
                 }
                 Err(_) if job.begin && !job.request.stop_requested() => {
-                    // 未发布减权时不能假装已受理；保原 Request，菜单允许用户再次显式重试。
+                    // Without published revocation, do not pretend the request was accepted; preserve original Request and let the user explicitly retry through the menu.
                     self.projection_sender.stop.busy = false;
                     self.projection_sender.stop.due = None;
                     self.sender_status("停止未执行：持久减权失败；请重试");
@@ -188,7 +188,7 @@ impl Application {
             .profile
             .entries()
             .and_then(|entries| {
-                // 单项网络失败不能使其余已持久受理的组成员永远等不到pending/ack。
+                // One network failure must not leave other durably accepted group members waiting forever for pending/ack.
                 entries
                     .iter()
                     .enumerate()

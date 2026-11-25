@@ -1,5 +1,5 @@
 #![cfg(windows)]
-//! 真实 EXE 读取合成中断现场；不终止用户程序，不把此测试当作断电实验。
+//! The real EXE reads synthetic interruption state; do not terminate user programs or present this as a power-loss experiment.
 use std::{
     fs,
     io::Write,

@@ -1,4 +1,4 @@
-//! 空闲阻塞等待命令、原 Lease 撤销、child 终态和首次准入期限；不轮询，不在 UI join。
+//! While idle, block on commands, original Lease revocation, child termination, and initial-admission deadlines; no polling or UI join.
 use super::*;
 use std::os::windows::io::AsRawHandle;
 use windows::Win32::{
@@ -54,7 +54,7 @@ pub(super) fn run(
             .as_ref()
             .and_then(|session| session.child.as_ref())
             .ok_or(Error::Stopped)?;
-        // 撤销/child 终态排在命令前，同步就绪时不再执行排队操作。
+        // Revocation/child termination precedes commands; when ready together, execute no queued operations.
         let handles = [
             HANDLE(revoked.handle().as_raw_handle()),
             HANDLE(child.handle().as_raw_handle()),

@@ -1,4 +1,4 @@
-//! 磁盘提示不包含凭据/场景，不可直接恢复成授权 owner；文件测试仅使用 linshi。
+//! Disk hints contain no credentials/scenes and cannot directly restore authorized owners; file tests use only linshi.
 use super::*;
 use std::path::PathBuf;
 

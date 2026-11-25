@@ -1,4 +1,4 @@
-//! 原生高级参数编辑；不跨模态消息循环借用状态，提交绑定选择身份和局部版本。
+//! Native advanced-parameter editing; do not borrow state across modal message loops, and bind commits to selection identity and local revision.
 use super::State;
 use crate::loom_parameter_state::Parameters;
 use serde_json::{Map, Value};
@@ -35,7 +35,7 @@ impl Edit {
             .entries()
             .filter_map(|(id, value)| value.map(|v| (id.into(), v.clone())))
             .collect();
-        // 使用紧凑 JSON 避免格式化空白把已接受的状态放大到输入上限之外。
+        // Use compact JSON so formatting whitespace cannot inflate accepted state beyond the input limit.
         let text = serde_json::to_string(&value).map_err(|_| invalid())?;
         if text.len() > MAX_TEXT {
             return Err(invalid());
@@ -60,7 +60,7 @@ impl Edit {
         let Some(selected) = selection.as_mut() else {
             return Ok(false);
         };
-        // PostMessage 不运行嵌套消息循环；取消入队失败时保留旧参数。
+        // PostMessage runs no nested message loop; retain old parameters if cancellation cannot be enqueued.
         super::execution_cancel::request(hwnd, state)?;
         selected.parameters = self.candidate;
         drop(selection);

@@ -1,4 +1,4 @@
-//! 实际 loopback TLS 的发送创建/恢复；复用原 CA/HTTP/身份夹具，不发在线请求。
+//! Actual loopback TLS sender creation/recovery reuses original CA/HTTP/identity fixtures, without online requests.
 use super::request as http_request;
 use super::*;
 use crate::{

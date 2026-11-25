@@ -1,4 +1,4 @@
-//! 文档附件/源版本 owner；保存只冻结 Arc 值，源内容变化推进版本，显隐不推进源版本。
+//! Document attachment/source-revision owner; saves freeze Arc values only, content changes advance revisions, and visibility does not.
 use super::{canvas::Canvas, display_frame::Frame, State};
 use crate::{
     loom_extension_snapshot::MAX_INTEGER,
@@ -34,7 +34,7 @@ pub(super) struct Stamp {
     store: StoreStamp,
     source: Arc<()>,
 }
-/// 只追踪已提交内容与外部来源；尺寸、透明度、样式和缩放视口不改变识别来源。
+/// Track only committed content/external provenance; dimensions, opacity, styles, and zoom viewports do not alter recognition sources.
 pub(super) struct Source {
     document: crate::editor::DocumentStamp,
     display: Option<Arc<()>>,
@@ -73,7 +73,7 @@ impl Owner {
         }
     }
     pub(super) fn observe(&mut self, canvas: &Canvas, frame: Option<&Frame>) {
-        // 草稿不是已提交源；不能在每个鼠标 sample 推进持久化来源版本。
+        // Drafts are not committed sources; do not advance persisted source revisions on every mouse sample.
         if canvas.editor.draft().is_some() {
             return;
         }
@@ -123,12 +123,12 @@ impl Snapshot {
         fields: &mut Map<String, Value>,
     ) -> Result<(), crate::unit_attachment_store::Error> {
         self.store.write(fields)?;
-        // 未知的历史 propagation 不用默认对象覆盖；相应来源不能授权翻译视图。
+        // Do not replace unknown historical propagation with default objects; corresponding provenance cannot authorize translation views.
         if let Some(revision) = self.revision {
             let propagation = fields
                 .entry("stickerEditPropagation")
                 .or_insert_with(|| Value::Object(Map::new()));
-            // Option<RawValue> 把 JSON null 当作缺省；保存时按同一语义补成来源对象。
+            // Option<RawValue> treats JSON null as absent; save fills a provenance object using the same semantics.
             if propagation.is_null() {
                 *propagation = Value::Object(Map::new());
             }

@@ -1,4 +1,4 @@
-//! 单节点结果 owner：预览不传播到正式端口，最终提交保留本轮预览并原子合并端口。
+//! Single-node result owner: previews never propagate to official ports; final commits preserve this round's preview and merge ports atomically.
 use super::{
     image::Image,
     loom_output_batch::{Batch, Output, Port},
@@ -12,7 +12,7 @@ mod restore_values;
 #[path = "loom_result_save_values.rs"]
 mod save_values;
 
-/// 不透明正式输出凭证；不持有像素，也不会因计数溢出或重建同名节点而复用。
+/// Opaque official-output evidence; no pixels or identity reuse from counter overflow/recreated same-named nodes.
 #[derive(Clone)]
 pub struct OutputStamp(Arc<()>);
 impl OutputStamp {
@@ -89,7 +89,7 @@ impl Results {
     pub fn unit(&self) -> &UnitId {
         &self.unit
     }
-    /// 会话图像仅作为初始显示，不伪造已完成请求、正式端口或 workflow preview。
+    /// Session images serve only initial display, without fabricated completed requests, official ports, or workflow previews.
     pub fn from_restored_display(unit: UnitId, display: Option<Image>, locked: bool) -> Self {
         Self {
             restored_preview_locked: locked && display.is_some(),
@@ -100,7 +100,7 @@ impl Results {
     pub fn holds_restored_preview(&self) -> bool {
         self.restored_preview_locked
     }
-    /// 只解除保持标记；不清空旧画面或伪造正式输出。执行开关与该标记互相独立。
+    /// Clear retention flags only, without erasing old images or fabricating official outputs. Execution toggles and this flag are independent.
     pub fn invalidate_restored_preview(&mut self) {
         self.restored_preview_locked = false;
     }
@@ -115,7 +115,7 @@ impl Results {
         self.preview_revision = 0;
         self.workflow_preview = None;
         self.clear_candidates();
-        // 与主干一致：启动新执行不清掉已有正式输出/画面。
+        // As in the baseline, starting new execution does not clear existing official output/display.
     }
     pub fn display(&self) -> Option<&Image> {
         self.display.as_ref()
@@ -126,7 +126,7 @@ impl Results {
     pub fn output_stamp(&self) -> OutputStamp {
         self.output_stamp.clone()
     }
-    /// 只取正式端口；预览和 display 不参与执行来源选择。图像像素共享，不复制。
+    /// Use official ports only; previews/display do not select execution sources. Share image pixels without copying.
     pub fn image_source(&self, name: &str) -> Option<ImageSource> {
         let port = self.ports.iter().find(|port| port.name == name)?;
         Some(ImageSource {
@@ -171,7 +171,7 @@ impl Results {
     pub fn error(&self) -> Option<&str> {
         self.error.as_deref()
     }
-    /// 只接收当前请求的有限进度值，不猜测远端使用百分比还是归一化单位。
+    /// Accept only finite progress values for current requests; never guess whether remote units are percentages or normalized.
     pub fn set_progress(&mut self, request: &Request, progress: f64) -> bool {
         if self.active.as_ref() != Some(request) || !progress.is_finite() {
             return false;
@@ -179,7 +179,7 @@ impl Results {
         self.progress = Some(progress);
         true
     }
-    /// 用户可见错误有界，失败保留原显示和正式端口；不写日志或复制协议原始响应。
+    /// Bound user-visible errors and preserve old displays/official ports on failure; no logging or raw-protocol-response copies.
     pub fn fail(&mut self, request: &Request, message: &str) -> bool {
         if self.active.as_ref() != Some(request) {
             return false;
@@ -210,9 +210,9 @@ impl Results {
         self.display = Some(image.clone());
         Ok(true)
     }
-    /// 调用方先确认文档/图配置新鲜度，再在同一 UI 调度段提交；远端结果须先释放租约。
-    /// 本地结果无需也不得伪造远端 lease/delivery；该层不替代应用的来源/配置核验。
-    /// 失败不修改旧结果；输入已是纯本地 owner，失败可安全回收。
+    /// Callers confirm document/graph freshness before committing in the same UI scheduling segment; release remote-result leases first.
+    /// Local results neither need nor may fabricate remote leases/deliveries; this layer does not replace application provenance/configuration validation.
+    /// Failure preserves old results; inputs are purely local owners and can be reclaimed safely on failure.
     pub fn finish(&mut self, request: &Request, batch: Batch) -> Result<(), Error> {
         if self.active.as_ref() != Some(request) {
             return Err(Error::Stale);
@@ -220,7 +220,7 @@ impl Results {
         let image = batch.primary().value.image_value();
         let candidates = batch.candidates.clone();
         let (mut incoming, _) = batch.into_ports();
-        // 主干图像最终输出同时覆盖 output 和 output_image，像素仅共享，不复制。
+        // Baseline final image output replaces both output and output_image, sharing pixels without copying.
         if let Some(image) = &image {
             incoming.try_reserve(2).map_err(|_| Error::Allocation)?;
             for name in ["output", "output_image"] {
@@ -260,7 +260,7 @@ impl Results {
         for port in &incoming {
             costs.push(bytes.charge(&port.value)?);
         }
-        // 所有失败点先处理，再移动旧端口；正式输出总预算采用保守的别名重复计数。
+        // Handle every failure point before moving old ports; conservatively count aliases repeatedly toward total official-output budget.
         let mut merged = Vec::new();
         merged.try_reserve(count).map_err(|_| Error::Allocation)?;
         let output_stamp = OutputStamp(Arc::new(()));
@@ -300,7 +300,7 @@ impl Results {
 }
 #[path = "surface_node_results.rs"]
 mod surface;
-// 避免为了预算检查先序列化一个同等大小的 JSON 字符串。
+// Avoid serializing an equally large JSON string merely to check budgets.
 struct Meter(usize);
 impl Meter {
     fn charge(&mut self, output: &Output) -> Result<usize, Error> {

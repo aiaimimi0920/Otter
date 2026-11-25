@@ -1,4 +1,4 @@
-//! 点击和生命周期事务共享唯一 owner；事件身份不能被迟到结果替换。
+//! Click and lifecycle transactions share one unique owner; late results cannot replace event identity.
 use super::*;
 use crate::{
     surface_activation::Activation,
@@ -88,7 +88,7 @@ fn not_active_attempted_and_unmatched_binding_cannot_start_event_transfer() {
         assert!(state.take_event(&event).is_none());
         assert!(state.owner().is_some());
     }
-    // mount 合同直接拒绝 disposed；通过真实生命周期 ACK 构造终态而非非法夹具。
+    // The mount contract rejects disposed directly; construct terminal state through real lifecycle ACKs rather than an invalid fixture.
     let mut disposed = owner("active");
     let revision = disposed.begin(Lifecycle::Disposed).unwrap();
     disposed

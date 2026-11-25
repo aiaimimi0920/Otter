@@ -1,4 +1,4 @@
-//! 保留缓冲区的拓扑裁剪、库消费和失败不变性；无需 HWND 或用户文件。
+//! Topology pruning, library consumption, and failure invariance of retained buffers; no HWNDs or user files.
 use super::*;
 
 #[test]

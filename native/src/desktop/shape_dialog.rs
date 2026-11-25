@@ -1,4 +1,4 @@
-//! 系统模态输入框；状态仅在同步 DialogBox 调用期间借出，不持有 Canvas 借用。
+//! System modal input dialog; lend state only during synchronous DialogBox calls without Canvas borrows.
 use windows::{
     core::HSTRING,
     Win32::{Foundation::*, UI::WindowsAndMessaging::*},
@@ -13,7 +13,7 @@ const ERROR: i32 = 102;
 thread_local! {
     static FAIL_TRIGGER_AFFINITY: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
-// DWLP_USER = sizeof(LRESULT) + sizeof(DLGPROC)，不能使用仅适用于 32 位的 DWL_USER。
+// DWLP_USER = sizeof(LRESULT) + sizeof(DLGPROC); do not use 32-bit-only DWL_USER.
 const DWLP_USER: i32 = (2 * std::mem::size_of::<isize>()) as i32;
 #[derive(Clone, Copy, PartialEq)]
 enum Mode {
@@ -111,7 +111,7 @@ unsafe extern "system" fn procedure(
         SetWindowLongPtrW(hwnd, WINDOW_LONG_PTR_INDEX(DWLP_USER), lparam.0);
         let _ = SetDlgItemTextW(hwnd, INPUT, &HSTRING::from(&state.value));
         if let Ok(edit) = GetDlgItem(Some(hwnd), INPUT) {
-            // 限制输入，不让原生编辑控件积累无限长度粘贴内容。
+            // Bound input so native edit controls cannot accumulate unbounded pasted content.
             SendMessageW(
                 edit,
                 0x00C5,
@@ -220,7 +220,7 @@ unsafe extern "system" fn procedure(
     1
 }
 
-// DLGTEMPLATE 的项按 DWORD 对齐；最终使用 Vec<u32> 保证首地址对齐。
+// DLGTEMPLATE items are DWORD-aligned; use Vec<u32> at the end to guarantee base-address alignment.
 fn template(mode: Mode) -> Vec<u32> {
     let ratio = mode == Mode::Ratio;
     let text_input = matches!(

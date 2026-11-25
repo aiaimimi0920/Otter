@@ -1,4 +1,4 @@
-//! 公共标量原生参数入口；命令索引只针对打开时快照，不重新解释为最新目录。
+//! Native shared scalar-parameter entry point; command indices refer only to the opening snapshot, never the latest catalog.
 use super::parameter_action::Action;
 use super::{configuration_stamp::Stamp, State};
 #[path = "parameter_commit.rs"]
@@ -100,7 +100,7 @@ impl Snapshot {
             .find(|capability| capability.id == selection.parameters.art_id())?;
         let mut choices = Vec::new();
         let view = state.parameter_view.borrow();
-        // 已知旧视图不能被解释成“无连线”：保留身份，current() 在刷新前拒绝提交。
+        // Do not interpret a known stale view as "no edges": preserve identity so current() rejects commits until refreshed.
         let view = view.as_ref();
         for parameter in capability.parameters().filter(|p| !p.secret) {
             let Some(current) = selection.parameters.get(parameter.id) else {

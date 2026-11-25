@@ -1,4 +1,4 @@
-//! 单后台栅格化事务；COM 只在工作线程内存在，回执通过版本和源层身份校验后提交。
+//! Single background rasterization transaction; COM exists only in the worker thread, and receipts commit after version/source-layer identity validation.
 use super::{canvas::Canvas, State};
 use crate::{
     edit_worker_budget::Permit,
@@ -70,7 +70,7 @@ impl Job {
 impl Drop for Job {
     fn drop(&mut self) {
         self.cancel();
-        // WIC/D2D 同步调用不可中断；普通关闭先移交应用，最终析构仍回收线程。
+        // Synchronous WIC/D2D calls are uninterruptible; ordinary closing hands off to the application first, and final destruction still reclaims the thread.
         if let Some(worker) = self.worker.take() {
             let _ = worker.join();
         }
@@ -174,7 +174,7 @@ fn submit_with(
     if state.rasterize_job.borrow().is_some() {
         return Err("Busy".into());
     }
-    // WIC/D2D 不可中断，必须在线程存在前确认其回收 timer 可用。
+    // WIC/D2D is uninterruptible; confirm the reclamation timer is available before the thread exists.
     if !reserve_timer() {
         return Err("Cannot schedule rasterization result".into());
     }

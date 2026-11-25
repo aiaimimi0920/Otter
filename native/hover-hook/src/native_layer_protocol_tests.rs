@@ -1,4 +1,4 @@
-//! 固定源线程层级协议：原输入 fixture 建立真实 lease，独立请求 HWND 不占用 B 输入槽。
+//! Fixed source-thread z-order protocol: original input fixtures establish real leases, and independent request HWNDs do not consume B's input slot.
 use super::*;
 use crate::{native_layer_dispatch as layer, native_layer_protocol as p};
 use std::cell::Cell;

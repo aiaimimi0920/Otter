@@ -1,4 +1,4 @@
-//! 同一外框 HWND 从整图裁回环形，停手时不得隐藏、销毁或换窗。
+//! Clip the same border HWND from complete image back to a ring; stopping input must not hide, destroy, or replace windows.
 use super::*;
 use std::cell::Cell;
 
@@ -121,7 +121,7 @@ fn idle_zoom_and_drag_keep_the_same_border_hwnd_visible_without_handoff() {
                     } else {
                         desktop::pin_window::animation::settle(host, &doc.state);
                     }
-                    // 保留帧是正常空闲路径；这里继续保护显式编辑/取消的归还路径。
+                    // Retained frames are the normal idle path; continue protecting explicit-edit/cancel handoff here.
                     desktop::pin_window::animation::stop(host, &doc.state);
                     atomic_tests::links_below_nodes(&ui);
                     RemoveWindowSubclass(border, Some(observe), 557).unwrap();

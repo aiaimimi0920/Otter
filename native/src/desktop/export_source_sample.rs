@@ -1,4 +1,4 @@
-//! 工作流底图的有预算 D2D 取样与可取消读回；不合成标注、不提前应用透明度。
+//! Budgeted D2D sampling and cancellable readback for workflow base images; no annotation composition or early opacity application.
 use super::*;
 #[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-capture")))]
 #[path = "export_source_sample_tests.rs"]

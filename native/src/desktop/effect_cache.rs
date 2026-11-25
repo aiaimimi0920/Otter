@@ -1,4 +1,4 @@
-//! 每个 D2D 绘制目标独占效果缓存；跨目标/设备不可复用，生命周期随 Target。
+//! Each D2D render target exclusively owns its effect cache; no cross-target/device reuse, with lifetime tied to Target.
 use crate::blur_image::BlurImage;
 use std::collections::VecDeque;
 use windows::{
@@ -38,7 +38,7 @@ impl Cache {
         }
     }
 
-    /// 仅保留当前合成文档（含草稿/替换预览）引用的快照；历史不能撑住 GPU 缓存。
+    /// Retain only snapshots referenced by the current composited document, including drafts/replacement previews; history must not keep GPU caches alive.
     pub(super) fn retain_blurs<'a>(&mut self, images: impl Iterator<Item = &'a BlurImage> + Clone) {
         self.blur
             .retain(|(stored, _, _)| images.clone().any(|image| same_image(stored, image)));
@@ -57,7 +57,7 @@ impl Cache {
         self.blur_region(target, image, [0, 0, image.width(), image.height()])
     }
 
-    /// 以源图行跨度直接上传子区，不复制 CPU 像素；调用期间 image 保持存活。
+    /// Upload subregions directly with source-image row stride, without CPU pixel copies; image remains alive throughout the call.
     pub(super) unsafe fn blur_region(
         &mut self,
         target: &ID2D1RenderTarget,
@@ -83,7 +83,7 @@ impl Cache {
             return Ok(bitmap);
         }
         let bytes = width as usize * height as usize * 4;
-        // 先淘汰再上传；大于预算的单图临时绘制，不挤掉其他可复用的小图。
+        // Evict before upload; draw individual over-budget images transiently without displacing reusable smaller images.
         if bytes <= BLUR_CACHE_BYTES {
             while self.blur_bytes + bytes > BLUR_CACHE_BYTES
                 || self.blur.len() >= BLUR_CACHE_ENTRIES

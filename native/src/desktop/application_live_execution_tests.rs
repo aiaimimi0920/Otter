@@ -1,4 +1,4 @@
-//! 隐藏 Live/WARP 经生产连线、输入 worker 和回环 TLS 对端执行；不访问用户服务。
+//! Execute hidden Live/WARP through production links, the input worker, and a loopback TLS peer, without accessing user services.
 use super::*;
 use crate::desktop::application::execution_test_peer as peer;
 pub(super) fn select(app: &Application) -> (std::net::TcpListener, Arc<rustls::ServerConfig>) {
@@ -101,7 +101,7 @@ fn live_execution_menu_frame_reaches_tls_peer_and_result_returns() {
         };
         assert_eq!(*value, serde_json::json!(44));
         drop(results);
-        // 同一生产断线入口也能移除 Live 边，不因缺少 DocumentWindow 拒绝。
+        // The same production disconnection entry point also removes Live edges, without rejecting them for lacking DocumentWindow.
         app.sync_link_menus();
         let doc = &app.documents[0];
         let menu = doc.state.link_menu.borrow().clone().unwrap();

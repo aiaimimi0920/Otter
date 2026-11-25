@@ -1,4 +1,4 @@
-//! 在真实prepare之后用同步屏障撤销；HTTP计数由独立TLS接收端观察，不靠生产自报。
+//! Revoke through synchronization barriers after actual prepare; independent TLS receivers observe HTTP counts rather than production self-reports.
 use super::*;
 use std::{sync::mpsc, time::Duration};
 
@@ -220,7 +220,7 @@ fn cancel_still_sends_once_when_frozen_after_prepare() {
         assert!(listener.accept().is_err());
     });
     Views::new(&client, &lease).dispatch_state(state, None, &f.shared, &f.job, true);
-    assert_eq!(f.shared.lock().actions.notice, "Art操作被拒绝"); // 原Queue将Cancelled ACK列为拒绝终态。
+    assert_eq!(f.shared.lock().actions.notice, "Art操作被拒绝"); // The original Queue classifies Cancelled ACKs as rejected terminal states.
     assert_eq!(
         f.shared.lock().actions.test_dispatch.as_ref().unwrap()["stage"],
         "http_ack"

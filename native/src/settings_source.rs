@@ -1,4 +1,4 @@
-//! 显式配置来源：原始字节用于磁盘冲突检测，文档用于保留未知字段；不自动读写路径。
+//! Explicit configuration source: original bytes detect disk conflicts, documents preserve unknown fields; no automatic path reads/writes.
 use crate::{
     app_settings_document::{Document, MAX_BYTES},
     pixels::Pixels,

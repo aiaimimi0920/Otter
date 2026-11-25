@@ -1,4 +1,4 @@
-//! 隐藏 HWND 的实际鼠标消息/捕获测试；只生成候选，不发送任何动作。
+//! Actual mouse-message/capture tests on hidden HWNDs; generate candidates only without sending actions.
 use super::*;
 #[path = "surface_window_feedback_tests.rs"]
 mod feedback_tests;
@@ -81,7 +81,7 @@ fn consumed_candidate_cannot_cross_window_or_survive_scene_replacement() {
             .click_events_for_candidate(candidate, &binding(), 1)
             .is_err());
         let candidate = click(&first);
-        // 复用同一个节点 ID 但替换动作，旧点击仍必须失效。
+        // Reuse the same node ID with a replaced action; old clicks must still become invalid.
         first.replace(Scene::parse(br#"{"id":"target","type":"view","layout":{"height":"100%"},"events":{"click":"changed"}}"#).unwrap()).unwrap();
         assert!(first
             .click_events_for_candidate(candidate, &binding(), 1)
@@ -135,7 +135,7 @@ fn pointer_is_opt_in_single_slot_and_releases_capture_on_click() {
         assert_eq!(GetCapture(), window.hwnd);
         send(&window, WM_LBUTTONUP, 10, 10);
         assert_ne!(GetCapture(), window.hwnd);
-        // 第二个点击不能覆盖尚未消费的第一个。
+        // A second click cannot overwrite the unconsumed first click.
         send(&window, WM_LBUTTONDOWN, 20, 20);
         send(&window, WM_LBUTTONUP, 20, 20);
         let click = window.take_click().unwrap();

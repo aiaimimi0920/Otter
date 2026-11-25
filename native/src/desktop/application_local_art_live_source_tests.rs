@@ -1,4 +1,4 @@
-//! Live→独立 Local Art 经真实签名包和 child 输入资源；只用自有合成帧/回环 TLS。
+//! Live -> independent Local Art through a real signed package and child input resources; owned synthetic frames/loopback TLS only.
 use super::*;
 use base64::{engine::general_purpose::STANDARD, Engine};
 const READ: &str = r#"

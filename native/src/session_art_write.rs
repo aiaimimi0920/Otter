@@ -1,4 +1,4 @@
-//! 已绑定 Art 的公共参数/执行配置写回；旧 params 不参与合并，避免恢复已经过滤的 secret。
+//! Write public parameters/execution configuration for bound Art; never merge old params and revive filtered secrets.
 use crate::{graph_execution_config::Config, loom_parameter_state::Parameters};
 use serde_json::{Map, Value};
 
@@ -14,7 +14,7 @@ pub fn merge(
             _ => Map::new(),
         }
     } else {
-        // 更换能力时不把旧能力的未知执行配置带给新能力。
+        // When changing capabilities, do not transfer old capability's unknown execution configuration to the new one.
         window.remove("executionConfig");
         Map::new()
     };

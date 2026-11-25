@@ -1,4 +1,4 @@
-//! 独立wire/坐标oracle：mode/checkpoint不误确认本地编辑；自动申请只产生新的有界请求。
+//! Independent wire/coordinate oracle: mode/checkpoint cannot falsely acknowledge local edits; automatic requests produce only fresh bounded requests.
 use super::*;
 use crate::projection_edit::{fixture::*, view::Size, workspace::Suspension};
 use serde_json::json;

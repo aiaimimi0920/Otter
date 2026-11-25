@@ -1,4 +1,4 @@
-//! 贴图设置与标注共用撤销游标；实际 HWND 事务成功后才记录，不更改滚轮/移动历史语义。
+//! Pin settings and annotations share an undo cursor; record only successful actual-HWND transactions without changing wheel/move history semantics.
 use super::State;
 use crate::{editor::PinValue, pin_geometry::PinRect};
 use windows::{
@@ -64,7 +64,7 @@ pub(super) unsafe fn step(hwnd: HWND, state: &State, redo: bool) -> Result<bool>
     };
     if let Some(effect) = effect {
         if let Err(error) = apply(hwnd, state, effect) {
-            // 失败恢复同一游标；不让模型把未呈现的撤销算作成功。
+            // Restore the same cursor on failure; the model must not count an unpresented undo as successful.
             let mut c = state.canvas.borrow_mut();
             let restored = if redo {
                 c.editor.undo()
@@ -99,7 +99,7 @@ pub(super) unsafe fn style(
         PinValue::Style(next),
     ))
 }
-/// 键盘入口无法传播 Result；只在此输入边界记录失败，窗口过程保持轻量接线。
+/// The keyboard entry cannot propagate Result; log failures only at this input boundary and keep window-procedure wiring lightweight.
 pub(super) unsafe fn shortcut(hwnd: HWND, state: &State, redo: bool) -> bool {
     match step(hwnd, state, redo) {
         Ok(changed) => changed,

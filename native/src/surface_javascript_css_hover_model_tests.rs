@@ -1,4 +1,4 @@
-//! 动态谓词的原 Engine 压力/深度边界；真实 child 与 HWND 另验，不放宽预算。
+//! Original Engine stress/depth boundaries for dynamic predicates; real children and HWNDs are verified separately without relaxed budgets.
 use super::*;
 fn apply(engine: &mut Engine, command: Command) -> Output {
     let result = engine.apply(

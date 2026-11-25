@@ -1,4 +1,4 @@
-// 私有桥只负责生命周期/emit/投影；文档状态由独立工厂封装，不解释插件业务代码。
+// The private bridge handles only lifecycle/emit/projection; a separate factory encapsulates document state without interpreting plugin business code.
 ((makeTree, attributes, selectors, markup, json, cssGridTracks, cssGrid, cssSpatial, cssValues, cssSelectors, cssDeclarations, cssSheets, cssProjection, makeGeometry, makeAnimation, makeTimers, makeResize, makeCanvas, makeCanvasContext, makeCanvasPath, makeFonts, makeEvents, makeForm, makeFocus, makeHover, makeBorders, makeServices, makeResult, makeImages) => {
   "use strict";
   const clone = json.clone, freeze = Object.freeze, ErrorType = Error;
@@ -13,7 +13,7 @@
   attributes(dom, fail, form); const { query, first } = selectors(dom, fail);
   const spatial = cssSpatial(dom, fail);
   const values = cssValues(dom, fail, cssGrid(dom, fail, cssGridTracks(dom, fail)), spatial, makeFonts(dom, fail), makeBorders), declarations = cssDeclarations(dom, fail, values);
-  // 工厂构造不求值样式；插件运行前完成同一 Hover owner 的双向接线。
+  // Factory construction does not evaluate styles; wire the same Hover owner in both directions before running the plugin.
   let hover;
   const sheets = cssSheets(dom, fail, values, cssSelectors(dom, fail, node => hover.matches(node)), declarations);
   hover = makeHover(dom, fail, sheets);
@@ -66,15 +66,15 @@
       const event = { nodeId: request.nodeId, event: request.event, action: request.action,
         class: request.class, payload: request.payload ?? null };
       const encoded = json.payload(event.payload);
-      // UTF-16 长度是 UTF-8 字节数下界；ASCII 快路避免逐字符迭代器/临时字符串。
+      // UTF-16 length is a lower bound on UTF-8 byte length; the ASCII fast path avoids per-character iterators and temporary strings.
       const limit = 60 * 1024;
       let bytes = encoded.length;
       if (bytes > limit) return false;
-      // 避免 QuickJS 对补充平面字符串逐次 charCodeAt 转换；宿主只计算同一 JSON 的 UTF-8 长度。
-      // UTF-16 上界已检查，最多转换 180 KiB，不暴露文件/网络或其他宿主能力。
+      // Avoid repeated QuickJS charCodeAt conversions for supplementary-plane strings; the host only computes the UTF-8 length of the same JSON.
+      // The UTF-16 upper bound is already checked, limiting conversion to 180 KiB without exposing files, network access or other host capabilities.
       if (/[^\x00-\x7F]/.test(encoded)) bytes = utf8Length(encoded);
       if (bytes > limit) return false;
-      // 首个子集保留 4 KiB 给宿主身份/envelope；父侧仍执行完整 64 KiB wire 门。
+      // The initial subset reserves 4 KiB for host identity/envelope; the parent still enforces the full 64 KiB wire limit.
       event.payload = json.decode(encoded); op.push(emitted, event); return true;
     } catch { return false; }
   };
@@ -89,7 +89,7 @@
     serviceWithConfirmation: services.callWithConfirmation,
     commitResult: result.commit, image: images.image, snapshot: () => clone(snapshot), resource: id => Object.hasOwn(resources, id) ? resources[id] : undefined,
   }) });
-  // apply 已拥有 Promise 边界；直接调生命周期，避免同步 getter 再套一层 async 栈。
+  // apply already owns the Promise boundary; invoke lifecycle methods directly to avoid adding an async stack to synchronous getters.
   const apply = async json => {
     const command = protocol.decode(json); emitted = op.array(); defaultAllowed = null;
     const callback = command.type === "liveTrigger";
@@ -105,13 +105,13 @@
       snapshot = command.snapshot; resources = freeze(command.resources);
       if (typeof definition.update === "function") await definition.update({ snapshot: clone(snapshot), resources });
     } else if (command.type === "selectView") {
-      // snapshot 是私有 null-prototype 副本；不触发插件安装的继承 setter，也不改权威 revision。
+      // snapshot is a private null-prototype copy; it neither triggers plugin-installed inherited setters nor changes the authoritative revision.
       snapshot.viewId = command.viewId;
       if (typeof definition.update === "function") await definition.update({ snapshot: clone(snapshot), resources });
     } else if (command.type === "click") {
       const target = op.mapGet(nodes, command.target);
       if (suspended || !target || op.mapHas(dom.get(target).attrs, "disabled")) fail();
-      // 此处只判连通；分派自身仍保留 capture/bubble/composedPath 的路径快照。
+      // Only check connectivity here; dispatch itself retains the capture/bubble/composedPath path snapshot.
       let current = target;
       while (current && current !== root) current = dom.get(current).parent;
       if (!current) fail();
@@ -129,7 +129,7 @@
         } return false; };
         if (!target || dom.get(target).tag !== "canvas" || (input.phase !== "pointercancel" && !connected())) fail();
         await dom.events.pointer(target, input);
-        // Pointer 没有原生默认动作；click 保持原阈值，在 up/microtask 后重验连接身份。
+        // Pointer has no native default action; click retains its original threshold and rechecks connection identity after up/microtasks.
         if (input.click && connected(true) && !op.mapHas(dom.get(target).attrs, "disabled")) await dom.events.click(target);
       }
       else if (command.input.kind === "text" && (input.phase === "input" || input.phase === "change"))
@@ -137,7 +137,7 @@
       else fail();
     } else if (callback) {
       if (!mounted || typeof definition.onLiveTrigger !== "function") fail();
-      // 自动回调不制造点击/gesture，不恢复暂停的timer或给宿主焦点请求。
+      // Automatic callbacks do not synthesize clicks/gestures, resume paused timers or request host focus.
       await definition.onLiveTrigger(clone(command.event));
     } else if (command.type === "animationFrame") {
       if (suspended) fail(); timers.begin(); animation.begin();
@@ -162,7 +162,7 @@
       dom.events.dispose();
     } else fail();
   };
-  // apply 的 Promise 和所有可运行 microtask 完成后，Rust 才 collect，避免丢晚到 emit。
+  // Rust collects only after the apply Promise and all runnable microtasks finish, avoiding lost late emits.
   const protocol = json;
   return { apply, endServices() { services.end(); result.end(); },
     bindUtf8Length(value) { if (utf8Length || typeof value !== "function") fail(); utf8Length = value; },

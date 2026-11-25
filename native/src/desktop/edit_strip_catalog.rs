@@ -1,4 +1,4 @@
-//! 主干主工具条的分组与图标；业务命令留在 Otter，主题库只消费通用图标和按钮。
+//! Baseline primary-toolbar groups/icons; Otter retains business commands, while theme libraries consume only generic icons/buttons.
 use neuro_mini_ui::{Button, Item};
 pub(super) const SETTINGS: u16 = 0x6100;
 pub(super) const MODE: u16 = 0x6101;

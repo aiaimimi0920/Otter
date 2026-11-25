@@ -1,4 +1,4 @@
-//! 真实同步模态窗的首显前控件回归；仅在未切换 desktop 内运行，不注入全局输入。
+//! Control regressions before first display of a real synchronous modal window; run only on the unchanged desktop, without global input injection.
 use super::*;
 use std::any::Any;
 use windows::{core::w, Win32::Graphics::Gdi::*};
@@ -74,7 +74,7 @@ unsafe fn run(action: impl FnOnce(HWND) + 'static) -> Outcome {
     );
     result.unwrap()
 }
-// 调用者限于同步 initialized 回调；返回借用不得越过 show 的栈上 Ui 生命周期。
+// Callers are limited to the synchronous initialized callback; the returned borrow must not outlive show's stack-allocated Ui.
 unsafe fn ui<'a>(hwnd: HWND) -> &'a Ui<'a> {
     &*(GetWindowLongPtrW(hwnd, USER) as *const Ui<'_>)
 }

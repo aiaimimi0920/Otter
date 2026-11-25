@@ -1,4 +1,4 @@
-//! 通用 Grid → 真实 HWND/Presentation/D2D → 同几何命中；隐藏窗口不注入全局输入。
+//! Generic Grid -> actual HWND/Presentation/D2D -> same-geometry hits; hidden windows inject no global input.
 use super::*;
 use serde_json::json;
 use windows::Win32::{

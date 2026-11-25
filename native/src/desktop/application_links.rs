@@ -1,4 +1,4 @@
-//! 工作区连线变更的唯一 UI owner；不在弹出菜单的重入消息循环修改拓扑。
+//! Sole UI owner of workspace link changes; never mutate topology in popup menus' reentrant message loops.
 use super::Application;
 #[path = "application_live_links.rs"]
 mod live;
@@ -25,7 +25,7 @@ impl Application {
             return true;
         }
         if let Some(doc) = self.documents.iter().find(|doc| &doc.state.unit_id == unit) {
-            // UI owner 在此短借用中不派发消息；只查询 HWND 存活，不调用窗口过程。
+            // The UI owner dispatches no messages during this short borrow; query HWND liveness only, without invoking window procedures.
             return !unsafe { doc.is_alive() }
                 || doc.state.group_locked.get()
                 || doc.state.group_hidden.get()
@@ -100,7 +100,7 @@ impl Application {
         for request in requests {
             self.apply_link_creation(request);
         }
-        // 后续 cancel_requested_executions 按拓扑凭证退休旧执行，不另建取消策略。
+        // Subsequent cancel_requested_executions retires old executions by topology credentials; do not create a separate cancellation policy.
         unsafe {
             self.process_live_unlink_requests();
             self.process_live_link_requests();

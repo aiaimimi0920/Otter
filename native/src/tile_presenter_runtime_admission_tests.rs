@@ -1,4 +1,4 @@
-//! 原Runtime/真实TLS/自有已paint HWND：在途heartbeat不授输入，严格成功ACK后才开放。
+//! Original Runtime/real TLS/owned painted HWNDs: in-flight heartbeats grant no input until strict successful ACKs.
 use super::*;
 use std::sync::mpsc;
 

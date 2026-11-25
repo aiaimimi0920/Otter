@@ -1,4 +1,4 @@
-//! 中断完整 Application 管线而非模拟 Drop；最近成功检查点可恢复，未发布候选不替代它。
+//! Interrupt the complete Application pipeline rather than simulate Drop; the latest successful checkpoint restores, and unpublished candidates never replace it.
 use super::*;
 use crate::test_process as process;
 use std::process::Command;

@@ -1,4 +1,4 @@
-//! 宿主发布到自有源线程真实 hook，覆盖同步 motion 的租约与 modal 槽隔离。
+//! Host publication to a real hook on an owned source thread, covering synchronous-motion leases and modal-slot isolation.
 use super::*;
 use std::{cell::Cell, sync::mpsc, thread::JoinHandle};
 use windows::{core::w, Win32::System::LibraryLoader::GetModuleHandleW};

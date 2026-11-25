@@ -1,4 +1,4 @@
-//! 单次命令事务：先取得远端单次许可，再读取宿主资源；完整结果仍需宿主检查目标并提交。
+//! One-shot command transaction: obtain remote one-time permission before reading host resources; hosts still check targets/commit complete results.
 use super::*;
 use serde_json::{json, Value};
 struct Policy {
@@ -47,8 +47,8 @@ impl Policy {
     }
 }
 impl Session {
-    /// 声明读取资源时，prepare 只在有效远端许可后调用；回调须复核原目标/源身份。
-    /// 只供后台 owner 调用；本层不直接访问 HWND、文件或执行副作用，失败关闭会话及未消费许可。
+    /// For declared resource reads, call prepare only after valid remote permission; callbacks must recheck original target/source identity.
+    /// Background owners only; this layer never directly accesses HWND/files or executes side effects, and failure closes sessions/unconsumed permits.
     pub fn invoke(
         &mut self,
         command: &str,

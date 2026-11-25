@@ -1,4 +1,4 @@
-//! 可长期持有的布局几何；从成功布局树复制，不借用场景或重新执行测量。
+//! Layout geometry safe to retain long-term; copied from a successful layout tree, without borrowing the scene or rerunning measurement.
 use crate::{
     surface_clip::{self, Rect},
     surface_layout_tree::Tree,
@@ -30,7 +30,7 @@ impl NodeGeometry {
     pub fn size(&self) -> [f32; 2] {
         self.size
     }
-    /// 节点自身矩形与祖先裁剪的交集；若输入树已滚动，此处为滚动后的几何。
+    /// Intersection of the node's rectangle with ancestor clips; if the input tree is scrolled, this is post-scroll geometry.
     pub fn clip(&self) -> Rect {
         self.clip
     }
@@ -64,7 +64,7 @@ impl Geometry {
                 .collect(),
         }
     }
-    /// 保留树的父先子后顺序和所有节点，包括零面积与完全被裁剪的节点。
+    /// Preserve the tree's parent-before-child order and all nodes, including zero-area and fully clipped nodes.
     pub fn nodes(&self) -> &[NodeGeometry] {
         &self.nodes
     }

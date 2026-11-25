@@ -1,4 +1,4 @@
-//! Session 的控制周期交接：真实 Worker、有界假采集、自有源窗口，不运行 WGC 或产品 DLL。
+//! Session control-cycle handoff: real Worker, bounded fake capture, and owned source windows, without WGC or the product DLL.
 use super::super::{LiveJob, LiveWindow, Texture};
 use super::*;
 #[path = "composition_live_input_idle_tests.rs"]
@@ -106,7 +106,7 @@ fn late_old_cycle_input_retires_without_cancelling_the_new_ui_enable_intent() {
     let window = session.window.as_ref().unwrap();
     let identity = window.hover_identity().unwrap();
     let old = identity.capture_control().unwrap();
-    // 让旧 worker 保持存活，确定性模拟撤销通知/回复尚未结算的时间窗。
+    // Keep the old worker alive to deterministically model unsettled revocation notifications/replies.
     window.input_status(true, false, None);
     window.suspend_source_input();
     window.request_default_input();

@@ -1,4 +1,4 @@
-//! 异步替换的真实 HWND 生命周期和预算回滚；不读取系统剪贴板。
+//! Real HWND lifecycle/budget rollback for asynchronous replacement, without system-clipboard reads.
 use super::*;
 use windows::{
     core::w,
@@ -231,7 +231,7 @@ fn gallery_append_preserves_window_scroll_and_retires_same_named_automation() {
     assert!(menu.gallery_at_end(0));
     let node = menu.pages[1].panel.accessibility_nodes().remove(0);
     node.enqueue(Action::Expand).unwrap();
-    // 可见 key/文案/行数完全相同也必须退休，不能靠追加后行数改变使测试偶然通过。
+    // Retire even with identical visible keys/text/row counts; appended-row count changes must not make the test accidentally pass.
     menu.replace_gallery(0, rows(64)).unwrap();
     assert_eq!(node.enqueue(Action::Expand), Err(Rejected::Unavailable));
     menu.poll().unwrap();

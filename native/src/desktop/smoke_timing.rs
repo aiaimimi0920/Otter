@@ -14,7 +14,7 @@ use std::{
 fn enabled(value: Option<&OsStr>) -> bool {
     value == Some(OsStr::new("1"))
 }
-/// 保留原等待行为；仅显式诊断时记录实际等待，不能把请求的 1 ms 当成实际耗时。
+/// Preserve original waiting behavior; record actual waits only for explicit diagnostics, never equating a requested 1 ms with elapsed time.
 #[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 pub(in crate::desktop) fn sleep(duration: std::time::Duration) {
     let _: Result<(), std::convert::Infallible> = run("worker-pause", || {
@@ -30,7 +30,7 @@ pub(in crate::desktop) fn run<T, E>(
     use std::io::Write;
     let requested = std::env::var_os("OTTER_NATIVE_SMOKE_TIMING");
     measure(enabled(requested.as_deref()), stage, action, |line| {
-        // 诊断不可把成功操作变成 BrokenPipe panic；每行持锁写入，跨线程用 ID 配对。
+        // Diagnostics must not turn successful operations into BrokenPipe panics; lock each line's write and pair cross-thread events by ID.
         writeln!(io::stderr().lock(), "{line}")
     })
 }

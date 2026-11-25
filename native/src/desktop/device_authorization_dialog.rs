@@ -1,4 +1,4 @@
-//! 服务地址草稿只在确定时校验；标准 Win32 对话框提供 Tab、Enter、Escape 和焦点恢复。
+//! Validate service-address drafts only on confirmation; standard Win32 dialogs provide Tab, Enter, Escape, and focus restoration.
 use windows::{
     core::HSTRING,
     Win32::{Foundation::*, UI::WindowsAndMessaging::*},

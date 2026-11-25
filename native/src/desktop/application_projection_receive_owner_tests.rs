@@ -1,4 +1,4 @@
-//! 真实授权/TLS→唯一生产 owner→隐藏追加/checkpoint，及取消/来源/撤权/失败/退出保护。
+//! Real authorization/TLS -> sole production owner -> hidden append/checkpoint, with cancellation/source/revocation/failure/exit protection.
 use super::*;
 use crate::desktop::application::projection;
 #[path = "application_projection_abandonment_tests.rs"]
@@ -90,7 +90,7 @@ unsafe fn run_routed(case: u8, offline: bool) {
             assert!((started..=Instant::now()).contains(&expiry));
             fixture.app.reset_projection_inbox();
         }
-        // 有意不 poll UI：后台错误/取消已经结束后，原槽与许可仍须由未领取的 Job 保留。
+        // Deliberately skip UI polling: after background error/cancellation finishes, the uncollected Job must still retain the original slot and permission.
         let end = Instant::now() + Duration::from_secs(10);
         while !fixture.app.projection_receive.preparation_finished() {
             assert!(Instant::now() < end, "unreaped preparation deadline");
@@ -148,7 +148,7 @@ unsafe fn run_routed(case: u8, offline: bool) {
         for doc in &fixture.app.documents {
             DestroyWindow(doc.window.0).unwrap();
         }
-        // 与 run_loop 相同，先消费真实 WM_QUIT，再进入空工作区收尾；不跳过主循环前提。
+        // Match run_loop: consume the actual WM_QUIT before empty-workspace finalization, without skipping main-loop preconditions.
         crate::desktop::application::execution_test_pump::Pump::new().expect_quit(&mut fixture.app);
         fixture.app.finish_deleted_workspace().unwrap();
         assert!(!fixture.app.projection_receive.busy());

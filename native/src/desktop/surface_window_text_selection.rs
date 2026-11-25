@@ -1,4 +1,4 @@
-//! 文字拖选与普通点击共用父捕获；完成选区不进入远端动作或数值编辑队列。
+//! Text dragging and ordinary clicking share parent capture; completed selection never enters remote-action/numeric-edit queues.
 use super::*;
 #[path = "surface_window_text_autoscroll.rs"]
 pub(super) mod autoscroll;
@@ -12,7 +12,7 @@ pub(in crate::desktop::surface_window) use key::message as text_key_message;
 pub(super) fn cancel(state: &State, completed: bool) {
     state.pointer.borrow_mut().selection_owner = None;
     state.pointer.borrow_mut().selection_scroll = None;
-    // Host 被同步绘制/控件回调暂时取出时，撤销也必须在归还前落地。
+    // If synchronous painting/control callbacks temporarily remove Host, cancellation must still take effect before its return.
     let mode = if completed { 2 } else { 1 };
     let pending = state.pointer.borrow().selection_cancel.max(mode);
     state.pointer.borrow_mut().selection_cancel = pending;
@@ -67,7 +67,7 @@ pub(super) unsafe fn message(hwnd: HWND, state: &State, message: u32, lp: LPARAM
         let Some(node) = hit(state, position) else {
             return false;
         };
-        // 切焦会撤销旧选区，必须在它之后开始新选择。
+        // Focus changes revoke old selection; start new selection afterward.
         let selectable = apply(hwnd, state, |host| {
             Ok(host
                 .presentation()
@@ -145,7 +145,7 @@ pub(super) unsafe fn message(hwnd: HWND, state: &State, message: u32, lp: LPARAM
             let _ = InvalidateRect(Some(hwnd), None, false);
             if !selected {
                 return false;
-            } // collapsed 选择仍交回原单击合同。
+            } // Collapsed selection still returns to the original single-click contract.
             state.pointer.borrow_mut().pressed = None;
             let _ = ReleaseCapture();
             true

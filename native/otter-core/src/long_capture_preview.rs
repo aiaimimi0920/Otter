@@ -1,4 +1,4 @@
-//! 按片段直接生成最长边 384 像素的预览，不分配完整合成长图；最近邻仅用于预览。
+//! Build longest-edge-384 previews directly from fragments without complete stitched-image allocation; nearest-neighbor is preview-only.
 use super::*;
 const EDGE: u32 = 384;
 pub(in crate::long_capture) fn render(

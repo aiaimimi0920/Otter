@@ -1,4 +1,4 @@
-//! Live 组名草稿事务：复用名称输入框和应用模态域，确认后原子发布组/成员候选。
+//! Live group-name draft transaction: reuse name input and application modal scope, then atomically publish group/member candidates after confirmation.
 use super::*;
 use crate::{
     desktop::composition::live::window::groups::{Action, Request},

@@ -1,4 +1,4 @@
-//! 远程语义观察合同；不依赖 UIA/窗口，认证与 session/epoch 由外层控制 owner 校验。
+//! Remote semantic-observation contract; independent of UIA/windows, with authentication and session/epoch checked by the outer control owner.
 use crate::live_relay_viewer_identity::{identifier, parse};
 use serde::{Deserialize, Serialize};
 

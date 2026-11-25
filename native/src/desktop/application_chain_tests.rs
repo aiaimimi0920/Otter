@@ -1,4 +1,4 @@
-//! 两个真实隐藏宿主与生产调度器串联；唯一手动启动发生在第一节点。
+//! Chain two real hidden hosts through the production scheduler; only the first node is started manually.
 use super::*;
 use crate::desktop::{capability_job::Loaded, capability_selection::Selection, Apartment};
 use std::{
@@ -273,7 +273,7 @@ fn chain_with_shader(image_chain: bool, blocked: Option<(usize, usize)>, real_sh
             assert_eq!(view.linked.iter().any(|id| id == "amount"), !image_chain);
         }
         if image_chain {
-            // 显示与正式结果共享像素，但不得把结果写进原图或编辑历史。
+            // Display and committed results share pixels, but results must not be written into the original image or edit history.
             let results = app.documents[0].state.execution_results.borrow();
             let source = results.image_source("output").unwrap();
             for index in [0, 2] {
@@ -284,7 +284,7 @@ fn chain_with_shader(image_chain: bool, blocked: Option<(usize, usize)>, real_sh
                 assert!(frame.editor.is_none());
                 assert!(state.canvas.borrow().image.is_none());
             }
-            // 缓存命中不得重建快照；在 RefCell 共享借用期间调用也应直接返回。
+            // Cache hits must not rebuild snapshots; calls made while RefCell is shared-borrowed should also return immediately.
             let retained = app.documents[2].state.resolved_display.borrow();
             app.sync_display_frames();
             assert!(retained.is_some());

@@ -1,4 +1,4 @@
-//! 单槽 command/reply；事件复位与邮箱检查共锁，禁止覆盖未消费帧或丢失并发唤醒。
+//! Single-slot command/reply; event reset and mailbox checks share a lock, preventing unconsumed-frame overwrites and lost concurrent wakeups.
 use super::*;
 use crate::surface_live_binding::Binding;
 use std::{
@@ -120,7 +120,7 @@ impl Shared {
             .lock()
             .map_or(true, |pending| pending.0.is_some())
     }
-    /// DOM 交付和收据结算可落在不同 UI 结算点；复用回复句柄保留最后唤醒，不增加等待槽。
+    /// DOM delivery and receipt settlement may occur at different UI settlement points; reuse the reply handle to retain the final wakeup without extra wait slots.
     pub fn hold_notification(&self, hold: bool) -> io::Result<()> {
         let mut pending = self.reply.lock().map_err(|_| io::ErrorKind::Other)?;
         pending.1 = hold;

@@ -1,4 +1,4 @@
-//! WIC/D2D 实际栅格像素；预期是手工标号矩阵，不调用新几何算法生成 oracle。
+//! Actual WIC/D2D raster pixels; expected values are handwritten numbered matrices, not oracles from new geometry algorithms.
 use super::*;
 use crate::tile_wire::*;
 use windows::Win32::{

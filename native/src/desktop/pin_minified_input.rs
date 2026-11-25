@@ -1,4 +1,4 @@
-//! 与主干 interactionEnabled 一致：缩略不启用标注交互，生命周期和双击展开仍可路由。
+//! Match mainline interactionEnabled: minimized views disable annotation interaction, while lifecycle and double-click expansion remain routable.
 use super::State;
 use windows::Win32::{
     Foundation::*,

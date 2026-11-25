@@ -1,4 +1,4 @@
-//! Shift 拖出手势及单槽准备任务；仅活动准备期间使用完成定时器，不持有跨 OLE 的 UI 借用。
+//! Shift drag-out gestures and single-slot preparation tasks; completion timers run only during active preparation, with no UI borrows across OLE.
 use super::{drag_prepare, State};
 use std::{
     cell::{Cell, RefCell},
@@ -63,7 +63,7 @@ pub(super) fn install_gated(
 }
 
 fn can_begin(state: &State) -> bool {
-    // 编辑工具拥有 Shift（追加框选、形状约束等）；拖出仅在平移/浏览模式接管手势。
+    // Editing tools own Shift for additive selection/shape constraints; drag-out takes gestures only in pan/browse mode.
     let canvas = state.canvas.borrow();
     (canvas.tool == crate::editor::Tool::Pan
         || (canvas.tool == crate::editor::Tool::Select
@@ -92,7 +92,7 @@ pub(super) unsafe fn dispatch(
         {
             cancel.store(true, Ordering::Release);
         }
-        // OLE 拥有手势；嵌套消息不能启动编辑或第二个导出/文件对话框。
+        // OLE owns the gesture; nested messages must not start editing or a second export/file dialog.
         if matches!(
             msg,
             WM_LBUTTONDOWN
@@ -183,7 +183,7 @@ fn profile() -> Result<PathBuf, String> {
         .ok_or_else(|| "Missing native drag profile".into())
 }
 unsafe fn start(hwnd: HWND, state: &State, root: Result<PathBuf, String>) -> Result<(), String> {
-    // 已取消但仍编码的任务也占有唯一槽位；禁止替换 owner 或积累后台任务。
+    // Cancelled tasks still encoding occupy the sole slot; prohibit owner replacement or accumulating background tasks.
     if state.drag.pending.borrow().is_some() {
         return Err("Native drag preparation is still active".into());
     }
@@ -232,8 +232,8 @@ unsafe fn cancel(hwnd: HWND, state: &State) {
         let _ = KillTimer(Some(hwnd), TIMER);
         drop(pending);
     }
-    // 普通取消不 join 正在 WIC 编码的线程；现有活动定时器继续负责完成后的回收。
-    // 若后续编辑已取得捕获，旧任务回收不能释放新手势的鼠标捕获。
+    // Ordinary cancellation does not join threads inside WIC encoding; the existing active timer reclaims them after completion.
+    // If later edits acquired capture, reclaiming old tasks must not release the new gesture's mouse capture.
     if owned_capture && GetCapture() == hwnd {
         let _ = ReleaseCapture();
     }
@@ -241,7 +241,7 @@ unsafe fn cancel(hwnd: HWND, state: &State) {
 unsafe fn dispose(hwnd: HWND, state: &State) {
     cancel(hwnd, state);
     let _ = KillTimer(Some(hwnd), TIMER);
-    // 若线程仍未结束，State 暂持任务直到应用把它移出；不能在 WM_DESTROY 中 join。
+    // If the thread has not exited, State temporarily retains the task until the application moves it out; never join in WM_DESTROY.
 }
 
 #[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]

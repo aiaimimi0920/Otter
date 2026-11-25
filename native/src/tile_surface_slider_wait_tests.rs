@@ -1,4 +1,4 @@
-//! 串行前缀的逻辑时钟oracle：不sleep、不延长原1500ms准入或120秒跟踪上限。
+//! Logical-clock oracles for serial prefixes: no sleep or extension of original 1500ms admission/120-second tracking limits.
 use super::*;
 #[test]
 fn slow_prefix_holds_commit_then_fresh_terminal_grants_dispatch_once() {
@@ -19,7 +19,7 @@ fn slow_prefix_holds_commit_then_fresh_terminal_grants_dispatch_once() {
             json!([{"ack":crate::tile_surface_actions::tests::ack_value(id,"running"),"actionId":"adjust","cancelable":true}]),
             Json::Null,
         );
-        // HTTP本身超过1500ms时，仍由单在途owner及固定等待上限保留依赖，不发后续。
+        // When HTTP itself exceeds 1500ms, one in-flight owner and fixed wait limits retain dependencies without sending successors.
         assert!(s.actions.take(&waiting, at(2)).is_none());
         assert_eq!(s.actions.pending.len(), 1);
         s.actions
@@ -41,11 +41,11 @@ fn slow_prefix_holds_commit_then_fresh_terminal_grants_dispatch_once() {
                     .observe(f.state.clone(), "origin", "device", at(5));
                 s.actions
                     .observe(f.state.clone(), "origin", "device", at(6));
-                assert!(s.actions.take(&f.state, at(7)).is_none()); // 重复GET不能续1500ms。
+                assert!(s.actions.take(&f.state, at(7)).is_none()); // Repeated GETs cannot renew the 1500ms window.
                 assert!(!d.edit.active());
             }
             2 => {
-                s.actions.observe(waiting, "origin", "device", at(124)); // 原ACK跟踪120秒上限。
+                s.actions.observe(waiting, "origin", "device", at(124)); // Original ACK tracking has a 120-second limit.
                 assert!(s.actions.pending.is_empty());
                 assert!(!d.edit.active());
             }

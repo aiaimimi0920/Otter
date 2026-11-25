@@ -1,4 +1,4 @@
-//! 单在途宿主确认槽；UI只能交回原票据，期限/撤销/关闭使其不可逆失效。
+//! Single in-flight host-confirmation slot; UI can return only the original ticket, irreversibly invalidated by deadline/revocation/close.
 use super::Error;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;

@@ -1,4 +1,4 @@
-//! 调度容量/公平/指数退避与无候选静默；注入 Instant 不改产品期限或系统时间。
+//! Scheduler capacity/fairness/exponential backoff and silence without candidates; injected Instant changes neither product deadlines nor system time.
 use super::*;
 use crate::projection_delivery::{
     accept::tests as png,

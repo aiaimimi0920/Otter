@@ -1,4 +1,4 @@
-//! 会话冻结库只读准入；保留完整条目原文，不把未知字段丢弃后覆盖旧会话。
+//! Read-only admission for session frozen libraries; preserve complete original entries rather than drop unknown fields and overwrite old sessions.
 use crate::{session_window::Window, workspace_id::UnitId};
 use serde::{Deserialize, Deserializer};
 use serde_json::value::RawValue;
@@ -18,7 +18,7 @@ pub mod remove;
 #[path = "session_library_retention.rs"]
 pub mod retention;
 
-// 这是单次导入安全上限，不是回收站保留策略；超限整库拒绝，不能静默裁掉条目。
+// This is a single-import safety limit, not recycle-bin retention policy; reject the entire library on overflow, never silently trim entries.
 pub const MAX_ENTRIES: usize = 4096;
 #[derive(Clone, Copy, Debug)]
 pub enum Kind {
@@ -111,7 +111,7 @@ pub fn decode(bytes: &[u8], kind: Kind) -> Result<Library<'_>, String> {
         {
             return Err("Invalid or duplicate frozen entry identity".into());
         }
-        // 旧前端保留无法解析的时间；只限制长度，不在读取时猜测时区或删除记录。
+        // Old frontends retain unparseable timestamps; limit length only, without timezone guessing/record deletion while reading.
         if record.created_at.len() > 128 || record.created_at.chars().any(char::is_control) {
             return Err("Invalid frozen entry timestamp".into());
         }

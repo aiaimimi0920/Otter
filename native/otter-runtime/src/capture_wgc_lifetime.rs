@@ -1,4 +1,4 @@
-//! WinRT 必须显式 Close；局部声明顺序保证帧先归还、session/pool 先关闭、Apartment 最后退出。
+//! WinRT requires explicit Close; local declaration order returns frames first, closes session/pool next, and exits Apartment last.
 use super::*;
 pub(super) struct Apartment;
 impl Apartment {

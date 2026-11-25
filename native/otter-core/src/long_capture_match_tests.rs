@@ -100,7 +100,7 @@ fn invalid_options_and_cancellation_are_not_matches() {
 
 #[test]
 fn exact_match_agrees_with_pixel_oracle_on_small_images_and_both_axes() {
-    // 独立穷举平移，不复用签名、KMP 或区域比较；覆盖行尾、跨行和单行/单列图像。
+    // Independently exhaust offsets without signatures/KMP/region-comparison reuse; cover row ends/cross-row/single-row/single-column images.
     fn expected(a: &Frame, b: &Frame, axis: Axis, minimum: usize) -> Match {
         if a.bytes() == b.bytes() {
             return Match::Duplicate;

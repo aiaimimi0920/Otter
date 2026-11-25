@@ -1,4 +1,4 @@
-//! Switch Toggle 的真实 COM 状态/权限/FIFO；不发送远端动作。
+//! Actual Switch-Toggle COM state/permissions/FIFO without remote actions.
 use super::*;
 use windows::{
     core::{IUnknown, Interface},

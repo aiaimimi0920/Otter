@@ -1,4 +1,4 @@
-//! 黄色角、本地快捷键与源输入隔离；使用真实自有 HWND 和合成帧。
+//! Isolation between yellow corners/local shortcuts and source input; real owned HWNDs and synthetic frames.
 use super::*;
 #[test]
 fn yellow_corner_selects_pin_releases_source_and_escape_recycles() {

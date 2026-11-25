@@ -166,7 +166,7 @@ fn uncertain_source_request_survives_last_ticket_drop_until_explicit_restore_ret
     journal.poll();
     assert!(!journal.finished());
     assert!(!journal.entries[0].shared.retire.get());
-    // 模拟原 owner 确认源已恢复后的显式退休，不能留下真正的测试 child。
+    // Simulate explicit retirement after the original owner confirms source restoration; do not leave a real test child behind.
     let restored = Ticket(journal.entries[0].shared.clone());
     assert_eq!(restored.retire().unwrap_err().code(), RETIREMENT_PENDING);
     advance(&mut journal, Journal::finished);
@@ -195,7 +195,7 @@ fn missing_client_handle_does_not_retire_an_uncertain_registration() {
         Owner::start_with(|| Err(io::Error::other("fixture lost client"))).unwrap(),
     );
     let ticket = journal.register(window.record()).unwrap();
-    // 模拟 worker 丢失 Client 后的未知 ACK；不创建真正泄漏的恢复子进程。
+    // Simulate an unknown ACK after the worker loses Client, without creating a genuinely leaked recovery child.
     ticket.0.state.set(State::Registering);
     advance(&mut journal, |journal| journal.fault().is_some());
     assert!(ticket.0.state.get() == State::Unknown);
@@ -216,7 +216,7 @@ fn dropping_journal_invalidates_a_surviving_ticket() {
         Owner::start_with(|| Err(io::Error::other("fixture no child"))).unwrap(),
     );
     let ticket = journal.register(window.record()).unwrap();
-    // 只验证本地 owner 丢失的授权撤销，不启动带未退休记录的真实进程。
+    // Verify only authorization revocation on local-owner loss; do not start a real process with unretired records.
     ticket.0.state.set(State::Registered);
     assert!(ticket.ready());
     drop(journal);
@@ -299,7 +299,7 @@ fn fault_shutdown_waits_for_every_source_restore_before_stopping_recovery() {
         .unwrap();
     lease.hide().unwrap();
     let process = journal.child_handle().unwrap().as_raw_handle();
-    // 已建立真实子进程/登记；注入协调层故障，验证它不会误杀仍在保护源的进程。
+    // A real subprocess/registration already exists; inject a coordination failure and verify it does not kill the process still protecting the source.
     journal.fail("fixture poisoned channel".into());
     journal.close();
     journal.poll();

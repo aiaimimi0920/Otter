@@ -1,4 +1,4 @@
-//! 后台准备有界候选卡片；不联网、不读本地路径，也不把预览当正式端口。
+//! Prepare bounded candidate cards in background; no networking/local-path reads or treating previews as official ports.
 use super::*;
 use crate::image_thumbnail::Thumbnail;
 use std::sync::Arc;

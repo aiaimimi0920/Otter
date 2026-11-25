@@ -1,4 +1,4 @@
-//! 一个场景仅持有一个文字选区；索引借用现有布局，换场景通过 Presentation 替换撤销。
+//! Each scene owns one text selection; indexes borrow existing layouts, and Presentation replacement revokes selection on scene changes.
 use super::*;
 use crate::surface_native_measure::TextItem;
 use std::ops::Range;
@@ -45,7 +45,7 @@ impl cross_node::ProjectedSelection {
         let rects = item.selection_rects(range)?;
         unsafe {
             let previous = brush.GetColor();
-            // 与现有焦点信号黄同源，按前端选区合同派生 42% 透明度，不替换字色。
+            // Derive 42% opacity from the existing focus signal yellow under the frontend selection contract without replacing text color.
             brush.SetColor(&D2D1_COLOR_F {
                 r: 217. / 255.,
                 g: 1.,
@@ -98,7 +98,7 @@ impl Presentation {
     pub fn begin_text_selection(&mut self, point: [f32; 2]) -> Result<bool> {
         self.begin_text_selection_scoped(point, false)
     }
-    /// DOM selectable root 的留白仍属于该文字块；仅覆盖宿主使用最近 caret 起选。
+    /// Whitespace in DOM selectable roots still belongs to that text block; only overlay hosts start selection from the nearest caret.
     pub(crate) fn begin_root_text_selection(
         &mut self,
         point: [f32; 2],
@@ -155,7 +155,7 @@ impl Presentation {
         Ok(self.text_selection_hit(point)?.is_some())
     }
     fn text_selection_hit(&self, point: [f32; 2]) -> Result<Option<(&str, u32)>> {
-        // 使用正式最上层命中；不能绕过遮挡、圆角或滚动条独占输入。
+        // Use the actual topmost hit; never bypass occlusion, rounded corners, or scrollbars' exclusive input ownership.
         let Some(id) = self.hit_test(point) else {
             return Ok(None);
         };
@@ -175,7 +175,7 @@ impl Presentation {
             s.node == node && !s.dragging && (extend || (!s.cross_node() && s.anchor != s.focus))
         })
     }
-    /// 保留当前导航锚点；只移动选区 focus，端点处可进入相邻可选择文字。
+    /// Preserve the current navigation anchor and move only selection focus; endpoints may enter adjacent selectable text.
     pub fn step_text_selection(&mut self, node: &str, forward: bool, extend: bool) -> Result<bool> {
         if !self.text_selection_keyboard_ready(node, extend) {
             return Ok(false);
@@ -245,7 +245,7 @@ impl Presentation {
     pub fn update_text_selection(&mut self, point: [f32; 2]) -> Result<bool> {
         self.update_text_selection_scoped(point, true)
     }
-    /// 覆盖文字沿主干锁定开始命中的单一 selectable root，不扩展为跨块选择。
+    /// Overlay text follows the mainline and locks to the initially hit selectable root without expanding across blocks.
     pub(crate) fn update_root_text_selection(
         &mut self,
         point: [f32; 2],
@@ -293,7 +293,7 @@ impl Presentation {
         selection.vertical_point = Some(caret);
         Ok(true)
     }
-    /// 抬起先完成选区，再释放 HWND 捕获，避免同步 WM_CAPTURECHANGED 清掉已完成选择。
+    /// On release, finish selection before releasing HWND capture so synchronous WM_CAPTURECHANGED cannot clear completed selection.
     pub fn finish_text_selection(&mut self, point: [f32; 2]) -> Result<bool> {
         if !self.update_text_selection(point)? {
             return Ok(false);
@@ -323,7 +323,7 @@ impl Presentation {
             .map(|item| (item, selection.range()))
     }
     pub(crate) fn has_copyable_text(&self) -> bool {
-        // 布局来自合法 UTF-16；范围合法时，判定无需转码或分配字符串。
+        // Layouts come from valid UTF-16; valid-range checks require no transcoding or string allocation.
         self.copyable_text_range()
             .is_some_and(|(item, range)| item.layout().validate_range(range).is_ok())
     }

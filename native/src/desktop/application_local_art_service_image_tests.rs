@@ -1,4 +1,4 @@
-//! 同份公开SDK示例，原OpenArt/签名包/TLS/child/正式结果/Save恢复链；独立2x2像素。
+//! The same public-SDK example through original OpenArt/signed package/TLS/child/committed results/Save restoration; independent 2x2 pixels.
 use super::*;
 #[test]
 #[ignore = "requires the public service image example and independently frozen SHA-256"]

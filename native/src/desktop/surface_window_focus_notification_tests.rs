@@ -1,4 +1,4 @@
-//! 焦点通知的 owner/身份/重入回归；不依赖全局系统订阅者。
+//! Focus-notification owner/identity/reentrancy regressions, independent of global system subscribers.
 use super::*;
 use windows::Win32::UI::Input::KeyboardAndMouse::{GetFocus, SetFocus};
 fn scene() -> Scene {

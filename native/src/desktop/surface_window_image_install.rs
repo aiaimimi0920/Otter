@@ -1,4 +1,4 @@
-//! 授权窗口已安装资源；消费时同 Grant 转交，不持有网络任务槽，按当前快照投影。
+//! Installed resources for authorized windows; transfer with the same Grant on consumption, holding no network-task slot and projecting current snapshots.
 use super::*;
 use crate::{
     surface_image_paint::Bitmap,
@@ -51,7 +51,7 @@ impl AuthorizedWindow {
     pub(crate) fn image_placeholder_for_test(&self, id: &str) -> Option<bool> {
         self.window.image_placeholder_for_test(id)
     }
-    /// 只接纳当前窗口/场景及同 Grant 的 Ready；错误消费为终态，不重新排入 Ready 队列。
+    /// Accept Ready only for the current window/scene and same Grant; errors consume it terminally without requeuing Ready.
     pub fn install_resource(
         &mut self,
         ready: Ready,
@@ -69,7 +69,7 @@ impl AuthorizedWindow {
         next.insert(request.key(), Rc::new(Installed { request, bitmap }));
         self.commit_images(&current, next)
             .map_err(ImageError::Window)?;
-        // HWND 可能同步重入；同一 Grant 的窗口租约继续负责撤权，不沿用消费前的检查。
+        // HWND may synchronously reenter; the same Grant's window lease still handles revocation, not pre-consumption checks.
         self.refresh(now).map_err(ImageError::Window)?;
         if !self.is_alive() || self.stopped.is_some() {
             return Err(ImageError::Inactive);
@@ -79,7 +79,7 @@ impl AuthorizedWindow {
     fn commit_images(&mut self, current: &MountedSurface, images: InstalledImages) -> Result<()> {
         let (scene, projected) = projection(current, &images)?;
         if let Err(error) = self.window.refresh_images(scene, projected) {
-            // 同场景图片更新也可能在 HWND 提交后失败，不能继续暴露半提交状态。
+            // Same-scene image updates may also fail after HWND commit; do not expose partially committed state.
             let _ = self.close();
             return Err(error);
         }
@@ -101,7 +101,7 @@ impl AuthorizedWindow {
         if self.images.get_mut().is_empty() {
             return Ok(());
         }
-        // 不调用 resource_mount/refresh，避免递归；RefCell 借用在 HWND 调用前结束。
+        // Do not call resource_mount/refresh recursively; end RefCell borrows before HWND calls.
         let current = self
             .resources
             .borrow()
@@ -111,7 +111,7 @@ impl AuthorizedWindow {
             return self.close();
         };
         let mut next = self.images.borrow().clone();
-        // 一次 refresh 只散列一次原始快照，不按每张内联图重新解析/复制整棵 Scene。
+        // Hash the original snapshot only once per refresh, not reparsing/copying the whole Scene for each inline image.
         let digest = next
             .keys()
             .any(|key| matches!(key, Key::Node(_)))

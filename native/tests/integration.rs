@@ -1,4 +1,4 @@
-//! 聚合原生集成与启动契约测试入口，消除 19 次重复二进制链接开销。
+//! Aggregated native integration and startup-contract tests eliminate 19 redundant binary links.
 #[path = "suites/build_resources.rs"]
 mod build_resources;
 #[path = "suites/exe_resources.rs"]

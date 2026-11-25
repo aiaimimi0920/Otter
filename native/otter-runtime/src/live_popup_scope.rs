@@ -1,4 +1,4 @@
-//! 独立弹窗的局部授权：同进程不等于同源，必须保留到用户授权 root 的 owner 链。
+//! Local authorization for independent popups: same process does not mean same source; retain the owner chain to the user-authorized root.
 use super::{identity, Target};
 use windows::{
     core::{Error, Result},
@@ -12,7 +12,7 @@ pub use transfer::Transfer;
 #[path = "live_popup_scope_native.rs"]
 pub mod native;
 
-/// 保留原 owner 链通道；无 owner 窗口必须持有该 B 的同步显示租约。
+/// Retain the original owner-chain channel; ownerless windows must hold that B's synchronous display lease.
 #[derive(Clone)]
 pub enum Scope {
     Owned(OwnedPopup),
@@ -32,7 +32,7 @@ pub enum Scope {
     },
 }
 impl Scope {
-    /// 已授权附属会话提供下一层来源；仍逐层保留显示实例和 B 控制周期，不按 PID 追认。
+    /// Authorized attached sessions provide the next-level source; preserve display instances and B control epochs at every level, without retroactive PID-based authorization.
     pub fn bind_descendant(
         &self,
         owner: Option<crate::live_hover_owner::Identity>,
@@ -169,7 +169,7 @@ impl Scope {
     }
 }
 
-/// 保存根和弹窗的原进程身份；每次使用前重验归属，不能将裸 HWND 当作长期授权。
+/// Save original process identities for root and popup; revalidate ownership before every use, without treating bare HWNDs as long-term authorization.
 #[derive(Clone)]
 pub struct OwnedPopup {
     root: Target,
@@ -202,7 +202,7 @@ impl OwnedPopup {
                 return Err(denied());
             }
             visited[depth] = value;
-            // owner 链只允许同进程的顶层窗口；不以标题、类名、几何重叠猜测归属。
+            // Owner chains allow only same-process top-level windows; never infer ownership from titles, class names, or geometric overlap.
             let current_identity = unsafe { identity(current)? };
             if current_identity.process != self.root.process_id() {
                 return Err(denied());
@@ -221,7 +221,7 @@ impl OwnedPopup {
         Err(denied())
     }
 
-    /// 为捕获/输入绑定取得当前已验证目标；持有者仍须在生命周期变化时调用 validate。
+    /// Get the currently validated target for capture/input binding; holders must still call validate on lifecycle changes.
     pub fn target(&self) -> Result<Target> {
         self.validate()?;
         Ok(self.popup.clone())

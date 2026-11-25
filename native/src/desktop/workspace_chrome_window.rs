@@ -1,4 +1,4 @@
-//! 共享连线层、每节点独立外框及至多两个端点条；不为每端口建立 HWND。
+//! Shared link layer, independent per-node borders, and at most two endpoint strips; no HWND per port.
 use super::*;
 use std::{
     collections::{HashMap, HashSet},
@@ -115,7 +115,7 @@ unsafe fn register() -> Result<()> {
                     lpfnWndProc: Some(procedure),
                     hInstance: HINSTANCE(GetModuleHandleW(None)?.0),
                     lpszClassName: CLASS,
-                    // 端点条也承载标签、眼睛和字段；连线捕获结束后不能留下十字光标。
+                    // Endpoint strips also host labels, eyes, and fields; no lingering crosshair after link capture ends.
                     hCursor: LoadCursorW(None, IDC_ARROW)?,
                     ..Default::default()
                 };
@@ -204,7 +204,7 @@ pub(super) unsafe fn refresh_drawing(ui: &Ui) -> Result<()> {
         bottom: r.bottom.min(bottom),
     };
     rect = clip(rect);
-    // 线层已有富余空间时保持 HWND/DIB 尺寸，只提交像素；连续滚轮不能每帧重建全局外框表面。
+    // Retain HWND/DIB size when line layers have spare space, submitting only pixels; continuous wheels must not rebuild global-border surfaces each frame.
     let mut existing = RECT::default();
     if ui.surface.borrow().is_some() && GetWindowRect(ui.drawing.get(), &mut existing).is_ok() {
         let needed = backdrops.include_bounds(clip(padded(base, 160, 16)));
@@ -243,7 +243,7 @@ pub(super) unsafe fn refresh_drawing(ui: &Ui) -> Result<()> {
     if drawing.is_invalid() {
         return Ok(());
     }
-    // 一张叠层可能包含多个 owner；采用最严格 affinity，不能泄漏受保护节点的端口。
+    // One overlay may contain multiple owners; apply the strictest affinity to avoid exposing protected-node ports.
     let affinity = if nodes.iter().any(|node| node.protected) {
         WDA_EXCLUDEFROMCAPTURE
     } else {
@@ -254,7 +254,7 @@ pub(super) unsafe fn refresh_drawing(ui: &Ui) -> Result<()> {
         hide(ui);
         return Ok(());
     }
-    // 首次显示/新节点发布前先确定层序，不能先把新连线画到图片上再下移。
+    // Establish Z-order before first display/new-node publication; never draw new links over images then lower them.
     order_drawing(ui)?;
     draw::present(ui, rect, backdrops)?;
     if !IsWindowVisible(drawing).as_bool() {
@@ -268,7 +268,7 @@ pub(super) unsafe fn refresh_drawing(ui: &Ui) -> Result<()> {
             SWP_SHOWWINDOW | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE,
         )?;
     }
-    // 已提交完整帧；不要让空闲 WM_PAINT 再复制一遍共享线层。
+    // A complete frame is committed; idle WM_PAINT must not copy the shared line layer again.
     ValidateRect(Some(drawing), None).ok()?;
     Ok(())
 }
@@ -311,7 +311,7 @@ unsafe fn dispatch(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
         WM_ERASEBKGND => LRESULT(1),
         WM_MOUSEACTIVATE => LRESULT(MA_NOACTIVATE as isize),
         WM_WINDOWPOSCHANGED => {
-            // 焦点/child 激活可能在 WM_ACTIVATE 后再次升层；以真实层序通知为准，不夺走焦点。
+            // Focus/child activation may raise layers again after WM_ACTIVATE; follow actual Z-order notifications without stealing focus.
             let result = DefWindowProcW(hwnd, msg, wp, lp);
             if !(*(lp.0 as *const WINDOWPOS)).flags.contains(SWP_NOZORDER) {
                 if let Err(error) = order_drawing(ui) {

@@ -1,4 +1,4 @@
-//! 生产 Mount 仅映射 Web 已明确应用的 textarea 自身 textAlign；不扩大 input/number。
+//! Production Mount maps only textarea's own textAlign explicitly applied by Web; do not extend to input/number.
 use super::*;
 fn aligned(kind: &str, align: &str) -> Scene {
     Scene::parse(

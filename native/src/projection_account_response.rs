@@ -1,4 +1,4 @@
-//! 相关回复必须匹配账号、原邀请、修订及 receiver Unit；PNG 独立解码，不信任回传路由。
+//! Correlated replies must match account/original invitation/revision/receiver Unit; decode PNG independently and distrust returned routes.
 use super::*;
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -22,7 +22,7 @@ pub struct Content {
     pub envelope: Envelope,
     pub revision: u64,
     pub digest: String,
-    /// Loom 的 linked 表示未停止，不代表接收者已接受，更不代表已显示。
+    /// Loom linked means not stopped, not receiver acceptance or actual display.
     pub linked: bool,
     pub receiver_device_id: Option<String>,
     pub receiver_unit_id: Option<String>,

@@ -1,4 +1,4 @@
-//! 借用 FP16 scRGB 捕获缓冲的亮度分析与 SDR 回退；不创建截图会话、不拥有 GPU 映射。
+//! Luminance analysis/SDR fallback on borrowed FP16 scRGB capture buffers; no capture-session creation/GPU-mapping ownership.
 use crate::pixels::Pixels;
 use std::sync::atomic::{AtomicBool, Ordering};
 #[path = "capture_color_hdr.rs"]
@@ -28,7 +28,7 @@ pub struct ScRgb<'a> {
     output_bytes: usize,
 }
 impl<'a> ScRgb<'a> {
-    /// R16G16B16A16_FLOAT 小端行缓冲；允许行尾填充，借用不得超出映射资源生命周期。
+    /// Little-endian R16G16B16A16_FLOAT rows allow padding; borrows cannot outlive mapped resources.
     pub fn new(data: &'a [u8], width: u32, height: u32, stride: usize) -> Result<Self, Error> {
         let output_bytes =
             crate::viewport::checked_image_bytes(width, height).ok_or(Error::Layout)?;
@@ -77,7 +77,7 @@ impl<'a> ScRgb<'a> {
         check(cancel)?;
         Ok(false)
     }
-    /// 对齐主干 SDR 回退：按白电平归一化、限幅、sRGB OETF；不是保留 HDR 高光的压缩算子。
+    /// Match mainline SDR fallback: white-level normalization, clamping, sRGB OETF; not tone compression preserving HDR highlights.
     pub fn to_sdr(
         &self,
         white_nits: f32,
@@ -149,7 +149,7 @@ fn sdr_lut(
     scale: f32,
     cancel: &AtomicBool,
 ) -> Result<Option<[u8; 32768]>, Error> {
-    // 小图直接计算，避免为少量像素固定支付 32768 次转换；大图保留 half 查表优化。
+    // Compute small images directly instead of fixed 32768 conversions for few pixels; large images retain half lookup optimization.
     if pixels < SDR_LUT_MIN_PIXELS {
         return Ok(None);
     }
@@ -184,7 +184,7 @@ fn rgb(pixel: &[u8], gain: f32) -> [f32; 3] {
         nonnegative_half(u16::from_le_bytes([pixel[offset], pixel[offset + 1]])) * gain
     })
 }
-// 对齐主干：负值、NaN、Inf 置零；不增加 half 依赖，也不通过整数截断解释浮点字节。
+// Match mainline: negatives/NaN/Inf become zero; no new half dependency or integer-truncation interpretation of float bytes.
 fn nonnegative_half(bits: u16) -> f32 {
     let exponent = u32::from((bits >> 10) & 31);
     let fraction = u32::from(bits & 1023);

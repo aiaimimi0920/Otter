@@ -1,4 +1,4 @@
-//! 有界授权窗口集合；确认终态可退休为独立恢复提示。
+//! Bounded authorized-window collection; confirmed terminal states may retire into independent recovery prompts.
 use super::surface_authorized_window::AuthorizedWindow;
 use std::{
     os::windows::io::BorrowedHandle,
@@ -70,7 +70,7 @@ impl Windows {
     pub(super) fn iter_mut(&mut self) -> impl Iterator<Item = &mut AuthorizedWindow> {
         self.entries.iter_mut()
     }
-    /// 只保留当前活窗口/场景的资源请求；生命周期版本与场景版本分别比较。
+    /// Retain resource requests only for current live windows/scenes; compare lifecycle and scene versions separately.
     pub(super) fn retains_resource(
         &self,
         binding: &crate::surface_live_binding::Binding,
@@ -82,7 +82,7 @@ impl Windows {
                 && window.snapshot_revision() == revision
         })
     }
-    /// 事件按精确 pending event 路由；接纳后调用方必须保存返回收据。
+    /// Route events by exact pending event; callers must retain returned receipts after acceptance.
     pub fn accept_batch(
         &mut self,
         outcome: crate::surface_event_batch_runtime::Outcome,
@@ -100,7 +100,7 @@ impl Windows {
         }
         Err(pending)
     }
-    /// 事件按精确 pending event 路由；接纳后调用方必须保存返回收据。
+    /// Route events by exact pending event; callers must retain returned receipts after acceptance.
     pub fn accept_event(
         &mut self,
         outcome: crate::surface_event_runtime::Outcome,
@@ -118,7 +118,7 @@ impl Windows {
         }
         Err(pending)
     }
-    /// 未匹配或身份/版本拒收时归还整个结果，由原任务集合继续持有。
+    /// Return entire results on no match or identity/version rejection, retaining them in the original task collection.
     pub fn accept_activation(
         &mut self,
         outcome: crate::surface_lifecycle_runtime::Outcome,
@@ -173,7 +173,7 @@ impl Windows {
         }
         Ok(())
     }
-    /// 容量失败归还原 owner，调用方不能丢弃附件恢复证据。
+    /// Capacity failure returns the original owner; callers must not discard attachment-recovery evidence.
     pub fn insert(
         &mut self,
         window: AuthorizedWindow,
@@ -186,7 +186,7 @@ impl Windows {
         self.entries.push(window);
         Ok(())
     }
-    /// 建窗保持隐藏；失败记录也占容量，防止错误结果无限积累或每轮重复建窗。
+    /// Create windows hidden; failure records also occupy capacity, preventing unlimited error accumulation or window recreation every round.
     pub fn admit(
         &mut self,
         outcome: crate::surface_attach_runtime::Outcome,
@@ -292,7 +292,7 @@ impl Windows {
             .position(|w| !w.is_alive() && w.lifecycle().is_some() && w.javascript_finished())?;
         Some(self.entries.swap_remove(index))
     }
-    /// 本地退出不冒充远端销毁；附件记录留在集合供调用方收割。
+    /// Local exit does not impersonate remote destruction; attachment records remain for callers to harvest.
     pub fn close_all(&self) -> Result<()> {
         let mut first = None;
         for window in &self.entries {

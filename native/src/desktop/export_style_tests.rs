@@ -1,4 +1,4 @@
-//! 原生像素证明：样式以 unit DIP 计，边框在独立标注下，圆角裁整个栈。
+//! Native pixel evidence: styles use unit DIP, borders lie below independent annotations, and rounded corners crop the full stack.
 use super::*;
 use serde_json::json;
 fn image() -> Image {

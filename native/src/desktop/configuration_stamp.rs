@@ -1,4 +1,4 @@
-//! 异步准备的配置凭证：文档身份 + 本次能力选择身份 + 参数版本，不借用可变状态。
+//! Configuration evidence for asynchronous preparation: document identity, current capability-selection identity, and parameter revision, without mutable-state borrows.
 use super::State;
 use crate::workspace_id::UnitId;
 #[derive(Clone, PartialEq)]
@@ -67,7 +67,7 @@ impl Stamp {
         }
     }
 }
-/// 只丢弃过期配置；任务取消/线程回收仍由应用的输入任务集合统一管理。
+/// Discard only stale configurations; application input-task collections still centrally own cancellation/thread reclamation.
 pub(super) fn discard_changed(state: &State, workspace: &crate::workspace::Workspace) {
     let stale = state
         .pending_preparation

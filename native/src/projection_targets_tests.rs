@@ -1,4 +1,4 @@
-//! 当前目录合同与安全边界；每次全量拒绝，不发布部分目标或悬空组成员。
+//! Current catalog contracts/security boundaries; reject entire batches without partial targets/dangling group members.
 use super::*;
 use serde_json::{json, Value};
 const ORIGIN: &str = "https://loom.example";

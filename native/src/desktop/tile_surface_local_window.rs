@@ -1,4 +1,4 @@
-//! 无handler本地值接线；纯cache借用不跨Win32调用，焦点切换不丢值，隐藏/减权退休。
+//! Handler-free local-value wiring; no pure-cache borrow across Win32 calls, preserve values across focus changes, retire on hiding/permission reduction.
 use super::*;
 use crate::{tile_surface_focus::Focus, tile_surface_local::Value};
 pub(super) fn focus(state: &State, pixel: [i32; 2]) -> Option<Focus> {
@@ -9,7 +9,7 @@ pub(super) fn value(state: &State, focus: &Focus) -> Option<Value> {
     state.local.borrow_mut().value(focus)
 }
 pub(super) fn set(state: &State, focus: Focus, value: Value) -> Result<()> {
-    // 只有实际paint且仍匹配合同的输入能修改cache；等待/旧HWND消息不能写本地状态。
+    // Only actually painted input with matching contracts may modify caches; waiting/old-HWND messages cannot write local state.
     let current = keyboard::current(state, &focus)
         .ok_or_else(|| Error::new(E_INVALIDARG, "Tile local field is no longer painted"))?;
     let counts = state

@@ -1,4 +1,4 @@
-//! 组变换的图像空间视觉边界；曲线极值无需采样数组，箭头头部复用有界几何实现。
+//! Image-space visual bounds for group transforms; curve extrema need no sampled array, and arrowheads reuse bounded geometry.
 use crate::{
     editor::{Stroke, Tool},
     rotation,

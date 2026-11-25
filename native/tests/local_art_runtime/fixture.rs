@@ -1,4 +1,4 @@
-//! 独立profile和自启子进程；失败材料保留，不访问系统证书库或真实用户设置。
+//! Separate profiles and self-started child processes; retain failure evidence without accessing the system certificate store or real user settings.
 use super::package;
 use base64::{engine::general_purpose::STANDARD, Engine};
 use serde_json::{json, Value};

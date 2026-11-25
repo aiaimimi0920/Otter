@@ -1,4 +1,4 @@
-//! 独立TLS wire oracle核固定路由/Device/nonce/sequence和三种ACK身份；未知写不自动重放。
+//! Independent TLS wire oracles check fixed routes/Device/nonce/sequence and three ACK identities; uncertain writes are not replayed automatically.
 use super::*;
 use crate::{
     device_authorization_lease::Grant,

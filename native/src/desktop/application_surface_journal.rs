@@ -1,4 +1,4 @@
-//! 退出回收后的恢复元数据落盘；文件 I/O 在后台，UI 等待期间继续泵消息。
+//! Persist recovery metadata after exit reaping; file I/O runs in the background while UI continues pumping messages during waits.
 use super::*;
 use crate::{surface_event_record::Record as EventRecord, surface_recovery_record::Record};
 use std::{io, path::PathBuf, thread::JoinHandle};
@@ -10,7 +10,7 @@ impl Application {
             self.remote_sessions.surface_recovery_bundle(),
             save_in_profile,
         );
-        // 已退休提示不挤占未结算记录的文件预算；任一失败不阻止另一批尝试。
+        // Retired hints do not consume the file budget for unsettled records; failure of either batch does not block the other's attempt.
         finish_retired(
             current,
             self.surface_windows.retired_records(),
@@ -51,7 +51,7 @@ fn persist(
             events
         }
         Err(snapshot) => {
-            // 远程批次仍不可拆分；窗口提示是独立快照，原样保留 uncertain/inFlight。
+            // Remote batches remain indivisible; window hints are independent snapshots preserving uncertain/inFlight unchanged.
             let snapshot = format!("Surface remote recovery snapshot: {snapshot}");
             let message = if records.is_empty() {
                 snapshot
@@ -64,7 +64,7 @@ fn persist(
             return Err(Error::new(E_FAIL, message));
         }
     };
-    // 无 Surface 活动时不探测用户目录，也不创建空日志。
+    // Without Surface activity, neither probe user directories nor create empty journals.
     if records.is_empty() && events.is_empty() {
         return Ok(());
     }
@@ -89,7 +89,7 @@ fn save_in_profile(records: Vec<Record>, events: Vec<EventRecord>) -> Result<()>
 struct Writer(Option<JoinHandle<io::Result<PathBuf>>>);
 impl Drop for Writer {
     fn drop(&mut self) {
-        // 等待 API 失败时仍不遗留后台写线程；不删除可能含有效证据的新文件。
+        // Wait-API failure must not leave a background writer behind; preserve new files that may contain valid evidence.
         if let Some(thread) = self.0.take() {
             let _ = thread.join();
         }
@@ -111,7 +111,7 @@ fn save(
     let thread = std::thread::Builder::new()
         .name("otter-surface-journal".into())
         .spawn(move || {
-            // 两类文件各有配额，独立尝试追加；部分写入仍须报告错误。
+            // Both file categories have their own quotas and append independently; partial writes must still report errors.
             let attachment = (!records.is_empty())
                 .then(|| crate::surface_recovery_store::save(&root, &records))
                 .transpose();

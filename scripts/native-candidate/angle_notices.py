@@ -1,4 +1,4 @@
-"""保留暂存许可证/声明与已审阅内联载体的原字节；名称扫描不是完整法律归属审计。"""
+"""Preserve original bytes of staged licenses/notices and reviewed inline carriers; name scanning is not a complete legal-attribution audit."""
 
 import re
 from pathlib import PurePosixPath
@@ -10,7 +10,7 @@ MAX_TEXT = 4 * 1024 * 1024
 MAX_TOTAL = 64 * 1024 * 1024
 MAX_FILES = 2048
 LICENSE_NAME = re.compile(r"(?i)^(?:licen[sc]es?|copying|copyright|notice|patents)(?:[._-]|$)")
-# 这些实际编译文件含 Chromium attribution；仅有 zlib/ANGLE 根许可证不能代替它们。
+# These actually compiled files contain Chromium attribution; zlib/ANGLE root licenses alone cannot replace them.
 INLINE_CARRIERS = (
     "src/common/base/anglebase/sha1.cc",
     "third_party/zlib/google/compression_utils_portable.cc",

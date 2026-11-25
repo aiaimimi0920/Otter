@@ -1,4 +1,4 @@
-//! 父控制周期继承与子失败恢复：复用自有 Live/帧源，不创建 worker 或运行 WGC。
+//! Parent control-cycle inheritance and child-failure recovery; reuse owned Live/frame sources without creating workers or running WGC.
 use super::*;
 
 #[test]
@@ -86,7 +86,7 @@ fn a_new_valid_parent_cycle_can_request_fresh_enable_without_replaying_failed_in
     assert_eq!(child.pop_input(), None);
     child.sync_popup_control(Some(renewed));
     assert_eq!(child.take_input_request(), None);
-    // 只有原 Session 真正开始下一轮准入时，才按已有状态路径清掉失败标记。
+    // Clear failure flags through the existing state path only when the original Session actually begins another admission cycle.
     child.input_status(false, true, None);
     assert!(!child.state.input.borrow().failed);
     assert!(child.popup_control_allowed());
@@ -101,7 +101,7 @@ fn parent_identity_cookie_prevents_reusing_a_failure_marker_for_a_different_owne
     child.sync_popup_control(Some(old));
     child.input_failure();
     child.take_input_request();
-    // 同 HWND/相同首个 epoch 不等于同 Owner；覆盖仅限夹具自有窗口。
+    // The same HWND/first epoch does not imply the same Owner; overrides are limited to fixture-owned windows.
     let replacement = crate::live_hover_owner::Owner::new(parent.hwnd).unwrap();
     replacement.control(true).unwrap();
     let current = replacement.identity().capture_control().unwrap();

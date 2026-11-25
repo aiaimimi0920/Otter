@@ -1,4 +1,4 @@
-//! 独立画框中的标注纹理擦除；路径输入仍是文档源坐标，不提前舍入或缩成单轴比例。
+//! Annotation-texture erasure in independent frames; paths remain document-source coordinates without premature rounding/single-axis scaling.
 use super::*;
 use crate::crop_geometry::Rect;
 
@@ -16,8 +16,8 @@ pub fn apply_in_frame(
     apply_history_in_frame(source, size, points, width, frame, cancelled)
 }
 
-/// 历史笔宽会随贴图缩放，不能套用交互工具 4–96 的滑块范围。
-/// 单点按 Canvas 合同保留至少半个逻辑像素的半径。
+/// Historical stroke widths scale with stickers and cannot use interactive tools' 4-96 slider range.
+/// Single points retain at least half a logical pixel of radius under Canvas contracts.
 pub fn apply_history_in_frame(
     source: &Pixels,
     size: (u32, u32),
@@ -44,7 +44,7 @@ pub fn apply_history_in_frame(
     )
 }
 
-/// 工作纹理子区域的逆映射；保留全纹理以支持reset，不扩大交互笔宽或内存预算。
+/// Inverse mapping of working-texture subregions; retain full textures for reset without widening interactive stroke-width/memory budgets.
 pub fn apply_in_projection(
     source: &Pixels,
     size: (u32, u32),

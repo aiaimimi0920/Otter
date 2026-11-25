@@ -1,4 +1,4 @@
-//! 新旧协议不混用，短帧/超限/坏像素/诊断不能发布或先分配大图。
+//! Do not mix old/new protocols; short frames/overruns/bad pixels/diagnostics must not publish or allocate large images prematurely.
 use super::*;
 use crate::shader_hlsl::contract_tests::with_request;
 #[test]

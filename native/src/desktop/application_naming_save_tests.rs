@@ -1,4 +1,4 @@
-//! 共享隐藏宿主夹具，验证真实设置另存为和源配置保留。
+//! Shared hidden-host fixture verifies actual settings save-as and preservation of the source configuration.
 use super::*;
 #[path = "application_naming_update_tests.rs"]
 mod update_tests;
@@ -26,7 +26,7 @@ impl Drop for Files {
                 fs::remove_file(path).unwrap();
             }
         }
-        // 非递归删除同时验证暂存文件无残留。
+        // Nonrecursive deletion also verifies no staged files remain.
         fs::remove_dir(&self.0).unwrap();
     }
 }

@@ -1,4 +1,4 @@
-//! 合成签名、PNG 与固定本机 HTTP；不读取用户凭据，也不把夹具当作 OAuth/公网投射。
+//! Synthetic signatures, PNGs, and fixed local HTTP; no user credentials, and fixtures are not OAuth/public-network projection.
 use super::*;
 use base64::{
     engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD},
@@ -50,7 +50,7 @@ fn envelope(image: &Image) -> Envelope {
         "content":{"kind":"sticker","digest":image.digest()},"expiresAtMs":now().unwrap()+120_000,
         "nonce":"b".repeat(32),"signature":{"algorithm":"ed25519","keyId":SOURCE,"value":""}});
     let mut envelope: Envelope = serde_json::from_value(value.clone()).unwrap();
-    // message 为生产模块私有；夹具按合同独立拼接，避免验签双方共用错误序列。
+    // message is private to production modules; fixtures independently assemble the contract so signing/verifying cannot share a wrong sequence.
     let signed = [
         PROTOCOL.to_owned(),
         envelope.projection_id().into(),
@@ -350,7 +350,7 @@ fn actual_loom_signed_out_native_device_lease_is_not_account_authorization() {
     assert!(
         matches!(lease.account_projections(&config()), Err(Error::Remote { status: 401, code: Some(code) }) if code == "account_signed_out")
     );
-    assert!(!lease.is_revoked()); // 账号离线不应把已签名本机 Device 会话误判成作废。
+    assert!(!lease.is_revoked()); // Offline accounts must not invalidate signed local Device sessions.
     owner.invalidate(&connected.origin).unwrap();
     assert!(matches!(
         lease.account_projections(&config()),

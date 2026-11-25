@@ -1,4 +1,4 @@
-//! 配方缓存身份、LRU 与跨线程字节租约；不连接服务或加载 ANGLE。
+//! Recipe-cache identity, LRU, and cross-thread byte leases; no service connections or ANGLE loading.
 use super::super::{capability_selection::Selection, shader_prepare::tests as staging};
 use super::*;
 use crate::{desktop::loom_execution_job::Execution, editor::Editor, shader_angle::Backend};

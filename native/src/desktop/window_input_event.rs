@@ -1,4 +1,4 @@
-//! 本地Live与远程viewer共用Win32→归一化事件转换；此纯适配不授控制权或投递输入。
+//! Local Live/remote viewers share Win32-to-normalized-event conversion; this pure adapter grants no control or input delivery.
 use crate::{
     live_input::{Button, Event},
     live_viewport::Viewport,

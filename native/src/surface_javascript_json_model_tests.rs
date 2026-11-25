@@ -1,4 +1,4 @@
-//! 私有JSON bulk descriptor扫描保留原字符串/可枚举数据属性合同，不调用插件getter/toJSON。
+//! Private JSON bulk descriptor scans preserve original string/enumerable-data-property contracts without calling plugin getters/toJSON.
 use super::*;
 
 fn evaluate(script: &str) {
@@ -8,7 +8,7 @@ fn evaluate(script: &str) {
     let context = Context::full(&runtime).unwrap();
     context.with(|ctx| {
         let factory = include_str!("surface_javascript_json.js");
-        // 仅在模型副本暴露原迭代copy，单独检查其深度门；native stringify还受原256KiB限制。
+        // Expose the original iterative copy only in the model copy to check its depth gate separately; native stringify retains the original 256KiB limit.
         let factory = factory.replacen("return { encode", "return { copy, encode", 1);
         let source = format!("const codec=({factory});{script}");
         if let Err(error) = ctx.eval::<(), _>(source) {
@@ -45,7 +45,7 @@ fn javascript_json_bulk_descriptors_use_captured_intrinsics_and_reject_accessors
         r#"
       const reject=value=>{let caught=false;try{codec.encode(value)}catch{caught=true}if(!caught)throw Error('accessor accepted')};
       let calls=0;
-      // getter 返回合法值而不是抛错，避免把调用 getter 的异常误当作拒绝访问器。
+      // Return a valid value from the getter rather than throwing, so a getter exception cannot be mistaken for accessor rejection.
       const value={};Object.defineProperty(value,'x',{enumerable:true,get(){calls++;return 1}});
       reject(value);
       const array=[1,2];Object.defineProperty(array,'extra',{enumerable:true,get(){calls++;return 3}});

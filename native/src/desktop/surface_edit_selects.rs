@@ -1,4 +1,4 @@
-//! Select 挂载/离散选择接缝；不建 draft，不加入表单值，复用共享事件 FIFO。
+//! Select mounting/discrete-selection seam; no draft or form value, reusing the shared event FIFO.
 use super::*;
 use crate::desktop::surface_select_control::Control;
 #[derive(PartialEq)]
@@ -47,7 +47,7 @@ impl Mount {
             })
         });
         self.fields_changed |= self.selects.len() != previous_count;
-        // 先撤销旧身份队列，再创建同 ID 新控件，避免旧 value 改投新 action。
+        // Revoke the old identity's queue before creating a same-ID control, preventing old values from being redirected to a new action.
         self.retain_select_intents(nodes);
         let overlays = presentation.scrollbars();
         for (index, geometry) in presentation.geometry().nodes().iter().enumerate() {
@@ -110,7 +110,7 @@ impl Mount {
                 clip: geometry.clip(),
                 dpi,
             };
-            // 不依赖不同控件版本的 SetWindowPos 副作用；真实锚点/裁剪变化先收起。
+            // Do not rely on SetWindowPos side effects across control versions; collapse before actual anchor/clipping changes.
             let changed = field.placement.as_ref() != Some(&placement);
             if changed {
                 field.control.close_popup()?;
@@ -159,8 +159,8 @@ impl Mount {
         else {
             return Ok(false);
         };
-        // v6 UIA SelectionItem 可改变真实索引而不发 CBN_SELCHANGE。
-        // 收起时核对最终索引，仍由 accepted 去重；不合成系统通知或绕过 FIFO。
+        // v6 UIA SelectionItem may change the actual index without sending CBN_SELCHANGE.
+        // Check the final index on collapse, still deduplicated by accepted; neither synthesize system notifications nor bypass FIFO.
         if message != WM_COMMAND || !matches!(code, CBN_SELCHANGE | CBN_CLOSEUP) {
             return Ok(true);
         }

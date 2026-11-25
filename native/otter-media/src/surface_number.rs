@@ -1,7 +1,7 @@
-//! Number 的字符串/数值边界及有界步进；不把手工越界输入钳制，也不拥有动作权限。
+//! Number string/numeric boundaries and bounded stepping; do not clamp manual out-of-range input or own action permission.
 use crate::surface_scene::Node;
 
-/// 编辑态允许缺失数字，保证删除/插入可以修复未完成的尾数或指数；不是提交格式校验。
+/// Editing allows missing digits so deletion/insertion can repair incomplete mantissas or exponents; this is not submission-format validation.
 pub fn editable(text: &str) -> bool {
     let bytes = text.as_bytes();
     let mut at = usize::from(matches!(bytes.first(), Some(b'+' | b'-')));
@@ -106,7 +106,7 @@ impl Limits {
                 .filter(|v| v.is_finite())
                 .unwrap_or(fallback)
         };
-        // 旧 Surface numberProp 的 min/max 缺省均为 0，不改写成无上下界。
+        // Legacy Surface numberProp defaults both min/max to 0; do not rewrite them as unbounded.
         let min = number("min", 0.);
         let max = number("max", 0.);
         let step = number("step", 1.);
@@ -123,7 +123,7 @@ impl Limits {
         }
         let old = parse(text).unwrap_or(0.);
         let quotient = (old - self.base) / self.step;
-        // 超出整数精度或溢出时不猜测下一格，不创建无界迭代。
+        // Do not guess the next step beyond integer precision or on overflow, and do not create unbounded iterations.
         if !quotient.is_finite() || quotient.abs() >= (1_u64 << 52) as f64 {
             return None;
         }

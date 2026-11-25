@@ -1,9 +1,9 @@
-// Constructed sheets 与 author cascade；无 URL/@import/异步加载，采用/替换均原子提交。
+// Constructed sheets and author cascade; no URLs, @import or asynchronous loading, with atomic adoption/replacement.
 ((dom, fail, values, selectors, declarations) => {
   "use strict";
   const op = dom.ops, sheets = new op.Weak(); let created = 0, adopted = op.array();
   const rulesOf = sheet => op.weakGet(sheets, sheet) ?? fail();
-  // 与inline声明相同，用户转换必须在进入私有parser之前完成，允许有界重入。
+  // As with inline declarations, finish user conversion before entering the private parser, allowing bounded reentry.
   const parse = source => {
     source = declarations.strip(source); const rules = op.array(); let offset = 0;
     while (offset < source.length) {
@@ -13,7 +13,7 @@
       const selector = op.slice(source, offset, open), body = op.slice(source, open + 1, close);
       if (op.index(selector, "@") >= 0 || op.test(/[{}]/, body)) fail();
       const matches = selectors.list(selector), store = declarations.parse(body), entries = op.array();
-      // sheet规则不可逐项修改；解析后只持这一份有序声明，不为每次node匹配重建Map iterator。
+      // Sheet rules cannot be modified individually; retain this single ordered declaration list after parsing instead of rebuilding Map iterators for each node match.
       const iterator = op.mapEntries(store); let next;
       while (!(next = op.mapNext(iterator)).done) op.push(entries, next.value);
       op.push(rules, { selectors: matches, declarations: entries }); offset = close + 1;
@@ -35,25 +35,25 @@
     budget(copy); dom.changed(); adopted = copy;
   };
   const adoptedCopy = () => { const copy = []; for (let i = 0; i < adopted.length; i++) copy[i] = adopted[i]; return copy; };
-  // 编译器始终生成[id,class,tag]三项元组，直接逐项比较，不丢失任何权重。
+  // The compiler always produces three-element [id,class,tag] tuples; compare each component directly without losing any weight.
   const greater = (a, b) => a[0] !== b[0] ? a[0] > b[0] :
     a[1] !== b[1] ? a[1] > b[1] : a[2] >= b[2];
   const computed = (node, parent) => {
-    // key仅来自已准入的canonical CSS声明；空原型record不读取插件原型，生命周期只限本次计算。
+    // Keys come only from admitted canonical CSS declarations; null-prototype records do not read plugin prototypes and live only for this computation.
     const winners = op.record(), context = selectors.context(node);
-    // 同步 getter 可从插件调用栈进入；捕获的 iterator 避免 forEach 再嵌套一次 JS/native 回调。
+    // Synchronous getters can enter from the plugin call stack; the captured iterator avoids an extra JS/native callback layer from forEach.
     const apply = (store, specificity, inline) => {
-      // inline仍读取原可变Map；author sheet使用解析时的私有有序声明，优先级/源序不变。
+      // Inline still reads the original mutable Map; author sheets use private ordered declarations created during parsing, preserving precedence/source order.
       const iterator = inline ? op.mapEntries(store) : null; let index = 0, next;
       while (inline ? !(next = op.mapNext(iterator)).done : index < store.length) {
         const entry = inline ? next.value : store[index++], name = entry[0], item = entry[1];
-        // 输入按源序遍历，相同优先级的后来声明自然覆盖；不为每次匹配分配六项rank数组。
-        // specificity仍逐项比较，不压成会碰撞的数值；important优先于独立的inline层级。
+        // Traverse input in source order so later declarations of equal precedence naturally override earlier ones; avoid allocating six-element rank arrays per match.
+        // Compare specificity component by component rather than collapsing it into a collision-prone number; important precedes the separate inline tier.
         const important = item.priority === "important", previous = winners[name];
         const wins = !previous || (important !== previous.important ? important :
           inline !== previous.inline ? inline > previous.inline : greater(specificity, previous.specificity));
         if (wins && previous) {
-          // winner只活在本次computed内；更新已有自有字段，不为相同属性的后来声明反复分配。
+          // Winners live only within this computed call; update existing own fields instead of reallocating for later declarations of the same property.
           previous.important = important; previous.inline = inline;
           previous.specificity = specificity; previous.value = item.value;
         } else if (wins) winners[name] = { important, inline, specificity, value: item.value };

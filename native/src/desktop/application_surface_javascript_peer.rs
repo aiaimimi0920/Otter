@@ -1,4 +1,4 @@
-//! 固定 loopback TLS 协议 peer；核实 GET 在 active 之前，不替代真实 Loom/设备批准。
+//! Fixed loopback TLS protocol peer; verify GET precedes active, not a substitute for real Loom/device approval.
 use super::*;
 pub(crate) fn report() -> crate::surface_host_capabilities::Report {
     use crate::surface_host_capabilities::{Input, Report, Runtime};

@@ -1,4 +1,4 @@
-//! 新窗口接入应用共享状态的唯一入口；先登记模态生命周期，再创建 HWND。
+//! Sole entry point for attaching new windows to shared application state; register modal lifetime before creating HWND.
 use super::*;
 impl Application {
     pub(super) fn sync_capture_windows(&self) {
@@ -34,7 +34,7 @@ impl Application {
         let document =
             DocumentWindow::create_at(self.instance, self.bind_window_state(state), frame)?;
         if observe {
-            // 可见发布的可失败准备必须仍在事务提交之前，包括 Live freeze。
+            // Fallible preparation for visible publication must still precede transaction commit, including Live freeze.
             crate::desktop::tool_panel::prepare(document.panel.0, &document.state)?;
             document.observe_priority()?;
         }

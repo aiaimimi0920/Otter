@@ -1,4 +1,4 @@
-//! 真实TLS包下载/缓存/取消负例；只用本测试profile与固定issuer，不接触用户配置。
+//! Real TLS package download/cache/cancellation negative cases; only this test profile and fixed issuer, never user configuration.
 use super::*;
 use crate::{
     art_execution_grant::{package as pkg, resume::Ticket},
@@ -142,7 +142,7 @@ fn exercise(case: Case) {
                 cancelled.revoke();
             }
             let data = serde_json::json!({"protocolVersion":pkg::RESOURCE,"grantId":original.grant_id,"resourceId":if case==Case::WrongId{"other"}else{"text"},"digest":declaration.digest,"bytes":STANDARD.encode(if case==Case::WrongBytes{b"changed text"}else{BYTES})});
-            // 撤销会关闭客户端；写失败是本负例预期，不把服务端BrokenPipe当产品失败。
+            // Revocation closes the client; write failure is expected here, not a product failure caused by server BrokenPipe.
             if case != Case::Cancel {
                 reply(&mut stream, 200, &serde_json::to_vec(&data).unwrap());
             }

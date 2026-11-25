@@ -1,4 +1,4 @@
-//! 四边 padding 贯穿真实 child、DirectWrite 布局与同步观察；沿用原产品 worker 接缝。
+//! Four-side padding through real children, DirectWrite layout, and synchronous observation using the original product-worker seam.
 use super::*;
 use crate::surface_viewport::Viewport;
 use sha2::{Digest, Sha256};

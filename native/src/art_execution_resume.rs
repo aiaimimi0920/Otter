@@ -1,4 +1,4 @@
-//! 离线恢复只读当前 v3 签名包；恢复能力不依赖旧协议或旧程序互通。
+//! Offline recovery reads only current v3 signed packages; recovery does not depend on old protocols or interoperability with old programs.
 use super::*;
 use serde::{Deserialize, Serialize};
 #[cfg(test)]
@@ -57,7 +57,7 @@ impl Ticket {
         ) {
             return Err(Error::Binding);
         }
-        // 先校原签名内的完整grant，再仅以显式resume权限创建内存中的当前绑定；绝不签发/输出新v1凭据。
+        // Validate the complete originally signed grant first, then create the current in-memory binding only with explicit resume permission; never issue/output new v1 credentials.
         validate(
             &self.grant,
             &Expected {

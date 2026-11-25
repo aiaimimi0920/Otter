@@ -1,4 +1,4 @@
-//! 接受及unchanged/changed都严格核offline route/peer/真实本机设备，PNG仍走原预算和解码。
+//! Accept and unchanged/changed strictly verify offline route/peer/actual local device; PNG retains original budgets/decoding.
 use super::*;
 use crate::projection_delivery::{
     accept::{Read, Received},

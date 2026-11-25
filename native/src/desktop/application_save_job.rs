@@ -1,4 +1,4 @@
-//! 保存候选 worker；UI Receipt 不进入线程，完成通知不代表允许提交。
+//! Save-candidate worker; UI Receipt never enters the thread, and completion notification does not authorize commit.
 use super::super::save_disk::{Destination, Disk};
 use super::{Data, FrozenData};
 use crate::{desktop::loom_execution_signal::CompletionSignal, session_write::Candidate};
@@ -32,12 +32,12 @@ impl Output {
         }
     }
 }
-/// 库操作不产生磁盘暂存或检查点；未改动时没有候选字节。
+/// Library operations produce no disk staging or checkpoint; unchanged operations have no candidate bytes.
 enum Completion {
     Prepared(Output),
     Library(Option<Candidate>),
 }
-/// 回收候选会移除活动窗口，不能被仅更新库原文或磁盘保存的消费者领取。
+/// Recycle candidates remove active windows and cannot be consumed by callers that only update library source content or save to disk.
 enum Purpose {
     Save,
     Checkpoint,
@@ -147,12 +147,12 @@ impl Job {
             let candidate = data
                 .encode(cancel)
                 .map_err(|error| format!("Save encoding failed: {error:?}"))?;
-            // 编码与磁盘暂存共用一个取消令牌/任务槽；取消后的 Staged 由 owner 清理。
+            // Encoding and disk staging share one cancellation token/task slot; the owner cleans up Staged after cancellation.
             let staged = destination
                 .map(|destination| destination.prepare(&candidate, cancel))
                 .transpose()
                 .map_err(|error| format!("Save staging failed: {error}"))?;
-            // 所有包含凭证共享一次会话解码，且绑定同一份将要发布的字节。
+            // All inclusion credentials share one session decode and bind the same bytes that will be published.
             let source = candidate.bytes.clone().into();
             let parsed = crate::session_source::Source::parse(&source).map_err(|_| {
                 format!(
@@ -174,7 +174,7 @@ impl Job {
                 checkpoint_accounts: Some(checkpoint_accounts),
                 checkpoint_senders: indices.sender,
                 checkpoint_scope,
-                // 原 Save 候选即使稍后才选择目标，也可经 commit_new 真正落盘；库更新不走这里。
+                // The original Save candidate can actually persist through commit_new even if its destination is chosen later; library updates do not use this path.
                 checkpoint_projections: indices.receiver,
                 candidate,
                 staged,
@@ -249,7 +249,7 @@ impl Job {
             result
         })
     }
-    /// 只认真实线程退出，供普通与模态图库消费者安全领取。
+    /// Recognize only actual thread exit, allowing ordinary and modal-gallery consumers to collect safely.
     pub fn is_ready(&self) -> bool {
         self.worker
             .as_ref()
@@ -263,7 +263,7 @@ impl Job {
 impl Drop for Job {
     fn drop(&mut self) {
         self.cancel();
-        // WIC/字体调用不可强制打断；退出时等待其边界回收，禁止遗留无 owner 线程。
+        // WIC/font calls cannot be forcibly interrupted; wait for boundary cleanup on exit and never leave ownerless threads.
         if let Some(worker) = self.worker.take() {
             let _ = worker.join();
         }

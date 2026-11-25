@@ -1,4 +1,4 @@
-//! 只从默认工作区真实提交取得发送 scope；导入、暂存、手动另存不借旧 canonical 凭证。
+//! Obtain send scope only from actual default-workspace commits; import, staging, and manual save-as must not borrow old canonical credentials.
 use super::*;
 impl Owner {
     pub(in crate::desktop::application) fn account_bindings(
@@ -66,7 +66,7 @@ impl Owner {
     }
 }
 impl Application {
-    /// 只读已提交的精确 sender 包含关系；scope/相同 UnitId/手动文件均不能借旧 canonical。
+    /// Read-only exact committed sender inclusion relationships; scope, identical UnitId, and manual files cannot borrow old canonical state.
     pub(in crate::desktop) fn projection_sender_inclusion(
         &self,
         expected: &crate::projection_delivery::sender::binding::Binding,
@@ -87,7 +87,7 @@ impl Application {
         let Some(index) = owner.senders.as_ref() else {
             return false;
         };
-        // scope getter 同时核当前 Record/Workspace/真实 canonical Source；intent 必须属同一逻辑身份。
+        // The scope getter checks current Record/Workspace/actual canonical Source together; intent must belong to the same logical identity.
         index.is_for(owner.original.as_ref().unwrap())
             && index.includes(expected)
             && scope.to_string() == expected.scope()

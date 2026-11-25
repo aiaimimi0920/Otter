@@ -74,7 +74,7 @@ formal release.
 
 ## Fast iteration and build-cache discipline
 
-- Read related Rust and desktop TypeScript files in parallel, plan 150-500
+- Read related Rust modules and build/test scripts in parallel, plan 150-500
   effective-line module splits upfront, and implement each complete vertical
   slice in one coordinated batch so you do not pay a second split-and-relink pass.
 - Preserve the layered Cargo workspace (`native/otter-core` -> `native/otter-media`
@@ -92,16 +92,10 @@ formal release.
   `npm run check:fast` (`+nightly -Z threads=6` isolated in `native/target-nightly-check`)
   for fast multi-core typechecks and `cargo nextest` (`native/.config/nextest.toml`)
   for process-isolated test execution with timeouts.
-- For repository-wide review (`docs/development/review-coverage.json`), run
-  `node scripts/review-batches.mjs` to group pending modules and pre-screen hotspots,
-  and update the ledger atomically via `npm run review:upsert`
-  (`node scripts/review-ledger-upsert.mjs --entries <batch.json>` or `--refresh-paths`,
-  never hand-crafting ad-hoc SHA256/JSON rewrite scripts). Separate read-only review
-  batches (dispatching 3-5 read-only subagents across independent directories and
-  registering 40-80 `retained` files per batch without Cargo builds or
-  `version:internal` bumps) from batched code-optimization slices, overlap background
-  Cargo builds with read-only pre-review of the next batch, and relay to a fresh
-  session every ~400-500 reviewed files to keep context lean.
+- Separate read-only review batches from code changes. Review independent directories
+  in parallel, batch related fixes for focused verification, and overlap background
+  Cargo builds with read-only pre-review. Read-only review does not require Cargo
+  builds or `version:internal` bumps.
 - Never run `cargo check --tests` immediately before an unchanged `cargo test`;
   format modified Rust files incrementally via
   `rustfmt --edition 2021 --config skip_children=true <files>`, reuse built test
@@ -122,4 +116,4 @@ Any stricter repository-local checker or CI gate overrides this common floor.
 - Cargo and npm retain three-part SemVer; the fourth part is a Otter build
   identity in provenance, not a dependency version. Never publish an internal
   candidate or a four-part tag through the public release pipeline.
-- Follow `docs/release/VERSIONING.md` for commands, compatibility, and release gates.
+- Follow `docs/release/release-provenance.md` for version commands and release gates.

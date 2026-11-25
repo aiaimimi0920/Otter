@@ -1,4 +1,4 @@
-//! 单条工作流请求交换；后台调用，调用方负责准入连接、复核 receipt 和消费成功回执。
+//! Single-workflow request exchange in the background; callers own connection admission, receipt revalidation, and successful-receipt consumption.
 use super::Request;
 use crate::{byte_budget::Budget, loom_bridge_client::BridgeSocket};
 use serde::de::{DeserializeSeed, MapAccess, SeqAccess, Visitor};
@@ -158,7 +158,7 @@ fn parse_reply(bytes: &[u8]) -> Option<Ack<'_>> {
     Some(reply)
 }
 
-/// 不返回远端任意错误文本，避免凭据/路径通过日志或 UI 回显。
+/// Return no arbitrary remote error text, preventing credentials/paths from echoing through logs or UI.
 pub fn response(bytes: &[u8], request: &Request) -> Result<bool, Error> {
     if bytes.len() > RESPONSE_LIMIT {
         return Err(Error::InvalidResponse);
@@ -179,7 +179,7 @@ pub fn response(bytes: &[u8], request: &Request) -> Result<bool, Error> {
     }
 }
 
-/// 一次尝试，五秒总期限；超时不自动重发，也不推进批次或修改本地来源。
+/// One attempt with a five-second total deadline; timeout neither resends automatically nor advances batches or changes local sources.
 pub fn run(
     socket: BridgeSocket,
     request: &Request,
@@ -187,7 +187,7 @@ pub fn run(
     cancel: &AtomicBool,
 ) -> Result<(), Error> {
     check(cancel)?;
-    // Tungstenite 接管 Text；其发送副本须独立准入，不能借用批次租约重复记账。
+    // Tungstenite owns Text; independently admit its send copy rather than double-accounting against the batch lease.
     let mut lease = budget.reserve(request.bytes().len()).ok_or(Error::Budget)?;
     let mut message = String::new();
     message
@@ -197,7 +197,7 @@ pub fn run(
         return Err(Error::Budget);
     }
     message.push_str(std::str::from_utf8(request.bytes()).map_err(|_| Error::InvalidResponse)?);
-    // 内层先销毁 socket（含可能尚未发送的 Text），外层才归还租约。
+    // Inner scope destroys the socket, including possibly unsent Text, before outer scope returns the lease.
     exchange(socket, request, message, cancel)
 }
 fn exchange(

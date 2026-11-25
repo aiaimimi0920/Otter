@@ -1,4 +1,4 @@
-//! 有界发现清单解析；只返回经验证的桥接身份，不实现发现路径信任或公开凭据序列化。
+//! Bounded discovery-manifest parsing; return only validated bridge identity, without discovery-path trust or public credential serialization.
 use crate::loom_bridge_identity::Identity;
 use serde::Deserialize;
 use std::{collections::HashSet, net::IpAddr};
@@ -14,7 +14,7 @@ pub enum Error {
     Identity,
 }
 
-// 不派生 Debug/Serialize：原始清单包含桥接令牌和 HTTP bearer 凭据。
+// Do not derive Debug/Serialize: raw manifests contain bridge tokens and HTTP bearer credentials.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Manifest {
@@ -63,7 +63,7 @@ pub fn parse(bytes: &[u8]) -> Result<Identity, Error> {
     .map_err(|_| Error::Identity)
 }
 
-/// HTTP 媒体发现不要求 hookBridge；两条路径共享完整清单与 transport 校验。
+/// HTTP media discovery does not require hookBridge; both paths share complete-manifest and transport validation.
 pub fn parse_media(bytes: &[u8]) -> Result<crate::loom_media_target::Target, Error> {
     let manifest = validated(bytes)?;
     let transport = manifest.transport;
@@ -127,7 +127,7 @@ fn validate_transport(transport: &Transport) -> Result<(), Error> {
         .unwrap_or(host);
     let loopback = host.eq_ignore_ascii_case("localhost")
         || ip.parse::<IpAddr>().is_ok_and(|ip| ip.is_loopback());
-    // 与主干默认 remote-surface 清单验证一致；桥接身份仍单独限定 IPv4 本机 WSS。
+    // Match mainline default remote-surface manifest validation; bridge identity remains separately restricted to local IPv4 WSS.
     if url.scheme() == "http" && !loopback {
         return Err(Error::Transport);
     }

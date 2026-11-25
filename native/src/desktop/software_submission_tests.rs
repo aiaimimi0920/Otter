@@ -1,4 +1,4 @@
-//! 不可变提交租约与真实分层样式重入；所有窗口隐藏，不读取用户 profile。
+//! Immutable submission leases and actual layered-style reentrancy; all windows are hidden, and user profiles are not read.
 use super::*;
 use crate::desktop::{software_surface::SoftwareSurface, Apartment, Window};
 use std::cell::{Cell, RefCell};
@@ -53,7 +53,7 @@ fn pending_pixels_cannot_be_overwritten_and_cancel_releases_lease() {
         .unwrap()
         .present(HWND::default())
         .is_err());
-    surface.draw(red).unwrap(); // 提交失败同样释放租约，但必须重新绘制才能再次提交。
+    surface.draw(red).unwrap(); // Failed submissions also release leases, but another submission requires redrawing.
 }
 
 #[test]
@@ -110,7 +110,7 @@ unsafe extern "system" fn procedure(hwnd: HWND, message: u32, wp: WPARAM, lp: LP
         OWNER.with(|owner| match owner.try_borrow_mut() {
             Ok(mut surface) => {
                 surface.take();
-            } // 模拟重入中丢弃渲染资源，不碰提交中的 DIB。
+            } // Simulate dropping rendering resources during reentrancy without touching the DIB being submitted.
             Err(_) => BORROW_FAILED.set(true),
         });
     }
@@ -168,7 +168,7 @@ fn layered_style_reenters_after_model_borrow_is_released() {
         });
         STYLE_CALLS.set(0);
         BORROW_FAILED.set(false);
-        // 实测 ULW resize 不保证产生 WM_SIZE；用生产必经的样式通知验证真实同步重入。
+        // Actual ULW resizing does not guarantee WM_SIZE; use production-required style notifications to verify real synchronous reentrancy.
         let transition =
             crate::desktop::software_surface::window_style::Transition::begin(window.0, true)
                 .unwrap();

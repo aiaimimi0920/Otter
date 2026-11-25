@@ -1,4 +1,4 @@
-//! 传统收件任务复用原远程集合容量/等待/退出；取消只标记，完成后才 join 并归还槽。
+//! Legacy inbox tasks reuse remote collection capacity/waiting/shutdown; cancellation only marks, with join/slot return after completion.
 use super::*;
 use crate::{
     projection_delivery::{InboxPolicy, Invitation},
@@ -222,7 +222,7 @@ impl Sessions {
     ) -> Option<crate::projection_delivery::sender::Request> {
         self.projection_sender_abandoned.take()
     }
-    /// 最后 Unit 已销毁，不能让尚未回收的 Accept 越过空检查点；只在终态同步回收。
+    /// The final Unit is destroyed; unreclaimed Accept must not cross an empty checkpoint. Reclaim synchronously only at terminal state.
     pub(crate) fn finish_projection(&mut self) {
         if let Some(mut pending) = self.projection_job.take() {
             pending.job.stop_and_join();

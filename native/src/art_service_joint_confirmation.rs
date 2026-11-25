@@ -1,4 +1,4 @@
-//! 联合门的可信测试宿主；只批准两次精确票据，不冒充真实用户原生窗口操作。
+//! Trusted test host for the joint gate; approve only two exact tickets, not real user interaction with native windows.
 use crate::live_relay_http::art_prepare::service::progress::Channel;
 use std::{
     sync::{

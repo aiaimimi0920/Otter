@@ -26,7 +26,7 @@ unsafe fn moving_cursor_inside_source(app: &mut Application, source: usize) -> R
     app.editable_clipboard
         .borrow_mut()
         .published(79, Some(content.clone()));
-    // 原 A 的任意位置都沿同一序列；可见副本覆盖 A 也不能改变复制来源身份。
+    // Any point within original A follows the same sequence; a visible copy covering A must not change copy-source identity.
     for (index, (dx, dy)) in [
         (1, 1),
         (3, 2),
@@ -119,7 +119,7 @@ pub(super) unsafe fn run(app: &mut Application) -> Result<()> {
     app.editable_clipboard
         .borrow_mut()
         .published(77, Some(content.clone()));
-    // 排队请求共享采样坐标；越过鼠标后仍应沿每次成功落点继续推进。
+    // Queued requests share sampled coordinates; continue from each successful landing point even after passing the cursor.
     let request = app
         .editable_clipboard
         .borrow()
@@ -177,7 +177,7 @@ pub(super) unsafe fn run(app: &mut Application) -> Result<()> {
     {
         return Err(Error::new(E_FAIL, "Failed placement advanced the anchor"));
     }
-    // 在另一张已移动/缩放的钉图内粘贴，按其当前左上角；重叠时选最上层。
+    // Paste inside another moved/resized pin relative to its current upper-left corner; choose the topmost one when overlapping.
     for (index, x) in [(count, 600), (count + 1, 620)] {
         SetWindowPos(
             app.documents[index].window.0,

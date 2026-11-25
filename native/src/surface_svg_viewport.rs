@@ -1,4 +1,4 @@
-//! SVG 图片自然尺寸与内部 viewport；不从绘制内容包围盒猜测尺寸。
+//! SVG image natural dimensions and internal viewports; never infer dimensions from painted-content bounds.
 use super::invalid;
 use resvg::usvg::roxmltree::Node;
 use std::io;
@@ -29,7 +29,7 @@ fn absolute(value: Option<Length>) -> io::Result<Option<f64>> {
         LengthUnit::Pt => 96.0 / 72.0,
         LengthUnit::Pc => 16.0,
         LengthUnit::Percent => return Ok(None),
-        _ => return Err(invalid()), // 字体相对单位尚未建立字体合同。
+        _ => return Err(invalid()), // Font-relative units do not yet have a font contract.
     };
     Ok(Some(value.number * factor))
 }
@@ -56,7 +56,7 @@ pub(super) fn inspect(root: Node<'_, '_>) -> io::Result<Viewport> {
         (None, None, Some(r)) => (150.0 * r, 150.0),
         (None, None, None) => (300.0, 150.0),
     };
-    // 像素 extent 向上取整，但逻辑几何保持小数，不能用像素取整结果放大内容。
+    // Round pixel extents upward while retaining fractional logical geometry; rounded pixels must not enlarge content.
     if [width, height]
         .iter()
         .any(|n| !n.is_finite() || *n <= 0.0 || *n > 16384.0)

@@ -1,4 +1,4 @@
-//! 真实 WIC/D2D 与生产 Presentation/NativeMeasure；授权下载和 HWND 安装另验。
+//! Real WIC/D2D with production Presentation/NativeMeasure; authorized downloads and HWND installation are verified separately.
 use super::*;
 #[path = "surface_image_padding_pixels_tests.rs"]
 mod padding;
@@ -193,7 +193,7 @@ fn surface_image_fractional_logical_size_controls_real_contain_paint() {
     assert_eq!(pixel(&p, 10, 6), [0, 0, 255, 255]);
     assert_eq!(pixel(&p, 10, 19), [0, 0, 255, 255]);
     assert_eq!(pixel(&p, 10, 21), [0, 0, 0, 0]);
-    // 彩色列区分逻辑 sourceRect 与把完整 3 像素拉伸为 2.5 单位的错误路径。
+    // Colored columns distinguish the logical sourceRect from incorrectly stretching all 3 pixels into 2.5 units.
     let row = [255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255];
     let image = Image::from_surface(
         &row.repeat(2),
@@ -230,7 +230,7 @@ fn surface_image_paint_obeys_opacity_sibling_order_and_rounded_mask() {
 #[test]
 fn surface_image_paint_padding_uses_content_edge_radius() {
     let p = render(br#"{"id":"image","type":"image","layout":{"width":64,"height":40,"padding":4},"style":{"borderRadius":16}}"#);
-    // 内容区 56x32，contain 为 56x28；content radius=12，而不是 padding radius=16。
+    // Content area is 56x32 and contain is 56x28; content radius=12, not padding radius=16.
     assert_eq!(pixel(&p, 4, 6), [0, 0, 0, 0]);
     assert_eq!(pixel(&p, 8, 20), [0, 0, 255, 255]);
 }

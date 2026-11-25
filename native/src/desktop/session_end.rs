@@ -1,4 +1,4 @@
-//! 系统结束会话准入；只在 Application 的只读等待作用域查询，不把普通关窗当作系统退出。
+//! System session-end admission; query only within Application's read-only wait scope, never treating ordinary window closing as system exit.
 use std::{
     cell::{Cell, RefCell},
     rc::{Rc, Weak},
@@ -42,7 +42,7 @@ impl Drop for OwnerScope {
         OWNER.with(|slot| *slot.borrow_mut() = std::mem::take(&mut self.0));
     }
 }
-/// 仅持弱Control身份，覆盖主循环及退出排空；不储存Application指针或授予查询回调。
+/// Hold only weak Control identity across the main loop and exit drain; store no Application pointer or grant query callbacks.
 pub(super) fn with_owner<T>(control: &Rc<Control>, operation: impl FnOnce() -> T) -> T {
     let _scope = OwnerScope(OWNER.with(|slot| slot.replace(Rc::downgrade(control))));
     operation()
@@ -50,8 +50,8 @@ pub(super) fn with_owner<T>(control: &Rc<Control>, operation: impl FnOnce() -> T
 fn active() -> Option<Rc<Control>> {
     OWNER.with(|slot| slot.borrow().upgrade())
 }
-/// 复用现有控件subclass，拦截同步编辑以及普通输入；销毁/取消/读取仍走原清理过程。
-/// WM_GESTURE/WM_TOUCH携带系统句柄，必须交宿主/控件默认过程释放，不能在无lp的过滤器吞掉。
+/// Reuse existing control subclasses to intercept synchronous edits and ordinary input; destruction/cancellation/reads retain original cleanup.
+/// WM_GESTURE/WM_TOUCH carry system handles that host/control default procedures must release; filters without lp must not swallow them.
 pub(super) fn blocks_input(message: u32) -> bool {
     active().is_some_and(|owner| owner.paused())
         && ((WM_KEYFIRST..=WM_KEYLAST).contains(&message)
@@ -81,8 +81,8 @@ impl Drop for Scope {
     }
 }
 
-/// callback 仅借用应用；wait 不得修改该应用。指针不离开当前线程/栈作用域，unwind 也撤回。
-/// 不在 Application 可变处理栈安装回调，避免同步窗口消息别名借用 &mut Application。
+/// callback only borrows the application; wait must not modify it. The pointer stays within this thread/stack scope and is revoked on unwind too.
+/// Do not install callbacks on Application's mutable processing stack, avoiding aliased &mut Application borrows through synchronous window messages.
 pub(super) fn with_query<T>(
     control: &Rc<Control>,
     callback: impl Fn() -> bool,
@@ -104,7 +104,7 @@ pub(super) fn with_query<T>(
 fn ready(control: &Rc<Control>) -> bool {
     QUERY.with(|slot| {
         let query = slot.take();
-        let _scope = Scope(query); // 查询里的Win32只读调用若重入，不递归沿用正在执行的回调。
+        let _scope = Scope(query); // If read-only Win32 calls in the query reenter, do not recursively reuse the active callback.
         query.is_some_and(|query| {
             query.owner == Rc::as_ptr(control) && unsafe { (query.call)(query.context) }
         })
@@ -170,7 +170,7 @@ unsafe fn dispatch_control(
                 {
                     reason.set(true);
                 }
-                // 返回FALSE后沿原消息泵推进既有检查点，不在系统同步回调中保存、弹框或等待。
+                // After returning FALSE, advance existing checkpoints through the original message pump; no saving, dialogs, or waiting inside synchronous system callbacks.
                 let _ = PostMessageW(Some(hwnd), WM_NULL, WPARAM(0), LPARAM(0));
             }
             Some(LRESULT(isize::from(accepted)))
@@ -198,7 +198,7 @@ unsafe fn dispatch_control(
                     wp.0 as *mut _,
                 ));
             }
-            // DefWindowProc 的 WM_CLOSE/SC_CLOSE 会销毁文档，不能在已批准的时间点之后删除Unit。
+            // DefWindowProc's WM_CLOSE/SC_CLOSE destroys documents; do not delete Units after the approved point.
             Some(if matches!(msg, WM_CLOSE | WM_SYSCOMMAND | WM_DROPFILES) {
                 LRESULT(0)
             } else {

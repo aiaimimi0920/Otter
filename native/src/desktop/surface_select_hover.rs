@@ -1,4 +1,4 @@
-//! 原生指针进入/离开边沿；状态只占现有 subclass ref-data 的一位，不拥有 timer。
+//! Native pointer enter/leave edges; state uses one bit in existing subclass ref-data and owns no timer.
 use super::*;
 use windows::Win32::UI::{Controls::WM_MOUSELEAVE, Input::KeyboardAndMouse::*};
 pub(super) unsafe fn cancel_tracking(hwnd: HWND) {
@@ -42,7 +42,7 @@ pub(super) unsafe fn update(hwnd: HWND, message: u32, wp: WPARAM, lp: LPARAM) {
     if messages::hovered(hwnd) {
         return;
     }
-    // 先记录状态再请求系统离开跟踪，避免同步/后续离开通知被覆盖回 true。
+    // Record state before requesting system leave tracking, preventing synchronous/later leave notifications from being overwritten with true.
     if !messages::set_hover(hwnd, true) {
         return;
     }

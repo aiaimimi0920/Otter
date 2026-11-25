@@ -1,4 +1,4 @@
-//! 打开工作区菜单到后台发布；仅使用保存回归已创建的夹具文件，替换选择框出口。
+//! Open-workspace menu through background publication; use only files already created by save regressions and replace the picker output.
 use super::*;
 use std::{
     path::Path,

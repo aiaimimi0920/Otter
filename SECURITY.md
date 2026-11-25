@@ -3,15 +3,13 @@
 Help keep Otter safe by reporting suspected vulnerabilities privately.
 **Do not post exploit details, credentials or private screenshots in public issues.**
 
-[Report a vulnerability privately](https://github.com/aiaimimi0920/Otter/security/advisories/new) · [Privacy policy](docs/security/PRIVACY_POLICY.md) · [Security boundaries](docs/security/SECURITY_BOUNDARIES.md)
-
 ## Choose the right channel
 
 | What happened? | Where to report it |
 | --- | --- |
 | A crash, display issue, editing bug or feature request without a security impact | [GitHub Issues](https://github.com/aiaimimi0920/Otter/issues) |
 | Suspected unauthorized data access, credential exposure, permission bypass or unsafe package handling | The private reporting process below |
-| A suspicious release, signing-key exposure or compromised signing account | The same private process; include the release URL and available file hashes |
+| A suspicious release, signing-key exposure or compromised signing account | The same private process; see the [signing incident policy](docs/release/CODE_SIGNING_POLICY.md#incident-response) |
 
 ## Reporting a vulnerability
 
@@ -73,7 +71,3 @@ security controls; normal capture functionality alone is not evidence of a vulne
 | Local data and network behavior | [Privacy policy](docs/security/PRIVACY_POLICY.md) |
 | Authentication, image handling and native input limits | [Security boundaries](docs/security/SECURITY_BOUNDARIES.md) |
 | Dependency vulnerability handling | [Dependency security](docs/security/DEPENDENCY_SECURITY.md) |
-| Signing-key, signing-account or release-provenance incidents | [Code signing policy](docs/release/CODE_SIGNING_POLICY.md) |
-
-Use the private reporting process above for signing incidents too. Never attach a
-private key, signing credential or malicious binary to a public issue.

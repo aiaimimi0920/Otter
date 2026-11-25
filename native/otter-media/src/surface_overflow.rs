@@ -1,4 +1,4 @@
-//! 前端白名单对应的 overflow 计算值；裁剪、圆角与本地滚动范围共用。
+//! Computed overflow values matching the frontend allowlist; shared by clipping, rounded corners, and local scroll ranges.
 use crate::surface_scene::{Kind, Node};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -23,11 +23,11 @@ pub fn computed(node: &Node) -> [Mode; 2] {
         match node.layout().get(key).and_then(|value| value.as_str()) {
             Some("hidden") => Mode::Hidden,
             Some("auto") => Mode::Auto,
-            // 与前端映射一致：不接受任意 CSS 关键字，非法值回到节点默认值。
+            // Match frontend mappings: reject arbitrary CSS keywords and fall back to node defaults for invalid values.
             _ => default,
         }
     });
-    // CSS Overflow 3: 一轴为 scrollable value 时，另一轴 visible 计算成 auto。
+    // CSS Overflow 3: when one axis has a scrollable value, visible on the other axis computes to auto.
     if axes.iter().any(|axis| axis.clips()) {
         for axis in &mut axes {
             if *axis == Mode::Visible {

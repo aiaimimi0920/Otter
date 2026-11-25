@@ -1,4 +1,4 @@
-//! Canvas 鼠标私有输入；坐标为客户区 DIP，不携带 HWND、远端动作或捕获权限。
+//! Private Canvas mouse input; coordinates are client-area DIPs without HWNDs, remote actions, or capture permissions.
 use super::invalid;
 use serde::{Deserialize, Serialize};
 use std::io;
@@ -16,9 +16,9 @@ pub(crate) struct PointerInput {
     pub target: String,
     pub phase: PointerPhase,
     pub client: [f64; 2],
-    /// bit0 ctrl、bit1 shift、bit2 alt、bit3 meta；目前只接左键 mouse/pointerId=1。
+    /// bit0 ctrl, bit1 shift, bit2 alt, bit3 meta; currently only left-button mouse/pointerId=1 is connected.
     pub modifiers: u8,
-    /// 原 HWND 在 up 时按同命中/系统拖动阈值确认；click 与 up 共用 FIFO 槽。
+    /// The original HWND confirms on up using the same hit/system drag threshold; click and up share one FIFO slot.
     pub click: bool,
 }
 impl PointerInput {

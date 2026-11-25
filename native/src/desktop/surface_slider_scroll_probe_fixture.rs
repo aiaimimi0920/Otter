@@ -1,4 +1,4 @@
-//! 系统触摸探针使用正式 Surface/挂载/滚动 owner；仅向测试闭包借出实际 HWND。
+//! System touch probes use production Surface/mount/scroll owners, lending actual HWNDs only to test closures.
 use super::*;
 
 fn scene() -> Scene {
@@ -30,7 +30,7 @@ fn binding() -> crate::surface_live_binding::Binding {
         "https://localhost:1234", "viewer:test", "node:test").unwrap()
 }
 fn settle_horizontal(window: &SurfaceWindow, value: f64) {
-    // 走正式 prepare/settle，而不是只观察 HWND 通知；不发送网络请求。
+    // Use production prepare/settle, not just HWND notifications; send no network requests.
     let mut wire: Vec<serde_json::Value> = Vec::new();
     let binding = binding();
     for _ in 0..32 {

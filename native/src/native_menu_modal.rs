@@ -1,10 +1,10 @@
-//! 自绘菜单嵌套消息泵；捕获仅属于本次根面板，退出后才交付命令。
+//! Nested custom-menu message pump; capture belongs only to this root panel, and commands deliver after exit.
 use super::*;
 use windows::Win32::UI::Input::KeyboardAndMouse::{GetCapture, ReleaseCapture, SetCapture};
 const TIMER: usize = 0x4f4d54;
 
-/// 调用者须先建立应用模态门禁，结束后再核验目标；禁止跨调用借用编辑模型。
-/// 不抢占其他窗口前台，也不接管已有拖动捕获。
+/// Callers first establish the application modal gate and recheck targets afterward; never borrow editing models across this call.
+/// Do not take other windows' foreground or existing drag capture.
 pub fn track(owner: HWND, tree: Vec<Item>, point: POINT) -> Result<Option<usize>> {
     track_live(owner, tree, point, |_| Ok(()))
 }
@@ -25,7 +25,7 @@ pub fn track_compact(owner: HWND, tree: Vec<Item>, point: POINT) -> Result<Optio
     )
 }
 
-/// 动态菜单回调只查询本地完成通道；不能阻塞、借用业务模型或直接执行命令。
+/// Dynamic-menu callbacks only query local completion channels; no blocking, business-model borrows, or direct command execution.
 pub fn track_live(
     owner: HWND,
     tree: Vec<Item>,
@@ -50,7 +50,7 @@ pub fn track_live(
     )
 }
 
-/// 仅用于显式托盘菜单手势：激活菜单根面板，不恢复隐藏的业务 owner。
+/// Only for explicit tray-menu gestures: activate the menu root, without restoring hidden business owners.
 pub fn track_tray(owner: HWND, tree: Vec<Item>, point: POINT) -> Result<Option<usize>> {
     track_tray_live(owner, tree, point, |_| Ok(()))
 }
@@ -149,9 +149,9 @@ fn run_updated(
             if GetCapture() != root {
                 return Err(Error::new(E_ABORT, "Menu capture was interrupted"));
             }
-            // 捕获期间系统不发送 WM_SETCURSOR，菜单必须接管光标，不能沿用等待状态。
+            // System sends no WM_SETCURSOR during capture; menus must set their own cursor rather than retain wait cursors.
             SetCursor(Some(cursor));
-            // 定时器仅用于生命周期检查，不轮询系统剪贴板；随根 HWND 销毁。
+            // Timers check lifecycle only, never poll system clipboard; destroyed with the root HWND.
             if SetTimer(Some(root), TIMER, 30, None) == 0 {
                 return Err(Error::from_win32());
             }
@@ -186,7 +186,7 @@ fn run_updated(
                 menu.cancel();
                 break;
             }
-            // GetMessage 期间可派发 sent messages；必须在消费已取出的输入前复核。
+            // GetMessage may dispatch sent messages; recheck before consuming retrieved input.
             if menu.pages.iter().any(|page| !page.panel.alive())
                 || unsafe { GetCapture() != root || GetForegroundWindow() != foreground }
             {
@@ -241,7 +241,7 @@ fn run_updated(
         }
         Ok(menu.take_command())
     })();
-    // 不能用已被复用的裸 root 数值释放别人的捕获/定时器。
+    // Reused raw root values must not release someone else's capture/timers.
     if menu.pages.first().is_some_and(|page| page.panel.alive()) {
         unsafe {
             let _ = KillTimer(Some(root), TIMER);

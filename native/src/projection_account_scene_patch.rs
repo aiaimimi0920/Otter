@@ -1,4 +1,4 @@
-//! 场景字段原文 CAS；大 PNG 与未知根字段借用，不复制/反序列化整个 Base64 树。
+//! Original-text CAS for scene fields; borrow large PNG/unknown root fields without copying/deserializing the whole Base64 tree.
 use super::*;
 use serde::{ser::SerializeMap, Serializer};
 use serde_json::value::RawValue;

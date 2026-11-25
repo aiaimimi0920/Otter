@@ -1,4 +1,4 @@
-//! 按钮动态颜色只在绘制时选择；保留显式样式优先级，不触发场景解析或文本重排。
+//! Select dynamic button colors only while drawing; preserve explicit-style precedence without scene parsing or text reflow.
 use crate::{
     surface_color::Color,
     surface_scene::{Kind, Node},
@@ -35,7 +35,7 @@ impl PaintColor {
         if *text {
             return Color([6. / 255., 8. / 255., 13. / 255., 1.]);
         }
-        // Neuro yellowPressed = signal 82% + black，悬浮遵循主干按钮的强调色角色。
+        // Neuro yellowPressed = signal 82% + black; hover follows the mainline button accent-color role.
         let scale = if pressed { 0.82 } else { 1. };
         Color([217. / 255. * scale, scale, 56. / 255. * scale, 1.])
     }

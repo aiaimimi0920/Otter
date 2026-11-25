@@ -1,4 +1,4 @@
-//! 宿主 IME 标点的窄快捷键回归；标准 EDIT 不经过宿主命令，不注入全局输入。
+//! Narrow shortcut regressions for host IME punctuation; standard EDIT bypasses host commands, without global input injection.
 use super::*;
 
 #[test]
@@ -46,7 +46,7 @@ fn actual_host_never_opens_picker_for_ime_punctuation_without_real_digit_one() {
         let (_, doc) = document();
         let _keys = Keys::held(&[VK_SHIFT]);
         doc.state.catalog.borrow_mut().loaded = Some(catalog(|_| {}));
-        // SetKeyboardState在本环境不会设置数字键；不把人工键态伪造为正向IME验收。
+        // SetKeyboardState does not set digit keys in this environment; fabricated key state is not positive IME acceptance evidence.
         assert!(GetKeyState(0x31) >= 0);
         assert!(!key(WM_IME_CHAR, WPARAM(0xff01)));
         assert!(dispatch(
@@ -98,7 +98,7 @@ fn standard_child_edit_keeps_final_character_and_never_routes_ime_to_host_picker
         SendMessageW(edit, WM_IME_CHAR, Some(WPARAM(0xff01)), None);
         assert!(!doc.state.file_dialog.get());
         assert!(doc.state.art_request.borrow().is_none());
-        // 直接 SendMessage 不运行系统 IME 翻译；另验最终字符仍由标准 EDIT 接收。
+        // Direct SendMessage does not run system IME translation; separately verify that standard EDIT still receives the final characters.
         SetWindowTextW(edit, w!("")).unwrap();
         SendMessageW(edit, WM_CHAR, Some(WPARAM(0xff01)), None);
         let mut text = [0; 4];

@@ -1,4 +1,4 @@
-//! 默认原生安装经真实 Application 菜单、认证取码和缓存重渲染；不配置 ANGLE。
+//! Default native installation through real Application menus, authenticated code fetch, and cached rerendering; no ANGLE configuration.
 use super::*;
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 

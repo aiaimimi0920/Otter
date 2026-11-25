@@ -1,4 +1,4 @@
-//! 真实 TLS 续签、挂载和激活后由 Application 自动提交表单；不注入 Outcome 或 ACK。
+//! Application automatically submits forms after real TLS renewal, mounting, and activation; no Outcome or ACK injection.
 use super::*;
 use windows::Win32::UI::Controls::{EM_REPLACESEL, EM_SETSEL};
 

@@ -1,4 +1,4 @@
-//! Live Add Art 入口只交单槽意图；先停止源输入，选择与建窗由 Application 持有。
+//! Live Add Art entry delivers only a single-slot intent; stop source input first, with selection/window creation owned by Application.
 use super::*;
 use crate::desktop::node_menu::art_picker;
 const ADD: usize = 0x1f80;
@@ -18,7 +18,7 @@ pub(super) unsafe fn handle(hwnd: HWND, state: &State, msg: u32, wp: WPARAM, lp:
     if key && lp.0 & (1 << 30) != 0 {
         return true;
     }
-    // Shift 可能已送到源；沿既有停止通道释放，不让模态键盘继续控制用户源窗口。
+    // Shift may already have reached the source; release through the existing stop channel so modal keyboard input cannot keep controlling the user's source window.
     input::cancel(hwnd, state);
     if !state.closed.get()
         && !state.group_locked.get()

@@ -1,4 +1,4 @@
-//! 菜单本地导航的有界单槽交付；只供翻页等呈现更新，不在模态回调中执行业务。
+//! Bounded single-slot delivery for local menu navigation; presentation updates such as paging only, without business execution in modal callbacks.
 use super::*;
 #[derive(Default)]
 pub(super) struct State {
@@ -10,7 +10,7 @@ pub(super) struct State {
 #[path = "native_menu_navigation_tests.rs"]
 mod tests;
 impl Cascade {
-    /// 首次动态回调登记，后续必须保持相同映射；最多八个非零且唯一的导航命令。
+    /// Register on the first dynamic callback, then retain the same mapping; at most eight nonzero unique navigation commands.
     pub fn navigation_commands(&mut self, commands: &[usize]) -> Result<()> {
         if self.closed
             || commands.len() > 8
@@ -28,7 +28,7 @@ impl Cascade {
         }
         Ok(())
     }
-    /// 只返回本地导航，不成为最终业务命令；调用方须在本次 update 内替换对应子菜单。
+    /// Return only local navigation, never final business commands; callers must replace corresponding submenus within this update.
     pub fn take_navigation(&mut self) -> Option<usize> {
         self.navigation.pending.take()
     }

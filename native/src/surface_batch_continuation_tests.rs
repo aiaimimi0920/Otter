@@ -1,4 +1,4 @@
-//! 显式接续的 HWND/owner 边界；完成前缀与未尝试后缀不可拆散或重放。
+//! HWND/owner boundaries for explicit continuation; completed prefixes and unattempted suffixes must not be separated or replayed.
 use super::*;
 fn ready(window: &mut AuthorizedWindow) -> crate::desktop::surface_authorized_window::BatchReceipt {
     let receipt = waiting(window);

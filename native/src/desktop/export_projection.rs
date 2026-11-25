@@ -1,4 +1,4 @@
-//! 单向投送的显式权威底图 PNG；来源身份由活动窗口快照校验，不在后台重新选图。
+//! Explicit authoritative base-image PNGs for one-way delivery; validate provenance with active-window snapshots, never reselect images in background.
 use super::*;
 use std::sync::atomic::AtomicBool;
 #[path = "export_projection_geometry.rs"]
@@ -16,7 +16,7 @@ pub(in crate::desktop) struct Presentation {
     pub kind: crate::projection_delivery::sender::Kind,
     pub geometry: Option<Geometry>,
 }
-/// canonical 原文只在既有发送 worker 中读取；目标外观与像素来源独立。
+/// Read canonical originals only in existing send workers; target appearance is independent of pixel provenance.
 #[cfg(test)]
 pub(in crate::desktop) fn target_frame(
     source: &crate::session_source::Source,
@@ -36,7 +36,7 @@ pub(in crate::desktop) fn target_frame(
         cancel,
     )
 }
-/// 无矢量basis与普通PNG共用全部来源/几何/erase/外观；不能用截图或复制renderer代替。
+/// Vector-free basis shares all provenance/geometry/erase/appearance with ordinary PNGs; neither screenshots nor duplicated renderers are substitutes.
 pub(in crate::desktop) fn basis_frame(
     source: &crate::session_source::Source,
     unit: &str,
@@ -68,7 +68,7 @@ pub(in crate::desktop) fn basis_frame(
         cancel,
     )
 }
-/// Input只携带宿主已验证的待应用delta；网络、签名及迟到结果仍由原发送owner负责。
+/// Input carries only host-validated pending deltas; original send owners still handle networking, signatures, and late results.
 pub(in crate::desktop) fn target_frame_with_input(
     source: &crate::session_source::Source,
     unit: &str,
@@ -124,7 +124,7 @@ fn render(
     let logical = logical_size(image, editor, fallback);
     let border = source_resolution::frame_border::Border::read(&target.edit)?;
     let radius = source_resolution::frame_clip::radius(&target.edit)?;
-    // 在翻转、局部效果及历史擦除分配之前准入源/内框/外框，不为过大来源先做昂贵工作。
+    // Admit source/inner/outer bounds before allocating flips, local effects, or historical erasure; avoid expensive work for oversized sources.
     let mut geometry = source_frame::prepare(
         image,
         editor,
@@ -133,7 +133,7 @@ fn render(
         input.rasterized_source,
     )?;
     if input.content || input.legacy_pixels.is_some() {
-        // 布局只交换小几何，先确定legacy输出尺寸再准入；无需先分配翻转像素。
+        // Layout exchanges only small geometry; determine legacy output size before admission, without allocating flipped pixels first.
         geometry = target.content(image, editor, geometry, logical, &input, baseline.as_ref())?;
     }
     let (mut geometry, _) = geometry
@@ -163,7 +163,7 @@ fn render(
         height: image.height,
         pixels: flipped,
     };
-    // 先确定当前传播/crop取样，再重建活动blur；仍先于历史erase与最终外观。
+    // Determine current propagation/crop sampling before rebuilding active blur, still preceding historical erasure and final appearance.
     let prepared =
         source_resolution::source_blur::prepare_active(&selected, editor, &geometry, cancel)?;
     let selected = if input.historical_erase {
@@ -229,8 +229,8 @@ fn logical_size(
     editor: &Editor,
     fallback: Option<crate::crop_geometry::Size>,
 ) -> crate::crop_geometry::Size {
-    // 普通 Editor 没有显式 logical_size；其标注/裁剪仍以编辑底图坐标为准，
-    // 不能在选中更大的 retained 原图后把自然像素误当成逻辑源框。
+    // Ordinary Editor has no explicit logical_size; annotations/crops still use editable-base coordinates,
+    // so choosing a larger retained original must not confuse natural pixels with logical source bounds.
     let raster_size = editor.layers().map_or_else(
         || {
             fallback.unwrap_or(crate::crop_geometry::Size {

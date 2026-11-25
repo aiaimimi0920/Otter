@@ -1,4 +1,4 @@
-//! 编辑工具、系统移动与工具条显隐的实际 HWND 接线；不发送全局输入或操作用户窗口。
+//! Real HWND wiring for editing tools, system moves, and toolbar visibility; no global input or user-window operations.
 use super::*;
 use crate::{editor::Tool, viewport::Point};
 use windows::Win32::{Graphics::Gdi::ClientToScreen, UI::Input::KeyboardAndMouse::*};
@@ -258,7 +258,7 @@ fn select_button_is_a_default_on_toggle_without_a_dropdown_and_reopens_enabled()
         assert!(f.state.canvas.borrow().selection_enabled);
         SendMessageW(f.owner.0, WM_KEYDOWN, Some(WPARAM(0x51)), None);
         assert!(!f.state.canvas.borrow().selection_enabled);
-        // 移除 W/E/R 模式快捷键后，不再抢占原工具的键位。
+        // Removing W/E/R mode shortcuts stops them from stealing existing tool keys.
         for (key, tool) in [
             (0x57, Tool::Eraser),
             (0x45, Tool::Ellipse),

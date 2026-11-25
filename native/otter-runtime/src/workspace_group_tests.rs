@@ -1,4 +1,4 @@
-//! 对照主干删除分组/关闭分组区别；纯模型测试不改变实际窗口可见性。
+//! Check the baseline distinction between deleting and closing groups; pure model tests do not change actual window visibility.
 use super::*;
 fn id(value: &str) -> UnitId {
     UnitId::parse(value).unwrap()

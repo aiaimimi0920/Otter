@@ -1,4 +1,4 @@
-//! QR 编码只读签名 JSON；PNG 解码单槽保有 worker 至真实退出，取消不无限增殖后台任务。
+//! QR encoding reads only signed JSON; single-slot PNG decoding retains its worker until actual exit, so cancellation cannot spawn unbounded background tasks.
 use super::*;
 use crate::desktop::loom_execution_signal::{reap_deadline, CompletionSignal, Notify};
 use std::{io::Read, path::PathBuf, thread::JoinHandle};
@@ -128,7 +128,7 @@ fn decode(path: PathBuf, cancel: &AtomicBool) -> std::result::Result<String, &'s
     let ratio = f64::from(width.max(height)).max(1536.0) / 1536.0;
     let w = (f64::from(width) / ratio).round().max(1.0) as u32;
     let h = (f64::from(height) / ratio).round().max(1.0) as u32;
-    // 额外预留 QR 矩阵/阈值工作空间；库内部无可中断接口，单槽直到完成才归还。
+    // Reserve extra QR-matrix/threshold workspace; the library has no interruptible interface, so the slot remains occupied until completion.
     let _decode_budget =
         crate::pixels::reserve(w as usize * h as usize * 8).ok_or("图像内存不足")?;
     let mut luma = Vec::with_capacity(w as usize * h as usize);
@@ -155,7 +155,7 @@ fn decode(path: PathBuf, cancel: &AtomicBool) -> std::result::Result<String, &'s
         Ok(result) => result,
         Err(_) => {
             check()?;
-            // 导出的密集方形码可能被定位器漏掉；仅再尝试库内的无旋转纯码提取。
+            // The locator may miss exported dense square codes; retry only the library's unrotated pure-code extraction.
             let hints = DecodeHints {
                 PureBarcode: Some(true),
                 ..hints

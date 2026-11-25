@@ -1,4 +1,4 @@
-//! 后台单次设备续签：实际 HTTPS、固定信任/地址、有界响应，不隐式注册或等待批准。
+//! One-shot background device renewal: actual HTTPS, fixed trust/address, bounded responses, without implicit registration/approval waits.
 use crate::{
     device_identity::Identity,
     device_session_attempt::{self, Attempt, Session},
@@ -37,7 +37,7 @@ pub enum Error {
     Protocol(device_session_attempt::Error),
 }
 
-/// 固定 origin 的有界 JSON 交换；仅 crate 内协议模块构造，不接受任意 URL 或任意头。
+/// Bounded fixed-origin JSON exchange, constructed only by crate-internal protocol modules; no arbitrary URLs or headers.
 pub(super) struct Request<'a> {
     pub method: &'static str,
     pub path: &'a str,
@@ -66,7 +66,7 @@ impl Client {
     pub(super) fn addresses(&self) -> Vec<SocketAddr> {
         self.addresses.clone()
     }
-    /// roots 与 addresses 必须来自该 origin 的可信配置/解析 owner；不使用环境代理。
+    /// roots and addresses must come from this origin's trusted configuration/resolution owner; no environment proxies.
     pub fn new(
         origin: &str,
         roots: RootCertStore,
@@ -98,8 +98,8 @@ impl Client {
         })
     }
 
-    /// 每个 POST 在 TCP 建立后交付中断句柄，外层必须立即登记且处理已取消竞争。
-    /// 只在后台调用；每个请求总期限十秒，TCP 单候选最多两秒。
+    /// Each POST hands out an interrupt handle after TCP connects; outer layers must immediately register it and handle already-cancelled races.
+    /// Background only; ten-second total deadline per request, at most two seconds per TCP candidate.
     pub fn issue_once(
         &self,
         identity: &Identity,
@@ -189,7 +189,7 @@ impl Client {
     ) -> Result<(u16, Zeroizing<Vec<u8>>), Error> {
         self.exchange_resource(request, None, stop, connected, deadline)
     }
-    // 仅受验证的 Surface lease 可增加二进制预算和固定租约头；普通请求上限不变。
+    // Only verified Surface leases may increase binary budgets and add fixed lease headers; ordinary request limits stay unchanged.
     pub(super) fn exchange_resource(
         &self,
         request: Request<'_>,
@@ -231,7 +231,7 @@ impl Client {
         } else {
             8 * 1024 * 1024
         };
-        // 图像提交按各自合同限额；认证和普通查询仍限 1 MiB。
+        // Image submissions use their respective contract limits; authentication and ordinary queries remain limited to 1 MiB.
         let body_ceiling = if request.method == "POST"
             && request.device.is_some()
             && matches!(
@@ -259,7 +259,7 @@ impl Client {
                 .bytes()
                 .any(|c| !c.is_ascii_graphic() || c == b'#')
             || request.limit == 0
-            // Surface stream 显式使用 8 MiB；其他调用点仍保留各自较小预算。
+            // Surface streams explicitly use 8 MiB; other call sites retain their smaller budgets.
             || request.limit > ceiling
             || request.body.len() > body_ceiling
             || (request.method == "GET" && !request.body.is_empty())
@@ -358,9 +358,9 @@ impl Client {
             .run(wire)
             .map_err(|e| classify(stop, deadline, failure::http(&e)))?;
         let status = response.status().as_u16();
-        // Device 401 本身已足够撤销使用权，不能让超大/截断错误体遮蔽认证终态。
+        // Device 401 alone suffices to revoke access; oversized/truncated error bodies must not obscure terminal authentication state.
         if request.device.is_some() && status == 401 {
-            // 账号退出不等同设备撤权；只读账号接口的有界错误码，读取失败仍保留 401。
+            // Account logout is not device revocation; read only bounded account-interface error codes, preserving 401 on read failure.
             let mut body = Zeroizing::new(Vec::new());
             if matches!(
                 request.path,
@@ -390,7 +390,7 @@ impl Client {
                     }
                 }
             }
-            // Live 的认证响应头已确定拒绝；后到的取消只阻止使用成功结果。
+            // Live authentication response headers already establish denial; later cancellation only prevents using successful results.
             if !request.path.starts_with("/v1/live/") {
                 check_stop(stop)?;
             }
@@ -405,7 +405,7 @@ impl Client {
         {
             return Err(Error::Limit);
         }
-        // take 限制无 Content-Length/chunked 响应；读取缓冲在离开协议调用后清零。
+        // take bounds responses without Content-Length or with chunked encoding; zeroize read buffers after leaving the protocol call.
         let mut output = Zeroizing::new(Vec::new());
         response
             .body_mut()

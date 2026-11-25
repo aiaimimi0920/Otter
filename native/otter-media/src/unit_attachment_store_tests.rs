@@ -1,4 +1,4 @@
-//! 不可变附件、CAS、宿主显隐、损坏数据保留及 payload 摘要回归。
+//! Regressions for immutable attachments, CAS, host visibility, corrupt-data retention, and payload digests.
 use super::*;
 use serde_json::json;
 pub fn attachment() -> Value {

@@ -1,4 +1,4 @@
-//! 普通 Tab 行内 child 的真实按钮通知；不打开系统文件框或发送全局输入。
+//! Real button notifications from ordinary Tab inline children; no system file dialog or global input.
 use super::*;
 #[test]
 fn ordinary_sticker_has_real_upload_clear_disable_controls_and_uses_same_transaction() {
@@ -198,7 +198,7 @@ fn upload_button_erase_keeps_previous_pixels_and_tab_placement_finishes_the_cont
         };
         for _ in 0..12 {
             binding.place(bounds, Vec::new()).unwrap();
-            // 模型中的稳定字段名由生产 owner 提供，不在测试中猜字段。
+            // The production owner supplies stable model field names; tests do not guess them.
             let id = panel.ui.model.borrow().rows[0].id.clone();
             binding.place(bounds, vec![(id, row, row)]).unwrap();
             assert!(IsWindowVisible(button).as_bool());

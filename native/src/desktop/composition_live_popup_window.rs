@@ -1,4 +1,4 @@
-//! 附属弹窗呈现接缝；镜像属于 B，不移动源窗口，菜单不激活、不夺取源 capture。
+//! Attached-popup presentation boundary; mirrors belong to B, sources never move, and menus neither activate nor steal source capture.
 use super::*;
 use windows::Win32::Graphics::Gdi::{
     GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTONEAREST,
@@ -32,8 +32,8 @@ impl LiveWindow {
             }
             SetWindowPos(
                 self.hwnd,
-                // 后绑定 owner 不会把已有 HWND 自动提升到 owner 的置顶层。
-                // 只跟随自有 B，不能让普通 B 的菜单无条件盖住其他置顶窗口。
+                // Binding an owner later does not automatically promote an existing HWND into the owner's topmost band.
+                // Follow only owned B; ordinary B's menus must not unconditionally cover other topmost windows.
                 Some(
                     if GetWindowLongPtrW(owner, GWL_EXSTYLE) & WS_EX_TOPMOST.0 as isize != 0 {
                         HWND_TOPMOST
@@ -105,8 +105,8 @@ impl LiveWindow {
     }
 }
 
-// 只限制 B 的呈现位置，不移动 A、不缩放内容。源 dialog 可自行选择真实鼠标
-// 附近的位置；按 A-B 偏移映射后不能让整个文本框/取消按钮落到屏幕外。
+// Constrain only B's presentation position, without moving A or scaling content. Source dialogs may choose positions near the real mouse;
+// after applying the A-B offset, the entire text field/Cancel button must not end up offscreen.
 fn visible_popup(screen: RECT, work: RECT) -> Result<RECT> {
     let axis = |start: i32, end: i32, low: i32, high: i32| -> Result<(i32, i32)> {
         let size = i64::from(end) - i64::from(start);

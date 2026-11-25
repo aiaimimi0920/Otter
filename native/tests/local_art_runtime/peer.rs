@@ -1,4 +1,4 @@
-//! 有界回环 HTTPS peer；仅合成设备，证书不安装系统，停止后保留端口但拒绝接收。
+//! Bounded loopback HTTPS peer with synthetic devices only; certificates are not installed system-wide, and stopping retains the port but rejects acceptance.
 use super::native;
 use super::package;
 #[path = "projection_peer.rs"]
@@ -44,7 +44,7 @@ impl Peer {
         Self::with_outputs(root, source, true)
     }
     pub fn with_outputs(root: &Path, source: &str, includes_answer: bool) -> Self {
-        // 调用方可传公开SDK示例的已核字节；线程拥有这份有界测试源码，不泄漏static字符串。
+        // Callers may supply verified bytes from a public SDK example; the thread owns this bounded test source without leaking a static string.
         assert!(!source.is_empty() && source.len() <= 1024 * 1024);
         let source = source.to_owned();
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -99,7 +99,7 @@ impl Peer {
                     }
                     Err(error) => panic!("product TLS accept: {error}"),
                 };
-                // Windows accepted socket继承监听器的非阻塞模式；TLS read_exact需要明确恢复阻塞。
+                // On Windows, accepted sockets inherit the listener's nonblocking mode; TLS read_exact requires explicitly restoring blocking mode.
                 tcp.set_nonblocking(false).unwrap();
                 tcp.set_read_timeout(Some(Duration::from_secs(3))).unwrap();
                 tcp.set_write_timeout(Some(Duration::from_secs(3))).unwrap();
@@ -278,7 +278,7 @@ fn response(
                 "image":{"width":2,"height":2,"digest":package::digest(&bytes),"png":STANDARD.encode(bytes)}})
         }
         "/v1/art/local/service/submit" | "/v1/art/local/service/poll" => {
-            // 首次submit发布可见进度；下一次poll由测试领取进度后放行，避免刷轮询抢时序。
+            // The first submit publishes visible progress; release the next poll only after the test receives that progress, avoiding polling races.
             if path.ends_with("/poll") {
                 let deadline = Instant::now() + Duration::from_secs(8);
                 while !state.lock().unwrap().release {

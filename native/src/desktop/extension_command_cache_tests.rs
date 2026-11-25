@@ -1,4 +1,4 @@
-//! 实际按钮→远端 checkOnly→缓存显隐；拒绝授权/换源不修改附件，不上传图片或调用模型。
+//! Real button to remote checkOnly to cache visibility; authorization rejection/source changes leave attachments unchanged, with no image upload/model calls.
 use super::*;
 use crate::desktop::extension_command_route::{OCR_OVERLAY, TRANSLATION_OVERLAY};
 unsafe fn cached() -> Fixture {

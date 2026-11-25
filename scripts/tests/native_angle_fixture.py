@@ -1,4 +1,4 @@
-"""工具链合同的合成头/库/EXE 均是文本，绝不作为编译工具执行；证据留在显式临时根。"""
+"""Synthetic toolchain-contract headers/libraries/EXEs are text, never executed as build tools; evidence stays in the explicit temporary root."""
 
 import json
 import os

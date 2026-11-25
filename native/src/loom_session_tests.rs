@@ -1,4 +1,4 @@
-//! 真实认证连接、响应解析、多输出解码组合；无 UI 发布和真实服务访问。
+//! Combined real authenticated connections, response parsing, and multiple-output decoding; no UI publication or real-service access.
 use super::*;
 use crate::{
     desktop::loom_execution_session::{Failure, Session, Update},

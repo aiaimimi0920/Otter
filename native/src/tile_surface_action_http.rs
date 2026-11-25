@@ -1,4 +1,4 @@
-//! Wall动作固定Device POST；一次发送，无未知结果重放，不借普通Surface附件资格。
+//! Fixed Device POST for Wall actions; send once without uncertain-outcome replay or borrowing ordinary Surface attachment eligibility.
 use super::*;
 use crate::{
     surface_action_ack::Ack,

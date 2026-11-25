@@ -1,4 +1,4 @@
-//! 删除和历史淘汰保持所有权与顺序，不依赖生产文档整份快照。
+//! Deletion/history eviction preserves ownership/order without relying on whole production-document snapshots.
 use super::*;
 
 fn add(editor: &mut Editor, x: f32) {

@@ -1,4 +1,4 @@
-//! 控制 owner 的实际 TLS 撤权与关闭确认；仅访问回环测试服务。
+//! Actual TLS revocation/close confirmation for the control owner; only loopback test services.
 use super::*;
 use crate::live_relay_control_owner::{Error as OwnerError, Owner};
 

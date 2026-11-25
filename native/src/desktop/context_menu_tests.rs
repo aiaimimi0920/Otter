@@ -1,4 +1,4 @@
-//! 菜单映射、宿主消息路由与 Win32 句柄释放验证；不弹出交互菜单。
+//! Menu mapping, host-message routing, and Win32 handle-release verification; no interactive menus.
 use super::*;
 
 #[path = "context_menu_input_tests.rs"]
@@ -34,7 +34,7 @@ fn menu_target_rejects_revision_tool_and_selection_changes() {
     canvas.selected = Some((0, revision));
     let target = MenuTarget::capture(&canvas);
     canvas.viewport.origin.x = 40.0;
-    assert!(target.matches(&canvas)); // 仅窗口呈现变化不使菜单目标失效。
+    assert!(target.matches(&canvas)); // Window-presentation changes alone do not invalidate menu targets.
     canvas.selected = Some((1, revision));
     assert!(!target.matches(&canvas));
     canvas.selected = Some((0, revision));
@@ -68,7 +68,7 @@ fn menu_target_rejects_style_and_crop_mode_changes_without_revision_increment() 
 #[test]
 fn command_mapping_does_not_depend_on_keyboard_modifier_state() {
     assert_eq!(tool_for_command(0x52), Some(Tool::Rectangle));
-    assert_eq!(tool_for_command(0x51), None); // Q 已是选择/静默切换，不再映射旧圆角矩形工具。
+    assert_eq!(tool_for_command(0x51), None); // Q now selects/switches silently and no longer maps to the old rounded-rectangle tool.
     assert_eq!(tool_for_command(0x56), Some(Tool::Pan));
     assert_eq!(tool_for_command(EXPORT), None);
     assert_eq!(tool_for_command(0), None);

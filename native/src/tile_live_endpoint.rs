@@ -1,4 +1,4 @@
-//! Wall独立媒体合同；沿原固定origin/Device/nonce，不伪造普通Viewer或Surface附件。
+//! Wall-specific media contract using the original pinned origin/Device/nonce without fabricated ordinary Viewer or Surface attachments.
 use super::*;
 impl Endpoint {
     pub(crate) fn wall(
@@ -17,7 +17,7 @@ impl Endpoint {
         {
             return Err(Error::Identity);
         }
-        // 复用认证头与随机nonce构造；随后明确替换专属path/query/profile，不继承普通Live参数。
+        // Reuse authentication-header and random-nonce construction, then explicitly replace dedicated path/query/profile without inheriting ordinary Live parameters.
         let mut p = self.prepare(session, device, None, Credential::Device(token))?;
         p.url.set_path("/v1/walls/live/media");
         p.url.set_query(None);

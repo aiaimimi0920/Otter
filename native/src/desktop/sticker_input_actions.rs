@@ -1,4 +1,4 @@
-//! 参数窗和内嵌image控件共用事务；模态返回复核owner，不授予路径/网络读取的隐式权限。
+//! Parameter windows and embedded image controls share transactions; revalidate owners after modal returns, granting no implicit path/network reads.
 use super::super::parameter_file_input::Outcome;
 use super::super::{configuration_stamp::Stamp, State};
 use windows::{core::Result, Win32::Foundation::HWND};

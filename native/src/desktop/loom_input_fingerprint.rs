@@ -1,4 +1,4 @@
-//! 可选的准备图片内容摘要；只在输入 worker 内计算，摘要不是来源授权或新鲜度凭证。
+//! Optional prepared-image content digests, computed only in input workers; digests are neither source authorization nor freshness evidence.
 use super::*;
 use sha2::{Digest, Sha256};
 pub(super) fn capture(image: &Inline, cancel: &AtomicBool) -> Result<[u8; 32], Error> {

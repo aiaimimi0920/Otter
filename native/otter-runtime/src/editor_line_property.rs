@@ -1,4 +1,4 @@
-//! 已选直线的箭头开关需包含工具类型换代；以原有单个替换历史保存完整原貌。
+//! Selected-line arrow toggles must include tool-type changes; preserve full originals through existing single-replacement history.
 use super::*;
 impl Editor {
     pub fn set_line_arrow(&mut self, index: usize, enabled: bool) -> Result<bool, EditError> {

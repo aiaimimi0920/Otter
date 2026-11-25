@@ -1,4 +1,4 @@
-//! 只绘制自有 COMBOBOX 列表到内存 DIB，不读取桌面或其他应用像素。
+//! Draw only owned COMBOBOX lists into memory DIBs, without reading desktop or other-application pixels.
 use super::*;
 #[path = "surface_select_declared_color_tests.rs"]
 mod declared;
@@ -42,7 +42,7 @@ unsafe fn pixels(hwnd: HWND, name: &str) -> Vec<[u8; 3]> {
     SelectObject(dc, old);
     let _ = DeleteObject(bitmap.into());
     assert!(DeleteDC(dc).as_bool());
-    // 显式启用时只导出本测试的内存绘制结果，供视觉核验；默认不写文件。
+    // Export only this test's memory-rendered output when explicitly enabled for visual review; write no files by default.
     if let Some(directory) = std::env::var_os("OTTER_NATIVE_TEST_ARTIFACTS") {
         let directory = std::path::PathBuf::from(directory);
         std::fs::create_dir_all(&directory).unwrap();

@@ -1,4 +1,4 @@
-//! 显式真实平台门：同一父侧发布门分别启动测试 child 和实际产品私有入口。
+//! Explicit real-platform gate: the same parent-side publication gate launches both test children and the actual product's private entry.
 use super::*;
 use crate::{
     bounded_worker_process as process,
@@ -203,7 +203,7 @@ fn actual_shader_product_4k_identity_alpha_orientation_and_peak() {
         let frame = result.unwrap();
         assert_eq!((frame.width, frame.height), (width, height));
         assert_eq!(frame.rgba.len(), pixels.len());
-        // 错误只报告首个字节，不把两份 4K 私有图片倾倒到测试日志。
+        // Report only the first differing byte; do not dump two private 4K images into test logs.
         let first = frame
             .rgba
             .iter()

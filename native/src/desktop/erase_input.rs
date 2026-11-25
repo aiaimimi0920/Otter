@@ -1,4 +1,4 @@
-//! 宿主擦除提交：单任务轮询、版本/身份校验、原子历史提交及命中区域同步。
+//! Host erase submission: single-task polling, revision/identity validation, atomic history commits, and hit-region synchronization.
 use super::{canvas::Canvas, State};
 use windows::{
     core::{w, HSTRING},
@@ -20,7 +20,7 @@ pub(super) unsafe fn submit(hwnd: HWND, state: &State) {
             let _ = KillTimer(Some(hwnd), TIMER);
         },
     ) {
-        // 所有状态回滚及 RefCell 借用已结束，弹框重入不会看到半完成提交。
+        // All state rollback/RefCell borrows have finished; dialog reentrancy cannot see partially completed commits.
         let _ = InvalidateRect(Some(hwnd), None, false);
         report(hwnd, &error);
     }
@@ -34,7 +34,7 @@ fn submit_with(
         return Ok(());
     };
     if state.erase_job.borrow().is_busy() {
-        // 不覆盖原预览，也不撤销仍负责回收原任务的 timer。
+        // Preserve original previews and the timer still responsible for reclaiming original tasks.
         return Err(format!("{:?}", crate::erase_job::JobError::Busy));
     }
     state.canvas.borrow_mut().erase_display = None;
@@ -47,7 +47,7 @@ fn submit_with(
     else {
         return Ok(());
     };
-    // 先保证回收入口，避免启动后 SetTimer 失败触发 Job::drop 的同步 join。
+    // Ensure a reclamation entry first, avoiding SetTimer failure after startup triggering synchronous Job::drop join.
     if !reserve_timer() {
         return Err("Cannot schedule erase result".into());
     }

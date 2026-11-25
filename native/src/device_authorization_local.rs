@@ -1,4 +1,4 @@
-//! 仅本地Art的待验证停止租约；不含Session/Device token，任何Control/DNS准备均拒绝。
+//! Unverified stop lease for local Art only; no Session/Device token, and all Control/DNS preparation is rejected.
 use super::*;
 use std::{
     sync::OnceLock,
@@ -36,7 +36,7 @@ impl Credential {
     }
 }
 impl Lease {
-    /// UI只创建取消/唤醒状态；后台验签、身份及持久时钟门通过前，validate始终失败。
+    /// UI creates only cancellation/wake state; validate always fails until background signatures/identity/persistent-clock gates pass.
     pub(crate) fn pending_local(origin: &str) -> Self {
         Self {
             session: None,
@@ -56,7 +56,7 @@ impl Lease {
     pub(crate) fn is_local(&self) -> bool {
         self.local.is_some()
     }
-    /// 调用者必须先验证Ticket签名/当前身份/源码并提交持久时钟高水位；只可激活一次。
+    /// Callers must first verify Ticket signature/current identity/source and commit the persistent clock high-water mark; activation is one-time.
     pub(crate) fn accept_local(
         &self,
         ticket: &crate::art_execution_grant::resume::Ticket,

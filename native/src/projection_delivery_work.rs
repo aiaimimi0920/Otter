@@ -1,4 +1,4 @@
-//! 原串行网络 Job 的协议分派；displayed 只由保留原 Hold 的接续入口构造。
+//! Protocol dispatch for the original serial network Job; displayed is constructed only by continuation retaining the original Hold.
 use super::*;
 pub(super) enum Work {
     Request(Operation),
@@ -31,7 +31,7 @@ impl Work {
                 if !request.current() || task.is_revoked() {
                     return Err(Error::Stopped);
                 }
-                // 已存在的远端接收关联只读重建，不能获得 fresh accept 的自动解绑资格。
+                // Read-only reconstruction of existing remote receiver associations cannot gain fresh-accept automatic-unlink eligibility.
                 let intent = if invitation.accepted() {
                     attempt.reattach(&journal, &invitation, task.device_id())?
                 } else {
@@ -73,7 +73,7 @@ impl Work {
             Self::Recover(request) => return request.run(control, client, task, attempt),
             Self::Displayed(intent) => {
                 control.displayed_projection(&intent).map_err(Error::Http)?;
-                // displayed 不是 unlink；保留 journal 和已保存的图片供恢复/持续关联。
+                // displayed is not unlink; retain journals/saved images for recovery/ongoing association.
                 Output::Displayed
             }
             Self::Request(Operation::Targets) => {
@@ -92,12 +92,12 @@ impl Work {
                 invitation,
                 journal,
             }) => {
-                // 写前只验证来件；发送体必须取自可能复用的原持久意图。
+                // Write-ahead only validates incoming data; request bodies must come from the potentially reused original persistent intent.
                 invitation
                     .validate_for(client.origin())
                     .map_err(Error::Decode)?;
                 let intent = attempt.begin(&journal, &invitation, task.device_id())?;
-                // 写前意图成功后才允许 HTTP accept；失败/撤权不能抹掉不确定副作用。
+                // HTTP accept is permitted only after successful write-ahead intent; failure/revocation cannot erase uncertain side effects.
                 let received = match control.accept_projection(&intent.invitation()) {
                     Err(HttpError::ProjectionBusy) => {
                         return Err(if attempt.discard_unapplied()? {

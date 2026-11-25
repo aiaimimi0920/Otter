@@ -1,4 +1,4 @@
-//! 文件与缓存设置保存协调；保留配置扩展，发布前核对 owner 与来源，不自动设为启动路径。
+//! File/cache settings save coordination; preserve configuration extensions, check owner and source before publication, and do not automatically make it the startup path.
 use super::*;
 use crate::{app_settings_document::Document, file_naming_settings::Settings};
 use std::{
@@ -78,7 +78,7 @@ impl Application {
                 return Ok(None);
             };
             let pending = self.naming_save_job.take().expect("polled job exists");
-            // 先安排下一轮再结算；即使本任务失败或自动结果被丢弃，也不吞显式请求。
+            // Schedule the next turn before settling; do not swallow explicit requests even if this task fails or an automatic result is discarded.
             if self.documents.iter().any(|doc| {
                 doc.is_alive()
                     && (doc.state.naming_save_requested.get()
@@ -88,7 +88,7 @@ impl Application {
             }
             let mut warning = None;
             if pending.automatic && !self.naming_autosave.get() {
-                // 关闭自动保存丢弃尚未发布的自动结果；手动保存不受影响。
+                // Disabling autosave discards unpublished automatic results; manual saves are unaffected.
                 return Ok(None);
             }
             let staged = result.map_err(|message| Error::new(E_FAIL, message))?;
@@ -152,7 +152,7 @@ impl Application {
                     .as_ref()
                     .is_none_or(|(_, _, existing_update)| save_as && *existing_update)
             {
-                // 同批另存为优先，不将新文件选择隐式改成覆盖。
+                // Save-as takes priority within the same batch; do not implicitly turn a new-file selection into an overwrite.
                 requester = Some((doc.state.unit_id.clone(), doc.window.0, update && !save_as));
             }
         }

@@ -1,4 +1,4 @@
-//! 用户删空工作区后保留不可见命令宿主；复用热键/托盘与现有 transient_host 保存语义。
+//! Retain an invisible command host after the user empties the workspace; reuse hotkeys/tray and existing transient_host save semantics.
 use super::*;
 
 impl Application {
@@ -18,7 +18,7 @@ impl Application {
         if !self.documents.is_empty() || self.exit_committed || self.session_end.ended() {
             return Ok(());
         }
-        // 先落盘真实空工作区，不能让保活用的空白文档变成一张已保存的钉图。
+        // Persist the genuinely empty workspace first; the keepalive blank document must not become a saved pin.
         self.finish_deleted_workspace()?;
         let state = State::new(None, false)?;
         let unit = state.unit_id.clone();

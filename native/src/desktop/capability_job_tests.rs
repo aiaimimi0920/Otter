@@ -1,4 +1,4 @@
-//! 完成通知不是线程退出：阻塞通知时 UI 不 join，取消与失败仍只交付一次。
+//! Completion notification is not thread exit: the UI must not join while notification is blocked; cancellation/failure still deliver only once.
 use super::*;
 use std::{
     os::windows::io::AsRawHandle,
@@ -13,7 +13,7 @@ use windows::Win32::{
 const WAIT: Duration = Duration::from_secs(5);
 
 impl Job {
-    /// 完成通知可先到；TLS 与生命周期回归都等真实线程退出再领取。
+    /// Completion may arrive first; TLS and lifecycle regressions wait for actual thread exit before collecting.
     pub(crate) fn test_wait_finished(&self) {
         let worker = &self.running.as_ref().unwrap().worker;
         assert_eq!(
@@ -31,7 +31,7 @@ fn notified_catalog_reaps_once_without_waiting_for_callback_or_second_notice() {
         let waiting = Mutex::new(waiting);
         let mut job = Job::default();
         assert!(job.deadline().is_none());
-        // 走生产启动和完成路径；禁用发现，不访问开发机清单或网络。
+        // Use production startup/completion paths; disable discovery and avoid development-machine manifests or networking.
         let config = loom_discovery::Config::from_lookup(|key| {
             (key == "OTTER_ENABLE_LOOM_OTTER").then(|| "false".into())
         });
@@ -39,7 +39,7 @@ fn notified_catalog_reaps_once_without_waiting_for_callback_or_second_notice() {
             Source::Discovery(config),
             Arc::new(move || {
                 notify.send(()).unwrap();
-                // 早 join 回归也会有界失败，不能把测试自身挂住。
+                // Early-join regressions must fail within bounds rather than hang the test itself.
                 let _ = waiting.lock().unwrap().recv_timeout(WAIT);
             }),
         )

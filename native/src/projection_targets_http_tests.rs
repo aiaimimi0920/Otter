@@ -1,4 +1,4 @@
-//! 固定授权 HTTPS 目录及原后台槽生命周期；不连接离线广告，不产生 create 副作用。
+//! Fixed authorized HTTPS catalogs/original background-slot lifecycles; no offline-advertisement connections or create side effects.
 use super::*;
 use crate::{
     device_authorization_lease::Grant,

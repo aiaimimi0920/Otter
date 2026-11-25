@@ -1,4 +1,4 @@
-//! 复用原串行控制线程发送Surface输入；未知HTTP结果不重放，退出尽力释放而不伪报源端执行。
+//! Reuse the original serial control thread for Surface input; no unknown-HTTP-result replay, best-effort exit release without falsely claiming source execution.
 use super::*;
 use crate::{
     live_input::MAX_SEQUENCE,
@@ -55,7 +55,7 @@ impl Sender {
         if matches!(target, RequestTarget::Direct(_)) {
             return Ok(self.queue.intent().1);
         }
-        // 减权释放必须先于可能耗时的配置HTTP；不能让旧按键等到配置对账结束才释放。
+        // Privilege-reducing release precedes potentially slow configuration HTTP; old keys must not wait for configuration reconciliation to release.
         if self.drive(control, target, owner.identity(), owner.after())? {
             return Ok(true);
         }
@@ -66,7 +66,7 @@ impl Sender {
         }
         Ok(false)
     }
-    /// 触发与键鼠共用唯一actor游标；没有第二发送线程，也不把GET观察快照塞入可靠事件流。
+    /// Triggers and keyboard/mouse share one actor cursor; no second sending thread or injection of GET observation snapshots into reliable event streams.
     pub fn drive_trigger(
         &mut self,
         control: &Control<'_>,

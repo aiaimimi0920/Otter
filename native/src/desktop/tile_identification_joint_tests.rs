@@ -1,4 +1,4 @@
-//! 真实Loom识别命令→独立Runtime→自有离屏HWND→报告/关闭/过期/恢复；不改真实屏幕。
+//! Actual Loom identification command -> independent Runtime -> owned offscreen HWND -> report/close/expiry/restore; no actual-screen changes.
 use super::*;
 pub(super) fn run() {
     let _com = Apartment::new();

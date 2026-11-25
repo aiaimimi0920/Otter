@@ -1,4 +1,4 @@
-//! Canvas 命中/捕获输入借用原呈现和编辑 FIFO，不持独立节点索引。
+//! Canvas hit/capture input borrows original presentation and edit FIFO without an independent node index.
 use super::*;
 use crate::surface_javascript_wire::PointerInput;
 impl Host {

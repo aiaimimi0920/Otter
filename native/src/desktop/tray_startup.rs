@@ -1,4 +1,4 @@
-//! 托盘自启动选项；只在用户选择后更新，按菜单快照拒绝状态已变化的操作。
+//! Tray autostart options update only after user selection, rejecting operations whose state changed since the menu snapshot.
 use super::*;
 use crate::autostart::{self, Status};
 pub(super) const COMMAND: usize = 0x106a;

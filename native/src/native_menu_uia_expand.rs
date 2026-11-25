@@ -1,4 +1,4 @@
-//! 子菜单展开/收起只排队；状态来自控制器已经建立的子页面，不预测操作成功。
+//! Submenu expansion/collapse only queues actions; state comes from child pages already created by controllers, not predicted success.
 use super::*;
 unsafe fn base(this: *mut c_void) -> *mut c_void {
     this.cast::<u8>()

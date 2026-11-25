@@ -1,4 +1,4 @@
-//! 完整结果到文档附件的宿主提交；每项独立 CAS，权限/来源失败不执行系统副作用。
+//! Host commits from complete results into document attachments; independent CAS per item, with no system side effects after permission/provenance failure.
 use super::{extension_command_route::Context, State};
 use crate::{
     loom_extension_session::{EffectKind, Error, Outcome},
@@ -112,7 +112,7 @@ pub(super) unsafe fn apply(
                     )
                     .map_err(|_| Error::Unavailable)
                 }
-                // 未迁移的效果不能伪装成功；已经成功的独立附件 CAS 仍保留，沿主干报告部分失败。
+                // Unmigrated effects must not pretend success; retain successful independent attachment CAS updates and report partial failure as in the baseline.
                 _ => Err(Error::Unsupported),
             }
         });

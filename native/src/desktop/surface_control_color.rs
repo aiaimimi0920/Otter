@@ -1,4 +1,4 @@
-//! HWND 拥有已解析控件颜色；EDIT/Select 共用校验、释放和 GDI alpha 合成。
+//! HWND-owned parsed control colors; EDIT/Select share validation, release, and GDI alpha composition.
 use crate::surface_color::Color;
 use windows::{
     core::{w, Error, Result},

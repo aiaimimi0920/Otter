@@ -1,9 +1,9 @@
-//! 裁剪候选与依赖可见框的模糊作为单一事务；准备/计算不改变现有文档。
+//! Crop candidates and blur dependent on visible bounds form one transaction; preparation/computation leaves existing documents unchanged.
 use super::*;
 use crate::crop_geometry::{self, Rect};
 
 impl Editor {
-    /// Some 是当前可见框中的局部选区，None 表示重置；返回计划必须后台 compute 后提交。
+    /// Some is a local selection in current visible bounds; None resets. Background compute must precede committing returned plans.
     pub fn prepare_crop_refresh(
         &self,
         selection: Option<Rect>,

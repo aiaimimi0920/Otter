@@ -1,4 +1,4 @@
-//! 仅在可见且启用源输入控制的 Live 窗存续期间按需挂载 WH_MOUSE_LL；纯观看/隐藏/最小化期零全局钩子。
+//! Install WH_MOUSE_LL on demand only while visible Live windows with source control exist; viewing-only, hidden, and minimized periods have no global hook.
 use super::*;
 use windows::Win32::UI::HiDpi::*;
 use windows::Win32::UI::Input::KeyboardAndMouse::*;
@@ -59,7 +59,7 @@ impl Router {
         } else if !needed && !self.hook.is_invalid() {
             #[cfg(test)]
             tests::hook_operation(false)?;
-            // 注销失败时仍拥有该句柄；下次同步重试，不能丢失清理责任或重复安装。
+            // Failed unregistration retains handle ownership; retry on the next synchronization without losing cleanup responsibility or installing duplicates.
             UnhookWindowsHookEx(self.hook)?;
             self.hook = HHOOK::default();
         }
@@ -114,7 +114,7 @@ impl Drop for Registration {
             unsafe {
                 owner.refresh();
                 if owner.windows.is_empty() && !owner.hook.is_invalid() {
-                    // 最后一个窗口没有后续同步机会，仅补一次有界清理重试。
+                    // The final window has no later synchronization opportunity; perform just one additional bounded cleanup retry.
                     owner.refresh();
                 }
             }
@@ -142,14 +142,14 @@ pub(super) unsafe fn sync(hwnd: HWND, state: &State) {
                 .find(|slot| slot.matches(hwnd, marker))
             {
                 slot.active = active;
-                // active 不变也可能是上次安装/注销失败；每个同步事件至多尝试一次。
+                // Unchanged active may still follow failed installation/unregistration; attempt at most once per synchronization event.
                 owner.refresh();
             }
         }
     });
 }
 unsafe extern "system" fn callback(code: i32, wp: WPARAM, lp: LPARAM) -> LRESULT {
-    // 非滚轮消息（如高频 WM_MOUSEMOVE）直接旁路返回，不进入 catch_unwind、DPI 切换或窗口查询。
+    // Nonwheel messages, including high-frequency WM_MOUSEMOVE, return directly without catch_unwind, DPI changes, or window queries.
     if code != HC_ACTION as i32
         || (wp.0 != WM_MOUSEWHEEL as usize && wp.0 != WM_MOUSEHWHEEL as usize)
     {
@@ -157,11 +157,11 @@ unsafe extern "system" fn callback(code: i32, wp: WPARAM, lp: LPARAM) -> LRESULT
     }
     let handled = std::panic::catch_unwind(|| {
         let mouse = &*(lp.0 as *const MSLLHOOKSTRUCT);
-        // Windows 按注册回调的默认上下文调用 hook；显式保持命中和投递坐标为物理像素。
+        // Windows invokes hooks in the callback's registered default context; explicitly keep hit/delivery coordinates in physical pixels.
         let _dpi = Dpi(SetThreadDpiAwarenessContext(
             DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2,
         ));
-        // LL hook 给物理屏幕坐标；回调 DPI 上下文可能不同于创建 Live 的 UI 上下文。
+        // LL hooks provide physical screen coordinates; callback DPI context may differ from the UI context that created Live.
         let hwnd = WindowFromPhysicalPoint(mouse.pt);
         let marker = GetWindowLongPtrW(hwnd, GWLP_USERDATA);
         if marker == 0 {

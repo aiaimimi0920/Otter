@@ -1,5 +1,5 @@
-//! 本地签名 Art 的 HWND 呈现 owner；不持 Local/child，不伪造旧远端附件生命周期。
-//! 宿主每次 poll 提供当前选择/节点凭证；可重入 Win32 提交前后都复核，关闭先撤权后等待后台终态。
+//! HWND presentation owner for local signed Art; holds no Local/child and does not fabricate legacy remote-attachment lifecycles.
+//! Each host poll supplies current selection/node evidence; revalidate before and after reentrant Win32 commits, revoking authority before awaiting background terminal state on close.
 use super::surface_window::SurfaceWindow;
 use crate::{art_execution_grant::wire::Binding, surface_javascript::signed::runtime::Runtime};
 #[cfg(test)]
@@ -68,7 +68,7 @@ impl Window {
         notify: std::sync::Arc<dyn Fn() + Send + Sync>,
         content: crate::surface_javascript::signed::runtime::Content,
     ) -> Result<Self> {
-        // 先创建隐藏宿主再启动 child；首帧接纳前不显示空壳，也不开放输入。
+        // Create a hidden host before starting the child; show no empty shell or enable input before admitting the first frame.
         let scene =
             crate::surface_scene::Scene::parse(br#"{"id":"root","type":"column","children":[]}"#)
                 .map_err(|_| Error::new(E_FAIL, "Local Art initial scene invalid"))?;
@@ -118,7 +118,7 @@ impl Window {
             && self.has_frame
             && self.window.as_ref().is_some_and(SurfaceWindow::is_alive)
     }
-    /// 未交付结果/确认/输入及运行中请求必须先沿原泵结算；定时器本身不等于已接受输入。
+    /// Undelivered results/confirmations/input and running requests must settle through the original pump first; a timer alone is not accepted input.
     pub(super) fn session_end_idle(&self) -> bool {
         self.ready()
             && !self.runtime.pending()
@@ -257,7 +257,7 @@ impl Window {
         if !window.is_alive() || !self.current(host) {
             return Err(Error::new(E_FAIL, "Local Art host changed"));
         }
-        // 首帧可在隐藏期间领取；首次可见不依赖新帧，之后不覆盖用户最小化/隐藏意图。
+        // The first frame may be collected while hidden; first visibility needs no new frame, and later updates preserve user minimize/hide intent.
         window.show()?;
         if !window.is_alive() || !self.current(host) {
             return Err(Error::new(E_FAIL, "Local Art host changed"));

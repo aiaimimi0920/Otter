@@ -1,4 +1,4 @@
-//! 旧PNG首次接入冻结basis的原Application事务；独立源像素/历史和内容框oracle。
+//! Original Application transaction attaching legacy PNG to a frozen basis for the first time; independent source-pixel/history/content-frame oracles.
 use super::*;
 
 #[test]
@@ -8,7 +8,7 @@ fn collaboration_first_attach_requires_actual_matching_source_dimensions_pixels_
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let _com = Apartment::new().unwrap();
     unsafe {
-        // metadata-only、同版带PNG、新版但同digest，均不能跳过原本地源证明。
+        // metadata-only, same-version PNG, and newer-version same-digest cases must all verify the original local source proof.
         for shape in 0..3 {
             for case in 0..4 {
                 let mut fixture = Fixture::new();
@@ -24,7 +24,7 @@ fn collaboration_first_attach_requires_actual_matching_source_dimensions_pixels_
                     response["editing"]["basis"]["width"] = json!(3);
                 } else if case == 2 {
                     let mut canvas = state(&fixture).canvas.borrow_mut();
-                    // 尺寸/Editor身份一致，但自然像素不同；不是合法的basis来源。
+                    // Dimensions/Editor identity match but natural pixels differ; this is not a valid basis source.
                     canvas.minified_source =
                         Some(crate::desktop::canvas::minified_source::Source::new(
                             crate::image_decode::Image {
@@ -51,7 +51,7 @@ fn collaboration_first_attach_requires_actual_matching_source_dimensions_pixels_
                         .replace_layers(revision, &old, erased)
                         .unwrap());
                     assert!(canvas.editor.undo());
-                    // 当前像素已回原图，但redo中仍有破坏性底图，不能静默建立新权威。
+                    // Current pixels match the original again, but redo still contains a destructive base image; do not silently establish new authority.
                     assert!(canvas.editor.layers().unwrap().base.same_storage(&old.base));
                     assert!(!canvas.editor.source_replaceable());
                 }
@@ -153,7 +153,7 @@ fn collaboration_plain_receiver_can_adopt_frozen_new_basis_and_vectors_in_one_tr
         let view = received.editor_view().unwrap();
         assert!(view.basis_objects().contains_key(&local));
         assert_eq!(received.conflict(), Some(edit::Code::ReadOnly));
-        // 独立fit oracle；矢量必须随3:1内容居中，而不是拉伸到旧2:1逻辑框。
+        // Independent fit oracle; vectors must center with 3:1 content, not stretch into the old 2:1 logical frame.
         let scale = (frame.width / 3.0).min(frame.height);
         let x = frame.x + (frame.width - 3.0 * scale) / 2.0;
         let y = frame.y + (frame.height - scale) / 2.0;

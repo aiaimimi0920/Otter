@@ -1,4 +1,4 @@
-//! 单次设备 Surface 流读取；不启动常驻轮询，不使用管理员实例接口。
+//! One-shot device Surface stream reads; no persistent polling or administrator instance interfaces.
 use super::*;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StreamError {

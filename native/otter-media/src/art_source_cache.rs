@@ -1,5 +1,5 @@
-//! profile内的有界源码缓存，不存grant/token；每次执行仍须新请求的签名许可。
-//! 文件名仅由宿主计算的摘要产生。合作进程独占锁，坏缓存当miss，不递归清理用户目录。
+//! Bounded per-profile source cache without grants/tokens; every execution still requires a newly requested signed grant.
+//! Filenames derive only from host-computed digests. Cooperating processes use exclusive locks; corrupt caches are misses, without recursive user-directory cleanup.
 use sha2::{Digest, Sha256};
 use std::{
     fs::{File, OpenOptions},
@@ -101,7 +101,7 @@ impl Store {
         }
         Ok(Some(source))
     }
-    /// 仅在下载验签成功后调用。写失败不破坏在线执行；没有静默淘汰仍有用的缓存。
+    /// Call only after successful download/signature validation. Write failure preserves online execution; never silently evict useful caches.
     pub fn put(
         &self,
         key: &[u8; 32],
@@ -140,7 +140,7 @@ impl Store {
             {
                 return Err(io::ErrorKind::InvalidData.into());
             }
-            // tmp/未知文件也计费；崩溃遗留不会导致无限缓存增长。
+            // Charge tmp/unknown files too so crash leftovers cannot cause unbounded cache growth.
             if filename != name {
                 count += 1;
                 bytes = bytes

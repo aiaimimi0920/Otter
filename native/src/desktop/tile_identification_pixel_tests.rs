@@ -1,4 +1,4 @@
-//! 标记实际D2D/WIC独立颜色oracle；不读取桌面，不用本renderer计算期望像素。
+//! Independent color oracles for actual D2D/WIC markers; no desktop reads or expected-pixel calculations via this renderer.
 use super::*;
 use windows::Win32::{
     Graphics::{Dxgi::Common::DXGI_FORMAT_B8G8R8A8_UNORM, Imaging::*},
@@ -61,7 +61,7 @@ fn real_marker_has_opaque_background_close_button_and_bounded_literal_identity_t
             .CopyPixels(std::ptr::null(), 640 * 4, &mut pixels)
             .unwrap();
         let pixel = |x: usize, y: usize| &pixels[(y * 640 + x) * 4..(y * 640 + x + 1) * 4];
-        // 颜色浮点→8位允许1LSB；矩形内部不经过字体抗锯齿。
+        // Allow 1 LSB for floating color -> 8-bit conversion; rectangle interiors involve no font antialiasing.
         for (actual, expected) in pixel(10, 10).iter().zip([15u8, 13, 10, 255]) {
             assert!(actual.abs_diff(expected) <= 1);
         }

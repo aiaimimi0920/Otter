@@ -1,4 +1,4 @@
-//! 临时自签证书与本机 TLS 服务；不读取用户凭据或联系实际 Loom。
+//! Temporary self-signed certificates and local TLS services; no user credentials or actual Loom contact.
 use super::*;
 use crate::{
     live_relay_media_endpoint::{Credential, Endpoint},
@@ -52,7 +52,7 @@ fn accept(listener: TcpListener) -> BridgeStream {
 }
 
 #[test]
-#[allow(clippy::result_large_err)] // tungstenite 固定 callback 返回类型。
+#[allow(clippy::result_large_err)] // tungstenite fixes the callback return type.
 fn actual_tls_device_headers_negotiation_media_and_interrupt() {
     let (listener, roots, config) = fixture();
     let address = listener.local_addr().unwrap();
@@ -93,7 +93,7 @@ fn actual_tls_device_headers_negotiation_media_and_interrupt() {
         let mut bytes = header.to_vec();
         bytes.extend_from_slice(&[10, 20, 30, 255]);
         socket.send(tungstenite::Message::Binary(bytes)).unwrap();
-        // 客户端 interrupt 应关闭底层 TCP，不等待服务端额外发送数据。
+        // Client interrupt should close underlying TCP without waiting for additional server data.
         assert!(socket.read().is_err());
     });
     let endpoint = Endpoint::new(&format!("https://localhost:{}", address.port()), roots).unwrap();
@@ -233,7 +233,7 @@ fn trusted_certificate_for_wrong_hostname_is_rejected() {
         let mut tls = StreamOwned::new(ServerConnection::new(config).unwrap(), accept(listener));
         assert!(tls.read(&mut [0; 1024]).is_err());
     });
-    // 根可信但证书仅包含 localhost；解析地址相同不能绕过 hostname 检查。
+    // The root is trusted but the certificate covers only localhost; matching resolved addresses cannot bypass hostname checks.
     let endpoint =
         Endpoint::new(&format!("https://wrong.example:{}", address.port()), roots).unwrap();
     let request = endpoint

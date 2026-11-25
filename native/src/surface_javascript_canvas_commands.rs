@@ -1,4 +1,4 @@
-//! 私有 Canvas 绘制提交的数据合同；每次提交都在调用 D2D 前完成类型、有限数和容量验证。
+//! Data contract for private Canvas drawing submissions; validate types, finite numbers, and capacity before any D2D call.
 use crate::surface_javascript_wire::{canvas, invalid};
 use serde::Deserialize;
 use std::io;
@@ -165,7 +165,7 @@ impl Draw {
                 }
             }
             Self::Clear { rect, transform } => {
-                // D2D 的 axis clip 不能表达旋转 clearRect；未接几何擦除前明确拒绝。
+                // D2D axis clips cannot represent rotated clearRect; reject explicitly until geometric erasure is implemented.
                 if !finite(rect) || !finite(transform) || transform[1] != 0. || transform[2] != 0. {
                     return Err(invalid());
                 }

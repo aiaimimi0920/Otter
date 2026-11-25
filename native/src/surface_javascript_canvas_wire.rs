@@ -1,4 +1,4 @@
-//! Canvas 私有像素帧：尺寸/总量先验检查，PNG 只作为进程间无损编码，不接收资源 URL。
+//! Private Canvas pixel frames: check dimensions/totals upfront; PNG is only lossless interprocess encoding, never a resource URL.
 use super::invalid;
 use base64::{engine::general_purpose::STANDARD, Engine};
 use serde::{Deserialize, Serialize};
@@ -91,7 +91,7 @@ pub(crate) fn images(
         if total > TOTAL_BYTES {
             return Err(invalid());
         }
-        // 零尺寸 canvas 不上传虚构的一像素图，也不向通用图片 owner 交非法尺寸。
+        // Zero-size canvases upload no fabricated one-pixel image and pass no invalid dimensions to generic image owners.
         if count == 0 {
             if !frame.png.is_empty() {
                 return Err(invalid());
@@ -109,7 +109,7 @@ pub(crate) fn images(
     }
     Ok(output)
 }
-/// 同一Canvas codec供正式帧和私有服务快照复用；调用者先约束聚合量与PNG分配。
+/// Committed frames and private service snapshots reuse the same Canvas codec; callers first bound aggregate sizes and PNG allocations.
 pub(crate) fn decode(size: [u32; 2], encoded: &[u8]) -> io::Result<crate::image_decode::Image> {
     let count = bytes(size)?;
     if count == 0 || encoded.len() > MAX_PNG {
@@ -150,7 +150,7 @@ pub(crate) fn encode(size: [u32; 2], mut pixels: Vec<u8>) -> io::Result<String> 
     if pixels.len() != bytes(size)? {
         return Err(invalid());
     }
-    // WIC 持有 PBGRA；PNG 使用 straight RGBA，透明通道不夹带旧颜色。
+    // WIC holds PBGRA; PNG uses straight RGBA, and transparent channels must not carry stale colors.
     for bgra in pixels.chunks_exact_mut(4) {
         let a = u32::from(bgra[3]);
         let rgb = [bgra[2], bgra[1], bgra[0]];
@@ -166,7 +166,7 @@ pub(crate) fn encode(size: [u32; 2], mut pixels: Vec<u8>) -> io::Result<String> 
         let mut encoder = png::Encoder::new(&mut output, size[0], size[1]);
         encoder.set_color(png::ColorType::Rgba);
         encoder.set_depth(png::BitDepth::Eight);
-        // Fast默认逐行试算全部滤波，在debug大图上可耗尽250ms门；Up同样无损且有界。
+        // Fast tries every filter per row by default and may exhaust 250ms on large debug images; Up is also lossless and bounded.
         encoder.set_compression(png::Compression::Fastest);
         let mut writer = encoder.write_header().map_err(|_| invalid())?;
         writer.write_image_data(&pixels).map_err(|_| invalid())?;

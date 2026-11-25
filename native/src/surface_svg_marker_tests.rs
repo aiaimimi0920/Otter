@@ -1,8 +1,8 @@
-//! 路径 marker 的 Chrome 155 像素基线与真实受限子进程回归。
+//! Chrome 155 pixel baselines and real restricted-child regressions for path markers.
 use super::*;
 #[test]
 fn surface_svg_context_paints_do_not_turn_zero_width_into_visible_strokes() {
-    // 小画布的 AA 快速裁剪不能因不存在内缩区域而跳过实际描边。
+    // Fast AA clipping on small canvases must not skip actual strokes when no inset area exists.
     for (w, h, y, width) in [
         (2, 1, 0.5, 0),
         (2, 1, 0.5, 1),

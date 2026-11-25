@@ -1,4 +1,4 @@
-//! 独立整数像素oracle；当前legacy区域优先、post-flip一次性和两个裁剪空间。
+//! Independent integer-pixel oracle; current legacy regions take precedence, post-flip applies once, and crop spaces remain separate.
 use super::*;
 #[path = "export_projection_legacy_density_tests.rs"]
 mod density;
@@ -40,7 +40,7 @@ fn assert_pixels(image: &Image, expected: impl Fn(u32, u32) -> [u8; 4]) {
 fn projection_explicit_legacy_uses_post_flip_owner_without_reflecting_source_twice() {
     let _com = Apartment::new().unwrap();
     let mut image = patterned();
-    // 独立构造已物化水平flip的像素，不调用生产raster_flip作为预期。
+    // Independently construct pixels with horizontal flip materialized; do not use production raster_flip for expectations.
     image.pixels = (0..64)
         .flat_map(|i| [((7 - i % 8) * 24) as u8, ((i / 8) * 24) as u8, 32, 255])
         .collect::<Vec<_>>()

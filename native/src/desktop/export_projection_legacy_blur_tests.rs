@@ -1,4 +1,4 @@
-//! 当前legacy二次裁剪仍需采完整邻域；期望由矩形离散高斯积分独立产生。
+//! Current secondary legacy crops still need full sampling neighborhoods; independent rectangular discrete-Gaussian integration supplies expectations.
 use super::*;
 
 #[test]

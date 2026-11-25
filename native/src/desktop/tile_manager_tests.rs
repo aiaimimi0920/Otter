@@ -1,4 +1,4 @@
-//! 真实自有隐藏管理窗：同一消息泵内排队命令后关闭，不消费已销毁owner的启动意图。
+//! Actual owned hidden manager window: queue commands then close in one message pump; never consume startup intents from destroyed owners.
 use super::*;
 #[test]
 fn queued_output_command_is_not_consumed_after_manager_close() {

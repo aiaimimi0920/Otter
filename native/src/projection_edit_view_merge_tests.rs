@@ -1,4 +1,4 @@
-//! 权威值与可见本地值分别核验；异步保存后重读，不把旧overlay叠回undo结果。
+//! Independently check authoritative/visible local values; reread after asynchronous saving rather than overlay old data onto undo results.
 use super::{test_fixture::*, *};
 use crate::projection_edit::Code;
 use serde_json::json;
@@ -70,11 +70,11 @@ fn local_deletion_remote_tombstone_and_concurrent_creation_are_object_scoped_con
     assert!(result.conflict().is_some());
     let result = reconcile(&previous, &observed, &tombstone, &observed, None).unwrap();
     assert!(result.visible().basis_objects().is_empty());
-    assert!(result.conflict().is_none()); // 没有本地修改，不复活已删对象。
+    assert!(result.conflict().is_none()); // No local edits; do not revive deleted objects.
     let empty_doc = document(Objects::new(), 1);
     let empty = View::from_document(&empty_doc, observed.size()).unwrap();
     let result = reconcile(&empty_doc, &empty, &document(objects(), 2), &observed, None).unwrap();
-    assert!(result.conflict().is_some()); // 同ID并发创建，即使值相同也不能冒充已确认写入。
+    assert!(result.conflict().is_some()); // Concurrent creation with the same ID is not acknowledged writing, even with equal values.
 }
 
 #[test]
@@ -92,7 +92,7 @@ fn rereading_after_each_async_commit_keeps_newer_local_edits_without_touching_re
         None,
     )
     .unwrap();
-    // 模拟调用者保存权威基线期间用户又改到90，保存conflict期间再改到100。
+    // Simulate the user changing to 90 while authority is saved, then to 100 while conflict is saved.
     let second = reconcile(
         &previous,
         &observed,
@@ -123,7 +123,7 @@ fn apply_reply_uses_original_pending_view_as_acknowledged_baseline_not_old_docum
     let acknowledged = move_x(&original, "shape-a", 20.0);
     let remote = document(acknowledged.basis_objects().clone(), 2);
     let resized = acknowledged.resized(Size::new(240.0, 100.0).unwrap());
-    let current = move_x(&resized, "shape-a", 50.0); // basis x=25，只保留请求后另改的5。
+    let current = move_x(&resized, "shape-a", 50.0); // basis x=25; retain only the additional 5 edited after the request.
     let result = reconcile(&previous, &acknowledged, &remote, &current, None).unwrap();
     assert!(result.conflict().is_none());
     assert_eq!(result.changes().len(), 1);

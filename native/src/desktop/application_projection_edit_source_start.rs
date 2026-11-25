@@ -1,4 +1,4 @@
-//! UI只捕获来源/目标/租约；PNG/初始wire/持久stage与网络都在既有Job worker。
+//! UI captures only source/target/lease; PNG/initial wire/durable stage/network operations all run in the existing Job worker.
 use super::*;
 impl Application {
     pub(in crate::desktop::application) unsafe fn start_projection_source(

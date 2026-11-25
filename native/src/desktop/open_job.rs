@@ -1,4 +1,4 @@
-//! 单个后台解码任务；COM 不跨线程，结果提交校验文档身份/版本，空闲时无轮询。
+//! Single background decoding task; COM stays thread-local, result commits validate document identity/revision, and idle periods do not poll.
 use super::{canvas::Canvas, open_image::PreparedDocument, Apartment, State};
 use std::{
     path::PathBuf,
@@ -151,7 +151,7 @@ pub(super) unsafe fn start_long_context(
     origin: POINT,
     context: crate::capture_job::Context,
 ) -> Result<()> {
-    // 新自动录制与既有显式轴共享提交路径，来源扩展不能伪造已确认轴或超限帧数。
+    // New automatic recording shares commit paths with existing explicit axes; provenance extensions must not fabricate confirmed axes or excessive frame counts.
     if context.kind != crate::session_capture::Kind::Long
         || crate::session_capture::decode(&context.metadata(false, false).to_string()).is_err()
     {
@@ -194,7 +194,7 @@ pub(super) unsafe fn start_destination(
 ) -> Result<()> {
     start_positioned(hwnd, state, input, new_pin, None)
 }
-/// 普通截图在原准备线程完成时交付；不等下一次 100 ms 的导入轮询。
+/// Deliver ordinary captures when original preparation threads finish, without waiting for the next 100 ms import poll.
 pub(super) unsafe fn start_capture_destination(
     hwnd: HWND,
     state: &State,
@@ -206,7 +206,7 @@ pub(super) unsafe fn start_capture_destination(
     if state.open_job.borrow().is_some() {
         return Err(Error::new(E_ABORT, "Image loading is already in progress"));
     }
-    // publish 只能执行不分派窗口消息的缓存提交；准入到接管任务之间没有模态重入。
+    // publish may perform only cache commits that dispatch no window messages; no modal reentrancy occurs between admission and task takeover.
     let input = publish()?;
     super::smoke_timing::run("capture-ready", || {
         start_destination(hwnd, state, input, new_pin)?;

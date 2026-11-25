@@ -1,4 +1,4 @@
-//! 系统baseline/NV12低延迟协商；不裁切、不改输入尺寸，不配置实验已拒绝的B帧/GOP属性。
+//! System baseline/NV12 low-latency negotiation; no cropping/input resizing or experimentally rejected B-frame/GOP properties.
 use super::*;
 pub(super) fn validate_size([width, height]: [u32; 2]) -> Result<usize> {
     if width < 48
@@ -18,7 +18,7 @@ pub(super) fn validate_size([width, height]: [u32; 2]) -> Result<usize> {
 pub(super) fn configure(transform: &IMFTransform, [width, height]: [u32; 2]) -> Result<u32> {
     unsafe {
         let api: ICodecAPI = transform.cast()?;
-        // 此encoder要求VT_BOOL；decoder的VT_UI4不适用于这个系统MFT。
+        // This encoder requires VT_BOOL; decoder VT_UI4 does not apply to this system MFT.
         api.SetValue(&CODECAPI_AVLowLatencyMode, &VARIANT::from(true))?;
         for (output, subtype) in [(true, MFVideoFormat_H264), (false, MFVideoFormat_NV12)] {
             let media = MFCreateMediaType()?;

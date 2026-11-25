@@ -1,4 +1,4 @@
-//! 跨节点视觉范围按场景先序，保留独立端点并拒绝聚合文字复制。
+//! Cross-node visual ranges follow scene preorder, retain separate endpoints, and reject aggregated text copying.
 use super::*;
 pub(super) fn cross_owner(reverse: bool) -> Presentation {
     cross_owner_changed(reverse, "")
@@ -230,7 +230,7 @@ fn cross_node_word_drag_matches_browser_core_ranges_after_initial_space() {
     let start = at(&p, 1, 8);
     p.begin_word_selection(start).unwrap();
     assert_eq!(p.selected_text().unwrap().as_deref(), Some("middle "));
-    // 未移动抬起不裁掉初始空白。
+    // Releasing without movement does not trim initial whitespace.
     p.finish_text_selection(start).unwrap();
     assert_eq!(p.selected_text().unwrap().as_deref(), Some("middle "));
     for delta in [0.1, 1., 2., 3., 4., 6.] {

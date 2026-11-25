@@ -1,4 +1,4 @@
-//! 菜单请求消费与发网准入；释放View借用后才捕获来源/租约，恢复原pending由后台完成。
+//! Menu-request consumption and network admission; capture source/lease only after releasing View, and recover original pending state in the background.
 use super::*;
 impl Application {
     pub(in crate::desktop::application) unsafe fn projection_edit_requests(
@@ -85,7 +85,7 @@ impl Application {
                         {
                             return None;
                         }
-                        // 显式方向只派发一次；后台暂忙先保留，失败由用户显式重试。
+                        // Dispatch explicit direction only once; retain while background work is busy, with failures retried explicitly by the user.
                         choice.submitted = true;
                         Some((
                             Selection {
@@ -269,7 +269,7 @@ impl Application {
         {
             let mut preference = doc.state.projection_mode.borrow_mut();
             if preference.as_ref().is_some_and(|choice| choice.submitted) {
-                // UI 意图失败后回到实际模式；已持久化的请求仍由原恢复流程持有。
+                // Return to the actual mode after UI intent fails; the original recovery flow still owns persisted requests.
                 preference.take();
             }
         }

@@ -1,4 +1,4 @@
-//! resolved 像素与目标编辑的独立归属：真实菜单/TLS/检查点链，不依赖前台或真实 profile。
+//! Independent ownership of resolved pixels and target edits: real menu/TLS/checkpoint flow, without foreground or real-profile dependencies.
 use super::*;
 use crate::{
     editor::{Editor, Tool},
@@ -39,7 +39,7 @@ pub(super) unsafe fn install(app: &mut Application, beautify: bool) -> Image {
             .unwrap();
         editor
     };
-    // resolved本地来源必须是实际存活且DocumentStamp匹配的文档，不能虚构unit。
+    // A resolved local source must be an actually live document matching DocumentStamp, not a fabricated unit.
     let upstream_index = app.documents.len();
     app.add_state(State::new(Some(base.clone()), true).unwrap(), false)
         .unwrap();
@@ -83,7 +83,7 @@ pub(super) unsafe fn install(app: &mut Application, beautify: bool) -> Image {
             })
             .unwrap();
     }
-    // 新 Unit 可能尚未进入 Record.original；只从当前已提交完整 canonical 取夹具基线。
+    // A new Unit may not yet be in Record.original; derive fixture baselines only from the current committed complete canonical.
     let canonical = app
         .workspace_checkpoint
         .as_ref()
@@ -128,13 +128,13 @@ pub(super) unsafe fn install(app: &mut Application, beautify: bool) -> Image {
             base,
             Some(&app.documents[upstream_index].state.canvas.borrow().editor),
         ));
-    // 独立构造整图 oracle，不调用待测选图、编辑合成或外观包装。
+    // Independently build a full-image oracle without calling the selection, edit-composition, or appearance wrappers under test.
     let padding = if beautify { 3 } else { 0 };
     let (width, height) = (32 + padding * 2, 16 + padding * 2);
     let mut pixels = [255; 4].repeat((width * height) as usize);
     for y in 0..16 {
         for x in 0..32 {
-            // 主干将完整 raster layer 铺到可见框；不复用底图/矢量的源框 crop。
+            // Mainline lays the complete raster layer over the visible frame; do not reuse base-image/vector source-frame cropping.
             let color = if (12..16).contains(&x) && (6..10).contains(&y) {
                 [0, 255, 255, 255]
             } else if beautify && (!(4..28).contains(&x) || !(4..12).contains(&y)) {

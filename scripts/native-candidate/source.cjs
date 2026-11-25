@@ -1,4 +1,4 @@
-// 独立原生候选的源码身份；不读取凭证内容，不冒充可复现或已签名构建。
+// Source identity for independent native candidates; no credential-content reads or claims of reproducible/signed builds.
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');

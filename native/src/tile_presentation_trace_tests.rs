@@ -1,4 +1,4 @@
-//! 逻辑时钟与迟到paint回归；诊断不能使prepared获得presented资格。
+//! Logical-clock and late-paint regressions; diagnostics cannot make prepared eligible as presented.
 use super::*;
 use crate::tile_shared::Shared;
 use std::{sync::Arc, time::Duration};

@@ -1,4 +1,4 @@
-//! 合成文件/流回归，不访问会话提供的路径或网络资源。
+//! Synthetic file/stream regressions without accessing session-provided paths or network resources.
 use super::*;
 #[test]
 fn bounded_read_rejects_growth_truncation_and_cancel_without_partial_result() {

@@ -1,4 +1,4 @@
-//! 原生文字布局与绘制共用 DirectWrite；工厂按线程复用，已提交布局随窗口 Target 有界缓存。
+//! Native text layout and rendering share DirectWrite; factories are reused per thread and committed layouts are bounded by the window Target cache.
 use crate::{
     editor::Stroke,
     text_annotation::TextAnnotation,
@@ -99,15 +99,15 @@ pub(super) unsafe fn measure(text: &TextAnnotation) -> Result<Point> {
     })
 }
 
-/// 与绘制相同的字体和布局设置；只返回数值，COM 对象不跨线程。
+/// Use the same font and layout settings as rendering; return only numeric values, never COM objects across threads.
 pub fn measure_flip_metrics(text: &TextAnnotation) -> Result<crate::editor::TextFlipMetrics> {
-    // 所有 COM 接口、UTF-16 缓冲和输出数组均局部拥有，原生调用不保留借用。
+    // All COM interfaces, UTF-16 buffers, and output arrays are locally owned; native calls retain no borrows.
     unsafe {
         let layout = layout(text, 1.0, 1_000_000.0, 1_000_000.0)?;
         let mut metrics = DWRITE_TEXT_METRICS::default();
         layout.GetMetrics(&mut metrics)?;
         let mut count = 0;
-        // 空缓冲探测通常返回 E_NOT_SUFFICIENT_BUFFER，但仍写入所需行数。
+        // An empty-buffer probe usually returns E_NOT_SUFFICIENT_BUFFER but still writes the required line count.
         let probe = layout.GetLineMetrics(None, &mut count);
         if count == 0 {
             probe?;
@@ -146,7 +146,7 @@ pub(super) unsafe fn layout(
 ) -> Result<IDWriteTextLayout> {
     let factory = shared_factory()?;
     let format = factory.CreateTextFormat(
-        // PCWSTR字体名不能表达NUL；显示使用有效前缀/系统fallback，模型仍保留原值。
+        // PCWSTR font names cannot represent NUL; display uses the valid prefix/system fallback while the model preserves the original value.
         &HSTRING::from(
             text.family()
                 .split('\0')

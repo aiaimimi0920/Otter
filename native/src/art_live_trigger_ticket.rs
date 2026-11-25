@@ -1,4 +1,4 @@
-//! 每次领取独立取消围栏；同一有界payload共享，不因派发/查询延长期限。
+//! Independent cancellation fence per claim; share one bounded payload without extending its deadline through dispatch/query.
 use super::*;
 use std::{
     sync::{
@@ -82,7 +82,7 @@ impl Ticket {
         }
         valid
     }
-    /// 只围住无Win32/网络/用户回调的canonical提交；停止与发布在同一锁串行化。
+    /// Fence only canonical commits with no Win32/network/user callbacks; serialize stop and publication under one lock.
     pub fn commit<R>(
         &self,
         binding: &Binding,
@@ -100,7 +100,7 @@ impl Ticket {
         }
         Some(apply(&|| self.time_current()))
     }
-    /// 回执只在实际提交后写入；写一次，不能把迟到成功覆盖取消/失败。
+    /// Write the receipt only after actual commit, exactly once; late success cannot overwrite cancellation/failure.
     pub fn complete(&self, receipt: Receipt) -> bool {
         let mut active = self
             .0

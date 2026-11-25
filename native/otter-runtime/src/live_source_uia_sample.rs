@@ -1,4 +1,4 @@
-//! 精确UIA属性/Pattern读取；不执行Invoke/写值，不截断后冒充exact，不读取密码。
+//! Exact UIA property/Pattern reads; no Invoke execution/value writes, no truncation presented as exact, and no password reads.
 use super::*;
 use ring::digest::{digest, SHA256};
 use serde_json::{json, Value};
@@ -18,7 +18,7 @@ pub(super) struct Identity {
 }
 impl Identity {
     pub(super) unsafe fn read(e: &IUIAutomationElement) -> Result<Self> {
-        // 保留原祖先标签的 400 字符准入，避免第二次 RPC 读到另一版属性。
+        // Retain the original 400-character ancestor-label admission limit to avoid reading another property version in a second RPC.
         let automation_id = text(e.CurrentAutomationId()?, 400)?;
         Ok(Self {
             kind: e.CurrentControlType()?,

@@ -1,4 +1,4 @@
-//! prepare空隙仅保留至多四个同租约Art的COW偏移；不拥有scene、像素、COM或呈现资格。
+//! Preparation gaps retain only COW offsets for at most four same-lease Art sources; no scene/pixel/COM ownership or presentation eligibility.
 use super::*;
 use crate::tile_shared::{Key, State};
 use crate::tile_surface_wire::View;
@@ -23,7 +23,7 @@ impl Memory {
     ) {
         if let Some(frame) = frame {
             self.key = Some((frame.key.clone(), frame.size));
-            // 协议原本最多四个Art来源；防御性上限不允许本地状态扩展这份预算。
+            // The protocol already caps Art sources at four; defensive limits must not let local state expand that budget.
             self.entries = frame
                 .arts
                 .iter()

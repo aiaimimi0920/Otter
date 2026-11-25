@@ -1,4 +1,4 @@
-//! 外观模型与只读恢复边界；不访问真实profile或执行节点。
+//! Appearance model and read-only restoration boundary; no real profile access or node execution.
 use super::*;
 fn id(name: &str) -> UnitId {
     UnitId::parse(name).unwrap()

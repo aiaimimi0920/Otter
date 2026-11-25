@@ -1,4 +1,4 @@
-//! 多行真实 EDIT/COMBOBOX 与原事务；几何测试只操作自有 HWND，不触碰用户桌面。
+//! Multiline real EDIT/COMBOBOX controls and the original transaction; geometry tests use only owned HWNDs, not the user's desktop.
 use super::*;
 unsafe fn fixture(parameters: Option<serde_json::Value>) -> (Fixture, desktop::Window) {
     let mut f = parameters.map_or_else(|| Fixture::new(), |p| Fixture::with_parameters(p));

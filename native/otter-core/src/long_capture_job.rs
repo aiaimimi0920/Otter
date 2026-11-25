@@ -1,4 +1,4 @@
-//! 单所有者后台会话：至多一个在途命令，禁止 UI 堆积截图；Drop 关闭通道并 join。
+//! Single-owner background sessions with at most one in-flight command; UI cannot accumulate captures, and Drop closes channels/joins.
 use super::*;
 #[path = "long_capture_active.rs"]
 pub mod active;
@@ -70,11 +70,11 @@ pub struct SessionJob {
     has_move: bool,
 }
 impl SessionJob {
-    /// Session 在调用线程已完成参数准入；此处仅移交所有权，不复制输入像素。
+    /// Session parameters were admitted on the calling thread; transfer ownership only, without input-pixel copies.
     pub fn start(session: Session) -> std::io::Result<Self> {
         Self::start_inner(session, None)
     }
-    /// 用户驱动录制从未知轴开始；采集源不获得发送滚轮的能力。
+    /// User-driven recording begins with unknown axes; capture sources gain no wheel-sending capability.
     pub fn start_detecting(
         first: Frame,
         source: impl CaptureSource + 'static,
@@ -93,7 +93,7 @@ impl SessionJob {
             })?;
         Self::start_active(active::Active::Detecting(session), Some(Box::new(source)))
     }
-    /// 采集源只在 worker 收到显式命令时运行；不得在闭包中读取 UI 可变状态。
+    /// Capture sources run only on explicit worker commands; closures must not read mutable UI state.
     pub fn start_with_capture(
         session: Session,
         mut capture: impl FnMut(&AtomicBool) -> Result<Frame, String> + Send + 'static,
@@ -183,7 +183,7 @@ impl SessionJob {
     pub fn append(&mut self, frame: Frame) -> Result<(), DispatchError> {
         self.dispatch(Command::Append(frame))
     }
-    /// frame 已由采集源获得；movement 始终相对最后接受帧，失败不能推进调用方基准。
+    /// Capture sources already obtained frame; movement stays relative to the last accepted frame, and failure never advances caller references.
     pub fn append_at(&mut self, frame: Frame, movement: (i64, i64)) -> Result<(), DispatchError> {
         self.dispatch(Command::AppendAt(frame, movement))
     }
@@ -215,7 +215,7 @@ impl SessionJob {
             Err(mpsc::TrySendError::Disconnected(_)) => Err(DispatchError::Stopped),
         }
     }
-    /// 非阻塞消费唯一回复。取消后关闭结果通道，任何迟到图像都不能重新发布。
+    /// Nonblocking consumption of the sole reply. Cancellation closes result channels so late images cannot republish.
     pub fn take_ready(&mut self) -> Option<Reply> {
         if !self.pending || self.cancel.load(Ordering::Acquire) {
             return None;
@@ -237,7 +237,7 @@ impl SessionJob {
         self.has_move = reply.can_move;
         Some(reply)
     }
-    /// 不等待 worker；等待由最终 Drop 负责。所有在途/已排队结果即刻失去发布通道。
+    /// Do not wait for workers here; final Drop waits. All in-flight/queued results immediately lose publication channels.
     pub fn cancel(&mut self) {
         self.cancel.store(true, Ordering::Release);
         self.sender.take();
@@ -340,7 +340,7 @@ fn run(
             snapshot: session.snapshot(),
             completion,
         };
-        // 单在途协议使结果槽始终为空；非阻塞发送仍防止异常调用造成退出死锁。
+        // Single-in-flight protocols keep result slots empty; nonblocking sends still prevent exit deadlocks from abnormal calls.
         if results.try_send(reply).is_err() {
             break;
         }

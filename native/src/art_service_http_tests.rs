@@ -1,4 +1,4 @@
-//! 真实固定-origin TLS、Device nonce、原 Permit/Lease 和服务 reply；不冒充 QuickJS/产品接线。
+//! Real fixed-origin TLS, Device nonce, original Permit/Lease, and service replies; not QuickJS/product wiring.
 use super::*;
 use crate::live_relay_http::art_prepare::service::{Call, Error as ServiceError, Status};
 use serde_json::{json, Value};

@@ -1,4 +1,4 @@
-//! 栅格编辑与依赖它的模糊快照作为单一事务；后台准备不会修改文档或历史。
+//! Raster edits and dependent blur snapshots form one transaction; background preparation alters neither documents nor history.
 use super::*;
 use crate::{blur, blur_image::BlurImage, erase_layers::Layers};
 use std::{collections::BTreeMap, sync::Arc};
@@ -87,7 +87,7 @@ impl RasterRefreshPlan {
     pub fn matches_source(&self, source: &Layers, revision: u64) -> bool {
         self.revision == revision && self.source.same_storage(source)
     }
-    /// 擦除线程交付候选；不允许更换尺寸或绕过缓冲长度检查。
+    /// Erase threads deliver candidates without changing dimensions or bypassing buffer-length checks.
     pub fn with_candidate(mut self, candidate: Layers) -> Result<Self, blur::BlurError> {
         if candidate.size != self.source.size || !candidate.valid() {
             return Err(blur::BlurError::InvalidInput);
@@ -101,7 +101,7 @@ impl RasterRefreshPlan {
         self.prepared = false;
         Ok(self)
     }
-    /// 宿主必须在后台调用。合成一次，相同强度共享结果；失败或取消不可提交。
+    /// Hosts must call in background. Compose once, share equal-intensity results, and never commit failures/cancellation.
     pub fn compute(mut self, cancelled: impl Fn() -> bool) -> Result<Self, blur::BlurError> {
         if cancelled() {
             return Err(blur::BlurError::Cancelled);
@@ -156,7 +156,7 @@ impl RasterRefreshPlan {
 }
 
 impl Editor {
-    /// 在 UI 线程捕获文档及模糊几何，像素处理留给后台。
+    /// Capture document/blur geometry on UI threads, leaving pixel processing to background workers.
     pub fn prepare_raster_edit(&self) -> Result<Option<RasterRefreshPlan>, EditError> {
         let source = self.raster.as_ref().ok_or(EditError::InvalidPoint)?.clone();
         self.prepare_raster_refresh_inner(source, true, &[])

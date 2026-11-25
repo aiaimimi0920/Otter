@@ -1,4 +1,4 @@
-//! 接收写前意图的有界格式；没有 token/图片，不把本地记录当新的远端接受授权。
+//! Bounded receive write-ahead-intent format without tokens/images; local records are not new remote-accept authorization.
 use super::*;
 use crate::projection_delivery::{envelope, receive_route, Envelope, Invitation};
 use serde::{Deserialize, Serialize};

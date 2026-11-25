@@ -1,4 +1,4 @@
-//! 视图更新仍由原 Local::operate 复核许可/撤权；不制造新 revision 或重新挂载实例。
+//! View updates still use original Local::operate permit/revocation checks without fabricating revisions or remounting instances.
 use super::*;
 
 impl Local {

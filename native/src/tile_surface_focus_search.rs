@@ -1,4 +1,4 @@
-//! 搜索区域的保守快速剔除；只有凸形覆盖证据才整块跳过，圆角外侧保留精确搜索。
+//! Conservative fast rejection of search regions; skip whole blocks only with convex-coverage evidence, preserving exact searches outside rounded corners.
 use super::*;
 pub(super) fn covered(
     frame: &Frame,
@@ -36,7 +36,7 @@ pub(super) fn covered(
         }
         p.hit_test([uv[0] * art.size[0] as f32, uv[1] * art.size[1] as f32])
     });
-    // 单节点自身和祖先圆角都是凸形。其四个像素中心均覆盖时，整个像素矩形也被覆盖。
+    // A node and each ancestor's rounded corners are convex. If all four pixel centers are covered, the entire pixel rectangle is covered.
     hits[0].is_some_and(|id| {
         hits.iter().all(|hit| *hit == Some(id))
             && p.geometry().nodes()[index + 1..]

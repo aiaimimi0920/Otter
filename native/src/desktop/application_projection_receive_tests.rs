@@ -1,4 +1,4 @@
-//! 真实 TLS accept→PNG→确定 HWND 追加→检查点→重启恢复；隐藏绘制不代 displayed 回执。
+//! Real TLS accept -> PNG -> definite HWND append -> checkpoint -> restart restoration; hidden painting is not a displayed receipt.
 use super::*;
 use crate::{
     desktop::{session_binding::Bound, session_candidate},
@@ -180,7 +180,7 @@ fn projection_receive_appends_existing_workspace_and_restores_identical_pixels_f
                 "Persisted projection source pixels changed"
             );
             assert_eq!(app.workspace_checkpoint.as_ref().unwrap().revision, 1);
-            // 工作区持久化不等于 displayed/unlinked；意图 owner 仍需保留给未来消费者。
+            // Workspace persistence does not imply displayed/unlinked; retain the intent owner for future consumers.
             assert_eq!(intent.unit(), unit.as_str());
             drop(app);
             let mut restored = new_app(instance);
@@ -202,7 +202,7 @@ fn projection_receive_appends_existing_workspace_and_restores_identical_pixels_f
                     source.pixels == expected_pixels,
                     "Restored projection source pixels changed"
                 );
-                // 编辑器显示是逻辑框中的投影，不能拿它冒充原始 2×1 PNG。
+                // Editor display is a projection into the logical frame, not the original 2x1 PNG.
                 let display = canvas.image.as_ref().unwrap();
                 assert_eq!((display.width, display.height), (160, 80));
                 let projected = crate::raster_projection::project(
@@ -224,7 +224,7 @@ fn projection_receive_appends_existing_workspace_and_restores_identical_pixels_f
                 );
             }
             assert!(!IsWindowVisible(doc.window.0).as_bool());
-            // TLS peer 只收到 accept；未落盘或隐藏窗口绝不能冒充已显示，也没有请求其他来源。
+            // The TLS peer receives only accept; neither unpersisted nor hidden windows count as displayed, and no other sources are requested.
             let listener = server.join().unwrap();
             assert!(matches!(listener.accept(),Err(e) if e.kind()==std::io::ErrorKind::WouldBlock));
             restored.shutdown();

@@ -1,4 +1,4 @@
-// 通用 wrapper/Canvas 悬停；rAF 才更新 tooltip 和像素，不翻译真实股票业务。
+// Generic wrapper/Canvas hover; update tooltips/pixels only in rAF, without translating actual stock-market business logic.
 NeuroSurface.define({ mount({ root }) {
   const status = document.createElement("p"), wrap = document.createElement("div");
   const a = document.createElement("canvas"), b = document.createElement("canvas"), field = document.createElement("input");

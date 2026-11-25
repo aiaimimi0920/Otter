@@ -1,4 +1,4 @@
-//! 钉图缩放与透明度只改变窗口呈现，不重新解码源图或写入编辑历史。
+//! Pin zoom and opacity change only window presentation, without re-decoding source images or writing edit history.
 use super::State;
 use crate::{pin_geometry::PinRect, viewport::Point};
 use windows::Win32::{
@@ -34,14 +34,14 @@ pub use animation::wheel;
 pub(super) unsafe fn close_on_escape(hwnd: HWND, state: &State, lp: LPARAM) -> bool {
     let close = can_close_on_escape(state, lp);
     if close {
-        // 先释放模型借用，再沿既有 WM_CLOSE 回收宿主、面板与应用中的节点。
+        // Release the model borrow first, then reclaim the host, panel, and application node through the existing WM_CLOSE path.
         SendMessageW(hwnd, WM_CLOSE, None, None);
     }
     close
 }
 
 pub(super) unsafe fn can_close_on_escape(state: &State, lp: LPARAM) -> bool {
-    // 长按/组合键仍只取消操作，不能在取消草稿后继续连删其他钉图。
+    // Held/combined keys still only cancel operations; cancelling a draft must not continue deleting other pins.
     if lp.0 & (1 << 30) != 0
         || [VK_CONTROL, VK_SHIFT, VK_MENU, VK_LWIN, VK_RWIN]
             .iter()
@@ -70,7 +70,7 @@ pub(super) unsafe fn opacity_wheel(hwnd: HWND, state: &State, wp: WPARAM) {
     let delta = (wp.0 >> 16) as i16;
     let changed = {
         let mut canvas = state.canvas.borrow_mut();
-        // 正常与缩略视图分别保存透明度；缩略调整不能覆盖展开时的恢复值。
+        // Ordinary and minimized views save opacity separately; minimized adjustments must not overwrite the expansion restore value.
         let opacity = if canvas.minified.is_some() {
             &mut canvas.minified_opacity
         } else {
@@ -83,7 +83,7 @@ pub(super) unsafe fn opacity_wheel(hwnd: HWND, state: &State, wp: WPARAM) {
         changed
     };
     if changed {
-        // 复用 WM_PAINT 的 GPU/CPU 透明度提交，不跨 Win32 调用持有 Canvas 借用。
+        // Reuse WM_PAINT's GPU/CPU opacity commit; never hold a Canvas borrow across Win32 calls.
         let _ = InvalidateRect(Some(hwnd), None, false);
     }
 }
@@ -133,7 +133,7 @@ fn fit_frame(
 ) -> crate::viewport::Viewport {
     let (x, y, width, height) = frame;
     let scale = ((client.0 / width).min(client.1 / height) * 96.0 / dpi).max(0.0001);
-    // 客户区是物理像素，视口是逻辑像素；留白均分后再抵消裁剪框原点。
+    // The client area uses physical pixels and the viewport logical pixels; split padding evenly before offsetting the crop origin.
     let logical = (client.0 * 96.0 / dpi, client.1 * 96.0 / dpi);
     crate::viewport::Viewport {
         scale,

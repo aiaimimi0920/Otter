@@ -1,4 +1,4 @@
-//! 内嵌品牌 ICO；目录有界验证，像素交给 Windows 解码，句柄晚于所有使用窗口释放。
+//! Embedded branding ICO: bounded directory validation, Windows pixel decoding, and handles released after all windows using them.
 use windows::{
     core::{Error, Result},
     Win32::{Foundation::*, UI::WindowsAndMessaging::*},
@@ -30,7 +30,7 @@ fn frame(bytes: &[u8], desired: u32) -> Option<&[u8]> {
             return None;
         }
         let data = bytes.get(offset..offset.checked_add(length)?)?;
-        // 优先选择足够大的帧再缩小；不将高分辨率资产上采样为模糊图标。
+        // Prefer a sufficiently large frame and downscale; do not upscale high-resolution assets into blurry icons.
         let score = (
             width < desired || height < desired,
             width.abs_diff(desired) + height.abs_diff(desired),
@@ -54,7 +54,7 @@ impl Owned {
     fn new(size: u32) -> Result<Self> {
         let bytes =
             frame(SOURCE, size).ok_or_else(|| Error::new(E_INVALIDARG, "Invalid embedded icon"))?;
-        // CreateIconFromResourceEx 要求 DWORD 对齐；ICO 文件偏移不保证满足要求。
+        // CreateIconFromResourceEx requires DWORD alignment, which ICO file offsets do not guarantee.
         let mut aligned = vec![0u32; bytes.len().div_ceil(4)];
         let data = unsafe {
             std::slice::from_raw_parts_mut(aligned.as_mut_ptr().cast::<u8>(), bytes.len())

@@ -1,4 +1,4 @@
-//! Live 命令在 HWND 回调内只撤销源输入/排队；不注入物理键盘或激活其他窗口。
+//! Live commands in HWND callbacks only revoke source input/enqueue; no physical-keyboard injection or other-window activation.
 use super::*;
 use windows::Win32::UI::Input::KeyboardAndMouse::*;
 struct Keys([u8; 256]);

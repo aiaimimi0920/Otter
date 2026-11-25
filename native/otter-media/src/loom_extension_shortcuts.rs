@@ -1,9 +1,9 @@
-//! 主干插件快捷键声明到有界原生按键；这里只投影可信目录，不注册热键或授予资源权限。
+//! Mainline plugin shortcut declarations mapped to bounded native keys; only projects a trusted catalog, without registering hotkeys or granting resource access.
 use super::*;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Chord {
     pub key: u32,
-    /// Win32 MOD_ALT/CONTROL/SHIFT/WIN 的稳定位值；不含运行期 MOD_NOREPEAT。
+    /// Stable Win32 MOD_ALT/CONTROL/SHIFT/WIN bit values; excludes runtime MOD_NOREPEAT.
     pub modifiers: u32,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -81,7 +81,7 @@ fn reserved(c: Chord) -> bool {
     }
 }
 impl Snapshot {
-    /// 顺序冲突只接受首项；超过原生 128 项预算明确拒绝，不静默截断或抢核心按键。
+    /// For ordered conflicts, accept only the first entry; explicitly reject beyond the native 128-entry budget, without silent truncation or taking core keys.
     pub fn shortcuts(&self) -> Result<Vec<Shortcut>, Error> {
         let mut items: Vec<_> = self.0.contributions["shortcuts"].iter().collect();
         items.sort_by(|a, b| {

@@ -1,4 +1,4 @@
-//! 将持久化底图和栅格标注接入原生编辑器，不展平、不把恢复预览变成可编辑源图。
+//! Connect persisted base images and raster annotations to the native editor without flattening or turning restore previews into editable source images.
 use super::Images;
 use crate::{editor::Editor, erase_layers::Layers};
 use windows::{
@@ -7,8 +7,8 @@ use windows::{
 };
 
 impl Images {
-    /// 新编辑器以恢复内容为初始基线，不能撤销到恢复之前；后续修改走正常历史事务。
-    /// 这里只恢复栅格层，矢量标注、裁剪/变换与持久橡皮擦路径需另行恢复后才能发布窗口。
+    /// The new editor starts from restored content and cannot undo before restoration; subsequent changes use normal history transactions.
+    /// Restore only raster layers here; vectors, crop/transforms, and persistent eraser paths must be restored separately before window publication.
     pub fn prepare_raster_editor(&self) -> Result<Editor> {
         self.raster_layers()?.map_or_else(
             || Ok(Editor::default()),

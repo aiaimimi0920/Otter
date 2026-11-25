@@ -1,4 +1,4 @@
-//! 与旧标注的直箭头尺寸合同一致；几何在图像空间计算，供绘制和命中共享。
+//! Match legacy straight-arrow dimension contracts; image-space geometry is shared by drawing/hit testing.
 use crate::viewport::Point;
 #[path = "arrow_path_geometry.rs"]
 pub mod path;

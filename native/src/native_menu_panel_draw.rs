@@ -1,4 +1,4 @@
-//! Neuro 面板/控件/文字语义色；GDI 状态每次恢复，不持有跨帧 DC。
+//! Neuro semantic colors for panels/controls/text; restore GDI state each time, without cross-frame DC ownership.
 use super::*;
 #[path = "native_menu_panel_columns.rs"]
 mod columns;
@@ -149,7 +149,7 @@ unsafe fn text(dc: HDC, value: &mut [u16], mut rect: RECT, flags: DRAW_TEXT_FORM
     if value.is_empty() || rect.left >= rect.right || rect.top >= rect.bottom {
         return;
     }
-    // 不使用 DT_MODIFYSTRING，GDI 不改写供后续重绘复用的字串。
+    // Do not use DT_MODIFYSTRING; GDI must not mutate strings reused by later redraws.
     DrawTextW(
         dc,
         value,

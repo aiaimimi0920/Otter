@@ -1,4 +1,4 @@
-//! 离线sender沿兼容Web元数据保留独立路由；native marker固定复合目标，旧读者不能借其授在线资格。
+//! Offline senders preserve independent routes in Web-compatible metadata; native markers fix composite targets, and old readers cannot grant online eligibility from them.
 use super::*;
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]

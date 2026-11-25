@@ -1,8 +1,8 @@
-//! 输入时序到笔刷权重的草稿适配；只在点实际接受后前进时序，提交不保存时间。
+//! Adapt input timing into draft brush weights; advance timing only after actually accepting points and never persist timestamps on commit.
 use super::*;
 
 impl Editor {
-    /// 普通画笔的荧光属性不切换工具；草稿/历史仍复用原荧光层及序列化。
+    /// Ordinary brush glow does not switch tools; drafts/history reuse original highlighter layers/serialization.
     pub fn begin_brush_highlighter(&mut self, point: Point) -> Result<bool, EditError> {
         let started = self.begin(Tool::Brush, point)?;
         if started {
@@ -20,7 +20,7 @@ impl Editor {
         Ok(started)
     }
 
-    /// raw_point 保留吸附前坐标，避免 Shift 角度锁定改变速度估计。
+    /// raw_point retains presnap coordinates so Shift angle locking does not change speed estimates.
     pub fn extend_timed(
         &mut self,
         point: Point,

@@ -1,4 +1,4 @@
-//! sender outbox 只在后台打开一次；恢复快照不授重发权，持久取消项只进入减权队列。
+//! Open sender outbox once in the background; recovery snapshots grant no resend authority, and durable canceled entries enter only the revocation queue.
 use super::*;
 use crate::desktop::loom_execution_signal::{reap_deadline, CompletionSignal, Notify};
 use std::{

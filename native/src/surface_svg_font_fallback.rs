@@ -1,4 +1,4 @@
-//! 系统 fallback 的范围结果；保留 UTF-16 长度及缩放，不把它退化成单字符字体查找。
+//! Range results from system fallback; preserve UTF-16 lengths and scaling rather than degrading to single-character font lookup.
 use super::{file, Face, Fonts};
 use std::io;
 use windows::{core::PCWSTR, Win32::Graphics::DirectWrite::*};
@@ -20,14 +20,14 @@ impl Default for Properties {
     }
 }
 pub struct Mapped {
-    /// 输入开头可使用同一字体的 UTF-16 单元数，不是 UTF-8 字节数或 Rust char 数。
+    /// Number of UTF-16 units at the input start that can use the same font, not UTF-8 bytes or Rust chars.
     pub utf16_len: u32,
     pub scale: f32,
-    /// None 表示系统没有映射字体，调用方必须显式处理缺字，不能当透明成功。
+    /// None means the system mapped no font; callers must handle missing glyphs explicitly rather than treating transparency as success.
     pub face: Option<Face>,
 }
 impl Fonts {
-    /// 每次最多 16384 UTF-16 单元，共享 select 的查询/文件预算。locale 由宿主传入。
+    /// At most 16384 UTF-16 units per call, sharing select's query/file budgets. The host supplies locale.
     pub fn map_text(
         &mut self,
         text: &str,
@@ -63,7 +63,7 @@ impl Fonts {
                 .map_err(io::Error::other)?;
         }
         validate_mapping(text, mapped, scale)?;
-        // fallback 的文件来源与显式 family 完全复用同一准入门和缓存，不旁路读取。
+        // Fallback font files reuse exactly the same admission gates and caches as explicit families, without bypass reads.
         let face = font.map(|font| self.load_font(font)).transpose()?;
         Ok(Mapped {
             utf16_len: mapped,

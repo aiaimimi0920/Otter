@@ -1,4 +1,4 @@
-//! 真实引擎诊断同步 callback；运行失败打印私有异常仅在测试夹具，不改变产品错误脱敏。
+//! Diagnose synchronous callbacks in the real engine; private exceptions are printed on failure only in test fixtures without changing product error sanitization.
 use super::*;
 fn reentrant_mount(source: &str, mode: i32) -> Output {
     let mut engine = Engine::new().unwrap();

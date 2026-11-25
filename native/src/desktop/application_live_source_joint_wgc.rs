@@ -1,4 +1,4 @@
-//! 联合测试独立绘制源；生产 WGC/保护 owner 负责采集与恢复，不注入系统输入。
+//! Independently painted source for joint tests; production WGC/protection owners handle capture and restoration, with no system input injection.
 use super::*;
 use windows::Win32::Graphics::Gdi::*;
 use windows::Win32::UI::HiDpi::{

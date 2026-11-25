@@ -1,4 +1,4 @@
-//! 真实 HWND 验证裁剪效果后台交付；内存夹具与窗口消息，不写用户数据或注入系统输入。
+//! Real HWND verification of background crop-effect delivery; in-memory fixtures/window messages, without user-data writes or system input injection.
 use super::State;
 use crate::{
     blur_image::BlurImage,
@@ -207,7 +207,7 @@ pub(super) unsafe fn run(hwnd: HWND, state: &State) -> Result<()> {
         state.canvas.borrow().editor.crop_view().is_none(),
         "Crop reset not committed",
     )?;
-    // 重置可以因整数窗口尺寸取整偏差 1 px，不把它误判成事务故障。
+    // Reset may differ by 1 px from integer window-dimension rounding; do not misclassify it as transaction failure.
     let restored = rect(hwnd)?;
     require(
         (restored.left - original_rect.left).abs() <= 1

@@ -1,4 +1,4 @@
-//! 用户显式重试原 Request；不重新编码、签名或分配 projection ID，仍走原后台 Job。
+//! Explicit user retry of the original Request; no reencoding, resigning, or projection-ID allocation, still through the original background Job.
 use super::*;
 use crate::{device_authorization_config::Config, projection_delivery_runtime::SenderInput};
 impl Application {

@@ -1,4 +1,4 @@
-//! UI 线程内的 Weak 注册表。COM 不持 State 指针；查询期间升级 Rc 防止重入释放。
+//! UI-thread Weak registry. COM holds no State pointer; upgrade Rc during queries to prevent reentrant release.
 use super::*;
 use crate::surface_accessibility::Handle;
 use std::{collections::BTreeMap, rc::Weak};
@@ -60,7 +60,7 @@ pub(super) fn current(state: &State, handle: &Handle) -> bool {
             == expected
 }
 fn state(hwnd: HWND) -> Result<Rc<State>> {
-    // 必须先释放注册表借用，再进入可能重入的 Host/Win32 调用。
+    // Release the registry borrow before potentially reentrant Host/Win32 calls.
     let state = WINDOWS
         .with(|windows| {
             windows

@@ -1,4 +1,4 @@
-//! 原版列表合同/兼容JSON/有界图像与保数据事务；使用独占临时目录。
+//! Original list contracts/compatible JSON/bounded images/data-preserving transactions; use an exclusive temporary directory.
 use super::*;
 struct Com;
 impl Com {

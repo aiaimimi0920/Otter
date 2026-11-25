@@ -1,4 +1,4 @@
-//! 恢复会话的底图与标注使用同一逻辑坐标系；保持图层独立，避免失去独立擦除能力。
+//! Restored base images and annotations share logical coordinates; preserve separate layers and independent erasing.
 use super::*;
 use crate::{crop_geometry::Size, erase_layers::Layers};
 impl Images {
@@ -10,7 +10,7 @@ impl Images {
         self.prepare_layers(frame, true, false, cancel)
     }
 
-    /// 完整裁剪源框不是 HWND；沿用文档的单图限制，投影仍受全局像素租约约束。
+    /// The full cropped source box is not an HWND; retain the document's per-image limit, with projection still constrained by global pixel leases.
     pub fn prepare_full_crop_layers(
         &self,
         crop: crate::crop_geometry::Crop,

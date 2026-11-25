@@ -1,4 +1,4 @@
-//! 回调外的真实发送准入；PNG/签名/完整会话检查与绑定候选都在原 Job 的单个后台线程。
+//! Real send admission outside callbacks; PNG/signing/full-session validation and binding candidates all run in the original Job's single background thread.
 use super::*;
 use crate::{
     desktop::device_authorization_ui::sender::Selection,

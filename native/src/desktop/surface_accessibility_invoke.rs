@@ -1,4 +1,4 @@
-//! UIA Invoke 只提交有界候选；沿用表单快照/FIFO fence，不调用网络或抢占焦点。
+//! UIA Invoke submits only bounded candidates, retaining form snapshots/FIFO fences without network calls or focus stealing.
 use super::*;
 use crate::surface_scene::Kind;
 use windows::Win32::UI::{Accessibility::*, Input::KeyboardAndMouse::IsWindowEnabled};
@@ -20,7 +20,7 @@ fn allowed(hwnd: HWND, state: &State, node: &Handle) -> Result<()> {
     {
         return Err(Error::from_hresult(HRESULT(UIA_E_ELEMENTNOTENABLED as i32)));
     }
-    // 不接管已开始的鼠标手势，否则其 mouse-up 会覆盖已接受的自动化请求。
+    // Do not take over an already started mouse gesture, whose mouse-up would overwrite accepted automation requests.
     if state.pointer.borrow().automation_busy() {
         return Err(Error::from_hresult(HRESULT(UIA_E_INVALIDOPERATION as i32)));
     }
@@ -37,7 +37,7 @@ pub(in crate::desktop::surface_window) fn enqueue(hwnd: HWND, node: &Handle) -> 
         }
         Ok((host.capture_form_values(), host.input_fence()))
     })?;
-    // EDIT 同步可重入；撤权后重新授权也不能复活此前的激活边沿。
+    // EDIT synchronization can reenter; revocation followed by reauthorization must not revive a prior activation edge.
     allowed(hwnd, &state, node)?;
     let mut pointer = state.pointer.borrow_mut();
     if !pointer.same_identity(&identity) {

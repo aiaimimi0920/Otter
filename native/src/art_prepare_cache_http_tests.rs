@@ -1,4 +1,4 @@
-//! 缓存命中仍经真实TLS取新许可；错误不回退为执行旧许可。
+//! Cache hits still obtain new grants over real TLS; errors never fall back to executing with an old grant.
 use super::*;
 #[derive(Clone, Copy, PartialEq)]
 enum Case {
@@ -140,7 +140,7 @@ fn exercise(case: Case) {
                 }
                 if case == Case::Cancel {
                     cancel.revoke();
-                    continue; // 原租约取消会主动断开TLS，不要求写入已关闭的测试连接。
+                    continue; // Original-lease cancellation actively disconnects TLS; no need to write to an already closed test connection.
                 }
             }
             package_response(&mut data, &device_key);

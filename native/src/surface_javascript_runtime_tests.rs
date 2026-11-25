@@ -1,4 +1,4 @@
-//! 显式运行封存产品 EXE 的真正私有 worker；输入摘要由外部调用者提供，不信任 target 缓存。
+//! Explicitly run the real private worker in a sealed product EXE; external callers supply input digests, without trusting target caches.
 use super::*;
 use sha2::{Digest, Sha256};
 #[test]

@@ -1,4 +1,4 @@
-//! PNG响应中的编辑文档有独立256KiB门，并与同一压缩图源的摘要/实际尺寸绑定。
+//! Edit documents in PNG responses have an independent 256KiB gate and bind the same compressed-image source's digest/actual dimensions.
 use super::Error;
 use crate::projection_edit::Document;
 use serde_json::value::RawValue;

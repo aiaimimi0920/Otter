@@ -1,4 +1,4 @@
-//! 原始保存的可逆反预乘：直接填充已有预算内的WIC副本，不新增整图中间缓存。
+//! Reversible unpremultiplication for original-image saves: fill the existing budgeted WIC copy directly, without another whole-image intermediate cache.
 use super::*;
 
 pub(super) fn bitmap(
@@ -8,7 +8,7 @@ pub(super) fn bitmap(
     pixels: &[u8],
     cancel: &AtomicBool,
 ) -> Result<IWICBitmap> {
-    // bitmap和独占锁不逃逸此线程；锁释放前所有返回路径均保持COM owner和原像素租约。
+    // bitmap/exclusive locks remain on this thread; every return path retains COM owners and original pixel leases until unlocking.
     let bitmap = unsafe {
         wic.CreateBitmap(
             width,
@@ -32,7 +32,7 @@ pub(super) fn bitmap(
         {
             return Err(Error::new(E_FAIL, "Raw PNG bitmap storage changed"));
         }
-        // GetDataPointer的范围已逐行核验，独占WICBitmapLock约束此可变slice的生命期。
+        // GetDataPointer bounds are verified row by row; the exclusive WICBitmapLock bounds this mutable slice's lifetime.
         let output = unsafe { std::slice::from_raw_parts_mut(pointer, capacity as usize) };
         for (source, target) in pixels.chunks_exact(row).zip(output.chunks_mut(stride)) {
             check(cancel)?;
@@ -114,7 +114,7 @@ mod tests {
                 (info.width, info.height, info.color_type),
                 (256, 256, ::png::ColorType::Rgba)
             );
-            // 独立数值oracle检查straight PNG；不是用被测转换函数生成期望。
+            // An independent numeric oracle verifies straight PNGs; expectations do not use the conversion under test.
             for (bgra, rgba) in source
                 .chunks_exact(4)
                 .zip(rgba[..info.buffer_size()].chunks_exact(4))

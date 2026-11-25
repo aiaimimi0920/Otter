@@ -1,4 +1,4 @@
-// 通用 timer→两事件→收敛消费者；复用原 TLS/FIFO，不新增远端动作或网络能力。
+// Generic timer -> two events -> convergence consumer; reuse original TLS/FIFO without new remote actions or network capabilities.
 let timerRoot, timerLabel, timerButton, quote = 0, count = 0, ticks = 0, settled = 0;
 function initialTimer() {
   if (timerRoot.getBoundingClientRect().width <= 0) throw Error("timer viewport");

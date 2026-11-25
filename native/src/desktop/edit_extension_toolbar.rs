@@ -1,4 +1,4 @@
-//! Ctrl+E 的通用扩展工具入口；复用目录、单命令 owner 与模态租约，不另建执行器或资源权限。
+//! Generic extension-tool entry for Ctrl+E; reuse catalog, single-command ownership, and modal leases without new executors/resource authority.
 use super::{
     extension_command_route::Context, extension_document, tool_panel_availability::Availability,
     State,
@@ -143,7 +143,7 @@ unsafe fn show_options(
             Err(error) => return Err(error),
         }
     }
-    // 长菜单或工作区不足时保留全部条目，使用同主题固定 BUTTON 池的局部滚动，而非截断。
+    // Retain every item in long menus/small work areas; scroll a fixed same-theme BUTTON pool locally instead of truncating.
     neuro_mini_ui::track_options(panel, anchor, options)
 }
 pub(super) unsafe fn execute_with(

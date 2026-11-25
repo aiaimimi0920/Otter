@@ -31,7 +31,7 @@ fn workflow_sources_honor_upstream_manual_and_propagation_switches() {
     let mut a = sticker("a");
     a["previewSrc"] = json!("upstream");
     let mut b = sticker("b");
-    // 图片参数现在校验内联 Base64；用实际 PNG 保持这个用例专测源的优先级。
+    // Image parameters now validate inline Base64; use a real PNG to keep this case focused on source priority.
     let manual = format!(
         "data:image/png;base64,{}",
         STANDARD.encode(include_bytes!("../assets/branding/32x32.png"))

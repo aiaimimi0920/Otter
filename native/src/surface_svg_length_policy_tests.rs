@@ -1,4 +1,4 @@
-//! 浏览器像素基线与真实 SVG worker 回归；不绕过生产准入与字体代理。
+//! Browser pixel baselines and real SVG worker regressions without bypassing production admission or font brokers.
 use super::{decode, svg};
 
 #[test]

@@ -1,4 +1,4 @@
-//! 已编辑钉图经中继回退到 Art：后台合成上游，目标覆盖层保持独立。
+//! Edited pins fall back through relays to Art: compose upstream content in the background while keeping target overlays independent.
 use super::Application;
 use crate::{desktop::image::Image, editor::Tool, viewport::Point};
 
@@ -88,7 +88,7 @@ pub(super) fn verify(app: &mut Application) {
     assert!(output_stamp.matches(&state.execution_results.borrow()));
     assert!(state.canvas.borrow_mut().editor.undo());
     assert!(state.canvas.borrow().editor.layers().is_none());
-    // 源撤销裁剪产生新一代合成，旧像素仍可由在用快照持有，但不得重新发布。
+    // Undoing source cropping creates a new composition generation; active snapshots may retain old pixels, but those pixels must not be republished.
     assert!(app.documents[0].state.canvas.borrow_mut().editor.undo());
     app.sync_display_frames();
     wait(app);

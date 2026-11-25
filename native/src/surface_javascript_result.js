@@ -1,4 +1,4 @@
-// 每 operation 至多一个显式结果；不赋予权限、不写工作区，父侧仍独立复核。
+// At most one explicit result per operation; grants no permissions and does not write to the workspace, and the parent still revalidates independently.
 ((json, fail, canvasIdentity) => {
   "use strict";
   let active = false, pending = null;
@@ -10,7 +10,7 @@
     commit(outputs) {
       if (!active || pending !== null) fail();
       const raw = stringify({ protocolVersion: "otter.art.result.v1", outputs });
-      // UTF-16 下界先限；父侧还检查 UTF-8、端口数和所有字段，失败不发布半份结果。
+      // Bound the UTF-16 lower estimate first; the parent also checks UTF-8, port counts, and every field, with no partial result publication on failure.
       if (typeof raw !== "string" || raw.length > 64 * 1024) fail();
       const copy = json.decode(raw);
       if (!copy.outputs || typeof copy.outputs !== "object" || isArray(copy.outputs)) fail();
@@ -20,7 +20,7 @@
         const output = copy.outputs[name];
         if (output && output.kind === "canvas") output.nodeId = canvasIdentity(output.nodeId);
       }
-      // getter/toJSON 可以重入 commit；序列化后再次核查，不覆盖已排队提交。
+      // getter/toJSON may reenter commit; recheck after serialization rather than overwrite an already queued commit.
       if (!active || pending !== null) fail();
       pending = copy;
       return true;

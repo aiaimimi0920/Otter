@@ -1,4 +1,4 @@
-//! 底栏逐钉图层序、展开中间几何和端点共存；只观察自有 HWND，不操作用户桌面。
+//! Per-pin bottom-bar Z-order, intermediate expansion geometry, and endpoint coexistence; observe owned HWNDs without user-desktop operations.
 use super::*;
 use windows::Win32::UI::Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass};
 

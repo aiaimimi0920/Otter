@@ -1,4 +1,4 @@
-//! 同一个真实 child 的 Canvas→PNG→父侧像素、rAF、update、暂停与进程回收。
+//! Canvas -> PNG -> parent pixels, rAF, update, pause, and process cleanup in the same real child.
 use super::*;
 use crate::surface_viewport::Viewport;
 use sha2::{Digest, Sha256};

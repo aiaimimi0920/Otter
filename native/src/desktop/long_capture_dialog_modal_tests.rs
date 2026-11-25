@@ -1,4 +1,4 @@
-//! 真实 DialogBox 消息循环验证禁用 owner 仍接收结束热键；窗口在屏幕外，不读取桌面或注册热键。
+//! Real DialogBox message loops verify disabled owners still receive finish hotkeys; offscreen windows, without desktop reads/hotkey registration.
 use super::*;
 use crate::desktop::{global_capture, State, Window};
 use windows::{
@@ -45,7 +45,7 @@ unsafe extern "system" fn dialog_procedure(
     let result = procedure(hwnd, message, wp, lp);
     if message == WM_INITDIALOG {
         let owner = GetWindow(hwnd, GW_OWNER).unwrap();
-        // 只有该通知是合成的；owner 禁用、分派、后台拼接、timer 和 EndDialog 均走真实 Win32。
+        // Only this notification is synthetic; owner disabling, dispatch, background stitching, timers, and EndDialog use real Win32.
         for _ in 0..2 {
             PostMessageW(
                 Some(owner),
@@ -109,7 +109,7 @@ fn real_modal_loop_dispatches_disabled_owners_hotkey_and_returns_composed_image(
         );
         let mut input = tests::input();
         input.finish = finish::State::new(owner.state.capture_active.clone());
-        // 无控件模板刻意只验证消息/生命周期；完整控件合同由隐藏窗口组合用例承担。
+        // The control-free template intentionally verifies only messages/lifecycles; hidden-window integration cases cover full control contracts.
         let template = Template {
             style: WS_POPUP.0,
             extended_style: WS_EX_TOOLWINDOW.0,

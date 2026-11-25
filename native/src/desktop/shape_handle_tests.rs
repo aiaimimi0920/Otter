@@ -1,4 +1,4 @@
-//! 四角编辑使用真实 Canvas 输入，旋转后仍固定对角，预览不写文档。
+//! Corner editing uses real Canvas input, keeps the opposite corner fixed after rotation, and leaves documents untouched during preview.
 use super::super::image::Image;
 use super::*;
 fn p(x: f32, y: f32) -> Point {

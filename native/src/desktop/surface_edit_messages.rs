@@ -1,4 +1,4 @@
-//! EDIT 子类只转发组合/导航边沿；无 Rust 借用跨默认过程，无裸指针指向可释放会话。
+//! EDIT subclasses forward only composition/navigation edges; no Rust borrow crosses default handling and no raw pointer targets reclaimable sessions.
 #[path = "surface_number_paste.rs"]
 pub(super) mod number_paste;
 #[path = "surface_number_preflight.rs"]
@@ -85,7 +85,7 @@ unsafe extern "system" fn procedure(
             );
         }
     }
-    // 组合中间态不预筛；Session 继续负责不可预判路径及最终草稿边界。
+    // Do not prefilter intermediate composition; Session remains responsible for unpredictable paths and final-draft boundaries.
     if composing & 3 == 2 && number_preflight::rejects(hwnd, message, wp, lp) {
         return LRESULT(0);
     }
@@ -173,7 +173,7 @@ unsafe extern "system" fn procedure(
         }
         return LRESULT(0);
     }
-    // 一次替换可能发出删除/插入两次 EN_CHANGE；只在外层编辑命令结束后读取最终值。
+    // One replacement may send delete/insert EN_CHANGE twice; read the final value only after the outer edit command finishes.
     let editing = matches!(
         message,
         WM_CHAR | WM_PASTE | WM_CUT | WM_CLEAR | WM_UNDO | WM_SETTEXT
@@ -190,7 +190,7 @@ unsafe extern "system" fn procedure(
             SendMessageW(parent, EDIT_END, None, Some(LPARAM(hwnd.0 as isize)));
         }
     }
-    // 先让 EDIT 完成最终字符写入，再读取草稿；保留系统默认 IME 处理。
+    // Let EDIT finish the final character write before reading drafts, preserving default system IME handling.
     if message == WM_IME_ENDCOMPOSITION && IsWindow(Some(hwnd)).as_bool() {
         let _ = SetWindowSubclass(hwnd, Some(procedure), ID, composing & !1);
         if let Ok(parent) = GetParent(hwnd) {

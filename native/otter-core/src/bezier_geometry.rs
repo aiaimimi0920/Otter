@@ -1,7 +1,7 @@
-//! 基线单段三次贝塞尔的创建控制点；渲染与历史保留控制点，不保存采样折线。
+//! Creation control points for baseline single-segment cubic Beziers; rendering/history retain control points, not sampled polylines.
 use crate::viewport::Point;
 
-/// 基线延伸柄位于端点外侧 28 图像像素；达到 64 段时不再提供入口。
+/// Baseline extension handles sit 28 image pixels beyond endpoints; unavailable at 64 segments.
 pub fn extension_handles(points: &[Point]) -> Option<[Point; 2]> {
     if points.len() < 4 || points.len() >= 193 || !(points.len() - 1).is_multiple_of(3) {
         return None;

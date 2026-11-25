@@ -1,4 +1,4 @@
-//! canonical字段裁剪到source crop后映射到输出；四向旋转只由tile_geometry处理一次。
+//! Clip canonical fields to source crop before mapping to outputs; tile_geometry applies four-way rotation exactly once.
 use crate::{
     surface_clip::Rect, tile_shared::Frame, tile_surface_owner::Art, tile_wire::Placement,
 };

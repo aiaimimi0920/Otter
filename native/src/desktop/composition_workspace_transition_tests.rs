@@ -1,4 +1,4 @@
-//! 普通重定向 HWND 的真实 D3D11→BitBlt CPU→D3D11；复用可见门的窗口和像素采样，不发送输入。
+//! Real D3D11-to-BitBlt CPU-to-D3D11 transitions on ordinary redirected HWNDs; reuse visible-gate windows/pixel sampling without input.
 use super::*;
 
 unsafe fn retire(surface: &mut RenderSurface, hwnd: HWND) {

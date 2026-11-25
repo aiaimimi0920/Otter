@@ -1,4 +1,4 @@
-//! 每个当前场景的有界请求队列；开始后不自动重试，换绑/换版本才重建。
+//! Bounded request queues per current scene; no automatic retries after start, rebuilding only on binding/version changes.
 use super::*;
 use crate::surface_resource_runtime::request::{
     inline::{self, Inline},
@@ -58,7 +58,7 @@ impl AuthorizedWindow {
         &mut self,
         now: u64,
     ) -> std::result::Result<Option<Request>, ImageError> {
-        // mounted -> active 改变完整 Binding，自动任务不在激活前预取。
+        // mounted -> active changes the complete Binding; automatic tasks do not prefetch before activation.
         if self.javascript.is_some()
             || !self.is_alive()
             || !self.lifecycle().is_some_and(Owner::confirmed_active)
@@ -75,14 +75,14 @@ impl AuthorizedWindow {
                         binding == self.binding() && *revision == self.snapshot_revision
                     })
             {
-                // 常见消息热路径不复制/解析整个快照；窗口撤权仍由主循环 refresh 处理。
+                // Common message hot paths neither copy nor parse whole snapshots; main-loop refresh still handles window revocation.
                 return Ok(None);
             }
         }
         let current = self.resource_mount(now)?;
         let key = (current.binding.clone(), self.snapshot_revision);
         if self.image_requests.borrow().identity.as_ref() != Some(&key) {
-            // 先记录本版本，即使解析失败也不在每轮消息里重做或重复报错。
+            // Record this version first; even parsing failures must not repeat work/errors on every message-loop round.
             *self.image_requests.get_mut() = Requests {
                 identity: Some(key),
                 ..Default::default()

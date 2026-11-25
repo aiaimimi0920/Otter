@@ -1,4 +1,4 @@
-//! 显式已保存回执恢复：当前 canonical/显示凭证→只读核验原图→原呈现路径，不追加 Unit。
+//! Explicit saved-receipt recovery: current canonical/display credentials -> read-only original-image validation -> original presentation path, without appending a Unit.
 use super::*;
 use crate::{
     device_authorization_config::Config,
@@ -130,7 +130,7 @@ impl Application {
                 "正在取消投送恢复…"
             });
         };
-        // 只记录封闭错误类别和围栏类别，不格式化 Ready、凭据或远端正文。
+        // Record only closed-set error and fence categories; never format Ready, credentials, or remote response bodies.
         let mismatch = || {
             self.documents
                 .iter()

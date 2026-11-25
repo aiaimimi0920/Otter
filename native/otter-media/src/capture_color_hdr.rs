@@ -1,4 +1,4 @@
-//! HDR 输出专用 RGB16 大端数据；不能作为 BGRA 预览使用。色度与 PQ 规则对齐主干。
+//! Big-endian RGB16 exclusively for HDR output, never BGRA previews. Chromaticity/PQ rules match mainline.
 use super::{check, luminance, normalized_gain, rgb, Analysis, Error, ScRgb};
 use crate::{byte_budget::Lease, pixels::Pixels};
 use std::sync::atomic::AtomicBool;
@@ -13,7 +13,7 @@ pub struct HdrFrame {
     pub mastering_maximum_nits: f32,
 }
 impl ScRgb<'_> {
-    /// 直接转换借用的浮点行；输出保留高于 SDR 白电平的亮度，不生成中间 SDR 图像。
+    /// Convert borrowed floating-point rows directly; retain luminance above SDR white without intermediate SDR images.
     pub fn to_hdr(
         &self,
         minimum_nits: f32,
@@ -51,7 +51,7 @@ impl ScRgb<'_> {
             return Err(Error::Budget);
         }
         // Decode once: the same RGB supplies light-level metadata and PQ output.
-        // 桌面截图存在大面积连续同色像素；单槽寄存器记忆化可跳过重复 powf 且保持逐比特一致。
+        // Desktop captures contain long same-color runs; single-slot register memoization skips repeated powf while staying bit-identical.
         let row_out = self.width as usize * 6;
         let mut peak = 0.0f32;
         let mut sum = 0.0f64;

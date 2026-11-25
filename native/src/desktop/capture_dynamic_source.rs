@@ -1,4 +1,4 @@
-//! 生产动态范围采集适配：复用现有 GDI 区域截图，不复制采集实现，不负责文件或 UI 交付。
+//! Production dynamic-range capture adapter: reuse existing GDI region capture, without duplicating capture logic or owning file/UI delivery.
 use super::Image;
 use crate::{
     capture_color::SdrFrame,
@@ -7,8 +7,8 @@ use crate::{
 use std::sync::atomic::AtomicBool;
 use windows::Win32::Foundation::RECT;
 
-/// 由显式截图请求的后台线程调用；整个流程都使用同一物理 screen，不能在 UI 线程等待 WGC。
-/// 取消可阻止开始或交付，但无法中断已经进入的 BitBlt/驱动调用。
+/// Called by the background thread for an explicit capture request; use the same physical screen throughout and never wait for WGC on the UI thread.
+/// Cancellation can prevent starting or delivery but cannot interrupt an already-entered BitBlt/driver call.
 pub fn region(
     screen: RECT,
     mode: Mode,

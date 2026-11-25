@@ -1,4 +1,4 @@
-//! 主循环结算后安装图片并启动有界 GET；文件信任/DNS/解码仍在既有后台任务。
+//! Install images and start bounded GET after main-loop settlement; file trust/DNS/decoding remain in existing background tasks.
 use super::*;
 use crate::surface_resource_runtime::request::Request;
 use crate::{desktop::surface_windows::StartImageError, device_authorization_config::Config};

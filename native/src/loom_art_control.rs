@@ -1,4 +1,4 @@
-//! 取消/资源释放控制通道，单次响应最多 1 MiB；不创建线程，也不记录远端原文。
+//! Cancellation/resource-release control channel, at most 1 MiB per response; no threads or raw remote-text logging.
 use crate::{graph_requests::Request, loom_bridge_client::BridgeSocket, workspace_id::UnitId};
 use serde_json::{json, Value};
 use std::time::{Duration, Instant};
@@ -22,7 +22,7 @@ pub enum Outcome {
     Failed,
     Cancelled,
 }
-/// 独立控制连接，固定执行身份。request_not_found 由调用方解释为已无活动执行。
+/// Independent control connection with fixed execution identity. Callers interpret request_not_found as no active execution remaining.
 pub fn cancel_authenticated(
     identity: &crate::loom_bridge_identity::Identity,
     unit: &UnitId,
@@ -86,7 +86,7 @@ pub fn response(bytes: &[u8], request_id: &UnitId) -> Result<Option<Outcome>, Er
     Ok(Some(outcome))
 }
 
-/// 外层负责发现和认证；五秒总预算不因无关消息或心跳刷新。丢弃 socket 释放本地资源。
+/// Outer layers own discovery/authentication; unrelated messages/heartbeats never refresh the five-second total budget. Dropping socket releases local resources.
 pub fn run(
     mut socket: BridgeSocket,
     message: String,

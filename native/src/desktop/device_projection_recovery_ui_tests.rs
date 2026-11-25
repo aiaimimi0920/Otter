@@ -1,4 +1,4 @@
-//! 真实未结投送菜单/模态确认；同记录替代、忙碌、撤权切换与取消不排队、不触盘。
+//! Real unsettled-delivery menus/modal confirmation; same-record replacement, busy state, revocation switching, and cancellation neither enqueue nor touch disk.
 use super::*;
 use crate::projection_delivery::{
     accept::tests::invitation,

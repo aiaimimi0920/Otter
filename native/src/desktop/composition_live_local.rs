@@ -1,4 +1,4 @@
-//! Live 本地滚轮优先于源输入；共用钉图几何/合成接口，不改变采集像素或授权。
+//! Local Live wheel handling precedes source input; share pin geometry/composition interfaces without changing capture pixels or authorization.
 use super::*;
 use windows::Win32::UI::Input::KeyboardAndMouse::*;
 #[path = "composition_live_drag.rs"]
@@ -21,7 +21,7 @@ pub(super) unsafe fn handle(
     if ctrl == alt {
         return None;
     }
-    // Ctrl/Alt 可能已经送达源；先走现有停止通道释放源按键，不能只吞掉滚轮。
+    // Ctrl/Alt may already have reached the source; release source keys through the existing stop channel first, not merely swallow wheel input.
     input::suspend(hwnd, state);
     if state.group_locked.get() || state.group_hidden.get() {
         return Some(Ok(()));
@@ -32,17 +32,17 @@ pub(super) unsafe fn handle(
     }
     Some(if alt {
         let next = (state.opacity.get() + f32::from(delta) * 0.001).clamp(0.0, 1.0);
-        // 在可能重入的合成调用前提交期望值，嵌套 wheel 才能在最新值上累加。
-        // 合成失败沿既有设备失败退出；补偿 paint 总是读取最新期望值。
+        // Commit desired values before potentially reentrant composition calls so nested wheel input accumulates from the latest value.
+        // Composition failure exits through the existing device-failure path; compensating paint always reads the latest desired value.
         state.opacity.set(next);
         state.with_host(|host| host.set_opacity(next)).map(|_| {
             if !state.closed.get() {
-                // Host 暂借出时保存期望值；补偿 paint 会重新应用，不丢嵌套消息。
+                // Save desired values while Host is borrowed out; compensating paint reapplies them without losing nested messages.
                 let _ = InvalidateRect(Some(hwnd), None, false);
             }
         })
     } else {
-        // 几何调整失败不是采集设备失败，不能因此销毁用户 Live。
+        // Geometry adjustment failure is not capture-device failure and must not destroy the user's Live window.
         let _ = zoom(hwnd, delta, lp);
         Ok(())
     })
@@ -101,8 +101,8 @@ unsafe fn place_while(
         &current,
     );
     if result.is_err() && current() {
-        // 定位可能已部分完成；恢复原外框。系统拒绝恢复时保留实际 HWND 几何，
-        // 后续保存/输入始终重新读取实际客户区，不提交虚构的成功尺寸。
+        // Positioning may be partially complete; restore original outer bounds. If the system refuses restoration, retain actual HWND geometry;
+        // later save/input always rereads the actual client area rather than committing fabricated successful dimensions.
         let _ = SetWindowPos(
             hwnd,
             None,

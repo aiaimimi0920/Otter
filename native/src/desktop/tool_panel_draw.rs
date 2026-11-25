@@ -1,4 +1,4 @@
-//! 原生按钮 owner-draw：映射 Neuro 控件/文字/信号黄，不创建持久 GDI 对象。
+//! Native-button owner drawing maps Neuro controls/text/signal yellow, creating no persistent GDI objects.
 use super::State;
 use windows::Win32::{
     Foundation::*,

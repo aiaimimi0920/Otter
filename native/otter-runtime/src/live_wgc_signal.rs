@@ -1,4 +1,4 @@
-//! WGC 回调只发容量 1 的通知；终止状态独立存储，队列已满也不会丢失取消。
+//! WGC callbacks send only capacity-1 notifications; terminal state is stored independently so full queues cannot lose cancellation.
 use super::Error;
 use std::sync::{
     atomic::{AtomicBool, Ordering},

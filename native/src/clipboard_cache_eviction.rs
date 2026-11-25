@@ -1,4 +1,4 @@
-//! 配额压力淘汰与最终准入复验；通过共用句柄核验删除，不信任排序快照。
+//! Quota-pressure eviction and final admission revalidation; verify deletion through shared handles, not sorted snapshots.
 use super::{cleanup, receipt, MAX_BYTES, MAX_ENTRIES};
 use std::{
     ffi::OsString,
@@ -18,7 +18,7 @@ struct Snapshot {
     records: Vec<OsString>,
 }
 impl Snapshot {
-    // 排他锁只约束本进程协作者，外部修改仍须由最终准入扫描重新计量。
+    // The exclusive lock constrains only cooperating code in this process; final admission scans must remeasure external changes.
     fn scan(directory: &Path, limit: usize, cancel: &AtomicBool) -> io::Result<Self> {
         let mut total = 0u128;
         let mut records = Vec::new();
@@ -103,7 +103,7 @@ pub(super) fn admit_staging(
             cancel,
         )?;
     }
-    // 淘汰期间外部文件可能变化；旧快照只能用于选择候选，不能证明当前仍可准入。
+    // External files may change during eviction; old snapshots select candidates but cannot prove current admission capacity.
     let current = Snapshot::scan(directory, MAX_ENTRIES - 2, cancel)?;
     let final_total = u64::try_from(current.total)
         .ok()

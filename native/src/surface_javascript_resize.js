@@ -1,4 +1,4 @@
-// 同文档 ResizeObserver：原生盒测量、分轮深度交付；无私有 timer、布局副本或空闲轮询。
+// Same-document ResizeObserver: native box measurements and depth-based delivery rounds; no private timers, layout copies or idle polling.
 ((dom, fail, geometry) => {
   "use strict";
   const op = dom.ops, observers = new op.MapType();
@@ -33,7 +33,7 @@
     mode === "device-pixel-content-box" ? value.devicePixelContentBoxSize[0] : value.contentBoxSize[0];
   class ResizeObserver {
     constructor(callback) {
-      // 有界文档 lifetime registry；disconnect 释放所有目标，但不重复利用 observer 身份。
+      // Bounded document-lifetime registry; disconnect releases all targets without reusing observer identities.
       if (disposed || typeof callback !== "function" || op.mapSize(observers) >= 32) fail();
       op.mapSet(observers, this, { callback, observed: new op.MapType() });
     }
@@ -53,7 +53,7 @@
     }
     disconnect() {
       const owner = state(this); targets -= op.mapSize(owner.observed); op.mapClear(owner.observed);
-      // 另一个 observer 的回调可以在同一轮中取消尚未交付的整个批次。
+      // Another observer's callback can cancel an entire undelivered batch within the same round.
       if (batches) for (let i = index; i < batches.length; i++)
         if (batches[i].observer === this) batches[i].active.length = 0;
     }
@@ -61,7 +61,7 @@
   Object.defineProperty(globalThis, "ResizeObserver", { value: ResizeObserver });
   const gather = () => {
     batches = op.array(); index = 0; nextDepth = Infinity; let skipped = false;
-    // 先收集本轮 active target；后续 observer 的 entry 在其 callback 前测量，反映前序修改。
+    // Collect active targets for this round first; measure later observers' entries before their callbacks to reflect earlier mutations.
     const owners = op.mapEntries(observers);
     for (;;) {
       const next = op.mapNext(owners); if (next.done) break;
@@ -71,7 +71,7 @@
       for (;;) {
         const nextTarget = op.mapNext(observed); if (nextTarget.done) break;
         const target = nextTarget.value[0], item = nextTarget.value[1];
-        // 比较只读原生尺寸；完整冻结 entry 仍在交付前重新测量并构造。
+        // Compare read-only native dimensions; remeasure and construct complete frozen entries before delivery.
         const value = geometry.read(target), offset = item.mode === "border-box" ? 2 :
           item.mode === "device-pixel-content-box" ? 10 : 6;
         if (value[offset] === item.width && value[offset + 1] === item.height) continue;
@@ -80,7 +80,7 @@
       }
       if (active.length) op.push(batches, { observer, active });
     }
-    // 没有浏览器 ErrorEvent/下一渲染轮恢复合同；循环按现有执行失败策略终态拒绝。
+    // There is no browser ErrorEvent/next-render-cycle recovery contract; loops are terminally rejected under the existing execution-failure policy.
     if (!batches.length && skipped) fail();
   };
   const step = () => {
@@ -98,7 +98,7 @@
         if (!entries.length) continue;
         const args = op.array(); op.push(args, entries); op.push(args, batch.observer);
         op.apply(owner.callback, batch.observer, args);
-        // Rust 在下一 observer callback 前排尽 microtask；禁止 JS 内自建无限通知循环。
+        // Rust drains microtasks before the next observer callback; JS must not create its own unbounded notification loop.
         return true;
       }
       if (!batches.length) { batches = null; return false; }

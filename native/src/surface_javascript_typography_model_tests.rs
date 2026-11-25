@@ -1,4 +1,4 @@
-//! 同生产 QuickJS 的字体声明语义；真实 HWND/child/产品由另一个测试 owner 验证。
+//! Font-declaration semantics in production QuickJS; another test owner verifies real HWNDs/children/products.
 use super::document_model_tests::collect;
 #[test]
 fn javascript_typography_engine_reentrant_conversion_uses_original_native_stack() {

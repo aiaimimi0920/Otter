@@ -1,4 +1,4 @@
-//! 真实组菜单→原Job/TLS→逐目标canonical；隔离profile、不注册输入、不占前台。
+//! Real group menu -> original Job/TLS -> per-target canonical; isolated profiles, no input registration or foreground takeover.
 use super::*;
 use serde_json::{json, Value};
 #[path = "application_projection_sender_group_guard_tests.rs"]

@@ -1,9 +1,9 @@
-//! 菜单与 modeless 面板共享同一候选提交事务；文本只允许原 Spec 解析，不能覆盖其它动作。
+//! Menus/modeless panels share candidate-commit transactions; text parsing uses only original Spec and cannot overwrite other actions.
 use super::*;
 use crate::desktop;
 
 impl Snapshot {
-    /// 重捕获后按稳定参数/动作合同重绑定；JSON pretty 超限等情况可删除前序 choice。
+    /// After recapture, rebind through stable parameter/action contracts; oversized pretty JSON and similar cases may remove preceding choices.
     pub(in crate::desktop) fn corresponding(&self, old: &Self, index: usize) -> Option<usize> {
         let old = old.choices.get(index)?;
         let mut matches = self.choices.iter().enumerate().filter(|(_, new)| {
@@ -24,7 +24,7 @@ impl Snapshot {
     pub(in crate::desktop) fn current(&self, state: &State) -> bool {
         self.stamp.matches(state) && desktop::parameter_view::matches(&self.view, state)
     }
-    /// 公共参数草稿先完整解析到候选，再一次发布；128 与目录参数上限相同。
+    /// Parse public-parameter drafts fully into candidates before one publication; 128 matches the catalog-parameter limit.
     pub(in crate::desktop) unsafe fn submit_texts(
         &self,
         hwnd: HWND,
@@ -79,7 +79,7 @@ impl Snapshot {
     ) -> Result<bool> {
         self.submit_guarded(hwnd, state, index, text, &|| true)
     }
-    /// Modeless/child的退休资格须跨同步模态保留；菜单沿原配置凭证路径。
+    /// Modeless/child retirement eligibility must survive synchronous modals; menus retain original configuration-evidence paths.
     pub(in crate::desktop) unsafe fn submit_guarded(
         &self,
         hwnd: HWND,
@@ -134,7 +134,7 @@ impl Snapshot {
             let Some(value) = parsed.or_else(|| choice.action.choose(hwnd, state)) else {
                 return Ok(false);
             };
-            // 模态返回后不沿用旧宿主/配置/有效连线值；无副作用解析也共用此边界。
+            // After modal return, do not reuse old hosts/configurations/effective-edge values; side-effect-free parsing shares this boundary too.
             if !valid() {
                 return Ok(false);
             }

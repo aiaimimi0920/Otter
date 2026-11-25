@@ -1,5 +1,5 @@
-//! 显式离线凭证与启动时钟高水位；独占有界槽、原子替换，不保存私钥/token或用户输入。
-//! 高水位保护合作进程重启，不承诺抵抗同用户恶意回滚整个profile/系统时钟。
+//! Explicit offline credentials and startup clock high-water marks; exclusive bounded slots and atomic replacement, without private keys/tokens or user input.
+//! The high-water mark protects cooperating process restarts, not malicious same-user rollback of the entire profile/system clock.
 use crate::{
     art_source_cache::{directory, regular},
     art_source_cache_file,
@@ -28,7 +28,7 @@ pub(crate) struct Slot {
     _lock: File,
 }
 impl Slot {
-    /// key只来自当前host的origin/art/issuer/设备公钥；不是远端文件名。
+    /// The key comes only from current-host origin/art/issuer/device public key, never a remote filename.
     pub(crate) fn open(
         profile: &Path,
         origin: &str,
@@ -69,7 +69,7 @@ impl Slot {
             _lock: lock,
         })
     }
-    /// 显式配对/续签尝试先减权，远端拒绝或新身份不能在重启后复活旧离线凭证。
+    /// Explicit pairing/renewal attempts reduce privileges first; remote denial or new identity cannot revive old offline credentials after restart.
     pub(crate) fn invalidate_origin(
         profile: &Path,
         origin: &str,
@@ -111,7 +111,7 @@ impl Slot {
         }
         Ok(Some(record))
     }
-    /// 在线尝试先写减权记录。403/停用/版本变化/网络失败后均不自动复活旧离线包。
+    /// Write privilege-reduction records before online attempts. Never automatically revive old offline packages after 403/disablement/version change/network failure.
     pub(crate) fn invalidate(&self, now: u64, stopped: &impl Fn() -> bool) -> io::Result<()> {
         let prior = self.read()?;
         self.write(
@@ -141,7 +141,7 @@ impl Slot {
             stopped,
         )
     }
-    /// 先持久化启动高水位再返回凭证；写入失败不能执行。执行中另由原Permit/本地租约单调检查。
+    /// Persist the startup high-water mark before returning credentials; failed writes forbid execution. The original Permit/local lease separately checks monotonic time during execution.
     pub(crate) fn take(&self, now: u64, stopped: &impl Fn() -> bool) -> io::Result<Vec<u8>> {
         let mut record = self.read()?.ok_or(io::ErrorKind::NotFound)?;
         if now < record.observed_wall_ms {

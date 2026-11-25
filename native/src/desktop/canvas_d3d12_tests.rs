@@ -1,4 +1,4 @@
-//! 生产 Canvas 使用真实隐藏窗口/D3D12；不以独立候选绘制代替 Canvas 接线。
+//! Production Canvas with real hidden windows/D3D12; independent candidate drawing does not replace verification of Canvas wiring.
 use super::*;
 use crate::desktop::{Apartment, Window};
 use windows::{
@@ -87,7 +87,7 @@ fn production_canvas_selects_d3d12_and_recovers_to_sticky_compatibility() {
             ));
             assert_eq!(canvas.confirmed_paints, 4);
             assert!(stamp.matches(&canvas.editor));
-            // 业务闭包错误不是设备故障，不触发降级。
+            // Business-closure errors are not device failures and must not trigger fallback.
             assert!(canvas
                 .target
                 .as_mut()
@@ -97,7 +97,7 @@ fn production_canvas_selects_d3d12_and_recovers_to_sticky_compatibility() {
                 .is_err());
             assert!(!canvas.recover_render());
             assert!(!canvas.compatibility_renderer);
-            // 真实 D2D EndDraw 错误：无匹配 Push 的 Pop 令后端进入重建状态。
+            // Real D2D EndDraw failure: a Pop without matching Push puts the backend into rebuild state.
             assert!(canvas
                 .target
                 .as_mut()
@@ -134,7 +134,7 @@ fn production_canvas_selects_d3d12_and_recovers_to_sticky_compatibility() {
             canvas.paint(window.0, 160, 120, 96).unwrap();
             assert!(canvas.target.as_ref().unwrap().surface.is_compatibility());
             assert_eq!(canvas.confirmed_paints, 5);
-            // 普通最小化/重绘式资源丢弃不能把选择切回 D3D12。
+            // Ordinary minimize/redraw-style resource disposal must not switch selection back to D3D12.
             canvas.discard_device();
             canvas.paint(window.0, 160, 120, 96).unwrap();
             assert!(canvas.target.as_ref().unwrap().surface.is_compatibility());

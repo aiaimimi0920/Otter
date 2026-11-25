@@ -1,4 +1,4 @@
-//! 将窗口 owner 与采集 worker 配对；窗口先停止订阅，线程完成由真实句柄唤醒宿主回收。
+//! Pair window owners with capture workers; windows unsubscribe first, and real thread handles wake the host for reclamation after completion.
 use super::{window::LiveWindow, Texture};
 use crate::live_job::LiveJob;
 use std::{io, os::windows::io::BorrowedHandle};
@@ -49,7 +49,7 @@ impl Session {
             window.bind_workspace_chrome(binding);
         }
     }
-    /// 窗口目标已经由用户确认；呈现窗口排除成功后才启动后台捕获。
+    /// The user has confirmed the window target; start background capture only after presentation-window exclusion succeeds.
     pub fn start_window(
         target: crate::live_window_target::Target,
         screen: RECT,
@@ -78,7 +78,7 @@ impl Session {
         }
         Ok(session)
     }
-    /// 仅可用于用户已确认的物理选区；不显示窗口，调用方随后显式 show。
+    /// Only for user-confirmed physical selections; do not display the window, leaving explicit show to the caller.
     pub fn start_region(screen: RECT) -> io::Result<Self> {
         let (job, window) = LiveJob::start_region_bound(screen, |consumer| {
             LiveWindow::new_at(consumer, screen).map_err(io::Error::other)
@@ -259,7 +259,7 @@ impl Session {
         self.stop();
         Ok(())
     }
-    /// 显式像素边界；不停止采集/输入，转换成功后的提交仍由应用事务拥有。
+    /// Explicit pixel boundary; do not stop capture/input, and the application transaction still owns commits after successful conversion.
     pub fn snapshot_frame(
         &self,
     ) -> windows::core::Result<Option<std::sync::Arc<crate::live_frames::Frame<Texture>>>> {
@@ -286,7 +286,7 @@ impl Session {
     pub(crate) fn protect(&mut self, protection: crate::live_visibility_owner::Protection) {
         self.protection = Some(protection);
     }
-    /// 加入宿主消息等待集合；源 close 通知可能早于线程退出，此句柄不会提前报完成。
+    /// Add to the host message-wait set; source close may precede thread exit, but this handle cannot report completion early.
     pub fn completion_handle(&self) -> Option<BorrowedHandle<'_>> {
         self.job
             .completion_handle()
@@ -295,21 +295,21 @@ impl Session {
     pub fn source_process_handle(&self) -> Option<BorrowedHandle<'_>> {
         self.job.source_process_handle()
     }
-    /// 显式停止不在 UI 回调中 join；保留 owner 到 poll 领取结果或应用最终析构。
+    /// Explicit stop never joins in UI callbacks; retain owners until poll collects results or final application destruction.
     pub fn stop(&mut self) {
         self.popups.stop();
         self.pin_document.take();
         self.stopping = true;
         self.cancel_remote_input();
         self.disable_input();
-        // 附属镜像也可能仍在释放源按键/取消模态；父源保护必须覆盖整组输入收尾。
+        // Attached mirrors may still release source keys/cancel modals; parent-source protection must cover the whole group's input cleanup.
         if self.input_completion_handle().is_none() {
             self.protection.take();
         }
         self.window.take();
         self.job.cancel();
     }
-    /// 每次消息分发后及线程句柄就绪时调用；附属弹窗发现由 B 的有界低频 timer 唤醒。
+    /// Call after each message dispatch and when thread handles become ready; B's bounded low-frequency timer wakes attached-popup discovery.
     pub fn poll(&mut self) -> Option<Result<(), String>> {
         if let Some(window) = &self.window {
             window
@@ -320,7 +320,7 @@ impl Session {
         self.poll_remote_input();
         self.process_window_input();
         if let Some(window) = &self.window {
-            // popup scope 已由 poll_popups 复核；来源观测不在 HWND 回调或远程路径执行。
+            // poll_popups has revalidated popup scope; provenance observation runs neither in HWND callbacks nor remote paths.
             window.refresh_ime(
                 self.target.as_ref().filter(|_| self.remote_input.is_none()),
                 self.input_crop,
@@ -335,7 +335,7 @@ impl Session {
                 self.error.get_or_insert_with(|| error.to_string());
             }
             if !window.is_alive() || self.error.is_some() {
-                // 不主动 cancel：源失败关闭窗口时必须保留 worker 的原始错误。
+                // Do not actively cancel: when source failure closes the window, preserve the worker's original error.
                 self.window.take();
                 self.cancel_remote_input();
                 self.disable_input();
@@ -353,7 +353,7 @@ impl Session {
             self.protection.take();
         }
         if self.capture_result.is_none() {
-            // 输出已关闭或任务已完成时不再隐藏源，避免迟到 ACK 引发隐藏/恢复闪烁。
+            // Do not hide sources after output closes or tasks finish, preventing late ACKs from causing hide/restore flicker.
             if let Some(protection) = self.protection.as_ref().filter(|_| self.window.is_some()) {
                 if let Err(error) = protection.poll() {
                     self.error.get_or_insert_with(|| error.to_string());
@@ -389,7 +389,7 @@ impl Session {
 impl Drop for Session {
     fn drop(&mut self) {
         self.stop();
-        // LiveJob 的最终析构仍 join；不能用 detach 隐藏不可中断驱动调用。
+        // LiveJob's final destructor still joins; detaching must not hide uninterruptible driver calls.
     }
 }
 

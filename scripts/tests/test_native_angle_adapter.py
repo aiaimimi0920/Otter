@@ -1,4 +1,4 @@
-"""固定上游 setup_toolchain main 的真实消费测试；阻断全部进程发现/执行。"""
+"""Actual consumer tests of pinned upstream setup_toolchain main; block all process discovery/execution."""
 
 import contextlib
 import importlib.util
@@ -54,7 +54,7 @@ class UpstreamAdapterTests(unittest.TestCase):
             "INCLUDE": "OLD-SDK", "LIB": "OLD-SDK", "LIBPATH": "OLD-SDK", "PATH": "OLD-SDK",
         }
         stdout = io.StringIO()
-        # 从生成目录实际导入，不预注入原始 checkout 的 helper 或仓库内 adapter。
+        # Import from the generated directory, without preinjecting original-checkout helpers or in-repository adapters.
         with patch.dict(sys.modules), patch.object(sys, "path", [
             str(self.output / "build/toolchain/win"), str(self.output / "build"), *sys.path
         ]):
@@ -79,7 +79,7 @@ class UpstreamAdapterTests(unittest.TestCase):
                 self.assertNotIn("OLD-SDK", stdout)
                 self.assertNotIn("winsysroot", stdout)
                 self.assertEqual(Path(result["vc_bin_dir"]), Path(self.config["visualStudioRoot"]) / "VC/Tools/MSVC/14.44.35207/bin/Hostx64" / cpu)
-                # 上游 FromGNArgs 保留 GN 的 UTF-8 $0xNN 转义；不能据此把中文路径改成 ASCII。
+                # Upstream FromGNArgs preserves GN UTF-8 $0xNN escapes; this does not justify replacing Chinese paths with ASCII.
                 sdk_include = re.sub(r"(?:\$0x[0-9A-F]{2})+", lambda match: bytes(
                     int(value, 16) for value in re.findall(r"\$0x([0-9A-F]{2})", match[0])
                 ).decode("utf-8"), result["windows_kits_dir"])
@@ -88,7 +88,7 @@ class UpstreamAdapterTests(unittest.TestCase):
                 self.assertEqual(len(result["libpath_flags_list"]), 3)
 
     def test_main_produces_real_nul_terminated_environment_block(self):
-        # 上游写入由本测试明确拥有的 linshi 文件，不运行环境块中的任何 EXE。
+        # Upstream writes linshi files explicitly owned by this test, without running any EXE from the environment block.
         path = self.root / "environment.x64"
         self.invoke(filename=str(path))
         block = path.read_bytes().decode("utf-8")

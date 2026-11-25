@@ -1,4 +1,4 @@
-//! EDIT 内边界使用四角独立椭圆裁剪；所有临时 GDI region 在错误路径同样释放。
+//! EDIT inner boundaries use independent elliptical corner clipping; release every temporary GDI region on errors too.
 use super::*;
 struct Region(HRGN);
 impl Drop for Region {
@@ -41,7 +41,7 @@ pub(super) unsafe fn apply(
             factor = factor.min(size[axis].max(0) as f32 / sum);
         }
     }
-    // 保留既有等宽圆角 region 的量化路径。
+    // Retain the existing quantization path for uniform-width rounded regions.
     if radii.iter().all(|radius| *radius == radii[0]) {
         let radius = radii[0].map(|r| (r * factor * 2.).round() as i32);
         if radius.iter().all(|r| *r > 0) {

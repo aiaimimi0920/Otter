@@ -1,4 +1,4 @@
-//! 原receiver read后才自动申请原Apply；停止在真实worker已完成边界切换有界TLS夹具。
+//! Automatically request original Apply only after original receiver read; stop at actual worker completion to switch the bounded TLS fixture.
 use super::*;
 use windows::Win32::UI::WindowsAndMessaging::{
     CreatePopupMenu, DestroyMenu, GetMenuState, MF_BYCOMMAND, MF_CHECKED, MF_GRAYED,
@@ -39,7 +39,7 @@ unsafe fn received(offline: bool) {
         response["editing"]["mode"] = json!("two_way");
         let rx = peer(&mut fixture, vec![response]);
         completed(&mut fixture, &rx);
-        // 不sleep猜时序：尚未poll领取read，先join恢复listener，安装原Apply夹具。
+        // Do not guess timing with sleep: before polling to collect read, join to recover the listener and install the original Apply fixture.
         joined(&mut fixture);
         let rx = server(&mut fixture, vec![(200, 0.5)]);
         poll(&mut fixture);

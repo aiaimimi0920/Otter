@@ -1,4 +1,4 @@
-//! 只由受限 child 调用的真实 ES module 引擎；每步墙钟/heap/stack 与生命周期串行。
+//! Real ES module engine called only by restricted children; per-step wall-clock/heap/stack limits and lifecycle are serialized.
 use crate::surface_javascript_wire::{self as wire, Command, Output};
 use rquickjs::{Context, Function, Module, Object, Persistent, Promise, Runtime};
 use std::{
@@ -23,7 +23,7 @@ macro_rules! mark {
         $owner.trace.mark(wire::diagnostics::Stage::$stage);
     };
 }
-// 工厂只以参数传入私有闭包；不在 globalThis 暴露 state/nodes 或宿主桥。
+// Pass factories only as arguments into private closures; never expose state/nodes or host bridges on globalThis.
 const BOOTSTRAP: &str = concat!(
     "(",
     include_str!("surface_javascript_bootstrap.js"),
@@ -88,7 +88,7 @@ const BOOTSTRAP: &str = concat!(
     ")"
 );
 pub(super) struct Engine {
-    // Persistent/Context 必须早于 Runtime 释放，不能把 JS 值带出此线程或进程。
+    // Release Persistent/Context before Runtime; JS values must not leave this thread or process.
     bridge: Persistent<Object<'static>>,
     context: Context,
     runtime: Runtime,
@@ -323,13 +323,13 @@ impl Engine {
         if disposing {
             self.canvas.borrow_mut().dispose();
         }
-        // PNG 编码也是本 operation 的原 250ms 总期限，不另开宽限窗口。
+        // PNG encoding shares this operation's original 250ms total deadline without an additional grace period.
         mark!(self, FinalValidation);
         if !self.geometry.borrow().valid() || !self.canvas.borrow().valid() {
             return Err(wire::invalid());
         }
         mark!(self, Encode);
-        // 只计数，不保留一份完整 JSON；worker 写 Response 时才分配最终线帧。
+        // Count only, without retaining a complete JSON copy; allocate the final wire frame only when the worker writes Response.
         wire::validate_encoded_size(&output)?;
         if !self.geometry.borrow().valid() || !self.canvas.borrow().valid() {
             return Err(wire::invalid());
@@ -351,7 +351,7 @@ impl Engine {
         }
     }
     fn callbacks(&self, method: &str, maximum: usize) -> io::Result<()> {
-        // rAF/observer 都在原总期限内；每次 callback 之后完成独立 microtask checkpoint。
+        // rAF/observers share the original total deadline; complete a separate microtask checkpoint after each callback.
         for _ in 0..=maximum {
             let ran = self
                 .context
@@ -371,7 +371,7 @@ impl Engine {
         Err(wire::invalid())
     }
     fn drain_jobs(&self) -> io::Result<()> {
-        // 不遗留 detached Promise jobs；自续 microtask 与全部同帧 callback 共用原总期限。
+        // Leave no detached Promise jobs; self-renewing microtasks and all same-frame callbacks share the original total deadline.
         while self.runtime.is_job_pending() {
             if self.origin.elapsed().as_micros()
                 >= u128::from(self.deadline.load(Ordering::Relaxed))

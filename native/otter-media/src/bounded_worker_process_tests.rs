@@ -1,4 +1,4 @@
-//! 容量等待不依赖实际进程：覆盖截止、取消及每轮 idle 回收。
+//! Capacity waits independent of actual processes, covering deadlines, cancellation, and per-round idle reclamation.
 use super::*;
 use std::{
     cell::{Cell, RefCell},

@@ -1,4 +1,4 @@
-//! 新鲜state后复核同view/代际/命中/控件合同；同一个Art poll线程提交，不阻塞Live媒体。
+//! Recheck the same view/generation/hit/control contract after fresh state; submit on the same Art poll thread without blocking Live media.
 use crate::{
     tile_assets::Job,
     tile_shared::Shared,
@@ -28,7 +28,7 @@ pub(crate) fn ready(s: &crate::tile_shared::State, state: &State, job: &Job, now
                     && Arc::ptr_eq(&a.snapshot, &state.snapshot)
             })
 }
-/// 写前最后线性化围栏；不得跨昂贵布局准备复用早先的可见性或队列身份。
+/// Final pre-write linearization fence; do not reuse earlier visibility or queue identity across expensive layout preparation.
 pub(crate) fn eligible(
     command: &Command,
     state: &State,
@@ -115,7 +115,7 @@ pub(crate) fn validate(
     shared: &Shared,
 ) -> bool {
     let a = &command.anchor;
-    // 其余准备只读当前 worker 的不可变快照；实际发送前仍复核共享状态和票据。
+    // Remaining preparation reads only this worker's immutable snapshot; still recheck shared state and tickets immediately before sending.
     if !eligible(command, state, job, &shared.lock()) {
         return false;
     }
@@ -157,7 +157,7 @@ pub(crate) fn validate(
             if !compatible {
                 return false;
             }
-            // 仅在用户排入动作时做最小新鲜布局；COM/Pixels仍留在此唯一worker内，不跨线程移交。
+            // Prepare minimal fresh layout only when users queue actions; COM/Pixels remain within this unique worker without cross-thread handoff.
             let Ok(scene) = crate::surface_scene::Scene::parse(&state.snapshot.scene) else {
                 return false;
             };
@@ -178,7 +178,7 @@ pub(crate) fn validate(
             ) else {
                 return false;
             };
-            // 坐标必须对应用户真实paint时的本地滚动；不把滚轮值或网络scene当作偏移证据。
+            // Coordinates must match local scrolling at the user's actual paint; wheel values or network scenes are not offset evidence.
             if p.restore_scroll(&a.scroll).is_err() {
                 return false;
             }

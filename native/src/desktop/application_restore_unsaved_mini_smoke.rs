@@ -1,4 +1,4 @@
-//! 缺少 savedRect 的历史缩略窗口：真实 HWND 展开保持当前框，不猜测图片原尺寸。
+//! Historical minimized windows lacking savedRect: real HWND expansion preserves the current frame without guessing original image dimensions.
 use super::*;
 
 pub(super) unsafe fn verify(app: &Application, catalog: &Rc<Loaded>) -> Result<()> {

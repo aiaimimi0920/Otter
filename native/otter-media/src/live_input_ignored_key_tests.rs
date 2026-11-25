@@ -1,4 +1,4 @@
-//! 未投递的模态键盘边沿不能制造 held 状态，也不能抹掉旧释放责任。
+//! Undelivered modal-keyboard edges must neither fabricate held state nor erase old release responsibility.
 use super::*;
 
 struct Sink {

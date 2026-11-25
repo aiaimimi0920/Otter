@@ -1,4 +1,4 @@
-//! 接管事务与原有历史共存；不触及窗口、系统剪贴板或磁盘。
+//! Adoption transactions coexist with original history, without windows, system clipboard, or disk.
 use super::*;
 
 fn image(value: u8) -> Editor {

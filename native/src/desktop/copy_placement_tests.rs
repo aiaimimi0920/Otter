@@ -1,4 +1,4 @@
-//! 注入鼠标采样与最终剪贴板回执，其余复制 worker、缓存匹配、粘贴解码共用产品路径。
+//! Inject pointer sampling/final clipboard receipts; remaining copy workers, cache matching, and paste decoding share product paths.
 use super::*;
 use crate::desktop::{clipboard_placement::Origin, open_job, paste_input};
 
@@ -76,7 +76,7 @@ fn editable_art_and_minified_copies_keep_placement_without_preserving_flattened_
             target.editable_clipboard = source.editable_clipboard.clone();
             let content = target.editable_clipboard.borrow_mut().matching(41);
             assert_eq!(content.is_some(), mode == 0);
-            // 图内首次 +20 DIP；解码完成后只推进已提交锚点。
+            // First in-image offset is +20 DIP; advance only committed anchors after decoding.
             let request = target
                 .editable_clipboard
                 .borrow()
@@ -117,7 +117,7 @@ fn editable_art_and_minified_copies_keep_placement_without_preserving_flattened_
                     .x,
                 -400 + 2 * step
             );
-            // 外部覆盖剪贴板必须清掉旧位置；不能沿用最后一次 Otter 复制的偏移。
+            // External clipboard replacement must clear old placement; never retain offsets from the last Otter copy.
             assert!(target
                 .editable_clipboard
                 .borrow_mut()

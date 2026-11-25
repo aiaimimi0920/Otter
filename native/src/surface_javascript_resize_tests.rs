@@ -1,4 +1,4 @@
-//! 持久 child 的 observer→rAF、隐藏/移除/重接、暂停恢复与终态清理；产品 EXE 独立摘要门。
+//! Persistent-child observer -> rAF, hide/remove/reconnect, pause/resume, and terminal cleanup; independent digest gate for product EXEs.
 use super::*;
 use crate::surface_viewport::Viewport;
 use sha2::{Digest, Sha256};

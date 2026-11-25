@@ -1,4 +1,4 @@
-//! 只接受Loom真实Source video_policy；不把Viewer请求或滚退epoch当控制权限。
+//! Accept only Loom's actual Source video_policy; Viewer requests or rolled-back epochs do not confer control rights.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct VideoPolicy {
     pub epoch: u64,

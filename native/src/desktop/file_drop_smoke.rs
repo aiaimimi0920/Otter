@@ -1,4 +1,4 @@
-//! 隐藏窗口拖入验证；只发送到本进程 HWND，不操作 Explorer、剪贴板或系统鼠标。
+//! Hidden-window file-drop verification; message only this process's HWNDs, without Explorer, clipboard, or system mouse operations.
 use super::State;
 use std::{os::windows::ffi::OsStrExt, path::Path};
 use windows::{
@@ -50,7 +50,7 @@ pub(super) unsafe fn send_many(hwnd: HWND, paths: &[&Path]) -> Result<()> {
         name.len() * 2,
     );
     let _ = GlobalUnlock(memory);
-    // WM_DROPFILES 接收方负责 DragFinish；同步投递后发送方不得再次释放。
+    // WM_DROPFILES receivers own DragFinish; after synchronous delivery, senders must not free again.
     SendMessageW(hwnd, WM_DROPFILES, Some(WPARAM(memory.0 as usize)), None);
     Ok(())
 }
@@ -112,7 +112,7 @@ pub(super) unsafe fn run(hwnd: HWND, state: &State, path: &Path) -> Result<()> {
         state.new_pin.borrow().is_some(),
         "Drop produced no prepared pin",
     )?;
-    // 该独立宿主探针没有 Application owner，消费候选避免影响后续截图探针。
+    // This independent host probe has no Application owner; consume candidates to avoid affecting later capture probes.
     state.new_pin.borrow_mut().take();
     println!("native-drop-smoke: shell=true worker=true timer=true source-preserved=true");
     println!("native-file-dialog-smoke: open-blocked=true save-blocked=true drop-blocked=true recovered=true");

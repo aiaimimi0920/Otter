@@ -1,4 +1,4 @@
-//! 可控真实 GPU 帧流验证菜单刷新、固定帧边界、通知策略及失败保留；不捕获用户桌面。
+//! Controlled real GPU streams verify menu refresh, fixed-frame boundaries, notification policy, and retention on failure; no user-desktop capture.
 use super::*;
 pub(super) struct Stream {
     send: std::sync::mpsc::Sender<Option<crate::live_texture::Texture>>,
@@ -105,7 +105,7 @@ fn live_refresh_menu_commits_latest_frame_and_notifies_once_not_per_stream_frame
             &[0, 0, 255, 255].repeat(4)
         );
         refresh(hwnd);
-        // 尚未调度的重复菜单请求合并；应用处理时只捕获最新蓝帧。
+        // Coalesce repeated unscheduled menu requests; application processing captures only the latest blue frame.
         source.publish([255, 0, 0, 255]);
         refresh(hwnd);
         app.sync_display_frames();
@@ -121,7 +121,7 @@ fn live_refresh_menu_commits_latest_frame_and_notifies_once_not_per_stream_frame
                 .pixels,
             &[0, 0, 255, 255].repeat(4)
         );
-        // worker 已拿到固定蓝帧，之后流变绿也不能改变本次刷新结果。
+        // The worker already owns the fixed blue frame; a later green stream cannot change this refresh result.
         source.publish([0, 255, 0, 255]);
         settle(&app, [255, 0, 0, 255]);
         assert!(app.documents[0].state.pending_start.borrow().is_some());
@@ -152,7 +152,7 @@ fn live_refresh_readback_failure_preserves_old_pixels_and_sends_no_notice() {
             .identity
             .clone();
         let mut invalid = texture();
-        invalid.width = 3; // 真实纹理仍 2×2，读回必须拒绝描述符不一致。
+        invalid.width = 3; // The actual texture remains 2x2; readback must reject inconsistent descriptors.
         app.display_composition
             .borrow_mut()
             .refresh_live(

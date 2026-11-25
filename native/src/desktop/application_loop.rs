@@ -1,4 +1,4 @@
-//! Application消息泵：保原分派/保存/准入顺序，紧急观察先于普通业务。
+//! Application message pump: preserve dispatch/save/admission order, with emergency observation before ordinary business work.
 use super::*;
 use crate::desktop;
 
@@ -17,7 +17,7 @@ impl Application {
             doc.show_content(SW_SHOWNOACTIVATE);
         }
         initial.show_content(SW_SHOWNORMAL);
-        // 初始窗口激活/热键注册先完成，再冻结恢复来源；否则正常启动会使自己的凭证失效。
+        // Finish initial window activation/hotkey registration before freezing restore sources, or normal startup would invalidate its own credentials.
         if let Some(startup) = startup {
             self.request_restore_input(
                 desktop::session_job::Input::File(startup.path),
@@ -48,13 +48,13 @@ impl Application {
                     continue;
                 }
                 if self.session_end.ended() {
-                    self.checkpoint_exiting(); // 系统结束不等于用户删除末Unit，不能写空工作区。
+                    self.checkpoint_exiting(); // System shutdown is not user deletion of the last Unit; do not write an empty workspace.
                 } else {
                     self.finish_deleted_workspace()?;
                 }
                 break;
             }
-            // 紧急路径不经过保存/模态/业务冻结；原父死恢复owner继续负责Live源恢复。
+            // The emergency path bypasses save/modal/business freezes; the original parent-death recovery owner still restores Live sources.
             if crate::emergency_watchdog::observe_message(
                 &mut emergency,
                 message.message,
@@ -62,20 +62,20 @@ impl Application {
             ) {
                 std::process::exit(0);
             }
-            // 记录实际注册者；只有其关闭才向剩余窗口转交，不重启用户主动关闭的热键。
+            // Record the actual registrant; transfer only when it closes, without restarting hotkeys the user deliberately disabled.
             let hotkey_owner = self
                 .documents
                 .iter()
                 .find(|document| document.state.global_capture.get())
                 .map(|document| document.window.0);
             if self.session_end.paused() {
-                // 业务宿主另有同步门；这里也不把posted输入交给标准子控件。
+                // Business hosts have a separate synchronous gate; do not forward posted input to standard child controls here either.
                 if !desktop::session_end::blocks_input(message.message) {
                     DispatchMessageW(&message);
                 }
                 continue;
             }
-            // 工具条可以不转移焦点；先结束就地文字，再让外部点击/保存改变文档。
+            // Toolbars may retain focus elsewhere; finish in-place text editing before external clicks/saving change the document.
             if self.documents.iter().any(|document| {
                 desktop::text_input::inline::before_message(
                     document.window.0,
@@ -85,7 +85,7 @@ impl Application {
             }) {
                 continue;
             }
-            // 先复制最多4个受owner校验的句柄，键盘翻译可同步派发，不能跨它借用owner。
+            // First copy at most 4 owner-validated handles; keyboard translation may dispatch synchronously, so do not borrow the owner across it.
             let confirmation_key = (WM_KEYFIRST..=WM_KEYLAST).contains(&message.message)
                 && self
                     .local_arts
@@ -182,7 +182,7 @@ impl Application {
         {
             return;
         }
-        // 常驻图标依附存活宿主；关闭或会话整体替换后交给新宿主，而不是逐钉图创建。
+        // The resident icon attaches to a live host; hand it to the new host after closure or full session replacement, rather than creating one per pin.
         if let Some(doc) = self.documents.iter().find(|doc| doc.is_alive()) {
             if let Err(error) = install(doc) {
                 eprintln!("native-tray-start: {error}");

@@ -1,7 +1,7 @@
-//! 账号投射借用同一设备租约；不复制 token，不把本地 Art 租约升级为账号权限。
+//! Account projection borrows the same device lease; no token copying or promotion of local Art leases to account permissions.
 use super::*;
 impl Lease {
-    /// 仅在后台调用。当前已连接 Loom 裁决账号权限，分享链接不能切换传输目标。
+    /// Background only. The currently connected Loom decides account permissions; share links cannot change transport targets.
     pub fn account_projections(
         &self,
         _discovery: &crate::loom_discovery::Config,

@@ -1,10 +1,10 @@
-//! 手写/异步菜单树与 HMENU 快照使用同等预算；替换在修改模型前验证整棵树。
+//! Handwritten/asynchronous menu trees share HMENU-snapshot budgets; validate the whole tree before replacing models.
 use super::{invalid, Item};
 use windows::core::Result;
 
 pub(super) const MAX_GALLERY_ITEMS: usize = 4096;
 
-/// 图库的逻辑数据与静态菜单树分开；每页仍只向 HWND 提交最多15张卡片。
+/// Gallery logical data is separate from static menu trees; each page still submits at most 15 cards to HWND.
 pub(super) fn validate_gallery(items: &[Item]) -> Result<()> {
     if items.len() > MAX_GALLERY_ITEMS {
         return Err(invalid());

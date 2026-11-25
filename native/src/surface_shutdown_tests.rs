@@ -1,4 +1,4 @@
-//! 隐藏窗口与已撤权后台作业验证退出结算；不访问真实服务或用户配置。
+//! Hidden windows and revoked background jobs verify exit settlement without accessing real services or user configuration.
 use super::*;
 use crate::{
     desktop::{composition::relay::sessions::Sessions, surface_windows::Windows},

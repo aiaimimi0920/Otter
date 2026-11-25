@@ -1,4 +1,4 @@
-//! 窗口过程不回调业务；消息交给外层级联菜单控制器，避免重入编辑模型。
+//! Window procedures never call business code; pass messages to outer cascade controllers to avoid editing-model reentry.
 use super::*;
 fn push(data: &Data, event: Event) {
     if data.failed.get() {
@@ -10,7 +10,7 @@ fn push(data: &Data, event: Event) {
     }
     if events.len() >= 64 {
         events.clear();
-        data.failed.set(true); // 输入过载时取消，不能继续执行截断的点击序列。
+        data.failed.set(true); // Cancel on input overload; never continue truncated click sequences.
     } else {
         events.push_back(event);
     }
@@ -29,7 +29,7 @@ pub(super) unsafe extern "system" fn procedure(
         let y = (lp.0 >> 16) as i16 as i32;
         match msg {
             WM_GETOBJECT if lp.0 == windows::Win32::UI::Accessibility::UiaRootObjectId as isize => {
-                // 释放 RefCell 借用再调用 UIA；系统调用可以重入销毁窗口。
+                // Release RefCell borrows before UIA calls; system calls may reenter window destruction.
                 let provider = accessibility::provider(data, hwnd);
                 if let Some(provider) = provider {
                     windows::Win32::UI::Accessibility::UiaReturnRawElementProvider(
@@ -90,7 +90,7 @@ pub(super) unsafe extern "system" fn procedure(
                     LPARAM(0),
                     None,
                 );
-                // 唤醒可能正在 GetMessage 内派发销毁通知的菜单循环；不传递裸指针。
+                // Wake menu loops that may be dispatching destruction notices inside GetMessage; pass no raw pointers.
                 let _ = PostThreadMessageW(GetCurrentThreadId(), WM_NULL, WPARAM(0), LPARAM(0));
                 push(data, Event::Cancel);
                 let _ = RemoveWindowSubclass(hwnd, Some(procedure), ID);

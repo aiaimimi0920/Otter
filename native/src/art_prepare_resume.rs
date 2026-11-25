@@ -1,4 +1,4 @@
-//! 当前 v3 包的在线准备与离线保存；身份缺失或请求失败直接结束，不退旧协议。
+//! Online preparation/offline saving for current v3 packages; missing identity/request failure terminates directly without legacy-protocol fallback.
 use super::*;
 use crate::{
     art_execution_grant::resume::Ticket, art_offline_store::Slot, art_source_cache::Store,
@@ -36,7 +36,7 @@ impl Prepared {
         )
         .map_err(|_| Error::Input)?;
         let stopped = || lease.execution_stopped();
-        // 先减权，失败不得继续联网后保留一份可被未来误用的旧离线凭证。
+        // Reduce privileges first; on failure, do not continue networking while retaining an old offline credential that could later be misused.
         slot.invalidate(time, &stopped).map_err(|_| Error::Input)?;
         drop(slot);
         let source_key = cache::key(&request, &pin);
@@ -102,7 +102,7 @@ impl Prepared {
                     now().map_err(Error::Http)?,
                 )
                 .map_err(Error::Grant)?;
-            // 缓存故障不影响已获得的在线许可；源码先提交，离线凭证随后原子发布。
+            // Cache failure does not affect an acquired online grant; commit source first, then atomically publish offline credentials.
             if complete {
                 if let Ok(slot) = Slot::open(
                     cache.profile(),

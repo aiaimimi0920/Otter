@@ -1,4 +1,4 @@
-//! 真实 Shader PNG 经正式端口、下游 worker、保存快照保持原字节；预览不冒充正式输出。
+//! Real Shader PNGs preserve original bytes through official ports, downstream workers, and save snapshots; previews are not official output.
 use super::*;
 use crate::{
     desktop::{
@@ -45,7 +45,7 @@ fn formal_png_preserves_straight_bytes_that_pbgra_reencoding_would_change() {
         "test must expose the real straight-RGB precision loss of PBGRA-only ownership"
     );
     assert_eq!(value.bytes(), value.pixels.len() + original.len());
-    // 普通正式图片没有原 PNG；空编辑合成与直接 WIC 编码的解码像素必须兼容。
+    // Ordinary official images lack original PNGs; empty-edit composition and direct WIC encoding must decode to compatible pixels.
     let plain = ImageValue::from(value.image().clone());
     assert!(plain.encoded_png().is_none());
     let fallback = plain.png(&AtomicBool::new(false)).unwrap();

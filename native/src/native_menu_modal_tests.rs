@@ -1,4 +1,4 @@
-//! 真实 GetMessage/捕获/定时器生命周期；注入消息，不冒充物理输入验收。
+//! Real GetMessage/capture/timer lifecycles with injected messages, not physical-input acceptance.
 use super::*;
 #[path = "native_menu_tray_events_tests.rs"]
 mod tray_events;
@@ -83,7 +83,7 @@ fn captured_menu_replaces_busy_cursor_on_first_open_reopen_and_pointer_move() {
                     |root| unsafe {
                         assert_eq!(GetCapture(), root);
                         assert_eq!(GetCursor(), arrow);
-                        // 模拟回调留下忙光标；捕获下的移动仍必须走产品消息泵恢复箭头。
+                        // Simulate callbacks leaving a busy cursor; movement under capture must still restore the arrow through the product message pump.
                         SetCursor(Some(busy));
                         PostMessageW(Some(root), WM_MOUSEMOVE, WPARAM(0), LPARAM((8 << 16) | 8))
                             .unwrap();
@@ -133,7 +133,7 @@ fn quit_is_reposted_and_capture_loss_cancels_without_command() {
     );
     let mut message = MSG::default();
     let mut quit = None;
-    // WM_QUIT 是低优先级合成消息；销毁的 WM_NULL 唤醒可以先于它到达。
+    // WM_QUIT is low-priority synthetic input; destruction's WM_NULL wake may arrive first.
     for _ in 0..64 {
         if !unsafe { PeekMessageW(&mut message, None, 0, 0, PM_REMOVE) }.as_bool() {
             break;
@@ -223,7 +223,7 @@ fn captured_root_mouse_coordinates_route_to_the_hovered_child() {
             PostMessageW(Some(root), WM_MOUSEMOVE, WPARAM(0), position).unwrap();
             PostMessageW(Some(root), WM_LBUTTONDOWN, WPARAM(0), position).unwrap();
             PostMessageW(Some(root), WM_LBUTTONUP, WPARAM(0), position).unwrap();
-            // 若没有正确命中，仍通过 Escape 退出，避免错误实现造成测试无限等待。
+            // If hit testing fails, Escape still exits, preventing broken implementations from hanging the test.
             PostMessageW(Some(root), WM_KEYDOWN, WPARAM(0x1b), LPARAM(0)).unwrap();
             PostMessageW(Some(root), WM_KEYDOWN, WPARAM(0x1b), LPARAM(0)).unwrap();
         },
@@ -290,7 +290,7 @@ fn captured_scrollbar_drag_outside_panel_releases_without_selecting() {
             post(WM_LBUTTONDOWN, bar.track.left, bar.thumb.top);
             post(WM_MOUSEMOVE, -20, bounds.bottom + 100);
             post(WM_LBUTTONUP, -20, bounds.bottom + 100);
-            // 只有新的完整行点击可执行；拖动松开本身不能结束菜单。
+            // Only a fresh complete row click executes; drag release itself cannot close the menu.
             post(WM_LBUTTONDOWN, 4, 4);
             post(WM_LBUTTONUP, 4, 4);
             PostMessageW(Some(root), WM_KEYDOWN, WPARAM(0x1b), LPARAM(0)).unwrap();
@@ -356,7 +356,7 @@ fn prepared_menu_uses_same_queue_and_keeps_business_owner_hidden() {
         foreground,
         |hwnd| {
             root = hwnd;
-            // 不抢测试机前台；这里只替换激活准入，真实捕获/队列/销毁仍执行。
+            // Do not take the test machine's foreground; replace only activation admission, retaining real capture/queues/destruction.
             assert!(!unsafe { IsWindowVisible(owner.0).as_bool() });
             Ok(foreground)
         },

@@ -1,4 +1,4 @@
-//! Source原菜单与原750ms调度消费者；联合父门独立核服务权威，不由测试自己确认journal。
+//! Source consumer through the original menu and 750ms schedule; the joint parent gate independently checks service authority instead of the test confirming its own journal.
 use super::*;
 #[test]
 #[ignore = "isolated two real Looms plus two native Application consumers"]
@@ -38,7 +38,7 @@ fn native_edit_application_source_modes_automatic_checkpoint_and_reopen() {
             canvas.editor.extend(Point { x: 12.0, y: 12.0 }).unwrap();
             assert!(canvas.editor.commit());
         }
-        // 起步图像先成为真实canonical；不让夹具立即启动的保存使原发送围栏过期。
+        // Make the initial image genuinely canonical first, so a save immediately started by the fixture cannot stale the original send fence.
         app.start_checkpoint_with(&mut |_, _, message, warning| assert!(!warning, "{message}"));
         settle(&mut app);
         command(&mut app, &f, ui::sender::BASE + index);
@@ -60,7 +60,7 @@ fn native_edit_application_source_modes_automatic_checkpoint_and_reopen() {
             &json!({"envelope":created.envelope(),"digest":created.digest()}),
         );
         f.wait("accepted");
-        // 首次投射沿生产调度自动初始化协作，不注入旧的手动初始化命令。
+        // First projection automatically initializes collaboration through production scheduling, without injecting the old manual-initialization command.
         until(&mut app, &f, |app| has_revision(app, 1) && quiet(app));
         acknowledged(&f, 1);
         verify(&app, 1, edit::Mode::OneWay, 4.0);
@@ -74,7 +74,7 @@ fn native_edit_application_source_modes_automatic_checkpoint_and_reopen() {
         );
         f.wait("receiver-initialized");
         shift(&app, 2.0);
-        // 不直接调用start_edit；本地修改由原成功source probe自动Apply。
+        // Do not call start_edit directly; the original successful source probe automatically Applies local changes.
         until(&mut app, &f, |app| has_revision(app, 3) && quiet(app));
         acknowledged(&f, 3);
         f.publish(

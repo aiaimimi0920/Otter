@@ -1,4 +1,4 @@
-//! 有界批次由同一个工作线程顺序准备；全部成功才发布，不持有半批可见窗口。
+//! One worker sequentially prepares bounded batches; publish only after complete success, with no partially visible window batch.
 use super::*;
 
 pub(super) fn load_inputs(

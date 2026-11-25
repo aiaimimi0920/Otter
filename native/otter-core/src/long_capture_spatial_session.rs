@@ -1,4 +1,4 @@
-//! 二维采集会话的单所有者状态；先验证再提交，错误不会改变最后接受帧或累计坐标。
+//! Single-owner 2D capture-session state; validate before commit so errors preserve last-accepted frames/accumulated coordinates.
 use super::*;
 use std::sync::atomic::Ordering;
 #[path = "long_capture_spatial_detect.rs"]
@@ -24,7 +24,7 @@ pub struct SpatialSession {
 }
 impl SpatialSession {
     pub fn new(axis: Axis, first: Frame, options: MatchOptions) -> Result<Self, Error> {
-        // 与一维会话共用参数准入，克隆仅增加共享像素引用。
+        // Share parameter admission with 1D sessions; cloning adds only shared pixel references.
         Session::new(axis, first.clone(), options)?;
         Ok(Self {
             reference: first.clone(),
@@ -105,7 +105,7 @@ impl SpatialSession {
         accepted_count: usize,
         input_total: u64,
     ) -> Result<Self, Error> {
-        // 聚合图不是新的截图帧：允许超过单帧轴长，但仍受输出与二维 64 MP 上限约束。
+        // Aggregate images are not new captures: allow axes beyond single-frame limits, while retaining output/2D 64 MP limits.
         let expected = output_bytes(aggregate.width, aggregate.height)?;
         if aggregate.pixels.len() != expected {
             return Err(Error::Pixels);
@@ -136,7 +136,7 @@ impl SpatialSession {
             output: OutputTarget::Capture,
         })
     }
-    /// movement 是相对于最后接受帧的物理取景框位移；失败后的下一次请求仍须用该基准。
+    /// movement is physical viewport displacement relative to the last accepted frame; requests after failure still use that reference.
     pub fn append(
         &mut self,
         frame: Frame,
@@ -188,7 +188,7 @@ impl SpatialSession {
         self.frames.try_reserve(1).map_err(|_| Error::Budget)?;
         let reference = frame.clone();
         self.frames.push(SpatialFrame { frame, x, y });
-        // 临时候选仅在独占 &mut 内可见，所有失败分支统一弹出；此后才算接受帧。
+        // Temporary candidates are visible only under exclusive &mut and popped on every failure; acceptance occurs afterward.
         let admitted = (|| {
             let bounds @ (_, _, width, height) = spatial::bounds(&self.frames, cancel)?;
             spatial::check_output(self.output, &self.frames, bounds, cancel)?;
@@ -213,7 +213,7 @@ impl SpatialSession {
     pub fn compose(&self, cancel: &AtomicBool) -> Result<SpatialComposite, Error> {
         stitch_spatial(&self.frames, cancel)
     }
-    /// 预览包含透明空洞和完整覆盖范围，不按最终导出的最大矩形裁剪。
+    /// Previews include transparent holes/full coverage, without cropping to the final export's largest rectangle.
     pub fn preview(&self, cancel: &AtomicBool) -> Result<SpatialComposite, Error> {
         preview::render(&self.frames, cancel)
     }

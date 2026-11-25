@@ -1,4 +1,4 @@
-//! 原生标注写为主干格式；按稳定 ID 合并扩展字段，不接触磁盘或当前编辑器。
+//! Write native annotations in mainline format; merge extension fields by stable ID without touching disk or the current editor.
 use crate::{
     editor::{Editor, Stroke, Tool},
     stroke_style::{Color, DashPattern},
@@ -26,8 +26,8 @@ pub enum Error {
     Budget,
 }
 
-/// 调用者提供与导入相同字体环境下的基线；草稿不进入持久化快照。
-/// 此层输出 Editor 坐标；会话封装层须配套保存源框/裁剪映射，不能直接替换旧裁剪会话字段。
+/// Callers provide baselines measured in the same font environment as import; drafts never enter persistent snapshots.
+/// This layer emits Editor coordinates; session wrappers must save matching source-frame/crop mappings rather than directly replacing legacy cropped-session fields.
 pub fn encode(
     editor: &Editor,
     original: Option<&RawValue>,
@@ -44,8 +44,8 @@ fn encode_origin(
 ) -> Result<Vec<u8>, Error> {
     encode_impl(editor, original, origin, None, baseline, &|| false)
 }
-/// 输出普通视口在会话逻辑单位中的标注；mapping 已包含裁剪/平移，不可再次减可见框原点。
-/// 缩略窗口的图片与标注使用不同视口，调用者不得把其显示视口直接传入本接口。
+/// Emit ordinary-viewport annotations in session logical units; mapping already includes crop/translation, so never subtract visible-frame origin again.
+/// Minimized windows use different image and annotation viewports; callers must not pass their display viewport directly here.
 pub fn encode_mapped(
     editor: &Editor,
     original: Option<&RawValue>,
@@ -54,7 +54,7 @@ pub fn encode_mapped(
 ) -> Result<Vec<u8>, Error> {
     encode_mapped_cancellable(editor, original, mapping, baseline, || false)
 }
-/// 后台保存入口；回调仅观察取消状态，不得修改编辑器或发布输出。
+/// Background save entry point; callbacks observe cancellation only, without changing editors or publishing output.
 pub fn encode_mapped_cancellable(
     editor: &Editor,
     original: Option<&RawValue>,
@@ -182,7 +182,7 @@ fn element(
         Tool::Blur => "blur",
         _ => return Err(Error::Unsupported),
     };
-    // 清理已拥有的字段，避免移除填充或转换工具后复活旧参数；未知扩展原样保留。
+    // Clear owned fields so removing fill or switching tools cannot revive old parameters; preserve unknown extensions unchanged.
     for key in [
         "x",
         "y",
@@ -320,7 +320,7 @@ fn element(
             let strength = if stroke.tool == Tool::Blur {
                 stroke.blur.as_ref().ok_or(Error::Shape)?.strength()
             } else {
-                // 主干读取会把 strength 取整；拒绝把原生变换后的小数悄悄改值。
+                // Mainline reads round strength to an integer; reject rather than silently change fractional native-transformed values.
                 if stroke.mosaic_cell < 2.0 || stroke.mosaic_cell.fract() != 0.0 {
                     return Err(Error::Unsupported);
                 }
@@ -341,7 +341,7 @@ fn color(Color(r, g, b): Color, alpha: f32) -> String {
     if alpha == 1.0 {
         format!("#{r:02x}{g:02x}{b:02x}")
     } else {
-        // f32最短十进制往返，不把独立alpha量化成8位或折进整体opacity。
+        // Use shortest-round-trip f32 decimals; never quantize independent alpha to 8 bits or fold it into overall opacity.
         format!("rgba({r},{g},{b},{alpha})")
     }
 }

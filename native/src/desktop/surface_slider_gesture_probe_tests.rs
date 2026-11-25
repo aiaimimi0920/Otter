@@ -1,4 +1,4 @@
-//! 单指轴向配置与真实 WM_GESTURE 默认转发探针，不宣称父滚动已实现。
+//! Single-finger axis configuration and actual WM_GESTURE default-forwarding probes, without claiming parent scrolling is implemented.
 use super::*;
 use windows::Win32::{System::SystemServices::*, UI::Input::Touch::*};
 #[path = "surface_slider_gesture_lifecycle_probe_tests.rs"]

@@ -1,4 +1,4 @@
-//! 无 GPU 的合同门：准入、固定布局、软件拒绝与子进程专属入口。
+//! GPU-free contract gate: admission, fixed layout, software rejection, and child-only entry points.
 use super::*;
 pub(super) fn with_request<T>(source: &str, run: impl FnOnce(&Request<'_>) -> T) -> T {
     let pixels = [64, 32, 16, 128];

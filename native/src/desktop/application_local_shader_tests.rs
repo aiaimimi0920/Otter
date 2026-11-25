@@ -1,4 +1,4 @@
-//! 同一隐藏应用主循环消费本地 Shader，验证来源/文档/配置/拓扑/取消/请求替换；不发新远端执行。
+//! The same hidden application main loop consumes local Shader and verifies source/document/configuration/topology/cancellation/request replacement, without new remote execution.
 use super::*;
 use crate::desktop::{
     loom_execution_tasks::shader_tests,
@@ -35,7 +35,7 @@ pub(super) fn verify(app: &mut Application, real: bool) {
         .as_ref()
         .unwrap()
         .execution;
-    // 原链测试已证明传播；这里禁止新远端请求，以单独验证本地应用事务。
+    // Existing chain tests already prove propagation; prohibit new remote requests here to isolate the local application transaction.
     app.documents[0]
         .state
         .selected_art
@@ -186,7 +186,7 @@ pub(super) fn verify(app: &mut Application, real: bool) {
                     .execution_results
                     .borrow_mut()
                     .begin(next.clone());
-                // 替换请求有自己的绑定，旧报告不能清空它。
+                // Replacement requests have their own binding; old reports must not clear it.
                 app.documents[0]
                     .state
                     .execution_configuration

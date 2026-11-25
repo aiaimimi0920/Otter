@@ -1,4 +1,4 @@
-//! 批次准备保留其他事件证据；允许因部分完成而未呈现的有效确认项。
+//! Batch preparation preserves evidence for other events and allows valid confirmation items not presented due to partial completion.
 use super::*;
 use crate::surface_confirmation::{Choice, Request};
 #[path = "surface_batch_continuation_tests.rs"]

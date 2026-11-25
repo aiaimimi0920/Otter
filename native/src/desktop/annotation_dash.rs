@@ -1,4 +1,4 @@
-//! Direct2D 自定义虚线长度以线宽为单位，转换后保持旧 SVG 的绝对图像长度。
+//! Direct2D custom dash lengths are measured in stroke widths; conversion preserves the old SVG's absolute image lengths.
 use crate::{
     editor::{Stroke, Tool},
     stroke_style::DashPattern,

@@ -1,4 +1,4 @@
-//! 原回环 TLS fixture 的严格四步对端；只提供本轮实际操作，不假造客户端完成或撤权。
+//! Strict four-step peer for the original loopback TLS fixture; provide only this round's actual operations, without fabricating client completion or revocation.
 use super::*;
 pub(super) fn serve(
     listener: std::net::TcpListener,

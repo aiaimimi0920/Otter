@@ -1,4 +1,4 @@
-//! 节点菜单的打开时快照集合；统一分发能力选择、参数和连线，索引不跨版本解释。
+//! Opening-snapshot collection for node menus; centrally dispatch capability selection, parameters, and links without cross-version index reinterpretation.
 #[cfg(test)]
 use super::State;
 #[path = "art_picker.rs"]

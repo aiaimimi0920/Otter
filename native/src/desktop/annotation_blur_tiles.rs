@@ -1,4 +1,4 @@
-//! 大图按固定源图网格上传；邻域覆盖设备像素足迹，按二次幂分桶复用上传。
+//! Upload large images on a fixed source-image grid; neighborhoods cover device-pixel footprints and reuse uploads in power-of-two buckets.
 use super::super::effect_cache::Cache;
 use crate::{blur_image::BlurImage, viewport::Viewport};
 use windows::{
@@ -61,8 +61,8 @@ pub(super) unsafe fn draw(
             let ex = end_x.saturating_add(pad_x).min(image.width());
             let ey = end_y.saturating_add(pad_y).min(image.height());
             let bitmap = cache.blur_region(target, image, [sx, sy, ex - sx, ey - sy])?;
-            // 内部块边界采用互斥的像素归属，不能让相邻 DrawBitmap 的抗锯齿边缘叠加。
-            // 使用几何遮罩而非轴对齐裁剪，确保旋转后的网格仍无重叠。
+            // Internal tile boundaries assign pixels exclusively; adjacent DrawBitmap antialiased edges must not overlap.
+            // Use geometry masks rather than axis-aligned clips so rotated grids remain nonoverlapping.
             let ownership = D2D_RECT_F {
                 left: dest.left - if x == 0 { 1.0 } else { 0.0 },
                 top: dest.top - if y == 0 { 1.0 } else { 0.0 },

@@ -1,4 +1,4 @@
-//! 真实 BUTTON/提交凭证/反馈回收；仅在剪贴板边界注入接收器，不读写用户剪贴板。
+//! Real BUTTON/commit credentials/feedback reclamation; inject a receiver only at the clipboard boundary without reading/writing the user's clipboard.
 use super::*;
 use crate::desktop::pin_settings::text as cached;
 use crate::unit_attachment_store::tests as store_fixture;
@@ -132,7 +132,7 @@ fn actual_copy_buttons_share_a_row_copy_hidden_full_text_and_keep_document_and_t
                 assert_eq!(text, expected);
                 Ok(())
             });
-            // Action 的 HWND 名称是辅助功能标签；可视反馈必须检查真实自绘输出。
+            // The Action's HWND name is an accessibility label; visible feedback requires checking actual owner-drawn output.
             assert_ne!(painted(field(window, id)), before);
         }
         assert!(stamp.matches(&f.state.canvas.borrow().editor));
@@ -156,7 +156,7 @@ fn empty_or_stale_translation_disables_only_its_button_and_queued_old_copy_is_re
         let called = Cell::new(false);
         let before = painted(field(window, cached::TRANSLATION));
         invoke(&f, window, cached::TRANSLATION, |_, current| {
-            // 发布前来源换代必须使同一生产凭证失效，不清空原剪贴板。
+            // A source generation change before publication must invalidate the same production credential without clearing the original clipboard.
             f.state
                 .extension_document
                 .borrow_mut()

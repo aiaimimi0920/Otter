@@ -1,4 +1,4 @@
-//! Tab 行内显隐复用原单槽外观事务；不弹模态、不修改连线或执行配置。
+//! Inline Tab visibility reuses the original single-slot appearance transaction; no modal dialog or link/execution-configuration changes.
 use super::*;
 pub(super) struct Toggle {
     catalog: Rc<Catalog>,

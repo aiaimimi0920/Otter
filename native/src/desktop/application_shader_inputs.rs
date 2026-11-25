@@ -1,4 +1,4 @@
-//! 公共参数中的显式本地 Unit 引用；复用唯一 Graph/Source，不授予路径、网络或预览读取权。
+//! Explicit local Unit references in shared parameters; reuse the sole Graph/Source without granting path, network, or preview-read permission.
 use crate::{
     graph_image::{Graph, Output},
     graph_params::Params,
@@ -26,7 +26,7 @@ pub(super) fn references<'a>(
         if value == crate::graph_params::DISABLED {
             continue;
         }
-        // 必须逐字匹配当前 workspace 的身份；未知字符串/URL/路径不是读取请求。
+        // Match current workspace identity byte for byte; unknown strings/URLs/paths are not read requests.
         let Some(unit) = workspace.units().iter().find(|unit| unit.as_str() == value) else {
             continue;
         };
@@ -62,8 +62,8 @@ pub(super) fn resolve<'a>(
             continue;
         }
         if !images.iter().any(|(port, _)| *port == name) {
-            // Art 只能取正式 output；Sticker 继续由 Graph 处理 relay/编辑/Live 的来源。
-            // 不调用 image()/canvas_image() 取得 Art 自身 display 或恢复预览。
+            // Art may use committed output only; Graph still handles Sticker relay/edit/Live sources.
+            // Do not call image()/canvas_image() to obtain Art's own display or restored preview.
             let Some(Output::Image(key)) = graph.output(unit, "output").map(Output::direct) else {
                 return Err("Shader 参数引用暂无可用正式图片");
             };

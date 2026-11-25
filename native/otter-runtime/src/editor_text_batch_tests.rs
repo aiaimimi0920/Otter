@@ -1,4 +1,4 @@
-//! 文字批次的单步历史、失败原子性和历史点预算，不依赖系统剪贴板。
+//! Single-step history, failure atomicity, and history-point budgets for text batches, independent of the system clipboard.
 use super::*;
 
 fn row(label: &str) -> (Point, Point, TextAnnotation) {

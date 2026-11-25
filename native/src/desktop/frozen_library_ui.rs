@@ -1,4 +1,4 @@
-//! 窗口共享的只读库来源与单槽请求；不在窗口回调或菜单消息泵里准备图片。
+//! Window-shared read-only library provenance and single-slot requests; no image preparation in window callbacks/menu pumps.
 use super::*;
 use crate::{session_library::Kind, session_source::Source, workspace_id::UnitId};
 #[derive(Default)]
@@ -50,7 +50,7 @@ pub(super) unsafe fn enqueue(
         target: popup_menu::target::MenuTarget::capture(&state.canvas.borrow()),
         point,
     });
-    // PostMessage 不派发消息；失败撤回本次单槽请求，不留下延迟执行。
+    // PostMessage dispatches no messages; failure retracts this single-slot request without leaving deferred execution.
     if let Err(error) = PostMessageW(Some(hwnd), WM_NULL, WPARAM(0), LPARAM(0)) {
         view.request = None;
         return Err(error);

@@ -1,4 +1,4 @@
-//! 实际D2D/WIC的极窄裁剪、空区域和擦除预览，不用屏幕截图或新renderer生成预期。
+//! Real D2D/WIC narrow crops, empty regions, and eraser previews; expectations come from neither screenshots nor the new renderer.
 use super::*;
 use windows::Win32::{Graphics::Imaging::*, System::Com::*};
 #[test]
@@ -88,8 +88,8 @@ fn narrow_legacy_draw_is_bounded_for_both_axes_and_empty_region_never_falls_back
                 if empty {
                     assert!(actual.iter().all(|v| *v == 0));
                 } else {
-                    // Canvas沿用LINEAR：源矩形不是另建的裁图，边缘会采到相邻绿色。
-                    // 两端各50%混色、中心纯蓝是独立解析oracle，不套工作流NEAREST的预期。
+                    // Canvas retains LINEAR: the source rectangle is not a separate cropped image, so edges sample adjacent green.
+                    // 50% mixing at each end and pure blue at the center form an independent analytic oracle, not the workflow NEAREST expectation.
                     for (at, expected) in [
                         (0, [100, 100, 0, 255]),
                         (4095, [200, 0, 0, 255]),

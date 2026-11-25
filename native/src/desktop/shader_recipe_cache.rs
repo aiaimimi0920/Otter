@@ -1,4 +1,4 @@
-//! UI owner 的有界配方 LRU；仅保留成功正式提交的代码/响应纹理，不缓存输入、像素或 child。
+//! UI-owned bounded recipe LRU; retain only successfully committed official code/response textures, never inputs, pixels, or children.
 use super::{capability_job::Loaded, loom_execution_tasks::Report, shader_payload::Payload, State};
 use crate::{
     byte_budget::{Budget, Lease},
@@ -21,7 +21,7 @@ pub(super) struct Acquired {
 }
 pub(super) struct Recipe {
     pub payload: Arc<Payload>,
-    // 运行中的缓存命中也持有租约；驱逐不能提前归还仍被 worker 引用的字节。
+    // In-flight cache hits also hold leases; eviction must not return bytes still referenced by workers early.
     _lease: Lease,
 }
 struct Key {
@@ -108,7 +108,7 @@ impl Cache {
             self.entries.push(entry);
         }
     }
-    /// 必须在 Report::commit_checked 成功之后调用；迟到/取消/清理未确认的配方不回填。
+    /// Call only after Report::commit_checked succeeds; do not backfill late/cancelled recipes or those lacking confirmed cleanup.
     pub(super) fn record(&mut self, state: &State, report: &mut Report) {
         let super::loom_execution_tasks::Completion::Remote(Ok(completion)) =
             &mut report.completion
@@ -124,7 +124,7 @@ impl Cache {
         self.insert(key, acquired.payload);
     }
     fn insert(&mut self, key: Key, payload: Arc<Payload>) {
-        // 保守计入 String capacity 和每个映射项开销；这不是驱动/编译器/总进程硬预算。
+        // Conservatively count String capacity and per-map-entry overhead; this is not a hard driver/compiler/total-process budget.
         let Some(bytes) = resident_bytes(&payload).filter(|bytes| *bytes <= MAX_BYTES) else {
             return;
         };

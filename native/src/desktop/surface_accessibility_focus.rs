@@ -1,4 +1,4 @@
-//! UIA 焦点桥接；复用键盘 owner/显露/候选撤销，绝不生成 click/change。
+//! UIA focus bridge; reuse keyboard owners/reveal/candidate cancellation, never generating click/change.
 use super::*;
 use crate::surface_scene::Kind;
 use windows::Win32::UI::{
@@ -56,7 +56,7 @@ pub(in crate::desktop::surface_window) fn get(hwnd: HWND, scene: Option<&Handle>
     }
     let focused = unsafe { GetFocus() };
     if focused != hwnd {
-        // 原生 EDIT 已重定位到本 fragment；返回承载节点而不是误报 fragment 无焦点。
+        // The native EDIT has been repositioned to this fragment; return its hosting node instead of falsely reporting no fragment focus.
         return super::native_edit::node(hwnd, focused)
             .map(|node| node.map_or(Focus::None, Focus::Node));
     }
@@ -99,7 +99,7 @@ pub(in crate::desktop::surface_window) fn properties(
         let interactive = matches!(entry.kind, Kind::Button | Kind::Switch | Kind::Slider);
         let candidate =
             interactive && query(hwnd, node, |host| host.accessibility_can_focus(&entry.id))?.1;
-        // Host 投影可能同步重入；完成查询后再读取权限和真实焦点。
+        // Host projection may synchronously reenter; read permission and actual focus after the query finishes.
         let focus = get(hwnd, scene)?;
         let window_enabled = unsafe { IsWindowEnabled(hwnd) }.as_bool();
         let enabled =
@@ -162,7 +162,7 @@ pub(in crate::desktop::surface_window) fn set(
     validate(&state, scene)?;
     allowed(hwnd, &state)?;
     pointer::invalidate(hwnd, &state);
-    // 取消 capture、SetFocus 都可能同步重入，期间不持 RefCell/Host 借用。
+    // Cancelling capture and SetFocus can synchronously reenter; hold no RefCell/Host borrow during either.
     validate(&state, scene)?;
     allowed(hwnd, &state)?;
     unsafe {

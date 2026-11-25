@@ -1,4 +1,4 @@
-//! 冻结 worker 的跨线程、资源准入、取消和输入预算回归；只使用内嵌图片。
+//! Cross-thread, resource-admission, cancellation, and input-budget regressions for frozen workers; embedded images only.
 use super::*;
 use crate::desktop::session_job::{self, Job};
 use std::{

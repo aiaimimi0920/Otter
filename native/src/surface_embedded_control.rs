@@ -1,4 +1,4 @@
-//! 无子HWND的只读控件绘制；复用既有值/字体/几何合同，不建立draft或输入权限。
+//! Read-only control painting without child HWNDs; reuse existing value/font/geometry contracts without creating drafts or input permissions.
 use crate::{
     surface_box::Insets,
     surface_clip::Rect,
@@ -59,7 +59,7 @@ impl Marker {
         }
     }
 }
-// 布局时冻结的Insets包含canonical viewport/containing width，不按控件自身尺寸另算百分比。
+// Layout-frozen Insets include the canonical viewport/containing width; do not recalculate percentages from the control's own dimensions.
 pub fn prepare<'a, 'font>(
     scene: &crate::surface_scene::Scene,
     markers: impl Iterator<Item = &'a Marker>,
@@ -76,7 +76,7 @@ fn prepare_with<'a, 'font>(
     let Some(first) = markers.next() else {
         return Ok(BTreeMap::new());
     };
-    // 场景保证 ID 唯一；只在本批借用控件节点，不改变 marker 顺序或帧所有权。
+    // The scene guarantees unique IDs; borrow control nodes only within this batch without changing marker order or frame ownership.
     fn index<'a>(node: &'a Node, nodes: &mut HashMap<&'a str, &'a Node>) {
         if is_control(node.kind()) {
             nodes.insert(node.id(), node);

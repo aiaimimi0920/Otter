@@ -1,4 +1,4 @@
-//! 实际控制 HTTPS 与隐藏 HWND owner 联动；无可见 UI，无在线服务。
+//! Actual control HTTPS linked to a hidden HWND owner; no visible UI or online service.
 use super::*;
 use crate::desktop::composition::relay::session::Session;
 use windows::Win32::System::Com::{CoInitializeEx, CoUninitialize, COINIT_APARTMENTTHREADED};

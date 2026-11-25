@@ -1,4 +1,4 @@
-//! 显式冲突选择只改变矢量视图；read期间的新编辑重读/保留，底图或会话换代一律拒绝。
+//! Explicit conflict choices change only vector views; reread/preserve edits during read, and reject base-image/session-generation changes.
 use super::*;
 impl Snapshot {
     pub(crate) fn rejected(&self, code: Code) -> Result<Self, Error> {

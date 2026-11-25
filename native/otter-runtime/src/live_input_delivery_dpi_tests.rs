@@ -1,4 +1,4 @@
-//! 接收端坐标 oracle：已经映射的 lParam 不得因输入 worker 的默认 DPI 被二次缩放。
+//! Receiver-coordinate oracle: already mapped lParam values must not be scaled again because of the input worker's default DPI.
 use super::*;
 use std::{
     cell::RefCell,
@@ -155,7 +155,7 @@ fn actual_already_mapped_mouse_delivery_preserves_receiver_coordinates_and_calle
             ]
             .repeat(3);
             assert_eq!(received, expected, "receiver={receiver:?}");
-            // 暂停此接收线程的泵，实际跨线程超时；不把超时误解释为绝对未送达。
+            // Pause this receiving thread's pump for a real cross-thread timeout; do not misinterpret timeout as certain nondelivery.
             std::thread::spawn(move || {
                 let caller = if timeout_caller_unaware {
                     DPI_AWARENESS_CONTEXT_UNAWARE

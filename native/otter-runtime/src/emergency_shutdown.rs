@@ -1,4 +1,4 @@
-//! 用户完成保存/退出确认后才给已有 watchdog 设截止；不杀恢复源窗口的 child。
+//! Set the existing watchdog deadline only after the user confirms saving/exiting; do not kill the child responsible for restoring source windows.
 use super::Owner;
 #[cfg(test)]
 use super::BUDGET;
@@ -29,7 +29,7 @@ const COMMAND: u8 = 0x53;
 const GRACE: Duration = Duration::from_secs(30);
 thread_local! { static OWNER: RefCell<Option<Owner>> = const { RefCell::new(None) }; }
 
-/// 归 main 栈所有；正常退出仍析构并等待唯一自建 watchdog。
+/// Owned by the main stack; normal exit still drops and waits for the sole self-created watchdog.
 pub struct Installed(std::marker::PhantomData<std::rc::Rc<()>>);
 impl Drop for Installed {
     fn drop(&mut self) {
@@ -75,7 +75,7 @@ impl Deadline {
     pub(super) fn poll(&mut self, pipe: &mut Pipe) -> bool {
         if !self.channel_failed {
             if let Err(error) = self.read_command(pipe) {
-                // 管道故障不能撤销已确认的截止，也不能停掉原紧急热键监护。
+                // Pipe failure must not revoke the confirmed deadline or stop the original emergency-hotkey watchdog.
                 self.channel_failed = true;
                 eprintln!("native-shutdown-watchdog: command channel failed: {error}");
             }
@@ -109,10 +109,10 @@ impl Deadline {
     }
 }
 
-/// 生产 watchdog 的事件驱动关闭监听：overlapped 单字节读取，空闲时零轮询，收到或断开后停读。
+/// Event-driven shutdown listener for the production watchdog: an overlapped single-byte read, no idle polling, and no further reads after receipt or disconnection.
 pub(crate) struct Listener<'a> {
     pipe: HANDLE,
-    // 保证 Drop 等待取消完成之前原管道句柄不会关闭或被系统复用。
+    // Ensure the original pipe handle cannot close or be reused by the system before Drop finishes waiting for cancellation.
     _owner: &'a Pipe,
     overlapped: Box<OVERLAPPED>,
     byte: Box<[u8; 1]>,

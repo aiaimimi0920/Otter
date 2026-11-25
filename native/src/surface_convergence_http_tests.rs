@@ -1,4 +1,4 @@
-//! 真实 TLS 的 POST → 成功观察 → 独立快照刷新；预算/取消不重放动作。
+//! Real TLS POST -> success observation -> independent snapshot refresh; budget/cancellation never replays actions.
 use super::*;
 use crate::{live_relay_http::ConvergenceError, surface_action_ack::Ack};
 use std::time::{Duration, Instant};

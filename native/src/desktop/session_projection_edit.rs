@@ -1,4 +1,4 @@
-//! 后台恢复协作权威/可见标注；先校验同一canonical摘要与工作区身份，不从标注猜原wire。
+//! Restore collaboration authority/visible annotations in the background; validate the same canonical digest and workspace identity first, never infer original wire data from annotations.
 use super::projection_edit_workspace::Owner;
 use crate::{projection_edit::workspace::Snapshot, workspace_id::UnitId};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -25,7 +25,7 @@ pub(super) fn prepare(
         ));
     }
     let mut result = Vec::new();
-    // 唯一调用方在矢量准备时已按文档顺序校验整批身份和长度。
+    // The sole caller already checked whole-batch identities and lengths in document order during vector preparation.
     for (window, (unit, restored)) in document.windows.iter().zip(vectors) {
         if cancel.load(Ordering::Acquire) {
             return Err(Error::new(E_ABORT, "Projection edit restoration cancelled"));

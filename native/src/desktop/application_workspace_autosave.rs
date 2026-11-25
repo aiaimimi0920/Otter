@@ -1,4 +1,4 @@
-//! 显式工作区自动保存；Live 仅在模型变化时取时间点，共用单槽且不触发外部工作流。
+//! Explicit workspace autosave; Live takes a point-in-time snapshot only on model changes, shares one slot, and triggers no external workflows.
 use super::*;
 use std::{cell::Cell, sync::atomic::AtomicBool};
 #[cfg(any(test, debug_assertions, feature = "smoke-test"))]
@@ -16,7 +16,7 @@ impl Control {
     }
     pub(in crate::desktop) fn toggle(&self) -> Result<()> {
         let Some(next) = self.generation.get().checked_add(1) else {
-            self.disable(); // 即使原本开启，也不得在代际耗尽后继续沿用许可。
+            self.disable(); // Even if previously enabled, permission must not survive generation exhaustion.
             return Err(Error::new(
                 E_ABORT,
                 "Workspace autosave generation exhausted",
@@ -47,7 +47,7 @@ impl Application {
         let result = self.poll_workspace_autosave();
         self.workspace_autosave_result(result, &mut notify);
         if self.workspace_autosave_pending.is_some() {
-            return; // 显式保存/另存为意图留在原槽；自动任务回收后由原 UI 路径消费。
+            return; // Explicit save/save-as intent stays in its original slot for the existing UI path to consume after the automatic task is reaped.
         }
         let mut manual_warning = false;
         self.pending_save_ui_with(|app, origin, message, warning| {
@@ -55,7 +55,7 @@ impl Application {
             notify(app, origin, message, warning);
         });
         if manual_warning {
-            // 手动保存失败/取消的目标不由后台自动重新尝试。
+            // The background path must not automatically retry a failed or canceled manual-save destination.
             self.workspace_autosave.disable();
             return;
         }
@@ -107,7 +107,7 @@ impl Application {
             return Ok(());
         }
         if !restore_batch::guard::is_idle(self) {
-            return Ok(()); // 等手势/后台任务的正常完成消息，不丢草稿、不新增定时器。
+            return Ok(()); // Wait for the normal gesture/background-task completion message without dropping drafts or adding timers.
         }
         if self.request_automatic_save_existing()? {
             self.workspace_autosave_pending = Some(self.workspace_autosave.generation.get());
@@ -148,7 +148,7 @@ impl Application {
                     ));
                 }
             }
-            // 编辑使旧快照失效是正常路径；下次空闲只保存当前快照，不重放旧候选。
+            // Edits normally invalidate old snapshots; save only the current snapshot at the next idle point, without replaying an old candidate.
             save_control::Poll::Stale => {}
             save_control::Poll::Pending => unreachable!(),
         }

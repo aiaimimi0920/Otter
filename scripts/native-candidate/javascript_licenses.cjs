@@ -1,4 +1,4 @@
-// rquickjs 0.14.0 的两个子 crate 未携带仓库级 MIT；仅消费精确审阅的原字节，不通用回退。
+// Two rquickjs 0.14.0 subcrates omit the repository-level MIT license; consume only exact reviewed original bytes, with no generic fallback.
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');

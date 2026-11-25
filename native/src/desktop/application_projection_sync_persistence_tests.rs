@@ -1,4 +1,4 @@
-//! 源像素证明跨真实保存/重开：历史消失或旧 Binding 无证明也不能覆盖不明本地图。
+//! Source-pixel proofs across real save/reopen: missing history or unproven old Binding must not overwrite unknown local images.
 use super::*;
 unsafe fn reopened(mode: u8) {
     let _serial = crate::loom_bridge_client::tests::execution_job::SERIAL
@@ -64,7 +64,7 @@ unsafe fn reopened(mode: u8) {
             .unwrap();
         let mut canvas = doc.state.canvas.borrow_mut();
         assert_eq!(&*canvas.editor.layers().unwrap().base, &*before);
-        assert!(!canvas.editor.undo()); // 不能靠临时历史识别已烘焙的破坏性编辑。
+        assert!(!canvas.editor.undo()); // Temporary history cannot identify already baked destructive edits.
     }
     cycle(&mut fixture, &rx);
     assert_eq!(binding(&fixture)["revision"], 5);

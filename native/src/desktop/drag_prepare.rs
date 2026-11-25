@@ -1,4 +1,4 @@
-//! 拖出快照的单任务 owner；不操作 HWND/剪贴板，未发布的暂存随取消或 Drop 回收。
+//! Single-task owner for drag-out snapshots; no HWND/clipboard operations, and unpublished staging is reclaimed on cancellation/Drop.
 use std::{
     path::PathBuf,
     sync::{
@@ -8,7 +8,7 @@ use std::{
     thread::JoinHandle,
 };
 
-/// UI 在启动前冻结这些值；像素和编辑器快照使用已有共享存储，不从 worker 回读窗口。
+/// The UI freezes these values before startup; pixels/editor snapshots use existing shared storage, with no worker reads back into windows.
 pub(super) struct Input {
     width: u32,
     height: u32,
@@ -28,7 +28,7 @@ impl Input {
         stem: String,
         policy: crate::cache_policy::Policy,
     ) -> Option<Self> {
-        // 生产入口只接收已隔离历史和草稿的编辑快照；启动 worker 时直接移交。
+        // Production accepts only editing snapshots with isolated history/drafts; transfer directly when starting workers.
         let (image, editor) = super::display_snapshot::capture(canvas, frame)?;
         Some(Self {
             width: image.width,
@@ -102,7 +102,7 @@ impl Job {
             .as_ref()
             .is_none_or(|worker| worker.is_finished())
     }
-    /// 只消费已完成任务；调用方还须复核手势、窗口与文档版本，再决定是否发布暂存。
+    /// Consume completed tasks only; callers must revalidate gesture, window, and document revision before deciding whether to publish staging.
     pub fn take_ready(&mut self) -> Option<Output> {
         if !self
             .worker
@@ -127,7 +127,7 @@ impl Job {
 impl Drop for Job {
     fn drop(&mut self) {
         self.cancel();
-        // WIC 编码不可中断，退出必须 join；不遗留后台线程或持锁的已完成暂存。
+        // WIC encoding is uninterruptible, so exit must join; leave neither background threads nor completed staging holding locks.
         if let Some(worker) = self.worker.take() {
             let _ = worker.join();
         }

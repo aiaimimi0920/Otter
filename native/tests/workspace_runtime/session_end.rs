@@ -1,4 +1,4 @@
-//! 普通固定SHA产品的系统消息→取消→继续编辑→确认结束；只操作自启PID的离屏窗口。
+//! System messages, cancellation, continued editing and confirmed shutdown in the ordinary SHA-pinned product; touch only off-screen windows of self-started PIDs.
 use super::*;
 
 pub(super) unsafe fn send(expected_pid: u32, hwnd: HWND, message: u32, value: usize) -> usize {
@@ -61,7 +61,7 @@ fn ordinary_product_session_cancel_resumes_checkpoint_and_confirmed_end_keeps_la
             serde_json::from_slice(&std::fs::read(fixture.workspace()).ok()?).ok()?;
         (value["documentRevision"].as_u64()? > 7).then_some(())
     });
-    // 磁盘replace先于UI消费Receipt；按原15秒界等待真正准入，不把文件存在当作已commit。
+    // Disk replacement precedes UI Receipt consumption; wait for actual admission within the original 15-second limit, rather than treating file existence as a commit.
     until(&mut child, "initial-session-admission", |child| {
         (unsafe { send(child, hwnd, WM_QUERYENDSESSION, 0) } == 1).then_some(())
     });

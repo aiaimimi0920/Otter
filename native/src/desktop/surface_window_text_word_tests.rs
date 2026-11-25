@@ -1,4 +1,4 @@
-//! 真实 HWND 双击与词级拖动；不发送系统输入或写剪贴板。
+//! Actual HWND double-clicks and word dragging without system input or clipboard writes.
 use super::*;
 #[test]
 fn word_double_click_cross_node_drag_retains_capture_and_copy_gate() {

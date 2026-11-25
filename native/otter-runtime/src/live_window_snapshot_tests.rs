@@ -87,7 +87,7 @@ fn layered_snapshot_preserves_color_alpha_flags_and_does_not_modify_source() {
 #[test]
 fn unreadable_layered_attributes_reject_snapshot_without_changing_style() {
     unsafe {
-        // 尚未调用 SetLayeredWindowAttributes，不能推测该 layered 窗口的透明属性。
+        // SetLayeredWindowAttributes has not been called; do not infer this layered window's transparency attributes.
         let window = window(WS_EX_LAYERED | WS_EX_TOOLWINDOW);
         let target = Target::bind(window.0).unwrap();
         let before = GetWindowLongPtrW(window.0, GWL_EXSTYLE);

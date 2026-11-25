@@ -1,4 +1,4 @@
-//! 分片发送真实TLS回环；接收独立核NLLV固定字节和像素，不用新发送器作oracle。
+//! Real TLS loopback fragmented sends; receiver independently checks fixed NLLV bytes/pixels rather than using the new sender as oracle.
 use super::*;
 use crate::live_relay_frame::{Codec, ColorSpace, Metadata};
 pub(super) fn metadata() -> Metadata {

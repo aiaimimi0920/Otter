@@ -1,4 +1,4 @@
-//! 跨线程纯移动只能由生产窗口自己的队列通知推进保存，不能借测试 tick 或 worker 句柄唤醒。
+//! Cross-thread movement alone must advance saving through the production window's own queued notification, not test ticks or worker-handle wakeups.
 use super::*;
 use std::cell::Cell;
 use windows::Win32::UI::Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass};
@@ -265,14 +265,14 @@ unsafe fn move_from_other_thread(hwnd: HWND, x: i32, y: i32) {
     });
     let end = Instant::now() + Duration::from_secs(10);
     let mut message = MSG::default();
-    // Peek 会执行 sent messages，但此过滤不领取任何产品 queued message。
+    // Peek dispatches sent messages, but this filter consumes no product queued messages.
     while !worker.is_finished() && Instant::now() < end {
         let _ = PeekMessageW(&mut message, None, WM_APP + 999, WM_APP + 999, PM_NOREMOVE);
         std::thread::yield_now();
     }
     let completed = worker.is_finished();
     if !completed {
-        // 只销毁本测试拥有的窗口，以释放可能仍在等待 sent message 的 worker。
+        // Destroy only this test's owned windows to release workers that may still be awaiting sent messages.
         DestroyWindow(hwnd).unwrap();
     }
     assert!(worker.join().unwrap(), "owned window move failed");
@@ -295,7 +295,7 @@ fn sent_only_window_move_queues_settlement_and_persists_without_test_tick() {
             let mut app = new_app(instance);
             app.install_workspace_checkpoint(Some(Profile::open(&directory.0).unwrap()), true)
                 .unwrap();
-            settle(&mut app); // 仅建立初始基线，移动之后不再主动 tick。
+            settle(&mut app); // Establish only the initial baseline; do not actively tick after movement.
             let before = std::fs::read(directory.path()).unwrap();
             let revision = crate::session_document::decode(&before).unwrap().revision;
             assert!(!drain_messages());
@@ -366,7 +366,7 @@ fn real_window_coalesces_moves_rearms_and_preserves_default_size_dispatch() {
             assert!(!PeekMessageW(&mut message, Some(hwnd), id, id, PM_REMOVE).as_bool());
             DispatchMessageW(&first);
             assert_eq!(observer.counts.get(), [100, 0]);
-            // 隐藏窗口的 invalid region 不是派发凭证；直接观察真实 DefWindowProc 的 WM_SIZE。
+            // A hidden window's invalid region is not dispatch proof; observe actual DefWindowProc WM_SIZE directly.
             SetWindowPos(
                 hwnd,
                 None,
@@ -393,7 +393,7 @@ fn real_window_coalesces_moves_rearms_and_preserves_default_size_dispatch() {
             .unwrap();
             assert!(!PeekMessageW(&mut message, Some(hwnd), id, id, PM_REMOVE).as_bool());
             assert_eq!(observer.counts.get(), [100, 1]);
-            drop(observer); // 必须先撤 subclass，再销毁 HWND/释放计数地址。
+            drop(observer); // Remove the subclass before destroying HWND/releasing the counter address.
             drop(app);
         });
     }

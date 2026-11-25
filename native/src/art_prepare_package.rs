@@ -1,4 +1,4 @@
-//! 显式包准备的受控资源下载；全部在原worker串行，逐资源前后复核原Permit/Lease和统一截止。
+//! Controlled resource downloads for explicit package preparation; serial in the original worker, rechecking original Permit/Lease and shared deadline before/after each resource.
 use super::*;
 use crate::{
     art_execution_grant::package::{Resource, RESOURCE},

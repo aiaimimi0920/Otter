@@ -1,4 +1,4 @@
-//! 每节点的穿透外框：紧邻宿主层序、独立 alpha；共享线层只保留连线和端口。
+//! Per-node click-through borders: adjacent host Z-order and independent alpha; shared line layers retain only links/ports.
 use super::*;
 use std::sync::OnceLock;
 use windows::Win32::{Graphics::Gdi::*, System::LibraryLoader::GetModuleHandleW};
@@ -91,7 +91,7 @@ impl Border {
     }
     unsafe fn refresh(&self, node: &Node, mode: Mode, preparing: bool) -> Result<()> {
         if self.leased.get() {
-            return Ok(()); // 同一 HWND 正在显示完整图框；不得隐藏或裁剪其内容。
+            return Ok(()); // The same HWND displays the complete image/border frame; never hide or clip its content.
         }
         if !node.frame(mode) || (node.composite_frame && !preparing) {
             if IsWindowVisible(self.hwnd).as_bool() {
@@ -238,7 +238,7 @@ pub(super) fn has_content(ui: &Ui, hwnd: HWND) -> bool {
         .iter()
         .any(|b| b.hwnd == hwnd && b.leased.get())
 }
-/// 装饰隐藏前先归还静止图像；不能把唯一可见的内容当成纯外框一起藏掉。
+/// Return stationary images before hiding decoration; never hide the sole visible content as if it were just a border.
 pub(super) unsafe fn restore_stationary(ui: &Ui) {
     let owners: Vec<_> = ui
         .borders
@@ -248,7 +248,7 @@ pub(super) unsafe fn restore_stationary(ui: &Ui) {
         .map(|b| (b.host, b.marker))
         .collect();
     for (host, marker) in owners {
-        // 只有普通文档的 pin preview 能取得租约；Live 的 userdata 类型不同。
+        // Only ordinary-document pin previews may acquire leases; Live userdata has a different type.
         if marker != 0 && GetWindowLongPtrW(host, GWLP_USERDATA) == marker {
             let state = &*(marker as *const desktop::State);
             if desktop::pin_window::stationary::active(state) {
@@ -279,7 +279,7 @@ pub(super) unsafe fn sync(ui: &Ui, nodes: &[Node]) -> Result<()> {
             borders.push(Border::new(node)?);
         }
     }
-    // DestroyWindow 可重入；替换后释放旧 owner，绝不持 RefCell 借用跨窗口调用。
+    // DestroyWindow can reenter; release old owners after replacement, holding no RefCell borrow across window calls.
     drop(ui.borders.replace(borders));
     Ok(())
 }
@@ -295,7 +295,7 @@ pub(super) unsafe fn refresh(ui: &Ui) -> Result<()> {
     }
     Ok(())
 }
-/// 代理仍独占画面时准备隐藏外框，不在宿主曝光后再创建 region、设置 alpha 或定位。
+/// Prepare hidden borders while the proxy still exclusively owns the frame; do not create regions/set alpha/position after host exposure.
 pub(super) unsafe fn prepare(ui: &Ui, host: HWND) -> Result<()> {
     let node = ui
         .nodes
@@ -314,7 +314,7 @@ pub(super) unsafe fn prepare(ui: &Ui, host: HWND) -> Result<()> {
         .cloned();
     if let Some(border) = border {
         if border.leased.get() {
-            // 只准备裁剪区域，不改变正在显示的整帧。
+            // Prepare only clipping regions without changing the currently displayed complete frame.
             let padding = desktop::pin_border_style::width(node.dpi);
             let width = node.rect.right - node.rect.left + 2 * padding as i32;
             let height = node.rect.bottom - node.rect.top + 2 * padding as i32;
@@ -353,7 +353,7 @@ pub(super) unsafe fn prepare(ui: &Ui, host: HWND) -> Result<()> {
     }
     Ok(())
 }
-/// 保留整帧已有白框像素，仅裁掉中心；成功前预览仍拥有窗口和输入。
+/// Retain existing white-border pixels from the complete frame, clipping only its center; until success the preview still owns window/input.
 pub(super) unsafe fn commit(ui: &Ui, host: HWND) -> Result<()> {
     let border = ui
         .borders
@@ -417,7 +417,7 @@ unsafe extern "system" fn procedure(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM
         WM_PAINT => {
             let mut paint = PAINTSTRUCT::default();
             let _ = BeginPaint(hwnd, &mut paint);
-            // ULW 的完整预乘帧是唯一像素来源，不能再混用 GDI 重定向表面。
+            // The complete premultiplied ULW frame is the sole pixel source; do not mix GDI redirection surfaces.
             let _ = EndPaint(hwnd, &paint);
             LRESULT(0)
         }

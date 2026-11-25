@@ -1,4 +1,4 @@
-//! v3 真 TLS→正式像素→目录/覆盖→保存重建→停服离线；均为自有隐藏窗口。
+//! v3 real TLS -> committed pixels -> catalog/overlay -> save/rebuild -> service shutdown/offline; owned hidden windows throughout.
 use super::*;
 use crate::art_execution_grant::package::{
     ports::{Port, Ports},
@@ -31,7 +31,7 @@ fn check(app: &Application, shown: bool) {
     assert_eq!(endpoint.input_visibility.as_ref(), &[shown]);
     assert_eq!(endpoint.output_visibility.as_ref(), &[false]);
     assert_eq!(app.workspace.links()[0].to_port, "原始图片");
-    observed(app, 1); // 隐藏端口不能撤回图、权限或正式像素。
+    observed(app, 1); // Hiding ports must not revoke the graph, permissions, or committed pixels.
 }
 #[test]
 fn signed_visibility_and_user_override_survive_save_rebuild_and_offline_execution() {

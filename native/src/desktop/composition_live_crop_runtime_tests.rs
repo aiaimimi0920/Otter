@@ -1,4 +1,4 @@
-//! 真实 WGC 窗口局部像素与输入闭环；只拥有自建源、Live 和恢复 child，无系统输入注入。
+//! Real WGC window-region pixels and input round-trips; only owned sources, Live, and restoration children, without system input injection.
 use super::*;
 use crate::live_window_target::region::Crop;
 
@@ -122,7 +122,7 @@ fn actual_wgc_crop_move_resize_input_and_terminal_cleanup() {
                 let moved =
                     wait_pixels(&mut session, &mut owner, "moved white crop", true, initial);
                 let window = session.window.as_ref().unwrap().hwnd_for_test();
-                // Live 默认启用；旧测试的 toggle 会关闭已启用的输入，不能冒充首次启用。
+                // Live starts enabled; the old test's toggle disables already-enabled input and cannot represent first-time enabling.
                 until(
                     &mut session,
                     &mut owner,

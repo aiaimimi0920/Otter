@@ -1,4 +1,4 @@
-//! 真实 DirectWrite、图片比例与同一 PreparedScene 几何的 Grid 集成，不是浏览器 CSS 验收。
+//! Grid integration with real DirectWrite, image proportions, and the same PreparedScene geometry; not browser CSS acceptance.
 use super::*;
 use crate::{surface_geometry::Geometry, surface_scene::Scene};
 use serde_json::json;

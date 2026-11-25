@@ -1,4 +1,4 @@
-//! 场景替换使整棵声明式子树身份失效；在稳定 HWND 根合并报告 ChildrenInvalidated。
+//! Scene replacement invalidates the entire declarative subtree; coalesce ChildrenInvalidated reports at the stable HWND root.
 use super::*;
 use windows::Win32::UI::Accessibility::*;
 pub(super) const MESSAGE: u32 = WM_APP + 0x55c;
@@ -29,7 +29,7 @@ pub(super) fn resume(state: &State) {
 pub(super) fn flush(state: &State) {
     flush_with(state, |provider| unsafe {
         if UiaClientsAreListening().as_bool() {
-            // 非 ChildRemoved 不传 runtime-id；根 provider 的身份不随场景更换。
+            // Do not pass runtime-id except for ChildRemoved; root-provider identity survives scene replacement.
             let _ = UiaRaiseStructureChangedEvent(
                 provider,
                 StructureChangeType_ChildrenInvalidated,
@@ -52,7 +52,7 @@ fn flush_with(state: &State, mut notify: impl FnMut(&IRawElementProviderSimple))
     let _guard = Flushing(state);
     pending.dirty.set(false);
     let provider = state.uia.borrow().as_ref().map(uia::Root::provider);
-    // 不跨通知保留 RefCell 借用；回调内的新替换排到下一轮。
+    // Hold no RefCell borrow across notifications; replacements inside callbacks queue for the next round.
     if let Some(provider) = provider {
         notify(&provider);
     }

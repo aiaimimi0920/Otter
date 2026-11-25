@@ -1,4 +1,4 @@
-//! Chrome 155 img→canvas 的 mask 基线；经真实 Job child 检查预乘像素。
+//! Chrome 155 img-to-canvas mask baselines; check premultiplied pixels through real Job children.
 use super::*;
 #[test]
 fn surface_svg_masks_match_browser_alpha_luminance_and_regions() {
@@ -18,7 +18,7 @@ fn surface_svg_masks_match_browser_alpha_luminance_and_regions() {
         assert_eq!([image.width,image.height], [4,1]);
         for (pixel,a) in image.pixels.chunks_exact(4).zip(alpha) {
             if defs.contains("mask-type='luminance'") {
-                // 已观察到 tiny-skia 与 Chrome 的亮度到 u8 舍入相差 1；不能宣称逐字节一致。
+                // tiny-skia and Chrome were observed to differ by 1 in luminance-to-u8 rounding; do not claim byte-for-byte equivalence.
                 assert_eq!(&pixel[..2], &[0,0], "{defs}");
                 assert_eq!(pixel[2],pixel[3], "{defs}");
                 assert!(pixel[3].abs_diff(a) <= 1, "{defs}: {pixel:?} expected alpha {a}");

@@ -1,4 +1,4 @@
-//! 原生确认边界：取消为默认选择，不可信字段只显示为转义文本，返回后重新授权。
+//! Native confirmation boundary: cancellation is default, untrusted fields display only as escaped text, and authorization is rechecked afterward.
 use super::*;
 use crate::surface_confirmation::{Choice, Decision, Risk};
 use windows::{
@@ -8,18 +8,18 @@ use windows::{
     },
 };
 
-// MessageBox 没有适合长文审阅的滚动区域；拒绝超长内容，而非截掉风险信息后允许批准。
+// MessageBox lacks a scrollable area suitable for long reviews; reject oversized content rather than truncate risk information and permit approval.
 const MAX_DIALOG_UNITS: usize = 8192;
 
 impl AuthorizedWindow {
-    /// 调用方负责模态互斥与退出状态；本入口不发网络请求、不自动移交 owner。
+    /// Callers own modal exclusion and exit state; this entry sends no network requests and never transfers ownership automatically.
     pub fn prompt_decision(&mut self, receipt: &mut EventReceipt) -> Result<Option<Decision>> {
         let hwnd = self.window.dialog_owner()?;
         self.prompt_decision_with(receipt, super::super::surface_windows::now_ms, |text| {
             native_choice(hwnd, text)
         })
     }
-    /// 返回明确选择而不消费提示；调用方复核应用状态后才准备决定和移交 owner。
+    /// Return explicit choices without consuming prompts; callers recheck application state before preparing decisions and transferring owners.
     pub fn prompt_batch_choice(
         &mut self,
         receipt: &BatchReceipt,
@@ -55,7 +55,7 @@ impl AuthorizedWindow {
         let request = self.confirmation_for(receipt, clock()?)?;
         let text = request_text(self.binding().origin(), request)?;
         let choice = choose(&text)?;
-        // 模态消息泵可能处理撤权/关闭，时间也可能跨过提示期限，不能复用展示前的许可。
+        // The modal pump may process revocation/closure, and prompts may expire; do not reuse pre-display permission.
         let now = clock()?;
         self.confirmation_for(receipt, now)?;
         choice

@@ -1,4 +1,4 @@
-//! Family scope 更新回归：真实源 hook 租约，自有假采集任务，不运行 WGC 或源输入 worker。
+//! Family scope-update regressions: real source-hook leases and owned fake capture tasks, without WGC or source-input workers.
 use super::*;
 use crate::live_window_target::recovery::popup_layer::fixture::Fixture;
 use std::{
@@ -137,7 +137,7 @@ unsafe extern "system" fn reentrant_show(code: i32, wp: WPARAM, lp: LPARAM) -> L
             if let Some((mirror, fixture)) = REOPEN.with(Cell::get) {
                 if call.hwnd == mirror {
                     REOPEN.with(|slot| slot.set(None));
-                    // 指针只在本测试线程的 guard 范围使用，重入前先撤槽避免递归。
+                    // Use pointers only within this test thread's guard scope; remove the slot before reentrancy to prevent recursion.
                     (&*fixture).show();
                 }
             }

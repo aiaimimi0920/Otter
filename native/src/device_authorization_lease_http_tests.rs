@@ -1,4 +1,4 @@
-//! 已借出的 Control 仍使用租约专属取消 owner，缓存撤销可唤醒进行中的 HTTPS。
+//! Borrowed Control still uses the lease-specific cancellation owner, allowing cache revocation to wake ongoing HTTPS.
 use super::*;
 use crate::device_authorization_lease::Grant;
 

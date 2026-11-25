@@ -1,4 +1,4 @@
-//! 目标私有栅格资源；逐层按共享身份更新，不重建绘制目标或其他效果缓存。
+//! Target-private raster resources; update each layer by shared identity without recreating render targets or other effect caches.
 use super::*;
 use crate::{erase_layers::Layers, pixels::Pixels};
 use windows::{
@@ -23,7 +23,7 @@ pub(super) fn editor(image: Option<&Image>) -> Result<Editor> {
 }
 
 impl Canvas {
-    /// 更新兼容宿主图像视图；CPU 像素共享，GPU 层由下次 paint 独立同步。
+    /// Update the compatibility host image view; share CPU pixels and synchronize GPU layers independently on the next paint.
     pub(in crate::desktop) fn sync_raster_source(&mut self) {
         if self
             .capture_source
@@ -202,7 +202,7 @@ impl Resources {
         let base = image.map(|image| &image.pixels);
         let base_changed = !matches(&self.base, base, size);
         let annotations_changed = !matches(&self.annotations, annotations, annotation_size);
-        // 两层上传都成功后才交换，失败保留旧帧资源，不出现只替换一层的中间状态。
+        // Swap only after both layer uploads succeed; retain old frame resources on failure, without a partially replaced intermediate state.
         let new_base = if base_changed {
             upload(target, base, size)?
         } else {
@@ -299,7 +299,7 @@ impl Resources {
             bottom: rect.bottom.max(annotation_rect.bottom),
         };
         let mask = self.preview.geometry(target, &bounds, request, viewport)?;
-        // 与提交内核一致：分别擦除每层，再 source-over。先合成再遮罩会错误削弱双层软边。
+        // Match the commit kernel: erase each layer separately, then source-over. Compositing before masking incorrectly weakens two-layer soft edges.
         let mut between = Some(between);
         for (i, (bitmap, erase, destination, projection)) in [
             (

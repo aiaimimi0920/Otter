@@ -1,4 +1,4 @@
-//! 窗口级 UIA provider、可撤销 Fragment 树与经权限门禁的操作模式。
+//! Window-level UIA provider, revocable Fragment trees, and permission-gated operation patterns.
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc, Mutex,
@@ -66,13 +66,13 @@ pub(super) fn notify_range_readonly(
 }
 impl Drop for Root {
     fn drop(&mut self) {
-        // 先撤销再释放 COM 引用；外部持有的 provider 不得继续读取已销毁的 HWND。
+        // Revoke before releasing COM references; externally retained providers must not keep reading destroyed HWNDs.
         self.alive.store(false, Ordering::Release);
     }
 }
 
 pub(super) fn destroyed(hwnd: HWND) {
-    // 官方 WM_DESTROY 清理入口；不在 SendMessage 同步路径调用 UiaDisconnectProvider。
+    // Official WM_DESTROY cleanup entry; never call UiaDisconnectProvider on synchronous SendMessage paths.
     unsafe { UiaReturnRawElementProvider(hwnd, WPARAM(0), LPARAM(0), None) };
 }
 

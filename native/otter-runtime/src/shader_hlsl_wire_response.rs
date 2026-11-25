@@ -1,4 +1,4 @@
-//! 成功像素/实际后端与失败分离；有界 UTF-8 诊断、严格状态和尺寸。
+//! Separate successful pixels/actual backend from failures; bounded UTF-8 diagnostics with strict statuses and dimensions.
 use super::*;
 fn stage(value: Stage) -> u32 {
     match value {

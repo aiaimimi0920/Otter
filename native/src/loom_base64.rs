@@ -1,4 +1,4 @@
-//! PNG 传输编码的 owner；Base64 分配计入共享预算，取消或释放时立即归还。
+//! PNG transport-encoding owner; Base64 allocations count against shared budget, returned immediately on cancellation/release.
 use crate::byte_budget::Lease;
 use std::sync::atomic::{AtomicBool, Ordering};
 #[path = "loom_base64_stream.rs"]
@@ -12,7 +12,7 @@ impl Encoded {
     pub fn as_str(&self) -> &str {
         &self.text
     }
-    /// 仅供会话候选转移所有权；接收者必须让租约活到 JSON 字符串释放之后。
+    /// Only for ownership transfer into session candidates; recipients must retain the lease until after JSON strings are released.
     pub(crate) fn into_parts(self) -> (String, Lease) {
         (self.text, self._lease)
     }
@@ -28,7 +28,7 @@ pub enum Error {
 pub fn encode(bytes: &[u8], cancel: &AtomicBool) -> Result<Encoded, Error> {
     encode_with(bytes, cancel, crate::pixels::reserve)
 }
-/// 会话内联 PNG，与纯 Base64 共用循环，但前缀在同一次预算/分配中写入。
+/// Session-inline PNG shares the plain-Base64 loop, writing its prefix within the same budget/allocation.
 pub fn encode_png_data_url(bytes: &[u8], cancel: &AtomicBool) -> Result<Encoded, Error> {
     const PREFIX: &str = "data:image/png;base64,";
     if cancel.load(Ordering::Acquire) {

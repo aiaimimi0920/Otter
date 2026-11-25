@@ -1,4 +1,4 @@
-//! 原来源跨线程传递与清理权限：真实源 hook 建立 lease，不把控制撤销等同显示实例销毁。
+//! Cross-thread original-source transfer and cleanup permissions: real source hooks establish leases; control revocation is not display-instance destruction.
 use super::*;
 use crate::live_window_target::recovery::popup_layer::fixture::Fixture;
 

@@ -1,4 +1,4 @@
-//! 输出缺席时唯一可停止的短状态窗；不抢焦点、不注册hook/快捷键，关闭是永久停止意图。
+//! The sole stoppable brief status window while output is absent; no focus stealing/hooks/shortcuts, and closing means permanent stop.
 use super::*;
 use std::{cell::Cell, sync::OnceLock};
 use windows::{
@@ -82,7 +82,7 @@ impl StatusWindow {
                 self.label.set(Some(label));
             }
         }
-        // WM_SETTEXT/ShowWindow 都可能同步重入；关闭后不再写旧 HWND。
+        // WM_SETTEXT/ShowWindow may synchronously reenter; never write the old HWND after closure.
         if !self.stopped() && !unsafe { IsWindowVisible(self.hwnd).as_bool() } {
             unsafe {
                 let _ = ShowWindow(self.hwnd, SW_SHOWNOACTIVATE);

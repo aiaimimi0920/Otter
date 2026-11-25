@@ -1,4 +1,4 @@
-//! 显式复制时冻结命名与隔离缓存目录；不读写磁盘，worker 才暂存已编码 PNG。
+//! Freeze naming and isolated cache directories on explicit copy; no disk I/O here, with workers staging encoded PNGs.
 use super::super::State;
 use std::{path::PathBuf, sync::atomic::AtomicBool};
 pub(in crate::desktop) struct Plan {

@@ -1,4 +1,4 @@
-//! 真实系统菜单请求配合注入名称选择，验证模态事务；不冒充可见名称框人工输入验收。
+//! Real system-menu requests with injected name selection verify modal transactions; not manual-input acceptance of the visible name dialog.
 use super::*;
 use crate::{
     desktop::composition::live::window::groups::{Request, CREATE, RENAME},

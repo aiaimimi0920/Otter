@@ -1,4 +1,4 @@
-//! JS String 的协议值子集；数组 join 的空元素/嵌套规则与原转换保持一致。
+//! Protocol-value subset of JS String; preserve the original conversion's array-join rules for empty elements and nesting.
 use super::{Output, MAX_TEXT_BYTES};
 pub(super) fn convert(value: Output<'_>) -> Option<String> {
     let mut text = String::new();

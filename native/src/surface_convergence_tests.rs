@@ -1,4 +1,4 @@
-//! 本地流合同：后置刷新、整批判定、身份隔离及终态拒绝，不发送网络。
+//! Local stream contracts: post-success refresh, whole-batch decisions, identity isolation, and terminal-state rejection without networking.
 use super::*;
 use crate::{
     surface_action_ack::Ack,

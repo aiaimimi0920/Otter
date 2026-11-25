@@ -1,4 +1,4 @@
-//! 将主干文字基线/序号圆心换算为原生布局框；字体测量由平台注入，不猜测字宽。
+//! Convert baseline text baselines/sequence-circle centers into native layout boxes; platform-injected font measurement avoids guessing character widths.
 use super::*;
 use crate::text_annotation::TextAnnotation;
 pub struct Metrics {
@@ -70,7 +70,7 @@ pub(super) fn append(
             metrics.size,
         )
     };
-    // 序号的 cornerRadius 是圆半径，不是矩形圆角，不能受普通形状的 256 上限限制。
+    // Sequence-label cornerRadius is a circle radius, not rectangle corner rounding, and must not use ordinary shapes' 256 limit.
     editor.set_style(style_impl(&element["style"], None, false, serial)?);
     let rotation = element
         .get("rotation")

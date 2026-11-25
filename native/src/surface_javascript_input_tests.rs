@@ -1,4 +1,4 @@
-//! 原生文本输入进入真实 QuickJS child；后续与 HWND/Application 共用夹具。
+//! Native text input enters real QuickJS children; subsequent stages share fixtures with HWND/Application.
 use super::*;
 use wire::{InputPhase, TextInput};
 pub(crate) const SOURCE: &str = include_str!("../tests/fixtures/javascript-native-input.js");

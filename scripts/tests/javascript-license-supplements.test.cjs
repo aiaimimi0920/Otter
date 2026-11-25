@@ -1,4 +1,4 @@
-// 精确共享许可证与 vendored 引擎声明；只修改显式 linshi 测试根下的副本。
+// Exact shared licenses and vendored-engine notices; modify only copies under explicit linshi test roots.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');

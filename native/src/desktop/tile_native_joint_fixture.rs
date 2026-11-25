@@ -1,4 +1,4 @@
-//! 真实Loom联合专属隔离输入/有界文件屏障；不读取用户身份，不向用户窗口注入输入。
+//! Actual Loom integration's isolated input/bounded file barriers; no user-identity reads or user-window input injection.
 use super::*;
 use serde_json::{json, Value};
 use std::path::PathBuf;
@@ -94,7 +94,7 @@ pub(super) fn mark_pixels(f: &Fixture, runtime: &Runtime, name: &str) {
         )
     };
     let image = frame.images.values().next().unwrap();
-    // 手工RGBA红/绿/蓝/白的PBGRA oracle，不从生产转换或绘制代码计算预期。
+    // Handwritten PBGRA oracle for RGBA red/green/blue/white, independent of production conversion/drawing.
     assert_eq!((image.width, image.height), (2, 2));
     assert_eq!(
         &*image.pixels,

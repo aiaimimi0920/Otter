@@ -1,4 +1,4 @@
-//! 左侧子栏与图框同批定位；纯拖动只读既有布局，不访问字段、重排控件或等待宿主通知。
+//! Position left child strips and the image/border together; pure dragging reads existing layout without fields, control relayout, or waiting for host notifications.
 use super::*;
 fn target(anchor: RECT, work: RECT, size: (i32, i32)) -> Result<RECT> {
     if size.0 > work.right - work.left || size.1 > work.bottom - work.top {

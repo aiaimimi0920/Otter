@@ -86,7 +86,7 @@ fn later_revisions_keep_images_in_global_and_origin_replacement_snapshots() {
     let budget = Budget::new(4096);
     let mut requests = std::collections::HashSet::new();
     for revision in [1, 2] {
-        // 只改变几何/revision，图片引用不变；此为 wire 合同，不读取夹具路径。
+        // Change geometry/revision only, preserving image references; this tests the wire contract without reading fixture paths.
         let saved = serde_json::to_vec(&json!({"documentRevision":revision,"stickers":[{
             "id":"local","x":revision,"y":0,"w":20,"h":10,
             "originWorkflowId":"origin","originNodeId":"remote",
@@ -140,7 +140,7 @@ fn prepared_batch_borrows_layout_and_matches_byte_entry_wire_order() {
         prepared.layouts.as_ptr(),
         plan.layouts_for(&snapshot, &cancel).unwrap().as_ptr()
     );
-    drop(saved); // 两条入口完成准备后都只依赖快照和已验证的索引。
+    drop(saved); // After preparation, both entry points depend only on snapshots and validated indexes.
     let budget = Budget::new(8192);
     let request = |batch: &mut Batch<'_>| {
         let next = batch.current(&budget, 4096, &cancel).unwrap().unwrap();

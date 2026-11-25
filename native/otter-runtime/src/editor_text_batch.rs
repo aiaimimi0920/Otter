@@ -1,4 +1,4 @@
-//! 多行导入的文字模型事务；所有行先准备，成功时只记录一次历史且不克隆已有文档。
+//! Text-model transactions for multiline import; prepare all lines first, record history once on success, and do not clone the existing document.
 use super::*;
 
 impl Editor {
@@ -10,7 +10,7 @@ impl Editor {
         if entries.is_empty() || self.draft.is_some() {
             return Ok(first..first);
         }
-        // 对齐剪贴板多行的上界；不让调用者借批量接口绕过文档/历史点预算。
+        // Match the clipboard multiline limit; callers must not bypass document/history-point budgets through the batch API.
         if entries.len() > 256
             || entries.len() > MAX_ELEMENTS.saturating_sub(first)
             || entries.len() * 2 > MAX_TOTAL_POINTS.saturating_sub(self.retained_points)
@@ -22,7 +22,7 @@ impl Editor {
             let end = super::end(*start, *size)?;
             prepared.push(super::prepare(*start, end, text.clone(), self.style)?);
         }
-        // 几何、配额和 ID 分配已全部成功；在此之前不改变元素、redo 或 revision。
+        // Geometry, quotas, and ID allocation have all succeeded; do not change elements, redo, or revision before this point.
         let indices = first..first + prepared.len();
         self.retained_points += prepared.len() * 2;
         self.elements.extend(prepared);

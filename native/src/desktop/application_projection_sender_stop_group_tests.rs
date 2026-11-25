@@ -1,4 +1,4 @@
-//! 组菜单停止的完整隔离链：逐项持久受理、真实canonical、TLS失败隔离及恢复；不发送系统输入。
+//! Complete isolated group-menu stop flow: per-entry durable acceptance, real canonical, TLS failure isolation and recovery; no system input.
 use super::*;
 #[path = "application_projection_sender_stop_group_guard_tests.rs"]
 mod guard;
@@ -110,7 +110,7 @@ fn run(mode: Mode) {
         tick(&mut app, files.root());
         assert!(app.projection_sender.stop_group.is_some());
         if mode == Mode::Cancel || mode == Mode::LateSource {
-            // 等Begin终态但不收割；取消/来源换代必须先于下一项受理。
+            // Wait for Begin terminal state without collecting; cancellation/source replacement must precede accepting the next item.
             let end = Instant::now() + Duration::from_secs(5);
             while !app.projection_sender.stop.finished() {
                 assert!(Instant::now() < end);
@@ -129,7 +129,7 @@ fn run(mode: Mode) {
                 )
                 .unwrap();
             }
-            // 撤会话仅阻止网络，不撤已持久停止；不留下测试自动更新真实外部资源。
+            // Revoking the session stops networking only, not durably recorded stops; leave no test automatically updating real external resources.
             app.authorization_owner.invalidate(&origin).unwrap();
             tick(&mut app, files.root());
             assert!(app.projection_sender.stop_group.is_none());

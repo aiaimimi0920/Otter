@@ -1,4 +1,4 @@
-//! 原Tile/已paint HWND实际消息→唯一worker；拖动跨本手势权威value变化，独立Loom父门核业务。
+//! Actual original-Tile/painted-HWND messages -> sole worker; dragging survives authoritative value changes within the gesture, with independent Loom parent gates verifying business results.
 use super::*;
 use std::{collections::BTreeSet, sync::Arc};
 use windows::Win32::UI::WindowsAndMessaging::{WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MOUSEMOVE};
@@ -63,7 +63,7 @@ pub(super) fn run() {
             f.mark("slider-started.json", json!({"actualOwnHwndMessages":true}));
         }
         if f.root.join("slider-finish").exists() && done.insert("finish") {
-            // 已接受的第一input改变了props.value，不能退休仍有效的同一拖动。
+            // The accepted first input changes props.value; do not retire the still-valid same drag.
             assert!(window.test_art_slider_active());
             let keyboard = std::env::var_os("OTTER_TILE_KEYBOARD_JOINT").is_some();
             if keyboard {

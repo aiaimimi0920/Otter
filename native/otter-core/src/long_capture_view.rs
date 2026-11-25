@@ -1,4 +1,4 @@
-//! 经边界验证的只读帧视图，匹配裁剪区域时不复制像素、不新增像素租约。
+//! Boundary-validated read-only frame views; cropped-region matching neither copies pixels nor creates pixel leases.
 use super::{Axis, Error, Frame};
 #[derive(Clone, Copy)]
 pub(super) struct View<'a> {

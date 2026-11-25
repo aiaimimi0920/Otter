@@ -1,4 +1,4 @@
-//! 实际Application标注替换后手动保存、后台Checkpoint与同profile重开，不冒充网络协作接通。
+//! Manual save, background Checkpoint, and same-profile reopening after actual Application annotation replacement; not evidence of connected network collaboration.
 use super::*;
 use crate::viewport::Point;
 use serde_json::{json, Value};
@@ -7,8 +7,8 @@ fn document(path: &std::path::Path) -> Value {
     serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap()
 }
 fn expected_points(app: &Application) -> Value {
-    // 独立oracle：原生图像点先到窗口DIP，再到会话局部单位；不调用被测writer/Mapping。
-    // 普通工作区有20DIP视口留白，不能把图像坐标直接当成canonical坐标。
+    // Independent oracle: native image points map first to window DIPs, then session-local units; do not call the writer/Mapping under test.
+    // Ordinary workspaces have a 20-DIP viewport margin; image coordinates are not directly canonical coordinates.
     let document = &app.documents[0];
     let view = document.state.canvas.borrow().viewport;
     let dpi = unsafe { windows::Win32::UI::HiDpi::GetDpiForWindow(document.window.0) };

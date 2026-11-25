@@ -1,4 +1,4 @@
-//! 两库第二页“删除此条”经生产队列/worker/提交，并覆盖保存。
+//! Delete-this-entry on the second page of both libraries through production queue/worker/commit paths, including overwrite-save.
 use super::*;
 use crate::session_library::Kind;
 unsafe fn settle(app: &mut Application) -> Result<()> {

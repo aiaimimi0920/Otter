@@ -1,4 +1,4 @@
-//! 单一导出绘制事务；窗口逻辑样式与文档坐标分别变换，圆角包住完整内容栈。
+//! One export drawing transaction; transform logical window styles/document coordinates separately, with rounded corners enclosing the full content stack.
 use super::*;
 pub(super) struct Paint<'a> {
     pub target: &'a ID2D1RenderTarget,
@@ -32,7 +32,7 @@ impl Paint<'_> {
                 document.M32 = -(crop.y as f32) * document.M22;
             }
             let _restore = super::super::render_frame::save_transform(target);
-            // 先在 unit 坐标推 mask，再切回文档坐标；非等比输出也保持两轴源密度。
+            // Push masks in unit coordinates before returning to document coordinates; preserve both source densities even for nonuniform output.
             let rounded = if let Some(style) = decoration {
                 style.transform(target, output);
                 style.clip(target, self.factory, output, &reserve)?

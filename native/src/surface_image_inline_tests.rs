@@ -1,4 +1,4 @@
-//! 内联请求的完整场景身份、Grant、取消与共享容量门。
+//! Complete scene identity, Grant, cancellation, and shared-capacity gates for inline requests.
 use super::*;
 use crate::surface_resource_runtime::request::{inline::Inline, Key, Request};
 fn mount() -> MountedSurface {

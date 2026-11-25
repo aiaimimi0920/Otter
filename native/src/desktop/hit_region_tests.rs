@@ -140,7 +140,7 @@ fn cropped_overlay_hit_region_moves_independently_from_base_at_multiple_scales()
             let region = raster_region(&cache, 32, 32, scale, Some(frame), None).unwrap();
             assert!(PtInRegion(region.0, (20.0 * scale) as i32, (6.0 * scale) as i32).as_bool());
             assert!(!PtInRegion(region.0, (8.0 * scale) as i32, (8.0 * scale) as i32).as_bool());
-            // 底图仍位于原始位置；最终可见裁剪由 update 的统一 clip 负责。
+            // The base image remains at its original position; update's shared clip handles final visible cropping.
             assert!(PtInRegion(region.0, (26.0 * scale) as i32, (26.0 * scale) as i32).as_bool());
             let reset = raster_region(&cache, 32, 32, scale, None, None).unwrap();
             assert!(PtInRegion(reset.0, (8.0 * scale) as i32, (8.0 * scale) as i32).as_bool());

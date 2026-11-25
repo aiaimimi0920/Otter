@@ -1,4 +1,4 @@
-//! 单槽身份围栏与线程/授权准入；同内容不等于同一次准备，旧准备不得复活。
+//! Single-slot identity fences and thread/authorization admission; equal content is not the same preparation, and old preparation cannot revive.
 use super::*;
 fn empty() -> Arc<Prepared> {
     Arc::new(Prepared {

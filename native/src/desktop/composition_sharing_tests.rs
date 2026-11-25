@@ -1,4 +1,4 @@
-//! 隐藏自有窗口的真实设备身份与像素隔离；不捕获桌面、注册输入或显示窗口。
+//! Real device identity and pixel isolation with hidden owned windows; no desktop capture, input registration, or visible windows.
 use super::super::{Apartment, Window};
 use super::*;
 use windows::{

@@ -1,4 +1,4 @@
-//! 实际身份文件、TLS、Windows 线程完成句柄的组合验证；不连接在线 Loom。
+//! Combined verification of actual identity files, TLS, and Windows thread-completion handles; no connection to online Loom.
 use super::*;
 use crate::device_authorization_runtime::{Error as RuntimeError, Output, Runtime, Task};
 use crate::device_identity_store::Store;

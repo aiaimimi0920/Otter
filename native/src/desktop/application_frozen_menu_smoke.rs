@@ -1,4 +1,4 @@
-//! 生产菜单分页选择 -> 退出模态后的单槽请求 -> 应用后台追加闭环。
+//! Production paged-menu selection -> single-slot request after leaving modal scope -> complete application background-append flow.
 use super::*;
 use crate::session_library::Kind;
 pub(in crate::desktop::application) unsafe fn run(instance: HINSTANCE) -> Result<()> {

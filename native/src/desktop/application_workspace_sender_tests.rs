@@ -1,4 +1,4 @@
-//! 隐藏 Application 的 sender metadata 持久接缝；原日志与原保存单槽不被候选或暂存退休。
+//! Durable sender-metadata seam in a hidden Application; candidates or staging must not retire the original journal or original save slot.
 use super::*;
 use crate::projection_delivery::sender::binding::{checkpoint::Index, tests as bindings};
 use crate::projection_delivery::sender::Intent;

@@ -1,4 +1,4 @@
-// 同一 child 中 family mutation 立即失效原投影；真实 DirectWrite 贡献 max-content 宽度。
+// Family mutations in the same child immediately invalidate old projections; actual DirectWrite supplies max-content width.
 let text, report;
 const read = () => {
   const before = text.getBoundingClientRect().width;

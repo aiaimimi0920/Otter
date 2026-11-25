@@ -1,9 +1,9 @@
-//! 能力执行归属对齐 artCapabilities/nodeExecutionConfig，不按框架 ID 猜测预览类型。
+//! Capability execution ownership aligned with artCapabilities/nodeExecutionConfig; do not infer preview types from framework IDs.
 use super::Capability;
 use crate::graph_execution_config::{Config, Runtime};
 use crate::graph_image::Output;
 impl Capability<'_> {
-    /// 对齐旧 unitSurfaceController 的参考图推导；它是预览上下文，不授予图片读取权。
+    /// Match legacy unitSurfaceController reference-image derivation; this is preview context, not image-read permission.
     pub fn shader_reference_port(&self) -> Option<&str> {
         if let Some(name) = super::text(
             &self.raw["metadata"]["capabilities"],
@@ -28,7 +28,7 @@ impl Capability<'_> {
                 .any(|parameter| parameter.widget == "image_link" || parameter.id == "reference")
             || self.inputs().any(|port| port.name == "reference")
     }
-    /// 对齐 artCapabilities.shaderInputPortName；只选端口，不读取图片或把 reference 自动绑定为纹理。
+    /// Match artCapabilities.shaderInputPortName; select only a port, without reading images or automatically binding reference as a texture.
     pub fn shader_input_port(&self) -> Option<&str> {
         if let Some(configured) = super::text(&self.raw["metadata"]["capabilities"], "shaderInput")
         {
@@ -40,7 +40,7 @@ impl Capability<'_> {
             .or_else(|| self.inputs().find(shader_image_port))
             .map(|port| port.name)
     }
-    /// 只在已准备端口中按旧 controller 顺序选取；不把其它辅助图片当主图。
+    /// Select only among prepared ports in legacy controller order; do not treat other auxiliary images as the primary image.
     pub fn available_shader_input<'a>(&self, ports: &[&'a str]) -> Option<&'a str> {
         self.shader_input_port()
             .and_then(|name| ports.iter().copied().find(|port| *port == name))
@@ -78,7 +78,7 @@ impl Capability<'_> {
         }
     }
 }
-// Shader 端口启发式与旧预览一致；不同于通用图端口按名称补充 image-like 的规则。
+// Shader-port heuristics match legacy previews, unlike generic graph ports' name-based image-like supplementation rules.
 fn shader_image_port(port: &super::Port<'_>) -> bool {
     [Some(port.kind), port.execution_type]
         .into_iter()

@@ -1,4 +1,4 @@
-//! 后台精确停止 patch；完整 typed binding + canonical allocation 核验由调用者保持，不吞未知字段。
+//! Exact background stop patches; callers retain full typed-binding/canonical-allocation checks without swallowing unknown fields.
 use super::*;
 use serde_json::Value;
 pub(crate) struct Acknowledgement {
@@ -7,7 +7,7 @@ pub(crate) struct Acknowledgement {
     _source: Source,
 }
 impl Acknowledgement {
-    /// 仅 canonical owner 在真实 commit 后调用；候选/手动 Save 不得取得此 proof。
+    /// Only canonical owners call after real commit; candidates/manual Save cannot obtain this proof.
     pub(crate) fn committed(
         index: &checkpoint::Index,
         source: &Source,
@@ -30,7 +30,7 @@ impl Acknowledgement {
         self.selection == intent.record.selection && self.envelope == *intent.envelope()
     }
 }
-/// 返回的 Source 只是候选；调用者必须等默认工作区 checkpoint 的真实包含/移除证明。
+/// Returned Source is only a candidate; callers must await actual inclusion/removal proof from default-workspace checkpoints.
 pub(crate) fn prepare(
     source: &Source,
     expected: &Binding,

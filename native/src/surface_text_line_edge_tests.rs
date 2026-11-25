@@ -1,4 +1,4 @@
-//! 行长度包含换行，End 排除换行但保留尾随空白；直接使用真实排版。
+//! Line lengths include newlines; End excludes newlines but retains trailing whitespace, using actual layout directly.
 use super::*;
 fn layout(text: &str, width: f32) -> Layout {
     Engine::new()

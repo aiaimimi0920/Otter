@@ -1,4 +1,4 @@
-//! 只读系统版本探测；动态解析 RtlGetVersion，避免应用 manifest 对版本助手的影响。
+//! Read-only system-version probing dynamically resolves RtlGetVersion, avoiding application-manifest effects on version helpers.
 use windows::{
     core::{s, w},
     Win32::{
@@ -28,7 +28,7 @@ pub enum Error {
 }
 pub fn query() -> Result<Version, Error> {
     unsafe {
-        // ntdll 是进程加载的系统模块；这里只借用句柄，不加载外部 DLL，不调用 FreeLibrary。
+        // ntdll is a process-loaded system module; borrow handles only, without external-DLL loading or FreeLibrary.
         let module = GetModuleHandleW(w!("ntdll.dll")).map_err(Error::Api)?;
         let address = GetProcAddress(module, s!("RtlGetVersion")).ok_or(Error::MissingFunction)?;
         type RtlGetVersion = unsafe extern "system" fn(*mut OSVERSIONINFOW) -> NTSTATUS;

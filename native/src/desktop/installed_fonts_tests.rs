@@ -1,4 +1,4 @@
-//! 字体顺序、精确去重、缓存/重试及真实本机枚举；不读取用户图像或字体文件。
+//! Font ordering, exact deduplication, caching/retry, and actual local enumeration; no user-image/font-file reads.
 use super::*;
 #[test]
 fn presets_are_fixed_then_trimmed_exact_duplicates_and_numeric_chinese_order() {

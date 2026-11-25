@@ -1,4 +1,4 @@
-//! Live HWND 的输入适配；只排队，不运行权限查询/跨窗口投递。撤销信号可越过嵌套消息泵。
+//! Input adapter for Live HWNDs; enqueue only, without permission queries/cross-window delivery. Revocation signals can bypass nested message pumps.
 use super::*;
 use crate::{live_input::Event, live_input_worker::StopSignal};
 use std::collections::VecDeque;
@@ -166,7 +166,7 @@ impl LiveWindow {
         }
     }
     pub(crate) fn resume_browser_input(&self) {
-        // 仅恢复仍有效的控制意图；不重放事件，不覆盖关闭、锁定或取消。
+        // Restore only still-valid control intent; no event replay or overriding closure, locking, or cancellation.
         unsafe { resume(&self.state) }
     }
 }
@@ -227,7 +227,7 @@ pub(super) unsafe fn install(hwnd: HWND) -> Result<()> {
 fn viewport(hwnd: HWND, state: &State) -> Option<crate::live_viewport::Viewport> {
     let mut rect = RECT::default();
     unsafe { GetClientRect(hwnd, &mut rect) }.ok()?;
-    // Host 在 GPU/Win32 调用中可被临时取出；读取同一提交记录，不把重入当成失效。
+    // Host may be temporarily taken during GPU/Win32 calls; read the same committed record rather than treating reentrancy as invalidation.
     state
         .presented
         .get([
@@ -245,7 +245,7 @@ pub(super) unsafe fn cancel(hwnd: HWND, state: &State) {
         let _ = ReleaseCapture();
     }
 }
-/// 本地移动/失焦先释放源按键，保留控制开关；恢复时仍经过原 worker 准入。
+/// Local movement/focus loss releases source keys first while preserving the control toggle; recovery still passes original-worker admission.
 pub(super) unsafe fn suspend(hwnd: HWND, state: &State) {
     state.popup_focus.borrow_mut().clear();
     {
@@ -278,7 +278,7 @@ unsafe fn resume(state: &State) {
         }
     }
 }
-/// Some 表示已消费；无输入控制时保留系统窗口行为。
+/// Some means consumed; preserve system window behavior without input control.
 pub(super) unsafe fn handle(
     hwnd: HWND,
     state: &State,
@@ -289,7 +289,7 @@ pub(super) unsafe fn handle(
     if !state.popup.get() && super::menu::handle(hwnd, state, message, wp, lp) {
         return Some(Ok(()));
     }
-    // Popup 的嵌套消息泵不能创建新的源控制或本地几何事务；关闭/生命周期仍可达。
+    // Popup nested message pumps must not create new source-control or local-geometry transactions; closure/lifecycle handling remains reachable.
     if state.menu_open.get()
         && (matches!(message, WM_KEYDOWN | WM_KEYUP | WM_SYSKEYDOWN | WM_SYSKEYUP)
             || (WM_MOUSEFIRST..=WM_MOUSELAST).contains(&message)
@@ -366,18 +366,18 @@ pub(super) unsafe fn handle(
     let mouse = (WM_MOUSEFIRST..=WM_MOUSELAST).contains(&message)
         || matches!(message, WM_MOUSEHOVER | WM_MOUSELEAVE);
     if !state.input.borrow().enabled {
-        // 后台滚轮也会直接送到 Live；只有内容命中后才恢复，键盘仍等待 worker 准入。
+        // Background wheel input also reaches Live directly; recover only after a content hit, while keyboard input still awaits worker admission.
         if !mouse || (!state.input.borrow().pending && !resumable(state)) {
             return None;
         }
     }
-    // 保留本地系统菜单和关闭快捷键；进入菜单/关闭时立即撤销源输入。
+    // Preserve local system menus and close shortcuts; immediately revoke source input on menu entry/closure.
     if message == WM_SYSKEYDOWN && (wp.0 == 0x20 || wp.0 == 0x73) {
         return None;
     }
     use crate::desktop::window_input_event as event;
     if matches!(message, WM_KEYDOWN | WM_KEYUP | WM_SYSKEYDOWN | WM_SYSKEYUP) && wp.0 == 0xe5 {
-        return Some(Ok(())); // VK_PROCESSKEY 属于 B 的 IME，不能当成源虚拟键。
+        return Some(Ok(())); // VK_PROCESSKEY belongs to B's IME and is not a source virtual key.
     }
     if message == WM_CHAR {
         if let Ok(unit) = u16::try_from(wp.0) {
@@ -388,7 +388,7 @@ pub(super) unsafe fn handle(
         return Some(Ok(()));
     }
     if mouse {
-        // TrackMouseEvent 不发送窗口消息；IMM 操作则不能跨 RefCell 借用。
+        // TrackMouseEvent sends no window messages; IMM operations, however, cannot span RefCell borrows.
         if let Err(error) = state.input.borrow_mut().tracking.observe(hwnd, message) {
             return Some(Err(error));
         }
@@ -396,7 +396,7 @@ pub(super) unsafe fn handle(
     if message == WM_MOUSELEAVE {
         let held = state.input.borrow().buttons != 0;
         if held && state.popup_noactivate.get() {
-            // 非激活菜单不能夺走源菜单的 capture；离开时仍须释放已转发的按下。
+            // Nonactivating menus must not steal source-menu capture; leaving still releases forwarded presses.
             suspend(hwnd, state);
             return Some(Ok(()));
         }
@@ -409,8 +409,8 @@ pub(super) unsafe fn handle(
         return None;
     }
     let Some(view) = viewport(hwnd, state) else {
-        // 无可信坐标时不发明/重放输入；仅因 worker 已启用就暂停会撤销菜单来源周期。
-        // UI 尚持有的鼠标或键盘必须走原取消清理；已交接的 up 则留给原 FIFO/worker。
+        // Without trusted coordinates, invent/replay no input; pausing merely because the worker is enabled would revoke the menu provenance cycle.
+        // UI-held mouse/keyboard input must follow original cancellation cleanup; handed-off up remains with the original FIFO/worker.
         let held = {
             let input = state.input.borrow();
             input.buttons != 0 || input.held_keys.iter().any(|word| *word != 0)
@@ -468,7 +468,7 @@ pub(super) unsafe fn handle(
     }
     let edge = event::button(event);
     if mouse {
-        // 与主干一致，点击只聚焦自有 Live，源程序保持后台。焦点调用可能同步重入。
+        // As in the baseline, clicks focus only owned Live while the source stays in background. Focus calls may reenter synchronously.
         if !state.popup_noactivate.get() && edge.is_some_and(|(_, down)| down) && resumable(state) {
             let _ = SetForegroundWindow(hwnd);
             let _ = windows::Win32::UI::Input::KeyboardAndMouse::SetFocus(Some(hwnd));

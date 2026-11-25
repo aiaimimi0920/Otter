@@ -1,4 +1,4 @@
-//! 正式执行准备事务：准入、图片和公共参数全部成功才返回候选，不提前创建请求或修改 UI。
+//! Formal-execution preparation transaction: return a candidate only after admission, images, and public parameters all succeed; do not create requests or alter UI early.
 use super::*;
 use crate::{
     graph_execution_config::{Config, Runtime, Skip, Trigger},
@@ -25,7 +25,7 @@ pub struct Prepared<'a> {
     pub disabled: Vec<&'a str>,
 }
 impl Prepared<'_> {
-    /// 输出仅包含活动公共参数，不复制文本；禁止直接序列化 Params 的内部声明或手动缓存。
+    /// Output contains only active public parameters and copies no text; never directly serialize Params' internal declarations or manual cache.
     pub fn active_params(&self) -> impl Iterator<Item = (&str, Option<Output<'_>>)> {
         self.params
             .entries()
@@ -64,7 +64,7 @@ impl<'a> Graph<'a> {
         let params = self.effective_params(id, declared, manual)?;
         let mut disabled = Vec::new();
         for (name, value) in manual {
-            // 比主干更严格：secret 参数名也不加入公开 disabled 列表。
+            // Stricter than the baseline: secret parameter names are also excluded from the public disabled list.
             if *value == Output::Image(DISABLED)
                 && !internal(name)
                 && !declared

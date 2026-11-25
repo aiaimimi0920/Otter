@@ -1,4 +1,4 @@
-//! 无 owner 的顶层附着宿主，避免系统自动升层；回调只登记有凭证的有界意图。
+//! Ownerless top-level attached hosts avoid automatic system raising; callbacks register only credentialed bounded intents.
 use super::*;
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 const CLASS: windows::core::PCWSTR = w!("Otter.Native.NodeDrawer");

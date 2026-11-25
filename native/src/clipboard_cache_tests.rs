@@ -79,7 +79,7 @@ fn staging_cancel_and_drop_leave_no_published_file_and_release_lock() {
     let directory = Directory::new();
     let cancel = AtomicBool::new(false);
     let prepared = stage(&directory.0, "名称", png(), &cancel).unwrap();
-    assert_eq!(directory.entries(), 2); // 排他锁文件 + 未发布暂存。
+    assert_eq!(directory.entries(), 2); // Exclusive lock file + unpublished staging.
     assert!(!directory.cache().join("名称.png").exists());
     assert!(stage(&directory.0, "第二个", png(), &cancel).is_err());
     drop(prepared);
@@ -111,7 +111,7 @@ fn publish_reuses_staged_bytes_and_preserves_existing_files() {
     assert_eq!(second.file_name().unwrap(), "复制🙂_2.png");
     assert_eq!(fs::read(first).unwrap(), &*bytes);
     assert_eq!(fs::read(second).unwrap(), &*bytes);
-    assert_eq!(directory.entries(), 5); // lock + 两个 PNG + 两个所有权记录。
+    assert_eq!(directory.entries(), 5); // lock + two PNGs + two ownership records.
 }
 
 #[test]

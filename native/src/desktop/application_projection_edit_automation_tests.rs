@@ -1,4 +1,4 @@
-//! 原生模式菜单/原Job/TLS/Checkpoint与原读调度自动提交；不投送真实设备或占前台。
+//! Native mode menu/original Job/TLS/Checkpoint and automatic submission through the original read schedule; no real-device delivery or foreground takeover.
 use super::*;
 use std::sync::atomic::Ordering;
 unsafe fn command(app: &mut Application, files: &Files, command: usize) {
@@ -101,7 +101,7 @@ fn source_automatic_failure_and_cancel_never_replay_unknown_request_without_expl
             initialized(&mut app, &files, identity, client, 1);
             shift(&app, 2.0);
             peer.fail_apply.store(!cancel, Ordering::Release);
-            // 成功的原读链触发Automatic，而不是直接调用新网络入口。
+            // Successful original reads trigger Automatic rather than directly calling a new network entry point.
             let state = snapshot(&app);
             assert!(app.start_projection_source(
                 app.documents[0].state.unit_id.clone(),
@@ -113,8 +113,8 @@ fn source_automatic_failure_and_cancel_never_replay_unknown_request_without_expl
             loop {
                 poll(&mut app, &files);
                 settle(&mut app);
-                // 原日志两段rename间存在可见间隔；不能在worker写入时盲读磁盘作为同步器。
-                // 对端已收到请求证明写前持久化完成；下一poll之前取消，仍保原pending。
+                // The original journal has an observable gap between its two renames; do not blindly read disk during worker writes as a synchronization mechanism.
+                // The peer receiving the request proves write-ahead persistence completed; cancellation before the next poll still preserves original pending state.
                 if peer
                     .trace
                     .lock()

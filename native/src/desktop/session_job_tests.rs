@@ -1,4 +1,4 @@
-//! 完成通知和候选所有权回归，不创建真实工作区窗口。
+//! Completion-notification and candidate-ownership regressions without creating actual workspace windows.
 use super::*;
 use crate::desktop::loom_execution_tasks::reap_fixture::{Gate, WAIT};
 use std::{sync::mpsc, time::Duration};

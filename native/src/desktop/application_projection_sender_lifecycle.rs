@@ -1,4 +1,4 @@
-//! 授权/来源/工作区/退出的取消交接；稳定落盘绑定不因普通退出或换工作区被全量解绑。
+//! Cancellation handoff for authorization/source/workspace/exit; ordinary exit or workspace changes must not bulk-unlink stable persisted bindings.
 use super::*;
 impl Application {
     pub(in crate::desktop) fn stop_projection_sender(&mut self) {
@@ -48,7 +48,7 @@ impl Application {
             .as_ref()
             .is_some_and(|record| record.original.same_storage(&saved.source));
         if same_workspace && !rollback {
-            // 其他事务已改变完整原文，无法证明 binding 未保存；保原日志供显式恢复，不猜测解绑。
+            // Another transaction changed the complete source document, so absence of a saved binding cannot be proven; retain the original log for explicit recovery instead of guessing an unlink.
             return;
         }
         if same_workspace {
@@ -59,7 +59,7 @@ impl Application {
             self.saved_state = None;
         }
         saved.ready.request_stop();
-        drop(saved); // 先释放 Active/Slot，后续 CancelSend 才能重新 activate。
+        drop(saved); // Release Active/Slot first so later CancelSend can activate again.
         self.projection_sender.cleanup.enqueue(request, false);
     }
     pub(in crate::desktop) fn flush_projection_sender(&mut self) -> Result<()> {

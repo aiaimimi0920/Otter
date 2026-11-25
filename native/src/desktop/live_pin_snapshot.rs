@@ -1,4 +1,4 @@
-//! 在原读回/保存 worker 内刷新 Live 底图；保留编辑坐标、栅格标注、裁剪及镜像。
+//! Refresh Live bases inside original readback/save workers; preserve edit coordinates, raster annotations, crops, and mirrors.
 use super::image::Image;
 #[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-live")))]
 #[path = "live_pin_snapshot_tests.rs"]

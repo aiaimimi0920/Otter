@@ -1,4 +1,4 @@
-//! 已认证且释放完成的正式取码交付 → 本地派生结果，始终在原执行 worker 上完成。
+//! Authenticated, fully released official code-fetch delivery -> local derived results, always completed on the original execution worker.
 use super::{
     loom_execution_session::Final, loom_input_job::PreparedBatch, shader_prepare::Runtime,
 };
@@ -40,7 +40,7 @@ pub(super) fn render(
         .delivery
         .install_derived(batch)
         .map_err(Error::Delivery)?;
-    // 远端候选属于取码响应，不能把未渲染候选当成本地正式 PNG 的候选。
+    // Remote candidates belong to the code-fetch response; unrendered candidates are not candidates for the local official PNG.
     final_result.candidates = None;
     Ok(recipe)
 }

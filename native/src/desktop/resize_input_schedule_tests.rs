@@ -1,4 +1,4 @@
-//! 两个异步入口共用预约路径；真实启动拒绝须撤预约并清本次预览。
+//! Both asynchronous entries share reservation; an actual rejected start must revoke the reservation and clear this preview.
 use super::*;
 use std::{
     cell::Cell,

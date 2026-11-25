@@ -1,4 +1,4 @@
-//! 真正 Application → 附着多行 → 局部滚动；不将自有消息测试当普通桌面观感验收。
+//! Actual Application -> attached multiline controls -> local scrolling; owned-message tests are not ordinary-desktop appearance acceptance.
 use super::*;
 use windows::Win32::{Graphics::Gdi::*, UI::Input::KeyboardAndMouse::*};
 #[path = "workspace_chrome_backdrop_tests.rs"]

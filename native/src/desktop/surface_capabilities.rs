@@ -10,7 +10,7 @@ pub(crate) fn report() -> Result<Report, String> {
         ]
         .map(String::from)
         .to_vec(),
-        // 有界静态图片及原租约传输已接通；报告本身不授予来源读取权。
+        // Bounded static images and original-lease transport are connected; the report itself grants no source-read permission.
         vec!["loom_resource".into()],
         vec!["remote_resources".into()],
         Input {

@@ -1,4 +1,4 @@
-//! 纯数据采集会话；持有共享帧，追加先验证再提交，不负责桌面输入或线程调度。
+//! Pure-data capture sessions hold shared frames and validate before append commit; no desktop input/thread scheduling.
 use super::*;
 use std::sync::atomic::Ordering;
 #[path = "long_capture_session_edges.rs"]
@@ -70,11 +70,11 @@ impl Session {
     pub fn axis(&self) -> Axis {
         self.axis
     }
-    /// 最近已提交的图像位移；重复、拒绝、取消及预算失败都不能改变方向证据。
+    /// Latest committed image displacement; duplication/rejection/cancellation/budget failure never changes direction evidence.
     pub fn motion(&self) -> Option<i64> {
         self.motion
     }
-    // 滚动前先检查已知的帧数和逻辑输入上限，不先改变外部应用再发现无法保留下一帧。
+    // Check known frame-count/logical-input limits before scrolling, not after altering external apps and discovering the next frame cannot fit.
     pub(super) fn admit_next(&self) -> Result<(), Error> {
         if self.frames.len() >= MAX_FRAMES {
             return Err(Error::FrameLimit);
@@ -83,7 +83,7 @@ impl Session {
         if self.total + u64::from(first.width) * u64::from(first.height) > MAX_INPUT_PIXELS {
             return Err(Error::InputLimit);
         }
-        // 下次位移尚未知，滚动前按允许的最大扩展检查最终输出和下一帧的同时驻留。
+        // Next displacement is unknown; before scrolling, check simultaneous final-output/next-frame residency at maximum permitted expansion.
         let length = axis_length(self.axis, first);
         let shift = self
             .options
@@ -103,7 +103,7 @@ impl Session {
         let _headroom = crate::pixels::reserve(bytes).ok_or(Error::Budget)?;
         Ok(())
     }
-    /// 至少两次非零运动观察到一致固定边缘才确认；零边缘无需等待第三帧。
+    /// Confirm consistent fixed edges after at least two nonzero movements; zero edges need not await a third frame.
     pub fn confirmed_edges(&self) -> Option<(u32, u32)> {
         self.edges
             .filter(|edges| *edges == (0, 0) || self.confirmations >= 2)
@@ -125,7 +125,7 @@ impl Session {
         if previous.frame.dimensions() != frame.dimensions() {
             return Err(Error::Dimensions);
         }
-        // 精确重复不计入帧数或输入预算，不改变最后接受帧和边界证据。
+        // Exact duplicates consume no frame/input budget and leave last-accepted frames/boundary evidence unchanged.
         let found = if self.edges.is_none_or(|edges| edges == (0, 0)) {
             match match_exact(
                 &previous.frame,
@@ -206,8 +206,8 @@ impl Session {
             .ok_or(Error::OutputLimit)?;
         let (width, height) = self.output_size(&frame, span);
         self.output.check(width, height)?;
-        // 候选像素已计入共享预算，再确认完整输出可同时驻留。这里只取得短租约，不分配长图。
-        // 租约随本次准入结束释放；后续其它文档仍可能消耗预算，合成必须再次检查。
+        // Candidate pixels already consume shared budgets; confirm full output can coexist through a short lease, without long-image allocation.
+        // Release leases when this admission ends; other documents may later consume budget, so composition rechecks.
         let _output_headroom = reserve(output_bytes(width, height)?).ok_or(Error::Budget)?;
         check(cancel)?;
         self.frames.try_reserve(1).map_err(|_| Error::Budget)?;
@@ -220,7 +220,7 @@ impl Session {
         self.motion = Some(delta);
         Ok(Append::Added { origin })
     }
-    /// 不消费会话：输出预算失败或取消后可重试；Drop 会释放所有输入帧引用。
+    /// Do not consume sessions: output-budget failure/cancellation allows retry; Drop releases all input-frame references.
     pub fn compose(&self, cancel: &AtomicBool) -> Result<Composite, Error> {
         check(cancel)?;
         if self.frames.len() == 1 {
@@ -238,7 +238,7 @@ impl Session {
         };
         compose::preview(self.axis, &self.frames, edges, cancel)
     }
-    /// 生成独立候选，不消费当前会话；调用方只在后续移动帧也成功接受后替换旧会话。
+    /// Create independent candidates without consuming current sessions; callers replace old sessions only after subsequent moving frames are accepted.
     pub fn to_spatial(&self, cancel: &AtomicBool) -> Result<SpatialSession, Error> {
         let aggregate = self.compose(cancel)?;
         let last = self

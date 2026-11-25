@@ -1,4 +1,4 @@
-//! 有界后台槽、退出排空、迟到载入与坏文件保护，不操作前台或真实profile。
+//! Bounded background slots, exit draining, late loads, and corrupt-file protection; no foreground or real-profile operations.
 use super::*;
 use crate::capture_history::store::fixture::Root;
 #[test]

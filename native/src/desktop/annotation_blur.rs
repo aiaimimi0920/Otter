@@ -1,4 +1,4 @@
-//! 绘制预计算模糊快照；遮罩和白色覆盖共用同一图层，不在绘制回调执行卷积。
+//! Draw precomputed blur snapshots; masks and white overlays share a layer, with no convolution in paint callbacks.
 use crate::{editor::Stroke, viewport::Viewport};
 use windows::{
     core::{Error, Result},
@@ -23,7 +23,7 @@ pub(super) unsafe fn draw(
     draw_impl(target, stroke, viewport, cache, None)
 }
 
-// 测试可以在相同遮罩/裁切下强制整图绘制作对照，生产仍按纹理尺寸自动分块。
+// Tests may force whole-image drawing with the same mask/clip as a reference; production still tiles automatically by texture size.
 unsafe fn draw_impl(
     target: &ID2D1RenderTarget,
     stroke: &Stroke,
@@ -102,7 +102,7 @@ unsafe fn clip(
         right: viewport.origin.x + (rect.x + rect.width) as f32 * viewport.scale,
         bottom: viewport.origin.y + (rect.y + rect.height) as f32 * viewport.scale,
     };
-    // AxisAlignedClip 会把旋转后的框扩为轴对齐包围框，不能作为 Canvas 局部 clip。
+    // AxisAlignedClip expands rotated rectangles to axis-aligned bounds and cannot serve as a local Canvas clip.
     let mask = target
         .GetFactory()?
         .CreateRectangleGeometry(&bounds)?

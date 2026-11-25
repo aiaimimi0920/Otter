@@ -1,4 +1,4 @@
-//! Windows 宿主及会话/中继编排；重导出底层子库以保持模块路径契约一致。
+//! Windows host and session/relay orchestration; re-export lower-level crates to preserve module-path contracts.
 pub use otter_core::*;
 pub use otter_media::*;
 pub use otter_runtime::*;

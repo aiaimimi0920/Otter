@@ -1,4 +1,4 @@
-//! 复用原文档菜单/请求单槽；只固定Unit和会话Stamp，不在回调里发网、写盘或复制栅格。
+//! Reuse original document menus/single request slots; freeze only Unit/session Stamp, without callback networking, disk writes, or raster copies.
 use super::*;
 pub(in crate::desktop) const SUBMIT: usize = 0x1780;
 pub(in crate::desktop) const CANCEL: usize = 0x1781;
@@ -7,7 +7,7 @@ pub(in crate::desktop) const USE_REMOTE: usize = 0x1783;
 pub(in crate::desktop) const INITIALIZE: usize = 0x1784;
 pub(in crate::desktop) const ONE_WAY: usize = 0x1785;
 pub(in crate::desktop) const TWO_WAY: usize = 0x1786;
-// 投射前的方向属于当前文档；初始化及之后的模式变更仍交给原协作事务。
+// Pre-projection direction belongs to the current document; initialization/later mode changes remain with the original collaboration transaction.
 pub(in crate::desktop) struct Preference {
     pub stamp: crate::editor::DocumentStamp,
     pub mode: crate::projection_edit::Mode,
@@ -118,7 +118,7 @@ pub(super) unsafe fn append_menu(menu: HMENU, state: &State, view: &super::View)
     if state.projection_edit.borrow().is_none() {
         return append_status(menu, state, view);
     }
-    // 同次菜单只核一次动态编辑视图；权限、方向及冲突直接借用权威字段。
+    // Check the dynamic editing view only once per menu; borrow authoritative permission, direction, and conflict fields directly.
     let selectable = selectable(state, view);
     AppendMenuW(
         menu,

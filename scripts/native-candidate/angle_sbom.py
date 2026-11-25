@@ -1,4 +1,4 @@
-"""为本地材料集合生成标准文件清单；不把 source 存在推断成 DLL 的完整依赖闭包。"""
+"""Generate standard file inventories for local materials; source presence does not establish a DLL's complete dependency closure."""
 
 import datetime
 import re

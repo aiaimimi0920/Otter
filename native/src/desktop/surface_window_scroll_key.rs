@@ -1,4 +1,4 @@
-//! 父窗口实际持焦时才接收滚动键；不截获 EDIT 光标键或带修饰键的快捷操作。
+//! Accept scroll keys only when the parent actually has focus; never intercept EDIT cursor keys or modified shortcuts.
 use super::*;
 pub(super) unsafe fn message(hwnd: HWND, state: &State, message: u32, key: u16) -> bool {
     use crate::surface_scroll::Command;
@@ -17,12 +17,12 @@ pub(super) unsafe fn message(hwnd: HWND, state: &State, message: u32, key: u16) 
     if modifiers.alt_key || modifiers.ctrl_key || modifiers.meta_key || modifiers.shift_key {
         return false;
     }
-    // VK 与字符码有数值重叠，WM_CHAR 不能据此当作滚动命令。
+    // VK values overlap character codes; WM_CHAR cannot therefore be treated as scroll commands.
     if message != WM_KEYDOWN {
         return message == WM_KEYUP;
     }
     let anchor = state.keyboard.borrow().anchor.clone();
-    // 保留逻辑焦点和导航锚点，只废弃旧按压/待发动作和鼠标滚动手势。
+    // Retain logical focus/navigation anchors; discard only old presses/pending actions and mouse-scroll gestures.
     pointer::invalidate_candidates(hwnd, state);
     if state.closed.get() || !state.local_edit.get() || GetFocus() != hwnd {
         return true;

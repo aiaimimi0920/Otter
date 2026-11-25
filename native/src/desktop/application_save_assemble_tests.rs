@@ -266,7 +266,7 @@ fn snapshot_annotation_writer_uses_current_editor_and_real_font_baseline() {
         .insert_text(crate::viewport::Point { x: 10.0, y: 20.0 }, size, text)
         .unwrap();
     document.viewport.scale = 2.0;
-    // 默认视口还有 (20,20) 平移：保存点应为 (10,20)*2+(20,20)，不是仅乘比例。
+    // The default viewport also translates by (20,20): the saved point is (10,20)*2+(20,20), not scaling alone.
     let old = serde_json::json!({"annotationState":{"extension":123,"elements":[]}});
     let fields = document
         .write_annotations(

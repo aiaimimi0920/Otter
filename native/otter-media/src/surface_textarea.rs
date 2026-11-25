@@ -1,4 +1,4 @@
-//! textarea 默认盒模型；测量、父绘制与 EDIT 投影共用，不修改原始声明。
+//! Default textarea box model, shared by measurement, parent drawing, and EDIT projection without changing original declarations.
 use crate::{surface_length::Context, surface_scene::Node};
 use serde_json::{Map, Value};
 #[derive(Clone, Copy)]

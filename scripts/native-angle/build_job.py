@@ -1,4 +1,4 @@
-"""Win32 构建进程树 owner：挂入 kill-on-close Job 后才恢复，显式继承三个标准句柄。"""
+"""Win32 build-process-tree owner: resume only after assignment to a kill-on-close Job, explicitly inheriting three standard handles."""
 
 import ctypes as C
 import hashlib
@@ -107,7 +107,7 @@ def close_process(process):
 
 @contextmanager
 def stage_lock(stage):
-    # Local 命名 mutex 不留锁文件，也不依赖清理或删除旧文件；只保护本入口的并发调用。
+    # Local named mutexes leave no lock files or dependence on stale-file cleanup/deletion; protect only concurrent calls through this entry.
     name = "Local\\OtterAngleBuild_" + hashlib.sha256(str(stage.resolve()).casefold().encode()).hexdigest()
     handle = require(create_mutex(None, False, name))
     owned = False
@@ -162,7 +162,7 @@ def run_job(arguments, cwd, environment, stdout, stderr, *, timeout, max_log=16 
         command = C.create_unicode_buffer(subprocess.list2cmdline(arguments))
         require(create_process(arguments[0], command, None, None, True, 0x4 | 0x400 | 0x80000 | 0x08000000,
                                block, str(cwd), C.byref(startup), C.byref(process)))
-        # 进程仍 suspended，assign 失败时不可能已经逃逸出一个执行过的 descendant。
+        # The process remains suspended; assignment failure cannot leave an escaped descendant that has already executed.
         require(assign(job, process.process))
         if resume(process.thread) == 0xFFFFFFFF:
             raise C.WinError(C.get_last_error())
@@ -191,7 +191,7 @@ def run_job(arguments, cwd, environment, stdout, stderr, *, timeout, max_log=16 
         require(exit_code(process.process, C.byref(code)))
         return {"pid": process.pid, "exitCode": code.value, "status": status, "seconds": time.monotonic() - start}
     finally:
-        # 即使 root 提前退出，关闭 Job 也结束其尚存子进程；Job 是生命周期边界，不是权限沙箱。
+        # Closing Job terminates surviving children even if root exits early; Job is a lifecycle boundary, not a permission sandbox.
         with ExitStack() as cleanup:
             for handle in handles:
                 cleanup.callback(close, handle)

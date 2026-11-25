@@ -1,4 +1,4 @@
-//! 首次挂载不确定时的设备域查询；候选不是创建回执，也不具有生命周期版本。
+//! Device-scoped queries for uncertain initial mounts; candidates are neither creation receipts nor holders of lifecycle revisions.
 use super::*;
 use crate::surface_live_binding::Error as BindingError;
 use serde::Deserialize;
@@ -78,7 +78,7 @@ struct SnapshotHeader {
     revision: u64,
 }
 impl Control<'_> {
-    /// 显式接受当前候选后才 remount。它可能有远端副作用，不自动重试，也不证明原创建成功。
+    /// Remount only after explicit acceptance of the current candidate. It may have remote side effects, is not retried automatically, and does not prove original creation succeeded.
     pub fn remount_surface_candidate(
         &self,
         candidate: &RecoveryCandidate,
@@ -113,7 +113,7 @@ impl Control<'_> {
         surface_attach::validate(&bytes, &mounted, &candidate.art, report)?;
         Ok(mounted)
     }
-    /// 仅后台执行。None 不证明未创建：已创建但未挂载的实例不会出现在恢复快照中。
+    /// Background-only. None does not prove absence of creation: created but unattached instances are absent from recovery snapshots.
     pub fn surface_recovery_candidate(
         &self,
         art: &str,
@@ -148,7 +148,7 @@ fn candidate(
     if stream.protocol_version != "loom.surface-stream.v1" || stream.messages.len() > 512 {
         return Err(Error::SurfaceBinding(BindingError::Limit));
     }
-    // 此查询只寻找当前绑定，不建立增量游标；reset/next 仍须是正确 wire 类型。
+    // This query finds only current bindings and establishes no incremental cursor; reset/next must still have correct wire types.
     let _ = (stream.next, stream.reset);
     let mut found = None;
     for message in stream.messages {
@@ -179,7 +179,7 @@ fn candidate(
             attachment: snapshot.attachment_id,
             generation: params.generation,
         };
-        // 恢复快照与广播可能重复；只折叠相同身份，不猜测不同候选的先后顺序。
+        // Recovery snapshots and broadcasts may duplicate entries; collapse only matching identities without guessing order across different candidates.
         if found.as_ref().is_some_and(|previous| previous != &current) {
             return Err(Error::SurfaceBinding(BindingError::Ambiguous));
         }

@@ -1,4 +1,4 @@
-//! 显式截图入口；普通区域截图保留钉图，专用采集临时隐藏宿主，复用后台加载提交。
+//! Explicit capture entry points; ordinary region captures preserve pins, specialized captures temporarily hide hosts, and both reuse background-load commits.
 use super::{image::Image, State};
 use windows::{
     core::{w, Error, Result, HSTRING},
@@ -28,7 +28,7 @@ mod route;
 use dynamic::Delivery;
 #[path = "capture_info.rs"]
 pub(super) mod info;
-// 常用截图入口保留当前编辑；替换只保留在显式命名的菜单命令中。
+// Common capture entry points preserve current edits; replacement remains only in explicitly named menu commands.
 pub(super) const DEFAULT: usize = NEW_PIN;
 pub(super) fn exclusive_available(state: &State) -> bool {
     !state.capture_active.get() && !state.file_dialog.get() && !state.modals.blocked()
@@ -43,7 +43,7 @@ pub(super) use smoke::shared as smoke_shared;
 struct Hidden(Vec<(HWND, bool, isize)>);
 impl Hidden {
     unsafe fn for_state(hwnd: HWND, state: &State) -> Self {
-        // 快照后释放共享列表借用；ShowWindow/截图选区消息可能重入宿主。
+        // Release the shared-list borrow after snapshotting; ShowWindow/selection messages may reenter the host.
         let mut windows = state.capture_windows.borrow().clone();
         for own in [hwnd, state.tool_panel.get(), state.parameters_ui.window()] {
             if !windows.contains(&own) {
@@ -109,7 +109,7 @@ pub(super) unsafe fn start(hwnd: HWND, state: &State, command: usize) {
         return;
     }
     let result = run_delivery(hwnd, state, route.new_pin, || {
-        // 普通区域截图保持当前桌面；Live/长截图等专用采集仍拥有各自显隐策略。
+        // Ordinary region captures preserve the current desktop; specialized Live/scrolling captures retain their own visibility policies.
         let _hidden = (!route.quick_region).then(|| Hidden::for_state(hwnd, state));
         DwmFlush()?;
         if route.quick_region {

@@ -1,4 +1,4 @@
-//! 文档附件的不可变快照；显隐只改宿主标记，payload 和 CAS 版本保持不变。
+//! Immutable document-attachment snapshots; visibility changes host flags only, preserving payload and CAS revisions.
 use crate::{loom_extension_snapshot::Snapshot, unit_attachment::Attachment};
 use serde::Serialize;
 use serde_json::{value::RawValue, Map, Value};
@@ -117,7 +117,7 @@ impl Stored {
     }
 }
 impl Store {
-    /// 后台恢复边界；未知/损坏数据原样保留，但不成为活动扩展权限或可写附件。
+    /// Background restoration boundary; preserve unknown/corrupt data unchanged without granting active extension authority or writable attachments.
     pub fn restore(raw: Option<&RawValue>) -> Self {
         let Some(raw) = raw else {
             return Self::default();
@@ -297,7 +297,7 @@ impl Store {
         next.items.remove(index);
         self.commit(next)
     }
-    /// 只在保存 worker 中物化 JSON；Empty 删除旧字段，Unavailable 保留其原始内容。
+    /// Materialize JSON only in save workers; Empty removes old fields, while Unavailable preserves original contents.
     pub fn write(&self, fields: &mut Map<String, Value>) -> Result<(), Error> {
         let value = match &self.data {
             Data::Empty => {

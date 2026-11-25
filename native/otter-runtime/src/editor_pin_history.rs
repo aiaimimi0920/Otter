@@ -1,4 +1,4 @@
-//! 贴图呈现操作使用标注的同一历史游标；只传纯数据，不从编辑模型调用 HWND。
+//! Pin presentation operations share annotation history cursors; pass pure data without HWND calls from editing models.
 use super::*;
 use crate::pin_geometry::PinRect;
 
@@ -25,14 +25,14 @@ impl PinChange {
     }
 }
 impl Editor {
-    /// undo/redo 已清空旧交付；本次 pin 项只推进呈现计数，内容项仍推进内容凭证。
+    /// undo/redo already cleared old delivery; this pin entry advances presentation counts only, while content entries still advance content evidence.
     pub(super) fn commit_history_step(&mut self) {
         self.revision = self.revision.wrapping_add(1);
         self.presentation_revision = self
             .presentation_revision
             .wrapping_add(u64::from(self.pending_pin.is_some()));
     }
-    /// desktop 在实际呈现成功之后记历史；相同值不消耗历史，也不清重做分支。
+    /// desktop records history after actual presentation succeeds; identical values consume no history and preserve redo branches.
     pub fn record_pin_change(&mut self, before: PinValue, after: PinValue) -> bool {
         if self.draft.is_some() || before == after {
             return false;
@@ -46,7 +46,7 @@ impl Editor {
         self.presentation_revision = self.presentation_revision.wrapping_add(1);
         true
     }
-    /// 每次 undo/redo 清空旧交付；消息层必须在下一次历史动作之前同步消费。
+    /// Every undo/redo clears old delivery; message layers must consume synchronously before the next history action.
     pub fn take_pin_change(&mut self) -> Option<PinValue> {
         self.pending_pin.take()
     }

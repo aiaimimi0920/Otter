@@ -1,4 +1,4 @@
-//! 仅在新建的非交互 window station 中验证真实系统剪贴板；普通 smoke 不访问剪贴板。
+//! Verify the real system clipboard only in a newly created noninteractive window station; ordinary smoke tests never access the clipboard.
 use super::*;
 use crate::desktop::{clipboard_placement::Origin, copy_job, image::Image};
 use windows::Win32::System::{DataExchange::*, StationsAndDesktops::*};
@@ -61,7 +61,7 @@ pub(in crate::desktop) unsafe fn run(app: &mut Application) -> Result<()> {
         .ok_or_else(|| Error::new(E_FAIL, "Cannot capture clipboard roundtrip source"))?;
     let base = origin.frame;
     let source_id = origin.unit.clone();
-    // 注入光标采样并省略文件缓存计划；PNG/DIBV5 的 worker、系统发布和读取仍走产品路径。
+    // Inject cursor sampling and omit the file-cache plan; PNG/DIBV5 workers, system publication, and reads still follow product paths.
     copy_job::start_guarded_at(
         doc.window.0,
         &doc.state,
@@ -77,8 +77,8 @@ pub(in crate::desktop) unsafe fn run(app: &mut Application) -> Result<()> {
         copy_job::poll(doc.window.0, &doc.state);
         std::thread::sleep(std::time::Duration::from_millis(1));
     }
-    // 非交互 station 即使有 WS_VISIBLE 也不满足 IsWindowVisible；不伪造可见图内落点。
-    // 此处保护真实读取到窗口交付的来源连续性；可见 A 的累计坐标由私有 desktop 回归保护。
+    // In a noninteractive station, even WS_VISIBLE does not satisfy IsWindowVisible; do not fabricate a landing point inside a visible image.
+    // Protect source continuity from the actual read through window delivery here; private-desktop regressions protect cumulative coordinates for visible A.
     for (dx, dy) in [(1, 1), (80, 30), (470, 230), (3, 2), (220, 110), (20, 40)] {
         let doc = &app.documents[source];
         let snapshot = paste_input::read_image(doc.window.0, &doc.state, true)?;

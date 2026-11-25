@@ -1,4 +1,4 @@
-//! 实际设置 HWND 到几何/透明度/统一历史；只操作测试自有窗口，不注入全局输入。
+//! Actual settings HWNDs through geometry/opacity/unified history; use only test-owned windows without global input injection.
 use super::*;
 use crate::desktop::{pin_settings as settings, pin_settings_history as history, tool_panel};
 use windows::Win32::UI::Input::KeyboardAndMouse::*;

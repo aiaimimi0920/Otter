@@ -1,4 +1,4 @@
-//! 在版本变化的 UI 调度段生成有效参数视图，复用执行图解析，不回写手动值。
+//! Build effective parameter views in UI dispatch segments when versions change; reuse execution-graph resolution without overwriting manual values.
 use super::Application;
 use crate::{desktop::parameter_view::View, loom_capability::Capability};
 use serde_json::Map;
@@ -32,7 +32,7 @@ impl Application {
                     })
                     .map(|p| p.id.into())
                     .collect();
-            // 普通手动参数由菜单直接借用，尤其不要为文件 Data URL 再保留完整副本。
+            // Menus directly borrow ordinary manual parameters; in particular, do not retain another full copy of file Data URLs.
             if linked.is_empty() {
                 View::update(&doc.state, Map::new(), linked);
                 continue;
@@ -51,7 +51,7 @@ impl Application {
                     )
                 },
             );
-            // 来源暂不可用也保留连线锁定，不能把解析失败变成手动编辑准入。
+            // Keep link locking when a source is temporarily unavailable; resolution failure must not grant manual-edit admission.
             View::update(
                 &doc.state,
                 resolved.map(|(values, _)| values).unwrap_or_default(),

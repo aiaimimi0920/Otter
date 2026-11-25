@@ -1,4 +1,4 @@
-//! 系统字体文件租约：校验最终句柄后读取同一句柄，不能先校验路径再重新打开。
+//! System-font file leases: validate final handles and read those same handles, never validate paths and reopen.
 use std::{
     ffi::OsString,
     fs::{File, OpenOptions},
@@ -79,7 +79,7 @@ impl Root {
             .collect();
         let normalized = PathBuf::from(OsString::from_wide(&normalized));
         let path = normalized.as_path();
-        // 先排除设备/UNC/ADS 名称，避免对非文件对象执行可能阻塞的打开。
+        // Reject device/UNC/ADS names first to avoid potentially blocking opens of non-file objects.
         if !plain_local_path(path)
             || !same_parent(path, &self.path)
             || !safe_name(path)
@@ -176,7 +176,7 @@ fn final_path(file: &File) -> io::Result<PathBuf> {
         return Err(invalid());
     }
     let drive = [buffer[4], 58, 92, 0];
-    // DRIVE_FIXED=3；磁盘类型检查本身不能替代下面的最终目录归属比较。
+    // DRIVE_FIXED=3; checking drive type alone does not replace the final directory-ownership comparison below.
     if unsafe { GetDriveTypeW(PCWSTR(drive.as_ptr())) } != 3 {
         return Err(invalid());
     }

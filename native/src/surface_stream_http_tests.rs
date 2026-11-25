@@ -1,4 +1,4 @@
-//! 本地真实 TLS 的设备 Surface 流读取；不请求管理员实例数据。
+//! Device Surface stream reads over real local TLS; no administrator instance-data requests.
 use super::*;
 use crate::live_relay_http::StreamError;
 #[test]

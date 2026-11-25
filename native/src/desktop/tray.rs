@@ -1,4 +1,4 @@
-//! 常驻与按需托盘 owner；先建立恢复入口再隐藏，Explorer 重启失败时恢复隐藏窗口。
+//! Resident/on-demand tray owner; establish recovery before hiding, and restore hidden windows if Explorer restart installation fails.
 use super::State;
 use std::cell::Cell;
 use windows::{
@@ -17,7 +17,7 @@ mod startup;
 const CALLBACK: u32 = WM_APP + 91;
 const ID: u32 = 1;
 // Windows SDK shellapi.h: NIN_KEYSELECT = NIN_SELECT | NINF_KEY。
-// windows 0.60 未导出该宏。
+// windows 0.60 does not export this macro.
 const NIN_KEYSELECT: u32 = NIN_SELECT | 1;
 #[derive(Default)]
 pub(super) struct Tray {
@@ -32,7 +32,7 @@ pub(super) struct Tray {
 pub(super) fn is_resident(state: &State) -> bool {
     state.tray.resident.get()
 }
-/// 仅当 Shell 安装失败且空宿主没有已注册的截图键时，保留一个可操作入口。
+/// Retain an operable entry only if Shell installation fails and the empty host has no registered capture keys.
 pub(super) unsafe fn expose_empty_host(hwnd: HWND, state: &State) {
     if state.global_capture.get()
         || state.session_end.paused()
@@ -57,8 +57,8 @@ pub(super) unsafe fn start(hwnd: HWND, state: &State) -> Result<()> {
     start_with(state, || install(hwnd, state))
 }
 pub(super) fn start_with(state: &State, install: impl FnOnce() -> Result<()>) -> Result<()> {
-    // 常驻归属与系统安装结果分开；失败只记录一次，不能在每条消息上重复请求 Shell。
-    // TaskbarCreated 仍会重新安装，因此 Explorer 尚未就绪不会丢失后续恢复资格。
+    // Separate resident ownership from system-installation results; log failure once, never repeating Shell requests per message.
+    // TaskbarCreated still reinstalls, so Explorer not yet being ready does not remove later recovery eligibility.
     if state.tray.resident.replace(true) {
         return Ok(());
     }
@@ -105,7 +105,7 @@ unsafe fn install(hwnd: HWND, state: &State) -> Result<()> {
     let mut icon = data(hwnd);
     icon.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP | NIF_SHOWTIP;
     icon.uCallbackMessage = CALLBACK;
-    // 借用宿主品牌图标；run_window 的图标 owner 晚于窗口及托盘清理析构。
+    // Borrow the host branding icon; run_window's icon owner outlives window/tray cleanup.
     icon.hIcon =
         HICON(SendMessageW(hwnd, WM_GETICON, Some(WPARAM(ICON_SMALL as usize)), None).0 as *mut _);
     if icon.hIcon.is_invalid() {
@@ -149,7 +149,7 @@ pub(super) unsafe fn hide_with(
         .panel_visible
         .set(IsWindowVisible(state.tool_panel.get()).as_bool());
     state.tray.hidden.set(true);
-    // 参数面板按需关闭，不随托盘/组恢复自动重开，避免隐藏期间悬浮或旧草稿复活。
+    // Close parameter panels on demand without reopening on tray/group restoration, avoiding floating panels or revived drafts while hidden.
     state.parameters_ui.close.set(true);
     let _ = ShowWindow(state.parameters_ui.window(), SW_HIDE);
     let _ = ShowWindow(state.tool_panel.get(), SW_HIDE);
@@ -161,7 +161,7 @@ pub(super) unsafe fn restore(hwnd: HWND, state: &State) {
     if state.group_hidden.get() {
         let id = state.group_id.borrow().clone();
         if let Some(id) = id {
-            // 模态或已有请求可能拒绝排队；至少恢复当前窗口，不能丢失所有恢复入口。
+            // Modal state/existing requests may reject enqueueing; restore at least the current window so not all recovery entries are lost.
             if state.file_dialog.get() || state.group_request.borrow().is_some() {
                 restore_window(hwnd, state);
                 return;
@@ -211,7 +211,7 @@ pub(super) unsafe fn restore_with(
 }
 
 unsafe fn activate(hwnd: HWND, state: &State) {
-    // 空宿主只承载托盘和热键；无图 Art 仍通过 pinned 标记保留召回资格。
+    // Empty hosts carry only tray/hotkeys; imageless Art still retains recall eligibility via pinned.
     if empty_host(state) {
         return;
     }
@@ -290,7 +290,7 @@ pub(super) unsafe fn dispatch(
     wp: WPARAM,
     lp: LPARAM,
 ) -> Option<LRESULT> {
-    // 标题栏关闭只在唯一空白回退宿主上请求正常退出；最终提交仍可用 WM_CLOSE 销毁它。
+    // Title-bar closure requests normal exit only for the sole blank fallback host; final commit may still destroy it with WM_CLOSE.
     if msg == WM_SYSCOMMAND
         && wp.0 & 0xfff0 == SC_CLOSE as usize
         && state.tray.empty_fallback.get()

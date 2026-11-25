@@ -1,4 +1,4 @@
-//! 录制绑定、首帧及遮挡门；仅对自建的真实 HWND 取样。
+//! Recording binding, first-frame, and occlusion gates; sample only owned real HWNDs.
 use super::*;
 use crate::long_capture::{Reply, SessionJob};
 use std::sync::atomic::AtomicBool;
@@ -56,7 +56,7 @@ fn foreign_root_cover_rejects_capture_and_scroll_until_removed() {
         assert!(matches!(resumed.completion, Completion::Append(Ok(_))));
         assert_eq!(resumed.snapshot.frame_count, 2);
         drop(job);
-        // 相同选区，呈现内容已跨过一次滚动。新的录制只接受当下像素，不复用选区快照。
+        // Same selection, but displayed content has scrolled once. New recording accepts current pixels only, never reusing selection snapshots.
         let (mut fresh, _) = long_capture_source::start_recording(region).unwrap();
         fresh.compose().unwrap();
         let first = ready(&mut fresh);

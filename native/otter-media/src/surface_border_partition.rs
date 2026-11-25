@@ -1,4 +1,4 @@
-//! 以距边/边宽的最小值划分实心框；分区覆盖整个外盒，再由唯一圆角 ring mask 去内洞。
+//! Partition solid borders by the minimum distance-to-edge/border-width ratio; partitions cover the outer box, then one rounded ring mask removes the inner hole.
 use crate::surface_box::Insets;
 use windows::Win32::Graphics::Direct2D::Common::D2D_RECT_F;
 pub(super) fn polygon(rect: D2D_RECT_F, width: Insets, side: usize) -> Vec<[f32; 2]> {
@@ -8,7 +8,7 @@ pub(super) fn polygon(rect: D2D_RECT_F, width: Insets, side: usize) -> Vec<[f32;
     }
     let w = rect.right - rect.left;
     let h = rect.bottom - rect.top;
-    // 在局部坐标中运算，避免大屏幕 origin 乘边宽后损失接角精度。
+    // Compute in local coordinates so multiplying large screen origins by border widths does not lose corner precision.
     let distances = [[0., 1., 0.], [-1., 0., w], [0., -1., h], [1., 0., 0.]];
     let mut points = vec![[0., 0.], [w, 0.], [w, h], [0., h]];
     for other in 0..4 {
@@ -49,7 +49,7 @@ pub(super) fn polygon(rect: D2D_RECT_F, width: Insets, side: usize) -> Vec<[f32;
         if output.len() > 1 && output.first() == output.last() {
             output.pop();
         }
-        // 凸四边形与三个半平面的交最多七个顶点，不因文本/节点数量扩大单框工作集。
+        // A convex quadrilateral intersected with three half-planes has at most seven vertices; text/node counts do not expand one border's working set.
         debug_assert!(output.len() <= 7);
         points = output;
     }

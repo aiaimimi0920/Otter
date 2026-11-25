@@ -1,4 +1,4 @@
-//! 稳定关联更新复用原Job/Active/四槽；不登记新邀请补偿，撤权只停止本任务而不取消持久关联。
+//! Stable-association updates reuse original Job/Active/four slots; no new-invitation compensation, and revocation stops only this task without cancelling persistent associations.
 use super::*;
 use crate::projection_delivery::sender::{binding::Binding, Frame, Request as SenderRequest};
 pub(crate) type Preparation =
@@ -30,7 +30,7 @@ impl Request {
         control: &crate::live_relay_http::Control<'_>,
         task: &Arc<Lease>,
     ) -> Result<Completed, Error> {
-        // expected来自canonical，必须先验所属intent；不可借另一个目标的baseline请求网络。
+        // expected comes from canonical and must first match its intent; another target's baseline cannot authorize network requests.
         if self.expected.stopped() || !self.expected.matches_intent(self.request.intent()) {
             return Err(Error::Sender(
                 crate::projection_delivery::sender::Error::Changed,

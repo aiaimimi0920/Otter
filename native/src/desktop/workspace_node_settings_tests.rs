@@ -1,4 +1,4 @@
-//! 节点级隐藏同时约束实际条、绘制与键盘；不删端口、不改变连线/图片或其它钉图。
+//! Node-level hiding constrains actual strips, painting, and keyboard together; no port deletion or link/image/other-pin changes.
 use super::*;
 
 #[test]

@@ -1,4 +1,4 @@
-//! 真实缓存移动入口：图框与本宿主两个端口批量移动，其他节点保持原位。
+//! Actual cached-movement entry: image/border and this host's two ports move together while other nodes stay put.
 use super::*;
 #[path = "workspace_chrome_drag_tests.rs"]
 mod drag_tests;
@@ -36,7 +36,7 @@ fn cached_frame_moves_both_ports_in_the_same_batch_without_waiting_for_chrome_re
         let mut rect = RECT::default();
         GetWindowRect(host, &mut rect).unwrap();
         for (dx, dy) in [(37, 11), (-90, 44), (140, -65)] {
-            // 直接测预览的位置入口，此时 node.rect 尚未交给 zoom_frame 更新。
+            // Test preview-position entry directly before node.rect reaches zoom_frame for updating.
             desktop::pin_window::movement::position(
                 host,
                 &doc.state,

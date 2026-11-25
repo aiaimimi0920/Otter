@@ -1,4 +1,4 @@
-//! 对齐主干全局节点/连线合同；不把准备成功当成保存或同步成功。
+//! Match mainline global-node/link contracts; successful preparation is not successful saving or synchronization.
 use super::*;
 fn saved() -> Vec<u8> {
     serde_json::to_vec(&json!({"documentSchemaVersion":1,"documentRevision":7,

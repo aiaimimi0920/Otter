@@ -1,4 +1,4 @@
-//! retained natural source 的生产菜单/TLS 像素回归与弱身份围栏；不占前台。
+//! Production menu/TLS pixel regressions and weak-identity fences for retained natural sources; no foreground takeover.
 use super::*;
 use crate::{desktop::canvas::minified_source::Source, erase_layers::Mode, viewport::Point};
 #[path = "application_projection_sender_png_blur_tests.rs"]
@@ -51,7 +51,7 @@ fn image(width: u32, height: u32, color: [u8; 4]) -> Image {
 impl Case {
     pub(super) fn pixel_tolerance(self) -> u8 {
         if matches!(self, Self::NaturalPropagatedBlur) {
-            2 // 独立f64 Gaussian及8%白wash与D2D/WIC的逐阶段整数舍入。
+            2 // Independent f64 Gaussian and 8% white wash, with per-stage D2D/WIC integer rounding.
         } else {
             0
         }
@@ -124,7 +124,7 @@ impl Case {
             if matches!(self, Self::Erased) {
                 let layers = canvas.editor.layers().unwrap();
                 assert_eq!(layers.base[(8 * 32 + 16) * 4 + 3], 0);
-                // 宿主和 retained 原图都仍存在，但只有新底图是权威像素。
+                // Both the host image and retained original still exist, but only the new base image supplies authoritative pixels.
                 assert_eq!(
                     canvas.image.as_ref().unwrap().pixels[(8 * 32 + 16) * 4 + 3],
                     255

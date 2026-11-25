@@ -41,7 +41,7 @@ fn snapshot_uses_latest_pending_without_changing_presented_and_retains_owner_aft
     let _apartment = Apartment::new().unwrap();
     unsafe {
         let window = window();
-        // Windows 会丢弃隐藏窗口的失效区；此测试在隔离 desktop 显示自有窗口。
+        // Windows discards hidden-window invalidation regions; this test shows owned windows on an isolated desktop.
         let _ = ShowWindow(window.0, SW_SHOWNOACTIVATE);
         let device = device();
         let source = Source::new();
@@ -52,7 +52,7 @@ fn snapshot_uses_latest_pending_without_changing_presented_and_retains_owner_aft
         assert_eq!(host.snapshot_frame().unwrap().unwrap().sequence, 1);
         assert!(windows::Win32::Graphics::Gdi::GetUpdateRect(window.0, None, false).as_bool());
         assert!(host.presented_viewport([32, 32]).is_none());
-        // 已排队通知不再携带帧，不能依靠下一次源变化来使首帧可交互。
+        // Queued notifications no longer contain frames; first-frame interaction cannot depend on the next source change.
         let mut message = MSG::default();
         assert!(PeekMessageW(
             &mut message,
@@ -79,7 +79,7 @@ fn snapshot_uses_latest_pending_without_changing_presented_and_retains_owner_aft
         let presented = host
             .presented_viewport([32, 32])
             .map(|(sequence, _)| sequence);
-        // 快照可能先于已排队的帧通知领取新帧；通知随后只会读到 Idle。
+        // Snapshots may collect new frames before queued frame notifications; subsequent notifications then see only Idle.
         assert!(windows::Win32::Graphics::Gdi::ValidateRect(Some(window.0), None).as_bool());
         publish(&source, &device, [0, 255, 0, 255]);
         let latest = host.snapshot_frame().unwrap().unwrap();
@@ -144,7 +144,7 @@ fn messages_coalesce_until_paint_and_close_releases_frame_and_subscription() {
         assert!(host.presented_viewport([64, 32]).is_none());
         let frame = Arc::downgrade(&host.surface.as_ref().unwrap().frame);
         assert!(host.pending.is_none());
-        // 不派发新消息，已有 paint 仍能读取最新帧，补偿被遗漏的通知。
+        // Without dispatching new messages, existing paint still reads the latest frame, compensating for missed notifications.
         publish(&source, &device, [0, 255, 0, 255]);
         assert_eq!(host.refresh().unwrap(), Update::Frame);
         host.paint(size).unwrap();
@@ -193,7 +193,7 @@ fn suspension_releases_surface_preserves_latest_and_resumes_without_new_frame() 
             &host.surface.as_ref().unwrap().frame,
             &old.upgrade().unwrap()
         ));
-        // 新帧优先于已呈现的旧帧，暂停时不得把旧帧重新覆盖回 pending。
+        // New frames take priority over old presented frames; pausing must not overwrite pending with the old frame.
         publish(&source, &device, [0, 255, 0, 255]);
         assert_eq!(host.refresh().unwrap(), Update::Frame);
         let latest = Arc::downgrade(host.pending.as_ref().unwrap());
@@ -312,7 +312,7 @@ fn unconfirmed_submission_preserves_committed_mapping_and_static_frame() {
             height: 32,
         };
         let committed = |host: &Host| host.presented_viewport([32, 32]).map(|(seq, _)| seq);
-        // 这里注入提交结果以覆盖遮挡状态；位图导入、绘制和生命周期仍为真实路径。
+        // Inject submission results here to cover occlusion; bitmap import, drawing, and lifecycle still follow real paths.
         let confirmed = |_: &Surface| Ok(true);
         let unconfirmed = |_: &Surface| Ok(false);
         publish(&source, &device, [0, 0, 255, 255]);

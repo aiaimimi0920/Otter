@@ -1,4 +1,4 @@
-//! 复用隐藏 HWND/串行夹具，不启动 Live；CPU 编辑→真实保存 worker→文件恢复→CPU 再呈现。
+//! Reuse hidden HWND/serial fixtures without starting Live; CPU edit -> real save worker -> file restoration -> CPU rendering again.
 use super::*;
 use crate::{
     desktop::{context_menu, image::Image, render_commands},
@@ -132,7 +132,7 @@ fn cpu_edit_undo_save_file_restore_and_repaint_preserve_pixels_and_vectors() {
             .unwrap();
         assert_eq!(std::fs::read(&path).unwrap(), expected.as_ref());
         assert_eq!(app.save_status(), save_state::Status::Unchanged);
-        // 保存合同是 Editor→窗口 DIP→物理像素→会话逻辑坐标，不要求恢复 Editor 使用原始坐标框。
+        // The save contract is Editor -> window DIPs -> physical pixels -> session logical coordinates; restored Editor need not use the original coordinate frame.
         let space = app.restored_session.as_ref().unwrap().space.unwrap();
         let factor = f64::from(dpi) / 96.0 / space.scale;
         let scale = (f64::from(viewport.scale) * factor) as f32;
@@ -182,7 +182,7 @@ fn cpu_edit_undo_save_file_restore_and_repaint_preserve_pixels_and_vectors() {
             assert_eq!(restored_stroke.corner_radius, stroke.corner_radius * scale);
             assert_eq!(restored_stroke.sides, stroke.sides);
             assert_eq!(restored_stroke.arrow, stroke.arrow);
-            // 恢复的 canvas.image 是投影到窗口逻辑框的编辑底图；原始资源由绑定当前文档的 Source 保管。
+            // Restored canvas.image is the editable base image projected into the window's logical frame; Source bound to the current document retains the original resource.
             let source = canvas.minified_source.as_ref().unwrap();
             assert!(source.matches(&canvas.editor));
             let image = source.image();
@@ -200,7 +200,7 @@ fn cpu_edit_undo_save_file_restore_and_repaint_preserve_pixels_and_vectors() {
         assert!(restored.state.canvas.borrow().software_selected());
         assert!(restored.state.canvas.borrow().confirmed_paints > 0);
         assert!(!IsWindowVisible(restored.window.0).as_bool());
-        // 文件由独占夹具回收；日志保留通过的恢复与像素断言。
+        // The exclusive fixture cleans up the file; logs retain the passed restoration and pixel assertions.
         println!("native-cpu-save-test: file={} pixels=true vectors=true undo=true redo=true restored=true", path.display());
     }
 }

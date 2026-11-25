@@ -1,4 +1,4 @@
-//! 真实后台 Runtime 在 submit 已到达而响应未返回时关闭；取消与认证撤权必须分流。
+//! Real background Runtime closes after submit arrives but before its response; execution cancellation and authentication revocation must remain separate.
 use super::*;
 use crate::surface_javascript::{fixture as js, signed::runtime::Runtime};
 use std::sync::mpsc;
@@ -55,8 +55,8 @@ fn art_service_runtime_progress_precedes_frame_and_revocation_discards_it() {
         assert!(runtime.pending());
         observed.recv_timeout(Duration::from_secs(5)).unwrap();
         release.send(()).unwrap();
-        // 先确认服务端已写完终态，避免把客户端撤权中断连接误判为服务夹具失败。
-        // UI仍未领取任何正式帧；撤权后既有/迟到的进度与帧均必须拒绝。
+        // First confirm the server finished writing terminal state, avoiding misclassification of client-revocation disconnects as service-fixture failures.
+        // UI still has not claimed any final frame; reject existing/late progress and frames after revocation.
         peer.join().unwrap();
         if revoke {
             lease.revoke();
@@ -111,7 +111,7 @@ fn run(revoke: bool) {
         assert_eq!(body["input"], json!({}));
         submitted.send(()).unwrap();
         waiting.recv_timeout(Duration::from_secs(5)).unwrap();
-        drop(stream); // 故意不回复 submit：取消不得依赖成功取得 Accepted。
+        drop(stream); // Intentionally do not answer submit: cancellation must not depend on successfully obtaining Accepted.
         if !revoke {
             let mut stream =
                 StreamOwned::new(ServerConnection::new(config).unwrap(), accept(&listener));

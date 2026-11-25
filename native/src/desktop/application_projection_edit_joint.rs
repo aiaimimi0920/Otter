@@ -1,4 +1,4 @@
-//! 双真实Loom的Application联合夹具；只复用原菜单、调度、Checkpoint和有界隔离身份。
+//! Application joint fixture with two real Loom instances; reuse only original menus, scheduling, Checkpoint, and bounded isolated identities.
 use super::*;
 use crate::device_authorization_config::Action;
 use crate::{projection_edit as edit, viewport::Point};
@@ -12,7 +12,7 @@ mod source;
 unsafe fn tick(app: &mut Application, f: &fixture::Fixture) {
     process(app, f);
     app.pending_workspace_save_with(|_, _, message, warning| assert!(!warning, "{message}"));
-    drain_messages(); // 与真实UI线程一致投递自有窗口消息和被动WinEvent；不操作用户窗口。
+    drain_messages(); // Post owned-window messages and passive WinEvents as the real UI thread does; do not operate user windows.
 }
 unsafe fn until(app: &mut Application, f: &fixture::Fixture, done: impl Fn(&Application) -> bool) {
     let end = Instant::now() + Duration::from_secs(10);

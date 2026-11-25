@@ -1,4 +1,4 @@
-//! legacy子矩形先按目标密度物化再擦除；独立4×4子像素oracle及多笔全局预算。
+//! Materialize legacy subrectangles at target density before erasure; independent 4x4 subpixel oracle and multi-stroke global budgets.
 use super::*;
 
 #[test]

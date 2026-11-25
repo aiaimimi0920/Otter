@@ -1,4 +1,4 @@
-//! Otter 的通知预算/撤权真实消费；主题的滚动与 HWND 回收不接管业务 scope。
+//! Actual consumption of Otter notice budgets/revocation; theme scrolling/HWND reclamation does not own business scopes.
 use super::*;
 use windows::{core::w, Win32::UI::WindowsAndMessaging::*};
 #[test]

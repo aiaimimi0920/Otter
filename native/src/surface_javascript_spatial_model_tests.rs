@@ -1,4 +1,4 @@
-//! 同生产 QuickJS 的空间 CSS 声明展开、层叠、反射与原子准入；像素/进程另验。
+//! Spatial CSS declaration expansion, cascade, reflection, and atomic admission in production QuickJS; pixels/processes are verified separately.
 use super::document_model_tests::collect;
 #[test]
 fn javascript_spatial_model_shorthands_reset_and_cascade_per_longhand() {

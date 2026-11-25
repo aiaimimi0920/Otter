@@ -1,4 +1,4 @@
-//! 显式覆盖菜单：使用独立合成配置，验证基线推进、外部冲突及失败保留。
+//! Explicit overwrite menu: isolated synthetic configuration verifies baseline advancement, external conflicts, and retention on failure.
 use super::*;
 #[path = "application_naming_autosave_tests.rs"]
 mod autosave_tests;

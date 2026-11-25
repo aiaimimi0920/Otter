@@ -1,4 +1,4 @@
-//! 受限图片 child 的管道宿主；不初始化 UI/profile，不拥有具体格式解析器。
+//! Pipe host for restricted image children; no UI/profile initialization or ownership of format-specific parsers.
 use crate::{live_recovery_pipe::Pipe, surface_image_worker_wire as wire};
 use std::{
     io::{self, Read, Write},
@@ -14,12 +14,12 @@ pub struct Decoded {
 }
 
 pub fn require_limits() -> io::Result<()> {
-    // 任何 decoder 回调之前先验证 Job；单独调用私有入口也不能绕过硬限制。
+    // Verify the Job before any decoder callback; invoking the private entry alone cannot bypass hard limits.
     crate::bounded_worker_process::require_limits(128 * 1024 * 1024)
 }
 
 const MAX_SESSION_IMAGES: usize = 32;
-// 正常 4s idle 由父侧从完整响应后计时；子侧提前进入等待，只作更长失联兜底。
+// The parent measures normal 4s idle from the complete response; the child starts waiting earlier only as a longer lost-contact fallback.
 const SESSION_IDLE: Duration = Duration::from_secs(30);
 
 struct HeaderReader<R> {
@@ -103,7 +103,7 @@ fn write_frame_for(codec: wire::Codec, writer: &mut impl Write, image: &Decoded)
             "Invalid decoded pixel count",
         ));
     }
-    // 完整准入后才发成功 header；pixel 数据已是 PBGRA，宿主不能再次预乘。
+    // Send a success header only after full admission; pixels are already PBGRA and must not be premultiplied again by the host.
     if codec == wire::Codec::Svg {
         wire::logical_size(image.logical_size, [image.width, image.height])?;
     }

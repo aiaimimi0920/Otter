@@ -1,4 +1,4 @@
-//! 使用真实进程内 HMENU；不弹窗、不读取系统剪贴板。
+//! Real in-process HMENU tests without popups or system-clipboard reads.
 use super::*;
 use windows::core::{w, HSTRING};
 
@@ -31,7 +31,7 @@ fn preserves_nested_commands_unicode_shortcuts_and_states() {
         AppendMenuW(root.0, MF_SEPARATOR, 0, None).unwrap();
         AppendMenuW(child.0, MF_STRING, 0x4321, w!("子命令")).unwrap();
         AppendMenuW(root.0, MF_POPUP, child.0 .0 as usize, w!("子菜单")).unwrap();
-        std::mem::forget(child); // 成功追加后由父菜单递归销毁。
+        std::mem::forget(child); // After successful append, the parent recursively destroys the child menu.
     }
     let items = snapshot(root.0).unwrap();
     assert_eq!(items.len(), 3);
@@ -44,7 +44,7 @@ fn preserves_nested_commands_unicode_shortcuts_and_states() {
     assert_eq!(child.command, 0x4321);
     assert_eq!(child.label, "子命令");
     drop(root);
-    assert_eq!(child.label, "子命令"); // 快照不依赖句柄生命周期。
+    assert_eq!(child.label, "子命令"); // Snapshots do not depend on handle lifetime.
 }
 
 #[test]

@@ -1,5 +1,5 @@
-//! 本地 Art 请求 owner：复用 graph_requests 代际，关联原租约，使旧下载/旧交付不能复活。
-//! 一个 Registry 对应一个当前工作区；后台持 Pending，不借用 UI registry，不新建线程池。
+//! Local Art request owner: reuse graph_requests generations and associate the original lease so old downloads/deliveries cannot revive.
+//! One Registry per current workspace; background work holds Pending without borrowing the UI registry or creating another thread pool.
 use crate::{
     art_issuer_trust::{Authority, Authorization},
     device_authorization_lease::Lease,
@@ -55,8 +55,8 @@ impl Registry {
             active: Vec::new(),
         }
     }
-    /// request 的 workspace/instance/package 来自宿主；requestId 由此 owner 新生成，不接受脚本复用。
-    /// 每次尝试使用独立 Lease，不能把尚在使用的网络取消槽借给另一个请求。
+    /// The host supplies request workspace/instance/package; this owner creates a fresh requestId and rejects script reuse.
+    /// Each attempt uses a separate Lease; never lend an in-use network-cancellation slot to another request.
     pub fn begin(
         &mut self,
         unit: UnitId,
@@ -77,7 +77,7 @@ impl Registry {
             authorization,
         })
     }
-    /// 两种入口共用代际和撤销事务；描述阶段不能绕过信任登记或另建请求 owner。
+    /// Both entry points share generation/revocation transactions; description cannot bypass trust registration or create another request owner.
     fn register(
         &mut self,
         unit: &UnitId,
@@ -102,7 +102,7 @@ impl Registry {
             .requests
             .begin(unit.clone(), id)
             .map_err(|_| Error::Capacity)?;
-        // 成功建立新代际后才撤销旧请求，准备失败不破坏原实例。
+        // Revoke the old request only after establishing the new generation; preparation failure preserves the original instance.
         if let Some(index) = self.active.iter().position(|e| &e.unit == unit) {
             self.active.remove(index).retire();
         }
@@ -130,7 +130,7 @@ impl Registry {
         entry.delivered = true;
         Ok(())
     }
-    /// 接纳仅一次；成功交付不等于 Runtime 接管，未接管前退休必须撤销整个 Lease。
+    /// Accept exactly once; successful delivery is not Runtime takeover, and retirement before takeover must revoke the whole Lease.
     pub fn accept(&mut self, completion: Completion) -> Result<Prepared, Error> {
         self.claim(&completion.unit, &completion.token)?;
         match completion.result {
@@ -153,7 +153,7 @@ impl Registry {
         }
         self.requests.clear();
     }
-    /// 删除节点释放代际预算；原 Lease 先撤销，迟到结果仍需完整 token 匹配。
+    /// Removing a node releases its generation budget; revoke the original Lease first, and still require a complete token match for late results.
     pub fn retain_units(&mut self, keep: impl Fn(&UnitId) -> bool) {
         self.active.retain(|entry| {
             if keep(&entry.unit) {
@@ -165,7 +165,7 @@ impl Registry {
         });
         self.requests.retain_units(keep);
     }
-    /// 仅在 Runtime 成功接管后登记；下载交付或窗口启动失败不拥有服务清理权。
+    /// Register only after Runtime takeover succeeds; download delivery/window-start failure does not confer service-cleanup ownership.
     pub(crate) fn mark_running(&mut self, unit: &UnitId, token: &Token) {
         if let Some(entry) = self
             .active
@@ -179,7 +179,7 @@ impl Registry {
 impl Entry {
     fn retire(&self) {
         if self.running {
-            // 原 Runtime 停止执行、串行有界 cancel，退出时最终撤销认证。
+            // The original Runtime stops execution, performs bounded serial cancel, and finally revokes authentication on exit.
             self.lease.stop_execution();
         } else {
             self.lease.revoke();

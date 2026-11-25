@@ -1,4 +1,4 @@
-//! 联合夹具的按钮回执必须区别字段commit，并隔离当前线程的环境修饰键。
+//! Integration-fixture button receipts must distinguish field commits and isolate ambient modifiers on the current thread.
 use super::*;
 use windows::Win32::UI::{
     Input::KeyboardAndMouse::{GetKeyboardState, VK_CONTROL, VK_LCONTROL, VK_MENU},

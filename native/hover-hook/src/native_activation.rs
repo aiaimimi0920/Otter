@@ -1,4 +1,4 @@
-//! 仅补普通点击的源队列活动窗口；不改变前台、系统鼠标或已有模态活动窗。
+//! Restore only source-queue active windows for ordinary clicks; never change foreground, system mouse, or existing modal active windows.
 use crate::native_protocol::Request;
 use windows::Win32::{
     Foundation::*,
@@ -20,9 +20,9 @@ pub(crate) fn prepare(request: Request) -> windows::core::Result<()> {
         {
             return Ok(());
         }
-        // Request 已限定本源线程。后台队列的 SetActiveWindow 不等于
-        // SetForegroundWindow；菜单由应用自己的 owner 链确认，不延长 SHOW 租约。
-        // 返回值是旧活动 HWND，旧值为 NULL 不表示本次失败，故以当前状态确认。
+        // Request is already restricted to this source thread. SetActiveWindow on a background queue is not
+        // SetForegroundWindow; the application's own owner chain confirms menus without extending SHOW leases.
+        // The return value is the previous active HWND; NULL does not indicate failure, so confirm through current state.
         let _ = SetActiveWindow(request.root);
         if GetForegroundWindow() != request.owner || GetActiveWindow() != request.root {
             return Err(windows::core::Error::new(

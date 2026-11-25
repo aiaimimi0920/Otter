@@ -1,4 +1,4 @@
-//! 分组目录提供无成员分组的管理入口；子菜单附加成功后由父菜单统一释放。
+//! Group catalogs provide management for groups without members; parent menus release successfully attached submenus together.
 use super::*;
 #[cfg(test)]
 use crate::workspace::Group;
@@ -68,7 +68,7 @@ unsafe fn append(parent: HMENU, groups: &[Group], current: Option<&UnitId>) -> R
             handle.0 as usize,
             &HSTRING::from(group.name.replace('&', "&&")),
         )?;
-        owner.0 = None; // 父菜单接管子菜单，后续失败时仍会递归释放。
+        owner.0 = None; // The parent menu takes submenu ownership and still recursively frees it on later failure.
     }
     Ok(())
 }

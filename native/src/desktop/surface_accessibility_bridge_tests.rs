@@ -1,4 +1,4 @@
-//! 实时几何/滚动/生命周期回归；可见测试仅 SW_SHOWNOACTIVATE，不注入系统输入。
+//! Live geometry/scroll/lifetime regressions; visible tests use only SW_SHOWNOACTIVATE and inject no system input.
 use super::*;
 use windows::Win32::UI::HiDpi::GetDpiForWindow;
 

@@ -27,21 +27,17 @@ Otter 是一款免费开源的截图工具，让截图、标注、整理与分�
 - **连起节点，组合效果。** 接入 Loom 的 OCR、翻译和 Art 能力，通过连线组装自己的处理流程。
 - **把画面投向其他设备。** 将图片或实时画面投射到已连接、配对的设备，方便跨屏查看与协作。
 
-[**完整功能 →**](./docs/FEATURES.md)
+[**功能与快捷键 →**](./docs/FEATURES.md)
 
 ## 开始使用
 
 | 从这里开始 | 需要做什么 |
 | --- | --- |
-| [下载 Otter](https://github.com/aiaimimi0920/Otter/releases) | 历史公开下载按各自发行说明使用；当前内部 ZIP 须完整解压后启动 `otter-native.exe`。 |
-| 下载 Otter + Loom | 解压并启动 Otter App 和 Loom App。在 Loom 中安装 OCR、翻译等能力包，也可按需添加常用的 MCP 工具和 Art 节点，拓展你的创作工作流。 |
+| [公开下载](https://github.com/aiaimimi0920/Otter/releases) | 按所选版本的发行说明使用。当前原生构建是未签名的内部 ZIP；完整解压，并将 `otter-native.exe` 与 `otter_live_hover_hook.dll` 保留在同一目录，详见[构建指南](docs/development/WINDOWS_NATIVE_BUILD.md)。 |
+| 配合 Loom 使用 | 启动 Loom，安装所需的 OCR、翻译或 Art 能力，再[连接并授权 Otter](docs/features/LOOM_CONNECTION.md)。 |
 
 1. 按 **`Ctrl+1`** 区域截图、**`Ctrl+2`** 实时截图，或 **`Ctrl+3`** 长截图。
-2. 选中钉图，按 **`Ctrl+E`** 显示或隐藏编辑工具栏，**`Tab`** 展开或收起参数面板；退出编辑或选择状态后，按 **`Esc`** 删除钉图。
-3. 对应 Loom 能力可用时，按 **`Ctrl+4`** 进行 OCR 识别，**`Alt+4`** 切换识别结果显示；按 **`Ctrl+5`** 翻译，**`Alt+5`** 切换翻译结果显示；按 **`Shift+1`** 打开 Art 菜单，添加新的节点。
-4. 选中钉图，打开工具栏，勾选投射目标后点击“确认”。接收端选择“接收”或“自动”会自动接受符合授权的投送；发送端显示等待与已接收数量。Otter 与 Loom 使用当前配套版本。
-
-当前原生版本可在 Loom 菜单查询本次会话中已关闭的 Surface，再明确确认候选以重新挂载。
+2. 选中钉图，按 **`Ctrl+E`** 进行编辑，或按 **`Tab`** 展开参数面板。
 
 [**完整使用教程 →**](./docs/guide/getting-started.zh-CN.md)
 

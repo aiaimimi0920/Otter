@@ -1,5 +1,5 @@
-//! otter.hlsl.v1 单帧离屏合同。straight RGBA 与旧 WebGL premultiplied 帧不可互换。
-//! 只由受限 child 调用渲染；父侧应使用 process::render，驱动调用不能在线程内强中断。
+//! otter.hlsl.v1 single-frame offscreen contract. Straight RGBA and legacy WebGL premultiplied frames are not interchangeable.
+//! Only constrained children invoke rendering; parents should use process::render, since driver calls cannot be forcibly interrupted within a thread.
 use crate::pixels::Pixels;
 use std::time::Instant;
 
@@ -83,7 +83,7 @@ pub struct Request<'a> {
 pub struct Frame {
     pub width: u32,
     pub height: u32,
-    /// top-down straight RGBA8 UNORM；保留 alpha=0 时的 RGB，不自动预乘或 gamma 变换。
+    /// Top-down straight RGBA8 UNORM; preserve RGB at alpha=0, without automatic premultiplication or gamma transforms.
     pub rgba: Pixels,
     pub backend: SelectedBackend,
 }
@@ -107,7 +107,7 @@ fn check(stopped: &impl Fn() -> bool, deadline: Instant) -> Result<()> {
     }
 }
 
-/// 禁止在 UI/普通父进程调用。Job 准入并非包授权，授权仍由调用者原 owner 管理。
+/// Never call from UI/ordinary parent processes. Job admission is not package authorization, which remains with the caller's original owner.
 pub fn render(
     request: &Request<'_>,
     backend: Backend,
@@ -116,7 +116,7 @@ pub fn render(
 ) -> Result<Frame> {
     prepare(request, backend, stopped, deadline)?.finish(stopped, deadline)
 }
-// worker 可在 GPU 准备完成后释放私有请求纹理，再分配 CPU 输出；不额外复制输入。
+// Workers may release private request textures after GPU preparation, then allocate CPU output; no extra input copying.
 fn prepare(
     request: &Request<'_>,
     backend: Backend,
@@ -149,7 +149,7 @@ fn create_device(
     match backend {
         Backend::Auto => match d3d12::Device::new() {
             Ok(value) => Ok(Device::D3d12(value)),
-            // new() 尚未提交 GPU 工作；失败局部资源完整析构后才进入唯一兼容候选。
+            // new() has not submitted GPU work; enter the sole compatibility candidate only after failed local resources are completely destroyed.
             Err(_) => {
                 check(stopped, deadline)?;
                 Ok(Device::D3d11(d3d11::Device::new(false)?))

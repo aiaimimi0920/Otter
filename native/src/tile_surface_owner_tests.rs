@@ -1,4 +1,4 @@
-//! scene接纳与资源步进的独立oracle；不依赖HTTP时序，明确保留、失效和未就绪边界。
+//! Independent oracles for scene admission and resource stepping, without HTTP timing dependencies; explicit retention, invalidation, and not-ready boundaries.
 use super::*;
 use serde_json::json;
 fn state(job: &Job, revision: u64) -> State {

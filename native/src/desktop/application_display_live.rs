@@ -1,4 +1,4 @@
-//! Live 连线快照与显式刷新：仅当前 owner 的成功读回进入显示图并通知，不覆盖原图。
+//! Live link snapshots and explicit refresh: only successful readbacks from the current owner enter the display graph and notify, without replacing originals.
 use super::*;
 use crate::workspace_id::UnitId;
 pub(super) struct Entry {
@@ -79,7 +79,7 @@ impl Application {
             cache.take_live_updates()
         };
         drop(cache);
-        // 读回成功且 retain 已复核当前 owner 后才通知；不跨消息调用持有缓存借用。
+        // Notify only after readback succeeds and retain rechecks the current owner; do not hold cache borrows across message calls.
         for (unit, _) in updates {
             unsafe {
                 self.propagate_live_snapshot(&unit);
@@ -88,7 +88,7 @@ impl Application {
         pending
     }
 
-    // 只有显示图需要重建时才创建键和像素引用，顺序仍与 Live 会话一致。
+    // Create keys and pixel references only when the display graph needs rebuilding; preserve Live session order.
     pub(super) fn live_display_images(&self) -> Vec<Entry> {
         let cache = self.display_composition.borrow();
         self.live_sessions
@@ -113,7 +113,7 @@ pub(super) fn publish(
     art: bool,
 ) {
     let canvas = doc.state.canvas.borrow();
-    // Live 不拥有编辑器；静态中继只展示快照，Art 保留目标自己的显示覆盖层。
+    // Live owns no editor; static relays show snapshots only, while Art retains the target's own display overlay.
     let editor = art.then_some(&canvas.editor);
     let mut frame = doc.state.resolved_display.borrow_mut();
     if frame

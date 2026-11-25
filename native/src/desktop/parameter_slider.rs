@@ -1,4 +1,4 @@
-//! 系统 trackbar 与有界位置映射；子窗口由对话框销毁，不创建线程或计时器。
+//! System trackbar and bounded position mapping; the dialog destroys child windows, with no threads or timers.
 use windows::{
     core::{w, Result},
     Win32::{
@@ -7,7 +7,7 @@ use windows::{
     },
 };
 const TICKS: i32 = 10000;
-// Windows SDK 的 TBM_GETPOS = WM_USER；windows 0.60 未生成这个别名。
+// Windows SDK defines TBM_GETPOS = WM_USER; windows 0.60 does not generate this alias.
 const TBM_GETPOS: u32 = WM_USER;
 pub(super) const ID: i32 = 105;
 #[derive(Clone, Copy)]

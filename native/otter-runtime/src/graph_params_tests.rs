@@ -134,7 +134,7 @@ fn duplicate_secret_declarations_fail_closed_and_special_names_are_data() {
         values.entries().collect::<Vec<_>>().as_slice(),
         &[("__proto__", Some(Output::Number(2.0)))]
     );
-    assert!(!internal("__EXEC_mode")); // 主干控制字段匹配区分大小写。
+    assert!(!internal("__EXEC_mode")); // Baseline control-field matching is case-sensitive.
 }
 #[test]
 fn bounded_candidate_rejects_ambiguous_manual_keys() {

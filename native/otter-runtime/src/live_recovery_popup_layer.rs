@@ -1,4 +1,4 @@
-//! 原显示实例的部分恢复；只撤回 Otter 借用的 TOPMOST，不还原整个应用窗口快照。
+//! Partial restoration of the original display instance; revoke only TOPMOST borrowed by Otter, without restoring the entire application-window snapshot.
 use super::*;
 use crate::live_popup_layer_request::Channel;
 use crate::live_recovery_wire::PopupLayer;
@@ -41,7 +41,7 @@ impl Recovery {
         if !lease.same_instance() {
             return Err(Error::new(E_ABORT, "Popup display instance changed"));
         }
-        // 宿主和独立 child 都在 ACK/实际借用前持有自己的源线程 hook，不依赖 B/输入 worker。
+        // Both host and independent child hold their own source-thread hooks before ACK/actual borrowing, independent of B/input worker.
         let channel = RefCell::new(Channel::new(&target, lease)?);
         Ok(Self {
             target,
@@ -65,11 +65,11 @@ impl Recovery {
     pub fn deadline(&self) -> Option<Instant> {
         self.channel.borrow().deadline()
     }
-    /// 仅独立 helper 的恢复循环调用；不在 UI/Channel 的 RefCell 借用期间泵消息。
+    /// Called only by the independent helper's recovery loop; do not pump messages while UI/Channel RefCells are borrowed.
     pub fn drain_helper_notifications(&self) {
         let window = self.channel.borrow().notification_window();
         unsafe {
-            // 每个 owner 只有一槽完成通知；有界消费且只取自己的隐藏请求窗口。
+            // Each owner has only one completion-notification slot; consume boundedly and take only its own hidden request window.
             for _ in 0..4 {
                 let mut message = MSG::default();
                 if !PeekMessageW(&mut message, Some(window), 0, 0, PM_REMOVE).as_bool() {

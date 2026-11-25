@@ -1,4 +1,4 @@
-//! Surface 输出描述符解析；资源 ID 不是下载授权，流 ID 不是订阅授权。
+//! Surface output-descriptor parsing; resource IDs do not authorize downloads, and stream IDs do not authorize subscriptions.
 use serde::Deserialize;
 use serde_json::value::RawValue;
 use std::borrow::Cow;
@@ -88,7 +88,7 @@ impl Value<'_> {
         }
     }
 }
-/// 原文由 Commit 或调用方持有；value 大 JSON 只借用，最多分配 64 个端口描述符。
+/// Commit or the caller owns original content; borrow large value JSON and allocate at most 64 port descriptors.
 pub fn parse(raw: &RawValue) -> Result<Vec<Port<'_>>, crate::surface_result_commit::Error> {
     use crate::surface_result_commit::{Error, MAX_BYTES};
     if raw.get().len() > MAX_BYTES {
@@ -112,7 +112,7 @@ pub fn parse(raw: &RawValue) -> Result<Vec<Port<'_>>, crate::surface_result_comm
                 {
                     return Err(serde::de::Error::custom("Invalid Surface output keys"));
                 }
-                // 从借用原文单独解析，避免 internally-tagged enum 的中间 Value 复制 payload。
+                // Parse separately from borrowed original content to avoid payload copies through internally-tagged enums' intermediate Value.
                 let raw = map.next_value::<&RawValue>()?;
                 let wire: Wire<'de> =
                     serde_json::from_str(raw.get()).map_err(serde::de::Error::custom)?;

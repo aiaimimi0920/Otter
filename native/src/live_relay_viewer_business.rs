@@ -1,4 +1,4 @@
-//! 观看业务状态事务：先验证整批观察/审计再替换，不执行 source 输入或 Surface 动作。
+//! Viewer business-state transactions: validate whole observation/audit batches before replacement, without Source input or Surface actions.
 use crate::{
     live_relay_observation::{self as observation, Capabilities, Observations},
     live_relay_trigger_audit::{self as audit, Audits},
@@ -23,7 +23,7 @@ pub struct Business {
     registrations: Arc<[Registration]>,
 }
 impl Business {
-    /// 必须来自同一已验证 attach 响应；目录响应清空了业务数据，不能代替 attach。
+    /// Must come from the same validated attach response; catalog responses clear business data and cannot replace attach.
     pub fn from_snapshot(bytes: &[u8]) -> Result<Self, Error> {
         Ok(Self {
             display_identity: Arc::new(()),
@@ -58,11 +58,11 @@ impl Business {
             self.display_identity = Arc::new(());
         }
     }
-    /// 输入/会话心跳不使只读语义投影失效；身份仅在已提交的语义事务中换代。
+    /// Input/session heartbeats do not invalidate read-only semantic projections; identity advances only in committed semantic transactions.
     pub(crate) fn same_display(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.display_identity, &other.display_identity)
     }
-    /// 调用方须先校验 envelope session/epoch/连续 sequence；成功后才提交控制游标。
+    /// Callers must first validate envelope session/epoch/continuous sequence and commit the control cursor only after success.
     pub fn apply(&mut self, events: &[ControlEvent]) -> Result<(), Error> {
         let mut next = self.clone();
         next.observations
@@ -87,8 +87,8 @@ impl Business {
         {
             next.display_identity = Arc::new(());
         }
-        // session_state 由控制 owner 处理；input_event 仅 source 执行。
-        // 其余消息沿用主干 viewer 的无副作用策略，仍由外层推进可靠游标。
+        // The control owner handles session_state; only source executes input_event.
+        // Other messages retain the mainline viewer's side-effect-free policy, with reliable-cursor advancement still owned by outer layers.
         *self = next;
         Ok(())
     }

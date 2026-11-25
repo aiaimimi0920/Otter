@@ -1,4 +1,4 @@
-//! 经过包证明和摘要核验的资源接入原Content；命名空间隔离，图片复用原二进制安装与预算。
+//! Resources enter the original Content only after package-proof/digest verification; isolate namespaces and reuse original binary image installation/budgets.
 use crate::{
     art_execution_grant::package::Resource,
     pixels::Pixels,

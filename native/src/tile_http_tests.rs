@@ -1,4 +1,4 @@
-//! 实际 TLS→串行 presenter/独立图片线程→原生 HWND→heartbeat；自有夹具，不接真实设备。
+//! Actual TLS -> serial presenter/independent image thread -> native HWND -> heartbeat; owned fixtures without real devices.
 use super::*;
 use crate::{
     device_authorization_lease::Grant,

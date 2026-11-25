@@ -1,4 +1,4 @@
-//! WIC/D2D 像素夹具：统一 COM、画刷恢复与裁剪栈验证；不属于产品运行时。
+//! WIC/D2D pixel fixtures unify COM, brush restoration, and clip-stack validation; not part of product runtime.
 use super::*;
 use windows::Win32::{
     Graphics::{
@@ -23,7 +23,7 @@ pub(crate) fn render(
     }
     unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED).ok().unwrap() };
     let _com = Apartment;
-    // 绘制合同默认使用显式 64px 根高；自然根高度另用 fixed_height=false 验证。
+    // Drawing contracts default to an explicit 64px root height; test natural root height separately with fixed_height=false.
     let mut json: serde_json::Value = serde_json::from_slice(json).unwrap();
     if fixed_height {
         let layout = json
@@ -86,7 +86,7 @@ pub(crate) fn render(
         bitmap
             .CopyPixels(std::ptr::null(), 64 * 4, &mut pixels)
             .unwrap();
-        // 后续不透明标记不受前一个场景的 opacity/clip 影响。
+        // Later opaque markers are unaffected by the preceding scene's opacity/clip.
         target.BeginDraw();
         brush.SetColor(&D2D1_COLOR_F {
             r: 0.,

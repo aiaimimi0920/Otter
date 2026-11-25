@@ -1,4 +1,4 @@
-//! 有界批次提交 worker；整批原事件和唯一 owner 随结果返还，提交不是执行完成。
+//! Bounded batch-submission worker; return all original events and the unique owner with results, since submission is not completed execution.
 use crate::{
     device_authorization_config::{Config, Error as PrepareError},
     device_authorization_lease::{Error as LeaseError, Lease},
@@ -101,7 +101,7 @@ impl Job {
                     let mut submitted = control
                         .submit_surface_click_batch(&input.owner, input.revision, &mut input.events)
                         .map_err(Error::Batch)?;
-                    // 后续观察失败不能改写提交事实，也不重新发送任何事件。
+                    // Subsequent observation failures cannot rewrite submission facts or resend any events.
                     observation = Some(
                         std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                             observation::observe(&control, &input.events, &mut submitted)
@@ -142,7 +142,7 @@ impl Job {
     pub fn wait_handle(&self) -> Option<BorrowedHandle<'_>> {
         self.thread.as_ref().map(|thread| thread.as_handle())
     }
-    /// 完成仍占共享槽位，显式收割才释放；迟到撤权不能抹去已提交证据。
+    /// Completion still occupies a shared slot until explicit reaping; late revocation cannot erase submitted evidence.
     pub fn try_join(&mut self, now_ms: u64) -> Option<Outcome> {
         if !self.thread.as_ref()?.is_finished() {
             return None;
@@ -167,7 +167,7 @@ impl Job {
 impl Drop for Job {
     fn drop(&mut self) {
         self.request_stop();
-        // 正常路径必须先收割保存证据；析构兜底不遗留线程。
+        // The normal path must reap and save evidence first; destructor fallback leaves no threads behind.
         if let Some(thread) = self.thread.take() {
             let _ = thread.join();
         }

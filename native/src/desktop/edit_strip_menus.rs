@@ -1,4 +1,4 @@
-//! 工具组选项沿原有菜单目标凭证和模态准入交付；不绕过命令可用性与后台任务 owner。
+//! Tool-group options use original menu-target evidence/modal admission, without bypassing command availability or background-task ownership.
 use super::*;
 pub(super) unsafe fn show(owner: HWND, state: &State, id: u16) -> Result<usize> {
     show_group(owner, state, id)

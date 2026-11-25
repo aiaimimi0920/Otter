@@ -1,4 +1,4 @@
-//! 主干兼容的本机发现策略；环境和文件视为本地配置，不声称已验证文件 ACL/所有者。
+//! Mainline-compatible local discovery policy; environment/files are local configuration, not claimed-verified file ACLs/owners.
 use crate::{
     loom_bridge_client::{self, BridgeSocket},
     loom_bridge_identity::Identity,
@@ -31,7 +31,7 @@ impl Config {
     pub fn from_env() -> Self {
         Self::from_lookup(|name| std::env::var_os(name))
     }
-    /// 注入只读查询器，不修改全局环境；规范变量即使为空，也优先于旧 HOOK 名称。
+    /// Inject a read-only query interface without changing global environment; canonical variables outrank old HOOK names even when empty.
     pub fn from_lookup(read: impl Fn(&OsStr) -> Option<OsString>) -> Self {
         let lookup = |name: &str| {
             let canonical = (name.starts_with("HOOK_") || name.starts_with("LOOM_HOOK_"))
@@ -86,7 +86,7 @@ impl Config {
     pub fn load(&self) -> Result<Identity, Error> {
         self.load_with(|path| File::open(path))
     }
-    /// 只在 NotFound 时继续候选；读取/解析失败必须停止，不能静默使用较低优先级身份。
+    /// Try the next candidate only on NotFound; read/parse failure must stop, never silently use lower-priority identity.
     pub fn load_with<R: Read>(
         &self,
         open: impl FnMut(&Path) -> io::Result<R>,
@@ -101,7 +101,7 @@ impl Config {
         Ok(identity)
     }
 
-    /// HTTP 媒体发现不受 hook bridge 的启停/WS override 控制。
+    /// HTTP media discovery is independent of hook bridge enablement/WS overrides.
     pub fn load_media(&self) -> Result<crate::loom_media_target::Target, Error> {
         self.load_media_with(|path| File::open(path))
     }
@@ -133,7 +133,7 @@ impl Config {
     }
 }
 
-/// 必须由后台 owner 调用；默认开启行为与主干一致，失败错误不包含清单路径或凭据。
+/// Background-owner calls only; default-enabled behavior matches mainline, and failure errors contain no manifest paths/credentials.
 pub fn connect_default(timeout: Duration) -> Result<BridgeSocket, Error> {
     let identity = Config::from_env().load()?;
     loom_bridge_client::connect(&identity, timeout).map_err(Error::Connect)

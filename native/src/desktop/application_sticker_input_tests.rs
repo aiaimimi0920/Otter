@@ -1,4 +1,4 @@
-//! 活动Application正式输入/通知/文件取消；真实像素经过原输入worker，不以Graph模型代接线。
+//! Active Application committed input/notifications/file cancellation; real pixels pass through the original input worker, not Graph-model-only wiring tests.
 use super::*;
 use crate::desktop::{
     self,
@@ -126,7 +126,7 @@ fn active_graph_prefers_upstream_then_manual_and_disabled_or_relay_off_returns_o
         app.documents[0].state.accept_upstream.set(false);
         assert_eq!(pixels(&prepare(&app)), original);
         app.documents[0].state.accept_upstream.set(true);
-        // 本地编辑停止中继，但不清除手动输入；取消草稿后仍回到原手动图。
+        // Local editing stops relay without clearing manual input; canceling the draft still returns to the original manual image.
         assert!(app.documents[0]
             .state
             .canvas
@@ -160,7 +160,7 @@ fn active_graph_prefers_upstream_then_manual_and_disabled_or_relay_off_returns_o
         assert_eq!(pixels(&prepare(&app)), manual.image.pixels);
         {
             let mut canvas = app.documents[0].state.canvas.borrow_mut();
-            // 画布外已提交标注使本地编辑生效但不改变2×2像素，能区分自身原图和红色手动图。
+            // Committed off-canvas annotations activate local editing without changing 2x2 pixels, distinguishing the original image from the red manual image.
             assert!(canvas
                 .editor
                 .begin(

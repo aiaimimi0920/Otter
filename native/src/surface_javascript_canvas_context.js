@@ -1,4 +1,4 @@
-// Canvas2D 的状态、保存栈和绘制记录；只交私有 native raster，不把业务图表翻译为 Rust。
+// Canvas2D state, save stack and drawing records; submits only to the private native rasterizer without translating business charts into Rust.
 ((dom, fail, values, json, makePath, images) => {
   "use strict";
   const op = dom.ops, states = new op.Weak(), define = Object.defineProperties, seal = Object.seal, from = Array.from;
@@ -31,7 +31,7 @@
     const value = get(owner);
     if (rule !== "nonzero" && rule !== "evenodd") fail();
     if (value.pathTransform) for (let i = 0; i < 6; i++) if (value.pathTransform[i] !== value.state.transform[i]) fail();
-    // 标记的是独立、稠密的私有无原型列表，不是仍可追加的当前路径。
+    // Mark a separate, dense, private null-prototype list, not the current path that can still be extended.
     const snapshot = copy(value.path);
     record(owner, { kind: "path", path: snapshot, state: state(owner, stroke), stroke, evenodd: rule === "evenodd" });
     op.weakSet(pathSnapshots, snapshot, true);

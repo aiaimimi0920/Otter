@@ -1,4 +1,4 @@
-//! 独立 MTA 系统 UIA 客户端发现菜单并 Invoke；STA 泵消息后才消费业务命令。
+//! Independent MTA system-UIA clients discover menus and Invoke; business commands consume only after STA message pumping.
 #[path = "native_menu_uia_event_client_tests.rs"]
 mod events;
 #[path = "native_menu_uia_invoked_client_tests.rs"]

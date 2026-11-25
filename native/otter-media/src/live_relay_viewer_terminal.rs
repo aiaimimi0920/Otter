@@ -1,4 +1,4 @@
-//! 权威 member snapshot 的关闭事实；HTTP 404/网络错误本身不等于会话关闭。
+//! Closure facts from authoritative member snapshots; HTTP 404/network errors alone do not mean the session is closed.
 use super::{identifier, parse, Error, Identity, PROTOCOL};
 use serde::Deserialize;
 #[derive(Deserialize)]
@@ -14,7 +14,7 @@ struct Session {
     session_id: String,
     viewer_devices: Vec<String>,
 }
-/// 仅对已认证 member endpoint 的成功响应调用；不接受媒体消息或无身份的 HTTP 错误正文。
+/// Call only for successful responses from an authenticated member endpoint; do not accept media messages or identity-free HTTP error bodies.
 pub fn terminal_snapshot(bytes: &[u8], expected: &Identity, device: &str) -> Result<bool, Error> {
     let response: Terminal = parse(bytes)?;
     if !identifier(device)

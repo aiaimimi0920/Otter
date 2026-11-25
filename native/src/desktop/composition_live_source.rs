@@ -1,4 +1,4 @@
-//! 当前Live owner的发布接缝；只移交同捕获Consumer与有限身份，不复制帧或创建第二WGC。
+//! Publication boundary for the current Live owner; transfer only the same capture Consumer and bounded identity, without frame copies or a second WGC.
 use super::*;
 use crate::{live_frames::Consumer, live_relay_http::source::Publication};
 impl Session {
@@ -16,7 +16,7 @@ impl Session {
         if !self.is_alive() {
             return Err("Live 源已关闭".into());
         }
-        // 裁切窗口只共享可见图像，不默认泄露未包含在所选区域中的其他控件。
+        // Cropped windows share only visible imagery, never implicitly exposing controls outside the selected region.
         if self.input_crop.is_some() {
             return Err("窗口选区不共享整窗观察".into());
         }

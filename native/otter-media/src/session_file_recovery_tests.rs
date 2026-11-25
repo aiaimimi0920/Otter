@@ -22,7 +22,7 @@ impl Fixture {
 }
 impl Drop for Fixture {
     fn drop(&mut self) {
-        // 本测试唯一 linshi 目录，只有直接创建的普通文件；无递归删除。
+        // A linshi directory unique to this test, containing only directly created regular files; no recursive deletion.
         for entry in std::fs::read_dir(&self.0).unwrap().flatten() {
             if entry.file_type().unwrap().is_file() {
                 let _ = std::fs::remove_file(entry.path());

@@ -1,4 +1,4 @@
-//! 仅在 linshi 自建文件验证来源、共享锁和分配前预算，不修改系统字体。
+//! Verify origins, sharing locks, and preallocation budgets only with self-created linshi files; never modify system fonts.
 use super::*;
 fn directory() -> PathBuf {
     let path = PathBuf::from("C:/Users/Public/nas_home/AI/GameEditor/linshi")
@@ -56,7 +56,7 @@ fn svg_font_file_rejects_other_roots_streams_devices_and_junction_root() {
     for name in ["CON.ttf", "NUL.otf", "COM1.ttc", "LPT¹.ttf", "CON .ttf"] {
         assert!(!safe_name(&path.join(name)));
     }
-    // Junction 不需要文件符号链接特权；仅创建当前测试目录内的链接。
+    // Junctions require no file-symlink privilege; create links only within the current test directory.
     let link = path.join("junction");
     let status = std::process::Command::new("powershell.exe")
         .args(["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference='Stop'; New-Item -ItemType Junction -Path $env:OTTER_FONT_TEST_LINK -Target $env:OTTER_FONT_TEST_TARGET | Out-Null"])
@@ -64,7 +64,7 @@ fn svg_font_file_rejects_other_roots_streams_devices_and_junction_root() {
     assert!(status.success());
     assert!(Root::open(&link).is_err());
     assert!(root.read(&link.join("outside.ttf"), 100).is_err());
-    // remove_dir 只移除链接本身，不递归处理目标。
+    // remove_dir removes only the link itself without recursively handling its target.
     std::fs::remove_dir(&link).unwrap();
     drop(root);
     std::fs::remove_file(font).unwrap();

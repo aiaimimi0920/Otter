@@ -1,4 +1,4 @@
-//! 整图翻转宿主：保留旧画面，完成后统一交换模型、栅格缓存及命中区域。
+//! Whole-image flip host: retain old images, then swap model/raster caches/hit regions together on completion.
 use super::{canvas::Canvas, State};
 use crate::{
     editor::{EditError, RasterRefreshPlan},
@@ -70,7 +70,7 @@ fn submit_with(
     if busy(state) {
         return Err("Busy".into());
     }
-    // 先确保回收入口；预约失败不启动 Flip，也不取消仍有用的 Blur。
+    // Ensure reclamation entry first; scheduling failure starts no Flip and does not cancel still-useful Blur.
     if !reserve_timer() {
         return Err("Cannot schedule flip result".into());
     }

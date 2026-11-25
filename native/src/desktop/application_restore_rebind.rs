@@ -1,4 +1,4 @@
-//! 恢复后迟到的能力目录：只绑定仍未由用户选择的 Art，不执行任务、不修改图像或原文。
+//! Capability catalogs arriving after restoration bind only Art not yet selected by the user, without running tasks or changing images/source content.
 use super::*;
 use crate::desktop::{
     capability_selection::Selection, document_state, session_binding::catalog_matches,
@@ -23,7 +23,7 @@ impl Application {
             record.binding_catalog = Some(catalog.clone());
             record.attempted_arts.clear();
         }
-        // 用户选择或关闭后永久退出这份恢复候选，不把旧会话配置再次套到当前节点。
+        // User selection or closure permanently retires this restore candidate; do not reapply old session settings to the current node.
         record.pending_arts.retain(|unit| {
             self.documents.iter().any(|doc| {
                 doc.state.unit_id == *unit
@@ -50,7 +50,7 @@ impl Application {
         if eligible.is_empty() {
             return Ok(());
         }
-        // 同一目录每个候选只尝试一次；错误保留原文，下一目录版本可重新解析。
+        // Try each candidate only once per catalog; errors preserve source content, which a later catalog version may resolve again.
         record.attempted_arts.extend(eligible.iter().cloned());
         let mut document = crate::session_document::decode(&record.original)
             .map_err(|_| Error::new(E_INVALIDARG, "Retained session cannot be rebound"))?;
@@ -82,7 +82,7 @@ impl Application {
                 ));
             }
         }
-        // 解析与身份分配全部成功后统一安装；本函数不泵消息，不在中途发生 UI 重入。
+        // Install everything only after all resolution and identity allocation succeed; this function pumps no messages and allows no intervening UI reentry.
         for (unit, selection) in prepared {
             if let Some(doc) = self.documents.iter().find(|doc| doc.state.unit_id == unit) {
                 *doc.state.selected_art.borrow_mut() = Some(selection);

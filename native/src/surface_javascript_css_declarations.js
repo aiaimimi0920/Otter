@@ -1,4 +1,4 @@
-// Inline 声明与 sheet 共用解析/优先级；先验证完整替换，再提交私有 Map。
+// Inline declarations share parsing/precedence with sheets; validate the complete replacement before committing to the private Map.
 ((dom, fail, values) => {
   "use strict";
   const op = dom.ops, stores = new op.Weak(), views = new op.Weak();
@@ -20,7 +20,7 @@
   const put = (store, name, value, priority, replace = false) => {
     name = values.canonical(name);
     if (priority !== "" && priority !== "important") fail();
-    // 先验证整个 shorthand，再展开为独立 cascade key；不能让旧 longhand 越过后来的 reset。
+    // Validate the entire shorthand before expanding into separate cascade keys; old longhands must not override a later reset.
     const items = values.expand(name, value);
     if (replace) dom.changed();
     for (let i = 0; i < items.length; i++) {
@@ -28,7 +28,7 @@
       if (replace || !old || priority === "important" || old.priority !== "important") op.mapSet(store, item.name, { value: item.value, priority });
     }
   };
-  // 公开setter先完成String转换，私有parser只收字符串；重入几何时不叠加解析栈。
+  // Public setters complete String conversion first; the private parser accepts only strings, avoiding nested parsing stacks during geometry reentry.
   const parse = source => {
     source = strip(source);
     const store = new op.MapType(), declarations = op.split(source, ";");
@@ -92,7 +92,7 @@
     methods.setProperty = (name, value, priority = "") => {
       name = canonical(name); value = op.string(value); priority = op.lower(op.string(priority));
       if (value === "") { methods.removeProperty(name); return; }
-      // setProperty 是指定单项替换，旧 important 不应阻止调用者显式覆盖。
+      // setProperty explicitly replaces one property; an old important flag must not prevent the caller's explicit override.
       put(get(node), name, value, priority, true);
     };
     methods.item = index => names()[op.number(index)] ?? "";
@@ -107,7 +107,7 @@
       },
       set(_, key, value) {
         if (key === "cssText") { const next = parse(op.string(value)); dom.changed(); op.weakSet(stores, node, next); }
-        // 与 cssText 相同，用户转换留在公开 setter；重入写入不携带外层 setProperty 栈。
+        // As with cssText, keep user conversion in the public setter; reentrant writes do not carry the outer setProperty stack.
         else { if (typeof key !== "string" || !op.mapHas(values.definitions, nameOf(key))) fail(); methods.setProperty(nameOf(key), op.string(value)); }
         return true;
       },

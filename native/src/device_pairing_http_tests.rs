@@ -1,4 +1,4 @@
-//! 复用真实 TLS 夹具，配对落盘只在固定 linshi 根下的唯一目录进行。
+//! Reuse the real TLS fixture; persist pairing only in a unique directory under the fixed linshi root.
 use super::*;
 use crate::{
     device_identity_store::{Loaded, Store},
@@ -39,7 +39,7 @@ impl Drop for Files {
             eprintln!("device-pairing-failure-evidence: {}", self.0.display());
             return;
         }
-        // 不递归清理；仅删除此测试独占单层目录中的文件。
+        // No recursive cleanup; delete only files in this test's exclusively owned single-level directory.
         if let Ok(entries) = std::fs::read_dir(&self.0) {
             for entry in entries.flatten() {
                 let _ = std::fs::remove_file(entry.path());
@@ -66,7 +66,7 @@ fn registry_peer(
             "address":"hook://配对测试", "publicKey":public})
         );
         reply(&mut stream, status, &body);
-        // 此操作不能继续申请 challenge/session；请求已声明 Connection: close。
+        // This operation must not proceed to challenge/session requests; the request already declares Connection: close.
         assert!(stream.read(&mut [0]).map_or(true, |n| n == 0));
     })
 }

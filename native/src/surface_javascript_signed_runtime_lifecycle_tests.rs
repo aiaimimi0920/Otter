@@ -1,4 +1,4 @@
-//! 有界通知和墙钟高水位竞争回归；使用原 mailbox/worker，不修改系统时钟。
+//! Bounded notification and wall-clock high-water-mark race regressions; use original mailbox/workers without changing the system clock.
 use super::*;
 use std::sync::Mutex;
 
@@ -31,7 +31,7 @@ fn final_notification_observes_completion_even_before_thread_is_signaled() {
     let (notified, observed) = mpsc::channel();
     let (release, waiting) = mpsc::channel();
     let waiting = Mutex::new(waiting);
-    // 仅测试故意暂停短通知，固定 completed 与线程句柄终态之间的窗口。
+    // Tests deliberately pause only the brief notification to fix the interval between completed and thread-handle termination.
     let mut runtime = Runtime::spawn_notified(
         binding.clone(),
         lease,
@@ -65,7 +65,7 @@ fn host_and_worker_both_reject_shared_wall_clock_rollback() {
         reply(&mut runtime);
         runtime.mailbox.observe(u64::MAX);
         if worker_path {
-            // 绕过 UI gate 只为独立验证 worker 的重新准入，不绕过实际 worker 的检查。
+            // Bypass the UI gate only to verify worker readmission independently, never bypassing actual worker checks.
             runtime.mailbox.submit(2, Operation::Suspend).unwrap();
         } else {
             let binding = runtime.binding.clone();

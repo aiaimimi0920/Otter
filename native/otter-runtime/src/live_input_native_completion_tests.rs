@@ -1,4 +1,4 @@
-//! 生产 Publication/源 hook/Modal 完成观察；自有控件，模拟回调到达，不运行产品或 WGC。
+//! Production Publication/source-hook/Modal completion observation; owned controls and simulated callback arrival, without running the product or WGC.
 use super::*;
 use crate::live_window_target::recovery::popup_layer::fixture::Fixture;
 use std::cell::Cell;
@@ -102,7 +102,7 @@ fn returned_native_callback_is_not_rejected_when_the_operation_changes_source_or
             modal.publication.as_ref().unwrap().finished(),
             "source must confirm the returned operation"
         );
-        // 这里只模拟 SendMessageCallback 的到达；FINISHED 来自真实源 hook，不伪造成功属性。
+        // Simulate only SendMessageCallback arrival here; FINISHED comes from the real source hook, with no fake success properties.
         CALLBACK.with(|slot| slot.set((nonce, true)));
         modal.check_result().unwrap();
         assert!(!modal.pending());

@@ -1,5 +1,5 @@
-//! 滚动前后只读命中已绑定源的 MSAA 树，促使 Chromium 刷新延迟的 AX 位置反馈。
-//! 不使用桌面 ElementFromPoint，不聚焦或发送输入；阻塞仍由原受限 child 动作预算终止。
+//! Read-only hit tests in the bound source's MSAA tree before/after scrolling encourage Chromium to refresh delayed AX position feedback.
+//! No desktop ElementFromPoint, focus changes, or input sends; blocking is still terminated by the original constrained child's action budget.
 use super::Target;
 use crate::live_window_target::input_target::Destination;
 use windows::{
@@ -28,14 +28,14 @@ pub(super) fn position(target: &Target, point: [i32; 2]) -> Result<()> {
             return Err(E_POINTER.into());
         }
         let accessible = IAccessible::from_raw(raw);
-        // 只请求源内命中，不消费返回节点或读取文本。接口及 VARIANT 按 RAII 释放。
+        // Request only source-local hit tests, without consuming returned nodes or reading text. Interfaces and VARIANTs are released through RAII.
         let _hit = accessible.accHitTest(point[0], point[1])?;
         Ok(())
     }
 }
 
-// Chromium 的网页 AX 树归 renderer HWND；顶层客户区命中可能只刷新浏览器外壳。
-// renderer 可不参与普通可见窗口命中，因此只读刷新不能复用指针的可见性过滤。
+// Chromium's page AX tree belongs to the renderer HWND; top-level client-area hit tests may refresh only the browser shell.
+// Renderers may not participate in ordinary visible-window hit testing, so read-only refresh cannot reuse pointer visibility filtering.
 fn refresh_destination(target: &Target, point: [i32; 2]) -> Result<Destination> {
     let mut query = Query {
         point,
@@ -44,7 +44,7 @@ fn refresh_destination(target: &Target, point: [i32; 2]) -> Result<Destination> 
         failed: false,
     };
     unsafe {
-        // 回调只借用本栈帧；不访问桌面，也不保留窗口或指针到异步任务。
+        // The callback borrows only this stack frame; no desktop access or retention of windows/pointers in asynchronous tasks.
         let _ = EnumChildWindows(
             Some(target.hwnd()),
             Some(visit),
@@ -86,7 +86,7 @@ unsafe extern "system" fn visit(hwnd: HWND, param: LPARAM) -> BOOL {
         return false.into();
     }
     if contains(rect, query.point) {
-        // 多个重叠 renderer 的归属不明确，不能随枚举顺序选一个页面。
+        // Ownership of overlapping renderers is ambiguous; enumeration order must not select a page.
         if query.selected.is_some() {
             query.failed = true;
             return false.into();

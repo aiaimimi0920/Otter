@@ -1,4 +1,4 @@
-//! 完成值先验证原工作区/窗口/授权；保存失败不显示接收窗口，停止仅在远端确认后落盘。
+//! Completion values first validate the original workspace/window/authorization; failed saves do not show receiver windows, and stops persist only after remote confirmation.
 use super::*;
 impl Application {
     unsafe fn account_pending_current(&self, pending: &Pending) -> bool {

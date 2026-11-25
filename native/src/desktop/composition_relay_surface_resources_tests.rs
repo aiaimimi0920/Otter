@@ -1,4 +1,4 @@
-//! 应用集合的资源任务准入、等待、取消和退出；使用已撤销租约，禁止任何网络 I/O。
+//! Resource-task admission, waits, cancellation, and exit in application collections; revoked leases and no network I/O.
 use super::*;
 fn resource(index: usize) -> crate::live_relay_http::ResourceLease {
     let digest = format!("{index:064x}");

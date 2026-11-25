@@ -1,4 +1,4 @@
-//! 显式导入命名偏好；文件不修改，完成时验证原始 owner 与设置快照。
+//! Explicit naming-preference import; leave the file unchanged and validate original owner/settings snapshot at completion.
 use super::*;
 use crate::file_naming_settings::Settings;
 use std::{os::windows::ffi::OsStringExt, path::PathBuf};
@@ -6,7 +6,7 @@ use windows::Win32::UI::Controls::Dialogs::*;
 
 pub(super) struct Pending {
     origin: crate::workspace_id::UnitId,
-    // 同 UnitId 的工作区恢复可能重建窗口；保留轻量 owner 身份，不保留窗口或像素。
+    // Workspace restoration with the same UnitId may recreate windows; retain lightweight owner identity, not windows or pixels.
     origin_dialog: std::rc::Rc<std::cell::Cell<bool>>,
     before: Settings,
     before_recycle: crate::session_library::recycle::policy::Policy,
@@ -116,7 +116,7 @@ impl Application {
         if self.modals.blocked() {
             return Ok(());
         }
-        // 新操作先消费，不能将忙碌时的点击变为完成后第二次隐式导入。
+        // Consume new operations first; clicks while busy must not become a second implicit import after completion.
         let mut requester = None;
         for doc in &self.documents {
             if doc.state.naming_import_requested.replace(false)

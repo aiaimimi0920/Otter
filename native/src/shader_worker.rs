@@ -1,4 +1,4 @@
-//! 私有 Shader child：先核验 Job，再读取单帧、加载可信 bundle、原样渲染；不读 UI/profile。
+//! Private Shader child: verify the Job first, then read one frame, load the trusted bundle, and render unchanged; never read UI/profile.
 use crate::{
     shader_angle::Renderer,
     shader_process::{CHILD_LIMIT, TIMEOUT},
@@ -31,7 +31,7 @@ pub fn run_inherited() -> io::Result<()> {
         )?;
         renderer.render(value.request, &AtomicBool::new(false))
     });
-    // 编译失败是明确 Backend failure 帧，不是成功图片；父侧仍要求正常退出与 EOF。
+    // Compilation failure is an explicit Backend failure frame, not a successful image; the parent still requires normal exit and EOF.
     wire::write_response(&mut channel, &result)
 }
 #[cfg(test)]

@@ -1,4 +1,4 @@
-//! 真实后台 WIC 输入准备及 owner 回收；不访问网络或用户数据。
+//! Real background WIC input preparation/owner reclamation, without network or user-data access.
 use super::*;
 use crate::{editor::Tool, viewport::Point};
 use std::{

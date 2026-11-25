@@ -1,4 +1,4 @@
-//! straight BGRA到PBGRA的唯一受预算转换；Relay与Wall共用，不保留透明像素隐藏RGB。
+//! Sole budgeted straight-BGRA-to-PBGRA conversion shared by Relay/Wall; do not retain hidden RGB in transparent pixels.
 use super::*;
 impl Image {
     pub(crate) fn from_bgra(bytes: &[u8], width: u32, height: u32) -> Result<Self> {

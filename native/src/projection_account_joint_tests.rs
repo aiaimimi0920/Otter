@@ -1,4 +1,4 @@
-//! 显式隔离的真实 Loom 联合驱动；只通过生产 Lease 接口操作，不接受 token 或中心凭据。
+//! Explicitly isolated real-Loom joint driver; operate only through production Lease interfaces, without tokens/central credentials as input.
 use super::*;
 use std::{
     fs::File,
@@ -78,7 +78,7 @@ fn actual_loom_account_projection_native_driver() {
                 .then(|| manifest.clone().into_os_string())
         })
     };
-    // 每次命令恢复同一个隔离 Otter actor，再由当前 Device 会话建立账号接口。
+    // Each command restores the same isolated Otter actor, then creates account interfaces through the current Device session.
     let connected =
         crate::loom_local_connection::connect(discovery(), &profile, &Cancel::new()).unwrap();
     let mut owner = crate::device_authorization_owner::Owner::new();
@@ -89,7 +89,7 @@ fn actual_loom_account_projection_native_driver() {
     let account = lease.account_projections(&discovery()).unwrap();
     let image = match &input {
         Input::Create { snapshot, .. } | Input::Update { snapshot, .. } => {
-            // 借用同一 PNG 字符串，生产解码仍独立验证真实尺寸、摘要和共享像素预算。
+            // Borrow the same PNG string; production decoding independently verifies actual dimensions/digest/shared-pixel budgets.
             let snapshot = crate::projection_delivery::sender::snapshot::Wire {
                 image_base64: snapshot.image_base64,
                 width: snapshot.width,

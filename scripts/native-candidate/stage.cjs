@@ -1,4 +1,4 @@
-// 从已验证候选生成内部分发目录；不复制机器环境/凭证，不授予发布状态。
+// Create internal distribution directories from verified candidates; copy no machine environment/credentials and grant no release status.
 const fs = require('node:fs');
 const path = require('node:path');
 const { digest, verify } = require('./provenance.cjs');
@@ -19,10 +19,10 @@ function stage(repo, candidate, output) {
   fs.copyFileSync(checkedPath(candidate, 'payload/otter_live_hover_hook.dll'), path.join(output, 'otter_live_hover_hook.dll'), fs.constants.COPYFILE_EXCL);
   fs.writeFileSync(path.join(output, 'build-provenance.json'), JSON.stringify(receipt, null, 2) + '\n', { flag: 'wx' });
   fs.writeFileSync(path.join(output, 'README.txt'),
-    `Otter Windows Native ${receipt.buildVersion}\n\n内部开发候选，未签名，不是正式发布。\n运行 otter-native.exe 启动原生程序。请保留同目录 otter_live_hover_hook.dll，供本地 Live 浏览器悬浮使用。\n` +
-    'licenses 目录包含 normal/build 依赖材料；不表示法律或安全检查已批准。\n' +
-    'build-provenance.json 是构建身份摘要，原始构建日志与源码快照不随包分发。\n' +
-    'package-manifest.json 提供字节一致性记录，不提供签名认证或完整功能验收。\n', { flag: 'wx' });
+    `Otter Windows Native ${receipt.buildVersion}\n\nInternal development candidate: unsigned and not an official release.\nRun otter-native.exe to start the native application. Keep otter_live_hover_hook.dll in the same directory for local Live browser hover support.\n` +
+    'The licenses directory contains normal/build dependency materials; this does not indicate legal or security approval.\n' +
+    'build-provenance.json summarizes build identity; original build logs and source snapshots are not distributed with this package.\n' +
+    'package-manifest.json records byte consistency, not signature authentication or complete functional acceptance.\n', { flag: 'wx' });
   const files = [];
   function walk(relative = '') {
     const directory = relative ? checkedPath(output, relative) : output;

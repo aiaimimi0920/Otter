@@ -1,4 +1,4 @@
-//! 使用真实 WIC 编码验证混合端口保存；不创建窗口或访问外部资源。
+//! Real WIC encoding verifies mixed-port saving, without creating windows or accessing external resources.
 use super::tests::{data, doc};
 use super::*;
 use crate::desktop::image::Image;

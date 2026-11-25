@@ -1,4 +1,4 @@
-//! 真实 D3D11→CPU 与透明钉图生产提交；故障来自无匹配 Pop 的 EndDraw，不伪造驱动移除。
+//! Real D3D11-to-CPU fallback and production transparent-pin submission; induce failure with an unmatched Pop at EndDraw, not fabricated driver removal.
 use super::*;
 use std::{
     cell::Cell,
@@ -122,7 +122,7 @@ fn workspace_d3d11_failure_requires_real_retirement_before_cpu() {
         ));
         let stamp = canvas.editor.document_stamp();
         let count = canvas.confirmed_paints;
-        // 错误码不能授权跳过 DComp。实际 EndDraw 失效才进入有界退休，不冒充驱动移除。
+        // Error codes cannot authorize bypassing DComp. Only actual EndDraw failure enters bounded retirement; this does not simulate driver removal.
         assert!(!canvas.recover_render_after(D2DERR_RECREATE_TARGET));
         assert!(canvas
             .target

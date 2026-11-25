@@ -1,4 +1,4 @@
-//! accepted 重建迟到取消必须保 journal/远端关联；与 NEW 的自动补偿责任不同。
+//! Late cancellation during accepted reconstruction must preserve journal/remote associations, unlike NEW's automatic-compensation responsibility.
 use super::*;
 
 #[test]

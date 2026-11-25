@@ -1,4 +1,4 @@
-//! 仅测试跨child交付固定阶段/单调时间/预算状态；不接收脚本、异常文本或业务值。
+//! Test-only cross-child delivery of fixed phases/monotonic times/budget state; never accept scripts, exception text, or business values.
 use serde::{Deserialize, Serialize};
 use std::{cell::Cell, io::Write, time::Instant};
 use windows::Win32::{
@@ -152,7 +152,7 @@ pub(crate) fn log(report: Option<&Report>) {
 }
 fn log_to(report: Option<&Report>, writer: &mut impl Write) {
     if let Some(report) = report.filter(|report| report.valid()) {
-        // 诊断写入失败不得改变原错误/回收；Debug只含上述固定enum、整数和bool。
+        // Diagnostic-write failure must not change original errors/cleanup; Debug contains only the fixed enums, integers, and bools above.
         let _ = writeln!(writer, "native-js-diagnostic: {report:?}");
     }
 }

@@ -1,4 +1,4 @@
-//! 隐藏窗口通过生产菜单命令进入文档集合，验证请求合并、首窗口关闭及再次建窗。
+//! Hidden windows enter the document collection through production menu commands, verifying request coalescing, first-window closure, and subsequent window creation.
 use super::*;
 use crate::desktop::smoke_timing::run as timed;
 #[path = "application_history_smoke.rs"]
@@ -10,7 +10,7 @@ pub(in crate::desktop) unsafe fn run(
     instance: HINSTANCE,
     shader: crate::desktop::startup_entry::shader::Loaded,
 ) -> Result<()> {
-    // 非交互 station 没有普通桌面的层序/前台语义，仅运行其专属真实剪贴板回归。
+    // Noninteractive stations lack normal desktop z-order/foreground semantics; run only their dedicated real-clipboard regression.
     if std::env::var_os("OTTER_CLIPBOARD_TEST_STATION").is_some() {
         let first = DocumentWindow::create(instance, State::new(None, false)?, false)?;
         return super::paste_smoke::system::run(&mut Application::new(instance, first));
@@ -168,7 +168,7 @@ pub(in crate::desktop) unsafe fn run(
             "Closing document did not retire execution request",
         ));
     }
-    // 可见粘贴会创建共享 chrome；关闭宿主只移除该文档，不移除仍由工作区拥有的 HWND。
+    // Visible paste creates shared chrome; closing its host removes only that document, not HWNDs still owned by the workspace.
     let expected_capture: Vec<_> = app
         .chrome
         .handles()
@@ -276,7 +276,7 @@ pub(in crate::desktop) unsafe fn run(
             "Application did not release closed document owners",
         ));
     }
-    // 退出意图先关闭文档；工作区 chrome 在 Application owner 析构时释放。
+    // Exit intent closes documents first; workspace chrome is released when the Application owner drops.
     drop(app);
     if chrome_windows
         .iter()

@@ -1,4 +1,4 @@
-//! 后台独占 Mounted 和 child；空闲等待命令、撤权、child 退出与最早期限，无轮询。
+//! Background-exclusive Mounted and child ownership; wait while idle for commands, revocation, child exit, and the earliest deadline without polling.
 use super::*;
 use std::os::windows::io::AsRawHandle;
 use windows::Win32::{

@@ -1,4 +1,4 @@
-//! 组变换中心模式只属于当前窗口；切换取消预览和异步候选，不修改文档历史。
+//! Group-transform center mode belongs only to the current window; switching cancels previews/asynchronous candidates without document-history changes.
 use super::State;
 pub(super) const COMMAND: usize = 0x1024;
 pub(super) const AXIS_X: usize = 0x1026;

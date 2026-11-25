@@ -1,4 +1,4 @@
-//! Tile自有捕获手势；无子HWND/线程/hook，不抢焦点，Win32重入前释放所有RefCell/Shared借用。
+//! Tile-owned capture gestures; no child HWNDs/threads/hooks or focus stealing, releasing all RefCell/Shared borrows before Win32 reentrancy.
 use super::*;
 use crate::tile_surface_slider::{Drag, Field};
 use windows::Win32::UI::Input::KeyboardAndMouse::{GetCapture, ReleaseCapture, SetCapture};
@@ -113,7 +113,7 @@ pub(in crate::desktop::tile_window) fn update(hwnd: HWND, state: &State, pixel: 
         return;
     };
     if unsafe { GetCapture() } == hwnd && awaiting(state, &drag) {
-        // 尚无可操作的已paint画面；不取样/排命令，但不能把本手势的权威换值当取消。
+        // No actionable painted frame yet; neither sample nor enqueue commands, but authoritative value changes within this gesture are not cancellation.
         *state.pressed.borrow_mut() = Gesture::Slider(drag);
         return;
     }
@@ -153,7 +153,7 @@ pub(in crate::desktop::tile_window) fn update(hwnd: HWND, state: &State, pixel: 
 }
 pub(super) fn finish(hwnd: HWND, state: &State, mut drag: Drag, pixel: [i32; 2]) {
     let valid = unsafe { GetCapture() } == hwnd && current(state, &drag);
-    // 先移出手势再ReleaseCapture；同步WM_CAPTURECHANGED不能取消正常抬起已形成的批次。
+    // Move the gesture out before ReleaseCapture; synchronous WM_CAPTURECHANGED cannot cancel batches produced by normal release.
     unsafe {
         if GetCapture() == hwnd {
             let _ = ReleaseCapture();
@@ -189,7 +189,7 @@ pub(super) fn finish(hwnd: HWND, state: &State, mut drag: Drag, pixel: [i32; 2])
                 .map_err(|_| "Art本地滑块未修改")?;
             }
         }
-        // 同普通Slider，commit先于祖先click。离开原字段抬起只提交值，不合成外部click。
+        // As with ordinary Slider, commit precedes ancestor click. Releasing outside the original field commits only the value, not a fabricated external click.
         if field(state, pixel).is_some_and(|f| drag.field.same(&f)) {
             for mut command in prepare(state, pixel) {
                 command.edit = Some(drag.edit.clone());

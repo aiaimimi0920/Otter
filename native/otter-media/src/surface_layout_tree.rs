@@ -1,4 +1,4 @@
-//! 场景树的有界布局遍历；测量由宿主提供，几何一次提交，不交付失败的部分树。
+//! Bounded scene-tree layout traversal; the host supplies measurement, geometry commits once, and failed partial trees are not delivered.
 use crate::{
     surface_container,
     surface_length::Context,
@@ -17,7 +17,7 @@ pub trait Measure {
     fn font_size(&self, _node: &Node) -> Option<f32> {
         None
     }
-    /// available 是父容器当前分配尺寸，不是最终子项尺寸；文字重排由测量 owner 后续处理。
+    /// available is the parent's current allocation, not the final child size; the measurement owner handles subsequent text reflow.
     fn measure(
         &mut self,
         node: &Node,
@@ -27,9 +27,9 @@ pub trait Measure {
 }
 #[derive(Debug)]
 pub struct Placed<'a> {
-    /// 百分比 padding 使用包含块宽度，不是节点自身宽度或宿主 cqw 查询宽度。
+    /// Percentage padding uses containing-block width, not the node's own width or the host cqw query width.
     pub containing_width: f32,
-    /// Grid item 的包含块是 cell，不是整个父内容区；图片百分比与比例反馈复用它。
+    /// A Grid item's containing block is its cell, not the whole parent content area; image percentages and aspect-ratio feedback reuse it.
     pub grid_cell: Option<[f32; 2]>,
     pub node: &'a Node,
     pub origin: [f32; 2],
@@ -225,7 +225,7 @@ impl<'a> Tree<'a> {
             )
             .map_err(Error::Container)?
         };
-        // 父结果先固定，再深度优先遍历，保持稳定绘制顺序和父索引；没有固定点重试。
+        // Fix the parent result first, then traverse depth-first to preserve stable drawing order and parent indices; no fixed-point retries.
         for (index, child) in boxes.into_iter().enumerate() {
             let cell = grid_cells.as_ref().map(|cells| cells[index]);
             self.visit(

@@ -1,4 +1,4 @@
-//! Ctrl+1 拥有唯一宿主；附属 Live/长截图独立降级，关闭失败时恢复已释放的附属键。
+//! Ctrl+1 has one host; attached Live/scrolling shortcuts degrade independently, restoring released attached keys when closure fails.
 use std::cell::Cell;
 use windows::core::{Error, Result};
 
@@ -71,7 +71,7 @@ pub(super) fn set_with(
             }
             match change(key, true) {
                 Ok(()) => flag.set(true),
-                // 一个附属键冲突不能跳过另一个，也不能撤销 Ctrl+1。
+                // One attached-key conflict must neither skip the other nor revoke Ctrl+1.
                 Err(error) => warnings.push(problem(key, "registration", error)),
             }
         }
@@ -85,7 +85,7 @@ pub(super) fn set_with(
         }
         if let Err(error) = change(key, false) {
             let mut errors = vec![problem(key, "unregister", error)];
-            // 即使一次补偿失败，也继续恢复其他已释放键；始终保留可发现的主 owner。
+            // Continue restoring other released keys even if one compensation fails; always retain a discoverable primary owner.
             for recovery in [Key::Live, Key::Long] {
                 if removed[recovery as usize] {
                     match change(recovery, true) {

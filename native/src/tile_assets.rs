@@ -1,4 +1,4 @@
-//! 每输出一个图片/媒体owner和惰性Art串行worker，至多一在途/一待办；旧代际排空才释放容量。
+//! One image/media owner and lazy serial Art worker per output, at most one in-flight/one pending; drain old generations before releasing capacity.
 use crate::{
     device_authorization_lease::Lease,
     device_session_client::Client,
@@ -100,7 +100,7 @@ impl Assets {
                     }
                 }
             })?;
-        // 只在后台 presenter 等待 COM 初始化；失败线程先回收，不开始 Wall 网络请求。
+        // Only the background presenter waits for COM initialization; reap failed threads first without starting Wall network requests.
         if let Err(error) = startup
             .recv()
             .map_err(std::io::Error::other)

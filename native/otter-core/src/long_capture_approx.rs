@@ -1,4 +1,4 @@
-//! 有界近似平移分析；稀疏搜索后密集复核，不能代替固定栏/动态区域分析。
+//! Bounded approximate-translation analysis with sparse search/dense rechecks; not a substitute for fixed-bar/dynamic-region analysis.
 use super::view::View;
 use super::{Axis, Error, Frame};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 pub struct MatchOptions {
     pub minimum_overlap: u32,
     pub maximum_shift: u32,
-    /// BGRA 各通道平均绝对误差上限，限定 0..=12，避免任意放宽导致误拼。
+    /// Mean absolute error limit per BGRA channel, restricted to 0..=12 to prevent erroneous stitching through arbitrary tolerance.
     pub maximum_mean_error: f64,
 }
 impl MatchOptions {
@@ -81,7 +81,7 @@ fn score(
             for channel in 0..4 {
                 error += a[channel].abs_diff(b[channel]) as u64;
             }
-            // 两帧都必须有局部纹理；不把两张不同纯色图解释成移动。
+            // Both frames need local texture; different solid-color images are not movement.
             if overlap > 1 {
                 let next = if along + 1 < overlap {
                     along + 1
@@ -94,7 +94,7 @@ fn score(
                 let tb: u64 = (0..3).map(|c| b[c].abs_diff(bn[c]) as u64).sum();
                 texture += ta.min(tb);
             }
-            // 完整采样分母给出误差下界；纹理已足够且超过歧义窗口的候选无需继续读取。
+            // Full-sample denominators bound minimum error; adequately textured candidates beyond ambiguity windows need no further reads.
             if error as f64 > ceiling * (count * 4) as f64 && texture >= count * 3 * 4 {
                 return Ok(Score {
                     error: f64::INFINITY,
@@ -109,8 +109,8 @@ fn score(
     })
 }
 
-/// 搜索调用方限定的双向位移（包括零位移）；时间上界为 65535 个候选，各采样至多 256 点。
-/// 无图像副本，只保留两个稀疏候选；成功仍是采样推断，不是逐像素精确匹配证明。
+/// Search caller-bounded bidirectional offsets including zero; at most 65535 candidates with 256 samples each.
+/// No image copies and only two sparse candidates; success remains sampled inference, not exact per-pixel-match proof.
 pub fn match_approximate(
     previous: &Frame,
     current: &Frame,
@@ -128,7 +128,7 @@ pub fn match_approximate(
     )
 }
 
-// 借用原始帧的轴向区域，不产生裁剪像素副本；固定栏分析与全帧分析共用评分规则。
+// Borrow axial regions of original frames without cropped-pixel copies; fixed-bar/full-frame analyses share scoring rules.
 pub(super) fn match_region(
     previous: &Frame,
     current: &Frame,
@@ -201,8 +201,8 @@ pub(super) fn match_views(
             second = second.min(candidate.error);
         }
     }
-    // 粗采样找不到可接受的纹理匹配时，才复核落在空白行的候选。
-    // 最多两次密采；低纹理候选数量不能否定已有的可靠匹配，也不能放大纯色页工作量。
+    // Recheck candidates on blank rows only when coarse sampling finds no acceptable textured match.
+    // At most two dense samples; numerous low-texture candidates cannot invalidate reliable matches or increase solid-page work.
     if best.is_none_or(|(_, candidate)| candidate.error > options.maximum_mean_error) {
         for delta in sparse {
             let candidate = score(previous, current, axis, delta, (128, 192), ceiling, cancel)?;

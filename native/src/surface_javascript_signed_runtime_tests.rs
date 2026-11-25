@@ -1,4 +1,4 @@
-//! 真实 child 的后台挂载、单槽背压、闲置撤权/期限与终态回收；不以它替代 HWND 集成。
+//! Real-child background mounting, single-slot backpressure, idle revocation/deadlines, and terminal cleanup; not a replacement for HWND integration.
 use super::super::tests as fixture;
 use super::*;
 use std::{os::windows::io::AsRawHandle, sync::mpsc, time::Duration};
@@ -158,7 +158,7 @@ fn changed_host_binding_rejects_ready_frame_and_stops_original_child() {
 fn idle_monotonic_deadline_wakes_without_an_operation_or_polling() {
     let _serial = crate::surface_javascript::fixture::SERIAL.lock().unwrap();
     let (mut runtime, _owner, probe) = start(Some(Duration::from_secs(2)));
-    // 不要求调度在期限前交首帧；无论挂载快慢，都必须在原固定期限后退出并回收。
+    // Scheduling need not deliver the first frame before the deadline; regardless of mount speed, exit and cleanup must follow the original fixed deadline.
     exit(&mut runtime);
     assert!(probe.recv_timeout(Duration::from_secs(5)).unwrap().exited());
 }

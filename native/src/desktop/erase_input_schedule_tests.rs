@@ -1,4 +1,4 @@
-//! 预约失败必须发生在线程启动前；真实 Job 保留单槽、预览及历史原子性。
+//! Scheduling failure must precede thread startup; real Jobs preserve single slots, previews, and history atomicity.
 use super::*;
 use crate::{editor::Tool, viewport::Point};
 use std::{
@@ -100,7 +100,7 @@ fn rejected_worker_start_rolls_back_only_the_reserved_timer() {
 fn busy_submission_preserves_original_timer_preview_and_result() {
     let state = state();
     submit_with(&state, || true, || panic!("unexpected cancel")).unwrap();
-    // WM_LBUTTONUP 无新请求时仍会调用 submit，不能因原任务忙而弹框。
+    // WM_LBUTTONUP still calls submit without new requests; original-task busy state must not open a dialog.
     submit_with(
         &state,
         || panic!("empty submission must not reserve"),

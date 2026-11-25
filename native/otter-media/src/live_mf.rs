@@ -1,4 +1,4 @@
-//! 线程绑定的系统 H264 decoder owner；先释放 transform，再平衡 MF/COM 和进程名额。
+//! Thread-bound system H264 decoder owner; release transforms before balancing MF/COM/process slots.
 use std::{
     marker::PhantomData,
     rc::Rc,
@@ -28,7 +28,7 @@ pub use encode::{Encoded, VideoEncoder};
 mod sequence_tests;
 pub use format::ConfiguredDecoder;
 pub use layout::Layout;
-// E_PENDING；不为一个 HRESULT 启用无关 Urlmon feature。
+// E_PENDING; do not enable unrelated Urlmon features for one HRESULT.
 const E_PENDING: windows::core::HRESULT = windows::core::HRESULT(0x8000_000Au32 as i32);
 struct Permit;
 impl Permit {
@@ -75,7 +75,7 @@ impl Drop for Activations {
     fn drop(&mut self) {
         if !self.ptr.is_null() {
             unsafe {
-                // ptr/count 为 Windows MFTEnumEx 返回的成对分配，不来自远程媒体。
+                // ptr/count are paired allocations from Windows MFTEnumEx, not remote media.
                 for slot in std::slice::from_raw_parts_mut(self.ptr, self.count as usize) {
                     drop(slot.take());
                 }
@@ -99,14 +99,14 @@ impl Drop for Transform {
         }
     }
 }
-/// 必须在独立 codec 线程上创建与销毁；Rc marker 禁止跨线程搬运 COM/MF 生命周期。
+/// Create/destroy on dedicated codec threads; Rc markers prevent COM/MF lifetimes crossing threads.
 pub struct DecoderOwner {
     _transform: Transform,
     _runtime: Runtime,
     _permit: Permit,
 }
 impl DecoderOwner {
-    /// 仅枚举并激活同步系统 decoder；后续必须协商输入/输出格式再提交 AU。
+    /// Enumerate/activate only synchronous system decoders; negotiate input/output formats before submitting AUs.
     pub fn create() -> Result<Self> {
         let permit = Permit::acquire()?;
         let runtime = Runtime::start()?;

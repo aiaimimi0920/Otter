@@ -1,4 +1,4 @@
-//! 紧凑弹窗共用 Neuro 绘制；保留系统编辑、IME、键盘和可访问性，仅接管外观。
+//! Compact dialogs share Neuro rendering; preserve system editing, IME, keyboard, and accessibility, taking over appearance only.
 use windows::{
     core::Result,
     Win32::{

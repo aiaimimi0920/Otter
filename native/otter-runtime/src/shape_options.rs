@@ -1,4 +1,4 @@
-//! 形状创建的共享会话设置；不属于标注样式或撤销历史。
+//! Shared session settings for shape creation; not annotation style or undo history.
 use crate::{editor::Tool, viewport::Point};
 
 #[derive(Default)]

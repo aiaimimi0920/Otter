@@ -1,4 +1,4 @@
-//! 文档独立图片输入owner；原画布、Art参数与手动输入不共享可变状态或授权身份。
+//! Document-independent image-input owner; original canvases, Art parameters, and manual input share neither mutable state nor authorization identity.
 use serde_json::{Map, Value};
 use std::{
     cell::{Cell, RefCell},
@@ -65,7 +65,7 @@ impl Config {
             identity: Arc::new(()),
         })
     }
-    /// 在保存worker中组装；只有拥有的键被替换，clear不能从retained original复活旧图。
+    /// Assemble in the save worker; replace only owned keys, and clear must not revive old images from retained original.
     pub fn parameters(&self) -> Map<String, Value> {
         let mut values = self.parameters.as_ref().clone();
         if let Some(asset) = &self.asset {
@@ -80,7 +80,7 @@ impl Config {
         }
         values
     }
-    /// 发布前按保存形状计量；借用未知字段，绝不在UI线程复制大图URI。
+    /// Measure the saved shape before publication; borrow unknown fields and never copy large image URIs on the UI thread.
     fn validate(&self) -> Result<()> {
         let empty = Value::Null;
         let filename = self

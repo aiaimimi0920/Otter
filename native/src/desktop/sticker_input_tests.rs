@@ -1,4 +1,4 @@
-//! 真实文件/解码与共享owner；只在linshi创建唯一测试文件，不使用用户数据或全局输入。
+//! Actual files/decoding and shared owners; create unique test files only in linshi, without user data or global input.
 use super::*;
 use crate::desktop::{configuration_stamp, image::Image, Apartment, State};
 use std::{path::PathBuf, sync::atomic::Ordering};

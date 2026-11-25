@@ -1,7 +1,7 @@
-//! 同生产工厂的winner容器差分/原型边界；操作计数不替代原250ms压力门。
+//! Winner-container differential/prototype boundaries using the production factory; operation counts do not replace the original 250ms stress gate.
 use super::*;
 
-// 测试副本仅恢复旧winner容器；声明、rank、遍历顺序与其他工厂均保持当前生产代码。
+// The test copy restores only the old winner container; declarations, rank, traversal order, and other factories retain current production code.
 pub(super) fn map_winners(bootstrap: &str) -> String {
     let mut bootstrap = bootstrap.to_owned();
     for (current, old) in [

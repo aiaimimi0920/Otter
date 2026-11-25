@@ -1,4 +1,4 @@
-//! 真实窗口 DPI awareness 矩阵；只验证当前显示器，不冒充多屏不同缩放验收。
+//! Real-window DPI-awareness matrix; verifies only the current monitor, not acceptance across differently scaled monitors.
 use super::*;
 use windows::core::w;
 struct Window(HWND);

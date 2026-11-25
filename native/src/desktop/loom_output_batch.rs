@@ -1,4 +1,4 @@
-//! 原子准备多端口输出，管理本地像素/原始 PNG；远端描述符的租约仍归调用方释放。
+//! Atomically prepare multiport output and manage local pixels/original PNGs; callers still release remote-descriptor leases.
 use super::{image::Image, loom_output_inline, loom_output_shared};
 use serde_json::Value;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -72,13 +72,13 @@ impl Batch {
     pub fn primary(&self) -> &Port {
         &self.ports[self.primary]
     }
-    /// 将端口数据直接转交节点状态，不克隆 JSON 或像素；主端口索引保持不变。
+    /// Transfer port data directly into node state, without JSON/pixel clones; primary-port indices remain unchanged.
     pub fn into_ports(self) -> (Vec<Port>, usize) {
         (self.ports, self.primary)
     }
 }
 
-/// 不消费原始 JSON；无论成功失败，调用方都仍持有远端资源句柄和 candidates 元数据。
+/// Do not consume original JSON; callers retain remote resource handles and candidates metadata on success and failure.
 pub fn decode(
     outputs: &Value,
     candidates: Option<&Value>,

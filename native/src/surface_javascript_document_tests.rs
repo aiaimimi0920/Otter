@@ -1,4 +1,4 @@
-//! 文档子集在真实 child 中执行；产品门另需外部摘要，不能从缓存自我授权。
+//! Document subsets execute in real children; product gates separately require external digests, never self-authorization from caches.
 use super::*;
 use sha2::{Digest, Sha256};
 const SOURCE: &str = include_str!("../tests/fixtures/javascript-document.js");

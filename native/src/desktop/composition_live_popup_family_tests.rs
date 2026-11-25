@@ -1,4 +1,4 @@
-//! 附属弹窗几何与真实 WGC 会话生命周期回归；仅创建和操作自有测试窗口。
+//! Attached-popup geometry and real WGC session-lifecycle regressions; create and operate only owned test windows.
 use super::*;
 #[path = "composition_live_popup_shutdown_tests.rs"]
 mod shutdown_tests;
@@ -77,7 +77,7 @@ fn popup_mirror_follows_owner_topmost_band_without_activating() {
             let mirror = LiveWindow::new(frames.subscribe().unwrap(), 40, 40).unwrap();
             unsafe {
                 let foreground = GetForegroundWindow();
-                // 只测试镜像配置；不依赖无帧 Live owner 的置顶切换是否已提交。
+                // Test mirror configuration only; do not depend on topmost-toggle commit status for a Live owner without frames.
                 assert_eq!(
                     GetWindowLongPtrW(owner.0, GWL_EXSTYLE) & WS_EX_TOPMOST.0 as isize != 0,
                     topmost,
@@ -129,7 +129,7 @@ fn root_completion_retains_a_wait_handle_for_delayed_popup_cleanup() {
         placement: rect(0, 0, 100, 100),
         session: Session::new(job, window),
     });
-    // CaptureJob 可在 work 入口前响应取消；本用例必须先确保两个延迟 worker 已进入。
+    // CaptureJob may respond to cancellation before entering work; this case must first ensure both delayed workers entered.
     for _ in 0..2 {
         starting.recv_timeout(Duration::from_secs(5)).unwrap();
     }
@@ -245,7 +245,7 @@ fn pump_until(session: &mut Session, ready: impl Fn(&Session) -> bool) {
 #[ignore = "owned visible windows; helper filtering before popup capacity and resize rediscovery"]
 fn tiny_helpers_do_not_exhaust_popup_slots_and_can_grow_into_popups() {
     let _apartment = crate::desktop::Apartment::new().unwrap();
-    // 候选使用物理 frame；DPI-unaware 的 1 逻辑像素在缩放桌面可能大于 1 物理像素。
+    // Candidates use physical frames; one DPI-unaware logical pixel may exceed one physical pixel on scaled desktops.
     let old_dpi =
         unsafe { SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2) };
     let source = Source::new(None, rect(100, 100, 200, 200), false);
@@ -403,7 +403,7 @@ fn owned_popup_mirrors_without_activation_and_reaps_on_hide_and_parent_close() {
         (before.0 + 1, before.1 + 1)
     );
     unsafe {
-        // 主 B 没有附属 owner；直接调整其无边框客户区，再观察子镜像的生产跟随。
+        // Main B has no attached owner; directly adjust its borderless client area, then observe production child-mirror tracking.
         SetWindowPos(
             session.window.as_ref().unwrap().popup_hwnd(),
             None,

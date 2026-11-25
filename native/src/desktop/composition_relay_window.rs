@@ -1,4 +1,4 @@
-//! 远程观看 HWND；应用等待帧事件并调用 refresh，窗口回调不执行网络或线程 join。
+//! Remote-viewing HWND; the application waits for frame events and calls refresh, while window callbacks perform neither networking nor thread joins.
 use super::{Host, Update};
 use crate::live_relay_viewer_session::{Permit, ViewerSession};
 use std::{
@@ -40,7 +40,7 @@ impl State {
             return Ok(None);
         };
         let result = operation(&mut host);
-        // D2D/Win32 可能重入并关闭窗口；不能把旧 Host 放回已终止状态。
+        // D2D/Win32 may reenter and close the window; never restore an old Host into terminal state.
         if !self.closed.get() {
             *self.host.borrow_mut() = Some(host);
         }
@@ -79,7 +79,7 @@ impl RelayWindow {
             })
             .map(Option::flatten)
     }
-    /// 创建隐藏窗口，启用系统捕获排除后绑定许可；显示必须由上层显式请求。
+    /// Create a hidden window and enable system capture exclusion before binding permits; visibility requires explicit upper-layer requests.
     pub fn new(media: Arc<ViewerSession>, permit: Permit, width: u32, height: u32) -> Result<Self> {
         super::super::validate_size(D2D_SIZE_U { width, height })?;
         unsafe {

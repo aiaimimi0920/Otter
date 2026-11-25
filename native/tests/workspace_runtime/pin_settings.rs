@@ -1,4 +1,4 @@
-//! 普通解包产品的钉图设置、实际窗口几何与重启读回；不向桌面注入全局输入。
+//! Pin settings, actual window geometry and restart readback in the ordinary extracted product; no global desktop input injection.
 use super::*;
 use windows::Win32::UI::Input::KeyboardAndMouse::{IsWindowEnabled, VK_F4};
 
@@ -90,10 +90,10 @@ fn foreground_pin_settings_width_changes_window_and_survives_restart() {
         });
         let viewport =
             FindWindowExW(Some(panel), None, w!("NeuroMini.Native.PropertyBar"), None).unwrap();
-        // NeuroMini 的实际数值控件：字段 101 的加号为 101 * 4 + 1。
+        // Actual NeuroMini numeric control: the plus button for field 101 is 101 * 4 + 1.
         let increase = GetDlgItem(Some(viewport), 101 * 4 + 1).unwrap();
         let before = bounds(owner);
-        // 属性窗可接管前台；只接受本次已经按 PID／owner 核过的三个窗口。
+        // The properties window may take foreground; accept only the three windows already verified by PID/owner for this run.
         let foreground = GetForegroundWindow();
         assert!(
             [owner, toolbar, panel].contains(&foreground),

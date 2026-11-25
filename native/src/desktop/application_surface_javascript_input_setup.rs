@@ -1,7 +1,7 @@
-//! Application JS 测试的真实挂载/隐藏 DOM/Active ACK 准备，不开启输入或替代生产准入。
+//! Real mount/hidden DOM/Active ACK preparation for Application JS tests, without enabling input or replacing production admission.
 use super::*;
 pub(super) fn wait_batch(app: &Application) {
-    // 一个批次含两次提交及两次观察；原产品总预算 10s+25s，不适用单请求夹具的 5s。
+    // One batch contains two submissions and two observations; use the original product's total 10s+25s budget, not a single-request fixture's 5s.
     let handles: Vec<_> = app.remote_sessions.wait_handles().collect();
     assert_eq!(handles.len(), 1);
     assert_eq!(
@@ -49,7 +49,7 @@ pub(super) unsafe fn mount(app: &mut Application, origin: &str, root: &std::path
         SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER,
     )
     .unwrap();
-    // attach 在上一轮 JS 扫描之后才建窗；再走原泵启动 Runtime，不绕过容量和租约。
+    // attach creates windows only after the previous JS scan; run the original pump again to start Runtime without bypassing capacity or leases.
     app.poll_remote_live_with(false, |o| fixture::config(o, root))
         .unwrap();
     let window = app.surface_windows.iter_mut().next().unwrap();

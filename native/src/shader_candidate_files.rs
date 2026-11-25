@@ -1,4 +1,4 @@
-//! 候选路径租约：固定盘、逐级非 reparse 目录、禁止删除共享；不修改任何 ACL。
+//! Candidate path leases: fixed disks, non-reparse directories at every level, and no delete sharing; never modify ACLs.
 use super::invalid;
 use std::{
     fs::{File, OpenOptions},
@@ -76,8 +76,8 @@ pub(super) fn directories(path: &Path) -> io::Result<Vec<File>> {
         }
     }
     let mut held = Vec::new();
-    // 固定卷根是 OS 信任锚；后续每级 ACL 另拒非可信主体修改元数据/ACL/owner。
-    // 共享锁只保护 rename/delete，不能阻止 FILE_WRITE_ATTRIBUTES reparse 控制。
+    // The fixed-volume root is the OS trust anchor; each subsequent ACL separately denies untrusted principals metadata/ACL/owner changes.
+    // Sharing locks protect only rename/delete and cannot prevent reparse control through FILE_WRITE_ATTRIBUTES.
     let mut current = std::path::PathBuf::from(format!("{}:\\", drive as char));
     held.push(directory(&current)?);
     for component in &components[2..] {

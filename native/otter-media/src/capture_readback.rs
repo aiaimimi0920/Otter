@@ -1,4 +1,4 @@
-//! 单次 FP16 或 BGRA8 纹理读回：独占 context 的调用方拥有源帧；本层不缓存设备或启动捕获。
+//! Single FP16/BGRA8 texture readback; context-exclusive callers own source frames, without device caching/capture startup here.
 use crate::capture_color::{self, ScRgb};
 #[path = "capture_readback_sdr.rs"]
 pub mod sdr;
@@ -23,7 +23,7 @@ pub enum Error {
     Api(windows::core::Error),
     Conversion(capture_color::Error),
 }
-/// 源纹理局部物理像素，右/下边界不包含在选区内；不接受显示器全局坐标。
+/// Source-texture-local physical pixels with exclusive right/bottom boundaries; no monitor-global coordinates.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Region {
     pub left: u32,
@@ -42,11 +42,11 @@ impl Drop for Mapping<'_> {
         }
     }
 }
-/// 回调只能借用本次映射，不得保存裸指针；返回值不能借用映射数据。
+/// Callbacks borrow only this mapping and may not retain raw pointers; return values cannot borrow mapped data.
 ///
 /// # Safety
-/// 调用期间必须独占 immediate context（包含回调），源纹理不得被映射或并发修改。
-/// 源纹理与设备必须来自可信 D3D11 API；调用方负责源纹理预算和捕获会话生命周期。
+/// Exclusively own immediate context throughout the call/callback; source textures must not be mapped/concurrently modified.
+/// Source textures/devices must come from trusted D3D11 APIs; callers own source-texture budgets/capture-session lifecycles.
 pub unsafe fn with_frame<T>(
     context: &ID3D11DeviceContext,
     source: &ID3D11Texture2D,
@@ -55,10 +55,10 @@ pub unsafe fn with_frame<T>(
 ) -> Result<T, Error> {
     read(context, source, cancel, consume, crate::pixels::reserve)
 }
-/// 只复制选区到 staging；不会先读回整张源纹理。
+/// Copy only selection into staging, never read back whole source textures first.
 ///
 /// # Safety
-/// 与 with_frame 相同：调用期间独占 immediate context，源纹理不得被映射或并发修改。
+/// As with with_frame: exclusively own immediate context during calls, without mapped/concurrently modified source textures.
 pub unsafe fn with_region<T>(
     context: &ID3D11DeviceContext,
     source: &ID3D11Texture2D,
@@ -178,7 +178,7 @@ unsafe fn read_mapped<T>(
         )?;
         Ok(mapped)
     })?;
-    // 必须先建立 guard，再检查返回布局或执行可失败的转换；panic 同样自动 Unmap。
+    // Establish guards before checking returned layouts/fallible conversions; panic also automatically Unmaps.
     let _mapping = Mapping {
         context,
         texture: &staging,
@@ -193,7 +193,7 @@ unsafe fn read_mapped<T>(
     {
         return Err(Error::Layout);
     }
-    // D3D11 不公开物理显存分配尺寸；先准入逻辑像素，再按已知映射跨度补足读回租约。
+    // D3D11 exposes no physical VRAM allocation size; admit logical pixels first, then supplement readback leases using known mapped spans.
     if !lease.grow_to(length) {
         return Err(Error::Budget);
     }
@@ -252,7 +252,7 @@ fn wait<T>(
     loop {
         check(cancel)?;
         match map() {
-            Ok(value) => return Ok(value), // 已映射时由调用方先安装 guard，再检查取消。
+            Ok(value) => return Ok(value), // Once mapped, callers install guards before checking cancellation.
             Err(error) if error.code() == DXGI_ERROR_WAS_STILL_DRAWING => (),
             Err(error) => return Err(Error::Api(error)),
         }

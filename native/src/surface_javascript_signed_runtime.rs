@@ -1,5 +1,5 @@
-//! UI 非阻塞本地 Art owner：只移交 Prepared/命令和领取帧；Local 与 child 始终归后台线程。
-//! 正常清理先 stop，等待线程句柄终态再 take_exit；Drop 的 join 仅作为最终防泄漏兜底。
+//! Nonblocking local Art owner for UI: hand off only Prepared/commands and claim frames; Local and child always belong to the background thread.
+//! Normal cleanup stops first, waits for thread-handle termination, then calls take_exit; Drop's join is only the final leak-prevention fallback.
 use super::{Frame, Local};
 use crate::{
     art_execution_grant::wire::Binding, device_authorization_lease::Lease,
@@ -42,7 +42,7 @@ pub struct Runtime {
     progress: Option<Arc<progress::Channel>>,
     trigger: Option<crate::art_live_trigger::ticket::Ticket>,
 }
-/// 宿主准备的不可变输入；只沿原 mount 资源协议交付，不为脚本增加文件或网络权限。
+/// Immutable host-prepared inputs; deliver only through the original mount-resource protocol without adding script file/network permissions.
 pub struct Content {
     pub snapshot: serde_json::Value,
     pub resources: serde_json::Value,
@@ -58,7 +58,7 @@ impl Content {
     }
 }
 impl Runtime {
-    /// reachability 模式在本 owner 内固定；宿主网络状态变化须停止此 owner，不能默默延长 offline 许可。
+    /// reachability mode is fixed within this owner; host network changes must stop it rather than silently extend offline permission.
     pub fn start(
         prepared: crate::live_relay_http::art_prepare::Prepared,
         view: crate::surface_live_binding::Binding,
@@ -67,7 +67,7 @@ impl Runtime {
     ) -> io::Result<Self> {
         Self::start_notified(prepared, view, snapshot, online, None, Arc::new(|| {}))
     }
-    /// notify 必须短且不阻塞，只投递宿主 Wake；完成标记先于最后通知发布。
+    /// notify must be brief and nonblocking, posting only host Wake; publish completion before the final notification.
     pub fn start_notified(
         prepared: crate::live_relay_http::art_prepare::Prepared,
         view: crate::surface_live_binding::Binding,
@@ -151,7 +151,7 @@ impl Runtime {
                     )
                 }))
                 .unwrap_or(Err(Error::Panicked));
-                // 退出前 Local/child 已经析构；线程终态与撤销都不得留下可领取的旧帧。
+                // Local/child are destroyed before exit; neither thread termination nor revocation may leave claimable stale frames.
                 worker_lease.revoke();
                 worker_mailbox.finish();
                 result
@@ -175,7 +175,7 @@ impl Runtime {
     pub fn pending(&self) -> bool {
         self.pending
     }
-    /// 单槽原路提交；调用方仍须确认 view 属于当前声明，忙碌时不排动画或隐式重试。
+    /// Submit through the original single slot; callers must still verify view belongs to the current declaration, with no animation queuing or implicit retry while busy.
     pub fn select_view(
         &mut self,
         current: &Binding,
@@ -302,7 +302,7 @@ impl Runtime {
         self.pending = true;
         Ok(())
     }
-    /// 宿主还必须在 HWND 提交前后复核节点/选择/窗口身份；本方法只核执行绑定和原授权。
+    /// Hosts must also recheck node/selection/window identities before and after HWND submission; this method checks only execution binding and original authorization.
     pub fn take_reply(&mut self, current: &Binding) -> Option<Result<Frame, Error>> {
         let reply = match self.mailbox.take_reply() {
             Ok(Some(reply)) => reply,
@@ -336,7 +336,7 @@ impl Runtime {
         self.lease.stop_execution();
     }
     pub fn take_exit(&mut self) -> Option<Result<(), Error>> {
-        // completed 表示 Local/child 已回收；join 最多等待短通知返回，不等网络/JS。
+        // completed means Local/child have been reaped; join waits at most for the brief notification to return, never networking/JS.
         if !self.mailbox.completed() && !self.thread.as_ref()?.is_finished() {
             return None;
         }

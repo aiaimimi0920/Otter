@@ -1,4 +1,4 @@
-//! 真实回环 TLS 下载、独立 issuer 验签和 child 挂载；不冒充生产 Loom/UI 集成。
+//! Real loopback TLS downloads, independent issuer verification, and child mounting; not production Loom/UI integration.
 use super::*;
 use crate::{
     art_execution_grant::wire,

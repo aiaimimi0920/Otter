@@ -1,4 +1,4 @@
-//! 真实 Job 限额、迟到容量和停滞 child 回收；只启动当前测试 EXE 的固定私有入口。
+//! Real Job limits, late capacity, and stalled-child cleanup; launch only fixed private entries in the current test EXE.
 use super::*;
 use crate::live_recovery_pipe::Pipe;
 use std::os::windows::io::AsRawHandle;
@@ -86,7 +86,7 @@ fn surface_webp_capacity_waits_for_release_and_honors_cancel() {
                     limit
                 }
         );
-        // 取消必须明显早于五秒 deadline 返回，不能把等到超时误记为取消成功。
+        // Cancellation must return well before the five-second deadline; waiting for timeout is not successful cancellation.
         assert!(now.elapsed() < Duration::from_secs(3));
     }
 }

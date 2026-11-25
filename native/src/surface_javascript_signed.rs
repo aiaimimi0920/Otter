@@ -1,6 +1,6 @@
-//! 新执行许可保护的本地预览接缝；复用真实 JS child，不复用旧 Surface 的资源 lease 作为许可。
-//! 阻塞 API 仅供后台 owner。当前只接本地状态/预览；服务派发、正式结果与 UI 接线仍由上层负责。
-//! 宿主生命周期失效必须进入 cancelled；grant Binding 不含窗口/附件生命周期，不可替代其 owner。
+//! Local-preview seam protected by new execution permits; reuse real JS children, not old Surface resource leases as permission.
+//! Blocking APIs are background-owner-only. Currently connects local state/previews; upper layers still own service dispatch, committed results, and UI wiring.
+//! Host lifecycle invalidation must enter cancelled; grant Binding lacks window/attachment lifecycle and cannot replace its owner.
 use super::{Frame, Session};
 use crate::{
     art_execution_grant::{self as grant, wire, Expected, Issuer, Permit},
@@ -29,7 +29,7 @@ pub enum Error {
     Stopped,
     Execution(io::ErrorKind),
 }
-/// 两种身份分别来自当前宿主请求；不得从签名响应反向补造 Expected。
+/// Both identities come separately from the current host request; never fabricate Expected by working backward from signed responses.
 pub struct Input<'a> {
     pub envelope: &'a [u8],
     pub issuer: Issuer<'a>,
@@ -87,7 +87,7 @@ fn check(
     result
 }
 impl Local {
-    /// 不建立 issuer 信任、不下载源码、不创建另一套 JS 引擎；先验签再分配 child。
+    /// Does not establish issuer trust, download source, or create another JS engine; verify signatures before allocating children.
     pub fn mount(
         input: Input<'_>,
         lease: Arc<Lease>,
@@ -96,7 +96,7 @@ impl Local {
     ) -> Result<(Self, Frame), Error> {
         Self::mount_inner(input, lease, online, cancelled, None, None)
     }
-    /// 已下载结果保留首次准入时钟；仍重新验证输入字节，不能用 Permit 替代源码完整性。
+    /// Downloaded results retain the initial-admission clock; revalidate input bytes, since Permit cannot replace source integrity.
     pub(crate) fn mount_prepared(
         input: Input<'_>,
         lease: Arc<Lease>,
@@ -167,7 +167,7 @@ impl Local {
         let permit = prior
             .map(|(permit, _)| permit)
             .unwrap_or_else(|| Arc::new(Mutex::new(accepted)));
-        // 仅已下载 owner 能注入原许可 dispatcher；旧 emit 仍不是服务或正式结果。
+        // Only downloaded owners may inject the original permit dispatcher; old emits remain neither services nor committed results.
         let scope = permit
             .lock()
             .map_err(|_| Error::Stopped)?
@@ -217,7 +217,7 @@ impl Local {
         local.refresh(current, online, cancelled)?;
         local.frame(frame).map(|frame| (local, frame))
     }
-    /// 闲置 owner 必须在授权截止/撤权唤醒时调用；本接缝不另起计时线程。
+    /// Idle owners must call on authorization-deadline/revocation wakeups; this seam starts no additional timer thread.
     pub fn refresh(
         &mut self,
         current: &wire::Binding,
@@ -335,7 +335,7 @@ impl Local {
             }
         })
     }
-    /// 自动回调只沿原串行child执行；每个阻塞接缝同时核本次领取及签名授权。
+    /// Automatic callbacks execute only through the original serial child; every blocking seam checks both this claim and signed authorization.
     pub(crate) fn live_trigger(
         &mut self,
         current: &wire::Binding,
@@ -353,7 +353,7 @@ impl Local {
             },
         )
     }
-    /// 不执行不可信 dispose 回调；只回收自有 child，不撤销其他 owner 的设备租约。
+    /// Never execute untrusted dispose callbacks; reap only owned children without revoking other owners' device leases.
     pub fn stop(&mut self) {
         self.permit.lock().unwrap_or_else(|e| e.into_inner()).stop();
         self.session.take();

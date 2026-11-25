@@ -1,4 +1,4 @@
-//! 文字输入事务；就地草稿不改文档，提交前核验文档身份与版本。
+//! Text-input transactions; in-place drafts do not modify documents, and commit verifies document identity/version.
 use super::canvas::Canvas;
 use super::State;
 use crate::{editor::Tool, text_annotation::TextAnnotation, viewport::Point};
@@ -80,7 +80,7 @@ impl Pending {
             return Ok(false);
         }
         if let Some(index) = self.index {
-            // 没有内容/字体变更时不因重新测量改动手动调整过的文字框。
+            // Without content/font changes, remeasurement must not alter manually adjusted text boxes.
             if self.text.as_ref() == Some(&text) {
                 return Ok(false);
             }

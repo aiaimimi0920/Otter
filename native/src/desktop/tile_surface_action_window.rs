@@ -1,4 +1,4 @@
-//! Tile原生点击与显式右键操作；不在WndProc联网、不自动弹确认、不持共享锁跨菜单/模态泵。
+//! Tile native clicks and explicit right-click operations; no WndProc networking/automatic confirmation or shared locks across menu/modal pumps.
 use super::*;
 use crate::{
     surface_confirmation::{Choice, Risk},
@@ -92,7 +92,7 @@ pub(super) fn down(state: &State, pixel: [i32; 2]) {
     };
     *state.pressed.borrow_mut() = gesture;
 }
-/// 同一按下边沿先提交旧编辑，再接管新字段/手势；Win32回调不跨owner借用。
+/// The same press edge commits old edits before taking over new fields/gestures; no owner borrow crosses Win32 callbacks.
 pub(super) fn pointer_down(hwnd: HWND, state: &State, pixel: [i32; 2]) {
     if super::text::begin(hwnd, state, pixel) || !super::text::commit_for_click(state) {
         return;

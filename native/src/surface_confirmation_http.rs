@@ -1,4 +1,4 @@
-//! 一次设备过滤流读取以取得确认提示；不发批准请求、不重放动作、不持续轮询。
+//! Read the device-filtered stream once to obtain a confirmation prompt; no approval requests, action replay, or continuous polling.
 use super::*;
 use crate::{
     surface_action_ack::{Ack, Status},
@@ -26,7 +26,7 @@ impl Control<'_> {
     pub fn surface_confirmation(&self, event: &ClickEvent, ack: &Ack) -> ConfirmationOutcome {
         self.surface_confirmation_until(event, ack, Instant::now() + Duration::from_secs(3))
     }
-    /// 批次观察只能缩短读取预算，不能为每条提示重新延长整批截止。
+    /// Batch observation may only shorten the read budget, never renew the whole-batch deadline for each prompt.
     pub fn surface_confirmation_until(
         &self,
         event: &ClickEvent,

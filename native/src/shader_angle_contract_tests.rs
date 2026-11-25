@@ -1,4 +1,4 @@
-//! 显式消费真实旧 ShaderRenderer 浏览器回读夹具；不复制 Loom 业务算法到 Otter。
+//! Explicitly consume real legacy ShaderRenderer browser-readback fixtures; do not copy Loom business algorithms into Otter.
 use super::*;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
@@ -50,7 +50,7 @@ pub(crate) fn cases() -> Vec<Case> {
         ]
     );
     for case in &cases {
-        // 绑定只读 Loom 实际合同，不接受一个自行重写的“等效滤镜”作为对照。
+        // Bind the actual read-only Loom contract; a self-reimplemented equivalent filter is not an acceptable reference.
         assert_eq!(
             hash(&case.vertex),
             "d2c104b7898df5f13482213e67084a43309c20b9ea6be7fd41d7d539366d0c7b"
@@ -63,7 +63,7 @@ pub(crate) fn cases() -> Vec<Case> {
         assert_eq!(case.expected_raw_rgba.len(), 24);
         assert_eq!(case.legacy_png_rgba.len(), 24);
     }
-    // 半透明 PNG 不是 straight raw RGBA；原生显示/导出桥接必须单独处理，不能混为一谈。
+    // Translucent PNG is not straight raw RGBA; native display/export bridges must handle these separately rather than conflate them.
     assert_eq!(&cases[0].expected_raw_rgba[12..16], &[64, 32, 16, 128]);
     assert_eq!(&cases[0].legacy_png_rgba[12..16], &[128, 64, 32, 128]);
     cases
@@ -90,7 +90,7 @@ fn actual_loom_glsl_lut_matches_legacy_webgl2_raw_rgba() {
                 let mut maximum = 0;
                 for (index, (actual, expected)) in frame.rgba.iter().zip(&case.expected_raw_rgba).enumerate() {
                     let delta = actual.abs_diff(*expected);
-                    // 只允许复杂浮点 tone 的跨 GPU RGB 一字节舍入，方向/alpha 不放宽。
+                    // Allow only one RGB byte of cross-GPU rounding for complex floating-point tone; preserve strict orientation/alpha checks.
                     let tolerance = u8::from(case.name == "loom-inverted-lut-tone" && index % 4 != 3);
                     assert!(delta <= tolerance, "backend={backend:?} case={} byte={index} actual={actual} expected={expected}", case.name);
                     maximum = maximum.max(delta);

@@ -1,4 +1,4 @@
-//! 悬浮阅读面只消费已准备的有界像素/文字；不解码、不取得剪贴板或业务权限。
+//! Hover reading surfaces consume only prepared bounded pixels/text; no decoding, clipboard access, or business permissions.
 use super::*;
 
 #[derive(Clone)]

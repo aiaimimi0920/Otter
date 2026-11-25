@@ -1,4 +1,4 @@
-//! 独立原生测试进程沿真实管理器菜单/输出授权/Runtime/窗口；物理输出和普通EXE仍另验。
+//! Independent native test processes traverse actual manager menus/output authorization/Runtime/windows; physical output and ordinary EXEs require separate verification.
 use super::*;
 use serde_json::json;
 #[path = "tile_native_joint_fixture.rs"]

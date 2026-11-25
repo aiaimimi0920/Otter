@@ -1,4 +1,4 @@
-//! 参数类型、冻结、公共过滤及覆盖的无 GPU 门；WIC/PreparedBatch 复用原生产 owner。
+//! GPU-free gates for parameter types, freezing, public filtering, and overrides; WIC/PreparedBatch reuse original production owners.
 use super::*;
 use crate::{
     desktop::shader_prepare::{self, tests as staging},
@@ -50,7 +50,7 @@ fn shader_parameters_freeze_resolved_numbers_booleans_and_png_without_secret_or_
         bundle: staging::runtime(Backend::D3d11, false).bundle,
         backend: Backend::D3d11,
     };
-    // 指定端口缺失时只回退到原先的标准输入名，不误取 reference。
+    // If the specified port is missing, fall back only to the original standard input name, never mistakenly select reference.
     assert!(installation
         .capture(
             &crate::loom_capability::Capability::new(&raw).unwrap(),

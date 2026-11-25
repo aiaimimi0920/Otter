@@ -1,4 +1,4 @@
-//! 局部大纹理通过完整 blur 绘制入口，与相同几何/裁切的整图路径对照。
+//! Large local textures use the full blur drawing entry point, compared against whole-image rendering with identical geometry/clipping.
 use super::*;
 use crate::{blur_image::BlurImage, crop_geometry::Rect, editor::Editor, viewport::Point};
 use windows::Win32::{

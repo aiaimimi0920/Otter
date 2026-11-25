@@ -1,4 +1,4 @@
-//! 无 HWND 的布尔字段会话；复用既有 Draft ticket 规则，字符串只用于内部 FIFO。
+//! Boolean field sessions without HWNDs; reuse existing Draft-ticket rules, with strings only for the internal FIFO.
 use crate::{
     surface_click_event::ClickEvent,
     surface_input_draft::{Draft, Ticket},
@@ -93,7 +93,7 @@ impl Session {
         )
         .map_err(|_| failure())?;
         let Some(event) = event else {
-            // 无 change handler 时保留本地值，但允许后续不同权威值正常同步。
+            // Without a change handler, retain local values but permit later different authoritative values to synchronize normally.
             if self.pending.is_empty() {
                 if let Some(ticket) = self.unsent.take() {
                     self.draft.cancel(ticket);

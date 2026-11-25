@@ -1,4 +1,4 @@
-//! Tile离散值手势与原生选项菜单；不持COM/Shared借用跨菜单泵，取消不发动作。
+//! Tile discrete-value gestures/native option menus; no COM/Shared borrow across menu pumps, and cancellation sends no actions.
 use super::*;
 use crate::tile_surface_value::{Control, Field};
 pub(in crate::desktop::tile_window) fn field(state: &State, pixel: [i32; 2]) -> Option<Field> {
@@ -30,7 +30,7 @@ impl Drop for Menu {
 fn menu(options: &crate::surface_select::Options, selected: Option<usize>) -> Result<Menu> {
     let menu = Menu(unsafe { CreatePopupMenu()? });
     for (index, option) in options.items().iter().enumerate() {
-        // Win32菜单解释&和tab；远端声明只能成为文字，不能注入快捷键/列或额外项。
+        // Win32 menus interpret & and tabs; remote declarations may supply text only, never injected shortcuts/columns/extra items.
         let label = option
             .label()
             .replace('&', "&&")
@@ -105,7 +105,7 @@ pub(in crate::desktop::tile_window) fn finish(
         },
         Control::Switch(_) => None,
     };
-    // 模态菜单期间可发生撤权、黑场、换版、显示/DPI变化或同步销毁。
+    // Modal menus may encounter revocation, black frames, version changes, display/DPI changes, or synchronous destruction.
     if state.closed.get()
         || state.changed.get()
         || !unsafe { IsWindowVisible(hwnd) }.as_bool()
@@ -158,7 +158,7 @@ pub(in crate::desktop::tile_window) fn finish(
             return;
         }
     }
-    // 无跨UI调度借用；worker还将GET新鲜state并重新核节点/命中后才发送一次。
+    // No borrow crosses UI scheduling; the worker will GET fresh state and revalidate nodes/hits before sending once.
     if !commands.is_empty() {
         state.shared.lock().actions.offer(commands, Instant::now());
     }

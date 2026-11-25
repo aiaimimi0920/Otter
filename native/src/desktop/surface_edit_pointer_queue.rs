@@ -1,4 +1,4 @@
-//! 原编辑 FIFO 的 Canvas 边沿/容量接缝；move 只覆盖未封存且同手势的队尾。
+//! Canvas edge/capacity seam in the original edit FIFO; move replaces only an unsealed tail from the same gesture.
 use super::*;
 use crate::surface_javascript_wire::{PointerInput, PointerPhase};
 #[derive(Clone)]
@@ -25,7 +25,7 @@ impl Queue {
                 return true;
             }
             changed = true;
-            // 已排 up/move 的槽和序号可改成终止通知；MAX 序号时也不丢 terminal，且不越过后续输入。
+            // Queued up/move slots and sequences may become terminal notifications; retain terminals even at MAX sequence without crossing later input.
             if let Some(replacement) = cancel.take() {
                 intent.node = replacement.input.target.clone();
                 *pointer = replacement;
@@ -92,7 +92,7 @@ impl Queue {
         pointer: PointerIntent,
     ) -> bool {
         let Some((gesture, _)) = self.pointer_reservation else {
-            // terminal 已排队后 reservation 已消费，重复单手势取消仍需更新其 epoch。
+            // Once terminal is queued, its reservation is consumed; repeated single-gesture cancellation must still update its epoch.
             for intent in &mut self.waiting {
                 if let Edge::Pointer(existing) = &mut intent.edge {
                     if existing.gesture == pointer.gesture

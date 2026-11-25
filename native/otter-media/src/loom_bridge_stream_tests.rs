@@ -1,4 +1,4 @@
-//! 仅使用自建回环 socket，不读取发现凭据或接触运行中的 Loom。
+//! Use only self-created loopback sockets; do not read discovery credentials or contact a running Loom.
 use super::*;
 use std::{net::TcpListener, sync::mpsc, thread};
 
@@ -79,7 +79,7 @@ fn cancellation_interrupts_read_without_waiting_for_long_deadline() {
     }
     interrupt.cancel().unwrap();
     let result = receive.recv_timeout(Duration::from_secs(3));
-    // 失败路径也先回收 worker；不能在 expect panic 后留下最长 30 秒的后台读取。
+    // Reclaim the worker first even on failure; an expect panic must not leave a background read running for up to 30 seconds.
     interrupt.cancel().unwrap();
     worker.join().unwrap();
     let result = result.expect("cancel must wake read");

@@ -1,4 +1,4 @@
-//! 实际候选字节的有界关联索引；自身仍不是提交证明，只能由 checkpoint 发布者提升。
+//! Bounded association index of actual candidate bytes; not commit proof itself, promotable only by checkpoint publishers.
 use super::{Binding, Ticket};
 use crate::{
     projection_delivery::checkpoint_session::{self, Object},
@@ -12,7 +12,7 @@ pub struct Index {
     entries: Vec<Binding>,
 }
 impl Index {
-    /// 只在原准备 worker 中解析；未知/旧投送不推断关联，坏标记不阻止普通工作区保存。
+    /// Parse only in original preparation workers; never infer unknown/old delivery associations, and bad markers do not block ordinary workspace saves.
     pub(crate) fn capture(source: &Source) -> Option<Self> {
         let parsed = source.parse().ok()?;
         let mut index = Self::new(&parsed);
@@ -29,7 +29,7 @@ impl Index {
         let Some(raw) = object.get("qrProjection").filter(|raw| raw.get() != "null") else {
             return Some(());
         };
-        // 只借用大型图片字段；投送元数据本身有独立小上限。
+        // Borrow large image fields only; delivery metadata has its own small limit.
         if raw.get().len() > 8192 {
             return None;
         }

@@ -1,4 +1,4 @@
-//! 用认证回执的等待点控制媒体自然掉线与控制轮换的交错，不依靠 sleep 命中窗口。
+//! Use authenticated-receipt wait points to control natural media disconnection/control rotation interleavings, not sleep timing.
 use super::*;
 
 #[test]
@@ -36,7 +36,7 @@ fn source_old_progress_cannot_acknowledge_concurrent_media_rotation() {
         value["sourceConnected"] = json!(true);
         value["lastFrameId"] = json!(2);
         reply(&mut old_receipt, 200, &serde_json::to_vec(&value).unwrap());
-        // 尚未消费的控制侧请求必须由确已升级的连接完成，且该连接不得发送帧。
+        // An actually upgraded connection must consume pending control requests, and that connection must send no frames.
         let mut retired = socket(&listener, &tls, &mut nonces);
         assert!(retired.read().is_err(), "pending rotation sent a frame");
         let mut current = socket(&listener, &tls, &mut nonces);
@@ -108,7 +108,7 @@ fn slow_source_progress_polls_share_the_same_confirmation_deadline() {
         drop(lagging);
         let mut withheld = receipt();
         assert!(withheld.read_exact(&mut [0]).is_err());
-        // 给调度留余量，但不允许第二次 GET 从头获得三秒（旧实现需超过五秒）。
+        // Allow scheduling margin, but never give the second GET a fresh three seconds; the old implementation required over five seconds.
         assert!(
             began.elapsed() < Duration::from_millis(4500),
             "confirmation deadline restarted: {:?}",

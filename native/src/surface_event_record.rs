@@ -1,4 +1,4 @@
-//! 动作恢复提示，不是授权或可重放命令；不保存 payload、场景、凭据和远端错误文本。
+//! Action recovery hints, not authorization or replayable commands; never store payloads, scenes, credentials, or remote error text.
 use crate::{
     desktop::surface_authorized_window::EventReceipt,
     surface_action_ack::{Ack, Status},

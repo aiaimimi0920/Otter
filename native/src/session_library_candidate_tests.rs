@@ -1,4 +1,4 @@
-//! 冻结实例化准备的身份、原文、坐标和取消合同；不发布窗口或访问用户文件。
+//! Frozen-instantiation preparation identity/original-text/coordinate/cancellation contracts; no window publication or user-file access.
 use super::*;
 
 #[test]

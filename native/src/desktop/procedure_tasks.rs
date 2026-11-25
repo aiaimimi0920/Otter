@@ -1,4 +1,4 @@
-//! 宿主后台任务与设置短反馈的计时消息路由；定时器生命周期仍归各责任模块。
+//! Route timer messages for host background tasks and short settings feedback; each responsible module still owns its timer lifecycle.
 use crate::desktop::{self, State};
 use windows::Win32::Foundation::HWND;
 

@@ -1,4 +1,4 @@
-//! 有界UIA观察状态机；仅真实ack后commit，两次相同样本稳定，稳定心跳保留原始起点。
+//! Bounded UIA observation state machine; commit only after real ack, stabilize after two identical samples, and retain the original start on stable heartbeats.
 use crate::{
     live_relay_observation::{Confidence, Observation, Source, State, MAX_OBSERVATIONS},
     live_source_uia::{root_error, Sample},
@@ -74,7 +74,7 @@ impl Tracks {
             value.observed_at_ms = now;
             values.push(value);
         }
-        // 本地累计快照也受限，避免逐轮新增/stale元数据突破HTTP/Viewer的1MiB合同。
+        // Local accumulated snapshots are also bounded so per-round new/stale metadata cannot exceed the HTTP/Viewer 1MiB contract.
         let mut next: BTreeMap<&str, &Observation> = self
             .0
             .iter()

@@ -1,4 +1,4 @@
-//! 保存的端口描述只是精确包提示；恢复不启动脚本，执行仍必须重新取得在线或离线签名证明。
+//! Saved port descriptions are only exact-package hints; restore does not start scripts, and execution still requires fresh online/offline signed proof.
 use super::*;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]

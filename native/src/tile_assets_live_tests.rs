@@ -1,4 +1,4 @@
-//! 确定性重现“检查active之后冻结、poll才返回取消”；同代际保view，换代/停止不得复活。
+//! Deterministically reproduce freezing after active checks but before poll returns cancellation; preserve same-generation views without revival after generation changes/stop.
 use super::*;
 #[test]
 fn freeze_after_poll_entry_holds_views_instead_of_interpreting_cancel_as_retirement() {

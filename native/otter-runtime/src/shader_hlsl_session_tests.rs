@@ -1,4 +1,4 @@
-//! 热会话复用、满池交接、线程失败和编译失败后的真实子进程退出回归。
+//! Regression tests for warm-session reuse, full-pool handoff, thread failures, and real child exit after compilation failure.
 use super::*;
 use crate::shader_hlsl::contract_tests::with_request;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -104,7 +104,7 @@ fn same_scope_reuses_warm_worker_isolated_from_other_scope_and_auto_reaps() {
         assert_eq!(&*second.rgba, &[64, 32, 16, 128]);
         let pid_a2 = parked_pid("unit-a").expect("still parked unit-a");
         assert_eq!(pid_a1, pid_a2, "same scope must reuse warm worker");
-        // 不同 scope 不得复用 unit-a 的 worker，且 256MiB 池满时驱逐旧 scope。
+        // Different scopes must not reuse unit-a's worker, and a full 256MiB pool evicts the old scope.
         let other = render_with_entry(
             "unit-b",
             req,
@@ -196,7 +196,7 @@ fn hlsl_first_compile_error_exits_cleanly_at_request_boundary() {
     });
     let Parked { pipe, child, .. } =
         take_matching("first-compile-error", Backend::Warp, entry).unwrap();
-    // 子端空闲到期走正常析构；finish 真实读取 0 exit code，不以 Drop 的 Job 强杀冒充。
+    // Child idle expiry performs normal destruction; finish actually reads exit code 0 rather than substituting Drop's Job force-kill.
     child
         .finish(Instant::now() + Duration::from_secs(5), &|| false)
         .unwrap();

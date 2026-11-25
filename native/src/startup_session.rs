@@ -1,4 +1,4 @@
-//! 会话启动参数；显式坐标必须成对，否则从文件读取，不根据显示器猜历史 DPR。
+//! Session startup arguments; explicit coordinates must be paired, otherwise read the file without guessing historical DPR from monitors.
 use std::{ffi::OsString, path::PathBuf};
 pub struct Session {
     pub path: PathBuf,

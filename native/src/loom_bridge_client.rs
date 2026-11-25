@@ -1,4 +1,4 @@
-//! 固定证书的本机 TLS 1.3/WebSocket 连接；仅后台调用，发现来源由调用方负责。
+//! Pinned-certificate local TLS 1.3/WebSocket connections; background only, with discovery provenance owned by callers.
 use crate::{loom_bridge_identity::Identity, loom_bridge_stream::BridgeStream};
 use rustls::{
     pki_types::{CertificateDer, ServerName},
@@ -13,7 +13,7 @@ use tungstenite::{client::IntoClientRequest, http::HeaderValue, WebSocket};
 
 pub type BridgeSocket = WebSocket<StreamOwned<ClientConnection, BridgeStream>>;
 const HANDSHAKE_LIMIT: Duration = Duration::from_secs(3);
-/// 不传播底层 HTTP/TLS 错误文本，避免意外暴露认证头或发现凭据。
+/// Do not propagate underlying HTTP/TLS error text, avoiding accidental exposure of authentication headers/discovery credentials.
 #[derive(Debug, PartialEq)]
 pub enum Error {
     InvalidTimeout,

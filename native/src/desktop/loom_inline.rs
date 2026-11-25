@@ -1,4 +1,4 @@
-//! 原生已提交合成快照/正式原始 PNG 到 Loom 内联输入；不触碰文件、剪贴板或网络。
+//! Native committed-composite snapshots/official original PNGs to Loom inline input; no files, clipboard, or network.
 use super::{export, image::Image, Apartment};
 use crate::{editor::Editor, loom_art_wire::Input, loom_base64::Encoded, pixels::Pixels};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -24,7 +24,7 @@ impl Inline {
         }
     }
 }
-/// 调用方在 worker 中持有不可变编辑快照；WIC 调用不可中断，取消在阶段边界检查。
+/// Callers hold immutable editing snapshots in workers; WIC calls are uninterruptible, with cancellation checked at stage boundaries.
 pub fn prepare(
     width: u32,
     height: u32,

@@ -1,4 +1,4 @@
-//! 原Views串行调度动作；每次先读新鲜state再至多提交一个意图，冻结/识别只允许取消已有执行。
+//! Original Views serially schedule actions; read fresh state before submitting at most one intent, while freeze/identification allows only cancellation of existing execution.
 use super::*;
 use crate::tile_surface_action_dispatch as dispatch;
 use crate::tile_surface_actions::{pending::Ticket, Command, Kind};
@@ -13,7 +13,7 @@ fn unstarted(
 ) {
     let now = Instant::now();
     let mut s = shared.lock();
-    // 只在权限仍有效且纯prepare/paint空隙时归还；暂停/撤权后即使恢复也不能复活旧意图。
+    // Return only while permissions remain valid during pure prepare/paint gaps; after pause/revocation, resumption cannot revive old intents.
     if defer
         && s.actions.holds(ticket)
         && dispatch::current(&s, job)
@@ -105,7 +105,7 @@ impl Views<'_> {
                 unstarted(command, &ticket, &state, job, shared, true);
                 return;
             }
-            // 此处提交一次HTTP尝试；后续暂停不能撤回已提交字节，但会拒绝迟到结果，绝不重排。
+            // Submit one HTTP attempt here; later pause cannot retract sent bytes but rejects late results and never reorders.
         }
         #[cfg(test)]
         crate::tile_surface_action_dispatch::trace(
@@ -153,7 +153,7 @@ impl Views<'_> {
         }
     }
     pub(crate) fn poll_cancel(&self, shared: &Shared, job: &Job) {
-        // 不因取消刷新冻结画布；仅更新纯控制状态。原view由本worker继续唯一拥有。
+        // Cancellation does not refresh frozen canvases; update only pure control state, with this worker retaining sole ownership of the original view.
         for entry in self.entries.values() {
             if !shared
                 .lock()

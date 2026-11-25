@@ -1,4 +1,4 @@
-//! 外部 Loom method/params 合同；夹具不打开共享内存或发送真实 WebSocket。
+//! External Loom method/params contract; fixtures neither open shared memory nor send real WebSockets.
 use super::*;
 use crate::{
     graph_execution_config::{Config, Runtime, Trigger},
@@ -75,7 +75,7 @@ fn owned_configuration_outlives_graph_and_preserves_wire_and_atomic_registration
         .unwrap();
         snapshot = Some(config);
     });
-    // 原 Graph/Params/手动字符串借用已离开作用域，快照仍能独立编码。
+    // The original Graph/Params/manual-string borrows are out of scope, but the snapshot still encodes independently.
     let config = snapshot.unwrap();
     let unit = UnitId::parse("unit").unwrap();
     let inputs = [(

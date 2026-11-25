@@ -1,15 +1,22 @@
-# OCR 扩展：二维码与条码
+# OCR extension: QR codes and barcodes
 
-与[投射邀请二维码](QR_PROJECTION.md)不同，扫描钉图上的码属于 Loom 可选 OCR 能力。
-Loom 负责能力包、安装、授权及解码结果；Otter 负责对所选钉图发命令、挂载附件和呈现授权的 Surface。
-可用的码制、结果和操作由当前已启用的能力包提供，不是 Otter 内置的解码合同。
+Unlike [projection invitation QR codes](QR_PROJECTION.md), scanning codes on a pin uses an optional Loom OCR capability.
+Loom owns capability packages, installation, authorization and decoded results. Otter dispatches commands
+for the selected pin, mounts attachments and presents authorized Surfaces.
+Supported symbologies, results and actions come from the currently enabled capability package,
+not a built-in Otter decoding contract.
 
-- 选中图像后，`Ctrl+4` 请求 OCR；`Alt+4` 切换 OCR 结果图层。宿主识别
-  `neuro.official/ocr.codes.v1` 和文本 OCR 附件的可见性，具体覆盖场景以能力返回为准。
-- 识别内容是数据，不会自动打开链接或执行程序。链接等命令须走受授权的宿主操作；
-  识别、可信能力清单或一个 URL 本身都不赋予外部执行权限。
-- 没有匹配能力时，本地截图和编辑仍可使用；不要把导入投射邀请当成通用扫码入口。
+- When the catalog provides the binding and the selected image meets the enabled command's conditions
+  and authorization requirements, `Ctrl+4` requests OCR; `Alt+4` toggles available OCR result layers.
+  The host recognizes visibility for `neuro.official/ocr.codes.v1` and text OCR attachments.
+  Actual coverage depends on the capability response; shortcuts neither install capabilities nor bypass authorization.
+- Recognized content is data: it does not automatically open links or execute programs. Link commands
+  and similar actions must use authorized host operations. Recognition, a trusted capability manifest,
+  or a URL alone does not grant permission for external execution.
+- Local capture and editing remain available without a matching capability.
+  Importing a projection invitation is not a general-purpose code scanner.
 
-Otter 侧变更从 [`extension_command_route.rs`](../../native/src/desktop/extension_command_route.rs) 和
-[`extension_visual.rs`](../../native/otter-media/src/extension_visual.rs) 核对，运行 `cargo test --locked --manifest-path native/Cargo.toml -p otter-media --lib extension_visual`。
-能力包的码制和解码回归由 Loom 负责，Otter 的宿主测试不替代这些验证。
+For Otter changes, inspect [`extension_command_route.rs`](../../native/src/desktop/extension_command_route.rs)
+and [`extension_visual.rs`](../../native/otter-media/src/extension_visual.rs), and run
+`cargo test --locked --manifest-path native/Cargo.toml -p otter-media --lib extension_visual`.
+Loom owns capability-package symbology and decoding regressions; Otter host tests do not replace them.

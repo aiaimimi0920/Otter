@@ -1,4 +1,4 @@
-//! 惰性控制请求批次：借用快照，最多保留一个编码消息；不连接网络或推断发送授权。
+//! Lazy control-request batches: borrow snapshots and retain at most one encoded message; no network connections or inferred send authorization.
 use super::{check, components, metadata, Error, Snapshot, WORKFLOW_ID};
 use crate::byte_budget::{Budget, Lease};
 use ring::rand::{SecureRandom, SystemRandom};
@@ -15,7 +15,7 @@ pub struct Request {
     bytes: Vec<u8>,
     id: String,
     workflow: String,
-    // 消息先释放，预算后释放；不提供脱离租约转移 bytes 的接口。
+    // Release messages before budgets; provide no interface that transfers bytes apart from their lease.
     _lease: Lease,
 }
 impl Request {
@@ -65,8 +65,8 @@ impl<'a> Batch<'a> {
     pub fn remaining(&self) -> usize {
         self.layouts.len() + 1 - self.cursor
     }
-    /// 只生成当前消息。重试借用同一字节/ID，不能把网络超时当成远端未提交。
-    /// 上层必须在每次实际发送前复核保存 receipt、连接身份与授权。
+    /// Generate only the current message. Retries borrow identical bytes/ID; network timeout does not imply no remote commit.
+    /// Upper layers must recheck save receipt, connection identity, and authorization before every actual send.
     pub fn current(
         &mut self,
         budget: &Arc<Budget>,
@@ -81,7 +81,7 @@ impl<'a> Batch<'a> {
             return Ok(None);
         }
         if self.pending.is_none() {
-            // 编码前准入最坏容量，禁止先分配大消息再追认预算。
+            // Admit worst-case capacity before encoding; never allocate a large message before retroactively obtaining budget.
             let limit = limit.min(crate::session_document::MAX_SESSION_BYTES);
             let mut lease = budget.reserve(limit).ok_or(Error::Budget)?;
             let mut random = [0u8; 16];
@@ -117,7 +117,7 @@ impl<'a> Batch<'a> {
         }
         Ok(self.pending.as_ref())
     }
-    /// 仅消费调用方已验证的成功回执。失败/超时不得调用，且不更新来源元数据。
+    /// Consume only successful receipts validated by the caller. Never call on failure/timeout, and do not update source metadata.
     pub fn acknowledge(&mut self, request_id: &str) -> bool {
         if self.pending.as_ref().is_none_or(|p| p.id != request_id) {
             return false;

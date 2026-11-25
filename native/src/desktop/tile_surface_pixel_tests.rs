@@ -1,4 +1,4 @@
-//! 真实WIC/D2D嵌入式Art；手工矩阵oracle同时约束crop/旋转/遮挡，不用新renderer算预期。
+//! Actual WIC/D2D embedded Art; handwritten matrix oracles jointly constrain crop/rotation/occlusion, not new-renderer expected values.
 use super::*;
 use crate::{
     tile_surface_wire::{Binding, State},

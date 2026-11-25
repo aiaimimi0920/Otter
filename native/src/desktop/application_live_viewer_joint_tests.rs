@@ -1,4 +1,4 @@
-//! 双原生Application/真实Surface公共挂载/真实LAN HTTPS/WSS控制联合；非普通双EXE或物理跨机。
+//! Joint dual native Applications/real Surface public mounting/real LAN HTTPS/WSS control; not ordinary dual-EXE or physical cross-machine testing.
 use super::*;
 use crate::desktop::composition::relay::window::input::{ACQUIRE, RELEASE};
 #[path = "application_live_viewer_joint_fixture.rs"]
@@ -111,7 +111,7 @@ fn run_mode(triggers: bool, video: bool) {
         let (hwnd, status) = app.remote_sessions.test_viewer_input(&key).unwrap();
         context::Context::offscreen(hwnd);
         assert!(!status.enabled);
-        // 观察发布不授键鼠控制；旧输入联合仍必须具备显式输入能力。
+        // Observation publication does not grant keyboard/mouse control; the existing input integration still requires explicit input capability.
         assert_eq!(status.available, !triggers && !video);
         context.record("viewer-ready.json", serde_json::json!({"instance":instance,"attachment":attachment,"realSurface":true,"menu":true,"application":true,"pixel":pixel}));
         if video {

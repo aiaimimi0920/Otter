@@ -1,4 +1,4 @@
-"""固定构建编排的确定性合同；所有 GN/Ninja/编译工具执行均被 tripwire 阻断。"""
+"""Deterministic contracts for fixed build orchestration; tripwires block all GN/Ninja/compiler execution."""
 
 import os
 import unittest

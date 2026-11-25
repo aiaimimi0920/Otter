@@ -263,7 +263,7 @@ fn each_annotation_exports_its_own_color_and_width() {
     let rendered = decode_png(encode(&image, &editor).unwrap());
     let pixel = |x: usize, y: usize| &rendered.pixels[(y * 64 + x) * 4..(y * 64 + x) * 4 + 4];
     assert_eq!(pixel(16, 16), &[0, 0, 255, 255]);
-    // 2 像素圆点位于像素交界处，覆盖率由抗锯齿决定；预乘蓝色应匹配 alpha。
+    // A 2-pixel dot lies on pixel boundaries, with antialiased coverage; premultiplied blue should match alpha.
     assert!(pixel(48, 16)[3] > 0);
     assert!(pixel(48, 16)[0].abs_diff(pixel(48, 16)[3]) <= 1);
     assert_eq!(pixel(48, 16)[2], 0);

@@ -1,4 +1,4 @@
-//! 文本模态事务回归；只使用合成图片和真实 Canvas，不打开用户输入框。
+//! Text-modal transaction regressions using only synthetic images and real Canvas, without user input dialogs.
 use super::super::image::Image;
 use super::*;
 use crate::rotation;
@@ -77,7 +77,7 @@ fn rejected_text_resize_keeps_selection_document_and_history() {
         assert_eq!(canvas.editor.elements()[0].text, before.text);
     }
     assert!(canvas.editor.undo());
-    // 被拒绝的操作未占用历史；一次撤销直接恢复此前旋转。
+    // Rejected operations use no history; one undo directly restores the preceding rotation.
     assert_eq!(canvas.editor.elements()[0].rotation, 0.0);
 }
 

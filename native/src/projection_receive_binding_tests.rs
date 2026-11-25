@@ -1,4 +1,4 @@
-//! 关联严格匹配意图/设备/完整快照；旧会话仍可保存，但不能凭 Unit 或未知元数据推断包含。
+//! Associations strictly match intent/device/full snapshot; old sessions remain savable, but Unit/unknown metadata cannot imply inclusion.
 use super::*;
 use crate::projection_delivery::{
     accept::tests as png,
@@ -148,7 +148,7 @@ fn combined_indices_retain_valid_side_after_other_index_fails() {
     assert!(indices.sender.is_none());
     assert!(indices.receiver.unwrap().for_ticket(&ticket).is_some());
 
-    // 无关扩展的重复键不会使 Document 失效，但原文字段表仍必须拒绝它。
+    // Duplicate keys in unrelated extensions do not invalidate Document, but original-text field tables must still reject them.
     complete["stickers"] = json!([&incoming, &outgoing]);
     let text = serde_json::to_string(&complete).unwrap();
     let with_duplicate = text.replace("\"future\":{", "\"future\":null,\"future\":{");

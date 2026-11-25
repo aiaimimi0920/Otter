@@ -1,4 +1,4 @@
-//! 起收笔半径采样流；最多每段八个样本，无前缀距离或整份派生点数组。
+//! Stroke-start/end radius sample streams; at most eight samples per segment, without prefix distances/full derived-point arrays.
 use crate::{brush_dynamics, viewport::Point};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -141,7 +141,7 @@ fn distance(a: Point, b: Point) -> f32 {
     (a.x - b.x).hypot(a.y - b.y)
 }
 
-/// 不含颜色 alpha 的原生实色合同；每层 source-over 补偿使中心最终达到请求透明度。
+/// Native solid-color contract excludes color alpha; per-layer source-over compensation reaches requested opacity at the center.
 pub fn bands(opacity: f32) -> [(f32, f32); 4] {
     let peak = if opacity.is_finite() {
         opacity.clamp(0.0, 1.0)

@@ -1,4 +1,4 @@
-//! 真实 HWND 请求和保存调度，注入目录选择/通知出口，不显示对话框或发送网络。
+//! Real HWND requests/save scheduling with injected directory selection/notification sinks; no dialogs or network sends.
 use super::*;
 pub(in crate::desktop::application) unsafe fn verify(
     app: &mut Application,

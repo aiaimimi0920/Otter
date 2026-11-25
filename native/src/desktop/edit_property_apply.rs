@@ -1,4 +1,4 @@
-//! 字段只修改自己的样式，单选字段作用于已选对象，不泄漏到后续创建默认值。
+//! Fields modify only their own styles; single-selection fields affect selected objects without leaking into later creation defaults.
 use super::*;
 use crate::{
     editor::Tool,

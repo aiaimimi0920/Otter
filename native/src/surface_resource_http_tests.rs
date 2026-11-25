@@ -1,4 +1,4 @@
-//! 真实回环 TLS 资源获取与消费身份门；不下载外部图片，不操作用户文件。
+//! Real loopback TLS resource fetching and consumption-identity gates; no external image downloads or user-file operations.
 use super::*;
 use crate::live_relay_http::{MountedSurface, ResourceError};
 use sha2::{Digest, Sha256};

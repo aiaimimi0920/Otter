@@ -1,4 +1,4 @@
-//! 独立坐标/像素oracle覆盖完整底图映射、擦除与效果事务，不以投送实现生成预期。
+//! Independent coordinate/pixel oracles cover full-base mapping, erasure, and effect transactions; expectations never use delivery implementations.
 use super::*;
 
 fn editor() -> Editor {
@@ -84,7 +84,7 @@ fn natural_non_square_source_accounts_for_original_contain_padding() {
         width: 4.0,
         height: 8.0,
     });
-    // 16x8原图位于8x8底图的y=2..6；选区位于x=2..4，分别放大4与2倍。
+    // The 16x8 original lies at y=2..6 in an 8x8 base; selection x=2..4 scales by 4 and 2 respectively.
     assert_eq!(
         view.base_projection((8, 8)),
         Some(crate::image_projection::Projection {

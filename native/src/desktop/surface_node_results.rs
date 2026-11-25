@@ -1,4 +1,4 @@
-//! Surface 节点输出替换与版本所有权；与普通 Loom 执行互斥，不执行资源描述符。
+//! Surface node-output replacement and version ownership; mutually exclusive with ordinary Loom execution, without executing resource descriptors.
 use super::*;
 use crate::{surface_live_binding::Binding, surface_result_commit::Commit};
 pub(super) struct Version {
@@ -6,7 +6,7 @@ pub(super) struct Version {
     revision: u64,
 }
 impl Results {
-    /// 普通结果交付不能冒充重挂载：已有其他附件时须由挂载 owner 显式换绑。
+    /// Ordinary result delivery cannot impersonate remounting; if another attachment exists, the mount owner must explicitly rebind.
     pub fn bind_surface_if_unbound(&mut self, binding: &Binding) -> Result<(), Error> {
         if self.surface_revoked
             || self
@@ -23,7 +23,7 @@ impl Results {
             .as_ref()
             .is_some_and(|version| &version.binding == binding && version.revision >= revision)
     }
-    /// 仅在应用确认当前附件属于该 Art 节点后调用；重挂载保持旧输出直到新提交。
+    /// Call only after the application confirms the current attachment belongs to this Art node; remounting retains old outputs until new commit.
     pub fn bind_surface(&mut self, binding: &Binding) -> Result<(), Error> {
         if binding.node() != self.unit.as_str() || self.active.is_some() {
             return Err(Error::Stale);
@@ -46,7 +46,7 @@ impl Results {
     pub fn surface_result_revision(&self) -> Option<u64> {
         self.surface.as_ref().map(|version| version.revision)
     }
-    /// 授权/请求/场景审核由应用先完成；旧版本不变更，失败不消费原始 Commit。
+    /// The application validates authorization/request/scene first; old versions remain unchanged, and failure does not consume the original Commit.
     pub fn apply_surface_result(
         &mut self,
         binding: &Binding,
@@ -72,7 +72,7 @@ impl Results {
             });
         }
         let stamp = OutputStamp(Arc::new(()));
-        // 到此所有可失败工作已结束；Surface outputs 是完整替换，空 map 也须清旧端口。
+        // All fallible work is complete here; Surface outputs replace everything, so even an empty map must clear old ports.
         self.ports = ports;
         self.port_costs = None;
         self.formal_outputs_committed = true;

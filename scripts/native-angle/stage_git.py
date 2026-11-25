@@ -1,4 +1,4 @@
-"""只读 Git 对象流；不用 worktree/filter/hooks，不取网，不执行源码中的脚本。"""
+"""Read-only Git object streams; no worktrees/filters/hooks, networking, or execution of source-tree scripts."""
 
 import hashlib
 import os
@@ -30,7 +30,7 @@ class GitObjects:
         }
 
     def __enter__(self):
-        # Git 仅运行只读 cat-file；定时终止负责覆盖管道读阻塞，finally 回收进程和 timer。
+        # Git runs read-only cat-file only; timed termination covers blocked pipe reads, and finally reclaims processes/timers.
         self.process = subprocess.Popen([str(self.executable), "--no-replace-objects", "--git-dir=" + str(self.database),
             "-c", "core.hooksPath=" + os.devnull, "-c", "protocol.allow=never", "cat-file", "--batch"],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=self.environment,

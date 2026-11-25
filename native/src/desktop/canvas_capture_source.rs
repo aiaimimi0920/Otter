@@ -1,4 +1,4 @@
-//! 采集来源只绑定当前文档身份；路径是来源记录，不是文件读写/删除授权或当前编辑结果。
+//! Capture provenance binds only current document identity; paths record origin, not file read/write/delete authority or current edited output.
 use super::Canvas;
 // Clones share only the read-only original-file lease, never a document owner.
 #[derive(Clone)]
@@ -67,7 +67,7 @@ impl Canvas {
     pub(in crate::desktop) fn attach_capture(&mut self, source: Option<CaptureSource>) {
         self.capture_source = source.map(|source| (self.editor.document_stamp(), source));
     }
-    /// 编辑后仍可追溯原始捕获，但不能把它当作已应用标注/裁剪的导出结果。
+    /// Edits retain traceability to the original capture, but it is not an export with annotations/cropping applied.
     pub fn capture_source(&self) -> Option<&CaptureSource> {
         self.capture_source
             .as_ref()

@@ -1,4 +1,4 @@
-//! 仅显式取色期间安装的鼠标 hook；回调不采样/绘制/分配，移动消息合并为一个待处理项。
+//! Mouse hook installed only during explicit color picking; callbacks neither sample, paint, nor allocate, and coalesce moves into one pending item.
 use super::*;
 pub(super) const MOVED: u32 = WM_APP + 0x241;
 pub(super) const COMMIT: u32 = WM_APP + 0x242;
@@ -120,7 +120,7 @@ mod tests {
                 )
                 .unwrap(),
             );
-            // 仅配置隐藏消息目标，绝不调用 SetWindowsHookEx 或发送真实键鼠。
+            // Configure only a hidden message target; never call SetWindowsHookEx or send real keyboard/mouse input.
             TARGET.with(|value| value.set(owner.0));
             GENERATION.with(|value| value.set(token));
             QUEUED.with(|value| value.set(false));

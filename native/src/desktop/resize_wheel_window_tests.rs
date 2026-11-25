@@ -1,4 +1,4 @@
-//! 模糊 worker 活动期间的真实滚轮续接；不切桌面、不注入系统输入。
+//! Real wheel continuation during active blur work; no desktop switching or system input injection.
 use super::*;
 use std::time::{Duration, Instant};
 
@@ -64,7 +64,7 @@ fn mixed_burst_matches_serial_reference_and_preserves_each_undo_step() {
             expected.push(serial.state.canvas.borrow().editor.elements().to_vec());
             burst.annotation_wheel(delta, own);
         }
-        // 不轮询时只能有一份计算，所有后续输入仍被接受而不提前写入模型。
+        // Without polling, there can be only one computation; all subsequent input is accepted without premature model writes.
         assert_eq!(burst.state.canvas.borrow().editor.revision(), revision);
         burst.drain();
         let mut c = burst.state.canvas.borrow_mut();
@@ -100,7 +100,7 @@ fn completed_but_unpolled_worker_still_accepts_following_inputs_in_order() {
         let f = Fixture::blur();
         let revision = f.state.canvas.borrow().editor.revision();
         f.annotation_wheel(20, false);
-        // is_busy 包括已完成、尚未交付的 worker；不能凭经过时间丢弃后续输入。
+        // is_busy includes completed but undelivered workers; elapsed time must not justify discarding subsequent input.
         std::thread::sleep(Duration::from_millis(80));
         f.annotation_wheel(-10, true);
         f.annotation_wheel(15, false);

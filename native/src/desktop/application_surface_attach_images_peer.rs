@@ -61,7 +61,7 @@ pub(super) fn serve(
                     serde_json::to_value(crate::desktop::surface_capabilities::report().unwrap())
                         .unwrap()
                 );
-                // 实际挂载请求须满足图片 Art 的声明，不能只与同一报告函数自比较。
+                // Actual mount requests must satisfy image-Art declarations, not merely compare against the same reporting function.
                 assert!(body["capabilities"]["nodes"]
                     .as_array()
                     .unwrap()

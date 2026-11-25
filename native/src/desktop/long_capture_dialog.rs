@@ -1,4 +1,4 @@
-//! 会话期手动长截图控制窗口；计时器只等待在途任务，无空闲采集或输入注入。
+//! Session-scoped manual scrolling-capture controls; timers only await in-flight tasks, without idle capture or input injection.
 use crate::desktop::{
     image::Image,
     long_capture_source::{self, Region},
@@ -260,7 +260,7 @@ unsafe fn handle(hwnd: HWND, message: u32, wp: WPARAM, lp: LPARAM) -> isize {
                 command @ 108..=111 => movement::dispatch(hwnd, input, command),
                 2 => close(hwnd, input),
                 107 => {
-                    // 禁用控件不是命令准入边界：拒绝任务在途或自动循环期间的迟到消息。
+                    // Disabled controls are not command-admission boundaries; reject late messages during in-flight tasks/automatic loops.
                     let allowed = {
                         let job = input.job.borrow();
                         job.can_scroll() && !job.is_pending() && !input.automatic.borrow().running()
@@ -415,7 +415,7 @@ unsafe fn handle(hwnd: HWND, message: u32, wp: WPARAM, lp: LPARAM) -> isize {
                     | Completion::SpatialAppend(Ok(crate::long_capture::SpatialAppend::Added {
                         ..
                     })) => {
-                        // 录制预览仍是上一张；只在新预览或取景框位置提交后重绘。
+                        // Recording previews still show the previous image; redraw only after new previews or viewfinder-position commits.
                         if !input.recording.enabled() {
                             clear_preview(hwnd, input);
                             frame_status(hwnd, input, reply.snapshot.frame_count);

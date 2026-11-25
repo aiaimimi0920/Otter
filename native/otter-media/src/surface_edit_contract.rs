@@ -1,4 +1,4 @@
-//! 编辑节点合同摘要：只忽略根节点权威 value，其余属性及子树变化使旧意图失效。
+//! Edit-node contract digest: ignore only the root's authoritative value; other property or subtree changes invalidate old intent.
 use crate::surface_scene::Node;
 use ring::digest::{Context, SHA256};
 use std::{
@@ -33,7 +33,7 @@ fn calculate(node: &Node, ignore_value: bool) -> Result<[u8; 32], serde_json::Er
         .expect("SHA256 length"))
 }
 fn encode(output: &mut HashWriter, node: &Node, root: bool) -> Result<(), serde_json::Error> {
-    // 固定字段顺序、结构长度及 JSON 编码避免拼接歧义；流式哈希不复制整个场景。
+    // Fixed field order, structural lengths, and JSON encoding avoid concatenation ambiguity; streaming hashes do not copy the entire scene.
     let props: BTreeMap<_, _> = node
         .props()
         .iter()

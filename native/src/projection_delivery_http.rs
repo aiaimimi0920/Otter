@@ -1,4 +1,4 @@
-//! 共享 Loom 的传统投送控制；沿用 Device/独立 nonce、固定 origin、取消和有界 HTTPS。
+//! Traditional-delivery control on shared Loom uses Device/independent nonce, fixed origin, cancellation, and bounded HTTPS.
 use super::*;
 use crate::projection_delivery::{
     self as delivery, Inbox, InboxPolicy, Invitation, ReceiveOperation,
@@ -28,7 +28,7 @@ impl Control<'_> {
         loop {
             let (status, bytes) = self.exchange_until("POST", path, body, deadline, limit, None)?;
             if shared && status == 429 && error_code(&bytes, "projection_busy") {
-                // 共用 Loom 在进入 handler 前拒绝这次请求。互联 Loom 的错误没有这个保证。
+                // Shared Loom rejected this request before entering the handler; interconnected-Loom errors provide no such guarantee.
                 let Some(delay) = delays.next().map(Duration::from_millis) else {
                     return Err(Error::ProjectionBusy);
                 };
@@ -102,13 +102,13 @@ impl Control<'_> {
         )
         .map_err(Error::Projection)
     }
-    /// 只读发送目录；不改变本机接收策略，不依据响应中的地址连接其他来源。
+    /// Read-only sender catalogs; do not change local receive policies or connect elsewhere based on response addresses.
     pub fn projection_targets(&self) -> Result<delivery::targets::Directory, Error> {
         let bytes =
             self.send_projection_limited("/v1/projections/targets", b"{}", delivery::MAX_JSON)?;
         delivery::targets::Directory::parse(&bytes, self.client.origin()).map_err(Error::Projection)
     }
-    /// 补偿只请求原来源解绑；非 2xx 或缺少 unlinked:true 不能退休写前意图。
+    /// Compensation requests unlink only at the original origin; non-2xx or absent unlinked:true cannot retire write-ahead intent.
     pub fn unlink_projection(&self, envelope: &delivery::Envelope) -> Result<(), Error> {
         self.unlink_projection_at(envelope, "/v1/projections/unlink")
     }
@@ -153,7 +153,7 @@ impl Control<'_> {
         }
         Ok(())
     }
-    /// 成功只代表服务端接入且拿到相关压缩 PNG；不发送 displayed，也不在网络层建窗。
+    /// Success means only server admission and correlated compressed PNG receipt; never send displayed or create windows in the network layer.
     pub fn accept_projection(
         &self,
         invitation: &Invitation,
@@ -163,7 +163,7 @@ impl Control<'_> {
             .map_err(Error::Projection)?;
         self.projection_snapshot(invitation.path(ReceiveOperation::Accept), &body, invitation)
     }
-    /// 恢复仅只读现有 receiver 关联；knownRevision=0 要求当前完整图，不重新 accept。
+    /// Recovery reads existing receiver associations only; knownRevision=0 requests the current full image without accepting again.
     pub(crate) fn read_projection(
         &self,
         intent: &delivery::journal::Ticket,
@@ -190,7 +190,7 @@ impl Control<'_> {
         body: &[u8],
         invitation: &Invitation,
     ) -> Result<delivery::accept::Received, Error> {
-        // read 与 accept 共用相同压缩图/共享预算，不扩大收件元数据限制。
+        // read and accept share compressed-image/shared-budget limits, without enlarging inbox-metadata limits.
         let mut wire_budget =
             crate::pixels::reserve(delivery::accept::MAX_RESPONSE.next_power_of_two())
                 .ok_or(Error::Projection(delivery::Error::Budget))?;
@@ -206,14 +206,14 @@ impl Control<'_> {
         )
         .map_err(Error::Projection)
     }
-    /// 调用方明确选择参与策略；本方法不自动轮询、开启接收、处理邀请或宣称显示。
+    /// Callers explicitly select participation policy; no automatic polling, receive enablement, invitation handling, or display claims.
     pub fn projection_inbox(&self, policy: InboxPolicy) -> Result<Inbox, Error> {
         let body = serde_json::to_vec(&serde_json::json!({"policy":policy}))
             .map_err(|_| Error::Projection(delivery::Error::Json))?;
         let bytes =
             self.send_projection_limited("/v1/projections/inbox", &body, delivery::MAX_JSON)?;
         let mut inbox = Inbox::parse(&bytes, self.client.origin()).map_err(Error::Projection)?;
-        drop(bytes); // 第二份有界收件响应前释放原wire，不并存两份原始JSON。
+        drop(bytes); // Release original wire before the second bounded inbox response; never retain two raw JSON bodies together.
         if inbox.has_offline_peers() && policy != InboxPolicy::Disabled {
             let remote = self
                 .send_limited(
@@ -233,7 +233,7 @@ impl Control<'_> {
                 Err(error @ (Error::AuthorizationRequired | Error::Credential)) => {
                     return Err(error)
                 }
-                Err(_) => {} // 保留共享结果与未查询标记，绝不复用旧离线候选或截断超限列表。
+                Err(_) => {} // Retain shared results/unqueried markers; never reuse old offline candidates or truncate oversized lists.
             }
             if self
                 .cancel
@@ -248,7 +248,7 @@ impl Control<'_> {
         }
         Ok(inbox)
     }
-    /// 只供原接收 owner 在保存和真实呈现后提交；不能由菜单选择任意 receipt 状态。
+    /// Only original receiver owners submit after saving/actual presentation; menus cannot select arbitrary receipt states.
     pub(crate) fn displayed_projection(
         &self,
         intent: &delivery::journal::Ticket,
@@ -264,7 +264,7 @@ impl Control<'_> {
         )?;
         delivery::receipt(&bytes).map_err(Error::Projection)
     }
-    /// rejected 仍只允许未接受邀请，不与接收后的 displayed 混用资格。
+    /// rejected remains limited to unaccepted invitations; do not share eligibility with post-accept displayed.
     pub fn reject_projection(&self, invitation: &Invitation) -> Result<(), Error> {
         let body = invitation
             .reject_body(self.client.origin())

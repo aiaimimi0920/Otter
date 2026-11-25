@@ -1,4 +1,4 @@
-//! 应用级modeless历史窗；标准按钮负责可访问名称/键盘，业务只排单槽意图。
+//! Application-level modeless history window; standard buttons supply accessible names/keyboard behavior, while business logic enqueues only single-slot intents.
 use crate::desktop::capture_history_ui::{Action, Origin, Shared};
 use std::{
     cell::{Cell, RefCell},
@@ -91,7 +91,7 @@ impl Window {
             return Ok(());
         };
         unsafe {
-            // 不在已按下按钮期间换条目身份；抬起/取消后原消息泵会再次更新。
+            // Do not change entry identity while a button is pressed; the original message pump updates again after release/cancellation.
             if IsChild(hwnd, GetCapture()).as_bool()
                 || GetKeyState(VK_SPACE.0 as i32) < 0
                 || GetKeyState(VK_RETURN.0 as i32) < 0

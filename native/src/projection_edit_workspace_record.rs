@@ -1,4 +1,4 @@
-//! 协作记录与同一canonical内容的有界摘要；流式读取图片字符串，不复制Base64。
+//! Collaboration records and bounded digests of the same canonical contents; stream image strings without Base64 copies.
 use super::*;
 use serde_json::value::RawValue;
 use sha2::{Digest, Sha256};
@@ -46,7 +46,7 @@ fn digest<'a>(
     }
     for key in JSON {
         hash.0.update(key.as_bytes());
-        // 解析后的Value统一键序/空白；不按RawValue词法或f32近似比较。
+        // Parsed Value normalizes key order/whitespace; compare neither RawValue lexemes nor f32 approximations.
         serde_json::to_writer(&mut hash, &json(key)?).map_err(|_| Error::Format)?;
     }
     hash.0.update(size.0.to_le_bytes());

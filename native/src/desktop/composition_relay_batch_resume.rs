@@ -1,4 +1,4 @@
-//! 显式接续选择事务；以原批次首事件标识整批，取消/失败不拆散历史证据。
+//! Explicit continuation-selection transaction; the original batch's first event identifies the whole batch, and cancellation/failure never splits historical evidence.
 use super::*;
 use crate::{
     desktop::surface_authorized_window::BatchReceipt,
@@ -45,7 +45,7 @@ impl Sessions {
         if self.occupied() >= MAX_SESSIONS {
             return Err(io::ErrorKind::WouldBlock.into());
         }
-        // 回调可能已经移交 owner；先保证启动失败也有结果存放位置。
+        // Callbacks may already have transferred ownership; first ensure startup failures have result storage too.
         self.reserve_batch_outcomes()?;
         let receipt = self.batch_receipts.remove(index);
         match prepare(receipt) {

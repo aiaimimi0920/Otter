@@ -1,4 +1,4 @@
-//! 旧会话坐标输入：空默认值、有限长度、同步模态 owner；不查询当前显示器猜历史值。
+//! Legacy-session coordinate input: empty defaults, bounded length, and a synchronous modal owner; never infer historical values from current monitors.
 use crate::session_placement::Space;
 use windows::{
     core::HSTRING,

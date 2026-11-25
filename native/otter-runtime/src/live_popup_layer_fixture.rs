@@ -1,4 +1,4 @@
-//! 显示实例 fixture：只操作自有窗口，使用真实源 hook 建立 lease，不伪造 lease 属性。
+//! Display-instance fixture: owned windows only, establishing leases through the real source hook rather than fabricated lease properties.
 use super::*;
 use otter_live_hover_hook::{native_dispatch, native_popup, native_protocol as p};
 use std::{
@@ -55,7 +55,7 @@ impl Window {
                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER,
             )
             .unwrap();
-            // 不只检查 API 返回值：测试需要真实的层级前置条件。
+            // Check more than API return values: the test needs actual layering preconditions.
             assert_eq!(
                 GetWindowLongPtrW(self.0, GWL_EXSTYLE) as u32 & WS_EX_TOPMOST.0 != 0,
                 enabled
@@ -83,7 +83,7 @@ impl Fixture {
     pub fn new() -> Self {
         Self::create(false)
     }
-    /// 跨进程恢复必须与源输入共用实际 DLL 的 TLS/Mutation，缺包直接失败。
+    /// Cross-process recovery must share the actual DLL's TLS/Mutation with source input; fail immediately if the package is missing.
     pub fn with_dll() -> Self {
         Self::create(true)
     }
@@ -195,8 +195,8 @@ impl Fixture {
         use windows::Win32::Graphics::Gdi::*;
         unsafe {
             let style = GetWindowLongPtrW(self.popup.0, GWL_EXSTYLE);
-            // 单加 WS_EX_LAYERED 可能已有系统默认属性，不代表 per-pixel 窗口。
-            // 显式提交 DIB，构造与真实 UpdateLayeredWindow 菜单相同的前提。
+            // Adding WS_EX_LAYERED alone may yield system-default attributes and does not imply a per-pixel window.
+            // Explicitly submit a DIB to establish the same preconditions as a real UpdateLayeredWindow menu.
             SetWindowLongPtrW(
                 self.popup.0,
                 GWL_EXSTYLE,
@@ -290,7 +290,7 @@ impl Fixture {
     }
 }
 
-/// 仅测试线程的自有窗口队列；PM_REMOVE 才会让生产源 hook 执行 posted 请求。
+/// Only the test thread's owned-window queue; PM_REMOVE is required for the production source hook to execute posted requests.
 pub fn pump() {
     unsafe {
         for _ in 0..128 {

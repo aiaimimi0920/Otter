@@ -1,4 +1,4 @@
-//! 仅缓存视口附近小图；共享不可变会话，最多一个可取消任务、每库至多三个批次。
+//! Cache only small images near the viewport; share immutable sessions, with at most one cancellable task and three batches per library.
 use super::worker::{self, Slot};
 use crate::{
     desktop::loom_execution_signal::Notify,
@@ -42,7 +42,7 @@ impl Previews {
         if let Some(job) = &self.job {
             job.worker.cancel.store(true, Ordering::Release);
         }
-        // 保留按 ID 绑定的小图供原帧使用，但新来源必须重新填满移动后的范围。
+        // Retain ID-bound small images for the original frame, but new sources must refill the moved range.
         for ready in self.ready.iter_mut().flatten() {
             ready.range = 0..0;
         }
@@ -102,7 +102,7 @@ impl Previews {
             Option<Notify>,
         ) -> std::io::Result<Option<worker::Job<Images>>>,
     ) -> bool {
-        // 快速滚回已缓存区域时，废弃离开该区域后的请求，不能让迟到结果挤走当前小图。
+        // On a quick return to a cached region, discard requests made since leaving it; late results must not evict current small images.
         let cached = self.ready[library]
             .as_ref()
             .is_some_and(|ready| covers(&ready.range, &view));
@@ -122,7 +122,7 @@ impl Previews {
                 }
             }
         }
-        // 取消只标记；旧线程真正结束前不等待，也不为新视口并行创建任务。
+        // Cancellation only marks; neither wait for the old thread to actually finish nor create parallel tasks for a new viewport.
         if cached || changed || self.job.is_some() {
             return changed;
         }
@@ -160,7 +160,7 @@ fn decode(library: usize, range: Range<usize>, source: Source, signal: &AtomicBo
             if signal.load(Ordering::Acquire) {
                 break;
             }
-            // 仅现有内联资源，绝不因缩略图自动授权文件路径或联网。
+            // Existing inline resources only; thumbnails never automatically authorize file paths or networking.
             let image = [
                 entry.window.preview_src.as_deref(),
                 entry.window.src.as_deref(),

@@ -1,4 +1,4 @@
-//! 连线显示值的有界复制；先计费再分配，不先克隆远端大字符串/容器再拒绝。
+//! Bounded copies of connected display values; charge before allocation, not after cloning large remote strings/containers.
 use crate::graph_image::Output;
 use serde_json::{Map, Value};
 use std::io::{self, Write};

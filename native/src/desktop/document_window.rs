@@ -1,4 +1,4 @@
-//! 单个宿主的资源所有者：窗口集合可移动 owner，但 HWND 保存的 State 地址保持不变。
+//! Resource owner for one host: window collections may move owners, but the State address stored in HWND remains stable.
 use super::{app_icon, tool_panel, State, Window};
 #[path = "parameter_panel.rs"]
 pub(super) mod parameter_panel;
@@ -11,7 +11,7 @@ use windows::{
 };
 
 pub(super) struct DocumentWindow {
-    // Rust 字段按声明顺序析构。子面板/宿主必须先于借用的图标和回调状态释放。
+    // Rust drops fields in declaration order. Release child panels/hosts before borrowed icons and callback state.
     pub parameters: Option<parameter_panel::Panel>,
     pub panel: Window,
     pub window: Window,
@@ -21,7 +21,7 @@ pub(super) struct DocumentWindow {
 
 fn initial_size(width: f32, height: f32, captured: bool) -> (i32, i32) {
     if captured {
-        // 截图保持 1:1，超出呈现预算时只缩小 HWND；源图和来源坐标不变。
+        // Keep captures 1:1; shrink only HWND when exceeding presentation budgets, preserving source images/coordinates.
         let (width, height) = (f64::from(width), f64::from(height));
         let scale = (8192.0 / width.max(height))
             .min((16_777_216.0 / (width * height)).sqrt())
@@ -40,7 +40,7 @@ fn initial_size(width: f32, height: f32, captured: bool) -> (i32, i32) {
 }
 
 impl DocumentWindow {
-    /// 空文档只承载命令、托盘和热键；显式图片及恢复的无图 Art 仍正常显示。
+    /// Empty documents carry only commands, tray, and hotkeys; explicit images/restored imageless Art still display normally.
     pub unsafe fn show_content(&self, command: SHOW_WINDOW_CMD) {
         let (pinned, empty) = {
             let canvas = self.state.canvas.borrow();
@@ -72,7 +72,7 @@ impl DocumentWindow {
         let pointer = (&*self.state as *const State) as isize;
         let mut owners = Vec::with_capacity(1);
         owners.push(self);
-        // 模拟未来窗口集合扩容。owner 可搬移，传给 Win32 的状态地址不能随之改变。
+        // Simulate future window-collection growth. Owners may move, but state addresses passed to Win32 must remain stable.
         owners.reserve_exact(8);
         let moved = owners.pop().unwrap();
         if (&*moved.state as *const State) as isize != pointer || !moved.is_alive() {
@@ -81,7 +81,7 @@ impl DocumentWindow {
                 "Document owner relocation invalidated window state",
             ));
         }
-        // 钉图编辑条的 GWLP_USERDATA 存的是 Neuro-mini 私有状态，不是宿主 HWND。
+        // Pin edit-strip GWLP_USERDATA stores Neuro-mini private state, not host HWND.
         let panel = moved.panel.0;
         let host = moved.window.0;
         let panel_owner = if moved.state.canvas.borrow().pinned {
@@ -107,7 +107,7 @@ impl DocumentWindow {
         Self::create_inner(instance, state, visible_panel, None)
     }
 
-    /// 恢复事务传入已完成 DPI 转换的物理框；允许无图 Art，创建期间仍保持隐藏。
+    /// Restoration transactions supply physical bounds after DPI conversion; allow imageless Art and remain hidden during creation.
     pub unsafe fn create_at(
         instance: HINSTANCE,
         state: State,
@@ -136,7 +136,7 @@ impl DocumentWindow {
         visible_panel: bool,
         frame: Option<crate::pin_geometry::PinRect>,
     ) -> Result<Self> {
-        // 先固定地址，再注册 HWND。构造失败时局部变量逆序释放，也满足相同生命周期约束。
+        // Fix the address before registering HWND. On construction failure, reverse local destruction order satisfies the same lifetime constraints.
         let state = Box::new(state);
         let icons = super::smoke_timing::run("document-icons", app_icon::Icons::new)?;
         let pinned = state.canvas.borrow().pinned;
@@ -195,7 +195,7 @@ impl DocumentWindow {
             )
         })?);
         if pinned && state.canvas.borrow().image.is_some() {
-            // 用双轴实际客户区适配；极细长图的一像素取整不能让另一轴被裁掉。
+            // Fit using actual client dimensions on both axes; one-pixel rounding for extreme aspect ratios must not crop the other axis.
             super::pin_window::fit(window.0, &state);
         }
         let panel = super::smoke_timing::run("document-panel", || {
@@ -215,10 +215,10 @@ impl DocumentWindow {
 
 impl Drop for DocumentWindow {
     fn drop(&mut self) {
-        // RAII 退出路径在任何 HWND 析构前停止订阅；用户关闭路径由 WM_DESTROY 同步停止。
+        // RAII exit stops subscriptions before any HWND destruction; user closure stops synchronously in WM_DESTROY.
         self.state.priority_watcher.borrow_mut().take();
         unsafe {
-            // HWND 可被系统复用；已失去本 owner 身份的句柄绝不能再由旧 Window 析构销毁。
+            // Systems may reuse HWNDs; old Window destructors must never destroy handles that have lost this owner's identity.
             if !self.is_alive() {
                 self.window.0 = HWND::default();
                 self.panel.0 = HWND::default();

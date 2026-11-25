@@ -1,4 +1,4 @@
-//! 缩放预览复用点缓冲；排版、样式和全部坐标先验证，失败保持上一有效候选。
+//! Resize previews reuse point buffers; validate layout, style, and all coordinates first, preserving the last valid candidate on failure.
 use super::*;
 impl Stroke {
     pub fn update_resize_preview(

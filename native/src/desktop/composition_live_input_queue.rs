@@ -1,12 +1,12 @@
-//! HWND 待发送队列：只合并尚未投递的等价连续样本，保留边沿顺序和硬容量。
+//! HWND pending-send queue: coalesce only equivalent consecutive undelivered samples, preserving edge order and hard capacity.
 use crate::live_input::Event;
 use std::collections::VecDeque;
 
-// 一个 Win32 signed WORD 滚轮包最多拆成 28 个合法内部包；容量仍是固定上限。
+// One Win32 signed WORD wheel packet splits into at most 28 legal internal packets; capacity remains fixed.
 pub(super) const CAPACITY: usize = 32;
 const PACKET_LIMIT: i32 = 1200;
 
-/// 本地 HWND 入口接受完整 signed WORD；内部/远程事件的包上限保持不变。
+/// Local HWND entry accepts the full signed WORD; internal/remote event packet limits stay unchanged.
 pub(super) fn push_native(events: &mut VecDeque<Event>, event: Event, buttons: u8) -> bool {
     let Event::Wheel {
         point,
@@ -27,7 +27,7 @@ pub(super) fn push_native(events: &mut VecDeque<Event>, event: Event, buttons: u
         return false;
     }
 
-    // 同一点的静止 move 可让位给同向同轴的滚轮，但最后仍留在队尾；拖动不重排。
+    // A stationary move at the same point may yield to same-direction, same-axis wheel input but remains at the tail; never reorder dragging.
     let has_motion = buttons == 0 && events.back() == Some(&Event::Move { point });
     let compatible = match events.iter_mut().rev().nth(usize::from(has_motion)) {
         Some(Event::Wheel {
@@ -50,8 +50,8 @@ pub(super) fn push_native(events: &mut VecDeque<Event>, event: Event, buttons: u
         }
     }
 
-    // 首个满包不能与同向非零尾包合并，后续余量也不会与满包合并。
-    // 静止 move 取下后还要放回，因此净增量恰好为新包数。容量不足时队列未动。
+    // The first full packet cannot merge with a same-direction nonzero tail, nor can subsequent remainders merge with a full packet.
+    // A removed stationary move must be restored, so net growth equals the new packet count. Insufficient capacity leaves the queue unchanged.
     let packets = delta.unsigned_abs().div_ceil(PACKET_LIMIT as u32) as usize;
     if packets > CAPACITY - events.len() {
         return false;
@@ -75,7 +75,7 @@ pub(super) fn push_native(events: &mut VecDeque<Event>, event: Event, buttons: u
     true
 }
 
-/// 只有合法多格滚轮需要查询浏览器类别；非法包原样交给 Controller 拒绝。
+/// Only valid multi-notch wheel input requires browser-category queries; pass malformed packets unchanged to Controller for rejection.
 pub(super) fn pop_for_dispatch(
     events: &mut VecDeque<Event>,
     is_browser: impl FnOnce() -> bool,
@@ -87,7 +87,7 @@ pub(super) fn pop_for_dispatch(
             delta,
             horizontal,
         } if delta.unsigned_abs() > 120 && event.valid() && is_browser() => {
-            // 未发送余量留在原队首，不扩容、不越过后续边沿。
+            // Leave unsent remainder at the original queue head without growing capacity or overtaking later edges.
             let part = delta.signum() * 120;
             *front = Event::Wheel {
                 point,

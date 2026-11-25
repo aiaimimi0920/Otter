@@ -1,4 +1,4 @@
-//! 模糊缩放只排有界的轻量输入，逐项复用原 worker/历史；目标或手势换代后不再续做。
+//! Blurred scaling queues only bounded lightweight input, reusing the original worker/history per item; stop continuation after target/gesture generation changes.
 use crate::{
     desktop::{self, canvas::Canvas, State},
     editor::{DocumentStamp, EditError, Tool},
@@ -7,7 +7,7 @@ use crate::{
 use std::collections::VecDeque;
 use windows::Win32::Foundation::HWND;
 
-// 每项仅含原始 delta 和中心模式，最多约 16 KiB；不保存图像/候选或创建等量任务。
+// Each item holds only the original delta and center mode, at most about 16 KiB total; no images/candidates or equal-sized task population.
 const LIMIT: usize = 4096;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Intent {
@@ -89,7 +89,7 @@ pub(in crate::desktop) unsafe fn dispatch(hwnd: HWND, state: &State, delta: i16,
         resume(hwnd, state);
         return;
     }
-    // 只有本入口拥有的 resize worker 可以接续；不能给菜单缩放或其它编辑任务追加输入。
+    // Only this entry's resize worker can continue; never append input to menu scaling or other editing tasks.
     if state.resize_job.borrow().is_busy() || !desktop::display_edit::prepare(state) {
         return;
     }
@@ -139,7 +139,7 @@ pub(super) fn permit_completion(state: &State) -> bool {
     valid
 }
 pub(super) fn committed(state: &State) {
-    // 先更新凭证再触发 Win32 重绘，避免同步重入把本次合法 revision 当成外部换代。
+    // Update credentials before triggering Win32 repaint, so synchronous reentrancy cannot mistake this valid revision for an external generation change.
     let canvas = state.canvas.borrow();
     let mut session = state.resize_wheel.borrow_mut();
     if let Some(batch) = session.0.as_mut() {

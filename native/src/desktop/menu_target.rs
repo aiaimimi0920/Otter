@@ -1,4 +1,4 @@
-//! 弹出菜单的目标快照；嵌套消息循环后拒绝作用于已改变的文档或选择。
+//! Popup-menu target snapshots; reject changed documents/selections after nested message loops.
 use crate::{
     desktop::canvas::Canvas,
     editor::{DocumentStamp, Tool},

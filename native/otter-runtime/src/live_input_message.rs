@@ -1,4 +1,4 @@
-//! 仅允许键鼠消息的 Win32 编码与投递；不广播、不抢焦点、不提升权限。
+//! Win32 encoding/delivery restricted to keyboard and mouse messages; no broadcasts, focus stealing, or privilege elevation.
 use super::{
     input_coordinates, input_security,
     input_target::{self, Destination},
@@ -64,12 +64,12 @@ impl Message {
             releasing: true,
         }
     }
-    /// 本地浏览器退出悬浮时投递到 root；虚拟坐标在客户区外，不移动系统指针。
+    /// Deliver to root when local-browser hover exits; virtual coordinates lie outside the client area without moving the system pointer.
     pub fn exit_motion() -> Self {
         Self {
             id: WM_MOUSEMOVE,
             wp: WPARAM(0),
-            lp: LPARAM(u32::MAX as isize), // 两个有符号 16 位坐标均为 -1。
+            lp: LPARAM(u32::MAX as isize), // Both signed 16-bit coordinates are -1.
             moving: true,
             releasing: true,
         }
@@ -79,9 +79,9 @@ impl Message {
             return Err(Error::InvalidPayload);
         }
         let scan = unsafe { MapVirtualKeyW(u32::from(code), MAPVK_VK_TO_VSC_EX) };
-        // 部分布局把导航 VK 映射到数字键盘的基础扫描码，即使请求 VSC_EX 也不带 E0。
-        // 合同已区分导航 VK 与 VK_NUMPAD*，规范导航键仍须第24位；E1/Pause 不混同。
-        // 不据此猜测数字键盘 Enter 或通用 VK_CONTROL/VK_MENU 的物理左右身份。
+        // Some layouts map navigation VKs to basic numpad scan codes without E0, even when VSC_EX is requested.
+        // The contract distinguishes navigation VKs from VK_NUMPAD*; canonical navigation keys still need bit 24, without conflating E1/Pause.
+        // Do not infer physical left/right identity for numpad Enter or generic VK_CONTROL/VK_MENU from this.
         let extended =
             u32::from(scan & 0xff00 == 0xe000 || matches!(code, 0x21..=0x28 | 0x2d | 0x2e)) << 24;
         Ok(Self {
@@ -94,7 +94,7 @@ impl Message {
             releasing: !down,
         })
     }
-    /// point 必须已转换到接收窗口客户区；不接受捕获帧像素直接充当客户区坐标。
+    /// point must already be converted to the receiving window's client area; capture-frame pixels cannot stand in for client coordinates.
     pub fn motion(point: [i32; 2], buttons: u8) -> Result<Self> {
         Ok(Self {
             id: WM_MOUSEMOVE,
@@ -133,7 +133,7 @@ impl Message {
             releasing: !down,
         })
     }
-    /// 滚轮 lParam 是屏幕坐标，而非客户区坐标。超出 signed 16-bit 时拒绝截断。
+    /// Wheel lParam uses screen coordinates, not client coordinates. Reject truncation outside the signed 16-bit range.
     pub fn wheel(screen: [i32; 2], buttons: u8, delta: i32, horizontal: bool) -> Result<Self> {
         if delta == 0 || delta.unsigned_abs() > 1200 {
             return Err(Error::InvalidPayload);
@@ -165,15 +165,15 @@ fn point_param(point: [i32; 2]) -> Result<LPARAM> {
         (u32::from(x as u16) | (u32::from(y as u16) << 16)) as isize,
     ))
 }
-/// 必须由显式授权后的独立 worker 调用；不得 AttachThreadInput 到目标消息队列。
-/// 此入口投递到绑定 root；已验证的子控件使用 send_to。
+/// Must be called by an independent worker after explicit authorization; never AttachThreadInput to the target message queue.
+/// This entry point delivers to the bound root; validated child controls use send_to.
 pub fn send(target: &Target, message: Message) -> Result<()> {
     if unsafe { IsIconic(target.hwnd()) }.as_bool() {
         return Err(Error::SourceTransition);
     }
     deliver(target, message, if message.moving { 50 } else { 250 })
 }
-/// 只准释放边沿，不运行按钮点击补偿；输入控制 owner 负责记录未知/失败的清理结果。
+/// Release edges only, without button-click compensation; the input-control owner records unknown/failed cleanup outcomes.
 pub fn release(target: &Target, message: Message) -> Result<()> {
     if !message.releasing {
         return Err(Error::InvalidPayload);
@@ -181,14 +181,14 @@ pub fn release(target: &Target, message: Message) -> Result<()> {
     deliver(target, message, 50)
 }
 fn deliver(target: &Target, message: Message, timeout: u32) -> Result<()> {
-    // 同线程调用绕过超时，必须在调用系统 API 前拒绝。
+    // Same-thread calls bypass the timeout and must be rejected before invoking the system API.
     if target.identity.thread == unsafe { GetCurrentThreadId() } {
         return Err(Error::SameThread);
     }
     input_security::preflight(target).map_err(Error::Security)?;
     deliver_window(target.hwnd(), message, timeout)
 }
-/// 向已绑定后代发送；仍需显式授权，不能把 Destination::bind 当成启用控制。
+/// Send to a bound descendant; explicit authorization is still required, and Destination::bind does not enable control.
 pub fn send_to(target: &Destination, message: Message) -> Result<()> {
     send_to_with_timeout(target, message, if message.moving { 50 } else { 250 })
 }
@@ -206,9 +206,9 @@ pub fn release_to_with_timeout(target: &Destination, message: Message, timeout: 
         return Err(Error::InvalidPayload);
     }
     let result = deliver_destination(target, message, timeout);
-    // 菜单可在身份预检之后、DPI 查询或同步 Leave 期间销毁。
-    // 仅悬浮清理以 HWND 已不存在作为终态；不重试、不重新绑定复用句柄，
-    // 按键/按钮释放及仍存活窗口的超时继续保留原失败。
+    // A menu may be destroyed after identity preflight, during DPI queries or synchronous Leave.
+    // Only hover cleanup treats a nonexistent HWND as terminal; no retries or rebinding of reused handles,
+    // while key/button-release failures and timeouts on still-live windows retain their original failures.
     if result.is_err()
         && message.id == WM_MOUSELEAVE
         && !unsafe { IsWindow(Some(target.hwnd())) }.as_bool()
@@ -222,16 +222,16 @@ fn deliver_destination(target: &Destination, message: Message, timeout: u32) -> 
         return Err(Error::SameThread);
     }
     target.preflight().map_err(Error::Destination)?;
-    // 隐藏菜单已结束这轮可见悬浮；其 UI 线程可能正在初始化下一个模态框。
-    // 不再同步调用旧菜单的 Leave，避免把正常换窗变成超时。held 释放不走此终态。
+    // A hidden menu has ended this visible-hover instance; its UI thread may be initializing the next modal dialog.
+    // Stop synchronously calling Leave on the old menu to avoid turning normal window changes into timeouts. Held releases do not use this terminal state.
     if message.id == WM_MOUSELEAVE && !unsafe { IsWindowVisible(target.hwnd()) }.as_bool() {
         return Ok(());
     }
     deliver_window(target.hwnd(), message, timeout)
 }
 fn deliver_window(window: HWND, message: Message, timeout: u32) -> Result<()> {
-    // 鼠标坐标已按接收窗口映射；同上下文发送以阻止 Win32 再次 DPI 虚拟化。
-    // 仅键盘没有空间坐标；RAII 在成功、超时和失败返回时均恢复 worker 上下文。
+    // Mouse coordinates are already mapped for the receiver; send in the same context to prevent another Win32 DPI virtualization pass.
+    // Only keyboard input lacks spatial coordinates; RAII restores the worker context on success, timeout, and failure returns.
     let _dpi = if matches!(message.id, WM_KEYDOWN | WM_KEYUP | WM_CHAR) {
         None
     } else {
@@ -239,7 +239,7 @@ fn deliver_window(window: HWND, message: Message, timeout: u32) -> Result<()> {
     };
     let mut result = 0usize;
     let completed = unsafe {
-        // 此 API 失败时不保证设置 LastError；先清零，避免把旧错误当成当前原因。
+        // This API need not set LastError on failure; clear it first so stale errors are not mistaken for the current cause.
         SetLastError(ERROR_SUCCESS);
         SendMessageTimeoutW(
             window,
@@ -251,7 +251,7 @@ fn deliver_window(window: HWND, message: Message, timeout: u32) -> Result<()> {
             Some(&mut result),
         )
     };
-    // 消息处理返回 0 也可能成功。失败包含超时/UIPI 等，不能把它误报为已拒绝送达。
+    // A message-handler return of 0 may still be successful. Failures include timeout/UIPI and must not be misreported as rejected delivery.
     if completed.0 == 0 {
         let error = unsafe { GetLastError() }.0;
         eprintln!(

@@ -1,4 +1,4 @@
-//! 黄色角选中 Live 钉图；本地按键不会进入源输入队列，编辑快照由应用单槽准备。
+//! Yellow corners select Live pins; local keys bypass source-input queues, and application single slots prepare edit snapshots.
 use super::*;
 use windows::Win32::UI::Input::KeyboardAndMouse::*;
 

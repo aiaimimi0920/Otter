@@ -1,4 +1,4 @@
-//! 已明确选择的批次决定移交；当前窗口复核后转移唯一 owner，失败保存全部准备结果。
+//! Transfer explicitly chosen batch decisions; revalidate the current window before moving the sole owner, retaining all prepared results on failure.
 use super::*;
 pub struct BatchDecisionInput {
     pub owner: Owner,

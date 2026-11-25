@@ -1,4 +1,4 @@
-//! 单个删除标记 worker；共用四槽与 Wake，不在 UI 触盘，不 detach 或提前归还容量。
+//! Single deletion-marker worker; share four slots and Wake, with no UI disk access, detaching, or early capacity return.
 use crate::{
     desktop::loom_execution_signal::{reap_deadline, CompletionSignal, Notify},
     live_relay_control_runtime::Slot,
@@ -25,7 +25,7 @@ impl Job {
             .name("otter-projection-cleanup-mark".into())
             .spawn(move || {
                 let _completion = CompletionSignal::new(signal, notify);
-                let ticket = ticket; // 输入先于完成通知析构；成功 Ticket/许可移交给结果 owner。
+                let ticket = ticket; // Inputs drop before completion notification; transfer successful Ticket/permission to the result owner.
                 ticket.queue_cleanup()
             })?;
         Ok(Self {
@@ -79,7 +79,7 @@ mod tests {
             }),
         )
         .unwrap();
-        let release = release; // 若断言失败，先释放通知，再让 Job 的 Drop 回收。
+        let release = release; // On assertion failure, release notification first, then let Job's Drop reap.
         notification.recv_timeout(Duration::from_secs(5)).unwrap();
         assert!(!job.finished());
         assert!(job.reap_deadline().is_some());
@@ -91,7 +91,7 @@ mod tests {
 impl Drop for Job {
     fn drop(&mut self) {
         if let Some(thread) = self.thread.take() {
-            let _ = thread.join(); // 仅应用终态允许同步回收；正常路径先查 finished。
+            let _ = thread.join(); // Only application terminal state permits synchronous reaping; normal paths check finished first.
         }
     }
 }

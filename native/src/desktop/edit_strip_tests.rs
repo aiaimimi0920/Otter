@@ -1,4 +1,4 @@
-//! 实际原生工具条与宿主接线；主干视觉基准不等于屏幕合成/人工观感通过。
+//! Actual native-toolbar/host wiring; baseline visual references do not prove screen composition or manual visual acceptance.
 use super::*;
 #[path = "edit_extension_toolbar_tests.rs"]
 mod extension_tools;
@@ -290,7 +290,7 @@ fn dropdown_modal_refresh_keeps_all_buttons_and_properties_in_their_real_state()
         assert!(IsWindowEnabled(number).as_bool());
         let result: Result<()> = super::super::popup::preserve(&f.state, || {
             let _modal = crate::desktop::file_dialog::Guard::begin(&f.state.file_dialog).unwrap();
-            // 每条宿主消息返回后都会走 refresh；原实现会因自己的菜单门禁禁用整栏。
+            // refresh runs after every host message; the original implementation disabled the whole bar through its own menu gate.
             SendMessageW(f.owner.0, WM_NULL, None, None);
             assert_eq!(enabled(), before);
             execute(f.owner.0, &f.state, catalog::LINE as usize, false);

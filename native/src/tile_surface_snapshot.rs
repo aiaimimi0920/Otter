@@ -1,4 +1,4 @@
-//! 收紧现有 Scene 合同并索引资源；所有引用验证通过后才可下载/交付整帧。
+//! Tighten existing Scene contracts and index resources; validate all references before downloading/delivering complete frames.
 use super::*;
 use crate::surface_scene::{Kind, Node, Scene};
 use sha2::{Digest, Sha256};
@@ -67,7 +67,7 @@ pub(super) fn parse(v: &Value, view: &View) -> Result<Snapshot> {
         *count += 1;
         require(*count <= 512 && depth <= 16)?;
         if n.kind() == Kind::Image {
-            // 不让URL/内联data绕过view授权。无来源图片可保留空占位，但不可谎称有像素。
+            // URLs/inline data must not bypass view authorization. Sourceless images may retain empty placeholders but cannot falsely claim pixels.
             require(
                 n.props()
                     .get("src")

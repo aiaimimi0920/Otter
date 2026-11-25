@@ -1,4 +1,4 @@
-//! 真实自有 HWND 的消息/值/捕获/重入销毁；不注入全局鼠标键盘输入或发送业务网络。
+//! Actual owned-HWND messages/values/capture/reentrant destruction; no global keyboard/mouse injection or business networking.
 use super::*;
 use windows::Win32::UI::Shell::*;
 #[path = "surface_slider_mixed_tests.rs"]
@@ -271,7 +271,7 @@ fn surface_slider_control_missing_state_is_rejected_but_owned_window_is_still_de
     let parent = Parent::new();
     let control = control(&parent);
     let hwnd = control.hwnd().unwrap();
-    // 覆盖初始化失败/销毁重入时 owner 仍存在但 State 已释放的边界。
+    // Cover initialization-failure/destruction-reentrancy boundaries where owner survives but State is released.
     unsafe {
         take_state(hwnd);
     }

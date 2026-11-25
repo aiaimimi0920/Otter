@@ -1,4 +1,4 @@
-//! 反复退出最后一个 COM apartment 后重新取得 WGC 工厂；不捕获桌面或创建采集会话。
+//! Reacquire WGC factories after repeatedly exiting the final COM apartment; no desktop capture or capture sessions.
 use super::*;
 
 #[test]

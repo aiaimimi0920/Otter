@@ -1,4 +1,4 @@
-//! 节点设置动作复用现有执行/中继 owner；窗口通知只提交本地策略，不触发网络执行。
+//! Node-setting actions reuse existing execution/relay owners; window notifications submit local policy only, without network execution.
 use super::{execution_settings, State};
 use windows::{
     core::Result,

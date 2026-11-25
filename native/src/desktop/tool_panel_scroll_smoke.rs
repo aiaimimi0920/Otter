@@ -1,4 +1,4 @@
-//! 缩小隐藏面板并投递滚动消息，验证末尾控件可达；不注入全局输入或改变显示器配置。
+//! Shrink hidden panels and post scroll messages to verify final-control reachability; no global input or monitor-configuration changes.
 use super::*;
 use windows::core::{Error, Result};
 struct Restore(HWND, RECT);

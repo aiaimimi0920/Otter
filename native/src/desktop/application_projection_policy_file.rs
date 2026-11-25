@@ -1,4 +1,4 @@
-//! 同一 native profile 租约下的独立同意文件；不受普通命名导入影响，不另开 journal。
+//! Independent consent file under the same native-profile lease; unaffected by ordinary naming imports, with no separate journal.
 use crate::{
     pixels::Pixels,
     projection_receive_policy::{Change, Document, Policy, MAX_BYTES},

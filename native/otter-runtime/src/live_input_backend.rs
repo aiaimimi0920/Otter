@@ -1,4 +1,4 @@
-//! Controller 的 Win32 后端：路由、坐标、受限消息组合；必须由独立输入 worker 拥有。
+//! Win32 backend for Controller: routing, coordinates, and constrained message composition; must be owned by an independent input worker.
 use super::{
     input_coordinates::{self as coordinates, FrameRegion, Mapped},
     input_message::{self as message, Message},
@@ -35,7 +35,7 @@ pub struct Backend {
     root_destination: Destination,
     region: Option<FrameRegion>,
     mouse: Option<MousePosition>,
-    // 与释放坐标分开：仅 Win32 指针消息尝试投递后才承担 Leave 清理。
+    // Separate from release coordinates: assume Leave cleanup responsibility only after attempting Win32 pointer-message delivery.
     hovered: Option<Destination>,
     button: button::Tracker,
     local: bool,
@@ -50,8 +50,8 @@ pub struct Backend {
     hover_binding: Option<crate::live_hover_binding::Binding>,
 }
 impl Backend {
-    // 普通桌面应用启动播放等操作会短时阻塞 UI；无按键边沿的消息也使用现有
-    // 普通输入预算，而非更短的浏览器 hover 预算。不重发或改变同步消息顺序。
+    // Operations such as starting playback briefly block ordinary desktop applications' UI; messages without key edges also use the existing
+    // ordinary input budget rather than the shorter browser-hover budget. Do not resend or change synchronous message ordering.
     fn native_motion_timeout(&self) -> u32 {
         if self.local && !crate::live_browser_scroll::eligible(&self.root) {
             250
@@ -59,7 +59,7 @@ impl Backend {
             50
         }
     }
-    /// 创建不启用 Controller；region 必须是用户确认的窗口内物理裁剪，不能用于桌面区域。
+    /// Creation does not enable Controller; region must be a user-confirmed physical crop within a window, never a desktop region.
     pub fn new(root: Target, region: Option<FrameRegion>) -> Result<Self, Error> {
         let root_destination = Destination::bind(&root, root.hwnd()).map_err(Error::Target)?;
         Ok(Self {
@@ -81,15 +81,15 @@ impl Backend {
             hover_binding: None,
         })
     }
-    /// 仅本机 Live 授权入口；远程控制维持原 Win32 权限与行为。
+    /// Local Live authorization entry point only; remote control retains its original Win32 permissions and behavior.
     pub fn new_local(root: Target, region: Option<FrameRegion>) -> Result<Self, Error> {
         let mut backend = Self::new(root, region)?;
         backend.local = true;
         Ok(backend)
     }
     fn exit_browser_hover(&self) -> Result<(), Error> {
-        // Chromium 的 Leave 重新读取真实光标位置；鼠标在被遮挡的 A 范围内时，
-        // 单发 Leave 仍可残留 DOM hover。先给 root 明确的虚拟移出，不改系统光标。
+        // Chromium's Leave rereads the real cursor position; when the mouse is within obscured A,
+        // a single Leave may leave DOM hover behind. First give root an explicit virtual move-out without moving the system cursor.
         if self.local && crate::live_browser_scroll::eligible(&self.root) {
             message::release_to(&self.root_destination, Message::exit_motion())
                 .map_err(Error::Message)?;
@@ -134,7 +134,7 @@ impl Backend {
             _ => unreachable!(),
         }
         .map_err(Error::Message)?;
-        // 发送前保留最后有效位置，超时后的释放不能重新计算或重新命中。
+        // Retain the last valid position before sending; releases after a timeout must not recalculate or hit-test again.
         self.mouse = Some(MousePosition {
             target: target.clone(),
             mapped,
@@ -163,7 +163,7 @@ impl live_input::Backend for Backend {
         else {
             return self.ignore_inactive_motion(event);
         };
-        // 被消费的 down/up 必须成对；即使中途菜单关闭，也不能把剩下的 up 单独送达。
+        // Consumed down/up events must be paired; even if the menu closes midway, the remaining up must not be delivered alone.
         if self.modal.escape_target().is_some() || self.suppressed_right_down {
             self.suppressed_right_down = down;
             self.last_delivery = live_input::Delivery::IgnoredWhileModal;
@@ -281,13 +281,13 @@ impl live_input::Backend for Backend {
             .mouse
             .as_ref()
             .map_or([0, 0], |mouse| mouse.mapped.destination_client);
-        // 即使滚轮改走 UIA，也必须结束原按钮手势，不能保留延迟点击补偿。
+        // Even when wheel input switches to UIA, end the original button gesture rather than retaining deferred click compensation.
         let candidate = self.button.track(&target, event, point, buttons);
         let Some(packet) = self.scroll_packet(&target, event, buttons, packet)? else {
             return Ok(());
         };
-        // UIA 查询/滚动未向 HWND 投递鼠标消息，不建立新的悬浮清理责任。
-        // 点击/滚轮也可能先于 move 到达新子窗；在真实投递前先退出旧目标。
+        // UIA queries/scrolls deliver no mouse messages to HWNDs and create no new hover-cleanup responsibility.
+        // Clicks/wheel input may also reach a new child window before move; leave the old target before actual delivery.
         if matches!(
             event,
             Event::Move { .. } | Event::Hover { .. } | Event::Button { .. } | Event::Wheel { .. }
@@ -298,7 +298,7 @@ impl live_input::Backend for Backend {
                 .is_some_and(|old| !old.same_target(&target))
             {
                 let old = self.hovered.take().unwrap();
-                // 导航可替换 renderer HWND；失效目标不清理，不能向复用句柄投递。
+                // Navigation can replace the renderer HWND; do not clean up invalid targets or deliver to reused handles.
                 if old.preflight().is_ok() {
                     message::release_to_with_timeout(
                         &old,
@@ -308,7 +308,7 @@ impl live_input::Backend for Backend {
                     .map_err(Error::Message)?;
                 }
             }
-            // 超时仍可能已投递，必须在调用前登记；不能只清理成功的消息。
+            // Timeouts may still mean delivery occurred, so register before calling; cleanup must not cover only successful messages.
             self.hovered = Some(target.clone());
             if let Some(control) = self
                 .hover_owner
@@ -359,9 +359,9 @@ impl live_input::Backend for Backend {
             ) && candidate.is_none()
                 && self.modal.escape_target().is_none()))
         {
-            // 左键按下、双击或松开都可打开模态窗；按下准入后仍由 Controller
-            // 持有释放责任。只在槽空闲时接管，已有模态中的点击仍可
-            // 关闭菜单，不覆盖原回调；WinForms 补偿仍要求同步确认 mouse-up。
+            // Left-button down, double-click, or up may open a modal window; after down admission, Controller still
+            // owns release responsibility. Take over only an idle slot; clicks within an existing modal can still
+            // close menus without replacing the original callback; WinForms compensation still requires synchronous mouse-up confirmation.
             self.prepare_native()?;
             let result = message::button_modal(&target, packet, &mut self.modal);
             if result.is_ok() && self.modal.in_flight() {
@@ -381,7 +381,7 @@ impl live_input::Backend for Backend {
             self.button.clear();
             return Err(Error::Message(error));
         }
-        // Leave 结束悬浮，不代表 held 按钮已经释放；cancel 仍需最后映射坐标。
+        // Leave ends hover, not held-button state; cancel still needs the last mapped coordinates.
         if event == Event::Leave {
             self.hovered = None;
             if buttons == 0 {
@@ -409,9 +409,9 @@ impl live_input::Backend for Backend {
                 report.failed += 1;
             }
         }
-        self.mouse = None; // Controller 已完成 held-button 释放。
+        self.mouse = None; // Controller has completed held-button release.
         if let Some(target) = self.hovered.take() {
-            // 悬浮退出不计入按住按键的释放数；目标已销毁时无需清理悬浮。
+            // Hover exit does not count toward held-button releases; destroyed targets need no hover cleanup.
             if self.popup_cleanup_allowed() && target.preflight().is_ok() {
                 if self.exit_browser_hover().is_err() {
                     report.failed += 1;
@@ -470,13 +470,13 @@ impl live_input::Backend for Backend {
             }
         ) && self.modal.escape_needs_release(&target)
         {
-            // 不能用同步 up 越过已入队的 down。取消不等待源消息泵，保持结果未知。
+            // A synchronous up must not overtake an enqueued down. Cancellation does not wait for the source message pump, and the outcome remains unknown.
             self.modal
                 .post_escape(&target, packet)
                 .map_err(Error::Message)?;
             return Err(Error::Message(message::Error::DeliveryFailed));
         }
-        // 独立 cleanup 路径：不再次命中/变换、不进行任何按钮点击补偿。
+        // Independent cleanup path: no new hit test/transform and no button-click compensation.
         message::release_to(&target, packet).map_err(Error::Message)
     }
 }

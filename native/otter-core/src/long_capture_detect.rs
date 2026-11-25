@@ -1,4 +1,4 @@
-//! 自动轴会话：首次唯一可靠运动才锁轴；拒绝帧不成为下一次匹配基准，不隐式升级二维。
+//! Automatic-axis sessions lock only on first uniquely reliable motion; rejected frames never become matching references, and no implicit 2D upgrade.
 use super::*;
 
 pub(super) struct Detect {
@@ -52,7 +52,7 @@ impl Detect {
         if frame.dimensions() != self.reference.dimensions() {
             return Err(Error::Dimensions);
         }
-        // 静止采样不创建双轴候选，也不重复进入已锁轴会话；方向与固定边缘证据保持不变。
+        // Stationary samples create no dual-axis candidates/reentry into locked-axis sessions; preserve direction/fixed-edge evidence.
         if frame.bytes() == self.reference.bytes() {
             return if cancel.load(Ordering::Acquire) {
                 Err(Error::Cancelled)
@@ -78,7 +78,7 @@ impl Detect {
             }
             return Ok(result);
         }
-        // 两个候选只共享帧存储；只有一轴通过时才移交其 Session。双轴可解释的纹理拒绝猜测。
+        // Two candidates share only frame storage; transfer Session only if one axis passes, rejecting textures explainable on both axes.
         let (vertical, v) = candidate(Axis::Vertical, &self.reference, frame.clone(), cancel)?;
         let (horizontal, h) = candidate(Axis::Horizontal, &self.reference, frame.clone(), cancel)?;
         let accepted = match (v, h) {

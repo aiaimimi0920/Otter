@@ -1,4 +1,4 @@
-//! 真实菜单与隐藏发起窗口；数据来自原合同 fixture，不联网、不显示对话框。
+//! Real menus and hidden initiating windows; data uses original-contract fixtures, without networking/dialog display.
 use super::*;
 use crate::{desktop::device_authorization_ui::projection as inbox, projection_delivery::Inbox};
 use std::sync::Arc;

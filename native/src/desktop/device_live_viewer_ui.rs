@@ -1,4 +1,4 @@
-//! 观看宿主快照；菜单只排队，Application复核附件或在线Art证明后才启动原Session。
+//! Viewing-host snapshots; menus only enqueue, and Application starts original Sessions only after revalidating attachment or online Art evidence.
 use super::{queue, Request, State, View as AuthorizationView};
 use crate::{
     desktop::composition::relay::sessions::{ViewerHost, ViewerKey, ViewerState},
@@ -190,7 +190,7 @@ pub(super) unsafe fn execute(hwnd: HWND, state: &State, command: usize) -> Resul
     } else if command == WATCH {
         let mut point = POINT::default();
         GetCursorPos(&mut point)?;
-        // 先选附件，再列最多512会话，避免4×512子菜单越过公共1024项快照预算。
+        // Choose attachments first, then list at most 512 sessions, avoiding 4x512 submenus exceeding the shared 1024-item snapshot budget.
         let bindings = state.authorization.borrow().live.bindings.clone();
         if bindings.is_empty() || bindings.len() > MAX_HOSTS {
             return Err(Error::new(E_ABORT, "Surface unavailable"));

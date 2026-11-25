@@ -1,4 +1,4 @@
-//! 只创建本测试的命名映射，不打开真实 Loom 资源。
+//! Create only this test's named mappings, never open real Loom resources.
 use super::*;
 use serde_json::json;
 use std::sync::atomic::AtomicUsize;
@@ -83,7 +83,7 @@ fn shared_rgba_is_copied_premultiplied_and_local_handles_are_released() {
     assert_eq!(&*image.pixels, &[25, 50, 100, 128, 10, 20, 30, 255]);
     assert_eq!((image.width, image.height), (2, 1));
     drop(fixture);
-    // 若 read 泄漏本地映射句柄，该名字仍能再次打开。
+    // If read leaks local mapping handles, the same name remains reopenable.
     assert!(read(&descriptor, &AtomicBool::new(false)).is_err());
     assert_eq!(image.pixels[3], 128);
 }

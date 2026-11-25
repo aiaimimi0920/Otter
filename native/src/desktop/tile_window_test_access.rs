@@ -1,4 +1,4 @@
-//! 仅隔离测试使用的真实自有HWND消息入口；不编译进普通产品。
+//! Actual owned-HWND message entry for isolated tests only, excluded from ordinary production builds.
 use super::*;
 use windows::Win32::{
     Graphics::Direct2D::{Common::D2D_SIZE_U, ID2D1Factory},
@@ -38,8 +38,8 @@ fn desktop_name(desktop: HDESK) -> Result<String> {
     String::from_utf16(&content[..content.len() - 1])
         .map_err(|_| Error::new(E_INVALIDARG, "Private test desktop encoding"))
 }
-/// 私有desktop的DXGI非S_OK不能伪造提交；键盘夹具显式使用原CPU后端的真实提交。
-/// 只识别runner专属desktop并再核不是input desktop；本模块整体只编译到测试。
+/// Private-desktop DXGI non-S_OK cannot fabricate submission; keyboard fixtures explicitly use actual submission from the original CPU backend.
+/// Recognize only runner-specific desktops and recheck they are not the input desktop; this entire module is test-only.
 pub(super) fn private_surface(
     factory: &ID2D1Factory,
     size: Size,
@@ -58,7 +58,7 @@ pub(super) fn private_surface(
             "Test desktop is the input desktop",
         ));
     }
-    // 不在不可见desktop等待系统IME；只禁用本测试线程，人工组合边沿不等候选窗验收。
+    // Do not await system IME on invisible desktops; disable only this test thread. Manual composition edges are not candidate-window acceptance.
     if unsafe { ImmDisableIME(thread) } == 0 {
         return Err(Error::new(E_FAIL, "Private test thread IME isolation"));
     }

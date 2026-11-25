@@ -1,4 +1,4 @@
-//! 图像来源解析只借用引用；不解码、不复制像素，Art 预览与正式输出保持分离。
+//! Image-source resolution only borrows references; no decoding or pixel copying, and Art previews remain separate from formal outputs.
 use crate::{
     workspace::{Link, MAX_LINKS, MAX_UNITS},
     workspace_id::UnitId,
@@ -36,7 +36,7 @@ pub struct Node<'a> {
     pub kind: Kind,
     pub inputs: &'a [Port<'a>],
     pub outputs: &'a [Port<'a>],
-    /// Some(empty) 明确表示能力声明没有输入，不能退回对象自带端口。
+    /// Some(empty) explicitly means the capability declares no inputs; do not fall back to the object's own ports.
     pub capability_inputs: Option<&'a [Port<'a>]>,
     pub capability_outputs: &'a [Port<'a>],
     pub values: &'a [(&'a str, Output<'a>)],
@@ -117,7 +117,7 @@ impl<'a> Graph<'a> {
         if nodes.len() > MAX_UNITS || links.len() > MAX_LINKS {
             return Err(Error::Capacity);
         }
-        // 借用视图也校验元数据工作量，不能让插件提供无界端口数组拖慢 UI 解析。
+        // Borrowed views also validate metadata workload; plugins must not slow UI resolution with unbounded port arrays.
         for node in nodes {
             for ports in [
                 node.inputs,

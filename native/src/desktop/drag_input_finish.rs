@@ -1,10 +1,10 @@
-//! 暂存完成后复核来源并进入 OLE；发布后的缓存文件不因拖动取消或窗口关闭而删除。
+//! After staging completes, revalidate provenance and enter OLE; published cache files survive drag cancellation/window closure.
 use super::*;
 use std::{fs::OpenOptions, os::windows::fs::OpenOptionsExt};
 
 pub(super) unsafe fn poll(hwnd: HWND, state: &State, held: bool) {
     poll_preview(hwnd, state, held, |path, cancel, preview| {
-        // 文件发布/句柄准备也可能跨过松键时刻；不得在用户已经松键后新开 OLE 手势。
+        // File publication/handle preparation may cross key release; do not start a new OLE gesture after the user already released the key.
         if GetAsyncKeyState(VK_LBUTTON.0 as i32) >= 0 {
             return Ok(());
         }
@@ -67,7 +67,7 @@ unsafe fn poll_preview(
     let mut pending = state.drag.pending.borrow_mut().take().unwrap();
     let _ = KillTimer(Some(hwnd), TIMER);
     state.drag.origin.set(None);
-    // 清除准备阶段鼠标捕获可重入窗口过程；任务已移出槽位，不会被二次回收。
+    // Releasing preparation-phase mouse capture may reenter the window procedure; the task has left its slot and cannot be reclaimed twice.
     if GetCapture() == hwnd {
         let _ = ReleaseCapture();
     }
@@ -93,7 +93,7 @@ unsafe fn poll_preview(
         let signal = Arc::new(AtomicBool::new(false));
         let (path, preview, _cache_lock) =
             staged.publish(&signal).map_err(|error| error.to_string())?;
-        // 缓存锁阻止应用清理；只读句柄禁止改写，但允许 Shell 按 Shift 移走独占导出副本。
+        // The cache lock blocks application cleanup; read-only handles prevent rewriting but allow Shell to move the exclusive export copy with Shift.
         let _file = OpenOptions::new()
             .read(true)
             .share_mode(

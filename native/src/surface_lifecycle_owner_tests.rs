@@ -1,4 +1,4 @@
-//! 已确认 active、进行中 unknown 和终态必须区别，版本号本身不构成显示许可。
+//! Distinguish confirmed active, in-flight unknown, and terminal states; revision numbers alone do not grant display permission.
 use super::*;
 #[path = "surface_activation_event_tests.rs"]
 mod event;

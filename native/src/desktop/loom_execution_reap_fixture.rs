@@ -1,4 +1,4 @@
-//! 测试专用的通知尾段门与真实线程退出等待；每次阻塞等待最多五秒。
+//! Test-only notification-tail gates and real thread-exit waits; each blocking wait is at most five seconds.
 use super::{Tasks, Work};
 use crate::desktop::loom_execution_signal::Notify;
 use std::{
@@ -28,7 +28,7 @@ impl Gate {
             notify: Arc::new(move || {
                 wake();
                 notify.send(()).unwrap();
-                // 旧的提前 join 实现也会有界退出并使主线程断言失败。
+                // The old premature-join implementation also exits within bounds and fails main-thread assertions.
                 let _ = waiting.lock().unwrap().recv_timeout(WAIT);
             }),
             noticed,

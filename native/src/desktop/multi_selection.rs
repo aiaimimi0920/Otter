@@ -1,4 +1,4 @@
-//! 多选绑定同一文档版本；主锚点改变或历史切换即失效，不让旧索引作用于新对象。
+//! Multiselection binds to one document revision; primary-anchor/history changes invalidate it, preventing stale indices from acting on new objects.
 use super::canvas::Canvas;
 use crate::{
     editor::{DocumentStamp, TranslationBounds},
@@ -225,7 +225,7 @@ mod tests {
         assert_eq!(canvas.editor.revision(), revision + 1);
         assert!(canvas.editor.undo());
         assert!(canvas.editor.elements().iter().all(|s| s.style() == old));
-        assert!(!canvas.restyle_target()); // 旧版本选择不作用于撤销后的文档。
+        assert!(!canvas.restyle_target()); // Old-revision selections do not affect documents after undo.
         assert!(canvas.editor.redo());
         assert_eq!(canvas.editor.elements()[2].style(), style);
     }

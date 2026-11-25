@@ -1,4 +1,4 @@
-//! UI线程独占四份Presentation/COM缓存；后台只移交不可变场景/像素，不创建子窗口。
+//! The UI thread exclusively owns four Presentation/COM caches; background work transfers only immutable scenes/pixels, creating no child windows.
 use crate::{
     surface_presentation::{Images, Presentation},
     tile_shared::Frame,
@@ -223,7 +223,7 @@ pub(super) unsafe fn draw(
     crop: crate::tile_wire::Rect,
     visual: crate::surface_button_visual::State<'_>,
 ) -> Result<()> {
-    // 在unit placement空间先裁剪，再将canonical viewport映射进crop；不栅格化缩小或截图。
+    // Clip in unit-placement space before mapping canonical viewports into crop; no downscaled rasterization or screenshots.
     let mut unit = Default::default();
     target.GetTransform(&mut unit);
     target.PushAxisAlignedClip(

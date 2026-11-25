@@ -1,4 +1,4 @@
-//! 发送响应核原签名身份/目标/单调版本；协作文档只绑定同digest/尺寸，普通发送流程仍明确拒绝。
+//! Sender responses validate original signed identity/target/monotonic version; collaborative documents bind matching digest/dimensions but remain explicitly rejected by ordinary sending.
 use super::*;
 use serde::Deserialize;
 use serde_json::value::RawValue;

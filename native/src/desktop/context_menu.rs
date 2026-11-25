@@ -1,4 +1,4 @@
-//! 按需构建业务菜单快照；自绘宿主重入消息循环，不能跨调用借用 Canvas。
+//! Build business-menu snapshots on demand; owner-drawn hosts reenter message loops, so hold no Canvas borrow across calls.
 use super::tool_commands::tool_for_command;
 use super::{application as app, State};
 use crate::editor::Tool;
@@ -79,7 +79,7 @@ pub(super) unsafe fn show(hwnd: HWND, state: &State, position: LPARAM) -> Result
     if state.file_dialog.get() || view.menu.is_some() {
         return Ok(());
     }
-    // 回调仅交付打开请求；Application 拥有菜单循环，才能推进原删除事务。
+    // Callbacks deliver only open requests; Application must own the menu loop to advance original deletion transactions.
     view.menu = Some(Pending {
         origin: state.unit_id.clone(),
         target,
@@ -98,7 +98,7 @@ pub(super) unsafe fn build(state: &State) -> Result<Menu> {
     Ok(menu)
 }
 
-/// 即时 UI 命令的共用执行入口；延迟 UI 必须在调用前校验其目标快照。
+/// Shared execution entry for immediate UI commands; delayed UI must validate target snapshots before calling.
 pub(super) unsafe fn execute(hwnd: HWND, state: &State, command: usize) -> Result<()> {
     if command == 0 || !IsWindow(Some(hwnd)).as_bool() {
         return Ok(());

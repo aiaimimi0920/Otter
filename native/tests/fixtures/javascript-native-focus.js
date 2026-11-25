@@ -1,10 +1,10 @@
-// 同一真实 child/HWND/Application 消费；焦点方法不自动产生远端 action。
+// Consumed by the same actual child/HWND/Application; focus methods do not automatically produce remote actions.
 let field, status, count = 0;
 NeuroSurface.define({
   mount({ root }) {
     root.innerHTML = '<p>ready</p><input value="seed"><button>focus</button><button>blur</button>';
     status = root.children[0]; field = root.children[1];
-    // 断开/disabled 调用不排请求；借用方法仍须验证原生 DOM identity。
+    // Disconnected/disabled calls enqueue no requests; borrowed methods must still validate native DOM identity.
     const detached = document.createElement('input'); detached.focus(); detached.blur();
     detached.disabled = true; root.appendChild(detached); detached.focus(); detached.blur(); detached.remove();
     let rejected = false; try { field.focus({preventScroll:true}); } catch { rejected = true; }

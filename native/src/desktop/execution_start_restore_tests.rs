@@ -1,4 +1,4 @@
-//! 恢复预览保持的真实命令入口回归；隐藏窗口，不连接真实 Loom。
+//! Real command-entry regressions for restored-preview retention; hidden windows, without real Loom connections.
 use super::*;
 use crate::desktop::{
     capability_job::Loaded, capability_selection::Selection, image::Image,

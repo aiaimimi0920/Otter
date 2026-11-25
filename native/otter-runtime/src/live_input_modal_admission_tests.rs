@@ -1,4 +1,4 @@
-//! 模态准入只观察一次：注入回调到达的值状态，不模拟源 FINISHED 或调用产品 DLL。
+//! Modal admission observes once only: inject callback-arrival value states without simulating source FINISHED or calling the product DLL.
 use super::*;
 use crate::live_window_target::recovery::popup_layer::fixture::Fixture;
 use otter_live_hover_hook::native_protocol as protocol;
@@ -45,7 +45,7 @@ fn callback_arriving_after_the_result_check_cannot_turn_a_busy_slot_into_admissi
     let fixture = Fixture::new();
     let (mut modal, target) = publication(&fixture, 601);
     modal.check_result().unwrap();
-    // 模拟上次观察之后回调才到达；不写 FINISHED，也不再次泵消息。
+    // Simulate callback arrival after the last observation; do not write FINISHED or pump messages again.
     unsafe { completed(target.hwnd(), 0, 601, LRESULT(0)) };
     assert_eq!(modal.require_idle(), Err(Error::ModalPending));
     assert_eq!(modal.token, 601);
@@ -107,7 +107,7 @@ fn confirmed_completion_reopens_the_slot_but_does_not_drop_a_pending_escape_rele
         let wire = modal.publication.as_ref().unwrap().message().unwrap();
         unsafe { SendMessageW(target.hwnd(), wire.id, Some(wire.wp), Some(wire.lp)) };
         assert!(modal.publication.as_ref().unwrap().finished());
-        // FINISHED 由实际自有源 hook 写入，这里只模拟回调到达。
+        // FINISHED is written by the real owned source hook; simulate only callback arrival here.
         unsafe { completed(target.hwnd(), wire.id, nonce, LRESULT(0)) };
         modal.check_result().unwrap();
         assert_eq!(modal.token, 0);

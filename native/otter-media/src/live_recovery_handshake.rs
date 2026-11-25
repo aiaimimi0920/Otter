@@ -1,5 +1,5 @@
-//! 已认证私有管道上的 session 握手；Hello/Ready 与业务请求严格区分，不携带恢复记录。
-//! 读取本身不实现超时；传输 owner 必须提供有截止时间的 I/O，Ready 前不能登记或隐藏。
+//! Session handshake over an authenticated private pipe; Hello/Ready are strictly separate from business requests and carry no recovery records.
+//! Reads do not implement timeouts themselves; the transport owner must provide deadline-bound I/O, with no registration or hiding before Ready.
 use crate::live_recovery_wire::{read_payload, write_payload, SCHEMA};
 use serde::{Deserialize, Serialize};
 use std::io::{self, Read, Write};

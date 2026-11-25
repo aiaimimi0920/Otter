@@ -1,4 +1,4 @@
-//! 公共有效参数到单次 Shader 绑定的不可变快照；不解析路径/URL，也不保留图或 UI 借用。
+//! Immutable snapshot from effective public parameters to one Shader binding; no path/URL parsing or retained graph/UI borrows.
 use super::shader_payload::Error;
 use crate::{graph_image::Output, graph_params::Params};
 use std::collections::BTreeMap;
@@ -17,7 +17,7 @@ impl Bindings {
         };
         let mut texture_bytes = 0usize;
         for (name, value) in parameters.entries() {
-            // 旧 ShaderPreview 不将 reference 或内部 UI 参数直接上传到 GL。
+            // Legacy ShaderPreview does not directly upload reference or internal UI parameters to GL.
             if name.starts_with("__")
                 || name == "reference"
                 || bindings.prepared.iter().any(|port| port == name)
@@ -36,7 +36,7 @@ impl Bindings {
                 }
                 bindings.uniforms.push((name.into(), number));
             } else if let Some(Output::Image(uri)) = value {
-                // 非图像枚举/文本与旧 Image.onerror 一样不成为纹理；没有网络/文件回退。
+                // Nonimage enums/text do not become textures, matching legacy Image.onerror; no network/file fallback.
                 if !uri.starts_with("data:") {
                     continue;
                 }
@@ -65,7 +65,7 @@ pub(crate) fn public_texture_name(name: &str, input: &str) -> bool {
         )
         && name != input
 }
-/// 声明图片端口或应用已捕获的本地 Unit 参数；这里不解析字符串或工作区。
+/// Declared image ports or application-captured local Unit parameters; parse neither strings nor workspaces here.
 pub(super) fn prepared_parameters(
     capability: &crate::loom_capability::Capability<'_>,
     parameters: &Params<'_>,

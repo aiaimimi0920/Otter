@@ -1,4 +1,4 @@
-//! 自有 HWND 验证悬浮退出不丢失 held-button 清理坐标，以及无 move 的跨目标切换。
+//! Owned HWNDs verify hover exit preserves held-button cleanup coordinates and target switching without move.
 use super::*;
 use crate::live_input::Backend as _;
 use windows::Win32::UI::Controls::WM_MOUSELEAVE;
@@ -98,7 +98,7 @@ fn preparing_browser_wheel_does_not_claim_hover_cleanup() {
             horizontal: false,
         };
         let target = backend.resolve(wheel, None).unwrap();
-        // 与 UIA 初始化/查询失败的边界相同：坐标已准备，但未向新目标发送鼠标消息。
+        // The same boundary as UIA initialization/query failure: coordinates are ready, but no mouse message has been sent to the new target.
         backend.prepare(&target, wheel, 0).unwrap();
         assert_eq!(backend.leave().failed, 0);
         let records = fixture.finish();

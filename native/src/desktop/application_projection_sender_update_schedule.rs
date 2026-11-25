@@ -1,4 +1,4 @@
-//! 单槽网络调度的有界目录；失败最多30秒退避，快速修改不增加任务队列。
+//! Bounded catalog for single-slot network scheduling; failure backoff is at most 30 seconds, and rapid edits add no task queue.
 use super::*;
 #[derive(Default)]
 pub(in crate::desktop::application::projection_sender) struct Schedule {

@@ -1,4 +1,4 @@
-//! 配置型 Live 启动复用授权的后台信任加载与 DNS，不创建设备身份。
+//! Configured Live startup reuses authorization's background trust loading/DNS without creating device identity.
 use super::*;
 use crate::device_authorization_config::{Config, Error as PrepareError};
 
@@ -25,8 +25,8 @@ fn configured_runtime_loads_scoped_ca_and_runs_join_without_identity_store() {
     let lease = grant.lease(&client.origin, 0).unwrap();
     let peer = std::thread::spawn(move || joined(&listener, &tls));
     let mut runtime = Runtime::start_configured(config, lease, target(), |_| Err(())).unwrap();
-    // 系统 localhost 可先返回无监听的 IPv6 地址；四次请求各自有 2 秒地址回退预算。
-    // 此处等待整个加入链完成，不是放宽取消响应时间的断言。
+    // System localhost may first resolve to unserved IPv6; each of four requests has its own two-second address-fallback budget.
+    // Wait for the whole join chain here; this does not relax cancellation-latency assertions.
     assert_eq!(
         unsafe {
             WaitForSingleObject(
@@ -66,7 +66,7 @@ fn configured_wrong_origin_expired_or_revoked_lease_fails_before_ca_or_dns() {
             "OTTER_NATIVE_PROFILE_DIR" => {
                 Some("C:/Users/Public/nas_home/AI/GameEditor/linshi/unused-profile".into())
             }
-            // 故意不完整的 CA 配置会在准备时失败；应先报告授权错误而不是 Trust。
+            // Intentionally incomplete CA configuration fails during preparation; authorization errors should precede Trust.
             "OTTER_LOOM_TLS_ORIGIN" => Some(origin.into()),
             _ => None,
         })

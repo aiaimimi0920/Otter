@@ -1,4 +1,4 @@
-//! WinForms 遮挡 push button 补偿；只在成功的普通 mouse-up 后发送一次父通知。
+//! WinForms obscured push-button compensation; send one parent notification only after a successful ordinary mouse-up.
 use super::*;
 use crate::{live_button_gesture::Gesture, live_input::Button};
 use windows::Win32::{
@@ -122,7 +122,7 @@ fn eligible(target: &Destination, point: [i32; 2]) -> bool {
     }
 }
 
-/// 不用 BM_CLICK（会重复产生 down/up）；只使用受限的 BN_CLICKED/WM_COMMAND。
+/// Do not use BM_CLICK (which duplicates down/up); use only constrained BN_CLICKED/WM_COMMAND.
 pub(super) fn complete(
     target: Destination,
     point: [i32; 2],
@@ -136,7 +136,7 @@ pub(super) fn complete(
     if parent.thread() == unsafe { GetCurrentThreadId() } {
         return Err(Error::Message(message::Error::SameThread));
     }
-    // 绑定父窗口之后再复核原始子目标及父子关系；句柄本身不是权限凭证。
+    // After binding the parent window, recheck the original child target and parent-child relationship; a handle alone is not an authorization credential.
     target.preflight().map_err(Error::Target)?;
     parent.preflight().map_err(Error::Target)?;
     if unsafe { GetParent(target.hwnd()) }.ok() != Some(parent.hwnd()) {
@@ -147,7 +147,7 @@ pub(super) fn complete(
     }
     let id = unsafe { GetDlgCtrlID(target.hwnd()) } as u16;
     if let Some(modal) = modal {
-        // 通知也能打开模态窗。保留原父目标供 Escape/取消使用，不重放通知。
+        // Notifications may also open modal windows. Retain the original parent target for Escape/cancellation without replaying the notification.
         return message::button_command(&parent, &target, id, modal).map_err(Error::Message);
     }
     let completed = unsafe {

@@ -1,4 +1,4 @@
-// 同一通用两事件 FIFO 夹具，增加真实 native click 的 capture/target/bubble 与清理断言。
+// The same generic two-event FIFO fixture, adding actual native-click capture/target/bubble and cleanup assertions.
 let label, current, count = 0, once = 0, last, trace;
 const check = (value, message) => { if (!value) throw Error(message); };
 NeuroSurface.define({ mount({ root, snapshot, emit }) {

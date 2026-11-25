@@ -38,7 +38,7 @@ impl Cache {
     ) {
         self.sequence = (sequence != 0).then_some(sequence);
         self.entry = content.filter(|_| sequence != 0);
-        // 位置属于复制会话，而非可编辑内容；Art/小图扁平化不能丢失相对偏移。
+        // Position belongs to the copy session, not editable content; flattening Art/small images must preserve relative offsets.
         self.placement = origin
             .filter(|_| sequence != 0)
             .map(super::clipboard_placement::Session::new);

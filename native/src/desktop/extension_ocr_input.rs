@@ -1,4 +1,4 @@
-//! 主干 ocr-text.v1 的有界白名单投影；只输出命名文本/几何，不传跨插件 opaque 状态。
+//! Bounded whitelist projection for baseline ocr-text.v1; output named text/geometry only, not cross-plugin opaque state.
 use crate::{loom_extension_session::Error, unit_attachment_store::Store};
 use serde_json::{json, Value};
 fn text(value: &Value) -> Result<&str, Error> {

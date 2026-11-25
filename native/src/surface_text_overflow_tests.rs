@@ -1,4 +1,4 @@
-//! 真实 DirectWrite 最终帧的省略、固有尺寸、复制、重排与资源共享回归。
+//! Real DirectWrite final-frame regressions for ellipsis, intrinsic dimensions, copying, reflow, and resource sharing.
 use super::*;
 use crate::{surface_presentation::Presentation, surface_scene::Scene};
 #[test]
@@ -133,7 +133,7 @@ fn text_overflow_hidden_suffix_navigation_selects_full_text_without_scroll_or_cl
     assert_eq!(layout.step_text(hidden, true).unwrap(), end);
     let suffix = layout.selected_text(hidden..end).unwrap();
     assert!(suffix.ends_with("hidden suffix"));
-    // 被省略后缀作为一个视觉 cluster，允许一次跳过；仍保留完整逻辑内容供复制。
+    // Treat the elided suffix as one visual cluster that may be skipped at once, while retaining complete logical content for copying.
     let sign = layout.cluster_rect(end - 1).unwrap();
     let y = (sign.top + sign.bottom) / 2.;
     let quarter = (sign.right - sign.left) / 4.;

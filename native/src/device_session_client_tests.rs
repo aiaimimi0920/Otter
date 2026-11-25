@@ -1,4 +1,4 @@
-//! 真实 loopback TLS/HTTP 夹具，不访问用户凭据或在线 Loom。
+//! Real loopback TLS/HTTP fixtures without user-credential or online Loom access.
 use super::*;
 use rustls::{pki_types::PrivatePkcs8KeyDer, ServerConfig, ServerConnection};
 #[path = "device_approval_http_tests.rs"]
@@ -36,7 +36,7 @@ fn fixture() -> (TcpListener, Client, Arc<ServerConfig>) {
 pub(crate) fn fixture_with_pem() -> (TcpListener, Client, Arc<ServerConfig>, String) {
     fixture_with_host("localhost")
 }
-/// 多次配置重解析的定向测试可选显式回环IP；默认仍覆盖localhost/SNI合同，不延长期限。
+/// Targeted repeated-configuration-resolution tests may select an explicit loopback IP; defaults still cover localhost/SNI contracts without extending deadlines.
 pub(crate) fn fixture_with_host(host: &str) -> (TcpListener, Client, Arc<ServerConfig>, String) {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     listener.set_nonblocking(true).unwrap();
@@ -83,7 +83,7 @@ pub(crate) fn accept(listener: &TcpListener) -> BridgeStream {
 pub(crate) fn request(stream: &mut (impl Read + Write)) -> (String, serde_json::Value) {
     request_result(stream).unwrap()
 }
-// 取消型peer可接收真实socket关闭；旧入口仍unwrap，解析与大小断言不放宽。
+// Cancellation peers may receive actual socket closure; old entry points still unwrap, with unchanged parsing/size assertions.
 pub(crate) fn request_result(
     stream: &mut (impl Read + Write),
 ) -> io::Result<(String, serde_json::Value)> {

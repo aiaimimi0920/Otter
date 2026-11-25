@@ -1,4 +1,4 @@
-//! 同步实际 HWND 几何；外部移动不能继续使用创建时的屏幕命中矩形。
+//! Synchronize actual HWND geometry; external movement invalidates creation-time screen hit rectangles.
 use super::*;
 
 impl Cascade {
@@ -19,7 +19,7 @@ impl Cascade {
             if bounds == page.bounds {
                 continue;
             }
-            // 当前布局拥有固定字体/行高；外部改尺寸不能冒充已完成 DPI 重排。
+            // Current layout owns fixed fonts/row heights; external resizing cannot stand in for completed DPI reflow.
             if bounds.right - bounds.left != page.bounds.right - page.bounds.left
                 || bounds.bottom - bounds.top != page.bounds.bottom - page.bounds.top
             {
@@ -38,14 +38,14 @@ impl Cascade {
                     GetWindowRect(hwnd, &mut bounds).is_err() || bounds != view.bounds
                 })
         }) {
-            // 外部移动、销毁或锚点换位后，旧预览矩形不能继续吞点击和滚轮。
+            // After external movement/destruction/anchor changes, old preview rectangles must not keep swallowing clicks/wheels.
             self.preview = None;
             moved = true;
         }
         if moved {
             self.pending_surrogate = None;
             for page in &mut self.pages {
-                // 在旧坐标系开始的点击或滑块拖动不可跨越重定位执行。
+                // Clicks/scrollbar drags begun in old coordinates cannot execute across relocation.
                 page.pressed = None;
                 page.delete_pressed = None;
                 page.drag = None;

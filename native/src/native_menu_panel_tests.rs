@@ -1,4 +1,4 @@
-//! 真实 HWND 生命周期与消息测试；不打开系统历史，不替代人工输入验收。
+//! Real HWND lifecycle/message tests; no system history, and not a substitute for manual-input acceptance.
 use super::*;
 struct Owner(HWND);
 impl Owner {
@@ -205,7 +205,7 @@ fn real_paint_reuses_shortcut_measurement_until_the_label_changes() {
     let panel = panel(owner.0);
     panel.show().unwrap();
     let cached_width = || unsafe {
-        // 不传可用 DC：只有已成功绘制并量测过的内容可以在这里读出宽度。
+        // Provide no usable DC: only successfully drawn/measured content may expose widths here.
         panel.data.rows.borrow_mut().shortcut_width(HDC::default())
     };
     unsafe { UpdateWindow(panel.hwnd).ok().unwrap() };

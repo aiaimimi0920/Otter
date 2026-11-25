@@ -1,4 +1,4 @@
-// 保持 intrinsic/prototype 污染跨越 collect/update/dispose，私有状态和准入不能随之改写。
+// Retain intrinsic/prototype pollution across collect/update/dispose; it must not rewrite private state or admission.
 let sheet, rootNode, leaks = 0;
 NeuroSurface.define({
   mount({ root }) {

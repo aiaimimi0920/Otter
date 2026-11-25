@@ -1,4 +1,4 @@
-//! 独立 v3 reader 的方向/预算/签名与保存兼容回归；不以保存提示代授权。
+//! Independent v3 reader regressions for direction/budget/signatures and save compatibility; save hints do not authorize execution.
 use super::*;
 use package::visibility as v3;
 fn modern() -> v3::Package {

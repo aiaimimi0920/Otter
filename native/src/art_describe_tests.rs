@@ -1,4 +1,4 @@
-//! 描述不是许可；严格字段/范围验证、宿主身份注入与原租约撤销保护。
+//! A description is not permission; strict field/scope validation, host identity injection, and original-lease revocation protection.
 use super::*;
 use crate::art_local_requests::tests as fixture;
 use serde_json::{json, Value};

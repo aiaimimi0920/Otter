@@ -1,4 +1,4 @@
-//! 隔离文件/真实 worker 与事务回归；所有合成输入保留在 linshi，不发现真实 profile。
+//! Isolated-file/real-worker transaction regressions; retain all synthetic input in linshi without discovering real profiles.
 use super::*;
 #[path = "application_projection_pause_tests.rs"]
 mod pause;
@@ -149,7 +149,7 @@ fn receive_policy_recovery_and_cancel_do_not_reenable_auto_or_publish_unclaimed_
     assert_eq!(std::fs::read(recovery).unwrap(), bytes);
     assert!(!path(&root).exists());
     let other = super::tests::root();
-    // 命名设置中的类似字段不参与设备同意解析，更不能作为 auto 的迁移输入。
+    // Similar fields in naming settings do not participate in device-consent parsing, much less serve as migration input for auto.
     std::fs::write(other.join("app-settings.json"), bytes).unwrap();
     let mut owner = Owner::load(&other, &AtomicBool::new(false));
     let mut consent = Consent::default();
@@ -177,7 +177,7 @@ fn receive_policy_close_retires_notified_worker_without_publishing_after_reopen(
         &mut consent,
         Arc::new(move || {
             notified.send(()).unwrap();
-            // 即使发生提早 join 的回归，也给测试留出明确的有界失败出口。
+            // Even an early-join regression must leave the test an explicit bounded failure exit.
             let _ = blocked.lock().unwrap().recv_timeout(Duration::from_secs(5));
         }),
     );

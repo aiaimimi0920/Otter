@@ -1,4 +1,4 @@
-//! 有界 HKCU 适配器，仅访问 Otter 的 Run/StartupApproved 值；句柄作用域回收。
+//! Bounded HKCU adapter accesses only Otter Run/StartupApproved values; handles are scope-reclaimed.
 use super::*;
 use windows::{
     core::{w, PCWSTR},

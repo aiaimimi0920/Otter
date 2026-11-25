@@ -1,4 +1,4 @@
-//! 有界图片获取任务；就绪字节仍占共享任务槽，保留原租约直到消费/丢弃。
+//! Bounded image-fetch tasks; ready bytes still occupy shared task slots and retain original leases until consumption/discard.
 use crate::{
     device_authorization_config::{Config, Error as PrepareError},
     device_authorization_lease::Lease,
@@ -53,12 +53,12 @@ enum Connection {
 pub struct Ready {
     resource: Decoded,
     lease: Arc<Lease>,
-    // 完成不代表释放内存；未消费像素仍占全局四槽，像素另受共享 Pixels 预算约束。
+    // Completion does not release memory; unconsumed pixels still occupy the four global slots and separately obey shared Pixels budgets.
     _slot: Slot,
 }
 impl Ready {
-    /// 成功消费后由同 Grant 的窗口租约接管，释放请求槽与请求租约，不累积网络 owner。
-    /// 此兼容接口仅返回栅格；Surface UI 安装必须用保留逻辑尺寸的 transfer_image。
+    /// After successful consumption, a window lease with the same Grant takes over, releasing request slots/leases without accumulating network owners.
+    /// This compatibility interface returns only rasters; Surface UI installation must use transfer_image to retain logical dimensions.
     pub fn transfer(
         self,
         destination: &Lease,
@@ -241,7 +241,7 @@ impl Job {
 }
 impl Drop for Job {
     fn drop(&mut self) {
-        // 成功 join 已将租约/槽移交 Ready；回收 Job 不能撤销新 owner 的有效结果。
+        // Successful join transfers leases/slots to Ready; reaping Job must not revoke the new owner's valid result.
         if let Some(thread) = self.thread.take() {
             self.request_stop();
             let _ = thread.join();

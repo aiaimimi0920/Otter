@@ -1,4 +1,4 @@
-//! 真正磁盘提交与工作区交换的接收补偿竞态；不以预备索引或下一次 UI poll 冒充保存事实。
+//! Receive-compensation races around actual disk commit and workspace swaps; neither preparatory indexes nor the next UI poll substitute for persistence.
 use super::*;
 use std::sync::atomic::AtomicBool;
 
@@ -44,7 +44,7 @@ fn unknown_index(fixture: &mut Fixture) {
         .iter()
         .find(|doc| doc.state.unit_id.as_str() != fixture.ticket().unit())
         .unwrap();
-    host.state.canvas.borrow_mut().pinned = true; // 使真实默认空宿主成为应保留的普通 Unit。
+    host.state.canvas.borrow_mut().pinned = true; // Make the real default empty host an ordinary Unit that must be retained.
     let host_id = host.state.unit_id.as_str().to_owned();
     let record = fixture.app.restored_session.as_mut().unwrap();
     let mut value: serde_json::Value = serde_json::from_slice(&record.original).unwrap();
@@ -135,7 +135,7 @@ unsafe fn manual(case: u8) {
         .app
         .projection_checkpoint_inclusion(fixture.ticket())
         .is_none());
-    // 不 poll receive：覆盖 commit 后同一 UI 轮内立即 reset 的真实竞态。
+    // Do not poll receive: cover the actual race of immediate reset after overwrite commit within the same UI turn.
     fixture.app.reset_projection_inbox();
     assert!(!fixture.app.projection_receive.busy());
     assert!(fixture.unit_present());

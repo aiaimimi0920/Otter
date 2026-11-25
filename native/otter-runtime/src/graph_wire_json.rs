@@ -1,4 +1,4 @@
-//! 有界 JSON 输出器；只编码借用协议值，不执行对象方法、不访问外部资源。
+//! Bounded JSON writer; encode borrowed protocol values only, without executing object methods or accessing external resources.
 use super::{Error, MAX_MESSAGE_BYTES};
 use crate::graph_image::Output;
 pub struct Json(pub String, usize);
@@ -68,7 +68,7 @@ impl Json {
                 const HEX: &[u8] = b"0123456789abcdef";
                 let code = character as usize;
                 let escaped = [b'\\', b'u', b'0', b'0', HEX[code >> 4], HEX[code & 15]];
-                // 全部字节来自 ASCII 常量，不为每个控制字符分配格式化字符串。
+                // All bytes come from ASCII constants; do not allocate a formatted string for each control character.
                 self.raw(std::str::from_utf8(&escaped).unwrap())?;
             } else {
                 continue;

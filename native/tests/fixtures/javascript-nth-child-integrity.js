@@ -1,4 +1,4 @@
-// 公开 intrinsic 污染不能窥视/替换私有位置索引；不污染 QuickJS 自身 JSON 数值槽。
+// Public-intrinsic pollution cannot inspect/replace private positional indices; do not pollute QuickJS's own JSON numeric slots.
 let rootNode, first;
 NeuroSurface.define({
   mount({root}) {

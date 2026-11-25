@@ -1,4 +1,4 @@
-//! 设备 challenge 的身份校验与主干兼容签名；不发 HTTP、不自动重试/批准。
+//! Device-challenge identity checks/mainline-compatible signatures; no HTTP or automatic retries/approval.
 use crate::device_identity::{valid_field, Identity};
 use base64::{
     engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD},

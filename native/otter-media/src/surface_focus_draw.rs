@@ -1,4 +1,4 @@
-//! 键盘焦点指示属于节点绘制顺序，继承组透明度/裁剪，不浮在后续兄弟节点上方。
+//! Keyboard-focus indicators follow node drawing order and inherit group opacity/clipping, rather than floating above later siblings.
 use crate::{surface_clip::Rect, surface_layout_tree::Placed};
 use windows::Win32::Graphics::Direct2D::{Common::*, *};
 

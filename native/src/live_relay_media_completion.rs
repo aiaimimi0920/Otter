@@ -1,4 +1,4 @@
-//! 先保存媒体终态再取消控制 I/O；避免立即唤醒后只看到 Stopped 而丢失撤权原因。
+//! Save media terminal state before cancelling control I/O, avoiding an immediate wake seeing only Stopped and losing the revocation reason.
 use super::Exit;
 use crate::{device_authorization_lease::Lease, live_relay_viewer_runtime::Exit as MediaExit};
 use std::sync::{Arc, Mutex};
@@ -29,7 +29,7 @@ impl Completion {
         drop(slot);
         self.lease.revoke();
     }
-    // 迟到的普通媒体终态不覆盖已经选定的控制结果。
+    // Late ordinary media terminal states cannot overwrite the already-selected control result.
     pub(super) fn device_revocation_or(&self, fallback: Exit) -> Exit {
         match self.exit() {
             Some(exit @ Exit::Media(MediaExit::DeviceRevoked)) => exit,

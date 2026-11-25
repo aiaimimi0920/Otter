@@ -1,4 +1,4 @@
-//! 离线发送沿同份菜单/Job/PNG/CAS/Checkpoint/停止夹具，TLS验证只走本机Loom路由。
+//! Offline sending uses the same menu/Job/PNG/CAS/Checkpoint/stop fixture, with TLS validation limited to the local Loom route.
 use super::*;
 use serde_json::json;
 use sha2::{Digest, Sha256};

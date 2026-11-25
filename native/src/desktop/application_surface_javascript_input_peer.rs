@@ -1,4 +1,4 @@
-//! 真实 TLS 固定会话 peer；逐项验证两个 emit 的 wire/nonce/顺序及每批后的两次观察。
+//! Real-TLS fixed-session peer; verify both emits' wire data/nonce/order individually and the two observations after every batch.
 use super::*;
 use std::sync::mpsc::{self, Receiver, Sender};
 

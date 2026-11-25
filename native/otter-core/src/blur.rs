@@ -1,5 +1,5 @@
-//! 图像空间高斯模糊；只计算目标区域及核所需邻域，不读取窗口或修改原始像素。
-//! 输入/输出为预乘 BGRA，图像外为透明；工作线程可在每行边界取消。
+//! Image-space Gaussian blur computes only target regions/kernel neighborhoods, without windows or original-pixel mutation.
+//! Premultiplied BGRA input/output with transparency outside images; workers may cancel at every row boundary.
 use crate::{
     pixels::{self, Pixels},
     viewport::checked_image_bytes,
@@ -43,8 +43,8 @@ fn allocate<T: Default + Clone>(
     Ok((data, lease))
 }
 
-/// sigma 是图像像素标准差；整数兼容入口，核截断到 ±3 sigma。
-/// 两次一维卷积保留浮点中间值，避免分块计算引入额外量化接缝。
+/// sigma is standard deviation in image pixels; integer-compatible entry truncates kernels to +/-3 sigma.
+/// Two 1D convolutions preserve floating-point intermediates, avoiding extra quantization seams from chunked computation.
 pub fn region(
     source: &Pixels,
     size: (u32, u32),
@@ -55,7 +55,7 @@ pub fn region(
     region_precise(source, size, area, sigma as f32, cancelled)
 }
 
-/// 保留缩放产生的小数标准差；整数入口复用同一算法，核半径向上取整。
+/// Preserve fractional standard deviation from scaling; integer entry shares the algorithm with ceiling kernel radius.
 pub fn region_precise(
     source: &Pixels,
     size: (u32, u32),
@@ -106,7 +106,7 @@ fn region_axes(
         if cancelled() {
             return Err(BlurError::Cancelled);
         }
-        // 每个源行只计算一次；覆盖的槽位一定早于本输出行的核起点。
+        // Compute each source row once; overwritten slots always precede this output row's kernel start.
         let required_end = (area.y as i32 + y as i32 + vertical_kernel.radius + 1).min(bottom);
         while next_row < required_end {
             if cancelled() {
@@ -117,7 +117,7 @@ fn region_axes(
             let src_row = &source[next_row as usize * width as usize * 4
                 ..(next_row as usize + 1) * width as usize * 4];
             let k_len = horizontal_kernel.weights.len() as i32;
-            // 预先裁剪核有效区间并在寄存器内累加，消除最内层分支/切片回写且保持加法顺序逐比特一致。
+            // Preclip valid kernel ranges/accumulate in registers, removing innermost branches/slice writes while preserving bit-identical addition order.
             for (x, dst) in row.chunks_exact_mut(4).enumerate() {
                 let base_x = area.x as i32 + x as i32 - horizontal_kernel.radius;
                 let k_start = (-base_x).max(0).min(k_len) as usize;
@@ -304,7 +304,7 @@ mod tests {
                 &full[((y + 5) * 32 + 7) * 4..((y + 5) * 32 + 20) * 4]
             );
         }
-        assert!(full[3] < 255); // 图像外透明，不把边缘像素无限复制。
+        assert!(full[3] < 255); // Outside images is transparent, not infinitely replicated edge pixels.
     }
     #[test]
     fn cancellation_and_invalid_regions_do_not_modify_source() {

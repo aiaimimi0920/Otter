@@ -1,4 +1,4 @@
-//! 关闭前的回收候选：当前快照入库，裁掉旧活动窗口及关联链接；发布权仍属于窗口协调器。
+//! Pre-close recycle candidates: store the current snapshot and remove old active windows and associated links; publication authority remains with the window coordinator.
 use super::{
     candidate,
     freeze::{self, Entries},

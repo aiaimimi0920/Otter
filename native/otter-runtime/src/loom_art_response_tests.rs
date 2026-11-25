@@ -1,4 +1,4 @@
-//! 对照 art_transport/formal_delivery 的包络和提交身份；不访问资源或发布 UI。
+//! Check envelopes and commit identities against art_transport/formal_delivery; no resource access or UI publication.
 use super::*;
 use serde_json::json;
 fn request() -> Request {

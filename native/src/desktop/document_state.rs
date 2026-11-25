@@ -1,4 +1,4 @@
-//! 单个文档宿主的独立状态。构造时不创建 HWND、不注册热键，也不启动后台任务。
+//! Independent state for one document host; construction creates no HWND, registers no hotkeys, and starts no background tasks.
 use super::{canvas::Canvas, hit_region::HitRegion, image::Image, State};
 use std::cell::{Cell, RefCell};
 use windows::{core::Result, Win32::Foundation::HWND};
@@ -22,7 +22,7 @@ pub(super) fn new_unit_id() -> Result<crate::workspace_id::UnitId> {
         tail[6],
         tail[7]
     );
-    // 固定长度的 ASCII UUID 必然满足 UnitId 的有界字符串合同。
+    // Fixed-length ASCII UUIDs necessarily satisfy UnitId's bounded-string contract.
     Ok(crate::workspace_id::UnitId::parse(&text).expect("generated UUID must be a valid unit ID"))
 }
 
@@ -31,7 +31,7 @@ impl State {
         self.restored_art || self.local_art_id.is_some() || self.selected_art.borrow().is_some()
     }
     pub(super) fn from_prepared(prepared: super::open_image::PreparedDocument) -> Result<Self> {
-        // alpha 区域已在后台准备；建窗阶段不可再次扫描整图。
+        // Alpha regions were prepared in background; window creation must not rescan the entire image.
         let mut state = Self::new(None, true)?;
         state.capture_origin = prepared.capture_origin;
         state.canvas.borrow_mut().replace_image(prepared.image)?;
@@ -52,7 +52,7 @@ impl State {
         Ok(state)
     }
     pub(super) fn new(image: Option<Image>, pinned: bool) -> Result<Self> {
-        // 在首次绘制之前准备 alpha 命中区域；普通工作区不需要扫描像素。
+        // Prepare alpha hit regions before first drawing; ordinary workspaces need no pixel scans.
         let hit_region = if pinned {
             image
                 .as_ref()
@@ -285,7 +285,7 @@ mod tests {
         assert!(!right.file_dialog.get());
         assert_eq!(right.tool_panel_wheel.get(), [0; 2]);
         drop(left);
-        // 一个文档释放后，另一个文档保留有效的共享像素和独立编辑历史。
+        // After one document is released, another retains valid shared pixels and independent edit history.
         let mut canvas = right.canvas.borrow_mut();
         assert_eq!(canvas.image.as_ref().unwrap().pixels[0], 255);
         assert!(!canvas.editor.undo());

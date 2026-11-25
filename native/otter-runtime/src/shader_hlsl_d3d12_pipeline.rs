@@ -1,4 +1,4 @@
-//! D3D12 固定全屏管线；t0..tN、b0、s0 与 HLSL 生成器保持同一排列。
+//! Fixed fullscreen D3D12 pipeline; t0..tN, b0, and s0 use the same ordering as the HLSL generator.
 use super::*;
 use std::mem::ManuallyDrop;
 pub(super) fn create(
@@ -111,7 +111,7 @@ pub(super) fn create(
         };
         desc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
         let result = device.CreateGraphicsPipelineState(&desc).map_err(fail);
-        // Windows union 的 ManuallyDrop 字段不会自动归还这个临时 clone。
+        // Windows union ManuallyDrop fields do not automatically release this temporary clone.
         ManuallyDrop::drop(&mut desc.pRootSignature);
         Ok((root, result?))
     }

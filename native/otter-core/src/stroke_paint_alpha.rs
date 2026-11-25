@@ -1,4 +1,4 @@
-//! 描边与填充的独立透明度；整体 opacity 仍由标注组拥有，不折入任一颜色。
+//! Independent stroke/fill alpha; annotation groups still own overall opacity without folding it into either color.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PaintAlpha {
     stroke: f32,

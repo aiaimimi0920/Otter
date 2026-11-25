@@ -1,4 +1,4 @@
-//! 无当前像素的内联 Image 使用独立替代内容；不是伪造的自然图片尺寸或失败事件。
+//! Inline Images without current pixels use independent replacement content, not fabricated natural image dimensions or failure events.
 use super::*;
 pub(crate) const ICON: f32 = 16.;
 pub(crate) const TEXT_OFFSET: f32 = 20.;
@@ -15,7 +15,7 @@ pub(crate) fn layout(
     width: f32,
     height: f32,
 ) -> Result<crate::surface_text::Layout> {
-    // 只裁短绘制副本，原始 alt/UIA 名称不变；不允许超长替代文本扩大原生布局预算。
+    // Shorten only the painted copy, retaining original alt/UIA names; oversized replacement text must not expand native layout budgets.
     let text: String = alt(node)
         .chars()
         .filter(|ch| *ch != '\0')

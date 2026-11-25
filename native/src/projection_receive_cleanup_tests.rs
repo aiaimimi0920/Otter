@@ -1,4 +1,4 @@
-//! 清理标记兼容旧记录、严格 CAS/许可、重启和减权幂等；不假造远端解绑。
+//! Cleanup markers preserve old-record compatibility, strict CAS/permits, restart, and idempotent privilege reduction; no fabricated remote unlink.
 use super::*;
 
 #[test]

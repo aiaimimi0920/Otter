@@ -1,4 +1,4 @@
-//! 无按键悬停只采样当前 HWND 命中；不夺焦点/捕获，和原鼠标视觉共享离开跟踪。
+//! Button-free hover samples only current-HWND hits, without stealing focus/capture, sharing leave tracking with original mouse visuals.
 use super::*;
 use crate::surface_javascript_wire::HoverInput;
 pub(in crate::desktop::surface_window) unsafe fn message(
@@ -16,7 +16,7 @@ pub(in crate::desktop::surface_window) unsafe fn message(
     if state.javascript_pointer.borrow().active.is_some() {
         return;
     }
-    // WM_MOUSEMOVE 的五个按键位；Ctrl/Shift 不属于按键，仍由原 modifier owner 采样。
+    // The five mouse-button bits in WM_MOUSEMOVE; Ctrl/Shift are modifiers, still sampled by the original modifier owner.
     if message != WM_MOUSELEAVE && wp.0 & 0x73 != 0 {
         return;
     }
@@ -24,7 +24,7 @@ pub(in crate::desktop::surface_window) unsafe fn message(
         cancel(state);
         return;
     }
-    // 原生控件/选择/scrollbar 的捕获不由悬停路径抢占；Canvas up 已在调用前释放。
+    // Hover must not steal capture from native controls/selection/scrollbars; Canvas up already released capture before this call.
     if GetCapture() != HWND::default() {
         return;
     }
@@ -38,7 +38,7 @@ pub(in crate::desktop::surface_window) unsafe fn message(
     let (client, modifiers) = data(hwnd, pixels);
     let leaving = message == WM_MOUSELEAVE;
     let result = state.run(|host| {
-        // Canvas up 只续结已存在的 hover，不为纯拖动凭空增加输入。
+        // Canvas up only resumes existing hover; pure dragging must not fabricate additional input.
         if message == WM_LBUTTONUP && !host.has_javascript_hovers() {
             return Ok(());
         }

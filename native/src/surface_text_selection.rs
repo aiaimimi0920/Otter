@@ -1,4 +1,4 @@
-//! 复用实际 DirectWrite 布局的选区命中/几何；不拥有 HWND、剪贴板或手势状态。
+//! Selection hits/geometry reuse actual DirectWrite layouts without owning HWNDs, clipboards, or gesture state.
 use super::*;
 use std::ops::Range;
 use windows::{core::BOOL, Win32::Foundation::ERROR_INSUFFICIENT_BUFFER};
@@ -11,7 +11,7 @@ mod word;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TextHit {
-    /// 规范化文本的 UTF-16 插入位置；由完整字形 cluster 的首/尾决定。
+    /// UTF-16 insertion positions in normalized text, determined by full glyph-cluster starts/ends.
     pub position: u32,
     pub inside: bool,
 }
@@ -38,7 +38,7 @@ impl Layout {
     pub fn text_len(&self) -> u32 {
         self.text.len() as u32
     }
-    /// 查询包含该 UTF-16 单元的完整 cluster；允许探测 surrogate 后半部，不返回拆分范围。
+    /// Query the complete cluster containing this UTF-16 unit; probing surrogate tails is allowed, but split ranges are never returned.
     pub(crate) fn cluster_rect(&self, index: u32) -> Result<crate::surface_clip::Rect> {
         if index >= self.text_len() {
             return Err(invalid());
@@ -52,7 +52,7 @@ impl Layout {
         cluster_bounds(&hit)
     }
 
-    /// 按实际排版 cluster 沿文本逻辑顺序移动；不把 UTF-16 单元当完整字符。
+    /// Move in logical text order by actual layout clusters, not UTF-16 units mistaken for complete characters.
     pub fn step_text(&self, position: u32, forward: bool) -> Result<u32> {
         self.validate_range(position..position)?;
         if (forward && position == self.text_len()) || (!forward && position == 0) {
@@ -77,7 +77,7 @@ impl Layout {
         Ok(next)
     }
 
-    /// 坐标相对于文字布局左上角，以 DIP 为单位；越界返回最近边沿而非拒绝拖选。
+    /// Coordinates are DIPs relative to the text layout's top-left; out-of-bounds input returns the nearest edge rather than rejecting drag selection.
     pub fn hit_text(&self, point: [f32; 2]) -> Result<TextHit> {
         if point
             .iter()
@@ -114,7 +114,7 @@ impl Layout {
         if range.start > range.end || range.end > self.text_len() {
             return Err(invalid());
         }
-        // 外部传入的范围同样不能切开 surrogate pair；命中入口已按 cluster 对齐。
+        // Externally supplied ranges must not split surrogate pairs either; hit entries already align to clusters.
         for position in [range.start as usize, range.end as usize] {
             if position > 0
                 && position < self.text.len()
@@ -127,14 +127,14 @@ impl Layout {
         Ok(())
     }
 
-    /// 仅复制时构造 UTF-8；指针移动无需复制整段文字。
+    /// Construct UTF-8 only when copying; pointer movement never copies entire text blocks.
     pub fn selected_text(&self, range: Range<u32>) -> Result<String> {
         self.validate_range(range.clone())?;
         String::from_utf16(&self.text[range.start as usize..range.end as usize])
             .map_err(|_| invalid())
     }
 
-    /// 返回布局局部矩形，保留换行和 bidi 分段；调用方继续应用 TextItem 的祖先裁剪。
+    /// Return layout-local rectangles preserving line breaks and bidi segments; callers still apply TextItem ancestor clipping.
     pub fn selection_rects(&self, range: Range<u32>) -> Result<Vec<crate::surface_clip::Rect>> {
         self.validate_range(range.clone())?;
         if range.is_empty() {
@@ -156,7 +156,7 @@ impl Layout {
                 return Err(error);
             }
         }
-        // 文本最多 65536 个 UTF-16 单元；不依赖不可信输出分配无界几何缓冲。
+        // Text has at most 65536 UTF-16 units; never allocate unbounded geometry buffers based on untrusted output.
         if count == 0 || count > self.text_len().saturating_add(1) {
             return Err(invalid());
         }

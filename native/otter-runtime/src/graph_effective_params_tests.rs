@@ -1,4 +1,4 @@
-//! 图输出、包装值、widget 和安全过滤的组合回归，不调用外部执行服务。
+//! Combined regression tests for graph outputs, wrapped values, widgets, and safety filtering, without calling external execution services.
 use super::super::tests::{id, link, sticker};
 use super::*;
 use crate::{graph_param_coercion::Widget, graph_params::DISABLED};

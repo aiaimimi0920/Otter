@@ -1,4 +1,4 @@
-//! Wall 图片复用 WIC/隔离 WebP/原 RGBA 转换；在像素分配前实施 Tile 专属上限。
+//! Wall images reuse WIC/isolated WebP/original RGBA conversion; enforce Tile-specific limits before pixel allocation.
 use super::*;
 impl Image {
     pub(crate) fn from_tile(
@@ -30,7 +30,7 @@ impl Image {
             check(w, h)?;
             return Self::from_surface(bytes, mime, Some((w, h)), stopped);
         }
-        // Wall 的 GIF 合同使用第一帧；不改变普通 Surface 的单帧合同或 EXIF 语义。
+        // Wall's GIF contract uses the first frame; ordinary Surface's single-frame contract and EXIF semantics stay unchanged.
         unsafe {
             let factory: IWICImagingFactory =
                 CoCreateInstance(&CLSID_WICImagingFactory, None, CLSCTX_INPROC_SERVER)?;

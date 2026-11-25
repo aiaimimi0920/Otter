@@ -1,4 +1,4 @@
-//! 每个面板拥有两种 DPI 字体；先恢复绘制 DC，再由面板生命周期释放字体。
+//! Each panel owns two DPI fonts; restore drawing DCs before panel-lifetime font release.
 use super::*;
 struct Font(HFONT);
 impl Drop for Font {
@@ -141,7 +141,7 @@ mod tests {
             }
             drop(fonts);
             for handle in handles {
-                // NULL 查询只返回类型所需大小，不能证明句柄仍存活；必须实际读取。
+                // NULL queries return only required type size, not proof the handle is alive; actual reads are required.
                 let mut descriptor = LOGFONTW::default();
                 assert_eq!(
                     unsafe {

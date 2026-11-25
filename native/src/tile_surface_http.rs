@@ -1,4 +1,4 @@
-//! Wall显示/动作固定POST；原Device nonce/HTTPS/取消与一次写语义不变。
+//! Fixed POSTs for Wall display/actions; original Device nonce/HTTPS/cancellation and one-shot-write semantics remain unchanged.
 use super::*;
 use crate::tile_surface_wire::{Binding, View};
 #[path = "tile_surface_action_http.rs"]

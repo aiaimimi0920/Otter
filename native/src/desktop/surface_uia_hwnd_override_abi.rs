@@ -1,4 +1,4 @@
-//! 根的 HWND relocation ABI；未知 HWND 为 S_OK + NULL，接口身份共享根 IUnknown。
+//! Root HWND relocation ABI: unknown HWND returns S_OK + NULL; interface identity shares root IUnknown.
 use super::super::super::accessibility_bridge::native_edit;
 use super::*;
 pub(super) fn is_edit(object: &Provider) -> bool {

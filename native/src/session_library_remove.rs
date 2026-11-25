@@ -1,4 +1,4 @@
-//! 按条目身份删除一个冻结记录；不解析图片、不更改活动窗口或其它库，也不推进 revision。
+//! Delete one frozen record by entry identity; no image parsing, active-window/other-library changes, or revision advancement.
 use super::{candidate, Kind};
 use crate::session_write::Candidate;
 use serde::{ser::SerializeMap, Serialize, Serializer};
@@ -67,7 +67,7 @@ pub fn prepare(
     })
 }
 
-/// 显式清空只修改选定库的原文；不删除图片文件、不改变另一库或活动窗口。
+/// Explicit clearing changes only the selected library's source content; no image-file deletion or changes to other libraries/active windows.
 pub fn clear(
     original: &[u8],
     kind: Kind,
@@ -79,7 +79,7 @@ pub fn clear(
     let revision = source_revision(original)?;
     let library = super::decode(original, kind)?;
     if library.entries().is_empty() {
-        // 缺失或已空的库不发布任何字节，包括保留导入原文的首尾空白。
+        // Missing or already empty libraries publish no bytes, preserving even leading/trailing whitespace in imported source content.
         return Ok(None);
     }
     let root =

@@ -1,4 +1,4 @@
-# 安装依赖与前端构建产物，不忽略锁文件和生成器源码。
+# Installed dependencies and frontend build output; retain lockfiles and generator source.
 node_modules/
 /dist/
 /.vinxi/
@@ -6,7 +6,7 @@ node_modules/
 /.vite/
 *.tsbuildinfo
 
-# Cargo 构建目录，包括独立验证时使用的替代 target。
+# Cargo build directories, including alternate targets used for isolated verification.
 /target/
 /target-*/
 /target_*/
@@ -14,7 +14,7 @@ node_modules/
 /native/target-*/
 /native/target_*/
 
-# 本地运行状态、测试证据与打包结果。
+# Local runtime state, test evidence and package output.
 /.runtime/
 /.tmp/
 /tmp/
@@ -30,14 +30,14 @@ node_modules/
 /otter-*.exe
 *.log
 
-# 本地搜索、代码图谱与浏览器自动化状态，不依赖用户全局 Git 配置。
+# Local search, code-graph and browser-automation state, independent of global Git configuration.
 /.memsearch/
 /graphify-out/
 /.playwright-cli/
 /Microsoft/Windows/PowerShell/ModuleAnalysisCache
 /rtk/history.db
 
-# Python 辅助脚本的环境和缓存。
+# Environments and caches for Python helper scripts.
 /.venv/
 /venv/
 __pycache__/
@@ -45,7 +45,7 @@ __pycache__/
 *.pyc
 *.pyo
 
-# 私有环境配置；显式保留可提交的无秘密示例和模板。
+# Private environment configuration; explicitly retain secret-free examples and templates.
 /.env
 /.env.*
 !/.env.example
@@ -53,7 +53,7 @@ __pycache__/
 !/.env.sample
 !/.env.template
 
-# 编辑器、操作系统和补丁临时文件。
+# Editor, operating-system and patch temporary files.
 .vscode/
 .idea/
 .DS_Store

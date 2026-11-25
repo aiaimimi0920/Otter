@@ -1,4 +1,4 @@
-//! 在 B 跟踪真实悬停/离开，再由原输入 worker 转发到 A；不操作全局指针。
+//! Track actual hover/leave in B, then forward through the original input worker to A; no global pointer manipulation.
 use super::*;
 use windows::Win32::UI::Controls::HOVER_DEFAULT;
 use windows::Win32::UI::Input::KeyboardAndMouse::*;

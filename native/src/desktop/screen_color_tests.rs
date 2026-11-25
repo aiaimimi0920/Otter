@@ -1,4 +1,4 @@
-//! 隐藏 HWND 注入颜色结果，不调用桌面采样，也不改动真实鼠标捕获。
+//! Inject color results through hidden HWNDs without desktop sampling or changing actual mouse capture.
 use super::*;
 struct Fixture(HWND);
 impl Fixture {

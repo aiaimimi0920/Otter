@@ -1,4 +1,4 @@
-//! 行/列交叉轴几何；基线来自测量 owner，无文字基线的盒子按底边合成。
+//! Row/column cross-axis geometry; baselines come from the measurement owner, with bottom-edge synthesis for boxes without text baselines.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Align {
     Stretch,

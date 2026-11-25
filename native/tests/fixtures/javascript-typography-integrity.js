@@ -1,4 +1,4 @@
-// 故意污染可变 intrinsic，私有 typography 不得派发或泄露解析中间对象。
+// Deliberately pollute mutable intrinsics; private typography must neither dispatch to them nor expose intermediate parsing objects.
 let saved;
 NeuroSurface.define({mount({root}) {
   saved = root;

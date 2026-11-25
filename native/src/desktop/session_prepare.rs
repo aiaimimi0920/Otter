@@ -1,4 +1,4 @@
-//! 会话图像的整批后台准备；重复引用共享像素，失败不返回部分窗口。
+//! Whole-batch background session-image preparation; duplicate references share pixels, and failure returns no partial windows.
 use super::image::Image;
 use crate::{session_assets::References, session_document::Document, workspace_id::UnitId};
 use std::{
@@ -35,8 +35,8 @@ impl Images {
     }
 }
 
-/// 后台调用；open_admitted 接收不可信资源字符串，调用者须先完成路径授权才能返回 File。
-/// 不请求 URL，不创建 HWND，不修改工作区。成功结果只包含拥有的像素/身份，不借用会话文本。
+/// Background call; open_admitted receives untrusted resource strings, and callers must authorize paths before returning File.
+/// No URL requests, HWND creation, or workspace changes. Successful results contain only owned pixels/identities, not borrowed session text.
 pub fn images(
     document: &Document<'_>,
     cancel: &AtomicBool,
@@ -57,7 +57,7 @@ pub fn images(
     cache
         .try_reserve(document.windows.len() * 3)
         .map_err(|_| Error::new(E_OUTOFMEMORY, "Cannot allocate session image cache"))?;
-    // Topology::restore 在同一窗口顺序下建立唯一的工作区身份。
+    // Topology::restore establishes unique workspace identity in the same window order.
     for (window, unit) in document.windows.iter().zip(document.workspace.units()) {
         check(cancel)?;
         if unit.as_str() != window.id {
@@ -121,8 +121,8 @@ pub fn images(
     check(cancel)?;
     Ok(prepared)
 }
-/// 工作流选择其他节点/手动参数的底图时，仍经显式 Root 读取并应用目标的翻转。
-/// 单张加载后由调用者释放，不建立另一份全会话像素缓存。
+/// When workflows select base images from other nodes/manual parameters, still read through explicit Root and apply the target's flips.
+/// Callers release individual loaded images; do not create another whole-session pixel cache.
 pub(super) fn workflow_image(
     window: &crate::session_window::Window<'_>,
     reference: &str,
@@ -190,7 +190,7 @@ fn load<'a>(
     let image = if reference.starts_with("data:") {
         super::session_image::inline(reference, cancel)?
     } else {
-        // 打开策略留在调用者；原始 filePath 只作元数据，不可作为失败图片的隐式回退。
+        // Opening policy stays with callers; original filePath is metadata only, never implicit fallback for failed images.
         let file = open_admitted(reference)?;
         check(cancel)?;
         super::session_image_file::load(file, cancel)?

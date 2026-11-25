@@ -1,4 +1,4 @@
-//! 按已打开句柄核验 owner/DACL；仅 current user、SYSTEM、Administrators 可以修改候选。
+//! Verify owner/DACL through open handles; only the current user, SYSTEM, and Administrators may modify the candidate.
 use super::invalid;
 use std::{
     fs::File,
@@ -45,14 +45,14 @@ pub(super) fn check(file: &File) -> io::Result<()> {
     check_mask(file, 0x500D_0156)
 }
 pub(super) fn ancestor(file: &File) -> io::Result<()> {
-    // 属性/EA、改 ACL/owner 不受目录共享锁保护；其他用户不得拥有这些权限。
+    // Attribute/EA and ACL/owner changes are not protected by directory sharing locks; other users must not have these permissions.
     check_mask(file, 0x500C_0110)
 }
 fn check_mask(file: &File, modify: u32) -> io::Result<()> {
     let mut token = HANDLE::default();
     unsafe { OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token) }?;
     let token = unsafe { OwnedHandle::from_raw_handle(token.0) };
-    // SID 最多 68 字节；OS 返回的 TOKEN_USER 指针只在这个对齐缓冲区寿命内使用。
+    // A SID is at most 68 bytes; the OS-returned TOKEN_USER pointer is used only within this aligned buffer's lifetime.
     let mut storage = [0usize; 128];
     let mut length = 0;
     unsafe {
@@ -138,7 +138,7 @@ fn check_mask(file: &File, modify: u32) -> io::Result<()> {
         let bytes = tail
             .get(..usize::from(u16::from_le_bytes([header[2], header[3]])))
             .ok_or_else(invalid)?;
-        // 标准 deny 不授予权限；callback/object/未知 ACE 不作乐观推断。
+        // Standard deny entries grant no rights; do not optimistically interpret callback/object/unknown ACEs.
         if header[0] == 1 {
             continue;
         }
@@ -150,7 +150,7 @@ fn check_mask(file: &File, modify: u32) -> io::Result<()> {
         if !sid_within(bytes, sid) {
             return Err(invalid());
         }
-        // inherit-only 对当前对象不生效；每个实际子级会独立检查生效的 ACE。
+        // inherit-only does not apply to the current object; effective ACEs are checked independently for each actual child.
         if header[1] & INHERIT_ONLY_ACE.0 as u8 != 0 {
             continue;
         }

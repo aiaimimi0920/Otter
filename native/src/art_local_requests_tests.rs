@@ -1,4 +1,4 @@
-//! 请求代际、一次交付、失败归属与原租约取消；不创建另一套请求代际实现。
+//! Request generations, one-time delivery, failure attribution, and original-lease cancellation; no second request-generation implementation.
 use super::*;
 use crate::{
     art_execution_grant::wire,
@@ -206,7 +206,7 @@ fn runtime_retirement_stops_execution_without_revoking_cleanup_authority() {
         assert!(current.execution_stopped());
         assert!(!current.is_revoked());
         assert_eq!(registry.claim(&id(), &pending.token), Err(Error::Stale));
-        current.revoke(); // 模拟 Runtime 退出时的最终认证撤销。
+        current.revoke(); // Simulate final authentication revocation when Runtime exits.
     }
 }
 

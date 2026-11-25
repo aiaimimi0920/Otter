@@ -1,4 +1,4 @@
-//! 接收保存后的呈现负向与确认身份；所有窗口/配置为当前测试自有资源。
+//! Negative post-save presentation cases and confirmation identity; all windows/configurations belong to this test.
 use super::*;
 
 unsafe fn prevented(mode: u8) {

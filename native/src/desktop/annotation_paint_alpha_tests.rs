@@ -1,4 +1,4 @@
-//! 真D2D/WIC合成与PNG解码，独立source-over常量oracle，不用新渲染器生成预期。
+//! Real D2D/WIC compositing and PNG decoding with an independent constant source-over oracle; do not generate expectations with the new renderer.
 use super::*;
 use crate::stroke_style::PaintAlpha;
 use serde_json::{json, value::RawValue};

@@ -1,4 +1,4 @@
-//! Pointer 字段/继承/brand 与原 Event 传播、取消、finally 的同生产模型证明。
+//! Production-model evidence for Pointer fields/inheritance/brand and original Event propagation, cancellation, and finally.
 use super::document_model_tests::collect;
 #[test]
 fn javascript_pointer_model_synthetic_fields_brand_cancel_path_and_cleanup() {

@@ -1,4 +1,4 @@
-//! Source测试专属真实WARP纹理，不捕获用户桌面；独立常量像素。
+//! Real WARP textures exclusively for Source tests, with independent constant pixels and no user-desktop capture.
 use crate::live_texture::Texture;
 use windows::{
     core::Interface,

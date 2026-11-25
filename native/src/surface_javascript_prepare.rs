@@ -1,4 +1,4 @@
-//! Job 与持久后台 owner 共用的同步取码/求值边界；调用者必须在后台持有原请求租约。
+//! Synchronous source-fetch/evaluation boundary shared by Job and persistent background owners; callers must hold the original request lease in the background.
 use super::*;
 use crate::{device_authorization_config::Config, device_session_client::Client};
 pub(super) enum Connection {

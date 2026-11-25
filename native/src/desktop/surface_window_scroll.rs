@@ -1,4 +1,4 @@
-//! 本地滚轮路由；读取系统偏好，屏幕物理坐标转客户区，不产生 Surface 动作。
+//! Local wheel routing reads system preferences and converts physical screen coordinates to client coordinates, without Surface actions.
 use super::*;
 pub(super) unsafe fn message(
     hwnd: HWND,
@@ -19,14 +19,14 @@ pub(super) unsafe fn message(
         Ok(())
     });
     if let Err(error) = result {
-        // EDIT 重定位可能在呈现提交后失败；失败同样废弃旧几何上的输入候选。
+        // EDIT repositioning may fail after presentation commits; failure also discards input candidates on old geometry.
         pointer::invalidate(hwnd, state);
         let _ = InvalidateRect(Some(hwnd), None, false);
         *state.error.borrow_mut() = Some(error);
         return true;
     }
     if changed {
-        // 几何改变后，旧按下/待发点击不能重新命中新位置的节点。
+        // After geometry changes, old presses/pending clicks cannot re-hit nodes at new positions.
         pointer::invalidate(hwnd, state);
         let _ = InvalidateRect(Some(hwnd), None, false);
     }

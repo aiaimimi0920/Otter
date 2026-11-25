@@ -1,4 +1,4 @@
-//! 同一隔离profile重建Application，真实OpenArt必须取新许可并复用磁盘源码。
+//! Rebuild Application under the same isolated profile; real OpenArt must obtain fresh permission and reuse source code from disk.
 use super::*;
 const SOURCE: &str =
     "NeuroSurface.define({mount(){NeuroSurface.commitResult({answer:{kind:'value',value:42}})}});";

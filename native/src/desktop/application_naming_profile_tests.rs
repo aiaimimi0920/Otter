@@ -1,4 +1,4 @@
-//! 首次 profile 保存仍走不覆盖发布；测试目录显式隔离且按已知路径清理。
+//! Initial profile saving still uses no-overwrite publication; explicitly isolate the test directory and clean up known paths only.
 use super::*;
 struct Profile(PathBuf);
 impl Profile {

@@ -1,4 +1,4 @@
-//! 恢复子进程父端认证：直接父进程、同 executable、双向 pipe 创建者必须一致。
+//! Recovery-child parent authentication: the direct parent, matching executable, and creators of both pipe directions must agree.
 use std::{
     ffi::OsString,
     os::windows::{
@@ -19,7 +19,7 @@ pub struct Parent {
     process: OwnedHandle,
 }
 impl Parent {
-    /// input/output 必须是实际协议管道；nonce/命令行 PID 本身不构成认证。
+    /// input/output must be the actual protocol pipes; a nonce/command-line PID alone is not authentication.
     pub fn authenticate(
         expected_pid: u32,
         input: BorrowedHandle<'_>,
@@ -27,7 +27,7 @@ impl Parent {
     ) -> Result<Self> {
         Self::authenticate_with_access(expected_pid, input, output, false)
     }
-    /// 只有独立紧急退出通道申请终止权；普通恢复调用仍只读/等待原父进程。
+    /// Only the separate emergency-exit channel requests termination rights; ordinary recovery calls still only read/wait on the original parent.
     pub fn authenticate_emergency(expected_pid: u32, pipe: BorrowedHandle<'_>) -> Result<Self> {
         Self::authenticate_with_access(expected_pid, pipe, pipe, true)
     }
@@ -90,11 +90,11 @@ impl Parent {
     pub fn handle(&self) -> BorrowedHandle<'_> {
         self.process.as_handle()
     }
-    /// 仅对已经认证且保活的原句柄执行，不重新按PID打开或终止整个Job。
+    /// Operate only on the authenticated original handle kept alive; do not reopen by PID or terminate the entire Job.
     pub fn terminate_emergency(&self) -> Result<()> {
         unsafe { TerminateProcess(HANDLE(self.process.as_raw_handle()), 0) }
     }
-    /// 查询原 handle，不重新按 PID 打开；管道关闭不改变此结果。
+    /// Query the original handle without reopening by PID; closing the pipe does not change this result.
     pub fn exited(&self) -> Result<bool> {
         match unsafe { WaitForSingleObject(HANDLE(self.process.as_raw_handle()), 0) } {
             WAIT_OBJECT_0 => Ok(true),
@@ -113,7 +113,7 @@ unsafe fn created(process: HANDLE) -> Result<u64> {
     let mut kernel = FILETIME::default();
     let mut user = FILETIME::default();
     GetProcessTimes(process, &mut creation, &mut exit, &mut kernel, &mut user)?;
-    // 旧父 PID 若已复用，新进程不能晚于本子进程出生；不信任 ToolHelp 中的 PID 数值本身。
+    // If the old parent PID has been reused, the new process cannot have been born after this child; do not trust the ToolHelp PID value alone.
     Ok((u64::from(creation.dwHighDateTime) << 32) | u64::from(creation.dwLowDateTime))
 }
 unsafe fn image(process: HANDLE) -> Result<PathBuf> {
@@ -141,7 +141,7 @@ fn direct_parent() -> Result<u32> {
             ..Default::default()
         };
         Process32FirstW(HANDLE(snapshot.as_raw_handle()), &mut entry)?;
-        // 不保留进程清单、不记录其他进程；有界搜索只提取自己的直接父 PID。
+        // Retain no process list and record no other processes; the bounded search extracts only this process's direct parent PID.
         for _ in 0..65536 {
             if entry.th32ProcessID == std::process::id() {
                 return Ok(entry.th32ParentProcessID);

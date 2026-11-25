@@ -1,4 +1,4 @@
-//! 截图中的内联行与原请求生命周期：页签不排网、不取消；失效的来源/禁用按钮不提交。
+//! Inline screenshot rows and the original request lifecycle: tabs neither enqueue networking nor cancel; invalid sources/disabled buttons cannot commit.
 use super::*;
 use crate::desktop::device_authorization_ui::{self as auth, Request};
 unsafe fn rect(hwnd: HWND) -> RECT {
@@ -54,7 +54,7 @@ fn old_tab_notification_cannot_apply_after_origin_changes() {
         SendMessageW(field(panel, 203), BM_CLICK, None, None);
         f.state.authorization.borrow_mut().origin = Some("https://other.example".into());
         dispatch(&f);
-        // 被拒的旧消息不能切到接收页；设备按钮仍保留。
+        // A rejected stale message must not switch to the receiving page; device buttons remain.
         assert!(IsWindowVisible(field(panel, 208)).as_bool());
         assert!(f.state.authorization.borrow().request.is_none());
     }

@@ -1,4 +1,4 @@
-//! 显式菜单接续；执行前复核授权/窗口，不重新批准、不弹窗或自动重放前缀。
+//! Explicit menu continuation; recheck authorization/windows before execution, without reapproval, dialogs, or automatic prefix replay.
 use super::*;
 use crate::desktop::composition::relay::sessions::BatchResumeAction;
 impl Application {
@@ -51,7 +51,7 @@ impl Application {
                 failure = Some("Surface 窗口已不可用".into());
                 return BatchResumeAction::Keep(Box::new(receipt));
             };
-            // refresh 可能同步关闭窗口，调用期间不能持有 View 的 RefCell 借用。
+            // refresh may close windows synchronously; do not hold View's RefCell borrow during the call.
             if let Err(error) = window.batch_continuation_for(&receipt, now) {
                 failure = Some(error.to_string());
                 return BatchResumeAction::Keep(Box::new(receipt));

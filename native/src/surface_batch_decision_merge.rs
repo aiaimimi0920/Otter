@@ -1,4 +1,4 @@
-//! 决定结果并回原批次，只覆盖目标观察项；不补发未提交后缀、不复制 owner。
+//! Merge decision results into the original batch, replacing only the target observation; never submit missing suffixes or copy owners.
 use super::*;
 use crate::{
     live_relay_http::BatchStop,
@@ -7,7 +7,7 @@ use crate::{
     surface_event_batch_runtime::{Input as BatchInput, ObservationError, Outcome as BatchOutcome},
 };
 impl Outcome {
-    /// 不一致时完整返还，调用方必须保存错误输入而不是丢弃决定或其他事件。
+    /// Return everything intact on inconsistency; callers must preserve invalid input rather than discard decisions or other events.
     pub fn into_batch(self) -> Result<BatchOutcome, Box<Self>> {
         let prepared = &self.input.prepared;
         let receipt = &prepared.receipt;

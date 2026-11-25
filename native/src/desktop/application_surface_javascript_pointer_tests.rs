@@ -1,4 +1,4 @@
-//! Canvas 原生 Pointer 沿原 Application/TLS/Grant/batch 排程，两轮更新不换 child。
+//! Native Canvas Pointer follows original Application/TLS/Grant/batch scheduling, retaining the same child across both updates.
 use super::*;
 use windows::Win32::UI::Input::KeyboardAndMouse::GetCapture;
 pub(super) unsafe fn prepare(app: &mut Application, root: &std::path::Path, parent: HWND) {

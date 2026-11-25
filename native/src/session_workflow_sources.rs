@@ -1,4 +1,4 @@
-//! 保存会话的合成底图选择；借用图像引用，不读取文件、不复制解析出的图片字符串。
+//! Composited-base-image selection for saved sessions; borrow image references without reading files or copying parsed image strings.
 use super::{check, Error};
 use crate::{
     graph_image::{Graph, Kind, Node, Output, Port},
@@ -14,7 +14,7 @@ struct Propagation {
     accept_upstream: Option<bool>,
     locally_edited: Option<bool>,
 }
-/// 消费回调结束前引用有效；不把借用路径转成跨阶段的读取授权。
+/// References remain valid until consumer callbacks finish; borrowed paths grant no cross-stage read authority.
 pub fn with_sources<T>(
     saved: &[u8],
     catalog: &[Value],
@@ -35,7 +35,7 @@ pub(crate) fn with_document_sources<T>(
     consume: impl FnOnce(&[Option<&str>]) -> Result<T, Error>,
 ) -> Result<T, Error> {
     check(cancel)?;
-    // 会话解码已经保留每个窗口的原始传播字段；不要再次扫描含内联图片的整个 JSON。
+    // Session decoding already retains each window's original propagation fields; do not rescan the entire JSON with inline images.
     let flags = document
         .windows
         .iter()
@@ -48,7 +48,7 @@ pub(crate) fn with_document_sources<T>(
                 .map_err(|_| Error::Content)
         })
         .collect::<Result<Vec<_>, _>>()?;
-    // 参数/正式输出可能携带 inline 图片；为此次额外 JSON 视图保留有界字节预算。
+    // Parameters/committed outputs may carry inline images; retain a bounded byte budget for this extra JSON view.
     let bytes = document
         .windows
         .iter()
@@ -92,7 +92,7 @@ pub(crate) fn with_document_sources<T>(
                 .as_ref()
                 .filter(|c| c.has_input_definitions())
                 .map(|c| {
-                    // 图解析用完整能力输入，不使用面板可见端口过滤。
+                    // Graph resolution uses complete capability inputs, not panel-visible port filtering.
                     c.inputs()
                         .take(crate::graph_image::MAX_PORTS + 1)
                         .map(|p| Port {

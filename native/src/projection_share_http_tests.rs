@@ -1,4 +1,4 @@
-//! 真实本机 TLS：公开邀请无伪目标，显式导入先 inspect 再带最新版本 accept，取消后不接收。
+//! Real local TLS: public invitations have no fake target, explicit import inspects before accepting latest versions, and cancellation forbids receipt.
 use super::*;
 use crate::projection_delivery::share::Import;
 fn share_loom() -> String {

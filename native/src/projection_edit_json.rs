@@ -1,4 +1,4 @@
-//! 协作边界拒绝任意层重复key，避免磁盘恢复、签名请求与渲染器解释不同对象。
+//! Collaboration boundaries reject duplicate keys at every depth, preventing disk recovery, signed requests, and renderers from interpreting different objects.
 use super::Error;
 use serde::{
     de::{self, DeserializeOwned, MapAccess, SeqAccess, Visitor},
@@ -6,8 +6,8 @@ use serde::{
 };
 use serde_json::Value;
 use std::{collections::HashSet, fmt};
-// 第一遍只扫描，不为整份磁盘日志构造第二棵通用Value树；第二遍直接解码typed形状。
-// 所有v1形状的map最多256项、数组最多2048个点，扫描也遵守相同局部预算。
+// First pass scans only, without a second general Value tree for the entire disk journal; second pass directly decodes typed shapes.
+// All v1 shapes allow at most 256 map entries/2048 array points; scanning obeys the same local budgets.
 struct Unique;
 impl<'de> Deserialize<'de> for Unique {
     fn deserialize<D: Deserializer<'de>>(decoder: D) -> Result<Self, D::Error> {

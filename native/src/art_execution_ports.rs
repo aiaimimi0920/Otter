@@ -1,4 +1,4 @@
-//! 当前包的严格端口 DTO；旧 v2 reader 仅留在测试中验证签名域隔离。
+//! Strict port DTOs for the current package; the old v2 reader remains only in tests verifying signature-domain separation.
 use super::*;
 use serde::{Deserialize, Serialize};
 #[cfg(test)]

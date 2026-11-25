@@ -1,4 +1,4 @@
-//! 仅显式 Number 粘贴时读取一次 Unicode 文本；锁内复制有界内容，不保留系统句柄。
+//! Read Unicode text once only for explicit Number paste; copy bounded content while locked without retaining system handles.
 use super::super::super::surface_edit_control::MAX_UNITS;
 use windows::Win32::{
     Foundation::*,
@@ -42,7 +42,7 @@ fn decode(bytes: &[u8]) -> Option<Vec<u16>> {
 pub unsafe fn read(hwnd: HWND) -> Option<Vec<u16>> {
     OpenClipboard(Some(hwnd)).ok()?;
     let _clipboard = Clipboard;
-    let handle = GetClipboardData(13).ok()?; // CF_UNICODETEXT，包括系统提供的文本格式转换。
+    let handle = GetClipboardData(13).ok()?; // CF_UNICODETEXT, including system-provided text-format conversion.
     let memory = HGLOBAL(handle.0);
     let size = GlobalSize(memory);
     if !(2..=(MAX_UNITS + 1) * 2).contains(&size) {
@@ -52,7 +52,7 @@ pub unsafe fn read(hwnd: HWND) -> Option<Vec<u16>> {
     if pointer.is_null() {
         return None;
     }
-    let _lock = Lock(memory); // 仍归系统所有，不能 GlobalFree。
+    let _lock = Lock(memory); // Still system-owned; GlobalFree is forbidden.
     decode(std::slice::from_raw_parts(pointer.cast::<u8>(), size))
 }
 #[test]
@@ -65,6 +65,6 @@ fn surface_number_clipboard_decodes_only_bounded_terminated_utf16() {
     assert!(decode(&[49, 0]).is_none());
     assert!(decode(&[49, 0, 0]).is_none());
     assert!(decode(&vec![0; (MAX_UNITS + 2) * 2]).is_none());
-    // reader 只处理格式/容量；数字 grammar 与畸形代理项由后续预检拒绝。
+    // reader handles only format/capacity; later preflight rejects invalid numeric grammar and malformed surrogates.
     assert_eq!(decode(&[0, 0xd8, 0, 0]), Some(vec![0xd800]));
 }

@@ -1,4 +1,4 @@
-//! timer 复用原应用 wait/deadline、策略、唯一 owner 和 TLS 两事件 FIFO 夹具。
+//! Timers reuse original application wait/deadline, policy, sole owner, and TLS two-event FIFO fixtures.
 use super::*;
 pub(super) unsafe fn prepare(app: &mut Application, root: &std::path::Path) {
     std::thread::sleep(std::time::Duration::from_millis(25));

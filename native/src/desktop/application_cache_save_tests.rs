@@ -1,4 +1,4 @@
-//! 复用生产保存/自动保存路径，缓存偏好也进入快照与过期判断；所有文件为合成夹具。
+//! Reuse production save/autosave paths, including cache preferences in snapshots and staleness checks; all files are synthetic fixtures.
 use super::*;
 fn policy() -> crate::cache_policy::Policy {
     crate::cache_policy::Policy {

@@ -1,4 +1,4 @@
-//! 自有 HWND 的软件呈现样式事务；调用期间不得持有会被窗口过程重入借用的状态。
+//! Software-presentation style transactions for owned HWNDs; hold no state that window-procedure reentrancy might borrow during calls.
 use std::{marker::PhantomData, rc::Rc};
 use windows::{
     core::{Error, Result},
@@ -7,8 +7,8 @@ use windows::{
 
 const MASK: u32 = WS_EX_LAYERED.0;
 
-/// 在 UI 线程完成创建/首次提交后 commit；失败或 unwind 时只恢复本事务拥有的样式位。
-/// 不负责解绑 DirectComposition，也不释放 GPU 对象；不能用于仍有关联合成树的窗口。
+/// Commit after creation/first submission on the UI thread; failure/unwind restores only this transaction's style bits.
+/// Neither detaches DirectComposition nor releases GPU objects; do not use on windows with attached composition trees.
 pub struct Transition<'a> {
     hwnd: HWND,
     original: u32,
@@ -20,14 +20,14 @@ pub struct Transition<'a> {
 
 impl<'a> Transition<'a> {
     /// # Safety
-    /// 调用者必须拥有 HWND，保证事务结束前它不被销毁/替换，且旧合成树已安全解绑。
-    /// SetWindowLongPtrW/SetWindowPos 会重入窗口过程，禁止跨调用持有 Canvas/State 的借用。
+    /// Callers must own HWND, ensure it is not destroyed/replaced before the transaction ends, and have safely detached the old composition tree.
+    /// SetWindowLongPtrW/SetWindowPos reenter window procedures; hold no Canvas/State borrows across these calls.
     pub unsafe fn begin(hwnd: HWND, pinned: bool) -> Result<Self> {
         Self::begin_checked(hwnd, pinned, false, None)
     }
     /// # Safety
-    /// 初始 HWND 必须归调用者；guard 必须验证稳定的宿主身份，不仅是 IsWindow。
-    /// 重入销毁后 guard 失效，事务停止后续写入且不向可能复用的 HWND 回滚。
+    /// The initial HWND must belong to callers; guard validates stable host identity, not merely IsWindow.
+    /// Reentrant destruction invalidates guard; stop subsequent writes and never roll back to a potentially reused HWND.
     pub unsafe fn begin_guarded(
         hwnd: HWND,
         pinned: bool,
@@ -36,8 +36,8 @@ impl<'a> Transition<'a> {
         Self::begin_checked(hwnd, pinned, false, Some(owns))
     }
     /// # Safety
-    /// 仅在旧合成 owner 已确认退休且释放、新 GPU 尚未关联时调用；不跨调用持有 Canvas 借用。
-    /// 必须在创建 GPU 候选前 commit，避免候选关联失败后回滚为 layered 并绕过关联门禁。
+    /// Call only after the old composition owner is confirmed retired and released, before new GPU attachment; hold no Canvas borrow across calls.
+    /// Commit before creating GPU candidates, preventing attachment failure from rolling back to layered and bypassing attachment admission.
     pub unsafe fn gpu_guarded(hwnd: HWND, owns: &'a dyn Fn() -> bool) -> Result<Self> {
         Self::begin_checked(hwnd, false, true, Some(owns))
     }
@@ -49,8 +49,8 @@ impl<'a> Transition<'a> {
     ) -> Result<Self> {
         admitted(owns)?;
         let original = style(hwnd)?;
-        // 分层提交不要求移除 NOREDIRECTIONBITMAP；普通 BitBlt 仍要求重定向表面。
-        // 永不修改该标记：原地移除实测失败且可能部分写入其他位。
+        // Layered submission does not require removing NOREDIRECTIONBITMAP; ordinary BitBlt still needs a redirection surface.
+        // Never change this flag: in-place removal was observed to fail and may partially write other bits.
         if !gpu && !pinned && original & WS_EX_NOREDIRECTIONBITMAP.0 != 0 {
             return Err(Error::new(
                 E_INVALIDARG,
@@ -67,7 +67,7 @@ impl<'a> Transition<'a> {
             owns,
             _thread: PhantomData,
         };
-        // 没有样式写入时不触发重入；提交阶段仍复核 ULW 后的样式。
+        // No style writes means no reentrancy; commit still rechecks styles after ULW.
         if original == desired {
             return Ok(transaction);
         }
@@ -103,7 +103,7 @@ impl<'a> Transition<'a> {
         if !self.active {
             return Ok(());
         }
-        // 一次回滚，不在 Drop 中对同一失败继续重试或递归发窗口消息。
+        // Roll back once; do not retry the same failure or recursively send window messages from Drop.
         self.active = false;
         if admitted(self.owns).is_err() {
             return Ok(());

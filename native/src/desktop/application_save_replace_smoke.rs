@@ -1,4 +1,4 @@
-//! 仅消费同组新建的夹具文件，验证 Application 的后台替换及最终凭证保护。
+//! Consume only newly created fixture files from the same group to verify Application background replacement and final credential protection.
 use super::*;
 use std::{
     path::Path,
@@ -64,7 +64,7 @@ pub(super) unsafe fn verify(app: &mut Application, path: &Path) -> Result<()> {
             "Late stale replacement changed file or baseline",
         ));
     }
-    // 失败准备结果必须释放来源 DELETE 句柄，而不是留到应用退出。
+    // Failed preparation results must release source DELETE handles rather than retaining them until application exit.
     std::fs::OpenOptions::new()
         .write(true)
         .open(path)

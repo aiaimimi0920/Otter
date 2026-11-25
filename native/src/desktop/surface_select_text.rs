@@ -1,4 +1,4 @@
-//! 从系统字符串表有界读取；收起区域和列表共享文本，不保存第二份选择状态。
+//! Bounded reads from the system string table; collapsed areas/lists share text without another selection state.
 use super::*;
 pub(super) unsafe fn at(hwnd: HWND, index: usize) -> Option<Vec<u16>> {
     if index == usize::MAX || index == u32::MAX as usize {

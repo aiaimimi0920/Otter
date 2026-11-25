@@ -1,4 +1,4 @@
-//! 真实 HMENU 的分页、命令索引与生命周期，不打开阻塞式可见菜单。
+//! Real HMENU pagination, command indices, and lifetimes, without blocking visible menus.
 use super::*;
 #[test]
 fn disconnect_menu_pages_preserve_snapshot_indices_and_disabled_state() {

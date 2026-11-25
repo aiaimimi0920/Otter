@@ -1,4 +1,4 @@
-//! 实际 WIC/D2D 像素验证两层独立取景，而非仅断言布局元数据。
+//! Real WIC/D2D pixel verification of independent two-layer framing, not just layout-metadata assertions.
 use super::*;
 use crate::erase_layers::Layers;
 use windows::Win32::{

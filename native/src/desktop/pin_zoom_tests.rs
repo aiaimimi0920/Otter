@@ -1,4 +1,4 @@
-//! 连续滚轮不等待空闲消息泵也须提交当前尺寸；仅操作隔离 desktop 自建 HWND。
+//! Continuous wheel input must commit the current size without waiting for an idle message pump; use only owned HWNDs on an isolated desktop.
 use super::*;
 use crate::desktop::{Apartment, Window};
 use crate::editor::Tool;
@@ -72,7 +72,7 @@ impl Fixture {
         if let Some(command) = command {
             crate::desktop::render_commands::execute(window.0, &state, command).unwrap();
         }
-        // 此 desktop 不被切换到前台；只让系统在本测试窗口生成真实 WM_PAINT。
+        // This desktop is never foregrounded; only let the system generate real WM_PAINT for this test window.
         let _ = ShowWindow(window.0, SW_SHOWNOACTIVATE);
         let _ = InvalidateRect(Some(window.0), None, false);
         let _ = UpdateWindow(window.0);
@@ -80,7 +80,7 @@ impl Fixture {
         if state.canvas.borrow().software_selected() {
             assert!(state.canvas.borrow().confirmed_paints > 0);
         } else {
-            // 私有 desktop 会返回 DXGI_STATUS_OCCLUDED；这里只验真实 GPU 绘制与消息顺序。
+            // A private desktop returns DXGI_STATUS_OCCLUDED; this verifies only actual GPU drawing and message order.
             assert!(state.canvas.borrow().paints > 0);
         }
         Self {
@@ -161,7 +161,7 @@ fn ctrl_wheel_presents_each_current_size_without_an_idle_message_pump() {
             .unwrap()
             .pixels
             .clone();
-        // 不在两次滚轮之间泵 WM_PAINT，覆盖正反向、连续整格和高分辨率小步进。
+        // Do not pump WM_PAINT between wheel events; cover both directions, consecutive full notches, and high-resolution small steps.
         let original = fixture.rect();
         let mut steps = 0.0f64;
         for delta in [

@@ -1,4 +1,4 @@
-//! 接收继承端点前核对内核 I/O 模式，不把任意 stdin 当作 overlapped 管道。
+//! Check the kernel I/O mode before adopting inherited endpoints; do not treat arbitrary stdin as an overlapped pipe.
 use super::*;
 use windows::{
     Wdk::Storage::FileSystem::{
@@ -38,11 +38,11 @@ impl Pipe {
                 std::mem::size_of_val(&mode) as u32,
                 FileModeInformation,
             );
-            // 即使查询返回 pending，也必须等到内核不再持有栈上输出缓冲区。
+            // Even if the query returns pending, wait until the kernel no longer holds the stack output buffer.
             let result = if result == STATUS_PENDING {
                 if WaitForSingleObject(raw, INFINITE) != WAIT_OBJECT_0 {
-                    // OwnedHandle 始终存活且没有外部关闭，正常情况下此等待不会失败。
-                    // 无法确认完成时不可释放内核借用的栈内存。
+                    // OwnedHandle remains alive with no external close, so this wait should not normally fail.
+                    // If completion cannot be confirmed, the stack memory borrowed by the kernel must not be released.
                     std::process::abort();
                 }
                 status.Anonymous.Status

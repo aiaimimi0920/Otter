@@ -1,4 +1,4 @@
-//! 真实自有 HWND 消息验证拖选与 click/捕获边界；不注入外部桌面，不读写系统剪贴板。
+//! Actual owned-HWND messages verify drag-selection/click/capture boundaries; no external-desktop injection or system-clipboard reads/writes.
 use super::*;
 #[path = "surface_text_mouse_probe_tests.rs"]
 mod system_mouse;
@@ -15,7 +15,7 @@ fn cross_node_hwnd_drag_keeps_visual_gesture_without_text_copy_or_click() {
         send(&window, WM_MOUSEMOVE, 150, 8);
         assert_eq!(GetCapture(), window.hwnd);
         assert!(selected(&window).is_none());
-        // 返回 anchor owner 后恢复同节点文字复制，证明跨节点不是清掉整个选择。
+        // Returning to the anchor owner restores same-node text copying, proving cross-node selection does not clear the entire selection.
         send(&window, WM_MOUSEMOVE, 30, 8);
         assert!(selected(&window).is_some());
         send(&window, WM_LBUTTONUP, 150, 8);

@@ -1,4 +1,4 @@
-// 通用 Grid/cascade/动态显隐负载；不含业务模板、网络宿主或第二套布局算法。
+// Generic Grid/cascade/dynamic-visibility workload, without business templates, network hosts, or a second layout algorithm.
 let first, second, third, host;
 NeuroSurface.define({
   mount({ root, emit }) {

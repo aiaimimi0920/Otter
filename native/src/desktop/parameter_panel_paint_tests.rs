@@ -1,4 +1,4 @@
-//! 经真实标准子控件和父窗口过程绘到自有内存 DIB，不采集桌面或注入输入。
+//! Paint through real standard child controls and the parent window procedure into an owned memory DIB; no desktop capture or input injection.
 use super::*;
 
 struct Image {
@@ -215,7 +215,7 @@ fn shown_panel_dispatches_initial_paint_for_every_child_without_focusing_each_on
         let mut client = RECT::default();
         GetClientRect(f.panel.handle(), &mut client).unwrap();
         let dpi = GetDpiForWindow(f.panel.handle());
-        // 完全位于滚动客户区外的字段尚无可见失效区，不要求其提前paint。
+        // A field entirely outside the scrolling client area has no visible invalid region yet; early painting is not required.
         let children: Vec<_> = f
             .panel
             .ui

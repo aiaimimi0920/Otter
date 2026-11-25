@@ -1,4 +1,4 @@
-//! 下载与图像准备分阶段接纳；原token/宿主/来源全部有效才允许创建签名child。
+//! Admit downloads and image preparation in stages; create a signed child only while the original token, host, and source all remain valid.
 use super::*;
 impl Owner {
     pub(super) fn prepare_windows(
@@ -57,7 +57,7 @@ impl Owner {
                 if !current(entry, documents, workspace, sessions) {
                     return Err("Art 图片来源已变化，旧准备已丢弃");
                 }
-                // node为本次宿主映射身份，不要求历史UnitId满足网络标识符字符集。
+                // node is this host mapping's identity; historical UnitId values need not meet the network identifier character set.
                 let view = crate::surface_live_binding::Binding::local_art(
                     prepared.binding(),
                     &entry.instance,

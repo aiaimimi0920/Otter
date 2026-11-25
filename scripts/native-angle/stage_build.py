@@ -1,4 +1,4 @@
-"""从固定本地 Git 对象和工具归档生成全新 ANGLE 构建树；不下载或执行构建工具。"""
+"""Create fresh ANGLE build trees from pinned local Git objects/tool archives; never download or execute build tools."""
 
 import argparse
 import datetime
@@ -102,7 +102,7 @@ def stage(config_path, output):
             if file_hash(output / "profile" / row["path"]) != row["sha256"]:
                 raise ValueError("Profile overlay changed during staging")
             writer.bytes(target, data, {"profile": profile["profile"]}, replace=target in writer.files)
-        # 对实际输出再读一遍；清单不是仅对曾计划写入的字节作承诺。
+        # Reread actual outputs; manifests must attest to more than bytes once planned for writing.
         for row in writer.files.values():
             if file_hash(output / row["path"]) != row["sha256"]:
                 raise ValueError("Staged content changed before receipt")

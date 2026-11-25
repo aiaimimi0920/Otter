@@ -1,4 +1,4 @@
-//! 直接从共享原帧采样二维预览；不分配完整覆盖画布，较早帧拥有重叠像素。
+//! Sample 2D previews directly from shared original frames without full coverage-canvas allocation; earlier frames own overlapping pixels.
 use super::*;
 pub(super) fn render(
     frames: &[SpatialFrame],
@@ -20,8 +20,8 @@ pub(super) fn render(
         return Err(Error::Budget);
     }
     pixels.resize(length, 0);
-    // 每个采样坐标只计算一次。按行跳过不相交帧，按帧的水平范围访问像素，
-    // 避免每个预览像素从头搜索全部截图；alpha 仍只表示早帧已覆盖。
+    // Compute each sample coordinate once. Skip nonintersecting frames per row and access pixels within each frame's horizontal range,
+    // avoiding a full screenshot search for every preview pixel; alpha still means only coverage by earlier frames.
     let mut samples = [0i64; 384];
     for x in 0..width {
         samples[x as usize] =

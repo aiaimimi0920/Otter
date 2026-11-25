@@ -1,4 +1,4 @@
-//! UI到原控制轮询线程的有界队列；取消优先于后续边沿，连续move合并，无新线程或句柄。
+//! Bounded queue from UI to the original control-polling thread; cancellation precedes later edges, continuous moves coalesce, without new threads/handles.
 use crate::{live_input::Event, live_relay_http::input::Capabilities};
 use std::{
     collections::VecDeque,
@@ -113,7 +113,7 @@ impl Queue {
         s.release();
         Self::notify(&s);
     }
-    /// 媒体丢失只减权；恢复后仍需用户显式获取，迟到acquire应答不恢复旧输入。
+    /// Media loss only reduces privileges; recovery still needs explicit user acquisition, and late acquire responses cannot restore old input.
     pub(crate) fn media_recovering(&self, recovering: bool) {
         let mut s = self.state();
         s.media_recovering = recovering;

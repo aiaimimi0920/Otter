@@ -1,4 +1,4 @@
-//! 归档的 UI 提交边界：后台只暂存，复核 Receipt 后才能替换磁盘和保存基线。
+//! Archive UI commit boundary: background work only stages data; replace disk content and the saved baseline only after rechecking Receipt.
 #[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 #[path = "application_workflow_archive_smoke.rs"]
 pub(in crate::desktop::application) mod smoke;
@@ -82,7 +82,7 @@ impl Prepared {
             ));
         }
         let stamp = save_state::Stamp::capture(app)?;
-        // 检查与磁盘提交间不泵消息。失败不交换基线；恢复路径必须保留在错误中。
+        // Do not pump messages between validation and disk commit. Failure leaves the baseline unchanged; the error must retain the recovery path.
         let committed = self
             .staged
             .commit(&std::sync::atomic::AtomicBool::new(false))
@@ -103,7 +103,7 @@ impl Prepared {
         record.disk_original = None;
         record.saved_path = Some(committed.publication.destination.clone());
         app.saved_state = Some(stamp);
-        // 新 revision 必须重新准备工作流快照，不能发送归档前 Ready 的旧 revision。
+        // The new revision requires a freshly prepared workflow snapshot; do not send the old revision from the pre-archive Ready.
         Ok(committed.publication)
     }
 }

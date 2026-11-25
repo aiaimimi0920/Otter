@@ -1,4 +1,4 @@
-//! 主干扩展 when 的有界纯表达式；未知属性隐藏整项，不执行脚本或访问宿主数据。
+//! Bounded pure expressions for mainline extension when; unknown properties hide whole items, without scripts or host-data access.
 #[path = "extension_when_lexer.rs"]
 pub mod lexer;
 #[path = "extension_when_parser.rs"]

@@ -1,4 +1,4 @@
-//! 扩展握手/授权响应与目录推送；固定总截止时间，只有匹配 requestId 的响应可以完成操作。
+//! Extension handshake/authorization responses and catalog pushes; fixed total deadline, with completion allowed only by matching requestId responses.
 use super::*;
 use serde::Deserialize;
 use serde_json::Value;
@@ -157,7 +157,7 @@ pub(super) fn wait_update(
 ) -> Result<(), Error> {
     let generation = snapshot.as_ref().ok_or(Error::Closed)?.generation();
     loop {
-        // 空闲不是 RPC 超时；这只是有界单次读预算，不发送保活或触发 UI timer。
+        // Idle is not RPC timeout; this is a bounded single-read budget, without keepalives or UI timers.
         let timeout = Duration::from_secs(30);
         receive(
             socket,

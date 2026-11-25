@@ -92,7 +92,7 @@ fn accepted_offline_clear_commits_even_if_execution_is_already_cancelled() {
     std::fs::create_dir(&root).unwrap();
     let origin = "https://loom.example";
     crate::art_offline_store::Slot::invalidate_origin(&root, origin, 1, &|| false).unwrap();
-    // 无缓存时不会创建缓存目录；构造已有目录再核实不可取消的原子减权。
+    // Without a cache, no cache directory is created; create an existing directory to verify uncancellable atomic privilege reduction.
     std::fs::create_dir(root.join("art-offline-cache")).unwrap();
     let cancel = Cancel::new();
     cancel.cancel();

@@ -1,4 +1,4 @@
-//! 生产单目标发送 owner：固定来源→原 Job 当前帧→绑定发布→精确 checkpoint；取消保原 Request。
+//! Production single-target send owner: fixed source -> current frame through original Job -> binding publication -> exact checkpoint; cancellation preserves original Request.
 use super::*;
 use crate::{
     device_authorization_lease::Lease,
@@ -109,7 +109,7 @@ impl Owner {
             if saved.workspace.matches(workspace)
                 && index.is_none_or(|index| index.includes(&saved.expected))
             {
-                // 实际磁盘提交；坏/未知 index 不能当“不包含”来自动解绑可能已保存的关联。
+                // Actual disk commit; a corrupt/unknown index is not absence and cannot automatically unlink a possibly persisted association.
                 saved.retained_disk = true;
             }
         }
@@ -150,7 +150,7 @@ impl Application {
         >,
     ) {
         use crate::desktop::device_authorization_ui::Request;
-        // 先释放菜单 View 借用，再进入原发送 owner；一次只消费它拥有的请求。
+        // Release the menu View borrow before entering the original send owner; consume only one request it owns at a time.
         let request = {
             let mut view = self.authorization.borrow_mut();
             if matches!(

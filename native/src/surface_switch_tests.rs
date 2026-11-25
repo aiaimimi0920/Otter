@@ -1,4 +1,4 @@
-//! Switch 的声明值、布局与真实 D2D 像素；不把绘制支持当作交互准入。
+//! Switch declared values, layout, and actual D2D pixels; drawing support is not interaction admission.
 use super::*;
 
 #[test]
@@ -43,7 +43,7 @@ fn surface_switch_pixels_distinguish_checked_thumb_without_new_text_resources() 
     let on = render(true);
     let pixel =
         |pixels: &[u8], x: usize, y: usize| pixels[(y * 64 + x) * 4..(y * 64 + x + 1) * 4].to_vec();
-    // 根宽 64，固定 34 DIP 轨道在 label 中水平居中，根自然高 19。
+    // Root width is 64; the fixed 34 DIP track centers horizontally within its label, and natural root height is 19.
     assert_eq!(pixel(&off, 24, 9), [159, 154, 146, 255]);
     assert_eq!(pixel(&off, 39, 9), [32, 23, 17, 255]);
     assert_eq!(pixel(&on, 24, 9), [56, 255, 217, 255]);

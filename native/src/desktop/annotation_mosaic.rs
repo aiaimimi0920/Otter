@@ -1,4 +1,4 @@
-//! 马赛克路径遮罩与可见区域分块；不读取底图，不按整条路径跨度分配纹理。
+//! Mosaic path masks and visible-region tiles; do not read the base image or allocate textures spanning the entire path.
 use crate::{
     editor::Stroke,
     viewport::{Point, Viewport},
@@ -54,15 +54,15 @@ pub(super) unsafe fn draw(
         mask.clone(),
     );
     let factory = target.GetFactory()?;
-    // CPU 暂存每次不超过 256×256；路径遮罩只建立一次。
-    // 目标私有缓存保留最多 8 块；D2D/驱动仍可能持有提交前的内部资源。
+    // CPU staging is at most 256x256 per operation; build the path mask only once.
+    // The target-private cache retains at most 8 tiles; D2D/the driver may still retain internal resources before submission.
     for y in (top as i32..bottom as i32).step_by(256) {
         for x in (left as i32..right as i32).step_by(256) {
             let width = (right as i32 - x).min(256) as u32;
             let height = (bottom as i32 - y).min(256) as u32;
             let a = convert(x as f32, y as f32);
             let b = convert(x as f32 + width as f32, y as f32 + height as f32);
-            // 保守扩出 1 DIP，覆盖几何扁平化误差与抗锯齿边缘；只跳过确定不相交的块。
+            // Expand conservatively by 1 DIP for geometry-flattening error and antialiased edges; skip only definitely disjoint tiles.
             let bounds = factory.CreateRectangleGeometry(&D2D_RECT_F {
                 left: a.x - 1.0,
                 top: a.y - 1.0,

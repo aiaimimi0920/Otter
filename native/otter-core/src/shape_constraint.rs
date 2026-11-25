@@ -1,4 +1,4 @@
-//! 形状创建端点约束；按方向限制可用尺寸，锁定比例时两轴一起收缩。
+//! Shape-creation endpoint constraints bound available dimensions directionally; aspect locking shrinks both axes together.
 use crate::viewport::Point;
 
 pub fn endpoint(start: Point, current: Point, size: Point, square: bool, step: bool) -> Point {
@@ -12,7 +12,7 @@ pub fn endpoint(start: Point, current: Point, size: Point, square: bool, step: b
     )
 }
 
-/// 步进先量化尺寸，再限制可用范围；比例锁定时两轴不得分别截断。
+/// Quantize dimensions before clamping available ranges; never truncate aspect-locked axes independently.
 pub fn configured_endpoint(
     start: Point,
     current: Point,

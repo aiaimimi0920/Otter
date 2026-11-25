@@ -1,4 +1,4 @@
-//! 配置拥有的 Art 签发者信任；不接受网络响应自动注册，撤信任同步撤销已签出的设备租约。
+//! Configuration-owned Art issuer trust; no automatic enrollment from network responses, and removing trust synchronously revokes issued device leases.
 use crate::{
     device_authorization_lease::Lease,
     device_session_client::Client,
@@ -56,8 +56,8 @@ impl Document {
         Ok(())
     }
 }
-/// 一个 profile/应用 owner 持有一个实例；文件加载或显式设置提交成功后才能 replace。
-/// 不监视其他进程写盘，不宣称跨进程立即撤权。Drop 也撤销本 owner 签出的请求链。
+/// One instance per profile/application owner; replace only after file loading or an explicit settings commit succeeds.
+/// Does not watch other processes' writes or promise immediate cross-process revocation. Drop also revokes this owner's issued request chains.
 #[derive(Default)]
 pub struct Authority {
     document: Document,
@@ -121,14 +121,14 @@ impl Authority {
         self.active.push((origin.to_owned(), Arc::downgrade(lease)));
         Ok(pin)
     }
-    /// 仅登记租约；先释放 owner 借用，再把 Authorization 移交后台，不持信任锁跨网络。
+    /// Only register the lease; release the owner borrow before handing Authorization to background work, and never hold a trust lock across network I/O.
     pub fn authorize(&mut self, origin: &str, lease: Arc<Lease>) -> Result<Authorization, Error> {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map_err(|_| Error::Trust)?
             .as_millis();
         let now = u64::try_from(now).map_err(|_| Error::Trust)?;
-        // 待验证local租约只登记信任/取消，不在这里授予执行或网络权；后台必须另验resume。
+        // Register only trust/cancellation for an unverified local lease, not execution/network rights; background work must separately verify resume.
         if lease.is_local() {
             if lease.execution_stopped() {
                 return Err(Error::Trust);

@@ -1,4 +1,4 @@
-"""验证启动器的清单边界和进程树握手，不请求或占用真实前台。"""
+"""Verify launcher manifest boundaries and process-tree handshakes without requesting or occupying actual foreground."""
 
 import importlib.util
 import json

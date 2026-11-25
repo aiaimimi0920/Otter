@@ -37,7 +37,7 @@ fn hidden_dialog_consumes_spatial_replies_for_preview_and_finish() {
             input.output.borrow().as_ref().map(|p| (p.width, p.height)),
             Some((4, 16))
         );
-        // 显示棋盘格不能进入最终导出；第一行仍是原始黑色。
+        // Display checkerboards must not enter final exports; the first row remains original black.
         assert_eq!(
             &input.output.borrow().as_ref().unwrap().pixels[..4],
             &[0, 0, 0, 255]
@@ -111,7 +111,7 @@ fn direction_switch_drives_manual_and_automatic_capture_on_both_axes() {
                     )
                     .as_bool()
                 );
-                // 即使绕过禁用按钮投递命令，也不能改变在途动作或自动循环的方向。
+                // Even commands delivered around disabled buttons must not change in-flight actions or automatic-loop direction.
                 handle(window.0, WM_COMMAND, WPARAM(107), LPARAM(0));
                 assert!(!input.forward.get());
                 settle(window.0, &input);
@@ -315,7 +315,7 @@ fn hidden_scroll_button_uses_action_source_and_manual_source_disables_it() {
             )
             .as_bool()
         );
-        // 生产只允许一个活动长截图；结束手动夹具后再建立滚动夹具。
+        // Production allows only one active scrolling capture; finish the manual fixture before creating the scrolling fixture.
         drop(window);
         let input = input();
         let make = |origin: u8| {

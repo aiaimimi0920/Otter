@@ -1,4 +1,4 @@
-//! 透明标注层的独立 WIC 合成；不画底图，不写文件，调用者负责版本守卫与事务提交。
+//! Independent WIC composition of transparent annotation layers; no base-image drawing or file writes. The caller owns version guards and transaction commit.
 use crate::{
     editor::Editor,
     erase_layers::Layers,
@@ -26,7 +26,7 @@ pub(super) fn render(layers: &Layers, editor: &Editor, indices: &[usize]) -> Res
     render_snapshot(layers, &snapshot)
 }
 
-/// 仅接收已筛选的无历史矢量快照；在后台线程内建立并释放全部 COM 资源。
+/// Accept only filtered history-free vector snapshots; create and release all COM resources within the background thread.
 pub(super) fn render_snapshot(layers: &Layers, snapshot: &Editor) -> Result<Layers> {
     let crop = snapshot.annotation_frame();
     let (width, height) = crop.map_or(layers.size, |rect| {
@@ -104,7 +104,7 @@ pub(super) fn render_snapshot(layers: &Layers, snapshot: &Editor) -> Result<Laye
             );
         }
         if let Some(rect) = crop {
-            // 只对源坐标矢量应用裁剪变换；已有栅格层已经完整适配到输出框。
+            // Apply crop transforms only to source-coordinate vectors; the existing raster layer already fits the entire output box.
             let mut transform = Default::default();
             target.GetTransform(&mut transform);
             transform.M11 = width as f32 / rect.width as f32;
@@ -188,7 +188,7 @@ mod tests {
         assert_eq!(&pixels[..4], &[0, 255, 0, 255]);
         assert_eq!(&pixels[28..32], &[0, 0, 255, 255]);
         assert_eq!(&pixels[(4 * 8 + 4) * 4..(4 * 8 + 5) * 4], &[255, 0, 0, 255]);
-        // 使用正式宿主的统一刷新事务，而非只测兼容提交接口。
+        // Use the production host's unified refresh transaction, not merely the compatibility commit interface.
         let plan = editor
             .prepare_rasterize_edit(&[0])
             .unwrap()

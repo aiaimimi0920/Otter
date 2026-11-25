@@ -1,4 +1,4 @@
-//! 原 checkpoint 删除资格/启动 Opening 竞态/最后 Unit/普通退出；只用自有隐藏 HWND。
+//! Original checkpoint deletion eligibility/startup Opening race/final Unit/ordinary exit; owned hidden HWNDs only.
 use super::*;
 use crate::desktop::application::projection::profile::Owner as ProjectionProfile;
 use std::sync::Arc;
@@ -69,7 +69,7 @@ fn projection_cleanup_last_restored_unit_marks_before_empty_checkpoint_even_whil
                 .unwrap();
             assert_eq!(app.documents.len(), 1);
             DestroyWindow(app.source_window(&unit).unwrap()).unwrap();
-            assert!(drain_messages()); // 与 run_loop 相同：先消费真实 WM_QUIT，再走终态收尾。
+            assert!(drain_messages()); // Match run_loop: consume the real WM_QUIT before terminal cleanup.
             app.finish_deleted_workspace().unwrap();
             assert!(
                 crate::session_document::decode(&std::fs::read(directory.path()).unwrap())

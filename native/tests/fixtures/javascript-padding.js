@@ -1,4 +1,4 @@
-// 四边声明、cascade、反射/移除与原子拒绝；同份夹具由模型、child 和产品消费。
+// Four-sided declarations, cascade, reflection/removal, and atomic rejection; models, children, and products consume the same fixture.
 let saved, button;
 const rejectPadding = operation => {
   try { operation(); } catch (error) {

@@ -1,4 +1,4 @@
-//! 原生启动探针的内嵌图片：文件链仍走真实磁盘输入，但不依赖构建仓库。
+//! Embedded image for native-startup probes: file flows still use real disk input without depending on the build repository.
 use std::{
     fs::OpenOptions,
     io::Write,
@@ -22,7 +22,7 @@ impl ImageFile {
     fn in_directory(directory: &Path) -> Result<Self> {
         let id = unsafe { CoCreateGuid() }?;
         let path = directory.join(format!("otter-native-smoke-{id:?}.png"));
-        // create_new 成功后才取得清理责任；不覆盖或删除已有文件。
+        // Acquire cleanup responsibility only after create_new succeeds; never overwrite or delete existing files.
         let mut file = OpenOptions::new()
             .write(true)
             .create_new(true)
@@ -30,7 +30,7 @@ impl ImageFile {
             .map_err(|error| Error::new(E_FAIL, error.to_string()))?;
         let owned = Self(path);
         let written = file.write_all(PNG);
-        drop(file); // WIC 以独立句柄读取；先关闭写句柄，包括失败路径。
+        drop(file); // WIC reads through an independent handle; close the write handle first, including failure paths.
         written.map_err(|error| Error::new(E_FAIL, error.to_string()))?;
         Ok(owned)
     }
@@ -42,7 +42,7 @@ impl ImageFile {
 
 impl Drop for ImageFile {
     fn drop(&mut self) {
-        // 仅删除本次独占创建的单个文件，不遍历临时目录。
+        // Delete only the single file exclusively created by this call, without traversing the temporary directory.
         let _ = std::fs::remove_file(&self.0);
     }
 }

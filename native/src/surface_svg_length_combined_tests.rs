@@ -1,4 +1,4 @@
-//! 浏览器像素基线与真实 SVG worker 回归；不绕过生产准入与字体代理。
+//! Browser pixel baselines and real SVG worker regressions without bypassing production admission or font brokers.
 #[test]
 fn combined_browser_0_scale_child_two_leaves() {
     let actual=super::decode(r###"<svg xmlns='http://www.w3.org/2000/svg' width='300' height='80'><g font-family='Consolas' font-size='16' fill='red'><text x='20' y='40' textLength='160' lengthAdjust='spacingAndGlyphs'>F<tspan textLength='40' lengthAdjust='spacingAndGlyphs'>H<tspan>I</tspan></tspan>F</text></g></svg>"###).unwrap();

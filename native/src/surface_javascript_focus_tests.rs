@@ -1,4 +1,4 @@
-//! 焦点接口先在真实受限 child 求值；实际 HWND 默认失焦提交另由桌面测试保护。
+//! Focus interfaces evaluate first in real restricted children; desktop tests separately protect actual HWND default blur submission.
 use super::*;
 pub(crate) const SOURCE: &str = include_str!("../tests/fixtures/javascript-native-focus.js");
 #[test]

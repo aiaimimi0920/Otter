@@ -1,4 +1,4 @@
-//! 宿主位置提交的观察点就必须已经同步编辑条；最终位置正确不足以排除中间追随。
+//! Edit strips must already be synchronized when host-position commits are observed; correct final positions alone do not exclude intermediate lag.
 use super::*;
 use std::cell::RefCell;
 use windows::Win32::UI::Shell::*;
@@ -40,7 +40,7 @@ impl Drop for Observer {
             if !RemoveWindowSubclass(self.hwnd, Some(observe), OBSERVER).as_bool()
                 && IsWindow(Some(self.hwnd)).as_bool()
             {
-                // 回调数据不能先于仍活着的 subclass 释放，展开时也不能二次 panic。
+                // Callback data must outlive live subclasses, and unwinding must not trigger a second panic.
                 let _ = Box::leak(self.probe.take().unwrap());
                 if !std::thread::panicking() {
                     panic!("edit-strip-move: subclass removal failed; probe retained");

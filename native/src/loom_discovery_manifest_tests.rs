@@ -1,4 +1,4 @@
-//! 清单合同夹具不读取磁盘、环境变量或实际发现凭据。
+//! Manifest-contract fixtures never read disks, environment variables, or real discovery credentials.
 use super::*;
 use serde_json::{json, Value};
 fn fixture() -> Value {

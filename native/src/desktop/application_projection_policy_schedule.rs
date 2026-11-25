@@ -1,4 +1,4 @@
-//! 有界公平调度：NEW 与缺失记录的 accepted 分流，均复用 Sessions 单槽及原接收 owner。
+//! Bounded fair scheduling: separate NEW from accepted entries missing records, both reusing the Sessions slot and original receiver owner.
 use super::*;
 use crate::{
     desktop::device_authorization_ui::projection::Request, projection_delivery::Invitation,
@@ -62,7 +62,7 @@ pub(in crate::desktop::application) struct Schedule {
 impl Schedule {
     #[cfg(test)]
     pub(in crate::desktop::application) fn defer_for_test(&mut self, origin: &str) {
-        // 手动协议夹具独占其服务器脚本；只移动真实 deadline，不改变生产调度分支。
+        // Manual protocol fixtures exclusively own their server script; move only the actual deadline without changing production scheduler branches.
         self.origin = Some(origin.to_owned());
         self.next = Some(Instant::now() + Duration::from_secs(3600));
         self.wake = self.next;
@@ -106,7 +106,7 @@ impl Schedule {
     }
     pub(in crate::desktop::application) fn completed(&mut self, origin: &str, now: Instant) {
         self.align_origin(origin);
-        // 间隔从真实完成算起；慢 inbox 不能立刻再占槽，须给既有关联的 750ms 同步留窗口。
+        // Measure intervals from actual completion; a slow inbox cannot immediately retake the slot and must leave room for existing associations' 750ms sync.
         self.failures = 0;
         self.next = now.checked_add(Duration::from_secs(3));
         self.wake = self.next;
@@ -130,8 +130,8 @@ impl Schedule {
             return None;
         }
         self.next = now.checked_add(Duration::from_secs(3));
-        self.wake = self.next; // 启动前失败也保有界唤醒，不依赖不存在的 worker 通知。
-                               // 只在权威收件箱确认仍是同一邀请后重试，不能沿用失败前的快照。
+        self.wake = self.next; // Pre-start failures still retain bounded wakeups, without relying on notifications from a nonexistent worker.
+                               // Retry only after the authoritative inbox confirms the same invitation still exists; never reuse the pre-failure snapshot.
         if self
             .attempted
             .iter()
@@ -161,7 +161,7 @@ impl Schedule {
                 }
                 *attempt = Attempt::Done;
             } else {
-                // 快照最多 64 项；满额时只查询，不淘汰旧凭证以反复重试同一失败邀请。
+                // Snapshots contain at most 64 entries; when full, query only, without evicting old credentials to retry the same failed invitation repeatedly.
                 if self.attempted.len() >= crate::projection_delivery::MAX_INVITATIONS {
                     continue;
                 }
@@ -248,22 +248,22 @@ impl Application {
             return;
         }
         if let super::super::profile::Owner::Ready { policy, .. } = &mut self.projection_profile {
-            // 活跃窗口可频繁唤醒应用；deadline 未到不得准备 Scope/候选或分配 UnitId。
+            // Active windows may wake the application frequently; do not prepare Scope/candidates or allocate UnitId before the deadline.
             if !policy.schedule.due(&origin, now) {
                 return;
             }
         }
-        // 先检查目标，再占候选；暂不能追加不耗费该邀请的自动尝试。
+        // Check the destination before occupying a candidate; temporary inability to append must not consume the invitation's automatic attempt.
         drop(view);
         let existing = super::super::receive::Scope::capture_existing(self).ok();
-        // “接收”已表达设备级同意，与“自动”一样沿原校验/保存流程接受，无二次审批。
+        // Receive already expresses device-level consent; like Automatic, acceptance follows existing validation/save paths without a second approval.
         let scope = if mode != Policy::Reject {
             super::super::receive::Scope::capture(self).ok()
         } else {
             None
         };
         let mut view = self.authorization.borrow_mut();
-        // 有 journal 的关联可能归其他已保存工作区；不得后台迁移、覆盖或排补偿。
+        // Journaled associations may belong to other saved workspaces; do not migrate, overwrite, or queue compensation in the background.
         let entries: Vec<_> = view
             .projection
             .entries

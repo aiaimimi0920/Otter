@@ -1,4 +1,4 @@
-//! 独立持有布局的窗口呈现状态，失败更新不得替换最后有效场景。
+//! Window presentation state independently owns layouts; failed updates must not replace the last valid scene.
 use super::*;
 use crate::surface_presentation::Presentation;
 

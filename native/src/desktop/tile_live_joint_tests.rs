@@ -1,4 +1,4 @@
-//! 真实Source/Loom LAN到原生Tile的混合布局；独立固定像素oracle，非最终交换链读回。
+//! Mixed layouts from actual Source/Loom LAN to native Tile; independent fixed-pixel oracles, not final swap-chain readback.
 use super::*;
 use crate::{
     tile_live_packet::WallMediaFormat,

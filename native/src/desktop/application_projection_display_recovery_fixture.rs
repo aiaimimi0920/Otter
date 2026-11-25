@@ -1,4 +1,4 @@
-//! displayed 恢复测试复用原合成身份/TLS/窗口，只驱动真实 checkpoint/menu/read/receipt。
+//! displayed recovery tests reuse original synthetic identities/TLS/windows and drive only real checkpoint/menu/read/receipt paths.
 use super::*;
 use crate::desktop::device_authorization_ui::projection as ui;
 use crate::projection_delivery::accept::tests as png;
@@ -11,7 +11,7 @@ pub(super) unsafe fn saved(fixture: &mut Fixture) {
         .start_checkpoint_with(&mut |_, _, message, warning| assert!(!warning, "{message}"));
     checkpoint(&mut fixture.app);
     fixture.app.reset_projection_inbox();
-    // 新保存的 scope 会启动本地账号 journal 核对；沿消息泵结算后再驱动显式操作。
+    // A newly saved scope starts local account-journal reconciliation; settle it through the message pump before driving explicit operations.
     until(&mut fixture.app, |app| !app.account_projection.busy());
     assert!(!fixture.app.projection_receive.busy());
     assert!(fixture
@@ -21,7 +21,7 @@ pub(super) unsafe fn saved(fixture: &mut Fixture) {
 }
 pub(super) unsafe fn choose(fixture: &mut Fixture) {
     let doc = &fixture.app.documents[0];
-    // 走真实菜单分派，但直接观察错误，避免阻塞在外层的提示对话框。
+    // Use real menu dispatch but observe errors directly, avoiding a blocking outer notification dialog.
     ui::execute(doc.window.0, &doc.state, ui::recovery::DISPLAY_BASE).unwrap_or_else(|error| {
         let view = fixture.app.authorization.borrow();
         panic!("display recovery selection failed: {error}; account_busy={} ({}) projection_busy={} targets_busy={}",
@@ -105,7 +105,7 @@ pub(super) fn peer(fixture: &mut Fixture, mode: u8, renew: bool) {
             }
             2 => value["revision"] = 6.into(),
             3 => value["digest"] = "0".repeat(64).into(),
-            4 => {} // 当前保存图像被替换；远端仍只返回原图。
+            4 => {} // The currently saved image is replaced; the remote endpoint still returns only the original.
             7 => value["receiverDeviceId"] = "different-device".into(),
             _ => {}
         }
@@ -166,8 +166,8 @@ pub(super) unsafe fn reopen(fixture: &mut Fixture) {
         WAIT_OBJECT_0
     );
     poll(fixture);
-    // 会话重新生效后，新 Application 要核对本地账号 journal；否则重试会与此任务争抢。
-    // 此处只驱动本地账号 owner，不能让自动 PNG 同步抢先消费专供显式 read 的模拟连接。
+    // After session reactivation, the new Application must reconcile the local account journal; otherwise retry competes with that task.
+    // Drive only the local account owner here; automatic PNG sync must not consume the mock connection reserved for explicit read first.
     let end = Instant::now() + Duration::from_secs(10);
     loop {
         fixture.app.process_account_projection();
@@ -191,7 +191,7 @@ pub(super) unsafe fn reopen_workspace(fixture: &mut Fixture) {
     let old = std::mem::replace(&mut fixture.app, Application::new(instance, document));
     drop(old);
     fixture.ticket = None;
-    // 释放所有旧 Store/活动许可，确实重新打开原路径，不用相同字节的另一份 profile 冒充。
+    // Release all old Store/activity permissions and truly reopen the original path; another profile with identical bytes is not equivalent.
     let (placeholder, _, _) = Files::new();
     drop(std::mem::replace(
         &mut fixture.store,

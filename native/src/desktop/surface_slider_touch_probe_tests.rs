@@ -1,4 +1,4 @@
-//! 显式运行的系统触摸探针：只向自有可见 HWND 注入，记录真实消息，不伪造 pointer 数据。
+//! Explicitly run system-touch probes: inject only into owned visible HWNDs and record actual messages without fabricated pointer data.
 use super::*;
 use std::time::{Duration, Instant};
 use windows::Win32::UI::HiDpi::*;
@@ -15,7 +15,7 @@ impl Drop for Dpi {
     }
 }
 unsafe fn parent() -> Parent {
-    // 系统输入夹具使用独立顶层类，不依赖 STATIC 的默认命中行为。
+    // System-input fixtures use an independent top-level class, not STATIC default hit testing.
     static REGISTER: std::sync::Once = std::sync::Once::new();
     REGISTER.call_once(|| {
         assert_ne!(
@@ -143,7 +143,7 @@ unsafe extern "system" fn trace(
             log.overflow = true;
         }
     }
-    // 观察器不消费消息：生产子类与系统默认处理保持原样。
+    // Observers do not consume messages; production subclasses and system default processing remain unchanged.
     DefSubclassProc(hwnd, message, wp, lp)
 }
 struct Observer {
@@ -177,7 +177,7 @@ fn pump(milliseconds: u64) {
     while Instant::now() < until {
         unsafe {
             let mut message = MSG::default();
-            // 每轮有界，避免持续消息流吞掉截止时间。
+            // Bound each round so continuous messages cannot swallow the deadline.
             for _ in 0..128 {
                 if !PeekMessageW(&mut message, None, 0, 0, PM_REMOVE).as_bool() {
                     break;
@@ -195,7 +195,7 @@ struct Contact {
 }
 impl Contact {
     unsafe fn new(hwnd: HWND, point: POINT) -> Self {
-        // 不抢占其他应用；若自有子窗口没有真实命中，拒绝全局注入。
+        // Do not preempt other applications; reject global injection if the owned child is not actually hit.
         let hit = WindowFromPoint(point);
         let parent = GetParent(hwnd).unwrap();
         let mut bounds = RECT::default();
@@ -238,7 +238,7 @@ impl Drop for Contact {
     fn drop(&mut self) {
         if self.active {
             unsafe {
-                // panic/失败也取消本探针的接触，不留下悬挂按压。
+                // Panics/failures also cancel this probe's contact, leaving no stuck press.
                 self.info.pointerInfo.pointerFlags = POINTER_FLAG_UP | POINTER_FLAG_CANCELED;
                 let _ = InjectTouchInput(&[self.info]);
             }
@@ -372,7 +372,7 @@ impl Drop for Extra {
     }
 }
 unsafe fn origin_mouse(hwnd: HWND, message: u32, x: i32, touch: bool) {
-    // 仅修改本测试线程消息元数据；真实系统来源另由显式注入测试证明。
+    // Change only this test thread's message metadata; explicit injection tests separately prove actual system origin.
     let _extra = Extra(SetMessageExtraInfo(LPARAM(if touch {
         0xff515780
     } else {

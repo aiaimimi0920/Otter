@@ -1,4 +1,4 @@
-//! Ctrl+1 截图、Ctrl+2 Live 与 Ctrl+3 长截图；唯一宿主注册，无 hook 或轮询。
+//! Ctrl+1 capture, Ctrl+2 Live, and Ctrl+3 scrolling capture; one registering host, without hooks/polling.
 use super::State;
 #[path = "global_capture_registration.rs"]
 mod registration;
@@ -181,7 +181,7 @@ unsafe fn dispatch_with(
     let Some(command) = command(wp, lp) else {
         return Some(LRESULT(0));
     };
-    // 活跃长截图独占采集且禁用了原宿主；先路由结束请求，不重走新选区准入。
+    // Active scrolling capture exclusively owns capture and disables the original host; route finish requests first without new-selection admission.
     if command == super::capture_input::LONG_RECORDING
         && state.global_capture.get()
         && state.global_long_capture.get()

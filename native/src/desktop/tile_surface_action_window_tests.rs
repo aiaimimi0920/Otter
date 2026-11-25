@@ -1,4 +1,4 @@
-//! 自有离屏HWND的真实down/up与注入选择回调；不打开模态窗、不抢焦点或操作用户窗口。
+//! Actual down/up on owned offscreen HWNDs with injected selection callbacks; no modal dialogs, focus stealing, or user-window operations.
 use super::*;
 use crate::tile_surface_actions::tests::{ack_value, confirmation, value, Fixture};
 use windows::Win32::System::Com::*;

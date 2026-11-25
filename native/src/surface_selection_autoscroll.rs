@@ -1,4 +1,4 @@
-//! 拖选边缘滚动复用祖先 wheel 与缓存投影；只移动当前选区 owner，不重测文字。
+//! Selection-edge autoscroll reuses ancestor wheel handling and cached projection; move only the current selection owner without remeasuring text.
 use super::*;
 impl Presentation {
     fn text_drag_scroll_candidate(&self, point: [f32; 2]) -> Option<crate::surface_scroll::Scroll> {

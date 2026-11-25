@@ -1,4 +1,4 @@
-//! 编码器析构可能继续写尾块；失败/取消后锁闭 sink，禁止后续隐式写入与重试。
+//! Encoder destruction may write trailing chunks; lock sinks after failure/cancellation to prevent implicit later writes/retries.
 use super::*;
 pub(super) struct Sink<'a, W> {
     writer: &'a mut W,
@@ -49,7 +49,7 @@ impl<W: Write> Write for Sink<'_, W> {
             }
             Err(error) => {
                 self.failed = true;
-                // 不返回 Interrupted，避免 write_all 重试已经失败的目的地。
+                // Do not return Interrupted, which would let write_all retry already-failed destinations.
                 Err(io::Error::other(error))
             }
         }

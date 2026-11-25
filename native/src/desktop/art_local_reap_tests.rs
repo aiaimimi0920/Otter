@@ -1,4 +1,4 @@
-//! 本地 Art 完成通知、实际退出和槽位回收分别取证；不依赖通知后的调度速度。
+//! Collect separate evidence for local Art completion notification, actual exit, and slot reclamation; do not depend on post-notification scheduling speed.
 use super::*;
 use crate::art_local_requests::tests as fixture;
 use std::{
@@ -13,7 +13,7 @@ use windows::Win32::{
 const WAIT: Duration = Duration::from_secs(5);
 
 impl Tasks {
-    /// 测试已释放 worker 所有门后等待真实退出，不把通知冒充终态。
+    /// After releasing every worker gate, tests wait for actual exit rather than treating notification as terminal state.
     pub(crate) fn test_wait_finished(&self, index: usize) {
         assert_eq!(
             unsafe { WaitForSingleObject(HANDLE(self.jobs[index].worker.as_raw_handle()), 5_000) },
@@ -32,7 +32,7 @@ fn notified_art_keeps_owner_and_reaps_once_without_second_notice() {
             "workspace:1".into(),
             Arc::new(move || {
                 notify.send(()).unwrap();
-                // 回归早 join 时最多等五秒，再由 take_settled 的 None 断言明确失败。
+                // An early-join regression waits at most five seconds, then fails explicitly on take_settled's None assertion.
                 let _ = waiting_notice.lock().unwrap().recv_timeout(WAIT);
             }),
         );

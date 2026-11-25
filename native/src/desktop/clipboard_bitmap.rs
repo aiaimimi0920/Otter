@@ -1,4 +1,4 @@
-//! 同一次合成的 PNG 与 DIBV5 表示；DIB 使用非预乘 BGRA，避免半透明颜色再次变暗。
+//! PNG and DIBV5 representations of the same composition; DIB uses nonpremultiplied BGRA to avoid darkening translucent colors again.
 use crate::pixels::Pixels;
 use windows::{
     core::{Error, Result},
@@ -15,7 +15,7 @@ fn header(width: u32, height: u32) -> Result<([u8; HEADER], usize)> {
     let count = crate::viewport::checked_image_bytes(width, height)
         .ok_or_else(|| Error::new(E_INVALIDARG, "Invalid clipboard bitmap dimensions"))?;
     let mut bytes = [0; HEADER];
-    // 明确写入 little-endian 字段，不读取结构体 padding；负高度表示自顶向下。
+    // Write little-endian fields explicitly without reading structure padding; negative height means top-down.
     for (offset, value) in [
         (0, HEADER as u32),
         (4, width),

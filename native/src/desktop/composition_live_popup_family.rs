@@ -1,4 +1,4 @@
-//! Session 拥有附属弹窗会话：有界发现、非激活菜单镜像、几何跟随和关闭回收。
+//! Session owns attached popup sessions: bounded discovery, nonactivating menu mirrors, geometry tracking, and close reclamation.
 use super::*;
 use crate::live_hover_owner::Control as ParentControl;
 #[cfg(test)]
@@ -19,7 +19,7 @@ pub(super) struct Family {
     members: Vec<Member>,
     failed: Vec<Failure>,
     scanned: Option<Instant>,
-    // 成员退休不能抹去其输入清理失败；只供父 Session 最终结算，不关闭仍工作的父 B。
+    // Member retirement must not erase input-cleanup failures; these are only for final parent Session settlement, not closing a working parent B.
     pub(super) input_cleanup_unconfirmed: bool,
 }
 struct Member {
@@ -51,12 +51,12 @@ impl Family {
         self.members.is_empty()
     }
     fn retain_failed(&mut self, present: &[usize]) {
-        // 只抑制原来源仍有效的失败；lease/父 epoch 换代后，同 HWND 也可重新准入。
+        // Suppress failures only while original provenance remains valid; lease/parent epoch changes permit readmission even for the same HWND.
         self.failed
             .retain(|failure| present.contains(&failure.hwnd) && failure.scope.target().is_ok());
     }
     fn failed(&self, hwnd: usize) -> bool {
-        // 来源已在本轮 retain_failed 一次性复核；不为每个候选重复扫描/验证整套来源链。
+        // This round's retain_failed already revalidated provenance once; do not rescan/revalidate the full chain for every candidate.
         self.failed.iter().any(|failure| failure.hwnd == hwnd)
     }
 }
@@ -92,8 +92,8 @@ fn discover(
         windows: Vec::new(),
         visited: 0,
     };
-    // 合法 owned dialog 可以位于另一源线程。仅从已认证焦点/已有成员补候选，
-    // 不扫描整个进程；成员优先保留，焦点回到 B 后仍能继续发现跨线程弹窗。
+    // Valid owned dialogs may belong to another source thread. Add candidates only from authenticated focus/existing members,
+    // without scanning the entire process; retain members first so cross-thread popups remain discoverable after focus returns to B.
     for scope in parents.iter().map(|(scope, _)| *scope).chain(focused) {
         if scan.visited == SCAN_LIMIT {
             break;
@@ -118,10 +118,10 @@ fn discover(
         .filter_map(|hwnd| {
             descendant_scope(hwnd, parents).or_else(|| Scope::bind(root, owner, hwnd).ok())
         })
-        // 装饰镜像不能成为独立输入目标，也不能挤占真正菜单/文本弹窗的四个名额。
+        // Decoration mirrors must not become independent input targets or consume the four slots reserved for real menus/text popups.
         .filter(|scope| !decoration::is_decoration(root, owner, scope, parents))
-        // PotPlayer 的 1x1 可见 owner 辅助窗没有可交互画面，不能先占满四个采集槽。
-        // 每次重新检查尺寸，辅助窗变成真实弹窗时仍可进入；不按类名永久排除。
+        // PotPlayer's visible 1x1 owner helper windows have no interactive content and must not fill all four capture slots first.
+        // Recheck size each time so helpers can enter when they become real popups; never exclude permanently by class name.
         .filter(|scope| {
             scope
                 .target()
@@ -131,9 +131,9 @@ fn discover(
                         && i64::from(r.bottom) - i64::from(r.top) > 1
                 })
         })
-        // 发现集合受 128 窗枚举预算约束，不能在此按 Z 序截成会话数量。
-        // 否则新弹窗会挤掉仍可见的父成员，stop 后连带撤销子菜单来源链。
-        // LIMIT 只在创建 Session 时执行，已有成员先保留其名额。
+        // Discovery is bounded by a 128-window enumeration budget; do not truncate it by Z order to the session count here.
+        // Otherwise new popups displace still-visible parent members, and stopping them also revokes submenu provenance chains.
+        // Apply LIMIT only when creating Sessions; existing members retain their slots first.
         .collect())
 }
 
@@ -142,8 +142,8 @@ fn descendant_scope(
     parents: &[(&Scope, Option<crate::live_hover_owner::Identity>)],
 ) -> Option<Scope> {
     let mut ancestor = hwnd;
-    // 从最近的真实 owner（或精确 lease 的 root）向上查找；不能由成员插入顺序
-    // 选择祖父镜像，否则子 B 的 owner 链绕过父 B，会被 native_nested 正确拒绝。
+    // Search upward from the nearest real owner, or the exact lease's root; member insertion order must not
+    // select a grandparent mirror, or child B's owner chain bypasses parent B and native_nested correctly rejects it.
     for _ in 0..32 {
         ancestor = unsafe { GetWindow(ancestor, GW_OWNER) }
             .ok()
@@ -197,7 +197,7 @@ impl Session {
         );
     }
     pub(super) fn poll_popups(&mut self) {
-        // 附属会话不递归发现其他窗口；失去原归属或隐藏就是正常关闭。
+        // Attached sessions do not recursively discover other windows; losing original ownership or becoming hidden is normal closure.
         if let Some(scope) = &self.popup_scope {
             if scope.target().is_err()
                 || self
@@ -262,7 +262,7 @@ impl Session {
         let Some(root) = &self.target else {
             return;
         };
-        // 本轮普通应用接线不改变已经独立验证的 Chromium 输入/弹窗路径。
+        // This ordinary-application wiring does not change the independently verified Chromium input/popup paths.
         if crate::live_browser_scroll::eligible(root) {
             return;
         }
@@ -273,7 +273,7 @@ impl Session {
             .frame_bounds()
             .and_then(|frame| self.input_crop.map_or(Ok(frame), |crop| crop.screen(frame)))
         else {
-            // 没有可映射的源矩形时，不枚举弹窗；已存在的成员仍在本轮上方结算。
+            // Without a mappable source rectangle, skip popup enumeration; existing members still settle above this round.
             return;
         };
         let parents: Vec<_> = self
@@ -324,8 +324,8 @@ impl Session {
                 continue;
             };
             if let Some(member) = self.popups.members.iter_mut().find(|m| m.hwnd == hwnd) {
-                // 父子可能在同一轮首次出现；下一轮才有父镜像可供绑定。
-                // 只更新仍属于原显示实例的镜像，不能凭相同 HWND 复活旧输入状态。
+                // Parent and child may first appear in the same round; the parent mirror is available for binding only next round.
+                // Update only mirrors still belonging to the original display instance; matching HWNDs cannot revive stale input state.
                 match member
                     .session
                     .rebind_popup_scope(scope, window.popup_hwnd())
@@ -371,7 +371,7 @@ impl Session {
                 }
             }
         }
-        // HWND 全部来自本 Session 持有的镜像，不接受进程枚举结果作为焦点豁免。
+        // Every HWND comes from mirrors owned by this Session; process enumeration is not evidence for focus exemptions.
         let mut peers = vec![window.popup_hwnd()];
         peers.extend(
             self.popups
@@ -388,7 +388,7 @@ impl Session {
             .filter(|member| !member.session.stopping)
             .filter_map(|member| member.session.popup_scope.clone())
             .collect();
-        // 焦点核验可在窗口间复用不可变快照，不为每个镜像递归克隆 Scope。
+        // Focus checks may reuse immutable snapshots across windows rather than recursively cloning Scope for each mirror.
         let scopes = (!scopes.is_empty()).then(|| Rc::new(scopes));
         window.popup_scopes(scopes.clone());
         for member in &self.popups.members {
@@ -412,15 +412,15 @@ impl Session {
             .as_ref()
             .expect("Live popup member scope missing")
             .clone();
-        // member.poll 与 discover 之间源可隐藏/重开同一个 HWND；不能以新 scope
-        // 覆盖旧实例的撤销证据，也不能在旧 worker 释放完成前复用其窗口/队列。
+        // Between member.poll and discover, sources may hide/reopen the same HWND; new scope must not
+        // overwrite the old instance's revocation evidence or reuse its window/queue before the old worker finishes releasing.
         if previous.target().is_err() || scope.target().is_err() || self.window.is_none() {
             self.stop();
             return Ok(false);
         }
         let mirror = self.window.as_ref().unwrap();
         mirror.reparent_popup(scope.mirror_owner().unwrap_or(fallback_owner))?;
-        // 重挂最终调用 SetWindowPos，可同步重入；提交前仍验原 scope，而非只验新来源。
+        // Reattachment ultimately calls SetWindowPos and may reenter synchronously; still validate original scope before commit, not merely new provenance.
         if !mirror.is_alive() || previous.target().is_err() || scope.target().is_err() {
             self.stop();
             return Ok(false);
@@ -435,7 +435,7 @@ impl Session {
         control: Option<ParentControl>,
     ) -> io::Result<Self> {
         let target = scope.target().map_err(io::Error::other)?;
-        // 多层 lease 的镜像沿实际父 B 建立 owner 链，与源端嵌套输入校验保持一致。
+        // Multilevel lease mirrors establish owner chains through actual parent B, matching source-side nested-input validation.
         let owner = scope.mirror_owner().unwrap_or(owner);
         let mut class = [0u16; 64];
         let len = unsafe { GetClassNameW(target.hwnd(), &mut class) } as usize;

@@ -1,4 +1,4 @@
-//! Ctrl+C 只发布当前本地选区；不调用远端 click，不经过表单队列。
+//! Ctrl+C publishes only the current local selection; no remote click or form queue.
 use super::*;
 pub(in crate::desktop::surface_window) unsafe fn message(
     hwnd: HWND,

@@ -1,4 +1,4 @@
-//! 圆形序号的边框、底色和居中 DirectWrite 文本；屏幕与导出共用。
+//! Circular number borders, backgrounds, and centered DirectWrite text, shared by screen rendering and export.
 use crate::{editor::Stroke, viewport::Viewport};
 use windows::{
     core::Result,
@@ -45,7 +45,7 @@ pub(super) unsafe fn draw(
     if stroke.visible_outline() {
         target.DrawEllipse(&ellipse, brush, stroke.width * viewport.scale, None);
     }
-    // 普通文字布局含 4 px 留白；序号使用整个圆框并按中心对齐。
+    // Ordinary text layout includes 4 px padding; numbered circles use the entire circular frame with center alignment.
     let layout = super::annotation_text::layout(
         text,
         viewport.scale,

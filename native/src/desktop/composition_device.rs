@@ -1,5 +1,5 @@
-//! 默认呈现设备按 UI 线程弱共享；最后一个租约释放后不保留 GPU/COM 资源。
-//! 共享 D3D11 device 与对应的 D2D device，窗口交换链、D2D context、合成树和 Live 捕获设备不归此 owner。
+//! Default presentation devices are weakly shared per UI thread; retain no GPU/COM resources after the final lease is released.
+//! Share the D3D11 device and matching D2D device; this owner excludes window swap chains, D2D contexts, composition trees, and Live capture devices.
 use super::selection::Backend;
 use std::{
     cell::RefCell,
@@ -26,7 +26,7 @@ impl Device {
     }
 }
 thread_local! {
-    // Rc/Weak 限定到调用线程，不跨线程共享单线程 D2D 的资源 owner。
+    // Rc/Weak stay on the calling thread; do not share single-threaded D2D resource owners across threads.
     static HARDWARE: RefCell<Weak<Device>> = const { RefCell::new(Weak::new()) };
     static SOFTWARE: RefCell<Weak<Device>> = const { RefCell::new(Weak::new()) };
 }
@@ -55,7 +55,7 @@ fn cached<T, E>(
     create: impl FnOnce() -> std::result::Result<T, E>,
     healthy: impl FnOnce(&T) -> bool,
 ) -> std::result::Result<Rc<T>, E> {
-    // 不跨驱动/COM 调用持有 RefCell 借用；失败不发布新缓存，也不破坏仍被旧窗口持有的租约。
+    // Hold no RefCell borrows across driver/COM calls; failures publish no new cache and preserve leases still held by old windows.
     let existing = slot.borrow().upgrade();
     if let Some(existing) = existing.filter(|device| healthy(device)) {
         return Ok(existing);

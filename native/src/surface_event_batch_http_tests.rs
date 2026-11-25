@@ -1,4 +1,4 @@
-//! 真实本地 TLS：批次顺序、确认停止、失败不重放；不连接真实服务。
+//! Real local TLS: batch ordering, stop at confirmation, and no replay on failure; no real service connections.
 use super::*;
 use crate::live_relay_http::{BatchError, BatchStop};
 #[path = "surface_event_batch_runtime_tests.rs"]

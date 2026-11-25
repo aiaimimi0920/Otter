@@ -1,4 +1,4 @@
-//! 主干的颜色槽按工具族共享；选中对象样式不进入创建默认值，颜色透明度随槽一起恢复。
+//! Baseline color slots are shared by tool family; selected-object styles do not enter creation defaults, and color opacity restores with the slot.
 use crate::{
     editor::Tool,
     stroke_style::{Color, PaintAlpha, StrokeStyle},
@@ -34,7 +34,7 @@ fn slot(tool: Tool) -> Option<usize> {
         Tool::Line | Tool::Arrow | Tool::Bezier | Tool::Polyline => 4,
         Tool::Brush | Tool::Paintbrush | Tool::Highlighter => 5,
         Tool::Text => 6,
-        // 序号已有独立前景/填充配置；导航和像素效果不拥有这些颜色槽。
+        // Sequence labels already have separate foreground/fill configuration; navigation and pixel effects do not own these color slots.
         _ => return None,
     })
 }

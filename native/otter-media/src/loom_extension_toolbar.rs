@@ -1,4 +1,4 @@
-//! 主干 toolbar 菜单声明投影；仅暴露可信同 scope 元数据，不执行命令或签发资源许可。
+//! Mainline toolbar-menu declaration projection; exposes only trusted same-scope metadata, without executing commands or issuing resource permissions.
 use super::*;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ToolbarItem {
@@ -13,7 +13,7 @@ pub struct ToolbarItem {
     pub available: bool,
 }
 fn payload_text(item: &Contribution, key: &str) -> Option<String> {
-    // 菜单元数据与主干 nestedPayload 一致；其包装不要求命令 payload 的 schema 标记。
+    // Menu metadata matches mainline nestedPayload; its wrapper does not require the command payload's schema marker.
     let outer = item.payload.as_ref()?.as_object()?;
     let payload = outer
         .get("payload")
@@ -23,7 +23,7 @@ fn payload_text(item: &Contribution, key: &str) -> Option<String> {
     (text.encode_utf16().count() <= 128 && !text.trim().is_empty()).then(|| text.trim().into())
 }
 impl Snapshot {
-    /// when 控制可见性，命令 when 控制可用性；执行仍沿 command/invoke 复核。
+    /// when controls visibility, and command when controls availability; execution still rechecks through command/invoke.
     pub fn toolbar(&self, context: &Context<'_>) -> Vec<ToolbarItem> {
         self.0.contributions["menus"]
             .iter()

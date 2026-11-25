@@ -1,11 +1,11 @@
-//! 延迟确认取消的模拟操作；不访问系统历史，验证读取许可不会提前释放。
+//! Simulated operations with delayed cancellation acknowledgement; no system-history access, verifying permits are not released early.
 use super::super::*;
 use std::cell::Cell;
 struct Delayed<'a> {
     polls: &'a Cell<usize>,
     cancellations: &'a Cell<usize>,
 }
-// 与 WinRT 生成接口同名，便于直接验证同一等待宏。
+// Same name as the generated WinRT interface to directly verify the same waiting macro.
 #[allow(non_snake_case)]
 impl Delayed<'_> {
     fn Cancel(&self) -> Result<()> {

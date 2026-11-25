@@ -1,4 +1,4 @@
-//! 已验签下载→真实受限 JS child→固定 origin TLS 服务；不是实际 Loom daemon 联合验收。
+//! Verified download -> real restricted JS child -> fixed-origin TLS service; not joint acceptance against an actual Loom daemon.
 use super::*;
 use crate::surface_javascript::fixture as js;
 const ASYNC: &str = r#"

@@ -1,4 +1,4 @@
-//! 托盘根菜单下角锚定与边缘避让；验证真实 HWND，不移动用户鼠标。
+//! Tray-root lower-corner anchoring/edge avoidance; verify real HWNDs without moving the user's mouse.
 use super::*;
 
 fn work_area() -> RECT {
@@ -60,7 +60,7 @@ fn tray_position_yields_to_work_area_at_edges_without_changing_size() {
     );
     let expected = bounds(&baseline, 0);
     drop(baseline);
-    // 顶部空间不足及任务栏区域不强求不可能的下角贴合，保证菜单完整可见。
+    // When top space/taskbar regions make lower-corner alignment impossible, prioritize full menu visibility.
     for point in [
         POINT {
             x: work.left + 8,

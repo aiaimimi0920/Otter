@@ -1,4 +1,4 @@
-//! Session 的输入 owner：显式启用、异步结算，输入释放完成前不退休源保护。
+//! Session input owner: explicit enabling and asynchronous settlement; do not retire source protection before input release completes.
 use super::Session;
 use crate::{
     live_input::{Event, MAX_SEQUENCE},
@@ -49,7 +49,7 @@ impl Session {
 
     pub(super) fn process_window_input(&mut self) {
         if self.remote_input.is_some() {
-            // 网络输入仍由同一worker处理，但不把远程资格暴露成本地窗口的鼠标/键盘控制。
+            // The same worker still handles network input, but remote eligibility must not become local-window mouse/keyboard control.
             if let Some(window) = &self.window {
                 window.take_input_request();
                 while window.pop_input().is_some() {}
@@ -60,7 +60,7 @@ impl Session {
         if self.target.as_ref().is_some_and(|target| unsafe {
             windows::Win32::UI::WindowsAndMessaging::IsIconic(target.hwnd()).as_bool()
         }) {
-            // 由 B 发起的后台恢复必须等新 journal ACK；不清掉已排队的首次输入。
+            // Background recovery initiated by B must await a new journal ACK, without clearing the queued first input.
             if self.protection.is_some()
                 && self
                     .window
@@ -87,8 +87,8 @@ impl Session {
                 self.disable_input();
             }
         }
-        // 只保留一条在途输入；慢源的后续移动留在窗口队列合并，不能提前灌满 worker。
-        // 回复沿原 WM_NULL 唤醒继续发送；关键边沿仍按 FIFO，取消不等待此准入条件。
+        // Keep only one input in flight; later slow-source moves stay coalesced in the window queue instead of filling the worker prematurely.
+        // Replies wake continued sending through original WM_NULL; critical edges remain FIFO, and cancellation bypasses this admission condition.
         while self.input_enabled
             && self
                 .input
@@ -131,7 +131,7 @@ impl Session {
         }
         self.start_input(true)
     }
-    // 远程桥在处理请求时会临时取出 Remote；不能据字段暂时为空推断为本地输入。
+    // The remote bridge temporarily takes Remote while handling requests; an empty field does not imply local input.
     pub(super) fn start_input(&mut self, local: bool) -> io::Result<()> {
         if self
             .window
@@ -153,7 +153,7 @@ impl Session {
             if self.input.as_ref().is_some_and(|worker| !worker.stopping()) {
                 return Ok(());
             }
-            // 暂停后的释放仍由原 owner 排空；只保留一次恢复意图，不叠建 worker。
+            // The original owner still drains releases after pause; retain one recovery intent without stacking workers.
             self.input_enabled = false;
             if let Some(window) = &self.window {
                 window.defer_input_resume();
@@ -171,7 +171,7 @@ impl Session {
             )
         })?;
         let region = self.input_crop.map(|crop| crop.input());
-        // 在 factory 可运行之前发布 pending 周期；否则默认首次启用时 epoch 仍为零。
+        // Publish the pending cycle before factory can run, or epoch remains zero during default first-time enable.
         if local {
             if let Some(window) = &self.window {
                 window.input_status(false, true, None);
@@ -296,17 +296,17 @@ impl Session {
         let Some(worker) = &mut self.input else {
             return;
         };
-        // 先观察线程结束，再排空回复，避免最后一条错误和线程退出同时到达时漏掉分类。
+        // Observe thread exit before draining replies so simultaneous final errors and exit cannot lose classification.
         let exit = worker.take_exit();
         loop {
             match worker.poll_reply() {
                 Ok(Some(reply)) => {
                     match reply.result {
                         Ok(crate::live_input::Delivery::Pending) => {
-                            // 仅解除本条提交的准入占位，不宣称窗口过程完成；菜单后续输入可继续。
+                            // Release only this submission's admission placeholder, without claiming window-procedure completion; subsequent menu input may proceed.
                         }
                         Ok(crate::live_input::Delivery::IgnoredWhileModal) => {
-                            // 重复右键没有投递；保留现有模态输入通道，不把它当失败撤销控制。
+                            // Duplicate right-click was not delivered; preserve the existing modal input channel instead of revoking control as a failure.
                         }
                         Ok(crate::live_input::Delivery::Completed) => {
                             if matches!(reply.command, Some(Command::Enable))
@@ -343,12 +343,12 @@ impl Session {
                                     )
                                 );
                             if revoked {
-                                // 已确认未发布/未发送；保留 UI 的新周期意图，不让旧 worker 暂停它。
+                                // Confirmed unpublished/unsent; preserve UI intent for the new cycle so the old worker cannot pause it.
                                 eprintln!("native-live-input-pause: reason=control-cycle detail={error:?}");
                                 self.input_transition = true;
                             } else if transition {
                                 eprintln!("native-live-input-pause: reason=source-transition detail={error:?}");
-                                // 最小化或已确认未动作的浏览器查询过渡可恢复；不重放失败输入。
+                                // Minimization or browser-query transitions confirmed to have performed no action are recoverable; never replay failed input.
                                 self.input_transition = true;
                                 if let Some(window) = &self.window {
                                     window.suspend_source_input();
@@ -358,7 +358,7 @@ impl Session {
                                             input_backend::Error::BrowserTransition(_)
                                         )
                                     ) {
-                                        // 查询未动作可恢复准入；旧 worker 释放完成前不会创建新 owner。
+                                        // A query with no action may restore admission; no new owner is created before the old worker finishes releasing.
                                         window.resume_browser_input();
                                     }
                                 }

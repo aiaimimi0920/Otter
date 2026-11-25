@@ -1,4 +1,4 @@
-//! 本地模态按钮的一槽回调：提交与完成分开，取消在短预算内收取回调。
+//! Single-slot callback for local modal buttons: separate submission from completion, and collect callbacks within a short cancellation budget.
 use super::*;
 #[path = "live_input_native_request.rs"]
 pub mod native_request;
@@ -12,7 +12,7 @@ pub mod native_motion;
 pub use native_motion::motion_native;
 
 thread_local! {
-    // 回调只带值 token，绝不保存 Backend/Controller/栈或堆指针。
+    // The callback carries only a value token, never Backend/Controller/stack/heap pointers.
     static CALLBACK: Cell<(usize, bool)> = const { Cell::new((0, false)) };
 }
 static NEXT: AtomicUsize = AtomicUsize::new(1);
@@ -50,8 +50,8 @@ impl Modal {
             Ok(())
         }
     }
-    /// 仅在 check_result 成功后判定空槽；此处不能再次泵回调，否则刚到达的
-    /// 拒绝会清掉 token，却越过已经完成的错误检查而放行下一条输入。
+    /// Determine slot emptiness only after check_result succeeds; do not pump callbacks again here, or a newly arrived
+    /// rejection would clear the token while bypassing the completed error check and admitting the next input.
     fn require_idle(&self) -> Result<()> {
         if self.token != 0 || self.escape_edges == 1 || CALLBACK.with(|slot| slot.get().0 != 0) {
             Err(Error::ModalPending)
@@ -59,7 +59,7 @@ impl Modal {
             Ok(())
         }
     }
-    /// 周期撤销时，已提交的回调仍须有明确结果；不能按“未发送”分类丢掉它。
+    /// When an epoch is revoked, submitted callbacks still need definite outcomes; do not discard them as "not sent".
     pub fn check_revoked_control(&mut self) -> Result<()> {
         self.check_result()?;
         if self.token != 0 {
@@ -71,7 +71,7 @@ impl Modal {
         if self.token == 0 {
             return;
         }
-        // PeekMessage 会调用发送线程回调；不消费此线程其他组件的 posted 消息。
+        // PeekMessage invokes sending-thread callbacks; do not consume posted messages for other components on this thread.
         unsafe {
             let _ = PeekMessageW(&mut MSG::default(), None, 0, 0, PM_NOREMOVE);
         }
@@ -83,7 +83,7 @@ impl Modal {
             self.publication = None;
             CALLBACK.with(|slot| slot.set((0, false)));
             self.token = 0;
-            // 原菜单可因其他原因先关闭；posted Escape down 的 up 仍须沿同一队列送达。
+            // The original menu may close earlier for other reasons; the up for a posted Escape down must still travel through the same queue.
             if self.escape_edges != 1 {
                 self.clear();
             }
@@ -93,15 +93,15 @@ impl Modal {
         self.refresh();
         self.in_flight()
     }
-    /// 路由/回执判断只能读取最近一次显式观察；不能在结果检查后再次泵回调。
+    /// Routing/receipt decisions may read only the latest explicit observation; do not pump callbacks again after checking results.
     pub fn in_flight(&self) -> bool {
         self.token != 0
     }
     pub fn cancel(&mut self, may_signal: bool) -> bool {
         self.publication = None;
-        // 原 popup 显示实例已换代时不能把 WM_CANCELMODE 投给新菜单；未知回调仍按原预算观察。
-        // 撤销控制必须结束由本槽发起的菜单；不能只等待一个仍在运行的模态泵。
-        // posted 取消保留既有 Escape 边沿顺序，不同步阻塞，也不模拟按键/点击。
+        // If the original popup display instance has changed generations, do not send WM_CANCELMODE to the new menu; observe unknown callbacks within the original budget.
+        // Revoking control must end menus initiated by this slot; merely waiting for a still-running modal pump is insufficient.
+        // Posted cancellation preserves existing Escape-edge order without synchronous blocking or simulated keys/clicks.
         if self.pending() && may_signal {
             if let Some(target) = &self.destination {
                 let result = target
@@ -118,8 +118,8 @@ impl Modal {
                 }
             }
         }
-        // 取消消息准入不代表完成。仍只在 worker 内观察原回调至多约 50ms；
-        // 不响应取消的程序保留失败状态，不重发、不把仍打开的菜单当成完成。
+        // Cancellation-message admission does not mean completion. Continue observing the original callback only inside the worker for at most about 50ms;
+        // applications that ignore cancellation retain failure status, without retries or treating still-open menus as complete.
         let deadline = Instant::now() + Duration::from_millis(50);
         while self.pending() && Instant::now() < deadline {
             std::thread::sleep(Duration::from_millis(1));
@@ -154,8 +154,8 @@ impl Modal {
         self.escape_edges = 0;
         self.destination = None;
     }
-    /// 模态菜单在 GetMessage/PeekMessage 循环中处理 Escape，而非普通窗口过程。
-    /// 按住期间去重，完整松开后允许下一次 Escape 关闭上一层菜单；准入不等于处理完成。
+    /// Modal menus handle Escape in GetMessage/PeekMessage loops, not ordinary window procedures.
+    /// Deduplicate while held; after full release, the next Escape may close the next menu level. Admission does not mean processing is complete.
     pub fn post_escape(&mut self, target: &Destination, packet: Message) -> Result<bool> {
         if (self.token == 0 && self.escape_edges != 1)
             || self
@@ -198,7 +198,7 @@ impl Drop for Modal {
     }
 }
 
-/// API 准入后最多等待原有 250ms 预算；未回调由 delivery() 显式返回 Pending。
+/// After API admission, wait at most the original 250ms budget; delivery() explicitly returns Pending if no callback arrives.
 pub fn button_modal(target: &Destination, packet: Message, modal: &mut Modal) -> Result<()> {
     if !matches!(
         packet.id,
@@ -209,7 +209,7 @@ pub fn button_modal(target: &Destination, packet: Message, modal: &mut Modal) ->
     submit(target, packet, modal)
 }
 
-/// 仅供已校验按钮类别、父子关系和源身份的补偿调用；不接受任意 WM_COMMAND。
+/// Only for compensation calls with validated button class, parent-child relationship, and source identity; arbitrary WM_COMMAND is not accepted.
 pub fn button_command(
     parent: &Destination,
     child: &Destination,
@@ -220,7 +220,7 @@ pub fn button_command(
         parent,
         Message {
             id: WM_COMMAND,
-            wp: WPARAM(usize::from(id)), // BN_CLICKED 的高字为零。
+            wp: WPARAM(usize::from(id)), // BN_CLICKED's high word is zero.
             lp: LPARAM(child.hwnd().0 as isize),
             moving: false,
             releasing: false,

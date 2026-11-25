@@ -1,4 +1,4 @@
-//! 自动拒绝沿真实查询/receipt，服务端仍收到 confirm；不把本地拒绝冒充 disabled。
+//! Automatic rejection follows real query/receipt paths and still sends confirm to the server; local rejection is not disabled.
 use super::*;
 use crate::{desktop::workspace_profile::Profile, projection_receive_policy::Policy};
 
@@ -69,7 +69,7 @@ fn receive_policy_reject_automatically_queries_and_rejects_over_original_tls_sin
                 && !app.authorization.borrow().projection.busy
                 && !app.authorization.borrow().projection.entries.is_empty()
             {
-                // 对端原 5 秒预算不含 3 秒调度等待再加 IPv6 fallback；只推进调度输入，不改墙钟。
+                // The peer's original 5-second budget excludes a 3-second scheduler wait plus IPv6 fallback; advance scheduling input only, not wall clock.
                 let due = app.projection_policy_deadline().unwrap();
                 assert!(due > Instant::now());
                 app.process_projection_automatic(

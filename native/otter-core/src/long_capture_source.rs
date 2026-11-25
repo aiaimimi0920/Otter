@@ -1,4 +1,4 @@
-//! worker 独占的采集源契约；移动先准备，追加结果决定是否提交物理参考区域。
+//! Worker-exclusive capture-source contract; prepare movement first, then append outcomes decide physical-reference-region commit.
 use super::*;
 pub trait CaptureSource: Send {
     fn can_scroll(&self) -> bool {
@@ -8,7 +8,7 @@ pub trait CaptureSource: Send {
         false
     }
     fn capture(&mut self, mode: CaptureMode, cancel: &AtomicBool) -> Result<Frame, String>;
-    /// 仅准备候选帧/区域，不覆盖已接受参考；出错后仍会收到 finish_move(false)。
+    /// Prepare only candidate frames/regions without overwriting accepted references; errors still receive finish_move(false).
     fn prepare_move(
         &mut self,
         _movement: (i32, i32),
@@ -16,8 +16,8 @@ pub trait CaptureSource: Send {
     ) -> Result<Frame, String> {
         Err("Viewfinder movement unavailable".into())
     }
-    /// 只提交/丢弃已准备的内部状态，不得执行新的外部动作、阻塞或失败。
-    /// 取消时总是 false；Drop 还须释放未完成候选，以覆盖 worker 异常退出。
+    /// Only commit/discard prepared internal state; no new external actions, blocking, or failure.
+    /// Always false on cancellation; Drop must also release unfinished candidates for abnormal worker exit.
     fn finish_move(&mut self, _accepted: bool) {}
 }
 type Callback = Box<dyn FnMut(CaptureMode, &AtomicBool) -> Result<Frame, String> + Send>;

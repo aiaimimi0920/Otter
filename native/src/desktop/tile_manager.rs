@@ -1,4 +1,4 @@
-//! 小型原生菜单管理器：配对/批准等待/续签与独立输出进程，不持后台呈现资源。
+//! Small native-menu manager: pairing/approval waits/renewal and independent output processes, without background presentation resources.
 use super::*;
 use std::{cell::Cell, sync::OnceLock};
 use windows::{
@@ -15,7 +15,7 @@ struct Window {
 }
 impl Window {
     fn take_action(&self) -> Option<u32> {
-        // pump 可同时消费命令和关闭；销毁后的待办不再授权启动独立输出。
+        // pump may consume commands and closure together; post-destruction pending work cannot authorize independent output startup.
         (!self.state.closed.get()).then(|| self.state.action.replace(0))
     }
 }
@@ -82,7 +82,7 @@ pub(super) fn run(origin: &str, profile: Option<&Path>) -> Result<()> {
     }
     Ok(())
 }
-// 菜单意图与真实配置/Owner共用一个消费点；关闭后不创建授权任务。
+// Menu intents and actual configuration/Owner share one consumption point; create no authorization tasks after closing.
 fn authorization_action(
     window: &Window,
     owner: &mut Owner,

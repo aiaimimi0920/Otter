@@ -1,4 +1,4 @@
-//! 发送响应不能复用 receiver 的非空字段假设；完整原身份与内容仍须严格相关。
+//! Sender responses cannot reuse receiver nonempty-field assumptions; full original identity/content still require strict correlation.
 use super::*;
 use crate::projection_delivery::sender::tests::{prepare, selection, setup};
 use serde_json::{json, Value};

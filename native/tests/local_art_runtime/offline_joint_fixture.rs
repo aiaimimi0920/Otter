@@ -1,4 +1,4 @@
-//! 普通双EXE的有界一次性合成身份/独立profile；只用隔离CA，不读取真实用户配置。
+//! Bounded, disposable synthetic identities and separate profiles for two ordinary EXEs; use only an isolated CA and never read real user configuration.
 use super::*;
 use base64::{engine::general_purpose::STANDARD, Engine};
 use serde::Deserialize;
@@ -71,7 +71,7 @@ impl Side {
             "production local manifest required"
         );
         if !sender {
-            // 默认手动是无写入的no-op；从显式拒绝起步，才能证明真实菜单产生持久confirm。
+            // The default manual policy is a no-write no-op; start with explicit rejection to prove the real menu produces a persisted confirmation.
             fs::write(
                 profile.join("projection-receive-policy.json"),
                 br#"{"version":1,"policy":"reject"}"#,

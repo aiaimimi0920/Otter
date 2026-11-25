@@ -1,4 +1,4 @@
-//! 主干将底图翻转保存在标志里，栅格标注已物化翻转；这里只处理底图/预览。
+//! Mainline stores base-image flips as flags, while raster annotations have materialized flips; handle only base images/previews here.
 use super::*;
 use crate::{raster_flip, session_window::Window};
 use serde::Deserialize;

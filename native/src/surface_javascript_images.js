@@ -1,4 +1,4 @@
-// 只有当前宿主安装的图片能生成句柄；对象身份由私有WeakMap验证，不能伪造ID/URL。
+// Only images installed by the current host can produce handles; a private WeakMap verifies object identity, preventing forged IDs/URLs.
 ((op, json, fail) => {
   "use strict";
   const handles = new op.Weak(), cache = new op.MapType(), freeze = Object.freeze;
@@ -10,7 +10,7 @@
       if (op.mapHas(cache,id)) return op.mapGet(cache,id);
       const encoded = native(id);
       if (!encoded) fail();
-      // 私有JSON数组故意无原型/迭代器，不能通过解构调用插件可变iterator。
+      // Private JSON arrays intentionally have no prototype/iterator; do not invoke plugin-mutable iterators through destructuring.
       const size = json.decode(encoded), width = size[0], height = size[1];
       const handle = freeze({ width,height,naturalWidth:width,naturalHeight:height });
       op.weakSet(handles,handle,{ id,width,height }); op.mapSet(cache,id,handle);

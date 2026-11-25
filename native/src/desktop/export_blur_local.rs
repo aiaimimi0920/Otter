@@ -1,4 +1,4 @@
-//! 每个持久效果框独立取样/卷积；框外像素透明，输出裁切与白色覆盖分开处理。
+//! Sample/convolve each persistent effect frame independently; pixels outside frames are transparent, and output clipping is separate from white overlays.
 use super::*;
 
 #[derive(Clone, Copy)]
@@ -24,7 +24,7 @@ pub(super) fn prepare(
     if checked_image_bytes(output.0, output.1).is_none() {
         return Err(Error::new(E_INVALIDARG, "Local blur exceeds pixel limits"));
     }
-    // Canvas 先 ceil 逻辑尺寸，再按输出密度 ceil 像素尺寸；不扩大源投影到取整框。
+    // Canvas first ceils logical dimensions, then pixel dimensions at output density; do not expand source projection to rounded bounds.
     let visible = Rect {
         x: 0.0,
         y: 0.0,
@@ -36,7 +36,7 @@ pub(super) fn prepare(
         output,
         visible,
         sampling,
-        // 模糊离屏 Canvas 保持 imageSmoothingEnabled；不能继承底图/擦除的最近邻合同。
+        // Offscreen blur Canvas retains imageSmoothingEnabled and must not inherit the nearest-neighbor contract of base-image/erasure paths.
         interpolation: D2D1_BITMAP_INTERPOLATION_MODE_LINEAR,
         base: D2D_RECT_F::default(),
         base_clip: None,
@@ -64,7 +64,7 @@ pub(super) fn prepare(
         y: parent.visible.y + effect.y,
         ..effect
     };
-    // CSS blur 在 drawImage 的目标投影内 clip；投影外仍允许后续白色覆盖。
+    // CSS blur clips inside drawImage's target projection; later white overlays remain allowed outside that projection.
     let target = match sampling {
         Sampling::Region(projection) => projection.target,
         Sampling::Empty => Rect {

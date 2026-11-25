@@ -1,4 +1,4 @@
-//! 隐藏钉图面板的真实 BUTTON 生命周期；不注册全局输入或显示前台窗口。
+//! Actual BUTTON lifetimes in hidden-pin panels; no global input registration or foreground windows.
 use super::*;
 
 struct Fixture {
@@ -10,7 +10,7 @@ impl Fixture {
     unsafe fn legacy(pinned: bool) -> Self {
         let fixture = Self::new(false);
         fixture.state.canvas.borrow_mut().pinned = pinned;
-        // 旧网格只用于普通工作区；保留该控件实现的回滚/滚动合同测试。
+        // The legacy grid serves only ordinary workspaces; retain rollback/scroll contract tests for that control implementation.
         let _ = RemovePropW(fixture.panel.0, w!("Otter.ToolPanel.Content"));
         let mut child = GetWindow(fixture.panel.0, GW_CHILD).ok();
         while let Some(hwnd) = child {
@@ -252,7 +252,7 @@ fn actual_showwindow_cancels_reentrant_display_then_retries_with_real_button_sta
     unsafe {
         let fixture = Fixture::legacy(true);
         let panel = fixture.panel.0;
-        // 自有面板在屏幕外、非前台展示；不激活 owner、不发送全局输入。
+        // Show owned panels offscreen and out of foreground, without owner activation/global input.
         SetWindowPos(
             panel,
             None,

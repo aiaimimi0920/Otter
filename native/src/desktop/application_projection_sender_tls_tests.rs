@@ -1,4 +1,4 @@
-//! 真实菜单→原授权/Job→TLS read/Create→后台PNG/绑定→canonical；覆盖原意图重试和晚取消。
+//! Real menu -> original authorization/Job -> TLS read/Create -> background PNG/binding -> canonical; original-intent retry and late cancellation.
 use super::*;
 use base64::Engine;
 use serde_json::{json, Value};
@@ -15,7 +15,7 @@ fn assert_snapshot(body: &Value, envelope: &Value, expected: &Image, tolerance: 
         format!("{:x}", sha2::Sha256::digest(&png)),
         envelope["content"]["digest"]
     );
-    // 仅隔离测试显式开启证据输出；不记录token、真实profile或整份网络envelope。
+    // Only isolated tests explicitly enable evidence output; log no tokens, real profiles, or complete network envelopes.
     let evidence = std::env::var_os("OTTER_PNG_EVIDENCE_DIR").map(|root| {
         let root = std::path::PathBuf::from(root);
         std::fs::create_dir_all(&root).unwrap();
@@ -39,8 +39,8 @@ fn assert_snapshot(body: &Value, envelope: &Value, expected: &Image, tolerance: 
         (decoded.width, decoded.height),
         (expected.width, expected.height)
     );
-    // PBGRA→PNG BGRA→解码有整数舍入。独立 raw WIC oracle 不执行选图、裁剪或合成；
-    // 全图逐通道比较；仅独立高斯/wash用例有显式2级舍入容差，其余保持精确。
+    // PBGRA -> PNG BGRA -> decode introduces integer rounding. The independent raw WIC oracle performs no selection, cropping, or composition;
+    // compare every channel across the full image. Only independent Gaussian/wash cases allow an explicit 2-level rounding tolerance; all others remain exact.
     let expected_png = crate::desktop::export::png_raw(expected, &AtomicBool::new(false)).unwrap();
     let expected = crate::desktop::export::decode_png(expected_png.to_vec());
     let difference = decoded
@@ -92,7 +92,7 @@ pub(super) fn run_source(mode: u8, case: source::Case) {
     let peer_outbox = outbox.clone();
     let tolerance = case.pixel_tolerance();
     let (expected_tx, expected_rx) = std::sync::mpsc::sync_channel(1);
-    // 子线程沿用外层测试名，避免所有接收端都叫unnamed而覆盖其他case的PNG证据。
+    // Child threads inherit the outer test name so receivers do not all become unnamed and overwrite other cases' PNG evidence.
     let test_name = std::thread::current()
         .name()
         .unwrap_or("unnamed")

@@ -1,4 +1,4 @@
-//! 捕获交付不解码原图、不访问文件；验证来源与预览随新钉图/文档替换移交。
+//! Capture delivery neither decodes originals nor accesses files; verify provenance/previews transfer with new pins/document replacement.
 use super::*;
 use crate::{capture_color::SdrFrame, capture_dynamic::Reason, capture_job::Captured};
 struct Directory(std::path::PathBuf);

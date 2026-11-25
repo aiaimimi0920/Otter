@@ -1,4 +1,4 @@
-//! 会话级能力目录及原生加载菜单；失败保留旧目录，不自动加载或重试。
+//! Session-level capability catalog and native loading menu; retain the old catalog on failure, without automatic loading/retries.
 use super::{
     capability_job::{Job, Loaded, Source},
     State,

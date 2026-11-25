@@ -1,4 +1,4 @@
-//! Surface 宿主能力报告的有界 wire 合同；没有默认全能力，调用方只能列出实际实现。
+//! Bounded wire contract for Surface host-capability reports; no default full capability set, and callers may list only actual implementations.
 use serde::Serialize;
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]

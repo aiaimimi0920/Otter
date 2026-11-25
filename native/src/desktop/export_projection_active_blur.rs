@@ -1,4 +1,4 @@
-//! 活动效果按自己的当前采样框重建；不借 canonical 的旧标注框，也不递归采样矢量。
+//! Rebuild active effects using their own current sampling frames, without canonical's old annotation frames or recursive vector sampling.
 use super::*;
 
 pub(in crate::desktop) fn prepare_active(
@@ -64,14 +64,14 @@ fn prepare(
     );
     checked_image_bytes(output.0, output.1)
         .ok_or_else(|| Error::new(E_INVALIDARG, "Active blur exceeds pixel limits"))?;
-    // 复用最终底图的传播/legacy Region/Empty布局，而非重新contain整张自然图。
-    // visible换成效果完整采样框，保留crop外邻域；仅底图自己的内容clip仍需保留。
+    // Reuse the final base image's propagation/legacy Region/Empty layout, rather than contain-fitting the entire natural image again.
+    // Replace visible with the full effect sampling frame, retaining neighborhoods outside crop; still preserve the base's own content clip.
     let mut layout = Layout {
         output,
         visible: frame,
         base: parent.base,
-        // 与当前viewport完全相同的clip只负责最终crop，不能截断卷积邻域。
-        // 真正较小/偏移的传播内容clip仍属于底图，不能覆盖到独立栅格标注。
+        // A clip identical to the current viewport governs only final cropping and must not truncate convolution neighborhoods.
+        // Actually smaller/offset propagated-content clips still belong to the base image and must not cover independent raster annotations.
         base_clip: parent.base_clip.filter(|clip| {
             editor.crop_view().is_none()
                 || clip.left != parent.visible.x as f32
@@ -126,7 +126,7 @@ fn prepare(
         || cancel.load(Ordering::Acquire),
     )
     .map_err(failure)?;
-    // clip限制所有取样颜色而非只有底图；否则clip外的栅格标注会卷积渗入clip内。
+    // clip constrains all sampled colors, not only the base; otherwise raster annotations outside clip convolve into it.
     let composed = if has_overlay && clip.is_some() {
         let layout = Layout {
             output,

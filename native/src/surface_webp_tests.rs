@@ -1,4 +1,4 @@
-//! 真实短命 child 与预乘像素；小尺寸内存夹具，不读取用户图片。
+//! Real short-lived children and premultiplied pixels; small in-memory fixtures without user-image reads.
 use super::*;
 #[path = "surface_webp_browser_tests.rs"]
 mod browser;

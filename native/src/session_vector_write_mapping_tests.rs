@@ -156,7 +156,7 @@ fn invalid_context_is_rejected_but_restored_width_is_not_limited_by_ui() {
     editor.commit();
     let bytes = encode_mapped(&editor, None, map, |_| Err(Error::Unsupported)).unwrap();
     let value: Value = serde_json::from_slice(&bytes).unwrap();
-    // 3px * 1000视口 * (96/96 DPI) / 1.5会话空间 = 2000；不调用Mapping构造预期。
+    // 3px * 1000 viewport * (96/96 DPI) / 1.5 session space = 2000; construct expectations without Mapping.
     assert_eq!(value["elements"][0]["style"]["width"], 2000.0);
 }
 

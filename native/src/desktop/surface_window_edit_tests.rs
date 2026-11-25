@@ -1,4 +1,4 @@
-//! 真实 HWND 的生产挂载/通知/准备路径；不读取剪贴板、不注入用户桌面输入。
+//! Actual-HWND production mount/notification/preparation paths; no clipboard reads or user-desktop input injection.
 use super::*;
 #[path = "surface_edit_action_tests.rs"]
 mod actions;

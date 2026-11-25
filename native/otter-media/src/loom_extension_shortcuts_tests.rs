@@ -1,4 +1,4 @@
-//! 插件声明、修饰键和冲突预算；不触碰系统全局注册。
+//! Plugin declarations, modifiers, and conflict budgets; does not touch system-wide registration.
 use super::*;
 use serde_json::json;
 fn fixture() -> Value {

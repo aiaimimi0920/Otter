@@ -1,10 +1,10 @@
-//! 文档只拥有 Local Art 身份与端口提示，不伪造 selected_art 或 Backend 执行配置。
+//! Documents own only Local Art identity/port hints, without fabricating selected_art or Backend execution configuration.
 use crate::art_execution_grant::package::ports::Record;
 use std::{cell::RefCell, ops::Deref, sync::Arc};
 pub(in crate::desktop) struct Config {
     id: String,
     pub ports: RefCell<Option<Arc<Record>>>,
-    // 只允许撤回本次工厂自建且未被用户改动的暂定边；恢复的图没有这个权限。
+    // Retract only tentative edges created by this factory and untouched by users; restored graphs lack this authority.
     pub pending_input: RefCell<Option<crate::workspace::Link>>,
 }
 impl From<String> for Config {

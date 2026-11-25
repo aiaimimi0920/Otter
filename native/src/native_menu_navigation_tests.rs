@@ -1,4 +1,4 @@
-//! 三种输入共用非关闭分页路径；替换后旧页失效，普通命令仍关闭并交付一次。
+//! All three input methods share nonclosing pagination; replacement invalidates old pages, while ordinary commands close/deliver once.
 use super::*;
 use windows::{
     core::w,
@@ -78,7 +78,7 @@ fn keyboard_pointer_and_automation_navigation_keep_root_and_capture() {
         }
         assert!(!menu.closed());
         assert!(menu.take_command().is_none());
-        menu.activate(1, 1).unwrap(); // 未处理导航期间不能覆盖成业务命令。
+        menu.activate(1, 1).unwrap(); // Pending navigation cannot be overwritten by a business command.
         assert_eq!(menu.take_navigation(), Some(10));
         assert!(menu.take_navigation().is_none());
         menu.replace_submenu(0, vec![row(77)]).unwrap();

@@ -1,4 +1,4 @@
-"""显式收集已审阅 ANGLE 构建的本地材料；不安装、分发 SDK 或默认激活 DLL。"""
+"""Explicitly collect local materials from reviewed ANGLE builds; no installation, SDK distribution, or default DLL activation."""
 
 import argparse
 import json
@@ -69,7 +69,7 @@ def create(stage, expected_stage, build, expected_build, output):
             budget(len(data))
             row = writer.bytes(name, data, {})
             records.append({key: row[key] for key in ("path", "bytes", "sha256")})
-        # 原输入和生产者源码再次核对；不是恶意并发写入者下的原子保护。
+        # Recheck original inputs and producer sources; this is not atomic protection against malicious concurrent writers.
         reviewed_build(stage, expected_stage, build, expected_build)
         if sources != own_sources():
             raise ValueError("Materials producer sources changed")

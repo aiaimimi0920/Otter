@@ -1,4 +1,4 @@
-//! 会话纯色边界：保留独立 alpha，复用有界 CSS 颜色解析，不接资源或 currentColor。
+//! Session solid-color boundary: retain independent alpha and reuse bounded CSS-color parsing, without accepting resources or currentColor.
 use crate::stroke_style::Color;
 
 pub(super) fn parse(text: &str) -> Option<(Color, f32)> {
@@ -6,8 +6,8 @@ pub(super) fn parse(text: &str) -> Option<(Color, f32)> {
         return None;
     }
     let text = text.trim().to_ascii_lowercase();
-    // 旧canonical颜色允许128字节。不能因Surface的64字节样式门拒绝已保存的长十进制，
-    // 也不能让本地最小f32 alpha写出后无法重开；该兼容叶不改变网络/Surface预算。
+    // Legacy canonical colors allow 128 bytes. Surface's 64-byte style gate must not reject saved long decimals,
+    // or prevent reopening the smallest local f32 alpha after writing it; this compatibility leaf does not alter network/Surface budgets.
     if text.len() > 64 {
         return long_literal(&text);
     }
@@ -30,7 +30,7 @@ fn long_literal(text: &str) -> Option<(Color, f32)> {
         return None;
     }
     let mut parts = body.strip_suffix(')')?.split(',').map(str::trim);
-    // 保留旧canonical的整数RGB长写法，不拓宽为命名色/表达式/资源。
+    // Retain legacy canonical long-form integer RGB without expanding to named colors/expressions/resources.
     let color = Color(
         parts.next()?.parse().ok()?,
         parts.next()?.parse().ok()?,

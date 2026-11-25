@@ -1,4 +1,4 @@
-//! 文档专属的惰性 modeless 参数窗。稳定 Rc 状态由 DocumentWindow 先于宿主析构。
+//! A document-owned lazy modeless parameter window. DocumentWindow destroys the stable Rc state before the host.
 use crate::desktop::{
     self, capability_parameter_menu::Snapshot, configuration_stamp::Stamp,
     parameter_action::Action, State,
@@ -199,7 +199,7 @@ impl Ui {
             }
         };
         let mut pending = self.pending.borrow().clone();
-        // 候选来自既定输入/参数，不能把同次尚未提交草稿重绑定成新的选择资格。
+        // Candidates come from established inputs/parameters; do not rebind this transaction's uncommitted draft as new selection eligibility.
         if matches!(&intent, Intent::Candidate(_)) && (!drafts.is_empty() || !pending.is_empty()) {
             self.error("请先提交参数更改并重新执行");
             return;

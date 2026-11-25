@@ -1,4 +1,4 @@
-//! 显式配对注册；只发送公钥并保存关联，绝不把注册响应当作批准或会话凭据。
+//! Explicit pairing registration sends only the public key and saves association; registration responses are never approval/session credentials.
 use crate::{
     device_identity::{valid_field, Identity},
     device_identity_store::{Loaded, Store},
@@ -71,7 +71,7 @@ impl Request {
             if !valid_field(&device.id, 160) {
                 return Err(Error::Device);
             }
-            // 同一公钥出现不同 ID 时不猜测关联目标；相同 ID 的重复记录可接受。
+            // Do not guess the association target when the same public key has different IDs; duplicate records with the same ID are acceptable.
             if selected.as_ref().is_some_and(|id| id != &device.id) {
                 return Err(Error::Ambiguous);
             }
@@ -81,7 +81,7 @@ impl Request {
     }
 }
 
-/// 仅取得该 endpoint 返回的公钥关联，不修改默认身份；适用于连接专属关联。
+/// Obtain only the public-key association returned by this endpoint, without changing default identity; for connection-specific associations.
 pub fn register(
     client: &Client,
     identity: &Identity,
@@ -102,8 +102,8 @@ pub fn register(
     request.finish(status, &body)
 }
 
-/// 显式默认关联配对。调用者先通过 Store::load_or_create 取得身份，不在此处生成密钥。
-/// 成功后上层必须撤销此 origin 的旧授权；返回值仅表示设备 ID 是否改变，不表示批准。
+/// Explicit default-association pairing. Callers first obtain identity via Store::load_or_create; no key generation here.
+/// After success, upper layers must revoke this origin's old authorization; the return value indicates only device-ID change, not approval.
 pub fn register_and_save(
     client: &Client,
     store: &Store,
@@ -117,8 +117,8 @@ pub fn register_and_save(
         return Err(Error::Stopped);
     }
     let changed = loaded.identity().device_id() != Some(device.as_str());
-    // 提交检查点后以文件事务完成，不在落盘中途取消；失败不会改写调用方 Loaded。
-    // 网络注册可能已成功但本地保存失败，必须报告 Store 错误，不能返回配对完成。
+    // After the commit checkpoint, finish the file transaction without mid-write cancellation; failure does not mutate the caller's Loaded.
+    // Network registration may succeed while local saving fails; report Store error rather than pairing completion.
     store.bind_and_save(loaded, &device).map_err(Error::Store)?;
     Ok(changed)
 }

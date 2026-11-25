@@ -1,4 +1,4 @@
-//! 局部效果层的几何缩放；先完整加宽笔迹，再做非等比变换，不能只缩放笔宽。
+//! Scale local effect geometry: widen the complete stroke before a nonuniform transform, rather than scaling only its width.
 use super::*;
 use crate::blur_image::BlurImage;
 use windows::core::Interface;
@@ -18,7 +18,7 @@ pub(super) unsafe fn mask(
     let x = viewport.origin.x + frame.x as f32 * viewport.scale;
     let y = viewport.origin.y + frame.y as f32 * viewport.scale;
     let mut matrix = D2D1_LAYER_PARAMETERS::default().maskTransform;
-    // 创建局部几何变换而不是修改 render target，宿主缩放/旋转只能应用一次。
+    // Transform local geometry instead of changing the render target; apply host scaling/rotation exactly once.
     matrix.M11 = scale.0;
     matrix.M22 = scale.1;
     matrix.M31 = x * (1.0 - scale.0);
@@ -37,7 +37,7 @@ pub(super) fn wash_bounds(
     if image.effect_clip().is_some() {
         let frame = image.frame();
         let scale = image.effect_mask_scale();
-        // 最外一行/列可能只是像素尺寸 ceil 的透明填充，不属于 fillRect 逻辑范围。
+        // The outermost row/column may be transparent padding from ceil-rounded pixel dimensions, outside the logical fillRect.
         bounds.left = bounds
             .left
             .max(viewport.origin.x + frame.x as f32 * viewport.scale);
@@ -90,7 +90,7 @@ mod tests {
         );
         assert_eq!(bounds.left, 28.0);
         assert_eq!(bounds.top, 31.0);
-        // ceil(2 * 4/3)=3，局部逻辑宽 2.25；wash 宽应是 2*(2/2.25)，不是整个 frame。
+        // ceil(2 * 4/3)=3 gives a local logical width of 2.25; wash width is 2*(2/2.25), not the entire frame.
         assert!((bounds.right - 44.0).abs() < 1e-5);
         assert_eq!(bounds.bottom, 103.0);
     }

@@ -1,4 +1,4 @@
-//! 系统 UIA 客户端读取真实已绘制图片；alt、装饰过滤、叶节点与旧 provider 撤销。
+//! System UIA clients read actually painted images; alt, decoration filtering, leaf nodes, and old-provider revocation.
 use super::*;
 use crate::{
     image_decode::Image, surface_image_paint::Bitmap, surface_presentation::Images,
@@ -52,7 +52,7 @@ unsafe fn client() -> Result<IUIAutomation2> {
 }
 unsafe fn tree(client: &IUIAutomation2, hwnd: usize) -> Result<IUIAutomationElement> {
     let window = client.ElementFromHandle(HWND(hwnd as *mut _))?;
-    // HWND raw children 还可能有系统标题栏；按声明场景 ID 定位，不能假定第一个是内容。
+    // HWND raw children may include a system title bar; locate by declared scene ID, not an assumption that the first child is content.
     let condition = client.CreatePropertyCondition(
         UIA_AutomationIdPropertyId,
         &windows::Win32::System::Variant::VARIANT::from("tree"),

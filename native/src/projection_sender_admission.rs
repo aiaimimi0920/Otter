@@ -1,4 +1,4 @@
-//! 首发副作用之前检查旧会话的来源/接收角色/完整容量；不能先 Create 再发现无处保存。
+//! Check old-session source/receiver roles/full capacity before initial side effects; never Create before discovering nowhere to save.
 use super::*;
 use std::borrow::Cow;
 impl Binding {
@@ -26,7 +26,7 @@ impl Binding {
     pub(crate) fn admit_send(source: &Source, selection: &Selection) -> Result<(), Error> {
         Self::admit_batch(source, std::slice::from_ref(selection))
     }
-    /// 同一来源批次在第一份签名/网络副作用前核完整容量；每个成员仍需原单目标准入。
+    /// Check full same-source batch capacity before first signature/network side effect; each member still requires original single-target admission.
     pub(crate) fn admit_batch(source: &Source, selections: &[Selection]) -> Result<(), Error> {
         let selection = selections.first().ok_or(Error::Format)?;
         if selections.len() > MAX_PER_UNIT

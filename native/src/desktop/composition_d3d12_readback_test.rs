@@ -1,4 +1,4 @@
-//! 仅测试成功Present后的上一物理buffer；不能把下一空buffer或重新栅格化源图冒充提交结果。
+//! Test only the previous physical buffer after successful Present; neither the next empty buffer nor rerasterized source images represent submitted output.
 use super::*;
 use windows::Win32::Graphics::Direct3D11::*;
 struct Acquired<'a>(&'a State, &'a ID3D11Resource);

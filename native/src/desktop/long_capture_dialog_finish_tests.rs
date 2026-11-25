@@ -1,4 +1,4 @@
-//! 完成请求必须先收下唯一在途帧，且不能再启动自动滚动或重复拼接。
+//! Finish requests must first collect the sole in-flight frame, without starting further automatic scrolling or duplicate stitching.
 use super::*;
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
@@ -267,7 +267,7 @@ fn exact_global_hotkey_reaches_current_dialog_despite_disabled_busy_owner() {
             send(WPARAM(0x4f55), payload(MOD_CONTROL.0));
         }
         assert!(queued(&mut msg));
-        assert!(!input.finish.pending()); // PostMessage 没有同步重入对话框。
+        assert!(!input.finish.pending()); // PostMessage did not synchronously reenter the dialog.
         DispatchMessageW(&msg);
         assert!(!queued(&mut msg));
         assert!(input.finish.pending());
@@ -278,7 +278,7 @@ fn exact_global_hotkey_reaches_current_dialog_despite_disabled_busy_owner() {
         );
         assert!(state.capture_active.get() && state.file_dialog.get());
         assert!(state.global_capture.get() && state.global_long_capture.get());
-        // 不借用测试的模拟注册状态去注销用户真实快捷键。
+        // Do not use mocked test registration state to unregister real user shortcuts.
         state.global_capture.set(false);
         state.global_long_capture.set(false);
     }

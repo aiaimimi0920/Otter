@@ -1,4 +1,4 @@
-//! 窗口像素到当前文本布局的桥接；复用 viewport 同步，不保存第二份选区。
+//! Bridge window pixels to current text layout; reuse viewport synchronization without a second selection copy.
 use super::*;
 impl Host {
     pub(in crate::desktop) fn begin_word_selection(&mut self, pixels: [i32; 2]) -> Result<bool> {

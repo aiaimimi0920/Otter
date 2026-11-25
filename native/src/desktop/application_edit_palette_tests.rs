@@ -1,4 +1,4 @@
-//! 共享调色板在真实 Application/文档绑定后传播；不启动托盘、全局输入或桌面取色。
+//! Shared-palette propagation after real Application/document binding; no tray, global input, or desktop color picking.
 use super::*;
 use crate::{desktop::Apartment, editor::Tool, stroke_style::Color, viewport::Point};
 use neuro_mini_ui::Rgba;
@@ -33,7 +33,7 @@ fn removal_propagates_defaults_across_documents_without_rewriting_selected_objec
         app.edit_palette
             .borrow_mut()
             .record(source, palette.clone(), vec![Rgba::rgb(16, 32, 48)]);
-        // “删除”之后再“应用同一颜色”应覆盖源默认值，外层结算不能把它重置第二次。
+        // Applying the same color after deletion should overwrite the source default; outer settlement must not reset it a second time.
         {
             let mut c = source.canvas.borrow_mut();
             let style = c.editor.style().with_color(color);

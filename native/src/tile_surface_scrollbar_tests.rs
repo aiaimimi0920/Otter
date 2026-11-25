@@ -1,4 +1,4 @@
-//! 手写像素/几何oracle核四向旋转、crop和屏外捕获；不靠新映射反算预期。
+//! Handwritten pixel/geometry oracles check four-way rotation, crop, and offscreen capture without reverse-deriving expectations from new mappings.
 use super::*;
 use serde_json::json;
 struct Apartment;

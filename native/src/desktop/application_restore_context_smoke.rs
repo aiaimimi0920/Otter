@@ -1,4 +1,4 @@
-//! 旧会话上下文输入的候选事务回归：注入输入结果，实际 worker/建窗/发布保持不变。
+//! Candidate-transaction regressions for legacy-session context input: inject input results while preserving actual worker/window-creation/publication paths.
 use super::*;
 use std::time::{Duration, Instant};
 const OLD: &[u8] = br#"{"stickers":[],"links":[]}"#;

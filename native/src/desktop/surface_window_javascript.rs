@@ -1,4 +1,4 @@
-//! 原 AuthorizedWindow 的 JS 执行接缝；UI 只排命令/取完成帧，不取码、求值或 join 活线程。
+//! JS execution seam of the original AuthorizedWindow; UI only queues commands/collects completed frames, without code fetching, evaluation, or joining live threads.
 use super::*;
 use crate::{
     live_relay_http::MountedSurface, surface_javascript::authorized::Runtime,
@@ -15,12 +15,12 @@ pub(super) struct Execution {
     runtime: Option<Runtime>,
     synced: Option<(Binding, u64)>,
     pub(super) events: Option<Vec<crate::surface_click_event::ClickEvent>>,
-    // emit 暂存、取出和 cancel 返还共享此依赖；只由下一批真实 listener 帧覆盖。
+    // emit staging, retrieval, and cancellation return share this dependency, replaced only by the next actual listener-frame batch.
     events_viewport: Option<crate::surface_viewport::Viewport>,
     events_viewport_epoch: Option<u64>,
     submitted_viewport_epoch: u64,
     submitted_focus_epoch: u64,
-    // 只有本地输入 carrier 的 ticket；与 listener emit 的远端 batch 身份严格分离。
+    // Only local-input carrier tickets, strictly separate from listener emit's remote batch identity.
     local_input: Option<String>,
     local_pointer: Option<crate::surface_viewport::Viewport>,
     staged: Option<(crate::surface_resource_snapshot::ResourceSnapshot, u64)>,
@@ -75,7 +75,7 @@ impl AuthorizedWindow {
             .and_then(|js| js.runtime.as_ref())
             .is_none_or(Runtime::finished)
     }
-    /// 未启动的 JS 同样预留回复/完成槽；不能只数当前实际句柄后允许 Live 吃掉未来容量。
+    /// Unstarted JS also reserves reply/completion slots; counting only actual handles must not let Live consume future capacity.
     pub(crate) fn wait_budget(&self) -> usize {
         if self.is_alive() {
             1 + usize::from(self.javascript.is_some()) * 2
@@ -91,7 +91,7 @@ impl AuthorizedWindow {
             .into_iter()
             .flat_map(Runtime::wait_handles)
             .enumerate()
-            // 关闭后未消费帧可能仍有信号；只等真实线程终态，避免退出泵忙循环。
+            // Unconsumed frames may remain signaled after closing; wait only for actual thread termination to avoid exit-pump busy loops.
             .filter_map(move |(index, handle)| (alive || index == 0).then_some(handle))
     }
     pub(crate) fn javascript_needs_start(&self) -> bool {
@@ -124,7 +124,7 @@ impl AuthorizedWindow {
     }
     pub(super) fn poll_javascript(&mut self, now: u64) -> Result<()> {
         if let Err(error) = self.settle_javascript(now) {
-            // 呈现/快照/排队失败均为终态，不能在下一轮用空 rebind 回复假称帧已呈现。
+            // Presentation/snapshot/queue failures are terminal; a later empty rebind reply must not falsely claim frame presentation.
             self.fail_javascript(format!("JS 结算失败：{error}"))?;
         }
         Ok(())
@@ -150,7 +150,7 @@ impl AuthorizedWindow {
         if now >= runtime.expires_at_ms() {
             return self.fail_javascript("JS 资源或凭据已过期".into());
         }
-        // 常见空闲/等待消息不复制或解析最多 1 MiB 的快照；事件/线程句柄负责下一次唤醒。
+        // Common idle/wait messages neither copy nor parse snapshots up to 1 MiB; event/thread handles provide the next wake.
         if (runtime.pending() && !runtime.reply_ready())
             || (!runtime.pending() && self.javascript_ready())
         {
@@ -165,7 +165,7 @@ impl AuthorizedWindow {
                     if let Some(frame) = frame {
                         self.accept_javascript_frame(frame)?;
                     }
-                    // replace 可同步重入；交付后再验原租约和窗口。
+                    // replace can synchronously reenter; revalidate the original lease and window after delivery.
                     if self.lease.validate(current.binding.origin(), now).is_err()
                         || !self.is_alive()
                     {

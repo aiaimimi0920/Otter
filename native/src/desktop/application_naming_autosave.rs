@@ -1,4 +1,4 @@
-//! 用户显式开启的事件驱动配置保存；单槽、无空闲计时器，错误后停用而非持续重试。
+//! User-enabled event-driven settings saving; one slot, no idle timer, and disable on error instead of continuous retries.
 use super::*;
 use std::path::PathBuf;
 
@@ -17,7 +17,7 @@ impl Application {
             self.naming_autosave_request = false;
             self.exit_requested.set(false);
         } else if waiting_exit && !self.naming_autosave_blocks_exit() {
-            // 应用退出曾等待配置保存；完成后重新进入退出确认，不在保存栈里销毁窗口。
+            // Application exit was waiting for settings save; reenter exit confirmation after completion instead of destroying windows on the save stack.
             PostMessageW(None, WM_NULL, WPARAM(0), LPARAM(0))?;
         }
         result.map_err(|error| {
@@ -39,7 +39,7 @@ impl Application {
         {
             return Ok(());
         }
-        // 用户的显式另存为/保存优先，不能把它们改标为自动任务。
+        // Explicit user save-as/save takes priority and must not be relabeled as automatic work.
         if self.documents.iter().any(|doc| {
             doc.state.naming_save_requested.get() || doc.state.naming_update_requested.get()
         }) {

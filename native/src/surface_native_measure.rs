@@ -1,4 +1,4 @@
-//! 原生场景测量 owner：样式、DirectWrite 与容器固有尺寸同属一个场景生命周期。
+//! Native scene-measurement owner: styles, DirectWrite, and intrinsic container dimensions share one scene lifetime.
 use crate::{
     surface_layout_tree::{Intrinsic, Measure},
     surface_length::Context,
@@ -59,7 +59,7 @@ impl<'scene, 'font> NativeMeasure<'scene, 'font> {
     ) -> Result<Self> {
         Self::with_images(scene, base, context, available, BTreeMap::new())
     }
-    /// 自然尺寸来自已完成解码的当前场景资源；此入口不授予网络/资源读权。
+    /// Natural dimensions come from fully decoded current-scene resources; this entry grants no network/resource read permissions.
     pub fn with_images(
         scene: &'scene Scene,
         base: Style<'font>,
@@ -78,7 +78,7 @@ impl<'scene, 'font> NativeMeasure<'scene, 'font> {
                 .collect(),
         )
     }
-    /// 布局尺寸不是整数像素尺寸；只接受当前图片 owner 提供的有限正值。
+    /// Layout dimensions are not integer pixel dimensions; accept only finite positive values from the current image owner.
     pub(crate) fn with_image_sizes(
         scene: &'scene Scene,
         base: Style<'font>,
@@ -138,7 +138,7 @@ impl<'scene, 'font> NativeMeasure<'scene, 'font> {
                     },
             ),
         };
-        // 保留初始宽度基准，避免把每轮断行后的文字宽度当成新的 flex 基础尺寸。
+        // Retain the initial width baseline rather than treating each round's wrapped text width as a new flex base dimension.
         if let Some(final_text) = self.reflow.get(node.id()) {
             result.size[1] = final_text.size[1].max(crate::surface_button::minimum(
                 node,
@@ -244,7 +244,7 @@ impl<'scene, 'font> NativeMeasure<'scene, 'font> {
             if !node.children().is_empty() {
                 return Err(invalid());
             }
-            // Spacer 固有内容为零；Divider 使用固定 1px 线高，二者均不创建文字布局。
+            // Spacer has zero intrinsic content; Divider uses a fixed 1px line height, and neither creates text layouts.
             let value = Intrinsic {
                 size: if node.kind() == Kind::Switch {
                     crate::surface_switch::SIZE

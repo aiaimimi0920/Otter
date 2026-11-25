@@ -1,5 +1,5 @@
-//! 原样 GLSL ES3 离屏后端；只允许专属 worker 线程拥有，尚未接入应用能力声明。
-//! 编译/驱动调用不能可靠地在线程内中断；应用接线前必须由有期限的隔离 child 承载。
+//! Unmodified GLSL ES3 offscreen backend; dedicated worker-thread ownership only, not yet wired into application capability declarations.
+//! Compilation/driver calls cannot reliably be interrupted within a thread; a deadline-bounded isolated child is required before application integration.
 use crate::pixels::Pixels;
 use std::{
     cell::Cell,
@@ -52,7 +52,7 @@ pub struct Request<'a> {
     pub textures: &'a [Texture<'a>],
     pub uniforms: &'a [Uniform<'a>],
 }
-/// top-down 原始 RGBA，与 GL framebuffer 一致；不是可直接交给 D2D 的 PBGRA。
+/// Top-down raw RGBA matching the GL framebuffer, not PBGRA ready for direct D2D use.
 pub struct Frame {
     pub width: u32,
     pub height: u32,
@@ -80,7 +80,7 @@ pub struct Renderer {
     _thread: ContextLease,
 }
 static CONTEXT_OWNED: AtomicBool = AtomicBool::new(false);
-// 每个隔离进程只准一个 owner：同线程会替换 current，跨线程 eglTerminate 会影响共享 display。
+// Allow one owner per isolated process: same-thread use replaces current, while cross-thread eglTerminate affects the shared display.
 struct ContextLease(PhantomData<Rc<()>>);
 impl ContextLease {
     fn acquire() -> Result<Self> {
@@ -110,8 +110,8 @@ pub(super) fn name(value: &str) -> Result<CString> {
     CString::new(format!("u_{value}")).map_err(|_| Error::Layout)
 }
 impl Renderer {
-    /// identity 必须是可信发行目录的固定指纹，不得采用远端参数或环境 PATH 推断。
-    /// EGL 上下文由专属线程独占；此函数不应在 UI 线程调用。
+    /// identity must be a fixed fingerprint from a trusted distribution directory, never inferred from remote parameters or environment PATH.
+    /// The dedicated thread exclusively owns the EGL context; do not call this function on the UI thread.
     pub fn new(
         directory: &Path,
         identity: Identity,
@@ -242,7 +242,7 @@ impl Renderer {
             return Err(Error::Poisoned);
         }
         let mut first = 0;
-        // 不把上一事务的 GL 错误留给下一请求；任何 API 错误都永久退休本 context。
+        // Do not leave one transaction's GL errors for the next request; any API error permanently retires this context.
         for _ in 0..16 {
             let code = unsafe { (self.gl.get_error)() };
             if code == 0 {

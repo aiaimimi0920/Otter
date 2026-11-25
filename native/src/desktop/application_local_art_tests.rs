@@ -1,4 +1,4 @@
-//! 真实隐藏 Application 消费 OpenArt 时复核宿主和设备授权，不发起旧远端 attach。
+//! Real hidden Application rechecks host and device authorization when consuming OpenArt, without initiating old remote attach.
 use super::*;
 use crate::{desktop::device_authorization_ui::Request, device_authorization_config::Config};
 const ORIGIN: &str = "https://loom.example";
@@ -93,7 +93,7 @@ fn authenticated_local_art_host_changes_reclaim_hidden_window() {
             assert!(!app.remote_sessions.attaching());
             assert!(!app.authorization.borrow().mount_busy);
             peer.finish();
-            // 回收走真实的「截图 → Art」依赖；其余变更直接作用于恢复的 Art 宿主。
+            // Recycling follows the real screenshot -> Art dependency; other changes directly affect the restored Art host.
             if change == 5 {
                 assert_eq!(app.documents.len(), 2);
                 assert_eq!(app.workspace.links().len(), 1);

@@ -1,4 +1,4 @@
-//! 原生工具属性入口。模态对话框期间不持有模型借用，返回后重新检查 HWND。
+//! Native tool-property entry. Hold no model borrows during modal dialogs, and recheck HWND afterward.
 use super::context_menu as menu;
 use super::State;
 use windows::Win32::{
@@ -7,7 +7,7 @@ use windows::Win32::{
     UI::{Input::KeyboardAndMouse::*, WindowsAndMessaging::*},
 };
 
-/// 样式命令集中到属性 owner；未识别命令无副作用，菜单的统一收尾仍由调用方执行。
+/// Centralize style commands in the property owner; unrecognized commands have no side effects, and callers still perform unified menu cleanup.
 pub(super) unsafe fn execute(
     hwnd: HWND,
     state: &State,

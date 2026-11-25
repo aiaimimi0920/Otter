@@ -1,4 +1,4 @@
-//! 宿主的单次输入发布；所有跨进程字段为标量，COMMIT 最后写入，撤销不等待源返回。
+//! Single-input publication by the host; all cross-process fields are scalar, COMMIT is written last, and revocation does not wait for the source.
 use super::*;
 use crate::live_hover_owner::{Control, Identity};
 use otter_live_hover_hook::native_protocol as protocol;
@@ -92,7 +92,7 @@ impl Drop for Publication {
             && protocol::value(self.owner.window(), protocol::COMMIT) == self.nonce
         {
             unsafe {
-                // 先撤销提交标志；迟到源回调不能给新事务写完成或重新建立租约。
+                // Revoke the commit flag first; late source callbacks must not write completion for a new transaction or reestablish a lease.
                 for key in protocol::REQUEST_KEYS
                     .into_iter()
                     .chain(self.popup_scope.keys())

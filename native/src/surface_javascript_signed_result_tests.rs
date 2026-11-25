@@ -1,4 +1,4 @@
-//! 签名许可的显式结果权限与真实 child 像素交付；不代替 UI/Save 集成门。
+//! Explicit-result permissions under signed permits and real-child pixel delivery; not a replacement for UI/Save integration gates.
 use super::{
     tests::{grant, lease, mount},
     *,

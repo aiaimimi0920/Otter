@@ -1,4 +1,4 @@
-//! 真实TLS Source协商/严格策略/降级；固定wire独立oracle，不接实际设备。
+//! Real TLS Source negotiation/strict policy/fallback; independent fixed-wire oracle, without actual devices.
 use super::*;
 #[test]
 #[allow(clippy::result_large_err)]

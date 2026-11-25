@@ -1,4 +1,4 @@
-//! 内联图片只绑定原始场景，不授予 URL、文件或独立远端资源访问权限。
+//! Inline images bind only to their original scene and grant no URL, file, or independent remote-resource access.
 use super::{Key, ResourceError};
 use crate::{
     live_relay_http::MountedSurface,
@@ -16,7 +16,7 @@ pub struct Inline {
     mime: String,
     snapshot_digest: [u8; 32],
 }
-/// 与旧 imageSource 一致：非空 resourceId 优先，失败也不能退回 src。
+/// Matches the old imageSource: nonempty resourceId takes precedence, and failure must not fall back to src.
 pub(crate) fn key(node: &Node) -> Option<Key> {
     if node.kind() != Kind::Image {
         return None;
@@ -115,7 +115,7 @@ impl Inline {
         &self.source
     }
 }
-/// 原始快照不可变身份；同 revision 偷换来源、可见性或节点也会失效。
+/// Immutable original-snapshot identity; replacing sources, visibility, or nodes at the same revision also invalidates it.
 pub(crate) fn digest(current: &MountedSurface) -> [u8; 32] {
     Sha256::digest(current.snapshot.get().as_bytes()).into()
 }

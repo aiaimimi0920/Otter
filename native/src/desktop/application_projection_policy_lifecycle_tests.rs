@@ -1,4 +1,4 @@
-//! 真实 TLS/Ready/Preparing 的迟到围栏；复用原 cleanup，不触碰已接受的保存/恢复状态。
+//! Late-result fences for real TLS/Ready/Preparing; reuse original cleanup without touching accepted save/restore state.
 use super::*;
 use crate::projection_receive_policy::Policy;
 fn policy(app: &mut Application, value: Policy) {
@@ -111,7 +111,7 @@ fn receive_and_auto_policies_run_original_tls_accept_once_without_manual_accept_
                     crate::projection_delivery::accept::tests::invitation(&fixture.origin),
                 ));
             fixture.app.resume_projection_poll_for_test();
-            // 后台账号核对占用接收状态时，不报失败，也不消费邀请的自动尝试。
+            // When background account reconciliation occupies receiver state, neither report failure nor consume the invitation's automatic attempt.
             fixture.app.authorization.borrow_mut().account.busy = true;
             fixture.app.process_projection_automatic(
                 &mut |_| panic!("account recovery must finish before inbox work"),

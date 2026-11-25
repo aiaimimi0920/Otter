@@ -1,4 +1,4 @@
-//! 当前采集底图刷新不能丢掉已有标注、镜像及模糊，也不能按字节数误认尺寸。
+//! Refreshing current capture bases must preserve annotations, mirrors, and blur, and must not infer dimensions from byte count.
 use super::*;
 use crate::{editor::Tool, viewport::Point};
 

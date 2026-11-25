@@ -1,4 +1,4 @@
-//! 独立域、精确稳定身份、新宿主绑定、原期限和不可逆停止，沿既有固定签名fixture。
+//! Independent domains, exact stable identity, new host binding, original deadline, and irreversible stop using the existing fixed signed fixture.
 use super::*;
 use crate::art_execution_grant::{
     package::visibility::{DOMAIN, PROTOCOL},
@@ -204,7 +204,7 @@ fn local_lease_requires_admission_has_no_network_credential_and_stops_irreversib
     let value = ticket();
     let lease =
         crate::device_authorization_lease::Lease::pending_local(&value.grant.binding.origin);
-    // 不在待验证租约上调用validate试探：失败会不可逆撤销，后台只能一次显式激活。
+    // Do not probe the lease with validate: failure irreversibly revokes it, and background activation must be explicit and one-time.
     assert_eq!(lease.expires_at_ms(), 0);
     assert_eq!(lease.device_id(), "");
     lease.accept_local(&value, 1001).unwrap();

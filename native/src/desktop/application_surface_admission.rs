@@ -1,4 +1,4 @@
-//! 应用结算点接纳已认证挂载结果；失败保留证据，窗口保持隐藏等待生命周期激活。
+//! Admit authenticated mount results at application settlement points; retain evidence on failure and keep windows hidden until lifecycle activation.
 use super::*;
 #[path = "application_surface_input.rs"]
 mod input;
@@ -24,7 +24,7 @@ impl Application {
     ) -> Result<bool> {
         use crate::surface_live_binding::Lifecycle;
         let now = crate::desktop::surface_windows::now_ms()?;
-        // 普通结算和退出泵共用此入口；关闭窗口仍须返还 owner 并保存动作证据。
+        // Ordinary settlement and exit pumps share this entry point; closed windows still return owners and preserve action evidence.
         self.remote_sessions
             .settle_surface_events(|outcome| self.surface_windows.accept_event(outcome, now))
             .map_err(|error| Error::new(E_FAIL, error.to_string()))?;
@@ -43,7 +43,7 @@ impl Application {
             self.apply_surface_outputs(now);
         }
         {
-            // refresh 可能关闭 HWND 并同步重入，不能跨窗口调用持有 View 借用。
+            // refresh may close HWNDs and synchronously reenter; do not hold View borrows across window calls.
             let origin = self.authorization.borrow().origin.clone();
             let selected = origin
                 .as_deref()
@@ -106,7 +106,7 @@ impl Application {
         let retirement_blocked = self.surface_windows.retire_confirmed();
         self.admit_surface_results()?;
         for window in self.surface_windows.iter_mut() {
-            // refresh 可因 JS 终态关闭 HWND；必须先结算再选择 active/inactive，避免丢失最后唤醒。
+            // refresh may close HWNDs on JS terminal state; settle before choosing active/inactive to avoid losing the last wakeup.
             window.refresh(now)?;
             if visible
                 && window.is_alive()
@@ -145,7 +145,7 @@ impl Application {
             }
         }
         self.dispatch_surface_clicks_with(visible, config);
-        // 容量满不领取一次性 owner；已在途的任务结算后再尝试，退出也走同一入口。
+        // Do not collect one-shot owners at capacity; retry after in-flight tasks settle, using the same entry point on exit.
         for failure in self.surface_windows.failures_mut() {
             if !self.remote_sessions.has_surface_worker_slot() {
                 break;
@@ -178,7 +178,7 @@ impl Application {
                 self.surface_windows.admit(
                     outcome,
                     |outcome| {
-                        // JS 除窗口撤权外还有回复与线程终态；关闭后两者仍须保留收割。
+                        // Besides window revocation, JS has replies and thread terminal state; retain both for collection after closure.
                         let extra = if outcome
                             .request
                             .supports(crate::surface_host_capabilities::Runtime::Javascript)
@@ -209,7 +209,7 @@ impl Application {
     }
 }
 
-/// 显示窗口与未建窗附件共用请求边界；新租约必须属于原附件设备。
+/// Visible windows and attachments without windows share request boundaries; new leases must belong to the original attachment's device.
 fn start_transition_with(
     authorization: &mut crate::device_authorization_owner::Owner,
     remote: &mut crate::desktop::composition::relay::sessions::Sessions,

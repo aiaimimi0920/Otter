@@ -1,4 +1,4 @@
-//! 原Source线程内有限恢复；服务认证的实际帧水位才重置次数，不以握手/本地send自证接收。
+//! Bounded recovery in the original Source thread; reset counts only for service-authenticated actual frame watermarks, not handshake/local-send claims of receipt.
 use super::*;
 use crate::live_relay_media_transport::Connection;
 use std::time::{Duration, Instant};
@@ -57,7 +57,7 @@ impl Recovery {
                 .execution_control(client)
                 .map_err(|_| Exit::Lease)?
                 .source_progress(publication, sent, deadline);
-            // 不使用停止后的水位，但不能丢掉已收到的授权终态。
+            // Do not use post-stop watermarks, but preserve received terminal authorization state.
             let progress = progress_after_check(progress, || {
                 check(client, lease, signal)?;
                 if signal.restart_media.load(Ordering::Acquire) {
@@ -77,7 +77,7 @@ impl Recovery {
                 self.active = false;
                 return Ok(());
             }
-            // 等待与 HTTP 消耗同一轮额度，不为慢响应重新开始计时。
+            // Waiting and HTTP consume the same attempt budget; slow responses do not restart its clock.
             wait_until(
                 client,
                 lease,

@@ -1,8 +1,8 @@
-//! 同 revision 的本地呈现更新：只交付 viewId，不替换权威场景、资源或 child。
+//! Same-revision local presentation updates deliver only viewId without replacing authoritative scenes, resources, or children.
 use super::*;
 
 impl Session {
-    /// 上层先复核本次目录/宿主声明；此接缝不赋予 Art 执行或远端更新权限。
+    /// Upper layers first recheck current catalog/host declarations; this seam grants no Art execution or remote-update permissions.
     pub fn select_view(&mut self, view_id: &str, stopped: &impl Fn() -> bool) -> io::Result<Frame> {
         let view_id = crate::art_surface_views::Id::parse(view_id).ok_or_else(wire::invalid)?;
         self.exchange(

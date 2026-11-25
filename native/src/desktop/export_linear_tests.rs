@@ -1,4 +1,4 @@
-//! D2D/WIC实际PNG与命中共同核固定L形oracle；不从新几何生成预期像素。
+//! Real D2D/WIC PNGs and hit tests share a fixed L-shaped oracle; expected pixels do not come from new geometry.
 use super::*;
 use crate::{
     editor::Tool,

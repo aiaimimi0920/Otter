@@ -1,4 +1,4 @@
-//! 显式隔离真实 daemon 门：真实配对/设备会话/attach/ACK，不注入 Outcome 或凭据。
+//! Explicit isolated real-daemon gate: real pairing/device sessions/attach/ACK, without injecting Outcome or credentials.
 use super::*;
 use crate::device_authorization_config::Action;
 use crate::device_authorization_owner::Event;
@@ -99,7 +99,7 @@ fn wait_remote(app: &Application, phase: &str) {
     assert!(!handles.is_empty(), "{phase}: no pending task");
     let started = std::time::Instant::now();
     for handle in handles {
-        // 真实配置包含 DNS/多地址回退及十秒 HTTP 预算；不复用单地址合成 peer 的五秒等待。
+        // Real configuration includes DNS/multi-address fallback and a ten-second HTTP budget; do not reuse the synthetic single-address peer's five-second wait.
         assert_eq!(
             unsafe { WaitForSingleObject(HANDLE(handle.as_raw_handle()), 30000) },
             WAIT_OBJECT_0,
@@ -163,7 +163,7 @@ fn isolated_real_loom_pairs_mounts_activates_and_closes() {
             _ => panic!("pairing did not return a pairing event"),
         };
         assert_ne!(device, "device-000-local");
-        // 外部 fixture 只批准本次新 ID；token 始终由生产签名/会话路径取得，不写回执。
+        // The external fixture approves only this run's new ID; tokens always come from production signing/session paths and are never written to receipts.
         record(
             &root,
             "pairing-ready.json",

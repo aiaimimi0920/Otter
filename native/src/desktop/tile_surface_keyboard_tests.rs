@@ -1,4 +1,4 @@
-//! 自有离屏HWND的真实键盘/原生子控件通知；不SendInput、不改用户焦点或真实profile。
+//! Actual keyboard/native-child notifications on owned offscreen HWNDs; no SendInput, user-focus changes, or actual profiles.
 use super::*;
 use crate::tile_surface_actions::{tests::Fixture, Kind as Action};
 use serde_json::{json, Value};

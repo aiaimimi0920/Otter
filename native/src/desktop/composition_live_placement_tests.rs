@@ -1,4 +1,4 @@
-//! 真实隐藏 HWND 的物理客户区和首帧定位；不捕获桌面，不冒充跨显示器人工验收。
+//! Physical client bounds and first-frame positioning with real hidden HWNDs; no desktop capture or claims of manual cross-monitor acceptance.
 use super::*;
 use crate::{desktop::Apartment, live_frames::Source, pin_geometry::PinRect};
 use windows::Win32::UI::HiDpi::{

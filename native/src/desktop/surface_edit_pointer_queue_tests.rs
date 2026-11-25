@@ -1,4 +1,4 @@
-//! Pointer 共享 FIFO 的终止容量、序号、合并和取消/fence 合同。
+//! Terminal capacity, sequence, coalescing, and cancellation/fence contracts for Pointer's shared FIFO.
 use super::*;
 #[test]
 fn javascript_pointer_queue_cancel_reuses_terminal_sequence_at_max() {

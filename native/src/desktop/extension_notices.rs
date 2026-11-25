@@ -1,4 +1,4 @@
-//! 文档拥有的短暂扩展通知栈；主题只拥有表现/五秒回收，scope 撤权与队列预算留在 Otter。
+//! Document-owned transient extension-notice stacks; themes own appearance/five-second reclamation only, while scope revocation/queue budgets stay in Otter.
 use super::State;
 use windows::{core::Result, Win32::Foundation::HWND};
 struct Entry {

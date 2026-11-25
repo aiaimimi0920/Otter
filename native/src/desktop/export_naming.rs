@@ -1,4 +1,4 @@
-//! 主干默认 PNG 名称：本地日期/百分之一秒/实际导出尺寸；仅在显式导出时取时钟。
+//! Baseline default PNG names: local date, hundredths of a second, and actual export dimensions; read the clock only on explicit export.
 use super::{display_snapshot, State};
 use windows::Win32::{Foundation::SYSTEMTIME, System::SystemInformation::GetLocalTime};
 

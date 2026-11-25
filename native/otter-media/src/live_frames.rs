@@ -1,4 +1,4 @@
-//! Live 最新帧交付；单生产者、有界消费者、共享资源而非每消费者复制/排队。
+//! Latest-frame Live delivery; single producer, bounded consumers, shared resources instead of per-consumer copies/queues.
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, Weak};
 #[path = "live_frame_wake.rs"]
 pub mod wake;
@@ -33,11 +33,11 @@ struct Shared<T> {
 }
 impl<T> Shared<T> {
     fn lock(&self) -> MutexGuard<'_, State<T>> {
-        // 锁内只有内部元数据操作，不调用外部代码；析构资源必须移到锁外。
+        // Locks cover only internal metadata, never external calls; move resource destruction outside locks.
         self.state.lock().unwrap_or_else(|error| error.into_inner())
     }
 }
-/// 不可克隆的源 owner；析构关闭所有消费者，但不强制回收已借出的帧。
+/// Noncloneable source owner; destruction closes all consumers without forcibly reclaiming borrowed frames.
 pub struct Source<T> {
     shared: Arc<Shared<T>>,
 }
@@ -76,7 +76,7 @@ impl<T> Source<T> {
             return Err(Error::ConsumerLimit);
         }
         state.consumers += 1;
-        // 新消费者可立即取当前帧，但不将订阅前的帧记为自己丢帧。
+        // New consumers may immediately take current frames, without counting presubscription frames as their own drops.
         let cursor = if state.latest.is_some() {
             state.sequence - 1
         } else {
@@ -92,7 +92,7 @@ impl<T> Source<T> {
         let state = self.shared.lock();
         !state.closed && state.consumers != 0
     }
-    /// 捕获 owner 注册一次最后消费者退出通知；回调只负责唤醒，不在状态锁内执行。
+    /// Capture owners register one final-consumer-exit notice; callbacks only wake and never run under state locks.
     pub fn on_idle(&self, wake: Arc<dyn Fn() + Send + Sync>) -> Result<(), Error> {
         let mut state = self.shared.lock();
         if state.closed {
@@ -161,8 +161,8 @@ impl<T> Consumer<T> {
     pub fn notification_failures(&self) -> u64 {
         self.wake.as_ref().map_or(0, |wake| wake.failures())
     }
-    /// 非阻塞通知回调，返回是否成功投递；一次绑定，不在源锁内调用。不携带像素或指针。
-    /// UI 必须验证自身连接代次：取消不能撤销已经进入系统消息队列的通知。
+    /// Nonblocking notification callback returns delivery success; bind once, invoke outside source locks, with no pixels/pointers.
+    /// UI must validate its connection generation: cancellation cannot retract notices already queued by the system.
     pub fn set_waker(
         &mut self,
         post: impl Fn() -> bool + Send + Sync + 'static,
@@ -209,7 +209,7 @@ impl<T> Consumer<T> {
             skipped,
         }))
     }
-    /// UI 在现有事件通知后尝试读取；不启动任何轮询线程。
+    /// UI tries reads after existing event notices; no polling threads.
     pub fn try_next(&mut self) -> Result<Option<Delivery<T>>, Error> {
         let state = self.shared.lock();
         if let Some(wake) = &self.wake {
@@ -217,7 +217,7 @@ impl<T> Consumer<T> {
         }
         Self::take(&state, &mut self.cursor)
     }
-    /// 供后台消费者阻塞等待；关闭源会唤醒，不设置周期性超时。
+    /// Background consumers block here; source close wakes them without periodic timeouts.
     pub fn wait_next(&mut self) -> Result<Delivery<T>, Error> {
         let mut state = self.shared.lock();
         loop {
@@ -262,7 +262,7 @@ impl<T> Drop for Consumer<T> {
     }
 }
 fn observers<T>(state: &State<T>) -> [Option<Arc<wake::Wake>>; MAX_CONSUMERS] {
-    // 固定栈数组，热路径不分配通知队列；弱引用不延长消费者生命周期。
+    // Fixed stack arrays avoid hot-path notification-queue allocation; weak references do not extend consumer lifetimes.
     std::array::from_fn(|index| state.wakes.get(index).and_then(Weak::upgrade))
 }
 #[cfg(test)]

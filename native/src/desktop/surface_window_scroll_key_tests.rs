@@ -1,4 +1,4 @@
-//! 真实 HWND 键盘滚动；父窗口门禁隔离系统 EDIT，滚动不复活旧动作。
+//! Actual HWND keyboard scrolling; parent admission isolates system EDIT, and scrolling never revives old actions.
 use super::*;
 use windows::Win32::UI::Controls::{EM_GETSEL, EM_SETSEL};
 use windows::Win32::UI::Input::KeyboardAndMouse::*;
@@ -120,7 +120,7 @@ fn surface_scroll_keyboard_hwnd_child_edit_retains_arrow_home_and_text() {
         SendMessageW(child, WM_KEYDOWN, Some(WPARAM(VK_HOME.0 as usize)), None);
         let selection = SendMessageW(child, EM_GETSEL, None, None);
         assert_eq!(selection.0, 0);
-        // 即便给父窗口投递滚动键，实际焦点不在父窗口也不允许滚动。
+        // Even scroll keys delivered to the parent cannot scroll if actual focus is elsewhere.
         key(&window, WM_KEYDOWN, VK_NEXT, false);
         assert_eq!(y(&window), 0.);
         assert_eq!(GetFocus(), child);

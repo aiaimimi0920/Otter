@@ -1,4 +1,4 @@
-//! 后台显示合成直接返回共享 PBGRA 像素；复用导出绘制，避免 PNG 编解码往返。
+//! Background display composition returns shared PBGRA pixels directly; reuse export drawing without PNG encode/decode round-trips.
 use super::{export, image::Image, Apartment};
 use crate::{editor::Editor, pixels::Pixels, viewport::checked_image_bytes};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -11,8 +11,8 @@ use windows::{
     },
 };
 
-/// 调用方持有不可变已提交快照，并在工作线程调用；COM 资源不跨线程返回。
-/// WIC/Direct2D 调用不可中断，取消在合成和读回边界检查，不交付部分像素。
+/// Callers retain immutable committed snapshots and invoke on workers; never return COM resources across threads.
+/// WIC/Direct2D calls cannot be interrupted; check cancellation at composition/readback boundaries and deliver no partial pixels.
 pub fn compose(image: &Image, editor: &Editor, cancel: &AtomicBool) -> Result<Image> {
     compose_reserved(image, editor, cancel, crate::pixels::reserve)
 }
@@ -42,7 +42,7 @@ fn compose_reserved(
             "Invalid display composition image",
         ));
     }
-    // 没有可见编辑时直接共享权威底图，即使历史中仍存在已撤销操作也不重渲染。
+    // Without visible edits, share the authoritative base image directly; do not rerender merely because undone operations remain in history.
     if editor.elements().is_empty()
         && editor.annotation_frame().is_none_or(|frame| {
             frame.x == 0.0
@@ -63,7 +63,7 @@ fn compose_reserved(
     let output = export::compose_with_budget(image, editor, &wic, &reserve)?;
     check_cancel(cancel)?;
     let (mut width, mut height) = (0, 0);
-    // 合成位图和输出缓冲均局部持有；读回结束后释放 COM 和 WIC 预算租约。
+    // Own composition bitmaps/output buffers locally; release COM and WIC budget leases after readback.
     unsafe {
         output.bitmap.GetSize(&mut width, &mut height)?;
     }

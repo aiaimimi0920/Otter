@@ -1,4 +1,4 @@
-//! 显示来源标注经窗口选择后缩放，结算保留选择并维持一步撤销。
+//! Resize display-source annotations after window selection; settlement preserves selection and single-step undo.
 use super::Application;
 use crate::editor::Tool;
 use windows::Win32::{

@@ -1,4 +1,4 @@
-//! Hover 的后台/带键负向、真实隐藏和 Host 借出时的离开归还接缝。
+//! Hover background/button-held negative cases, actual hiding, and leave-return seams while Host is borrowed out.
 use super::*;
 #[test]
 fn javascript_hover_real_hwnd_canvas_up_outside_finishes_existing_hover_after_capture_leave() {
@@ -26,7 +26,7 @@ fn javascript_hover_real_hwnd_canvas_up_outside_finishes_existing_hover_after_ca
         window.set_submission_enabled(true).unwrap();
         if message == WM_LBUTTONDOWN {
             assert_eq!(unsafe { GetCapture() }, window.hwnd);
-            send(&window, WM_MOUSELEAVE, p); // capture 中实际跟踪已结束，up 不能依赖 tracking bool。
+            send(&window, WM_MOUSELEAVE, p); // Actual tracking ended during capture; up cannot rely on the tracking bool.
         }
     }
     assert_eq!(unsafe { GetCapture() }, HWND::default());

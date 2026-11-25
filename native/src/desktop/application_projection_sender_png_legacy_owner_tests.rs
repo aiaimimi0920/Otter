@@ -1,4 +1,4 @@
-//! 真恢复后的nested/flip及retained失效换基准，仍经菜单/原Job/隔离TLS。
+//! nested/flip after real restoration and rebasing after retained invalidation, still through menu/original Job/isolated TLS.
 use super::*;
 use crate::crop_geometry::Rect;
 use serde_json::json;
@@ -70,7 +70,7 @@ pub(super) unsafe fn install(app: &mut Application, case: Case) -> Image {
         let before = canvas.editor.layers().unwrap().clone();
         assert_eq!(before.size, (8, 8));
         let mut pixels = before.base.to_vec();
-        // 工作纹理已contain自然8×4于逻辑8×8：自然首行位于工作y=2，而不是y=0。
+        // The working texture already contains natural 8x4 within logical 8x8: the first natural row is at working y=2, not y=0.
         for y in 2..6 {
             pixels[(y * 8 + 2) * 4..(y * 8 + 2) * 4 + 4].copy_from_slice(&[7, 11, 13, 255]);
         }

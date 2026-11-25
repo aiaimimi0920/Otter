@@ -11,7 +11,7 @@ members = ["hover-hook", "otter-core", "otter-media", "otter-runtime"]
 resolver = "2"
 
 [features]
-# 默认关闭 scoped-tests，确保常规/CI 构建运行 100% 全部单测；定向迭代可开启子域 feature 仅编译相关单测。
+# Keep scoped-tests disabled by default so normal/CI builds run all unit tests; targeted iteration can enable a domain feature to compile only its tests.
 scoped-tests = []
 test-live = ["scoped-tests"]
 test-surface = ["scoped-tests"]
@@ -19,7 +19,7 @@ test-save = ["scoped-tests"]
 test-capture = ["scoped-tests"]
 test-loom = ["scoped-tests"]
 test-canvas = ["scoped-tests"]
-# 自检子系统：Debug 和单测保留；正式 Release 默认剥离，集成 smoke 需显式启用。
+# Self-check subsystem: retained in Debug and unit tests; excluded from normal Release builds unless integration smoke tests are explicitly enabled.
 smoke-test = []
 
 [dependencies]
@@ -129,7 +129,7 @@ codegen-units = 1
 opt-level = "s"
 strip = true
 
-# 冷热分包策略：宿主 UI/控制流保持体积优先，像素算子与图像编解码包开启最高矢量化与展开优化。
+# Per-package optimization: prioritize host UI/control-flow size; maximize vectorization and unrolling for pixel operations and image codecs.
 [profile.release.package.otter-core]
 opt-level = 3
 [profile.release.package.otter-media]
@@ -147,7 +147,7 @@ opt-level = 3
 [profile.release.package.moxcms]
 opt-level = 3
 
-# 可追溯补丁及完整性门见 third_party/README.md。
+# See third_party/README.md for traceable patches and integrity gates.
 [patch.crates-io]
 resvg = { path = "../third_party/resvg-0.48.1" }
 usvg = { path = "../third_party/usvg-0.48.1" }

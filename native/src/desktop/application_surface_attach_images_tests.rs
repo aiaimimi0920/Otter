@@ -128,7 +128,7 @@ fn run(revoke_ready: bool, reject_window: bool) {
                 Some([2., 1.])
             );
             assert_eq!(window.image_placeholder_for_test("inline"), Some(false));
-            // 非空 resourceId 优先且不回退 src；缺少租约的节点不进入可见投影。
+            // Nonempty resourceId takes priority without src fallback; nodes lacking leases never enter the visible projection.
             assert_eq!(window.image_placeholder_for_test("missing"), None);
             SendMessageW(parent, WM_PAINT, None, None);
             assert!(window.take_error().is_none());

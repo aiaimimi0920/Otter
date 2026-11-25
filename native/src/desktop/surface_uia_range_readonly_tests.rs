@@ -1,4 +1,4 @@
-//! MTA 订阅只读属性；编辑策略由 UI owner 修改，不从客户线程借用窗口状态。
+//! MTA subscriptions to read-only properties; UI owners modify edit policy without clients borrowing window state.
 use super::*;
 use std::sync::{
     atomic::{AtomicBool, Ordering},

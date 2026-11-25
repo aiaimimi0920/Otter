@@ -1,4 +1,4 @@
-//! UI 排队与应用结算之间的状态变化；失效选择/模态/退出/恢复绝不读取配置或启动 HTTP。
+//! State changes between UI enqueue and application settlement; invalid choices/modal/exit/restore states never read configuration or start HTTP.
 use super::*;
 use crate::projection_delivery::Inbox;
 const ORIGIN: &str = "https://loom.example";

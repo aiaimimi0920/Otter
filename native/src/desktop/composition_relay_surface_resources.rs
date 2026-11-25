@@ -1,4 +1,4 @@
-//! 图片 GET 与现有应用远程任务共用容量和等待；不是附件事务，不创建恢复证据。
+//! Image GET shares capacity/waits with existing application remote tasks; it is not an attachment transaction and creates no recovery evidence.
 use super::*;
 use crate::surface_resource_runtime::request::{inline::Inline, Request};
 use crate::{
@@ -8,7 +8,7 @@ use crate::{
 };
 
 impl Sessions {
-    /// 截止到期主动释放 Ready；已取消但未回收的线程不再贡献过去的 deadline，避免忙循环。
+    /// Release Ready proactively at expiry; cancelled but unreclaimed threads no longer contribute past deadlines that would cause busy loops.
     pub fn expire_surface_resources(&mut self, now: u64) {
         for job in &self.resource_jobs {
             if job.deadline_ms().is_some_and(|expiry| expiry <= now) {
@@ -81,7 +81,7 @@ impl Sessions {
         if self.occupied() >= MAX_SESSIONS {
             return Err(io::ErrorKind::WouldBlock.into());
         }
-        // 同一绑定/场景/资源不并发下载；不同资源也受共享四槽和会话容量限制。
+        // Do not download the same binding/scene/resource concurrently; distinct resources still share four-slot and session capacity limits.
         let duplicate = self.resource_jobs.iter().any(|job| {
             let target = job.target();
             &target.binding == request.binding()
@@ -104,7 +104,7 @@ impl Sessions {
         self.resource_jobs.push(spawn(request)?);
         Ok(())
     }
-    /// 场景替换/窗口关闭用绑定和场景版本取消；线程结束前仍留在集合等待回收。
+    /// Cancel by binding/scene revision on scene replacement/window closure; retain threads in the collection for reclamation until exit.
     pub fn cancel_surface_resources(&mut self, mut matches: impl FnMut(&Binding, u64) -> bool) {
         for job in &self.resource_jobs {
             if matches(&job.target().binding, job.target().revision) {
@@ -141,7 +141,7 @@ impl Sessions {
         }
         errors
     }
-    /// 接纳方必须用 Ready::image 与当前 mount 复核。暂时无法接纳时返回完整 owner。
+    /// Receivers must revalidate Ready::image against the current mount. Return the complete owner when temporarily unable to admit.
     pub fn deliver_surface_resource(
         &mut self,
         mut deliver: impl FnMut(Ready) -> Result<(), Box<Ready>>,

@@ -1,4 +1,4 @@
-//! 实际受限 peer 注入 SVG v2 尺寸故障，复用生产接收门并验证进程回收。
+//! Actual restricted peers inject SVG v2 dimension faults, reuse production receive gates, and verify process cleanup.
 use super::*;
 use std::os::windows::io::{AsHandle, AsRawHandle};
 use windows::Win32::{Foundation::*, System::Threading::WaitForSingleObject};

@@ -1,4 +1,4 @@
-//! 同一文档响应与本地视图的纯合并；不写盘/发网/确认checkpoint，不静默重基同对象冲突。
+//! Pure merging of same-document responses/local views; no disk/network/checkpoint acknowledgement or silent same-object conflict rebase.
 use super::*;
 use crate::projection_edit::Code;
 
@@ -23,7 +23,7 @@ pub struct Reconciliation {
     conflict: Option<Conflict>,
 }
 impl Reconciliation {
-    /// 上层必须持久化这一权威基线，再在应用前重新观察本地view；本结果不签发落盘回执。
+    /// Upper layers must persist this authoritative baseline, then reobserve local view before applying; this result issues no disk receipt.
     pub fn authoritative(&self) -> &View {
         &self.authoritative
     }
@@ -38,8 +38,8 @@ impl Reconciliation {
     }
 }
 
-/// observed是已确认基线（apply响应对应其原pending view）；current须在每次异步保存后重读。
-/// 重调此纯函数会包含期间的新编辑；取消/宿主身份和真正checkpoint仍由Application拥有。
+/// observed is the acknowledged baseline, with apply responses tied to original pending views; reread current after every asynchronous save.
+/// Calling this pure function again includes intervening edits; Application still owns cancellation/host identity/actual checkpoint.
 pub fn reconcile(
     previous: &Document,
     observed: &View,
@@ -61,7 +61,7 @@ pub fn reconcile(
             remote.basis_objects().get(&change.object_id),
         )
     });
-    // current是唯一完整本地真值；不把旧conflict payload重新叠回，否则undo会复活旧编辑。
+    // current is the sole complete local truth; do not overlay old conflict payloads again or undo will revive old edits.
     let visible = remote.overlay(&changes)?;
     let code = sticky.or(race.then_some(Code::ObjectConflict));
     let conflict = code.map(|code| Conflict {

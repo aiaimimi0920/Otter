@@ -1,4 +1,4 @@
-//! 未改变的消息轮次只比较版本与共享像素身份，不重复构建显示图或克隆编辑快照。
+//! Unchanged message turns compare only versions and shared pixel identity, without rebuilding display graphs or cloning edit snapshots.
 use crate::desktop::{
     configuration_stamp::Stamp, document_window::DocumentWindow, image::Image,
     loom_result_state::OutputStamp,

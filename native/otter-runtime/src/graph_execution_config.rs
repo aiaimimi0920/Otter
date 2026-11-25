@@ -1,4 +1,4 @@
-//! 执行配置与正式请求准入；不把本地 shader/surface 预览混入后端执行。
+//! Execution configuration and formal-request admission; do not mix local shader/surface previews into backend execution.
 use crate::graph_image::Output;
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Config {
@@ -39,7 +39,7 @@ fn boolean(value: Option<Output<'_>>, fallback: bool) -> bool {
     }
 }
 impl Config {
-    /// 保持主干区分：显式空 triggerMode/propagation 对象也算配置，字符串 true 不算布尔。
+    /// Preserve the baseline distinction: explicitly empty triggerMode/propagation objects still count as configuration, and string true is not a boolean.
     pub fn derive(explicit: Option<Output<'_>>, execution_type: &str, tool_name: &str) -> Self {
         let trigger = field(explicit, "triggerMode");
         let propagation = field(explicit, "propagation");
@@ -71,7 +71,7 @@ impl Config {
     pub fn accepts_upstream_notification(&self) -> bool {
         self.listen_upstream && self.upstream_driven
     }
-    /// 上游 listen/来源 notify 在传播入口检查；此处对应 handleParamChange 的正式执行门槛。
+    /// Upstream listen/source notify are checked at the propagation entry point; this corresponds to handleParamChange's formal-execution gate.
     pub fn gate(&self, trigger: Trigger, runtime: Runtime) -> Result<(), Skip> {
         if runtime.surface && !runtime.formal_after_preview {
             return Err(Skip::SurfaceOnly);

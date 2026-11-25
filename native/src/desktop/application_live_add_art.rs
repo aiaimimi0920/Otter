@@ -1,4 +1,4 @@
-//! Live 与普通文档共用目录窗和子 Art 提交；模态期不读回 GPU、不联网、不冻结源。
+//! Live and ordinary documents share catalog windows and child-Art commit; no GPU readback, networking, or source freezing during modal intervals.
 use super::*;
 use desktop::node_menu::art_picker::{dialog, model};
 use source::Source;
@@ -72,7 +72,7 @@ impl Application {
                 if !visible {
                     return Err(error);
                 }
-                // 只在原 Live 仍存在时提示；失败保源，不弹无 owner 的阻塞窗口。
+                // Notify only while the original Live still exists; preserve the source on failure without opening an ownerless blocking window.
                 if let Some(owner) = self.live_link_owner(&unit) {
                     MessageBoxW(
                         Some(owner),

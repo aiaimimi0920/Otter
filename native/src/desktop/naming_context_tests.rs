@@ -1,4 +1,4 @@
-//! 真实 State 与合成能力目录的命名上下文；不读取进程、窗口标题或执行能力。
+//! Naming contexts from real State/synthetic capability catalogs; no process/title reads or capability execution.
 use super::*;
 use std::rc::Rc;
 fn image_state() -> State {

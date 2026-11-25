@@ -1,4 +1,4 @@
-//! 真实 HWND 当前资源快照：合成协议，不访问网络；显示场景与资源版本同一提交。
+//! Current resource snapshots on real HWNDs: synthetic protocol without networking, committing displayed scene and resource revision together.
 use super::*;
 #[path = "surface_window_image_request_tests.rs"]
 mod requests;

@@ -1,4 +1,4 @@
-//! UI 登记协调：最多 16 源、单请求在途；退休回调只设置意图，不在 UI 等待 ACK。
+//! UI registration coordination: at most 16 sources and one request in flight; retirement callbacks only set intent, without UI ACK waits.
 use super::{
     asynchronous::{Owner, Reply},
     Operation, Status,
@@ -15,7 +15,7 @@ use windows::{
     Win32::{Foundation::*, System::Threading::WaitForSingleObject},
 };
 
-// E_PENDING；不为单个 HRESULT 引入无关的 Urlmon API feature。
+// E_PENDING; do not add an unrelated Urlmon API feature for a single HRESULT.
 const RETIREMENT_PENDING: HRESULT = HRESULT(0x8000000A_u32 as i32);
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -43,7 +43,7 @@ impl Ticket {
     pub fn retired(&self) -> bool {
         matches!(self.0.state.get(), State::Retired | State::Rejected)
     }
-    /// 一旦请求退休，仍在途的登记也不再接受新 lease。
+    /// Once retirement is requested, even in-flight registration stops accepting new leases.
     pub fn accepting_leases(&self) -> bool {
         self.available() && !self.0.retire.get() && !self.retired()
     }
@@ -53,11 +53,11 @@ impl Ticket {
     pub fn rejected(&self) -> bool {
         self.0.state.get() == State::Rejected
     }
-    /// 层级请求可能已被源领取；最后 owner 丢失不证明已恢复，必须显式结算再退休。
+    /// Layering requests may already be claimed by the source; losing the last owner does not prove restoration, so settle explicitly before retirement.
     pub fn require_restore(&self) {
         self.0.restore_required.set(true);
     }
-    /// 可直接供 Lease::arm 的退休回调使用；未收到 ACK 时保留本地恢复快照。
+    /// Can directly serve as Lease::arm's retirement callback; retain the local recovery snapshot until ACK arrives.
     pub fn retire(&self) -> WinResult<()> {
         self.0.retire.set(true);
         if matches!(self.0.state.get(), State::Retired | State::Rejected) {
@@ -72,7 +72,7 @@ impl Ticket {
 }
 impl Drop for Ticket {
     fn drop(&mut self) {
-        // Journal 持一份引用；普通未借用票据自动退休，未知源请求必须保留恢复责任。
+        // Journal holds one reference; ordinary unborrowed tickets retire automatically, while unknown source requests must retain recovery responsibility.
         if Rc::strong_count(&self.0) == 2 && !self.0.restore_required.get() {
             self.0.retire.set(true);
         }
@@ -173,7 +173,7 @@ impl Journal {
     pub fn finished(&self) -> bool {
         self.finished
     }
-    /// 不隐式退休仍在保护的源；调用者先恢复各源并请求退休，再等待此关闭完成。
+    /// Do not implicitly retire still-protected sources; callers first restore each source and request retirement, then wait for shutdown completion.
     pub fn close(&mut self) {
         self.closing = true;
         self.alive.set(false);
@@ -202,14 +202,14 @@ impl Journal {
         }
         if self.owner.child_handle().is_some_and(|handle| unsafe { WaitForSingleObject(HANDLE(handle.as_raw_handle()), 0) } == WAIT_OBJECT_0) {
             if !self.shutdown { self.fail("Recovery process exited".into()); }
-            // 已确认恢复进程不存在，不再可能重放旧快照；本地窗口仍由 lease 负责恢复。
+            // The recovery process is confirmed absent and cannot replay old snapshots; local windows remain the lease's restoration responsibility.
             for entry in &self.entries { entry.shared.state.set(State::Retired); }
             self.finished = true;
             return;
         }
         if self.fault.is_some() {
-            // 已发送记录只有显式退休意图才证明调用方已恢复/取消；绝不因通道坏而
-            // 直接杀掉仍在保护隐藏窗口的恢复进程。确认退出前仍保留本地快照。
+            // For sent records, only explicit retirement intent proves the caller restored/canceled; a broken channel must never
+            // directly kill a recovery process still protecting hidden windows. Retain local snapshots until exit is confirmed.
             let restored = self.entries.iter().all(|entry| {
                 entry.shared.retire.get()
                     || matches!(
@@ -227,8 +227,8 @@ impl Journal {
             }
             if self.owner.child_handle().is_none() {
                 for entry in &self.entries {
-                    // 仅从未发送的请求可直接取消。worker panic 可能丢失 Client，
-                    // 句柄缺失不代表恢复子进程已退出，Unknown 责任不能据此退休。
+                    // Only never-sent requests may be canceled directly. A worker panic may lose Client,
+                    // but a missing handle does not mean the recovery child exited; Unknown responsibility cannot be retired on that basis.
                     if entry.shared.state.get() == State::Requested {
                         entry.shared.state.set(State::Retired);
                     }
@@ -350,7 +350,7 @@ impl Journal {
 
 impl Drop for Journal {
     fn drop(&mut self) {
-        // 即使外部 Ticket 仍存活，失去协调 owner 后也不能继续授权隐藏。
+        // Even if an external Ticket remains alive, losing the coordination owner prevents further authorization to hide.
         self.alive.set(false);
     }
 }

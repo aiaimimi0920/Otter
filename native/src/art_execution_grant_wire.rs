@@ -1,4 +1,4 @@
-//! loom.art.local.grant.v1 的客户端 wire DTO；协议归 Loom，不导入其私有实现。
+//! Client wire DTOs for loom.art.local.grant.v1; Loom owns the protocol, without importing its private implementation.
 use serde::{Deserialize, Serialize};
 pub const PROTOCOL: &str = "loom.art.local.grant.v1";
 pub const SDK: &str = "otter.art.v1";

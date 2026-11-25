@@ -1,4 +1,4 @@
-//! Surface 终态门禁：正常回收与退出检查共用同一判定，不重试、不冒充持久化。
+//! Surface terminal-state admission: normal reclamation/exit checks share one predicate, without retries or persistence claims.
 use super::*;
 use crate::{
     desktop::composition::relay::sessions::Sessions,
@@ -25,8 +25,8 @@ impl Windows {
         &self.retired
     }
 
-    /// 先有可落盘的提示，再释放 owner；超预算不淘汰既有证据，也不在消息泵写盘。
-    /// 返回 true 只报告首次阻止退休，避免每轮重复通知。
+    /// Create persistable prompts before releasing owners; over-budget results neither evict existing evidence nor write disks in the message pump.
+    /// Return true only for the first retirement block, avoiding repeated notifications each round.
     pub(crate) fn retire_confirmed(&mut self) -> bool {
         if self.retirement_blocked {
             return false;
@@ -102,7 +102,7 @@ impl Windows {
         }
         records
     }
-    /// 在后台回收之后调用；保留所有失败/未知记录，供上层报告或后续持久化。
+    /// Call after background reclamation; retain every failed/unknown record for upper-layer reporting or later persistence.
     pub fn settle_shutdown(&mut self, remote: &mut Sessions, now_ms: u64) -> Result<()> {
         let close_error = self.close_all().err();
         self.poll(now_ms)?;

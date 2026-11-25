@@ -1,4 +1,4 @@
-//! 呈现 owner 临时借出不等于画面失效；真实 resize/关闭仍撤销坐标。
+//! A presentation owner temporarily borrowed out does not mean invalid imagery; real resize/closure still revokes coordinates.
 use super::*;
 use crate::live_input::Event;
 

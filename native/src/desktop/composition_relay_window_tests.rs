@@ -1,4 +1,4 @@
-//! 隐藏窗口生命周期与消息合同，不显示 UI，不执行网络。
+//! Hidden-window lifecycle/message contracts, without visible UI or networking.
 use super::*;
 #[path = "composition_relay_session_end_tests.rs"]
 mod session_end;
@@ -83,7 +83,7 @@ fn close_message_destroys_display_without_joining_or_revoking_background_owner()
         SendMessageW(window.hwnd, WM_CLOSE, Some(WPARAM(0)), Some(LPARAM(0)));
     }
     assert!(!window.is_alive());
-    // 后台资源必须由上层 Session 在收到窗口终态后停止/回收，回调不 join。
+    // Upper Session owners must stop/reclaim background resources after window terminal state; callbacks never join.
     assert!(media.validate(&permit).is_ok());
     window.close().unwrap();
     window.refresh().unwrap();

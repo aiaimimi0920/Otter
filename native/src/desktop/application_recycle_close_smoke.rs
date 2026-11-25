@@ -1,4 +1,4 @@
-//! 生产菜单到真实关闭/最后空宿主/磁盘往返；失败场景不得发布或丢失 HWND。
+//! Production menu through real closure/final empty host/disk round trip; failures must neither publish nor lose HWNDs.
 use super::*;
 use crate::session_library::Kind;
 unsafe fn request(app: &mut Application) -> Result<()> {
@@ -124,7 +124,7 @@ pub(in crate::desktop::application) unsafe fn run(instance: HINSTANCE) -> Result
     {
         return Err(Error::new(E_FAIL, "Last recycle close lost empty host"));
     }
-    // 最后一张关闭后，空宿主仍可从同一回收站恢复；不能只证明进程未退出。
+    // After the final pin closes, the empty host must still restore from the same recycle bin; process liveness alone is insufficient.
     let source = record.original.clone();
     let id = crate::session_library::decode(&source, Kind::RecycleBin)
         .unwrap()
@@ -151,7 +151,7 @@ unsafe fn verify_last_failure(app: &mut Application) -> Result<()> {
     let source = app.restored_session.as_ref().unwrap().original.clone();
     let hwnd = app.documents[0].window.0;
     let preferred = app.hotkey_enabled.get();
-    // 不占用用户 Ctrl+1：在真实宿主准备/失败路径注入注册后端，核验实际转交顺序。
+    // Do not occupy the user's Ctrl+1; inject a registration backend into actual host preparation/failure paths and verify real transfer order.
     app.documents[0].state.global_capture.set(true);
     app.hotkey_enabled.set(true);
     let result = (|| -> Result<()> {

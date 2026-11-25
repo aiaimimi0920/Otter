@@ -1,4 +1,4 @@
-//! 视口变换使用逻辑像素；图像坐标不受窗口 DPI 或平移影响。
+//! Viewport transforms use logical pixels; window DPI/translation never affect image coordinates.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct Point {
     pub x: f32,
@@ -50,7 +50,7 @@ impl Viewport {
     }
 }
 
-/// 在解码前检查尺寸，避免整数溢出或压缩炸弹的大额像素分配。
+/// Check dimensions before decoding to prevent integer overflow/decompression-bomb pixel allocations.
 pub fn checked_image_bytes(width: u32, height: u32) -> Option<usize> {
     if width == 0 || height == 0 || width > 16384 || height > 16384 {
         return None;
@@ -61,7 +61,7 @@ pub fn checked_image_bytes(width: u32, height: u32) -> Option<usize> {
     (bytes <= 256 * 1024 * 1024).then_some(bytes as usize)
 }
 
-/// Shader 纹理准入预算（8192 边长 / 32 MP / 128 MiB），独立于通用图片上限。
+/// Shader-texture admission budget, 8192 edge / 32 MP / 128 MiB, independent of general image limits.
 pub fn checked_shader_texture_bytes(width: u32, height: u32) -> Option<usize> {
     if width > 8192 || height > 8192 {
         return None;

@@ -1,4 +1,4 @@
-//! 历史内容擦除只物化自然底图，笔迹使用当前可见框坐标，不影响后绘制标注。
+//! Historical content erasure materializes only natural base images; strokes use current visible-frame coordinates and do not affect later annotations.
 use super::*;
 #[path = "export_projection_mapped_erase.rs"]
 mod mapped;
@@ -140,7 +140,7 @@ fn apply(
                 )
             })?;
         }
-        // 路径先于租约释放；每笔输出替换上笔共享图，不保留整套历史副本。
+        // Release paths before leases; each stroke output replaces the previous shared image without retaining all historical copies.
         drop(path);
         drop(lease);
     }

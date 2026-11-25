@@ -1,4 +1,4 @@
-//! 单次 Surface click 提交；仅后台调用，错误不触发重放或管理员凭据回退。
+//! One-shot Surface click submission, background-only; errors never trigger replay or fallback to administrator credentials.
 use super::*;
 use crate::{
     surface_action_ack::{Ack, MAX_ACK_BYTES},
@@ -15,8 +15,8 @@ pub enum SubmitError {
     Ack(crate::surface_action_ack::Error),
 }
 impl Control<'_> {
-    /// current_revision 必须由当前呈现 owner 提供，不能用 event 自带版本冒充新检查。
-    /// attempted=true 后没有匹配 ACK 即为未确认，调用方保留 event 供后续查询收敛。
+    /// current_revision must come from the current presentation owner, not the event's own revision masquerading as a fresh check.
+    /// After attempted=true, no matching ACK means unconfirmed; retain the event for subsequent query convergence.
     pub fn submit_surface_click(
         &self,
         owner: &Owner,
@@ -59,7 +59,7 @@ impl Control<'_> {
             .map_err(|_| SubmitError::Identity)?
             .clear()
             .extend(["v1", "surfaces", "instances", binding.instance(), "events"]);
-        // 从此处开始保守禁止再次提交，即使认证/网络层未确认送达，也不猜测服务端效果。
+        // Conservatively prohibit resubmission from here onward; even without authentication/network delivery confirmation, never guess server-side effects.
         event.begin_submission();
         let bytes = self
             .send_limited("POST", url.path(), event.bytes(), timeout, MAX_ACK_BYTES)

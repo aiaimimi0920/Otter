@@ -1,4 +1,4 @@
-//! 定向设备投送的目录选择；账号分享使用独立 v2 生命周期。
+//! Catalog selection for targeted-device delivery; account sharing uses an independent v2 lifecycle.
 use super::*;
 use crate::workspace_id::UnitId;
 pub(super) enum Choice {

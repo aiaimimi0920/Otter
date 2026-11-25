@@ -1,4 +1,4 @@
-//! 显式删除只匹配绘制时的 Windows 历史 ID；不按索引删除，也不清空历史或当前剪贴板。
+//! Explicit deletion matches only the Windows history ID used for drawing; never delete by index or clear history/current clipboard.
 use super::*;
 use windows::Win32::Foundation::{E_ACCESSDENIED, E_FAIL};
 

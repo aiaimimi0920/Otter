@@ -1,4 +1,4 @@
-//! Surface观看输入合同；同一串行租约拥有actor双游标，不把HTTP接受当成源已执行。
+//! Surface-viewer input contract; one serial lease owns dual actor cursors, and HTTP acceptance does not mean Source execution.
 use super::*;
 use crate::live_input::{Button, Event, MAX_SEQUENCE};
 use serde::Deserialize;

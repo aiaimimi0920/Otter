@@ -1,4 +1,4 @@
-//! 真 child 的签名准入、本地交互与终止；不把未接线的路由/正式结果称为端到端产品。
+//! Signed admission, local interaction, and termination in real children; unwired routes/committed results are not end-to-end product evidence.
 use super::*;
 use crate::{
     device_authorization_lease::Grant as DeviceGrant, device_identity::Identity,

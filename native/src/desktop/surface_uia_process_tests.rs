@@ -1,4 +1,4 @@
-//! 真正跨进程 UIA：父 MTA 客户端读取独立 STA 子进程，不访问其内部 State。
+//! Actual cross-process UIA: parent MTA clients read an independent STA child without accessing its internal State.
 use super::*;
 use std::time::{Duration, Instant};
 use windows::Win32::{System::Variant::VARIANT, UI::WindowsAndMessaging::*};
@@ -143,7 +143,7 @@ fn run(force_exit: bool, retain_subscription: bool) {
             "closed process retained a live EDIT provider"
         );
         if force_exit {
-            // 保留旧引用并重启相同场景，证明新实例不使旧 provider 恢复可用。
+            // Retain old references and restart the same scene, proving new instances cannot revive old providers.
             let mut replacement = fixture::Fixture::start();
             let fresh_root = client.ElementFromHandle(replacement.hwnd).unwrap();
             assert_eq!(
@@ -185,7 +185,7 @@ fn run(force_exit: bool, retain_subscription: bool) {
             assert_eq!(fresh_toggle.CurrentToggleState().unwrap(), ToggleState_On);
             assert_eq!(fresh_value.CurrentValue().unwrap().to_string(), "external");
             if let Some(subscription) = old_subscription {
-                // 同名节点的新实例通知不能流入仍持有的旧进程订阅。
+                // Same-named nodes in new instances must not notify retained old-process subscriptions.
                 subscription.expect_quiet();
                 subscription.finish();
             }

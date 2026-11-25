@@ -1,4 +1,4 @@
-//! 关闭前回收编码：共享单 worker 生命周期，不销毁窗口、不发布原文或暂存磁盘。
+//! Pre-close recycle encoding shares the single-worker lifecycle, without destroying windows, publishing source content, or staging to disk.
 use super::{FrozenData, Job, Output, Purpose};
 use crate::{session_library::recycle, session_write::Candidate, workspace_id::UnitId};
 use std::sync::Arc;
@@ -22,7 +22,7 @@ impl Job {
             let source = crate::session_document::decode(&original)
                 .map_err(|error| format!("Invalid recycle source: {error:?}"))?;
             let revision = source.revision;
-            // 必须编码当前模型；旧磁盘快照只用于保留非目标窗口和未知字段。
+            // Encode the current model; old disk snapshots serve only to preserve nontarget windows and unknown fields.
             let snapshot = data
                 .encode(&source, &request.unit, cancel)
                 .map_err(|error| format!("Recycle snapshot: {error:?}"))?;

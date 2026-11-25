@@ -1,4 +1,4 @@
-//! 真正的工具栏钉图设置与端点互斥；三角抽屉独立，消息仅投给测试自有 HWND。
+//! Actual toolbar pin settings exclude endpoints; triangle drawers are independent, and messages target test-owned HWNDs only.
 use super::*;
 use desktop::pin_settings as settings;
 
@@ -131,7 +131,7 @@ fn tab_and_settings_exchange_side_content_without_collapsing_the_bottom_drawer()
         settings_click(&app);
         assert!(!expanded(&app, port(Side::Output)));
         assert!(!app.documents[0].state.parameters_ui.expanded.get());
-        // Tab 可独立暴露抽屉，不依赖节点选择；设置切换不能撤销这个 Tab 可见意图。
+        // Tab may expose drawers independently of node selection; settings changes must not revoke this Tab visibility intent.
         app.chrome.ui.selected.borrow_mut().clear();
         app.sync_workspace_chrome(true);
         assert!(

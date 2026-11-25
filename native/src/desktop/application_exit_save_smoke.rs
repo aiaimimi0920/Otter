@@ -1,4 +1,4 @@
-//! 正式保存 UI coordinator 的隐藏集成：只写调用方创建的 临时合成会话。
+//! Hidden integration of the production save UI coordinator: write only temporary synthetic sessions created by the caller.
 use super::*;
 use std::{
     path::Path,
@@ -38,7 +38,7 @@ pub(super) unsafe fn verify(app: &mut Application, path: &Path) -> Result<()> {
         return Err(Error::new(E_FAIL, "Exit save baseline differs from disk"));
     }
 
-    // 已在保存时请求退出也挂靠同一任务；之后发生编辑必须拒绝提交且不退出。
+    // Requesting exit during a save attaches to the same task; subsequent edits must reject commit and prevent exit.
     app.request_save_existing()?;
     app.save_origin = Some(app.documents[0].state.unit_id.clone());
     app.exit_requested.set(true);
@@ -59,7 +59,7 @@ pub(super) unsafe fn verify(app: &mut Application, path: &Path) -> Result<()> {
     }
     app.documents[0].state.canvas.borrow_mut().normal_opacity = altered(opacity);
 
-    // 完成时恰有新的保存请求：取消旧自动退出，保留后续保存，不让请求越过退出。
+    // If a new save request exists at completion, cancel the old automatic exit and retain the next save, without letting exit overtake the request.
     app.request_save_existing()?;
     app.save_origin = Some(app.documents[0].state.unit_id.clone());
     app.exit_after_save = true;

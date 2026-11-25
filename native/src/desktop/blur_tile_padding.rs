@@ -1,4 +1,4 @@
-//! 取样邻域需覆盖一个设备像素足迹及线性插值邻点；只留一个源像素会在缩小时露缝。
+//! Sampling neighborhoods must cover a device-pixel footprint and linear-interpolation neighbors; one source-pixel margin leaves gaps when downscaling.
 use windows::{
     core::{Error, Result},
     Win32::{Foundation::E_INVALIDARG, Graphics::Direct2D::ID2D1RenderTarget},
@@ -18,13 +18,13 @@ pub(super) unsafe fn for_target(
     {
         return Err(Error::new(E_INVALIDARG, "Invalid blur tile footprint"));
     }
-    // 逆矩阵每一行的范数映射单位设备圆；覆盖像素方形的半对角线，同时适用于剪切。
+    // Each inverse-matrix row norm maps the unit device circle; cover the pixel square's half-diagonal, including shear.
     let x = (m.M22 as f64).hypot(m.M21 as f64) / determinant / scale.0 as f64;
     let y = (m.M12 as f64).hypot(m.M11 as f64) / determinant / scale.1 as f64;
     Ok((bucket(x, size.0), bucket(y, size.1)))
 }
 fn bucket(footprint: f64, limit: u32) -> u32 {
-    // 分桶避免每次轻微缩放都产生新上传键；源尺寸已由 BlurImage 限制在 16384 内。
+    // Buckets avoid new upload keys for every slight zoom change; BlurImage already limits source dimensions to 16384.
     ((footprint.ceil() + 1.0).min(limit as f64) as u32)
         .max(1)
         .next_power_of_two()

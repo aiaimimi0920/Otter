@@ -1,4 +1,4 @@
-//! 隐藏 HWND 的一次准入；JS 权威 scene 不得替代后台执行后的 DOM 投影。
+//! One-time hidden-HWND admission; authoritative JS scenes must not replace DOM projection after background execution.
 use super::*;
 impl AuthorizedWindow {
     pub fn new(

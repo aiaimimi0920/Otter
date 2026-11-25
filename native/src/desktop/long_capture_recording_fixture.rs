@@ -1,4 +1,4 @@
-//! 只控制自启 Child 的原生滚动窗口；管道有界、HWND 核 PID，Drop 回收进程与读线程。
+//! Control only a self-started Child's native scrolling window; bounded pipes, HWND/PID verification, and Drop reclaiming process/read threads.
 use super::*;
 use std::{
     io::{BufRead, BufReader, Read, Write},

@@ -1,4 +1,4 @@
-//! 显式选择的会话文件：worker 中有界只读，不从 JSON 推导资源目录权限。
+//! Explicitly selected session files: bounded read-only worker access, without deriving resource-directory permissions from JSON.
 use std::{
     fs::OpenOptions,
     io::{self, Read},
@@ -15,14 +15,14 @@ use windows::Win32::Storage::FileSystem::{
 pub(super) fn read(path: &Path, cancel: &AtomicBool) -> io::Result<Vec<u8>> {
     read_limited(path, cancel, crate::session_document::MAX_SESSION_BYTES)
 }
-/// 显式文件导入共享同一句柄/路径准入，调用方必须提供自己的容量上限。
+/// Explicit file imports share the same handle/path admission; callers must supply their own capacity limit.
 pub(in crate::desktop) fn read_limited(
     path: &Path,
     cancel: &AtomicBool,
     limit: usize,
 ) -> io::Result<Vec<u8>> {
     check(cancel)?;
-    // 禁止设备命名空间；只接受调用方提供的普通绝对文件路径。
+    // Device namespaces are forbidden; accept only ordinary absolute file paths supplied by callers.
     use std::path::{Component, Prefix};
     if !path.is_absolute()
         || !matches!(path.components().next(), Some(Component::Prefix(prefix))
@@ -97,7 +97,7 @@ fn read_file(mut file: impl Read, length: usize, cancel: &AtomicBool) -> io::Res
     check(cancel)?;
     Ok(bytes)
 }
-/// 仅原路径缺失时读取唯一恢复副本；不移动文件，来源标记交给发布层提示。
+/// Read the unique recovery copy only when the original path is missing; do not move files, and pass source markers to publication for disclosure.
 pub(super) fn read_recovering(
     path: &Path,
     cancel: &AtomicBool,
@@ -116,7 +116,7 @@ pub(in crate::desktop) fn read_recovering_limited(
                 return Err(error);
             };
             let bytes = read_limited(&recovery, cancel, limit)?;
-            // 查找期间原路径重新出现则优先正常文件，不悄悄回退到旧版本。
+            // If the original path reappears during lookup, prefer the normal file rather than silently reverting to an old version.
             if path.try_exists()? {
                 return read_limited(path, cancel, limit).map(|bytes| (bytes, None));
             }

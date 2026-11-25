@@ -1,4 +1,4 @@
-//! 单附件生命周期事务；请求发出后的失败保留 unknown，禁止猜测服务端版本并自动重放。
+//! Single-attachment lifecycle transactions; post-send failures preserve unknown without guessing server revisions or automatically replaying.
 use crate::surface_live_binding::{Binding, Error as BindingError, Lifecycle};
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Error {
@@ -30,7 +30,7 @@ impl Owner {
     pub fn disposed(&self) -> bool {
         self.disposed
     }
-    /// 只表示服务端生命周期已确认；显示仍必须通过当前设备授权检查。
+    /// Indicates only confirmed server-side lifecycle; display still requires current device-authorization checks.
     pub fn confirmed_active(&self) -> bool {
         !self.uncertain && !self.disposed && self.binding.lifecycle() == Lifecycle::Active
     }
@@ -76,7 +76,7 @@ impl Owner {
         self.disposed = state == Lifecycle::Disposed;
         Ok(())
     }
-    /// 只接受本次认证 remount 的绑定；旧缓存不能当作恢复证据。
+    /// Accept only bindings from this authenticated remount; stale caches are not recovery evidence.
     pub(crate) fn recover(&mut self, binding: Binding) -> Result<(), Error> {
         if self.disposed {
             return Err(Error::Disposed);

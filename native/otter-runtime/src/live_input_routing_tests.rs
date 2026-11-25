@@ -107,7 +107,7 @@ fn deep_hit_skips_unavailable_children_preserves_transparency_and_retains_gestur
             50,
         );
         let target = Target::bind(root.0).unwrap();
-        // 生产隐藏采用 alpha=1 而非 SW_HIDE；CWP_SKIPINVISIBLE 应跳过真正隐藏的子树。
+        // Production hiding uses alpha=1 rather than SW_HIDE; CWP_SKIPINVISIBLE should skip truly hidden subtrees.
         assert_eq!(pointer(&target, [35, 35]).unwrap().hwnd(), root.0);
         let _ = ShowWindow(root.0, SW_SHOWNOACTIVATE);
         let mut exhausted = 0;

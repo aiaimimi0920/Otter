@@ -1,4 +1,4 @@
-//! 已认证媒体的TCP/TLS/Upgrade窄接缝；不解释Viewer、Source或Wall业务协议。
+//! Narrow TCP/TLS/Upgrade seam for authenticated media; no interpretation of Viewer/Source/Wall business protocols.
 use crate::live_relay_media_transport::Error;
 use crate::{
     live_relay_media_endpoint::Prepared,
@@ -52,7 +52,7 @@ pub(crate) struct Upgraded {
     pub protocol: String,
     pub device: bool,
 }
-/// 最多四个固定地址，每候选2秒；TLS和upgrade共用3秒，不改变信任身份或系统证书。
+/// At most four fixed addresses, two seconds per candidate; TLS/upgrade share three seconds without changing trust identity/system certificates.
 pub(crate) fn connect(
     prepared: Prepared,
     addresses: &[SocketAddr],
@@ -93,7 +93,7 @@ pub(crate) fn connect(
         return Err(Error::Stopped);
     }
     let cancelled = base.cancellation_flag();
-    // 只有这条 socket 的本地取消 I/O 才是 Stopped；不把远端拒绝或证书错误重分类。
+    // Only local cancellation of this socket's I/O is Stopped; never reclassify remote denial or certificate errors.
     let interrupted = |error: &io::Error| {
         error.kind() == io::ErrorKind::ConnectionAborted && cancelled.load(Ordering::Acquire)
     };

@@ -1,4 +1,4 @@
-//! 端点和连线共用箭头类光标；只操作自有 HWND，不移动系统鼠标。
+//! Endpoints/links share arrow-class cursors; owned HWNDs only, without system-mouse movement.
 use super::*;
 #[test]
 fn endpoint_cursor_remains_arrow_after_press_release_cancel_and_close() {
@@ -19,7 +19,7 @@ fn endpoint_cursor_remains_arrow_after_press_release_cancel_and_close() {
             }
             assert!(ui.press.borrow().is_none());
             assert_ne!(GetCapture(), strip);
-            // DefWindowProc 的返回值不代表光标形状；验证实际光标句柄。
+            // DefWindowProc's return value does not identify cursor shape; verify the actual cursor handle.
             SendMessageW(
                 strip,
                 WM_SETCURSOR,

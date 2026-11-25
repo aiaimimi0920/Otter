@@ -1,4 +1,4 @@
-//! 自动写入只接成功的原source probe/receiver read；不另建timer/队列，不重放未知pending。
+//! Automatic writes accept only successful original source probes/receiver reads; no additional timers/queues or replay of unknown pending requests.
 use super::*;
 use crate::workspace_id::UnitId;
 
@@ -69,7 +69,7 @@ impl Application {
                 })
             });
         if let Some(selection) = selection {
-            // 单次自动触发至多32项；后续由原750ms读调度继续。失败/取消一直阻断到显式恢复成功。
+            // At most 32 items per automatic trigger; the original 750ms read schedule continues afterward. Failure/cancellation blocks until explicit recovery succeeds.
             self.start_projection_edit(selection, config, 1, Action::Automatic);
         }
     }

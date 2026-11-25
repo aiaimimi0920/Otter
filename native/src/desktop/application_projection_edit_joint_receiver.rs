@@ -1,4 +1,4 @@
-//! Receiver自动接纳/真实NOACTIVATE帧/自动Apply/one_way冲突和默认保存重开消费者。
+//! Receiver consumer for automatic admission/real NOACTIVATE frames/automatic Apply/one_way conflicts and default-save reopening.
 use super::*;
 #[test]
 #[ignore = "isolated two real Looms plus two native Application consumers"]
@@ -51,7 +51,7 @@ fn native_edit_application_receiver_automatic_readonly_resolution_and_reopen() {
         until(&mut app, &f, |app| has_revision(app, 3) && quiet(app));
         verify(&app, 3, edit::Mode::TwoWay, 6.0);
         shift(&app, 3.0);
-        // 原receiver read释放原Job后自动Apply；无显式Submit，也不由fixture ack。
+        // Automatic Apply follows original receiver read releasing the original Job; no explicit Submit or fixture-generated ack.
         until(&mut app, &f, |app| has_revision(app, 4) && quiet(app));
         acknowledged(&f, 4);
         let before = verify(&app, 4, edit::Mode::TwoWay, 9.0);

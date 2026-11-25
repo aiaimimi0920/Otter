@@ -1,4 +1,4 @@
-//! Surface 字段挂载 owner；最多 64 个字段，输入合并为每字段一份本地草稿，不在消息回调联网。
+//! Surface field-mount owner; at most 64 fields, coalescing input into one local draft per field, with no networking in message callbacks.
 use super::{surface_edit_geometry, surface_edit_messages, surface_edit_session::Session};
 use crate::{
     surface_click_event::ClickEvent,
@@ -124,7 +124,7 @@ impl Mount {
         self.fields.retain(|id, field| {
             nodes
                 .get(id.as_str())
-                // 只允许权威 value 更新跨越会话，其他合同变化不能继承旧草稿/预留。
+                // Only authoritative value updates may cross sessions; other contract changes cannot inherit old drafts/reservations.
                 .is_some_and(|node| {
                     node.kind() == field.kind && contracts.get(id.as_str()) == Some(&field.contract)
                 })
@@ -281,8 +281,8 @@ impl Mount {
             unsafe {
                 let _ = EnableWindow(field.session.control().hwnd()?, editing && !field.disabled);
             }
-            // EnableWindow 的同步结束通知可能发生在 Host 暂时取出期间。
-            // 显式收尾仅保留本地文字，不把门禁关闭变成提交动作。
+            // EnableWindow's synchronous end notification may arrive while Host is temporarily removed.
+            // Explicit cleanup retains only local text; closing admission must not become a commit action.
             if !editing {
                 surface_edit_messages::install(
                     field.session.control().hwnd()?,
@@ -359,8 +359,8 @@ impl Mount {
         let mut commit = false;
         match message {
             surface_edit_messages::STEP_UP | surface_edit_messages::STEP_DOWN => {
-                // Host 在处理通知期间已被取出，同步 EDIT 回调不能重入队列。
-                // 整对边沿容量不足时不先修改 HWND/草稿，也不留下半个离散动作。
+                // Host is removed while notifications are handled; synchronous EDIT callbacks cannot reenter the queue.
+                // If the complete edge pair lacks capacity, do not first modify HWND/drafts or leave half a discrete action.
                 if !self.intents.can_push_step(id) {
                     return Err(Error::new(E_FAIL, "Surface number step queue full"));
                 }
@@ -415,7 +415,7 @@ impl Mount {
         {
             self.values.update(id, field.session.form_value());
         }
-        // 队列拒收不改变已接纳的可见草稿/表单值，也不能清掉未成功排队的 change 标记。
+        // Queue rejection preserves accepted visible drafts/form values and cannot clear a change marker that was not successfully enqueued.
         field.changed |= changed;
         if changed {
             field.change_epoch = field.change_epoch.saturating_add(1);
@@ -473,7 +473,7 @@ impl Mount {
                     field.cancel(event.id());
                 }
                 if let Some(field) = self.fields.get_mut(&id) {
-                    // 只归还本地预留，不采用权威值、不重新排队已尝试事件。
+                    // Return only local reservations; neither adopt authoritative values nor requeue attempted events.
                     field.session.cancel(event.id());
                 }
             }

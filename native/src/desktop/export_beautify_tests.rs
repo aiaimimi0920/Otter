@@ -1,4 +1,4 @@
-//! 美化布局、真实像素、阴影方向和失败隔离；不读取屏幕或用户资源。
+//! Beautification layout, real pixels, shadow direction, and failure isolation; no screen/user-resource reads.
 use super::*;
 use serde_json::json;
 fn settings(value: serde_json::Value) -> Settings {

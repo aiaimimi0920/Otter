@@ -1,4 +1,4 @@
-"""从当前源码构建并执行账号 v2 联合测试；仅拥有本次进程树和临时 Redis。"""
+"""Build and run account-v2 integration tests from current sources; own only this run's process tree and temporary Redis."""
 
 import argparse
 import hashlib
@@ -73,7 +73,7 @@ def main():
         if receipt["exitCode"] or receipt["status"] != "exited":
             raise RuntimeError(f"{label} failed; see {root}")
 
-    # Cargo 的 artifact 消息是路径真源；每次检查当前源码，不接受旧测试 EXE 参数。
+    # Cargo artifact messages are the path source of truth; check current sources each run and reject old test-EXE arguments.
     run("build", [commands["cargo"], "test", "--manifest-path", str(REPO / "native/Cargo.toml"),
                   "--locked", "--lib", "--no-run", "--message-format=json"], environment, 1800)
     artifacts = []

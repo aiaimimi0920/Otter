@@ -1,4 +1,4 @@
-//! 主干扩展快捷键的实际消息入口；焦点输入控件保留文字编辑，跨窗口只保存 UnitId 而非 HWND。
+//! Actual message entry point for mainline extension shortcuts; focused input controls retain text editing, and cross-window state stores UnitId rather than HWND.
 use super::*;
 use crate::desktop;
 use windows::Win32::UI::Input::KeyboardAndMouse::*;

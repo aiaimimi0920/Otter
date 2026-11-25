@@ -1,4 +1,4 @@
-//! 钉图的附属编辑条：主干分组布局由 Neuro-mini 绘制，命令和宿主跟随仍由 Otter 拥有。
+//! Attached edit strips for pins: Neuro-mini draws baseline grouped layouts; Otter retains commands and host tracking.
 use super::{Availability, State, Window};
 #[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 use windows::core::Error;
@@ -41,7 +41,7 @@ pub(super) unsafe fn create(owner: HWND, state: &State, visible: bool) -> Result
     state.tool_panel.set(panel.0);
     place(owner, state, None)?;
     if visible {
-        // 初始可见的编辑栏也默认开启选择；隐藏创建仍保留钉图的自由拖动。
+        // Initially visible edit strips also enable selection by default; hidden creation preserves free pin dragging.
         state
             .canvas
             .borrow_mut()
@@ -52,7 +52,7 @@ pub(super) unsafe fn create(owner: HWND, state: &State, visible: bool) -> Result
     Ok(panel)
 }
 
-/// 钉图没有旧网格的滚动和属性控件；用真实编辑条 BUTTON 检查选择命令交付。
+/// Pins lack the old grid's scroll/property controls; use real edit-strip BUTTONs to verify selection-command delivery.
 #[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 pub(in crate::desktop) unsafe fn smoke(owner: HWND, state: &State) -> Result<()> {
     use crate::editor::Tool;
@@ -291,7 +291,7 @@ pub(super) unsafe fn execute(owner: HWND, state: &State, id: usize, dropdown: bo
         return;
     }
     if id == catalog::MODE {
-        // 不消费旧的下拉请求；主体按钮直接切换选择准入，不进入模态菜单。
+        // Do not consume old dropdown requests; primary buttons directly toggle selection admission without entering modal menus.
         if !dropdown {
             if let Err(error) = super::super::edit_mode::toggle(owner, state) {
                 eprintln!("native-edit-selection-toggle: {error}");
@@ -320,7 +320,7 @@ pub(super) unsafe fn execute(owner: HWND, state: &State, id: usize, dropdown: bo
     if catalog::choices(id).contains(&command) {
         let _ = SetPropW(panel, &key(id), Some(HANDLE(command as *mut _)));
     }
-    // 主干菜单只记住栅格化范围；随后短按主体才执行这项破坏性编辑。
+    // Baseline menus only remember rasterization scope; a later short primary-button press performs this destructive edit.
     if dropdown && id == catalog::RASTER {
         refresh(state);
         return;

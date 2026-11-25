@@ -1,4 +1,4 @@
-//! 同 ID read→明确不存在→Create；丢失回复只再读一次，不重发 Create、不换签名身份。
+//! Same-ID read -> explicit absence -> Create; after lost replies, read once more without resending Create/changing signed identity.
 use super::*;
 use delivery::sender::{Active, Operation, Response};
 #[path = "projection_sender_update_http.rs"]
@@ -15,7 +15,7 @@ impl Control<'_> {
         match result {
             Ok(response) => Ok(response),
             Err(original) => {
-                // 包括拒绝/坏响应/不确定 HTTP；一次只读 reconcile 不会增加远端副作用。
+                // Includes rejection/bad responses/uncertain HTTP; one read-only reconciliation adds no remote side effects.
                 active.check().map_err(Error::Sender)?;
                 match self.read_sender(active) {
                     Ok(Some(response)) => Ok(response),
@@ -61,7 +61,7 @@ impl Control<'_> {
             return Err(Error::AuthorizationRequired);
         }
         if !(200..300).contains(&status) {
-            // 普通 404、网关正文、其他业务码与任何其他 HTTP 状态都不授权创建。
+            // Ordinary 404, gateway bodies, other business codes, and all other HTTP statuses do not authorize creation.
             if !created && status == 404 && error_code(&bytes, "projection_not_found") {
                 return Ok(None);
             }

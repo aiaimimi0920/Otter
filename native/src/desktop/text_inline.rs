@@ -1,4 +1,4 @@
-//! 钉图就地输入会话；草稿仅在 EDIT 中，退出时复用 Pending 的身份核验和单次撤销事务。
+//! In-place pin input sessions; drafts live only in EDIT, reusing Pending identity checks and single-undo transactions on exit.
 use super::{Pending, State};
 use crate::{desktop, text_annotation::TextAnnotation, viewport::Point};
 use std::rc::Rc;
@@ -79,7 +79,7 @@ unsafe fn resize(hwnd: HWND, state: &State, session: &Session) -> Result<()> {
     if !ClientToScreen(hwnd, &mut origin).as_bool() {
         return Err(Error::from_win32());
     }
-    // 初始留出八字宽空白；输入后仅由内容扩展，极端字号/长文本由系统 EDIT 滚动。
+    // Initially leave eight characters of blank width; content alone expands it afterward, while system EDIT scrolls extreme sizes/long text.
     let initial = if session.pending.index.is_none() {
         font.font_size() * 8.0 + 8.0
     } else {
@@ -92,12 +92,12 @@ unsafe fn resize(hwnd: HWND, state: &State, session: &Session) -> Result<()> {
     session.ui.place(origin, size)
 }
 pub(in crate::desktop) unsafe fn finish(hwnd: HWND, state: &State, commit: bool) -> Result<()> {
-    // 先移出会话：读控件、关窗口、转移焦点均可重入，不能持有 RefCell 借用。
+    // Move the session out first: reading controls, closing windows, and changing focus may reenter, so hold no RefCell borrow.
     let session = state.inline_text.borrow_mut().take();
     let Some(session) = session else {
         return Ok(());
     };
-    // 让标准 EDIT 按其 IME 策略完成组合串，再读取最终值；会话已移出，不会递归提交。
+    // Let standard EDIT finish composition per its IME policy before reading the final value; the moved-out session cannot recursively commit.
     if session.ui.contains(GetFocus()) && state.lifetime.owns(hwnd) {
         let _ = SetFocus(Some(hwnd));
     }
@@ -111,7 +111,7 @@ pub(in crate::desktop) unsafe fn finish(hwnd: HWND, state: &State, commit: bool)
     };
     if let Err(error) = result {
         *state.inline_text.borrow_mut() = Some(session);
-        return Err(error); // 不把读失败或提交失败伪装成成功，不丢草稿。
+        return Err(error); // Do not disguise read/commit failure as success or lose drafts.
     }
     session.ui.hide();
     state.canvas.borrow_mut().inline_text_hidden = None;
@@ -154,7 +154,7 @@ pub(in crate::desktop) unsafe fn before_message(hwnd: HWND, state: &State, messa
     if outside && click || save {
         let failed = report(finish(hwnd, state, true));
         if save && !outside && !failed {
-            // 原消息指向即将销毁的 EDIT，保存快捷键必须显式交还宿主而非丢到旧句柄。
+            // The original message targets an EDIT about to be destroyed; explicitly return save shortcuts to the host instead of an old handle.
             SendMessageW(hwnd, WM_KEYDOWN, Some(message.wParam), Some(message.lParam));
         }
         failed || save && !outside
@@ -192,7 +192,7 @@ pub(in crate::desktop) unsafe fn dispatch(
         return Some(LRESULT(0));
     }
     if msg == WM_KEYDOWN && wp.0 == VK_ESCAPE.0 as usize {
-        // 草稿失败后焦点可能已回宿主；取消不能落入空闲 Esc 的删除钉图路径。
+        // After draft failure, focus may already be back on the host; cancellation must not enter idle Esc's pin-deletion path.
         report(finish(hwnd, state, false));
         return Some(LRESULT(0));
     }
@@ -201,7 +201,7 @@ pub(in crate::desktop) unsafe fn dispatch(
         if let Ok(mut canvas) = state.canvas.try_borrow_mut() {
             canvas.inline_text_hidden = None;
         }
-        drop(retired); // 宿主正在销毁，不重绘或把焦点交回即将失效的 HWND。
+        drop(retired); // The host is being destroyed; neither repaint nor return focus to an HWND about to become invalid.
     } else if matches!(
         msg,
         WM_LBUTTONDOWN

@@ -1,4 +1,4 @@
-//! 自有 HWND 定向鼠标消息→原 FIFO→真实 child→Canvas 像素/捕获清理；不注入全局输入。
+//! Owned-HWND targeted mouse messages -> original FIFO -> actual child -> Canvas pixels/capture cleanup; no global input injection.
 use super::*;
 #[path = "surface_window_javascript_pointer_reentry_tests.rs"]
 mod reentry;
@@ -14,7 +14,7 @@ fn javascript_pointer_stale_prepare_consumes_cancel_in_same_call_without_externa
             assert_eq!(next(&window, &mut session), "pointerdown");
         }
         window.javascript_pointer_message_for_test(WM_LBUTTONUP, 0);
-        // 精确注入领取边界的 stale epoch；不依赖 WM_SIZE 自身的提前取消来通过此回归。
+        // Inject a stale epoch exactly at the claim boundary; this regression must not rely on WM_SIZE's own early cancellation.
         window
             .state
             .viewport_epoch

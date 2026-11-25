@@ -1,4 +1,4 @@
-//! 文字重排高度的有界反馈；只有几何和文字度量稳定后才交付同一场景快照。
+//! Bounded text-reflow height feedback; deliver the same scene snapshot only after geometry and text measurements stabilize.
 use super::*;
 use crate::surface_layout_tree::Tree;
 use windows::Win32::Foundation::E_FAIL;
@@ -15,7 +15,7 @@ impl<'a> PreparedScene<'a> {
     pub fn text(&self) -> &TextFrame {
         &self.text
     }
-    /// 消费准备结果，释放借用布局树；原生文字快照可独立留在窗口状态中。
+    /// Consume preparation results and release layout-tree borrows; native text snapshots may remain independently in window state.
     pub fn into_text(self) -> TextFrame {
         self.text
     }
@@ -37,7 +37,7 @@ fn equivalent(a: &BTreeMap<String, Intrinsic>, b: &BTreeMap<String, Intrinsic>) 
         })
 }
 impl<'scene> NativeMeasure<'scene, '_> {
-    /// 每次重建从初始测量开始；失败不返回部分 PreparedScene，调用方可保留上一份。
+    /// Each rebuild starts from initial measurement; failures return no partial PreparedScene, allowing callers to retain the previous one.
     pub fn prepare(
         &mut self,
         scene: &'scene Scene,
@@ -93,7 +93,7 @@ impl<'scene> NativeMeasure<'scene, '_> {
                     passes: pass,
                 });
             }
-            // 最后一轮仍允许收敛，但失败时不再计算无人消费的下一轮固有尺寸。
+            // The last round may still converge, but failure does not calculate unused intrinsic dimensions for another round.
             if pass == max_passes {
                 break;
             }

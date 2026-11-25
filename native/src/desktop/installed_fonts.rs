@@ -1,5 +1,5 @@
-//! 编辑栏字体全集：迁移原 GDI 枚举，精确去重并按中文、忽略大小写/重音和数字值排序。
-//! 只枚举名称，不读取字体文件；UI 线程成功缓存，失败不缓存，后续可重新展开。
+//! Complete edit-strip font catalog: migrate original GDI enumeration, deduplicate exactly, and sort with Chinese collation, ignoring case/accents and using numeric values.
+//! Enumerate names only, without font-file reads; cache UI-thread successes, not failures, allowing later reopening to retry.
 use std::{cell::RefCell, collections::BTreeSet, rc::Rc};
 use windows::{
     core::{Error, Result},
@@ -53,7 +53,7 @@ unsafe extern "system" fn collect(
     _: u32,
     lp: LPARAM,
 ) -> i32 {
-    // GDI 在本同步枚举栈内调用，指针与 Scan 都由 enumerate 持有。
+    // GDI calls within this synchronous enumeration stack; enumerate owns both pointers and Scan.
     let scan = &mut *(lp.0 as *mut Scan);
     let face = &(*font).lfFaceName;
     let len = face.iter().position(|v| *v == 0).unwrap_or(face.len());

@@ -1,9 +1,9 @@
-"""独立核验外部预期摘要绑定的本地材料集合；不需要原 stage、VS 或 SDK 目录。"""
+"""Independently verify local materials bound to externally expected digests, without original stage, VS, or SDK directories."""
 
 import os
 from pathlib import Path, PurePosixPath
 
-# 初始化唯一构建 owner 的 import 路径；不执行任何构建工具。
+# Initialize the sole build owner's import path without executing build tools.
 import angle_intake
 from angle_materials_evidence import FALSE_BOUNDARIES, SBOMS, expected_evidence
 from angle_notices import GAPS

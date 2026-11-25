@@ -1,10 +1,10 @@
-//! 文字标注的有界不可变内容；快照和复制共享字符串，编辑替换内容而非原地改写。
+//! Bounded immutable text-annotation content; snapshots/copies share strings, and edits replace content rather than mutate it in place.
 use std::sync::Arc;
 #[path = "text_content.rs"]
 pub mod content;
 
 pub const MAX_TEXT_UNITS: usize = 65_536;
-// 序号半径 999 的基线字号为 round(999 * 1.15) = 1149。
+// The baseline font size for sequence radius 999 is round(999 * 1.15) = 1149.
 const MAX_FONT_SIZE: f32 = 1149.0;
 #[derive(Clone, Debug, PartialEq)]
 pub struct TextAnnotation {
@@ -64,7 +64,7 @@ impl TextFont {
     }
 }
 impl TextAnnotation {
-    /// 恢复保留原文，包含空白/NUL/CRLF；原生EDIT不可表达的值不得经控件截断提交。
+    /// Restoration preserves original text, including whitespace/NUL/CRLF; values native EDIT cannot represent must not be truncated by the control and committed.
     pub fn restored(content: &str, family: &str, size: f32, bold: bool) -> Option<Self> {
         if content.len() > MAX_TEXT_UNITS * 3 || content.encode_utf16().count() > MAX_TEXT_UNITS {
             return None;
@@ -75,7 +75,7 @@ impl TextAnnotation {
         })
     }
     pub fn new(content: &str, family: &str, font_size: f32, bold: bool) -> Option<Self> {
-        // 先检查 UTF-8 字节上界，再计 UTF-16 单元；避免对任意大输入先分配副本。
+        // Check the UTF-8 byte limit before counting UTF-16 units, avoiding an initial copy of arbitrarily large input.
         if content.len() > MAX_TEXT_UNITS * 3
             || content.encode_utf16().count() > MAX_TEXT_UNITS
             || content.trim().is_empty()
@@ -84,7 +84,7 @@ impl TextAnnotation {
             return None;
         }
         Some(Self {
-            // 原生 EDIT 使用 CRLF，模型使用 LF，避免打开后原样确认生成伪修改。
+            // Native EDIT uses CRLF while the model uses LF, preventing false edits when reopening and confirming unchanged content.
             content: Arc::new(content::Content::new(content)?),
             font: TextFont::new(family, font_size, bold)?,
         })

@@ -1,4 +1,4 @@
-//! 签名邀请→真实 PNG→WIC→QR reader 往返，预算和关闭取消不读取真实用户文件。
+//! Signed invitation -> real PNG -> WIC -> QR reader round trips, budgets, and close cancellation without reading actual user files.
 use super::*;
 fn directory() -> PathBuf {
     let root =

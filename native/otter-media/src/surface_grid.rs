@@ -1,4 +1,4 @@
-//! 有界二维 Grid owner；输入是已测量场景，不新建渲染树、线程或动作权威。
+//! Bounded two-dimensional Grid owner; input is an already measured scene, without creating a render tree, threads, or action authority.
 use crate::{
     surface_container::{Box, Measured},
     surface_cross_axis as cross,
@@ -134,7 +134,7 @@ pub fn layout<'a>(
             distribution: distributions[0],
         },
     )?;
-    // 基线组只影响单行项；先分列以使用与最终放置相同的尺寸/合成基线。
+    // Baseline groups affect only single-row items; assign columns first to use the same sizes/synthesized baselines as final placement.
     let parent_y = align(node.layout().get("align"), cross::Align::Stretch)?;
     let parent_x = align(node.layout().get("justifyItems"), cross::Align::Stretch)?;
     if parent_x == cross::Align::Baseline {

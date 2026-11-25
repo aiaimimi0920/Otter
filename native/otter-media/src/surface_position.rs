@@ -1,4 +1,4 @@
-//! 定位几何：相对偏移不改变占位；绝对定位需要明确的包含块和双轴锚点。
+//! Positioning geometry: relative offsets preserve occupied space; absolute positioning needs an explicit containing block and anchors on both axes.
 use super::*;
 pub(super) fn absolute(node: &Node) -> bool {
     node.layout()
@@ -16,7 +16,7 @@ pub(super) fn positioned<'a>(
     border: crate::surface_box::Insets,
     context: Context,
 ) -> Result<Box<'a>, Error> {
-    // 绝对定位包含块是父 padding box，不包含边框；不能使用内容盒扣掉 padding。
+    // The absolute-positioning containing block is the parent padding box, excluding borders; do not use the content box with padding removed.
     let parent = crate::surface_box::inner(parent, border);
     let mut origin = [0.; 2];
     let mut size = [0.; 2];
@@ -29,7 +29,7 @@ pub(super) fn positioned<'a>(
         let get = |key| length(node, key, parent[axis], context);
         let before = get(start);
         let after = get(end);
-        // CSS static-position 依赖祖先布局；尚无完整树 owner 时不得猜成左上角。
+        // CSS static-position depends on ancestor layout; without a complete tree owner, do not guess the top-left corner.
         if before.is_none() && after.is_none() {
             return Err(Error::Unsupported);
         }

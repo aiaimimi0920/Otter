@@ -1,4 +1,4 @@
-//! 普通image输入的真实按钮；沿原单文件队列和配置事务，不改Canvas原图。
+//! Real buttons for ordinary image input; retain the original single-file queue and configuration transaction without changing the Canvas source image.
 use super::*;
 pub(super) unsafe fn build(b: &mut Builder<'_>, model: &model::Model) -> Result<()> {
     let Some(config) = &model.sticker else {

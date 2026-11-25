@@ -1,4 +1,4 @@
-//! 平移预览复用已克隆的点缓冲，每次从原始几何计算；组拖动只在开始时扫一遍边界。
+//! Translation previews reuse cloned point buffers and always calculate from original geometry; group dragging scans bounds only once at startup.
 use super::*;
 
 /// Raw point extrema (not visual/rotated bounds), computed once from the original selection.

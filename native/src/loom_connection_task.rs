@@ -1,4 +1,4 @@
-//! 连接与断开共用的任务回收边界；完成通知不交付凭据，也不等于线程退出。
+//! Shared task-reclamation boundary for connect/disconnect; completion notices neither deliver credentials nor prove thread exit.
 use super::{Cancel, Error};
 use crate::desktop::loom_execution_signal::{reap_deadline, CompletionSignal, Notify};
 use std::{
@@ -14,7 +14,7 @@ pub(super) struct Task<T> {
     thread: Option<JoinHandle<Result<T, Error>>>,
 }
 
-// 关闭时才取消并同步回收；正常结算只领取已经退出的线程。
+// Cancel and synchronously reclaim only during close; normal settlement collects only already-exited threads.
 impl<T> Drop for Task<T> {
     fn drop(&mut self) {
         if let Some(thread) = self.thread.take() {
@@ -38,7 +38,7 @@ impl<T: Send + 'static> Task<T> {
             .name(name.into())
             .spawn(move || {
                 let _completion = CompletionSignal::new(completed, notify);
-                // 清理登记的 socket；FnOnce 的凭据和连接局部资源也先于通知析构。
+                // Clean up registered sockets; FnOnce credentials and connection-local resources are also destroyed before notification.
                 struct Clear<'a>(&'a Cancel);
                 impl Drop for Clear<'_> {
                     fn drop(&mut self) {

@@ -1,4 +1,4 @@
-//! 激活事务的单 owner 移交；未确认期间禁止显示，失败不自动重发。
+//! Single-owner handoff for activation transactions; prohibit display while unconfirmed and never resend automatically on failure.
 use crate::{
     surface_lifecycle_owner::Owner,
     surface_live_binding::{Binding, Lifecycle},
@@ -32,7 +32,7 @@ impl Activation {
     pub fn owner(&self) -> Option<&Owner> {
         self.owner.as_ref()
     }
-    /// 已确认活动附件的本地编辑资格，不等于可领取提交 owner；租约由窗口另验。
+    /// Local editing eligibility for a confirmed active attachment is not permission to claim the submission owner; the window checks leases separately.
     pub fn local_edit_active(&self) -> bool {
         self.pending.is_none()
             && !self.close_attempted
@@ -43,14 +43,14 @@ impl Activation {
     pub fn into_owner(self) -> Option<Owner> {
         self.owner
     }
-    /// 点击任务独占已激活 owner；不改变生命周期版本，不允许复用已尝试事件。
+    /// A click task exclusively owns the activated owner; it does not change lifecycle revision or allow reuse of an attempted event.
     pub fn take_event(&mut self, event: &crate::surface_click_event::ClickEvent) -> Option<Owner> {
         if event.attempted() {
             return None;
         }
         self.take_event_owner(event)
     }
-    /// 决定任务复用原事件身份，不再提交原点击；租约与期限由窗口/HTTP 边界复核。
+    /// A decision task reuses the original event identity without resubmitting the click; window/HTTP boundaries recheck leases and deadlines.
     pub fn take_decision(
         &mut self,
         event: &crate::surface_click_event::ClickEvent,
@@ -78,7 +78,7 @@ impl Activation {
         self.pending_event = Some(event.id().to_owned());
         self.owner.take()
     }
-    /// 提交任务不改变生命周期；必须返回相同事件、绑定及确认状态的 owner。
+    /// Submission tasks do not change the lifecycle; they must return an owner with the same event, binding, and confirmation state.
     pub fn restore_event(
         &mut self,
         event: &crate::surface_click_event::ClickEvent,
@@ -111,7 +111,7 @@ impl Activation {
         self.pending = Some(Lifecycle::Active);
         self.owner.take()
     }
-    /// 关闭本地窗口只停用附件；不隐式销毁工作区节点或远端持久实例。
+    /// Closing a local window only deactivates its attachment; it does not implicitly destroy workspace nodes or remote persistent instances.
     pub fn take_inactive(&mut self) -> Option<Owner> {
         let owner = self.owner.as_ref()?;
         if self.close_attempted
@@ -128,7 +128,7 @@ impl Activation {
         self.pending = Some(Lifecycle::Inactive);
         self.owner.take()
     }
-    /// 拒绝时归还传入 owner，不能丢失其他附件或迟到事务的恢复证据。
+    /// Return the supplied owner on rejection; do not lose recovery evidence for other attachments or late transactions.
     pub fn restore(&mut self, owner: Owner) -> Result<(), Box<Owner>> {
         let old = &self.binding;
         let next = owner.binding();
@@ -138,7 +138,7 @@ impl Activation {
             && old.instance() == next.instance()
             && old.attachment() == next.attachment()
             && old.generation() == next.generation();
-        // 未发出/unknown 可返回原确认状态；成功只能接受本次目标状态的下一版本。
+        // Unsent/unknown may return the original confirmation state; success accepts only the next revision of this transaction's target state.
         let version = old == next
             || (old.lifecycle_revision().checked_add(1) == Some(next.lifecycle_revision())
                 && Some(next.lifecycle()) == self.pending);

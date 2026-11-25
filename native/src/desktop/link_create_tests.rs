@@ -1,4 +1,4 @@
-//! 使用实际工作区目录验证隐藏系统对话框，不运行可见模态循环或修改工作区。
+//! Actual workspace catalogs verify hidden system dialogs, without visible modal loops or workspace changes.
 use super::*;
 use windows::Win32::UI::Shell::{DefSubclassProc, SetWindowSubclass};
 

@@ -1,4 +1,4 @@
-//! 启动阶段只读候选准入；必须先于截图/建窗；可选 smoke peer 不读默认发现文件。
+//! Read-only startup candidate admission, before screenshots/window creation; optional smoke peers do not read default discovery files.
 use super::super::{shader_prepare::Installation, Startup};
 use crate::loom_bridge_identity::Identity;
 use std::{fs::File, io::Read};
@@ -18,7 +18,7 @@ pub(in crate::desktop) fn resolve(startup: &Startup<'_>, smoke: bool) -> Result<
             "Shader smoke peer requires explicit smoke mode",
         ));
     }
-    // 即使候选可信也不再打开目录；保留参数只用于给出明确迁移错误。
+    // Even trusted candidates no longer reopen the directory; retain the parameter only to provide an explicit migration error.
     if startup.shader_candidate.is_some() {
         return Err(Error::new(
             E_INVALIDARG,
@@ -29,7 +29,7 @@ pub(in crate::desktop) fn resolve(startup: &Startup<'_>, smoke: bool) -> Result<
     let peer = startup
         .shader_smoke_peer
         .map(|path| {
-            // 复用 Loom 发现格式/身份验证，但路径只来自显式 smoke 参数，不作默认发现。
+            // Reuse Loom discovery format/identity verification, but take paths only from explicit smoke arguments, never default discovery.
             let mut bytes = Vec::new();
             File::open(path)
                 .and_then(|file| {

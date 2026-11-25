@@ -1,4 +1,4 @@
-//! EDIT/Select 共用的 DPI 字体 owner；调用方在默认 NCDESTROY 完成后释放。
+//! DPI font owner shared by EDIT/Select; callers release after default NCDESTROY finishes.
 use windows::{
     core::{w, Error, Result},
     Win32::{Foundation::*, Graphics::Gdi::*, UI::WindowsAndMessaging::*},
@@ -39,7 +39,7 @@ pub(super) fn update(
         {
             return Err(Error::from_win32());
         }
-        // 从不变的 96 DPI stock 描述计算，避免往返显示器时累计舍入。
+        // Calculate from the immutable 96-DPI stock description, avoiding accumulated rounding across monitor round trips.
         descriptor.lfHeight = ((descriptor.lfHeight as i64 * dpi as i64) / 96) as i32;
         descriptor.lfWidth = ((descriptor.lfWidth as i64 * dpi as i64) / 96) as i32;
         if let Some(style) = style {
@@ -59,7 +59,7 @@ pub(super) fn update(
             {
                 return Err(invalid("Invalid Select resolved font"));
             }
-            // GDI 高度为整数像素；0 有系统默认字号语义，不能用于表示微小字号。
+            // GDI heights are integer pixels; 0 means system-default font size, not a tiny font.
             descriptor.lfHeight = -(height.round().max(1.) as i32);
             descriptor.lfWidth = 0;
             descriptor.lfWeight = style.weight as i32;
@@ -86,7 +86,7 @@ pub(super) fn update(
         }
         SetPropW(hwnd, KEY, Some(HANDLE(font.0 .0)))?;
         let handle = font.0;
-        std::mem::forget(font); // WM_NCDESTROY 即使重入也能释放已转交窗口的字体。
+        std::mem::forget(font); // WM_NCDESTROY releases the transferred window-owned font even during reentrancy.
         let previous = (!old.is_invalid()).then(|| Font(HFONT(old.0)));
         SendMessageW(
             hwnd,
@@ -94,7 +94,7 @@ pub(super) fn update(
             Some(WPARAM(handle.0 as usize)),
             Some(LPARAM(1)),
         );
-        drop(previous); // 控件替换完成前，旧字体仍有效；共享 stock 字体从未归我们所有。
+        drop(previous); // The old font remains valid until control replacement finishes; shared stock fonts were never ours.
         Ok(())
     }
 }

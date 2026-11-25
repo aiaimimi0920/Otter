@@ -1,4 +1,4 @@
-//! sender与源端协作的最小公共接缝；canonical/原意图仍为目标权威，不从目录猜既有关联。
+//! Minimal shared seam between sender and source-side collaboration; canonical/original intent remain target authority, never infer existing associations from catalogs.
 use super::*;
 use crate::projection_delivery_runtime::edit::source::Target;
 impl Owner {
@@ -83,8 +83,8 @@ impl Application {
         projection: Option<&str>,
         success: bool,
     ) {
-        // 只推进本次目标；重置整Unit会使最先到期的目标永久饿死同组其他成员。
-        // 精确Checkpoint后重捕弱身份，不延长PNG/canonical或任何像素租约。
+        // Advance only this target; resetting the whole Unit lets the earliest-due target permanently starve other group members.
+        // Recapture weak identity after exact Checkpoint without extending PNG/canonical or any pixel lease.
         let stamp = if success {
             scope::Scope::capture(self, unit).ok().map(|v| v.0.into())
         } else {

@@ -1,4 +1,4 @@
-//! Application 到真实右 strip/候选 child 的闭环，复用原候选提交与配置凭证。
+//! Application-to-actual-right-strip/candidate-child integration, reusing original candidate commits/configuration credentials.
 use super::*;
 use serde_json::json;
 use windows::Win32::Graphics::Gdi::*;

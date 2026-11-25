@@ -1,4 +1,4 @@
-//! 工作区 chrome 的独立 UI owner；回调只持 Rc 数据，不持 Application 或文档裸指针。
+//! Independent UI owner for workspace chrome; callbacks hold only Rc data, not raw pointers to Application or documents.
 use super::*;
 #[path = "workspace_chrome_close.rs"]
 mod close;
@@ -252,7 +252,7 @@ impl Owner {
         self.ui.selected.borrow_mut().clear();
     }
 }
-/// 独立 Live 测试/宿主未绑定时保留旧边角；应用绑定后严格服从三态。
+/// Preserve legacy corners in standalone Live tests or while the host is unbound; strictly follow the three-state policy after application binding.
 pub(in crate::desktop) fn live_frame(binding: &Binding) -> bool {
     binding
         .borrow()
@@ -266,7 +266,7 @@ impl Drop for Owner {
         }
     }
 }
-/// 几何变化可发生在系统拖动的嵌套消息泵内；只更新本窗口的标量，不访问 Application。
+/// Geometry may change inside the nested message pump for system dragging; update only this window's scalars without accessing Application.
 pub(in crate::desktop) unsafe fn geometry(binding: &Binding, hwnd: HWND, msg: u32) {
     let Some(ui) = binding.borrow().upgrade() else {
         return;
@@ -293,7 +293,7 @@ pub(in crate::desktop) unsafe fn geometry(binding: &Binding, hwnd: HWND, msg: u3
             if let Some(rect) = rect {
                 let dpi = windows::Win32::UI::HiDpi::GetDpiForWindow(hwnd);
                 if node.rect == rect && node.dpi == dpi {
-                    return; // 命中 region 变更也发位置通知；不重复提交同一几何或重入宿主绘制。
+                    return; // Hit-region changes also emit position notifications; do not recommit identical geometry or reenter host painting.
                 }
                 node.rect = rect;
                 node.dpi = dpi;
@@ -362,7 +362,7 @@ pub(in crate::desktop) unsafe fn commit_frame(binding: &Binding, host: HWND) -> 
     Ok(())
 }
 
-/// 目标整帧遮住宿主时同步外框元数据，交接不等待主消息循环再纠正透明度。
+/// Synchronize outer-frame metadata when the target's entire frame covers the host; handoff must not wait for the main loop to correct opacity.
 pub(in crate::desktop) fn presentation(
     binding: &Binding,
     hwnd: HWND,
@@ -382,7 +382,7 @@ pub(in crate::desktop) fn presentation(
     }
 }
 
-// 缩放的新外框在宿主几何提交之前准备，不能让扩大的图片先遮住旧外框。
+// Prepare the resized outer frame before committing host geometry, so an enlarged image cannot cover the old frame first.
 pub(in crate::desktop) unsafe fn zoom_frame(
     binding: &Binding,
     hwnd: HWND,
@@ -435,9 +435,9 @@ unsafe fn refresh_geometry(ui: &Ui, translated: bool) {
         ui.fail(error);
         return;
     }
-    // 系统拖动的嵌套消息泵可能持续优先处理位置消息，不能等空闲 WM_PAINT 才补框。
-    // 几何与所有端点条先更新完，释放借用后在同一次移动内完成可见叠层重绘。
-    // handles 首项是 WS_EX_TRANSPARENT 线层；必须最后画，不能让它等仍失效的端点条。
+    // The nested system-drag message pump may keep prioritizing position messages; do not wait for idle WM_PAINT to restore the frame.
+    // Update geometry and all endpoint strips first, release borrows, then repaint visible overlays within the same move.
+    // The first handles entry is the WS_EX_TRANSPARENT line layer; paint it last so it never waits on still-invalid endpoint strips.
     for overlay in ui
         .handles()
         .into_iter()

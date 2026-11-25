@@ -1,4 +1,4 @@
-//! HWND 像素与滚动条 DIP 接缝；沿用呈现事务和 EDIT 重定位。
+//! Seam between HWND pixels and scrollbar DIPs; retain presentation transactions and EDIT repositioning.
 use super::*;
 use crate::surface_scroll::{Bar, Drag};
 impl Host {
@@ -47,12 +47,12 @@ impl Host {
     ) -> Result<bool> {
         let before = self.viewport;
         let hit = self.scrollbar(pixels)?;
-        // 命中查询可能先更新呈现几何，即使本次不翻页也要保留重绘。
+        // Hit queries may update presentation geometry first; retain repaint even when this operation does not page.
         let reflowed = before.0.width != self.viewport.0.width
             || before.0.height != self.viewport.0.height
             || before.1 != self.viewport.1;
         if let Some((bar, point)) = hit {
-            // thumb 到达指针后不反向翻页，也不转交重叠的另一条。
+            // When the thumb reaches the pointer, do not reverse paging or hand off to another overlapping scrollbar.
             if bar.id == id
                 && bar.axis == axis
                 && direction != 0

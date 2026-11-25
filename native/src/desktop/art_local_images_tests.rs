@@ -1,4 +1,4 @@
-//! 端口与资源ID分离，空输入不伪造图片；真实准备worker沿原预算编码。
+//! Separate ports from resource IDs; empty input must not fabricate images. The real preparation worker encodes within the existing budget.
 use super::*;
 use crate::{desktop::loom_input_job::Source, editor::Editor};
 use std::time::{Duration, Instant};

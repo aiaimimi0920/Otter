@@ -1,4 +1,4 @@
-//! 真实隐藏HWND候选选择与有界绘制；不抢前台、不访问外部数据、不伪造正式输出。
+//! Real hidden-HWND candidate selection and bounded painting; no foreground stealing, external data access, or fabricated official output.
 use super::*;
 use serde_json::json;
 fn fixture() -> Fixture {

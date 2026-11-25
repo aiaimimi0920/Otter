@@ -1,4 +1,4 @@
-//! 两个真实缓存命中共用任务两槽和单 child 容量；取消等待者不能连接 Loom 或丢弃另一项。
+//! Two actual cache hits share two task slots and single-child capacity; cancelling a waiter must neither connect Loom nor discard the other item.
 use super::*;
 use crate::desktop::{
     loom_execution_tasks::{shader_tests, CommitError, Completion, Tasks},
@@ -67,7 +67,7 @@ fn shader_recipe_two_cached_workers_wait_for_single_child_and_cancel_without_net
                 let request = registry.active(&unit).unwrap().clone();
                 assert!(registry.finish(&unit, &request));
                 tasks.retire_stale(&registry);
-                // 容量仍被占满时必须回收取消者，不能仅凭最终 Stale 掩盖一次多余渲染。
+                // Reclaim cancelled waiters while capacity remains full; eventual Stale alone must not conceal an unnecessary render.
                 let mut report = shader_tests::wait(&mut tasks, &registry);
                 assert_eq!(report.unit, unit);
                 assert!(matches!(

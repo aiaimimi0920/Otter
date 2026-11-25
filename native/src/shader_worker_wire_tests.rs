@@ -1,4 +1,4 @@
-//! 纯线协议门：伪造长度/状态/绑定在驱动加载前拒绝，输出明确保持 raw RGBA。
+//! Pure wire-protocol gates: reject forged lengths/status/bindings before driver loading and explicitly retain raw RGBA output.
 use super::*;
 use crate::{
     shader_angle::{self as angle, Fingerprint, Identity, Texture, Uniform},
@@ -131,7 +131,7 @@ fn shader_short_body_rejects_large_texture_before_allocation() {
         bytes[texture + offset..texture + offset + 4].copy_from_slice(&value.to_le_bytes());
     }
     let error = read_request(&mut Cursor::new(bytes)).err().unwrap();
-    // 旧路径会先分配 128 MiB，随后才得到 UnexpectedEof。
+    // The old path allocated 128 MiB before receiving UnexpectedEof.
     assert_eq!(error.kind(), io::ErrorKind::InvalidData);
 
     let mut bytes = encoded();

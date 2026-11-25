@@ -51,7 +51,7 @@ fn hidden_outline_uses_narrow_nonactivating_layered_windows_and_releases_all_han
             width: 40,
             height: 30,
         };
-        // 隐藏测试不请求捕获排除，不显示覆盖窗口，也不采集真实桌面。
+        // Hidden tests request no capture exclusion, show no overlays, and capture no real desktop.
         let outline = Outline::new(HWND::default(), region, false, false).unwrap();
         let handles: Vec<_> = outline.windows.iter().map(|window| window.0).collect();
         assert_eq!(handles.len(), 4);

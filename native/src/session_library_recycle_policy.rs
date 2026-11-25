@@ -1,4 +1,4 @@
-//! 回收数量/天数策略；与导入硬上限分离，未知旧日期保留而非猜测删除。
+//! Recycle count/day policies, separate from hard import limits; preserve unknown legacy dates rather than guessing deletions.
 use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -31,8 +31,8 @@ impl Policy {
     }
 }
 
-// 接受应用生成的 ISO UTC 及带显式偏移/纯日期旧值；不猜无时区或本地化日期。
-// 年份限定四位，全部运算在 i64 范围内；不使用系统当前时区和区域设置。
+// Accept application-generated ISO UTC and legacy explicit-offset/date-only values; never guess timezone-free or localized dates.
+// Years are limited to four digits and all arithmetic fits i64; use neither current system timezone nor locale.
 fn timestamp(value: &str) -> Option<i64> {
     let bytes = value.as_bytes();
     fn number(bytes: &[u8]) -> Option<i64> {

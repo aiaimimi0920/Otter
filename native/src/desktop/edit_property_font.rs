@@ -1,4 +1,4 @@
-//! 字体弹层只提交原目标的 family；枚举/排序归应用，滚动表现归 Neuro-mini。
+//! Font popups commit only family to the original target; application owns enumeration/sorting, Neuro-mini owns scrolling presentation.
 use super::*;
 fn current(c: &Canvas) -> Option<String> {
     let v = fields::view(c)?;
@@ -25,7 +25,7 @@ pub(super) unsafe fn execute(
     let Some(current) = current(&state.canvas.borrow()) else {
         return Ok(());
     };
-    // 懒加载成功结果后复用；读取名称不加载字体文件，也不弹出另一层系统字体框。
+    // Reuse successful lazy loads; reading names neither loads font files nor opens another system font dialog.
     let fonts = super::super::installed_fonts::list()?;
     let selected = fonts.iter().position(|name| *name == current);
     let result = {

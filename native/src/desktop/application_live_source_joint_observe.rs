@@ -1,4 +1,4 @@
-//! 联合门的独立实际消息oracle；须在Source仍发布时确认两轮控制的释放，而非借停止发布清理。
+//! Independent actual-message oracle for the joint gate; confirm release in both control rounds while Source still publishes, not through stop-publication cleanup.
 use super::*;
 #[derive(Default)]
 pub(super) struct Progress {

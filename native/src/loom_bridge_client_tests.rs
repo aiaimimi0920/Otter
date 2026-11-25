@@ -1,4 +1,4 @@
-//! 实际 TLS/WS 回环验证；不接触用户发现文件、凭据或运行中的 Loom。
+//! Actual TLS/WS loopback verification without user discovery files, credentials, or running Loom instances.
 use super::*;
 use base64::Engine;
 use rustls::{pki_types::PrivatePkcs8KeyDer, ServerConfig, ServerConnection};
@@ -52,7 +52,7 @@ pub(crate) fn fixture() -> (TcpListener, Identity, Arc<ServerConfig>) {
 }
 
 #[test]
-// Tungstenite 的握手回调规定返回未装箱 HTTP Response，不能改变第三方接口。
+// Tungstenite handshake callbacks require unboxed HTTP Response; do not change the third-party interface.
 #[allow(clippy::result_large_err)]
 fn authenticated_tls13_websocket_roundtrip_uses_exporter_proof() {
     let (listener, identity, config) = fixture();
@@ -96,7 +96,7 @@ fn authenticated_tls13_websocket_roundtrip_uses_exporter_proof() {
         let message = socket.read().unwrap();
         socket.send(message).unwrap();
     });
-    // 经过与默认连接相同的发现解析/身份校验，再进入真实 TLS/WS；不读取用户清单。
+    // Use the same discovery parsing/identity checks as default connections before actual TLS/WS; never read user manifests.
     let manifest = serde_json::to_vec(&serde_json::json!({
         "schemaVersion":1,"appId":"loom","displayName":"Loom","version":"1",
         "pid":1,"startedAt":1,"transport":{"type":"http","baseUrl":"http://127.0.0.1:80"},
@@ -256,10 +256,10 @@ fn art_exchange_stops_on_consumer_cancel_peer_close_or_total_timeout() {
                 socket.send(tungstenite::Message::Text(serde_json::json!({
                     "protocolVersion":"loom.hook.v1","requestId":"request","method":"loom.hook.art.progress","params":{"value":0.5}
                 }).to_string())).unwrap();
-                // 客户端回调拒绝后应释放 socket，无需等三秒读超时。
+                // Client callback rejection should release sockets without waiting for the three-second read timeout.
                 assert!(socket.read().is_err());
             } else {
-                // 连续无关消息不应续期总响应期限；客户端断开后服务线程退出。
+                // Continuous unrelated messages must not renew total response deadlines; the service thread exits after client disconnect.
                 loop {
                     if socket
                         .send(tungstenite::Message::Text("ignored".into()))

@@ -1,4 +1,4 @@
-//! 原窗口拥有提示；领取批准前重验当前宿主、授权和可见策略，关闭时默认拒绝。
+//! The original window owns the prompt; revalidate current host, authorization, and visibility policy before collecting approval, rejecting by default on close.
 use super::*;
 impl Window {
     pub(in crate::desktop) fn confirmation_handle(

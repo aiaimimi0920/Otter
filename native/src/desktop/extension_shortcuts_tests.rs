@@ -1,4 +1,4 @@
-//! 注册生命周期/失败/旧事件；注入注册函数，不操作用户热键。
+//! Registration lifecycle/failures/stale events; inject registration functions without operating user hotkeys.
 use super::*;
 use serde_json::json;
 fn snapshot(command: &str) -> Arc<Snapshot> {
@@ -72,7 +72,7 @@ fn failed_registration_is_not_claimed_global_and_failed_unregistration_cannot_ke
         .local(b'4' as u32, || panic!("retired binding queried modifiers"))
         .is_none());
     assert!(o.bindings[0].definition.is_none());
-    // 测试回收注入的虚拟注册，不把它交给真实 OS 释放。
+    // Reclaim injected virtual registrations in tests, never through real OS release.
     o.sync_with(Some(snapshot("third")), |_, _, _| Ok(()))
         .unwrap();
     o.sync_with(None, |_, _, _| Ok(())).unwrap();

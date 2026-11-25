@@ -1,4 +1,4 @@
-//! 缓存图框、所属端口和编辑条同批移动；不绘共享连线、不复制图片，也不重排无关钉图。
+//! Move cached image/border frames, owned ports, and edit strips together; no shared-link drawing, image copies, or unrelated-pin relayout.
 use super::*;
 
 pub(super) unsafe fn cached(

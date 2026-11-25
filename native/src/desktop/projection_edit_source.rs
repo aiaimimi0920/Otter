@@ -1,4 +1,4 @@
-//! 源端初始矢量与当前Editor合并；不改栅格、crop或history，期间编辑由当前值覆盖。
+//! Merge the source's initial vectors with the current Editor; preserve raster, crop, and history, with intervening edits overridden by current values.
 use super::*;
 use crate::projection_edit::{
     self as edit,

@@ -1,4 +1,4 @@
-//! 失败准入缓存绑定原显示来源；同实例不重试，新显示/控制周期不继承旧失败。
+//! Failed-admission caches bind to original display provenance; no same-instance retries or inherited failures across new display/control cycles.
 use super::*;
 use crate::live_window_target::recovery::popup_layer::fixture::Fixture;
 
@@ -17,7 +17,7 @@ fn a_reopened_display_on_the_same_hwnd_does_not_inherit_the_failed_admission() {
     let first = fixture.show();
     let mut family = Family::default();
     let hwnd = fixture.popup.0 .0 as usize;
-    // 对应 start_popup 返回 Err 后的生产记录；本回归不启动采集或输入 worker。
+    // Model production records after start_popup returns Err; this regression starts no capture/input workers.
     family.failed.push(Failure {
         hwnd,
         scope: leased(&fixture),
@@ -27,7 +27,7 @@ fn a_reopened_display_on_the_same_hwnd_does_not_inherit_the_failed_admission() {
     assert_ne!(first.instance, next.instance);
     assert!(!first.valid());
     assert!(next.valid());
-    // 两次扫描均有同一 HWND，只有原来源能识别中间已经换代。
+    // Both scans contain the same HWND; only original provenance reveals the intervening generation change.
     family.retain_failed(&[hwnd]);
     assert!(family.failed.is_empty());
     assert!(!family.failed(hwnd));
@@ -76,7 +76,7 @@ fn a_revoked_parent_epoch_cannot_keep_a_new_control_cycle_in_failed_state() {
     assert!(leased(&fixture)
         .bind_descendant(Some(owner.identity()), child.0)
         .is_ok());
-    // 新的来源仍合法，但旧来源不能因同一 B 再启用而复活失败记录。
+    // New provenance remains valid, but reenabling the same B must not revive failure records for old provenance.
     family.retain_failed(&[hwnd]);
     assert!(family.failed.is_empty());
     assert!(!family.failed(hwnd));

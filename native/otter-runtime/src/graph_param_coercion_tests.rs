@@ -1,4 +1,4 @@
-//! 数值/文本夹具已用本地 Node 的 Number/String 检查；不等于全部 JS 边界均已验证。
+//! Numeric/text fixtures were checked with local Node's Number/String; this does not mean every JS edge case has been verified.
 use super::*;
 fn widget(name: &str) -> Widget<'_> {
     Widget {

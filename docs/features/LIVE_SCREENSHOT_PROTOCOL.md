@@ -1,54 +1,72 @@
-# LiveRelay 协议
+# LiveRelay protocol
 
-Otter 与 Loom 按当前版本配套。Loom 的 `protocol/LIVE_SCREENSHOT_PROTOCOL.md`
-及 `protocol/schemas/live-control.v1.schema.json` 定义服务端合同；Otter 管理采集、
-显示和本地窗口。不要把协议名里的 `v1` 当成旧客户端模式。
+Use matching current Otter and Loom versions. Loom's `protocol/LIVE_SCREENSHOT_PROTOCOL.md`
+and `protocol/schemas/live-control.v1.schema.json` define the server contract; Otter owns
+capture, presentation and local windows. The `v1` in a protocol name is not a legacy-client mode.
 
-## 控制、媒体与性能
+## Control, media and performance
 
-- `loom.live.v1` 控制消息使用 `protocolVersion`、`sessionId`、`epoch`、
-  `sequence`、`messageType`、`payload`。会话、权限、按键和按钮边沿、观察及触发审计
-  必须有序；只有可替换的鼠标移动样本允许合并。
-- `/v1/live/media` 是独立 WebSocket 媒体通道。`NLLV` 64 字节公共头包含 epoch、
-  frame ID、采集/编码时间、尺寸、关键帧、丢帧计数、色彩空间、codec 和正文长度。
-  帧不写入工作区，也不进入 Surface 控制轮询。
-- WebSocket 子协议确定媒体 profile：`loom.live.h264.v1`、`loom.live.jpeg.v1`
-  或 `loom.live.v1`（raw BGRA）。H.264 依赖源端编码器、服务端视频策略和接收端
-  解码器；当前版本在不支持视频或解码链失败时仍用图片，不需要旧客户端。
-  JPEG 是独立关键帧，未经 JPEG 协商不能收；H.264 必须按序解码，不能当作独立图片。
-- 帧头、尺寸、序列、codec 与分配预算在接收边界核对；损坏帧不替换可用画面，
-  epoch 变化不会混用旧帧。运行时由 `native/src/live_relay_*` 管理；见
-  [联合测试与诊断](LIVE_JOINT_TESTING.md#诊断与证据边界)。
-  解码提交和收包计数不等于物理显示 FPS 或跨设备端到端延迟。
+- `loom.live.v1` control messages use `protocolVersion`, `sessionId`, `epoch`, `sequence`,
+  `messageType` and `payload`. Session, permission, key/button edges, observation and trigger-audit
+  events must remain ordered. Only replaceable mouse-movement samples may be coalesced.
+- `/v1/live/media` is a separate WebSocket media channel. The shared 64-byte `NLLV` header contains
+  epoch, frame ID, capture/encode timestamps, dimensions, keyframe status, dropped-frame count,
+  color space, codec and payload length. Frames are neither saved to the workspace nor included
+  in Surface control polling.
+- The subprotocol selected by the WebSocket handshake determines the media profile. Viewers offer
+  `loom.live.h264.v1`, `loom.live.jpeg.v1` and `loom.live.v1` (raw BGRA), in that order. Sources offer
+  only raw by default, or H.264 and raw after successfully creating the system encoder; they do not
+  offer JPEG. After a viewer decoding-path failure, reconnection offers only raw and does not advertise
+  video capability again. H.264 still depends on the source encoder, server video policy and receiver
+  decoder. These fallbacks do not require a legacy client.
+- The raw profile accepts neither JPEG nor H.264. JPEG is accepted under the JPEG or H.264 profile;
+  H.264 is accepted only under the H.264 profile. JPEG frames are independent keyframes; H.264 requires
+  ordered decoding and cannot be treated as independent images. See
+  [`live_relay_media_endpoint.rs`](../../native/src/live_relay_media_endpoint.rs).
+- Frame headers, dimensions, sequence, codec and allocation budgets are checked at the receiving
+  boundary. Corrupt frames do not replace usable content, and epoch changes do not mix in old frames.
+  `NLLV` framing and receive admission live in
+  [`live_relay_frame.rs`](../../native/otter-media/src/live_relay_frame.rs) and
+  [`live_relay_receive.rs`](../../native/otter-media/src/live_relay_receive.rs).
+  Host modules in `native/src/live_relay_*` own connections and lifecycles. For metric interpretation
+  and evidence limits, see [joint testing and diagnostics](LIVE_JOINT_TESTING.md#diagnostics-and-evidence-boundaries).
 
-同一发布会话的帧尺寸可以改变。H.264 源在媒体线程重建对应编码器并从新关键帧开始；
-已失败的编码器不会因尺寸变化自动恢复。Loom 和观看端按帧头尺寸更新缓存和解码、
-位图状态；会话目录中的初始尺寸不能当作当前帧尺寸。
+Frame dimensions may change within a published session. An H.264 source rebuilds the relevant
+encoder on the media thread and starts with a new keyframe; a failed encoder is not automatically
+revived by resizing. Loom and viewers update cache, decoding and bitmap state from frame-header
+dimensions. Initial dimensions in the session catalog are not the current frame dimensions.
 
-## 授权与恢复
+## Authorization and recovery
 
-选择会话或加入观看不授予输入权。设备、Surface attachment、controller lease、
-epoch、授权期限和撤销状态须分别核对；Windows 输入仍受当前用户、会话、完整性级别
-及安全桌面限制。公开发现不返回观察值，正常日志不保存标题、像素、键盘或 OCR 内容。
+Selecting a session or joining as a viewer does not grant input control. Device identity,
+Surface attachment, controller lease, epoch, authorization expiry and revocation state must be
+checked separately. Windows input remains constrained by the current user, session, integrity
+level and secure desktop. Public discovery returns no observation values; ordinary logs do not
+retain titles, pixels, keyboard input or OCR content.
 
-续签重用原签名设备身份与成员关系，不重新配对、不重放输入、不重获 controller lease。
-接收端从认证快照的 `requesterControl` 确定游标，新连接从确认的 `viewer_joined`
-事件开始；身份、epoch、快照或成员关系不匹配时停止。`requireExistingMembership`
-由 Loom 原子校验。源端恢复先退役旧 worker，再从已确认的观察序列继续；旧缓存值不能
-直接变为新的可信观察。
+Renewal reuses the original signed device identity and membership without re-pairing, replaying
+input or reacquiring a controller lease. Receivers derive their cursor from `requesterControl`
+in the authenticated snapshot; new connections start at the confirmed `viewer_joined` event.
+Identity, epoch, snapshot or membership mismatches stop the flow. Loom checks
+`requireExistingMembership` atomically. Source recovery retires the old worker before resuming
+from the confirmed observation sequence; old cached values cannot become new trusted observations.
 
-Device 媒体连接收到 `1008` 且原因为 `live_media_device_revoked` 时关闭本地 relay、
-释放授权并清掉接收帧。普通断线不等于设备撤销，HTTP 401 的认证处理也不靠匹配正文。
-源端若已收到认证 HTTP 401 或媒体撤权消息，不因同时停止而尝试关闭原会话；
-若在关闭或关闭前对账时收到 401，则记录授权终止，不声称会话已关闭。
-失败不会触发未经确认的新加入或重放。远程媒体须使用当前授权的 HTTPS/WSS；本机
-回环单独受限。没有公共 NAT/TURN 中继时不宣称具备该能力。
+When a Device media connection receives `1008` with reason `live_media_device_revoked`, it closes
+the local relay, releases authorization and clears received frames. An ordinary disconnect is not
+device revocation, and HTTP 401 authentication handling does not match response text. After a source
+receives an authenticated HTTP 401 or media-revocation message, a concurrent stop does not attempt
+to close the original session. A 401 during closing or pre-close reconciliation records authorization
+termination without claiming the session was closed. Failures do not trigger unconfirmed new joins
+or replay. Remote media requires currently authorized HTTPS/WSS; local loopback has separate restrictions.
+Do not claim public NAT/TURN relay capability where none is available.
 
-## 观察与触发
+## Observation and triggers
 
-UI Automation 在专用线程读取当前允许的控件；稳定 locator 冲突、未知或过期值不会
-推断成 `exact`。快照和事件有界，观察序列与媒体帧号独立。Otter 校验并转交绑定到
-Surface 的触发请求；Loom 负责可信值、稳定时长、权限、幂等和实际 Art 执行。
-视觉/OCR 等可选能力由验证后的 Loom Capability Plugin 提供，不由 Otter 核心暗中启用。
+UI Automation reads currently permitted controls on a dedicated thread. Stable-locator conflicts,
+unknown values and stale values are not inferred to be `exact`. Snapshots and events are bounded,
+and observation sequences are independent of media frame IDs. Otter validates and forwards trigger
+requests bound to a Surface; Loom owns trusted values, stability durations, permissions, idempotency
+and actual Art execution. Optional vision/OCR capabilities come from validated Loom Capability
+Plugins, not implicit activation by the Otter core.
 
-另见[实际使用与验证边界](LIVE_CAPTURE.md#compatibility-and-validation)。
+See also [usage and validation boundaries](LIVE_CAPTURE.md#compatibility-and-validation).

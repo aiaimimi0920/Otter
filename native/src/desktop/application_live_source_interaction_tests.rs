@@ -1,4 +1,4 @@
-//! 实际原菜单/TLS事件/同一Session worker到自有窗口，核权限、切换、释放和生命周期。
+//! Actual original menu/TLS events/same Session worker through owned windows, verifying permissions, switching, release, and lifecycle.
 use super::*;
 use crate::desktop::composition::live::window::publication::PUBLISH_CONTROL;
 use serde_json::{json, Value};
@@ -25,7 +25,7 @@ unsafe fn pump(
     loop {
         app.poll_remote_live_with(false, |origin| fixture::config(origin, root))
             .unwrap();
-        // 原Application拥有Session一次性终态；不能丢弃poll返回值后把已回收owner留在Vec。
+        // The original Application owns Session's one-shot terminal state; do not discard poll's return value and leave a reaped owner in Vec.
         app.process_live(false).unwrap();
         if ready(app) {
             return;

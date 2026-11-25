@@ -1,4 +1,4 @@
-//! 真实 WIC/D2D 帧验证，保护错误/panic 后 EndDraw 及 clip/transform 恢复，不以 mock 代替像素。
+//! Actual WIC/D2D frames verify EndDraw and clip/transform restoration after errors/panics; mocks do not replace pixels.
 use super::*;
 use windows::{
     core::Error,
@@ -121,7 +121,7 @@ fn error_and_panic_restore_state_and_leave_next_frame_drawable() {
 fn end_draw_failure_is_reported_and_paint_error_keeps_precedence() {
     fixture(|target, output| {
         let error = draw(target, || {
-            // 合法测试故障注入：无匹配 push 的 pop 由 D2D 在 EndDraw 报错，不访问无效指针。
+            // Valid fault injection: D2D reports an unmatched pop at EndDraw; no invalid pointer is accessed.
             unsafe {
                 target.PopAxisAlignedClip();
             }

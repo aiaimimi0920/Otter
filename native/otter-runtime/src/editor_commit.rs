@@ -1,4 +1,4 @@
-//! 草稿提交的唯一事务；平滑只物化一次，普通画笔荧光保留画笔采样来源。
+//! Sole draft-commit transaction; materialize smoothing once and retain brush sampling provenance for ordinary brush glow.
 use super::*;
 
 impl Editor {
@@ -12,7 +12,7 @@ impl Editor {
         let Some(mut stroke) = self.draft.take() else {
             return false;
         };
-        // 单击画笔保留一个点；零长度线和零面积形状不制造历史。
+        // Single brush clicks retain one point; zero-length lines/zero-area shapes create no history.
         if stroke.tool == Tool::Polyline && stroke.points.len() < 2 {
             return false;
         }

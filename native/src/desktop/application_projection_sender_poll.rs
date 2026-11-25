@@ -1,4 +1,4 @@
-//! 先核来源和授权，再消费后台候选；等待原 canonical commit，不把 HTTP 成功显示成接收端已呈现。
+//! Check source and authorization before consuming background candidates; wait for original canonical commit, never display HTTP success as receiver presentation.
 use super::*;
 impl Application {
     pub(in crate::desktop) unsafe fn finish_projection_sender(
@@ -39,7 +39,7 @@ impl Application {
             && pending.scope.matches(self)
             && self.sender_current(&pending.current, &pending.origin)
         {
-            // 普通网络失败不等于用户取消；显式重试继续同 ID/签名/PNG，不自动重新 Create。
+            // Ordinary network failure is not user cancellation; explicit retry retains the same ID/signature/PNG without automatically issuing Create again.
             self.projection_sender.phase = Phase::Retry(pending);
             use crate::{
                 live_relay_http::Error as Http, projection_delivery_runtime::Error as Job,

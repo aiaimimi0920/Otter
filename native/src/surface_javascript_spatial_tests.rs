@@ -1,4 +1,4 @@
-//! 同预算真实 child 的定位、裁剪、动态变更与回收；产品门必须绑定外部预期摘要。
+//! Positioning, clipping, dynamic changes, and cleanup in real children under the same budget; product gates must bind external expected digests.
 use super::*;
 use crate::surface_viewport::Viewport;
 use sha2::{Digest, Sha256};
@@ -131,7 +131,7 @@ fn javascript_spatial_relative_offsets_preserve_flow_and_percent_anchors_use_pad
     assert!((value[0]["left"].as_f64().unwrap() - (-1.6)).abs() < 0.01);
     assert_eq!(value[0]["top"], 5);
     assert_eq!(value[1]["left"], 12);
-    assert_eq!(value[1]["top"], 23); // 第一项偏移不改变后项正常占位，含原 column gap=6。
+    assert_eq!(value[1]["top"], 23); // Offsetting the first item does not alter later items' normal space allocation, including the original column gap=6.
     assert_eq!(value[2]["left"], 50);
     assert_eq!(value[2]["top"], 21);
     session.dispose(&|| false).unwrap();

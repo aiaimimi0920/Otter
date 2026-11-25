@@ -1,4 +1,4 @@
-//! 分组元数据与单组成员关系；删除组不删除对象，关闭组才级联删除成员和链接。
+//! Group metadata and single-group membership; deleting a group preserves objects, while closing it cascades to members and links.
 use super::*;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Group {
@@ -7,7 +7,7 @@ pub struct Group {
     pub hidden: bool,
     pub locked: bool,
 }
-/// 保存分组的内容而不是变更次数：相同成员换序赋组不应使检查点变脏。
+/// Save group content rather than change counts: reordering the same members during assignment must not dirty the checkpoint.
 pub struct GroupStamp {
     groups: Vec<Group>,
     memberships: HashMap<UnitId, UnitId>,
@@ -49,7 +49,7 @@ impl Workspace {
         }
         Ok(())
     }
-    /// 批量赋组先完成校验和预留，再修改成员关系；每个对象最多属于一个组。
+    /// Batch group assignment validates/reserves before modifying membership; each object belongs to at most one group.
     pub fn assign_group(&mut self, units: &[UnitId], group: Option<&UnitId>) -> Result<(), Error> {
         if units.len() > MAX_UNITS {
             return Err(Error::Capacity);
@@ -102,7 +102,7 @@ impl Workspace {
         members.extend(
             self.units
                 .iter()
-                // 主干按对象集合顺序关闭，不按用户分组选择顺序关闭。
+                // The baseline closes in object-collection order, not user group-selection order.
                 .filter(|unit| self.memberships.get(*unit) == Some(id))
                 .cloned(),
         );

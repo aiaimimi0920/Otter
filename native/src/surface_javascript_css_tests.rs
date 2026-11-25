@@ -1,4 +1,4 @@
-//! 真实 child 的样式增量与预算；封存产品用外部 EXE 摘要显式验证，默认能力不放行。
+//! Style increments and budgets in real children; sealed products require explicit external EXE digest verification, with no default capability admission.
 use super::*;
 use sha2::{Digest, Sha256};
 const SOURCE: &str = include_str!("../tests/fixtures/javascript-css.js");
@@ -83,9 +83,9 @@ fn javascript_css_real_child_private_css_survives_collect_update_and_dispose() {
 fn javascript_css_real_child_rejects_unimplemented_box_inline_and_resource_budgets() {
     let _serial = fixture::SERIAL.lock().unwrap();
     for operation in [
-        "root.style.width='40px'", // 缺少显式 border-box，不能静默采用 native 语义。
+        "root.style.width='40px'", // Without explicit border-box, native semantics must not be adopted silently.
         "root.style.fontSize='100px';root.style.lineHeight='1px'",
-        "root.style.borderWidth='2px';root.style.borderStyle='solid'", // 缺少 border-box。
+        "root.style.borderWidth='2px';root.style.borderStyle='solid'", // Missing border-box.
         "root.innerHTML='<button><span>run</span></button>';root.firstChild.firstChild.style.color='red'",
         "for(let i=0;i<17;i++)new CSSStyleSheet()",
         "new CSSStyleSheet().replaceSync('div{color:red}'.repeat(129))",

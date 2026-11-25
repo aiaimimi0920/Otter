@@ -1,4 +1,4 @@
-//! 只交付匹配请求的完整成功结果；副作用是待审核的数据，不在网络层执行系统或文档操作。
+//! Deliver only complete successful results matching requests; effects remain reviewable data, not network-layer system/document operations.
 use super::{catalog, Error};
 use serde::Deserialize;
 use serde_json::Value;
@@ -112,7 +112,7 @@ impl Outcome {
                 }),
                 None => Err(Error::Denied),
             },
-            // 该 RPC 交付的是完整结果，不能把 accepted/progress 当成已完成并应用 effects。
+            // This RPC delivers complete results; accepted/progress cannot count as completion or authorize applying effects.
             _ => Err(Error::Wire),
         }
     }

@@ -1,4 +1,4 @@
-//! 选择开关保持文档不变；静默只允许继续操作本次新建的标注。
+//! Selection toggles preserve documents; silent mode permits continued interaction only with annotations just created.
 use super::*;
 fn point(x: f32, y: f32) -> Point {
     Point { x, y }
@@ -10,7 +10,7 @@ fn canvas() -> Canvas {
         pixels: vec![255; 40000].into(),
     }))
     .unwrap();
-    // 此夹具直接使用图像坐标，不能沿用普通窗口默认的 20px 视口留边。
+    // This fixture uses image coordinates directly, not ordinary windows' default 20px viewport padding.
     c.viewport.origin = Point::default();
     c.editor.begin(Tool::Rectangle, point(20.0, 20.0)).unwrap();
     c.editor.extend(point(40.0, 40.0)).unwrap();

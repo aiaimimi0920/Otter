@@ -1,4 +1,4 @@
-//! 标量协议使用自有窗口/源线程 hook；无全局键鼠输入，不访问用户应用。
+//! Scalar-protocol tests use owned windows/source-thread hooks; no global keyboard/mouse input or user applications.
 use super::*;
 use windows::{core::w, Win32::System::LibraryLoader::GetModuleHandleW};
 
@@ -83,7 +83,7 @@ impl Window {
                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER,
             )
             .unwrap();
-            // Win32 成功返回不等于样式已设置；失败应停在夹具初始化。
+            // Win32 success does not prove styles were set; fail during fixture initialization.
             assert_ne!(
                 GetWindowLongPtrW(self.0, GWL_EXSTYLE) as u32 & WS_EX_TOPMOST.0,
                 0
@@ -94,7 +94,7 @@ impl Window {
 impl Drop for Window {
     fn drop(&mut self) {
         unsafe {
-            // 有些按钮回归会让源在自己的窗口过程中销毁原控件/窗口。
+            // Some button regressions destroy original controls/windows inside their own source window procedures.
             if IsWindow(Some(self.0)).as_bool() {
                 DestroyWindow(self.0).unwrap();
             }

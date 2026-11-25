@@ -1,4 +1,4 @@
-//! 有界 RBSP 位读取；参数集最多 1024 字节，不按网络声明动态扩容。
+//! Bounded RBSP bit reading; parameter sets are at most 1024 bytes, without network-declared dynamic growth.
 use super::Result;
 pub(super) struct Bits {
     bytes: [u8; 1024],

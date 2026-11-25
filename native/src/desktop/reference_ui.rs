@@ -1,4 +1,4 @@
-//! 收藏命令只排队当前窗口和来源凭证；后台编码/发布不进入窗口回调。
+//! Favorite commands enqueue only the current window and source credential; background encoding/publication never enters window callbacks.
 use super::*;
 pub(super) const SET: usize = 0x10b0;
 pub(super) const REMOVE: usize = 0x10b1;
@@ -90,7 +90,7 @@ pub(super) unsafe fn append_menu(menu: HMENU, state: &State) -> Result<()> {
         RECYCLE,
         w!("关闭"),
     )?;
-    // 冻结库的原 worker 会替换占位子菜单，并异步决定收藏/取消收藏。
+    // The frozen library's original worker replaces placeholder submenus and asynchronously determines favorite/unfavorite state.
     AppendMenuW(menu, flags, RECYCLE_ROOT, w!("回收站"))?;
     AppendMenuW(menu, flags, CLEAR_RECYCLE, w!("清空回收站"))?;
     AppendMenuW(menu, MF_SEPARATOR, 0, None)?;

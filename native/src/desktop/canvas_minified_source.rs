@@ -1,4 +1,4 @@
-//! 恢复原图与编辑底图的关联；标注变化不退休原图，底图/文档替换后不得复用旧来源。
+//! Restore the link between original and editable base images; annotation changes do not retire the original, but base-image/document replacement forbids stale-source reuse.
 use super::{Editor, Image};
 use crate::{
     crop_geometry::{Rect, Size},
@@ -11,7 +11,7 @@ struct Backing {
     size: (u32, u32),
     logical_frame: Option<Rect>,
 }
-/// 自然像素对应的恢复基线；共享原文 owner，不复制会话或历史数组。
+/// Restoration baseline in natural pixels; share the original owner without copying session or history arrays.
 #[derive(Clone)]
 pub(in crate::desktop) struct Origin {
     pub record: crate::session_source::Source,
@@ -49,9 +49,9 @@ impl Source {
     pub(in crate::desktop) fn image(&self) -> &Image {
         &self.image
     }
-    /// 仅恢复路径提供原逻辑源框；普通替换/同步不从像素尺寸猜测此映射。
+    /// Only restoration supplies the original logical source bounds; ordinary replacement/synchronization must not infer this mapping from pixel dimensions.
     pub(in crate::desktop) fn with_source_logical(mut self, logical: Size) -> Self {
-        // 与 crop_geometry 的逻辑坐标合同一致；不是纹理大小，不套用 8192 像素门。
+        // Match crop_geometry's logical-coordinate contract; these are not texture dimensions, so the 8192-pixel gate does not apply.
         self.source_logical = (logical.width.is_finite()
             && logical.height.is_finite()
             && logical.width > 0.0

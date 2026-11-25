@@ -1,4 +1,4 @@
-//! 声明式按钮的静态默认值与内容盒；原始 props/layout/style 不改写，输入权限仍由宿主管理。
+//! Static defaults and content boxes for declarative buttons; original props/layout/style remain unchanged, and the host still manages input permission.
 use crate::{
     surface_length::Context,
     surface_scene::{Kind, Node},
@@ -7,7 +7,7 @@ use serde_json::{Map, Value};
 
 pub fn style(original: &Map<String, Value>, disabled: bool) -> Map<String, Value> {
     let mut result = original.clone();
-    // 映射 Neuro 控件/正文/分隔线角色；只补默认值，保留声明式显式样式。
+    // Map Neuro control/body/separator roles; fill only defaults and preserve explicit declarative styles.
     for (key, value) in [
         ("color", Value::from("#f7f8ef")),
         ("background", Value::from("#111720")),

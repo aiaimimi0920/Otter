@@ -1,4 +1,4 @@
-//! 已校验像素owner的legacy区域；复用传播框，仅替换自然像素到逻辑框的采样。
+//! Legacy regions of validated pixel owners; reuse propagation frames and replace only natural-pixel-to-logical-frame sampling.
 use super::*;
 use crate::{editor::CropView, session_window::Window};
 use serde_json::{json, Value};
@@ -13,8 +13,8 @@ impl Frame {
         edit: &Value,
     ) -> Result<Self> {
         validate(pixels)?;
-        // 整图作为临时legacy区域，取原with_content计算的传播框及目的框方向。
-        // 真正源框已经位于post-flip像素，绝不能再按canonical反射一次。
+        // Use the full image as a temporary legacy region, taking propagation bounds/target orientation from original with_content.
+        // Actual source bounds already reference post-flip pixels; never reflect again using canonical data.
         let modern = view.is_some_and(|view| view.legacy_pixel_region().is_none());
         let layout = json!({
             "cropRect": {"x":0,"y":0,"w":image.width,"h":image.height},
@@ -35,11 +35,11 @@ impl Frame {
                 width: source.source.width,
                 height: source.source.height,
             })?;
-            // 当前区域已经组合了自己的nested crop。反解完整区域，最终viewport裁一次；
-            // 同时保留crop外邻域给活动blur。上游legacy不参与目标crop的这次反解。
+            // The current region already incorporates its own nested crop. Invert the complete region and crop once at final viewport;
+            // retain outside-crop neighborhoods for active blur. Upstream legacy data does not participate in this target-crop inversion.
             if !modern {
-                // legacy完整view不是现代crop：保留原自然输出的逐轴密度，不能因
-                // crop_view存在就用max-density把非等比逻辑框变成另一张更大的图。
+                // Complete legacy views are not modern crops: retain original natural per-axis output density; the presence of
+                // crop_view must not use max-density to turn nonuniform logical bounds into a different, larger image.
                 let output = (
                     (image.width as f64 * source.rect.width / source.source.width)
                         .round()

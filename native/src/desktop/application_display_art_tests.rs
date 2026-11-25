@@ -1,4 +1,4 @@
-//! Art 本地标注只影响自身显示快照，正式图片及下游中继仍保持原始结果。
+//! Art's local annotations affect only its own display snapshot; committed images and downstream relays retain the original result.
 use super::Application;
 use crate::{editor::Tool, viewport::Point};
 
@@ -77,7 +77,7 @@ pub(super) fn verify(app: &mut Application) {
 }
 
 fn verify_connected_formal_overlay(app: &mut Application) {
-    // 第二个 Art 只有标量输出，显示经透明钉图连接的第一个 Art 正式图片。
+    // The second Art has only scalar output and displays the first Art's committed image connected through a transparent pin.
     let state = &app.documents[1].state;
     state.canvas.borrow_mut().tool = Tool::Brush;
     let original = state.canvas.borrow().editor.document_stamp();

@@ -1,4 +1,4 @@
-//! 原TLS夹具驱动真实Views owner；未知open不重放、迟到open关闭、资源逐步完整后才交帧。
+//! Original TLS fixtures drive real Views owners; no replay of uncertain opens, close late opens, and deliver frames only after resources become complete stepwise.
 use super::*;
 use crate::{device_authorization_lease::Grant, tile_assets::Job, tile_surface_owner::Views};
 use serde_json::{json, Value};
@@ -204,7 +204,7 @@ fn each_poll_downloads_at_most_one_resource_and_width_only_mismatch_is_not_ignor
         let mut views = Views::new(&client, &lease);
         views.poll(&["art".into()], &shared, &job, 0).unwrap();
         assert!(views.frames().is_empty());
-        // BTreeMap按digest排序；单维失败场景确保首先取到含width约束的那张。
+        // BTreeMap sorts by digest; single-dimension failure scenarios ensure the image with a width constraint is fetched first.
         if mismatch {
             let first = views.poll(&["art".into()], &shared, &job, 0);
             assert_eq!(first, Err("Art图片尺寸不匹配"));

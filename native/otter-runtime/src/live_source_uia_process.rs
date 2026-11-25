@@ -1,4 +1,4 @@
-//! UIA私有MTA进程；复用唯一Job/pipe owner，单在途扫描2秒、128MiB/全进程512MiB。
+//! Private UIA MTA process; reuse the sole Job/pipe owner, with one in-flight scan limited to 2 seconds, 128MiB/512MiB process-wide.
 use super::*;
 use crate::{
     bounded_worker_process as bounded, live_recovery_pipe::Pipe, live_window_target::Target,

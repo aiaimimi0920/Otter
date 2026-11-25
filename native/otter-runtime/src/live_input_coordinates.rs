@@ -1,4 +1,4 @@
-//! Live 输入坐标转换；线程 DPI 上下文严格作用域恢复，不授予控制权限。
+//! Live input-coordinate conversion; strictly scoped restoration of thread DPI contexts, without granting control permissions.
 use super::{input_target::Destination, Target};
 use windows::Win32::{
     Foundation::*,
@@ -18,7 +18,7 @@ pub enum Error {
 type Result<T> = std::result::Result<T, Error>;
 #[path = "live_input_dpi_bridge.rs"]
 pub mod bridge;
-/// 相对 WGC/DWM frame 的物理像素裁剪；仅窗口内区域，不是桌面区域控制授权。
+/// Physical-pixel crop relative to the WGC/DWM frame; an in-window region only, not desktop-region control authorization.
 #[derive(Clone, Copy, Debug)]
 pub struct FrameRegion {
     pub left: u32,
@@ -53,8 +53,8 @@ impl Drop for Dpi {
         }
     }
 }
-/// 旧整窗协议沿用客户区归一化规则；窗口内裁剪从物理 frame 转换。
-/// destination 必须属于同一个原 root；结果仍需 message 层检查 signed 16-bit 范围。
+/// The legacy full-window protocol retains client-area normalization; in-window crops convert from the physical frame.
+/// destination must belong to the same original root; the message layer must still check the signed 16-bit range.
 pub fn map(
     root: &Target,
     destination: &Destination,
@@ -63,8 +63,8 @@ pub fn map(
 ) -> Result<Mapped> {
     map_in_space(root, destination, normalized, region, false)
 }
-/// 本地普通应用的图像来自完整 WGC frame，包括标题栏/边框；不能按客户区拉伸。
-/// 仅改变坐标空间，不将非客户区转换成新的消息或授予额外目标权限。
+/// Local ordinary-application images come from the complete WGC frame, including title bar/borders; do not stretch to the client area.
+/// Change only coordinate space; do not turn nonclient areas into new messages or grant extra target permissions.
 pub fn map_capture(
     root: &Target,
     destination: &Destination,
@@ -127,9 +127,9 @@ fn map_in_space(
     if !unsafe { ClientToScreen(root.hwnd(), &mut point) }.as_bool() {
         return Err(Error::Transform);
     }
-    // 子控件可能属于不同 DPI awareness 的进程：通过物理屏幕坐标桥接，
-    // 不能把 root 逻辑屏幕坐标直接当作 destination 的坐标。
-    // 相同 awareness 直接映射；不要让隐藏窗口上的冗余 DPI API 调用拒绝合法的拖动坐标。
+    // Child controls may belong to processes with different DPI awareness: bridge through physical screen coordinates,
+    // rather than treating root's logical screen coordinates as destination coordinates.
+    // Map directly for matching awareness; redundant DPI API calls on hidden windows must not reject valid drag coordinates.
     if !same_context
         && !root_physical
         && !unsafe { LogicalToPhysicalPointForPerMonitorDPI(Some(root.hwnd()), &mut point) }
@@ -172,7 +172,7 @@ fn rectangle_point(bounds: RECT, point: [f64; 2]) -> Result<[i32; 2]> {
         return Err(Error::InvalidBounds);
     }
     Ok([
-        // 先舍入非负局部像素再加屏幕原点，避免负屏幕半像素因 round 方向不同偏移。
+        // Round nonnegative local pixels before adding the screen origin to avoid negative-screen half-pixel shifts from different rounding directions.
         (i64::from(bounds.left) + ((width - 1) as f64 * point[0]).round() as i64) as i32,
         (i64::from(bounds.top) + ((height - 1) as f64 * point[1]).round() as i64) as i32,
     ])
@@ -212,7 +212,7 @@ pub(super) fn frame_bounds(window: HWND) -> Result<RECT> {
     }
     .is_err()
     {
-        // GetWindowRect 会 DPI 虚拟化；失败回退必须临时使用 PMv2 获取物理边界。
+        // GetWindowRect is DPI-virtualized; failure fallback must temporarily use PMv2 to obtain physical bounds.
         let old =
             unsafe { SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2) };
         if old.0.is_null() {

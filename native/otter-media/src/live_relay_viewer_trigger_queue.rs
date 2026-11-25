@@ -1,4 +1,4 @@
-//! 原控制线程消费的单槽意图；stop封住迟到回执，不新增线程、等待句柄或无界消息。
+//! Single-slot intent consumed by the original control thread; stop fences late replies without new threads, wait handles, or unbounded messages.
 use crate::live_relay_trigger_command::Command;
 use std::sync::Mutex;
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -70,7 +70,7 @@ impl Queue {
             s.command.take()
         }
     }
-    /// 控制读取失联时取消尚未发送的配置意图；已发送的未知结果仍保Unknown终态。
+    /// Cancel unsent configuration intents when control reads disconnect; sent requests with unknown results retain the Unknown terminal state.
     pub fn pause(&self, paused: bool) {
         let mut s = self.state();
         s.paused = paused;

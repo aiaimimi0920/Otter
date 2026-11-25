@@ -1,4 +1,4 @@
-//! 新接收图在当前工作区首窗口所在显示器工作区居中，等比缩小、不放大或复制旧窗口尺寸。
+//! Center newly received images in the work area of the current workspace's first-window monitor; scale down proportionally, never enlarge or copy old window dimensions.
 use super::*;
 use windows::Win32::Graphics::Gdi::{
     GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTONEAREST,

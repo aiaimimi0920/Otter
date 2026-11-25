@@ -1,4 +1,4 @@
-//! 保存后变化凭证：只保留轻量模型身份/版本和几何，不持有像素或整套 Editor 快照。
+//! Post-save change credentials: retain only lightweight model identities/versions and geometry, not pixels or complete Editor snapshots.
 use super::*;
 use crate::{
     editor::DocumentStamp,
@@ -106,7 +106,7 @@ impl Stamp {
         }
     }
     pub(super) unsafe fn matches(&self, app: &Application) -> bool {
-        // 手动 dirty 语义不变：持续 Live 不能被一个时间点快照标记为永久干净。
+        // Manual dirty semantics are unchanged: a point-in-time snapshot cannot mark continuous Live permanently clean.
         self.matches_with_restore(app, |_, _, _, _| true)
     }
     pub(super) unsafe fn matches_automatic(&self, app: &Application) -> bool {
@@ -117,7 +117,7 @@ impl Stamp {
     pub(super) unsafe fn matches_model(&self, app: &Application) -> bool {
         self.matches_model_with(app, |_, _, _, _| true)
     }
-    /// 共享本次消息循环内的物理窗口观测，不缓存跨消息的几何或 DPI。
+    /// Share physical-window observations within this message-loop turn; do not cache geometry or DPI across messages.
     pub(super) unsafe fn matches_with_restore(
         &self,
         app: &Application,
@@ -179,7 +179,7 @@ impl Document {
         let dpi = windows::Win32::UI::HiDpi::GetDpiForWindow(doc.window.0);
         (self.dpi == dpi
             && self.editor.matches(&state.canvas.borrow().editor)
-            // 正式端口独立于 Editor；预览/进度不推进此身份，也不持有整图。
+            // Committed ports are independent of Editor; previews/progress neither advance this identity nor retain the full image.
             && self.output.matches(&state.execution_results.borrow())
             && self.configuration.matches(state)
             && self.projection_edit == crate::desktop::projection_edit_workspace::stamp(state.projection_edit.borrow().as_ref())
@@ -209,7 +209,7 @@ fn pending_edits(state: &State) -> bool {
         || canvas.erase_pending.is_some()
 }
 impl Application {
-    /// 坐标上下文安装完成后才建立普通文件导入的基线；恢复副本仍要求另存为。
+    /// Establish the baseline for an ordinary file import only after installing coordinate context; recovery copies still require save-as.
     pub(super) unsafe fn record_loaded_save_state(&mut self) {
         self.saved_state = if self
             .restored_session
@@ -221,7 +221,7 @@ impl Application {
             None
         };
     }
-    /// 按需查询，不引入常驻轮询；这是版本变化判定，不宣称撤销后内容相等即可自动变干净。
+    /// Query on demand without persistent polling; this detects version changes, not automatic cleanliness when undo restores equal content.
     pub(super) unsafe fn save_status(&self) -> Status {
         match &self.saved_state {
             None => Status::Unsaved,

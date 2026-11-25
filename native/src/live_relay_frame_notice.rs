@@ -1,4 +1,4 @@
-//! 帧/许可变化的合并通知；调用者必须在同一媒体状态锁内 signal/reset，避免丢唤醒。
+//! Coalesced frame/permission-change notification; callers must signal/reset under the same media-state lock to prevent lost wakeups.
 #[cfg(windows)]
 use std::os::windows::io::{AsHandle, AsRawHandle, BorrowedHandle, FromRawHandle, OwnedHandle};
 #[cfg(windows)]

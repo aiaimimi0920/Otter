@@ -1,4 +1,4 @@
-//! 隐藏 Live/WARP 的 Add Art、实际模态控件与真实输入执行；不冒充普通前台验收。
+//! Hidden Live/WARP Add Art, actual modal controls, and real input execution; not ordinary foreground acceptance testing.
 use super::*;
 use crate::desktop::node_menu::art_picker::{dialog, tests as fixture};
 use windows::Win32::UI::Input::KeyboardAndMouse::*;
@@ -259,7 +259,7 @@ fn live_add_art_no_frame_reports_real_input_error_and_capacity_never_leaves_half
             } else {
                 assert!(add(&mut app, &unit).unwrap());
                 app.start_requested_preparations(false);
-                // 原自动链在首帧前静候，不制造错误或输入；显式手动运行才报告缺帧。
+                // The original automatic chain waits quietly before the first frame, fabricating neither errors nor input; only explicit manual execution reports a missing frame.
                 assert!(app.documents[1].state.preparation_error.borrow().is_none());
                 assert!(app.documents[1]
                     .state

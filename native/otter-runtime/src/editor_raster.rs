@@ -1,4 +1,4 @@
-//! 栅格事务加入同一历史游标；异步提交必须同时匹配版本与原始快照身份。
+//! Raster transactions join the same history cursor; asynchronous commits must match both revisions and original snapshot identities.
 use super::*;
 use crate::erase_layers::Layers;
 #[path = "editor_source.rs"]
@@ -9,7 +9,7 @@ fn valid(layers: &Layers) -> bool {
 }
 
 impl Editor {
-    /// 仅创建新文档时设置底图，不能用此接口绕过已有历史替换图片。
+    /// Set bases only when creating new documents; this interface cannot bypass existing history to replace images.
     pub fn with_layers(layers: Layers) -> Result<Self, EditError> {
         if !valid(&layers) {
             return Err(EditError::InvalidPoint);

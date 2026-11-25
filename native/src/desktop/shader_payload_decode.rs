@@ -1,4 +1,4 @@
-//! Shader 配方的流式字段准入；wrapper JSON 在构造过量 map 前终止，不替代上游消息上限。
+//! Streaming Shader-recipe field admission; stop wrapper JSON before constructing oversized maps, without replacing upstream message limits.
 use serde::{
     de::{self, MapAccess, Visitor},
     Deserialize, Deserializer,
@@ -37,7 +37,7 @@ impl<'de, T: Deserialize<'de>, const MAX: usize> Visitor<'de> for Bounded<T, MAX
         }
         let mut result = BTreeMap::new();
         while let Some(name) = map.next_key::<String>()? {
-            // 检查位于 next_value/insert 之前；同名重复也不获得额外值解析或分配权。
+            // Check before next_value/insert; repeated names gain no extra value-parsing or allocation allowance.
             if result.len() >= MAX
                 || result.contains_key(&name)
                 || crate::shader_angle::name(&name).is_err()

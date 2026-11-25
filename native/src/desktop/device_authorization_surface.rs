@@ -1,4 +1,4 @@
-//! Art 选择只排队，不在模态回调执行网络；保留发起窗口的稳定节点身份。
+//! Art selection only enqueues, without networking in modal callbacks; retain the initiating window's stable node identity.
 use super::*;
 pub(super) unsafe fn choose(
     hwnd: HWND,

@@ -1,4 +1,4 @@
-//! 实际 Slider HWND 的 COM 身份、实时值、双边沿准入及撤销。
+//! Actual Slider-HWND COM identity, live values, dual-edge admission, and revocation.
 use super::*;
 use windows::{
     core::{IUnknown, Interface},
@@ -65,7 +65,7 @@ fn uia_range_focus_round_trips_through_native_slider() {
             child
         );
         assert!(property(UIA_HasKeyboardFocusPropertyId));
-        // GetFocus 新建 COM 包装；同一场景节点由 AutomationId 标识。
+        // GetFocus creates a new COM wrapper; AutomationId identifies the same scene node.
         assert_eq!(
             root.GetFocus()
                 .unwrap()

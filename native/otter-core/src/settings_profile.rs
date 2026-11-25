@@ -1,4 +1,4 @@
-//! 原生配置路径选择；与主干目录隔离，纯函数不探测/创建文件。
+//! Native configuration-path selection isolated from mainline directories; pure functions never probe/create files.
 use std::{
     ffi::OsStr,
     path::{Path, PathBuf},

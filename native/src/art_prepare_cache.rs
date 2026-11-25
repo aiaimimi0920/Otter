@@ -1,9 +1,9 @@
-//! 当前签名包的源码缓存键；缓存不授执行许可，也没有独立的旧准备入口。
+//! Source-cache keys for current signed packages; caching grants no execution permission and provides no separate legacy preparation entry.
 use super::*;
 use sha2::{Digest, Sha256};
 pub(super) fn key(request: &Request, pin: &Pin) -> [u8; 32] {
     let b = &request.binding;
-    // 缓存不含workspace/request代际，也不提供这些身份的授权；当前完整grant另行核验。
+    // The cache contains no workspace/request generation and authorizes neither identity; separately verify the current complete grant.
     Sha256::digest(
         serde_json::to_vec(&(
             &b.origin,

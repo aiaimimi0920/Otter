@@ -1,4 +1,4 @@
-//! 单线程 COMBOBOX owner；仅拥有选项 HWND/索引，不授权、不提交、不维护表单 draft。
+//! Single-threaded COMBOBOX owner; owns only option HWNDs/indices, not authorization, commits, or form drafts.
 use crate::surface_select::Options;
 use std::{marker::PhantomData, rc::Rc};
 use windows::{
@@ -27,7 +27,7 @@ mod messages;
 mod paint;
 #[path = "surface_select_text.rs"]
 mod text;
-/// 参数面板复用同一标准COMBOBOX像素层，不接入Surface字段或动作状态。
+/// The parameter panel reuses the same standard-COMBOBOX pixel layer without Surface-field or action state.
 pub(super) unsafe fn paint_standard(hwnd: HWND, message: u32, wp: WPARAM) -> Option<LRESULT> {
     paint::message(hwnd, message, wp)
 }
@@ -55,7 +55,7 @@ fn size(rect: RECT) -> Result<(i32, i32)> {
     Ok((width, height))
 }
 impl Control {
-    /// 隐藏创建；无 CBS_SORT，系统索引始终对应声明顺序，包括重复值/标签。
+    /// Create hidden without CBS_SORT; system indices always follow declaration order, including duplicate values/labels.
     pub fn new(parent: HWND, rect: RECT, options: Options) -> Result<Self> {
         let (width, height) = size(rect)?;
         unsafe {
@@ -156,7 +156,7 @@ impl Control {
             .selected_index()?
             .and_then(|index| self.options.value_at(index)))
     }
-    /// 声明同步，不伪造 CBN_SELCHANGE；业务层只处理真实控件通知。
+    /// Declaration synchronization does not fabricate CBN_SELCHANGE; business logic handles only real control notifications.
     pub fn select(&self, index: Option<usize>) -> Result<()> {
         if index.is_some_and(|index| index >= self.options.items().len()) {
             return Err(invalid("Select index exceeds option list"));

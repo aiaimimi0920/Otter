@@ -1,4 +1,4 @@
-//! 同一生产Engine的固定样式投影诊断；不修改250ms预算，不把诊断退出码当吞吐门。
+//! Fixed style-projection diagnostics in the production Engine; do not alter the 250ms budget or treat diagnostic exit codes as throughput gates.
 use super::*;
 use crate::surface_javascript::fixture;
 

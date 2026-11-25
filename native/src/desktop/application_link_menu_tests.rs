@@ -1,4 +1,4 @@
-//! 隐藏工作区链的真实菜单请求：过期拒绝、应用层断开和显示回退。
+//! Real menu requests for hidden workspace chains: stale rejection, application-level disconnection, and display fallback.
 use super::Application;
 use crate::desktop::link_menu;
 use windows::Win32::UI::WindowsAndMessaging::*;
@@ -90,7 +90,7 @@ pub(super) fn verify(app: &mut Application) {
             .queue(doc.window.0, &doc.state, source, output, input)
             .unwrap());
     }
-    // 入队后改变拓扑：即使端点仍然存在，也不能把旧目录应用到新工作区。
+    // Change topology after enqueueing: even if endpoints remain, the old catalog must not be applied to the new workspace.
     let outgoing = app.workspace.links()[0].clone();
     assert!(app.workspace.remove_link(&outgoing.id));
     app.workspace.connect(outgoing).unwrap();

@@ -1,4 +1,4 @@
-//! 菜单/参数→准备→认证取码→受限 child→应用主循环；不开放发行安装或访问用户服务。
+//! Menu/parameters -> preparation -> authenticated code fetch -> restricted child -> application main loop; no release-install enablement or user-service access.
 use super::*;
 use crate::{
     desktop::{
@@ -114,7 +114,7 @@ unsafe fn run_mode(real: bool, backend: Backend, own: bool, texture: TextureSour
         false,
     )
     .unwrap();
-    // display-only 的恢复画面不能替代原始底图；有主连接时也不能选自身底图。
+    // Restored display-only images cannot replace original base images; a primary connection also forbids selecting the node's own base image.
     *state.execution_results.borrow_mut() =
         crate::desktop::loom_result_state::Results::from_restored_display(
             state.unit_id.clone(),
@@ -134,7 +134,7 @@ unsafe fn run_mode(real: bool, backend: Backend, own: bool, texture: TextureSour
             handshake,
         }),
     });
-    // 此测试不启动下游，避免把本地成功的传播变成无关的新远端执行。
+    // Do not start downstream execution in this test, so local-success propagation cannot become unrelated new remote execution.
     state
         .selected_art
         .borrow_mut()
@@ -193,7 +193,7 @@ unsafe fn run_mode(real: bool, backend: Backend, own: bool, texture: TextureSour
     if unit_texture {
         unit::attach(&mut app, &target, texture);
     }
-    // 未安装时维持原拒绝：没有输入 worker、请求注册或连接。
+    // Preserve original rejection when not installed: no input worker, request registration, or connection.
     crate::desktop::execution_start::request(app.documents[0].window.0, &app.documents[0].state)
         .unwrap();
     app.start_requested_preparations(false);
@@ -288,7 +288,7 @@ unsafe fn run_mode(real: bool, backend: Backend, own: bool, texture: TextureSour
         assert_eq!(message["params"]["parameters"]["mode"], "shader");
         assert_eq!(message["params"]["disabledParameters"], json!([]));
     }
-    // 准备后配置被替换：带旧快照的 Shader 请求不能启动连接或占据执行槽。
+    // Configuration replaced after preparation: Shader requests carrying old snapshots must neither connect nor occupy execution slots.
     app.documents[0]
         .state
         .selected_art
@@ -364,7 +364,7 @@ unsafe fn run_mode(real: bool, backend: Backend, own: bool, texture: TextureSour
             if graph_texture || unit_texture {
                 texture::assert_input(&params["inputs"]["overlay"]);
             }
-            // 与真实 Loom adapter 一致：图片输入和参数不能重名。
+            // Match the real Loom adapter: image inputs and parameters cannot share names.
             for name in params["inputs"].as_object().unwrap().keys() {
                 assert!(!params["parameters"].as_object().unwrap().contains_key(name));
             }

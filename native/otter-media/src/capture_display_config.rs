@@ -1,4 +1,4 @@
-//! 有界 DisplayConfig 查询；最多两次尝试，不将读取失败伪装为系统实际白电平。
+//! Bounded DisplayConfig queries, at most two attempts; read failure never masquerades as actual system white level.
 use windows::Win32::{Devices::Display::*, Foundation::ERROR_INSUFFICIENT_BUFFER};
 pub(super) fn query(device_name: &[u16; 32]) -> Option<(bool, Option<u32>)> {
     for _ in 0..2 {

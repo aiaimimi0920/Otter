@@ -1,4 +1,4 @@
-//! 隐藏自有历史窗口/标准按钮；不申请前台，不操作剪贴板或其他进程。
+//! Hidden owned history windows/standard buttons; no foreground requests, clipboard operations, or other-process interaction.
 use super::*;
 use windows::Win32::UI::Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass};
 

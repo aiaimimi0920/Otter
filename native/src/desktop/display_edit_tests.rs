@@ -1,4 +1,4 @@
-//! 文字入口准入回归；坐标位于图片外，不打开模态框或操作用户窗口。
+//! Text-entry admission regressions; coordinates lie outside images, without opening modals or operating user windows.
 use super::*;
 use crate::viewport::Point;
 use windows::Win32::Foundation::HWND;

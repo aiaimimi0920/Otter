@@ -1,4 +1,4 @@
-//! 宿主身份在 WM_NCCREATE 建立；被拒候选不能进入原 State 的重入或销毁路径。
+//! Establish host identity in WM_NCCREATE; rejected candidates must not enter original State reentrancy/destruction paths.
 use super::*;
 use windows::{core::w, Win32::System::LibraryLoader::GetModuleHandleW};
 
@@ -77,7 +77,7 @@ fn rejected_duplicate_and_unbound_candidate_do_not_touch_live_document() {
         assert_eq!(LIVE.with(Cell::get), 1);
         assert!(drain().is_empty());
         {
-            // 若候选消息或 NCDESTROY 误入 State，Canvas 借用冲突会触发 ABI panic/WM_QUIT(1)。
+            // If candidate messages/NCDESTROY incorrectly enter State, conflicting Canvas borrows trigger ABI panic/WM_QUIT(1).
             let _canvas = state.canvas.borrow_mut();
             assert!(create(instance, Some(&state)).is_err());
             let candidate = create(instance, None).unwrap();
@@ -95,7 +95,7 @@ fn rejected_duplicate_and_unbound_candidate_do_not_touch_live_document() {
         assert_eq!(state.unit_id, unit);
         assert!(state.lifetime.registered.get());
         assert_eq!(LIVE.with(Cell::get), 1);
-        // 原宿主继续能绘制；候选失败不触发关窗或退出。
+        // The original host can still draw; candidate failure must not close windows or exit.
         state
             .canvas
             .borrow_mut()

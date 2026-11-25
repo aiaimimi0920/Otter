@@ -1,4 +1,4 @@
-//! 显式真实双 Loom 夹具的 Application 驱动；普通任务队列、持续调度和检查点，不直接调用投射 HTTP。
+//! Application driver for an explicit real dual-Loom fixture; use normal task queues, continuous scheduling, and checkpoints, not direct projection HTTP calls.
 use super::*;
 use crate::desktop::device_authorization_ui::{account::Request as AccountRequest, Request};
 use crate::projection_account::scene::Index;
@@ -32,7 +32,7 @@ fn actual_account_application_create_import_update_reopen_and_stop() {
                 &crate::device_request_cancel::Cancel::new(),
             )
             .unwrap();
-            // 与普通连接 owner 一致，在安装会话前保留已验证的当前 Loom 信任。
+            // As with the normal connection owner, retain verified current Loom trust before installing the session.
             crate::loom_local_connection::remember(&connected).unwrap();
             let origin = connected.origin.clone();
             app.authorization_owner

@@ -1,4 +1,4 @@
-//! 显式发送路由只来自固定目录/持久原意图；不接受HTTP回复提供地址或更换对等身份。
+//! Explicit send routes come only from fixed catalogs/persistent original intent; HTTP replies cannot supply addresses or replace peer identity.
 use super::*;
 use crate::projection_delivery::targets::{Route, Target};
 use serde_json::value::RawValue;
@@ -38,7 +38,7 @@ impl Selection {
         if Route::offline_id(peer, remote).as_deref() != Some(target) {
             return Err(Error::Format);
         }
-        // 借用字段先核小尺寸；与在线选择共用scope/origin/unit准入，再安装显式路由。
+        // Check small sizes on borrowed fields first; share online-selection scope/origin/unit admission before installing explicit routes.
         let mut value = Self::new(scope, origin, unit, remote)?;
         value.target = Some(target.into());
         value.offline = Some(Offline {
@@ -100,7 +100,7 @@ pub(crate) enum Operation {
     Unlink,
 }
 
-// 与缺字段区分：显式null不能把离线路由静默降为SharedLoom。
+// Unlike missing fields, explicit null cannot silently downgrade offline routes to SharedLoom.
 pub(super) fn present<'de, D: serde::Deserializer<'de>>(
     de: D,
 ) -> Result<Option<&'de RawValue>, D::Error> {

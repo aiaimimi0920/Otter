@@ -1,4 +1,4 @@
-//! 隐藏 Application 的真实授权/TLS/menu/query/reject/lifecycle，复用原身份/CA/窗口夹具。
+//! Hidden Application real authorization/TLS/menu/query/reject/lifecycle, reusing original identity/CA/window fixtures.
 use super::*;
 use crate::{
     desktop::device_authorization_ui::{self as authorization_ui, projection as ui},

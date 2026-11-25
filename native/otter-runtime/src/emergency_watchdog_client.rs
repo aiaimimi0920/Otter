@@ -1,4 +1,4 @@
-//! 正常宿主独占watchdog子进程；不持恢复记录，Drop可安全回收自己的child。
+//! The normal host exclusively owns the watchdog subprocess; it holds no recovery records, so Drop can safely reclaim its own child.
 use super::{BUDGET, FLAG};
 use crate::{
     live_recovery_client::spawn::{self, Process},
@@ -21,7 +21,7 @@ pub struct Owner {
     _pipe: Pipe,
 }
 impl Owner {
-    /// 在产品消息循环之前启动；握手最多原5秒，不在窗口回调中阻塞启动。
+    /// Start before the product message loop; retain the original 5-second handshake limit, and do not block startup inside window callbacks.
     pub fn start() -> io::Result<Self> {
         let mut command = Command::new(std::env::current_exe()?);
         command.arg(FLAG).arg(std::process::id().to_string());
@@ -30,7 +30,7 @@ impl Owner {
     pub(super) fn start_command(command: Command) -> io::Result<Self> {
         let (pipe, endpoint) = Pipe::pair()?;
         let child = spawn::spawn(&command, endpoint.into_handle())?;
-        // 即使握手失败也先回收本次自建child；绝不接管现有进程或任意PID。
+        // Even if the handshake fails, first reclaim the child created this time; never take over an existing process or arbitrary PID.
         let mut owner = Self { child, _pipe: pipe };
         let nonce = unsafe { CoCreateGuid() }
             .map_err(io::Error::other)?

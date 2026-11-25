@@ -1,4 +1,4 @@
-//! 分享编解码及 canonical source 归属；使用隔离原身份/存储夹具，不接触真实设备。
+//! Share encoding/decoding and canonical-source ownership; isolated original identity/storage fixtures without real devices.
 use super::*;
 use crate::projection_delivery::sender::{
     self,

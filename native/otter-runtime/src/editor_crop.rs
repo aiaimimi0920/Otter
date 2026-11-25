@@ -1,4 +1,4 @@
-//! 裁剪只改变文档视图，不移动源坐标中的标注或像素；历史保存固定大小的视图。
+//! Cropping changes document views only, not source-coordinate annotations/pixels; history retains fixed-size views.
 use super::*;
 use crate::crop_geometry::{self, Crop, Rect};
 #[path = "editor_crop_sampling.rs"]
@@ -8,7 +8,7 @@ pub mod sampling;
 pub struct CropView {
     pub frame: Rect,
     pub source: Crop,
-    // 旧合同在自然像素中取区域并非等比伸展；不能冒充现代contain源框。
+    // Legacy contracts select natural-pixel regions and stretch nonuniformly; do not treat them as modern contain source frames.
     pub legacy_pixels: Option<Rect>,
     pub legacy_natural_size: Option<crate::crop_geometry::Size>,
 }
@@ -18,7 +18,7 @@ impl Editor {
         self.crop
     }
 
-    /// 栅格标注、效果与输出共用的源坐标画框；普通像素文档保留 None 的默认映射。
+    /// Source-coordinate frames shared by raster annotations, effects, and output; ordinary pixel documents retain default None mapping.
     pub fn annotation_frame(&self) -> Option<Rect> {
         self.crop
             .map(|view| view.source.rect)
@@ -34,7 +34,7 @@ impl Editor {
         })
     }
 
-    /// 无裁剪时以图像像素对应初始逻辑源框；调用方不能用此接口重采样底图。
+    /// Without cropping, image pixels map to initial logical source bounds; callers cannot use this interface to resample bases.
     pub fn visible_frame(&self) -> Option<Rect> {
         self.crop.map(|view| view.frame).or_else(|| {
             if let Some(size) = self.logical_size {
@@ -54,7 +54,7 @@ impl Editor {
         })
     }
 
-    /// 选区是当前可见框内的局部坐标。越界选区拒绝，而不是隐式扩展文档。
+    /// Selections use local coordinates within current visible bounds. Reject out-of-bounds selections rather than implicitly enlarging documents.
     pub fn crop_to(&mut self, selection: Rect) -> Result<bool, EditError> {
         let frame = self.visible_frame().ok_or(EditError::InvalidPoint)?;
         if selection.x < 0.0

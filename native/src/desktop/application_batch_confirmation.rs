@@ -1,4 +1,4 @@
-//! 菜单显式选择驱动批次原生确认；模态返回后复核应用状态再消费提示。
+//! Explicit menu selection drives native batch confirmation; recheck application state after the modal returns before consuming the prompt.
 use super::*;
 use crate::desktop::composition::relay::sessions::BatchConfirmationAction;
 impl Application {
@@ -104,7 +104,7 @@ impl Application {
                         failure = Some(returned.error.to_string());
                         let prepared = returned.prepared;
                         let mut receipt = prepared.receipt;
-                        // 已消费提示但未移交 owner：保存明确选择，不恢复成可重复决定的提示。
+                        // The prompt was consumed but ownership has not transferred: preserve the explicit choice instead of restoring a prompt that can be decided again.
                         receipt
                             .observation
                             .as_mut()

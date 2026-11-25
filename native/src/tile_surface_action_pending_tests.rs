@@ -1,4 +1,4 @@
-//! 弱预留、全量预算、退休及原Edit等待期限的独立状态oracle；不启动网络。
+//! Independent state oracles for weak reservations, complete budgets, retirement, and original Edit wait deadlines without networking.
 use super::*;
 use crate::tile_surface_actions::tests::Fixture;
 
@@ -67,7 +67,7 @@ fn defer_keeps_original_order_id_deadline_and_old_ticket_cannot_release_successo
     assert!(s.actions.offer(vec![first], now));
     let (c, old) = s.actions.reserve(&f.state, now, true).unwrap();
     let mut later = f.commands().pop().unwrap();
-    later.until = until; // 两个独立意图用相同逻辑期限，不能把后入队的原始期限误判为续期。
+    later.until = until; // Two independent intents share a logical deadline; the later-enqueued original deadline must not be mistaken for renewal.
     assert!(s.actions.offer(vec![later], now));
     s.actions.defer(c, &old);
     let (c, new) = s.actions.reserve(&f.state, now, true).unwrap();

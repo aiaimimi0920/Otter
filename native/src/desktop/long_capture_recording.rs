@@ -1,4 +1,4 @@
-//! 用户拖动/滚动录制的 UI owner；像素、周期采集与拼接仍由原 SessionJob 独占。
+//! UI owner for user drag/scroll recording; original SessionJob retains exclusive pixels, periodic capture, and stitching.
 use super::*;
 use std::time::Instant;
 #[path = "long_capture_recording_hook.rs"]
@@ -139,7 +139,7 @@ pub(super) unsafe fn finish(hwnd: HWND, input: &Input) {
     controls(hwnd, input, input.job.borrow().is_pending());
     drive(hwnd, input);
 }
-/// 返回本次失败是否已由遮挡暂停分支投影到 UI。
+/// Return whether the occlusion-pause branch already projected this failure into UI.
 pub(super) unsafe fn completed(hwnd: HWND, input: &Input, completion: &Completion) -> bool {
     let state = &input.recording;
     if !state.enabled() {
@@ -178,7 +178,7 @@ pub(super) unsafe fn completed(hwnd: HWND, input: &Input, completion: &Completio
         }
         Completion::Append(Ok(Append::Rejected(_)))
         | Completion::SpatialAppend(Ok(crate::long_capture::SpatialAppend::Rejected(_))) => {
-            // 拖动途中可能短暂重绘或没有可靠重叠；跳过该帧，保留最后可信基准继续采样。
+            // Dragging may briefly repaint or lack reliable overlap; skip the frame and continue sampling from the last trusted baseline.
             state.schedule.borrow_mut().completed(Instant::now());
         }
         Completion::Preview(Err(crate::long_capture::Error::UnconfirmedEdges)) => {}
@@ -250,7 +250,7 @@ unsafe fn drive_with_timer(hwnd: HWND, input: &Input, arm: impl FnOnce(u32) -> b
         .wake_after(Instant::now(), busy);
     if let Some(delay) = delay {
         if !arm(delay.as_millis().clamp(1, 300_000) as u32) {
-            // timer 也是唯一后台回复唤醒；仅停止录制会遗留在途任务和禁用控件。
+            // The timer is also the sole background-reply wakeup; merely stopping recording leaves in-flight tasks and disabled controls.
             *input.error.borrow_mut() = Some("无法安排长截图录制等待，录制已安全关闭。".into());
             close(hwnd, input);
         }

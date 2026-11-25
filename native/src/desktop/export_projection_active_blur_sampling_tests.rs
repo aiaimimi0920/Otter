@@ -1,4 +1,4 @@
-//! 不同于整图impulse用例，独立验证局部框、clip、非等比密度、栅格叠加与矢量隔离。
+//! Unlike whole-image impulse cases, independently verify local frames, clips, nonuniform density, raster overlays, and vector isolation.
 use super::*;
 
 fn prepare(image: &Image, editor: &Editor, logical: Size) -> BlurImage {
@@ -51,7 +51,7 @@ fn projection_active_blur_nonuniform_density_preserves_clip_mask_and_gaussian_ax
     assert_eq!(prepared.frame(), frame);
     assert_eq!(prepared.effect_clip(), Some(clip));
     assert_eq!(prepared.effect_mask_scale(), (0.75, 0.5));
-    // contain+clip精确对应输出[2,6)×[2,6)白色，其余透明；独立f64可分离卷积。
+    // contain+clip maps exactly to white output [2,6)x[2,6), transparent elsewhere; independent f64 separable convolution.
     for y in 0..8usize {
         for x in 0..8usize {
             let axis =
@@ -117,7 +117,7 @@ fn projection_active_blur_local_sampling_composes_raster_but_never_recurses_into
     assert_eq!((blur.width(), blur.height()), (8, 4));
     assert_eq!(blur.frame(), frame);
     assert_eq!(blur.strength(), 1.25);
-    // 原卷积器在纹理外使用透明，不做边界renormalize；局部框边缘不能期望常量不变。
+    // The original convolver uses transparency outside textures without boundary renormalization; local-frame edges cannot be expected to remain constant.
     for y in 0..4usize {
         for x in 0..8usize {
             let horizontal = (0..8).map(|i| weight(x as i32 - i, 2.5)).sum::<f64>();

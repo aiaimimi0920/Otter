@@ -1,4 +1,4 @@
-//! 分组隐藏先建立每个成员的托盘恢复入口，失败回滚本次隐藏，不把窗口永久藏住。
+//! Before hiding a group, establish tray restoration for every member; roll back this hide on failure rather than leaving windows permanently hidden.
 use super::*;
 use crate::{desktop::tray, workspace_id::UnitId};
 impl Application {

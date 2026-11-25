@@ -1,4 +1,4 @@
-//! 同 child 的帧回调进入真实 HWND；百分比位置/同步 bounds/纯色像素和 resize 共用原布局。
+//! Frame callbacks from the same child reach actual HWNDs; percentage positions/synchronous bounds/solid pixels/resize share original layout.
 use super::{
     css_tests::{geometry, pixel, pixels},
     *,

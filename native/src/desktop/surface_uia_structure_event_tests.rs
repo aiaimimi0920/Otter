@@ -1,4 +1,4 @@
-//! MTA 订阅稳定根的结构通知；UI owner 替换场景后客户端重读新子树。
+//! MTA subscriptions to stable-root structure notifications; clients reread new subtrees after UI-owner scene replacement.
 use super::*;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -114,7 +114,7 @@ fn receive(hwnd: usize, progress: &Sender<Progress>, late_mount: bool) -> Result
                 1
             );
         }
-        // Windows 可重复交付同一次 raise；每个回调都必须属于正确根和类型。
+        // Windows may repeat one raise; every callback must belong to the correct root and type.
         for _ in 0..8 {
             match receiver.recv_timeout(Duration::from_millis(100)) {
                 Ok(event) => assert_eq!(event, expected),

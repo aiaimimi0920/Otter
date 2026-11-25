@@ -1,4 +1,4 @@
-//! 菜单请求、模态事务、裁剪和配置保存/自动保存的真实 HWND 验证；对话框选择由夹具注入。
+//! Real HWND verification of menu requests, modal transactions, pruning, and settings save/autosave; fixtures inject dialog selections.
 use super::*;
 fn policy(count: usize) -> Policy {
     Policy {
@@ -140,7 +140,7 @@ pub(in crate::desktop::application) unsafe fn run(instance: HINSTANCE) -> Result
             "Stale settings worker overwrote recycle edit",
         ));
     }
-    // 先回收裁剪任务，随后验证模态期间源窗口关闭不会安装新偏好。
+    // Reap the pruning task first, then verify that source-window closure during modal scope installs no new preferences.
     settle(&mut app, false)?;
     queue(&app)?;
     let result = app.edit_recycle_settings_with(|_, hwnd, _| {

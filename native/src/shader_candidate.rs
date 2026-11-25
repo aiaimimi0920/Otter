@@ -1,4 +1,4 @@
-//! 显式内部候选准入；代码 pin 不是许可/发行批准，不接受 CLI、环境或 Art 提供的摘要。
+//! Explicit internal candidate admission; code pins are not license/release approval, and digests from CLI, environment, or Art are rejected.
 use crate::{
     shader_angle::{Fingerprint, Identity},
     shader_process::TrustedBundle,
@@ -14,8 +14,8 @@ mod acl;
 #[path = "shader_candidate_files.rs"]
 mod files;
 
-// v332 build.json ae24c4b8…，v333 materials.json 95322473… 的已复核本地构建。
-// 更新必须同时复核构建/材料及开发侧运行；不能从候选目录自动导入新 pin。
+// Reviewed local build: v332 build.json ae24c4b8..., v333 materials.json 95322473....
+// Updates must re-review the build/materials and developer-side execution together; never import new pins automatically from the candidate directory.
 fn identity() -> Identity {
     fn fingerprint(bytes: u64, hex: &str) -> Fingerprint {
         let mut sha256 = [0; 32];
@@ -61,8 +61,8 @@ fn verify(file: &mut File, pin: Fingerprint) -> io::Result<()> {
     }
     Ok(())
 }
-/// 不安装、复制或修改权限；调用者显式选择已准备且仅可信用户可写的两文件目录。
-/// 保护其他本机用户，不将同用户恶意进程、管理员或系统视为可隔离的攻击者。
+/// Does not install, copy, or change permissions; the caller explicitly selects a prepared two-file directory writable only by trusted users.
+/// Protects against other local users; malicious same-user processes, administrators, and the system are not considered isolatable attackers.
 pub fn open(directory: &Path) -> io::Result<TrustedBundle> {
     let mut leases = files::directories(directory)?;
     acl::check(leases.last().ok_or_else(invalid)?)?;
@@ -92,8 +92,8 @@ pub fn open(directory: &Path) -> io::Result<TrustedBundle> {
     Ok(TrustedBundle::new(directory, identity)?.with_files(leases))
 }
 
-// 固定候选在 child 重新取得租约；父异常退出时不依赖跨进程 Arc 的存活。
-// 其他已有可信清单调用方仍沿原 wire 合同，不把该兼容分支作为候选授权入口。
+// The fixed candidate reacquires leases in the child; abnormal parent exit must not rely on a cross-process Arc remaining alive.
+// Other existing trusted-manifest callers retain the original wire contract; this compatibility branch is not a candidate authorization entry.
 #[cfg(test)]
 pub(crate) fn from_worker(directory: &Path, supplied: Identity) -> io::Result<TrustedBundle> {
     let pinned = identity();

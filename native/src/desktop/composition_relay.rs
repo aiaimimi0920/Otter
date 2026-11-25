@@ -1,4 +1,4 @@
-//! 远程 PBGRA 帧的窗口私有呈现；只在 UI 线程上传最新帧，不复制 CPU 像素缓存。
+//! Window-private presentation for remote PBGRA frames; upload only the latest frame on the UI thread, without CPU pixel-cache copies.
 use super::*;
 use crate::{live_relay_frame::Metadata, live_relay_pixels::PixelFrame};
 

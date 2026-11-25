@@ -1,4 +1,4 @@
-//! 真实 EDIT 的 Number 字符串草稿、数值事件、步进与撤权路径；不注入桌面输入。
+//! Actual EDIT Number string drafts, numeric events, stepping, and revocation paths; no desktop-input injection.
 use super::*;
 #[path = "surface_number_erase_tests.rs"]
 mod erase;
@@ -36,7 +36,7 @@ fn surface_number_edit_full_queue_rejects_whole_step_before_visible_mutation() {
     let edit = child(&window);
     for index in 0..31 {
         type_text(edit, &format!("0.{index}"));
-        values(&window); // 固定边沿，禁止下一次 input 合并旧值。
+        values(&window); // Freeze the edge, preventing the next input from coalescing the old value.
     }
     unsafe {
         SetFocus(Some(edit)).unwrap();

@@ -1,4 +1,4 @@
-//! 带模糊来源的真实裁剪拖拽、后台重算、取消与一步撤销。
+//! Real crop dragging, background recomputation, cancellation, and single-step undo for a blurred source.
 use super::Application;
 use windows::Win32::{
     Foundation::{LPARAM, WPARAM},
@@ -6,7 +6,7 @@ use windows::Win32::{
 };
 
 pub(super) unsafe fn verify(app: &mut Application) {
-    // 裁剪改变栅格标注的可见框时才需要重新合成模糊；仅底图裁剪走同步路径。
+    // Recompose blur only when cropping changes the visible bounds of raster annotations; base-image-only cropping uses the synchronous path.
     {
         let mut canvas = app.documents[0].state.canvas.borrow_mut();
         let original = canvas.editor.layers().unwrap().clone();

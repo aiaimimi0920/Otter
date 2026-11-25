@@ -1,4 +1,4 @@
-//! 仅对本次合成会话验证 UI 归档提交，结束后恢复夹具基线供其余回归使用。
+//! Verify UI archive commit only for this synthetic session, then restore fixture baselines for remaining regressions.
 use super::*;
 pub(in crate::desktop::application) unsafe fn verify(
     app: &mut Application,
@@ -61,7 +61,7 @@ pub(in crate::desktop::application) unsafe fn verify(
         && app.save_status() == save_state::Status::Unchanged
         && publication.retained_recovery.is_none();
     drop(decoded);
-    // 仅回滚本回归的合成文件，避免后续无 Root 的恢复回归误读归档资源路径。
+    // Roll back only this regression's synthetic file so later rootless restore regressions do not misread archive-resource paths.
     std::fs::write(&path, original.as_ref()).map_err(|e| Error::new(E_FAIL, e.to_string()))?;
     app.restored_session.as_mut().unwrap().original = original;
     if !valid {

@@ -1,4 +1,4 @@
-//! 故障注入只覆盖缓存/回退状态机，不模拟成实际 GPU reset 或 WGC 验收。
+//! Fault injection covers only cache/fallback state machines, not actual GPU reset or WGC acceptance.
 use super::*;
 use std::cell::Cell;
 
@@ -61,7 +61,7 @@ fn actual_software_cache_is_distinct_and_does_not_retain_last_lease() {
     let first = acquire(Backend::D3d11Warp).unwrap();
     let second = acquire(Backend::D3d11Warp).unwrap();
     assert!(Rc::ptr_eq(&first, &second));
-    // 不将软件设备是否能创建偷换为机器一定具有可用硬件设备。
+    // Software-device creation does not establish that the machine necessarily has usable hardware.
     if let Ok(hardware) = acquire(Backend::D3d11Hardware) {
         assert!(!Rc::ptr_eq(&first, &hardware));
         assert_ne!(first.get(), hardware.get());
@@ -88,7 +88,7 @@ fn actual_default_device_cache_is_isolated_by_thread() {
         let device = acquire(backend).unwrap();
         let id = device.get().as_raw() as usize;
         ready.send(id).unwrap();
-        // 同步失败也有界退出，不让测试在 Barrier 等待已经 panic 的同伴。
+        // Synchronization failures also exit within bounds; do not leave tests waiting at a Barrier for an already-panicked peer.
         let _ = wait.recv_timeout(std::time::Duration::from_secs(10));
     });
     let other_id = receive.recv_timeout(std::time::Duration::from_secs(10));

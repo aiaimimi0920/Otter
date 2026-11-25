@@ -1,4 +1,4 @@
-//! 完整会话装配、候选和状态接管一起保护设置；不写用户会话文件。
+//! Complete-session assembly, candidates, and state takeover protect settings together, without writing user-session files.
 use super::*;
 use crate::{
     desktop::{session_binding::Bound, session_candidate},

@@ -1,4 +1,4 @@
-//! Application 测试的真实回环 TLS 服务；仅签发测试源码，临时身份和 CA 写入独立测试目录。
+//! Real loopback TLS service for Application tests; sign test source only and write temporary identities and CA to an isolated test directory.
 use crate::device_session_client::tests::{accept, fixture_with_host, reply, request};
 use crate::{
     art_execution_grant::wire,
@@ -15,7 +15,7 @@ use std::{
     thread::JoinHandle,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
-// 只有首条 mount 已携带宿主视口时才成功；不能靠后续 Animation 修补首帧。
+// Succeed only if the first mount already includes the host viewport; later Animation must not repair the initial frame.
 const SOURCE: &str = "NeuroSurface.define({mount({root}){root.style.boxSizing='border-box';root.style.width='100%';if(!(root.getBoundingClientRect().width>0&&devicePixelRatio>0))throw Error('missing mount viewport');let s=document.createElement('span');s.textContent='application-local';root.replaceChildren(s)}});";
 pub(super) struct Peer {
     pub origin: String,
@@ -87,7 +87,7 @@ impl Peer {
             Option<crate::art_execution_grant::package::visibility::Visibility>,
         )>,
     ) -> Self {
-        // listener 仅绑 IPv4；配置重解析不能先对无 listener 的 ::1 各等两秒。
+        // listener binds IPv4 only; configuration re-resolution must not first wait two seconds per attempt on listener-less ::1.
         let (listener, client, tls, pem) = fixture_with_host("127.0.0.1");
         let origin = client.origin().to_owned();
         let root = std::env::temp_dir().join(format!(

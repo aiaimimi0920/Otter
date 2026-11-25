@@ -1,4 +1,4 @@
-//! Select 仅 change/commit，使用选项 value 而非 label，不附加文本 draft 表单值。
+//! Select supports change/commit only, using option values rather than labels without appending text-draft form values.
 use super::*;
 #[test]
 fn surface_select_event_preserves_string_value_and_binding_without_input_phase() {

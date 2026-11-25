@@ -1,4 +1,4 @@
-//! 与主干指数缩放、组中心/各自中心及单次历史的纯模型对照。
+//! Pure-model comparisons for mainline exponential scaling, group/individual centers, and single history entries.
 use super::*;
 
 fn canvas() -> Canvas {

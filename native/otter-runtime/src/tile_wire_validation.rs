@@ -1,4 +1,4 @@
-//! 除单字段外核快照内引用、唯一归属和几何；拒绝坏状态，不降格成成功空墙。
+//! Validate snapshot references, unique ownership, and geometry in addition to individual fields; reject bad state instead of degrading to a successful empty wall.
 use super::*;
 use std::collections::HashSet;
 fn require(v: bool) -> Result<()> {

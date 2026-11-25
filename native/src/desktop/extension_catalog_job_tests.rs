@@ -1,4 +1,4 @@
-//! 实际 TLS/WS 订阅的空闲推送、单槽合并、失效与中断；不访问用户配置或真实 Loom。
+//! Idle pushes, single-slot coalescing, invalidation, and interruption over actual TLS/WS subscriptions; no user settings or real Loom.
 use super::*;
 use crate::loom_extension_session::test_peer as peer;
 use serde_json::json;

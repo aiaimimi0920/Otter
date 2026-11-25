@@ -1,4 +1,4 @@
-//! 级联导航与可见行映射；按下/抬起必须命中同一当前条目才返回命令。
+//! Cascade navigation/visible-row mapping; return commands only when press/release hit the same current item.
 use super::*;
 impl Cascade {
     pub(super) fn row_at(&self, level: usize, x: i32, y: i32) -> Option<usize> {
@@ -94,7 +94,7 @@ impl Cascade {
             self.preview = None;
             self.pages[level].panel.set_delete_hover(None);
         }
-        self.pending_surrogate = None; // 导航/指针事件不能把前一菜单的半个字符带到新目标。
+        self.pending_surrogate = None; // Navigation/pointer events cannot carry half a character from a previous menu into a new target.
         if self.scroll_event(level, event)? {
             self.sync_accessibility();
             return Ok(());
@@ -118,7 +118,7 @@ impl Cascade {
                 }
                 match action {
                     Action::Focus => {
-                        // 同一父行再次获取焦点也须退出子页，不能被 focus 的同值快路吞掉。
+                        // Refocusing the same parent row must also leave the child page, not be swallowed by focus's equal-value fast path.
                         self.pages.truncate(level + 1);
                         self.pages[level].pressed = None;
                         self.pages[level].delete_pressed = None;
@@ -168,7 +168,7 @@ impl Cascade {
                     delete.filter(|index| Some(*index) == self.delete_at(level, x, y))
                 {
                     self.pending_delete = self.items(&self.pages[level].path)[index].delete;
-                    // 删除确认前保留阅读帧；新快照原位换内容，空列表再关闭预览。
+                    // Retain the reading frame until deletion confirmation; replace content in place with the new snapshot, closing previews only for empty lists.
                 }
                 let pressed = self.pages[level].pressed.take();
                 if let Some(index) = pressed.filter(|index| {
@@ -259,7 +259,7 @@ impl Cascade {
                     self.refresh(level)?;
                 }
             }
-            Event::Cancel | Event::Dpi => self.cancel(), // DPI 切换先安全关闭，后续重建字体/布局。
+            Event::Cancel | Event::Dpi => self.cancel(), // Close safely on DPI changes, then rebuild fonts/layout.
             _ => {}
         }
         self.sync_accessibility();

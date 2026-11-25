@@ -1,4 +1,4 @@
-//! UI 持有的单任务恢复 owner：仅操作期间存在 worker，无队列、无空闲线程或定时轮询。
+//! UI-owned single-task recovery owner: a worker exists only during operations, with no queue, idle threads, or timed polling.
 use super::*;
 use std::{
     panic::{catch_unwind, AssertUnwindSafe},
@@ -44,7 +44,7 @@ impl Owner {
             _ => None,
         }
     }
-    /// 空闲时直接等子进程；操作期间由 worker 在管道等待中处理子进程退出。
+    /// Wait directly for the child process while idle; during operations, the worker handles child exit while waiting on the pipe.
     pub fn child_handle(&self) -> Option<BorrowedHandle<'_>> {
         match self.phase.as_ref()? {
             Phase::Idle(client) => Some(client.process_handle()),
@@ -60,8 +60,8 @@ impl Owner {
     pub fn request(&mut self, operation: Operation) -> io::Result<()> {
         self.request_with(move |client| {
             let status = client.request(operation)?;
-            // 空登记 Shutdown ACK 不等于进程已退出。后台复用有界等待；超时
-            // 交回 Journal 的已恢复源回收路径，UI 仍泵消息且保留原子进程句柄。
+            // A Shutdown ACK with an empty registry does not mean the process exited. Reuse bounded waiting in the background; on timeout,
+            // return to Journal's restored-source reclamation path while UI continues pumping messages and retaining the original child-process handle.
             if client.shutdown {
                 client.join_shutdown()?;
             }
@@ -81,7 +81,7 @@ impl Owner {
         let Some(Phase::Idle(client)) = self.phase.take() else {
             unreachable!()
         };
-        // spawn 失败会丢弃闭包，因此另留一份 slot owner，确保 Client/恢复责任不随闭包丢失。
+        // spawn failure drops the closure, so retain another slot owner to keep Client/recovery responsibility from being lost with it.
         let slot = Arc::new(Mutex::new(Some(client)));
         let input = slot.clone();
         match thread::Builder::new()
@@ -92,7 +92,7 @@ impl Owner {
                     .unwrap_or_else(|error| error.into_inner())
                     .take()
                     .unwrap();
-                // 保留 Client 在 unwind 边界之外：未知 ACK 不得丢失原进程句柄。
+                // Keep Client outside the unwind boundary: unknown ACKs must not lose the original process handle.
                 let result = catch_unwind(AssertUnwindSafe(|| request(&mut client)))
                     .unwrap_or_else(|_| {
                         client.failed = true;
@@ -112,7 +112,7 @@ impl Owner {
         }
         Ok(())
     }
-    /// 仅由 Journal 在全部源恢复/取消后调用；终止请求不等于进程已退出。
+    /// Called only by Journal after all sources are restored/canceled; a termination request does not mean the process exited.
     pub(super) fn stop_after_restore(&mut self) -> io::Result<()> {
         let Some(Phase::Idle(client)) = self.phase.as_mut() else {
             return Err(io::Error::new(
@@ -123,7 +123,7 @@ impl Owner {
         client.failed = true;
         client.child.kill()
     }
-    /// 只有真实线程已退出才 join；响应至多交付一次，不在 UI 上等待 I/O。
+    /// Join only after the actual thread exits; deliver each response at most once, without waiting for I/O on UI.
     pub fn poll(&mut self) -> Option<io::Result<Reply>> {
         let ready = match self.phase.as_ref()? {
             Phase::Starting(task) => task.is_finished(),
@@ -157,8 +157,8 @@ impl Owner {
 }
 impl Drop for Owner {
     fn drop(&mut self) {
-        // 最后防线不 detach。应用正常关闭应先保留 owner、泵消息并 poll 到非 busy 再 Drop。
-        // 异常 Drop 可能等当前 I/O 期限/内核清理；不能声称这是 UI 非阻塞关闭。
+        // The final safeguard does not detach. Normal application shutdown should retain the owner, pump messages, and poll until not busy before Drop.
+        // Abnormal Drop may wait for the current I/O deadline/kernel cleanup; this must not be called nonblocking UI shutdown.
         match self.phase.take() {
             Some(Phase::Starting(task)) => {
                 let _ = task.join();

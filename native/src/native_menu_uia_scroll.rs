@@ -1,4 +1,4 @@
-//! 根菜单的垂直整行滚动；百分比请求绑定当前快照代次，不直接移动窗口。
+//! Whole-row vertical scrolling for root menus; percentage requests bind current snapshot generations, never move windows directly.
 use super::*;
 use crate::native_menu::accessibility::Scroll;
 unsafe fn base(this: *mut c_void) -> *mut c_void {
@@ -109,7 +109,7 @@ unsafe extern "system" fn horizontal_size(this: *mut c_void, out: *mut f64) -> H
 unsafe extern "system" fn vertical_size(this: *mut c_void, out: *mut f64) -> HRESULT {
     number(this, out, size_value)
 }
-// 属性查询与变更通知使用相同的 UIA 单位和无滚动哨兵值。
+// Property queries/change notices share UIA units and the no-scroll sentinel.
 pub(super) fn percent_value(state: Scroll) -> f64 {
     if state.total <= state.visible {
         UIA_ScrollPatternNoScroll

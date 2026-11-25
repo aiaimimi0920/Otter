@@ -1,4 +1,4 @@
-//! 按需查看当前文档的捕获元数据；无文件访问、常驻控件或后台刷新。
+//! On-demand capture metadata for the current document; no file access, persistent controls, or background refresh.
 use super::*;
 use crate::{capture_dynamic::Reason, desktop::canvas::CaptureSource};
 pub(in crate::desktop) const COMMAND: usize = 0x1068;
@@ -33,7 +33,7 @@ pub(in crate::desktop) unsafe fn show(hwnd: HWND, state: &State) {
     let Some(text) = text else {
         return;
     };
-    // MessageBox 会重入消息循环，不能跨调用借用画布；使用原有模态 guard。
+    // MessageBox reenters the message loop; do not borrow Canvas across the call, and use the existing modal guard.
     let Some(_guard) = super::super::file_dialog::Guard::begin(&state.file_dialog) else {
         return;
     };
@@ -57,7 +57,7 @@ fn reason(value: Option<Reason>) -> &'static str {
         None => "—",
     }
 }
-// 路径/诊断仅作显示，控制字符不得伪造行标签；按 Unicode 字符截断，不切断 UTF-8。
+// Paths/diagnostics are display-only; control characters must not forge line labels. Truncate by Unicode characters, never splitting UTF-8.
 fn single_line(value: &str) -> String {
     let mut chars = value.chars();
     let mut output: String = chars

@@ -1,4 +1,4 @@
-//! 已保存回执的显式重试/真正 profile 重开；不执行 reaccept、不以旧呈现证明新帧。
+//! Explicit retry of saved receipts/actual profile reopening; no reaccept, and old presentation never proves a new frame.
 use super::*;
 #[path = "application_projection_display_recovery_activity_tests.rs"]
 mod activity;
@@ -69,7 +69,7 @@ unsafe fn run_routed(mode: u8, restart: bool, offline: bool) {
         assert_eq!((display.width, display.height), (160, 80));
     }
     assert_eq!(fixture.ticket().intent_id(), intent);
-    assert!(!fixture.app.projection_receive.busy()); // 启动/授权不自动 show/read/displayed。
+    assert!(!fixture.app.projection_receive.busy()); // Startup/authorization does not automatically show/read/displayed.
     let trace = (mode == 6).then(|| {
         paint_trace::Trace::new(
             fixture
@@ -89,7 +89,7 @@ unsafe fn run_routed(mode: u8, restart: bool, offline: bool) {
         eprintln!("projection-paint-trace-first: {}", trace.describe());
     }
     joined(&mut fixture);
-    assert_eq!(fixture.app.documents.len(), count); // 无额外 Unit/append/替图。
+    assert_eq!(fixture.app.documents.len(), count); // No extra Unit, append, or image replacement.
     assert!(fixture.unit_present());
     assert_eq!(fixture.journal(), journal);
     assert_eq!(
@@ -118,7 +118,7 @@ unsafe fn run_routed(mode: u8, restart: bool, offline: bool) {
     let mut ticket = fixture.ticket().retry();
     ticket.activate().unwrap();
     drop(ticket);
-    // lost/negative reply 可由下一次显式操作幂等结算，没有循环定时器或后台重放。
+    // The next explicit operation may idempotently settle lost/negative replies, without recurring timers or background replay.
     if matches!(mode, 5 | 6) {
         peer(&mut fixture, 0, false);
         choose(&mut fixture);
@@ -126,7 +126,7 @@ unsafe fn run_routed(mode: u8, restart: bool, offline: bool) {
         if let Some(trace) = &trace {
             eprintln!("projection-paint-trace-second: {}", trace.describe());
         }
-        // 先保留呈现拒绝现场，避免 peer 等待 displayed 的超时掩盖主线程状态。
+        // Preserve the presentation-rejection state first, so the peer's displayed timeout cannot obscure main-thread state.
         assert_eq!(
             fixture.app.authorization.borrow().projection.status,
             "投送已呈现"

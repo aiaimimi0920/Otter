@@ -1,4 +1,4 @@
-//! 定位/首次置顶也会同步重入；只使用原协议自有窗口 fixture，不移动系统鼠标。
+//! Placement/initial topmost changes also reenter synchronously; use only original-protocol owned-window fixtures without moving system mouse.
 use super::*;
 use crate::native_popup_layer::TEMPORARY;
 use std::cell::Cell;
@@ -84,7 +84,7 @@ fn promotion_reentrant_hide_show_cannot_publish_new_instance_before_old_write_re
     assert_eq!(value(popup.0, TEMPORARY), 0);
     assert_eq!(value(popup.0, MANAGED), 0);
 
-    // 变更已经结算后，独立新输入仍可重开；不能留下永久锁或复用旧显示身份。
+    // After mutation settles, independent new input may reopen; never leave permanent locks or reuse old display identity.
     unsafe {
         let _ = ShowWindow(popup.0, SW_HIDE);
     }

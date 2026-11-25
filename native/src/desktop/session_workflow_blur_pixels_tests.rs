@@ -1,4 +1,4 @@
-//! 模糊读取原始方向及独立裁剪坐标，不能误用已翻转/contain 后的底图。
+//! Blur reads original orientation and independent crop coordinates, never the already flipped/contained base image.
 use super::*;
 #[path = "session_workflow_blur_local_tests.rs"]
 mod local;
@@ -48,7 +48,7 @@ fn render(
     let revision = candidate.vectors[0].1.editor.revision();
     let prepared = candidate.prepare_workflow_snapshot(&[], &cancel).unwrap();
     assert_eq!(candidate.vectors[0].1.editor.revision(), revision);
-    // 绘制取整不能反向修改恢复后的参数或未来保存的数据。
+    // Drawing-rounding must not modify restored parameters or future saved data.
     assert_eq!(
         candidate.vectors[0].1.editor.elements()[0]
             .blur
@@ -92,7 +92,7 @@ fn cropped_blur_uses_crop_pixel_offset_not_base_density_or_propagated_frame() {
     for (flipped, propagated) in [(true, false), (false, true), (true, true)] {
         let image = render(false, flipped, true, propagated, 1.0);
         assert_eq!(image.pixels.as_ref(), expected.pixels.as_ref());
-        // 标注 x=16 对应原图 x=32+16=48（蓝），不是底图 contain 后的 x=96（绿）。
+        // Annotation x=16 corresponds to source x=32+16=48 (blue), not contained base-image x=96 (green).
         let p = center(&image, true);
         assert!(
             p[0] > 150 && p[1] < 80 && p[3] > 240,

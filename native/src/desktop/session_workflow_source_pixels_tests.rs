@@ -1,4 +1,4 @@
-//! 真实 WIC/原生合成验证底图身份；像素不同，避免只证明选择字符串的假阳性。
+//! Actual WIC/native composition verifies base-image identity with differing pixels, avoiding false positives that prove only selection strings.
 use super::*;
 use serde_json::{json, Value};
 #[path = "session_workflow_blur_pixels_tests.rs"]
@@ -147,7 +147,7 @@ fn workflow_bake_reads_admitted_output_file_and_applies_target_flip() {
     );
     assert!(baked.pixels[1] > 80 && baked.pixels[4] > 80);
     assert!((127..=128).contains(&baked.pixels[3]) && (127..=128).contains(&baked.pixels[7]));
-    // 原资源必须保持原来的像素次序，目标翻转不能写回来源文件。
+    // The original asset must retain its pixel order; target flips must not write back into source files.
     assert_eq!(
         crate::desktop::export::decode_png(std::fs::read(&path).unwrap())
             .pixels

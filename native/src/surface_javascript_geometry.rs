@@ -1,4 +1,4 @@
-//! child 私有同步度量：复用真实 DirectWrite/八轮重排；每 operation 单缓存且原生工作有硬界。
+//! Child-private synchronous measurement reuses real DirectWrite/eight-round reflow; one cache per operation and hard-bounded native work.
 use crate::{
     surface_javascript_wire as wire,
     surface_native_measure::NativeMeasure,
@@ -8,7 +8,7 @@ use std::{collections::BTreeMap, io, time::Instant};
 
 const MAX_READS: usize = 256;
 const MAX_LAYOUTS: usize = 8;
-// 仅测试记录固定阶段和累计耗时；不存脚本、节点或快照，不改变产品协议/预算。
+// Test-only recording of fixed phases and accumulated timing; no scripts, nodes, or snapshots, and no product protocol/budget changes.
 macro_rules! mark {
     ($owner:expr, $stage:literal) => {
         #[cfg(test)]
@@ -53,7 +53,7 @@ impl Geometry {
     pub(super) fn valid(&self) -> bool {
         !self.failed && self.deadline.is_some_and(|v| Instant::now() < v)
     }
-    // 只有私有宿主交换可扣除等待；不重置布局次数、缓存或失败状态。
+    // Only private host exchanges may deduct waiting time; do not reset layout counts, caches, or failure state.
     pub(super) fn exclude_wait(&mut self, elapsed: std::time::Duration) {
         self.deadline = self.deadline.and_then(|v| v.checked_add(elapsed));
     }
@@ -103,7 +103,7 @@ impl Geometry {
                 .prepare(&scene, view.logical(), context)
                 .map_err(|_| wire::invalid())?;
             mark!(self, "native-boxes");
-            // 隐藏节点/后代没有 box；仍只允许本次投影内的身份，不把未知 key 当零矩形。
+            // Hidden nodes/descendants have no box; still allow only identities in this projection, never treating unknown keys as zero rectangles.
             let mut boxes = BTreeMap::new();
             let mut pending = vec![scene.root()];
             while let Some(node) = pending.pop() {
@@ -117,14 +117,14 @@ impl Geometry {
                     .size;
                 let local = crate::surface_length::Context { font, ..context };
                 let border = crate::surface_box::borders(placed.node, local);
-                // 和文字排版共用内容内缩，含按钮默认 padding；百分比以包含块宽度求值。
+                // Share content insets with text layout, including default button padding; evaluate percentages against containing-block width.
                 let inset =
                     crate::surface_button::insets(placed.node, placed.containing_width, local);
                 let content = crate::surface_box::inner(placed.size, inset);
                 let padding: [f32; 2] =
                     std::array::from_fn(|a| (inset.start()[a] - border.start()[a]).max(0.));
                 let padding_box = crate::surface_box::inner(placed.size, border);
-                // 本宿主的 device content box 以两条内容边独立取整，不伪造浏览器的 snapping。
+                // This host's device content box rounds both content edges independently without fabricating browser snapping.
                 let pixels: [f32; 2] = std::array::from_fn(|axis| {
                     let start = f64::from(placed.origin[axis] + inset.start()[axis]) * view.ratio();
                     ((start + f64::from(content[axis]) * view.ratio()).round() - start.round())

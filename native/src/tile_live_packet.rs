@@ -1,4 +1,4 @@
-//! Wall NLWM专属协议；使用本模块的线协议校验器，不改造成普通NLLV帧。
+//! Wall-specific NLWM protocol; use this module's wire validator rather than converting to ordinary NLLV frames.
 use crate::image_decode::Image;
 pub(crate) const PROTOCOL: &str = "loom.wall.media.v1";
 pub(crate) const MAX_FRAME_BYTES: usize = 16 * 1024 * 1024;

@@ -1,4 +1,4 @@
-//! 仅自有隐藏宿主/控件与线程键表；不注入系统输入，不把合成 IME 当人工输入法验收。
+//! Only owned hidden hosts/controls and thread key tables; no system input injection or claims that synthetic IME tests validate manual IME input.
 use super::*;
 use desktop::{document_window::DocumentWindow, Apartment};
 use windows::core::w;

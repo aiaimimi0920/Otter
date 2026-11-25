@@ -1,4 +1,4 @@
-//! 填充先于边框，二者共用外层标注透明度；圆角半径按 SVG 规则限制在半边长内。
+//! Draw fill before border, sharing outer annotation opacity; SVG rules limit corner radii to half the side length.
 use crate::{
     editor::{Stroke, Tool},
     stroke_style::Color,

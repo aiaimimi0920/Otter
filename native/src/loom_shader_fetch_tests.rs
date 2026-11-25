@@ -1,4 +1,4 @@
-//! 真实认证 TLS 取码→同份 PNG 输入/LUT→原任务槽→正式端口；没有用户 Loom 或测试后门入口。
+//! Real authenticated TLS code fetch -> same PNG input/LUT -> original task slot -> formal port; no user Loom or test-backdoor entry.
 use super::*;
 use crate::{
     desktop::{
@@ -31,7 +31,7 @@ fn configuration() -> Configuration {
     Configuration::shader_from_parameters(&parameters, &["input_path", "reference_path"]).unwrap()
 }
 fn accept_until(listener: &TcpListener, deadline: Instant) -> io::Result<TcpStream> {
-    // 这些回环监听器归夹具独占；保留非阻塞模式给调用方检查是否有额外连接。
+    // Fixtures exclusively own these loopback listeners; retain nonblocking mode so callers can check extra connections.
     listener.set_nonblocking(true)?;
     loop {
         let remaining = deadline.saturating_duration_since(Instant::now());
@@ -64,14 +64,14 @@ fn shader_fetch_fixture_without_client_exits_with_accept_timeout() {
     server.join().unwrap();
 }
 
-// tungstenite Callback 固定返回 ErrorResponse；只对此第三方回调签名豁免，不放宽产品错误类型。
+// tungstenite Callback fixes ErrorResponse as return type; exempt only this third-party callback signature, not product error types.
 #[allow(clippy::result_large_err)]
 pub(crate) fn authenticated_socket(
     listener: &TcpListener,
     config: Arc<rustls::ServerConfig>,
     identity: &crate::loom_bridge_identity::Identity,
 ) -> tungstenite::WebSocket<StreamOwned<ServerConnection, BridgeStream>> {
-    // 分别限制接收连接和已连接 I/O；慢连接不会吃掉既有握手预算。
+    // Bound connection acceptance and connected I/O separately; slow connects cannot consume the existing handshake budget.
     let socket = accept_until(listener, Instant::now() + Duration::from_secs(10))
         .expect("Shader fixture could not accept client");
     let mut stream = BridgeStream::new(socket, Instant::now() + Duration::from_secs(10)).unwrap();

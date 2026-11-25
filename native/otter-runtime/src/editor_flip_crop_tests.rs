@@ -1,4 +1,4 @@
-//! 对照主干：底图全源翻转，矢量按裁剪框镜像；裁剪视图及框外内容可恢复。
+//! Match baseline: flip complete bases, mirror vectors within crop frames, and preserve recoverable crop views/outside content.
 use super::*;
 use crate::crop_geometry::Rect;
 
@@ -213,7 +213,7 @@ fn offset_crop_mirrors_geometry_locally_but_pixels_across_full_source() {
         editor.elements()[0].points,
         [Point { x: 9.0, y: 2.0 }, Point { x: 5.0, y: 4.0 }]
     );
-    // 可见左上角 (2,1) 取全源 (13,1)，不是可见片段右端 (9,1)。
+    // Visible top-left (2,1) samples full source (13,1), not visible-segment right endpoint (9,1).
     assert_eq!(editor.layers().unwrap().base[(16 + 2) * 4], 29);
     for _ in 0..3 {
         assert!(editor.undo());

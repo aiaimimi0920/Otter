@@ -1,4 +1,4 @@
-//! 明确服务端拒绝先持久化；只读对账和Checkpoint均完成前保留原请求，不把未知失败当拒绝。
+//! Persist explicit server rejection first; retain original requests until read-only reconciliation and Checkpoint both finish, never treating unknown failure as rejection.
 use super::*;
 impl Ticket {
     pub(crate) fn rejection(&self) -> Option<super::super::Code> {
@@ -35,7 +35,7 @@ impl Ticket {
             entry,
         })
     }
-    /// 仅调用者真实默认Checkpoint包含拒绝后的权威/可见冲突时调用；read本身不授ack。
+    /// Call only when the caller's actual default Checkpoint includes post-rejection authority/visible conflict; read alone grants no ACK eligibility.
     pub(crate) fn commit_rejected_after_checkpoint(
         &self,
         document: Document,

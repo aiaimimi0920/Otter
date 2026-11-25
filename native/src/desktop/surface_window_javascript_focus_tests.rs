@@ -1,4 +1,4 @@
-//! 真实 EDIT 切焦/失焦提交；窗口在屏外，保存并恢复前台，不注入全局按键或鼠标。
+//! Actual EDIT focus changes/focus-loss commits; offscreen windows save/restore foreground without global keyboard/mouse injection.
 use super::*;
 use crate::{surface_javascript::focus_tests, surface_javascript_wire::focus::Request};
 use windows::{
@@ -187,11 +187,11 @@ fn javascript_native_focus_thread_focus_alone_cannot_authorize_foreground_or_rep
     window.set_input_policy(true, true).unwrap();
     window.enable_javascript_keyboard();
     let _foreground = unsafe { fixture::focus_foreground(window.hwnd) };
-    // 同线程控制实验一并激活了窗口；借原有进程 owner 隔离线程焦点与真正前台。
+    // The same-thread control experiment also activated the window; use the original process owner to separate thread focus from actual foreground.
     let mut other = uia::ProcessFixture::start_foreground();
     assert_ne!(other.pid(), std::process::id());
     {
-        // 父线程的立即检查不能证明子线程已完成激活；只由 Child 本地激活一次并确认。
+        // The parent's immediate check cannot prove child-thread activation finished; let Child activate locally once and confirm.
         let _other_foreground = unsafe { fixture::guard_foreground(other.hwnd) };
         assert_eq!(
             unsafe { GetForegroundWindow() },
@@ -223,12 +223,12 @@ fn javascript_native_focus_thread_focus_alone_cannot_authorize_foreground_or_rep
         assert_eq!(unsafe { GetFocus() }, window.hwnd);
         assert_eq!(unsafe { GetForegroundWindow() }, other.hwnd);
         assert!(!window.has_pending_edit());
-        // AllowSetForegroundWindow 的下一次授权会替换前一接收方；必须由当前前台 Child
-        // 明确归还父进程许可，不能拿父线程 SetFocus 或 AttachThreadInput 冒充前台权限。
+        // The next AllowSetForegroundWindow grant replaces the previous recipient; the currently foregrounded Child must
+        // explicitly return parent-process permission, never substituting parent-thread SetFocus or AttachThreadInput for foreground authority.
         other.return_foreground();
     }
     let _restored_foreground = unsafe { fixture::focus_foreground(window.hwnd) };
-    // 后续普通空请求帧不能恢复已拒绝的 focus，且不能生成编辑候选。
+    // Later ordinary empty-request frames must neither restore rejected focus nor generate edit candidates.
     window
         .replace(
             Scene::parse(

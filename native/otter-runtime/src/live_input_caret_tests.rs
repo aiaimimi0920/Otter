@@ -1,4 +1,4 @@
-//! 自有 HWND 的只读 caret 观测：显式快照避免抢真实焦点，完整 IME 仍另行验收。
+//! Read-only caret observation on owned HWNDs: explicit snapshots avoid stealing real focus; full IME acceptance remains separate.
 use super::*;
 use windows::{core::w, Win32::Graphics::Gdi::ClientToScreen};
 

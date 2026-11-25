@@ -1,4 +1,4 @@
-//! 把实际构建 EXE 作为只读资源映射，不执行入口、不读取用户文件。
+//! Map the actual built EXE as read-only resources without executing its entry point or reading user files.
 #![cfg(windows)]
 use std::os::windows::ffi::OsStrExt;
 use windows::{
@@ -15,7 +15,7 @@ impl Drop for Module {
     }
 }
 unsafe fn resource(module: &Module, kind: PCWSTR, id: usize) -> Vec<u8> {
-    // MAKEINTRESOURCEW：低位整数资源 ID，不是可解引用的字符串地址。
+    // MAKEINTRESOURCEW is a low-order integer resource ID, not a dereferenceable string address.
     assert!(id > 0 && id <= u16::MAX as usize);
     let entry = FindResourceW(
         Some(module.0),
@@ -51,7 +51,7 @@ fn built_executable_contains_brand_icon_and_package_version() {
         let count = u16::from_le_bytes([icons[4], icons[5]]) as usize;
         assert!(count > 0);
         assert_eq!(&icons[..6], &source[..6]);
-        // 校验每个尺寸的真实图像字节，不能用任意图标或只存在的 group 占位通过。
+        // Validate actual image bytes at every size; an arbitrary icon or merely present group placeholder must not pass.
         for index in 0..count {
             let entry = &source[6 + index * 16..6 + (index + 1) * 16];
             let group = &icons[6 + index * 14..6 + (index + 1) * 14];
@@ -61,7 +61,7 @@ fn built_executable_contains_brand_icon_and_package_version() {
             let offset = u32::from_le_bytes(entry[12..16].try_into().unwrap()) as usize;
             let id = u16::from_le_bytes(group[12..14].try_into().unwrap()) as usize;
             let image = &source[offset..offset + length];
-            // RC 从实际图像头重建 planes/bitcount，不保证复制 ICO 目录中的零值。
+            // RC reconstructs planes/bitcount from actual image headers and does not guarantee copying zero values from the ICO directory.
             let format = if image.starts_with(b"\x89PNG\r\n\x1a\n") {
                 &[1, 0, 32, 0][..]
             } else {

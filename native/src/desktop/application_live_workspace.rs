@@ -1,4 +1,4 @@
-//! Live 与静态文档共享 graph 身份；生命周期收集按实际 owner，而不是仅按静态窗口。
+//! Live and static documents share graph identity; collect lifecycles by actual owners, not static windows alone.
 use super::*;
 impl Application {
     pub(in crate::desktop::application) fn admit_live(

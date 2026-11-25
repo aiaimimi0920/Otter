@@ -1,4 +1,4 @@
-//! 单个私有消息合并 Switch/Slider 通知；发送不跨 Host/RefCell 借用。
+//! One private message coalesces Switch/Slider notifications; sending crosses no Host/RefCell borrow.
 use super::*;
 use crate::surface_accessibility::Handle;
 use std::collections::BTreeMap;
@@ -19,7 +19,7 @@ impl Pending {
         self.values.clear();
         self.ranges.clear();
         self.readonly.clear();
-        // 已排队消息仍会抵达；保留 posted 以免连续替换累积空消息。
+        // Already queued messages still arrive; retain posted to avoid accumulating empty messages during repeated replacement.
     }
 }
 pub(super) fn enqueue(state: &State, changes: Vec<(String, bool, bool)>) {
@@ -82,7 +82,7 @@ fn schedule(state: &State, pending: &mut Pending) {
         && !pending.flushing
     {
         let hwnd = HWND(state.accessibility_key.get() as *mut _);
-        // PostMessage 不同步执行接收过程；不能替换为 SendMessage/立即 Raise。
+        // PostMessage does not execute receivers synchronously; never substitute SendMessage/immediate Raise.
         if unsafe { PostMessageW(Some(hwnd), MESSAGE, WPARAM(0), LPARAM(0)) }.is_ok() {
             pending.posted = true;
         } else {
@@ -118,7 +118,7 @@ fn flush_properties(
         state.notifications.borrow_mut().clear();
         return;
     }
-    // 嵌套消息循环可能在 Host 操作中分派私有消息；交给外层 run 结束重新排队。
+    // Nested message loops may dispatch private messages during Host operations; let outer run requeue after completion.
     if state.host.borrow().is_none() {
         return;
     }
@@ -131,7 +131,7 @@ fn flush_properties(
         if !accessibility_bridge::current(state, &handle) {
             continue;
         }
-        // 前一通知可重入修改后续节点；不在较新状态之后再报告旧批次的值。
+        // Earlier notifications may reentrantly modify later nodes; never report an old batch's values after newer state.
         if state
             .host
             .borrow()

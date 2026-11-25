@@ -1,4 +1,4 @@
-//! 颜色面板关闭后，在同一外层消息结算中重置其余钉图的创建默认槽。
+//! After the color panel closes, reset the other pins' creation-default slots within the same outer message settlement.
 use super::*;
 impl Application {
     pub(super) unsafe fn settle_edit_palette(&self) {

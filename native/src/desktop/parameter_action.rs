@@ -1,4 +1,4 @@
-//! 参数菜单动作的局部候选；模态返回不直接提交，调用方重新核对配置凭证。
+//! Local candidates for parameter-menu actions; modal return does not commit directly, and callers recheck configuration evidence.
 use super::{parameter_value::Spec, State};
 use serde_json::Value;
 use windows::Win32::Foundation::HWND;
@@ -11,7 +11,7 @@ pub(super) enum Action {
     File,
 }
 impl Action {
-    /// 外层 None 是取消；Some(None) 是恢复未设置，不得转换成显式 null。
+    /// Outer None is cancellation; Some(None) restores unset state and must not become explicit null.
     pub unsafe fn choose(&self, hwnd: HWND, state: &State) -> Option<Option<Value>> {
         if let Self::Set(value) = self {
             return Some(Some(value.clone()));

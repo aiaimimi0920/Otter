@@ -1,4 +1,4 @@
-// 通用输入转换中同步读写几何；不依赖模型计数、私有collect或宿主业务。
+// Synchronous geometry reads/writes during generic input conversion, independent of model counts, private collect, or host business logic.
 NeuroSurface.define({ mount({ root }) {
   root.style.cssText = "box-sizing:border-box;width:40px";
   if (root.clientWidth !== 40) throw Error("initial geometry");

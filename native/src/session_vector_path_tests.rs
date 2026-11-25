@@ -1,4 +1,4 @@
-//! 多点/单点路径恢复、变换及canonical往返；固定坐标oracle独立于新箭头几何。
+//! Multi-point/single-point path restoration, transforms, and canonical round trips; fixed-coordinate oracles are independent of new arrow geometry.
 use super::*;
 fn raw(kind: &str, points: Value) -> Box<RawValue> {
     serde_json::value::to_raw_value(&serde_json::json!({"serialCounter":7,"elements":[{

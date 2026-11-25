@@ -1,4 +1,4 @@
-//! 生产 WM_PAINT/WM_TIMER 的恢复事务；隐藏自有窗口，不注入系统输入或驱动故障。
+//! Recovery transactions through production WM_PAINT/WM_TIMER; hidden owned windows, without system-input or driver-fault injection.
 use super::*;
 use crate::desktop::composition_retirement::Status;
 use std::time::{Duration, Instant};
@@ -43,7 +43,7 @@ fn window_recovers_real_d3d12_failure_after_retirement_and_ignores_stale_ticks()
         let original = state.error.borrow().as_ref().unwrap().code();
         assert!(state.canvas.borrow().render_suspended());
         assert!(state.canvas.borrow().recovery.target.is_some());
-        // 正常最小化/discard 和额外 paint 不能丢退休 owner 或提前确认帧。
+        // Normal minimize/discard and extra paints must not lose the retirement owner or confirm frames early.
         SendMessageW(hwnd, WM_SIZE, Some(WPARAM(SIZE_MINIMIZED as usize)), None);
         SendMessageW(hwnd, WM_PAINT, None, None);
         assert!(state.canvas.borrow().recovery.target.is_some());
@@ -73,7 +73,7 @@ fn window_recovers_real_d3d12_failure_after_retirement_and_ignores_stale_ticks()
         }
         assert!(state.canvas.borrow().compatibility_renderer);
         assert!(state.canvas.borrow().recovery.target.is_none());
-        // 完成通知本身不清错误；只有新后端成功呈现才确认新帧。
+        // Completion notification alone does not clear errors; only successful presentation by the new backend confirms a new frame.
         assert_eq!(state.error.borrow().as_ref().unwrap().code(), original);
         SendMessageW(hwnd, WM_PAINT, None, None);
         assert!(state.error.borrow().is_none());

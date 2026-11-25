@@ -1,4 +1,4 @@
-//! 真子进程绕过所有 Drop；仅最近成功 Live 时间点恢复为静态，租约由 OS 释放。
+//! A real child process bypasses all Drop handlers; restore only the latest successful Live time point as static, with leases released by the OS.
 use super::*;
 use crate::test_process;
 use std::process::Command;

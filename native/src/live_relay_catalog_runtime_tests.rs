@@ -1,4 +1,4 @@
-//! 真实 HTTPS 目录后台查询、在途取消和迟到成功抑制。
+//! Real HTTPS background catalog queries, in-flight cancellation, and suppression of late success.
 use super::*;
 use crate::{
     device_authorization_lease::Grant,

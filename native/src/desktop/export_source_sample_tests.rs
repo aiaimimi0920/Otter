@@ -1,4 +1,4 @@
-//! 有界源投影的真实 WIC 读回：模糊可平滑取样，底图/擦除默认仍使用最近邻。
+//! Real WIC readback for bounded source projection: blur may smooth sampling, while base/erasure paths still default to nearest-neighbor.
 use super::*;
 
 fn source() -> Image {

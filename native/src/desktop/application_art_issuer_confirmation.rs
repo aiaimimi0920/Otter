@@ -1,4 +1,4 @@
-//! 导入含执行信任变化时的独立即时确认；默认拒绝，不将普通命名导入提升为授权。
+//! Separate immediate confirmation when imports change execution trust; deny by default and never elevate an ordinary naming import into authorization.
 use super::*;
 use crate::art_issuer_trust::Document;
 use base64::{engine::general_purpose::STANDARD, Engine};
@@ -33,7 +33,7 @@ pub(super) unsafe fn confirm(hwnd: HWND, before: &Document, next: &Document) -> 
         return Err(Error::new(E_ABORT, "Issuer requester closed"));
     }
     let message = describe(before, next)?;
-    // 32 个 origin 可能超过可读模态长度；拒绝而不是截断关键指纹。
+    // 32 origins may exceed readable modal length; reject rather than truncate critical fingerprints.
     if message.encode_utf16().count() > 12000 {
         return Err(Error::new(
             E_INVALIDARG,

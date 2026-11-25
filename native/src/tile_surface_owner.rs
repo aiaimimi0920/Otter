@@ -1,4 +1,4 @@
-//! 独占Art串行请求线程内最多四个ephemeral view；纯数据交给UI，HTTP/资源owner不跨线程。
+//! At most four ephemeral views within the exclusive serial Art request thread; pass pure data to UI while HTTP/resource owners remain thread-local.
 use crate::{
     device_authorization_lease::Lease,
     device_session_client::Client,
@@ -33,7 +33,7 @@ fn task(
     images: &BTreeMap<String, Image>,
     ids: &[String],
 ) -> Option<Task> {
-    // 一步只下载一张；不排额外采样/资源任务，原Live在独立Assets线程继续消费。
+    // Download one image per step without extra sampling/resource tasks; original Live continues consumption on its independent Assets thread.
     for (id, entry) in entries {
         if let Some(resource) = entry
             .state
@@ -53,7 +53,7 @@ fn task(
         .is_none_or(|e| Instant::now() >= e.next)
         .then(|| Task::State(id.clone()))
 }
-// 持Shared锁接纳场景并清旧候选；冻结/换代期间迟到的state不能替换保留场景。
+// Hold the Shared lock when admitting scenes and clearing old candidates; late state during freeze/generation changes cannot replace retained scenes.
 fn admit(
     entries: &mut BTreeMap<String, Entry>,
     id: String,
@@ -99,7 +99,7 @@ pub(crate) struct Views<'a> {
     client: &'a Client,
     lease: &'a Lease,
     entries: BTreeMap<String, Entry>,
-    // 内容寻址只在本job/view授权域内共享；换代整体释放，不继承旧授权。
+    // Content addressing shares only within this job/view authorization scope; generation changes release everything without inheriting old authorization.
     images: BTreeMap<String, Image>,
 }
 impl<'a> Views<'a> {
@@ -178,14 +178,14 @@ impl<'a> Views<'a> {
                     .map_err(|_| "Art视图校验失败")
             })
             .inspect_err(|_| {
-                // 包括200但无可信身份的回复：不能推定open未创建并在两秒后再发。
+                // This includes 200 replies lacking trusted identity: never infer that open created nothing and send again two seconds later.
                 if old.is_none() {
                     shared.stop();
                 }
             })?;
         let opening = old.is_none();
         if let Some(late) = admit(&mut self.entries, id.clone(), state, shared, job) {
-            // 既有view的迟到state只丢弃；新open即使迟到也必须收回已验证的ephemeral view。
+            // Discard late state for existing views; new opens must reclaim verified ephemeral views even when late.
             if opening && control.wall_surface_close(&late.view).is_err() {
                 shared.stop();
             }
@@ -269,6 +269,6 @@ impl Drop for Views<'_> {
                 let _ = control.wall_surface_close(&entry.state.view);
             }
         }
-        // 撤权禁止借新凭据清理；原presenter disconnect/服务TTL回收view，绝不删除源instance。
+        // Revocation prohibits cleanup with new credentials; original presenter disconnect/service TTL reclaims views without ever deleting source instances.
     }
 }

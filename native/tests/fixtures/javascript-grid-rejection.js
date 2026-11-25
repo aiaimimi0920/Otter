@@ -1,4 +1,4 @@
-// 合法声明替换先全量验证；任何轨道/端点/shorthand 失败不能改变旧 Map 或 sheet。
+// Fully validate valid declaration replacements first; any track/endpoint/shorthand failure must leave the old Map or sheet unchanged.
 NeuroSurface.define({ mount({ root }) {
   const sheet = new CSSStyleSheet(); sheet.replaceSync(':root{display:grid;grid-template-columns:40px auto;gap:2px}');
   document.adoptedStyleSheets = [sheet]; root.textContent = 'atomic';
@@ -29,6 +29,6 @@ NeuroSurface.define({ mount({ root }) {
   reject(() => root.style.setProperty('gap','3px 4px','urgent'));
   reject(() => root.style.setProperty('gap','3px nope'));
   if (root.style.cssText !== saved) throw Error('partial shorthand');
-  // 根不能是 Grid item；保留上面的原子性证据后移除合法但上下文不适用的声明。
+  // The root cannot be a Grid item; after preserving the atomicity evidence above, remove declarations that are valid but inapplicable here.
   root.style.removeProperty('grid-row');
 } });

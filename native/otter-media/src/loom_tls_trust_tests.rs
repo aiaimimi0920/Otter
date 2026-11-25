@@ -138,7 +138,7 @@ fn incomplete_empty_relative_and_invalid_config_never_open_file() {
             |key| match key {
                 "OTTER_LOOM_TLS_ORIGIN" => origin.map(OsString::from),
                 "OTTER_LOOM_TLS_CA_FILE" => file.map(OsString::from),
-                // 空规范 origin 不能退回这个有效值。
+                // An empty canonical origin must not fall back to this valid value.
                 "HOOK_LOOM_TLS_ORIGIN" if origin == Some("") => {
                     Some(OsString::from("https://localhost"))
                 }

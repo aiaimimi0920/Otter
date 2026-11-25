@@ -1,4 +1,4 @@
-//! 原主干的紧凑内联布局；只投影可验证状态，缺失的 Loom 身份、组计数和分享能力不伪造。
+//! The original mainline compact inline layout; project only verifiable state, never fabricate missing Loom identity, group counts, or sharing capabilities.
 use super::*;
 fn icon(name: &str) -> neuro_mini_ui::Icon {
     neuro_mini_ui::Icon::svg(match name {

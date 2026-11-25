@@ -1,4 +1,4 @@
-//! 跨弹出窗口的逻辑树；双向均为弱关联，不保活已关闭面板或 COM provider。
+//! Logical tree across popups; weak links both ways keep neither closed panels nor COM providers alive.
 use super::*;
 #[derive(Clone)]
 pub(super) struct WeakNode {
@@ -19,7 +19,7 @@ impl Owner {
         }
     }
     pub(crate) fn link_child(&self, child: &Owner, key: usize) {
-        // 不同时持两把锁，避免跨线程读者形成反向锁序。
+        // Never hold two locks simultaneously, preventing reverse lock order among cross-thread readers.
         let parent = {
             let Ok(mut state) = self.0.lock() else { return };
             if !state.alive {
@@ -49,7 +49,7 @@ impl View {
     pub(crate) fn focused(&self) -> Option<(View, Node)> {
         let mut view = self.clone();
         let mut focused = None;
-        // 与菜单深度预算一致，即使关联损坏也不会无限遍历。
+        // Match menu-depth budgets so even corrupt links cannot cause unbounded traversal.
         for _ in 0..16 {
             let next = {
                 let state = view.0.lock().ok()?;

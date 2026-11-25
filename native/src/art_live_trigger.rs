@@ -1,4 +1,4 @@
-//! 本地自动触发的严格wire；宿主授权不交给JS，条件仍只由Loom求值。
+//! Strict wire format for local automatic triggers; JS receives no host authorization, and only Loom evaluates conditions.
 use crate::{
     art_execution_grant::wire::Binding, live_relay_observation::Observation,
     live_relay_trigger_registration::Condition, live_relay_viewer_identity::Identity,
@@ -170,7 +170,7 @@ impl Reply {
         Ok(r)
     }
 }
-/// 只向child交无凭据事件，不携带签名grant或可写宿主身份。
+/// Send the child only credential-free events, without signed grants or writable host identity.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct Event {

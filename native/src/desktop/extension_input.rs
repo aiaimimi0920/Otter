@@ -1,4 +1,4 @@
-//! 原钉图消息中的覆盖文字选择/复制与声明 click；不另建输入窗口、hook 或渲染层。
+//! Overlay-text selection/copy and declared clicks in original pin messages; no separate input windows, hooks, or render layers.
 use super::{
     extension_visuals::{Outcome, Views},
     State,
@@ -96,7 +96,7 @@ unsafe fn copy_with(
     selection: bool,
     publish: impl FnOnce(&str, &dyn Fn() -> bool) -> Result<()>,
 ) -> Result<()> {
-    // 复制前和获得剪贴板锁后都复核来源；同步 Win32 调用期间不持模型/布局借用。
+    // Revalidate provenance before copy and after clipboard lock acquisition; hold no model/layout borrow across synchronous Win32 calls.
     let current = || {
         state.lifetime.owns(hwnd)
             && same(state, v)
@@ -219,7 +219,7 @@ unsafe fn message(
         }
         WM_LBUTTONDOWN | WM_LBUTTONDBLCLK => {
             if v.begin(point, msg == WM_LBUTTONDBLCLK)? {
-                // 不重新激活/聚焦文字，避免破坏已开始的原生选区。
+                // Do not reactivate/refocus text, which would disrupt an already-started native selection.
                 SetCapture(hwnd);
                 if GetCapture() != hwnd || !same(state, v) {
                     cancel(hwnd, state, true);
@@ -238,7 +238,7 @@ unsafe fn message(
                 v.update(point)?;
             } else {
                 let outcome = v.finish(point, modifiers())?;
-                // 已完成选区先结束手势，再归还捕获，WM_CAPTURECHANGED 不清已完成范围。
+                // End completed-selection gestures before releasing capture; WM_CAPTURECHANGED must not clear completed ranges.
                 let _ = ReleaseCapture();
                 if same(state, v) {
                     match outcome {

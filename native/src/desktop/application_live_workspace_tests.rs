@@ -1,4 +1,4 @@
-//! Live graph 身份准入、宿主替换、冻结身份交接和终止清理；合成帧不捕获用户桌面。
+//! Live graph identity admission, host replacement, frozen-identity handoff, and terminal cleanup; synthetic frames never capture the user's desktop.
 use super::*;
 use crate::{
     workspace::{Group, Link},

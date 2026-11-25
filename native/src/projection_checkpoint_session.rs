@@ -1,4 +1,4 @@
-//! 设备关联索引共用会话原文遍历；工作区可读不等于每一类关联均可恢复。
+//! Device-association indexes share original session-text traversal; readable workspaces do not imply every association category is recoverable.
 use crate::{session_json_fields::fields, session_source::Parsed};
 use serde::{Deserialize, Deserializer};
 use serde_json::value::RawValue;
@@ -12,7 +12,7 @@ fn stickers<'de: 'a, 'a, D: Deserializer<'de>>(decoder: D) -> Result<Vec<&'a Raw
     crate::session_document::bounded::<D, &'a RawValue, { crate::workspace::MAX_UNITS }>(decoder)
 }
 
-/// 只持有窗口切片和当前行的字段表。整行无法解析时，任何索引都不能使用部分结果。
+/// Hold only window slices/current-row field tables. If whole-row parsing fails, no index may use partial results.
 pub(super) fn visit(
     parsed: &Parsed<'_>,
     mut visit: impl FnMut(&Object<'_>) -> Option<()>,
@@ -46,7 +46,7 @@ pub(crate) fn capture(parsed: &Parsed<'_>) -> Indices {
         .projection_scope
         .map(|scope| scope.to_string());
     if visit(parsed, |object| {
-        // 只淘汰拒绝这一行的索引；另一侧继续读取后续窗口。
+        // Discard only the index rejecting this row; the other side continues reading later windows.
         if receiver
             .as_mut()
             .is_some_and(|index| index.add(object).is_none())

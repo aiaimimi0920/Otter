@@ -1,4 +1,4 @@
-//! 右侧候选视图只持唯一 Ui 的 Weak；所有点击仍交同一草稿/候选事务与执行 owner。
+//! The right-side candidate view holds only a Weak to the sole Ui; all clicks use the same draft/candidate transaction and execution owner.
 use super::*;
 use neuro_mini_ui::PreviewGrid;
 use std::rc::Weak;
@@ -130,7 +130,7 @@ pub(super) unsafe fn place(
         .as_ref()
         .is_none_or(|o| !o.alive() || o.parent != parent || !Rc::ptr_eq(&o.data.model, &model))
     {
-        // 先退役旧通知/窗口，父 strip 的销毁和目录换代不能复用旧 index。
+        // Retire old notifications/windows first; destroying the parent strip or advancing the catalog generation must not reuse old indices.
         drop(ui.auxiliary.borrow_mut().take());
         drop(open.take());
         open = Some(Rc::new(Open::new(ui, parent)?));

@@ -1,4 +1,4 @@
-//! 同源/同节点绑定的短时热复用 HLSL 会话：保留 256MiB Job、单请求期限、15s 空闲自退与定次轮转。
+//! Short-lived warm-reuse HLSL sessions bound to the same source/node: retain the 256MiB Job, per-request deadlines, 15s idle self-exit, and fixed-count rotation.
 use super::{
     process::{Failure, CAPACITY, TIMEOUT},
     *,
@@ -21,7 +21,7 @@ use windows::Win32::{
 
 pub const FLAG: &str = "--native-hlsl-session-worker";
 const IDLE_TIMEOUT: Duration = Duration::from_secs(15);
-// 父侧从响应完整接收后计正常空闲；子侧更早开始等待，只提供更长的失联兜底。
+// The parent counts normal idle time after fully receiving the response; the child starts waiting earlier and provides only a longer lost-connection fallback.
 const CHILD_IDLE_TIMEOUT: Duration = Duration::from_secs(45);
 const MAX_REQUESTS: usize = 32;
 const MAX_PARKED_SCOPES: usize = 2;
@@ -75,7 +75,7 @@ fn run_with_idle(idle: Duration) -> io::Result<()> {
         let prepared = request.with_request(|value| {
             super::WarmEngine::prepare(&mut engine, value, request.backend, &|| false, deadline)
         });
-        // 先释放请求输入像素再分配 CPU 读回缓冲，维持 4K 256MiB 峰值边界。
+        // Release request input pixels before allocating the CPU readback buffer to preserve the 4K 256MiB peak boundary.
         drop(request);
         let fatal = matches!(
             &prepared,
@@ -249,11 +249,11 @@ fn take_matching(scope: &str, backend: Backend, suffix: &'static str) -> Option<
         }
     }
     drop(expired);
-    // 在发送前退休闲置期间出现异常的 worker，不重放已经发送的请求。
+    // Before sending, retire workers that failed while idle; never replay already-sent requests.
     found.filter(|entry| boundary::idle(&entry.pipe, &entry.child).is_ok())
 }
 
-/// 仅池内 parked 项可回收；active 项已被取走，容量等待者每轮都会再检查。
+/// Only parked entries within the pool may be reclaimed; active entries have been removed, and capacity waiters recheck each round.
 pub(super) fn reclaim_idle() {
     let victim = POOL.0.lock().ok().and_then(|mut state| {
         if state.entries.len() >= MAX_PARKED_SCOPES || CAPACITY.used() >= CHILD_LIMIT {
@@ -303,8 +303,8 @@ fn park_with(entry: Parked, spawn: impl FnOnce() -> io::Result<()>) {
     }
     drop(evicted);
     if spawn_reaper && spawn().is_err() {
-        // running 为本次预约所有；失败期间其他 park 不会再启动线程。
-        // 锁内归还预约并取走孤儿，锁外析构，后来的 park 才能预约新 reaper。
+        // running belongs to this reservation; other park calls do not start threads while failure is handled.
+        // Return the reservation and take orphaned entries under the lock, then destroy outside it; later park calls may then reserve a new reaper.
         let orphaned = {
             let mut state = POOL.0.lock().unwrap_or_else(|e| e.into_inner());
             state.reaper_running = false;

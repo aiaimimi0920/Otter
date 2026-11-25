@@ -1,4 +1,4 @@
-//! 用户显式选择文件后后台读取；共享远程任务容量和完成等待，不在菜单回调读盘。
+//! Read files in background only after explicit user selection; share remote-task capacity/completion waits, without menu-callback disk I/O.
 use super::*;
 use crate::surface_recovery_record::Record;
 use std::{os::windows::io::AsHandle, path::PathBuf, thread::JoinHandle};

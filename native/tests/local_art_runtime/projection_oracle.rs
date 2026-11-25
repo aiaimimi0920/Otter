@@ -1,5 +1,5 @@
-//! 独立矩形覆盖oracle：320x240逻辑Art框中contain正方形，再仅用原WIC转换取整。
-//! 不调用生产来源、布局、D2D或投送合成器；正式PNG自身不应带逻辑留白。
+//! Independent rectangle-coverage oracle: contain a square within a 320x240 logical Art box, then use only the original WIC conversion for rounding.
+//! Do not call production source, layout, D2D or delivery compositors; the committed PNG itself must not contain logical padding.
 use windows::Win32::{Graphics::Imaging::*, System::Com::*};
 
 pub(crate) const LOGICAL: (u32, u32) = (320, 240);
@@ -64,7 +64,7 @@ fn straight(bgra: &[u8]) -> Vec<u8> {
 
 #[test]
 fn independent_contain_coverage_uses_declared_logical_frame_and_confirmed_wic_rounding() {
-    // 面积为3/4，预乘通道/alpha独立算为191；WIC旧合同的straight结果为254/191。
+    // Coverage is 3/4, giving independently calculated premultiplied channels/alpha of 191; the original WIC contract gives straight output of 254/191.
     assert_eq!(transmitted([255, 0, 0, 255]), [254, 0, 0, 191].repeat(4));
     assert_eq!(transmitted([0, 255, 0, 255]), [0, 254, 0, 191].repeat(4));
 }

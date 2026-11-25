@@ -1,4 +1,4 @@
-//! 自有隐藏宿主/真实面板的键盘接线；在隔离 desktop 运行，不代表普通前台人工键盘验收。
+//! Keyboard wiring for owned hidden hosts/actual panels on isolated desktops; not ordinary-foreground manual-keyboard acceptance.
 use super::*;
 
 struct Keys([u8; 256]);

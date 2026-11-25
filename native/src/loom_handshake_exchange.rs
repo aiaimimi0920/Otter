@@ -1,4 +1,4 @@
-//! 仅后台调用的能力握手；固定发现身份认证，总预算不被通知/心跳延长。
+//! Background-only capability handshake with fixed discovery-identity authentication; notices/heartbeats never extend total budget.
 use crate::{
     loom_bridge_client::{self, BridgeSocket},
     loom_bridge_identity::Identity,
@@ -21,7 +21,7 @@ pub enum Error {
 pub fn fetch(identity: &Identity, cancel: &AtomicBool) -> Result<Handshake, Error> {
     open(identity, cancel).map(|(handshake, _)| handshake)
 }
-/// 同一已认证 WebSocket 上继续协商扩展；不把另一次连接的 hook session 当作凭证。
+/// Continue extension negotiation on the same authenticated WebSocket; another connection's hook session is not a credential.
 pub fn open(identity: &Identity, cancel: &AtomicBool) -> Result<(Handshake, BridgeSocket), Error> {
     if cancel.load(Ordering::Acquire) {
         return Err(Error::Cancelled);

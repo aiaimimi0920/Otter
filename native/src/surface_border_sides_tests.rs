@@ -1,4 +1,4 @@
-//! 四边框必须改变同一布局几何，不允许只保存 CSS 或绘制线条而不占内容空间。
+//! All four borders must change the same layout geometry; merely saving CSS or drawing lines without consuming content space is insufficient.
 use super::*;
 #[test]
 fn asymmetric_borders_inset_flow_and_absolute_padding_box_independently() {

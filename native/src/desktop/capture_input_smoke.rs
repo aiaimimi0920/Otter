@@ -1,4 +1,4 @@
-//! 截图入口事务冒烟；注入现有图片，不调用桌面捕获、选择器或全局输入。
+//! Capture-entry transaction smoke tests; inject existing images without desktop capture, selectors, or global input.
 use super::*;
 
 fn require(value: bool, message: &'static str) -> Result<()> {
@@ -129,7 +129,7 @@ pub(in crate::desktop) unsafe fn run(hwnd: HWND, state: &State) -> Result<()> {
         "Capture displayed hidden panel",
     )?;
 
-    // 模拟选择器的嵌套消息循环换图；旧结果不得覆盖新文档，即使像素身份相同。
+    // Simulate image replacement in the selector's nested message loop; stale results must not overwrite a new document even with identical pixel identity.
     let stale = run_with(hwnd, state, || {
         state.canvas.borrow_mut().replace_image(image.clone())?;
         Ok(Some(image.clone()))

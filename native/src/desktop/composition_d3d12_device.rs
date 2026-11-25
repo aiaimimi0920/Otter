@@ -1,4 +1,4 @@
-//! D3D12 主设备与唯一 direct queue；11On12 仅承载共享 D2D 绘制，不创建第二条呈现链。
+//! Primary D3D12 device and sole direct queue; 11On12 carries only shared D2D drawing, without a second presentation chain.
 use std::{
     cell::{Cell, RefCell},
     marker::PhantomData,
@@ -20,7 +20,7 @@ thread_local! {
 
 pub(super) fn acquire() -> Result<Rc<Device>> {
     SHARED.with(|slot| {
-        // 不跨驱动调用保留 RefCell 借用；最后窗口释放后缓存不延长设备寿命。
+        // Hold no RefCell borrow across driver calls; caches do not extend device lifetime after the final window releases it.
         let existing = slot.borrow().upgrade();
         if let Some(device) = existing.filter(|device| device.ensure_usable().is_ok()) {
             return Ok(device);
@@ -39,7 +39,7 @@ pub(super) struct Device {
     pub queue: ID3D12CommandQueue,
     fence: ID3D12Fence,
     next: Cell<u64>,
-    // fence 注册的 event 与完整设备 owner 同寿命，超时不能先关闭仍待通知的句柄。
+    // Fence-registered events live with the complete device owner; a timeout must not close handles still awaiting notification.
     event: Event,
     pub device12: ID3D12Device,
     poisoned: Cell<bool>,
@@ -94,7 +94,7 @@ impl Device {
             })
         }
     }
-    /// 仅 resize/销毁等资源边界等待；没有每帧 CPU fence 等待或后台轮询线程。
+    /// Wait only at resource boundaries such as resize/destruction; no per-frame CPU fence waits or background polling thread.
     pub fn drain(&self) -> Result<()> {
         self.ensure_usable()?;
         if self.drawing.get() {

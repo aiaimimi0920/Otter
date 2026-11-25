@@ -1,4 +1,4 @@
-//! 透明钉图的窗口私有合成链；默认 D3D11 设备按 UI 线程弱共享，无后台帧循环。
+//! Window-private composition chains for transparent pins; default D3D11 devices are weakly shared per UI thread, without a background frame loop.
 use super::{composition_lifetime as lifetime, composition_retirement as retirement};
 pub use retirement::{Stage as RetirementStage, Status as RetirementStatus};
 use std::mem::ManuallyDrop;
@@ -39,9 +39,9 @@ struct State {
     target: IDCompositionTarget,
     device: IDCompositionDevice,
     size: D2D_SIZE_U,
-    // 字段顺序使窗口私有 COM 资源先释放；弱缓存不延长最后一个默认设备租约。
+    // Field order releases window-private COM resources first; weak caches do not extend the last default-device lease.
     _shared_device: Option<std::rc::Rc<devices::Device>>,
-    // D2D factory 为单线程；即使底层 COM 接口标记可发送，也不能跨线程迁移此 owner。
+    // The D2D factory is single-threaded; this owner cannot migrate across threads even if underlying COM interfaces are marked Send.
     _thread: std::marker::PhantomData<std::rc::Rc<()>>,
     retirement: Option<retirement::Retirement>,
     attached: bool,
@@ -66,14 +66,14 @@ impl Composition {
         let selected = selection::select(|backend| {
             let device = devices::acquire(backend)
                 .map_err(|error| (selection::Stage::Device, error.into()))?;
-            // 成功创建设备不等于 HWND/DXGI/D2D/DComp/bind 全链成功。
-            // 未关联前释放局部资源；尝试关联后的失败由退休 owner 保留，不接管文档。
+            // Successful device creation is not success of the entire HWND/DXGI/D2D/DComp/bind chain.
+            // Release local resources before association; failures after attempted association retain a retirement owner without taking over documents.
             let surface = Self::with_device_owner(hwnd, size, device.get(), Some(device.clone()))
                 .map_err(|error| (selection::Stage::Presentation, error))?;
             Ok(surface)
         })?;
         if let Some(failure) = selected.fallback {
-            // 固定后端/阶段/HRESULT，不记录图片、包路径或用户数据；仅降级时输出。
+            // Fixed backend/stage/HRESULT only, without image, package-path, or user-data logging; emit only on fallback.
             eprintln!(
                 "native-presentation-fallback: {:?} selected={}",
                 failure,
@@ -82,7 +82,7 @@ impl Composition {
         }
         Ok(selected.value)
     }
-    /// Live 使用捕获设备建立呈现链，不把异设备纹理当作可直接共享的资源。
+    /// Live builds its presentation chain with the capture device; textures from other devices are not directly shareable resources.
     pub fn with_device(hwnd: HWND, size: D2D_SIZE_U, device: &ID3D11Device) -> Result<Self> {
         Self::with_device_owner(hwnd, size, device, None)
             .map_err(super::composition_creation::Failure::into_error)
@@ -151,7 +151,7 @@ impl Composition {
                     _lease: lease,
                 }),
             };
-            // 先把 D2D 绑定准备好；这个阶段失败时从未向 DComp 提交合成关联。
+            // Prepare D2D binding first; failure here means no composition association has ever been submitted to DComp.
             result.bind()?;
             result.state.attached = true;
             let attached = (|| {
@@ -160,7 +160,7 @@ impl Composition {
                 result.state.device.Commit()
             })();
             if let Err(error) = attached {
-                // 可能存在部分属性或已提交图；保留完整 owner，不能把原错误当作未绑定证明。
+                // Partial properties or committed graphs may exist; retain the complete owner rather than treating the original error as proof of no binding.
                 result.retire_composition();
                 return Err(super::composition_creation::Failure::attached(error));
             }
@@ -195,7 +195,7 @@ impl Composition {
             return Ok(());
         }
         unsafe {
-            // ResizeBuffers 前必须解除 D2D target 并释放所有旧 backbuffer 引用。
+            // Unbind the D2D target and release every old backbuffer reference before ResizeBuffers.
             self.state.context.SetTarget(None);
             self.state.backing = None;
             self.state.failed.set(true);
@@ -228,7 +228,7 @@ impl Composition {
     pub(super) fn opacity_for_test(&self) -> f32 {
         self.state.opacity
     }
-    /// 窗口整体透明度属于合成视觉，不改动底图/标注像素或导出内容。
+    /// Whole-window opacity belongs to composition visuals and changes neither base-image/annotation pixels nor exports.
     pub fn set_opacity(&mut self, opacity: f32) -> Result<()> {
         self.ensure_attached()?;
         if !opacity.is_finite() || !(0.0..=1.0).contains(&opacity) {
@@ -263,17 +263,17 @@ impl Composition {
     }
     pub(super) fn present_confirmed(&self) -> Result<bool> {
         self.ensure_attached()?;
-        // 按变化提交；静态钉图不会自行触发下一帧。暂不使用忙重试循环。
+        // Commit on changes; static pins do not trigger another frame themselves. No busy retry loop for now.
         let status = unsafe { self.state.chain.Present(0, DXGI_PRESENT::default()) };
         self.state.present_trace.observe("d3d11", status);
         if let Err(error) = status.ok() {
             self.state.failed.set(true);
             return Err(error);
         }
-        // 正的 DXGI_STATUS_OCCLUDED 等状态不是一次确定的新帧提交。
+        // Positive statuses such as DXGI_STATUS_OCCLUDED do not confirm a new-frame submission.
         Ok(status == windows::Win32::Foundation::S_OK)
     }
-    /// 单向退休；只有 Complete 可作为 DComp 解绑完成凭证，不代表 GPU 已释放。
+    /// One-way retirement; only Complete proves DComp unbinding finished, not that GPU resources were released.
     pub fn retire_composition(&mut self) -> RetirementStatus {
         let state = &mut *self.state;
         state
@@ -315,7 +315,7 @@ impl Drop for Composition {
             let state = &mut self.state;
             if let Some(retirement) = &mut state.retirement {
                 if retirement.poll() != RetirementStatus::Complete {
-                    // ManuallyDrop 保留全部字段和共享设备/窗口图租约，而不是只保留 worker 引用。
+                    // ManuallyDrop retains all fields and shared device/window-graph leases, not just worker references.
                     eprintln!("native-d3d11-retirement-unconfirmed-retained");
                     return;
                 }

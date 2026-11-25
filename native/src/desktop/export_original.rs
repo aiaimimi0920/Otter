@@ -1,4 +1,4 @@
-//! 原始捕获另存，不渲染标注/裁剪；复用导出单任务 owner 与退出 join。
+//! Save original captures separately without rendering annotations/crops; reuse export's single-task owner and exit join.
 use super::*;
 use std::{
     fs::File,

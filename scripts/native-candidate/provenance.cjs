@@ -1,4 +1,4 @@
-// 候选收据只声明构建身份；静态验证不授予发布、签名、运行或功能验收状态。
+// Candidate receipts declare build identity only; static verification grants no release, signing, runtime, or functional-acceptance status.
 const fs = require('node:fs');
 const path = require('node:path');
 const { createHash } = require('node:crypto');

@@ -1,4 +1,4 @@
-"""流式 Git/归档与 Windows 暂存名称空间的拒绝、预算、清理合同。"""
+"""Rejection, budget, and cleanup contracts for streamed Git/archives and Windows staging namespaces."""
 
 import hashlib
 import io
@@ -93,7 +93,7 @@ class MaterializeTests(unittest.TestCase):
             self.assertTrue(reader.process.stdin.closed)
             self.assertTrue(reader.process.stdout.closed)
         finally:
-            # 先红的回归也必须回收本测试确切创建的进程，不留现场泄漏。
+            # Initially failing regressions must also reclaim the exact processes this test created, leaving no leaked processes.
             if reader.process and reader.process.poll() is None:
                 reader.process.kill()
                 reader.process.wait(timeout=30)

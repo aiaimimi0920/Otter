@@ -1,4 +1,4 @@
-//! Application 真实文档 owner 接线；隐藏窗口，不注册热键/托盘或切换输入 desktop。
+//! Application wiring for real document owners; hidden windows, without hotkeys/tray registration or input-desktop switching.
 use super::*;
 #[path = "application_parameter_paint_tests.rs"]
 mod paint;

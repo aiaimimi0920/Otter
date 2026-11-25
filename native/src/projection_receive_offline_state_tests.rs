@@ -1,4 +1,4 @@
-//! 显式接收路由跨写前日志/工作区绑定保存恢复；缺失兼容不等于允许null降级。
+//! Persist/restore explicit receive routes across write-ahead journals/workspace bindings; missing-field compatibility does not permit null downgrade.
 use super::*;
 use crate::projection_delivery::{
     binding::Binding,

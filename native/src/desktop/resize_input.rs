@@ -1,4 +1,4 @@
-//! 含模糊的缩放在后台准备整组效果，UI 保留旧帧；只在任务活动期间轮询。
+//! Blurred scaling prepares the entire group's effects in the background while the UI retains the old frame; poll only while tasks are active.
 use super::{canvas::Canvas, State};
 use crate::{
     editor::{ResizePlan, Tool},
@@ -132,7 +132,7 @@ fn schedule_with(
     if state.resize_job.borrow().is_busy() {
         return Err("Busy".into());
     }
-    // 松手和菜单/键盘入口共用预约顺序；失败只清理本次临时缩放显示。
+    // Release and menu/keyboard entries share reservation order; failures clean only this temporary scaled display.
     if !reserve_timer() {
         state.canvas.borrow_mut().clear_scale_display();
         return Err("Cannot schedule resize result".into());

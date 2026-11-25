@@ -1,4 +1,4 @@
-//! 真实 WIC 编码/解码验证裁剪边界与各图层一致，不写入用户文件。
+//! Real WIC encoding/decoding verifies matching crop boundaries across layers, without user-file writes.
 use super::*;
 use crate::{crop_geometry::Rect, editor::Tool, erase_layers::Layers, stroke_style::Color};
 
@@ -213,7 +213,7 @@ fn flipped_crop_export_uses_full_source_mirror_and_preserves_crop_history() {
             .compute(|| false)
             .unwrap();
         assert!(editor.commit_raster_refresh(plan).unwrap());
-        // 故意传原始 Image，导出必须读取 Editor 当前栅格，不能用旧画布缓存。
+        // Intentionally pass original Image; export must read Editor's current raster, not stale canvas caches.
         let output = tests::decode_png(encode(&image, &editor.export_snapshot()).unwrap());
         assert_eq!((output.width, output.height), (11, 7));
         for y in 0..7usize {

@@ -1,4 +1,4 @@
-//! Neuro深色历史面板绘制；缩略图复用原64显示primitive，240复用图不退化。
+//! Neuro dark history-panel rendering; thumbnails reuse the original 64 display primitive without degrading reused 240 images.
 use super::*;
 use windows::Win32::UI::HiDpi::GetDpiForWindow;
 unsafe fn fill(dc: HDC, rect: RECT, color: u32) {

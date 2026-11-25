@@ -1,4 +1,4 @@
-//! 父源保护覆盖附属输入收尾；真实 Worker/假后端，不运行 WGC、DLL 或源输入。
+//! Parent-source protection covers attached-input cleanup; real Workers/fake backends, without WGC, DLLs, or source input.
 use super::*;
 #[path = "composition_live_popup_cleanup_tests.rs"]
 mod cleanup_tests;
@@ -122,7 +122,7 @@ fn retains_protection(close_window: bool) {
         session: child,
     });
     if close_window {
-        // 只关闭自有 B，覆盖非显式 Session::stop 的回收分支。
+        // Close only owned B to cover reclamation outside explicit Session::stop.
         unsafe {
             SendMessageW(
                 root.window.as_ref().unwrap().popup_hwnd(),

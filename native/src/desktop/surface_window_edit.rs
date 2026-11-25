@@ -1,4 +1,4 @@
-//! HWND 输入接线；默认过程产生的同步通知在 Host 被取出时忽略，避免程序回写递归派发。
+//! HWND input wiring; ignore synchronous default-procedure notifications while Host is removed to prevent recursive dispatch from programmatic writes.
 use super::*;
 use crate::desktop::surface_edit_messages as messages;
 use crate::{surface_click_event::ClickEvent, surface_live_binding::Binding};
@@ -107,7 +107,7 @@ impl SurfaceWindow {
         if !self.state.run(|host| host.settle_edits(events))? {
             return Err(Error::new(E_FAIL, "Surface edit settlement unavailable"));
         }
-        // 无子 HWND 的字段也可能在结算时采用权威值，需要请求一次父窗口重绘。
+        // Fields without child HWNDs may also adopt authoritative values on settlement and need one parent repaint.
         unsafe {
             let _ = InvalidateRect(Some(self.hwnd), None, false);
         }
@@ -154,7 +154,7 @@ pub(super) unsafe fn message(
         let header = &*(lp.0 as *const NMHDR);
         if header.code == UDN_DELTAPOS {
             let notification = &*(lp.0 as *const NMUPDOWN);
-            // WM_NOTIFY 指针仅在同步消息期有效，不进入草稿队列。
+            // WM_NOTIFY pointers are valid only during synchronous messages and never enter draft queues.
             let spinner = header.hwndFrom;
             let delta = notification.iDelta;
             let edit = state
@@ -164,7 +164,7 @@ pub(super) unsafe fn message(
                 .and_then(|host| host.spinner_edit(spinner));
             if !state.closed.get() && state.local_edit.get() && matches!(delta, -1 | 1) {
                 if let Some(edit) = edit {
-                    // 切焦可能提交旧字段并重入窗口；不得跨 SetFocus 持有 Host 借用。
+                    // Focus switches may commit old fields and reenter windows; hold no Host borrow across SetFocus.
                     let _ = SetFocus(Some(edit));
                     if !state.closed.get() && state.local_edit.get() && GetFocus() == edit {
                         if let Err(error) = state.run(|host| {
@@ -186,7 +186,7 @@ pub(super) unsafe fn message(
                     }
                 }
             }
-            // 永不让系统 integer position 成为第二份值状态，包括撤权和重入期间。
+            // Never let system integer position become a second value state, including during revocation/reentrancy.
             return Some(LRESULT(1));
         }
     }
@@ -222,7 +222,7 @@ pub(super) unsafe fn message(
                     .is_some_and(|id| host.slider_value(&id).is_some())
             });
         if captured_slider {
-            // Tab 只切换键盘焦点，不能撤销仍在捕获的 Slider 原始鼠标候选。
+            // Tab only changes keyboard focus; it must not revoke a captured Slider's original mouse candidate.
             state.keyboard.borrow_mut().cancel_press();
         } else {
             pointer::invalidate(hwnd, state);

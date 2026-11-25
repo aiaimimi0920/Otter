@@ -1,4 +1,4 @@
-//! 原观看系统菜单中的本地Art自动授权入口；模态返回后复核同一窗口和完整宿主。
+//! Local Art automatic-authorization entry in the original viewing system menu; after modal return, revalidate the same window and complete host.
 use super::*;
 use crate::{
     live_relay_trigger_registration::{Condition, Operator},

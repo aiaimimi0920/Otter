@@ -1,4 +1,4 @@
-//! 有截止的单动作收敛读取；只 GET、不重放 POST，等待可由租约取消直接唤醒。
+//! Deadline-bound single-action convergence reads; GET only, no POST replay, and lease cancellation can wake waits directly.
 use super::*;
 use crate::{
     surface_action_ack::{Ack, Status},
@@ -19,7 +19,7 @@ pub struct ConvergenceOutcome {
     pub result: Result<Snapshot, ConvergenceError>,
 }
 impl Control<'_> {
-    /// 调用方只能缩短 25 秒总预算；成功也不是 UI 交付许可，消费时仍须复核租约。
+    /// Callers may only shorten the 25-second total budget; success is not UI delivery permission, and consumption must still recheck the lease.
     pub fn converge_surface(
         &self,
         event: &ClickEvent,
@@ -28,7 +28,7 @@ impl Control<'_> {
     ) -> ConvergenceOutcome {
         self.converge_mode(event, ack, deadline, false)
     }
-    /// 决定已经 HTTP 确认后只观察原动作，不重新 POST，也不再次自动批准。
+    /// After HTTP confirms a decision, observe only the original action without another POST or automatic approval.
     pub fn converge_decided_surface(
         &self,
         event: &ClickEvent,
@@ -104,7 +104,7 @@ impl Control<'_> {
             self.convergence_gate(deadline)?;
             let batch = batch.map_err(ConvergenceError::Stream)?;
             tracker.apply(&batch).map_err(ConvergenceError::State)?;
-            // 状态机只保留必要状态；等待下一次读取前释放可能达到 8 MiB 的批次。
+            // The state machine retains only necessary state; release batches of up to 8 MiB before awaiting the next read.
             drop(batch);
             self.convergence_gate(deadline)?;
             if let Some(snapshot) = tracker.take_snapshot() {
@@ -113,7 +113,7 @@ impl Control<'_> {
             if !decided && tracker.ack().status() == Status::AwaitingConfirmation {
                 return Err(ConvergenceError::ConfirmationRequired);
             }
-            // 新观察成功后立即刷新；其余读取有界等待，避免空流或不完整刷新形成忙循环。
+            // Refresh immediately after newly observed success; bound other read waits to prevent empty streams or incomplete refreshes from busy-looping.
             if !was_success && tracker.ack().succeeded() {
                 continue;
             }

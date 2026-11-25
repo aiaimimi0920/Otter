@@ -1,9 +1,9 @@
-//! Chromium mft2 RGB→XYZ 兼容求值；不把曲线/目标 gamma 预融合进近似网格。
+//! Chromium-compatible mft2 RGB-to-XYZ evaluation without prefusing curves/target gamma into approximate grids.
 use moxcms::{ColorProfile, DataColorSpace, LutStore, LutType, LutWarehouse};
 use std::io;
 
 pub(super) fn apply(source: &ColorProfile, pixels: &mut [u8], channels: usize) -> io::Result<bool> {
-    // 与调用方显式 Perceptual intent 一致，只处理实际选中的 A2B0 / mft2。
+    // Match the caller's explicit Perceptual intent and handle only the actually selected A2B0 / mft2.
     let Some(LutWarehouse::Lut(lut)) = &source.lut_a_to_b_perceptual else {
         return Ok(false);
     };
@@ -22,7 +22,7 @@ pub(super) fn apply(source: &ColorProfile, pixels: &mut [u8], channels: usize) -
     let size = usize::from(lut.num_clut_grid_points);
     let inputs = usize::from(lut.num_input_table_entries);
     let outputs = usize::from(lut.num_output_table_entries);
-    // u8 grid size 的三次方在 Windows usize 内安全；不信任 parser 对表长的保证。
+    // Cubing u8 grid size fits safely in Windows usize; do not trust parser guarantees about table lengths.
     if lut.num_input_channels != 3
         || lut.num_output_channels != 3
         || size < 2
@@ -47,8 +47,8 @@ pub(super) fn apply(source: &ColorProfile, pixels: &mut [u8], channels: usize) -
         let xyz = interpolate(grid, size, rgb);
         let xyz: [f64; 3] =
             std::array::from_fn(|i| curve(&output[i * outputs..(i + 1) * outputs], xyz[i]));
-        // 当前 Chromium mft2 以归一化表值进入 XYZ 矩阵；不额外乘 65535/32768。
-        // RGB 输入的 mft2 matrix 按该基线忽略；这不是通用 ICC/PCSXYZ 实现。
+        // Current Chromium mft2 feeds normalized table values into the XYZ matrix without an extra 65535/32768 multiplier.
+        // Ignore the mft2 matrix for RGB input according to this baseline; this is not a general ICC/PCSXYZ implementation.
         for (channel, row) in inverse.v.iter().enumerate() {
             let linear = row.iter().zip(xyz).map(|(a, b)| a * b).sum::<f64>();
             let value = if linear <= 0.0031308 {
@@ -58,7 +58,7 @@ pub(super) fn apply(source: &ColorProfile, pixels: &mut [u8], channels: usize) -
             };
             pixel[channel] = (value.clamp(0.0, 1.0) * 255.0).round() as u8;
         }
-        // 仅写 RGB，alpha 保持原字节；无像素级分配/额外全图，仍在 Job/deadline 内。
+        // Write RGB only, preserving original alpha bytes; no per-pixel allocations/extra full image, still within Job/deadline limits.
     }
     Ok(true)
 }
@@ -77,7 +77,7 @@ fn interpolate(table: &[u16], size: usize, rgb: [f64; 3]) -> [f64; 3] {
     let high = low.map(|v| (v + 1).min(size - 1));
     let fraction: [f64; 3] = std::array::from_fn(|i| positions[i] - low[i] as f64);
     let mut result = [0.0; 3];
-    // 三线性插值的八顶点；r 最慢、b 最快。所有索引受上方完整表长校验保护。
+    // Eight vertices for trilinear interpolation; r varies slowest and b fastest. Full table-length validation above protects every index.
     for r in 0..2 {
         for g in 0..2 {
             for b in 0..2 {

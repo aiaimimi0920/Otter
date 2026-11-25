@@ -1,4 +1,4 @@
-//! 非模态可信确认：窗口过程只记录选择，原Window在重新核验宿主后才移交批准。
+//! Nonmodal trusted confirmation: the window procedure only records the choice; the original Window transfers approval after revalidating the host.
 use crate::live_relay_http::art_prepare::service::confirmation::Ticket;
 use std::{cell::Cell, sync::Arc};
 use windows::{
@@ -37,7 +37,7 @@ impl Prompt {
             failed: Cell::new(false),
         });
         let template = template(&state.ticket.images);
-        // Box地址稳定；DestroyWindow同步返回后才释放State，过程不借用Application/Document。
+        // The Box address is stable; release State only after DestroyWindow returns synchronously. The procedure does not borrow Application/Document.
         let hwnd = unsafe {
             CreateDialogIndirectParamW(
                 None,
@@ -68,7 +68,7 @@ impl Prompt {
         self.state.ticket.resolve(approve);
     }
     pub(super) fn handle(&self) -> Option<HWND> {
-        // owner关闭可同步销毁子对话；不得对已复用的HWND发送消息或再次DestroyWindow。
+        // Closing the owner may synchronously destroy the child dialog; never message a reused HWND or call DestroyWindow again.
         unsafe {
             (IsWindow(Some(self.hwnd)).as_bool()
                 && GetWindowLongPtrW(self.hwnd, USER) == &*self.state as *const State as isize)
@@ -87,15 +87,15 @@ impl Drop for Prompt {
     }
 }
 /// # Safety
-/// hwnd须为当前UI线程刚从owner核验并复制的提示；调用时不持Application/Document借用。
+/// hwnd must be a prompt just verified and copied from its owner on the current UI thread; hold no Application/Document borrow during the call.
 pub(in crate::desktop) unsafe fn translate_confirmation(hwnd: HWND, message: &MSG) -> bool {
     if !(WM_KEYFIRST..=WM_KEYLAST).contains(&message.message)
         || (message.hwnd != hwnd && !IsChild(hwnd, message.hwnd).as_bool())
     {
         return false;
     }
-    // 多行只读Edit对Enter声明DLGC_WANTALLKEYS，不能只依赖IsDialogMessage的默认按钮。
-    // 参数区Enter及任意自有控件Escape均只记录拒绝；批准仍需明确选择允许按钮。
+    // The multiline read-only Edit requests DLGC_WANTALLKEYS for Enter; IsDialogMessage's default button alone is insufficient.
+    // Enter in the parameter area and Escape in any owned control only record rejection; approval still requires explicitly choosing Allow.
     let deny = message.message == WM_KEYDOWN
         && (message.wParam.0 == 0x1b
             || (message.wParam.0 == 0x0d
@@ -131,7 +131,7 @@ unsafe extern "system" fn procedure(hwnd: HWND, message: u32, wp: WPARAM, lp: LP
                 choose(false);
             }
             SendMessageW(hwnd, DM_SETDEFID, Some(WPARAM(2)), Some(LPARAM(0)));
-            // 不让dialog manager在创建隐藏/NOACTIVATE提示时自动为首个控件设置焦点。
+            // Do not let the dialog manager automatically focus the first control when creating a hidden/NOACTIVATE prompt.
             0
         }
         WM_COMMAND if wp.0 & 0xffff == 1 => {

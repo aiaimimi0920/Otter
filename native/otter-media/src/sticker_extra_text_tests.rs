@@ -1,4 +1,4 @@
-//! 缓存全文与主干相同：隐藏也可复制，译文须匹配来源，已有附件优先于旧结果。
+//! Cached full text matches mainline: copying works while hidden, translations must match their source, and existing attachments take precedence over legacy results.
 use super::*;
 use crate::{unit_attachment_json, unit_attachment_store::tests as f};
 use serde_json::{json, Value};

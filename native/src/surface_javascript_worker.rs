@@ -1,4 +1,4 @@
-//! 私有持久 JS worker：先验证 Job，再读 pipe；无 profile/文件/网络/模块加载宿主。
+//! Private persistent JS worker: verify Job before reading the pipe; no profile/file/network/module-loading host.
 use crate::{
     surface_javascript::CHILD_LIMIT,
     surface_javascript_wire::{self as wire, Command},
@@ -28,7 +28,7 @@ pub fn run_inherited() -> io::Result<()> {
     let mut engine = engine::Engine::new()?;
     let mut sequence = 0u64;
     loop {
-        // 空闲时无线程/轮询；断开即退出，遗忘的调用者最多保留 child 五分钟。
+        // No threads/polling while idle; disconnection exits, and forgotten callers retain children for at most five minutes.
         let request: wire::Request =
             wire::read(&mut pipe.io(Some(Instant::now() + Duration::from_secs(300)), None))?;
         sequence = sequence.checked_add(1).ok_or_else(wire::invalid)?;

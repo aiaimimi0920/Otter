@@ -1,5 +1,5 @@
 #![cfg(windows)]
-//! 普通产品经真实 CLI/物理输出呈现，仅显式路径绑定 SHA；只采自启 PID 的四个无遮挡测试点。
+//! Ordinary product presentation through real CLI/physical output, with SHA bound only to an explicit path; sample only four unobscured test points owned by the self-started PID.
 use serde_json::{json, Value};
 use std::{
     fs,
@@ -142,8 +142,8 @@ fn run(stages: &[&str]) {
     f.mark("product-window.json",json!({"pid":child.child.id(),"output":output,"window":format!("{:?}",hwnd),"ordinaryOutputExe":true,"noUserInputInjection":true,"driverNoFocusOrZOrderApi":!external_activation,"noFocusOrZOrderChange":!external_activation,"externalActivationRequired":external_activation}));
     let _launcher = external_activation.then(window::Launcher::new);
     if external_activation {
-        // 外部激活/刷新完成后才确认ACK，避免其尚在验证启动器时并发转交前台。
-        // ACK只同步测试时序，真实前台及自有PID/类断言仍由transfer独立核验。
+        // Acknowledge only after external activation/refresh completes, avoiding concurrent foreground transfer while the launcher is still being verified.
+        // ACK synchronizes test timing only; transfer independently checks actual foreground state and the owned PID/class.
         let nonce = format!("{}:{:?}", std::process::id(), _launcher.as_ref().unwrap().0);
         f.mark(
             "product-activation-ready.json",
@@ -172,7 +172,7 @@ fn run(stages: &[&str]) {
         let actual = loop {
             let probe = window::samples(hwnd, child.child.id(), rect);
             if last_probe.as_ref() != Some(&probe) {
-                // 只记录自己窗口的状态/像素，单槽覆盖；父期限先到也保留首个明确阻塞原因。
+                // Record only our own window state/pixels, replacing a single slot; retain the first explicit blocking reason even if the parent's deadline expires first.
                 f.mark(&format!("product-probe-{name}.json"),json!({"stage":name,"expectedRect":rect,"probe":format!("{probe:?}"),"foreignWindowPixelsRead":false}));
             }
             if let Ok(pixels) = &probe {

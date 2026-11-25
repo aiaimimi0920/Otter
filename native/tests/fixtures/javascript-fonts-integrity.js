@@ -1,4 +1,4 @@
-// 字体准入与跨帧继承不能依赖插件可替换的 String/RegExp/Array/Map 方法。
+// Font admission and cross-frame inheritance must not depend on plugin-replaceable String/RegExp/Array/Map methods.
 let host;
 NeuroSurface.define({
   mount({root}) {

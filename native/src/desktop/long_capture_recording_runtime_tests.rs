@@ -1,4 +1,4 @@
-//! 自建跨进程原生源 + 真 GDI/非模态录制/worker/preview/finish；拖动分支没有 wheel 通知。
+//! Owned cross-process native sources plus real GDI/modeless recording/workers/previews/finish; the drag branch receives no wheel notifications.
 use super::*;
 use std::time::Duration;
 use windows::core::BOOL;
@@ -19,7 +19,7 @@ struct Driver {
 thread_local! { static DRIVER: RefCell<Option<Driver>> = const { RefCell::new(None) }; }
 unsafe fn initialize_process_dpi() {
     use windows::Win32::UI::HiDpi::*;
-    // 与产品 desktop::run 的前置条件一致；只改测试进程，不写系统或用户设置。
+    // Match desktop::run prerequisites; modify only the test process, not system/user settings.
     if let Err(error) = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2) {
         assert!(
             AreDpiAwarenessContextsEqual(
@@ -62,14 +62,14 @@ unsafe extern "system" fn tick(_: HWND, _: u32, _: usize, _: u32) {
                     let mut text = [0u16; 256]; let count = GetDlgItemTextW(hwnd, 103, &mut text); String::from_utf16_lossy(&text[..count as usize])
                 }
             );
-            // 创建/布局窗口期间 Win32 可以重入 timer；等待产品真正起录后再驱动源。
-            // 起录失败仍由上面的有界 deadline 和实际状态文本报告，不能误作成功。
+            // Win32 may reenter timers during window creation/layout; drive sources only after actual recording startup.
+            // Startup failure is still reported by the bounded deadline above and actual status text, never mistaken for success.
             if driver.stage == 0 && !input.recording.running() {
                 return;
             }
             match driver.stage {
                 0 => {
-                    // 只移动自己的控制窗，不覆盖 fixture，不更改用户光标或焦点。
+                    // Move only owned control windows without covering fixtures or changing user cursors/focus.
                     SetWindowPos(
                         hwnd,
                         None,
@@ -188,7 +188,7 @@ unsafe fn emit(driver: &Driver, input: &Input) {
     }
 }
 fn presented_sample(region: Region, expected: [u8; 4]) -> Image {
-    // 子进程绘制已完成不等于桌面合成已呈现；先观察实际 GDI 像素再驱动下一步。
+    // Child-process drawing completion is not desktop-composition presentation; observe actual GDI pixels before driving the next step.
     let deadline = Instant::now() + Duration::from_secs(2);
     loop {
         let sample =

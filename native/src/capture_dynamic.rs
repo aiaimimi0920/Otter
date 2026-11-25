@@ -1,4 +1,4 @@
-//! 动态范围编排：单次 HDR 尝试、可解释 SDR 回退；取消/布局变化不得触发第二次采集。
+//! Dynamic-range orchestration: one HDR attempt and explainable SDR fallback; cancellation/layout change must never trigger a second capture.
 use crate::{
     capture_color::{self, HdrFrame, ScRgb, SdrFrame},
     capture_display::{self, DisplayInfo},
@@ -15,7 +15,7 @@ pub enum Mode {
     Sdr,
 }
 impl Mode {
-    /// 对齐主干配置语义：大小写与首尾空白不敏感，缺失/未知值使用 Auto。
+    /// Match mainline configuration semantics: ignore case and surrounding whitespace, default missing/unknown values to Auto.
     pub fn parse(value: Option<&str>) -> Self {
         match value.map(str::trim) {
             Some(value) if value.eq_ignore_ascii_case("hdr") => Self::Hdr,
@@ -28,12 +28,12 @@ impl Mode {
 pub struct Options {
     pub mode: Mode,
     pub standard_region: bool,
-    /// 调用方提供已验证的系统能力；未确认时必须为 false，不从版本字符串猜测。
+    /// Callers supply verified system capability; use false when unconfirmed, never infer from version strings.
     pub windows_11_or_newer: bool,
     pub gain: f32,
 }
 impl Options {
-    /// 探测失败由调用方保留诊断并决定降级；不能将未知系统默认为支持 HDR。
+    /// Callers retain probe-failure diagnostics and decide fallback; never assume an unknown system supports HDR.
     pub fn detect(
         mode: Mode,
         standard_region: bool,
@@ -65,14 +65,14 @@ pub enum Reason {
 }
 pub enum Frame {
     Sdr(SdrFrame),
-    /// 原图用于 HDR 文件，preview 供当前 SDR 画布使用；二者来自同一捕获帧。
+    /// The original is for HDR files and preview for the current SDR canvas; both come from the same captured frame.
     Hdr {
         image: HdrFrame,
         preview: SdrFrame,
     },
 }
 impl Frame {
-    /// 移交而非复制；调用方必须保留 HDR 原图，不能将 SDR 预览当作原图发布。
+    /// Transfer, do not copy; callers must preserve the HDR original and never publish the SDR preview as the original.
     pub fn into_parts(self) -> (SdrFrame, Option<HdrFrame>) {
         match self {
             Self::Sdr(preview) => (preview, None),
@@ -117,7 +117,7 @@ enum Failure {
     Changed,
     Retryable(String),
 }
-/// 在后台 MTA 执行；sdr 只能采集相同 screen，不得自行发布。成功后再由调用方交付。
+/// Run in a background MTA; sdr may capture only the same screen and cannot publish independently. Callers deliver after success.
 pub fn region(
     screen: RECT,
     options: Options,
@@ -198,8 +198,8 @@ fn convert(
             .to_sdr(info.sdr_white_nits, options.gain, cancel)
             .map(Frame::Sdr)
     } else {
-        // 从原始浮点帧生成预览，而不是把 PQ RGB16 当作普通 sRGB 解码。
-        // 两次转换各持预算；后续失败时局部 preview 自动释放，不交付半成品。
+        // Generate previews from the original floating-point frame, rather than decoding PQ RGB16 as ordinary sRGB.
+        // Each conversion holds its own budget; subsequent failure automatically releases the local preview without delivering partial results.
         let preview = frame.to_sdr(info.sdr_white_nits, options.gain, cancel)?;
         let image = frame.to_hdr(info.minimum_nits, info.maximum_nits, options.gain, cancel)?;
         Ok(Frame::Hdr { image, preview })
@@ -247,7 +247,7 @@ fn execute<C>(
                                 backend: Backend::Wgc,
                                 frame,
                                 reason,
-                                // 对齐主干：HDR 源成功采集后转为 SDR 仍须记录降级，非采集失败。
+                                // Match mainline: conversion to SDR after successful HDR-source capture still records fallback, not capture failure.
                                 downgraded: reason.is_some(),
                                 display,
                                 diagnostic,

@@ -1,4 +1,4 @@
-//! Tile 复用产品 D3D12→D3D11→CPU 选择/关联准入；只在完整 present 后签发回执。
+//! Tile reuses production D3D12 -> D3D11 -> CPU selection/attachment admission; issue receipts only after complete present.
 use crate::desktop::render_surface::RenderSurface;
 use crate::{tile_shared::Frame, tile_wire::Size};
 use std::collections::BTreeMap;
@@ -372,7 +372,7 @@ unsafe fn paint(
 unsafe fn draw_grid(target: &ID2D1RenderTarget, f: &Frame, tile: usize) -> Result<()> {
     let tile = &f.layout.tiles[tile];
     let (width, height) = (f.size.width as f32, f.size.height as f32);
-    // 空墙测试图仍使用墙坐标；相邻输出共享网格，不把每屏各画一份局部网格。
+    // Empty-wall test patterns still use wall coordinates; neighboring outputs share a grid rather than separate local grids per monitor.
     let brush = target.CreateSolidColorBrush(
         &D2D1_COLOR_F {
             r: 0.25,

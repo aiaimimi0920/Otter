@@ -1,4 +1,4 @@
-//! 菜单的连线有效参数显示快照；不复制未连线手动值，身份变化使旧菜单失效。
+//! Menu snapshots of effective connected parameter values; do not copy unconnected manual values, and invalidate old menus on identity changes.
 use super::{configuration_stamp::Stamp, State};
 use serde_json::{Map, Value};
 use std::sync::Arc;
@@ -26,7 +26,7 @@ impl View {
     pub fn current(&self, state: &State) -> bool {
         self.configuration.matches(state)
     }
-    /// 同步本地未连线文本提交不会改变拓扑或上游值；只推进仍属原配置的视图。
+    /// Synchronous local unconnected-text commits change neither topology nor upstream values; advance only views still belonging to the original configuration.
     pub fn after_local_text(state: &State, before: &Stamp) {
         let after = Stamp::capture(state);
         if let Some(view) = state.parameter_view.borrow_mut().as_mut() {

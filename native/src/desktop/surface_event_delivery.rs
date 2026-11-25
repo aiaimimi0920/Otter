@@ -1,4 +1,4 @@
-//! 单次事件交付：先恢复唯一 owner，再独立审核呈现；收据必须由调用方保存。
+//! Single-event delivery: restore the sole owner, then independently review presentation; callers must retain receipts.
 use super::*;
 use crate::{
     surface_action_ack::Ack,
@@ -8,7 +8,7 @@ use crate::{
 
 #[derive(Debug)]
 pub enum PresentationError {
-    /// 仅排入原 JS 后台 owner；实际 DOM 帧交付后才可转成 Ok(Some(revision))。
+    /// Enqueue only to the original JS background owner; convert to Ok(Some(revision)) only after actual DOM-frame delivery.
     Pending(u64),
     Authorization(LeaseError),
     Inactive,
@@ -20,17 +20,17 @@ pub struct EventReceipt {
     pub decision: Option<crate::surface_decision_runtime::Evidence>,
     pub event: ClickEvent,
     pub result: std::result::Result<Ack, EventError>,
-    /// 保留收敛版本或错误；Scene 仅移入窗口一次，不缓存第二份大场景。
+    /// Retain convergence version or error; move Scene into the window once without caching another large scene.
     pub convergence: Option<std::result::Result<u64, EventError>>,
     pub delivery: std::result::Result<(), LeaseError>,
-    /// 仅保存执行输出，不代表输出已应用于本地图；使用前仍需独立授权。
+    /// Retain only execution output, not proof it was applied to the local graph; independent authorization is still required before use.
     pub commit: Option<crate::surface_result_commit::Commit>,
     pub confirmation: Option<std::result::Result<crate::surface_confirmation::Request, EventError>>,
-    /// None 表示没有成功收敛场景；Ok(Some) 才表示本次已经应用快照。
+    /// None means no successfully converged scene; only Ok(Some) means this snapshot was applied.
     pub presentation: std::result::Result<Option<u64>, PresentationError>,
 }
 impl EventReceipt {
-    /// 仅用于有界候选选择；不能替代窗口、当前租约和提交前的授权检查。
+    /// Only for bounded candidate selection, never a substitute for window, current-lease, or precommit authorization checks.
     pub fn confirmation_ready(&self, now_ms: u64) -> bool {
         self.decision.is_none()
             && self.delivery.is_ok()
@@ -50,7 +50,7 @@ impl EventReceipt {
     }
 }
 impl AuthorizedWindow {
-    /// 仅在用户明确选择后调用。失败保留原收据；成功仅转移提示，不移交 owner。
+    /// Call only after explicit user choice. Failure retains the original receipt; success transfers only the prompt, not the owner.
     pub fn prepare_decision(
         &mut self,
         receipt: &mut EventReceipt,
@@ -81,7 +81,7 @@ impl AuthorizedWindow {
             }
         }
     }
-    /// 用户已作出明确选择后移交唯一 owner；拒绝旧场景、撤权和已尝试决定。
+    /// Transfer the sole owner after explicit user choice; reject stale scenes, revocation, and already attempted decisions.
     pub fn begin_decision(
         &mut self,
         event: &ClickEvent,
@@ -100,7 +100,7 @@ impl AuthorizedWindow {
             .map_err(|_| Error::new(E_FAIL, "Surface decision became stale"))?;
         Ok(self.lifecycle.take_decision(event, ack, decision))
     }
-    /// 读取提示前复核当前窗口授权；收据中的成功读取不是长期有效的 UI 许可。
+    /// Recheck current-window authorization before reading prompts; successful reads in receipts are not long-lived UI permission.
     pub fn confirmation_for<'a>(
         &mut self,
         receipt: &'a EventReceipt,
@@ -130,7 +130,7 @@ impl AuthorizedWindow {
             .map_err(|_| Error::new(E_FAIL, "Surface confirmation became stale"))?;
         Ok(request)
     }
-    /// 身份不匹配时原样退回全部结果。接纳后 ACK/错误随收据返回，不由窗口丢弃。
+    /// Identity mismatches return all results unchanged. After acceptance, ACK/errors accompany the receipt and are not discarded by the window.
     pub fn accept_event(
         &mut self,
         outcome: EventOutcome,
@@ -162,7 +162,7 @@ impl AuthorizedWindow {
                 .map(|snapshot| snapshot.revision)
                 .map_err(|error| *error)
         });
-        // 即使没有可呈现场景，也应及时关闭已经撤权的 HWND。
+        // Even without a presentable scene, promptly close HWNDs whose authorization was revoked.
         let refreshed = self.refresh(now_ms).map_err(PresentationError::Window);
         let mut commit = None;
         let presentation = match convergence {
@@ -215,14 +215,14 @@ impl AuthorizedWindow {
                         .window
                         .replace(snapshot.scene.with_image_availability(|_| false))
                     {
-                        // replace 的最后失效通知可能失败，不能继续用旧版本解释新几何。
+                        // replace's final invalidation notification may fail; do not interpret new geometry with the old version.
                         let _ = self.close();
                         return Err(PresentationError::Window(error));
                     }
                     self.snapshot_revision = revision;
                     self.images.get_mut().clear();
                     *self.resources.get_mut() = Some(snapshot.resources);
-                    // HWND 调用可能同步重入；提交后撤权必须关闭，不重新显示。
+                    // HWND calls may synchronously reenter; revocation after commit requires closing, not redisplaying.
                     self.refresh(now_ms).map_err(PresentationError::Window)?;
                     self.lease
                         .validate(self.binding().origin(), now_ms)

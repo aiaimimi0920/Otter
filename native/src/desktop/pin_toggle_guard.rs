@@ -1,4 +1,4 @@
-//! 缩略与展开共用切换准入；拒绝时不取消任务、消费请求或丢弃用户草稿。
+//! Minimization and expansion share switch admission; rejection neither cancels tasks, consumes requests, nor discards user drafts.
 use super::State;
 
 pub(super) fn allows(state: &State) -> bool {

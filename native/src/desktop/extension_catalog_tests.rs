@@ -1,4 +1,4 @@
-//! UI 投影撤权与显式重试；后台网络由相同 TLS 测试端提供，不启动用户进程或全局输入。
+//! UI projection revocation/explicit retry; the same TLS test endpoint supplies background networking, without user processes/global input.
 use super::super::extension_catalog_job::tests::{data, SERIAL};
 use super::*;
 use crate::loom_extension_session::test_peer as peer;
@@ -61,7 +61,7 @@ fn snapshots_reach_the_shared_view_and_disconnect_clears_it_without_automatic_re
     advance.send(()).unwrap();
     until(&mut owner, |v| v.phase == Phase::Failed);
     assert!(shared.borrow().snapshot.is_none());
-    // Failed 已可在撤权时可见；无重连断言须允许尾段退出后的单次 Stopped 结算。
+    // Failed is visible upon revocation; no-reconnect assertions must allow one Stopped settlement after thread-tail exit.
     if owner.job.is_busy() {
         owner.test_wait_finished();
         owner.process_with(|| panic!("no automatic retry"));
@@ -121,7 +121,7 @@ fn revoked_tail_preserves_explicit_retry_until_prior_worker_is_reaped() {
     assert!(owner.process_with(|| panic!("no automatic retry")));
     assert!(shared.borrow().snapshot.is_none() && shared.borrow().phase == Phase::Failed);
     assert!(!owner.process_with(|| panic!("no automatic retry")));
-    // 模拟已由 request_for 成功排队的显式意图；通知尾段不得吃掉它。
+    // Simulate explicit intent successfully enqueued by request_for; notification tails must not consume it.
     shared.borrow_mut().requested = true;
     assert!(!owner.process_with(|| panic!("old worker still owned")));
     assert!(shared.borrow().requested);

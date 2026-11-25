@@ -1,4 +1,4 @@
-//! 已核验 ANGLE 的固定 ABI；不从 shader 字符串、环境 PATH 或任意符号名解析函数。
+//! Fixed ABI for verified ANGLE; do not resolve functions from shader strings, environment PATH, or arbitrary symbol names.
 use super::{library::Library, Result};
 use std::ffi::{c_char, c_void, CStr};
 pub(super) type Handle = *mut c_void;

@@ -1,4 +1,4 @@
-//! 浏览器确认的重叠 glyph 绘制顺序；通过真实受限 SVG child 验证。
+//! Browser-confirmed overlapping-glyph paint order verified through real restricted SVG children.
 use super::*;
 
 #[test]
@@ -12,7 +12,7 @@ fn surface_svg_overlapping_glyphs_preserve_individual_paint() {
     ] {
         let style = format!("font-family='Consolas' font-size='20' {attrs}");
         let content = format!("<text x='20' y='40' {style} dx='0 -7'>FH</text>");
-        // 隐形前缀保留真实字体 advance，不硬编码浏览器/原生的字体度量舍入。
+        // Invisible prefixes retain actual font advances without hardcoding browser/native font-metric rounding.
         let expected = format!("<text x='20' y='40' {style}>F</text><text x='13' y='40' {style}><tspan fill='none' stroke='none'>F</tspan>H</text>");
         for opacity in ["1", ".5"] {
             let wrap = |text| {

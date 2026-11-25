@@ -1,4 +1,4 @@
-//! 内容策略使用真实 Snapshot 构建入口，不读取图片或发送网络请求。
+//! Content-policy tests use the real Snapshot construction entry point, without image reads or network requests.
 use super::*;
 use serde_json::json;
 fn saved(mut fields: Value) -> Vec<u8> {

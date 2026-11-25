@@ -1,4 +1,4 @@
-//! 原生宿主与测试使用相同的 Common Controls v6 激活上下文。
+//! The native host and tests use the same Common Controls v6 activation context.
 #[path = "build_support/windows_resources.rs"]
 mod windows_resources;
 fn main() {

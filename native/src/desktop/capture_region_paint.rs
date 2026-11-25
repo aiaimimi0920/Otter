@@ -1,4 +1,4 @@
-//! 冻结图与选区装饰先离屏完成再提交；复用 main 的信号黄外描边和尺寸标签。
+//! Complete frozen-image and selection-decoration drawing offscreen before submission; reuse main's signal-yellow outer stroke and size label.
 use super::{Mode, Selection};
 use crate::desktop::{buffered_paint, image::Image};
 use windows::{
@@ -76,7 +76,7 @@ pub(super) unsafe fn decorations(
     if let Some(rect) = selection {
         let scale = |value: i32| (value * dpi as i32 + 48) / 96;
         let width = scale(2);
-        // 实线完全在量取区域外，不改变截取尺寸或覆盖选区内的边缘像素。
+        // The solid stroke lies entirely outside the measured region, preserving capture dimensions and edge pixels inside the selection.
         for edge in edges(rect, width) {
             fill(dc, &edge, SIGNAL)?;
         }
@@ -177,7 +177,7 @@ unsafe fn label(dc: HDC, rect: RECT, dpi: u32, opaque: bool) -> Result<()> {
     if saved == 0 {
         return Err(Error::from_win32());
     }
-    let _saved = DcState(dc, saved); // 先恢复 DC，之后才释放字体。
+    let _saved = DcState(dc, saved); // Restore the DC before releasing fonts.
     if SelectObject(dc, font.0.into()).is_invalid() {
         return Err(Error::from_win32());
     }
@@ -198,7 +198,7 @@ unsafe fn label(dc: HDC, rect: RECT, dpi: u32, opaque: bool) -> Result<()> {
         right: rect.left + measured.right + scale(18),
         bottom: rect.top - scale(28) + scale(26),
     };
-    // 一像素色块缩放混合，只改变标签背景，不修改冻结图或重新采集桌面。
+    // Blend a scaled one-pixel color block into only the label background; do not alter the frozen image or recapture the desktop.
     let tint = (!opaque)
         .then(|| {
             crate::software_dib::Bitmap::new(

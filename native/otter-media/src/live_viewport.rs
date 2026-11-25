@@ -1,4 +1,4 @@
-//! Live 等比适配几何；绘制与输入共用实际 f32 目标矩形，不授予输入转发权限。
+//! Aspect-preserving Live fit geometry; drawing and input share the actual f32 destination rectangle without granting input-forwarding permission.
 #[derive(Clone, Copy, Debug)]
 pub struct Viewport {
     source: [u32; 2],
@@ -33,7 +33,7 @@ impl Viewport {
             mirrored: [false; 2],
         })
     }
-    /// 显示框与源采样区域分离：Live 编辑裁剪/镜像后的输入仍归一化到原始采集帧。
+    /// Separate the display box from the source sample region: input after Live crop/mirror edits still normalizes to the original captured frame.
     pub fn with_region(mut self, region: [f64; 4], mirrored: [bool; 2]) -> Self {
         self.region = region;
         self.mirrored = mirrored;
@@ -45,7 +45,7 @@ impl Viewport {
     pub fn source_size(&self) -> [u32; 2] {
         self.source
     }
-    /// 输入 transport 使用的连续坐标；普通输入拒绝黑边，已有捕获手势才可 clamp。
+    /// Continuous coordinates used by the input transport; ordinary input rejects letterboxing, and only an already captured gesture may clamp.
     pub fn normalized(&self, point: [f64; 2], clamp: bool) -> Option<[f64; 2]> {
         let [left, top, right, bottom] = self.rect.map(f64::from);
         if !point.iter().all(|value| value.is_finite())
@@ -71,8 +71,8 @@ impl Viewport {
         }
         Some(mapped.map(|p| p.clamp(0.0, 1.0)))
     }
-    /// 将原始采集帧内的位置反投影到已提交画面；不把裁剪之外的 caret 夹到边缘。
-    /// 与新鼠标输入的半开命中不同，文本插入点可以位于图像右/下边界。
+    /// Project positions in the original captured frame back onto the committed image; do not clamp carets outside the crop to the edge.
+    /// Unlike half-open hit testing for new mouse input, text insertion points may lie on the image's right/bottom boundary.
     pub fn project(&self, point: [f64; 2]) -> Option<[f64; 2]> {
         if point
             .iter()
@@ -96,7 +96,7 @@ impl Viewport {
             start + local[axis] * (f64::from(self.rect[axis + 2]) - start)
         }))
     }
-    /// 新输入只接受图像半开区域，留黑边和右/下边界不能变成源内点击。
+    /// New input accepts only the half-open image region; letterboxing and right/bottom boundaries cannot become in-source clicks.
     pub fn map(&self, point: [f64; 2]) -> Option<[u32; 2]> {
         let [left, top, right, bottom] = self.rect.map(f64::from);
         if !point.iter().all(|value| value.is_finite())
@@ -109,8 +109,8 @@ impl Viewport {
         }
         self.map_clamped(point)
     }
-    /// 仅供已获授权且已有按下状态的拖动/释放使用；调用方不能据此允许黑边新按下。
-    /// 返回帧像素，不是屏幕/客户区坐标；目标几何与身份仍须由输入 transport 校验。
+    /// Only for authorized drag/release with an existing pressed state; callers must not use this to allow new presses in letterboxing.
+    /// Return frame pixels, not screen/client coordinates; the input transport must still validate target geometry and identity.
     pub fn map_clamped(&self, point: [f64; 2]) -> Option<[u32; 2]> {
         if !point.iter().all(|value| value.is_finite()) {
             return None;

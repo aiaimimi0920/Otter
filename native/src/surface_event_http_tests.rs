@@ -1,4 +1,4 @@
-//! 本地真实 TLS 事件提交：固定来源认证、单次提交和未确认错误；不访问真实 Loom。
+//! Real local TLS event submission: pinned-origin authentication, one-shot submission, and unconfirmed errors; no real Loom access.
 use super::*;
 #[path = "surface_event_batch_http_tests.rs"]
 mod batch;

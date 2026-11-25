@@ -1,4 +1,4 @@
-//! 实际TLS GET重试、水位/nonce、注册刷新和终态；独立wire oracle，不操作用户配置或设备。
+//! Actual TLS GET retries, watermarks/nonces, registration refresh, and terminal state; independent wire oracle, without user configuration/devices.
 use super::*;
 use std::{
     io::Write,

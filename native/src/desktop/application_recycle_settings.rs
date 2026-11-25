@@ -1,4 +1,4 @@
-//! 应用级回收偏好编辑；模态草稿不改来源基线，确认后触发裁剪，持久化仍走配置保存。
+//! Application-wide recycle preferences; modal drafts leave the source baseline unchanged, confirmation triggers pruning, and persistence still uses settings save.
 use super::*;
 use crate::session_library::recycle::policy::Policy;
 #[path = "recycle_dialog.rs"]

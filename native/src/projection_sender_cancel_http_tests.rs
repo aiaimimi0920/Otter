@@ -1,4 +1,4 @@
-//! 在 read/Create 阻塞中精确撤销原 socket；磁盘外改不能覆盖，原 envelope/PNG 不丢失。
+//! Precisely revoke original sockets while read/Create blocks; never overwrite external disk edits or lose original envelope/PNG.
 use super::*;
 fn assert_closed(stream: &mut impl Read) {
     match stream.read(&mut [0]) {

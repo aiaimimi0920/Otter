@@ -1,4 +1,4 @@
-//! 字段挂载待交付/会话空闲观察；只读原有界队列，不消费意图或改变组合状态。
+//! Observe pending mounted-field deliveries/session idleness; read only the existing bounded queue without consuming intents or changing composition state.
 use super::*;
 impl Mount {
     pub fn pending(&self) -> bool {

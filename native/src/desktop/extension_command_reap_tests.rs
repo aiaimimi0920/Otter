@@ -1,4 +1,4 @@
-//! 完成信号不是线程退出；成功、失败、panic 与取消均保留 owner 到真实退出。
+//! Completion signals are not thread exit; success, failure, panic, and cancellation retain owners until actual exit.
 use super::*;
 use crate::desktop::loom_execution_tasks::reap_fixture::{Gate, WAIT};
 use std::{

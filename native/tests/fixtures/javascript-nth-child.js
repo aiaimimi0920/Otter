@@ -1,4 +1,4 @@
-// 通用四列网格；文本不计兄弟位置，重排沿同一文档/child，不包含股票业务。
+// Generic four-column grid; text does not count toward sibling positions, and reordering uses the same document/child without stock-market business logic.
 let owner, first, sheet;
 NeuroSurface.define({
   mount({root}) {

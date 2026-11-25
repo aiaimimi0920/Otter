@@ -1,4 +1,4 @@
-//! 单字段编辑会话：EDIT、草稿和事件 ticket 同一 UI owner；不发送网络请求。
+//! Single-field edit sessions: EDIT, drafts, and event tickets share one UI owner; no network requests.
 use super::surface_edit_control::{Control, MAX_UNITS};
 use crate::{
     surface_click_event::ClickEvent,
@@ -72,11 +72,11 @@ fn native_text(kind: Kind, value: &str) -> std::borrow::Cow<'_, str> {
     }
 }
 impl Session {
-    /// 隐藏创建。外层仍须验证祖先可见性/输入资格，并在注册通知后显示。
+    /// Create hidden. The outer layer must still validate ancestor visibility/input eligibility and show only after notification registration.
     pub fn new(parent: HWND, node: &Node, binding: &Binding, rect: RECT) -> Result<Self> {
         Self::create(parent, node, Some(binding.clone()), rect)
     }
-    /// 仅复用本地EDIT/草稿/IME，不构造普通Surface挂载；调用方另持真实宿主资格。
+    /// Reuse only local EDIT/drafts/IME without ordinary Surface mounting; callers separately hold actual-host eligibility.
     pub(crate) fn unbound(parent: HWND, node: &Node, rect: RECT) -> Result<Self> {
         Self::create(parent, node, None, rect)
     }
@@ -172,7 +172,7 @@ impl Session {
         }
         Ok(())
     }
-    /// 输入通知只更新本地值；后台忙时也不创建无界动作队列。
+    /// Input notifications update local values only; busy background work must not create unbounded action queues.
     pub fn capture(&mut self) -> Result<bool> {
         if self.composing {
             return Ok(false);
@@ -207,12 +207,12 @@ impl Session {
                 std::borrow::Cow::Owned(text) => text,
             };
             let units = text.encode_utf16().count();
-            // HTML maxlength 只限制用户编辑；已有更长权威值仍允许逐步缩短。
+            // HTML maxlength limits only user edits; longer existing authoritative values may still be shortened incrementally.
             if units > self.user_limit && units > self.draft.value().encode_utf16().count() {
                 return Err(invalid("Surface edit exceeds maxLength"));
             }
             if self.number.is_some() && !crate::surface_number::editable(&text) {
-                // 普通无效编辑不是应用错误。原子恢复上一个草稿和编辑前选区，不产生事件。
+                // Ordinary invalid edits are not application errors. Atomically restore the previous draft and pre-edit selection without events.
                 self.control.set_text(self.draft.value())?;
                 if let Some(selection) = self.number_selection {
                     self.control.select(selection)?;
@@ -222,13 +222,13 @@ impl Session {
             Ok(text)
         });
         if candidate.is_err() {
-            // 拒绝后恢复可见值，不让控件与草稿分叉或把未接受的文字送出去。
+            // Restore visible values on rejection, preventing divergence from drafts or sending unaccepted text.
             self.control
                 .set_text(&native_text(self.kind, self.draft.value()))?;
         }
         candidate
     }
-    /// 仅在外层提交资格成立后准备。预留一个 ticket 给更晚的本地输入/IME。
+    /// Prepare only after outer commit eligibility passes. Reserve one ticket for later local input/IME.
     #[cfg(test)]
     pub fn prepare(
         &mut self,
@@ -242,7 +242,7 @@ impl Session {
     pub fn protect_queued(&mut self) -> Result<()> {
         self.reserve_local()
     }
-    /// 已捕获的边沿值不重新读取 HWND；较新的草稿仍保留自己的本地 ticket。
+    /// Captured edge values do not reread HWND; newer drafts retain their own local tickets.
     pub fn prepare_value(
         &mut self,
         node: &Node,
@@ -257,7 +257,7 @@ impl Session {
                 .map(|event| event.map(|e| (e.id().to_owned(), e)))
         })
     }
-    /// Wall等外层已核验身份后才调用；这里只编码并跟踪草稿，不产生挂载权限。
+    /// Call only after outer hosts such as Wall verify identity; encode/track drafts here without granting mount permission.
     pub(crate) fn prepare_unbound(
         &mut self,
         node: &Node,
@@ -300,7 +300,7 @@ impl Session {
         })
         .map_err(|_| invalid("Edit event encoding failed"))?;
         let Some((id, event)) = event else {
-            // 无 handler 的 phase 不得解除其他 phase 尚待提交的新输入保护。
+            // A phase without a handler must not release protection for newer input awaiting another phase's commit.
             if !node.events().contains_key("input")
                 && !node.events().contains_key("change")
                 && self.pending.is_empty()
@@ -314,7 +314,7 @@ impl Session {
         self.track_submission(&id, snapshot)?;
         Ok(Some(event))
     }
-    /// 本地 listener 与远端提交共用 ticket owner，但本地输入不编码假远端 action。
+    /// Local listeners and remote commits share a ticket owner, but local input encodes no fake remote action.
     pub(crate) fn prepare_local(
         &mut self,
         node: &Node,
@@ -347,7 +347,7 @@ impl Session {
         self.pending.insert(id.to_owned(), ticket);
         Ok(())
     }
-    /// 未发出的请求恢复为待提交本地值；已有更新输入时只释放旧预留。
+    /// Restore unsent requests as pending local values; if newer input exists, release only the old reservation.
     pub fn cancel(&mut self, event_id: &str) -> bool {
         let Some(ticket) = self.pending.remove(event_id) else {
             return false;
@@ -359,7 +359,7 @@ impl Session {
         }
         true
     }
-    /// 新快照仍由外层证据门禁接纳；不同绑定/节点必须销毁旧会话再创建。
+    /// The outer evidence gate still accepts new snapshots; different bindings/nodes require destroying the old session before creating another.
     pub fn synchronize(&mut self, node: &Node, binding: &Binding) -> Result<()> {
         self.matches(node, binding)?;
         self.synchronize_value(node)
@@ -388,7 +388,7 @@ impl Session {
             (node.kind() == Kind::Number).then(|| crate::surface_number::Limits::from_node(node));
         self.apply_value()
     }
-    /// 仅接收外层已验证结果的事件 ID；重复/外来 ID 不改变状态。
+    /// Accept only event IDs from outer-validated results; duplicate/foreign IDs do not change state.
     pub fn settle(&mut self, event_id: &str) -> Result<bool> {
         self.control.hwnd()?;
         let Some(ticket) = self.pending.remove(event_id) else {
@@ -400,7 +400,7 @@ impl Session {
         Ok(settled)
     }
     fn apply_value(&self) -> Result<()> {
-        // 不用 WM_SETTEXT 打断 composition，也不在文本未变时重置选择区/撤销状态。
+        // Never interrupt composition with WM_SETTEXT or reset selection/undo state when text is unchanged.
         if !self.composing && normalized(self.kind, &self.control.text()?) != self.draft.value() {
             self.control
                 .set_text(&native_text(self.kind, self.draft.value()))?;
@@ -436,7 +436,7 @@ impl Session {
                 .map_err(|_| invalid("Invalid composed draft"))?;
         } else if self.composition_reserved {
             if let Some(ticket) = self.unsent.take() {
-                // 取消 IME 不是远端结果；没有新权威值/回执时保留既有本地文字。
+                // IME cancellation is not a remote result; retain existing local text without a new authoritative value/receipt.
                 if self.composition_reconcile {
                     self.draft.settle(ticket);
                 } else {

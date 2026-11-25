@@ -1,4 +1,4 @@
-//! 既有投送的单次CAS更新；初始签名/PNG写前记录不变，失败不获得重建或解绑权。
+//! One-shot CAS updates for existing deliveries; initial signature/PNG write-ahead records stay unchanged, and failures grant no recreate/unlink rights.
 use super::*;
 
 pub(crate) struct Update {

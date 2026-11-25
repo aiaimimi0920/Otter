@@ -1,4 +1,4 @@
-//! 隔离Application手动Save/Checkpoint/同profile重开，核扩域数据与原图不烘焙。
+//! Isolated Application manual Save/Checkpoint/same-profile reopening verifies expanded-domain data without baking into original images.
 use super::*;
 use crate::projection_edit::{
     self,

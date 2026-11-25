@@ -1,4 +1,4 @@
-//! 真实恢复链保留原 sourceSize 与原文身份，不把当前非等比 Editor 框写成自然源映射。
+//! The real restore chain retains original sourceSize and original-text identity; current nonuniform Editor bounds must not become natural-source mapping.
 use crate::desktop::{session_binding::Bound, session_candidate, Apartment};
 use std::sync::atomic::AtomicBool;
 

@@ -1,4 +1,4 @@
-//! 安装协议的声明/实际内容/中断边界；预期PNG由测试png库构造，不依赖Canvas编码。
+//! Installation-protocol declaration/actual-content/interruption boundaries; test png libraries construct expected PNGs independently of Canvas encoding.
 use super::*;
 pub(crate) fn resource() -> ImageResource {
     let mut png = Vec::new();

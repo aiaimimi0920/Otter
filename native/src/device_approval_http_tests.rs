@@ -1,4 +1,4 @@
-//! 首次批准等待的真实 HTTPS 验证，复用父模块的限时本机 TLS 服务。
+//! Real HTTPS verification of first-approval waits, reusing the parent module's time-bounded local TLS server.
 use super::*;
 use crate::{device_approval, device_request_cancel::Cancel};
 
@@ -84,7 +84,7 @@ fn approval_total_deadline_bounds_an_inflight_request() {
         let mut stream =
             StreamOwned::new(ServerConnection::new(config).unwrap(), accept(&listener));
         request(&mut stream);
-        // 不发送响应；客户端总期限必须小于普通 POST 的十秒期限。
+        // Send no response; the client's total deadline must be shorter than the ordinary ten-second POST deadline.
         assert!(stream.read(&mut [0]).map_or(true, |n| n == 0));
     });
     let start = Instant::now();

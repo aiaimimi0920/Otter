@@ -1,4 +1,4 @@
-//! Select wire 解释及资源边界；不把数据模型测试当作 HWND/浏览器行为证明。
+//! Select wire interpretation and resource boundaries; data-model tests are not proof of HWND/browser behavior.
 use super::*;
 use crate::surface_scene::Scene;
 use serde_json::json;

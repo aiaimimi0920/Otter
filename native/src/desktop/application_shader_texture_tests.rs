@@ -1,4 +1,4 @@
-//! 公共图像参数的正式端口、同源 PNG 及准备后的来源/拓扑拒绝；复用原隐藏应用夹具。
+//! Shared image-parameter committed ports, same-source PNG, and post-preparation source/topology rejection; reuse original hidden-application fixtures.
 use super::*;
 const RGBA: [u8; 4] = [53, 35, 21, 1];
 
@@ -52,7 +52,7 @@ pub(super) unsafe fn guards(app: &mut Application) {
         .unwrap()
         .clone();
     prepare(app);
-    // 同像素新结果仍具有新的正式输出身份，不能启动旧准备所捕获的纹理。
+    // A new result with identical pixels still has a new committed-output identity; textures captured by old preparation must not start.
     let source = app
         .documents
         .iter()

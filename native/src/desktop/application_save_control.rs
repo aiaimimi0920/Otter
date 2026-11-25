@@ -1,4 +1,4 @@
-//! Application 单槽保存准备；后台编码/暂存后复核凭证，最终提交仍由 UI 明确执行。
+//! Single-slot Application save preparation; recheck credentials after background encoding/staging, with final commit still explicitly performed by the UI.
 use super::*;
 pub(super) enum Poll {
     Pending,

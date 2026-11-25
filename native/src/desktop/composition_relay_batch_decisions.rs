@@ -1,4 +1,4 @@
-//! 批次决定应用任务：共享容量，收割后并回批次；异常输入保留且阻止遗漏退出日志。
+//! Batch decision-application tasks share capacity and merge back into batches after harvesting; retain anomalous input and prevent omitted exit journaling.
 use super::*;
 use crate::surface_batch_decision_runtime::{Error, Input, Job, Outcome, StartError};
 impl Sessions {
@@ -24,7 +24,7 @@ impl Sessions {
             self.batch_decision_jobs
                 .try_reserve(1)
                 .map_err(io::Error::other)?;
-            // 所有批次类任务都可能在下一次收割前完成。
+            // All batch-task categories may complete before the next harvest.
             self.reserve_batch_outcomes()?;
             self.batch_decision_rejected
                 .try_reserve(self.batch_decision_jobs.len() + 1)
@@ -78,7 +78,7 @@ impl Sessions {
         }
         errors
     }
-    /// 显式移交异常输入的保存责任；不能静默丢弃，亦不能自动重试决定。
+    /// Explicitly transfer responsibility for saving anomalous input; neither silently discard nor automatically retry decisions.
     pub fn take_rejected_batch_decision(&mut self) -> Option<Outcome> {
         self.batch_decision_rejected.pop()
     }

@@ -1,4 +1,4 @@
-//! WM_PAINT 的 DC 借用 owner；正常返回与 panic 展开都配对 EndPaint。
+//! DC-borrow owner for WM_PAINT; pair EndPaint on both normal returns and panic unwinding.
 use windows::Win32::{Foundation::HWND, Graphics::Gdi::*};
 
 pub(super) struct PaintScope(HWND, PAINTSTRUCT);

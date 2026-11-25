@@ -1,4 +1,4 @@
-//! 发网前的工作区来源围栏；不是接受授权，不能用响应到达时的新工作区补造旧目标。
+//! Workspace-source fence before network access; not acceptance authorization, and a new workspace at response time cannot reconstruct an old target.
 use super::*;
 use crate::{session_placement::Space, session_source::Source, session_window::Rect};
 #[path = "application_projection_placement.rs"]
@@ -45,7 +45,7 @@ impl Scope {
             .consent
             .participation()
             .ok_or_else(stale)?;
-        // 已 accepted 只读重建仍核原目标/Grant，但 NEW 策略不是撤销既有远端关联。
+        // Read-only accepted reconstruction still checks original target/Grant, but NEW policy does not revoke existing remote associations.
         let consent = if existing {
             None
         } else {

@@ -1,4 +1,4 @@
-//! 仅通知本地授权撤销；独立于网络唤醒，不建线程，不轮询，也不允许重置终态。
+//! Notify only local authorization revocation; independent of network wakes, without threads/polling or terminal-state reset.
 use std::{
     io,
     os::windows::io::{AsHandle, AsRawHandle, BorrowedHandle, FromRawHandle, OwnedHandle},
@@ -70,7 +70,7 @@ impl Watch {
         if let Some(event) = &state.event {
             return Ok(Notification(event.clone()));
         }
-        // 注册与撤销在同一锁下；撤销先发生时直接创建已触发的事件。
+        // Registration and revocation share one lock; prior revocation directly creates an already-signaled event.
         let raw =
             unsafe { CreateEventW(None, true, state.revoked, None) }.map_err(io::Error::other)?;
         let event = Arc::new(unsafe { OwnedHandle::from_raw_handle(raw.0) });
@@ -84,7 +84,7 @@ impl Watch {
             let _ = unsafe { SetEvent(HANDLE(event.as_raw_handle())) };
         }
         let notify = state.notify.take();
-        drop(state); // 回调可能重入授权；不得持有 Watch 锁，也不让通知 panic 跨析构传播。
+        drop(state); // Callbacks may reenter authorization; do not hold the Watch lock or propagate notification panics through destruction.
         if let Some(notify) = notify {
             let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| notify()));
         }
@@ -92,7 +92,7 @@ impl Watch {
     pub(super) fn notify(&self, notify: Arc<dyn Fn() + Send + Sync>) {
         let mut state = self.0.lock().unwrap_or_else(|e| e.into_inner());
         if !state.revoked {
-            state.notify = Some(notify); // 同一串行 Lease 只有一个长期结果 owner，不累加监听。
+            state.notify = Some(notify); // The same serial Lease has only one long-lived result owner; listeners do not accumulate.
             return;
         }
         drop(state);

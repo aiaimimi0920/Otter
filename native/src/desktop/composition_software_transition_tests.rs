@@ -1,4 +1,4 @@
-//! 显式交互门：自有顶层色块，不激活、不发送输入；只采样色块中心的桌面合成像素。
+//! Explicit interactive gate: owned top-level color blocks without activation/input; sample only desktop-composited pixels at block centers.
 use crate::desktop::{
     composition_d3d12::CompositionD3d12,
     composition_retirement::Status as RetirementStatus,
@@ -39,7 +39,7 @@ impl Drop for Class {
     fn drop(&mut self) {
         unsafe {
             let _ = UnregisterClassW(w!("Otter.Software.Transition.Test"), Some(self.0));
-            // 注册成功后背景画刷归窗口类；UnregisterClass 由系统释放，不能再次 DeleteObject。
+            // After registration succeeds, the window class owns the background brush; the system releases it on UnregisterClass, so never DeleteObject again.
         }
     }
 }
@@ -73,7 +73,7 @@ unsafe fn window(instance: HINSTANCE, no_redirection: bool, x: i32, size: i32) -
 
 unsafe fn show(hwnd: HWND) {
     let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
-    // 显式维护自有色块层序，不激活窗口；不能把背景遮挡误判为渲染失败。
+    // Explicitly maintain owned color-block stacking without activation; do not mistake background occlusion for rendering failure.
     SetWindowPos(
         hwnd,
         Some(HWND_TOPMOST),
@@ -145,7 +145,7 @@ fn same_hwnd_d3d11_to_software_preserves_no_redirection_and_composes_alpha() {
 fn compatibility(hwnd: HWND, size: D2D_SIZE_U) -> RenderSurface {
     let factory: ID2D1Factory =
         unsafe { D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, None) }.unwrap();
-    // 走普通工作区的真实兼容选择入口，而不是在测试中直接指定合成实现。
+    // Use the real compatibility-selection entry of ordinary workspaces rather than directly selecting a composition implementation in tests.
     let surface = RenderSurface::legacy(&factory, hwnd, size, 96, false).unwrap();
     assert!(matches!(surface, RenderSurface::D3d11(_)));
     surface
@@ -159,7 +159,7 @@ fn verify(d3d11: bool) {
         assert!(!previous.0.is_null());
         let _dpi = DpiScope(previous);
         let instance: HINSTANCE = GetModuleHandleW(None).unwrap().into();
-        let brush = CreateSolidBrush(COLORREF(0x00ff0000)); // 蓝色背景。
+        let brush = CreateSolidBrush(COLORREF(0x00ff0000)); // Blue background.
         assert!(!brush.is_invalid());
         if RegisterClassW(&WNDCLASSW {
             hInstance: instance,
@@ -169,7 +169,7 @@ fn verify(d3d11: bool) {
             ..Default::default()
         }) == 0
         {
-            let _ = DeleteObject(brush.into()); // 注册失败，系统尚未接管画刷。
+            let _ = DeleteObject(brush.into()); // Registration failed, so the system has not taken ownership of the brush.
             panic!("transition window class registration failed");
         }
         let _class = Class(instance);
@@ -198,8 +198,8 @@ fn verify(d3d11: bool) {
             .unwrap());
         show(front.0);
         expect_pixel(front.0, 16, [255, 0, 0]);
-        // 使用产品 owner 的退休入口；测试线程继续处理自有窗口消息，不直接等待 DComp。
-        // GPU owner 一直保留到软件像素验证结束，完成凭证不被误当作 GPU 已释放。
+        // Use the product owner's retirement entry point; the test thread continues processing owned-window messages instead of waiting directly for DComp.
+        // Retain the GPU owner until software-pixel verification finishes; completion evidence does not mean GPU release.
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
         let mut retirement = gpu.retire_composition().expect("GPU composition receipt");
         assert!(gpu.draw(|_| panic!("retired GPU drew again")).is_err());
@@ -276,20 +276,20 @@ fn verify(d3d11: bool) {
         let mut rect = RECT::default();
         GetWindowRect(front.0, &mut rect).unwrap();
         assert_eq!((rect.right - rect.left, rect.bottom - rect.top), (32, 32));
-        // 8 DIP 在 144 DPI 下为 12 物理像素；边界两侧区分未缩放和正确缩放。
+        // 8 DIP at 144 DPI equals 12 physical pixels; opposite sides of the boundary distinguish unscaled from correctly scaled output.
         expect_pixel(front.0, 10, [255, 0, 0]);
         expect_pixel(front.0, 14, [0, 128, 127]);
         assert_ne!(
             GetWindowLongPtrW(front.0, GWL_EXSTYLE) as u32 & WS_EX_NOREDIRECTIONBITMAP.0,
             0
         );
-        // CPU→GPU 产品样式入口：仅在已确认退休且释放旧 owner 后移除 LAYERED，
-        // 不触碰 NOREDIRECTIONBITMAP；重新创建真实后端并采样合成像素，不能只凭 HRESULT。
+        // Product-style CPU-to-GPU entry: remove LAYERED only after confirmed retirement and old-owner release,
+        // without touching NOREDIRECTIONBITMAP; rebuild a real backend and sample composited pixels rather than relying only on HRESULT.
         drop(cpu);
         drop(gpu);
         let style = GetWindowLongPtrW(front.0, GWL_EXSTYLE) as u32;
         assert_ne!(style & WS_EX_LAYERED.0, 0);
-        // 本隔离窗口没有可重入销毁的业务过程，租约由 front 覆盖事务。
+        // This isolated window has no business procedure that can destroy it reentrantly; front's lease covers the transaction.
         let owns = || IsWindow(Some(front.0)).as_bool();
         let allow = || true;
         let style = Transition::gpu_guarded(front.0, &owns).unwrap();
@@ -305,7 +305,7 @@ fn verify(d3d11: bool) {
         let size = D2D_SIZE_U {
             width: 32,
             height: 32,
-        }; // 使用 CPU 更新后的真实 HWND 尺寸。
+        }; // Use actual HWND dimensions after CPU updates.
         let fresh = window(instance, true, 96, 32);
         let mut control = if d3d11 {
             compatibility(fresh.0, size)
@@ -359,7 +359,7 @@ fn verify(d3d11: bool) {
             })
             .unwrap());
         expect_pixel(front.0, 14, [0, 128, 255]);
-        // 动态将蓝背景换成黄色，排除旧 CPU 像素或固定背景缓存恰好吻合预期。
+        // Dynamically change the blue background to yellow, excluding coincidental matches from stale CPU pixels or fixed background caches.
         let dc = GetDC(Some(backdrop.0));
         assert!(!dc.is_invalid());
         let yellow = CreateSolidBrush(COLORREF(0x0000ffff));

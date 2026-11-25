@@ -1,4 +1,4 @@
-//! Wall view的有界操作状态；只接受当前attachment的身份，不将ACK当正式结果。
+//! Bounded operational state for Wall views; accept only current-attachment identities and never treat ACKs as committed results.
 use crate::{
     surface_action_ack::{Ack, Status},
     surface_confirmation::Risk,

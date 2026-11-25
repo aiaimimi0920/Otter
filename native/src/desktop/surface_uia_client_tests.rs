@@ -1,4 +1,4 @@
-//! 独立 MTA 客户线程经系统 UIA 读取真实隐藏 HWND，UI 线程泵送 COM 消息。
+//! Independent MTA clients read actual hidden HWNDs through system UIA while the UI thread pumps COM messages.
 use super::*;
 use std::time::{Duration, Instant};
 use windows::Win32::UI::WindowsAndMessaging::*;
@@ -26,11 +26,11 @@ mod toggle;
 mod toggle_events;
 
 struct Apartment;
-// 测试自有 HWND 的有界消息证据；无裸 Rust 指针，不吞消息、不改变输入行为。
+// Bounded message evidence from test-owned HWNDs; no raw Rust pointers, swallowed messages, or input-behavior changes.
 struct InputTrace(HWND);
 impl InputTrace {
     fn new(hwnd: HWND) -> Self {
-        // 同步采证也会扰动时序；普通回归默认完全不安装，诊断必须显式开启。
+        // Synchronous evidence collection also affects timing; ordinary regressions install none by default, and diagnostics require explicit enablement.
         if std::env::var_os("OTTER_UIA_INPUT_TRACE").as_deref() != Some(std::ffi::OsStr::new("1")) {
             return Self(HWND::default());
         }
@@ -81,7 +81,7 @@ unsafe extern "system" fn input_trace(
             id,
             remaining - 1,
         );
-        // 同一消息现场绑定前台 HWND 的进程，避免事后复用句柄时误认夺焦方。
+        // Bind the foreground HWND's process at the message site, avoiding misidentifying focus stealers after handle reuse.
         let foreground = GetForegroundWindow();
         let mut foreground_pid = 0;
         let foreground_thread = GetWindowThreadProcessId(foreground, Some(&mut foreground_pid));
@@ -123,7 +123,7 @@ fn query_with<T: Send + 'static>(
 ) -> T {
     let (sender, receiver) = std::sync::mpsc::channel();
     let worker = std::thread::spawn(move || {
-        // read 返回前释放 element/client，再退出 MTA；发送后 join 不需继续泵 COM。
+        // Release element/client before read returns, then exit MTA; joining after send requires no further COM pumping.
         let result = read(hwnd).map_err(|error| (error.code(), error.message()));
         let _ = sender.send(result);
     });
@@ -269,8 +269,8 @@ fn uia_invoke_system_client_queues_button_action() {
         let click = window.take_click().unwrap();
         assert_eq!(click.node_id, "button");
         assert!(matches!(click.source, super::super::Activation::Automation));
-        // AutoSetFocus 是客户端策略，不保证消息泵结束后窗口仍持焦点。
-        // 显式 SetFocus 的合同由独立焦点测试覆盖；这里只断言禁用时不抢焦点。
+        // AutoSetFocus is client policy and does not guarantee focus remains after the message pump ends.
+        // Independent focus tests cover explicit SetFocus; assert only that disabled controls do not steal focus here.
         if !auto_focus {
             assert!(window.state.keyboard.borrow().focused().is_none());
         }

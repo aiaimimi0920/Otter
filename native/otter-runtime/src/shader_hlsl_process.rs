@@ -1,4 +1,4 @@
-//! HLSL 父侧同步 API，必须由既有后台任务调用；复用唯一 Job/pipe owner，不在父进程碰驱动。
+//! Parent-side synchronous HLSL API, called only by existing background jobs; reuse the sole Job/pipe owner without touching drivers in the parent.
 use super::*;
 use crate::{bounded_worker_process as bounded, live_recovery_pipe::Pipe};
 use std::{
@@ -10,7 +10,7 @@ use std::{
 };
 pub const FLAG: &str = "--native-hlsl-worker";
 pub(super) const TIMEOUT: Duration = Duration::from_secs(15);
-// MAIN 集成时只选择一条 Shader 路径；此池不增加默认 worker/线程或预建 GPU owner。
+// MAIN integration selects only one Shader path; this pool adds no default workers/threads or prebuilt GPU owners.
 pub(super) static CAPACITY: LazyLock<Arc<crate::byte_budget::Budget>> =
     LazyLock::new(|| crate::byte_budget::Budget::new(CHILD_LIMIT));
 #[derive(Debug)]
@@ -40,12 +40,12 @@ pub fn run_inherited() -> io::Result<()> {
     let request = wire::read_request(&mut channel)?;
     let result =
         request.with_request(|value| super::prepare(value, request.backend, &|| false, deadline));
-    // 单请求 child 的输入不再被 GPU 借用；先清零/归还它，避免 4K 同时持有两份 CPU 全图。
+    // The single-request child's input is no longer borrowed by GPU; zero/return it first to avoid holding two complete 4K CPU images simultaneously.
     drop(request);
     let result = result.and_then(|prepared| prepared.finish(&|| false, deadline));
     wire::write_response(&mut channel, &result)
 }
-/// 单一绝对期限覆盖准入/传输/正常退出与 EOF；失败/取消不能发布成功帧。
+/// One absolute deadline covers admission/transport/normal exit/EOF; failure/cancellation must not publish successful frames.
 pub fn render(
     request: &Request<'_>,
     backend: Backend,

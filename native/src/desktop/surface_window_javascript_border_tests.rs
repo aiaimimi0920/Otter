@@ -1,11 +1,11 @@
-//! 隐藏 HWND 消费同 child 四边框；实际 WndProc/同帧 WIC 像素、内容几何和恢复。
+//! Hidden HWNDs consume four-sided borders from the same child; actual WndProc/same-frame WIC pixels, content geometry, and restoration.
 use super::*;
 use crate::surface_javascript::border_tests::SOURCE;
 #[test]
 fn javascript_border_sides_real_hwnd_pixels_geometry_update_and_restore() {
     let _serial = fixture::SERIAL.lock().unwrap();
     let _com = SurfaceWindow::javascript_apartment_for_test();
-    // new 接收窗口外框像素，不是客户区；先创建足够大的 HWND，再绑定其真实视口。
+    // new receives outer-window pixels, not client dimensions; create a sufficiently large HWND before binding its actual viewport.
     let window = SurfaceWindow::new(
         Scene::parse(br#"{"id":"placeholder","type":"column"}"#).unwrap(),
         420,

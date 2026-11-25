@@ -1,4 +1,4 @@
-//! 词级手势复用唯一选区；保存初始词与有界边界表，反向拖动不丢失起始词。
+//! Word gestures reuse the unique selection; retain the initial word and bounded boundary tables so reverse dragging preserves the starting word.
 use super::*;
 pub(super) struct WordDrag {
     initial: Range<u32>,
@@ -52,12 +52,12 @@ pub(super) fn extend(
     let cross_node = selection.cross_node();
     let forward = cross_node && selection.forward(text);
     let word = selection.word.as_mut().unwrap();
-    // 不移动直接抬起仍保留初始双击空白；一旦拖动，返回原点也不恢复该空白。
+    // Releasing without movement preserves initial double-click whitespace; after dragging, even returning to the origin does not restore it.
     if !word.moved && !cross_node && point == word.initial_point {
         return Ok(());
     }
     word.moved = true;
-    // 边界表只属于当前 focus owner；先成功查询新表再替换，不能借用旧节点索引。
+    // Boundary tables belong only to the current focus owner; query the new table successfully before replacement, never borrowing old-node indexes.
     if word.boundary_node != item.node_id() {
         let boundaries = item.layout().word_boundaries()?;
         word.boundaries = boundaries;

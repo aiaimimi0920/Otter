@@ -1,4 +1,4 @@
-//! 使用完整覆盖画布作独立采样基准，核对缩小、空洞、负坐标和早帧覆盖顺序。
+//! Independent full-coverage-canvas sampling reference checks downscaling, holes, negative coordinates, and earlier-frame coverage order.
 use super::*;
 
 fn frame(x: i64, y: i64, width: u32, height: u32, seed: u8) -> SpatialFrame {
@@ -19,7 +19,7 @@ fn assert_preview(frames: &[SpatialFrame]) {
     let cancel = AtomicBool::new(false);
     let (left, top, width, height) = spatial::bounds(frames, &cancel).unwrap();
     let mut full = vec![0; (width * height * 4) as usize];
-    // 后帧先铺，早帧后覆盖，独立于生产路径的覆盖标记和范围查找。
+    // Lay later frames first, then overwrite with earlier frames, independent of production coverage markers/range lookup.
     for item in frames.iter().rev() {
         for y in 0..item.frame.height {
             for x in 0..item.frame.width {

@@ -1,4 +1,4 @@
-//! 冻结帧上的有界选区手势；只存矩形和当前事务，不分配图像或历史。
+//! Bounded selection gestures on frozen frames; retain only rectangles/current transactions, without image/history allocation.
 use windows::Win32::Foundation::{POINT, RECT};
 
 #[derive(Clone, Copy)]
@@ -102,7 +102,7 @@ impl Selection {
                 .before
                 .map(|rect| self.moved(rect, point.x - drag.point.x, point.y - drag.point.y)),
             Kind::Resize(index) => drag.before.map(|mut rect| {
-                // 使用相对按下位置的位移，命中容差范围内的点击不能让边缘跳到指针。
+                // Use displacement relative to the press position; clicks within hit tolerance must not snap edges to the pointer.
                 let dx = point.x - drag.point.x;
                 let dy = point.y - drag.point.y;
                 if matches!(index, 0 | 6 | 7) {

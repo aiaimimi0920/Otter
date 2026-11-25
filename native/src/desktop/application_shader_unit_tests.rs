@@ -1,4 +1,4 @@
-//! 未连接 Unit 图片引用的真实应用来源/参数一致性与 freshness；复用原窗口/COM/TLS。
+//! Real-application source/parameter consistency and freshness for unconnected Unit image references; reuse original windows/COM/TLS.
 use super::*;
 use crate::workspace_id::UnitId;
 
@@ -69,7 +69,7 @@ pub(super) unsafe fn attach(app: &mut Application, target: &UnitId, mode: Textur
         })
         .unwrap();
     if matches!(mode, TextureSource::LinkedUnit) {
-        // manual 仍是旧内联 PNG；同名标量连接必须让同轮 resolved Unit 来源取代它。
+        // manual still holds the old inline PNG; a same-named scalar link must replace it with the Unit source resolved in this turn.
         let mut scalar = State::new(None, false).unwrap();
         scalar.restored_art = true;
         let scalar_id = scalar.unit_id.clone();
@@ -142,7 +142,7 @@ pub(super) unsafe fn guards(app: &mut Application, mode: TextureSource) {
     assert!(captured.0.iter().any(|name| name == "overlay"));
     assert_eq!(captured.1, ["overlay"]);
     drop(captured);
-    // 引用 Sticker 未连到目标，仍要捕获其实际正式上游及中继配置/草稿。
+    // The referenced Sticker is not linked to the target, but its actual committed upstream and relay configuration/draft must still be captured.
     prepare(app);
     texture::commit(&app.documents[2].state);
     app.pending_windows(false).unwrap();
@@ -189,8 +189,8 @@ pub(super) unsafe fn guards(app: &mut Application, mode: TextureSource) {
     app.pending_windows(false).unwrap();
     assert_retired(app);
     replace(app, original);
-    // 直接引用 Art 即使有 display，也不能绕过正式输出门。
-    // Sticker 在上游缺图时可合法退回自身底图，不能把该行为误断言为 Art 预览泄漏。
+    // Direct Art references cannot bypass the committed-output gate even when display exists.
+    // Sticker may legitimately fall back to its own base image when upstream lacks one; do not misidentify that as an Art-preview leak.
     reference(app, mode, &app.documents[2].state.unit_id);
     let display = Some(Image {
         width: 1,

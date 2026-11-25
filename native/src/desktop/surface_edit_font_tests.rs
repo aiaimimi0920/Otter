@@ -1,4 +1,4 @@
-//! 真实 EDIT 字体、继承、DPI 和释放验证；不声称跨显示器人工验收。
+//! Actual EDIT font, inheritance, DPI, and release verification; not claimed as cross-monitor manual acceptance.
 use super::*;
 unsafe fn current(hwnd: HWND) -> HGDIOBJ {
     HGDIOBJ(SendMessageW(hwnd, WM_GETFONT, None, None).0 as *mut _)
@@ -40,7 +40,7 @@ fn surface_edit_font_mount_uses_resolved_inheritance_and_releases_on_removal() {
                 read(new_font).unwrap().lfHeight,
                 -((36. * dpi as f32 / 96.).round() as i32)
             );
-            // 祖先字号变化不改字段合同；同一 EDIT 与未提交草稿保留。
+            // Ancestor font-size changes preserve field contracts, retaining the same EDIT and uncommitted draft.
             assert_eq!(child(&window), edit);
             assert_eq!(text(edit), "42");
             assert!(read(font).is_none());

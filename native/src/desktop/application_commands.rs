@@ -1,11 +1,11 @@
-//! 应用级菜单命令路由；回调仅排队请求，生命周期操作由消息循环消费。
+//! Application-level menu command routing; callbacks only enqueue requests, and the message loop consumes lifecycle operations.
 use super::*;
 
 pub(in crate::desktop) unsafe fn request(hwnd: HWND, state: &State) -> Result<()> {
     if state.file_dialog.get() {
         return Ok(());
     }
-    // 单个文档最多一个未处理请求，不随点击次数积累任务。
+    // At most one pending request per document; tasks do not accumulate with clicks.
     if !state.new_window.replace(true) {
         if let Err(error) = PostMessageW(Some(hwnd), WM_NULL, WPARAM(0), LPARAM(0)) {
             state.new_window.set(false);
@@ -174,7 +174,7 @@ pub(in crate::desktop) unsafe fn request_exit(hwnd: HWND, state: &State) -> Resu
         ));
     }
     if !state.exit_requested.replace(true) {
-        // 应用请求使用线程唤醒；请求窗口随后销毁也不能把退出唤醒一并移除。
+        // Application requests use thread wakeups; later destruction of the requesting window must not remove the exit wakeup too.
         if let Err(error) = PostMessageW(None, WM_NULL, WPARAM(0), LPARAM(0)) {
             state.exit_requested.set(false);
             return Err(error);

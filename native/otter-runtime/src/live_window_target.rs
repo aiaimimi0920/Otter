@@ -1,4 +1,4 @@
-//! 显式授权的顶层窗口身份；持有原进程句柄，校验不依赖标题或屏幕位置。
+//! Explicitly authorized top-level window identity; hold the original process handle and validate independently of title/screen position.
 use std::os::windows::io::{AsHandle, AsRawHandle, BorrowedHandle, FromRawHandle, OwnedHandle};
 use std::sync::Arc;
 #[path = "live_input_backend.rs"]
@@ -68,7 +68,7 @@ impl Target {
     pub fn process_handle(&self) -> BorrowedHandle<'_> {
         self.process.as_handle()
     }
-    /// 调用方须先确认用户选中的 HWND；本方法不枚举、不猜测或重新选择窗口。
+    /// Callers must first confirm the user-selected HWND; this method neither enumerates, guesses, nor reselects windows.
     pub fn bind(hwnd: HWND) -> Result<Self> {
         unsafe {
             let identity = identity(hwnd)?;
@@ -87,7 +87,7 @@ impl Target {
     pub fn process_id(&self) -> u32 {
         self.identity.process
     }
-    /// 初始输出定位使用物理可见外框；不把此矩形当成 WGC item/纹理的权威尺寸。
+    /// Initial output positioning uses the physical visible outer frame; this rectangle is not the authoritative size of the WGC item/texture.
     pub fn frame_bounds(&self) -> Result<RECT> {
         self.validate()?;
         if unsafe { IsIconic(self.hwnd()).as_bool() } {
@@ -107,8 +107,8 @@ impl Target {
         self.validate()?;
         Ok(watcher)
     }
-    /// 移动/标题变化不改变身份；旧进程退出，即使 PID 被复用也必须拒绝。
-    /// 同一存活进程/线程内的 HWND 快速复用仍有启动竞态，WGC item Closed 负责已绑定源生命周期。
+    /// Movement/title changes do not change identity; reject after original-process exit, even if its PID is reused.
+    /// Rapid HWND reuse within a live process/thread still has a startup race; WGC item Closed owns the bound source's lifecycle.
     pub fn validate(&self) -> Result<()> {
         unsafe {
             if WaitForSingleObject(HANDLE(self.process.as_raw_handle()), 0) != WAIT_TIMEOUT

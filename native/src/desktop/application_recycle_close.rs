@@ -1,4 +1,4 @@
-//! 回收关闭的 UI 提交 owner；先准备最后宿主并复核凭证，再转交热键和销毁目标。
+//! UI commit owner for recycle-close; prepare the final host and recheck credentials before transferring hotkeys and destroying the target.
 use super::*;
 #[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 #[path = "application_recycle_close_smoke.rs"]
@@ -38,7 +38,7 @@ impl Application {
             return Ok(());
         };
         let (receipt, _) = self.save_job.take().unwrap();
-        // process_live 早于此回收点；让保留的下一条 Live 意图无需外部输入即可续进。
+        // process_live precedes this reap point; let the retained next Live intent proceed without external input.
         PostMessageW(None, WM_NULL, WPARAM(0), LPARAM(0))?;
         let output = result.map_err(|message| Error::new(E_ABORT, message))?;
         if !receipt.matches(self)
@@ -63,7 +63,7 @@ impl Application {
                     && doc.state.live_request.borrow().is_none()
             })
             .ok_or_else(|| Error::new(E_ABORT, "Recycle target closed"))?;
-        // 隐藏宿主尚未加入工作区，因此准备失败或凭证失效仅析构局部 owner。
+        // The hidden host has not joined the workspace, so preparation failure or invalid credentials only drop the local owner.
         let mut host = if self.documents.len() == 1 {
             Some(self.prepare_window(State::new(None, false)?, false)?)
         } else {
@@ -101,7 +101,7 @@ impl Application {
             std::slice::from_ref(next),
             &mut change,
         )?;
-        // 同线程 DestroyWindow 同步完成；失败且目标仍存活时回滚热键，不发布回收候选。
+        // Same-thread DestroyWindow completes synchronously; on failure with the target still alive, roll back hotkeys and do not publish the recycle candidate.
         let closed = close(target.window.0);
         if target.is_alive() {
             let rollback = if transferred {
@@ -118,7 +118,7 @@ impl Application {
                 format!("Recycle window close failed: {closed:?}; hotkey rollback: {rollback:?}"),
             ));
         }
-        // 目标已销毁：不再执行可失败的准备。即使系统返回错误也必须保留其冻结记录。
+        // The target is destroyed: perform no more fallible preparation. Preserve its frozen record even if the system reports an error.
         if target.state.live_pin.get() {
             if let Some(session) = self.live_sessions.iter_mut().find(|s| s.unit_id() == &unit) {
                 session.stop();
@@ -133,7 +133,7 @@ impl Application {
             self.retired_edits.take_from(&old.state);
             drop(old);
             self.workspace = next_workspace.unwrap();
-            // 最后宿主是原位 owner 替换，collect_closed 无法据数量变化发现旧代际条目。
+            // The final host replaces its owner in place, so collect_closed cannot detect old-generation entries from a count change.
             self.executions
                 .retain_units(|id| self.workspace.contains(id));
             self.execution_jobs

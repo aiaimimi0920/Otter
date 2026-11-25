@@ -1,4 +1,4 @@
-//! 有界后台 Art 任务；更新合并为单槽，完成结果持有待释放租约，不访问窗口。
+//! Bounded background Art tasks; updates coalesce into one slot, completed results retain pending-release leases, and no window access.
 use super::{
     loom_execution_session::{Failure, Final, Session, Update},
     loom_input_job::PreparedBatch,
@@ -23,7 +23,7 @@ impl Drop for Permit {
     }
 }
 pub struct Execution {
-    /// 本地可信安装与冻结参数；不来自 execute JSON，也不更换远端身份/清理 owner。
+    /// Local trusted installation/frozen parameters; not execute JSON and no replacement of remote identity/cleanup ownership.
     pub shader: Option<super::shader_prepare::Runtime>,
     pub identity: Identity,
     pub unit: UnitId,
@@ -33,7 +33,7 @@ pub struct Execution {
     pub timeout: Duration,
 }
 pub struct Completion {
-    // 可选的大上下文不膨胀每个共享任务的 Completion 枚举；配方数据仍通过 Arc 共享。
+    // Optional large contexts do not inflate every shared task's Completion enum; recipe data remains Arc-shared.
     pub(super) shader_recipe: Option<Box<super::shader_recipe_cache::Acquired>>,
     pub identity: Identity,
     pub unit: UnitId,
@@ -75,11 +75,11 @@ impl Job {
     pub fn is_busy(&self) -> bool {
         self.running.is_some()
     }
-    /// 注册、输入新鲜度检查及旧请求取消由应用 owner 在调用前处理；失败不能遗留活动请求。
+    /// Application owners handle registration, input freshness, and old-request cancellation before calling; failure must leave no active request.
     pub fn start(&mut self, execution: Execution) -> Result<(), Error> {
         self.start_with_notify(execution, Arc::new(|| {}))
     }
-    /// 通知只唤醒 owner，不得访问窗口模型、阻塞或 panic；更新在释放邮箱锁后通知。
+    /// Notifications only wake owners and must not access window models, block, or panic; notify updates after releasing mailbox locks.
     pub fn start_with_notify(
         &mut self,
         mut execution: Execution,
@@ -119,7 +119,7 @@ impl Job {
                 let _completion = CompletionSignal::new(completed, notify.clone());
                 let _permit = permit;
                 let inputs = execution.inputs;
-                // 提前取消也要在完成信号前释放可信 bundle 和其它捕获资源。
+                // Early cancellation must also release trusted bundles/other captured resources before completion signaling.
                 let runtime = runtime;
                 let session = Session {
                     identity: &execution.identity,
@@ -157,7 +157,7 @@ impl Job {
                     .lock()
                     .unwrap_or_else(|error| error.into_inner())
                     .interrupt = None;
-                // 成功完成/明确远端失败不重复取消；本地异常只在曾连接时发送，避免凭空取消。
+                // Successful completion/explicit remote failure must not recancel; send local exceptions only if previously connected, never inventing cancellation.
                 let remote_cancel = if connected
                     && result.is_err()
                     && !matches!(&result, Err(Failure::Remote(_)))
@@ -170,7 +170,7 @@ impl Job {
                 } else {
                     None
                 };
-                // 已成功终态后，本地失败/取消不再取消远端已完成取码；失败租约仍走原补偿。
+                // After successful terminal state, local failure/cancellation must not cancel completed remote-code retrieval; failed leases still use original compensation.
                 let mut shader_recipe = None;
                 if let (Ok(final_result), Some(runtime)) = (&mut result, runtime) {
                     match super::shader_fetch_render::render(
@@ -218,7 +218,7 @@ impl Job {
             mailbox.preview = None;
         }
     }
-    /// 只有已释放远端租约的预览会进入单槽，覆盖旧预览仅回收本地像素。
+    /// Only previews with remote leases released enter the single slot; replacing old previews reclaims local pixels only.
     pub fn take_updates(&self) -> (Option<f64>, Option<Update>) {
         let Some(mailbox) = self
             .running
@@ -244,7 +244,7 @@ impl Job {
             .as_ref()
             .and_then(|running| super::loom_execution_signal::reap_deadline(&running.ready))
     }
-    /// 完成通知不等于线程退出；UI 不等待通知尾段，交给 owner 的截止时间继续回收。
+    /// Completion notification is not thread exit; UI never waits for notification tails, leaving continued reclamation to owner deadlines.
     pub fn poll(&mut self) -> Option<Result<Completion, Error>> {
         if !self
             .running
@@ -261,7 +261,7 @@ impl Job {
             &self.running.as_ref().unwrap().worker,
         );
     }
-    /// 应用关闭/替换任务必须显式调用并处理返回的 PendingRelease，不能仅丢弃 Job。
+    /// Application closure/task replacement must call explicitly and handle returned PendingRelease, not merely drop Job.
     pub fn shutdown(&mut self) -> Option<Result<Completion, Error>> {
         self.running.as_ref()?;
         self.cancel();
@@ -281,7 +281,7 @@ impl Job {
 }
 impl Drop for Job {
     fn drop(&mut self) {
-        // 安全网不泄漏线程；正常应用路径必须 shutdown 并把失败租约移交重试 owner。
+        // The safety net prevents thread leaks; normal application paths must shutdown and transfer failed leases to retry owners.
         if let Some(Ok(completion)) = self.shutdown() {
             if completion.cleanup_pending() {
                 eprintln!("otter-native: execution dropped with unresolved remote cleanup");

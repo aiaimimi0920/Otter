@@ -1,4 +1,4 @@
-//! BGRA→BT709 limited NV12；直接写本次MF buffer，无第二份全帧Vec，按行检查取消。
+//! BGRA -> BT709 limited NV12 directly into this MF buffer, without another full-frame Vec, checking cancellation per row.
 use super::*;
 pub(super) fn input(
     bgra: &[u8],
@@ -64,7 +64,7 @@ fn convert(
             let p01 = &row0[x * 4 + 4..x * 4 + 8];
             let p10 = &row1[x * 4..x * 4 + 4];
             let p11 = &row1[x * 4 + 4..x * 4 + 8];
-            // H264无alpha；不把透明像素静默变黑/不透明，调用者会退休codec并发原raw。
+            // H264 has no alpha; never silently turn transparency black/opaque. Callers retire codecs and send original raw instead.
             if (p00[3] & p01[3] & p10[3] & p11[3]) != 255 {
                 return Err(invalid("H264 cannot preserve input alpha"));
             }

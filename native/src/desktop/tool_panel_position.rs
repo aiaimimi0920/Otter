@@ -1,4 +1,4 @@
-//! 面板定位使用物理像素与显示器工作区；不假设主屏原点为零，也不轮询窗口位置。
+//! Panel positioning uses physical pixels/monitor work areas; neither assume a zero primary-monitor origin nor poll positions.
 use windows::{
     core::{Error, Result},
     Win32::{Foundation::*, Graphics::Gdi::*, UI::WindowsAndMessaging::*},
@@ -11,7 +11,7 @@ fn clamp(candidate: RECT, work: RECT) -> RECT {
     let height = (candidate.bottom as i64 - candidate.top as i64)
         .max(1)
         .min((work.bottom as i64 - work.top as i64).max(1));
-    // 客户区不足时由滚动条提供剩余内容，窗口本身不超出工作区。
+    // When client space is insufficient, scrollbars expose remaining content while the window stays within the work area.
     let left = (candidate.left as i64).clamp(
         work.left as i64,
         (work.right as i64 - width).max(work.left as i64),

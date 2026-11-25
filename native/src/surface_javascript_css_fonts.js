@@ -1,4 +1,4 @@
-// 字体声明唯一准入/展开 owner；不查询字体或布局，native Engine 仍负责实际度量。
+// Sole owner of font declaration admission/expansion; performs no font or layout queries, leaving actual measurement to the native Engine.
 ((dom, fail) => {
   "use strict";
   const op = dom.ops, names = "font-weight font-size line-height font-family";
@@ -44,7 +44,7 @@
       op.push(items, {name, value: name === "font-weight" ? weight(value) : name === "font-size" ? scalar(value, 8192, true) : line(value)});
       return items;
     }
-    // 只接收有真实 consumer 的 normal 样式；先完成四个 longhand 再让 declarations 提交。
+    // Accept only normal styles with real consumers; complete all four longhands before allowing declarations to commit.
     const match = op.exec(/^(?:(normal|bold|\d+)\s+)?((?:\d+(?:\.\d*)?|\.\d+)px)(?:\s*\/\s*(normal|(?:\d+(?:\.\d*)?|\.\d+)(?:px)?))?\s+(.+)$/i, op.trim(source));
     if (!match) fail();
     const parts = [weight(op.lower(match[1] ?? "normal")), scalar(op.lower(match[2]), 8192, true), line(op.lower(match[3] ?? "normal")), family(match[4])];
@@ -56,12 +56,12 @@
     const value = css["line-height"];
     if (value === undefined || value === "normal") return value;
     if (op.index(value, "px") >= 0) {
-      // 保留旧 native 非重叠行高合同；已计算 px 在后代仍是同一个绝对值。
+      // Preserve the existing native non-overlapping line-height contract; computed px remains the same absolute value in descendants.
       if (!css["font-size"] || op.float(value) < op.float(css["font-size"])) fail();
       return value;
     }
-    // CSS unitless 继承数字而非父像素；每个投影节点交原 em resolver 按本节点字号求值。
-    // 无显式字号时使用原 native 初始字体，1000 倍仍在原 32768 高度门以内。
+    // CSS unitless values inherit a number, not parent pixels; each projected node uses the original em resolver with its own font size.
+    // Without an explicit font size, use the original native initial font; even 1000 times that size remains within the original 32768 height limit.
     if (css["font-size"] && op.fround(op.fround(op.float(value)) * op.fround(op.float(css["font-size"]))) > 32768) fail();
     return value + "em";
   };

@@ -1,4 +1,4 @@
-//! 实际Application→签名child读取上游PNG；预期像素手工构造，不用资源适配器生成oracle。
+//! Actual Application -> signed child reading upstream PNG; construct expected pixels manually rather than using the resource adapter as the oracle.
 use super::*;
 use base64::{engine::general_purpose::STANDARD, Engine};
 #[path = "application_local_art_canvas_tests.rs"]
@@ -316,7 +316,7 @@ fn image_larger_than_inline_gate_draws_at_native_resolution_without_changing_sou
             .unwrap();
         assert_eq!((result.image.width, result.image.height), (512, 512));
         assert_eq!(result.image.pixels.as_ref(), original.as_ref());
-        // 高熵PNG确实大于JSON资源门；不是压缩极小的纯色图冒充大图传输。
+        // The high-entropy PNG genuinely exceeds the JSON resource limit; a tiny compressed solid-color image must not stand in for large-image transfer.
         assert!(
             result
                 .image

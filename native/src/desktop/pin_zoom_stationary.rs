@@ -1,4 +1,4 @@
-//! 停手保留同一完整呈现帧；空闲不切换可见图层，不阻塞工作区快照。
+//! Retain the same complete presented frame after input stops; idle does not switch visible layers or block workspace snapshots.
 use super::{PinRect, State};
 use windows::{
     core::Result,

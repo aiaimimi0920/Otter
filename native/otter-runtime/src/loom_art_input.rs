@@ -1,4 +1,4 @@
-//! 描述符必须与候选图片端口一一对应；编码器不持有共享内存，调用方须维持资源 owner。
+//! Descriptors must correspond one-to-one with candidate image ports; the encoder holds no shared memory, so callers must retain resource owners.
 use super::*;
 pub enum Input<'a> {
     InlinePng {
@@ -24,7 +24,7 @@ impl Input<'_> {
     fn write_validated(&self, json: &mut Json) -> Result<(), Error> {
         match self {
             Self::InlinePng { base64, .. } => {
-                // 只能从已验证的借用进入；标准 Base64 不含需要 JSON 转义的字符。
+                // Enter only through validated borrows; standard Base64 contains no characters requiring JSON escaping.
                 json.raw("{\"kind\":\"inline_resource\",\"mime\":\"image/png\",\"dataBase64\":\"")?;
                 json.raw(base64)?;
                 json.raw("\"")?;

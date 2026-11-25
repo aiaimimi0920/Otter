@@ -1,4 +1,4 @@
-//! 实际目录 schema 的菜单可见性、权限、同 scope 归属与两种 payload 包装。
+//! Menu visibility, permissions, same-scope ownership, and both payload wrappers from the actual catalog schema.
 use super::*;
 use serde_json::json;
 pub fn fixture() -> Value {

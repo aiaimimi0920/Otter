@@ -1,4 +1,4 @@
-//! 四边声明从真实 child 进入隐藏 HWND 的像素、文字原点与命中；不注入桌面输入。
+//! Four-sided declarations from actual children reach hidden-HWND pixels, text origins, and hits; no desktop-input injection.
 use super::*;
 #[test]
 fn javascript_padding_real_hwnd_pixels_text_hits_and_same_child_update() {
@@ -40,7 +40,7 @@ fn javascript_padding_real_hwnd_pixels_text_hits_and_same_child_update() {
     check(false);
     let before = css_tests::pixels(&window);
     assert_eq!(css_tests::pixel(&before, 1, 1), [255, 0, 0, 255]);
-    // 避开原按钮默认圆角，分别采样 padding 区与按钮直边；不以角外点冒充命中。
+    // Avoid original default rounded corners; sample padding and straight button edges separately, never treating outside-corner points as hits.
     assert_eq!(css_tests::pixel(&before, 14, 13), [16, 16, 16, 255]);
     assert_eq!(css_tests::pixel(&before, 16, 13), [0, 255, 0, 255]);
     assert_eq!(css_tests::pixel(&before, 52, 6), [255, 255, 0, 255]);

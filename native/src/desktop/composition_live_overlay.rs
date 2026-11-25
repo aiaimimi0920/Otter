@@ -1,4 +1,4 @@
-//! 已提交标注在 Live 原始帧上绘制；只缓存目标私有资源，不修改采集纹理。
+//! Draw committed annotations over original Live frames; cache only target-private resources without modifying capture textures.
 use super::*;
 use crate::{
     editor::Editor,

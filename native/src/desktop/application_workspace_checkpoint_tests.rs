@@ -1,4 +1,4 @@
-//! 完整 Application 检查点/重开/文件隔离；真实隐藏 HWND，不发全局输入。
+//! Complete Application checkpoint/reopen/file isolation; real hidden HWNDs, with no global input.
 use super::*;
 #[path = "application_account_joint_tests.rs"]
 mod account_joint;
@@ -45,7 +45,7 @@ unsafe fn run(test: impl FnOnce(HINSTANCE)) {
     test(instance);
 }
 unsafe fn drain_messages() -> bool {
-    // WM_QUIT 为低优先级生成消息；沿原 smoke 方式有界排空，不能只过滤退出消息。
+    // WM_QUIT is a low-priority generated message; drain boundedly as original smoke tests do, not by filtering only exit messages.
     let mut quit = false;
     let mut message = MSG::default();
     for _ in 0..1024 {
@@ -326,7 +326,7 @@ fn deleting_last_unit_commits_empty_but_application_exit_preserves_workspace() {
                 } else {
                     SendMessageW(app.documents[0].window.0, WM_CLOSE, None, None);
                 }
-                // 真实最后窗口消息已排队；复用 run_loop 在 WM_QUIT 之后调用的同一收尾入口。
+                // The real final-window message is queued; reuse the same finalization entry point that run_loop calls after WM_QUIT.
                 assert!(drain_messages());
                 app.finish_deleted_workspace().unwrap();
                 let after = std::fs::read(directory.path()).unwrap();

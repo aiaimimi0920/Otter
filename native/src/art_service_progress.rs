@@ -1,4 +1,4 @@
-//! 宿主专属最新进度槽：只保留状态/百分比，不传远端任意文本，不是正式结果队列。
+//! Host-only latest-progress slot: keep only status/percentage, never arbitrary remote text; not a final-result queue.
 use super::{Reply, Status};
 use std::sync::{Arc, Mutex};
 
@@ -53,7 +53,7 @@ impl Channel {
         state.last = Some(value);
         state.pending = Some(value);
         drop(state);
-        // 同一未领取槽只投递一次Wake，持续poll不能无界堆积UI消息。
+        // Post only one Wake per unclaimed slot; continuous polling cannot accumulate unbounded UI messages.
         if wake {
             let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| (self.notify)()));
         }

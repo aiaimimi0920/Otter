@@ -1,4 +1,4 @@
-//! 行内 owner 的完整 widget/IME/清理合同，不保留旧单字段临时窗 API。
+//! The inline owner's complete widget/IME/cleanup contract; no legacy temporary single-field window API is retained.
 use super::*;
 
 unsafe fn binding(panel: &Panel, key: &str) -> controls::Binding {

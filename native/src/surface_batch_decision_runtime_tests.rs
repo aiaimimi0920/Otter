@@ -1,4 +1,4 @@
-//! 批次决定只操作选中项；其他事件与未提交后缀在取消/撤权后仍完整保留。
+//! Batch decisions affect only the selected item; other events and the unsubmitted suffix remain intact after cancellation/revocation.
 use super::*;
 #[path = "surface_batch_continuation_runtime_tests.rs"]
 mod continuation;

@@ -1,4 +1,4 @@
-//! 局部轴缩放只在提交时复制目标标注，原几何留在有界历史中精确恢复。
+//! Local-axis scaling copies target annotations only at commit; bounded history retains original geometry for exact restoration.
 use super::*;
 
 impl Editor {
@@ -16,7 +16,7 @@ impl Editor {
         self.resize_with_layout(index, factors, None)
     }
 
-    /// 宿主按目标字号测量后提交；排版与几何必须在同一个历史事务中生效。
+    /// Hosts measure at target font size before commit; layout/geometry take effect in one history transaction.
     pub fn resize_text_axes(
         &mut self,
         index: usize,
@@ -195,7 +195,7 @@ mod tests {
             .insert_serial(Point { x: 0.0, y: 0.0 }, 999.0, "微软雅黑")
             .unwrap();
         let before = editor.elements()[0].clone();
-        // 变换不受普通UI创建上限1149限制，但仍受恢复域1_000_000硬上限约束。
+        // Transforms bypass the ordinary UI creation limit of 1149 but still obey the restoration domain's hard 1_000_000 limit.
         assert!(editor.resize(0, 1.01).unwrap());
         assert!((editor.elements()[0].text.as_ref().unwrap().font_size() - 1160.49).abs() < 0.001);
         assert!(editor.undo());
@@ -206,7 +206,7 @@ mod tests {
         assert_eq!(editor.elements()[0].style(), before.style());
         assert_eq!(editor.revision(), revision);
         assert_eq!(editor.serial_count, 1);
-        // 当前标注和刚撤销的缩放redo各持2点；拒绝不能提前释放仍在历史中的owner。
+        // Current annotations and just-undone resize redo each retain 2 points; rejection must not prematurely release historical owners.
         assert_eq!(editor.retained_points, 4);
         assert!(editor.undo());
         assert!(editor.elements().is_empty());
@@ -257,7 +257,7 @@ mod tests {
     }
     fn document() -> Editor {
         let mut editor = Editor::default();
-        // 几何缩放测试显式选用非零圆角，不依赖产品默认样式。
+        // Geometry-scaling tests explicitly choose nonzero rounded corners, without relying on product default styles.
         editor.set_style(
             editor
                 .style()

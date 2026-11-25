@@ -1,4 +1,4 @@
-//! 有界 PNG 流编码；只保留一个 48 KiB 输入块和最终带预算的 Data URL。
+//! Bounded streaming PNG encoding; retain only one 48 KiB input block and the final budgeted Data URL.
 use super::*;
 use std::io::Read;
 pub fn encode_png_reader(
@@ -32,7 +32,7 @@ pub fn encode_png_reader(
     text.push_str(PREFIX);
     let mut input = std::io::Cursor::new(signature).chain(reader);
     let mut remaining = length;
-    let mut buffer = [0u8; 48 * 1024]; // 非末块长度为 3 的倍数，不能在中途写入 Base64 padding。
+    let mut buffer = [0u8; 48 * 1024]; // Nonfinal chunks are multiples of 3; never write Base64 padding in the middle.
     while remaining != 0 {
         check(cancel)?;
         let count = remaining.min(buffer.len());

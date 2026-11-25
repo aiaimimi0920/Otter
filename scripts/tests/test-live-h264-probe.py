@@ -1,4 +1,4 @@
-"""C1 独立解码验证器的预算和像素判定合同，不调用硬件或 FFmpeg。"""
+"""Budget and pixel-decision contracts for the C1 independent-decoding verifier, without hardware or FFmpeg calls."""
 import importlib.util
 from pathlib import Path
 import tempfile

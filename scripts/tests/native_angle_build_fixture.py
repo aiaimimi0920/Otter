@@ -1,4 +1,4 @@
-"""构建合同只使用显式外部合成 stage/PE 数据；合成编译工具绝不执行。"""
+"""Build contracts use only explicit external synthetic stage/PE data; synthetic compilers never execute."""
 
 import json
 import struct

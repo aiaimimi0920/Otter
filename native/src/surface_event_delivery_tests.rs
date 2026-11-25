@@ -1,4 +1,4 @@
-//! 本地 HWND 交付回归；不访问远端、不启用点击入口。
+//! Local HWND delivery regressions; no remote access or click-entry activation.
 use super::*;
 #[path = "surface_batch_delivery_tests.rs"]
 mod batch_delivery;
@@ -252,7 +252,7 @@ fn collection_returns_unmatched_result_and_preserves_convergence_failure_receipt
     let mut windows = crate::desktop::surface_windows::Windows::default();
     let returned = windows.accept_event(outcome, 0).err().unwrap();
     assert!(returned.event.attempted());
-    // 同附件但没有待完成事件的窗口不能抢走另一个窗口的 owner。
+    // A window on the same attachment without a pending event cannot take another window's owner.
     assert!(windows.insert(active_window(&mut grant)).is_ok());
     assert!(windows.insert(window).is_ok());
     let receipt = windows
@@ -360,7 +360,7 @@ fn confirmation_receipt_requires_fresh_window_authorization_and_expiry_check() {
         .begin_decision(&input.event, &input.ack, &input.decision, 0)
         .unwrap()
         .is_none());
-    // 模拟提交前取消的统一结果返还，证明原事件、ACK、决定和 owner 能结算回来。
+    // Simulate unified result return after pre-submission cancellation to prove the original event, ACK, decision, and owner can all settle back.
     let returned = crate::surface_decision_runtime::Outcome {
         input,
         submission: Err(crate::surface_decision_runtime::Error::Stopped),

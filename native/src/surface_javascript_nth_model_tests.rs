@@ -1,4 +1,4 @@
-//! 生产 QuickJS 的 An+B 与 Rust 整数 oracle；不以模型代替真实 child/像素/预算。
+//! Production QuickJS An+B against Rust integer oracles; models do not replace real-child/pixel/budget verification.
 use super::document_model_tests::collect;
 #[test]
 fn javascript_nth_child_model_formulas_match_integer_oracle_and_ignore_text() {

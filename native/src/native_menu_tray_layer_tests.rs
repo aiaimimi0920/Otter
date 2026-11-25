@@ -1,4 +1,4 @@
-//! 自有置顶遮挡窗证明托盘菜单层级；不操作 Explorer 或用户前台。
+//! Owned topmost occlusion windows prove tray-menu z-order; no Explorer/user-foreground operations.
 use super::*;
 
 fn topmost(hwnd: HWND) -> bool {
@@ -25,7 +25,7 @@ fn blocker() -> Owner {
                 WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
                 w!("STATIC"),
                 w!("synthetic tray overflow"),
-                // STATIC 默认命中穿透；对照窗必须像真实托盘浮层一样接收命中。
+                // STATIC defaults to hit-test transparency; control windows must receive hits like real tray overlays.
                 WS_POPUP | WINDOW_STYLE(windows::Win32::System::SystemServices::SS_NOTIFY.0),
                 bounds.left,
                 bounds.top,
@@ -66,7 +66,7 @@ fn tray_pages_cover_topmost_blocker_without_promoting_hidden_owner() {
     let owner = Owner::new();
     let cover = blocker();
     let point = POINT { x: 30, y: 30 };
-    // 原普通层级确实被对照浮层遮挡，避免只断言样式而未验证命中。
+    // The control overlay must actually occlude the original normal z-order, avoiding style-only assertions without hit verification.
     let mut ordinary = Cascade::open(owner.0, tree(), point).unwrap();
     assert!(!topmost(ordinary.pages[0].panel.handle().unwrap()));
     assert_eq!(hit(&ordinary.pages[0]), cover.0);
@@ -134,7 +134,7 @@ fn tray_layer_queue_selects_and_reclaims_root() {
                 root = hwnd;
                 assert!(topmost(hwnd));
                 assert_hidden_owner(owner.0);
-                // 私有桌面不抢前台；只替换激活准入，后续捕获/消息泵均为产品路径。
+                // Private desktops avoid foreground takeover; replace only activation admission, retaining product capture/message pumps.
                 Ok(foreground)
             },
             |hwnd| unsafe {

@@ -1,4 +1,4 @@
-//! 工具面板与效果按钮的隐藏 HWND 冒烟自检；仅在 Debug 或显式 smoke-test 下编译。
+//! Hidden-HWND smoke checks for tool panels/effect buttons; compiled only in Debug or explicit smoke-test.
 use super::{entries, prepare, refresh, scroll, verify_captions, EXECUTE};
 use crate::desktop::State;
 use windows::{
@@ -130,7 +130,7 @@ unsafe fn effect_controls_smoke(owner: HWND, state: &State) -> Result<()> {
     let has_image = state.canvas.borrow().image.is_some();
     let result = (|| {
         for tool in [Tool::Blur, Tool::Mosaic, Tool::Select] {
-            // 仅检查实际 HWND 可用性刷新，不点击会打开模态输入的按钮，也不启动模糊任务。
+            // Check actual HWND availability refresh only; do not click modal-input buttons or start blur tasks.
             state.canvas.borrow_mut().tool = tool;
             SendMessageW(owner, WM_NULL, None, None);
             for (command, enabled) in [

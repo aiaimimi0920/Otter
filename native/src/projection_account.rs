@@ -1,4 +1,4 @@
-//! 原生账号投射的本机 Loom 接口；不实现中心协调/Iroh，也不将网络成功当作保存或呈现。
+//! Local Loom interface for native account projection; no central coordination/Iroh implementation, and network success is not saving/presentation.
 use crate::{device_request_cancel::Cancel, device_session_attempt::Session};
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::AtomicBool;
@@ -35,7 +35,7 @@ pub enum Error {
     Http,
     Remote { status: u16, code: Option<String> },
 }
-/// 不含账号凭据；account deviceId 与本机 Otter Device actor 是两种身份。
+/// No account credentials; account deviceId and local Otter Device actor are distinct identities.
 #[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Context {
@@ -73,7 +73,7 @@ impl Context {
         Ok(value)
     }
 }
-/// 编码图、压缩图和 WIC 解码共用现有 PNG/共享像素预算，不引入第二份 codec。
+/// Encoded/compressed images and WIC decoding share existing PNG/shared-pixel budgets without another codec implementation.
 pub struct Image(crate::projection_delivery::sender::snapshot::Snapshot);
 impl Image {
     pub fn from_png(
@@ -112,7 +112,7 @@ fn image_error(error: crate::projection_delivery::sender::Error) -> Error {
         _ => Error::Image,
     }
 }
-/// 一条原租约的串行链；中心 origin 只用于响应身份校验，绝不构造中心 HTTP 请求。
+/// One serial original-lease chain; central origin only validates response identity, never constructs central HTTP requests.
 pub struct Account<'a> {
     endpoint: http::Endpoint,
     session: &'a Session,
@@ -183,7 +183,7 @@ impl<'a> Account<'a> {
             return Err(Error::Credential);
         }
         operation.validate(&self.context)?;
-        // 原始请求/响应各占原共享预算；反序列化借用 PNG 字符串，不拷贝完整 JSON。
+        // Original request/response each consume original shared budgets; deserialize borrowed PNG strings without copying whole JSON.
         let mut budget =
             crate::pixels::reserve(MAX_WIRE.next_power_of_two()).ok_or(Error::Budget)?;
         let body = operation.body()?;

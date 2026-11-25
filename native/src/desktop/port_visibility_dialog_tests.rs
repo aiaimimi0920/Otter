@@ -1,4 +1,4 @@
-//! 标准LISTBOX/COMBOBOX首显前真实通知；无全局输入、无用户窗口。
+//! Real standard LISTBOX/COMBOBOX notifications before first display; no global input or user windows.
 use super::*;
 use crate::workspace::ports::Visibility;
 use std::any::Any;

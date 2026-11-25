@@ -1,4 +1,4 @@
-//! 真实隔离HTTPS的独立wire oracle：actor双序号、绑定、nonce及响应错配不容忍。
+//! Independent wire oracle over real isolated HTTPS: dual actor sequences/bindings/nonces and strict response-mismatch rejection.
 use super::*;
 use crate::{
     live_input::Event,

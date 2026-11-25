@@ -1,4 +1,4 @@
-// 每个模式独立 operation：整体style/sheet转换，以及主动变更后的抛错/解析拒绝。
+// Each mode is an independent operation: whole-style/sheet conversion, plus throws/parser rejection after explicit mutations.
 NeuroSurface.define({ mount({ root, snapshot }) {
   const mode = snapshot.state.quote, sheetMode = mode % 2 === 1;
   const failure = Math.floor(mode / 2), sentinel = {};

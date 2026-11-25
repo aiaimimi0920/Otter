@@ -123,7 +123,7 @@ impl Request {
         (&self.source.unit, self.source.frame)
     }
     pub fn cascade_in_source(&self, frame: PinRect) -> PinRect {
-        // 固定 A 的身份不随副本更换；只有成功提交才推进次数，鼠标在 A 内移动不重置。
+        // Keep A's identity fixed across copies; advance the count only on successful commits, without resetting for pointer movement inside A.
         let offset = (i128::from(self.revision) + 1) * i128::from(self.origin.step);
         self.position(i128::from(frame.x) + offset, i128::from(frame.y) + offset)
     }
@@ -141,7 +141,7 @@ impl Request {
             && y <= i64::from(frame.y) + i64::from(frame.height)
     }
     pub fn frame(&self, current: Option<PinRect>) -> PinRect {
-        // 静止鼠标的连续粘贴沿成功落点推进，不能因新图移出鼠标而退回相对定位。
+        // Repeated pastes with a stationary pointer advance from successful placements; moving a new image away from the pointer must not revert to relative positioning.
         let anchor = if self.continuing {
             self.origin.frame
         } else {

@@ -1,4 +1,4 @@
-//! 双击缩略只改变宿主与呈现，文档/历史保持不变；原图像素共享，不烘焙标注。
+//! Double-click minimization changes only the host and presentation, preserving document/history; source pixels are shared and annotations are not baked.
 use super::*;
 use crate::{
     crop_geometry::Size,
@@ -148,7 +148,7 @@ pub(super) unsafe fn prepare(hwnd: HWND, state: &State) -> Result<()> {
 }
 
 pub(super) unsafe fn present(hwnd: HWND, state: &State, target: PinRect) -> Result<()> {
-    // 模型已切到目标形态；先提交目标图框整帧，再改变被遮罩宿主的几何。
+    // The model has switched to the target form; commit the complete target image/border frame before changing masked-host geometry.
     super::fit_size(hwnd, state, (target.width as i32, target.height as i32));
     super::preview::begin(hwnd, state, target)?;
     if !super::presentation::apply(hwnd, state, target) {

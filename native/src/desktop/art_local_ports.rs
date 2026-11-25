@@ -1,4 +1,4 @@
-//! 签名端口接纳事务：同一宿主/请求复核后更新提示和旧默认边，再捕获新配置/输入凭证。
+//! Signed-port admission transaction: recheck the same host/request, update hints and old default edges, then capture new configuration/input evidence.
 use super::*;
 use crate::{art_execution_grant::package::ports::Record, live_relay_http::art_prepare::Prepared};
 use std::sync::Arc;
@@ -13,7 +13,7 @@ pub(super) fn accept(
         .find(|d| d.state.unit_id == entry.unit)
         .ok_or("Art 目标已关闭")?;
     let Some(config) = document.state.local_art_id.as_ref() else {
-        // 旧直接 API 测试可在普通文档上启动默认端口；新证明不能把普通文档暗转 Local。
+        // Legacy direct-API tests may start default ports on ordinary documents; new evidence must not silently convert ordinary documents to Local.
         return if prepared.ports.is_none() {
             Ok(())
         } else {
@@ -53,7 +53,7 @@ pub(super) fn accept(
     )?;
     let inputs = dependencies::Stamp::capture(&next, &entry.unit)?;
     drop(previous);
-    // 后续只有内存发布；没有Win32、网络、脚本回调或其他可重入点。
+    // Only in-memory publication follows: no Win32, network, script callbacks, or other reentrancy points.
     *workspace = next;
     *config.ports.borrow_mut() = Some(Arc::new(record));
     config.pending_input.borrow_mut().take();

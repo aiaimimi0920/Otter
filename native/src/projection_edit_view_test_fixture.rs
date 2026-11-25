@@ -1,4 +1,4 @@
-//! projectionEditProtocol既有120x100 fixture的独立常量；不调用映射器生成预期。
+//! Independent constants for projectionEditProtocol's existing 120x100 fixture; no mapper-generated expectations.
 use super::*;
 use crate::projection_edit::fixture::{DIGEST, SESSION};
 use serde_json::json;

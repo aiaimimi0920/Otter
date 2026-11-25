@@ -1,4 +1,4 @@
-//! 真实 nullable snapshot 合同、关联与单调性反例，不把 HTTP 200 当作新帧。
+//! Actual nullable-snapshot contracts and association/monotonicity counterexamples; HTTP 200 is not a new frame.
 use super::*;
 use crate::projection_delivery::{
     accept::tests as png,

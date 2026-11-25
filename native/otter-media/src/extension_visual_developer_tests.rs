@@ -1,4 +1,4 @@
-//! 主干开发模式的显示/执行分界；正向场景不能替代 trusted 命令和附件写入授权。
+//! Mainline developer-mode display/execution separation; positive scenes do not replace trusted-command/attachment-write authorization.
 use super::*;
 use crate::{
     extension_when::{Context, UnitKind},
@@ -79,7 +79,7 @@ fn developer_renderer_and_overlay_keep_declared_actions_without_authorizing_exec
     assert!(projected
         .iter()
         .all(|v| v.command.as_deref() == Some(command)));
-    // 声明存在是显示前置条件，不是可执行凭证；未声明时两项均不能冒充有效 descriptor。
+    // Declaration existence is a display prerequisite, not execution credentials; absent declarations prevent either from impersonating valid descriptors.
     data["contributions"]["commands"] = json!([]);
     let projected = project(Some(&parse(&data)), &store, 4);
     assert!(projected

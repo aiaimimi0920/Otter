@@ -1,4 +1,4 @@
-//! 标注框选只保存两个图像坐标与文档身份；松手计算选择，不创建编辑历史。
+//! Annotation marquee selection stores only two image coordinates/document identity; calculate selection on release without edit history.
 use super::canvas::Canvas;
 use crate::{
     editor::{DocumentStamp, Editor},
@@ -77,7 +77,7 @@ impl Canvas {
             return;
         }
         let (low, high) = drag.bounds();
-        // 点击空白只清空选择；完整包含视觉边界才入选，避免掠过边缘误选。
+        // Clicking empty space clears selection only; require complete visual-bound containment to avoid incidental edge selection.
         if (high.x - low.x) * self.viewport.scale < 3.0
             || (high.y - low.y) * self.viewport.scale < 3.0
         {
@@ -182,7 +182,7 @@ mod tests {
         canvas.pointer_up(end);
         assert_eq!(canvas.selected_indices(), [0, 1]);
         assert_eq!(canvas.editor.revision(), revision);
-        // Shift 点击仍切换命中对象，不启动框选。
+        // Shift-click still toggles hit objects without starting marquees.
         canvas.toggle_selection_at(Point { x: 20.0, y: 30.0 });
         assert_eq!(canvas.selected_indices(), [1]);
         assert!(canvas.marquee.is_none());

@@ -1,4 +1,4 @@
-//! 实际 Loom WebSocket 协议，区别于内部 action/payload；资源 owner/传输不属于编码器。
+//! Actual Loom WebSocket protocol, distinct from internal action/payload; resource ownership/transport are outside the encoder.
 use crate::{
     graph_execution_wire::{json::Json, Error},
     graph_image::{Output, Prepared},
@@ -36,7 +36,7 @@ pub fn cancel(unit: &UnitId, request: &Request) -> Result<String, Error> {
     json.raw("}}")?;
     Ok(json.0)
 }
-/// 资源准备及新鲜度检查完成后串行调用；返回的是待发送消息，不代表服务已接受执行。
+/// Call serially after resource preparation and freshness checks; returned messages await sending and do not mean the service accepted execution.
 pub fn stage(
     registry: &mut Requests,
     unit: &UnitId,

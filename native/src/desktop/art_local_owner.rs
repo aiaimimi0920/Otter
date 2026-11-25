@@ -1,5 +1,5 @@
-//! Application 的本地 Art 所有权：宿主选择凭证、下载 Registry 和待回收窗口归一个工作区。
-//! reset 只撤销/关窗，不 join；失效记录保留到后台终态，不能用新工作区接纳旧帧。
+//! Application's local Art ownership: host-selection evidence, download Registry, and windows awaiting reclamation belong to one workspace.
+//! reset only cancels/closes windows, never joins; retain invalid records until background terminal state, and never admit old frames into a new workspace.
 use super::composition::live::session::Session as LiveSession;
 use super::{
     art_local_tasks::Tasks, art_local_window::Window, configuration_stamp::Stamp,
@@ -145,7 +145,7 @@ impl Owner {
         authority: &mut Authority,
         config: Config,
     ) -> Result<(), &'static str> {
-        // owner 仅在宿主 UI 线程调用；DocumentWindow/State 在本次借用期间保活。
+        // The owner is called only on the host UI thread; DocumentWindow/State remain alive throughout this borrow.
         if !unsafe { document.is_alive() } || document.state.group_locked.get() {
             return Err("Art 宿主已关闭或锁定");
         }
@@ -177,7 +177,7 @@ impl Owner {
             .tasks
             .start_description(unit.clone(), request, lease, authority, config)
             .map_err(|_| "Art 未启动：请检查设备授权、签发者信任和配置")?;
-        // 新请求已成功换代，旧窗口只能退休，不能再 cancel(unit) 误撤销新请求。
+        // The new request has advanced the generation successfully; old windows may only retire, never cancel(unit) and accidentally revoke the new request.
         for entry in self
             .entries
             .iter_mut()
@@ -246,7 +246,7 @@ impl Owner {
                 }
             }
         }
-        // 当前文案也绑定请求代际；reset/换节点不能留下旧“执行中”。错误文案优先。
+        // Current text is also request-generation-bound; reset/node changes must not leave stale "running" text. Error text takes precedence.
         if self.status_owner.as_ref().is_some_and(|token| {
             !self
                 .entries
@@ -297,7 +297,7 @@ impl Owner {
     pub fn shutdown(&mut self) {
         self.reset();
         self.tasks.shutdown();
-        self.entries.clear(); // 应用退出：原 Lease 已全部撤销，最后 join 兜底不留 child。
+        self.entries.clear(); // Application exit: all original Leases are revoked; the final join ensures no child remains.
     }
 }
 #[path = "art_local_results.rs"]

@@ -1,4 +1,4 @@
-//! 同一参数事务 owner 的两种宿主：完整本地 Art 面板，或端口条内多行 child。
+//! Two hosts for one parameter transaction owner: a complete local Art panel or multiline children in a port strip.
 use super::*;
 
 impl Ui {
@@ -96,7 +96,7 @@ impl Panel {
         )?;
         panel.ui.hwnd.set(hwnd);
         if !inline {
-            // Child继承端口条的顶层保护；DisplayAffinity API不能用于child。
+            // Children inherit the port strip's top-level protection; DisplayAffinity APIs cannot be used on children.
             let enabled = state.capture_protection_requested.get();
             SetWindowDisplayAffinity(
                 hwnd,

@@ -1,4 +1,4 @@
-//! 当前已授权 Loom 的固定 TLS 传输；测试 loopback 共用取消、期限及有界响应合同。
+//! Fixed TLS transport for the currently authorized Loom; loopback tests share cancellation/deadline/bounded-response contracts.
 use super::*;
 use crate::{
     loom_bridge_stream::BridgeStream,
@@ -218,7 +218,7 @@ impl Endpoint {
             Ok(bytes)
         })();
         check(cancel)?;
-        // 401 的撤权事实不能被超大或截断错误体遮蔽；可用的业务 code 仍保留。
+        // Oversized/truncated error bodies cannot obscure 401 revocation; retain available business codes.
         if !(200..300).contains(&status) {
             #[derive(Deserialize)]
             struct Failure<'a> {

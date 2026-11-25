@@ -1,4 +1,4 @@
-//! 标注身份随对象和历史移动；预览/快照保留，用户复制必须生成新身份。
+//! Annotation identity moves with objects/history and survives previews/snapshots; user duplication must generate new identity.
 use super::*;
 use std::sync::Arc;
 
@@ -53,7 +53,7 @@ impl Editor {
         }
         Ok(self)
     }
-    /// 仅允许在未发布的恢复文档安装持久身份；完整校验后一次安装，不按活动索引重绑。
+    /// Install persistent identities only in unpublished restored documents, once after full validation, never rebinding by active indices.
     pub fn with_restored_annotation_ids(mut self, ids: &[String]) -> Result<Self, EditError> {
         if self.revision != 0
             || !self.history.is_empty()

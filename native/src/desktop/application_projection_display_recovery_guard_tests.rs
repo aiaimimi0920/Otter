@@ -1,4 +1,4 @@
-//! 恢复资格与 worker 回收的负向边界；失败保图/保 journal，不越过隐藏/撤权/工作区交换。
+//! Negative boundaries for recovery eligibility and worker reaping; failures preserve image/journal and never bypass hiding/revocation/workspace swaps.
 use super::*;
 
 unsafe fn changed(fixture: &mut Fixture, mode: u8) {
@@ -143,7 +143,7 @@ unsafe fn completed(mode: u8) {
     assert!(crate::live_relay_control_runtime::Slot::acquire().is_err());
     drop(slots);
     changed(&mut fixture, mode);
-    assert!(fixture.app.projection_receive.busy()); // stop/撤权不提前放原任务槽或活动许可。
+    assert!(fixture.app.projection_receive.busy()); // stop/revocation must not release the original task slot or activity permission early.
     settle(&mut fixture);
     assert_eq!(fixture.journal(), journal);
     assert_ne!(

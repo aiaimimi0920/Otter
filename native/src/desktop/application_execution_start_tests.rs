@@ -22,7 +22,7 @@ fn menu_start_prepares_fixed_identity_and_configuration_without_connecting_on_ui
         let mut first = crate::loom_handshake::tests::fixture();
         first["capabilities"]["artDefinitions"][0]["inputs"] =
             serde_json::json!([{"name":"input_image","type":"image","required":true}]);
-        // 手动运行缺图仍发出真实的空 inputs，不伪造输入也不阻止服务端给出结果。
+        // Manual execution with missing images still sends genuinely empty inputs, neither fabricating input nor preventing the server from returning a result.
         let handshake = crate::loom_handshake::response(&serde_json::to_vec(&first).unwrap())
             .unwrap()
             .unwrap();
@@ -291,7 +291,7 @@ fn menu_start_prepares_fixed_identity_and_configuration_without_connecting_on_ui
                 to_port: "image".into(),
             })
             .unwrap();
-        // 关闭中继后必须发送钉图自己的 11/22/33，而不是更上游的 44/55/66。
+        // After disabling relay, send the pin's own 11/22/33, not the further-upstream 44/55/66.
         crate::desktop::context_menu::execute(
             app.documents[1].window.0,
             &app.documents[1].state,
@@ -355,7 +355,7 @@ fn menu_start_prepares_fixed_identity_and_configuration_without_connecting_on_ui
                 .get("amount"),
             Some(Some(&serde_json::json!(2)))
         );
-        // 无关文档的编辑身份改变不能取消此上游子图的执行。
+        // Changing an unrelated document's edit identity must not cancel execution of this upstream subgraph.
         let unrelated = &app.documents[2].state;
         let old = unrelated.canvas.borrow().editor.document_stamp();
         unrelated.canvas.borrow_mut().editor = crate::editor::Editor::default();
@@ -364,7 +364,7 @@ fn menu_start_prepares_fixed_identity_and_configuration_without_connecting_on_ui
             listener.accept().unwrap_err().kind(),
             std::io::ErrorKind::WouldBlock
         );
-        // 图片沿生产发送路径到达服务端，而不只验证本地消息编码。
+        // Images reach the server through the production send path; this verifies more than local message encoding.
         let server = test_peer::serve(listener.try_clone().unwrap(), config.clone(), 2);
         *app.documents[0].state.pending_execution.borrow_mut() = Some(execution);
         app.pending_windows(false).unwrap();
@@ -388,7 +388,7 @@ fn menu_start_prepares_fixed_identity_and_configuration_without_connecting_on_ui
         assert_eq!(*value, serde_json::json!(33));
         drop(results);
         app.verify_direct_propagation();
-        // 同一生产入口对纯本地 shader 能力拒绝后台派发，不以错误执行冒充预览支持。
+        // The same production entry point rejects background dispatch for local-only shader capabilities; erroneous execution must not masquerade as preview support.
         raw["capabilities"]["artDefinitions"][0]["metadata"] =
             serde_json::json!({"capabilities":{"preview":"shader"}});
         let handshake = crate::loom_handshake::response(&serde_json::to_vec(&raw).unwrap())

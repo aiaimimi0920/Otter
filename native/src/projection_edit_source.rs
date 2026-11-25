@@ -1,4 +1,4 @@
-//! 源端不可变basis；PNG沿sender codec/预算，journal持有大资源，canonical只持轻量View。
+//! Immutable source basis; PNGs use sender codec/budgets, journals hold large resources, and canonical holds only lightweight View.
 use super::{
     view::{Size, View},
     Basis, Error, Objects,

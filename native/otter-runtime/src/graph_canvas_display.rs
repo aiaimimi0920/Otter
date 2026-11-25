@@ -1,4 +1,4 @@
-//! 显示来源对齐 canvasDisplayResolution；不与执行输入混用，不修改底图或编辑历史。
+//! Align display sources with canvasDisplayResolution; do not mix them with execution inputs or alter the base image/edit history.
 use super::*;
 impl<'a> Graph<'a> {
     pub fn canvas_image(&self, id: &UnitId) -> Option<&'a str> {
@@ -90,7 +90,7 @@ mod tests {
         nodes[1].source = Some("original");
         nodes[1].accept_upstream = false;
         let links = [link("edge", &ids[0], &ids[1], "input")];
-        // 主干停止中继但没有本地预览时仍允许显示连接图，与执行中继语义不同。
+        // The baseline still displays a connected image when relaying stops but no local preview exists, unlike execution-relay semantics.
         assert_eq!(
             Graph::new(&nodes, &links).unwrap().canvas_image(&ids[1]),
             Some("upstream")

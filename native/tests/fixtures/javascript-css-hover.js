@@ -1,4 +1,4 @@
-// 通用动态样式夹具：仅可信 native hover 改变状态，沿原 DOM/几何 owner 读取。
+// Generic dynamic-style fixture: only trusted native hover changes state, with reads through original DOM/geometry owners.
 let status, left, right, a, b;
 NeuroSurface.define({
   mount({root}) {
@@ -19,12 +19,12 @@ NeuroSurface.define({
     status = root.children[0]; left = root.children[1]; right = root.children[2];
     a = left.children[0]; b = left.children[1];
     a.addEventListener('pointerover', event => {
-      // 合成通知与原生几何分别验证，不把同步 synthetic 分派再嵌套一层布局栈。
+      // Verify synthetic notifications and native geometry separately; do not nest another layout stack around synchronous synthetic dispatch.
       if (!event.isTrusted) { status.textContent = 'synthetic'; return; }
       const box = a.getBoundingClientRect();
       status.textContent = 'enter|' + box.width + '|' + box.height;
     });
-    // 合成事件只能通知 listener，不能伪造宿主的物理 hover 状态。
+    // Synthetic events may notify listeners only, never fabricate the host's physical hover state.
     a.dispatchEvent(new PointerEvent('pointerover', {bubbles:true}));
     if (a.getBoundingClientRect().width !== 20) throw Error('synthetic hover changed CSS');
     let rejected = false;

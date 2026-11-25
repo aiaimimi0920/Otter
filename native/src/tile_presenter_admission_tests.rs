@@ -1,4 +1,4 @@
-//! 服务端布局ACK与UI paint是两个独立事实；旧回执不能跨完整Key或生命周期生效。
+//! Server layout ACKs and UI paints are independent facts; old receipts cannot cross complete Keys or lifecycles.
 use super::*;
 use std::{sync::Arc, time::Instant};
 
@@ -21,7 +21,7 @@ fn paint_capture_and_dropped_heartbeat_do_not_acknowledge_the_service_layout() {
     assert!(!permits(&state, &key));
     let pending = Heartbeat::capture(&mut state, Some(&key), Some(key.revision));
     assert!(!permits(&state, &key));
-    let _ = pending; // HTTP失去回复/未发出时没有成功回执，不能补发本地确认。
+    let _ = pending; // Lost HTTP replies/unsent requests provide no successful receipt; never invent local confirmation afterward.
     assert!(!permits(&state, &key));
     successful(&mut state, &key);
     assert!(permits(&state, &key));
@@ -96,7 +96,7 @@ fn null_heartbeat_retires_ack_before_http_and_new_paint_cannot_restore_it() {
         let (shared, key) = fixture();
         let mut state = shared.lock();
         successful(&mut state, &key);
-        // 普通同布局续期可以保留已有成功确认。
+        // Normal same-layout renewal may retain existing successful confirmation.
         let renewal = Heartbeat::capture(&mut state, Some(&key), Some(key.revision));
         assert!(permits(&state, &key));
         let _ = renewal;

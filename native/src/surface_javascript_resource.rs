@@ -1,4 +1,4 @@
-//! JS 入口只能取自当前快照的 binary/application/javascript 租约；复用既有 TLS/摘要门。
+//! JS entries may come only from the current snapshot's binary/application/javascript lease; reuse existing TLS/digest gates.
 use super::*;
 use crate::{surface_host_capabilities::Runtime, surface_live_binding::Binding};
 pub(crate) struct Entry(ResourceLease);
@@ -66,14 +66,14 @@ impl Entry {
     pub(crate) fn expires_at_ms(&self) -> u64 {
         self.0.expires_at_ms()
     }
-    /// 相同源码可随显式新快照更新资源租约；禁止静默换程序、设备或实例代际。
+    /// The same source may update resource leases with explicit new snapshots; never silently change programs, devices, or instance generations.
     pub(crate) fn current(
         &self,
         mount: &MountedSurface,
         now: u64,
         update: bool,
     ) -> Result<Entry, ResourceError> {
-        // 新租约不能复活早已过期的执行状态；必须重新获取/挂载一份新会话。
+        // New leases cannot revive long-expired execution state; fetch/mount a fresh session instead.
         self.validate(now)?;
         let next = mount.javascript_entry(now)?;
         if !same_attachment(self.binding(), next.binding())

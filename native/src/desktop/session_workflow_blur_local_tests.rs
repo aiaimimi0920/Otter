@@ -1,4 +1,4 @@
-//! 工作流实际 PNG：持久框裁剪、按身份匹配及透明邻域，不以笔迹 bounds 替代。
+//! Actual workflow PNGs: persistent-box clipping, identity matching, and transparent neighborhoods, never substituted by stroke bounds.
 use super::*;
 
 fn candidate(elements: serde_json::Value) -> VectorCandidate {
@@ -38,7 +38,7 @@ fn pixel(image: &crate::desktop::image::Image, x: usize, y: usize) -> &[u8] {
 #[test]
 fn local_blur_uses_persisted_boxes_and_transparent_neighbours_after_z_sort() {
     let _com = crate::desktop::Apartment::new().unwrap();
-    // JSON 顺序与恢复排序相反，同强度但不同框不能共享错误的局部纹理。
+    // JSON order is opposite restoration order; equal intensity with different boxes must not share an incorrect local texture.
     let candidate = candidate(json!([effect("blue", 2.0, 10), effect("green", 10.0, 0)]));
     let editor = &candidate.vectors[0].1.editor;
     assert_eq!(editor.elements()[0].annotation_id(), "green");
@@ -110,7 +110,7 @@ fn local_blur_rotates_around_persisted_box_not_brush_center() {
         .bake_source_png(&UnitId::parse("local").unwrap(), &AtomicBool::new(false))
         .unwrap();
     let image = crate::desktop::export::decode_png(png.to_vec());
-    // 框中心 (8,6)，旋转后的框是 [6,10]×[2,10]；笔迹中心 (6,6) 会平移错位。
+    // Box center (8,6), with rotated bounds [6,10]x[2,10]; the stroke center (6,6) would cause translation misalignment.
     assert!(pixel(&image, 9, 6)[3] > 20);
     assert_eq!(pixel(&image, 5, 8), &[0, 0, 0, 0]);
     assert_eq!(pixel(&image, 7, 11), &[0, 0, 0, 0]);
@@ -131,8 +131,8 @@ fn fractional_local_box_scales_the_stroke_mask_with_the_texture() {
         .bake_source_png(&UnitId::parse("local").unwrap(), &AtomicBool::new(false))
         .unwrap();
     let image = crate::desktop::export::decode_png(png.to_vec());
-    // x 方向 4.1/ceil(4.1)=0.82：圆心从 8 移到 7.28，半径从 1 变为 0.82。
-    // 未缩放的旧遮罩完全不覆盖 x=6 的像素列。
+    // X scale 4.1/ceil(4.1)=0.82: the circle center moves from 8 to 7.28 and radius from 1 to 0.82.
+    // The old unscaled mask does not cover the x=6 pixel column at all.
     assert!(
         pixel(&image, 6, 8)[3] > 5,
         "mask did not shrink into local coordinates"
@@ -153,7 +153,7 @@ fn rotated_source_clip_keeps_only_wash_outside_the_source_projection() {
         .bake_source_png(&UnitId::parse("local").unwrap(), &AtomicBool::new(false))
         .unwrap();
     let image = crate::desktop::export::decode_png(png.to_vec());
-    // 此像素逆旋转后全部位于 x<0：在效果框内、源投影外，只能有 8% 白色覆盖。
+    // After inverse rotation this pixel lies entirely at x<0: inside the effect box but outside source projection, allowing only 8% white coverage.
     let p = pixel(&image, 0, 5);
     assert!(
         (19..=22).contains(&p[3]),

@@ -1,4 +1,4 @@
-//! 显式图片粘贴：在剪贴板锁内只复制有界字节，锁外确认并交给现有解码工作线程。
+//! Explicit image paste: copy only bounded bytes under the clipboard lock, then confirm and hand off to the existing decoder worker outside it.
 use super::State;
 #[path = "clipboard_file.rs"]
 pub(super) mod file;
@@ -84,7 +84,7 @@ pub(super) unsafe fn read_image(hwnd: HWND, state: &State, new_pin: bool) -> Res
     if pointer.is_null() {
         return Err(Error::from_win32());
     }
-    let _lock = Lock(memory); // 系统仍拥有 handle，不可 GlobalFree。
+    let _lock = Lock(memory); // The system still owns the handle; GlobalFree is forbidden.
     let source = std::slice::from_raw_parts(pointer.cast::<u8>(), size);
     if format == 15 {
         return file::parse(source).map(Snapshot::Files);
@@ -124,7 +124,7 @@ pub(super) unsafe fn start_with(hwnd: HWND, state: &State, new_pin: bool) {
         return;
     };
     let result = (|| -> Result<()> {
-        // 读剪贴板/准备图像前采样；所有格式使用同一次物理坐标，而非固定 (100,100)。
+        // Sample before reading the clipboard/preparing images; all formats use the same physical coordinates, not fixed (100,100).
         let mut cursor = POINT::default();
         if new_pin {
             GetCursorPos(&mut cursor)?;
@@ -151,7 +151,7 @@ pub(super) unsafe fn start_with(hwnd: HWND, state: &State, new_pin: bool) {
         }
     }
 }
-// smoke/回归只注入快照与坐标，不访问用户剪贴板或移动鼠标；产品入口使用 deliver_at。
+// Smoke/regression tests inject only snapshots and coordinates, without accessing the user's clipboard or moving the mouse; production uses deliver_at.
 pub(super) unsafe fn deliver(
     hwnd: HWND,
     state: &State,

@@ -1,4 +1,4 @@
-//! 两个隐藏宿主的真实消息与关闭隔离；不注册全局输入，不访问桌面或用户数据。
+//! Real messages/close isolation between two hidden hosts; no global input registration or desktop/user-data access.
 use super::{document_window::DocumentWindow, State};
 use windows::{
     core::{Error, Result},
@@ -75,8 +75,8 @@ pub(super) unsafe fn verify_last_exit() -> Result<()> {
 }
 
 unsafe fn drain_quit() -> Result<bool> {
-    // WM_QUIT 是低优先级生成消息；只过滤它会让其他排队消息阻止其出现。
-    // 有界排空当前测试线程消息，不使用阻塞等待或全局输入。
+    // WM_QUIT is generated at low priority; filtering only for it lets other queued messages prevent its appearance.
+    // Drain current test-thread messages within bounds, without blocking waits or global input.
     let mut message = MSG::default();
     for _ in 0..1024 {
         if !PeekMessageW(&mut message, None, 0, 0, PM_REMOVE).as_bool() {

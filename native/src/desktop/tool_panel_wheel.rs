@@ -1,4 +1,4 @@
-//! 系统滚轮偏好和亚像素余数；只读取设置，不修改系统状态，不建立轮询任务。
+//! System wheel preferences/subpixel remainder; read settings only, without changing system state or creating polling tasks.
 use windows::Win32::UI::WindowsAndMessaging::*;
 
 pub(super) unsafe fn preference(horizontal: bool) -> u32 {
@@ -30,7 +30,7 @@ pub(super) fn distance(delta: i32, unit: i64, count: u32, page: u32, remainder: 
     } else {
         unit.max(0) as i128 * count as i128
     };
-    // 使用宽整数计算；余数始终小于一个像素，即使异常配置也不溢出或无限累积。
+    // Use wide integers; remainder stays below one pixel, even under abnormal configurations, without overflow/unbounded accumulation.
     let numerator = delta as i128 * step + *remainder as i128;
     *remainder = (numerator % 120) as i64;
     (numerator / 120).clamp(i64::MIN as i128, i64::MAX as i128) as i64

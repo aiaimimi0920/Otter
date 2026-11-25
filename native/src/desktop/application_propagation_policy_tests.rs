@@ -1,4 +1,4 @@
-//! 在真实 Application 通知入口核普通贴图策略；不调度网络或执行 worker。
+//! Check ordinary-pin policy at the real Application notification entry point, without scheduling network or execution workers.
 use crate::desktop::{self, capability_selection::Selection};
 use std::rc::Rc;
 

@@ -1,4 +1,4 @@
-//! 浏览器验证的显式分层等价关系；经过生产准入与真实 Job child。
+//! Browser-verified explicit-layering equivalence through production admission and real Job children.
 #[test]
 fn paint_order_partial_tokens_and_normal_match_explicit_completion() {
     for (short, full) in [

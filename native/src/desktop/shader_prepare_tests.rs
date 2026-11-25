@@ -1,4 +1,4 @@
-//! 正式端口选择、同份 PNG/straight RGBA 纹理、参数覆盖与失败原子性；不加载 ANGLE。
+//! Official-port selection, same-source PNG/straight RGBA textures, parameter overrides, and failure atomicity; no ANGLE loading.
 use super::*;
 use crate::{
     desktop::{
@@ -139,7 +139,7 @@ fn shader_prepare_preserves_full_straight_rgba_input_and_required_lut_without_pb
     assert_eq!(shader.textures.len(), 2);
     assert_eq!(shader.textures[0].name, "input");
     assert_eq!(shader.textures[0].rgba, matrix.rgba);
-    // 真实旧 PNG→DOM Image→texImage2D 完整通道/alpha 矩阵 oracle（包括透明隐藏 RGB）。
+    // Actual legacy PNG -> DOM Image -> texImage2D full channel/alpha matrix oracle, including hidden RGB under transparency.
     assert_eq!(
         crate::desktop::shader_image::tests::hash(&shader.textures[0].rgba),
         "6a26422f3d2bbc33e7ebd143a32f008fafd2c397601c397f1f75bc950e2f56bb"

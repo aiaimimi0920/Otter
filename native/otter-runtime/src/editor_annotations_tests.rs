@@ -1,4 +1,4 @@
-//! 标注事务的身份、点预算、历史与栅格所有权回归；不创建窗口或读取用户文件。
+//! Annotation-transaction identity, point-budget, history, and raster-ownership regressions; no windows/user-file reads.
 use super::*;
 use crate::crop_geometry::{Crop, Rect, Size};
 

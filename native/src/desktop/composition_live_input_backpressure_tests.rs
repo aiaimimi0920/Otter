@@ -1,4 +1,4 @@
-//! 慢源仍保留最新指针和有序边沿；使用自有 HWND、真实输入 worker 与可控发送闸门。
+//! Slow sources retain the latest pointer and ordered edges; owned HWNDs, real input workers, and controllable send gates.
 use super::*;
 use crate::{
     desktop::Apartment,
@@ -88,7 +88,7 @@ fn browser_query_transition_preserves_resume_but_unknown_action_fails() {
             );
         }
         fixture.session.process_window_input();
-        // 模拟后端没有真实源绑定；仅结算回复，不替它执行下一轮真实 Backend 准入。
+        // The mock backend has no real source binding; settle replies only, without running its next real Backend admission.
         let deadline = Instant::now() + Duration::from_secs(3);
         while fixture.session.input.is_some() {
             fixture.session.poll_input();
@@ -111,7 +111,7 @@ fn browser_query_transition_preserves_resume_but_unknown_action_fails() {
             fixture.trace.lock().unwrap().sent.is_empty(),
             "failed input must not replay"
         );
-        // 只检查新鼠标输入的恢复意图，不替自有模拟后端伪造真实源绑定。
+        // Check only recovery intent from new mouse input; do not fabricate real source binding for the owned mock backend.
         unsafe {
             SendMessageW(
                 fixture.hwnd(),
@@ -247,7 +247,7 @@ impl Fixture {
 }
 impl Drop for Fixture {
     fn drop(&mut self) {
-        // 即使断言失败，也先解除自有后端闸门，再由 Session/Worker 回收线程。
+        // Even if assertions fail, release the owned backend gate before Session/Worker reclaims the thread.
         let _ = self.release.try_send(());
     }
 }
@@ -342,7 +342,7 @@ fn resume_waits_for_stopping_worker_before_sending_new_input() {
     poll_until(&mut fixture.session, |session| {
         session.input.as_ref().unwrap().outstanding() == 0
     });
-    // 对应缩放/最小化取消后紧接新鼠标消息，旧 worker 仍在释放已按住的键。
+    // Model new mouse messages immediately after zoom/minimize cancellation, while the old worker is still releasing held keys.
     fixture
         .session
         .window
@@ -424,7 +424,7 @@ fn high_resolution_wheel_burst_preserves_control_and_total_delta() {
     }
     let position =
         (u32::from(point.x as i16 as u16) | (u32::from(point.y as i16 as u16) << 16)) as isize;
-    // 慢源等待期间，触控板/高分辨率滚轮的一次手势可产生远多于 16 个小 delta。
+    // While a slow source waits, one touchpad/high-resolution wheel gesture may produce far more than 16 small deltas.
     for _ in 0..100 {
         fixture.message(WM_MOUSEWHEEL, 30 << 16, position);
     }

@@ -1,4 +1,4 @@
-//! 独立客户端进程验证 UIA 跨进程封送；仅传递测试 HWND，不接触用户文档。
+//! Independent client processes verify cross-process UIA marshaling; pass only test HWNDs, never user documents.
 use super::*;
 use std::process::{Child, Command, Stdio};
 
@@ -8,7 +8,7 @@ const PID_ENV: &str = "OTTER_TEST_UIA_PID";
 const EVENT_TEST: &str = "native_menu::cascade::tests::uia_client::process::uia_event_client_child";
 const MODE_ENV: &str = "OTTER_TEST_UIA_MODE";
 
-// panic/超时也必须回收自己启动的客户端，不结束任何其他进程。
+// Even panic/timeout must reclaim the client we launched, never terminate other processes.
 struct Client(Child);
 impl Drop for Client {
     fn drop(&mut self) {
@@ -83,7 +83,7 @@ fn separate_process_receives_single_invoked_event_for_all_selection_paths() {
     }
     let _com = Apartment;
     let owner = Owner::new();
-    // 两种订阅范围各覆盖 UIA、键盘消息和鼠标消息；每例独立进程。
+    // Both subscription scopes cover UIA, keyboard messages, and mouse messages; each case uses an independent process.
     for mode in 0..6 {
         let mut command = item(42);
         command.label = invoked::NAME.into();
@@ -108,7 +108,7 @@ fn uia_event_client_child() {
         GetWindowThreadProcessId(HWND(hwnd as *mut _), Some(&mut actual_pid));
     }
     assert_eq!(actual_pid, pid);
-    // 复用同进程回归的有界订阅/缓存/去重/注销后 Drop 断言，不另写弱化合同。
+    // Reuse same-process bounded subscription/cache/deduplication/unregister-then-Drop assertions, without weaker separate contracts.
     let scope = if mode >= 3 {
         invoked::Scope::Desktop
     } else {

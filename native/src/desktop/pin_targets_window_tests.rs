@@ -1,4 +1,4 @@
-//! 用真实 LISTBOX 消息验证窄头行、稳定 HWND、无变化不重绘及草稿事件，不使用用户设备。
+//! Real LISTBOX messages verify the narrow header, stable HWND, no repaint without changes, and draft events; no user devices are used.
 use super::*;
 unsafe extern "system" fn count_selection_queries(
     hwnd: HWND,
@@ -46,7 +46,7 @@ fn empty_catalog_click_is_safe_and_loaded_names_are_painted() {
         let list = GetDlgItem(Some(menu.hwnd()), LIST).unwrap();
         assert_eq!(SendMessageW(list, LB_GETCOUNT, None, None).0, 0);
         let point = LPARAM((8 << 16) | 8);
-        // 空 LISTBOX 获得焦点时会要求绘制 itemID == u32::MAX，不是真实条目。
+        // An empty LISTBOX requests painting itemID == u32::MAX on focus; this is not a real item.
         let _ = windows::Win32::UI::Input::KeyboardAndMouse::SetFocus(Some(list));
         SendMessageW(list, WM_LBUTTONDOWN, Some(WPARAM(1)), Some(point));
         SendMessageW(list, WM_LBUTTONUP, None, Some(point));
@@ -320,7 +320,7 @@ fn picker_preserves_native_selection_during_idle_refresh_and_emits_only_draft_ev
         }
         assert_ne!(before, after, "check mark must be visible");
         menu.update(&rows, false, true, false);
-        // 原生列表到松开才通知；后台刷新不得取消按下时已改变的选择。
+        // The native list notifies only on release; background refresh must not cancel selection already changed on press.
         let point = LPARAM((8 << 16) | 8);
         SendMessageW(list, WM_LBUTTONDOWN, Some(WPARAM(1)), Some(point));
         assert!(SendMessageW(list, LB_GETSEL, Some(WPARAM(0)), None).0 > 0);

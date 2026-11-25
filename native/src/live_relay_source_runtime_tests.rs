@@ -1,4 +1,4 @@
-//! Source预算失败和预撤权：真实原HTTPS创建/关闭，不启动第二媒体或捕获线程。
+//! Source budget failure/prior revocation: actual original HTTPS create/close, without starting another media/capture thread.
 use super::*;
 use crate::{
     device_authorization_config::Config,

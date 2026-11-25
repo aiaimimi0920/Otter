@@ -1,4 +1,4 @@
-//! Source的raw/H264分片复用原TLS/socket；真实video_policy只在协商的H264连接接收。
+//! Source raw/H264 fragmentation reuses original TLS/socket; accept actual video_policy only on negotiated H264 connections.
 use super::*;
 #[path = "live_relay_source_policy.rs"]
 mod policy;

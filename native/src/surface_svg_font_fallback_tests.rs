@@ -1,4 +1,4 @@
-//! 真实系统映射基线，不把字体映射成功当成复杂文字 shaping 或 SVG 绘制通过。
+//! Actual system-mapping baselines; successful font mapping is not successful complex-text shaping or SVG drawing.
 use super::*;
 pub(super) fn run() -> io::Result<Vec<serde_json::Value>> {
     let mut records = Vec::new();

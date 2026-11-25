@@ -1,4 +1,4 @@
-//! 冻结文档的标注编码；普通视口与缩略展开参考框分别映射，字体测量与恢复端共用。
+//! Annotation encoding for frozen documents; map ordinary viewports and minimized-expansion reference frames separately, sharing font measurement with restoration.
 use super::Document;
 use crate::{
     session_placement::Space,
@@ -40,7 +40,7 @@ impl Document {
         }
         .map_err(|_| crate::session_write::Error::Window)
     }
-    /// 只更新 annotationState；图像、裁剪与磁盘提交仍由完整内容编码 owner 负责。
+    /// Update annotationState only; the complete-content encoding owner still handles images, cropping, and disk commit.
     pub fn write_annotations(
         &self,
         mut fields: Map<String, Value>,

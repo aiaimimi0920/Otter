@@ -1,4 +1,4 @@
-//! Switch 动态状态的真实 WIC 像素；复用统一夹具验证画刷与后续绘制不受污染。
+//! Real WIC pixels for dynamic Switch states; shared fixtures verify brushes and subsequent drawing remain uncontaminated.
 use crate::surface_button_visual::State;
 fn render(checked: bool, disabled: bool, value: Option<bool>, state: State<'_>) -> Vec<u8> {
     let json = serde_json::json!({"id":"switch","type":"switch","props":{"value":checked,"disabled":disabled}});

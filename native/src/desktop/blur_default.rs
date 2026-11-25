@@ -1,4 +1,4 @@
-//! 新建模糊工具的精确强度；只改默认配置和准备缓存，不修改已经提交的标注。
+//! Precise intensity for newly selected blur tools; change only defaults and preparation caches, not committed annotations.
 use super::{canvas::Canvas, numeric_style::Kind, State};
 use crate::editor::{DocumentStamp, Tool};
 use windows::Win32::{Foundation::*, UI::WindowsAndMessaging::*};

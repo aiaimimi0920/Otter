@@ -1,4 +1,4 @@
-//! 新许可执行链的单槽邮箱；事件复位与取值共锁，未领取帧不得覆盖，事件句柄有独立 owner。
+//! Single-slot mailbox for the new permit execution chain; event reset and reads share a lock, unclaimed frames cannot be overwritten, and event handles have separate owners.
 use super::*;
 use std::{
     os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle},
@@ -21,7 +21,7 @@ pub(crate) enum Operation {
     Suspend,
     #[cfg(test)]
     Resume,
-    /// 视口与操作同时交付，不能从后台读取 HWND。
+    /// Deliver viewport and operation together; never read HWNDs from the background.
     Viewport(crate::surface_viewport::Viewport),
     SelectView(
         crate::art_surface_views::Id,
@@ -80,7 +80,7 @@ impl Mailbox {
         })
     }
     fn notify(&self) {
-        // 回调只允许短投递；异常不能让已发布的完成状态丢失或逃逸到 UI。
+        // Callbacks may only post briefly; exceptions must neither lose published completion state nor escape to the UI.
         let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| (self.notify)()));
     }
     pub fn finish(&self) {

@@ -1,4 +1,4 @@
-//! 覆盖式滚动条几何及绝对拖动；只改变本地偏移，不创建场景动作。
+//! Overlay-scrollbar geometry and absolute dragging change only local offsets, never creating scene actions.
 use super::*;
 use crate::surface_clip::Rect;
 const WIDTH: f32 = 10.;
@@ -71,7 +71,7 @@ impl Drag {
     }
 }
 impl Scroll {
-    /// 常驻覆盖式条不改变布局；双轴保留角区，hidden 轴没有条也不接受拖动。
+    /// Persistent overlay bars do not change layout; dual axes reserve a corner, while hidden axes have no bars and reject dragging.
     pub(crate) fn bars(&self, geometry: &Geometry) -> Vec<Bar> {
         let mut bars = Vec::new();
         for node in geometry.nodes() {

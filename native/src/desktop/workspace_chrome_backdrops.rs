@@ -1,4 +1,4 @@
-//! 连续展开行的非交互底板投影；每个钉图独立呈现，不扩大端口条的输入 region。
+//! Noninteractive backdrops for consecutively expanded rows; present independently per pin without expanding port-strip input regions.
 use super::super::*;
 use neuro_mini_ui::Frame;
 use windows::Win32::Graphics::Gdi::*;
@@ -91,7 +91,7 @@ impl Backdrops {
             .filter(|g| g.endpoint == endpoint)
             .copied()
             .collect();
-        // 只保留与该底板实际相交的遮挡物；远处钉图移动不应让所有节点重新提交像素。
+        // Retain only occluders actually intersecting this backdrop; distant pin movement must not resubmit every node's pixels.
         let occluders = self
             .occluders
             .iter()

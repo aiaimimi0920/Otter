@@ -1,4 +1,4 @@
-//! 同步候选提交：所有校验先于不可失败的源/Binding/Canvas 交换，不建窗或发 displayed。
+//! Sync-candidate commit: all validation precedes infallible source/Binding/Canvas swaps, without creating windows or sending displayed.
 use super::*;
 impl Application {
     pub(super) unsafe fn publish_projection_sync(
@@ -56,7 +56,7 @@ impl Application {
             return Ok(());
         }
         if let Some(edit) = edit {
-            // 底图和矢量同一个Editor事务；任一预检拒绝都保留旧Editor/owner/source。
+            // Base image and vectors share one Editor transaction; any preflight rejection preserves the old Editor/owner/source.
             let owner = edit.apply(
                 &mut canvas.editor,
                 update.image.as_ref().map(|image| image.base.clone()),
@@ -74,7 +74,7 @@ impl Application {
                 &canvas.editor,
             ));
             canvas.discard_device();
-            // 原输出属于旧源；同时清运行时 owner，避免后续保存把旧端口写回原文。
+            // Original outputs belong to the old source; clear runtime owners too, so later saves cannot write old ports back into source content.
             *doc.state.execution_results.borrow_mut() =
                 crate::desktop::loom_result_state::Results::new(doc.state.unit_id.clone());
             *doc.state.resolved_display.borrow_mut() = None;
@@ -116,7 +116,7 @@ impl Application {
             edit_status.unwrap_or("投送已同步")
         }
         .into();
-        // 只排本窗口重绘，不强制前台、不重置 frame/opacity/selection/viewport。
+        // Queue only this window's repaint; do not force foreground or reset frame/opacity/selection/viewport.
         let _ = windows::Win32::Graphics::Gdi::InvalidateRect(Some(doc.window.0), None, false);
         Ok(())
     }

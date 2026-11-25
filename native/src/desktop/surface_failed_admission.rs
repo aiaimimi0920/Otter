@@ -1,4 +1,4 @@
-//! 未建窗附件的生命周期 owner；原始挂载证据与当前停用状态分开保留。
+//! Lifecycle owner for attachments without windows; retain original mount evidence separately from current deactivation state.
 use crate::{
     surface_activation::Activation,
     surface_attach_runtime,
@@ -54,7 +54,7 @@ impl FailedAdmission {
         reason: String,
         duplicate: bool,
     ) -> Self {
-        // 重复证据不再创建第二个 owner；未确认或身份不一致也不允许猜测停用对象。
+        // Duplicate evidence creates no second owner; unconfirmed or mismatched identities also forbid guessing which object to deactivate.
         let lifecycle = outcome
             .binding
             .as_ref()

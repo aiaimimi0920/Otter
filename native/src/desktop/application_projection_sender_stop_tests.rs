@@ -1,4 +1,4 @@
-//! 真实停止菜单→持久减权→canonical pending→TLS unlink→回执→canonical 移除/ack；重启不借新授权。
+//! Real stop menu -> durable revocation -> canonical pending -> TLS unlink -> receipt -> canonical removal/ack; restart borrows no new authorization.
 use super::*;
 use serde_json::{json, Value};
 fn journal(root: &std::path::Path) -> Value {
@@ -132,7 +132,7 @@ pub(super) unsafe fn run(
     assert_eq!(journal(root)["entries"][0]["stop"], "unlinked");
     let original_envelope = journal(root)["entries"][0]["envelope"].clone();
     if mode == 7 {
-        // 最危险窗口：HTTP+原日志事实已发布，canonical 仍 pending；新实例没有 token/目录。
+        // Most dangerous interval: HTTP and original journal facts are published while canonical remains pending; the new instance has no token/catalog.
         reopen(app, root);
         assert!(app
             .authorization_owner
@@ -162,7 +162,7 @@ pub(super) unsafe fn run(
     assert_ne!(app.authorization.borrow().sender.status, "发送关联已停止");
     settle(app);
     if mode == 9 {
-        // 最终 canonical 已移除，但 ack 尚未调度；恢复仍只消费原持久成功事实。
+        // Final canonical removal is done but ack is not yet scheduled; recovery still consumes only the original durable success fact.
         assert_eq!(journal(root)["entries"][0]["stop"], "unlinked");
         reopen(app, root);
         assert!(app
@@ -189,7 +189,7 @@ pub(super) unsafe fn run(
         .unwrap()
         .sender_source()
         .unwrap();
-    // 完整原意图（含显式离线路由）来自本测试停止前读到的写前记录，不按复合目标猜路由。
+    // Complete original intent, including explicit offline route, comes from the write-ahead record read before stopping in this test; do not guess routes from composite targets.
     let before: Value = serde_json::from_slice(&before).unwrap();
     let selection = serde_json::from_value::<crate::projection_delivery::sender::Selection>(
         before["entries"]

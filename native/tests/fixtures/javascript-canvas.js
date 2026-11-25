@@ -1,4 +1,4 @@
-// 通用图形夹具：真实离屏绘制、原生内容盒和 observer→rAF，不包含股票业务或网络。
+// Generic graphics fixture: actual offscreen drawing, native content boxes, and observer -> rAF, without stock-market business logic or networking.
 let canvas, context, label, observer, count = 0, frames = 0, bounds = 0;
 const report = () => { label.textContent = JSON.stringify({ count, frames, bounds, same: context === canvas.getContext("2d") }); };
 const draw = color => {

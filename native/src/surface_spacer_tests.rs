@@ -1,4 +1,4 @@
-//! Spacer 的真实测量、伸缩和空白叶子合同；不引入新的绘制资源或输入能力。
+//! Real Spacer measurement, flexing, and blank-leaf contracts; no new paint resources or input capabilities.
 use super::*;
 
 #[test]

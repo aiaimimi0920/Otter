@@ -1,4 +1,4 @@
-//! Slider RangeValue 的 UI owner 桥；实时值来自 Mount，设置复用双边沿准入而非模拟键鼠。
+//! UI-owner bridge for Slider RangeValue; live values come from Mount, and setters reuse dual-edge admission instead of simulated input.
 use super::*;
 use windows::Win32::UI::{Accessibility::*, Input::KeyboardAndMouse::IsWindowEnabled};
 fn slider(node: &Handle) -> Result<crate::surface_accessibility::Entry> {

@@ -1,4 +1,4 @@
-//! UI 同步 owner；Receipt 留在 UI，后台只持有固定连接身份和已准备数据。
+//! UI sync owner; Receipt stays on the UI thread, while background work holds only fixed connection identity and prepared data.
 use super::*;
 use crate::desktop::session_candidate::{WorkflowDelivery, WorkflowSyncJob};
 #[path = "application_workflow_completion.rs"]
@@ -30,7 +30,7 @@ impl Candidate {
             .identity
             .clone();
         let limit = crate::session_document::MAX_SESSION_BYTES;
-        // 至多一份编码请求和一份传输副本；不随节点数建立消息队列。
+        // At most one encoded request and one transport copy; do not build message queues proportional to node count.
         let budget = crate::byte_budget::Budget::new(limit * 2);
         let job = WorkflowSyncJob::start(
             self.ready,
@@ -53,8 +53,8 @@ impl Sync {
     pub(super) fn deadline(&self) -> Option<std::time::Instant> {
         self.job.deadline()
     }
-    /// 必须由 UI 消息循环调用；复核为当前请求建立准入线性化点，不保证远端提交时
-    /// 工作区仍未变化。后续编辑会取消后续请求，但不会伪造已发请求的回滚。
+    /// Must be called by the UI message loop; revalidation establishes the current request's admission linearization point, not a guarantee
+    /// that the workspace remains unchanged at remote commit. Later edits cancel later requests, without pretending to roll back requests already sent.
     pub(in crate::desktop::application) unsafe fn service(
         &mut self,
         app: &Application,

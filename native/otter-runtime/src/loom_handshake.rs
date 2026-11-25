@@ -1,4 +1,4 @@
-//! 原生能力握手数据边界；只保留有界目录，不自动执行能力、不输出远端数据日志。
+//! Native-capability handshake data boundary; retain only a bounded catalog, without automatic capability execution or remote-data logging.
 use serde::Deserialize;
 use serde_json::Value;
 use std::sync::Arc;
@@ -20,7 +20,7 @@ pub enum Transport {
     Websocket,
     SharedMemory,
 }
-/// 已验证的不可变目录；恢复线程可复用同一快照而不复制能力定义。
+/// Validated immutable catalog; recovery threads can reuse the same snapshot without copying capability definitions.
 #[derive(Clone)]
 pub struct Handshake(Arc<Parsed>);
 
@@ -80,7 +80,7 @@ pub fn request(client_id: &str, version: &str) -> Result<String, Error> {
         "transports":["websocket","shared_memory"]}})
     .to_string())
 }
-/// method 事件不作为握手响应；其余格式/错误拒绝，避免用无效响应替换已展示目录。
+/// method events are not handshake responses; reject other invalid formats/errors to avoid replacing the displayed catalog with an invalid response.
 pub fn response(bytes: &[u8]) -> Result<Option<Handshake>, Error> {
     if bytes.len() > MAX_BYTES {
         return Err(Error::TooLarge);
@@ -92,7 +92,7 @@ pub fn response(bytes: &[u8]) -> Result<Option<Handshake>, Error> {
     if envelope.get("error").is_some_and(|error| !error.is_null()) {
         return Err(Error::Remote);
     }
-    // 再从原文解码，保留 serde 对重复已知字段的拒绝，不经 Value 覆盖后再解码。
+    // Decode again from the original text to preserve serde's rejection of duplicate known fields, rather than decoding after Value overwrites them.
     let result: Parsed = serde_json::from_slice(bytes).map_err(|_| Error::Encoding)?;
     if result.protocol_version != PROTOCOL {
         return Err(Error::Protocol);
@@ -136,7 +136,7 @@ pub fn response(bytes: &[u8]) -> Result<Option<Handshake>, Error> {
         }) {
             return Err(Error::Capabilities);
         }
-        // 与主干一致，缺失/空 label 回退 id；有效标签仍执行文本预算和控制字符检查。
+        // As in the baseline, missing/empty labels fall back to id; valid labels still undergo text-budget and control-character checks.
         if art["label"]
             .as_str()
             .is_some_and(|label| !label.trim().is_empty() && !text(label))

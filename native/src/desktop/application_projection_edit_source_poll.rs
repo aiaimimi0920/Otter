@@ -1,4 +1,4 @@
-//! 初始化响应先原子发布标注/canonical候选，真正默认Checkpoint后ack；取消/迟到保原stage与pending。
+//! Initialization responses atomically publish annotations/canonical candidates before ack after a real default Checkpoint; cancellation/late results preserve original stage and pending state.
 use super::*;
 impl Application {
     pub(in crate::desktop::application::projection_edit) unsafe fn poll_projection_source(

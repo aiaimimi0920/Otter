@@ -1,4 +1,4 @@
-//! 当前帧编辑复用普通钉图；黄色角返回保留中的 Live，会话不随工具栏显隐结束。
+//! Current-frame editing reuses ordinary pins; yellow corners return to retained Live, whose session survives toolbar visibility changes.
 use super::*;
 use windows::Win32::{Graphics::Gdi::*, UI::WindowsAndMessaging::*};
 pub(super) unsafe fn dispatch(hwnd: HWND, state: &State, msg: u32, lp: LPARAM) -> Option<LRESULT> {

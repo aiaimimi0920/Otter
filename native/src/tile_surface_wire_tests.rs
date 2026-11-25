@@ -1,4 +1,4 @@
-//! 独立JSON oracle覆盖Wall/Surface身份、版本回退和资源/结构预算，不从解析器生成预期。
+//! Independent JSON oracles cover Wall/Surface identities, revision rollback, and resource/structure budgets without parser-generated expectations.
 use super::*;
 use serde_json::json;
 pub(crate) fn fixture() -> (Binding, Value) {

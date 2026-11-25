@@ -1,4 +1,4 @@
-//! 已绑定源线程的 Leave 过滤与私有按钮/悬浮/弹窗协议；无全局键鼠输入。
+//! Leave filtering bound to source threads and private button/hover/popup protocols; no global keyboard/mouse input.
 mod native_activation;
 pub mod native_dispatch;
 pub mod native_input_scope;
@@ -13,7 +13,7 @@ pub mod scope;
 use windows::Win32::{Foundation::*, UI::WindowsAndMessaging::*};
 
 /// # Safety
-/// 仅由 Windows WH_GETMESSAGE 调用；非负 code 的 LPARAM 指向有效 MSG。
+/// Called only by Windows WH_GETMESSAGE; for nonnegative code, LPARAM points to a valid MSG.
 #[no_mangle]
 pub unsafe extern "system" fn otter_live_hover_hook(code: i32, wp: WPARAM, lp: LPARAM) -> LRESULT {
     if code >= 0 {

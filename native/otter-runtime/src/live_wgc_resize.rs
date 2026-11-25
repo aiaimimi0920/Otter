@@ -1,4 +1,4 @@
-//! 窗口源尺寸变化准入与帧池预算事务；不改变固定区域的目标边界。
+//! Window-source resize admission and frame-pool budget transaction; do not change fixed-region target bounds.
 use super::{pool_bytes, same_size, Error, SizeInt32};
 use crate::byte_budget::Lease;
 
@@ -18,7 +18,7 @@ pub(super) fn plan(allowed: bool, current: SizeInt32, next: SizeInt32) -> Result
     if next.Width < 0 || next.Height < 0 {
         return Err(Error::Dimensions);
     }
-    // 最小化等零内容事件只归还帧，等待下一次事件；不创建零尺寸池或主动轮询。
+    // Zero-content events such as minimization only return the frame and await the next event; no zero-sized pools or active polling.
     if next.Width == 0 || next.Height == 0 {
         return Ok(Plan::Suspend);
     }
@@ -35,7 +35,7 @@ pub(super) fn recreate(
     if budget.is_none() {
         return Err(Error::Cancelled);
     }
-    // 保留旧池租约直到重建成功，按旧+新峰值保守准入，不把驱动瞬时占用当作已归还。
+    // Retain the old pool lease until reconstruction succeeds, conservatively admitting the old-plus-new peak rather than treating transient driver usage as returned.
     let candidate = reserve(pool_bytes(next)?).ok_or(Error::Budget)?;
     apply()?;
     *size = next;

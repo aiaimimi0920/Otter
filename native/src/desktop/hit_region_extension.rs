@@ -1,4 +1,4 @@
-//! selectable root/声明动作补入透明 PNG 的原 HRGN；几何只在场景准备时测量一次。
+//! Add selectable roots/declared actions to transparent PNGs' original HRGN; measure geometry once during scene preparation.
 use super::*;
 pub(super) fn identity(state: &State) -> usize {
     super::super::extension_input::views(state).map_or(0, |v| v.identity())

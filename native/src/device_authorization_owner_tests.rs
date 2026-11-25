@@ -1,4 +1,4 @@
-//! 授权 owner 的真实文件/HTTPS 回归；验证旧结果抑制及按 origin 撤销。
+//! Real file/HTTPS regressions for the authorization owner; verify old-result suppression and per-origin revocation.
 use super::*;
 use crate::device_authorization_owner::{Error as OwnerError, Event, Owner};
 use crate::device_authorization_runtime::Task;
@@ -206,7 +206,7 @@ fn local_install_preserves_the_pending_origins_capacity_until_poll() {
         Err(OwnerError::Pending)
     ));
     assert_eq!(install(&mut owner, 8), Err(OwnerError::Capacity));
-    // 满额仍允许替换同一个已缓存的 origin，不挤占在途名额。
+    // At capacity, replacing the same cached origin is still allowed without taking an in-flight slot.
     install(&mut owner, 1).unwrap();
     assert!(matches!(
         owner.poll().as_slice(),

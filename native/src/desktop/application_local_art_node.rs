@@ -1,4 +1,4 @@
-//! OpenArt 的独立节点事务：候选窗口和拓扑先准备，授权启动成功后一起发布，不转换源截图。
+//! Independent OpenArt node transaction: prepare candidate windows and topology, then publish together after authorized startup succeeds, without converting the source screenshot.
 use super::*;
 use crate::{device_authorization_config::Config, workspace::Link};
 impl Application {
@@ -129,7 +129,7 @@ impl Application {
                 height: 240,
             },
         )?;
-        // 建窗/监听可能重入。最终检查后直到发布没有可重入 Win32 调用。
+        // Window creation/listener installation may reenter. No reentrant Win32 calls occur between final validation and publication.
         if !guard.matches(self)
             || self.modals.blocked()
             || self.session_end.paused()

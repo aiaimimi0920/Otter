@@ -1,4 +1,4 @@
-//! 非破坏性裁剪元数据写回；源逻辑单位独立于像素和当前窗口尺寸，不负责图像变换。
+//! Nondestructive crop-metadata writeback; source logical units are independent of pixels/current window size, without image transformation.
 use crate::crop_geometry::{self, Crop, Rect};
 use serde_json::{json, Map, Value};
 
@@ -8,8 +8,8 @@ pub enum Error {
     Geometry,
 }
 
-/// 仅拥有 cropRect/sourceSize；翻转、边框和擦除字段由对应图片内容 owner 处理。
-/// 写出的是完整源框中的裁剪参数，不将其再次乘以窗口 DPI 或视口比例。
+/// Own only cropRect/sourceSize; corresponding image-content owners handle flip/border/erasure fields.
+/// Write crop parameters within the complete source box, without multiplying by window DPI/viewport scale again.
 pub fn merge(original: Option<Value>, crop: Option<Crop>) -> Result<Value, Error> {
     let mut fields = match original {
         None | Some(Value::Null) => Map::new(),
@@ -17,7 +17,7 @@ pub fn merge(original: Option<Value>, crop: Option<Crop>) -> Result<Value, Error
         Some(_) => return Err(Error::Shape),
     };
     if let Some(crop) = crop {
-        // 与正式读取器使用相同的几何合同；不钳制或取整小数源坐标。
+        // Use the same geometry contract as the production reader, without clamping/rounding fractional source coordinates.
         let frame = Rect {
             x: 0.0,
             y: 0.0,
@@ -40,14 +40,14 @@ pub fn merge(original: Option<Value>, crop: Option<Crop>) -> Result<Value, Error
         fields.insert("cropRect".into(), rect.into());
         fields.insert("sourceSize".into(), source.into());
     } else {
-        // 重置必须同时清理两项，不能让旧 sourceSize 在下一轮裁剪中复活。
+        // Reset must clear both fields so old sourceSize cannot revive in the next crop.
         fields.remove("cropRect");
         fields.remove("sourceSize");
     }
     Ok(fields.into())
 }
 
-/// 活动Editor是唯一写回依据；legacy继续写自然像素区域，不伪造现代sourceSize。
+/// Active Editor is the sole writeback source; legacy keeps natural-pixel regions without fabricating modern sourceSize.
 pub fn merge_view(
     original: Option<Value>,
     view: Option<crate::editor::CropView>,

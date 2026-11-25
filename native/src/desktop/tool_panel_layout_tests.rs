@@ -1,4 +1,4 @@
-//! 真实隐藏 BUTTON 的几何和消息回归；不设置全局 hook、热键或前台窗口。
+//! Actual hidden-BUTTON geometry/message regressions; no global hooks, hotkeys, or foreground windows.
 use super::*;
 const PREVIOUS: windows::core::PCWSTR = w!("Otter.LayoutTest.PreviousProc");
 const COUNT: windows::core::PCWSTR = w!("Otter.LayoutTest.PositionCount");

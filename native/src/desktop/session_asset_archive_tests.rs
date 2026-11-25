@@ -138,7 +138,7 @@ fn adopted_origin_is_committed_and_survives_disconnection() {
     assert_eq!(document["stickers"][1]["originWorkflowId"], "origin");
     assert_eq!(document["stickers"][1]["originNodeId"], "second");
     assert_eq!(document["stickers"][1]["future"]["keep"], true);
-    // 正式保存同样从新 Source 合并窗口字段；移除连线不能清除来源归属。
+    // Official saving also merges window fields from a new Source; removing links must not erase source ownership.
     let decoded = crate::session_document::decode(&committed).unwrap();
     let mut topology = crate::workspace_session::Topology::capture(&decoded.workspace);
     topology.links.clear();

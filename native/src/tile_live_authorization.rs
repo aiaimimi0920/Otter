@@ -1,4 +1,4 @@
-//! 同一串行Tile Assets租约；新握手重新核原Grant并取nonce，不自动续签。
+//! The same serial Tile Assets lease; new handshakes recheck the original Grant and obtain nonces without automatic renewal.
 use super::*;
 impl Lease {
     pub(crate) fn wall_media(

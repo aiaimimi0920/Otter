@@ -1,4 +1,4 @@
-//! 工作区撤销和迟到描述结果的 owner 回归；不借此声称完整 Application 交互已验收。
+//! Owner regressions for workspace cancellation and late description results; these do not claim full Application interaction acceptance.
 use super::*;
 use crate::art_local_requests::{tests as fixture, Error};
 use std::{sync::mpsc, time::Duration};
@@ -116,7 +116,7 @@ fn retired_window_completion_cannot_cancel_new_request_for_same_unit() {
         )
         .unwrap();
     let (runtime, _grant, probe) = crate::surface_javascript::signed::runtime::tests::start(None);
-    // probe 到达说明真实旧 child 已经创建；下载请求仍停在独立的确定性门上。
+    // Reaching the probe proves the real old child was created; the download request remains at a separate deterministic gate.
     let probe = probe.recv_timeout(Duration::from_secs(5)).unwrap();
     let state = super::super::State::new(None, false).unwrap();
     owner.entries.push(Entry {

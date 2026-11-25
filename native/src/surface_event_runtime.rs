@@ -1,4 +1,4 @@
-//! 有界后台 click 事务；返还唯一 owner/事件，执行证据与交付时授权分开保存。
+//! Bounded background click transaction; return the unique owner/event and retain execution evidence separately from delivery-time authorization.
 use crate::{
     device_authorization_config::{Config, Error as PrepareError},
     device_authorization_lease::{Error as LeaseError, Lease},
@@ -31,12 +31,12 @@ pub struct Outcome {
     pub owner: Owner,
     pub event: ClickEvent,
     pub result: Result<Ack, Error>,
-    /// None 表示未收到有效提交 ACK；后续失败不覆盖已经收到的 ACK。
+    /// None means no valid submission ACK was received; later failures do not overwrite an already received ACK.
     pub convergence: Option<Result<Snapshot, Error>>,
-    /// 只在等待确认后读取一次；成功不代表当前仍可显示或提交批准。
+    /// Read once only after awaiting confirmation; success does not establish current permission to display or submit approval.
     pub confirmation: Option<Result<crate::surface_confirmation::Request, Error>>,
     pub decision: Option<crate::surface_decision_runtime::Evidence>,
-    /// ACK 是执行证据，不是当前授权。撤权后仍保留 result，但不得向 UI 应用更新。
+    /// ACKs are execution evidence, not current authorization. Retain result after revocation, but do not apply updates to the UI.
     pub delivery: Result<(), LeaseError>,
 }
 pub struct StartError {
@@ -102,7 +102,7 @@ impl Job {
                 })
             }
         };
-        // spawn 失败也要完整返还输入；worker 开始后独占 owner 和事件，绝不复制提交。
+        // Return all input even if spawn fails; once started, the worker exclusively owns the owner and event and never duplicates submission.
         let transfer = Arc::new(Mutex::new(Some((owner, event))));
         let worker = transfer.clone();
         let lease = Arc::new(lease);
@@ -131,7 +131,7 @@ impl Job {
                     let ack = control
                         .submit_surface_click(&owner, revision, &mut event)
                         .map_err(Error::Submit)?;
-                    // 独立捕获收敛阶段异常，避免丢失已收到的提交证据。
+                    // Catch convergence-stage exceptions independently to avoid losing received submission evidence.
                     let observed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                         control.converge_surface(
                             &event,
@@ -144,7 +144,7 @@ impl Job {
                             let mut ack = outcome.ack;
                             if matches!(outcome.result, Err(ConvergenceError::ConfirmationRequired))
                             {
-                                // 后续读取异常也不能抹掉已确认的等待状态，不重放原动作。
+                                // Later read exceptions cannot erase confirmed waiting state or replay the original action.
                                 let prompt =
                                     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                                         control.surface_confirmation(&event, &ack)
@@ -202,7 +202,7 @@ impl Job {
     pub fn wait_handle(&self) -> Option<BorrowedHandle<'_>> {
         self.thread.as_ref().map(|thread| thread.as_handle())
     }
-    /// 调用方传入当前时刻，完成线程仍占共享容量，直到被显式收割。
+    /// The caller supplies the current time; finished threads occupy shared capacity until explicitly reaped.
     pub fn try_join(&mut self, now_ms: u64) -> Option<Outcome> {
         if !self.thread.as_ref()?.is_finished() {
             return None;
@@ -230,7 +230,7 @@ impl Job {
 impl Drop for Job {
     fn drop(&mut self) {
         self.request_stop();
-        // 正常应用路径必须先 wait/try_join 保存证据；兜底确保没有遗留线程。
+        // The normal application path must first wait/try_join to save evidence; fallback ensures no threads remain.
         if let Some(thread) = self.thread.take() {
             let _ = thread.join();
         }

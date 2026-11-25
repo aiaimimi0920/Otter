@@ -1,4 +1,4 @@
-//! v2 单贴纸接管复用真实 Bound/追加/检查点；网络接受、磁盘保存与可见呈现分别结算。
+//! v2 single-sticker takeover reuses real Bound/append/checkpoint paths; network acceptance, disk persistence, and visible presentation settle separately.
 use super::*;
 use crate::desktop::session_candidate::PreparedRestore;
 use crate::projection_account::scene::Binding;
@@ -10,7 +10,7 @@ pub(super) struct Prepared {
     pub retained: crate::pixels::Pixels,
     pub binding: Binding,
 }
-/// 发网前捕获的原工作区身份；不是授权，不按迟到回复重新选择锚点或当前场景。
+/// Original workspace identity captured before network I/O; this is not authorization and never reselects an anchor or current scene from a late response.
 pub(super) struct Destination {
     source: crate::session_source::Source,
     workspace: crate::workspace::IdentityStamp,
@@ -89,7 +89,7 @@ impl Destination {
                     && restore_batch::append::same_space(record.space, self.space)
             })
     }
-    /// 测试从真实后台追加结果装配；仍核对候选中的账号范围和绑定。
+    /// Tests assemble this from real background append results; still check account scope and bindings in the candidate.
     #[cfg(test)]
     pub(super) fn prepare(
         &self,
@@ -120,7 +120,7 @@ pub(super) struct Receipt {
     participation: crate::desktop::device_authorization_ui::policy::Participation,
 }
 impl Receipt {
-    /// 保存不能恢复已关闭面板、暂停或换源前的呈现许可；磁盘回执仍然有效。
+    /// Saving cannot restore presentation permission from before panel closure, pause, or a source change; the disk receipt remains valid.
     pub(super) unsafe fn present(
         &self,
         app: &Application,
@@ -149,7 +149,7 @@ impl Receipt {
         projection::receive::present::Visual::capture(doc)?.present(doc)?;
         Ok(true)
     }
-    /// 只查询真实提交时安装的后台索引，不在 UI 扫描会话、访问文件或验签。
+    /// Query only the background index installed at actual commit; do not scan sessions, access files, or verify signatures on the UI thread.
     pub(super) fn saved(&self, app: &Application) -> bool {
         self.workspace.matches(&app.workspace)
             && app
@@ -199,7 +199,7 @@ impl Application {
             prepared.retained,
             destination.space,
         )?;
-        // 先隐藏接管，真实检查点确认后才允许接收消费者显示；不把请求成功当作显示成功。
+        // Take over while hidden first; allow receiver consumers to display only after a real checkpoint confirms it, never equating request success with display success.
         self.publish_append(append, false)?;
         Ok(Receipt {
             binding: prepared.binding,

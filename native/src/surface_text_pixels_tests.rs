@@ -1,4 +1,4 @@
-//! 使用真实 WIC/Direct2D 输出验证文字裁剪，不依赖字体的精确像素外观。
+//! Verify text clipping through real WIC/Direct2D output without depending on exact font pixel appearance.
 use super::*;
 use windows::Win32::{
     Graphics::{
@@ -11,7 +11,7 @@ use windows::Win32::{
 
 #[test]
 fn text_pixels_obey_ancestor_clip_and_restore_target_clip_stack() {
-    // 每个测试线程独立持有 COM 生命周期，资源必须在 CoUninitialize 前释放。
+    // Each test thread independently owns COM lifetime; release resources before CoUninitialize.
     struct Apartment;
     impl Drop for Apartment {
         fn drop(&mut self) {
@@ -74,7 +74,7 @@ fn text_pixels_obey_ancestor_clip_and_restore_target_clip_stack() {
             .chunks_exact(4)
             .enumerate()
             .all(|(i, p)| i % 160 < 24 || p[3] == 0));
-        // 在文字范围外画标记；若 draw 遗留裁剪栈，该像素将保持透明。
+        // Paint a marker outside text bounds; if draw leaves a clip stack behind, this pixel stays transparent.
         target.BeginDraw();
         target.FillRectangle(
             &D2D_RECT_F {
@@ -93,7 +93,7 @@ fn text_pixels_obey_ancestor_clip_and_restore_target_clip_stack() {
             &pixels[(55 * 160 + 145) * 4..(55 * 160 + 146) * 4],
             &[255; 4]
         );
-        // 正对照：同一 Layout 不经祖先裁剪时，边界外确实存在字形像素。
+        // Positive control: the same Layout without ancestor clipping really has glyph pixels outside the boundary.
         target.BeginDraw();
         target.Clear(Some(&D2D1_COLOR_F::default()));
         let item = &prepared.text().items()[0];

@@ -1,4 +1,4 @@
-//! 参数滚动即时更新同一几何；thumb 捕获冻结比例，Tab 开关保留每 Unit 的有界滚动位置。
+//! Parameter scrolling immediately updates the same geometry; thumb capture freezes scale, and Tab retains bounded per-Unit scroll positions.
 use super::*;
 use windows::Win32::{Graphics::Gdi::ClientToScreen, UI::Input::KeyboardAndMouse::*};
 pub(in crate::desktop) unsafe fn reveal_parameter(binding: &Binding, host: HWND, id: &str) {

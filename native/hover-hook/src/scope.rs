@@ -1,4 +1,4 @@
-//! HWND 属性是短生命周期绑定，不是鉴权凭据；宿主仍须先执行原输入权限检查。
+//! HWND properties are short-lived bindings, not authentication credentials; hosts still perform original input-permission checks first.
 use windows::{
     core::{w, PCWSTR},
     Win32::{Foundation::*, System::Threading::*, UI::WindowsAndMessaging::*},
@@ -10,7 +10,7 @@ pub const OWNER: PCWSTR = w!("Otter.Live.Hover.Owner.v1");
 pub const SOURCE_COOKIE: PCWSTR = w!("Otter.Live.Hover.SourceCookie.v1");
 
 /// # Safety
-/// 只查询 HWND，不解引用窗口属性值。必须在源消息线程调用。
+/// Query only HWND, never dereference window-property values. Call on source message threads.
 pub unsafe fn suppress(message_window: HWND) -> bool {
     let root = GetAncestor(message_window, GA_ROOT);
     let mut process = 0;
@@ -34,7 +34,7 @@ pub unsafe fn suppress(message_window: HWND) -> bool {
     }
     let mut cursor = POINT::default();
     GetCursorPos(&mut cursor).is_ok() && GetAncestor(WindowFromPoint(cursor), GA_ROOT) == owner
-        // 撤销可能与上面的跨进程查询并发；最终重新核对完整绑定。
+        // Revocation may overlap the cross-process query above; recheck complete bindings finally.
         && GetPropW(owner, COOKIE) == cookie && GetPropW(owner, ACTIVE) == cookie
         && GetPropW(root, OWNER).0 == owner.0 && GetPropW(root, SOURCE_COOKIE) == cookie
 }

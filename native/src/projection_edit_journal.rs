@@ -1,4 +1,4 @@
-//! 编辑写前日志；每个profile独占、完整磁盘CAS、单在途，网络返回不自动确认工作区已保存。
+//! Edit write-ahead journal: per-profile exclusivity, full disk CAS, single in-flight request; network replies never automatically confirm workspace saving.
 use super::{Document, Objects, Request, Route};
 use crate::{pixels::Pixels, session_projection_scope::Scope};
 use serde::{Deserialize, Serialize};
@@ -107,11 +107,11 @@ impl Drop for Active<'_> {
     }
 }
 impl Store {
-    /// 仅后台调用；不发现或创建真实profile，不读取环境变量。
+    /// Background only; no discovery/creation of real profiles or environment-variable reads.
     pub fn open(root: &Path, cancel: &AtomicBool) -> Result<Self, Error> {
         file::open(root, cancel)
     }
-    /// 完整不可变请求和本地view先落盘；重入只复用完全相同的pending，不替换未知副作用。
+    /// Persist the complete immutable request/local view first; reentry reuses only identical pending state without replacing unknown side effects.
     pub fn begin(
         &self,
         context: Context,
@@ -134,7 +134,7 @@ impl Store {
             false,
         )
     }
-    /// 产品已读取的同一会话可推进无pending基线；不能换session/basis或覆盖未知网络副作用。
+    /// The same session already read by the product may advance no-pending baselines; never change session/basis or overwrite unknown network effects.
     pub(crate) fn begin_observed(
         &self,
         context: Context,
@@ -221,7 +221,7 @@ impl Store {
             entry,
         })
     }
-    /// 返回待恢复的原请求；不发网、不自动重放，也不把旧工作区view覆盖到当前工作区。
+    /// Return original requests awaiting recovery; no networking/automatic replay or overwriting current workspaces with old views.
     pub fn pending(&self, cancel: &AtomicBool) -> Result<Vec<Ticket>, Error> {
         let state = self.0.state.lock().map_err(|_| Error::Changed)?;
         self.baseline(&state, cancel)?;
@@ -253,7 +253,7 @@ impl Store {
                 entry: entry.clone(),
             }))
     }
-    /// 无pending时才接纳已校验read；初始化日志缺失不能据read猜测原本地编辑。
+    /// Accept validated reads only without pending; missing initialization journals cannot infer original local edits from reads.
     pub fn observe(
         &self,
         context: &Context,
@@ -315,8 +315,8 @@ impl Ticket {
         self.check(cancel)?;
         Ok(active)
     }
-    /// 调用者必须先核当前Workspace与精确canonical checkpoint；HTTP成功本身不能调用此入口。
-    /// 失败/冲突/取消不调用本方法，原pending与view继续保留供显式恢复。
+    /// Callers first verify current Workspace/exact canonical checkpoint; HTTP success alone cannot invoke this entry.
+    /// Failure/conflict/cancellation never calls this method; original pending/view remain for explicit recovery.
     pub fn commit_after_checkpoint(
         &self,
         document: Document,

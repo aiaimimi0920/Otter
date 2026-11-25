@@ -1,4 +1,4 @@
-//! 固定边界只收窄不扩张；释放误认的正文行须有严格运动证据，不能吞掉真实栏变化。
+//! Fixed boundaries only narrow, never expand; releasing misclassified content rows requires strict motion evidence without hiding real bar changes.
 use super::*;
 
 pub(super) fn match_next(
@@ -54,7 +54,7 @@ pub(super) fn match_next(
     }
     if changed {
         let bounds = (old, (leading, trailing));
-        // 边界会应用到全部已提交帧；历史也必须支持释放，否则真实栏消失会伪装成正文。
+        // Boundaries affect all committed frames; history must support release too, or disappearing real bars masquerade as content.
         for pair in frames.windows(2) {
             verify_release(
                 &pair[0].frame,
@@ -84,7 +84,7 @@ fn verify_release(
     cancel: &AtomicBool,
 ) -> Result<(), Error> {
     let length = axis_length(axis, current);
-    // 新露出的像素没有对应帧；选择重叠一侧，逐像素证明原固定区域实际随正文移动。
+    // Newly exposed pixels have no matching frame; use overlapping sides to prove pixelwise that old fixed regions moved with content.
     let released = (new.0..old.0)
         .map(|line| (line, true))
         .chain((length - old.1..length - new.1).map(|line| (line, false)));

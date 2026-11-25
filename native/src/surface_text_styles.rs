@@ -1,4 +1,4 @@
-//! 单个场景的文字样式预计算；绑定节点引用，避免同 ID 新场景复用过期结果。
+//! Precompute text styles per scene, binding node references so new scenes with matching IDs cannot reuse stale results.
 use crate::{
     surface_length::{Context, Length, Unit},
     surface_scene::{Kind, Node, Scene, MAX_DEPTH, MAX_NODES},
@@ -100,7 +100,7 @@ impl<'scene, 'font> Styles<'scene, 'font> {
         }
         Some(style)
     }
-    /// 样式已由全树预计算解析，不能再次走 layout_node 重新计算相对单位。
+    /// Full-tree precomputation has resolved styles; never invoke layout_node again to recalculate relative units.
     pub fn layout_text(
         &self,
         engine: &Engine,

@@ -1,4 +1,4 @@
-//! 同一宿主的文件确认/选择/保存互斥；仅用 Cell，不跨模态调用持有 RefCell。
+//! Mutual exclusion for file confirmation/selection/saving on the same host; Cell only, without RefCell borrows across modal calls.
 use std::cell::Cell;
 
 pub(super) struct Guard<'a>(&'a Cell<bool>);

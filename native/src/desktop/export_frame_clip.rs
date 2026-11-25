@@ -1,4 +1,4 @@
-//! 工作流圆角覆盖完整合成栈；D2D 层及其预算以同一作用域释放。
+//! Workflow rounded corners cover the entire composition stack; release D2D layers and budgets in the same scope.
 use super::*;
 use windows::core::Interface;
 
@@ -16,7 +16,7 @@ pub(in crate::desktop) fn radius(edit: &serde_json::Value) -> Result<f32> {
 }
 
 pub(in crate::desktop) struct Clip<'a> {
-    // PopLayer 必须早于预算释放；调用方还须在 EndDraw 之前释放整个 guard。
+    // PopLayer must precede budget release; callers must also drop the entire guard before EndDraw.
     _layer: crate::desktop::annotation_opacity::Layer<'a>,
     _lease: crate::byte_budget::Lease,
 }
@@ -64,7 +64,7 @@ pub(in crate::desktop) unsafe fn push_frame<'a>(
         right: (frame.x + frame.width) as f32,
         bottom: (frame.y + frame.height) as f32,
     };
-    // Canvas roundRect 的统一半径在过大时等比例缩小，而不是分别压扁两轴。
+    // Canvas roundRect uniformly scales oversized radii rather than squashing axes independently.
     let radius = radius.min(frame.width.min(frame.height) as f32 / 2.0);
     let geometry = factory.CreateRoundedRectangleGeometry(&D2D1_ROUNDED_RECT {
         rect: bounds,
@@ -102,7 +102,7 @@ mod tests {
         )
         .unwrap();
         layout.radius = 3.0;
-        // 底图上传与输出各 400 字节；第三份圆角层必须独立准入。
+        // Base upload and output each use 400 bytes; admit the third rounded-corner layer independently.
         let limited = crate::byte_budget::Budget::new(800);
         assert!(compose_layout(
             &image,

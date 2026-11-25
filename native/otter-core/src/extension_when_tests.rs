@@ -1,4 +1,4 @@
-//! 对照主干 when 的 grammar、未知属性 fail-closed、严格类型与预算。
+//! Match mainline when grammar, fail-closed unknown properties, strict types, and budgets.
 use super::*;
 fn context(kind: Option<UnitKind>, has_image: bool) -> Context<'static> {
     Context {

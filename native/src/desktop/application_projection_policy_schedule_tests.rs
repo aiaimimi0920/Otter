@@ -1,4 +1,4 @@
-//! 真实 Invitation 的有界、公平、NEW-only 和失败退避；不启动网络或修改墙钟。
+//! Real Invitation bounds, fairness, NEW-only behavior, and failure backoff; no networking or wall-clock changes.
 use super::*;
 use crate::projection_delivery::{tests::invitation, Inbox};
 const ORIGIN: &str = "https://loom.example";
@@ -78,7 +78,7 @@ fn receive_policy_schedule_fair_bounded_and_does_not_repeat_failed_accepts() {
         };
         assert!(Arc::ptr_eq(entry, &selected));
         assert!(schedule.plan(ORIGIN, &entries, Policy::Auto, now).is_none());
-        // 同一快照回传不能重新授予自动尝试；成功与失败都不能热循环。
+        // Returning the same snapshot must not regrant an automatic attempt; neither success nor failure may hot-loop.
         schedule.inbox(&entries);
     }
     assert_eq!(schedule.attempted.len(), 64);

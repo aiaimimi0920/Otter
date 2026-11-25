@@ -1,4 +1,4 @@
-//! Enter 边沿复用原 Session/ticket/FIFO；默认 change 只替换原键盘槽，不重放系统消息。
+//! Enter edges reuse original Session/ticket/FIFO; default change replaces only the original keyboard slot without replaying system messages.
 use super::*;
 impl Mount {
     pub(crate) fn javascript_enter(
@@ -20,7 +20,7 @@ impl Mount {
         if !active {
             return Ok(());
         }
-        // 读取最终草稿仍由原通知入口拥有；通常已有 EDIT_END，此调用不会手造重复 input。
+        // The original notification entry still owns final-draft reads; EDIT_END normally already exists, so this call does not fabricate duplicate input.
         self.notify(hwnd, WM_COMMAND, EN_CHANGE)?;
         let (node, field) = self
             .fields
@@ -83,7 +83,7 @@ impl Mount {
                         {
                             field.committed_epoch = change_epoch;
                             field.changed = field.change_epoch > field.committed_epoch;
-                            // 用已接纳 listener 帧的权威值，不能回写旧键盘快照覆盖程序改值。
+                            // Use authoritative values from accepted listener frames; never write back old keyboard snapshots over programmatic changes.
                             change = Some(field.session.authoritative_value().to_owned());
                         }
                     }

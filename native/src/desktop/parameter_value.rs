@@ -1,4 +1,4 @@
-//! 原生单参数输入合同；解析公共值，不读取文件、执行脚本或接触 secret。
+//! Native single-parameter input contract; parse public values without reading files, executing scripts, or accessing secrets.
 use crate::loom_capability::Parameter;
 use serde_json::Value;
 pub(super) const MAX_TEXT: usize = 16384;
@@ -190,7 +190,7 @@ mod tests {
             ] {
                 assert_eq!(field.parse(&value.to_string()), Some(value));
             }
-            // 主干字符串原样显示，不自动包引号；null/未设置显示空文本。
+            // Display mainline strings verbatim without automatic quotes; null/unset values display empty text.
             assert_eq!(
                 field.initial(Some(&Value::String("raw".into()))).as_deref(),
                 Some("raw")

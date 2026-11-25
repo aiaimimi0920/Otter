@@ -1,4 +1,4 @@
-//! 控制线程的实际 HTTPS 加入/重放/轮询与 Win32 就绪、完成句柄合同。
+//! Actual HTTPS join/replay/polling and Win32 readiness/completion-handle contracts for the control thread.
 use super::*;
 use crate::{
     device_authorization_lease::Grant,

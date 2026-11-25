@@ -1,4 +1,4 @@
-//! 发送目录和单目标动作；离线入口仍走本机配对Loom，不复用接收同意或猜测远端地址。
+//! Send catalogs/single-target actions; offline entry still uses locally paired Loom, without reusing receive consent or guessing remote addresses.
 use super::{Request, View as AuthorizationView};
 use crate::projection_delivery::targets::{Directory, Policy, Route, Status};
 use windows::{
@@ -224,7 +224,7 @@ pub(super) unsafe fn append_menu(
         }
     }
     AppendMenuW(parent, MF_POPUP, menu.0 .0 as usize, w!("投送目标"))?;
-    // 只有成功挂接后父菜单才接管；任一构建失败都由局部 owner 释放。
+    // The parent menu takes ownership only after successful attachment; local owners release every construction failure.
     std::mem::forget(menu);
     Ok(())
 }

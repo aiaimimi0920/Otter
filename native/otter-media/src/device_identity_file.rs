@@ -1,4 +1,4 @@
-//! 设备身份的同目录提交；临时文件仅含已保护文档，不把删除旧文件作为替换前置步骤。
+//! Same-directory device-identity commit; temporary files contain only protected documents, without deleting old files before replacement.
 use crate::device_identity::{Identity, MAX_DOCUMENT};
 use std::{
     fs::{File, OpenOptions},
@@ -57,7 +57,7 @@ pub fn write(destination: &Path, bytes: &[u8], replace: bool) -> io::Result<()> 
     } else {
         MOVEFILE_WRITE_THROUGH
     };
-    // 不允许跨卷 copy/delete；失败不主动删除 destination，崩溃可留下独立 tmp。
+    // No cross-volume copy/delete; failure never actively deletes destination, and crashes may leave independent tmp files.
     unsafe { MoveFileExW(PCWSTR(source.as_ptr()), PCWSTR(target.as_ptr()), flags) }
         .map_err(io::Error::other)?;
     staged.committed = true;

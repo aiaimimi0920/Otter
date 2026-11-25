@@ -1,4 +1,4 @@
-//! 实际协作接收/metadata read/Editor/原Checkpoint重开；独立wire与原始源像素oracle。
+//! Actual collaboration receive/metadata read/Editor/original Checkpoint reopening; independent wire and original-source pixel oracles.
 use super::*;
 use crate::{
     projection_edit::{self as edit, workspace::Role},
@@ -250,7 +250,7 @@ unsafe fn local_and_remote(two_way: bool) {
     let _com = Apartment::new().unwrap();
     let mut fixture = accepted(false);
     if two_way {
-        // 此测试专注只读合并/保存；自动提交另由原read→TLS→Checkpoint闭环测试覆盖。
+        // This test focuses on read-only merge/save; original read -> TLS -> Checkpoint end-to-end tests separately cover automatic submission.
         let unit = state(&fixture).unit_id.clone();
         fixture
             .app
@@ -324,7 +324,7 @@ fn collaboration_stale_session_basis_and_missing_metadata_never_replace_current_
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let _com = Apartment::new().unwrap();
     unsafe {
-        // 各反例独立owner；不把产品指数退避串到合成peer的单次接入期限中。
+        // Each counterexample has an independent owner; do not add product exponential backoff to the synthetic peer's single-connection deadline.
         for case in 0..5 {
             let mut fixture = accepted(false);
             let mut good = wire(&fixture.origin, 2, false);

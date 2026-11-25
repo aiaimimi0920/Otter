@@ -1,4 +1,4 @@
-//! 对齐 NumberControl 的有限数字、clampOptional 与十位小数规范化。
+//! Match NumberControl finite numbers, clampOptional, and ten-decimal-place normalization.
 pub(super) fn parse(text: &str) -> Option<f64> {
     let text = text.trim();
     if text.is_empty() {
@@ -40,7 +40,7 @@ pub(super) fn normalize(mut value: f64, min: Option<f64>, max: Option<f64>) -> O
     if value.abs() >= 1e21 {
         return Some(value);
     }
-    // 从 IEEE 尾数精确舍入到十位小数，避免乘浮点 1e10 带来的双重舍入。
+    // Round IEEE significands exactly to ten decimal places, avoiding double rounding from floating-point multiplication by 1e10.
     let bits = value.abs().to_bits();
     let exponent = ((bits >> 52) & 0x7ff) as i32;
     let mantissa = (bits & ((1u64 << 52) - 1)) | if exponent == 0 { 0 } else { 1u64 << 52 };
@@ -91,7 +91,7 @@ mod tests {
         assert_eq!(normalize(0.1 + 0.2, None, None), Some(0.3));
         assert_eq!(normalize(1e-100, None, None), Some(0.0));
         assert_eq!(normalize(1e30, None, None), Some(1e30));
-        // 由 Node 的 Number(x.toFixed(10)) 实际核对的二进制舍入边界。
+        // Binary rounding boundaries actually checked with Node's Number(x.toFixed(10)).
         for (input, expected) in [
             (5e-11, 1e-10),
             (1.5e-10, 1e-10),

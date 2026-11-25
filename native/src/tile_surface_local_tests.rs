@@ -1,4 +1,4 @@
-//! 独立值oracle；保护同源保留/新权威采用、合同退休和文本共享字段预算。
+//! Independent value oracles protect same-source retention/new-authority adoption, contract retirement, and shared text-field budgets.
 use super::*;
 use crate::tile_surface_value::tests::{fixture, presentation};
 use serde_json::json;
@@ -68,7 +68,7 @@ fn same_authoritative_source_retains_local_value_but_changed_source_replaces_it(
         assert_eq!(c.value(&next), Some(expected));
         assert_eq!(c.snapshot().len(), 1);
     }
-    // 两个不匹配的声明字符串都投影为None，但新权威字符串仍必须淘汰本地索引。
+    // Two nonmatching declaration strings both project to None, but a new authoritative string must still invalidate the local index.
     let mut c = Cache::default();
     c.set(
         focus(scene("select", json!("missing1"))),

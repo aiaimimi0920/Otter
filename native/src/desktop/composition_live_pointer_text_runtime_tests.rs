@@ -1,4 +1,4 @@
-//! 本地 B 到后台 A 的 hover/leave/字符回归；只操作自有源，绝不注入全局输入。
+//! Hover/leave/character regressions from local B to background A; owned sources only, never global input injection.
 use super::*;
 
 #[test]
@@ -84,7 +84,7 @@ fn hovered_and_committed_text_reach_occluded_source() {
         assert!(session.take_input_error().is_none());
         assert_eq!(Snapshot::read(&target).unwrap().layered.unwrap().alpha, 1);
         eprintln!("native-live-pointer-text: hidden-source=true hover=true leave=true committed-text=true");
-        // 用户召回 A 后再次最小化；B 的新输入重新登记透明后台渲染，不能要求用户手动还原。
+        // After users recall A then minimize it again, new B input reregisters transparent background rendering without requiring manual restoration.
         owner.observe_reclaim(2, None, 10, |_| false).unwrap();
         let mut intent = crate::live_reclaim::IntentTracker::default();
         intent.record(30, 2);

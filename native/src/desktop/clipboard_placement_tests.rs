@@ -116,7 +116,7 @@ fn moving_cursor_inside_original_source_keeps_one_cascade() {
         (100, 180),
         (-199, 102),
     ];
-    // 不同坐标的请求均在首个提交前采样；交付时必须刷新累计次数而非固定鼠标。
+    // Requests at different coordinates are all sampled before the first commit; delivery must refresh the accumulated count rather than fix the pointer.
     let pending: Vec<_> = points
         .into_iter()
         .map(|point| session.request(point))
@@ -128,7 +128,7 @@ fn moving_cursor_inside_original_source_keeps_one_cascade() {
         let frame = request.cascade_in_source(origin().frame);
         let offset = 20 * (index as i32 + 1);
         assert_eq!((frame.x, frame.y), (-200 + offset, 100 + offset));
-        // 未提交的重试仍在同一层；只有最后的成功提交才能推进下一层。
+        // Uncommitted retries remain on the same layer; only the final successful commit advances to the next layer.
         assert_eq!(
             session.refresh(pending).cascade_in_source(origin().frame),
             frame

@@ -1,4 +1,4 @@
-//! 在隐藏准备边界解析采样坐标下的自有钉图；整矩形命中不受透明像素影响。
+//! Resolve owned pins at sampled coordinates at the hidden-preparation boundary; full-rectangle hit testing ignores pixel transparency.
 use super::*;
 use crate::{desktop::clipboard_placement, pin_geometry::PinRect};
 use windows::core::BOOL;
@@ -22,7 +22,7 @@ struct Search<'a> {
     selected: Option<PinRect>,
 }
 unsafe extern "system" fn visit(hwnd: HWND, data: LPARAM) -> BOOL {
-    // EnumWindows 同步调用，只匹配已校验的自有 HWND，不读取其它程序的内容或几何。
+    // EnumWindows is synchronous and matches only validated owned HWNDs; read neither contents nor geometry of other applications.
     let search = &mut *(data.0 as *mut Search<'_>);
     search.selected = search
         .candidates
@@ -42,7 +42,7 @@ impl Application {
             .iter()
             .find(|doc| doc.state.unit_id == *source_id && self.workspace.contains(source_id));
         let source_frame = source.map_or(Some(saved_frame), |doc| visible_frame(doc));
-        // 先识别最初复制的 A，不能让上层副本或鼠标在 A 内移动改变堆叠序列。
+        // Identify the originally copied A first; neither upper-layer copies nor cursor movement inside A may change the stacking sequence.
         if let Some(frame) = source_frame.filter(|frame| request.contains_cursor(*frame)) {
             return Ok(request.cascade_in_source(frame));
         }
@@ -66,7 +66,7 @@ impl Application {
                 };
                 let result =
                     EnumWindows(Some(visit), LPARAM(&mut search as *mut Search<'_> as isize));
-                // 找到最上层的自有矩形后主动停止枚举，不把正常停止解释为 Win32 错误。
+                // Stop enumeration deliberately after finding the topmost owned rectangle; normal termination is not a Win32 error.
                 if search.selected.is_none() {
                     result?;
                 }
@@ -74,7 +74,7 @@ impl Application {
             }
         };
         if target.is_none() && self.source_window(request.unit()).is_some() {
-            // 存活但不可命中的锚点（含隐藏/最小化）不能通过来源兜底重新参与图内定位。
+            // A live but unhittable anchor, including hidden/minimized ones, must not reenter in-image positioning through source fallback.
             return Ok(request.relative_frame());
         }
         Ok(request.frame(target))

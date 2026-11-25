@@ -1,4 +1,4 @@
-//! 一页未连线文本原子提交；只推进本次同步提交的后缀，外部/模态变化不得获新凭证。
+//! Atomically commit one page of unconnected text; advance only this synchronous commit's suffix, never granting new credentials to external/modal changes.
 use super::*;
 
 pub(super) fn enqueue(queue: &mut VecDeque<Intent>, intent: Intent) {
@@ -62,8 +62,8 @@ unsafe fn submit(
     if !snapshot.submit_texts(panel.ui.host, state, edits)? {
         return Err(Error::new(E_ABORT, "配置已变化，草稿未提交"));
     }
-    // submit_texts 没有模态/同步 Win32 回调；取消通知只是 PostMessage。
-    // 全部值与原 Spec 验证完才发布，后继必须按稳定参数/动作重绑定，不能沿用旧索引。
+    // submit_texts has no modal/synchronous Win32 callbacks; cancellation notifications only PostMessage.
+    // Publish only after validating all values against the original Spec; successors rebind by stable parameter/action, never reuse old indices.
     let after = Stamp::capture(state);
     let successor = Snapshot::capture(state).map(Rc::new);
     for binding in panel.ui.bindings.borrow_mut().iter_mut() {
@@ -130,8 +130,8 @@ unsafe fn advance_inline_drafts(
     if !panel.ui.inline || panel.ui.drafts_idle() {
         return;
     }
-    // 只延续刚刚确认的本 owner 同步文本事务。外部/模态换代不能走到这里。
-    // 后来的 thumb-track 草稿保留 HWND；结构变化仍沿原失效/重新加载路径。
+    // Continue only this owner's just-confirmed synchronous text transaction. External/modal generation changes cannot reach here.
+    // Later thumb-track drafts retain their HWND; structural changes follow the existing invalidation/reload path.
     let mut next = panel.ui.capture(state);
     let old = panel.ui.model.borrow();
     if old.rows.len() != next.rows.len()

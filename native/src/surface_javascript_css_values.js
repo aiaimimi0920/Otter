@@ -1,4 +1,4 @@
-// 只接受已有原生 consumer 的值；未知声明拒绝，不以保存字符串冒充 CSS 生效。
+// Accept only values with existing native consumers; reject unknown declarations instead of treating stored strings as applied CSS.
 ((dom, fail, grid, spatial, fonts, makeBorders) => {
   "use strict";
   const op = dom.ops, definitions = new op.MapType();
@@ -30,7 +30,7 @@
     define(name, name === "white-space" || op.index(name, "text-") === 0 ? "style" : "layout", "enum");
   }
   const color = value => {
-    // 直接用同一捕获exec，避免输入转换重入时再挂一层test包装栈。
+    // Use the same captured exec directly to avoid an extra test wrapper stack during input-conversion reentry.
     if (value.length > 64 || !op.exec(/^[\x00-\x7F]*$/, value)) return false;
     if (op.exec(/^(transparent|currentcolor|black|white|red|green|blue|gray|grey|yellow|orange|purple|pink)$/, value)) return true;
     if (op.exec(/^#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/, value)) return true;
@@ -51,7 +51,7 @@
   const borders = makeBorders(dom, fail, color);
   define(borders.names, "style", "border");
   op.mapEach(borders.pairs, (value, key) => op.mapSet(grid.pairs, key, value));
-  // 简单值校验与expand合一，不保留只由expand调用的额外validate栈。
+  // Combine simple value validation with expand; do not retain an extra validate stack used only by expand.
   const expand = (name, value) => {
     const definition = op.mapGet(definitions, name);
     if (!definition) fail();
@@ -78,7 +78,7 @@
         let item = parts[i] ?? parts[i === 3 ? 1 : 0] ?? parts[0];
         const match = op.exec(/^(0|(?:\d+(?:\.\d*)?|\.\d+)(px|%))$/, item);
         if (!match || (kind === "length" && match[2] === "%") || op.float(item) > (match[2] === "%" ? 1000 : 8192)) fail();
-        // 所有尺寸都交原生 Length::decimal；不得让 .N/N. 被接受后回退成 auto/intrinsic。
+        // All dimensions go through native Length::decimal; never accept .N/N. only to fall back to auto/intrinsic.
         if (item[0] === ".") item = "0" + item;
         const suffix = match[2] ?? "";
         let number = op.slice(item, 0, item.length - suffix.length);

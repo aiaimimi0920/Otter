@@ -1,4 +1,4 @@
-//! 实际 DirectWrite 文字命中，不用固定字符宽度替身。
+//! Actual DirectWrite text hits without fixed-character-width substitutes.
 use super::*;
 #[path = "surface_text_word_tests.rs"]
 mod word;
@@ -41,7 +41,7 @@ fn selection_content_uses_rendered_whitespace_and_utf16_not_source_bytes() {
 #[test]
 fn selection_hit_preserves_surrogate_and_combining_cluster_edges() {
     let value = layout("😀e\u{301}中", Whitespace::PreWrap, 300.);
-    // 每个测试 cluster 左右内部点应落到完整 cluster 边沿，不落在代理项或组合符中间。
+    // Interior points near each test cluster's left/right edges must resolve to full cluster edges, never inside surrogates or combining sequences.
     for range in [0..2, 2..4, 4..5] {
         let rect = value.selection_rects(range.clone()).unwrap()[0];
         let y = (rect.top + rect.bottom) / 2.;

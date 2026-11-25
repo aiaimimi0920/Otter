@@ -1,4 +1,4 @@
-//! 真实 TLS 能力交换及取消，不读取发现文件或用户凭据。
+//! Real TLS capability exchange/cancellation without discovery files or user credentials.
 use super::*;
 use crate::loom_handshake_exchange::{fetch, Error};
 use std::sync::atomic::{AtomicBool, Ordering};

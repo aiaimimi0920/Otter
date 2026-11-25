@@ -1,4 +1,4 @@
-//! 冻结帧选择的真实隐藏 HWND 消息验证；不读取桌面、不注入系统输入。
+//! Real hidden-HWND message verification for frozen-frame selection; no desktop reads or system input injection.
 use super::*;
 fn image(width: u32, height: u32) -> Image {
     Image {
@@ -29,7 +29,7 @@ fn hidden_native_region_selects_synthetic_pixels_and_cancels_without_document() 
                 let state = &*(GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *const Selection);
                 assert!(state.done.get());
                 assert_eq!(state.accepted.get(), !cancel);
-                // 完成后收到额外输入也不能调整或再次提交已确定的矩形。
+                // Extra input after completion must neither adjust nor resubmit the finalized rectangle.
                 SendMessageW(hwnd, WM_LBUTTONDOWN, None, Some(LPARAM(0)));
                 SendMessageW(hwnd, WM_LBUTTONUP, None, Some(LPARAM(1 | (1 << 16))));
                 SendMessageW(hwnd, WM_KEYDOWN, Some(WPARAM(VK_ESCAPE.0 as usize)), None);
@@ -119,7 +119,7 @@ fn live_drag_and_double_click_share_selector_without_cropping_frozen_pixels() {
                 if whole {
                     SendMessageW(hwnd, WM_LBUTTONDBLCLK, None, at(30, 30));
                 }
-                // 若正式完成分支失效，取消会使测试失败而不是挂住消息循环。
+                // If the official completion branch breaks, cancellation fails the test rather than hanging the message loop.
                 SendMessageW(hwnd, WM_KEYDOWN, Some(WPARAM(VK_ESCAPE.0 as usize)), None);
             },
         )
@@ -181,7 +181,7 @@ fn quick_capture_rejects_empty_drags_and_lost_capture_then_accepts_a_fresh_drag(
                 } else if interruption != 0 {
                     SendMessageW(hwnd, interruption, None, None);
                 }
-                // 零宽拖动不能退回到悬停整窗，也不能提交中断前的矩形。
+                // Zero-width dragging must not fall back to the whole hovered window or submit the pre-interruption rectangle.
                 SendMessageW(hwnd, WM_LBUTTONUP, None, at(10, 40));
                 let state = &*(GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *const Selection);
                 assert!(!state.done.get() && !state.accepted.get());
@@ -315,7 +315,7 @@ fn clamped_drag_and_nudge_repaint_only_when_the_visible_rectangle_changes() {
         false,
         Mode::Adjust,
         |hwnd| unsafe {
-            // 隐藏 HWND 不保留更新区域；在隔离桌面显示但不激活，才能观察失效矩形。
+            // Hidden HWNDs retain no update region; show without activation on an isolated desktop to observe invalidation rectangles.
             let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
             assert!(ValidateRect(Some(hwnd), None).as_bool());
             let at = |x: isize, y: isize| Some(LPARAM(x | (y << 16)));

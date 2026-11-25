@@ -1,4 +1,4 @@
-//! 同一生产Engine的定向耗时探针；只记录固定夹具，不修改250ms期限或输出私有异常。
+//! Targeted timing probes in the production Engine; record only fixed fixtures without changing the 250ms deadline or outputting private exceptions.
 use super::*;
 use crate::{surface_javascript::fixture, surface_viewport::Viewport};
 use windows::Win32::{

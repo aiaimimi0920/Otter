@@ -1,12 +1,12 @@
-//! 栅格标注层适配可见框的像素内核；一次分配完成缩放和镜像，不构造中间整图。
+//! Pixel kernel adapting raster annotations to visible boxes; one allocation scales/mirrors without whole-image intermediates.
 use crate::{
     pixels::{self, Pixels},
     raster_flip::{self, Axis, Error},
     viewport::checked_image_bytes,
 };
 
-/// 像素中心对齐的双线性采样，直接插值预乘 BGRA，避免透明边缘颜色泄漏。
-/// 这是确定性的原生采样合同，尚不声明与浏览器 Canvas 下采样逐像素等价。
+/// Pixel-center-aligned bilinear sampling directly interpolates premultiplied BGRA to prevent transparent-edge color leaks.
+/// Deterministic native sampling contract, not yet claimed pixel-equivalent to browser Canvas downsampling.
 pub fn resized_image(
     source: &Pixels,
     source_size: (u32, u32),
@@ -24,7 +24,7 @@ pub fn resized_image(
     )
 }
 
-/// Live 底图保持编辑坐标尺寸；无镜像与双轴镜像也只分配一次。
+/// Live base images retain editing-coordinate dimensions; no mirroring/both-axis mirroring each allocate once.
 pub fn resized_axes(
     source: &Pixels,
     source_size: (u32, u32),
@@ -75,7 +75,7 @@ fn resized_with_budget(
     }
     let (sw, sh) = source_size;
     let (ow, oh) = output_size;
-    // 列表只是加速缓存；预算紧张时仍按原公式逐像素采样，不能阻止原本可完成的保存/冻结。
+    // Tables only accelerate; under budget pressure sample per pixel with original formulas, never blocking otherwise feasible saves/freezes.
     let x_samples = match sample_columns(ow, sw, horizontal, &cancelled, reserve) {
         Ok(samples) => Some(samples),
         Err(Error::BudgetExceeded) => None,
@@ -87,7 +87,7 @@ fn resized_with_budget(
         if cancelled() {
             return Err(Error::Cancelled);
         }
-        // 只初始化即将写入的行，避免在下一次取消检查前清零整帧。
+        // Initialize only the row about to be written, avoiding whole-frame zeroing before the next cancellation check.
         let row_start = output.len();
         output.resize(row_start + ow_bytes, 0);
         let out_row = &mut output[row_start..];
@@ -132,7 +132,7 @@ fn sample_columns(
     cancelled: &impl Fn() -> bool,
     reserve: impl FnOnce(usize) -> Option<crate::byte_budget::Lease>,
 ) -> Result<ColumnSamples, Error> {
-    // 水平采样索引和权重独立于行号；临时表也计入像素池，覆盖真实 Vec capacity。
+    // Horizontal sample indices/weights are row-independent; temporary tables also charge actual Vec capacity to pixel pools.
     let bytes = (output as usize)
         .checked_mul(std::mem::size_of::<ColumnSample>())
         .ok_or(Error::BudgetExceeded)?;

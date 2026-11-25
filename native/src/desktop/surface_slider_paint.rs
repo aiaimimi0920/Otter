@@ -1,4 +1,4 @@
-//! 原生 GDI Slider：按 DPI 绘制轨道/拇指/焦点，高对比度使用系统色；借用 stock 对象。
+//! Native GDI Slider: DPI-scaled track/thumb/focus, system colors for high contrast, and borrowed stock objects.
 use super::*;
 use crate::desktop::surface_control_colors as colors;
 use windows::Win32::UI::HiDpi::GetDpiForWindow;

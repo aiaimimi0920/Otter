@@ -1,4 +1,4 @@
-//! 私有 timer 注入只替换录制的重新设时；真实 waiting timer、模态关闭与 worker 取消仍走产品路径。
+//! Private timer injection replaces only recording rescheduling; real waiting timers, modal closure, and worker cancellation retain product paths.
 use super::super::super as dialog;
 use super::*;
 use crate::desktop::{capture_input::finish_route, Window};
@@ -44,7 +44,7 @@ unsafe fn inject(hwnd: HWND, context: &Context) {
         context.injected.set(true);
         assert_eq!(input.job.borrow().is_pending(), context.inflight);
         if context.inflight {
-            // 此时 waiting 已成功设立真实 timer 且禁用预览；只让随后的重设失败。
+            // waiting has successfully installed a real timer and disabled preview; fail only the subsequent reset.
             assert_eq!(delay, 10);
             assert!(!IsWindowEnabled(GetDlgItem(Some(hwnd), 102).unwrap()).as_bool());
             let deadline = Instant::now() + Duration::from_secs(2);
@@ -74,7 +74,7 @@ unsafe fn inject(hwnd: HWND, context: &Context) {
         !finish_route::request(&context.capture),
         "finish route survived failure"
     );
-    // 已排队的旧 wheel 通知即使在 EndDialog 生效前送达，也不能重启调度或任务。
+    // Queued old wheel notifications must not restart scheduling/tasks even if delivered before EndDialog takes effect.
     let mut message = MSG::default();
     assert!(PeekMessageW(&mut message, Some(hwnd), MESSAGE, MESSAGE, PM_REMOVE).as_bool());
     dialog::handle(hwnd, message.message, message.wParam, message.lParam);
@@ -122,7 +122,7 @@ unsafe fn run(inflight: bool) {
     );
     let (release, gate) = mpsc::channel();
     let (mut input, calls) = setup(vec![Ok(frame(0, 4))], Some(gate));
-    // 首帧现在会自动生成预览；此夹具只注入录制 Capture 的 timer 故障。
+    // The first frame now automatically produces previews; this fixture injects timer failure only for recording Capture.
     input.recording.preview_due.set(false);
     let capture = Rc::new(Cell::new(true));
     input.finish = dialog::finish::State::new(capture.clone());
@@ -172,7 +172,7 @@ unsafe fn run(inflight: bool) {
     assert_eq!(context.input.job.borrow().snapshot().frame_count, 1);
     assert_eq!(context.calls.load(Ordering::Acquire), usize::from(inflight));
     assert!(hook::test_inactive());
-    drop(context); // SessionJob::drop 仍负责 join，取消后的迟到帧没有发布通道。
+    drop(context); // SessionJob::drop still joins; late post-cancellation frames have no publication channel.
     let fresh = manual_input();
     let window = hidden(&fresh);
     command(window.0, 1);

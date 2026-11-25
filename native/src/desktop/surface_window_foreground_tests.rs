@@ -1,9 +1,9 @@
-//! 只用自有屏外窗口验证前台guard的清理边界；不发送全局输入或操作外部进程。
+//! Verify foreground-guard cleanup boundaries with owned offscreen windows only; no global input or external-process operations.
 use super::*;
 use crate::surface_javascript::fixture::{focus_foreground, SERIAL};
 use windows::Win32::Foundation::HWND;
 
-// 反例即使panic也从自有窗口切回anchor；用户已切到外部窗口时同样不覆盖。
+// Counterexamples restore anchor from owned windows even on panic, but do not override a user's switch to an external window.
 struct Anchor(HWND);
 impl Drop for Anchor {
     fn drop(&mut self) {

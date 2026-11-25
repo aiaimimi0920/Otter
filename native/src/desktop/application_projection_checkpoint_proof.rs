@@ -1,11 +1,11 @@
-//! canonical checkpoint 的显示凭证；与原保存提交同步提升，不以 dirty Stamp 猜测图片/输出。
+//! Display proof from the canonical checkpoint; advance synchronously with the original save commit, never infer images/outputs from a dirty Stamp.
 use super::*;
 use crate::{projection_delivery::binding::checkpoint::Index, workspace_id::UnitId};
 
 pub(super) struct Document {
     id: UnitId,
     guard: restore_batch::guard::Document,
-    // 只共享原受预算像素；下一次提交整体替换，最多 MAX_ENTRIES 项，不复制或解码。
+    // Share only original budgeted pixels; replace the whole collection on the next commit, at most MAX_ENTRIES, without copying or decoding.
     image: crate::image_decode::Image,
     source: crate::image_decode::Image,
 }

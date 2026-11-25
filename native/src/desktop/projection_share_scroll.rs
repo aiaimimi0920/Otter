@@ -1,4 +1,4 @@
-//! 小钉图保留可读控件和二维码尺寸，视口限于原钉图，滚动不改变分享来源。
+//! Small pins retain readable controls and QR dimensions; the viewport stays within the original pin, and scrolling does not change the sharing source.
 use super::*;
 use windows::Win32::UI::Controls::SetScrollInfo;
 

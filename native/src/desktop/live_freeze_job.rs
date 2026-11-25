@@ -1,4 +1,4 @@
-//! 单槽 Live GPU 读回任务；完整帧和取消 owner 随线程持有，退出必须 join。
+//! Single-slot Live GPU-readback task; the thread retains complete frames/cancellation ownership and must join on exit.
 use crate::desktop::{
     loom_execution_signal::{reap_deadline, CompletionSignal, Notify},
     open_image::PreparedDocument,

@@ -1,4 +1,4 @@
-//! 自有TLS/raw源恢复：独立wire像素、水位、nonce/创建次数；不捕获桌面或操作真实配置。
+//! Owned TLS/raw-source recovery: independent wire pixels/watermarks/nonces/create counts; no desktop capture or real-configuration operations.
 use super::*;
 use serde_json::{json, Value};
 use std::io::{Read, Write};

@@ -1,4 +1,4 @@
-//! 原worker在publish/paint间的确定性回归；只用隔离TLS，不操作用户窗口。
+//! Deterministic regressions between publish/paint in the original worker; isolated TLS only, without user-window operations.
 use super::*;
 use crate::device_session_client::tests::{accept, reply, request};
 use crate::tile_surface_actions::tests::{value, Fixture};

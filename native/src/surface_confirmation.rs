@@ -1,4 +1,4 @@
-//! 确认请求是待展示数据，不是批准能力；使用时必须复核原事件、当前 ACK 和到期时间。
+//! Confirmation requests are data to display, not approval capabilities; recheck the original event, current ACK, and expiry when used.
 use crate::{
     surface_action_ack::{Ack, Status},
     surface_click_event::ClickEvent,
@@ -119,7 +119,7 @@ impl Request {
     pub fn expires_at_ms(&self) -> u64 {
         self.wire.expires_at_ms
     }
-    /// 不可信 JSON，不可直接解释为命令或默认批准理由。
+    /// Untrusted JSON; never interpret it directly as a command or a default reason for approval.
     pub fn payload(&self) -> Option<&RawValue> {
         self.wire.payload.as_deref()
     }

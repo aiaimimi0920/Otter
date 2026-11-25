@@ -1,4 +1,4 @@
-//! 仅在 linshi 自建路径验证 pin/ACL/句柄门，不加载 DLL，不修改现有目录权限。
+//! Verify pin/ACL/handle gates only in self-created linshi paths; do not load DLLs or change existing directory permissions.
 use super::*;
 use std::{
     fs::{self, OpenOptions},
@@ -69,7 +69,7 @@ fn shader_candidate_directory_lease_excludes_rename_not_attribute_handles() {
         .custom_flags(FILE_FLAG_BACKUP_SEMANTICS.0)
         .open(&fixture.0)
         .is_err());
-    // 元数据访问不参与普通共享写拒绝；安全性必须依赖祖先 ACL，而不是这个句柄。
+    // Metadata access is not subject to ordinary write-sharing denial; safety must rely on ancestor ACLs rather than this handle.
     assert!(OpenOptions::new()
         .access_mode(0x100)
         .custom_flags(FILE_FLAG_BACKUP_SEMANTICS.0)
@@ -89,7 +89,7 @@ fn shader_candidate_acl_rejects_other_user_writes_and_accepts_readonly_grants() 
         "ReadAndExecute",
         "",
     ] {
-        // 各种 ACL 独立新建，不把系统对已有受保护安全描述符的更新行为当本模块合同。
+        // Create each ACL case independently; system updates to existing protected security descriptors are not this module's contract.
         let fixture = Fixture::new();
         fixture.acl(grant);
         let leases = files::directory(&fixture.0).unwrap();

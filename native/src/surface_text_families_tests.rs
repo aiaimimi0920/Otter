@@ -64,7 +64,7 @@ fn font_family_native_selection_is_ordered_lazy_cached_and_bounded() {
         assert_eq!(&*value, "Segoe UI");
         assert!(engine.families.borrow().selected.len() <= 64);
     }
-    assert_eq!(&*first, "Consolas"); // 清缓存不使旧场景持有的 Rc 悬垂。
+    assert_eq!(&*first, "Consolas"); // Clearing caches does not dangle Rc references retained by old scenes.
 }
 
 #[test]

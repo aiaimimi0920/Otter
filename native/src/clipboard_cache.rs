@@ -1,4 +1,4 @@
-//! 原生剪贴板 PNG 暂存与发布；发布前可取消，发布后文件保留，不跟随窗口析构。
+//! Native clipboard PNG staging/publication; cancellable before publication, persistent afterward, independent of window destruction.
 use std::{
     fs::{self, File, OpenOptions},
     io,
@@ -9,7 +9,7 @@ use std::{
 use windows::Win32::Storage::FileSystem::{
     FILE_ATTRIBUTE_REPARSE_POINT, FILE_FLAG_OPEN_REPARSE_POINT,
 };
-/// 单轮清理的哈希读取上限；磁盘配额由 cache_policy 决定。
+/// Hash-read limit for one cleanup pass; cache_policy determines disk quota.
 pub const MAX_BYTES: u64 = 512 * 1024 * 1024;
 pub const MAX_ENTRIES: usize = 4096;
 #[path = "clipboard_cache_cleanup.rs"]
@@ -25,21 +25,21 @@ pub struct Prepared {
     staged: crate::session_file_write::Staged,
     stem: String,
     receipt: receipt::Draft,
-    // 排他文件句柄覆盖准入、暂存直到发布；不同进程不能同时消耗同一剩余容量。
+    // The exclusive file handle spans admission, staging, and publication; processes cannot simultaneously consume the same remaining capacity.
     _lock: File,
 }
 impl Prepared {
-    /// 拖出仅交付新生成的副本；保留缓存锁直到 Shell 完成，允许它移动该副本而非用户原图。
+    /// Drag-out delivers only a newly generated copy; hold the cache lock until Shell finishes so it can move that copy, not the user's original.
     pub(crate) fn commit_drag(self, cancel: &AtomicBool) -> io::Result<(PathBuf, File)> {
         let lock = self._lock.try_clone()?;
         let path = self.commit(cancel)?;
         Ok((path, lock))
     }
-    /// 调用方须在主线程检查请求 owner/文档/取消；之后即使剪贴板部分失败也保留文件。
+    /// Callers must check request owner/document/cancellation on the main thread; afterward retain the file even if clipboard publication partially fails.
     pub fn commit(self, cancel: &AtomicBool) -> io::Result<PathBuf> {
         self.publish(cancel, false).map(|(path, _)| path)
     }
-    /// 文档原图在缓存锁释放前获得只读租约；租约存活时拒绝写入与删除共享。
+    /// The document original obtains a read-only lease before the cache lock releases; deny write/delete sharing for the lease lifetime.
     pub(crate) fn commit_leased(self, cancel: &AtomicBool) -> io::Result<(PathBuf, File)> {
         let (path, lease) = self.publish(cancel, true)?;
         Ok((
@@ -62,7 +62,7 @@ impl Prepared {
                 path.display()
             ))
         })?;
-        // 回执核验与长期租约使用同一只读句柄；发布后失败仍保留 PNG。
+        // Receipt verification and the long-lived lease share one read-only handle; post-publication failure still retains the PNG.
         self.receipt.publish(&path, &file).map_err(|error| {
             io::Error::other(format!(
                 "Clipboard PNG retained at {}; ownership receipt failed: {error}",
@@ -73,7 +73,7 @@ impl Prepared {
     }
 }
 
-// canonicalize 产生 verbatim 前缀；只转换已知磁盘/UNC 形式，不放宽设备命名空间准入。
+// canonicalize produces verbatim prefixes; convert only known disk/UNC forms without widening device-namespace admission.
 fn ordinary_path(path: PathBuf) -> io::Result<PathBuf> {
     use std::{
         ffi::OsString,
@@ -158,7 +158,7 @@ fn admit_staging(
             "Invalid clipboard cache input",
         ));
     }
-    // 这里只验证所属 PNG 编码器结果的封装，不把任意外部输入当作完整 PNG 解码。
+    // Validate only the owning PNG encoder's container here; do not treat arbitrary external input as a fully decoded PNG.
     if policy.temp_cache_max_bytes != 0
         && incoming + receipt::MAX_BYTES as u64 > policy.temp_cache_max_bytes
     {
@@ -205,7 +205,7 @@ fn acquire_lock(path: &Path, cancel: &AtomicBool) -> io::Result<File> {
                 if matches!(error.raw_os_error(), Some(32 | 33))
                     && std::time::Instant::now() < deadline =>
             {
-                // 仅后台任务争锁时短暂等待，给已取消结果的 UI 回收机会；不增加空闲轮询。
+                // Wait briefly only during background lock contention, allowing UI to reclaim cancelled results; no idle polling.
                 std::thread::sleep(std::time::Duration::from_millis(10));
             }
             Err(error) => return Err(error),

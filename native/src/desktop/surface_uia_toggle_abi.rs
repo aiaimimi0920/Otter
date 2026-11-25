@@ -1,4 +1,4 @@
-//! Switch Toggle ABI；状态来自实时会话，通知在提交后且无 Host/RefCell 借用时发送。
+//! Switch Toggle ABI; state comes from live sessions, with notifications after commit and without Host/RefCell borrows.
 use super::*;
 fn state(value: bool) -> ToggleState {
     if value {

@@ -1,4 +1,4 @@
-//! 解析与真实级联窗口测试；命令仍由调用者在目标校验后执行。
+//! Parsing/real cascade-window tests; callers still execute commands only after target validation.
 use super::*;
 use windows::core::w;
 struct Owner(HWND);

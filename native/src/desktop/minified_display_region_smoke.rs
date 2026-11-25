@@ -1,4 +1,4 @@
-//! 同像素同 revision 的不同外部标注必须更新实际 HWND 区域；仅使用合成透明图。
+//! Different external annotations with identical pixels/revision must update actual HWND regions; synthetic transparent images only.
 use super::*;
 use crate::{
     editor::{Editor, Tool},

@@ -1,4 +1,4 @@
-// 同一真实引擎的树顺序/私有状态回归；故意保留 intrinsic 覆盖到 collect/update/dispose。
+// Tree-order/private-state regressions in the same actual engine; deliberately retain intrinsic overrides through collect/update/dispose.
 let label;
 NeuroSurface.define({
   mount({ root }) {

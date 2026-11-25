@@ -1,4 +1,4 @@
-//! 内联页签只切换投影；授权、策略、目录及解绑继续使用原请求 owner，不重建或取消在途请求。
+//! Inline tabs switch only projections; authorization, policy, catalog, and unbinding retain the original request owner without rebuilding or cancelling in-flight requests.
 use super::super::device_authorization_ui::{
     self as auth,
     settings::{self, Section},

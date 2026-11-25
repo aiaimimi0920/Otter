@@ -1,4 +1,4 @@
-//! 固定 Loom origin 的媒体请求与 TLS 信任；凭据获取/续签由授权 owner 负责。
+//! Media requests/TLS trust for a fixed Loom origin; authorization owners acquire/renew credentials.
 use crate::live_relay_receive::MEDIA_OFFER;
 use rustls::{ClientConfig, RootCertStore};
 use std::{net::IpAddr, sync::Arc};
@@ -21,7 +21,7 @@ pub enum Error {
     Trust,
 }
 
-/// 不实现 Debug，避免调用者意外记录 token。
+/// No Debug implementation, preventing accidental token logging.
 pub enum Credential<'a> {
     None,
     Bearer(&'a str),
@@ -42,14 +42,14 @@ pub struct Prepared {
     pub(super) device: bool,
 }
 impl Prepared {
-    /// 解码链已失败时重连不重新广告视频能力；只影响这份已授权Viewer请求。
+    /// After decode-chain failure, reconnecting does not re-advertise video capability; affects only this authorized Viewer request.
     pub(super) fn viewer_legacy(&mut self) {
         self.request.headers_mut().insert(
             "sec-websocket-protocol",
             HeaderValue::from_static("loom.live.v1"),
         );
     }
-    /// 仅在已建立系统encoder的Source owner内调用；不广告JPEG或改认证/URL。
+    /// Call only inside a Source owner with an established system encoder; never advertise JPEG or change authentication/URL.
     pub(crate) fn source_h264(&mut self) {
         self.request.headers_mut().insert(
             "sec-websocket-protocol",
@@ -59,15 +59,15 @@ impl Prepared {
 }
 
 impl Endpoint {
-    /// 仅接收已通过固定 HTTPS origin 校验的授权 Client 的 URL/信任配置。
+    /// Accept only URL/trust configuration from an authorized Client validated against fixed HTTPS origin.
     pub(super) fn from_authenticated(origin: Url, tls: Arc<ClientConfig>) -> Self {
         Self {
             origin,
             tls: Some(tls),
         }
     }
-    /// roots 只能来自此 origin 的可信配置；不修改系统证书库，也不关闭证书验证。
-    /// 明文仅允许 loopback IP 或 localhost；transport 必须再次限制解析地址。
+    /// roots must come from this origin's trusted configuration; never modify system certificate stores or disable certificate verification.
+    /// Plaintext is allowed only for loopback IP/localhost; transport must recheck resolved-address restrictions.
     pub fn new(origin: &str, roots: RootCertStore) -> Result<Self, Error> {
         if origin.len() > 2048 || origin.bytes().any(|b| b.is_ascii_whitespace()) {
             return Err(Error::Origin);
@@ -128,7 +128,7 @@ impl Endpoint {
         {
             return Err(Error::Identity);
         }
-        // 远端匿名和明文 Device 均不能伪装为已授权媒体连接。
+        // Remote anonymous and plaintext Device connections cannot masquerade as authorized media connections.
         if (!loopback(&self.origin) && matches!(credential, Credential::None))
             || (self.tls.is_none() && matches!(credential, Credential::Device(_)))
         {

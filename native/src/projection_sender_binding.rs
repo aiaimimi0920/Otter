@@ -1,4 +1,4 @@
-//! 兼容 projectionSenders 的来源关联；候选/索引不是授权、磁盘提交或接收端呈现凭证。
+//! Source associations compatible with projectionSenders; candidates/indexes are not authorization, disk commit, or receiver-presentation receipts.
 use super::*;
 use crate::{session_json_fields::fields, session_source::Source};
 #[path = "projection_sender_admission.rs"]
@@ -157,7 +157,7 @@ impl Binding {
             .map(|raw| fields(raw.get()).map_err(|_| Error::Format))
             .transpose()?
             .unwrap_or_default();
-        // 明确成对且非null；未知/残缺离线字段仍不能降为在线资格。
+        // Explicitly paired and nonnull; unknown/partial offline fields cannot downgrade to online eligibility.
         if link.contains_key("offlineTransport") != target.contains_key("peerId")
             || link
                 .get("offlineTransport")

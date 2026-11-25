@@ -11,7 +11,7 @@
   <img src="https://img.shields.io/badge/platform-Windows_10_%2F_11-36564f?style=flat-square" alt="Windows 10 / 11">
   <a href="https://github.com/aiaimimi0920/Otter/actions/workflows/build-otter-exe.yml"><img src="https://github.com/aiaimimi0920/Otter/actions/workflows/build-otter-exe.yml/badge.svg" alt="Build Otter EXE"></a>
 </p>
-<p align="center">English · <a href="./README.zh-CN.md">简体中文</a></p>
+<p align="center">English · <a href="./README.zh-CN.md">Simplified Chinese</a></p>
 
 Otter is a free, open-source screenshot tool that brings capturing, annotating,
 organizing and sharing into your everyday work. Turn your desktop into a workbench:
@@ -29,21 +29,17 @@ explore more possibilities for the images you capture.
 - **Connect nodes and combine effects.** Use Loom's OCR, translation and Art capabilities, connecting nodes to build your own processing flows.
 - **Project your view to other devices.** Send images or live views to connected, paired devices for viewing and collaboration across screens.
 
-[**Full features →**](./docs/FEATURES.md)
+[**Features and shortcuts →**](./docs/FEATURES.md)
 
 ## Get started
 
 | Start here | What you need to do |
 | --- | --- |
-| [Download Otter](https://github.com/aiaimimi0920/Otter/releases) | For an older public download, follow its release instructions. Launch `otter-native.exe` from a current internal package. |
-| Download Otter + Loom | Extract and launch the Otter App and Loom App. Install capability packages such as OCR and translation in Loom, and add commonly used MCP tools and Art nodes as needed to expand your creative workflow. |
+| [Public downloads](https://github.com/aiaimimi0920/Otter/releases) | Follow the selected release's instructions. Current native builds are unsigned internal ZIPs; extract the entire package and keep `otter-native.exe` with `otter_live_hover_hook.dll`. See the [build guide](docs/development/WINDOWS_NATIVE_BUILD.md). |
+| Use with Loom | Start Loom and install the required OCR, translation or Art capabilities, then [connect and authorize Otter](docs/features/LOOM_CONNECTION.md). |
 
 1. Press **`Ctrl+1`** for a region screenshot, **`Ctrl+2`** for live capture, or **`Ctrl+3`** for a scrolling screenshot.
-2. Select a pinned image and press **`Ctrl+E`** to show or hide the editing toolbar, or **`Tab`** to expand or collapse the parameter panel. After leaving editing or selection mode, press **`Esc`** to delete the pinned image.
-3. With the corresponding Loom capabilities available, press **`Ctrl+4`** for OCR and **`Alt+4`** to toggle recognition results; press **`Ctrl+5`** to translate and **`Alt+5`** to toggle translation results; press **`Shift+1`** to open the Art menu and add a new node.
-4. Select a pinned image, open the toolbar, check projection targets, and click Confirm. Receivers using Receive or Auto accept automatically; the sender shows waiting and received counts. Use the current Otter and Loom together.
-
-In the current native build, use the Loom menu to query a Surface closed in this session, then confirm the recovery candidate to remount it.
+2. Select the pinned image and press **`Ctrl+E`** to edit it, or **`Tab`** to expand its parameter panel.
 
 [**Complete usage guide →**](./docs/guide/getting-started.md)
 
@@ -54,7 +50,7 @@ In the current native build, use the Loom menu to query a Surface closed in this
 ## Contributing
 
 Bug reports, translations, documentation improvements and code contributions are welcome.
-Start with [contributing and translating](./docs/guide/contributing.md), and explore the
+Start with [wording and translation](./CONTRIBUTING.md#wording-and-translation), and explore the
 [repository layout](./docs/architecture/overview.md#2-repository-layout) to understand the code structure.
 Code changes follow the [engineering contribution guide](./CONTRIBUTING.md).
 File placement and module ownership follow the [code organization standard](./docs/development/CODE_ORGANIZATION.md).

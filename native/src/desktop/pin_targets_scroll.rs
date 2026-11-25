@@ -1,4 +1,4 @@
-//! 目标列表的窄自绘滚动条；原 LISTBOX 仍拥有行索引、键盘选择及滚轮。
+//! Narrow owner-drawn target-list scrollbar; the original LISTBOX still owns row indices, keyboard selection, and the wheel.
 use super::*;
 use windows::Win32::UI::Input::KeyboardAndMouse::{GetCapture, ReleaseCapture, SetCapture};
 pub(super) const ID: i32 = 12;

@@ -1,4 +1,4 @@
-//! 描述前登记的代际与信任必须与下载相同；测试只验证 owner，不冒充网络或窗口挂载。
+//! Generation and trust registered before description must match download; tests verify only the owner, not networking or window mounting.
 use super::*;
 use crate::art_local_requests::tests as fixture;
 fn request() -> Request {

@@ -1,4 +1,4 @@
-//! 擦除手势只收集有界图像坐标；CPU 擦除在松手后的后台任务执行。
+//! Erase gestures collect only bounded image coordinates; CPU erasure runs in background after release.
 use super::canvas::Canvas;
 use crate::{erase_job::Request, erase_layers::Mode, viewport::Point};
 impl Canvas {
@@ -53,7 +53,7 @@ impl Canvas {
     }
 }
 
-/// 未接入实时像素预览前仅显示尺寸环，不用覆盖色冒充透明擦除结果。
+/// Until live pixel previews are connected, show only size rings; overlay colors must not impersonate transparent erasure.
 pub(super) unsafe fn draw_cursor(
     target: &windows::Win32::Graphics::Direct2D::ID2D1RenderTarget,
     brush: &windows::Win32::Graphics::Direct2D::ID2D1SolidColorBrush,

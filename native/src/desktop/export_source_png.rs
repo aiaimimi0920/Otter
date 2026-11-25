@@ -1,4 +1,4 @@
-//! 源分辨率编码的最终出口；发送合同先限源/内框/外框，再预占 HGlobal 编码预算。
+//! Final source-resolution encoding entry; send contracts bound source/inner/outer frames before reserving HGlobal encoding budgets.
 use super::*;
 
 pub(super) struct Output {
@@ -61,7 +61,7 @@ impl Output {
         if self.size != (width, height) {
             return Err(Error::new(E_INVALIDARG, "Source PNG output size changed"));
         }
-        // 最坏 scanline/deflate/chunk 占用先于 WIC 编码；Pixels 副本另有原共享预算。
+        // Reserve worst-case scanline/deflate/chunk usage before WIC encoding; Pixels copies retain separate original shared budgets.
         let raw = (u64::from(width) * 4 + 1) * u64::from(height);
         let bound = raw + raw.div_ceil(16_384) * 64 + 64 * 1024;
         let _encoded = if self.projection {
@@ -75,8 +75,8 @@ impl Output {
             None
         };
         let (stream, bytes) = encode_bitmap(wic, &bitmap.bitmap)?;
-        // 返回 PNG 再申请预算前释放合成输出，保留普通 workflow 原有准入条件。
-        // 发送的 HGlobal 编码租约必须继续存活，直到 stream 拷贝完成或失败。
+        // Release composited output before requesting budget for returned PNGs, preserving ordinary workflow admission conditions.
+        // Send-path HGlobal encoding leases must remain alive until stream copying completes or fails.
         drop(bitmap);
         if self.projection && bytes > crate::projection_delivery::accept::MAX_PNG as u64 {
             return Err(Error::new(E_INVALIDARG, "Projection PNG exceeds limit"));

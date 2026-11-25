@@ -1,4 +1,4 @@
-//! 外部源推进不是本地 undo；仅在所有历史底图仍共享同一基线时原子重基。
+//! External-source advancement is not local undo; atomically rebase only while every historical base still shares the same baseline.
 use super::*;
 use crate::erase_layers::Layers;
 fn compatible(layers: &Layers, source: &Layers) -> bool {
@@ -34,7 +34,7 @@ impl History {
                     .is_none_or(|items| items.iter().all(|(_, s)| safe(s)))
         })
     }
-    /// 调用前必须完成 source_compatible；只换共享底图，不动 cursor/标注/裁剪。
+    /// Complete source_compatible before calling; replace shared bases only, leaving cursor/annotations/crops unchanged.
     pub fn rebase_source(&mut self, base: &crate::pixels::Pixels) {
         for entry in &mut self.entries {
             if let Some(layers) = entry.document.as_mut().and_then(|doc| doc.raster.as_mut()) {

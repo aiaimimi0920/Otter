@@ -1,4 +1,4 @@
-//! 有界、对齐的 token 信息读取；只复制 SID，所有内嵌指针须落在返回缓冲区内。
+//! Bounded, aligned token-information reads; copy only SIDs, and require all embedded pointers to lie within the returned buffer.
 use super::{Denied, Result};
 use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle};
 use windows::Win32::{Foundation::HANDLE, Security::*, System::Threading::OpenProcessToken};

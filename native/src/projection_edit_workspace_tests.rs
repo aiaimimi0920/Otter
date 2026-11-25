@@ -1,4 +1,4 @@
-//! 独立JSON常量核记录与canonical绑定，不以新映射器生成预期。
+//! Independent JSON constants check record/canonical binding, without new-mapper-generated expectations.
 use super::*;
 use crate::projection_edit::fixture;
 use serde_json::json;
@@ -41,7 +41,7 @@ fn assert_invalid_snapshot_is_rejected(invalid: &Snapshot) {
     );
     let valid = snapshot();
     valid.install(&mut fields).unwrap();
-    // 内容摘要不变，只破坏持久化 snapshot，确保 restore 也执行同一校验。
+    // Keep content digests unchanged and corrupt only persisted snapshots, ensuring restore performs the same checks.
     fields.get_mut(FIELD).unwrap()["snapshot"] = serde_json::to_value(invalid).unwrap();
     assert_eq!(
         restore(fields, Some(valid.context().scope())),

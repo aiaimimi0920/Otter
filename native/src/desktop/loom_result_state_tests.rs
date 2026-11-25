@@ -41,7 +41,7 @@ fn formal_source_stamp_ignores_previews_but_detects_successful_output_replacemen
     state.begin(request(3));
     state.finish(&request(3), image(50)).unwrap();
     assert!(!source.stamp.matches(&state));
-    // 下游快照仍安全持有原图，但交付前必须拒绝过期凭证。
+    // Downstream snapshots still safely retain original images but must reject stale evidence before delivery.
     assert_eq!(source.image.pixels[0], 20);
     assert_eq!(
         state.image_source("output_image").unwrap().image.pixels[0],

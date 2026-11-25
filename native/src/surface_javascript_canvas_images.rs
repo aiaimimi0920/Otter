@@ -1,5 +1,5 @@
-//! child当前会话的不可变输入图片及每个target的位图；均占原Canvas逻辑总预算。
-//! 原PNG逐项读取/释放，解码不进JS heap；不缓存URL，不拥有网络、文件或窗口。
+//! Immutable input images in the child's current session and per-target bitmaps all consume the original total logical Canvas budget.
+//! Read/release original PNGs individually; decoding stays outside the JS heap, with no URL cache or ownership of networking, files, or windows.
 use crate::{
     byte_budget::{Budget, Lease},
     image_decode::Image,
@@ -32,7 +32,7 @@ impl Inputs {
         images::validate(headers)?;
         let mut combined: Vec<_> = self.0.values().map(|input| input.header.clone()).collect();
         combined.extend_from_slice(headers);
-        // 输入和服务结果共用同一累计8图/8MiB PNG/16MiB像素准入；任何失败不改旧表。
+        // Input and service results share cumulative admission limits of 8 images / 8MiB PNG / 16MiB pixels; failures never change the old table.
         images::validate(&combined)?;
         let mut pending = BTreeMap::new();
         for header in headers {
@@ -40,7 +40,7 @@ impl Inputs {
                 .reserve(wire::canvas::bytes(header.size)?)
                 .ok_or_else(invalid)?;
             let png = images::read(reader, header)?;
-            // 声明尺寸在WIC像素分配前再次核对，PNG并非可自由嗅探的任意媒体。
+            // Recheck declared dimensions before WIC pixel allocation; PNG is not arbitrary media open to unrestricted sniffing.
             let image = Image::from_projection_png(&png, header.size[0], header.size[1], &|| false)
                 .map_err(|_| invalid())?;
             pending.insert(
@@ -77,7 +77,7 @@ impl Inputs {
             return Err(invalid());
         };
         let input = self.0.get(id).ok_or_else(invalid)?;
-        // 身份先核验；零面积/完全越界是无操作，不为其分配可能很大的target位图。
+        // Verify identity first; zero-area/fully out-of-bounds regions are no-ops and must not allocate potentially large target bitmaps.
         if region(
             [input.image.width, input.image.height],
             *source,
@@ -139,7 +139,7 @@ pub(super) fn draw(
             windows::Win32::Foundation::E_INVALIDARG,
         ));
     };
-    // Renderer已先prepare整批且核验全部图片身份；缺缓存只可能是无需绘制的空区域。
+    // Renderer has already prepared the entire batch and verified every image identity; missing cache entries can only be empty regions requiring no drawing.
     let Some(image) = images.get(id) else {
         return Ok(());
     };
@@ -174,7 +174,7 @@ fn region(
     source: [f32; 4],
     destination: [f32; 4],
 ) -> Option<(D2D_RECT_F, D2D_RECT_F)> {
-    // drawImage的负宽高只延伸矩形，不翻转；源区越界时按同一比例裁目的区。
+    // Negative drawImage widths/heights extend rectangles without flipping; clip the destination proportionally when the source exceeds bounds.
     let normalize = |[mut x, mut y, mut w, mut h]: [f32; 4]| {
         if w < 0. {
             x += w;

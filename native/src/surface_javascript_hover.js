@@ -1,10 +1,10 @@
-// 只保留上一条已派悬停路径（最多32节点），不维护第二棵DOM或原生几何。
+// Retain only the last dispatched hover path (at most 32 nodes), not a second DOM or native geometry.
 ((dom, fail, sheets) => {
   "use strict";
   const { ops: op, root } = dom;
   let previous = op.array();
-  // 只借上一目标的当前私有父链；脱树不匹配，移动后不保留旧祖先的样式状态。
-  // 不读 computed（避免 selector→hover→computed 递归）或可被插件覆盖的公开属性。
+  // Use only the previous target's current private parent chain; detached nodes do not match, and moves do not retain old ancestor style state.
+  // Do not read computed (avoiding selector->hover->computed recursion) or public properties that plugins can override.
   const matches = expected => {
     let found = false, depth = 0;
     for (let node = previous[0]; node; node = dom.get(node).parent) {
@@ -41,7 +41,7 @@
       const next = pathFor(target), old = previous, source = old[0] ?? null;
       let same = next.length === old.length;
       for (let i = 0; same && i < next.length; i++) same = next[i] === old[i];
-      // 回调之前固定路径与新的物理位置；回调修改树不改写本次过界事件目标。
+      // Fix the path and new physical position before callbacks; tree mutations in callbacks do not rewrite this crossing event's targets.
       previous = next;
       if (!same) {
         dom.changed();

@@ -1,4 +1,4 @@
-//! 规范摘要与主干 JSON.stringify 边界；可选语料输出由验证脚本交给真实 Node 作独立判定。
+//! Canonical digests/mainline JSON.stringify boundaries; verification scripts send optional corpus output to real Node for independent judgment.
 use super::*;
 use serde_json::json;
 #[test]

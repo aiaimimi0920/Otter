@@ -1,4 +1,4 @@
-//! 同步后台 Art 会话组合；不创建线程/窗口。交付前处理资源释放，失败返回租约 owner。
+//! Synchronous background Art-session composition without threads/windows; handle resource release before delivery and return lease owners on failure.
 use super::loom_delivery::Delivery;
 use crate::{
     graph_requests::Request, loom_art_exchange, loom_art_response::Event, loom_bridge_client,
@@ -37,8 +37,8 @@ pub struct Session<'a> {
     pub timeout: Duration,
 }
 impl Session<'_> {
-    /// connected 将只读中断能力交给任务 owner；UI 不得直接调用本阻塞函数。
-    /// emit 返回 false 停止会话。请求注册/旧请求取消在调用前完成，远端取消由任务 owner 负责。
+    /// connected transfers read-only interruption capability to task owners; UI must not call this blocking function directly.
+    /// emit returning false stops sessions. Register/cancel old requests before calling; task owners handle remote cancellation.
     pub fn run(
         &self,
         message: String,
@@ -131,7 +131,7 @@ impl Session<'_> {
         candidates: Option<&Value>,
         skip: bool,
     ) -> Result<Delivery, Failure> {
-        // 旧预览仍需提取并释放租约，但不做昂贵像素解码。
+        // Old previews still require extracting/releasing leases, but skip expensive pixel decoding.
         let cancelled = AtomicBool::new(true);
         let mut delivery = Delivery::prepare(
             self.unit.clone(),

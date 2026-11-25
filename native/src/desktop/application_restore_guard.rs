@@ -1,4 +1,4 @@
-//! 恢复窗口批次的来源凭证；不复制文档像素，不以目录身份替代工作区状态检查。
+//! Source credentials for restored-window batches; do not copy document pixels or substitute catalog identity for workspace-state checks.
 use super::*;
 #[path = "application_restore_document.rs"]
 mod document;
@@ -44,7 +44,7 @@ impl Guard {
         self.documents.iter().map(Document::geometry)
     }
     fn matches_header(&self, app: &Application) -> bool {
-        // 单窗验证包含相同的 idle::state，不先按整批重复检查。
+        // Per-window validation includes the same idle::state; do not first repeat this check for the entire batch.
         services_idle(app)
             && self.topology.matches(&app.workspace)
             && self.appearance.matches(&app.workspace)
@@ -67,7 +67,7 @@ impl Guard {
         app: &Application,
         saved: &save_state::Stamp,
     ) -> bool {
-        // 两份基线仍独立比较；同一个 HWND 的物理观测只读一次。
+        // Compare both baselines independently, but read each HWND's physical observations only once.
         self.matches_header(app)
             && saved.matches_with_restore(app, |index, doc, rect, dpi| {
                 self.documents[index].matches_observed(doc, rect, dpi)

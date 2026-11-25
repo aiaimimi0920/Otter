@@ -1,4 +1,4 @@
-//! 真实 overlapped Pipe 的分阶段回归；假 provider 不访问桌面、不发送输入。
+//! Phased regression tests using real overlapped Pipes; fake providers neither access the desktop nor send input.
 use super::*;
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
@@ -73,7 +73,7 @@ fn successful_two_second_action_keeps_its_acknowledgement() {
         move |_, _, attempted| {
             *attempted = true;
             observed.fetch_add(1, Ordering::SeqCst);
-            // 旧 700/750ms 协议会丢掉已成功的结果；复现实测两秒 UIA 返回。
+            // The old 700/750ms protocol would discard successful results; reproduce the measured two-second UIA return.
             thread::sleep(Duration::from_millis(2100));
             Ok(true)
         },

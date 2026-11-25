@@ -1,4 +1,4 @@
-//! 显式真实Loom HTTPS联合消费者：原菜单/Job/PNG/版本/Checkpoint/停止，不冒充可见或跨机验收。
+//! Explicit real-Loom HTTPS joint consumer: original menu/Job/PNG/version/Checkpoint/stop, not visible or cross-machine acceptance.
 use super::*;
 use serde_json::{json, Value};
 #[path = "application_projection_edit_joint.rs"]
@@ -105,7 +105,7 @@ fn run(offline: bool) {
         let journal = std::fs::read(f.profile.join("projection-sender.json")).unwrap();
         f.publish("created.json", &json!({"envelope":first.envelope(),"revision":first.revision(),"digest":first.digest()}));
         f.wait("accepted");
-        // 远端接纳只同步原关联的回执，不创建第二邀请或伪造displayed。
+        // Remote acceptance synchronizes only the original association's receipt, without creating a second invitation or fabricating displayed.
         cycle(&mut app, &f);
         assert!(binding(&app).linked());
         assert_eq!(binding(&app).revision(), 1);
@@ -131,7 +131,7 @@ fn run(offline: bool) {
                 height: 8.,
             })
             .unwrap();
-        // 保持真实服务原500ms速率限制；只控制测试步骤，不改生产调度/期限。
+        // Preserve the real service's original 500ms rate limit; control only test steps, not production scheduling/deadlines.
         std::thread::sleep(Duration::from_millis(550));
         cycle(&mut app, &f);
         let updated = binding(&app);
@@ -152,7 +152,7 @@ fn run(offline: bool) {
         f.publish("updated.json", &json!({"envelope":updated.envelope(),"revision":updated.revision(),"digest":updated.digest(),"width":16,"height":8}));
         f.wait("read-verified");
         if f.revoke {
-            // 撤销由真实Loom执行；保留已保存来源，不用失败unlink伪造已停止回执。
+            // Real Loom performs revocation; preserve the saved source rather than using failed unlink to fabricate a stopped receipt.
             f.wait("peer-revoked");
             let path = f.profile.join("workspace.json");
             let before = std::fs::read(&path).unwrap();
@@ -182,7 +182,7 @@ fn run(offline: bool) {
             );
             return;
         }
-        // 复用原停止恢复窗口：真实unlink完成、canonical移除后重开，无新token也能消费原持久回执。
+        // Reuse the original stop-recovery window: reopen after actual unlink completion and canonical removal, consuming the original durable receipt even without a new token.
         stop::run(&mut app, &f.profile, &updated, 9);
         assert!(app
             .workspace_checkpoint

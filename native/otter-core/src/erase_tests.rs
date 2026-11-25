@@ -1,4 +1,4 @@
-//! 内容擦除的几何、预乘透明度、无变化身份及失败原子性回归。
+//! Content-erasure geometry, premultiplied alpha, unchanged identity, and failure-atomicity regressions.
 use super::*;
 
 fn p(x: f32, y: f32) -> Point {
@@ -37,7 +37,7 @@ fn segment_order_repetition_and_subdivision_do_not_deepen_soft_edges() {
             reference
         );
     }
-    // 一条直径为 4 的跨图线，中间没有跳点断层；两端超出图像不扩大分配。
+    // A diameter-4 line spans the image without gaps; off-image endpoints do not enlarge allocations.
     let output = apply(
         &source,
         (32, 32),

@@ -1,4 +1,4 @@
-//! 独立颜色常量oracle与真实系统编码→既有decoder；显式运行门不计入普通单测通过。
+//! Independent constant-color oracle and real system encode -> existing decoder; explicit runtime gates do not count as ordinary unit-test success.
 use super::*;
 #[test]
 fn unsupported_size_budget_and_capacity_fail_without_leaking() {

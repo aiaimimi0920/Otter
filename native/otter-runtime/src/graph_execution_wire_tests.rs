@@ -1,4 +1,4 @@
-//! 实际编码结果的协议夹具；不发送到外部服务，预算失败必须保留旧请求和预览。
+//! Protocol fixtures for actual encoded results; do not send to external services, and preserve the old request/preview on budget failure.
 use super::*;
 use crate::{
     graph_execution_config::{Config, Runtime, Trigger},

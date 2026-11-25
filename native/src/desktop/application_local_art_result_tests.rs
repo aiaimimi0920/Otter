@@ -1,4 +1,4 @@
-//! 真实隐藏 Application：签名 child 正式结果进入既有端口/保存恢复，不覆盖发起截图。
+//! Real hidden Application: signed-child committed results enter existing ports/save/restore without overwriting the initiating screenshot.
 use super::*;
 use crate::art_execution_grant::package::ports::{Port, Ports};
 const RESULT_SOURCE: &str = r#"
@@ -26,7 +26,7 @@ fn local_art_formal_result_enters_session_save_restore_but_image_host_is_not_a_t
                 .image
                 .as_ref()
                 .map(|image| image.pixels.clone());
-            // 当前发布的包携带签名端口；仅恢复的 Local Art 宿主能接收这些端口。
+            // The currently published package includes signed ports; only restored Local Art hosts may receive them.
             let peer = peer::Peer::with_ports(
                 RESULT_SOURCE,
                 Ports {

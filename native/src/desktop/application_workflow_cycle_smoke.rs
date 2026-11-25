@@ -1,4 +1,4 @@
-//! 隐藏会话周期回归：真实归档后撤销目录，确保新 revision 重准备失败且不发送网络。
+//! Hidden-session cycle regression: revoke the catalog after actual archive commit and verify preparation for the new revision fails without network sends.
 use super::*;
 pub(in crate::desktop::application) unsafe fn verify(
     app: &mut Application,

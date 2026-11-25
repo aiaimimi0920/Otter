@@ -1,4 +1,4 @@
-//! 真实端口 HWND 的绘制、region、输入和连线锚点共享主题胶囊；不注入全局输入。
+//! Actual port-HWND painting, regions, input, and link anchors share themed capsules; no global input injection.
 use super::*;
 #[test]
 fn expanded_port_hit_region_and_link_endpoint_follow_the_outer_anchor_without_new_windows() {

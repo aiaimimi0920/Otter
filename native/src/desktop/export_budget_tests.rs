@@ -1,4 +1,4 @@
-//! 独立预算验证 WIC 合成资源生命周期，不耗尽全局预算、不触碰磁盘。
+//! Independent budgets verify WIC composition lifetimes without exhausting global budgets or touching disk.
 use super::*;
 use crate::{byte_budget::Budget, erase_layers::Layers};
 
@@ -32,7 +32,7 @@ fn composition_reserves_output_and_independent_uploads_then_retains_only_output(
     let wic: IWICImagingFactory =
         unsafe { CoCreateInstance(&CLSID_WICImagingFactory, None, CLSCTX_INPROC_SERVER).unwrap() };
     let (image, editor) = fixture();
-    // 裁剪输出 16 + 完整底图上传 64 + 独立标注上传 8；不按底图尺寸误算标注。
+    // Cropped output 16 plus full base upload 64 plus independent annotation upload 8; never size annotations from base-image dimensions.
     let budget = Budget::new(88);
     let peak = std::cell::Cell::new(0);
     let output = compose_with_budget(&image, &editor, &wic, |bytes| {

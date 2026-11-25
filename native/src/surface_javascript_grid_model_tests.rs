@@ -1,4 +1,4 @@
-//! 同生产 bootstrap 的真实 QuickJS；保护声明展开、层叠、反射与原生消费字段。
+//! Real QuickJS with production bootstrap; protect declaration expansion, cascade, reflection, and fields consumed natively.
 use super::document_model_tests::collect;
 #[test]
 fn javascript_grid_model_generic_fixture_uses_same_native_grid_keys() {

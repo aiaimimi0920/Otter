@@ -1,5 +1,5 @@
-//! 认证设备获取精确已审批包描述；它不是执行许可，prepare 仍须独立验签及复核权限。
-//! origin/device 只取原 Client/Lease，工作区/实例由宿主填写，不接受响应覆盖这些身份。
+//! An authenticated device fetches the exact approved package description; this is not execution permission, and prepare still independently verifies signatures and permissions.
+//! origin/device come only from the original Client/Lease; the host supplies workspace/instance, and responses cannot override those identities.
 use super::{now, Client, Control};
 use crate::{
     art_execution_grant::{self as grant, wire, Expected},
@@ -38,7 +38,7 @@ pub struct Descriptor {
     lease: Arc<Lease>,
 }
 impl Descriptor {
-    /// 后台串行调用；不得与同一 Lease 的其他网络操作并行。
+    /// Call serially in the background; do not overlap other network operations on the same Lease.
     pub fn fetch(client: &Client, lease: Arc<Lease>, art: &str) -> Result<Self, Error> {
         if art.is_empty() || art.len() > 257 {
             return Err(Error::Input);
@@ -71,7 +71,7 @@ impl Descriptor {
             origin: origin.into(),
             lease,
         };
-        // 先验证包及范围；临时身份只用于结构验证，绝不发送或建立 Registry/Permit。
+        // Validate package and scope first; temporary identities only validate structure and are never sent or used to create a Registry/Permit.
         value.make_request("validation", "validation", 1)?;
         Ok(value)
     }
@@ -94,7 +94,7 @@ impl Descriptor {
                 workspace_id: workspace.into(),
                 instance_id: instance.into(),
                 generation,
-                request_id: "pending".into(), // Registry 在真正 begin 时生成新 ID。
+                request_id: "pending".into(), // The Registry generates a fresh ID at the actual begin.
                 art_id: p.art_id.clone(),
                 art_version: p.art_version.clone(),
                 package_digest: p.package_digest.clone(),
@@ -111,7 +111,7 @@ impl Descriptor {
         .map_err(Error::Contract)?;
         Ok(request)
     }
-    /// 消费描述并移交原租约；审批可能已变化，不能据描述直接挂载或绕过 prepare。
+    /// Consume the description and transfer the original lease; approval may have changed, so never mount directly from it or bypass prepare.
     pub fn into_request(
         self,
         workspace: &str,

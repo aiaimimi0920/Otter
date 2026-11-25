@@ -1,4 +1,4 @@
-//! Source观察冻结提交；未知写入之后只读精确对账，不因落后快照重发POST。
+//! Frozen Source-observation submissions; reconcile unknown writes by exact read-only checks, never resend POST for lagging snapshots.
 use super::*;
 use crate::live_relay_observation::Observation;
 use std::sync::atomic::Ordering;
@@ -43,7 +43,7 @@ impl Control<'_> {
         publication.actor.store(sequence, Ordering::Release);
         Ok(())
     }
-    /// false仅表示快照尚未证明写入；调用方保留同一Submission，后续只GET。
+    /// false only means the snapshot has not yet proved the write; callers retain the same Submission and use only GET afterward.
     pub(crate) fn publish_source_observation(
         &self,
         publication: &Publication,
@@ -77,7 +77,7 @@ impl Control<'_> {
                     return Ok(true);
                 }
                 Err(error @ Error::Http(crate::device_session_client::Error::Connect)) => {
-                    // Connect只在HTTP/TLS发送前产生；仅此情形允许再次POST。
+                    // Connect occurs only before HTTP/TLS sending; only this case permits another POST.
                     pending.attempted = false;
                     return Err(error);
                 }
@@ -87,7 +87,7 @@ impl Control<'_> {
         }
         let (cursor, actual) = self.source_snapshot(publication)?;
         if cursor == sequence {
-            // 同锁快照须含完整相同payload，不能仅凭相同ID/序号或“请求已创建”视为成功。
+            // Same-lock snapshots must contain the complete identical payload; matching ID/sequence or request-created status alone never proves success.
             let values = actual["observations"].as_array().ok_or(Error::Input)?;
             let mut matches = values
                 .iter()

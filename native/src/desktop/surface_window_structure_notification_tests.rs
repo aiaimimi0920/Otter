@@ -1,4 +1,4 @@
-//! 场景通知合并、忙时重排、回调再替换与关闭生命周期。
+//! Scene-notification coalescing, busy rescheduling, callback replacement, and closing lifecycle.
 use super::*;
 fn scene(id: &str) -> Scene {
     Scene::parse(
@@ -77,7 +77,7 @@ fn uia_structure_failed_replace_still_reports_revoked_child_identity() {
     let mut count = 0;
     flush_with(&window.state, |_| count += 1);
     assert_eq!(count, 1);
-    // 失败保持不可用，不把原 Host 内容伪装成仍有效的旧 provider 树。
+    // Failure remains unavailable; original Host content must not masquerade as a still-valid old provider tree.
     assert!(window.accessibility_node("old").is_none());
     assert!(window.accessibility_node("rejected").is_none());
 }

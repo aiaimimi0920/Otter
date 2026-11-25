@@ -1,4 +1,4 @@
-//! 菜单按整行滚动；同一份客户端像素几何用于绘制、轨道命中和绝对拖动。
+//! Menus scroll by whole rows; drawing, track hits, and absolute dragging share client-pixel geometry.
 use windows::Win32::Foundation::RECT;
 #[derive(Clone, Copy)]
 pub(crate) struct Bar {

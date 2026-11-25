@@ -1,4 +1,4 @@
-//! 真实隔离TLS；固定wire oracle核双序号、错ack、未知提交只读对账与最终close。
+//! Real isolated TLS; fixed-wire oracle checks dual sequences, wrong ACKs, unknown-commit read-only reconciliation, and final close.
 use super::*;
 use crate::{
     live_relay_http::source::{ObservationSubmission, Publication},

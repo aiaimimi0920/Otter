@@ -1,4 +1,4 @@
-//! 批次 ACK 的有界观察：每项保留结果与输出，只保留最高版本的一份场景。
+//! Bounded observation of batch ACKs: retain each result and output, but only one scene at the highest revision.
 use crate::{
     live_relay_http::{BatchSubmission, Control, ConvergenceError},
     surface_click_event::ClickEvent,
@@ -16,14 +16,14 @@ pub enum Error {
 }
 pub struct Item {
     pub decision: Option<crate::surface_decision_runtime::Evidence>,
-    /// 与 submission.acknowledgements 的同下标事件对应；不包含未提交后缀。
+    /// Corresponds to the same-index event in submission.acknowledgements; excludes the unsubmitted suffix.
     pub result: Result<u64, Error>,
     pub commit: Option<Commit>,
     pub confirmation: Option<Result<crate::surface_confirmation::Request, Error>>,
 }
 pub struct Observation {
     pub items: Vec<Item>,
-    /// 只是一份候选快照，必须在所有相关动作/授权条件检查后才能交付窗口。
+    /// Only a candidate snapshot; deliver to the window only after checking all relevant action/authorization conditions.
     pub snapshot: Option<Snapshot>,
 }
 pub(super) fn observe(

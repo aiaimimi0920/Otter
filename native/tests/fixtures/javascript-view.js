@@ -1,4 +1,4 @@
-// 主干同 revision 视图更新：真实 child 保留 DOM、closure 和资源 owner。
+// Mainline same-revision view updates: actual children retain DOM, closures, and resource owners.
 let label, button, state, resourceOwner, count = 0, updates = 0, mounts = 0;
 const assert = value => { if (!value) throw new Error("view fixture invariant"); };
 const render = () => {
@@ -22,7 +22,7 @@ NeuroSurface.define({
   async update({ snapshot, resources }) {
     assert(resources === resourceOwner);
     state = snapshot; updates++;
-    // 外部副本的改动不能污染宿主私有 snapshot。
+    // Changes to external copies cannot contaminate the host's private snapshot.
     const copy = NeuroSurface.snapshot(); copy.viewId = "forged"; copy.revision = 9999;
     await Promise.resolve(); render();
   },

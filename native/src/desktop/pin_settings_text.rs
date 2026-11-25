@@ -1,4 +1,4 @@
-//! 钉图设置的原文/译文按钮；同步复制、目标复核及 1.6 秒反馈归宿主，不执行模型。
+//! Original/translated-text buttons in pin settings; the host owns synchronous copying, target revalidation, and 1.6-second feedback without model execution.
 use super::*;
 use crate::sticker_extra_text::{self, Kind as TextKind};
 use std::time::{Duration, Instant};
@@ -67,7 +67,7 @@ pub(in crate::desktop) unsafe fn timer(owner: HWND, state: &State) {
         .as_ref()
         .is_some_and(|f| Instant::now() < f.until)
     {
-        return; // 旧 WM_TIMER 不能提前清除刚刚发生的新一次复制反馈。
+        return; // An old WM_TIMER must not prematurely clear feedback from a new copy.
     }
     clear(owner, &mut s);
     let _ = KillTimer(Some(owner), TIMER);

@@ -1,4 +1,4 @@
-//! 预乘 BGRA 到逻辑画布的有界投影；透明留白、双线性采样和边界覆盖，不修改源图。
+//! Bounded premultiplied-BGRA projection to logical canvases; transparent padding, bilinear sampling, edge coverage, and immutable sources.
 use crate::{
     blur::BlurError,
     crop_geometry::Rect,
@@ -30,7 +30,7 @@ pub fn project(
     )
 }
 
-/// 独立有界源区到目标区；保留同一像素预算/取消/全图双线性邻域，不构造巨大placement。
+/// Independent bounded source-to-target regions retain pixel budgets/cancellation/full-image bilinear neighborhoods, without huge placement construction.
 pub fn project_region(
     source: &Pixels,
     source_size: (u32, u32),

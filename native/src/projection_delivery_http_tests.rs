@@ -1,4 +1,4 @@
-//! 传统投送真实 loopback TLS/HTTP；复用原设备夹具，不访问在线 Loom 或系统证书存储。
+//! Real loopback TLS/HTTP for traditional delivery, reusing original device fixtures without online Loom/system-certificate-store access.
 use super::*;
 use crate::projection_delivery::{self as delivery, Inbox, InboxPolicy};
 #[path = "projection_receive_compensation_http_tests.rs"]

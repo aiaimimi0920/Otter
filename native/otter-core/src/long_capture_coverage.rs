@@ -1,4 +1,4 @@
-//! 最大完整覆盖矩形：用帧边界压缩坐标，在不读取像素的情况下确定裁切尺寸。
+//! Largest fully covered rectangle: coordinate-compress frame boundaries to determine cropping without pixel reads.
 use super::*;
 
 type Rect = (u32, u32, u32, u32);
@@ -10,7 +10,7 @@ pub(super) fn largest(
     cancel: &AtomicBool,
 ) -> Result<Rect, Error> {
     check(cancel)?;
-    // bounds 已验证坐标跨度。只有穿过帧边缘才会改变覆盖；最多 2 * MAX_FRAMES 个横/纵坐标。
+    // bounds validated coordinate spans. Coverage changes only across frame edges; at most 2 * MAX_FRAMES horizontal/vertical coordinates.
     let mut columns = Vec::with_capacity(frames.len() * 2);
     let mut events = Vec::with_capacity(frames.len() * 2);
     for item in frames {
@@ -84,7 +84,7 @@ fn scan_row(
                 previous,
             );
             let candidate_area = u64::from(candidate.2) * u64::from(candidate.3);
-            // 同面积优先更靠上，其次更靠左；同起点时保留先到达的最小底边。
+            // Equal areas prefer higher, then further-left rectangles; equal origins retain the first smallest bottom edge.
             if candidate_area > area
                 || (candidate_area == area && (candidate.1, candidate.0) < (best.1, best.0))
             {

@@ -1,4 +1,4 @@
-//! Esc分层、取消后的Tab位置及同步回收；系统下拉框只在未切换的专属desktop显示。
+//! Layered Esc, post-cancellation Tab position, and synchronous reclamation; system dropdowns appear only on a dedicated desktop never switched to.
 use super::*;
 use windows::Win32::{
     System::{StationsAndDesktops::*, Threading::GetCurrentThreadId},
@@ -22,7 +22,7 @@ impl Desktop {
                 std::process::id(),
                 GetCurrentThreadId()
             ));
-            // 刻意不申请SWITCHDESKTOP；测试既不切换输入desktop，也不操作用户的窗口。
+            // Deliberately omit SWITCHDESKTOP; tests neither switch the input desktop nor operate user windows.
             let owned = CreateDesktopW(
                 &name,
                 None,
@@ -40,8 +40,8 @@ impl Desktop {
                 panic!("isolated desktop assignment failed: {error}");
             }
             let desktop = Self { old, owned };
-            // 未切换desktop上的系统IME可能阻塞销毁；只禁用本测试专属线程的真实IME。
-            // 下方人工组合消息仅核子类状态位，不冒充已安装IME或候选窗验收。
+            // System IME on an inactive desktop may block destruction; disable only this dedicated test thread's actual IME.
+            // Manual composition messages below verify subclass state bits only, not installed-IME/candidate-window acceptance.
             assert_ne!(ImmDisableIME(GetCurrentThreadId()), 0);
             desktop
         }
@@ -147,7 +147,7 @@ fn native_select_on_private_desktop() {
             popup.show(owner.0, [0, 0, 100, 24]).unwrap();
             control.show().unwrap();
             control.focus().unwrap();
-            // 使用真实Combo默认过程，而不是mock dropped状态或伪造父通知。
+            // Use the actual Combo default procedure, not mocked dropped state or fabricated parent notifications.
             SendMessageW(h, WM_IME_STARTCOMPOSITION, None, None);
             SendMessageW(h, WM_IME_ENDCOMPOSITION, None, None);
             SendMessageW(h, CB_SHOWDROPDOWN, Some(WPARAM(1)), None);

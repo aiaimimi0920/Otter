@@ -1,4 +1,4 @@
-//! 实际 SendMessageCallback/生产 Backend 的迟到拒绝，不安装源 hook、不伪造完成属性。
+//! Late rejection through real SendMessageCallback/production Backend, without source-hook installation or fake completion properties.
 use super::*;
 use crate::live_input_worker::{Command, Reason, Reply, Worker};
 
@@ -18,7 +18,7 @@ pub(super) unsafe fn handle(window: HWND, message: u32, wp: WPARAM, lp: LPARAM) 
     while !unsafe { GetPropW(window, GATE) }.0.is_null() && Instant::now() < deadline {
         std::thread::sleep(Duration::from_millis(1));
     }
-    // 私有入口由自有窗口过程直接返回，不领取请求、不写 FINISHED，宿主必须识别拒绝。
+    // The owned window procedure directly returns from the private entry point without claiming the request or writing FINISHED; the host must recognize rejection.
     Some(LRESULT(0))
 }
 struct Gate(HWND);
@@ -87,7 +87,7 @@ fn late_unconfirmed_native_callback_reports_without_a_second_command() {
             let destination =
                 Destination::bind(&target, HWND(child as *mut _)).map_err(Error::Target)?;
             let mut backend = Backend::new_local(target, None)?.with_hover(Some(control));
-            // 只建立精确请求和真实异步回调；不经过 prepare_native，不加载 DLL。
+            // Establish only the exact request and real asynchronous callback; do not pass through prepare_native or load the DLL.
             backend.modal.set_owner(control);
             message::button_modal(
                 &destination,
@@ -103,7 +103,7 @@ fn late_unconfirmed_native_callback_reports_without_a_second_command() {
         setup().map_err(|error| format!("{error:?}"))
     })
     .unwrap();
-    // 先于 Worker 析构打开源线程闸门；源处理本身也有绝对期限。
+    // Open the source-thread gate before Worker destruction; source processing itself also has an absolute deadline.
     let gate = Gate(hwnd);
     worker.submit(Command::Enable).unwrap();
     let enabled = reply(&mut worker);

@@ -1,6 +1,6 @@
 # 参与贡献与翻译
 
-[English](contributing.md) · [文档中心](../README.md) · [工程贡献规范](../../CONTRIBUTING.md)
+[English](../../CONTRIBUTING.md) · [文档中心](../README.md) · [工程贡献规范](../../CONTRIBUTING.md#development-and-verification)
 
 反馈问题、提议工作流或分享示例前先搜索[已有 Issues](https://github.com/aiaimimi0920/Otter/issues)。
 提供包版本或提交、Windows 版本、复现步骤、预期和实际结果；显示布局、缩放、HDR、Loom 版本及授权仅在相关时补充。

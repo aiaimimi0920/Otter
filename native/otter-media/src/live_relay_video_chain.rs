@@ -1,4 +1,4 @@
-//! 每个媒体连接独占的 H264 参考链/描述符状态；不创建 codec、不发送控制消息。
+//! H264 reference-chain/descriptor state owned exclusively by each media connection; creates no codec and sends no control messages.
 use crate::{
     live_relay_frame::{Codec, Metadata},
     live_relay_receive::Frame,
@@ -31,8 +31,8 @@ impl Chain {
         self.previous = None;
         self.pending.clear();
     }
-    /// owner 在调用前验证会话未关闭/未撤销及 epoch；不能由媒体包隐式授予权限。
-    /// Decode 只表示可以进入有界 SPS/AU 校验和 codec，并非已经解码成功。
+    /// Before calling, the owner verifies that the session is not closed/revoked and checks the epoch; media packets cannot implicitly grant permission.
+    /// Decode only permits entry into bounded SPS/AU validation and the codec; it does not mean decoding has succeeded.
     pub fn accept(&mut self, frame: &Frame) -> Result<Action, Error> {
         let metadata = frame.metadata();
         if metadata.codec != Codec::H264 {
@@ -77,7 +77,7 @@ impl Chain {
             timestamp,
         })
     }
-    /// codec 输出必须和最早在途描述符匹配，不能把旧图片套到新的帧身份上。
+    /// Codec output must match the oldest in-flight descriptor; do not assign an old image a new frame identity.
     pub fn decoded(&mut self, timestamp: i64) -> Result<Metadata, Error> {
         let Some(metadata) = self.pending.pop_front() else {
             return self.reject(Error::UnexpectedOutput);
@@ -87,8 +87,8 @@ impl Chain {
         }
         Ok(metadata)
     }
-    /// codec/资源失败后返回是否首次降级。连接 owner 据此发送一次 video_fallback 并释放 codec。
-    /// JPEG/raw 可继续到达，但不能取消此连接的 sticky fallback；重连须创建新 owner。
+    /// After codec/resource failure, return whether this is the first fallback. The connection owner uses this to send video_fallback once and release the codec.
+    /// JPEG/raw may keep arriving but cannot undo this connection's sticky fallback; reconnection requires a new owner.
     pub fn fail(&mut self) -> bool {
         let first = !self.fallback_notified;
         self.reset();
@@ -98,7 +98,7 @@ impl Chain {
     }
     fn reject<T>(&mut self, error: Error) -> Result<T, Error> {
         self.reset();
-        // 返回错误交给 owner 调用 fail 并发送一次降级；不在本模块隐式发送控制消息。
+        // Return the error for the owner to call fail and send fallback once; this module does not implicitly send control messages.
         self.fallback = true;
         Err(error)
     }

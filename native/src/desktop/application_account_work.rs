@@ -1,4 +1,4 @@
-//! 后台账号调用与候选准备；Loom 的持久 Create 按 actor/Unit 幂等，Accept 先记录精确接收身份。
+//! Background account calls and candidate preparation; Loom's durable Create is idempotent by actor/Unit, and Accept first records the exact receiver identity.
 use super::*;
 use crate::device_authorization_lease::Lease;
 pub(super) struct SourceInput {
@@ -67,7 +67,7 @@ pub(super) fn create(
         .iter()
         .find(|b| b.unit() == input.unit.as_str())
         .cloned();
-    // 同 Unit 的未停止关联不能被换邀请；已经停止的记录由显式新分享覆盖。
+    // An invitation cannot replace an unstopped association for the same Unit; an explicit new share overwrites an already stopped record.
     let source = binding
         .replace(&input.source, previous.as_ref(), lease.preparation_cancel())
         .map_err(job::failure)?;
@@ -117,7 +117,7 @@ pub(super) fn receive(
         if expected != &intent {
             return Err(stale());
         }
-        // 只有权威 Read 已确认原接受存在才重取图像；未知接受绝不自动重放。
+        // Refetch the image only after authoritative Read confirms the original acceptance exists; never automatically replay unknown acceptance.
         job::content(
             account
                 .execute(account::Operation::Read {

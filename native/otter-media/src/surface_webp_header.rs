@@ -1,4 +1,4 @@
-//! 解码前 RIFF/静态图/内外尺寸准入；不代替 child 的 Job 工作内存限制。
+//! Predecode RIFF/static-image/inner-and-outer-dimension admission; does not replace the child Job's working-memory limits.
 pub use crate::surface_image_worker_wire::MAX_INPUT;
 use std::io;
 pub fn invalid() -> io::Error {

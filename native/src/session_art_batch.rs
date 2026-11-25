@@ -1,4 +1,4 @@
-//! 针对一个不可变目录整批解析 Art 候选；缺失能力保留身份，不生成可执行状态。
+//! Batch-parse Art candidates against one immutable catalog; missing capabilities preserve identity without executable state.
 use crate::{
     loom_handshake::Handshake, session_art, session_document::Document, workspace_id::UnitId,
 };
@@ -13,7 +13,7 @@ pub enum Binding {
         capability_index: usize,
         restored: session_art::Restored,
     },
-    // 原始参数仍由完整会话候选拥有；不在无能力时猜测 secret 边界或丢弃未知值。
+    // Complete session candidates still own raw parameters; absent capabilities must not imply guessed secret boundaries or discarded unknown values.
     Missing {
         art_id: Option<String>,
     },
@@ -28,8 +28,8 @@ pub enum Error {
     },
 }
 
-/// 结果中的目录索引只属于本次 handshake；应用层必须绑定同一目录快照后才可安装。
-/// 任意节点失败时整批局部结果释放，不修改已有窗口或交付部分可执行节点。
+/// Result catalog indices belong only to this handshake; applications must bind the same catalog snapshot before installation.
+/// Any node failure releases all partial batch results, without mutating existing windows or delivering partial executable nodes.
 pub fn resolve(
     document: &Document<'_>,
     catalog: &Handshake,

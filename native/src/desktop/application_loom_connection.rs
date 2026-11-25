@@ -1,4 +1,4 @@
-//! 普通产品的本机 Loom 接入；只在消息泵启用，测试构造 Application 不隐式联网。
+//! Local Loom integration for the ordinary product; enable only in the message pump, so constructing Application in tests never implicitly networks.
 use super::*;
 use crate::desktop::device_authorization_ui::Request;
 #[path = "application_loom_preference.rs"]
@@ -66,7 +66,7 @@ impl Application {
         }
         if let Some(Request::Select(origin)) = &view.request {
             let origin = origin.clone();
-            // 重选已管理的同一服务保留原续签；断开后连接或提交新连接码才重新启动。
+            // Reselecting the same managed service preserves existing renewal; restart only on reconnection after disconnect or submission of a new connection code.
             if !self.local_loom.enabled()
                 || !self.local_loom.manages(&origin)
                 || !view.connection_password.is_empty()
@@ -82,7 +82,7 @@ impl Application {
                     }
                 }
             } else {
-                // 本次选择已满足；不交给通用 Select 再清除当前连接标签。
+                // This selection is already satisfied; do not pass it to generic Select and clear the current connection label again.
                 view.request = None;
             }
         }
@@ -92,12 +92,12 @@ impl Application {
                 if let Some((profile, origin)) = profile().zip(view.origin.as_deref()) {
                     if let Err(error) = preference::save(&profile, true, origin) {
                         view.status = format!("本次连接已停止，但未保存停止状态：{error}");
-                        // 主授权处理仍须消费 Cancel，停止既有租约。
+                        // Main authorization handling must still consume Cancel to stop existing leases.
                     }
                 }
             }
         }
-        // 本机已经完成可信发现，菜单里的续签沿同一连接 owner 执行，不能永久停掉自动续签。
+        // Trusted local discovery already completed; menu renewal follows the same connection owner and must not permanently stop automatic renewal.
         let reconnect = matches!(view.request, Some(Request::Start(_)))
             && view
                 .origin
@@ -182,7 +182,7 @@ impl Application {
                     view.status = "请在 Loom 批准此设备，然后重新连接；已禁用的设备须先启用".into();
                     return;
                 }
-                // 不把失败伪装成在线，也不覆盖用户明确选择的远端服务。
+                // Do not disguise failure as online status or overwrite the user's explicitly selected remote service.
                 view.status = format!("Loom 未连接：{error:?}");
             }
         }

@@ -1,4 +1,4 @@
-//! 滚动后最多采样五帧，连续两次完全一致才接受；仅保留前后两帧，不缓存采样历史。
+//! Sample at most five frames after scrolling; accept only two consecutive identical frames, retaining previous/current frames without sample history.
 use crate::long_capture::Frame;
 use std::sync::atomic::{AtomicBool, Ordering};
 pub(super) fn sample(

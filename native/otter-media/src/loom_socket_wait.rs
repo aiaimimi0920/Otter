@@ -1,4 +1,4 @@
-//! Windows 网络就绪与取消共同等待；取消不依赖复制 socket 的 shutdown 成功。
+//! Joint Windows network-readiness and cancellation wait; cancellation does not depend on successful shutdown of a duplicated socket.
 use std::{
     io,
     net::TcpStream,
@@ -34,7 +34,7 @@ impl Wait {
             #[cfg(test)]
             entered: Default::default(),
         };
-        // WSAEventSelect 将 socket 设为非阻塞。BridgeStream 独占读写，无其它事件 owner。
+        // WSAEventSelect makes the socket nonblocking. BridgeStream has exclusive read/write access with no other event owner.
         let result = unsafe {
             WSAEventSelect(
                 SOCKET(socket.as_raw_socket() as usize),
@@ -52,7 +52,7 @@ impl Wait {
         if remaining.is_zero() {
             return Err(io::ErrorKind::TimedOut.into());
         }
-        // 向上取整，避免亚毫秒剩余时间被当作立即超时；保留 INFINITE 值不使用。
+        // Round up so sub-millisecond remaining time is not treated as immediate timeout; leave the reserved INFINITE value unused.
         let millis = remaining
             .as_nanos()
             .div_ceil(1_000_000)
@@ -67,13 +67,13 @@ impl Wait {
         match unsafe { WaitForMultipleObjects(&handles, false, millis) } {
             WAIT_OBJECT_0 => Err(io::ErrorKind::ConnectionAborted.into()),
             WAIT_TIMEOUT if Instant::now() >= deadline => Err(io::ErrorKind::TimedOut.into()),
-            // 超长 deadline 可超过 DWORD 的单次等待上限；上限不是新的逻辑截止。
+            // A long deadline may exceed DWORD's per-wait limit; that limit is not a new logical deadline.
             WAIT_TIMEOUT => Ok(()),
             WAIT_FAILED => Err(io::Error::last_os_error()),
             value if value.0 == WAIT_OBJECT_0.0 + 1 => {
                 let mut events = WSANETWORKEVENTS::default();
-                // 原子读取并复位，不能单独 ResetEvent 丢掉网络通知。即使收到 CLOSE，
-                // 仍让 recv/send 返回剩余数据或具体错误，不提前丢弃缓冲区。
+                // Read and reset atomically; a separate ResetEvent could lose network notifications. Even after CLOSE,
+                // let recv/send return remaining data or the specific error rather than discarding buffers early.
                 if unsafe {
                     WSAEnumNetworkEvents(
                         SOCKET(socket.as_raw_socket() as usize),

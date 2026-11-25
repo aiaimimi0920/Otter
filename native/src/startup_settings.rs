@@ -1,4 +1,4 @@
-//! 显式启动配置选项；不修改环境变量，不发现默认用户目录。
+//! Explicit startup configuration options; do not modify environment variables or discover default user directories.
 use std::{ffi::OsString, path::PathBuf};
 
 #[derive(Default)]
@@ -30,7 +30,7 @@ pub fn extract(args: Vec<OsString>) -> Result<(Vec<OsString>, Options), &'static
             }
             *field = Some(PathBuf::from(path));
         } else {
-            // 会话选项的值不能再当成顶层选项处理。
+            // Values of session options must not be processed again as top-level options.
             let takes_value = matches!(
                 arg.to_str(),
                 Some("--session" | "--session-assets" | "--session-origin" | "--session-scale")

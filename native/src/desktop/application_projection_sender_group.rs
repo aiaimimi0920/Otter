@@ -1,4 +1,4 @@
-//! 设备组只是原单目标事务的有界队列；每次canonical确认才推进，不另持像素或网络任务。
+//! Device groups are only bounded queues of original single-target transactions; advance after each canonical confirmation without separately retaining pixels or network tasks.
 use super::*;
 use crate::desktop::device_authorization_ui::sender::groups::Selection;
 use std::sync::Arc;
@@ -114,7 +114,7 @@ impl Batch {
             && saved.previous.same_storage(&self.scope.source)
         {
             self.entries[index].state = State::Saved;
-            // 唯一允许的原文换代来自本批原事务；保存确认前不从任意当前原文重新抓取真值。
+            // Only this batch's original transaction may replace source content; do not recapture truth from arbitrary current content before save confirmation.
             self.scope.source = saved.source.clone();
             self.current = None;
             self.dirty = true;

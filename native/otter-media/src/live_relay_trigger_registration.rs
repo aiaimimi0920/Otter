@@ -1,4 +1,4 @@
-//! Loom 拥有触发执行；观看端严格恢复注册快照，不在本地重新求值或执行。
+//! Loom owns trigger execution; viewers strictly restore registration snapshots without local reevaluation or execution.
 use crate::{
     live_relay_observation::Confidence,
     live_relay_viewer_identity::{identifier, parse},
@@ -81,7 +81,7 @@ impl Condition {
         Ok(())
     }
 }
-// 深度最多 16，递归栈固定有界；不为宽数组建立同样宽的临时队列。
+// Depth is at most 16, so the recursion stack is bounded; do not build a temporary queue as wide as a wide array.
 fn bounded(value: &Value, depth: usize, nodes: &mut usize) -> bool {
     *nodes += 1;
     if depth > 16 || *nodes > 512 {

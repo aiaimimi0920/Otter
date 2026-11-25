@@ -1,4 +1,4 @@
-//! 重投影后真实DirectWrite嵌入值仍在；本地值/文本预览不因PaintFrame重建消失。
+//! Actual DirectWrite embedded values survive reprojection; rebuilding PaintFrame must not erase local values/text previews.
 use super::*;
 use serde_json::json;
 fn scene() -> serde_json::Value {

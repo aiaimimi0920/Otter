@@ -1,4 +1,4 @@
-//! 纯键位/参数门禁；不读取或注入真实前台输入。
+//! Pure key-state/argument gates; do not read or inject real foreground input.
 use super::*;
 
 #[test]

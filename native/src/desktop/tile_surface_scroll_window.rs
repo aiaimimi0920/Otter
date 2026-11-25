@@ -1,4 +1,4 @@
-//! 本地滚动先准备、再提交/隐藏活动EDIT，最后实际paint；不联网、不改变canonical或服务授权。
+//! Local scrolling prepares first, commits/hides active EDIT next, and actually paints last; no networking or canonical/service-authorization changes.
 use super::*;
 use crate::surface_scroll::Scroll;
 
@@ -42,7 +42,7 @@ pub(super) fn install(
         state.shared.stop();
         return Err(error);
     }
-    // UpdateWindow可同步重入停止/换代；不持renderer/Shared借用，调用方只接纳重新paint后的身份。
+    // UpdateWindow may synchronously reenter stop/generation changes; hold no renderer/Shared borrow, and callers accept only repainted identity.
     unsafe {
         let _ = InvalidateRect(Some(hwnd), None, false);
         let _ = UpdateWindow(hwnd);

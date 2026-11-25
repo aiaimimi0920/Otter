@@ -1,4 +1,4 @@
-//! 本地隐藏窗口验证授权失效的清理；不连接网络或发送生命周期请求。
+//! Local hidden-window tests for cleanup on authorization expiry; no networking or lifecycle requests.
 use super::*;
 #[path = "surface_event_delivery_tests.rs"]
 mod event_delivery;

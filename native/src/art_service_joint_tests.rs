@@ -1,4 +1,4 @@
-//! 显式跨仓测试入口：使用真实 Loom 挑战/签名会话、下载/验签与服务路由，不使用模拟回复。
+//! Explicit cross-repository test entry: real Loom challenges/signed sessions, download/verification, and service routes, without mocked responses.
 use super::*;
 use crate::surface_javascript::fixture as js;
 use serde_json::json;

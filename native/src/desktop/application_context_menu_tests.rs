@@ -1,4 +1,4 @@
-//! 原菜单删除协调器、Receipt 和 HWND；只删除内存合成记录。
+//! Original menu deletion coordinator, Receipt, and HWND; delete only synthetic in-memory records.
 use super::*;
 use crate::session_library::Kind;
 

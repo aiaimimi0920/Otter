@@ -1,4 +1,4 @@
-//! child 私有离屏 Canvas owner；软件 D2D/DIB 不跨线程，背板/提交/PNG 均有界且无文件 I/O。
+//! Child-private offscreen Canvas owner; software D2D/DIB never crosses threads, and backing/submissions/PNG are bounded with no file I/O.
 use crate::surface_javascript_wire::{canvas, invalid};
 use std::{collections::BTreeMap, io, sync::Arc, time::Instant};
 use windows::{
@@ -148,7 +148,7 @@ struct Renderer {
     factory: ID2D1Factory,
     text: crate::surface_text::Engine,
     budget: Arc<crate::byte_budget::Budget>,
-    // 最后释放 apartment，确保所有同线程 COM 资源已销毁。
+    // Release the apartment last, after all same-thread COM resources are destroyed.
     _apartment: Apartment,
 }
 impl Renderer {
@@ -217,7 +217,7 @@ impl Renderer {
         let Some(backing) = &canvas.backing else {
             return Ok(());
         };
-        // 位图在BeginDraw前创建一次并由target owner持有，避免8192条命令积累临时副本。
+        // Create bitmaps once before BeginDraw and retain them in the target owner, avoiding temporary-copy accumulation across 8192 commands.
         for command in &batch.commands {
             if let commands::Draw::Image { .. } = command {
                 self.images
@@ -326,7 +326,7 @@ impl Store {
     pub(super) fn valid(&self) -> bool {
         !self.failed && self.deadline.is_some_and(|d| Instant::now() < d)
     }
-    // 保留本 operation 已消耗的绘制/提交预算，等待不等于新 begin。
+    // Preserve drawing/submission budgets already consumed by this operation; waiting is not a new begin.
     pub(super) fn exclude_wait(&mut self, elapsed: std::time::Duration) {
         self.deadline = self.deadline.and_then(|v| v.checked_add(elapsed));
     }

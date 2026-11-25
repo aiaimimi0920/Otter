@@ -1,4 +1,4 @@
-//! 慢收件查询与暂停不得饿死/撤销已保存关联；沿真实 TLS、750ms 调度与原位发布。
+//! Slow inbox queries and pauses must neither starve nor revoke saved associations; real TLS, 750ms scheduling, and in-place publication.
 use super::super::super::poll::pause;
 use super::*;
 
@@ -49,7 +49,7 @@ fn projection_sync_gets_real_slot_after_slow_inbox_completion() {
             );
             assert!(head.starts_with("POST /v1/projections/inbox "));
             assert_eq!(body, serde_json::json!({"policy":"confirm"}));
-            // 本用例故意慢响应：连接/握手后仅为这一逻辑响应设置独立 5 秒预算，不逐片续期。
+            // Deliberately slow response: after connection/handshake, give only this logical response an independent 5-second budget, without renewal per chunk.
             stream
                 .sock
                 .operation_deadline(Duration::from_secs(5))
@@ -68,7 +68,7 @@ fn projection_sync_gets_real_slot_after_slow_inbox_completion() {
             &mut |origin| config(origin, fixture.files.root()),
             started,
         );
-        // 新慢服务用例独立覆盖连接准备+3.1秒延迟，原通用 wait_remote 的 5 秒门不变。
+        // The new slow-service case separately covers connection preparation plus 3.1 seconds of delay; the original shared wait_remote 5-second gate stays unchanged.
         let handle = fixture.app.remote_sessions.wait_handles().next().unwrap();
         assert_eq!(
             WaitForSingleObject(HANDLE(handle.as_raw_handle()), 10_000),

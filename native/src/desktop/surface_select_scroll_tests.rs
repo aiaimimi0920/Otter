@@ -1,4 +1,4 @@
-//! 自有真实下拉窗口的滚动/裁剪边界，不注入用户输入或访问其他应用窗口。
+//! Scroll/clipping boundaries of owned actual dropdown windows, without injecting user input or accessing other applications' windows.
 use super::*;
 fn select_scene() -> Scene {
     Scene::parse(br#"{"id":"root","type":"scroll","layout":{"width":140,"height":100},"children":[{"id":"space","type":"view","layout":{"height":10,"minHeight":10}},{"id":"select","type":"select","props":{"value":"a","options":[{"value":"a","label":"A"},{"value":"b","label":"B"}]},"events":{"change":"choose"},"layout":{"height":32,"minHeight":32}},{"id":"tail","type":"view","layout":{"height":240,"minHeight":240}}]}"#).unwrap()

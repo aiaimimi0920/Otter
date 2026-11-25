@@ -1,4 +1,4 @@
-//! 独立可见框的栅格标注合成；直接采样到效果源图，不分配额外缩放整图。
+//! Raster-annotation composition with independent visible boxes; sample directly into effect sources without additional full scaled images.
 use crate::{
     blur::BlurError,
     crop_geometry::Rect,
@@ -115,7 +115,7 @@ pub fn compose_in_frame(
     Ok(Pixels::from_reserved(output, lease))
 }
 
-/// 两个独立纹理框共享既有有界投影与合成；不烘焙回活动底图。
+/// Two independent texture boxes share existing bounded projection/composition, without baking into active base images.
 pub fn compose_in_frames(
     layers: &Layers,
     base_projection: Option<crate::image_projection::Projection>,

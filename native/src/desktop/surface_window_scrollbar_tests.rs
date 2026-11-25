@@ -1,4 +1,4 @@
-//! 真实 HWND 滚动条捕获、权限撤销和 EDIT 遮挡；不注入全局鼠标。
+//! Actual HWND scrollbar capture, permission revocation, and EDIT occlusion, without global mouse injection.
 use super::*;
 use windows::Win32::UI::Input::KeyboardAndMouse::GetCapture;
 #[test]

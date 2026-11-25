@@ -1,4 +1,4 @@
-//! 四边简写的 cascade/reset/反射与原子拒绝；不以字符串准入替代 native 几何和像素。
+//! Four-side shorthand cascade/reset/reflection and atomic rejection; string admission does not replace native geometry and pixels.
 use super::document_model_tests::collect;
 #[test]
 fn javascript_border_sides_default_none_has_zero_used_width_without_box_sizing() {

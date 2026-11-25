@@ -1,4 +1,4 @@
-//! 目标纯外观的借用读取、失败关闭及真实 WIC 合成回归。
+//! Borrowed reads, fail-closed behavior, and real WIC composition regressions for target-only appearance.
 use super::*;
 use serde_json::json;
 #[path = "export_projection_composition_tests.rs"]

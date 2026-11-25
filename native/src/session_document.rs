@@ -1,4 +1,4 @@
-//! 旧会话只读入口：保留原始 JSON 借用，不把拓扑子集重编码成完整会话。
+//! Read-only legacy-session entry preserves borrowed original JSON; never re-encode topology subsets as complete sessions.
 use crate::{
     workspace::{Workspace, MAX_LINKS, MAX_UNITS},
     workspace_session::{SessionGroup, SessionLink, Sticker, Topology},
@@ -31,11 +31,11 @@ pub struct Document<'a> {
     pub windows: Vec<crate::session_window::Window<'a>>,
 }
 impl<'a> Document<'a> {
-    /// 原文只读引用；后续图片/编辑状态适配须读取原文，不能从拓扑切片推断完整数据。
+    /// Read-only original-text references; later image/edit-state adaptation must read original text, not infer complete data from topology slices.
     pub fn original_json(&self) -> &'a [u8] {
         self.original
     }
-    /// 按需读取冻结条目；坏库不阻止普通窗口恢复，也不授权图片或文件读取。
+    /// Read frozen entries on demand; corrupt libraries neither block ordinary window restoration nor authorize image/file reads.
     pub fn library(
         &self,
         kind: crate::session_library::Kind,
@@ -69,7 +69,7 @@ pub fn decode(bytes: &[u8]) -> Result<Document<'_>, Error> {
         return Err(Error::Capacity);
     }
     let envelope: Envelope = serde_json::from_slice(bytes).map_err(Error::Json)?;
-    // 主干 schema 1，历史缺省 0；不能静默接受未来格式再以旧格式覆盖。
+    // Mainline schema is 1, historical absence is 0; never silently accept future formats then overwrite them with old format.
     if envelope.document_schema_version > 1 {
         return Err(Error::FutureSchema(envelope.document_schema_version));
     }
@@ -115,7 +115,7 @@ pub fn decode(bytes: &[u8]) -> Result<Document<'_>, Error> {
     })
 }
 
-// 数组在反序列化阶段即限长，不能先无界分配 Vec 再交给模型拒绝。
+// Bound array lengths during deserialization, before allocating unbounded Vecs for model rejection.
 pub(crate) fn bounded<'de, D: Deserializer<'de>, T: Deserialize<'de>, const LIMIT: usize>(
     decoder: D,
 ) -> Result<Vec<T>, D::Error> {
@@ -134,7 +134,7 @@ pub(crate) fn bounded<'de, D: Deserializer<'de>, T: Deserialize<'de>, const LIMI
                 values.try_reserve(1).map_err(de::Error::custom)?;
                 values.push(value);
             }
-            // 超额项仅确认存在，不构建额外窗口/连线记录。
+            // Only detect excess entries, without constructing extra window/connection records.
             if seq.next_element::<de::IgnoredAny>()?.is_some() {
                 return Err(de::Error::custom("session record limit exceeded"));
             }

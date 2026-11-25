@@ -1,4 +1,4 @@
-//! 有恢复路径的分阶段替换；保留竞争写者，不宣称两个 rename 合成原子覆盖。
+//! Phased replacement with recovery paths; preserve competing writers without claiming two renames form atomic overwrite.
 use crate::{session_file_guard::Movable, session_file_write::Staged, session_write::Candidate};
 use std::{
     fs::{File, OpenOptions},
@@ -30,7 +30,7 @@ impl Failure {
 #[derive(Debug)]
 pub struct Published {
     pub destination: PathBuf,
-    /// 新内容已成功发布，但旧恢复文件退休失败；调用者须显示，不得伪报整个保存失败。
+    /// New content published successfully, but old recovery-file retirement failed; callers must display this, not falsely report total save failure.
     pub retained_recovery: Option<(PathBuf, io::Error)>,
 }
 pub struct Replacement {
@@ -39,7 +39,7 @@ pub struct Replacement {
     destination: PathBuf,
     recovery: PathBuf,
     restore_on_drop: bool,
-    // 最后释放目录句柄；暂存清理、旧文件恢复期间不能先解除目录重命名限制。
+    // Release directory handles last; staging cleanup/old-file restoration must retain directory-rename restrictions.
     _directory: File,
 }
 impl Replacement {
@@ -63,7 +63,7 @@ impl Replacement {
             Staged::prepare(path, candidate, cancel)
         })
     }
-    /// 格式 owner 已验证的字节；保留完全相同的基线锁定、恢复及竞争处理。
+    /// Bytes already validated by format owners; retain identical baseline locking, recovery, and race handling.
     pub(crate) fn prepare_bytes(
         destination: &Path,
         expected: &[u8],
@@ -128,8 +128,8 @@ impl Replacement {
             .as_ref()
             .is_some_and(|staged| staged.is_for(candidate))
     }
-    /// 调用者仍须先核对 UI Receipt。旧文件移开到新文件发布存在可见间隔；
-    /// 任何竞争目标都保留，无法恢复时报告旧文件路径，不悄悄覆盖或删除对方文件。
+    /// Callers still check UI Receipt first. There is a visible gap between moving old files aside and publishing new ones;
+    /// preserve all competing targets and report old-file paths on failed recovery, never silently overwrite/delete others' files.
     pub fn commit(self, cancel: &AtomicBool) -> Result<Published, Failure> {
         self.commit_with(cancel, |_| {})
     }
@@ -140,7 +140,7 @@ impl Replacement {
     ) -> Result<Published, Failure> {
         self.commit_observed(cancel, before_publish, |_| {})
     }
-    // 私有同步观察点供进程中断回归使用；正式调用始终传入空回调，不暴露故障注入入口。
+    // Private synchronous observation points for process-interruption regressions; production always passes empty callbacks without exposing fault injection.
     fn commit_observed(
         mut self,
         cancel: &AtomicBool,
@@ -185,7 +185,7 @@ impl Replacement {
 impl Drop for Replacement {
     fn drop(&mut self) {
         if self.restore_on_drop {
-            // panic 路径只做不覆盖恢复；失败保留可识别恢复文件，不删除唯一旧内容。
+            // Panic paths perform only no-overwrite recovery; failure preserves recognizable recovery files, never deleting the sole old content.
             let _ = self.source.rename_new(&self.destination);
         }
     }

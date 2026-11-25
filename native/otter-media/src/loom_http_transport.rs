@@ -1,4 +1,4 @@
-//! 将固定连接交给 ureq 解析 HTTP；TLS 或可信 loopback，不创建线程、解析 DNS或复用连接。
+//! Hand a fixed connection to ureq for HTTP parsing; TLS or trusted loopback, without creating threads, resolving DNS, or reusing connections.
 use crate::loom_bridge_stream::BridgeStream;
 use rustls::{ClientConnection, StreamOwned};
 use std::{
@@ -29,7 +29,7 @@ pub struct HttpStream {
     stream: Stream,
     buffers: LazyBuffers,
 }
-// 库接口要求 Debug；不能输出 TLS 状态、输入缓冲或请求信息。
+// The library interface requires Debug; do not expose TLS state, input buffers, or request information.
 impl fmt::Debug for Once {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("LoomHttpOnce")
@@ -88,7 +88,7 @@ impl Resolver for FixedAddress {
         _: &ureq::config::Config,
         _: NextTimeout,
     ) -> Result<ResolvedSocketAddrs, ureq::Error> {
-        // TCP 已连接，此地址只是库所需的元数据，不发生额外解析或连接。
+        // TCP is already connected; this address is only library-required metadata, with no additional resolution or connection.
         let mut addresses = self.empty();
         addresses.push(self.0);
         Ok(addresses)
@@ -121,14 +121,14 @@ impl Transport for HttpStream {
         &mut self.buffers
     }
     fn transmit_output(&mut self, amount: usize, _: NextTimeout) -> Result<(), ureq::Error> {
-        // BridgeStream 持有整个请求的绝对截止时间，不能按分片刷新。
+        // BridgeStream holds the absolute deadline for the entire request; do not refresh it per fragment.
         self.stream.write_all(&self.buffers.output()[..amount])?;
         self.stream.flush()?;
         Ok(())
     }
     fn await_input(&mut self, _: NextTimeout) -> Result<bool, ureq::Error> {
         let buffer = self.buffers.input_append_buf();
-        // 解析器尚未消费满缓冲却仍要求更多输入，是容量/协议失败；零长read不能伪报远端EOF。
+        // Requesting more input before consuming a full buffer is a capacity/protocol failure; a zero-length read must not falsely report remote EOF.
         if buffer.is_empty() {
             return Err(ureq::Error::Other(Box::new(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,

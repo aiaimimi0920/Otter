@@ -1,4 +1,4 @@
-//! 图片 child 的固定入口及原有 128/256 MiB 策略；进程/Job 寿命归共用 owner。
+//! Fixed image-child entries and original 128/256 MiB policies; shared owners manage process/Job lifetimes.
 pub use crate::bounded_worker_process::Child;
 use std::{
     io,

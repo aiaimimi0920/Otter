@@ -1,4 +1,4 @@
-//! 首次 Surface 挂载协议；不隐式启用 JavaScript，也不在收到快照时提前报告 active。
+//! Initial Surface mount protocol; do not implicitly enable JavaScript or report active early upon receiving a snapshot.
 use super::*;
 use crate::{
     surface_host_capabilities::Report,
@@ -11,7 +11,7 @@ pub enum Persistence {
     Persistent,
 }
 impl Control<'_> {
-    /// 同步网络仅后台调用。report 来自宿主实现，不可从 Art 包的请求能力反向抄写。
+    /// Synchronous networking is background-only. The report comes from the host implementation, not from copying capabilities requested by an Art package.
     pub fn attach_surface(
         &self,
         art: &str,
@@ -39,7 +39,7 @@ impl Control<'_> {
         Ok(mounted)
     }
 }
-/// 首次挂载和候选恢复使用相同 Art/runtime 合同，不信任恢复查询携带的场景内容。
+/// Initial mount and candidate recovery use the same Art/runtime contract; do not trust scene contents carried by recovery queries.
 pub(super) fn validate(
     bytes: &[u8],
     mounted: &MountedSurface,

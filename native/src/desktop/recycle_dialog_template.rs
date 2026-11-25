@@ -1,4 +1,4 @@
-//! 回收偏好原生对话框布局；只描述固定控件，设置修改由应用协调器拥有。
+//! Native recycle-preferences dialog layout; describe only fixed controls, while the application coordinator owns settings changes.
 use windows::Win32::UI::WindowsAndMessaging::*;
 pub(super) fn template() -> Vec<u32> {
     fn string(data: &mut Vec<u16>, text: &str) {

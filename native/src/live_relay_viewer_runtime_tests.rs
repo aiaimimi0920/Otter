@@ -195,7 +195,7 @@ fn stop_interrupts_stalled_tls_handshake_and_retires_original_permit() {
         let exit = join(&mut runtime);
         let elapsed = start.elapsed();
         eprintln!("runtime handshake join elapsed: {elapsed:?}");
-        // 保留原停止时延断言，但先回收 fixture，失败不留下服务端线程干扰后续用例。
+        // Keep the original stop-latency assertion but reclaim the fixture first; failure must not leave server threads disturbing subsequent tests.
         peer.join().unwrap();
         assert!(retired);
         assert_eq!(exit, Exit::Stopped);

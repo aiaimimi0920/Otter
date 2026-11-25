@@ -1,4 +1,4 @@
-//! 收藏写入只替换 referenceLibrary；快照来自已编码的当前模型，不推进磁盘 revision。
+//! Favorites writes replace only referenceLibrary; snapshots come from the encoded current model without advancing disk revision.
 use super::{
     candidate,
     freeze::{self, Entries},
@@ -33,7 +33,7 @@ pub struct Addition<'a> {
     pub created_at: &'a str,
 }
 
-/// addition=None 是按源身份取消收藏，不要求重新编码图片。调用者在发布前验证来源和编辑凭证。
+/// addition=None removes favorites by source identity without reencoding images. Callers validate source and edit credentials before publication.
 pub fn prepare(
     original: &[u8],
     addition: Option<Addition<'_>>,

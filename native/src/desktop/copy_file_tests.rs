@@ -1,4 +1,4 @@
-//! 真实隐藏 HWND 与后台缓存链；替换最终发布回调，不访问系统剪贴板或用户配置。
+//! Real hidden HWNDs and background cache chains; replace final publication callbacks without accessing system clipboard or user settings.
 use super::*;
 #[path = "copy_order_tests.rs"]
 mod order_tests;

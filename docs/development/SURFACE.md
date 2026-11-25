@@ -38,8 +38,8 @@ hardware fallback are runtime concerns, not peer-version compatibility.
 Changes to this path can be checked with:
 
 ```powershell
-cargo test --locked --manifest-path native/Cargo.toml --lib shader_hlsl -- --test-threads=1
-cargo test --locked --manifest-path native/Cargo.toml --test integration shader_startup:: -- --test-threads=1
+cargo test --locked --manifest-path native/Cargo.toml -p otter-runtime --lib shader_hlsl -- --test-threads=1
+cargo test --locked --manifest-path native/Cargo.toml -p otter-native --test integration shader_startup:: -- --test-threads=1
 ```
 
 Optional ignored cases have their own fixture requirements; a contract test is not proof of GPU parity

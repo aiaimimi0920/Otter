@@ -1,4 +1,4 @@
-//! 独立测试进程 owner：仅接受自启进程的 HWND，超时/失败仅清理持有的 Child。
+//! Independent test-process owner: accept HWNDs only from self-started processes; timeouts/failures clean only held Children.
 use super::*;
 use std::{
     io::{BufRead, BufReader, Read, Write},
@@ -23,7 +23,7 @@ impl Fixture {
         Self::start_mode("range")
     }
     pub fn start_foreground() -> Self {
-        // 只借独立输入队列，不要求或伪造 UIA action；仍走原 Child/管道/超时清理。
+        // Borrow only an independent input queue, without requiring/fabricating UIA actions; retain original Child/pipe/timeout cleanup.
         Self::start_mode("foreground")
     }
     fn start_mode(mode: &str) -> Self {
@@ -89,10 +89,10 @@ impl Fixture {
                 std::process::id(),
                 "foreground donor must be this test"
             );
-            // 前台父进程只授权仍持有的 Child；不使用 ASFW_ANY 或替外部进程抢前台。
+            // The foreground parent authorizes only its held Child, never using ASFW_ANY or stealing foreground for external processes.
             AllowSetForegroundWindow(self.child.id()).unwrap();
         }
-        // 只对持有的 Child 发一次命令；目标线程完成本地激活后确认，不在父线程轮询/重试。
+        // Send one command only to the held Child; its target thread confirms local activation, without parent-thread polling/retries.
         self.child
             .stdin
             .as_mut()
@@ -116,7 +116,7 @@ impl Fixture {
     }
     pub fn return_foreground(&mut self) {
         assert!(self.child.try_wait().unwrap().is_none());
-        // 当前前台的自有 Child 归还父进程的激活许可，父线程仍自行完成实际激活。
+        // The currently foregrounded owned Child returns activation permission to the parent, whose thread still performs actual activation itself.
         self.child
             .stdin
             .as_mut()
@@ -131,7 +131,7 @@ impl Fixture {
         );
     }
     pub fn close(&mut self) {
-        // 只通过所持 Child 的管道请求关闭，不向可能已被复用的缓存 HWND 发消息。
+        // Request closure only through the held Child's pipe, never messaging a cached HWND that may be reused.
         assert!(
             self.child.try_wait().unwrap().is_none(),
             "UIA child exited before close"
@@ -153,7 +153,7 @@ impl Fixture {
             .unwrap();
     }
     pub fn terminate(&mut self) {
-        // Child 持有进程句柄；不按 PID 名称扫描，也不经 HWND 寻找待终止进程。
+        // Child holds the process handle; no PID/name scans or HWND-based search for a process to terminate.
         assert!(self.child.try_wait().unwrap().is_none());
         self.child.kill().unwrap();
         self.wait_for_exit(false);
@@ -211,7 +211,7 @@ fn uia_process_fixture_child() {
     std::io::stdout().flush().unwrap();
     let (close_sender, close_receiver) = sync_channel(1);
     let close_reader = std::thread::spawn(move || {
-        // 命令总字节数、条数和队列均有界；close 发出后退出读取线程。
+        // Total command bytes, counts, and queues are bounded; exit the reader thread after sending close.
         for line in BufReader::new(std::io::stdin()).take(64).lines().take(4) {
             let line = line.unwrap();
             let close = line == "close";
@@ -268,7 +268,7 @@ fn uia_process_fixture_child() {
                 }
                 "close" => {
                     window.close().unwrap();
-                    // close 已使读取线程退出；意外关窗不能 join 尚在读取的线程。
+                    // close already ended the reader thread; unexpected window closure must not join a still-reading thread.
                     close_reader.join().unwrap();
                     break;
                 }
@@ -329,8 +329,8 @@ fn uia_process_fixture_child() {
             std::io::stdout().flush().unwrap();
         }
         if range && window.has_pending_edit() {
-            // 客户端依次设置 60、键盘变为 61、取消订阅后设置 70。
-            // 从正式 prepare/settle 出口验证六个不可变数值边沿，不能只看 HWND 值。
+            // The client sets 60, keyboard changes to 61, then sets 70 after unsubscribing.
+            // Verify six immutable numeric edges at production prepare/settle exits, not just HWND values.
             let events = window.prepare_edit(&binding, 4).unwrap();
             for event in &events {
                 assert!(range_edges < 6, "unexpected duplicate Slider edge");

@@ -1,4 +1,4 @@
-//! 极窄legacy区域只保留有界source/target；自然源/工作纹理换基准及取消不丢完整底图。
+//! Extremely narrow legacy regions retain bounded source/target only; natural-source/working-texture rebasing and cancellation preserve complete bases.
 use super::*;
 fn editor(vertical: bool) -> Editor {
     let size = if vertical { (1, 8192) } else { (8192, 1) };

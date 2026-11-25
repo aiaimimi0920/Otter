@@ -1,5 +1,5 @@
-//! 两后端共享的窗口图保留预算；文件名保留历史路径，逻辑 owner 为 desktop::composition_lifetime。
-//! 两种后端合计 MAX_UNITS 个窗口图；另限制 D3D12 两代设备。未确认关闭不归还配额。
+//! Window-graph retention budget shared by both backends; the filename preserves its historical path, while the logical owner is desktop::composition_lifetime.
+//! Both backends together allow MAX_UNITS window graphs, with D3D12 additionally limited to two device generations. Unconfirmed closure returns no quota.
 use std::sync::atomic::{AtomicUsize, Ordering};
 use windows::{
     core::{Error, Result},
@@ -49,7 +49,7 @@ mod tests {
         assert!(Lease::reserve(&COUNT, 2).is_err());
         drop(replacement);
         assert_eq!(COUNT.load(Ordering::Acquire), 1);
-        // 测试模型没有 GPU 在途，允许明确确认后回收，避免污染测试计数。
+        // The test model has no in-flight GPU work; allow reclamation after explicit confirmation to avoid contaminating test counters.
         drop(std::mem::ManuallyDrop::into_inner(retained));
         assert_eq!(COUNT.load(Ordering::Acquire), 0);
     }

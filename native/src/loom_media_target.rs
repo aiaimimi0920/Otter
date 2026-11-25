@@ -1,8 +1,8 @@
-//! 清单 HTTP 媒体目标：仅本机可复用清单凭据；远端必须走独立 Device 授权流程。
+//! Manifest HTTP media targets: only local connections reuse manifest credentials; remote targets require separate Device authorization.
 use crate::live_relay_media_endpoint::{self, Credential, Endpoint, Prepared};
 use rustls::RootCertStore;
 
-// 不派生 Debug/Serialize，不公开清单 token。
+// Do not derive Debug/Serialize or expose manifest tokens.
 pub struct Target {
     origin: String,
     token: Option<String>,
@@ -21,7 +21,7 @@ impl Target {
         &self.origin
     }
 
-    /// 仅本机发现清单的管理通道；不得把此凭据交给 LAN 或投射来源。
+    /// Only for local discovery-manifest management channels; never give these credentials to LAN or projection sources.
     pub(crate) fn local_control(&self) -> Result<(&str, &str), Error> {
         let url = url::Url::parse(&self.origin).map_err(|_| Error::RemoteAuthorizationRequired)?;
         if url.scheme() != "http" || !live_relay_media_endpoint::loopback(&url) {
@@ -48,8 +48,8 @@ impl Target {
         )
     }
 
-    /// 与主干 loopback_surface_authorization 一致，使用固定本机 device ID。
-    /// roots 必须是此 origin 的受信配置，清单内容本身不能提供 CA 信任。
+    /// Match mainline loopback_surface_authorization using the fixed local device ID.
+    /// roots must be trusted configuration for this origin; manifest contents themselves cannot establish CA trust.
     pub fn local_viewer(
         &self,
         session: &str,

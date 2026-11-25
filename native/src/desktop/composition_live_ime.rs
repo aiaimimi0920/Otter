@@ -1,4 +1,4 @@
-//! B 的本地输入法定位：源 caret 优先、点击后备；组合和已提交字符仍走原系统/队列。
+//! Local IME positioning in B: prefer source caret, fall back to clicks; composition and committed characters retain the original system/queue path.
 use super::*;
 use crate::live_window_target::input_routing::caret::Observation;
 use std::time::{Duration, Instant};
@@ -35,7 +35,7 @@ impl Anchor {
     }
     fn observe(&mut self, revision: u64, result: &Result<Option<Observation>>) -> bool {
         if self.revision != revision {
-            return false; // 只读 Win32 查询若重入暂停/新点击，不能重新挂回旧观测。
+            return false; // If a read-only Win32 query reenters pause/a new click, do not restore an old observation.
         }
         self.caret = result.as_ref().ok().copied().flatten();
         let error = result.as_ref().err().map(Error::code);
@@ -44,10 +44,10 @@ impl Anchor {
         report
     }
     fn point(&self, view: crate::live_viewport::Viewport) -> Option<[i32; 2]> {
-        // 已知源 caret 不在当前裁剪内时不退回旧点击；无系统 caret 才使用点击后备。
+        // A known source caret outside the current crop must not fall back to old clicks; use clicks only when no system caret exists.
         let source = if let Some(caret) = self.caret {
             if caret.size != view.source_size() {
-                return None; // 源 resize 的新几何不能套到 B 尚未重新提交的旧纹理上。
+                return None; // New source-resize geometry cannot apply to B's old texture before B submits it again.
             }
             caret.point
         } else {
@@ -60,7 +60,7 @@ impl Anchor {
         let Some([x, y]) = self.point(view) else {
             return Ok(());
         };
-        // IMM 的位置设置可能同步产生通知；不在重入中递归设置同一输入法上下文。
+        // IMM positioning may notify synchronously; do not recursively set the same IME context during reentrancy.
         if PLACING.with(|placing| placing.replace(true)) {
             return Ok(());
         }
@@ -123,7 +123,7 @@ impl Drop for Placing {
     }
 }
 
-/// 只使用 poll 已采样的结果；WndProc 不跨进程查询源，不跨 IMM 调用持有 RefCell。
+/// Use only results already sampled by poll; WndProc performs no cross-process source query and holds no RefCell across IMM calls.
 pub(super) unsafe fn handle(hwnd: HWND, state: &State, message: u32, wp: WPARAM) -> bool {
     if !matches!(
         message,
@@ -144,7 +144,7 @@ pub(super) unsafe fn handle(hwnd: HWND, state: &State, message: u32, wp: WPARAM)
             }
         }
     }
-    true // DefWindowProc 保有组合/候选 UI；WM_IME_CHAR 最终生成 WM_CHAR。
+    true // DefWindowProc retains composition/candidate UI; WM_IME_CHAR ultimately generates WM_CHAR.
 }
 
 impl LiveWindow {
@@ -167,7 +167,7 @@ impl LiveWindow {
                 return;
             }
             if !input.enabled {
-                // 鼠标首击可能正在等待 worker Enable；不能丢掉同一 FIFO 手势的后备锚点。
+                // The first click may be awaiting worker Enable; preserve the fallback anchor for the same FIFO gesture.
                 if !input.pending {
                     input.ime.clear();
                 }
@@ -180,7 +180,7 @@ impl LiveWindow {
         let report = self.state.input.borrow_mut().ime.observe(revision, &result);
         if report {
             if let Err(error) = result {
-                // 定位失败不能伪装成控制失败；清除旧 caret 并使用原点击后备，按错误码去重。
+                // Positioning failure is not control failure; clear old carets and use original click fallback, deduplicating by error code.
                 eprintln!("native-live-ime-caret: {error}");
             }
         }

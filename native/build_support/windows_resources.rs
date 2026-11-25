@@ -112,8 +112,8 @@ pub fn source(version: &str, icon: &Path) -> io::Result<String> {
     }
     let icon = icon.replace('\\', "/");
     let fixed = format!("{},{},{},0", parts[0], parts[1], parts[2]);
-    // 三段公共 SemVer 是 PE 文件版本；内部四段身份由候选 provenance 绑定。
-    // 常量取 Win32 VERSIONINFO 定义的数值，避免要求额外的 SDK include 环境。
+    // The three-part public SemVer is the PE file version; candidate provenance binds the four-part internal identity.
+    // Use the numeric constants defined by Win32 VERSIONINFO to avoid requiring an extra SDK include environment.
     Ok(format!(
         r#"#pragma code_page(65001)
 1 ICON "{icon}"

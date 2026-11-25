@@ -1,6 +1,6 @@
-//! 真实 EDIT 删除行为与撤销；不发送 WM_CUT，不接触用户剪贴板。
+//! Actual EDIT deletion and undo; no WM_CUT or user-clipboard access.
 use super::*;
-// 仅改变当前测试线程的键盘快照；不注入桌面按键，退出时恢复原状态。
+// Change only this test thread's keyboard snapshot, without desktop keystrokes; restore original state on exit.
 struct Keys([u8; 256]);
 impl Keys {
     fn set(modifier: Option<usize>) -> Self {

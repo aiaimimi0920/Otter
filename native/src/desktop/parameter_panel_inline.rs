@@ -1,4 +1,4 @@
-//! 多行 child 只借用同一个参数事务 owner；滚动/折叠不重建 EDIT 或丢弃草稿。
+//! Multiline children borrow the same parameter transaction owner; scrolling/collapsing neither rebuilds EDIT nor discards drafts.
 use super::*;
 use std::rc::Weak;
 
@@ -133,7 +133,7 @@ impl Panel {
     }
 }
 pub(super) unsafe fn wheel(ui: &Ui, wp: WPARAM, lp: LPARAM) -> bool {
-    // wheel 的 LPARAM 已是屏幕坐标，不通过图片缩放或独立表单滚动补偿。
+    // The wheel LPARAM already contains screen coordinates; do not compensate with image scaling or independent form scrolling.
     SendMessageW(ui.parent, WM_MOUSEWHEEL, Some(wp), Some(lp));
     true
 }
@@ -147,7 +147,7 @@ pub(super) unsafe fn place(ui: &Ui) {
         ui.error("无法裁剪参数栏");
         return;
     }
-    // 根 HRGN 只包含真实控件，不盖住 label、眼睛、anchor 或行间空隙。
+    // The root HRGN includes only actual controls, not labels, eyes, anchors, or gaps between rows.
     for (child, rect) in placements {
         let index = (rect.top.max(0) / 36) as usize;
         let row = model

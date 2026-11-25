@@ -1,4 +1,4 @@
-//! OfflinePeer模型夹具固定source与peer；预期路由独立写出，不从被测路由生成。
+//! OfflinePeer fixtures fix source/peer; write expected routes independently, never generate them from routes under test.
 use super::*;
 pub(crate) const SOURCE: &str = "https://source-loom.example";
 pub(crate) const PEER: &str =

@@ -1,4 +1,4 @@
-//! 当前呈现场景的不可变资源快照；允许同附件生命周期推进，不允许换设备/代际/场景。
+//! Immutable resource snapshots for the current presentation scene; same-attachment lifecycle advancement is allowed, but device/generation/scene changes are not.
 use crate::surface_live_binding::Binding;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Error {
@@ -24,7 +24,7 @@ impl std::fmt::Debug for ResourceSnapshot {
     }
 }
 impl ResourceSnapshot {
-    /// 只验证快照身份与大小，不授予来源读权；调用方仍须执行授权与完整收敛检查。
+    /// Validate only snapshot identity and size, not source-read permission; callers must still check authorization and full convergence.
     pub(crate) fn new(raw: &RawValue, binding: &Binding, revision: u64) -> Result<Self, Error> {
         if raw.get().len() > crate::surface_scene::MAX_BYTES {
             return Err(Error::Limit);

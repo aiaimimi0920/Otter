@@ -1,4 +1,4 @@
-//! 有界操作历史通过转移 Stroke 所有权撤销/重做，不复制图像或点数组。
+//! Bounded operation history transfers Stroke ownership for undo/redo without copying images or point arrays.
 use crate::editor::Stroke;
 use crate::stroke_style::StrokeStyle;
 use std::collections::VecDeque;
@@ -16,7 +16,7 @@ pub struct Document {
     pub mirror: crate::editor::MirrorState,
 }
 
-/// 同一文档的可变目标借用，不拥有额外历史或像素。
+/// Mutable target borrow for the same document, owning no additional history/pixels.
 pub struct Target<'a> {
     pub elements: &'a mut Vec<Stroke>,
     pub serial_count: &'a mut u32,
@@ -319,7 +319,7 @@ impl Entry {
             std::mem::swap(&mut self.raster, raster);
         }
         if self.batch.is_none() || !self.occupied {
-            // 替换索引属于移除后的集合：撤销先还原效果，再插回矢量。
+            // Replacement indices refer to the post-removal collection: undo restores effects before reinserting vectors.
             self.swap_replacements(elements);
         }
         if self.replacements.is_some() && self.batch.is_none() {
@@ -336,7 +336,7 @@ impl Entry {
                 }
             }
             if self.occupied {
-                // 重做先移除矢量，再交换剩余效果。
+                // Redo removes vectors first, then swaps remaining effects.
                 self.swap_replacements(elements);
             }
             self.occupied = !self.occupied;
@@ -385,7 +385,7 @@ impl History {
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
-    /// 返回丢弃重做分支及最旧记录时实际释放的点数。文档中的点不会随历史淘汰丢失。
+    /// Return the actual number of points released when discarding redo branches/oldest records. History eviction never loses document points.
     pub fn record(&mut self, entry: Entry) -> usize {
         let mut released = self
             .entries

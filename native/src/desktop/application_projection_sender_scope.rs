@@ -1,4 +1,4 @@
-//! 固定菜单来源的当前显示与工作区围栏；不在响应到达时重新挑选前台贴图。
+//! Current-display/workspace fences for a fixed menu source; never reselect the foreground pin when a response arrives.
 use super::*;
 use crate::{
     desktop::{display_snapshot, image::Image},
@@ -64,7 +64,7 @@ impl Scope {
             &app.documents,
         )
         .ok_or_else(stale)?;
-        // 已有 full source/raster 的 editor 仍优先；可见 crop HWND 不能再次冒充完整源框。
+        // Editors with full source/raster still take priority; a visible-crop HWND must not masquerade as the complete source frame again.
         let geometry = if snapshot.editor.full_logical_frame().is_none()
             && snapshot.editor.layers().is_none()
         {
@@ -79,8 +79,8 @@ impl Scope {
         snapshot.geometry = geometry.as_ref().map(|value| value.value);
         let captured = Self {
             unit: unit.clone(),
-            // 新贴图尚未进入 Record.original；已证明的 canonical 保存才包含完整当前 Unit。
-            // Record 原文另行保留作结果新鲜度/回滚围栏，不能混用两份 allocation。
+            // New pins are not yet in Record.original; only a proven canonical save contains the complete current Unit.
+            // Retain Record source content separately as a result-freshness/rollback fence; do not mix these allocations.
             binding_source: app
                 .workspace_checkpoint
                 .as_ref()
@@ -124,7 +124,7 @@ impl Scope {
                 .as_ref()
                 .is_some_and(|record| record.original.same_storage(&self.source))
     }
-    /// 初始化允许网络期间的矢量编辑；来源像素/几何与原canonical仍必须精确相同。
+    /// Initialization permits vector editing during networking; source pixels/geometry and original canonical must still match exactly.
     pub(in crate::desktop::application) unsafe fn matches_basis(&self, app: &Application) -> bool {
         self.workspace.matches(&app.workspace)
             && !app.exit_requested.get()

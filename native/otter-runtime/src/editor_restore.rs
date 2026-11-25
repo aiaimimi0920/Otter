@@ -1,7 +1,7 @@
-//! 只供会话转换器构造新文档的基础矢量入口；不经过交互采样，避免丢弃紧邻的持久点。
+//! Basic vector entry used only by session converters creating new documents; bypass interactive sampling to preserve adjacent persisted points.
 use super::*;
 impl Editor {
-    /// 恢复的逻辑画框独立于向上取整的像素缓冲；不创建一次假的裁剪或历史。
+    /// Restored logical frames are independent of rounded-up pixel buffers; create no fabricated crop/history.
     pub fn with_restored_size(self, size: crate::crop_geometry::Size) -> Result<Self, EditError> {
         self.with_restored_grid(size, (size.width.ceil() as u32, size.height.ceil() as u32))
     }
@@ -37,7 +37,7 @@ impl Editor {
         self.logical_size = Some(size);
         Ok(self)
     }
-    /// 安装已归一到完整源坐标的新文档裁剪视图，不裁掉像素、不创建导入历史。
+    /// Install new-document crop views normalized to full-source coordinates, without cutting pixels or creating import history.
     pub fn with_restored_crop(
         mut self,
         crop: crate::crop_geometry::Crop,
@@ -63,7 +63,7 @@ impl Editor {
         });
         Ok(self)
     }
-    /// 新建恢复文档从可见框平移回完整源框；效果纹理必须由调用方先按完整源框准备。
+    /// Translate restored documents from visible to full-source bounds; callers must prepare effect textures for full bounds first.
     pub fn with_restored_offset(mut self, offset: Point) -> Result<Self, EditError> {
         if self.raster.is_some()
             || self.crop.is_some()
@@ -86,7 +86,7 @@ impl Editor {
         }
         Ok(self)
     }
-    /// 只合并尚未发布的新文档，避免绕过正常历史替换活动栅格；坐标对齐由恢复层负责。
+    /// Merge unpublished new documents only, avoiding active-raster replacement outside normal history; restoration layers own coordinate alignment.
     pub fn with_restored_layers(
         mut self,
         layers: crate::erase_layers::Layers,

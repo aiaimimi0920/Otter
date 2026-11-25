@@ -1,4 +1,4 @@
-//! 恢复提示到只读查询的认证边界；查询不会重放创建或自动 remount。
+//! Authentication boundary from recovery hints to read-only queries; queries neither replay creation nor automatically remount.
 use super::*;
 use crate::{
     desktop::composition::relay::sessions::Sessions,
@@ -22,7 +22,7 @@ fn request(record: &Record, origin: &str, device: &str) -> std::result::Result<R
         Input::default(),
     )
     .map_err(|error| format!("恢复查询配置无效：{error:?}"))?;
-    // 仅作为 GET 查询的 Art/node 上下文；此请求绝不交给 start_attach。
+    // Art/node context for GET queries only; never pass this request to start_attach.
     Request::new(
         art.into(),
         record.node().into(),

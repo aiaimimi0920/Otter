@@ -1,4 +1,4 @@
-//! 来源历史与目标布局独立；Region仅复用原采样器，成功后一次性交换几何和映射。
+//! Source history is independent of target layout; Region reuses only the original sampler and swaps geometry/mapping once on success.
 use super::*;
 
 pub(in crate::desktop) fn prepare_mapped(
@@ -37,7 +37,7 @@ pub(in crate::desktop) fn prepare_mapped(
     };
     validate(mapping, image)?;
     let natural = if let Sampling::Region(p) = layout.sampling {
-        // 物化输出覆盖整个visible，不只是有效source区域；透明边距也参与同一仿射映射。
+        // Materialized output covers all of visible, not just valid source regions; transparent margins share the same affine mapping.
         Rect {
             x: p.source.x + (layout.visible.x - p.target.x) / p.target.width * p.source.width,
             y: p.source.y + (layout.visible.y - p.target.y) / p.target.height * p.source.height,
@@ -56,7 +56,7 @@ pub(in crate::desktop) fn prepare_mapped(
         height: natural.height / mapping.source.height * mapping.target.height,
     };
     valid_rect(frame)?;
-    // 只复制采样几何小值；beautify由原owner持有，不Clone设置或共享像素。
+    // Copy only small sampling-geometry values; original owners retain beautify, without cloning settings or shared pixels.
     let mut pending = Frame {
         logical: geometry.logical,
         output: geometry.output,

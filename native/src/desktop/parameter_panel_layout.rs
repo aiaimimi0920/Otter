@@ -1,4 +1,4 @@
-//! 固定内容宽度与内部滚动，物理工作区约束只读取不修改显示配置。
+//! Fixed content width and internal scrolling; physical work-area constraints are read without changing display configuration.
 use super::*;
 pub(super) unsafe fn initial(host: HWND) -> Result<RECT> {
     let mut anchor = RECT::default();
@@ -146,7 +146,7 @@ pub(super) unsafe fn reveal(ui: &Ui, child: HWND) {
     } else if rect.right > left + client.right {
         ui.scroll_x.set(rect.right - client.right);
     }
-    // IsDialogMessage也可同步处理paint；无滚动变化时重排会自续父paint并饿死child。
+    // IsDialogMessage can process paint synchronously; relayout without scrolling perpetuates parent paint and starves children.
     if before != (ui.scroll.get(), ui.scroll_x.get()) {
         place(ui);
     }

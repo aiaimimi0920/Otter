@@ -1,4 +1,4 @@
-//! 主干底图透明度合同：底图单独衰减，栅格和矢量标注保持自身透明度。
+//! Baseline base-image opacity contract: attenuate the base alone while raster/vector annotations retain their own opacity.
 use super::*;
 use crate::{editor::Tool, erase_layers::Layers, stroke_style::Color};
 

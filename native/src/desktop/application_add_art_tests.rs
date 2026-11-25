@@ -1,4 +1,4 @@
-//! 隐藏 Application 的独立子 Art/自动连源事务；不运行真实设备、用户服务或全局输入。
+//! Independent child-Art/automatic-source-link transactions in a hidden Application; no real devices, user services, or global input.
 use super::*;
 use desktop::{
     node_menu::art_picker::{model::Snapshot, tests as fixture},

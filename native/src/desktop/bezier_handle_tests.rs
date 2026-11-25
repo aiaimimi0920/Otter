@@ -1,4 +1,4 @@
-//! 控制柄使用真实 Canvas 输入与 D2D 工厂；不依赖用户窗口或图片。
+//! Handles use real Canvas input and D2D factories, without user windows or images.
 use super::super::image::Image;
 use super::*;
 

@@ -1,4 +1,4 @@
-//! 图像空间旋转；绘制、命中和窗口区域共享同一中心与角度方向。
+//! Image-space rotation; drawing, hit testing, and window regions share centers/angular direction.
 use crate::viewport::Point;
 
 pub fn center(points: &[Point]) -> Point {
@@ -18,7 +18,7 @@ pub fn center(points: &[Point]) -> Point {
     }
 }
 
-/// 固定中心和角度的点变换；对一组点复用同一对旋转系数。
+/// Fixed-center/angle point transformations reuse one rotation-coefficient pair across point sets.
 #[derive(Clone, Copy)]
 pub struct Rotation {
     center: Point,
@@ -46,7 +46,7 @@ pub fn rotate(point: Point, center: Point, degrees: f32) -> Point {
     Rotation::new(center, degrees).apply(point)
 }
 
-/// 编辑点集后补偿旋转中心变化，维持未编辑点的可见位置；调用者校验结果范围。
+/// Compensate rotation-center changes after point editing to preserve untouched points' visible positions; callers validate output ranges.
 pub fn preserve_center(before: &[Point], after: &mut [Point], degrees: f32) {
     let old = center(before);
     let new = center(after);

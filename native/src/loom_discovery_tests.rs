@@ -1,4 +1,4 @@
-//! 注入环境和文件读取器，不访问真实用户发现文件。
+//! Injected environment/file readers, without access to real user discovery files.
 use super::*;
 use std::{cell::Cell, io::Cursor};
 fn config(values: &[(&str, &str)]) -> Config {

@@ -1,4 +1,4 @@
-//! 隐藏原生发送测试的隔离 owner/工作区/TLS 夹具；不注册全局输入，不使用真实 profile。
+//! Isolated owner/workspace/TLS fixtures for hidden native send tests; no global input registration or real profiles.
 use super::*;
 use crate::{
     desktop::{device_authorization_ui as ui, image::Image, workspace_profile::Profile, Apartment},
@@ -38,7 +38,7 @@ mod tls;
 #[path = "application_projection_sender_continuous_tests.rs"]
 mod updates;
 unsafe fn drain_messages() {
-    // 同线程测试重开是新实例；沿现有 checkpoint 夹具排空上一实例的 WM_QUIT，不改生产 GetMessage。
+    // Same-thread test reopening creates a new instance; drain the previous instance's WM_QUIT through existing checkpoint fixtures, without changing production GetMessage.
     let mut msg = MSG::default();
     for _ in 0..1024 {
         if !PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE).as_bool() {

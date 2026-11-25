@@ -1,4 +1,4 @@
-# 构建工具与外部配置身份；环境只记录摘要，不写入令牌或配置内容。
+# Build-tool and external-configuration identity; record only environment digests, never tokens or configuration contents.
 function Write-NativeCandidateJson {
     param([string]$Path, $Value)
     if (Test-Path -LiteralPath $Path) { throw "Candidate record already exists: $Path" }
@@ -14,8 +14,8 @@ function Invoke-NativeCandidateTool {
         try {
             $writer.NewLine = "`n"
             $wroteRecord = $false
-            $ErrorActionPreference = 'Continue' # Windows PowerShell 将正常 stderr 包装为 ErrorRecord。
-            $global:LASTEXITCODE = $null # 原生命令更新全局退出码；局部同名变量会遮蔽它。
+            $ErrorActionPreference = 'Continue' # Windows PowerShell wraps ordinary stderr in ErrorRecord.
+            $global:LASTEXITCODE = $null # Native commands update the global exit code; a same-named local variable would shadow it.
             try {
                 & $Executable @Arguments 2>&1 | ForEach-Object -ErrorAction Stop {
                     $writer.WriteLine($_.ToString())
@@ -35,7 +35,7 @@ function Invoke-NativeCandidateTool {
     } finally { $log.Dispose() }
     if ($null -eq $code -or $code -ne 0) { throw "Native candidate command failed ($code); see $LogPath" }
 }
-# 缓存锁覆盖 Cargo 退出到产物复制的窗口；调用者必须在 finally 释放。
+# The cache lock covers the interval from Cargo exit through artifact copying; callers must release it in finally.
 function Open-NativeCandidateCacheLock {
     param([string]$TargetDirectory)
     [void][IO.Directory]::CreateDirectory($TargetDirectory)

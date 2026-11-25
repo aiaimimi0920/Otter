@@ -1,4 +1,4 @@
-//! 缓存偏好的内存编辑入口；模态只持草稿，确认不立即清理磁盘，保存交给应用协调器。
+//! In-memory editing of cache preferences; modals hold drafts only, confirmation does not clean disk immediately, and the application coordinator saves.
 use super::State;
 use crate::cache_policy::Policy;
 use windows::{

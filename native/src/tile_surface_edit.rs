@@ -1,4 +1,4 @@
-//! 一次Tile字段编辑的共享身份/固定在途期限；只共享依赖，不拥有HWND、像素或授权租约。
+//! Shared identity/fixed in-flight deadline for one Tile field edit; share dependencies only, without HWNDs, pixels, or authorization leases.
 use std::{
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -16,7 +16,7 @@ struct Group {
     inflight: Mutex<Option<Instant>>,
     fields: Mutex<std::collections::BTreeMap<String, [u8; 32]>>,
 }
-/// 原worker的栈上清理；validate拒绝、撤权早退或panic均不能残留“HTTP仍在途”。
+/// Stack cleanup in the original worker; validation rejection, early revocation return, or panic must never leave HTTP marked in flight.
 pub(crate) struct Dispatch(Arc<Edit>);
 impl Drop for Dispatch {
     fn drop(&mut self) {
@@ -86,7 +86,7 @@ impl Edit {
             .is_some_and(|until| now < until)
     }
 }
-/// 新鲜已呈现字段的共同wire合同；不将文本/数字事件降格为未经校验的任意JSON。
+/// Shared wire contract for freshly presented fields; never downgrade text/numeric events to unchecked arbitrary JSON.
 pub(crate) fn validates(
     p: &crate::surface_presentation::Presentation,
     point: [f32; 2],

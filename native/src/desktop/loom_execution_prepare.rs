@@ -1,4 +1,4 @@
-//! 图准备结果到后台执行 owner 的注册事务；先校验资源和编码，最后才替换请求代际。
+//! Registration transaction from graph preparation to background execution ownership; validate resources/encoding first and replace request generations last.
 use super::{loom_execution_job::Execution, loom_input_job::PreparedBatch};
 use crate::{
     editor::Editor,
@@ -42,8 +42,8 @@ pub enum Error {
     Wire(crate::graph_execution_wire::Error),
 }
 
-/// 调用方在同一 UI 调度段存入空闲待执行槽，不得丢弃返回值后遗留注册请求。
-/// 此处不联网；旧 worker 的取消由应用按注册代际退休时执行，使用其固定发现身份。
+/// Callers place results into idle pending-execution slots in the same UI scheduling segment; never discard returns and leave registered requests.
+/// No networking here; applications cancel old workers when retiring registered generations, using fixed discovery identity.
 pub fn stage<'a>(
     registry: &mut Requests,
     plan: Plan<'_, '_>,

@@ -1,4 +1,4 @@
-//! 实际 Application 的 v2 接收追加、落盘包含关系和重开；不把隐藏窗口当作已显示。
+//! Actual Application v2 receive append, persisted inclusion relationships, and reopening; hidden windows do not count as displayed.
 use super::*;
 use crate::desktop::application::account_projection::{Destination, Prepared};
 use crate::projection_account::{scene::Binding, tests::scene_tests::fixture};
@@ -49,7 +49,7 @@ fn account_receive_is_not_saved_until_real_checkpoint_and_reopens_with_same_pixe
             let original_unit = app.documents[0].state.unit_id.clone();
             let original_window = app.documents[0].window.0;
             let (destination, prepared, binding) = prepare(&mut app);
-            // 普通接收钉图不绑定 Art；目录在后台准备后刷新，仍然允许提交该钉图。
+            // Ordinary received pins do not bind Art; refreshing the catalog after background preparation still permits committing that pin.
             app.catalog.borrow_mut().loaded =
                 Some(super::super::restore_batch::smoke::catalog().unwrap());
             let receipt = app

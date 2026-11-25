@@ -1,4 +1,4 @@
-//! 真实分享 HWND/EDIT/按钮与生命周期，全部窗口归当前隔离测试所有。
+//! Real sharing HWND/EDIT/buttons and lifecycle; every window belongs to the current isolated test.
 use super::*;
 use crate::projection_account::{scene::Binding, tests::scene_tests::source_fixture};
 struct Fixture {
@@ -159,7 +159,7 @@ fn share_dialog_tabs_preserve_input_and_parse_never_queues_network() {
         let f = Fixture::new(true, false);
         let binding = invitation();
         let text = binding.envelope().link().unwrap();
-        // 多行 EDIT 的 WM_SETTEXT 不产生 EN_CHANGE；真实键入/粘贴通过替换选择产生通知。
+        // WM_SETTEXT on multiline EDIT does not produce EN_CHANGE; real typing/paste notifies by replacing the selection.
         let input = HSTRING::from(&text);
         SendMessageW(
             GetDlgItem(Some(f.hwnd()), 101).unwrap(),

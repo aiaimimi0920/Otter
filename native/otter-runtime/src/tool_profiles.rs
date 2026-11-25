@@ -1,4 +1,4 @@
-//! 工具拥有各自数值属性；颜色与填充按主干工具族记忆，不泄漏到其它创建工具。
+//! Tools own their numeric properties; color/fill are remembered by baseline tool families without leaking into other creation tools.
 use crate::{editor::Tool, stroke_style::StrokeStyle};
 #[path = "tool_paint_profiles.rs"]
 pub mod paint;
@@ -204,7 +204,7 @@ impl ToolProfiles {
             return current;
         };
         let stored = self.styles[index];
-        // 所有存储值均来自通过校验的 StrokeStyle，恢复不发生失败或静默截断。
+        // All stored values come from validated StrokeStyle; restoration cannot fail or silently truncate.
         let mut result = current.with_width_value(stored.width()).unwrap();
         result = result.with_arrow(stored.arrow());
         if next == Tool::Polyline {
@@ -214,7 +214,7 @@ impl ToolProfiles {
             result = result.with_opacity(stored.opacity()).unwrap();
         }
         if next == Tool::Highlighter {
-            // 独立荧光笔默认使用完整 35% wash，不继承普通画笔的透明度。
+            // The independent highlighter defaults to the full 35% wash, without inheriting ordinary pen opacity.
             result = result.with_opacity(1.0).unwrap();
         }
         if matches!(

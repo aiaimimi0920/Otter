@@ -1,4 +1,4 @@
-//! 产品裸私有入口不能绕过 Job/pipe 门，也不能混合正常 profile/UI 参数。
+//! Bare private product entry points cannot bypass the Job/pipe gate or mix in ordinary profile/UI arguments.
 #![cfg(windows)]
 use std::{process::Command, time::Duration};
 #[path = "../support/process.rs"]

@@ -1,4 +1,4 @@
-//! 原唯一worker的弱预留：栈上命令仍计32槽/8MiB，撤销后也须等实际owner释放预算。
+//! Weak reservations in the original unique worker: stack commands still count toward 32 slots/8MiB, and revocation waits for actual owners to release budgets.
 use super::*;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -20,7 +20,7 @@ impl Queue {
             .filter(|h| h.token.strong_count() > 0)
             .map_or((0, 0), |h| (1, h.bytes))
     }
-    /// 预留不是第二队列；只有原worker能取命令，期间不能合并/重放已取前缀。
+    /// Reservations are not a second queue; only the original worker can take commands, and taken prefixes cannot be merged/replayed meanwhile.
     pub(crate) fn reserve(
         &mut self,
         state: &State,
@@ -54,7 +54,7 @@ impl Queue {
     pub(crate) fn holds(&self, ticket: &Ticket) -> bool {
         self.same_ticket(ticket) && ticket.0.load(Ordering::Acquire)
     }
-    /// 返回是否仍有权提交结果；旧token不能释放/确认后来预留。
+    /// Return whether result submission is still allowed; old tokens cannot release/confirm later reservations.
     pub(crate) fn release(&mut self, ticket: &Ticket) -> bool {
         let alive = self.holds(ticket);
         if self.same_ticket(ticket) {
@@ -62,7 +62,7 @@ impl Queue {
         }
         alive
     }
-    /// 仅HTTP尝试前、同身份的短暂准备空隙可恢复；原期限/事件ID/顺序不变。
+    /// Restore only before HTTP attempts during brief same-identity preparation gaps; original deadlines/event IDs/order remain unchanged.
     pub(crate) fn defer(&mut self, command: Command, ticket: &Ticket) {
         if self.release(ticket) {
             self.pending.push_front(command);

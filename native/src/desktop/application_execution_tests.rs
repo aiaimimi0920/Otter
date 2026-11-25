@@ -1,4 +1,4 @@
-//! 隐藏 HWND + 自建 TLS 服务覆盖应用启动/消费链，不注册全局输入或读取用户文件。
+//! Hidden HWNDs plus a dedicated TLS service cover application startup/consumption paths, without registering global input or reading user files.
 use super::*;
 use crate::{
     desktop::{
@@ -98,7 +98,7 @@ fn hidden_application_starts_commits_and_rejects_changed_preparation() {
             let mut message = MSG::default();
             if PeekMessageW(&mut message, None, WM_APP + 92, WM_APP + 92, PM_REMOVE).as_bool() {
                 app.execution_wake.acknowledge();
-                // 此段单独验证手动 stage；尚未安装 Pending 配置，不进入生产配对流程。
+                // This section separately verifies manual stage; Pending configuration is not installed yet, so it does not enter production pairing.
                 app.input_jobs.poll();
                 if let Some(report) = app.input_jobs.take_completed() {
                     assert_eq!(report.ticket, ticket);
@@ -222,7 +222,7 @@ fn hidden_application_starts_commits_and_rejects_changed_preparation() {
         assert!(stamp.matches(&app.documents[0].state.canvas.borrow().editor));
         server.join().unwrap();
 
-        // 生产配对入口只准备正式请求；测试在启动前领取，验证此阶段不联网。
+        // The production pairing entry point only prepares committed requests; the test collects before startup to verify this stage performs no networking.
         let (pair_listener, pair_identity, _) = fixture();
         pair_listener.set_nonblocking(true).unwrap();
         let pair_ticket = UnitId::parse("paired-preparation").unwrap();
@@ -291,7 +291,7 @@ fn hidden_application_starts_commits_and_rejects_changed_preparation() {
             std::io::ErrorKind::WouldBlock
         );
 
-        // 不同 Editor 身份模拟准备后替换；listener 非阻塞证明应用未发起连接。
+        // Different Editor identities simulate replacement after preparation; a nonblocking listener proves the application initiated no connection.
         let (listener, identity, _) = fixture();
         listener.set_nonblocking(true).unwrap();
         let request = app
@@ -389,7 +389,7 @@ fn hidden_application_starts_commits_and_rejects_changed_preparation() {
             .pending_preparation
             .borrow()
             .is_none());
-        // 菜单请求捕获旧令牌；处理前开始新代际时，不能取消新的运行状态。
+        // Menu requests capture the old token; starting a new generation before processing must not cancel the new running state.
         let old = app
             .executions
             .begin(unit.clone(), UnitId::parse("cancel-old").unwrap())

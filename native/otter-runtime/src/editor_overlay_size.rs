@@ -1,4 +1,4 @@
-//! 将覆盖层映射到新生成图片的坐标；只生成快照，不写原文档历史或复制底图。
+//! Map overlays into newly generated image coordinates; snapshots only, without original-document history writes or base copies.
 use super::*;
 
 impl Editor {
@@ -17,7 +17,7 @@ impl Editor {
         if source.size == size {
             return Ok(snapshot);
         }
-        // 新生成图像使用新的像素坐标；不得保留旧恢复文档的完整逻辑框尺寸。
+        // Newly generated images use new pixel coordinates; do not retain old restored documents' complete logical-frame dimensions.
         snapshot.logical_size = None;
         let factors = Point {
             x: size.0 as f32 / source.size.0 as f32,

@@ -1,4 +1,4 @@
-//! 生产局部准备路径的资源尺寸、缓存和失败原子性；不保留旧整框实现作为测试替身。
+//! Resource dimensions, caching, and failure atomicity of production local preparation; do not retain old whole-frame implementations as test substitutes.
 use super::*;
 
 #[test]
@@ -305,7 +305,7 @@ fn fractional_local_mask_scale_includes_canvas_and_output_rounding_per_axis() {
         None,
     )
     .unwrap();
-    // 输出 16×16，密度 4/3 与 1；逻辑局部框 ceil 为 2×3，再 ceil 到 3×3 像素。
+    // Output is 16x16 with densities 4/3 and 1; logical local bounds ceil to 2x3, then to 3x3 pixels.
     let frame = Rect {
         x: 2.0,
         y: 2.0,

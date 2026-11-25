@@ -1,5 +1,5 @@
-//! 本地原生按钮/悬浮事务的标量协议；属性不是鉴权，宿主仍执行权限与 Destination 预检。
-//! 独立 epoch 区分暂停/恢复，nonce 区分按钮事务；不复用随鼠标 Leave 撤销的 hover ACTIVE。
+//! Scalar protocol for local native button/hover transactions; properties are not authentication, and hosts still check permissions/Destination.
+//! Independent epochs distinguish pause/resume and nonces distinguish button transactions; never reuse hover ACTIVE revoked by mouse Leave.
 use crate::scope;
 use windows::{
     core::{w, PCWSTR},
@@ -55,7 +55,7 @@ pub fn value(hwnd: HWND, key: PCWSTR) -> usize {
     unsafe { GetPropW(hwnd, key).0 as usize }
 }
 
-/// 固定按钮与同步 motion/hover 白名单；不接受任意 Win32 消息或跨进程指针。
+/// Fixed button/synchronous motion/hover allowlist; no arbitrary Win32 messages or cross-process pointers.
 pub fn valid_packet(message: u32, wp: usize, lp: isize) -> bool {
     matches!(
         message,
@@ -88,7 +88,7 @@ impl Request {
         })
     }
 
-    /// 在源消息线程读取；首尾重读提交状态，拒绝半发布、撤销和跨线程目标。
+    /// Read on source message threads; reread commit state at both ends to reject partial publication/revocation/cross-thread targets.
     pub fn read(owner: HWND, nonce: usize, receiving: HWND) -> Option<Self> {
         let request = Self::snapshot(owner, nonce)?;
         if request.destination != receiving
@@ -129,8 +129,8 @@ impl Request {
             .then_some(request)
     }
 
-    /// 同一源线程上的多个 hook 必须先领取再调用应用，防止重复执行一笔按钮。
-    /// 调用方仍须校验嵌套来源并保存原 TLS scope，不能覆盖正在运行的事务。
+    /// Multiple hooks on one source thread must claim before calling applications, preventing duplicate button execution.
+    /// Callers still validate nested provenance/save original TLS scope, never overwriting running transactions.
     pub fn claim(self) -> windows::core::Result<bool> {
         if Self::read(self.owner, self.nonce, self.destination) != Some(self)
             || value(self.owner, CLAIMED) == self.nonce
@@ -150,8 +150,8 @@ impl Request {
             && value(self.owner, COMMIT) == self.nonce
     }
 
-    /// 只由已领取并执行完窗口过程的 dispatch 调用，不是一次新的输入授权。
-    /// 点击可合法销毁控件或撤销控制；只确认原 publication，不能据当前源状态抹掉执行结果。
+    /// Called only by dispatch after claim and completed window-procedure execution; not new input authorization.
+    /// Clicks may legitimately destroy controls/revoke control; acknowledge only original publication without erasing execution results based on current source state.
     pub(crate) fn finish_returned(self) -> windows::core::Result<bool> {
         if !self.same_publication() {
             return Ok(false);

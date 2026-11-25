@@ -1,4 +1,4 @@
-//! 模糊笔迹只接受已计算的不可变图像；计算任务不在编辑事务内运行。
+//! Blur strokes accept only precomputed immutable images; computation never runs inside editing transactions.
 use super::*;
 impl Editor {
     pub fn replace_blur(

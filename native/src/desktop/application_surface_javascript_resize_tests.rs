@@ -1,4 +1,4 @@
-//! 真 TLS/Application 无点击 resize→observer→下一帧；模态保留脏代次，ABA 旧结果终态拒绝。
+//! Real TLS/Application click-free resize -> observer -> next frame; modal state retains dirty generations, and stale ABA results terminate with rejection.
 use super::*;
 fn report(app: &mut Application) -> serde_json::Value {
     app.surface_windows
@@ -40,7 +40,7 @@ pub(super) unsafe fn exercise(
     app.authorization.borrow_mut().busy = true;
     app.poll_remote_live_with(true, |o| fixture::config(o, root))
         .unwrap();
-    idle(app); // dirty observer 尚在，但模态不能贡献立即 deadline 或抢单槽。
+    idle(app); // The dirty observer remains, but modal state must neither contribute an immediate deadline nor seize the single slot.
     assert_eq!(report(app)["count"], 1);
     app.authorization.borrow_mut().busy = false;
     app.poll_remote_live_with(true, |o| fixture::config(o, root))
@@ -53,7 +53,7 @@ pub(super) unsafe fn exercise(
         .javascript_pending_for_test());
     wait_js(app, true);
     if stale {
-        // resize-only operation（没有待 rAF）已经完成；A→B→A 必须仍然拒绝。
+        // The resize-only operation, with no pending rAF, already completed; A -> B -> A must still reject it.
         SetWindowPos(
             parent,
             None,

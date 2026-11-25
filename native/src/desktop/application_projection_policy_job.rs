@@ -1,4 +1,4 @@
-//! 单槽策略暂存 worker；发布仍在 UI 结算点，退出/丢弃只清理本任务暂存。
+//! Single-slot policy staging worker; publication remains at UI settlement points, and exit/discard cleans up only this task's staged data.
 use super::file::{File, Prepared};
 use crate::{
     desktop::loom_execution_signal::{reap_deadline, CompletionSignal, Notify},

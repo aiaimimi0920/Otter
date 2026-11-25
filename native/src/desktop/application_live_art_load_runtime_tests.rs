@@ -1,4 +1,4 @@
-//! 显式 WGC→普通 Loom→回环 Art 持续负载；只用新 profile 和自有源，不代普通 UI 验收。
+//! Explicit WGC -> ordinary Loom -> loopback Art sustained load; fresh profiles and owned sources only, not a substitute for ordinary UI acceptance.
 use super::*;
 use crate::desktop::loom_result_state::Status;
 use std::path::PathBuf;
@@ -55,8 +55,8 @@ fn actual_wgc_ordinary_loom_art_sustained_load() {
     unsafe {
         let environment = Environment::new();
         let _input = crate::desktop::loom_input_job::TEST_SERIAL.lock().unwrap();
-        // STATIC 的白色实心客户区提供独立像素 oracle；不注入输入或取得前台。
-        // 先持有源 HWND，确保断言失败时应用先释放保护，源窗口仍可恢复。
+        // STATIC's solid white client area provides an independent pixel oracle; no input injection or foreground acquisition.
+        // Hold the source HWND first so assertion failures release application protection before the source window, which remains restorable.
         let source = crate::desktop::Window(
             CreateWindowExW(
                 WS_EX_NOACTIVATE,
@@ -80,12 +80,12 @@ fn actual_wgc_ordinary_loom_art_sustained_load() {
         let target = crate::live_window_target::Target::bind(source.0).unwrap();
         let original = crate::live_window_target::snapshot::Snapshot::read(&target).unwrap();
         let mut app = environment.app();
-        // 测试库没有普通 main 的恢复入口；复用现有真实恢复 child 测试启动方式。
+        // The test library lacks ordinary main's restore entry point; reuse the existing real restore-child test launch method.
         app.live_visibility = crate::live_visibility_owner::Owner::fixture();
         catalog(&app, manifest);
-        // fixture 已预建 journal，必须先登记源；空 owner 的正常 poll 会开始退休。
+        // The fixture precreated a journal, so register the source first; normal polling with an empty owner would start retirement.
         let session = app.start_live_window(target.clone(), None).unwrap();
-        // 窗口 Live 默认请求控制源；观测负载显式用系统菜单命令关闭控制。
+        // Window Live requests source control by default; this observational load explicitly disables control via a system-menu command.
         SendMessageW(
             session.art_dialog_owner().unwrap(),
             WM_SYSCOMMAND,
@@ -144,7 +144,7 @@ fn actual_wgc_ordinary_loom_art_sustained_load() {
                 results.status() == Status::Completed && !stamp.matches(&results)
             });
             let results = app.documents[1].state.execution_results.borrow();
-            // 正式图片按现有图契约提供两个共享像素端口，不能误断言只有 wire 原端口。
+            // Committed images expose two shared-pixel ports under the existing graph contract; do not incorrectly assert only the original wire port exists.
             assert_eq!(results.ports().len(), 2);
             let image = results.image_source("output_image").unwrap();
             let image = image.image.image();
@@ -166,7 +166,7 @@ fn actual_wgc_ordinary_loom_art_sustained_load() {
                 None
             );
             drop(results);
-            // 不跨周期保留旧帧/输出；原单槽准备/执行 owner 必须在每次请求后回收。
+            // Do not retain old frames/outputs across cycles; the original single-slot preparation/execution owner must be reaped after each request.
             until(&mut app, "workers reclaimed", |app| {
                 app.input_jobs.is_empty() && app.execution_jobs.is_empty()
             });

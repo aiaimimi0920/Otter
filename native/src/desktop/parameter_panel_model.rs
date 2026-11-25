@@ -1,4 +1,4 @@
-//! 参数窗只投影共享菜单快照和端口目录；不另存参数，不复制文件 Data URL，不解析执行图。
+//! Parameters project only shared menu snapshots and the port catalog; no separate parameter storage, file Data URL copies, or execution-graph parsing.
 use super::*;
 pub(super) const PAGE_SIZE: usize = 16;
 pub(super) struct Row {

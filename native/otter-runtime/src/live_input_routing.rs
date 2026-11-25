@@ -1,4 +1,4 @@
-//! 源窗口内的只读命中/焦点路由；不抢焦点、不修改透明样式、不枚举桌面窗口。
+//! Read-only hit/focus routing within the source window; no focus stealing, transparent-style changes, or desktop-window enumeration.
 use super::{
     input_coordinates::Dpi,
     input_target::{self, Destination},
@@ -17,7 +17,7 @@ pub enum Error {
 }
 type Result<T> = std::result::Result<T, Error>;
 
-/// root_client 必须由源 DPI 坐标转换获得。只下钻指定 root，不使用 WindowFromPoint。
+/// root_client must come from source-DPI coordinate conversion. Descend only within the specified root, without WindowFromPoint.
 pub fn pointer(root: &Target, root_client: [i32; 2]) -> Result<Destination> {
     root.validate()
         .map_err(|_| Error::Target(input_target::Error::SourceChanged))?;
@@ -42,8 +42,8 @@ pub fn pointer(root: &Target, root_client: [i32; 2]) -> Result<Destination> {
     }
     Err(Error::DepthLimit)
 }
-/// 按直接子窗口 Z 序遍历。透明 root 不依赖系统命中 API 的空结果，也不改样式。
-/// 全次查找最多检查 256 个子窗口，拒绝异常树而非无限遍历。
+/// Traverse direct children in Z order. Transparent roots neither depend on empty system hit-test results nor change styles.
+/// Check at most 256 child windows per search; reject abnormal trees instead of traversing indefinitely.
 fn child_at(parent: HWND, screen: POINT, remaining: &mut usize) -> Result<Option<HWND>> {
     if !unsafe { IsWindowVisible(parent) }.as_bool() {
         return Ok(None);
@@ -84,7 +84,7 @@ fn child_at(parent: HWND, screen: POINT, remaining: &mut usize) -> Result<Option
 fn contains(rect: RECT, point: POINT) -> bool {
     point.x >= rect.left && point.x < rect.right && point.y >= rect.top && point.y < rect.bottom
 }
-/// 不调用 SetFocus/AttachThreadInput；别的窗口拥有焦点时只回退到原 root。
+/// Do not call SetFocus/AttachThreadInput; if another window has focus, fall back only to the original root.
 pub fn keyboard(root: &Target) -> Result<Destination> {
     keyboard_with_fallback(root, None)
 }
@@ -105,7 +105,7 @@ pub fn keyboard_with_fallback(
     };
     keyboard_at(root, focus, fallback)
 }
-// 只接受本 root/child 内的焦点；源队列没有焦点时保留已经验证的点击目标。
+// Accept focus only within this root/child; when the source queue has no focus, retain the validated click target.
 fn keyboard_at(root: &Target, focus: HWND, fallback: Option<&Destination>) -> Result<Destination> {
     if focus == root.hwnd() || unsafe { IsChild(root.hwnd(), focus) }.as_bool() {
         nearest(root, focus)
@@ -115,7 +115,7 @@ fn keyboard_at(root: &Target, focus: HWND, fallback: Option<&Destination>) -> Re
         nearest(root, root.hwnd())
     }
 }
-/// 已有拖动/按键优先保留目标；失效只回退已授权 root，不能命中另一个控件。
+/// Existing drags/keys preserve their target first; invalidation falls back only to the authorized root, never hit-testing another control.
 pub fn retained(root: &Target, previous: &Destination) -> Result<Destination> {
     if !root.same_source(previous.root()) {
         return Err(Error::Target(input_target::Error::NotDescendant));

@@ -1,4 +1,4 @@
-"""封存材料的证据关联；只核对数据，不执行快照源码或重新宣称原始构建已发生。"""
+"""Associate evidence for archived materials; check data only, without executing source snapshots or newly asserting the original build occurred."""
 
 from pathlib import PurePosixPath
 

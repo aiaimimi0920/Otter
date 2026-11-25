@@ -1,4 +1,4 @@
-//! 钉图沿用主干菜单；编辑和调试命令仍由工具栏/快捷键负责，不堆入右键。
+//! Pins retain baseline menus; editing/debug commands stay on toolbars/shortcuts rather than crowding context menus.
 use super::*;
 pub(super) unsafe fn build(state: &State) -> Result<Menu> {
     let menu = Menu(CreatePopupMenu()?);

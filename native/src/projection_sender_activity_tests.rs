@@ -1,4 +1,4 @@
-//! 控制 cancel 首次撤销到取得 state 的交错；新登记租约也必须在持久取消前被撤销。
+//! Control interleaving between cancel's first revocation and state acquisition; newly registered leases must also revoke before persistent cancellation.
 use super::*;
 use crate::device_authorization_lease::Grant;
 #[test]
@@ -26,7 +26,7 @@ fn sender_cancel_rechecks_registration_after_state_lock_before_durable_marker() 
     }
     drop(active);
     let replacement = Arc::new(grant.lease(intent.envelope().origin(), 0).unwrap());
-    // 在持有 state 的受控夹具里重现 activate 在首次 stop 之后登记的精确中间态。
+    // Reproduce the exact intermediate state where activate registers after first stop in a controlled state-lock-holding fixture.
     store.0.activity.0.lock().unwrap().insert(
         intent.record.selection.clone(),
         Entry {

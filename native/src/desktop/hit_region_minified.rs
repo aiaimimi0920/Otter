@@ -1,4 +1,4 @@
-//! 缩略绘制的双层坐标直接映射到物理命中区域；不使用普通 fit viewport。
+//! Map both minified-rendering layers directly into physical hit regions, without ordinary fit viewports.
 use super::*;
 use crate::{
     crop_geometry::Size,
@@ -72,7 +72,7 @@ pub(super) unsafe fn update(hwnd: HWND, state: &State) -> Result<()> {
             }
             build(&cache, image, editor, geometry, key.client)?
         } else {
-            // 无图 Art 仍保留可拖动宿主；不伪造图片 alpha。
+            // Imageless Art still retains draggable hosts; never fabricate image alpha.
             OwnedRegion::checked(CreateRectRgn(0, 0, client.right, client.bottom))?
         };
         frame::apply(&region, key)?;
@@ -80,7 +80,7 @@ pub(super) unsafe fn update(hwnd: HWND, state: &State) -> Result<()> {
         cache.display_identity = identity.cloned();
         region
     };
-    // SetWindowRgn 可重入，所有 RefCell 借用必须已释放。
+    // SetWindowRgn may reenter; every RefCell borrow must already be released.
     if SetWindowRgn(hwnd, Some(prepared.0), false) == 0 {
         state.hit_region.borrow_mut().key = None;
         return Err(Error::from_win32());

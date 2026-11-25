@@ -1,4 +1,4 @@
-//! 普通产品Art投送的隔离接收端；独立PNG oracle，不使用生产合成器或真实设备。
+//! Isolated receiver for ordinary product Art delivery; an independent PNG oracle uses neither the production compositor nor real devices.
 use super::*;
 #[path = "projection_oracle.rs"]
 pub(crate) mod oracle;

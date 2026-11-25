@@ -1,4 +1,4 @@
-// 污染公开 intrinsic 后四边展开/反射仍由原捕获操作完成。
+// After public-intrinsic pollution, four-side expansion/reflection still uses the originally captured operations.
 let saved;
 NeuroSurface.define({mount({root}) {
   saved = root;

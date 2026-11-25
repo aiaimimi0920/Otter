@@ -1,4 +1,4 @@
-//! 空会话保留可操作的非钉图宿主；原始会话和持久化标注清单仍为空。
+//! Empty sessions retain an operable non-pin host; original session and persisted annotation lists remain empty.
 use super::*;
 use crate::desktop::{session_binding::Bound, session_candidate::VectorCandidate};
 const EMPTY: &[u8] = br#"{"stickers":[],"links":[],"futureMetadata":{"retain":true}}"#;

@@ -1,4 +1,4 @@
-//! 活跃目录与文档附件到有界 Surface 数据的投影；不执行命令，也不取得资源访问许可。
+//! Project active catalogs/document attachments into bounded Surface data, without commands/resource-access permits.
 use crate::{
     loom_extension_snapshot::{text, Declaration, Snapshot},
     unit_attachment_store::{Store, Stored},
@@ -265,7 +265,7 @@ fn project_available(catalog: &Snapshot, store: &Store, revision: u64) -> Vec<Vi
     }
     const MAX_VISUALS: usize = 32;
     let is_source = |item: &Stored| item.attachment.id() == "neuro.official/ocr.result";
-    // 仅实际能进入替换后投影的有效场景可隐藏 OCR；保留首个成功准备的场景。
+    // Only valid scenes actually entering replacement projections may hide OCR; retain the first successfully prepared scene.
     let mut replacement = candidates
         .iter()
         .enumerate()
@@ -310,7 +310,7 @@ pub fn cached(catalog: &Snapshot, store: &Store, revision: u64, translation: boo
                 .is_some_and(|d| d.source && !source_current(store, item, revision))
     })
 }
-/// None 表示没有可用缓存，必须由后续命令执行 owner 走真正的首次授权/识别流程。
+/// None means no usable cache; later command-execution owners must perform real initial authorization/recognition.
 pub fn toggle(
     catalog: &Snapshot,
     store: &mut Store,

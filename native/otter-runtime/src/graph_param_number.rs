@@ -1,4 +1,4 @@
-//! 有限 Number 转换；2/8/16 进制按有效位和 ties-to-even 舍入，避免逐位浮点累加误差。
+//! Finite Number conversion; round bases 2/8/16 using significant bits and ties-to-even to avoid per-digit floating-point accumulation error.
 use super::{string, Output, MAX_TEXT_BYTES};
 pub fn whitespace(value: char) -> bool {
     matches!(value, '\u{0009}'..='\u{000d}' | '\u{0020}' | '\u{00a0}' | '\u{1680}' | '\u{2000}'..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' | '\u{205f}' | '\u{3000}' | '\u{feff}')

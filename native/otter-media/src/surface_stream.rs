@@ -1,4 +1,4 @@
-//! 设备过滤 Surface 消息批次；有界解析不等于消息已获当前附件的应用许可。
+//! Device-filtered Surface message batches; bounded parsing does not mean the current attachment permits applying the messages.
 use serde::{
     de::{Error as _, SeqAccess, Visitor},
     Deserialize, Deserializer,

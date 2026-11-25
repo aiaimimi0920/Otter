@@ -1,4 +1,4 @@
-//! 纯数值独立oracle：像素中心、四向旋转、crop及遮挡/半开边界。
+//! Pure independent numeric oracles: pixel centers, four-way rotations, crops, occlusion, and half-open boundaries.
 use super::*;
 #[test]
 fn rotated_pixel_centers_and_crop_match_independent_corner_oracle() {

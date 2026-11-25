@@ -1,4 +1,4 @@
-//! 真实 COM 数据对象往返；不调用 DoDragDrop，不操作系统剪贴板或用户文件。
+//! Real COM data-object round-trips; no DoDragDrop, system clipboard operations, or user files.
 use super::*;
 #[path = "drag_shell_tests.rs"]
 mod shell;
@@ -19,7 +19,7 @@ fn shell_preview_attaches_without_dragging_and_reclaims_gdi_handles() {
             payload.object.QueryGetData(&data::format()).unwrap();
         }
     };
-    attach(); // 预热 Shell 延迟初始化，不把首次缓存算作泄漏。
+    attach(); // Warm up deferred Shell initialization; initial caching is not a leak.
     let before = unsafe { GetGuiResources(GetCurrentProcess(), GR_GDIOBJECTS) };
     for _ in 0..16 {
         attach();
@@ -153,8 +153,8 @@ fn shell_data_object_owns_unicode_packet_and_survives_preparation_scope() {
     let payload = data::prepare(&paths).unwrap();
     unsafe {
         payload.object.QueryGetData(&data::format()).unwrap();
-        // Shell 可从 CF_HDROP 派生文本等格式，不假设对象只宣告一种格式。
-        // SetData 已接管 HGLOBAL；两次获取后分别释放 medium 不得破坏数据对象。
+        // Shell may derive text and other formats from CF_HDROP; do not assume the object advertises only one format.
+        // SetData owns HGLOBAL now; releasing each medium after two retrievals must not corrupt the data object.
         for _ in 0..2 {
             let mut medium = payload.object.GetData(&data::format()).unwrap();
             let memory = medium.u.hGlobal;

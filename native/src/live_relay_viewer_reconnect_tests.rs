@@ -1,4 +1,4 @@
-//! 独立raw像素/恢复次数/停止oracle；实际TLS、H264和Application另由联合门验证。
+//! Independent raw-pixel/recovery-count/stop oracle; joint gates separately verify actual TLS, H264, and Application.
 use super::*;
 use crate::live_relay_media_endpoint::{Credential, Endpoint};
 use crate::live_relay_viewer_runtime::tests::{accept, join, listener, session};

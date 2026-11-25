@@ -1,4 +1,4 @@
-//! 源像素密度的双轴高斯核；逻辑强度不变，避免先低分辨率模糊再放大。
+//! Two-axis Gaussian kernels at source-pixel density; preserve logical intensity without low-resolution blur followed by upscaling.
 use super::*;
 
 pub fn region_scaled(
@@ -31,7 +31,7 @@ pub(super) struct Kernel {
 }
 impl Kernel {
     pub fn new(sigma: f32) -> Result<Self, BlurError> {
-        // 极端密度不能造成无界核和 CPU 工作；拒绝而不是静默钳制模糊强度。
+        // Extreme densities must not produce unbounded kernels/CPU work; reject rather than silently clamp blur intensity.
         if !sigma.is_finite() || sigma <= 0.0 || sigma > 1024.0 {
             return Err(BlurError::InvalidInput);
         }
@@ -40,7 +40,7 @@ impl Kernel {
         let mut total = 0.0;
         for (i, weight) in weights.iter_mut().enumerate() {
             let distance = i as f32 - radius as f32;
-            // 常规强度保留旧内核浮点运算顺序；极小标准差平方下溢时再避免 0/0。
+            // Ordinary intensities preserve old-kernel floating-point order; avoid 0/0 only when tiny squared standard deviation underflows.
             let denominator = 2.0 * sigma.powi(2);
             *weight = if denominator > 0.0 {
                 (-distance * distance / denominator).exp()

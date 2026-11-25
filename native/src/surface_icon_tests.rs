@@ -1,4 +1,4 @@
-//! Icon 的真实 DirectWrite/窗口与合同边界，不用枚举存在冒充可呈现。
+//! Icon's real DirectWrite/window and contract boundaries; enumeration alone is not proof of renderability.
 use super::*;
 use crate::surface_presentation::Presentation;
 

@@ -1,4 +1,4 @@
-//! 私有持久 JS 会话帧；长度先验检查，序号匹配由父侧负责，不接受路径/宿主 API。
+//! Private persistent JS session frames; check lengths upfront, let the parent match sequences, and accept no paths/host APIs.
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::Value;
 use std::io::{self, Read, Write};
@@ -106,9 +106,9 @@ pub(crate) struct Response {
     pub sequence: u64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub service: Option<service::Call>,
-    // 失败只返回固定状态；不向父侧日志泄露插件源码、快照或异常中的敏感值。
+    // Failures return only fixed statuses; never leak plugin source, snapshots, or sensitive exception values into parent-side logs.
     pub output: Option<Output>,
-    // 仅库测试child交付固定诊断；实际产品字节/协议不增加此字段。
+    // Only library-test children deliver fixed diagnostics; actual product bytes/protocols gain no such field.
     #[cfg(test)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub diagnostic: Option<diagnostics::Report>,

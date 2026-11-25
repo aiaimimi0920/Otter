@@ -1,4 +1,4 @@
-//! 分享源沿主干 primary qrProjection 保存；原生 marker 才能进入持续同步索引，不改旧未知关联。
+//! Share sources persist through mainline primary qrProjection; only native markers enter continuous-sync indexes, without changing old unknown associations.
 use super::*;
 use serde_json::{value::RawValue, Value};
 use std::{borrow::Cow, collections::BTreeMap};
@@ -16,7 +16,7 @@ pub(super) fn capture(
         return Err(Error::Limit);
     }
     let link = fields(raw.get()).map_err(|_| Error::Format)?;
-    // 非本实现拥有的 source/receiver 原文不能自动获得发送许可。
+    // Source/receiver text not owned by this implementation cannot automatically gain send permission.
     if !link.contains_key("otterNativeSend") {
         return Ok(None);
     }

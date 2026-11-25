@@ -1,4 +1,4 @@
-//! 请求头先限长，纹理只在剩余 body/预算足够时分配；私有输入析构清零。
+//! Limit request-header length first; allocate textures only with sufficient remaining body/budget, and zero private inputs on destruction.
 use super::*;
 use zeroize::Zeroizing;
 struct Loaded {

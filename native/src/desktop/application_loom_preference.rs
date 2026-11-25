@@ -1,4 +1,4 @@
-//! 显式取消的持久开关；仅在连接/取消边界读写一个有界小文件，不触碰设备身份。
+//! Persistent toggle for explicit cancellation; read/write one bounded small file only at connect/cancel boundaries, without touching device identity.
 use std::{path::Path, sync::atomic::AtomicBool};
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(deny_unknown_fields)]

@@ -1,4 +1,4 @@
-//! 首次普通投射经现有后台调度建立协作，不消费手动 Initialize 命令。
+//! First ordinary projection establishes collaboration through existing background scheduling, without consuming a manual Initialize command.
 use super::*;
 #[test]
 fn first_projection_initializes_one_way_by_default_and_can_switch_two_way() {
@@ -61,7 +61,7 @@ fn two_way_selected_before_projection_reaches_the_real_collaboration_document() 
         app.projection_sender.updates.make_due();
         app.process_authorization_with_projection(|o| config(o, files.root()));
         finish(&mut app, &files);
-        // 初始化结束后由同一应用调度消费方向；自动内容暂停不能吞掉显式方向。
+        // The same application scheduler consumes direction after initialization; pausing automatic content must not swallow explicit direction.
         let unit = app.documents[0].state.unit_id.clone();
         app.projection_edit
             .pause_automatic_for_test(&app.workspace, &unit);

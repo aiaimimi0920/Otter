@@ -1,4 +1,4 @@
-//! 共享与离线收件仍只有原Job/Slot；本配对TLS、静态路径、独立nonce和partial/停止边界。
+//! Shared/offline inboxes still use only original Job/Slot; paired TLS, static paths, independent nonces, and partial/stop boundaries.
 use super::*;
 use crate::{
     device_authorization_lease::Grant,

@@ -1,4 +1,4 @@
-//! 正文和预算租约同属一个 Arc owner；历史/快照共享正文不能提前归还预算。
+//! Text and its budget lease share one Arc owner; history/snapshots sharing text must not return the budget early.
 use crate::byte_budget::{Budget, Lease};
 use std::{
     ops::Deref,
@@ -22,7 +22,7 @@ impl Content {
         })
     }
     fn with_budget(value: &str, budget: &Arc<Budget>) -> Option<Self> {
-        // 输入长度是归一化后 UTF-8 正文的保守上界；分配前预留，拒绝不改计数。
+        // Input length conservatively bounds normalized UTF-8 text; reserve before allocation, and rejection leaves counts unchanged.
         let lease = budget.reserve(value.len())?;
         Some(Self {
             value: value

@@ -1,4 +1,4 @@
-//! Windows 异步名称解析；取消后等待完成再释放 OVERLAPPED/结果，不遗留 DNS 等待线程。
+//! Windows asynchronous name resolution; after cancellation, wait for completion before releasing OVERLAPPED/results, leaving no DNS wait threads.
 use crate::device_request_cancel::Cancel;
 use std::{
     net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV6},
@@ -55,11 +55,11 @@ impl Drop for Query {
         unsafe {
             if operation.pending {
                 GetAddrInfoExCancel(std::ptr::addr_of_mut!(operation.cancel));
-                // OS 仍拥有结构指针；发出取消不等于完成，绝不能直接释放。
+                // The OS still owns the structure pointer; requesting cancellation is not completion, so never release it directly.
                 if WaitForSingleObject(HANDLE(operation.event.as_raw_handle()), INFINITE)
                     != WAIT_OBJECT_0
                 {
-                    // 有效句柄的异常等待失败：宁可保留操作内存，也不释放仍可能被 OS 写入的内存。
+                    // An unexpected wait failure on a valid handle: retain operation memory rather than free memory the OS may still write.
                     std::mem::forget(operation);
                     return;
                 }
@@ -81,7 +81,7 @@ fn event() -> Result<OwnedHandle, Error> {
     Ok(unsafe { OwnedHandle::from_raw_handle(handle.0) })
 }
 
-/// 仅后台调用。host 来自已验证 origin，不接受 URL/端口；返回最多四个去重地址。
+/// Background calls only. host comes from a verified origin, not a URL/port; return at most four deduplicated addresses.
 pub fn resolve(host: &str, port: u16, cancel: &Cancel) -> Result<Vec<SocketAddr>, Error> {
     if cancel.is_stopped() {
         return Err(Error::Stopped);
@@ -102,7 +102,7 @@ pub fn resolve(host: &str, port: u16, cancel: &Cancel) -> Result<Vec<SocketAddr>
     {
         return Err(Error::Input);
     }
-    // 与其他 Winsock 使用方通过系统引用计数共存，不假设 std::net 已初始化。
+    // Coexist with other Winsock users through system reference counting; do not assume std::net has initialized it.
     if unsafe { WSAStartup(0x0202, &mut WSADATA::default()) } != 0 {
         return Err(Error::Startup);
     }

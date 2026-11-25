@@ -1,4 +1,4 @@
-//! 实际Output owner换代；只替换本测试的枚举快照，不改Windows显示布局或用户设备。
+//! Actual Output-owner generation changes; replace only this test's enumeration snapshot, without Windows display-layout or user-device changes.
 use super::*;
 use crate::desktop::tile_terminal::output::{Output, Status};
 use crate::{
@@ -80,7 +80,7 @@ pub(super) fn run() {
     descriptor.width = 4;
     descriptor.x += 10;
     output.observe(Ok(vec![descriptor.clone()]));
-    // 正常回收期间可以Draining，但不允许新旧Runtime同时存活。
+    // Normal reclamation may be Draining, but old/new Runtimes must never coexist.
     loop {
         f.pump();
         let status = output

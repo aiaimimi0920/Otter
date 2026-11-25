@@ -1,4 +1,4 @@
-//! 持续 read 的单调快照合同；unchanged 也须核完整原关联，不授显示回执。
+//! Monotonic snapshot contract for continuous read; unchanged still validates complete original associations and grants no display receipt.
 use super::*;
 use crate::projection_delivery::{binding::Binding, journal::Ticket};
 
@@ -52,7 +52,7 @@ impl Read {
             if wire.digest != expected.digest() {
                 return Err(Error::Response);
             }
-            // 带图的同版本回复也完整核 PNG，不能绕过预算/摘要验证。
+            // Same-version replies containing images still fully validate PNG, never bypassing budget/digest checks.
             if wire.snapshot.is_some() {
                 return Received::from_wire(wire, invitation.offline)
                     .map(|value| Self::Changed(Box::new(value)));

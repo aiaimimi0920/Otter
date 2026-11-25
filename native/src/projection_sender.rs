@@ -1,4 +1,4 @@
-//! 签名创建的独立写前 owner；本层不联网、不授工作区绑定权，也不退休不确定远端副作用。
+//! Independent write-ahead owner for signed creation; no networking/workspace-binding authority or retirement of uncertain remote side effects.
 use super::{envelope, Envelope};
 use crate::pixels::Pixels;
 use serde::{Deserialize, Serialize};
@@ -52,7 +52,7 @@ pub enum Error {
     Busy,
     Response,
 }
-/// 不同保存目标必须使用不同稳定 scope；禁止用可重复的 UnitId 单独跨工作区重试。
+/// Different save destinations require distinct stable scopes; repeatable UnitId alone must never authorize cross-workspace retries.
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(deny_unknown_fields)]
 pub struct Selection {
@@ -66,7 +66,7 @@ pub struct Selection {
 }
 impl Selection {
     pub fn new(scope: &str, origin: &str, unit: &str, target: &str) -> Result<Self, Error> {
-        // 先校验借用字段，禁止畸形磁盘字段先复制几十 MiB 后才拒绝。
+        // Validate borrowed fields first, before malformed disk fields can cause tens of MiB of copies.
         validate_selection(scope, origin, unit, Some(target))?;
         let value = Self {
             scope: scope.into(),
@@ -78,7 +78,7 @@ impl Selection {
         value.validate()?;
         Ok(value)
     }
-    /// 无目标邀请与定向投送是不同目的；缺失 target 不能降为任意设备身份。
+    /// Untargeted invitations and targeted deliveries have different purposes; missing target cannot downgrade to arbitrary device identity.
     pub(crate) fn invitation(scope: &str, origin: &str, unit: &str) -> Result<Self, Error> {
         validate_selection(scope, origin, unit, None)?;
         Ok(Self {
@@ -156,22 +156,22 @@ struct Inner {
 }
 #[derive(Clone)]
 pub struct Store(Arc<Inner>);
-/// 只读快照，不能作为联网许可；网络 owner 必须另外核当前取消/授权/源生命周期。
+/// Read-only snapshots are not network permits; network owners separately check current cancellation/authorization/source lifecycle.
 #[derive(Clone)]
 pub struct Intent {
     store: Store,
     record: Record,
 }
 impl Store {
-    /// 仅后台调用，显式 profile 必须已经存在；不发现环境、不创建身份、不写接收文件。
+    /// Background only, with explicitly selected preexisting profiles; no environment discovery, identity creation, or receiver-file writes.
     pub fn open(root: &Path, cancel: &AtomicBool) -> Result<Self, Error> {
         file::open(root, cancel)
     }
     pub fn prepare(&self, request: Preparation<'_>, cancel: &AtomicBool) -> Result<Intent, Error> {
         self.prepare_tracked(request, cancel, |_| {})
     }
-    /// 仅后台使用。成功磁盘提交后立即登记原意图，包括保留恢复副本而返回错误的提交。
-    /// tracker 不授联网许可、不能重新进入 Store；失败关闭时仍由原 Job 交接减权责任。
+    /// Background only. Register original intent immediately after successful disk commit, including commits returning errors for retained recovery copies.
+    /// tracker grants no network permission and cannot reenter Store; original Job still hands off privilege-reduction responsibility on failure.
     pub(crate) fn prepare_tracked(
         &self,
         request: Preparation<'_>,
@@ -180,7 +180,7 @@ impl Store {
     ) -> Result<Intent, Error> {
         check(cancel)?;
         request.selection.validate()?;
-        // 同一 Store 的 prepare 也串行读取身份，避免合作身份文件锁造成同 key 并发失败。
+        // prepare on the same Store also serializes identity reads, preventing cooperative identity-file locks from causing same-key concurrent failures.
         let mut state = self.0.state.lock().map_err(|_| Error::Changed)?;
         self.baseline(&state, cancel)?;
         let identity_store = crate::device_identity_store::Store::new(request.identity_root)
@@ -192,7 +192,7 @@ impl Store {
         if identity.device_id() != Some(request.device) {
             return Err(Error::Identity);
         }
-        // 同 key 串行至落盘；不持锁跨 HTTP。首写后任何新帧都不能替换原签名身份。
+        // Serialize same-key operations through persistence, without locks across HTTP. After first write, new frames cannot replace original signed identity.
         if let Some(old) = state
             .entries
             .iter()
@@ -254,16 +254,16 @@ impl Store {
             .map(|record| self.intent(record))
             .collect())
     }
-    /// 取消是独立的减权事务；不使用已经置位的网络 cancel，也不删除 PNG/原 envelope。
+    /// Cancellation is an independent privilege-reducing transaction; use neither already-set network cancel nor deletion of PNG/original envelope.
     pub fn cancel(&self, intent: &Intent) -> Result<(), Error> {
         if !Arc::ptr_eq(&self.0, &intent.store.0) {
             return Err(Error::Changed);
         }
-        // 先撤销精确活动请求；磁盘冲突/写失败也不能让旧请求继续创建。
+        // Revoke exact active requests first; disk conflicts/write failures must not let old requests continue creation.
         self.0.activity.stop(&intent.record);
         let cancel = AtomicBool::new(false);
         let mut state = self.0.state.lock().map_err(|_| Error::Changed)?;
-        // activate 可能在首次 stop 与取得 state 之间注册；按 state→registry 再撤销一次，封住该竞争。
+        // activate may register between first stop and obtaining state; revoke again in state -> registry order to close that race.
         self.0.activity.stop(&intent.record);
         self.baseline(&state, &cancel)?;
         let index = state

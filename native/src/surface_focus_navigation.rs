@@ -1,4 +1,4 @@
-//! 顺序键盘导航先显露目标，再交付可见焦点；不创建动作或改变提交权限。
+//! Sequential keyboard navigation reveals targets before delivering visible focus; it creates no actions and changes no submission permissions.
 use super::*;
 impl Presentation {
     pub(crate) fn can_focus(&self, id: &str) -> bool {
@@ -14,7 +14,7 @@ impl Presentation {
                 .cache
                 .project_with_images(&self.scene, &mut scroll, &self.images)?;
             let focusable = crate::surface_focus::buttons(&self.scene, &frame.geometry);
-            // 不可显露候选不能先滚动视图；准备成功且可见才一起提交。
+            // Unrevealable candidates must not scroll the view first; commit together only after successful, visible preparation.
             if focusable.iter().any(|candidate| candidate == id) {
                 self.install_frame_with_focus(frame, scroll, focusable);
                 return Ok(true);
@@ -29,7 +29,7 @@ impl Presentation {
         current: Option<&str>,
         reverse: bool,
     ) -> Result<Option<String>> {
-        // 导航集合包含屏外控件，动作可用集合仍只包含当前可见控件。
+        // Navigation includes offscreen controls; action eligibility still includes only currently visible controls.
         let mut candidate = current.map(str::to_owned);
         for _ in 0..self.navigation.len() {
             let Some(next) =
@@ -41,7 +41,7 @@ impl Presentation {
             if self.reveal_focus(&next)? {
                 return Ok(Some(next));
             }
-            // 静态零面积祖先等不可显露目标不能阻断整个 Tab 环。
+            // Unrevealable targets, such as those with static zero-area ancestors, must not block the entire Tab cycle.
             candidate = Some(next);
         }
         Ok(None)

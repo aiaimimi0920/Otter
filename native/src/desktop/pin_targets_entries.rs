@@ -1,4 +1,4 @@
-//! 从当前权威目录和绑定投影目标，显示草稿由选择器单独拥有。
+//! Project targets from the current authoritative catalog and bindings; the selector separately owns the displayed draft.
 use super::*;
 pub(super) fn entries(state: &State, kind: u16) -> Vec<Entry> {
     let view = state.authorization.borrow();

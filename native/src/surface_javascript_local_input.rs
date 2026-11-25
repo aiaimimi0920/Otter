@@ -1,4 +1,4 @@
-//! 私有本地输入联合：文本阶段与受限 Enter 边沿分型，不包含 HWND/动作权限。
+//! Private local-input union: distinct text phases and restricted Enter edges, without HWND/action permissions.
 use super::{invalid, HoverInput, PointerInput, TextInput};
 use serde::{Deserialize, Serialize};
 use std::io;

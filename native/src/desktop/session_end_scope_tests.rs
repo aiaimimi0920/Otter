@@ -1,4 +1,4 @@
-//! 回调词法生命周期、身份和重入；无需系统退出或全局输入。
+//! Callback lexical lifetime, identity, and reentrancy; no system exit or global input required.
 use super::*;
 #[test]
 fn weak_owner_is_lexical_and_freezes_input_without_blocking_cleanup_or_reads() {

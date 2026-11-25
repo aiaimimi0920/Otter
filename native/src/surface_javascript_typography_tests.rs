@@ -1,4 +1,4 @@
-//! 通用 typography 通过真实 child、原文字 owner 和同步几何；不执行真实插件业务。
+//! Generic typography through real children, original text owners, and synchronous geometry without executing actual plugin business logic.
 use super::*;
 use sha2::{Digest, Sha256};
 const SOURCES: [&str; 3] = [

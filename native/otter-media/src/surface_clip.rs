@@ -1,4 +1,4 @@
-//! 从布局树累计祖先裁剪；仅改变绘制可见区域，不修改尺寸或测量反馈。
+//! Accumulate ancestor clips from the layout tree; change only the visible drawing region, not dimensions or measurement feedback.
 use crate::surface_layout_tree::Tree;
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Rect {
@@ -30,11 +30,11 @@ impl Rect {
         self.right <= self.left || self.bottom <= self.top
     }
 }
-/// Tree 保证父索引先于子项。根宿主始终裁剪，普通容器按 overflow 计算值裁剪。
+/// Tree guarantees parent indices precede children. The root host always clips; ordinary containers clip according to computed overflow.
 pub fn ancestors(tree: &Tree<'_>) -> Vec<Rect> {
     ancestors_with_border(tree, |_| 0_f32.into())
 }
-/// 边框宽度由已计算字号的布局上下文提供；子内容裁剪到 padding box。
+/// Border widths come from the layout context with resolved font sizes; child content clips to the padding box.
 pub fn ancestors_with_border(
     tree: &Tree<'_>,
     border: impl Fn(&crate::surface_scene::Node) -> crate::surface_box::Insets,

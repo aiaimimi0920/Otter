@@ -1,4 +1,4 @@
-//! 与Web同义的80ms软件延迟；最多三pending加一current，不声称硬件同步。
+//! Web-equivalent 80ms software latency; at most three pending plus one current, without claiming hardware synchronization.
 use crate::tile_live_packet::Frame;
 use std::{
     collections::VecDeque,
@@ -58,7 +58,7 @@ impl Queue {
         }
         self.current.as_ref()
     }
-    /// UI独立watchdog：即使Assets被有界连接/解码阻塞，也不能无限显示旧Live。
+    /// Independent UI watchdog: even if bounded connection/decoding blocks Assets, stale Live cannot remain displayed indefinitely.
     pub fn deadline(frame: &Frame, estimate: (u64, u64), now: Instant) -> Instant {
         let target = estimate.0.saturating_sub(estimate.1).saturating_sub(80);
         now + Duration::from_millis(frame.received.saturating_add(1000).saturating_sub(target))

@@ -1,4 +1,4 @@
-//! 单次传统投送后台任务；复用原四任务容量与租约，完成未领取仍占槽，不在 UI 做 CA/DNS。
+//! One-shot traditional-delivery background tasks reuse original four-task capacity/leases; unclaimed completion retains slots, with no UI CA/DNS.
 use crate::{
     device_authorization_config::{Config, Error as PrepareError},
     device_authorization_lease::Lease,
@@ -47,12 +47,12 @@ pub enum Operation {
     Targets,
     Inbox(InboxPolicy),
     Reject(Box<Invitation>),
-    // profile owner 在后台打开一次；Ticket 与并行任务共享同一个独占 Store。
+    // Open the profile owner once in background; Ticket and parallel tasks share one exclusive Store.
     Accept {
         invitation: Box<Invitation>,
         journal: crate::projection_delivery::journal::Store,
     },
-    // 仅恢复服务端既有 receiver；不发送 accept，不获得自动补偿资格。
+    // Restore existing server receiver associations only; no accept or automatic-compensation eligibility.
     Reattach {
         invitation: Box<Invitation>,
         journal: crate::projection_delivery::journal::Store,
@@ -106,7 +106,7 @@ pub struct Job {
     transferred: bool,
     attempt: Arc<attempt::Attempt>,
     sender_attempt: Arc<sender_flow::Attempt>,
-    // displayed 接续原 Hold，不重取第五个 Slot 或再次 activate 同 intent。
+    // displayed continues the original Hold without a fifth Slot or reactivating the same intent.
     _held: Option<Hold>,
 }
 impl Job {
@@ -200,7 +200,7 @@ impl Job {
                 if task.is_revoked() {
                     return Err(Error::Stopped);
                 }
-                // 精确Checkpoint后只写本地日志，不重新发现CA/DNS或发第二次HTTP。
+                // After exact Checkpoint, write only local journal state; no CA/DNS rediscovery or second HTTP request.
                 if let Work::EditAck(ready) = work {
                     ready.ack(&task)?;
                     return Ok(Completed::Metadata(Output::EditAcknowledged));
@@ -215,7 +215,7 @@ impl Job {
                     .map_err(|_| Error::Stopped)?;
                 let control = task.control(&client).map_err(|_| Error::Stopped)?;
                 let output = work.run(&control, &client, &task, &worker_attempt, &worker_sender)?;
-                // 完整 outbox 基线只在原 worker 核验；UI join 只领取内存结果和当前租约。
+                // Verify complete outbox baselines only in the original worker; UI join claims only in-memory results/current leases.
                 if let Completed::Sent(value) | Completed::Updated(value) = &output {
                     value.active.check().map_err(Error::Sender)?;
                 }
@@ -253,7 +253,7 @@ impl Job {
         }
         self.join()
     }
-    /// 只供最后 Unit/应用终态；普通取消必须继续等待原句柄，不在 UI join。
+    /// Only for final Unit/application terminal states; ordinary cancellation keeps waiting on original handles without UI join.
     pub(crate) fn stop_and_join(&mut self) {
         self.request_stop();
         let _ = self.join();
@@ -267,14 +267,14 @@ impl Job {
     fn join(&mut self) -> Option<Result<Output, Error>> {
         let result = self.thread.take()?.join().unwrap_or(Err(Error::Panicked));
         let now = now_ms();
-        // 完成后的撤销或到期也不能发布；调用方仍须另核工作区/选择的生命周期。
+        // Even post-completion revocation/expiry forbids publication; callers still separately check workspace/selection lifecycles.
         let result = if now.is_none_or(|now| self.lease.validate(&self.origin, now).is_err()) {
             Err(Error::Stopped)
         } else {
             result.and_then(|completed| match completed {
                 Completed::Metadata(output) => {
-                    // Source Ready继续持有原Active/Lease直到Checkpoint和ack；已join的Job
-                    // 不得在Drop撤销移交的租约。其他metadata没有此owner，保持原取消回收。
+                    // Source Ready retains original Active/Lease until Checkpoint and ACK; an already-joined Job
+                    // must not revoke transferred leases in Drop. Other metadata lacks this owner and retains original cancellation/reclamation.
                     self.transferred =
                         matches!(&output, Output::Edited(ready) if ready.source.is_some());
                     Ok(output)
@@ -323,7 +323,7 @@ impl Drop for Job {
         if !self.transferred {
             self.request_stop();
         }
-        // 正常 owner 使用 wait/try_join；兜底不 detach，取消会中断原串行网络链。
+        // Normal owners use wait/try_join; fallback never detaches, and cancellation interrupts the original serial network chain.
         if let Some(thread) = self.thread.take() {
             let _ = thread.join();
         }

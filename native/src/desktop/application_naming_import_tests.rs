@@ -1,4 +1,4 @@
-//! 隐藏 HWND + 真实后台文件读取；仅路径选择注入，不弹出文件框。
+//! Hidden HWNDs plus real background file reads; inject path selection only, without opening a file dialog.
 use super::*;
 #[path = "application_art_issuer_tests.rs"]
 mod art_issuer_tests;

@@ -1,4 +1,4 @@
-//! 连线参数转换：借用已存在字符串，仅文本化标量/容器时分配；失败不产生候选值。
+//! Connected-parameter conversion: borrow existing strings and allocate only when rendering scalars/containers as text; failures produce no candidate value.
 use crate::graph_image::{validate_outputs, Output};
 #[path = "graph_param_number.rs"]
 pub mod number;

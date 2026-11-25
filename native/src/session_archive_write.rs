@@ -1,4 +1,4 @@
-//! 归档引用安装为下一修订会话候选；复用预算化编码，不执行文件写入。
+//! Install archive references as next-revision session candidates; reuse budgeted encoding without file writes.
 use super::*;
 use crate::session_document::workflow_snapshot::metadata::{archive::Asset, Adoption};
 use serde::{
@@ -118,7 +118,7 @@ pub fn prepare(
             .and_then(Value::as_str)
             .ok_or(Error::Window)?;
         let asset = replacements.remove(id).ok_or(Error::Window)?;
-        // 来源采用与归档引用同 revision 提交；后续断开连线仍保留采用的工作流。
+        // Commit source adoption at the same revision as archive references; later disconnection preserves adopted workflows.
         if let Some(origin) = origins.remove(id) {
             fields.insert("originWorkflowId".into(), json!(origin.origin_workflow_id));
             fields.insert("originNodeId".into(), json!(origin.origin_node_id));

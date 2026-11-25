@@ -1,10 +1,10 @@
-//! 工作区身份和有向链接的所有者；不持有 HWND、像素或 GPU 资源，不执行节点。
+//! Owner of workspace identities and directed links; holds no HWNDs, pixels, or GPU resources and executes no nodes.
 use crate::workspace_id::UnitId;
 use std::{collections::HashMap, sync::Arc};
-/// 对象与连线拓扑的不可变凭证；分组和显示变化不使执行图失效。
+/// Immutable token for object/link topology; grouping and display changes do not invalidate the execution graph.
 #[derive(Clone)]
 pub struct TopologyStamp(Arc<()>);
-/// 工作区实例凭证；普通编辑不改变，整体恢复/替换必须产生新身份。
+/// Workspace-instance token; ordinary edits preserve it, while full restoration/replacement must create a new identity.
 #[derive(Clone)]
 pub struct IdentityStamp(Arc<()>);
 impl IdentityStamp {
@@ -78,7 +78,7 @@ impl Workspace {
     pub fn identity_stamp(&self) -> IdentityStamp {
         IdentityStamp(self.identity.clone())
     }
-    /// 替换一个已退役宿主；保留其他 owner（包括 Live）、分组及无关连线。
+    /// Replace a retired host while preserving other owners (including Live), groups, and unrelated links.
     pub fn replacement_unit(&self, old: &UnitId, id: UnitId) -> Result<Self, Error> {
         if !self.contains(old) {
             return Err(Error::MissingUnit);
@@ -100,8 +100,8 @@ impl Workspace {
     pub fn contains(&self, id: &UnitId) -> bool {
         self.units.contains(id)
     }
-    /// 包含目标的反向可达集合；不剪掉当前停止中继的节点，以保留未来改路的依赖。
-    /// 只借用身份，最多访问 MAX_UNITS 个节点；导入环及多端口重复边不会重复入队。
+    /// Reverse-reachable set including the target; retain nodes currently stopping relays to preserve dependencies for future route changes.
+    /// Borrow only identities and visit at most MAX_UNITS nodes; imported cycles and repeated multiport edges are not enqueued twice.
     pub fn upstream_units(&self, target: &UnitId) -> Result<Vec<&UnitId>, Error> {
         let target = self
             .units
@@ -125,7 +125,7 @@ impl Workspace {
         }
         Ok(found)
     }
-    /// 全批验证/预留成功才提交，重复身份或预算失败不留下部分对象。
+    /// Commit only after whole-batch validation/reservation succeeds; duplicate identities or budget failure leave no partial objects.
     pub fn add_units(&mut self, ids: impl IntoIterator<Item = UnitId>) -> Result<(), Error> {
         let mut added = Vec::new();
         for id in ids {
@@ -174,7 +174,7 @@ impl Workspace {
         }
         changed
     }
-    /// 对象释放时级联移除相关边；不限制有向环，执行期的循环策略由执行器负责。
+    /// Object release cascades to related edges; directed cycles are allowed, and executors own runtime cycle policy.
     pub fn retain_units(&mut self, mut keep: impl FnMut(&UnitId) -> bool) {
         let before = self.units.len();
         self.units.retain(|id| keep(id));

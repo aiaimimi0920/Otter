@@ -1,8 +1,8 @@
-//! 盒形标注四角调整；固定对角，最小尺寸与主干一致，样式不随手柄缩放。
+//! Four-corner box-annotation adjustment; fix opposite corners, match baseline minimum dimensions, and do not scale styles with handles.
 use super::*;
 
 impl Stroke {
-    /// 顺序为左上、右上、左下、右下；与创建时拖动方向无关。
+    /// Order is top-left, top-right, bottom-left, bottom-right, independent of creation drag direction.
     pub fn shape_handles(&self) -> Option<[Point; 4]> {
         if !crate::shape_options::ShapeOptions::supports(self.tool) || self.points.len() != 2 {
             return None;
@@ -56,7 +56,7 @@ impl Stroke {
                 y: moved.y.max(opposite.y),
             },
         ]);
-        // 新中心导致的旋转偏移必须抵消，使固定对角保持原来的世界坐标。
+        // Compensate rotation offsets caused by new centers so fixed opposite corners retain original world coordinates.
         crate::rotation::preserve_center(&self.points, &mut changed.points, self.rotation);
         for &point in &changed.points {
             validate(point)?;

@@ -1,4 +1,4 @@
-//! 用户明确选择 Art 后启动一次临时挂载；能力来自宿主，不从 Art 请求反向宣称。
+//! Start one temporary mount after explicit user Art selection; capabilities come from the host, never inferred backward from Art requests.
 #[cfg(test)]
 pub(super) fn start(
     origin: &str,
@@ -49,7 +49,7 @@ pub(super) fn start_with(
         .start_attach(config, lease, std::sync::Arc::new(request))
         .map_err(|e| format!("挂载任务未启动：{e}"))
 }
-/// 新建和显式恢复使用同一份真实宿主能力，不因恢复路径扩大支持范围。
+/// Creation and explicit recovery share the same real host capabilities; recovery must not expand support.
 pub(super) fn report() -> Result<crate::surface_host_capabilities::Report, String> {
     crate::desktop::surface_capabilities::report()
 }

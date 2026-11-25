@@ -1,4 +1,4 @@
-//! 隐藏窗口真实菜单/队列；暂停仅约束收件，无发送/停止资格时各命令保持禁用。
+//! Real menus/queues on hidden windows; pausing constrains only receiving, and commands remain disabled without send/stop eligibility.
 use super::*;
 use crate::{
     desktop::device_authorization_ui::{sender, targets},

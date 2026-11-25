@@ -1,4 +1,4 @@
-//! 显示编辑快照的矢量标注命中区域；不读取目标 Canvas 的编辑状态。
+//! Vector-annotation hit regions for display editing snapshots; do not read target Canvas edit state.
 use super::*;
 
 pub(super) unsafe fn add_annotations(

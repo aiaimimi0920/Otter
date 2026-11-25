@@ -1,4 +1,4 @@
-//! 隐藏 Live/WARP 首次快照进入真实显示图；原图不覆盖，断线/关窗/替换使缓存退休。
+//! Initial hidden Live/WARP snapshots enter the real display graph; originals remain unchanged, and disconnection/closure/replacement retires the cache.
 use super::*;
 fn settle_display(app: &Application) {
     let deadline = Instant::now() + Duration::from_secs(5);
@@ -61,7 +61,7 @@ fn live_display_frame_relays_reuses_pixels_and_disconnect_drops_snapshot() {
             .image
             .pixels
             .same_storage(&pixels));
-        // 释放借用后反复处理普通消息，不重新读回、不替换显示身份。
+        // After releasing the borrow, repeatedly process ordinary messages without another readback or replacing display identity.
         for _ in 0..32 {
             app.sync_display_frames();
         }

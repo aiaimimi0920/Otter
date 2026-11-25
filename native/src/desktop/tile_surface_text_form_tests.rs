@@ -1,4 +1,4 @@
-//! 跨字段依赖、无handler草稿表单、权威同步与取消；预期值为独立字符串/布尔常量。
+//! Cross-field dependencies, handler-free draft forms, authoritative synchronization, and cancellation; expected values are independent string/boolean constants.
 use super::*;
 #[test]
 fn local_draft_is_not_reintroduced_into_a_form_after_its_field_is_removed() {
@@ -60,7 +60,7 @@ fn form(handlers: bool) -> Value {
         {"id":"first","type":"input","layout":{"width":64,"height":20},"props":{"value":"one"}},
         {"id":"second","type":"textarea","layout":{"width":64,"height":20},"props":{"value":"two"}},
         {"id":"send","type":"button","layout":{"width":64,"height":24},"props":{"label":"Send","includeSurfaceValues":true},"events":{"click":"submit"}}]});
-    // 显式控制盒最小高度，不让默认30px挤压其它字段。
+    // Explicitly control minimum box height so the default 30px does not squeeze other fields.
     v["children"][1]["layout"]["minHeight"] = json!(20);
     v["children"][2]["layout"]["minHeight"] = json!(24);
     if handlers {

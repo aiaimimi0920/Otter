@@ -1,4 +1,4 @@
-//! 真实隐藏钉图消息/HRGN 与可注入复制；只运行于独立 desktop，不读写用户剪贴板。
+//! Real hidden-pin messages/HRGNs and injectable copy; isolated desktops only, without user-clipboard I/O.
 use super::*;
 use crate::{
     desktop::{document_window::DocumentWindow, extension_document},

@@ -1,4 +1,4 @@
-//! basis轴向几何与标量样式各自变换；逆变换除以正向平均倍率，不平均两个倒数。
+//! Transform basis-axis geometry and scalar styles separately; inverse transforms divide by forward mean scale, not average reciprocals.
 use super::*;
 pub(super) fn font_defaults(objects: &mut Objects) {
     for object in objects.values_mut() {
@@ -67,7 +67,7 @@ fn field(
         .as_f64()
         .filter(|v| v.is_finite())
         .ok_or(Error::Annotation)?;
-    // 未改字段保留原f64/整数值，避免改变x时让未改的极值线宽因舍入越过wire门。
+    // Preserve original f64/integer values for unchanged fields, so changing x cannot round unchanged extreme stroke widths beyond wire gates.
     if let Some((original, expected)) = previous {
         if let (Some(original), Some(expected)) = (original.get(key), expected.get(key)) {
             if edit_equal(local, expected) {
@@ -151,8 +151,8 @@ fn object(value: &Value, scale: Scale, previous: Option<(&Value, &Value)>) -> Re
         prior,
         true,
     )?;
-    // 原wire未写缺省字体时，未改字号仍保持字段缺省；serial半径变化若会改变默认字号，
-    // 则保留逆映射后的显式字号，防止一次局部几何编辑偷偷改变文字大小。
+    // If original wire omitted default font, unchanged font size remains omitted; if serial-radius changes would alter the default font size,
+    // retain an explicit inverse-mapped font size so local geometry edits cannot silently change text size.
     if scale.inverse && matches!(kind, "text" | "serial") {
         if let Some((original, expected)) = previous {
             if original.get("fontSize").is_none()

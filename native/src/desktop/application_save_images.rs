@@ -1,4 +1,4 @@
-//! 保存底图与独立栅格标注层；不合成矢量、不烘焙可见框裁剪或窗口透明度。
+//! Save base images and independent raster-annotation layers; do not compose vectors or bake visible-frame cropping/window opacity.
 use crate::{editor::Editor, pixels::Pixels};
 use std::sync::atomic::{AtomicBool, Ordering};
 use windows::core::{Error, Result};
@@ -23,7 +23,7 @@ pub struct InlineRasters {
     pub annotations: Option<InlineImage>,
 }
 impl InlineRasters {
-    /// 像素已物化翻转，安装新 PNG 时清除旧翻转标志；源框/裁剪/擦除仍须由调用方配套。
+    /// Pixels already materialize flips, so clear old flip flags when installing a new PNG; callers must still pair source-frame/crop/erase state.
     pub fn install(
         self,
         mut fields: serde_json::Map<String, serde_json::Value>,
@@ -37,7 +37,7 @@ impl InlineRasters {
         state.insert("flippedX".into(), false.into());
         state.insert("flippedY".into(), false.into());
         fields.insert("imageEditState".into(), state.into());
-        // 新资源替换旧像素；不能让旧预览或已清空的标注层在重开后复活。
+        // New resources replace old pixels; old previews or cleared annotation layers must not revive after reopening.
         fields.remove("previewSrc");
         fields.remove("rasterizedAnnotationLayerSrc");
         let mut window = crate::session_write::WindowCandidate::new(fields);
@@ -67,7 +67,7 @@ impl Png {
     }
 }
 impl Rasters {
-    /// 消费 PNG owner，成功后仅保留带预算的 Data URL；第二层失败时第一层也回收。
+    /// Consume PNG owners and retain only budgeted Data URLs on success; if the second layer fails, release the first too.
     pub fn into_data_urls(self, cancel: &AtomicBool) -> Result<InlineRasters> {
         let base = self.base.into_data_url(cancel)?;
         let annotations = self
@@ -82,7 +82,7 @@ pub fn encode(editor: &Editor, cancel: &AtomicBool) -> Result<Option<Rasters>> {
     encode_source(editor, None, cancel)
 }
 impl super::Document {
-    /// restored_source 已由 UI 捕获时的底图身份校验筛选；后台不从旧 src 猜测可复用性。
+    /// UI-time base-image identity validation already filtered restored_source; background work must not infer reusability from old src.
     pub fn encode_images(&self, cancel: &AtomicBool) -> Result<Option<Rasters>> {
         encode_source(&self.editor, self.restored_source.as_ref(), cancel)
     }

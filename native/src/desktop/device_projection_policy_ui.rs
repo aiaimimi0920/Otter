@@ -1,4 +1,4 @@
-//! 所有窗口共用设备同意和不可复活的请求凭证；菜单只排队，不读写文件。
+//! All windows share device consent and nonrevivable request evidence; menus only enqueue, without file I/O.
 use super::*;
 use crate::projection_receive_policy::Policy;
 use std::rc::Rc;
@@ -68,7 +68,7 @@ impl Consent {
         self.policy = policy;
     }
     pub fn begin_save(&mut self) {
-        // 即使写失败，已在途的新接受也不复活；内存策略值仍到 commit 成功才更新。
+        // Even failed writes cannot revive new acceptances already in flight; update in-memory policy values only after successful commit.
         self.generation = Rc::new(());
         self.saving = true;
         self.status = "正在保存接收策略…";
@@ -155,7 +155,7 @@ mod tests {
         consent.begin_pause();
         assert!(!consent.participates(&participation));
         assert!(consent.participation().is_none());
-        consent.finish_save(); // 写失败也不能复活旧关联重建。
+        consent.finish_save(); // Failed writes must not revive old association reconstruction.
         assert!(!consent.participates(&participation));
         let next = consent.participation().unwrap();
         consent.install_paused(true);

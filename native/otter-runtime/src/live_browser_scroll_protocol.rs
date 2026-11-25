@@ -1,4 +1,4 @@
-//! 查询与执行的确认边界：收到父端 commit 前不得动作，未知动作结果不得重放。
+//! Query/execution confirmation boundary: no action before the parent's commit arrives, and no replay of unknown action outcomes.
 use super::*;
 use std::os::windows::io::BorrowedHandle;
 const PREPARED: u8 = 4;
@@ -19,7 +19,7 @@ fn request_with_budgets(
     action_ms: u32,
 ) -> io::Result<[u8; 5]> {
     let mut reply = [0; 5];
-    // 此阶段尚未授权动作。即使 child 的查询 RPC 挂住，也可安全退休它。
+    // No action is authorized in this phase. Even if the child's query RPC hangs, it can be retired safely.
     (|| -> io::Result<()> {
         let mut channel = pipe.io(Some(after(query_ms)), child);
         channel.write_all(request)?;
@@ -32,7 +32,7 @@ fn request_with_budgets(
         _ => return Err(io::Error::other("Invalid browser scroll prepare reply")),
     }
     let mut channel = pipe.io(Some(after(action_ms)), child);
-    // 从尝试写 commit 开始，失败就是未知结果，不再转换成查询过渡。
+    // Once writing commit is attempted, failure means an unknown outcome and is no longer converted to a query transition.
     channel.write_all(&[COMMIT])?;
     channel.read_exact(&mut reply)?;
     if !matches!(reply[0], 1..=3) {
@@ -53,7 +53,7 @@ pub(super) fn respond<T>(
     };
     pipe.io(Some(query_deadline), None)
         .write_all(&[PREPARED, 0, 0, 0, 0])?;
-    // Prepared 发出即进入动作阶段；commit 等待也计入预算，不继承查询期限。
+    // Sending Prepared enters the action phase; commit waiting also consumes its budget, without inheriting the query deadline.
     let deadline = after(ACTION_TIMEOUT_MS - 50);
     let mut commit = [0];
     pipe.io(Some(deadline), None).read_exact(&mut commit)?;

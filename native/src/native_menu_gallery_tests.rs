@@ -1,4 +1,4 @@
-//! 三列卡片的真实面板命中/滚动和替换回归；只操作自有 HWND，不读真实库或剪贴板。
+//! Real-panel hit/scroll/replacement regressions for three-column cards; owned HWNDs only, no real libraries/clipboard.
 use super::*;
 #[path = "native_menu_gallery_delete_preview_tests.rs"]
 mod delete_preview;

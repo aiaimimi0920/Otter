@@ -1,4 +1,4 @@
-//! 按需重绘的 Win32 工具面板；owner 销毁时系统销毁其窗口与所有按钮。
+//! On-demand Win32 tool panel; the system destroys its window/buttons when the owner dies.
 use super::tool_panel_availability::Availability;
 use super::{State, Window};
 use windows::Win32::UI::Controls::DRAWITEMSTRUCT;
@@ -141,7 +141,7 @@ pub(super) unsafe fn create(owner: HWND, state: &State, visible: bool) -> Result
     };
     let style = WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_HSCROLL | WS_VSCROLL;
     AdjustWindowRectExForDpi(&mut area, style, false, WS_EX_TOOLWINDOW, dpi)?;
-    // AdjustWindowRectEx 系列不计标准滚动条；显式预留，避免正常工作区也裁掉最后一列。
+    // AdjustWindowRectEx APIs exclude standard scrollbars; reserve space explicitly so ordinary workspaces do not clip the last column.
     area.right += GetSystemMetricsForDpi(SM_CXVSCROLL, dpi);
     area.bottom += GetSystemMetricsForDpi(SM_CYHSCROLL, dpi);
     let mut anchor = RECT::default();
@@ -179,7 +179,7 @@ pub(super) unsafe fn create(owner: HWND, state: &State, visible: bool) -> Result
         Ok::<_, windows::core::Error>(())
     })?;
     state.tool_panel.set(panel.0);
-    // 普通工作区保留提前准备合同；隐藏钉图首次使用才创建 BUTTON。
+    // Ordinary workspaces retain advance preparation; hidden pins create BUTTON only on first use.
     if visible || !state.canvas.borrow().pinned {
         prepare(panel.0, state)?;
     }
@@ -208,7 +208,7 @@ pub(super) unsafe fn invalidate(state: &State) {
         let _ = RedrawWindow(Some(panel), None, None, RDW_INVALIDATE | RDW_ALLCHILDREN);
     }
 }
-// 在命令/定时器处理后比较，而非处理前；最后一次异步交付也能立即反映到面板。
+// Compare after command/timer processing, not before, so the last asynchronous delivery immediately reaches the panel too.
 pub(super) unsafe fn refresh(owner: HWND) {
     if !IsWindow(Some(owner)).as_bool() {
         return;
@@ -226,7 +226,7 @@ pub(super) unsafe fn refresh(owner: HWND) {
     {
         return;
     }
-    // 重入消息可能发生在外层 UI 操作尚持有 Canvas 时；由外层返回后的检查补刷新。
+    // Reentrant messages may arrive while outer UI operations still hold Canvas; post-return checks supply the refresh.
     let Ok(canvas) = state.canvas.try_borrow() else {
         return;
     };
@@ -314,7 +314,7 @@ unsafe fn route(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
     }
     match msg {
         WM_MOUSEACTIVATE | WM_SETFOCUS => {
-            // 其他文档的模态/截图状态可能在本窗口无消息时改变，交互前重算门禁。
+            // Other documents' modal/capture state can change without messages here; recalculate admission before interaction.
             refresh(owner);
             DefWindowProcW(hwnd, msg, wp, lp)
         }

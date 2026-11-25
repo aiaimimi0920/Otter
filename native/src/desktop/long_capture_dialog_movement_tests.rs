@@ -86,7 +86,7 @@ fn hidden_move_commits_ui_reference_only_after_acceptance_and_refreshes_preview(
         dispatch_with(window.0, &input, 110, desktop);
         assert_eq!(input.movement.region.get().left, 0);
         assert!(input.movement.pending.get().is_some());
-        dispatch_with(window.0, &input, 110, desktop); // 在途直接命令也不能排第二次移动。
+        dispatch_with(window.0, &input, 110, desktop); // Direct commands while in flight must not queue a second movement.
         super::super::tests::settle(window.0, &input);
         assert!(!input.job.borrow().can_scroll());
         assert_eq!(

@@ -1,4 +1,4 @@
-//! 颜色/线型/字体选择在同一目标凭证下提交；模态期间不持有 Canvas 借用。
+//! Color/line-style/font selections commit under the same target evidence; no Canvas borrow during modals.
 use super::*;
 use crate::stroke_style::DashPattern;
 use neuro_mini_ui::{Icon, MenuItem};

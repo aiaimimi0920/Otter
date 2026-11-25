@@ -1,4 +1,4 @@
-//! 验证源层级的接管标志语义；登记 ACK 顺序由宿主 journal 测试单独保护。
+//! Verify source-z-order takeover-marker semantics; host journal tests separately protect registration ACK order.
 use super::*;
 use crate::{native_dispatch as dispatch, native_popup::Lease, native_popup_layer::MANAGED};
 
@@ -34,7 +34,7 @@ fn synchronous_restore_reentry_cannot_discard_cleanup_identity_or_revive_input()
         handler.set(Some(|hwnd| unsafe {
             POSITION_HANDLER.with(|handler| handler.set(None));
             let lease = Lease::read(hwnd).unwrap();
-            // 内层隐藏真实进入 before/return hooks；外层恢复尚未返回，身份必须保留。
+            // Inner hiding actually enters before/return hooks; outer restoration has not returned, so retain identity.
             let _ = ShowWindow(hwnd, SW_HIDE);
             RETAINED.with(|slot| slot.set(lease.same_instance() && !lease.valid()));
         }))
@@ -52,7 +52,7 @@ fn synchronous_restore_reentry_cannot_discard_cleanup_identity_or_revive_input()
         unsafe { GetWindowLongPtrW(popup.0, GWL_EXSTYLE) } as u32 & WS_EX_TOPMOST.0,
         0
     );
-    // 随后的普通隐藏结算才能清除已归还的旧身份。
+    // Only subsequent ordinary hide settlement may clear returned old identity.
     let mut position = WINDOWPOS {
         flags: SWP_HIDEWINDOW,
         ..Default::default()
@@ -80,7 +80,7 @@ fn acknowledged_host_marker_survives_button_return_but_hide_restores_synchronous
             let popup = POPUP.with(std::cell::Cell::get);
             let _ = ShowWindow(popup, SW_SHOWNOACTIVATE);
             let lease = Lease::read(popup).unwrap();
-            // 模拟已取得 journal ACK 的宿主接管；并非以标志本身验证 journal。
+            // Simulate host takeover after journal ACK; the marker itself does not validate journals.
             SetPropW(popup, MANAGED, Some(HANDLE(lease.instance as *mut _))).unwrap();
         }))
     });

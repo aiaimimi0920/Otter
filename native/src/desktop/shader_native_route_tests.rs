@@ -1,4 +1,4 @@
-//! 原生产品取码/输入准备/隔离渲染/正式PNG的接缝回归；不把私有worker入口当产品路由。
+//! Seam regressions for native-product code fetching/input preparation/isolated rendering/official PNG; private worker entries do not substitute for product routes.
 use super::*;
 use serde_json::json;
 use std::sync::atomic::AtomicBool;

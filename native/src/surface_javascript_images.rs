@@ -1,5 +1,5 @@
-//! 私有 mount 前图片安装：JSON只传描述，PNG沿同一受控pipe逐项传输；不开放路径/URL。
-//! 不重置Session期限；输入、解码像素和target位图另在既有Canvas总预算中计费。
+//! Private pre-mount image installation: JSON carries descriptions only, PNGs travel individually over the same controlled pipe, and no paths/URLs are exposed.
+//! Never reset Session deadlines; inputs, decoded pixels, and target bitmaps are charged separately to existing total Canvas budgets.
 use super::invalid;
 use crate::pixels::Pixels;
 use serde::{Deserialize, Serialize};
@@ -10,7 +10,7 @@ pub(crate) const MAX_PNG: usize = 4 * 1024 * 1024;
 const TOTAL_PNG: usize = 8 * 1024 * 1024;
 const TOTAL_PIXELS: usize = 16 * 1024 * 1024;
 
-/// 只能由宿主从已核验的图输入准备结果构造；克隆PNG共享原像素租约。
+/// Constructible only by the host from verified image-input preparation results; cloned PNGs share the original pixel lease.
 #[derive(Clone)]
 pub struct ImageResource {
     pub id: String,
@@ -55,7 +55,7 @@ pub(crate) fn validate(headers: &[Header]) -> io::Result<()> {
     Ok(())
 }
 pub(crate) fn headers(images: &[ImageResource]) -> io::Result<Vec<Header>> {
-    // 先检查长度/尺寸再哈希；大的内联字符串永不进入JS heap或OJS1 JSON帧。
+    // Check lengths/dimensions before hashing; large inline strings never enter the JS heap or OJS1 JSON frames.
     let mut headers: Vec<_> = images
         .iter()
         .take(MAX_IMAGES + 1)

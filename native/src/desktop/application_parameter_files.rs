@@ -1,4 +1,4 @@
-//! 文件参数完成后在 UI owner 验证配置/拓扑再提交；单 worker，无后台排队线程或空闲定时器。
+//! On file-parameter completion, the UI owner validates configuration/topology before commit; one worker, with no queued background threads or idle timers.
 use super::*;
 #[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "application_sticker_input_tests.rs"]
@@ -102,7 +102,7 @@ impl Application {
                 break;
             }
         }
-        // UI动作和后台导入均由同一owner推进配置，再沿既有通知链唤醒下游。
+        // UI actions and background imports advance configuration through the same owner, then wake downstream nodes through the existing notification chain.
         for doc in &self.documents {
             if doc.state.sticker_input.take_changed() {
                 self.propagate_created_child(&doc.state.unit_id);

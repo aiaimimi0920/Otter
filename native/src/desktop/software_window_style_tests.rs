@@ -1,4 +1,4 @@
-//! 真实隐藏 HWND 验证提交/回滚；不注入 GPU 故障，不修改外部窗口或前台焦点。
+//! Actual hidden HWNDs verify commit/rollback; no GPU fault injection or changes to external windows/foreground focus.
 use super::*;
 use windows::core::w;
 
@@ -81,7 +81,7 @@ fn gpu_transition_rolls_back_only_before_association_and_honors_owner_revocation
             .unwrap()
             .commit()
             .unwrap();
-        // 候选随后失败不得使已提交事务重新写回 layered。
+        // A subsequent candidate failure must not make an already committed transaction restore layered.
         assert_eq!(style(window.0).unwrap(), original & !WS_EX_LAYERED.0);
         Transition::begin(window.0, true).unwrap().commit().unwrap();
         let pending = Transition::gpu_guarded(window.0, &owns).unwrap();
@@ -123,7 +123,7 @@ fn transaction_preserves_unowned_bits_geometry_and_visibility() {
                     style(window.0).unwrap() & MASK,
                     if pinned { WS_EX_LAYERED.0 } else { 0 }
                 );
-                // 回滚不能抹掉事务期间其他 owner 设置的样式。
+                // Rollback must not erase styles set by other owners during the transaction.
                 SetWindowLongPtrW(
                     window.0,
                     GWL_EXSTYLE,
@@ -143,7 +143,7 @@ fn transaction_preserves_unowned_bits_geometry_and_visibility() {
             GetWindowRect(window.0, &mut after).unwrap();
             assert_eq!(before, after);
             assert!(!IsWindowVisible(window.0).as_bool());
-            // 重复进入相同软件模式不改变已提交状态。
+            // Reentering the same software mode leaves committed state unchanged.
             Transition::begin(window.0, pinned)
                 .unwrap()
                 .commit()
@@ -175,7 +175,7 @@ fn unwind_rolls_back_and_wrong_thread_is_rejected() {
         );
         let original = style(window.0).unwrap();
         let pending = Transition::begin(window.0, true).unwrap();
-        // 这个隔离夹具使用无 guard 的事务；只验证 unwind 的样式回滚，不复用捕获的可变状态。
+        // This isolated fixture uses an unguarded transaction; verify only unwind style rollback without reusing captured mutable state.
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
             let _pending = pending;
             panic!("fixture");
@@ -220,7 +220,7 @@ fn software_frame_commits_after_style_transition_and_failed_commit_rolls_back() 
             );
             let original = style(window.0).unwrap();
             let pending = Transition::begin(window.0, pinned).unwrap();
-            // 模拟重入 owner 改变本事务拥有位；commit 必须拒绝并回滚，不能静默接受。
+            // Simulate a reentrant owner changing this transaction's bits; commit must reject and roll back rather than silently accept.
             SetWindowLongPtrW(
                 window.0,
                 GWL_EXSTYLE,

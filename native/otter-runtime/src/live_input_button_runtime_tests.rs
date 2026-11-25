@@ -1,4 +1,4 @@
-//! 自有 Win32 模拟类门禁：验证消息链，不声称真实 CLR/WinForms 兼容验收。
+//! Owned Win32 mock-class gate: verifies the message chain, not real CLR/WinForms compatibility acceptance.
 use super::*;
 
 #[test]
@@ -90,7 +90,7 @@ fn modal_notification(cancel: bool) {
         .0
         .is_null());
     if !cancel {
-        // Escape 必须固定到通知接收者（父窗），而不是上次点击的子按钮。
+        // Escape must remain bound to the notification recipient (parent window), not the last-clicked child button.
         controller
             .dispatch(
                 3,

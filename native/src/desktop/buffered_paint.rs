@@ -1,4 +1,4 @@
-//! 原生 GDI 表面先离屏绘制再一次提交；线程缓存会话由使用它的窗口 owner 持有。
+//! Draw native GDI surfaces offscreen before a single commit; the using window owner holds the thread-cached session.
 use windows::{
     core::{Error, Result},
     Win32::{Foundation::RECT, Graphics::Gdi::HDC, UI::Controls::*},
@@ -24,7 +24,7 @@ pub(crate) struct Frame {
     pub(crate) dc: HDC,
 }
 impl Frame {
-    // rect 来自已受窗口像素预算约束的 BeginPaint；不为每个节点缓存一张整屏位图。
+    // rect comes from BeginPaint already constrained by the window pixel budget; do not cache a full-screen bitmap per node.
     pub(crate) unsafe fn begin(target: HDC, rect: &RECT) -> Result<Option<Self>> {
         if rect.right <= rect.left || rect.bottom <= rect.top {
             return Ok(None);
@@ -44,7 +44,7 @@ impl Frame {
 impl Drop for Frame {
     fn drop(&mut self) {
         if self.handle != 0 {
-            // panic/绘制失败丢弃未完成帧，绝不把清空到一半的叠层发布给桌面。
+            // Discard incomplete frames on panic/drawing failure; never publish a partially cleared overlay to the desktop.
             if let Err(error) = unsafe { EndBufferedPaint(self.handle, false) } {
                 eprintln!("native-buffer-discard: {error}");
             }

@@ -1,4 +1,4 @@
-//! 取色预览的原生色块与 HEX 绘制；子类仅属于自身窗口，按窗口复用字体，绘制借用系统画刷。
+//! Native swatch and HEX rendering for the color preview; subclasses belong only to their windows, fonts are reused per window, and drawing borrows system brushes.
 use super::*;
 use std::cell::Cell;
 use windows::core::PCWSTR;
@@ -31,7 +31,7 @@ pub(super) unsafe fn update(hwnd: HWND, Color(r, g, b): Color) -> bool {
         return false;
     }
     SetWindowLongPtrW(hwnd, GWLP_USERDATA, value);
-    // 自绘不应丢失原生 STATIC 的可访问文本。
+    // Owner drawing must preserve native STATIC accessible text.
     let text = hex(Color(r, g, b));
     let _ = SetWindowTextW(hwnd, PCWSTR(text.as_ptr()));
     true

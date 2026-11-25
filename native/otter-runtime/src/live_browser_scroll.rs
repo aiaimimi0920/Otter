@@ -1,4 +1,4 @@
-//! Chromium 本地页面滚动：独立受限 UIA child，不重发已执行或结果未知的滚动。
+//! Chromium local-page scrolling: an independent constrained UIA child, with no replay of completed scrolls or unknown outcomes.
 use crate::{
     bounded_worker_process as bounded, live_recovery_pipe::Pipe, live_window_target::Target,
 };
@@ -20,7 +20,7 @@ pub mod refresh;
 pub mod settle;
 const LIMIT: usize = 128 * 1024 * 1024;
 const PRODUCT_ENTRY: &str = " --native-browser-scroll-worker";
-// 查询保持短预算；实测 Scroll 可在约两秒后成功，不能把 UIA transaction 设置当硬上限。
+// Keep queries on a short budget; measured Scroll calls can succeed after about two seconds, so UIA transaction settings are not hard limits.
 const QUERY_TIMEOUT_MS: u32 = 750;
 const ACTION_TIMEOUT_MS: u32 = 3000;
 pub const TIMEOUT_MS: u32 = QUERY_TIMEOUT_MS + ACTION_TIMEOUT_MS;
@@ -107,7 +107,7 @@ impl Worker {
     ) -> io::Result<Option<i32>> {
         self.target.validate().map_err(io::Error::other)?;
         let ticks = accumulate(&mut self.residual[usize::from(horizontal)], delta)?;
-        // 高分辨率滚轮保留不足一格的余量，不同时送 Win32，避免后续重复滚动。
+        // High-resolution wheels retain sub-notch remainders and do not also send Win32 input, avoiding later duplicate scrolling.
         if ticks == 0 {
             return Ok(None);
         }
@@ -118,15 +118,15 @@ impl Worker {
         request[12] = u8::from(horizontal);
         let reply = protocol::request(&mut self.pipe, Some(self.child.handle()), &request)?;
         match reply[0] {
-            0 => Ok(Some(ticks * 120)), // 连同先前累计量回退；余量仍保留，不能丢失小 delta。
+            0 => Ok(Some(ticks * 120)), // Fall back with the previously accumulated amount; retain the remainder so small deltas are not lost.
             1 => Ok(None),
             _ => Err(response_error("operation", reply)),
         }
     }
 }
 fn start_error(error: io::Error) -> io::Error {
-    // 启动握手或查询等待阶段尚未授权动作，可退休 child 后等待新用户输入。
-    // 从尝试发送 commit 起不再使用此转换，管道超时必须继续作为未知结果失败。
+    // No action has been authorized during startup handshake or query waits; the child can be retired while awaiting new user input.
+    // Stop using this conversion once a commit send is attempted; pipe timeouts must remain failures with unknown outcomes.
     if error.kind() == io::ErrorKind::TimedOut {
         io::Error::new(io::ErrorKind::WouldBlock, error)
     } else {

@@ -1,4 +1,4 @@
-//! 共享系统 ICU 租约；固定调用方提供 locale/属性，不加载工作目录 DLL，也不以不同排序静默降级。
+//! Shared system ICU leases; fixed callers supply locale/attributes, with no working-directory DLL loading or silent fallback to different ordering.
 use std::ffi::c_void;
 use windows::{
     core::{s, w, Error, Result, PCSTR},

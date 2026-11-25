@@ -1,4 +1,4 @@
-//! 窗口私有 D2D 资源；仅在 WM_PAINT 绘制，设备丢失后丢弃 GPU 资源。
+//! Window-private D2D resources; draw only in WM_PAINT and discard GPU resources after device loss.
 use super::image::Image;
 use super::render_surface::RenderSurface;
 use crate::editor::{Editor, Tool};
@@ -74,7 +74,7 @@ pub struct Canvas {
     target: Option<Target>,
     creation_admission: creation_admission::Admission,
     recovery: render_recovery::Recovery,
-    // 创建或运行中降级后保持兼容路径，普通重绘/最小化不重新探测失效的主后端。
+    // Stay on the compatibility path after creation/runtime fallback; ordinary redraw/minimize must not reprobe the failed primary backend.
     compatibility_renderer: bool,
     software_renderer: bool,
     pub(super) factory: ID2D1Factory,
@@ -104,14 +104,14 @@ pub struct Canvas {
     pub(super) erase_display: Option<crate::erase_job::Request>,
     pub(super) erase_annotations_only: bool,
     pub paints: u32,
-    /// 只计本地完整图片路径成功提交的新帧；不把零尺寸/外部显示/缩略图算作接收呈现。
+    /// Count only newly submitted frames through the local full-image path, not zero-size, external-display, or thumbnail operations as received presentation.
     pub(super) confirmed_paints: u64,
     pub editor: Editor,
     pub tool: Tool,
     pub(super) selection_enabled: bool,
     pub pinned: bool,
     pub(super) window_opacity: f32,
-    /// 主干 opacityNormal：输出仅作用于底图，不使用缩略呈现的不透明度。
+    /// Baseline opacityNormal: output affects only the base image, not the opacity used by minified presentation.
     pub(super) normal_opacity: f32,
     pub(super) frame_style: crate::pin_frame_style::Style,
     pub(super) extension_views: Option<super::extension_visuals::Bound>,
@@ -226,7 +226,7 @@ impl Canvas {
         self.target = None;
     }
 
-    /// 只接收完整解码后的图片；调用者负责丢弃确认及钉图命中区域的事务准备。
+    /// Accept only fully decoded images; the caller prepares discard confirmation and pin hit-region transactions.
     pub fn replace_image(&mut self, image: Image) -> Result<()> {
         let editor = raster::editor(Some(&image))?;
         let style = self.editor.style();
@@ -279,7 +279,7 @@ impl Canvas {
                 views.resize(self, frame, [size.x, size.y])?;
             }
         }
-        // COM 对象限定到消息线程；像素 Vec 的生命周期覆盖同步 CreateBitmap 调用。
+        // COM objects stay on the message thread; the pixel Vec outlives the synchronous CreateBitmap call.
         unsafe {
             let size = D2D_SIZE_U { width, height };
             if self.target.is_none() {

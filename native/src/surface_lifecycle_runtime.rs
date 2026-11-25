@@ -1,4 +1,4 @@
-//! Surface 后台事务；完成回收必返还 owner，失败/取消不得丢失 unknown 后伪造新的已知状态。
+//! Surface background transactions always return owners when reaped; failures/cancellation cannot lose unknown and fabricate new known state.
 use crate::{
     device_authorization_config::{Config, Error as PrepareError},
     device_authorization_lease::Lease,
@@ -74,7 +74,7 @@ impl Job {
                 })
             }
         };
-        // spawn 失败时闭包不会运行，保留另一引用取回 owner；线程开始后只由 worker 持有。
+        // If spawn fails the closure never runs, so retain another reference to recover the owner; after thread start only the worker holds it.
         let transfer = Arc::new(Mutex::new(Some(owner)));
         let worker = transfer.clone();
         let lease = Arc::new(lease);
@@ -149,7 +149,7 @@ impl Job {
             .join()
             .expect("worker contains operation panic");
         self.slot.take();
-        // 撤权后不给 UI 交付可用的场景，但仍返还已知/unknown owner 作为恢复证据。
+        // After revocation, deliver no usable scenes to the UI, but still return known/unknown owners as recovery evidence.
         if self.lease.is_revoked() {
             outcome.result = Err(Error::Stopped);
         }
@@ -159,7 +159,7 @@ impl Job {
 impl Drop for Job {
     fn drop(&mut self) {
         self.request_stop();
-        // 正常 owner 必须 wait/try_join 保存结果；兜底禁止遗留后台线程。
+        // Normal owners must wait/try_join to save results; fallback prohibits orphaned background threads.
         if let Some(thread) = self.thread.take() {
             let _ = thread.join();
         }

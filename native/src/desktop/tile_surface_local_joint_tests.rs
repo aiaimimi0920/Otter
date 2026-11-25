@@ -1,4 +1,4 @@
-//! 无handler本地变值→同源换快照/新权威→原按钮真实Art正式结果；只操作自有离屏HWND。
+//! Handler-free local value -> same-source snapshot/new authority -> original button's actual official Art result; owned offscreen HWNDs only.
 use super::*;
 use std::{collections::BTreeSet, sync::Arc};
 pub(super) fn run() {

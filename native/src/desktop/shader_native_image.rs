@@ -1,4 +1,4 @@
-//! HLSL straight RGBA 的显示与正式 PNG 分流；绝不经旧 Canvas 反预乘还原原通道。
+//! Route HLSL straight RGBA separately for display and official PNG; never recover original channels through legacy Canvas unpremultiplication.
 use crate::{image_decode::Image, pixels::Pixels, shader_hlsl::Frame};
 use std::{
     sync::atomic::{AtomicBool, Ordering},

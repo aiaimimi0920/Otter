@@ -1,4 +1,4 @@
-//! 真实文件CAS/损坏/恢复边界；所有文件均由本测试在linshi内创建，不清理用户文件。
+//! Real file CAS/corruption/recovery boundaries; all files are test-created under linshi, without user-file cleanup.
 use super::*;
 #[test]
 fn external_rewrite_or_missing_file_rejects_ticket_without_erasing_local_pending() {

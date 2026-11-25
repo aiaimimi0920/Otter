@@ -1,4 +1,4 @@
-//! 可聚焦控件快照：跟随成功布局替换，不在键盘热路径遍历或分配整个场景。
+//! Focusable-control snapshot: replace after successful layout, without traversing or allocating the entire scene on the keyboard hot path.
 use crate::{
     surface_geometry::Geometry,
     surface_scene::{Kind, Node, Scene},

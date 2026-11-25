@@ -1,4 +1,4 @@
-//! 复制沿用基线 12px 偏移和追加到顶层语义；原标注和已生成导出快照不变。
+//! Duplication retains baseline 12px offsets/top-layer appending; originals and existing export snapshots remain unchanged.
 use super::*;
 
 impl Editor {

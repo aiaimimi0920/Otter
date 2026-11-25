@@ -1,4 +1,4 @@
-//! 同目标、目录、插件和命名输入的重复触发取消；只撤回已有工作，不签发新的资源许可。
+//! Repeated triggers cancel the same target/catalog/plugin/named input; revoke existing work only, without issuing new resource permits.
 use super::*;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -10,7 +10,7 @@ struct Key {
 }
 fn key(catalog: &Snapshot, context: &Context, id: &str) -> Option<(Key, bool)> {
     use extension_command_route::{OCR, OCR_OVERLAY, TRANSLATE, TRANSLATION_OVERLAY};
-    // 主干 overlay 无缓存时递归进入实际命令；别为同一次执行建立两个取消身份。
+    // Baseline overlays recursively enter actual commands when no cache exists; do not create two cancellation identities for one execution.
     let id = match id {
         OCR_OVERLAY => OCR,
         TRANSLATION_OVERLAY => TRANSLATE,

@@ -1,4 +1,4 @@
-//! 当前合同直接编码，不发现旧能力或按输入选择降级协议。
+//! Encode the current contract directly; no legacy-capability discovery or input-selected protocol downgrade.
 use super::*;
 #[test]
 fn current_prepare_does_not_negotiate_or_preserve_requested_old_protocols() {

@@ -1,4 +1,4 @@
-//! FragmentRoot 汇总实际子页焦点，祖先高亮不能成为重复焦点。
+//! FragmentRoot aggregates actual child-page focus; ancestor highlighting cannot create duplicate focus.
 use super::*;
 #[test]
 fn fragment_root_returns_active_descendant_then_restored_parent_without_new_identity() {

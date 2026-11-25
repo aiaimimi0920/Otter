@@ -1,4 +1,4 @@
-//! 删除单条不会变成取消同源全部收藏，也不消费另一库或未知原文。
+//! Single-entry deletion must not remove all same-source favorites or consume another library/unknown source content.
 use super::*;
 fn source() -> Vec<u8> {
     let entries: Vec<_> = (0..3).map(|i| serde_json::json!({"entryId":format!("entry-{i}"),"sourceStickerId":"shared-source",

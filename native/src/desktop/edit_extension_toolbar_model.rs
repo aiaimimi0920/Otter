@@ -1,4 +1,4 @@
-//! 工具贡献的主干分组与顺序；成功目录/文档凭证缓存，不在 paint 或拖动热路径解析 payload。
+//! Baseline grouping/order for tool contributions; cache successful catalog/document evidence without parsing payloads in paint or drag hot paths.
 use super::*;
 use crate::loom_extension_snapshot::ToolbarItem;
 pub(super) struct Slot {
@@ -28,7 +28,7 @@ impl Model {
     pub unsafe fn capture(state: &State, catalog: Arc<Snapshot>, token: u32) -> Result<Self> {
         let context = Context::capture(state);
         let mut items = context.with(|c| catalog.toolbar(c));
-        // OCR 已有主按钮及全文复制；其它插件贡献不得硬编码为产品按钮。
+        // OCR already has a primary button/full-text copy; do not hardcode other plugin contributions as product buttons.
         items.retain(|i| i.plugin != "neuro.official/ocr");
         let collator =
             super::super::text_collation::Collator::new(windows::core::s!("en_US"), &[])?;
@@ -45,7 +45,7 @@ impl Model {
                 item.plugin,
                 item.group.as_deref().unwrap_or(&item.id)
             );
-            // ID 与 groupId 可同名且可含分隔符；仅精确同插件、同组的贡献合并。
+            // ID and groupId may match and contain delimiters; merge only contributions from the exact same plugin/group.
             if let Some(slot) = slots.iter_mut().find(|slot| {
                 item.group.is_some()
                     && slot.items[0].plugin == item.plugin
@@ -86,7 +86,7 @@ impl Model {
     }
 }
 pub(super) fn text(value: &str, max: usize) -> String {
-    // 控件只接收单行可见文本；不改变模型中的精确 commandId 或授权数据。
+    // Controls receive only single-line visible text; preserve exact model commandId and authorization data.
     value
         .chars()
         .map(|c| if c.is_control() { ' ' } else { c })

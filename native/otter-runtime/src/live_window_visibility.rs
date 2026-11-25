@@ -1,4 +1,4 @@
-//! UI 线程共享源可见性 lease；独立于帧消费者计数，arm 后才可隐藏，不自行创建恢复 journal。
+//! UI-thread shared source-visibility lease, independent of frame-consumer counts; hiding requires arm, without creating a recovery journal itself.
 use super::{snapshot::Snapshot, Target};
 use std::{
     cell::{Cell, RefCell},
@@ -13,7 +13,7 @@ const LIMIT: usize = 16;
 pub const RETIREMENT_PENDING: windows::core::HRESULT =
     windows::core::HRESULT(0x8000000A_u32 as i32);
 
-/// 多个源的退休等待不能遮住真正的恢复失败；同级错误保留最先发生者。
+/// Retirement waits for multiple sources must not hide real recovery failures; retain the earliest error among equal-priority errors.
 pub fn retain_restore_error(first: &mut Option<Error>, error: Error) {
     if first.as_ref().is_none_or(|previous| {
         previous.code() == RETIREMENT_PENDING && error.code() != RETIREMENT_PENDING
@@ -48,12 +48,12 @@ impl Entry {
         let _busy = Busy(&self.busy);
         let snapshot = self.snapshot.borrow().clone();
         if let Some(snapshot) = snapshot {
-            // 不跨 Win32 调用持有 RefCell 借用，允许同步消息重入后保守拒绝。
+            // Do not retain RefCell borrows across Win32 calls, allowing conservative rejection after synchronous-message reentry.
             if !snapshot.restored.get() {
                 snapshot.snapshot.restore_or_retire()?;
                 snapshot.restored.set(true);
             }
-            // 恢复记录退休也必须成功；不能清空本地状态却留下可被 watchdog 重放的旧记录。
+            // Recovery-record retirement must also succeed; do not clear local state while leaving old records that the watchdog can replay.
             (snapshot.retire)()?;
             self.snapshot.borrow_mut().take();
         }
@@ -61,13 +61,13 @@ impl Entry {
     }
 }
 
-/// 一个应用 UI owner 持有一份 registry；Rc 禁止将窗口恢复职责转移到后台线程。
+/// One application UI owner holds one registry; Rc prevents transferring window-restoration responsibility to background threads.
 #[derive(Default)]
 pub struct Registry {
     entries: Vec<Rc<Entry>>,
 }
 impl Registry {
-    /// 显式召回不减 lease 引用；恢复后仍需等待登记退休，供应用级源 owner 重试。
+    /// Explicit recall does not decrement lease references; restoration must still await registration retirement for retries by the application-level source owner.
     pub fn restore_source(&self, target: &Target) -> Result<()> {
         let entry = self
             .entries
@@ -121,7 +121,7 @@ impl Registry {
         self.entries.push(entry.clone());
         Ok(Lease(entry))
     }
-    /// 重试没有会话但仍有恢复快照的源；失败继续保留，真实错误优先于退休等待。
+    /// Retry sources with recovery snapshots but no sessions; retain failures, with real errors taking priority over retirement waits.
     pub fn retry_pending(&mut self) -> Result<()> {
         let mut first = None;
         for entry in &self.entries {
@@ -142,8 +142,8 @@ impl Registry {
 
 pub struct Lease(Rc<Entry>);
 impl Lease {
-    /// 仅在独立恢复通道已登记成功后、首次修改窗口前调用。此方法本身不保证崩溃恢复。
-    /// 第二个 peer 不覆盖首次快照；返回 false 表示已有共享恢复状态。
+    /// Call only after successful registration with the independent recovery channel and before the first window change. This method alone does not guarantee crash recovery.
+    /// A second peer does not replace the first snapshot; false means shared recovery state already exists.
     pub fn arm(
         &self,
         snapshot: Snapshot,
@@ -182,8 +182,8 @@ impl Lease {
     pub fn peer_count(&self) -> usize {
         self.0.leases.get()
     }
-    /// arm 必须基于独立恢复 ACK。false 表示同源 peer 已隐藏，不覆盖首次快照。
-    /// 部分失败尝试回滚；回滚/退休失败保留状态，禁止在未知状态上再次隐藏。
+    /// arm must rely on an independent recovery ACK. false means a same-source peer already hid the window, without replacing the first snapshot.
+    /// Attempt rollback on partial failure; rollback/retirement failures retain state, preventing another hide atop unknown state.
     pub fn hide(&self) -> Result<bool> {
         if self.0.busy.replace(true) {
             return Err(Error::new(E_ABORT, "Live visibility operation reentered"));
@@ -196,7 +196,7 @@ impl Lease {
             return Err(Error::new(E_ABORT, "Live recovery retirement is pending"));
         }
         if snapshot.hidden.get() {
-            // 后续原生最小化会停止源渲染；沿首次快照恢复逻辑隐藏，不覆盖恢复登记。
+            // Later native minimization stops source rendering; restore logical hiding from the first snapshot without replacing recovery registration.
             self.0.target.validate()?;
             if unsafe { windows::Win32::UI::WindowsAndMessaging::IsIconic(self.0.target.hwnd()) }
                 .as_bool()
@@ -216,13 +216,13 @@ impl Lease {
         match result {
             Ok(()) => Ok(true),
             Err(error) => {
-                // 错误路径同样保留首次快照，直到窗口恢复与登记退休均成功。
+                // Error paths also retain the first snapshot until both window restoration and registration retirement succeed.
                 self.0.restore()?;
                 Err(error)
             }
         }
     }
-    /// 主动召回恢复所有 peer 的源，但保留全部 lease，不停止采集或输入 owner。
+    /// Proactive recall restores the source for all peers but retains every lease, without stopping capture or input owners.
     pub fn restore(&self) -> Result<()> {
         self.0.restore()
     }
@@ -233,7 +233,7 @@ impl Drop for Lease {
         self.0.leases.set(remaining);
         if remaining == 0 {
             if let Err(error) = self.0.restore() {
-                // 仅报告错误码，避免暴露窗口标题；registry 与独立 journal 负责后续恢复。
+                // Report only error codes to avoid exposing window titles; the registry and independent journal own subsequent restoration.
                 eprintln!("native-live-visibility-restore: {:?}", error.code());
             }
         }

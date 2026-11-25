@@ -1,4 +1,4 @@
-//! 自身 src 回退的应用准入门；复用原图输入/注册链，不建立替代执行实现。
+//! Application admission gate for own-src fallback; reuse original image-input/registration paths without an alternative execution implementation.
 use super::*;
 fn inputs(
     app: &Application,
@@ -44,7 +44,7 @@ pub(super) unsafe fn guards(app: &mut Application) {
         let mut canvas = app.documents[0].state.canvas.borrow_mut();
         (canvas.image.take(), std::mem::take(&mut canvas.editor))
     };
-    // 与 session_states 的 preview-only 恢复一致：Canvas.image 有画面但 editor 没有 src。
+    // Match session_states preview-only restoration: Canvas.image has a picture but editor has no src.
     app.documents[0].state.canvas.borrow_mut().image = Some(Image {
         width: 1,
         height: 1,
@@ -73,7 +73,7 @@ pub(super) unsafe fn guards(app: &mut Application) {
         canvas.editor = editor;
     }
     prepare(app);
-    // 同像素/版本的新文档身份也必须使已准备的自身输入失效，且不连接网络。
+    // A new document identity with identical pixels/version must still invalidate prepared self-input, without network connection.
     let replacement = app.documents[0]
         .state
         .canvas

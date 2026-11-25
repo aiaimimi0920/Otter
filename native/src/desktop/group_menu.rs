@@ -1,4 +1,4 @@
-//! 分组菜单只生成有界请求；应用循环拥有工作区修改和成员窗口销毁。
+//! Group menus produce bounded requests only; application loops own workspace changes/member-window destruction.
 use super::State;
 use crate::workspace_id::UnitId;
 use windows::{

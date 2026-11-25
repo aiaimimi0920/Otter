@@ -1,4 +1,4 @@
-//! 工作流来源采用计划与归档提示；只生成身份数据，不改文档、不写资源索引或文件。
+//! Workflow-source adoption plans and archive hints; generate identity data only, without changing documents or writing resource indexes/files.
 use super::{check, components, Error, Snapshot, WORKFLOW_ID};
 use serde::Serialize;
 use std::{collections::BTreeMap, sync::atomic::AtomicBool};
@@ -42,7 +42,7 @@ impl Plan {
     pub fn archive_hints(&self) -> &ArchiveHints {
         &self.hints
     }
-    /// 发送只借用这份准备结果；快照仍须是同一份保存原文及修订。
+    /// Sending borrows this preparation result only; snapshots must still match the same saved source content and revision.
     pub(super) fn layouts_for(
         &self,
         snapshot: &Snapshot,
@@ -54,7 +54,7 @@ impl Plan {
         }
         Ok(&self.layouts)
     }
-    /// 应用采用前须匹配原文；提示本身不代表图片资源已归档或保存成功。
+    /// Match source content before application adoption; hints alone prove neither archived image resources nor successful saving.
     pub fn matches(&self, saved: &[u8]) -> bool {
         use sha2::Digest;
         saved.len() <= crate::session_document::MAX_SESSION_BYTES
@@ -81,7 +81,7 @@ fn assemble(
     origins: Vec<components::Origin>,
     cancel: &AtomicBool,
 ) -> Result<Plan, Error> {
-    // 只使用已核对 ID 与窗口顺序的来源字段，不重新遍历保存原文。
+    // Use only source fields whose IDs/window order were checked, without traversing saved source content again.
     let mut hints = ArchiveHints {
         workflows: BTreeMap::new(),
     };
@@ -114,7 +114,7 @@ fn assemble(
                     sticker_id: local.into(),
                 },
             );
-            // 主干只在工作流归属变化时采用；同工作流缺省 nodeId 仍以本地 ID 解析。
+            // Mainline adopts only when workflow ownership changes; absent nodeId in the same workflow still resolves by local ID.
             if current.origin_workflow_id.as_deref() != Some(component.workflow_id()) {
                 adoptions.push(Adoption {
                     sticker_id: local.into(),

@@ -1,4 +1,4 @@
-//! 实时选区只画透明键背景、外描边和尺寸；从不复制桌面作为预览。
+//! Live selection draws only color-key backgrounds, outer strokes, and dimensions; never copy the desktop for previews.
 use super::*;
 pub(super) const KEY: COLORREF = COLORREF(0xff00ff);
 

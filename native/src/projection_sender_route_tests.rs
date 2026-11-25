@@ -1,4 +1,4 @@
-//! 路由/写前日志/兼容binding闭环；oracle独立构造复合ID和响应，畸形路由不授在线资格。
+//! Route/write-ahead-journal/compatible-binding closure; independently constructed composite-ID/response oracles, with malformed routes granting no online eligibility.
 use super::super::tests::{prepare, setup};
 use super::*;
 use serde_json::{json, Value};
@@ -130,7 +130,7 @@ fn offline_binding_preserves_web_identity_and_only_explicit_native_route_can_res
     assert!(candidate.binding().matches_intent(&intent));
     assert!(candidate.index().for_intent(&intent).is_some());
     assert!(binding::Binding::admit_send(candidate.source(), &selected).is_err());
-    // 同名本机设备与跨Loom设备不是同一目的；跨peer同名设备也应保持独立。
+    // Same-named local/cross-Loom devices are different destinations; same-named devices across peers remain distinct too.
     let shared = Selection::new(&"a".repeat(64), ORIGIN, "unit-1", "remote-one").unwrap();
     assert!(binding::Binding::admit_send(candidate.source(), &shared).is_ok());
     let again = binding::Binding::prepare(

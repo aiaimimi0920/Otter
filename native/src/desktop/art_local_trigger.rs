@@ -1,4 +1,4 @@
-//! 自动回调复用签名Art串行槽；正式ACK只能在原Results事务成功之后产生。
+//! Automatic callbacks reuse the signed Art serial slot; official ACKs may be produced only after the original Results transaction succeeds.
 use super::*;
 use crate::art_live_trigger::{ticket::Ticket, Receipt, MAX_SEQUENCE};
 impl Window {
@@ -24,7 +24,7 @@ impl Window {
         let Some(window) = &self.window else {
             return Ok(true);
         };
-        // 已入FIFO的用户编辑优先，不重排或丢弃其已接受意图；timer不能饿死自动回调。
+        // User edits already in FIFO take precedence; do not reorder/drop accepted intent, and timers must not starve automatic callbacks.
         if self.input.ticket.is_some()
             || self.input.deferred.is_some()
             || window.has_pending_edit()
@@ -53,7 +53,7 @@ impl Window {
     pub(in crate::desktop) fn can_commit_result(&self) -> bool {
         self.formal_revision < MAX_SEQUENCE
     }
-    /// take_reply已清runtime的trigger槽；此处只核原执行授权，不重入自动gate锁或Win32。
+    /// take_reply has cleared runtime's trigger slot; only check original execution authorization here, without reentering automatic gate locks or Win32.
     pub(in crate::desktop) fn result_authorized(&self) -> bool {
         !self.stopping && !self.runtime.pending() && self.runtime.validate(&self.current).is_ok()
     }

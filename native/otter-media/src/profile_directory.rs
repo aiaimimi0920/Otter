@@ -1,8 +1,8 @@
-//! 原生 profile 目录准入；validate 只读，pin 创建并固定非重解析祖先直到 owner 释放。
+//! Native profile-directory admission; validate is read-only, while pin creates and pins non-reparse ancestors until the owner releases them.
 use std::{io, os::windows::fs::MetadataExt, path::Path};
 use windows::Win32::Storage::FileSystem::FILE_ATTRIBUTE_REPARSE_POINT;
 
-/// 逐层固定祖先；持有期间拒绝重解析点和目录重命名，供独立 profile owner 共用。
+/// Pin ancestors level by level; reject reparse points and directory renames while held, shared by independent profile owners.
 pub fn pin(root: &Path) -> io::Result<Vec<std::fs::File>> {
     use std::{
         fs::OpenOptions,

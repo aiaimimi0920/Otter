@@ -1,4 +1,4 @@
-//! 独立wire常量与负向矩阵；测试数据不从新解析器反推。
+//! Independent wire constants and negative matrix; test data is not derived backward from the new parser.
 use super::*;
 use serde_json::{json, Value};
 pub(crate) fn binding() -> Binding {

@@ -1,4 +1,4 @@
-//! 图库的独立删除命中与单个悬浮阅读窗；预览不成为命令或键盘焦点页。
+//! Separate gallery-delete hit targets and one floating reading window; previews never become command/keyboard-focus pages.
 use super::*;
 pub(super) struct PreviewWindow {
     pub level: usize,
@@ -34,7 +34,7 @@ impl Cascade {
     }
     pub(super) fn show_preview(&mut self, level: usize, index: Option<usize>) -> Result<()> {
         let Some(index) = index else {
-            // 卡片间隙不撤去阅读面；离开图库/阅读面由屏幕坐标路由负责关闭。
+            // Card gaps retain the reading surface; screen-coordinate routing closes it when leaving gallery/reading surfaces.
             return Ok(());
         };
         if self

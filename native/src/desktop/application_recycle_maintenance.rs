@@ -1,4 +1,4 @@
-//! 加载/设置更新触发的回收裁剪；空闲后使用现有保存单槽，失败报告一次，不循环重试。
+//! Recycle pruning triggered by loading/settings updates; use the existing save slot when idle, report failures once, and never retry in a loop.
 use super::*;
 #[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 #[path = "application_recycle_maintenance_smoke.rs"]
@@ -19,7 +19,7 @@ impl Application {
         {
             return Ok(());
         }
-        // 编辑/执行期间等下一次正常消息推进；不新增定时器或后台轮询。
+        // During editing/execution, wait for the next normal message to make progress; add no timers or background polling.
         let Ok(receipt) = self.capture_session_receipt() else {
             return Ok(());
         };

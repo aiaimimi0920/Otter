@@ -31,7 +31,7 @@ fn image(axis: Axis, origin: u32, noise: u8) -> Frame {
                 Axis::Vertical => (y, x),
                 Axis::Horizontal => (x, y),
             };
-            // 非周期夹具；线性取模渐变会产生近似周期，应被分析器判为歧义。
+            // Nonperiodic fixtures; linear-modulo gradients create approximate periodicity that analyzers should classify as ambiguous.
             let mut seed = (along + origin) * 997 + cross * 7919 + 1;
             seed = (seed ^ (seed >> 16)).wrapping_mul(0x7feb352d);
             seed = (seed ^ (seed >> 15)).wrapping_mul(0x846ca68b);

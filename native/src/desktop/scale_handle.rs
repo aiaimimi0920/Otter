@@ -1,4 +1,4 @@
-//! 缩放柄仅拥有预览；松开生成候选，由宿主统一交付同步/模糊后台提交。
+//! Scale handles own only previews; release creates candidates, and the host uniformly delivers synchronous/background-blur commits.
 use super::canvas::Canvas;
 use crate::{
     editor::{EditError, Stroke, Tool},
@@ -122,7 +122,7 @@ impl Canvas {
             )
             .is_err()
             {
-                // 回滚可能需要再次排版；若排版资源此时也失败，取消整次预览而非保留半组。
+                // Rollback may require layout again; if layout resources also fail, cancel the whole preview rather than retaining a partial group.
                 let restored = self.group_preview[..position]
                     .iter_mut()
                     .all(|(index, preview)| {

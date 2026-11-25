@@ -1,4 +1,4 @@
-//! 用户 OpenArt 创建独立节点、原子连接及保存恢复；失败不能遗留窗口或拓扑。
+//! User OpenArt creates an independent node with atomic links and save/restore; failures must leave neither windows nor topology behind.
 use super::*;
 const SOURCE: &str =
     "NeuroSurface.define({mount(){NeuroSurface.commitResult({answer:{kind:'value',value:42}})}});";
@@ -23,7 +23,7 @@ fn changed_input_graph_discards_queued_formal_result_but_unrelated_node_does_not
             .unwrap();
             let target = app.documents[1].state.unit_id.clone();
             let deadline = Instant::now() + Duration::from_secs(10);
-            // 只领取运行时帧，不调用Application的结果发布；制造真实已排队的迟到结果。
+            // Collect only runtime frames without calling Application result publication, producing a genuinely queued late result.
             while app.local_arts.test_counts() != (1, 1) {
                 app.local_arts.poll(
                     &app.documents,
@@ -92,7 +92,7 @@ fn open_art_creates_independent_connected_node_and_roundtrips_formal_result() {
         peer.authorize(&mut app.authorization_owner);
         let before = app.workspace.topology_stamp();
         let registered = app.capture_windows.borrow().len();
-        // 缺少issuer信任：候选已准备但尚未发布，失败须完整回收。
+        // Missing issuer trust: the candidate is prepared but unpublished, so failure must clean it up completely.
         assert!(app
             .open_local_art(
                 &peer.origin,

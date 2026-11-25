@@ -1,4 +1,4 @@
-//! 一次性后台截图 owner；单结果、不可撤销取消、退出 join，不分离线程或建立空闲轮询。
+//! One-shot background capture owner; single result, irreversible cancellation, join on exit, no detached threads or idle polling.
 use crate::capture_dynamic::{Mode, Outcome};
 use std::{
     io,
@@ -21,7 +21,7 @@ pub struct CaptureJob<T = Outcome> {
     worker: Option<JoinHandle<Result<T, String>>>,
 }
 impl CaptureJob {
-    /// 每个对象只启动一次采集。UI owner 仍须限制活动任务数量并复核文档/窗口代次。
+    /// Each object starts one capture only. The UI owner still bounds active tasks and rechecks document/window generations.
     pub fn start(screen: RECT, mode: Mode, standard_region: bool, gain: f32) -> io::Result<Self> {
         Self::spawn(move |cancel| {
             crate::desktop::capture::dynamic_region(screen, mode, standard_region, gain, cancel)
@@ -29,7 +29,7 @@ impl CaptureJob {
     }
 }
 impl CaptureJob<PreparedCapture> {
-    /// 捕获和缓存编码都在同一 worker；最终文件只在 UI 接受 PreparedCapture 后发布。
+    /// Capture and cache encoding share one worker; publish final files only after UI accepts PreparedCapture.
     pub fn start_cached(
         screen: RECT,
         mode: Mode,
@@ -65,7 +65,7 @@ impl<T: Send + 'static> CaptureJob<T> {
                     return Err("Capture cancelled".into());
                 }
                 let result = work(&signal);
-                // 窗口关闭或用户取消可发生在不可中断驱动调用中；归来时必须丢弃迟到结果。
+                // Window close/user cancellation may occur inside an uninterruptible driver call; discard late results when it returns.
                 if signal.load(Ordering::Acquire) {
                     Err("Capture cancelled".into())
                 } else {
@@ -79,7 +79,7 @@ impl<T: Send + 'static> CaptureJob<T> {
     }
 }
 impl<T> CaptureJob<T> {
-    /// 借用真实线程句柄供 UI 消息等待使用；必须在 take_ready/Drop 前结束借用。
+    /// Borrow the real thread handle for UI message waits; end the borrow before take_ready/Drop.
     pub fn completion_handle(&self) -> Option<std::os::windows::io::BorrowedHandle<'_>> {
         use std::os::windows::io::AsHandle;
         self.worker.as_ref().map(AsHandle::as_handle)
@@ -90,7 +90,7 @@ impl<T> CaptureJob<T> {
     pub fn pending(&self) -> bool {
         self.worker.is_some()
     }
-    /// 尚未完成时立即返回 None。结果至多提取一次；取消后不会返回成功图像。
+    /// Return None immediately if unfinished. Extract results at most once; cancellation never returns a successful image.
     pub fn take_ready(&mut self) -> Option<Result<T, String>> {
         if !self.worker.as_ref()?.is_finished() {
             return None;
@@ -110,7 +110,7 @@ impl<T> CaptureJob<T> {
 impl<T> Drop for CaptureJob<T> {
     fn drop(&mut self) {
         self.cancel();
-        // 不能用 detach 隐藏泄漏；join 仍可能等待已进入的 OS/驱动调用，UI 需保留关闭状态。
+        // Do not hide leaks with detach; join may still await entered OS/driver calls, so UI must retain closing state.
         if let Some(worker) = self.worker.take() {
             let _ = worker.join();
         }

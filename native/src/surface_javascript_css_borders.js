@@ -1,4 +1,4 @@
-// 实心四边框准入/简写展开；只投影已有原生四边 owner，不接受其他线型或 border-image。
+// Solid four-sided border admission/shorthand expansion; projects only to the existing native border owner and rejects other line styles and border-image.
 ((dom, fail, color) => {
   "use strict";
   const op = dom.ops, sides = op.words("top right bottom left"), titles = op.words("Top Right Bottom Left"), pairs = new op.MapType();

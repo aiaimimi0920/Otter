@@ -1,4 +1,4 @@
-//! 无 TLS 的可信 loopback HTTP 边界；QR 中心永远不是传输目标，Device 与管理 bearer 分离。
+//! Trusted plaintext loopback HTTP boundary; QR centers are never transport targets, and Device/management bearer identities stay separate.
 use super::*;
 use crate::device_session_client::tests::{accept, reply, request, session};
 use std::{

@@ -1,4 +1,4 @@
-//! Relay 静态帧解码；后台 COM owner 调用，H264 必须交给独立有状态视频解码器。
+//! Relay static-frame decoding by background COM owners; H264 requires a separate stateful video decoder.
 use super::image::Image;
 use crate::{
     live_relay_frame::{Codec, ColorSpace},
@@ -8,7 +8,7 @@ use windows::{
     core::{Error, Result},
     Win32::Foundation::E_INVALIDARG,
 };
-/// 静态媒体与 H264 共用已解码帧缓存；仅移交 WIC/raw 的已有像素租约。
+/// Static media and H264 share decoded-frame caches; transfer only existing WIC/raw pixel leases.
 pub fn decode_pixels(frame: &Frame) -> Result<crate::live_relay_pixels::PixelFrame> {
     let image = decode(frame)?;
     let mut metadata = frame.metadata();

@@ -1,4 +1,4 @@
-//! 控制流两阶段校验：先准备完整批次，业务校验/应用成功后才提交游标。
+//! Two-phase control-stream validation: prepare the complete batch, then commit the cursor only after business validation/application succeeds.
 use super::{parse, Error, Identity, PROTOCOL};
 use serde::Deserialize;
 use std::sync::Arc;
@@ -52,7 +52,7 @@ pub struct ControlCursor {
     after: u64,
 }
 impl ControlCursor {
-    /// after 来自已验证的 join_cursor 或本 owner 已提交的事件位置，不从媒体包取值。
+    /// after comes from a verified join_cursor or an event position committed by this owner, never from a media packet.
     pub fn new(identity: Identity, after: u64) -> Self {
         Self {
             owner: Arc::new(()),
@@ -89,14 +89,14 @@ impl ControlCursor {
             events: response.events,
         })
     }
-    /// 会话 owner 须在同一事务/锁内应用业务结果并提交；prepare 不执行任何事件副作用。
-    /// 失败可丢弃 batch 重试；旧批次不能覆盖已推进的位置，也不能交给另一 cursor。
+    /// The session owner must apply business results and commit within the same transaction/lock; prepare performs no event side effects.
+    /// On failure, discard the batch and retry; an old batch cannot overwrite an advanced position or be passed to another cursor.
     pub fn commit(&mut self, batch: &ControlBatch) -> Result<(), Error> {
         self.validate(batch)?;
         self.after = batch.next;
         Ok(())
     }
-    /// 应用副作用前复核批次 owner/起点；实际提交仍须同一独占控制 owner 执行。
+    /// Recheck the batch owner/start before applying side effects; the same exclusive control owner must still perform the actual commit.
     pub fn validate(&self, batch: &ControlBatch) -> Result<(), Error> {
         if !Arc::ptr_eq(&self.owner, &batch.owner) || self.after != batch.after {
             return Err(Error::History);

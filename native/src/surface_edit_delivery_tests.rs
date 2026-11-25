@@ -1,4 +1,4 @@
-//! 输入从真实 EDIT 到授权批次，再按完整证据回填；网络 ACK 使用合成夹具，不宣称跨机验收。
+//! Input travels from a real EDIT to an authorized batch, then returns according to complete evidence; synthetic network ACKs do not establish cross-machine acceptance.
 use super::*;
 #[path = "surface_edit_dependency_tests.rs"]
 mod dependencies;

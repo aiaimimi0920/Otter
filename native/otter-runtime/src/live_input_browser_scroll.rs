@@ -36,11 +36,11 @@ impl Backend {
         else {
             return Ok(Some(packet));
         };
-        // 点击/键盘不占滚动 child 名额。启动失败传播，不回退或重放结果未知的滚动。
+        // Clicks/keyboard input consume no scroll-child slots. Startup failures propagate, without fallback or replay of scrolls with unknown outcomes.
         if self.local && self.browser_scroll.is_none() && scroll::eligible(&self.root) {
             self.browser_scroll = Some(self.start_browser_scroll().map_err(scroll_error)?);
         }
-        // 任意传输失败均退休此流，迟到回执不能被下次用户输入误认。
+        // Retire this stream on any transport failure so late receipts cannot be mistaken for the next user input.
         let Some(mut worker) = self.browser_scroll.take() else {
             return Ok(Some(packet));
         };

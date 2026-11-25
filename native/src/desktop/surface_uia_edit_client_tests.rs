@@ -1,4 +1,4 @@
-//! 真正系统 EDIT 与声明式容器合并：唯一节点、逻辑父级及原生编辑模式。
+//! Merge actual system EDIT with declarative containers: unique nodes, logical parents, and native editing patterns.
 use super::*;
 use windows::Win32::System::Variant::VARIANT;
 fn receive(hwnd: usize) -> Result<()> {
@@ -82,7 +82,7 @@ fn uia_edit_system_relocation_preserves_native_patterns_and_unique_parentage() {
         traces.push(InputTrace::new(edit));
         previous = Some(edit);
     }
-    // 系统 UIA 全局焦点需要真正前台；复用自有授权夹具，不把线程 GetFocus 当全局焦点。
+    // System UIA global focus requires actual foreground; reuse owned authorized fixtures, never treating thread GetFocus as global focus.
     let _foreground = unsafe { crate::surface_javascript::fixture::focus_foreground(window.hwnd) };
     query(window.hwnd.0 as usize, receive);
     assert!(window.take_error().is_none());

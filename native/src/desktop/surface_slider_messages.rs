@@ -1,13 +1,13 @@
-//! 只向实际父窗口发送值变化边沿；调用 Win32/父通知前不持有 State 引用，防止重入销毁。
+//! Send value-change edges only to the actual parent; hold no State reference across Win32/parent notifications, so reentrant destruction cannot invalidate a live borrow.
 use super::*;
 use windows::Win32::UI::Shell::*;
 const ID: usize = 0x4f545352;
-/// 只区分系统兼容鼠标消息的来源，不作为输入授权依据；笔和真实鼠标保持原行为。
+/// Distinguish only sources of system-compatible mouse messages, not input authorization; pen and actual mouse retain original behavior.
 pub(super) fn is_touch_promotion(extra: usize) -> bool {
     extra & 0xffffff00 == 0xff515700 && extra & 0x80 != 0
 }
 pub(super) fn install(hwnd: HWND) -> Result<()> {
-    // 让系统完整拥有 pointer 序列：垂直识别为父滚动手势，水平仍提升为 Slider 输入。
+    // Let the system own the complete pointer sequence: vertical movement becomes parent scrolling, while horizontal movement promotes to Slider input.
     unsafe {
         use windows::Win32::{System::SystemServices::*, UI::Input::Touch::*};
         SetGestureConfig(
@@ -72,7 +72,7 @@ unsafe fn finish_drag(hwnd: HWND) {
         .take()
         .is_some_and(|start| start != value);
     cancel(hwnd);
-    // ReleaseCapture 可以重入；只有仍属于本手势的值才允许提交。
+    // ReleaseCapture may reenter; commit only values still belonging to this gesture.
     if changed
         && alive(hwnd)
         && GetPropW(hwnd, OWNER) == marker
@@ -88,7 +88,7 @@ unsafe fn checkpoint_drag(hwnd: HWND) {
     }
     let value = (*state(hwnd)).value;
     if (*state(hwnd)).drag.is_some_and(|before| before != value) {
-        // 切焦提交当前边沿，但鼠标手势仍在；后续移动/抬起仍归原 Slider。
+        // Focus changes commit the current edge but leave the mouse gesture active; later move/release remains with the original Slider.
         (*state(hwnd)).drag = Some(value);
         notify(hwnd, true);
     }
@@ -104,14 +104,14 @@ unsafe fn update(hwnd: HWND, value: f64, commit: bool) {
     let marker = GetPropW(hwnd, OWNER);
     let _ = InvalidateRect(Some(hwnd), None, false);
     notify(hwnd, false);
-    // input 接收者可以同步禁用、关闭或替换控件；不能再向旧 owner 发送 change。
+    // input receivers may synchronously disable, close, or replace controls; never send change to the old owner afterward.
     if commit
         && alive(hwnd)
         && GetPropW(hwnd, OWNER) == marker
         && IsWindowEnabled(hwnd).as_bool()
         && (*state(hwnd)).value == value
     {
-        // 键盘已经提交本值；之后继续拖动仍可提交，但单纯抬起不再重复 change。
+        // Keyboard input already committed this value; continued dragging may commit again, but a mere release must not duplicate change.
         if (*state(hwnd)).drag.is_some() {
             (*state(hwnd)).drag = Some(value);
         }
@@ -163,7 +163,7 @@ unsafe extern "system" fn procedure(
         return LRESULT(0);
     }
     if message == WM_NCDESTROY {
-        // 完成回调也可以销毁 HWND；即使已清 click_active，也必须撤销父候选。
+        // Completion callbacks may also destroy HWND; revoke parent candidates even if click_active was cleared.
         click_message(hwnd, CLICK_CANCEL, LPARAM(0));
         cancel(hwnd);
         let _ = RemoveWindowSubclass(hwnd, Some(procedure), ID);
@@ -220,7 +220,7 @@ unsafe extern "system" fn procedure(
                 if GetCapture() == hwnd && (*state(hwnd)).drag.is_some() {
                     return LRESULT(0);
                 }
-                // 在 SetFocus/SetCapture 的重入之前保存消息来源，完成时不重新猜测。
+                // Save the message source before SetFocus/SetCapture reentrancy; do not guess again at completion.
                 let touch = is_touch_promotion(GetMessageExtraInfo().0 as usize);
                 let marker = GetPropW(hwnd, OWNER);
                 let _ = SetFocus(Some(hwnd));
@@ -271,7 +271,7 @@ unsafe extern "system" fn procedure(
                     return LRESULT(0);
                 }
                 let marker = GetPropW(hwnd, OWNER);
-                // 正常收尾时 WM_CAPTURECHANGED 不能撤销待派发的 click；真实取消仍会撤销。
+                // Normal cleanup's WM_CAPTURECHANGED must not revoke a pending click; actual cancellation still revokes it.
                 let click = std::mem::take(&mut (*state(hwnd)).click_active);
                 finish_drag(hwnd);
                 if click

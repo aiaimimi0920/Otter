@@ -1,4 +1,4 @@
-//! 传播内容框只改变底图布局；标注、边框、输出分辨率仍属于完整可见框。
+//! Propagated content frames alter base-image layout only; annotations, borders, and output resolution still belong to the full visible frame.
 use super::*;
 use crate::session_window::{Rect as SavedRect, Window};
 use serde::Deserialize;
@@ -37,7 +37,7 @@ impl Frame {
             let sy = height / crop.crop.rect.height;
             let viewport_w = crop.crop.source.width * sx;
             let viewport_h = crop.crop.source.height * sy;
-            // 非等比裁剪先构造 viewport 再 contain；不能 contain 后拉伸。
+            // For nonuniform crops, construct viewport before contain-fitting; never contain-fit first then stretch.
             let fit = (viewport_w / image.width as f64).min(viewport_h / image.height as f64);
             let (w, h) = if self.rasterized_source {
                 (viewport_w, viewport_h)
@@ -52,7 +52,7 @@ impl Frame {
                 h,
             )
         } else if let Some(legacy) = edit.get("cropRect").filter(|value| !value.is_null()) {
-            // 无 sourceSize 的旧合同以自然像素取样，并拉伸到内容框。
+            // Legacy contracts without sourceSize sample natural pixels and stretch into content bounds.
             let legacy = SavedRect::deserialize(legacy)
                 .map_err(|_| Error::new(E_INVALIDARG, "Invalid legacy pixel crop"))?;
             if !legacy.valid() {
@@ -95,8 +95,8 @@ impl Frame {
             };
             (x + (width - w) / 2.0, y + (height - h) / 2.0, w, h)
         };
-        // 图片像素已经由恢复路径翻转。非裁剪还需围绕完整框镜像位置；
-        // 裁剪则在图片自身中心翻转，内容框及裁剪偏移不镜像。
+        // Restoration already flipped image pixels. Noncropped views must still mirror placement about full bounds;
+        // cropped views flip about the image center, without mirroring content bounds/crop offsets.
         if crop.is_none() {
             if edit["flippedX"].as_bool() == Some(true) {
                 left = target.w - left - w;
@@ -128,7 +128,7 @@ fn content_frame(window: &Window<'_>, target: SavedRect) -> Result<SavedRect> {
     let Some(raw) = window.sticker_edit_propagation else {
         return Ok(fallback);
     };
-    // 只解析固定大小几何，不复制传播历史或图片字符串。
+    // Parse fixed-size geometry only, without copying propagation history or image strings.
     let value: Propagation = serde_json::from_str(raw.get())
         .map_err(|_| Error::new(E_INVALIDARG, "Invalid propagated content frame"))?;
     let (Some(source), Some(content)) = (value.upstream_source_frame, value.upstream_content_frame)

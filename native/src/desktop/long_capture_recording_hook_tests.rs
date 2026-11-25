@@ -18,7 +18,7 @@ unsafe fn fixture(token: usize) -> (crate::desktop::Window, Hook) {
         )
         .unwrap(),
     );
-    // 合成接缝测试：不安装系统 hook，不注入任何用户输入。
+    // Synthetic boundary test: no system-hook installation or user-input injection.
     SetPropW(window.0, PROPERTY, Some(HANDLE(token as *mut _))).unwrap();
     WINDOW.with(|value| value.set(window.0));
     ROOT.with(|value| value.set(99));

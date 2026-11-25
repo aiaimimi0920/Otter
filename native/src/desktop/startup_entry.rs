@@ -1,4 +1,4 @@
-//! 既有公开启动API、入口参数与初始窗口交接；COM和消息循环仍由desktop/Application管理。
+//! Existing public startup APIs, entry arguments, and initial-window handoff; desktop/Application still manage COM and the message loop.
 use super::*;
 #[path = "shader_startup.rs"]
 pub(super) mod shader;
@@ -14,7 +14,7 @@ pub(super) struct Runtime {
     pub(super) workspace: Option<super::workspace_profile::Profile>,
     pub(super) workspace_check: bool,
 }
-/// 初始窗口到Application的唯一交接；从desktop入口提取，保持安装及失败清理顺序。
+/// The sole initial-window handoff to Application, extracted from desktop entry while preserving installation and failure-cleanup order.
 pub(super) unsafe fn run_window(
     instance: HINSTANCE,
     state: State,
@@ -30,7 +30,7 @@ pub(super) unsafe fn run_window(
         workspace_check,
     } = runtime;
     let hidden_check = workspace_check || session.as_ref().is_some_and(|session| session.check);
-    // 托盘/热键宿主始终隐藏创建；只在恢复完成后显示真实内容，避免空面板闪现。
+    // Always create tray/hotkey hosts hidden; show real content only after restoration, avoiding empty-panel flashes.
     let document = document_window::DocumentWindow::create(instance, state, false)?;
     #[cfg(any(debug_assertions, feature = "smoke-test"))]
     let document = if smoke {
@@ -74,7 +74,7 @@ pub(super) unsafe fn run_window(
     }
     app.run(session)
 }
-/// 显式本地启动输入；不保存到 settings/session，不从环境或 Art 中发现 DLL。
+/// Explicit local startup inputs; not saved to settings/session, and no DLL discovery from the environment or Art.
 #[derive(Default)]
 pub struct Startup<'a> {
     pub settings: Option<&'a Path>,
@@ -142,7 +142,7 @@ impl Startup<'_> {
             self,
         )
     }
-    /// 隐藏只读启动验证；必须显式提供隔离 profile，不发现真实用户数据。
+    /// Hidden read-only startup verification; an isolated profile is mandatory and explicit, with no actual-user-data discovery.
     pub fn check_workspace(self) -> Result<()> {
         run_source(None, Mode::WorkspaceCheck, false, false, false, None, self)
     }
@@ -195,7 +195,7 @@ fn run_source(
         ));
     }
     let workspace_check = mode == Mode::WorkspaceCheck;
-    // 在截图、建窗、热键注册前完成显式配置读取；失败不降级成默认设置。
+    // Read explicit configuration before screenshots, window creation, or hotkey registration; failure does not fall back to defaults.
     let (settings, shader) = startup.resolve(
         smoke,
         workspace_check || session.as_ref().is_some_and(|session| session.check),
@@ -234,7 +234,7 @@ fn run_source(
     let state = State::new(image, pinned)?;
     capture_history_ui::record_initial(&state, capture);
     settings.install(&state)?;
-    // DocumentWindow 将 State 固定在堆上；宿主资源总是在 COM apartment 之前析构。
+    // DocumentWindow pins State on the heap; host resources always destruct before the COM apartment.
     unsafe {
         let instance = GetModuleHandleW(None)?;
         let class = WNDCLASSW {

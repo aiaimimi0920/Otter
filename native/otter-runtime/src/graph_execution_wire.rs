@@ -1,4 +1,4 @@
-//! 正式请求编码和注册事务；全部消息成功构造后才替换当前代际，不负责实际网络发送。
+//! Formal-request encoding and registration transaction; replace the current generation only after all messages are constructed successfully, without owning actual network sends.
 use crate::{
     graph_image::{Output, Prepared},
     graph_requests::{Request, Requests},
@@ -78,7 +78,7 @@ pub fn execute(
     json.raw("]}}")?;
     Ok(json.0)
 }
-/// UI owner 串行调用；生成消息期间不重入或等待 I/O，代际不会在预检与提交之间变化。
+/// The UI owner calls serially; no reentry or I/O waits during message generation, so the generation cannot change between preflight and commit.
 pub fn stage(
     registry: &mut Requests,
     unit: &UnitId,
@@ -94,7 +94,7 @@ pub fn stage(
         |previous| cancel(unit, previous),
     )
 }
-/// 两种协议共用注册事务，编码失败不得清除旧请求；闭包不得重入 registry 或执行 I/O。
+/// Both protocols share the registration transaction; encoding failure must not clear the old request, and closures must not reenter the registry or perform I/O.
 pub fn stage_encoded(
     registry: &mut Requests,
     unit: &UnitId,

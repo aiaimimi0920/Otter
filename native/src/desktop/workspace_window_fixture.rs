@@ -1,4 +1,4 @@
-//! 文档类由测试进程统一持有；各用例仍负责释放自己的 HWND。
+//! The test process centrally owns the document class; individual cases still release their own HWNDs.
 use std::{
     cell::{Cell, RefCell},
     sync::Once,
@@ -69,7 +69,7 @@ pub(super) unsafe fn register() -> HINSTANCE {
         let atom = RegisterClassW(&WNDCLASSW {
             hInstance: instance,
             lpszClassName: w!("Otter.Native.Workspace"),
-            // 保留真实窗口过程身份：端点互斥要据此区分普通文档和 Live。
+            // Preserve actual window-procedure identity so endpoint exclusion distinguishes ordinary documents from Live.
             lpfnWndProc: Some(super::procedure::window_proc),
             ..Default::default()
         });
@@ -87,7 +87,7 @@ thread_local! {
     static CANDIDATE: Cell<HWND> = const { Cell::new(HWND(std::ptr::null_mut())) };
 }
 
-// 只在测试线程主动布置时注入一次重入；其他消息继续走生产 WndProc。
+// Inject one reentrancy only when explicitly arranged by the test thread; other messages retain production WndProc.
 pub(super) fn during_create(action: impl FnOnce() + 'static) {
     CREATE.with(|slot| {
         assert!(slot.borrow().is_none());

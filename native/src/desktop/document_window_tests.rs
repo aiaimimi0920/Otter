@@ -1,4 +1,4 @@
-//! 超长截图只缩放窗口呈现；自有隐藏 HWND 核对原图、来源坐标和编辑尺寸均保留。
+//! Very long screenshots scale window presentation only; owned hidden HWNDs verify original images, source coordinates, and edit dimensions are preserved.
 use super::*;
 use windows::Win32::UI::HiDpi::GetDpiForWindow;
 

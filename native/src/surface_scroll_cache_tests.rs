@@ -1,4 +1,4 @@
-//! 纯滚动/焦点显露不调用文字测量；场景/尺寸/样式更新使缓存重新准入。
+//! Pure scrolling/focus reveal performs no text measurement; scene/dimension/style updates readmit caches.
 use super::*;
 use crate::surface_text::measure_calls;
 #[test]

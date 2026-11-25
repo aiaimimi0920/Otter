@@ -1,4 +1,4 @@
-//! 连续原生路径保持整条笔迹的虚线相位；一次 DrawGeometry，不逐点重复绘制圆帽。
+//! A continuous native path preserves dash phase along the entire stroke: one DrawGeometry, without repeated round caps at each point.
 use crate::{
     editor::Stroke,
     viewport::{Point, Viewport},

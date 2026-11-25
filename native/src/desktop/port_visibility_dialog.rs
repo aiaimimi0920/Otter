@@ -1,4 +1,4 @@
-//! 单次模态端口草稿；不借用Application，不在窗口回调修改Workspace或图。
+//! One modal port draft; neither borrow Application nor modify Workspace or the graph in window callbacks.
 use super::*;
 use crate::desktop::document_window::parameter_panel::theme;
 use std::cell::{Cell, RefCell};
@@ -12,7 +12,7 @@ const PORTS: u16 = 101;
 const MODE: u16 = 102;
 const DEFAULT: u16 = 103;
 const STATUS: u16 = 104;
-// x64的DWL_USER仍为8；Dialog指针位于消息结果和DLGPROC之后，不可沿用32位偏移。
+// DWL_USER is still 8 on x64; the Dialog pointer follows the message result and DLGPROC, so do not reuse 32-bit offsets.
 const DWLP_USER: WINDOW_LONG_PTR_INDEX =
     WINDOW_LONG_PTR_INDEX((2 * std::mem::size_of::<isize>()) as i32);
 struct Dialog {

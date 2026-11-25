@@ -1,4 +1,4 @@
-//! 主干 renderer 过渡、缺失场景与离线占位；只用合成的已验证目录和附件。
+//! Mainline renderer transitions, missing scenes, and offline placeholders using only synthetic validated catalogs/attachments.
 use super::*;
 use crate::unit_attachment_store::tests as f;
 use serde_json::json;
@@ -36,7 +36,7 @@ fn active_official_ocr_keeps_its_attachment_scene_without_a_matching_renderer() 
     assert_eq!(visual[0].bounds.resolve([100., 80.]), [0., 0., 100., 80.]);
     assert!(toggle(&c, &mut store, 4, false).unwrap());
     let hidden = project(Some(&c), &store, 4);
-    // 主干的隐藏无 renderer 附件仍在不可用数据清单中，不把它误报为活动 OCR。
+    // Mainline hidden renderer-less attachments remain in unavailable-data inventories, never misreported as active OCR.
     assert!(hidden.iter().all(|v| v.placeholder));
     assert!(toggle(&c, &mut store, 4, false).unwrap());
     assert_eq!(

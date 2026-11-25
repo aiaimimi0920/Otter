@@ -1,4 +1,4 @@
-//! 按钮内容盒与静态样式回归；不以测量成功代替完整键盘交互验收。
+//! Button content-box and static-style regressions; successful measurement does not replace full keyboard-interaction acceptance.
 use super::*;
 use crate::surface_presentation::Presentation;
 #[test]

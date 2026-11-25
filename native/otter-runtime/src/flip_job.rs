@@ -1,4 +1,4 @@
-//! 翻转的单任务后台生命周期；取消、失败或销毁不交付部分栅格和几何。
+//! Single-job background lifetime for flipping; cancellation, failure, or destruction must not deliver partial rasters or geometry.
 use crate::{
     edit_worker_budget::Permit,
     editor::{FlipError, FlipPlan, RasterRefreshPlan},
@@ -76,8 +76,8 @@ impl Job {
             running.cancel.store(true, Ordering::Release);
         }
     }
-    /// 不阻塞消息线程；即使计算先完成，已取消的候选也不能提交。
-    /// 文档身份、版本与源图校验由 Editor 的原子提交入口负责。
+    /// Do not block the message thread; a canceled candidate must not commit even if computation finished first.
+    /// Editor's atomic commit entry point owns document-identity, version, and source-image validation.
     pub fn poll(&mut self) -> Option<Result<RasterRefreshPlan, Error>> {
         if !self
             .running

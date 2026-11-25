@@ -1,4 +1,4 @@
-//! 发送目录消费者复用 Sessions/Lease；不捕获接收工作区、不改接收轮询或创建持久意图。
+//! Send-catalog consumers reuse Sessions/Lease; do not capture receive workspaces, alter receive polling, or create durable intents.
 use crate::{
     desktop::{
         composition::relay::sessions::Sessions,
@@ -23,7 +23,7 @@ pub(in crate::desktop::application) fn start(
         view.targets.status = "投送目标任务不可用".into();
         return;
     }
-    // 后台查询期间保留上一份目录的呈现；busy 阻止使用它派发，失败仍使目录失效。
+    // Preserve the previous catalog's presentation during background queries; busy prevents dispatch from it, while failures still invalidate it.
     view.targets.next = Some(std::time::Instant::now() + std::time::Duration::from_secs(5));
     if !view.targets.automatic {
         view.targets.directory = None;
@@ -72,7 +72,7 @@ impl super::Application {
             || self.projection_receive.busy()
             || self.projection_edit.busy()
         {
-            // 错过一次收发空窗不应再等完整刷新周期；消息泵仍有界休眠。
+            // Missing one send/receive idle window should not require another full refresh period; the message pump still sleeps for a bounded interval.
             view.targets.next = Some(now + std::time::Duration::from_millis(500));
             return;
         }

@@ -1,4 +1,4 @@
-//! 新Input必须穿过既有菜单/授权/后台/TLS/签名链；期望像素不调用渲染器。
+//! New Input must pass existing menu/authorization/background/TLS/signing paths; expected pixels never call the renderer.
 use super::*;
 use crate::{
     crop_geometry::{Rect, Size},
@@ -186,7 +186,7 @@ unsafe fn cross_history(app: &mut Application) -> Image {
     let mut expected = vec![0; 16 * 8 * 4];
     for y in 0..8usize {
         for x in 4..12usize {
-            let native_x = 2 * (x - 4) + 1; // 16自然像素contain到目标8输出像素；最近邻取像素中心。
+            let native_x = 2 * (x - 4) + 1; // Contain 16 natural pixels within 8 target-output pixels; nearest-neighbor samples pixel centers.
             let mut removed = 0;
             for sy in 0..4 {
                 for sx in 0..4 {

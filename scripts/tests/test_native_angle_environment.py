@@ -1,4 +1,4 @@
-"""显式工具链清单的环境隔离、身份和输入拒绝合同。"""
+"""Environment isolation, identity, and input-rejection contracts for explicit toolchain manifests."""
 
 import copy
 import os
@@ -128,7 +128,7 @@ class EnvironmentTests(unittest.TestCase):
 
     def test_linked_ancestor_is_rejected_without_following_it(self):
         alias = self.root / "linked"
-        # 在无创建符号链接权限的 Windows 上用 lstat 元数据注入覆盖同一拒绝分支。
+        # Inject lstat metadata to cover the same rejection branch on Windows without symbolic-link creation permission.
         info = self.root.lstat()
         linked = type("Info", (), {"st_mode": info.st_mode, "st_file_attributes": 0x400})()
         with patch.object(Path, "lstat", return_value=linked):

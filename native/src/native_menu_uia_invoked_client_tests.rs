@@ -1,4 +1,4 @@
-//! 三种选择路径共享真实 Invoked 事件；菜单关闭后仍能读取事件缓存并释放订阅。
+//! Three selection paths share actual Invoked events; cached event data remains readable and subscriptions releasable after menu close.
 use super::*;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -85,8 +85,8 @@ pub(super) fn receive_scoped(hwnd: usize, mode: u8, scope: Scope) -> Result<()> 
         client.SetConnectionTimeout(3000)?;
         client.SetTransactionTimeout(3000)?;
         let root = client.ElementFromHandle(HWND(hwnd as *mut _))?;
-        // 菜单根会随选择销毁；精确源订阅或稳定祖先订阅避免依赖瞬态子树锚点。
-        // 桌面范围先检查缓存 PID，绝不把其他进程的名称写入测试通道。
+        // Menu roots are destroyed on selection; exact-source/stable-ancestor subscriptions avoid transient subtree anchors.
+        // Desktop-scoped listeners check cached PID first; never write other processes' names into test channels.
         let event_root = match scope {
             Scope::Desktop => client.GetRootElement()?,
             Scope::Source => client.RawViewWalker()?.GetFirstChildElement(&root)?,

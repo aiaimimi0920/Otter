@@ -1,4 +1,4 @@
-//! 稳定输出身份、有限几何与终态意图；真实换代/线程排空由LAN联合保护。
+//! Stable-output identity, finite geometry, and terminal intents; LAN integration protects actual generation changes/thread draining.
 use super::*;
 
 #[test]

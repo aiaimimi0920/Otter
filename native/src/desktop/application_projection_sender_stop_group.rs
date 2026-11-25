@@ -1,4 +1,4 @@
-//! 组停止只拥有最多八项原Request及来源围栏；持久减权/patch/unlink/ack仍由原stop单槽执行。
+//! Group stop owns at most eight original Requests and source fences; original stop's single slot still performs durable revocation/patch/unlink/ack.
 use super::*;
 use crate::desktop::device_authorization_ui::sender::groups::StopSelection;
 use crate::session_source::Source;
@@ -130,7 +130,7 @@ impl Batch {
         }
         valid
     }
-    // 仅原stop Context已重新核验的patch可推进围栏；外部同字节原文不能重抓成新基准。
+    // Only patches revalidated by the original stop Context may advance the fence; external byte-identical source content cannot be recaptured as a new baseline.
     pub(super) fn patched(&mut self, canonical: &Source, original: &Source, next: &Source) {
         self.valid &= original.same_storage(&self.original)
             && (canonical.same_storage(&self.canonical) || canonical.same_storage(&self.original));
@@ -139,7 +139,7 @@ impl Batch {
             self.original = next.clone();
         }
     }
-    // canonical编码有独立allocation；仅真实Checkpoint提交回执可以登记它，不能由轮询重抓。
+    // Canonical encoding has its own allocation; register it only from an actual Checkpoint commit receipt, never by recapturing during polling.
     pub(super) fn committed(
         &mut self,
         index: Option<&Index>,

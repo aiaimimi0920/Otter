@@ -1,4 +1,4 @@
-//! 故障注入验证完整候选选择、有限次数和清理顺序；真实 WARP 像素在 composition_tests 中验证。
+//! Fault injection verifies complete-candidate selection, bounded attempts, and cleanup order; composition_tests verifies real WARP pixels.
 use super::*;
 use std::{cell::RefCell, rc::Rc};
 use windows::Win32::Foundation::{E_ABORT, E_FAIL};

@@ -1,4 +1,4 @@
-//! 独立整数时间/像素oracle；预期不调用被测选帧算法。
+//! Independent integer-time/pixel oracles; expectations do not call the frame-selection algorithm under test.
 use super::*;
 use crate::image_decode::Image;
 fn frame(epoch: u64, id: u64, received: u64) -> Frame {
@@ -22,7 +22,7 @@ fn bounded_queue_preserves_earliest_deadline_and_two_newest_then_selects_latest_
         q.pending.iter().map(|f| f.identity.1).collect::<Vec<_>>(),
         [1, 5, 6]
     );
-    assert!(q.advance(Some((1090, 1))).is_none()); // target1009,第一帧还未到期。
+    assert!(q.advance(Some((1090, 1))).is_none()); // target1009; the first frame is not due yet.
     assert_eq!(q.advance(Some((1091, 1))).unwrap().identity, (1, 1));
     assert_eq!(q.advance(Some((1135, 1))).unwrap().identity, (1, 5));
     assert_eq!(q.advance(Some((1141, 1))).unwrap().identity, (1, 6));
@@ -32,7 +32,7 @@ fn bounded_queue_preserves_earliest_deadline_and_two_newest_then_selects_latest_
 fn late_hold_epoch_watermark_and_invalid_clock_clear_without_revival() {
     let mut q = Queue::default();
     q.push(frame(1, 1, 1000));
-    assert!(q.advance(Some((1331, 0))).is_none()); // target1251，超过250ms丢弃。
+    assert!(q.advance(Some((1331, 0))).is_none()); // target1251; discard after exceeding 250ms.
     q.push(frame(1, 2, 1300));
     assert_eq!(q.advance(Some((1380, 0))).unwrap().identity, (1, 2));
     assert!(q.advance(Some((2380, 0))).is_some());
@@ -53,7 +53,7 @@ fn queue_and_clones_hold_pixels_until_last_owner_drops_and_ui_deadline_is_bounde
     let weak = f.image.pixels.downgrade();
     q.push(f);
     let now = Instant::now();
-    let f = q.advance(Some((1100, 20))).unwrap().clone(); // target1000，剩余1000ms。
+    let f = q.advance(Some((1100, 20))).unwrap().clone(); // target1000; 1000ms remaining.
     assert_eq!(
         Queue::deadline(&f, (1100, 20), now),
         now + Duration::from_millis(1000)

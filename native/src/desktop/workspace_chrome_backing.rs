@@ -1,4 +1,4 @@
-//! 每钉图的穿透 Tab 底板；与所属端点同层，复用原完整帧表面、像素预算及截图围栏。
+//! Per-pin click-through Tab backdrops; same layer as owned endpoints, reusing original complete-frame surfaces, pixel budgets, and capture fences.
 use super::*;
 use draw::backdrops::Backdrops;
 use windows::Win32::{Graphics::Gdi::*, System::LibraryLoader::GetModuleHandleW};
@@ -60,7 +60,7 @@ impl Backing {
                 WDA_NONE
             },
         )?;
-        // refresh_drawing 已在本轮任何像素/首显之前统一排好所有节点的层序。
+        // refresh_drawing already ordered every node before any pixels/first display this round.
         let content = (rect, content);
         if self.content.borrow().as_ref() != Some(&content) {
             let size = SIZE {
@@ -115,7 +115,7 @@ impl Backing {
         ValidateRect(Some(self.hwnd), None).ok()
     }
 }
-// 窗口无业务 owner/线程/计时器；Ui 的集合退出时同步销毁 HWND 和有界 DIB。
+// Windows have no business owner/thread/timer; exiting Ui's collection synchronously destroys HWNDs and bounded DIBs.
 impl Drop for Backing {
     fn drop(&mut self) {
         unsafe {

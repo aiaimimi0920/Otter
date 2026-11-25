@@ -1,4 +1,4 @@
-//! 独占发送日志复用 session 文件事务；完整基线冲突、恢复副本、取消都不降级为空。
+//! Exclusive sender journals reuse session-file transactions; full-baseline conflicts, recovery copies, and cancellation never downgrade to empty.
 use super::*;
 use std::{
     fs::OpenOptions,
@@ -29,7 +29,7 @@ pub(super) fn open(root: &Path, cancel: &AtomicBool) -> Result<Store, Error> {
             crate::session_file_recovery::find(&path, cancel).map_err(|_| Error::Read)?
         {
             let bytes = read(&recovery, cancel)?.ok_or(Error::Read)?;
-            // 完整格式/PNG 验证先于无覆盖重建；旧恢复副本始终保留。
+            // Complete format/PNG validation precedes no-overwrite reconstruction; retain old recovery copies throughout.
             Document::decode(&bytes, cancel)?;
             crate::session_file_write::Staged::prepare_bytes(&path, bytes.clone(), cancel)
                 .map_err(|_| Error::Write)?
@@ -80,7 +80,7 @@ impl Store {
         cancel: &AtomicBool,
     ) -> Result<(), Error> {
         check(cancel)?;
-        // session encoder 的 64 MiB 上限不替代本日志 48 MiB；计数门先于目的分配。
+        // The session encoder's 64 MiB limit does not replace this journal's 48 MiB limit; counting gates precede destination allocation.
         let document = Document::new(&entries);
         struct Count<'a>(usize, &'a AtomicBool);
         impl std::io::Write for Count<'_> {

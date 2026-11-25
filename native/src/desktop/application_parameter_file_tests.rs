@@ -1,4 +1,4 @@
-//! 真实文件 worker/隐藏窗口提交回归；仅在明确 scratch 根目录创建合成文件。
+//! Real file-worker/hidden-window commit regressions; create synthetic files only under an explicit scratch root.
 use super::*;
 use crate::desktop::{
     configuration_stamp::Stamp,
@@ -60,7 +60,7 @@ pub(super) unsafe fn verify(app: &mut Application) {
     app.pending_parameter_files(false).unwrap();
     assert!(app.parameter_file_job.is_some());
     let newer = path.with_extension("replacement.txt");
-    // 大于普通文本转换的 64 KiB 上限，证明文件参数没有被当作短文本截断。
+    // Exceed ordinary text conversion's 64 KiB limit to prove file parameters are not truncated as short text.
     let bytes: Vec<_> = (0..128 * 1024).map(|index| index as u8).collect();
     std::fs::write(&newer, &bytes).unwrap();
     let doc = &app.documents[0];
@@ -88,7 +88,7 @@ pub(super) unsafe fn verify(app: &mut Application) {
     verify_wire(app, &expected);
     app.documents[0].state.pending_start.borrow_mut().take();
     app.sync_display_frames();
-    // 读取失败不能清空之前已经提交的值，也不能触发新执行。
+    // Read failure must neither clear a previously committed value nor trigger another execution.
     assert!(
         app.documents[0]
             .state
@@ -126,7 +126,7 @@ pub(super) unsafe fn verify(app: &mut Application) {
         parameter_file_input::queue(doc.window.0, &doc.state, request(app, path.clone())).unwrap()
     );
     app.pending_parameter_files(false).unwrap();
-    // 修改配置后，即使后台读取已经结束但尚未发布，也不能写回旧选择。
+    // After configuration changes, an old selection must not write back even if background reading finished but publication is pending.
     app.documents[0]
         .state
         .selected_art

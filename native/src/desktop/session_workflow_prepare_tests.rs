@@ -1,4 +1,4 @@
-//! 真正的会话解码、源分辨率合成、参数过滤和工作流编码贯通测试。
+//! End-to-end tests of actual session decoding, source-resolution composition, parameter filtering, and workflow encoding.
 use super::*;
 use serde_json::json;
 fn fixture(extra: serde_json::Value) -> (VectorCandidate, Vec<serde_json::Value>) {
@@ -63,7 +63,7 @@ fn invalid_style_missing_capability_and_cancel_return_no_prepared_snapshot() {
     let mut invalid: serde_json::Value =
         serde_json::from_slice(candidate.candidate.original_json()).unwrap();
     invalid["stickers"][0]["imageEditState"] = json!({"borderWidth":2,"borderColor":"url(secret)"});
-    // 内容样式现在在恢复边界验证；非法输入不得先构成可呈现的候选。
+    // Content styles are now validated at the restore boundary; invalid input must not first become a presentable candidate.
     let error = prepare(
         serde_json::to_vec(&invalid).unwrap(),
         None,
@@ -95,7 +95,7 @@ fn border_bakes_above_transparent_base_at_source_density() {
     )
     .unwrap();
     assert_eq!((image.width, image.height), (40, 20));
-    // 两倍自然像素密度下逻辑 2px 边框为 4px；中心保留全透明底图。
+    // At twice natural pixel density, a logical 2px border is 4px; the center retains the fully transparent base image.
     for (x, y) in [(1, 10), (3, 10), (38, 10), (20, 1), (20, 18)] {
         let start = (y * 40 + x) * 4;
         assert_eq!(&image.pixels[start..start + 4], &[0, 0, 255, 255]);
@@ -218,7 +218,7 @@ fn batch_bakes_keep_each_parsed_node_style_and_identity() {
         assert!((image.pixels[(10 * 40 + 20) * 4 + 3] as i32 - alpha).abs() <= 1);
         assert!((image.pixels[3] as i32 - corner).abs() <= 1);
     }
-    // 保留单张公共入口的身份校验；不存在的节点不能复用批量路径中的其它图片。
+    // Retain identity validation at the public single-image entry; nonexistent nodes cannot reuse other batch-path images.
     assert!(candidate
         .bake_source_png(&UnitId::parse("missing").unwrap(), &cancel)
         .is_err());
@@ -293,8 +293,8 @@ fn stretched_crop_keeps_source_density_but_contains_in_current_viewport() {
     )
     .unwrap();
     assert_eq!((image.width, image.height), (20, 12));
-    // 主干 viewport=40x(50/3)，自然图 contain 后宽100/3、左留白10/3。
-    // 输出仍20x12；明确检查留白及内部像素，不绑定分数边缘的光栅覆盖方式。
+    // Mainline viewport=40x(50/3); after containing the natural image, width is 100/3 with 10/3 left padding.
+    // Output remains 20x12; explicitly check padding and interior pixels without depending on fractional-edge raster coverage.
     for row in image.pixels.chunks_exact(20 * 4) {
         assert!(row[..3 * 4].iter().all(|channel| *channel == 0));
         assert!(row[4 * 4..]

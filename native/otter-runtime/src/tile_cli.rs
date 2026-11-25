@@ -1,4 +1,4 @@
-//! 独立 Tile CLI 在普通工作区/设置/全局输入初始化前分流；只接受明确 origin 和隔离 profile。
+//! Standalone Tile CLI branches before ordinary workspace/settings/global-input initialization; accept only explicit origin and isolated profile.
 use std::{ffi::OsString, path::PathBuf};
 #[derive(Debug, PartialEq)]
 pub enum Command {

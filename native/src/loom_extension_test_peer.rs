@@ -1,4 +1,4 @@
-//! 扩展协议共用的真实回环 TLS/WS 测试端；不接触发现文件、实际插件或用户资源。
+//! Shared real loopback TLS/WS test peer for extension protocols; no discovery files, actual plugins, or user resources.
 use super::*;
 use crate::loom_bridge_stream::BridgeStream;
 pub(super) use crate::loom_extension_snapshot::tests::fixture;

@@ -1,4 +1,4 @@
-//! 文件参数 Data URL 编码；供后台 worker 使用，不解码图片、不保留路径、不访问网络。
+//! File-parameter Data URL encoding for background workers; no image decoding, path retention, or network access.
 use base64::{engine::general_purpose::STANDARD, Engine};
 use std::{
     fs::File,
@@ -26,8 +26,8 @@ impl std::fmt::Display for Error {
 }
 impl std::error::Error for Error {}
 
-/// 仅由文件选择产生的路径调用。取消在每个读取/编码边界检查；系统阻塞读取不能强制中断。
-/// 单值编码上限复用参数预算，最终提交仍须核验全部参数及 JSON 包装的总开销。
+/// Call only with paths produced by file selection. Check cancellation at every read/encoding boundary; blocking system reads cannot be forcibly interrupted.
+/// Single-value encoding reuses the parameter-budget limit; final commit must still check total overhead for all parameters and JSON wrapping.
 pub fn load(path: &Path, cancel: &AtomicBool) -> Result<String, Error> {
     check(cancel)?;
     let file = File::open(path).map_err(Error::Io)?;
@@ -58,7 +58,7 @@ fn append(output: &mut String, bytes: &[u8], limit: usize) -> Result<(), Error> 
         .filter(|&size| size <= limit)
         .ok_or(Error::Capacity)?;
     if needed > output.capacity() {
-        // 短读不应每次扩容；扩容请求和实际输出都不超过参数预算。
+        // Short reads should not trigger expansion every time; requested growth and actual output both stay within the parameter budget.
         let capacity = needed.max(output.capacity().saturating_mul(2).min(limit));
         output
             .try_reserve_exact(capacity - output.len())
@@ -78,7 +78,7 @@ fn encode(
     if output.len() > limit {
         return Err(Error::Capacity);
     }
-    // 只保留一个固定缓冲区和最终字符串；任意短读的余数留到下次，避免中间 base64 填充。
+    // Retain only one fixed buffer and the final string; carry arbitrary short-read remainders forward to avoid intermediate base64 padding.
     let mut buffer = [0u8; 12 * 1024];
     let mut retained = 0;
     loop {
@@ -102,7 +102,7 @@ fn encode(
 }
 
 fn mime(path: &Path) -> &'static str {
-    // 与浏览器文件选择一样按扩展名分类，不嗅探/执行内容；未知类型安全回退为二进制。
+    // Classify by extension like browser file selection, without sniffing/executing content; unknown types safely fall back to binary.
     match path
         .extension()
         .and_then(|value| value.to_str())

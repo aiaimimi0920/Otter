@@ -1,4 +1,4 @@
-//! 接续任务共用批次交付与预算；前缀证据继续占预算，不因只发送后缀而漏算。
+//! Continuation tasks share batch delivery/budgets; prefix evidence still consumes budget even when sending only the suffix.
 use super::*;
 use crate::surface_event_batch_runtime::{
     continuation::{Input, Job, StartError},

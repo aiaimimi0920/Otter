@@ -1,4 +1,4 @@
-//! 用自有窗口模拟启动播放后的短时 UI 忙；不重放按钮、不改变远程/Chromium 预算。
+//! Owned windows simulate briefly busy UI after playback starts; no button replay or changes to remote/Chromium budgets.
 use super::*;
 use crate::live_input::Backend as _;
 

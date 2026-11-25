@@ -1,4 +1,4 @@
-//! 对照主干 transform controller 的连续变换参数；无文档写入、无分配、无窗口依赖。
+//! Continuous-transform parameters matching mainline transform controllers; no document writes, allocation, or window dependencies.
 use crate::viewport::Point;
 
 #[derive(Clone, Copy, Default, PartialEq, Eq, Debug)]

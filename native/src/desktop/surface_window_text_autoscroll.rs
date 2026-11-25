@@ -1,4 +1,4 @@
-//! 只有边缘拖选时持有 HWND timer；不追赶积压 tick，撤销即释放，迟到身份不复活。
+//! Hold HWND timers only for edge drag-selection; no accumulated-tick catch-up, release on cancellation, and no revival by late identities.
 use super::*;
 use std::time::{Duration, Instant};
 const INTERVAL: u32 = 50;
@@ -40,7 +40,7 @@ fn update_using(hwnd: HWND, state: &State, point: [i32; 2], pending: impl FnOnce
         return;
     };
     let pending = pending();
-    // 查询会同步重入撤权/取消/新手势；旧结果不得启动或清掉新 owner 的 timer。
+    // Queries may synchronously reenter revocation/cancellation/new gestures; old results cannot start or clear new-owner timers.
     if !state
         .pointer
         .borrow()

@@ -1,4 +1,4 @@
-//! 同生产预算真实 child/产品的省略、同步几何、更新、拒绝与回收。
+//! Ellipsis, synchronous geometry, updates, rejection, and cleanup in real children/products under the production budget.
 use super::*;
 use sha2::{Digest, Sha256};
 pub(crate) const SOURCE: &str = include_str!("../tests/fixtures/javascript-text-overflow.js");
@@ -12,7 +12,7 @@ fn check(frame: &Frame, width: u32, overflow: &str, inline: &str) {
     assert_eq!(report[0], width);
     assert_eq!(report[1], 32);
     assert_eq!(report[2], nodes[0].props()["text"]);
-    // 首帧来自 author sheet，公开 inline getter 仍为空；不能伪造 computed reflection。
+    // The first frame comes from the author sheet while the public inline getter remains empty; never fabricate computed reflection.
     assert_eq!(report[3], inline);
     assert!(frame.events.is_empty());
 }

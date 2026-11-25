@@ -1,4 +1,4 @@
-//! 完整包资源复用产品TLS夹具；隐藏Application/屏外非激活输入队列，不冒充前台菜单验收。
+//! Complete package resources reuse product TLS fixtures; hidden Application/offscreen nonactivating input queues, not foreground-menu acceptance.
 use super::*;
 use crate as native;
 use std::{
@@ -60,7 +60,7 @@ fn start(app: &mut Application, peer: &package_peer::Peer, root: &Path) {
     let from = app.documents[0].state.unit_id.to_string();
     app.open_local_art(&peer.origin, package::ART.into(), &from, config(peer, root))
         .unwrap();
-    // 首帧先隐藏领取，随后只显示屏外自己的Surface；不抢前台、不发全局输入。
+    // Collect the first frame while hidden, then show only the owned offscreen Surface; no foreground takeover or global input.
     settle_local(app, (1, 1));
     unsafe {
         let hwnd = app

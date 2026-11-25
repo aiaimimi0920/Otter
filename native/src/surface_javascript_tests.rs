@@ -179,7 +179,7 @@ fn javascript_response_envelope_enforces_frame_limit_before_writing() {
         response.output.as_ref().unwrap().scene
     );
     response.output.as_mut().unwrap().scene = json!("x".repeat(payload_length + 1));
-    // Output 自身仍在限额内，外层 envelope 超限必须在发出成功 header 前拒绝。
+    // Output itself remains within limits; an oversized outer envelope must be rejected before sending a success header.
     wire::validate_encoded_size(response.output.as_ref().unwrap()).unwrap();
     bytes.clear();
     assert!(wire::write(&mut bytes, &response).is_err());

@@ -1,4 +1,4 @@
-// 同 child/HWND/产品共享的通用 timer 消费者；不含远端请求或业务逻辑。
+// Generic timer consumer shared by the same child/HWND/product, without remote requests or business logic.
 let timerBox, timerReport, timerCount = 0, repeating;
 function timerCallback(token, amount) {
   if (this !== globalThis || token !== timerBox || amount !== 1) throw Error("timer arguments");

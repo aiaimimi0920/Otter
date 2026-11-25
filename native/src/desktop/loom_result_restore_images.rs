@@ -1,4 +1,4 @@
-//! 仅在后台物化会话内联图片；重复 Data URL 共享解码像素，不访问路径或网络。
+//! Materialize session-inline images only in background; duplicate Data URLs share decoded pixels, without path/network access.
 use super::{Error, Output, Port};
 use crate::desktop::loom_image_value::ImageValue;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -42,7 +42,7 @@ pub(super) fn decode(ports: &mut [Port], cancel: &AtomicBool) -> Result<(), Erro
                 }
             })?,
         };
-        // 与普通正式结果相同的逻辑端口像素预算；别名也计入，避免恢复绕过结果上限。
+        // Use ordinary official results' logical-port pixel budget; aliases count too so restoration cannot bypass result limits.
         bytes.add(image.bytes()).map_err(|_| Error::Budget)?;
         images.push(Some(image));
     }

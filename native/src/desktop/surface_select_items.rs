@@ -1,4 +1,4 @@
-//! 固定高度 owner-draw 仅接管像素；HASSTRINGS 保留系统键盘、索引和可访问性。
+//! Fixed-height owner drawing controls pixels only; HASSTRINGS preserves system keyboard, indexing, and accessibility.
 use super::*;
 use crate::desktop::surface_control_colors as colors;
 use windows::Win32::UI::{Controls::*, HiDpi::GetDpiForWindow, Shell::*};
@@ -12,7 +12,7 @@ impl Drop for Saved {
     }
 }
 pub(super) fn install(parent: HWND) -> Result<()> {
-    // 父 HWND 生命周期内至多一个无堆状态 hook；多个 Select 共享，销毁父窗口时解除。
+    // At most one heap-stateless hook per parent HWND lifetime, shared by Selects and removed when the parent dies.
     if unsafe { SetWindowSubclass(parent, Some(procedure), ID, 0) }.as_bool() {
         Ok(())
     } else {
@@ -37,7 +37,7 @@ pub(super) fn resize(hwnd: HWND) -> Result<()> {
         let pad = (4 * GetDpiForWindow(hwnd).clamp(48, 768)).div_ceil(96) as i32;
         let height = metrics.tmHeight.saturating_add(pad).clamp(1, 32768);
         for index in [0, usize::MAX] {
-            // 相同样式重排不能设置高度，否则系统可能关闭已展开的列表。
+            // Same-style relayout must not set height, or the system may close an expanded list.
             if SendMessageW(hwnd, CB_GETITEMHEIGHT, Some(WPARAM(index)), None).0 != height as isize
                 && SendMessageW(
                     hwnd,
@@ -82,7 +82,7 @@ unsafe fn draw(item: &DRAWITEMSTRUCT) -> bool {
             },
         )
     } else {
-        // owner-draw 高对比度不能依靠默认过程补画，必须显式使用系统配色。
+        // Owner-drawn high contrast cannot rely on default handling to fill in pixels; explicitly use system colors.
         (
             COLORREF(GetSysColor(if selected {
                 COLOR_HIGHLIGHT
@@ -153,7 +153,7 @@ unsafe extern "system" fn procedure(
     _: usize,
 ) -> LRESULT {
     if message == WM_DRAWITEM && lp.0 != 0 {
-        // WM_DRAWITEM 是同线程系统回调；只为属于该父窗口的自有 Select 绘制。
+        // WM_DRAWITEM is a same-thread system callback; draw only owned Selects belonging to that parent.
         let item = &*(lp.0 as *const DRAWITEMSTRUCT);
         if item.CtlType == ODT_COMBOBOX
             && !GetPropW(item.hwndItem, OWNER).is_invalid()

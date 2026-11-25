@@ -17,7 +17,8 @@
 ## 更新与验证
 
 - [`sources.json`](sources.json) 定义副本位置。`patches/<name-version>/source-manifest.json` 记录
-  上游 archive、补丁、每个输入和产出文件的 SHA-256；`fix.patch` 是实际可回放的差异。
+  上游 archive、补丁及每个候选文件的 SHA-256；上游已有文件另有输入摘要，本地新增文件的
+  `upstreamSha256` 为 `null`。`fix.patch` 是实际可回放的差异。
 - 更新时从固定上游归档重放最小补丁，用 `git -c core.autocrlf=false apply` 保持来源字节；
   一起审阅源码、许可、补丁和完整清单，不通过手改预期摘要来掩盖失败。
 - 运行 `node scripts/release/third-party-sources.cjs .`。它检查文件集合、链接、越界、字节及
@@ -25,3 +26,6 @@
   带源码树校验限定值，不与官方同名同版本包合并。
 - 按变化运行库和真实 child 回归、原生验证及[依赖安全门](../docs/security/DEPENDENCY_SECURITY.md)。
   固定上游副本的既有行数例外不适用于新增手写代码、测试或清单工具。构建产物不放在副本内。
+
+副本内的 README、CHANGELOG 和测试说明同属固定来源字节，应随源码与许可证保留，
+不作为 Otter 当前能力承诺或开发计划清理；Otter 自身的使用说明从[文档中心](../docs/README.md)进入。

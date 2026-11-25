@@ -1,4 +1,4 @@
-//! 从真实 PNG/旧主干文档恢复并重复保存：朝向保留，像素只物化一次。
+//! Restore actual PNG/legacy mainline documents and save repeatedly: retain orientation and materialize pixels only once.
 use super::*;
 use crate::{desktop::session_candidate, editor::MirrorState, raster_flip::Axis};
 
@@ -21,7 +21,7 @@ fn save(editor: Editor, original: Vec<u8>) -> Vec<u8> {
         },
     };
     let mut snapshot = data(vec![document]);
-    // 重复保存必须保留同一工作区 scope，和活动 Application 的快照合同一致。
+    // Repeated saves must retain the same workspace scope, matching the active Application snapshot contract.
     if let Some(scope) = crate::session_document::decode(&original)
         .unwrap()
         .projection_scope
@@ -91,7 +91,7 @@ fn legacy_and_native_mirror_pressed_survive_repeated_real_save_restore_and_workf
             let baked = prepared.bake_source_png(&id("mirror"), &cancel).unwrap();
             let actual = crate::desktop::export::decode_png(baked.to_vec());
             assert_eq!((actual.width, actual.height), (4, 2));
-            // 独立栅格层覆盖底图，首像素不得被新 UI 元数据再次翻转。
+            // An independent raster layer covers the base image; new UI metadata must not flip its first pixel again.
             assert_eq!(&actual.pixels[..4], &annotations.as_ref().unwrap()[..4]);
             bytes = save(prepared.vectors.remove(0).1.editor, bytes);
         }

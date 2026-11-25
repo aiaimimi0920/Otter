@@ -1,4 +1,4 @@
-//! 隔离桌面的真实关闭消息：首个销毁回调之前，目标图框及端点已经一起不可见。
+//! Actual close messages on isolated desktops: target image/border and endpoints are all invisible before the first destruction callback.
 use super::*;
 struct Probe {
     target: Vec<HWND>,

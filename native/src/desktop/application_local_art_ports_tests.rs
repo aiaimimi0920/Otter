@@ -1,4 +1,4 @@
-//! 新签名端口经真实TLS→图→PNG→child；保存重建和离线仍用原owner，不冒充前台验收。
+//! New signed ports through real TLS -> graph -> PNG -> child; save/rebuild and offline use retain the original owner, not foreground acceptance.
 use super::*;
 use base64::{engine::general_purpose::STANDARD, Engine};
 #[path = "application_local_art_visibility_tests.rs"]
@@ -23,7 +23,7 @@ unsafe fn red_app() -> Application {
         height: 2,
         pixels: [0, 0, 255, 255].repeat(4).into(),
     };
-    // 使用真实2×2钉图几何；未钉住的主窗是1000×720，恢复后本就按其逻辑框导出。
+    // Use actual 2x2 pin geometry; the unpinned main window is 1000x720 and naturally exports using its logical frame after restoration.
     let document =
         DocumentWindow::create(instance, State::new(Some(image), true).unwrap(), false).unwrap();
     Application::new(instance, document)
@@ -75,7 +75,7 @@ unsafe fn restored(app: &mut Application, bytes: Vec<u8>) {
         .prepare_restored_batch(prepared, &cancel, |p| Ok(space.physical(p.rect).unwrap()))
         .unwrap();
     app.publish_restored_batch(batch, false).unwrap();
-    // 与生产restore_job相同，窗口发布后保留已验证元数据，供下一次保存使用。
+    // As in production restore_job, retain validated metadata after window publication for the next save.
     app.restored_session.as_mut().unwrap().space = Some(space);
 }
 #[test]
@@ -297,7 +297,7 @@ fn custom_image_output_connects_next_local_child_using_declared_port() {
         let from = app.documents[1].state.unit_id.to_string();
         let next = peer::Peer::with_input(READ, "原始图片");
         next.authorize(&mut app.authorization_owner);
-        // 保留第一 origin 的活跃租约；替换整个 Authority 会正确撤销它。
+        // Preserve the first origin's active lease; replacing the whole Authority would correctly revoke it.
         app.art_issuers
             .replace(crate::art_issuer_trust::Document {
                 issuers: vec![first_issuer, next.issuer()],

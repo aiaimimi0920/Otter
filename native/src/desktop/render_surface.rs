@@ -1,4 +1,4 @@
-//! 普通工作区与透明钉图共享 D3D12/D3D11/CPU 后端；窗口语义不隐式选择另一条 GPU 链。
+//! Ordinary workspaces and transparent pins share D3D12/D3D11/CPU backends; window semantics never implicitly select another GPU chain.
 use super::composition::Composition;
 use super::composition_d3d12::CompositionD3d12;
 #[path = "render_surface_selection.rs"]
@@ -30,8 +30,8 @@ impl RenderSurface {
             Self::Software(s) => s.readback_for_test(),
         }
     }
-    /// 只退休本项目拥有的 DComp 图；None 表示此 surface 没有该图，不代表 GPU drain。
-    /// 调用后由窗口事务保留 owner 并轮询；本方法不修改 HWND 样式、不自动切换后端。
+    /// Retire only this project's owned DComp graph; None means this surface lacks that graph, not GPU drain.
+    /// The window transaction retains and polls the owner afterward; this method neither changes HWND styles nor switches backends automatically.
     pub fn retire_composition(&mut self) -> Option<super::composition_retirement::Status> {
         match self {
             Self::D3d12(composition) => Some(composition.retire_composition()),
@@ -81,7 +81,7 @@ impl RenderSurface {
         _dpi: u32,
         pin: bool,
     ) -> super::composition_creation::Result<Self> {
-        // 两类窗口共享同一 D3D11 owner 和关联准入；不再以隐式 HWND target 充当兼容后端。
+        // Both window types share one D3D11 owner and attachment admission; implicit HWND targets no longer serve as compatibility backends.
         let gpu = super::smoke_timing::run("compatibility-surface", || {
             Composition::new_candidate(hwnd, size)
         })
@@ -121,7 +121,7 @@ impl RenderSurface {
         !matches!(self, Self::D3d12(_))
     }
 
-    /// 仅用于创建/同步同设备画刷和位图；绘制与提交必须走 draw 的单一事务。
+    /// Only for creating/synchronizing same-device brushes and bitmaps; drawing and submission must use draw's single transaction.
     pub fn resource_target(&self) -> &ID2D1RenderTarget {
         match self {
             Self::Software(surface) => surface.resource_target(),
@@ -139,7 +139,7 @@ impl RenderSurface {
     }
 
     pub fn draw(&mut self, paint: impl FnOnce(&ID2D1RenderTarget) -> Result<()>) -> Result<bool> {
-        // 后端独占 BeginDraw/EndDraw 和提交；外层不能再套第二个 D2D 帧。
+        // The backend exclusively owns BeginDraw/EndDraw and submission; the outer layer must not wrap another D2D frame around it.
         match self {
             Self::Software(surface) => surface.draw(paint),
             Self::D3d12(composition) => {

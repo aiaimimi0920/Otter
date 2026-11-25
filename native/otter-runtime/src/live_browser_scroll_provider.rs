@@ -1,4 +1,4 @@
-//! 只在已绑定来源的 UIA 子树查找指针下最深滚动容器；不按桌面命中，不读取文本。
+//! Find the deepest scroll container under the pointer only within the bound source's UIA subtree; no desktop hit testing or text reads.
 use super::*;
 use windows::Win32::UI::HiDpi::*;
 use windows::{
@@ -38,7 +38,7 @@ pub(super) struct Prepared {
 impl Provider {
     pub(super) fn new(target: Target) -> Result<Self> {
         unsafe {
-            // UIA Win32 provider 仍可能按客户端线程 DPI 虚拟化矩形；协议点始终为物理像素。
+            // The UIA Win32 provider may still virtualize rectangles by client-thread DPI; protocol points always use physical pixels.
             let previous = SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
             if previous.0.is_null() {
                 return Err(Error::from_win32());
@@ -48,12 +48,12 @@ impl Provider {
             let apartment = Apartment;
             let client: IUIAutomation2 =
                 CoCreateInstance(&CUIAutomation8, None, CLSCTX_INPROC_SERVER)?;
-            // Live 控制后台 A，不能让 UIA pattern 的默认聚焦抢走 B 的输入焦点。
+            // Live controls background A; UIA patterns' default focus behavior must not steal input focus from B.
             client.SetAutoSetFocus(false)?;
             client.SetConnectionTimeout(200)?;
             client.SetTransactionTimeout(200)?;
             let client: IUIAutomation = client.cast()?;
-            // 单节点缓存将跨进程的多次属性 RPC 合并到导航请求；不跨事件保留旧页面节点。
+            // Single-node caching merges multiple cross-process property RPCs into the navigation request; do not retain old page nodes across events.
             let cache = client.CreateCacheRequest()?;
             for property in [
                 UIA_ProcessIdPropertyId,
@@ -66,7 +66,7 @@ impl Provider {
                 cache.AddProperty(property)?;
             }
             cache.AddPattern(UIA_ScrollPatternId)?;
-            // 首次连接启动浏览器的可访问性树；后续滚动重新绑定，不能缓存旧页面节点。
+            // The initial connection starts the browser accessibility tree; rebind on later scrolls rather than caching old page nodes.
             let root = client.ElementFromHandleBuildCache(target.hwnd(), &cache)?;
             warm_document(&client, &cache, &root, target.process_id())?;
             Ok(Self {
@@ -88,8 +88,8 @@ impl Provider {
         crate::live_window_target::input_security::preflight(&self.target)
             .map_err(|_| Error::from(E_ACCESSDENIED))?;
         let deadline = Instant::now() + Duration::from_millis(450);
-        // A 可被用户或页面脚本独立滚动。先刷新，再查询树和读取当前位置，
-        // 否则 UIA 相对 Scroll 会按旧 AX 位置生成绝对目标，把页面拉回旧位置。
+        // A may be scrolled independently by users or page scripts. Refresh first, then query the tree and read the current position,
+        // or UIA relative Scroll will derive an absolute target from stale AX coordinates and pull the page back to its old position.
         super::refresh::position(&self.target, point)?;
         unsafe {
             let root = self
@@ -117,8 +117,8 @@ impl Provider {
                     continue;
                 }
                 let bounds = element.CachedBoundingRectangle()?;
-                // Chromium 的虚拟分组节点可以没有矩形，其后代仍有可见滚动容器。
-                // 只裁掉确定不包含指针的非空分支，不能把无矩形的桥接节点当成叶子。
+                // Chromium virtual grouping nodes may have no rectangle while their descendants still contain visible scroll containers.
+                // Prune only nonempty branches known not to contain the pointer; rectangle-less bridge nodes must not be treated as leaves.
                 if bounds.right > bounds.left
                     && bounds.bottom > bounds.top
                     && !contains(bounds, point)
@@ -200,11 +200,11 @@ impl Provider {
                     }
                 };
                 let before = percent()?;
-                // 属性 RPC 也可能耗尽预算；最后一次检查必须紧邻动作，不能越期启动。
+                // Property RPCs may also exhaust the budget; the final check must immediately precede the action, which must not start after expiry.
                 if Instant::now() >= deadline {
                     return Err(Error::from(HRESULT(0x800705B4u32 as i32)));
                 }
-                // 每格一次 provider 小步；部分完成/超时是未知结果，不能回退再发原滚轮。
+                // One provider small step per notch; partial completion/timeouts have unknown outcomes, so do not fall back and resend the original wheel input.
                 *attempted = true;
                 pattern.Scroll(
                     if horizontal {
@@ -218,7 +218,7 @@ impl Provider {
                         amount
                     },
                 )?;
-                // Scroll 成功不代表 AX 缓存已更新；只读命中请求促使源及时反馈，不能重发动作。
+                // Successful Scroll does not mean the AX cache is updated; read-only hit requests encourage timely source feedback without replaying the action.
                 if Instant::now() >= deadline {
                     return Err(Error::from(HRESULT(0x800705B4u32 as i32)));
                 }
@@ -229,8 +229,8 @@ impl Provider {
         }
     }
 }
-// Chromium 首次 UIA 连接会异步装载网页树。只在启动预算内等 Document 出现，
-// 不执行或重试滚动动作；到期后仍可处理没有网页的浏览器窗口。
+// Chromium's first UIA connection loads the page tree asynchronously. Wait for Document only within the startup budget,
+// without executing or retrying scroll actions; browser windows without a page remain usable after expiry.
 fn warm_document(
     client: &IUIAutomation,
     cache: &IUIAutomationCacheRequest,
@@ -277,8 +277,8 @@ fn warm_document(
 fn contains(r: RECT, p: [i32; 2]) -> bool {
     p[0] >= r.left && p[0] < r.right && p[1] >= r.top && p[1] < r.bottom
 }
-// 普通 overflow 容器可能不属于 ControlView，却仍提供 ScrollPattern。
-// 保留它们才能命中最深容器；仍排除屏外节点，不扩大为整棵 RawView。
+// Ordinary overflow containers may be outside ControlView while still providing ScrollPattern.
+// Retain them to hit the deepest container; still exclude offscreen nodes without expanding to the entire RawView.
 unsafe fn visible_walker(client: &IUIAutomation) -> Result<IUIAutomationTreeWalker> {
     let visible = client.CreatePropertyCondition(UIA_IsOffscreenPropertyId, &false.into())?;
     let scrollable =

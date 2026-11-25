@@ -1,4 +1,4 @@
-//! 多选意图依据刷新后的稳定身份派发，不因不可用目标阻塞或重复发送。
+//! Dispatch multi-select intents using refreshed stable identities, without unavailable targets blocking or causing duplicate sends.
 use super::*;
 
 fn row(id: &str, checked: bool, command: usize) -> Entry {
@@ -119,7 +119,7 @@ fn refresh_and_completion_use_current_identity_and_command() {
         Some(("active".into(), false, 99))
     );
     assert_eq!(queue, VecDeque::from([("removed".into(), true)]));
-    // 解绑完成后重新勾选同一设备，使用当前目录的发送命令。
+    // Reselecting the same device after unbinding uses the current catalog's send command.
     queue.push_back(("active".into(), true));
     assert_eq!(
         next_choice(&mut queue, &[row("active", false, 42)], |_| true),
@@ -208,7 +208,7 @@ fn confirmed_group_keeps_exact_targets_across_edits_refresh_and_popup_close() {
         select_all(&mut popup.draft, &popup.rows);
         assert!(state.authorization.borrow().request.is_none());
         popup.confirm(&state);
-        // 已确认后目录加入第三个目标，同时重排；原队列不得扩大或按旧索引串目标。
+        // A third target joins and the catalog reorders after confirmation; the original queue must neither expand nor misroute targets via old indices.
         state.authorization.borrow_mut().targets.directory =
             Some(catalog(&["target-2", "target-3", "target-1"]));
         {
@@ -231,7 +231,7 @@ fn confirmed_group_keeps_exact_targets_across_edits_refresh_and_popup_close() {
             panic!("first confirmed target was not dispatched");
         };
         assert_eq!(first.directory.targets()[first.index].id(), "target-1");
-        // 在途关闭窗口只隐藏呈现；原 owner 确认结果后仍发送下一项。
+        // Closing the window in flight only hides presentation; the original owner still sends the next item after confirming the result.
         state.authorization.borrow_mut().sender.busy = true;
         assert!(popup.menu.translate(&MSG {
             hwnd: popup.menu.hwnd(),
@@ -263,7 +263,7 @@ fn confirmed_group_keeps_exact_targets_across_edits_refresh_and_popup_close() {
         };
         assert_eq!(second.directory.targets()[second.index].id(), "target-2");
         assert!(popup.queue.is_empty());
-        // 文档本身换代仍须废弃批次，不能将选择套到另一张图。
+        // A document generation change must still discard the batch; selections must not transfer to another image.
         state
             .canvas
             .borrow_mut()

@@ -1,4 +1,4 @@
-//! 非模态 HWND 持有一份 Rc 至 NCDESTROY；回调不跨 UI 重入保留 RefCell 借用。
+//! A modeless HWND holds one Rc until NCDESTROY; callbacks retain no RefCell borrow across UI reentrancy.
 use super::*;
 use windows::Win32::{
     Graphics::Gdi::*,
@@ -93,7 +93,7 @@ pub(super) unsafe fn output(hwnd: HWND, m: &Model, visible: bool) {
         && m.account_envelope.borrow().is_none()
         && m.link.borrow().is_empty()
     {
-        return; // 空输出不反复 invalidate，否则空闲 WM_PAINT 会自驱动消息循环。
+        return; // Do not repeatedly invalidate empty output, or idle WM_PAINT will perpetuate the message loop.
     }
     if !visible {
         m.code.borrow_mut().take();
@@ -150,7 +150,7 @@ unsafe extern "system" fn edit_proc(
     id: usize,
     data: usize,
 ) -> LRESULT {
-    // 默认 EDIT 处理也可重入父窗口并触发销毁；整个回调持有模型。
+    // Default EDIT handling can also reenter the parent and trigger destruction; retain the model for the entire callback.
     let ptr = data as *const Model;
     Rc::increment_strong_count(ptr);
     let m = Rc::from_raw(ptr);
@@ -197,7 +197,7 @@ unsafe extern "system" fn procedure(hwnd: HWND, message: u32, wp: WPARAM, lp: LP
     if ptr.is_null() {
         return 0;
     }
-    // 文件选择、剪贴板及同步 HWND 消息均可能销毁当前窗口。
+    // File selection, clipboard operations, and synchronous HWND messages can all destroy the current window.
     Rc::increment_strong_count(ptr);
     let retained = Rc::from_raw(ptr);
     let m = &*retained;

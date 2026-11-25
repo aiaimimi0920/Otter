@@ -1,4 +1,4 @@
-//! 获取线程的真实 socket 取消、授权撤销与未消费结果容量；不访问线上 Loom。
+//! Real socket cancellation, authorization revocation, and unconsumed-result capacity in fetch threads; no production Loom access.
 use super::*;
 #[path = "surface_image_inline_tests.rs"]
 mod inline;
@@ -95,7 +95,7 @@ fn image_resource_job_ready_keeps_original_lease_and_scene_gate() {
         &*ready.image(&mount, clock()).unwrap().pixels,
         &[44, 37, 38, 97]
     );
-    // 不可另传新的 Cancel 绕过凭据缓存撤权；Job 回收后原 Grant 仍能撤销 Ready。
+    // Passing a new Cancel must not bypass credential-cache revocation; the original Grant can still revoke Ready after Job cleanup.
     drop(grant);
     assert!(matches!(
         ready.image(&mount, clock()),
@@ -243,7 +243,7 @@ fn image_resource_sessions_rejected_success_retained_then_cancelled_or_delivered
         }
         assert!(!sessions.deliver_surface_resource(|_| panic!("delivered twice")));
         assert!(sessions.resource_deadline(clock()).is_none());
-        // 接纳或取消都应释放共享槽，不由先前的 Job/Ready 悬挂引用继续占用。
+        // Both acceptance and cancellation release shared slots rather than leaving them occupied by dangling references from prior Job/Ready owners.
         let slots: Vec<_> = (0..4)
             .map(|_| crate::live_relay_control_runtime::Slot::acquire().unwrap())
             .collect();

@@ -1,4 +1,4 @@
-//! 暂存接管结算不接触窗口；覆盖取消、首笔合并、身份替换和预算。
+//! Staged-adoption settlement without windows; cover cancellation, first-stroke merging, identity replacement, and budgets.
 use super::*;
 fn image(value: u8) -> Editor {
     Editor::with_layers(crate::erase_layers::Layers {

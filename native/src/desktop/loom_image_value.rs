@@ -1,5 +1,5 @@
-//! 正式图像的显示像素与可选原始 PNG 共用不可变 owner；别名和快照只克隆 Arc。
-//! PNG 必须来自同次可信编码或同份已解码字节，不能把任意描述符与图片拼装发布。
+//! Official-image display pixels and optional original PNG share one immutable owner; aliases/snapshots clone only Arc.
+//! PNGs must come from the same trusted encoding or decoded bytes; never publish arbitrary descriptors assembled with unrelated images.
 use super::{export, image::Image};
 use crate::pixels::Pixels;
 use std::{
@@ -43,7 +43,7 @@ impl ImageValue {
             .len()
             .saturating_add(self.png.as_ref().map_or(0, |png| png.len()))
     }
-    /// 调用方已证明像素和 PNG 的同源关系；这里补几何、格式及编码大小准入，不重复解码。
+    /// Callers prove pixels/PNGs share provenance; add geometry, format, and encoded-size admission here without decoding again.
     pub(crate) fn from_png(image: Image, png: Pixels) -> Result<Self> {
         if crate::viewport::checked_image_bytes(image.width, image.height)
             != Some(image.pixels.len())
@@ -57,7 +57,7 @@ impl ImageValue {
             png: Some(png),
         })
     }
-    /// 仅在后台使用。保留原 PNG，不能经 PBGRA 再反预乘改变 straight RGB。
+    /// Background only. Preserve original PNGs; do not unpremultiply through PBGRA again and alter straight RGB.
     pub(crate) fn png(&self, cancel: &AtomicBool) -> Result<Pixels> {
         check(cancel)?;
         let png = match &self.png {
@@ -67,14 +67,14 @@ impl ImageValue {
         check(cancel)?;
         Ok(png)
     }
-    /// 只物化内联数据；PNG 字节在共享预算中保留，不访问路径、网络或用户 profile。
+    /// Materialize inline data only; retain PNG bytes within shared budgets, without path, network, or user-profile access.
     pub(crate) fn inline(reference: &str, cancel: &AtomicBool) -> Result<Self> {
         let Some(encoded) = reference.strip_prefix("data:image/png;base64,") else {
             return super::session_image::inline(reference, cancel).map(Self::from);
         };
         Self::png_base64(encoded, cancel)
     }
-    /// worker 复用同份已验证 PNG；不构造临时 data URL，也不经 PBGRA 反推原始颜色。
+    /// Workers reuse the same validated PNG without temporary data URLs or inferring original colors from PBGRA.
     pub(crate) fn png_base64(encoded: &str, cancel: &AtomicBool) -> Result<Self> {
         let png = super::loom_output_inline::decode_bytes("image/png", encoded, cancel)?;
         let _apartment = super::Apartment::new()?;

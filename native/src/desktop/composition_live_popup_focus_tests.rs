@@ -1,4 +1,4 @@
-//! 自有窗口验证焦点通知准入；不抢系统前台，不合成全局鼠标输入。
+//! Owned windows verify focus-notification admission; no system foreground stealing or synthesized global mouse input.
 use super::*;
 #[path = "composition_live_popup_control_tests.rs"]
 mod control_tests;
@@ -272,10 +272,10 @@ fn mirror_focus_handoff_releases_keys_in_order_without_cancelling_parent_modal()
     assert_eq!(window.pop_input(), Some(down));
     assert_eq!(window.pop_input(), Some(up));
     assert_eq!(window.state.input.borrow().held_keys, [0; 4]);
-    // 第二条失活通知不得再次制造 up，也不发送 WM_CANCELMODE 给父/兄弟镜像。
+    // A second deactivation notification must not fabricate another up or send WM_CANCELMODE to parent/sibling mirrors.
     lose_focus(&window, peer.hwnd);
     assert_eq!(window.pop_input(), None);
-    // 同一物理手势的 up 无论迟到原 B 还是新 B，都不能在交接释放后再送一次。
+    // Whether the same gesture's up arrives late at original or new B, it must not be sent again after handoff release.
     assert!(window.state.input.borrow_mut().push(up));
     assert!(peer.state.input.borrow_mut().push(up));
     assert_eq!(window.pop_input(), None);

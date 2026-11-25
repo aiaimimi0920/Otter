@@ -1,4 +1,4 @@
-"""外部 stage 预期身份、精确文件集合、构建后不变和纯 PE 的拒绝合同。"""
+"""Rejection contracts for expected external-stage identity, exact file sets, post-build immutability, and pure PE checks."""
 
 import hashlib
 import unittest
@@ -31,7 +31,7 @@ class BuildInputsTests(unittest.TestCase):
             path.write_text("not reviewed", encoding="utf-8")
             with self.subTest(name=name), self.assertRaisesRegex(ValueError, "Unexpected"):
                 verify_stage(self.stage, self.expected)
-            # 只删除本测试显式临时根内自己创建的文件。
+            # Delete only files this test created within its explicit temporary root.
             path.unlink()
 
     def test_built_cache_cannot_hide_source_changes(self):

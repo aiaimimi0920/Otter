@@ -1,4 +1,4 @@
-//! 保存单槽释放后多 Live 意图按原 owner 串行完成；只依赖实际完成/内部唤醒消息。
+//! After the save slot is released, multiple Live intents complete serially through their original owners, relying only on actual completion/internal wakeup messages.
 use super::*;
 unsafe fn recycle(hwnd: HWND) {
     SendMessageW(hwnd, WM_CLOSE, None, None);
@@ -33,7 +33,7 @@ fn multiple_freeze_and_recycle_intents_survive_automatic_save_and_need_no_extern
             install(&mut app, &directory, false);
             tick(&mut app);
             ready(&app);
-            drain(); // 排除保存完成消息，接下来必须由归还槽的 WM_NULL 自行续进。
+            drain(); // Exclude the save-completion message; the slot-return WM_NULL must then advance work by itself.
             if freeze {
                 queue(a);
                 queue(b);
@@ -43,7 +43,7 @@ fn multiple_freeze_and_recycle_intents_survive_automatic_save_and_need_no_extern
             }
             app.process_live(false).unwrap();
             assert!(IsWindow(Some(a)).as_bool() && IsWindow(Some(b)).as_bool());
-            tick(&mut app); // 丢弃已过期自动候选，同时排队内部续进。
+            tick(&mut app); // Discard the stale automatic candidate while queuing internal continuation.
             assert!(!directory.path().exists());
             let end = Instant::now() + Duration::from_secs(5);
             while IsWindow(Some(a)).as_bool() || IsWindow(Some(b)).as_bool() {
@@ -106,7 +106,7 @@ fn retired_live_owner_is_excluded_before_reap_but_registered_closed_owner_still_
         app.live_sessions[index].close_for_recycle().unwrap();
         assert!(app.live_sessions[index].belongs_to(&app.workspace));
         assert!(!app.live_sessions[index].is_alive());
-        // 尚未发布图移除时不能静默漏存异常关闭的当前 Unit。
+        // Removing an unpublished graph must not silently omit saving the current Unit after abnormal closure.
         assert!(app.workspace.contains(&retired));
         assert!(app.capture_session_snapshot().is_err());
         app.retain_workspace_owners();

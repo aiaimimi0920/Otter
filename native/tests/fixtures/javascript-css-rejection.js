@@ -1,4 +1,4 @@
-// 原子 sheet/adoption/inline 拒绝，保留同 identity 的原声明与真实文档。
+// Atomic sheet/adoption/inline rejection preserves original declarations with the same identity and the actual document.
 NeuroSurface.define({ mount({ root }) {
   const sheet = new CSSStyleSheet();
   sheet.replaceSync('*{box-sizing:border-box} :root{color:green} span{color:red}');

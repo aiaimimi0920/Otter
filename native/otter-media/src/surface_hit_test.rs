@@ -1,4 +1,4 @@
-//! 与同一布局提交的 CPU 命中快照；不持有 COM，不分发动作或自行取得输入授权。
+//! CPU hit-test snapshot committed with the same layout; holds no COM, dispatches no actions, and obtains no input authorization itself.
 use crate::surface_round_clip::Shape;
 use crate::{
     surface_background::Background, surface_clip::Rect, surface_geometry::Geometry,
@@ -48,7 +48,7 @@ impl Hits {
         {
             return None;
         }
-        // 绘制最后的节点先命中；透明节点仍可接收输入，不能把 opacity 当 visible。
+        // Hit-test last-drawn nodes first; transparent nodes may still receive input, so opacity is not visible.
         for index in (0..self.entries.len()).rev() {
             let node = &geometry.nodes()[index];
             if !inside(node.clip(), point)

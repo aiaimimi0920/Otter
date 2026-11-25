@@ -1,4 +1,4 @@
-//! 恢复记录与真实源进程绑定；只接受已认证父通道的记录，序列化数据本身不是授权。
+//! Bind recovery records to real source processes; accept only records from authenticated parent channels, since serialized data itself is not authorization.
 use super::{
     snapshot::{Layered, Snapshot},
     Target,
@@ -15,7 +15,7 @@ use windows::{
 fn creation_time(target: &Target) -> Result<u64> {
     target.validate()?;
     unsafe {
-        // 单独申请最小查询权限，不扩大普通 Live 捕获 Target 的准入权限。
+        // Request minimal query permissions separately, without expanding admission permissions for ordinary Live capture Targets.
         let raw = OpenProcess(
             PROCESS_QUERY_LIMITED_INFORMATION,
             false,
@@ -33,7 +33,7 @@ fn creation_time(target: &Target) -> Result<u64> {
             &mut kernel,
             &mut user,
         )?;
-        // 原 Target 的同步句柄仍保活，跨查询期间退出不得被新 PID 替换。
+        // The original Target's synchronization handle remains alive; exit during queries must not allow replacement by a new PID.
         target.validate()?;
         Ok((u64::from(created.dwHighDateTime) << 32) | u64::from(created.dwLowDateTime))
     }
@@ -99,13 +99,13 @@ fn make_record(target: &Target, restoration: Restoration) -> Result<Record> {
     Ok(record)
 }
 
-/// 登记 ACK 之前建立并保留此 owner；恢复只使用该 Target，不再次按 PID 打开源进程。
+/// Establish and retain this owner before registration ACK; recovery uses only this Target, without reopening the source process by PID.
 pub struct Binding {
     state: Bound,
 }
 enum Bound {
     Window(Snapshot),
-    // 请求通道含原身份与在途槽；只在登记时分配，不扩大普通窗口恢复记录。
+    // The request channel contains original identity and the in-flight slot; allocate only during registration, without expanding ordinary window-recovery records.
     PopupLayer(Box<popup_layer::Recovery>),
 }
 impl Binding {
@@ -139,7 +139,7 @@ impl Binding {
             Bound::Window(snapshot) => snapshot.restore(),
         }
     }
-    /// 原源已消失时无对象可恢复；查询失败不冒充消失，避免静默丢弃恢复责任。
+    /// If the original source is gone, nothing remains to restore; query failure must not impersonate disappearance and silently discard recovery responsibility.
     pub fn restore_or_retire(&self) -> Result<()> {
         match &self.state {
             Bound::PopupLayer(layer) => layer.restore(),

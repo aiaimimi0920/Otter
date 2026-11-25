@@ -1,4 +1,4 @@
-//! 仅 idle 请求预约 timer；latest-wins 请求继续借用原回收入口。
+//! Only idle requests schedule timers; latest-wins requests continue using the original reclamation entry point.
 use super::*;
 use std::time::{Duration, Instant};
 

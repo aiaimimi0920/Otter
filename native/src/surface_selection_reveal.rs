@@ -1,4 +1,4 @@
-//! 键盘选区端点显露：只准备滚动投影，确认候选可见后提交，不重新测量文字。
+//! Keyboard selection-endpoint reveal prepares only scroll projection, committing after candidate visibility checks without remeasuring text.
 use super::*;
 use crate::surface_clip::Rect;
 impl Selection {
@@ -14,14 +14,14 @@ impl Selection {
         if len == 0 {
             return Ok(None);
         }
-        // 向后扩展显露最后选中 cluster；反向或折叠则显露当前插入边沿所在 cluster。
+        // Forward extension reveals the last selected cluster; reverse or collapsed selection reveals the cluster at the current insertion edge.
         let index = if self.forward(text) && self.focus > 0 {
             self.focus - 1
         } else {
             self.focus.min(len - 1)
         };
         let rect = if let Some(point) = self.vertical_point {
-            // 软换行同索引可属于两个视觉行；显露必须使用上下导航保存的实际行。
+            // A soft-wrap index may belong to two visual lines; reveal must use the actual line saved by vertical navigation.
             item.layout().point_cluster_rect(point)?
         } else {
             item.layout().cluster_rect(index)?
@@ -66,7 +66,7 @@ impl Presentation {
             .zip(clip)
             .is_none_or(|(region, clip)| region.intersect(clip).empty())
         {
-            // 零面积或静态裁剪导致不可达时，不让失败候选推动外层视图。
+            // If zero area or static clipping makes a target unreachable, failed candidates must not move outer views.
             return Ok(false);
         }
         self.install_frame(frame, scroll);

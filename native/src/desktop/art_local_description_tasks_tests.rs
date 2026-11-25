@@ -1,4 +1,4 @@
-//! 描述阶段复用下载任务的槽位、通知和撤销；不让 UI 先同步联网换取 metadata。
+//! The description stage reuses download task slots, notifications, and cancellation; the UI must not fetch metadata synchronously over the network first.
 use super::*;
 use crate::art_local_requests::{description, tests as fixture};
 use std::{sync::mpsc, time::Duration};

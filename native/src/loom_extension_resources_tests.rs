@@ -1,4 +1,4 @@
-//! 只检查本机准备的数据边界，不读取文件或访问系统剪贴板。
+//! Check only locally prepared data boundaries, without file reads or system-clipboard access.
 use super::*;
 use crate::unit_attachment::PAYLOAD_BYTES;
 use serde_json::json;

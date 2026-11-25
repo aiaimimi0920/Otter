@@ -1,4 +1,4 @@
-//! Invoke 接口复用节点 IUnknown/引用计数；业务执行留给既有异步候选消费链。
+//! Invoke shares node IUnknown/reference counting; existing asynchronous candidate consumers retain business execution.
 use super::*;
 
 unsafe fn base(this: *mut c_void) -> *mut c_void {
@@ -34,8 +34,8 @@ unsafe extern "system" fn invoke(this: *mut c_void) -> HRESULT {
     {
         return error.code();
     }
-    // 动作可能需要远端响应或用户确认，事件表示已接受请求，不冒充业务完成。
-    // 不持 State/RefCell 借用跨 UIA 回调；通知失败不重放已入槽请求。
+    // Actions may require remote responses/user confirmation; the event means request accepted, not business completed.
+    // Hold no State/RefCell borrow across UIA callbacks; notification failure never replays already slotted requests.
     if UiaClientsAreListening().as_bool() {
         #[cfg(test)]
         INVOKE_NOTIFICATIONS.fetch_add(1, Ordering::Release);

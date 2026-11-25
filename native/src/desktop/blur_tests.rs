@@ -1,4 +1,4 @@
-//! 使用真实 WIC/D2D 验证预计算模糊标注，不读取用户数据。
+//! Verify precomputed blur annotations with real WIC/D2D, without reading user data.
 use super::*;
 #[test]
 fn mapped_blur_texture_draws_at_logical_frame_not_pixel_dimensions() {

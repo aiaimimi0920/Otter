@@ -1,4 +1,4 @@
-//! 真实编辑通知保留 change 边沿及跨字段 FIFO，不让后续 input 覆盖较早提交值。
+//! Actual edit notifications preserve change edges and cross-field FIFO, preventing later input from overwriting earlier committed values.
 use super::*;
 #[test]
 fn surface_edit_deadline_preserves_text_but_never_replays_expired_intent_on_blur() {
@@ -95,7 +95,7 @@ fn surface_edit_order_cross_field_notifications_are_not_sorted_by_node_id() {
     let window = SurfaceWindow::new(scene, 240, 160).unwrap();
     window.bind_edits(&binding()).unwrap();
     window.set_input_policy(true, true).unwrap();
-    // 子窗口创建顺序与场景一致，不依赖原生 z-order。
+    // Child-window creation follows scene order, independent of native Z-order.
     let mut fields = Vec::new();
     window
         .state

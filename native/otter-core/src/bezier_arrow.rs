@@ -1,4 +1,4 @@
-//! 基线的有界曲线采样与弧长裁短；控制点仍是编辑源数据。
+//! Baseline bounded curve sampling/arc-length trimming; control points remain editable source data.
 use crate::viewport::Point;
 
 pub struct Geometry {

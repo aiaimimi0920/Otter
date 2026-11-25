@@ -1,4 +1,4 @@
-//! 当前外观覆盖替换旧原文，且只有外观的初始宿主也必须写入。
+//! Current appearance overrides replace old source content; an initial host with only appearance changes must also be saved.
 use super::tests::{data, doc};
 use super::*;
 use crate::{session_source::Source, workspace::ports::Visibility, workspace_id::UnitId};

@@ -1,4 +1,4 @@
-//! 单动作流收敛：成功 ACK 后单独刷新快照，完整检查批次才允许交付。
+//! Single-action stream convergence: refresh snapshots separately after a success ACK and permit delivery only after checking the complete batch.
 use crate::{
     surface_action_ack::{Ack, Status},
     surface_click_event::ClickEvent,
@@ -30,7 +30,7 @@ pub struct Snapshot {
     pub(crate) resources: crate::surface_resource_snapshot::ResourceSnapshot,
 }
 impl Snapshot {
-    /// 与本次完整收敛快照同行的资源身份；仍不是图片读取或长期显示许可。
+    /// Resource identity accompanying this complete convergence snapshot; still not permission to read images or display indefinitely.
     pub fn resources(&self) -> &crate::surface_resource_snapshot::ResourceSnapshot {
         &self.resources
     }
@@ -79,7 +79,7 @@ struct Lifecycle<'a> {
     event: &'a RawValue,
 }
 impl<'a> Tracker<'a> {
-    /// 借用事件、复制有界 ACK；构造失败不消费调用方执行证据。
+    /// Borrow the event and copy bounded ACKs; construction failure does not consume the caller's execution evidence.
     pub fn new(event: &'a ClickEvent, ack: &Ack) -> Result<Self, Error> {
         if !ack.matches_event(event) {
             return Err(Error::Identity);
@@ -181,7 +181,7 @@ impl<'a> Tracker<'a> {
                     )
                     .map_err(Error::Confirmation)?
                     {
-                        // 同一动作只允许一个确认身份，不能用迟到请求替换已展示意图。
+                        // Allow only one confirmation identity per action; late requests cannot replace the displayed intent.
                         if self.confirmation.as_ref().is_some_and(|old| {
                             old.id() != request.id() || !old.same_prompt(&request)
                         }) {
@@ -230,7 +230,7 @@ impl<'a> Tracker<'a> {
                         .replace_checked(params.get().as_bytes(), self.event)
                         .map_err(Error::Ack)?;
                     self.check_status()?;
-                    // after=0 刷新可能重放早期 running；不降级已知成功，但上面的失败仍终止。
+                    // after=0 refreshes may replay earlier running states; do not downgrade known success, although failures above still terminate.
                     if was_success && !self.ack.succeeded() {
                         self.ack = previous;
                     }
@@ -266,7 +266,7 @@ impl<'a> Tracker<'a> {
                         serde_json::from_str(params.get()).map_err(|_| Error::Protocol)?;
                     let header: Header<'_> =
                         serde_json::from_str(delivery.event.get()).map_err(|_| Error::Protocol)?;
-                    // 快照 state 是任意业务数据；只有生命周期事件的 state 是严格字符串。
+                    // Snapshot state is arbitrary business data; only lifecycle-event state is a strict string.
                     let lifecycle: LifecycleState<'_> =
                         serde_json::from_str(delivery.event.get()).map_err(|_| Error::Protocol)?;
                     if self.same_attachment(&header) {
@@ -297,7 +297,7 @@ impl<'a> Tracker<'a> {
                 }
             }
         }
-        // 不能在看到第一条成功/快照时返回，后续失败或代际改变必须胜过旧快照。
+        // Do not return on the first success/snapshot; later failures or generation changes must override old snapshots.
         if self.refresh && self.success {
             if let Some((revision, raw)) = latest {
                 use crate::surface_host_capabilities::Runtime;
@@ -306,7 +306,7 @@ impl<'a> Tracker<'a> {
                 } else {
                     Runtime::Declarative
                 };
-                // JS scene 仅是动作权威；窗口必须异步 update 同 child 后才能报告呈现成功。
+                // A JS scene is only action authority; the window must asynchronously update the same child before reporting presentation success.
                 let scene = crate::live_relay_http::scene_for_runtime(raw.get(), expected)
                     .map_err(Error::Scene)?;
                 self.snapshot = Some(Snapshot {

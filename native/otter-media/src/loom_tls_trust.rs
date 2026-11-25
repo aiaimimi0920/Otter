@@ -1,4 +1,4 @@
-//! 操作员 CA 的不可变、origin 隔离快照；不修改 OS 信任库，不信任清单自带证书。
+//! Immutable, origin-isolated operator-CA snapshots; do not modify the OS trust store or trust certificates supplied by the manifest.
 use rustls::{
     pki_types::{pem::PemObject, CertificateDer},
     RootCertStore,
@@ -70,20 +70,20 @@ impl Scoped {
     }
 }
 
-/// 默认 roots 由平台/发布配置 owner 提供；此模块只附加操作员 CA，不伪造公共根列表。
+/// Default roots come from the platform/release-configuration owner; this module only adds operator CAs and does not fabricate a public-root list.
 pub struct Trust {
     defaults: RootCertStore,
     scoped: Option<Scoped>,
 }
 impl Trust {
-    /// 编译期 Mozilla 公共根；不是 Windows 系统证书库。
+    /// Compile-time Mozilla public roots, not the Windows system certificate store.
     pub fn public_roots() -> RootCertStore {
         RootCertStore {
             roots: webpki_roots::TLS_SERVER_ROOTS.to_vec(),
         }
     }
 
-    /// 后台配置 owner 初始化一次后保留本快照；不在每帧/每次 service 中调用。
+    /// The background configuration owner initializes this snapshot once and retains it; do not call per frame/service invocation.
     pub fn load_default() -> Result<Self, Error> {
         Self::load(Self::public_roots())
     }
@@ -92,7 +92,7 @@ impl Trust {
         Self { defaults, scoped }
     }
 
-    /// 在后台初始化一次；持有快照直至显式重新创建，不在帧/网络热路径轮询文件。
+    /// Initialize once in the background; retain the snapshot until explicitly recreated, without polling files on frame/network hot paths.
     pub fn load(defaults: RootCertStore) -> Result<Self, Error> {
         Self::load_with(
             defaults,
@@ -107,7 +107,7 @@ impl Trust {
         )
     }
 
-    /// 规范 OTTER 变量存在（含空值）时优先，不能用旧 HOOK 值绕过错误配置。
+    /// The canonical OTTER variable takes precedence when present, including empty values; old HOOK values cannot bypass invalid configuration.
     pub fn load_with<R: Read>(
         defaults: RootCertStore,
         lookup: impl Fn(&str) -> Option<OsString>,
@@ -137,7 +137,7 @@ impl Trust {
         Ok(Self::new(defaults, Some(Scoped::from_pem(origin, &bytes)?)))
     }
 
-    /// 仅精确 HTTPS origin（规范 host/默认端口）获得附加 CA；HTTP 不继承它。
+    /// Only the exact HTTPS origin, with canonical host/default port, receives the additional CA; HTTP does not inherit it.
     pub fn roots_for(&self, origin: &str) -> Result<RootCertStore, Error> {
         let url = origin_url(origin)?;
         if !matches!(url.scheme(), "http" | "https") {

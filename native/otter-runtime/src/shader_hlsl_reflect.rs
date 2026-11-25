@@ -1,4 +1,4 @@
-//! 对真实 bytecode 复核活动绑定，拒绝源中自声明的额外资源/寄存器，保持两后端同义。
+//! Recheck active bindings against real bytecode, rejecting extra resources/registers declared by source and preserving both backends' semantics.
 use super::*;
 use windows::{
     core::Interface,

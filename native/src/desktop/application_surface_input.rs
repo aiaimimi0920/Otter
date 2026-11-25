@@ -1,4 +1,4 @@
-//! 按授权/owner/未结算证据同步输入资格，再消费 HWND 候选；消息回调不联网。
+//! Synchronize input eligibility by authorization/owner/unsettled evidence before consuming HWND candidates; message callbacks perform no networking.
 use super::*;
 impl Application {
     pub(in crate::desktop::application) fn surface_input_origin(

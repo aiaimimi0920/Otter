@@ -1,4 +1,4 @@
-//! WM_PAINT owner：模型绘制、无借用软件提交、身份复核与原有错误策略分阶段执行。
+//! WM_PAINT owner: stage model drawing, borrow-free software submission, identity revalidation, and existing error policy.
 use super::{paint_scope::PaintScope, State};
 use windows::{
     core::Result,
@@ -53,8 +53,8 @@ unsafe fn frame(hwnd: HWND, state: &State) -> Result<bool> {
     let allow_restore = || !state.group_hidden.get() && !super::super::tray::is_hidden(state);
     let mut removed_layered = false;
     if state.canvas.borrow().needs_gpu_style() {
-        // 此处受 render_active 保护且不持 Canvas 借用；样式写入可重入换源/销毁。
-        // 在新 GPU 可能关联前结束样式事务，attached failure 绝不能触发 layered 回滚。
+        // Protected by render_active with no Canvas borrow; style writes may reenter source replacement/destruction.
+        // End the style transaction before a new GPU might attach; attached failure must never trigger layered rollback.
         let style =
             super::super::software_surface::window_style::Transition::gpu_guarded(hwnd, &owns)?;
         removed_layered = style.removes_layered();
@@ -79,7 +79,7 @@ unsafe fn frame(hwnd: HWND, state: &State) -> Result<bool> {
     }
 }
 unsafe fn draw_frame(hwnd: HWND, state: &State) -> Result<bool> {
-    // draw 返回时 Canvas 和 resolved_display 的所有 RefCell 借用已经结束。
+    // All Canvas and resolved_display RefCell borrows have ended when draw returns.
     if let Some(pending) = draw(hwnd, state)? {
         if !super::software_present::submit(hwnd, state, pending)? {
             return Ok(false);
@@ -116,12 +116,12 @@ unsafe fn execute(hwnd: HWND, state: &State, validate: bool) -> LRESULT {
         }
     }
     if super::super::pin_window::preview::active(state) {
-        // 临时完整帧拥有可见输出；宿主只更新几何，交接时才重绘一次原 GPU/CPU。
+        // The temporary complete frame owns visible output; the host only updates geometry, repainting the original GPU/CPU once at handoff.
         drop(validate.then(|| PaintScope::begin(hwnd)));
         return LRESULT(0);
     }
     if state.render_active.replace(true) {
-        // 嵌套 paint 只消费当前失效区，不创建另一后端、不清错误、不提前确认像素。
+        // Nested paint only consumes the current invalid region, without creating another backend, clearing errors, or confirming pixels early.
         state.render_deferred.set(true);
         drop(validate.then(|| PaintScope::begin(hwnd)));
         return LRESULT(0);
@@ -129,7 +129,7 @@ unsafe fn execute(hwnd: HWND, state: &State, validate: bool) -> LRESULT {
     let _cycle = Cycle { state, hwnd };
     let scope = validate.then(|| PaintScope::begin(hwnd));
     if state.canvas.borrow().creation_blocked() || state.canvas.borrow().render_suspended() {
-        // 消费失效区但不清错误、不重建后端、不丢文档；没有自动解锁或定时重试。
+        // Consume the invalid region without clearing errors, rebuilding backends, or discarding the document; no automatic unlock or timed retry.
         drop(scope);
         return LRESULT(0);
     }

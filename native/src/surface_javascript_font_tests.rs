@@ -1,4 +1,4 @@
-//! 字体通用夹具通过真实 child/原生同步几何；实际产品门另绑定外部 EXE 摘要。
+//! Generic font fixtures through real children/native synchronous geometry; actual product gates separately bind external EXE digests.
 use super::*;
 use sha2::{Digest, Sha256};
 const SOURCE: &str = include_str!("../tests/fixtures/javascript-fonts.js");

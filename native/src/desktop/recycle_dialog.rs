@@ -1,4 +1,4 @@
-//! 回收站两字段原生模态；输入有界、严格整数，0 只关闭对应软限制。
+//! Native two-field recycle-bin modal: bounded input and strict integers; 0 disables only the corresponding soft limit.
 use crate::session_library::recycle::policy::Policy;
 use windows::{
     core::HSTRING,

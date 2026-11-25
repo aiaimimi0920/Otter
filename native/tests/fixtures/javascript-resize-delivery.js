@@ -1,4 +1,4 @@
-// 同批 unobserve 不撤回 active entry；disconnect 撤回后续批次，交付必须重新测量。
+// unobserve within the same batch does not revoke active entries; disconnect revokes subsequent batches, and delivery must remeasure.
 let parent, target, label, second, count = 0, log = [], latest;
 const check = (value, message) => { if (!value) throw Error(message); };
 NeuroSurface.define({

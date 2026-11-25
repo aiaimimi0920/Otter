@@ -1,4 +1,4 @@
-//! Invoke 的 COM 身份、单槽、权限和消费路径；不发送远端动作。
+//! Invoke COM identity, single-slot, permission, and consumption paths without remote actions.
 use super::*;
 use windows::{
     core::{IUnknown, Interface},
@@ -125,7 +125,7 @@ fn uia_invoke_queues_single_candidate_without_focus_or_direct_action() {
             invoke.Invoke().unwrap_err().code().0,
             UIA_E_ELEMENTNOTAVAILABLE as i32
         );
-        // COM 支持接口集合固定；失效只影响方法，不改变 QI 身份。
+        // The COM supported-interface set is fixed; invalidation affects methods, not QI identity.
         assert!(invoke
             .cast::<IRawElementProviderSimple>()
             .unwrap()

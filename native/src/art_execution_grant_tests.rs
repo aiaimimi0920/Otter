@@ -1,4 +1,4 @@
-//! 两实现独立验签、精确身份、源码完整性及不可逆失效；不冒充真实挂载/服务执行。
+//! Independent signature verification by two implementations, exact identity, source integrity, and irreversible invalidation; not actual mounting/service execution.
 use super::*;
 use ring::signature::{Ed25519KeyPair, KeyPair};
 use wire::{Source, PROTOCOL, SDK};

@@ -1,4 +1,4 @@
-//! 隐藏应用测试使用真实等待器；watchdog 只报告超时，不冒充生产唤醒或周期 poll。
+//! Hidden-application tests use real waiters; watchdogs report timeouts only and never impersonate production wakeups or periodic polling.
 use super::*;
 use std::{
     sync::mpsc,
@@ -86,7 +86,7 @@ impl Drop for Pump {
         let _ = self.cancel.send(());
         if let Some(watchdog) = self.watchdog.take() {
             let result = watchdog.join();
-            // 不读取或吞掉退出消息；正常收尾不能隐瞒超时或 watchdog 自身失败。
+            // Do not read or swallow exit messages; normal cleanup must not hide timeouts or watchdog failures.
             if !thread::panicking() {
                 assert!(
                     !result.expect("application watchdog panicked"),

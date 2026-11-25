@@ -1,4 +1,4 @@
-//! 写前落盘→丢失 accept 回复→重启→认证解绑；仅回环 TLS/linshi，不伪造 displayed。
+//! Write-ahead persistence -> lost accept reply -> restart -> authenticated unlink; loopback TLS/linshi only, without fabricated displayed.
 use super::*;
 use crate::{
     device_authorization_lease::Grant,
@@ -76,7 +76,7 @@ fn lost_reply_routed(offline: bool) {
             persisted["entries"][0]["expectedRevision"],
             body["expectedRevision"]
         );
-        // 服务端已可能绑定，但主动丢失所有 HTTP 回复；不能当作 accept 从未发生。
+        // Server association may exist, but all HTTP replies are deliberately lost; never treat accept as never having happened.
         drop(stream);
         (listener, tls)
     });
@@ -171,7 +171,7 @@ fn shared_store_allows_distinct_ready_owners_but_same_key_waits_until_owner_drop
     for index in 1..=2 {
         let mut wire = delivery::tests::invitation(&origin, false);
         wire["envelope"]["projectionId"] = format!("projection:{index:032x}").into();
-        // 第一项沿共用夹具的 111... ID，第二项是另一独立 projection key。
+        // The first item uses the shared fixture's 111... ID; the second is a separate projection key.
         if index == 1 {
             wire["envelope"] = serde_json::to_value(png::invitation(&origin).envelope()).unwrap();
         }
@@ -415,7 +415,7 @@ fn full_journal_blocks_accept_and_invalid_document_cannot_supply_a_store() {
     std::fs::write(directory.path(), b"broken").unwrap();
     assert!(Store::open(&directory.0).is_err());
     no_request(&listener);
-    // 构造合法满队列，不进行 128 次磁盘替换，也不放松 Record 的严格解码。
+    // Construct a valid full queue without 128 disk replacements or relaxing strict Record decoding.
     let seed_directory = Directory::new();
     let seed = Store::open(&seed_directory.0).unwrap();
     seed.begin(&png::invitation(&origin), "device-1").unwrap();

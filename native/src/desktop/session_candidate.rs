@@ -1,4 +1,4 @@
-//! 拥有原始会话和图像的后台候选；窗口元数据独立，不构造自引用 JSON 对象。
+//! Background candidates own original sessions and images; window metadata is separate, without self-referential JSON objects.
 use super::{
     session_asset_root::Root,
     session_prepare::{self, Images},
@@ -74,7 +74,7 @@ pub struct Origin {
     pub requested: std::path::PathBuf,
     pub recovery: Option<std::path::PathBuf>,
 }
-/// 图片与矢量/效果均已准备的阶段结果；仍不等于完整窗口恢复事务。
+/// A stage result with images and vectors/effects prepared; still not a complete window-restoration transaction.
 pub struct VectorCandidate {
     pub(in crate::desktop) projection_edits: Vec<(UnitId, super::projection_edit_workspace::Owner)>,
     pub candidate: Candidate,
@@ -82,7 +82,7 @@ pub struct VectorCandidate {
     pub(in crate::desktop) regions: Vec<(UnitId, super::hit_region::HitRegion)>,
 }
 impl VectorCandidate {
-    /// 在工作线程调用；DirectWrite 接口只在测量调用内持有，不随结果跨线程。
+    /// Call on a worker thread; DirectWrite interfaces live only within measurement calls and never cross threads with results.
     pub fn prepare(candidate: Candidate, cancel: &AtomicBool) -> Result<Self> {
         let document = candidate.decode_retained(cancel)?;
         Ok(
@@ -92,7 +92,7 @@ impl VectorCandidate {
     }
 }
 
-// 只含拥有型资源，允许各准备阶段在移交 Candidate 前共用借用解析。
+// Only owned resources, allowing preparation stages to share borrowed parsing before handing off Candidate.
 struct VectorResources {
     projection_edits: Vec<(UnitId, super::projection_edit_workspace::Owner)>,
     vectors: Vec<(UnitId, crate::session_vectors::Restored)>,
@@ -106,7 +106,7 @@ impl VectorResources {
         cancel: &AtomicBool,
     ) -> Result<Self> {
         let mut vectors = Candidate::prepare_vectors_from(placements, images, document, cancel)?;
-        // 矢量准备已校验密集批次等长、顺序和身份；后续装配不再按 ID 搜索。
+        // Vector preparation already verified dense-batch lengths, order, and identity; later assembly does not search by ID again.
         for (((window, (_, restored)), placement), images) in document
             .windows
             .iter()
@@ -128,7 +128,7 @@ impl VectorResources {
                 height: frame.h,
             };
             let layers = if let Some(geometry) = geometry {
-                // Canvas 将独立标注映射到可见框；不要装入已为效果计算投影到完整源框的纹理。
+                // Canvas maps independent annotations to the visible box; do not install textures already projected onto the full source box for effect calculation.
                 images.prepare_full_crop_layers(
                     geometry,
                     placement.crop.is_some_and(|crop| crop.rasterized_source),
@@ -248,7 +248,7 @@ impl Candidate {
     pub fn original_json(&self) -> &[u8] {
         &self.original
     }
-    /// 工作区与窗口已经接管资源后，移动原文留存未知字段，不复制整个会话。
+    /// After the workspace/windows take resources, move the original text to preserve unknown fields without copying the entire session.
     pub(in crate::desktop) fn into_original_json(self) -> crate::session_source::Source {
         self.original
     }
@@ -271,7 +271,7 @@ impl Candidate {
             cancel,
         )
     }
-    /// 基础矢量候选；任何不支持/损坏标注使整批失败，不修改正在显示的文档。
+    /// Basic vector candidates; any unsupported/corrupt annotation fails the whole batch without modifying the displayed document.
     fn prepare_vectors_from(
         placements: &[Placement],
         images: &[Images],
@@ -358,7 +358,7 @@ impl Candidate {
         check(cancel)?;
         Ok(restored)
     }
-    /// 图片 worker 完成后按当前目录解析；只返回局部候选，不改变自身或活动工作区。
+    /// After the image worker finishes, parse against the current catalog; return only local candidates without changing self or the active workspace.
     pub fn resolve_arts(
         &self,
         catalog: Option<&crate::loom_handshake::Handshake>,
@@ -382,7 +382,7 @@ impl Candidate {
         })
     }
 }
-/// 仅准备拓扑/窗口元数据/图片。参数、编辑历史等仍在 original 中，不能据此发布完整恢复。
+/// Prepare only topology/window metadata/images. Parameters, edit history, and more remain in original; this cannot authorize full restore publication.
 pub fn prepare(bytes: Vec<u8>, root: Option<&Root>, cancel: &AtomicBool) -> Result<Candidate> {
     prepare_source(&bytes.into(), root, cancel)
 }

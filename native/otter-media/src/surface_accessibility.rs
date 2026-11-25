@@ -1,4 +1,4 @@
-//! UIA 接入前的只读语义快照；不持有 HWND、Host、草稿或可执行动作。
+//! Read-only semantic snapshot before UIA integration; holds no HWND, Host, draft, or executable action.
 use crate::surface_scene::{Kind, Node, Scene};
 use std::sync::{
     atomic::{AtomicBool, AtomicU64, Ordering},
@@ -18,7 +18,7 @@ struct Snapshot {
     alive: AtomicBool,
     entries: Vec<Entry>,
 }
-/// 每次场景替换创建独立身份，避免同 ID 节点或计数器回绕复活旧引用。
+/// Create a distinct identity for each scene replacement so same-ID nodes or counter wraparound cannot revive old references.
 pub struct Owner(Arc<Snapshot>);
 #[derive(Clone)]
 pub struct Handle {
@@ -36,7 +36,7 @@ pub enum Direction {
 impl Owner {
     pub fn new(scene: &Scene) -> Self {
         static NEXT: AtomicU64 = AtomicU64::new(1);
-        // 绝不回绕复用 UIA runtime identity；耗尽 u64 时拒绝构造而非复活旧节点。
+        // Never wrap and reuse UIA runtime identities; reject construction at u64 exhaustion rather than revive old nodes.
         let identity = NEXT
             .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
             .expect("Surface accessibility identity exhausted");
@@ -109,8 +109,8 @@ impl Handle {
             index,
         })
     }
-    /// 只返回调用时有效的静态描述，不作为动作授权或当前编辑值证明。
-    /// 并发撤销允许已开始的读取完成；撤销后开始的读取一律失败。
+    /// Return only a static description valid at call time, not action authorization or proof of the current edit value.
+    /// Concurrent revocation allows reads already started to finish; all reads started after revocation fail.
     pub fn read(&self) -> Option<Entry> {
         let snapshot = self.snapshot.upgrade()?;
         if !snapshot.alive.load(Ordering::Acquire) {
@@ -129,7 +129,7 @@ fn collect(node: &Node, parent: Option<usize>, entries: &mut Vec<Entry>) {
             && node.props().get("disabled") == Some(&serde_json::Value::Bool(true)),
         id: node.id().to_owned(),
         kind: node.kind(),
-        // 旧 image 分支只传 alt，不展开通用 accessibleProps，也不接 disabled。
+        // The legacy image branch passes only alt, without expanding general accessibleProps or accepting disabled.
         label: if node.kind() == Kind::Image {
             node.props()
                 .get("alt")
@@ -148,7 +148,7 @@ fn collect(node: &Node, parent: Option<usize>, entries: &mut Vec<Entry>) {
         },
         parent,
     });
-    // Scene 已限制 2048 节点、32 层和 1 MiB；不复制 props、事件或输入值。
+    // Scene already limits inputs to 2048 nodes, 32 levels, and 1 MiB; do not copy props, events, or input values.
     for child in node.visible_children() {
         collect(child, Some(index), entries);
     }

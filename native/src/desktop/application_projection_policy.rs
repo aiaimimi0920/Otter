@@ -1,4 +1,4 @@
-//! 同意持久化归原 profile owner；成功 commit 才提升接受权，失败不改变已提交策略。
+//! The original profile owner persists consent; only successful commit elevates acceptance permission, while failure preserves committed policy.
 use super::super::*;
 use crate::{
     desktop::{
@@ -36,7 +36,7 @@ impl Owner {
         self.job.as_ref().and_then(job::Job::reap_deadline)
     }
     fn discard(&mut self, consent: &mut Consent) {
-        // 关闭视图不可发布暂存；保留原 worker 直至退出，不在消息泵同步等待。
+        // Closed views cannot publish staged data; retain the original worker until exit without synchronous message-pump waiting.
         if let Some(job) = self.job.as_ref() {
             job.stop();
         }
@@ -63,7 +63,7 @@ impl Owner {
         let stopped = self.job.take().unwrap().stopped();
         consent.finish_save();
         if stopped {
-            return; // 即使重新打开视图，也不能提交已取消的结果。
+            return; // Reopening the view must not permit committing a canceled result.
         }
         match result.and_then(file::Prepared::commit) {
             Ok((next, retained)) => {
@@ -143,7 +143,7 @@ impl Application {
                 owner.request(change, &mut view.consent, self.execution_wake.callback());
                 if matches!(change, Change::Paused(_) | Change::Selection(_)) && view.consent.saving
                 {
-                    // 立即清空旧菜单/凭证；网络仍由原单槽回收，失败或恢复也不复活旧快照。
+                    // Immediately clear old menus/credentials; the original slot still reaps networking, and neither failure nor recovery revives old snapshots.
                     view.projection.entries.clear();
                     view.projection.participation = None;
                 }

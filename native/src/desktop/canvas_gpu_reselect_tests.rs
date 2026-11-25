@@ -1,4 +1,4 @@
-//! 真实生产菜单/WM_PAINT 的 GPU 回升和跨后端选择；无输入注入，隐藏 HWND 保文档。
+//! GPU recovery and cross-backend selection through real production menus/WM_PAINT; no input injection, and hidden HWNDs preserve documents.
 use super::*;
 use crate::desktop::{context_menu, render_commands, State};
 use std::cell::Cell;
@@ -135,7 +135,7 @@ fn failed_gpu_candidate_without_association_can_return_to_cpu_but_attached_canno
             SendMessageW(hwnd, WM_PAINT, None, None);
             let stamp = state.canvas.borrow().editor.document_stamp();
             context_menu::execute(hwnd, state, render_commands::AUTOMATIC).unwrap();
-            // 复用类型化创建凭证注入；不伪造驱动故障或未知 DComp 的完成回执。
+            // Reuse typed creation-evidence injection; do not fabricate driver failures or completion receipts for unknown DComp state.
             crate::desktop::software_surface::window_style::Transition::gpu_guarded(hwnd, &|| {
                 state.lifetime.owns(hwnd)
             })
@@ -229,7 +229,7 @@ unsafe extern "system" fn procedure(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM
                 let _ = DestroyWindow(hwnd);
             } else {
                 state.group_hidden.set(true);
-                let _ = ShowWindow(hwnd, SW_HIDE); // 真实隐藏调用也不能被外层 SHOW 覆盖。
+                let _ = ShowWindow(hwnd, SW_HIDE); // An actual hide call must not be overridden by the outer SHOW.
             }
         }
     }
@@ -288,7 +288,7 @@ fn gpu_visibility_reentry_destroy_or_group_hide_never_restores_an_unwanted_windo
             if matches!(mode, 3 | 6) {
                 assert!(!state.lifetime.owns(hwnd));
                 assert!(state.canvas.borrow().target.is_none());
-                // SHOW 阶段发生在 GPU draw 后，销毁不能再清错误或再发一帧。
+                // SHOW occurs after GPU draw; destruction must not clear errors again or send another frame.
                 assert_eq!(
                     state.canvas.borrow().confirmed_paints,
                     count + u64::from(mode == 6)

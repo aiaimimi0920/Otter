@@ -1,4 +1,4 @@
-//! 实际pinned TLS发送独立数值oracle核过的局部编辑；不以模型或显式ack冒充Application保存。
+//! Actual pinned TLS sends local edits checked by an independent numeric oracle; models/explicit ACKs are not Application-save acceptance.
 use super::*;
 use crate::projection_edit::{
     fixture::*,
@@ -41,7 +41,7 @@ fn nonuniform_local_edit_uses_real_tls_original_journal_and_retains_changes_afte
             assert!(head
                 .to_ascii_lowercase()
                 .contains("authorization: device fixture-secret\r\n"));
-            // JSON数值表示可以为7或7.0；逐字段独立比较，不调用被测几何层。
+            // JSON numbers may appear as 7 or 7.0; compare fields independently without calling the geometry layer under test.
             assert_eq!(body["operation"], expected["operation"]);
             if index == 0 {
                 assert_eq!(body, expected);

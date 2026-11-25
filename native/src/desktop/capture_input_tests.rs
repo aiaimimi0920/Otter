@@ -1,4 +1,4 @@
-//! 普通截图显隐回归；只用自有窗口和合成像素，不采集桌面、不注入全局输入。
+//! Visibility regressions for ordinary capture; owned windows and synthetic pixels only, without desktop capture or global input injection.
 use super::*;
 
 unsafe fn window(visible: bool) -> crate::desktop::Window {

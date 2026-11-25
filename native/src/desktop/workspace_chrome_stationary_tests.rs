@@ -1,4 +1,4 @@
-//! 半透明钉图连续/间歇滚轮共用同一可见帧，空闲不得恢复第二份像素。
+//! Continuous/intermittent wheels on translucent pins share one visible frame; idle must not restore a second pixel copy.
 use super::*;
 use desktop::pin_window::{animation, preview, stationary};
 

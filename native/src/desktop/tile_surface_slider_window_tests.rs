@@ -1,4 +1,4 @@
-//! 实际自有离屏Tile HWND消息/捕获与绘制缓存；不SendInput、不移动鼠标、不激活用户窗口。
+//! Actual owned offscreen Tile-HWND messages/capture/render caches; no SendInput, mouse movement, or user-window activation.
 use super::*;
 use crate::tile_surface_slider::tests::scene;
 use crate::tile_surface_value::tests::fixture;
@@ -64,7 +64,7 @@ fn actual_messages_coalesce_drag_and_commit_then_release_capture_without_foregro
     assert!(matches!(*w.state.pressed.borrow(), Gesture::None));
     assert!(w.state.slider_preview.borrow().is_some());
     w.tick().unwrap();
-    assert!(w.state.slider_preview.borrow().is_some()); // 抬起后的待发/在途不得闪回旧权威值。
+    assert!(w.state.slider_preview.borrow().is_some()); // Pending/in-flight state after release must not flash back to old authoritative values.
     let mut s = f.shared.lock();
     assert_eq!(s.actions.pending.len(), 2);
     let first = s.actions.take(&f.state, Instant::now()).unwrap();
@@ -179,7 +179,7 @@ fn own_value_snapshot_preparation_gap_retains_capture_but_never_samples_blank_co
         frames: next.frame.arts.clone(),
         pixels: 0,
     }));
-    // Art先就绪，但Assets尚未发布完整帧；仍不能把这个准备阶段当成取消。
+    // Art is ready but Assets has not published a complete frame; this preparation stage still is not cancellation.
     w.tick().unwrap();
     assert!(matches!(&*w.state.pressed.borrow(), Gesture::Slider(_)));
     assert_eq!(unsafe { GetCapture() }, w.hwnd);
@@ -188,7 +188,7 @@ fn own_value_snapshot_preparation_gap_retains_capture_but_never_samples_blank_co
     }
     assert_eq!(f.shared.lock().actions.test_offered, count);
     f.shared.lock().frame = Some(next.frame.clone());
-    // 候选已发布但还没有真实paint；鼠标消息同样只保留手势、不借旧画面采样。
+    // Candidates are published but not actually painted; mouse messages likewise retain gestures without sampling old frames.
     unsafe {
         send(&w, WM_MOUSEMOVE, [1, 0]);
     }

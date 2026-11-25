@@ -1,4 +1,4 @@
-//! 选中模糊强度的精确输入；模态返回后核验原文档、选择和强度，再提交既有后台任务。
+//! Exact numeric entry for selected blur intensity; after the modal returns, verify original document, selection, and intensity before submitting the existing background task.
 use super::{canvas::Canvas, numeric_style::Kind, State};
 use crate::{blur_job::Request, editor::DocumentStamp};
 use windows::Win32::{Foundation::*, UI::WindowsAndMessaging::*};

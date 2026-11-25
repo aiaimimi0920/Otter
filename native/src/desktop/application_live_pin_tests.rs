@@ -1,4 +1,4 @@
-//! 同节点 Live 编辑、普通快捷键、标注保留与目录唯一性回归。
+//! Same-node Live editing, ordinary shortcuts, annotation retention, and catalog uniqueness regressions.
 use super::*;
 use windows::Win32::UI::Input::KeyboardAndMouse::*;
 
@@ -108,7 +108,7 @@ fn live_pin_ctrl_e_keeps_session_and_id_reuses_editor_and_roundtrips_annotations
         assert_eq!(doc.state.canvas.borrow().editor.elements().len(), 1);
         assert!(doc.state.canvas.borrow_mut().editor.undo());
         assert!(doc.state.canvas.borrow().editor.elements().is_empty());
-        // 文档关闭必须级联到采集 owner，不能留下仍在捕获的空 Live。
+        // Document closure must cascade to the capture owner, never leaving an empty Live session still capturing.
         DestroyWindow(doc.window.0).unwrap();
         app.collect_closed();
         assert!(!app.live_sessions[0].is_alive());

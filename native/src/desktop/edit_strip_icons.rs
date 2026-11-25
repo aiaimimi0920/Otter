@@ -1,4 +1,4 @@
-//! 原主干 SVG 资产的命令映射；图形数据由 export-native-edit-icons.cjs 原样导出。
+//! Command mapping for original baseline SVG assets; export-native-edit-icons.cjs exports graphic data unchanged.
 use neuro_mini_ui::Icon;
 macro_rules! svg {
     ($name:literal) => {

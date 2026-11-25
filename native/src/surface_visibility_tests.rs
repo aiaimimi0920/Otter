@@ -1,4 +1,4 @@
-//! visible=false 与 opacity=0 不同：隐藏子树不测量、不占位、不参与最终快照。
+//! visible=false differs from opacity=0: hidden subtrees are not measured, occupy no space, and do not enter final snapshots.
 use super::*;
 #[test]
 fn hidden_subtree_is_not_measured_and_does_not_add_flow_gap() {

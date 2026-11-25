@@ -1,4 +1,4 @@
-//! 将正式图输出绑定到公共参数候选；每次解析独立，不修改来源、手动参数或图集合。
+//! Bind formal graph outputs to public-parameter candidates; each resolution is independent and does not alter sources, manual parameters, or the graph collection.
 use super::*;
 use crate::graph_params::{Param, Params};
 impl<'a> Graph<'a> {
@@ -11,7 +11,7 @@ impl<'a> Graph<'a> {
         let Some(index) = self.index(id) else {
             return Params::new(&[], &[]);
         };
-        // 主干只有 Art 能力提供参数定义；普通钉图仍保留非内部手动项。
+        // In the baseline, only Art capabilities provide parameter definitions; ordinary pins still retain noninternal manual entries.
         let declared = if self.nodes[index].kind == Kind::Art {
             declared
         } else {
@@ -19,7 +19,7 @@ impl<'a> Graph<'a> {
         };
         let mut resolved = Params::new(declared, manual)?;
         for link in self.links.iter().filter(|link| &link.to_unit == id) {
-            // 每条边独立解析。无值/转换失败保留候选；后来的有效边覆盖较早的值。
+            // Resolve each edge independently. Missing values/conversion failures preserve the candidate; later valid edges override earlier values.
             resolved.apply_declared_linked(&link.to_port, || {
                 let port = if link.from_port.is_empty() {
                     "output"

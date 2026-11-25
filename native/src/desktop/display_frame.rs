@@ -1,4 +1,4 @@
-//! 解析后的显示快照独立于文档底图；像素共享，本地来源保留编辑信息而非丢弃标注。
+//! Resolved display snapshots are independent of document base images; pixels are shared and local sources preserve editing information rather than discarding annotations.
 use super::image::Image;
 use crate::{
     editor::{DocumentStamp, Editor},
@@ -17,7 +17,7 @@ pub(super) struct Frame {
     overlay: bool,
 }
 impl Frame {
-    /// 只有未合成的本地来源可追溯自然像素；正式输出与目标覆盖层不能借此换源。
+    /// Only uncomposited local sources can trace natural pixels; official outputs/target overlays cannot use this to replace sources.
     pub(in crate::desktop) fn has_local_source(&self) -> bool {
         !self.overlay && self.stamp.is_some()
     }
@@ -39,7 +39,7 @@ impl Frame {
                 })
             },
         )?;
-        // 先验证活动来源的文档版本/底图，再访问 retained。旧 resolved 不得复活自然源。
+        // Validate active-source document revision/base image before accessing retained; stale resolved snapshots must not revive natural sources.
         if !self.matches(unit, &image, Some(&canvas.editor), false) {
             return None;
         }

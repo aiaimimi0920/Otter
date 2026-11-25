@@ -1,4 +1,4 @@
-//! 只响应明确复制命令；分配/编码先完成，SetClipboardData 成功后所有权交给系统。
+//! Respond only to explicit copy commands; complete allocation/encoding first and transfer ownership to the system after SetClipboardData succeeds.
 use super::image::Image;
 #[path = "clipboard_text.rs"]
 mod text;
@@ -50,7 +50,7 @@ impl Drop for Locked {
 }
 
 struct Prepared {
-    // 按字段顺序先释放尚未交付的 HGLOBAL，再归还预算。
+    // Field order releases undelivered HGLOBALs before returning the budget.
     memory: Option<Memory>,
     _lease: crate::byte_budget::Lease,
 }
@@ -94,7 +94,7 @@ fn encode_dib(image: &Image, rect: RECT, bytes: &mut [u8]) -> Result<()> {
     bytes[..40].fill(0);
     bytes[..4].copy_from_slice(&40u32.to_le_bytes());
     bytes[4..8].copy_from_slice(&width.to_le_bytes());
-    // 顶向下 BI_RGB DIB，不通过反转整图产生另一份缓冲。
+    // Top-down BI_RGB DIB; do not create another buffer by flipping the whole image.
     bytes[8..12].copy_from_slice(&(-height).to_le_bytes());
     bytes[12..14].copy_from_slice(&1u16.to_le_bytes());
     bytes[14..16].copy_from_slice(&32u16.to_le_bytes());
@@ -138,7 +138,7 @@ unsafe fn publish(
     fill: impl FnOnce(&mut [u8]) -> Result<()>,
 ) -> Result<()> {
     let prepared = prepare(size, fill)?;
-    // 失败前不触碰系统剪贴板。EmptyClipboard 后的发布失败无法恢复第三方格式。
+    // Do not touch the system clipboard before preparation succeeds. Publication failure after EmptyClipboard cannot restore third-party formats.
     OpenClipboard(Some(owner))?;
     let _clipboard = Clipboard;
     EmptyClipboard()?;
@@ -148,8 +148,8 @@ pub(super) unsafe fn copy_image(owner: HWND, image: &Image, rect: RECT) -> Resul
     let size = dib_size(image, rect)?;
     publish(owner, 8, size, |bytes| encode_dib(image, rect, bytes)) // CF_DIB
 }
-/// 文件须由调用方先写完并保持有效；本层只转移剪贴板内存，不负责磁盘文件寿命。
-/// EmptyClipboard 后可能部分发布，失败也不能据此立即删除已准备的文件。
+/// Callers must finish writing files and keep them valid; this layer transfers only clipboard memory and does not own disk-file lifetime.
+/// Publication after EmptyClipboard may be partial; even on failure, prepared files cannot therefore be deleted immediately.
 pub(super) unsafe fn copy_formats_checked(
     owner: HWND,
     payload: &super::clipboard_bitmap::Payload,
@@ -163,7 +163,7 @@ pub(super) unsafe fn copy_formats_checked(
     }
     OpenClipboard(Some(owner))?;
     let clipboard = Clipboard;
-    // 持锁后再核对，覆盖缓存发布及 HGLOBAL 准备期间发生的外部更新。
+    // Recheck after locking to cover external changes during cache publication and HGLOBAL preparation.
     publish_checked(
         expected_sequence,
         || GetClipboardSequenceNumber(),
@@ -174,7 +174,7 @@ pub(super) unsafe fn copy_formats_checked(
             if let Some(files) = prepared.files {
                 files.transfer(15)?; // CF_HDROP
             }
-            // Windows 会在关闭时合成附加图片格式并推进序号，不能返回关闭前的回执。
+            // Windows synthesizes additional image formats and advances the sequence on close; do not return a pre-close receipt.
             clipboard.close()
         },
         || publication_receipt(owner),
@@ -184,7 +184,7 @@ pub(super) unsafe fn copy_formats_checked(
 unsafe fn publication_receipt(owner: HWND) -> Result<Option<u32>> {
     OpenClipboard(Some(owner))?;
     let _clipboard = Clipboard;
-    // 重新持锁后核对 owner，关闭与重开之间的第三方发布不能被绑定成自己的内容。
+    // Recheck owner after reacquiring the lock; third-party publication between close/reopen must not be bound as our content.
     if GetClipboardOwner()? != owner {
         return Ok(None);
     }
@@ -226,7 +226,7 @@ unsafe fn prepare_formats(
     } else {
         Some(super::paste_input::file::encode(files)?)
     };
-    // 所有 HGLOBAL 都先准备好；一次 Open/Empty 发布所有格式，不逐个清空。
+    // Prepare all HGLOBALs first; publish all formats in one Open/Empty cycle, without clearing individually.
     let png_memory = prepare(png.len(), |bytes| {
         bytes.copy_from_slice(png);
         Ok(())
@@ -288,7 +288,7 @@ mod tests {
                 },
                 || {
                     assert_eq!(sequence.get(), 44);
-                    // 最终回执可不同于 SetClipboardData 后、关闭前的值。
+                    // The final receipt may differ from the value after SetClipboardData but before close.
                     sequence.set(46);
                     Ok(Some(sequence.get()))
                 },
@@ -346,7 +346,7 @@ mod tests {
                 expected
             );
             drop(lock);
-            drop(all); // 所有尚未转移的 HGLOBAL 由 Prepared 回收。
+            drop(all); // Prepared reclaims every HGLOBAL not yet transferred.
             assert!(prepare_formats(&payload, &[]).unwrap().files.is_none());
             assert!(
                 prepare_formats(&payload, &[std::path::PathBuf::from("relative.png")]).is_err()

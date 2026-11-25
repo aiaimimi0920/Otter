@@ -1,4 +1,4 @@
-//! 仅按自启PID/类/owner定位窗口，经真实菜单和UIA公开模式操作，不发送全局键鼠。
+//! Find windows only by self-started PID/class/owner and use real menus and public UIA patterns, without global keyboard or mouse input.
 use super::fixture::Product;
 use std::time::{Duration, Instant};
 use windows::{
@@ -79,7 +79,7 @@ impl Drop for Apartment {
     }
 }
 pub struct Ui {
-    // 字段按声明顺序析构；接口先于 apartment，初始化失败也走同一 guard。
+    // Fields drop in declaration order: interfaces precede the apartment, and initialization failures use the same guard.
     pub client: IUIAutomation2,
     _apartment: Apartment,
 }
@@ -129,7 +129,7 @@ impl Ui {
             let _ = SetForegroundWindow(hwnd);
         }
         if unsafe { GetForegroundWindow() } != hwnd {
-            // 通过系统 HWND provider 请求焦点，仍核真实前台；不伪造 WM_ACTIVATE。
+            // Request focus through the system HWND provider and still verify actual foreground state; do not fabricate WM_ACTIVATE.
             let focused = unsafe {
                 self.client
                     .ElementFromHandle(hwnd)
@@ -141,7 +141,7 @@ impl Ui {
             );
         }
         if unsafe { GetForegroundWindow() } != hwnd {
-            // 父测试不能把给子PID的许可当成自己的许可；外部仅激活实际返回的自有窗口。
+            // The parent test cannot treat permission granted to a child PID as its own; external activation targets only the owned window actually returned.
             eprintln!(
                 "art-product-activate-needed: hwnd={} pid={}",
                 hwnd.0 as usize,
@@ -181,7 +181,7 @@ impl Ui {
                 let scroll = root
                     .GetCurrentPatternAs::<IUIAutomationScrollPattern>(UIA_ScrollPatternId)
                     .unwrap();
-                // 未就绪的短子菜单没有可滚动页面；返回缺项，由status关闭快照后再等owner。
+                // A short submenu that is not ready has no scrollable page; report the missing item so status can close the snapshot before waiting for the owner again.
                 if !scroll.CurrentVerticallyScrollable().unwrap().as_bool()
                     || scroll.CurrentVerticalScrollPercent().unwrap() >= 100.0
                 {
@@ -207,7 +207,7 @@ impl Ui {
         submenu: Option<&str>,
         name: &str,
     ) -> bool {
-        // 菜单是不可变快照，打开时可能尚未接纳后台完成；关闭后才允许owner继续消费。
+        // Menus are immutable snapshots and may open before background completion is admitted; only after closing may the owner resume consuming results.
         let deadline = Instant::now() + Duration::from_secs(15);
         for _ in 0..8 {
             let menu = self.menu(product, hwnd);
@@ -242,7 +242,7 @@ impl Ui {
         });
     }
     fn submenu(&self, product: &mut Product, hwnd: HWND, menu: HWND, name: &str) -> HWND {
-        // 原生菜单的子页通过ExpandCollapse而非Invoke展开；所有级联面板均归同一业务owner。
+        // Native submenu pages expand through ExpandCollapse, not Invoke; all cascading panels belong to the same business owner.
         unsafe {
             self.menu_row(menu, name)
                 .GetCurrentPatternAs::<IUIAutomationExpandCollapsePattern>(

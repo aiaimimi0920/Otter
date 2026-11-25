@@ -1,4 +1,4 @@
-//! 有界的确认决定 POST；不重试、不回退管理员接口、不把 HTTP 成功当成动作成功。
+//! Bounded confirmation-decision POST; no retries, administrator-interface fallback, or treating HTTP success as action success.
 use super::*;
 use crate::{
     surface_action_ack::Ack, surface_click_event::ClickEvent, surface_confirmation::Decision,
@@ -48,7 +48,7 @@ impl Control<'_> {
             .map_err(DecisionSubmitError::Request)?;
         let timeout = Duration::from_millis(decision.request().expires_at_ms() - now)
             .min(Duration::from_secs(10));
-        // 此后网络错误为结果未确认，不能自动再次提交或把批准改成拒绝重发。
+        // Network errors beyond this point leave the outcome unconfirmed; never resubmit automatically or change approval to rejection and resend.
         decision.begin_submission();
         self.send_limited(
             "POST",

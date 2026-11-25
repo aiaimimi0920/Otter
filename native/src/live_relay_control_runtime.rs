@@ -1,4 +1,4 @@
-//! 加入与持续控制轮询的后台 owner；UI 只接收一次就绪许可并等待线程完成句柄。
+//! Background owner for joining/continuous control polling; UI receives one ready permit and waits for thread-completion handles.
 use crate::{
     device_authorization_lease::Lease,
     device_session_client::Client,
@@ -53,7 +53,7 @@ pub struct Target {
     pub surface: String,
     pub attachment: String,
     pub expected: Option<Identity>,
-    /// 目录选择的身份约束；首次加入允许非成员，续签成员要求仍由 expected 决定。
+    /// Catalog-selected identity constraints; first join allows nonmembers, while expected still determines renewal membership requirements.
     pub selected: Option<Identity>,
 }
 pub(crate) struct LocalArtTarget {
@@ -126,7 +126,7 @@ pub struct Runtime {
     ready: mpsc::Receiver<Ready>,
     ready_event: Arc<OwnedHandle>,
     thread: Option<JoinHandle<Exit>>,
-    // 已完成但未回收的句柄/就绪对象仍占用容量。
+    // Completed/unreaped handles and ready objects still consume capacity.
     slot: Option<Slot>,
 }
 impl Runtime {
@@ -152,8 +152,8 @@ impl Runtime {
     pub(crate) fn test_disconnect_media(&self) -> bool {
         self.input.test_disconnect_media()
     }
-    /// consumer 在后台串行调用；必须处理全部业务事件，不能访问 HWND/UI 线程状态。
-    /// consumer 必须有界且不阻塞等待 UI/网络；取消无法强行抢占任意业务回调。
+    /// Call consumers serially in the background; they must handle all business events without accessing HWND/UI-thread state.
+    /// Consumers must be bounded without blocking on UI/network; cancellation cannot forcibly preempt arbitrary business callbacks.
     pub fn start(
         client: Client,
         lease: Lease,
@@ -168,7 +168,7 @@ impl Runtime {
             consume,
         )
     }
-    /// 前台只捕获 Config；CA 文件、DNS、HTTPS 均在同一受租约取消的后台线程执行。
+    /// Foreground only captures Config; CA files, DNS, and HTTPS run on one lease-cancellable background thread.
     pub fn start_configured(
         config: crate::device_authorization_config::Config,
         lease: Lease,
@@ -183,7 +183,7 @@ impl Runtime {
             consume,
         )
     }
-    /// 控制重放成功后在后台启动媒体；UI 不持有认证请求或网络线程。
+    /// Start media in the background after successful control replay; UI holds no authenticated requests or network threads.
     pub fn start_viewer(
         client: Client,
         lease: Lease,
@@ -300,7 +300,7 @@ impl Runtime {
         }
     }
     pub fn try_ready(&self) -> Option<Ready> {
-        // 先 reset 再读取单次通知；生产者稍后 set 最多造成一次空唤醒，不丢就绪。
+        // reset before reading the one-shot notification; a later producer set causes at most a spurious wake, never lost readiness.
         let _ = unsafe { ResetEvent(HANDLE(self.ready_event.as_raw_handle())) };
         let ready = self.ready.try_recv().ok()?;
         if self.lease.is_revoked() || ready.media.validate(&ready.permit).is_err() {
@@ -326,7 +326,7 @@ impl Runtime {
 impl Drop for Runtime {
     fn drop(&mut self) {
         self.request_stop();
-        // 正常应用关闭须先等待完成句柄并回收；此处只作防孤儿线程的阻塞兜底。
+        // Normal app shutdown must first wait on completion handles and reclaim; this is only a blocking orphan-thread fallback.
         if let Some(thread) = self.thread.take() {
             let _ = thread.join();
         }
@@ -374,7 +374,7 @@ fn run(
     let (sender, notify) = notification;
     let mut sender = Some(sender);
     let completion = completion::Completion::new(lease.clone());
-    // 媒体 Runtime 在控制线程析构，负责停止/回收其网络与 codec 线程，不阻塞 UI。
+    // Media Runtime is destroyed on the control thread, stopping/reaping its network/codec threads without blocking UI.
     let mut media_runtime: Option<crate::live_relay_viewer_runtime::Runtime> = None;
     let mut budget = budget;
     let exit = loop {
@@ -453,7 +453,7 @@ fn run(
             }
             let _ = unsafe { SetEvent(HANDLE(notify.as_raw_handle())) };
         }
-        // 服务端即使立即返回空批次也不能导致客户端忙循环；取消直接唤醒等待。
+        // Immediate empty server batches must not cause busy loops; cancellation wakes the wait directly.
         if before == owner.after()
             && !lease.wait(Duration::from_millis(if outgoing.active() {
                 10
@@ -464,7 +464,7 @@ fn run(
             break completion.exit().unwrap_or(Exit::Stopped);
         }
     };
-    // 媒体线程完成回收并发布结果后，再确定控制线程的终态。
+    // Determine control-thread terminal state only after media threads are reaped and results published.
     drop(media_runtime);
     completion.device_revocation_or(exit)
 }

@@ -79,7 +79,7 @@ fn process_identity_mismatch_and_destroyed_targets_are_rejected() {
     let other = Window::new();
     let mut wrong = record.clone();
     wrong.hwnd = other.0 .0 as u64;
-    // 同一存活 PID/TID 下的另一个 HWND 不能靠创建时间区分；这不是传输授权校验。
+    // Creation time cannot distinguish another HWND under the same live PID/TID; this is not transport-authorization validation.
     assert!(Binding::bind(&wrong).is_ok());
     let bound = Binding::bind(&record).unwrap();
     drop(window);

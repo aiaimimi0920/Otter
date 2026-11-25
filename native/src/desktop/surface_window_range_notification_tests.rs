@@ -1,4 +1,4 @@
-//! 数值通知合并、忙时重排、替换与关闭，不依赖系统 listener。
+//! Value-notification coalescing, busy rescheduling, replacement, and closing, independent of system listeners.
 use super::*;
 use windows::Win32::UI::Accessibility::*;
 fn mount() -> SurfaceWindow {

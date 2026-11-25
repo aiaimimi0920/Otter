@@ -159,7 +159,7 @@ fn traversal_future_version_and_clock_rollback_preserve_targets() {
             .unwrap()
             .commit(&cancel)
             .unwrap();
-        // 只在全部创建后改时间，避免下一次 stage 自动执行本测试尚未观察的清理。
+        // Change timestamps only after all creation, avoiding automatic cleanup by the next stage before this test observes it.
     }
     for name in ["traversal.png", "version.png"] {
         age(&directory, name);

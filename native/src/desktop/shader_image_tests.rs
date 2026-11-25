@@ -1,4 +1,4 @@
-//! 完整浏览器 alpha 矩阵、真实 WIC PNG 与失败原子性；不访问用户桌面或文件。
+//! Complete browser alpha matrix, actual WIC PNG, and failure atomicity; no user desktop or file access.
 use super::*;
 use crate::byte_budget::Budget;
 use sha2::{Digest, Sha256};
@@ -104,7 +104,7 @@ fn full_alpha_matrix_matches_actual_browser_png_not_integer_unpremultiplication(
             );
         }
     }
-    // 摘要来自当前旧 ShaderRenderer → canvas.toBlob PNG，由独立 Pillow 解码，不是自算 oracle。
+    // The digest comes from the current legacy ShaderRenderer -> canvas.toBlob PNG, independently decoded with Pillow, not a self-computed oracle.
     assert_eq!(hash(&rgba), STRAIGHT_SHA256);
     assert_eq!(&rgba[(6 * 256 + 1) * 4..][..1], &[42]);
     assert_eq!(&rgba[(10 * 256 + 3) * 4..][..1], &[77]);

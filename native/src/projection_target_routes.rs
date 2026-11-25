@@ -1,4 +1,4 @@
-//! 离线目录项绑定其 peer 与远端设备；仅保存经校验的广告，不获得连接或发送权限。
+//! Offline catalog entries bind their peer/remote device; retain only validated advertisements without connection/send permissions.
 use super::{envelope, name_valid, Error};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};

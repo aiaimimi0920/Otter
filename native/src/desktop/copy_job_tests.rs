@@ -1,4 +1,4 @@
-//! 只验证后台编码及发布准入，不读写系统剪贴板、不生成磁盘文件。
+//! Verify only background encoding/publication admission; no system-clipboard I/O or disk files.
 use super::*;
 use crate::{desktop::image::Image, editor::Tool, viewport::Point};
 

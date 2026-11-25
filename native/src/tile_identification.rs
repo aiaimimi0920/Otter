@@ -1,4 +1,4 @@
-//! 一个presenter的临时识别owner；单调期限、不重开旧请求，报告由原串行控制线程消费一次。
+//! Temporary identification owner for one presenter; monotonic deadlines, no reopening old requests, and reports consumed once by the original serial control thread.
 use crate::tile_wire::{Endpoint, Identification as Command};
 use std::{
     sync::Arc,
@@ -39,7 +39,7 @@ pub(crate) struct Identification {
     active: Option<Arc<Marker>>,
     pending: Option<Report>,
     applied_attempted: bool,
-    // 本地隐藏并不允许立即复用旧场景；必须等新鲜普通控制周期重开呈现。
+    // Local hiding does not permit immediate old-scene reuse; wait for a fresh normal control cycle before reopening presentation.
     blocked: bool,
     ordinary_observed: bool,
 }
@@ -52,7 +52,7 @@ impl Identification {
         self.pending = None;
         self.blocked = false;
         self.ordinary_observed = false;
-        // 保留最后身份，即使旧GET迟到也不能重开已取消/过期的同一请求。
+        // Retain the last identity so even late old GETs cannot reopen the same canceled/expired request.
     }
     pub fn expire(&mut self, now: Instant) {
         if self.active.as_ref().is_some_and(|m| now >= m.until) {
@@ -90,7 +90,7 @@ impl Identification {
         let until = sent + Duration::from_millis(command.remaining_ms);
         if self.last.as_ref() == Some(&identity) {
             if let Some(marker) = &mut self.active {
-                // 保稳定Arc身份，让旧paint不能确认缩短期限后已退休的marker。
+                // Preserve stable Arc identity so old paints cannot confirm markers retired by shortened deadlines.
                 if until < marker.until {
                     *marker = Arc::new(Marker {
                         identity,
@@ -145,7 +145,7 @@ impl Identification {
         let Some(marker) = self.active.take() else {
             return false;
         };
-        // 同槽优先减权；若applied已被控制线程取走，dismissed自然排在它后面，绝不反序。
+        // Reduce authority first in the same slot; if the control thread already took applied, dismissed naturally follows it, never in reverse order.
         self.pending = Some(Report {
             identity: marker.identity.clone(),
             outcome: Outcome::Dismissed,

@@ -7,14 +7,14 @@
   #content { width: 1200px; height: 1800px; background: linear-gradient(#faa, #afa); }
   #below { position: absolute; top: 1000px; }
 </style>
-<!-- 普通无角色 overflow 容器也必须接收滚动，不能依赖 tabindex/ARIA 才进入 ControlView。 -->
+<!-- Ordinary role-free overflow containers must also receive scrolling; admission to ControlView must not depend on tabindex/ARIA. -->
 <div id="nested">
   <div id="content">Nested scroll test</div>
 </div>
 <div id="below"></div>
 <script>
-  // 视口外的可访问控件曾耗尽 256 节点预算，首次滚动后 Controller 永久 Disabled。
-  // count=0 保留简单页对照；350 和 1000 覆盖长页面，不接触外部站点或用户数据。
+  // Offscreen accessible controls previously exhausted the 256-node budget, permanently disabling Controller after the first scroll.
+  // count=0 retains a simple-page control; 350 and 1000 cover long pages without accessing external sites or user data.
   const count = Math.min(1000, Math.max(0, Number(new URL(location).searchParams.get('count') ?? 350)));
   for (let i = 0; i < count; i++) {
     const button = document.createElement('button');

@@ -1,4 +1,4 @@
-//! 每媒体连接的同步视频 owner；调用线程须为 codec worker，不在 UI 回调执行。
+//! Synchronous video owner per media connection; the calling thread must be a codec worker, not a UI callback.
 use crate::{
     live_mf::{DecoderOwner, VideoDecoder},
     live_relay_frame::Codec,
@@ -38,8 +38,8 @@ impl Receiver {
         self.chain = Chain::default();
         self.closed = true;
     }
-    /// authorized_epoch 必须来自会话授权 owner，而非这个 frame。
-    /// 此入口不授予权限；提交结果/发送控制前，调用方还须同锁复核授权及关闭状态。
+    /// authorized_epoch must come from the session-authorization owner, not this frame.
+    /// This entry point grants no permission; before committing results/sending control, callers must recheck authorization and closed state under the same lock.
     pub fn receive(
         &mut self,
         frame: Frame,
@@ -112,7 +112,7 @@ impl Receiver {
                 if (descriptor.width, descriptor.height) != (output.width, output.height) {
                     return self.fail(metadata.epoch, Failure::OutputIdentity, stop);
                 }
-                // 保留原 capture/encode/epoch 身份；输出表示是 raw，而不是压缩网络字节。
+                // Preserve the original capture/encode/epoch identity; the output representation is raw, not compressed network bytes.
                 descriptor.codec = Codec::RawBgra;
                 match PixelFrame::new(descriptor, output.pixels) {
                     Ok(frame) => Ok(Outcome::Decoded(frame)),

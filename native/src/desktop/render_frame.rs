@@ -1,4 +1,4 @@
-//! D2D 帧和局部绘制状态的单一 owner；失败或 panic 同样结束绘制并恢复 clip/transform。
+//! One owner for D2D frames and local drawing state; failures/panics still end drawing and restore clip/transform.
 use windows::{
     core::Result,
     Win32::Graphics::Direct2D::{Common::*, *},
@@ -7,7 +7,7 @@ use windows::{
 pub(super) fn draw(target: &ID2D1RenderTarget, paint: impl FnOnce() -> Result<()>) -> Result<()> {
     draw_observed(target, paint, || {})
 }
-/// 只报告 EndDraw 失败；业务闭包错误保持原优先级，不误标记 GPU 失效。
+/// Report only EndDraw failures; business-closure errors retain precedence without falsely marking the GPU invalid.
 pub(super) fn draw_observed(
     target: &ID2D1RenderTarget,
     paint: impl FnOnce() -> Result<()>,
@@ -25,7 +25,7 @@ pub(super) fn draw_observed(
     if ended.is_err() {
         failed();
     }
-    // 保持原绘制错误优先级；即使绘制返回 Err，仍须调用 EndDraw。
+    // Preserve original drawing-error precedence; call EndDraw even if drawing returns Err.
     painted?;
     ended
 }

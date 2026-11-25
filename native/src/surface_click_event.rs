@@ -1,4 +1,4 @@
-//! 声明式输入到有界 wire 事件；编码不是授权，发送 owner 仍须复核租约和当前版本。
+//! Declarative input to bounded wire events; encoding is not authorization, and the sending owner must recheck leases and current revision.
 use crate::{surface_click_route::ClickAction, surface_live_binding::Binding};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use ring::rand::{SecureRandom, SystemRandom};
@@ -20,14 +20,14 @@ pub enum Error {
     Random,
     Encoding,
 }
-/// 不提供反序列化或可变 body；单次事件重用原字节/ID，不在重试时生成新动作身份。
+/// No deserialization or mutable body; a single event reuses its original bytes/ID instead of generating a new action identity on retry.
 pub struct ClickEvent {
     id: String,
     bytes: Vec<u8>,
     binding: Binding,
     revision: u64,
     attempted: bool,
-    // 仅父侧 JS 权威校验后标记，不进入 wire，也不能由远端响应升级默认 runtime。
+    // Set only after parent-side JS authority validation; not part of the wire, and remote responses cannot upgrade the default runtime.
     javascript: bool,
 }
 impl ClickEvent {
@@ -74,7 +74,7 @@ struct Wire<'a, P> {
     modifiers: Option<Modifiers>,
     payload: P,
 }
-/// 仅用于纯wire编码，不表示普通Surface挂载或Wall输入授权。
+/// For pure wire encoding only; does not authorize ordinary Surface mounts or Wall input.
 #[derive(Clone, Copy)]
 pub struct Identity<'a> {
     pub instance: &'a str,
@@ -95,7 +95,7 @@ impl ClickAction<'_> {
         self.node.props().get("includeSurfaceValues") == Some(&serde_json::Value::Bool(true))
     }
 
-    /// 无表单调用者保持原 payload；生产宿主使用 encode_with_values。
+    /// Callers without forms retain the original payload; production hosts use encode_with_values.
     pub fn encode(
         &self,
         binding: &Binding,
@@ -151,7 +151,7 @@ impl ClickAction<'_> {
         )
     }
 }
-/// 借用配置与表单值直接写最终有界输出，不先物化第二份 JSON 树。
+/// Borrow configuration and form values to write the final bounded output directly, without first materializing a second JSON tree.
 struct ClickPayload<'a> {
     payload: &'a serde_json::Value,
     values: Option<&'a serde_json::Map<String, serde_json::Value>>,
@@ -164,7 +164,7 @@ impl Serialize for ClickPayload<'_> {
         let mut map = serializer.serialize_map(None)?;
         let mut inserted = false;
         if let Some(object) = self.payload.as_object() {
-            // 当前 serde_json Map 按键排序；在原位置替换保留键，禁止输出重复键。
+            // The current serde_json Map sorts by key; replace reserved keys in place and prohibit duplicate output keys.
             for (key, value) in object {
                 if !inserted && key.as_str() >= "surfaceValues" {
                     map.serialize_entry("surfaceValues", values)?;
@@ -183,7 +183,7 @@ impl Serialize for ClickPayload<'_> {
         map.end()
     }
 }
-/// 各输入类型在其 owner 校验后提供声明，共用不可变 ID/字节及同一个序列化预算。
+/// Each input type supplies declarations after owner validation, sharing immutable IDs/bytes and one serialization budget.
 pub(crate) struct Declaration<'a, P = &'a serde_json::Value> {
     pub node_id: &'a str,
     pub event: &'a str,
@@ -252,7 +252,7 @@ impl Write for Bounded {
         }
         let needed = self.0.len() + bytes.len();
         if needed > self.0.capacity() {
-            // 有界几何增长，避免 serializer 的小块写入触发逐字节重分配。
+            // Bounded geometric growth prevents small serializer writes from triggering byte-by-byte reallocations.
             let capacity = needed
                 .max(self.0.capacity().saturating_mul(2))
                 .clamp(512, MAX_EVENT_BYTES);

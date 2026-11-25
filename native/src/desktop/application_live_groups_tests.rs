@@ -1,4 +1,4 @@
-//! Live 系统菜单到应用分组事务；隐藏/离屏真实 HWND，不读取用户桌面或注册用户热键。
+//! Live system menu to application group transaction; real hidden/offscreen HWNDs, without reading the user's desktop or registering user hotkeys.
 use super::*;
 use crate::desktop::composition::live::window::groups::{JOIN, LEAVE};
 use crate::{
@@ -73,7 +73,7 @@ fn live_group_visibility_lock_and_delete_follow_shared_group_state() {
         let group = group(&mut app);
         command(hwnd, JOIN);
         app.pending_groups(false).unwrap();
-        // 离屏但真实可见标志；恢复不抢焦点，不在用户桌面展示测试内容。
+        // Offscreen with real visibility flags; restoration takes no focus and shows no test content on the user's desktop.
         SetWindowPos(
             hwnd,
             None,

@@ -1,4 +1,4 @@
-//! 直线/箭头端点与折线顶点编辑；旋转中心变化不带动其他点。
+//! Line/arrow endpoint and polyline-vertex editing; rotation-center changes do not move other points.
 use super::*;
 
 fn valid(stroke: &Stroke, handle: usize) -> bool {

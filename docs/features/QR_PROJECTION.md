@@ -1,89 +1,128 @@
-# 图片投射：设备、二维码与链接
+# Image projection: devices, QR codes and links
 
-## 当前范围
+## Current scope
 
-Otter 与 Loom 同时升级。二维码／链接分享只生成和导入 `neuro.qr-projection.v2`
-JSON 与 `hook://projection/v2#` 链接，不做旧邀请导入、版本协商或协议降级。
-设备／设备组定向投送是另一条仍在用的业务链：使用 `neuro.qr-projection.v1` 签名
-信封，由 Loom 收件箱投送；它不是二维码／链接分享失败时的回退。
+Upgrade Otter and Loom together. There are three independent entry points. The selected workflow
+determines the protocol; failure does not trigger a protocol downgrade:
 
-Otter 使用当前已连接并获得 Device 授权的 Loom，可以是本机或局域网服务。
-局域网分享面向该 Loom 及已互联 Loom 的设备，不要求中心账号登录；公网分享需要
-Loom 配置中心服务并登录账号，接收方可以使用不同账号，通过 Otter／Loom 打开邀请。
-Platform 负责公网账号授权、邀请与关联协调；跨 Loom 图像复用既有 Iroh 通道。
-Otter 保留画布、导出、接收窗口及工作区检查点的所有权，不提供独立浏览器查看端。
-
-## 二维码或链接分享
-
-1. 发送端选择普通贴图或具有正式图像的 Art，打开 Ctrl+E → 贴图设置 → 投射，
-   选择二维码或链接导出。面板浮在钉图上方并跟随移动，可切换局域网／公网；未配置公网时明确显示不可用。
-2. 同一面板内部切换二维码与单行链接，两种视图复用当前范围的邀请及同一窗口。
-   面板可超出钉图边界，尺寸受显示器工作区约束；关闭面板不停止已经保存的关联。
-3. 接收端从贴图设置的被投射入口，或托盘的“接收投射”入口打开导入面板。
-   在“二维码／链接”之间切换，选择 PNG 或粘贴链接。解析和验签只在本地进行。
-4. 点击“导入”才通过接收端当前已授权的 Loom 检查和接受邀请。成功后新增关联贴图，
-   不覆盖入口贴图。接收内容进入真实工作区检查点后才显示。
-5. 发送端修改图像或 Art 产生新的正式图像后，接收端持续更新。关闭分享面板不停止同步。
-   双端重开时恢复同一 v2 关联。接收端的位置、窗口尺寸和本地布局不随发送端移动。
-6. 从关联贴图打开导出面板，点击“解除关联”。远端确认并保存停止状态后，关联停止同步，
-   接收端保留最后图像。网络失败保留当前内容并报告失败，不伪称已经解绑。
-
-邀请有效期由 Loom 和中心决定，当前为五分钟；接受后的关联不因邀请过期而停止。
-一个邀请只绑定一个接收设备和一个接收 Unit。过期邀请不重新签名伪装成原关联。
-
-## 取消、暂停与重开
-
-关闭导入面板会取消未提交任务，并阻止迟到结果显示。已经保存的内容保留，
-取消不能回滚已经在远端完成的接受。写前记录保留原邀请和接收 Unit，供下次核对。
-
-暂停本机接收会使当前参与凭证失效；暂停再恢复不会复活之前在途的结果。
-拒绝新的接收与恢复已接受的关联分别处理：前者不阻止已接受关联的重开恢复，
-暂停仍同时约束两者。检查点期间取消、切换来源或改变接收许可也不能迟到显示。
-
-恢复先读取 Loom 的权威状态，仅在确认原接受存在后取回内容；未知接受不会自动重放。
-同一工作区中的多个恢复意图分别处理。解除后的写前记录只有在停止状态真正保存后才退休。
-保存冲突、写盘失败或工作区变化不会取得“已保存”回执。
-
-## 内容与边界
-
-普通贴图通过现有导出链合成 PNG，Art 使用正式图像；接收端无需执行相同 Art。
-此分享链目前传输持续更新的 PNG。它不承载跨 Loom 的 Live 媒体，不能用 PNG
-轮询替代。定向设备／设备组投送和双向标注是独立的业务链；本流程不传输可独立编辑的标注对象。
-
-公网二维码中的中心地址必须与 Loom 已登录的服务匹配，但不要求发送和接收账号相同。
-Otter 的网络目标固定为当前已认证的 Loom。局域网链接携带 `sourceLoomId`，Loom 仅将
-它路由到自身或已固定信任的互联 Loom；不访问链接中的任意 origin。同一 Loom 的地址别名
-经认证导入响应核对后可使用，原签名邀请保持不变，持久化记录保存实际认证传输地址。
-二维码不能切换连接、获得设备权限或将接收权限升级为发送端权限。
-账号凭据与 Loom 私钥不进入 Otter、二维码或工作区关联记录。
-Loom 退出或账号失效时保留最后图像，后续同步仍须重新获得当前账号授权。
-
-PNG 最多 4 MiB，宽高各最多 8192，总像素最多 16,777,216。
-二维码图片最多 4 MiB、边长最多 4096，解码缩放与单 worker 保持有界。
-二维码常规定位失败时至多再做一次纯码提取，仍须通过同一份 v2 验签。
-本机请求和响应最多 6 MiB；Loom 关联存储最多 64 条、八个活动来源，PNG 合计最多 48 MiB。
-
-## 定向投射与接收策略
-
-1. 先按 [Loom 连接](LOOM_CONNECTION.md)完成连接和设备批准。
-2. 选中源钉图，按 `Ctrl+E` 打开工具栏，在钉图设置的“投射”中勾选设备、组或用户，再点“确认”。
-   组和用户在确认时解析为固定的已授权设备集合，不会因刷新扩大本次任务。取消选择时也须确认。
-3. 接收端必须保持连接、具备设备权限且参与投射收件箱；实际写入工作区并确认接收后，发送方才显示“已接收”。
-   关闭设置面板不撤销已有投射。
-
-| 接收端策略 | 新投送与已有投射 |
+| Entry point | Current protocol and authorization scope |
 | --- | --- |
-| 接收（默认）、自动 | 自动接受符合授权的新投送，不再弹出第二次审批。 |
-| 拒绝 | 不接受新的投送；不撤销已接受的关联。 |
-| 暂停 | 停止接收参与和更新；切换到其他策略解除暂停，不复活旧的在途结果。 |
+| LAN QR/link (the panel's default scope) | `otter://projection/lan#` wraps `sourceLoomId` and a signed `neuro.qr-projection.v1` envelope. Targets the current or an interconnected Loom; no central account is required. |
+| Public-network account QR/link | `neuro.qr-projection.v2` JSON or a `hook://projection/v2#` link. Loom must have a configured central service and a signed-in account; the receiver may use a different account. |
+| Directed delivery to devices, device groups or users | Uses `neuro.qr-projection.v1` envelopes and the Loom inbox; not a fallback for failed QR/link sharing. |
 
-“接收”不是成功保证，也不绕过 Loom 的授权、目录和内容校验。接收配置损坏时不放行新投送。
-刷新期间可以继续看到上一份目录，但派发不使用过期目录。收件箱刷新独立于旧投射清理；有界
-重试只处理明确可重试的同 Loom 错误，不自动重放结果未知的写入或跨 Loom 写入。
+All entry points use the currently connected, Device-authorized Loom, either local or on the LAN.
+Platform owns public-network account authorization, invitations and association coordination.
+Cross-Loom images reuse the existing Iroh channel. Otter retains ownership of the canvas, export,
+receiver windows and workspace checkpoints; it does not provide a standalone browser viewer.
 
-- **看不到目标：** 先在两端连接同一可达的 Loom 排查，确认接收设备已批准、没有暂停且在服务端
-  参与投射收件箱，再在发送端刷新。互联 Loom 还需核对连接和目录授权。不要把缓存目录当作在线状态。
-- **一直等待：** 确认已经点击“确认”，核对接收端的新投送策略、收件箱以及工作区写入结果。
-  有待处理条目不表示已经显示，关闭面板也不是取消。
+## Sharing by QR code or link
 
-参见[双机验收及诊断](../development/JOINT_TESTING.md)和[账号 PNG 联测](../development/JOINT_TESTING.md#账号-png-联测)。
+1. On the sender, select an ordinary pin or an Art with a committed image. Open Ctrl+E → Pin Settings
+   → Projection and choose QR or link export. The panel floats above and moves with the pin.
+   Switch between LAN and public-network scopes; unconfigured public-network sharing is explicitly unavailable.
+2. Switch between QR and single-line link views within the same panel. Both reuse the current
+   scope's invitation and window. The panel may extend beyond the pin, but is constrained by
+   the monitor work area. Closing it does not stop saved associations.
+3. On the receiver, open the import panel from the incoming-projection entry in pin settings
+   or Receive Projection in the tray. Select the invitation's LAN/public-network scope, then
+   choose a QR PNG or paste a link. Both undergo bounded local parsing. Public v2 signatures
+   are verified locally with the envelope's public key, which does not itself establish the
+   account-to-key binding. Authenticated Loom verifies LAN v1 signature authenticity.
+4. Only clicking Import checks and accepts the invitation through the receiver's currently
+   authorized Loom. Success creates a new associated pin without overwriting the entry pin.
+   Received content is displayed only after entering an actual workspace checkpoint.
+5. The receiver continues updating when the sender changes its image or Art produces a new
+   committed image. Closing the sharing panel does not stop synchronization. Each sharing path
+   persists its own associations for reopening. Receiver position, window size and local layout
+   do not follow sender movement.
+6. On the sender, choose Unlink in the sharing panel for the corresponding scope. Receivers
+   can leave through incoming-projection settings. After remote confirmation and persistence
+   of the stopped state, synchronization stops and the receiver retains the final image.
+   Network failures preserve current content and report failure rather than falsely claiming unlinking succeeded.
+
+Otter issues LAN v1 invitations valid for 4 minutes 30 seconds. Public v2 invitations last at most
+5 minutes and cannot outlive the current account session. Accepted associations do not stop when
+the invitation expires. Each invitation binds one receiving device and one receiving Unit.
+Expired invitations are not re-signed to masquerade as the original association.
+
+## Cancellation, pausing and reopening
+
+Closing the import panel cancels uncommitted tasks and prevents late results from being displayed.
+Saved content remains; cancellation cannot roll back acceptance already completed remotely.
+The write-ahead record retains the original invitation and receiving Unit for later reconciliation.
+
+Pausing local reception invalidates current participation credentials; resuming does not revive
+previously in-flight results. Rejecting new deliveries is separate from restoring accepted
+associations: rejection does not prevent reopening accepted associations, while pausing still
+constrains both. Cancellation, source changes or receiving-permission changes during a checkpoint
+must also prevent late presentation.
+
+Recovery first reads Loom's authoritative state and fetches content only after confirming the original
+acceptance exists; unknown acceptance is not automatically replayed. Multiple recovery intents within
+one workspace are handled separately. After unlinking, a write-ahead record is retired only when the
+stopped state has actually been saved. Save conflicts, disk-write failures and workspace changes
+do not produce a Saved receipt.
+
+## Content and boundaries
+
+Ordinary pins produce composited PNGs through the existing export path; Art uses its committed image.
+Receivers need not execute the same Art. This sharing path currently transfers continuously updated
+PNGs, not cross-Loom Live media; PNG polling cannot substitute for that media path. Directed
+device/group delivery and bidirectional annotation are separate workflows. This flow does not
+transfer independently editable annotation objects.
+
+The central-service address in a public-network QR code must match Loom's signed-in service,
+but sender and receiver accounts need not match. Otter's network target remains the currently
+authenticated Loom. LAN links carry `sourceLoomId`; Loom routes only to itself or an interconnected
+Loom with pinned trust, never to arbitrary origins from a link. Address aliases for the same Loom
+can be used after validation against the authenticated import response. The signed invitation
+remains unchanged, and persistence records the actual authenticated transport address.
+Local parsing or signature verification is not authorization. QR codes cannot switch connections,
+grant device permissions or elevate receiver permissions to sender permissions.
+Account credentials and Loom private keys never enter Otter, QR codes or workspace association records.
+The final image is retained while Loom is offline. If public-network account authorization becomes invalid,
+resuming synchronization still requires renewed current account authorization.
+
+PNGs are limited to 4 MiB, 8192 per dimension and 16,777,216 total pixels.
+QR images are limited to 4 MiB and 4096 per dimension, with bounded decode scaling and a single worker.
+If ordinary QR detection fails, at most one additional pure-code extraction is attempted through
+the same parsing and authorization path for the selected scope.
+Projection JSON requests and responses are limited to 6 MiB. Loom's LAN projection store and
+public-network local outbox each have separate limits of 64 entries and 48 MiB of PNGs;
+they do not share one global quota.
+
+## Directed projection and receiving policies
+
+1. Complete connection and device approval as described in [Loom connection](LOOM_CONNECTION.md).
+2. Select a source pin, press `Ctrl+E`, and select devices, groups or users under Projection in
+   pin settings, then confirm. At confirmation, groups and users resolve to a fixed set of
+   authorized devices; refreshes cannot expand the task. Deselecting targets also requires confirmation.
+3. The receiver must stay connected, have device permission and participate in the projection
+   inbox. The sender displays Received only after actual workspace persistence and receipt
+   confirmation. Closing settings does not revoke existing projections.
+
+| Receiving policy | New deliveries and existing projections |
+| --- | --- |
+| Accept (default), Automatic | Automatically accepts authorized new deliveries without a second approval prompt. |
+| Reject | Rejects new deliveries without revoking accepted associations. |
+| Pause | Stops receiving participation and updates. Switching to another policy clears the pause but does not revive old in-flight results. |
+
+Accept is not a guarantee of success and does not bypass Loom authorization, catalog or content
+validation. Invalid receiving configuration blocks new deliveries. The previous catalog may remain
+visible during refresh, but dispatch never uses a stale catalog. Inbox refresh is independent of
+old-projection cleanup. Bounded retries handle only explicitly retryable same-Loom errors,
+not automatic replay of writes with unknown outcomes or cross-Loom writes.
+
+- **Target not visible:** First connect both ends to the same reachable Loom. Confirm that the
+  receiver is approved, not paused and participating in the server's projection inbox, then
+  refresh the sender. For interconnected Loom instances, also check connection and catalog
+  authorization. A cached catalog is not proof that a device is online.
+- **Stuck waiting:** Confirm that you clicked Confirm, then check the receiver's new-delivery
+  policy, inbox and workspace-write result. Pending entries do not prove presentation, and
+  closing the panel is not cancellation.
+
+See [two-machine acceptance and diagnosis](../development/JOINT_TESTING.md) and
+[account PNG joint testing](../development/JOINT_TESTING.md#account-png-joint-testing).
+Account joint tests cover only the public v2 synthetic-account flow between two Loom instances
+on one machine, not LAN v1, physical two-machine or real public-network acceptance.

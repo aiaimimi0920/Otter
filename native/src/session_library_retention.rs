@@ -1,10 +1,10 @@
-//! 冻结条目追加发布前的会话原文候选；仅构造内存，成功提交由窗口 owner 决定。
+//! Session-source candidates before frozen-entry append publication; construct memory only, leaving successful commit to the window owner.
 use super::{candidate, Kind, Library};
 use crate::{session_append, session_document, workspace_id::UnitId};
 use std::sync::atomic::{AtomicBool, Ordering};
 
-/// active 是当前工作区身份集合；移除已关闭旧窗口的原文，避免它们占用窗口预算。
-/// 只裁掉随旧窗口失效的原文链接；当前拓扑/几何在后续正式保存时统一采集。
+/// active is the current workspace identity set; remove source records for closed old windows so they do not consume window budget.
+/// Prune only source links invalidated by old windows; collect current topology/geometry together at the next committed save.
 pub fn prepare(
     original: &[u8],
     instance: &[u8],
@@ -21,7 +21,7 @@ pub fn prepare(
     prepare_decoded(&source, &copy, active, kind, &library, entry_id, cancel)
 }
 
-/// 冻结 worker 复用实例化所借用的会话和已验证的库，不再扫描整份来源。
+/// Frozen workers reuse the session and validated library borrowed during instantiation, without rescanning the entire source.
 pub(crate) fn prepare_decoded(
     source: &session_document::Document<'_>,
     copy: &session_document::Document<'_>,
@@ -58,7 +58,7 @@ pub(crate) fn prepare_decoded(
     append.finish(recycle, cancel)
 }
 
-// 只允许实例化拥有的身份/位置/空参数差异，防止拿任意窗口消费另一条冻结记录。
+// Permit only instantiation-owned identity/position/empty-parameter differences, preventing arbitrary windows from consuming another frozen record.
 fn matches_snapshot(snapshot: &str, instance: &str) -> Result<bool, String> {
     let mut expected = candidate::fields(snapshot)?;
     let mut actual = candidate::fields(instance)?;

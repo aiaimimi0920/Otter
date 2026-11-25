@@ -1,4 +1,4 @@
-//! 每页至多16行：文本/数值原位编辑，类型选项保持原 Value，特殊输入沿原显式对话框。
+//! At most 16 rows per page: edit text/numbers in place, retain original Values for typed options, and use existing explicit dialogs for special inputs.
 use super::*;
 pub(super) unsafe fn build(
     b: &mut Builder<'_>,

@@ -1,4 +1,4 @@
-//! 会话原文的共享 owner：导入保留 Vec allocation，保存基线直接复用带预算的编码缓冲。
+//! Shared session-source owner: imports retain Vec allocation, and save baselines directly reuse budgeted encoded buffers.
 use crate::{
     pixels::Pixels,
     session_document::{self, Document},
@@ -9,7 +9,7 @@ pub enum Source {
     Imported(Arc<Vec<u8>>),
     Encoded(Pixels),
 }
-/// 借用解码结果与同一个原文 owner，避免索引误把其他缓冲区标成已校验。
+/// Borrow decoded results together with the same source owner, preventing indexes from marking another buffer validated.
 pub struct Parsed<'a> {
     source: &'a Source,
     document: Document<'a>,

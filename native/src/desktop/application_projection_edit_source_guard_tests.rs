@@ -1,4 +1,4 @@
-//! 真实Application拒绝/丢回复/取消/换源/期间编辑；所有失败保原PNG、stage和精确pending。
+//! Real Application rejection/lost replies/cancellation/source changes/intervening edits; all failures preserve original PNG, stage, and exact pending state.
 use super::*;
 use std::sync::atomic::Ordering;
 unsafe fn sent(
@@ -28,7 +28,7 @@ fn source_background_sync_keeps_frozen_png_and_caches_only_current_content_ident
         initialized(&mut app, &files, identity, client, 1);
         let unit = app.documents[0].state.unit_id.clone();
         let id = snapshot(&app).projection_id().to_owned();
-        // 普通响应缺editing仍须从只读probe恢复，不重发initialize/attach。
+        // Ordinary responses missing editing must still recover through read-only probe, not resend initialize/attach.
         peer.omit_editing.store(true, Ordering::Release);
         for _ in 0..2 {
             app.process_authorization_with_projection(|o| config(o, files.root()));
@@ -65,7 +65,7 @@ fn source_background_sync_keeps_frozen_png_and_caches_only_current_content_ident
             1
         );
         peer.omit_editing.store(false, Ordering::Release);
-        // 缺本地 Source owner 时，默认协作从既有 journal/probe 恢复，不能烘焙覆盖 basis。
+        // Without a local Source owner, default collaboration recovers from existing journal/probe state and must not bake over the basis.
         app.documents[0].state.projection_edit.borrow_mut().take();
         let before = app.restored_session.as_ref().unwrap().original.clone();
         app.projection_sender.updates.make_due();
@@ -421,7 +421,7 @@ fn source_checkpoint_transition_rejects_equal_bytes_new_allocation_cancel_and_re
             poll(&mut app, &files);
             assert!(!app.projection_edit.busy(), "case {case}");
             assert_eq!(snapshot(&app), before, "case {case}");
-            // 之后保存也不能追认已失效的过渡态owner；原请求保留给显式恢复。
+            // A later save cannot retroactively validate an expired transitional owner; preserve the original request for explicit recovery.
             settle(&mut app);
             poll(&mut app, &files);
             assert_eq!(

@@ -1,4 +1,4 @@
-//! 测试专用固定 child；以 wire 内 mode 选择故障，不执行 shader，也不访问 DLL/profile。
+//! Fixed test-only child; select faults by wire mode without executing shaders or accessing DLLs/profile.
 use super::*;
 use std::{io::Write, time::Duration};
 #[test]

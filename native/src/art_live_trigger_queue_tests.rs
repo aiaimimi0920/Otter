@@ -1,4 +1,4 @@
-//! 单槽/Stop/重连和后继授权；所有执行资格由同一不可逆gate围住。
+//! Single-slot/Stop/reconnection and successor authorization; the same irreversible gate encloses all execution eligibility.
 use super::*;
 use crate::art_live_trigger::tests as f;
 fn queue() -> Queue {

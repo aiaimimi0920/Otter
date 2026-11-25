@@ -1,4 +1,4 @@
-//! 截图历史应用接线；窗口/文件/复用只在主消息循环完成，不跨模态持有RefCell。
+//! Capture-history application wiring; window/file/reuse operations complete only in the main message loop, without holding RefCell borrows across modal intervals.
 use super::*;
 use crate::desktop::capture_history_ui::{Action, Origin};
 use windows::Win32::Graphics::Gdi::InvalidateRect;
@@ -122,7 +122,7 @@ impl Application {
                     let style = canvas.editor.style().with_color(color);
                     canvas.editor.set_style(style);
                 }
-                // 复制失败不撤销成功的当前色设置；不向用户应用注入输入。
+                // Copy failure does not undo a successful current-color update; inject no input into user applications.
                 let _ = InvalidateRect(Some(hwnd), None, false);
                 copy(hwnd, &hex, &|| self.history_source(origin).is_some())?;
             }
@@ -140,7 +140,7 @@ impl Application {
                 if let Some(image) = image {
                     let mut prepared =
                         crate::desktop::open_image::PreparedDocument::from_image(image, true)?;
-                    // 原版在画布中心复用；原生以当前发起文档的客户区中心放置新钉图。
+                    // The original version reused at canvas center; the native version places new pins at the initiating document's current client-area center.
                     let mut client = RECT::default();
                     GetClientRect(hwnd, &mut client)?;
                     let mut center = POINT {

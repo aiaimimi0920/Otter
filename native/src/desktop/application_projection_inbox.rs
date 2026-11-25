@@ -1,4 +1,4 @@
-//! 应用结算点的收件菜单消费者；先处理切换/撤权再收结果，不持 UI 借用跨线程或磁盘。
+//! Inbox-menu consumer at application settlement points; handle switching/revocation before results, without holding UI borrows across threads or disk operations.
 use super::*;
 use crate::desktop::{
     composition::relay::sessions::Sessions,
@@ -51,7 +51,7 @@ pub(super) fn start(
         || remote.projection_pending()
     {
         view.projection.status = "投送收件任务不可用".into();
-        return false; // 不覆盖仍在运行任务的 busy，也不清除其候选。
+        return false; // Neither overwrite busy state for a running task nor clear its candidate.
     }
     let refresh = matches!(request, ui::Request::Refresh);
     if refresh {
@@ -160,7 +160,7 @@ pub(super) fn start(
     started
 }
 impl Application {
-    /// 只查询实际发布/规范启动恢复的索引；Unit 存在与相同原文只是当前作用域围栏。
+    /// Query only actual-publication/canonical-startup-restoration indexes; Unit existence and identical source content are merely current-scope fences.
     pub(super) fn projection_checkpoint_inclusion(
         &self,
         ticket: &crate::projection_delivery::journal::Ticket,
@@ -200,7 +200,7 @@ impl Application {
         if pending && !targets_pending && !self.remote_sessions.projection_pending() {
             self.projection_profile.refresh();
         }
-        self.collect_projection_abandoned(); // 必须早于 closed/origin/discard 的 UI 过滤。
+        self.collect_projection_abandoned(); // Must precede closed/origin/discard UI filtering.
         self.collect_projection_sender();
         let Some(event) = event else {
             return;
@@ -236,7 +236,7 @@ impl Application {
                 .take()
                 .is_some_and(|stamp| view.consent.participates(&stamp))
         {
-            return; // 暂停/恢复或失败写入都不能复活旧收件快照，不触碰补偿或已保存的持续同步。
+            return; // Pause/resume or failed writes must not revive old inbox snapshots; leave compensation and saved continuous sync untouched.
         }
         // Cleanup has its own retry schedule; its result is not an inbox attempt.
         if !event.compensation && event.result.is_ok() {

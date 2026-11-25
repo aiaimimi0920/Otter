@@ -1,4 +1,4 @@
-//! 单槽滚动条捕获；开始前废弃动作候选，拖动期间不排队点击或网络动作。
+//! Single-slot scrollbar capture; discard action candidates before starting, with no click/network-action queues while dragging.
 use super::*;
 use windows::Win32::UI::Input::KeyboardAndMouse::{GetCapture, ReleaseCapture, SetCapture};
 pub(super) fn clear(state: &State) {
@@ -57,7 +57,7 @@ pub(super) unsafe fn message(hwnd: HWND, state: &State, message: u32, lp: LPARAM
             return true;
         }
     }
-    // 没有条拖动时，普通内容的 move/up 必须回到 pointer 完成取消与释放捕获。
+    // Without scrollbar dragging, ordinary content move/up must return to pointer handling for cancellation/capture release.
     if !matches!(message, WM_LBUTTONDOWN | WM_LBUTTONDBLCLK) {
         return false;
     }
@@ -80,12 +80,12 @@ pub(super) unsafe fn message(hwnd: HWND, state: &State, message: u32, lp: LPARAM
     };
     if matches!(message, WM_LBUTTONDOWN | WM_LBUTTONDBLCLK) {
         pointer::invalidate(hwnd, state);
-        // 清理旧 capture 可能同步重入关闭/权限撤销，不能随后复活拖动。
+        // Cleaning old capture may synchronously reenter closure/revocation; never revive dragging afterward.
         if state.closed.get() || !state.local_edit.get() {
             return true;
         }
         if let Some(drag) = bar.drag(logical) {
-            // 不跨 SetCapture 的同步重入持有 RefCell 借用。
+            // Hold no RefCell borrow across SetCapture's synchronous reentrancy.
             *state.scroll_drag.borrow_mut() = Some(drag);
             let _ = SetCapture(hwnd);
             if GetCapture() != hwnd

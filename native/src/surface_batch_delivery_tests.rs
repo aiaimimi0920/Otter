@@ -1,4 +1,4 @@
-//! 真实 HWND 批次交付：全部证据与授权独立核验，只替换一次最高版本场景。
+//! Real HWND batch delivery: independently verify all evidence and authorization, replacing the scene only once with the highest revision.
 use super::*;
 #[path = "surface_batch_confirmation_tests.rs"]
 mod confirmation;

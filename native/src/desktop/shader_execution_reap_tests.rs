@@ -1,4 +1,4 @@
-//! 确定性通知尾段回归；共用生产 runner/许可/回收，不作为真实 GPU 渲染证据。
+//! Deterministic notification-tail regressions sharing production runners/permits/reclamation; not evidence of actual GPU rendering.
 use super::{
     reap_fixture::{Gate, WAIT},
     shader_tests::{id, output, SERIAL},

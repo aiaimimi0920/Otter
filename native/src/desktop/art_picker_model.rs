@@ -1,4 +1,4 @@
-//! 不可变目录/源凭证及有界搜索；WSS metadata 不授予 HTTPS 权限，不拼接服务地址。
+//! Immutable catalog/source evidence and bounded search; WSS metadata grants no HTTPS authority, and service addresses are not concatenated.
 use super::*;
 use desktop::{configuration_stamp::Stamp, popup_menu::target::MenuTarget};
 pub(in crate::desktop) enum Route {
@@ -110,7 +110,7 @@ pub(in crate::desktop) fn route(
     {
         return None;
     }
-    // 目录只提供提示；显式 HTTPS 仍必须经过 describe/prepare/审批，不能由 WSS 推导。
+    // The catalog only provides hints; explicit HTTPS still requires describe/prepare/approval and cannot be derived from WSS.
     origin.clone().map(Route::Local)
 }
 impl Request {

@@ -1,4 +1,4 @@
-//! 公共参数的禁用原值暂存；与有效参数各自受同样预算约束，不进入执行 wire。
+//! Stash original disabled public-parameter values; the stash and effective parameters each obey the same budget, and stashed values do not enter execution wire.
 use super::*;
 impl Parameters {
     pub fn toggle_disabled(&mut self, id: &str, fallback: Value) -> Result<bool, Error> {
@@ -7,7 +7,7 @@ impl Parameters {
             let restored = self.disabled_values.get(id).cloned().unwrap_or(fallback);
             return self.set(id, Some(restored));
         }
-        // 暂存区独立上限 1 MiB/4096 节点/128 项；不能逐次塞入多个大参数绕过总预算。
+        // The stash has independent limits of 1 MiB/4096 nodes/128 entries; successive large parameters must not bypass the total budget.
         validate(
             self.disabled_values
                 .iter()

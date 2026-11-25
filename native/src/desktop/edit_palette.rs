@@ -1,4 +1,4 @@
-//! 调色板是应用会话状态；跨钉图共享，不新增磁盘持久化。删除只清工具默认值。
+//! Palettes are application-session state shared across pins, without new disk persistence. Deletion clears only tool defaults.
 use super::{canvas::Canvas, State};
 use crate::{stroke_style::Color, workspace_id::UnitId};
 use neuro_mini_ui::Rgba;
@@ -43,7 +43,7 @@ impl Palette {
         if removed.is_empty() {
             return;
         }
-        // 全应用的模态互斥保证一次仅有一个面板；外层消息结算前不会再进入另一个面板。
+        // Application-wide modal exclusion allows one panel at a time; another panel cannot open before outer-message settlement.
         assert!(
             self.pending.is_none(),
             "Palette reset must settle before next modal"

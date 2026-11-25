@@ -1,4 +1,4 @@
-//! 原生会话发布：所有可恢复的失败先于 owner 交换；不写文件、不丢未知会话字段。
+//! Native session publication: all recoverable failures precede the owner swap; write no files and preserve unknown session fields.
 use super::*;
 #[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 #[path = "application_restore_publish_smoke.rs"]
@@ -8,20 +8,20 @@ pub(in crate::desktop::application) struct Record {
     pub restored_accounts: Option<crate::projection_account::scene::Index>,
     pub restored_senders: Option<crate::projection_delivery::sender::binding::checkpoint::Index>,
     pub original: crate::session_source::Source,
-    /// 由同一后台候选提供，只用于首次恢复后的 checkpoint 基线。
+    /// Supplied by the same background candidate, solely for the initial post-restore checkpoint baseline.
     pub restored_revision: u64,
-    /// 原后台候选解析的只读关联；默认 profile 启动屏障领取，不等于普通导入已落盘。
+    /// Read-only associations parsed by the original background candidate; consumed by the default-profile startup barrier, not proof that an ordinary import is persisted.
     pub restored_projections: Option<crate::projection_delivery::binding::checkpoint::Index>,
     pub restored_projection_scope: Option<crate::session_projection_scope::Proof>,
-    /// 内存中只分配一次；没有 canonical checkpoint 的包含证明时，不授发送资格。
+    /// Allocated only once in memory; no send eligibility is granted without proof of inclusion in the canonical checkpoint.
     pub projection_scope: Option<crate::session_projection_scope::Scope>,
-    /// 库编辑可以改变内存原文；已有文件替换仍须比较最后一次真实提交的完整字节。
+    /// Library edits may change in-memory source content; replacing an existing file still requires comparing the complete bytes of the last actual commit.
     pub disk_original: Option<crate::session_source::Source>,
     pub saved_path: Option<std::path::PathBuf>,
     pub recovery_path: Option<std::path::PathBuf>,
     pub space: Option<crate::session_placement::Space>,
     pub annotation_ids: Vec<(crate::workspace_id::UnitId, Vec<String>)>,
-    /// 空会话的初始运行入口；后续写回须检查其当前内容，不能仅凭此 ID 永久排除用户编辑。
+    /// Initial runtime entry for an empty session; later writes must inspect its current content, not permanently exclude user edits based on this ID alone.
     pub transient_host: Option<crate::workspace_id::UnitId>,
     pub pending_arts: Vec<crate::workspace_id::UnitId>,
     pub binding_catalog: Option<Rc<Loaded>>,
@@ -50,8 +50,8 @@ impl Record {
 }
 
 impl Application {
-    /// 调用方须在 UI 消息回调返回后执行，并已取得替换当前工作区的用户意图。
-    /// visible=false 供隐藏 HWND 集成验证；成功后旧窗口 owner 才释放。
+    /// The caller must run after the UI message callback returns and already hold user intent to replace the current workspace.
+    /// visible=false supports hidden-HWND integration verification; release old window owners only after success.
     pub unsafe fn publish_restored_batch(
         &mut self,
         mut batch: Windows,
@@ -72,7 +72,7 @@ impl Application {
                 doc.observe_priority()?;
             }
         }
-        // 安装监听后再次核验。此后直到交换只转交热键，不派发 UI 消息或执行节点。
+        // Revalidate after installing listeners. Until the swap, only transfer hotkeys; do not dispatch UI messages or execute nodes.
         if !batch.matches_application(self) {
             return Err(Error::new(
                 E_ABORT,
@@ -126,9 +126,9 @@ impl Application {
             annotation_ids: batch.annotation_ids,
             transient_host,
         };
-        // 以下为同步所有权交换：候选 HWND 中的 Box<State> 地址不变；不再调用可失败准备。
+        // The following is a synchronous ownership swap: Box<State> addresses in candidate HWNDs stay unchanged; perform no further fallible preparation.
         self.stop_projection_sender();
-        // 关闭旧 Art HWND 可重入；在完整旧工作区仍在位时撤权，不能插入所有权交换中途。
+        // Closing old Art HWNDs may reenter; revoke authority while the complete old workspace remains installed, never midway through the ownership swap.
         self.local_arts.reset();
         let previous = std::mem::replace(&mut self.documents, batch.documents);
         self.workspace = workspace;
@@ -142,14 +142,14 @@ impl Application {
         self.display_composition.borrow_mut().invalidate();
         *self.group_catalog.borrow_mut() = groups;
         *self.capture_windows.borrow_mut() = capture_windows;
-        // 候选 State 的分组成员/锁定/隐藏状态已由 manifest 校验，不在交换期触发分组命令。
+        // manifest already validated candidate State group membership/lock/visibility; do not trigger group commands during the swap.
         if visible {
             for doc in &self.documents {
                 doc.show_content(SW_SHOWNOACTIVATE);
             }
         }
         drop(previous);
-        // coordinator 尚未安装坐标上下文；不能沿用旧工作区的保存凭证。
+        // coordinator has not installed coordinate context yet; do not reuse the old workspace's save credentials.
         self.saved_state = None;
         if self
             .restored_session

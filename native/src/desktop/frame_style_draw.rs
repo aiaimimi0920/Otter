@@ -1,4 +1,4 @@
-//! 内容样式复用工作流的内描和有预算圆角层；窗口逻辑像素不随图像视口缩放。
+//! Content styles reuse workflow inner strokes/budgeted rounded layers; logical window pixels do not scale with image viewports.
 use super::export::source_resolution::{frame_border::Border, frame_clip};
 use crate::{crop_geometry::Rect, pin_frame_style::Style};
 use windows::{
@@ -44,7 +44,7 @@ impl Frame {
         }
         Ok(())
     }
-    /// 调用方持有恰好一个矩形内容 clip；内描属于完整窗口，不能被 contain 留白裁掉。
+    /// Callers hold exactly one rectangular content clip; inner strokes belong to the full window and must not be cropped by contain padding.
     pub(super) unsafe fn border_over_clip(
         &self,
         target: &ID2D1RenderTarget,

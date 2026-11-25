@@ -1,4 +1,4 @@
-// 通用 rAF emit 消费者；原两事件 FIFO/更新协议不变，不添加远端动作或网络旁路。
+// Generic rAF emit consumer; preserve the original two-event FIFO/update protocol without additional remote actions or network bypasses.
 let animationRoot, animationLabel, animationButton, quote = 0, count = 0, frames = 0, settled = 0;
 function initialFrame(t) {
   if (t > performance.now() || animationRoot.getBoundingClientRect().width <= 0) throw Error("frame viewport");

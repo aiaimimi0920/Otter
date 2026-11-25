@@ -1,4 +1,4 @@
-//! 合成审批包及签名；仅测试 wire 生产者，预期像素由结果端独立常量核对。
+//! Synthetic approval packages and signatures; only a test wire producer, with expected pixels checked against independent result-side constants.
 use super::native::art_execution_grant::wire;
 use base64::{engine::general_purpose::STANDARD, Engine};
 use ring::signature::{Ed25519KeyPair, KeyPair};

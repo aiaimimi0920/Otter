@@ -1,4 +1,4 @@
-// 写入使同 operation 几何缓存失效；ResizeObserver 的内容起点/尺寸按真实四边求值。
+// Writes invalidate geometry caches within the same operation; ResizeObserver content origins/dimensions evaluate actual four-sided values.
 let saved, child, report, updated = false;
 const configure = () => {
   saved.style.padding = updated ? '7px 11px 13px 17px' : '3px 7px 11px 13px';

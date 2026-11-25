@@ -1,5 +1,5 @@
-//! 持有原 Grant 的 JS 会话；阻塞操作由 Job 或持久 Runtime 后台 owner 执行。
-//! 这里不拥有远端动作 owner/FIFO；返回的合法 emit 仍须走既有应用提交门。
+//! JS sessions holding the original Grant; Job or persistent Runtime background owners execute blocking operations.
+//! This layer owns neither remote-action owners nor FIFO; valid returned emits must still pass existing application submission gates.
 use super::{Frame, Session};
 use crate::{
     device_authorization_lease::{Lease, Notification},
@@ -76,7 +76,7 @@ impl Mounted {
             if !update && next.revision() != session.revision {
                 return Err(Error::Stopped);
             }
-            // 生命周期 ACK 可推进 binding，但不能换实例/代际或用它推进 snapshot revision。
+            // Lifecycle ACKs may advance binding, but cannot change instance/generation or advance snapshot revision through it.
             session.binding = current.binding.clone();
             self.entry = next;
             Ok(())
@@ -95,7 +95,7 @@ impl Mounted {
         if !frame.events.is_empty() && current.binding.lifecycle() != Lifecycle::Active {
             return self.fail(Error::Inactive);
         }
-        // Ready 等待期间可发生生命周期 ACK；初始 emit 的不可变身份不能借此重绑。
+        // Lifecycle ACKs may arrive while Ready waits; initial emits' immutable identities cannot be rebound through them.
         if frame.events.iter().any(|event| {
             event.binding() != &current.binding || event.revision() != self.entry.revision()
         }) {
@@ -110,7 +110,7 @@ impl Mounted {
         execute: impl FnOnce(&mut Session, &Lease, u64) -> io::Result<Frame>,
     ) -> Result<Frame, Error> {
         self.validate(current, update)?;
-        // 初始帧（含 emit）必须先交给 owner；禁止 update/click 越过它后又取出旧帧。
+        // Deliver the initial frame, including emits, to the owner first; update/click must not overtake it and later retrieve an old frame.
         if self.initial.is_some() {
             return self.fail(Error::Stopped);
         }
@@ -198,7 +198,7 @@ impl Mounted {
             .dispose(&|| stopped(&self.lease, self.entry.expires_at_ms()))
             .map_err(execution)
     }
-    /// 撤权/窗口关闭不运行不可信 cleanup；回收只作用于自有 child，不重放远端请求。
+    /// Revocation/window closure does not run untrusted cleanup; reap only owned children without replaying remote requests.
     pub fn request_stop(&mut self) {
         self.lease.revoke();
         let _ = self.fail::<()>(Error::Stopped);

@@ -1,4 +1,4 @@
-//! 可见门只触及本测试自启PID/精确类名；像素前后核遮挡，不采集其他应用内容、不抢焦点。
+//! The visible gate touches only self-started PIDs/exact classes, checks occlusion before and after sampling, and neither captures other apps nor steals focus.
 use std::{os::windows::io::AsRawHandle, process::Child};
 use windows::{
     core::{w, BOOL},
@@ -16,7 +16,7 @@ pub struct Owned {
 impl Owned {
     pub fn new(child: Child) -> Self {
         unsafe {
-            // 先建立child回收guard；创建/配置Job失败也不能遗留自己的全屏进程。
+            // Establish the child cleanup guard first; Job creation/configuration failure must not leave our full-screen process behind.
             let mut owner = Self {
                 child,
                 job: HANDLE::default(),
@@ -83,7 +83,7 @@ pub fn find(pid: u32) -> Option<HWND> {
     }
     s.window
 }
-/// 与既有Art前台门相同的真实可枚举启动器模式；没有UIA/线程附加/foreground-lock绕过。
+/// The same real, enumerable launcher pattern as the existing Art foreground gate; no UIA, thread attachment or foreground-lock bypass.
 pub struct Launcher(pub HWND);
 impl Launcher {
     pub fn new() -> Self {
@@ -116,7 +116,7 @@ impl Launcher {
                 return false;
             }
             assert!(matches(child, pid));
-            // 仅在启动器已经由Computer Use真实激活后，转给已核归属的同测试子窗口一次。
+            // Only after Computer Use actually activates the launcher, transfer once to a verified child window belonging to the same test.
             let allowed = SetForegroundWindow(child).as_bool();
             let foreground = GetForegroundWindow();
             assert!(allowed, "owned launcher child activation refused; launcher={:?} child={child:?} actual={foreground:?}", self.0);

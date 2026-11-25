@@ -1,4 +1,4 @@
-//! 显式目录中的设备身份存储；合作实例用独占 lock 文件协调，外部非合作写入非 CAS。
+//! Device-identity storage in explicit directories; cooperating instances coordinate through exclusive lock files, not CAS against noncooperating external writes.
 use crate::{
     device_identity::{Identity, MAX_DOCUMENT},
     device_identity_file,
@@ -50,13 +50,13 @@ impl Store {
             owner: Arc::new(()),
         })
     }
-    /// 续签入口：缺失返回错误，legacy 不自动重写；不会创建目录或替代身份。
+    /// Renewal entry: absence is an error and legacy data is not auto-rewritten; create no directories/replacement identities.
     pub fn load_existing(&self) -> Result<Loaded, Error> {
         let (root, _lock) = self.lock(false)?;
         let bytes = read(&root.join("device-identity.json"))?.ok_or(Error::Missing)?;
         self.loaded(&bytes)
     }
-    /// 仅显式初次授权使用：不存在才生成；损坏、权限错误绝不退化为生成新身份。
+    /// Explicit first authorization only: generate only if absent, never on corruption/permission errors.
     pub fn load_or_create(&self) -> Result<Loaded, Error> {
         let (root, _lock) = self.lock(true)?;
         let path = root.join("device-identity.json");
@@ -86,7 +86,7 @@ impl Store {
             }
         }
     }
-    /// 外层确认配对响应后调用。失败保留旧 Loaded；检测到过期快照拒绝覆盖。
+    /// Call after outer pairing-response confirmation. Failure preserves old Loaded; stale snapshots cannot overwrite.
     pub fn bind_and_save(&self, loaded: &mut Loaded, device: &str) -> Result<(), Error> {
         if !Arc::ptr_eq(&self.owner, &loaded.owner) {
             return Err(Error::Changed);

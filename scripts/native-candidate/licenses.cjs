@@ -1,4 +1,4 @@
-// 收集解析图中非 dev 依赖的实际许可证文本；材料完整性不等于法律或安全批准。
+// Collect actual license text for non-dev dependencies in the resolved graph; complete materials do not imply legal or security approval.
 const fs = require('node:fs');
 const path = require('node:path');
 const { hash } = require('./source.cjs');
@@ -25,7 +25,7 @@ function selectedPackages(metadata) {
           dependency.dep_kinds.some(k => ![null, 'normal', 'build', 'dev'].includes(k.kind))) {
         throw new Error('Invalid native dependency kind');
       }
-      // 保守包含所有平台的 normal/build 边，不冒充精确链接组件集合。
+      // Conservatively include normal/build edges for all platforms, without claiming an exact linked-component set.
       if (dependency.dep_kinds.some(k => k.kind !== 'dev')) pending.push(dependency.pkg);
     }
   }
@@ -54,7 +54,7 @@ function collect(repo, metadata, output, registryRoot) {
   const records = [];
   let total = 0;
   const keys = new Set();
-  // 先验证/读取全部输入；失败时不创建半成品输出目录。
+  // Validate/read every input first; failure creates no partial output directory.
   for (const pkg of selectedPackages(metadata)) {
     if (!safeName(pkg.name) || !safeName(pkg.version) || !pkg.license || /UNLICENSED|PROPRIETARY|NOASSERTION/i.test(pkg.license)) {
       throw new Error('Unresolved native license identity');
@@ -101,7 +101,7 @@ function collect(repo, metadata, output, registryRoot) {
       new TextDecoder('utf-8', { fatal: true }).decode(bytes);
       return { path: `${key}/${name}`, bytes, sha256: hash(bytes) };
     });
-    // 保留原严格缺失门；只有精确版本/来源/原文摘要的 JS 子 crate 获得显式补充。
+    // Retain strict missing-license checks; only JS subcrates with exact versions/sources/original-text digests receive explicit supplements.
     for (const file of javascriptLicenses(pkg, metadata, registryRoot)) {
       const destination = `${key}/${file.name}`;
       if (files.some(f => f.path === destination) || (total += file.bytes.length) > 64 * 1024 * 1024) {

@@ -1,4 +1,4 @@
-//! 同意图串行网络许可；state→registry 锁序，任何锁都不跨 HTTP，取消先撤销精确租约。
+//! Same-intent serial network permits; state -> registry lock order, no locks across HTTP, and cancellation revokes exact leases first.
 use super::*;
 use crate::device_authorization_lease::Lease;
 use std::{collections::BTreeMap, sync::Weak};
@@ -21,7 +21,7 @@ impl Request {
         Arc::ptr_eq(&self.intent.store.0, &other.intent.store.0)
             && self.intent.record.same_intent(&other.intent.record)
     }
-    /// 只读同 Store 的真实发布事实，不读磁盘、不授权；外部删文件不能伪造退休成功。
+    /// Read only actual publication facts from the same Store, without disk I/O/authorization; external file deletion cannot fake successful retirement.
     pub(crate) fn published_retired(&self) -> bool {
         self.intent.store.0.state.lock().is_ok_and(|state| {
             !state
@@ -181,7 +181,7 @@ impl Active {
         self.check()?;
         Ok(bytes)
     }
-    /// 仅串行 HTTP owner 确认 unlinked:true 后调用；失败保留原取消记录。
+    /// Call only after serial HTTP owners confirm unlinked:true; failure retains original cancellation records.
     pub(crate) fn retire(&self) -> Result<(), Error> {
         self.check()?;
         if !self.cleanup {

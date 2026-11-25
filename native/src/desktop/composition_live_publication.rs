@@ -1,4 +1,4 @@
-//! Live系统菜单只排有界发布/停止意图；网络与帧读回留在Application后台owner。
+//! Live system menus enqueue only bounded publish/stop intents; networking and frame readback stay with Application background owners.
 use super::*;
 pub(in crate::desktop) const PUBLISH_DIRECT: usize = 0x2f80;
 pub(in crate::desktop) const PUBLISH: usize = 0x2fb0;
@@ -126,7 +126,7 @@ impl LiveWindow {
             Phase::Failed => w!("发布失败（可重试）"),
             Phase::Unconfirmed => w!("发布已停，服务器关闭未确认"),
         };
-        // 不持RefCell借用跨Win32同步派发；仅改本owner的系统菜单。
+        // Hold no RefCell borrow across synchronous Win32 dispatch; modify only this owner's system menu.
         unsafe {
             let menu = GetSystemMenu(self.hwnd, false);
             let allow = self.state.input.borrow().source_input_allowed();

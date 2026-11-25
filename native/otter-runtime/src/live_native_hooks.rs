@@ -1,4 +1,4 @@
-//! 同包 DLL 的定向 hook owner；输入与独立恢复共用加载/回滚/卸载，永不安装线程 0。
+//! Targeted-hook owner for the same-package DLL; input and independent recovery share loading/rollback/unloading, never installing on thread 0.
 use crate::live_window_target::Target;
 use std::os::windows::ffi::OsStrExt;
 use windows::{
@@ -77,12 +77,12 @@ impl Hooks {
                 )?);
             }
             target.validate()?;
-            Ok(owner) // 任何部分安装失败都由同一个 Drop 回滚，不能丢本地 DLL 引用。
+            Ok(owner) // The same Drop rolls back any partial installation failure; do not lose the local DLL reference.
         }
     }
     #[cfg(test)]
     fn local_layer(target: &Target, thread: u32) -> Result<Self> {
-        // 仅本测试进程的自有窗口使用 rlib 回调；跨进程仍强制同包实际 DLL。
+        // Only this test process's owned windows use rlib callbacks; cross-process use still requires the actual same-package DLL.
         let mut owner = Self {
             hooks: Vec::new(),
             module: HMODULE::default(),
@@ -118,7 +118,7 @@ impl Hooks {
             while let Some(&hook) = self.hooks.last() {
                 if let Err(error) = UnhookWindowsHookEx(hook) {
                     if error.code() != ERROR_INVALID_HOOK_HANDLE.to_hresult() {
-                        return Err(error); // 未确认卸载，不释放仍可能执行回调的模块。
+                        return Err(error); // Without confirmed unloading, do not release a module that may still execute callbacks.
                     }
                 }
                 self.hooks.pop();

@@ -1,4 +1,4 @@
-//! 原始源窗口状态恢复；失败保留快照供 owner 重试，不自行删除恢复记录。
+//! Original source-window state restoration; failures retain snapshots for owner retries, without autonomously deleting recovery records.
 use super::Snapshot;
 use std::os::windows::io::AsRawHandle;
 use windows::{
@@ -7,7 +7,7 @@ use windows::{
 };
 
 impl Snapshot {
-    /// 原源已消失时不写窗口；查询失败保留责任。供本地 lease 与独立恢复进程共用。
+    /// Do not write windows if the original source is gone; query failures retain responsibility. Shared by local leases and independent recovery processes.
     pub fn restore_or_retire(&self) -> Result<()> {
         let target = &self.target;
         unsafe {
@@ -31,8 +31,8 @@ impl Snapshot {
         }
         self.restore()
     }
-    /// 仅由持有可见性 lease/恢复记录的 owner 调用；不会建立隐藏事务或替代 watchdog。
-    /// 多个 Win32 调用不是原子事务；任何失败返回给 owner，不能据此清除恢复记录。
+    /// Called only by owners holding visibility leases/recovery records; does not establish hiding transactions or replace the watchdog.
+    /// Multiple Win32 calls are not an atomic transaction; return any failure to the owner, without clearing recovery records on that basis.
     pub fn restore(&self) -> Result<()> {
         let (width, height) = self.restore_dimensions()?;
         self.target.validate()?;
@@ -64,9 +64,9 @@ impl Snapshot {
             )?;
             self.target.validate()?;
             let mut placement = self.placement;
-            // 对齐主干：用户召回原本最小化的源时展开，而不是重新最小化。
+            // Match the baseline: expand an originally minimized source when the user recalls it, rather than minimizing it again.
             if !self.visible {
-                // GetWindowPlacement 的 showCmd 不一定反映 WS_VISIBLE，不能意外显示隐藏源。
+                // GetWindowPlacement's showCmd may not reflect WS_VISIBLE; do not accidentally show hidden sources.
                 placement.showCmd = SW_HIDE.0 as u32;
             } else if self.iconic {
                 placement.showCmd = SW_RESTORE.0 as u32;

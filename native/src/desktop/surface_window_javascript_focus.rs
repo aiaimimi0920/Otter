@@ -1,4 +1,4 @@
-//! JS 回复只在同一前台 Surface 内切焦；不激活窗口、不保存裸 HWND、不跨 SetFocus 借用 Host。
+//! JS replies change focus only within the same foreground Surface; no activation, raw HWND storage, or Host borrows across SetFocus.
 use super::*;
 use crate::surface_javascript_wire::focus::Request;
 use windows::Win32::UI::Input::KeyboardAndMouse::{GetFocus, IsWindowEnabled, SetFocus};
@@ -9,7 +9,7 @@ pub(super) unsafe fn observe(hwnd: HWND, state: &State, message: u32, wp: WPARAM
             && matches!((wp.0 >> 16) as u32, EN_SETFOCUS | EN_KILLFOCUS)
             && GetParent(HWND(lp.0 as *mut _)).ok() == Some(hwnd));
     if native_edge {
-        // 饱和后拒绝所有请求，不能回绕复活旧帧；Host 暂时取出时仍记录系统边沿。
+        // Reject all requests after saturation rather than wrap and revive old frames; still record system edges while Host is removed.
         state
             .focus_epoch
             .set(state.focus_epoch.get().saturating_add(1));
@@ -92,7 +92,7 @@ impl SurfaceWindow {
                     continue;
                 }
                 let expected = if request.focus { target } else { self.hwnd };
-                // Host 已归还：EN_KILLFOCUS 继续进入原草稿/change FIFO，不手造第二次提交。
+                // Host is restored: EN_KILLFOCUS continues through original draft/change FIFO without fabricating a second commit.
                 let _ = SetFocus(Some(expected));
                 if !self.is_alive() || handle.read().is_none() || GetFocus() != expected {
                     break;

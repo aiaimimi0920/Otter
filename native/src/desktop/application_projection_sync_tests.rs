@@ -1,4 +1,4 @@
-//! 自动持续读取/原位更新/持久重开，及迟到、撤权、终态与不可重基编辑保护。
+//! Automatic continuous reads/in-place updates/durable reopening, plus late-result, revocation, terminal-state, and non-rebasable-edit protection.
 use super::*;
 use crate::projection_delivery::accept::tests as png;
 #[path = "application_projection_edit_receive_tests.rs"]
@@ -82,7 +82,7 @@ unsafe fn run_routed(offline: bool) {
         }
         let rx = sync_peer(&mut fixture, vec![0, 1, if offline { 5 } else { 2 }]);
         cycle(&mut fixture, &rx);
-        assert!(source(&fixture).same_storage(&old)); // unchanged 不重编码/换图。
+        assert!(source(&fixture).same_storage(&old)); // unchanged neither reencodes nor replaces the image.
         cycle(&mut fixture, &rx);
         assert_eq!(binding(&fixture)["revision"], 6);
         assert_eq!(fixture.app.documents.len(), count);

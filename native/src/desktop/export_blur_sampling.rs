@@ -1,8 +1,8 @@
-//! 主干模糊标注的独立取样合同：忽略底图翻转/传播框，逻辑裁剪直接使用源像素偏移。
+//! Independent sampling contract for baseline blur annotations: ignore base flips/propagation frames and use source-pixel offsets directly for logical crops.
 use super::*;
 
 pub(super) fn original(image: &Image, flipped: (bool, bool), cancel: &AtomicBool) -> Result<Image> {
-    // 只在首次实际模糊资源请求时调用；无标注时不能为撤销底图翻转额外分配整图。
+    // Call only on the first actual blur-resource request; without annotations, do not allocate a whole image just to undo base flips.
     let pixels = crate::raster_flip::image_axes(
         &image.pixels,
         (image.width, image.height),

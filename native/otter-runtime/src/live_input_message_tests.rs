@@ -47,7 +47,7 @@ fn navigation_and_divide_preserve_extended_scan_identity_on_both_edges() {
         VK_DELETE, VK_DIVIDE,
     ] {
         let scan = unsafe { MapVirtualKeyW(u32::from(key.0), MAPVK_VK_TO_VSC_EX) };
-        // 导航 VK 本身确定扩展身份；中文布局可能只给出数字键盘的基础扫描码。
+        // The navigation VK itself determines extended identity; Chinese layouts may provide only the basic numpad scan code.
         for down in [true, false] {
             let packet = Message::key(key.0, down).unwrap();
             let bits = packet.lp.0 as u32;
@@ -95,7 +95,7 @@ fn explicit_right_control_keeps_its_e0_prefix_without_changing_the_scan_byte() {
     }
 }
 
-// 窗口完全由夹具创建；没有全局输入、焦点切换或用户窗口枚举。
+// Windows are created entirely by the fixture; no global input, focus changes, or user-window enumeration.
 #[test]
 #[ignore = "requires interactive default desktop; sends only to owned hidden fixture"]
 fn actual_zero_result_timeout_same_thread_and_closed_source() {
@@ -196,7 +196,7 @@ fn actual_zero_result_timeout_same_thread_and_closed_source() {
         thread,
         worker: Some(worker),
     };
-    // 窗口过程返回零，但 SendMessageTimeout 的完成标志必须按成功解释。
+    // The window procedure returns zero, but SendMessageTimeout's completion flag must be interpreted as success.
     assert_eq!(send(&target, Message::key(66, true).unwrap()), Ok(()));
     assert_eq!(release(&target, Message::key(66, false).unwrap()), Ok(()));
     assert_eq!(

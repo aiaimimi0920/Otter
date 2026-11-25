@@ -1,4 +1,4 @@
-//! 已认证会话选择目录：全量验证、去歧义和有界输出，不包含凭据或观察业务快照。
+//! Authenticated session-selection catalog: complete validation, disambiguation, and bounded output without credentials/observed business snapshots.
 use super::*;
 use serde::Deserialize;
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -27,7 +27,7 @@ struct SessionHeader {
     session_id: String,
 }
 impl Control<'_> {
-    /// 列表只是选择候选；加入时必须再以 identity 校验来源/epoch，不能把列表当加入授权。
+    /// Lists provide selection candidates only; joining must recheck source/epoch by identity, not treat listing as join authorization.
     pub fn catalog(&self) -> Result<Vec<CatalogEntry>, Error> {
         let bytes = self.send("GET", "/v1/live/sessions", &[], Duration::from_secs(10))?;
         parse(&bytes, self.session.device_id())

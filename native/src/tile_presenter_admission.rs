@@ -1,5 +1,5 @@
-//! 本地paint不是服务端applied确认；只在原串行heartbeat成功后开放当前布局的未发输入。
-//! 这是准入围栏而非授权/第二队列；不持像素，不延长期限，不重放未知写。
+//! Local paint is not server applied confirmation; open unsent input for the current layout only after the original serial heartbeat succeeds.
+//! An admission fence, not authorization/a second queue; no pixels, deadline extensions, or replay of uncertain writes.
 use super::{Key, State};
 
 pub(crate) struct Acknowledged {
@@ -12,10 +12,10 @@ pub(crate) struct Heartbeat {
     applied: Option<u64>,
 }
 impl Heartbeat {
-    /// 与生成heartbeat正文共用同一次Shared借用；网络等待期间不持该锁。
+    /// Share the same Shared borrow used to generate heartbeat bodies; never hold the lock during network waits.
     pub(crate) fn capture(state: &mut State, key: Option<&Key>, applied: Option<u64>) -> Self {
-        // 减权必须先于HTTP：服务可能已清applied但回复尚在途；后续paint不能沿用旧ACK。
-        // 过期key的调用不撤后继owner；同布局正常续期也不制造无必要的输入停顿。
+        // Reduce authority before HTTP: the server may clear applied while its reply is in flight; later paints cannot reuse old ACKs.
+        // Calls with expired keys do not revoke successor owners; normal same-layout renewal avoids unnecessary input pauses.
         if state.desired.as_ref() == key
             && (key.is_none_or(|key| applied != Some(key.revision))
                 || state.black
@@ -30,7 +30,7 @@ impl Heartbeat {
             applied,
         }
     }
-    /// 仅原presenter在HTTP/严格ACK校验成功之后调用；同presenter没有并行心跳。
+    /// Called only by the original presenter after HTTP/strict ACK validation succeeds; one presenter has no parallel heartbeats.
     pub(crate) fn acknowledge(self, state: &mut State) {
         if state.stopped
             || state.expired

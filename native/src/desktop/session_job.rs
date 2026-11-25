@@ -1,4 +1,4 @@
-//! 单个会话准备任务 owner：完成通知、取消、回收；不自动发布到当前应用工作区。
+//! Owner of one session-preparation task: completion notification, cancellation, and reclamation; no automatic publication into the current application workspace.
 use super::{
     loom_execution_signal::CompletionSignal,
     session_asset_root::Root,
@@ -70,7 +70,7 @@ impl Job {
                 let _completion = CompletionSignal::new(completed, notify);
                 let (restore, frozen) = match input {
                     Input::Frozen(input) => {
-                        drop(root); // 冻结实例不使用外部资产目录。
+                        drop(root); // Frozen instances do not use external asset directories.
                         let (restore, append) = input.prepare(catalog.as_ref(), &signal)?;
                         (restore, Some(append))
                     }
@@ -130,7 +130,7 @@ impl Job {
 impl Drop for Job {
     fn drop(&mut self) {
         self.cancel();
-        // 文件系统/WIC 调用不可强制中断；退出等待当前调用回收，不遗留无 owner 线程。
+        // Filesystem/WIC calls cannot be forcibly interrupted; exit waits for the current call to be reclaimed, leaving no ownerless thread.
         if let Some(worker) = self.worker.take() {
             let _ = worker.join();
         }

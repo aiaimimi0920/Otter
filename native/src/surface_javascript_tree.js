@@ -1,7 +1,7 @@
-// 私有文档树：稳定 identity、live 集合、原子准入和有界移动；不提供外部宿主能力。
+// Private document tree: stable identity, live collections, atomic admission, and bounded moves; expose no external host capabilities.
 ((fail, makeEvents) => {
   "use strict";
-  // 不调用可被插件替换的 collection intrinsic，也不在私有数组上触发 species/iterator。
+  // Never call plugin-replaceable collection intrinsics or invoke species/iterator on private arrays.
   const bind = fn => Function.prototype.call.bind(fn);
   const Weak = WeakMap, MapType = Map, ProxyType = Proxy, nullPrototype = Object.setPrototypeOf, create = Object.create, seal = Object.seal;
   const array = () => nullPrototype([], null), push = (list, value) => { list[list.length] = value; };
@@ -10,7 +10,7 @@
   const indexOf = (list, value) => { for (let i = 0; i < list.length; i++) if (list[i] === value) return i; return -1; };
   const remove = (list, index) => { for (let i = index; i + 1 < list.length; i++) list[i] = list[i + 1]; list.length--; };
   const exec = bind(RegExp.prototype.exec), slice = bind(String.prototype.slice), index = bind(String.prototype.indexOf);
-  // CSS 私有解析只分割固定字符串；不通过可变 RegExp Symbol.split/exec 调度。
+  // Private CSS parsing splits only fixed strings; never dispatch through mutable RegExp Symbol.split/exec.
   const split = (text, separator) => {
     const out = array(); let start = 0, next;
     while ((next = index(text, separator, start)) >= 0) { push(out, slice(text, start, next)); start = next + separator.length; }
@@ -41,10 +41,10 @@
   const textTags = new Set([...inline, "p", "h1", "h2", "h3"]);
   const constructorKey = {};
   let created = 0, root, revision = create(null), staged;
-  // 私有 identity token 不回绕；几何仅持当前/上次 token，不保留 mutation 历史。
+  // Private identity tokens never wrap; geometry retains only current/previous tokens, not mutation history.
   const changed = () => { revision = create(null); };
   const get = node => ops.weakGet(state, node) ?? fail();
-  // 仅私有 markup 路径使用；输入转换在外，构造和交换不回调插件。
+  // Only for private markup paths; input conversion occurs outside, and construction/swapping never calls plugins back.
   const replaceMarkup = (parent, source, build, discard) => {
     if (staged) fail();
     const start = created, previous = revision;
@@ -74,7 +74,7 @@
   const collection = (node, elements) => {
     const items = () => {
       const s = get(node);
-      // 缓存不原地修改：item 的 Number(index) 可重入改树，仍须读取转换前的列表。
+      // Never modify caches in place: item's Number(index) may reentrantly mutate the tree, but must still read the pre-conversion list.
       if (!elements) return filter(s.children, () => true);
       return s.elementChildren ??= filter(s.children, child => get(child).tag !== "#text");
     };
@@ -111,12 +111,12 @@
       const item = pending[pending.length - 1]; pending.length--;
       if (item.level > 32) fail();
       const children = get(item.node).children;
-      // 本批次移到 parent 的后代已成为兄弟，必须按最终树而不是旧子树检查深度。
+      // Descendants moved to parent in this batch have become siblings; check depth against the final tree, not the old subtree.
       for (let i = 0; i < children.length; i++) if (indexOf(moved, children[i]) < 0) push(pending, { node: children[i], level: item.level + 1 });
     }
   };
   const insert = (parent, values, replace, strings) => {
-    // 参数、循环、深度和叶节点合同全部通过后才拆旧树；Fragment 本身不进入树。
+    // Detach the old tree only after all argument, cycle, depth, and leaf-node contracts pass; Fragment itself never enters the tree.
     const next = array(), moved = array();
     const plan = child => {
       const old = indexOf(next, child);
@@ -228,7 +228,7 @@
   };
   const createStagedNode = (tag, data = "") => {
     if (!staged || created >= 2048) fail();
-    // 公共 class 的 super 目标能被插件替换；只分配同型对象，走私有注册入口。
+    // Plugins may replace public classes' super targets; allocate only same-shaped objects and use private registration.
     let type;
     if (tag === "#fragment") type = DocumentFragment;
     else if (tag === "#text") type = Text;
@@ -241,7 +241,7 @@
     return initNode(node, tag, data);
   };
   const appendStaged = (parent, child) => {
-    // 解析栈已检查深度，child 是刚创建的叶节点；提交时仍验证完整最终树。
+    // The parser stack already checked depth, and child is a newly created leaf; commit still validates the complete final tree.
     const p = get(parent), c = get(child);
     if (!accepts(p.tag, c.tag)) fail();
     push(p.children, child); c.parent = parent;

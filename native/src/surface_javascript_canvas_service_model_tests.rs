@@ -1,4 +1,4 @@
-//! 独立RGBA oracle核调用时Canvas、后续修改和原操作预算；不调用新host转换来自证。
+//! Independent RGBA oracles check call-time Canvas state, subsequent changes, and the original operation budget without self-validating through new host conversions.
 use super::*;
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use serde_json::json;

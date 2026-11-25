@@ -1,4 +1,4 @@
-//! 尺寸变化同时换代两帧池和捕获会话，使静止源也交付完整的新尺寸首帧。
+//! Size changes replace both the two-frame pool and capture session so stationary sources also deliver a complete first frame at the new size.
 use super::{lifetime, resize, signal, Error, Session, SizeInt32};
 use std::sync::Arc;
 use windows::{
@@ -18,7 +18,7 @@ pub(super) fn start(
     signal: &Arc<signal::Signal>,
     size: SizeInt32,
 ) -> Result<(), Error> {
-    // 先交给原 owner；任何 API 失败仍由 Session::close 关闭部分建成的资源。
+    // Transfer to the original owner first; Session::close still closes partially constructed resources on any API failure.
     resources.pool = Some(super::super::factory::pool(
         device,
         DirectXPixelFormat::B8G8R8A8UIntNormalized,
@@ -37,7 +37,7 @@ pub(super) fn start(
     }))?);
     let session = resources.session.as_ref().unwrap();
     session.SetIsCursorCaptureEnabled(false)?;
-    // 与主干 Win32 采集一致；旧系统缺少该接口时保留原采集能力。
+    // Match baseline Win32 capture; retain existing capture capability on older systems lacking this interface.
     if let Err(error) = session.SetIsBorderRequired(false) {
         if error.code() != windows::Win32::Foundation::E_NOINTERFACE {
             return Err(error.into());
@@ -67,8 +67,8 @@ fn stop(resources: &mut lifetime::Resources, frame_token: &mut Option<i64>) -> R
 impl Session {
     pub(super) fn recreate(&mut self, next: SizeInt32) -> Result<(), Error> {
         self.signal.check()?;
-        // 仅 Recreate 原池会等待源下一次重绘；恢复时的唯一帧已被丢弃，静止源可永久停住。
-        // 旧帧已在调用方 Close；仍用同 item/device/Signal/交付源，不重开业务会话或序号。
+        // Recreate alone on the original pool waits for the next source repaint; if the sole restoration frame was discarded, a stationary source may stall forever.
+        // The caller already Closed the old frame; retain the same item/device/Signal/delivery source without restarting the business session or sequence.
         resize::recreate(
             &mut self.size,
             &mut self._budget,

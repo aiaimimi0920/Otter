@@ -1,4 +1,4 @@
-//! 单请求流式编码/解码；纹理逐项先计数、领取预算再读，私有图像缓冲析构时清零。
+//! Single-request streaming encoding/decoding; count each texture and claim its budget before reading, and zero private image buffers on drop.
 use super::*;
 use crate::{
     shader_angle::{Fingerprint, Identity, Texture, Uniform},
@@ -64,7 +64,7 @@ pub(crate) fn write_request(
     value: &Invocation<'_>,
     header: &Header,
 ) -> io::Result<()> {
-    // 调用方已准入，发送时再复核固定头；不组装第二份全图编码缓冲。
+    // The caller has passed admission; recheck the fixed header when sending without assembling a second full-image encoded buffer.
     let expected = Header::for_invocation(value)?;
     if expected != *header {
         return Err(invalid());
@@ -136,7 +136,7 @@ pub(crate) fn read_request(reader: &mut impl Read) -> io::Result<OwnedRequest> {
         return Err(invalid());
     }
     let directory = PathBuf::from(OsString::from_wide(&units));
-    // 只允许可信父侧的绝对本地路径；不把 pipe 内容解析成相对 cwd 或网络 DLL 路径。
+    // Allow only absolute local paths from the trusted parent; never interpret pipe contents as cwd-relative or network DLL paths.
     if !directory.is_absolute() {
         return Err(invalid());
     }
@@ -161,7 +161,7 @@ pub(crate) fn read_request(reader: &mut impl Read) -> io::Result<OwnedRequest> {
             .ok_or_else(invalid)?;
         let name = text(&mut body, length, 128)?;
         identifier(&name)?;
-        // 短帧不能先触发大纹理分配；为剩余描述符和 uniform 保留最低必需尾部。
+        // Short frames must not trigger large texture allocations first; reserve the minimum required tail for remaining descriptors and uniforms.
         let tail = u64::from(header.textures - index - 1) * 21 + u64::from(header.uniforms) * 9;
         if count as u64 + tail > body.limit() {
             return Err(invalid());

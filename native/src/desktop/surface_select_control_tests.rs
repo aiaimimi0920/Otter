@@ -1,4 +1,4 @@
-//! 真实 COMBOBOX 选项/选择/销毁；只操作自有隐藏窗口，不注入桌面键盘输入。
+//! Actual COMBOBOX options/selection/destruction; use only owned hidden windows, without desktop-keyboard injection.
 use super::*;
 #[path = "surface_select_font_tests.rs"]
 mod font_tests;

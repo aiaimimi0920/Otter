@@ -1,4 +1,4 @@
-//! 独立 Tile 管理/输出路径；复用设备配对与授权 owner，普通截图工作区不初始化。
+//! Independent Tile management/output paths reuse device-pairing/authorization owners; ordinary screenshot workspaces do not initialize them.
 use crate::{
     device_authorization_config::{Action, Config},
     device_authorization_owner::{Event, Owner},

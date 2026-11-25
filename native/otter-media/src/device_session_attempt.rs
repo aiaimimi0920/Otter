@@ -1,4 +1,4 @@
-//! 单次设备会话协议；状态消费阻止重复使用 challenge，网络与批准轮询由外层负责。
+//! One-shot device-session protocol consumes state to prevent challenge reuse; outer layers own networking/approval polling.
 use crate::{device_identity::Identity, device_session_proof};
 use serde::{Deserialize, Deserializer};
 use url::Url;
@@ -30,7 +30,7 @@ pub struct SignedAttempt {
     origin: String,
     proof: Vec<u8>,
 }
-// 不实现 Debug/Clone/Serialize；凭据只允许发往申请时固定的 HTTPS origin。
+// No Debug/Clone/Serialize; credentials may be sent only to the HTTPS origin fixed at application.
 pub struct Session {
     device: String,
     origin: String,
@@ -50,7 +50,7 @@ impl<'a> Attempt<'a> {
         serde_json::to_vec(&serde_json::json!({"deviceId": self.identity.device_id()}))
             .expect("serializing a device identifier cannot fail")
     }
-    /// body 必须来自此 origin 的无重定向 HTTPS 请求；传输层仍须限制读取分配。
+    /// body must come from no-redirect HTTPS requests to this origin; transport still bounds read allocations.
     pub fn challenge(self, status: u16, body: &[u8]) -> Result<SignedAttempt, Error> {
         check_size(body)?;
         if !(200..300).contains(&status) {
@@ -82,7 +82,7 @@ impl SignedAttempt {
     pub fn body(&self) -> &[u8] {
         &self.proof
     }
-    /// 不重试、不重新配对；调用者提供响应接收时刻，而非请求发出时刻。
+    /// No retry/re-pairing; callers supply response-reception time, not request-send time.
     pub fn finish(self, status: u16, body: &[u8], now_ms: u64) -> Result<Session, Error> {
         check_size(body)?;
         if !(200..300).contains(&status) {

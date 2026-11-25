@@ -1,4 +1,4 @@
-//! 跨 `otter-runtime` 与宿主 `otter-native` 边界的联合单测（保留 100% 原始断言覆盖）。
+//! Joint unit tests across `otter-runtime`/`otter-native` host boundaries, retaining 100% of original assertion coverage.
 use crate::{
     session_vectors::{restore, Error},
     stroke_style::{Color, PaintAlpha},

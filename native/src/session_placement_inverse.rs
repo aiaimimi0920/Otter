@@ -1,9 +1,9 @@
-//! 物理窗口框写回逻辑坐标；提示只保留已验证的取整余量，不能绕过恢复预算。
+//! Write physical window frames back to logical coordinates; hints retain only validated rounding remainder and cannot bypass restore budgets.
 use super::*;
 
 impl Space {
-    /// 使用恢复时显式指定的同一 Space；不得从目标显示器 DPI 推断原会话比例。
-    /// hint 是原逻辑框：不变的边保留小数，移动/缩放按物理增量换算，再验证物理往返。
+    /// Use the same Space explicitly specified at restoration; never infer original session scale from target-monitor DPI.
+    /// hint is the original logical frame: retain fractions on unchanged edges, convert physical move/resize deltas, then validate physical round trips.
     pub fn logical(self, frame: PinRect, hint: Option<Rect>) -> Result<Rect, Error> {
         if !self.scale.is_finite() || self.scale <= 0.0 {
             return Err(Error::Geometry);
@@ -31,7 +31,7 @@ impl Space {
                         + (i64::from(frame.height) - i64::from(previous.height)) as f64
                             / self.scale,
                 };
-                // 浮点边界可能不能保留余量；不能为保留旧小数牺牲真实 HWND 几何。
+                // Floating-point boundaries may prevent remainder preservation; never sacrifice actual HWND geometry to retain old fractions.
                 if preserved.valid() && self.physical(preserved).is_ok_and(|rect| rect == frame) {
                     return Ok(preserved);
                 }

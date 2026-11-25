@@ -1,4 +1,4 @@
-//! UI 线程的图片绘制源：像素共享，位图按精确 target 缓存，上传预算跨窗口共用。
+//! UI-thread image paint sources: shared pixels, exact-target bitmap caches, and upload budgets shared across windows.
 use crate::{
     image_decode::Image, surface_clip::Rect, surface_layout_tree::Placed, surface_length::Context,
 };
@@ -19,7 +19,7 @@ use windows::{
         },
     },
 };
-// 这是上传像素字节预算，不冒充驱动/纹理实际总显存测量。
+// This is an uploaded-pixel byte budget, not a measurement of total actual driver/texture GPU memory.
 static UPLOAD: LazyLock<Arc<crate::byte_budget::Budget>> =
     LazyLock::new(|| crate::byte_budget::Budget::new(128 * 1024 * 1024));
 struct Cached {
@@ -27,7 +27,7 @@ struct Cached {
     bitmap: ID2D1Bitmap,
     _budget: crate::byte_budget::Lease,
 }
-/// 已验证 PBGRA 像素的 UI 线程资源；不负责来源授权，不能替代 Ready 的当前挂载校验。
+/// UI-thread resources for verified PBGRA pixels; source authorization and Ready's current-mount validation remain separate.
 pub struct Bitmap {
     image: Image,
     logical_size: [f32; 2],
@@ -45,8 +45,8 @@ impl Bitmap {
         let size = [image.width as f32, image.height as f32];
         Self::with_logical_size(image, size)
     }
-    /// 当前栅格每逻辑单位一个像素，尾部 padding 不参与布局或 contain 比例。
-    /// 这是 Surface 私有元数据；不改变截图、Relay 或通用 Image 的像素语义。
+    /// The current raster has one pixel per logical unit; trailing padding does not affect layout or contain proportions.
+    /// Surface-private metadata; it does not change screenshot, Relay, or generic Image pixel semantics.
     pub(crate) fn with_logical_size(image: Image, logical_size: [f32; 2]) -> Result<Rc<Self>> {
         if logical_size
             .iter()
@@ -87,7 +87,7 @@ impl Bitmap {
         {
             return Ok(cached.bitmap.clone());
         }
-        // 设备重建不可沿用同工厂的旧 target 位图；先释放旧租约，避免双份占用阻止恢复。
+        // Device recreation cannot reuse an old target's bitmap from the same factory; release the old lease first so double occupancy cannot block recovery.
         cache.take();
         let budget = UPLOAD
             .reserve(self.image.pixels.len())
@@ -142,7 +142,7 @@ impl Paint {
         }
         let natural = source.logical_size;
         let scale = (size[0] / natural[0]).min(size[1] / natural[1]);
-        // Canvas 的缺省 object-fit 是 fill；普通声明式图片仍保留原 contain 行为。
+        // Canvas defaults object-fit to fill; ordinary declarative images retain their original contain behavior.
         let fitted = if placed.node.canvas_size().is_some() {
             size
         } else {

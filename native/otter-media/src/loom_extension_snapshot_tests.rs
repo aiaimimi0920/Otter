@@ -1,4 +1,4 @@
-//! 来自实际 extension snapshot schema 的信任、归属、预算与条件回归；不使用真实扩展数据。
+//! Trust, ownership, budget, and condition regressions from the actual extension snapshot schema; no real extension data.
 use super::*;
 use crate::extension_when::UnitKind;
 use serde_json::json;

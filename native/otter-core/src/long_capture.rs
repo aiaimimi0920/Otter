@@ -1,4 +1,4 @@
-//! 长截图的已定位帧拼接底层；位置由匹配器提供，本模块不猜测滚动、不执行屏幕采集。
+//! Positioned-frame stitching primitives for scrolling capture; matchers supply positions, with no guessed scrolling or screen capture.
 use crate::pixels::Pixels;
 use std::sync::atomic::AtomicBool;
 #[path = "long_capture_compose.rs"]
@@ -41,7 +41,7 @@ pub enum Axis {
     Vertical,
     Horizontal,
 }
-/// 已接受图像在拼接坐标中的运动方向；不是滚轮符号，也不由输入事件直接赋值。
+/// Accepted-image movement direction in stitching coordinates, not wheel signs or direct input-event assignment.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Direction {
     Up,
@@ -99,7 +99,7 @@ pub struct Frame {
     pixels: Pixels,
 }
 impl Frame {
-    /// 紧密排列的 BGRA 像素；克隆 Frame 只共享像素和预算租约。
+    /// Tightly packed BGRA pixels; Frame clones share only pixels/budget leases.
     pub fn new(width: u32, height: u32, pixels: Pixels) -> Result<Self, Error> {
         let count = frame_pixels(width, height)?;
         if count * 4 != pixels.len() as u64 {
@@ -118,7 +118,7 @@ impl Frame {
         &self.pixels
     }
 }
-/// 滚动轴上的绝对位置；允许负坐标，首帧不要求在零点。
+/// Absolute position on the scrolling axis; negative coordinates are allowed and first frames need not start at zero.
 pub struct Positioned {
     pub frame: Frame,
     pub origin: i64,
@@ -130,8 +130,8 @@ pub struct Composite {
     pub pixels: Pixels,
 }
 
-/// 保留较早帧的已覆盖内容，只补入新区域；不进行 alpha 混合或隐式颜色转换。
-/// 空洞、横向尺寸不一致及超限在输出分配前拒绝；共享像素预算可能早于单图上限拒绝。
+/// Preserve earlier-frame coverage and add only new regions, without alpha blending/implicit color conversion.
+/// Reject holes/cross-axis dimension mismatches/overflow before output allocation; shared pixel budgets may reject before per-image limits.
 pub fn stitch(axis: Axis, frames: &[Positioned], cancel: &AtomicBool) -> Result<Composite, Error> {
     compose::stitch(axis, frames, cancel, crate::pixels::reserve)
 }

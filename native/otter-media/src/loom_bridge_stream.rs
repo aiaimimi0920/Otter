@@ -1,4 +1,4 @@
-//! Loom TLS/WebSocket 底层流：操作总截止时间不会因分片读写刷新；不负责认证或发现。
+//! Underlying Loom TLS/WebSocket stream: the total operation deadline is not refreshed by fragmented reads/writes; authentication and discovery are not its responsibility.
 use std::{
     io::{self, Read, Write},
     net::TcpStream,
@@ -18,12 +18,12 @@ pub struct BridgeStream {
     socket: TcpStream,
     deadline: Instant,
     cancelled: Arc<AtomicBool>,
-    // socket 字段先析构，取消其事件关联后才释放 network event。
+    // Drop the socket field first, removing its event association before releasing the network event.
     #[cfg(windows)]
     wait: wait::Wait,
 }
 
-/// 只暴露中断能力，不让取消 owner 绕过认证层读写原始 socket。
+/// Expose only interruption; do not let the cancellation owner bypass authentication to read/write the raw socket.
 pub struct Interrupt {
     #[cfg(not(windows))]
     socket: TcpStream,
@@ -33,7 +33,7 @@ pub struct Interrupt {
 }
 impl Interrupt {
     pub fn cancel(&self) -> io::Result<()> {
-        // 先记录不可逆取消，覆盖 worker 尚未进入 read/正在设置超时的竞争窗口。
+        // Record irreversible cancellation first, covering the race while the worker has not entered read or is setting the timeout.
         self.cancelled.store(true, Ordering::Release);
         #[cfg(windows)]
         {
@@ -42,7 +42,7 @@ impl Interrupt {
         #[cfg(not(windows))]
         {
             match self.socket.shutdown(Shutdown::Both) {
-                // 远端关闭、读取线程先退出或重复取消都可能到达这里；取消应当幂等。
+                // Remote close, an already-exited read thread, or repeated cancellation can all reach here; cancellation must be idempotent.
                 Err(error) if error.kind() == io::ErrorKind::NotConnected => Ok(()),
                 result => result,
             }
@@ -51,7 +51,7 @@ impl Interrupt {
 }
 
 impl BridgeStream {
-    /// 调用者在连接前创建 deadline，确保连接及握手共享同一个总预算。
+    /// The caller creates the deadline before connecting so connection and handshake share one total budget.
     pub fn new(socket: TcpStream, deadline: Instant) -> io::Result<Self> {
         #[cfg(not(windows))]
         socket.set_nonblocking(false)?;
@@ -83,7 +83,7 @@ impl BridgeStream {
         })
     }
 
-    /// 每个逻辑操作只设置一次；不能在每次 TLS record 或 WebSocket 分片前刷新。
+    /// Set only once per logical operation; do not refresh before each TLS record or WebSocket fragment.
     pub fn operation_deadline(&mut self, timeout: Duration) -> io::Result<()> {
         if timeout.is_zero() {
             return Err(io::ErrorKind::InvalidInput.into());
@@ -125,7 +125,7 @@ impl BridgeStream {
     }
     fn check_cancelled(&self) -> io::Result<()> {
         if self.cancelled.load(Ordering::Acquire) {
-            // Interrupted 会被 read_exact 自动重试；取消必须是不可重试的终止状态。
+            // read_exact automatically retries Interrupted; cancellation must be a non-retryable terminal state.
             Err(io::ErrorKind::ConnectionAborted.into())
         } else {
             Ok(())

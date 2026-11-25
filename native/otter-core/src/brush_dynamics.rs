@@ -1,4 +1,4 @@
-//! 笔刷采样时序只属于草稿；保存无量纲权重，变换后不重新解释绘制速度。
+//! Brush sampling timing belongs only to drafts; save dimensionless weights without reinterpreting drawing speed after transformation.
 use crate::viewport::Point;
 
 #[derive(Clone, Copy, Debug)]

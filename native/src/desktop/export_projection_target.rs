@@ -1,4 +1,4 @@
-//! 后台借用目标几何/传播字段；只物化当前步骤真正需要的小型编辑字段。
+//! Borrow target geometry/propagation fields in background; materialize only small editing fields actually needed by the current step.
 use super::*;
 use serde::Deserialize;
 use serde_json::{value::RawValue, Map, Value};
@@ -82,7 +82,7 @@ fn read_selected<'a>(
         .zip(selected.y)
         .zip(selected.w.zip(selected.h))
         .map(|((x, y), (w, h))| crate::session_window::Rect { x, y, w, h });
-    // 无本地 raster 的 Art/上游目标仍拥有自己的逻辑外框；不能按上游自然像素解释外观。
+    // Art/upstream targets without local raster still own logical outer bounds; never interpret appearance from upstream natural pixels.
     let dimensions = if selected.minified == Some(true) {
         selected.saved_rect.map(|rect| (rect.w, rect.h))
     } else {
@@ -107,7 +107,7 @@ fn read_selected<'a>(
         .filter(|_| read_appearance)
     {
         if let Some(raw) = fields.get(key) {
-            // 每个纯外观值先限字节，未知大历史/扩展不进入 Value，也不复制图片。
+            // Cap each pure-appearance value in bytes first; large unknown history/extensions never enter Value, and images are not copied.
             if raw.get().len() > 16 * 1024 {
                 return Err(invalid());
             }

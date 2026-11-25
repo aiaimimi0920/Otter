@@ -1,4 +1,4 @@
-//! 显式空集合、仅自建边可撤回及冲突原子性；不持像素或调用窗口。
+//! Explicit empty sets, retracting only self-created edges, and conflict atomicity; no pixels or window calls.
 use super::*;
 use crate::art_execution_grant::package::ports::{Port, Ports};
 use crate::workspace::Link;

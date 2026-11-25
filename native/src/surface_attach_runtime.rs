@@ -1,4 +1,4 @@
-//! 创建或显式候选恢复的后台挂载事务；取消不代表远端回滚，不自动重发 POST。
+//! Background mount transaction for creation or explicit candidate recovery; cancellation is not remote rollback, and POSTs are never resent automatically.
 use crate::{
     device_authorization_config::{Config, Error as PrepareError},
     device_authorization_lease::Lease,
@@ -43,7 +43,7 @@ impl Request {
             operation: Operation::Create(persistence),
         })
     }
-    /// 只接受认证查询产生的候选；调用方显式选择恢复，不隐式重建原 Art。
+    /// Accept only candidates from authenticated queries; the caller explicitly chooses recovery without implicitly recreating the original Art.
     pub fn recover(candidate: Arc<RecoveryCandidate>, report: Report) -> Self {
         Self {
             art: candidate.art().to_owned(),
@@ -79,10 +79,10 @@ pub struct Outcome {
     pub origin: String,
     pub device: String,
     pub request: Arc<Request>,
-    /// 有效响应已经确认的绑定，即使迟到撤权也保留，不代表当前仍有操作授权。
+    /// Preserve bindings confirmed by valid responses even after late revocation; this does not establish current operational authorization.
     pub binding: Option<Binding>,
     pub result: Result<Box<serde_json::value::RawValue>, Error>,
-    /// 已尝试挂载但没有确认绑定；必须保留上下文，禁止自动重试创建或恢复。
+    /// Mount was attempted without a confirmed binding; retain the context and prohibit automatic creation or recovery retries.
     pub uncertain: bool,
 }
 #[path = "surface_mount_admission.rs"]
@@ -188,7 +188,7 @@ impl Job {
 impl Drop for Job {
     fn drop(&mut self) {
         self.request_stop();
-        // 上层正常退出必须先 wait/try_join 保存恢复证据；Drop 不承诺撤销远端创建。
+        // Normal upper-layer shutdown must first wait/try_join to save recovery evidence; Drop does not promise to undo remote creation.
         if let Some(thread) = self.thread.take() {
             let _ = thread.join();
         }

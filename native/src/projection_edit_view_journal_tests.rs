@@ -1,4 +1,4 @@
-//! 真实隔离journal往返：存basis对象与原请求，重开后在新本地尺寸恢复；显式ack不是Application保存。
+//! Real isolated-journal round trips store basis objects/original requests and restore at new local dimensions; explicit ACK is not Application saving.
 use super::{test_fixture::*, *};
 use crate::projection_edit::{
     fixture::{context, PROJECTION, SESSION},
@@ -98,7 +98,7 @@ fn scaled_edit_original_request_and_basis_view_survive_reopen_before_explicit_ch
         .request()
         .response(&serde_json::to_vec(&remote).unwrap(), Some(&previous))
         .unwrap();
-    assert_eq!(reopened.pending(&cancel).unwrap().len(), 1); // HTTP/解析成功不能清pending。
+    assert_eq!(reopened.pending(&cancel).unwrap().len(), 1); // HTTP/parsing success cannot clear pending.
     assert_eq!(
         std::fs::read(directory.join("projection-edit.json")).unwrap(),
         saved

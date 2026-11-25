@@ -1,4 +1,4 @@
-//! 真实隐藏 HWND 消费同 child 文字帧；省略/clip/恢复像素、盒命中与旧帧原子性。
+//! Actual hidden HWNDs consume same-child text frames; ellipsis/clip/restore pixels, box hits, and old-frame atomicity.
 use super::*;
 use crate::surface_javascript::text_overflow_tests::{view, SOURCE};
 #[test]

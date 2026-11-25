@@ -1,4 +1,4 @@
-//! HWND 与隔离 JS 共用的客户区/DPI/字体合同；不使用外框尺寸或建立第二套布局默认值。
+//! Shared client-area/DPI/font contracts for HWNDs and isolated JS; no outer-window dimensions or second set of layout defaults.
 use crate::{
     surface_length::Context,
     surface_text::{Align, Style, Whitespace},

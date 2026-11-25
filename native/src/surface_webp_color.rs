@@ -1,10 +1,10 @@
-//! 只在受 Job 限制的 WebP child 内将嵌入 RGB ICC 转成 sRGB；转换先于预乘。
+//! Convert embedded RGB ICC to sRGB only within Job-restricted WebP children, before premultiplication.
 use moxcms::{CmsError, ColorProfile, DataColorSpace, Layout, ParsingOptions, TransformOptions};
 use std::io;
 #[path = "surface_webp_lut.rs"]
 mod lut;
 
-// bytes 已经过 RIFF preflight；仍使用 checked slice，元数据仅借用，不复制完整 profile。
+// bytes passed RIFF preflight; still use checked slices and borrow metadata without copying entire profiles.
 fn profile(bytes: &[u8]) -> Option<&[u8]> {
     if bytes.get(12..16)? != b"VP8X" || bytes.get(20)? & 32 == 0 {
         return None;
@@ -28,8 +28,8 @@ pub(super) fn apply(bytes: &[u8], pixels: &mut [u8], channels: usize) -> io::Res
     let Some(icc) = profile(bytes) else {
         return Ok(());
     };
-    // Chromium 对缺失/坏 ICC/非 RGB profile 保持编码 RGB。转换构造失败则显式失败，
-    // 不能把已识别的有效 RGB profile 默默当 sRGB。Job 仍限制 parser/transform 的总内存。
+    // Chromium preserves encoded RGB for missing/invalid ICC/non-RGB profiles. Transform-construction failures fail explicitly;
+    // never silently treat recognized valid RGB profiles as sRGB. Job still bounds total parser/transform memory.
     let options = ParsingOptions {
         max_profile_size: crate::surface_webp_header::MAX_INPUT + 1,
         ..ParsingOptions::default()
@@ -64,8 +64,8 @@ pub(super) fn apply(bytes: &[u8], pixels: &mut [u8], channels: usize) -> io::Res
             },
         )
         .map_err(io::Error::other)?;
-    // 通用 matrix/LUT 路径分批执行，不限定为仅 matrix 的原地 API，也不创建第二张全图。
-    // 每批至多 4096 像素，额外输出至多 16 KiB；库内部工作表仍由 Job 兜底。
+    // Execute generic matrix/LUT paths in batches, not restricted to matrix-only in-place APIs, without creating a second full image.
+    // At most 4096 pixels per batch and 16 KiB extra output; Job still bounds internal library working tables.
     let mut output = [0u8; 4096 * 4];
     for chunk in pixels.chunks_mut(4096 * channels) {
         transform
@@ -87,7 +87,7 @@ pub(super) fn apply(bytes: &[u8], pixels: &mut [u8], channels: usize) -> io::Res
 fn parsed(result: Result<ColorProfile, CmsError>) -> io::Result<Option<ColorProfile>> {
     match result {
         Ok(profile) => Ok(Some(profile)),
-        // 可区分的资源不足/额度/不支持不能静默返回未转换的成功图片。
+        // Distinguishable resource exhaustion/quota/unsupported failures must not silently return successful unconverted images.
         Err(
             error @ (CmsError::OutOfMemory(_)
             | CmsError::CurveLutIsTooLarge

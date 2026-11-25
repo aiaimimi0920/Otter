@@ -1,4 +1,4 @@
-//! 背景线程从实际上传PNG生成可信预览；复用WIC/Thumbnail/原像素预算，不信脚本预览。
+//! Background work produces trusted previews from the actual uploaded PNG; reuse WIC/Thumbnail/original pixel budgets, not script previews.
 use super::{
     super::{Call, Error},
     Preview,
@@ -67,7 +67,7 @@ fn decode_png(
     remaining: usize,
     stopped: &impl Fn() -> bool,
 ) -> Result<crate::image_decode::shader::Texture, Error> {
-    // WIC 的 HRESULT 不区分取消和坏图；以解码器实际观察到的停止为准。
+    // WIC HRESULT does not distinguish cancellation from corrupt images; use the stop actually observed by the decoder.
     let cancelled = std::cell::Cell::new(false);
     crate::image_decode::shader::png(bytes, remaining, &|| {
         let stop = stopped();

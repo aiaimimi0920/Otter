@@ -1,4 +1,4 @@
-//! 显式设置覆盖更新：完整字节基线、保留未知字段、失败恢复，不将双 rename 称为原子操作。
+//! Explicit settings overwrite: full-byte baseline, unknown-field preservation, and failure recovery; two renames are not called atomic.
 use crate::{
     file_naming_settings::Settings,
     session_file_replace::{Failure, Published, Replacement},
@@ -11,7 +11,7 @@ pub struct Prepared {
     next: Arc<Source>,
 }
 impl Prepared {
-    /// 明确确认的 issuer 设置；复用原设置替换事务和完整字节基线，不另写身份文件。
+    /// Explicitly confirmed issuer settings; reuse the original settings replacement transaction/full-byte baseline without another identity-file write.
     pub fn prepare_issuer_trust(
         source: &Source,
         trust: crate::art_issuer_trust::Document,
@@ -69,7 +69,7 @@ impl Prepared {
                 .map_err(|e| e.to_string())?;
         Ok(Self { transaction, next })
     }
-    /// 只有成功发布才返回新基线；保留恢复文件的警告必须交给 UI 呈现。
+    /// Return a new baseline only after successful publication; UI must present warnings about retained recovery files.
     pub fn commit(self, cancel: &AtomicBool) -> Result<(Arc<Source>, Published), Failure> {
         let published = self.transaction.commit(cancel)?;
         Ok((self.next, published))

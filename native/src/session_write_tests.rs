@@ -9,7 +9,7 @@ fn existing_windows_need_only_the_final_output_pixel_budget() {
     let first = assemble(SOURCE, &topology(), &cancel, |_, old| Ok(old)).unwrap();
     let length = first.bytes.len();
     drop(first);
-    // 独立预算只够最终输出，不占满进程共享池，也可安全并行执行。
+    // Independent budget fits only final output, without filling the process-shared pool, and remains safe for parallel tests.
     let budget = crate::byte_budget::Budget::new(length);
     let candidate = assemble_with_reserve(
         SOURCE,

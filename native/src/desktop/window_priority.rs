@@ -1,4 +1,4 @@
-//! 前景/窗口事件驱动的钉图让位；回调只合并通知，不遍历窗口或持有模型借用。
+//! Foreground/window-event-driven pin yielding; callbacks only coalesce notifications without window traversal/model borrows.
 use std::{
     cell::RefCell,
     rc::{Rc, Weak},
@@ -19,7 +19,7 @@ thread_local! {
 
 pub(super) struct Watcher {
     destination: isize,
-    // Rc 同时保证共享订阅存活以及 !Send/!Sync，最后一个目标释放时注销系统 hook。
+    // Rc keeps shared subscriptions alive and enforces !Send/!Sync; unregister system hooks when the last target releases.
     _hooks: Rc<Hooks>,
 }
 struct Hooks {
@@ -54,7 +54,7 @@ impl Watcher {
         };
         DESTINATIONS.with(|targets| -> Result<()> {
             let mut targets = targets.borrow_mut();
-            // 有界事件扇出，不因增加窗口而建立更多系统订阅或无界消息队列。
+            // Bounded event fan-out; adding windows creates neither more system subscriptions nor unbounded message queues.
             if targets.len() >= 512 {
                 return Err(Error::new(
                     E_OUTOFMEMORY,
@@ -146,7 +146,7 @@ unsafe extern "system" fn on_event(
             if *pending || (event != EVENT_SYSTEM_FOREGROUND && hwnd.0 as isize == *target) {
                 continue;
             }
-            // PostMessage 不同步调用目标过程；只成功投递才设置该窗口的合并标志。
+            // PostMessage does not synchronously call target procedures; set each window's coalescing flag only after successful posting.
             *pending = PostMessageW(
                 Some(HWND(*target as *mut _)),
                 PRIORITY_CHANGED,
@@ -204,7 +204,7 @@ pub(super) unsafe fn blocker(pin: HWND) -> Option<HWND> {
 
 unsafe fn above(pin: HWND, foreground: HWND) -> bool {
     let mut current = pin;
-    // 有界 Z-order 遍历；不从任意 HWND 发起同步跨进程消息。
+    // Bounded Z-order traversal, without synchronous cross-process messages to arbitrary HWNDs.
     for _ in 0..512 {
         let Ok(next) = GetWindow(current, GW_HWNDPREV) else {
             break;

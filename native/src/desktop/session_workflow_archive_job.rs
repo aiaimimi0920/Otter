@@ -1,4 +1,4 @@
-//! 归档后台阶段：资源发布、会话组装与精确基线暂存；提交权限留给 UI Receipt owner。
+//! Background archival stage: asset publication, session assembly, and exact-baseline staging; commit authority remains with the UI Receipt owner.
 use super::{CompletionSignal, Ready};
 use crate::{
     desktop::session_asset_root::{
@@ -17,7 +17,7 @@ use std::{
 };
 
 pub struct Staged {
-    // 先清理会话暂存/释放基线锁，再归还资源句柄和目录 owner。
+    // Clean session staging/release the baseline lock before returning asset handles and the directory owner.
     replacement: Replacement,
     prepared: Prepared,
     root: Arc<Root>,
@@ -31,8 +31,8 @@ impl Staged {
     pub fn candidate(&self) -> &crate::session_write::Candidate {
         self.prepared.candidate()
     }
-    /// 调用方须在 UI 验证 Receipt 后、不泵消息地执行，并只在成功后交换保存基线。
-    /// 返回恢复文件信息不能被丢弃；返回失败不删除已发布的图片资源。
+    /// Callers must execute after UI Receipt verification without pumping messages, and swap the saved baseline only on success.
+    /// Do not discard returned recovery-file information; failure does not delete already published image assets.
     pub fn commit(self, cancel: &AtomicBool) -> Result<Committed, Failure> {
         let publication = self.replacement.commit(cancel)?;
         Ok(Committed {
@@ -47,7 +47,7 @@ pub struct Job {
     completed: Arc<AtomicBool>,
     worker: Option<JoinHandle<Result<Staged, String>>>,
 }
-/// 归档不发送图片快照；原文 owner 自身保留字节预算，不随烘焙快照提前归还。
+/// Archives do not send image snapshots; the original-text owner retains its byte budget rather than returning it early with baked snapshots.
 struct ArchiveInput {
     source: crate::session_source::Source,
     metadata: crate::session_document::workflow_snapshot::metadata::Plan,
@@ -59,7 +59,7 @@ impl ArchiveInput {
             source,
             metadata,
         } = ready;
-        // 在 worker 内释放，避免 UI 为失效的大快照承担析构；新 revision 将重新准备。
+        // Release in the worker so the UI does not destroy large stale snapshots; a new revision will prepare again.
         drop(prepared);
         Self { source, metadata }
     }

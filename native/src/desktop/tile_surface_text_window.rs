@@ -1,4 +1,4 @@
-//! Tile文本编辑接线；Win32调用前移出owner，回调不持RefCell借用，不做网络或阻塞等待。
+//! Tile text-edit wiring; move owners out before Win32 calls, hold no RefCell borrow in callbacks, and perform no networking/blocking waits.
 use super::*;
 use crate::{desktop::surface_edit_messages as messages, tile_surface_text::Field};
 #[path = "tile_surface_text_owner.rs"]
@@ -7,7 +7,7 @@ mod owner;
 pub(super) mod popup;
 pub(super) use owner::Owner;
 pub(super) const DISMISS: u32 = WM_APP + 0x617;
-// 显式Esc取消允许保留Tab位置；失焦/外部关闭仍完整退休。
+// Explicit Esc cancellation may preserve Tab position; focus loss/external closure still fully retires.
 pub(super) const CANCEL_EDIT: u32 = WM_APP + 0x618;
 fn current_frame(state: &State) -> Option<Arc<Frame>> {
     actions::active(state)

@@ -1,4 +1,4 @@
-//! 显式桌面门禁：仅捕获自建纯色源，验证真实 WGC 与登记/隐藏/召回生命周期。
+//! Explicit desktop gate: capture only self-created solid-color sources to verify real WGC and registration/hide/recall lifecycles.
 use super::*;
 use crate::{
     live_frames::Consumer, live_job::LiveJob, live_reclaim::IntentTracker, live_texture::Texture,

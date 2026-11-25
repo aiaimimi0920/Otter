@@ -1,4 +1,4 @@
-//! Slider 只读权限差量；使用既有单消息调度和刷新护栏，不独立持有消息或状态。
+//! Slider read-only permission deltas; reuse existing single-message scheduling/refresh guards without independent message or state ownership.
 use super::*;
 pub(in crate::desktop::surface_window) fn enqueue(
     state: &State,

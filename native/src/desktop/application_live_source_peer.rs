@@ -1,4 +1,4 @@
-//! Source专属TLS服务：固定授权、create/WSS/close，独立核完整帧；不修改真实配置。
+//! Source-specific TLS service: fixed authorization, create/WSS/close, and independent full-frame validation; no real configuration changes.
 use super::*;
 use serde_json::{json, Value};
 use std::io::Write;

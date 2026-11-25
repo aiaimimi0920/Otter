@@ -1,4 +1,4 @@
-//! 三键实际状态与补偿矩阵；注入系统适配器，不注册用户全局快捷键。
+//! Actual three-key state/compensation matrices; inject system adapters without registering user global shortcuts.
 use super::*;
 use windows::Win32::Foundation::E_FAIL;
 use Key::{Live, Long, Primary};

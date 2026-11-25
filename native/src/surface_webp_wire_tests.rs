@@ -1,4 +1,4 @@
-//! 实际 Job child 故障响应经过生产接收链；不读取用户配置或伪造成功结果。
+//! Actual Job-child fault responses pass through the production receive chain without user-configuration reads or fabricated success.
 use super::*;
 use std::os::windows::io::{AsHandle, AsRawHandle};
 use windows::Win32::{Foundation::*, System::Threading::WaitForSingleObject};
@@ -7,7 +7,7 @@ use windows::Win32::{Foundation::*, System::Threading::WaitForSingleObject};
 fn surface_webp_bad_wire_and_failed_child_never_publish_and_always_reap() {
     for mode in 0..=8u8 {
         let mut bytes = Image::webp_for_test();
-        // 有界未知 RIFF chunk 仅携带夹具模式，不扩展生产启动参数或协议。
+        // Bounded unknown RIFF chunks carry only fixture modes without extending production launch arguments or protocols.
         bytes.extend_from_slice(b"TEST\x02\0\0\0");
         bytes.extend_from_slice(&[mode, 0]);
         let len = (bytes.len() - 8) as u32;
@@ -55,7 +55,7 @@ fn fault_reply() -> io::Result<i32> {
     channel.read_exact(&mut bytes)?;
     let mode = bytes[len - 2];
     if mode == 8 {
-        // 已消费请求但尚未发出响应即异常退出。
+        // Abnormal exit after consuming the request but before sending a response.
         return Ok(9);
     }
     let mut response = b"OWP1".to_vec();
@@ -73,6 +73,6 @@ fn fault_reply() -> io::Result<i32> {
         _ => {}
     }
     channel.write_all(&response)?;
-    // 完整合法输出仍不能掩盖 child 的非零退出。
+    // Complete valid output still cannot hide a child's nonzero exit.
     Ok(if mode == 7 { 9 } else { 0 })
 }

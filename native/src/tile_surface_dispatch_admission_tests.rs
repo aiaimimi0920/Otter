@@ -1,4 +1,4 @@
-//! 实际TLS顺序由独立接收端核验：heartbeat未确认前零Event，之后原事件恰一次且期限不变。
+//! Independent receivers verify actual TLS ordering: zero Events before heartbeat confirmation, then the original event exactly once with its deadline unchanged.
 use super::*;
 use crate::tile_shared::admission::{permits, Heartbeat};
 use std::{sync::mpsc, time::Duration};
@@ -18,7 +18,7 @@ fn acknowledge(f: &Fixture) {
 fn actual_tls_heartbeat_ack_precedes_the_original_event_without_extending_its_deadline() {
     let (listener, client, config, _) = crate::device_session_client::tests::fixture_with_pem();
     let peer_listener = listener.try_clone().unwrap();
-    // Windows克隆可能恢复副本的阻塞模式；无连接断言也必须保有界，不能挂在accept。
+    // Windows cloning may restore blocking mode on the copy; no-connection assertions must remain bounded rather than hang on accept.
     peer_listener.set_nonblocking(true).unwrap();
     let mut grant = grant(&client);
     let presenter_lease = grant.lease(client.origin(), 0).unwrap();

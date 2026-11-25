@@ -1,4 +1,4 @@
-//! 内联 HDR 原图恢复；私有 delete-on-close 文件持有字节，逐行验证而不分配完整解码图。
+//! Inline HDR-original recovery; private delete-on-close files hold bytes, with row-by-row validation instead of full decoded-image allocation.
 use std::{
     fs::{File, OpenOptions},
     io::{self, BufReader, Read, Seek, SeekFrom, Write},
@@ -26,7 +26,7 @@ fn restore_in(reference: &str, directory: &Path, cancel: &AtomicBool) -> io::Res
         return Err(invalid());
     }
     let id = unsafe { CoCreateGuid() }.map_err(io::Error::other)?;
-    // 名字不可由会话指定；create_new 防止覆盖。最后一个句柄关闭即删除本次文件。
+    // Sessions cannot choose names; create_new prevents overwriting. The final handle close deletes this file.
     let mut file = OpenOptions::new()
         .read(true)
         .write(true)

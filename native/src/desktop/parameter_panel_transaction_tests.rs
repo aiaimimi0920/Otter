@@ -17,7 +17,7 @@ fn actual_ports_button_commits_drafts_then_rebinds_only_its_successor_stamp() {
         ));
         f.tick();
         assert_eq!(f.value("text"), "先提交");
-        // fixture故意没有绑定chrome，证明不是旧配置Stamp拦截；真实菜单/单槽另验。
+        // The fixture deliberately has no chrome binding, proving rejection is not from an old configuration Stamp; real menus/single-slot behavior are tested separately.
         assert_eq!(&*f.panel.ui.message.borrow(), "端口设置暂不可用");
         let before = Stamp::capture(&f.state);
         f.state
@@ -187,7 +187,7 @@ fn local_text_batch_keeps_linked_parameter_read_only_through_successor_choice() 
         f.tick();
         assert_eq!(f.value("text"), "本地");
         assert_eq!(f.value("n"), 3);
-        // 非文本 Choice 会等待 Application 的原有效值刷新；不能先把旧 linked 解锁。
+        // Non-text Choices await Application's existing effective-value refresh; do not unlock the old linked field first.
         let binding = f.binding("n:edit");
         assert!(!IsWindowEnabled(binding.hwnd).as_bool());
         assert_eq!(controls::text(binding.hwnd).unwrap(), "8");

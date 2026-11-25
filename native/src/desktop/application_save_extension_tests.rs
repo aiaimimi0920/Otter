@@ -1,4 +1,4 @@
-//! 保存/恢复活动附件、来源版本和显隐，未知 schema 原样保留；不将覆盖层烘焙进底图。
+//! Save/restore active attachments, source versions, and visibility while preserving unknown schemas unchanged; do not bake overlays into base images.
 use super::*;
 use crate::desktop::{extension_document, session_binding::Bound, session_candidate, State};
 use serde_json::json;

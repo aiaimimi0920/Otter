@@ -1,4 +1,4 @@
-// 产品链夹具：资源读取和业务按钮只使用公开 Art SDK，不接触测试宿主或凭据。
+// Product-chain fixture: resource reads and business buttons use only the public Art SDK, never test hosts or credentials.
 let config, picture, binary;
 NeuroSurface.define({mount({root,snapshot}) {
   const resources = snapshot.state.package;

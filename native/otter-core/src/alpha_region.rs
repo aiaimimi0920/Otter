@@ -1,4 +1,4 @@
-//! 透明图像的有界行区间。扩展一像素以保留线性采样边缘，不按 alpha 阈值削弱可见内容。
+//! Bounded row intervals for transparent images. Expand one pixel to preserve linear-sampling edges, without alpha-threshold erosion of visible content.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Rect {
     pub left: i32,
@@ -19,7 +19,7 @@ pub fn build(width: u32, height: u32, pixels: &[u8]) -> Option<AlphaRegion> {
     build_layers(width, height, pixels, None)
 }
 
-/// source-over 合成的非透明区域为两层 alpha 的并集，不需要生成完整合成像素副本。
+/// source-over nontransparent regions are the union of both layers' alpha, without a complete composited-pixel copy.
 pub fn build_layers(
     width: u32,
     height: u32,
@@ -29,7 +29,7 @@ pub fn build_layers(
     build_layers_cancellable(width, height, pixels, annotations, || false)
 }
 
-/// 后台恢复逐行检查取消；取消结果不进入碎片化降级扫描。
+/// Background restoration checks cancellation per row; cancelled results never enter fragmentation-fallback scans.
 pub fn build_layers_cancellable(
     width: u32,
     height: u32,
@@ -52,7 +52,7 @@ pub fn build_layers_cancellable(
             conservative: false,
         })
     } else {
-        // 极端碎片化 alpha 用每行包围段保守降级；仍保持空行穿透，不创建无界 GDI 区域。
+        // Extremely fragmented alpha conservatively falls back to per-row bounding spans; preserve empty-row passthrough without unbounded GDI regions.
         Some(AlphaRegion {
             rectangles: scan(width, height, pixels, annotations, true, &cancelled)?,
             conservative: true,
@@ -71,7 +71,7 @@ fn scan(
     let w = width as usize;
     let stride = w * 4;
     let mut rectangles: Vec<Rect> = Vec::new();
-    // 3×3 膨胀可分离：惰性维护三行水平膨胀位缓存；全不透明行直接整行合并，零邻域访存。
+    // 3x3 dilation is separable: lazily cache three horizontally dilated bit rows; merge opaque rows directly without neighborhood reads.
     let mut rows = [Vec::<u8>::new(), Vec::<u8>::new(), Vec::<u8>::new()];
     let mut cached_y = [u32::MAX; 3];
     let mut raw = Vec::<u8>::new();

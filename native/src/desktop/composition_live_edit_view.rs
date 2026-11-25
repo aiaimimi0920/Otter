@@ -1,4 +1,4 @@
-//! 同一编辑几何驱动 Live 覆盖层和源输入，保持裁剪、源尺寸变化与镜像一致。
+//! The same editing geometry drives Live overlays and source input, keeping cropping, source-size changes, and mirroring consistent.
 use crate::{crop_geometry::Rect, editor::Editor, image_projection::Projection};
 
 pub(super) fn geometry(editor: &Editor) -> (Rect, Projection, [f64; 2]) {

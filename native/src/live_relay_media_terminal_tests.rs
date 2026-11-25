@@ -1,4 +1,4 @@
-//! 媒体终态必须唤醒在途控制请求，而非等待其三秒期限并掩盖真实原因。
+//! Media terminal state must wake in-flight control requests rather than await their three-second deadline and obscure the true reason.
 use super::*;
 use crate::{byte_budget::Budget, live_relay_viewer_runtime::Exit as MediaExit};
 

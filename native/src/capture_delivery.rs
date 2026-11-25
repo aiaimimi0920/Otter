@@ -1,4 +1,4 @@
-//! 捕获结果的两阶段交付：后台准备原图缓存，UI 身份复核后发布；预览始终来自同帧。
+//! Two-phase capture delivery: background original-image caching, then publication after UI identity checks; previews always come from the same frame.
 use crate::{
     cache_policy::Policy,
     capture_color::SdrFrame,
@@ -23,10 +23,10 @@ pub struct PreparedCapture {
 }
 pub struct Captured {
     pub(crate) backend: &'static str,
-    /// 跟随文档而非临时捕获任务存活；不持有缓存全局排他锁。
+    /// Lives with the document rather than the temporary capture task; does not hold the global exclusive cache lock.
     pub(crate) original_lease: Option<std::sync::Arc<std::fs::File>>,
     pub preview: SdrFrame,
-    /// 仅 HDR 有原图文件；调用方必须将其保留为源，不能用 SDR 预览冒充原图。
+    /// Only HDR has an original-image file; callers must preserve it as the source, never substitute an SDR preview.
     pub original: Option<PathBuf>,
     pub reason: Option<Reason>,
     pub downgraded: bool,
@@ -59,7 +59,7 @@ impl PreparedCapture {
             .map(|image| clipboard_cache::stage_hdr(profile, stem, image, cancel, policy))
             .transpose()?;
         check(cancel)?;
-        // 原始 RGB16 编码完立即释放，只将预览和未发布文件移交 UI，不跨线程保留 GPU 资源。
+        // Release original RGB16 immediately after encoding; transfer only the preview and unpublished file to UI, without retaining GPU resources across threads.
         Ok(Self {
             backend: outcome.backend,
             preview,
@@ -70,7 +70,7 @@ impl PreparedCapture {
             diagnostic: outcome.diagnostic,
         })
     }
-    /// 在 UI 线程调用；accept 须无消息泵地复核窗口、请求和文档代次，失败不发布原图。
+    /// Call on the UI thread; accept must recheck window/request/document generations without pumping messages, and failure must not publish the original.
     pub fn commit(
         self,
         cancel: &AtomicBool,
@@ -92,7 +92,7 @@ impl PreparedCapture {
             Some((path, lease)) => (Some(path), Some(std::sync::Arc::new(lease))),
             None => (None, None),
         };
-        // 原图一旦发布就不再因迟到取消删除；与缓存发布的提交点保持一致。
+        // Once published, never delete the original because of late cancellation; match the cache-publication commit point.
         Ok(Captured {
             backend: self.backend.as_str(),
             preview: self.preview,

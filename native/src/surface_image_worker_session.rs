@@ -1,4 +1,4 @@
-//! 同源 Surface 批量图片解码的短时热复用会话池（4s 空闲自退、32 张轮转、128MiB Job 隔离）。
+//! Short-lived warm session pool for same-origin Surface batch image decoding: exit after 4s idle, rotate at 32 images, and isolate with a 128MiB Job.
 use crate::{
     bounded_worker_process::session as boundary,
     image_decode::{pixel_buffer, Image},
@@ -186,7 +186,7 @@ fn take_matching(scope: &str, codec: wire::Codec) -> Option<Parked> {
     found.filter(|entry| boundary::idle(&entry.pipe, &entry.child).is_ok())
 }
 
-/// active 会话不在 entries 中；每轮准入仅回收池满时已归还的 idle owner。
+/// Active sessions are absent from entries; each admission round reclaims only returned idle owners when the pool is full.
 pub(crate) fn reclaim_idle() {
     let victim = POOL.0.lock().ok().and_then(|mut state| {
         if process::at_capacity() {
@@ -236,7 +236,7 @@ fn park_with(entry: Parked, spawn: impl FnOnce() -> io::Result<()>) {
     }
     drop(evicted);
     if spawn_reaper && spawn().is_err() {
-        // 预约为 true 时没有其他 spawner；回滚和取走孤儿同锁完成，析构不占池锁。
+        // No other spawner exists while reserved is true; rollback and orphan removal share one lock, with destruction outside the pool lock.
         let orphaned = {
             let mut state = POOL.0.lock().unwrap_or_else(|e| e.into_inner());
             state.reaper_running = false;
@@ -331,7 +331,7 @@ mod tests {
                 assert_eq!(pid, None);
                 assert_eq!(process::used_capacity_for_test(), 0);
             } else {
-                // 原进程句柄仍在，Windows 不能复用其 PID 掩盖轮转。
+                // The original process handle remains alive, so Windows cannot reuse its PID and mask rotation.
                 assert!(first_handle.is_some());
                 assert!(pid.is_some_and(|pid| pid != 0));
                 assert_ne!(pid, first_pid);

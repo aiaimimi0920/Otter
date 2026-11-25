@@ -1,4 +1,4 @@
-//! 外部显示的菜单翻转：经过后台任务、窗口定时器与应用结算，原来源不可被修改。
+//! Menu flipping of external displays through background tasks, window timers, and application settlement; the original source must remain unchanged.
 use super::Application;
 use crate::{desktop::image::Image, editor::Tool};
 use windows::Win32::{Foundation::WPARAM, UI::WindowsAndMessaging::*};

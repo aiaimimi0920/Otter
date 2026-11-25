@@ -1,4 +1,4 @@
-//! 原生滚动快照验证：几何、文字与命中一致，双轴、嵌套边界及更新钳位。
+//! Native scroll-snapshot verification: consistent geometry/text/hits, dual axes, nested boundaries, and update clamping.
 #[path = "surface_scroll_cache_tests.rs"]
 mod cache_tests;
 #[path = "surface_focus_reveal_tests.rs"]

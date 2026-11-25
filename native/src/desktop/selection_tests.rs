@@ -1,4 +1,4 @@
-//! 真实 D2D 命中与 Canvas 选择版本测试，不以包围框代替空心形状内部判断。
+//! Actual D2D hit and Canvas selection-version tests; bounding boxes do not replace interior tests for hollow shapes.
 use super::super::{canvas::Canvas, image::Image};
 use super::*;
 use crate::stroke_style::{Color, StrokeStyle};

@@ -1,4 +1,4 @@
-//! PMv2 父窗口托管 unaware 子控件；覆盖控件外拖动，不修改全局 DPI 设置。
+//! PMv2 parent hosting an unaware child control; covers out-of-control dragging without altering global DPI settings.
 use super::*;
 use windows::core::w;
 struct Window(HWND);

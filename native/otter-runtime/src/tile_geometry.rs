@@ -1,4 +1,4 @@
-//! 与 Web Wall 几何一致：物理像素中心→墙坐标，图片 crop 与 Tile 旋转只应用一次。
+//! Match Web Wall geometry: physical-pixel centers to wall coordinates, applying image crop and Tile rotation only once.
 use crate::tile_wire::{Placement, Rect, Rotation, Tile};
 pub fn rotate([u, v]: [f64; 2], rotation: Rotation) -> [f64; 2] {
     match rotation {

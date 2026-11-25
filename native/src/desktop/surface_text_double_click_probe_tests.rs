@@ -1,4 +1,4 @@
-//! 系统生成双击消息，再沿正式词级拖动路径；只向实际命中的自有窗口注入。
+//! The system generates double-click messages, then uses production word-dragging paths; inject only into actually hit owned windows.
 use super::*;
 #[test]
 #[ignore = "requires explicit owned visible desktop input probe"]
@@ -48,7 +48,7 @@ fn text_selection_system_double_click_probe() {
         assert_eq!(WindowFromPoint(end), window.hwnd);
         let mut original = POINT::default();
         GetCursorPos(&mut original).unwrap();
-        // 一批包含完整两次点击和最终抬起；第二次保持按下后再移动，验证词级拖动。
+        // One batch contains both complete clicks and final release; hold the second press before moving to verify word dragging.
         send_inputs(&[
             mouse(start, MOUSE_EVENT_FLAGS(0)),
             mouse(start, MOUSEEVENTF_LEFTDOWN),
@@ -73,7 +73,7 @@ fn text_selection_system_double_click_probe() {
                     word_at_double = selected(&window);
                     captured_at_double = GetCapture() == window.hwnd;
                 }
-                // 模拟正常宿主在消息之间消费单槽 click，但不发送远端动作。
+                // Simulate a normal host consuming single-slot clicks between messages without sending remote actions.
                 if window.take_click().is_some() {
                     clicks += 1;
                 }

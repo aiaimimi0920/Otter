@@ -1,4 +1,4 @@
-//! 持续投送隔离TLS接收端：独立solid/crop像素oracle，不接真实配置或真实设备。
+//! Isolated TLS receiver for continuous delivery: independent solid/crop pixel oracles, with no real configuration or devices.
 use super::*;
 use base64::Engine;
 use serde_json::{json, Value};
@@ -149,7 +149,7 @@ pub(super) fn start_with_signal(
                     revision += 1;
                     if mode == Mode::DurableStop {
                         update_received.as_ref().unwrap().send(()).unwrap();
-                        // 无响应的在途更新；只有宿主取消原socket才结束，绝不注入用户输入。
+                        // An unresponsive in-flight update ends only when the host cancels the original socket; never inject user input.
                         let mut byte = [0];
                         assert!(stream.read(&mut byte).map_or(true, |count| count == 0));
                         continue;
@@ -157,7 +157,7 @@ pub(super) fn start_with_signal(
                     if mode == Mode::Lost { drop(stream); continue; }
                 } else {
                     assert!(head.starts_with("POST /v1/projections/read "));
-                    // 断言非Create重试：读的是本地canonical已接受版本，允许远端领先一次。
+                    // Assert this is not a Create retry: read the version accepted by local canonical, allowing the remote side to be one version ahead.
                     assert!(body["knownRevision"].as_u64().unwrap() >= 1);
                     if mode == Mode::Offline { reply(&mut stream,503,b"temporary"); continue; }
                     if mode == Mode::PeerRevoked { reply(&mut stream,403,br#"{"error":{"code":"projection_peer_revoked"}}"#); continue; }

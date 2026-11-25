@@ -1,4 +1,4 @@
-//! 暴露既有Layout的自然像素→历史可见框映射，不复制传播/裁剪布局算法。
+//! Expose existing Layout's natural-pixel-to-historical-visible-frame mapping without duplicating propagation/crop layout algorithms.
 use super::*;
 
 impl Frame {

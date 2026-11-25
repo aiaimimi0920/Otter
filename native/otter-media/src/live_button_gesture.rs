@@ -1,5 +1,5 @@
-//! 遮挡按钮补偿的纯手势判定；不查询 HWND、不发送消息，也不授予输入权限。
-//! 调用方必须在普通 mouse-up 成功后重新验证目标、按钮类型和遮挡，才能消费候选。
+//! Pure gesture detection for occluded-button compensation; no HWND queries/messages/input authorization.
+//! After ordinary mouse-up succeeds, callers must revalidate target/button type/occlusion before consuming candidates.
 use crate::live_input::Button;
 
 #[derive(Debug)]
@@ -10,8 +10,8 @@ pub struct Gesture<T> {
     cancelled: bool,
 }
 impl<T: PartialEq> Gesture<T> {
-    /// 仅显式左键、无其他 held 按钮、合格且遮挡的 push button 可以开始。
-    /// threshold 使用目标 DPI 下系统拖动距离的一半；调用方保存绑定的目标身份。
+    /// Begin only for explicit left-button input, no other held buttons, and eligible occluded push buttons.
+    /// threshold is half the system drag distance at target DPI; callers retain bound target identity.
     pub fn begin(
         target: T,
         origin: [i32; 2],
@@ -28,19 +28,19 @@ impl<T: PartialEq> Gesture<T> {
         })
     }
 
-    /// 拖出再返回仍取消；目标变化和坐标极值不能重置或溢出阈值判定。
+    /// Dragging out and back still cancels; target changes/extreme coordinates cannot reset/overflow threshold checks.
     pub fn observe(&mut self, target: &T, point: [i32; 2]) {
         self.cancelled |= self.target != *target
             || self.origin[0].abs_diff(point[0]) > self.threshold[0]
             || self.origin[1].abs_diff(point[1]) > self.threshold[1];
     }
 
-    /// 其他按钮边沿、滚轮、取消或失败必须终止候选，不能被后续 up 复活。
+    /// Other button edges, wheels, cancellation, or failure terminate candidates permanently against later up events.
     pub fn cancel(&mut self) {
         self.cancelled = true;
     }
 
-    /// 消费所有权确保最多一次；cleanup 释放不得调用本入口。
+    /// Ownership consumption ensures at most once; cleanup releases must not call this entry.
     pub fn finish(
         mut self,
         target: &T,

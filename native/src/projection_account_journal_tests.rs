@@ -1,4 +1,4 @@
-//! 真实隔离文件上的写前记录、锁、取消和冲突；不读取现有 profile，不回放网络操作。
+//! Write-ahead records, locks, cancellation, and conflicts on real isolated files; no existing profiles or network replay.
 use super::*;
 use journal::{Intent, Store};
 

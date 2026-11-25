@@ -1,4 +1,4 @@
-//! 联合门只读有界一次性合成身份，真实Client/Store/profile仍走原owner；不读取用户配置。
+//! Joint gate reads a bounded one-shot synthetic identity; real Client/Store/profile still use original owners, without reading user configuration.
 use super::*;
 use base64::Engine;
 use serde::Deserialize;

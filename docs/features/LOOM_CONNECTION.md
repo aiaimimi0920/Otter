@@ -1,64 +1,116 @@
-# 全局 Loom 连接
+# Shared Loom connection
 
-钉图设置的 Loom 行在所有钉图间共享状态。未连接时点“连接”；完成设备认证和批准后，
-按钮变为“断开”。主动断开不会删除 Loom 的设备记录；删除设备才取消配对。
+## Connection and approval
 
-连接弹窗与投射弹窗共享单实例 slot，位于贴图中心并限制在屏幕范围内。支持局域网
-公开目标、最近 20 个成功目标的历史记录，以及手输 IP / 主机名和端口。远程使用
-HTTPS 与现有证书信任；本机回环地址可使用 HTTP，不接受用户名密码 URL 或路径。
+The Loom row in pin settings shares its state across all pins. When disconnected, choose Connect
+and enter one HTTPS service address and an optional connection code, or select a service from
+the Loom menu. The address may contain an IP or hostname and a port, but no username, password,
+path, query or fragment. The current native dialog has no LAN-target or history list.
+The local manifest's HTTP administration endpoint is only for local discovery and registration;
+it is not a Device service address accepted by this field.
 
-选中目标先通过 HTTP 核对身份，必要时输入密码。等待批准时仍是未连接；只有服务端
-核对批准 receipt 与真实设备签名 session 并建立 30 秒租约后，才显示已连接。
-每 5 秒续租，授权撤销、网络失败或租约过期后恢复未连接。关闭弹窗不取消连接，
-等待时可重新打开弹窗取消。已连接时先断开，再选择另一目标。
+After submission, Otter validates TLS and Loom identity. Initial remote registration follows
+Loom's connection-code and approval policy. The state becomes Connected and the button changes
+to Disconnect only after obtaining a device-signed Device session, checking the Loom ID in the
+account response and successfully installing the session. Awaiting approval is not a successful connection.
+Reconnecting with a saved `deviceId` only requests a signed session; revocation or failed renewal
+does not automatically re-register the device.
 
-成功连接后会单独保存最后的自动重连目标。普通退出或意外关闭 Otter 不会取消此记录；
-下次启动会自动尝试连接同一地址和 Loom ID，并复用已有设备身份重新认证。
-手动“断开”或“取消连接”会持久取消自动重连，但保留历史列表。关闭弹窗不是断开。
-启动重连不会覆盖启动期间的新手动操作；离线、身份变化或授权失效时不会假装连接成功，
-也不会尝试历史中的其他目标。服务端若要求重新批准，仍须按原有流程批准。
-没有重连记录时不会从历史列表猜测连接意图，需成功连接一次建立记录。
+Closing the address dialog or settings panel does not disconnect. To stop a submitted connection,
+choose Disconnect or Cancel Request and Clear Local Session in the Loom menu. This stops the
+local connection and attempts to revoke the server session, without deleting device identity or
+pairing records. Failure to confirm offline status is reported separately, not presented as
+a server-confirmed disconnect.
 
-密码、receipt、私钥和 session token 不进入历史文件或状态 DTO。原生 owner 的
-generation 防止旧任务覆盖新状态，退出 latch 阻止应用退出后重新发起连接。
-若在申请到达服务端但 receipt 未返回前取消，服务端申请最多保留 5 分钟后过期；
-已经激活的连接在进程退出或崩溃后最多保留 30 秒，不会永久显示在线。
+## Automatic connection and renewal
 
-设备连接与本机 Art/扩展 bridge 是两条路径。Otter 消费 Loom 已授权的能力目录，
-不提供自己的能力市场；“已连接”也不代表远程执行、共享内存或所有专用能力已经开放。
+Explicit remote connection details are stored in one `loom-remote.json`, containing the address,
+Loom ID, public certificate and optional `deviceId`, not a multi-target history. Manual connection
+or cancellation intent is stored as `paused` and `origin` in `loom-autoconnect-paused.json`.
+Neither file stores connection codes, private keys or session tokens.
 
-## 局域网发现、连接码与审批
+Startup reuses the saved target and current device identity. With neither remote details nor
+an explicit selection, it still tries the local Loom manifest. Manual cancellation persistently
+pauses automatic connection across restarts. Selecting a service again, renewing through the menu,
+or reimporting connection details clears the pause. Invalid configuration is reported as an error,
+not used to guess a different target.
 
-在 Loom 的“Otter 连接”设置开启“允许局域网连接”，选择本机局域网 IPv4
-地址和端口（默认 `8766`），应用后同时公开发现。Otter 打开连接窗口自动搜索，
-每 5 秒刷新列表；关闭弹窗停止扫描。用户选中目标，仅当 Loom 启用连接码时输入
-连接码，再提交请求。不再复制证书包，也不提供“验证并信任”按钮。
-两台电脑必须网络互通；防火墙须允许 TCP 服务端口及 UDP `49779` 专用网络发现。
+Automatic renewal is scheduled 60 seconds before the server-provided session expiry, with at least
+one second before the next attempt. Pending approval and retryable failures use 2, 4, 8, 16 and
+30-second backoff, then remain at 30 seconds. Explicit device rejection stops automatic retries;
+resolve permissions in Loom before reconnecting. Canceled old tasks cannot install late results,
+and no replacement session is issued until the disconnect task finishes.
+This is the Device session lifecycle, not Loom's separate 30-second connection lease.
 
-连接码是可选的请求密码，与发现、证书及审批独立。通过密码门槛后，Loom 按
-“局域网内自动批准”“连接过的设备自动批准”或“手动批准”处理；不符合自动条件
-时等待手动批准。手动策略每次都批准；持有设备会话也不能绕过连接码。
+Device connections and the local Art/extension bridge are separate paths. Otter consumes Loom's
+authorized capability catalog rather than providing its own marketplace. Connected does not imply
+that remote execution, shared memory or every specialized capability is available.
 
-发现包携带公开证书，地址必须匹配广播来源。只有用户选中目标后才首次使用信任
-（TOFU），正常验证 TLS 和 Loom ID 并固定证书。首次配对依赖可信局域网，不能
-防御首次选择时的主动中间人；后续同 origin 身份或证书变化直接拒绝，不自动覆盖。
-不修改系统根证书；已配对局域网地址直连，不经网络代理。
-信任最多保存 16 个 origin，退出后保留，手动断开不等于删除证书信任。
+## LAN discovery, connection codes and approval
 
-设备会话连接先在 TLS 上核对公开 Loom 身份，再读取经设备会话认证的账号信息；
-只有两处 Loom ID 一致才发布连接结果。重新连接仍会重新核对身份。
+In Loom's Otter Connection settings, enable Allow LAN Connections, select a local LAN IPv4
+address and port (default `8766`), then enter the HTTPS address displayed by Loom into Otter.
+Supply a connection code only if Loom requires one. Loom policy determines whether initial
+registration is approved automatically.
 
-局域网入口默认关闭，与 Loom 的本机管理口分离。它提供设备认证、投射 HTTP 路由和
-授权后的 Live 媒体 WebSocket（`/v1/live/media`），不公开管理 API 或本机 bridge。
-可手输 Loom 显示的监听地址，但首次直连私有 IPv4 仍需要收到匹配的发现包来取得公有证书；
-手输地址不能绕过 UDP 发现或证书核验。发现与 TCP 可达性需分别检查。如果需要预配置，使用
-[可信来源的公开连接资料](../../scripts/loom-connection/README.md)，不要复制设备私钥或用户目录。
+For a private/loopback IPv4 address not found in saved details or the local manifest, submission
+starts listening on UDP `49779` for up to four seconds. Only discovery packets whose source IP
+and `endpoint` match the selected target are accepted. Their public certificate is then used
+for actual TLS and Loom ID validation. Opening the dialog does not start continuous scanning.
+Both computers must be reachable, and firewalls must separately allow the TCP service port
+and UDP discovery; TCP reachability does not prove successful discovery.
+Other addresses use public TLS trust roots. Manually entering a hostname does not bypass certificate validation.
 
-## 定向验证
+Initial LAN certificate acquisition relies on a trusted network and does not defend against an
+active man-in-the-middle during first pairing. Subsequent connections to the same origin reuse
+saved details and revalidate TLS and Loom ID, without replacing trust from new broadcasts or
+modifying system root certificates. For preconfiguration without UDP, use trusted public
+connection details as described below.
 
-- `cargo test --locked --manifest-path native/Cargo.toml --lib pin_settings_connection`
-- `cargo test --locked --manifest-path native/Cargo.toml --lib loom_handshake::`
-- 真实 Loom 服务夹具见[联合测试](../development/JOINT_TESTING.md)。远程连接问题先核对监听地址、
-  发现端口、证书身份、配对批准及租约，而不是反复任选接收策略。
+The LAN endpoint is disabled by default and separate from local administration. Its restricted
+routes cover device authentication, projection, Surface, wall, local Art HTTP and authorized
+Live media WebSocket (`/v1/live/media`). This does not expose administration APIs or the local
+bridge; every operation still requires its own authorization checks.
 
-上述检查不能代替实际贴图弹窗、物理网络发现与用户手动验收。
+## Importing public connection details
+
+Use this for a shared-Loom setup where one computer runs both Loom and Otter and another runs
+only Otter. On the Loom computer, export from the Otter repository root to a local directory
+that **does not yet exist**:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/loom-connection/Export-LoomConnection.ps1 -OutputDirectory C:/path/to/new-connection
+```
+
+Export reads public identity from `http://127.0.0.1:8765` by default. Use `-LocalLoom` for another
+numeric-loopback HTTP endpoint. Loom must already allow LAN connections. Output contains the
+address, Loom ID, public TLS certificate and import scripts; it does not read or copy
+administration tokens, private keys or device identity.
+
+Place the output directory beside the Otter package's `payload` directory on the receiver's
+local `C:` drive. Exit Otter instances using that profile, then double-click `Connect-Otter.cmd`
+in the output directory. After import, the script launches the adjacent `payload/otter-native.exe`;
+errors return a nonzero code and leave the terminal open.
+The default profile is `%LOCALAPPDATA%/OtterNative`, or `OTTER_NATIVE_PROFILE_DIR` when set.
+`loom-remote.json` and `loom-autoconnect-paused.json` are backed up individually only if they exist;
+the whole profile is not backed up.
+
+The standalone import command supports `-ConnectionFile`, `-ProfileDirectory` and optional `-Executable`.
+Connection files must be UTF-8 and at most 40 KiB; a Loom ID is `loom-` followed by 64 lowercase
+hexadecimal characters. Import establishes connection intent only, not device approval or proof
+of an actual connection. Once the initial device is approved under Loom policy, Otter connects
+using the backoff and renewal rules above. Import only trusted files. If the target or certificate
+changes, export again from the correct Loom; do not copy `loom.json`, `device-identity.json`
+or an entire user profile.
+
+## Focused verification
+
+- Native connection and pause state: `loom_local_connection_tests.rs`, `application_loom_connection_tests.rs`
+  and adjacent tests for `application_loom_preference.rs`. Tests for `device_authorization_dialog.rs`
+  cover input-dialog behavior.
+- Import-script contracts: `scripts/tests/Test-LoomConnectionImport.ps1`, using a fresh test output directory.
+- For real Loom service fixtures, see [joint testing](../development/JOINT_TESTING.md). Diagnose
+  connections in order: selected address, discovery port, certificate and Loom ID, device approval,
+  then session. Receiving policy is not a substitute for connection diagnosis.
+
+These checks do not replace actual pin dialogs, physical-network discovery or manual user acceptance.

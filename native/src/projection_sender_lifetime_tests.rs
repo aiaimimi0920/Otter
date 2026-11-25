@@ -1,4 +1,4 @@
-//! 锁/并发/进程终态验证；测试子进程有界回收，故意退出后仍需同 ID 重开。
+//! Lock/concurrency/process-terminal verification; test children are bounded/reaped, and deliberate exit still requires same-ID reopen.
 use super::*;
 #[test]
 fn roots_and_store_leases_are_pinned_and_foreign_intent_cannot_cancel() {

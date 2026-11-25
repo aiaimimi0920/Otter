@@ -1,4 +1,4 @@
-//! 有界 Live 输入控制状态；transport 负责身份/权限、坐标转换和超时，不隐式授权。
+//! Bounded Live-input control state; transport owns identity/permissions/coordinate conversion/timeouts without implicit authorization.
 pub const MAX_SEQUENCE: u64 = 9_007_199_254_740_991;
 const MAX_KEYS: usize = 32;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -18,7 +18,7 @@ impl Button {
 }
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Event {
-    /// 本地窗口消息；远程合同不因此自动开放文字或 hover 能力。
+    /// Local window messages do not automatically expose text/hover capabilities in remote contracts.
     Character {
         unit: u16,
     },
@@ -97,18 +97,18 @@ pub struct Cleanup {
     pub failed: u8,
     pub skipped: u8,
 }
-/// Completed 是窗口过程已经返回；Pending 仅表示有限槽位中的本地模态输入已提交。
+/// Completed means window procedures returned; Pending means only local modal input submitted in bounded slots.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Delivery {
     Completed,
     Pending,
     IgnoredWhileModal,
 }
-/// 仅由输入 worker 使用。实现必须对 root 和 child 重新校验，不允许裸 HWND 复用。
+/// Input workers only. Implementations revalidate root/child and reject raw-HWND reuse.
 pub trait Backend {
     type Target: Clone;
     type Error;
-    /// 观察异步完成；失败由 Controller 撤销并归还原 held 状态，不等待下一条输入。
+    /// Observe asynchronous completion; Controller revokes on failure and restores original held state without waiting for new input.
     fn idle(&mut self) -> Result<(), Self::Error> {
         Ok(())
     }
@@ -118,26 +118,26 @@ pub trait Backend {
     fn pending_delivery(&mut self) -> bool {
         false
     }
-    /// 已有模态释放未返回时，可明确消费重复手势；不能宣称消息已投递。
+    /// While modal release remains unfinished, duplicate gestures may be explicitly consumed without claiming delivery.
     fn skip_modal_input(&mut self, _event: Event) -> bool {
         false
     }
-    /// 复合后端可声明独立的有限发送预算；普通消息与远程路径保持原预算。
+    /// Composite backends may declare independent finite send budgets; ordinary messages/remote paths retain original budgets.
     fn send_timeout_ms(&self, event: Event) -> u32 {
         event.message_timeout_ms()
     }
     fn preflight(&mut self) -> Result<(), Self::Error>;
-    /// 清理最后的悬浮目标，不重新命中，不移动系统指针。
+    /// Clean the last hover target without new hit tests or system-pointer movement.
     fn leave(&mut self) -> Cleanup {
         Cleanup::default()
     }
-    /// preferred 是已有手势/按键目标；失效时只允许经验证的 root 回退。
+    /// preferred is an existing gesture/key target; invalidation permits only validated root fallback.
     fn resolve(
         &mut self,
         event: Event,
         preferred: Option<Self::Target>,
     ) -> Result<Self::Target, Self::Error>;
-    /// 新按键/文字可跟随源焦点；fallback 只是上次键盘目标，不是欠释放的 held 目标。
+    /// New keys/text may follow source focus; fallback is the previous keyboard target, not a held target awaiting release.
     fn resolve_keyboard(
         &mut self,
         event: Event,
@@ -145,8 +145,8 @@ pub trait Backend {
     ) -> Result<Self::Target, Self::Error> {
         self.resolve(event, fallback)
     }
-    /// timeout_ms 是发送上限。默认以 API 完成标志为准；模态准入必须通过 delivery
-    /// 明确标记 Pending，不能用消息返回值推断完成，也不能把准入伪装为完成。
+    /// timeout_ms bounds sending. Default completion follows API status; modal admission must use delivery
+    /// to explicitly mark Pending, never infer completion from message return values or disguise admission as completion.
     fn send(
         &mut self,
         target: Self::Target,
@@ -154,9 +154,9 @@ pub trait Backend {
         buttons: u8,
         timeout_ms: u32,
     ) -> Result<(), Self::Error>;
-    /// 清理不得触发点击补偿。源身份/权限失效返回 None，绝不向复用句柄发送。
+    /// Cleanup must not trigger click compensation. Invalid source identity/permissions return None, never sending to reused handles.
     fn cleanup_target(&mut self, target: Self::Target) -> Option<Self::Target>;
-    /// 与普通 send 分开：只发送释放，清除延迟点击动作，使用 50 ms 上限。
+    /// Separate from ordinary send: releases only, clearing deferred click actions, with a 50 ms limit.
     fn release(
         &mut self,
         target: Self::Target,
@@ -189,7 +189,7 @@ impl<B: Backend> Controller<B> {
             cleanup: Cleanup::default(),
         }
     }
-    /// 必须由显式控制请求调用，不能在捕获启动或普通绘制时自动启用。
+    /// Explicit control requests only; never auto-enable during capture startup/ordinary drawing.
     pub fn enable(&mut self) -> Result<(), Error<B::Error>> {
         if let Err(error) = self.backend.preflight() {
             self.cancel();
@@ -225,7 +225,7 @@ impl<B: Backend> Controller<B> {
         event: Event,
     ) -> Result<Delivery, Error<B::Error>> {
         let result = self.dispatch_inner(sequence, event);
-        // 与主干 dispatcher 一致：任何输入错误撤销控制，绝不重放失败边沿。
+        // Match mainline dispatcher: any input error revokes control, without replaying failed edges.
         if result.is_err() {
             self.cancel();
         }
@@ -239,7 +239,7 @@ impl<B: Backend> Controller<B> {
             return Err(Error::Sequence);
         }
         self.backend.preflight().map_err(Error::Backend)?;
-        // 校验源之后、转换/发送之前消耗序号，失败/超时也不能重发同一边沿。
+        // Consume sequence after source validation but before conversion/sending; failure/timeout cannot resend the same edge.
         self.sequence = sequence;
         if !event.valid() {
             return Err(Error::InvalidEvent);
@@ -265,8 +265,8 @@ impl<B: Backend> Controller<B> {
             }
             _ => None,
         };
-        // 先登记可能按下，保证投递失败仍会释放；明确未投递时恢复原 held/键盘目标。
-        // 不能直接清空 slot：重复 down 之前可能已有真实按下尚欠 up。
+        // Register potentially pressed state first so delivery failure still releases; definite nondelivery restores original held/keyboard targets.
+        // Do not simply clear slots: a real earlier press may still await up before repeated down.
         let key_before =
             key_slot.map(|slot| (slot, self.keys[slot].clone(), self.keyboard.clone()));
         let preferred = match event {
@@ -296,7 +296,7 @@ impl<B: Backend> Controller<B> {
                     next_buttons |= button.mask();
                     self.mouse = Some(target.clone());
                     self.keyboard = Some(target.clone());
-                    // 先记录可能按下；发送超时也需要尝试释放。
+                    // Record potentially pressed state first; send timeout still requires attempted release.
                     self.buttons = next_buttons;
                 } else {
                     next_buttons &= !button.mask();
@@ -337,8 +337,8 @@ impl<B: Backend> Controller<B> {
         }
         Ok(())
     }
-    /// 焦点/捕获丢失、撤销、关闭都走此入口；最多 35 次按键/按钮释放及一次悬浮退出，不保留无界重试队列。
-    /// 失败/跳过数明确保留，不能把清空本地 held 状态宣称为 OS 已确认释放。
+    /// Focus/capture loss, revocation, and close all use this entry; at most 35 key/button releases plus one hover exit, without unbounded retry queues.
+    /// Preserve explicit failure/skip counts; clearing local held state does not prove OS-confirmed release.
     pub fn cancel(&mut self) -> Cleanup {
         self.enabled = false;
         let mut report = Cleanup::default();

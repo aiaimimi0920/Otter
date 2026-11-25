@@ -1,4 +1,4 @@
-//! 显式真实 ANGLE child → 同一异步任务集合 → 本地正式端口；不使用用户数据或正式安装 bundle。
+//! Explicit real ANGLE child -> the same asynchronous task set -> local official ports; no user data or official installation bundle.
 use super::*;
 use crate::{
     shader_angle::{self as angle, Backend},

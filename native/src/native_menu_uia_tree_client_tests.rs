@@ -1,4 +1,4 @@
-//! 系统 UIA 沿父行进入弹出子菜单，验证返回路径与稳定身份，不直接查找子 HWND。
+//! System UIA enters popup submenus through parent rows, checking return paths/stable identities without directly finding child HWNDs.
 use super::*;
 fn walk_and_invoke(hwnd: usize) -> Result<()> {
     unsafe {

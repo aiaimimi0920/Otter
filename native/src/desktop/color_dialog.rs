@@ -1,4 +1,4 @@
-//! 系统颜色框的局部资源 owner；不访问文档、配置或工作区，调用方负责模态/过期准入。
+//! Local resource owner for the system color dialog; no document/configuration/workspace access, with modal/stale admission handled by callers.
 use crate::stroke_style::Color;
 use windows::Win32::{
     Foundation::{COLORREF, HWND},

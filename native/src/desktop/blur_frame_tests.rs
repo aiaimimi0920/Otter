@@ -1,4 +1,4 @@
-//! 独立标注画框的后台模糊与缓存失效；不创建 HWND 或读取用户文件。
+//! Background blur and cache invalidation for independent annotation frames; no HWND creation or user-file access.
 use super::*;
 use crate::{crop_geometry::Rect, erase_layers::Layers, viewport::Point};
 
@@ -90,7 +90,7 @@ fn legacy_worker_and_cache_follow_base_mapping_even_when_annotation_frame_is_unc
     let sigma = valid.sigma as f64;
     let completed = compute(valid);
     assert!(accept(&mut canvas, completed).unwrap());
-    // 既有Gaussian合同是图像外透明，不是边缘clamp。对常色矩形独立积分离散核。
+    // The existing Gaussian contract is transparent outside the image, not edge clamping. Independently integrate the discrete kernel over a constant-color rectangle.
     let radius = (sigma * 3.0).ceil() as i32;
     let weight = |d: i32| (-(d as f64).powi(2) / (2.0 * sigma * sigma)).exp();
     let normalization: f64 = (-radius..=radius).map(weight).sum();
@@ -190,7 +190,7 @@ fn cropped_worker_prepares_visible_overlay_and_rejects_old_cache_after_reset() {
     let layers = canvas.editor.layers().unwrap().clone();
     assert!(canvas.editor.reset_crop());
     assert!(canvas.editor.layers().unwrap().same_storage(&layers));
-    // 尚未 sync 时指针入口也必须拒绝旧画框缓存。
+    // Pointer entry points must reject stale frame caches even before sync.
     assert!(!canvas.pointer_down(Point { x: 10.0, y: 6.0 }));
     canvas.sync_raster_source();
     assert!(canvas.blur_ready.is_none());

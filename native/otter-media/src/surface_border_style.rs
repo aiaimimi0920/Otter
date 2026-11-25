@@ -1,4 +1,4 @@
-//! 四边颜色解析与既有按钮动态色接线；几何/工厂缓存仍仅由 Border 持有。
+//! Four-side color parsing and existing dynamic button-color wiring; Border remains the sole owner of geometry/factory caches.
 use super::*;
 use crate::{
     surface_button_visual::PaintColor, surface_color::Color, surface_length::Context,

@@ -1,4 +1,4 @@
-//! 节点初始默认值，对齐 artNodeFactory；只转换字符串，不把控件范围当初始化约束。
+//! Initial node defaults aligned with artNodeFactory; convert only strings, without treating control ranges as initialization constraints.
 use super::{Capability, Parameter};
 use crate::graph_image::Output;
 use crate::graph_param_coercion::{coerce, Widget};
@@ -58,7 +58,7 @@ fn type_hint(
         }
     }
     if let Some(input) = capability.inputs().find(|input| input.name == param.id) {
-        // 主干先规范化端口 type：type > data_type > execution_type > any。
+        // The baseline first normalizes port type: type > data_type > execution_type > any.
         return Ok(input.kind.to_lowercase());
     }
     Ok(param.data_type.unwrap_or(&param.widget).to_lowercase())
@@ -67,7 +67,7 @@ fn convert<'a>(value: &'a Value, hint: &str) -> Cow<'a, Value> {
     let Some(raw) = value.as_str() else {
         return Cow::Borrowed(value);
     };
-    // 与 JS trim 一致，不使用 Rust trim 的不同空白字符集合。
+    // Match JS trim rather than Rust trim's different whitespace set.
     let trimmed = raw.trim_matches(crate::graph_param_coercion::initial_whitespace);
     if trimmed.is_empty() {
         return Cow::Borrowed(value);
@@ -98,8 +98,8 @@ fn convert<'a>(value: &'a Value, hint: &str) -> Cow<'a, Value> {
     Cow::Borrowed(value)
 }
 impl<'a> Capability<'a> {
-    /// 缺失值保留 None；secret/内部控制字段不进入可编辑、可发送的公共初始配置。
-    /// 未转换的 JSON 继续借用目录，只有转换后的标量分配新值。
+    /// Missing values remain None; secret/internal control fields never enter editable, sendable public initial configuration.
+    /// Unconverted JSON continues borrowing the catalog; allocate new values only for converted scalars.
     pub fn initial_parameters(&self) -> Result<InitialParameters<'a>, Error> {
         let mut result = Vec::new();
         let mut budget = 4096;

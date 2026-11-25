@@ -1,4 +1,4 @@
-//! 真实 QuickJS/WIC/D2D 像素与状态；不以命令数量或 JSON 代替实际 Canvas 绘制。
+//! Real QuickJS/WIC/D2D pixels and state; command counts or JSON do not replace actual Canvas drawing.
 use super::*;
 use crate::{surface_javascript_wire::canvas as pixels, surface_viewport::Viewport};
 fn mount(source: &str) -> io::Result<(Engine, Output)> {
@@ -184,7 +184,7 @@ fn javascript_canvas_model_rect_capacity_failure_keeps_path_atomic_after_coercio
               const start={reentrant}?{{valueOf(){{x.moveTo(0,0);return 4.5}}}}:4.5;
               try{{x.rect(start,4.5,2,2)}}catch{{rejected=true}}
               if(rejected!=={rejected})throw Error('rect capacity');
-              // 失败仍保留全部剩余槽；成功则恰好达到路径上限。
+              // Failure preserves all remaining slots; success reaches the exact path limit.
               if(rejected)for(let i={occupied};i<4096;i++)x.moveTo(0,0);
               let full=false;try{{x.moveTo(0,0)}}catch{{full=true}}
               if(!full)throw Error('path capacity');
@@ -193,7 +193,7 @@ fn javascript_canvas_model_rect_capacity_failure_keeps_path_atomic_after_coercio
             "#
         );
         let (mut engine, mut output) = mount(&source).unwrap();
-        // 分帧准备真实持久路径；容量由剩余槽断言，不混入满路径 stroke 的复制耗时。
+        // Prepare real persistent paths across frames; assert capacity through remaining slots without mixing in full-path stroke-copy timing.
         for phase in 0..=(used - 5).div_ceil(256) {
             output = engine
                 .apply(
@@ -214,7 +214,7 @@ fn javascript_canvas_model_rect_capacity_failure_keeps_path_atomic_after_coercio
 }
 #[test]
 fn javascript_canvas_model_rect_transform_failure_preserves_old_path_pixels() {
-    // 小路径验证捕获后仍可 stroke；不冒充满容量路径在单帧截止内的像素证明。
+    // Small paths verify stroke remains possible after capture; this is not pixel evidence for full-capacity paths within one frame deadline.
     let (_, mut output) = mount(
         r#"
         NeuroSurface.define({mount({root}) {
@@ -299,7 +299,7 @@ fn javascript_canvas_model_full_path_strokes_within_unchanged_engine_deadline() 
         "#,
     )
     .unwrap();
-    // 分帧仅准备路径；最终 4096 段快照、安全编码和实际绘制仍在原生产截止内。
+    // Only path preparation spans frames; final 4096-segment snapshots, safe encoding, and actual drawing remain within the original production deadline.
     for phase in 0..=16 {
         output = engine
             .apply(

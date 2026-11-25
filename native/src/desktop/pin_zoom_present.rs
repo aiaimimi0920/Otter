@@ -1,4 +1,4 @@
-//! 滚轮呈现事务：GPU 在客户区几何提交前准备新帧，CPU 一次提交像素和目标矩形。
+//! Wheel presentation transaction: GPU prepares the new frame before client geometry commits; CPU commits pixels and the target rectangle atomically.
 use super::{PinRect, State};
 use std::cell::Cell;
 use windows::Win32::{Foundation::*, Graphics::Gdi::*, UI::WindowsAndMessaging::*};
@@ -6,7 +6,7 @@ use windows::Win32::{Foundation::*, Graphics::Gdi::*, UI::WindowsAndMessaging::*
 #[derive(Default)]
 pub(in crate::desktop) struct Resize {
     pub rect: Cell<Option<PinRect>>,
-    // 表示原绘制链无错误完成，不替代 confirmed_paints，更不代表 DWM 已显示；遮挡沿原重绘语义。
+    // This means the original paint chain completed without error, not confirmed_paints or DWM display; occlusion retains existing repaint semantics.
     pub prepared: Cell<bool>,
 }
 
@@ -19,15 +19,15 @@ impl Drop for Scope<'_> {
 }
 
 pub(in crate::desktop) unsafe fn apply(hwnd: HWND, state: &State, after: PinRect) -> bool {
-    // 不能在绘制或另一 resize 的重入中替换待提交几何。
+    // Do not replace pending geometry during reentrant painting or another resize.
     if state.render_active.get() || state.pin_resize.rect.get().is_some() {
         return false;
     }
     state.pin_resize.rect.set(Some(after));
     state.pin_resize.prepared.set(false);
     let scope = Scope(&state.pin_resize);
-    // region 同时裁剪可见像素：旧 region 随新原点移动会让右边缘反向跳动。
-    // 同步栈内解除旧裁剪，返回输入泵前恢复精确 alpha 区域。
+    // The region also clips visible pixels; moving the old region with the new origin makes the right edge jump backward.
+    // Remove old clipping on the synchronous stack, then restore the exact alpha region before returning to the input pump.
     if !super::preview::active(state) && SetWindowRgn(hwnd, None, false) == 0 {
         *state.error.borrow_mut() = Some(windows::core::Error::from_win32());
         return false;
@@ -42,11 +42,11 @@ pub(in crate::desktop) unsafe fn apply(hwnd: HWND, state: &State, after: PinRect
     }
     let software = state.canvas.borrow().software_selected();
     let positioned = if software && !super::preview::active(state) {
-        // 不先 SetWindowPos 搬动旧位图；ULW_ALPHA 使用本事务的目标位置和新像素。
+        // Do not move the old bitmap with SetWindowPos first; ULW_ALPHA uses this transaction's target position and new pixels.
         crate::desktop::procedure::resize_frame(hwnd, state);
         state.pin_resize.prepared.get()
     } else {
-        // NCCALCSIZE 在窗口几何生效之前交付；不要等 WM_SIZE 后才 ResizeBuffers/Present。
+        // NCCALCSIZE arrives before window geometry takes effect; do not wait for WM_SIZE to ResizeBuffers/Present.
         SetWindowPos(
             hwnd,
             None,
@@ -63,8 +63,8 @@ pub(in crate::desktop) unsafe fn apply(hwnd: HWND, state: &State, after: PinRect
         return false;
     }
     super::fit(hwnd, state);
-    // 成功和失败都恢复实际客户区的精确 alpha 区域，不能留下矩形命中范围。
-    // resize 范围保持到区域恢复完成，使缓存不能跳过撤销临时无裁剪状态。
+    // On success or failure, restore the actual client's exact alpha region; do not leave rectangular hit bounds.
+    // Keep the resize scope until region restoration finishes, so caching cannot skip undoing the temporary unclipped state.
     let region = crate::desktop::hit_region::update(hwnd, state);
     drop(scope);
     if !state.lifetime.owns(hwnd) {
@@ -76,14 +76,14 @@ pub(in crate::desktop) unsafe fn apply(hwnd: HWND, state: &State, after: PinRect
         return false;
     }
     if positioned && prepared {
-        // 几何提交时 WM_SIZE 的失效区已由同一新尺寸帧覆盖，不再重复画一帧。
+        // The same new-size frame already covers WM_SIZE's invalid region at geometry commit; do not draw another frame.
         let _ = ValidateRect(Some(hwnd), None);
     } else {
         let _ = InvalidateRect(Some(hwnd), None, false);
         let _ = UpdateWindow(hwnd);
     }
-    // 缩放累积跟随实际 HWND 几何。细步进可能只改变取整后的位置、不发 NCCALCSIZE；
-    // 此时虽走常规补绘，也不能把已成功定位的亚像素累积清零。
+    // Zoom accumulation follows actual HWND geometry. Fine steps may only change rounded position without sending NCCALCSIZE;
+    // even if ordinary supplementary painting runs, do not zero subpixel accumulation for a successful reposition.
     positioned
 }
 
@@ -103,7 +103,7 @@ pub(in crate::desktop) unsafe fn before_geometry(
         return;
     };
     let client = (*(lp.0 as *const NCCALCSIZE_PARAMS)).rgrc[0];
-    // 只处理本次普通无边框钉图的预期客户区；其他布局/DPI 消息沿原路径。
+    // Handle only the expected client area of this ordinary borderless pin; other layout/DPI messages follow the original path.
     if client.right - client.left == rect.width as i32
         && client.bottom - client.top == rect.height as i32
         && !state.canvas.borrow().software_selected()

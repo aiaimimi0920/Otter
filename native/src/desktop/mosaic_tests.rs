@@ -1,4 +1,4 @@
-//! 真实 WIC 输出验证分块接缝和逆旋转裁剪，不读取用户图片。
+//! Real WIC output verifies tile seams/inverse-rotation clipping, without user-image reads.
 use super::*;
 use crate::editor::Tool;
 

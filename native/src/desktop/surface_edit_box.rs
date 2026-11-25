@@ -1,4 +1,4 @@
-//! textarea HWND 留出父 D2D 边框，内部格式区域容纳 padding，沿用外层遮挡裁剪。
+//! textarea HWNDs leave room for parent D2D borders; internal formatting areas accommodate padding, preserving outer occlusion clipping.
 use super::*;
 use windows::Win32::UI::Controls::{EM_GETRECT, EM_SETRECT};
 #[path = "surface_edit_border_clip.rs"]
@@ -27,7 +27,7 @@ pub(super) unsafe fn clip(
 ) -> Result<()> {
     border_clip::apply(region, size, style, scale)?;
     let mut client = RECT::default();
-    GetClientRect(hwnd, &mut client)?; // 客户区已扣掉原生垂直滚动条。
+    GetClientRect(hwnd, &mut client)?; // The client area already excludes the native vertical scrollbar.
     let padding = style.padding;
     let limit = [client.right.max(0), client.bottom.max(0)];
     let start: [i32; 2] =

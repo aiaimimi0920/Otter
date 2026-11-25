@@ -1,4 +1,4 @@
-//! 实际Viewer窗口在原decoder/D2D上传后的帧与独立颜色oracle；不注入用户输入。
+//! Actual Viewer-window frames after the original decoder/D2D upload, checked against an independent color oracle; no user-input injection.
 use super::*;
 use std::sync::Arc;
 pub(super) fn pixel(pixel: [u8; 4]) {
@@ -16,7 +16,7 @@ pub(super) unsafe fn run(
 ) {
     use crate::live_relay_frame::Codec;
     let name = "viewer-h264";
-    // 绘制层按原合同只持RawBgra；wire codec由真实服务/WS独立确认，并以精确帧号关联。
+    // The drawing layer retains only RawBgra under the original contract; real service/WS independently confirms wire codec, correlated by exact frame number.
     context.signal(app, &format!("wire-{name}.json"));
     let wire: serde_json::Value = serde_json::from_slice(
         &std::fs::read(context.root.join(format!("wire-{name}.json"))).unwrap(),
@@ -44,7 +44,7 @@ pub(super) unsafe fn run(
             "codec":"h264","keyframe":metadata.keyframe,
             "pixel":color,"width":64,"height":64,"nativeDecoderAndUpload":true}),
     );
-    // 两个断线回执都要在恢复之前观察原窗口及禁用状态。
+    // Both disconnect receipts must observe the original window and disabled state before recovery.
     let disconnected = |app: &Application, hwnd: HWND| {
         app.remote_sessions
             .test_viewer_input(key)

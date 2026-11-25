@@ -1,11 +1,11 @@
-"""生成固定 Clang GN profile 与既有工具链 adapter；不下载、暂存完整源码或执行工具。"""
+"""Generate fixed Clang GN profiles and existing toolchain adapters; no downloading, full-source staging, or tool execution."""
 
 import argparse
 import json
 import sys
 from pathlib import Path
 
-# -I 禁用隐式脚本目录搜索；CLI 只显式导入此已选定文件所在目录的兄弟模块。
+# -I disables implicit script-directory search; CLI explicitly imports only sibling modules beside this selected file.
 if __name__ == "__main__":
     sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -21,7 +21,7 @@ def prepare_profile(angle_source, build_source, config_file, output):
     config_file = checked_path(str(config_file), directory=False)
     config_hash = file_hash(config_file)
     config = read_json(config_file)
-    # 先复用现有配置/工具链准入，不能先把未经校验的值插入 GN。
+    # Reuse existing configuration/toolchain admission first, never inserting unvalidated values into GN beforehand.
     create_manifest(config)
     if set(config["architectures"]) != {"x86", "x64"}:
         raise ValueError("GN profile requires both x86 and x64 toolchain environments")

@@ -1,4 +1,4 @@
-//! 持续 PNG 同步先 Read 对账再递增；接收更新只替换已证明可重基的底图，保留本地标注。
+//! Continuous PNG sync reconciles with Read before incrementing; received updates replace only a provably rebasable base image and preserve local annotations.
 use super::*;
 struct ImageInput {
     size: (u32, u32),

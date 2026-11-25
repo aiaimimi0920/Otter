@@ -1,4 +1,4 @@
-//! 真 worker 到隐藏发布的完整链；不访问文件/真实目录服务或注册系统热键。
+//! Complete real-worker-to-hidden-publication flow; no files/real catalog services or system hotkey registration.
 use super::*;
 const EMPTY: &[u8] = br#"{"stickers":[],"links":[],"extension":{"retained":true}}"#;
 
@@ -166,7 +166,7 @@ pub(super) unsafe fn settle(app: &mut Application) -> Result<()> {
             app.cancel_restore();
             return Err(Error::new(E_FAIL, "Synthetic restoration worker timed out"));
         }
-        // 等待仅用于 smoke；生产路径由完成通知唤醒，没有轮询定时器。
+        // Waiting is smoke-test-only; production wakes through completion notifications, without polling timers.
         crate::desktop::smoke_timing::sleep(std::time::Duration::from_millis(1));
     }
     Ok(())

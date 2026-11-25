@@ -1,4 +1,4 @@
-//! 真 HWND 客户区/DPI 与 child 同步 getter 比较；resize 后显式操作，不伪造 observer。
+//! Compare actual HWND client/DPI against child synchronous getters; operate explicitly after resize without fabricated observers.
 use super::{
     css_tests::{geometry, pixel, pixels},
     *,

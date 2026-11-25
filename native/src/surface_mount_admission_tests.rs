@@ -1,4 +1,4 @@
-//! 认证交付边界测试；全部为本地协议夹具，不发送创建或恢复请求。
+//! Authenticated delivery-boundary tests using only local protocol fixtures; no creation or recovery requests.
 use super::*;
 #[path = "surface_authorized_window_tests.rs"]
 mod authorized_window;

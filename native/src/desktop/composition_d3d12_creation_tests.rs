@@ -1,4 +1,4 @@
-//! 创建期部分关联失败的隔离资源寿命门；真实图加合成错误，不模拟驱动故障。
+//! Isolated resource-lifetime gate for partial-association creation failures; real graphs plus synthetic errors, not simulated driver failures.
 use super::*;
 use crate::desktop::{Apartment, Window};
 use windows::{core::w, Win32::UI::WindowsAndMessaging::*};
@@ -37,7 +37,7 @@ fn failed_creation_retains_complete_d3d12_owner_and_original_error() {
         let weak = Rc::downgrade(&state.device);
         let owner = CompositionD3d12(ManuallyDrop::new(state));
         let result = owner.attach_with(|state| {
-            // 真实修改合成图后注入错误；未确认退休必须保住 context/buffers/queue/预算。
+            // Inject errors after actually modifying the composition graph; unconfirmed retirement must preserve context/buffers/queue/budget.
             state.visual.SetContent(&state.chain)?;
             state.target.SetRoot(&state.visual)?;
             state.retirement = Some(retirement::Retirement::failed_for_test());

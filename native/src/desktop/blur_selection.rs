@@ -1,4 +1,4 @@
-//! 选中模糊的请求构造；增量与绝对数值共用目标、源图及待处理强度校验。
+//! Construct requests for selected blur; incremental and absolute values share target, source-image, and pending-intensity validation.
 use super::canvas::Canvas;
 use crate::{blur::Region, blur_job::Request, editor::Tool};
 

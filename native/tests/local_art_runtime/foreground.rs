@@ -1,5 +1,5 @@
-//! 可见、可枚举的测试启动器：须先经真实前台激活，再仅授予本测试子进程。
-//! 不附加用户线程、不全局注入输入、不更改foreground lock；原菜单15秒断言仍保留。
+//! A visible, enumerable test launcher must receive actual foreground activation before granting it only to this test's child process.
+//! Do not attach user threads, inject global input or change the foreground lock; retain the original 15-second menu assertion.
 use super::*;
 use std::{
     sync::{
@@ -67,13 +67,13 @@ impl Owner {
             std::process::id(),
             self.hwnd
         );
-        // 前一个子进程正常退出会撤销其前台许可；每个新PID都从自有启动器重新准入。
-        // Windows拒绝时仍须真实激活这个可见窗口，不绕过foreground lock。
+        // Normal exit revokes the previous child's foreground permission; admit each new PID again through the owned launcher.
+        // If Windows refuses, the user must still activate this visible window; do not bypass the foreground lock.
         unsafe {
             let _ = SetForegroundWindow(self.hwnd);
         }
         if unsafe { GetForegroundWindow() } != self.hwnd {
-            // 和产品菜单一致，只请求自有HWND的标准UIA焦点；仍以真实前台确认，不合成激活消息。
+            // As in the product menu, request standard UIA focus only for the owned HWND; verify actual foreground state without synthesizing activation messages.
             use windows::Win32::{System::Com::*, UI::Accessibility::*};
             let result = unsafe {
                 CoCreateInstance::<_, IUIAutomation2>(&CUIAutomation8, None, CLSCTX_INPROC_SERVER)
@@ -103,7 +103,7 @@ impl Owner {
         );
     }
     pub fn allow(&self, product: &mut fixture::Product) {
-        // CreateProcess返回不代表子进程已初始化GUI；只对已观察到自有窗口的PID调用一次。
+        // CreateProcess returning does not mean the child's GUI is initialized; call once only for a PID whose owned window has been observed.
         let hwnd = ui::until(product, "owned product GUI initialized", |pid| {
             ui::windows(pid, "Otter.Native.Workspace", None, None)
                 .first()
@@ -123,7 +123,7 @@ impl Drop for Owner {
     fn drop(&mut self) {
         self.stop.store(true, Ordering::Release);
         if let Some(thread) = self.thread.take() {
-            // 创建/收发失败会先让主测试panic；清理不能再panic导致进程abort和窗口遗留。
+            // Creation or transport failures first panic the main test; cleanup must not panic again and abort the process while leaving windows behind.
             let result = thread.join();
             if !std::thread::panicking() {
                 result.expect("owned foreground launcher thread failed");

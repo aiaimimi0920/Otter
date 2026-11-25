@@ -1,4 +1,4 @@
-//! 会话 Art 参数恢复；能力定义决定 secret 边界，未知公共值保留并受统一预算约束。
+//! Session Art parameter restoration; capability definitions determine secret boundaries, and unknown public values remain under a unified budget.
 use crate::{loom_capability::Capability, loom_parameter_state::Parameters};
 use serde_json::{value::RawValue, Map, Value};
 #[derive(Debug, PartialEq)]
@@ -9,7 +9,7 @@ pub enum Error {
     State,
 }
 
-/// raw 从会话原文借用；先检查字节，再解析公共候选。缺失参数保持未设置，由执行层回退声明默认值。
+/// raw borrows original session text; check bytes before parsing public candidates. Missing parameters stay unset, with execution falling back to declared defaults.
 pub fn restore(capability: &Capability<'_>, raw: Option<&RawValue>) -> Result<Parameters, Error> {
     let values: Map<String, Value> = if let Some(raw) = raw {
         if raw.get().len() > crate::loom_parameter_state::MAX_BYTES {

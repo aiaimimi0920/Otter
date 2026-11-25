@@ -1,4 +1,4 @@
-//! 完整窗口输入链门禁；只捕获自建源，消息仅发送至自己的 Live HWND。
+//! Full window-input-chain gate; capture only owned sources and message only owned Live HWNDs.
 use super::*;
 use crate::{
     desktop::Apartment,
@@ -298,7 +298,7 @@ fn actual_wgc_live_ui_input_feedback_focus_cancel_and_close_restore() {
         session.protect(protection);
         session.show().unwrap();
         let window = session.window.as_ref().unwrap().hwnd_for_test();
-        // 创建时指针可能已在选区内；首帧前的 move 不得撤销默认控制。
+        // The pointer may already be inside selection at creation; pre-first-frame moves must not revoke default control.
         SendMessageW(window, WM_MOUSEMOVE, None, Some(LPARAM(50 | (50 << 16))));
         until(&mut session, &mut owner, "white hidden source", |session| {
             let Some(frame) = session.window.as_ref().and_then(LiveWindow::frame_for_test) else {
@@ -343,7 +343,7 @@ fn actual_wgc_live_ui_input_feedback_focus_cancel_and_close_restore() {
         until(&mut session, &mut owner, "held key", |_| {
             fixture.received(WM_KEYDOWN, Some(65))
         });
-        // 使用同线程自有窗口实际转移焦点，不向用户程序发送输入。
+        // Actually transfer focus using owned same-thread windows, without sending input to user programs.
         let focus_source = crate::live_frames::Source::new();
         let focus_window = LiveWindow::new(focus_source.subscribe().unwrap(), 80, 80).unwrap();
         focus_window.show().unwrap();
@@ -356,7 +356,7 @@ fn actual_wgc_live_ui_input_feedback_focus_cancel_and_close_restore() {
                 && session.input_completion_handle().is_none()
                 && fixture.received(WM_KEYUP, Some(65))
         });
-        // 失焦后的后台滚动应经原 worker 清理/重新准入，并交付首个滚轮事件。
+        // Background scrolling after focus loss should clean up/readmit through the original worker and deliver the first wheel event.
         let mut scroll = POINT {
             x: client.right / 2,
             y: client.bottom / 2,
@@ -389,7 +389,7 @@ fn actual_wgc_live_ui_input_feedback_focus_cancel_and_close_restore() {
             "paired mouse after resume",
             |_| fixture.received(WM_LBUTTONUP, None),
         );
-        // 显式菜单停用仍优先，恢复只能由用户重新启用。
+        // Explicit menu disabling still takes precedence; recovery requires the user to enable again.
         SendMessageW(window, WM_SYSCOMMAND, Some(WPARAM(0x1ff0)), None);
         session.poll();
         SendMessageW(window, WM_SYSCOMMAND, Some(WPARAM(0x1ff0)), None);

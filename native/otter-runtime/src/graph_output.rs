@@ -1,19 +1,19 @@
-//! 只借用协议值，不执行脚本或访问图片路径；包装字段顺序与主干 getObjectField 一致。
+//! Borrow protocol values only, without script execution or image-path access; wrapper-field order matches the baseline getObjectField.
 use super::Error;
 pub const MAX_VALUE_NODES: usize = 4096;
 pub const MAX_VALUE_DEPTH: usize = 32;
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Output<'a> {
-    /// 字符串输出（保留旧命名），是否为可用图片引用由消费端判断。
+    /// String output (legacy name retained); consumers decide whether it is a usable image reference.
     Image(&'a str),
     Number(f64),
     Boolean(bool),
     Null,
     Object(&'a [(&'a str, Output<'a>)]),
     Array(&'a [Output<'a>]),
-    /// 已解码 JSON 容器的借用视图；不为图解析复制整棵输出树。
+    /// Borrowed view of a decoded JSON container; do not copy the entire output tree for graph resolution.
     Json(&'a serde_json::Value),
-    /// 历史无可序列化值哨兵；JSON 对象字段省略，数组位置编码 null。
+    /// Legacy sentinel for no serializable value; omit JSON object fields and encode array positions as null.
     Other,
 }
 impl<'a> Output<'a> {
@@ -28,7 +28,7 @@ impl<'a> Output<'a> {
             serde_json::Value::Array(_) | serde_json::Value::Object(_) => Self::Json(value),
         }
     }
-    /// 只解包一层；false、0、空字符串是存在的值，不能跳过它们去取后面的 src。
+    /// Unwrap only one level; false, 0, and empty strings are present values and must not be skipped to fetch a later src.
     pub fn direct(self) -> Self {
         if let Self::Json(serde_json::Value::Object(fields)) = self {
             for field in ["value", "data", "src", "previewSrc", "url", "path"] {
@@ -49,7 +49,7 @@ impl<'a> Output<'a> {
         self
     }
 }
-/// JSON 解码适配器仍须限制输入字节；这里限制解析图视图中的结构遍历工作量。
+/// JSON decoding adapters must still limit input bytes; this limits structural traversal work in resolved graph views.
 pub fn validate(values: &[(&str, Output<'_>)]) -> Result<(), Error> {
     let mut remaining = MAX_VALUE_NODES;
     for (index, (name, value)) in values.iter().enumerate() {
@@ -163,7 +163,7 @@ mod tests {
             validate(&[("out", Output::Array(&values))]),
             Err(Error::Capacity)
         );
-        // 每层借用上层栈帧构建深链，测试不泄漏堆内存。
+        // Each level borrows the enclosing stack frame to build a deep chain without leaking heap memory in the test.
         fn chain(depth: usize, value: Output<'_>) {
             let next = [value];
             if depth == 0 {

@@ -17,7 +17,7 @@
 *.icns binary
 *.onnx binary
 
-# 固定第三方归档及可回放补丁必须保留原始字节，不能受 autocrlf 影响。
+# Pinned third-party archives and replayable patches must retain original bytes, unaffected by autocrlf.
 third_party/resvg-0.48.1/** -text
 third_party/roxmltree-0.21.1/** -text
 third_party/usvg-0.48.1/** -text

@@ -1,4 +1,4 @@
-//! 底图专属裁剪与源子矩形绘制；clip 不得泄漏到边框或标注。
+//! Base-image-only clipping and source-subrectangle drawing; clip must not leak into borders/annotations.
 use super::*;
 
 pub(in crate::desktop::export) fn draw(

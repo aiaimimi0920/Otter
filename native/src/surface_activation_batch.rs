@@ -1,8 +1,8 @@
-//! 批次独占与精确返还：没有 owner 克隆，不把单项结果当作整批完成。
+//! Exclusive batch ownership and exact return: no owner cloning and no treating one result as whole-batch completion.
 use super::*;
 use crate::surface_click_event::ClickEvent;
 impl Activation {
-    /// 仅移动原批次的 owner；调用方另持有前缀完成证据，本方法不发送事件。
+    /// Move only the original batch's owner; the caller separately holds prefix-completion evidence, and this method sends no events.
     pub(crate) fn take_batch_continuation(
         &mut self,
         events: &[ClickEvent],
@@ -27,7 +27,7 @@ impl Activation {
         crate::live_relay_http::validate_batch(owner, revision, events).ok()?;
         self.take_batch_owner(events)
     }
-    /// 决定复用已尝试原事件，但仍独占完整批次；不会允许重发原点击。
+    /// Decisions reuse the attempted original event but still exclusively own the entire batch; the original click cannot be resent.
     pub fn take_batch_decision(
         &mut self,
         events: &[ClickEvent],
@@ -60,7 +60,7 @@ impl Activation {
         self.pending_batch = Some(ids);
         self.owner.take()
     }
-    /// 允许部分事件尚未尝试，因提交可能中途停止；但列表身份和顺序必须完全不变。
+    /// Some events may remain unattempted because submission can stop midway, but list identity and order must remain exactly unchanged.
     pub fn restore_batch(&mut self, events: &[ClickEvent], owner: Owner) -> Result<(), Box<Owner>> {
         let matches = self.pending_batch.as_ref().is_some_and(|ids| {
             ids.len() == events.len()

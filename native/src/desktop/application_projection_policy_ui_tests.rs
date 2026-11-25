@@ -1,4 +1,4 @@
-//! 自有隐藏窗口的共享菜单→唯一 profile worker→磁盘提交；不注入全局输入。
+//! Owned hidden-window shared menu -> sole profile worker -> disk commit; no global input injection.
 use super::*;
 use crate::{
     desktop::{

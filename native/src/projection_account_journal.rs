@@ -1,4 +1,4 @@
-//! v2 接受写前记录；原 session 原子写/CAS/恢复机制负责文件，丢回复或取消不会丢关联身份。
+//! v2 accept write-ahead records use original session atomic-write/CAS/recovery file mechanisms; lost replies/cancellation preserve association identity.
 use super::*;
 use crate::pixels::Pixels;
 use std::{
@@ -54,7 +54,7 @@ pub struct Store {
     _directories: Vec<File>,
 }
 impl Store {
-    /// 只在单槽 worker 上打开；共享 profile 的其他进程不能同时覆盖写前记录。
+    /// Open only on the single-slot worker; other processes sharing the profile cannot concurrently overwrite write-ahead records.
     pub fn open(root: &Path, cancel: &AtomicBool) -> Result<Self, Error> {
         let directories = crate::profile_directory::pin(root).map_err(|_| Error::Http)?;
         let lock = OpenOptions::new()
@@ -118,7 +118,7 @@ impl Store {
         entries.push(intent);
         self.persist(entries, cancel)
     }
-    /// 仅在已证明从未接受或确认原 Unit 解绑后退休，不能因网络失败/关闭窗口而清记录。
+    /// Retire only after proving never accepted or confirming original Unit unlink; network failure/window close cannot clear records.
     pub fn retire(&mut self, intent: &Intent, cancel: &AtomicBool) -> Result<(), Error> {
         let entries = self
             .entries

@@ -1,4 +1,4 @@
-//! 键盘滚动与滚轮共用轴准入/边界传递，复用文字布局而不创建动作。
+//! Keyboard scrolling shares wheel axis admission/boundary handoff, reusing text layouts without creating actions.
 use super::*;
 use crate::surface_scroll::Command::*;
 #[test]

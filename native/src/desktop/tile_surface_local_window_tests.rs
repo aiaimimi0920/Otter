@@ -1,4 +1,4 @@
-//! 自有离屏HWND真实通知；无handler成功以本地状态而非事件入队判定，不操作用户程序。
+//! Actual notifications on owned offscreen HWNDs; handler-free success is local state, not event enqueueing, without user-program operations.
 use super::*;
 use crate::tile_surface_actions::tests::Fixture;
 use serde_json::{json, Value as Json};

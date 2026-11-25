@@ -1,4 +1,4 @@
-//! 同 ID 控件更换动作不能接收旧合同下的草稿、phase 或回执。
+//! A same-ID control with a changed action cannot accept drafts, phases, or receipts from the old contract.
 use super::*;
 #[test]
 fn surface_edit_contract_change_discards_old_intent_even_if_action_is_unchanged() {

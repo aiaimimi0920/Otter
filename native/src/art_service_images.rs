@@ -1,4 +1,4 @@
-//! 图像服务只引用原mount安装的不可变PNG；不接脚本字节、路径、URL或外来lease。
+//! Image services reference only immutable PNGs installed by the original mount; no script bytes, paths, URLs, or foreign leases.
 use super::{Call, Error, Request};
 use crate::{byte_budget::Lease, surface_javascript::ImageResource};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
@@ -18,7 +18,7 @@ pub(super) struct Uploads {
     pub(super) images: Vec<Image>,
     pub(super) sources: Vec<(String, [u32; 2])>,
     pub(super) decoded_limit: usize,
-    // 编码字符串、序列化正文及HTTP内部副本有界计费；持有至调用结束。
+    // Bound and charge encoded strings, serialized bodies, and internal HTTP copies; retain their budgets until the call ends.
     _budget: Lease,
 }
 impl Uploads {

@@ -1,4 +1,4 @@
-"""只读消费独立审阅的 ANGLE stage/build；复用构建 owner，不执行任何构建工具。"""
+"""Read-only consumption of independently reviewed ANGLE stage/build data; reuse build owners without executing build tools."""
 
 import re
 import sys

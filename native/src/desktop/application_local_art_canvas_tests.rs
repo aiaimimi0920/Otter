@@ -1,4 +1,4 @@
-//! 真实Application图输入→签名child→Canvas→正式输出→保存恢复，源截图保持不变。
+//! Real Application graph input -> signed child -> Canvas -> committed output -> save/restore, preserving the source screenshot.
 use super::*;
 pub(super) const DRAW: &str = r#"
 NeuroSurface.define({mount({root,snapshot}) {

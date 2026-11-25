@@ -1,4 +1,4 @@
-//! 实际菜单/原Job/TLS/默认Checkpoint夹具；仅使用隔离profile，不操作用户输入或设备。
+//! Actual menu/original Job/TLS/default Checkpoint fixture; isolated profiles only, without manipulating user input or devices.
 use super::*;
 pub(super) unsafe fn accepted_two_way(offline: bool) -> Fixture {
     let mut fixture = Fixture::with_request(

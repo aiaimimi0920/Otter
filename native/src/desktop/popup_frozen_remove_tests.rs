@@ -1,4 +1,4 @@
-//! 合成两库走实际菜单更新回调和原 Application worker；不访问用户库。
+//! Two synthetic libraries exercise actual menu-update callbacks and the original Application worker; no user libraries are accessed.
 use super::*;
 use windows::Win32::Foundation::{HWND, POINT};
 

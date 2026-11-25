@@ -1,4 +1,4 @@
-//! 原窗口 Host 临时取出/归还与关闭的唯一生命周期接缝；不跨系统回调保留 RefCell 借用。
+//! The sole lifecycle seam for original-window Host removal/restoration and closure; hold no RefCell borrow across system callbacks.
 use super::*;
 impl State {
     pub(super) fn run(&self, operation: impl FnOnce(&mut Host) -> Result<()>) -> Result<bool> {
@@ -13,7 +13,7 @@ impl State {
             && !self.local_edit.get()
             && !self.closed.get()
         {
-            // 忙时收到的撤权先关闭窗口门禁；取出的 Host 在归还前同步关闭原生控件。
+            // Revocation received while busy first closes window admission; synchronize native controls closed before returning the removed Host.
             result = result.and(host.edit_policy(false));
         }
         if self.pointer_cancel_pending.replace(false) && !self.closed.get() {
@@ -26,7 +26,7 @@ impl State {
         let ranges = host.take_slider_changes();
         let readonly = host.take_slider_readonly_changes();
         let structure_changed = host.take_edit_structure_change();
-        // D2D 可能触发同步窗口消息；关闭后不得复活已取出的 Host。
+        // D2D may trigger synchronous window messages; closing must not revive the removed Host.
         if !self.closed.get() {
             *self.host.borrow_mut() = Some(host);
             notifications::enqueue(self, changes);

@@ -1,4 +1,4 @@
-//! 正式checkpoint独立oracle：解码持久PNG为straight RGBA，而非复用Art图像适配器。
+//! Independent committed-checkpoint oracle: decode persisted PNGs to straight RGBA instead of reusing the Art image adapter.
 use base64::{engine::general_purpose::STANDARD, Engine};
 use serde_json::Value;
 pub fn ready(document: &Value, mode: &str) -> bool {

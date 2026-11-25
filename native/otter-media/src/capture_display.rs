@@ -1,4 +1,4 @@
-//! 显示器 HDR 元数据只读快照；每次探测新建 DXGI factory，不缓存易变化的系统颜色状态。
+//! Read-only monitor HDR-metadata snapshots; fresh DXGI factories per probe, without caching mutable system-color state.
 use windows::{
     core::Interface,
     Win32::Graphics::{
@@ -24,7 +24,7 @@ pub enum Error {
     EnumerationLimit,
     Api(windows::core::Error),
 }
-/// 只枚举元数据；不打开捕获会话、切换 HDR、设置显示模式或创建窗口。
+/// Enumerate metadata only; no capture sessions, HDR switching, display-mode changes, or window creation.
 pub fn query(monitor: HMONITOR) -> Result<DisplayInfo, Error> {
     if monitor.0.is_null() {
         return Err(Error::InvalidMonitor);

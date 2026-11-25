@@ -1,4 +1,4 @@
-//! 外部源不占 undo，但所有旧 raster 历史必须跟随新基线；不牺牲本地层换同步成功。
+//! External sources consume no undo entries, but all old raster history must follow new baselines; never sacrifice local layers for synchronization success.
 use super::*;
 use crate::erase_layers::{Layers, Mode};
 fn document() -> Editor {
@@ -36,7 +36,7 @@ fn projection_sync_source_rebases_current_and_redo_raster_preserving_vectors_cro
         })
         .unwrap());
     let crop = editor.crop_view();
-    assert!(editor.undo()); // redo 中同样有原底图。
+    assert!(editor.undo()); // redo also contains the original base image.
     let base: crate::pixels::Pixels = vec![32; 128].into();
     assert!(editor.replace_source(base.clone()));
     assert_eq!(editor.elements().len(), 1);
@@ -70,7 +70,7 @@ fn projection_sync_source_refuses_destructive_history_without_dropping_content_o
     assert!(!editor.replace_source(vec![32; 128].into()));
     assert!(editor.layers().unwrap().same_storage(&erased));
     assert!(editor.undo());
-    assert!(!editor.source_replaceable()); // redo 仍含破坏性层。
+    assert!(!editor.source_replaceable()); // redo still contains destructive layers.
     assert!(editor.redo());
 }
 #[test]

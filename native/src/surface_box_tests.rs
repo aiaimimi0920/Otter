@@ -1,4 +1,4 @@
-//! 原生 border-box 测量、内容排版与文字反馈回归。
+//! Native border-box measurement, content layout, and text-feedback regressions.
 use super::*;
 #[test]
 fn collapsed_text_content_box_does_not_reject_the_scene_or_create_draw_items() {

@@ -1,4 +1,4 @@
-//! 账号投射场景关联只保留公开身份；保存记录本身不授予账号或网络权限。
+//! Account-projection scene associations retain only public identity; saved records alone grant no account/network permissions.
 use super::*;
 use crate::{session_projection_scope::Scope, session_source::Source, workspace_id::UnitId};
 #[path = "projection_account_scene_patch.rs"]
@@ -73,7 +73,7 @@ impl Binding {
         next.stopped = true;
         next
     }
-    /// 只有匹配本账号接收设备/本次 Unit 的真实回复才可构造接收关联；不按响应换目标。
+    /// Only real replies matching this account's receiver device/current Unit construct receiver associations; responses never switch targets.
     pub fn received(
         content: &Content,
         context: &Context,
@@ -156,7 +156,7 @@ impl Binding {
         value.validate(unit, scope)?;
         Ok(value)
     }
-    /// 在后台修改原文；不可变 Envelope/设备/Unit/Scope 与 revision 摘要不能被换绑或回退。
+    /// Modify original text in background; immutable Envelope/device/Unit/Scope and revision digest cannot be rebound or rolled back.
     pub fn replace(
         &self,
         source: &Source,
@@ -194,7 +194,7 @@ impl Binding {
         }
         Ok(())
     }
-    /// 接收像素与关联在同一候选原文中交换，保留位置、裁剪、标注和未知字段。
+    /// Exchange received pixels/association within one candidate source text, preserving position, crop, annotations, and unknown fields.
     pub fn replace_image(
         &self,
         source: &Source,
@@ -209,7 +209,7 @@ impl Binding {
         patch::replace(source, self, Some(previous), Some(png), cancel)
     }
 }
-/// 一次后台解析的只读包含索引；绑定原 allocation，不能代替真实磁盘提交。
+/// Read-only inclusion index from one background parse, bound to the original allocation; not proof of actual disk commit.
 pub struct Index {
     source: Source,
     bindings: Vec<Binding>,

@@ -1,4 +1,4 @@
-//! 正常关闭继续泵消息，避免驱动/跨线程窗口调用等待 UI 而 UI 正在 join worker。
+//! Keep pumping messages during normal shutdown so driver/cross-thread window calls cannot wait on a UI thread that is joining the worker.
 use super::*;
 
 struct Quit(Option<i32>);
@@ -84,7 +84,7 @@ pub(super) fn drain(
         let mut message = MSG::default();
         unsafe {
             if wait::next_until(&handles[..count], &mut message, deadline)? == 0 {
-                // WM_QUIT 不取消清理；结束后原样还给外层，而不是重新入队造成忙循环。
+                // WM_QUIT does not cancel cleanup; return it unchanged to the outer loop afterward instead of requeueing it into a busy loop.
                 quit.0 = Some(message.wParam.0 as i32);
             } else {
                 let _ = TranslateMessage(&message);

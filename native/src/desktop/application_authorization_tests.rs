@@ -1,4 +1,4 @@
-//! 真实应用 owner、线程句柄和共享窗口状态；缺失的独立测试 profile 不产生身份或 HTTP。
+//! Real application owners, thread handles, and shared window state; a missing isolated test profile creates neither an identity nor HTTP traffic.
 use super::*;
 use crate::desktop::{document_window::DocumentWindow, Apartment};
 use std::{os::windows::io::AsRawHandle, path::PathBuf};
@@ -121,7 +121,7 @@ fn discovery_requires_live_authorization_and_service_changes_clear_catalog() {
             assert!(app.authorization.borrow().catalog.is_none());
             assert!(!app.authorization.borrow().catalog_busy);
         }
-        // 后台租约撤销可能正常返回 Stopped；不能让 UI 永远停留在 busy。
+        // Background lease revocation may normally return Stopped; never leave the UI permanently busy.
         app.authorization.borrow_mut().catalog_busy = true;
         app.poll_remote_live(false).unwrap();
         assert!(!app.authorization.borrow().catalog_busy);
@@ -144,7 +144,7 @@ fn headless_remote_poll_reports_all_completed_viewers_and_settles_surface_status
         let profile = std::env::temp_dir();
         let origins = ["https://127.0.0.1:1", "https://127.0.0.1:2"];
         for origin in origins {
-            // 有效的测试记录，但在实际 wall clock 下必定过期；线程不触碰文件或网络。
+            // A valid test record that is guaranteed expired under the actual wall clock; the thread touches neither files nor the network.
             let mut grant = Grant::new(session(origin, 1));
             let runtime = Runtime::start_configured(
                 Config::new(origin, &profile, "Remote settlement test").unwrap(),

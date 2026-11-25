@@ -1,4 +1,4 @@
-//! 发送日志异常必须保留原字节；复用真实 session 事务，不伪造持久成功。
+//! Sender-journal exceptions must preserve original bytes; reuse real session transactions without fabricated durable success.
 use super::*;
 #[test]
 fn durable_cancellation_is_idempotent_and_cannot_be_replaced_or_revived_after_restart() {
@@ -237,7 +237,7 @@ fn total_48_mib_gate_rejects_append_before_commit_and_keeps_previous_journal() {
         writer
             .write_image_data(&[255, 0, 0, 255, 0, 255, 0, 128])
             .unwrap();
-        // 合法的未知 ancillary chunk；压缩字节接近 4 MiB，像素仍仅 2×1。
+        // Valid unknown ancillary chunk; compressed bytes approach 4 MiB while pixels remain only 2x1.
         writer
             .write_chunk(
                 png::chunk::ChunkType(*b"npAD"),

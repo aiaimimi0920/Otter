@@ -1,4 +1,4 @@
-//! 真实 WIC/Direct2D 像素验证颜色、alpha、继承、裁剪及父子/兄弟绘制顺序。
+//! Real WIC/Direct2D pixels verify colors, alpha, inheritance, clipping, and parent/child/sibling paint order.
 use super::*;
 #[path = "surface_button_visual_tests.rs"]
 mod button_visual;
@@ -249,8 +249,8 @@ fn rounded_clip_composes_with_group_opacity_and_ends_before_next_sibling() {
 }
 #[test]
 fn background_container_units_keep_host_query_context_in_nested_layout() {
-    // context() 的查询容器宽 400；4cqw=16，不能改用直接父节点宽 32 得到 1.28。
-    // (2, 2) 明确位于半径 16 的弧外，避开 (4, 4) 处的抗锯齿覆盖区域。
+    // context() has query-container width 400; 4cqw=16, not 1.28 from substituting the direct parent's width 32.
+    // (2, 2) is clearly outside the radius-16 arc, avoiding the antialiasing coverage near (4, 4).
     let pixels = render(br#"{"id":"root","type":"column","children":[{"id":"parent","type":"column","layout":{"width":32,"height":64},"children":[{"id":"rounded","type":"view","layout":{"width":64,"height":64},"style":{"background":"blue","borderRadius":"4cqw"}}]}]}"#);
     assert_eq!(
         &pixels[(2 * WIDTH + 2) * 4..(2 * WIDTH + 3) * 4],

@@ -1,4 +1,4 @@
-//! 暂存接管保留原 Editor（含重做分支），首次实际编辑结算为一个历史步骤。
+//! Staged adoption retains original Editor, including redo branches; the first actual edit settles into one history step.
 use super::*;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -9,7 +9,7 @@ pub enum AdoptionOutcome {
     Superseded,
 }
 
-/// 宿主在草稿及异步编辑任务全部结束后调用 finish；未结算时不能丢弃此 owner。
+/// Hosts call finish after all drafts/asynchronous edits end; do not discard this owner while unsettled.
 pub struct Adoption {
     original: Option<Box<Editor>>,
     identity: std::sync::Arc<()>,
@@ -36,7 +36,7 @@ impl Editor {
         }
         let mut candidate = source.export_snapshot();
         candidate.style = self.style;
-        // 原文档仍占用点数，临时编辑的准入必须同时计入，不能绕过全局文档预算。
+        // Original documents still consume point capacity; temporary edits must count too, without bypassing global document budgets.
         candidate.retained_points += self.retained_points;
         let identity = candidate.identity.clone();
         let revision = candidate.revision;
@@ -67,7 +67,7 @@ impl Adoption {
         let outcome = if editor.revision == self.revision {
             AdoptionOutcome::Cancelled
         } else {
-            // 在修改 original 之前完成预算检查；失败保留两份状态及 owner，允许宿主处理。
+            // Check budgets before modifying original; failures retain both states/owner for host handling.
             if !original.adopt_snapshot(original.revision(), editor)? {
                 return Ok(AdoptionOutcome::Pending);
             }

@@ -1,4 +1,4 @@
-//! 历史文字使用当前显示快照，不读取系统历史或启动窗口。
+//! History text uses the current display snapshot without reading system history or starting windows.
 use super::*;
 use crate::{
     desktop::{display_edit, display_frame::Frame, image::Image},
@@ -10,7 +10,7 @@ fn fixture(base: bool) -> State {
     let state = State::new(None, false).unwrap();
     {
         let mut canvas = state.canvas.borrow_mut();
-        // 历史菜单不要求用户先切换到文字工具。
+        // The history menu does not require switching to the text tool first.
         canvas.tool = Tool::Pan;
         if base {
             canvas.editor = Editor::with_layers(Layers {

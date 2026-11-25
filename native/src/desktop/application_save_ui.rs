@@ -1,4 +1,4 @@
-//! 工作区保存入口；窗口回调只排队，应用循环拥有对话框、后台任务与最终提交。
+//! Workspace save entry point; window callbacks only enqueue, while the application loop owns dialogs, background tasks, and final commit.
 use super::*;
 use std::{os::windows::ffi::OsStringExt, path::PathBuf, sync::atomic::AtomicBool};
 use windows::Win32::UI::Controls::Dialogs::*;
@@ -40,12 +40,12 @@ impl Application {
         });
     }
 
-    /// 通知出口可注入，隐藏集成检查仍走正式请求、worker 与文件提交路径。
+    /// The notification sink is injectable; hidden integration checks still use the production request, worker, and file-commit paths.
     pub(super) unsafe fn pending_save_ui_with(
         &mut self,
         mut notify: impl FnMut(&Self, &crate::workspace_id::UnitId, &str, bool),
     ) {
-        // 模态回调可以泵窗口消息，但不能在模态期间发布工作区保存结果。
+        // Modal callbacks may pump window messages, but workspace save results must not be published during the modal interval.
         if self.modals.blocked() {
             return;
         }
@@ -59,7 +59,7 @@ impl Application {
                             prepared.ok_or_else(|| Error::new(E_FAIL, "Missing save result"))?;
                         prepared.commit_ready(self, &AtomicBool::new(false))
                     });
-                    // 新的保存/另存为意图必须先处理，不能被前一个保存的自动退出越过。
+                    // Handle new save/save-as intent first; automatic exit from the previous save must not overtake it.
                     if self.documents.iter().any(|doc| {
                         doc.state.save_session_requested.get()
                             || doc.state.save_existing_requested.get()
@@ -130,7 +130,7 @@ impl Application {
             self.open_after_save = None;
             notify(self, &source, &format!("无法保存工作区。\n{error}"), true);
         }
-        // 路径对话框取消也结束退出意图；不能让下一次手动保存意外退出。
+        // Canceling the path dialog also ends exit intent, so the next manual save cannot unexpectedly exit.
         if self.save_job.is_none() {
             self.exit_after_save = false;
             self.open_after_save = None;
@@ -149,7 +149,7 @@ impl Application {
         for document in &self.documents {
             let save_as = document.state.save_session_requested.replace(false);
             let existing = document.state.save_existing_requested.replace(false);
-            // 同一批请求中明确另存为优先，不能因合并请求意外改成覆盖保存。
+            // Explicit save-as takes priority within one request batch; coalescing must not accidentally turn it into an overwrite.
             if save_as || (existing && request.is_none()) {
                 request = Some((document.state.unit_id.clone(), save_as));
             }
@@ -244,7 +244,7 @@ impl Application {
     }
 }
 
-/// 隐藏 HWND 通过正式菜单分发排队，不打开可见对话框或写文件。
+/// Hidden HWNDs enqueue through production menu dispatch without opening visible dialogs or writing files.
 #[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 pub(super) unsafe fn verify_requests(app: &Application) -> Result<()> {
     let document = &app.documents[0];

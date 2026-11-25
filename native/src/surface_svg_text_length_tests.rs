@@ -1,4 +1,4 @@
-//! Chrome 基线的元素范围与三种锚点；通过真实 SVG child 比较独立绘制结果。
+//! Chrome-baseline element ranges and three anchors; compare independently drawn results through real SVG children.
 use super::*;
 #[test]
 fn textlength_case_0() {

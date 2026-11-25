@@ -1,4 +1,4 @@
-//! 只投影主干节点名称、原 SVG 与现有节点动作；不持有像素、执行器或参数副本。
+//! Project only mainline node names, original SVGs, and existing node actions; own no pixels, executors, or parameter copies.
 use super::*;
 pub(super) fn capture(state: &State) -> Model {
     let title = state

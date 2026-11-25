@@ -1,4 +1,4 @@
-//! 可信发现数据的身份校验；输入仍须由发现层验证来源，本模块不授权任意端点。
+//! Identity validation for trusted discovery data; the discovery layer must still verify input provenance, and this module does not authorize arbitrary endpoints.
 use base64::Engine;
 use sha2::{Digest, Sha256};
 use std::{
@@ -7,7 +7,7 @@ use std::{
     sync::Arc,
 };
 
-/// 目录、准备和执行共享同一固定身份；克隆只增加引用计数，不重新发现或复制凭据。
+/// Catalog, preparation, and execution share one fixed identity; cloning only increments reference counts without rediscovery or copying credentials.
 #[derive(Clone)]
 pub struct Identity {
     inner: Arc<Verified>,
@@ -98,11 +98,11 @@ impl Identity {
     pub fn certificate(&self) -> &[u8] {
         &self.inner.certificate
     }
-    /// 仅交给 TLS exporter；不能作为 HTTP header 或日志内容。
+    /// Pass only to the TLS exporter; never use as an HTTP header or log content.
     pub fn exporter_context(&self) -> String {
         format!("{}:{}", self.inner.instance, self.inner.token)
     }
-    /// 环境覆盖只能重复已验证地址，不能替换发现提供的信任边界。
+    /// Environment overrides may only repeat the verified address, not replace the trust boundary supplied by discovery.
     pub fn check_endpoint_override(&self, value: Option<&str>) -> Result<(), Error> {
         if value
             .is_some_and(|value| !value.trim().is_empty() && value.trim() != self.inner.endpoint)

@@ -1,4 +1,4 @@
-//! 通用 CSS 位置匹配穿过同一 child/实际产品；原权限、单槽和资源预算不变。
+//! Generic CSS positional matching through the same child/actual product; original permissions, single slots, and resource budgets remain unchanged.
 use super::*;
 use sha2::{Digest, Sha256};
 pub(crate) const SOURCE: &str = include_str!("../tests/fixtures/javascript-nth-child.js");

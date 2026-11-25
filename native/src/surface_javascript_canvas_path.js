@@ -1,8 +1,8 @@
-// 当前路径的私有有界记录；路径不在 save/restore 状态中，跨变换路径尚未准入。
+// Private bounded records for the current path; the path is not part of save/restore state, and paths spanning transforms are not yet supported.
 ((dom, fail, get, numbers, copy) => {
   "use strict";
   const op = dom.ops, noPrototype = Object.setPrototypeOf;
-  // wire 段和坐标均由内部构造、无原型且不会外露；捕获后的段只读共享。
+  // Wire segments and coordinates are internally constructed, prototype-free and never exposed; captured segments are shared read-only.
   const tuple = values => noPrototype(values, null);
   const point = (x, y) => tuple([x, y]);
   const append = (owner, segment) => {
@@ -25,9 +25,9 @@
     },
     rect(x, y, width, height) {
       get(this); const p = numbers([x,y,width,height]); if (!p) return;
-      // 数值转换可重入修改路径；转换完成后预留整个矩形，异常不能留下半条路径。
+      // Numeric conversion can reenter and mutate the path; reserve the entire rectangle after conversion so exceptions cannot leave a partial path.
       if (get(this).path.length > 4096 - 5) fail();
-      // numbers 的私有无原型数组没有 iterator，不能依赖可污染的迭代协议。
+      // The private null-prototype numbers array has no iterator; do not rely on a pollutable iteration protocol.
       const a = p[0], b = p[1], w = p[2], h = p[3];
       append(this, { __proto__: null, kind: "move", point: point(a,b) });
       append(this, { __proto__: null, kind: "line", point: point(a+w,b) });

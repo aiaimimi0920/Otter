@@ -1,4 +1,4 @@
-//! 子 Slider 点击在自身 input/change 后冒泡，不复用 Switch 的 click-before-change 顺序。
+//! Child Slider clicks bubble after their own input/change, rather than reusing Switch's click-before-change order.
 use super::*;
 use crate::desktop::surface_edit_mount::FenceState;
 #[test]

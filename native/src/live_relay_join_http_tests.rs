@@ -1,4 +1,4 @@
-//! 真实 HTTPS 串联发现、成员基线恢复、加入和历史起点；不启动媒体，不访问用户身份。
+//! Real HTTPS chain of discovery, membership-baseline recovery, joining, and history start; no media startup or user-identity access.
 use super::*;
 use crate::{live_relay_http::Join, live_relay_viewer_identity::Snapshot};
 

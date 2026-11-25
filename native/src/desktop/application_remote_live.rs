@@ -1,4 +1,4 @@
-//! 远程会话在应用消息结算点回收；窗口回调不显示终态对话框、不等待后台线程。
+//! Reap remote sessions at application message-settlement points; window callbacks neither show terminal dialogs nor wait on background threads.
 use super::*;
 #[path = "application_surface_javascript.rs"]
 mod javascript;
@@ -26,7 +26,7 @@ impl Application {
         if warnings.is_empty() {
             return result;
         }
-        // 一次性结果已经出队；先完成本轮结算，再统一报告，不在结算中进入模态消息泵。
+        // One-shot results have left the queue; finish this settlement before reporting together, without entering a modal message pump during settlement.
         if !visible {
             let code = result.err().map_or(E_FAIL, |error| {
                 let code = error.code();
@@ -96,8 +96,8 @@ impl Application {
                 warnings.push(format!("远程观看已停止。\n{}\n{error}", event.origin));
             }
         }
-        // 先回收目录/观看/图片完成槽，再安排 JS；最后才结算生命周期，保证后台失败
-        // 或同步 start 失败关闭的 HWND 在本轮进入 inactive，不丢失最后一个唤醒源。
+        // Reap catalog/viewer/image completion slots before scheduling JS; settle lifecycle last so HWNDs closed by background failure
+        // or synchronous start failure become inactive this turn, without losing the final wakeup source.
         self.settle_surface_images(crate::desktop::surface_windows::now_ms()?);
         self.poll_surface_javascript_with(visible, config)?;
         if self.activate_surface_windows_with(visible, config)? {

@@ -1,4 +1,4 @@
-//! 双层擦除必须先逐层衰减 alpha，再 source-over；合成后统一遮罩不是同一个操作。
+//! Two-layer erasure must attenuate alpha per layer before source-over; masking the final composite is a different operation.
 use super::*;
 use windows::Win32::{Graphics::Imaging::*, System::Com::*};
 

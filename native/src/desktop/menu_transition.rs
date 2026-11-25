@@ -1,4 +1,4 @@
-//! 菜单边界的手势收尾与呈现同步；命令目录不复制捕获释放和钉图命中区域更新。
+//! Gesture cleanup/presentation synchronization at menu boundaries; command catalogs do not duplicate capture release or pin hit-region updates.
 use super::State;
 use windows::{
     core::Result,

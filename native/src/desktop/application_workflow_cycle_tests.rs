@@ -1,4 +1,4 @@
-//! 真实隐藏 HWND + 实际归档替换 + 固定证书 TLS/WS 的完整成功链路，隔离于用户服务。
+//! Complete success path through real hidden HWNDs, actual archive replacement, and pinned-certificate TLS/WS, isolated from user services.
 use super::*;
 use crate::desktop::{document_window::DocumentWindow, Apartment};
 use std::{
@@ -35,10 +35,10 @@ fn shared_workflow_observation_checks_both_geometry_baselines_and_transient_stat
         let moved_saved = save_state::Stamp::capture(&app).unwrap();
         let moved_guard = guard::Guard::capture(&app).unwrap();
         assert!(moved_guard.matches_saved(&app, &moved_saved));
-        // 已保存状态通过，旧恢复凭证仍必须因相同 HWND 已移动而拒绝。
+        // Saved-state validation passes, but old restore credentials must still reject because the same HWND moved.
         assert!(moved_saved.matches(&app));
         assert!(!guard.matches_saved(&app, &moved_saved));
-        // 新恢复凭证不能代替旧保存基线。
+        // New restore credentials cannot replace the old save baseline.
         assert!(moved_guard.matches(&app));
         assert!(!moved_guard.matches_saved(&app, &saved));
         move_to(origin.left);
@@ -167,7 +167,7 @@ fn real_application_cycle_archives_before_sending_committed_revision() {
             let snapshot = &request["params"]["snapshot"];
             assert_eq!(snapshot["documentRevision"], revision + 1);
             assert_eq!(snapshot["nodes"].as_array().unwrap().len(), 1);
-            // 回执前查磁盘，证明网络消息来自已耐久提交的新基线。
+            // Inspect disk before the receipt to prove network messages come from the newly durably committed baseline.
             let disk: serde_json::Value =
                 serde_json::from_slice(&std::fs::read(saved_path).unwrap()).unwrap();
             assert_eq!(disk["documentRevision"], revision + 1);

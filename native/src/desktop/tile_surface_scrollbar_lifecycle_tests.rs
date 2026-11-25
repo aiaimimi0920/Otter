@@ -1,4 +1,4 @@
-//! 捕获/计时器在prepare、减权、窗口同步重入和替代输入下的实际所有权。
+//! Actual capture/timer ownership under preparation, permission reduction, synchronous window reentrancy, and replacement input.
 use super::*;
 #[test]
 fn preparation_gap_keeps_capture_but_never_samples_then_resumes_same_geometry() {

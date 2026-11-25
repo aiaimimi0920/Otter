@@ -1,4 +1,4 @@
-//! 显式PNG服务回复适配；独立有界网络envelope，原JSON合同不扩容，脚本不接触Base64。
+//! Explicit PNG-service reply adapter; independently bounded network envelope, unchanged JSON limits, and no script access to Base64.
 use super::*;
 use crate::surface_javascript::ImageResource;
 use base64::engine::general_purpose::STANDARD;
@@ -65,7 +65,7 @@ fn decode_with_budget(
     if image.png.len() > 4 * MAX_PNG.div_ceil(3) {
         return Err(Error::Limit);
     }
-    // 每四个 Base64 字符最多生成三字节；先为缓冲容量预约，再在原地解码。
+    // Four Base64 characters produce at most three bytes; reserve buffer capacity before decoding in place.
     let capacity = image.png.len().div_ceil(4) * 3;
     let lease = reserve(capacity).ok_or(Error::Limit)?;
     let mut bytes = vec![0; capacity];

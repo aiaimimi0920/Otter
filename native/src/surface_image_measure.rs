@@ -1,4 +1,4 @@
-//! 解码自然尺寸与 flex 交叉轴反馈；不接触来源、网络、像素或 D2D。
+//! Decoded natural dimensions and flex cross-axis feedback; no sources, networking, pixels, or D2D.
 use super::*;
 impl NativeMeasure<'_, '_> {
     fn natural(&self, node: &Node) -> Result<[f32; 2]> {
@@ -62,7 +62,7 @@ impl NativeMeasure<'_, '_> {
                 size[1] = final_image.size[1];
             }
         }
-        // 极端长宽比的 auto 基础尺寸只需覆盖布局引擎可表达范围；最终 max 仍由布局约束。
+        // Auto base dimensions for extreme aspect ratios need only cover the layout engine's representable range; layout still constrains the final max.
         for (axis, explicit) in [width, height].into_iter().enumerate() {
             if explicit.is_none() {
                 size[axis] = size[axis].min(32768.);
@@ -87,7 +87,7 @@ impl NativeMeasure<'_, '_> {
             if node.canvas_size().is_some_and(|size| size.contains(&0)) {
                 continue;
             }
-            // 替代内容无自然宽高比，不参与成功图片的交叉轴反馈。
+            // Replacement content has no natural aspect ratio and does not participate in successful-image cross-axis feedback.
             if node.image_placeholder() {
                 continue;
             }
@@ -119,7 +119,7 @@ impl NativeMeasure<'_, '_> {
                 })
             });
             let mut size = self.image_intrinsic(node, available, local)?.size;
-            // Grid 不走父 Row/Column 二分；auto 高度随已分配列宽，显式高的 auto 宽反之。
+            // Grid does not use the parent Row/Column split; auto height follows allocated column width, and auto width follows explicit height conversely.
             let main = if placed.grid_cell.is_some() {
                 usize::from(length(node, "height", available[1], local).is_none())
             } else {

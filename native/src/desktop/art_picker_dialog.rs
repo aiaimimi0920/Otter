@@ -1,4 +1,4 @@
-//! 同步 owned 目录选择窗；真实 EDIT/LISTBOX，IME 优先，DPI 不重建草稿，退出后才交付意图。
+//! Synchronous owned catalog picker: real EDIT/LISTBOX, IME precedence, no draft recreation on DPI changes, and intent delivered only after exit.
 use super::*;
 use std::cell::{Cell, RefCell};
 use windows::{
@@ -36,7 +36,7 @@ struct Ui<'a> {
     composing: Cell<u8>,
     pressed: Cell<Option<(usize, POINT)>>,
 }
-/// 同步显示借用；仅复用目录 UI，不给 Live 构造假的文档 State 或执行授权。
+/// Borrow for synchronous display; reuse only catalog UI, without fabricating document State or execution authorization for Live.
 pub(in crate::desktop) struct Context<'a> {
     pub catalog: Option<Rc<Loaded>>,
     pub origin: Option<String>,
@@ -278,7 +278,7 @@ unsafe fn dispatch(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> isize {
     ) {
         return theme::colors(msg, wp, lp, false).0;
     }
-    // DialogBox 自带嵌套消息泵；复用原会话输入门，而不是依赖外层 Application 的过滤。
+    // DialogBox has its own nested message pump; reuse the original session input gate instead of relying on outer Application filtering.
     if blocked(ui, msg) {
         return 1;
     }

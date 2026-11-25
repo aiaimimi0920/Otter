@@ -1,4 +1,4 @@
-//! 后台移交已验证的接收像素和协作矢量；不在 UI 线程扫描内联图片或再建 Art 状态。
+//! Transfer verified received pixels and collaborative vectors in the background; no UI-thread inline-image scans or rebuilding Art state.
 use super::*;
 
 pub(in crate::desktop) fn prepare(

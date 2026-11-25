@@ -1,4 +1,4 @@
-//! 应用工作流周期：归档提交之后按新基线重准备；所有阶段共用当前 Record 生命周期。
+//! Application workflow cycle: prepare again against the new baseline after archive commit; every stage shares the current Record lifetime.
 use super::*;
 use crate::session_document::workflow_snapshot::batch::dispatch::Report;
 enum Phase {
@@ -20,7 +20,7 @@ pub(in crate::desktop::application) struct Cycle {
     publication: Option<crate::session_file_replace::Published>,
 }
 impl Application {
-    /// root 必须来自显式准入；不会从会话中的图片路径推导写权限。
+    /// root must come from explicit admission; image paths in the session never imply write permission.
     pub(in crate::desktop::application) unsafe fn request_workflow_cycle(
         &mut self,
         root: Arc<Root>,
@@ -121,7 +121,7 @@ impl Cycle {
             Phase::Archiving(pending) => {
                 if let Some(result) = pending.poll(app) {
                     self.publication = Some(result?.commit(app)?);
-                    // 旧 Ready 已随归档任务释放；新请求必须携带刚提交的 revision。
+                    // The old Ready was released with the archive task; the new request must carry the revision just committed.
                     app.request_workflow_preparation(Some(self.root.clone()))?;
                     self.phase = Phase::PreparingSync;
                 }

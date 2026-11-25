@@ -1,4 +1,4 @@
-//! 扩展声明式场景的独立白名单；不接受图片/脚本/资源节点，事件只保留同一声明命令。
+//! Independent allowlist for declarative extension scenes; no image/script/resource nodes, and events retain only the same declared command.
 use crate::loom_extension_snapshot::text;
 use serde_json::{Map, Value};
 use std::collections::BTreeSet;

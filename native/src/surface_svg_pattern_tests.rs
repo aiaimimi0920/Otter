@@ -1,9 +1,9 @@
-//! Chrome 155 img→canvas 基线；实际生产 Job child 解码，不在测试父进程代替渲染。
+//! Chrome 155 img-to-canvas baselines; actual production Job children decode, rather than rendering in the test parent.
 use super::*;
 
 #[test]
 fn surface_svg_patterns_match_browser_percentages_and_template_overrides() {
-    // 实测 Chrome 的百分比基准仍是外部 viewport；不可凭 viewBox 推断并改写。
+    // Chrome measurements still use the outer viewport as the percentage basis; never infer and rewrite it from viewBox alone.
     assert_grid("<pattern id='p' patternUnits='userSpaceOnUse' width='4' height='2' viewBox='0 0 4 2'><rect width='50%' height='50%' fill='red'/></pattern>", ["RRRRRRRR"; 4]);
     assert_grid("<pattern id='p' patternUnits='userSpaceOnUse' width='4' height='2'><rect width='25%' height='25%' fill='red'/></pattern>", ["RR..RR..", "........", "RR..RR..", "........"]);
     assert_grid("<pattern id='base' patternUnits='userSpaceOnUse' width='4' height='2'><rect width='2' height='1' fill='red'/></pattern><pattern id='p' href='#base'><title>tile</title></pattern>", ["........"; 4]);
@@ -14,7 +14,7 @@ fn surface_svg_patterns_match_browser_percentages_and_template_overrides() {
 
 #[test]
 fn surface_svg_patterns_match_browser_overflow_tile_clipping() {
-    // Chrome 155 在本夹具中即使 visible 也裁剪到 tile，不凭规范推断跨 tile 环绕。
+    // Chrome 155 clips this fixture to the tile even with visible; do not infer cross-tile wrapping from the specification.
     for overflow in ["hidden", "visible", "scroll", "auto"] {
         assert_grid(&format!("<pattern id='p' patternUnits='userSpaceOnUse' width='4' height='2' overflow='{overflow}'><rect x='3' width='2' height='1' fill='red'/></pattern>"), ["...R...R", "........", "...R...R", "........"]);
     }

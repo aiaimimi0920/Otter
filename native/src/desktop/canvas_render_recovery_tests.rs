@@ -1,4 +1,4 @@
-//! 恢复状态的确定性失败/超时模型；真实 DComp 成功与窗口调度另由 Canvas/窗口测试覆盖。
+//! Deterministic failure/timeout models for recovery state; Canvas/window tests separately cover real DComp success and window scheduling.
 use super::*;
 use crate::desktop::{image::Image, Apartment};
 

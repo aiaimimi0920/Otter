@@ -1,4 +1,4 @@
-"""包探针判定逻辑的隔离回归；模拟进程结果，不代替真实 EXE 运行门。"""
+"""Isolated regressions for package-probe decisions; simulated process results do not replace actual EXE runtime gates."""
 from contextlib import redirect_stdout
 import hashlib
 import importlib.util

@@ -1,4 +1,4 @@
-//! Live 主动连线的应用事务；共享选择框，确认后重验目录/两端 owner，不在模态中改图。
+//! Application transaction for Live-initiated links; share the picker and recheck catalog/both endpoint owners after confirmation, without changing the graph while modal.
 use super::Application;
 use crate::{desktop::link_catalog::Catalog, workspace_id::UnitId};
 use std::{cell::Cell, rc::Rc};
@@ -21,7 +21,7 @@ impl Application {
             if let Err(error) = self.create_live_link_with(&unit, |_, hwnd, catalog, source| {
                 crate::desktop::link_create::show_outgoing(hwnd, catalog, source)
             }) {
-                // 与静态连线一致：过期/关闭来源不再弹出无 owner 的阻塞窗口。
+                // Match static linking: stale/closed sources must not open an ownerless blocking window.
                 eprintln!("Live link creation rejected: {error}");
             }
         }

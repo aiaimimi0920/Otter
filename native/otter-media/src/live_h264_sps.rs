@@ -1,4 +1,4 @@
-//! baseline SPS/VUI 的分配及颜色边界；不规范化来自网络的不合法色彩标记。
+//! baseline SPS/VUI allocation/color boundaries; never normalize invalid network color markers.
 use super::{bits::Bits, require, Result};
 pub(super) fn validate(nal: &[u8], expected: [u32; 2]) -> Result<()> {
     require(nal.len() <= 1024, "SPS size budget")?;

@@ -1,4 +1,4 @@
-// 单文档有界 timer；仅宿主交付 task 时执行，复用 rAF 的私有单调时钟。
+// Bounded timers per document; execute only when the host delivers tasks, reusing rAF's private monotonic clock.
 ((dom, fail, clock) => {
   "use strict";
   const op = dom.ops, timers = new op.MapType(), ceil = Math.ceil;
@@ -6,7 +6,7 @@
   let batch = null, index = 0;
   const now = () => (paused === null ? clock() : paused) - offset;
   const delay = (value, level) => {
-    // Web IDL long：先 ToNumber（BigInt/Symbol 抛错），再 signed 32-bit，负数归零。
+    // Web IDL long: first ToNumber (BigInt/Symbol throw), then signed 32-bit conversion, with negatives clamped to zero.
     let result = +value | 0;
     if (result < 0) result = 0;
     if (level > 5 && result < 4) result = 4;
@@ -15,7 +15,7 @@
   const register = (callback, timeout, args, repeat) => {
     if (disposed || typeof callback !== "function" || args.length > 32) fail();
     const raw = +timeout | 0, wait = delay(raw, nesting);
-    // 转换可能重入注册或 dispose；在转换后才最终准入，不超容量或复用 ID。
+    // Conversion may reenter registration or dispose; finalize admission afterward, without exceeding capacity or reusing IDs.
     if (disposed || op.mapSize(timers) >= 64 || next === 0x7fffffff) fail();
     const saved = op.array();
     for (let i = 0; i < args.length; i++) op.push(saved, args[i]);
@@ -36,7 +36,7 @@
       batch = op.array(); index = 0; const timestamp = now();
       op.mapEach(timers, (timer, id) => {
         if (timer.due > timestamp) return;
-        // 最多64项；稳定按到期时间/登记顺序，不调用插件可替换的 sort/iterator。
+        // At most 64 items, ordered stably by deadline/registration order; never call plugin-replaceable sort/iterator.
         let at = batch.length;
         while (at > 0 && batch[at - 1].timer.due > timer.due) { batch[at] = batch[at - 1]; at--; }
         batch[at] = { timer, id };
@@ -57,7 +57,7 @@
             timer.level = nesting + 1;
           }
         }
-        // Rust 完成 microtask checkpoint 后才进入下一项；新登记留到下一 task。
+        // Advance only after Rust completes the microtask checkpoint; newly registered items wait for the next task.
         return true;
       }
       batch = null; return false;

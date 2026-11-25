@@ -1,4 +1,4 @@
-//! HDR PNG 流式编码；调用方拥有目的文件及部分写入处理，不创建或覆盖任何路径。
+//! Streaming HDR PNG encoding; callers own destination files/partial-write handling, without path creation/overwriting.
 use crate::capture_color::HdrFrame;
 use std::{
     io::{self, Write},
@@ -16,7 +16,7 @@ pub enum Error {
     Io(io::Error),
 }
 
-/// 只在 IEND 完整写出且目标 flush 成功后返回成功；不代表文件已 sync_all 或已发布。
+/// Success requires complete IEND and successful destination flush; not proof of sync_all or publication.
 pub fn write(writer: &mut impl Write, frame: &HdrFrame, cancel: &AtomicBool) -> Result<(), Error> {
     encode(writer, frame, cancel, crate::pixels::reserve)
 }
@@ -54,8 +54,8 @@ fn encode(
         return Err(Error::Metadata);
     }
     let row = frame.width as usize * 6;
-    // 固定 png 0.18.1 流式路径保留三行、4 KiB chunk 和有界压缩状态；保守预留 4 MiB。
-    // 不调用会积累整张压缩图的 write_image_data；目的 writer 的缓存由调用方负责。
+    // Pinned png 0.18.1 streaming retains three rows, a 4 KiB chunk, and bounded compression state; conservatively reserve 4 MiB.
+    // Never call write_image_data, which accumulates whole compressed images; callers own destination-writer buffering.
     let _lease = reserve(4 * 1024 * 1024 + row * 3).ok_or(Error::Budget)?;
     let mut output = sink::Sink::new(writer, cancel, length + length / 100 + 65536);
     let result = (|| {

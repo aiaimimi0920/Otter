@@ -1,4 +1,4 @@
-//! 与按钮共享值 token，但不覆盖仍在途的 modal 发布；失败不回退重放 motion。
+//! Share value tokens with buttons without replacing still-in-flight modal publications; failures must not fall back and replay motion.
 use super::*;
 
 pub fn motion_native(

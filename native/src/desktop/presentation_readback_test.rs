@@ -1,4 +1,4 @@
-//! 仅测试读实际GPU纹理；上限256²，staging/返回像素分别计费，不进入产品帧热路径。
+//! Test-only readback of actual GPU textures, capped at 256 squared; charge staging/returned pixels separately, never entering the product frame hot path.
 use windows::Win32::Graphics::{Direct3D11::*, Dxgi::Common::*};
 pub(super) struct Pixels {
     pub size: [u32; 2],

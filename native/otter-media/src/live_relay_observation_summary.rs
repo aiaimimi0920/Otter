@@ -1,4 +1,4 @@
-//! 能力报告与观察汇总；能力缺失不是空报告，汇总不替代具体观察的安全校验。
+//! Capability reports and observation summaries; missing capabilities are not an empty report, and summaries do not replace safety checks on individual observations.
 use super::{Error, Observations, State};
 use crate::live_relay_viewer_identity::parse;
 use serde::Deserialize;

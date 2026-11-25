@@ -1,4 +1,4 @@
-//! 菜单中的索引必须绑定原目录/收件箱/工作区；同名条目不能替换已打开弹层的命令目标。
+//! Menu indices must bind to original catalogs/inboxes/workspaces; same-named entries cannot replace command targets in already-open popups.
 use super::*;
 use std::sync::Arc;
 pub(in crate::desktop) struct Snapshot {
@@ -58,7 +58,7 @@ impl Snapshot {
             && crate::desktop::pin_settings::is_open(state)
             && self.same_inputs(state)
     }
-    // 刷新持有子栏可变借用；只比较业务输入，不递归借用子栏的 open 状态。
+    // Refresh holds a mutable subbar borrow; compare only business inputs without recursively borrowing the subbar's open state.
     pub(in crate::desktop) fn same_inputs(&self, state: &State) -> bool {
         let view = state.authorization.borrow();
         !view.closed

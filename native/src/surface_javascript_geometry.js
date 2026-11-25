@@ -1,4 +1,4 @@
-// 同步 border/client box 只取同一原生度量；没有 viewport/独立 inline run 时明确失败而非猜测。
+// Synchronous border/client boxes use the same native measurements; explicitly fail rather than guess without a viewport or separate inline run.
 ((dom, fail, project, json) => {
   "use strict";
   const op = dom.ops, round = Math.round;
@@ -13,7 +13,7 @@
       current = dom.get(current).parent;
     }
     if (!connected) return zero();
-    // 叶中的 inline 被现有投影压平，没有独立 box；禁止以叶/父矩形冒充它的尺寸。
+    // Existing projection flattens inline content inside leaves, leaving no separate box; do not substitute leaf/parent rectangles for its dimensions.
     for (current = dom.get(node).parent; current; current = dom.get(current).parent)
       if (!op.setHas(dom.containers, dom.get(current).tag)) fail();
     if (!native || ratio === null) fail();
@@ -24,7 +24,7 @@
       if (revision !== dom.revision()) fail();
       cachedSource = source; cachedRevision = revision;
     }
-    // 只省同 operation 的重复投影；每次读取仍经过原生 reads/layout/deadline 准入。
+    // Skip only repeated projection within the same operation; every read still passes native reads/layout/deadline admission.
     const result = native(cachedSource, dom.get(node).key);
     if (!result) fail();
     return json.decode(result);

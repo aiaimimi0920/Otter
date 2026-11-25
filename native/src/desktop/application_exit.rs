@@ -1,4 +1,4 @@
-//! 应用退出默认保存场景，不询问手动另存；失败保留窗口，提交后才释放 owner。
+//! Save the default scene on application exit without prompting for manual save-as; retain windows on failure and release owners only after commit.
 use super::*;
 
 #[cfg_attr(
@@ -11,7 +11,7 @@ pub(super) enum Choice {
     Cancel,
 }
 
-/// 隐藏 HWND 验证决策与完成状态转换；不显示对话框或写用户会话。
+/// Hidden HWNDs verify decisions and completion-state transitions without showing dialogs or writing the user session.
 #[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 pub(super) unsafe fn verify(app: &mut Application) -> Result<()> {
     let saved = app.saved_state.take();
@@ -100,7 +100,7 @@ impl Application {
             );
             return false;
         }
-        // Discard 仅跳过手动另存文件；后续仍须完成默认场景的最终检查点。
+        // Discard skips only the manual save-as file; the default scene's final checkpoint must still complete afterward.
         self.close_requested_with_notify(|_| Choice::Discard, notify)
     }
     #[cfg(any(test, debug_assertions, feature = "smoke-test"))]
@@ -143,9 +143,9 @@ impl Application {
         {
             return false;
         }
-        // 正在保存时不插入第二个确认或销毁其来源窗口；完成后必须重新核对状态。
+        // Do not insert another confirmation or destroy the source window while saving; recheck state after completion.
         if self.save_job.is_some() {
-            // 已经由保存 UI 拥有的任务可以完成后继续退出；失败仍清除退出意图。
+            // A task already owned by the save UI may continue exiting after completion; failure still clears the exit intent.
             self.exit_after_save = self.save_origin.is_some();
             return false;
         }
@@ -165,7 +165,7 @@ impl Application {
                     }
                     return false;
                 }
-                // 模态期间可能收到窗口/后台消息，放弃意图不得延伸到后来变化的内容。
+                // Window/background messages may arrive during the modal interval; discard intent must not extend to subsequently changed content.
                 Choice::Discard if !before.matches(self) => return false,
                 Choice::Discard => {}
             }
@@ -194,7 +194,7 @@ impl Application {
     unsafe fn close_confirmed(&mut self) -> bool {
         self.exit_committed = true;
         self.checkpoint_exiting();
-        // 保存/检查点已完成；从这里起驱动或恢复等待不能让无窗口宿主永久驻留。
+        // Saving/checkpointing has completed; from here, driver or restore waits must not leave a windowless host resident forever.
         crate::emergency_watchdog::shutdown::begin();
         for document in &self.documents {
             if document.is_alive() {
@@ -221,7 +221,7 @@ impl Application {
         if !intent.matches(self) {
             return;
         }
-        // 不在保存结果处理栈中销毁窗口；下一轮消息继续正常退出检查。
+        // Do not destroy windows on the save-result handling stack; resume normal exit checks on the next message turn.
         if PostMessageW(None, WM_NULL, WPARAM(0), LPARAM(0)).is_ok() {
             self.exit_saved = Some(intent);
             self.exit_requested.set(true);

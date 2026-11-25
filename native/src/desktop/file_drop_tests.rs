@@ -1,4 +1,4 @@
-//! 使用自建 Shell 数据包，不调用系统拖放、不读取用户文件或剪贴板。
+//! Owned Shell packets only; no system drag/drop, user-file reads, or clipboard access.
 use super::*;
 use windows::Win32::System::Memory::*;
 

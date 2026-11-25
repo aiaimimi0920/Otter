@@ -1,4 +1,4 @@
-//! 已完成的模糊图快照；标注、撤销和导出共享像素，不复制整图。
+//! Completed blur-image snapshots; annotation/undo/export share pixels without whole-image copies.
 use crate::{pixels::Pixels, viewport::checked_image_bytes};
 #[derive(Clone, Debug)]
 pub struct BlurImage {
@@ -83,7 +83,7 @@ impl BlurImage {
     pub fn sigma(&self) -> u8 {
         self.strength.round() as u8
     }
-    /// 变换与重新计算必须使用未取整强度；sigma 仅用于既有整数控件。
+    /// Transformations/recomputation must use unrounded intensity; sigma serves only existing integer controls.
     pub fn strength(&self) -> f32 {
         self.strength
     }
@@ -96,7 +96,7 @@ impl BlurImage {
     pub fn pixels(&self) -> &Pixels {
         &self.pixels
     }
-    /// 只改变纹理的逻辑采样框，像素仍共享；导出密度不应改变标注几何。
+    /// Change only logical texture-sampling boxes while sharing pixels; export density must not change annotation geometry.
     pub fn with_frame(mut self, frame: crate::crop_geometry::Rect) -> Option<Self> {
         if ![frame.x, frame.y, frame.width, frame.height]
             .iter()
@@ -118,7 +118,7 @@ impl BlurImage {
     pub fn frame(&self) -> crate::crop_geometry::Rect {
         self.frame
     }
-    /// 局部导出纹理：frame 限制整个效果，clip 仅限制取样颜色、不限制白色覆盖。
+    /// Local export textures: frame bounds the whole effect; clip bounds sampled color only, not white coverage.
     pub fn with_effect_clip(mut self, clip: crate::crop_geometry::Rect) -> Option<Self> {
         if ![clip.x, clip.y, clip.width, clip.height]
             .iter()
@@ -138,7 +138,7 @@ impl BlurImage {
     pub fn effect_clip(&self) -> Option<crate::crop_geometry::Rect> {
         self.effect_clip
     }
-    /// 局部 Canvas 取整后的内容（遮罩和 wash）与纹理一同压回持久框。
+    /// Compress rounded local Canvas content, mask and wash, back into persistent boxes along with textures.
     pub fn with_effect_mask_scale(mut self, scale: (f32, f32)) -> Option<Self> {
         if self.effect_clip.is_none()
             || ![scale.0, scale.1]

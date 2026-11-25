@@ -1,4 +1,4 @@
-//! 源 dialog 在 down 内激活：先排原目标 up，再验证来源，不用取消父模态收尾。
+//! Source dialog activation within down: enqueue up for the original target before validating provenance, without cancelling the parent modal to finish.
 use super::*;
 use crate::live_input::Button;
 
@@ -58,7 +58,7 @@ fn down_opened_source_dialog_releases_all_buttons_and_keys_in_original_fifo() {
     window.resolve_popup_focus_at(Some(&Target::bind(root.0).unwrap()), popup.0);
     assert!(window.state.input.borrow().enabled);
     assert!(window.state.popup_focus.borrow().active.is_some());
-    // 同一物理按住的迟到 up 被原窗口边沿准入拒绝，新的完整手势仍可进入。
+    // The original window's edge admission rejects late up from the same physical hold, while new complete gestures remain admissible.
     for (_, mask) in buttons {
         assert!(!window.state.input.borrow_mut().button_edge(mask, false));
     }

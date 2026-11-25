@@ -1,4 +1,4 @@
-//! 内容/仅栅格标注两种擦除事务；矢量标注由 Editor 独立拥有，不在这里展平或重建。
+//! Content/raster-annotation-only erasure transactions; Editor independently owns vector annotations, without flattening/reconstruction here.
 use crate::{
     erase::{self, EraseError},
     pixels::Pixels,
@@ -13,7 +13,7 @@ pub enum Mode {
 
 #[derive(Debug, Clone)]
 pub struct Layers {
-    /// None 保持历史同尺寸合同；Some 描述独立标注纹理，不改变底图逻辑框。
+    /// None preserves historical same-size contracts; Some describes independent annotation textures without changing logical base-image boxes.
     pub annotation_size: Option<(u32, u32)>,
     pub size: (u32, u32),
     pub base: Pixels,
@@ -36,7 +36,7 @@ impl Layers {
             None => self.annotation_size.is_none(),
         }
     }
-    /// 全部层都成功后才返回候选快照；任何失败都保留原层及其共享身份。
+    /// Return candidate snapshots only after all layers succeed; every failure preserves original layers/shared identity.
     pub fn erase(
         &self,
         mode: Mode,
@@ -47,7 +47,7 @@ impl Layers {
         self.erase_in_frame(mode, points, width, None, cancelled)
     }
 
-    /// 底图使用源像素坐标，标注层可独立适配可见框；仍在两层成功后才交付。
+    /// Base images use source-pixel coordinates; annotation layers may independently fit visible boxes, with delivery only after both succeed.
     pub fn erase_in_frame(
         &self,
         mode: Mode,
@@ -59,7 +59,7 @@ impl Layers {
         self.erase_in_frames(mode, points, width, None, annotation_frame, cancelled)
     }
 
-    /// 两层逆映射各自逻辑框，擦除笔宽仍为文档单位；取消不会发布半层结果。
+    /// Inverse-map each layer's logical box; eraser widths remain document units and cancellation never publishes half-layer results.
     pub fn erase_in_frames(
         &self,
         mode: Mode,

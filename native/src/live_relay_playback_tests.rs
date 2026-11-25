@@ -1,4 +1,4 @@
-//! 完整控制加入 + Device WSS + 原生像素发布 + 撤权回收的真实回环测试。
+//! Real loopback test covering complete control join + Device WSS + native pixel publication + revocation cleanup.
 use super::*;
 use crate::{
     byte_budget::Budget,
@@ -129,8 +129,8 @@ fn authenticated_control_and_media_publish_pixels_and_revoke_as_one_lifecycle() 
     };
     assert_eq!(frame.metadata().frame_id, 1);
     drop(frame);
-    // 媒体先产帧不代表控制请求头已到达；先完成夹具握手再测试撤权，避免把
-    // 合法取消中的 EOF 当作服务端 request() 必须成功读取的前提。
+    // Media producing frames first does not prove control request headers arrived; finish the fixture handshake before testing revocation, so
+    // EOF during legitimate cancellation is not treated as a condition requiring server request() to read successfully.
     for _ in 0..2 {
         started_rx
             .recv_timeout(std::time::Duration::from_secs(2))

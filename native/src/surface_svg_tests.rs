@@ -1,4 +1,4 @@
-//! 实际 Job SVG child 的尺寸、像素及拒绝合同；不在父进程解析 XML。
+//! Dimension, pixel, and rejection contracts in actual Job SVG children; no parent-process XML parsing.
 use super::*;
 #[path = "surface_svg_bidi_tests.rs"]
 mod bidi;
@@ -45,7 +45,7 @@ fn assert_same_pixels(actual: &Image, expected: &Image, context: &str) {
         (expected.width, expected.height),
         "{context}: image dimensions"
     );
-    // zip 只比较公共前缀；先核长度，避免截断的像素缓冲被误判为相同。
+    // zip compares only the common prefix; check lengths first so truncated pixel buffers cannot appear equal.
     assert_eq!(
         actual.pixels.len(),
         expected.pixels.len(),
@@ -134,7 +134,7 @@ fn surface_svg_child_swaps_channels_without_double_premultiplication() {
 }
 #[test]
 fn surface_svg_nested_viewports_match_browser_pixel_rectangles() {
-    // Chrome 155 的实际 img -> canvas 基线；逐像素检查位置和透明区，而非只数非零像素。
+    // Actual Chrome 155 img -> canvas baseline; check positions and transparent areas pixel-by-pixel rather than merely counting nonzero pixels.
     for (content, bounds) in [
         ("<svg x='10' y='5' width='20' height='10'><rect width='100' height='100' fill='red'/></svg>", [10,5,30,15]),
         ("<svg x='10' y='5' width='20' height='10' overflow='visible'><rect width='100' height='100' fill='red'/></svg>", [10,5,80,40]),
@@ -144,7 +144,7 @@ fn surface_svg_nested_viewports_match_browser_pixel_rectangles() {
         ("<svg x='25%' y='25%' width='50%' height='50%'><rect width='100%' height='100%' fill='red'/></svg>", [20,10,60,30]),
         ("<svg x='10' y='5' width='20' height='10'><svg x='5' y='2' width='10' height='4'><rect width='100%' height='100%' fill='red'/></svg></svg>", [15,7,25,11]),
         ("<svg width='0' height='10'><rect width='100' height='100' fill='red'/></svg>", [0,0,0,0]),
-        // 同一零尺寸语义的属性替换/百分比与多层回归，不另称独立浏览器样本。
+        // Attribute replacement/percentage and multilayer regressions for the same zero-size semantics, not separate independent browser samples.
         ("<svg width='20' height='0%' display='inline'><rect width='100' height='100' fill='red'/></svg>", [0,0,0,0]),
         ("<svg width='0' height='10'><svg width='0' height='10'><rect width='100' height='100' fill='red'/></svg></svg>", [0,0,0,0]),
         ("<svg x='10' y='5' width='20' height='10' overflow='hidden'><rect width='100' height='100' fill='red'/></svg>", [10,5,30,15]),
@@ -217,7 +217,7 @@ fn surface_svg_child_rejects_unimplemented_or_external_content() {
         "<style>@import 'https://example.invalid/style';</style>",
         "<image href='file:///C:/sentinel.png'/>",
         "<feImage href='data:image/png,abc'/>",
-        // 接入 renderer 补丁不等于滤镜准入；含未引用定义也必须整体拒绝。
+        // Integrating renderer patches does not admit filters; even unreferenced definitions must cause whole-input rejection.
         "<filter/>",
         "<defs><filter id='f'><feFlood flood-color='red'/></filter></defs>",
         "<filter><feGaussianBlur stdDeviation='1'/></filter>",

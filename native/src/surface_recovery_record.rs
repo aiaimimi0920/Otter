@@ -1,4 +1,4 @@
-//! 本地恢复提示而非授权/服务端回执；禁止从磁盘记录直接构造可操作的 Binding。
+//! Local recovery hints, not authorization/server receipts; never construct operable Bindings directly from disk records.
 use crate::{
     surface_attach_runtime::Request,
     surface_live_binding::{Binding, Lifecycle},

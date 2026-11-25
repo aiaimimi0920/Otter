@@ -1,4 +1,4 @@
-//! 只使用合成图和内存 DIB；检查实线、标签契约及整帧发布边界，不读取桌面。
+//! Synthetic images and memory DIBs only; verify solid strokes, label contracts, and whole-frame publication boundaries without desktop reads.
 use super::*;
 use windows::Win32::Graphics::Direct2D::Common::D2D_SIZE_U;
 

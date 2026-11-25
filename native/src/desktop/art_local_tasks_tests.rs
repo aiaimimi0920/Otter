@@ -1,4 +1,4 @@
-//! 有界任务占槽、通知、旧失败、panic、撤销和回收；通过通道同步而非 sleep 刷绿。
+//! Bounded task slots, notifications, old failures, panics, cancellation, and reclamation; synchronize through channels, not sleeps to make tests pass.
 use super::*;
 use crate::art_local_requests::tests as fixture;
 use std::{
@@ -177,7 +177,7 @@ fn shutdown_revokes_all_workers_before_joining_and_leaves_no_results() {
     done.recv_timeout(WAIT).unwrap();
     done.recv_timeout(WAIT).unwrap();
     assert!(first.is_revoked() && second.is_revoked());
-    // shutdown 忽略 join 的 panic；主测试必须确认两个 worker 都实际通过撤销断言。
+    // shutdown ignores join panics; the main test must verify both workers actually passed their cancellation assertions.
     assert_eq!(observed.load(Ordering::Acquire), 2);
     assert!(!tasks.busy());
     assert!(tasks.take_settled().is_none());

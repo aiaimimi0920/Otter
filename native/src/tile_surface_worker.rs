@@ -1,4 +1,4 @@
-//! 每个在途Tile job最多一个Art worker/单槽快照；慢HTTP不阻塞原Live轮询，不并行复用Lease。
+//! At most one Art worker/single-slot snapshot per in-flight Tile job; slow HTTP does not block original Live polling or reuse Leases concurrently.
 use crate::{
     device_authorization_lease::Lease,
     device_session_client::Client,
@@ -93,13 +93,13 @@ impl Worker {
                 }
                 let _com = Com;
                 let mut views = Views::new(&client, &lease);
-                // 先撤掉单槽发布资格，再做Views的有界网络清理，不能在close期间复活旧准备。
+                // Revoke single-slot publication eligibility before bounded Views network cleanup; old preparation cannot revive during close.
                 let _retire = Retire {
                     shared: &shared,
                     job: &job,
                 };
                 while !ended.load(Ordering::Acquire) && !lease.is_revoked() {
-                    // 不让match临时MutexGuard活到Held分支内；wait会重新获取同一把锁。
+                    // Do not let match's temporary MutexGuard survive into the Held branch; wait reacquires the same lock.
                     let mode = phase(&shared.lock(), &job);
                     match mode {
                         Phase::Ended => break,
@@ -112,7 +112,7 @@ impl Worker {
                     }
                     let result = views.poll(&ids, &shared, &job, other_pixels);
                     let mut s = shared.lock();
-                    // 错误与快照都服从同一代际；冻结中的迟到state不改实际paint保留帧。
+                    // Errors and snapshots obey the same generation; late state while frozen never changes the retained actually painted frame.
                     match phase(&s, &job) {
                         Phase::Ended => break,
                         Phase::Held => continue,
@@ -133,7 +133,7 @@ impl Worker {
                     drop(s);
                     shared.wait(Duration::from_millis(16));
                 }
-                // Views先关闭可信view，再退出COM；取消/撤权沿原Lease，不借新凭据做清理。
+                // Views closes trusted views before exiting COM; cancellation/revocation uses the original Lease without new cleanup credentials.
                 Ok(())
             })
             .map_err(|_| "Art线程启动失败")?;
@@ -154,7 +154,7 @@ impl Worker {
 }
 impl Drop for Worker {
     fn drop(&mut self) {
-        // 无待办队列；旧worker实际退出前不释放job容量。正常换代最多等原HTTP期限，终止由Lease取消唤醒。
+        // No pending queue; retain job capacity until old workers actually exit. Normal generation changes wait at most the original HTTP deadline, and Lease cancellation wakes termination.
         self.stop.store(true, Ordering::Release);
         if let Some(thread) = self.thread.take() {
             let _ = thread.join();

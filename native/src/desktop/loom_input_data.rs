@@ -1,4 +1,4 @@
-//! 区分原生像素、保留 PNG 的正式图像及内联引用；解码/编码只在准备 worker 中执行。
+//! Distinguish native pixels, official images retaining PNGs, and inline references; decoding/encoding runs only in preparation workers.
 use super::*;
 pub(super) enum Data {
     Formal(crate::desktop::loom_image_value::ImageValue),
@@ -83,7 +83,7 @@ impl Data {
                 });
             }
             Self::Live(frame) => {
-                // 与编码共用有界输入 worker；UI 不执行 staging/Map 或像素复制。
+                // Share bounded input workers with encoding; UI performs no staging/Map or pixel copies.
                 let image = crate::live_texture::readback::read(frame, cancel).map_err(|_| {
                     if cancel.load(Ordering::Acquire) {
                         Error::Cancelled
@@ -109,7 +109,7 @@ impl Data {
                                 Error::InvalidInput
                             }
                         })?;
-                    // 同一 Formal owner 计入像素+原 PNG 预算，再复用唯一的内联交付链。
+                    // Charge pixels plus original PNG to the same Formal owner, then reuse the sole inline-delivery chain.
                     return Self::Formal(image).prepare(cancel, actual);
                 }
                 let image =

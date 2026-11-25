@@ -1,4 +1,4 @@
-//! 恢复/紧急退出私有child的CreateProcessW：只继承协议端点/NUL，不是通用launcher。
+//! CreateProcessW for private recovery/emergency-exit children: inherit only protocol endpoints/NUL, not a general-purpose launcher.
 use std::{
     io,
     os::windows::{
@@ -106,7 +106,7 @@ pub fn spawn(command: &Command, endpoint: OwnedHandle) -> io::Result<Process> {
         )
         .map_err(io::Error::other)?;
         let null = OwnedHandle::from_raw_handle(null.0);
-        // 值数组必须活到属性列表销毁；显式声明在 Attributes 之前。
+        // The value array must outlive attribute-list destruction; explicitly declare it before Attributes.
         let handles = [HANDLE(input.as_raw_handle()), HANDLE(null.as_raw_handle())];
         let attributes = Attributes::new()?;
         UpdateProcThreadAttribute(

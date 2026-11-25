@@ -1,4 +1,4 @@
-//! 终止 Live WGC 前完成已提交的 GPU 快照复制，避免源销毁时 Close 等待未完成的源纹理引用。
+//! Complete submitted GPU snapshot copies before terminating Live WGC so source destruction does not make Close wait for unfinished source-texture references.
 use std::time::{Duration, Instant};
 use windows::{
     core::{Error, Result, HRESULT},
@@ -18,9 +18,9 @@ pub(super) fn finish(context: &ID3D11DeviceContext) -> Result<()> {
             Some(&mut query),
         )?;
         let query = query.ok_or_else(|| Error::from(E_UNEXPECTED))?;
-        // Frame guard 已归还，但 CopyResource/CopySubresourceRegion 是异步的。
-        // Flush 只提交命令；必须观察同一 immediate context 的完成点。
-        // 不 ClearState：共享设备的其他消费者仍可能使用这个 context。
+        // The Frame guard has returned, but CopyResource/CopySubresourceRegion are asynchronous.
+        // Flush only submits commands; observe the completion point on the same immediate context.
+        // Do not ClearState: other consumers of the shared device may still use this context.
         context.End(&query);
         context.Flush();
         wait_until(Instant::now() + Duration::from_secs(2), || {

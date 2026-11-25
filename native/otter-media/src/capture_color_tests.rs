@@ -19,7 +19,7 @@ fn every_half_pattern_matches_independent_numeric_reference_after_sanitizing() {
 }
 #[test]
 fn padded_rows_convert_rgba_half_to_opaque_bgra_and_apply_white_level() {
-    let mut data = pixel([0x3c00, 0x3800, 0, 0x7e00]); // R=1, G=.5, B=0，忽略 alpha。
+    let mut data = pixel([0x3c00, 0x3800, 0, 0x7e00]); // R=1, G=.5, B=0; ignore alpha.
     data.extend_from_slice(&[255; 8]);
     data.extend(pixel([0, 0x3400, 0x3c00, 0])); // R=0, G=.25, B=1。
     data.extend_from_slice(&[255; 8]);

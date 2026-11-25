@@ -1,4 +1,4 @@
-//! 纯内存Viewer/Permit与隐藏Relay；共享准入不能沿DefWindowProc默认批准，终态仍释放Host。
+//! In-memory Viewer/Permit and hidden Relay; shared admission must not receive default approval through DefWindowProc, while terminal state still releases Host.
 use super::*;
 use crate::desktop::session_end::{with_owner, with_query, Control};
 #[test]

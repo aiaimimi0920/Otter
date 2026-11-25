@@ -1,4 +1,4 @@
-//! 系统移动使用原宿主输入循环，只有可见图框整帧代理；不建立第二套鼠标捕获。
+//! System moves use the original host input loop, with only a complete visible image/border-frame proxy; no second mouse capture.
 use super::{PinRect, State};
 use windows::Win32::{Foundation::*, UI::WindowsAndMessaging::*};
 

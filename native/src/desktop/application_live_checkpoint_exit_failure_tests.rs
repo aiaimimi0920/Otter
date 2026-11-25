@@ -1,4 +1,4 @@
-//! 无首帧/过期/冲突退出必须保窗口；不把旧基线或只读 owner 当最终提交成功。
+//! Exiting without a first frame, with stale state, or with conflicts must preserve windows; old baselines or read-only owners are not successful final commits.
 use super::*;
 #[test]
 fn active_execution_can_be_discarded_without_profile_but_blocks_final_profile_snapshot() {
@@ -159,7 +159,7 @@ fn external_conflict_stops_once_preserves_external_file_and_explicit_discard_can
         settle_auto(&mut app);
         let external = b"external-conflict-must-not-be-overwritten";
         std::fs::write(directory.path(), external).unwrap();
-        begin(&mut app); // 在 worker 取得原事务共享锁前变更；不绕过保存期间的 OS 锁。
+        begin(&mut app); // Make the change before the worker acquires the original transaction's shared lock; do not bypass the OS lock held during saving.
         ready(&app);
         let mut warnings = 0;
         for _ in 0..3 {

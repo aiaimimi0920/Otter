@@ -1,4 +1,4 @@
-//! 单贴纸原文事务的身份/容量/取消及未知字段保护，不涉及远程授权或库条目消费。
+//! Single-sticker original-text identity/capacity/cancellation/unknown-field protection, without remote authorization/library-entry consumption.
 use super::*;
 use serde_json::{json, Value};
 fn prepare(

@@ -1,4 +1,4 @@
-//! 应用任务集合真实线程收割及结果缓存边界；使用已撤销租约，不连接远端。
+//! Real thread harvesting and result-cache boundaries for application task collections; revoked leases, without remote connections.
 use super::*;
 #[path = "composition_relay_surface_batches_tests.rs"]
 mod batches;
@@ -98,7 +98,7 @@ fn rejected_event_delivery_preserves_capacity_and_cancel_keeps_ack_evidence() {
     sessions.event_outcomes.push(outcome);
     assert!(!sessions.deliver_surface_event(|outcome| Err(Box::new(outcome))));
     assert_eq!(sessions.occupied(), 1);
-    // 旧附件恢复记录不能冒充保存了待处理动作证据。
+    // Old attachment recovery records must not masquerade as saved pending-action evidence.
     assert!(sessions.surface_recovery_records().is_err());
     sessions.cancel_surface_requests();
     assert!(sessions.deliver_surface_event(|outcome| {
@@ -170,7 +170,7 @@ fn settlement_caches_receipts_and_preserves_rejected_results_and_shutdown_eviden
     let receipt = sessions.take_surface_event_receipt().unwrap();
     assert_eq!(receipt.event.id(), expected);
     assert!(receipt.result.unwrap().succeeded());
-    // 已完成的收割/呈现检查是历史证据，关闭集合不能改写历史。
+    // Completed harvesting/presentation checks are historical evidence; closing the collection must not rewrite history.
     assert!(receipt.delivery.is_ok());
     sessions.take_surface_event_outcome().unwrap();
     assert!(!sessions.surface_cleanup_pending());

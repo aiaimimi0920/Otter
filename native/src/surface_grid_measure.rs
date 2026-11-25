@@ -1,8 +1,8 @@
-//! Grid 的测量接线；先分列再按实际 cell 宽度度量，原八轮文字/图片反馈仍是唯一收敛门。
+//! Grid measurement wiring: allocate columns before measuring actual cell widths; the original eight-round text/image feedback remains the sole convergence gate.
 use super::*;
 use crate::{surface_container::Measured, surface_grid};
 pub(super) struct Cache {
-    // NativeMeasure 的 Styles 借用固定场景；只在该 owner 内使用节点地址，不解引用或跨场景复用。
+    // NativeMeasure's Styles borrow a fixed scene; use node addresses only within that owner without dereferencing or reusing across scenes.
     values: BTreeMap<(usize, [u32; 2]), Intrinsic>,
     misses: usize,
 }
@@ -27,7 +27,7 @@ impl Cache {
     }
     pub(super) fn reserve(&mut self) -> bool {
         self.misses += 1;
-        // 嵌套 Grid 的多约束测量不能指数增长；超预算整帧失败，不返回部分几何。
+        // Multi-constraint measurement of nested Grids must not grow exponentially; exceeding the budget fails the entire frame without partial geometry.
         self.misses <= crate::surface_scene::MAX_NODES * 4
     }
     pub(super) fn insert(&mut self, node: &Node, available: [f32; 2], value: Intrinsic) {
@@ -75,7 +75,7 @@ impl NativeMeasure<'_, '_> {
         )
         .map_err(|_| invalid())?;
         for ((child, value), cell) in children.iter().zip(&mut measured).zip(initial.cells) {
-            // 保留列的初始内容贡献，不把断行后的短行反过来收窄 auto 轨道。
+            // Preserve each column's initial content contribution; shorter wrapped lines must not shrink auto tracks in reverse.
             let next = self.intrinsic(child, cell, context, depth + 1)?;
             value.size[1] = next.size[1];
             value.baseline = next.baseline;

@@ -1,4 +1,4 @@
-//! 已保存显式路由关联的持续发送owner；单在途、64项最旧到期优先，只有真实canonical能启动。
+//! Continuous-send owner for saved explicit-route associations; one in flight, earliest deadline first among 64 entries, started only by actual canonical state.
 use super::*;
 use std::time::{Duration, Instant};
 #[path = "application_projection_sender_update_schedule.rs"]
@@ -117,7 +117,7 @@ impl Application {
         >,
     ) -> Result<()> {
         let unit = crate::workspace_id::UnitId::parse(expected.unit()).ok_or_else(scope::stale)?;
-        // 首次普通源投射自动建立协作；接收转发及协作不支持的效果继续传输 PNG。
+        // First ordinary-source projection automatically establishes collaboration; receive-forwarding and effects unsupported by collaboration continue transmitting PNG.
         let initialize = self
             .documents
             .iter()

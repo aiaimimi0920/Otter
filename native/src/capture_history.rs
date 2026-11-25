@@ -1,4 +1,4 @@
-//! 截图/取色便利历史；与系统剪贴板历史和工作区恢复完全独立。
+//! Convenience screenshot/color-pick history, entirely independent of system clipboard history and workspace recovery.
 use crate::stroke_style::Color;
 use serde::{Deserialize, Serialize};
 
@@ -35,7 +35,7 @@ pub(crate) struct Screenshot {
 pub(crate) struct Data {
     pub colors: Vec<Picked>,
     pub screenshots: Vec<Screenshot>,
-    // 保留文件根的未知扩展；不从其中执行路径、网络或业务动作。
+    // Preserve unknown file-root extensions; never execute paths, network operations, or business actions from them.
     #[serde(flatten)]
     pub extra: serde_json::Map<String, serde_json::Value>,
 }
@@ -67,7 +67,7 @@ impl Data {
         self.screenshots.retain(|entry| entry.id != id);
         before != self.screenshots.len()
     }
-    /// 后台调用；JSON根损坏是错误，不允许把原文件当空缓存覆盖。
+    /// Background only; corrupt JSON roots are errors, never permission to overwrite the original as an empty cache.
     pub fn decode(bytes: &[u8]) -> Result<Self, String> {
         Self::decode_with(bytes, image::decode)
     }
@@ -95,7 +95,7 @@ impl Data {
                     continue;
                 }
                 entry.hex = format!("#{hex}");
-                // 当前色由hex定义；不让手改文件的不一致rgb改变点击复用语义。
+                // hex defines the current color; inconsistent hand-edited rgb must not change click-to-reuse semantics.
                 entry.rgb = Rgb {
                     r: u8::from_str_radix(&hex[..2], 16).unwrap(),
                     g: u8::from_str_radix(&hex[2..4], 16).unwrap(),
@@ -124,11 +124,11 @@ impl Data {
                 {
                     continue;
                 }
-                // 旧版可保存大图fallback；解码器先缩放，绝不完整分配该大图。
+                // Older versions may save a large-image fallback; the decoder scales first and never allocates the entire large image.
                 if !entry.thumbnail.starts_with("data:image/") {
                     continue;
                 }
-                // 资源/COM暂态失败不等于坏数据；保留原条目，后续取色不能永久删掉它。
+                // Transient resource/COM failure is not corruption; preserve the original entry so later color picks cannot permanently delete it.
                 if let Ok((preview, normalized)) = prepare(&entry.thumbnail) {
                     if let Some(encoded) = normalized {
                         entry.thumbnail = encoded;
@@ -144,7 +144,7 @@ impl Data {
         data.extra = root;
         Ok(data)
     }
-    /// 启动读取期间的新提交优先，不能被迟到磁盘结果覆盖。
+    /// New commits during startup reads take precedence and cannot be overwritten by late disk results.
     pub fn merge_recent(&mut self, recent: Self) {
         for entry in recent.colors.into_iter().rev() {
             self.color(Color(entry.rgb.r, entry.rgb.g, entry.rgb.b), entry.at);

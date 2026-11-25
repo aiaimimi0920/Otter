@@ -1,4 +1,4 @@
-//! 仅 Surface JPEG/TIFF 的 EXIF 方向；WIC 源链留在解码线程，像素只物化一次。
+//! EXIF orientation for Surface JPEG/TIFF only; WIC source chains remain on the decoding thread, and pixels are materialized once.
 use super::*;
 use windows::{
     core::w,
@@ -11,7 +11,7 @@ use windows::{
 struct Metadata(PROPVARIANT);
 impl Drop for Metadata {
     fn drop(&mut self) {
-        // 查询失败也清理输出，不能假定元数据永远是无分配的整数。
+        // Clean up output even if metadata queries fail; metadata is not necessarily an allocation-free integer.
         unsafe {
             let _ = PropVariantClear(&mut self.0);
         }
@@ -58,7 +58,7 @@ pub(super) unsafe fn source(
         let frame = decoder.GetFrame(0)?;
         let (mut width, mut height) = (0, 0);
         frame.GetSize(&mut width, &mut height)?;
-        // 在元数据查询和变换初始化前检查原尺寸，避免解码器内部缓存绕过准入。
+        // Check original dimensions before metadata queries and transform initialization to prevent decoder-internal caches from bypassing admission.
         checked_image_bytes(width, height)
             .filter(|n| *n <= MAX_PIXELS)
             .ok_or_else(|| Error::new(E_INVALIDARG, "Image exceeds native decode budget"))?;
@@ -75,7 +75,7 @@ pub(super) unsafe fn source(
             8 => &[WICBitmapTransformRotate270],
             _ => &[],
         };
-        // 两个独立变换明确对角方向的先后次序；不创建额外的全图 BGRA Vec。
+        // Two independent transforms make diagonal orientation order explicit without another full-image BGRA Vec.
         for transform in transforms {
             active(stopped)?;
             let rotator = factory.CreateBitmapFlipRotator()?;

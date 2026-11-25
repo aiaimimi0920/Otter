@@ -1,4 +1,4 @@
-//! 相同 Canvas Pointer 夹具贯穿真实 child 和 SHA 绑定产品 worker。
+//! The same Canvas Pointer fixture through real children and SHA-bound product workers.
 use super::*;
 use wire::{LocalInput, PointerInput, PointerPhase};
 #[test]

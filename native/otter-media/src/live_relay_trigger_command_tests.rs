@@ -1,4 +1,4 @@
-//! 独立wire构造的合同与单槽围栏，不以生产序列化结果作为预期值。
+//! Independently constructed wire contracts and a single-slot fence; do not use production serialization output as expected values.
 use super::*;
 use crate::live_relay_viewer_trigger_queue::{Phase, Queue};
 use serde_json::{json, Value};

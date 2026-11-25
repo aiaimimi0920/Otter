@@ -1,4 +1,4 @@
-//! 效果源图为底图与透明栅格标注的 source-over 合成；不包含矢量效果，避免递归采样。
+//! Effect sources composite base images/transparent raster annotations with source-over; exclude vector effects to prevent recursive sampling.
 pub use crate::raster_source_frame::compose_in_frame;
 pub use crate::raster_source_frame::compose_in_frames;
 use crate::{
@@ -28,7 +28,7 @@ pub fn compose(layers: &Layers, cancelled: impl Fn() -> bool) -> Result<Pixels, 
     let Some(overlay) = layers.annotations.as_ref() else {
         return Ok(layers.base.clone());
     };
-    // valid() 已将底图及同尺寸标注的长度绑定到像素尺寸。
+    // valid() already binds base-image/same-sized-annotation lengths to pixel dimensions.
     let bytes = layers.base.len();
     let mut lease = pixels::reserve(bytes).ok_or(BlurError::BudgetExceeded)?;
     let mut output = Vec::new();

@@ -1,4 +1,4 @@
-//! 应用级 Ctrl+1 开关：请求合并，状态共享，系统注册仍由唯一宿主拥有。
+//! Application-wide Ctrl+1 toggle: coalesce requests and share state, while a single host still owns system registration.
 use super::{document_window::DocumentWindow, State};
 #[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 #[path = "application_hotkey_smoke.rs"]
@@ -30,7 +30,7 @@ pub(super) unsafe fn process_with(
         if !source.state.hotkey_toggle.replace(false) || !source.is_alive() {
             continue;
         }
-        // 读取真实注册标志，而不是菜单缓存；另一个窗口也能关闭当前唯一注册者。
+        // Read the actual registration flag, not the menu cache; another window can also disable the sole current registrant.
         let owner = documents
             .iter()
             .find(|document| document.is_alive() && document.state.global_capture.get());

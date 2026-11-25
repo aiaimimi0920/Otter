@@ -1,4 +1,4 @@
-//! 原接收 Job 的精确票据交接；原活动许可留至 join，失败不扫描或猜测 journal。
+//! Exact ticket handoff for original receive Jobs; original active permits stay until join, without scanning/guessing journals on failure.
 use super::Error;
 use crate::projection_delivery::{
     journal::{Store, Ticket},
@@ -21,7 +21,7 @@ impl Attempt {
         self.activate(ticket, created)
     }
     pub(super) fn recover(&self, ticket: Ticket) -> Result<Ticket, Error> {
-        // 只读恢复不是新 Accept；失败/panic 仍保原许可，但永不产生自动补偿资格。
+        // Read-only recovery is not new Accept; failure/panic retains original permits but never automatic-compensation eligibility.
         self.activate(ticket, false)
     }
     pub(super) fn reattach(
@@ -34,11 +34,11 @@ impl Attempt {
             return Err(Error::Stopped);
         }
         let ticket = store.begin(invitation, device).map_err(Error::Journal)?;
-        // 本地新记录不等于远端新关联；失败/取消只能保留，绝不能自动解绑旧 receiver。
+        // New local records do not mean new remote associations; failure/cancellation preserves them and must never automatically unlink old receivers.
         self.activate(ticket, false)
     }
     fn activate(&self, mut ticket: Ticket, created: bool) -> Result<Ticket, Error> {
-        // 只有成功 activate 才可能发网；Busy/CAS 失败不抢占另一个接收的补偿责任。
+        // Only successful activate permits networking; Busy/CAS failure cannot take another receive's compensation responsibility.
         ticket.activate().map_err(Error::Journal)?;
         let snapshot = ticket.retry();
         *self
@@ -55,7 +55,7 @@ impl Attempt {
     }
     pub(super) fn discard_unapplied(&self) -> Result<bool, Error> {
         if let Some((ticket, true)) = self.take() {
-            // 只有本次新建且已退休的记录可重新尝试；旧记录可能对应不确定的副作用。
+            // Only records newly created and retired in this attempt may retry; old records may represent uncertain side effects.
             ticket.retire().map_err(Error::Journal)?;
             return Ok(true);
         }
@@ -67,8 +67,8 @@ impl Attempt {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .take()?;
-        // marker 的 retry 需重新 activate：返回无许可快照并释放已回收网络的原许可。
-        // 复用旧 intent 无稳定关联排除证明，只保原 journal 的显式恢复责任。
+        // marker retries require new activate: return a permit-free snapshot and release the original permit after network reclamation.
+        // Reused old intent lacks proof excluding stable associations; retain only the original journal's explicit-recovery responsibility.
         created.then(|| ticket.retry())
     }
 }

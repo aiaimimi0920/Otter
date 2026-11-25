@@ -1,4 +1,4 @@
-//! 已授权 Live 控制请求；复用固定 origin HTTPS，协议结果不直接激活媒体发布许可。
+//! Authorized Live control requests reuse fixed-origin HTTPS; protocol results never directly activate media-publication permits.
 use crate::{
     device_request_cancel::Cancel,
     device_session_attempt::Session,
@@ -95,7 +95,7 @@ pub enum Error {
     Sender(crate::projection_delivery::sender::Error),
 }
 impl Error {
-    /// 只供幂等GET owner决定重试；同类POST错误仍可能已提交，绝不能沿此方法重放。
+    /// Only idempotent-GET owners may use this to decide retries; equivalent POST errors may already have committed and must never be replayed through it.
     pub(crate) fn retryable_read(self) -> bool {
         matches!(
             self,
@@ -113,7 +113,7 @@ pub struct Attach<'a> {
     pub sequence: u64,
     pub require_existing_membership: bool,
 }
-/// 借用已签发会话，不接受 UI 任意字符串充当 token；每次交换前后复核来源和到期时间。
+/// Borrow issued sessions, never arbitrary UI strings as tokens; recheck origin and expiry before/after every exchange.
 pub struct Control<'a> {
     client: &'a Client,
     session: &'a Session,
@@ -148,7 +148,7 @@ impl<'a> Control<'a> {
         let bytes = self.send("GET", &path(session, None)?, &[], Duration::from_secs(10))?;
         Snapshot::parse(&bytes, session).map_err(Error::Protocol)
     }
-    /// 错误后的关闭确认必须再次取得认证 member snapshot；404 本身绝不构成关闭事实。
+    /// Close confirmation after errors requires a fresh authenticated member snapshot; 404 alone never proves closure.
     pub fn terminal(&self, expected: &Identity) -> Result<bool, Error> {
         let bytes = self.send(
             "GET",
@@ -228,7 +228,7 @@ impl<'a> Control<'a> {
         let bytes = self.history(session, cursor.after(), wait)?;
         cursor.prepare(&bytes).map_err(Error::Protocol)
     }
-    /// 首次 bootstrap 必须匹配本次加入事件，不能直接采用服务端 next 跳过撤权。
+    /// Initial bootstrap must match this join event; never adopt server next directly and skip revocation.
     pub fn bootstrap_cursor(&self, attached: &Snapshot) -> Result<u64, Error> {
         let bytes = self.history(attached.identity().session(), 0, 0)?;
         protocol::join_cursor(attached, self.session.device_id(), &bytes).map_err(Error::Protocol)
@@ -351,7 +351,7 @@ fn path(session: &str, suffix: Option<&str>) -> Result<String, Error> {
     if !protocol::identifier(session) || matches!(session, "." | "..") {
         return Err(Error::Input);
     }
-    // 单独转义 session segment，允许合同中的 ':'/'/' 但不能改写资源路径。
+    // Escape the session segment separately, allowing contractual ':'/'/' without rewriting resource paths.
     let mut url = url::Url::parse("https://path.invalid/").map_err(|_| Error::Input)?;
     {
         let mut segments = url.path_segments_mut().map_err(|_| Error::Input)?;

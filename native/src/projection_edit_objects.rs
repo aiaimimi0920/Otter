@@ -1,4 +1,4 @@
-//! 协作对象在进入原生渲染前核字段/几何/文本与原Web合同；不接受脚本或样式扩展。
+//! Check collaborative-object fields/geometry/text against original Web contracts before native rendering; no script/style extensions.
 use super::{identifier, Error, Objects, MAX_BYTES};
 use serde_json::{Map, Value};
 fn number(v: &Value, min: f64, max: f64) -> bool {
@@ -18,7 +18,7 @@ fn color(v: &Value) -> bool {
     let Some(v) = v.as_str().filter(|v| v.len() <= 64) else {
         return false;
     };
-    // 复用有alpha的纯色解析；只放行Web v1颜色词法，不接收currentColor/资源/表达式。
+    // Reuse alpha-capable solid-color parsing; accept only Web v1 color lexemes, not currentColor/resources/expressions.
     let literal = v == "transparent"
         || v.starts_with('#')
         || ((v.starts_with("rgb(") || v.starts_with("rgba("))

@@ -1,4 +1,4 @@
-//! 路由验证使用隐藏系统窗口，不注册或注入用户全局热键。
+//! Route verification uses hidden system windows, without registering/injecting user global hotkeys.
 use super::*;
 unsafe fn window() -> crate::desktop::Window {
     crate::desktop::Window(

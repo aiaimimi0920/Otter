@@ -1,4 +1,4 @@
-//! Viewer所属只读文本窗；无网络/定时器/线程，关闭或撤权时销毁敏感文本。
+//! Viewer-owned read-only text window; no network/timers/threads, and sensitive text is destroyed on closure/revocation.
 use crate::live_relay_viewer_business::Business;
 use std::{
     cell::Cell,
@@ -120,7 +120,7 @@ impl Window {
             return Ok(());
         }
         let value = HSTRING::from(text::render(business.as_deref()));
-        // 标准EDIT同步发送通知；不持Relay/Host/面板的RefCell借用跨重入。
+        // Standard EDIT sends synchronous notifications; hold no Relay/Host/panel RefCell borrow across reentrancy.
         unsafe {
             let edit = self.state.edit.get();
             let mut start = 0u32;
@@ -139,7 +139,7 @@ impl Window {
             )
             .0;
             SetWindowTextW(edit, &value)?;
-            // SETTEXT可同步销毁owner；确认同一窗口后才恢复选区/阅读位置，不写可能复用的HWND。
+            // SETTEXT may synchronously destroy owner; restore selection/reading position only after confirming the same window, never writing potentially reused HWNDs.
             if self.handle().is_none() {
                 return Ok(());
             }

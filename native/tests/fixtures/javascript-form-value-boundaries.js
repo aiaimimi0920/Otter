@@ -1,4 +1,4 @@
-// 同源 child/实际产品共用；每次点击只验证一个边界，仍受原operation总期限约束。
+// Shared by same-source children and actual products; each click verifies one boundary, still within the original operation's total deadline.
 let index = 0;
 const cases = [
   () => ['', ''],
@@ -51,7 +51,7 @@ NeuroSurface.define({
         if (field.defaultValue !== 'seed') throw Error('dirty default changed');
         field.value = 'seed';
       } finally {
-        // QuickJS自身JSON.stringify会写原型数值槽；只在值校验期间注入，不改产品引擎。
+        // QuickJS's own JSON.stringify writes prototype numeric slots; inject only during value validation, without modifying the production engine.
         if (numeric) Object.defineProperty(Array.prototype, '0', numeric); else delete Array.prototype[0];
         for (let i = 0; i < hooks.length; i++) {
           const [prototype, key] = hooks[i];
@@ -60,7 +60,7 @@ NeuroSurface.define({
       }
       status.textContent = `case:${++index}`;
     });
-    // 新快路径和保留段复制不能转调公开方法；数值槽污染仅覆盖被测值校验调用。
+    // New fast paths and retained-segment copies must not delegate to public methods; numeric-slot pollution covers only the value-validation call under test.
     String.prototype.charCodeAt = String.prototype.slice = String.prototype.split = String.prototype.replace =
       String.prototype.replaceAll = Array.prototype.join = RegExp.prototype.exec = () => { throw Error('public intrinsic'); };
   },

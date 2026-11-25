@@ -1,4 +1,4 @@
-//! 真实 BUTTON 点击在采样忙态仍排队；位移串行提交，停止/完成/取消丢弃未执行意图。
+//! Real BUTTON clicks queue even while sampling is busy; movements commit serially, while stop/finish/cancel discard unexecuted intent.
 use super::*;
 use windows::Win32::UI::Input::KeyboardAndMouse::IsWindowEnabled;
 
@@ -75,7 +75,7 @@ fn queued_extensions_are_bounded_and_retired_by_stop_finish_cancel_and_capture_e
                 click(window.0, 110);
             }
             assert!(!IsWindowEnabled(GetDlgItem(Some(window.0), 110).unwrap()).as_bool());
-            command(window.0, 110); // 原始消息也不能突破队列上限。
+            command(window.0, 110); // Raw messages must not bypass queue limits either.
             if end != 0 {
                 command(window.0, end);
             }

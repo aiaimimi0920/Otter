@@ -1,4 +1,4 @@
-//! Source恢复联合的自有socket断流/系统菜单/捕获身份检查，不添加产品故障命令。
+//! Owned-socket interruption/system-menu/capture-identity checks for Source recovery integration, without adding product fault-injection commands.
 use super::*;
 #[derive(Default)]
 pub(super) struct Progress {
@@ -20,7 +20,7 @@ impl Progress {
         }
         if !self.requested && root.join("source-disconnect").exists() {
             if mode == "control" {
-                // 只中断已建立的自有长轮询；请求间隙等下轮，不取消TLS握手或用户应用。
+                // Interrupt only established owned long polls; between requests, wait for the next round instead of canceling TLS handshakes or user applications.
                 self.requested = app.remote_sessions.test_disconnect_source_control(identity);
             } else {
                 assert!(app.remote_sessions.test_disconnect_source(identity));
@@ -49,7 +49,7 @@ impl Progress {
             Some(&mut text),
             MF_BYCOMMAND,
         );
-        // 网络通知可在本次Application轮询之后到达；下轮核真实菜单，不用旧caption伪报错误。
+        // Network notification may arrive after this Application poll; check the real menu next round, not an old caption that falsely reports an error.
         if String::from_utf16(&text[..count as usize]).unwrap()
             != if recovering {
                 "Live 重连中…"

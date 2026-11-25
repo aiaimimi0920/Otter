@@ -1,4 +1,4 @@
-//! 显式选区后台采集；手动和绑定目标的单步滚动分开准入，不控制焦点。
+//! Background capture for explicit selections; manual capture and bound-target single-step scrolling have separate admission, without focus control.
 use crate::{
     long_capture::{
         Axis, CaptureMode, CaptureSource, Frame, MatchOptions, OutputTarget, Session, SessionJob,
@@ -20,8 +20,8 @@ pub struct Region {
     pub width: i32,
     pub height: i32,
 }
-/// first 来自已确认选区，后续 capture 命令由同一 worker 截取该物理矩形并追加。
-/// 应用须先完成已有 PER_MONITOR_AWARE_V2 初始化；屏幕布局变化须由宿主停止会话。
+/// first comes from confirmed selection; later capture commands let the same worker capture/append that physical rectangle.
+/// The application must complete existing PER_MONITOR_AWARE_V2 initialization first; hosts stop sessions on screen-layout changes.
 pub fn start(
     region: Region,
     first: Pixels,
@@ -50,7 +50,7 @@ fn capture(region: Region, cancel: &std::sync::atomic::AtomicBool) -> Result<Fra
     if cancel.load(Ordering::Acquire) {
         return Err("Long capture cancelled".into());
     }
-    // GDI 调用本身不可中断；返回后先复核取消，避免发布迟到图像。
+    // GDI calls are uninterruptible; recheck cancellation immediately on return to prevent late-image publication.
     let image = super::capture::region(region.left, region.top, region.width, region.height)
         .map_err(|error| error.to_string())?;
     if cancel.load(Ordering::Acquire) {
@@ -59,7 +59,7 @@ fn capture(region: Region, cancel: &std::sync::atomic::AtomicBool) -> Result<Fra
     Frame::new(image.width, image.height, image.pixels)
         .map_err(|error| format!("Invalid captured frame: {error:?}"))
 }
-/// 绑定发生在控制窗口显示之前；绑定失败由 UI 保留手动模式，不伪装支持自动滚动。
+/// Bind before showing controls; on failure UI preserves manual mode rather than pretending automatic scrolling is supported.
 pub fn start_scrollable(
     region: Region,
     first: Pixels,
@@ -71,11 +71,11 @@ pub fn start_scrollable(
     SessionJob::start_with_source(session, owner::Source::new(region, axis, Some(target)))
         .map_err(|error| error.to_string())
 }
-/// 在控制窗口出现前冻结目标。观察源没有主动发送输入的能力，旧主动采集入口不受影响。
+/// Freeze targets before controls appear. Observation sources cannot actively send input; old active-capture entry points are unchanged.
 pub fn start_recording(region: Region) -> Result<(SessionJob, scroll::Target), String> {
     super::capture::validate_region(region.left, region.top, region.width, region.height)
         .map_err(|error| error.to_string())?;
-    // 选区窗已销毁，录制窗尚未创建；等待合成器提交切换后再绑定和采首帧。
+    // The selection window is destroyed and recording windows not yet created; await compositor transition before binding/capturing the first frame.
     unsafe { windows::Win32::Graphics::Dwm::DwmFlush() }.map_err(|error| error.to_string())?;
     let target = scroll::Target::bind(region)?;
     let mut source = owner::Source::recording(region, target.clone());
@@ -87,8 +87,8 @@ pub fn start_recording(region: Region) -> Result<(SessionJob, scroll::Target), S
         .map_err(|error| error.to_string())?;
     Ok((job, target))
 }
-// 稳定采样最多同时保留上一帧 BGRA、当前 DIB 和当前 BGRA。发送输入前先检查峰值，
-// 不长期占用租约；实际 GDI 分配仍逐项执行预算准入，防止检查后其它文档发生分配竞争。
+// Stable sampling retains at most previous BGRA, current DIB, and current BGRA together. Check peak usage before input,
+// without holding leases long-term; actual GDI allocations still pass individual budgets to handle races with later allocations by other documents.
 fn capture_headroom(region: Region) -> Result<(), String> {
     let bytes = u64::try_from(region.width)
         .ok()
@@ -181,7 +181,7 @@ mod tests {
             height: 2,
         };
         assert!(start(region, vec![0; 4].into(), Axis::Vertical, options).is_err());
-        // 合法构造也不采集：没有显式 capture 命令，worker 只等待通道。
+        // Even valid construction performs no capture; without explicit capture commands, workers wait only on channels.
         let mut job = start(region, vec![0; 16].into(), Axis::Vertical, options).unwrap();
         job.cancel();
     }

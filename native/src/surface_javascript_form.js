@@ -1,11 +1,11 @@
-// 文本 input 的值/dirty 反射 owner；沿同一 DOM/事件/投影，不复制 HWND 草稿或远端权限。
+// Owner of text input value/dirty reflection; uses the same DOM/events/projection without duplicating HWND drafts or remote permissions.
 ((dom, fail) => {
   "use strict";
   const op = dom.ops, values = new op.Weak(), prototype = dom.classes.HTMLInputElement.prototype;
   const define = Object.defineProperty, code = Function.prototype.call.bind(String.prototype.charCodeAt);
   const state = node => { const value = dom.get(node); if (value.tag !== "input") fail(); return value; };
   const split = Function.prototype.call.bind(String.prototype.split);
-  // 私有无原型分隔符不查插件的 Symbol.split/toPrimitive；split 创建连续自有数据槽。
+  // The private null-prototype separator does not consult plugin Symbol.split/toPrimitive; split creates contiguous own data slots.
   const separator = text => op.freeze(define(Object.create(null), "toString", { value: () => text }));
   const cr = separator("\r"), lf = separator("\n");
   const compact = raw => {
@@ -13,14 +13,14 @@
       if (raw.length > 48 * 1024) fail();
       return raw;
     }
-    // 两次 native 扫描避免交替换行产生32768次 JS/RegExp 往返；raw 仍至多65536。
+    // Two native scans avoid 32768 JS/RegExp round trips for alternating newlines; raw remains bounded by 65536.
     const output = op.join(split(op.join(split(raw, cr), ""), lf), "");
     if (output.length > 48 * 1024) fail();
     return output;
   };
   const sanitized = raw => {
     if (raw.length > 65536) fail();
-    // 常见 ASCII 不建逐字符数组；捕获的 exec 不经过插件可覆盖的 RegExp 方法。
+    // Common ASCII creates no per-character array; captured exec bypasses plugin-overridable RegExp methods.
     if (!op.exec(/[\0\u0080-\uFFFF]/, raw)) return compact(raw);
     let bytes = 0;
     for (let i = 0; i < raw.length; i++) {
@@ -34,7 +34,7 @@
       } else { bytes += c < 128 ? 1 : c < 2048 ? 2 : 3; }
       if (bytes > 48 * 1024) fail();
     }
-    // 完整验证后再去换行，不能把换行两侧的孤立代理项错误拼成合法字符。
+    // Validate fully before removing newlines, avoiding the accidental combination of isolated surrogates across a newline into a valid character.
     return compact(raw);
   };
   const value = node => op.weakHas(values, node) ? op.weakGet(values, node) : sanitized(op.mapGet(state(node).attrs, "value") ?? "");

@@ -1,4 +1,4 @@
-//! 完成报告到节点输出的同步事务边界；不运行消息循环或网络，不丢弃清理 owner。
+//! Synchronous transaction boundary from completion reports to node outputs; no message loops/network or discarded cleanup owners.
 use super::{Completion, Report};
 use crate::{
     desktop::{loom_delivery::TakeError, loom_result_state::Results},
@@ -16,8 +16,8 @@ pub enum CommitError {
     State(crate::desktop::loom_result_state::Error),
 }
 impl Report {
-    /// UI 判定失败后的收尾；只结束仍匹配的请求，completion 仍保留待清理资源。
-    /// 不要求旧文档仍有效：文档变化本身也可能是拒绝提交的原因。
+    /// Cleanup after UI rejection; end only still-matching requests, while completion retains resources awaiting cleanup.
+    /// Old documents need not remain valid: document changes themselves may cause commit rejection.
     pub fn reject(&mut self, registry: &mut Requests, state: &mut Results, message: &str) -> bool {
         if state.unit() != &self.unit
             || !registry.is_latest(&self.unit, &self.request)
@@ -33,8 +33,8 @@ impl Report {
         self.current = false;
         true
     }
-    /// 正式端口提交成功后转移候选元数据，候选 UI 的选择与缓存合并由后续消费者负责。
-    /// lookup 必须只读且不重入 UI；调用后不能复用此报告提交另一节点。
+    /// Transfer candidate metadata after successful official-port commit; later consumers own candidate selection/cache merging.
+    /// lookup must be read-only and nonreentrant into UI; afterward this report cannot commit another node.
     pub fn commit<'a>(
         &mut self,
         registry: &mut Requests,
@@ -83,7 +83,7 @@ impl Report {
                     .result
                     .as_mut()
                     .map_err(|_| CommitError::ExecutionFailed)?;
-                // 独立核对报告和底层交付身份，避免错误组装的公开报告跨节点提交。
+                // Independently compare report/underlying delivery identity, preventing incorrectly assembled public reports from committing across nodes.
                 if completion.unit != self.unit
                     || completion.request != self.request
                     || result.delivery.unit() != &self.unit
@@ -101,7 +101,7 @@ impl Report {
                 state.receive_candidates(result.candidates.take());
             }
         }
-        // 上方没有外部回调/await，不存在核验后注册表被替换的调度间隙。
+        // No external callbacks/await occur above, leaving no scheduling gap for registry replacement after validation.
         let finished = registry.finish(&self.unit, &self.request);
         debug_assert!(finished);
         self.current = false;

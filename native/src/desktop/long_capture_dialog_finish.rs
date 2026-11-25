@@ -1,4 +1,4 @@
-//! 完成按钮和全局快捷键共用停止、排空、拼接状态；失败返回可重试状态，不静默交付部分结果。
+//! Finish buttons/global shortcuts share stop, drain, and stitch state; failures return retryable state without silently delivering partial results.
 use super::super::finish_route::Registration;
 use super::*;
 use std::rc::Rc;
@@ -95,7 +95,7 @@ pub(super) fn completed(input: &Input, completion: &Completion, covered: bool) -
                                 crate::long_capture::SpatialAppend::Rejected(_)
                             ))
                     ));
-            // 未提交的遮挡和瞬态拒绝帧可跳过；其他真实采集/拼接错误仍须重试。
+            // Skip uncommitted occluded/transiently rejected frames; other actual capture/stitch errors still require retries.
             if !accepted {
                 input.finish.retry();
                 if input.recording.enabled() {
@@ -108,7 +108,7 @@ pub(super) fn completed(input: &Input, completion: &Completion, covered: bool) -
             accepted
         }
         Phase::Composing => {
-            // 成功由输出提交边界退休路由；失败保留会话，必须显式重试。
+            // Success retires routing at output-commit boundaries; failure retains sessions and requires explicit retry.
             if matches!(
                 completion,
                 Completion::Compose(Err(_)) | Completion::SpatialCompose(Err(_))

@@ -1,4 +1,4 @@
-//! Shader 专属有界帧；只通过受信父进程继承的 duplex pipe，不复用图片 PBGRA 协议。
+//! Shader-specific bounded frames over a duplex pipe inherited only from the trusted parent; do not reuse the image PBGRA protocol.
 use crate::{
     shader_angle::{Backend, Request},
     shader_process::Invocation,
@@ -23,7 +23,7 @@ pub(crate) fn invalid() -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, "Invalid shader worker frame")
 }
 pub(crate) fn pixel_count(width: u32, height: u32) -> io::Result<usize> {
-    // 保留旧 ShaderRenderer 的 8192 / 32 MP（含 4K）准入，而非图片通用上限。
+    // Preserve the old ShaderRenderer's 8192 / 32 MP admission limits, including 4K, rather than the generic image limits.
     crate::viewport::checked_shader_texture_bytes(width, height).ok_or_else(invalid)
 }
 fn identifier(name: &str) -> io::Result<()> {

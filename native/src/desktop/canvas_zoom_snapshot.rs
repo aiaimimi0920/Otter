@@ -1,4 +1,4 @@
-//! 缩放预览拥有独立软件目标，复用正式 Canvas 绘制；从不替换宿主 GPU 资源或文档。
+//! Zoom previews own independent software targets and reuse official Canvas drawing; never replace host GPU resources or documents.
 use super::*;
 
 impl Canvas {

@@ -1,5 +1,5 @@
 #![cfg(windows)]
-//! 实际普通产品、原菜单/对话框、完整资源Art、服务进度、正式checkpoint及跨进程离线。
+//! Actual ordinary product, original menus/dialogs, fully resourced Art, service progress, committed checkpoints and cross-process offline behavior.
 #[path = "../local_art_runtime/fixture.rs"]
 mod fixture;
 #[path = "../local_art_runtime/foreground.rs"]
@@ -41,7 +41,7 @@ fn workspace(product: &mut fixture::Product) -> HWND {
                 GetWindowRect(*hwnd, &mut rect).is_ok() && rect.left == 40 && rect.top == 40
             })
     });
-    // 只给自启测试窗口加唯一caption，供原生控制面识别；不改业务状态或窗口样式。
+    // Give only self-started test windows a unique caption for native control identification; do not change business state or window styles.
     unsafe {
         SetWindowTextW(
             hwnd,
@@ -102,7 +102,7 @@ fn ordinary_product_package_art_menu_service_checkpoint_restart_offline_and_clos
             .any(|path| path == "/v1/device-sessions")
             .then_some(())
     });
-    // 授权worker请求已到达不等于owner已接纳；从菜单状态确认真实产品终态。
+    // Arrival of an authorization worker request does not mean the owner has admitted it; confirm the actual product terminal state through the menu.
     assert!(!ui.status(&mut first, hwnd, "最近一次授权成功；使用时仍须校验有效期"));
     let surface = open(&ui, &mut first, hwnd);
     ui.invoke(&ui.named(surface, "Run packaged Art").unwrap());
@@ -144,7 +144,7 @@ fn ordinary_product_package_art_menu_service_checkpoint_restart_offline_and_clos
     let restored = fixture.workspace().unwrap();
     assert_eq!(results::verify(&restored, &original, "online"), target);
     select(&ui, &mut second, hwnd, &peer.origin);
-    // 选择已有Art窗口，原OpenArt复用同节点；不新造第二个Art或设备会话。
+    // Select the existing Art window so the original OpenArt reuses the same node; do not create a second Art or device session.
     let art = ui::until(&mut second, "restored Art workspace", |pid| {
         ui::windows(pid, "Otter.Native.Workspace", None, None)
             .into_iter()

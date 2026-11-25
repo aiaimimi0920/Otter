@@ -1,4 +1,4 @@
-//! 已认证 HTTP 响应的身份/续期前置校验；解析成功不是认证，不能接受媒体端的快照。
+//! Identity/renewal prechecks for authenticated HTTP responses; successful parsing is not authentication, and media-side snapshots are unacceptable.
 use serde::Deserialize;
 pub const PROTOCOL: &str = "loom.live.v1";
 pub const MAX_JSON: usize = 1024 * 1024;
@@ -70,7 +70,7 @@ pub fn identifier(value: &str) -> bool {
             .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b':' | b'/'))
 }
 impl Snapshot {
-    /// HTTP transport 必须先验证来源和 Device 凭据，并限制读取量；此处不持有密钥。
+    /// HTTP transport must first verify the origin and Device credentials and bound reads; no keys are held here.
     pub fn parse(bytes: &[u8], expected_session: &str) -> Result<Self, Error> {
         let wire: WireSnapshot = parse(bytes)?;
         let s = wire.session;
@@ -111,7 +111,7 @@ impl Snapshot {
     pub fn revision(&self) -> u64 {
         self.revision
     }
-    /// attachment 返回前后来源和 epoch 必须固定；续期不可偷偷变成另一个来源的加入。
+    /// The source and epoch must remain fixed across the attachment response; renewal must not silently become a join to another source.
     pub fn matches(&self, expected: &Identity) -> Result<(), Error> {
         if &self.identity == expected {
             Ok(())
@@ -119,7 +119,7 @@ impl Snapshot {
             Err(Error::Identity)
         }
     }
-    /// 已移除成员不得借自动续期重新加入；首次显式加入不调用此检查。
+    /// Removed members must not rejoin through automatic renewal; the first explicit join does not call this check.
     pub fn renewal(&self, expected: &Identity, device: &str) -> Result<(), Error> {
         self.matches(expected)?;
         if !identifier(device) || !self.viewers.iter().any(|v| v == device) {

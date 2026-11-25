@@ -1,4 +1,4 @@
-//! 使用真正消息循环回归旧手动/主动采集，不用直接调用 WM_TIMER 掩盖等待 timer 丢失。
+//! Real message-loop regressions for legacy manual/active capture; direct WM_TIMER calls must not conceal missing wait timers.
 use super::*;
 use crate::long_capture::{Frame, Session};
 use std::time::{Duration, Instant};

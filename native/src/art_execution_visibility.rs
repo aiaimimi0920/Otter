@@ -1,4 +1,4 @@
-//! v3 将默认显隐和原端口一起签名；不改变严格 v2 reader、执行权限或包资源预算。
+//! v3 signs default visibility together with the original ports; strict v2 reading, execution permissions, and package-resource budgets stay unchanged.
 use super::*;
 use serde::{Deserialize, Serialize};
 pub(crate) const PROTOCOL: &str = "loom.art.local.package.v3";

@@ -1,4 +1,4 @@
-//! 能力端口借用视图，对齐 artCapabilityNormalization/artPorts；不解析图片路径或读取资源。
+//! Borrowed capability-port view aligned with artCapabilityNormalization/artPorts; no image-path resolution or resource reads.
 use super::{text, Capability};
 use serde_json::Value;
 pub struct Port<'a> {
@@ -50,7 +50,7 @@ impl Port<'_> {
     }
 }
 impl Capability<'_> {
-    /// 只采用当前单端口声明；缺省显示，参数值的default不参与显示决策。
+    /// Use only the current single-port declaration; show by default, and parameter-value defaults do not affect visibility.
     pub fn port_default_visible(&self, name: &str, input: bool) -> bool {
         let local = if input {
             self.inputs().find(|p| p.name == name)
@@ -59,7 +59,7 @@ impl Capability<'_> {
         };
         local.and_then(|p| p.default_visible).unwrap_or(true)
     }
-    /// Some(empty) 与缺失必须区分；主干只在 inputs 缺失时使用调用方 fallback。
+    /// Distinguish Some(empty) from missing; the baseline uses caller fallback only when inputs is missing.
     pub fn has_input_definitions(&self) -> bool {
         self.raw.get("inputs").is_some_and(Value::is_array)
     }

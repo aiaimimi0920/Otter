@@ -1,4 +1,4 @@
-//! 只接受 Bitmap/Text；编码和像素分别限额，保留原编码以交给既有图片导入线程。
+//! Accept only Bitmap/Text; separate encoding/pixel limits and preserve original encoding for the existing image-import thread.
 use super::*;
 use windows::{
     ApplicationModel::DataTransfer::{DataPackageView, StandardDataFormats},
@@ -13,7 +13,7 @@ pub(super) fn decode(
     deadline: Instant,
 ) -> Result<Option<Content>> {
     check(cancel, deadline)?;
-    // Bitmap 优先；Bitmap 无效时不偷换成同条目的 Text，也不回退 HTML/文件列表。
+    // Prefer Bitmap; invalid Bitmap does not silently become the same item's Text or fall back to HTML/file lists.
     if view.Contains(&StandardDataFormats::Bitmap()?)? {
         let bitmap = wait::operation!(view.GetBitmapAsync()?, cancel, deadline)?;
         let stream = wait::operation!(bitmap.OpenReadAsync()?, cancel, deadline)?;
@@ -67,7 +67,7 @@ pub(super) fn decode(
     Ok(None)
 }
 
-// 菜单关闭和读取截止时间进入 WIC 的像素分配边界；保留历史读取的 E_ABORT 语义。
+// Menu close and read deadlines reach WIC's pixel-allocation boundary; preserve history-read E_ABORT semantics.
 pub(super) fn decode_bitmap(
     bytes: &[u8],
     cancel: &AtomicBool,

@@ -1,10 +1,10 @@
-//! 原生会话坐标扩展；仅描述保存时坐标空间，不授予资源路径或执行权限。
+//! Native session-coordinate extension describes save-time coordinate space only, without resource-path/execution permission.
 use crate::session_placement::Space;
 use serde::{Deserialize, Deserializer};
 use serde_json::{Map, Value};
 
 pub const KEY: &str = "otterNativeCoordinateSpace";
-/// 显式值代表用户有意重定位；否则只用文件元数据，缺省不推测历史桌面布局。
+/// Explicit values indicate deliberate user relocation; otherwise use file metadata only and never infer historical desktop layouts.
 pub fn select(explicit: Option<Space>, embedded: Option<Space>) -> Result<Space, &'static str> {
     let space = explicit.or(embedded).ok_or(
         "Session has no coordinate metadata; supply --session-origin X,Y and --session-scale",
@@ -34,7 +34,7 @@ impl Metadata {
     }
 }
 
-/// 缺省表示旧格式；显式 null/坏类型不是缺省，不能静默降级后覆盖。
+/// Absence means old format; explicit null/bad types are not absence and cannot silently downgrade before overwriting.
 pub fn optional<'de, D: Deserializer<'de>>(decoder: D) -> Result<Option<Metadata>, D::Error> {
     struct Object;
     impl<'de> serde::de::Visitor<'de> for Object {
@@ -63,7 +63,7 @@ pub fn install(root: &mut Map<String, Value>, space: Space) -> Result<(), &'stat
             return Err("Unsupported existing coordinate metadata");
         }
     }
-    // 验证后移动未知字段，不复制其中可能较大的扩展值。
+    // Move unknown fields after validation, without copying potentially large extension values.
     let mut fields = match root.remove(KEY) {
         Some(Value::Object(fields)) => fields,
         None => Map::new(),

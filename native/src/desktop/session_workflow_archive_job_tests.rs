@@ -111,7 +111,7 @@ fn cancellation_or_changed_disk_never_overwrites_baseline() {
 #[test]
 fn archive_input_releases_snapshot_budget_but_retains_source_budget() {
     let (directory, _, root, saved, mut ready) = fixture();
-    // 独立预算租约使生命周期断言不依赖全局计数或并行测试的图片分配。
+    // Independent budget leases make lifetime assertions independent of global counts or image allocations in parallel tests.
     let source = saved.to_vec();
     let bytes = source.capacity();
     let budget = crate::byte_budget::Budget::new(bytes + 96);

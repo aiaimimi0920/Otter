@@ -1,4 +1,4 @@
-//! 普通画笔荧光的采样来源仅活到提交；历史/会话复用既有 Highlighter。
+//! Ordinary brush glow sampling provenance lives only until commit; history/sessions reuse existing Highlighter.
 use super::*;
 fn p(x: f32, y: f32) -> Point {
     Point { x, y }

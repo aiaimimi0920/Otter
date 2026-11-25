@@ -1,4 +1,4 @@
-//! accepted 只读重建的真实 TLS/Grant/journal 链；任何结果均不能拥有自动 unlink 资格。
+//! Real TLS/Grant/journal chain for read-only accepted reconstruction; no result gains automatic-unlink eligibility.
 use super::*;
 use crate::{
     device_authorization_lease::Grant,

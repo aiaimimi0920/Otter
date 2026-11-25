@@ -1,4 +1,4 @@
-//! 首次挂载集合：取消仅禁止交付场景，不丢失已确认绑定或未知创建的恢复上下文。
+//! Initial-attachment collection: cancellation only prevents scene delivery, preserving recovery context for confirmed bindings or unknown creations.
 use super::*;
 use crate::surface_attach_runtime::{Error, Job, Outcome, Request};
 
@@ -6,7 +6,7 @@ impl Sessions {
     pub fn attaching(&self) -> bool {
         !self.attach_jobs.is_empty()
     }
-    /// 交付方容量不足时原样放回，不能通过 pop 丢失未知创建或确认绑定的证据。
+    /// Return unchanged when delivery capacity is insufficient; pop must not lose evidence of unknown creation or confirmed binding.
     pub fn deliver_attach(
         &mut self,
         deliver: impl FnOnce(Outcome) -> Result<(), Box<Outcome>>,
@@ -35,7 +35,7 @@ impl Sessions {
             return Err(io::ErrorKind::WouldBlock.into());
         }
         self.attach_jobs.try_reserve(1).map_err(io::Error::other)?;
-        // 回收前预留结果容量；未取走结果同样占总配额，不允许无界积累。
+        // Reserve result capacity before reclamation; uncollected results still count toward total quota and cannot accumulate unboundedly.
         self.attach_outcomes
             .try_reserve(self.attach_jobs.len() + 1)
             .map_err(io::Error::other)?;
@@ -71,7 +71,7 @@ impl Sessions {
         }
         errors
     }
-    /// 只移交恢复证据；调用方须重新验证授权，不能自动重放未知创建。
+    /// Transfer only recovery evidence; callers must revalidate authorization and never automatically replay unknown creation.
     pub fn take_attach_outcome(&mut self) -> Option<Outcome> {
         self.attach_outcomes.pop()
     }

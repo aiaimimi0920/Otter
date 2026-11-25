@@ -1,4 +1,4 @@
-//! 单在途桥只确认真实执行回复；停止越过等待队列，不依赖UI再次消费请求。
+//! Single-in-flight bridge acknowledges only actual execution replies; stop bypasses queued waits without requiring UI to consume another request.
 use super::*;
 use std::time::{Duration, Instant};
 fn take(bridge: &Bridge) -> Request {
@@ -30,7 +30,7 @@ fn source_input_bridge_waits_for_actual_reply_and_rejects_second_inflight() {
 #[test]
 fn source_input_bridge_cancel_wakes_ui_only_once() {
     let bridge = Bridge::new();
-    // 模拟网络线程先取消，UI 处理唤醒后继续等待输入 worker 释放。
+    // Simulate network-thread cancellation first, then UI handling the wake and continuing to await input-worker release.
     let worker = bridge.clone();
     std::thread::spawn(move || worker.cancel()).join().unwrap();
     let mut message = MSG::default();

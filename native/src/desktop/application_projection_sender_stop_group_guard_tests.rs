@@ -1,4 +1,4 @@
-//! 组停止固定canonical allocation与目录Arc；旧菜单不允许从当前原文重抓新依据。
+//! Group stop fixes canonical allocation and catalog Arc; old menus cannot recapture fresh justification from current source content.
 use super::*;
 fn stale_selection(source_changed: bool) {
     let _serial = serial();

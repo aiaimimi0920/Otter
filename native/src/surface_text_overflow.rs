@@ -1,4 +1,4 @@
-//! 仅最终文字帧使用省略；固有测量、完整 UTF-16 和盒几何仍归原布局 owner。
+//! Apply ellipsis only to final text frames; original layout owners retain intrinsic measurement, complete UTF-16, and box geometry.
 use super::*;
 use crate::surface_scene::{Kind, Node};
 
@@ -27,18 +27,18 @@ impl Engine {
                     .iter()
                     .any(|key| node.layout().get(*key).and_then(|v| v.as_str()) != Some("hidden")))
         {
-            // 多行/其他对齐的 CSS inline-end 与 DWrite 行尾 trimming 不等价，不能静默近似。
+            // Multiline/other-alignment CSS inline-end differs from DWrite end-of-line trimming; never approximate silently.
             return Err(invalid());
         }
         let layout = self.layout(text, style, width, height)?;
         if ellipsis {
-            // nowrap 仍可能含 Unicode 强制分隔符，不能把实际多行误当单行开放。
+            // nowrap may still contain mandatory Unicode separators; do not admit actual multiline content as a single line.
             if layout.line_count() != 1 {
                 return Err(invalid());
             }
-            // 此 layout 尚未共享；绝不原地修改上一帧或固有测量的 COM 对象。
-            // text-overflow 不截断纵向末行：native 高度至少容纳整行，实际像素由 TextItem 裁剪。
-            // 保留 trimming 前 metrics，省略只影响绘制/命中，不缩小固有宽度或溢出几何。
+            // This layout is not shared yet; never mutate COM objects belonging to previous frames or intrinsic measurement in place.
+            // text-overflow does not truncate the final vertical line: native height holds at least one whole line, with actual pixels clipped by TextItem.
+            // Retain pre-trimming metrics; ellipsis affects only painting/hits, not intrinsic width or overflow geometry.
             unsafe {
                 layout
                     .native
@@ -57,8 +57,8 @@ impl Engine {
     }
 }
 impl Layout {
-    /// DWrite 的 trimming sign 可作为零高 inline hit 返回；用同一逻辑范围的文字命中
-    /// 恢复真实行高，不能把 isInside=false 直接当成省略号不可选，也不能扩大到整盒。
+    /// DWrite may return trimming signs as zero-height inline hits; use text hits from the same logical range
+    /// to recover actual line height, neither treating isInside=false as unselectable ellipsis nor expanding to the entire box.
     pub(super) fn normalize_trimmed_hit(&self, hit: &mut DWRITE_HIT_TEST_METRICS) -> Result<()> {
         if !hit.isTrimmed.as_bool() || (hit.isText.as_bool() && hit.height > 0.) {
             return Ok(());
@@ -83,7 +83,7 @@ impl Layout {
         *hit = text_hit;
         Ok(())
     }
-    /// 省略号代表整个隐藏后缀；词级选择不能只复制其中一个不可见词。
+    /// Ellipsis represents the entire hidden suffix; word selection must not copy only one invisible word within it.
     pub(super) fn omitted_range(&self, position: u32) -> Result<Option<std::ops::Range<u32>>> {
         if position > self.text_len() {
             return Err(invalid());

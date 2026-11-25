@@ -1,4 +1,4 @@
-//! 独立wire数值oracle，显式选择不能复活undo或吞掉read期间编辑/单向约束。
+//! Independent wire-numeric oracle; explicit choices cannot revive undo or swallow edits during read/unidirectional constraints.
 use super::*;
 use crate::projection_edit::{fixture::*, Mode};
 use serde_json::json;

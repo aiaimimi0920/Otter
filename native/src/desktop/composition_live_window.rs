@@ -1,4 +1,4 @@
-//! Live 专用 HWND；不复用可编辑钉图 State，不启动捕获，不拥有应用消息循环。
+//! Dedicated Live HWND; no editable-pin State reuse, capture startup, or application-message-loop ownership.
 use super::{
     host::{Host, Presented, Update},
     notification, Texture,
@@ -73,7 +73,7 @@ struct State {
     input: RefCell<input::Control>,
 }
 impl State {
-    // Win32/GPU 调用可能重入；不跨调用持有 RefCell 借用，关闭期间不重新挂回 owner。
+    // Win32/GPU calls may reenter; hold no RefCell borrows across calls and do not reattach owners during closure.
     fn with_host<T>(&self, operation: impl FnOnce(&mut Host) -> Result<T>) -> Result<Option<T>> {
         let Some(mut host) = self.host.borrow_mut().take() else {
             self.deferred.set(true);
@@ -116,7 +116,7 @@ impl LiveWindow {
     pub fn take_recycle_request(&self) -> bool {
         self.state.recycle_requested.replace(false)
     }
-    /// 应用已准备冻结记录；失败且 HWND 仍属于本 owner 时不得发布回收结果。
+    /// The application has prepared a freeze record; on failure, do not publish reclamation results while HWND still belongs to this owner.
     pub(in crate::desktop) fn close_for_recycle(&self) -> Result<()> {
         if !self.is_alive() {
             return Err(Error::new(E_ABORT, "Live recycle window already closed"));
@@ -160,7 +160,7 @@ impl LiveWindow {
     ) -> Option<std::sync::Arc<crate::live_frames::Frame<Texture>>> {
         self.state.host.borrow().as_ref()?.frame_for_test()
     }
-    /// 创建隐藏窗口并设置系统捕获排除后才绑定源；调用方负责 DPI 上下文与显式用户授权。
+    /// Create a hidden window and set system capture exclusion before binding sources; callers own DPI context and explicit user authorization.
     pub fn new(consumer: Consumer<Texture>, width: u32, height: u32) -> Result<Self> {
         super::super::validate_size(D2D_SIZE_U { width, height })?;
         unsafe {
@@ -259,7 +259,7 @@ impl LiveWindow {
     pub fn take_error(&self) -> Option<Error> {
         self.state.error.borrow_mut().take()
     }
-    /// 仅移交预算 owner，不在窗口回调内读回 GPU；重入占用时返回 None，不使用旧缓存。
+    /// Transfer only the budget owner; no GPU readback in window callbacks. Return None during reentrant occupancy, never stale caches.
     pub fn snapshot_frame(
         &self,
     ) -> Result<Option<std::sync::Arc<crate::live_frames::Frame<Texture>>>> {
@@ -270,7 +270,7 @@ impl LiveWindow {
             .with_host(Host::snapshot_frame)
             .map(Option::flatten)
     }
-    /// 供应用已有事件补偿遗漏通知；无后续事件时不承诺关闭必达。
+    /// Compensate for missed notifications through existing application events; without later events, guaranteed closure is not promised.
     pub fn refresh(&self) -> Result<()> {
         if !self.is_alive() {
             return Ok(());
@@ -332,7 +332,7 @@ unsafe fn handle_update(hwnd: HWND, update: Option<Update>) -> Result<()> {
     }
 }
 unsafe fn reschedule(hwnd: HWND, state: &State) -> bool {
-    // 重入通知已从系统队列消费，但 Host 暂被外层绘制借走；外层 EndPaint 后补一个失效区。
+    // The system queue consumed the reentrant notification while outer drawing borrowed Host; add one invalidation region after outer EndPaint.
     if !state.closed.get() && state.host.borrow().is_some() && state.deferred.replace(false) {
         return InvalidateRect(Some(hwnd), None, false).as_bool();
     }
@@ -366,7 +366,7 @@ unsafe extern "system" fn procedure(hwnd: HWND, message: u32, wp: WPARAM, lp: LP
         }
         return result;
     }
-    // 恢复可见时静态源不会再投递帧；默认过程仍负责派发 WM_SIZE/WM_MOVE。
+    // Static sources post no further frames on becoming visible; the default procedure still dispatches WM_SIZE/WM_MOVE.
     if message == WM_WINDOWPOSCHANGED && lp.0 != 0 {
         if (*(lp.0 as *const WINDOWPOS)).flags.contains(SWP_SHOWWINDOW) {
             let _ = InvalidateRect(Some(hwnd), None, false);
@@ -391,7 +391,7 @@ unsafe extern "system" fn procedure(hwnd: HWND, message: u32, wp: WPARAM, lp: LP
             {
                 Ok(())
             }
-            // 显式放弃保留退出通道：无首帧或旧工作区来源也不能把窗口困住。
+            // Explicit discard preserves an exit path: missing first frames or old-workspace provenance must not trap the window.
             WM_SYSCOMMAND if wp.0 & 0xfff0 == 0x1f90 => {
                 if !state.group_locked.get() && !state.group_hidden.get() {
                     state.unlink_requested.set(true);
@@ -471,7 +471,7 @@ unsafe fn paint(hwnd: HWND, state: &State) -> Result<()> {
     let result = (|| {
         let mut client = RECT::default();
         GetClientRect(hwnd, &mut client)?;
-        // 最小化窗口可能仍返回非零 client rect，不能据此重新创建交换链。
+        // Minimized windows may still return nonzero client rectangles; this must not trigger swap-chain recreation.
         if IsIconic(hwnd).as_bool() {
             client = RECT::default();
         }

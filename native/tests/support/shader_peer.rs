@@ -1,4 +1,4 @@
-//! 独立 TLS1.3/exporter peer；证书仅在内存，不安装证书库、不访问用户 Loom。
+//! Independent TLS1.3/exporter peer; certificates stay in memory without installation in the certificate store or access to the user's Loom.
 use base64::Engine;
 use otter_native::{loom_bridge_identity::Identity, loom_bridge_stream::BridgeStream};
 use rustls::{pki_types::PrivatePkcs8KeyDer, ServerConfig, ServerConnection, StreamOwned};
@@ -55,7 +55,7 @@ impl Peer {
             manifest,
         }
     }
-    // tungstenite Callback 要求 ErrorResponse 大错误类型，不改变该第三方接口。
+    // tungstenite Callback requires the large ErrorResponse error type; do not change that third-party interface.
     #[allow(clippy::result_large_err)]
     fn socket(&self) -> tungstenite::WebSocket<StreamOwned<ServerConnection, BridgeStream>> {
         self.listener.set_nonblocking(true).unwrap();

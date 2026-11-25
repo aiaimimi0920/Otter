@@ -1,4 +1,4 @@
-//! Shell 文件拖入创建新钉图；先复制有界路径并释放 HDROP，再启动后台解码。
+//! Shell file drops create new pins; copy bounded paths and release HDROP before starting background decoding.
 use super::State;
 use std::{ffi::OsString, os::windows::ffi::OsStringExt, path::PathBuf};
 use windows::{
@@ -45,7 +45,7 @@ unsafe fn paths(drop: DropFiles) -> Result<Vec<PathBuf>> {
 }
 
 pub(super) unsafe fn receive(hwnd: HWND, state: &State, parameter: WPARAM) {
-    // 无论入口是否忙碌，都先接管并释放 Shell 包；不能泄漏重入投递的 HDROP。
+    // Take and release Shell packets even when the entry point is busy; never leak reentrantly delivered HDROP.
     let dropped = DropFiles(HDROP(parameter.0 as *mut _));
     let Some(_dialog) = super::file_dialog::Guard::begin(&state.file_dialog) else {
         return;
@@ -78,7 +78,7 @@ unsafe fn open(hwnd: HWND, state: &State, paths: Vec<PathBuf>) -> Result<()> {
         ReleaseCapture()?;
     }
     let _ = windows::Win32::Graphics::Gdi::InvalidateRect(Some(hwnd), None, false);
-    // 不在 UI 线程探测文件或解码；WIC 失败不修改原文档。
+    // Do not probe/decode files on UI threads; WIC failures preserve original documents.
     super::open_job::start_destination(hwnd, state, super::open_job::Input::Files(paths), true)
 }
 

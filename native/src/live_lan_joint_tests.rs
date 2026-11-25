@@ -1,4 +1,4 @@
-//! 实际Loom LAN目录/控制/源WSS/原生窗口精确帧、撤权和关闭重启；非普通双产品/物理跨端。
+//! Actual Loom LAN catalog/control/source WSS/native-window exact frames, revocation, and close/restart; not ordinary dual-product or physical cross-device acceptance.
 use super::*;
 #[path = "live_lan_joint_peer_tests.rs"]
 mod peer;

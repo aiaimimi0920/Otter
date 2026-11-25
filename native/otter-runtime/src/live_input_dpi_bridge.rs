@@ -1,4 +1,4 @@
-//! mixed-hosting 的控件外拖动转换；不截断拖动位置，不猜测跨显示器缩放。
+//! Out-of-control drag conversion for mixed hosting; do not truncate drag positions or guess cross-monitor scaling.
 use super::*;
 
 pub(super) fn destination_point(
@@ -12,8 +12,8 @@ pub(super) fn destination_point(
     {
         return Ok(converted);
     }
-    // 某些窗口只接受窗口内点。以已验证的窗口内点取得系统变换原点，
-    // 再按同显示器 PM 父窗口/子窗口的 DPI 外推，不用四舍五入后的窗口宽度猜比例。
+    // Some windows accept only interior points. Use a validated interior point to obtain the system transform origin,
+    // then extrapolate from the same-monitor PM parent/child DPI, rather than guessing a ratio from rounded window widths.
     let context = unsafe { GetWindowDpiAwarenessContext(root.hwnd()) };
     if unsafe { GetAwarenessFromDpiAwarenessContext(context) } != DPI_AWARENESS_PER_MONITOR_AWARE {
         return Err(Error::Transform);

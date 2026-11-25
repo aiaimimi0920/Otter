@@ -1,4 +1,4 @@
-//! 桌面物理选区到单显示器 WGC 区域的绑定；跨屏不截断，布局变化不交付旧坐标结果。
+//! Bind physical desktop selections to single-monitor WGC regions; never truncate cross-monitor selections or deliver stale-coordinate results after layout changes.
 use crate::{
     capture_color::{self, ScRgb},
     capture_readback::Region,
@@ -28,7 +28,7 @@ pub struct Target {
     region: Region,
 }
 impl Target {
-    /// 只查询显示布局，不启动捕获；screen 必须是右/下边界不含在内的桌面物理像素矩形。
+    /// Query display layout only, without starting capture; screen must be a physical desktop rectangle with exclusive right/bottom edges.
     pub fn resolve(screen: RECT) -> Result<Self, Error> {
         dimensions(screen)?;
         let identity = locate(screen)?;
@@ -45,7 +45,7 @@ impl Target {
     pub fn region(&self) -> Region {
         self.region
     }
-    /// 持续捕获交付前复核物理绑定；失败必须丢弃候选，不修改旧选区。
+    /// Revalidate physical bindings before continuous-capture delivery; failures discard candidates without changing old selections.
     pub fn validate(&self) -> Result<(), Error> {
         self.validate_with(|| locate(self.screen))
     }
@@ -56,8 +56,8 @@ impl Target {
             Ok(())
         }
     }
-    /// 后台 MTA 显式截图请求使用；采集前后复核，变化后丢弃结果而非修改选区重试。
-    /// consume 只做内存转换；必须等本函数成功返回后才能写文件、发布剪贴板或更新 UI。
+    /// For explicit captures on background MTA threads; validate before/after capture and discard changed results rather than modify selections/retry.
+    /// consume performs in-memory conversion only; file writes, clipboard publication, and UI updates must await successful return.
     pub fn capture<T>(
         &self,
         cancel: &AtomicBool,

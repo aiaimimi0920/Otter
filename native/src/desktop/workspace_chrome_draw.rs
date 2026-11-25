@@ -1,4 +1,4 @@
-//! 只画公共端口名/外框/Bezier 连线，不读取或拷贝图片；GDI 对象逐次 RAII 回收。
+//! Draw only public port names/borders/Bezier links, without image reads/copies; GDI objects are reclaimed through RAII each time.
 use super::*;
 use crate::desktop::buffered_paint as buffered;
 pub(super) use buffered::Session as PaintSession;
@@ -50,7 +50,7 @@ impl Drop for Object {
 }
 #[cfg(test)]
 pub(super) unsafe fn frame(dc: HDC, origin: POINT, rect: Rect, dpi: u32) {
-    // 沿主干纯白外描边，统一 2 个逻辑像素；不能覆盖图片内容或改变端点锚点。
+    // Retain mainline pure-white outer strokes at two logical pixels; never cover image content or move endpoint anchors.
     let width = desktop::pin_border_style::width(dpi) as i32;
     let (left, top, right, bottom) = (
         rect.left.saturating_sub(origin.x),
@@ -78,7 +78,7 @@ pub(super) unsafe fn frame(dc: HDC, origin: POINT, rect: Rect, dpi: u32) {
             brush,
         );
     };
-    // 四条色带固定开销，不创建笔刷；内矩形保持原样，DPI 不增加 GDI 调用次数。
+    // Four color bands have fixed cost without brush creation; inner rectangles stay unchanged, and DPI adds no GDI calls.
     fill(outer_left, outer_top, outer_right, top);
     fill(outer_left, bottom, outer_right, outer_bottom);
     fill(outer_left, top, left, bottom);
@@ -132,14 +132,14 @@ pub(super) unsafe fn paint(hwnd: HWND, ui: &Ui) {
     let _scope = Paint(hwnd, paint);
     if ui.capturing() {
         ui.redraw_after_capture.set(true);
-        return; // 截图期间保留已提交画面，只禁止输入；结束后由应用补一帧。
+        return; // Retain committed frames during screenshots and disable only input; the application supplies a frame afterward.
     }
     let result = (|| -> Result<()> {
         if hwnd == ui.drawing.get() {
             return window::refresh_drawing(ui);
         }
         if backing::owns(ui, hwnd) {
-            return Ok(()); // ULW 已提交完整底板，不能混用 GDI 重定向绘制。
+            return Ok(()); // ULW already committed the complete backdrop; do not mix GDI redirected drawing.
         }
         let Some(buffer) = buffered::Frame::begin(dc, &paint.rcPaint)? else {
             return Ok(());
@@ -174,7 +174,7 @@ pub(super) unsafe fn present_with(
     mut draw_line: impl FnMut(HDC, POINT, (Point, Point, COLORREF, bool)) -> Result<()>,
 ) -> Result<()> {
     if ui.presenting.replace(true) {
-        return Ok(()); // ULW 同步尺寸消息不能再修改尚在提交的 DIB。
+        return Ok(()); // Synchronous ULW size messages must not modify the DIB still being submitted.
     }
     struct Cycle<'a>(&'a Cell<bool>);
     impl Drop for Cycle<'_> {
@@ -193,7 +193,7 @@ pub(super) unsafe fn present_with(
         backdrops,
     };
     let cached = ui.surface.borrow_mut().take().filter(|s| s.fits(size));
-    // 节点位移不等于连线像素变化。保留已提交表面，避免每个拖动步都清空/ULW 整张公共层。
+    // Node movement does not imply changed link pixels. Retain committed surfaces instead of clearing/ULW-submitting the entire shared layer per drag step.
     if cached
         .as_ref()
         .is_some_and(|s| s.content.as_ref() == Some(&content))
@@ -259,7 +259,7 @@ fn lines(ui: &Ui) -> Lines {
                 else {
                     continue;
                 };
-                // point 本身用裁剪后的端口布局判定可见性，不再另算端口位置。
+                // point already determines visibility from clipped port layout; do not calculate port positions again.
                 let (Some(a), Some(b)) = (ui.point(edge.from), ui.point(edge.to)) else {
                     continue;
                 };

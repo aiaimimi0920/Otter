@@ -1,4 +1,4 @@
-//! Tile 固定设备路由；所有写只发送一次，不把管理员布局 API 暴露给终端。
+//! Fixed Tile device routes; send every write once, without exposing administrator layout APIs to terminals.
 use super::*;
 use crate::tile_wire::{
     self as wire, Endpoint, PresentationReport, PresenterLease, SceneReport, State,

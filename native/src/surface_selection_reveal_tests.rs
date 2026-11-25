@@ -1,4 +1,4 @@
-//! 实际 DirectWrite/滚动投影；验证局部端点而非长文本框整体显露。
+//! Actual DirectWrite/scroll projection verifies local endpoints rather than revealing entire long text boxes.
 use super::*;
 use crate::surface_text::{Align, Whitespace};
 fn owner(json: &str) -> Presentation {
@@ -93,7 +93,7 @@ fn text_selection_reveal_horizontal_long_text_and_hidden_axis() {
     extend_to_end(&mut p);
     assert!(origin(&p, "text")[0] < 0.);
     assert!(visible_focus(&p));
-    // hidden 可由键盘显露，不因此获得滚轮资格。
+    // Keyboard reveal may scroll hidden axes without granting wheel eligibility.
     assert!(!p.scroll.wheel(&p.geometry, "text", 0, -20., false));
     p.step_text_selection("text", false, false).unwrap();
     assert!(p.reveal_text_selection().unwrap());
@@ -116,7 +116,7 @@ fn text_selection_reveal_unreachable_clip_does_not_commit_outer_scroll() {
     let mut p = owner(
         r#"{"id":"root","type":"scroll","layout":{"height":80},"children":[{"id":"gap","type":"view","layout":{"height":120,"minHeight":120}},{"id":"zero","type":"scroll","layout":{"height":0,"minHeight":0},"children":[{"id":"text","type":"text","props":{"text":"A\nB","selectable":true},"layout":{"height":100,"minHeight":100}}]}]}"#,
     );
-    // 模拟原先建立的选区遇到祖先变为零高；不能用这个内部设置证明鼠标能命中它。
+    // Simulate an existing selection whose ancestor becomes zero-height; this internal setup does not prove mouse hitability.
     p.selection = Some(Selection {
         node: "text".into(),
         focus_node: "text".into(),

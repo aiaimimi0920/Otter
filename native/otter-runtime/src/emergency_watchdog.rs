@@ -1,4 +1,4 @@
-//! 已认证同EXE独立紧急退出child；不读profile、不注入输入、不承担Live恢复责任。
+//! Authenticated, independent same-EXE emergency-exit child; does not read profiles, inject input, or own Live recovery.
 use crate::{
     emergency_exit::Tracker, live_recovery_handshake, live_recovery_parent::Parent,
     live_recovery_pipe::Pipe,
@@ -96,7 +96,7 @@ struct Gate {
 }
 impl Gate {
     fn observe(&mut self, keys: Keys, now: Instant) -> bool {
-        // 启动时已按住的键不能立即触发；先观测完整松开，不记录按键文本/历史。
+        // Keys already held at startup must not trigger immediately; first observe a full release, without recording key text/history.
         if !self.armed {
             self.armed = !keys.escape && !keys.delete && !keys.backup;
             return false;

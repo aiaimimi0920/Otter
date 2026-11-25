@@ -1,4 +1,4 @@
-//! 历史标准按钮的DPI布局与内部滚动；不改变物理显示，不分配图像。
+//! DPI layout and internal scrolling for standard history buttons; no physical-display changes or image allocations.
 use super::*;
 use windows::Win32::UI::HiDpi::GetDpiForWindow;
 fn scaled(dpi: u32, value: i32) -> i32 {

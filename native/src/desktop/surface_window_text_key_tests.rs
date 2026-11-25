@@ -1,4 +1,4 @@
-//! 正式 HWND/Host 键盘路由；参数或可恢复的线程键盘状态模拟修饰键，不注入桌面输入。
+//! Production HWND/Host keyboard routing; arguments or restorable thread-keyboard state simulate modifiers, without desktop-input injection.
 use super::*;
 #[path = "surface_window_text_vertical_tests.rs"]
 mod vertical;
@@ -101,7 +101,7 @@ fn text_selection_keyboard_routes_repeat_release_and_collapse_without_remote_eve
         assert!(!key(&window, WM_CHAR, VK_RIGHT.0, true));
         assert!(key(&window, WM_KEYDOWN, VK_LEFT.0, false));
         assert_eq!(selected(&window), None);
-        // 折叠后普通方向键回到原滚动路径，Shift 可继续从保留锚点扩选。
+        // After collapse, ordinary arrows return to original scrolling; Shift can extend selection from the retained anchor.
         assert!(!key(&window, WM_KEYDOWN, VK_LEFT.0, false));
         assert!(key(&window, WM_KEYDOWN, VK_RIGHT.0, true));
     }
@@ -197,7 +197,7 @@ fn text_selection_keyboard_real_hwnd_route_precedes_scroll_and_keeps_shift_tab_a
             Some(LPARAM(0)),
         );
         assert_eq!(selected(&window).as_deref(), Some("Na"));
-        // 不截获 Shift+Tab；无其他可聚焦控件时锚点被现有导航撤销。
+        // Do not intercept Shift+Tab; existing navigation revokes the anchor when no other focusable controls exist.
         SendMessageW(
             window.hwnd,
             WM_KEYDOWN,

@@ -1,4 +1,4 @@
-//! Shift+1 的源绑定目录选择；只排一个创建意图，不在对话框中建窗、联网或改变源。
+//! Source-bound catalog selection for Shift+1; enqueue one creation intent, without creating windows, networking, or changing sources inside the dialog.
 use crate::desktop::{self, capability_job::Loaded, State};
 use std::rc::Rc;
 use windows::{
@@ -29,8 +29,8 @@ fn key_state(
     alt: bool,
     win: bool,
 ) -> bool {
-    // 某些 IME 在宿主把 Shift+1 交为全角标点；只消费真实同按的该 chord。
-    // 不处理 WM_CHAR/VK_PROCESSKEY，也不改变标准 EDIT 的输入法消息管线。
+    // Some IMEs deliver Shift+1 as full-width punctuation to the host; consume only that genuinely simultaneous chord.
+    // Do not handle WM_CHAR/VK_PROCESSKEY or change the standard EDIT's IME message pipeline.
     let ime_digit = message == WM_IME_CHAR && matches!(key, 0x21 | 0xff01) && digit_one;
     chord(
         if ime_digit { WM_KEYDOWN } else { message },

@@ -1,4 +1,4 @@
-//! 测量层继承样式到真实 COMBOBOX；不在控件重复计算相对单位。
+//! Measured inherited styles reach actual COMBOBOX controls; controls do not recalculate relative units.
 use super::*;
 fn styled(size: &str, weight: u16) -> Scene {
     Scene::parse(&serde_json::to_vec(&serde_json::json!({

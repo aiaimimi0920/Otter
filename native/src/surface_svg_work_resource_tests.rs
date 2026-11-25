@@ -1,4 +1,4 @@
-//! 仅测试入口：在生产 Job/IPC 中测量滤镜后端，不改变生产 XML 准入。
+//! Test-only entry measures filter backends inside production Job/IPC without changing production XML admission.
 use super::*;
 use crate::{live_recovery_pipe::Pipe, surface_image_worker_process as process};
 use std::{
@@ -32,7 +32,7 @@ fn fixture(mode: u8) -> (u32, String, bool) {
 fn surface_svg_work_budget_under_real_worker_job() {
     for mode in 0..=9 {
         probe(mode);
-        // 每个高成本/拒绝请求后走一次新的正常 child，证明容量与管道回收。
+        // After each expensive/rejected request, run a fresh normal child to prove capacity and pipe cleanup.
         probe(0);
     }
 }
@@ -77,7 +77,7 @@ fn probe(mode: u8) {
     assert_eq!(finish.is_err(), rejected, "mode={mode}: {finish:?}");
     let mut code = 0;
     unsafe { GetExitCodeProcess(HANDLE(child.handle().as_raw_handle()), &mut code) }.unwrap();
-    // 42 只来自预算耗尽；区别于其他渲染错误、Job 杀进程、超时或 IPC 故障。
+    // 42 means only budget exhaustion, distinct from other rendering errors, Job kills, timeouts, or IPC failures.
     assert_eq!(code, if rejected { 42 } else { 0 }, "mode={mode}");
     let peak = child.peak_job_bytes().unwrap();
     assert!(peak > 0 && peak <= 128 * 1024 * 1024);
@@ -112,7 +112,7 @@ fn svg_work_resource_peer() {
             rejected.set(error == resvg::RenderError::FilterBudgetExceeded);
             return Err(invalid());
         }
-        // 测量栅格化而非传输大图片；成功才返回固定确认帧，不冒充像素等价测试。
+        // Measure rasterization rather than large-image transfer; return fixed confirmation frames only on success, not as pixel-equivalence evidence.
         Ok(host::Decoded {
             logical_size: [1., 1.],
             width: 1,

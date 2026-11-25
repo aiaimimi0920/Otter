@@ -1,4 +1,4 @@
-//! 实际Tile Runtime/已paint Presentation/自有HWND输入与原生选择接缝；管理员不代发event。
+//! Actual Tile Runtime/painted Presentation/owned-HWND input and native-selection seams; the manager does not send events on their behalf.
 use super::*;
 use std::{collections::BTreeMap, sync::Arc};
 pub(super) fn run() {
@@ -45,7 +45,7 @@ pub(super) fn run() {
                 .filter(|_| s.visible(Instant::now()))
                 .map(|frame| frame.arts.values().next().unwrap().clone())
         };
-        // 先释放共享锁，再解析场景和发布文件信号；回执仍只描述实际呈现的快照。
+        // Release shared locks before parsing scenes/publishing file signals; receipts still describe only actually presented snapshots.
         if let Some(art) = presented {
             if done.contains("dismissed") && done.insert("resumed") {
                 f.mark("tile-actions-resumed.json", json!({"view":art.view,"generation":art.generation,"nativePresentConfirmed":true}));
@@ -74,7 +74,7 @@ pub(super) fn run() {
                 } else {
                     [20, 60]
                 });
-                // 测试信号不是用户手势受理回执；仅未进入UI队列时等下一实际paint，不重放已受理写。
+                // Test signals are not user-gesture acceptance receipts; await another actual paint only if not yet queued in UI, never replay accepted writes.
                 if accepted {
                     done.insert(name);
                     f.mark(

@@ -1,4 +1,4 @@
-//! 原Job在隔离TLS的首发不确定/信任拒绝；复用原nonce、预算和取消，不允许在线回退。
+//! Original Job initial-send uncertainty/trust rejection over isolated TLS; reuse original nonces/budgets/cancellation without online fallback.
 use super::*;
 use sha2::{Digest, Sha256};
 fn prepared(client: &Client) -> (Directory, sender::Store, SendRequest) {
@@ -67,7 +67,7 @@ fn run(lost: bool) {
                 assert_eq!(body["targetDeviceId"], target);
                 assert_eq!(body["remoteDeviceId"], "target-1");
                 assert_eq!(body["peerId"], format!("loom-{}", "b".repeat(64)));
-                // 模拟create已被对端接受但回复丢失；下一步只能读原ID，绝不重发create。
+                // Simulate peer acceptance of create with a lost reply; next read only the original ID, never resend create.
                 continue;
             }
             assert!(head.starts_with("POST /v1/offline-projections/read "));

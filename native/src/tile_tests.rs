@@ -1,4 +1,4 @@
-//! 独立构造的协议/几何/时钟/代际 oracle；不由生产解析器生成预期值。
+//! Independently constructed protocol/geometry/clock/generation oracles; production parsers never generate expected values.
 use crate::{
     tile_clock::Clock,
     tile_shared::{Frame, Key, Shared},

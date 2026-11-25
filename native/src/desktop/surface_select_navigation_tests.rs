@@ -1,4 +1,4 @@
-//! 真实 HWND 的双向 Tab；只改测试线程键盘状态并恢复，不注入全局输入。
+//! Bidirectional Tab on actual HWNDs; change/restore only test-thread keyboard state without global input injection.
 use super::*;
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     GetFocus, GetKeyboardState, SetFocus, SetKeyboardState, VK_SHIFT, VK_TAB,
@@ -51,7 +51,7 @@ fn surface_select_navigation_tabs_across_edit_select_and_button_and_closes_popup
         SendMessageW(select, CB_SHOWDROPDOWN, Some(WPARAM(1)), None);
         assert_ne!(SendMessageW(select, CB_GETDROPPEDSTATE, None, None).0, 0);
         tab(select, false);
-        assert_eq!(GetFocus(), parent); // 自绘 Button 由父 HWND 承载。
+        assert_eq!(GetFocus(), parent); // The parent HWND hosts the owner-drawn Button.
         assert_eq!(SendMessageW(select, CB_GETDROPPEDSTATE, None, None).0, 0);
         tab(parent, true);
         assert_eq!(GetFocus(), select);

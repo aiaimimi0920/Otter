@@ -1,4 +1,4 @@
-//! 有状态 AU 提交与同步输出；失败立即销毁 codec，返回值只含受预算约束的像素。
+//! Stateful AU submission/synchronous output; failures destroy codecs immediately, and returns contain only budgeted pixels.
 use super::{
     format, pixels,
     samples::{self, Output},
@@ -42,7 +42,7 @@ impl VideoDecoder {
     ) -> Result<Option<Decoded>> {
         let result = self.decode_inner(bytes, timestamp, keyframe, stop);
         if result.is_err() {
-            // 失效的参考链绝不复用；COM/MF 及进程名额在当前 owner 线程立即归还。
+            // Never reuse invalid reference chains; return COM/MF/process slots immediately on current owner threads.
             self.configured.take();
             self.pending.clear();
         }
@@ -132,7 +132,7 @@ mod tests {
                 .unwrap()
                 .into_video();
             let stop = AtomicBool::new(false);
-            // 同步 decoder 可延迟首帧；仍限定最多四个在途描述符，不用 drain 伪装实时输出。
+            // Synchronous decoders may delay first frames; still bound in-flight descriptors to four, without drain posing as realtime output.
             let mut output = None;
             for timestamp in 1..=4 {
                 output = decoder.decode(&bytes, timestamp, true, &stop).unwrap();
@@ -154,7 +154,7 @@ mod tests {
             }
             assert!(decoder.decode(&bytes, 1, true, &stop).is_err());
             drop(super::super::DecoderOwner::create().unwrap());
-            // 输出只保留像素租约，在 codec 已销毁后仍然有效。
+            // Output retains only pixel leases and remains valid after codec destruction.
             assert_eq!(output.pixels[3], 255);
             eprintln!("native-mf-decode: {width}x{height} red-pixels=true replay-rejected=true owner-released=true");
         }

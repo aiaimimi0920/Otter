@@ -1,4 +1,4 @@
-//! Chromium Canvas Display-P3 的相同编码字节，验证真实 child 的 sRGB 与 alpha。
+//! The same encoded bytes from Chromium Canvas Display-P3 verify sRGB and alpha in real children.
 use super::*;
 use base64::Engine;
 #[path = "surface_webp_lut_tests.rs"]

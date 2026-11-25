@@ -1,4 +1,4 @@
-//! 原Tile Runtime/已paint HWND的离散值链；Select只注入选择回调，不向用户程序输入。
+//! Discrete-value chain of original Tile Runtime/painted HWND; Select injects only selection callbacks, not user-program input.
 use super::*;
 use std::{collections::BTreeSet, sync::Arc};
 pub(super) fn run() {

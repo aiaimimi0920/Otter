@@ -1,8 +1,8 @@
-//! 自定义形状比例/步进的模态编辑事务；释放 Canvas 借用后才显示对话框，取消不写入。
+//! Modal editing transactions for custom-shape ratios/steps; release Canvas borrows before showing dialogs and write nothing on cancellation.
 use crate::desktop::{file_dialog, shape_dialog, State};
 use windows::Win32::{Foundation::HWND, UI::WindowsAndMessaging::IsWindow};
 
-// false 表示模态准入被拒绝，调用者必须跳过菜单末尾同步，保留原拒绝语义。
+// false means modal admission was denied; callers must skip trailing menu synchronization and preserve the original rejection semantics.
 pub(super) unsafe fn edit(hwnd: HWND, state: &State, ratio: bool) -> bool {
     let Some(_dialog) = file_dialog::Guard::begin(&state.file_dialog) else {
         return false;

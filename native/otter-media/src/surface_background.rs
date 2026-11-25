@@ -1,4 +1,4 @@
-//! 节点自身背景形状；圆角不隐式裁剪子节点，祖先裁剪不能改变原圆角几何。
+//! A node's own background shape; rounded corners do not implicitly clip children, and ancestor clipping cannot alter the original corner geometry.
 use crate::{surface_clip::Rect, surface_layout_tree::Placed, surface_length::Context};
 use windows::Win32::Graphics::Direct2D::{
     Common::D2D_RECT_F, ID2D1RenderTarget, ID2D1SolidColorBrush, D2D1_ANTIALIAS_MODE_PER_PRIMITIVE,
@@ -57,7 +57,7 @@ impl Background {
                     .unwrap_or(0.);
             }
         }
-        // CSS 单值百分比分别按宽高计算；超大半径用共同系数缩小，保持椭圆比例。
+        // A single CSS percentage is computed separately against width/height; scale oversized radii by one common factor to preserve elliptical proportions.
         let scale = (0..2)
             .filter(|axis| radius[*axis] > 0.)
             .map(|axis| placed.size[axis] / (2. * radius[axis]))

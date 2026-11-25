@@ -1,4 +1,4 @@
-//! 系统 ICU 的有界词边界查询；仅按需加载系统 DLL，不改变进程启动依赖。
+//! Bounded word-boundary queries through system ICU; load system DLLs only on demand without changing process startup dependencies.
 use std::ffi::c_void;
 use windows::{
     core::{s, w, Error, Result},

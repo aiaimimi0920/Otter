@@ -1,4 +1,4 @@
-//! 单次指针手势内展开 Win32 的 32 位毫秒消息时间；不使用消息处理延迟估计速度。
+//! Unwrap Win32 32-bit millisecond message times within one pointer gesture; never estimate speed from message-processing delays.
 #[derive(Default)]
 pub struct MessageClock {
     last: Option<u32>,
@@ -15,7 +15,7 @@ impl MessageClock {
             return self.start(tick);
         };
         let delta = tick.wrapping_sub(last);
-        // 单次手势不允许跨越半个计数周期；倒退/陈旧消息不推进时序。
+        // One gesture cannot span half the counter period; backward/stale messages never advance timing.
         if delta <= i32::MAX as u32 {
             self.elapsed += delta as u64;
             self.last = Some(tick);

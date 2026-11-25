@@ -1,4 +1,4 @@
-//! 不只检查拖动后的终点：宿主 WINDOWPOSCHANGED 的首个观察点必须已提交子栏目标位置。
+//! Check more than the drag endpoint: the first host WINDOWPOSCHANGED observation must already see the committed child-strip target position.
 use super::*;
 use windows::Win32::UI::Shell::*;
 struct Probe {
@@ -149,7 +149,7 @@ fn drag_geometry_does_not_refresh_sidebar_fields_but_timer_and_exit_do() {
         };
         let enabled = || IsWindowEnabled(connect).as_bool();
         assert!(enabled());
-        // 对照：相同的平移发生在拖动循环之外时，仍沿原路径刷新。
+        // Control case: the same translation outside the drag loop still refreshes through the original path.
         set_busy(true);
         SetWindowPos(
             f.owner.0,

@@ -1,4 +1,4 @@
-// 原生 EXE 品牌与三段包版本；内部迭代身份仍由 provenance 记录。
+// Native EXE branding and three-part package version; provenance still records internal iteration identity.
 #pragma code_page(65001)
 #include "version.h"
 

@@ -1,4 +1,4 @@
-// 计算声明转换为真实 Scene 键；保留 Otter 文档默认模型，不模拟未实现的浏览器盒/inline flow。
+// Convert computed declarations to real Scene keys; preserve Otter's default document model without simulating unimplemented browser boxes or inline flow.
 ((dom, fail, values, sheets, spatial, canvas, form) => {
   "use strict";
   const op = dom.ops;
@@ -14,7 +14,7 @@
       op.weakSet(computed, item.node, css);
       for (let i = state.children.length - 1; i >= 0; i--) op.push(pending, { node: state.children[i], parent: css });
     }
-    // native 投影只由 prepare 使用；合并这一层以保留公开值转换重入时的原栈预算。
+    // Only prepare uses native projection; merge this layer to preserve the original stack budget during public value-conversion reentry.
     const prepare = node => {
       const state = dom.get(node), css = op.weakGet(computed, node);
       const parent = state.parent && op.weakGet(computed, state.parent);
@@ -32,14 +32,14 @@
       if (any(gridContainer) && !grid && !hidden) fail();
       if (any(shared) && !grid && !flex && !hidden) fail();
       if (css["flex-direction"] && !flex && !hidden) fail();
-      // 隐藏项可保留已知声明；恢复可见时重新检查上下文，不能在普通 flow 中保存后忽略。
+      // Hidden items may retain known declarations; recheck context when visible again rather than storing and ignoring them in normal flow.
       if (any(gridItem) && !hidden && parent?.display !== "grid" && parent?.display !== "none") fail();
       if (op.own(css, "flex-grow") && parent?.display !== "flex" && parent?.display !== "none") fail();
       if (flex && (css["justify-content"] === "stretch" || css["align-items"] === "baseline")) fail();
       const remap = name => name === "background-color" ? "background" : name === "flex-grow" ? "grow" :
         name === "justify-content" ? "justify" : name === "align-items" ? "align" : undefined;
-      // css 是私有 null-prototype 记录，仅含已准入的声明/继承值；不扫描整张定义表。
-      // 不调用公开 keys/iterator，也不改变上下文校验、别名优先级或 native 值转换。
+      // css is a private null-prototype record containing only admitted declarations/inherited values; do not scan the entire definition table.
+      // Do not call public keys/iterators or change context validation, alias precedence or native value conversion.
       for (const name in css) {
         const definition = op.mapGet(values.definitions, name);
         if (definition.kind === "border") { border = true; continue; }
@@ -50,7 +50,7 @@
         const target = definition.target === "layout" ? layout : style;
         const numeric = name === "font-weight" || op.indexOf(["opacity", "grow"], definition.kind) >= 0;
         let value = name === "line-height" ? lineHeight : css[name];
-        // Scene 的 self normal 等同 auto；CSS 非替换 Grid item 的 normal 则是 stretch。
+        // Scene self normal is equivalent to auto; CSS normal for non-replaced Grid items means stretch.
         if (parent?.display === "grid" && (name === "align-self" || name === "justify-self") && value === "normal") value = "stretch";
         if (flex && (name === "justify-content" || name === "align-items")) {
           if (value === "start" || value === "end") value = "flex-" + value;
@@ -60,7 +60,7 @@
         if (definition.kind === "size" || op.index(name, "padding-") === 0 || name === "border-width") box = true;
       }
       if (border && values.borders.project(css, style)) box = true;
-      // Native 尺寸是 border-box；不能把 CSS 缺省 content-box 静默当作相同语义。
+      // Native dimensions are border-box; do not silently treat CSS's default content-box as equivalent.
       if (box && css["box-sizing"] !== "border-box") fail();
       const type = container ? grid ? "grid" : flex ? css["flex-direction"] ?? "row" : "column" : state.tag === "canvas" ? "image" : state.tag === "input" ? "input" : state.tag === "button" ? "button" : "text";
       if (grid) {
@@ -72,7 +72,7 @@
         if (op.index(start ?? "", "span ") === 0 && op.index(end ?? "", "span ") === 0) fail();
         layout[i ? "gridRow" : "gridColumn"] = (start ?? "auto") + " / " + (end ?? "auto");
       }
-      // Grid/flex item 的 auto width 不能沿用 native 普通容器的 full-width 缺省。
+      // Grid/flex items with auto width must not inherit the native normal container's full-width default.
       if ((css.position === "absolute" || parent?.display === "grid" || parent?.display === "flex") && !op.own(css, "width")) layout.width = "auto";
       const props = state.tag === "input" ? form.props(node) : op.record();
       if (css.display === "none") props.visible = false;
@@ -87,7 +87,7 @@
       const output = container ? { id: state.key, type, props, layout, style, children: op.array() } : { id: state.key, type, props, layout, style };
       if (container) op.push(pending, { state, output });
       else if (state.tag !== "canvas") {
-        // 原文字/按钮叶压平 inline 后代，没有独立 run 样式或几何；不同样式必须拒绝。
+        // Existing text/button leaves flatten inline descendants with no separate run styles or geometry; differing styles must be rejected.
         const descendants = op.array();
         for (let i = 0; i < state.children.length; i++) op.push(descendants, state.children[i]);
         while (descendants.length) {

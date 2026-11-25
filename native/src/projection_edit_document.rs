@@ -1,4 +1,4 @@
-//! 权威文档必须完整校验后交付；固定basis、session及单调版本不由HTTP成功替代。
+//! Deliver authoritative documents only after complete validation; HTTP success cannot replace fixed basis/session/monotonic-version checks.
 use super::*;
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]

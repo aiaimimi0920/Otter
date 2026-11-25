@@ -1,4 +1,4 @@
-//! 私有同 EXE 启动参数：明确 application path、CRT 引号规则和有界 UTF-16 环境块。
+//! Private same-EXE startup arguments: explicit application path, CRT quoting rules, and a bounded UTF-16 environment block.
 use std::{ffi::OsStr, io, os::windows::ffi::OsStrExt, process::Command};
 fn invalid() -> io::Error {
     io::Error::new(
@@ -56,7 +56,7 @@ pub(super) fn environment(command: &Command) -> io::Result<Option<Vec<u16>>> {
     if command.get_envs().next().is_none() {
         return Ok(None);
     }
-    // 仅测试启动需要覆盖 ASCII fixture 键；生产继承原环境，不重新编码环境块。
+    // Only test startup overrides ASCII fixture keys; production inherits the original environment without reencoding its block.
     let mut values: Vec<_> = std::env::vars_os().collect();
     for (key, value) in command.get_envs() {
         let name = key

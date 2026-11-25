@@ -1,4 +1,4 @@
-//! 明确拒绝与未知副作用分开；原请求、view与Checkpoint前持久标记均用独立磁盘oracle。
+//! Separate explicit rejection from unknown side effects; independent disk oracles cover original requests/views/pre-Checkpoint persistent markers.
 use super::*;
 use crate::projection_edit::{fixture::*, Change, Code, Operation};
 use serde_json::json;

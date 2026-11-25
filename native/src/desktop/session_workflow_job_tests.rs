@@ -1,4 +1,4 @@
-//! 实际 worker 贯通与生命周期验证；通知并非保存或发送授权。
+//! Actual worker integration and lifecycle verification; notifications authorize neither saving nor sending.
 use super::*;
 use serde_json::json;
 use std::{
@@ -86,7 +86,7 @@ fn worker_rejects_revision_mismatch_and_unadmitted_file_access() {
     .is_err());
     let mut document = json!({"documentRevision":5,"stickers":[{
         "id":"file","x":0,"y":0,"w":1,"h":1,"filePath":"C:\\not-admitted.png"}],"links":[]});
-    // filePath 只是保留的原文件元数据，不应自动触发读取。
+    // filePath is retained original-file metadata only and must not trigger automatic reads.
     assert!(run(Input {
         saved: serde_json::to_vec(&document).unwrap(),
         ..input()

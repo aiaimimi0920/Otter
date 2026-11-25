@@ -1,4 +1,4 @@
-//! 输入安全预检不是用户授权；每次启用及发送前重新检查，不缓存成功结果。
+//! Input-security preflight is not user authorization; recheck on every enable and before every send, without caching success.
 use super::Target;
 use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle};
 use windows::Win32::{Foundation::*, System::Threading::*};
@@ -16,7 +16,7 @@ pub enum Denied {
 }
 pub type Result<T> = std::result::Result<T, Denied>;
 
-/// 不提升权限、不切换桌面、不发送输入；成功仅说明本次快照允许继续权限判断。
+/// No privilege elevation, desktop switching, or input sending; success only means this snapshot may proceed to permission checks.
 pub fn preflight(target: &Target) -> Result<()> {
     target.validate().map_err(|_| Denied::SourceChanged)?;
     desktop::check()?;
@@ -29,13 +29,13 @@ pub fn preflight(target: &Target) -> Result<()> {
     }
     .map_err(|_| Denied::PermissionDenied)?;
     let process = unsafe { OwnedHandle::from_raw_handle(process.0) };
-    // 原进程同步句柄仍存活且 HWND 身份未变，防止按 PID 打开期间目标退出/复用。
+    // The original process synchronization handle remains alive and HWND identity unchanged, preventing target exit/reuse while opening by PID.
     target.validate().map_err(|_| Denied::SourceChanged)?;
     check_process(HANDLE(process.as_raw_handle()))?;
     target.validate().map_err(|_| Denied::SourceChanged)?;
     desktop::check()
 }
-/// 使用调用方持有的原进程查询句柄，不按缓存 PID 重新绑定到另一个进程。
+/// Use the original process query handle held by the caller; do not rebind another process using a cached PID.
 pub fn check_process(process: HANDLE) -> Result<()> {
     desktop::check()?;
     let controller = token::read(unsafe { GetCurrentProcess() })?;

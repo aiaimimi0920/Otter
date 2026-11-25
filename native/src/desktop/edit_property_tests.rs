@@ -1,4 +1,4 @@
-//! 二级栏的实际模型事务和字段显隐回归，只使用本地合成图。
+//! Actual model transactions and field-visibility regressions for secondary bars, using local synthetic images only.
 use super::*;
 use crate::{editor::Tool, viewport::Point};
 #[test]
@@ -19,7 +19,7 @@ fn all_property_icons_use_renderable_original_svg() {
     ] {
         c.select_tool(t);
         for f in fields::fields(&c) {
-            // 主干的效果参数必须显示对应工具图标，不能把 None 当作可渲染而漏验。
+            // Baseline effect parameters must show their tool icons; do not treat None as renderable and skip verification.
             let expected = match f.id {
                 CELL => Some(include_str!("../../assets/edit-strip/MosaicTool.svg")),
                 STRENGTH => Some(include_str!("../../assets/edit-strip/BlurTool.svg")),

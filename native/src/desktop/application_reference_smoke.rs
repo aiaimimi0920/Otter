@@ -1,4 +1,4 @@
-//! 真实收藏菜单命令到后台快照、库提交及取消；不写用户文件。
+//! Real favorites menu commands through background snapshots, library commit, and cancellation; no user-file writes.
 use super::*;
 use crate::session_library::Kind;
 
@@ -135,7 +135,7 @@ pub(in crate::desktop::application) unsafe fn run(instance: HINSTANCE) -> Result
             "Saved reference accepted stale menu source",
         ));
     }
-    // 上次保存换了来源 owner，旧菜单必须被拒绝；用当前库来源再复制。
+    // The last save replaced the source owner, so reject the old menu; copy again using the current library source.
     let current = app.restored_session.as_ref().unwrap().original.clone();
     let id = crate::session_library::decode(&current, Kind::ReferenceLibrary)
         .unwrap()
@@ -216,7 +216,7 @@ pub(in crate::desktop::application) unsafe fn run(instance: HINSTANCE) -> Result
             "Reference disk roundtrip lost baseline or library changes",
         ));
     }
-    // 仅修改本测试独占的 夹具文件：竞争者改变即使只有空白也不能被覆盖。
+    // Modify only this test's exclusive fixture file; even a competing whitespace-only change must not be overwritten.
     let mut external = bytes.clone();
     external.push(b' ');
     std::fs::write(&path, &external).map_err(|error| Error::new(E_FAIL, error.to_string()))?;

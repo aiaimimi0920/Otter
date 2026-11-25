@@ -1,4 +1,4 @@
-//! 顺序批次的真实 TLS/WS 测试，验证部分成功、逐条门禁和失败保留。
+//! Real TLS/WS sequential-batch tests for partial success, per-item gates, and preservation on failure.
 use super::*;
 use crate::{
     byte_budget::Budget,

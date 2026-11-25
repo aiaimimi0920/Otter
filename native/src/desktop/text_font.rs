@@ -1,4 +1,4 @@
-//! 原生字体选择；默认配置与选中文字事务分开，模态期间不借用画布。
+//! Native font selection; separate default configuration from selected-text transactions, borrowing no canvas during modal dialogs.
 use super::{text_input::Pending, State};
 use crate::{editor::Tool, text_annotation::TextFont};
 use windows::{
@@ -130,7 +130,7 @@ pub(super) unsafe fn choose(
         };
     }
     if family_only {
-        // 禁用的属性不从对话框结果回写；序号字号仍由半径派生。
+        // Do not write disabled properties back from dialog results; serial-marker font size remains radius-derived.
         log.lfItalic = 0;
         log.lfUnderline = 0;
         log.lfStrikeOut = 0;

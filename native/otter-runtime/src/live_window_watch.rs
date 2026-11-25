@@ -1,4 +1,4 @@
-//! 源窗口销毁的 UI 线程事件兜底；不依赖 WGC Closed 必达，不建立轮询或额外线程。
+//! UI-thread event fallback for source-window destruction; no reliance on guaranteed WGC Closed delivery, polling, or extra threads.
 use super::Identity;
 use std::{
     cell::{Cell, RefCell},
@@ -70,7 +70,7 @@ impl Watcher {
 }
 impl Drop for Watcher {
     fn drop(&mut self) {
-        // Rc 禁止跨线程移动；先移除注册，再注销，迟到回调不再找到通知目标。
+        // Rc prevents cross-thread moves; remove the registry entry before unregistering, so late callbacks no longer find a notification target.
         ENTRIES.with(|entries| {
             entries
                 .borrow_mut()
@@ -107,7 +107,7 @@ unsafe extern "system" fn on_event(
             && entry.identity.thread == thread
             && !entry.fired.replace(true)
         {
-            // 不持有注册表借用，通知仅关闭共享帧源以唤醒 worker，不能在回调中 join。
+            // Without borrowing the registry, notification only closes the shared frame source to wake the worker; never join inside callbacks.
             if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| (entry.notify)())).is_err()
             {
                 eprintln!("native-live-destroy-notify: callback panicked");

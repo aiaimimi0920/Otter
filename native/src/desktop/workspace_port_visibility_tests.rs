@@ -1,4 +1,4 @@
-//! 自有真实端口 HWND 的展开/眼睛按钮/单槽提交；仅在未切换的隔离桌面执行。
+//! Actual owned port-HWND expansion/eye buttons/single-slot commits, executed only on isolated desktops never switched to.
 use super::*;
 use windows::Win32::{Graphics::Gdi::ScreenToClient, UI::Input::KeyboardAndMouse::*};
 fn target(side: Side) -> Port {

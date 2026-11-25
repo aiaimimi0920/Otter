@@ -1,4 +1,4 @@
-//! 同一排版、点击和单根选区；剪贴板/命令只是数据结果，不访问用户内容。
+//! Shared layout, clicks, and single-root selections; clipboard/commands are data results only, without user-content access.
 use super::*;
 use serde_json::json;
 fn view(local_copy: bool) -> Views {

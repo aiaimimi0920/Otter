@@ -1,4 +1,4 @@
-//! 独立紧急退出 child 的零轮询事件唤醒：RawInput 键盘 sink，空闲时 INFINITE 休眠。
+//! Zero-polling event wakeup for the independent emergency-exit child: a RawInput keyboard sink sleeps INFINITE while idle.
 use super::{shutdown::Listener, Gate, Keys, SAMPLE_MS};
 use crate::{live_recovery_parent::Parent, live_recovery_pipe::Pipe};
 use std::{
@@ -19,7 +19,7 @@ use windows::{
     },
 };
 
-// 覆盖完整三次 Esc+Delete 400ms 连击窗口；序列结束后立即恢复 INFINITE 零唤醒休眠。
+// Cover the full three-press Esc+Delete sequence with its 400ms inter-press window; immediately resume INFINITE sleep with zero wakeups when the sequence ends.
 const ACTIVE_WINDOW: Duration = Duration::from_millis(1200);
 
 struct Sink {
@@ -54,7 +54,7 @@ impl Sink {
             let _ = DestroyWindow(hwnd);
             return Err(error);
         }
-        // F12 是系统调试器保留键；仅观察 RawInput 后的物理状态，不抢占全局组合键。
+        // F12 is reserved for the system debugger; observe only physical state after RawInput, without claiming the global key combination.
         Ok(Self { hwnd })
     }
 }

@@ -1,4 +1,4 @@
-//! Surface系统会话接缝：等待已接受输入结算，批准后拒新业务而放行原销毁清理。
+//! Surface system-session seam: await accepted-input settlement; after approval reject new business work while preserving original destruction cleanup.
 use super::*;
 use windows::Win32::UI::Input::KeyboardAndMouse::GetCapture;
 impl SurfaceWindow {

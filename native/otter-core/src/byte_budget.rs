@@ -1,4 +1,4 @@
-//! 跨线程字节租约；预留失败不改变计数，最后一个资源 owner 释放时归还预算并按需唤醒等待者。
+//! Cross-thread byte leases; failed reservations preserve counters, and final resource-owner release returns budget/wakes waiters as needed.
 use std::{
     sync::{
         atomic::{AtomicUsize, Ordering},
@@ -38,7 +38,7 @@ impl Budget {
             bytes,
         })
     }
-    /// 在至多 `timeout` 内等待可用容量；无等待者时 `Drop` 保持纯原子快速路径。
+    /// Wait at most `timeout` for capacity; without waiters, `Drop` retains its purely atomic fast path.
     pub fn wait_for(self: &Arc<Self>, bytes: usize, timeout: Duration) -> Option<Lease> {
         let started = Instant::now();
         if let Some(lease) = self.reserve(bytes) {
@@ -53,8 +53,8 @@ impl Budget {
                 self.0.fetch_sub(1, Ordering::SeqCst);
             }
         }
-        // 与 claim 的失败读取、Drop 的归还及 waiter 读取共享 SC 全序：
-        // 要么注册后看见容量，要么归还方看见等待者并持锁通知，不能彼此漏看。
+        // Share SC total ordering with failed claim reads, Drop returns, and waiter reads:
+        // either registration observes capacity or the returner observes waiters/notifies under lock; neither can miss the other.
         self.waiters.fetch_add(1, Ordering::SeqCst);
         let _waiter = Waiter(&self.waiters);
         let mut guard = self.wake_lock.lock().unwrap_or_else(|e| e.into_inner());

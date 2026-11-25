@@ -1,4 +1,4 @@
-//! 有界媒体 worker；COM/codec 仅在线程内存活，停止不排在输入队列末尾。
+//! Bounded media worker; COM/codecs live only within its thread, and stop does not queue behind inputs.
 use crate::{
     live_relay_media_pipeline::{self as pipeline, Pipeline, Progress},
     live_relay_receive::Frame,
@@ -109,7 +109,7 @@ impl Worker {
             thread: Some(thread),
         })
     }
-    /// 满载不是静默丢视频帧：撤销此代次并返回 Full，让 transport 执行显式恢复。
+    /// Full capacity never silently drops video frames: revoke this generation and return Full for explicit transport recovery.
     pub fn submit(&self, frame: Frame) -> Result<(), SubmitError> {
         if self.stop.load(Ordering::Acquire) || self.session.validate(&self.permit).is_err() {
             return Err(SubmitError::Stopped);
@@ -139,7 +139,7 @@ impl Worker {
     pub(super) fn prefers_legacy(&self) -> bool {
         self.fallback.load(Ordering::Acquire)
     }
-    /// 仅由已认证 Device socket 的精确撤销 Close 调用；普通断网使用 request_stop。
+    /// Only an authenticated Device socket's exact revocation Close calls this; ordinary disconnection uses request_stop.
     pub fn revoke(&self) {
         let _ = self.session.close_if_current(&self.permit);
         self.request_stop();
@@ -162,7 +162,7 @@ impl Drop for Worker {
     fn drop(&mut self) {
         self.request_stop();
         self.sender.take();
-        // 最后兜底避免 detach；UI 正常关闭必须等待句柄并 try_join，而非在回调里 Drop 活跃 worker。
+        // Last-resort safeguard avoids detach; normal UI shutdown waits for handles and try_join, never Drop of an active worker inside callbacks.
         if let Some(thread) = self.thread.take() {
             let _ = thread.join();
         }
@@ -187,7 +187,7 @@ fn run(
         if let Err(e) = pipeline.check() {
             return Exit::Pipeline(e);
         }
-        // recv 是内核等待，不忙轮询；100ms 兜底观察由会话其他 owner 发出的取消。
+        // recv waits in the kernel without busy polling; the 100ms fallback observes cancellation by other session owners.
         match commands.recv_timeout(Duration::from_millis(100)) {
             Ok(Command::Wake) => {}
             Ok(Command::Frame(frame)) => {

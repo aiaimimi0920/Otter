@@ -1,4 +1,4 @@
-//! 来自已认证控制流的 session_state；reason 是可选开放字符串，不假造移除原因枚举。
+//! session_state from authenticated control flow; reason is an optional open string, not an invented removal-reason enum.
 use super::*;
 use crate::live_relay_viewer_identity::identifier;
 use serde::Deserialize;

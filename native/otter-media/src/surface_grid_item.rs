@@ -1,4 +1,4 @@
-//! Grid item 的对齐/尺寸约束；基线预量与最终放置共享同一尺寸规则。
+//! Grid-item alignment/size constraints; baseline premeasurement and final placement share the same sizing rules.
 use super::{cross, Error};
 use crate::{
     surface_container::Measured,
@@ -71,7 +71,7 @@ pub(super) fn baseline(
     cell: [f32; 2],
     context: Context,
 ) -> Result<(f32, f32), Error> {
-    // baseline 组先决定 auto 行高；百分比高度循环依赖尚未实现，不能拿父整高假算。
+    // Baseline groups determine auto row height first; percentage-height cycles are not implemented, so do not fake them using the full parent height.
     for key in ["height", "minHeight", "maxHeight"] {
         if matches!(
             child.layout_length(key),

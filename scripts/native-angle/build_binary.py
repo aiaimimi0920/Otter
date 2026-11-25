@@ -1,4 +1,4 @@
-"""纯字节检查实际 x64 DLL 的 PE、必需导出及静态 CRT 导入边界；不加载 DLL。"""
+"""Byte-only checks of actual x64 DLL PE data, required exports, and static-CRT import boundaries; never load DLLs."""
 
 import hashlib
 import os
@@ -115,7 +115,7 @@ def verify_dll(path, required, system_root):
     exports = image.exports()
     if not required or not set(required) <= exports.keys():
         raise ValueError("Missing required Otter DLL exports")
-    # 仅必需 API 必须指向可执行节；其他合法数据导出不被误当作函数。
+    # Only required APIs must target executable sections; do not mistake other valid data exports for functions.
     for name in required:
         image.rva(exports[name], executable=True)
     imports = image.imports()

@@ -1,4 +1,4 @@
-//! 已paint滚动条身份与捕获坐标；不持Art/scene/像素，不把捕获后的屏外坐标当命中资格。
+//! Painted scrollbar identity and captured coordinates; no Art/scene/pixels, and offscreen coordinates after capture are not hit eligibility.
 use crate::{
     surface_presentation::Presentation,
     surface_scroll::Bar,

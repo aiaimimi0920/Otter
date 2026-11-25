@@ -1,4 +1,4 @@
-//! 显式用户选择的单次决定；拥有原提示，网络尝试后不允许重放或翻转选择。
+//! One-shot decisions from explicit user choices; own the original prompt and prohibit replay or reversing the choice after a network attempt.
 use super::*;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Choice {
@@ -17,7 +17,7 @@ pub struct Decision {
     confirmed: bool,
 }
 impl Decision {
-    /// 调用者必须在实际用户选择之后调用；没有默认选择，不从 payload 推导批准。
+    /// Call only after an actual user choice; there is no default choice, and approval must not be inferred from the payload.
     pub fn new(
         request: Request,
         event: &ClickEvent,
@@ -69,7 +69,7 @@ impl Decision {
     pub fn attempted(&self) -> bool {
         self.attempted
     }
-    /// 仅表示决定 HTTP 成功，不表示动作已执行或场景已更新。
+    /// Indicates only successful decision HTTP submission, not action execution or a scene update.
     pub fn confirmed(&self) -> bool {
         self.confirmed
     }

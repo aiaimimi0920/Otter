@@ -1,4 +1,4 @@
-//! 已释放 Loom 正式主端口到原样 Shader 内容；不扫描次选端口、不加载内容指示的资源。
+//! Released official Loom primary ports to verbatim Shader content; no alternate-port scanning or loading resources named by content.
 use super::loom_output_batch::{Batch, Output};
 use serde::Deserialize;
 use serde_json::Value;
@@ -48,7 +48,7 @@ impl Payload {
     }
     fn from_value(value: Value) -> Result<Self, Error> {
         let payload: Self = if value["type"].as_str() == Some("shader") {
-            // direct Value 已由协议解析；类型化前先拒绝超量，避免再构造一份大映射。
+            // The protocol already parsed direct Value; reject excess before typing to avoid constructing another large map.
             if value["textures"]
                 .as_object()
                 .is_some_and(|map| map.len() > 31)
@@ -73,7 +73,7 @@ impl Payload {
                 .and_then(|first| first["text"].as_str())
                 .filter(|text| text.len() <= 64 * 1024 * 1024)
                 .ok_or(Error::Unsupported)?;
-            // 直接反序列化有计数上限的字段，不先将 wrapper 文本展开为另一个无界 Value 树。
+            // Deserialize count-limited fields directly, without expanding wrapper text into another unbounded Value tree first.
             serde_json::from_str(text).map_err(|_| Error::Unsupported)?
         };
         if payload.kind != "shader" || payload.success == Some(false) {
@@ -108,7 +108,7 @@ impl Payload {
         }
         for name in payload.textures.keys() {
             if name == "input" || crate::shader_angle::name(name).is_err() {
-                // 旧异步 response.input 与外部 input 有竞争；新链拒绝歧义，不静默择一。
+                // Legacy asynchronous response.input races with external input; the new chain rejects ambiguity instead of silently choosing one.
                 return Err(Error::Bindings);
             }
         }

@@ -1,4 +1,4 @@
-//! 同预算真实 child/产品 worker 的四边占位、同步客户盒、稳定 identity 与回收。
+//! Four-side space allocation, synchronous client boxes, stable identity, and cleanup in real children/product workers under the same budget.
 use super::*;
 use sha2::{Digest, Sha256};
 pub(crate) const SOURCE: &str = include_str!("../tests/fixtures/javascript-border-sides.js");

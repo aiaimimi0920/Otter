@@ -1,4 +1,4 @@
-//! 启动恢复屏障：文件准备/隐藏建窗完成后才接收全局捕获或进入正常消息循环。
+//! Startup restore barrier: accept global capture or enter the normal message loop only after file preparation and hidden-window creation finish.
 use super::*;
 impl Application {
     pub(in crate::desktop) unsafe fn install_workspace_checkpoint(
@@ -16,7 +16,7 @@ impl Application {
             self.request_restore_input(crate::desktop::session_job::Input::File(path), None, None)?;
             loop {
                 self.execution_wake.acknowledge();
-                // 错误直接终止默认启动；不得把坏/未知工作区当空工作区再覆盖。
+                // Errors abort default startup immediately; never treat a corrupt/unknown workspace as empty and overwrite it.
                 self.process_restore(false)?;
                 if self.restore_job.is_none() {
                     break;
@@ -60,7 +60,7 @@ impl Application {
                 owner.projections = record.restored_projections.take();
                 owner.projection_workspace = Some(self.workspace.identity_stamp());
             }
-            // 默认恢复不是用户选择的保存文件；不能给 Ctrl+S 隐式写入 profile 的授权。
+            // Default restoration is not a user-selected save file; it must not implicitly authorize Ctrl+S to write the profile.
             record.saved_path = None;
             record.disk_original = None;
             self.saved_state = None;

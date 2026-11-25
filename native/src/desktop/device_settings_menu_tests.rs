@@ -1,4 +1,4 @@
-//! 左侧新增入口消费真实授权目录和原请求；不读取身份凭据、不联网、不点击用户桌面。
+//! New left-side entries consume real authorization catalogs/original requests; no identity-credential reads, networking, or user-desktop clicks.
 use super::*;
 use crate::desktop::device_authorization_ui::{self as auth, settings as menus, Request};
 use menus::Section;
@@ -68,8 +68,8 @@ fn actual_sidebar_buttons_notify_and_owned_cascade_routes_policy_after_cleanup()
             GetAncestor(panel, GA_ROOTOWNER),
             GetAncestor(f.owner.0, GA_ROOTOWNER)
         );
-        // 私有 desktop 不能成为系统前台；验证真实按钮通知与同一菜单选择器，
-        // 不把这项检查当作前台鼠标/嵌套消息泵的普通桌面验收。
+        // Private desktops cannot become system foreground; verify actual button notifications and the same menu selector,
+        // without claiming ordinary-desktop acceptance for foreground mouse input/nested message pumps.
         for id in [201, 202, 203] {
             let child = field(panel, id);
             let _ = SetFocus(Some(child));

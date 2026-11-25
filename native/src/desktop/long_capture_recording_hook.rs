@@ -1,4 +1,4 @@
-//! 只在显式录制期存在的只读 wheel hook。回调仅过滤与覆盖固定大小提示，始终传递原输入。
+//! Read-only wheel hook exists only during explicit recording; callbacks filter/overwrite fixed-size hints and always forward original input.
 use std::{cell::Cell, marker::PhantomData, rc::Rc};
 use windows::{
     core::{w, Error, Result},
@@ -84,7 +84,7 @@ impl Hook {
 }
 impl Drop for Hook {
     fn drop(&mut self) {
-        // 先撤销回调可见状态；Unhook / RemoveProp 的重入不得再发布提示。
+        // Revoke callback-visible state first; Unhook/RemoveProp reentrancy must not publish further hints.
         WINDOW.with(|value| value.set(HWND::default()));
         ROOT.with(|value| value.set(0));
         PENDING.with(|value| value.set(None));

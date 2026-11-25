@@ -1,5 +1,5 @@
 #![cfg(windows)]
-//! 实际产品 EXE 的候选启动边界；可选真实门由显式 pinned fixture 供给，不默认激活。
+//! Candidate-startup boundary of the actual product EXE; optional real gates use explicitly pinned fixtures and are not enabled by default.
 #[cfg(any(debug_assertions, feature = "smoke-test"))]
 use std::{
     fs,
@@ -129,7 +129,7 @@ fn production_library_cannot_load_angle_or_start_legacy_child() {
         egl: fingerprint,
         gles: fingerprint,
     };
-    // 集成测试链接非cfg(test)产品库；不借助产品CLI拒绝来掩盖公共API仍可加载。
+    // Integration tests link the non-cfg(test) product library; CLI rejection must not hide continued loading through the public API.
     assert!(matches!(
         angle::Renderer::new(&directory, identity, 1, 1, angle::Backend::D3d11),
         Err(angle::Error::Library)
@@ -191,7 +191,7 @@ fn native_shader_product_default_fetch_commit_and_cached_rerender() {
     assert!(stdout.contains("cache-hit=false first-fetch=true"));
     assert!(stdout.contains("cache-hit=true first-fetch=false"));
     assert!(stdout.contains("native-smoke:"));
-    // 保留本次小型合成peer夹具；不清理用户目录或其他测试证据。
+    // Retain this run's small synthetic peer fixture; do not clean user directories or other test evidence.
 }
 #[cfg(any(debug_assertions, feature = "smoke-test"))]
 struct Fixture(PathBuf);
@@ -254,11 +254,11 @@ fn shader_product_exe_rejects_retired_trusted_candidate_without_network() {
     assert!(output.stdout.is_empty());
     assert!(String::from_utf8_lossy(&output.stderr).contains("Shader candidate is retired"));
     peer.assert_unused();
-    // 产品不再打开候选或启动旧 child；历史夹具应仍可移动。
+    // The product no longer opens the candidate or starts the old child; historical fixtures must remain movable.
     let moved = candidate.with_extension("moved");
     fs::rename(&candidate, &moved).unwrap();
     fs::rename(&moved, &candidate).unwrap();
-    // 保留自选目录的历史夹具和回执；不按词法路径猜测能否清理。
+    // Retain historical fixtures and receipts in caller-selected directories; do not infer cleanup permission from lexical paths.
     println!("retired-shader-fixture-retained: {}", fixture.0.display());
     println!("retired-shader-product-verified: connections=0 children=0 locks-released=true");
 }

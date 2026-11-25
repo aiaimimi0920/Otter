@@ -1,4 +1,4 @@
-//! worker 独占的活动会话；首次空间追加成功之前，旧一维会话始终是权威状态。
+//! Worker-exclusive active sessions; old 1D sessions remain authoritative until first spatial append succeeds.
 use super::*;
 pub(super) enum Active {
     Linear(Session),
@@ -57,7 +57,7 @@ impl Active {
                 };
                 let result = append_spatial(&mut candidate, &mut motion, frame, movement, cancel);
                 if matches!(result, Ok(SpatialAppend::Added { .. })) {
-                    // 单 owner 替换同时释放旧帧；失败/重复/歧义不切换，也不改变参考坐标。
+                    // Single-owner replacement also releases old frames; failure/duplication/ambiguity never switches or changes reference coordinates.
                     *self = Self::Spatial(candidate, motion);
                 }
                 Completion::SpatialAppend(result)
@@ -90,7 +90,7 @@ impl Active {
     }
 }
 
-// 首次转换和后续追加共用方向提交规则；物理取景框移动不能冒充页面滚动。
+// Initial conversion/subsequent appends share direction-commit rules; physical viewport movement is not page scrolling.
 fn append_spatial(
     session: &mut SpatialSession,
     motion: &mut Option<Direction>,

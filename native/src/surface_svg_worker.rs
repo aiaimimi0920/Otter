@@ -1,4 +1,4 @@
-//! 私有静态 SVG renderer；所有 XML/树/栅格化仅在受限 Job child 生产入口执行。
+//! Private static SVG renderer; all XML/tree/rasterization work runs only in restricted Job-child production entries.
 use crate::surface_image_worker_host::{self as host, Decoded};
 use std::{ffi::OsString, io};
 #[path = "surface_svg_filter_budget.rs"]
@@ -20,7 +20,7 @@ pub mod text_fonts;
 pub mod viewport;
 pub const FLAG: &str = "--native-svg-worker";
 pub const SESSION_FLAG: &str = "--native-svg-session-worker";
-// 累计滤镜策略积分；不是耗时或峰值内存承诺，不能替代 Job 与 XML 准入限制。
+// Cumulative filter-policy cost points, not timing or peak-memory promises; no replacement for Job and XML admission limits.
 const MAX_FILTER_WORK: u64 = 4_000_000_000;
 #[cfg(test)]
 #[path = "surface_svg_work_resource_tests.rs"]
@@ -65,13 +65,13 @@ fn decode(bytes: &[u8]) -> io::Result<Decoded> {
     let normalized = normalize::normalize_if_needed(source, initial_doc.root_element(), &viewport)?;
     let reparsed = normalized.as_deref().map(policy::parse).transpose()?;
     let doc = reparsed.as_ref().unwrap_or(&initial_doc);
-    // 字体查询、文件数与字节预算属于单张图；复用 child 不能累积前一请求的额度。
+    // Font-query, file-count, and byte budgets belong to each image; child reuse must not accumulate prior requests' allowances.
     let text_fonts = doc
         .descendants()
         .any(|n| n.is_element() && n.tag_name().name() == "text")
         .then(text_fonts::TextFonts::new)
         .transpose()?;
-    // 不用 from_str/from_data：它们会重新启用 DTD。双 resolver 拒绝是第二道防线。
+    // Avoid from_str/from_data, which reenable DTD. Rejection by both resolvers provides a second defense.
     let options = resvg::usvg::Options {
         font_family: text_fonts::DEFAULT_FAMILY.into(),
         font_size: 16.0,
@@ -108,7 +108,7 @@ fn decode(bytes: &[u8]) -> io::Result<Decoded> {
     let transform = resvg::tiny_skia::Transform::from_scale(sx, sy);
     rasterize(&tree, transform, &mut pixmap.as_mut()).map_err(|_| invalid())?;
     let mut pixels = pixmap.take();
-    // tiny-skia 已预乘；只交换 RGBA/BGRA，不能二次预乘 alpha。
+    // tiny-skia is already premultiplied; swap only RGBA/BGRA without premultiplying alpha again.
     for pixel in pixels.chunks_exact_mut(4) {
         pixel.swap(0, 2);
     }
@@ -124,14 +124,14 @@ fn rasterize(
     transform: resvg::tiny_skia::Transform,
     pixmap: &mut resvg::tiny_skia::PixmapMut,
 ) -> Result<(), resvg::RenderError> {
-    // 失败时不交付部分像素；嵌套 image/pattern/mask/feImage 共享同一次请求的额度。
+    // Deliver no partial pixels on failure; nested image/pattern/mask/feImage share this request's allowance.
     resvg::render_with_filter_budget(tree, transform, pixmap, MAX_FILTER_WORK)
 }
 #[cfg(test)]
 mod tests {
     #[test]
     fn surface_svg_backend_budget_rejects_before_turbulence_work() {
-        // 直接验证 worker 后端兜底，不绕过或开放生产 decode 的滤镜拒绝策略。
+        // Directly verify worker-backend fallback without bypassing or relaxing production decode's filter-rejection policy.
         let source = "<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16'><defs><filter id='f' x='0' y='0' width='100%' height='100%'><feTurbulence baseFrequency='.1' numOctaves='1000000000'/></filter></defs><rect width='16' height='16' filter='url(#f)'/></svg>";
         let options = resvg::usvg::Options::default();
         let tree = resvg::usvg::Tree::from_str(source, &options).unwrap();

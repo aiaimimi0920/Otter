@@ -1,4 +1,4 @@
-//! Slider 挂载与共享 FIFO 接缝；无文本 draft/表单值，键盘 input 前预留 commit 槽。
+//! Slider mounting/shared-FIFO seam; no text draft/form values, reserving a commit slot before keyboard input.
 use super::*;
 use crate::desktop::surface_slider_control::{Control, NOTIFY};
 #[derive(PartialEq)]
@@ -43,7 +43,7 @@ impl Mount {
         self.sliders.get(id).map(|field| field.accepted)
     }
     pub(in crate::desktop) fn take_slider_changes(&mut self) -> Vec<(String, f64, f64)> {
-        // 最多 64 个字段；只读已接纳值，不扫描 HWND 或创建第二份待发送队列。
+        // At most 64 fields; read only accepted values without scanning HWNDs or creating another outbound queue.
         self.sliders
             .iter_mut()
             .filter_map(|(id, field)| {
@@ -95,7 +95,7 @@ impl Mount {
                 UIA_E_INVALIDOPERATION as i32,
             )));
         }
-        // 同一 UI owner 内已排除本控件捕获，set_value 不会 ReleaseCapture/通知重入。
+        // Capture for this control is already excluded within the same UI owner; set_value cannot ReleaseCapture or reenter notifications.
         field.control.set_value(next)?;
         let snapshot = next.to_string();
         let input = self.intents.push(id, Phase::Input, &snapshot);
@@ -125,7 +125,7 @@ impl Mount {
             })
         });
         self.fields_changed |= old != self.sliders.len();
-        // 在创建同 ID 新字段前清旧合同，且不能继承别种字段的意图。
+        // Clear the old contract before creating a same-ID field; never inherit intents from another field type.
         self.intents.retain(|id| {
             if nodes
                 .get(id)

@@ -1,4 +1,4 @@
-//! 观看端只镜像 Loom 的执行审计，不在收到 trigger_event 时重复执行 Surface 动作。
+//! Viewers only mirror Loom's execution audit; receiving trigger_event must not execute the Surface action again.
 use crate::{
     live_relay_observation::Source,
     live_relay_viewer_identity::{identifier, parse},
@@ -81,7 +81,7 @@ pub struct Audits {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Snapshot {
-    // 与主干兼容：旧服务可省略审计快照，但 null/错误类型仍失败。
+    // Compatible with mainline: older services may omit audit snapshots, but null/wrong types still fail.
     #[serde(default)]
     trigger_audits: Vec<Audit>,
 }
@@ -101,7 +101,7 @@ impl Audits {
     pub fn iter(&self) -> impl Iterator<Item = &Audit> {
         self.values.iter().map(AsRef::as_ref)
     }
-    /// 完整业务事务应在其副本上调用本方法；这里只提交审计子批次。
+    /// The complete business transaction should call this on its copy; only the audit sub-batch is committed here.
     pub fn apply<'a>(&mut self, payloads: impl IntoIterator<Item = &'a [u8]>) -> Result<(), Error> {
         let mut next = self.clone();
         for payload in payloads {
@@ -116,7 +116,7 @@ impl Audits {
             .iter_mut()
             .find(|old| old.idempotency_key == value.idempotency_key)
         {
-            // 相同键的最终结果可替换 reservation；反方向即使迟到也必须忽略。
+            // A final result with the same key may replace a reservation; the reverse must be ignored even if it arrives late.
             if !existing.reservation() && value.reservation() {
                 return;
             }

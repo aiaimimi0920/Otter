@@ -1,4 +1,4 @@
-//! 复用隐藏Live/WARP源验证共享系统准入、业务冻结及原销毁；不启动采集或注入用户输入。
+//! Reuse hidden Live/WARP sources to verify shared system admission, business freezing, and original destruction; no capture startup or user-input injection.
 use super::*;
 use crate::desktop::session_end::{with_owner, with_query, Control};
 #[test]

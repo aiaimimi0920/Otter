@@ -1,4 +1,4 @@
-//! 普通/Live 外框与合成预览共用的物理宽度、预乘白色 alpha；不改变文档像素。
+//! Physical width and premultiplied white alpha shared by ordinary/Live borders and composite previews; document pixels remain unchanged.
 pub(crate) fn width(dpi: u32) -> u32 {
     (2 * dpi.clamp(96, 768) + 48) / 96
 }

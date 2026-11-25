@@ -1,4 +1,4 @@
-//! 原 Application 的局部/全局消息→唯一执行 owner；全局夹具不占用日常产品的 Ctrl+4。
+//! Original Application local/global messages -> sole execution owner; the global fixture does not occupy the everyday product's Ctrl+4.
 use super::*;
 use crate::{desktop::capability_job::Source, loom_extension_session::test_peer as peer};
 use serde_json::{json, Value};

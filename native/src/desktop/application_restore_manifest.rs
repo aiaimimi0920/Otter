@@ -1,4 +1,4 @@
-//! 建窗前验证恢复批次的一一对应关系；不允许缺失/重复节点被部分发布。
+//! Validate one-to-one restore-batch correspondence before window creation; missing/duplicate nodes must not be partially published.
 use super::*;
 
 pub(super) fn validate(prepared: &Prepared) -> Result<()> {
@@ -13,7 +13,7 @@ pub(super) fn validate(prepared: &Prepared) -> Result<()> {
     {
         return Err(invalid());
     }
-    // prepare_states 按工作区顺序创建密集批次；在建窗前重新验证，包含同数量的重复或错序。
+    // prepare_states builds a dense batch in workspace order; revalidate before creating windows, including same-count duplicates or reordered entries.
     for ((((unit, state), placement), images), (annotation_unit, ids)) in units
         .iter()
         .zip(&prepared.states)

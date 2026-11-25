@@ -1,4 +1,4 @@
-//! 受限计算 child 的唯一进程/Job owner；领域层只提供固定入口、内存策略和容量池。
+//! Sole process/Job owner for restricted compute children; domain layers supply only fixed entries, memory policy, and capacity pools.
 use std::{
     io,
     os::windows::{
@@ -74,7 +74,7 @@ impl Child {
         }
     }
 }
-// 只读观测句柄不拥有终止策略或容量租约；测试在 API 返回后核验真实回收与峰值。
+// Read-only observation handles own neither termination policy nor capacity leases; tests verify actual reclamation/peaks after API return.
 #[cfg(any(test, feature = "test-support"))]
 pub struct Probe {
     process: OwnedHandle,
@@ -107,7 +107,7 @@ fn peak_job_bytes(job: &OwnedHandle) -> io::Result<usize> {
 impl Drop for Child {
     fn drop(&mut self) {
         unsafe {
-            // Job 无 breakaway 且只准一个进程；回收不承诺包含驱动/内核清理的硬实时上界。
+            // Jobs disallow breakaway and permit one process only; cleanup has no hard-real-time guarantee including driver/kernel teardown.
             let _ = TerminateJobObject(HANDLE(self.job.as_raw_handle()), 1);
             let _ = WaitForSingleObject(HANDLE(self.process.as_raw_handle()), INFINITE);
         }
@@ -149,7 +149,7 @@ fn capacity_reclaiming(
 ) -> io::Result<crate::byte_budget::Lease> {
     loop {
         check_active(deadline, stopped)?;
-        // 空闲 child 仍持有容量；每次重试显式回收，不把有副作用的工作藏入 stopped。
+        // Idle children retain capacity; reclaim explicitly per retry, never hide side-effectful work inside stopped.
         reclaim();
         check_active(deadline, stopped)?;
         if let Some(lease) = pool.reserve(maximum) {
@@ -165,7 +165,7 @@ fn capacity_reclaiming(
         }
     }
 }
-/// 此入口只接受 crate 内固定 suffix/策略；不得把远端数据拼进命令行。
+/// Accept only crate-internal fixed suffixes/policies; never interpolate remote data into command lines.
 pub fn start(
     endpoint: OwnedHandle,
     deadline: Instant,
@@ -190,7 +190,7 @@ pub fn start_reclaiming(
         reclaim,
     )
 }
-// 生产只经 start 选择 current_exe；测试才可指定同 target/profile 的产品 EXE。
+// Production chooses current_exe only through start; tests alone may select product EXEs in the same target/profile.
 pub fn start_at(
     endpoint: OwnedHandle,
     deadline: Instant,
@@ -341,7 +341,7 @@ pub fn start_at_reclaiming(
 #[cfg(test)]
 #[path = "bounded_worker_process_tests.rs"]
 mod tests;
-/// child 必须在读取/执行领域载荷前验证父侧 Job，拒绝直接私有入口绕过限额。
+/// Children must verify parent Job restrictions before reading/executing domain payloads; direct private entry cannot bypass limits.
 pub fn require_limits(maximum: usize) -> io::Result<()> {
     unsafe {
         let mut limits = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();

@@ -1,4 +1,4 @@
-//! 当前可用的贴图设置字段；原主干 SVG 不重画，图像自然比例来自实际显示源。
+//! Currently available pin settings; do not redraw original mainline SVGs, and derive natural image proportions from the actual displayed source.
 use super::*;
 fn icon(name: &str) -> neuro_mini_ui::Icon {
     neuro_mini_ui::Icon::svg(match name {

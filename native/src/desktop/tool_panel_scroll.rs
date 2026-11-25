@@ -1,4 +1,4 @@
-//! 面板滚动范围由实际内容/客户区推导；偏移由 Win32 scrollbar 持有，无定时器。
+//! Panel scroll ranges derive from actual content/client size; Win32 scrollbar owns offsets, without timers.
 use windows::Win32::UI::Controls::{SetScrollInfo, SetScrollPos};
 use windows::Win32::UI::HiDpi::GetDpiForWindow;
 #[cfg(any(test, debug_assertions, feature = "smoke-test"))]
@@ -96,7 +96,7 @@ pub(super) unsafe fn dispatch(
     let next = if matches!(msg, WM_MOUSEWHEEL | WM_MOUSEHWHEEL) {
         let horizontal = msg == WM_MOUSEHWHEEL;
         let delta = (wp.0 >> 16) as i16 as i32 * if horizontal { 1 } else { -1 };
-        // 面板横向为非文本按钮网格，以 8 DIP 作为字符滚动单位。
+        // The panel's horizontal axis is a nontext button grid, using 8 DIP as the character-scroll unit.
         let unit = if horizontal {
             (8 * GetDpiForWindow(hwnd).max(96) as i64 / 96).max(1)
         } else {

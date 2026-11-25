@@ -1,4 +1,4 @@
-//! scope 格式、完整会话兼容及字节凭证；不访问磁盘、身份或网络。
+//! Scope format, complete-session compatibility, and byte credentials; no disk, identity, or network access.
 use super::*;
 use crate::{session_write, workspace_session::Topology};
 use std::sync::atomic::AtomicBool;

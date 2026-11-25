@@ -1,4 +1,4 @@
-//! 编译/分配前的输入准入及固定 ABI 布局；名字只在校验后生成 HLSL。
+//! Input admission and fixed ABI layout before compilation/allocation; names generate HLSL only after validation.
 use super::*;
 pub(super) fn image_bytes(width: u32, height: u32) -> Result<usize> {
     if width > 8192 || height > 8192 {
@@ -77,7 +77,7 @@ pub(super) fn allocate_with(
     bytes.resize(count, 0);
     Ok((bytes, lease))
 }
-/// b0/c0 为尺寸；每个标量单独占一个 float4，避免平台/编译器紧凑排列歧义。
+/// b0/c0 holds dimensions; each scalar occupies its own float4 to avoid platform/compiler packing ambiguity.
 pub(super) fn constants(request: &Request<'_>) -> Vec<u8> {
     let mut bytes = vec![0; (request.uniforms.len() + 1) * 16];
     bytes[0..4].copy_from_slice(&(request.width as f32).to_le_bytes());

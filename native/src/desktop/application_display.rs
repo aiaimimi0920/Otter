@@ -1,4 +1,4 @@
-//! 工作区显示解析到共享像素/编辑快照；不覆盖 Canvas 的原图，不创建 GPU 资源或编码图片。
+//! Resolve workspace display into shared pixels/edit snapshots; do not overwrite Canvas originals, create GPU resources, or encode images.
 use super::Application;
 #[path = "application_display_cache.rs"]
 mod cache;
@@ -255,11 +255,11 @@ impl Application {
             } else {
                 &origin.image
             };
-            // 正式图片可以来自上游，但 Art 覆盖层始终由目标文档拥有。
-            // 本地编辑来源已在 worker 合成；此处只叠加目标自己的标注。
+            // Committed images may come from upstream, but the target document always owns Art overlays.
+            // The worker already composed the locally edited source; only add the target's own annotations here.
             let art_formal = views[index].art;
             let canvas = if art_formal { &doc.state } else { source }.canvas.borrow();
-            // Art 的本地标注属于显示覆盖层，不写入正式端口，也不沿正式结果中继传播。
+            // Art's local annotations belong to the display overlay; they neither enter committed ports nor propagate through committed-result relays.
             let own_art_overlay =
                 art_formal && (canvas.editor.has_edit_state() || source_index != index);
             let editor = (origin.local || own_art_overlay).then_some(&canvas.editor);
@@ -276,7 +276,7 @@ impl Application {
                     ) {
                         Ok(next) => next,
                         Err(error) => {
-                            // 保留上一帧；仅在文档或结果改变后重试，避免失败重绘循环。
+                            // Retain the previous frame; retry only after the document or result changes to avoid a failed-repaint loop.
                             eprintln!("Art overlay mapping failed: {error:?}");
                             continue;
                         }
@@ -289,7 +289,7 @@ impl Application {
                 invalidate(doc);
             }
         }
-        // 连接撤销或目标关闭后，不因来源文档仍存活而长期保留合成像素。
+        // After disconnection or target closure, do not retain composed pixels indefinitely just because the source document remains alive.
         self.display_composition
             .borrow_mut()
             .retain(|id, _, _| composition_sources.contains(id));
@@ -299,9 +299,9 @@ impl Application {
 }
 
 fn invalidate(doc: &crate::desktop::document_window::DocumentWindow) {
-    // 不同来源可能具有相同的像素身份和局部 revision；换源时退休旧命中缓存。
+    // Different sources may share pixel identity and a local revision; retire old cache hits when the source changes.
     *doc.state.hit_region.borrow_mut() = Default::default();
-    // 只排队失效区域，不同步发送绘制消息；重复版本不触发绘制，也不擦背景。
+    // Only queue invalid regions, without synchronously sending paint messages; repeated versions neither trigger painting nor erase the background.
     unsafe {
         if doc.state.canvas.borrow().pinned {
             crate::desktop::pin_window::fit(doc.window.0, &doc.state);

@@ -1,8 +1,8 @@
-//! Live 静态化位置：使用提交时客户区中的图像区域，去除窗口边框/留黑边，不重新采样像素。
+//! Position frozen Live pins using the image region in the client area at commit time; remove window borders/letterboxing without resampling pixels.
 use super::*;
 use crate::pin_geometry::PinRect;
 impl LiveWindow {
-    /// 调用方处于应用的 per-monitor DPI 上下文；输入尺寸必须来自本次保留帧。
+    /// The caller uses the application's per-monitor DPI context; dimensions must come from this retained frame.
     pub fn freeze_rect(&self, source: [u32; 2]) -> Result<PinRect> {
         if !self.is_alive() {
             return Err(Error::new(E_ABORT, "Live window is closed"));

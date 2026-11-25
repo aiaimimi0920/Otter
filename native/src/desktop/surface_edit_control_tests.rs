@@ -1,4 +1,4 @@
-//! 隐藏 HWND 上实际执行 EDIT 写入/选择/替换及父子销毁，不修改系统剪贴板。
+//! Actual EDIT writes/selections/replacements and parent-child destruction on hidden HWNDs; no system clipboard changes.
 use super::*;
 #[path = "surface_edit_placeholder_tests.rs"]
 mod placeholder_tests;

@@ -1,4 +1,4 @@
-//! Tile无handler值的UI本地状态；不改权威scene、不持像素，不参与文本表单或网络动作。
+//! UI-local state for handler-free Tile values; no authoritative scene changes, pixels, text forms, or network actions.
 use crate::{
     surface_scene::{Kind, Node, Scene},
     tile_surface_focus::Focus,
@@ -22,7 +22,7 @@ pub(crate) struct Entry {
 pub(crate) struct Cache {
     rows: Rc<Vec<Entry>>,
 }
-/// 只接受无对应 handler 的真实值控件；索引/数值存储固定大小，不保留标签或场景副本。
+/// Accept only actual value controls lacking corresponding handlers; fixed-size index/numeric storage retains no labels or scene copies.
 pub(crate) fn source_node(node: &Node) -> Option<Value> {
     if node.props().get("disabled") == Some(&serde_json::Value::Bool(true)) {
         return None;
@@ -123,14 +123,14 @@ impl Cache {
             .and_then(|i| self.refresh(i, focus, source))
             .or_else(|| source.map(|(_, value)| value))
     }
-    /// 与文本会话合计沿用每view64/总256字段，不挤出旧字段或静默扩大预算。
+    /// Share existing limits with text sessions: 64 fields per view/256 total, without evicting old fields or silently enlarging budgets.
     pub fn set(
         &mut self,
         focus: Focus,
         value: Value,
         text: (usize, usize),
     ) -> Result<(), &'static str> {
-        // 校验、换代和指纹共用同一个已解析节点，不读取用于呈现的本地覆盖值。
+        // Validation, generation changes, and fingerprints share one parsed node without reading local override values used for presentation.
         let scene = Scene::parse(&focus.anchor.snapshot.scene).ok();
         let source = scene
             .as_ref()
@@ -174,7 +174,7 @@ impl Cache {
         });
         Ok(())
     }
-    /// 新paint才同步；同view准备空隙只保留，不允许借此新输入。
+    /// Synchronize only on new paints; same-view preparation gaps retain state but allow no new input.
     pub fn reconcile(
         &mut self,
         mut current: impl FnMut(&Focus) -> Option<Focus>,

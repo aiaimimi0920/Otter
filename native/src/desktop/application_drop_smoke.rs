@@ -1,4 +1,4 @@
-//! 向自有隐藏 HWND 投递 Shell 文件包，验证应用集合接收新钉图而非替换源文档。
+//! Deliver a Shell file package to an owned hidden HWND and verify the application collection receives new pins rather than replacing the source document.
 use super::*;
 use crate::desktop::{file_drop_smoke, open_job};
 
@@ -6,7 +6,7 @@ pub(super) unsafe fn run(app: &mut Application) -> Result<()> {
     let fixture = smoke::image_fixture::ImageFile::new()?;
     let path = fixture.path().to_owned();
     let count = app.documents.len();
-    // 可见流程还会登记工作区附属窗口；回滚必须保留原清单，不能假定每图仅两个 HWND。
+    // Visible flows also register workspace auxiliary windows; rollback must preserve the original list, not assume exactly two HWNDs per image.
     let capture_windows = app.capture_windows.borrow().clone();
     let prepare = || super::super::open_image::PreparedDocument::open(&path, true);
     let mut staged_hwnd = HWND::default();

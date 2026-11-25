@@ -1,4 +1,4 @@
-//! 父侧 WebP runner：有限协议、共享 Pixels 租约、截止时间和撤销；没有主进程解码回退。
+//! Parent-side WebP runner: bounded protocol, shared Pixels leases, deadlines, and revocation; no main-process decoding fallback.
 use super::*;
 use crate::surface_webp_header::inspect;
 #[cfg(test)]
@@ -21,7 +21,7 @@ fn run(bytes: &[u8], stopped: &impl Fn() -> bool) -> io::Result<Image> {
         process::spawn(endpoint, deadline, stopped)
     })
 }
-// 启动接缝供测试故障 child；生产调用只绑定当前 EXE 的固定私有入口。
+// Launch seam for faulty test children; production calls bind only the current EXE's fixed private entry.
 fn run_with(
     bytes: &[u8],
     stopped: &impl Fn() -> bool,

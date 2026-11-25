@@ -1,4 +1,4 @@
-//! 声明式场景的渲染前合同；只解析数据，不执行脚本、读取资源或宣称节点已可绘制。
+//! Prerender contract for declarative scenes; parses data only, without executing scripts, reading resources, or claiming nodes are drawable.
 use serde::Deserialize;
 use serde_json::{Map, Value};
 use std::collections::{BTreeMap, BTreeSet};
@@ -49,16 +49,16 @@ pub struct Node {
     button_style: std::sync::OnceLock<Map<String, Value>>,
     #[serde(skip)]
     textarea_style: std::sync::OnceLock<Map<String, Value>>,
-    // 本地呈现投影：未解析资源隐藏；有内联来源但无像素时保留独立替代内容。
+    // Local presentation projection: hide unresolved resources; retain separate alternative content when an inline source exists without pixels.
     #[serde(skip)]
     image_unresolved: bool,
     #[serde(skip)]
     image_placeholder: bool,
-    // 仅显式 JS 呈现帧经私有尺寸验证后写入；普通声明式输入不能声明像素已存在。
+    // Written only by explicit JS presentation frames after private dimension validation; ordinary declarative input cannot claim pixels already exist.
     #[serde(skip)]
     canvas_size: Option<[u32; 2]>,
 }
-// Loom 的四项可选属性在缺省时序列化为 null；只将其视为空对象，不放宽其他类型或集合。
+// Loom serializes four absent optional properties as null; treat only those as empty objects, without relaxing other types or collections.
 fn optional_map<'de, D: serde::Deserializer<'de>>(
     deserializer: D,
 ) -> Result<Map<String, Value>, D::Error> {
@@ -68,7 +68,7 @@ impl Node {
     pub fn canvas_size(&self) -> Option<[u32; 2]> {
         self.canvas_size
     }
-    /// 只判断旧 imageSource 的内联来源类别，不解析、下载或宣称可解码。
+    /// Classify only the inline source category of legacy imageSource, without parsing, downloading, or claiming decodability.
     pub fn inline_image_source(&self) -> Option<&str> {
         if self.kind != Kind::Image
             || self
@@ -127,7 +127,7 @@ impl Node {
             &self.layout
         }
     }
-    /// 未提供或不在长度白名单中的值交回布局默认规则，不作为原始表达式执行。
+    /// Missing values or values outside the length allowlist return to layout defaults rather than executing as raw expressions.
     pub fn layout_length(&self, key: &str) -> Option<crate::surface_length::Length> {
         crate::surface_length::Length::parse(self.layout().get(key)?)
     }
@@ -199,7 +199,7 @@ impl Scene {
         }
         visit(&mut self.root, sizes);
     }
-    /// 仅投影图片可用性，不改原始属性/资源标识或授权；普通 parse 保持严格测量语义。
+    /// Project only image availability, without changing original properties/resource identifiers or authorization; ordinary parse retains strict measurement semantics.
     pub fn with_image_availability(mut self, mut available: impl FnMut(&str) -> bool) -> Self {
         fn visit(node: &mut Node, available: &mut impl FnMut(&str) -> bool) {
             if node.kind == Kind::Image {
@@ -211,7 +211,7 @@ impl Scene {
                 visit(child, available);
             }
         }
-        // parse 已限制深度与节点总数，不保留第二棵树或复制 JSON/像素。
+        // parse already limits depth and total nodes; do not retain a second tree or copy JSON/pixels.
         visit(&mut self.root, &mut available);
         self
     }
@@ -246,7 +246,7 @@ impl Scene {
             {
                 return Err(Error::Identity);
             }
-            // 保留未知属性供各节点解析器处理；有界数据不意味着 CSS、资源路径或动作可信。
+            // Preserve unknown properties for per-node parsers; bounded data does not make CSS, resource paths, or actions trustworthy.
             pending.extend(node.children.iter().map(|child| (child, depth + 1)));
         }
         let count = ids.len();

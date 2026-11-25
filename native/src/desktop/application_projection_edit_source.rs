@@ -1,4 +1,4 @@
-//! 源端初始化owner复用原协作单槽；一个目标落精确Checkpoint/ack后才处理下一目标。
+//! Source initialization owner reuses the original collaboration slot; process the next target only after the current target reaches exact Checkpoint/ack.
 use super::*;
 use crate::{
     desktop::projection_edit_workspace::{Base, Stamp},
@@ -136,8 +136,8 @@ impl Guard {
                         && target.binding.target() == expected.target()
                 });
         };
-        // 发布candidate后旧durable scope暂时失配；只核本owner持有的原/新allocation和索引，
-        // 不授予已保存事实。真正commit后仍须回到普通durable包含关系，再启动ack。
+        // Publishing the candidate temporarily mismatches the old durable scope; check only the original/new allocations and indexes held by this owner,
+        // without claiming persistence. After actual commit, return to ordinary durable inclusion relationships before starting ack.
         let next = candidate.binding();
         app.restored_session
             .as_ref()

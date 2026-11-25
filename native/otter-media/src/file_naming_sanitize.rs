@@ -1,4 +1,4 @@
-//! 按主干的替换合并、120 字符截断和设备名规避规则，增量构建有界 stem。
+//! Incrementally build bounded stems using mainline replacement merging, 120-character truncation, and device-name avoidance.
 use super::Error;
 #[derive(Default)]
 pub(super) struct Stem {

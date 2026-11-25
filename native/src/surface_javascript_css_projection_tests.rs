@@ -1,4 +1,4 @@
-//! 稀疏投影/层叠与原算法在真实QuickJS差分；不复制CSS转换或放宽产品预算。
+//! Real QuickJS differential tests compare sparse projection/cascade with the original algorithm without copying CSS conversion or relaxing product budgets.
 use super::*;
 
 fn collect(bootstrap: &str, source: &str) -> Option<serde_json::Value> {
@@ -81,7 +81,7 @@ fn reference() -> String {
         const wins = !previous || (important !== previous.important ? important :
           inline !== previous.inline ? inline > previous.inline : greater(specificity, previous.specificity));
         if (wins && previous) {
-          // winner只活在本次computed内；更新已有自有字段，不为相同属性的后来声明反复分配。
+          // Winners live only within this computed call; update existing own fields instead of reallocating for later declarations of the same property.
           previous.important = important; previous.inline = inline;
           previous.specificity = specificity; previous.value = item.value;
         } else if (wins) op.mapSet(winners, name, { important, inline, specificity, value: item.value });"#;
@@ -129,7 +129,7 @@ fn javascript_css_projection_sparse_preserves_contextual_rejections() {
     let reference = reference();
     for css in [
         "width:10px",
-        "border-width:1px;border-style:solid", // 正 used width 仍必须显式 border-box。
+        "border-width:1px;border-style:solid", // Positive used width still requires explicit border-box.
         "display:flex;align-items:baseline",
         "grid-row-start:1",
         "top:1px",
@@ -155,7 +155,7 @@ fn javascript_css_projection_cascade_rank_matches_lexicographic_oracle() {
         (":root > .row", [0, 2, 0]),
         (".row.row.row.row", [0, 4, 0]),
     ];
-    // 固定排列覆盖important/inline/三项specificity和相同rank的跨sheet源序。
+    // Fixed permutations cover important/inline/three specificity components and cross-sheet source order at equal rank.
     for round in 0..32 {
         let mut sheets = [String::new(), String::new()];
         let mut candidates = Vec::new();
@@ -226,7 +226,7 @@ fn javascript_css_projection_cascade_winners_are_local_and_own_data() {
       check(a,30,10);check(b,30,10);
       extra.replaceSync('.a{color:green;opacity:.3}.b{color:red;opacity:.4}');
       document.adoptedStyleSheets=[base,extra];
-      // value最后安装，避免测试自己的后续PropertyDescriptor继承它，污染本次winner字段即可。
+      // Install value last so later PropertyDescriptors in this test do not inherit it; polluting this winner's fields is sufficient.
       for(const key of ['important','inline','specificity','value'])Object.defineProperty(Object.prototype,key,{
         configurable:true,get(){throw Error('inherited winner read')},set(){throw Error('inherited winner write')}
       });

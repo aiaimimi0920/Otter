@@ -1,4 +1,4 @@
-//! 实际Wall LAN到混合Art/图片Tile，资源更新/冻结/黑场/停止或撤权；仅操作自有离屏窗口。
+//! Actual Wall LAN to mixed Art/image Tiles, resource updates/freeze/black frames/stop/revocation; owned offscreen windows only.
 use super::*;
 pub(super) fn run() {
     let _com = Apartment::new();

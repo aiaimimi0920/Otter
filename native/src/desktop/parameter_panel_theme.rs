@@ -1,4 +1,4 @@
-//! Neuro 语义映射；只借用系统 DC_BRUSH/字体，不常驻分配 GDI 对象。
+//! Neuro semantic mapping; borrow only system DC_BRUSH/fonts without persistent GDI allocations.
 use super::*;
 #[path = "parameter_panel_options_paint.rs"]
 pub(super) mod options;

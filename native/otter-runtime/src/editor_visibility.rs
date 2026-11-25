@@ -1,4 +1,4 @@
-//! 绘制/命中/窗口区域共用可见画笔判定；零宽不依赖D2D的hairline默认行为。
+//! Shared visible-pen checks for drawing, hit testing, and window regions; zero width must not rely on D2D's default hairline behavior.
 use super::{Stroke, Tool};
 impl Stroke {
     pub fn visible_outline(&self) -> bool {

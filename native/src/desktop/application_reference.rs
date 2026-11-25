@@ -1,4 +1,4 @@
-//! 收藏复用保存快照/worker 单槽，完成后只提交库原文；不伪装为磁盘保存成功。
+//! Favorites reuse the save snapshot/worker slot and commit only library source content on completion; never report this as a successful disk save.
 use super::*;
 impl Application {
     pub(in crate::desktop::application) fn new_recycle_request(
@@ -146,7 +146,7 @@ impl Application {
         {
             return Err(Error::new(E_ABORT, "Recycle policy changed during pruning"));
         }
-        // 无变更不发布字节；策略变化和 worker 取消仍拒绝，真正写库仍复核完整 Receipt。
+        // Publish no bytes when unchanged; still reject policy changes and worker cancellation, and recheck the complete Receipt before an actual library write.
         let Some(candidate) = result.map_err(|message| Error::new(E_ABORT, message))? else {
             return Ok(());
         };
@@ -156,7 +156,7 @@ impl Application {
         {
             return Err(Error::new(E_ABORT, "Reference update cancelled or stale"));
         }
-        // Receipt 已验证来源/全工作区/坐标；最后核验后不泵消息，发布不触及 HWND 和磁盘。
+        // Receipt already validated the source/entire workspace/coordinates; pump no messages after the final check, and touch neither HWNDs nor disk during publication.
         self.restored_session
             .as_mut()
             .unwrap()

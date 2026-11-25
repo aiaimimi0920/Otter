@@ -1,4 +1,4 @@
-//! 原生 D3D12 单帧：upload→SRV、RT→copy/readback；不经 11On12，不接管窗口设备。
+//! Native D3D12 single frames: upload to SRV, RT to copy/readback; no 11On12 or takeover of window devices.
 use super::{compile, contract, *};
 use std::{mem::ManuallyDrop, time::Duration};
 use windows::{
@@ -28,7 +28,7 @@ impl Device {
             let mut device = None;
             D3D12CreateDevice(None, D3D_FEATURE_LEVEL_11_0, &mut device).map_err(fail)?;
             let device: ID3D12Device = device.ok_or(Error::Unsupported)?;
-            // 显式拒绝软件适配器冒充 D3D12 hardware；WARP 仅由独立选项进入 D3D11。
+            // Explicitly reject software adapters posing as D3D12 hardware; WARP enters D3D11 only through a separate option.
             let factory: windows::Win32::Graphics::Dxgi::IDXGIFactory4 =
                 windows::Win32::Graphics::Dxgi::CreateDXGIFactory1().map_err(fail)?;
             let adapter: windows::Win32::Graphics::Dxgi::IDXGIAdapter1 = factory
@@ -92,7 +92,7 @@ impl Device {
         check(stopped, deadline)?;
         let upload_fence = self.next_fence_value()?;
         let owner = Submission::new(self.clone(), request, program, stopped, deadline)?;
-        // 两阶段复用同一队列/命令 owner：先确认上传并释放 upload，后建输出资源。
+        // Both phases reuse one queue/command owner: confirm upload and release upload resources before creating output resources.
         let owner = owner.submit(upload_fence, stopped, deadline)?;
         let (readback, footprint) = owner.draw(request, stopped, deadline)?;
         Ok(Readback {
@@ -103,7 +103,7 @@ impl Device {
         })
     }
 }
-// 只持有已确认完成的 readback，不借用 Request/源码/纹理，允许 worker 先释放私有输入。
+// Hold only confirmed-complete readback, without borrowing Request/source code/textures, allowing the worker to release private inputs first.
 pub(crate) struct Readback {
     readback: Resource,
     footprint: D3D12_PLACED_SUBRESOURCE_FOOTPRINT,
@@ -119,7 +119,7 @@ impl Readback {
             width,
             height,
         } = self;
-        // 完成后除 readback 外的 GPU 图已释放，才分配 CPU 输出，避免 4K 峰值叠加。
+        // After completion, allocate CPU output only once the GPU resource graph except readback is released, avoiding overlapping 4K peaks.
         let (mut output, output_lease) = contract::allocate(contract::image_bytes(width, height)?)?;
         let mapped = resource::Mapping::new(&readback.value, true, readback.bytes)?;
         let stride = width as usize * 4;
@@ -148,7 +148,7 @@ impl Readback {
     }
 }
 
-// 未确认完成时 ManuallyDrop 整体保留，而非只保留 device 或漏归还某些像素 lease。
+// Without confirmed completion, retain the entire ManuallyDrop rather than only the device or neglecting to return some pixel leases.
 struct Submission {
     list: ID3D12GraphicsCommandList,
     _allocator: ID3D12CommandAllocator,
@@ -289,7 +289,7 @@ impl Submission {
                 .SetGraphicsRootConstantBufferView(1, self._constants.value.GetGPUVirtualAddress());
             self.list
                 .OMSetRenderTargets(1, Some(&rtv_handle), false, None);
-            // 未写像素（discard/clip）同样必须有确定的透明黑内容。
+            // Unwritten pixels (discard/clip) must also contain deterministic transparent black.
             self.list.ClearRenderTargetView(rtv_handle, &[0.; 4], None);
             self.list.RSSetViewports(&[D3D12_VIEWPORT {
                 Width: request.width as f32,
@@ -329,13 +329,13 @@ impl Submission {
         let draw_fence = self.device.next_fence_value()?;
         let mut completed = self.submit(draw_fence, stopped, deadline)?;
         let readback = completed.readback.take().ok_or(Error::Layout)?;
-        // completed 析构先归还图与租约；readback 独立维持对应设备的 COM 生命周期。
+        // completed destruction first returns the graph and leases; readback independently maintains the corresponding device's COM lifetime.
         Ok((readback, footprint))
     }
     fn submit(self, value: u64, stopped: &impl Fn() -> bool, deadline: Instant) -> Result<Self> {
         check(stopped, deadline)?;
         let command = self.list.cast().map_err(|e| api(Stage::Submit, e))?;
-        // Execute 后直到 fence 确认保留完整图；失败不能单独释放 target/upload/租约。
+        // Retain the complete graph from Execute until fence confirmation; failure must not independently release target/upload/leases.
         let owner = ManuallyDrop::new(self);
         unsafe {
             owner.device.queue.ExecuteCommandLists(&[Some(command)]);

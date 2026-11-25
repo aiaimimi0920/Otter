@@ -1,4 +1,4 @@
-//! 真实 Surface→COMBOBOX→WM_COMMAND→共享 FIFO，不直接调用 notify 或发送网络。
+//! Actual Surface -> COMBOBOX -> WM_COMMAND -> shared FIFO; no direct notify calls or networking.
 use super::*;
 #[path = "surface_select_color_tests.rs"]
 mod color_tests;
@@ -84,7 +84,7 @@ fn surface_select_mount_authority_sync_and_new_contract_drop_old_intents() {
     let (window, binding, hwnd) = mounted();
     key(hwnd, true);
     window.replace(scene("a", "choose")).unwrap();
-    assert_eq!(index(hwnd), 1); // 未变权威值不冲掉本地选择。
+    assert_eq!(index(hwnd), 1); // Unchanged authoritative values do not overwrite local selection.
     window.replace(scene("b", "choose")).unwrap();
     assert_eq!(index(hwnd), 1);
     window.replace(scene("a", "new_action")).unwrap();
@@ -190,7 +190,7 @@ fn surface_select_mount_dpi_message_uses_window_dpi_without_change_event() {
                 ),
                 0
             );
-            // 伪造 WM_DPICHANGED 不改变系统窗口 DPI；宿主从 GetDpiForWindow 取权威值。
+            // Fabricated WM_DPICHANGED does not change system window DPI; the host reads authoritative GetDpiForWindow values.
             let actual_dpi =
                 windows::Win32::UI::HiDpi::GetDpiForWindow(window.dialog_owner().unwrap());
             assert_eq!(

@@ -1,4 +1,4 @@
-//! 无呈现坐标时只退休仍持有输入的会话；不启动 worker/WGC 或操作系统鼠标。
+//! Without presentation coordinates, retire only sessions still holding input; no worker/WGC startup or OS mouse operations.
 use super::*;
 use crate::{desktop::Apartment, live_frames::Source, live_input::Button};
 
@@ -73,7 +73,7 @@ fn pending_pointer_activity_without_a_frame_preserves_the_enable_request() {
 fn unmapped_buttons_and_wheels_are_not_queued_or_latched() {
     let _apartment = Apartment::new().unwrap();
     let (_frames, window) = fixture(true);
-    // 附属窗绕过本地 Alt-drag/缩放手势；本回归不依赖全局修饰键状态。
+    // Attached windows bypass local Alt-drag/zoom gestures; this regression does not depend on global modifier state.
     window.state.popup.set(true);
     window.take_input_request();
     let control = cycle(&window);

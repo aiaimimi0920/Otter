@@ -1,4 +1,4 @@
-//! 真实 HWND 悬浮/按下/离开状态与按需重绘合同。
+//! Actual HWND hover/pressed/leave states and on-demand repaint contracts.
 use super::*;
 
 #[test]

@@ -1,4 +1,4 @@
-//! 独立构造的像素锚点验证组合顺序，不以待测渲染器计算预期结果。
+//! Independently constructed pixel anchors verify composition order; expected results never use the renderer under test.
 use super::*;
 use crate::{
     editor::Tool,

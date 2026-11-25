@@ -1,4 +1,4 @@
-//! 子矩形放大后再擦除，避免把细笔迹压回原图的一个像素而丢失局部覆盖。
+//! Enlarge subrectangles before erasing, avoiding loss of local coverage when thin strokes collapse into one original-image pixel.
 use super::*;
 
 pub(super) fn prepare(
@@ -12,7 +12,7 @@ pub(super) fn prepare(
     }
     let layout = Layout::for_frame(image, geometry, crop)?;
     let sampled = source_sample::readback(image, &layout, cancel)?;
-    // 只在确实有笔迹时物化有预算的输出。几何交换发生在成功之后，不返回半成品。
+    // Materialize budgeted output only when strokes exist. Swap geometry only after success, never returning partial results.
     geometry.output = Some(layout.output);
     geometry.base = Some(D2D_RECT_F {
         left: layout.visible.x as f32,

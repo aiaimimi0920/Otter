@@ -1,4 +1,4 @@
-//! 整批图片准备回归；合成内联图像，不读取会话中的任意路径或网络。
+//! Whole-batch image-preparation regressions using synthetic inline images, without arbitrary session-path or network reads.
 use super::*;
 fn uri() -> String {
     let input = super::super::loom_inline::prepare(

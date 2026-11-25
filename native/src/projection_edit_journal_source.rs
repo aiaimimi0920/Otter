@@ -1,4 +1,4 @@
-//! 源端stage先于任何PNG CAS；重开只恢复，不自动发网，不覆盖旧session/initial或未知pending。
+//! Source staging precedes all PNG CAS; reopen only restores, without automatic networking or overwriting old session/initial/unknown pending.
 use super::super::source::Frozen;
 use super::*;
 impl Store {
@@ -24,7 +24,7 @@ impl Store {
             if !source.same_basis(&frozen) {
                 return Err(Error::Changed);
             }
-            return Ok(source.clone()); // 原anchor/session/initial不可因重试时当前Editor变化而重造。
+            return Ok(source.clone()); // Never reconstruct original anchor/session/initial because current Editor changed before retry.
         }
         if state.entries.len() >= MAX_ENTRIES {
             return Err(Error::Limit);

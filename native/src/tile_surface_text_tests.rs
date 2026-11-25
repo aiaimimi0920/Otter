@@ -1,4 +1,4 @@
-//! 文本命中、四向输出几何与字段组合同；不用被测映射函数计算预期矩形。
+//! Text hits, four-way output geometry, and field-group contracts; expected rectangles never come from mapping functions under test.
 use super::*;
 use crate::tile_surface_value::tests::{fixture, presentation};
 use serde_json::json;

@@ -1,4 +1,4 @@
-//! 真实 HWND 配置读回 + 合成系统手势数据；不伪称触屏硬件或真实惯性验收。
+//! Actual HWND configuration readback plus synthetic system-gesture data; no claims of touchscreen hardware or actual inertia acceptance.
 use super::*;
 use windows::Win32::System::SystemServices::*;
 use windows::Win32::UI::Input::Touch::*;

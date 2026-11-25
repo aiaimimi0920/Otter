@@ -1,4 +1,4 @@
-//! 验证真实 Win32 等待和消息泵；不连接网络，不展示窗口。
+//! Verify real Win32 waits and message pumping, without network connections or visible windows.
 use super::*;
 use std::os::windows::io::{FromRawHandle, OwnedHandle};
 use windows::Win32::System::Threading::CreateEventW;
@@ -30,7 +30,7 @@ fn shutdown_deadline_does_not_reenter_settlement_or_replay_requests() {
     });
     assert!(result.is_err());
     assert!(Instant::now() >= deadline);
-    // 系统可发送窗口消息；这里只要求截止后不再调用 settle 发起新工作。
+    // The system may send window messages; require only that settle starts no new work after the deadline.
     let mut after_deadline = false;
     assert!(pump_until(deadline, || {
         after_deadline = true;

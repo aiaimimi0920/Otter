@@ -1,4 +1,4 @@
-//! 文档公共参数 owner：有界初始化/修改先验证再提交，不保留 secret 或共享可变目录。
+//! Document public-parameter owner: validate bounded initialization/changes before commit, without retaining secrets or shared mutable catalogs.
 use crate::loom_capability::Capability;
 use serde_json::Value;
 use std::{
@@ -51,7 +51,7 @@ impl Parameters {
     pub fn revision(&self) -> u64 {
         self.revision
     }
-    /// 外层 None 是未声明/非公共参数，内层 None 是已声明但未设置；null 是 Value::Null。
+    /// Outer None means undeclared/nonpublic parameters; inner None means declared but unset; null is Value::Null.
     pub fn get(&self, id: &str) -> Option<Option<&Value>> {
         self.values.get(id).map(Option::as_ref)
     }
@@ -65,7 +65,7 @@ impl Parameters {
                     .map(|(id, value)| (id.as_str(), Some(value))),
             )
     }
-    /// 整批编辑：省略的公共项变为未设置；所有检查通过前不修改现有状态。
+    /// Whole-batch editing: omitted public entries become unset; leave existing state unchanged until all checks pass.
     pub fn replace(&mut self, mut values: serde_json::Map<String, Value>) -> Result<bool, Error> {
         if values
             .keys()
@@ -107,7 +107,7 @@ impl Parameters {
     }
     pub fn set(&mut self, id: &str, value: Option<Value>) -> Result<bool, Error> {
         let previous = self.values.get(id).ok_or(Error::UnknownParameter)?;
-        // 校验必须在深层 Value 比较前，防止调用方构造超深数据绕过预算。
+        // Validate before deep Value comparisons so callers cannot bypass budgets with excessively deep data.
         validate(
             self.entries()
                 .map(|(name, old)| (name, if name == id { value.as_ref() } else { old })),

@@ -1,4 +1,4 @@
-//! 分组请求在应用循环处理；不跨窗口关闭消息持有工作区或 State 的可变借用。
+//! Handle group requests in the application loop; never hold mutable workspace or State borrows across window-close messages.
 use super::*;
 use crate::desktop::group_menu::Request;
 use crate::{
@@ -193,7 +193,7 @@ impl Application {
                     })
                     .cloned()
                     .collect();
-                // 与现有静态批量关闭一致：此明确命令不回收，避免多窗口异步回收半批发布。
+                // Match existing static batch close: this explicit command skips recycling to avoid partial publication from asynchronous multi-window recycling.
                 for session in &mut self.live_sessions {
                     if members.contains(session.unit_id()) && session.belongs_to(&self.workspace) {
                         session.stop();
@@ -206,7 +206,7 @@ impl Application {
                     }
                 }
                 self.collect_closed();
-                // 若未来宿主支持拒绝关闭，保留尚存成员和组，不提前解除关联。
+                // If hosts later support rejecting closure, retain surviving members and groups without unlinking them early.
                 if members.iter().any(|member| self.workspace.contains(member)) {
                     return Err(Error::new(E_ABORT, "仍有分组窗口未关闭。"));
                 }

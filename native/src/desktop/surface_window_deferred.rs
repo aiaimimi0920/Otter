@@ -1,4 +1,4 @@
-//! 单槽依赖点击：保存激活值与原合同，只在前置编辑完整结算后重新核验并编码。
+//! Single-slot dependent clicks: retain activation values and original contracts, revalidating/encoding only after prerequisite edits fully settle.
 use super::*;
 pub(crate) use crate::desktop::surface_edit_mount::FenceState;
 use crate::{surface_click_event::ClickEvent, surface_live_binding::Binding};

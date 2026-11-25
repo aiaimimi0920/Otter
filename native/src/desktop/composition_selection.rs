@@ -1,4 +1,4 @@
-//! 呈现链创建事务：只有完整候选可发布；失败候选先释放，才尝试下一个实际已实现后端。
+//! Presentation-chain creation transaction: publish complete candidates only; release failed candidates before trying the next implemented backend.
 use super::super::composition_creation;
 use windows::core::{Error, HRESULT};
 
@@ -34,7 +34,7 @@ pub(super) struct Selected<T> {
 pub(super) fn select<T>(
     mut create: impl FnMut(Backend) -> std::result::Result<T, (Stage, composition_creation::Failure)>,
 ) -> composition_creation::Result<Selected<T>> {
-    // 本层只负责 D3D11 的硬件/WARP 兼容链；Canvas 的 D3D12 优先选择由 RenderSurface 拥有。
+    // This layer owns only the D3D11 hardware/WARP compatibility chain; RenderSurface owns Canvas's D3D12 preference.
     let mut first = None;
     for backend in [Backend::D3d11Hardware, Backend::D3d11Warp] {
         match create(backend) {

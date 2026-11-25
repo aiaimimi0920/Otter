@@ -1,4 +1,4 @@
-//! 显式微基准只测选区范围投影，不把它当作 D2D/GPU 或整个应用性能。
+//! Explicit microbenchmarks measure only selection-range projection, not D2D/GPU or whole-application performance.
 use super::*;
 fn fixture(count: usize) -> Presentation {
     let children: Vec<_> = (0..count)

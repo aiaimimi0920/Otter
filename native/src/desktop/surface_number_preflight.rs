@@ -1,4 +1,4 @@
-//! 可预判的 Number 插入/删除在 EDIT 修改前拒绝，保留系统撤销/选区；不读取剪贴板。
+//! Reject predictable Number insertion/deletion before EDIT mutation, preserving system undo/selection without clipboard reads.
 use super::super::surface_edit_control::{MAX_BYTES, MAX_UNITS};
 use windows::Win32::{
     Foundation::*,
@@ -12,8 +12,8 @@ unsafe fn replacement(lp: LPARAM) -> Option<Vec<u16>> {
     if lp.0 == 0 {
         return None;
     }
-    // EM_REPLACESEL 按 Win32 合同携带同步期有效的 NUL 结尾 UTF-16 指针。
-    // 不保留该指针，最多检查 MAX_UNITS + 1 单元；不是通用外部内存读取接口。
+    // By Win32 contract, EM_REPLACESEL carries a NUL-terminated UTF-16 pointer valid throughout synchronous handling.
+    // Do not retain the pointer; inspect at most MAX_UNITS + 1 units. This is not a generic external-memory reader.
     let pointer = lp.0 as *const u16;
     let mut text = Vec::new();
     for index in 0..=MAX_UNITS {
@@ -40,7 +40,7 @@ fn candidate(text: &[u16], selection: (usize, usize), replacement: &[u16]) -> bo
         return false;
     }
     let size = text.len() - (end - start) + replacement.len();
-    // 仅 ASCII 数字编辑语法，UTF-8 字节数与 UTF-16 单元数相同。
+    // ASCII numeric-edit syntax only, so UTF-8 byte counts equal UTF-16 unit counts.
     if size > MAX_UNITS.min(MAX_BYTES) {
         return false;
     }
@@ -67,7 +67,7 @@ fn erase_range(kind: Erase, range: (usize, usize), length: usize) -> Option<(usi
         Erase::Selection => range,
         Erase::Forward if start == end => (start, (end + 1).min(length)),
         Erase::Forward => range,
-        // classic EDIT 的 Backspace 首次删除选区，余下重复次数向前删除。
+        // Classic EDIT Backspace first deletes selection; remaining repeats delete backward.
         Erase::Backward(count) => (
             start.saturating_sub(count.saturating_sub(usize::from(start != end))),
             end,
@@ -96,7 +96,7 @@ pub unsafe fn rejects(hwnd: HWND, message: u32, wp: WPARAM, lp: LPARAM) -> bool 
         u16::try_from(wp.0)
             .ok()
             .filter(|unit| allowed_unit(*unit))
-            // classic EDIT 按 WM_CHAR 低 16 位重复数插入；零值兼容既有单字符消息。
+            // Classic EDIT inserts according to WM_CHAR's low-16-bit repeat count; zero remains compatible with existing single-character messages.
             .map(|unit| vec![unit; ((lp.0 as usize) & 0xffff).max(1)])
     } else {
         return false;
@@ -153,7 +153,7 @@ fn surface_number_preflight_erase_ranges_and_cut_candidate() {
     assert_eq!(erase_range(Erase::Selection, (3, 2), 4), None);
     assert_eq!(erase_range(Erase::Forward, (5, 5), 4), None);
     let text: Vec<_> = "1e+2".encode_utf16().collect();
-    // WM_CUT 与 WM_CLEAR 共用选区候选；这里只算候选，不发送剪切消息。
+    // WM_CUT and WM_CLEAR share selection candidates; calculate only the candidate here without sending cut messages.
     let range = erase_range(Erase::Selection, (1, 2), text.len()).unwrap();
     assert!(!candidate(&text, range, &[]));
     let range = erase_range(Erase::Selection, (1, 3), text.len()).unwrap();

@@ -1,4 +1,4 @@
-//! accept 的相关响应与内联 PNG；借用 wire 解码，原压缩字节及像素均受共享预算约束。
+//! Correlated accept responses/inline PNGs; borrowed wire decoding, with original compressed bytes/pixels under shared budgets.
 use super::{envelope, receive_route, Envelope, Error, Invitation};
 use base64::{engine::general_purpose::STANDARD, Engine};
 use serde::Deserialize;
@@ -67,7 +67,7 @@ impl Invitation {
     }
     pub(crate) fn accept_body(&self, origin: &str) -> Result<Vec<u8>, Error> {
         self.validate_for(origin)?;
-        // accepted/过期邀请仍可恢复丢失的成功响应；服务器拥有最终签名/期限/规则裁决。
+        // Accepted/expired invitations can still recover lost success responses; servers retain final signature/deadline/rule authority.
         serde_json::to_vec(&serde_json::json!({"envelope":self.envelope,
             "expectedRevision":self.revision,"expectedDigest":self.digest,
             "receiverUnitId":self.receiver_unit_id(),"confirmed":true}))
@@ -120,7 +120,7 @@ impl Received {
         {
             return Err(Error::Snapshot);
         }
-        // 预算覆盖解码目的容量，不保留 wire/base64 的第二份字符串。
+        // Budget covers decode destination capacity without retaining a second wire/Base64 string.
         let capacity = snapshot.image_base64.len().div_ceil(4) * 3;
         let mut lease = crate::pixels::reserve(capacity).ok_or(Error::Budget)?;
         let mut png = Vec::new();
@@ -150,7 +150,7 @@ impl Received {
             editing,
         })
     }
-    /// 当前线程必须已初始化 COM；只有完整解码/尺寸一致后的值才可进入会话准备。
+    /// The current thread must already initialize COM; only fully decoded, dimension-matched values enter session preparation.
     pub fn verify(self, stopped: impl Fn() -> bool) -> Result<Verified, Error> {
         if stopped() {
             return Err(Error::Stopped);
@@ -179,7 +179,7 @@ impl Received {
     }
 }
 impl Verified {
-    /// 仅接收 worker 在原请求完成后绑定一次；旧结果不能被重贴到同投送的新意图。
+    /// Only receiving workers bind once after original-request completion; old results cannot be reassigned to a new intent for the same delivery.
     pub(crate) fn bind_intent(mut self, ticket: &super::journal::Ticket) -> Result<Self, Error> {
         if self.device() != ticket.device()
             || self.unit() != ticket.unit()

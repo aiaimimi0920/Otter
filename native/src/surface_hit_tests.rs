@@ -1,4 +1,4 @@
-//! 命中快照按绘制顺序、圆角与裁剪查找，不承担授权或事件发送。
+//! Hit snapshots search by paint order, rounded corners, and clipping; they do not authorize or send events.
 use super::*;
 use crate::surface_presentation::Presentation;
 fn prepare(json: &[u8]) -> Presentation {

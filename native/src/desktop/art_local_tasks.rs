@@ -1,5 +1,5 @@
-//! 有界本地 Art 下载任务：原 registry 拥有代际/租约，清理中的线程继续占槽。
-//! UI 仅移交配置快照，DNS/TLS/源码验签在 worker；不自动建立信任或创建窗口。
+//! Bounded local Art download tasks: the original registry owns generations/leases; threads being cleaned up continue occupying slots.
+//! The UI transfers only configuration snapshots; DNS/TLS/source-signature verification runs in workers, without automatic trust establishment or window creation.
 use super::loom_execution_signal::{reap_deadline, CompletionSignal, Notify};
 use crate::{
     art_execution_grant::wire::Binding,
@@ -34,7 +34,7 @@ pub struct Tasks {
     notify: Notify,
 }
 impl Tasks {
-    /// notify 必须短且不阻塞，不同步等待 UI；生产调用方使用 Application Wake 的投递回调。
+    /// notify must be brief and nonblocking, never synchronously waiting for the UI; production callers use Application Wake's posting callback.
     pub fn new(workspace: String, notify: Arc<dyn Fn() + Send + Sync>) -> Self {
         Self {
             registry: Registry::new(workspace),
@@ -42,7 +42,7 @@ impl Tasks {
             notify,
         }
     }
-    /// 已结束但未领取的线程同样占槽，最大只保留两份有界源码结果。
+    /// Finished but uncollected threads still occupy slots; retain at most two bounded source results.
     pub fn busy(&self) -> bool {
         !self.jobs.is_empty()
     }
@@ -55,7 +55,7 @@ impl Tasks {
             .filter_map(|job| reap_deadline(&job.ready))
             .min()
     }
-    /// 从设备描述到源码验签共用一个 worker 和原 Lease；UI 不先同步获取描述。
+    /// Device description through source-signature verification share one worker and the original Lease; the UI does not fetch the description synchronously first.
     pub fn start_description(
         &mut self,
         unit: UnitId,
@@ -153,7 +153,7 @@ impl Tasks {
         Ok(binding)
     }
     fn reserve_job(&mut self) -> Result<(), Error> {
-        // 容量拒绝发生在 Registry 换代之前，不能破坏已有实例。
+        // Reject capacity before changing the Registry generation, without disturbing existing instances.
         if !self.has_capacity() {
             return Err(Error::Capacity);
         }
@@ -174,7 +174,7 @@ impl Tasks {
         let worker = std::thread::Builder::new()
             .name("otter-art-prepare".into())
             .spawn(move || {
-                // signal 先声明，run 及其捕获资源在通知前释放；panic 同样发布完成。
+                // Declare signal first so run and its captured resources drop before notification; panics also publish completion.
                 let _signal = CompletionSignal::new(completed, notify);
                 let run = run;
                 match run() {
@@ -197,8 +197,8 @@ impl Tasks {
         }
         Ok(())
     }
-    /// 只 join 已退出的 worker；通知已发布但尚未退出时由 deadline 续接回收。
-    /// 迟到成功/失败均丢弃；它们不得修改当前节点的错误状态或撤销新实例。
+    /// Join only exited workers; if notification precedes exit, the deadline continues reclamation.
+    /// Discard late successes and failures alike; neither may change the current node's error state or revoke a new instance.
     pub fn take_settled(&mut self) -> Option<Report> {
         while let Some(index) = self.jobs.iter().position(|job| job.worker.is_finished()) {
             let job = self.jobs.remove(index);
@@ -218,7 +218,7 @@ impl Tasks {
     }
     pub fn cancel(&mut self, unit: &UnitId) {
         self.registry.cancel(unit);
-        // 已替换 worker 的租约也显式撤销，不能只撤销 registry 中的最新项。
+        // Explicitly revoke replaced workers' leases too, not just the latest registry entry.
         for job in self.jobs.iter().filter(|job| &job.unit == unit) {
             job.lease.revoke();
         }
@@ -234,14 +234,14 @@ impl Tasks {
             }
         }
     }
-    /// 工作区交换同步撤销旧链，但不在 UI join 活线程；清理任务继续占原容量。
+    /// Workspace swaps synchronously revoke old chains but never join live threads on the UI; cleanup tasks retain their original capacity.
     pub fn reset_workspace(&mut self, workspace: String) {
         self.registry = Registry::new(workspace);
         for job in &self.jobs {
             job.lease.revoke();
         }
     }
-    /// 退出先撤销全部链再 join；不 detach、不过早释放占槽，也不领取旧工作区结果。
+    /// On exit, revoke all chains before joining; never detach, release occupied slots early, or collect old-workspace results.
     pub fn shutdown(&mut self) {
         self.registry.clear();
         for job in &self.jobs {

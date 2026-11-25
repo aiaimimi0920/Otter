@@ -1,9 +1,9 @@
-//! 输入来源的独立凭证；正式输出不能仅凭编辑文档版本判定新鲜。
+//! Independent input-provenance evidence; editing-document revisions alone cannot establish official-output freshness.
 use super::{loom_result_state::OutputStamp, State};
 use crate::editor::{DocumentStamp, Editor};
 #[derive(Clone)]
 pub(crate) enum SourceStamp {
-    // 捕获固定帧后允许流继续；停止/替换 owner 则失效，不用每帧序号取消长执行。
+    // Allow streaming after capturing a fixed frame; stopping/replacing owners invalidates it, without per-frame sequence changes cancelling long executions.
     Live(std::sync::Arc<()>),
     Document(DocumentStamp),
     Output(OutputStamp),
@@ -13,7 +13,7 @@ pub(crate) enum SourceStamp {
     },
 }
 impl SourceStamp {
-    /// 兼容只提供 Editor 的调用方；正式输出一律拒绝，不能跳过结果 owner 验证。
+    /// Compatibility for callers supplying only Editor; always reject official outputs rather than bypass result-owner validation.
     pub(crate) fn matches(&self, editor: &Editor) -> bool {
         matches!(self, Self::Document(stamp) if stamp.matches(editor))
     }

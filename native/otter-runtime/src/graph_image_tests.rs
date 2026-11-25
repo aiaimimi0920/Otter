@@ -1,4 +1,4 @@
-//! 来源解析的基线合同；URI 只是借用标识，不访问网络、磁盘或用户图像。
+//! Baseline contract for source resolution; URIs are borrowed identifiers only, without network, disk, or user-image access.
 use super::*;
 #[test]
 fn wrapped_formal_output_flows_through_connected_and_execution_paths() {

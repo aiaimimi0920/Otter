@@ -1,4 +1,4 @@
-//! 生产软件 Canvas 的离屏像素：扩展覆盖层不进入底图/导出模型，缩放复用同一视图。
+//! Offscreen pixels from production software Canvas: extension overlays stay outside base-image/export models, and zoom reuses the same view.
 use super::*;
 use crate::desktop::extension_visuals::{clear, Views};
 use crate::desktop::presentation_readback_test::Pixels;
@@ -121,7 +121,7 @@ fn external_frame_guard_rejects_changed_source_and_rebinds_zoom_without_baking_o
         let mut copy = c.zoom_snapshot(Some(&frame)).unwrap().unwrap();
         copy.paint_display(hwnd, 64, 64, 96, Some(&frame)).unwrap();
         assert_eq!(&*read(&mut copy).bytes, &*original.bytes);
-        // 换源后的同步 paint 可能早于 Application 的目录结算，不能画上一来源的场景。
+        // Synchronous paint after source replacement may precede Application catalog settlement; never draw the previous source's scene.
         for canvas in [&mut c, &mut copy] {
             canvas
                 .paint_display(hwnd, 64, 64, 96, Some(&replacement))

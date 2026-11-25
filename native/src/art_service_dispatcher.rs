@@ -1,4 +1,4 @@
-//! 原 Prepared 向 signed Local 移交服务上下文；共享同一 Permit/Lease，不复制凭据或准入时钟。
+//! Original Prepared transfers service context to signed Local; share the same Permit/Lease without copying credentials or admission clocks.
 use super::*;
 use crate::{
     art_execution_grant::Permit, device_authorization_lease::Lease, surface_javascript::services,
@@ -82,7 +82,7 @@ impl services::Dispatcher for Offline {
     }
 }
 fn failure(error: Error) -> io::Error {
-    // 不将凭据、原始 HTTP 或签名内容透传给不可信脚本；完整执行失败由宿主 owner 处理。
+    // Never expose credentials, raw HTTP, or signed contents to untrusted scripts; the host owner handles complete execution failure.
     io::Error::other(format!("art service exchange failed: {error:?}"))
 }
 impl services::Dispatcher for Dispatcher {
@@ -124,7 +124,7 @@ impl services::Dispatcher for Dispatcher {
         } else if !request.canvases.is_empty() {
             call.attach_canvases(request.canvases).map_err(failure)?;
         }
-        // 父 operation 的服务总期限不能被每次调用重新开始；原许可还可进一步缩短。
+        // Each call must not restart the parent operation's total service deadline; the original grant may shorten it further.
         call.deadline = call.deadline.min(deadline);
         call.timeout_ms = call.timeout_ms.min(
             call.deadline
@@ -145,7 +145,7 @@ impl services::Dispatcher for Dispatcher {
                     };
                     continue;
                 }
-                // Reply已由Call复核身份、原授权与序号；只交付有界宿主状态，不发布Frame。
+                // Call already rechecked Reply identity, original authorization, and sequence; deliver only bounded host state, without publishing a Frame.
                 if let Some(progress) = &self.progress {
                     progress.publish(&reply);
                 }
@@ -153,7 +153,7 @@ impl services::Dispatcher for Dispatcher {
                     Status::Succeeded => {
                         if request.image_output {
                             let image = call.output_image.take().ok_or(Error::Wire)?;
-                            // 消费后沿原owner取消端点释放Loom终态图片；不重新执行，也不延长许可。
+                            // After consumption, release Loom terminal images through the original owner's cancel endpoint; no re-execution or grant extension.
                             call.cancel()?;
                             let mut retained = self.images.clone();
                             retained.push(image.clone());
@@ -189,7 +189,7 @@ impl services::Dispatcher for Dispatcher {
                     }
                     Status::Accepted | Status::Running => {}
                 }
-                // 有界串行 poll；执行停止中断网络，等待最多20ms后复核，不新增线程。
+                // Bounded serial polling; execution stop interrupts networking, and waits of at most 20ms precede rechecks, without new threads.
                 let remaining = call.deadline.saturating_duration_since(Instant::now());
                 self.lease.wait(remaining.min(Duration::from_millis(20)));
                 check()?;
@@ -235,7 +235,7 @@ impl Dispatcher {
             if !ticket.live() {
                 return Err(Error::Stopped);
             }
-            // 等待用户期间仍观察同一个Task，远端撤权/换代不留下可批准的陈旧提示。
+            // Keep observing the same Task while awaiting the user; remote revocation/generation changes must not leave an approvable stale prompt.
             if Instant::now() >= next_poll {
                 if call.poll()?.status.terminal() {
                     return Ok(None);

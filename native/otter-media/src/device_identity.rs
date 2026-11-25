@@ -1,4 +1,4 @@
-//! 主干设备身份的有界内存表示与保护格式；不隐式配对、写文件或更换已有身份。
+//! Bounded in-memory mainline device identities/protected format; no implicit pairing, file writes, or existing-identity replacement.
 use crate::device_key_protection;
 use base64::{engine::general_purpose::STANDARD, Engine};
 use ring::{
@@ -29,7 +29,7 @@ struct Stored {
     public_key: String,
 }
 
-// 不实现 Debug/Clone/Serialize；只暴露公钥和显式保护后的存储文档。
+// No Debug/Clone/Serialize; expose only public keys and explicitly protected storage documents.
 pub struct Identity {
     seed: Zeroizing<[u8; 32]>,
     device: Option<String>,
@@ -47,7 +47,7 @@ impl Identity {
             legacy: false,
         })
     }
-    /// 调用者拥有原始 JSON 缓冲；legacy 明文输入的清理仍是调用者职责。
+    /// Callers own raw JSON buffers and cleanup of legacy plaintext input.
     pub fn parse(bytes: &[u8]) -> Result<Self, Error> {
         if bytes.len() > MAX_DOCUMENT {
             return Err(Error::Limit);
@@ -97,7 +97,7 @@ impl Identity {
     pub fn needs_migration(&self) -> bool {
         self.legacy
     }
-    /// 仅在外层确认配对响应后绑定；此操作本身不代表服务端批准。
+    /// Bind only after outer-layer pairing-response confirmation; this operation alone is not server approval.
     pub fn bind(&mut self, device: &str) -> Result<(), Error> {
         if !valid_field(device, 160) {
             return Err(Error::Identity);

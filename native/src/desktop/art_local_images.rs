@@ -1,5 +1,5 @@
-//! 本地 Art 复用图输入准备 worker；资源只沿既有 mount 通道交付，不访问任意路径/URL。
-//! 退休先取消，终态前仍占原 Entry；像素凭证在每次帧/正式结果领取时重验。
+//! Local Art reuses the graph-input preparation worker; resources travel only through the existing mount channel, never arbitrary paths/URLs.
+//! Cancel before retirement, retaining the original Entry until terminal state; revalidate pixel evidence whenever collecting frames/official results.
 use super::*;
 use crate::desktop::{
     application::Application,
@@ -85,7 +85,7 @@ impl Images {
 }
 
 fn content(batch: &PreparedBatch) -> Result<Content, &'static str> {
-    // 与 Session::resources 的同一门限；先估算再分配Data URL，不缩图、不截断或提高wire上限。
+    // Use the Session::resources limit; estimate before allocating Data URLs, without resizing, truncating, or raising wire limits.
     const LIMIT: usize = crate::surface_javascript::MAX_RESOURCES_BYTES;
     let mut resources = Map::new();
     let mut inputs = Map::new();
@@ -104,7 +104,7 @@ fn content(batch: &PreparedBatch) -> Result<Content, &'static str> {
         let next = bytes
             .checked_add(id.len() + base64.len() + 22 + 6)
             .ok_or("Art 图片资源超过本地通道预算")?;
-        // 小图保留已有resource()合同；较大图片只能经image()句柄消费，不把Base64塞入JSON。
+        // Small images retain the existing resource() contract; larger images require image() handles, not Base64 embedded in JSON.
         if next <= LIMIT {
             resources.insert(
                 id.clone(),

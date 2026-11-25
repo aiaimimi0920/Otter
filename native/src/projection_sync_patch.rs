@@ -1,4 +1,4 @@
-//! 后台原文 source/binding 事务；只借用大型未知字段，不重建本地编辑与几何数据。
+//! Background original-text source/binding transactions borrow large unknown fields without rebuilding local edits/geometry.
 use crate::{
     projection_delivery::binding::Binding, session_json_fields::fields, session_source::Source,
 };

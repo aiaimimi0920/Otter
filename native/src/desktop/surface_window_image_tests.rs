@@ -1,4 +1,4 @@
-//! 真实隐藏 HWND 图片提交、上传和回收；不冒充远端资源授权或桌面像素截图验收。
+//! Actual hidden-HWND image commit/upload/reclamation; not remote-resource authorization or desktop-pixel screenshot acceptance.
 use super::*;
 use crate::{image_decode::Image, surface_image_paint::Bitmap, surface_presentation::Images};
 #[test]
@@ -15,7 +15,7 @@ fn surface_image_unresolved_projection_omits_layout_hit_and_accessibility_but_ke
     drop(host);
     assert!(window.accessibility_node("pending").is_none());
     assert!(window.accessibility_node("button").is_some());
-    // 避开按钮圆角外的空白区域；此处检查重新排布后的按钮内部命中。
+    // Avoid padding outside rounded button corners; check the relaid-out button's interior hit here.
     assert_eq!(
         window.hit_test([20, 15]).unwrap().as_deref(),
         Some("button")
@@ -142,7 +142,7 @@ fn surface_image_hwnd_replace_requires_new_resources_and_releases_old_upload() {
     assert!(window.replace(scene()).is_err());
     assert_eq!(size(&window), before);
     assert!(first.uploaded_for_test());
-    // 失败保持旧呈现，但遵守既有窗口规则撤销描述，不能把旧 UIA 身份视为新提交。
+    // Failure retains old presentation but revokes descriptions under existing window rules; old UIA identity is not a new commit.
     assert!(window.accessibility_node("image").is_none());
     let second = image(40, 80);
     window

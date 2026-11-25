@@ -1,4 +1,4 @@
-//! 全局焦点订阅只保留本测试唯一节点；MTA 注册/注销，缓存读取与有界回调。
+//! Global-focus subscriptions retain only this test's unique node; MTA registration/unregistration, cached reads, and bounded callbacks.
 use super::*;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -60,7 +60,7 @@ fn expect(receiver: &Receiver<String>, expected: &str) {
             .expect("UIA focus event timed out"),
         expected
     );
-    // 系统可能重复交付；下一次焦点动作前有界排空本次同身份通知。
+    // System delivery may duplicate; boundedly drain same-identity notifications before the next focus action.
     for _ in 0..8 {
         match receiver.recv_timeout(Duration::from_millis(100)) {
             Ok(id) => assert_eq!(id, expected),
@@ -104,8 +104,8 @@ fn receive(hwnd: usize) -> Result<()> {
         assert!(a.CurrentHasKeyboardFocus()?.as_bool());
         SendMessageW(hwnd, WM_KEYDOWN, Some(WPARAM(VK_TAB.0 as usize)), None);
         expect(&receiver, B);
-        // SW_SHOWNOACTIVATE 不抢用户前台；全局 GetFocusedElement 可属于另一程序。
-        // 验证本 HWND 的节点实时属性，而不是把线程焦点误称桌面全局焦点。
+        // SW_SHOWNOACTIVATE does not steal user foreground; global GetFocusedElement may belong to another application.
+        // Verify live node properties for this HWND rather than mislabel thread focus as desktop-global focus.
         let condition = subscription.client.CreatePropertyCondition(
             UIA_AutomationIdPropertyId,
             &windows::Win32::System::Variant::VARIANT::from(B),

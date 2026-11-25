@@ -1,4 +1,4 @@
-//! 清空沿用原库更新 worker、取消和 Receipt 发布；不创建磁盘删除任务。
+//! Clearing reuses the original library-update worker, cancellation, and Receipt publication; no disk-deletion task is created.
 use super::*;
 impl Job {
     pub fn start_library_clear(

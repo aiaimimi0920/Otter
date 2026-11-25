@@ -1,4 +1,4 @@
-//! 注入文件选择结果，验证原生打开链；不显示系统对话框或访问用户文件。
+//! Inject file-picker results to verify the native open flow, without showing system dialogs or accessing user files.
 use super::*;
 use crate::desktop::{open_image, open_job};
 
@@ -57,7 +57,7 @@ pub(super) unsafe fn run(app: &mut Application) -> Result<()> {
     app.collect_closed();
     let source = &app.documents[0];
     let state = &source.state;
-    // 模拟选择器的嵌套消息改变源文档，不能继续交付旧选择。
+    // Simulate picker nested messages changing the source document; the old selection must not still be delivered.
     if open_image::open_with(source.window.0, state, true, || {
         state
             .canvas

@@ -1,4 +1,4 @@
-//! 用窗口区域限制跨进程鼠标命中；不依赖 HTTRANSPARENT 的同线程转发语义。
+//! Use window regions to constrain cross-process mouse hits, not HTTRANSPARENT's same-thread forwarding semantics.
 use super::State;
 use crate::{
     alpha_region::{self, AlphaRegion},
@@ -32,7 +32,7 @@ mod frame;
 use frame::Key;
 
 impl HitRegion {
-    /// 网络 worker 已准备有界 alpha；保留独立本地标注缓存，不在 UI 重扫新底图。
+    /// Network workers already prepared bounded alpha; retain independent local-annotation caches without UI rescans of new base images.
     pub(super) fn replace_source(&mut self, pixels: crate::pixels::Pixels, mask: AlphaRegion) {
         self.source = Some((pixels, mask));
         self.key = None;
@@ -118,7 +118,7 @@ pub(super) unsafe fn update_visible(hwnd: HWND, state: &State) -> Result<()> {
     if state.canvas.borrow().minified.is_some() {
         return minified::update(hwnd, state);
     }
-    // 生成区域时只借用模型；SetWindowRgn 可能同步发送窗口消息，调用前必须释放所有 RefCell。
+    // Borrow models only while generating regions; SetWindowRgn may synchronously send messages, so release every RefCell first.
     let prepared = {
         let canvas = state.canvas.borrow();
         if !canvas.pinned {
@@ -196,7 +196,7 @@ pub(super) unsafe fn update_visible(hwnd: HWND, state: &State) -> Result<()> {
                 key.base_projection,
             )?;
             add_annotations(&region, editor, canvas.viewport.scale, dpi)?;
-            // 掩码及矢量区域先在源坐标缩放，再统一平移并与可见裁剪框相交。
+            // Scale mask/vector regions in source coordinates, then translate uniformly and intersect with visible crop bounds.
             let factor = dpi as f32 / 96.0;
             let dx = (canvas.viewport.origin.x * factor).round() as i32;
             let dy = (canvas.viewport.origin.y * factor).round() as i32;
@@ -226,7 +226,7 @@ pub(super) unsafe fn update_visible(hwnd: HWND, state: &State) -> Result<()> {
         state.hit_region.borrow_mut().key = None;
         return Err(Error::from_win32());
     }
-    // Windows 接管成功应用的 HRGN；失败时 RAII 删除仍归本进程所有的区域。
+    // Windows owns successfully applied HRGNs; on failure, RAII deletes regions still owned by this process.
     std::mem::forget(prepared);
     Ok(())
 }
@@ -249,7 +249,7 @@ unsafe fn source_region(
     )
 }
 
-/// 两层先各自映射到文档源坐标；调用方再统一应用 viewport 平移和裁剪。
+/// Map both layers into document-source coordinates independently; callers then apply common viewport translation/clipping.
 unsafe fn raster_region(
     cache: &HitRegion,
     width: u32,
@@ -372,7 +372,7 @@ unsafe fn region_from_rects(
     let header = std::mem::size_of::<RGNDATAHEADER>();
     let stride = std::mem::size_of::<RECT>();
     let bytes = header + capacity * stride;
-    // u32 对齐覆盖 RGNDATAHEADER/RECT，所有长度都来自有界矩形列表。
+    // u32 alignment covers RGNDATAHEADER/RECT, and every length comes from bounded rectangle lists.
     let mut storage = vec![0u32; bytes.div_ceil(4)];
     let data = storage.as_mut_ptr().cast::<RGNDATA>();
     let output = storage.as_mut_ptr().cast::<u8>().add(header).cast::<RECT>();

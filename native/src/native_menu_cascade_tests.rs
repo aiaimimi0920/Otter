@@ -1,4 +1,4 @@
-//! 真实级联 HWND 与导航消息；不修改业务文档或读取剪贴板。
+//! Real cascade HWNDs/navigation messages; no business-document mutation or clipboard reads.
 #[path = "native_menu_gallery_tests.rs"]
 mod gallery;
 #[path = "native_menu_uia_client_tests.rs"]
@@ -138,7 +138,7 @@ fn accessibility_requests_use_existing_cascade_and_revoke_after_close() {
     assert!(menu.take_command().is_none());
     let leaf = menu.pages[1].panel.accessibility_nodes().remove(0);
     leaf.enqueue(Action::Invoke).unwrap();
-    assert!(menu.take_command().is_none()); // 入队不是业务已执行。
+    assert!(menu.take_command().is_none()); // Queueing does not mean business execution.
     menu.poll().unwrap();
     assert!(menu.closed());
     assert_eq!(menu.take_command(), Some(42));

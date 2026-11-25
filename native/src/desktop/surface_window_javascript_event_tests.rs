@@ -1,4 +1,4 @@
-//! 自有 HWND 的定向点击经原候选验证进入事件阶段；不注入全局输入或授予远端动作。
+//! Targeted clicks on owned HWNDs enter event stages through original candidate validation; no global input injection or remote-action grants.
 use super::*;
 #[test]
 fn javascript_event_target_real_hwnd_click_phases_pixels_and_same_child_update() {
@@ -47,7 +47,7 @@ fn javascript_event_target_real_hwnd_click_phases_pixels_and_same_child_update()
             window.javascript_text_for_test(),
             format!("原生🙂:{quote}:{}", round + 1)
         );
-        // replace 撤销旧 UIA 身份；DOM/child identity 不等于旧 provider 句柄永久有效。
+        // replace revokes old UIA identity; DOM/child identity does not make old provider handles permanently valid.
         assert!(node.read().is_none());
         node = window.accessibility_node(&button).unwrap();
         assert!(node.read().is_some());

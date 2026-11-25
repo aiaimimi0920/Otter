@@ -1,4 +1,4 @@
-//! Tile文本字段命中/稳定合同与原生编辑层几何；不构造Surface Binding或持有窗口资源。
+//! Tile text-field hits/stable contracts and native editor-layer geometry; no Surface Binding construction or window-resource ownership.
 use crate::{
     surface_presentation::{ControlFont, Presentation},
     surface_scene::Kind,
@@ -99,7 +99,7 @@ pub(crate) fn hit(
     })
 }
 impl Field {
-    /// 只保留已关闭编辑器的草稿/票据；不把屏外字段伪装成新的可输入命中。
+    /// Retain only drafts/tickets of closed editors; never disguise offscreen fields as new input-eligible hits.
     pub(crate) fn retained(&self, frame: &Frame, art: &Art, p: &Presentation) -> Option<Self> {
         if self.key != frame.key
             || !self.matches_art(art, p)
@@ -115,7 +115,7 @@ impl Field {
         }
         let mut next = self.clone();
         next.anchor.snapshot = art.snapshot.clone();
-        // 保留原事件激活时的滚动坐标；重新打开时由真实hit替换整个Field。
+        // Retain scroll coordinates from original event activation; on reopening, actual hits replace the entire Field.
         Some(next)
     }
     pub fn current(&self, frame: &Frame) -> bool {

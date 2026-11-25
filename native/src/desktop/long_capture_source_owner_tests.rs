@@ -48,7 +48,7 @@ fn candidate_capture_commits_only_on_finish_and_rejection_preserves_reference() 
         .unwrap();
     source.finish_move(true);
     assert_eq!((source.region.left, source.region.top), (-9, -19));
-    assert_eq!(source.remaining, 511); // 移动只采集，不发送滚轮或消耗滚动次数。
+    assert_eq!(source.remaining, 511); // Movement captures only, without wheel sends or consuming scroll counts.
 }
 #[test]
 fn invalid_moves_fail_before_capture_and_capture_errors_clear_candidates() {
@@ -82,7 +82,7 @@ fn invalid_moves_fail_before_capture_and_capture_errors_clear_candidates() {
             Ok(frame())
         })
         .is_err());
-    source.finish_move(true); // 迟到的提交也不能提交失败/取消的候选。
+    source.finish_move(true); // Late commits must not commit failed/cancelled candidates either.
     assert!(source.pending.is_none());
     assert_eq!(source.region, region());
 }

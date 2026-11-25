@@ -1,4 +1,4 @@
-//! 显式接受/真实保存/删除→先标记再原认证 unlink；负回执、真实退避与撤权恢复。
+//! Explicit acceptance/real save/deletion -> marker first, then original authenticated unlink; negative receipts, real backoff, and revocation recovery.
 use super::*;
 use crate::device_authorization_config::Action;
 
@@ -139,7 +139,7 @@ unsafe fn run_routed(mode: u8, offline: bool) {
         .app
         .projection_checkpoint_inclusion(fixture.ticket())
         .is_some());
-    fixture.app.reset_projection_inbox(); // 释放原 Checkpoint Hold，不伪造 displayed。
+    fixture.app.reset_projection_inbox(); // Release the original Checkpoint Hold without fabricating displayed.
     let mut expected: serde_json::Value = serde_json::from_slice(&fixture.journal()).unwrap();
     expected["entries"][0]["cleanup"] = true.into();
     if mode == 3 {

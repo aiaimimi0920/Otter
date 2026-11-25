@@ -1,4 +1,4 @@
-//! 整批隐藏窗口准备：任一失败释放本批 owner，不修改现有工作区或显示候选。
+//! Batch preparation of hidden windows: any failure releases this batch's owners without changing the existing workspace or showing candidates.
 use super::*;
 #[path = "application_append.rs"]
 pub(super) mod append;
@@ -91,7 +91,7 @@ impl Application {
         check()?;
         let mut documents = Vec::with_capacity(prepared.states.len());
         let mut ready = Vec::with_capacity(prepared.states.len());
-        // manifest::validate 已校验长度及同序身份，不为每个隐藏窗口重新扫描位置表。
+        // manifest::validate already checked length and matching identity order; do not rescan the position table for every hidden window.
         for (state, placement) in prepared
             .states
             .into_iter()
@@ -101,7 +101,7 @@ impl Application {
             let frame = physical_frame(placement)?;
             check()?;
             if placement.minified {
-                // 主干缺少 savedRect 时仅退出缩略，保持当前框；仍需安装展开事务。
+                // If the main record lacks savedRect, only leave minimized mode and retain the current frame; an expansion transaction is still required.
                 let mut expanded = placement.clone();
                 expanded.rect = placement
                     .expanded_rect()

@@ -1,4 +1,4 @@
-//! Switch 的声明值与静态绘制快照；本模块不拥有本地草稿、焦点或提交权限。
+//! Switch declared values and static drawing snapshots; this module does not own local drafts, focus, or submission permission.
 use crate::{surface_clip::Rect, surface_layout_tree::Placed, surface_scene::Node};
 use windows::Win32::Graphics::Direct2D::{Common::*, *};
 #[path = "surface_switch_visual.rs"]
@@ -18,7 +18,7 @@ pub struct Switch {
 }
 impl Switch {
     pub fn new(placed: &Placed<'_>, clip: Rect) -> Self {
-        // 与 label 的居中 span 一致；外层布局可拉伸，轨道保持固定 DIP 大小。
+        // Match the label's centered span; outer layout may stretch while the track keeps a fixed DIP size.
         let x = placed.origin[0] + (placed.size[0] - SIZE[0]) / 2.;
         let y = placed.origin[1] + (placed.size[1] - SIZE[1]) / 2.;
         let checked = checked(placed.node);
@@ -74,7 +74,7 @@ impl Switch {
             right: self.clip.right,
             bottom: self.clip.bottom,
         };
-        // 外层 PaintFrame 恢复画刷；每条命令自行配对裁剪，绘制热路径不分配资源。
+        // The outer PaintFrame restores the brush; each command balances its own clipping, and the drawing hot path allocates no resources.
         unsafe {
             target.PushAxisAlignedClip(&clip, D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
             brush.SetColor(&colors.track);

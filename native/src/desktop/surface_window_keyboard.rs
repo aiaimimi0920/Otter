@@ -1,4 +1,4 @@
-//! 按钮键盘状态与 HWND 焦点绑定；候选仍走共享单槽及场景身份验证，不直接派发动作。
+//! Button keyboard state binds HWND focus; candidates still use shared single-slot and scene-identity validation without direct action dispatch.
 use super::*;
 use windows::Win32::UI::Input::KeyboardAndMouse::*;
 #[path = "surface_window_scroll_key.rs"]
@@ -49,7 +49,7 @@ pub(super) unsafe fn focus_node(hwnd: HWND, state: &State, node: &str) {
     focus_node_inner(hwnd, state, node, false);
 }
 pub(super) unsafe fn focus_canvas_node(hwnd: HWND, state: &State, node: &str) {
-    // 同 HWND 的下一 Canvas 手势不能撤销原 FIFO 中上一手势的 down/up。
+    // The next Canvas gesture on the same HWND must not revoke the previous gesture's down/up in the original FIFO.
     focus_node_inner(hwnd, state, node, GetFocus() == hwnd);
 }
 unsafe fn focus_node_inner(hwnd: HWND, state: &State, node: &str, canvas: bool) {
@@ -61,8 +61,8 @@ unsafe fn focus_node_inner(hwnd: HWND, state: &State, node: &str, canvas: bool) 
     if !matches!(result, Ok(true)) || state.closed.get() {
         return;
     }
-    // SetFocus 可重入；只在其返回且窗口仍存活时设置逻辑焦点。
-    // 点击非文本背景也建立键盘滚动入口；系统 EDIT 自己处理其内部鼠标/编辑焦点。
+    // SetFocus can reenter; set logical focus only after return while the window still exists.
+    // Clicking nontext backgrounds also establishes keyboard scrolling; system EDIT handles its own internal mouse/edit focus.
     let _ = SetFocus(Some(hwnd));
     if state.closed.get() || !state.local_edit.get() || GetFocus() != hwnd {
         return;
@@ -82,7 +82,7 @@ unsafe fn focus_node_inner(hwnd: HWND, state: &State, node: &str, canvas: bool) 
     drop(keyboard);
     focus_notifications::schedule(state);
 }
-/// 已验证的新场景可保留同一可聚焦节点，但按压/候选必须使用新场景身份。
+/// Verified new scenes may retain the same focusable node, but presses/candidates must use the new scene identity.
 pub(super) unsafe fn reconcile_scene(hwnd: HWND, state: &State, javascript: bool) {
     let (focused, visible) = {
         let keyboard = state.keyboard.borrow();
@@ -158,7 +158,7 @@ pub(super) unsafe fn message(
     if key == VK_TAB.0 {
         if message == WM_KEYDOWN {
             let current = state.keyboard.borrow().focused.clone();
-            // 导航可能滚动几何或在 EDIT 重定位时失败；先撤销旧按压/候选。
+            // Navigation may scroll geometry or fail while repositioning EDIT; revoke old presses/candidates first.
             pointer::invalidate(hwnd, state);
             let mut next = None;
             match state.run(|host| {
@@ -194,7 +194,7 @@ pub(super) unsafe fn message(
     if activate {
         if let Some(node) = focused {
             if switch::is_switch(state, &node) {
-                // checkbox 使用 Space 释放激活；Enter 不伪装成 Button click。
+                // checkbox activates on Space release; Enter does not impersonate a Button click.
                 if key == VK_SPACE.0 && !state.pointer.borrow().has_pending() {
                     if let Some((values, fence)) = pointer::form_snapshot(state) {
                         if switch::activate(hwnd, state, &node) == Some(true)

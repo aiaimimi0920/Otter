@@ -1,4 +1,4 @@
-//! 单个活动值控件复用普通Select/Slider HWND；通知仍排原有界队列，不另建业务worker。
+//! One active value control reuses ordinary Select/Slider HWNDs; notifications use the original bounded queue without another business worker.
 use super::*;
 use crate::{
     desktop::{surface_select_control, surface_slider_control},
@@ -180,7 +180,7 @@ impl Owner {
                             Some(crate::tile_surface_local::Value::Slider(v)) => v,
                             _ => source,
                         };
-                        // 同值同步不取消正在原生子控件内持有的鼠标拖动。
+                        // Same-value synchronization does not cancel mouse dragging held inside native child controls.
                         if c.value()? != drag.value {
                             c.set_value(drag.value)?;
                         }
@@ -196,8 +196,8 @@ impl Owner {
             return Ok(());
         }
         let Some(focus) = current(state, &self.focus) else {
-            // 原生子控件已先处理按键再同步通知。空白/换版期间立即恢复最后接受值，
-            // 不让未授权的本地变值留到下一次合法按键并被间接提交。
+            // Native children process keys before synchronous notification. During blank/version-transition intervals, restore the last accepted value immediately,
+            // preventing unauthorized local changes from surviving until the next valid key and being indirectly committed.
             match &self.control {
                 Control::Select(c, accepted) => c.select(*accepted)?,
                 Control::Slider(c, drag) => c.set_value(drag.value)?,

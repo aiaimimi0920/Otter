@@ -1,4 +1,4 @@
-//! 生产 Publication 的原来源发布、源执行拒绝及属性清理；不加载产品 DLL/外部应用。
+//! Original-source publication, source-execution rejection, and property cleanup for production Publication; no product DLL/external-application loading.
 use super::*;
 use crate::live_window_target::{popup::Scope, recovery::popup_layer::fixture::Fixture};
 use windows::core::w;

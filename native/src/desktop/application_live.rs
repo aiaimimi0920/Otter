@@ -1,4 +1,4 @@
-//! 应用持有 Live 会话：回调外创建、每次消息后结算、真实线程句柄与 UI 消息共同等待。
+//! Application-owned Live sessions: create outside callbacks, settle after each message, and wait on real thread handles alongside UI messages.
 use super::*;
 use crate::{desktop::composition::live::session::Session, live_job::MAX_SESSIONS};
 use std::os::windows::io::AsRawHandle;
@@ -22,7 +22,7 @@ mod surface_shutdown;
 pub(super) mod wait;
 #[path = "application_live_workspace.rs"]
 mod workspace;
-// 每个远程会话是 Ready+完成或帧+完成，最多两个句柄；消息等待必须保留一个槽。
+// Each remote session has Ready+completion or frame+completion, at most two handles; reserve one slot for message waiting.
 const MAX_WAIT_HANDLES: usize =
     MAX_SESSIONS * 3 + 7 + crate::desktop::composition::relay::sessions::MAX_SESSIONS * 2;
 const _: () = assert!(MAX_WAIT_HANDLES <= 63);
@@ -77,7 +77,7 @@ impl Application {
                         )
                     });
                     index += 1;
-                    // 不持有 Session 借用跨模态消息泵；失败仅停止源控制，采集继续。
+                    // Do not hold Session borrows across modal message pumps; failure stops only source control while capture continues.
                     if let Some((owner, error)) = notice {
                         if visible && IsWindowVisible(owner).as_bool() {
                             MessageBoxW(
@@ -153,7 +153,7 @@ impl Application {
                 {
                     return Err(Error::new(E_OUTOFMEMORY, "Live session limit reached"));
                 }
-                // 先保留 owner 容量；显示失败会析构局部会话，停止采集并回收线程。
+                // Reserve owner capacity first; display failure drops the local session, stops capture, and reaps the thread.
                 self.live_sessions
                     .try_reserve(1)
                     .map_err(|_| Error::new(E_OUTOFMEMORY, "Cannot allocate Live owner"))?;
@@ -188,7 +188,7 @@ impl Application {
         target: crate::live_window_target::Target,
         crop: Option<crate::live_window_target::region::Crop>,
     ) -> std::io::Result<Session> {
-        // 在隐藏/恢复保护接管之前记录用户选中源的物理可见外框。
+        // Record the user-selected source's physical visible outer frame before hide/restore protection takes over.
         let frame = target.frame_bounds().map_err(std::io::Error::other)?;
         let screen = crop
             .map(|crop| crop.screen(frame))
@@ -244,11 +244,11 @@ impl Application {
             append_wait_handle(&mut handles, &mut count, HANDLE(handle.as_raw_handle()))?;
         }
         if let Some(handle) = self.projection_receive.wait_handle() {
-            // 原 accept 的 Slot 仍在 Hold；这里只借接续 Job 的原线程句柄，不创建新 event。
+            // The original accept Slot remains in Hold; borrow only the continuation Job's original thread handle here, without creating a new event.
             append_wait_handle(&mut handles, &mut count, HANDLE(handle.as_raw_handle()))?;
         }
         if let Some(handle) = self.projection_edit.wait_handle() {
-            // edit与receiver准入互斥，共用原接收等待名额，不扩Windows的63句柄预算。
+            // edit and receiver admission are mutually exclusive and share the original receive wait slot without expanding Windows' 63-handle budget.
             append_wait_handle(&mut handles, &mut count, HANDLE(handle.as_raw_handle()))?;
         }
         for handle in self.surface_windows.wait_handles() {
@@ -292,7 +292,7 @@ impl Application {
             )
             .chain(self.live_visibility.deadline())
             .min();
-        // 本调用返回前不修改会话集合或回收任务；句柄 owner 始终存活。
+        // Do not modify the session collection or reap tasks before this call returns; handle owners remain alive throughout.
         super::super::session_end::with_query(
             &self.session_end,
             || self.session_end_ready(),
@@ -301,7 +301,7 @@ impl Application {
     }
 
     fn file_import_reap_deadline(&self) -> Option<std::time::Instant> {
-        // 两个导入 owner 在模态期间均不轮询；不得安排无法消费的周期唤醒。
+        // Neither import owner polls during modal intervals; do not schedule periodic wakeups that cannot be consumed.
         if self.modals.blocked() {
             return None;
         }
@@ -318,7 +318,7 @@ impl Application {
     }
 
     pub(super) fn save_reap_deadline(&self) -> Option<std::time::Instant> {
-        // 外层提交受模态门禁。图库菜单内独立结算，由既有生命周期 timer 接续。
+        // Outer commits are modal-gated. Gallery menus settle independently and resume through the existing lifecycle timer.
         if self.modals.blocked() {
             return None;
         }

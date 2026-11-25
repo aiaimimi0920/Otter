@@ -1,4 +1,4 @@
-//! 对照 UnitParamsPanel 的显示回退和控件值转换；只生成初值，不回写公共参数。
+//! Match UnitParamsPanel display fallbacks/control-value conversions; generate initial values only, without writing public parameters.
 use crate::loom_capability::Parameter;
 use serde_json::Value;
 pub(super) fn effective<'a>(

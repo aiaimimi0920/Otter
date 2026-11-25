@@ -1,4 +1,4 @@
-//! Live 生产关闭/系统菜单到回收、真实保存和恢复；只使用隐藏窗口及合成 WARP 帧。
+//! Production Live close/system-menu paths through recycling, real saving, and restoration; hidden windows and synthetic WARP frames only.
 use super::*;
 use crate::desktop::composition::live::window::local::tests::wheel;
 use crate::session_library::Kind;
@@ -56,7 +56,7 @@ fn live_recycle_close_and_menu_preserve_frame_until_commit_and_restore_from_libr
             assert_eq!(save_snapshot::payload_documents_for_test(), exports);
             assert!(app.live_sessions[0].is_alive());
             assert!(app.save_job.is_some());
-            // 普通磁盘保存消费者不能领取会关闭窗口的结果。
+            // Ordinary disk-save consumers must not collect results that close windows.
             assert!(app.take_save_candidate().is_err());
             settle_recycle(&mut app).unwrap();
             assert!(!IsWindow(Some(hwnd)).as_bool());
@@ -90,7 +90,7 @@ fn live_recycle_close_and_menu_preserve_frame_until_commit_and_restore_from_libr
             let canvas = app.documents[1].state.canvas.borrow();
             assert!((canvas.normal_opacity - 0.35).abs() < 0.00001);
             assert!((canvas.window_opacity - 0.35).abs() < 0.00001);
-            // 恢复器的显示栅格按贴纸几何生成；原帧由独立 source owner 保留。
+            // The restorer generates display rasters from sticker geometry; an independent source owner retains the original frame.
             let image = canvas.minified_source.as_ref().unwrap().image();
             assert_eq!([image.width, image.height], [2, 2]);
             assert_eq!(&*image.pixels, &[0, 0, 255, 255].repeat(4));

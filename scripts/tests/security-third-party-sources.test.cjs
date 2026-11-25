@@ -1,4 +1,4 @@
-// 副本篡改、遗漏及路径边界必须 fail closed；由现有 security-* CI 测试入口执行。
+// Copy tampering, omissions, and path-boundary violations must fail closed; run through existing security-* CI test entries.
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");

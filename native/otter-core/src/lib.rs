@@ -1,4 +1,4 @@
-//! Otter 核心几何、像素、画笔与基础线协议模型（无 Win32 窗口耦合）。
+//! Otter core geometry, pixels, brushes, and basic wire-protocol models without Win32-window coupling.
 pub mod alpha_region;
 pub mod arrow_geometry;
 pub mod bezier_arrow;

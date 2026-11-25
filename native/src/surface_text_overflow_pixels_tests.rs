@@ -1,4 +1,4 @@
-//! 同一 WIC 目标比较真实帧与独立 DirectWrite 省略参考，避免仅断言 CSS 字符串/metrics。
+//! Compare real frames with independent DirectWrite ellipsis references on the same WIC target rather than asserting only CSS strings/metrics.
 use super::*;
 use windows::Win32::{
     Graphics::{
@@ -109,7 +109,7 @@ fn text_overflow_pixels_draw_ellipsis_not_clip_and_keep_content_clip() {
             .chunks_exact(4)
             .enumerate()
             .all(|(i, p)| (i % 160 < 84 && i / 160 < 32) || p[3] == 0));
-        // 小于省略号的内容盒仍严格裁剪，不能越界画出整个 sign。
+        // Content boxes smaller than the ellipsis still clip strictly; never draw the entire sign beyond bounds.
         let tiny = frame(scene("ellipsis", 1., 32., text));
         let bytes = render(&|| tiny.text().draw(&target, &brush).unwrap());
         assert!(bytes

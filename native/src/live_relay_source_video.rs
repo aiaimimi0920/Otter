@@ -1,4 +1,4 @@
-//! Source单线程视频选择；服务策略/参考链变化强制IDR，任何codec失败在本连接sticky raw。
+//! Single-thread Source video selection; service-policy/reference-chain changes force IDR, and any codec failure makes raw sticky for this connection.
 use crate::{
     byte_budget::Budget,
     live_mf::{Encoded, VideoEncoder},
@@ -14,7 +14,7 @@ pub(super) struct Video {
 }
 impl Video {
     pub fn new(size: [u32; 2], budget: &Arc<Budget>) -> Self {
-        // 可选codec不能挤掉raw也必需的网络额度；实际stream仍自己持有原租约。
+        // Optional codecs cannot consume network quota required even by raw; the actual stream still holds its original lease.
         let network = budget.reserve(crate::live_relay_media_transport::BUFFER_BUDGET);
         Self {
             encoder: network.and_then(|_network| VideoEncoder::create(size, budget).ok()),
@@ -37,7 +37,7 @@ impl Video {
         }
         self.size = size;
         self.since_idr = 30;
-        // 先释放旧编码器的额度和系统资源；尺寸变化不能复活已失败的编码器。
+        // Release old encoder quota/system resources first; dimension changes cannot revive a failed encoder.
         if self.encoder.is_some() {
             self.encoder.take();
             self.encoder = VideoEncoder::create(size, budget).ok();
@@ -64,7 +64,7 @@ impl Video {
         self.refresh
     }
     pub fn reconnect(&mut self) {
-        // 丢失的AU不能重放；等新策略后发IDR，失败的encoder不因重连复活。
+        // Never replay lost AUs; send IDR after new policy, without reviving failed encoders on reconnect.
         self.policy.h264_allowed = false;
         self.refresh = true;
         self.since_idr = 30;

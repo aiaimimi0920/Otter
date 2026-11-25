@@ -1,4 +1,4 @@
-//! 应用级远程会话集合；容量包含停止但未回收的线程，退出后禁止再次启动。
+//! Application-level remote-session collection; capacity includes stopped but unreclaimed threads, and exit forbids further starts.
 use super::session::{Outcome, Session};
 use crate::{
     byte_budget::Budget,
@@ -27,7 +27,7 @@ pub struct Sessions {
     catalog_job: Option<Job>,
     catalog: Option<Catalog>,
     projection_job: Option<projection::Pending>,
-    // 单槽 Accept 的未结交接，不是第二队列/网络 owner；领取前禁止下次任务。
+    // Unsettled handoff from single-slot Accept, not a second queue/network owner; prohibit another task until collected.
     projection_abandoned: Option<crate::projection_delivery::journal::Ticket>,
     projection_sender_abandoned: Option<crate::projection_delivery::sender::Request>,
     surface_jobs: Vec<crate::surface_lifecycle_runtime::Job>,
@@ -53,7 +53,7 @@ pub struct Sessions {
     closed: bool,
 }
 impl Sessions {
-    /// 一次只允许一个目录请求；刷新失败也不展示上一轮目录。
+    /// Allow only one catalog request at a time; failed refreshes must not show the previous catalog.
     pub fn discover(&mut self, config: Config, lease: Lease) -> io::Result<()> {
         if self.closed {
             return Err(io::ErrorKind::BrokenPipe.into());
@@ -65,7 +65,7 @@ impl Sessions {
         self.catalog_job = Some(Job::start(config, lease)?);
         Ok(())
     }
-    /// 服务选择切换时清空目录并取消旧请求，未回收线程仍然占槽位。
+    /// Clear catalogs and cancel old requests on service-selection changes; unreclaimed threads still occupy slots.
     pub fn cancel_discovery(&mut self) {
         self.catalog = None;
         if let Some(job) = &self.catalog_job {
@@ -117,7 +117,7 @@ impl Sessions {
         self.entries.try_reserve(1).map_err(io::Error::other)?;
         let key = Arc::new(ViewerKey::new(&origin, &target));
         let mut session = create()?;
-        // 此时未创建窗口；只登记调用方明确发起的显示意图。
+        // No window exists yet; record only visibility intent explicitly initiated by the caller.
         session.show().map_err(io::Error::other)?;
         self.entries.push(Entry {
             origin,

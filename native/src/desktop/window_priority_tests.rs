@@ -1,4 +1,4 @@
-//! 消息专用窗口测试不显示界面，也不修改用户当前前景窗口。
+//! Message-only-window tests display no UI and do not change the user's foreground window.
 use super::*;
 use windows::core::w;
 
@@ -123,8 +123,8 @@ fn invalid_destination_does_not_poison_registration() {
         );
     }
     assert!(DESTINATIONS.with(|targets| targets.borrow().iter().all(|target| !target.1)));
-    // PeekMessage 会分发系统 WinEvent 回调。先核对忽略路径，再注销真实 hook，
-    // 否则其他测试/桌面的窗口事件可在读取空队列时设置 PENDING，污染此断言。
+    // PeekMessage dispatches system WinEvent callbacks. Verify ignored paths before unregistering the real hook,
+    // or window events from other tests/desktops can set PENDING while reading an empty queue and contaminate this assertion.
     drop(_watcher);
     assert_eq!(notifications(window.0), 0);
 }
@@ -152,7 +152,7 @@ fn two_windows_share_hooks_but_acknowledge_and_release_independently() {
     assert_eq!(notifications(first.0), 1);
     assert_eq!(notifications(second.0), 1);
     acknowledge(first.0);
-    // 第一窗口确认不能清除第二窗口的 pending，否则重复系统事件会再次排队。
+    // The first window's acknowledgement must not clear the second's pending, or duplicate system events would queue again.
     unsafe {
         on_event(
             HWINEVENTHOOK::default(),
@@ -193,7 +193,7 @@ fn host_destroy_dispatch_releases_its_subscription_before_state_drop() {
     let watcher = Watcher::install(window.0).unwrap();
     let hooks = Rc::downgrade(&watcher._hooks);
     *state.priority_watcher.borrow_mut() = Some(watcher);
-    // 直接调用生产销毁路由，不登记宿主计数，不向测试线程发送 WM_QUIT。
+    // Call the production destruction route directly, without registering host counts or sending WM_QUIT to the test thread.
     unsafe {
         super::super::host_lifetime::dispatch(window.0, &state, WM_DESTROY, WPARAM(0), LPARAM(0));
     }

@@ -1,4 +1,4 @@
-//! Live 消费者到 HWND 的有界事件桥；只投递连接代次，不传裸指针或图像字节。
+//! Bounded event bridge from Live consumers to HWND; post only connection generations, never raw pointers or image bytes.
 use crate::live_frames::{Consumer, Delivery};
 use std::{
     marker::PhantomData,
@@ -22,17 +22,17 @@ pub struct WindowSignal<T> {
     _thread: PhantomData<Rc<()>>,
 }
 impl<T> WindowSignal<T> {
-    /// 投递失败累计数；不忙重试，下一次帧变化重新尝试。宿主可在已有事件中报告此状态。
+    /// Cumulative posting failures; no busy retries, retry on the next frame change. Hosts may report this state through existing events.
     pub fn notification_failures(&self) -> u64 {
         self.consumer.notification_failures()
     }
-    /// 已有绘制/宿主事件中的补偿读取，不创建轮询线程或定时器。
+    /// Compensating reads in existing paint/host events, without polling threads or timers.
     pub(super) fn refresh(
         &mut self,
     ) -> std::result::Result<Option<Delivery<T>>, crate::live_frames::Error> {
         self.consumer.try_next()
     }
-    /// 在目标 HWND 的所属线程绑定，owner 必须随窗口销毁；旧排队消息由新连接代次拒绝。
+    /// Bind on the target HWND's owning thread; destroy owner with the window, and reject old queued messages by new connection generation.
     pub fn bind(hwnd: HWND, mut consumer: Consumer<T>) -> Result<Self> {
         unsafe {
             let mut process = 0;
@@ -73,7 +73,7 @@ impl<T> WindowSignal<T> {
             _thread: PhantomData,
         })
     }
-    /// 返回 None 表示不属于此连接；消息只唤醒读取，真实内容始终取自已绑定消费者。
+    /// None means the message is not for this connection; messages only wake reads, whose actual data always comes from the bound consumer.
     pub fn receive(
         &mut self,
         hwnd: HWND,

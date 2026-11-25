@@ -1,8 +1,8 @@
-//! 图片 child 的帧边界；只验证数值，不解析编码图片或分配像素。
+//! Image-child frame boundaries; validate only numbers, without parsing encoded images or allocating pixels.
 use std::io;
 pub const MAX_INPUT: usize = 16 * 1024 * 1024;
 const MAX_PIXELS: usize = 64 * 1024 * 1024;
-// 固定 codec/version；不能靠猜测或传入命令字符串选择解码器。
+// Fixed codec/version; do not select decoders by guessing or passing command strings.
 pub const REQUEST: &[u8; 4] = b"OWI1";
 pub const RESPONSE: &[u8; 4] = b"OWP1";
 #[derive(Clone, Copy, PartialEq)]
@@ -27,7 +27,7 @@ impl Codec {
 fn invalid() -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, "Invalid image worker frame")
 }
-// SVG v2 的尺寸扩展独立验证；栅格始终是一逻辑单位一个像素并向上取整。
+// Validate SVG v2 dimension extensions independently; raster images always use one pixel per logical unit, rounded up.
 pub fn logical_size(size: [f32; 2], raster: [u32; 2]) -> io::Result<[f32; 2]> {
     if size.iter().zip(raster).any(|(v, r)| {
         !v.is_finite()

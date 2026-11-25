@@ -1,4 +1,4 @@
-//! 单次编译/纹理/读回事务；资源先注册 owner，所有失败及取消路径都释放 GL 对象。
+//! Single compile/texture/readback transaction; register resource owners first and release GL objects on every failure/cancellation path.
 use super::{api::Gl, image_bytes, name, Error, Frame, Renderer, Request, Result};
 use crate::byte_budget::Lease;
 use std::{
@@ -35,7 +35,7 @@ impl Drop for Resources<'_> {
                 (self.gl.delete_shader)(*shader);
             }
         }
-        // 字节租约在上述实际 GPU 对象释放之后随字段归还。
+        // Byte leases return with fields only after the actual GPU objects above are released.
     }
 }
 fn cancelled(cancel: &AtomicBool) -> Result<()> {
@@ -121,8 +121,8 @@ impl Renderer {
         }
         Ok((textures, uniforms))
     }
-    /// 不改写 GLSL 源码/UV，不添加时间或帧循环；取消只能在系统调用间观察。
-    /// 返回 raw RGBA，不擅自猜测 WebGL canvas 的预乘/PNG 语义。
+    /// Do not rewrite GLSL source/UV or add time/frame loops; observe cancellation only between system calls.
+    /// Return raw RGBA without guessing WebGL canvas premultiplication/PNG semantics.
     pub fn render(&mut self, request: Request<'_>, cancel: &AtomicBool) -> Result<Frame> {
         cancelled(cancel)?;
         let (texture_names, uniform_names) = self.validate(&request)?;
@@ -258,7 +258,7 @@ impl Renderer {
         }
         cancelled(cancel)?;
         let stride = self.width as usize * 4;
-        // 只把 readPixels bottom-up 变为 top-down；不改变 shader 自己的 UV 变换。
+        // Convert only readPixels bottom-up order to top-down; preserve the shader's own UV transform.
         for y in 0..self.height as usize / 2 {
             cancelled(cancel)?;
             let opposite = (self.height as usize - 1 - y) * stride;

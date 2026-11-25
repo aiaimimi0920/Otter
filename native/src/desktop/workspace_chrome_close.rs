@@ -1,4 +1,4 @@
-//! 删除先同批撤下宿主与附属呈现，销毁和 GPU/任务回收不能留下单独一帧外框。
+//! Deletion removes hosts and attached presentation together first; destruction/GPU/task reclamation must not leave a lone border frame.
 use super::*;
 
 pub(in crate::desktop) unsafe fn hide_pin(host: HWND, state: &desktop::State) -> Result<()> {
@@ -43,7 +43,7 @@ pub(in crate::desktop) unsafe fn hide_pin(host: HWND, state: &desktop::State) ->
     if handles.is_empty() {
         return Ok(());
     }
-    // 不跨 EndDeferWindowPos 持有 UI/Canvas 借用；同步通知可进入原几何与工具条 owner。
+    // Hold no UI/Canvas borrow across EndDeferWindowPos; synchronous notifications may enter original geometry/toolbar owners.
     let mut batch = BeginDeferWindowPos(handles.len() as i32)?;
     for hwnd in handles {
         batch = DeferWindowPos(

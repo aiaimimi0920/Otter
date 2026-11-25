@@ -1,4 +1,4 @@
-//! 仅 --smoke-test 调用的隐藏 HWND 验证；不注入系统输入、不读取剪贴板或用户配置。
+//! Hidden-HWND verification used only by --smoke-test; no system input injection, clipboard reads, or user settings.
 use super::State;
 use windows::{
     core::{Error, Result},
@@ -88,7 +88,7 @@ pub(super) unsafe fn run(hwnd: HWND, state: &State) -> Result<()> {
         "Crop copied or changed source pixels",
     )?;
 
-    // 使用真实 GDI 区域检查源框外的部分没有留在窗口命中区域中。
+    // Use real GDI regions to verify areas outside source bounds are excluded from window hit regions.
     state
         .canvas
         .borrow_mut()

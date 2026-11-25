@@ -1,7 +1,7 @@
-//! 只有完整 D3D12 呈现链创建成功才发布；失败后尝试原兼容链一次，不循环重试。
+//! Publish only after the complete D3D12 presentation chain is created; on failure, try the original compatibility chain once without retry loops.
 use windows::core::{Error, Result};
 
-/// 普通窗口和钉图的 CPU 候选都只接受“尚未关联”的失败，不能绕过 DComp 退休。
+/// CPU candidates for both ordinary windows and pins accept only unattached failures; they cannot bypass DComp retirement.
 pub(super) fn compatibility<T>(
     gpu: super::super::composition_creation::Result<T>,
     pinned: bool,

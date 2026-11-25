@@ -1,4 +1,4 @@
-//! 真实订阅在完成通知尾段先撤权，线程退出后才回收；中途快照通知不启用回收期限。
+//! Real subscriptions revoke authority at completion-notification tails and reclaim only after thread exit; intermediate snapshot notifications do not start reclamation deadlines.
 use super::*;
 use crate::desktop::loom_execution_tasks::reap_fixture::{Gate, WAIT};
 
@@ -32,7 +32,7 @@ fn completion_tail_revokes_once_without_join_and_reaps_closed_or_cancelled_resul
         job.start(Source::Fixed(identity.clone()), notify).unwrap();
         snapshot_notice.recv_timeout(WAIT).unwrap();
         assert!(job.deadline().is_none());
-        // 故意不领取初始快照；终态不得复活它。
+        // Intentionally leave the initial snapshot uncollected; terminal state must not revive it.
         if cancelled {
             job.cancel();
         }

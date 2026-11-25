@@ -1,4 +1,4 @@
-//! 同预算真实 child 的帧回调、跨 viewport 读取、暂停/取消/终态回收及摘要绑定产品门。
+//! Product gates for real-child frame callbacks, cross-viewport reads, pause/cancellation/terminal cleanup, and digest binding under the same budget.
 use super::*;
 use crate::surface_viewport::Viewport;
 use sha2::{Digest, Sha256};

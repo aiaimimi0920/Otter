@@ -1,4 +1,4 @@
-//! 工具/操作分组共享的 DIP 布局；操作从下一整行开始，尺寸随目录数量推导。
+//! Shared DIP layout for tool/action groups; actions start on the next full row, with dimensions derived from catalog count.
 use windows::Win32::Foundation::RECT;
 const COLUMNS: usize = 5;
 fn px(value: usize, dpi: u32) -> i32 {

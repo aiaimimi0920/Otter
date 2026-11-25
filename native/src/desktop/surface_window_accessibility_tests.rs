@@ -1,4 +1,4 @@
-//! 隐藏 HWND 的语义句柄生命周期；不是 UIA 客户端验收。
+//! Semantic-handle lifetimes for hidden HWNDs, not UIA-client acceptance.
 use super::*;
 
 fn scene() -> Scene {

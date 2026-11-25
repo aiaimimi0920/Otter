@@ -1,4 +1,4 @@
-//! 隔离进程验证真实 GPU owner 的保留；注入失败凭证，不伪称真实驱动故障。
+//! Isolated processes verify retention of real GPU owners; inject failure evidence without claiming real driver failures.
 use super::*;
 use crate::desktop::{Apartment, Window};
 use windows::{core::w, Win32::UI::WindowsAndMessaging::*};
@@ -51,7 +51,7 @@ fn failed_retirement_keeps_complete_d3d11_owner_and_budget() {
         let hwnd = window.0;
         drop(window);
         assert!(!IsWindow(Some(hwnd)).as_bool());
-        // 有意保留到本隔离进程退出；不得与最后租约释放测试放在同一个进程。
+        // Intentionally retain until this isolated process exits; never share a process with final-lease-release tests.
         println!("native-d3d11-retirement-retention: real-owner=true synthetic-failure=true budget-retained=true hwnd-destroyed=true");
     }
 }

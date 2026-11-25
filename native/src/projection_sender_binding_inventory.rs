@@ -1,4 +1,4 @@
-//! 借用旧 sender 元数据做容量/重复准入；未识别或离线关联不被改写成原生在线资格。
+//! Borrow old sender metadata for capacity/duplicate admission; unknown/offline associations never become native online eligibility.
 use super::*;
 use serde_json::value::RawValue;
 use std::{borrow::Cow, collections::BTreeMap};
@@ -97,7 +97,7 @@ pub(super) fn key(raw: &str, unit: &str) -> Result<Key, Error> {
     if envelope::canonical_origin(origin).as_deref() != Ok(origin) {
         return Err(Error::Format);
     }
-    let _ = link.linked; // awaiting_confirmation 的旧关联合法为 false，不以其推断远端未创建。
+    let _ = link.linked; // Old awaiting_confirmation associations may validly be false; this does not imply remote creation never occurred.
     Ok(Key {
         origin: envelope.origin().into(),
         projection: envelope.projection_id().into(),
@@ -117,7 +117,7 @@ pub(super) fn native(raw: &str) -> Result<bool, Error> {
     let link = fields(object.get("link").ok_or(Error::Format)?.get()).map_err(|_| Error::Format)?;
     Ok(link.contains_key("otterNativeSend"))
 }
-/// primary source 与数组合并计数；重复只允许同一个完整签名身份，不能借同 ID 掩盖冲突。
+/// Count primary source together with the array; duplicates require identical complete signed identity, not matching IDs hiding conflicts.
 pub(super) fn primary(
     object: &BTreeMap<String, Cow<'_, RawValue>>,
     unit: &str,

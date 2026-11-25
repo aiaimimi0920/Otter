@@ -1,4 +1,4 @@
-"""仅展开已钉摘要的工具归档；拒绝链接、路径别名及容量扩张，不执行工具。"""
+"""Extract only digest-pinned tool archives; reject links, path aliases, and capacity expansion, without executing tools."""
 
 import tarfile
 import zipfile

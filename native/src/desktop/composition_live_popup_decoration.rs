@@ -1,4 +1,4 @@
-//! 只排除已确认的菜单装饰窗；类名用于呈现分类，不代替源窗口授权。
+//! Exclude only confirmed menu-decoration windows; class names classify presentation, never replace source-window authorization.
 use crate::live_window_target::{popup::Scope, Target};
 use windows::Win32::UI::WindowsAndMessaging::*;
 
@@ -13,7 +13,7 @@ pub(super) fn is_decoration(
     };
     let mut class = [0u16; 64];
     let length = unsafe { GetClassNameW(target.hwnd(), &mut class) } as usize;
-    // 真实日志确认此类由菜单拥有，仅负责阴影；不推断所有 layered/transparent 窗口。
+    // Real logs confirm this class is menu-owned and shadow-only; do not generalize to all layered/transparent windows.
     if !class[..length]
         .iter()
         .copied()
@@ -24,7 +24,7 @@ pub(super) fn is_decoration(
     let Ok(menu) = (unsafe { GetWindow(target.hwnd(), GW_OWNER) }) else {
         return false;
     };
-    // 只有菜单自身能进入同一授权集合时，才移除其附属装饰；普通 source 不充当菜单。
+    // Remove attached decorations only when the menu itself can enter the same authorized set; ordinary sources are not menus.
     Scope::bind(root, owner, menu).is_ok_and(|menu| menu.target().is_ok())
         || parents.iter().any(|(parent, mirror)| {
             parent.target().is_ok_and(|target| target.hwnd() == menu)

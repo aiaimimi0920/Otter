@@ -1,4 +1,4 @@
-//! 系统 MTA RangeValue 客户端验证 HWND override 合并后的树和实时读写。
+//! System MTA RangeValue clients verify the HWND-override-merged tree and live reads/writes.
 use super::*;
 fn change(hwnd: usize) -> Result<(i32, i32, f64, f64)> {
     unsafe {

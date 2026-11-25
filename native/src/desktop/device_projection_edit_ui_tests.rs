@@ -1,4 +1,4 @@
-//! 纯元数据不借用编辑器；菜单和命令仍核动态编辑视图及同 origin 准入。
+//! Pure metadata needs no editor borrow; menus/commands still validate dynamic editing views and same-origin admission.
 use super::*;
 use crate::projection_edit::{
     self as edit, fixture,
@@ -62,7 +62,7 @@ fn authoritative_mode_and_role_do_not_capture_or_borrow_editor() {
     for role in [Role::Source, Role::Receiver] {
         for mode in [edit::Mode::OneWay, edit::Mode::TwoWay] {
             let state = state(role, mode, true);
-            // capture 必须借 canvas；持有独占借用直接保护无 capture 的读取契约。
+            // capture must borrow Canvas; holding an exclusive borrow directly protects the no-capture read contract.
             let _canvas = state.canvas.borrow_mut();
             assert_eq!(editing::mode(&state), mode);
             assert_eq!(editing::can_choose_mode(&state), role == Role::Source);

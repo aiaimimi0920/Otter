@@ -1,4 +1,4 @@
-//! 本地值只投影进原Presentation缓存；同一paint身份/合同/源值不匹配时不显示旧草稿。
+//! Project local values only into original Presentation caches; do not display old drafts when paint identity/contract/source values mismatch.
 use super::*;
 use crate::tile_surface_local::{Entry, Value};
 pub(in crate::desktop::tile_window) fn apply(

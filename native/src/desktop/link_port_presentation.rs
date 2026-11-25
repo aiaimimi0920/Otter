@@ -1,4 +1,4 @@
-//! 端口的公开名称和主干类型图标；不持有参数值、凭据或图片。
+//! Public port names and baseline type icons; no parameter values, credentials, or images.
 use crate::loom_capability::Capability;
 use neuro_mini_ui::Icon;
 pub(in crate::desktop) struct Presentation {
@@ -70,7 +70,7 @@ impl Presentation {
                 if let Some(parameter) = capability.parameters().find(|p| p.id == name && !p.secret)
                 {
                     label = parameter.label;
-                    value_type = None; // 主干 paramPropertyType 以规范化 widget 为准。
+                    value_type = None; // Baseline paramPropertyType uses normalized widgets.
                     parameter_widget = Some(parameter.widget);
                 }
             }

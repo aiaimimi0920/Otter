@@ -1,4 +1,4 @@
-//! 显式打开工作区：回调排队，应用循环选文件；不自动授权会话资产目录。
+//! Explicit workspace opening: callbacks enqueue and the application loop selects files; session asset directories are not automatically authorized.
 use super::*;
 use std::{os::windows::ffi::OsStringExt, path::PathBuf};
 use windows::Win32::UI::Controls::Dialogs::*;
@@ -109,7 +109,7 @@ impl Application {
                 "Workspace changed while choosing session",
             ));
         }
-        // 选择 JSON 只授权读取该文件；外部图片根必须经独立的显式资产准入。
+        // Selecting JSON authorizes reading only that file; external image roots require separate explicit asset admission.
         if selected.save_first {
             let doc = self
                 .documents
@@ -132,7 +132,7 @@ impl Application {
         }
     }
 
-    /// 只在本次保存成功后消费一次；不保留旧快照，不让未来手动保存复活取消的打开意图。
+    /// Consume once, only after this save succeeds; retain no old snapshot and never let a future manual save revive canceled open intent.
     pub(super) unsafe fn finish_open_save(&mut self, success: bool) -> Result<bool> {
         let Some(target) = self.open_after_save.take() else {
             return Ok(false);

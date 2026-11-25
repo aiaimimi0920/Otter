@@ -1,4 +1,4 @@
-"""显式执行已审核暂存树的固定 GN/Ninja DLL 构建；不安装、不分发或启用能力。"""
+"""Explicitly run fixed GN/Ninja DLL builds from reviewed staging trees; do not install, distribute, or enable capabilities."""
 
 import argparse
 import json

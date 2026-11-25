@@ -1,4 +1,4 @@
-//! 真实EDIT复用不授普通Surface Binding；wire仍显式使用宿主自己的身份。
+//! Reusing actual EDIT controls grants no ordinary Surface Binding; wire data still explicitly uses the host's own identity.
 use super::*;
 #[test]
 fn unbound_session_never_accepts_bound_prepare_or_bound_synchronization() {

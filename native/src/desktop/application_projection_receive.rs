@@ -1,4 +1,4 @@
-//! 唯一接收消费者：原请求围栏→后台候选→隐藏追加→精确 checkpoint→可见呈现/回执。
+//! Sole receiver consumer: original request fence -> background candidate -> hidden append -> exact checkpoint -> visible presentation/receipt.
 use super::*;
 use crate::{
     device_authorization_lease::Lease,
@@ -68,7 +68,7 @@ impl Owner {
         !matches!(self.0, Phase::Idle)
     }
     pub(in crate::desktop::application) fn preparing(&self) -> bool {
-        // 持续 read 不修改 UI，可与用户保存/恢复准备并存；提交时仍核原来源/Document 围栏。
+        // Continuous read does not modify UI and may coexist with user save/restore preparation; commit still checks original source/Document fences.
         matches!(
             self.0,
             Phase::Preparing(_) | Phase::Recovering(_) | Phase::Reporting(_)
@@ -103,7 +103,7 @@ impl Owner {
             Phase::Reporting(reporting) => {
                 let held = reporting.job.held()?;
                 if held.lease().is_revoked() {
-                    return None; // 取消后只等原线程句柄，避免已过期 deadline 的零超时忙循环。
+                    return None; // After cancellation, wait only on the original thread handle to avoid zero-timeout busy loops from expired deadlines.
                 }
                 held.expires_at_ms()
             }
@@ -135,7 +135,7 @@ impl Application {
     }
     fn receive_hold_valid(&self, held: &Hold, current: &Lease) -> bool {
         let view = self.authorization.borrow();
-        // 保留的接收租约与原请求同 Grant；缓存替换会同步永久撤销两者，无需热路径重复分配 Lease。
+        // The retained receive lease shares Grant with the original request; cache replacement permanently revokes both synchronously, avoiding repeated hot-path Lease allocation.
         !view.closed
             && view.origin.as_deref() == Some(held.origin())
             && !self.exit_requested.get()
@@ -148,7 +148,7 @@ impl Application {
             drop(ready);
             self.receive_cleanup(cleanup);
             self.receive_status(Err(stale()));
-            return; // 不覆盖或同步 join 另一个在途 owner。
+            return; // Do not overwrite or synchronously join another in-flight owner.
         }
         let phase = std::mem::take(&mut self.projection_receive.0);
         let result = (|| {
@@ -160,7 +160,7 @@ impl Application {
             }
             let origin = ready.origin().to_owned();
             let lease = self.receive_lease(&origin)?;
-            // 原 profile 的同一 Store/Record 是必需条件，不以 UUID 或相等磁盘内容代替。
+            // The same Store/Record from the original profile is required; UUIDs or equal disk content are not substitutes.
             if !self.projection_profile.recorded(ready.ticket()) {
                 return Err(stale());
             }
@@ -193,7 +193,7 @@ impl Application {
             crate::device_authorization_config::Error,
         >,
     ) {
-        // 领取状态后复核，避免本任务的 preparing 标记把自身 Guard/追加/checkpoint 阻塞。
+        // Recheck after taking state so this task's preparing flag cannot block its own Guard/append/checkpoint.
         let phase = std::mem::take(&mut self.projection_receive.0);
         let result = match phase {
             Phase::Preparing(mut pending) => {
@@ -204,7 +204,7 @@ impl Application {
                     self.projection_receive.0 = Phase::Preparing(pending);
                     return;
                 };
-                // 只在回收后取快照；成功 poll 已移动 Hold，不能只从 Job 取票据。
+                // Snapshot only after reaping; successful poll already moved Hold, so the ticket cannot be taken from Job alone.
                 let cleanup = match &result {
                     Ok(prepared) => prepared.held.cleanup_ticket(),
                     Err(_) => pending.job.cleanup_ticket(),
@@ -215,7 +215,7 @@ impl Application {
                     },
                     _ => Err(stale()),
                 };
-                drop(pending.job); // 即使成功结果因 stopped 被丢弃，也先释放原 Hold 后再移交。
+                drop(pending.job); // Even when stopped discards a successful result, release the original Hold before transferring.
                 if result.is_err() {
                     self.receive_cleanup(cleanup);
                 }
@@ -268,7 +268,7 @@ impl Application {
         }
         let append = self.prepare_append(windows, scope.source, prepared.retained, scope.space)?;
         self.publish_append(append, false)?;
-        // 共同发布仍独占 Windows；接管后从 Application 的原 Document owner 取得呈现凭证。
+        // Shared publication still exclusively owns Windows; after takeover, obtain presentation credentials from Application's original Document owner.
         let document = self
             .documents
             .iter()
@@ -297,7 +297,7 @@ impl Application {
             .1
             .defer_foreground(std::time::Instant::now());
         let mut view = self.authorization.borrow_mut();
-        // Syncing 只有串行占用，不是前台 UI busy；拒绝显式 Display 不能污染其有效性。
+        // Syncing occupies only the serial slot, not foreground UI busy state; rejecting explicit Display must not invalidate it.
         view.projection.busy = self.remote_sessions.projection_pending()
             || (self.projection_receive.busy()
                 && !matches!(self.projection_receive.0, Phase::Syncing(_)));

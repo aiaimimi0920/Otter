@@ -1,4 +1,4 @@
-//! 主干窗口恢复元数据；只验证候选，不访问显示器或创建 HWND。
+//! Mainline window-restore metadata; validate candidates only, without monitor access or HWND creation.
 use serde::Deserialize;
 #[derive(Debug, Clone, Copy, Deserialize, PartialEq)]
 pub struct Rect {
@@ -118,7 +118,7 @@ pub struct Window<'a> {
     )]
     pub otter_native_capture_original_src: Option<std::borrow::Cow<'a, str>>,
 }
-// 缺字段兼容旧普通工作区；显式null仍传给记录校验，不能静默丢掉协作身份。
+// Missing fields support legacy ordinary workspaces; explicit null still reaches record validation rather than silently dropping collaboration identity.
 fn present_projection_edit<'de, D: serde::Deserializer<'de>>(
     decoder: D,
 ) -> Result<Option<&'de serde_json::value::RawValue>, D::Error> {
@@ -177,7 +177,7 @@ impl Window<'_> {
                 .as_ref()
                 .is_none_or(|kind| kind.len() <= 256 && !kind.chars().any(char::is_control))
     }
-    /// 仅解析来源元数据；不授权 filePath、资源加载或 HDR 原图导出。
+    /// Parse source metadata only; grant no filePath, resource-loading, or HDR-original export authority.
     pub fn capture_metadata(
         &self,
     ) -> Result<Option<crate::session_capture::Metadata<'_>>, crate::session_capture::Error> {
@@ -185,8 +185,8 @@ impl Window<'_> {
             .map(|value| crate::session_capture::decode(value.get()))
             .transpose()
     }
-    /// 对齐主干 computeRestoredMinifiedStickerWindow；移动后的缩略窗口保留当前位置。
-    /// 缺失 savedRect 时不猜测展开尺寸，保持当前框；不在读取阶段自动移动 HWND。
+    /// Match mainline computeRestoredMinifiedStickerWindow; moved minimized windows retain their current position.
+    /// Without savedRect, preserve the current frame rather than guessing expanded size; never automatically move HWNDs during reads.
     pub fn expanded_rect(&self) -> Option<Rect> {
         expanded_rect(
             self.rect(),

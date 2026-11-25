@@ -1,4 +1,4 @@
-//! Loom 服务回复的独立客户端 DTO；身份来自宿主请求，绝不从回复补造授权。
+//! Independent client DTOs for Loom service replies; identities come from host requests, never fabricate authorization from replies.
 use crate::art_execution_grant::wire::Binding;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

@@ -1,4 +1,4 @@
-//! 批次内单项决定 worker：完整批次证据随 owner 返回，不自动提交剩余点击。
+//! Single-item decision worker within a batch: return complete batch evidence with the owner without automatically submitting remaining clicks.
 pub use crate::{
     desktop::surface_authorized_window::BatchDecisionInput as Input,
     surface_decision_runtime::Error,
@@ -116,7 +116,7 @@ impl Job {
                             &mut prepared.decision,
                         )
                         .map_err(Error::Submit)?;
-                    // 已接收决定与动作收敛分开；后续 panic 不抹去 HTTP 接收事实。
+                    // Separate decision acceptance from action convergence; a later panic must not erase HTTP receipt.
                     convergence = Some(
                         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                             control.converge_decided_surface(
@@ -190,7 +190,7 @@ impl Job {
 impl Drop for Job {
     fn drop(&mut self) {
         self.request_stop();
-        // 正常路径显式收割证据；兜底不遗留线程，不代表远端操作被撤回。
+        // The normal path explicitly reaps evidence; fallback leaves no threads behind and does not imply remote operations were withdrawn.
         if let Some(thread) = self.thread.take() {
             let _ = thread.join();
         }

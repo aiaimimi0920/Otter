@@ -1,4 +1,4 @@
-//! 正式边框绘制到自有内存 DIB，逐像素验证主干纯白、外描边及 DPI；不采集桌面。
+//! Production borders drawn into owned memory DIBs verify mainline pure white, outer strokes, and DPI pixel-by-pixel, without desktop capture.
 use super::*;
 const SIZE: usize = 96;
 const BACKGROUND: [u8; 3] = [0x35; 3];

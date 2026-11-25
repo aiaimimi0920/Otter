@@ -1,4 +1,4 @@
-//! Switch 激活接缝；本地 editing 门禁与事件 submitting 门禁分离，不在回调发送动作。
+//! Switch activation seam; separate local editing and event submitting gates, without action sends in callbacks.
 use super::*;
 pub(super) fn has_click(state: &State, id: &str) -> bool {
     state.host.borrow().as_ref().is_some_and(|host| {

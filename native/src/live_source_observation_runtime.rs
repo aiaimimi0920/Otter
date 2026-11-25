@@ -1,4 +1,4 @@
-//! Source观察唯一后台owner；单在途child采样/HTTPS，独立同Grant Lease避免与媒体共用取消槽。
+//! Sole Source-observation background owner; single-in-flight child sampling/HTTPS, with an independent same-Grant Lease to avoid sharing media cancellation slots.
 use super::*;
 use crate::{
     device_session_client::Client, live_source_observation::Tracks,

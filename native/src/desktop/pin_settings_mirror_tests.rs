@@ -1,4 +1,4 @@
-//! 真实 BUTTON -> 异步镜像 -> timer 交付 -> 面板恢复；不向用户桌面发送输入。
+//! Real BUTTON -> asynchronous mirror -> timer delivery -> panel restoration; no input sent to the user's desktop.
 use super::*;
 use crate::{
     desktop::{pin_settings as settings, tool_panel},
@@ -16,7 +16,7 @@ struct Watch {
 impl Watch {
     unsafe fn new(roots: &[HWND]) -> Self {
         unsafe extern "system" fn child(hwnd: HWND, lp: LPARAM) -> windows::core::BOOL {
-            // 撤销/重做会因真实历史变化改变准入，不属于镜像的临时忙态闪烁。
+            // Undo/redo eligibility changes with actual history; this is not temporary busy-state flicker from mirroring.
             if !matches!(GetDlgCtrlID(hwnd), 0x1007 | 0x1008) {
                 (&mut *(lp.0 as *mut Vec<HWND>)).push(hwnd);
             }
@@ -113,14 +113,14 @@ fn mirror_buttons_preserve_control_states_and_follow_single_step_undo_redo() {
             assert!(dispatched);
             assert_eq!(f.state.canvas.borrow().editor.mirror_state(), before);
             assert!(f.state.flip_job.borrow().is_busy());
-            // 呈现保持可用外观，但真实按钮执行路径仍拒绝冲突操作。
+            // Presentation retains an available appearance, but the actual button execution path still rejects conflicting operations.
             execute(f.owner.0, &f.state, catalog::SHAPE as usize, false);
             assert_eq!(f.state.canvas.borrow().tool, crate::editor::Tool::Brush);
             for _ in 0..8 {
                 tool_panel::refresh(f.owner.0);
             }
             assert_eq!(watch.enabled.get(), 0, "mirror busy state flashed controls");
-            // 异步 single-flight 期间重复命令不能排队或提前切换 pressed。
+            // Repeated commands during asynchronous single-flight work must neither queue nor switch pressed early.
             let revision = f.state.canvas.borrow().editor.revision();
             crate::desktop::flip_input::start(
                 f.owner.0,

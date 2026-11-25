@@ -1,4 +1,4 @@
-//! HSV 弹层到标注样式的适配；主题只管理草稿，应用拥有目标、历史和会话调色板。
+//! Adapt HSV popups to annotation styles; themes own drafts only, while the application owns targets, history, and session palettes.
 use super::*;
 use crate::stroke_style::{Color, StrokeStyle};
 use neuro_mini_ui::{ColorAction, ColorIcons, ColorOptions, ColorResult, Icon, Rgba};
@@ -65,7 +65,7 @@ unsafe fn accept(
     target: &MenuTarget,
     result: ColorResult,
 ) -> Result<()> {
-    // 先核凭证，再独立处理删除默认值；删除自身改变 default style，不能据此误拒随后的“应用”。
+    // Validate evidence first, then independently delete defaults; deletion itself changes default style and must not wrongly reject subsequent Apply.
     let valid = menus::valid_target(owner, state, target);
     state
         .edit_palette

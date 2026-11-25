@@ -1,4 +1,4 @@
-//! UI owner 的有界任务集合；关闭只取消，完成后回收，退出使用显式 shutdown。
+//! Bounded task collection for UI owners; closure only cancels, reclamation follows completion, and exit uses explicit shutdown.
 pub use super::loom_execution_work::Completion;
 use super::{
     loom_execution_job::{Execution, Job},
@@ -61,7 +61,7 @@ impl Report {
     ) -> bool {
         self.freshness.is_current(check)
     }
-    /// 领取之后、提交之前再次验证；身份过期不能被文档检查重新变为有效。
+    /// Revalidate after collection and before commit; document checks cannot restore expired identities.
     pub fn is_current<'a>(
         &self,
         registry: &Requests,
@@ -81,7 +81,7 @@ impl Tasks {
             notify: Some(notify),
         }
     }
-    /// 未消费完成结果也占槽，防止 UI 停止消费时无限积累结果与失败租约。
+    /// Unconsumed completion results still occupy slots, preventing unbounded results/failed leases if UI stops consuming.
     pub fn start(&mut self, execution: Execution, registry: &Requests) -> Result<(), Error> {
         let freshness = execution
             .inputs
@@ -110,8 +110,8 @@ impl Tasks {
             },
         )
     }
-    /// 与远端任务共享两个槽和同一 UI 完成事务；调用方先绑定配置/拓扑并 begin Results。
-    /// 此入口不批准 bundle 来源、不取码/纹理，也不改变用户侧 capability 声明。
+    /// Share two slots and the same UI completion transaction with remote tasks; callers bind configuration/topology and begin Results first.
+    /// This entry neither approves bundle provenance, retrieves code/textures, nor changes user-side capability declarations.
     pub fn start_shader(
         &mut self,
         execution: super::shader_execution_job::Execution,
@@ -176,14 +176,14 @@ impl Tasks {
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
-    /// 退休任务仍拥有 worker；仅剩待清理报告的槽位不再安排周期唤醒。
+    /// Retired tasks still own workers; slots containing only pending cleanup reports no longer schedule periodic wakes.
     pub(super) fn deadline(&self) -> Option<std::time::Instant> {
         self.entries
             .iter()
             .filter_map(|task| task.job.deadline())
             .min()
     }
-    /// 不移除仍在清理的 owner；新文档即使复用 HWND 也不能继承旧请求。
+    /// Do not remove owners still cleaning up; new documents cannot inherit old requests even when reusing HWNDs.
     pub fn retain_units(&mut self, mut exists: impl FnMut(&UnitId) -> bool) {
         for task in &mut self.entries {
             if !exists(&task.unit) {
@@ -200,7 +200,7 @@ impl Tasks {
             }
         }
     }
-    /// 主线程短借用各文档；任何依赖关闭、替换、修改或出现草稿都取消旧执行。
+    /// Main threads briefly borrow each document; dependency closure/replacement/editing or new drafts cancel old execution.
     pub(crate) fn retire_changed(
         &mut self,
         mut check: impl FnMut(&UnitId, &crate::desktop::loom_input_stamp::SourceStamp) -> bool,
@@ -219,8 +219,8 @@ impl Tasks {
             }
         }
     }
-    /// UI 轮询完成后、领取最终报告前领取单槽更新，避免丢失完成前最后一帧预览。
-    /// 检查和使用必须处于同一 UI 调度段，不得在两者之间运行嵌套消息循环。
+    /// Collect single-slot updates after UI completion polling but before final reports, preserving the last pre-completion preview frame.
+    /// Check and use must occur in the same UI scheduling segment, without nested message loops between them.
     pub fn take_updates<'a>(
         &self,
         unit: &UnitId,
@@ -254,11 +254,11 @@ impl Tasks {
             preview,
         })
     }
-    /// current 只描述领取这一刻的身份；修改文档前仍需检查内容 stamp 和草稿。
+    /// current describes identity only at collection time; still check content stamps/drafts before modifying documents.
     pub fn take_completed(&mut self, registry: &Requests) -> Option<Report> {
         self.take_matching(registry, |_| true)
     }
-    /// 应用正常交付不能丢掉仍待远端清理的 owner；其槽位保留到明确的退出清理。
+    /// Normal application delivery must not lose owners awaiting remote cleanup; retain slots until explicit exit cleanup.
     pub fn take_settled(&mut self, registry: &Requests) -> Option<Report> {
         self.take_matching(registry, |completion| !completion.cleanup_pending())
     }
@@ -280,7 +280,7 @@ impl Tasks {
             completion: task.completion.take().expect("completed task"),
         })
     }
-    /// 只用于最后窗口退出后的收尾；先取消全部，再依次 join，避免串行等待才发出取消。
+    /// Only for cleanup after the last window exits; cancel all first, then join in sequence rather than delaying cancellation behind serial waits.
     pub fn shutdown(&mut self) -> Vec<Report> {
         for task in &mut self.entries {
             task.retired = true;

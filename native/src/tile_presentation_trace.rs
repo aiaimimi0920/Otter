@@ -1,4 +1,4 @@
-//! 单个Tile生命期内每个固定阶段至多一条；原子位图无队列/字符串数据，不续期呈现授权。
+//! At most one record per fixed phase in a Tile lifetime; atomic bitmaps have no queues/string data and never renew presentation authorization.
 use super::State;
 use std::{
     sync::atomic::{AtomicU32, Ordering},
@@ -40,7 +40,7 @@ impl Trace {
         if self.0.load(Ordering::Relaxed) & bit != 0 {
             return;
         }
-        // 只用于去重，无业务状态/权限的跨线程发布；释放Shared锁后才允许写stderr。
+        // Deduplication only, not cross-thread publication of business state/permissions; write stderr only after releasing the Shared lock.
         if self.0.fetch_or(bit, Ordering::Relaxed) & bit == 0 {
             eprintln!("native-tile-presentation: stage={stage:?}");
         }

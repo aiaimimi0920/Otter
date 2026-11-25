@@ -1,4 +1,4 @@
-//! 已测量布局的有界拥有型快照；不保存指向 Scene 的自引用或裸指针。
+//! Bounded owned snapshot of measured layout; retains no self-references or raw pointers into Scene.
 use super::*;
 pub struct Snapshot {
     viewport: [f32; 2],
@@ -32,7 +32,7 @@ impl Snapshot {
                 .collect(),
         }
     }
-    /// 必须与原树相同的可见节点身份、类型和父序；不跨新场景盲目套用旧尺寸。
+    /// Require the same visible-node identities, types, and parent order as the original tree; do not blindly apply old sizes across new scenes.
     pub fn restore<'a>(&self, scene: &'a Scene) -> Option<Tree<'a>> {
         fn visit<'a>(
             node: &'a Node,

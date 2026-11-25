@@ -1,4 +1,4 @@
-//! 标注专属的无标题输入层，附着钉图坐标并置于 DComp/layered 图像之上；不是独立对话框。
+//! Annotation-specific captionless input layer, attached to pin coordinates above DComp/layered images; not a standalone dialog.
 use super::*;
 use windows::Win32::UI::Controls::*;
 const MARKER: PCWSTR = w!("Otter.Annotation.Inline.Owner");
@@ -85,7 +85,7 @@ impl Window {
         }
         SetWindowLongPtrW(hwnd, GWLP_USERDATA, owner.0 as isize);
         SetPropW(hwnd, EPOCH, Some(HANDLE(epoch as *mut _)))?;
-        // 只读继承真实宿主的截图保护；失败时不显示可能泄露输入的附属层。
+        // Inherit actual-host screenshot protection read-only; on failure hide the attached layer that might expose input.
         let mut affinity = 0;
         GetWindowDisplayAffinity(owner, &mut affinity)?;
         SetWindowDisplayAffinity(hwnd, WINDOW_DISPLAY_AFFINITY(affinity))?;
@@ -269,7 +269,7 @@ impl Window {
         if GetFocus() != self.edit {
             return Err(Error::new(E_FAIL, "Inline text focus not acquired"));
         }
-        // 新文本为空；重新编辑时光标落在末尾，不选择整个旧内容导致首字覆盖。
+        // New text starts empty; re-editing places the caret at the end instead of selecting all old content and replacing it with the first character.
         SendMessageW(
             self.edit,
             EM_SETSEL,

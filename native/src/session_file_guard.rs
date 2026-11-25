@@ -1,4 +1,4 @@
-//! 覆盖准备的只读基线租约；完整字节核对期间拒绝写/删除共享，不提供替换提交或伪 CAS。
+//! Read-only baseline lease for replacement preparation; deny write/delete sharing during full-byte checks, without replacement commit/fake CAS.
 use std::{
     fs::{File, OpenOptions},
     io::{self, Read},
@@ -28,8 +28,8 @@ pub struct Guard {
     identity: Identity,
 }
 impl Guard {
-    /// 后台调用；不截断、不创建、不修改来源。租约释放后必须重新处理替换竞争，
-    /// 不能把先 drop 再 rename 称为原子条件更新；共享限制也不是恶意目录的安全边界。
+    /// Background only; no truncation/creation/source mutation. After lease release, replacement races must be handled again;
+    /// drop-then-rename is not atomic conditional update, and sharing restrictions are not a security boundary for malicious directories.
     pub fn open(path: &Path, expected: &[u8], cancel: &AtomicBool) -> io::Result<Self> {
         Self::open_access(path, expected, cancel, GENERIC_READ.0)
     }
@@ -105,7 +105,7 @@ impl Guard {
     }
 }
 
-/// 显式提升到有重命名权的基线句柄；普通只读 Guard 不暴露移动能力。
+/// Explicitly promote to a rename-capable baseline handle; ordinary read-only Guard exposes no move capability.
 pub struct Movable(Guard);
 impl Movable {
     pub fn open(path: &Path, expected: &[u8], cancel: &AtomicBool) -> io::Result<Self> {
@@ -114,12 +114,12 @@ impl Movable {
     pub fn identity(&self) -> Identity {
         self.0.identity()
     }
-    /// 始终不覆盖目标；同一句柄持有共享限制，不重新按来源路径查找文件。
-    /// 这一步仅移动旧文件，不发布新内容；调用方必须承担恢复路径及中断恢复协议。
+    /// Never overwrite targets; the same handle retains sharing restrictions without reopening sources by path.
+    /// This step only moves old files, not publishes new content; callers own recovery paths/interruption-recovery protocols.
     pub fn rename_new(&self, destination: &Path) -> io::Result<()> {
         crate::session_file_rename::rename_new(&self.0._file, destination)
     }
-    /// 仅在新内容已发布后退休同一旧文件；不关闭句柄后按可变路径删除。
+    /// Retire the same old file only after new content publication; never close handles then delete through mutable paths.
     pub(crate) fn retire(&self) -> io::Result<()> {
         crate::session_file_rename::retire(&self.0._file)
     }

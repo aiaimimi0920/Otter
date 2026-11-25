@@ -23,7 +23,7 @@ fn implicit_mta_from_another_worker_cannot_authorize_live_owner() {
     let worker = std::thread::spawn(move || unsafe {
         CoInitializeEx(None, COINIT_MULTITHREADED).ok().unwrap();
         ready.send(()).unwrap();
-        // Sender 析构也解除等待，失败断言不会把夹具线程永久留在 MTA。
+        // Sender destruction also releases the wait, so failed assertions cannot leave the fixture thread permanently in MTA.
         let _ = wait.recv();
         CoUninitialize();
     });
@@ -46,7 +46,7 @@ fn region_binding_requires_owner_apartment_and_preserves_exact_binding_error() {
         right: 32,
         bottom: 32,
     };
-    // 未准入时绝不执行窗口绑定，也不解析显示器或开始真实捕获。
+    // Without admission, never bind windows, resolve monitors, or start real capture.
     assert!(LiveJob::start_region_bound(region, |_| -> io::Result<()> {
         panic!("uninitialized owner must not bind")
     })

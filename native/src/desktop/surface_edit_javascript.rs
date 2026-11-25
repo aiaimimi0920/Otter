@@ -1,4 +1,4 @@
-//! 同一字段 FIFO 的本地 JS 出口；ticket 在 DOM 帧接纳后结算，不等待或伪造远端回执。
+//! Local JS outlet for the same field FIFO; settle tickets after DOM-frame acceptance without waiting for or fabricating remote receipts.
 use super::*;
 use crate::surface_javascript_wire::{InputPhase, KeyPhase, KeyboardInput, LocalInput, TextInput};
 pub(crate) struct Prepared {
@@ -16,7 +16,7 @@ impl Mount {
         hover_active: bool,
     ) -> Result<Option<Prepared>> {
         let nodes = self.preparation_nodes(presentation, binding, std::time::Instant::now())?;
-        // stale 清理后同次读取新队首，不能因未启动 child 而把 terminal 留待外部唤醒。
+        // After stale cleanup, read the new head in the same call; lack of child startup must not defer terminals until an external wake.
         self.reconcile_pointer_front(presentation, viewport_epoch, pointer_active, hover_active)?;
         if let Some(fence) = until {
             match self.intents.state(fence) {
@@ -95,7 +95,7 @@ impl Mount {
         Ok(Some(Prepared { id, input }))
     }
     pub(crate) fn settle_javascript(&mut self, id: &str) -> Result<()> {
-        // listener 可合法移除/替换字段；旧 session/ticket 已随合同销毁，不触及新 session。
+        // Listeners may validly remove/replace fields; old session/tickets died with their contract, so do not touch new sessions.
         if let Some(node) = self.intents.prepared_node(id) {
             if let Some(field) = self.fields.get_mut(node) {
                 field.session.settle(id)?;

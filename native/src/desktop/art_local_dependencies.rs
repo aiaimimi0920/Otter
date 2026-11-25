@@ -1,4 +1,4 @@
-//! 本地Art的输入拓扑凭证；只保留有界身份/连线，不持像素，不因无关节点编辑退休。
+//! Local Art input-topology evidence; retain only bounded identities/edges, no pixels, and do not retire on unrelated node edits.
 use crate::{
     workspace::{IdentityStamp, Link, Workspace},
     workspace_id::UnitId,
@@ -20,7 +20,7 @@ impl Stamp {
             .try_reserve_exact(upstream.len())
             .map_err(|_| "无法保留 Art 输入身份")?;
         units.extend(upstream.into_iter().cloned());
-        // 仅排序成员索引；连线凭证仍保留工作区中的原顺序。
+        // Sort only member indices; edge evidence retains the original workspace order.
         units.sort_unstable();
         let count = workspace
             .links()
@@ -52,7 +52,7 @@ impl Stamp {
         {
             return false;
         }
-        // 新边若使更多上游可达，必先进入原可达集合；不必在UI轮询中重新分配遍历队列。
+        // A new edge that makes more upstream nodes reachable must first enter the original reachable set; no traversal-queue reallocation is needed during UI polling.
         let mut current = workspace
             .links()
             .iter()

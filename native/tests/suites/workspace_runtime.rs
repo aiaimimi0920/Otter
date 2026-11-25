@@ -1,5 +1,5 @@
 #![cfg(windows)]
-//! 真实普通启动→移动→检查点→强制结束→重启→删空后常驻；只操作自启 PID 的离屏窗口。
+//! Real ordinary startup, movement, checkpoint, forced termination, restart and residency after deleting all pins; touch only off-screen windows of self-started PIDs.
 use base64::Engine;
 use std::{
     fs::OpenOptions,
@@ -128,7 +128,7 @@ fn window(child: &mut OwnedChild) -> HWND {
 fn owned_window(child: &mut OwnedChild, visible: bool) -> HWND {
     until(child, "owned-window-visibility", |pid| unsafe {
         let mut search = Search { pid, hwnd: None };
-        // 空desktop可返回false/ERROR_SUCCESS；callback从不中止，非零错误仍必须失败。
+        // An empty desktop may return false/ERROR_SUCCESS; the callback never aborts, so a nonzero error must still fail.
         SetLastError(ERROR_SUCCESS);
         let result = EnumWindows(Some(enumerate), LPARAM(&mut search as *mut Search as isize));
         enumerated_window(result, search.hwnd)
@@ -161,7 +161,7 @@ fn empty_desktop_enumeration_waits_but_real_errors_and_partial_results_fail() {
 }
 #[test]
 fn ordinary_product_startup_recovers_persists_restarts_and_does_not_resurrect_deleted_last_unit() {
-    // SetWindowPos/GetWindowRect 是调用线程 DPI 相关的跨进程 API；产品持久化使用物理坐标。
+    // SetWindowPos/GetWindowRect are cross-process APIs affected by the calling thread's DPI; product persistence uses physical coordinates.
     let old = unsafe { SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2) };
     assert!(!old.0.is_null());
     let _dpi = Dpi(old);
@@ -202,7 +202,7 @@ fn ordinary_product_startup_recovers_persists_restarts_and_does_not_resurrect_de
         true
     );
     first.0.kill().unwrap();
-    first.0.wait().unwrap(); // 无 Drop/正常退出 flush 的真实进程中断。
+    first.0.wait().unwrap(); // Actual process interruption without Drop or normal-exit flushing.
     drop(first);
     let mut second = fixture.launch("second-stderr.log");
     let hwnd = window(&mut second);
@@ -219,8 +219,8 @@ fn ordinary_product_startup_recovers_persists_restarts_and_does_not_resurrect_de
         );
         PostMessageW(Some(hwnd), WM_CLOSE, WPARAM(0), LPARAM(0)).unwrap();
     }
-    // 删空应保存空工作区并接续隐藏宿主，而不是以进程退出作为保存完成的证据。
-    // DestroyWindow 先撤销可见性；必须等旧句柄失效，避免把正在销毁的钉图当作新宿主。
+    // Deleting all pins must save an empty workspace and continue with a hidden host, not use process exit as evidence that saving completed.
+    // DestroyWindow revokes visibility first; wait for the old handle to become invalid rather than mistaking a pin being destroyed for the new host.
     until(&mut second, "deleted-last-unit-window-destroyed", |_| {
         (!unsafe { IsWindow(Some(hwnd)) }.as_bool()).then_some(())
     });
@@ -243,11 +243,11 @@ fn ordinary_product_startup_recovers_persists_restarts_and_does_not_resurrect_de
         );
         std::thread::sleep(Duration::from_millis(20));
     }
-    // 沿真实系统结束协议退出自启进程，不把 WM_CLOSE 重新当成退出程序。
+    // Exit the self-started process through the real system-shutdown protocol; do not reinterpret WM_CLOSE as application exit.
     until(&mut second, "empty-resident-session-admission", |pid| {
         (unsafe { session_end::send(pid, resident, WM_QUERYENDSESSION, 0) } == 1).then_some(())
     });
-    // 文件替换早于 UI 消费检查点；以准入后的版本验证系统结束不再改写。
+    // File replacement precedes UI checkpoint consumption; use the admitted revision to verify that system shutdown does not rewrite it.
     let saved = std::fs::read(fixture.workspace()).unwrap();
     unsafe { session_end::send(second.0.id(), resident, WM_ENDSESSION, 1) };
     let end = Instant::now() + Duration::from_secs(15);

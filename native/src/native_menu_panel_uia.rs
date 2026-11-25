@@ -1,4 +1,4 @@
-//! 面板 UIA provider 与通知桥；通知重入后复核选择的窗口/捕获/前台前提。
+//! Panel UIA provider/notification bridge; after notification reentry, recheck selected-window/capture/foreground prerequisites.
 use super::*;
 use windows::Win32::UI::{
     Accessibility::{IRawElementProviderSimple, UiaClientsAreListening},

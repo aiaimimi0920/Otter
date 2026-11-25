@@ -1,11 +1,11 @@
-//! 旧自然像素采样是裁剪视图的一部分；历史交换完整视图，底图与标注不被烘焙。
+//! Legacy natural-pixel sampling belongs to crop views; history swaps complete views without baking bases/annotations.
 use super::*;
 use crate::crop_geometry::{Crop, Rect, Size};
 use crate::image_projection::Projection;
 
 impl CropView {
-    /// 完整工作纹理已 contain 到逻辑框；仅映射其中的有效源区，不放大整图placement。
-    /// nested crop只改变clip，完整底图owner不变，仍可reset/undo。
+    /// Complete working textures are already contain-fitted to logical bounds; map only valid source regions, without enlarging whole-image placement.
+    /// nested crop changes clip only; complete base owners remain unchanged and still support reset/undo.
     pub fn base_projection(&self, _raster: (u32, u32)) -> Option<Projection> {
         let pixels = self.legacy_pixels?;
         let natural = self.legacy_natural_size?;
@@ -28,7 +28,7 @@ impl CropView {
             },
         })
     }
-    /// 返回当前可见部分的自然像素区域；再次裁剪只组合坐标，不复制图片。
+    /// Return the currently visible natural-pixel region; further crops compose coordinates without image copies.
     pub fn legacy_pixel_region(&self) -> Option<Rect> {
         let original = self.legacy_pixels?;
         Some(Rect {
@@ -45,7 +45,7 @@ impl Editor {
         let size = self.raster.as_ref()?.size;
         base_for_view(self.crop, self.full_logical_frame(), size)
     }
-    /// retained自然图失效后保存的是完整工作纹理，采样元数据必须一同换基准。
+    /// After retained natural-image invalidation, saves use complete working textures; rebase sampling metadata alongside them.
     pub fn raster_crop_view(&self) -> Option<CropView> {
         let mut view = self.crop?;
         if let Some(mapping) = view.base_projection(self.raster.as_ref()?.size) {
@@ -58,7 +58,7 @@ impl Editor {
         }
         Some(view)
     }
-    /// 只供新文档恢复；允许源区域部分或全部越界，交由有界采样保留透明。
+    /// New-document restoration only; allow partially/fully out-of-bounds source regions, with bounded sampling preserving transparency.
     pub fn with_restored_legacy_crop(
         mut self,
         pixels: Rect,

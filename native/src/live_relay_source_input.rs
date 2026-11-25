@@ -1,4 +1,4 @@
-//! 网络控制到原UI输入owner的单在途桥；实际worker回复后才确认，不执行Win32输入。
+//! Single-in-flight bridge from network control to the original UI input owner; acknowledge only actual worker replies, without executing Win32 input.
 use crate::{live_input::Event, live_input_worker::StopSignal};
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -39,7 +39,7 @@ pub(crate) struct Bridge {
     input: Mutex<Option<StopSignal>>,
 }
 impl Bridge {
-    /// 仅当前Application线程构造；WM_NULL只唤醒既有泵，不新增等待句柄。
+    /// Construct only on the current Application thread; WM_NULL wakes the existing pump without new wait handles.
     pub fn new() -> Arc<Self> {
         unsafe {
             let _ = PeekMessageW(&mut MSG::default(), None, 0, 0, PM_NOREMOVE);
@@ -60,7 +60,7 @@ impl Bridge {
         self.stop.load(Ordering::Acquire)
     }
     pub fn cancel(&self) {
-        // 等待输入清理时 UI 会重复取消；只在首次停止时清空队列并唤醒消息泵。
+        // UI repeatedly cancels while waiting for input cleanup; clear the queue/wake the message pump only on the first stop.
         if self.stop.swap(true, Ordering::AcqRel) {
             return;
         }

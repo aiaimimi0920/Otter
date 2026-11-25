@@ -1,4 +1,4 @@
-//! 显式 Live 选区请求；复用冻结选区，不替换文档，消息回调后由 Application 启动会话。
+//! Explicit Live selection requests reuse frozen selection without replacing documents; Application starts the session after the message callback.
 use super::*;
 pub(in crate::desktop) const COMMAND: usize = 0x106b;
 pub(in crate::desktop) const WINDOW: usize = 0x106c;

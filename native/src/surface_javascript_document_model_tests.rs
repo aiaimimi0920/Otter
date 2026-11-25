@@ -1,4 +1,4 @@
-//! 直接在同一真实 QuickJS 模型上定位语义异常；child/产品预算仍由独立进程门验证。
+//! Locate semantic failures directly in the same real QuickJS model; independent process gates still verify child/product budgets.
 use super::*;
 pub(super) fn collect(source: &str) -> serde_json::Value {
     let runtime = Runtime::new().unwrap();

@@ -1,4 +1,4 @@
-//! MTA 客户端通过系统 TogglePattern 读取并切换真实 Switch。
+//! MTA clients read and toggle actual Switches through system TogglePattern.
 use super::*;
 fn change(hwnd: usize) -> Result<(i32, i32, i32)> {
     unsafe {

@@ -1,4 +1,4 @@
-//! 删除不重编号未移动对象的原层级；真正重排才重新分配顺序，新增对象接在原最大值后。
+//! Deletion preserves unmoved objects' original layers; reassign order only for actual reordering, appending new objects after the original maximum.
 use super::*;
 pub struct Plan {
     values: std::collections::HashMap<String, Value>,
@@ -52,7 +52,7 @@ impl Plan {
             .iter()
             .filter(|s| !ranks.contains_key(s.annotation_id()))
             .count();
-        // 没有新增时，即使原最高层级已达上限也不重写；仅真实新增溢出才回退。
+        // Without additions, do not rewrite even at the maximum original layer; fall back only when actual additions overflow.
         if !moved && (added == 0 || next + added as f64 - 1.0 <= 1_000_000.0) {
             for stroke in editor.elements() {
                 let z = match ranks.get(stroke.annotation_id()) {

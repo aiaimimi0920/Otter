@@ -1,4 +1,4 @@
-// 模型与真实 child 共用：选择器边界、静态快照及插件原型污染。
+// Shared by models and actual children: selector boundaries, static snapshots, and plugin-prototype pollution.
 let queryRoot, savedQuery, savedNode;
 const checkQuery = (condition, message) => { if (!condition) throw Error(message); };
 const rejectQuery = operation => {
@@ -82,7 +82,7 @@ function checkStaticQueries(root) {
     Object.setPrototypeOf = setPrototype;
     for (const key of keys) delete Object.prototype[key];
   }
-  // 缺失项必须不读取原型；正常 Array 的直接越界读取仍保留标准原型行为。
+  // Missing items must not read prototypes; ordinary Array direct out-of-bounds reads retain standard prototype behavior.
   let inheritedReads = 0;
   define(Array.prototype, "999", { configurable: true, get() { inheritedReads++; return last; } });
   try {

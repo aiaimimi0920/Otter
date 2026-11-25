@@ -1,4 +1,4 @@
-//! 无本地编辑框时的目标几何；UI 只捕获小值，后台用原会话坐标与 canonical 取整提示换算。
+//! Target geometry without local editing bounds; the UI captures small values only, and background conversion uses original session coordinates/canonical rounding hints.
 use crate::{
     crop_geometry::Size, pin_geometry::PinRect, session_placement::Space, session_window::Rect,
 };

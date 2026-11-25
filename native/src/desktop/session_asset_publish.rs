@@ -1,4 +1,4 @@
-//! 受管资源无覆盖发布；原始编码字节保持不变，返回句柄保护至会话提交结束。
+//! Nonoverwriting managed-asset publication; preserve original encoded bytes, and return handles that protect resources until session commit finishes.
 use super::{io_error, Root};
 use crate::pixels::Pixels;
 use std::{
@@ -25,7 +25,7 @@ impl Slot {
 }
 pub struct Published {
     reference: String,
-    // 仅共享读，防止已验证资源在上层提交会话之前被改写/删除。
+    // Share only reads to prevent verified assets being rewritten/deleted before the upper layer commits the session.
     _file: File,
 }
 impl Published {
@@ -34,7 +34,7 @@ impl Published {
     }
 }
 impl Root {
-    /// 借用会话内联引用；编码字节计入共享预算，不把路径/网络引用作为 Base64 回退。
+    /// Borrow session inline references; encoded bytes count toward the shared budget, and paths/network references are not Base64 fallbacks.
     pub fn publish_inline(
         &self,
         sticker_id: &str,
@@ -50,8 +50,8 @@ impl Root {
         let bytes = crate::desktop::loom_output_inline::decode_bytes(mime, encoded, cancel)?;
         self.publish_image(sticker_id, slot, &bytes, cancel)
     }
-    /// 后台入口；显式 Root 是目录权限，不从会话路径自动创建目录或扩权。
-    /// 同主干文件名后缀为 png，但保留 WIC 验证过的原始编码，不声称统一重编码。
+    /// Background entry; explicit Root grants directory access, never automatically creating directories or expanding access from session paths.
+    /// Use a png suffix as mainline does, but retain WIC-validated original encoding without claiming uniform re-encoding.
     pub fn publish_image(
         &self,
         sticker_id: &str,
@@ -66,7 +66,7 @@ impl Root {
         {
             return Err(invalid("Invalid archive image identity or size"));
         }
-        // 解码只是格式/尺寸验证，像素立即释放；原始编码由调用方预算 owner 保持。
+        // Decoding validates only format/dimensions, then immediately releases pixels; the caller's budget owner retains original encoding.
         let _apartment = crate::desktop::Apartment::new()?;
         let image = crate::desktop::image::Image::from_encoded_with_cancel(bytes, &|| {
             cancel.load(Ordering::Acquire)
@@ -92,7 +92,7 @@ impl Root {
                 cancel,
             ),
             Err(error) => {
-                // 竞争发布者可能已经创建同名资源，必须核验字节，绝不覆盖/删除目标。
+                // A competing publisher may already have created the same-named asset; verify bytes, never overwrite/delete the target.
                 check(cancel)?;
                 match self.open_published(&reference, cancel) {
                     Ok(file) => verified(file, reference, bytes, cancel),
@@ -112,8 +112,8 @@ impl Root {
         loop {
             check(cancel)?;
             match self.open_image(reference) {
-                // 改名已可见时，另一发布者的 DELETE 句柄可能尚未关闭。只在后台有界等待，
-                // 不放宽只读 pin，不重写/删除目标；返回后仍须逐字节核验。
+                // After rename becomes visible, another publisher's DELETE handle may remain open. Wait boundedly only in the background,
+                // without relaxing the read-only pin or rewriting/deleting the target; byte-for-byte validation is still required afterward.
                 Err(error)
                     if error.code()
                         == windows::core::HRESULT::from_win32(

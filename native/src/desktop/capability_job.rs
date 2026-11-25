@@ -1,4 +1,4 @@
-//! 单个能力目录后台任务；固定身份随目录返回，取消后不发布结果，不自动重试。
+//! One background capability-catalog task; return fixed identity with the catalog, publish nothing after cancellation, and never retry automatically.
 use super::loom_execution_signal::{reap_deadline, CompletionSignal, Notify};
 use crate::{
     loom_bridge_identity::Identity, loom_discovery, loom_handshake::Handshake,
@@ -98,7 +98,7 @@ impl Job {
             .as_ref()
             .and_then(|running| reap_deadline(&running.ready))
     }
-    /// 通知先于线程退出；普通 UI 只回收已退出线程，deadline 接续已消费的唯一通知。
+    /// Notification precedes thread exit; ordinary UI reclaims only exited threads, with the deadline continuing after the sole notification is consumed.
     pub fn poll(&mut self) -> Option<Result<Loaded, Error>> {
         if !self
             .running

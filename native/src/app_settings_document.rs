@@ -1,4 +1,4 @@
-//! 应用配置的无 I/O 编辑边界；修改已迁移命名/缓存字段，保留其余 JSON 值和旧 schema。
+//! I/O-free application-settings editing boundary; update migrated naming/cache fields while preserving other JSON values and the old schema.
 use crate::file_naming_settings::Settings;
 use serde_json::{Map, Value};
 use std::io::{self, Write};
@@ -22,7 +22,7 @@ impl Default for Document {
 }
 
 impl Document {
-    /// 与主干 normalizeAppSettings 一致；原生界面当前为中文，空目标语言按中文默认值处理。
+    /// Match mainline normalizeAppSettings; the native UI is currently Chinese, so an empty target language defaults to Chinese.
     pub fn translation_options(&self) -> (&str, &str) {
         let language = match self
             .root
@@ -43,7 +43,7 @@ impl Document {
         };
         (language, provider)
     }
-    /// 不读默认目录、不备份/重置坏文件；错误由调用方显式呈现。
+    /// Do not read default directories or back up/reset corrupt files; callers explicitly present errors.
     pub fn decode(bytes: &[u8]) -> Result<Self, String> {
         if bytes.len() > MAX_BYTES {
             return Err("App settings exceed 1 MiB".into());
@@ -73,7 +73,7 @@ impl Document {
     pub fn naming(&self) -> &Settings {
         &self.naming
     }
-    /// 缺少显式信任默认拒绝；不把连接地址或 TLS 根自动提升为 Art issuer pin。
+    /// Deny by default without explicit trust; never promote a connection address or TLS root to an Art issuer pin.
     pub fn art_issuer_trust(&self) -> Result<crate::art_issuer_trust::Document, String> {
         let document = match self.root.get("artIssuerTrust") {
             None => crate::art_issuer_trust::Document::default(),
@@ -82,7 +82,7 @@ impl Document {
         document.validate()?;
         Ok(document)
     }
-    /// 只能由显式设置确认路径调用，网络 issuer 响应不是确认。
+    /// Only the explicit settings-confirmation path may call this; a network issuer response is not confirmation.
     pub fn set_art_issuer_trust(
         &mut self,
         document: crate::art_issuer_trust::Document,
@@ -94,7 +94,7 @@ impl Document {
         );
         Ok(())
     }
-    /// 关闭回收的独立软策略；不把临时文件缓存策略套到冻结库。
+    /// Independent soft policy for close-time reclamation; do not apply temporary-file cache policy to the frozen library.
     pub fn recycle_policy(
         &self,
     ) -> Result<crate::session_library::recycle::policy::Policy, String> {
@@ -108,7 +108,7 @@ impl Document {
         };
         policy.validate().map_err(str::to_owned)
     }
-    /// 启动时应用；命名导入/保存保留 cache JSON，不隐式切换其它运行策略。
+    /// Apply at startup; naming import/save preserves cache JSON without implicitly switching other runtime policies.
     pub fn cache_policy(&self) -> Result<crate::cache_policy::Policy, String> {
         let policy = match self.root.get("cache") {
             None => crate::cache_policy::Policy::default(),
@@ -119,7 +119,7 @@ impl Document {
         policy.validate().map_err(str::to_owned)
     }
 
-    /// 先验证再修改；未知 root/fileNaming 字段及版本号保持原值。
+    /// Validate before mutation; preserve unknown root/fileNaming fields and the version number.
     pub fn set_naming(&mut self, naming: Settings) -> Result<(), String> {
         naming
             .validate()
@@ -166,7 +166,7 @@ impl Document {
         Ok(())
     }
 
-    /// 输出容量限制在序列化过程中执行，不先生成无界展开结果。
+    /// Enforce output capacity during serialization, before generating an unbounded expanded result.
     pub fn encode(&self) -> Result<Vec<u8>, String> {
         let mut output = BoundedOutput(Vec::new());
         serde_json::to_writer(&mut output, &self.root).map_err(|e| e.to_string())?;

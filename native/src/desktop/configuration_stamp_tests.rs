@@ -105,7 +105,7 @@ fn stale_pending(topology: bool) {
             .set("amount", Some(json!(3)))
             .unwrap();
     }
-    // 不依赖 UI 取消消息；配置凭证本身足以退休旧准备。
+    // Do not rely on UI cancellation messages; configuration evidence alone suffices to retire stale preparation.
     discard_changed(&state, &workspace);
     assert!(state.pending_preparation.borrow().is_none());
     assert!(state.preparation_error.borrow().is_some());

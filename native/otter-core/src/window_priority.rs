@@ -1,4 +1,4 @@
-//! 显式钉图操作的优先权仅持续到前景所有者变化，后台对象事件不能反复抢层级。
+//! Explicit pin-operation priority lasts only until foreground ownership changes; background object events cannot repeatedly seize z-order.
 #[derive(Default)]
 pub struct PriorityPolicy {
     foreground: isize,

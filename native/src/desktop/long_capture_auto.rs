@@ -1,4 +1,4 @@
-//! 连续采集的有界调度状态；只在上一帧成功接受后允许下一步，不自动重试失败输入。
+//! Bounded continuous-capture scheduling; allow the next step only after successful prior-frame admission, without automatic failed-input retries.
 use crate::long_capture::{Append, Completion};
 use std::time::{Duration, Instant};
 #[derive(Default)]

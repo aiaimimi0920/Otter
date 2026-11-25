@@ -14,8 +14,9 @@ The current device identity uses Windows data protection for private material; d
 
 ## Connections and optional workflows
 
-- **Local discovery:** Otter can use an authenticated local Loom bridge by default when a trusted local connection is available.
-  Set `OTTER_ENABLE_LOOM_OTTER=0` before launch to disable that bridge. The old `HOOK_ENABLE_LOOM_HOOK` fallback is read only
+- **Local discovery:** Otter can use an authenticated local Loom WebSocket bridge by default when a trusted local connection is available.
+  Set `OTTER_ENABLE_LOOM_OTTER=0` before launch to disable that bridge, not HTTP media discovery or all network access.
+  The old `HOOK_ENABLE_LOOM_HOOK` fallback is read only
   when the canonical variable is absent, as implemented in [`loom_discovery.rs`](../../native/src/loom_discovery.rs).
   A saved device connection is separate; explicitly disconnect it to cancel restart reconnect.
   See [Loom connection](../features/LOOM_CONNECTION.md).
@@ -24,7 +25,7 @@ The current device identity uses Windows data protection for private material; d
   A Loom connection by itself is not consent for every capability.
 - **Projection:** An authorized delivery may transmit image content and routing or association metadata through Loom.
   Account-based sharing uses the configured account service for invitation and association coordination; it does not
-  require the receiver to use the same account. See the [projection boundaries](../features/QR_PROJECTION.md#内容与边界).
+  require the receiver to use the same account. See the [projection boundaries](../features/QR_PROJECTION.md#content-and-boundaries).
 - **Live:** Authorized sharing can transmit frames and, when separately granted, control events. Frames are not saved in
   the Otter workspace as a recording. Local/private Loom does not require a cloud account and does not imply public relay.
   See the [Live protocol](../features/LIVE_SCREENSHOT_PROTOCOL.md).

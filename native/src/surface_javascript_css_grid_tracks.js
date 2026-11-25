@@ -1,4 +1,4 @@
-// 有界轨道语法规范化；非递归扫描/展开，避免在原 256 KiB 栈上叠加 parser 调用。
+// Bounded track syntax normalization; non-recursive scanning/expansion avoids stacking parser calls on the original 256 KiB stack.
 ((dom, fail) => {
   "use strict";
   const op = dom.ops;

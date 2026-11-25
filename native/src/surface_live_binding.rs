@@ -1,4 +1,4 @@
-//! 从已认证挂载响应选择当前设备/节点的 Live 绑定；解析不等于授权，不生成替代 ID。
+//! Select current device/node Live bindings from authenticated mount responses; parsing is not authorization and creates no replacement IDs.
 use crate::live_relay_viewer_identity::identifier;
 use serde::Deserialize;
 use std::collections::BTreeMap;
@@ -66,7 +66,7 @@ struct AttachmentDescriptor {
     device_id: String,
 }
 impl Binding {
-    /// 新本地 Art 的宿主 view，不伪造远端 attach/ACK。此值本身不授予 JS 执行或服务权限。
+    /// Host view for new local Art without fabricated remote attach/ACK; this value alone grants no JS execution or service permissions.
     pub(crate) fn local_art(
         request: &crate::art_execution_grant::wire::Binding,
         node: &str,
@@ -121,7 +121,7 @@ impl Binding {
         result.lifecycle = state;
         Ok(result)
     }
-    /// origin/device 必须取自此次 HTTP 的固定 Client 和授权租约，不从响应自行声明。
+    /// origin/device must come from this HTTP request's pinned Client and authorization lease, not response declarations.
     pub fn from_mount(bytes: &[u8], origin: &str, device: &str, node: &str) -> Result<Self, Error> {
         let origin =
             crate::device_session_attempt::canonical_origin(origin).map_err(|_| Error::Input)?;
@@ -139,7 +139,7 @@ impl Binding {
         let mut selected = None;
         for (id, attachment) in instance.attachments {
             let descriptor = attachment.descriptor;
-            // 共享实例可保留旧设备绑定；不能只按节点选中第一个条目。
+            // Shared instances may retain old device bindings; do not select the first entry solely by node.
             if descriptor.device_id != device || descriptor.hook_node_id != node {
                 continue;
             }
@@ -193,7 +193,7 @@ impl Binding {
     pub fn lifecycle(&self) -> Lifecycle {
         self.lifecycle
     }
-    /// 显式首次观看目标；后续仍会重新 discovery 并校验目录身份，不能用于自动续签。
+    /// Explicit initial-view target; later discovery still rechecks catalog identity, and this cannot be used for automatic renewal.
     pub fn viewer_target(
         &self,
         selected: &crate::live_relay_viewer_identity::Identity,
@@ -218,7 +218,7 @@ impl Binding {
             .checked_add(1)
             .ok_or(Error::Revision)
     }
-    /// UI 使用前复核上下文；仍须服务器实时校验，不能将缓存当作永久授权。
+    /// Recheck context before UI use; live server validation remains necessary, and caches are not permanent authorization.
     pub fn matches(&self, origin: &str, device: &str, node: &str, generation: u64) -> bool {
         self.origin == origin
             && self.device == device

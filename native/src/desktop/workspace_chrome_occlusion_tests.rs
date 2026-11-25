@@ -1,4 +1,4 @@
-//! 隔离 desktop 中验证端点半圆、跨钉图遮挡及几何消息后的真实 region/鼠标命中。
+//! Verify endpoint semicircles, cross-pin occlusion, and actual regions/mouse hits after geometry messages on isolated desktops.
 use super::*;
 
 pub(super) unsafe fn contains(hwnd: HWND, point: Point) -> bool {
@@ -28,7 +28,7 @@ fn both_ports_keep_only_outer_half_at_scaled_negative_and_minified_geometry() {
         ] {
             SetWindowPos(host, None, x, y, 160, 120, SWP_NOZORDER | SWP_NOACTIVATE).unwrap();
             {
-                // 用物理客户区配合各 DPI 标量，不依赖测试机器实际多屏/缩放设置。
+                // Use physical client areas with DPI scalars, independent of the test machine's actual multi-monitor/scaling settings.
                 let mut nodes = ui.nodes.borrow_mut();
                 let node = nodes.iter_mut().find(|node| node.endpoint == 0).unwrap();
                 node.dpi = dpi;
@@ -44,8 +44,8 @@ fn both_ports_keep_only_outer_half_at_scaled_negative_and_minified_geometry() {
                 };
                 assert!(contains(strip, outside), "{dpi}/{minified:?}/{side:?}");
                 assert!(!contains(strip, inside), "{dpi}/{minified:?}/{side:?}");
-                // 新胶囊中心在白框外缘，右侧的 exclusive 边界本身不属于白框。
-                // 验证真实边框像素被完整扣除，不能用旧圆点中心代替遮挡契约。
+                // New capsule centers lie on white-border outer edges; the right exclusive boundary itself is outside the white border.
+                // Verify actual border pixels are fully subtracted; old dot centers do not substitute for the occlusion contract.
                 let node = ui.node(0).unwrap();
                 let border_pixel = Point {
                     x: if side == Side::Input {
@@ -103,7 +103,7 @@ fn every_pin_occludes_ports_and_move_resize_hide_or_destroy_restores_outer_half(
         for side in [Side::Input, Side::Output] {
             let mut app = visible_app();
             for doc in &app.documents {
-                // 原 app fixture 是带标题栏的空文档；改成钉图的无边框样式，几何才对应内容区。
+                // The original app fixture is an empty captioned document; switch to borderless pin styles so geometry matches content.
                 SetWindowLongPtrW(doc.window.0, GWL_STYLE, (WS_POPUP | WS_VISIBLE).0 as isize);
                 SetWindowPos(
                     doc.window.0,
@@ -128,7 +128,7 @@ fn every_pin_occludes_ports_and_move_resize_hide_or_destroy_restores_outer_half(
             };
             assert!(contains(strip, point));
             assert_eq!(hit(), strip);
-            // 端点宿主仍在原位置，另一张钉图即便不改变 Z-order 也必须遮住它。
+            // The endpoint host stays put; another pin must occlude it even without Z-order changes.
             place(blocker, point.x - 20, point.y - 20, 40, 40);
             assert!(!contains(strip, point));
             assert_eq!(hit(), blocker);

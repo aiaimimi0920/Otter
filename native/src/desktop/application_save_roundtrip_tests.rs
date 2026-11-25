@@ -1,4 +1,4 @@
-//! 候选编码必须经过实际恢复与合成回读，而不只比 JSON 字段。
+//! Candidate encoding must pass actual restoration and composed readback, not merely JSON-field comparison.
 use super::*;
 use crate::desktop::{
     image::Image,

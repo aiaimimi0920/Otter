@@ -1,4 +1,4 @@
-//! 真实回环 TLS/WS 的扩展准入链；只用合成目录，不读取用户发现文件或调用模型。
+//! Extension-admission chain over real loopback TLS/WS; synthetic catalogs only, without user discovery files or model calls.
 use super::test_peer::*;
 use super::*;
 use serde_json::json;
@@ -13,7 +13,7 @@ fn same_authenticated_socket_negotiates_and_checks_authority_without_reading_res
     let (identity, worker) = peer(|peer| {
         handshake(peer, handshake_data());
         let id = authority_request(peer);
-        // 无关 request 及 ping 不能冒充本次授权结果。
+        // Unrelated requests/pings cannot impersonate this authorization result.
         send(peer, response(&json!("other"), json!({"authorized":false})));
         peer.send(Message::Ping(vec![1, 2])).unwrap();
         assert_eq!(peer.read().unwrap(), Message::Pong(vec![1, 2]));
@@ -193,7 +193,7 @@ fn precancel_never_connects_and_target_is_validated_at_the_boundary() {
 
 #[test]
 fn cancellation_interrupts_response_wait_and_discards_all_session_authority() {
-    // 覆盖取消发生在发送完成、读取期限设置和实际阻塞读取之间的竞争；仍只计一个回归。
+    // Cover cancellation races between send completion, read-deadline setup, and actual blocking read; still count one regression only.
     for _ in 0..32 {
         let (ready, waiting) = mpsc::channel();
         let (identity, server) = peer(move |peer| {

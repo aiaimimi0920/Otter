@@ -1,4 +1,4 @@
-//! 单个公共参数的原生输入框；模态期间只拥有独立值，不借用应用或文档。
+//! Native input dialog for one public parameter; own only independent values during modals, without application/document borrows.
 use super::parameter_value::{Spec, MAX_TEXT};
 use serde_json::Value;
 use windows::{
@@ -259,7 +259,7 @@ mod tests {
             result: None,
         };
         unsafe {
-            // 模板不含 WS_VISIBLE；仅验证自己创建的隐藏对话框，不打开用户模态界面。
+            // The template lacks WS_VISIBLE; verify only owned hidden dialogs, without opening user modal UI.
             let hwnd = CreateDialogIndirectParamW(
                 None,
                 template.as_ptr().cast(),

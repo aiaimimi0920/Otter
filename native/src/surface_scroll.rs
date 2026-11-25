@@ -1,4 +1,4 @@
-//! 有界本地滚动状态；布局完成后平移后代，嵌套裁剪边界阻止内部溢出扩散。
+//! Bounded local scroll state; translate descendants after layout, with nested clip boundaries preventing internal overflow from propagating.
 use crate::{
     surface_geometry::Geometry,
     surface_layout_tree::Tree,
@@ -28,11 +28,11 @@ struct Entry {
     wheel: [bool; 2],
 }
 impl Scroll {
-    /// 快照共享只读偏移；写入走COW。按owner保守计费，不借Arc共享绕过动作队列预算。
+    /// Snapshots share read-only offsets; writes use COW. Charge conservatively per owner so Arc sharing cannot bypass action-queue budgets.
     pub(crate) fn bytes(&self) -> usize {
         256 + self.nodes.keys().map(|id| id.len() + 256).sum::<usize>()
     }
-    /// 从未平移的布局计算范围；只保留当前场景存在的可滚动节点。
+    /// Compute ranges from untranslated layout and retain only scrollable nodes present in the current scene.
     pub(crate) fn apply(
         &mut self,
         tree: &mut Tree<'_>,
@@ -94,7 +94,7 @@ impl Scroll {
             shifts.push(std::array::from_fn(|a| shift[a] + own[a]));
         }
     }
-    /// 从最内层命中节点向祖先寻找可消费方向；到边界才交给外层，不双重消费。
+    /// Search from the innermost hit toward ancestors for a consumable direction; hand off outward only at boundaries, without double consumption.
     pub(crate) fn wheel(
         &mut self,
         geometry: &Geometry,
@@ -133,14 +133,14 @@ impl Scroll {
         }
         false
     }
-    /// 键盘聚焦允许滚动 hidden 轴，但不能赋予该轴滚轮资格。
+    /// Keyboard focus may scroll hidden axes but cannot grant them wheel eligibility.
     pub(crate) fn reveal(&mut self, geometry: &Geometry, id: &str) -> bool {
         let Some(target) = geometry.nodes().iter().find(|node| node.id() == id) else {
             return false;
         };
         self.reveal_region(geometry, id, target.origin(), target.size())
     }
-    /// 显露节点内的局部目标（例如选区端点），而不是把整个长文本框当目标。
+    /// Reveal a local target within a node, such as a selection endpoint, rather than targeting the entire long text box.
     pub(crate) fn reveal_region(
         &mut self,
         geometry: &Geometry,

@@ -1,4 +1,4 @@
-//! 钉图窗口以物理像素围绕指针缩放；预算约束在创建交换链缓冲前执行。
+//! Pin windows scale around pointers in physical pixels; enforce budgets before swap-chain-buffer creation.
 #[path = "pin_wheel_geometry.rs"]
 pub mod wheel;
 pub use wheel::WheelZoom;
@@ -28,7 +28,7 @@ pub fn zoom(rect: PinRect, pointer: (i32, i32), steps: f32) -> Option<PinRect> {
         height,
     })
 }
-/// 等比拖动固定初始左上角；沿归一化位移较大的轴调整，始终从初始尺寸计算。
+/// Aspect-locked dragging fixes the initial top-left corner; use the larger normalized-displacement axis and always derive from initial dimensions.
 pub fn resize_drag(rect: PinRect, delta: (i64, i64)) -> Option<PinRect> {
     if rect.width == 0 || rect.height == 0 {
         return None;

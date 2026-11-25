@@ -1,4 +1,4 @@
-//! 原生连线菜单只提交身份绑定请求；拓扑修改由应用线程统一处理。
+//! Native link menus submit identity-bound requests only; application threads centrally handle topology changes.
 #[cfg(test)]
 use super::State;
 use crate::{
@@ -82,7 +82,7 @@ impl Snapshot {
             link: link.clone(),
         })
     }
-    /// 返回打开时快照的选择，不在可重入菜单循环中更改拓扑；应用负责复核并提交。
+    /// Return selection from the opening snapshot; do not change topology in reentrant menu loops, leaving revalidation/commit to the application.
     pub unsafe fn select(&self, owner: HWND) -> Result<Option<Request>> {
         if self.links.is_empty() {
             return Ok(None);
@@ -110,7 +110,7 @@ impl Snapshot {
             return Ok(());
         }
         let menu = Menu(CreatePopupMenu()?);
-        // 每页最多 64 行，命令仍索引打开时快照，不能按最新列表解释旧命令。
+        // At most 64 rows per page; commands index opening snapshots, never interpreting old commands against latest lists.
         for (page, links) in self.links.chunks(64).enumerate() {
             let child = Menu(CreatePopupMenu()?);
             for (offset, link) in links.iter().enumerate() {

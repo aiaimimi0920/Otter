@@ -1,4 +1,4 @@
-//! 隐藏 HWND 的真实候选/磁盘提交/重开；暂存、取消、冲突与新工作区都不能借用旧包含证明。
+//! Real candidates/disk commits/reopening with hidden HWNDs; staging, cancellation, conflicts, and new workspaces cannot borrow old inclusion proofs.
 use super::*;
 #[path = "application_projection_cleanup_checkpoint_tests.rs"]
 mod cleanup;
@@ -187,7 +187,7 @@ fn projection_checkpoint_scope_and_later_removal_clear_saved_classification_with
                 .recovery
                 .saved
                 .is_empty());
-            // 相同字节的新工作区只有自己完成真实 checkpoint 后才能获得新作用域证明。
+            // A new workspace with identical bytes gains a new scoped proof only after completing its own actual checkpoint.
             settle(&mut app);
             assert!(app.projection_checkpoint_inclusion(&ticket).is_some());
             let unit = UnitId::parse(ticket.unit()).unwrap();

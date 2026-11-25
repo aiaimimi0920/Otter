@@ -1,4 +1,4 @@
-//! 全库逐批可达性和稳定身份；追加不重用旧槽，也不截断库来满足静态树预算。
+//! Full-library batchwise reachability and stable identity; appending neither reuses old slots nor truncates libraries to meet static-tree budgets.
 use super::*;
 fn model(count: usize) -> LibraryMenu {
     let mut tree = Vec::new();

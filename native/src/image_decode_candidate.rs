@@ -1,4 +1,4 @@
-//! 候选缩略图只接受内联常见容器；先验尺寸再缩到64，不分配完整源像素。
+//! Candidate thumbnails accept only common inline containers; check dimensions before scaling to 64, without allocating full source pixels.
 use super::*;
 impl Image {
     pub(crate) fn from_candidate_thumbnail(
@@ -7,7 +7,7 @@ impl Image {
     ) -> Result<Self> {
         Self::thumbnail(bytes, 4 * 1024 * 1024, stopped)
     }
-    /// 冻结截图可能没有单独的小预览；只放宽编码大小，仍先缩到64才分配像素。
+    /// Frozen captures may lack a separate small preview; relax only encoded size and still scale to 64 before pixel allocation.
     pub(crate) fn from_menu_thumbnail(bytes: &[u8], stopped: &impl Fn() -> bool) -> Result<Self> {
         Self::thumbnail(bytes, 16 * 1024 * 1024, stopped)
     }
@@ -39,7 +39,7 @@ impl Image {
                 std::ptr::null(),
                 WICDecodeMetadataCacheOnDemand,
             )?;
-            // 不因扩展名/MIME提示打开任意系统codec，也不改变既有WebP隔离路线。
+            // Filename-extension/MIME hints cannot activate arbitrary system codecs or change existing WebP isolation.
             if ![
                 GUID_ContainerFormatPng,
                 GUID_ContainerFormatJpeg,

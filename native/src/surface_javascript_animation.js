@@ -1,4 +1,4 @@
-// 单文档 rAF 队列；只有宿主明确交付一帧时执行，回调中新请求留到下一帧。
+// Per-document rAF queue; runs only when the host explicitly delivers a frame, with new requests from callbacks deferred to the next frame.
 ((dom, fail) => {
   "use strict";
   const op = dom.ops, callbacks = new op.MapType();
@@ -30,9 +30,9 @@
         const handle = handles[index++], callback = op.mapGet(callbacks, handle);
         if (!callback) continue;
         op.mapDelete(callbacks, handle);
-        // 取消尚未执行的同帧回调生效；新请求不进入本次 handle 快照。
+        // Canceling a same-frame callback that has not run takes effect; new requests do not enter this handle snapshot.
         op.apply(callback, globalThis, args);
-        // Rust 在下一 callback 前排尽 microtask，使 Promise 取消也先于后续 callback。
+        // Rust drains microtasks before the next callback, so Promise-based cancellation also precedes subsequent callbacks.
         return true;
       }
       handles = args = null; return false;

@@ -1,4 +1,4 @@
-//! 原Application/TLS/WSS→菜单→真正只读EDIT及更新/撤权；不代表普通双EXE或Source UIA。
+//! Original Application/TLS/WSS -> menu -> genuinely read-only EDIT and updates/revocation; not ordinary dual-EXE or Source UIA testing.
 use super::*;
 use crate::desktop::composition::relay::{sessions::ViewerKey, window::observation::OPEN};
 use std::sync::{atomic::Ordering, Arc};

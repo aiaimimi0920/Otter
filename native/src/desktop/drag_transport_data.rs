@@ -1,4 +1,4 @@
-//! 标准 Shell IDataObject 的有界 CF_HDROP 与逻辑操作回执；不访问路径指向的磁盘内容。
+//! Bounded CF_HDROP and logical-operation receipts for standard Shell IDataObject; no access to disk content referenced by paths.
 use std::path::PathBuf;
 use windows::{
     core::{Error, Result},
@@ -16,7 +16,7 @@ use windows::{
 
 pub(super) struct Payload {
     pub object: IDataObject,
-    // 先释放本地 COM 引用，再归还本次数据准备预算；接收方保留的 COM 数据由系统管理。
+    // Release local COM references before returning preparation budgets; the system manages COM data retained by receivers.
     _lease: crate::byte_budget::Lease,
 }
 
@@ -38,7 +38,7 @@ pub(super) fn logical_format() -> Result<FORMATETC> {
         ..format()
     })
 }
-/// Shell 优化移动后原 pdwEffect 可以是 NONE；逻辑回执才表示用户实际完成的操作。
+/// After Shell-optimized moves, original pdwEffect may be NONE; logical receipts describe the operation users actually completed.
 pub(super) fn logical_effect(object: &IDataObject) -> Result<Option<DROPEFFECT>> {
     unsafe {
         let medium = match object.GetData(&logical_format()?) {
@@ -83,7 +83,7 @@ impl Drop for Locked {
 
 pub(super) fn format() -> FORMATETC {
     FORMATETC {
-        cfFormat: 15, // CF_HDROP 是预定义格式，不调用 RegisterClipboardFormat。
+        cfFormat: 15, // CF_HDROP is predefined; do not call RegisterClipboardFormat.
         dwAspect: DVASPECT_CONTENT.0,
         lindex: -1,
         tymed: TYMED_HGLOBAL.0 as u32,
@@ -93,11 +93,11 @@ pub(super) fn format() -> FORMATETC {
 
 pub(super) fn prepare(paths: &[PathBuf]) -> Result<Payload> {
     let bytes = super::super::paste_input::file::encode(paths)?;
-    // 编码 Vec 与交付给 Shell 的 HGLOBAL 均有上限；编码器限制总包长 128 KiB。
+    // Both encoding Vec and HGLOBAL delivered to Shell are bounded; the encoder caps total packet size at 128 KiB.
     let mut lease = crate::pixels::reserve(bytes.len() * 2)
         .ok_or_else(|| Error::new(E_OUTOFMEMORY, "Native drag data exceeds budget"))?;
     unsafe {
-        // 接收方能查看 GlobalSize，连分配器对齐余量也清零，避免泄露未初始化字节。
+        // Receivers can inspect GlobalSize; zero even allocator-alignment slack to avoid exposing uninitialized bytes.
         let memory = Memory(GlobalAlloc(GMEM_MOVEABLE | GMEM_ZEROINIT, bytes.len())?);
         if !lease.grow_to(bytes.len() + GlobalSize(memory.0)) {
             return Err(Error::new(
@@ -118,8 +118,8 @@ pub(super) fn prepare(paths: &[PathBuf]) -> Result<Payload> {
             u: STGMEDIUM_0 { hGlobal: memory.0 },
             ..Default::default()
         };
-        // 标准 Shell 对象不支持 fRelease=false；成功后只由 IDataObject 释放 HGLOBAL。
-        // 失败仍由本地 RAII 回收，禁止成功后再次 GlobalFree。
+        // Standard Shell objects do not support fRelease=false; after success only IDataObject frees HGLOBAL.
+        // Local RAII still reclaims failures; never GlobalFree again after success.
         object.SetData(&format(), &medium, true)?;
         std::mem::forget(memory);
         Ok(Payload {

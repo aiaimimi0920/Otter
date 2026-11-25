@@ -1,4 +1,4 @@
-//! 独立隐藏 HWND 的冻结追加事务验证；真实图片资源、旧窗口与保存回读均走生产路径。
+//! Frozen-append transaction verification with independent hidden HWNDs; real image resources, old windows, and save/readback all follow production paths.
 use super::{append::Append, *};
 use crate::{desktop::session_binding::Bound, session_library::Kind, workspace_id::UnitId};
 
@@ -80,7 +80,7 @@ pub(in crate::desktop::application) unsafe fn run(instance: HINSTANCE) -> Result
         vec!["old-element".into()],
     ));
 
-    // 原窗口发生编辑后整批失败；隐藏候选释放、原库仍由同一 owner 持有。
+    // Editing the original window fails the whole batch; hidden candidates are released while the same owner retains the original library.
     let append = prepare(&app, Kind::ReferenceLibrary, "stale-edit")?;
     let rejected = append.windows.documents[0].window.0;
     let opacity = app.documents[0].state.canvas.borrow().normal_opacity;
@@ -99,7 +99,7 @@ pub(in crate::desktop::application) unsafe fn run(instance: HINSTANCE) -> Result
     {
         return Err(Error::new(E_FAIL, "Stale frozen append changed workspace"));
     }
-    // 即使字节相同，会话 owner 被替换也使先前准备失效。
+    // Replacing the session owner invalidates prior preparation even when bytes are identical.
     let append = prepare(&app, Kind::RecycleBin, "stale-source")?;
     let rejected = append.windows.documents[0].window.0;
     app.restored_session.as_mut().unwrap().original = retained.as_ref().to_vec().into();

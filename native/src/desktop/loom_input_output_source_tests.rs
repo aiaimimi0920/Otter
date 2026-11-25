@@ -1,4 +1,4 @@
-//! 输入资源来源凭证、内联边界与原始底图/正式输出的准备合同。
+//! Input-resource provenance evidence, inline boundaries, and preparation contracts for original bases/official outputs.
 use super::*;
 use crate::desktop::{loom_output_batch, loom_result_state::Results};
 #[test]

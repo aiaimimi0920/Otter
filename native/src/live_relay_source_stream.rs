@@ -1,4 +1,4 @@
-//! 捕获最新帧→原GPU读回→分片媒体；同Consumer/序号有限恢复，不重开捕获或重放丢失AU。
+//! Capture latest frame -> original GPU readback -> fragmented media; bounded same-Consumer/sequence recovery without reopening capture or replaying lost AUs.
 use super::*;
 use crate::{
     live_relay_frame::{Codec, ColorSpace, Metadata},
@@ -31,7 +31,7 @@ pub(super) fn run(
     let mut next_control = Instant::now();
     let mut frame_id = 0u64;
     let mut last_sequence = None;
-    // 仅保留一份已有不可变GPU帧的Arc，供静止画面收到IDR请求时重发；不另截图或积压像素。
+    // Retain only one Arc to an existing immutable GPU frame for idle-image IDR requests; no extra capture or pixel backlog.
     let mut latest = None;
     loop {
         recovery::check(client, lease, signal)?;
@@ -54,7 +54,7 @@ pub(super) fn run(
                         == Exit::Media(crate::live_relay_media_transport::Error::Stopped)
                         && signal.restart_media.load(Ordering::Acquire)
                     {
-                        // 未完成握手不证明服务已看见 Source 退出；保留重启请求供已升级连接消费。
+                        // Incomplete handshake does not prove the service saw Source exit; retain restart requests for consumption by an upgraded connection.
                         recovery::media_restart()
                     } else {
                         exit
@@ -145,14 +145,14 @@ pub(super) fn run(
             Ok(())
         })();
         if let Err(exit) = result {
-            // 只在主动退休已升级连接时消费轮换。普通 I/O 失败不能清掉稍晚到达的请求。
-            // 旧 socket 与 interrupt 先退休；未知完成的帧号已消费，下一连接只发新 raw/IDR。
+            // Consume rotation only while actively retiring an upgraded connection. Ordinary I/O failure cannot clear a slightly later request.
+            // Retire the old socket/interrupt first; unknown-completion frame numbers are consumed, and the next connection sends only fresh raw/IDR.
             socket.take();
             signal.retire_media();
             recovery.retry(exit, client, lease, signal)?;
             continue;
         }
-        // 无帧只等原Consumer通知；100ms上限服务socket/授权，不做额外截图。
+        // Without frames, wait only for original Consumer notices; the 100ms bound services sockets/authorization without extra screenshots.
         let wake = if idle {
             next_control
         } else {

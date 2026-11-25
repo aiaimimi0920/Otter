@@ -1,4 +1,4 @@
-//! 批次容量包括旧关联与primary；失败发生在Store/网络之前，不扩大原8项上限。
+//! Batch capacity includes old associations/primary; fail before Store/network without enlarging the original eight-entry limit.
 use super::*;
 use serde_json::{json, Value};
 fn selections(count: usize) -> Vec<Selection> {

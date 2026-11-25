@@ -1,4 +1,4 @@
-//! 普通Surface与Tile共用系统滚轮偏好及屏幕→客户区解码；不注册监听、不注入输入。
+//! Ordinary Surface and Tile share system wheel preferences and screen-to-client decoding; no listener registration or input injection.
 use windows::Win32::{Foundation::*, Graphics::Gdi::ScreenToClient, UI::WindowsAndMessaging::*};
 pub(super) struct Wheel {
     pub pixel: [i32; 2],

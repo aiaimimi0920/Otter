@@ -1,4 +1,4 @@
-//! 账号关联的普通产品生命周期；一个后台槽串行网络/候选准备，真实检查点控制显示与后续同步。
+//! Normal product lifecycle for account associations; one background slot serializes network/candidate preparation, with actual checkpoints governing display and subsequent sync.
 use super::*;
 use crate::{
     projection_account::{self as account, scene::Binding},
@@ -219,7 +219,7 @@ mod tests {
             let pump = execution_test_pump::Pump::new();
             let wake = app.execution_wake.callback();
             let gate = Gate::new(move || wake());
-            // 租约撤销也可调用 notify。仅阻塞后台完成尾段，禁止测试制造第二个唤醒。
+            // Lease revocation can also call notify. Block only the background completion tail; the test must not manufacture a second wakeup.
             let notified = AtomicBool::new(false);
             let notify = Arc::new(move || {
                 if !notified.swap(true, Ordering::AcqRel) {

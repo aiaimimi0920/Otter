@@ -1,4 +1,4 @@
-//! HWND 左键点击候选；默认关闭、单槽排队，窗口回调不发送动作或网络请求。
+//! HWND left-click candidates; disabled by default, single-slot queued, with no actions/network requests in window callbacks.
 use super::*;
 use std::rc::Rc;
 use windows::Win32::UI::Input::KeyboardAndMouse::*;
@@ -12,7 +12,7 @@ pub(super) use text_selection::text_key_message;
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Activation {
     Pointer,
-    /// 原生控件的捕获手势保留按下目标，不能按抬起坐标改投其他节点。
+    /// Native-control capture gestures retain the pressed target; release coordinates cannot redirect to another node.
     CapturedPointer,
     Keyboard,
     Automation,
@@ -118,7 +118,7 @@ impl Pointer {
     }
 }
 impl SurfaceWindow {
-    /// 消费候选前后复查窗口/场景身份；从同一 Host 借用完成重新命中与事件准备。
+    /// Recheck window/scene identity before/after candidate consumption; perform re-hit testing and event preparation in one Host borrow.
     pub fn click_events_for_candidate(
         &self,
         click: Click,
@@ -150,11 +150,11 @@ impl SurfaceWindow {
         }
         Ok(events)
     }
-    /// 仅控制本地候选捕获，不授予动作权限；状态不变时保留合法的按下/候选。
+    /// Control local candidate capture only, granting no action permission; unchanged state preserves valid presses/candidates.
     pub fn set_pointer_enabled(&self, enabled: bool) -> Result<()> {
         self.set_input_policy(enabled, enabled)
     }
-    /// 编辑与提交分别授权；软停止提交撤销候选但不清逻辑焦点或未来编辑 owner。
+    /// Authorize editing and submission separately; soft-stopping submission revokes candidates without clearing logical focus or future edit owners.
     pub fn set_input_policy(&self, editing: bool, submitting: bool) -> Result<()> {
         if !self.is_alive() {
             return Err(Error::new(E_FAIL, "Surface window closed"));
@@ -186,13 +186,13 @@ impl SurfaceWindow {
         if !current() {
             return Err(Error::new(E_FAIL, "Surface edit policy superseded"));
         }
-        // 撤权不等待 Host；新授权须等原生控件同步成功且未被同步消息换代。
+        // Revocation does not wait for Host; new authorization waits for successful native-control synchronization without synchronous-message generation changes.
         state.local_edit.set(was_editing && editing);
         state.pointer.borrow_mut().enabled = was_submitting && submitting;
         if !state.run(|host| {
             let result = host.edit_policy(editing);
             if editing && result.is_err() && current() && !state.local_edit.get() {
-                // 授权失败时不留下已部分启用的原生控件。
+                // Failed authorization must not leave partially enabled native controls.
                 result.and(host.edit_policy(false))
             } else {
                 result
@@ -240,7 +240,7 @@ pub(super) fn cancel(hwnd: HWND, state: &State) {
         }
     }
 }
-/// 只有已取得 Host 的同步快照才能排队；失败不以空表单代替，且不跨回调保存借用。
+/// Only an acquired Host's synchronous snapshot may queue; failure cannot substitute an empty form or retain borrows across callbacks.
 pub(super) fn form_snapshot(
     state: &State,
 ) -> Option<(
@@ -260,7 +260,7 @@ pub(super) fn form_snapshot(
         _ => None,
     }
 }
-/// 场景身份也使已经被领取、尚未准备的候选失效，不只清空窗口单槽。
+/// Scene identity also invalidates claimed but unprepared candidates, not merely the window's single slot.
 pub(super) fn invalidate(hwnd: HWND, state: &State) {
     invalidate_candidates(hwnd, state);
     state.keyboard.borrow_mut().clear();
@@ -274,7 +274,7 @@ pub(super) fn invalidate_candidates(hwnd: HWND, state: &State) {
         let _ = InvalidateRect(Some(hwnd), None, false);
     }
 }
-/// 只供 JS 背压/同 Canvas 帧/同 HWND 下一 Canvas 手势；不豁免滚动、切焦或撤权。
+/// Only for JS backpressure/same-Canvas frames/the next Canvas gesture on the same HWND; scrolling, focus changes, and revocation remain nonexempt.
 pub(super) fn invalidate_soft(hwnd: HWND, state: &State) {
     if unsafe { javascript_pointer::preservable(hwnd, state) } {
         state.pointer.borrow_mut().clear();
@@ -325,7 +325,7 @@ unsafe fn dragged(press: &Press, point: [i32; 2]) -> bool {
     })
 }
 pub(super) unsafe fn message(hwnd: HWND, state: &State, message: u32, lp: LPARAM) -> bool {
-    // 只抑制本次正常释放的 capturechanged；同一同步栈上的隐藏/失焦/resize 仍是硬取消。
+    // Suppress only this normal release's capturechanged; hiding/focus loss/resize on the same synchronous stack still hard-cancels.
     if message == WM_CAPTURECHANGED && state.pointer_releasing.get() {
         return false;
     }
@@ -355,7 +355,7 @@ pub(super) unsafe fn message(hwnd: HWND, state: &State, message: u32, lp: LPARAM
         return true;
     }
     if !state.pointer.borrow().enabled {
-        // Switch 的本地按压仍有效；其他节点软停止时只建立导航锚点。
+        // Switch local presses remain valid; other nodes establish only navigation anchors during soft stop.
         let local_switch = state.local_edit.get()
             && hit(state, point(lp)).is_some_and(|id| switch::is_switch(state, &id));
         if !local_switch && state.pointer.borrow().pressed.is_none() {
@@ -371,7 +371,7 @@ pub(super) unsafe fn message(hwnd: HWND, state: &State, message: u32, lp: LPARAM
     let point = point(lp);
     match message {
         WM_LBUTTONDOWN | WM_LBUTTONDBLCLK => {
-            // 不覆盖尚未消费的候选；切焦会使旧候选失效，先保留原单槽边界。
+            // Do not overwrite unconsumed candidates; focus changes invalidate old ones, so preserve the original single-slot boundary first.
             if state.pointer.borrow().pending.is_some() {
                 return true;
             }
@@ -409,7 +409,7 @@ pub(super) unsafe fn message(hwnd: HWND, state: &State, message: u32, lp: LPARAM
                 && hit(state, point).as_deref() == Some(press.node.as_str());
             let captured = GetCapture() == hwnd;
             let scene = state.pointer.borrow().scene.clone();
-            // ReleaseCapture 可同步重入；先清理捕获，再决定是否交付候选。
+            // ReleaseCapture may synchronously reenter; clean capture before deciding whether to deliver candidates.
             if captured {
                 let _ = ReleaseCapture();
             }
@@ -417,7 +417,7 @@ pub(super) unsafe fn message(hwnd: HWND, state: &State, message: u32, lp: LPARAM
                 return true;
             }
             if same && captured && !state.closed.get() && state.local_edit.get() {
-                // 先封存前缀：祖先 click 属于激活边沿，必须先于本次 Switch change。
+                // Seal the prefix first: ancestor click belongs to the activation edge and must precede this Switch change.
                 let Some((values, fence)) = form_snapshot(state) else {
                     return true;
                 };

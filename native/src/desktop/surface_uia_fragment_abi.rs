@@ -1,4 +1,4 @@
-//! Fragment/FragmentRoot 独立 COM 接口头；共享规范 IUnknown 与引用计数。
+//! Separate COM interface headers for Fragment/FragmentRoot, sharing canonical IUnknown and reference counts.
 use super::*;
 use windows::Win32::System::{Ole::*, Variant::VT_I4};
 
@@ -76,7 +76,7 @@ unsafe extern "system" fn runtime(this: *mut c_void, out: *mut *mut SAFEARRAY) -
         return S_OK;
     };
     if navigation::native_edit(node) {
-        // HWND 承载的元素使用系统 runtime-id，不能追加自绘节点 ID 而拆成第二个元素。
+        // HWND-hosted elements use system runtime IDs; appending owner-drawn node IDs must not split them into a second element.
         return S_OK;
     }
     let Some(id) = node.runtime_id() else {
@@ -95,7 +95,7 @@ unsafe extern "system" fn runtime(this: *mut c_void, out: *mut *mut SAFEARRAY) -
             return error.code();
         }
     }
-    // 成功时数组所有权交给 UIA 调用者；每次调用分配独立数组。
+    // On success, array ownership transfers to the UIA caller; allocate an independent array per call.
     out.write(array);
     S_OK
 }

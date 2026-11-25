@@ -1,4 +1,4 @@
-//! 合成内联像素验证有界视口缓存和条目身份；路径或 URL 不取得隐式读取权限。
+//! Synthetic inline pixels verify bounded viewport caching and entry identity; paths/URLs gain no implicit read permission.
 use super::*;
 #[test]
 fn previews_decode_bounded_viewport_ranges_and_bind_images_to_entry_identity() {

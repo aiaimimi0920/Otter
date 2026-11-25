@@ -1,4 +1,4 @@
-//! 自有菜单面板的级联控制器；只返回命令 ID，业务授权仍由调用者完成。
+//! Cascade controller for owned menu panels; returns only command IDs, while callers retain business authorization.
 use super::{
     panel::{Event, Panel, Row},
     Item,
@@ -193,7 +193,7 @@ impl Cascade {
             cx: desired.min(work.right - work.left),
             cy: (visible / layout.columns) as i32 * layout.row,
         };
-        // 只有托盘根页以鼠标为下角；子页仍按父条目顶边侧向展开。
+        // Only tray roots anchor a lower corner to the mouse; child pages still expand sideways from parent-row top edges.
         let alignment = if self.tray_mode && path.is_empty() {
             let horizontal = if i64::from(anchor.right) + i64::from(size.cx) > i64::from(work.right)
             {
@@ -241,7 +241,7 @@ impl Cascade {
         let level = self.pages.len() - 1;
         self.refresh(level)?;
         if self.tray_mode {
-            // 托盘浮层可能置顶；只提升本次菜单页，不改变隐藏业务 owner 的层级。
+            // Tray overlays may be topmost; raise only this menu's pages, not hidden business-owner z-order.
             unsafe {
                 SetWindowPos(
                     self.pages[level].panel.handle()?,
@@ -265,7 +265,7 @@ impl Cascade {
         self.refresh_frame(level, false)
     }
     fn refresh_frame(&self, level: usize, fresh: bool) -> Result<()> {
-        // 行、焦点或可见区换代后，即使页数不变也须重新提交关系和通知。
+        // After row/focus/viewport generation changes, recommit relationships/notices even if page count is unchanged.
         self.accessibility_pages.set(None);
         let page = &self.pages[level];
         page.panel.set_scroll(
@@ -332,7 +332,7 @@ impl Cascade {
         self.closed
     }
     fn sync_accessibility(&self) {
-        // 截断只改变页数，不一定刷新行；空轮询则不需要重建弱关联或查询监听。
+        // Truncation changes only page count, not necessarily rows; empty polls need no weak-link rebuild/listener query.
         let count = Some(self.pages.len());
         if self.accessibility_pages.replace(count) == count {
             return;
@@ -355,7 +355,7 @@ impl Cascade {
                     .copied(),
             );
         }
-        // 全部关系及焦点提交后才通知；UIA 回调不得观察一半旧、一半新的树。
+        // Notify only after committing all relationships/focus; UIA callbacks must never observe a half-old, half-new tree.
         for page in &self.pages {
             page.panel.notify_accessibility();
         }
@@ -432,7 +432,7 @@ impl Cascade {
         self.closed = true;
         self.pages.clear();
     }
-    /// 外层消息循环每次 dispatch 后调用；没有私有业务消息或后台内容指针。
+    /// Outer message loops call after each dispatch; no private business messages or background-content pointers.
     pub fn poll(&mut self) -> Result<()> {
         self.sync_geometry()?;
         self.sync_accessibility();
@@ -473,10 +473,10 @@ impl Cascade {
                 return Ok(());
             }
         }
-        self.cancel(); // 有界处理；输入过载不能继续执行不完整手势。
+        self.cancel(); // Bounded processing; input overload cannot continue an incomplete gesture.
         Ok(())
     }
-    /// 非激活窗口的硬件键盘消息须由外层菜单消息循环路由到此处。
+    /// Outer menu message loops must route hardware keyboard messages for nonactivating windows here.
     pub fn key(&mut self, key: u32) -> Result<()> {
         self.sync_geometry()?;
         if self.closed || self.pages.is_empty() {

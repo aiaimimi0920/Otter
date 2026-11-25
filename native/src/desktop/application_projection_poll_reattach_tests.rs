@@ -1,4 +1,4 @@
-//! Confirm 自动恢复仍只读；暂停撤销追加前参与凭证，但不解绑既有 receiver 或已追加图片。
+//! Confirm automatic recovery remains read-only; pausing revokes pre-append participation credentials, not existing receivers or appended images.
 use super::super::poll::pause;
 use super::*;
 

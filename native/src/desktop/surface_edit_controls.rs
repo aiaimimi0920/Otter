@@ -1,4 +1,4 @@
-//! 挂载字段的 HWND 身份与焦点路由；只访问现有 owner，不缓存另一份窗口索引。
+//! Mounted-field HWND identity and focus routing; access existing owners only without another window-index cache.
 use super::*;
 impl Mount {
     pub fn owns(&self, hwnd: HWND) -> bool {

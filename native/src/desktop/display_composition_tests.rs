@@ -1,4 +1,4 @@
-//! 内存夹具验证后台合成与既有导出一致；不读取用户图片、剪贴板或桌面。
+//! In-memory fixtures verify background composition matches existing export; no user-image, clipboard, or desktop reads.
 use super::*;
 use crate::{editor::Tool, erase_layers::Layers, viewport::Point};
 
@@ -184,7 +184,7 @@ fn composition_budget_is_retained_only_by_returned_pixels_and_released_on_failur
         );
         assert_eq!(budget.used(), 0);
     }
-    // 第三次预留是读回缓冲；拒绝它也必须释放已经合成的 WIC 位图。
+    // The third reservation is the readback buffer; rejecting it must still release the already-composited WIC bitmap.
     let calls = std::cell::Cell::new(0);
     assert_eq!(
         compose_reserved(&image, &editor, &cancel, |bytes| {

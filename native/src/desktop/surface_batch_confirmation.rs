@@ -1,4 +1,4 @@
-//! 批次明确选择后的提示消费；整批收据始终与决定一起持有，不拆散其他事件证据。
+//! Consume prompts after explicit batch decisions; keep whole-batch receipts with decisions, never separating other event evidence.
 use super::*;
 use crate::surface_confirmation::{Choice, Decision, Request};
 pub struct PreparedBatchDecision {
@@ -11,7 +11,7 @@ pub struct BatchDecisionError {
     pub error: Error,
 }
 impl BatchReceipt {
-    /// 只审核收据证据；真正显示提示前仍须通过窗口授权和当前版本检查。
+    /// Review receipt evidence only; actual prompt display still requires window authorization and current-version checks.
     pub fn confirmation_ready(&self, index: usize, now_ms: u64) -> bool {
         use crate::surface_event_batch_runtime::ObservationError;
         if self.delivery.is_err()
@@ -71,7 +71,7 @@ impl AuthorizedWindow {
                 "Surface batch confirmation evidence unavailable",
             ));
         }
-        // 部分完成时窗口会以 Evidence 拒绝整批呈现，但有效待确认项仍可让用户选择。
+        // For partial completion the window rejects whole-batch presentation with Evidence, but valid pending-confirmation items may still offer user choices.
         if self.stopped.is_some()
             || !self.is_shown()
             || receipt.delivery.is_err()
@@ -110,7 +110,7 @@ impl AuthorizedWindow {
             .ok_or_else(|| Error::new(E_FAIL, "Surface batch confirmation missing"))?;
         Ok(request)
     }
-    /// 调用方须在明确选择之后调用；失败完整返还，成功不发网络请求、不移交 owner。
+    /// Callers invoke only after explicit choice; failure returns everything, while success sends no network requests or owner transfers.
     pub fn prepare_batch_decision(
         &mut self,
         mut receipt: BatchReceipt,

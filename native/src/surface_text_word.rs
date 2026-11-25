@@ -1,4 +1,4 @@
-//! 单节点词范围；初始双击包含尾随空白，拖动使用不扩展空白的词段。
+//! Single-node word ranges; initial double-click includes trailing whitespace, while dragging uses word segments without whitespace expansion.
 use super::*;
 #[path = "surface_text_word_icu.rs"]
 mod icu;
@@ -10,7 +10,7 @@ impl Layout {
         let range = self.word_segment(position, boundaries)?;
         let start = range.start;
         let mut end = range.end;
-        // 初始双击包含横向尾随空白；不能把这条规则用于后续词级拖动。
+        // Initial double-click includes horizontal trailing whitespace; this rule must not apply to subsequent word-level dragging.
         while let Some(unit) = self.text.get(end as usize) {
             if matches!(*unit, 10 | 13 | 0x2028 | 0x2029)
                 || !char::from_u32(*unit as u32).is_some_and(char::is_whitespace)

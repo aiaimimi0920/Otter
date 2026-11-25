@@ -1,4 +1,4 @@
-// 所有 parser/反射/投影均不得分派到插件污染后的 collection、字符串或数值 intrinsic。
+// No parsing/reflection/projection may dispatch to plugin-polluted collection, string, or numeric intrinsics.
 let spatialIntegrityRoot;
 NeuroSurface.define({ mount({ root }) {
   spatialIntegrityRoot = root; root.style.position = "relative"; root.innerHTML = "<div></div>";

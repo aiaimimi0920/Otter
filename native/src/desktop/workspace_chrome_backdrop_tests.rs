@@ -1,4 +1,4 @@
-//! 原 Application 的 Tab 底板像素、裁剪与缓存；不采集用户屏幕。
+//! Original Application Tab-backdrop pixels, clipping, and caching; no user-screen capture.
 use super::*;
 
 unsafe fn pixel(ui: &Ui, point: Point) -> COLORREF {
@@ -243,7 +243,7 @@ fn backdrop_tracks_scroll_clip_and_excludes_the_image_even_when_it_is_transparen
         };
         let mut surface_bounds = RECT::default();
         GetWindowRect(ui.backings.borrow()[0].hwnd, &mut surface_bounds).unwrap();
-        // 无绘制内容时表面本身可以止于 viewport，不能把 DIB 外 CLR_INVALID 当成颜色。
+        // Without drawing content the surface may end at the viewport; CLR_INVALID outside DIB bounds is not a color.
         assert!(outside.y >= surface_bounds.bottom || pixel(ui, outside) == COLORREF(0));
         assert_eq!(
             pixel(

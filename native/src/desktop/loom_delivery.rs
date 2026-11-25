@@ -1,4 +1,4 @@
-//! 单次正式交付 owner：先记录远端租约再解码；本地结果失败不会丢掉释放责任。
+//! One official-delivery owner: record remote leases before decoding so local-result failures preserve release responsibility.
 use super::loom_output_batch::{self, Batch};
 use crate::{
     graph_requests::Request,
@@ -28,8 +28,8 @@ pub enum TakeError {
     Decode(loom_output_batch::Error),
 }
 impl Delivery {
-    /// 本地结果只移交一次；未确认释放的租约及结果仍完整归本 owner，失败不消费。
-    /// 解码失败也只在释放完成后移交错误；此方法不访问网络、不复制图片。
+    /// Transfer local results once only; unconfirmed leases/results remain entirely with this owner and failures consume neither.
+    /// Even decoding errors transfer only after release completes; this method performs no networking/image copying.
     pub fn take_released(&mut self) -> Result<Batch, TakeError> {
         if !self.leases.is_empty() {
             return Err(TakeError::PendingRelease);
@@ -37,8 +37,8 @@ impl Delivery {
         std::mem::replace(&mut self.result, Err(loom_output_batch::Error::Consumed))
             .map_err(TakeError::Decode)
     }
-    /// 已认证远端取码的交付保留真实身份；仅在原结果已单次取走且租约清空后安装本地派生批次。
-    /// 不创建 Delivery/lease，也不修改远端释放状态。调用方必须在后台完成全部准备后再安装。
+    /// Authenticated remote-code delivery retains actual identity; install local derived batches only after original results are collected once and leases cleared.
+    /// Create no Delivery/lease and do not alter remote-release state. Callers must finish all background preparation before installation.
     pub(super) fn install_derived(&mut self, batch: Batch) -> Result<(), TakeError> {
         if !self.leases.is_empty() {
             return Err(TakeError::PendingRelease);
@@ -49,8 +49,8 @@ impl Delivery {
         self.result = Ok(batch);
         Ok(())
     }
-    /// 使用执行时固定的发现身份，而不是重新发现可能已经重启/换实例的 Loom。
-    /// 仅在后台调用：TLS 连接最多三秒，控制交换最多五秒；失败后可显式重试。
+    /// Use discovery identity fixed at execution time, not rediscovering Loom instances that may have restarted/changed.
+    /// Background only: TLS connections take at most three seconds and control exchanges five; failures allow explicit retries.
     pub fn release_authenticated(
         &mut self,
         identity: &crate::loom_bridge_identity::Identity,
@@ -69,7 +69,7 @@ impl Delivery {
             loom_art_control::run(socket, message, request_id)
         })
     }
-    /// 原始响应仍由调用方持有。lease 校验失败时不解码，调用者必须处理不受支持响应。
+    /// Callers retain original responses. Do not decode invalid leases; callers must handle unsupported responses.
     pub fn prepare(
         unit: UnitId,
         request: Request,
@@ -98,8 +98,8 @@ impl Delivery {
     pub fn pending_release_count(&self) -> usize {
         self.leases.pending_count()
     }
-    /// 后台调用，transport 应使用已认证控制通道。失败时保留本地结果及远端租约。
-    /// 新 ID 由执行 owner 提供；当前方法不重试、不创建线程，也不在 Drop 中联网。
+    /// Background call using authenticated control transports; failures retain both local results and remote leases.
+    /// Execution owners provide new IDs; this method neither retries, spawns threads, nor networks in Drop.
     pub fn release_with(
         &mut self,
         release_id: UnitId,

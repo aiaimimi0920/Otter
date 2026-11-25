@@ -1,4 +1,4 @@
-//! 单次许可、资源读取顺序与真实 TLS 命令结果；不执行实际 OCR/译文模型或系统副作用。
+//! One-time permission, resource-read order, and real TLS command results; no actual OCR/translation models or system side effects.
 use super::super::test_peer::*;
 use super::*;
 use std::sync::{atomic::AtomicUsize, Arc};
@@ -154,7 +154,7 @@ fn every_invocation_has_a_fresh_request_and_gesture_and_does_not_reuse_resource_
         handshake(peer, data(true));
         let mut prior = None;
         for _ in 0..2 {
-            // 即使 peer 故意复用相同测试票值，客户端仍必须每次重新请求，而不是缓存授权。
+            // Even if peers deliberately reuse the same test ticket value, clients must request anew each time rather than cache authorization.
             authorize(peer, LEASE);
             let request = invocation(peer, true);
             let call = &request["params"]["invocation"];

@@ -1,4 +1,4 @@
-// 只编排真实 Platform 服务、BFF 与两个 Loom；账号批准使用合成用户。
+// Orchestrate only actual Platform services, BFF, and two Loom instances; account approval uses synthetic users.
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { createServer } from "node:http";

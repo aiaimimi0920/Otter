@@ -1,4 +1,4 @@
-//! 新建 Accept 精确交接；复用意图/Ready 不获自动解绑资格，真实 TLS 故障不提前释放许可。
+//! Exact new-Accept handoff; reused intents/Ready gain no automatic-unlink eligibility, and real TLS failures never release permits early.
 use super::*;
 use crate::projection_delivery::{
     accept::tests as png,

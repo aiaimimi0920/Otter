@@ -1,4 +1,4 @@
-//! HTTP成功先发布原Editor候选，再等待精确canonical包含；ack和下一32项始终串行。
+//! On HTTP success, publish the original Editor candidate first, then wait for exact canonical inclusion; ack and the next 32 items remain serialized.
 use super::*;
 impl Application {
     pub(in crate::desktop::application) unsafe fn poll_projection_edit(
@@ -172,7 +172,7 @@ impl Application {
             });
         if let Some(selection) = next {
             if pending.remaining > 1 {
-                // 完成后先释放原Slot/Lease/句柄，再准入下一批；每次显式操作最多8批，持续编辑不会无限循环。
+                // After completion, release the original Slot/Lease/handles before admitting the next batch; at most 8 batches per explicit operation prevents endless loops under continuous editing.
                 let remaining = pending.remaining - 1;
                 drop(pending);
                 self.start_projection_edit(selection, config, remaining, Action::Submit);

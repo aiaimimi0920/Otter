@@ -1,4 +1,4 @@
-//! 发送 PNG 的实际 WIC 像素验证；裁剪/标注与底图透明度保持各自语义。
+//! Actual WIC pixel verification for sent PNGs; cropping/annotations and base-image opacity retain independent semantics.
 use super::*;
 use crate::{
     editor::Tool,
@@ -104,7 +104,7 @@ fn projection_preserves_explicit_natural_source_instead_of_editor_preview_base()
         annotation_size: None,
     })
     .unwrap()
-    // 当前恢复层只接受 ceil 与像素缓冲相同的逻辑尺寸；自然源/20×10 逻辑框由出口层另测。
+    // Current restoration layers accept only logical dimensions whose ceil matches pixel buffers; export-layer tests separately cover natural sources/20x10 logical bounds.
     .with_restored_size(crate::crop_geometry::Size {
         width: 79.5,
         height: 39.75,

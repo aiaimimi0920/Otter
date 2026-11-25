@@ -1,4 +1,4 @@
-//! 设备级新投送同意；与服务端 InboxPolicy 独立，不改变已接收关联的生命周期。
+//! Device-level consent for new deliveries, independent of server InboxPolicy, without changing accepted-association lifecycles.
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
@@ -48,7 +48,7 @@ impl Document {
         }
         Ok(Self(root))
     }
-    /// 文件存在但字段不可读时拒绝；只有整个文件缺失由 profile owner 选择默认手动。
+    /// Reject unreadable fields in existing files; only whole-file absence lets profile owners choose manual defaults.
     pub fn policy(&self) -> Policy {
         self.0
             .get("policy")
@@ -58,7 +58,7 @@ impl Document {
     pub fn with_policy(&self, policy: Policy) -> Result<Vec<u8>, &'static str> {
         self.with_change(Change::Policy(policy))
     }
-    /// 缺字段兼容既有 native v1；字段存在但无效必须暂停，不能静默参与收件。
+    /// Missing fields preserve existing native v1 compatibility; present-invalid fields must pause, never silently participate in receiving.
     pub fn paused(&self) -> bool {
         self.0
             .get("paused")

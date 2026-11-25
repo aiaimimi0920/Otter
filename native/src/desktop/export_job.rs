@@ -1,4 +1,4 @@
-//! 一次只允许一个导出任务；像素通过 Arc 分享，完成检查仅在任务存在时启用。
+//! Allow one export task at a time; share pixels through Arc and enable completion checks only while tasks exist.
 use super::{export, State};
 use std::{path::PathBuf, thread::JoinHandle};
 use windows::{
@@ -63,7 +63,7 @@ impl ExportJob {
 }
 impl Drop for ExportJob {
     fn drop(&mut self) {
-        // 不把未结束的文件写入泄漏成无人负责的后台任务。退出等待本次导出完成。
+        // Do not leak unfinished writes into unowned background tasks; wait for this export on exit.
         if let Some(worker) = self.worker.take() {
             let _ = worker.join();
         }

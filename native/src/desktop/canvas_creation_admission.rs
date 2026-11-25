@@ -1,4 +1,4 @@
-//! Canvas 的跨重绘创建准入；保存首个未确认关联错误和最近一次未关联失败凭证，不持有 GPU 资源。
+//! Cross-redraw Canvas creation admission; retain the first unconfirmed-association error and latest unassociated-failure evidence, without GPU ownership.
 use crate::desktop::composition_creation;
 use windows::core::{Error, Result};
 
@@ -22,7 +22,7 @@ impl Admission {
         if let Some(error) = &self.blocked {
             return Err(error.clone());
         }
-        // 新候选开始前撤销旧凭证；只有类型化的未关联失败可重新签发，成功不能留下解锁标记。
+        // Revoke old evidence before starting a new candidate; only typed unassociated failures may reissue it, and success must leave no unlock marker.
         self.unassociated_failure = false;
         match create() {
             Ok(value) => Ok(value),

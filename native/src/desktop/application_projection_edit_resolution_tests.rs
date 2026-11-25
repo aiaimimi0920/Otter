@@ -1,4 +1,4 @@
-//! 原生菜单→原Job→隔离TLS→Editor→默认Checkpoint→恢复；不声称普通可见双端已经验收。
+//! Native menu -> original Job -> isolated TLS -> Editor -> default Checkpoint -> restoration; no claim of ordinary visible dual-endpoint acceptance.
 use super::*;
 #[path = "application_projection_edit_resolution_fixture.rs"]
 mod resolution_fixture;
@@ -140,7 +140,7 @@ fn collaboration_remote_choice_keeps_during_read_edit_and_readonly_conflict() {
         assert_ne!(disabled, u32::MAX, "conflict command must actually exist");
         assert_ne!(disabled & MF_GRAYED.0, 0);
         DestroyMenu(menu).unwrap();
-        // 不强行调用禁用命令；外层授权分派器按产品合同会显示错误框，私有UI叶不为测试扩权。
+        // Do not force disabled commands; the outer authorization dispatcher shows an error under the product contract, and private UI leaves must not expand permissions for tests.
         let latest = document(&fixture, 3, false, 0.25);
         let rx = steps(&mut fixture, vec![read(latest)], false);
         choose_resolution(&mut fixture, false).unwrap();

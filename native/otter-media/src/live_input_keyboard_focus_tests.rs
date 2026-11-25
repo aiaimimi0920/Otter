@@ -1,4 +1,4 @@
-//! 新键/文字跟随焦点，held 重复/释放保持原目标；不操作系统焦点。
+//! New keys/text follow focus, while held repeats/releases retain original targets; no system-focus changes.
 use super::*;
 
 #[derive(Default)]
@@ -42,7 +42,7 @@ fn key(down: bool) -> Event {
 fn fresh_keys_follow_focus_but_repeats_up_and_cancel_keep_original_destination() {
     let mut owner = Controller::new(Sink::default());
     owner.enable().unwrap();
-    // 上一次点击的控件不能永久锁死之后的新按键。
+    // Previously clicked controls must not permanently capture subsequent new keys.
     for (sequence, down) in [(1, true), (2, false)] {
         owner
             .dispatch(

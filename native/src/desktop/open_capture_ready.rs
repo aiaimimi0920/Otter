@@ -1,4 +1,4 @@
-//! 普通截图借原准备线程句柄即时结算；关闭时退出嵌套消息泵，由应用回收 decoder。
+//! Ordinary captures settle immediately through original preparation-thread handles; closure exits nested pumps and application reclaims decoders.
 use super::*;
 use std::os::windows::io::AsRawHandle;
 use windows::Win32::System::Threading::INFINITE;
@@ -32,7 +32,7 @@ unsafe fn pump(hwnd: HWND, state: &State) -> Result<()> {
                 }
             }
         }
-        // 每轮最多分派一条消息就观察完成，持续鼠标消息不能饿死已完成的截图。
+        // Check completion after dispatching at most one message per round so continuous mouse messages cannot starve completed captures.
         if !IsWindow(Some(hwnd)).as_bool() {
             cancel(state);
             return Ok(());
@@ -45,7 +45,7 @@ unsafe fn pump(hwnd: HWND, state: &State) -> Result<()> {
                 .map(|worker| HANDLE(worker.as_raw_handle()))
         });
         let Some(handle) = handle else { return Ok(()) };
-        // Peek/Dispatch 前重新取句柄，OS 等待期间 owner 不变且不持模型借用。
+        // Reacquire handles before Peek/Dispatch; owners stay unchanged during OS waits, without model borrows.
         if MsgWaitForMultipleObjectsEx(Some(&[handle]), INFINITE, QS_ALLINPUT, MWMO_INPUTAVAILABLE)
             == WAIT_FAILED
         {

@@ -1,4 +1,4 @@
-//! 目标选择浮层的声明式控件模板；布局和业务状态由 Window 管理。
+//! Declarative control template for the target-selection popup; Window manages layout and business state.
 use super::*;
 pub(super) fn template() -> Vec<u32> {
     fn dword(out: &mut Vec<u16>, v: u32) {

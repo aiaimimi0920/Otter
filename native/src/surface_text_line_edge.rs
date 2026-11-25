@@ -1,4 +1,4 @@
-//! 行首/行尾使用 DirectWrite 的逻辑行范围；换行符不属于 End 选中的本行文字。
+//! Home/End use DirectWrite logical line ranges; newline characters are excluded from the current line's text selected by End.
 use super::*;
 impl Layout {
     pub fn line_edge(
@@ -26,7 +26,7 @@ impl Layout {
         if count == 0 || count > self.text_len().saturating_add(1) || !row.is_finite() || row < 0. {
             return Err(invalid());
         }
-        // 与既有文本上限绑定：最多 65537 行，临时数组随本次键操作释放，不常驻缓存。
+        // Bound to existing text limits: at most 65537 lines, with temporary arrays released after each key operation rather than cached permanently.
         let mut lines = vec![DWRITE_LINE_METRICS::default(); count as usize];
         let mut actual = 0;
         unsafe {
@@ -61,7 +61,7 @@ impl Layout {
                 if !x.is_finite() {
                     return Err(invalid());
                 }
-                // End 的 UTF-16 索引可能也是下一软换行行首；保存本行 y 消除归属歧义。
+                // End's UTF-16 index may also be the next soft-wrapped line's start; save this line's y to disambiguate ownership.
                 return Ok((edge, [x, top + line.height / 2.]));
             }
             start = next;

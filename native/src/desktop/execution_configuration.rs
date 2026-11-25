@@ -1,4 +1,4 @@
-//! 应用拥有已注册请求的配置凭证；只结束匹配代际，远端取消和租约释放归任务集合。
+//! The application owns registered-request configuration evidence; end only matching generations, with remote cancellation/lease release owned by task collections.
 use super::{configuration_stamp::Stamp, State};
 use crate::graph_requests::{Request, Requests};
 pub(super) struct Binding {
@@ -26,7 +26,7 @@ pub(super) fn retire_changed(
         .borrow_mut()
         .take()
         .expect("checked binding");
-    // 旧绑定不得结束已经替换的注册请求，或覆盖其状态。
+    // Old bindings must neither end replaced registered requests nor overwrite their state.
     if !registry.finish(&state.unit_id, &binding.request) {
         return;
     }
@@ -54,7 +54,7 @@ pub(super) fn matches(
                 && binding.stamp.matches(state)
                 && binding.topology.matches(workspace)
         }
-        // 独立图/模型入口可没有 UI 选择；已选择能力的文档不能绕过凭证。
+        // Independent graph/model entry points may lack UI selection; documents with selected capabilities must not bypass evidence.
         None => state.selected_art.borrow().is_none(),
     }
 }

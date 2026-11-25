@@ -1,4 +1,4 @@
-// 通用同步布局消费者；同一文档用于 child、真实 HWND 和封存产品，不包含业务专例。
+// Generic synchronous-layout consumer; the same document serves children, actual HWNDs, and sealed product builds, without business-specific cases.
 const encodeGeometry = JSON.stringify;
 let geometryRoot, geometryButton, geometryAuto, geometryOutput, geometryHidden;
 function geometryReport() {

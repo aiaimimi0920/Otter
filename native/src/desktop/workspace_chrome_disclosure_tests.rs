@@ -1,4 +1,4 @@
-//! 主干逐行展开/Tab 边沿与 anchor 手势；只使用测试进程自有 HWND 和原事务。
+//! Mainline per-row expansion/Tab edges and anchor gestures; only test-owned HWNDs and original transactions.
 use super::*;
 use windows::Win32::{Graphics::Gdi::*, UI::Input::KeyboardAndMouse::*};
 
@@ -52,7 +52,7 @@ unsafe fn mouse(app: &Application, port: Port, message: u32, point: Point) {
 }
 fn anchor(app: &Application, port: Port) -> Point {
     let (mut x, y) = layout(app, port).connection();
-    // 收起标记仅外半边可点；不借图片/白框覆盖的内半边构造输入。
+    // Only the outer half of collapsed markers is clickable; do not construct input in the inner half covered by images/white borders.
     x += if port.side == Side::Input { -8 } else { 8 };
     Point { x, y }
 }
@@ -175,7 +175,7 @@ fn body_clicks_and_short_releases_outside_the_anchor_do_not_toggle_or_start_a_li
             y: center.1,
         };
         mouse(&app, target, WM_LBUTTONDOWN, start);
-        // 即使没有中间 WM_MOUSEMOVE，释放边沿的实际位移也须满足点击阈值。
+        // Even without intervening WM_MOUSEMOVE, actual release-edge displacement must satisfy the click threshold.
         mouse(
             &app,
             target,

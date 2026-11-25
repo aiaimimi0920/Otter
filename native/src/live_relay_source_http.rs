@@ -1,4 +1,4 @@
-//! 普通捕获的显式Source创建/关闭；仅第二条显式菜单意图广告原窗口消息输入能力。
+//! Explicit Source create/close for ordinary capture; only the second explicit menu intent advertises original window-message input capability.
 use super::*;
 use serde_json::{json, Value};
 
@@ -162,7 +162,7 @@ impl Control<'_> {
         expected: &Value,
         allow_updated_triggers: bool,
     ) -> Result<(Snapshot, Value), Error> {
-        // 先走类型化身份解析，保留对重复身份键的拒绝；Value 本身会覆盖重复键。
+        // Parse typed identity first to preserve duplicate-identity-key rejection; Value itself overwrites duplicate keys.
         let snapshot = Snapshot::parse(bytes, publication.session()).map_err(Error::Protocol)?;
         let id = snapshot.identity();
         if id.source_device() != self.session.device_id()
@@ -177,7 +177,7 @@ impl Control<'_> {
         {
             return Err(Error::Input);
         }
-        // 不只核 sessionId；服务响应不能替换采集来源、尺寸、codec或广告尚未接通的能力。
+        // Check more than sessionId; service responses cannot replace capture source/dimensions/codec or advertise unwired capabilities.
         for key in [
             "sourceKind",
             "sourceWindowIdentity",
@@ -191,8 +191,8 @@ impl Control<'_> {
                 return Err(Error::Input);
             }
         }
-        // 创建时必须为空；观察会话后续可由已授权的观看端登记触发器。
-        // 源端不消费这些绑定，只校验外形；采集合同和 actor 游标仍按原规则核对。
+        // Must be empty at creation; authorized viewers may register triggers later for observation sessions.
+        // Sources do not consume these bindings, only validate shape; capture contracts/actor cursors retain original checks.
         let triggers = &actual["session"]["triggerBindings"];
         let triggers_match = if allow_updated_triggers {
             triggers.is_array()
@@ -224,7 +224,7 @@ impl Control<'_> {
         )
         .map(|(_, value)| value)
     }
-    /// 仅确认本次发送水位；不采用服务端actor/epoch，也不补发创建或帧。
+    /// Acknowledge only this send watermark; never adopt server actor/epoch or resend creation/frames.
     pub(crate) fn source_progress(
         &self,
         publication: &Publication,
@@ -243,7 +243,7 @@ impl Control<'_> {
         }
     }
     pub fn close_source(&self, publication: &Publication) -> Result<(), Error> {
-        // 观察线程已join，才可对账并关闭；取消/丢ack不以本地旧游标猜close=2。
+        // Reconcile and close only after joining the observation thread; cancellation/lost ACK cannot guess close=2 from old local cursors.
         if publication.observing {
             self.source_cursor(publication)?;
         }

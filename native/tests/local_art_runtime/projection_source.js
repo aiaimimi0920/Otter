@@ -1,4 +1,4 @@
-// 公开SDK的预览与正式结果分界；不读取测试参数、宿主内部、文件或凭据。
+// Preview/official-result boundary of the public SDK; read no test parameters, host internals, files, or credentials.
 NeuroSurface.define({mount({root}) {
   const canvas = document.createElement('canvas');
   canvas.id = 'projection-formal';

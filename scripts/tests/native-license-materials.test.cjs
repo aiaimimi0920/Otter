@@ -1,4 +1,4 @@
-// 图合同与目录边界测试；临时材料保留在显式指定的测试目录中。
+// Graph-contract and directory-boundary tests; retain temporary materials in explicitly specified test directories.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');

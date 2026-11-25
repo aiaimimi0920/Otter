@@ -1,4 +1,4 @@
-//! 同步 motion/hover 的显示来源仍受精确事务及首次消息泵约束。
+//! Display provenance of synchronous motion/hover remains constrained by exact transactions and the first message pump.
 use super::*;
 use crate::{native_dispatch as dispatch, native_popup::Lease};
 use windows::Win32::UI::Controls::{WM_MOUSEHOVER, WM_MOUSELEAVE};
@@ -46,7 +46,7 @@ fn synchronous_hover_popup_gets_an_exact_lease_but_post_pump_show_does_not() {
                     (lease.owner, lease.root, lease.request),
                     (f.owner.0, f.root.0, 303)
                 );
-                // 单次领取仍有效，重复调用不能重放窗口过程。
+                // One-time claim remains valid; repeated calls cannot replay window procedures.
                 assert!(!dispatch::dispatch(f.owner.0, 303, f.child.0).unwrap());
                 put(f.owner.0, EPOCH, 0);
                 assert!(!lease.valid());

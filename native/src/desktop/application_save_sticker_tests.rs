@@ -1,4 +1,4 @@
-//! 保存真实图片输入并经过后台候选/State恢复；clear和禁用不能从旧原文复活。
+//! Save real image inputs through background candidates/State restoration; clearing and disabling must not revive old source content.
 use super::tests::{data, doc};
 use super::*;
 use crate::desktop::{session_binding::Bound, session_candidate, sticker_input, Apartment};

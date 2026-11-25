@@ -1,4 +1,4 @@
-//! 命令上传的有界数据值；权限只来自已校验的目录，跨插件 opaque 附件不能进入请求。
+//! Bounded command-upload values; permissions come only from validated catalogs, and cross-plugin opaque attachments cannot enter requests.
 use super::{catalog, Error};
 use base64::Engine;
 use serde::Serialize;

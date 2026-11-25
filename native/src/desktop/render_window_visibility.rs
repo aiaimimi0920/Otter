@@ -1,4 +1,4 @@
-//! CPU 分层内容→GPU 的可见性重建；临时隐藏不改变激活、位置或层序，所有写入受稳定宿主约束。
+//! Rebuild visibility from CPU layered content to GPU; temporary hiding preserves activation, position, and Z-order, and all writes require a stable host.
 use std::{marker::PhantomData, rc::Rc};
 use windows::{
     core::{Error, Result},
@@ -15,8 +15,8 @@ pub(super) struct Reset<'a> {
 
 impl<'a> Reset<'a> {
     /// # Safety
-    /// HWND 必须属于本线程；旧 GPU 已退休，新 GPU 未关联。不得跨调用持有 Canvas 借用。
-    /// removed_layered 只能来自本次已提交的样式事务，不能对普通 GPU 重绘反复隐藏。
+    /// The HWND must belong to this thread; the old GPU is retired and the new GPU unattached. Hold no Canvas borrow across the call.
+    /// removed_layered must come from this committed style transaction; do not repeatedly hide for ordinary GPU repaint.
     pub(super) unsafe fn begin(
         hwnd: HWND,
         removed_layered: bool,
@@ -34,7 +34,7 @@ impl<'a> Reset<'a> {
             _thread: PhantomData,
         };
         if reset.restore {
-            // NOACTIVATE 实测保留本线程 active/focus 和其他应用前台；SW_HIDE 不提供此合同。
+            // NOACTIVATE was verified to preserve this thread's active/focus windows and other applications' foreground; SW_HIDE provides no such contract.
             position(hwnd, SWP_HIDEWINDOW)?;
             if !owns() {
                 return Err(Error::new(E_ABORT, "Render visibility owner was revoked"));
@@ -44,13 +44,13 @@ impl<'a> Reset<'a> {
     }
 
     pub(super) unsafe fn restore(&mut self) -> Result<()> {
-        // 一次尝试；失败不在 Drop 中刷重试，也不覆盖重入产生的分组/托盘隐藏意图。
+        // One attempt; on failure do not flood retries in Drop or overwrite group/tray hiding intents produced by reentrancy.
         if !std::mem::take(&mut self.restore) || !(self.owns)() || !(self.allow_restore)() {
             return Ok(());
         }
         position(self.hwnd, SWP_SHOWWINDOW)?;
-        // SHOW 自身也会重入；外层 SHOW 不能覆盖其中新产生的隐藏意图。
-        // 仅纠正一次，不与重入业务循环争夺可见性；销毁后绝不补写。
+        // SHOW itself can reenter; the outer SHOW must not overwrite new hiding intents created inside it.
+        // Correct only once, without battling reentrant business loops over visibility; never write after destruction.
         if (self.owns)() && !(self.allow_restore)() {
             position(self.hwnd, SWP_HIDEWINDOW)?;
         }

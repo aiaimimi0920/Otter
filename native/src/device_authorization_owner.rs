@@ -1,4 +1,4 @@
-//! UI 线程的授权任务与凭据 owner；撤销后旧任务永远不得重新发布凭据。
+//! UI-thread authorization tasks/credential owner; revoked old tasks must never republish credentials.
 use crate::{
     device_authorization_lease::{Grant, Lease},
     device_authorization_runtime::{Output, Runtime, Task},
@@ -47,7 +47,7 @@ pub struct Owner {
     offline_closed: bool,
 }
 impl Owner {
-    // 每个未撤销的在途 origin 已占一席；同源续签与缓存共享这一席。
+    // Each non-revoked in-flight origin already occupies a slot; same-origin renewal shares that slot with the cache.
     fn has_origin_capacity(&self, origin: &str) -> bool {
         let cached = |origin: &str| self.sessions.iter().any(|(o, _)| o == origin);
         cached(origin)
@@ -60,7 +60,7 @@ impl Owner {
                 < 8
     }
 
-    /// 只对新进程尚未接触在线会话的origin允许尝试独立离线证明；容量/显式失效不能降级绕过。
+    /// Allow independent offline proof only for origins not yet involved in online sessions in the new process; no downgrade bypass for capacity/explicit invalidation.
     pub(crate) fn can_resume_local(&self, origin: &str) -> bool {
         !self.closed
             && !self.offline_closed
@@ -112,7 +112,7 @@ impl Owner {
     pub fn wait_handles(&self) -> impl Iterator<Item = BorrowedHandle<'_>> {
         self.pending.iter().filter_map(|p| p.runtime.wait_handle())
     }
-    /// 本机 Loom 已完成 TLS 和设备签名授权；安装仍受相同关闭、容量与凭据边界约束。
+    /// Local Loom already completed TLS and signed-device authorization; installation still obeys the same shutdown/capacity/credential boundaries.
     pub(crate) fn install(
         &mut self,
         origin: &str,
@@ -140,7 +140,7 @@ impl Owner {
         }
         self.retiring
             .retain(|(_, grant)| grant.expires_at_ms() > now);
-        // 自动续签不提前中断在途投射；旧租约仍受自身到期约束，显式撤权同时取消两代。
+        // Automatic renewal does not prematurely interrupt in-flight projection; old leases retain their own expiry, and explicit revocation cancels both generations.
         let previous = self.sessions.iter().position(|(o, _)| o == origin);
         if previous.is_some() && self.retiring.len() >= 8 {
             return Err(Error::Capacity);
@@ -168,7 +168,7 @@ impl Owner {
             match result {
                 Ok(Output::OfflineCleared) => events.push(Event::OfflineCleared { origin }),
                 Ok(Output::Pairing { device, changed }) => {
-                    // 即使 ID 未变，显式重新配对成功也必须撤销此 origin 的旧授权。
+                    // Successful explicit re-pairing must revoke this origin's old authorization even if its ID is unchanged.
                     self.sessions.retain(|s| s.0 != origin);
                     self.retiring.retain(|s| s.0 != origin);
                     events.push(Event::Pairing {
@@ -200,7 +200,7 @@ impl Owner {
             .1
             .token_for(&origin, now_ms)
     }
-    /// 将独立取消租约交给后台任务；不把 token 复制进 UI/消息队列。
+    /// Hand background work an independent cancellation lease; never copy tokens into UI/message queues.
     pub fn lease(&mut self, origin: &str, now_ms: u64) -> Result<Lease, Error> {
         if self.closed {
             return Err(Error::Closed);
@@ -218,7 +218,7 @@ impl Owner {
                 _ => Error::Credential,
             })
     }
-    /// 服务端撤销、切换连接或关闭使用方时调用。仅影响同 origin，旧请求被永久标记丢弃。
+    /// Call on server revocation, connection switch, or consumer close. Only the same origin is affected; old requests are permanently marked for discard.
     pub fn invalidate(&mut self, origin: &str) -> Result<(), Error> {
         let origin =
             crate::device_session_attempt::canonical_origin(origin).map_err(|_| Error::Origin)?;
@@ -246,7 +246,7 @@ impl Owner {
 }
 impl Drop for Owner {
     fn drop(&mut self) {
-        // 正常应用退出先 close 并泵消息直到 finished；Runtime Drop 仅做阻塞兜底。
+        // Normal application shutdown closes first and pumps messages until finished; Runtime Drop is only a blocking fallback.
         self.close();
     }
 }

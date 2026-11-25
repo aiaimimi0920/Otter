@@ -1,4 +1,4 @@
-//! 自动单向 receiver PNG 同步；原 accept/checkpoint/report 状态优先，不再建网络 owner。
+//! Automatic one-way receiver PNG sync; original accept/checkpoint/report states take priority, without another network owner.
 use super::*;
 use crate::{
     device_authorization_config::Config,
@@ -122,7 +122,7 @@ impl Application {
             let unit = success
                 .then(|| crate::workspace_id::UnitId::parse(pending.ticket.unit()))
                 .flatten();
-            drop(pending); // 回收后才释放同 intent 许可，不产生 cleanup。
+            drop(pending); // Release same-intent permission only after reaping, without generating cleanup.
             if let Some(unit) = unit {
                 self.automatic_projection_edit(unit, config);
             }
@@ -177,7 +177,7 @@ impl Application {
                 {
                     return None;
                 }
-                // 首次只从已保存基线准入，后续允许本调度器已经跟踪的同一绑定继续。
+                // Initial admission requires a saved baseline; afterward the scheduler may continue the same binding it already tracks.
                 if self.projection_checkpoint_inclusion(ticket) != Some(binding)
                     && !self
                         .projection_receive
@@ -211,7 +211,7 @@ impl Application {
             .ok_or_else(stale)?;
         let guard = restore_batch::guard::Document::capture(doc)?;
         let canvas = doc.state.canvas.borrow();
-        // 不清本地破坏性编辑/历史；未实现的重基类型必须保最后图像并退避。
+        // Do not clear local destructive edits/history; unsupported rebase types must preserve the last image and back off.
         let replaceable = canvas.editor.source_replaceable()
             && canvas.minified.is_none()
             && canvas

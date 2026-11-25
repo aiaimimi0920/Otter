@@ -1,4 +1,4 @@
-//! 原预算真实 child：timer 持久性/暂停/几何/更新、终态回收及摘要绑定实际产品。
+//! Real children under original budgets: timer persistence/pause/geometry/updates, terminal cleanup, and digest-bound actual products.
 use super::*;
 use crate::surface_viewport::Viewport;
 use sha2::{Digest, Sha256};

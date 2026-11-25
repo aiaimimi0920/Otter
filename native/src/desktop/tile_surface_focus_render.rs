@@ -1,4 +1,4 @@
-//! 复用已绘制Presentation的布局顺序；跨placement焦点不能穿透非交互上层。
+//! Reuse painted Presentation layout order; cross-placement focus must not penetrate noninteractive upper layers.
 use super::*;
 use crate::tile_surface_focus::Focus;
 pub(in crate::desktop::tile_window::render) fn font(
@@ -89,7 +89,7 @@ pub(in crate::desktop::tile_window::render) fn next(
         };
         let (placement, position) = candidates[index];
         let p = cache.get_mut(&placement.source.id).unwrap();
-        // 每次尝试恢复到同一场景和滚动快照，沿用原投影顺序；只复制即将试探的 ID。
+        // Restore the same scene/scroll snapshot per attempt, preserving original projection order; copy only the ID about to be probed.
         let node = p.presentation.geometry().nodes()[position].id().to_owned();
         let before = p.presentation.scroll_state();
         let result = (|| {
@@ -110,7 +110,7 @@ pub(in crate::desktop::tile_window::render) fn next(
             )
             .map_err(|e| Error::new(E_INVALIDARG, e))
         })();
-        // 计划阶段绝不改变当前已paint几何或消费IME/草稿；包括搜索预算失败也回滚。
+        // Planning never changes painted geometry or consumes IME/drafts; even search-budget failure rolls back.
         if p.presentation.scroll_state() != before {
             p.presentation.restore_scroll(&before)?;
         }

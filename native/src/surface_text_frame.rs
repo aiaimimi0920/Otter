@@ -1,4 +1,4 @@
-//! 最终文字矩形的绘制快照；按已分配宽度重排，保留实际布局及溢出，不回写父几何。
+//! Paint snapshots of final text rectangles; reflow at assigned widths, retain actual layout/overflow, and never write back parent geometry.
 use super::*;
 use crate::{surface_layout_tree::Tree, surface_text::Layout};
 use windows::Win32::Graphics::Direct2D::{
@@ -20,7 +20,7 @@ impl TextItem {
     pub fn selectable(&self) -> bool {
         self.selectable
     }
-    /// 开始选择必须位于当前可见文字内；被裁剪文字不能抢占其他控件的指针。
+    /// Selection must start within currently visible text; clipped text cannot take pointers from other controls.
     pub fn selection_start(&self, point: [f32; 2]) -> Result<Option<u32>> {
         if !self.selectable
             || self.clip.empty()
@@ -36,7 +36,7 @@ impl TextItem {
             .hit_text([point[0] - self.origin[0], point[1] - self.origin[1]])?;
         Ok(hit.inside.then_some(hit.position))
     }
-    /// 已捕获的选择允许拖出内容盒，复用 DirectWrite 最近文字边沿。
+    /// Captured selections may drag outside content boxes, reusing DirectWrite's nearest text edge.
     pub fn selection_position(&self, point: [f32; 2]) -> Result<u32> {
         if !self.selectable {
             return Err(invalid());
@@ -100,7 +100,7 @@ pub struct TextFrame {
     items: Vec<TextItem>,
 }
 impl TextFrame {
-    /// 平移已测量的文字布局并重算裁剪；COM 布局引用共享，不重新测量字形。
+    /// Translate measured text layouts and recompute clipping; share COM layout references without remeasuring glyphs.
     pub(crate) fn reposition(
         &mut self,
         tree: &Tree<'_>,
@@ -133,7 +133,7 @@ impl TextFrame {
     pub fn items(&self) -> &[TextItem] {
         &self.items
     }
-    /// 已包含祖先裁剪；调用方负责 BeginDraw/EndDraw、颜色刷和滚动变换。
+    /// Already includes ancestor clipping; callers own BeginDraw/EndDraw, color brushes, and scroll transforms.
     pub fn draw(&self, target: &ID2D1RenderTarget, brush: &ID2D1SolidColorBrush) -> Result<()> {
         for index in 0..self.items.len() {
             self.draw_item(index, target, brush)?;
@@ -160,7 +160,7 @@ impl TextFrame {
             target.PushAxisAlignedClip(&rect, D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
         }
         let result = item.layout.draw(target, brush, item.origin);
-        // 即使绘制入口拒绝参数，也必须恢复目标的裁剪栈。
+        // Restore the target's clip stack even when the drawing entry rejects arguments.
         unsafe {
             target.PopAxisAlignedClip();
         }
@@ -210,12 +210,12 @@ impl NativeMeasure<'_, '_> {
             }
             let mut origin = std::array::from_fn(|axis| placed.origin[axis] + inset.start()[axis]);
             let clip = ancestor.intersect(crate::surface_clip::Rect::from_box(origin, allocated));
-            // 零面积内容盒没有可见像素，不创建无意义的 native 文本布局。
+            // Zero-area content boxes contain no visible pixels; create no pointless native text layouts.
             if allocated.contains(&0.) {
                 continue;
             }
             let text = crate::surface_button::content(placed.node);
-            // 不重新读取显式 width：flex 收缩后的最终宽度才是重排依据。
+            // Do not reread explicit width; final width after flex shrinking determines reflow.
             let mut layout = if placeholder {
                 super::placeholder::layout(
                     &self.engine,
@@ -229,7 +229,7 @@ impl NativeMeasure<'_, '_> {
                     .layout_final(placed.node, text, style, allocated[0], allocated[1])?
             };
             if placed.node.kind() == Kind::Icon {
-                // 网格居中的是内容盒，文字各行仍继承 textAlign；收窄后保留父级对齐。
+                // Grid centers the content box, while individual text lines still inherit textAlign; preserve parent alignment after narrowing.
                 let width = layout.size()[0].ceil().min(allocated[0]);
                 layout = self.engine.layout(text, style, width, allocated[1])?;
                 origin[0] += (allocated[0] - width).max(0.) / 2.;

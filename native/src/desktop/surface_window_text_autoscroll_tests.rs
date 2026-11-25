@@ -1,4 +1,4 @@
-//! 自有 HWND 的 timer/捕获/选区闭环；直接消息不冒充系统输入注入。
+//! Owned-HWND timer/capture/selection integration; direct messages do not impersonate system-input injection.
 use super::*;
 #[path = "surface_text_autoscroll_timer_tests.rs"]
 mod system_timer;

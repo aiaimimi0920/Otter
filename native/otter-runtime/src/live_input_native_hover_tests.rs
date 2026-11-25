@@ -1,4 +1,4 @@
-//! Native 准备与已有 Leave 过滤的接线；只使用自有窗口，不移动系统鼠标。
+//! Wiring Native preparation to existing Leave filtering; owned windows only, without moving the system mouse.
 use super::*;
 use crate::live_input::Backend as _;
 use otter_live_hover_hook::scope::*;
@@ -18,7 +18,7 @@ impl Window {
                 WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW,
                 w!("STATIC"),
                 w!(""),
-                // WindowFromPoint 会跳过被动 STATIC 文本；B 必须是实际可命中的窗口。
+                // WindowFromPoint skips passive STATIC text; B must be an actually hittable window.
                 WS_POPUP | WINDOW_STYLE(windows::Win32::System::SystemServices::SS_NOTIFY.0),
                 x,
                 y,
@@ -69,7 +69,7 @@ fn native_preparation_binds_real_hover_and_does_not_steal_another_mirrors_slot()
             .with_hover(Some(owner.identity().capture_control().unwrap()));
         assert!(!suppress(source.0));
 
-        // 使用生产 Native hooks/prepare，不自行伪造 SOURCE/OWNER 以掩盖漏接。
+        // Use production Native hooks/prepare; do not fabricate SOURCE/OWNER to hide missing wiring.
         backend.prepare_native().unwrap();
         assert_eq!(GetPropW(mirror.0, SOURCE).0, source.0 .0);
         assert_eq!(GetPropW(source.0, OWNER).0, mirror.0 .0);

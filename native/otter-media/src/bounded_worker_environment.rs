@@ -1,4 +1,4 @@
-//! 固定 child 环境白名单；硬件驱动需要 SystemRoot，但不能继承调用方可伪造的目录。
+//! Fixed child-environment allowlist; hardware drivers need SystemRoot, but caller-forgeable directories cannot be inherited.
 use std::io;
 use windows::Win32::System::SystemInformation::GetWindowsDirectoryW;
 
@@ -12,7 +12,7 @@ impl Environment {
         if matches!(self, Self::Empty) {
             return Ok(vec![0, 0]);
         }
-        // 不使用 std::env 的 SystemRoot/PATH；从 OS API 取真实本机 Windows 目录。
+        // Do not use std::env SystemRoot/PATH; get actual local Windows directories from OS APIs.
         let mut directory = vec![0u16; 32768];
         let count = unsafe { GetWindowsDirectoryW(Some(&mut directory)) } as usize;
         if count == 0

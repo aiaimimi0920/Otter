@@ -1,4 +1,4 @@
-//! 单次注册+只读精确对账；未知结果不重放，不把较新的业务快照覆盖可靠观察游标。
+//! One-time registration plus exact read-only reconciliation; no unknown-result replay or overwriting reliable observation cursors with newer business snapshots.
 use super::*;
 use crate::{
     live_relay_trigger_command::Command,
@@ -65,7 +65,7 @@ impl Control<'_> {
             &body,
             Duration::from_secs(3),
         );
-        // POST响应未填requesterControl；无论回复丢失与否，都只读本人游标和完整唯一注册。
+        // POST responses omit requesterControl; regardless of response loss, read only our own cursor and the complete unique registration.
         let (after, registrations) = self.trigger_snapshot(identity)?;
         let exact = registrations
             .iter()
@@ -88,7 +88,7 @@ impl Control<'_> {
                 registrations,
             });
         }
-        // 超时后看到旧cursor也不能证明在途POST永不提交；关闭旧观看，不安全复用actor。
+        // Old cursors observed after timeout do not prove in-flight POST will never commit; close old viewing rather than unsafely reuse the actor.
         Err(result.err().unwrap_or(Error::Cursor))
     }
 }

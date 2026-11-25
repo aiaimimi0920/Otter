@@ -1,4 +1,4 @@
-//! 显式目录授权及保存后同步入口；授权随当前 Record 生命周期，不从图片路径扩权。
+//! Explicit directory authorization and post-save sync entry points; authorization follows the current Record lifetime and is not expanded from image paths.
 #[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 #[path = "application_workflow_ui_smoke.rs"]
 pub(in crate::desktop::application) mod smoke;
@@ -38,7 +38,7 @@ impl Application {
     pub(in crate::desktop::application) fn queue_saved_workflow(&mut self) {
         if let Some(record) = self.restored_session.as_mut() {
             if let Some(settings) = record.workflow_settings.as_mut().filter(|s| s.enabled) {
-                // 合并明确的保存意图，只保留最新已提交 Source，不排队图片/请求副本。
+                // Coalesce explicit save intent, retaining only the latest committed Source without queuing image/request copies.
                 settings.pending = Some(record.original.clone());
                 (self.execution_wake.callback())();
             }
@@ -98,7 +98,7 @@ impl Application {
                     {
                         return Err(Error::new(E_ABORT, "请先保存工作区并连接 Loom 能力目录。"));
                     }
-                    // 文件夹对话框会泵消息；选择结果只能授权打开前的工作区和目录身份。
+                    // The folder dialog pumps messages; its selection may authorize only the workspace and catalog identities captured before opening it.
                     let receipt = Receipt {
                         source: self.restored_session.as_ref().unwrap().original.clone(),
                         guard: guard::Guard::capture(self)?,

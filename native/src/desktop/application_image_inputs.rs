@@ -1,4 +1,4 @@
-//! 工作区到图解析器的短生命周期视图；仅解析本地已拥有的图像，不访问路径/URL。
+//! Short-lived workspace view for the graph resolver; resolve only locally owned images, without accessing paths/URLs.
 use super::Application;
 use crate::{
     desktop::loom_input_job::Source,
@@ -51,7 +51,7 @@ impl Application {
         } else {
             Vec::new()
         };
-        // 显式 Unit 参数可指向未连线节点；仍用同一图视图及 workspace 的有界依赖遍历。
+        // Explicit Unit parameters may reference unconnected nodes; still use the same graph view and workspace's bounded dependency traversal.
         for (_, unit) in &references {
             for dependency in workspace
                 .upstream_units(unit)
@@ -142,7 +142,7 @@ impl Application {
                     } else {
                         None
                     };
-                    // 非图像端口保留占位，防止错误回退到另一个图像输出。
+                    // Preserve placeholders for non-image ports to prevent incorrect fallback to another image output.
                     values.push((port.name.clone(), key));
                 }
             }
@@ -249,7 +249,7 @@ impl Application {
         let mut images = graph
             .execution_images(target, &manual)
             .map_err(|_| "无法解析图片输入")?;
-        // 旧 Shader controller 最后回退自身 data.src。仅可信 Shader 链可用，不能回读 display/预览。
+        // The old Shader controller finally falls back to its own data.src. Only trusted Shader chains may use this; never read back display/previews.
         let own_input = shader.and_then(|capability| {
             let ports: Vec<_> = images.iter().map(|(name, _)| *name).collect();
             if capability.available_shader_input(&ports).is_some() {
@@ -268,7 +268,7 @@ impl Application {
             images.push(input);
         }
         let prepared = shader_inputs::resolve(shader, &graph, &references, &mut images)?;
-        // 图视图包含所有候选，但被连接图片遮蔽的 Unit 不拥有本次来源生命周期。
+        // The graph view contains all candidates, but a Unit shadowed by a connected image does not own this source lifetime.
         let mut dependencies = target_dependencies;
         for unit in prepared.units {
             for dependency in workspace
@@ -299,10 +299,10 @@ impl Application {
         if images.len() > 32 {
             return Err("图片输入数量超过准备预算");
         }
-        // 只有手动触发享有缺图豁免；两种触发均不伪造输入。
+        // Only manual triggers are exempt from missing-image checks; neither trigger type fabricates input.
         let mut names = Vec::new();
         let mut sources = Vec::new();
-        // 同一执行中的多个端口共享同一次 Live 帧边界，不混用流的不同时间点。
+        // Multiple ports in one execution share the same Live frame boundary, without mixing different stream time points.
         let mut live_frames = std::collections::HashMap::new();
         for (name, key) in images {
             if let Some(id) = key.strip_prefix("live:") {
@@ -409,7 +409,7 @@ impl Application {
             names.push(name.into());
             sources.push(source);
         }
-        // 捕获整个上游子图，包括当前停止中继的节点；编辑/能力切换可能使解析改路。
+        // Capture the entire upstream subgraph, including nodes currently stopping relay; edits/capability switches may reroute resolution.
         if let Some(source) = sources.first_mut() {
             for document in documents {
                 if !dependencies.contains(&&document.state.unit_id) {

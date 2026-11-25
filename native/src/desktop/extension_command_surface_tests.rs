@@ -1,4 +1,4 @@
-//! 覆盖层真实鼠标消息沿原命令 owner 到授权 TLS invocation；不改剪贴板或调用模型。
+//! Real overlay mouse messages follow original command owners to authorized TLS invocations; no clipboard changes or model calls.
 use super::*;
 #[test]
 fn developer_surface_is_visible_but_its_real_click_cannot_queue_an_extension_command() {

@@ -1,4 +1,4 @@
-//! 显式合成序列门禁；仅测试 fixture 使用 AUD 切帧，不将它作为生产网络解析器。
+//! Explicit synthetic-sequence gate; only test fixtures split frames on AUD, not the production network parser.
 use super::DecoderOwner;
 use std::{
     io::Read,
@@ -65,7 +65,7 @@ fn actual_continuous_delta_and_idr_restart_preserve_pixels_and_timeline() {
                     (index as i64 + 1, width, height)
                 );
                 assert_eq!(output.pixels.len(), width as usize * height as usize * 4);
-                // 输入 Y 每帧递增四级，检查内容身份，不能只验证恒定画面和时间戳。
+                // Input Y increases by four levels per frame; check content identity, not just a constant image and timestamps.
                 let expected = ((298 * (32 + index as i32 * 4 - 16) + 128) >> 8) as u8;
                 for p in output.pixels.chunks_exact(4) {
                     assert_eq!(p[3], 255);
@@ -84,7 +84,7 @@ fn actual_continuous_delta_and_idr_restart_preserve_pixels_and_timeline() {
             assert!(decoder.decode(frames[0], 25, true, &stop).is_err());
             stop.store(false, Ordering::Release);
             assert!(decoder.decode(frames[0], 26, true, &stop).is_err());
-            // 失败立即归还名额，不依赖旧 VideoDecoder 的 Drop。
+            // Return the slot immediately on failure, without relying on the old VideoDecoder's Drop.
             drop(DecoderOwner::create().unwrap());
             eprintln!("native-mf-sequence: {width}x{height} start={first} decoded={decoded} gray-error={maximum_error} timestamp=true cancel-released=true");
         }

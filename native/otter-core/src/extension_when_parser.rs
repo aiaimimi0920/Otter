@@ -1,4 +1,4 @@
-//! 显式类型化的 when AST；语法、节点数和递归深度在入口统一建立保证。
+//! Explicitly typed when AST; entry points establish syntax/node-count/recursion-depth guarantees together.
 use super::{lexer::Token, Error, Expr, Value};
 struct Parser {
     tokens: std::iter::Peekable<std::vec::IntoIter<Token>>,
@@ -57,7 +57,7 @@ impl Parser {
         Ok(left)
     }
     fn comparison(&mut self, depth: usize) -> Result<Expr, Error> {
-        // 在下降前检查，避免恶意深括号/否定链先耗尽调用栈才触达 node 检查。
+        // Check before descending so malicious nested parentheses/negations cannot exhaust stacks before node checks.
         if depth > 16 {
             return Err(Error::Budget);
         }

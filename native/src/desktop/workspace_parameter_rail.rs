@@ -1,4 +1,4 @@
-//! Tab 参数附着与唯一事务 owner 的接线；窗口仍由 DocumentWindow 先于宿主析构。
+//! Wiring between attached Tab parameters and the sole transaction owner; DocumentWindow still destroys windows before the host.
 use super::*;
 use desktop::document_window::parameter_panel::Panel;
 use neuro_mini_ui::{Frame, RailLayout};
@@ -91,7 +91,7 @@ pub(super) unsafe fn request(ui: &Ui, port: Port, enter: bool) -> bool {
     }
     disclosure::close_settings(&node);
     ui.disclosed.borrow_mut().insert(port, true);
-    // F2/程序化展开没有鼠标释放后的 refresh；在原同步段一次更新父条裁剪与 child。
+    // F2/programmatic expansion lacks post-mouse-release refresh; update parent-strip clipping and children once within the original synchronous segment.
     ui.rail_layout_dirty.set(true);
     if enter {
         *ui.rail_focus.borrow_mut() = Some(Focus {

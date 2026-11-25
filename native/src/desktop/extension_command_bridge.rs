@@ -1,4 +1,4 @@
-//! 单任务的 UI rendezvous；后台取得许可后才请求资源，只有一个在途请求，无 HWND/State 跨线程。
+//! Single-task UI rendezvous; background workers request resources only after permits, with one in-flight request and no cross-thread HWND/State.
 use super::{extension_command_route::Context, image::Image, loom_execution_signal::Notify};
 use crate::{
     loom_bridge_stream::Interrupt,
@@ -63,7 +63,7 @@ impl Port {
             mailbox.packet = Some(Packet { request, reply: tx });
         }
         (self.notify)();
-        // UI 模态/停止调度不能把关闭 join 变成无限等待；取消会丢弃唯一 sender，立即唤醒。
+        // UI modals/stopped scheduling must not make shutdown join wait forever; cancellation drops the sole sender and wakes immediately.
         let result = rx.recv_timeout(std::time::Duration::from_secs(5));
         self.check()?;
         result.map_err(|e| match e {

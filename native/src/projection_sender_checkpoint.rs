@@ -1,4 +1,4 @@
-//! 实际完整候选的 sender 索引；只有 canonical checkpoint owner 在 commit 后才能提升证明。
+//! Sender index of actual complete candidates; only canonical checkpoint owners may promote proof after commit.
 use super::*;
 use crate::{
     projection_delivery::checkpoint_session::{self, Object},

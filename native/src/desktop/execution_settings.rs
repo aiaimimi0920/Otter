@@ -1,4 +1,4 @@
-//! 节点执行策略的原生勾选菜单；策略修改只退休旧配置，不自动发起执行。
+//! Native check menus for node execution policies; policy changes only retire old configurations without automatically starting execution.
 use super::State;
 use crate::graph_execution_config::Config;
 #[cfg(test)]

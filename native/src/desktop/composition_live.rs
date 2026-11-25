@@ -1,4 +1,4 @@
-//! 同设备 Live 纹理呈现；位图和完整帧 owner 一起保留，重复绘制不重建位图或复制像素。
+//! Same-device Live texture presentation; retain bitmaps with complete frame owners, without recreating bitmaps or copying pixels on repeated draws.
 use super::*;
 use crate::{live_frames::Frame, live_texture::Texture};
 use std::sync::Arc;
@@ -50,7 +50,7 @@ impl Surface {
             overlay: None,
         })
     }
-    /// 更换设备必须由宿主重建整个 surface；失败不改动当前帧和位图。
+    /// Device changes require the host to rebuild the entire surface; failures leave current frames and bitmaps unchanged.
     pub fn set_frame(&mut self, frame: Arc<Frame<Texture>>) -> Result<bool> {
         if Arc::ptr_eq(&frame, &self.frame) {
             return Ok(false);
@@ -167,7 +167,7 @@ fn validate(frame: &Texture) -> Result<ID3D11Device> {
 }
 fn bitmap(composition: &Composition, frame: &Texture) -> Result<ID2D1Bitmap1> {
     unsafe {
-        // 生产捕获设备已启用 multithread protection；先提交同设备 immediate context 中的复制命令。
+        // Production capture devices enable multithread protection; first submit copy commands in the same device's immediate context.
         frame.texture().GetDevice()?.GetImmediateContext()?.Flush();
         let surface: IDXGISurface = frame.texture().cast()?;
         composition.state.context.CreateBitmapFromDxgiSurface(

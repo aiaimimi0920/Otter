@@ -1,4 +1,4 @@
-//! 空闲刷新不能让不可用字段反复启停，也不能重排或清除用户草稿。
+//! Idle refreshes must neither repeatedly toggle unavailable fields nor relayout or clear user drafts.
 use super::*;
 use windows::Win32::UI::Shell::*;
 #[derive(Default, Debug)]

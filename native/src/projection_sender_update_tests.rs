@@ -1,4 +1,4 @@
-//! CAS构造/单调版本/取消预算保护；预期字段独立构造，不调用新实现作oracle。
+//! CAS construction/monotonic-version/cancellation-budget protection; independently construct expected fields without using new implementation as oracle.
 use super::*;
 use crate::projection_delivery::sender::tests::{prepare, selection, setup};
 use serde_json::{json, Value};

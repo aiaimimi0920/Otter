@@ -1,4 +1,4 @@
-//! 固定 OCR/翻译入口的主干命令与 when 上下文；只投影元数据，不读取图片/opaque payload。
+//! Baseline commands/when context for fixed OCR/translation entries; project metadata only, without reading images/opaque payloads.
 use super::State;
 use crate::{extension_when, loom_extension_snapshot::Snapshot};
 pub(super) const OCR: &str = "neuro.official/ocr.recognize-selected-unit";

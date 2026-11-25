@@ -1,4 +1,4 @@
-//! 将显示来源接管为可编辑文档的一次事务；原文档与历史保留，像素只共享不复制。
+//! One transaction adopts display provenance as an editable document; preserve original documents/history and share pixels without copying.
 use super::*;
 use crate::edit_history::Document;
 
@@ -28,7 +28,7 @@ impl Editor {
         {
             return Err(EditError::BudgetExceeded);
         }
-        // 先克隆有界矢量，之后的所有权交换不再发生可恢复失败；不接管来源历史或草稿。
+        // Clone bounded vectors first; subsequent ownership swaps have no recoverable failures and adopt neither source history nor drafts.
         let elements = source.elements.clone();
         let previous = Document {
             elements: std::mem::replace(&mut self.elements, elements),

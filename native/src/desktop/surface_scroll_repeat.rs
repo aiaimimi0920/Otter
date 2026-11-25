@@ -1,4 +1,4 @@
-//! 轨道按住期间的唯一 HWND timer；不追赶积压 tick，不跨手势复用 timer 身份。
+//! The sole HWND timer while a track is held; no catch-up for accumulated ticks or timer-identity reuse across gestures.
 use std::{
     sync::atomic::{AtomicUsize, Ordering},
     time::{Duration, Instant},
@@ -9,7 +9,7 @@ use windows::{
 };
 const DELAY_MS: u32 = 400;
 const INTERVAL_MS: u32 = 50;
-// 所有 Surface 手势 timer 共用递增身份，避免不同手势间迟到 WM_TIMER 碰撞。
+// All Surface gesture timers share increasing identities, avoiding late WM_TIMER collisions across gesture types.
 pub(super) fn allocate_id() -> Result<usize> {
     static NEXT: AtomicUsize = AtomicUsize::new(0x4000);
     NEXT.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |v| v.checked_add(1))
@@ -34,7 +34,7 @@ impl Repeat {
         point: [i32; 2],
     ) -> Result<Self> {
         let id = allocate_id()?;
-        // deadline 先于注册，避免恰好到期的首条消息因微小注册时差被延后一整轮。
+        // Set deadline before registration so tiny registration differences cannot delay an exactly due first message by a whole cycle.
         let due = Instant::now() + Duration::from_millis(DELAY_MS.into());
         if unsafe { SetTimer(Some(hwnd), id, DELAY_MS, None) } == 0 {
             return Err(Error::from_win32());
@@ -53,7 +53,7 @@ impl Repeat {
     pub fn id(&self) -> usize {
         self.id
     }
-    /// 只有到期的匹配消息才能前进一步；手工/陈旧/积压 WM_TIMER 不得形成突发翻页。
+    /// Only matching due messages advance one step; manual/stale/backlogged WM_TIMER messages cannot cause paging bursts.
     pub fn ready(&mut self, id: usize, now: Instant) -> Result<bool> {
         if id != self.id || now < self.due {
             return Ok(false);

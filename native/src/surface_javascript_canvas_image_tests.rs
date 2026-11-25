@@ -1,4 +1,4 @@
-//! 真实QuickJS→软件D2D→PNG；像素oracle手工给出，与新drawImage路径独立。
+//! Real QuickJS -> software D2D -> PNG; manually specified pixel oracles are independent of the new drawImage path.
 use super::*;
 use crate::surface_javascript_wire::{canvas as pixels, images};
 fn large_engine() -> Engine {

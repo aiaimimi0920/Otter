@@ -1,4 +1,4 @@
-//! 附属输入失败随成员退休保留，普通附属采集错误仍隔离；只用自有假采集/输入后端。
+//! Attached-input failures survive member retirement while ordinary attached-capture errors stay isolated; owned fake capture/input backends only.
 use super::*;
 
 #[derive(Clone, Copy)]
@@ -100,7 +100,7 @@ fn retired_child_cleanup_is_reported_on_parent_stop_without_closing_parent_live(
         reap_children(&mut root);
         let unconfirmed = !matches!(outcome, Release::Complete);
         assert_eq!(root.input_cleanup_unconfirmed(), unconfirmed);
-        // 父自身没有失败报告；不能把子清理标记混入下一次父 worker 的启用资格。
+        // The parent itself reports no failure; child-cleanup flags must not contaminate the next parent-worker enable eligibility.
         assert_eq!(root.input_cleanup(), None);
         assert!(!root.input_cleanup_unknown);
         if unconfirmed {

@@ -1,4 +1,4 @@
-//! 默认桌面只读检查；线程 desktop 是借用句柄，input desktop 由本模块关闭。
+//! Read-only default-desktop checks; thread desktop handles are borrowed, while this module closes the input desktop.
 use super::{Denied, Result};
 use windows::Win32::{
     Foundation::HANDLE,

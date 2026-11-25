@@ -1,4 +1,4 @@
-//! Slider 跨进程数值、通知、键盘事件和旧引用撤销；只操作自启 Fixture。
+//! Cross-process Slider values, notifications, keyboard events, and old-reference revocation; operate only self-started Fixtures.
 use super::*;
 unsafe fn connect(fixture: &fixture::Fixture) -> Result<IUIAutomationRangeValuePattern> {
     let client: IUIAutomation2 = CoCreateInstance(&CUIAutomation8, None, CLSCTX_INPROC_SERVER)?;
@@ -13,7 +13,7 @@ unsafe fn connect(fixture: &fixture::Fixture) -> Result<IUIAutomationRangeValueP
 }
 fn exercise(fixture: &fixture::Fixture) {
     super::super::client_tests::range_events::receive(fixture.hwnd.0 as usize).unwrap();
-    // 此信号仅在子进程实际校验并结算全部 input/change 后发出。
+    // Send this signal only after the child actually validates and settles all input/change events.
     fixture.accepted();
 }
 unsafe fn observe(

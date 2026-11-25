@@ -1,4 +1,4 @@
-//! 编辑栏缓存结果动作与目录/源换代；缓存键只持轻量凭证，不在 paint 或拖动时解析附件。
+//! Edit-strip cached-result actions and catalog/source generation changes; cache keys retain lightweight evidence only, without paint/drag attachment parsing.
 use super::{
     extension_document::{self, Stamp},
     extension_visuals, State,
@@ -25,7 +25,7 @@ pub(super) unsafe fn sync(hwnd: HWND, state: &State) -> Result<bool> {
         return Ok(false);
     }
     let mut canvas = state.canvas.borrow_mut();
-    // 先撤销旧投影；准备失败也不能继续显示已经撤权/失效的旧场景。
+    // Revoke old projections first; failed preparation must not keep displaying already-revoked/invalid old scenes.
     let captured = extension_visuals::clear(&mut canvas);
     cache.catalog = snapshot.as_ref().map(Arc::downgrade).unwrap_or_default();
     cache.stamp = Some(document.stamp());

@@ -1,4 +1,4 @@
-//! 保存框前后状态核验，不打开对话框、不创建用户文件。
+//! State checks before/after save dialogs, without opening dialogs or creating user files.
 use super::*;
 use crate::{
     desktop::{canvas::Canvas, image::Image},

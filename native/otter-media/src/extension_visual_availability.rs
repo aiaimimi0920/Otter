@@ -1,4 +1,4 @@
-//! 主干 OCR renderer 过渡与不可用占位；只投影已验证数据，不执行命令或放宽资源权限。
+//! Mainline OCR-renderer transitions/unavailable placeholders; project validated data only, without commands or relaxed resource permissions.
 use super::*;
 use serde_json::json;
 
@@ -8,7 +8,7 @@ pub(super) fn ocr<'a>(catalog: &Snapshot, item: &'a Stored) -> Option<Descriptor
         return None;
     }
     let payload = a.payload()?;
-    // 与主干一致：仅已存在的官方 Surface 场景可用，不从 fullText 合成假结果。
+    // Match mainline: only existing official Surface scenes are usable; never synthesize fake results from fullText.
     if !payload.get("surfaceScene").is_some_and(Value::is_object) {
         return None;
     }

@@ -1,4 +1,4 @@
-//! 只用独占 linshi 目录；租约在跨进程失败和异常退出后仍保持安全。
+//! Exclusive linshi directories only; leases remain safe across cross-process failures and abnormal exits.
 use super::*;
 use crate::test_process as process;
 use std::{process::Command, time::Duration};
@@ -18,7 +18,7 @@ impl Directory {
 impl Drop for Directory {
     fn drop(&mut self) {
         assert_eq!(self.0.parent(), Some(Path::new(ROOT)));
-        // 只删除本次 GUID 目录的普通文件；不跟随重解析点、不递归清理。
+        // Delete only ordinary files in this run's GUID directory; no reparse-point following or recursive cleanup.
         for entry in std::fs::read_dir(&self.0).unwrap().flatten() {
             if entry.file_type().unwrap().is_file() {
                 let _ = std::fs::remove_file(entry.path());
@@ -37,7 +37,7 @@ fn lease_probe() {
     let result = Profile::open(&root);
     if std::env::var_os("OTTER_NATIVE_WORKSPACE_LEASE_EXIT").is_some() {
         let _profile = result.unwrap();
-        std::process::exit(81); // 跳过 Drop，验证 OS 回收真实句柄。
+        std::process::exit(81); // Skip Drop to verify actual OS handle reclamation.
     }
     assert!(
         result.is_err(),

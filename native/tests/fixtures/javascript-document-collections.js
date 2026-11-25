@@ -1,4 +1,4 @@
-// live children 缓存只跟随直接结构变更；item 转换持旧列表，迭代恢复读取新列表。
+// Live children caches follow only direct structural changes; item conversion retains the old list, while resumed iteration reads the new one.
 let collectionRoot, retainedChildren;
 const checkCollection = (condition, message) => { if (!condition) throw Error(message); };
 function expectChildren(parent, expected) {

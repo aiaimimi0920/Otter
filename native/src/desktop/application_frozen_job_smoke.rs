@@ -1,4 +1,4 @@
-//! 菜单命令将使用的异步应用入口：真 worker、完整来源凭证与隐藏追加，不触碰用户会话。
+//! Asynchronous application entry point used by menu commands: real worker, complete source credentials, and hidden append, without touching user sessions.
 use super::super::smoke::settle;
 use super::*;
 
@@ -120,7 +120,7 @@ pub(in crate::desktop::application::restore_batch::job) unsafe fn run(
     let document = app.documents.last().unwrap();
     let mut rect = RECT::default();
     GetWindowRect(document.window.0, &mut rect)?;
-    // 物理鼠标转换为逻辑坐标后 +50，再按同一保存空间还原；不是直接加 50 物理像素。
+    // Convert physical mouse coordinates to logical coordinates, add 50, then restore through the same save space; do not simply add 50 physical pixels.
     if rect.left != point.x + 75
         || rect.top != point.y + 75
         || document.state.canvas.borrow().image.is_none()
@@ -131,7 +131,7 @@ pub(in crate::desktop::application::restore_batch::job) unsafe fn run(
             "Frozen worker lost image or coordinate context",
         ));
     }
-    // 第一轮追加已替换来源 owner，旧菜单命令不能再次消费旧快照。
+    // The first append replaced the source owner; the old menu command cannot consume the old snapshot again.
     if app
         .request_frozen(source, Kind::RecycleBin, "entry".into(), point)
         .is_ok()

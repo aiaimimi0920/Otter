@@ -1,8 +1,8 @@
-//! 临时交互帧：内容与独立透明度外框一次写入预乘 DIB，不覆盖源图。
+//! Temporary interaction frames: write content and borders with independent opacity into a premultiplied DIB together, without overwriting source images.
 use super::*;
 
 impl Bitmap {
-    /// 与完整交互帧使用相同的预乘白框；透明中心不覆盖宿主内容。
+    /// Use the same premultiplied white border as complete interaction frames; the transparent center does not overwrite host content.
     pub fn border(size: D2D_SIZE_U, padding: u32, alpha: u8) -> Result<Self> {
         if padding > 16 || size.width <= 2 * padding || size.height <= 2 * padding {
             return Err(Error::new(E_INVALIDARG, "Invalid border geometry"));
@@ -32,7 +32,7 @@ impl Bitmap {
         if padding > 16 || !opacity.is_finite() || !(0.0..=1.0).contains(&opacity) {
             return Err(Error::new(E_INVALIDARG, "Invalid zoom frame decoration"));
         }
-        // 内容仍遵守原 8192/16M 预算；只为至多 16px 的外圈增加有界空间。
+        // Content retains the original 8192/16M budget; add bounded space only for an outer ring at most 16px wide.
         byte_count(self.size)?;
         let size = D2D_SIZE_U {
             width: self.size.width + 2 * padding,

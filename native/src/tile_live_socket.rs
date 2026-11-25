@@ -1,4 +1,4 @@
-//! 单Assets线程内的Wall流；每步有界IO，编码缓冲和解码帧均计入原共享像素池。
+//! Wall streams within one Assets thread; bounded I/O per step, with encoded buffers and decoded frames charged to the original shared pixel pool.
 use crate::{
     device_authorization_lease::Lease,
     device_session_client::Client,
@@ -31,7 +31,7 @@ impl Receiver {
         format: WallMediaFormat,
         interrupts: &Interrupts,
     ) -> Result<Self, &'static str> {
-        // tungstenite的接收缓冲与返回payload可能并存；四个流及旧代际均共享512MiB池。
+        // tungstenite receive buffers and returned payloads may coexist; all four streams and old generations share the 512MiB pool.
         let wire =
             crate::pixels::reserve(2 * packet::LIMIT + 64 * 1024).ok_or("Live编码预算不足")?;
         let prepared = lease
@@ -119,7 +119,7 @@ impl Receiver {
 }
 impl Drop for Receiver {
     fn drop(&mut self) {
-        // 不在析构无限等待远端close；共享interrupt owner随后释放，socket Drop关闭本端。
+        // Never wait indefinitely for remote close during destruction; release the shared interrupt owner afterward, and socket Drop closes the local endpoint.
         let _ = self
             .socket
             .get_mut()

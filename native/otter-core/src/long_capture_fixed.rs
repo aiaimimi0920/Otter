@@ -1,10 +1,10 @@
-//! 固定边缘快速路径：仅识别轴向两端逐像素不变的连续区域，不推断浮动或半透明工具栏。
+//! Fixed-edge fast path recognizes only pixel-identical contiguous regions at axial ends, not floating/translucent toolbars.
 use super::{approximate, ApproximateMatch, Axis, Error, Frame, MatchOptions};
 use super::{Composite, Positioned, MAX_FRAMES};
 use std::sync::atomic::{AtomicBool, Ordering};
 
-/// origin 指内容区起点；输出 origin 向前移动 leading，首尾固定栏各保留一次。
-/// 调用方提供已确认边界。此入口重新验证所有帧固定栏，变化时拒绝而非静默裁掉。
+/// origin marks content start; output origin moves backward by leading, retaining each fixed end bar once.
+/// Callers supply confirmed bounds. Revalidate fixed bars in all frames and reject changes rather than silently crop.
 pub fn stitch_fixed_edges(
     axis: Axis,
     frames: &[Positioned],
@@ -27,7 +27,7 @@ pub fn stitch_fixed_edges(
     {
         return Err(Error::Dimensions);
     }
-    // 先检查逻辑输入总量，再扫描固定栏；共享大帧的重复输入也不能放大验证工作量。
+    // Bound total logical input before fixed-bar scanning; repeated references to large shared frames cannot amplify validation work.
     let mut total = 0u64;
     for input in frames {
         check(cancel)?;
@@ -60,7 +60,7 @@ pub fn stitch_fixed_edges(
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum FixedMatch {
     Unchanged,
-    /// 未建立非零内容运动证据，不授权删除任何边缘。
+    /// Without evidence of nonzero content movement, no edge removal is authorized.
     Unresolved(ApproximateMatch),
     Motion {
         leading: u32,
@@ -94,8 +94,8 @@ fn check(cancel: &AtomicBool) -> Result<(), Error> {
         Ok(())
     }
 }
-/// 精确静止的首尾边缘排除后，借用内部区域执行近似位移分析。
-/// 固定区域只是两帧证据；调用方仍需跨帧确认，且最终合成须保留一次首尾边缘。
+/// Exclude exactly stationary leading/trailing edges, then borrow interior regions for approximate displacement analysis.
+/// Fixed regions are only two-frame evidence; callers still confirm across frames and final composition retains both edges once.
 pub fn match_fixed_edges(
     previous: &Frame,
     current: &Frame,

@@ -1,4 +1,4 @@
-//! 失败 read/解码/像素核验完成未领取时，原 Job 仍独占同 intent 许可及四槽之一。
+//! While failed read/decode/pixel-validation completion remains uncollected, the original Job still exclusively holds the same intent permission and one of four slots.
 use super::*;
 
 unsafe fn failed(mode: u8) {

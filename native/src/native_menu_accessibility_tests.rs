@@ -1,4 +1,4 @@
-//! 快照与操作队列的撤销、限流及属性合同，不访问系统可访问性客户端。
+//! Snapshot/action-queue revocation, throttling, and property contracts without system accessibility clients.
 use super::*;
 fn row() -> Row {
     Row {

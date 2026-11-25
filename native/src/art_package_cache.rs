@@ -1,4 +1,4 @@
-//! 资源以原1MiB暂存上限分块，和源码共享32项/32MiB；不另建预算、不驱逐旧内容。
+//! Chunk resources under the original 1MiB staging limit, sharing 32 entries/32MiB with source; no new budget or old-content eviction.
 use crate::{
     art_execution_grant::package::Resource,
     art_source_cache::{Store, MAX_SOURCE},

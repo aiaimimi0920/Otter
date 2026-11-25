@@ -1,4 +1,4 @@
-//! Grid 轨道语法与资源边界；只求值受支持的长度，不执行 CSS 或任意表达式。
+//! Grid-track syntax and resource boundaries; evaluate only supported lengths, not CSS or arbitrary expressions.
 use super::Error;
 use crate::surface_length::{Context, Length, Unit};
 use serde_json::Value;
@@ -25,7 +25,7 @@ fn bound(text: &str, fraction: bool) -> Result<Bound, Error> {
     if text == "auto" {
         return Ok(Bound::Auto);
     }
-    // 小数先规范化；已有 Length parser 有意不接受 .75 形式。
+    // Normalize fractions first; the existing Length parser intentionally rejects forms such as .75.
     let normalized = if text.starts_with('.') {
         format!("0{text}")
     } else {

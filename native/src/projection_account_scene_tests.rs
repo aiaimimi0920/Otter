@@ -1,4 +1,4 @@
-//! 新账号关联的场景边界；合成签名不提供网络授权，测试真实原文 CAS 和候选校验。
+//! Scene boundaries for new account associations; synthetic signatures grant no network authorization, with real original-text CAS/candidate validation.
 use super::*;
 use crate::{session_projection_scope::Scope, session_source::Source, workspace_id::UnitId};
 
