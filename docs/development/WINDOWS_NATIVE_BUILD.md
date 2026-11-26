@@ -22,6 +22,9 @@ The product CI uses a pinned Nextest runner with the full default test selection
 one test process at a time, followed by Cargo doctests. Process isolation prevents
 a failed shared test lock from poisoning unrelated cases; original failures still
 block the same-run package and runtime gates.
+Real-foreground smoke cases run first. CI stops on the first failed test without
+retrying or promoting a package; a successful run still requires the complete
+default inventory, doctests and all subsequent gates.
 
 Native hit/focus fixtures use a private desktop without switching the user's input
 desktop. They retain real HWND, focus, message and cleanup assertions, but do not

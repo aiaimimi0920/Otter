@@ -5,6 +5,7 @@ import re
 import os
 import subprocess
 import tempfile
+import tomllib
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -106,9 +107,27 @@ class BuildGateTests(unittest.TestCase):
             self.assertRegex(tests, re.escape(command) + r"[^\n]+\n\s+if \(\$LASTEXITCODE -ne 0\) \{ exit \$LASTEXITCODE \}")
         self.assertIn("--config-file native/.config/nextest.toml --profile default", tests)
         self.assertIn("--test-threads 1 --no-tests=fail", tests)
+        self.assertIn("--fail-fast", tests)
         for excluded in ("--profile headless", "--features", "--filter", " -E ", "--skip", "--retries"):
             self.assertNotIn(excluded, tests)
         self.assertLess(candidate.index("cargo test --doc"), candidate.index("build-native-candidate.ps1"))
+
+    def test_foreground_priority_changes_order_not_selection_or_isolation(self):
+        config = tomllib.loads((ROOT / "native/.config/nextest.toml").read_text(encoding="utf-8"))
+        profile = config["profile"]["default"]
+        self.assertNotIn("default-filter", profile)
+        priority = [entry for entry in profile["overrides"] if "priority" in entry]
+        self.assertEqual(len(priority), 1)
+        self.assertEqual(set(priority[0]), {"filter", "priority"})
+        self.assertEqual(priority[0]["priority"], 100)
+        self.assertIn("uia_select_system_relocation_preserves_selection_expand_and_change_queue",
+                      priority[0]["filter"])
+        self.assertIn("javascript_foreground_guard_restores_owned_foreground_on_unwind",
+                      priority[0]["filter"])
+        self.assertEqual(config["test-groups"]["win32-serial"]["max-threads"], 1)
+        self.assertTrue(any(entry.get("test-group") == "win32-serial"
+                            and "package(otter-native)" in entry["filter"]
+                            for entry in profile["overrides"]))
 
 
 if __name__ == "__main__":

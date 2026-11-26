@@ -45,9 +45,14 @@ fn prepared_snapshot_enters_existing_worker_without_granting_file_access() {
         )
         .unwrap();
         rx.recv_timeout(Duration::from_secs(5)).unwrap();
+        // Notification is emitted before the worker exits; poll remains non-blocking.
+        job.test_wait_finished();
         let result = job.poll().unwrap();
         if file_reference {
-            assert!(result.is_err());
+            assert!(result
+                .err()
+                .unwrap()
+                .contains("Session file resources require an admitted root"));
         } else {
             let ready = result.unwrap().restore.vector;
             assert_eq!(ready.candidate.placements.len(), 1);

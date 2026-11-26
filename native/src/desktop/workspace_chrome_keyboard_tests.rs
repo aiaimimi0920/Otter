@@ -228,21 +228,26 @@ fn stale_catalog_hidden_source_and_capture_pause_retire_keyboard_link_without_to
 }
 #[test]
 fn external_focus_and_host_destruction_retire_without_changing_foreground() {
-    unsafe {
+    desktop::workspace_window_fixture::with_private_input_desktop(|| unsafe {
         let mut app = app();
         let foreground = GetForegroundWindow();
-        key(&app, VK_F6, &[VK_SHIFT], false);
-        key(&app, VK_RETURN, &[VK_CONTROL], false);
+        assert!(key(&app, VK_F6, &[VK_SHIFT], false));
+        assert_eq!(app.chrome.ui.keyboard.focused(), Some(at(0, Side::Output)));
+        assert!(key(&app, VK_RETURN, &[VK_CONTROL], false));
         let _ = SetFocus(Some(app.documents[1].window.0));
+        assert_eq!(GetFocus(), app.documents[1].window.0);
         assert!(app.chrome.ui.keyboard.focused().is_none());
         assert!(app.chrome.idle());
+        assert_eq!(GetForegroundWindow(), foreground);
         let _ = SetFocus(Some(app.documents[0].window.0));
-        key(&app, VK_F6, &[], false);
+        assert!(key(&app, VK_F6, &[], false));
+        assert_eq!(app.chrome.ui.keyboard.focused(), Some(at(0, Side::Input)));
         DestroyWindow(app.documents[0].window.0).unwrap();
         assert!(app.chrome.ui.keyboard.focused().is_none());
+        assert!(app.chrome.idle());
         assert_eq!(GetForegroundWindow(), foreground);
         app.shutdown();
-    }
+    });
 }
 unsafe extern "system" fn retire_on_focus(
     hwnd: HWND,

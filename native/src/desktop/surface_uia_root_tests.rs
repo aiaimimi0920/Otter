@@ -5,6 +5,56 @@ use windows::{
     Win32::System::Variant::*,
 };
 
+// Observe only the original WM_GETOBJECT exchange; no extra message or COM call.
+pub(super) struct GetObjectTrace(HWND);
+std::thread_local! {
+    static GETOBJECT: std::cell::RefCell<Vec<(isize, isize)>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+impl GetObjectTrace {
+    pub(super) fn new(hwnd: HWND) -> Self {
+        GETOBJECT.with(|events| events.borrow_mut().clear());
+        assert!(unsafe {
+            windows::Win32::UI::Shell::SetWindowSubclass(hwnd, Some(getobject_trace), 0x4f545552, 0)
+        }
+        .as_bool());
+        Self(hwnd)
+    }
+    pub(super) fn report(&self) {
+        GETOBJECT
+            .with(|events| eprintln!("UIA original WM_GETOBJECT replies: {:?}", events.borrow()));
+    }
+}
+impl Drop for GetObjectTrace {
+    fn drop(&mut self) {
+        unsafe {
+            let _ = windows::Win32::UI::Shell::RemoveWindowSubclass(
+                self.0,
+                Some(getobject_trace),
+                0x4f545552,
+            );
+        }
+    }
+}
+unsafe extern "system" fn getobject_trace(
+    hwnd: HWND,
+    message: u32,
+    wp: WPARAM,
+    lp: LPARAM,
+    _: usize,
+    _: usize,
+) -> LRESULT {
+    let result = windows::Win32::UI::Shell::DefSubclassProc(hwnd, message, wp, lp);
+    if message == windows::Win32::UI::WindowsAndMessaging::WM_GETOBJECT {
+        GETOBJECT.with(|events| {
+            let mut events = events.borrow_mut();
+            if events.len() < 8 {
+                events.push((lp.0, result.0));
+            }
+        });
+    }
+    result
+}
+
 fn window() -> super::super::SurfaceWindow {
     let scene = crate::surface_scene::Scene::parse(
         br#"{"id":"root","type":"text","props":{"text":"Text"}}"#,

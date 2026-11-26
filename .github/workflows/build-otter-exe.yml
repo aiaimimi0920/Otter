@@ -101,7 +101,7 @@ jobs:
         run: |
           cargo fmt --all --check --manifest-path native/Cargo.toml
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          cargo nextest run --locked --offline --workspace --manifest-path native/Cargo.toml --config-file native/.config/nextest.toml --profile default --test-threads 1 --no-tests=fail
+          cargo nextest run --locked --offline --workspace --manifest-path native/Cargo.toml --config-file native/.config/nextest.toml --profile default --test-threads 1 --no-tests=fail --fail-fast
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           cargo test --doc --locked --offline --workspace --manifest-path native/Cargo.toml -- --test-threads=1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
