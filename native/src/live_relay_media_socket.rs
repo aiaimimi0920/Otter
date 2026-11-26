@@ -69,8 +69,12 @@ impl Error {
     }
 }
 pub fn config() -> WebSocketConfig {
+    // Performance audit optimization (Tier 2.4):
+    // Buffer fragmented outgoing media frames in 32 KiB chunks instead of `write_buffer_size: 0` (which forced an
+    // immediate TLS record encryption + `WSASend` syscall on every 16 KiB `RawBgra` slice, >500 syscalls per 1080p
+    // frame). Single-frame `socket.send(...)` control/ping calls still flush immediately.
     WebSocketConfig {
-        write_buffer_size: 0,
+        write_buffer_size: 32 * 1024,
         max_write_buffer_size: 64 * 1024,
         max_message_size: Some(LIMIT),
         max_frame_size: Some(LIMIT),

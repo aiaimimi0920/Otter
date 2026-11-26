@@ -60,6 +60,16 @@ impl Binding {
             } // Late samples must not take the filter slot from B, where the mouse currently resides.
               // When multiple Bs share A, the last B actually interacted with gets the filter slot; allow through if the full cookie does not match.
             let root = self.target.hwnd();
+            // Performance audit optimization:
+            // Skip cross-process `SetPropW` writes when `(SOURCE_COOKIE, OWNER, SOURCE)` already bind this exact
+            // `(root, owner, token)` triple. This eliminates 4 cross-process atom-table writes on every steady-state
+            // browser mouse move and avoids transiently zeroing `SOURCE_COOKIE = 0` while `WM_MOUSELEAVE` is active.
+            if GetPropW(root, SOURCE_COOKIE) == self.owner.token()
+                && GetPropW(root, OWNER) == HANDLE(self.owner.window().0)
+                && GetPropW(self.owner.window(), SOURCE) == HANDLE(root.0)
+            {
+                return Ok(());
+            }
             SetPropW(root, SOURCE_COOKIE, Some(HANDLE::default()))?;
             SetPropW(self.owner.window(), SOURCE, Some(HANDLE(root.0)))?;
             SetPropW(root, OWNER, Some(HANDLE(self.owner.window().0)))?;

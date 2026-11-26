@@ -2,6 +2,29 @@
 use super::State;
 use windows::Win32::{Foundation::*, UI::WindowsAndMessaging::*};
 
+/// Performance audit optimization (Tier 2.2):
+/// Skip post-message `tool_panel::refresh` on uncommitted geometry probes (`WM_WINDOWPOSCHANGING`, `WM_NCCALCSIZE`),
+/// pure read-only hit-test/cursor/background queries (`WM_NCHITTEST`, `WM_SETCURSOR`, `WM_ERASEBKGND`, `WM_GETICON`)
+/// that fire at 240–480Hz before every mouse event, and drag-only position updates.
+pub(super) unsafe fn should_refresh_tool_panel(hwnd: HWND, msg: u32, lp: LPARAM) -> bool {
+    if !super::super::host_lifetime::owns(hwnd)
+        || matches!(
+            msg,
+            WM_WINDOWPOSCHANGING
+                | WM_NCCALCSIZE
+                | WM_NCHITTEST
+                | WM_SETCURSOR
+                | WM_ERASEBKGND
+                | WM_GETICON
+                | super::super::window_geometry_wake::MESSAGE
+        )
+    {
+        return false;
+    }
+    let state = &*(GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *const State);
+    !state.session_end.paused() && !drag_position_only(state, msg, lp)
+}
+
 // System dragging uses only the attached windows' existing geometry-following path. Preserve default message dispatch and queued wakes,
 // but they must not repeatedly recalculate tool/settings fields; size, DPI, task, and drag-end refreshes remain unchanged.
 pub(super) unsafe fn drag_position_only(state: &State, msg: u32, lp: LPARAM) -> bool {

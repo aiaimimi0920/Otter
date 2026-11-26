@@ -50,8 +50,21 @@ pub(in super::super) unsafe fn apply(ui: &Ui) -> Result<()> {
     if tails.is_empty() {
         return Ok(());
     }
+    let drawing = ui.drawing.get();
+    // Performance audit optimization (Tier 2.2):
+    // Skip the up-to-4,096-HWND desktop `GetTopWindow` Z-order scan when the shared link/curve layer is hidden
+    // (ordinary pin workspaces without links/ports) or already positioned immediately behind the sole pin tail.
+    if !IsWindowVisible(drawing).as_bool() {
+        return Ok(());
+    }
+    if tails.len() == 1 {
+        let only = *tails.iter().next().unwrap();
+        if GetWindow(HWND(only as *mut _), GW_HWNDNEXT).ok() == Some(drawing) {
+            return Ok(());
+        }
+    }
     // Only shared curves retain the below-all-pins policy; bottom bars belong to their own pins, not the shared line layer.
-    let layers = [ui.drawing.get()];
+    let layers = [drawing];
     let members: HashSet<_> = layers.iter().map(|hwnd| hwnd.0 as isize).collect();
     let mut cursor = GetTopWindow(None)?;
     let mut above = false;

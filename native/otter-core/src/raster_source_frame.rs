@@ -66,45 +66,93 @@ pub fn compose_in_frame(
     } else {
         crate::image_projection::covered_pixels(frame.y, bottom_edge, height)
     };
+    // Performance audit optimization:
+    // Precompute row-invariant column sample coordinates `(x0_b, x1_b, fx, right - left)` once under a temporary
+    // pixel-budget lease (with inline fallback on budget pressure) instead of executing `/ frame.width` per pixel.
+    let col_sample = |x: u32| -> Option<(usize, usize, f64, f64)> {
+        let left = (x as f64).max(frame.x);
+        let right = (x as f64 + 1.0).min(right_edge);
+        if right <= left {
+            return None;
+        }
+        let sx = (((left + right) * 0.5 - frame.x) * aw as f64 / frame.width - 0.5)
+            .clamp(0.0, aw as f64 - 1.0);
+        let x0 = sx.floor() as u32;
+        let x1 = (x0 + 1).min(aw - 1);
+        Some((
+            x0 as usize * 4,
+            x1 as usize * 4,
+            sx - x0 as f64,
+            right - left,
+        ))
+    };
+    let table_bytes = cols.len() * std::mem::size_of::<Option<(usize, usize, f64, f64)>>();
+    let x_table = (!rows.is_empty() && table_bytes > 0)
+        .then(|| {
+            let mut table_lease = pixels::reserve(table_bytes)?;
+            let mut vec = Vec::new();
+            vec.try_reserve_exact(cols.len()).ok()?;
+            if !table_lease
+                .grow_to(vec.capacity() * std::mem::size_of::<Option<(usize, usize, f64, f64)>>())
+            {
+                return None;
+            }
+            for x in cols.clone() {
+                vec.push(col_sample(x));
+            }
+            Some((vec, table_lease))
+        })
+        .flatten();
+    let aw_bytes = aw as usize * 4;
+    let out_stride = width as usize * 4;
     for y in rows {
         if cancelled() {
             return Err(BlurError::Cancelled);
         }
         let top = (y as f64).max(frame.y);
         let bottom = (y as f64 + 1.0).min(bottom_edge);
-        if bottom <= top {
+        let height_cov = bottom - top;
+        if height_cov <= 0.0 {
             continue;
         }
         let sy = (((top + bottom) * 0.5 - frame.y) * ah as f64 / frame.height - 0.5)
             .clamp(0.0, ah as f64 - 1.0);
-        let y0 = sy.floor() as u32;
-        let y1 = (y0 + 1).min(ah - 1);
+        let y0 = sy.floor() as usize;
+        let y1 = (y0 + 1).min(ah as usize - 1);
         let fy = sy - y0 as f64;
-        for x in cols.clone() {
-            let left = (x as f64).max(frame.x);
-            let right = (x as f64 + 1.0).min(right_edge);
-            if right <= left {
+        let wy0 = 1.0 - fy;
+        let row0 = &overlay[y0 * aw_bytes..(y0 + 1) * aw_bytes];
+        let row1 = &overlay[y1 * aw_bytes..(y1 + 1) * aw_bytes];
+        let base_row = &layers.base[y as usize * out_stride..(y as usize + 1) * out_stride];
+        let out_row = &mut output[y as usize * out_stride..(y as usize + 1) * out_stride];
+        for (idx, x) in cols.clone().enumerate() {
+            let sample = match &x_table {
+                Some((vec, _)) => vec[idx],
+                None => col_sample(x),
+            };
+            let Some((x0_b, x1_b, fx, width_cov)) = sample else {
                 continue;
-            }
-            let coverage = (right - left) * (bottom - top);
-            let sx = (((left + right) * 0.5 - frame.x) * aw as f64 / frame.width - 0.5)
-                .clamp(0.0, aw as f64 - 1.0);
-            let x0 = sx.floor() as u32;
-            let x1 = (x0 + 1).min(aw - 1);
-            let fx = sx - x0 as f64;
+            };
+            let coverage = width_cov * height_cov;
+            let wx0 = 1.0 - fx;
+            let p00 = &row0[x0_b..x0_b + 4];
+            let p10 = &row0[x1_b..x1_b + 4];
+            let p01 = &row1[x0_b..x0_b + 4];
+            let p11 = &row1[x1_b..x1_b + 4];
             let mut sampled = [0u32; 4];
             for (channel, value) in sampled.iter_mut().enumerate() {
-                let at = |x: u32, y: u32| overlay[((y * aw + x) * 4) as usize + channel] as f64;
-                let a = at(x0, y0) * (1.0 - fx) + at(x1, y0) * fx;
-                let b = at(x0, y1) * (1.0 - fx) + at(x1, y1) * fx;
-                *value = ((a * (1.0 - fy) + b * fy) * coverage)
-                    .round()
-                    .clamp(0.0, 255.0) as u32;
+                let a = p00[channel] as f64 * wx0 + p10[channel] as f64 * fx;
+                let b = p01[channel] as f64 * wx0 + p11[channel] as f64 * fx;
+                *value = ((a * wy0 + b * fy) * coverage).round().clamp(0.0, 255.0) as u32;
             }
-            let offset = ((y * width + x) * 4) as usize;
+            if sampled == [0; 4] {
+                continue;
+            }
+            let px_off = x as usize * 4;
+            let keep = 255 - sampled[3];
             for channel in 0..4 {
-                output[offset + channel] = (sampled[channel]
-                    + (layers.base[offset + channel] as u32 * (255 - sampled[3]) + 127) / 255)
+                out_row[px_off + channel] = (sampled[channel]
+                    + (base_row[px_off + channel] as u32 * keep + 127) / 255)
                     .min(255) as u8;
             }
         }

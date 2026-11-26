@@ -43,6 +43,7 @@ impl Session {
             viewport,
             dispatcher,
             allow_results,
+            canvas_cache: Default::default(),
         };
         if let Some(headers) = headers {
             // Installation and mount share the original absolute deadline; binary data bypasses MAX_FRAME/inline-string gates.

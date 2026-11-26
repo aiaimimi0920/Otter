@@ -12,21 +12,23 @@ impl Drop for InputDesktop {
         }
     }
 }
-pub(super) fn check() -> Result<()> {
+pub(crate) fn check() -> Result<()> {
     let current =
         unsafe { GetThreadDesktop(GetCurrentThreadId()) }.map_err(|_| Denied::SecureDesktop)?;
     let input = InputDesktop(
         unsafe { OpenInputDesktop(DESKTOP_CONTROL_FLAGS(0), false, DESKTOP_READOBJECTS) }
             .map_err(|_| Denied::SecureDesktop)?,
     );
-    if !name(current)?.eq_ignore_ascii_case("default")
-        || !name(input.0)?.eq_ignore_ascii_case("default")
-    {
+    if !is_default_desktop(current)? || !is_default_desktop(input.0)? {
         return Err(Denied::SecureDesktop);
     }
     Ok(())
 }
-fn name(desktop: HDESK) -> Result<String> {
+/// Performance audit optimization:
+/// Compare the UTF-16 desktop name against `"default"` directly on the stack instead of allocating two heap
+/// `String`s (`String::from_utf16` + `eq_ignore_ascii_case`) on every pointer-move preflight (~30 heap allocs/move).
+fn is_default_desktop(desktop: HDESK) -> Result<bool> {
+    const EXPECTED: [u8; 7] = *b"default";
     let mut buffer = [0u16; 512];
     let mut needed = 0;
     unsafe {
@@ -46,5 +48,12 @@ fn name(desktop: HDESK) -> Result<String> {
     if content.last() != Some(&0) {
         return Err(Denied::SecureDesktop);
     }
-    String::from_utf16(&content[..content.len() - 1]).map_err(|_| Denied::SecureDesktop)
+    let units = &content[..content.len() - 1];
+    if units.len() != EXPECTED.len() {
+        return Ok(false);
+    }
+    Ok(units
+        .iter()
+        .zip(EXPECTED)
+        .all(|(&unit, expected)| unit <= 0x7f && (unit as u8).to_ascii_lowercase() == expected))
 }

@@ -8,23 +8,21 @@ impl Frame {
         if count != self.rgba.len() {
             return Err(Error::Layout);
         }
-        let (mut bytes, lease) = contract::allocate(count)?;
-        for (source, target) in self
-            .rgba
-            .chunks_exact(self.width as usize * 4)
-            .zip(bytes.chunks_exact_mut(self.width as usize * 4))
-        {
+        // Performance audit optimization:
+        // Reserve capacity without pre-zeroing 33 MiB (`bytes.resize(count, 0)`) and delegate row conversion to
+        // `otter_core::pixel_alpha::premultiply_rgba_to_pbgra` (compiled under `opt-level = 3` with opaque/transparent fast paths).
+        let mut lease = crate::pixels::reserve(count).ok_or(Error::Budget)?;
+        let mut bytes = Vec::new();
+        bytes.try_reserve_exact(count).map_err(|_| Error::Budget)?;
+        if !lease.grow_to(bytes.capacity()) {
+            return Err(Error::Budget);
+        }
+        let stride = self.width as usize * 4;
+        for source in self.rgba.chunks_exact(stride) {
             check(stopped, deadline)?;
-            for (source, target) in source.chunks_exact(4).zip(target.chunks_exact_mut(4)) {
-                let alpha = u16::from(source[3]);
-                let premultiply = |c| ((u16::from(c) * alpha + 127) / 255) as u8;
-                target.copy_from_slice(&[
-                    premultiply(source[2]),
-                    premultiply(source[1]),
-                    premultiply(source[0]),
-                    source[3],
-                ]);
-            }
+            let start = bytes.len();
+            bytes.resize(start + stride, 0);
+            crate::pixel_alpha::premultiply_rgba_to_pbgra(source, &mut bytes[start..]);
         }
         check(stopped, deadline)?;
         Ok(Pixels::from_reserved(bytes, lease))

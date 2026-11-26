@@ -63,6 +63,11 @@ impl Output {
         }
         self.active.is_none() && self.retiring.is_none()
     }
+    pub fn wake_handle(&self) -> Option<HANDLE> {
+        self.active
+            .as_ref()
+            .and_then(|active| active.runtime.shared.ui_wake_handle())
+    }
     pub fn tick(
         &mut self,
         owner: &mut Owner,

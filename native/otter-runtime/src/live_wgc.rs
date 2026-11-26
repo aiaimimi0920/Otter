@@ -66,6 +66,10 @@ pub struct Session {
     signal: Arc<signal::Signal>,
     receiver: Receiver<()>,
     frames: Arc<Source<Texture>>,
+    // Session-scoped `ID3D11Texture2D` recycler (up to 4 idle textures): eliminates per-frame WDDM
+    // `CreateTexture2D`/`Release` churn (~3.98 GB/s VRAM allocation churn at 4K@120fps) while auto-evicting
+    // on dimension changes and releasing all leases in `Session::close`.
+    texture_pool: live_texture::pool::Pool,
     size: SizeInt32,
     region: Option<crate::capture_readback::Region>,
     window_target: Option<crate::live_window_target::Target>,
@@ -176,6 +180,7 @@ impl Session {
             signal,
             receiver,
             frames,
+            texture_pool: live_texture::pool::Pool::new(),
             size,
             region,
             window_crop: None,
@@ -295,13 +300,16 @@ impl Session {
             // Extract/copy only on this thread; the shared-device factory enables D3D multithread protection, and the Frame guard is returned before the next iteration.
             let prepared = snapshot_checked(validate, || unsafe {
                 match self.region {
-                    Some(region) => live_texture::snapshot_region(
+                    Some(region) => self.texture_pool.snapshot_region(
                         &self.context,
                         &texture,
                         region,
                         &self.signal.cancel,
                     ),
-                    None => live_texture::snapshot(&self.context, &texture, &self.signal.cancel),
+                    None => {
+                        self.texture_pool
+                            .snapshot(&self.context, &texture, &self.signal.cancel)
+                    }
                 }
                 .map_err(|error| match error {
                     live_texture::Error::Cancelled => {
@@ -349,6 +357,7 @@ impl Session {
                 eprintln!("native-live-close-pool: {error}");
             }
         }
+        self.texture_pool.close();
         self.frames.close();
         #[cfg(test)]
         eprintln!("native-live-close: complete");

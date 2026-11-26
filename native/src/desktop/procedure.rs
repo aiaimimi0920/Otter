@@ -27,17 +27,8 @@ mod wheel;
 pub unsafe extern "system" fn window_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
     match std::panic::catch_unwind(|| {
         let result = dispatch(hwnd, msg, wp, lp);
-        if super::host_lifetime::owns(hwnd)
-            // Attached strips already moved to target positions during precommit; do not pull them back with the host's uncommitted position.
-            && !matches!(
-                msg,
-                WM_WINDOWPOSCHANGING | WM_NCCALCSIZE | super::window_geometry_wake::MESSAGE
-            )
-        {
-            let state = &*(GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *const State);
-            if !state.session_end.paused() && !geometry::drag_position_only(state, msg, lp) {
-                super::tool_panel::refresh(hwnd);
-            }
+        if geometry::should_refresh_tool_panel(hwnd, msg, lp) {
+            super::tool_panel::refresh(hwnd);
         }
         result
     }) {

@@ -3,6 +3,31 @@ use super::*;
 use std::time::Duration;
 use windows::Win32::Graphics::Gdi::{CreateRectRgn, DeleteObject, GetWindowRgn, NULLREGION};
 
+#[test]
+fn failed_first_wheel_submission_preserves_host_viewport_and_hit_region() {
+    let _apartment = Apartment::new().unwrap();
+    unsafe {
+        let fixture = Fixture::new();
+        let rect = fixture.rect();
+        let viewport = fixture.state.canvas.borrow().viewport;
+        let paints = fixture.state.canvas.borrow().paints;
+        preview::FAILED_HOST_VIEWPORT.with(|seen| seen.set(None));
+        preview::FAIL_SUBMIT.with(|fail| fail.set(true));
+        input(fixture.window.0, 120);
+        assert!(!preview::FAIL_SUBMIT.with(|fail| fail.get()));
+        assert_eq!(
+            preview::FAILED_HOST_VIEWPORT.with(|seen| seen.take()),
+            Some(viewport)
+        );
+        assert_eq!(fixture.rect(), rect);
+        assert_eq!(fixture.state.canvas.borrow().viewport, viewport);
+        assert!(fixture.state.canvas.borrow().paints > paints);
+        assert!(!preview::active(&fixture.state));
+        assert!(!empty_region(fixture.window.0));
+        assert!(fixture.state.error.borrow().is_some());
+    }
+}
+
 unsafe fn input(hwnd: HWND, delta: i16) {
     SendMessageW(
         hwnd,

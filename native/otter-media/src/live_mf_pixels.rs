@@ -11,10 +11,37 @@ use windows::{
         Media::MediaFoundation::*,
     },
 };
+/// Reusable budgeted scratch buffer for `IMF2DBuffer::ContiguousCopyTo` on hardware H.264 decode paths.
+/// Eliminates ~3.1-12.4 MiB per-frame `VirtualAlloc`/`VirtualFree` + zero-page fault churn at 30-60 fps
+/// while releasing its pixel-budget lease immediately when `VideoDecoder` closes or resets on error.
+#[derive(Default)]
+pub(super) struct Nv12Scratch {
+    bytes: Vec<u8>,
+    _lease: Option<crate::byte_budget::Lease>,
+}
+
+impl Nv12Scratch {
+    pub(super) fn clear(&mut self) {
+        self.bytes = Vec::new();
+        self._lease = None;
+    }
+
+    fn slice_mut(&mut self, size: usize) -> Result<&mut [u8]> {
+        if self.bytes.len() != size {
+            self.clear();
+            let (bytes, lease) = allocate_zeroed(size)?;
+            self.bytes = bytes;
+            self._lease = Some(lease);
+        }
+        Ok(&mut self.bytes)
+    }
+}
+
 pub(super) fn decode(
     sample: &IMFSample,
     media: &IMFMediaType,
     layout: Layout,
+    scratch: &mut Nv12Scratch,
 ) -> Result<pixels::Pixels> {
     unsafe {
         if sample.GetTotalLength()? > MAX_BUFFER {
@@ -28,9 +55,9 @@ pub(super) fn decode(
                 return Err(invalid("Decoded surface size mismatch"));
             }
             // Lock2D scanline/pitch do not establish the full NV12 backing range and cannot justify constructing a raw UV slice.
-            let (mut storage, _lease) = allocate_zeroed(size)?;
-            surface.ContiguousCopyTo(&mut storage)?;
-            convert(&storage, layout.width as usize, layout)
+            let storage = scratch.slice_mut(size)?;
+            surface.ContiguousCopyTo(storage)?;
+            convert(storage, layout.width as usize, layout)
         } else {
             let stride = match media.GetUINT32(&MF_MT_DEFAULT_STRIDE) {
                 Ok(v) => v as i32,

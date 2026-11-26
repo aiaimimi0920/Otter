@@ -114,16 +114,15 @@ impl RasterRefreshPlan {
                 &cancelled,
             )?;
             let (width, height) = self.candidate.size;
+            // Accepted blur snapshots can have independent sources/frames. Only freshly computed
+            // results share by strength; old pixels are not evidence of the current raster.
             let mut cache = BTreeMap::<u32, BlurImage>::new();
             for (_, stroke) in &mut self.replacements {
                 if stroke.tool != Tool::Blur {
                     continue;
                 }
-                let strength = stroke
-                    .blur
-                    .as_ref()
-                    .ok_or(blur::BlurError::InvalidInput)?
-                    .strength();
+                let old_blur = stroke.blur.as_ref().ok_or(blur::BlurError::InvalidInput)?;
+                let strength = old_blur.strength();
                 let key = strength.to_bits();
                 let image = if let Some(image) = cache.get(&key) {
                     image.clone()
@@ -273,153 +272,5 @@ impl Editor {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    fn document() -> Editor {
-        let mut editor = Editor::with_layers(Layers {
-            annotation_size: None,
-            size: (16, 16),
-            base: [0, 0, 255, 255].repeat(256).into(),
-            annotations: None,
-        })
-        .unwrap();
-        for strength in [2.4, 2.4, 4.0] {
-            let image =
-                BlurImage::with_strength(16, 16, [0, 0, 255, 255].repeat(256).into(), strength)
-                    .unwrap();
-            editor.begin_blur(Point { x: 8.0, y: 8.0 }, image).unwrap();
-            assert!(editor.commit());
-        }
-        editor
-    }
-    fn candidate(editor: &Editor) -> Layers {
-        let mut layers = editor.layers().unwrap().clone();
-        layers.annotations = Some([255, 0, 0, 255].repeat(256).into());
-        layers
-    }
-    #[test]
-    fn raster_and_all_blurs_commit_and_undo_together_with_shared_strength_results() {
-        let mut editor = document();
-        let original = editor.layers().unwrap().clone();
-        let old = editor.elements()[0].blur.clone().unwrap();
-        let points = editor.elements()[0].points.as_ptr();
-        let revision = editor.revision();
-        let next = candidate(&editor);
-        let plan = editor
-            .prepare_raster_refresh(next.clone())
-            .unwrap()
-            .unwrap()
-            .compute(|| false)
-            .unwrap();
-        assert_eq!(editor.revision(), revision);
-        assert!(editor.commit_raster_refresh(plan).unwrap());
-        assert_eq!(editor.revision(), revision + 1);
-        let blur = editor.elements()[0].blur.as_ref().unwrap();
-        assert_eq!(blur.strength(), 2.4);
-        assert!(blur
-            .pixels()
-            .same_storage(editor.elements()[1].blur.as_ref().unwrap().pixels()));
-        let expected = blur::region_precise(
-            next.annotations.as_ref().unwrap(),
-            next.size,
-            blur::Region {
-                x: 0,
-                y: 0,
-                width: 16,
-                height: 16,
-            },
-            2.4,
-            || false,
-        )
-        .unwrap();
-        assert_eq!(&blur.pixels()[..], &expected[..]);
-        for _ in 0..3 {
-            assert!(editor.undo());
-            assert!(editor.layers().unwrap().same_storage(&original));
-            assert!(editor.elements()[0]
-                .blur
-                .as_ref()
-                .unwrap()
-                .pixels()
-                .same_storage(old.pixels()));
-            assert_eq!(editor.elements()[0].points.as_ptr(), points);
-            assert!(editor.redo());
-            assert!(editor.layers().unwrap().same_storage(&next));
-        }
-    }
-    #[test]
-    fn rasterizing_blurs_excludes_removed_effects_and_balances_point_budget() {
-        for indices in [vec![0], vec![1], vec![0, 2], vec![0, 1, 2]] {
-            let mut editor = document();
-            let retained = editor.retained_points;
-            let layers = candidate(&editor);
-            let plan = editor.prepare_rasterize_edit(&indices).unwrap().unwrap();
-            assert_eq!(plan.replacements.len(), 3 - indices.len());
-            let extra = plan.extra;
-            let plan = plan
-                .with_candidate(layers)
-                .unwrap()
-                .compute(|| false)
-                .unwrap();
-            assert!(editor.commit_raster_refresh(plan).unwrap());
-            assert_eq!(editor.elements().len(), 3 - indices.len());
-            assert_eq!(editor.retained_points, retained + extra);
-            assert!(editor.undo());
-            assert_eq!(editor.elements().len(), 3);
-            editor.begin(Tool::Brush, Point::default()).unwrap();
-            assert!(editor.commit());
-            assert_eq!(editor.retained_points, retained + 1);
-        }
-    }
-
-    #[test]
-    fn pending_edit_with_unchanged_layers_is_noop_and_preserves_redo() {
-        let mut editor = document();
-        assert!(editor.undo());
-        let revision = editor.revision();
-        let plan = editor.prepare_raster_edit().unwrap().unwrap();
-        assert!(plan.matches_source(editor.layers().unwrap(), revision));
-        assert!(!plan.matches_source(editor.layers().unwrap(), revision + 1));
-        let plan = plan.compute(|| false).unwrap();
-        assert!(!editor.commit_raster_refresh(plan).unwrap());
-        assert_eq!(editor.revision(), revision);
-        assert!(editor.redo());
-    }
-
-    #[test]
-    fn cancellation_unprepared_foreign_and_stale_candidates_never_change_document() {
-        let mut editor = document();
-        let original = editor.layers().unwrap().clone();
-        let plan = editor
-            .prepare_raster_refresh(candidate(&editor))
-            .unwrap()
-            .unwrap();
-        assert!(!editor.commit_raster_refresh(plan).unwrap());
-        let plan = editor
-            .prepare_raster_refresh(candidate(&editor))
-            .unwrap()
-            .unwrap();
-        assert!(matches!(
-            plan.compute(|| true),
-            Err(blur::BlurError::Cancelled)
-        ));
-        let plan = editor
-            .prepare_raster_refresh(candidate(&editor))
-            .unwrap()
-            .unwrap()
-            .compute(|| false)
-            .unwrap();
-        let mut other = document();
-        assert!(!other.commit_raster_refresh(plan).unwrap());
-        let plan = editor
-            .prepare_raster_refresh(candidate(&editor))
-            .unwrap()
-            .unwrap()
-            .compute(|| false)
-            .unwrap();
-        editor.undo();
-        assert!(!editor.commit_raster_refresh(plan).unwrap());
-        assert!(editor.layers().unwrap().same_storage(&original));
-        assert!(editor.redo());
-    }
-}
+#[path = "editor_raster_refresh_tests.rs"]
+mod tests;

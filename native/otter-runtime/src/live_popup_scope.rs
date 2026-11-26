@@ -87,6 +87,17 @@ impl Scope {
         owner: Option<crate::live_hover_owner::Identity>,
         hwnd: HWND,
     ) -> Result<Self> {
+        // Fast-reject `root` itself and cross-process HWNDs before opening kernel process handles (`Target::bind`),
+        // eliminating 25+ `OpenProcess`/`CloseHandle` pairs per second during idle 80ms popup discovery polls.
+        if hwnd == root.hwnd() {
+            return Err(denied());
+        }
+        let mut candidate_pid = 0u32;
+        if unsafe { GetWindowThreadProcessId(hwnd, Some(&mut candidate_pid)) } == 0
+            || candidate_pid != root.process_id()
+        {
+            return Err(denied());
+        }
         if let Ok(scope) = OwnedPopup::bind(root, hwnd) {
             return Ok(Self::Owned(scope));
         }
@@ -178,6 +189,15 @@ pub struct OwnedPopup {
 
 impl OwnedPopup {
     pub fn bind(root: &Target, hwnd: HWND) -> Result<Self> {
+        if hwnd == root.hwnd() {
+            return Err(denied());
+        }
+        let mut candidate_pid = 0u32;
+        if unsafe { GetWindowThreadProcessId(hwnd, Some(&mut candidate_pid)) } == 0
+            || candidate_pid != root.process_id()
+        {
+            return Err(denied());
+        }
         root.validate()?;
         let popup = Target::bind(hwnd)?;
         let binding = Self {

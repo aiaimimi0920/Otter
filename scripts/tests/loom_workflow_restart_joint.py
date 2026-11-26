@@ -12,7 +12,8 @@ import time
 from urllib.error import URLError
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
-SCRATCH = Path(__file__).resolve().parents[2] / ".tmp"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+SCRATCH = REPO_ROOT / ".tmp"
 EXACT = ("desktop::application::restore_batch::workflow::cycle::real_loom_tests::"
          "saved_workflow_survives_real_loom_bridge_restart")
 
@@ -67,8 +68,11 @@ def main():
     if tests != [EXACT]:
         raise RuntimeError(f"Expected exactly {EXACT}, got {tests}")
 
-    SCRATCH.mkdir(parents=True, exist_ok=True)
-    root = Path(tempfile.mkdtemp(prefix="otter-workflow-loom-restart-", dir=SCRATCH))
+    scratch = SCRATCH.resolve()
+    if scratch == REPO_ROOT or not scratch.is_relative_to(REPO_ROOT) or scratch.drive.upper() != "C:":
+        parser.error("Repository .tmp must resolve inside the local C: repository")
+    scratch.mkdir(parents=True, exist_ok=True)
+    root = Path(tempfile.mkdtemp(prefix="otter-workflow-loom-restart-", dir=scratch))
     print(root, flush=True)
     for name in ("manifest", "appdata", "tmp"):
         (root / name).mkdir()

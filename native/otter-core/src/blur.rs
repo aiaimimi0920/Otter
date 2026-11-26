@@ -102,6 +102,8 @@ fn region_axes(
     let (mut horizontal, _temporary_lease) = allocate::<f32>(row_size * rows)?;
     let mut next_row = top;
     let (mut output, lease) = allocate::<u8>(count)?;
+    // Reusable per-output-row offset table: hoists `(source_y % rows) * row_size` modulo divisions out of the per-pixel tap loop.
+    let mut tap_rows: Vec<(f32, usize)> = Vec::with_capacity(vertical_kernel.weights.len());
     for y in 0..area.height as usize {
         if cancelled() {
             return Err(BlurError::Cancelled);
@@ -116,46 +118,116 @@ fn region_axes(
             let row = &mut horizontal[slot * row_size..(slot + 1) * row_size];
             let src_row = &source[next_row as usize * width as usize * 4
                 ..(next_row as usize + 1) * width as usize * 4];
-            let k_len = horizontal_kernel.weights.len() as i32;
-            // Preclip valid kernel ranges/accumulate in registers, removing innermost branches/slice writes while preserving bit-identical addition order.
-            for (x, dst) in row.chunks_exact_mut(4).enumerate() {
-                let base_x = area.x as i32 + x as i32 - horizontal_kernel.radius;
-                let k_start = (-base_x).max(0).min(k_len) as usize;
-                let k_end = (width as i32 - base_x).clamp(0, k_len) as usize;
-                let mut sum = [0.0f32; 4];
-                if k_start < k_end {
-                    let px_start = (base_x + k_start as i32) as usize * 4;
-                    let px_end = px_start + (k_end - k_start) * 4;
-                    for (px, &weight) in src_row[px_start..px_end]
-                        .chunks_exact(4)
-                        .zip(&horizontal_kernel.weights[k_start..k_end])
-                    {
-                        for channel in 0..4 {
-                            sum[channel] += px[channel] as f32 * weight;
+            let weights = &horizontal_kernel.weights;
+            let k_len = weights.len() as i32;
+            let radius = horizontal_kernel.radius;
+            // Performance audit optimization:
+            // Split the horizontal pass into clipped border halos and an unclipped interior region (>97% of 4K width)
+            // processed in 4-pixel (`[f32; 16]`) tiles. Each channel still accumulates taps in strictly ascending `0..k_len`
+            // order so IEEE-754 rounding remains bit-identical while enabling 8-wide SIMD unrolling without inner branches.
+            let interior_start = (radius - area.x as i32).max(0).min(area.width as i32) as usize;
+            let interior_end = (width as i32 - k_len - area.x as i32 + radius + 1)
+                .max(interior_start as i32)
+                .min(area.width as i32) as usize;
+            let convolve_edge = |range: std::ops::Range<usize>, dst_slice: &mut [f32]| {
+                for (offset, dst) in dst_slice.chunks_exact_mut(4).enumerate() {
+                    let x = range.start + offset;
+                    let base_x = area.x as i32 + x as i32 - radius;
+                    let k_start = (-base_x).max(0).min(k_len) as usize;
+                    let k_end = (width as i32 - base_x).clamp(0, k_len) as usize;
+                    let mut sum = [0.0f32; 4];
+                    if k_start < k_end {
+                        let px_start = (base_x + k_start as i32) as usize * 4;
+                        let px_end = px_start + (k_end - k_start) * 4;
+                        for (px, &weight) in src_row[px_start..px_end]
+                            .chunks_exact(4)
+                            .zip(&weights[k_start..k_end])
+                        {
+                            for channel in 0..4 {
+                                sum[channel] += px[channel] as f32 * weight;
+                            }
                         }
                     }
+                    dst.copy_from_slice(&sum);
                 }
-                dst.copy_from_slice(&sum);
+            };
+            convolve_edge(0..interior_start, &mut row[..interior_start * 4]);
+            let interior = &mut row[interior_start * 4..interior_end * 4];
+            let mut x = interior_start;
+            let mut tiles = interior.chunks_exact_mut(16);
+            for dst16 in &mut tiles {
+                let px_base = (area.x as i32 + x as i32 - radius) as usize * 4;
+                let mut sum = [0.0f32; 16];
+                for (tap, &weight) in weights.iter().enumerate() {
+                    let win = &src_row[px_base + tap * 4..px_base + tap * 4 + 16];
+                    for i in 0..16 {
+                        sum[i] += win[i] as f32 * weight;
+                    }
+                }
+                dst16.copy_from_slice(&sum);
+                x += 4;
             }
+            for dst4 in tiles.into_remainder().chunks_exact_mut(4) {
+                let px_base = (area.x as i32 + x as i32 - radius) as usize * 4;
+                let mut sum = [0.0f32; 4];
+                for (tap, &weight) in weights.iter().enumerate() {
+                    let px = &src_row[px_base + tap * 4..px_base + tap * 4 + 4];
+                    for c in 0..4 {
+                        sum[c] += px[c] as f32 * weight;
+                    }
+                }
+                dst4.copy_from_slice(&sum);
+                x += 1;
+            }
+            convolve_edge(
+                interior_end..area.width as usize,
+                &mut row[interior_end * 4..],
+            );
             next_row += 1;
         }
         let base_y = area.y as i32 + y as i32 - vertical_kernel.radius;
         let vk_len = vertical_kernel.weights.len() as i32;
         let vk_start = (top - base_y).max(0).min(vk_len) as usize;
         let vk_end = (bottom - base_y).clamp(0, vk_len) as usize;
+        // Performance audit optimization:
+        // Pre-bind row slices once per output row `y` (eliminating ~800M 64-bit `% rows` divisions on 4K) and
+        // accumulate 16 pixels (`[f32; 64]`) per strip so `sum` stays in registers/L1 cache while streaming
+        // contiguous floats instead of striding across `row_size` (`61 KiB`) on every tap. Addition order per
+        // channel is strictly identical (`vk_start..vk_end`), guaranteeing bit-identical outputs.
+        tap_rows.clear();
+        for (offset, &weight) in vertical_kernel.weights[vk_start..vk_end].iter().enumerate() {
+            let source_y = (base_y + (vk_start + offset) as i32) as usize;
+            let row_offset = (source_y % rows) * row_size;
+            tap_rows.push((weight, row_offset));
+        }
         let out_row = &mut output[y * row_size..(y + 1) * row_size];
-        for (x, dst) in out_row.chunks_exact_mut(4).enumerate() {
-            let mut sum = [0.0f32; 4];
-            let x4 = x * 4;
-            for (offset, &weight) in vertical_kernel.weights[vk_start..vk_end].iter().enumerate() {
-                let source_y = (base_y + (vk_start + offset) as i32) as usize;
-                let input = (source_y % rows) * row_size + x4;
-                for channel in 0..4 {
-                    sum[channel] += horizontal[input + channel] * weight;
+        let mut col = 0usize;
+        let mut strips = out_row.chunks_exact_mut(64);
+        for dst64 in &mut strips {
+            let mut sum = [0.0f32; 64];
+            for &(weight, row_offset) in &tap_rows {
+                let src = &horizontal[row_offset + col..row_offset + col + 64];
+                for i in 0..64 {
+                    sum[i] += src[i] * weight;
                 }
             }
-            for channel in 0..4 {
-                dst[channel] = sum[channel].round().clamp(0.0, 255.0) as u8;
+            for i in 0..64 {
+                dst64[i] = sum[i].round().clamp(0.0, 255.0) as u8;
+            }
+            col += 64;
+        }
+        let rem = strips.into_remainder();
+        if !rem.is_empty() {
+            let mut sum = [0.0f32; 64];
+            let len = rem.len();
+            for &(weight, row_offset) in &tap_rows {
+                let src = &horizontal[row_offset + col..row_offset + col + len];
+                for i in 0..len {
+                    sum[i] += src[i] * weight;
+                }
+            }
+            for i in 0..len {
+                rem[i] = sum[i].round().clamp(0.0, 255.0) as u8;
             }
         }
     }

@@ -41,6 +41,12 @@ impl Bitmap {
     pub(crate) fn natural_size(&self) -> [f32; 2] {
         self.logical_size
     }
+    pub(crate) fn matches_image(&self, image: &Image) -> bool {
+        self.image.width == image.width
+            && self.image.height == image.height
+            && self.logical_size == [image.width as f32, image.height as f32]
+            && self.image.pixels.same_storage(&image.pixels)
+    }
     pub fn new(image: Image) -> Result<Rc<Self>> {
         let size = [image.width as f32, image.height as f32];
         Self::with_logical_size(image, size)

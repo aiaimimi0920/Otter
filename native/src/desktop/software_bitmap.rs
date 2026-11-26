@@ -55,7 +55,10 @@ impl Bitmap {
             )?);
             let bits = NonNull::new(bits.cast::<u8>())
                 .ok_or_else(|| Error::new(E_FAIL, "Missing software DIB storage"))?;
-            std::ptr::write_bytes(bits.as_ptr(), 0, bytes);
+            // Performance audit optimization (Tier 0.4):
+            // `CreateDIBSection` with `hSection = None` allocates fresh demand-zeroed anonymous pages from the Windows
+            // kernel; skipping a redundant user-mode `write_bytes(0, bytes)` saves 31.64 MiB of page-fault write
+            // traffic per 4K software surface before D2D/caller rendering immediately overwrites or clears it.
             let old = SelectObject(dc.0, bitmap.0.into());
             if old.is_invalid() {
                 return Err(Error::new(E_FAIL, "Software DIB selection failed"));

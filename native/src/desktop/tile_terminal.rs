@@ -137,6 +137,7 @@ fn output_run(id: &str, origin: &str, profile: Option<&Path>) -> Result<()> {
     output.observe(crate::tile_outputs::enumerate());
     let mut probe = Instant::now();
     let mut error = None;
+    let mut running = false;
     loop {
         if let Err(e) = pump() {
             error = Some(e);
@@ -145,16 +146,30 @@ fn output_run(id: &str, origin: &str, profile: Option<&Path>) -> Result<()> {
         if status.stopped() {
             output.stop();
         }
-        if probe.elapsed() >= Duration::from_millis(500) {
+        // Performance audit optimization (Tier 3.7):
+        // Active Tile windows already react immediately to `WM_DISPLAYCHANGE | WM_DPICHANGED`; relax synchronous
+        // `EnumDisplayDevicesW` probing from 500ms to 5s while `Running` to avoid 1.5–10ms display-driver stalls,
+        // and wait on `output.wake_handle()` so published frames present immediately instead of sleeping up to 100ms.
+        let probe_interval = if running {
+            Duration::from_secs(5)
+        } else {
+            Duration::from_millis(500)
+        };
+        if probe.elapsed() >= probe_interval {
             output.observe(crate::tile_outputs::enumerate());
             probe = Instant::now();
         }
         match output.tick(&mut owner, origin, profile) {
-            Ok(output::Status::Running) => status.hide(),
+            Ok(output::Status::Running) => {
+                running = true;
+                status.hide();
+            }
             Ok(output::Status::Waiting) => {
+                running = false;
                 status.show(crate::ui_text::text("integration-tile-wait-display"))
             }
             Ok(output::Status::Draining) => {
+                running = false;
                 status.show(crate::ui_text::text("integration-tile-draining"))
             }
             Ok(output::Status::Stopped) => break,
@@ -163,7 +178,7 @@ fn output_run(id: &str, origin: &str, profile: Option<&Path>) -> Result<()> {
                 break;
             }
         }
-        wait(100);
+        wait_handle(output.wake_handle(), 100);
     }
     output.stop();
     while !output.drain() {
@@ -191,7 +206,16 @@ pub(super) fn pump() -> Result<()> {
     Ok(())
 }
 pub(super) fn wait(ms: u32) {
+    wait_handle(None, ms);
+}
+fn wait_handle(handle: Option<HANDLE>, ms: u32) {
     unsafe {
-        let _ = MsgWaitForMultipleObjectsEx(None, ms, QS_ALLINPUT, MWMO_INPUTAVAILABLE);
+        let handles = handle.map(|h| [h]);
+        let _ = MsgWaitForMultipleObjectsEx(
+            handles.as_ref().map(|h| h.as_slice()),
+            ms,
+            QS_ALLINPUT,
+            MWMO_INPUTAVAILABLE,
+        );
     }
 }

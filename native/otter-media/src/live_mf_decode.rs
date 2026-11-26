@@ -22,6 +22,7 @@ pub struct VideoDecoder {
     configured: Option<ConfiguredDecoder>,
     last_input: Option<i64>,
     pending: VecDeque<i64>,
+    nv12_scratch: pixels::Nv12Scratch,
 }
 impl ConfiguredDecoder {
     pub fn into_video(self) -> VideoDecoder {
@@ -29,6 +30,7 @@ impl ConfiguredDecoder {
             configured: Some(self),
             last_input: None,
             pending: VecDeque::new(),
+            nv12_scratch: pixels::Nv12Scratch::default(),
         }
     }
 }
@@ -45,6 +47,7 @@ impl VideoDecoder {
             // Never reuse invalid reference chains; return COM/MF/process slots immediately on current owner threads.
             self.configured.take();
             self.pending.clear();
+            self.nv12_scratch.clear();
         }
         result
     }
@@ -92,7 +95,7 @@ impl VideoDecoder {
                     let media = transform.GetOutputCurrentType(0)?;
                     let current =
                         super::Layout::read(&media, layout.visible_width, layout.visible_height)?;
-                    let pixels = pixels::decode(&sample, &media, current)?;
+                    let pixels = pixels::decode(&sample, &media, current, &mut self.nv12_scratch)?;
                     check_stop(stop)?;
                     return Ok(Some(Decoded {
                         timestamp,

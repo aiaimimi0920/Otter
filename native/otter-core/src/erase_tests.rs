@@ -9,6 +9,62 @@ fn source() -> Pixels {
 }
 
 #[test]
+#[ignore = "leases the global pixel budget; run alone in a fresh process"]
+fn tiny_erase_preserves_small_remaining_budget() {
+    let source: Pixels = vec![255; 4].into();
+    let _pressure = pixels::reserve(pixels::DECODED_PIXEL_LIMIT - 4 - 16).unwrap();
+    let output = apply(&source, (1, 1), &[p(0.5, 0.5)], 4.0, || false).unwrap();
+    assert_eq!(&*output, &[0; 4]);
+}
+
+#[test]
+#[ignore = "leases the global pixel budget; run alone in a fresh process"]
+fn narrow_erase_does_not_pay_for_empty_tile_columns() {
+    let source: Pixels = vec![255; 2 * 9000 * 4].into();
+    let _pressure =
+        pixels::reserve(pixels::DECODED_PIXEL_LIMIT - source.len() - 120 * 1024).unwrap();
+    let output = apply(
+        &source,
+        (2, 9000),
+        &[p(1.0, 0.5), p(1.0, 8999.5)],
+        4.0,
+        || false,
+    )
+    .unwrap();
+    assert!(output.iter().all(|byte| *byte == 0));
+}
+
+#[test]
+#[ignore = "leases the global pixel budget; run alone in a fresh process"]
+fn broad_erase_with_partial_edge_tiles_still_fits_the_dense_budget() {
+    let source: Pixels = vec![255; 145 * 145 * 4].into();
+    let _pressure =
+        pixels::reserve(pixels::DECODED_PIXEL_LIMIT - source.len() - 128 * 1024).unwrap();
+    let points = [p(0.0, 24.0), p(145.0, 24.0), p(145.0, 121.0), p(0.0, 121.0)];
+    let output = apply(&source, (145, 145), &points, 96.0, || false).unwrap();
+    assert_eq!(&output[..4], &[0; 4]);
+    assert_eq!(&output[output.len() - 4..], &[0; 4]);
+}
+
+#[test]
+#[ignore = "leases the global pixel budget; run alone in a fresh process"]
+fn thin_diagonal_erase_still_fits_when_a_dense_mask_cannot() {
+    let source: Pixels = vec![255; 512 * 512 * 4].into();
+    let _pressure =
+        pixels::reserve(pixels::DECODED_PIXEL_LIMIT - 2 * source.len() - 256 * 1024).unwrap();
+    let output = apply(
+        &source,
+        (512, 512),
+        &[p(0.0, 0.0), p(512.0, 512.0)],
+        4.0,
+        || false,
+    )
+    .unwrap();
+    assert_eq!(&output[..4], &[0; 4]);
+    assert_eq!(&output[511 * 4..512 * 4], &[255; 4]);
+}
+
+#[test]
 fn dot_erases_to_transparency_preserves_outside_and_premultiplied_edges() {
     let source = source();
     let original = source.to_vec();

@@ -141,6 +141,10 @@ pub(super) unsafe fn copy_pooled(
     } else {
         context.CopySubresourceRegion(&allocation.texture, 0, 0, 0, 0, source, 0, Some(&area));
     }
+    // Performance audit optimization:
+    // Submit the copy command buffer immediately on the background capture thread rather than deferring WDDM
+    // command submission and `ID3D11Multithread` lock contention until the UI thread's `WM_PAINT`.
+    context.Flush();
     device.GetDeviceRemovedReason().map_err(Error::Api)?;
     check(cancel)?;
     Ok(Texture {

@@ -67,9 +67,16 @@ pub(in crate::desktop) unsafe fn click_dispatch(
 
 pub(super) struct Preview {
     window: window::Window,
-    canvas: RefCell<Canvas>,
+    canvas: RefCell<Option<Canvas>>,
     stamp: RefCell<Stamp>,
     padding: Cell<u32>,
+}
+/// Release transient user-mode software rendering buffers once a stationary preview is parked in DWM.
+/// If a parked pin is later resized across DPI or zoomed again, `Preview::prepare` lazily rebuilds `Canvas`.
+pub(super) fn release_parked_buffers(state: &State) {
+    if let Some(preview) = state.pin_animation.preview.borrow().as_ref() {
+        preview.canvas.borrow_mut().take();
+    }
 }
 pub(in crate::desktop) fn active(state: &State) -> bool {
     state.pin_animation.preview.borrow().is_some()
@@ -104,6 +111,14 @@ pub(in crate::desktop) fn fresh(state: &State) -> bool {
         })
 }
 pub(super) unsafe fn begin(hwnd: HWND, state: &State, rect: PinRect) -> Result<()> {
+    begin_with_viewport(hwnd, state, rect, None)
+}
+pub(super) unsafe fn begin_with_viewport(
+    hwnd: HWND,
+    state: &State,
+    rect: PinRect,
+    viewport: Option<crate::viewport::Viewport>,
+) -> Result<()> {
     if active(state) {
         return Ok(());
     }
@@ -117,17 +132,23 @@ pub(super) unsafe fn begin(hwnd: HWND, state: &State, rect: PinRect) -> Result<(
     };
     let preview = Rc::new(Preview {
         window: window::Window::new(hwnd, state)?,
-        canvas: RefCell::new(canvas),
+        canvas: RefCell::new(Some(canvas)),
         stamp: RefCell::new(stamp),
         padding: Cell::new(0),
     });
     // Finish pixels, opacity, and border in memory first; do not cover a translucent host before spending time preparing the mask.
-    let frame = preview.prepare(hwnd, state, rect)?;
+    let frame = preview.prepare(hwnd, state, rect, viewport)?;
     if !state.lifetime.owns(hwnd) {
         return Ok(());
     }
     *state.pin_animation.preview.borrow_mut() = Some(preview.clone());
-    if let Err(error) = mask(hwnd).and_then(|_| preview.submit(frame, rect)) {
+    if let Err(error) = mask(hwnd).and_then(|_| {
+        #[cfg(test)]
+        if FAIL_SUBMIT.with(Cell::get) {
+            FAILED_HOST_VIEWPORT.with(|seen| seen.set(Some(state.canvas.borrow().viewport)));
+        }
+        preview.submit(frame, rect)
+    }) {
         finish(hwnd, state, true);
         return Err(error);
     }
@@ -153,13 +174,14 @@ pub(super) unsafe fn begin(hwnd: HWND, state: &State, rect: PinRect) -> Result<(
 }
 impl Preview {
     unsafe fn present(&self, hwnd: HWND, state: &State, rect: PinRect) -> Result<()> {
-        self.submit(self.prepare(hwnd, state, rect)?, rect)
+        self.submit(self.prepare(hwnd, state, rect, None)?, rect)
     }
     unsafe fn prepare(
         &self,
         hwnd: HWND,
         state: &State,
         rect: PinRect,
+        viewport: Option<crate::viewport::Viewport>,
     ) -> Result<(crate::desktop::software_surface::Submission, u32)> {
         self.window.sync_affinity(hwnd)?;
         self.window.sync_order(hwnd)?;
@@ -171,9 +193,21 @@ impl Preview {
         } else {
             0
         };
+        if self.canvas.borrow().is_none() {
+            let rebuilt = {
+                let source = state.canvas.borrow();
+                let frame = state.resolved_display.borrow();
+                source.zoom_snapshot(frame.as_ref())?.ok_or_else(|| {
+                    windows::core::Error::new(E_FAIL, "Zoom preview requires a complete document")
+                })?
+            };
+            *self.canvas.borrow_mut() = Some(rebuilt);
+        }
         let pending = {
-            let mut canvas = self.canvas.borrow_mut();
-            canvas.viewport = state.canvas.borrow().viewport;
+            let mut slot = self.canvas.borrow_mut();
+            let canvas = slot.as_mut().expect("preview canvas initialized");
+            // Preview geometry is speculative. Never mutate the host viewport before presentation commits.
+            canvas.viewport = viewport.unwrap_or_else(|| state.canvas.borrow().viewport);
             canvas.paint_display(
                 self.window.hwnd,
                 rect.width,
@@ -193,6 +227,13 @@ impl Preview {
         frame: (crate::desktop::software_surface::Submission, u32),
         rect: PinRect,
     ) -> Result<()> {
+        #[cfg(test)]
+        if FAIL_SUBMIT.with(|fail| fail.replace(false)) {
+            return Err(windows::core::Error::new(
+                E_FAIL,
+                "injected preview submit failure",
+            ));
+        }
         let (pending, padding) = frame;
         pending.present_at(
             self.window.hwnd,
@@ -218,12 +259,15 @@ pub(super) unsafe fn refresh_snapshot(hwnd: HWND, state: &State, rect: PinRect) 
         })?;
         (canvas, Stamp::capture(&source, frame.as_ref()))
     };
-    let old = preview.canvas.replace(canvas);
+    let old = preview.canvas.replace(Some(canvas));
     if let Err(error) = preview.present(hwnd, state, rect) {
         preview.canvas.replace(old);
         return Err(error);
     }
     *preview.stamp.borrow_mut() = stamp;
+    if super::stationary::active(state) {
+        preview.canvas.borrow_mut().take();
+    }
     Ok(())
 }
 pub(super) unsafe fn move_cached(hwnd: HWND, state: &State, rect: PinRect) -> Result<()> {
@@ -270,12 +314,22 @@ pub(super) unsafe fn move_cached(hwnd: HWND, state: &State, rect: PinRect) -> Re
     }
     Ok(())
 }
-pub(super) unsafe fn present(hwnd: HWND, state: &State, rect: PinRect) -> Result<()> {
+pub(super) unsafe fn present_with_viewport(
+    hwnd: HWND,
+    state: &State,
+    rect: PinRect,
+    viewport: Option<crate::viewport::Viewport>,
+) -> Result<()> {
     let preview = state.pin_animation.preview.borrow().clone();
     if let Some(preview) = preview {
-        preview.present(hwnd, state, rect)?;
+        preview.submit(preview.prepare(hwnd, state, rect, viewport)?, rect)?;
     }
     Ok(())
+}
+#[cfg(test)]
+thread_local! {
+    pub(super) static FAIL_SUBMIT: Cell<bool> = const { Cell::new(false) };
+    pub(super) static FAILED_HOST_VIEWPORT: Cell<Option<crate::viewport::Viewport>> = const { Cell::new(None) };
 }
 pub(in crate::desktop) unsafe fn mask(hwnd: HWND) -> Result<()> {
     let region = CreateRectRgn(0, 0, 0, 0);

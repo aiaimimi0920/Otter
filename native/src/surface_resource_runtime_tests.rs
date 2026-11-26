@@ -51,6 +51,47 @@ fn complete() -> (Grant, Ready, MountedSurface) {
     );
     (grant, ready, mount)
 }
+
+#[test]
+fn configured_image_resource_rechecks_the_same_ca_path_for_every_job() {
+    use crate::device_authorization_config::{Config, Error as PrepareError};
+    let (listener, client, tls, pem) = fixture_with_host("127.0.0.1");
+    let root = crate::test_temp_root().join(format!("otter-surface-ca-{:?}", unsafe {
+        windows::Win32::System::Com::CoCreateGuid().unwrap()
+    }));
+    std::fs::create_dir(&root).unwrap();
+    let ca = root.join("ca.pem");
+    std::fs::write(&ca, pem).unwrap();
+    let (mount, id) = image(&client.origin, b"data");
+    let mut grant = Grant::new(session(&client.origin, u64::MAX));
+    let mut run = || {
+        let config = Config::from_lookup(&client.origin, |key| match key {
+            "OTTER_NATIVE_PROFILE_DIR" => Some(root.join("profile").into_os_string()),
+            "OTTER_LOOM_TLS_ORIGIN" => Some(client.origin.clone().into()),
+            "OTTER_LOOM_TLS_CA_FILE" => Some(ca.clone().into_os_string()),
+            _ => None,
+        })
+        .unwrap();
+        let lease = grant.lease(&client.origin, clock()).unwrap();
+        let mut job =
+            Job::start(config, lease, mount.image_resource(&id, clock()).unwrap()).unwrap();
+        wait(&job);
+        job.try_join().unwrap()
+    };
+    let peer = std::thread::spawn(move || {
+        let mut stream = StreamOwned::new(ServerConnection::new(tls).unwrap(), accept(&listener));
+        request(&mut stream);
+        reply(&mut stream, 200, b"data");
+    });
+    assert!(run().is_ok());
+    peer.join().unwrap();
+    std::fs::remove_file(&ca).unwrap();
+    assert!(matches!(
+        run(),
+        Err(JobError::Preparation(PrepareError::Trust))
+    ));
+    std::fs::remove_dir(root).unwrap();
+}
 #[test]
 fn image_resource_transfer_releases_task_slot_but_keeps_destination_grant_gate() {
     let (mut grant, ready, mount) = complete();

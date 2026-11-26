@@ -76,14 +76,7 @@ fn run(stages: &[&str]) {
     assert_eq!(std::env::var("OTTER_TILE_VISIBLE_GATE").as_deref(), Ok("1"));
     let external_activation = std::env::var("OTTER_TILE_VISIBLE_ACTIVATE").as_deref() == Ok("1");
     let input = PathBuf::from(std::env::var_os("OTTER_TILE_JOINT_INPUT").unwrap());
-    let root = input.parent().unwrap().to_owned();
-    assert!(root.is_absolute());
-    let canonical = root.canonicalize().unwrap();
-    let allowed = [crate::test_temp_root(), std::env::temp_dir()];
-    assert!(allowed
-        .iter()
-        .filter_map(|candidate| candidate.canonicalize().ok())
-        .any(|base| canonical != base && canonical.starts_with(&base)));
+    let root = crate::temp_root::fixture_directory(input.parent().unwrap());
     let data = fs::read(&input).unwrap();
     assert!(data.len() < 65536);
     let value: Value = serde_json::from_slice(&data).unwrap();

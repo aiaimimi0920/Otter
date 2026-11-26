@@ -3,6 +3,8 @@ use super::*;
 #[path = "capture_region_release_paint.rs"]
 mod paint;
 
+const NON_RUDE: windows::core::PCWSTR = w!("NonRudeHWND");
+
 struct Selection {
     size: [i32; 2],
     model: Cell<super::super::capture_selection::Selection>,
@@ -25,6 +27,11 @@ impl Selection {
     }
     unsafe fn redraw(&self) {
         let _ = InvalidateRect(Some(self.outline.get()), None, false);
+    }
+    unsafe fn redraw_change(&self, before: Option<RECT>, after: Option<RECT>) {
+        let outline = self.outline.get();
+        let dpi = windows::Win32::UI::HiDpi::GetDpiForWindow(outline).clamp(96, 768);
+        super::drawing::invalidate_selection_change(outline, before, after, dpi);
     }
 }
 struct Class(HINSTANCE);
@@ -128,8 +135,10 @@ fn select_with(
         let outline = create(WS_EX_TRANSPARENT | WS_EX_NOACTIVATE, Some(input.0))?;
         state.outline.set(outline.0);
         SetLayeredWindowAttributes(outline.0, paint::KEY, 255, LWA_COLORKEY)?;
-        // Exclude both layers and destroy them before final capture; neither strokes nor the nearly transparent input layer belong in screenshots.
         for window in [input.0, outline.0] {
+            // These monitor-sized popups are selectors, not fullscreen apps. Opt out before
+            // either is shown so Explorer doesn't lower the taskbar and expose windows behind it.
+            SetPropW(window, NON_RUDE, Some(HANDLE(1usize as *mut _)))?;
             SetWindowDisplayAffinity(window, WDA_EXCLUDEFROMCAPTURE)?;
         }
         if visible {
@@ -165,6 +174,7 @@ fn select_with(
         }
         drop(outline);
         drop(input);
+        super::drawing::clear_cached_resources();
     }
     if state.failed.get() {
         return Err(Error::new(E_FAIL, "Cannot paint realtime selection"));
@@ -202,6 +212,7 @@ unsafe extern "system" fn procedure(hwnd: HWND, message: u32, wp: WPARAM, lp: LP
         return LRESULT(1);
     }
     if message == WM_NCDESTROY {
+        let _ = RemovePropW(hwnd, NON_RUDE);
         SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
         return DefWindowProcW(hwnd, message, wp, lp);
     }
@@ -243,8 +254,9 @@ unsafe extern "system" fn procedure(hwnd: HWND, message: u32, wp: WPARAM, lp: LP
                 model.update(point);
                 state.model.set(model);
             }
-            if before != state.preview() {
-                state.redraw();
+            let after = state.preview();
+            if before != after {
+                state.redraw_change(before, after);
             }
         }
         WM_LBUTTONUP if GetCapture() == hwnd => {

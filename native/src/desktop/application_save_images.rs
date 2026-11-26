@@ -1,4 +1,6 @@
 //! Save base images and independent raster-annotation layers; do not compose vectors or bake visible-frame cropping/window opacity.
+#[path = "application_save_image_cache.rs"]
+mod cache;
 use crate::{editor::Editor, pixels::Pixels};
 use std::sync::atomic::{AtomicBool, Ordering};
 use windows::core::{Error, Result};
@@ -123,13 +125,8 @@ fn encode_source(
     Ok(Some(Rasters { base, annotations }))
 }
 fn png((width, height): (u32, u32), pixels: &Pixels, cancel: &AtomicBool) -> Result<Png> {
-    let image = crate::desktop::image::Image {
-        width,
-        height,
-        pixels: pixels.clone(),
-    };
     Ok(Png {
-        bytes: crate::desktop::export::png_checkpoint(&image, cancel)?,
+        bytes: cache::encode_cached((width, height), pixels, cancel)?,
         width,
         height,
     })

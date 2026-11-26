@@ -52,6 +52,19 @@ impl SurfaceWindow {
     ) -> Result<()> {
         self.replace_image_scene(scene, images, false, true)
     }
+    pub(crate) fn reusable_bitmap(
+        &self,
+        id: &str,
+        image: &crate::image_decode::Image,
+    ) -> Option<std::rc::Rc<crate::surface_image_paint::Bitmap>> {
+        self.state
+            .host
+            .borrow()
+            .as_ref()
+            .and_then(|host| host.presentation().image_bitmap(id))
+            .filter(|bitmap| bitmap.matches_image(image))
+            .cloned()
+    }
     fn replace_image_scene(
         &self,
         scene: Scene,

@@ -23,22 +23,24 @@ fn rect(value: [f32; 4]) -> D2D_RECT_F {
         bottom: y.max(y + h),
     }
 }
-fn brush(target: &ID2D1RenderTarget, state: &State) -> Result<ID2D1SolidColorBrush> {
+/// Performance audit optimization (Tier 2.3):
+/// Update a batch-reused `ID2D1SolidColorBrush` via `SetColor` instead of allocating a fresh COM brush object per
+/// draw command (up to 8,192 COM allocations saved per `<canvas>` batch), and skip heap `Vec<f32>` dash allocation
+/// on solid strokes (`state.dash.is_empty()`).
+fn configure_brush<'a>(brush: &'a ID2D1SolidColorBrush, state: &State) -> &'a ID2D1SolidColorBrush {
     let [r, g, b, a] =
         crate::surface_color::Color::parse(&state.color, crate::surface_color::Color::BLACK)
             .unwrap()
             .0;
     unsafe {
-        target.CreateSolidColorBrush(
-            &D2D1_COLOR_F {
-                r,
-                g,
-                b,
-                a: a * state.alpha,
-            },
-            None,
-        )
+        brush.SetColor(&D2D1_COLOR_F {
+            r,
+            g,
+            b,
+            a: a * state.alpha,
+        });
     }
+    brush
 }
 fn stroke(factory: &ID2D1Factory, state: &State) -> Result<ID2D1StrokeStyle> {
     let cap = match state.cap.as_str() {
@@ -51,7 +53,11 @@ fn stroke(factory: &ID2D1Factory, state: &State) -> Result<ID2D1StrokeStyle> {
         "bevel" => D2D1_LINE_JOIN_BEVEL,
         _ => D2D1_LINE_JOIN_MITER,
     };
-    let dashes: Vec<f32> = state.dash.iter().map(|v| v / state.width).collect();
+    let dashes: Vec<f32> = if state.dash.is_empty() {
+        Vec::new()
+    } else {
+        state.dash.iter().map(|v| v / state.width).collect()
+    };
     let custom = dashes.iter().any(|v| *v > 0.);
     unsafe {
         factory.CreateStrokeStyle(
@@ -74,6 +80,7 @@ fn stroke(factory: &ID2D1Factory, state: &State) -> Result<ID2D1StrokeStyle> {
 }
 pub(super) fn draw(
     target: &ID2D1RenderTarget,
+    brush: &ID2D1SolidColorBrush,
     factory: &ID2D1Factory,
     text_engine: &crate::surface_text::Engine,
     images: &super::images::Bitmaps,
@@ -102,16 +109,16 @@ pub(super) fn draw(
                 stroke: outlined,
             } => {
                 transform(target, state.transform);
-                let brush = brush(target, state)?;
+                let brush = configure_brush(brush, state);
                 if *outlined {
                     target.DrawRectangle(
                         &rect(*value),
-                        &brush,
+                        brush,
                         state.width,
                         &stroke(factory, state)?,
                     );
                 } else if value[2] != 0. && value[3] != 0. {
-                    target.FillRectangle(&rect(*value), &brush);
+                    target.FillRectangle(&rect(*value), brush);
                 }
             }
             Draw::Path {
@@ -124,12 +131,12 @@ pub(super) fn draw(
                     return Ok(());
                 }
                 transform(target, state.transform);
-                let brush = brush(target, state)?;
+                let brush = configure_brush(brush, state);
                 let geometry = super::path::geometry(factory, path, *evenodd, !outlined)?;
                 if *outlined {
-                    target.DrawGeometry(&geometry, &brush, state.width, &stroke(factory, state)?);
+                    target.DrawGeometry(&geometry, brush, state.width, &stroke(factory, state)?);
                 } else {
-                    target.FillGeometry(&geometry, &brush, None);
+                    target.FillGeometry(&geometry, brush, None);
                 }
             }
             Draw::Text { text, point, state } => {
@@ -152,7 +159,7 @@ pub(super) fn draw(
                         "bottom" => size[1],
                         _ => layout.baseline(),
                     };
-                layout.draw(target, &brush(target, state)?, [x, y])?;
+                layout.draw(target, configure_brush(brush, state), [x, y])?;
             }
         }
         Ok(())

@@ -64,9 +64,22 @@ pub(crate) fn scene(value: &serde_json::Value) -> io::Result<crate::surface_scen
     scene.set_canvas_sizes(&sizes);
     Ok(scene)
 }
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn images(
     scene: &crate::surface_scene::Scene,
     frames: Vec<CanvasFrame>,
+) -> io::Result<BTreeMap<String, crate::image_decode::Image>> {
+    let mut scratch = BTreeMap::new();
+    images_cached(scene, frames, &mut scratch)
+}
+/// Performance audit optimization (Tier 2.3):
+/// Reuse decoded `Image` (`Pixels` `Arc`) across frames within the same JS `Session` whenever a `<canvas>` node's
+/// dimensions and cached PNG payload are unchanged, eliminating redundant Base64 decode, PNG inflate, and PBGRA
+/// premultiplication on pure button-hover or timer ticks while preserving `same_storage` for GPU bitmap reuse.
+pub(crate) fn images_cached(
+    scene: &crate::surface_scene::Scene,
+    frames: Vec<CanvasFrame>,
+    cache: &mut BTreeMap<String, ([u32; 2], String, crate::image_decode::Image)>,
 ) -> io::Result<BTreeMap<String, crate::image_decode::Image>> {
     if frames.len() > MAX_CANVASES {
         return Err(invalid());
@@ -80,6 +93,7 @@ pub(crate) fn images(
         pending.extend(node.children());
     }
     let mut output = BTreeMap::new();
+    let mut next_cache = BTreeMap::new();
     let mut total = 0;
     for frame in frames {
         let size = [frame.width, frame.height];
@@ -98,15 +112,25 @@ pub(crate) fn images(
             }
             continue;
         }
+        if let Some((cached_size, cached_png, cached_image)) = cache.remove(&frame.id) {
+            if cached_size == size && cached_png == frame.png {
+                output.insert(frame.id.clone(), cached_image.clone());
+                next_cache.insert(frame.id, (size, cached_png, cached_image));
+                continue;
+            }
+        }
         let encoded = STANDARD.decode(&frame.png).map_err(|_| invalid())?;
         if encoded.len() > MAX_PNG {
             return Err(invalid());
         }
-        output.insert(frame.id, decode(size, &encoded)?);
+        let image = decode(size, &encoded)?;
+        output.insert(frame.id.clone(), image.clone());
+        next_cache.insert(frame.id, (size, frame.png, image));
     }
     if !expected.is_empty() {
         return Err(invalid());
     }
+    *cache = next_cache;
     Ok(output)
 }
 /// Committed frames and private service snapshots reuse the same Canvas codec; callers first bound aggregate sizes and PNG allocations.
@@ -133,13 +157,10 @@ pub(crate) fn decode(size: [u32; 2], encoded: &[u8]) -> io::Result<crate::image_
     if info.buffer_size() != count {
         return Err(invalid());
     }
-    for rgba in pixels.chunks_exact_mut(4) {
-        let a = u32::from(rgba[3]);
-        let rgb = [rgba[2], rgba[1], rgba[0]];
-        for c in 0..3 {
-            rgba[c] = ((u32::from(rgb[c]) * a + 127) / 255) as u8;
-        }
-    }
+    // Performance audit optimization (Tier 0.3 / 2.3):
+    // Delegate RGBA<->PBGRA premultiply/unpremultiply to `otter_core::pixel_alpha` (`opt-level = 3`, 256-entry LUT),
+    // eliminating 3 integer hardware divisions per pixel during canvas snapshot round-trips.
+    otter_core::pixel_alpha::premultiply_rgba_to_pbgra_in_place(&mut pixels);
     Ok(crate::image_decode::Image {
         width: size[0],
         height: size[1],
@@ -151,16 +172,7 @@ pub(crate) fn encode(size: [u32; 2], mut pixels: Vec<u8>) -> io::Result<String> 
         return Err(invalid());
     }
     // WIC holds PBGRA; PNG uses straight RGBA, and transparent channels must not carry stale colors.
-    for bgra in pixels.chunks_exact_mut(4) {
-        let a = u32::from(bgra[3]);
-        let rgb = [bgra[2], bgra[1], bgra[0]];
-        for c in 0..3 {
-            bgra[c] = (u32::from(rgb[c]) * 255 + a / 2)
-                .checked_div(a)
-                .unwrap_or(0)
-                .min(255) as u8;
-        }
-    }
+    otter_core::pixel_alpha::unpremultiply_pbgra_to_rgba_in_place(&mut pixels);
     let mut output = Encoded(Vec::new());
     {
         let mut encoder = png::Encoder::new(&mut output, size[0], size[1]);

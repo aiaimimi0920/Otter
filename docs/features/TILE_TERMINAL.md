@@ -31,7 +31,8 @@ relative profiles, untrusted origins and other arguments. Both product cases in
 [`tile_product_runtime.rs`](../../native/tests/suites/tile_product_runtime.rs) are `#[ignore]`
 visible gates; ordinary `cargo test ... tile_product_runtime::` does not execute them.
 To run a visible gate, explicitly set `OTTER_TILE_VISIBLE_GATE=1`, prepare an isolated Loom fixture
-and `OTTER_TILE_JOINT_INPUT`, and bind the ordinary product EXE under test. The gate briefly displays
+in a new subdirectory of the repository `.tmp`, point `OTTER_TILE_JOINT_INPUT` at its input file,
+and bind the ordinary product EXE under test. The gate briefly displays
 its own full-screen color blocks and verifies pixels and stopping.
 Passing it does not establish acceptance of real multi-monitor layouts, external display paths
 or cross-device wall control.

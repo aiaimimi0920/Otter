@@ -260,6 +260,7 @@ pub(super) unsafe fn start_positioned(
     let token = DocumentToken::capture(&canvas);
     let pinned = new_pin || canvas.pinned;
     drop(canvas);
+    let wake_hwnd = hwnd.0 as isize;
     let worker = start_worker(
         || SetTimer(Some(hwnd), OPEN_TIMER, 100, None) != 0,
         || {
@@ -269,14 +270,30 @@ pub(super) unsafe fn start_positioned(
             std::thread::Builder::new()
                 .name("otter-open".into())
                 .spawn(move || {
-                    let mut result = load_inputs(input, pinned, &worker_cancel)?;
-                    if let (Some(documents), Some((cursor, request))) = (&mut result, position) {
-                        for document in documents {
-                            document.paste_origin = Some(cursor);
-                            document.placement = request.clone();
+                    let outcome = (|| {
+                        let mut result = load_inputs(input, pinned, &worker_cancel)?;
+                        if let (Some(documents), Some((cursor, request))) = (&mut result, position)
+                        {
+                            for document in documents {
+                                document.paste_origin = Some(cursor);
+                                document.placement = request.clone();
+                            }
                         }
+                        Ok(result)
+                    })();
+                    // Best-effort wake: an early poll still sees an unfinished thread.
+                    // The reserved timer will retry without blocking the message loop.
+                    if !worker_cancel.load(Ordering::Acquire) {
+                        let _ = unsafe {
+                            PostMessageW(
+                                Some(HWND(wake_hwnd as *mut _)),
+                                WM_TIMER,
+                                WPARAM(OPEN_TIMER),
+                                LPARAM(0),
+                            )
+                        };
                     }
-                    Ok(result)
+                    outcome
                 })
         },
     )?;

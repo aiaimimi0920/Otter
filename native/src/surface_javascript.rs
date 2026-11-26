@@ -65,6 +65,8 @@ pub struct Session {
     viewport: Option<crate::surface_viewport::Viewport>,
     dispatcher: Option<Box<dyn services::Dispatcher>>,
     allow_results: bool,
+    canvas_cache:
+        std::collections::BTreeMap<String, ([u32; 2], String, crate::image_decode::Image)>,
 }
 fn snapshot(value: &Value) -> io::Result<(Scene, u64)> {
     let bytes = wire::encode(value)?;
@@ -338,7 +340,7 @@ impl Session {
             return Err(wire::invalid());
         }
         let scene = wire::canvas::scene(&output.scene)?;
-        let images = wire::canvas::images(&scene, output.canvases)?;
+        let images = wire::canvas::images_cached(&scene, output.canvases, &mut self.canvas_cache)?;
         let result = output
             .result
             .map(|request| request.resolve(&images))

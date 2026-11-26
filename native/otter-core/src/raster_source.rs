@@ -38,19 +38,38 @@ pub fn compose(layers: &Layers, cancelled: impl Fn() -> bool) -> Result<Pixels, 
     if !lease.grow_to(output.capacity()) {
         return Err(BlurError::BudgetExceeded);
     }
-    output.resize(bytes, 0);
+    // Performance audit optimization:
+    // Copy `layers.base` directly instead of zero-filling 33 MB (`output.resize(bytes, 0)`) and then blending
+    // across >95% transparent `[0, 0, 0, 0]` annotation pixels. Checking all 4 bytes (`ov == &[0; 4]`) preserves
+    // exact bit-identity (`(base * 255 + 127) / 255 == base` for every `base in 0..=255`), and `ov[3] == 255`
+    // copies opaque strokes without division.
+    output.extend_from_slice(&layers.base);
     let stride = layers.size.0 as usize * 4;
-    for (row, target) in output.chunks_exact_mut(stride).enumerate() {
+    for (target_row, overlay_row) in output
+        .chunks_exact_mut(stride)
+        .zip(overlay.chunks_exact(stride))
+    {
         if cancelled() {
             return Err(BlurError::Cancelled);
         }
-        let start = row * stride;
-        for (column, pixel) in target.chunks_exact_mut(4).enumerate() {
-            let index = start + column * 4;
-            let keep = 255 - overlay[index + 3] as u32;
+        if overlay_row.iter().all(|&b| b == 0) {
+            continue;
+        }
+        for (pixel, ov) in target_row
+            .chunks_exact_mut(4)
+            .zip(overlay_row.chunks_exact(4))
+        {
+            if ov == [0, 0, 0, 0] {
+                continue;
+            }
+            if ov[3] == 255 {
+                pixel.copy_from_slice(ov);
+                continue;
+            }
+            let keep = 255 - u32::from(ov[3]);
             for channel in 0..4 {
-                pixel[channel] = (overlay[index + channel] as u32
-                    + (layers.base[index + channel] as u32 * keep + 127) / 255)
+                pixel[channel] = (u32::from(ov[channel])
+                    + (u32::from(pixel[channel]) * keep + 127) / 255)
                     .min(255) as u8;
             }
         }

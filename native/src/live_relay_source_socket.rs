@@ -53,11 +53,14 @@ impl Connection {
         if !check() {
             return Err(Error::Stopped);
         }
+        // Performance audit optimization (Tier 2.4):
+        // Queue the binary header and 16 KiB continuation frames with `socket.write(...)` into the 32 KiB write
+        // buffer and call `socket.flush()` once after the final fragment, coalescing TLS records and socket writes.
         self.socket
-            .send(Message::Frame(Frame::message(
+            .write(Message::Frame(Frame::message(
                 header.to_vec(),
                 OpCode::Data(Data::Binary),
-                false,
+                pixels.is_empty(),
             )))
             .map_err(source_error)?;
         let count = pixels.len().div_ceil(CHUNK);
@@ -66,13 +69,14 @@ impl Connection {
                 return Err(Error::Stopped);
             }
             self.socket
-                .send(Message::Frame(Frame::message(
+                .write(Message::Frame(Frame::message(
                     chunk.to_vec(),
                     OpCode::Data(Data::Continue),
                     index + 1 == count,
                 )))
                 .map_err(source_error)?;
         }
+        self.socket.flush().map_err(source_error)?;
         Ok(())
     }
     pub(crate) fn poll_source(&mut self) -> Result<SourceStep, Error> {

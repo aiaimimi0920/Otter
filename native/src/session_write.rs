@@ -249,6 +249,7 @@ fn assemble_with_reserve(
                 window.fields.remove("groupId");
             }
         }
+        // Reject before invoking another window builder or retaining its unleased JSON value.
         used = used
             .checked_add(measure(&window, cancel)?)
             .ok_or(Error::Budget)?;

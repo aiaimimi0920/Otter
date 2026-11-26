@@ -233,9 +233,16 @@ impl Renderer {
         #[cfg(test)]
         trace.mark(crate::surface_javascript_wire::diagnostics::Stage::CanvasCommandsBegin);
         let result = (|| {
+            let brush = unsafe {
+                backing.target.CreateSolidColorBrush(
+                    &windows::Win32::Graphics::Direct2D::Common::D2D1_COLOR_F::default(),
+                    None,
+                )?
+            };
             for command in &batch.commands {
                 draw::draw(
                     &backing.target,
+                    &brush,
                     &self.factory,
                     &self.text,
                     &canvas.images,

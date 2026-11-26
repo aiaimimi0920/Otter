@@ -24,30 +24,50 @@ fn length(frame: &Frame, axis: Axis) -> usize {
         Axis::Horizontal => frame.width as usize,
     }
 }
-fn signatures(frame: &Frame, axis: Axis, cancel: &AtomicBool) -> Result<Vec<u64>, Error> {
+fn signatures<'a>(frame: &'a Frame, axis: Axis, cancel: &AtomicBool) -> Result<&'a [u64], Error> {
+    if let Some(cached) = frame.signature_slot(axis).get() {
+        check(cancel)?;
+        return Ok(cached);
+    }
+    // Performance audit optimization:
+    // Replaced byte-by-byte FNV-1a (which had a 3-4 cycle loop-carried dependency on every single byte and
+    // could not auto-vectorize) with 64-bit word mixing on Vertical rows (8x fewer multiplies) and independent
+    // 32-bit pixel lane mixing on Horizontal columns (4x fewer multiplies, auto-vectorized across columns).
+    // Correctness is unchanged because `equal_region` performs an authoritative byte-exact slice comparison
+    // on every candidate offset returned by `overlaps`.
+    const PRIME: u64 = 0x9e3779b97f4a7c15;
     let mut result = vec![0xcbf29ce484222325u64; length(frame, axis)];
     let stride = frame.width as usize * 4;
-    // Both axes read physical rows sequentially; horizontal processing accumulates column signatures while preserving each column's byte order.
     for (y, row) in frame.pixels.chunks_exact(stride).enumerate() {
         check(cancel)?;
         match axis {
             Axis::Vertical => {
                 let mut hash = result[y];
-                for byte in row {
-                    hash = (hash ^ u64::from(*byte)).wrapping_mul(0x100000001b3);
+                let chunks = row.chunks_exact(8);
+                let tail = chunks.remainder();
+                for word in chunks {
+                    let v = u64::from_le_bytes(word.try_into().unwrap());
+                    hash = (hash ^ v).wrapping_mul(PRIME);
+                    hash ^= hash >> 32;
+                }
+                if !tail.is_empty() {
+                    let v = u32::from_le_bytes(tail.try_into().unwrap()) as u64;
+                    hash = (hash ^ v).wrapping_mul(PRIME);
+                    hash ^= hash >> 32;
                 }
                 result[y] = hash;
             }
             Axis::Horizontal => {
                 for (hash, pixel) in result.iter_mut().zip(row.chunks_exact(4)) {
-                    for byte in pixel {
-                        *hash = (*hash ^ u64::from(*byte)).wrapping_mul(0x100000001b3);
-                    }
+                    let px = u32::from_le_bytes([pixel[0], pixel[1], pixel[2], pixel[3]]) as u64;
+                    let mixed = (*hash ^ px).wrapping_mul(PRIME);
+                    *hash = mixed ^ (mixed >> 29);
                 }
             }
         }
     }
-    Ok(result)
+    let _ = frame.signature_slot(axis).set(result.into_boxed_slice());
+    Ok(frame.signature_slot(axis).get().unwrap())
 }
 // Return suffix/prefix overlaps meeting minimums; two suffice to prove ambiguity, avoiding quadratic candidate growth.
 fn overlaps(text: &[u64], pattern: &[u64], minimum: usize) -> Vec<usize> {
@@ -126,8 +146,8 @@ pub fn match_exact(
     }
     let a = signatures(previous, axis, cancel)?;
     let b = signatures(current, axis, cancel)?;
-    let forward = overlaps(&a, &b, minimum_overlap as usize);
-    let backward = overlaps(&b, &a, minimum_overlap as usize);
+    let forward = overlaps(a, b, minimum_overlap as usize);
+    let backward = overlaps(b, a, minimum_overlap as usize);
     check(cancel)?;
     if forward.len() + backward.len() > 1 {
         return Ok(Match::Ambiguous);

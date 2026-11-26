@@ -123,17 +123,21 @@ pub unsafe fn wheel(hwnd: HWND, state: &State, wp: WPARAM, lp: LPARAM) {
         return;
     }
     state.pin_animation.parked.set(false);
-    if let Err(error) = super::preview::begin(hwnd, state, current) {
-        state.pin_zoom.set(Default::default());
-        *state.error.borrow_mut() = Some(error);
-        return;
-    }
-    // Finish expensive software painting first, then commit host geometry and the continuously present shared white border.
-    super::fit_size(hwnd, state, (target.width as i32, target.height as i32));
-    if let Err(error) = super::preview::present(hwnd, state, target) {
-        cancel(hwnd, state);
-        *state.error.borrow_mut() = Some(error);
-        return;
+    let viewport = super::fitted_viewport(hwnd, state, (target.width as i32, target.height as i32));
+    // Start directly at the target to avoid painting both current and target on the first notch.
+    if !super::preview::active(state) {
+        if let Err(error) = super::preview::begin_with_viewport(hwnd, state, target, viewport) {
+            state.pin_zoom.set(Default::default());
+            *state.error.borrow_mut() = Some(error);
+            return;
+        }
+    } else {
+        // Finish expensive software painting first, then commit host geometry and the continuously present shared white border.
+        if let Err(error) = super::preview::present_with_viewport(hwnd, state, target, viewport) {
+            cancel(hwnd, state);
+            *state.error.borrow_mut() = Some(error);
+            return;
+        }
     }
     if !super::presentation::apply(hwnd, state, target) {
         cancel(hwnd, state);

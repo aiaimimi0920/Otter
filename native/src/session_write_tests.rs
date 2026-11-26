@@ -4,6 +4,28 @@ fn topology() -> Topology {
     Topology::capture(&decode(SOURCE).unwrap().workspace)
 }
 #[test]
+fn oversized_window_stops_before_building_the_next_window() {
+    let mut builds = 0;
+    let result = assemble(
+        SOURCE,
+        &topology(),
+        &AtomicBool::new(false),
+        |_, mut old| {
+            builds += 1;
+            if builds != 1 {
+                return Err(Error::Window);
+            }
+            old.insert(
+                "extension".into(),
+                Value::String("\u{1}".repeat(MAX_SESSION_BYTES / 6 + 1)),
+            );
+            Ok(old)
+        },
+    );
+    assert!(matches!(result, Err(Error::Budget)));
+    assert_eq!(builds, 1);
+}
+#[test]
 fn existing_windows_need_only_the_final_output_pixel_budget() {
     let cancel = AtomicBool::new(false);
     let first = assemble(SOURCE, &topology(), &cancel, |_, old| Ok(old)).unwrap();

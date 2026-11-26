@@ -173,12 +173,27 @@ unsafe fn read_inner(
         if !output_lease.grow_to(bytes.capacity()) {
             return Err(Error::Budget);
         }
-        for y in 0..desc.Height as usize {
-            check(cancel)?;
-            bytes.extend_from_slice(std::slice::from_raw_parts(
-                mapped.pData.cast::<u8>().add(y * mapped.RowPitch as usize),
-                row,
-            ));
+        // Bulk-copy 64 contiguous rows per cancellation check when DXGI staging pitch has no row padding.
+        if mapped.RowPitch as usize == row {
+            let total_rows = desc.Height as usize;
+            let mut y = 0usize;
+            while y < total_rows {
+                check(cancel)?;
+                let batch = (total_rows - y).min(64);
+                bytes.extend_from_slice(std::slice::from_raw_parts(
+                    mapped.pData.cast::<u8>().add(y * row),
+                    batch * row,
+                ));
+                y += batch;
+            }
+        } else {
+            for y in 0..desc.Height as usize {
+                check(cancel)?;
+                bytes.extend_from_slice(std::slice::from_raw_parts(
+                    mapped.pData.cast::<u8>().add(y * mapped.RowPitch as usize),
+                    row,
+                ));
+            }
         }
         check(cancel)?;
         Ok(SdrFrame {

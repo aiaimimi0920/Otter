@@ -104,40 +104,15 @@ impl Entry {
     }
     pub fn removed(index: usize, stroke: Stroke) -> Self {
         Self {
-            index,
             occupied: false,
-            pin: None,
             stored: Some(stroke),
-            style: None,
-            rotation: None,
-            serial: None,
-            raster: None,
-            batch: None,
-            replacements: None,
-            styles: None,
-            crop: None,
-            document: None,
-            annotations: None,
-            mirror: None,
+            ..Self::added(index)
         }
     }
     pub fn styled(index: usize, style: StrokeStyle) -> Self {
         Self {
-            index,
-            occupied: true,
-            stored: None,
-            pin: None,
             style: Some(style),
-            rotation: None,
-            serial: None,
-            raster: None,
-            batch: None,
-            replacements: None,
-            styles: None,
-            crop: None,
-            document: None,
-            annotations: None,
-            mirror: None,
+            ..Self::added(index)
         }
     }
     pub fn styled_many(styles: Vec<(usize, StrokeStyle)>) -> Self {
@@ -148,21 +123,8 @@ impl Entry {
     }
     pub fn replaced(index: usize, stroke: Stroke) -> Self {
         Self {
-            index,
-            occupied: true,
             stored: Some(stroke),
-            pin: None,
-            style: None,
-            rotation: None,
-            serial: None,
-            raster: None,
-            batch: None,
-            replacements: None,
-            styles: None,
-            crop: None,
-            document: None,
-            annotations: None,
-            mirror: None,
+            ..Self::added(index)
         }
     }
     fn retained_points(&self) -> usize {
@@ -194,21 +156,8 @@ impl Entry {
     }
     pub fn rotated(index: usize, angle: f32) -> Self {
         Self {
-            index,
-            occupied: true,
-            stored: None,
-            style: None,
-            pin: None,
             rotation: Some(angle),
-            serial: None,
-            raster: None,
-            batch: None,
-            replacements: None,
-            styles: None,
-            crop: None,
-            document: None,
-            annotations: None,
-            mirror: None,
+            ..Self::added(index)
         }
     }
     pub fn serial_added(index: usize, previous: u32) -> Self {
@@ -314,6 +263,7 @@ impl Entry {
             }
             return;
         }
+        // History owns admitted snapshots: undo/redo must not allocate pixels or fail halfway.
         let raster_change = self.raster.is_some();
         if raster_change {
             std::mem::swap(&mut self.raster, raster);

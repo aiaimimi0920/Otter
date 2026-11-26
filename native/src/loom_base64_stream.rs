@@ -52,25 +52,12 @@ pub fn encode_png_reader(
         _lease: lease,
     })
 }
+/// Performance audit optimization (Tier 0.3):
+/// Delegate chunk Base64 encoding to `base64::engine::general_purpose::STANDARD.encode_string` (`opt-level = 3`
+/// vectorized lookup engine) instead of pushing one `char` at a time (~5.6M `String::push` calls per 4 MiB PNG).
 pub(super) fn append(text: &mut String, bytes: &[u8]) {
-    const DIGITS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    for chunk in bytes.chunks(3) {
-        let a = chunk[0];
-        let b = chunk.get(1).copied().unwrap_or(0);
-        let c = chunk.get(2).copied().unwrap_or(0);
-        text.push(DIGITS[(a >> 2) as usize] as char);
-        text.push(DIGITS[(((a & 3) << 4) | (b >> 4)) as usize] as char);
-        text.push(if chunk.len() > 1 {
-            DIGITS[(((b & 15) << 2) | (c >> 6)) as usize] as char
-        } else {
-            '='
-        });
-        text.push(if chunk.len() > 2 {
-            DIGITS[(c & 63) as usize] as char
-        } else {
-            '='
-        });
-    }
+    use base64::Engine as _;
+    base64::engine::general_purpose::STANDARD.encode_string(bytes, text);
 }
 fn check(cancel: &AtomicBool) -> Result<(), Error> {
     if cancel.load(Ordering::Acquire) {

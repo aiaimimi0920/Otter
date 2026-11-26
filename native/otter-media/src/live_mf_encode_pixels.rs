@@ -59,15 +59,18 @@ fn convert(
         let (y_rows, _) = y_plane[y * w..(y + 2) * w].split_at_mut(2 * w);
         let (y_out0, y_out1) = y_rows.split_at_mut(w);
         let uv_out = &mut uv_plane[(y / 2) * w..(y / 2 + 1) * w];
+        // Performance audit optimization:
+        // Hoisted the early-return `alpha != 255` branch out of the innermost `x` loop into a branchless
+        // per-row bitwise accumulator `alpha_mask`. This preserves the exact fail-closed transparency guarantee
+        // (checked before `convert` returns `Ok(())` so `ProcessInput` never receives transparent frames) while
+        // removing the loop-carried control dependency that blocked LLVM's AVX2/SSE2 auto-vectorization.
+        let mut alpha_mask = 0xffu8;
         for x in (0..w).step_by(2) {
             let p00 = &row0[x * 4..x * 4 + 4];
             let p01 = &row0[x * 4 + 4..x * 4 + 8];
             let p10 = &row1[x * 4..x * 4 + 4];
             let p11 = &row1[x * 4 + 4..x * 4 + 8];
-            // H264 has no alpha; never silently turn transparency black/opaque. Callers retire codecs and send original raw instead.
-            if (p00[3] & p01[3] & p10[3] & p11[3]) != 255 {
-                return Err(invalid("H264 cannot preserve input alpha"));
-            }
+            alpha_mask &= p00[3] & p01[3] & p10[3] & p11[3];
             let (r00, g00, b00) = (i32::from(p00[2]), i32::from(p00[1]), i32::from(p00[0]));
             let (r01, g01, b01) = (i32::from(p01[2]), i32::from(p01[1]), i32::from(p01[0]));
             let (r10, g10, b10) = (i32::from(p10[2]), i32::from(p10[1]), i32::from(p10[0]));
@@ -82,6 +85,10 @@ fn convert(
                 (b00 + b01 + b10 + b11 + 2) >> 2,
             );
             uv_out[x..x + 2].copy_from_slice(&uv);
+        }
+        // H264 has no alpha; never silently turn transparency black/opaque. Callers retire codecs and send original raw instead.
+        if alpha_mask != 255 {
+            return Err(invalid("H264 cannot preserve input alpha"));
         }
     }
     Ok(())

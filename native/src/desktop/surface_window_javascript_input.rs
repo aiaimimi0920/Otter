@@ -199,10 +199,19 @@ impl AuthorizedWindow {
         {
             return Err(Error::new(E_FAIL, "JS emit batch cannot be admitted"));
         }
+        // Performance audit optimization (Tier 2.3):
+        // Reuse the existing `Rc<surface_image_paint::Bitmap>` (and its uploaded GPU `ID2D1Bitmap`) whenever a
+        // `<canvas>` frame's `Pixels` storage (`same_storage`) has not changed since the previous JS frame.
         let images = frame
             .images
             .into_iter()
-            .map(|(id, image)| Ok((id, crate::surface_image_paint::Bitmap::new(image)?)))
+            .map(|(id, image)| {
+                let bitmap = match self.window.reusable_bitmap(&id, &image) {
+                    Some(existing) => existing,
+                    None => crate::surface_image_paint::Bitmap::new(image)?,
+                };
+                Ok((id, bitmap))
+            })
             .collect::<Result<_>>()?;
         self.window.replace_javascript_frame(frame.scene, images)?;
         if self

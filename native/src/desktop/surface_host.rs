@@ -124,11 +124,26 @@ impl Host {
             || view.0.height != self.viewport.0.height
             || view.1 != self.viewport.1
         {
-            self.presentation.release_device_resources();
-            self.target = None;
+            self.resize_or_release_target(view);
         }
         self.viewport = view;
         self.sync_edits()
+    }
+    /// Performance audit optimization (Tier 0.2):
+    /// Resize an existing `ID2D1HwndRenderTarget` in place when only pixel dimensions change at the same DPI, keeping
+    /// all uploaded `ID2D1Bitmap`s resident on the GPU (~0.2ms) instead of destroying the DXGI swap chain and
+    /// re-uploading 10–30 MiB of surface images over PCIe on every 1px drag-resize step. Falls back to full device
+    /// resource release on DPI changes or `D2DERR_RECREATE_TARGET`.
+    fn resize_or_release_target(&mut self, view: (D2D_SIZE_U, u32)) {
+        let resized = view.1 == self.viewport.1
+            && self
+                .target
+                .as_ref()
+                .is_some_and(|(target, _)| unsafe { target.Resize(&view.0) }.is_ok());
+        if !resized {
+            self.presentation.release_device_resources();
+            self.target = None;
+        }
     }
     /// Synchronize geometry without creating rendering targets; hit testing cannot wait for WM_PAINT to see a new viewport.
     fn sync_viewport(&mut self) -> Result<bool> {
@@ -143,11 +158,12 @@ impl Host {
             let size = logical(view.0, view.1);
             self.presentation.reflow(style(), context(size), size)?;
             let previous = self.viewport;
+            self.resize_or_release_target(view);
             self.viewport = view;
-            self.presentation.release_device_resources();
-            self.target = None;
             if let Err(error) = self.sync_edits() {
                 // Do not cache failed control layout, or the next input would skip admission and use partially updated geometry.
+                self.presentation.release_device_resources();
+                self.target = None;
                 self.viewport = previous;
                 return Err(error);
             }

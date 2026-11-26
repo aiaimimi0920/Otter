@@ -5,8 +5,10 @@ import json
 import os
 from pathlib import Path
 import sys
+import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 
 
 SPEC = importlib.util.spec_from_file_location(
@@ -18,10 +20,29 @@ SPEC.loader.exec_module(LAUNCHER)
 @unittest.skipUnless(sys.platform == "win32", "Win32 process Job required")
 class ForegroundLauncherTests(unittest.TestCase):
     def setUp(self):
-        LAUNCHER.TEMP_ROOT.mkdir(parents=True, exist_ok=True)
-        self.work = tempfile.TemporaryDirectory(dir=LAUNCHER.TEMP_ROOT)
+        self.work = tempfile.TemporaryDirectory(dir=LAUNCHER.scratch_root())
         self.addCleanup(self.work.cleanup)
         self.root = Path(self.work.name)
+
+    def test_external_junction_is_rejected_before_writing(self):
+        repo = self.root / "repo"
+        other = self.root / "other"
+        repo.mkdir()
+        other.mkdir()
+        sentinel = other / "keep.txt"
+        sentinel.write_text("unchanged", encoding="utf-8")
+        link = repo / ".tmp"
+        subprocess.run(["cmd.exe", "/d", "/c", "mklink", "/J", str(link), str(other)],
+                       check=True, capture_output=True)
+        try:
+            with patch.object(LAUNCHER, "REPO_ROOT", repo), patch.object(LAUNCHER, "TEMP_ROOT", link):
+                with self.assertRaisesRegex(ValueError, "must resolve inside"):
+                    LAUNCHER.scratch_root()
+            self.assertEqual(list(other.iterdir()), [sentinel])
+            self.assertEqual(sentinel.read_text(encoding="utf-8"), "unchanged")
+        finally:
+            # Remove only this owned junction, never its target.
+            os.rmdir(link)
 
     def test_inventory_rejects_duplicates_and_nonexact_candidates(self):
         path = self.root / "cases.json"

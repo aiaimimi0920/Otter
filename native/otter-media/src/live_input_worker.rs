@@ -215,6 +215,7 @@ impl<E> Worker<E> {
     }
     /// Reset before reading to avoid lost concurrent notices; keep signaled after taking an item, resetting on the next empty read.
     pub fn poll_reply(&mut self) -> io::Result<Option<Reply<E>>> {
+        // Reset even on an empty queue: a producer may signal after its reply was consumed.
         unsafe { ResetEvent(HANDLE(self.wake.as_raw_handle())) }.map_err(io::Error::other)?;
         match self.replies.try_recv() {
             Ok(reply) => {

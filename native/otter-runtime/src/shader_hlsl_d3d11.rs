@@ -267,6 +267,8 @@ impl Device {
         stopped: &impl Fn() -> bool,
         deadline: Instant,
     ) -> Result<D3D11_MAPPED_SUBRESOURCE> {
+        // Spin/yield briefly before sleeping so ~100 us GPU readbacks do not pay a full OS timer quantum (~1-15.6 ms).
+        let mut attempts = 0u32;
         loop {
             check(stopped, deadline)?;
             let mut mapped = D3D11_MAPPED_SUBRESOURCE::default();
@@ -279,7 +281,14 @@ impl Device {
             ) {
                 Ok(()) => return Ok(mapped),
                 Err(error) if error.code() == DXGI_ERROR_WAS_STILL_DRAWING => {
-                    std::thread::sleep(Duration::from_millis(1))
+                    if attempts < 8 {
+                        std::hint::spin_loop();
+                    } else if attempts < 16 {
+                        std::thread::yield_now();
+                    } else {
+                        std::thread::sleep(Duration::from_millis(1));
+                    }
+                    attempts = attempts.saturating_add(1);
                 }
                 Err(error) => return Err(api(Stage::Readback, error)),
             }

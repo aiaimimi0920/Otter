@@ -55,6 +55,35 @@ impl Editor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    #[ignore = "leases the global pixel budget; run alone in a fresh process"]
+    fn multiple_raster_undo_redo_never_needs_another_frame() {
+        let original = layers(255);
+        let mut editor = Editor::with_layers(original.clone()).unwrap();
+        for index in [0, 4] {
+            let source = editor.layers().unwrap().clone();
+            let mut next = source.clone();
+            let mut bytes = source.base.to_vec();
+            bytes[index..index + 4].fill(0);
+            next.base = bytes.into();
+            assert!(editor
+                .replace_layers(editor.revision(), &source, next)
+                .unwrap());
+        }
+        let final_layers = editor.layers().unwrap().clone();
+        let _pressure =
+            crate::pixels::reserve(crate::pixels::DECODED_PIXEL_LIMIT - 4 * 16 * 16 * 3 - 4)
+                .unwrap();
+        assert!(crate::pixels::reserve(4 * 16 * 16).is_none());
+        assert!(editor.undo());
+        assert!(editor.undo());
+        assert!(editor.elements().is_empty());
+        assert!(editor.layers().unwrap().same_storage(&original));
+        assert!(editor.redo());
+        assert!(editor.redo());
+        assert!(editor.layers().unwrap().same_storage(&final_layers));
+    }
+
     fn layers(value: u8) -> Layers {
         Layers {
             annotation_size: None,

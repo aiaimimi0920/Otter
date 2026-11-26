@@ -21,6 +21,7 @@ pub mod message_clock;
 pub mod mosaic;
 pub mod paintbrush_samples;
 pub mod pin_geometry;
+pub mod pixel_alpha;
 pub mod pixels;
 pub mod polygon_geometry;
 pub mod projection_receive_policy;

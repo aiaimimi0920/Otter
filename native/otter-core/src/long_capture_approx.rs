@@ -2,6 +2,8 @@
 use super::view::View;
 use super::{Axis, Error, Frame};
 use std::sync::atomic::{AtomicBool, Ordering};
+#[path = "long_capture_approx_strip.rs"]
+mod strip;
 
 #[derive(Clone, Copy, Debug)]
 pub struct MatchOptions {
@@ -180,8 +182,19 @@ pub(super) fn match_views(
     let mut sparse = Vec::with_capacity(2);
     let mut sparse_overflow = false;
     let ceiling = options.maximum_mean_error + 2.0;
+    // Pre-gather the 16 sampled cross-axis columns and adjacent RGB gradients once into L2-resident strips
+    // instead of striding up to 2.2 MB across 33 MB frame buffers on every candidate `delta`.
+    let prev_strip = strip::SampleStrip::gather(previous, axis, strip::COARSE_SAMPLES.1, cancel)?;
+    let curr_strip = strip::SampleStrip::gather(current, axis, strip::COARSE_SAMPLES.1, cancel)?;
     for delta in -limit..=limit {
-        let candidate = score(previous, current, axis, delta, (16, 16), ceiling, cancel)?;
+        let candidate = prev_strip.score(
+            &curr_strip,
+            length,
+            delta,
+            strip::COARSE_SAMPLES.0,
+            ceiling,
+            cancel,
+        )?;
         if candidate.texture < 4.0 {
             if candidate.error <= ceiling {
                 if sparse.len() < 2 {

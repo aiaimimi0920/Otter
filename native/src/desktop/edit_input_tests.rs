@@ -33,13 +33,14 @@ fn mosaic_input_commits_continuous_path_and_restores_independent_width() {
     assert!(canvas.pointer_down(p(30.0, 30.0)));
     canvas.pointer_move(p(40.0, 35.0));
     canvas.pointer_move(p(50.0, 45.0));
-    canvas.pointer_up(p(60.0, 50.0));
+    canvas.pointer_up(p(51.0, 45.0));
     assert_eq!(canvas.editor.elements().len(), 1);
     let stroke = canvas.editor.elements()[0].clone();
     assert_eq!(stroke.tool, Tool::Mosaic);
     assert_eq!(stroke.width, 28.0);
     assert_eq!(stroke.mosaic_cell, 24.0);
     assert_eq!(stroke.points.len(), 4);
+    assert_eq!(stroke.points.last(), Some(&p(31.0, 25.0)));
     canvas.select_tool(Tool::Select);
     canvas.pointer_down(p(22.0, 30.0));
     assert_eq!(canvas.selected_index(), Some(0));

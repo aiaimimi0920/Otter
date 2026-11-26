@@ -39,12 +39,12 @@ fn copy(
     if !lease.grow_to(bytes.capacity()) {
         return Err(Error::Budget);
     }
-    for row in data.chunks_exact(stride) {
+    // Single-pass opaque alpha force (`| 0xff00_0000` in little-endian BGRA): avoids copying 33 MB and then
+    // re-dirtying every cache line in a second strided `step_by(4)` pass.
+    for row in data.chunks_exact(stride).take(height as usize) {
         check(cancel)?;
-        let start = bytes.len();
-        bytes.extend_from_slice(&row[..row_bytes]);
-        for alpha in bytes[start + 3..].iter_mut().step_by(4) {
-            *alpha = 255;
+        for px in row[..row_bytes].chunks_exact(4) {
+            bytes.extend_from_slice(&[px[0], px[1], px[2], 255]);
         }
     }
     check(cancel)?;

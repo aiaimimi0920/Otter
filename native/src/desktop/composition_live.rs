@@ -167,8 +167,9 @@ fn validate(frame: &Texture) -> Result<ID3D11Device> {
 }
 fn bitmap(composition: &Composition, frame: &Texture) -> Result<ID2D1Bitmap1> {
     unsafe {
-        // Production capture devices enable multithread protection; first submit copy commands in the same device's immediate context.
-        frame.texture().GetDevice()?.GetImmediateContext()?.Flush();
+        // Performance audit optimization (Tier 0.1):
+        // `live_texture::copy_pooled` now flushes `CopyResource` on the background capture thread right after recording
+        // it, so the UI `WM_PAINT` path no longer needs to acquire the `ID3D11Multithread` lock and call `Flush()` here.
         let surface: IDXGISurface = frame.texture().cast()?;
         composition.state.context.CreateBitmapFromDxgiSurface(
             &surface,

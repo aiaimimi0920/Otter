@@ -1,7 +1,15 @@
 //! Big-endian RGB16 exclusively for HDR output, never BGRA previews. Chromaticity/PQ rules match mainline.
-use super::{check, luminance, normalized_gain, rgb, Analysis, Error, ScRgb};
+use super::{check, luminance, nonnegative_half, normalized_gain, rgb, Analysis, Error, ScRgb};
 use crate::{byte_budget::Lease, pixels::Pixels};
 use std::sync::atomic::AtomicBool;
+
+#[derive(Clone, Copy)]
+struct HdrMemoSlot {
+    key: [u8; 6],
+    encoded: [u8; 6],
+    valid: bool,
+    light: f32,
+}
 
 #[derive(Debug)]
 pub struct HdrFrame {
@@ -50,38 +58,94 @@ impl ScRgb<'_> {
         if !lease.grow_to(bytes.capacity()) {
             return Err(Error::Budget);
         }
-        // Decode once: the same RGB supplies light-level metadata and PQ output.
-        // Desktop captures contain long same-color runs; single-slot register memoization skips repeated powf while staying bit-identical.
-        let row_out = self.width as usize * 6;
+        // Performance audit optimization:
+        // Previously `convert_hdr` only memoized 1 adjacent pixel (`Option<([u8; 6], ...)>`) and decoded FP16 via
+        // branchy `nonnegative_half` on every miss, causing alternating UI dither/ClearType/gradient pixels to execute
+        // 6 scalar `powf` calls per pixel (~49.8M `powf`s on 4K) plus 47.5 MiB of redundant `bytes.resize(..., 0)` zeroing.
+        // We retain the zero-cost 1-pixel register check, back it with a 2,048-slot L1 direct-mapped memo table (`40 KiB`)
+        // plus a 15-bit FP16->linear `f32` LUT (`128 KiB`) on large frames, and write directly into reserved capacity
+        // row-by-row with 100% bit-identical `pq()` and `Analysis` results.
+        let pixel_count = self.width as usize * self.height as usize;
+        let half_lut = (pixel_count >= 32_768).then(|| {
+            let mut lut = Box::new([0.0f32; 32768]);
+            for (bits, slot) in lut.iter_mut().enumerate() {
+                *slot = nonnegative_half(bits as u16) * gain;
+            }
+            lut
+        });
+        let mut memo = (pixel_count >= 4_096).then(|| {
+            vec![
+                HdrMemoSlot {
+                    key: [0; 6],
+                    encoded: [0; 6],
+                    valid: false,
+                    light: 0.0,
+                };
+                2048
+            ]
+            .into_boxed_slice()
+        });
+        let decode_rgb = |pixel: &[u8]| -> [f32; 3] {
+            match &half_lut {
+                Some(lut) => [0, 2, 4].map(|off| {
+                    let bits = u16::from_le_bytes([pixel[off], pixel[off + 1]]);
+                    if bits & 0x8000 == 0 {
+                        lut[bits as usize]
+                    } else {
+                        0.0
+                    }
+                }),
+                None => rgb(pixel, gain),
+            }
+        };
         let mut peak = 0.0f32;
         let mut sum = 0.0f64;
         let mut cached: Option<([u8; 6], [u8; 6], f32)> = None;
         for row in self.rows() {
             check(cancel)?;
-            let row_start = bytes.len();
-            bytes.resize(row_start + row_out, 0);
-            let out_row = &mut bytes[row_start..];
-            for (pixel, dst) in row.chunks_exact(8).zip(out_row.chunks_exact_mut(6)) {
+            for pixel in row.chunks_exact(8) {
                 let key = [pixel[0], pixel[1], pixel[2], pixel[3], pixel[4], pixel[5]];
                 let (encoded, light) = match cached {
                     Some((prev_key, prev_encoded, prev_light)) if prev_key == key => {
                         (prev_encoded, prev_light)
                     }
                     _ => {
-                        let rgb = rgb(pixel, gain);
-                        let light = luminance(rgb);
-                        let [r, g, b] = bt2020(rgb);
+                        let hash = ((u64::from_le_bytes([
+                            key[0], key[1], key[2], key[3], key[4], key[5], 0, 0,
+                        ])
+                        .wrapping_mul(0x9e3779b97f4a7c15))
+                            >> 53) as usize;
+                        if let Some(slot) = memo.as_ref().map(|table| &table[hash]) {
+                            if slot.valid && slot.key == key {
+                                cached = Some((key, slot.encoded, slot.light));
+                                peak = peak.max(slot.light);
+                                sum += f64::from(slot.light);
+                                bytes.extend_from_slice(&slot.encoded);
+                                continue;
+                            }
+                        }
+                        let linear = decode_rgb(pixel);
+                        let light = luminance(linear);
+                        let [r, g, b] = bt2020(linear);
                         let [r0, r1] = pq(r * 80.0).to_be_bytes();
                         let [g0, g1] = pq(g * 80.0).to_be_bytes();
                         let [b0, b1] = pq(b * 80.0).to_be_bytes();
                         let encoded = [r0, r1, g0, g1, b0, b1];
+                        if let Some(table) = memo.as_mut() {
+                            table[hash] = HdrMemoSlot {
+                                key,
+                                encoded,
+                                valid: true,
+                                light,
+                            };
+                        }
                         cached = Some((key, encoded, light));
                         (encoded, light)
                     }
                 };
                 peak = peak.max(light);
                 sum += f64::from(light);
-                dst.copy_from_slice(&encoded);
+                bytes.extend_from_slice(&encoded);
             }
         }
         check(cancel)?;

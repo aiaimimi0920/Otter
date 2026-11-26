@@ -85,7 +85,10 @@ impl Guard {
                 Ok::<_, io::Error>((file, identity))
             })?;
         crate::session_file_trace::run("baseline-read", Some(expected.len()), || {
-            let mut buffer = [0; 8192];
+            // Performance audit optimization (Tier 1.2):
+            // Read baseline session files in 64 KiB chunks instead of 8 KiB, cutting `ReadFile` syscall overhead 8x on
+            // large multi-sticker workspace checkpoints (~60 MiB: ~7,680 syscalls -> ~960 syscalls).
+            let mut buffer = vec![0u8; 64 * 1024];
             for chunk in expected.chunks(buffer.len()) {
                 check(cancel)?;
                 file.read_exact(&mut buffer[..chunk.len()])?;

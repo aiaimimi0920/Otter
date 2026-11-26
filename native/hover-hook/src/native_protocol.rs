@@ -132,8 +132,10 @@ impl Request {
     /// Multiple hooks on one source thread must claim before calling applications, preventing duplicate button execution.
     /// Callers still validate nested provenance/save original TLS scope, never overwriting running transactions.
     pub fn claim(self) -> windows::core::Result<bool> {
-        if Self::read(self.owner, self.nonce, self.destination) != Some(self)
+        // Short-circuit duplicate hooks on the same thread in 1 `GetPropW` call before running the full 25-syscall `Self::read`.
+        if self.nonce == 0
             || value(self.owner, CLAIMED) == self.nonce
+            || Self::read(self.owner, self.nonce, self.destination) != Some(self)
         {
             return Ok(false);
         }

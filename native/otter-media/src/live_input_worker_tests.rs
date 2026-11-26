@@ -6,6 +6,34 @@ use std::{
     time::{Duration, Instant},
 };
 use windows::Win32::{Foundation::*, System::Threading::WaitForSingleObject};
+#[test]
+fn late_producer_signal_is_cleared_by_next_empty_poll() {
+    let event = unsafe { CreateEventW(None, true, false, None) }.unwrap();
+    let (results, replies) = mpsc::sync_channel(1);
+    let mut worker = Worker {
+        sender: None,
+        replies,
+        stop: Arc::new(AtomicBool::new(false)),
+        wake: Arc::new(unsafe { OwnedHandle::from_raw_handle(event.0) }),
+        worker: None,
+        outstanding: 1,
+    };
+    results
+        .try_send(Reply::<&'static str> {
+            command: Some(Command::Enable),
+            result: Err(Error::Sequence),
+        })
+        .unwrap();
+    assert!(worker.poll_reply().unwrap().is_some());
+    assert_eq!(worker.outstanding(), 0);
+    assert!(worker.poll_reply().unwrap().is_none());
+    // The producer resumes after both the queued reply and the first signal were consumed.
+    unsafe { SetEvent(event) }.unwrap();
+    assert_eq!(unsafe { WaitForSingleObject(event, 0) }, WAIT_OBJECT_0);
+    assert!(worker.poll_reply().unwrap().is_none());
+    assert_eq!(unsafe { WaitForSingleObject(event, 0) }, WAIT_TIMEOUT);
+}
+
 #[derive(Default)]
 struct Trace {
     sent: Vec<Event>,

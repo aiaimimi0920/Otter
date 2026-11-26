@@ -203,6 +203,7 @@ fn select_bounds_with(
             let _ = ReleaseCapture();
         }
         drop(window);
+        drawing::clear_cached_resources();
     }
     if state.paint_failed.get() {
         return Err(Error::new(E_FAIL, "Cannot paint frozen capture"));
@@ -279,8 +280,14 @@ unsafe extern "system" fn procedure(
                 state.model.set(model);
             }
             // Continued dragging beyond bounds may leave the rectangle unchanged; redraw the frozen frame only when visible selection changes.
-            if before != state.preview_rect() {
-                let _ = InvalidateRect(Some(hwnd), None, false);
+            let after = state.preview_rect();
+            if before != after {
+                drawing::invalidate_selection_change(
+                    hwnd,
+                    before,
+                    after,
+                    windows::Win32::UI::HiDpi::GetDpiForWindow(hwnd).clamp(96, 768),
+                );
             }
         }
         WM_LBUTTONUP if GetCapture() == hwnd => {
@@ -370,7 +377,12 @@ unsafe extern "system" fn procedure(
             model.nudge(dx, dy);
             state.model.set(model);
             if before != model.rect {
-                let _ = InvalidateRect(Some(hwnd), None, false);
+                drawing::invalidate_selection_change(
+                    hwnd,
+                    before,
+                    model.rect,
+                    windows::Win32::UI::HiDpi::GetDpiForWindow(hwnd).clamp(96, 768),
+                );
             }
         }
         WM_CAPTURECHANGED | WM_CANCELMODE => {

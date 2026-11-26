@@ -33,6 +33,10 @@ pub(super) fn run(
     let mut last_sequence = None;
     // Retain only one Arc to an existing immutable GPU frame for idle-image IDR requests; no extra capture or pixel backlog.
     let mut latest = None;
+    // Performance audit optimization (Tier 0.1):
+    // Reuse a single D3D11 staging texture across frames via `readback::Scratch`, avoiding 8.3–33.2 MB system-RAM
+    // page lock/unlock churn on every remote stream frame; clear on disconnect/retry so idle sockets hold zero VRAM/RAM.
+    let mut readback_scratch = crate::live_texture::readback::Scratch::default();
     loop {
         recovery::check(client, lease, signal)?;
         if socket.is_none() {
@@ -46,6 +50,7 @@ pub(super) fn run(
                     next_control = Instant::now();
                 }
                 Err(exit) => {
+                    readback_scratch.clear();
                     signal.retire_media();
                     if signal.stop.load(Ordering::Acquire) {
                         return Err(Exit::Stopped);
@@ -93,7 +98,8 @@ pub(super) fn run(
                 }
                 if let Some((resource, capture)) = latest.as_ref().filter(|_| changed || refresh) {
                     let sequence = resource.sequence;
-                    let frame = crate::live_texture::readback::read(resource.clone(), &signal.stop)
+                    let frame = readback_scratch
+                        .read(resource.clone(), &signal.stop)
                         .map_err(|_| Exit::Readback)?;
                     video.resize([frame.width, frame.height], budget);
                     frame_id = frame_id.checked_add(1).ok_or(Exit::Geometry)?;
@@ -148,6 +154,7 @@ pub(super) fn run(
             // Consume rotation only while actively retiring an upgraded connection. Ordinary I/O failure cannot clear a slightly later request.
             // Retire the old socket/interrupt first; unknown-completion frame numbers are consumed, and the next connection sends only fresh raw/IDR.
             socket.take();
+            readback_scratch.clear();
             signal.retire_media();
             recovery.retry(exit, client, lease, signal)?;
             continue;

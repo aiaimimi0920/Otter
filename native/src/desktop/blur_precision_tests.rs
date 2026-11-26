@@ -2,6 +2,24 @@
 use super::*;
 
 #[test]
+fn blur_release_retains_the_last_short_segment() {
+    let mut canvas = super::tests::canvas();
+    let result = super::tests::completed(&canvas);
+    assert!(accept(&mut canvas, result).unwrap());
+    canvas
+        .editor
+        .set_style(canvas.editor.style().with_width(28.0).unwrap());
+    let p = |x, y| crate::viewport::Point { x, y };
+    assert!(canvas.pointer_down(p(25.0, 25.0)));
+    assert!(canvas.pointer_move(p(30.0, 25.0)));
+    assert!(canvas.pointer_up(p(31.0, 25.0)));
+    assert_eq!(
+        canvas.editor.elements()[0].points,
+        vec![p(5.0, 5.0), p(10.0, 5.0), p(11.0, 5.0)]
+    );
+}
+
+#[test]
 fn fractional_new_tool_preparation_survives_worker_and_rejects_same_rounded_cache() {
     let mut canvas = Canvas::new(Some(crate::desktop::image::Image {
         width: 8,

@@ -101,7 +101,17 @@ pub unsafe fn fit(hwnd: HWND, state: &State) {
 }
 
 unsafe fn fit_size(hwnd: HWND, state: &State, size: (i32, i32)) {
-    let mut canvas = state.canvas.borrow_mut();
+    if let Some(viewport) = fitted_viewport(hwnd, state, size) {
+        state.canvas.borrow_mut().viewport = viewport;
+    }
+}
+
+unsafe fn fitted_viewport(
+    hwnd: HWND,
+    state: &State,
+    size: (i32, i32),
+) -> Option<crate::viewport::Viewport> {
+    let canvas = state.canvas.borrow();
     let display = state.resolved_display.borrow();
     let image = display
         .as_ref()
@@ -122,8 +132,13 @@ unsafe fn fit_size(hwnd: HWND, state: &State, size: (i32, i32)) {
             .map_or((0.0, 0.0, image.width as f32, image.height as f32), |r| {
                 (r.x as f32, r.y as f32, r.width as f32, r.height as f32)
             });
-        canvas.viewport = fit_frame((size.0 as f32, size.1 as f32), (x, y, width, height), dpi);
+        return Some(fit_frame(
+            (size.0 as f32, size.1 as f32),
+            (x, y, width, height),
+            dpi,
+        ));
     }
+    None
 }
 
 fn fit_frame(

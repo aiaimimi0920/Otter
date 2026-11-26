@@ -105,6 +105,11 @@ impl Fixture {
         self.wheel_at(delta, (140, 140));
     }
     unsafe fn wheel_at(&self, delta: i16, pointer: (i32, i32)) {
+        // settle pumps real messages between packets. Supply this synthetic packet's
+        // modifiers on the owning thread, not just once when the fixture is created.
+        let mut control = [0; 256];
+        control[VK_CONTROL.0 as usize] = 0x80;
+        SetKeyboardState(&control).unwrap();
         SendMessageW(
             self.window.0,
             WM_MOUSEWHEEL,
@@ -211,13 +216,18 @@ fn opposite_wheel_steps_restore_the_exact_rectangle_without_cumulative_drift() {
         )
         .unwrap();
         let original = fixture.rect();
-        for _ in 0..40 {
+        for cycle in 0..40 {
             fixture.wheel(120);
+            assert!(
+                fixture.rect().width > original.width,
+                "zoom in: cycle {cycle}"
+            );
             fixture.wheel(-120);
             assert_eq!(
                 fixture.rect(),
                 original,
-                "inverse wheel steps must not shrink or move the pin"
+                "inverse wheel steps must not shrink or move the pin: cycle {cycle}, error={:?}",
+                fixture.state.error.borrow()
             );
         }
     }

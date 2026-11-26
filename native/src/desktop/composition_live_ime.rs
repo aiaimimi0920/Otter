@@ -11,6 +11,7 @@ pub(super) struct Anchor {
     sampled: Option<Instant>,
     revision: u64,
     error: Option<HRESULT>,
+    composing: bool,
 }
 impl Anchor {
     pub(super) fn clear(&mut self) {
@@ -23,10 +24,21 @@ impl Anchor {
         self.clear();
         self.click = Some(point);
     }
+    fn start_composition(&mut self) {
+        self.revision = self.revision.wrapping_add(1);
+        self.composing = true;
+        self.sampled = None; // Schedule a fresh caret read outside WndProc immediately.
+    }
     fn due(&mut self, now: Instant) -> Option<u64> {
+        self.due_every(
+            now,
+            Duration::from_millis(if self.composing { 16 } else { 200 }),
+        )
+    }
+    fn due_every(&mut self, now: Instant, interval: Duration) -> Option<u64> {
         if self
             .sampled
-            .is_some_and(|last| now.duration_since(last) < Duration::from_millis(16))
+            .is_some_and(|last| now.duration_since(last) < interval)
         {
             return None;
         }
@@ -42,6 +54,16 @@ impl Anchor {
         let report = error.is_some() && error != self.error;
         self.error = error;
         report
+    }
+    fn observe_for_position(
+        &mut self,
+        revision: u64,
+        result: &Result<Option<Observation>>,
+    ) -> (bool, Option<Self>) {
+        let previous = self.caret;
+        let report = self.observe(revision, result);
+        let changed = self.revision == revision && self.composing && previous != self.caret;
+        (report, changed.then_some(*self))
     }
     fn point(&self, view: crate::live_viewport::Viewport) -> Option<[i32; 2]> {
         // A known source caret outside the current crop must not fall back to old clicks; use clicks only when no system caret exists.
@@ -125,11 +147,18 @@ impl Drop for Placing {
 
 /// Use only results already sampled by poll; WndProc performs no cross-process source query and holds no RefCell across IMM calls.
 pub(super) unsafe fn handle(hwnd: HWND, state: &State, message: u32, wp: WPARAM) -> bool {
+    if message == WM_IME_ENDCOMPOSITION {
+        state.input.borrow_mut().ime.composing = false;
+        return false;
+    }
     if !matches!(
         message,
         WM_IME_STARTCOMPOSITION | WM_IME_COMPOSITION | WM_IME_NOTIFY
     ) {
         return false;
+    }
+    if message == WM_IME_STARTCOMPOSITION {
+        state.input.borrow_mut().ime.start_composition();
     }
     let reposition =
         message != WM_IME_NOTIFY || matches!(wp.0 as u32, IMN_OPENCANDIDATE | IMN_CHANGECANDIDATE);
@@ -177,7 +206,31 @@ impl LiveWindow {
         };
         let Some(revision) = revision else { return };
         let result = crate::live_window_target::input_routing::caret::sample(target.unwrap(), crop);
-        let report = self.state.input.borrow_mut().ime.observe(revision, &result);
+        let (report, anchor) = {
+            let mut input = self.state.input.borrow_mut();
+            // Sampling may reenter shutdown, focus or authorization changes.
+            if !self.is_alive()
+                || !input.enabled
+                || input.remote
+                || input.failed
+                || self.state.group_hidden.get()
+                || self.state.group_locked.get()
+                || unsafe { windows::Win32::UI::Input::KeyboardAndMouse::GetFocus() } != self.hwnd
+            {
+                input.ime.clear();
+                return;
+            }
+            input.ime.observe_for_position(revision, &result)
+        };
+        if let Some(anchor) = anchor {
+            unsafe {
+                if let Some(view) = super::viewport(self.hwnd, &self.state) {
+                    if let Err(error) = anchor.place(self.hwnd, view) {
+                        eprintln!("native-live-ime-position: {error}");
+                    }
+                }
+            }
+        }
         if report {
             if let Err(error) = result {
                 // Positioning failure is not control failure; clear old carets and use original click fallback, deduplicating by error code.

@@ -249,6 +249,9 @@ fn wait<T>(
     mut map: impl FnMut() -> windows::core::Result<T>,
 ) -> Result<T, Error> {
     let start = Instant::now();
+    // Spin/yield briefly before sleeping (matching `live_texture_readback`): GPU DMA copies typically finish
+    // within ~50-200 us, whereas an immediate `sleep(1ms)` stalls for an entire Windows timer tick (~1-15.6 ms).
+    let mut attempts = 0u32;
     loop {
         check(cancel)?;
         match map() {
@@ -259,7 +262,14 @@ fn wait<T>(
         if start.elapsed() >= limit {
             return Err(Error::Timeout);
         }
-        std::thread::sleep(Duration::from_millis(1));
+        if attempts < 8 {
+            std::hint::spin_loop();
+        } else if attempts < 16 {
+            std::thread::yield_now();
+        } else {
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        attempts = attempts.saturating_add(1);
     }
 }
 #[cfg(test)]

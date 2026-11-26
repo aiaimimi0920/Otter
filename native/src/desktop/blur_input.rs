@@ -266,7 +266,7 @@ mod schedule_tests;
 #[cfg(test)]
 mod tests {
     use super::*;
-    fn canvas() -> Canvas {
+    pub(super) fn canvas() -> Canvas {
         let mut canvas = Canvas::new(Some(super::super::image::Image {
             width: 16,
             height: 16,
@@ -276,7 +276,7 @@ mod tests {
         canvas.select_tool(Tool::Blur);
         canvas
     }
-    fn completed(canvas: &Canvas) -> Completed {
+    pub(super) fn completed(canvas: &Canvas) -> Completed {
         Completed {
             request: Request {
                 stamp: canvas.editor.document_stamp(),

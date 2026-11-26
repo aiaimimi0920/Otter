@@ -48,12 +48,15 @@ pub struct Backend {
     scroll_in_test_harness: bool,
     hover_owner: Option<crate::live_hover_owner::Control>,
     hover_binding: Option<crate::live_hover_binding::Binding>,
+    // Cached immutable window-class eligibility for `self.root` (`GetClassNameW` never changes for a live HWND),
+    // eliminating 5 `GetClassNameW` syscalls per `Event::Move`.
+    is_browser: bool,
 }
 impl Backend {
     // Operations such as starting playback briefly block ordinary desktop applications' UI; messages without key edges also use the existing
     // ordinary input budget rather than the shorter browser-hover budget. Do not resend or change synchronous message ordering.
     fn native_motion_timeout(&self) -> u32 {
-        if self.local && !crate::live_browser_scroll::eligible(&self.root) {
+        if self.local && !self.is_browser {
             250
         } else {
             50
@@ -62,6 +65,7 @@ impl Backend {
     /// Creation does not enable Controller; region must be a user-confirmed physical crop within a window, never a desktop region.
     pub fn new(root: Target, region: Option<FrameRegion>) -> Result<Self, Error> {
         let root_destination = Destination::bind(&root, root.hwnd()).map_err(Error::Target)?;
+        let is_browser = crate::live_browser_scroll::eligible(&root);
         Ok(Self {
             root,
             root_destination,
@@ -79,6 +83,7 @@ impl Backend {
             scroll_in_test_harness: false,
             hover_owner: None,
             hover_binding: None,
+            is_browser,
         })
     }
     /// Local Live authorization entry point only; remote control retains its original Win32 permissions and behavior.
@@ -90,7 +95,7 @@ impl Backend {
     fn exit_browser_hover(&self) -> Result<(), Error> {
         // Chromium's Leave rereads the real cursor position; when the mouse is within obscured A,
         // a single Leave may leave DOM hover behind. First give root an explicit virtual move-out without moving the system cursor.
-        if self.local && crate::live_browser_scroll::eligible(&self.root) {
+        if self.local && self.is_browser {
             message::release_to(&self.root_destination, Message::exit_motion())
                 .map_err(Error::Message)?;
         }
@@ -173,10 +178,7 @@ impl live_input::Backend for Backend {
         }
     }
     fn send_timeout_ms(&self, event: Event) -> u32 {
-        if matches!(event, Event::Wheel { .. })
-            && self.local
-            && crate::live_browser_scroll::eligible(&self.root)
-        {
+        if matches!(event, Event::Wheel { .. }) && self.local && self.is_browser {
             crate::live_browser_scroll::TIMEOUT_MS
                 + if self.browser_scroll.is_none() {
                     crate::live_browser_scroll::STARTUP_TIMEOUT_MS
@@ -250,10 +252,7 @@ impl live_input::Backend for Backend {
         event: Event,
         fallback: Option<Destination>,
     ) -> Result<Destination, Error> {
-        if self.local
-            && !matches!(event, Event::Key { code: 0x1b, .. })
-            && !crate::live_browser_scroll::eligible(&self.root)
-        {
+        if self.local && !matches!(event, Event::Key { code: 0x1b, .. }) && !self.is_browser {
             routing::keyboard_with_fallback(&self.root, fallback.as_ref()).map_err(Error::Routing)
         } else {
             self.resolve(event, fallback)

@@ -97,6 +97,9 @@ pub struct Frame {
     width: u32,
     height: u32,
     pixels: Pixels,
+    // Lazily memoize [Vertical, Horizontal] row/column signatures across Frame clones (~48 KiB total at 4K).
+    // Prevents `match_exact` and `Detect::append` from re-hashing unchanged 33 MB reference frames on every scroll step.
+    signatures: std::sync::Arc<[std::sync::OnceLock<Box<[u64]>>; 2]>,
 }
 impl Frame {
     /// Tightly packed BGRA pixels; Frame clones share only pixels/budget leases.
@@ -109,6 +112,10 @@ impl Frame {
             width,
             height,
             pixels,
+            signatures: std::sync::Arc::new([
+                std::sync::OnceLock::new(),
+                std::sync::OnceLock::new(),
+            ]),
         })
     }
     pub fn dimensions(&self) -> (u32, u32) {
@@ -116,6 +123,12 @@ impl Frame {
     }
     pub fn bytes(&self) -> &[u8] {
         &self.pixels
+    }
+    pub(crate) fn signature_slot(&self, axis: Axis) -> &std::sync::OnceLock<Box<[u64]>> {
+        match axis {
+            Axis::Vertical => &self.signatures[0],
+            Axis::Horizontal => &self.signatures[1],
+        }
     }
 }
 /// Absolute position on the scrolling axis; negative coordinates are allowed and first frames need not start at zero.

@@ -32,6 +32,9 @@ fn transparent_selection_returns_release_bounds_and_destroys_both_layers() {
         let style = GetWindowLongPtrW(outline.get(), GWL_EXSTYLE) as u32;
         assert_ne!(style & WS_EX_TRANSPARENT.0, 0);
         for window in [hwnd, outline.get()] {
+            // Check the Shell's actual property name on both HWNDs before their first show.
+            assert!(!IsWindowVisible(window).as_bool());
+            assert_eq!(GetPropW(window, w!("NonRudeHWND")).0 as usize, 1);
             let mut affinity = 0;
             GetWindowDisplayAffinity(window, &mut affinity).unwrap();
             assert_eq!(affinity, WDA_EXCLUDEFROMCAPTURE.0);

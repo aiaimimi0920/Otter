@@ -121,6 +121,10 @@ impl SpatialSession {
                 width: aggregate.width,
                 height: aggregate.height,
                 pixels: aggregate.pixels,
+                signatures: std::sync::Arc::new([
+                    std::sync::OnceLock::new(),
+                    std::sync::OnceLock::new(),
+                ]),
             },
         }];
         spatial::bounds(&frames, &AtomicBool::new(false))?;

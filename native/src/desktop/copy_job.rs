@@ -93,9 +93,10 @@ fn prepare(
     canvas: &Canvas,
     frame: Option<&super::display_frame::Frame>,
 ) -> Result<Option<Job>, String> {
-    prepare_with_plan(canvas, frame, None)
+    prepare_with_plan(None, canvas, frame, None)
 }
 fn prepare_with_plan(
+    wake_hwnd: Option<isize>,
     canvas: &Canvas,
     frame: Option<&super::display_frame::Frame>,
     plan: Option<file_plan::Plan>,
@@ -118,39 +119,56 @@ fn prepare_with_plan(
     let worker = std::thread::Builder::new()
         .name("otter-copy".into())
         .spawn(move || {
-            if signal.load(Ordering::Acquire) {
-                return Ok(None);
-            }
-            let result = style
-                .clipboard(&image, &editor, opacity)
-                .map_err(|error| error.to_string());
-            if signal.load(Ordering::Acquire) {
-                Ok(None)
-            } else {
-                let payload = result?;
-                let cache = plan
-                    .map(|plan| plan.stage(payload.png.clone(), &signal))
-                    .transpose()?;
+            let outcome = (|| -> Output {
+                if signal.load(Ordering::Acquire) {
+                    return Ok(None);
+                }
+                let result = style
+                    .clipboard(&image, &editor, opacity)
+                    .map_err(|error| error.to_string());
                 if signal.load(Ordering::Acquire) {
                     Ok(None)
                 } else {
-                    let editable = preserve_edits.then(|| {
-                        Arc::new(super::clipboard_editable::Content {
-                            image,
-                            editor,
-                            opacity,
-                            frame_style: style.style,
-                            capture_source,
-                            origin: None,
-                        })
-                    });
-                    Ok(Some(Ready {
-                        payload,
-                        cache,
-                        editable,
-                    }))
+                    let payload = result?;
+                    let cache = plan
+                        .map(|plan| plan.stage(payload.png.clone(), &signal))
+                        .transpose()?;
+                    if signal.load(Ordering::Acquire) {
+                        Ok(None)
+                    } else {
+                        let editable = preserve_edits.then(|| {
+                            Arc::new(super::clipboard_editable::Content {
+                                image,
+                                editor,
+                                opacity,
+                                frame_style: style.style,
+                                capture_source,
+                                origin: None,
+                            })
+                        });
+                        Ok(Some(Ready {
+                            payload,
+                            cache,
+                            editable,
+                        }))
+                    }
+                }
+            })();
+            // Best-effort wake: the owner may poll before this thread returns. The timer
+            // remains armed until the worker can be joined and the document stamp checked.
+            if !signal.load(Ordering::Acquire) {
+                if let Some(raw) = wake_hwnd {
+                    let _ = unsafe {
+                        PostMessageW(
+                            Some(HWND(raw as *mut _)),
+                            WM_TIMER,
+                            WPARAM(TIMER),
+                            LPARAM(0),
+                        )
+                    };
                 }
             }
+            outcome
         })
         .map_err(|error| error.to_string())?;
     Ok(Some(Job {
@@ -244,6 +262,7 @@ pub(super) unsafe fn start_guarded_at(
         return;
     }
     let prepared = prepare_with_plan(
+        Some(hwnd.0 as isize),
         &state.canvas.borrow(),
         state.resolved_display.borrow().as_ref(),
         plan,

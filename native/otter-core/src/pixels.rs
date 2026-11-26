@@ -12,6 +12,11 @@ pub fn reserve(bytes: usize) -> Option<Lease> {
     DECODED.reserve(bytes)
 }
 
+/// A sizing hint only; every allocation must still claim its own lease.
+pub(crate) fn available() -> usize {
+    DECODED_PIXEL_LIMIT - DECODED.used()
+}
+
 #[derive(Debug)]
 pub struct Storage {
     bytes: Vec<u8>,
@@ -49,7 +54,8 @@ impl Deref for Pixels {
 }
 impl PartialEq for Pixels {
     fn eq(&self, other: &Self) -> bool {
-        **self == **other
+        // Short-circuit shared Arc<Storage> pointers in O(1) before comparing multi-megabyte pixel slices.
+        self.same_storage(other) || **self == **other
     }
 }
 impl Eq for Pixels {}

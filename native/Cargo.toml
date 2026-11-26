@@ -133,9 +133,14 @@ opt-level = "s"
 strip = true
 
 # Per-package optimization: prioritize host UI/control-flow size; maximize vectorization and unrolling for pixel operations and image codecs.
+# Performance audit optimization (Tier 0.3):
+# Override workspace `opt-level = "s"` on hot runtime, deflate/zlib/checksum, Base64, QuickJS C VM, and font/curve
+# crates so LTO does not propagate LLVM `optsize` (or MSVC `/Os` on `rquickjs-sys`) into inner pixel/codec/VM loops.
 [profile.release.package.otter-core]
 opt-level = 3
 [profile.release.package.otter-media]
+opt-level = 3
+[profile.release.package.otter-runtime]
 opt-level = 3
 [profile.release.package.tiny-skia]
 opt-level = 3
@@ -145,9 +150,35 @@ opt-level = 3
 opt-level = 3
 [profile.release.package.png]
 opt-level = 3
+[profile.release.package.fdeflate]
+opt-level = 3
+[profile.release.package.miniz_oxide]
+opt-level = 3
+[profile.release.package.zlib-rs]
+opt-level = 3
+[profile.release.package.flate2]
+opt-level = 3
+[profile.release.package.crc32fast]
+opt-level = 3
+[profile.release.package.simd-adler32]
+opt-level = 3
 [profile.release.package.image-webp]
 opt-level = 3
 [profile.release.package.moxcms]
+opt-level = 3
+[profile.release.package.base64]
+opt-level = 3
+[profile.release.package.sha2]
+opt-level = 3
+[profile.release.package.rquickjs-sys]
+opt-level = 3
+[profile.release.package.rquickjs-core]
+opt-level = 3
+[profile.release.package.skrifa]
+opt-level = 3
+[profile.release.package.read-fonts]
+opt-level = 3
+[profile.release.package.kurbo]
 opt-level = 3
 
 # See third_party/README.md for traceable patches and integrity gates.

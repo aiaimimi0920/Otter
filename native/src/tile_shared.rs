@@ -199,13 +199,53 @@ impl State {
         diagnostics::visibility(self, now)
     }
 }
-#[derive(Default)]
+/// Performance audit optimization (Tier 3.7):
+/// Pair the internal `Condvar` with an optional Win32 auto-reset `Event` handle so `tile_terminal::output_run` can
+/// sleep in `MsgWaitForMultipleObjectsEx` and wake immediately (`< 0.1ms`) when a frame candidate or stop arrives,
+/// eliminating up to 100ms of blind presentation polling latency.
 pub(crate) struct Shared {
     pub state: Mutex<State>,
     pub trace: diagnostics::Trace,
     wake: Condvar,
+    #[cfg(windows)]
+    ui_event: Option<std::os::windows::io::OwnedHandle>,
+}
+impl Default for Shared {
+    fn default() -> Self {
+        #[cfg(windows)]
+        let ui_event = unsafe {
+            windows::Win32::System::Threading::CreateEventW(None, false, false, None)
+                .ok()
+                .filter(|h| !h.is_invalid())
+                .map(|h| {
+                    use std::os::windows::io::FromRawHandle;
+                    std::os::windows::io::OwnedHandle::from_raw_handle(h.0)
+                })
+        };
+        Self {
+            state: Mutex::new(State::default()),
+            trace: diagnostics::Trace::default(),
+            wake: Condvar::new(),
+            #[cfg(windows)]
+            ui_event,
+        }
+    }
 }
 impl Shared {
+    #[cfg(windows)]
+    pub fn ui_wake_handle(&self) -> Option<windows::Win32::Foundation::HANDLE> {
+        use std::os::windows::io::AsRawHandle;
+        self.ui_event
+            .as_ref()
+            .map(|h| windows::Win32::Foundation::HANDLE(h.as_raw_handle()))
+    }
+    fn notify_ui(&self) {
+        self.wake.notify_all();
+        #[cfg(windows)]
+        if let Some(handle) = self.ui_wake_handle() {
+            let _ = unsafe { windows::Win32::System::Threading::SetEvent(handle) };
+        }
+    }
     pub fn lock(&self) -> std::sync::MutexGuard<'_, State> {
         self.state.lock().unwrap_or_else(|e| e.into_inner())
     }
@@ -213,7 +253,8 @@ impl Shared {
         let mut s = self.lock();
         s.stopped = true;
         s.clear("tile-stopped");
-        self.wake.notify_all();
+        drop(s);
+        self.notify_ui();
     }
     pub fn wait(&self, time: Duration) -> bool {
         let guard = self.lock();
@@ -233,6 +274,7 @@ impl Shared {
     }
     pub fn unavailable(&self, generation: u64, key: &Key, reason: &'static str) {
         self.lock().unavailable(generation, key, reason);
+        self.notify_ui();
     }
     #[cfg(test)]
     pub fn publish_until(&self, generation: u64, frame: Frame, until: Option<Instant>) {
@@ -311,6 +353,7 @@ impl Shared {
             s.status = "tile-content-ready";
             drop(s);
             drop(previous);
+            self.notify_ui();
         }
     }
     pub fn confirm(&self, frame: &Arc<Frame>, now: Instant) {

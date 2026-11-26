@@ -247,6 +247,12 @@ impl Presentation {
     pub fn scene(&self) -> &Scene {
         &self.scene
     }
+    pub(crate) fn image_bitmap(
+        &self,
+        id: &str,
+    ) -> Option<&std::rc::Rc<crate::surface_image_paint::Bitmap>> {
+        self.images.get(id)
+    }
     pub fn focusable(&self, id: &str) -> bool {
         self.focusable.iter().any(|item| item == id)
     }

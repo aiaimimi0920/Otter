@@ -132,19 +132,13 @@ unsafe fn offscreen(parent: HWND) {
 }
 
 #[test]
-#[ignore = "requires a fresh explicitly provisioned real Loom TLS fixture under linshi"]
+#[ignore = "requires a fresh explicitly provisioned real Loom TLS fixture under repository .tmp"]
 fn isolated_real_loom_pairs_mounts_activates_and_closes() {
     let root = std::path::PathBuf::from(
         std::env::var_os("OTTER_REAL_LOOM_TEST_DIR").expect("explicit isolated fixture required"),
     );
-    assert!(root.is_absolute());
-    let canonical = std::fs::canonicalize(&root).unwrap();
-    let allowed = [crate::test_temp_root(), std::env::temp_dir()];
-    assert!(allowed
-        .iter()
-        .filter_map(|candidate| std::fs::canonicalize(candidate).ok())
-        .any(|base| canonical != base && canonical.starts_with(&base)));
-    let input = read_input(&canonical).expect("invalid isolated Loom test-input.json");
+    let root = crate::temp_root::fixture_directory(&root);
+    let input = read_input(&root).expect("invalid isolated Loom test-input.json");
     let origin = input["origin"].as_str().unwrap();
     let url = url::Url::parse(origin).unwrap();
     assert_eq!(url.scheme(), "https");

@@ -79,10 +79,23 @@ impl Destination {
     /// Child windows may belong to different processes and need separate user/session/UIPI checks; checking root alone is insufficient.
     pub fn preflight(&self) -> Result<()> {
         self.validate()?;
-        input_security::preflight(&self.root).map_err(Error::Security)?;
-        input_security::check_process(HANDLE(self.process.as_raw_handle()))
-            .map_err(Error::Security)?;
-        self.validate()
+        // Performance audit optimization:
+        // `self.process` was already opened with `PROCESS_SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION` and verified
+        // alive in `self.validate()`. When the child belongs to the same PID as `self.root`, checking `self.process`
+        // plus bracketing `desktop::check()` validates both root and child process tokens without opening and querying
+        // the exact same process token a second time. Cross-process children still check both processes independently.
+        if self.identity.process == self.root.process_id() {
+            input_security::desktop::check().map_err(Error::Security)?;
+            input_security::check_process_tokens(HANDLE(self.process.as_raw_handle()))
+                .map_err(Error::Security)?;
+            self.validate()?;
+            input_security::desktop::check().map_err(Error::Security)
+        } else {
+            input_security::preflight(&self.root).map_err(Error::Security)?;
+            input_security::check_process_tokens(HANDLE(self.process.as_raw_handle()))
+                .map_err(Error::Security)?;
+            self.validate()
+        }
     }
 }
 fn identity(window: HWND) -> Result<Identity> {

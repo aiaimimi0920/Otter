@@ -1,11 +1,16 @@
 //! Native D3D12 single frames: upload to SRV, RT to copy/readback; no 11On12 or takeover of window devices.
 use super::{compile, contract, *};
-use std::{mem::ManuallyDrop, time::Duration};
+use std::{
+    mem::ManuallyDrop,
+    os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle},
+    sync::{Arc, Mutex},
+};
 use windows::{
     core::Interface,
     Win32::{
-        Foundation::RECT,
+        Foundation::{HANDLE, RECT, WAIT_OBJECT_0, WAIT_TIMEOUT},
         Graphics::{Direct3D::D3D_FEATURE_LEVEL_11_0, Direct3D12::*, Dxgi::Common::*},
+        System::Threading::{CreateEventW, WaitForSingleObject},
     },
 };
 #[path = "shader_hlsl_d3d12_pipeline.rs"]
@@ -14,11 +19,23 @@ pub mod pipeline;
 pub mod resource;
 use resource::Resource;
 
+type CachedPso = (
+    usize,
+    usize,
+    usize,
+    ID3D12RootSignature,
+    ID3D12PipelineState,
+);
+
 #[derive(Clone)]
 pub(super) struct Device {
     device: ID3D12Device,
     queue: ID3D12CommandQueue,
     fence: ID3D12Fence,
+    fence_event: Arc<OwnedHandle>,
+    // Cache compiled `(ID3D12RootSignature, ID3D12PipelineState)` across warm 32-frame HLSL sessions so uniform
+    // slider updates do not re-invoke driver PSO compilation on every frame.
+    pso_cache: Arc<Mutex<Option<CachedPso>>>,
     next_fence: std::sync::Arc<std::sync::atomic::AtomicU64>,
 }
 impl Device {
@@ -64,10 +81,14 @@ impl Device {
                 })
                 .map_err(fail)?;
             let fence = device.CreateFence(0, D3D12_FENCE_FLAG_NONE).map_err(fail)?;
+            let raw_event = CreateEventW(None, false, false, None).map_err(fail)?;
+            let fence_event = Arc::new(OwnedHandle::from_raw_handle(raw_event.0));
             Ok(Self {
                 device,
                 queue,
                 fence,
+                fence_event,
+                pso_cache: Arc::new(Mutex::new(None)),
                 next_fence: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(1)),
             })
         }
@@ -173,8 +194,33 @@ impl Submission {
     ) -> Result<Self> {
         let fail = |e| api(Stage::Resource, e);
         unsafe {
-            let (root, pipeline) =
-                pipeline::create(&device.device, program, request.textures.len())?;
+            let pso_key = (
+                program.vertex.as_raw() as usize,
+                program.pixel.as_raw() as usize,
+                request.textures.len(),
+            );
+            let cached_pso = device.pso_cache.lock().ok().and_then(|guard| {
+                guard.as_ref().and_then(|(v, p, count, root, pso)| {
+                    ((*v, *p, *count) == pso_key).then(|| (root.clone(), pso.clone()))
+                })
+            });
+            let (root, pipeline) = match cached_pso {
+                Some(pair) => pair,
+                None => {
+                    let created =
+                        pipeline::create(&device.device, program, request.textures.len())?;
+                    if let Ok(mut guard) = device.pso_cache.lock() {
+                        *guard = Some((
+                            pso_key.0,
+                            pso_key.1,
+                            pso_key.2,
+                            created.0.clone(),
+                            created.1.clone(),
+                        ));
+                    }
+                    created
+                }
+            };
             let allocator: ID3D12CommandAllocator = device
                 .device
                 .CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT)
@@ -346,6 +392,7 @@ impl Submission {
                 .map_err(|e| api(Stage::Submit, e))?;
         }
         let mut attempts = 0u32;
+        let mut registered = false;
         loop {
             check(stopped, deadline)?;
             let completed = unsafe { owner.device.fence.GetCompletedValue() };
@@ -363,7 +410,23 @@ impl Submission {
             } else if attempts < 16 {
                 std::thread::yield_now();
             } else {
-                std::thread::sleep(Duration::from_millis(1));
+                // Wait on the D3D12 fence event instead of `thread::sleep(1ms)` (~15.6 ms OS timer granularity),
+                // bounding each slice to 5 ms so `stopped` / `deadline` cancellation stays responsive.
+                let event = HANDLE(owner.device.fence_event.as_raw_handle());
+                // A timed-out wait does not cancel the outstanding fence notification.
+                if !registered {
+                    unsafe { owner.device.fence.SetEventOnCompletion(value, event) }
+                        .map_err(|e| api(Stage::Readback, e))?;
+                    registered = true;
+                }
+                let slice_ms = deadline
+                    .saturating_duration_since(Instant::now())
+                    .as_millis()
+                    .min(5) as u32;
+                let status = unsafe { WaitForSingleObject(event, slice_ms.max(1)) };
+                if status != WAIT_OBJECT_0 && status != WAIT_TIMEOUT {
+                    return Err(Error::TimedOut);
+                }
             }
             attempts = attempts.saturating_add(1);
         }

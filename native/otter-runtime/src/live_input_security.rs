@@ -31,14 +31,18 @@ pub fn preflight(target: &Target) -> Result<()> {
     let process = unsafe { OwnedHandle::from_raw_handle(process.0) };
     // The original process synchronization handle remains alive and HWND identity unchanged, preventing target exit/reuse while opening by PID.
     target.validate().map_err(|_| Denied::SourceChanged)?;
-    check_process(HANDLE(process.as_raw_handle()))?;
+    // Avoid redundant inner `desktop::check()` here since lines 22 and 38 already bracket `check_process_tokens`.
+    check_process_tokens(HANDLE(process.as_raw_handle()))?;
     target.validate().map_err(|_| Denied::SourceChanged)?;
     desktop::check()
 }
 /// Use the original process query handle held by the caller; do not rebind another process using a cached PID.
 pub fn check_process(process: HANDLE) -> Result<()> {
     desktop::check()?;
-    let controller = token::read(unsafe { GetCurrentProcess() })?;
+    check_process_tokens(process)
+}
+pub(crate) fn check_process_tokens(process: HANDLE) -> Result<()> {
+    let controller = token::read_self()?;
     let source = token::read(process)?;
     allows(&controller, &source)
 }
@@ -99,19 +103,19 @@ mod tests {
         let mut controller = token::Identity {
             session: 1,
             integrity: 8192,
-            sid: vec![1],
+            sid: vec![1].into(),
         };
         let mut source = token::Identity {
             session: 1,
             integrity: 8192,
-            sid: vec![1],
+            sid: vec![1].into(),
         };
         assert_eq!(allows(&controller, &source), Ok(()));
         source.integrity += 1;
         assert_eq!(allows(&controller, &source), Err(Denied::PermissionDenied));
         controller.integrity = 16384;
         assert_eq!(allows(&controller, &source), Ok(()));
-        source.sid = vec![2];
+        source.sid = vec![2].into();
         assert_eq!(allows(&controller, &source), Err(Denied::PermissionDenied));
         source.sid.clear();
         controller.sid.clear();

@@ -86,6 +86,20 @@ impl<'a> ScRgb<'a> {
     ) -> Result<SdrFrame, Error> {
         self.convert(white_nits, gain, cancel, crate::pixels::reserve)
     }
+    /// Performance audit optimization:
+    /// Fuse `exceeds_sdr_white` into `to_sdr` so `Mode::Auto` reads the 63-113 MiB D3D11 staging buffer once
+    /// instead of scanning all pixels twice on every capture. Because nonnegative finite IEEE-754 FP16 (`bits < 0x7c00`)
+    /// is monotonic in `u16` and `0.2126 + 0.7152 + 0.0722 == 1.0`, a conservative `min_hdr_bits` threshold skips
+    /// floating-point luminance math on >99.9% of SDR pixels while evaluating the exact `exceeds_sdr_white` predicate
+    /// whenever any channel approaches `white_nits + 5.0`.
+    pub fn to_sdr_probing_hdr(
+        &self,
+        white_nits: f32,
+        gain: f32,
+        cancel: &AtomicBool,
+    ) -> Result<(SdrFrame, bool), Error> {
+        self.convert_probing(white_nits, gain, true, cancel, crate::pixels::reserve)
+    }
     fn convert(
         &self,
         white_nits: f32,
@@ -93,13 +107,31 @@ impl<'a> ScRgb<'a> {
         cancel: &AtomicBool,
         reserve: impl FnOnce(usize) -> Option<crate::byte_budget::Lease>,
     ) -> Result<SdrFrame, Error> {
+        self.convert_probing(white_nits, gain, false, cancel, reserve)
+            .map(|(frame, _)| frame)
+    }
+    fn convert_probing(
+        &self,
+        white_nits: f32,
+        gain: f32,
+        probe_hdr: bool,
+        cancel: &AtomicBool,
+        reserve: impl FnOnce(usize) -> Option<crate::byte_budget::Lease>,
+    ) -> Result<(SdrFrame, bool), Error> {
         check(cancel)?;
         let white = if white_nits.is_finite() {
             white_nits.max(80.0)
         } else {
             203.0
         };
+        let threshold = white_nits.max(1.0) + 5.0;
+        let can_probe = probe_hdr && white_nits.is_finite() && threshold < 10_000.0;
         let gain = normalized_gain(gain);
+        let min_hdr_bits = if can_probe {
+            hdr_probe_floor_bits(threshold, gain)
+        } else {
+            u16::MAX
+        };
         let scale = 80.0 / white;
         let mut lease = reserve(self.output_bytes).ok_or(Error::Budget)?;
         check(cancel)?;
@@ -111,36 +143,64 @@ impl<'a> ScRgb<'a> {
             return Err(Error::Budget);
         }
         let lut = sdr_lut(self.output_bytes / 4, gain, scale, cancel)?;
-        let lookup = |lo: u8, hi: u8| {
-            let bits = u16::from_le_bytes([lo, hi]);
-            match &lut {
-                Some(lut) if bits & 0x8000 == 0 => lut[bits as usize],
-                Some(_) => 0,
-                None => srgb((nonnegative_half(bits) * gain) * scale),
-            }
+        let lookup_bits = |bits: u16| match &lut {
+            Some(lut) if bits & 0x8000 == 0 => lut[bits as usize],
+            Some(_) => 0,
+            None => srgb((nonnegative_half(bits) * gain) * scale),
         };
         let row_out = self.width as usize * 4;
+        let mut exceeds_hdr = false;
         for row in self.rows() {
             check(cancel)?;
             let row_start = bytes.len();
             bytes.resize(row_start + row_out, 0);
             let out_row = &mut bytes[row_start..];
             for (pixel, dst) in row.chunks_exact(8).zip(out_row.chunks_exact_mut(4)) {
+                let r_bits = u16::from_le_bytes([pixel[0], pixel[1]]);
+                let g_bits = u16::from_le_bytes([pixel[2], pixel[3]]);
+                let b_bits = u16::from_le_bytes([pixel[4], pixel[5]]);
+                if !exceeds_hdr
+                    && can_probe
+                    && ((r_bits < 0x7c00 && r_bits >= min_hdr_bits)
+                        || (g_bits < 0x7c00 && g_bits >= min_hdr_bits)
+                        || (b_bits < 0x7c00 && b_bits >= min_hdr_bits))
+                    && luminance(rgb(pixel, gain)) * 80.0 > threshold
+                {
+                    exceeds_hdr = true;
+                }
                 dst.copy_from_slice(&[
-                    lookup(pixel[4], pixel[5]),
-                    lookup(pixel[2], pixel[3]),
-                    lookup(pixel[0], pixel[1]),
+                    lookup_bits(b_bits),
+                    lookup_bits(g_bits),
+                    lookup_bits(r_bits),
                     255,
                 ]);
             }
         }
         check(cancel)?;
-        Ok(SdrFrame {
-            width: self.width,
-            height: self.height,
-            pixels: Pixels::from_reserved(bytes, lease),
-        })
+        Ok((
+            SdrFrame {
+                width: self.width,
+                height: self.height,
+                pixels: Pixels::from_reserved(bytes, lease),
+            },
+            exceeds_hdr,
+        ))
     }
+}
+/// Conservative lower bound on positive finite FP16 bits whose scaled nits can exceed `threshold`.
+/// Backing off by 2 FP16 steps prevents IEEE-754 rounding in `0.2126*r + 0.7152*g + 0.0722*b` from missing boundary pixels.
+fn hdr_probe_floor_bits(threshold: f32, gain: f32) -> u16 {
+    let mut lo = 0u16;
+    let mut hi = 0x7c00u16;
+    while lo < hi {
+        let mid = lo + (hi - lo) / 2;
+        if (nonnegative_half(mid) * gain) * 80.0 > threshold {
+            hi = mid;
+        } else {
+            lo = mid + 1;
+        }
+    }
+    lo.saturating_sub(2)
 }
 const SDR_LUT_MIN_PIXELS: usize = 32_768;
 fn sdr_lut(

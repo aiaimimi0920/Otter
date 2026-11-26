@@ -1,6 +1,21 @@
 //! Independent whole-image sampling reference without row clipping/candidate spans, protecting optimized round-cap/diagonal-edge coverage.
 use super::*;
 
+#[test]
+fn sparse_tiles_match_reference_across_boundaries() {
+    let source: Pixels = [40, 80, 100, 128].repeat(145 * 145).into();
+    let points = [
+        Point { x: 0.25, y: 0.5 },
+        Point {
+            x: 144.5,
+            y: 144.25,
+        },
+    ];
+    let expected = reference(&source, (145, 145), &points, 4.0);
+    let actual = apply(&source, (145, 145), &points, 4.0, || false).unwrap();
+    assert_eq!(&*actual, expected);
+}
+
 fn reference(source: &Pixels, size: (u32, u32), points: &[Point], width: f32) -> Vec<u8> {
     let mut output = source.to_vec();
     let r2 = (width as f64 / 2.0).powi(2);

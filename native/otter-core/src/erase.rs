@@ -5,6 +5,8 @@ use crate::{
 };
 #[path = "erase_frame.rs"]
 pub mod frame;
+#[path = "erase_mask.rs"]
+mod mask;
 #[path = "erase_span.rs"]
 pub mod span;
 pub use frame::{apply_history_in_frame, apply_in_frame, apply_in_projection};
@@ -99,17 +101,16 @@ fn apply_scaled(
     if !has_content {
         return Ok(source.clone());
     }
-    let mask_width = (region_right - region_left) as usize;
-    let mask_height = (region_bottom - region_top) as usize;
-    let mask_len = mask_width * mask_height;
-    let (mut coverage, _mask_lease) = reserve_buffer::<u16>(mask_len)?;
-    coverage.resize(mask_len, 0);
+    // Small regions retain compact dense storage; large regions avoid allocating untouched tiles.
+    let mut coverage = mask::Mask::new(
+        [region_left, region_top, region_right, region_bottom],
+        source.len(),
+    )?;
     // 4x4 subsamples offset from pixel centers by at most (+/-0.375/sx, +/-0.375/sy); center-distance thresholds can skip/fill whole pixels.
     let margin = 0.38 * (1.0 / scale.0).hypot(1.0 / scale.1);
     let inner_sq = (logical_radius > margin).then(|| (logical_radius - margin).powi(2));
     let outer_sq = (logical_radius + margin).powi(2);
     let radius_sq = logical_radius * logical_radius;
-    let mut touched = false;
     for i in 0..points.len() {
         if cancelled() {
             return Err(EraseError::Cancelled);
@@ -130,9 +131,7 @@ fn apply_scaled(
             };
             let cy = (y as f64 + 0.5 - a.y as f64) / scale.1;
             for x in left.max(region_left)..right.min(region_right) {
-                let mask_index =
-                    (y - region_top) as usize * mask_width + (x - region_left) as usize;
-                let existing = coverage[mask_index];
+                let existing = coverage.get(x, y);
                 if existing == u16::MAX {
                     continue;
                 }
@@ -146,17 +145,17 @@ fn apply_scaled(
                 if center_sq > outer_sq {
                     continue;
                 }
-                let mut mask = if inner_sq.is_some_and(|limit| center_sq <= limit) {
+                let mut bitmask = if inner_sq.is_some_and(|limit| center_sq <= limit) {
                     u16::MAX
                 } else {
                     existing
                 };
-                if mask != u16::MAX {
+                if bitmask != u16::MAX {
                     for sy in 0..4 {
                         let py = (y as f64 + (sy as f64 + 0.5) / 4.0 - a.y as f64) / scale.1;
                         for sx in 0..4 {
                             let bit = 1u16 << (sy * 4 + sx);
-                            if mask & bit != 0 {
+                            if bitmask & bit != 0 {
                                 continue;
                             }
                             let px = (x as f64 + (sx as f64 + 0.5) / 4.0 - a.x as f64) / scale.0;
@@ -166,19 +165,18 @@ fn apply_scaled(
                                 ((px * dx + py * dy) / length).clamp(0.0, 1.0)
                             };
                             if (px - t * dx).powi(2) + (py - t * dy).powi(2) <= radius_sq {
-                                mask |= bit;
+                                bitmask |= bit;
                             }
                         }
                     }
                 }
-                if mask != existing {
-                    coverage[mask_index] = mask;
-                    touched = true;
+                if bitmask != existing {
+                    coverage.set(x, y, bitmask)?;
                 }
             }
         }
     }
-    if !touched {
+    if !coverage.touched() {
         return if cancelled() {
             Err(EraseError::Cancelled)
         } else {
@@ -191,19 +189,21 @@ fn apply_scaled(
         if cancelled() {
             return Err(EraseError::Cancelled);
         }
-        let mask_row = &coverage
-            [(y - region_top) as usize * mask_width..((y - region_top) as usize + 1) * mask_width];
-        let row_base = y as usize * size.0 as usize + region_left as usize;
-        for (offset, &mask) in mask_row.iter().enumerate() {
-            if mask == 0 {
+        let Some((row_start_x, row_end_x)) = coverage.row_span(y) else {
+            continue;
+        };
+        let row_base = y as usize * size.0 as usize;
+        for x in row_start_x..row_end_x {
+            let cell = coverage.get(x, y);
+            if cell == 0 {
                 continue;
             }
-            let start = (row_base + offset) * 4;
+            let start = (row_base + x as usize) * 4;
             let src = &source[start..start + 4];
-            let pixel = if mask == u16::MAX {
+            let pixel = if cell == u16::MAX {
                 [0u8; 4]
             } else {
-                let keep = 16 - mask.count_ones();
+                let keep = 16 - cell.count_ones();
                 [
                     ((src[0] as u32 * keep + 8) / 16) as u8,
                     ((src[1] as u32 * keep + 8) / 16) as u8,

@@ -190,20 +190,30 @@ fn convert(
     info: DisplayInfo,
     cancel: &AtomicBool,
 ) -> Result<Frame, capture_color::Error> {
-    if options.mode == Mode::Sdr
-        || (options.mode == Mode::Auto
-            && !frame.exceeds_sdr_white(info.sdr_white_nits, options.gain, cancel)?)
-    {
-        frame
+    if options.mode == Mode::Sdr {
+        return frame
             .to_sdr(info.sdr_white_nits, options.gain, cancel)
-            .map(Frame::Sdr)
-    } else {
-        // Generate previews from the original floating-point frame, rather than decoding PQ RGB16 as ordinary sRGB.
-        // Each conversion holds its own budget; subsequent failure automatically releases the local preview without delivering partial results.
-        let preview = frame.to_sdr(info.sdr_white_nits, options.gain, cancel)?;
-        let image = frame.to_hdr(info.minimum_nits, info.maximum_nits, options.gain, cancel)?;
-        Ok(Frame::Hdr { image, preview })
+            .map(Frame::Sdr);
     }
+    if options.mode == Mode::Auto {
+        // Performance audit optimization (Tier 3.3):
+        // Fuse the HDR highlight probe directly into the SDR conversion pass via `to_sdr_probing_hdr` so `Mode::Auto`
+        // reads the 63–113 MiB D3D11 FP16 staging buffer once instead of twice on ordinary SDR captures, and reuses
+        // the already-produced `sdr` preview if HDR highlights are detected.
+        let (preview, has_hdr) =
+            frame.to_sdr_probing_hdr(info.sdr_white_nits, options.gain, cancel)?;
+        return if !has_hdr {
+            Ok(Frame::Sdr(preview))
+        } else {
+            let image = frame.to_hdr(info.minimum_nits, info.maximum_nits, options.gain, cancel)?;
+            Ok(Frame::Hdr { image, preview })
+        };
+    }
+    // Generate previews from the original floating-point frame, rather than decoding PQ RGB16 as ordinary sRGB.
+    // Each conversion holds its own budget; subsequent failure automatically releases the local preview without delivering partial results.
+    let preview = frame.to_sdr(info.sdr_white_nits, options.gain, cancel)?;
+    let image = frame.to_hdr(info.minimum_nits, info.maximum_nits, options.gain, cancel)?;
+    Ok(Frame::Hdr { image, preview })
 }
 fn execute<C>(
     options: Options,

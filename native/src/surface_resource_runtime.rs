@@ -191,6 +191,7 @@ impl Job {
                         Connection::Inline => return Err(Error::Stopped),
                         Connection::Prepared(client) => client,
                         Connection::Configured(config) => {
+                            // Trust files and resolved addresses may change at the same configured path.
                             task.prepare_client(&config).map_err(Error::Preparation)?
                         }
                     };

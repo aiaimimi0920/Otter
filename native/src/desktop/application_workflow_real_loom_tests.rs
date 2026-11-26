@@ -10,14 +10,10 @@ use std::{
 };
 
 #[test]
-#[ignore = "requires an isolated Loom bridge controller under linshi"]
+#[ignore = "requires an isolated Loom bridge controller under repository .tmp"]
 fn saved_workflow_survives_real_loom_bridge_restart() {
-    let root = fs::canonicalize(std::env::var_os("OTTER_WORKFLOW_LOOM_FIXTURE").unwrap()).unwrap();
-    let allowed = [crate::test_temp_root(), std::env::temp_dir()];
-    assert!(allowed
-        .iter()
-        .filter_map(|candidate| fs::canonicalize(candidate).ok())
-        .any(|base| root != base && root.starts_with(&base)));
+    let supplied = std::env::var_os("OTTER_WORKFLOW_LOOM_FIXTURE").unwrap();
+    let root = crate::temp_root::fixture_directory(Path::new(&supplied));
     let session = root.join("session.json");
     assert!(!session.exists());
     let assets = root.join("images");
