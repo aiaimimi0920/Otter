@@ -3,6 +3,12 @@
 `native/Cargo.lock` is the active dependency inventory. The pinned OSV scanner checks that lock.
 Dependabot and CodeQL are independent signals and do not substitute for reviewed exact-lock evidence.
 
+CodeQL's bounded inventory distinguishes scan findings from inventory failures. An
+`input_limit_exceeded` error includes the fixed budget name, observed count and maximum;
+CI copies failure reports to the job summary and preserves the failing exit code.
+Do not raise a budget or suppress findings without inspecting those measurements.
+Reports omit source text, diagnostic messages and credentials.
+
 ```powershell
 npm run test:dependency-security
 npm run audit:dependencies
