@@ -35,6 +35,11 @@ impl Application {
             let owner = self.workspace_checkpoint.as_mut().unwrap();
             owner.revision = record.restored_revision;
             owner.original = Some(record.original.clone());
+            owner.has_recycle_bin = crate::session_library::decode(
+                &record.original,
+                crate::session_library::Kind::RecycleBin,
+            )
+            .is_ok_and(|library| !library.entries().is_empty());
             owner.stopped = record.recovery_path.is_some();
             if !owner.stopped {
                 owner.accounts = record
@@ -81,6 +86,7 @@ impl Application {
                 .as_mut()
                 .unwrap()
                 .projection_display = display;
+            self.sync_frozen_menu();
         }
         let readonly = self.workspace_checkpoint.as_ref().unwrap().stopped;
         if check {

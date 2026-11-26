@@ -17,6 +17,7 @@ pub(in crate::desktop) struct Prepared {
     pub(super) candidate: Candidate,
     pub(super) staged: Option<save_disk::Disk>,
     pub(super) promote_host: bool,
+    pub(super) has_recycle_bin: bool,
     pub(super) receipt: save_snapshot::Receipt,
 }
 impl Prepared {
@@ -229,6 +230,7 @@ unsafe fn verify_failed_commits(
             checkpoint_projections: None,
             staged: None,
             promote_host: false,
+            has_recycle_bin: false,
             candidate: Candidate {
                 bytes: candidate.bytes.clone(),
                 expected_revision: candidate.expected_revision,

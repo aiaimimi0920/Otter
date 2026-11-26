@@ -25,6 +25,7 @@ pub(super) struct Owner {
     projection_workspace: Option<crate::workspace::IdentityStamp>,
     projection_scope: Option<crate::session_projection_scope::Proof>,
     projection_display: projection_proof::Documents,
+    has_recycle_bin: bool,
     pending: bool,
     stopped: bool,
     exiting: bool,
@@ -65,6 +66,7 @@ impl Owner {
             projection_workspace: None,
             projection_scope: None,
             projection_display: None,
+            has_recycle_bin: false,
             pending: false,
             stopped: false,
             exiting: false,
@@ -186,6 +188,7 @@ impl Application {
                         .is_some_and(|record| source.same_storage(&record.original))
             })
         {
+            self.reconcile_checkpoint_source();
             return Ok(false);
         }
         let destination = match &owner.original {
@@ -290,10 +293,21 @@ impl Application {
                 &source,
                 &self.workspace,
             );
+            // Share the canonical buffer across checkpoint and default-session library state when recycle-bin JSON is involved and no manual/in-flight owner pins the previous Source.
+            let adopt = (self.workspace_checkpoint.as_ref().unwrap().has_recycle_bin
+                || prepared.has_recycle_bin)
+                && self.can_adopt_checkpoint_source();
+            let stamp_source = if adopt {
+                self.restored_session.as_mut().unwrap().original = candidate_source.clone();
+                candidate_source.clone()
+            } else {
+                source
+            };
             let owner = self.workspace_checkpoint.as_mut().unwrap();
             owner.revision = prepared.candidate.revision;
             owner.original = Some(candidate_source);
-            owner.stamp = Some((stamp, source));
+            owner.stamp = Some((stamp, stamp_source));
+            owner.has_recycle_bin = prepared.has_recycle_bin;
             // Record actual publication first; a separate failure to retire an old recovery copy must not erase the committed inclusion relationship.
             owner.projections = prepared.checkpoint_projections;
             owner.senders = prepared.checkpoint_senders;
@@ -301,6 +315,20 @@ impl Application {
             owner.projection_scope = prepared.checkpoint_scope;
             owner.projection_workspace = Some(self.workspace.identity_stamp());
             owner.projection_display = display;
+            if adopt {
+                self.sync_frozen_menu();
+            }
+            if let Ok(mut view) = self.authorization.try_borrow_mut() {
+                view.sender.stop_source = self
+                    .projection_sender_scope()
+                    .and_then(|_| self.workspace_checkpoint.as_ref()?.sender_source().cloned());
+                view.sender.bindings = self
+                    .workspace_checkpoint
+                    .as_ref()
+                    .and_then(|owner| owner.sender_index())
+                    .map(|index| index.entries().to_vec())
+                    .unwrap_or_default();
+            }
             if let Some((path, error)) = published.retained_recovery {
                 return Err(Error::new(
                     E_FAIL,
@@ -391,5 +419,62 @@ impl Application {
             let _ = TranslateMessage(&message);
             DispatchMessageW(&message);
         }
+    }
+    /// Default-profile sessions have no external manual-file revision; adopt the committed checkpoint buffer only when no in-flight operation checks same_storage against the old Source.
+    fn can_adopt_checkpoint_source(&self) -> bool {
+        let Some(record) = &self.restored_session else {
+            return false;
+        };
+        if record.saved_path.is_some()
+            || record.recovery_path.is_some()
+            || record.disk_original.is_some()
+            || !record.pending_arts.is_empty()
+            || record.workflow.is_some()
+            || record.workflow_sync.is_some()
+            || record.workflow_delivery.is_some()
+            || self.live_freeze_job.is_some()
+            || self.checkpoint_exit_waiting()
+            || self.exit_saved.is_some()
+            || self.account_projection.busy()
+            || self.projection_receive.busy()
+            || self.projection_sender.busy()
+            || self.projection_edit.busy()
+        {
+            return false;
+        }
+        let frozen = self.frozen_library.borrow();
+        frozen.menu.is_none()
+            && frozen.request.is_none()
+            && frozen.reference.is_none()
+            && frozen.configure_recycle.is_none()
+    }
+    fn reconcile_checkpoint_source(&mut self) {
+        if !self.can_adopt_checkpoint_source() {
+            return;
+        }
+        let Some(canonical) = self.workspace_checkpoint.as_ref().and_then(|owner| {
+            let published = owner.original.as_ref()?;
+            (owner.has_recycle_bin
+                && owner
+                    .projection_scope
+                    .as_ref()
+                    .is_some_and(|proof| proof.is_for(published))
+                && self
+                    .restored_session
+                    .as_ref()
+                    .is_some_and(|record| !published.same_storage(&record.original)))
+            .then(|| published.clone())
+        }) else {
+            return;
+        };
+        self.restored_session.as_mut().unwrap().original = canonical.clone();
+        self.workspace_checkpoint
+            .as_mut()
+            .unwrap()
+            .stamp
+            .as_mut()
+            .unwrap()
+            .1 = canonical;
+        self.sync_frozen_menu();
     }
 }

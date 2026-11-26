@@ -110,6 +110,7 @@ impl Application {
             candidate: output.candidate,
             staged: output.staged,
             promote_host: output.promote_host,
+            has_recycle_bin: output.has_recycle_bin,
             receipt,
         })))
     }

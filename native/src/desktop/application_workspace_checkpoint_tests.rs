@@ -26,6 +26,8 @@ mod paths;
 mod projection_profile;
 #[path = "application_projection_receive_tests.rs"]
 mod projection_receive;
+#[path = "application_workspace_checkpoint_recycle_tests.rs"]
+mod recycle;
 #[path = "application_workspace_scope_tests.rs"]
 mod scope;
 #[path = "application_workspace_sender_tests.rs"]

@@ -18,6 +18,7 @@ pub struct Output {
     pub candidate: Candidate,
     pub staged: Option<Disk>,
     pub promote_host: bool,
+    pub has_recycle_bin: bool,
 }
 impl Output {
     fn unstaged(candidate: Candidate) -> Self {
@@ -29,6 +30,7 @@ impl Output {
             candidate,
             staged: None,
             promote_host: false,
+            has_recycle_bin: false,
         }
     }
 }
@@ -170,6 +172,10 @@ impl Job {
             // Reuse the decoded candidate here, not on the HWND commit path.
             let promote_host =
                 transient_host.is_some_and(|host| parsed.document().workspace.contains(&host));
+            let has_recycle_bin = parsed
+                .document()
+                .library(crate::session_library::Kind::RecycleBin)
+                .is_ok_and(|library| !library.entries().is_empty());
             Ok(Output {
                 checkpoint_accounts: Some(checkpoint_accounts),
                 checkpoint_senders: indices.sender,
@@ -179,6 +185,7 @@ impl Job {
                 candidate,
                 staged,
                 promote_host,
+                has_recycle_bin,
             })
         })
     }
