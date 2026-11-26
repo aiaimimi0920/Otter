@@ -1,8 +1,8 @@
 // Two rquickjs 0.14.0 subcrates omit the repository-level MIT license; consume only exact reviewed original bytes, with no generic fallback.
-const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { checkedPath } = require('../release/third-party-sources.cjs');
+const { readBytes } = require('./input-bytes.cjs');
 const REGISTRY = 'registry+https://github.com/rust-lang/crates.io-index';
 const RQUICKJS = {
   sha256: '976ad3d07927343ab99b31510625acba89eac8e0e517c712925620ddeda91b70',
@@ -16,12 +16,10 @@ function original(pkg, registryRoot, name, pin) {
   const relative = path.relative(registryRoot, path.dirname(pkg.manifest_path)).split(path.sep).join('/');
   const directory = checkedPath(registryRoot, relative);
   const file = checkedPath(directory, name);
-  const stat = fs.statSync(file);
-  if (!stat.isFile() || stat.size < 1 || stat.size > 4096) throw new Error('Invalid JavaScript license size');
-  const bytes = fs.readFileSync(file);
+  const bytes = readBytes(file, 4096, 1);
   new TextDecoder('utf-8', { fatal: true }).decode(bytes);
   const sha256 = crypto.createHash('sha256').update(bytes).digest('hex');
-  if (bytes.length > 4096 || sha256 !== pin.sha256) throw new Error('JavaScript license original mismatch');
+  if (sha256 !== pin.sha256) throw new Error('JavaScript license original mismatch');
   return { name, bytes, sha256, upstream: pin.upstream };
 }
 function javascriptLicenses(pkg, metadata, registryRoot) {

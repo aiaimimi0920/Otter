@@ -38,6 +38,18 @@ class SummaryError(ValueError):
     """A constant, safe error code; never include any untrusted input."""
 
 
+class InputLimitError(SummaryError):
+    """Only fixed budget names and numeric measurements may accompany an error."""
+
+    def __init__(self, name: str, observed: int, maximum: int) -> None:
+        super().__init__("input_limit_exceeded")
+        self.details = {
+            "limit": name,
+            "observed": observed,
+            "maximum": maximum,
+        }
+
+
 class SafeArgumentParser(argparse.ArgumentParser):
     def error(self, message: str) -> None:
         print(json.dumps({"error": "invalid_arguments"}))
@@ -296,9 +308,11 @@ def _read_sarif(path: Path) -> tuple[dict, int]:
     with os.fdopen(descriptor, "rb") as stream:
         details = os.fstat(stream.fileno())
         _require(stat.S_ISREG(details.st_mode), "unsafe_input")
-        _require(details.st_size <= MAX_FILE_BYTES, "input_limit_exceeded")
+        if details.st_size > MAX_FILE_BYTES:
+            raise InputLimitError("file_bytes", details.st_size, MAX_FILE_BYTES)
         raw = stream.read(MAX_FILE_BYTES + 1)
-    _require(len(raw) <= MAX_FILE_BYTES, "input_limit_exceeded")
+    if len(raw) > MAX_FILE_BYTES:
+        raise InputLimitError("file_bytes", len(raw), MAX_FILE_BYTES)
     try:
         payload = json.loads(raw)
     except (ValueError, UnicodeError, RecursionError):
@@ -405,6 +419,7 @@ def main(argv: list[str] | None = None) -> int:
                     "error_kind": "inventory_error",
                     "analysis_complete": False,
                     "inventory_complete": False,
+                    **(error.details if isinstance(error, InputLimitError) else {}),
                 }
             )
         )
