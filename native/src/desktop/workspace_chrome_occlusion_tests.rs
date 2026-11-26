@@ -99,7 +99,7 @@ unsafe fn place(hwnd: HWND, x: i32, y: i32, width: i32, height: i32) {
 
 #[test]
 fn every_pin_occludes_ports_and_move_resize_hide_or_destroy_restores_outer_half() {
-    unsafe {
+    desktop::workspace_window_fixture::with_private_input_desktop(|| unsafe {
         for side in [Side::Input, Side::Output] {
             let mut app = visible_app();
             for doc in &app.documents {
@@ -150,5 +150,5 @@ fn every_pin_occludes_ports_and_move_resize_hide_or_destroy_restores_outer_half(
             assert_eq!(hit(), strip);
             app.shutdown();
         }
-    }
+    });
 }

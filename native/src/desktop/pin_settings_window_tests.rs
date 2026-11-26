@@ -193,8 +193,17 @@ fn settings_follow_pin_close_on_tool_change_and_reject_old_edit_without_disablin
         )
         .unwrap();
         GetWindowRect(window, &mut rect).unwrap();
-        assert_eq!(rect.right, 500);
-        assert_eq!(rect.top, 600);
+        GetWindowRect(f.owner.0, &mut pin).unwrap();
+        let work = crate::desktop::tool_panel::position::work_area(&pin).unwrap();
+        let expected = crate::desktop::pin_settings_geometry::place(
+            pin,
+            work,
+            (rect.right - rect.left, rect.bottom - rect.top),
+        );
+        assert_eq!(
+            rect, expected,
+            "settings must follow within the actual work area"
+        );
         enter(&f, field(window, settings::OPACITY), "30");
         f.state
             .canvas

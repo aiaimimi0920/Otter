@@ -56,7 +56,7 @@ class BuildGateTests(unittest.TestCase):
         self.assertIn("python3 -m unittest discover", docs)
         self.assertIn("if: steps.scope.outputs.full == 'false'", docs)
         self.assertIn("python3 scripts/check_changed_docs.py", docs)
-        for command in ("npm ci", "node_modules", "cargo test", "upload-artifact"):
+        for command in ("npm ci", "node_modules", "cargo test", "cargo nextest", "upload-artifact"):
             self.assertNotIn(command, docs)
         self.assertNotIn("paths-ignore:", WORKFLOW)
 
@@ -83,7 +83,8 @@ class BuildGateTests(unittest.TestCase):
     def test_cache_never_skips_native_build_or_test_gates(self):
         candidate = job("build-windows-candidate")
         for command in ("assert-release-version.ps1", "cargo fetch --locked",
-                        "cargo test --locked --offline --workspace", "build-native-candidate.ps1",
+                        "cargo nextest run --locked --offline --workspace",
+                        "cargo test --doc --locked --offline --workspace", "build-native-candidate.ps1",
                         "package-native-candidate.ps1", "verify-native-package.ps1",
                         "native-package-runtime.py", "test_native_package_runtime.py",
                         "cargo fmt", "--mode strict"):
@@ -94,6 +95,20 @@ class BuildGateTests(unittest.TestCase):
         self.assertNotIn("npm ci", candidate)
         self.assertIn("candidate/*-internal.zip", job("build-windows-exe"))
         self.assertNotIn("candidate/otter.exe", job("build-windows-exe"))
+
+    def test_isolated_runner_keeps_full_selection_and_explicit_failure_propagation(self):
+        candidate = job("build-windows-candidate")
+        self.assertIn("tool: cargo-nextest@0.9.140", candidate)
+        self.assertRegex(candidate, r"uses: taiki-e/install-action@[0-9a-f]{40}")
+        tests = candidate.split("name: Run native tests with the locked graph", 1)[1]
+        tests = tests.split("      - name:", 1)[0]
+        for command in ("cargo nextest run", "cargo test --doc"):
+            self.assertRegex(tests, re.escape(command) + r"[^\n]+\n\s+if \(\$LASTEXITCODE -ne 0\) \{ exit \$LASTEXITCODE \}")
+        self.assertIn("--config-file native/.config/nextest.toml --profile default", tests)
+        self.assertIn("--test-threads 1 --no-tests=fail", tests)
+        for excluded in ("--profile headless", "--features", "--filter", " -E ", "--skip", "--retries"):
+            self.assertNotIn(excluded, tests)
+        self.assertLess(candidate.index("cargo test --doc"), candidate.index("build-native-candidate.ps1"))
 
 
 if __name__ == "__main__":

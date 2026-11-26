@@ -184,32 +184,34 @@ fn controls() -> Value {
 }
 #[test]
 fn cancelled_text_select_and_slider_keep_tab_origin_without_closing_tile_or_replaying() {
-    let _com = crate::desktop::Apartment::new().unwrap();
-    let foreground = unsafe { GetForegroundWindow() };
-    let (f, w) = setup(controls());
-    for node in ["first", "select", "slider"] {
-        navigate(w.hwnd, &w.state, false);
-        assert_eq!(focus(&w), node);
-        let h = if node == "first" {
-            text::active_child(&w.state)
-        } else {
-            child(&w)
-        };
-        let p = unsafe { GetParent(h).unwrap() };
-        unsafe {
-            key(h, WM_KEYDOWN, 27, false);
+    crate::desktop::workspace_window_fixture::with_private_input_desktop(|| {
+        let _com = crate::desktop::Apartment::new().unwrap();
+        let foreground = unsafe { GetForegroundWindow() };
+        let (f, w) = setup(controls());
+        for node in ["first", "select", "slider"] {
+            navigate(w.hwnd, &w.state, false);
+            assert_eq!(focus(&w), node);
+            let h = if node == "first" {
+                text::active_child(&w.state)
+            } else {
+                child(&w)
+            };
+            let p = unsafe { GetParent(h).unwrap() };
+            unsafe {
+                key(h, WM_KEYDOWN, 27, false);
+            }
+            assert!(w.alive());
+            assert_eq!(focus(&w), node);
+            assert!(!unsafe { IsWindow(Some(h)) }.as_bool());
+            assert!(!unsafe { IsWindow(Some(p)) }.as_bool());
+            assert!(events(&f).is_empty());
         }
-        assert!(w.alive());
-        assert_eq!(focus(&w), node);
-        assert!(!unsafe { IsWindow(Some(h)) }.as_bool());
-        assert!(!unsafe { IsWindow(Some(p)) }.as_bool());
-        assert!(events(&f).is_empty());
-    }
-    navigate(w.hwnd, &w.state, false);
-    assert_eq!(focus(&w), "send");
-    navigate(w.hwnd, &w.state, true);
-    assert_eq!(focus(&w), "slider");
-    assert_eq!(unsafe { GetForegroundWindow() }, foreground);
+        navigate(w.hwnd, &w.state, false);
+        assert_eq!(focus(&w), "send");
+        navigate(w.hwnd, &w.state, true);
+        assert_eq!(focus(&w), "slider");
+        assert_eq!(unsafe { GetForegroundWindow() }, foreground);
+    });
 }
 #[test]
 fn cancel_retires_remote_edit_suffix_but_preserves_accepted_local_value() {

@@ -54,34 +54,36 @@ unsafe fn key(h: HWND, k: usize) {
 }
 #[test]
 fn local_switch_mouse_and_keyboard_persist_without_queue_and_preserve_ancestor_click() {
-    let _com = crate::desktop::Apartment::new().unwrap();
-    let foreground = unsafe { GetForegroundWindow() };
-    let (f, w) = setup(scene("switch"));
-    assert!(!w.test_art_click([10, 10]));
-    assert_eq!(displayed(&w), Value::Switch(true));
-    w.tick().unwrap();
-    assert!(!w.test_art_click([10, 10]));
-    assert_eq!(displayed(&w), Value::Switch(false));
-    keyboard_open(&w);
-    unsafe {
-        key(w.hwnd, 32);
-        SendMessageW(w.hwnd, WM_KEYUP, Some(WPARAM(32)), None);
-    }
-    assert_eq!(displayed(&w), Value::Switch(true));
-    assert!(f.shared.lock().actions.pending.is_empty());
-    assert_eq!(unsafe { GetForegroundWindow() }, foreground);
-    let (f, w) = setup(
-        json!({"id":"root","type":"view","events":{"click":"outer"},"children":[scene("switch")]}),
-    );
-    assert!(w.test_art_click([10, 10]));
-    assert_eq!(displayed(&w), Value::Switch(true));
-    let s = f.shared.lock();
-    assert_eq!(s.actions.pending.len(), 1);
-    let crate::tile_surface_actions::Kind::Event(e) = &s.actions.pending[0].kind else {
-        panic!()
-    };
-    assert_eq!(e["action"], "outer");
-    assert_eq!(e["event"], "click");
+    crate::desktop::workspace_window_fixture::with_private_input_desktop(|| {
+        let _com = crate::desktop::Apartment::new().unwrap();
+        let foreground = unsafe { GetForegroundWindow() };
+        let (f, w) = setup(scene("switch"));
+        assert!(!w.test_art_click([10, 10]));
+        assert_eq!(displayed(&w), Value::Switch(true));
+        w.tick().unwrap();
+        assert!(!w.test_art_click([10, 10]));
+        assert_eq!(displayed(&w), Value::Switch(false));
+        keyboard_open(&w);
+        unsafe {
+            key(w.hwnd, 32);
+            SendMessageW(w.hwnd, WM_KEYUP, Some(WPARAM(32)), None);
+        }
+        assert_eq!(displayed(&w), Value::Switch(true));
+        assert!(f.shared.lock().actions.pending.is_empty());
+        assert_eq!(unsafe { GetForegroundWindow() }, foreground);
+        let (f, w) = setup(
+            json!({"id":"root","type":"view","events":{"click":"outer"},"children":[scene("switch")]}),
+        );
+        assert!(w.test_art_click([10, 10]));
+        assert_eq!(displayed(&w), Value::Switch(true));
+        let s = f.shared.lock();
+        assert_eq!(s.actions.pending.len(), 1);
+        let crate::tile_surface_actions::Kind::Event(e) = &s.actions.pending[0].kind else {
+            panic!()
+        };
+        assert_eq!(e["action"], "outer");
+        assert_eq!(e["event"], "click");
+    });
 }
 #[test]
 fn local_select_cancel_keeps_value_and_keyboard_reopen_uses_accepted_index() {

@@ -128,11 +128,25 @@ mod tests {
         let (allowed, _, _) = Files::new();
         let (other, _, _) = Files::new();
         let path = allowed.root().join("joint.json");
+        let parent = allowed.root().canonicalize().unwrap();
         fs::write(&path, vec![b' '; LIMIT]).unwrap();
-        let (root, bytes) = load_under(&path, allowed.root()).unwrap();
-        assert_eq!(root, allowed.root());
+        let bytes = read_open(File::open(&path).unwrap(), &parent).unwrap();
         assert_eq!(bytes.len(), LIMIT);
         assert!(bytes.iter().all(|byte| *byte == b' '));
+        // Hosted runners put the repository on D:. Real handle checks remain mandatory,
+        // while the public joint-input entry must still reject non-C: paths.
+        let c_drive = matches!(path.components().next(), Some(Component::Prefix(p))
+            if matches!(p.kind(), Prefix::Disk(b'C' | b'c')));
+        if c_drive {
+            let (root, bytes) = load_under(&path, allowed.root()).unwrap();
+            assert_eq!(root, allowed.root());
+            assert_eq!(bytes.len(), LIMIT);
+        } else {
+            assert_eq!(
+                load_under(&path, allowed.root()).unwrap_err().kind(),
+                io::ErrorKind::InvalidInput
+            );
+        }
         assert_eq!(
             read_open(
                 File::open(&path).unwrap(),
@@ -144,11 +158,17 @@ mod tests {
         );
         assert_eq!(
             load_under(&path, other.root()).unwrap_err().kind(),
-            io::ErrorKind::PermissionDenied
+            if c_drive {
+                io::ErrorKind::PermissionDenied
+            } else {
+                io::ErrorKind::InvalidInput
+            }
         );
         fs::write(&path, vec![b' '; LIMIT + 1]).unwrap();
         assert_eq!(
-            load_under(&path, allowed.root()).unwrap_err().kind(),
+            read_open(File::open(&path).unwrap(), &parent)
+                .unwrap_err()
+                .kind(),
             io::ErrorKind::InvalidData
         );
     }

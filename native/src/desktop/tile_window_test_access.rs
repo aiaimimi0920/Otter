@@ -39,14 +39,15 @@ fn desktop_name(desktop: HDESK) -> Result<String> {
         .map_err(|_| Error::new(E_INVALIDARG, "Private test desktop encoding"))
 }
 /// Private-desktop DXGI non-S_OK cannot fabricate submission; keyboard fixtures explicitly use actual submission from the original CPU backend.
-/// Recognize only runner-specific desktops and recheck they are not the input desktop; this entire module is test-only.
+/// Recognize the private fixture thread or runner desktop and recheck it is not the input desktop; this entire module is test-only.
 pub(super) fn private_surface(
     factory: &ID2D1Factory,
     size: Size,
 ) -> Result<Option<crate::desktop::render_surface::RenderSurface>> {
     let thread = unsafe { GetCurrentThreadId() };
     let current = desktop_name(unsafe { GetThreadDesktop(thread)? })?;
-    if !current.starts_with("Otter.Background.Tests.") {
+    let fixture_thread = crate::desktop::workspace_window_fixture::private_input_thread();
+    if !fixture_thread && !current.starts_with("Otter.Background.Tests.") {
         return Ok(None);
     }
     let input = InputDesktop(unsafe {
@@ -59,7 +60,8 @@ pub(super) fn private_surface(
         ));
     }
     // Do not await system IME on invisible desktops; disable only this test thread. Manual composition edges are not candidate-window acceptance.
-    if unsafe { ImmDisableIME(thread) } == 0 {
+    // The fresh fixture thread disabled IME before creating any HWND.
+    if !fixture_thread && unsafe { ImmDisableIME(thread) } == 0 {
         return Err(Error::new(E_FAIL, "Private test thread IME isolation"));
     }
     crate::desktop::render_surface::RenderSurface::software(

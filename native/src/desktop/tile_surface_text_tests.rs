@@ -71,30 +71,32 @@ fn events(f: &Fixture) -> Vec<Value> {
 }
 #[test]
 fn unicode_notifications_coalesce_then_enter_commits_once_without_changing_scene() {
-    let _com = crate::desktop::Apartment::new().unwrap();
-    let (f, w) = setup(scene("input"));
-    let source = f.art.snapshot.scene.clone();
-    let foreground = unsafe { GetForegroundWindow() };
-    let h = edit(&w, [4, 4]);
-    for i in 0..100 {
-        unsafe {
-            replace(h, &format!("中文🙂{i}"));
+    crate::desktop::workspace_window_fixture::with_private_input_desktop(|| {
+        let _com = crate::desktop::Apartment::new().unwrap();
+        let (f, w) = setup(scene("input"));
+        let source = f.art.snapshot.scene.clone();
+        let foreground = unsafe { GetForegroundWindow() };
+        let h = edit(&w, [4, 4]);
+        for i in 0..100 {
+            unsafe {
+                replace(h, &format!("中文🙂{i}"));
+            }
         }
-    }
-    assert_eq!(events(&f).len(), 1);
-    assert_eq!(events(&f)[0]["payload"]["value"], "中文🙂99");
-    unsafe {
-        SendMessageW(h, WM_KEYDOWN, Some(WPARAM(13)), None);
-        SendMessageW(h, WM_KEYDOWN, Some(WPARAM(13)), None);
-    }
-    let actual = events(&f);
-    assert_eq!(actual.len(), 2);
-    assert_eq!(actual[1]["event"], "change");
-    assert_eq!(actual[1]["payload"]["value"], "中文🙂99");
-    assert_eq!(f.art.snapshot.scene, source);
-    assert_eq!(unsafe { GetForegroundWindow() }, foreground);
-    w.tick().unwrap();
-    assert_eq!(w.state.text_preview.borrow()[0].value.as_ref(), "中文🙂99");
+        assert_eq!(events(&f).len(), 1);
+        assert_eq!(events(&f)[0]["payload"]["value"], "中文🙂99");
+        unsafe {
+            SendMessageW(h, WM_KEYDOWN, Some(WPARAM(13)), None);
+            SendMessageW(h, WM_KEYDOWN, Some(WPARAM(13)), None);
+        }
+        let actual = events(&f);
+        assert_eq!(actual.len(), 2);
+        assert_eq!(actual[1]["event"], "change");
+        assert_eq!(actual[1]["payload"]["value"], "中文🙂99");
+        assert_eq!(f.art.snapshot.scene, source);
+        assert_eq!(unsafe { GetForegroundWindow() }, foreground);
+        w.tick().unwrap();
+        assert_eq!(w.state.text_preview.borrow()[0].value.as_ref(), "中文🙂99");
+    });
 }
 #[test]
 fn composition_suppresses_intermediate_events_and_escape_does_not_close_it() {

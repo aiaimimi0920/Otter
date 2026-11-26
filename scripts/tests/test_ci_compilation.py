@@ -28,7 +28,8 @@ class CompilationWorkflowTests(unittest.TestCase):
         for forbidden in ("needs:", "workflow_run:", "workflow_call:", "continue-on-error",
                           "if: always()", "if: ${{ always() }}"):
             self.assertNotIn(forbidden, WORKFLOW)
-        self.assertIn("cargo test --locked --offline --workspace", PRODUCT)
+        self.assertIn("cargo nextest run --locked --offline --workspace", PRODUCT)
+        self.assertIn("cargo test --doc --locked --offline --workspace", PRODUCT)
         self.assertIn("package-native-candidate.ps1", PRODUCT)
         self.assertIn("verify-native-package.ps1", PRODUCT)
         self.assertIn("native-package-runtime.py", PRODUCT)

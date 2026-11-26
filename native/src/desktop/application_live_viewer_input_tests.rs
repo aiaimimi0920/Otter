@@ -75,6 +75,7 @@ pub(super) unsafe fn exercise(
                 SendMessageW(hwnd, WM_KILLFOCUS, Some(WPARAM(0)), Some(LPARAM(0)));
             }
             5 => {
+                peer.viewer_closing.store(true, Ordering::Release);
                 assert!(app.remote_sessions.stop_viewer(key));
             }
             6 => {}
@@ -115,6 +116,7 @@ pub(super) unsafe fn exercise(
         }
         if mode != 5 {
             assert!(app.remote_sessions.test_viewer_input(key).is_some());
+            peer.viewer_closing.store(true, Ordering::Release);
             assert!(app.remote_sessions.stop_viewer(key));
         }
         spin(app, root, |app| app.remote_sessions.viewers().is_empty());

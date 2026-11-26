@@ -16,9 +16,9 @@ pub(super) fn serve(
     opened: Arc<AtomicUsize>,
     controls: Arc<AtomicUsize>,
     inputs: Arc<Mutex<Vec<Value>>>,
-    mode: (u8, bool, Arc<AtomicUsize>),
+    mode: (u8, bool, Arc<AtomicUsize>, Arc<AtomicBool>),
 ) {
-    let (mode, local_art, semantic) = mode;
+    let (mode, local_art, semantic, closing) = mode;
     let mut events = Vec::new();
     let mut sequence = 7;
     let mut revision = 2;
@@ -48,7 +48,7 @@ pub(super) fn serve(
         let (head, body) = match crate::device_session_client::tests::request_result(&mut stream) {
             Ok(r) => r,
             Err(e)
-                if stop.load(Ordering::Acquire)
+                if (stop.load(Ordering::Acquire) || closing.load(Ordering::Acquire))
                     && matches!(
                         e.kind(),
                         std::io::ErrorKind::ConnectionAborted
@@ -56,7 +56,8 @@ pub(super) fn serve(
                             | std::io::ErrorKind::UnexpectedEof
                     ) =>
             {
-                break
+                // Viewer cancellation may precede server teardown; keep serving its release.
+                continue;
             }
             Err(e) => panic!("input fixture request: {e}"),
         };
@@ -200,14 +201,16 @@ pub(super) fn serve(
             &serde_json::to_vec(&response).unwrap(),
         ) {
             assert!(
-                stop.load(Ordering::Acquire)
+                (stop.load(Ordering::Acquire) || closing.load(Ordering::Acquire))
+                    && head.starts_with("GET /v1/live/sessions/live:viewer/events?")
                     && matches!(
                         e.kind(),
                         std::io::ErrorKind::ConnectionAborted
                             | std::io::ErrorKind::ConnectionReset
                             | std::io::ErrorKind::BrokenPipe
                     ),
-                "input fixture reply: {e}"
+                "input fixture reply for {}: {e}",
+                head.lines().next().unwrap()
             );
         }
     }
