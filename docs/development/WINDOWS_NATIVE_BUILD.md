@@ -18,6 +18,22 @@ an installed nightly toolchain; `test:nextest` requires `cargo-nextest`. Ordinar
 `verify:local` require neither. Select focused regressions by their actual owning crate
 to avoid zero matches after tests move:
 
+The product CI uses a pinned Nextest runner with the full default test selection,
+one test process at a time, followed by Cargo doctests. Process isolation prevents
+a failed shared test lock from poisoning unrelated cases; original failures still
+block the same-run package and runtime gates.
+Real-foreground smoke cases run first. CI stops on the first failed test without
+retrying or promoting a package; a successful run still requires the complete
+default inventory, doctests and all subsequent gates.
+
+Native hit/focus fixtures use a private desktop without switching the user's input
+desktop. They retain real HWND, focus, message and cleanup assertions, but do not
+replace foreground-behavior acceptance on a shared interactive desktop. The edit-strip
+toggle fixture verifies `WM_COMMAND/BN_CLICKED` delivery, not physical button input.
+On systems where WIC reports an unavailable component, admitted static WebP stickers
+may use the existing bounded Surface child; larger or animated WebP still depends on
+WIC and does not receive enlarged worker limits.
+
 ```powershell
 npm run check:fast
 cargo nextest run --locked --manifest-path native/Cargo.toml -p otter-core -p otter-media -p otter-runtime

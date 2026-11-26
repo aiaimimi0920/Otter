@@ -81,12 +81,24 @@ pub(crate) unsafe fn focus_foreground(parent: windows::Win32::Foundation::HWND) 
     )
     .unwrap();
     let _ = ShowWindow(parent, SW_SHOWNOACTIVATE);
-    let _ = SetForegroundWindow(parent);
+    let activated = SetForegroundWindow(parent);
     // On foreground-lock rejection, do not attach external threads or synthesize activation; explicit launcher authorization does not replace the real assertion below.
     let _ = SetFocus(Some(parent));
+    let actual = GetForegroundWindow();
+    if actual != parent {
+        let mut pid = 0;
+        let thread = GetWindowThreadProcessId(actual, Some(&mut pid));
+        let mut class = [0; 128];
+        let length = GetClassNameW(actual, &mut class).max(0) as usize;
+        eprintln!(
+            "Foreground fixture rejected: target={parent:?}, actual={actual:?}, activated={}, owner_pid={pid}, owner_thread={thread}, own_pid={}, class={}",
+            activated.as_bool(),
+            std::process::id(),
+            String::from_utf16_lossy(&class[..length])
+        );
+    }
     assert_eq!(
-        GetForegroundWindow(),
-        parent,
+        actual, parent,
         "focus fixture requires an interactive desktop"
     );
     guard

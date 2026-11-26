@@ -229,7 +229,16 @@ fn select_button_is_a_default_on_toggle_without_a_dropdown_and_reopens_enabled()
         let stamp = f.state.canvas.borrow().editor.document_stamp();
         let button = GetDlgItem(Some(f.panel.0), catalog::MODE as i32).unwrap();
         let click = || {
-            SendMessageW(button, BM_CLICK, None, None);
+            // Exercise the actual button-notification route without requiring an
+            // interactive desktop for the system BM_CLICK activation prerequisite.
+            SendMessageW(
+                f.panel.0,
+                WM_COMMAND,
+                Some(WPARAM(
+                    catalog::MODE as usize | ((BN_CLICKED as usize) << 16),
+                )),
+                Some(LPARAM(button.0 as isize)),
+            );
             let mut message = MSG::default();
             assert!(PeekMessageW(
                 &mut message,

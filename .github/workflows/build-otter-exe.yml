@@ -56,6 +56,11 @@ jobs:
         with:
           components: rustfmt
 
+      - name: Setup isolated native test runner
+        uses: taiki-e/install-action@a6b2e2dcd845ddd7f509ce4f3ed3d922b80cc5d9 # v2.84.0
+        with:
+          tool: cargo-nextest@0.9.140
+
       - name: Cache native Rust dependencies
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
@@ -96,7 +101,10 @@ jobs:
         run: |
           cargo fmt --all --check --manifest-path native/Cargo.toml
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          cargo test --locked --offline --workspace --manifest-path native/Cargo.toml -- --test-threads=1
+          cargo nextest run --locked --offline --workspace --manifest-path native/Cargo.toml --config-file native/.config/nextest.toml --profile default --test-threads 1 --no-tests=fail --fail-fast
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo test --doc --locked --offline --workspace --manifest-path native/Cargo.toml -- --test-threads=1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Build and verify the native Windows internal package
         shell: powershell

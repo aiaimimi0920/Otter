@@ -263,15 +263,24 @@ fn click_discloses_and_drag_cancel_retains_topology_and_expands_preview_bounds()
         // Expanded anchors have moved outward; old coordinates are body, not a valid basis for fabricated connection drags.
         let (_, _, point) = port(ui, 0, Side::Output);
         mouse(ui, hwnd, WM_LBUTTONDOWN, point);
+        let mut before = RECT::default();
+        GetWindowRect(ui.drawing.get(), &mut before).unwrap();
+        let right = GetSystemMetrics(SM_XVIRTUALSCREEN) + GetSystemMetrics(SM_CXVIRTUALSCREEN);
+        let bottom = GetSystemMetrics(SM_YVIRTUALSCREEN) + GetSystemMetrics(SM_CYVIRTUALSCREEN);
         let far = Point {
-            x: point.x + 600,
-            y: point.y + 250,
+            x: (point.x + 600).min(right - 1),
+            y: (point.y + 250).min(bottom - 1),
         };
+        assert!(
+            !Rect::from(before).contains(far),
+            "drag must extend the preview"
+        );
         mouse(ui, hwnd, WM_MOUSEMOVE, far);
         assert!(ui.press.borrow().as_ref().unwrap().dragged);
         let mut bounds = RECT::default();
         GetWindowRect(ui.drawing.get(), &mut bounds).unwrap();
         assert!(Rect::from(bounds).contains(far));
+        assert!(bounds.right > before.right || bounds.bottom > before.bottom);
         ui.cancel();
         assert!(ui.idle());
         assert_ne!(GetCapture(), hwnd);
@@ -281,7 +290,7 @@ fn click_discloses_and_drag_cancel_retains_topology_and_expands_preview_bounds()
 }
 #[test]
 fn actual_drop_queues_once_and_reconnect_cancel_preserves_original_edge() {
-    unsafe {
+    desktop::workspace_window_fixture::with_private_input_desktop(|| unsafe {
         let mut app = visible_app();
         // Use actual borderless pin hosts; system nonclient areas must not become extra resize borders above endpoints.
         for doc in &app.documents {
@@ -341,7 +350,7 @@ fn actual_drop_queues_once_and_reconnect_cancel_preserves_original_edge() {
         app.pending_link_changes();
         assert_eq!(app.workspace.links(), [old]);
         app.shutdown();
-    }
+    });
 }
 #[test]
 fn capture_retires_gestures_without_hiding_and_host_destruction_retires_every_chrome_hwnd() {

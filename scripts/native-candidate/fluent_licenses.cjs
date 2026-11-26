@@ -1,8 +1,8 @@
 // Reviewed Fluent dependency archives omit their upstream license texts; never substitute generic templates.
-const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { checkedPath } = require('../release/third-party-sources.cjs');
+const { readBytes } = require('./input-bytes.cjs');
 const REGISTRY = 'registry+https://github.com/rust-lang/crates.io-index';
 const PINS = {
   'fluent-langneg': {
@@ -25,9 +25,7 @@ const PINS = {
 
 function read(root, relative, limit) {
   const file = checkedPath(root, relative);
-  const stat = fs.statSync(file);
-  if (!stat.isFile() || stat.size < 1 || stat.size > limit) throw new Error('Invalid Fluent license input size');
-  const bytes = fs.readFileSync(file);
+  const bytes = readBytes(file, limit, 1);
   new TextDecoder('utf-8', { fatal: true }).decode(bytes);
   return bytes;
 }

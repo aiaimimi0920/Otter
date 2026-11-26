@@ -69,23 +69,25 @@ fn local_submit_receipt_counts_button_not_navigation_commit() {
 }
 #[test]
 fn joint_unmodified_keys_restore_ambient_state_and_accept_exactly_one_button() {
-    let _com = crate::desktop::Apartment::new().unwrap();
-    let foreground = unsafe { GetForegroundWindow() };
-    let (f, w) = setup(form());
-    edit(&w);
-    joint_access::with_modifiers(&[VK_CONTROL, VK_LCONTROL, VK_MENU], || {
-        let mut before = [0; 256];
-        unsafe { GetKeyboardState(&mut before).unwrap() };
-        assert!(w.test_art_text_keyboard_submit());
-        let mut after = [0; 256];
-        unsafe { GetKeyboardState(&mut after).unwrap() };
-        assert_eq!(before, after);
+    crate::desktop::workspace_window_fixture::with_private_input_desktop(|| {
+        let _com = crate::desktop::Apartment::new().unwrap();
+        let foreground = unsafe { GetForegroundWindow() };
+        let (f, w) = setup(form());
+        edit(&w);
+        joint_access::with_modifiers(&[VK_CONTROL, VK_LCONTROL, VK_MENU], || {
+            let mut before = [0; 256];
+            unsafe { GetKeyboardState(&mut before).unwrap() };
+            assert!(w.test_art_text_keyboard_submit());
+            let mut after = [0; 256];
+            unsafe { GetKeyboardState(&mut after).unwrap() };
+            assert_eq!(before, after);
+        });
+        let events = events(&f);
+        assert_eq!(events.len(), 3);
+        assert_eq!(events[2]["event"], "click");
+        assert_eq!(events[2]["payload"]["surfaceValues"]["field"], "4");
+        assert_eq!(unsafe { GetForegroundWindow() }, foreground);
     });
-    let events = events(&f);
-    assert_eq!(events.len(), 3);
-    assert_eq!(events[2]["event"], "click");
-    assert_eq!(events[2]["payload"]["surfaceValues"]["field"], "4");
-    assert_eq!(unsafe { GetForegroundWindow() }, foreground);
 }
 #[test]
 fn thread_key_isolation_restores_on_unwind_and_product_still_rejects_control_enter() {

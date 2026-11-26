@@ -69,10 +69,14 @@ fn webp_and_bmp_are_real_decodable_uploads_not_merely_extension_filters() {
     let webp = Image::webp_for_test();
     let uri = format!(
         "data:image/webp;base64,{}",
-        base64::engine::general_purpose::STANDARD.encode(webp)
+        base64::engine::general_purpose::STANDARD.encode(&webp)
     );
     let loaded = Asset::restore(&uri, "image.webp", &AtomicBool::new(false)).unwrap();
-    assert!(loaded.image.width > 0 && loaded.image.height > 0);
+    assert_eq!((loaded.image.width, loaded.image.height), (2, 1));
+    assert_eq!(&loaded.image.pixels[..], &[0, 0, 255, 255, 0, 128, 0, 128]);
+    let file = File::new(&webp);
+    let from_file = Asset::load(&file.0, &AtomicBool::new(false)).unwrap();
+    assert_eq!(from_file.image.pixels, loaded.image.pixels);
     let mut bmp = vec![0u8; 70];
     bmp[..2].copy_from_slice(b"BM");
     bmp[2..6].copy_from_slice(&70u32.to_le_bytes());

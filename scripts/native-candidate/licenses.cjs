@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { hash } = require('./source.cjs');
 const { checkedPath } = require('../release/third-party-sources.cjs');
+const { readBytes } = require('./input-bytes.cjs');
 const { javascriptLicenses } = require('./javascript_licenses.cjs');
 const { fluentLicenses } = require('./fluent_licenses.cjs');
 const design = require('./design-source.cjs');
@@ -98,11 +99,8 @@ function collect(repo, metadata, output, registryRoot) {
     if (pkg.license_file && pkg.id !== metadata.resolve.root && !names.includes(pkg.license_file)) names.push(pkg.license_file);
     const files = names.sort().map(name => {
       const file = checkedPath(directory, name);
-      const stat = fs.statSync(file);
-      if (!stat.isFile() || stat.size < 1 || stat.size > 4 * 1024 * 1024 || (total += stat.size) > 64 * 1024 * 1024) {
-        throw new Error('Invalid license text size');
-      }
-      const bytes = fs.readFileSync(file);
+      const bytes = readBytes(file, Math.min(4 * 1024 * 1024, 64 * 1024 * 1024 - total), 1);
+      total += bytes.length;
       new TextDecoder('utf-8', { fatal: true }).decode(bytes);
       return { path: `${key}/${name}`, bytes, sha256: hash(bytes) };
     });
@@ -133,9 +131,8 @@ function collect(repo, metadata, output, registryRoot) {
 }
 if (require.main === module) {
   const [repo, metadataFile, output] = process.argv.slice(2);
-  if (fs.statSync(metadataFile).size > 16 * 1024 * 1024) throw new Error('Oversized native metadata');
   const cargoHome = process.env.CARGO_HOME || path.join(process.env.USERPROFILE, '.cargo');
-  const result = collect(repo, JSON.parse(fs.readFileSync(metadataFile, 'utf8')), output, path.join(cargoHome, 'registry/src'));
+  const result = collect(repo, JSON.parse(readBytes(metadataFile, 16 * 1024 * 1024).toString('utf8')), output, path.join(cargoHome, 'registry/src'));
   console.log(JSON.stringify({ packages: result.packages.length, output, legalClearance: false }));
 }
 module.exports = { selectedPackages, licenseFiles, collect };

@@ -109,16 +109,23 @@ pub(in crate::desktop::surface_window::uia) fn receive(hwnd: usize) -> Result<()
     result
 }
 fn receive_traced(hwnd: usize, stage: &mut &str) -> Result<()> {
+    *stage = "initialize MTA";
     unsafe {
         CoInitializeEx(None, COINIT_MULTITHREADED).ok()?;
     }
     let _apartment = Apartment;
     unsafe {
+        *stage = "create UIA client";
         let client: IUIAutomation2 = CoCreateInstance(&CUIAutomation8, None, CLSCTX_INPROC_SERVER)?;
+        *stage = "set connection timeout";
         client.SetConnectionTimeout(3000)?;
+        *stage = "set transaction timeout";
         client.SetTransactionTimeout(3000)?;
+        *stage = "disable automatic focus";
         client.SetAutoSetFocus(false)?;
+        *stage = "resolve root HWND";
         let root = client.ElementFromHandle(HWND(hwnd as *mut _))?;
+        *stage = "create select condition";
         let condition =
             client.CreatePropertyCondition(UIA_AutomationIdPropertyId, &VARIANT::from("select"))?;
         *stage = "find select";
@@ -279,7 +286,29 @@ fn uia_select_system_relocation_preserves_selection_expand_and_change_queue() {
     let _parent_trace = InputTrace::new(window.hwnd);
     // Retain the original system HasKeyboardFocus assertion, establishing owned foreground through actual click authorization first.
     let _foreground = unsafe { crate::surface_javascript::fixture::focus_foreground(window.hwnd) };
-    query(window.hwnd.0 as usize, receive);
+    let getobject = super::super::tests::GetObjectTrace::new(window.hwnd);
+    let result = query(window.hwnd.0 as usize, |hwnd| {
+        Ok(receive(hwnd).map_err(|error| (error.code(), error.message())))
+    });
+    if result.is_err() {
+        // Inspect the owner only after the failed call; do not create a provider,
+        // send WM_GETOBJECT, pump more messages, or retry the client operation.
+        let mut pid = 0;
+        let thread = unsafe { GetWindowThreadProcessId(window.hwnd, Some(&mut pid)) };
+        eprintln!(
+            "UIA Select owner after failure: hwnd={:?}, alive={}, owned={}, pid={pid}, thread={thread}, closed={}, host_present={}, root_created={}, error={:?}, foreground_owner={:?}",
+            window.hwnd,
+            unsafe { IsWindow(Some(window.hwnd)).as_bool() },
+            window.is_alive(),
+            window.state.closed.get(),
+            window.state.host.borrow().is_some(),
+            window.state.uia.borrow().is_some(),
+            window.state.error.borrow(),
+            foreground_owner()
+        );
+        getobject.report();
+    }
+    result.unwrap();
     let pending = window.has_pending_edit();
     if !pending {
         // Collect evidence only in failed branches and still assert the original result; extra pumping must not turn failure into success.

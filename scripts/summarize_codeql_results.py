@@ -19,7 +19,9 @@ from pathlib import Path
 from urllib.parse import unquote
 
 MAX_FILES = 50
-MAX_FILE_BYTES = 20 * 1024 * 1024
+# Rust run 45737565530 produced 22,246,573 bytes. Allow bounded headroom
+# without changing the aggregate byte or finding-count budgets.
+MAX_FILE_BYTES = 32 * 1024 * 1024
 MAX_TOTAL_BYTES = 100 * 1024 * 1024
 MAX_RUNS = 100
 MAX_INPUT_RESULTS = 100_000
@@ -38,6 +40,18 @@ class SummaryError(ValueError):
     """A constant, safe error code; never include any untrusted input."""
 
 
+class InputLimitError(SummaryError):
+    """Only fixed budget names and numeric measurements may accompany an error."""
+
+    def __init__(self, name: str, observed: int, maximum: int) -> None:
+        super().__init__("input_limit_exceeded")
+        self.details = {
+            "limit": name,
+            "observed": observed,
+            "maximum": maximum,
+        }
+
+
 class SafeArgumentParser(argparse.ArgumentParser):
     def error(self, message: str) -> None:
         print(json.dumps({"error": "invalid_arguments"}))
@@ -47,6 +61,12 @@ class SafeArgumentParser(argparse.ArgumentParser):
 def _require(condition: bool, code: str = "invalid_sarif") -> None:
     if not condition:
         raise SummaryError(code)
+
+
+def _limit(name: str, observed: int, maximum: int) -> None:
+    # Callers supply fixed budget names, never SARIF text or input paths.
+    if observed > maximum:
+        raise InputLimitError(name, observed, maximum)
 
 
 def _integer(value: object, minimum: int, maximum: int) -> bool:
@@ -126,17 +146,15 @@ def _run_rules(run: dict) -> list[RuleComponent]:
     driver = run["tool"].get("driver")
     _require(isinstance(driver, dict))
     extensions = run["tool"].get("extensions", [])
-    _require(
-        isinstance(extensions, list) and len(extensions) < MAX_COMPONENTS,
-        "invalid_rules",
-    )
+    _require(isinstance(extensions, list), "invalid_rules")
+    _limit("components_per_run", len(extensions) + 1, MAX_COMPONENTS)
     components, count = [], 0
     for component in [driver, *extensions]:
         _require(isinstance(component, dict), "invalid_rules")
         rules = component.get("rules", [])
         _require(isinstance(rules, list), "invalid_rules")
         count += len(rules)
-        _require(count <= MAX_RULES, "invalid_rules")
+        _limit("rules_per_run", count, MAX_RULES)
         indexed = {}
         for rule in rules:
             _require(isinstance(rule, dict), "invalid_rules")
@@ -234,7 +252,8 @@ def _result_rule(result: dict, components: list[RuleComponent]) -> tuple[str, di
 
 def _check_execution(run: dict) -> Counter:
     invocations = run.get("invocations", [])
-    _require(isinstance(invocations, list) and len(invocations) <= MAX_DIAGNOSTICS)
+    _require(isinstance(invocations, list))
+    _limit("invocations_per_run", len(invocations), MAX_DIAGNOSTICS)
     counts = Counter(
         invocation_count=len(invocations),
         failed_invocation_count=0,
@@ -253,9 +272,7 @@ def _check_execution(run: dict) -> Counter:
             notifications = invocation.get(key, [])
             _require(isinstance(notifications, list))
             counts["notification_count"] += len(notifications)
-            _require(
-                counts["notification_count"] <= MAX_DIAGNOSTICS, "input_limit_exceeded"
-            )
+            _limit("notifications_per_run", counts["notification_count"], MAX_DIAGNOSTICS)
             for notification in notifications:
                 _require(isinstance(notification, dict))
                 level = notification.get("level", "warning")
@@ -296,9 +313,9 @@ def _read_sarif(path: Path) -> tuple[dict, int]:
     with os.fdopen(descriptor, "rb") as stream:
         details = os.fstat(stream.fileno())
         _require(stat.S_ISREG(details.st_mode), "unsafe_input")
-        _require(details.st_size <= MAX_FILE_BYTES, "input_limit_exceeded")
+        _limit("file_bytes", details.st_size, MAX_FILE_BYTES)
         raw = stream.read(MAX_FILE_BYTES + 1)
-    _require(len(raw) <= MAX_FILE_BYTES, "input_limit_exceeded")
+    _limit("file_bytes", len(raw), MAX_FILE_BYTES)
     try:
         payload = json.loads(raw)
     except (ValueError, UnicodeError, RecursionError):
@@ -321,43 +338,40 @@ def summarize(directory: Path, max_results: int = 500) -> dict:
         directory, followlinks=False, onerror=_walk_error
     ):
         entries += len(directories) + len(names)
-        _require(entries <= MAX_DIRECTORY_ENTRIES, "input_limit_exceeded")
+        _limit("directory_entries", entries, MAX_DIRECTORY_ENTRIES)
         _require(
             not any((Path(root) / name).is_symlink() for name in directories),
             "unsafe_input",
         )
         files.extend(Path(root) / name for name in names if name.endswith(".sarif"))
-        _require(len(files) <= MAX_FILES, "input_limit_exceeded")
+        _limit("files", len(files), MAX_FILES)
     _require(bool(files), "missing_sarif")
     rows, by_rule, by_severity, diagnostics = [], Counter(), Counter(), Counter()
     total = runs_count = total_bytes = 0
     for path in sorted(files):
         payload, size = _read_sarif(path)
         total_bytes += size
-        _require(total_bytes <= MAX_TOTAL_BYTES, "input_limit_exceeded")
+        _limit("total_bytes", total_bytes, MAX_TOTAL_BYTES)
         runs = payload.get("runs")
         _require(isinstance(runs, list) and bool(runs), "missing_runs")
         runs_count += len(runs)
-        _require(runs_count <= MAX_RUNS, "input_limit_exceeded")
+        _limit("runs", runs_count, MAX_RUNS)
         for run in runs:
             _require(isinstance(run, dict))
             diagnostics.update(_check_execution(run))
-            _require(
-                diagnostics["notification_count"] <= MAX_DIAGNOSTICS
-                and diagnostics["invocation_count"] <= MAX_DIAGNOSTICS,
-                "input_limit_exceeded",
-            )
+            _limit("total_notifications", diagnostics["notification_count"], MAX_DIAGNOSTICS)
+            _limit("total_invocations", diagnostics["invocation_count"], MAX_DIAGNOSTICS)
             rules = _run_rules(run)
             results = run.get("results")
             _require(isinstance(results, list), "missing_results")
             total += len(results)
-            _require(total <= MAX_INPUT_RESULTS, "input_limit_exceeded")
+            _limit("input_results", total, MAX_INPUT_RESULTS)
             for result in results:
                 row = _row(result, run, rules)
                 by_rule[row["rule_id"]] += 1
                 by_severity[(row["level"], row["security_severity"])] += 1
-                _require(len(by_rule) <= MAX_RULES, "input_limit_exceeded")
-                _require(len(by_severity) <= MAX_RULES, "input_limit_exceeded")
+                _limit("distinct_rules", len(by_rule), MAX_RULES)
+                _limit("distinct_severities", len(by_severity), MAX_RULES)
                 if len(rows) < max_results:
                     rows.append(row)
     complete = (
@@ -405,6 +419,7 @@ def main(argv: list[str] | None = None) -> int:
                     "error_kind": "inventory_error",
                     "analysis_complete": False,
                     "inventory_complete": False,
+                    **(error.details if isinstance(error, InputLimitError) else {}),
                 }
             )
         )

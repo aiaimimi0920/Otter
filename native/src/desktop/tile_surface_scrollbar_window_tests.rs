@@ -80,43 +80,45 @@ fn events(f: &Fixture) -> Vec<Value> {
 }
 #[test]
 fn thumb_drag_commits_actual_edit_once_preserves_form_and_never_synthesizes_scroll_click() {
-    let _com = crate::desktop::Apartment::new().unwrap();
-    let (f, w) = setup();
-    let foreground = unsafe { GetForegroundWindow() };
-    w.test_art_text([8, 8], "滚动🙂草稿", true, false);
-    send(&w, WM_LBUTTONDOWN, [60, 5]);
-    assert_eq!(unsafe { GetCapture() }, w.hwnd);
-    assert_eq!(
-        events(&f)
-            .iter()
-            .map(|v| v["event"].as_str().unwrap())
-            .collect::<Vec<_>>(),
-        ["input", "change"]
-    );
-    send(&w, WM_MOUSEMOVE, [60, 51]);
-    thumb(&w, 956.);
-    send(&w, WM_LBUTTONUP, [60, 200]);
-    assert_ne!(unsafe { GetCapture() }, w.hwnd);
-    assert!(w.state.scrollbar.borrow().gesture_is_idle());
-    assert_eq!(events(&f).len(), 2);
-    assert!(w.test_art_click([8, 52]));
-    let commands = std::mem::take(&mut f.shared.lock().actions.pending);
-    assert_eq!(commands.len(), 3);
-    for mut c in commands {
-        assert!(crate::tile_surface_action_dispatch::validate(
-            &mut c,
-            &f.state,
-            Some(&f.art),
-            &f.job,
-            &f.shared
-        ));
-        if let Kind::Event(v) = &c.kind {
-            if v["event"] == "click" {
-                assert_eq!(v["payload"]["surfaceValues"]["first"], "滚动🙂草稿");
+    crate::desktop::workspace_window_fixture::with_private_input_desktop(|| {
+        let _com = crate::desktop::Apartment::new().unwrap();
+        let (f, w) = setup();
+        let foreground = unsafe { GetForegroundWindow() };
+        w.test_art_text([8, 8], "滚动🙂草稿", true, false);
+        send(&w, WM_LBUTTONDOWN, [60, 5]);
+        assert_eq!(unsafe { GetCapture() }, w.hwnd);
+        assert_eq!(
+            events(&f)
+                .iter()
+                .map(|v| v["event"].as_str().unwrap())
+                .collect::<Vec<_>>(),
+            ["input", "change"]
+        );
+        send(&w, WM_MOUSEMOVE, [60, 51]);
+        thumb(&w, 956.);
+        send(&w, WM_LBUTTONUP, [60, 200]);
+        assert_ne!(unsafe { GetCapture() }, w.hwnd);
+        assert!(w.state.scrollbar.borrow().gesture_is_idle());
+        assert_eq!(events(&f).len(), 2);
+        assert!(w.test_art_click([8, 52]));
+        let commands = std::mem::take(&mut f.shared.lock().actions.pending);
+        assert_eq!(commands.len(), 3);
+        for mut c in commands {
+            assert!(crate::tile_surface_action_dispatch::validate(
+                &mut c,
+                &f.state,
+                Some(&f.art),
+                &f.job,
+                &f.shared
+            ));
+            if let Kind::Event(v) = &c.kind {
+                if v["event"] == "click" {
+                    assert_eq!(v["payload"]["surfaceValues"]["first"], "滚动🙂草稿");
+                }
             }
         }
-    }
-    assert_eq!(unsafe { GetForegroundWindow() }, foreground);
+        assert_eq!(unsafe { GetForegroundWindow() }, foreground);
+    });
 }
 #[test]
 fn track_repeat_waits_coalesces_stops_under_thumb_and_resumes_only_in_original_direction() {

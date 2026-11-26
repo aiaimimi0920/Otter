@@ -110,6 +110,7 @@ pub(super) unsafe fn exercise(
     SendMessageW(viewer, WM_SYSCOMMAND, Some(WPARAM(OPEN)), Some(LPARAM(0)));
     let (reopened, reedit) = app.remote_sessions.test_viewer_observation(key).unwrap();
     assert!(text(reedit).contains(&value_text(9)));
+    peer.viewer_closing.store(true, Ordering::Release);
     app.authorization.borrow_mut().request = Some(Request::Cancel);
     app.process_authorization_with_projection(|origin| fixture::config(origin, root));
     spin(app, root, |app| app.remote_sessions.viewers().is_empty());

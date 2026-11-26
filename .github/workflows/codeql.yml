@@ -38,7 +38,7 @@ jobs:
         run: |
           python3 -m venv "${RUNNER_TEMP}/codeql-inventory-tests"
           "${RUNNER_TEMP}/codeql-inventory-tests/bin/python" -m pip install --disable-pip-version-check pytest==9.1.1
-          "${RUNNER_TEMP}/codeql-inventory-tests/bin/python" -m pytest -q scripts/tests/test_codeql_summary.py
+          "${RUNNER_TEMP}/codeql-inventory-tests/bin/python" -m pytest -q scripts/tests/test_codeql_summary*.py
   analyze:
     name: Analyze ${{ matrix.language }}
     runs-on: ubuntu-latest
@@ -75,4 +75,15 @@ jobs:
           output: codeql-results
       - name: Report bounded CodeQL finding inventory
         if: ${{ !cancelled() }}
-        run: python3 scripts/summarize_codeql_results.py codeql-results
+        run: |
+          status=0
+          python3 scripts/summarize_codeql_results.py codeql-results > codeql-inventory.json || status=$?
+          cat codeql-inventory.json
+          if [ "$status" -ne 0 ]; then
+            {
+              printf '### CodeQL inventory failure\n\n```json\n'
+              cat codeql-inventory.json
+              printf '\n```\n'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit "$status"

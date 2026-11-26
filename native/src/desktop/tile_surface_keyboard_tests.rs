@@ -77,42 +77,44 @@ fn child(w: &Window) -> HWND {
 }
 #[test]
 fn tab_edit_to_button_commits_local_draft_and_enter_repeat_does_not_duplicate() {
-    let _com = crate::desktop::Apartment::new().unwrap();
-    let foreground = unsafe { GetForegroundWindow() };
-    let (f, w) = setup(scene());
-    unsafe {
-        key(w.hwnd, WM_KEYDOWN, 9, false);
-    }
-    assert_eq!(focus(&w), "first");
-    let h = unsafe { GetFocus() };
-    assert_ne!(h, w.hwnd);
-    unsafe {
-        SendMessageW(h, EM_SETSEL, Some(WPARAM(0)), Some(LPARAM(-1)));
-        let value = windows::core::HSTRING::from("本地🙂");
-        SendMessageW(
-            h,
-            EM_REPLACESEL,
-            Some(WPARAM(1)),
-            Some(LPARAM(value.as_ptr() as isize)),
-        );
-        key(h, WM_KEYDOWN, 9, false);
-    }
-    assert_eq!(focus(&w), "send");
-    assert_eq!(unsafe { GetFocus() }, w.hwnd);
-    unsafe {
-        key(w.hwnd, WM_KEYDOWN, 13, false);
-        key(w.hwnd, WM_KEYDOWN, 13, true);
-        key(w.hwnd, WM_KEYUP, 13, false);
-    }
-    let e = events(&f);
-    assert_eq!(e.len(), 1);
-    assert_eq!(e[0]["payload"]["surfaceValues"]["first"], "本地🙂");
-    assert_eq!(unsafe { GetForegroundWindow() }, foreground);
-    navigate(w.hwnd, &w.state, true);
-    assert_eq!(focus(&w), "first");
-    navigate(w.hwnd, &w.state, true);
-    assert_eq!(focus(&w), "send");
-    assert_eq!(f.art.snapshot.scene, serde_json::to_vec(&scene()).unwrap());
+    crate::desktop::workspace_window_fixture::with_private_input_desktop(|| {
+        let _com = crate::desktop::Apartment::new().unwrap();
+        let foreground = unsafe { GetForegroundWindow() };
+        let (f, w) = setup(scene());
+        unsafe {
+            key(w.hwnd, WM_KEYDOWN, 9, false);
+        }
+        assert_eq!(focus(&w), "first");
+        let h = unsafe { GetFocus() };
+        assert_ne!(h, w.hwnd);
+        unsafe {
+            SendMessageW(h, EM_SETSEL, Some(WPARAM(0)), Some(LPARAM(-1)));
+            let value = windows::core::HSTRING::from("本地🙂");
+            SendMessageW(
+                h,
+                EM_REPLACESEL,
+                Some(WPARAM(1)),
+                Some(LPARAM(value.as_ptr() as isize)),
+            );
+            key(h, WM_KEYDOWN, 9, false);
+        }
+        assert_eq!(focus(&w), "send");
+        assert_eq!(unsafe { GetFocus() }, w.hwnd);
+        unsafe {
+            key(w.hwnd, WM_KEYDOWN, 13, false);
+            key(w.hwnd, WM_KEYDOWN, 13, true);
+            key(w.hwnd, WM_KEYUP, 13, false);
+        }
+        let e = events(&f);
+        assert_eq!(e.len(), 1);
+        assert_eq!(e[0]["payload"]["surfaceValues"]["first"], "本地🙂");
+        assert_eq!(unsafe { GetForegroundWindow() }, foreground);
+        navigate(w.hwnd, &w.state, true);
+        assert_eq!(focus(&w), "first");
+        navigate(w.hwnd, &w.state, true);
+        assert_eq!(focus(&w), "send");
+        assert_eq!(f.art.snapshot.scene, serde_json::to_vec(&scene()).unwrap());
+    });
 }
 #[test]
 fn button_space_release_cancels_on_tab_focus_loss_or_snapshot_gap_and_switch_ignores_enter() {

@@ -62,6 +62,29 @@ pub(crate) fn with_private_desktop(test: impl FnOnce()) {
         .expect("release isolated workspace test desktop");
 }
 
+/// Keep thread-focus tests off the user's input desktop. A fresh thread owns
+/// its IME setting and all HWNDs, then verifies desktop cleanup before exiting.
+pub(crate) fn with_private_input_desktop(test: impl FnOnce() + Send + 'static) {
+    #[link(name = "imm32")]
+    unsafe extern "system" {
+        fn ImmDisableIME(thread: u32) -> i32;
+    }
+    std::thread::spawn(move || {
+        with_private_desktop(|| {
+            assert_ne!(unsafe { ImmDisableIME(GetCurrentThreadId()) }, 0);
+            PRIVATE_INPUT.with(|active| active.set(true));
+            test();
+            PRIVATE_INPUT.with(|active| active.set(false));
+        });
+    })
+    .join()
+    .unwrap();
+}
+
+pub(crate) fn private_input_thread() -> bool {
+    PRIVATE_INPUT.with(Cell::get)
+}
+
 pub(super) unsafe fn register() -> HINSTANCE {
     static REGISTER: Once = Once::new();
     let instance = HINSTANCE::from(GetModuleHandleW(None).unwrap());
@@ -83,6 +106,9 @@ pub(super) unsafe fn register() -> HINSTANCE {
 }
 
 thread_local! {
+    // Only the fresh private-desktop thread owns this flag; an unwind exits the
+    // thread, so software rendering can never leak into later/default tests.
+    static PRIVATE_INPUT: Cell<bool> = const { Cell::new(false) };
     static CREATE: RefCell<Option<Box<dyn FnOnce()>>> = const { RefCell::new(None) };
     static CANDIDATE: Cell<HWND> = const { Cell::new(HWND(std::ptr::null_mut())) };
 }

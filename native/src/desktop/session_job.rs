@@ -108,7 +108,7 @@ impl Job {
         super::loom_execution_signal::reap_deadline(&self.ready)
     }
     #[cfg(test)]
-    fn test_wait_finished(&self) {
+    pub(crate) fn test_wait_finished(&self) {
         super::loom_execution_tasks::reap_fixture::wait_finished(self.worker.as_ref().unwrap());
     }
     pub fn poll(&mut self) -> Option<Result<Ready, String>> {

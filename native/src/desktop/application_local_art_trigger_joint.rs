@@ -23,7 +23,12 @@ unsafe fn wait_for_restore(app: &mut Application, deadline: Instant) -> Result<(
             break;
         }
         let mut message = MSG::default();
-        match next_until(&[], &mut message, Some(deadline)) {
+        // A result can arrive before its notifier thread exits. Honor the same
+        // reap deadline as the application pump instead of awaiting a second wake.
+        let wake_at = app
+            .restore_reap_deadline()
+            .map_or(deadline, |reap| reap.min(deadline));
+        match next_until(&[], &mut message, Some(wake_at)) {
             Ok(0) => {
                 app.cancel_restore();
                 PostQuitMessage(message.wParam.0 as i32);

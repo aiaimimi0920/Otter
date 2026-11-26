@@ -19,6 +19,7 @@ mod input;
 mod observation;
 pub(super) struct Peer {
     done: Arc<AtomicBool>,
+    pub viewer_closing: Arc<AtomicBool>,
     pub attached: Arc<AtomicBool>,
     pub streams: Arc<std::sync::atomic::AtomicUsize>,
     pub controls: Arc<std::sync::atomic::AtomicUsize>,
@@ -77,6 +78,8 @@ impl Peer {
     ) -> Self {
         let done = Arc::new(AtomicBool::new(false));
         let stop = done.clone();
+        let viewer_closing = Arc::new(AtomicBool::new(false));
+        let closing = viewer_closing.clone();
         let attached = Arc::new(AtomicBool::new(false));
         let notice = attached.clone();
         let streams = Arc::new(std::sync::atomic::AtomicUsize::new(0));
@@ -176,7 +179,7 @@ impl Peer {
                     opened,
                     changed,
                     received,
-                    (mode, local_art, semantic_step),
+                    (mode, local_art, semantic_step, closing),
                 );
                 return;
             }
@@ -213,6 +216,7 @@ impl Peer {
         });
         Self {
             done,
+            viewer_closing,
             attached,
             streams,
             controls,

@@ -4,6 +4,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const childProcess = require('node:child_process');
 const { checkedPath } = require('../release/third-party-sources.cjs');
+const { readBytes } = require('./input-bytes.cjs');
 const NAME = 'rxing';
 const VERSION = '0.9.4';
 const REVISION = '912b1083ffd164b29e6b244e4845de9df06b107a';
@@ -76,9 +77,8 @@ function verifiedFiles(root) {
   let total = 0;
   return files.map(name => {
     const file = checkedPath(root, name);
-    const size = fs.statSync(file).size;
-    if (size > 4 * 1024 * 1024 || (total += size) > 64 * 1024 * 1024) throw new Error('Oversized rxing source file');
-    const bytes = fs.readFileSync(file);
+    const bytes = readBytes(file, Math.min(4 * 1024 * 1024, 64 * 1024 * 1024 - total));
+    total += bytes.length;
     // Check raw Git blobs, not index flags or clean filters that can hide worktree tampering.
     const blob = crypto.createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex');
     if (blob !== expected.get(name)) throw new Error(`rxing input differs from the pinned Git blob: ${name}`);

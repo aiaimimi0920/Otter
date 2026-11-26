@@ -100,6 +100,13 @@ fn uia_range_readonly_coalesces_and_revokes_queued_permission() {
         |_, before, after| events.push((before, after)),
     );
     assert_eq!(events, [(false, true)]);
+    window.set_input_policy(false, false).unwrap();
+    flush_properties(
+        &window.state,
+        |_, _, _| panic!("no-op Toggle"),
+        |_, _, _| panic!("no-op RangeValue"),
+        |_, _, _| panic!("no-op readonly"),
+    );
     window.set_input_policy(true, true).unwrap();
     window.close().unwrap();
     flush_properties(

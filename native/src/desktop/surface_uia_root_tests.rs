@@ -5,6 +5,56 @@ use windows::{
     Win32::System::Variant::*,
 };
 
+// Observe only the original WM_GETOBJECT exchange; no extra message or COM call.
+pub(super) struct GetObjectTrace(HWND);
+std::thread_local! {
+    static GETOBJECT: std::cell::RefCell<Vec<(isize, isize)>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+impl GetObjectTrace {
+    pub(super) fn new(hwnd: HWND) -> Self {
+        GETOBJECT.with(|events| events.borrow_mut().clear());
+        assert!(unsafe {
+            windows::Win32::UI::Shell::SetWindowSubclass(hwnd, Some(getobject_trace), 0x4f545552, 0)
+        }
+        .as_bool());
+        Self(hwnd)
+    }
+    pub(super) fn report(&self) {
+        GETOBJECT
+            .with(|events| eprintln!("UIA original WM_GETOBJECT replies: {:?}", events.borrow()));
+    }
+}
+impl Drop for GetObjectTrace {
+    fn drop(&mut self) {
+        unsafe {
+            let _ = windows::Win32::UI::Shell::RemoveWindowSubclass(
+                self.0,
+                Some(getobject_trace),
+                0x4f545552,
+            );
+        }
+    }
+}
+unsafe extern "system" fn getobject_trace(
+    hwnd: HWND,
+    message: u32,
+    wp: WPARAM,
+    lp: LPARAM,
+    _: usize,
+    _: usize,
+) -> LRESULT {
+    let result = windows::Win32::UI::Shell::DefSubclassProc(hwnd, message, wp, lp);
+    if message == windows::Win32::UI::WindowsAndMessaging::WM_GETOBJECT {
+        GETOBJECT.with(|events| {
+            let mut events = events.borrow_mut();
+            if events.len() < 8 {
+                events.push((lp.0, result.0));
+            }
+        });
+    }
+    result
+}
+
 fn window() -> super::super::SurfaceWindow {
     let scene = crate::surface_scene::Scene::parse(
         br#"{"id":"root","type":"text","props":{"text":"Text"}}"#,
@@ -107,15 +157,28 @@ fn uia_root_getobject_reuses_window_identity_and_revokes_on_destroy() {
     let _com = super::super::super::Apartment::new().unwrap();
     let window = window();
     assert!(window.state.uia.borrow().is_none());
-    unsafe {
-        SendMessageW(
-            window.hwnd,
-            WM_GETOBJECT,
-            Some(WPARAM(0)),
-            Some(LPARAM(UiaRootObjectId as isize)),
-        )
-    };
-    let first = window.state.uia.borrow().as_ref().unwrap().provider();
+    // The first request can reenter during paint while Host is temporarily removed.
+    // Root identity depends on completed initialization, not Host availability.
+    let mut first = None;
+    assert!(window
+        .state
+        .run(|_| {
+            assert!(window.state.host.borrow().is_none());
+            unsafe {
+                SendMessageW(
+                    window.hwnd,
+                    WM_GETOBJECT,
+                    Some(WPARAM(0)),
+                    Some(LPARAM(UiaRootObjectId as isize)),
+                )
+            };
+            first = window.state.uia.borrow().as_ref().map(Root::provider);
+            Ok(())
+        })
+        .unwrap());
+    let first = first.expect("initialized busy window must publish its first UIA root");
+    assert!(window.state.host.borrow().is_some());
+    assert!(window.take_error().is_none());
     let scene =
         crate::surface_scene::Scene::parse(br#"{"id":"new","type":"text","props":{"text":"New"}}"#)
             .unwrap();
@@ -136,6 +199,39 @@ fn uia_root_getobject_reuses_window_identity_and_revokes_on_destroy() {
         unsafe { first.ProviderOptions() }.unwrap_err().code().0,
         UIA_E_ELEMENTNOTAVAILABLE as i32
     );
+}
+
+#[test]
+fn uia_root_getobject_rejects_unregistered_window() {
+    use windows::Win32::UI::WindowsAndMessaging::*;
+    let _com = super::super::super::Apartment::new().unwrap();
+    let window = window();
+    // Reproduce the construction boundary before the HWND registry is installed.
+    super::super::accessibility_bridge::unregister(&window.state);
+    assert_eq!(window.state.accessibility_key.get(), 0);
+    unsafe {
+        assert_eq!(
+            SendMessageW(
+                window.hwnd,
+                WM_GETOBJECT,
+                Some(WPARAM(0)),
+                Some(LPARAM(UiaRootObjectId as isize)),
+            ),
+            LRESULT(0)
+        );
+    }
+    assert!(window.state.uia.borrow().is_none());
+    super::super::accessibility_bridge::register(window.hwnd, &window.state);
+    unsafe {
+        SendMessageW(
+            window.hwnd,
+            WM_GETOBJECT,
+            Some(WPARAM(0)),
+            Some(LPARAM(UiaRootObjectId as isize)),
+        );
+    }
+    assert!(window.state.uia.borrow().is_some());
+    assert!(window.take_error().is_none());
 }
 
 #[test]

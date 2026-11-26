@@ -4,11 +4,11 @@ const path = require('node:path');
 const { createHash } = require('node:crypto');
 const { assertUnchanged, hash } = require('./source.cjs');
 const { checkedPath } = require('../release/third-party-sources.cjs');
+const { readBytes } = require('./input-bytes.cjs');
 
 function read(root, name, limit = 16 * 1024 * 1024) {
   const file = checkedPath(root, name);
-  if (fs.statSync(file).size > limit) throw new Error(`Oversized candidate metadata: ${name}`);
-  return JSON.parse(fs.readFileSync(file, 'utf8'));
+  return JSON.parse(readBytes(file, limit).toString('utf8'));
 }
 function digest(root, name, limit = 512 * 1024 * 1024) {
   const file = checkedPath(root, name);

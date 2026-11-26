@@ -205,7 +205,7 @@ pub(crate) fn reclaim_idle() {
 }
 
 fn park(entry: Parked) {
-    park_with(entry, || {
+    park_with(&POOL, entry, || {
         std::thread::Builder::new()
             .name("otter-img-idle-reap".into())
             .spawn(reap_loop)
@@ -213,10 +213,14 @@ fn park(entry: Parked) {
     });
 }
 
-fn park_with(entry: Parked, spawn: impl FnOnce() -> io::Result<()>) {
+fn park_with(
+    pool: &(Mutex<PoolState>, Condvar),
+    entry: Parked,
+    spawn: impl FnOnce() -> io::Result<()>,
+) {
     let mut spawn_reaper = false;
     let mut evicted = Vec::new();
-    if let Ok(mut state) = POOL.0.lock() {
+    if let Ok(mut state) = pool.0.lock() {
         while state.entries.len() >= MAX_PARKED {
             if let Some((idx, _)) = state
                 .entries
@@ -232,13 +236,13 @@ fn park_with(entry: Parked, spawn: impl FnOnce() -> io::Result<()>) {
             state.reaper_running = true;
             spawn_reaper = true;
         }
-        POOL.1.notify_all();
+        pool.1.notify_all();
     }
     drop(evicted);
     if spawn_reaper && spawn().is_err() {
         // No other spawner exists while reserved is true; rollback and orphan removal share one lock, with destruction outside the pool lock.
         let orphaned = {
-            let mut state = POOL.0.lock().unwrap_or_else(|e| e.into_inner());
+            let mut state = pool.0.lock().unwrap_or_else(|e| e.into_inner());
             state.reaper_running = false;
             std::mem::take(&mut state.entries)
         };
@@ -461,7 +465,11 @@ mod tests {
             &|| false,
         )
         .unwrap();
+        let handle = child.handle().as_handle().try_clone_to_owned().unwrap();
+        let pool = (Mutex::new(PoolState::default()), Condvar::new());
+        let attempted = std::cell::Cell::new(false);
         park_with(
+            &pool,
             Parked {
                 scope: "failed-reaper".into(),
                 codec: wire::Codec::Svg,
@@ -470,11 +478,20 @@ mod tests {
                 requests: 0,
                 expires_at: Instant::now() + IDLE_TIMEOUT,
             },
-            || Err(io::Error::other("controlled reaper spawn failure")),
+            || {
+                attempted.set(true);
+                Err(io::Error::other("controlled reaper spawn failure"))
+            },
         );
-        let state = POOL.0.lock().unwrap();
+        assert!(attempted.get(), "the failure injection must actually run");
+        let state = pool.0.lock().unwrap();
         assert!(!state.reaper_running);
         assert!(state.entries.is_empty());
-        assert_eq!(process::used_capacity_for_test(), 0);
+        use std::os::windows::io::AsRawHandle;
+        use windows::Win32::{Foundation::*, System::Threading::WaitForSingleObject};
+        assert_eq!(
+            unsafe { WaitForSingleObject(HANDLE(handle.as_raw_handle()), 0) },
+            WAIT_OBJECT_0
+        );
     }
 }

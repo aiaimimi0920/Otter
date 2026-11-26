@@ -12,6 +12,12 @@ final-status-level = "flaky"
 max-threads = 1
 
 [[profile.default.overrides]]
+# Detect an unavailable real foreground/UIA environment before the long suite.
+# Priority changes order only; the full default inventory and serial group remain.
+filter = 'test(uia_select_system_relocation_preserves_selection_expand_and_change_queue) or test(javascript_foreground_guard_restores_owned_foreground_on_unwind)'
+priority = 100
+
+[[profile.default.overrides]]
 filter = 'package(otter-native) or binary(integration) or test(/clipboard|capture|window|focus|popup|hover|uia|live_window_target::input_/)'
 test-group = 'win32-serial'
 
