@@ -98,10 +98,12 @@ jobs:
 
       - name: Run native tests with the locked graph
         shell: powershell
+        env:
+          OTTER_CI_RUNNER_ENVIRONMENT: ${{ runner.environment }}
         run: |
           cargo fmt --all --check --manifest-path native/Cargo.toml
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          cargo nextest run --locked --offline --workspace --manifest-path native/Cargo.toml --config-file native/.config/nextest.toml --profile default --test-threads 1 --no-tests=fail --fail-fast
+          python scripts/ci_hosted_foreground.py cargo nextest run --locked --offline --workspace --manifest-path native/Cargo.toml --config-file native/.config/nextest.toml --profile default --test-threads 1 --no-tests=fail --fail-fast
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           cargo test --doc --locked --offline --workspace --manifest-path native/Cargo.toml -- --test-threads=1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

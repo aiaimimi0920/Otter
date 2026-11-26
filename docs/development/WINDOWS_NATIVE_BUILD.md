@@ -25,6 +25,11 @@ block the same-run package and runtime gates.
 Real-foreground smoke cases run first. CI stops on the first failed test without
 retrying or promoting a package; a successful run still requires the complete
 default inventory, doctests and all subsequent gates.
+On disposable GitHub-hosted Windows runners only, the Nextest step temporarily
+sets the **in-memory** foreground lock timeout to zero and restores the previous
+value before packaging. This allows isolated test processes to request focus
+without a human clicking through Windows Terminal. Tests must still obtain and
+verify the actual foreground HWND; no assertion, test or product policy is replaced.
 
 Native hit/focus fixtures use a private desktop without switching the user's input
 desktop. They retain real HWND, focus, message and cleanup assertions, but do not
