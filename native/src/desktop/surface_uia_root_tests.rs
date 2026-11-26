@@ -157,15 +157,28 @@ fn uia_root_getobject_reuses_window_identity_and_revokes_on_destroy() {
     let _com = super::super::super::Apartment::new().unwrap();
     let window = window();
     assert!(window.state.uia.borrow().is_none());
-    unsafe {
-        SendMessageW(
-            window.hwnd,
-            WM_GETOBJECT,
-            Some(WPARAM(0)),
-            Some(LPARAM(UiaRootObjectId as isize)),
-        )
-    };
-    let first = window.state.uia.borrow().as_ref().unwrap().provider();
+    // The first request can reenter during paint while Host is temporarily removed.
+    // Root identity depends on completed initialization, not Host availability.
+    let mut first = None;
+    assert!(window
+        .state
+        .run(|_| {
+            assert!(window.state.host.borrow().is_none());
+            unsafe {
+                SendMessageW(
+                    window.hwnd,
+                    WM_GETOBJECT,
+                    Some(WPARAM(0)),
+                    Some(LPARAM(UiaRootObjectId as isize)),
+                )
+            };
+            first = window.state.uia.borrow().as_ref().map(Root::provider);
+            Ok(())
+        })
+        .unwrap());
+    let first = first.expect("initialized busy window must publish its first UIA root");
+    assert!(window.state.host.borrow().is_some());
+    assert!(window.take_error().is_none());
     let scene =
         crate::surface_scene::Scene::parse(br#"{"id":"new","type":"text","props":{"text":"New"}}"#)
             .unwrap();
@@ -186,6 +199,39 @@ fn uia_root_getobject_reuses_window_identity_and_revokes_on_destroy() {
         unsafe { first.ProviderOptions() }.unwrap_err().code().0,
         UIA_E_ELEMENTNOTAVAILABLE as i32
     );
+}
+
+#[test]
+fn uia_root_getobject_rejects_unregistered_window() {
+    use windows::Win32::UI::WindowsAndMessaging::*;
+    let _com = super::super::super::Apartment::new().unwrap();
+    let window = window();
+    // Reproduce the construction boundary before the HWND registry is installed.
+    super::super::accessibility_bridge::unregister(&window.state);
+    assert_eq!(window.state.accessibility_key.get(), 0);
+    unsafe {
+        assert_eq!(
+            SendMessageW(
+                window.hwnd,
+                WM_GETOBJECT,
+                Some(WPARAM(0)),
+                Some(LPARAM(UiaRootObjectId as isize)),
+            ),
+            LRESULT(0)
+        );
+    }
+    assert!(window.state.uia.borrow().is_none());
+    super::super::accessibility_bridge::register(window.hwnd, &window.state);
+    unsafe {
+        SendMessageW(
+            window.hwnd,
+            WM_GETOBJECT,
+            Some(WPARAM(0)),
+            Some(LPARAM(UiaRootObjectId as isize)),
+        );
+    }
+    assert!(window.state.uia.borrow().is_some());
+    assert!(window.take_error().is_none());
 }
 
 #[test]

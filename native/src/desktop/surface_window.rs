@@ -342,7 +342,9 @@ unsafe extern "system" fn procedure(hwnd: HWND, message: u32, wp: WPARAM, lp: LP
                 return LRESULT(0);
             }
             if state.uia.borrow().is_none() {
-                if state.host.borrow().is_none() {
+                // Registration completes initialization and survives a temporary Host
+                // checkout during paint; a busy window still owns its UIA identity.
+                if state.accessibility_key.get() == 0 {
                     return LRESULT(0);
                 }
                 match uia::Root::new(hwnd) {
