@@ -36,6 +36,15 @@ pub(super) unsafe fn update(hwnd: HWND, state: &State) -> Result<()> {
     labels(state, state.language.get())?;
     geometry(hwnd, state, true, None)
 }
+pub(super) unsafe fn refresh_previews(state: &State) {
+    let data = state.data.borrow().clone();
+    let children = state.children.borrow().clone();
+    for (shot, &child) in data.screenshots.iter().zip(children.iter().skip(24)) {
+        let ready = state.view.borrow().previews.get(shot).is_some();
+        let _ = EnableWindow(child, ready);
+        let _ = InvalidateRect(Some(child), None, false);
+    }
+}
 pub(super) unsafe fn labels(
     state: &State,
     language: crate::ui_text::DisplayLanguage,

@@ -99,7 +99,15 @@ pub(super) unsafe fn paint(hwnd: HWND, state: &State) -> LRESULT {
 pub(in crate::desktop) unsafe fn resize_frame(hwnd: HWND, state: &State) {
     execute(hwnd, state, false);
 }
+pub(super) unsafe fn defer_nested(hwnd: HWND, state: &State, validate: bool) -> LRESULT {
+    state.render_deferred.set(true);
+    drop(validate.then(|| PaintScope::begin(hwnd)));
+    LRESULT(0)
+}
 unsafe fn execute(hwnd: HWND, state: &State, validate: bool) -> LRESULT {
+    if state.render_active.get() {
+        return defer_nested(hwnd, state, validate);
+    }
     if super::super::pin_window::preview::active(state)
         && super::super::pin_window::stationary::active(state)
     {
@@ -120,14 +128,26 @@ unsafe fn execute(hwnd: HWND, state: &State, validate: bool) -> LRESULT {
         drop(validate.then(|| PaintScope::begin(hwnd)));
         return LRESULT(0);
     }
-    if state.render_active.replace(true) {
-        // Nested paint only consumes the current invalid region, without creating another backend, clearing errors, or confirming pixels early.
-        state.render_deferred.set(true);
-        drop(validate.then(|| PaintScope::begin(hwnd)));
-        return LRESULT(0);
-    }
+    state.render_active.set(true);
     let _cycle = Cycle { state, hwnd };
     let scope = validate.then(|| PaintScope::begin(hwnd));
+    if super::super::tray::is_resident(state)
+        && !IsWindowVisible(hwnd).as_bool()
+        && state.pin_resize.rect.get().is_none()
+        && state.resolved_display.borrow().is_none()
+    {
+        let canvas = state.canvas.borrow();
+        if !canvas.pinned
+            && canvas.image.is_none()
+            && !canvas.live_pin
+            && canvas.extension_views.is_none()
+            && !canvas.has_target()
+        {
+            // Consume the invalid region without allocating a swapchain for a hidden standby host.
+            // The render cycle already guards synchronous nested WM_PAINT and schedules its redraw.
+            return LRESULT(0);
+        }
+    }
     if state.canvas.borrow().creation_blocked() || state.canvas.borrow().render_suspended() {
         // Consume the invalid region without clearing errors, rebuilding backends, or discarding the document; no automatic unlock or timed retry.
         drop(scope);

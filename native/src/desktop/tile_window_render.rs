@@ -182,6 +182,7 @@ impl Renderer {
             },
             96,
             false,
+            crate::desktop::render_surface::Primary::D3d12,
         )
         .map_err(|e| e.into_error())?;
         Ok(Self::from_surface(surface))

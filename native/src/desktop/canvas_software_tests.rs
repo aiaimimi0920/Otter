@@ -90,6 +90,7 @@ fn gpu_brush_preparation_failure_blocks_canvas_without_publishing_target() {
             },
             96,
             true,
+            canvas.primary,
         )
         .unwrap();
         assert!(matches!(
@@ -249,7 +250,9 @@ fn production_paint_submits_cpu_and_nested_guard_keeps_error_and_counts() {
         let marker = Error::new(E_FAIL, "deferred paint must not clear this marker");
         *state.error.borrow_mut() = Some(marker);
         state.render_active.set(true);
+        let borrow = state.canvas.borrow_mut();
         SendMessageW(hwnd, WM_PAINT, None, None);
+        drop(borrow);
         assert!(state.render_deferred.get());
         assert!(state.error.borrow().is_some());
         assert_eq!(state.canvas.borrow().confirmed_paints, 0);
@@ -263,5 +266,19 @@ fn production_paint_submits_cpu_and_nested_guard_keeps_error_and_counts() {
         assert_eq!(canvas.confirmed_paints, 1);
         assert_eq!(canvas.paints, 1);
         assert!(!IsWindowVisible(hwnd).as_bool());
+    });
+}
+
+#[test]
+fn hidden_empty_workspace_does_not_allocate_until_visible() {
+    fixture(|state, hwnd| unsafe {
+        state.canvas.borrow_mut().image.take();
+        crate::desktop::tray::start_with(state, || Ok(())).unwrap();
+        SendMessageW(hwnd, WM_PAINT, None, None);
+        assert!(!state.canvas.borrow().has_target());
+        let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+        SendMessageW(hwnd, WM_PAINT, None, None);
+        assert!(state.canvas.borrow().has_target());
+        assert!(state.canvas.borrow().confirmed_paints > 0);
     });
 }

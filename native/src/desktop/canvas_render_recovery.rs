@@ -22,6 +22,9 @@ pub(super) struct Recovery {
 }
 
 impl Canvas {
+    pub(in crate::desktop) fn has_target(&self) -> bool {
+        self.target.is_some()
+    }
     pub(in crate::desktop) fn software_selected(&self) -> bool {
         self.software_renderer
     }
@@ -114,7 +117,12 @@ impl Canvas {
         };
         let destination = if !self.compatibility_renderer && target.surface.requires_compatibility()
         {
-            Destination::Compatibility
+            if matches!(target.surface, super::RenderSurface::D3d12(_)) {
+                self.primary = crate::desktop::render_surface::Primary::SharedD3d11;
+                Destination::Automatic
+            } else {
+                Destination::Compatibility
+            }
         } else if target.surface.requires_software() {
             Destination::Software
         } else {

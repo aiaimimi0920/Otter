@@ -30,6 +30,8 @@ pub(crate) struct Screenshot {
     pub at: u64,
     #[serde(skip)]
     pub preview: Option<image::Preview>,
+    #[serde(skip)]
+    pub key: std::sync::Arc<()>,
 }
 #[derive(Clone, Default, Serialize, Deserialize)]
 pub(crate) struct Data {
@@ -67,13 +69,18 @@ impl Data {
         self.screenshots.retain(|entry| entry.id != id);
         before != self.screenshots.len()
     }
+    pub fn by_key(&self, key: &std::sync::Arc<()>) -> Option<&Screenshot> {
+        self.screenshots
+            .iter()
+            .find(|entry| std::sync::Arc::ptr_eq(&entry.key, key))
+    }
     /// Background only; corrupt JSON roots are errors, never permission to overwrite the original as an empty cache.
     pub fn decode(bytes: &[u8]) -> Result<Self, String> {
-        Self::decode_with(bytes, image::decode)
+        Self::decode_with(bytes, image::normalize)
     }
     fn decode_with(
         bytes: &[u8],
-        prepare: impl Fn(&str) -> Result<(image::Preview, Option<String>), String>,
+        prepare: impl Fn(&str) -> Result<Option<String>, String>,
     ) -> Result<Self, String> {
         if bytes.len() > MAX_BYTES {
             return Err("History exceeds 8 MiB".into());
@@ -129,11 +136,10 @@ impl Data {
                     continue;
                 }
                 // Transient resource/COM failure is not corruption; preserve the original entry so later color picks cannot permanently delete it.
-                if let Ok((preview, normalized)) = prepare(&entry.thumbnail) {
-                    if let Some(encoded) = normalized {
-                        entry.thumbnail = encoded;
-                    }
-                    entry.preview = Some(preview);
+                // Only the compact encoding belongs to a disk snapshot. Drop each decoded image
+                // before validating the next entry, even if the history panel is already open.
+                if let Ok(Some(normalized)) = prepare(&entry.thumbnail) {
+                    entry.thumbnail = normalized;
                 }
                 data.screenshots.push(entry);
                 if data.screenshots.len() == LIMIT {

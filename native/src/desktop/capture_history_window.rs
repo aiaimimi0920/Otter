@@ -30,6 +30,7 @@ pub(in crate::desktop::application) struct Window {
     hwnd: HWND,
     state: Box<State>,
     revision: u64,
+    preview_revision: u64,
     restore: HWND,
 }
 impl Window {
@@ -65,10 +66,12 @@ impl Window {
                 hwnd,
                 state,
                 revision: u64::MAX,
+                preview_revision: u64::MAX,
                 restore: source,
             };
             SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE)?;
             layout::create(hwnd, &window.state)?;
+            window.state.view.borrow_mut().previews.open();
             window.update()?;
             Ok(window)
         }
@@ -104,11 +107,19 @@ impl Window {
         }
         let view = self.state.view.borrow();
         let data_changed = self.revision != view.revision;
+        let previews_changed = self.preview_revision != view.previews.revision;
+        self.preview_revision = view.previews.revision;
         if data_changed {
             self.revision = view.revision;
             *self.state.data.borrow_mut() = view.data.clone();
         }
-        let status = view.status.as_deref().unwrap_or_default();
+        let status = view.status.as_deref().unwrap_or_else(|| {
+            if view.previews.failed() {
+                crate::ui_text::text("capture-history-preview-unavailable")
+            } else {
+                ""
+            }
+        });
         let status_changed = self.state.status.borrow().as_str() != status;
         if status_changed {
             status.clone_into(&mut self.state.status.borrow_mut());
@@ -118,7 +129,11 @@ impl Window {
         unsafe {
             if data_changed {
                 layout::update(hwnd, &self.state)?;
-            } else if status_changed {
+            }
+            if data_changed || previews_changed {
+                layout::refresh_previews(&self.state);
+            }
+            if status_changed {
                 let _ = InvalidateRect(Some(hwnd), None, false);
             }
         }
@@ -171,6 +186,7 @@ impl Window {
 }
 impl Drop for Window {
     fn drop(&mut self) {
+        self.state.view.borrow_mut().previews.close();
         unsafe {
             if let Some(hwnd) = self.handle() {
                 let foreground = GetForegroundWindow();
@@ -268,14 +284,18 @@ unsafe extern "system" fn procedure(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM
                                 entry.hex.clone(),
                             )
                         }),
-                        200..=223 => data
-                            .screenshots
-                            .get(id - 200)
-                            .map(|entry| Action::Reuse(entry.id.clone())),
+                        200..=223 => data.screenshots.get(id - 200).and_then(|entry| {
+                            state
+                                .view
+                                .borrow()
+                                .previews
+                                .get(entry)
+                                .map(|p| Action::Reuse(entry.key.clone(), p.image.clone()))
+                        }),
                         300..=323 => data
                             .screenshots
                             .get(id - 300)
-                            .map(|entry| Action::Delete(entry.id.clone())),
+                            .map(|entry| Action::Delete(entry.key.clone())),
                         _ => None,
                     }
                 };

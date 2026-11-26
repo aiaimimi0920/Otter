@@ -44,7 +44,12 @@ pub(super) unsafe fn item(state: &State, item: &DRAWITEMSTRUCT) {
             200..=223 => data.screenshots.get(id - 200).map(|entry| {
                 (
                     format!("{}×{}", entry.width, entry.height),
-                    entry.preview.as_ref().map(|p| p.small.clone()),
+                    state
+                        .view
+                        .borrow()
+                        .previews
+                        .get(entry)
+                        .map(|p| p.small.clone()),
                     None,
                 )
             }),

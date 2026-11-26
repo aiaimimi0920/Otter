@@ -55,6 +55,11 @@ unsafe fn dispatch(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
         return DefWindowProcW(hwnd, msg, wp, lp);
     }
     let state = &*pointer;
+    if msg == WM_PAINT && state.render_active.get() {
+        // Native presentation can synchronously reenter while Canvas is mutably borrowed.
+        // Consume nested paint before even the input observers inspect document state.
+        return paint::defer_nested(hwnd, state, true);
+    }
     if msg == super::window_geometry_wake::MESSAGE {
         // Queued wakes only acknowledge geometry notifications; the application loop still settles without reentering field refresh.
         state.geometry_wake.acknowledge();

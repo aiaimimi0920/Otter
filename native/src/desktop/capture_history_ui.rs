@@ -10,6 +10,8 @@ use std::{
     sync::Arc,
 };
 pub(super) type Shared = Rc<RefCell<View>>;
+#[path = "capture_history_previews.rs"]
+pub(super) mod previews;
 pub(super) struct Capture {
     pub id: String,
     pub image: Image,
@@ -23,14 +25,15 @@ pub(super) struct Origin {
 #[derive(Clone)]
 pub(super) enum Action {
     Color(Color, String),
-    Reuse(String),
-    Delete(String),
+    Reuse(Arc<()>, Image),
+    Delete(Arc<()>),
 }
 #[derive(Default)]
 pub(super) struct View {
     // Window actions and the save worker keep the exact revision they observed.
     pub data: Arc<Data>,
     pub revision: u64,
+    pub previews: previews::Previews,
     pub toggle: Option<Origin>,
     pub action: Option<(Origin, Action)>,
     pub captures: VecDeque<Capture>,
@@ -44,12 +47,15 @@ impl View {
         Arc::make_mut(&mut self.data).color(color, now());
         self.changed();
     }
-    pub fn screenshot(&mut self, entry: crate::capture_history::Screenshot) {
+    pub fn screenshot(&mut self, mut entry: crate::capture_history::Screenshot) {
+        self.previews.captured(&mut entry);
         Arc::make_mut(&mut self.data).screenshot(entry);
+        self.previews.retain_current(&self.data);
         self.changed();
     }
     pub fn remove_screenshot(&mut self, id: &str) {
         if Arc::make_mut(&mut self.data).remove(id) {
+            self.previews.retain_current(&self.data);
             self.changed();
         }
     }

@@ -19,6 +19,10 @@ impl Surface {
     pub(in crate::desktop::application::chrome) fn fits(&self, size: SIZE) -> bool {
         self.size == size
     }
+    #[cfg(test)]
+    pub(in crate::desktop::application::chrome) fn size(&self) -> SIZE {
+        self.size
+    }
     pub(in crate::desktop::application::chrome) fn dc(&self) -> HDC {
         self.dc
     }

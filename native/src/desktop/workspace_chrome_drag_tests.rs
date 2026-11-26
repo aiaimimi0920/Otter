@@ -251,10 +251,9 @@ fn connection_cache_redraws_changed_endpoints_and_clears_removed_lines() {
             bottom: committed.bottom,
         };
         let failure = Error::new(E_FAIL, "injected curve failure");
-        let error = draw::present_with(ui, shifted, Default::default(), |_, _, _| {
-            Err(failure.clone())
-        })
-        .unwrap_err();
+        let error =
+            draw::present_with(ui, shifted, draw::lines(ui), |_, _, _| Err(failure.clone()))
+                .unwrap_err();
         assert_eq!(error.message(), failure.message());
         let mut after_failure = RECT::default();
         GetWindowRect(ui.drawing.get(), &mut after_failure).unwrap();
@@ -295,8 +294,94 @@ fn connection_cache_redraws_changed_endpoints_and_clears_removed_lines() {
             "removing the last line must clear the old pixels"
         );
         let cleared = count();
+        assert_eq!(
+            ui.surface.borrow().as_ref().unwrap().size(),
+            SIZE { cx: 1, cy: 1 },
+            "removing the last curve must release the multi-pin DIB back to a 1x1 anchor"
+        );
         window::refresh_drawing(ui).unwrap();
         assert_eq!(count(), cleared);
+        app.shutdown();
+    }
+}
+
+#[test]
+fn unlinked_far_corner_pins_allocate_only_1x1_drawing_surface_until_connected() {
+    unsafe {
+        let mut app = visible_app();
+        let vx = GetSystemMetrics(SM_XVIRTUALSCREEN);
+        let vy = GetSystemMetrics(SM_YVIRTUALSCREEN);
+        let right = vx + GetSystemMetrics(SM_CXVIRTUALSCREEN);
+        let bottom = vy + GetSystemMetrics(SM_CYVIRTUALSCREEN);
+        SetWindowPos(
+            app.documents[0].window.0,
+            None,
+            vx + 40,
+            vy + 40,
+            160,
+            120,
+            SWP_NOZORDER | SWP_NOACTIVATE,
+        )
+        .unwrap();
+        SetWindowPos(
+            app.documents[1].window.0,
+            None,
+            (right - 220).max(vx + 240),
+            (bottom - 180).max(vy + 200),
+            160,
+            120,
+            SWP_NOZORDER | SWP_NOACTIVATE,
+        )
+        .unwrap();
+        app.sync_workspace_chrome(true);
+        let ui = app.chrome.ui.clone();
+        assert_eq!(
+            ui.surface.borrow().as_ref().unwrap().size(),
+            SIZE { cx: 1, cy: 1 }
+        );
+        let catalog = Catalog::capture(&app.documents, &app.live_sessions, &app.workspace);
+        let link = catalog.make_link(0, 1, 0, 0).unwrap().unwrap();
+        app.apply_link_creation(desktop::link_catalog::Creation { catalog, link });
+        app.sync_link_menus();
+        app.sync_workspace_chrome(true);
+        let linked = ui.surface.borrow().as_ref().unwrap().size();
+        assert!(linked.cx > 1 && linked.cy > 1);
+        app.add_window(false).unwrap();
+        let third = app.documents[2].window.0;
+        let _ = ShowWindow(third, SW_SHOWNOACTIVATE);
+        app.sync_link_menus();
+        app.sync_workspace_chrome(true);
+        let nodes = ui.nodes.borrow().clone();
+        let strip = ui
+            .input_windows
+            .borrow()
+            .iter()
+            .find(|(_, n, _)| *n == 2)
+            .unwrap()
+            .0;
+        {
+            let mut rows = ui.nodes.borrow_mut();
+            for row in rows.iter_mut().filter(|n| n.endpoint < 2) {
+                let w = row.rect.right - row.rect.left;
+                row.rect.left = right + 1000 + row.endpoint as i32 * 300;
+                row.rect.right = row.rect.left + w;
+            }
+        }
+        window::refresh_drawing(&ui).unwrap();
+        assert_eq!(
+            ui.surface.borrow().as_ref().unwrap().size(),
+            SIZE { cx: 1, cy: 1 }
+        );
+        assert!(
+            IsWindowVisible(strip).as_bool(),
+            "offscreen links must not hide an unrelated port strip"
+        );
+        *ui.nodes.borrow_mut() = nodes;
+        window::refresh_drawing(&ui).unwrap();
+        assert!(ui.surface.borrow().as_ref().unwrap().size().cx > 1);
+        ui.nodes.borrow_mut().clear();
+        window::refresh_drawing(&ui).unwrap();
+        assert!(ui.surface.borrow().is_none());
         app.shutdown();
     }
 }

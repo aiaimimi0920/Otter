@@ -23,21 +23,27 @@ unsafe fn settle(state: &crate::desktop::State, hwnd: HWND) {
 
 #[test]
 fn pin_d3d11_failure_retires_then_presents_cpu_with_opacity_and_sticky_selection() {
-    for direct_compatibility in [false, true] {
+    for (direct_compatibility, d3d12) in [(false, false), (true, false), (false, true)] {
         software_tests::fixture_mode(true, |state, hwnd| unsafe {
             {
                 let mut canvas = state.canvas.borrow_mut();
                 canvas.software_renderer = false;
                 canvas.compatibility_renderer = direct_compatibility;
+                if d3d12 {
+                    canvas.primary = crate::desktop::render_surface::Primary::D3d12;
+                }
                 canvas.window_opacity = 0.5;
             }
             SendMessageW(hwnd, WM_PAINT, None, None);
             if !direct_compatibility {
                 let mut canvas = state.canvas.borrow_mut();
-                assert!(matches!(
-                    canvas.target.as_ref().unwrap().surface,
-                    RenderSurface::D3d12(_)
-                ));
+                let surface = &canvas.target.as_ref().unwrap().surface;
+                if d3d12 {
+                    assert!(matches!(surface, RenderSurface::D3d12(_)));
+                } else {
+                    assert!(matches!(surface, RenderSurface::D3d11(_)));
+                    assert!(!surface.is_d3d11_warp());
+                }
                 assert!(canvas
                     .target
                     .as_mut()
@@ -53,11 +59,27 @@ fn pin_d3d11_failure_retires_then_presents_cpu_with_opacity_and_sticky_selection
                 settle(state, hwnd);
                 SendMessageW(hwnd, WM_PAINT, None, None);
             }
+            if d3d12 {
+                let mut canvas = state.canvas.borrow_mut();
+                let surface = &mut canvas.target.as_mut().unwrap().surface;
+                assert!(matches!(surface, RenderSurface::D3d11(_)) && !surface.is_d3d11_warp());
+                assert!(surface
+                    .draw(|t| {
+                        t.PopAxisAlignedClip();
+                        Ok(())
+                    })
+                    .is_err());
+                drop(canvas);
+                SendMessageW(hwnd, WM_PAINT, None, None);
+                settle(state, hwnd);
+                SendMessageW(hwnd, WM_PAINT, None, None);
+            }
             let mut canvas = state.canvas.borrow_mut();
             assert!(matches!(
                 canvas.target.as_ref().unwrap().surface,
                 RenderSurface::D3d11(_)
             ));
+            assert!(canvas.target.as_ref().unwrap().surface.is_d3d11_warp());
             let stamp = canvas.editor.document_stamp();
             let count = canvas.confirmed_paints;
             assert!(canvas

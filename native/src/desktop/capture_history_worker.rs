@@ -1,11 +1,12 @@
 //! One application-history background slot; serialize loading/thumbnails/saving, keep no idle thread, and join all tasks on exit.
 use crate::capture_history::{self as history, store::Store, Data};
-use crate::desktop::capture_history_ui::Shared;
+use crate::desktop::capture_history_ui::{previews, Shared, View};
 use std::{path::PathBuf, thread::JoinHandle};
 enum Output {
     Failed,
     Loaded(Result<(Store, Data), String>),
     Captured(Result<history::Screenshot, String>),
+    Previews(previews::Decoded),
     Saved(Store, Result<(), String>),
 }
 pub(in crate::desktop::application) struct Owner {
@@ -15,6 +16,7 @@ pub(in crate::desktop::application) struct Owner {
     saved: u64,
     saving: u64,
     failed: bool,
+    preview_failure: Option<previews::Decoded>,
     ready: std::sync::Arc<std::sync::atomic::AtomicBool>,
     notify: std::sync::Arc<dyn Fn() + Send + Sync>,
 }
@@ -27,6 +29,7 @@ impl Owner {
             saved: 0,
             saving: 0,
             failed: false,
+            preview_failure: None,
             ready: Default::default(),
             notify,
         }
@@ -57,8 +60,20 @@ impl Owner {
                 output
             }) {
             Ok(job) => self.job = Some(job),
-            Err(error) => self.error(error.to_string()),
+            Err(error) => self.job_failed(error.to_string()),
         }
+    }
+    fn job_failed(&mut self, error: String) {
+        // A codec worker that cannot start/finish must not disable saves or retry every tick.
+        if let Some(decoded) = self.preview_failure.take() {
+            self.publish_previews(decoded);
+        } else {
+            self.error(error);
+        }
+    }
+    fn publish_previews(&self, decoded: previews::Decoded) {
+        let View { previews, data, .. } = &mut *self.view.borrow_mut();
+        previews.publish(decoded, data);
     }
     fn error(&mut self, error: String) {
         self.failed = true;
@@ -74,12 +89,12 @@ impl Owner {
         let output = match job.join() {
             Ok(output) => output,
             Err(_) => {
-                self.error("History worker failed".into());
+                self.job_failed("History worker failed".into());
                 return;
             }
         };
         match output {
-            Output::Failed => self.error("History worker failed".into()),
+            Output::Failed => self.job_failed("History worker failed".into()),
             Output::Loaded(result) => match result {
                 Ok((store, mut loaded)) => {
                     let mut view = self.view.borrow_mut();
@@ -87,17 +102,8 @@ impl Owner {
                     loaded.merge_recent(std::sync::Arc::unwrap_or_clone(std::mem::take(
                         &mut view.data,
                     )));
+                    view.previews.retain_current(&loaded);
                     view.data = loaded.into();
-                    if view
-                        .data
-                        .screenshots
-                        .iter()
-                        .any(|entry| entry.preview.is_none())
-                    {
-                        view.status = Some(
-                            crate::ui_text::text("capture-history-preview-unavailable").into(),
-                        );
-                    }
                     view.changed();
                     self.saved = if revision == 0 { view.revision } else { 0 };
                     self.store = Some(store);
@@ -113,6 +119,10 @@ impl Owner {
                     ));
                 }
             },
+            Output::Previews(decoded) => {
+                self.preview_failure = None;
+                self.publish_previews(decoded);
+            }
             Output::Saved(store, result) => {
                 self.store = Some(store);
                 match result {
@@ -138,6 +148,12 @@ impl Owner {
                     capture.at,
                 ))
             });
+        } else if let Some(batch) = {
+            let view = self.view.borrow();
+            view.previews.batch(&view.data)
+        } {
+            self.preview_failure = Some(batch.on_failure());
+            self.start(move || Output::Previews(batch.decode()));
         } else if !self.failed && self.view.borrow().revision != self.saved {
             if let Some(mut store) = self.store.take() {
                 let view = self.view.borrow();

@@ -1,4 +1,4 @@
-//! Ordinary workspaces and transparent pins share D3D12/D3D11/CPU backends; window semantics never implicitly select another GPU chain.
+//! Ordinary canvases prefer the shared D3D11 device; Tile retains its D3D12-first presentation contract.
 use super::composition::Composition;
 use super::composition_d3d12::CompositionD3d12;
 #[path = "render_surface_selection.rs"]
@@ -17,6 +17,11 @@ pub enum RenderSurface {
     D3d11(Box<Composition>),
     D3d12(Box<CompositionD3d12>),
     Software(Box<software::Software>),
+}
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(in crate::desktop) enum Primary {
+    SharedD3d11,
+    D3d12,
 }
 
 impl RenderSurface {
@@ -52,13 +57,17 @@ impl RenderSurface {
         size: D2D_SIZE_U,
         dpi: u32,
         pin: bool,
+        primary: Primary,
     ) -> super::composition_creation::Result<Self> {
+        if primary == Primary::SharedD3d11 {
+            return Self::d3d11_automatic(factory, hwnd, size, dpi, pin);
+        }
         selection::select(
             || {
                 CompositionD3d12::new_candidate(hwnd, size)
                     .map(|value| Self::D3d12(Box::new(value)))
             },
-            || Self::legacy(factory, hwnd, size, dpi, pin),
+            || Self::d3d11_automatic(factory, hwnd, size, dpi, pin),
             |surface| {
                 if surface.is_software() {
                     if pin {
@@ -74,6 +83,18 @@ impl RenderSurface {
             },
         )
     }
+    pub(super) fn d3d11_automatic(
+        factory: &ID2D1Factory,
+        hwnd: HWND,
+        size: D2D_SIZE_U,
+        _dpi: u32,
+        pin: bool,
+    ) -> super::composition_creation::Result<Self> {
+        let gpu =
+            super::smoke_timing::run("d3d11-surface", || Composition::new_candidate(hwnd, size))
+                .map(|surface| Self::D3d11(Box::new(surface)));
+        selection::compatibility(gpu, pin, || Self::software_mode(factory, size, pin))
+    }
     pub(super) fn legacy(
         factory: &ID2D1Factory,
         hwnd: HWND,
@@ -81,9 +102,9 @@ impl RenderSurface {
         _dpi: u32,
         pin: bool,
     ) -> super::composition_creation::Result<Self> {
-        // Both window types share one D3D11 owner and attachment admission; implicit HWND targets no longer serve as compatibility backends.
+        // Explicit Compatibility tier uses D3D11 WARP so hardware driver bugs step down to software rasterized D3D11 before GDI.
         let gpu = super::smoke_timing::run("compatibility-surface", || {
-            Composition::new_candidate(hwnd, size)
+            Composition::new_warp_candidate(hwnd, size)
         })
         .map(|surface| Self::D3d11(Box::new(surface)));
         selection::compatibility(gpu, pin, || Self::software_mode(factory, size, pin))
@@ -107,6 +128,10 @@ impl RenderSurface {
     pub(super) fn is_software(&self) -> bool {
         matches!(self, Self::Software(_))
     }
+    #[cfg(test)]
+    pub(super) fn is_d3d11_warp(&self) -> bool {
+        matches!(self, Self::D3d11(surface) if surface.is_warp())
+    }
     pub(super) fn take_submission(&mut self) -> Option<super::software_surface::Submission> {
         match self {
             Self::Software(surface) => surface.take_submission(),
@@ -115,10 +140,18 @@ impl RenderSurface {
     }
 
     pub(super) fn requires_compatibility(&self) -> bool {
-        matches!(self, Self::D3d12(surface) if surface.requires_rebuild())
+        match self {
+            Self::D3d12(surface) => surface.requires_rebuild(),
+            Self::D3d11(surface) => !surface.is_warp() && surface.requires_rebuild(),
+            Self::Software(_) => false,
+        }
     }
     pub(super) fn is_compatibility(&self) -> bool {
-        !matches!(self, Self::D3d12(_))
+        match self {
+            Self::D3d12(_) => false,
+            Self::D3d11(surface) => surface.is_warp(),
+            Self::Software(_) => true,
+        }
     }
 
     /// Only for creating/synchronizing same-device brushes and bitmaps; drawing and submission must use draw's single transaction.

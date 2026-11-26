@@ -169,7 +169,7 @@ fn moving_and_resizing_shared_chrome_never_repositions_an_old_redirected_frame()
 }
 #[test]
 fn shared_frames_respect_overlapping_pin_content_and_keep_upper_border() {
-    unsafe {
+    desktop::workspace_window_fixture::with_private_desktop(|| unsafe {
         let mut app = visible_app();
         let ui = app.chrome.ui.clone();
         SetWindowPos(
@@ -227,7 +227,7 @@ fn shared_frames_respect_overlapping_pin_content_and_keep_upper_border() {
             "upper border overlaps lower image"
         );
         app.shutdown();
-    }
+    });
 }
 #[test]
 fn capture_resume_and_new_node_publish_complete_stationary_frames_without_repositioning_old_pixels()

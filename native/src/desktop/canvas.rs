@@ -75,6 +75,7 @@ pub struct Canvas {
     creation_admission: creation_admission::Admission,
     recovery: render_recovery::Recovery,
     // Stay on the compatibility path after creation/runtime fallback; ordinary redraw/minimize must not reprobe the failed primary backend.
+    primary: super::render_surface::Primary,
     compatibility_renderer: bool,
     software_renderer: bool,
     pub(super) factory: ID2D1Factory,
@@ -165,6 +166,7 @@ impl Canvas {
             target: None,
             creation_admission: Default::default(),
             recovery: Default::default(),
+            primary: super::render_surface::Primary::SharedD3d11,
             compatibility_renderer: false,
             software_renderer: false,
             factory: (*shared_factory).clone(),
@@ -290,7 +292,14 @@ impl Canvas {
                     } else if self.compatibility_renderer {
                         RenderSurface::legacy(&self.factory, hwnd, size, dpi, self.pinned)
                     } else {
-                        RenderSurface::new(&self.factory, hwnd, size, dpi, self.pinned)
+                        RenderSurface::new(
+                            &self.factory,
+                            hwnd,
+                            size,
+                            dpi,
+                            self.pinned,
+                            self.primary,
+                        )
                     }?;
                     Target::prepare(surface, |target| {
                         target.CreateSolidColorBrush(
@@ -304,6 +313,9 @@ impl Canvas {
                         )
                     })
                 })?;
+                if !matches!(prepared.surface, RenderSurface::D3d12(_)) {
+                    self.primary = super::render_surface::Primary::SharedD3d11;
+                }
                 self.compatibility_renderer |= prepared.surface.is_compatibility();
                 self.software_renderer |= prepared.surface.is_software();
                 self.target = Some(prepared);

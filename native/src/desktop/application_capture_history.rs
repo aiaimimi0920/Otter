@@ -51,6 +51,7 @@ impl Application {
                                     window.show();
                                 }
                                 self.history_window = Some(window);
+                                self.capture_history.poll();
                             }
                             Err(error) => {
                                 self.capture_history.view.borrow_mut().status =
@@ -135,18 +136,16 @@ impl Application {
                 let _ = InvalidateRect(Some(hwnd), None, false);
                 copy(hwnd, &hex, &|| self.history_source(origin).is_some())?;
             }
-            Action::Reuse(id) => {
-                let image = self
+            Action::Reuse(key, image) => {
+                // A queued click may outlive the panel, but never reuse an entry replaced under the same id.
+                if self
                     .capture_history
                     .view
                     .borrow()
                     .data
-                    .screenshots
-                    .iter()
-                    .find(|entry| entry.id == id)
-                    .and_then(|entry| entry.preview.as_ref())
-                    .map(|preview| preview.image.clone());
-                if let Some(image) = image {
+                    .by_key(&key)
+                    .is_some()
+                {
                     let mut prepared =
                         crate::desktop::open_image::PreparedDocument::from_image(image, true)?;
                     // The original version reused at canvas center; the native version places new pins at the initiating document's current client-area center.
@@ -169,19 +168,17 @@ impl Application {
                     ));
                 }
             }
-            Action::Delete(id) => {
-                let expected = self
+            Action::Delete(key) => {
+                if self
                     .capture_history
                     .view
                     .borrow()
                     .data
-                    .screenshots
-                    .iter()
-                    .find(|entry| entry.id == id)
-                    .map(|entry| (entry.at, entry.thumbnail.clone()));
-                let Some(expected) = expected else {
+                    .by_key(&key)
+                    .is_none()
+                {
                     return Ok(());
-                };
+                }
                 let Some(_guard) =
                     crate::desktop::file_dialog::Guard::begin(&document.state.file_dialog)
                 else {
@@ -197,12 +194,8 @@ impl Application {
                 }
                 if self.history_source(origin).is_some() && !self.session_end.paused() {
                     let mut view = self.capture_history.view.borrow_mut();
-                    let current = view.data.screenshots.iter().any(|entry| {
-                        entry.id == id
-                            && (entry.at, entry.thumbnail.as_str())
-                                == (expected.0, expected.1.as_str())
-                    });
-                    if current {
+                    // Modal dispatch may replace the row. Revalidate the clicked entry without copying its PNG.
+                    if let Some(id) = view.data.by_key(&key).map(|entry| entry.id.clone()) {
                         view.remove_screenshot(&id);
                     }
                 }

@@ -9,7 +9,12 @@ use windows::{
     core::{Error, Interface, Result},
     Win32::{
         Foundation::{E_FAIL, HMODULE},
-        Graphics::{Direct2D::*, Direct3D::*, Direct3D11::*, Dxgi::IDXGIDevice},
+        Graphics::{
+            Direct2D::*,
+            Direct3D::*,
+            Direct3D11::*,
+            Dxgi::{IDXGIDevice, IDXGIDevice3},
+        },
     },
 };
 
@@ -23,6 +28,21 @@ impl Device {
     }
     pub(super) fn device2d(&self) -> &ID2D1Device {
         &self.device2d
+    }
+}
+impl Drop for Device {
+    fn drop(&mut self) {
+        // Window-private swapchains and D2D contexts drop before the last Rc<Device> lease;
+        // flush immediate context state and trim DXGI driver caches when returning to zero GPU windows.
+        unsafe {
+            if let Ok(context) = self.device11.GetImmediateContext() {
+                context.ClearState();
+                context.Flush();
+            }
+            if let Ok(dxgi) = self.device11.cast::<IDXGIDevice3>() {
+                dxgi.Trim();
+            }
+        }
     }
 }
 thread_local! {

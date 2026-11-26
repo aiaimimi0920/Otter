@@ -107,9 +107,7 @@ fn legacy_json_restores_both_lists_sanitizes_bad_entries_and_preserves_extension
     assert_eq!(data.colors[0].hex, "#abcdef");
     assert_eq!(data.screenshots.len(), 1);
     assert_eq!(
-        data.screenshots[0]
-            .preview
-            .as_ref()
+        image::decode_preview(&data.screenshots[0].thumbnail)
             .unwrap()
             .image
             .pixels
@@ -163,7 +161,12 @@ fn history_preserves_verified_small_png_and_normalizes_legacy_images() {
         let data = Data::decode(&serde_json::to_vec(&json).unwrap()).unwrap();
         let entry = &data.screenshots[0];
         assert_eq!(entry.width, input_width);
-        let decoded = &entry.preview.as_ref().unwrap().image;
+        assert!(
+            entry.preview.is_none(),
+            "disk snapshots keep no decoded pixels"
+        );
+        let preview = image::decode_preview(&entry.thumbnail).unwrap();
+        let decoded = &preview.image;
         assert_eq!((decoded.width, decoded.height), (output_width, 1));
         assert!(entry.thumbnail.starts_with("data:image/png;base64,"));
         assert_eq!(entry.thumbnail == thumbnail, preserve);
@@ -229,7 +232,7 @@ fn embedded_only_image_policy_rejects_remote_traversal_and_invalid_payloads() {
         "data:image/png;base64,invalid!",
         "data:text/html;base64,AA==",
     ] {
-        assert!(image::decode(url).is_err());
+        assert!(image::decode_preview(url).is_err());
     }
 }
 #[test]
@@ -255,5 +258,5 @@ fn temporary_preview_failure_followed_by_new_color_save_preserves_existing_scree
     drop(store);
     let (_, restored) = store::Store::open(root).unwrap();
     assert_eq!(restored.screenshots[0].id, "keep");
-    assert!(restored.screenshots[0].preview.is_some());
+    assert!(image::decode_preview(&restored.screenshots[0].thumbnail).is_ok());
 }

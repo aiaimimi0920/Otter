@@ -52,22 +52,28 @@ fn busy_shape_dialog_rejects_without_menu_finish_invalidation() {
 
 #[test]
 fn manual_cpu_menu_retires_each_hardware_backend_and_preserves_document() {
-    for compatibility in [false, true] {
+    for (compatibility, d3d12) in [(false, false), (true, false), (false, true)] {
         software_tests::fixture_mode(true, |state, hwnd| unsafe {
             {
                 let mut canvas = state.canvas.borrow_mut();
                 canvas.software_renderer = false;
                 canvas.compatibility_renderer = compatibility;
+                if d3d12 {
+                    canvas.primary = crate::desktop::render_surface::Primary::D3d12;
+                }
             }
             SendMessageW(hwnd, WM_PAINT, None, None);
             {
                 let canvas = state.canvas.borrow();
                 let surface = &canvas.target.as_ref().unwrap().surface;
-                assert!(if compatibility {
-                    matches!(surface, RenderSurface::D3d11(_))
+                if d3d12 {
+                    assert!(matches!(surface, RenderSurface::D3d12(_)));
+                } else if compatibility {
+                    assert!(surface.is_d3d11_warp());
                 } else {
-                    matches!(surface, RenderSurface::D3d12(_))
-                });
+                    assert!(matches!(surface, RenderSurface::D3d11(_)));
+                    assert!(!surface.is_d3d11_warp());
+                }
             }
             let stamp = state.canvas.borrow().editor.document_stamp();
             let before = state.canvas.borrow().confirmed_paints;

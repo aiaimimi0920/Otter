@@ -3,7 +3,7 @@ use super::*;
 
 #[test]
 fn pure_z_order_changes_keep_each_border_immediately_above_its_host() {
-    unsafe {
+    desktop::workspace_window_fixture::with_private_desktop(|| unsafe {
         let mut app = visible_app();
         let ui = app.chrome.ui.clone();
         let mut observed = Vec::new();
@@ -47,7 +47,7 @@ fn pure_z_order_changes_keep_each_border_immediately_above_its_host() {
             "{observed:?}"
         );
         app.shutdown();
-    }
+    });
 }
 
 #[test]

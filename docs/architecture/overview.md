@@ -15,6 +15,10 @@ controls from an exact NeuroDesign Git commit. This page describes runtime respo
   retirement owners; it does not block the UI waiting for threads. Already admitted file exports
   may finish under their separate output budget. Drawing caches belong to the window or operation,
   not a global cross-window resource pool.
+  Ordinary canvases use shared D3D11 devices with window-private surfaces; Tile
+  retains D3D12-first selection. Hardware fallback still requires confirmed retirement.
+  Capture history keeps compact encodings in save snapshots. Its single worker decodes
+  panel previews, which are discarded when the panel closes.
 - **Live:** Windows Graphics Capture owns acquisition; source input has a separate
   permission and lifetime. The co-built `otter_live_hover_hook.dll` is delivered
   next to the EXE. [Live capture](../features/LIVE_CAPTURE.md) documents the limits.

@@ -28,6 +28,7 @@ and repository `AGENTS.md` for development and verification requirements.
 | Live capture, input and cleanup | Runtime `capture_wgc`, `live_texture` and `live_*`; host `live_relay_*`; desktop `composition_live_*`. |
 | Constrained child processes | Media `bounded_worker_process`; runtime `shader_hlsl_*`; host `surface_image_worker_session` and `surface_javascript_*`. |
 | Window and menu caches | Desktop `annotation_cache`, `native_menu_panel_text` and `popup_frozen_*`; resources are reclaimed with their owning window, task or application slot. |
+| Capture history | Host `capture_history*` owns persisted entries; desktop `capture_history_worker` serializes background work and `capture_history_previews` owns the open panel's decoded pixels. |
 | Display language | Core `display_language`; host `ui_text*` and `assets/locales`; desktop `application_locale*` owns persistence and refresh. `loom_locale*` receives authenticated one-shot requests, never a second settings owner. |
 
 Keep detailed cancellation, capacity, input-validation and resource-lifetime constraints in the

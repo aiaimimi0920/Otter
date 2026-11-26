@@ -17,73 +17,86 @@ unsafe fn no_close(hwnd: HWND) {
 
 #[test]
 fn window_recovers_real_d3d12_failure_after_retirement_and_ignores_stale_ticks() {
-    software_tests::fixture(|state, hwnd| unsafe {
-        state.canvas.borrow_mut().software_renderer = false;
-        SendMessageW(hwnd, WM_PAINT, None, None);
-        let mut canvas = state.canvas.borrow_mut();
-        assert!(matches!(
-            canvas.target.as_ref().unwrap().surface,
-            RenderSurface::D3d12(_)
-        ));
-        assert!(!canvas.retry_render_without_composition());
-        let stamp = canvas.editor.document_stamp();
-        let paints = canvas.confirmed_paints;
-        assert!(canvas
-            .target
-            .as_mut()
-            .unwrap()
-            .surface
-            .draw(|target| {
-                target.PopAxisAlignedClip();
-                Ok(())
-            })
-            .is_err());
-        drop(canvas);
-        SendMessageW(hwnd, WM_PAINT, None, None);
-        let original = state.error.borrow().as_ref().unwrap().code();
-        assert!(state.canvas.borrow().render_suspended());
-        assert!(state.canvas.borrow().recovery.target.is_some());
-        // Normal minimize/discard and extra paints must not lose the retirement owner or confirm frames early.
-        SendMessageW(hwnd, WM_SIZE, Some(WPARAM(SIZE_MINIMIZED as usize)), None);
-        SendMessageW(hwnd, WM_PAINT, None, None);
-        assert!(state.canvas.borrow().recovery.target.is_some());
-        assert_eq!(state.canvas.borrow().confirmed_paints, paints);
-        assert_eq!(state.error.borrow().as_ref().unwrap().code(), original);
-        assert!(stamp.matches(&state.canvas.borrow().editor));
-        state
-            .canvas
-            .borrow_mut()
-            .replace_image(Image {
-                width: 2,
-                height: 2,
-                pixels: [90, 60, 30, 255].repeat(4).into(),
-            })
-            .unwrap();
-        let stamp = state.canvas.borrow().editor.document_stamp();
-        assert!(state.canvas.borrow().recovery.target.is_some());
-        assert!(state.canvas.borrow().target.is_none());
-        let deadline = Instant::now() + Duration::from_secs(3);
-        while state.canvas.borrow().render_suspended() {
-            assert!(Instant::now() < deadline, "recovery did not complete");
-            let mut message = MSG::default();
-            while PeekMessageW(&mut message, Some(hwnd), WM_TIMER, WM_TIMER, PM_REMOVE).as_bool() {
-                DispatchMessageW(&message);
+    for d3d12 in [false, true] {
+        software_tests::fixture(|state, hwnd| unsafe {
+            {
+                let mut canvas = state.canvas.borrow_mut();
+                canvas.software_renderer = false;
+                if d3d12 {
+                    canvas.primary = crate::desktop::render_surface::Primary::D3d12;
+                }
             }
-            std::thread::sleep(Duration::from_millis(1));
-        }
-        assert!(state.canvas.borrow().compatibility_renderer);
-        assert!(state.canvas.borrow().recovery.target.is_none());
-        // Completion notification alone does not clear errors; only successful presentation by the new backend confirms a new frame.
-        assert_eq!(state.error.borrow().as_ref().unwrap().code(), original);
-        SendMessageW(hwnd, WM_PAINT, None, None);
-        assert!(state.error.borrow().is_none());
-        assert_eq!(state.canvas.borrow().confirmed_paints, paints + 1);
-        assert!(stamp.matches(&state.canvas.borrow().editor));
-        SendMessageW(hwnd, WM_TIMER, Some(WPARAM(TIMER)), None);
-        assert_eq!(state.canvas.borrow().confirmed_paints, paints + 1);
-        assert!(!state.canvas.borrow_mut().recover_render());
-        no_close(hwnd);
-    });
+            SendMessageW(hwnd, WM_PAINT, None, None);
+            let mut canvas = state.canvas.borrow_mut();
+            let surface = &canvas.target.as_ref().unwrap().surface;
+            if d3d12 {
+                assert!(matches!(surface, RenderSurface::D3d12(_)));
+            } else {
+                assert!(matches!(surface, RenderSurface::D3d11(_)));
+                assert!(!surface.is_d3d11_warp());
+            }
+            assert!(!canvas.retry_render_without_composition());
+            let stamp = canvas.editor.document_stamp();
+            let paints = canvas.confirmed_paints;
+            assert!(canvas
+                .target
+                .as_mut()
+                .unwrap()
+                .surface
+                .draw(|target| {
+                    target.PopAxisAlignedClip();
+                    Ok(())
+                })
+                .is_err());
+            drop(canvas);
+            SendMessageW(hwnd, WM_PAINT, None, None);
+            let original = state.error.borrow().as_ref().unwrap().code();
+            assert!(state.canvas.borrow().render_suspended());
+            assert!(state.canvas.borrow().recovery.target.is_some());
+            // Normal minimize/discard and extra paints must not lose the retirement owner or confirm frames early.
+            SendMessageW(hwnd, WM_SIZE, Some(WPARAM(SIZE_MINIMIZED as usize)), None);
+            SendMessageW(hwnd, WM_PAINT, None, None);
+            assert!(state.canvas.borrow().recovery.target.is_some());
+            assert_eq!(state.canvas.borrow().confirmed_paints, paints);
+            assert_eq!(state.error.borrow().as_ref().unwrap().code(), original);
+            assert!(stamp.matches(&state.canvas.borrow().editor));
+            state
+                .canvas
+                .borrow_mut()
+                .replace_image(Image {
+                    width: 2,
+                    height: 2,
+                    pixels: [90, 60, 30, 255].repeat(4).into(),
+                })
+                .unwrap();
+            let stamp = state.canvas.borrow().editor.document_stamp();
+            assert!(state.canvas.borrow().recovery.target.is_some());
+            assert!(state.canvas.borrow().target.is_none());
+            let deadline = Instant::now() + Duration::from_secs(3);
+            while state.canvas.borrow().render_suspended() {
+                assert!(Instant::now() < deadline, "recovery did not complete");
+                let mut message = MSG::default();
+                while PeekMessageW(&mut message, Some(hwnd), WM_TIMER, WM_TIMER, PM_REMOVE)
+                    .as_bool()
+                {
+                    DispatchMessageW(&message);
+                }
+                std::thread::sleep(Duration::from_millis(1));
+            }
+            assert_eq!(state.canvas.borrow().compatibility_renderer, !d3d12);
+            assert!(state.canvas.borrow().recovery.target.is_none());
+            // Completion notification alone does not clear errors; only successful presentation by the new backend confirms a new frame.
+            assert_eq!(state.error.borrow().as_ref().unwrap().code(), original);
+            SendMessageW(hwnd, WM_PAINT, None, None);
+            assert!(state.error.borrow().is_none());
+            assert_eq!(state.canvas.borrow().confirmed_paints, paints + 1);
+            assert!(stamp.matches(&state.canvas.borrow().editor));
+            SendMessageW(hwnd, WM_TIMER, Some(WPARAM(TIMER)), None);
+            assert_eq!(state.canvas.borrow().confirmed_paints, paints + 1);
+            assert!(!state.canvas.borrow_mut().recover_render());
+            no_close(hwnd);
+        });
+    }
 }
 
 #[test]

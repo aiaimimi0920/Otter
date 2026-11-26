@@ -91,6 +91,9 @@ fn owned_buttons_display_both_lists_queue_stable_actions_and_close_without_quitt
             lifetime: Default::default(),
         };
         let mut window = Window::new(source.0, origin, shared.clone()).unwrap();
+        let mut owner = super::super::worker::Owner::new(shared.clone(), Arc::new(|| {}));
+        owner.shutdown();
+        window.update().unwrap();
         let snapshot = window.state.data.borrow().clone();
         assert!(Arc::ptr_eq(&snapshot, &shared.borrow().data));
         let hwnd = window.handle().unwrap();
@@ -104,12 +107,12 @@ fn owned_buttons_display_both_lists_queue_stable_actions_and_close_without_quitt
         );
         SendMessageW(screenshot, BM_CLICK, None, None);
         assert!(
-            matches!(shared.borrow_mut().action.take(), Some((_, Action::Reuse(id))) if id == "id")
+            matches!(shared.borrow_mut().action.take(), Some((_, Action::Reuse(key, _))) if Arc::ptr_eq(&key, &snapshot.screenshots[0].key))
         );
         let delete = GetDlgItem(Some(hwnd), 300).unwrap();
         SendMessageW(delete, BM_CLICK, None, None);
         assert!(
-            matches!(shared.borrow_mut().action.take(), Some((_, Action::Delete(id))) if id == "id")
+            matches!(shared.borrow_mut().action.take(), Some((_, Action::Delete(key))) if Arc::ptr_eq(&key, &snapshot.screenshots[0].key))
         );
         let caption_probe = TextProbe::new(color);
         let shot_probe = TextProbe::new(screenshot);

@@ -39,6 +39,7 @@ struct State {
     target: IDCompositionTarget,
     device: IDCompositionDevice,
     size: D2D_SIZE_U,
+    backend: Option<selection::Backend>,
     // Field order releases window-private COM resources first; weak caches do not extend the last default-device lease.
     _shared_device: Option<std::rc::Rc<devices::Device>>,
     // The D2D factory is single-threaded; this owner cannot migrate across threads even if underlying COM interfaces are marked Send.
@@ -68,8 +69,9 @@ impl Composition {
                 .map_err(|error| (selection::Stage::Device, error.into()))?;
             // Successful device creation is not success of the entire HWND/DXGI/D2D/DComp/bind chain.
             // Release local resources before association; failures after attempted association retain a retirement owner without taking over documents.
-            let surface = Self::with_device_owner(hwnd, size, device.get(), Some(device.clone()))
-                .map_err(|error| (selection::Stage::Presentation, error))?;
+            let surface =
+                Self::with_device_owner(hwnd, size, device.get(), Some((device.clone(), backend)))
+                    .map_err(|error| (selection::Stage::Presentation, error))?;
             Ok(surface)
         })?;
         if let Some(failure) = selected.fallback {
@@ -82,6 +84,22 @@ impl Composition {
         }
         Ok(selected.value)
     }
+    pub(super) fn new_warp_candidate(
+        hwnd: HWND,
+        size: D2D_SIZE_U,
+    ) -> super::composition_creation::Result<Self> {
+        validate_size(size)?;
+        let device = devices::acquire(selection::Backend::D3d11Warp)?;
+        Self::with_device_owner(
+            hwnd,
+            size,
+            device.get(),
+            Some((device.clone(), selection::Backend::D3d11Warp)),
+        )
+    }
+    pub(super) fn is_warp(&self) -> bool {
+        self.state.backend == Some(selection::Backend::D3d11Warp)
+    }
     /// Live builds its presentation chain with the capture device; textures from other devices are not directly shareable resources.
     pub fn with_device(hwnd: HWND, size: D2D_SIZE_U, device: &ID3D11Device) -> Result<Self> {
         Self::with_device_owner(hwnd, size, device, None)
@@ -91,10 +109,14 @@ impl Composition {
         hwnd: HWND,
         size: D2D_SIZE_U,
         device: &ID3D11Device,
-        shared: Option<std::rc::Rc<devices::Device>>,
+        shared: Option<(std::rc::Rc<devices::Device>, selection::Backend)>,
     ) -> super::composition_creation::Result<Self> {
         validate_size(size)?;
         let lease = lifetime::Lease::new()?;
+        let (shared, backend) = match shared {
+            Some((owner, backend)) => (Some(owner), Some(backend)),
+            None => (None, None),
+        };
         unsafe {
             let dxgi: IDXGIDevice = device.cast()?;
             let factory: IDXGIFactory2 = dxgi.GetAdapter()?.GetParent()?;
@@ -142,6 +164,7 @@ impl Composition {
                     target,
                     device: composition,
                     size,
+                    backend,
                     _shared_device: shared,
                     _thread: std::marker::PhantomData,
                     retirement: None,

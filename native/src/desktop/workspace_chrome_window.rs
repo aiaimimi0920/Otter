@@ -184,17 +184,6 @@ pub(super) unsafe fn hide(ui: &Ui) {
         }
     }
 }
-fn bounds(nodes: &[Node]) -> Option<Rect> {
-    let first = nodes.first()?;
-    let mut rect = first.rect;
-    for node in nodes {
-        rect.left = rect.left.min(node.rect.left);
-        rect.top = rect.top.min(node.rect.top);
-        rect.right = rect.right.max(node.rect.right);
-        rect.bottom = rect.bottom.max(node.rect.bottom);
-    }
-    Some(rect)
-}
 fn padded(rect: Rect, x: i32, y: i32) -> Rect {
     Rect {
         left: rect.left.saturating_sub(x),
@@ -223,18 +212,14 @@ pub(super) unsafe fn refresh_at(ui: &Ui, translated: bool) -> Result<()> {
     drawer::geometry(ui)
 }
 pub(super) unsafe fn refresh_drawing(ui: &Ui) -> Result<()> {
-    let nodes = ui.nodes.borrow().clone();
-    let Some(base) = bounds(&nodes).filter(|_| !ui.blocked()) else {
+    if ui.nodes.borrow().is_empty() {
+        ui.surface.borrow_mut().take();
         hide(ui);
         return Ok(());
-    };
-    let backdrops = draw::backdrops::Backdrops::default();
-    let mut rect = backdrops.include_bounds(padded(base, 800, 100));
-    if let Some(press) = ui.press.borrow().as_ref() {
-        rect.left = rect.left.min(press.current.x.saturating_sub(160));
-        rect.right = rect.right.max(press.current.x.saturating_add(160));
-        rect.top = rect.top.min(press.current.y.saturating_sub(16));
-        rect.bottom = rect.bottom.max(press.current.y.saturating_add(16));
+    }
+    if ui.blocked() {
+        hide(ui);
+        return Ok(());
     }
     let vx = GetSystemMetrics(SM_XVIRTUALSCREEN);
     let vy = GetSystemMetrics(SM_YVIRTUALSCREEN);
@@ -246,29 +231,53 @@ pub(super) unsafe fn refresh_drawing(ui: &Ui) -> Result<()> {
         right: r.right.min(right),
         bottom: r.bottom.min(bottom),
     };
-    rect = clip(rect);
-    // Retain HWND/DIB size when line layers have spare space, submitting only pixels; continuous wheels must not rebuild global-border surfaces each frame.
-    let mut existing = RECT::default();
-    if ui.surface.borrow().is_some() && GetWindowRect(ui.drawing.get(), &mut existing).is_ok() {
-        let needed = backdrops.include_bounds(clip(padded(base, 160, 16)));
-        if ui.press.borrow().is_none()
-            && existing.left <= needed.left
-            && existing.top <= needed.top
-            && existing.right >= needed.right
-            && existing.bottom >= needed.bottom
-            && existing.left >= vx
-            && existing.top >= vy
-            && existing.right <= right
-            && existing.bottom <= bottom
-        {
-            rect = Rect {
-                left: existing.left,
-                top: existing.top,
-                right: existing.right,
-                bottom: existing.bottom,
+    let mut lines = draw::lines(ui);
+    // Independent offscreen links must not inflate the shared DIB or hide visible port strips.
+    lines.retain(|line| {
+        let r = clip(draw::curve_bounds(line));
+        r.left < r.right && r.top < r.bottom
+    });
+    let rect = if let Some(needed) = draw::line_bounds(&lines).map(clip) {
+        let mut rect = clip(padded(needed, 128, 64));
+        // Retain HWND/DIB size when active curves fit within spare margin and have not shrunk far below an old surface.
+        let mut existing = RECT::default();
+        if ui.surface.borrow().is_some() && GetWindowRect(ui.drawing.get(), &mut existing).is_ok() {
+            let area = |left, top, right, bottom| {
+                (i64::from(right) - i64::from(left))
+                    .max(0)
+                    .saturating_mul((i64::from(bottom) - i64::from(top)).max(0))
             };
+            let existing_pixels =
+                area(existing.left, existing.top, existing.right, existing.bottom);
+            let target_pixels = area(rect.left, rect.top, rect.right, rect.bottom);
+            if existing.left <= needed.left
+                && existing.top <= needed.top
+                && existing.right >= needed.right
+                && existing.bottom >= needed.bottom
+                && existing.left >= vx
+                && existing.top >= vy
+                && existing.right <= right
+                && existing.bottom <= bottom
+                && existing_pixels <= target_pixels.saturating_mul(2).max(262_144)
+            {
+                rect = Rect {
+                    left: existing.left,
+                    top: existing.top,
+                    right: existing.right,
+                    bottom: existing.bottom,
+                };
+            }
         }
-    }
+        rect
+    } else {
+        // Unlinked pins need no desktop-spanning DIB; retain a 1x1 anchor so visibility and Z-order invariants hold at 4-byte cost.
+        clip(Rect {
+            left: vx,
+            top: vy,
+            right: vx.saturating_add(1),
+            bottom: vy.saturating_add(1),
+        })
+    };
     let width = i64::from(rect.right) - i64::from(rect.left);
     let height = i64::from(rect.bottom) - i64::from(rect.top);
     if width <= 0 || height <= 0 {
@@ -287,7 +296,7 @@ pub(super) unsafe fn refresh_drawing(ui: &Ui) -> Result<()> {
         return Ok(());
     }
     // One overlay may contain multiple owners; apply the strictest affinity to avoid exposing protected-node ports.
-    let affinity = if nodes.iter().any(|node| node.protected) {
+    let affinity = if ui.nodes.borrow().iter().any(|node| node.protected) {
         WDA_EXCLUDEFROMCAPTURE
     } else {
         WDA_NONE
@@ -299,7 +308,7 @@ pub(super) unsafe fn refresh_drawing(ui: &Ui) -> Result<()> {
     }
     // Establish Z-order before first display/new-node publication; never draw new links over images then lower them.
     order_drawing(ui)?;
-    draw::present(ui, rect, backdrops)?;
+    draw::present(ui, rect, lines)?;
     if !IsWindowVisible(drawing).as_bool() {
         SetWindowPos(
             drawing,

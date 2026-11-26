@@ -31,7 +31,10 @@ fn draw_long_image(backend: Backend) {
                 })
                 .unwrap();
             canvas.software_renderer = matches!(backend, Backend::Software);
-            canvas.compatibility_renderer = matches!(backend, Backend::D3d11);
+            if matches!(backend, Backend::D3d12) {
+                canvas.primary = crate::desktop::render_surface::Primary::D3d12;
+            }
+            canvas.compatibility_renderer = false;
             // A tiny target views the far end of the full-sized uploaded texture.
             let (w, h) = if vertical { (8, 64) } else { (64, 8) };
             canvas.viewport = Viewport {

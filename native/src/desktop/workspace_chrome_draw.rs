@@ -11,12 +11,11 @@ pub(super) use surface::Surface;
 const BLUE: COLORREF = COLORREF(0xd4b606);
 const YELLOW: COLORREF = COLORREF(0x38ffd9);
 const TEXT: COLORREF = COLORREF(0xeff8f7);
-type Lines = Vec<(Point, Point, COLORREF, bool)>;
+pub(super) type Lines = Vec<(Point, Point, COLORREF, bool)>;
 #[derive(PartialEq, Eq)]
 pub(super) struct Content {
     rect: Rect,
     lines: Lines,
-    backdrops: backdrops::Backdrops,
 }
 #[cfg(test)]
 #[path = "workspace_chrome_frame_tests.rs"]
@@ -162,15 +161,15 @@ pub(super) unsafe fn paint(hwnd: HWND, ui: &Ui) {
         ui.fail(error);
     }
 }
-pub(super) unsafe fn present(ui: &Ui, rect: Rect, backdrops: backdrops::Backdrops) -> Result<()> {
-    present_with(ui, rect, backdrops, |dc, origin, (a, b, color, dashed)| {
+pub(super) unsafe fn present(ui: &Ui, rect: Rect, lines: Lines) -> Result<()> {
+    present_with(ui, rect, lines, |dc, origin, (a, b, color, dashed)| {
         line(dc, origin, a, b, color, dashed)
     })
 }
 pub(super) unsafe fn present_with(
     ui: &Ui,
     rect: Rect,
-    backdrops: backdrops::Backdrops,
+    lines: Lines,
     mut draw_line: impl FnMut(HDC, POINT, (Point, Point, COLORREF, bool)) -> Result<()>,
 ) -> Result<()> {
     if ui.presenting.replace(true) {
@@ -187,12 +186,11 @@ pub(super) unsafe fn present_with(
         cx: rect.right - rect.left,
         cy: rect.bottom - rect.top,
     };
-    let content = Content {
-        rect,
-        lines: lines(ui),
-        backdrops,
-    };
-    let cached = ui.surface.borrow_mut().take().filter(|s| s.fits(size));
+    let content = Content { rect, lines };
+    let previous = ui.surface.borrow_mut().take();
+    #[cfg(test)]
+    let prior_submissions = previous.as_ref().map_or(0, |s| s.submissions.get());
+    let cached = previous.filter(|s| s.fits(size));
     // Node movement does not imply changed link pixels. Retain committed surfaces instead of clearing/ULW-submitting the entire shared layer per drag step.
     if cached
         .as_ref()
@@ -203,7 +201,12 @@ pub(super) unsafe fn present_with(
     }
     let mut surface = match cached {
         Some(surface) => surface,
-        None => Surface::new(size)?,
+        None => {
+            let surface = Surface::new(size)?;
+            #[cfg(test)]
+            surface.submissions.set(prior_submissions);
+            surface
+        }
     };
     let area = RECT {
         left: 0,
@@ -218,7 +221,6 @@ pub(super) unsafe fn present_with(
         x: rect.left,
         y: rect.top,
     };
-    content.backdrops.paint(ui, surface.dc(), origin)?;
     for &curve in &content.lines {
         draw_line(surface.dc(), origin, curve)?;
     }
@@ -250,7 +252,25 @@ unsafe fn contents(hwnd: HWND, ui: &Ui, dc: HDC, area: &RECT, origin: POINT) -> 
     }
     port_visual::paint(hwnd, ui, dc, origin)
 }
-fn lines(ui: &Ui) -> Lines {
+pub(super) fn curve_bounds(&(a, b, _, _): &(Point, Point, COLORREF, bool)) -> Rect {
+    let shift = ((i64::from(b.x) - i64::from(a.x)).abs() / 2).clamp(40, 160) as i32;
+    // A Bezier stays inside its control point hull. Include the full outline.
+    Rect {
+        left: a.x.min(b.x.saturating_sub(shift)).saturating_sub(2),
+        top: a.y.min(b.y).saturating_sub(2),
+        right: a.x.saturating_add(shift).max(b.x).saturating_add(3),
+        bottom: a.y.max(b.y).saturating_add(3),
+    }
+}
+pub(super) fn line_bounds(lines: &Lines) -> Option<Rect> {
+    lines.iter().map(curve_bounds).reduce(|a, b| Rect {
+        left: a.left.min(b.left),
+        top: a.top.min(b.top),
+        right: a.right.max(b.right),
+        bottom: a.bottom.max(b.bottom),
+    })
+}
+pub(super) fn lines(ui: &Ui) -> Lines {
     let mut lines = Vec::new();
     if !ui.blocked() {
         if let Some(scene) = ui.scene.borrow().clone() {

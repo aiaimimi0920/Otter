@@ -142,7 +142,7 @@ fn verify_backbuffer(force_chain_failure: bool) {
                     window.0,
                     size,
                     device.get(),
-                    Some(device.clone()),
+                    Some((device.clone(), backend)),
                 )
                 .map_err(|error| (selection::Stage::Presentation, error))?;
                 Ok(surface)

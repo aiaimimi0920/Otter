@@ -82,7 +82,18 @@ pub(crate) fn encode(image: &Image) -> Result<String, String> {
     }
     Ok(format!("{PNG_KIND},{}", STANDARD.encode(bytes)))
 }
-pub(super) fn decode(url: &str) -> Result<(Preview, Option<String>), String> {
+pub(super) fn normalize(url: &str) -> Result<Option<String>, String> {
+    let (image, reusable_png) = decode_image(url)?;
+    if reusable_png {
+        Ok(None)
+    } else {
+        encode(&image).map(Some)
+    }
+}
+pub(crate) fn decode_preview(url: &str) -> Result<Preview, String> {
+    preview(decode_image(url)?.0)
+}
+fn decode_image(url: &str) -> Result<(Image, bool), String> {
     if url.len() > super::MAX_BYTES {
         return Err("History image exceeds input budget".into());
     }
@@ -100,16 +111,7 @@ pub(super) fn decode(url: &str) -> Result<(Preview, Option<String>), String> {
     let bytes = STANDARD
         .decode(payload)
         .map_err(|_| "Invalid history base64")?;
-    let (image, reusable_png) =
-        Image::from_capture_history(&bytes, kind == PNG_KIND).map_err(|e| e.to_string())?;
-    let preview = preview(image)?;
-    // Preserve original encoding only for PNGs with confirmed container, dimensions, and actual preview; normalize other old data as before.
-    let normalized = if reusable_png {
-        None
-    } else {
-        encode(&preview.image).ok()
-    };
-    Ok((preview, normalized))
+    Image::from_capture_history(&bytes, kind == PNG_KIND).map_err(|e| e.to_string())
 }
 pub(crate) fn capture(id: String, image: &Image, at: u64) -> Result<super::Screenshot, String> {
     let preview = prepare(image)?;
@@ -120,5 +122,6 @@ pub(crate) fn capture(id: String, image: &Image, at: u64) -> Result<super::Scree
         height: image.height,
         at,
         preview: Some(preview),
+        key: Default::default(),
     })
 }

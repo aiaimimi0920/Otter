@@ -51,10 +51,11 @@ fn cpu_gpu_round_trips_keep_document_opacity_and_actual_menu_state() {
                 let surface = &canvas.target.as_ref().unwrap().surface;
                 match command {
                     render_commands::AUTOMATIC => {
-                        assert!(matches!(surface, RenderSurface::D3d12(_)))
+                        assert!(matches!(surface, RenderSurface::D3d11(_)));
+                        assert!(!surface.is_d3d11_warp());
                     }
                     render_commands::COMPATIBILITY => {
-                        assert!(matches!(surface, RenderSurface::D3d11(_)))
+                        assert!(surface.is_d3d11_warp());
                     }
                     _ => assert!(surface.is_software()),
                 }
@@ -116,7 +117,7 @@ fn gpu_reselect_rejects_active_paint_and_borrows_and_retries_known_cpu_failure()
         assert!(stamp.matches(&state.canvas.borrow().editor));
         assert!(matches!(
             state.canvas.borrow().target.as_ref().unwrap().surface,
-            RenderSurface::D3d12(_)
+            RenderSurface::D3d11(_)
         ));
         DestroyWindow(hwnd).unwrap();
         assert!(render_commands::execute(hwnd, state, render_commands::AUTOMATIC).is_err());
@@ -259,7 +260,7 @@ fn gpu_style_reentry_uses_current_document_and_destroy_revokes_creation() {
                 assert_eq!(state.canvas.borrow().image.as_ref().unwrap().width, 2);
                 assert!(matches!(
                     state.canvas.borrow().target.as_ref().unwrap().surface,
-                    RenderSurface::D3d12(_)
+                    RenderSurface::D3d11(_)
                 ));
                 assert_eq!(state.canvas.borrow().confirmed_paints, 2);
             }

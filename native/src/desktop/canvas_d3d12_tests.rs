@@ -1,4 +1,4 @@
-//! Production Canvas with real hidden windows/D3D12; independent candidate drawing does not replace verification of Canvas wiring.
+//! Hidden Canvas HWNDs: shared D3D11 selection and sticky WARP recovery after confirmed retirement.
 use super::*;
 use crate::desktop::{Apartment, Window};
 use windows::{
@@ -18,8 +18,22 @@ impl Drop for Class {
     }
 }
 
+fn settle_recovery(canvas: &mut Canvas) {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
+    loop {
+        match canvas.poll_render_recovery().unwrap() {
+            crate::desktop::composition_retirement::Status::Complete => break,
+            crate::desktop::composition_retirement::Status::Pending => {
+                assert!(std::time::Instant::now() < deadline);
+                std::thread::sleep(std::time::Duration::from_millis(1));
+            }
+            status => panic!("retirement failed: {status:?}"),
+        }
+    }
+}
+
 #[test]
-fn production_canvas_selects_d3d12_and_recovers_to_sticky_compatibility() {
+fn production_canvas_defaults_to_d3d11_and_recovers_to_sticky_warp() {
     let _apartment = Apartment::new().unwrap();
     unsafe {
         let instance: HINSTANCE = GetModuleHandleW(None).unwrap().into();
@@ -70,23 +84,20 @@ fn production_canvas_selects_d3d12_and_recovers_to_sticky_compatibility() {
             let stamp = canvas.editor.document_stamp();
             for (width, height, dpi) in [(160, 120, 96), (192, 144, 144), (160, 120, 96)] {
                 canvas.paint(window.0, width, height, dpi).unwrap();
-                assert!(matches!(
-                    canvas.target.as_ref().unwrap().surface,
-                    RenderSurface::D3d12(_)
-                ));
+                let surface = &canvas.target.as_ref().unwrap().surface;
+                assert!(matches!(surface, RenderSurface::D3d11(_)));
+                assert!(!surface.is_d3d11_warp());
             }
             assert_eq!(canvas.paints, 3);
             assert_eq!(canvas.confirmed_paints, 3);
             canvas.discard_device();
-            assert!(canvas.target.is_none());
-            assert!(stamp.matches(&canvas.editor));
             canvas.paint(window.0, 160, 120, 96).unwrap();
+            assert_eq!(canvas.confirmed_paints, 4);
             assert!(matches!(
                 canvas.target.as_ref().unwrap().surface,
-                RenderSurface::D3d12(_)
+                RenderSurface::D3d11(_)
             ));
-            assert_eq!(canvas.confirmed_paints, 4);
-            assert!(stamp.matches(&canvas.editor));
+            assert!(!canvas.target.as_ref().unwrap().surface.is_d3d11_warp());
             // Business-closure errors are not device failures and must not trigger fallback.
             assert!(canvas
                 .target
@@ -97,7 +108,7 @@ fn production_canvas_selects_d3d12_and_recovers_to_sticky_compatibility() {
                 .is_err());
             assert!(!canvas.recover_render());
             assert!(!canvas.compatibility_renderer);
-            // Real D2D EndDraw failure: a Pop without matching Push puts the backend into rebuild state.
+            // Real D2D EndDraw failure on D3D11 hardware downgrades to sticky D3D11 WARP compatibility.
             assert!(canvas
                 .target
                 .as_mut()
@@ -113,17 +124,7 @@ fn production_canvas_selects_d3d12_and_recovers_to_sticky_compatibility() {
             assert!(!canvas.compatibility_renderer);
             assert!(canvas.render_suspended());
             assert!(canvas.paint(window.0, 160, 120, 96).is_err());
-            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
-            loop {
-                match canvas.poll_render_recovery().unwrap() {
-                    crate::desktop::composition_retirement::Status::Complete => break,
-                    crate::desktop::composition_retirement::Status::Pending => {
-                        assert!(std::time::Instant::now() < deadline);
-                        std::thread::sleep(std::time::Duration::from_millis(1));
-                    }
-                    status => panic!("retirement failed: {status:?}"),
-                }
-            }
+            settle_recovery(&mut canvas);
             assert!(canvas.compatibility_renderer);
             assert!(!canvas.render_suspended());
             assert!(stamp.matches(&canvas.editor));
@@ -133,11 +134,12 @@ fn production_canvas_selects_d3d12_and_recovers_to_sticky_compatibility() {
             );
             canvas.paint(window.0, 160, 120, 96).unwrap();
             assert!(canvas.target.as_ref().unwrap().surface.is_compatibility());
+            assert!(canvas.target.as_ref().unwrap().surface.is_d3d11_warp());
             assert_eq!(canvas.confirmed_paints, 5);
-            // Ordinary minimize/redraw-style resource disposal must not switch selection back to D3D12.
+            // Ordinary minimize/redraw-style resource disposal must not switch selection back to hardware primary.
             canvas.discard_device();
             canvas.paint(window.0, 160, 120, 96).unwrap();
-            assert!(canvas.target.as_ref().unwrap().surface.is_compatibility());
+            assert!(canvas.target.as_ref().unwrap().surface.is_d3d11_warp());
             assert_eq!(canvas.confirmed_paints, 6);
             assert!(stamp.matches(&canvas.editor));
             assert!(!canvas.recover_render());

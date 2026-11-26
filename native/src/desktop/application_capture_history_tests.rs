@@ -51,9 +51,13 @@ fn committed_capture_records_original_size_and_reuse_creates_only_240_thumbnail_
         let origin = crate::desktop::capture_history_ui::origin(&app.documents[0].state);
         app.add_prepared(vec![prepared(true)], false).unwrap();
         app.capture_history.shutdown();
-        let id = {
+        {
             let view = app.capture_history.view.borrow();
             assert_eq!(view.data.screenshots.len(), 1);
+            assert!(
+                view.data.screenshots[0].preview.is_none(),
+                "idle history keeps only compact PNG data URLs until the panel opens"
+            );
             assert_eq!(
                 (
                     view.data.screenshots[0].width,
@@ -61,10 +65,43 @@ fn committed_capture_records_original_size_and_reuse_creates_only_240_thumbnail_
                 ),
                 (480, 240)
             );
-            view.data.screenshots[0].id.clone()
-        };
-        app.apply_history(&origin, Action::Reuse(id), false)
-            .unwrap();
+        }
+        app.capture_history.view.borrow_mut().toggle = Some(origin.clone());
+        app.process_capture_history(false);
+        assert!(app.history_window.is_some());
+        let snapshot = app.capture_history.view.borrow().data.clone();
+        let entry = &snapshot.screenshots[0];
+        assert!(app
+            .capture_history
+            .view
+            .borrow()
+            .previews
+            .get(entry)
+            .is_none());
+        app.capture_history.shutdown(); // Settle the panel's background slot; do not decode on the UI thread.
+        let preview = app
+            .capture_history
+            .view
+            .borrow()
+            .previews
+            .get(entry)
+            .unwrap()
+            .clone();
+        let click = Action::Reuse(entry.key.clone(), preview.image.clone());
+        drop(preview);
+        app.history_window.take();
+        assert!(app
+            .capture_history
+            .view
+            .borrow()
+            .previews
+            .get(entry)
+            .is_none());
+        assert!(
+            entry.preview.is_none(),
+            "a retained save snapshot never pins decoded buffers"
+        );
+        app.apply_history(&origin, click, false).unwrap();
         assert_eq!(app.documents.len(), 3);
         let last = app.documents.last().unwrap().state.canvas.borrow();
         let image = last.image.as_ref().unwrap();
@@ -92,8 +129,12 @@ fn failed_staging_ordinary_import_and_stale_origin_never_add_history_or_windows(
         assert!(app.capture_history.view.borrow().captures.is_empty());
         let mut origin = crate::desktop::capture_history_ui::origin(&app.documents[0].state);
         origin.lifetime = Default::default();
-        app.apply_history(&origin, Action::Reuse("missing".into()), false)
-            .unwrap();
+        app.apply_history(
+            &origin,
+            Action::Reuse(Default::default(), prepared(false).image),
+            false,
+        )
+        .unwrap();
         assert_eq!(app.documents.len(), 2);
         app.shutdown();
     }
@@ -153,11 +194,34 @@ fn color_reuse_is_nonfatal_on_copy_failure_and_delete_requires_confirmation_of_s
         app.add_prepared(vec![prepared(true)], false).unwrap();
         app.capture_history.shutdown();
         let view = app.capture_history.view.clone();
-        let id = view.borrow().data.screenshots[0].id.clone();
+        let original_key = view.borrow().data.screenshots[0].key.clone();
+        app.apply_history_with(
+            &origin,
+            Action::Delete(original_key.clone()),
+            false,
+            |_, _, _| unreachable!(),
+            |_| {
+                // Even identical ID, timestamp and encoded pixels identify a different capture.
+                let mut replacement = view.borrow().data.screenshots[0].clone();
+                replacement.key = Default::default();
+                view.borrow_mut().screenshot(replacement);
+                true
+            },
+        )
+        .unwrap();
+        let key = view.borrow().data.screenshots[0].key.clone();
+        app.apply_history_with(
+            &origin,
+            Action::Delete(original_key),
+            false,
+            |_, _, _| unreachable!(),
+            |_| panic!("must not confirm a click queued before replacement"),
+        )
+        .unwrap();
         for approved in [false, true] {
             app.apply_history_with(
                 &origin,
-                Action::Delete(id.clone()),
+                Action::Delete(key.clone()),
                 false,
                 |_, _, _| panic!("delete must not copy"),
                 |_| approved,
