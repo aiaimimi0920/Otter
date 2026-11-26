@@ -26,6 +26,15 @@ static TOGGLE_NOTIFICATIONS: AtomicU32 = AtomicU32::new(0);
 pub(super) fn toggle_notifications() -> u32 {
     TOGGLE_NOTIFICATIONS.load(Ordering::Acquire)
 }
+#[cfg(test)]
+std::thread_local! {
+    // UI-owner raises are distinct from system callback delivery, which may repeat asynchronously.
+    static READONLY_NOTIFICATIONS: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+}
+#[cfg(test)]
+pub(super) fn readonly_notifications() -> u32 {
+    READONLY_NOTIFICATIONS.get()
+}
 #[path = "surface_uia_hwnd_override_abi.rs"]
 mod hwnd_override;
 #[path = "surface_uia_fragment_navigation.rs"]

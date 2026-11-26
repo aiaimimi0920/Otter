@@ -7,6 +7,8 @@ pub(super) unsafe fn notify_readonly(
     after: bool,
 ) {
     if UiaClientsAreListening().as_bool() {
+        #[cfg(test)]
+        READONLY_NOTIFICATIONS.set(READONLY_NOTIFICATIONS.get() + 1);
         let _ = UiaRaiseAutomationPropertyChangedEvent(
             provider,
             UIA_RangeValueIsReadOnlyPropertyId,
