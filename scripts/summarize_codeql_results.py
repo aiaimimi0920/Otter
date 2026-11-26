@@ -19,7 +19,9 @@ from pathlib import Path
 from urllib.parse import unquote
 
 MAX_FILES = 50
-MAX_FILE_BYTES = 20 * 1024 * 1024
+# Rust run 45737565530 produced 22,246,573 bytes. Allow bounded headroom
+# without changing the aggregate byte or finding-count budgets.
+MAX_FILE_BYTES = 32 * 1024 * 1024
 MAX_TOTAL_BYTES = 100 * 1024 * 1024
 MAX_RUNS = 100
 MAX_INPUT_RESULTS = 100_000

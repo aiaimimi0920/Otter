@@ -8,6 +8,10 @@ CodeQL's bounded inventory distinguishes scan findings from inventory failures. 
 CI copies failure reports to the job summary and preserves the failing exit code.
 Do not raise a budget or suppress findings without inspecting those measurements.
 Reports omit source text, diagnostic messages and credentials.
+The single-file budget is 32 MiB: Rust run `45737565530` produced 22,246,573 bytes,
+exceeding the former 20 MiB cap after successful analysis. The 100 MiB aggregate
+budget and all finding-count limits remain unchanged. Regression tests cover the
+observed file size, the exact 32 MiB boundary and rejection of one extra byte.
 
 ```powershell
 npm run test:dependency-security

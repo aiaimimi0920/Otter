@@ -13,6 +13,41 @@ from scripts.tests.test_ci_build_gates import aggregate_bash
 from scripts.tests.test_codeql_summary import _payload, _write
 
 
+@pytest.mark.parametrize("size", [22_246_573, 32 * 1024 * 1024])
+def test_full_sized_rust_inventory_preserves_every_finding(
+    tmp_path: Path, size: int
+) -> None:
+    # Run 45737565530 produced 22,246,573 bytes; padding models its byte budget
+    # without retaining source-bearing CI output in the repository.
+    source = _write(tmp_path, _payload())
+    expected = summary.summarize(tmp_path)
+    with source.open("ab") as stream:
+        stream.write(b" " * (size - source.stat().st_size))
+    assert source.stat().st_size == size
+    assert summary.summarize(tmp_path) == expected
+
+
+def test_real_file_byte_ceiling_remains_enforced(
+    tmp_path: Path, capsys: pytest.CaptureFixture
+) -> None:
+    source = _write(tmp_path, _payload(), "PRIVATE.sarif")
+    size = 32 * 1024 * 1024 + 1
+    with source.open("ab") as stream:
+        stream.write(b" " * (size - source.stat().st_size))
+    assert summary.main([str(tmp_path)]) == 2
+    captured = capsys.readouterr()
+    assert json.loads(captured.out) == {
+        "error": "input_limit_exceeded",
+        "error_kind": "inventory_error",
+        "analysis_complete": False,
+        "inventory_complete": False,
+        "limit": "file_bytes",
+        "observed": size,
+        "maximum": 32 * 1024 * 1024,
+    }
+    assert not captured.err
+
+
 def test_file_limit_reports_only_safe_budget_metadata(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
 ) -> None:
