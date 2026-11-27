@@ -41,6 +41,24 @@ test('internal candidate binds content without granting release or runtime accep
   assert.equal(receipt.gitDirty, true);
   assert.equal(receipt.files.length, 9);
 });
+test('public receipts require a fresh clean tagged build, never an internal ZIP or static approval', () => {
+  const root = fixture();
+  assert.throws(() => create(root, 'public'), /source binding/);
+  for (const phase of ['before', 'after']) write(root, `source-${phase}.json`,
+    { ...source(), internalRevision: 0, buildVersion: 'v0.2.33' });
+  const build = { ...read(root, 'build.json'), channel: 'public', gitDirty: false,
+    releaseSource: { tag: 'v0.2.33', repository: 'aiaimimi0920/Otter', runId: '101', attempt: '1' } };
+  write(root, 'build.json', build);
+  assert.equal(create(root, 'public').publishable, false);
+  assert.throws(() => create(root), /source binding/);
+  for (const bad of [{ ...build, gitDirty: true }, { ...build, channel: 'internal' },
+    { ...build, releaseSource: { ...build.releaseSource, tag: 'v0.2.33.0' } },
+    { ...build, releaseSource: { ...build.releaseSource, repository: 'other/Otter' } }]) {
+    write(root, 'build.json', bad);
+    assert.throws(() => create(root, 'public'), /public release source|build invocation/);
+  }
+  validateSource({ ...source(), internalRevision: 0, buildVersion: 'v0.2.33.0' });
+});
 test('streamed digests match exact bytes at empty, chunk and multi-chunk sizes', () => {
   const root = fixture();
   for (const length of [0, 65536, 65537, 131073]) {

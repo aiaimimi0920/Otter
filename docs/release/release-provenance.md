@@ -1,9 +1,9 @@
 # Otter release provenance
 
 `main` produces **unsigned internal Windows x64 ZIPs** via the [build and verification guide](../development/WINDOWS_NATIVE_BUILD.md).
-GitHub Actions artifacts are development candidates, not GitHub Releases or installers. There is no public release
-or signing entry point in `main`; existing GitHub releases are unchanged. See the [signing policy](CODE_SIGNING_POLICY.md)
-for the separate requirements on a future signed release.
+These GitHub Actions artifacts are development candidates, not GitHub Releases or installers.
+The separate **Build public Otter portable ZIP** workflow builds an unsigned portable release from a tag.
+See the [signing policy](CODE_SIGNING_POLICY.md) for the separate requirements on a future signed installer.
 Do not label an internal ZIP as a signed installer or UIAccess package.
 
 CI builds and uploads the internal package only when change classification selects the full product gates and those
@@ -24,8 +24,24 @@ package or runtime gates, and does not authorize a formal release.
   These hashes are byte-consistency evidence, not a cryptographic publisher signature. The independent archive
   verifier validates file layout and digests.
 - The packaged startup probe uses the actual extracted EXE and an isolated profile; it does not replace physical or joint acceptance.
-- Dirty source may be used only as internal evidence. Future public publication requires an exact clean source, passed dependency
-  review, the required runtime gates, new release tooling and separate approval.
+- Dirty source may be used only as internal evidence. Public publication requires an exact clean source, a passed
+  dependency review, the required runtime gates and separate maintainer approval.
+
+## Public Windows x64 portable release
+
+1. With maintainer approval, align the product versions and set `internalRevision` to zero.
+   Push the reviewed commit to `main`. Require a full successful `Build Otter EXE` on that SHA,
+   not a documentation-only or compilation-only check. Its `vx.y.z.0` artifact is still internal.
+2. Create a new lowercase three-part tag at that commit. Dispatch `public-portable.yml` **on the tag**.
+   The workflow checks the full product run, enforces the OSV verdict on the exact lock, then builds the
+   EXE and DLL afresh from a clean tag reachable from `origin/main`. There is no internal ZIP input.
+3. The workflow independently validates the archive, starts its extracted EXE, and attests its SHA-256
+   using GitHub build provenance. The static manifest grants no publication approval; the runtime receipt and
+   successful workflow are separate evidence. Windows binaries are unsigned and do not request UIAccess.
+4. From the successful run, verify the ZIP and `.sha256` against both receipts and the artifact attestation.
+   Check `build-provenance.json` for the repository, tag, SHA, run and attempt. Upload only the verified ZIP
+   and checksum to a **new draft** at that existing tag; check both uploaded digests before publishing.
+   Read back the public release, tag and downloads. Do not overwrite existing tags or assets.
 
 ## Versioning
 

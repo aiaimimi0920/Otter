@@ -25,7 +25,7 @@ class PackageRuntimeTests(unittest.TestCase):
             profile = tomllib.load(source)["profile"]["release"]
         self.assertEqual(profile.get("panic", "unwind"), "unwind")
 
-    def run_probe(self, fault=None, aliased_root=False):
+    def run_probe(self, fault=None, aliased_root=False, public=False):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             if aliased_root:
@@ -36,11 +36,13 @@ class PackageRuntimeTests(unittest.TestCase):
             package.mkdir()
             exe = b"isolated unit-test executable placeholder"
             digest = hashlib.sha256(exe).hexdigest()
-            with zipfile.ZipFile(package / "Otter-native-test-windows-x64-internal.zip", "w") as archive:
+            bundle = package / ("Otter-native-v1.2.3-windows-x64.zip" if public else "Otter-native-test-windows-x64-internal.zip")
+            with zipfile.ZipFile(bundle, "w") as archive:
                 archive.writestr("otter-native.exe", exe)
                 archive.writestr("otter_live_hover_hook.dll", b"test DLL placeholder")
             (package / "archive-verification.json").write_text(
-                json.dumps({"executableSha256": digest}), encoding="utf-8")
+                json.dumps({"executableSha256": digest, "archive": bundle.name,
+                            "archiveSha256": hashlib.sha256(bundle.read_bytes()).hexdigest()}), encoding="utf-8")
             evidence_arg = root / "evidence"
             evidence = evidence_arg.resolve()
             if aliased_root:
@@ -98,6 +100,8 @@ class PackageRuntimeTests(unittest.TestCase):
             spec = SimpleNamespace(loader=SimpleNamespace(exec_module=lambda module: None))
             job = SimpleNamespace(run_job=run_job)
             argv = ["probe", "--package-dir", str(package), "--evidence-dir", str(evidence_arg)]
+            if public:
+                argv.append("--public-release")
             with patch("sys.argv", argv), redirect_stdout(io.StringIO()), \
                     patch.dict("os.environ", OTTER_RUNTIME_TEST_SENTINEL="1",
                                LOOM_RUNTIME_TEST_SENTINEL="1"), \
@@ -119,6 +123,7 @@ class PackageRuntimeTests(unittest.TestCase):
 
     def test_isolated_release_probes_accept_only_expected_results(self):
         self.run_probe()
+        self.run_probe(public=True)
 
     def test_isolated_release_probes_resolve_input_path_aliases(self):
         self.run_probe(aliased_root=True)

@@ -5,7 +5,7 @@
 ## Setup
 
 - This guide uses English control names. Right-click the tray icon and choose **Language / 语言 → English / 简体中文** to change Otter's display language; no capability package is required.
-- Windows 10 or 11. Extract the entire internal ZIP, run `otter-native.exe` and keep `otter_live_hover_hook.dll` in the same directory. Internal ZIPs are unsigned development packages, not public releases or installers; older public downloads have their own instructions.
+- Windows 10 or 11 x64. Download the portable ZIP from GitHub Releases, verify its SHA-256, extract it completely and run `otter-native.exe`. Keep `otter_live_hover_hook.dll` in the same directory. The portable EXE is not Authenticode signed; `-internal.zip` files are development builds, not public releases.
 - Capture, pins and annotations work without Loom. OCR, translation and Art require current Loom, installed capabilities and authorization.
 - Workspace and settings default to `%LOCALAPPDATA%/OtterNative`, separate from historical releases. Use an absolute `OTTER_NATIVE_PROFILE_DIR` for an isolated test profile; do not overwrite a running profile or copy device credentials.
 

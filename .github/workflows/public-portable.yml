@@ -1,0 +1,124 @@
+name: Build public Otter portable ZIP
+
+# Select the existing public tag in Run workflow. No PR or branch can publish a ZIP.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Require the official tag and a full successful product run on its exact commit
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = aiaimimi0920/Otter
+          test "$GITHUB_REF_TYPE" = tag
+          [[ "$GITHUB_REF_NAME" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          runs=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/build-otter-exe.yml/runs?branch=main&event=push&head_sha=$GITHUB_SHA&status=success&per_page=100")
+          ids=$(jq -r --arg sha "$GITHUB_SHA" '.workflow_runs[] | select(.head_sha == $sha and .head_branch == "main") | .id' <<< "$runs")
+          for id in $ids; do
+            jobs=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$id/jobs?per_page=100")
+            if jq -e 'any(.jobs[]; .name == "build-windows-candidate" and .conclusion == "success" and any(.steps[]; .name == "Run native tests with the locked graph" and .conclusion == "success")) and any(.jobs[]; .name == "build-windows-exe" and .conclusion == "success")' <<< "$jobs"; then
+              echo "Full product tests and package gates: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$id" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+          done
+          echo "No successful full product run for the release commit" >&2
+          exit 1
+
+  dependency-security:
+    needs: source
+    uses: ./.github/workflows/dependency-security.yml
+    with:
+      checkout-ref: ${{ github.sha }}
+      security-mode: enforce
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+  portable:
+    needs: dependency-security
+    runs-on: windows-latest
+    outputs:
+      artifact: ${{ steps.evidence.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+      - uses: dtolnay/rust-toolchain@a5f673d0ba8626c3977bb416a1612774bc82181b # 1.95.0
+      - name: Build, verify and start the exact public portable ZIP
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not (Get-Command rc.exe,llvm-rc.exe -ErrorAction SilentlyContinue)) {
+            $env:OTTER_NATIVE_RC = Join-Path $env:ProgramFiles 'LLVM\bin\llvm-rc.exe'
+          }
+          cargo fetch --locked --manifest-path native/Cargo.toml
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $candidate = Join-Path $env:RUNNER_TEMP 'candidate'
+          $package = Join-Path $env:RUNNER_TEMP 'package'
+          $runtime = Join-Path $env:RUNNER_TEMP 'runtime'
+          & .\scripts\build-native-candidate.ps1 -PublicRelease -OutputDirectory $candidate -TargetDirectory (Join-Path $env:RUNNER_TEMP 'release-target')
+          & .\scripts\package-native-candidate.ps1 -PublicRelease -CandidateDirectory $candidate -OutputDirectory $package
+          $name = "Otter-native-$env:GITHUB_REF_NAME-windows-x64.zip"
+          $zip = Join-Path $package $name
+          & .\scripts\verify-native-package.ps1 -PublicRelease -ZipPath $zip
+          python scripts/tests/native-package-runtime.py --public-release --package-dir $package --evidence-dir $runtime
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $hash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          [IO.File]::WriteAllText("$zip.sha256", "$hash  $name`n", [Text.UTF8Encoding]::new($false))
+      - name: Retain verified bytes and startup evidence for maintainer publication
+        id: evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: otter-public-${{ github.ref_name }}-${{ github.run_attempt }}
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            ${{ runner.temp }}/package/*.zip
+            ${{ runner.temp }}/package/*.zip.sha256
+            ${{ runner.temp }}/package/archive-verification.json
+            ${{ runner.temp }}/runtime/runtime.json
+
+  attest:
+    needs: portable
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      attestations: write
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids: ${{ needs.portable.outputs.artifact }}
+          merge-multiple: true
+          path: evidence
+      - name: Verify the digest against both Windows receipts
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd evidence/package
+          zip="Otter-native-$GITHUB_REF_NAME-windows-x64.zip"
+          hash=$(sha256sum "$zip" | cut -d' ' -f1)
+          test "$(cat "$zip.sha256")" = "$hash  $zip"
+          jq -e --arg hash "$hash" '.archiveSha256 == $hash' archive-verification.json ../runtime/runtime.json
+          test "$(jq -r '.archiveSha256' archive-verification.json)" = "$hash"
+      - name: Attest ZIP provenance (not Windows code signing)
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: evidence/package/Otter-native-${{ github.ref_name }}-windows-x64.zip

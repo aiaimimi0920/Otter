@@ -32,13 +32,15 @@ function digest(root, name, limit = 512 * 1024 * 1024) {
     fs.closeSync(fd);
   }
 }
-function validateSource(source) {
+function validateSource(source, channel = 'internal') {
   if (source.schemaVersion !== 1 || source.kind !== 'otter-native-build-inputs' ||
       !Array.isArray(source.files) || source.files.length === 0 || source.files.length > 10000 ||
       hash(JSON.stringify(source.files)) !== source.sourceSha256 ||
       !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(source.productVersion) ||
-      source.buildVersion !== `v${source.productVersion}.${source.internalRevision}` ||
-      !Number.isInteger(source.internalRevision) || source.internalRevision < 1 || source.internalRevision > 65535) {
+      !['internal', 'public'].includes(channel) ||
+      source.buildVersion !== (channel === 'public' ? `v${source.productVersion}` : `v${source.productVersion}.${source.internalRevision}`) ||
+      !Number.isInteger(source.internalRevision) || source.internalRevision < 0 || source.internalRevision > 65535 ||
+      (channel === 'public' && source.internalRevision !== 0)) {
     throw new Error('Invalid native source binding');
   }
   const seen = new Set();
@@ -63,12 +65,12 @@ function validateTools(tools) {
         Object.values(tools[name]).some(value => !/^[a-f0-9]{64}$/.test(value))) throw new Error('Invalid native tool configuration');
   }
 }
-function create(root) {
+function create(root, channel = 'internal') {
   if (fs.existsSync(path.join(root, 'FAILED.txt'))) throw new Error('Failed native candidate cannot be verified');
   const before = read(root, 'source-before.json');
   const after = read(root, 'source-after.json');
-  validateSource(before);
-  validateSource(after);
+  validateSource(before, channel);
+  validateSource(after, channel);
   assertUnchanged(before, after);
   const toolsBefore = read(root, 'tools-before.json');
   const toolsAfter = read(root, 'tools-after.json');
@@ -77,21 +79,28 @@ function create(root) {
   assertUnchanged(toolsBefore, toolsAfter);
   const build = read(root, 'build.json');
   if (build.exitCode !== 0 || build.profile !== 'release' || build.target !== 'x86_64-pc-windows-msvc' ||
-      build.channel !== 'internal' || build.gitDirty !== true && build.gitDirty !== false ||
+      build.channel !== channel || build.gitDirty !== true && build.gitDirty !== false ||
       !/^[a-f0-9]{40}$/.test(build.gitCommit) ||
       JSON.stringify(build.arguments) !== JSON.stringify(['build', '--manifest-path', 'native/Cargo.toml', '--locked', '--offline', '--release', '-p', 'otter-native', '-p', 'otter-live-hover-hook', '--lib', '--bin', 'otter-native', '--target', 'x86_64-pc-windows-msvc'])) {
     throw new Error('Invalid native build invocation');
   }
-  return { schemaVersion: 1, kind: 'otter-native-internal-candidate', channel: 'internal', publishable: false,
+  const source = build.releaseSource;
+  if (channel === 'public' && (build.gitDirty !== false || source?.repository !== 'aiaimimi0920/Otter' ||
+      source.tag !== before.buildVersion || !/^[1-9]\d*$/.test(source.runId) || !/^[1-9]\d*$/.test(source.attempt))) {
+    throw new Error('Invalid public release source');
+  }
+  // Static build evidence never authorizes publication; public assets still need the external gates.
+  return { schemaVersion: 1, kind: `otter-native-${channel}-candidate`, channel, publishable: false,
+    ...(channel === 'public' ? { releaseSource: source } : {}),
     buildVersion: before.buildVersion, productVersion: before.productVersion, internalRevision: before.internalRevision,
     sourceSha256: before.sourceSha256, gitCommit: build.gitCommit, gitDirty: build.gitDirty,
     profile: 'release', runtimeVerified: false, signed: false,
     files: ['payload/otter-native.exe', 'payload/otter_live_hover_hook.dll', 'source-before.json', 'source-after.json', 'tools-before.json',
       'tools-after.json', 'build.json', 'build.log', 'metadata.json'].map(name => digest(root, name)) };
 }
-function verify(root, previous = undefined) {
+function verify(root, previous = undefined, channel = 'internal') {
   const actual = read(root, 'provenance.json');
-  const expected = create(root);
+  const expected = create(root, channel);
   if (JSON.stringify(actual) !== JSON.stringify(expected)) throw new Error('Native candidate provenance/content mismatch');
   if (previous !== undefined && JSON.stringify(previous) !== JSON.stringify(expected)) {
     throw new Error('Native candidate provenance changed during staging');
@@ -99,11 +108,11 @@ function verify(root, previous = undefined) {
   return expected;
 }
 if (require.main === module) {
-  const [command, root] = process.argv.slice(2);
+  const [command, root, channel] = process.argv.slice(2);
   if (command === 'create') {
-    fs.writeFileSync(path.join(root, 'provenance.json'), JSON.stringify(create(root), null, 2) + '\n', { encoding: 'utf8', flag: 'wx' });
+    fs.writeFileSync(path.join(root, 'provenance.json'), JSON.stringify(create(root, channel), null, 2) + '\n', { encoding: 'utf8', flag: 'wx' });
   } else if (command !== 'verify') throw new Error('Expected create or verify');
-  const result = verify(root);
+  const result = verify(root, undefined, channel);
   process.stdout.write(JSON.stringify({ status: 'build-identity-verified-not-runtime-or-release', buildVersion: result.buildVersion,
     sourceSha256: result.sourceSha256, executable: result.files[0] }) + '\n');
 }

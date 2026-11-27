@@ -1,6 +1,6 @@
 [package]
 name = "otter-native"
-version = "0.2.33"
+version = "0.3.1"
 edition = "2021"
 license = "MIT"
 publish = false
@@ -23,9 +23,9 @@ test-canvas = ["scoped-tests"]
 smoke-test = []
 
 [dependencies]
-otter-core = { path = "otter-core", version = "=0.2.33" }
-otter-media = { path = "otter-media", version = "=0.2.33" }
-otter-runtime = { path = "otter-runtime", version = "=0.2.33" }
+otter-core = { path = "otter-core", version = "=0.3.1" }
+otter-media = { path = "otter-media", version = "=0.3.1" }
+otter-runtime = { path = "otter-runtime", version = "=0.3.1" }
 base64 = "=0.22.1"
 fluent-bundle = "=0.16.0"
 fluent-syntax = "=0.12.0"
@@ -51,16 +51,16 @@ qrcode = { version = "=0.14.1", default-features = false }
 rxing = { git = "https://github.com/rxing-core/rxing", rev = "912b1083ffd164b29e6b244e4845de9df06b107a", version = "=0.9.4", default-features = false, features = ["decoders", "qrcode", "encoding_rs"] }
 
 [dev-dependencies]
-otter-core = { path = "otter-core", version = "=0.2.33", features = ["test-support"] }
-otter-media = { path = "otter-media", version = "=0.2.33", features = ["test-support"] }
-otter-runtime = { path = "otter-runtime", version = "=0.2.33", features = ["test-support"] }
+otter-core = { path = "otter-core", version = "=0.3.1", features = ["test-support"] }
+otter-media = { path = "otter-media", version = "=0.3.1", features = ["test-support"] }
+otter-runtime = { path = "otter-runtime", version = "=0.3.1", features = ["test-support"] }
 rcgen = { version = "=0.13.2", default-features = false, features = ["crypto", "ring"] }
 
 [target.'cfg(windows)'.dev-dependencies]
 windows = { version = "=0.60.0", features = ["Win32_UI_Input_Pointer"] }
 
 [target.'cfg(windows)'.dependencies]
-otter-live-hover-hook = { path = "hover-hook", version = "=0.2.33" }
+otter-live-hover-hook = { path = "hover-hook", version = "=0.3.1" }
 neuro-mini-ui = { git = "https://github.com/aiaimimi0920/NeuroDesign", rev = "02420e8d129cf952c6bee3cda96ab7ebc95c2d67", version = "=0.1.0" }
 rquickjs = { version = "=0.14.0", default-features = false, features = ["std"] }
 windows-core = "=0.60.1"

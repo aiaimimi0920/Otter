@@ -1,11 +1,11 @@
 [CmdletBinding()]
-param([Parameter(Mandatory = $true)][string]$ZipPath)
+param([Parameter(Mandatory = $true)][string]$ZipPath, [switch]$PublicRelease)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'file-hash.ps1')
 . (Join-Path $PSScriptRoot 'release/PathSafety.ps1')
 . (Join-Path $PSScriptRoot 'native-candidate/Archive.ps1')
-$result = Test-NativeCandidateArchive -ZipPath $ZipPath
+$result = Test-NativeCandidateArchive -ZipPath $ZipPath -PublicRelease:$PublicRelease
 [ordered]@{
     buildVersion = $result.buildVersion
     files = $result.files

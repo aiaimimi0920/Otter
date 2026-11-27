@@ -35,7 +35,8 @@ the signing provider and while the account retains the intended access.
 
 ## Release and signing approval
 
-The current workflow produces unsigned internal ZIPs, not signed public releases.
+Main-branch CI produces unsigned internal ZIPs. A separate, explicitly requested
+tag workflow builds the public portable ZIP; its build attestation is not Authenticode signing.
 See [versioning and provenance](docs/release/release-provenance.md) for artifact identity.
 Future signing approval, account protection and artifact naming follow
 [the signing policy](docs/release/CODE_SIGNING_POLICY.md); the role assignments above

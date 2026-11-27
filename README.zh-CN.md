@@ -33,7 +33,7 @@ Otter 是一款免费开源的截图工具，让截图、标注、整理与分�
 
 | 从这里开始 | 需要做什么 |
 | --- | --- |
-| [公开下载](https://github.com/aiaimimi0920/Otter/releases) | 按所选版本的发行说明使用。当前原生构建是未签名的内部 ZIP；完整解压，并将 `otter-native.exe` 与 `otter_live_hover_hook.dll` 保留在同一目录，详见[构建指南](docs/development/WINDOWS_NATIVE_BUILD.md)。 |
+| [公开下载](https://github.com/aiaimimi0920/Otter/releases) | 下载 Windows x64 便携 ZIP 和配套 SHA-256 校验文件。完整解压，保留同目录的 `otter_live_hover_hook.dll`，然后运行 `otter-native.exe`。便携版未做 Windows 代码签名，不是安装包。 |
 | 配合 Loom 使用 | 启动 Loom，安装所需的 OCR、翻译或 Art 能力，再[连接并授权 Otter](docs/features/LOOM_CONNECTION.md)。 |
 
 1. 按 **`Ctrl+1`** 区域截图、**`Ctrl+2`** 实时截图，或 **`Ctrl+3`** 长截图。

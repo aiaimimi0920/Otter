@@ -4,7 +4,7 @@
 
 ## 准备与启动
 
-- Windows 10 或 11。将当前内部 ZIP 完整解压，运行 `otter-native.exe`，并保留同目录的 `otter_live_hover_hook.dll`。内部包未签名，不是公开发行版或安装包；历史公开下载按各自发行说明使用。
+- Windows 10 或 11 x64。从 GitHub Releases 下载便携 ZIP，核对 SHA-256 后完整解压，运行 `otter-native.exe`，并保留同目录的 `otter_live_hover_hook.dll`。便携版 EXE 未做 Windows 代码签名；以 `-internal.zip` 结尾的是开发包，不是公开发行版。
 - 截图、钉图、标注可独立使用。OCR、翻译和 Art 需要当前 Loom、对应能力包及授权。
 - 默认工作区和设置位于 `%LOCALAPPDATA%/OtterNative`，与历史版目录独立。测试可用 `OTTER_NATIVE_PROFILE_DIR` 指定独立的绝对路径；不要覆盖使用中的目录或转移设备凭据。
 

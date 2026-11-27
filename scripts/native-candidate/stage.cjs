@@ -6,11 +6,11 @@ const { snapshot, assertUnchanged } = require('./source.cjs');
 const { collect } = require('./licenses.cjs');
 const { checkedPath } = require('../release/third-party-sources.cjs');
 
-function stage(repo, candidate, output) {
-  const receipt = verify(candidate);
+function stage(repo, candidate, output, channel = 'internal') {
+  const receipt = verify(candidate, undefined, channel);
   const metadata = JSON.parse(fs.readFileSync(checkedPath(candidate, 'metadata.json'), 'utf8'));
   const source = JSON.parse(fs.readFileSync(checkedPath(candidate, 'source-before.json'), 'utf8'));
-  assertUnchanged(source, snapshot(repo, metadata));
+  assertUnchanged(source, snapshot(repo, metadata, channel));
   if (fs.existsSync(output)) throw new Error('Native package staging directory already exists');
   fs.mkdirSync(output);
   const cargoHome = process.env.CARGO_HOME || path.join(process.env.USERPROFILE, '.cargo');
@@ -19,7 +19,10 @@ function stage(repo, candidate, output) {
   fs.copyFileSync(checkedPath(candidate, 'payload/otter_live_hover_hook.dll'), path.join(output, 'otter_live_hover_hook.dll'), fs.constants.COPYFILE_EXCL);
   fs.writeFileSync(path.join(output, 'build-provenance.json'), JSON.stringify(receipt, null, 2) + '\n', { flag: 'wx' });
   fs.writeFileSync(path.join(output, 'README.txt'),
-    `Otter Windows Native ${receipt.buildVersion}\n\nInternal development candidate: unsigned and not an official release.\nRun otter-native.exe to start the native application. Keep otter_live_hover_hook.dll in the same directory for local Live browser hover support.\n` +
+    `Otter Windows Native ${receipt.buildVersion}\n\n` +
+    (channel === 'public' ? 'Public Windows x64 portable ZIP. Unsigned; not an installer or a UIAccess package.\n' :
+      'Internal development candidate: unsigned and not an official release.\n') +
+    'Run otter-native.exe to start the native application. Keep otter_live_hover_hook.dll in the same directory for local Live browser hover support.\n' +
     'The licenses directory contains normal/build dependency materials; this does not indicate legal or security approval.\n' +
     'build-provenance.json summarizes build identity; original build logs and source snapshots are not distributed with this package.\n' +
     'package-manifest.json records byte consistency, not signature authentication or complete functional acceptance.\n', { flag: 'wx' });
@@ -38,9 +41,9 @@ function stage(repo, candidate, output) {
   if (exe.sha256 !== receipt.files[0].sha256 || exe.bytes !== receipt.files[0].bytes) throw new Error('Candidate changed during staging');
   const hook = files.find(f => f.path === 'otter_live_hover_hook.dll');
   if (hook.sha256 !== receipt.files[1].sha256 || hook.bytes !== receipt.files[1].bytes) throw new Error('Candidate hook changed during staging');
-  assertUnchanged(source, snapshot(repo, metadata));
-  verify(candidate, receipt);
-  const manifest = { schemaVersion: 1, kind: 'otter-native-internal-package', buildVersion: receipt.buildVersion,
+  assertUnchanged(source, snapshot(repo, metadata, channel));
+  verify(candidate, receipt, channel);
+  const manifest = { schemaVersion: 1, kind: `otter-native-${channel}-package`, buildVersion: receipt.buildVersion,
     sourceSha256: receipt.sourceSha256, publishable: false, signed: false, runtimeVerified: false, files };
   fs.writeFileSync(path.join(output, 'package-manifest.json'), JSON.stringify(manifest, null, 2) + '\n', { flag: 'wx' });
   return manifest;

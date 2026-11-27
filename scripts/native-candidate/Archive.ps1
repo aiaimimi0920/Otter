@@ -14,19 +14,19 @@ function New-NativeCandidateArchive {
     } finally { $archive.Dispose() }
 }
 function Test-NativeCandidateArchive {
-    param([Parameter(Mandatory = $true)][string]$ZipPath)
+    param([Parameter(Mandatory = $true)][string]$ZipPath, [switch]$PublicRelease)
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $archive = [System.IO.Compression.ZipFile]::OpenRead($ZipPath)
     try {
         # Open and index once; manifest, digest, and receipt checks always use the same ZIP.
         $index = Get-OtterArchiveEntryIndex -Archive $archive -MaxEntries 4096 -MaxUncompressedBytes 128MB
-        Test-NativeCandidateArchiveIndex -Index $index
+        Test-NativeCandidateArchiveIndex -Index $index -PublicRelease:$PublicRelease
     } finally {
         $archive.Dispose()
     }
 }
 function Test-NativeCandidateArchiveIndex {
-    param([Parameter(Mandatory = $true)]$Index)
+    param([Parameter(Mandatory = $true)]$Index, [switch]$PublicRelease)
     $entries = @($Index.Keys | ForEach-Object { $_.Replace('/', '\') })
     # Native product packages must not reintroduce retired ANGLE DLLs; reject them whether listed in the manifest or not.
     foreach ($name in $entries) {
@@ -35,8 +35,11 @@ function Test-NativeCandidateArchiveIndex {
         }
     }
     $manifest = (Read-OtterArchiveEntryText -Index $Index -EntryName 'package-manifest.json' -MaxBytes 4MB) | ConvertFrom-Json
-    if ($manifest.schemaVersion -ne 1 -or $manifest.kind -ne 'otter-native-internal-package' -or
-        $manifest.buildVersion -notmatch '^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)\.[1-9]\d*$' -or
+    $channel = if ($PublicRelease) { 'public' } else { 'internal' }
+    $component = '(0|[1-9]\d*)'
+    $pattern = if ($PublicRelease) { "^v$component\.$component\.$component$" } else { "^v$component\.$component\.$component\.$component$" }
+    if ($manifest.schemaVersion -ne 1 -or $manifest.kind -cne "otter-native-$channel-package" -or
+        $manifest.buildVersion -cnotmatch $pattern -or
         $manifest.sourceSha256 -notmatch '^[a-f0-9]{64}$' -or $manifest.publishable -isnot [bool] -or
         $manifest.signed -isnot [bool] -or $manifest.runtimeVerified -isnot [bool] -or $manifest.publishable -cne $false -or
         $manifest.signed -cne $false -or $manifest.runtimeVerified -cne $false -or
@@ -60,13 +63,19 @@ function Test-NativeCandidateArchiveIndex {
     }
     $receipt = (Read-OtterArchiveEntryText -Index $Index -EntryName 'build-provenance.json' -MaxBytes 4MB) | ConvertFrom-Json
     $exe = $records['otter-native.exe']
-    if ($receipt.kind -ne 'otter-native-internal-candidate' -or $receipt.buildVersion -cne $manifest.buildVersion -or
+    if ($receipt.kind -cne "otter-native-$channel-candidate" -or $receipt.channel -cne $channel -or $receipt.buildVersion -cne $manifest.buildVersion -or
         $receipt.sourceSha256 -cne $manifest.sourceSha256 -or $receipt.publishable -isnot [bool] -or
         $receipt.signed -isnot [bool] -or $receipt.runtimeVerified -isnot [bool] -or $receipt.publishable -cne $false -or
         $receipt.signed -cne $false -or $receipt.runtimeVerified -cne $false -or
         $receipt.files[0].path -cne 'payload/otter-native.exe' -or
         $receipt.files[0].sha256 -cne $exe.sha256 -or $receipt.files[0].bytes -ne $exe.bytes) { throw 'Native ZIP build identity mismatch' }
     $hook = $records['otter_live_hover_hook.dll']
+    if ($PublicRelease -and ($receipt.gitDirty -isnot [bool] -or $receipt.gitDirty -or $receipt.gitCommit -cnotmatch '^[0-9a-f]{40}$' -or
+        $receipt.internalRevision -ne 0 -or "v$($receipt.productVersion)" -cne $manifest.buildVersion -or
+        $receipt.releaseSource.repository -cne 'aiaimimi0920/Otter' -or $receipt.releaseSource.tag -cne $manifest.buildVersion -or
+        $receipt.releaseSource.runId -cnotmatch '^[1-9]\d*$' -or $receipt.releaseSource.attempt -cnotmatch '^[1-9]\d*$')) {
+        throw 'Invalid public ZIP source identity'
+    }
     if ($receipt.files[1].path -cne 'payload/otter_live_hover_hook.dll' -or
         $receipt.files[1].sha256 -cne $hook.sha256 -or $receipt.files[1].bytes -ne $hook.bytes) { throw 'Native ZIP hook build identity mismatch' }
     $licenses = (Read-OtterArchiveEntryText -Index $Index -EntryName 'licenses/inventory.json' -MaxBytes 4MB) | ConvertFrom-Json

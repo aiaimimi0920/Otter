@@ -1,4 +1,4 @@
-"""Unpack and verify actual startup of the current internal product package; write all configuration and runtime evidence to an isolated directory."""
+"""Verify actual startup of the selected native ZIP in an isolated profile."""
 
 import argparse
 import hashlib
@@ -27,15 +27,20 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--package-dir", required=True, type=Path)
     parser.add_argument("--evidence-dir", required=True, type=Path)
+    parser.add_argument("--public-release", action="store_true")
     args = parser.parse_args()
     package = args.package_dir.resolve(strict=True)
     root = args.evidence_dir.resolve()
     root.mkdir(parents=True, exist_ok=False)
     verification = json.loads((package / "archive-verification.json").read_text(encoding="utf-8-sig"))
-    archives = list(package.glob("Otter-native-*-windows-x64-internal.zip"))
+    suffix = "" if args.public_release else "-internal"
+    archives = list(package.glob(f"Otter-native-*-windows-x64{suffix}.zip"))
     if len(archives) != 1:
         raise ValueError("Expected one verified native package archive")
     archive = archives[0]
+    archive_digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+    if archive_digest != verification["archiveSha256"].lower() or archive.name != verification["archive"]:
+        raise ValueError("Archive does not match verification")
     unpacked = root / "unpacked"
     unpacked.mkdir()
     with zipfile.ZipFile(archive) as bundle:
@@ -123,7 +128,7 @@ def main():
                 or not row.get("workspaceUnwritten", True)
                 or not row.get("sourceUnchanged", True)):
             raise RuntimeError(f"{label} failed; see {work}")
-    receipt = dict(executableSha256=digest, archiveSha256=hashlib.sha256(archive.read_bytes()).hexdigest(),
+    receipt = dict(executableSha256=digest, archiveSha256=archive_digest,
                    unpackedProduct=str(exe), checks=checks, visibleMenuTested=False)
     (root / "runtime.json").write_text(json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
 

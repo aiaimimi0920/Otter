@@ -712,7 +712,7 @@ checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 
 [[package]]
 name = "otter-core"
-version = "0.2.33"
+version = "0.3.1"
 dependencies = [
  "base64 0.22.1",
  "png",
@@ -725,14 +725,14 @@ dependencies = [
 
 [[package]]
 name = "otter-live-hover-hook"
-version = "0.2.33"
+version = "0.3.1"
 dependencies = [
  "windows",
 ]
 
 [[package]]
 name = "otter-media"
-version = "0.2.33"
+version = "0.3.1"
 dependencies = [
  "base64 0.22.1",
  "otter-core",
@@ -755,7 +755,7 @@ dependencies = [
 
 [[package]]
 name = "otter-native"
-version = "0.2.33"
+version = "0.3.1"
 dependencies = [
  "base64 0.22.1",
  "fluent-bundle",
@@ -792,7 +792,7 @@ dependencies = [
 
 [[package]]
 name = "otter-runtime"
-version = "0.2.33"
+version = "0.3.1"
 dependencies = [
  "base64 0.22.1",
  "otter-core",

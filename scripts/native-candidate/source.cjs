@@ -19,7 +19,8 @@ function filesUnder(root, relative, output) {
   }
 }
 
-function snapshot(root, metadata) {
+function snapshot(root, metadata, channel = 'internal') {
+  if (!['internal', 'public'].includes(channel)) throw new Error('Invalid build channel');
   root = fs.realpathSync(root);
   const identities = verifiedSources(root);
   verifyResolution(root, identities, metadata);
@@ -59,7 +60,8 @@ function snapshot(root, metadata) {
       version.publicVersion !== media[0].version || version.publicVersion !== runtime[0].version ||
       version.publicVersion !== hook[0].version ||
       !Number.isInteger(version.internalRevision) ||
-      version.internalRevision < 1 || version.internalRevision > 65535) throw new Error('Invalid internal build version');
+      version.internalRevision < 0 || version.internalRevision > 65535 ||
+      (channel === 'public' && version.internalRevision !== 0)) throw new Error('Invalid native build version');
   const names = new Set(['native/Cargo.toml', 'native/Cargo.lock', 'native/build.rs', 'native/windows.manifest',
     'package.json', 'version-state.json', 'third_party/sources.json',
     'scripts/build-native-candidate.ps1', 'scripts/package-native-candidate.ps1', 'scripts/verify-native-package.ps1',
@@ -86,7 +88,7 @@ function snapshot(root, metadata) {
   files.push(...designFiles, ...rxingFiles);
   files.sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
   return { schemaVersion: 1, kind: 'otter-native-build-inputs',
-    buildVersion: `v${version.publicVersion}.${version.internalRevision}`, productVersion: version.publicVersion,
+    buildVersion: channel === 'public' ? `v${version.publicVersion}` : `v${version.publicVersion}.${version.internalRevision}`, productVersion: version.publicVersion,
     internalRevision: version.internalRevision, identities, files, sourceSha256: hash(encoded(files)) };
 }
 
@@ -95,8 +97,8 @@ function assertUnchanged(before, after) {
 }
 
 if (require.main === module) {
-  const [root, metadataFile, output] = process.argv.slice(2);
-  const result = snapshot(root, JSON.parse(fs.readFileSync(metadataFile, 'utf8')));
+  const [root, metadataFile, output, channel] = process.argv.slice(2);
+  const result = snapshot(root, JSON.parse(fs.readFileSync(metadataFile, 'utf8')), channel);
   fs.writeFileSync(output, JSON.stringify(result, null, 2) + '\n', { encoding: 'utf8', flag: 'wx' });
 }
 module.exports = { snapshot, assertUnchanged, hash };

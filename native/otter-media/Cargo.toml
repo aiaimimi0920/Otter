@@ -1,6 +1,6 @@
 [package]
 name = "otter-media"
-version = "0.2.33"
+version = "0.3.1"
 edition = "2021"
 license = "MIT"
 publish = false
@@ -10,7 +10,7 @@ description = "Otter capture, surface layout/painting, and live foundation runti
 test-support = ["otter-core/test-support"]
 
 [dependencies]
-otter-core = { path = "../otter-core", version = "=0.2.33" }
+otter-core = { path = "../otter-core", version = "=0.3.1" }
 base64 = "=0.22.1"
 png = "=0.18.1"
 sha2 = "=0.10.9"
@@ -25,14 +25,14 @@ url = "=2.5.9"
 ureq = { version = "=3.4.2", default-features = false }
 
 [dev-dependencies]
-otter-core = { path = "../otter-core", version = "=0.2.33", features = ["test-support"] }
+otter-core = { path = "../otter-core", version = "=0.3.1", features = ["test-support"] }
 rcgen = { version = "=0.13.2", default-features = false, features = ["crypto", "ring"] }
 
 [target.'cfg(windows)'.dev-dependencies]
 windows = { version = "=0.60.0", features = ["Win32_UI_Input_Pointer"] }
 
 [target.'cfg(windows)'.dependencies]
-otter-live-hover-hook = { path = "../hover-hook", version = "=0.2.33" }
+otter-live-hover-hook = { path = "../hover-hook", version = "=0.3.1" }
 windows-core = "=0.60.1"
 windows = { version = "=0.60.0", features = [
     "ApplicationModel_DataTransfer",

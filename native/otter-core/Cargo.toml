@@ -1,6 +1,6 @@
 [package]
 name = "otter-core"
-version = "0.2.33"
+version = "0.3.1"
 edition = "2021"
 license = "MIT"
 publish = false

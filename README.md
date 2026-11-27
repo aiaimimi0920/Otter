@@ -35,7 +35,7 @@ explore more possibilities for the images you capture.
 
 | Start here | What you need to do |
 | --- | --- |
-| [Public downloads](https://github.com/aiaimimi0920/Otter/releases) | Follow the selected release's instructions. Current native builds are unsigned internal ZIPs; extract the entire package and keep `otter-native.exe` with `otter_live_hover_hook.dll`. See the [build guide](docs/development/WINDOWS_NATIVE_BUILD.md). |
+| [Public downloads](https://github.com/aiaimimi0920/Otter/releases) | Download the Windows x64 portable ZIP and its SHA-256 file. Extract the whole ZIP, then run `otter-native.exe` alongside `otter_live_hover_hook.dll`. Native portable ZIPs are not Authenticode-signed installers. |
 | Use with Loom | Start Loom and install the required OCR, translation or Art capabilities, then [connect and authorize Otter](docs/features/LOOM_CONNECTION.md). |
 
 1. Press **`Ctrl+1`** for a region screenshot, **`Ctrl+2`** for live capture, or **`Ctrl+3`** for a scrolling screenshot.
