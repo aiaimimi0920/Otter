@@ -18,6 +18,9 @@ mod border;
 mod candidate_auxiliary;
 #[path = "workspace_chrome_disclosure.rs"]
 mod disclosure;
+#[path = "workspace_chrome_suspend.rs"]
+mod suspend;
+pub(in crate::desktop) use suspend::Suspended;
 #[path = "workspace_chrome_draw.rs"]
 mod draw;
 #[path = "workspace_node_drawer.rs"]
@@ -81,6 +84,7 @@ pub(in crate::desktop) struct Ui {
     input_windows: RefCell<Vec<(HWND, usize, Side)>>,
     drawers: RefCell<Vec<Rc<drawer::Open>>>,
     selected: RefCell<Vec<(isize, isize)>>,
+    selection_epoch: Cell<u64>,
     borders: RefCell<Vec<Rc<border::Border>>>,
     backings: RefCell<Vec<Rc<backing::Backing>>>,
     gates: RefCell<Option<scene::Gates>>,
@@ -115,6 +119,7 @@ impl Default for Ui {
             input_windows: RefCell::default(),
             drawers: RefCell::default(),
             selected: RefCell::default(),
+            selection_epoch: Cell::default(),
             borders: RefCell::default(),
             backings: RefCell::default(),
             gates: RefCell::default(),

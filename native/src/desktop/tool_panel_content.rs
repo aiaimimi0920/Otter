@@ -58,6 +58,9 @@ pub(super) unsafe fn prepare_with(
     state.tool_panel_enabled.set(u64::MAX);
     state.tool_panel_tool.set(None);
     state.tool_panel_style.set(None);
+    if !state.shortcut_policy.borrow().bindings.is_empty() {
+        super::refresh_language(state);
+    }
     crate::desktop::smoke_timing::run("tool-panel-project", || {
         refresh(HWND(GetWindowLongPtrW(panel, GWLP_USERDATA) as *mut _));
         Ok::<_, windows::core::Error>(())
@@ -66,6 +69,11 @@ pub(super) unsafe fn prepare_with(
 }
 pub(super) unsafe fn before_show(panel: HWND, state: &State, position: &mut WINDOWPOS) {
     if position.flags.contains(SWP_SHOWWINDOW) && !position.flags.contains(SWP_HIDEWINDOW) {
+        if state.click.active() {
+            position.flags &= !SWP_SHOWWINDOW;
+            position.flags |= SWP_HIDEWINDOW;
+            return;
+        }
         if let Err(error) = prepare(panel, state) {
             // Failure remains hidden after temporary controls roll back; retry on next display rather than publish empty/partial panels.
             position.flags &= !SWP_SHOWWINDOW;

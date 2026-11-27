@@ -80,6 +80,7 @@ impl Application {
         };
         {
             let mut canvas = document.state.canvas.borrow_mut();
+            canvas.bind_live_naming(self.live_sessions[index].naming.clone());
             canvas.normal_opacity = opacity;
             canvas.window_opacity = opacity;
             canvas.live_pin = true;

@@ -149,6 +149,7 @@ impl Application {
         let mut state = State::from_prepared(pin)?;
         {
             let mut canvas = state.canvas.borrow_mut();
+            canvas.bind_live_naming(session.naming.clone());
             canvas.normal_opacity = opacity;
             canvas.window_opacity = opacity;
         }

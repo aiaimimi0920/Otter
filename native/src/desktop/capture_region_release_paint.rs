@@ -37,7 +37,7 @@ pub(super) unsafe fn render(hwnd: HWND, state: &Selection, dc: HDC, dirty: &RECT
         frame.dc,
         state.preview(),
         windows::Win32::UI::HiDpi::GetDpiForWindow(hwnd).clamp(96, 768),
-        false,
+        state.adjusting.get(),
         true,
     )?;
     frame.commit()

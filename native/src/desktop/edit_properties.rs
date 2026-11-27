@@ -39,6 +39,12 @@ pub(super) const FONT: u16 = 17;
 pub(super) const CELL: u16 = 18;
 pub(super) const STRENGTH: u16 = 19;
 pub(super) const ONLY_MARKS: u16 = 20;
+pub(super) const EFFECT_RECT: u16 = 21;
+pub(super) const TEXT_BOX: u16 = 22;
+pub(super) const BOX_WIDTH: u16 = 23;
+pub(super) const BOX_PAD: u16 = 24;
+pub(super) const SPOT_DENSITY: u16 = 25;
+pub(super) const LENS_ZOOM: u16 = 26;
 #[derive(Default)]
 pub(super) struct Session {
     target: Option<MenuTarget>,

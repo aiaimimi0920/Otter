@@ -243,9 +243,33 @@ fn current_text_selection_consumes_ctrl_c_before_image_copy_without_touching_cli
         let p = f.point();
         let v = f.view();
         let _ = ShowWindow(f.hwnd(), SW_SHOWNOACTIVATE);
-        let _ = SetFocus(Some(f.hwnd()));
-        v.begin(p, false).unwrap();
-        v.finish([205., p[1]], Modifiers::default()).unwrap();
+        let edit = crate::desktop::Window(
+            CreateWindowExW(
+                WINDOW_EX_STYLE::default(),
+                windows::core::w!("EDIT"),
+                windows::core::w!("previous text"),
+                WS_CHILD | WS_VISIBLE,
+                0,
+                100,
+                80,
+                20,
+                Some(f.hwnd()),
+                None,
+                None,
+                None,
+            )
+            .unwrap(),
+        );
+        let _ = SetFocus(Some(edit.0));
+        assert_eq!(GetFocus(), edit.0);
+        f.send(WM_LBUTTONDOWN, p);
+        assert_eq!(
+            GetFocus(),
+            f.hwnd(),
+            "overlay click must reclaim EDIT focus"
+        );
+        f.send(WM_MOUSEMOVE, [205., p[1]]);
+        f.send(WM_LBUTTONUP, [205., p[1]]);
         let mut original = [0; 256];
         GetKeyboardState(&mut original).unwrap();
         struct Restore([u8; 256]);
@@ -273,5 +297,15 @@ fn current_text_selection_consumes_ctrl_c_before_image_copy_without_touching_cli
                 Some("Native overlay")
             );
         }
+        SendMessageW(
+            f.hwnd(),
+            WM_NCLBUTTONDOWN,
+            Some(WPARAM(HTNOWHERE as usize)),
+            Some(LPARAM(0)),
+        );
+        assert_eq!(v.selected_text().unwrap(), None);
+        SendMessageW(f.hwnd(), WM_KEYDOWN, Some(WPARAM(0x43)), Some(LPARAM(0)));
+        assert!(f.state().copy_job.borrow().is_some());
+        crate::desktop::copy_job::cancel(f.state());
     }
 }

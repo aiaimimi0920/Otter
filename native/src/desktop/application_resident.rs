@@ -4,9 +4,8 @@ use super::*;
 impl Application {
     pub(super) unsafe fn resume_empty_workspace(&mut self, hotkeys_enabled: bool) -> Result<()> {
         self.resume_empty_with(|doc| {
-            if hotkeys_enabled {
-                super::super::global_capture::install(doc.window.0, &doc.state);
-            }
+            doc.state.hotkey_enabled.set(hotkeys_enabled);
+            super::super::global_capture::install(doc.window.0, &doc.state);
             super::super::tray::start(doc.window.0, &doc.state)
         })
     }

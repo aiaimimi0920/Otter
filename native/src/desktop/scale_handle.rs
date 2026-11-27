@@ -29,7 +29,7 @@ fn update(
         let text = original
             .text
             .as_ref()
-            .and_then(|text| text.with_font_size(text.font_size() * (factors.x + factors.y) / 2.0))
+            .and_then(|text| text.scaled((factors.x + factors.y) / 2.0))
             .ok_or(EditError::BudgetExceeded)?;
         Some(
             unsafe { super::annotation_text::measure(&text) }

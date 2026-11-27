@@ -12,6 +12,8 @@ pub(in crate::desktop::application) struct Snapshot {
     pub opacity: f32,
     pub kind: crate::projection_delivery::sender::Kind,
     pub geometry: Option<crate::desktop::export::projection::Geometry>,
+    protected_pixels: Option<(Image, Editor)>,
+    upstream_overlays: bool,
     pub source_logical: Option<crate::crop_geometry::Size>,
     rasterized_source: bool,
     pub natural_origin: Option<Origin>,
@@ -43,7 +45,7 @@ impl Snapshot {
         kind: crate::projection_delivery::sender::Kind,
         documents: &[crate::desktop::document_window::DocumentWindow],
     ) -> Option<Self> {
-        if canvas.editor.draft().is_some() {
+        if !crate::desktop::display_snapshot::settled(canvas) {
             return None;
         }
         // export_snapshot creates a new document identity; Source::matches must be checked before that.
@@ -55,8 +57,21 @@ impl Snapshot {
             legacy_pixels,
             content: pending_content,
         } = select(canvas, frame, documents)?;
+        // Resolved annotations need not belong to the sender's editor. The
+        // one-way path must not send their unmarked natural image instead.
+        let protected_pixels = frame.filter(|f| f.needs_protected_pixels()).map(|f| {
+            (
+                f.image.clone(),
+                f.editor
+                    .as_ref()
+                    .expect("resolved local marks")
+                    .export_snapshot(),
+            )
+        });
         Some(Self {
             image,
+            protected_pixels,
+            upstream_overlays: frame.is_some_and(Frame::has_local_overlays),
             source_logical,
             rasterized_source,
             natural_origin,
@@ -68,6 +83,44 @@ impl Snapshot {
             kind,
             geometry: None,
         })
+    }
+    pub(in crate::desktop::application) fn display_only(&self) -> bool {
+        self.upstream_overlays
+    }
+    pub(in crate::desktop::application) fn one_way(
+        &self,
+        source: &crate::session_source::Source,
+        unit: &str,
+        cancel: &std::sync::atomic::AtomicBool,
+    ) -> windows::core::Result<crate::projection_delivery::sender::Frame> {
+        use crate::desktop::export;
+        let flattened;
+        let (image, input) = if let Some((image, editor)) = &self.protected_pixels {
+            flattened = protected_source::compose(image, editor, cancel)?;
+            // The working grid is already redacted. Never substitute retained
+            // natural pixels or replay their historical edit baseline here.
+            let input = export::projection::Input {
+                logical: self.render_input().logical,
+                content: true,
+                ..Default::default()
+            };
+            (&flattened, input)
+        } else {
+            (&self.image, self.render_input())
+        };
+        export::projection::target_frame_with_input(
+            source,
+            unit,
+            image,
+            &self.editor,
+            export::projection::Presentation {
+                opacity: self.opacity,
+                kind: self.kind,
+                geometry: self.geometry,
+            },
+            input,
+            cancel,
+        )
     }
     pub(super) fn stamp(&self) -> Stamp {
         Stamp {
@@ -123,6 +176,9 @@ impl Snapshot {
         }
     }
 }
+
+#[path = "application_projection_redacted_grid.rs"]
+mod protected_source;
 impl Stamp {
     pub(super) fn matches(
         &self,
@@ -161,11 +217,17 @@ fn select(
     frame: Option<&Frame>,
     documents: &[crate::desktop::document_window::DocumentWindow],
 ) -> Option<Selected> {
+    if frame.is_some_and(|f| !f.current_producer()) {
+        return None;
+    }
     if let Some(frame) = frame.filter(|frame| frame.has_local_source()) {
         let source = documents
             .iter()
             // DocumentWindow is UI-thread-owned; query only existing HWNDs here, without dispatching messages.
             .find(|doc| frame.is_from(&doc.state.unit_id) && unsafe { doc.is_alive() })?;
+        if !crate::desktop::display_snapshot::ready(&source.state) {
+            return None;
+        }
         let upstream = source.state.canvas.borrow();
         return select_local(frame, &source.state.unit_id, &upstream);
     }

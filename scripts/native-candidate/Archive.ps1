@@ -30,6 +30,9 @@ function Test-NativeCandidateArchiveIndex {
     $entries = @($Index.Keys | ForEach-Object { $_.Replace('/', '\') })
     # Native product packages must not reintroduce retired ANGLE DLLs; reject them whether listed in the manifest or not.
     foreach ($name in $entries) {
+        if ([IO.Path]::GetExtension($name) -ieq '.exe' -and $name -cne 'otter-native.exe') {
+            throw 'Unexpected executable in single-EXE native package'
+        }
         if ([IO.Path]::GetFileName($name) -imatch '^lib(EGL|GLESv2)\.dll$') {
             throw 'Retired ANGLE DLL in native package'
         }

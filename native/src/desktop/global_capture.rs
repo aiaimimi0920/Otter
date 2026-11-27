@@ -1,30 +1,34 @@
-//! Ctrl+1 capture, Ctrl+2 Live, and Ctrl+3 scrolling capture; one registering host, without hooks/polling.
+//! Built-in capture commands share one host. Dispatch only messages for a current registration.
 use super::State;
 #[path = "global_capture_registration.rs"]
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 mod registration;
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 use registration::Key;
 use windows::{
     core::{w, Result, HSTRING},
     Win32::{
         Foundation::*,
-        UI::{Input::KeyboardAndMouse::*, WindowsAndMessaging::*},
+        UI::{Input::KeyboardAndMouse::IsWindowEnabled, WindowsAndMessaging::*},
     },
 };
 
 pub(super) const COMMAND: usize = 0x1048;
+#[cfg(test)]
+use windows::Win32::UI::Input::KeyboardAndMouse::*;
+#[cfg(test)]
 const ID: i32 = 0x4f54;
+#[cfg(test)]
 const KEY: u32 = b'1' as u32;
+#[cfg(test)]
 const LONG_ID: i32 = 0x4f55;
+#[cfg(test)]
 const LONG_KEY: u32 = b'3' as u32;
+#[cfg(test)]
 const LIVE_ID: i32 = 0x4f56;
+#[cfg(test)]
 const LIVE_KEY: u32 = b'2' as u32;
-fn binding(key: Key) -> (i32, u32) {
-    match key {
-        Key::Primary => (ID, KEY),
-        Key::Live => (LIVE_ID, LIVE_KEY),
-        Key::Long => (LONG_ID, LONG_KEY),
-    }
-}
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 fn flags(state: &State) -> [&std::cell::Cell<bool>; 3] {
     [
         &state.global_capture,
@@ -34,21 +38,17 @@ fn flags(state: &State) -> [&std::cell::Cell<bool>; 3] {
 }
 
 pub(super) unsafe fn set(hwnd: HWND, state: &State, enabled: bool) -> Result<()> {
-    update(state, enabled, |key, enabled| {
-        let (id, key) = binding(key);
-        if enabled {
-            RegisterHotKey(Some(hwnd), id, MOD_CONTROL | MOD_NOREPEAT, key)
-        } else {
-            UnregisterHotKey(Some(hwnd), id)
-        }
-    })
+    super::shortcut_registry::configure(hwnd, state, enabled)
 }
+#[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 pub(super) fn update(
     state: &State,
     enabled: bool,
     change: impl FnMut(Key, bool) -> Result<()>,
 ) -> Result<()> {
     let previous = state.global_capture.get();
+    #[cfg(test)]
+    super::shortcut_registry::fixture_bindings(state);
     let result = registration::set_with(flags(state), enabled, change);
     if previous || state.global_capture.get() {
         state
@@ -69,8 +69,8 @@ pub(super) fn update(
     Ok(())
 }
 pub(super) unsafe fn install(hwnd: HWND, state: &State) {
-    if let Err(error) = set(hwnd, state, true) {
-        eprintln!("native-global-capture: Ctrl+1 unavailable: {error}");
+    if let Err(error) = super::shortcut_registry::resume(hwnd, state) {
+        eprintln!("native-global-capture: shortcut registration failed: {error}");
     }
 }
 pub(super) unsafe fn toggle(hwnd: HWND, state: &State) {
@@ -100,38 +100,64 @@ pub(super) unsafe fn append(menu: HMENU, state: &State) -> Result<()> {
     )
 }
 fn label(state: &State) -> String {
-    let missing: Vec<_> = [
-        ("Ctrl+2", state.live_hotkey_enabled.get()),
-        ("Ctrl+3", state.long_hotkey_enabled.get()),
-    ]
-    .into_iter()
-    .filter_map(|(label, enabled)| (!enabled).then_some(label))
-    .collect();
-    if state.hotkey_enabled.get() && !missing.is_empty() {
+    let policy = state.shortcut_policy.borrow();
+    let chords = crate::shortcut_policy::GLOBAL
+        .iter()
+        .map(|(id, _)| policy.chord(id).map(|chord| chord.label()))
+        .collect::<Vec<_>>();
+    let missing = chords
+        .iter()
+        .zip(
+            state
+                .shortcut_display
+                .get()
+                .map(|(_, slots)| slots)
+                .unwrap_or([
+                    true,
+                    state.live_hotkey_enabled.get(),
+                    state.long_hotkey_enabled.get(),
+                    false,
+                    false,
+                    false,
+                ]),
+        )
+        .filter_map(|(s, on)| if on { None } else { s.as_deref() })
+        .collect::<Vec<_>>();
+    let names = chords
+        .iter()
+        .flatten()
+        .map(String::as_str)
+        .collect::<Vec<_>>()
+        .join(" / ");
+    let base = if state
+        .shortcut_display
+        .get()
+        .is_some_and(|(suppressed, _)| suppressed)
+    {
+        crate::ui_text::text("action-hotkey-suspended").into()
+    } else if state.hotkey_enabled.get() && !missing.is_empty() {
         crate::ui_text::format(
             "action-hotkey-degraded",
             &[("shortcuts", missing.join(" / ").into())],
         )
     } else {
         crate::ui_text::text("action-hotkey-menu").into()
+    };
+    if names.is_empty() {
+        base
+    } else {
+        format!("{base}\t{names}")
     }
 }
 #[cfg(test)]
 #[path = "global_capture_dispatch_tests.rs"]
 mod dispatch_tests;
+#[cfg(test)]
 fn command(wp: WPARAM, lp: LPARAM) -> Option<usize> {
-    let value = lp.0 as u32;
-    if (value & 0xffff & !MOD_NOREPEAT.0) != MOD_CONTROL.0 {
-        return None;
-    }
-    match (wp.0, value >> 16) {
-        (id, KEY) if id == ID as usize => Some(super::capture_input::DEFAULT),
-        (id, LONG_KEY) if id == LONG_ID as usize => Some(super::capture_input::LONG_RECORDING),
-        (id, LIVE_KEY) if id == LIVE_ID as usize => Some(super::capture_input::live::COMMAND),
-        _ => None,
-    }
+    super::shortcut_registry::match_binding(super::shortcut_registry::fixture_defaults(), wp, lp)
 }
 
+#[cfg(test)]
 fn allowed(registered: bool, owner_enabled: bool, available: bool, wp: WPARAM, lp: LPARAM) -> bool {
     registered && owner_enabled && available && command(wp, lp).is_some()
 }
@@ -159,32 +185,46 @@ unsafe fn dispatch_with(
     start: impl FnOnce(usize),
 ) -> Option<LRESULT> {
     if msg == WM_DESTROY {
-        // Destruction must attempt every release, even if the first one fails.
-        let owned = state.global_capture.get();
-        for error in registration::cleanup_with(flags(state), |key| {
-            UnregisterHotKey(Some(hwnd), binding(key).0)
-        })
-        .into_iter()
-        .flatten()
-        {
-            eprintln!("native-global-capture-cleanup: {error}");
-        }
-        if owned {
-            state.hotkey_enabled.set(false);
-            state.long_hotkey_enabled.set(false);
-            state.live_hotkey_enabled.set(false);
-        }
+        super::shortcut_registry::close(hwnd, state);
         return None;
+    }
+    if msg == super::fullscreen_watch::MESSAGE || msg == WM_DISPLAYCHANGE {
+        super::fullscreen_watch::acknowledge(hwnd);
+        super::shortcut_registry::refresh(hwnd, state);
+        return (msg == super::fullscreen_watch::MESSAGE).then_some(LRESULT(0));
     }
     if msg != WM_HOTKEY {
         return None;
     }
-    let Some(command) = command(wp, lp) else {
+    let Some(command) = super::shortcut_registry::route(state, wp, lp) else {
         return Some(LRESULT(0));
     };
+    if command == super::pin_click_through::RESTORE {
+        let mut p = POINT::default();
+        if GetCursorPos(&mut p).is_ok() {
+            state.click.signals.pointer.set(Some(p));
+        } else {
+            state.click.signals.all.set(true);
+        }
+        return Some(LRESULT(0));
+    }
+    if command == COMMAND {
+        toggle(hwnd, state);
+        return Some(LRESULT(0));
+    }
+    if command == super::capture_countdown::THREE {
+        if !state.shortcut_host.suppressed.get()
+            && IsWindowEnabled(hwnd).as_bool()
+            && super::tray::recovery_installed(state)
+        {
+            if let Err(e) = super::capture_countdown::start(hwnd, state, command) {
+                eprintln!("native-countdown-hotkey: {e}");
+            }
+        }
+        return Some(LRESULT(0));
+    }
     // Active scrolling capture exclusively owns capture and disables the original host; route finish requests first without new-selection admission.
     if command == super::capture_input::LONG_RECORDING
-        && state.global_capture.get()
         && state.global_long_capture.get()
         && super::capture_input::finish_route::request(&state.capture_active)
     {
@@ -193,23 +233,21 @@ unsafe fn dispatch_with(
     let ready = || {
         IsWindow(Some(hwnd)).as_bool()
             && super::capture_input::exclusive_available(state)
-            && allowed(
-                state.global_capture.get()
-                    && match command {
-                        super::capture_input::LONG_RECORDING => state.global_long_capture.get(),
-                        super::capture_input::live::COMMAND => state.global_live_capture.get(),
-                        _ => true,
-                    },
-                IsWindowEnabled(hwnd).as_bool(),
-                if command == super::capture_input::live::COMMAND {
-                    super::capture_input::live::available(state)
-                } else {
-                    super::tool_panel_availability::Availability::capture(state)
-                        .is_some_and(|availability| availability.allows(command))
-                },
-                wp,
-                lp,
-            )
+            && !state.shortcut_host.suppressed.get()
+            && super::shortcut_registry::owns(state)
+            && super::shortcut_registry::route(state, wp, lp) == Some(command)
+            && match command {
+                super::capture_input::LONG_RECORDING => state.global_long_capture.get(),
+                super::capture_input::live::COMMAND => state.global_live_capture.get(),
+                _ => state.global_capture.get(),
+            }
+            && IsWindowEnabled(hwnd).as_bool()
+            && if command == super::capture_input::live::COMMAND {
+                super::capture_input::live::available(state)
+            } else {
+                super::tool_panel_availability::Availability::capture(state)
+                    .is_some_and(|availability| availability.allows(command))
+            }
     };
     // Reuse the tested restore/reentry gate; capture owns hiding and cancellation.
     super::tray::actions::execute_with(

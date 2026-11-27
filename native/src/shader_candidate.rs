@@ -11,8 +11,7 @@ use std::{
 };
 #[path = "shader_candidate_acl.rs"]
 mod acl;
-#[path = "shader_candidate_files.rs"]
-mod files;
+use otter_media::install_file_leases as files;
 
 // Reviewed local build: v332 build.json ae24c4b8..., v333 materials.json 95322473....
 // Updates must re-review the build/materials and developer-side execution together; never import new pins automatically from the candidate directory.
@@ -64,7 +63,15 @@ fn verify(file: &mut File, pin: Fingerprint) -> io::Result<()> {
 /// Does not install, copy, or change permissions; the caller explicitly selects a prepared two-file directory writable only by trusted users.
 /// Protects against other local users; malicious same-user processes, administrators, and the system are not considered isolatable attackers.
 pub fn open(directory: &Path) -> io::Result<TrustedBundle> {
-    let mut leases = files::directories(directory)?;
+    let mut leases = files::directories(directory, |file, path| {
+        // The developer-only shader sandbox trusts the volume root and the
+        // interactive user. Elevation admission must not use this policy.
+        if path.parent().is_none() {
+            Ok(())
+        } else {
+            acl::ancestor(file)
+        }
+    })?;
     acl::check(leases.last().ok_or_else(invalid)?)?;
     let entries: Vec<_> = std::fs::read_dir(directory)?
         .take(3)

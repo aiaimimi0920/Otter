@@ -2,6 +2,7 @@
 use super::*;
 impl Application {
     pub(super) fn shutdown(&mut self) {
+        crate::desktop::capture_countdown::cancel();
         unsafe {
             self.chrome.close();
         }
@@ -10,6 +11,7 @@ impl Application {
         self.capture_history.shutdown();
         self.local_loom.shutdown();
         self.locale_remote.shutdown();
+        self.shortcut_remote.shutdown();
         // Do not wait for network or driver cleanup in individual-window WM_CLOSE callbacks.
         self.execution_wake.close();
         self.extension_commands.shutdown();

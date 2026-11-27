@@ -22,6 +22,10 @@ impl Inline {
         dpi: u32,
     ) -> Result<()> {
         if let Some(ui) = self.0.upgrade().filter(|ui| !ui.closed.get()) {
+            if ui.state().is_none_or(|s| s.click.active()) {
+                self.hide_auxiliary();
+                return Ok(());
+            }
             auxiliary::place(&ui, parent, bounds, target, dpi)?;
         }
         Ok(())
@@ -49,7 +53,7 @@ impl Inline {
         {
             return Err(Error::from(E_HANDLE));
         }
-        if rows.is_empty() {
+        if rows.is_empty() || ui.state().is_some_and(|s| s.click.active()) {
             ui.inline_rows.borrow_mut().clear();
             let _ = ShowWindow(ui.hwnd.get(), SW_HIDE);
             return Ok(());

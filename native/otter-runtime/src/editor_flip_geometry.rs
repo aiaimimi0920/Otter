@@ -49,6 +49,10 @@ impl Stroke {
         let boxed = matches!(
             self.tool,
             Tool::Rectangle
+                | Tool::SpotRect
+                | Tool::Magnifier
+                | Tool::SpotRounded
+                | Tool::SpotEllipse
                 | Tool::RoundedRectangle
                 | Tool::Ellipse
                 | Tool::Triangle
@@ -56,7 +60,9 @@ impl Stroke {
                 | Tool::Text
                 | Tool::Serial
         );
-        let offset = if self.tool == Tool::Text {
+        let offset = if self.tool == Tool::Text
+            && self.text.as_ref().is_none_or(|t| t.geometry().is_none())
+        {
             let metrics = metrics.ok_or(EditError::InvalidPoint)?;
             let text = self.text.as_ref().ok_or(EditError::InvalidPoint)?;
             if self.points.len() != 2
@@ -117,6 +123,26 @@ impl Stroke {
         for point in &mut result.points {
             *point = transformed(*point);
         }
+        if let Some([center, tip]) = self.serial_handles() {
+            let reflected = mirror(crate::rotation::rotate(tip, center, self.rotation));
+            validate(reflected)?;
+            result.set_tip(crate::rotation::rotate(
+                reflected,
+                mirror(center),
+                -self.rotation,
+            ))?;
+        }
+        // Reflect the visible quad, not just its unrotated control points.
+        if let Some(lens) = &mut result.lens {
+            match axis {
+                Axis::Horizontal => lens.offset.x = -lens.offset.x,
+                Axis::Vertical => lens.offset.y = -lens.offset.y,
+            }
+        }
+        if self.effect_rect || self.lens.is_some() || self.tool.spotlight() {
+            let angle = (-self.rotation).rem_euclid(360.0);
+            result.rotation = if angle == 0.0 { 0.0 } else { angle };
+        }
         Ok(result)
     }
 }
@@ -124,6 +150,47 @@ impl Stroke {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn boxed_text_and_rotated_spotlight_reflect_cleanly_in_both_axes() {
+        let mut editor = Editor::default();
+        let boxed =
+            crate::text_annotation::TextAnnotation::new("a\nb\nc\nd", "Segoe UI", 16.0, false)
+                .unwrap()
+                .with_geometry(Some(
+                    crate::text_annotation::TextBox::new(60.0, 8.0).unwrap(),
+                ));
+        editor
+            .insert_text(
+                Point { x: 20.0, y: 10.0 },
+                Point { x: 60.0, y: 40.0 },
+                boxed,
+            )
+            .unwrap();
+        editor
+            .begin(Tool::SpotRect, Point { x: 20.0, y: 15.0 })
+            .unwrap();
+        editor.extend(Point { x: 50.0, y: 35.0 }).unwrap();
+        editor.commit();
+        editor.rotate(1, 30.0).unwrap();
+        let v_text = editor.elements()[0]
+            .flipped_in_frame(frame(), Axis::Vertical)
+            .unwrap();
+        assert_eq!(
+            v_text.points,
+            vec![Point { x: 20.0, y: 20.0 }, Point { x: 80.0, y: 60.0 }]
+        );
+        let h_spot = editor.elements()[1]
+            .flipped_in_frame(frame(), Axis::Horizontal)
+            .unwrap();
+        assert_eq!(h_spot.rotation, 330.0);
+        assert_eq!(
+            h_spot
+                .flipped_in_frame(frame(), Axis::Horizontal)
+                .unwrap()
+                .rotation,
+            30.0
+        );
+    }
     fn frame() -> Rect {
         Rect {
             x: 10.0,

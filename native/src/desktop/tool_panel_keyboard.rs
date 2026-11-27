@@ -34,7 +34,8 @@ pub(super) unsafe fn owner(state: &State) -> Option<HWND> {
     current(owner, panel, state).then_some(owner)
 }
 fn available(state: &State) -> bool {
-    !state.session_end.paused()
+    !state.click.active()
+        && !state.session_end.paused()
         && !state.group_locked.get()
         && !state.group_hidden.get()
         && super::super::capture_input::exclusive_available(state)

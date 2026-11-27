@@ -9,6 +9,12 @@ controls from an exact NeuroDesign Git commit. This page describes runtime respo
 
 ## 1. Runtime boundaries
 
+- **Privilege:** Windows selects the desktop token at launch. The same workspace lock
+  applies to ordinary and manually elevated sessions; Otter never hands off the lock
+  or schedules elevation. Loom discovery, device authorization and projection remain
+  ordinary-session features. Compute workers verify their ordinary token independently.
+  See [administrator capture](../features/DESKTOP_CAPTURE_EDIT_EXPORT.md#administrator-capture).
+
 - **Capture and editing:** The desktop message pump owns windows, input and publication of
   worker results. Capture, decode, raster edits and output run under bounded worker budgets.
   Closing a document revokes late publication and transfers outstanding work to application
@@ -19,6 +25,24 @@ controls from an exact NeuroDesign Git commit. This page describes runtime respo
   retains D3D12-first selection. Hardware fallback still requires confirmed retirement.
   Capture history keeps compact encodings in save snapshots. Its single worker decodes
   panel previews, which are discarded when the panel closes.
+  Manual PNG/JPEG/WebP export shares one immutable display composite. Preview encoders
+  post no window messages and write no files. A cancelled preview retains its slot
+  until its thread exits; saving reuses the confirmed bytes after checking the display stamp.
+  Image archiving is separately opt-in at successful image copy or ordinary capture delivery.
+  Each archive job retains the selected directory identity and publishes from
+  its exclusive temporary file handle. It does not change workspace or settings autosave.
+  A magnifier samples only the lower layers of the same draw transaction; the
+  compatible bitmap and its lease are held through the output frame's `EndDraw`.
+  Spotlight holes share one union mask, not one darkening operation per hole.
+  Fixed-width text boxes shape glyphs in document units before zoom is applied.
+  The draft view uses this annotation layout for drawing and hit testing; the
+  underlying native EDIT still owns clipboard, composition, text and undo. A
+  visual soft wrap never inserts a character or changes the workspace history.
+  One-way projection keeps the receiving pin's crop and frame. When a resolved
+  source has privacy effects, its pixels are composed on a worker first;
+  outside a redacted source crop the supplied grid is transparent, not original pixels.
+  Input-transparent pins retain an independent tray recovery path. Neither this
+  feature nor shortcut management uses the Live hover hook.
 - **Live:** Windows Graphics Capture owns acquisition; source input has a separate
   permission and lifetime. The co-built `otter_live_hover_hook.dll` is delivered
   next to the EXE. [Live capture](../features/LIVE_CAPTURE.md) documents the limits.
@@ -30,9 +54,14 @@ controls from an exact NeuroDesign Git commit. This page describes runtime respo
   [connection](../features/LOOM_CONNECTION.md) and [projection](../features/QR_PROJECTION.md).
   Cancellation revokes execution or catalog authority before thread reaping. Connection
   replacement waits for the previous disconnect; it cannot reuse a stale lease or task result.
+  Built-in shortcut configuration is a targeted request: Otter validates the revision,
+  applies local registration and publishes the settings before acknowledging success.
+  Hook/Art shortcuts remain independently owned.
 - **Art surfaces:** Otter renders validated native scenes. Scripted surfaces run
   inside a restricted QuickJS process with CPU/memory limits and no browser DOM. Approved
   `Surface` operations and resource admission remain distinct from Loom execution.
+  Shared compute workers are checked while suspended for the expected user,
+  session, integrity level and lack of elevation/UIAccess before any payload runs.
   Short-lived image workers are scoped to the resource origin; HLSL workers are
   scoped to the target and current selection identity. Idle workers retain their
   Job limits, yield capacity to queued work and are reaped by the parent.
@@ -42,6 +71,11 @@ controls from an exact NeuroDesign Git commit. This page describes runtime respo
   Publishing received images requires workspace save; state changes retire stale
   worker results. Restore and append validate workspace contents and projection associations
   before publishing windows.
+  The standalone login-startup diagnostic reads the current user's Run entry and
+  legacy and component Task Scheduler records; it cannot register or launch a task.
+  The restart checkpoint verifier acquires the existing profile lock and binds
+  hidden restore to the exact digest and revision of the checkpoint. This
+  proves data continuity, not the identity or privilege of a replacement process.
   A workspace swap cancels and retires old workflow workers in one application slot;
   their completion cannot publish an archive or receipt to the next workspace.
   Peer-version policy does not change workspace format handling.

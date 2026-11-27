@@ -394,7 +394,16 @@ fn ctrl_c_keeps_edit_text_copy_but_reaches_canvas_after_direct_activation() {
             f.state.copy_job.borrow().is_none(),
             "text Ctrl+C must not copy the image"
         );
-        SetFocus(Some(f.owner.0)).unwrap();
+        for msg in [WM_NCLBUTTONDOWN, WM_NCRBUTTONDOWN] {
+            let _ = SetFocus(Some(edit));
+            SendMessageW(
+                f.owner.0,
+                msg,
+                Some(WPARAM(HTNOWHERE as usize)),
+                Some(LPARAM(0)),
+            );
+            assert_eq!(GetFocus(), f.owner.0);
+        }
         f.key(0x43, true);
         assert!(f.state.copy_job.borrow().is_none());
         f.key(0x43, false);

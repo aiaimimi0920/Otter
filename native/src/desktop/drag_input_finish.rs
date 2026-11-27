@@ -75,6 +75,7 @@ unsafe fn poll_preview(
         || state.modals.blocked()
         || state.file_dialog.get()
         || state.group_locked.get()
+        || state.inline_text.borrow().is_some()
         || !pending.stamp.matches(
             &state.canvas.borrow(),
             state.resolved_display.borrow().as_ref(),

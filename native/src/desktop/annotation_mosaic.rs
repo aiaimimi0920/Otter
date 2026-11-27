@@ -95,6 +95,16 @@ pub(super) unsafe fn mask(
     stroke: &Stroke,
     viewport: Viewport,
 ) -> Result<ID2D1Geometry> {
+    if stroke.effect_rect {
+        use windows::core::Interface;
+        return super::annotation_linear::geometry(
+            &target.GetFactory()?,
+            stroke.points.iter().copied(),
+            true,
+            viewport,
+        )?
+        .cast();
+    }
     mask_points(target, &stroke.points, stroke.width, viewport)
 }
 

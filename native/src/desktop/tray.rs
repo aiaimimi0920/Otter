@@ -12,6 +12,10 @@ use windows::{
 pub(super) const COMMAND: usize = 0x1047;
 #[path = "tray_actions.rs"]
 pub(super) mod actions;
+#[path = "tray_image_archive.rs"]
+mod archive;
+#[path = "tray_capture_delay.rs"]
+mod delay;
 #[path = "tray_language.rs"]
 mod language;
 #[path = "tray_startup.rs"]
@@ -24,6 +28,7 @@ const NIN_KEYSELECT: u32 = NIN_SELECT | 1;
 #[derive(Default)]
 pub(super) struct Tray {
     installed: Cell<bool>,
+    pub(super) recovery: std::rc::Rc<Cell<bool>>,
     resident: Cell<bool>,
     hidden: Cell<bool>,
     panel_visible: Cell<bool>,
@@ -33,6 +38,9 @@ pub(super) struct Tray {
 
 pub(super) fn is_resident(state: &State) -> bool {
     state.tray.resident.get()
+}
+pub(super) fn recovery_installed(state: &State) -> bool {
+    state.tray.recovery.get()
 }
 /// Retain an operable entry only if Shell installation fails and the empty host has no registered capture keys.
 pub(super) unsafe fn expose_empty_host(hwnd: HWND, state: &State) {
@@ -99,6 +107,9 @@ unsafe fn data(hwnd: HWND) -> NOTIFYICONDATAW {
     }
 }
 unsafe fn install(hwnd: HWND, state: &State) -> Result<()> {
+    if state.tray.resident.get() {
+        state.tray.recovery.set(false);
+    }
     let message = RegisterWindowMessageW(w!("TaskbarCreated"));
     if message == 0 {
         return Err(Error::from_win32());
@@ -124,6 +135,9 @@ unsafe fn install(hwnd: HWND, state: &State) -> Result<()> {
     install_with(&state.tray.installed, |message| {
         Shell_NotifyIconW(message, &icon).as_bool()
     })?;
+    if state.tray.resident.get() {
+        state.tray.recovery.set(true);
+    }
     Ok(())
 }
 pub(super) unsafe fn refresh_language(hwnd: HWND, state: &State) {
@@ -144,6 +158,9 @@ pub(super) unsafe fn refresh_language(hwnd: HWND, state: &State) {
     }
 }
 unsafe fn remove(hwnd: HWND, state: &State) {
+    if state.tray.resident.get() {
+        state.tray.recovery.set(false);
+    }
     if state.tray.installed.get() {
         if Shell_NotifyIconW(NIM_DELETE, &data(hwnd)).as_bool() {
             state.tray.installed.set(false);
@@ -170,7 +187,7 @@ pub(super) unsafe fn hide_with(
     state
         .tray
         .panel_visible
-        .set(IsWindowVisible(state.tool_panel.get()).as_bool());
+        .set(state.shake.panel.get() || IsWindowVisible(state.tool_panel.get()).as_bool());
     state.tray.hidden.set(true);
     // Close parameter panels on demand without reopening on tray/group restoration, avoiding floating panels or revived drafts while hidden.
     state.parameters_ui.close.set(true);
@@ -223,11 +240,16 @@ pub(super) unsafe fn restore_with(
     if !state.tray.hidden.replace(false) || !IsWindow(Some(hwnd)).as_bool() {
         return;
     }
-    show(hwnd, SW_RESTORE);
-    if state.tray.panel_visible.replace(false) {
-        show(state.tool_panel.get(), SW_SHOWNOACTIVATE);
+    let panel = state.tray.panel_visible.replace(false);
+    if state.shake.hidden.get() {
+        state.shake.panel.set(panel);
+    } else {
+        show(hwnd, SW_RESTORE);
+        if panel {
+            show(state.tool_panel.get(), SW_SHOWNOACTIVATE);
+        }
+        foreground(hwnd);
     }
-    foreground(hwnd);
     if !state.tray.resident.get() {
         remove(hwnd, state);
     }
@@ -235,7 +257,7 @@ pub(super) unsafe fn restore_with(
 
 unsafe fn activate(hwnd: HWND, state: &State) {
     // Empty hosts carry only tray/hotkeys; imageless Art still retains recall eligibility via pinned.
-    if empty_host(state) {
+    if empty_host(state) || state.shake.hidden.get() {
         return;
     }
     if state.tray.hidden.get() {
@@ -271,6 +293,16 @@ unsafe fn build_menu(state: &State) -> Result<(Menu, Option<crate::autostart::St
     actions::append(menu.0, state)?;
     let startup = startup::append(menu.0)?;
     language::append(menu.0)?;
+    delay::append(menu.0, state)?;
+    archive::append(menu.0, state)?;
+    super::global_capture::append(menu.0, state)?;
+    AppendMenuW(
+        menu.0,
+        MF_STRING,
+        actions::SHORTCUT_SETTINGS,
+        &windows::core::HSTRING::from(crate::ui_text::text("action-shortcut-settings")),
+    )?;
+    startup::append_token(menu.0)?;
     AppendMenuW(
         menu.0,
         MF_STRING,
@@ -299,8 +331,11 @@ unsafe fn menu(hwnd: HWND, state: &State, position: WPARAM) -> Result<()> {
                 super::application::request_exit(hwnd, state)?;
             }
             startup::COMMAND => startup::execute(hwnd, state, startup),
+            super::global_capture::COMMAND => super::global_capture::toggle(hwnd, state),
             _ => {
-                if !language::execute(hwnd, state, command)?
+                if !archive::execute(hwnd, state, command)?
+                    && !delay::execute(hwnd, state, command)?
+                    && !language::execute(hwnd, state, command)?
                     && !actions::execute(hwnd, state, command)
                 {
                     let _ = Shell_NotifyIconW(NIM_SETFOCUS, &data(hwnd));
@@ -343,6 +378,7 @@ pub(super) unsafe fn dispatch(
             state,
             || install(hwnd, state),
             || {
+                super::capture_countdown::cancel();
                 if state.tray.hidden.get() {
                     restore(hwnd, state);
                 } else {
@@ -381,7 +417,7 @@ mod tests {
             let state = State::new(None, false).unwrap();
             let (menu, _) = build_menu(&state).unwrap();
             let tree = crate::native_menu::snapshot(menu.0).unwrap();
-            assert_eq!(tree.len(), 8);
+            assert_eq!(tree.len(), 13);
             for (index, key) in [
                 "tray-capture",
                 "tray-live-capture",
@@ -398,12 +434,32 @@ mod tests {
                 .label
                 .starts_with(crate::ui_text::text("tray-autostart")));
             assert_eq!(tree[6].label, crate::ui_text::text("tray-language"));
-            assert_eq!(tree[7].label, crate::ui_text::text("tray-exit"));
+            assert_eq!(tree[7].label, crate::ui_text::text("tray-delay"));
+            assert_eq!(tree[7].children.as_ref().unwrap().len(), 3);
+            assert_eq!(tree[8].label, crate::ui_text::text("archive-menu"));
+            assert!(tree[9]
+                .label
+                .starts_with(crate::ui_text::text("action-hotkey-menu")));
+            assert_eq!(
+                tree[10].label,
+                crate::ui_text::text("action-shortcut-settings")
+            );
+            let token_label = if crate::elevation_status::elevated().unwrap() {
+                "tray-token-elevated"
+            } else {
+                "tray-token-standard"
+            };
+            assert_eq!(tree[11].label, crate::ui_text::text(token_label));
+            assert!(!tree[11].enabled);
+            assert_eq!(tree[12].label, crate::ui_text::text("tray-exit"));
             assert_eq!(tree[6].children.as_ref().unwrap().len(), 2);
             assert!(tree
                 .iter()
                 .enumerate()
-                .all(|(index, item)| (index == 6 || item.children.is_none()) && !item.separator));
+                .all(
+                    |(index, item)| (matches!(index, 6..=8) || item.children.is_none())
+                        && !item.separator
+                ));
         }
     }
     #[test]

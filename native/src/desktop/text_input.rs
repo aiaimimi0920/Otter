@@ -18,6 +18,7 @@ pub(super) struct Pending {
     pixels: crate::pixels::Pixels,
     stamp: crate::editor::DocumentStamp,
     text: Option<TextAnnotation>,
+    geometry: Option<crate::text_annotation::TextBox>,
     tool: Tool,
     font: crate::text_annotation::TextFont,
     style: crate::stroke_style::StrokeStyle,
@@ -60,6 +61,7 @@ impl Pending {
             stamp: canvas.editor.document_stamp(),
             font: text.font().clone(),
             style: stroke.style(),
+            geometry: text.geometry(),
             text: Some(text),
             tool: canvas.tool,
         })
@@ -168,6 +170,7 @@ pub(super) unsafe fn insert(hwnd: HWND, state: &State, point: Point) {
                 pixels: image.pixels.clone(),
                 stamp: canvas.editor.document_stamp(),
                 text: None,
+                geometry: canvas.tool_profiles.text_box,
                 tool: Tool::Text,
                 font: canvas.tool_profiles.text_font.clone(),
                 style: canvas.editor.style(),
@@ -208,14 +211,21 @@ unsafe fn commit_content(
     } else {
         TextAnnotation::new
     };
-    let Some(text) = constructor(
+    // Cancelling an empty new annotation is intentional. A nonempty draft
+    // rejected by allocation or validation is not an empty successful edit.
+    if pending.text.is_none() && content.trim().is_empty() {
+        return Ok(());
+    }
+    let text = constructor(
         content,
         pending.font.family(),
         pending.font.font_size(),
         pending.font.bold(),
-    ) else {
-        return Ok(());
-    };
+    )
+    .ok_or_else(|| {
+        windows::core::Error::new(E_FAIL, crate::ui_text::text("action-text-draft-rejected"))
+    })?;
+    let text = text.with_geometry(pending.geometry);
     let size = super::annotation_text::measure(&text)?;
     pending.commit(&mut state.canvas.borrow_mut(), text, size)?;
     Ok(())

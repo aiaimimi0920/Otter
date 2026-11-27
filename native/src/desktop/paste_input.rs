@@ -2,6 +2,8 @@
 use super::State;
 #[path = "clipboard_file.rs"]
 pub(super) mod file;
+#[path = "clipboard_text_paste.rs"]
+pub(super) mod text;
 use crate::pixels::Pixels;
 use windows::{
     core::{w, Error, Result, HSTRING},
@@ -31,6 +33,7 @@ impl Drop for Lock {
 }
 
 pub(super) enum Snapshot {
+    Text(Vec<u16>),
     Editable(std::sync::Arc<super::clipboard_editable::Content>),
     Png(Pixels),
     Dib(Pixels),
@@ -61,6 +64,8 @@ pub(super) unsafe fn read_image(hwnd: HWND, state: &State, new_pin: bool) -> Res
         (8, true)
     } else if IsClipboardFormatAvailable(15).is_ok() {
         (15, false)
+    } else if new_pin && IsClipboardFormatAvailable(text::FORMAT).is_ok() {
+        return text::snapshot().map(Snapshot::Text);
     } else {
         return Err(Error::new(
             E_INVALIDARG,
@@ -186,6 +191,8 @@ pub(super) unsafe fn deliver_at(
             .position((cursor.x, cursor.y))
     };
     let input = match snapshot {
+        Snapshot::Text(units) if new_pin => Input::TextCard(units),
+        Snapshot::Text(_) => return Err(Error::new(E_INVALIDARG, "Text cards require a new pin")),
         Snapshot::Editable(content) if new_pin => Input::Editable(content, None),
         Snapshot::Editable(_) => {
             return Err(Error::new(

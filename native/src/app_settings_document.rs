@@ -73,6 +73,7 @@ impl Document {
         document.display_language_revision()?;
         document.last_display_language_request()?;
         document.last_display_language_receipt()?;
+        document.shortcut_settings()?;
         Ok(document)
     }
 
@@ -282,6 +283,10 @@ fn valid_request_field(value: &str, limit: usize) -> bool {
 }
 
 use serde::Deserialize;
+
+#[path = "app_settings_shortcuts.rs"]
+mod shortcuts;
+pub use shortcuts::ShortcutSettings;
 
 struct BoundedOutput(Vec<u8>);
 impl Write for BoundedOutput {

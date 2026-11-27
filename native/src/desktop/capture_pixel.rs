@@ -1,6 +1,13 @@
 //! Single-pixel color sampling from frozen frames; no local magnifier drawing, sample-block copies, or recapture.
 use super::image::Image;
 use windows::Win32::Foundation::POINT;
+pub(super) fn valid_rgb(image: &Image, point: POINT) -> Option<[u8; 3]> {
+    if point.x < 0 || point.y < 0 || point.x as u32 >= image.width || point.y as u32 >= image.height
+    {
+        return None;
+    }
+    rgb(image, point)
+}
 
 pub(super) fn rgb(image: &Image, point: POINT) -> Option<[u8; 3]> {
     if image.width == 0

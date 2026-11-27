@@ -101,6 +101,7 @@ impl Application {
             return Ok(());
         }
         // Independent snapshots and Rc gates do not borrow documents, so background completion can safely return to Application.
+        let layout = pin_arrange::menu::Snapshot::capture(self, &pending.origin);
         let (hwnd, flag, contents) = {
             let doc = self
                 .documents
@@ -108,6 +109,7 @@ impl Application {
                 .find(|doc| doc.state.unit_id == pending.origin)
                 .unwrap();
             let menu = ui::build(&doc.state)?;
+            layout.append(menu.0)?;
             (
                 doc.window.0,
                 doc.state.file_dialog.clone(),
@@ -121,6 +123,11 @@ impl Application {
             })?;
         if !current(self, pending) {
             return Ok(());
+        }
+        if let popup::Selection::Command(id) = &selected {
+            if layout.execute(self, &pending.origin, *id)? {
+                return Ok(());
+            }
         }
         let state = &self
             .documents

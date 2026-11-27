@@ -4,6 +4,7 @@ use crate::editor::Tool;
 #[derive(Clone, Copy, Default)]
 pub(super) struct Availability {
     image: bool,
+    static_lens: bool,
     busy: bool,
     flipping: bool,
     copying: bool,
@@ -43,6 +44,10 @@ impl Availability {
             || state.rasterize_job.try_borrow().ok()?.is_some()
             || state.resize_job.try_borrow().ok()?.is_busy();
         Some(Self {
+            static_lens: !state.live_pin.get()
+                && !canvas.live_pin
+                && canvas.image.is_some()
+                && state.resolved_display.try_borrow().ok()?.is_none(),
             locked: state.group_locked.get(),
             minified: canvas.minified.is_some(),
             capture_blocked: !super::capture_input::exclusive_available(state)
@@ -84,6 +89,9 @@ impl Availability {
             .iter()
             .find(|entry| entry.id == command)
         {
+            if entry.tool == Tool::Magnifier {
+                return self.static_lens;
+            }
             return self.image || matches!(entry.tool, Tool::Pan | Tool::Select);
         }
         match command {

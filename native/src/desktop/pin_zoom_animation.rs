@@ -24,8 +24,10 @@ pub(in crate::desktop) struct Animation {
     pub(super) click: Cell<Option<super::preview::Click>>,
 }
 pub(in crate::desktop) fn busy(state: &State) -> bool {
-    state.pin_animation.moving.get()
-        || state.pin_animation.motion.get().is_some()
+    moving(state) || zoom_busy(state)
+}
+pub(in crate::desktop) fn zoom_busy(state: &State) -> bool {
+    state.pin_animation.motion.get().is_some()
         || (super::preview::active(state)
             && (!state.pin_animation.parked.get() || state.error.borrow().is_some()))
 }

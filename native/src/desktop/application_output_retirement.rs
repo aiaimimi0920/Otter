@@ -3,7 +3,10 @@
 use crate::desktop::{copy_job, drag_prepare, export_job, State};
 
 #[derive(Default)]
-pub(super) struct Retired(Vec<Job>);
+pub(super) struct Retired {
+    jobs: Vec<Job>,
+    pub archive: crate::desktop::export_image_autosave::Shared,
+}
 
 enum Job {
     Copy(copy_job::Job),
@@ -33,21 +36,22 @@ impl Retired {
     pub(super) fn take_from(&mut self, state: &State) {
         if let Some(copy) = state.copy_job.take() {
             copy.cancel();
-            self.0.push(Job::Copy(copy));
+            self.jobs.push(Job::Copy(copy));
         }
         if let Some(drag) = state.drag.retire_preparation() {
-            self.0.push(Job::Drag(drag));
+            self.jobs.push(Job::Drag(drag));
         }
         if let Some(export) = state.export.take() {
-            self.0.push(Job::Export(export));
+            self.jobs.push(Job::Export(export));
         }
     }
 
     pub(super) fn reap(&mut self) {
+        self.archive.borrow_mut().pump(false);
         let mut index = 0;
-        while index < self.0.len() {
-            if self.0[index].finished() {
-                self.0.swap_remove(index).complete();
+        while index < self.jobs.len() {
+            if self.jobs[index].finished() {
+                self.jobs.swap_remove(index).complete();
             } else {
                 index += 1;
             }
@@ -55,12 +59,17 @@ impl Retired {
     }
 
     pub(super) fn is_empty(&self) -> bool {
-        self.0.is_empty()
+        self.jobs.is_empty() && self.archive.try_borrow().is_ok_and(|owner| !owner.busy())
     }
 
     pub(super) fn shutdown(&mut self) {
-        for job in self.0.drain(..) {
+        for job in self.jobs.drain(..) {
             job.complete();
+        }
+        let mut owner = self.archive.borrow_mut();
+        owner.pump(true);
+        if let Some(error) = owner.error.take() {
+            eprintln!("native-archive-retired: {error}");
         }
     }
 }

@@ -219,6 +219,7 @@ impl Application {
             else {
                 let changed = frame.take().is_some();
                 drop(frame);
+                waiting(doc, false);
                 if changed {
                     invalidate(doc);
                 }
@@ -228,11 +229,22 @@ impl Application {
                 Owner::Document(index) => *index,
                 Owner::Live(unit) => {
                     drop(frame);
-                    live::publish(doc, unit, &origin.image, views[index].art);
+                    let hint = self
+                        .live_sessions
+                        .iter()
+                        .find(|s| s.unit_id() == unit && s.belongs_to(&self.workspace))
+                        .and_then(|s| s.naming.as_ref());
+                    live::publish(doc, unit, &origin.image, views[index].art, hint);
                     continue;
                 }
             };
             let source = &self.documents[source_index].state;
+            if origin.local && !cache::local_ready(&self.documents[source_index]) {
+                // Hold the previous snapshot for recovery, not for display or
+                // publication while the underlying pixels are being changed.
+                waiting(doc, true);
+                continue;
+            }
             let composed;
             let image = if views[index].art && origin.local {
                 composition_sources.push(source.unit_id.clone());
@@ -247,10 +259,14 @@ impl Application {
                         &composed
                     }
                     Ok(None) => {
+                        waiting(doc, true);
                         pending_composition = true;
                         continue;
                     }
-                    Err(()) => continue,
+                    Err(()) => {
+                        waiting(doc, true);
+                        continue;
+                    }
                 }
             } else {
                 &origin.image
@@ -263,11 +279,11 @@ impl Application {
             let own_art_overlay =
                 art_formal && (canvas.editor.has_edit_state() || source_index != index);
             let editor = (origin.local || own_art_overlay).then_some(&canvas.editor);
-            if !frame
-                .as_ref()
-                .is_some_and(|frame| frame.matches(&source.unit_id, image, editor, own_art_overlay))
-            {
-                *frame = Some(if own_art_overlay {
+            if !frame.as_ref().is_some_and(|frame| {
+                frame.matches(&source.unit_id, image, editor, own_art_overlay)
+                    && frame.current_producer()
+            }) {
+                let mut next = if own_art_overlay {
                     match Frame::capture_overlay(
                         source.unit_id.clone(),
                         doc.state.unit_id.clone(),
@@ -278,15 +294,28 @@ impl Application {
                         Err(error) => {
                             // Retain the previous frame; retry only after the document or result changes to avoid a failed-repaint loop.
                             eprintln!("Art overlay mapping failed: {error:?}");
+                            drop(canvas);
+                            waiting(doc, true);
                             continue;
                         }
                     }
                 } else {
                     Frame::capture(source.unit_id.clone(), image.clone(), editor)
-                });
+                };
+                // Only a traced local capture has a local naming owner. Remote
+                // results never inherit captions from their target Art window.
+                if origin.local {
+                    next.bind_local(source);
+                    next.naming = source.canvas.borrow().source_naming().cloned();
+                }
+                *frame = Some(next);
                 drop(frame);
                 drop(canvas);
+                waiting(doc, false);
                 invalidate(doc);
+            } else {
+                drop(canvas);
+                waiting(doc, false);
             }
         }
         // After disconnection or target closure, do not retain composed pixels indefinitely just because the source document remains alive.
@@ -295,6 +324,16 @@ impl Application {
             .retain(|id, _, _| composition_sources.contains(id));
         *self.display_cache.borrow_mut() =
             (!pending_composition).then(|| Cache::capture(&self.documents, &self.workspace));
+    }
+}
+
+fn waiting(doc: &crate::desktop::document_window::DocumentWindow, wait: bool) {
+    if std::mem::replace(&mut doc.state.canvas.borrow_mut().display_waiting, wait) != wait {
+        // A cancelled draft can resume the exact same frame, so the transition
+        // itself must repaint even if neither the image nor the editor changed.
+        unsafe {
+            let _ = windows::Win32::Graphics::Gdi::InvalidateRect(Some(doc.window.0), None, false);
+        }
     }
 }
 

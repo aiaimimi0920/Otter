@@ -29,7 +29,21 @@ pub enum Error {
 
 impl Config {
     pub fn from_env() -> Self {
+        #[cfg(windows)]
+        if !crate::elevation_status::allows_desktop_integrations() {
+            return Self::local_only();
+        }
         Self::from_lookup(|name| std::env::var_os(name))
+    }
+    // Bridge and HTTP media normally have independent enablement. A manual
+    // elevated launch must not consult either one's ordinary-user manifests.
+    #[cfg(any(windows, test))]
+    fn local_only() -> Self {
+        Self {
+            enabled: false,
+            paths: Vec::new(),
+            endpoint_override: None,
+        }
     }
     /// Inject a read-only query interface without changing global environment; canonical variables outrank old HOOK names even when empty.
     pub fn from_lookup(read: impl Fn(&OsStr) -> Option<OsString>) -> Self {

@@ -12,6 +12,8 @@ use windows::{
 pub(super) const EXPORT_TIMER: usize = 0x4F54;
 #[path = "export_default.rs"]
 mod default_save;
+#[path = "export_save_dialog.rs"]
+mod options_panel;
 #[path = "export_original.rs"]
 pub(super) mod original;
 pub(super) use default_save::start as start_default;
@@ -79,18 +81,52 @@ pub(super) unsafe fn start(hwnd: HWND, state: &State) {
     let Some(_dialog) = Dialog::begin(&state.file_dialog) else {
         return;
     };
-    state.canvas.borrow_mut().cancel_gesture();
+    if !super::display_snapshot::ready(state) {
+        report(hwnd, crate::ui_text::text("display-output-edit-pending"));
+        return;
+    }
     let stamp = super::display_snapshot::Stamp::capture(
         &state.canvas.borrow(),
         state.resolved_display.borrow().as_ref(),
     );
+    let Some((image, editor)) = snapshot_if_current(
+        &state.canvas.borrow(),
+        state.resolved_display.borrow().as_ref(),
+        &stamp,
+    ) else {
+        return;
+    };
+    let source = export::codec::Source {
+        image,
+        editor,
+        opacity: state.canvas.borrow().normal_opacity,
+        style: export::style::Snapshot::capture_with_frame(
+            &state.canvas.borrow(),
+            state.resolved_display.borrow().as_ref(),
+        ),
+    };
+    let (format, bytes) = match options_panel::choose(hwnd, source) {
+        Ok(Some(choice)) => choice,
+        Ok(None) => return,
+        Err(e) => {
+            if IsWindow(Some(hwnd)).as_bool() {
+                report(hwnd, &e.to_string());
+            }
+            return;
+        }
+    };
+    if !IsWindow(Some(hwnd)).as_bool() {
+        return;
+    }
     let mut name = vec![0u16; 32768];
-    if let Some(suggested) = super::export_naming::suggested(state) {
+    if let Some(suggested) = super::export_naming::suggested_as(state, format.ext()) {
         for (destination, unit) in name.iter_mut().zip(suggested.encode_utf16()) {
             *destination = unit;
         }
     }
-    let filter: Vec<u16> = format!("{}\0*.png\0\0", crate::ui_text::text("file-filter-png"))
+    let ext = format.ext();
+    let def: Vec<u16> = ext.encode_utf16().chain(Some(0)).collect();
+    let filter: Vec<u16> = format!("{} (*.{ext})\0*.{ext}\0\0", ext.to_ascii_uppercase())
         .encode_utf16()
         .collect();
     let mut options = OPENFILENAMEW {
@@ -99,7 +135,7 @@ pub(super) unsafe fn start(hwnd: HWND, state: &State) {
         lpstrFile: windows::core::PWSTR(name.as_mut_ptr()),
         nMaxFile: name.len() as u32,
         lpstrFilter: PCWSTR(filter.as_ptr()),
-        lpstrDefExt: w!("png"),
+        lpstrDefExt: PCWSTR(def.as_ptr()),
         Flags: OFN_EXPLORER | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR,
         ..Default::default()
     };
@@ -118,19 +154,25 @@ pub(super) unsafe fn start(hwnd: HWND, state: &State) {
         .position(|unit| *unit == 0)
         .unwrap_or(name.len());
     let path = PathBuf::from(std::ffi::OsString::from_wide(&name[..end]));
-    let snapshot = snapshot_if_current(
-        &state.canvas.borrow(),
-        state.resolved_display.borrow().as_ref(),
-        &stamp,
-    );
-    let Some((image, editor)) = snapshot else {
+    if !format.accepts(&path) {
+        report(hwnd, crate::ui_text::text("export-extension-mismatch"));
+        return;
+    }
+    if state.inline_text.borrow().is_some()
+        || !stamp.matches(
+            &state.canvas.borrow(),
+            state.resolved_display.borrow().as_ref(),
+        )
+    {
         report(hwnd, crate::ui_text::text("export-document-changed"));
         return;
     };
-    let opacity = state.canvas.borrow().normal_opacity;
-    let style = export::style::Snapshot::capture(&state.canvas.borrow());
     spawn(hwnd, state, move || {
-        style.save_new(&path, &image, &editor, opacity)
+        let stop = std::sync::atomic::AtomicBool::new(false);
+        crate::session_file_write::Staged::prepare_bytes(&path, bytes, &stop)
+            .and_then(|file| file.commit_new(&stop))
+            .map(|_| ())
+            .map_err(|e| e.to_string())
     });
 }
 

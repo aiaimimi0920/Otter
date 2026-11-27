@@ -34,7 +34,7 @@ pub(super) fn read(raw: Option<&RawValue>, cancel: &AtomicBool) -> Result<HashMa
     for raw in state.elements {
         check(cancel)?;
         let element: Element<'_> = serde_json::from_str(raw.get()).map_err(|_| invalid())?;
-        if element.kind != "blur" {
+        if !matches!(element.kind.as_ref(), "blur" | "blur-rect") {
             continue;
         }
         let rect = Rect {

@@ -15,7 +15,11 @@ unsafe fn show_group(owner: HWND, state: &State, id: u16) -> Result<usize> {
             neuro_mini_ui::MenuItem {
                 id: *command as u16,
                 label: raw.split('\t').next().unwrap_or(raw).into(),
-                shortcut: String::new(),
+                shortcut: crate::desktop::tool_commands::TOOLS
+                    .iter()
+                    .find(|entry| entry.id == *command)
+                    .and_then(|entry| entry.shortcut(state))
+                    .unwrap_or_default(),
                 icon: catalog::icon(*command),
                 selected: choice(panel, id) == *command,
                 enabled: allowed(state, available, *command),

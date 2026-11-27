@@ -85,6 +85,20 @@ fn lease_is_exclusive_across_processes_and_released_after_abrupt_exit() {
     assert!(Profile::open(&directory.0).is_ok());
 }
 #[test]
+fn hardlinked_lock_is_rejected_without_touching_the_other_name() {
+    let directory = Directory::new();
+    let sentinel = directory.0.join("sentinel");
+    let lock = directory.0.join("workspace.lock");
+    std::fs::write(&sentinel, b"keep").unwrap();
+    std::fs::hard_link(&sentinel, &lock).unwrap();
+    let error = Profile::open(&directory.0).err().expect("aliased lock");
+    assert_eq!(error.kind(), io::ErrorKind::InvalidInput);
+    assert_eq!(std::fs::read(&sentinel).unwrap(), b"keep");
+    assert_eq!(std::fs::read(&lock).unwrap(), b"keep");
+    std::fs::remove_file(lock).unwrap();
+    assert!(Profile::open(&directory.0).is_ok());
+}
+#[test]
 fn file_roots_and_parent_components_are_rejected_and_unique_recovery_is_found() {
     let directory = Directory::new();
     let sentinel = directory.0.join("sentinel");

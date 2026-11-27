@@ -97,6 +97,12 @@ fn stable_document_exports_independent_snapshot_but_active_draft_is_rejected() {
         .pixels
         .same_storage(&canvas.image.as_ref().unwrap().pixels));
     assert!(!canvas.editor.document_stamp().matches(&snapshot));
+    canvas.selection_effect_preview = Some(canvas.editor.elements()[0].clone());
+    assert!(canvas.editor.draft().is_none());
+    assert!(snapshot_if_current(&canvas, None, &stamp).is_none());
+    assert!(crate::desktop::display_snapshot::capture(&canvas, None).is_none());
+    canvas.selection_effect_preview.take();
+    assert!(stamp.matches(&canvas, None));
     canvas
         .editor
         .begin(Tool::Brush, Point { x: 1.0, y: 1.0 })

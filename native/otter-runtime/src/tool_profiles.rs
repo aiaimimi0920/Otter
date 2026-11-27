@@ -18,6 +18,8 @@ pub struct ToolProfiles {
     line_angle_snap: [bool; 2],
     brush_smoothing: u8,
     brush_highlighter: bool,
+    pub effect_rect: bool,
+    pub text_box: Option<crate::text_annotation::TextBox>,
     paintbrush_smoothing: u8,
 }
 
@@ -42,6 +44,8 @@ impl Default for ToolProfiles {
             line_angle_snap: [false; 2],
             brush_smoothing: 0,
             brush_highlighter: false,
+            effect_rect: false,
+            text_box: None,
             paintbrush_smoothing: 50,
         }
     }
@@ -64,7 +68,14 @@ fn index(tool: Tool) -> Option<usize> {
         Tool::Ellipse => Some(5),
         Tool::Triangle => Some(6),
         Tool::Polygon => Some(7),
-        Tool::Pan | Tool::Select | Tool::Text | Tool::Serial => None,
+        Tool::Pan
+        | Tool::Select
+        | Tool::Text
+        | Tool::Serial
+        | Tool::SpotRect
+        | Tool::Magnifier
+        | Tool::SpotRounded
+        | Tool::SpotEllipse => None,
     }
 }
 

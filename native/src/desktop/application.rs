@@ -24,6 +24,8 @@ mod context_menu;
 mod frozen_menu;
 #[path = "application_loom_connection.rs"]
 mod loom_connection;
+#[path = "application_pin_arrange.rs"]
+mod pin_arrange;
 #[path = "application_projection_inbox.rs"]
 mod projection;
 #[path = "application_projection_edit.rs"]
@@ -174,6 +176,10 @@ mod save_ui;
 mod session_end;
 #[path = "application_shader_startup.rs"]
 mod shader_startup;
+#[path = "application_shortcut_remote.rs"]
+mod shortcut_remote;
+#[path = "application_shortcut_save.rs"]
+mod shortcut_save;
 #[path = "application_shutdown.rs"]
 mod shutdown;
 #[cfg(any(test, debug_assertions, feature = "smoke-test"))]
@@ -205,6 +211,7 @@ pub(super) use smoke::run as smoke;
 
 pub(super) struct Application {
     chrome: chrome::Owner,
+    pin_layout: pin_arrange::Owner,
     capture_history: history::worker::Owner,
     edit_palette: super::edit_palette::Shared,
     history_window: Option<history::window::Window>,
@@ -230,6 +237,7 @@ pub(super) struct Application {
     naming_save_job: Option<naming_save::Pending>,
     locale: locale::Owner,
     locale_remote: locale_remote::Owner,
+    shortcut_remote: shortcut_remote::Owner,
     naming_document: std::sync::Arc<crate::app_settings_document::Document>,
     art_issuers: crate::art_issuer_trust::Authority,
     naming_source: Option<std::sync::Arc<crate::settings_source::Source>>,
@@ -273,6 +281,9 @@ pub(super) struct Application {
     instance: HINSTANCE,
     error: Option<Error>,
     hotkey_enabled: std::rc::Rc<std::cell::Cell<bool>>,
+    shortcut_display: std::rc::Rc<std::cell::Cell<Option<(bool, [bool; 6])>>>,
+    tray_recovery: std::rc::Rc<std::cell::Cell<bool>>,
+    shortcut_policy: std::rc::Rc<std::cell::RefCell<crate::shortcut_policy::Policy>>,
     long_hotkey_enabled: std::rc::Rc<std::cell::Cell<bool>>,
     live_hotkey_enabled: std::rc::Rc<std::cell::Cell<bool>>,
     capture_active: std::rc::Rc<std::cell::Cell<bool>>,
@@ -285,7 +296,7 @@ pub(super) struct Application {
 
 impl Application {
     unsafe fn collect_closed(&mut self) {
-        self.retired_edits.reap();
+        self.reap_retired_edits();
         self.frozen_library.borrow().workers.reap();
         for doc in &self.documents {
             if doc.state.live_pin.get() && !doc.is_alive() {
@@ -336,10 +347,13 @@ impl Application {
         self.sync_frozen_menu();
         // Create new HWNDs only after reaping old owners, so handle reuse cannot overlap an old owner's destruction.
         self.collect_closed();
+        self.settle_pin_shake();
+        self.settle_pin_click(visible);
         self.process_live(visible)?;
         self.process_frozen_menu(visible)?;
         self.process_authorization();
         self.process_remote_locale();
+        self.process_remote_shortcuts();
         for doc in &self.documents {
             if super::display_edit::settle(&doc.state) {
                 let _ =
@@ -459,17 +473,6 @@ impl Application {
             let _ = ShowWindow(panel, SW_SHOWNOACTIVATE);
         }
         Ok(())
-    }
-    pub(super) unsafe fn run(mut self, startup: Option<super::SessionStartup>) -> Result<()> {
-        let control = std::rc::Rc::clone(&self.session_end);
-        super::session_end::with_owner(&control, || {
-            // All main-loop errors go through shared cleanup first; neither ? nor a nonzero WM_QUIT may bypass the Live message pump.
-            let result = self.run_loop(startup);
-            self.collect_closed();
-            self.shutdown();
-            result?;
-            self.error.take().map_or(Ok(()), Err)
-        })
     }
 }
 

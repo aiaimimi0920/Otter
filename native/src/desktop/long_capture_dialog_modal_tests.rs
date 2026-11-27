@@ -82,6 +82,7 @@ fn real_modal_loop_dispatches_disabled_owners_hotkey_and_returns_composed_image(
         owner.state.capture_active.set(true);
         owner.state.file_dialog.set(true);
         owner.state.global_capture.set(true);
+        crate::desktop::shortcut_registry::fixture_bindings(&owner.state);
         owner.state.global_long_capture.set(true);
         owner.state.modals.register(&owner.state.file_dialog);
         let window = Window(

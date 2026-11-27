@@ -120,6 +120,7 @@ unsafe fn build(
     annotations::add_transformed(
         &region,
         editor,
+        views.annotations.size,
         XFORM {
             eM11: (scale.0 * mapping.scale.0) as f32,
             eM22: (scale.1 * mapping.scale.1) as f32,

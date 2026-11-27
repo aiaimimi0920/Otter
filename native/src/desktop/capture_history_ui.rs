@@ -30,6 +30,7 @@ pub(super) enum Action {
 }
 #[derive(Default)]
 pub(super) struct View {
+    pub last_region: Option<crate::capture_last_region::Last>,
     // Window actions and the save worker keep the exact revision they observed.
     pub data: Arc<Data>,
     pub revision: u64,

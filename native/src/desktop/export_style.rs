@@ -9,18 +9,37 @@ pub(in crate::desktop) struct Snapshot {
 }
 impl Snapshot {
     pub(in crate::desktop) fn capture(c: &crate::desktop::canvas::Canvas) -> Self {
+        Self::capture_with_frame(c, None)
+    }
+    pub(in crate::desktop) fn capture_with_frame(
+        c: &crate::desktop::canvas::Canvas,
+        frame: Option<&crate::desktop::display_frame::Frame>,
+    ) -> Self {
         if c.frame_style == Style::default() {
             return Self::default();
         }
+        let scale = f64::from(c.viewport.scale);
         let logical = if let Some(mini) = &c.minified {
             let size = mini.geometry().0.annotations.size;
             (size.width, size.height)
-        } else if let Some(size) = c.client_size {
+        } else if let Some(size) = c.client_size.filter(|s| s.x > 0.0 && s.y > 0.0) {
             (f64::from(size.x), f64::from(size.y))
+        } else if let Some(frame) = frame {
+            let (w, h) = frame
+                .editor
+                .as_deref()
+                .and_then(Editor::annotation_frame)
+                .map_or(
+                    (f64::from(frame.image.width), f64::from(frame.image.height)),
+                    |r| (r.width, r.height),
+                );
+            (w * scale, h * scale)
+        } else if let Some(crop) = c.editor.annotation_frame() {
+            (crop.width * scale, crop.height * scale)
         } else if let Some(image) = &c.image {
             (
-                f64::from(image.width) * f64::from(c.viewport.scale),
-                f64::from(image.height) * f64::from(c.viewport.scale),
+                f64::from(image.width) * scale,
+                f64::from(image.height) * scale,
             )
         } else {
             (0.0, 0.0)
@@ -126,17 +145,19 @@ impl Snapshot {
         drop(bitmap);
         Ok((stream_pixels(stream, size)?, preview))
     }
-    pub(in crate::desktop) fn save_new(
+    pub(in crate::desktop) fn encoded_png(
         self,
-        path: &Path,
         image: &Image,
         editor: &Editor,
         opacity: f32,
-    ) -> std::result::Result<(), String> {
-        save_allocated(image, editor, opacity, Some(&self), || {
-            crate::file_naming::allocate::create_exact(path).map(|file| (file, path.to_path_buf()))
-        })
-        .map(|_| ())
+    ) -> Result<crate::pixels::Pixels> {
+        let _apartment = Apartment::new()?;
+        let wic: IWICImagingFactory =
+            unsafe { CoCreateInstance(&CLSID_WICImagingFactory, None, CLSCTX_INPROC_SERVER)? };
+        let bitmap = self.compose(image, editor, &wic, opacity, crate::pixels::reserve)?;
+        let (stream, size) = encode_bitmap(&wic, &bitmap.bitmap)?;
+        drop(bitmap);
+        stream_pixels(stream, size)
     }
     pub(in crate::desktop) fn save_incremented(
         self,

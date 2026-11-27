@@ -119,6 +119,13 @@ impl Application {
         if self.modals.blocked() {
             return false;
         }
+        if (self.exit_requested.get() || self.checkpoint_exit_waiting())
+            && !self.retired_edits.outputs_settled()
+        {
+            // A closed pin can still own a file export, and an archive is
+            // application-owned. The existing output deadline drives reaping.
+            return false;
+        }
         if let Some(ready) = self.finish_checkpoint_exit() {
             return ready && self.close_confirmed();
         }

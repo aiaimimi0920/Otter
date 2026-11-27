@@ -32,6 +32,9 @@ mod frame;
 use frame::Key;
 
 impl HitRegion {
+    pub(super) fn invalidate(&mut self) {
+        self.key = None;
+    }
     /// Network workers already prepared bounded alpha; retain independent local-annotation caches without UI rescans of new base images.
     pub(super) fn replace_source(&mut self, pixels: crate::pixels::Pixels, mask: AlphaRegion) {
         self.source = Some((pixels, mask));
@@ -115,6 +118,12 @@ impl OwnedRegion {
 
 pub(super) use super::pin_window::preview::hit_update as update;
 pub(super) unsafe fn update_visible(hwnd: HWND, state: &State) -> Result<()> {
+    if state.click.active() {
+        return Ok(());
+    }
+    rebuild(hwnd, state)
+}
+pub(super) unsafe fn rebuild(hwnd: HWND, state: &State) -> Result<()> {
     if state.canvas.borrow().minified.is_some() {
         return minified::update(hwnd, state);
     }
@@ -195,7 +204,13 @@ pub(super) unsafe fn update_visible(hwnd: HWND, state: &State) -> Result<()> {
                 editor.annotation_frame(),
                 key.base_projection,
             )?;
-            add_annotations(&region, editor, canvas.viewport.scale, dpi)?;
+            add_annotations(
+                &region,
+                editor,
+                (image.width, image.height),
+                canvas.viewport.scale,
+                dpi,
+            )?;
             // Scale mask/vector regions in source coordinates, then translate uniformly and intersect with visible crop bounds.
             let factor = dpi as f32 / 96.0;
             let dx = (canvas.viewport.origin.x * factor).round() as i32;

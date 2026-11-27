@@ -33,13 +33,33 @@ pub(super) fn append(
         .get("fontFamily")
         .and_then(Value::as_str)
         .unwrap_or("Segoe UI");
+    let boxed = element["type"] == "text-box";
+    if !boxed && (element.get("boxWidth").is_some() || element.get("boxPadding").is_some()) {
+        return Err(Error::Unsupported);
+    }
+    let geometry = if boxed {
+        Some(
+            crate::text_annotation::TextBox::new(
+                number(&element["boxWidth"])?,
+                number(&element["boxPadding"])?,
+            )
+            .ok_or(Error::Geometry)?,
+        )
+    } else {
+        None
+    };
     let text = TextAnnotation::restored(
         element["text"].as_str().ok_or(Error::Shape)?,
         family,
         font_size,
-        serial,
+        if boxed || element["type"] == "serial-arrow" {
+            element["bold"].as_bool().ok_or(Error::Style)?
+        } else {
+            serial
+        },
     )
-    .ok_or(Error::Style)?;
+    .ok_or(Error::Style)?
+    .with_geometry(geometry);
     let (start, size) = if serial {
         (
             Point {
@@ -64,7 +84,7 @@ pub(super) fn append(
         }
         (
             Point {
-                x: anchor.x - 4.0,
+                x: anchor.x - text.padding(),
                 y: anchor.y - metrics.baseline,
             },
             metrics.size,
@@ -90,5 +110,13 @@ pub(super) fn append(
             text,
             serial,
         )
-        .map_err(|_| Error::Geometry)
+        .map_err(|_| Error::Geometry)?;
+    if element["type"] == "serial-arrow" {
+        editor
+            .restore_serial_tip(point(&element["serialArrowTip"])?)
+            .map_err(|_| Error::Geometry)?;
+    } else if element.get("serialArrowTip").is_some() {
+        return Err(Error::Unsupported);
+    }
+    Ok(())
 }

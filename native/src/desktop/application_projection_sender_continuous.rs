@@ -125,9 +125,19 @@ impl Application {
             .is_some_and(|d| {
                 let canvas = d.state.canvas.borrow();
                 d.state.projection_edit.borrow().is_none()
+                    && !d
+                        .state
+                        .resolved_display
+                        .borrow()
+                        .as_ref()
+                        .is_some_and(|f| f.has_local_overlays())
                     && canvas.editor.draft().is_none()
                     && !canvas.editor.elements().iter().any(|stroke| {
                         stroke.blur.is_some()
+                            || stroke.tool.spotlight()
+                            || stroke.tool == crate::editor::Tool::Magnifier
+                            || stroke.serial_arrow_tip.is_some()
+                            || stroke.text.as_ref().is_some_and(|t| t.geometry().is_some())
                             || matches!(
                                 stroke.tool,
                                 crate::editor::Tool::Blur
@@ -182,23 +192,14 @@ impl Application {
                         if !render {
                             return Ok(None);
                         }
-                        crate::desktop::export::projection::target_frame_with_input(
-                            &render_source,
-                            unit.as_str(),
-                            &snapshot.image,
-                            &snapshot.editor,
-                            crate::desktop::export::projection::Presentation {
-                                opacity: snapshot.opacity,
-                                kind: snapshot.kind,
-                                geometry: snapshot.geometry,
-                            },
-                            snapshot.render_input(),
-                            lease.preparation_cancel(),
-                        )
-                        .map(Some)
-                        .map_err(|_| {
-                            crate::projection_delivery_runtime::Error::Sender(SenderError::Snapshot)
-                        })
+                        snapshot
+                            .one_way(&render_source, unit.as_str(), lease.preparation_cancel())
+                            .map(Some)
+                            .map_err(|_| {
+                                crate::projection_delivery_runtime::Error::Sender(
+                                    SenderError::Snapshot,
+                                )
+                            })
                     }),
                 },
             )

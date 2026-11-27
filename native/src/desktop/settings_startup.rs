@@ -32,15 +32,18 @@ impl Loaded {
                 .cache_policy()
                 .map_err(|error| Error::new(E_INVALIDARG, error))?;
             *state.naming.borrow_mut() = source.document().naming().clone();
+            *state.shortcut_policy.borrow_mut() = source
+                .document()
+                .shortcut_settings()
+                .map_err(|error| Error::new(E_INVALIDARG, error))?
+                .policy;
             state.cache_policy.set(policy);
         }
         Ok(())
     }
 }
-pub(super) fn resolve(explicit: Option<&Path>, hidden_check: bool) -> Result<Loaded> {
-    resolve_in_profile(explicit, hidden_check, None)
-}
-/// Independent Tile processes read the selected profile once; they do not become settings writers.
+/// A default desktop owner passes its leased root. Independent Tile processes
+/// can read a selected profile without becoming workspace writers.
 pub(super) fn resolve_in_profile(
     explicit: Option<&Path>,
     hidden_check: bool,
@@ -114,6 +117,14 @@ fn load(path: &Path, allow_missing: bool) -> Result<Option<Arc<crate::settings_s
         .map_err(|e| Error::new(E_INVALIDARG, format!("Invalid settings: {e}")))
 }
 pub(super) fn verify(state: &super::State, document: &Document) -> Result<()> {
+    if *state.shortcut_policy.borrow()
+        != document
+            .shortcut_settings()
+            .map_err(|error| Error::new(E_INVALIDARG, error))?
+            .policy
+    {
+        return Err(Error::new(E_FAIL, "Startup shortcuts were not installed"));
+    }
     let policy = document
         .cache_policy()
         .map_err(|error| Error::new(E_INVALIDARG, format!("Invalid cache settings: {error}")))?;

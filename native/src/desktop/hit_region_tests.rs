@@ -225,7 +225,7 @@ fn annotation_bounds_remain_interactive_on_transparent_source() {
     canvas.editor.commit();
     unsafe {
         let region = OwnedRegion::checked(CreateRectRgn(0, 0, 0, 0)).unwrap();
-        add_annotations(&region, &canvas.editor, canvas.viewport.scale, 96).unwrap();
+        add_annotations(&region, &canvas.editor, (32, 32), canvas.viewport.scale, 96).unwrap();
         assert!(PtInRegion(region.0, 16, 16).as_bool());
         assert!(!PtInRegion(region.0, 2, 2).as_bool());
     }

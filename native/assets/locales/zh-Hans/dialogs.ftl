@@ -5,7 +5,7 @@ naming-save-template = PNG 保存模板
 naming-drag-template = 拖出文件模板
 naming-clipboard-template = 剪贴板文件模板
 naming-title-length = 标题最大长度
-naming-placeholders = 占位符：{ "{app} {kind} {label} {title} {process} {unitId} {shortId} {width} {height} {date} {time} {timestamp}" }
+naming-placeholders = 占位符：{ "{app} {kind} {label} {title} {process} {unitId} {shortId} {width} {height} {date} {time} {timestamp}" }。添加 { "{sourceApp}" } 或 { "{windowTitle}" } 后，才会在捕获时读取来源应用或窗口标题并用于文件名；标题可能含文档名或网页名。
 naming-validation = 模板须使用有效占位符且不超过 4096 字节；标题长度须为 1–240 的整数。
 naming-unchanged = 命名设置未修改。
     { $error }
@@ -146,6 +146,7 @@ export-original-changed = 选择路径期间截图来源已改变，未写入文
 export-original-failed = 无法另存 HDR 原图；不会覆盖已有文件。
     { $error }
 export-document-changed = 选择保存路径期间文档已改变，未写入文件。请重新导出。
+display-output-edit-pending = 请先完成或取消当前编辑，再导出图像。未写入文件。
 long-capture-title = 长截图
 long-capture-first-frame = 已采集 1 帧
 long-capture-preview = 预览

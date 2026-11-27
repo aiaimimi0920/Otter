@@ -32,18 +32,49 @@ pub enum Error {
     Worker,
 }
 
-pub struct Job {
+pub struct Job<S = Snapshot> {
     pub lease: Arc<Lease>,
     pub cancel: Arc<AtomicBool>,
     pub started: Instant,
     pub authorized_until: Instant,
     pub sent_receipt: Option<Receipt>,
     ready: Arc<AtomicBool>,
-    thread: Option<JoinHandle<Result<Snapshot, Error>>>,
+    thread: Option<JoinHandle<Result<S, Error>>>,
 }
 
 impl Job {
     pub fn start(config: Config, lease: Lease, input: Input, notify: Notify) -> io::Result<Self> {
+        Self::exchange(
+            config,
+            lease,
+            input.receipt.clone(),
+            notify,
+            "otter-locale-report",
+            move |control| {
+                let report = Report {
+                    receiver_id: &input.receiver_id,
+                    receiver_generation: input.generation.as_deref(),
+                    language: input.language.code(),
+                    revision: input.revision,
+                    supported_languages: ["en", "zh-Hans"],
+                    result: input.receipt.as_ref(),
+                };
+                control.report_locale(&input.loom_id, &report)
+            },
+        )
+    }
+}
+impl<S: Send + 'static> Job<S> {
+    pub fn exchange(
+        config: Config,
+        lease: Lease,
+        sent_receipt: Option<Receipt>,
+        notify: Notify,
+        name: &'static str,
+        exchange: impl FnOnce(&crate::live_relay_http::Control<'_>) -> Result<S, crate::live_relay_http::Error>
+            + Send
+            + 'static,
+    ) -> io::Result<Self> {
         let lease = Arc::new(lease);
         let worker_lease = lease.clone();
         let cancel = Arc::new(AtomicBool::new(false));
@@ -65,27 +96,15 @@ impl Job {
         let authorized_until = started
             .checked_add(Duration::from_millis(remaining.min(15_000)))
             .ok_or_else(|| io::Error::other("Locale authorization deadline overflow"))?;
-        let sent_receipt = input.receipt.clone();
         let thread = std::thread::Builder::new()
-            .name("otter-locale-report".into())
+            .name(name.into())
             .spawn(move || {
                 let _completion = CompletionSignal::new(completed, notify);
                 let client = worker_lease
                     .prepare_client(&config)
                     .map_err(|_| Error::Preparation)?;
-                let report = Report {
-                    receiver_id: &input.receiver_id,
-                    receiver_generation: input.generation.as_deref(),
-                    language: input.language.code(),
-                    revision: input.revision,
-                    supported_languages: ["en", "zh-Hans"],
-                    result: input.receipt.as_ref(),
-                };
-                worker_lease
-                    .control(&client)
-                    .map_err(|_| Error::Revoked)?
-                    .report_locale(&input.loom_id, &report)
-                    .map_err(Error::Http)
+                let control = worker_lease.control(&client).map_err(|_| Error::Revoked)?;
+                exchange(&control).map_err(Error::Http)
             })?;
         Ok(Self {
             lease,
@@ -103,7 +122,7 @@ impl Job {
         reap_deadline(&self.ready)
     }
 
-    pub fn poll(&mut self) -> Option<Result<Snapshot, Error>> {
+    pub fn poll(&mut self) -> Option<Result<S, Error>> {
         if !self.thread.as_ref()?.is_finished() {
             return None;
         }
@@ -114,14 +133,15 @@ impl Job {
             result
         })
     }
-
+}
+impl<S> Job<S> {
     pub fn stop(&self) {
         self.cancel.store(true, Ordering::Release);
         self.lease.revoke();
     }
 }
 
-impl Drop for Job {
+impl<S> Drop for Job<S> {
     fn drop(&mut self) {
         // A settled job may have transferred its lease to an awaiting UI request.
         // Only an unfinished worker is cancelled and joined by this safeguard.

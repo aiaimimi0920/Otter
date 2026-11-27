@@ -6,7 +6,10 @@ mod paint;
 const NON_RUDE: windows::core::PCWSTR = w!("NonRudeHWND");
 
 struct Selection {
-    size: [i32; 2],
+    last: Option<crate::capture_last_region::Last>,
+    adjusting: Cell<bool>,
+    hud: crate::desktop::capture_loupe_window::Selector,
+    origin: POINT,
     model: Cell<super::super::capture_selection::Selection>,
     windows: Vec<RECT>,
     hover: Cell<Option<RECT>>,
@@ -43,7 +46,10 @@ impl Drop for Class {
     }
 }
 
-pub(super) fn select(windows: Vec<RECT>) -> Result<Option<RECT>> {
+pub(super) fn select(
+    windows: Vec<RECT>,
+    last: Option<crate::capture_last_region::Last>,
+) -> Result<Option<RECT>> {
     let screen = unsafe {
         let left = GetSystemMetrics(SM_XVIRTUALSCREEN);
         let top = GetSystemMetrics(SM_YVIRTUALSCREEN);
@@ -56,11 +62,21 @@ pub(super) fn select(windows: Vec<RECT>) -> Result<Option<RECT>> {
             bottom: bottom.ok_or_else(|| Error::new(E_INVALIDARG, "Desktop height overflow"))?,
         }
     };
-    select_with(screen, windows, true, |_| {})
+    select_region(screen, windows, last, true, |_| {})
 }
+#[cfg(test)]
 fn select_with(
     screen: RECT,
     windows: Vec<RECT>,
+    visible: bool,
+    ready: impl FnOnce(HWND),
+) -> Result<Option<RECT>> {
+    select_region(screen, windows, None, visible, ready)
+}
+fn select_region(
+    screen: RECT,
+    windows: Vec<RECT>,
+    last: Option<crate::capture_last_region::Last>,
     visible: bool,
     ready: impl FnOnce(HWND),
 ) -> Result<Option<RECT>> {
@@ -79,7 +95,10 @@ fn select_with(
     };
     let _paint = super::super::buffered_paint::Session::new()?;
     let state = Selection {
-        size: [width, height],
+        last,
+        adjusting: Cell::new(false),
+        hud: Default::default(),
+        origin,
         model: Cell::new(super::super::capture_selection::Selection::new(
             width as u32,
             height as u32,
@@ -142,9 +161,17 @@ fn select_with(
             SetWindowDisplayAffinity(window, WDA_EXCLUDEFROMCAPTURE)?;
         }
         if visible {
+            state.hud.install(input.0)?;
             let _ = ShowWindow(input.0, SW_SHOW);
             let _ = ShowWindow(outline.0, SW_SHOWNOACTIVATE);
             let _ = SetForegroundWindow(input.0);
+            state.hud.prime(input.0, &state.pointer, origin);
+            state.hover.set(
+                state
+                    .pointer
+                    .get()
+                    .and_then(|p| super::super::capture_windows::pick(&state.windows, p)),
+            );
         }
         ready(input.0);
         let mut message = MSG::default();
@@ -163,6 +190,9 @@ fn select_with(
         if GetCapture() == input.0 {
             let _ = ReleaseCapture();
         }
+        if let Some(h) = state.hud.get() {
+            h.hide();
+        }
         if let Some(point) = state.color.get() {
             let _ = ShowWindow(outline.0, SW_HIDE);
             let _ = ShowWindow(input.0, SW_HIDE);
@@ -170,7 +200,11 @@ fn select_with(
             let sample =
                 super::super::capture::region(origin.x + point.x, origin.y + point.y, 1, 1)?;
             let rgb = super::super::capture_pixel::rgb(&sample, POINT::default()).unwrap();
-            super::super::clipboard::copy_color(input.0, rgb)?;
+            super::super::clipboard::copy_color(
+                input.0,
+                rgb,
+                state.hud.get().map(|h| h.format()).unwrap_or_default(),
+            )?;
         }
         drop(outline);
         drop(input);
@@ -226,13 +260,31 @@ unsafe extern "system" fn procedure(hwnd: HWND, message: u32, wp: WPARAM, lp: LP
         x: lp.0 as i16 as i32,
         y: (lp.0 >> 16) as i16 as i32,
     };
+    if state.hud.dispatch(
+        hwnd,
+        message,
+        wp,
+        lp,
+        state.pointer.get(),
+        state.model.get().rect,
+        state.origin,
+        None,
+    ) {
+        return LRESULT(0);
+    }
     match message {
+        WM_KEYDOWN if region_keys(state, wp) => {}
         WM_LBUTTONDOWN => {
             state.pointer.set(Some(point));
             let mut model = state.model.get();
             model.cancel_drag();
-            model.rect = None;
-            model.begin(point, 0);
+            let tolerance = if state.adjusting.get() {
+                (6 * windows::Win32::UI::HiDpi::GetDpiForWindow(hwnd).max(96) / 96) as i32
+            } else {
+                model.rect = None;
+                0
+            };
+            model.begin(point, tolerance);
             state.model.set(model);
             state.press.set(Some(point));
             state
@@ -255,6 +307,7 @@ unsafe extern "system" fn procedure(hwnd: HWND, message: u32, wp: WPARAM, lp: LP
                 state.model.set(model);
             }
             let after = state.preview();
+            state.hud.schedule(hwnd);
             if before != after {
                 state.redraw_change(before, after);
             }
@@ -266,7 +319,7 @@ unsafe extern "system" fn procedure(hwnd: HWND, message: u32, wp: WPARAM, lp: LP
                 model.rect = state.hover.get();
             }
             state.model.set(model);
-            if model.rect.is_some() {
+            if model.rect.is_some() && !state.adjusting.get() {
                 state.accepted.set(true);
                 state.done.set(true);
             }
@@ -289,10 +342,12 @@ unsafe extern "system" fn procedure(hwnd: HWND, message: u32, wp: WPARAM, lp: LP
                 && GetKeyState(VK_CONTROL.0 as i32) >= 0
                 && !state.model.get().is_dragging() =>
         {
-            if let Some(point) = state.pointer.get() {
+            let mut screen = POINT::default();
+            if GetCursorPos(&mut screen).is_ok() && state.hud.get().is_some_and(|h| h.valid(screen))
+            {
                 state.color.set(Some(POINT {
-                    x: point.x.clamp(0, state.size[0] - 1),
-                    y: point.y.clamp(0, state.size[1] - 1),
+                    x: screen.x - state.origin.x,
+                    y: screen.y - state.origin.y,
                 }));
                 state.done.set(true);
             }
@@ -301,6 +356,69 @@ unsafe extern "system" fn procedure(hwnd: HWND, message: u32, wp: WPARAM, lp: LP
         _ => return DefWindowProcW(hwnd, message, wp, lp),
     }
     LRESULT(0)
+}
+unsafe fn region_keys(state: &Selection, wp: WPARAM) -> bool {
+    let mut model = state.model.get();
+    if model.is_dragging() {
+        return false;
+    }
+    let Some(hud) = state.hud.get() else {
+        return false;
+    };
+    if wp.0 == b'R' as usize && !state.adjusting.get() {
+        if let Some([l, t, r, b]) = state
+            .last
+            .as_ref()
+            .and_then(|last| last.restore(hud.displays()))
+        {
+            let (x, y) = (state.origin.x, state.origin.y);
+            model.rect = Some(RECT {
+                left: l - x,
+                top: t - y,
+                right: r - x,
+                bottom: b - y,
+            });
+            state.model.set(model);
+            state.adjusting.set(true);
+            state.redraw();
+        }
+        return true;
+    }
+    if !state.adjusting.get() {
+        return false;
+    }
+    let step = if GetKeyState(VK_SHIFT.0 as i32) < 0 {
+        10
+    } else {
+        1
+    };
+    let before = model.rect;
+    match wp.0 as u16 {
+        0x25 => model.nudge(-step, 0),
+        0x26 => model.nudge(0, -step),
+        0x27 => model.nudge(step, 0),
+        0x28 => model.nudge(0, step),
+        0x0d => {
+            if model
+                .rect
+                .and_then(|r| super::super::capture_crop::screen_rectangle(state.origin, r).ok())
+                .is_some_and(|r| {
+                    crate::capture_last_region::covered(
+                        [r.left, r.top, r.right, r.bottom],
+                        hud.displays(),
+                    )
+                })
+            {
+                state.accepted.set(true);
+                state.done.set(true);
+            }
+            return true;
+        }
+        _ => return false,
+    }
+    state.model.set(model);
+    state.redraw_change(before, model.rect);
+    true
 }
 
 #[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-capture")))]

@@ -28,9 +28,18 @@ pub(super) struct Drag {
 }
 
 enum Handle {
+    Lens(usize),
+    Serial(usize),
+    Text(usize),
     Point(usize),
     Extend(bool),
     Shape(usize),
+}
+fn measure(
+    text: &crate::text_annotation::TextAnnotation,
+) -> Result<Point, crate::editor::EditError> {
+    unsafe { super::annotation_text::measure(text) }
+        .map_err(|_| crate::editor::EditError::InvalidPoint)
 }
 
 impl Canvas {
@@ -43,6 +52,9 @@ impl Canvas {
             source.tool,
             Tool::Bezier | Tool::Line | Tool::Arrow | Tool::Polyline
         ) && source.shape_handles().is_none()
+            && source.serial_handles().is_none()
+            && source.text_handles().is_none()
+            && source.lens_handles().is_none()
         {
             return false;
         }
@@ -50,36 +62,60 @@ impl Canvas {
         let center = rotation::center(&source.points);
         let local = rotation::rotate(point, center, -source.rotation);
         let shape_handles = source.shape_handles();
-        let handle = shape_handles
-            .and_then(|points| {
-                points
-                    .iter()
-                    .position(|p| (p.x - local.x).hypot(p.y - local.y) <= 6.0 / self.viewport.scale)
-            })
-            .map(Handle::Shape)
-            .or_else(|| {
-                source
-                    .points
-                    .iter()
-                    .position(|p| (p.x - local.x).hypot(p.y - local.y) <= 6.0 / self.viewport.scale)
-                    .map(Handle::Point)
-                    .or_else(|| {
-                        if source.tool != Tool::Bezier {
-                            return None;
-                        }
-                        crate::bezier_geometry::extension_handles(&source.points).and_then(
-                            |points| {
-                                points
-                                    .iter()
-                                    .position(|p| {
-                                        (p.x - local.x).hypot(p.y - local.y)
-                                            <= 6.0 / self.viewport.scale
-                                    })
-                                    .map(|side| Handle::Extend(side == 0))
-                            },
-                        )
+        let label_handles = source
+            .serial_handles()
+            .or_else(|| source.text_handles())
+            .or_else(|| source.lens_handles());
+        let handle = if let Some(p) = label_handles {
+            p.iter()
+                .enumerate()
+                .map(|(i, p)| (i, (p.x - local.x).hypot(p.y - local.y)))
+                .filter(|(_, d)| *d <= 6.0 / self.viewport.scale)
+                .min_by(|a, b| a.1.total_cmp(&b.1))
+                .map(|(i, _)| i)
+                .map(|i| {
+                    if source.tool == Tool::Magnifier {
+                        Handle::Lens(i)
+                    } else if source.tool == Tool::Serial {
+                        Handle::Serial(i)
+                    } else {
+                        Handle::Text(i)
+                    }
+                })
+        } else {
+            shape_handles
+                .and_then(|points| {
+                    points.iter().position(|p| {
+                        (p.x - local.x).hypot(p.y - local.y) <= 6.0 / self.viewport.scale
                     })
-            });
+                })
+                .map(Handle::Shape)
+                .or_else(|| {
+                    source
+                        .points
+                        .iter()
+                        .position(|p| {
+                            (p.x - local.x).hypot(p.y - local.y) <= 6.0 / self.viewport.scale
+                        })
+                        .map(Handle::Point)
+                        .or_else(|| {
+                            if source.tool != Tool::Bezier {
+                                return None;
+                            }
+                            crate::bezier_geometry::extension_handles(&source.points).and_then(
+                                |points| {
+                                    points
+                                        .iter()
+                                        .position(|p| {
+                                            (p.x - local.x).hypot(p.y - local.y)
+                                                <= 6.0 / self.viewport.scale
+                                        })
+                                        .map(|side| Handle::Extend(side == 0))
+                                },
+                            )
+                        })
+                })
+        };
         let Some(handle) = handle else {
             return false;
         };
@@ -113,6 +149,9 @@ impl Canvas {
             return false;
         }
         let preview = match drag.handle {
+            Handle::Lens(i) => source.preview_lens_handle(i, point),
+            Handle::Serial(i) => source.preview_serial_handle(i, point),
+            Handle::Text(i) => source.preview_text_handle(i, point.x, measure),
             Handle::Shape(handle) => source.preview_shape_handle(handle, point),
             Handle::Point(handle) if source.tool != Tool::Bezier => {
                 source.preview_line_endpoint(handle, point)
@@ -142,6 +181,11 @@ impl Canvas {
             return true;
         }
         let result = match drag.handle {
+            Handle::Lens(i) => self.editor.move_lens_handle(drag.index, i, drag.point),
+            Handle::Serial(i) => self.editor.move_serial_handle(drag.index, i, drag.point),
+            Handle::Text(i) => self
+                .editor
+                .move_text_handle(drag.index, i, drag.point.x, measure),
             Handle::Shape(handle) => self
                 .editor
                 .move_shape_handle(drag.index, handle, drag.point),
@@ -175,6 +219,9 @@ pub(super) unsafe fn draw(
         stroke.tool,
         Tool::Bezier | Tool::Line | Tool::Arrow | Tool::Polyline
     ) && stroke.shape_handles().is_none()
+        && stroke.serial_handles().is_none()
+        && stroke.text_handles().is_none()
+        && stroke.lens_handles().is_none()
     {
         return;
     }
@@ -200,9 +247,15 @@ pub(super) unsafe fn draw(
         target.DrawLine(convert(segment[2]), convert(segment[3]), brush, 1.0, None);
     }
     let shape_handles = stroke.shape_handles();
-    let handles = shape_handles
+    let label_handles = stroke
+        .serial_handles()
+        .or_else(|| stroke.text_handles())
+        .or_else(|| stroke.lens_handles());
+    let handles = label_handles
         .as_ref()
-        .map_or(stroke.points.as_slice(), |points| points.as_slice());
+        .map(|p| p.as_slice())
+        .or_else(|| shape_handles.as_ref().map(|points| points.as_slice()))
+        .unwrap_or(stroke.points.as_slice());
     for (index, &point) in handles.iter().enumerate() {
         let point = convert(point);
         if stroke.tool != Tool::Bezier || index.is_multiple_of(3) {

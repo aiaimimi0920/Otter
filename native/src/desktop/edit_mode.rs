@@ -80,6 +80,25 @@ pub(super) unsafe fn hit_test(hwnd: HWND, state: &State, lp: LPARAM) -> i32 {
         x: point.x as f32 * 96.0 / dpi,
         y: point.y as f32 * 96.0 / dpi,
     };
+    if let Some(s) = c.selected_index().and_then(|i| c.editor.elements().get(i)) {
+        if let Some(handles) = s
+            .text_handles()
+            .or_else(|| s.serial_handles())
+            .or_else(|| s.lens_handles())
+        {
+            let p = crate::rotation::rotate(
+                c.viewport.image_point(point),
+                crate::rotation::center(&s.points),
+                -s.rotation,
+            );
+            if handles
+                .iter()
+                .any(|h| (h.x - p.x).hypot(h.y - p.y) <= 6.0 / c.viewport.scale)
+            {
+                return HTCLIENT as i32;
+            }
+        }
+    }
     match c.image_point(point, false).map(|point| {
         super::selection_hit::pick(&c.factory, &c.editor, point, 5.0 / c.viewport.scale)
     }) {

@@ -12,7 +12,7 @@ pub(super) unsafe fn install(edit: HWND) -> Result<()> {
         Err(Error::from_win32())
     }
 }
-unsafe fn send(popup: HWND, message: u32, posted: bool) {
+pub(super) unsafe fn send(popup: HWND, message: u32, posted: bool) {
     let owner = HWND(GetWindowLongPtrW(popup, GWLP_USERDATA) as *mut _);
     if desktop::host_lifetime::owns(owner) {
         let epoch = WPARAM(GetPropW(popup, window::EPOCH).0 as usize);

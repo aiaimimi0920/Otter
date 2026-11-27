@@ -2,7 +2,8 @@
 use super::*;
 impl Application {
     pub(super) unsafe fn session_end_ready(&self) -> bool {
-        if !restore_batch::guard::is_idle(self)
+        if !self.retired_edits.outputs_settled()
+            || !restore_batch::guard::is_idle(self)
             || self.restore_job.is_some()
             || self.save_job.is_some()
             || self.live_freeze_job.is_some()

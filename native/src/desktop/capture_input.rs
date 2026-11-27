@@ -108,13 +108,20 @@ pub(super) unsafe fn start(hwnd: HWND, state: &State, command: usize) {
     if !route.new_pin && !super::open_image::confirm_replace(hwnd, state) {
         return;
     }
+    super::capture_countdown::cancel();
     let result = run_delivery(hwnd, state, route.new_pin, || {
         // Ordinary region captures preserve the current desktop; specialized Live/scrolling captures retain their own visibility policies.
         let _hidden = (!route.quick_region).then(|| Hidden::for_state(hwnd, state));
         DwmFlush()?;
         if route.quick_region {
             return dynamic::acquire_with(
-                || super::capture_region::select_realtime(super::capture_windows::snapshot()?),
+                || {
+                    let last = state.capture_history.borrow().last_region.clone();
+                    super::capture_region::select_realtime(
+                        super::capture_windows::snapshot()?,
+                        last,
+                    )
+                },
                 |screen| dynamic::prepare(hwnd, state, screen),
             );
         }
@@ -173,6 +180,25 @@ unsafe fn run_with(
 ) -> Result<()> {
     run_destination(hwnd, state, false, capture)
 }
+pub(super) unsafe fn delayed(hwnd: HWND, state: &State) -> Result<()> {
+    if !super::capture_countdown::ready(state) {
+        return Ok(());
+    }
+    let Some(_capture) = super::file_dialog::Guard::begin(&state.capture_active) else {
+        return Ok(());
+    };
+    let Some(_dialog) = super::file_dialog::Guard::begin(&state.file_dialog) else {
+        return Ok(());
+    };
+    run_delivery(hwnd, state, true, || {
+        let windows = super::capture_windows::snapshot()?;
+        let frame = super::capture::virtual_desktop()?;
+        Ok(
+            super::capture_region::select_adjustable(frame.image, frame.origin, windows)?
+                .map(|(image, origin)| Delivery::Delayed(image, origin)),
+        )
+    })
+}
 pub(super) unsafe fn run_destination(
     hwnd: HWND,
     state: &State,
@@ -204,7 +230,10 @@ unsafe fn run_delivery(
         ReleaseCapture()?;
     }
     let stamp = state.canvas.borrow().editor.document_stamp();
-    let image = capture()?;
+    let image = {
+        let _scope = super::export_image_autosave::Selector::enter(&state.image_archive);
+        capture()?
+    };
     let Some(delivery) = image else {
         return Ok(());
     };
@@ -215,6 +244,10 @@ unsafe fn run_delivery(
         return Err(Error::new(E_ABORT, "Document changed during capture"));
     }
     match delivery {
+        Delivery::Delayed(image, origin) => {
+            let last = super::capture_monitors::remember(origin, image.width, image.height);
+            super::open_job::start_ordinary_sdr(hwnd, state, image, origin, last)
+        }
         Delivery::Recording(output) => {
             let (origin, context) = dynamic::recording_context(&output)?;
             super::open_job::start_long_context(hwnd, state, output.image, origin, context)
@@ -229,7 +262,7 @@ unsafe fn run_delivery(
                 super::open_job::start_image(hwnd, state, image, origin)
             }
         }
-        Delivery::Prepared(prepared, origin) => {
+        Delivery::Prepared(prepared, origin, meta) => {
             super::open_job::start_capture_destination(hwnd, state, new_pin, || {
                 let captured = super::smoke_timing::run("capture-commit", || {
                     prepared.commit(&std::sync::atomic::AtomicBool::new(false), || {
@@ -238,7 +271,14 @@ unsafe fn run_delivery(
                     })
                 })
                 .map_err(|error| Error::new(E_FAIL, error.to_string()))?;
-                Ok(super::open_job::Input::Captured(captured, Some(origin)))
+                let last = super::capture_monitors::remember(
+                    origin,
+                    captured.preview.width,
+                    captured.preview.height,
+                );
+                Ok(super::open_job::Input::Ordinary(
+                    captured, origin, last, meta,
+                ))
             })
         }
     }

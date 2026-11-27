@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<title>Otter manual input receiver</title>
+<style>
+  :root { font: 16px system-ui; color: #eee; background: #222; }
+  main { max-width: 820px; margin: 1.5rem auto; }
+  #pad { width: 280px; height: 200px; background: #197698; border: 2px solid white;
+         display: grid; place-items: center; touch-action: none; user-select: none; }
+  button { margin: .5rem; padding: .4rem; }
+  pre { font: 15px/1.4 monospace; }
+</style>
+<main>
+  <h1>Manual pin input receiver</h1>
+  <p>Cover the entire blue pad with an opaque static Otter pin. In each phase,
+  move into the pad, pause, click, drag inside the pad, and turn the wheel.
+  Only trusted events delivered to the pad count. No system-wide input is recorded.</p>
+  <p>
+    <button type="button" data-phase="0">1 · Before</button>
+    <button type="button" data-phase="1">2 · Pass-through</button>
+    <button type="button" data-phase="2">3 · Restored</button>
+  </p>
+  <div id="pad">Receiver pad</div>
+  <pre id="report" aria-live="off"></pre>
+</main>
+<script>
+  "use strict";
+  const pad = document.querySelector("#pad");
+  const report = document.querySelector("#report");
+  const phases = ["Before", "Pass-through", "Restored"];
+  const blank = () => ({ move: 0, hover: 0, down: 0, up: 0, click: 0, wheel: 0, drag: 0 });
+  const counts = phases.map(blank);
+  let phase = 0, held = null, hover = 0, update = 0;
+  function refresh() {
+    if (!update) update = requestAnimationFrame(() => {
+      update = 0;
+      report.textContent = phases.map((name, i) =>
+        `${i === phase ? ">" : " "} ${name}  ${JSON.stringify(counts[i])}`).join("\n");
+    });
+  }
+  function cancelHover() { clearTimeout(hover); hover = 0; }
+  document.querySelectorAll("[data-phase]").forEach(button => {
+    button.addEventListener("click", event => {
+      if (!event.isTrusted) return;
+      phase = Number(button.dataset.phase);
+      counts[phase] = blank();
+      held = null;
+      cancelHover();
+      refresh();
+    });
+  });
+  for (const type of ["pointermove", "pointerdown", "pointerup", "pointerleave",
+                      "pointercancel", "click", "wheel"]) {
+    pad.addEventListener(type, event => {
+      if (!event.isTrusted || (event.pointerType && event.pointerType !== "mouse")) return;
+      const row = counts[phase];
+      cancelHover();
+      if (type === "pointermove") {
+        row.move++;
+        if (held !== null && event.buttons & 1) {
+          if (Math.hypot(event.clientX - held.x, event.clientY - held.y) >= 8) held.dragged = true;
+        } else {
+          held = null;
+          hover = setTimeout(() => { row.hover++; refresh(); }, 400);
+        }
+      } else if (type === "pointerdown" && event.button === 0) {
+        row.down++;
+        held = { x: event.clientX, y: event.clientY, dragged: false };
+      } else if (type === "pointerup" && event.button === 0) {
+        row.up++;
+        if (held?.dragged) row.drag++;
+        held = null;
+      } else if (type === "click" && event.button === 0) {
+        row.click++;
+      } else if (type === "wheel") {
+        if (event.deltaX || event.deltaY) row.wheel++;
+        event.preventDefault();
+      } else if (type === "pointerleave" || type === "pointercancel") held = null;
+      refresh();
+    }, { passive: false });
+  }
+  window.addEventListener("blur", () => { held = null; cancelHover(); });
+  refresh();
+</script>
+</html>

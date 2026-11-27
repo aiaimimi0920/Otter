@@ -142,10 +142,12 @@ impl Mapping {
             }
         }
         if let Some(text) = &stroke.text {
-            let text = text
-                .with_font_size(text.font_size() * self.scale)
-                .ok_or(Error::Unsupported)?;
+            let text = text.scaled(self.scale).ok_or(Error::Unsupported)?;
             object.insert("fontSize".into(), finite(text.font_size())?);
+            if let Some(b) = text.geometry() {
+                object.insert("boxWidth".into(), finite(b.width())?);
+                object.insert("boxPadding".into(), finite(b.padding())?);
+            }
             if stroke.tool == Tool::Text {
                 // Mainline text's 4px anchor offset is not document content and must not repeatedly grow with canvas scaling.
                 let (start, _) = bounds(&stroke.points)?;
@@ -154,7 +156,7 @@ impl Mapping {
                 if !base.is_finite() || base < 0.0 {
                     return Err(Error::Geometry);
                 }
-                object.insert("x".into(), finite(start.x + 4.0)?);
+                object.insert("x".into(), finite(start.x + text.padding())?);
                 object.insert("y".into(), finite(start.y + base)?);
             }
         }
@@ -179,7 +181,12 @@ impl Mapping {
         if matches!(stroke.tool, Tool::Blur | Tool::Mosaic) {
             let strength = number(object.get("strength").ok_or(Error::Shape)?)?;
             if (stroke.tool == Tool::Blur && !(1.0..=64.0).contains(&strength))
-                || (stroke.tool == Tool::Mosaic && (strength < 2.0 || strength.fract() != 0.0))
+                || (stroke.tool == Tool::Mosaic
+                    && if stroke.effect_rect {
+                        strength <= 0.0
+                    } else {
+                        strength < 2.0 || strength.fract() != 0.0
+                    })
             {
                 return Err(Error::Unsupported);
             }

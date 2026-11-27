@@ -20,6 +20,50 @@ unsafe fn cancel(hwnd: HWND) {
 }
 
 #[test]
+fn restored_region_is_adjustable_until_enter_and_escape_discards_it() {
+    unsafe {
+        let monitors = crate::desktop::capture_monitors::snapshot().unwrap();
+        let [l, t, r, b] = monitors[0];
+        let rect = [l + 10, t + 10, l + 40, t + 30];
+        let screen = RECT {
+            left: l,
+            top: t,
+            right: r,
+            bottom: b,
+        };
+        let last = crate::capture_last_region::Last::new(rect, monitors).unwrap();
+        for accept in [true, false] {
+            let result = select_region(screen, vec![], Some(last.clone()), false, |hwnd| {
+                let s = state(hwnd);
+                s.hud.install(hwnd).unwrap();
+                SendMessageW(hwnd, WM_KEYDOWN, Some(WPARAM(b'R' as usize)), None);
+                assert!(s.adjusting.get() && !s.done.get());
+                SendMessageW(hwnd, WM_KEYDOWN, Some(WPARAM(VK_RIGHT.0 as usize)), None);
+                let dx = if GetKeyState(VK_SHIFT.0 as i32) < 0 {
+                    10
+                } else {
+                    1
+                };
+                assert_eq!(s.model.get().rect.unwrap().left, 10 + dx);
+                SendMessageW(
+                    hwnd,
+                    WM_KEYDOWN,
+                    Some(WPARAM(
+                        if accept { VK_RETURN } else { VK_ESCAPE }.0 as usize,
+                    )),
+                    None,
+                );
+            })
+            .unwrap();
+            assert_eq!(result.is_some(), accept);
+            if let Some(r) = result {
+                assert_eq!((r.top, r.bottom, r.right - r.left), (rect[1], rect[3], 30));
+            }
+        }
+    }
+}
+
+#[test]
 fn transparent_selection_returns_release_bounds_and_destroys_both_layers() {
     let input = Cell::new(HWND::default());
     let outline = Cell::new(HWND::default());

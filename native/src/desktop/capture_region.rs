@@ -5,8 +5,11 @@ use std::cell::Cell;
 mod drawing;
 #[path = "capture_region_release.rs"]
 mod release;
-pub(super) fn select_realtime(windows: Vec<RECT>) -> Result<Option<RECT>> {
-    release::select(windows)
+pub(super) fn select_realtime(
+    windows: Vec<RECT>,
+    last: Option<crate::capture_last_region::Last>,
+) -> Result<Option<RECT>> {
+    release::select(windows, last)
 }
 use windows::{
     core::{w, Error, Result, HSTRING},
@@ -25,6 +28,8 @@ enum Mode {
     Live,
 }
 struct Selection<'a> {
+    hud: super::capture_loupe_window::Selector,
+    origin: POINT,
     image: &'a Image,
     model: Cell<super::capture_selection::Selection>,
     pointer: Cell<Option<POINT>>,
@@ -130,6 +135,8 @@ fn select_bounds_with(
 ) -> Result<Option<(RECT, bool)>> {
     let _paint_session = super::buffered_paint::Session::new()?;
     let state = Selection {
+        hud: Default::default(),
+        origin,
         image,
         windows,
         hover: Cell::new(None),
@@ -182,8 +189,16 @@ fn select_bounds_with(
             Some((&state as *const Selection).cast()),
         )?);
         if visible {
+            state.hud.install(window.0)?;
             let _ = ShowWindow(window.0, SW_SHOW);
             let _ = SetForegroundWindow(window.0);
+            state.hud.prime(window.0, &state.pointer, origin);
+            state.hover.set(
+                state
+                    .pointer
+                    .get()
+                    .and_then(|p| super::capture_windows::pick(&state.windows, p)),
+            );
         }
         ready(window.0);
         let mut message = MSG::default();
@@ -201,6 +216,9 @@ fn select_bounds_with(
         }
         if GetCapture() == window.0 {
             let _ = ReleaseCapture();
+        }
+        if let Some(h) = state.hud.get() {
+            h.hide();
         }
         drop(window);
         drawing::clear_cached_resources();
@@ -246,6 +264,20 @@ unsafe extern "system" fn procedure(
         x: lparam.0 as i16 as i32,
         y: (lparam.0 >> 16) as i16 as i32,
     };
+    if !state.done.get()
+        && state.hud.dispatch(
+            hwnd,
+            message,
+            wparam,
+            lparam,
+            state.pointer.get(),
+            state.model.get().rect,
+            state.origin,
+            Some(state.image),
+        )
+    {
+        return LRESULT(0);
+    }
     match message {
         WM_LBUTTONDOWN => {
             state.press.set(Some(point()));
@@ -281,6 +313,7 @@ unsafe extern "system" fn procedure(
             }
             // Continued dragging beyond bounds may leave the rectangle unchanged; redraw the frozen frame only when visible selection changes.
             let after = state.preview_rect();
+            state.hud.schedule(hwnd);
             if before != after {
                 drawing::invalidate_selection_change(
                     hwnd,
@@ -333,17 +366,23 @@ unsafe extern "system" fn procedure(
         WM_KEYDOWN if wparam.0 == VK_ESCAPE.0 as usize => state.done.set(true),
         WM_KEYDOWN if wparam.0 == 0x43 && !state.model.get().is_dragging() => {
             let result = if GetKeyState(VK_CONTROL.0 as i32) < 0 {
-                state
-                    .model
-                    .get()
-                    .rect
-                    .map(|rect| super::clipboard::copy_image(hwnd, state.image, rect))
+                state.model.get().rect.map(|rect| {
+                    super::clipboard::copy_region(hwnd, state.image, rect, state.origin)
+                })
             } else {
-                state
-                    .pointer
-                    .get()
-                    .and_then(|point| super::capture_pixel::rgb(state.image, point))
-                    .map(|rgb| super::clipboard::copy_color(hwnd, rgb))
+                let mut screen = POINT::default();
+                GetCursorPos(&mut screen).ok().and_then(|_| {
+                    let hud = state.hud.get()?;
+                    if !hud.valid(screen) {
+                        return None;
+                    }
+                    let point = POINT {
+                        x: screen.x.checked_sub(state.origin.x)?,
+                        y: screen.y.checked_sub(state.origin.y)?,
+                    };
+                    super::capture_pixel::valid_rgb(state.image, point)
+                        .map(|rgb| super::clipboard::copy_color(hwnd, rgb, hud.format()))
+                })
             };
             match result {
                 Some(Ok(())) => state.done.set(true),

@@ -206,6 +206,7 @@ impl Preview {
         let pending = {
             let mut slot = self.canvas.borrow_mut();
             let canvas = slot.as_mut().expect("preview canvas initialized");
+            canvas.display_waiting = state.canvas.borrow().display_waiting;
             // Preview geometry is speculative. Never mutate the host viewport before presentation commits.
             canvas.viewport = viewport.unwrap_or_else(|| state.canvas.borrow().viewport);
             canvas.paint_display(
@@ -422,6 +423,13 @@ pub(super) unsafe fn finish(hwnd: HWND, state: &State, restore: bool) {
     }
     // Remove the proxy immediately after restoring the host, without intervening border repaint/reordering or another DWM-frame wait.
     // Otherwise translucent content and two borders briefly overlap, causing a brightness pulse after input stops.
+    if restore
+        && state.lifetime.owns(hwnd)
+        && state.inline_text.borrow().is_none()
+        && windows::Win32::UI::Input::KeyboardAndMouse::GetFocus() == preview.window.hwnd
+    {
+        let _ = windows::Win32::UI::Input::KeyboardAndMouse::SetFocus(Some(hwnd));
+    }
     drop(preview);
     crate::desktop::application::chrome::composite_frame(&state.chrome, hwnd, false);
 }

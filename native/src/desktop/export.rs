@@ -3,6 +3,8 @@ use super::{annotations, image::Image, Apartment};
 #[cfg(test)]
 #[path = "export_annotation_domain_tests.rs"]
 mod annotation_domain_tests;
+#[path = "export_codec.rs"]
+pub(super) mod codec;
 #[cfg(test)]
 #[path = "export_drag.rs"]
 mod drag;

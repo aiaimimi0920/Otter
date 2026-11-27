@@ -28,6 +28,8 @@ pub(crate) fn tile_test_window(
 pub(crate) fn tile_test_pump() {
     tile_terminal::pump().unwrap();
 }
+#[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
+mod annotation_redaction_label_tests;
 mod application;
 mod application_hotkey;
 mod art_local_owner;
@@ -46,12 +48,16 @@ mod capability_parameter_menu;
 mod capability_parameters;
 mod capability_selection;
 pub mod capture;
+mod capture_countdown;
 mod capture_crop;
 mod capture_input;
+mod capture_loupe_window;
+mod capture_monitors;
 mod capture_pixel;
 mod capture_protection;
 mod capture_region;
 mod capture_selection;
+mod capture_window_meta;
 mod capture_windows;
 mod clipboard;
 mod clipboard_bitmap;
@@ -111,6 +117,7 @@ mod execution_configuration;
 mod execution_settings;
 mod execution_start;
 mod export;
+mod export_image_autosave;
 mod export_job;
 mod export_naming;
 mod extension_catalog;
@@ -136,6 +143,7 @@ mod flip_input;
 #[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 mod flip_smoke;
 mod frame_style_draw;
+mod fullscreen_watch;
 mod global_capture;
 mod group_lock;
 mod group_menu;
@@ -196,15 +204,18 @@ mod parameter_view_values;
 mod paste_input;
 mod path_handles;
 pub(crate) mod pin_border_style;
+mod pin_click_through;
 mod pin_settings;
 mod pin_settings_geometry;
 mod pin_settings_history;
+mod pin_shake_input;
 mod pin_window;
 mod popup_menu;
 #[cfg(test)]
 mod presentation_readback_test;
 mod priority_input;
 mod procedure;
+mod procedure_shortcut;
 mod projection_edit_workspace;
 mod property_panel_captions;
 mod rasterize;
@@ -246,6 +257,7 @@ mod shader_payload;
 pub mod shader_prepare;
 mod shader_recipe_cache;
 mod shape_dialog;
+mod shortcut_registry;
 mod smoke_timing;
 pub mod software_surface;
 #[cfg(any(test, debug_assertions, feature = "smoke-test"))]
@@ -274,6 +286,7 @@ pub mod surface_windows;
 mod text_collation;
 mod text_font;
 mod text_input;
+mod text_pin_builder;
 mod tool_commands;
 mod tool_panel;
 mod tool_panel_actions;
@@ -318,6 +331,7 @@ pub(super) struct State {
     chrome: application::chrome::Binding,
     parameters_ui: document_window::parameter_panel::Control,
     capture_history: capture_history_ui::Shared,
+    image_archive: export_image_autosave::Shared,
     edit_palette: edit_palette::Shared,
     projection_edit: RefCell<Option<projection_edit_workspace::Owner>>,
     projection_mode: RefCell<Option<device_authorization_ui::editing::Preference>>,
@@ -397,8 +411,13 @@ pub(super) struct State {
     pin_zoom: Cell<crate::pin_geometry::WheelZoom>,
     pin_resize: pin_window::presentation::Resize,
     pin_animation: pin_window::animation::Animation,
+    shake: pin_shake_input::Input,
+    click: pin_click_through::Mode,
     priority_watcher: RefCell<Option<window_priority::Watcher>>,
     global_capture: Cell<bool>,
+    shortcut_policy: std::rc::Rc<RefCell<crate::shortcut_policy::Policy>>,
+    shortcut_host: shortcut_registry::Host,
+    shortcut_display: std::rc::Rc<Cell<Option<(bool, [bool; 6])>>>,
     global_long_capture: Cell<bool>,
     global_live_capture: Cell<bool>,
     tray: tray::Tray,
@@ -413,9 +432,9 @@ pub(super) struct State {
     tool_panel_wheel: Cell<[i64; 2]>,
     copy_job: RefCell<Option<copy_job::Job>>,
     file_dialog: std::rc::Rc<Cell<bool>>,
-    inline_text: RefCell<Option<std::rc::Rc<text_input::inline::Session>>>,
+    inline_text: std::rc::Rc<RefCell<Option<std::rc::Rc<text_input::inline::Session>>>>,
     modals: modal_scope::Scope,
-    canvas: RefCell<Canvas>,
+    canvas: std::rc::Rc<RefCell<Canvas>>,
     error: RefCell<Option<Error>>,
     export: RefCell<Option<export_job::ExportJob>>,
     open_job: RefCell<Option<open_job::OpenJob>>,

@@ -80,7 +80,7 @@ impl Application {
             ));
         }
         transfer_hotkey(&self.documents, &batch.documents, |doc, enabled| {
-            crate::desktop::global_capture::set(doc.window.0, &doc.state, enabled)
+            crate::desktop::shortcut_registry::transfer(doc.window.0, &doc.state, enabled)
         })?;
         let workspace = std::mem::take(&mut batch.candidate.workspace);
         let (saved_path, recovery_path) = match batch.candidate.origin.take() {
@@ -130,6 +130,7 @@ impl Application {
         self.stop_projection_sender();
         // Closing old Art HWNDs may reenter; revoke authority while the complete old workspace remains installed, never midway through the ownership swap.
         self.local_arts.reset();
+        self.reset_pin_layout();
         let previous = std::mem::replace(&mut self.documents, batch.documents);
         self.workspace = workspace;
         self.workspace_autosave.disable();
@@ -221,7 +222,10 @@ pub(in crate::desktop::application) fn transfer_hotkey(
     next: &[DocumentWindow],
     mut change: impl FnMut(&DocumentWindow, bool) -> Result<()>,
 ) -> Result<()> {
-    let Some(owner) = previous.iter().find(|doc| doc.state.global_capture.get()) else {
+    let Some(owner) = previous
+        .iter()
+        .find(|doc| crate::desktop::shortcut_registry::owns(&doc.state))
+    else {
         return Ok(());
     };
     let target = next

@@ -148,6 +148,11 @@ impl scope::Snapshot {
         crate::projection_delivery_runtime::Error,
     > {
         use crate::projection_delivery_runtime::Error as JobError;
+        if self.display_only() {
+            // A local resolved overlay belongs to its original document, not
+            // to this target's editable object stream. Never publish its basis.
+            return Err(JobError::Sender(SenderError::Snapshot));
+        }
         let (frame, layout) = crate::desktop::export::projection::basis_frame(
             source,
             unit,

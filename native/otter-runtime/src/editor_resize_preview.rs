@@ -46,16 +46,17 @@ impl Stroke {
         let text = original
             .text
             .as_ref()
-            .map(|text| {
-                text.with_font_size(text.font_size() * factor)
-                    .ok_or(EditError::BudgetExceeded)
-            })
+            .map(|text| text.scaled(factor).ok_or(EditError::BudgetExceeded))
             .transpose()?;
         let center = crate::rotation::center(&original.points);
         let path = pivot.is_some()
             && !matches!(
                 original.tool,
                 Tool::Rectangle
+                    | Tool::SpotRect
+                    | Tool::Magnifier
+                    | Tool::SpotRounded
+                    | Tool::SpotEllipse
                     | Tool::RoundedRectangle
                     | Tool::Ellipse
                     | Tool::Triangle

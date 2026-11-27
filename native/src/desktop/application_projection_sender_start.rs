@@ -139,20 +139,9 @@ impl Application {
                                 lease,
                             )?
                         } else {
-                            crate::desktop::export::projection::target_frame_with_input(
-                                &source,
-                                unit.as_str(),
-                                &snapshot.image,
-                                &snapshot.editor,
-                                crate::desktop::export::projection::Presentation {
-                                    opacity: snapshot.opacity,
-                                    kind: snapshot.kind,
-                                    geometry: snapshot.geometry,
-                                },
-                                snapshot.render_input(),
-                                lease.preparation_cancel(),
-                            )
-                            .map_err(|_| JobError::Sender(SenderError::Snapshot))?
+                            snapshot
+                                .one_way(&source, unit.as_str(), lease.preparation_cancel())
+                                .map_err(|_| JobError::Sender(SenderError::Snapshot))?
                         };
                         let intent = store
                             .prepare_tracked(

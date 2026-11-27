@@ -12,6 +12,7 @@ use std::{
 };
 #[path = "application_locale_job.rs"]
 mod job;
+pub(super) use job::{publish as publish_settings, Completed as SavedSettings};
 #[path = "application_locale_refresh.rs"]
 mod refresh;
 
@@ -156,7 +157,7 @@ impl Application {
         });
     }
     pub(super) fn locale_busy(&self) -> bool {
-        self.locale.job.is_some()
+        self.locale.job.is_some() || self.shortcut_remote.saving()
     }
     pub(super) fn locale_blocks_exit(&self) -> bool {
         self.locale_busy() || self.locale.remote.is_some() || self.locale.local.get().is_some()

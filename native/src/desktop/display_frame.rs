@@ -8,6 +8,8 @@ use crate::{
 #[path = "display_frame_source_tests.rs"]
 mod source_tests;
 pub(super) struct Frame {
+    publisher: Option<Publisher>,
+    pub naming: Option<super::capture_window_meta::Meta>,
     pub identity: std::sync::Arc<()>,
     source: UnitId,
     overlay_owner: Option<UnitId>,
@@ -16,7 +18,60 @@ pub(super) struct Frame {
     stamp: Option<DocumentStamp>,
     overlay: bool,
 }
+/// A UI-only view of the original producer. Do not keep its canvas, edits or
+/// window alive, and never dereference a recycled HWND to check provenance.
+struct Publisher {
+    owner: std::rc::Weak<()>,
+    canvas: std::rc::Weak<std::cell::RefCell<super::canvas::Canvas>>,
+    inline:
+        std::rc::Weak<std::cell::RefCell<Option<std::rc::Rc<super::text_input::inline::Session>>>>,
+    version: DocumentStamp,
+}
 impl Frame {
+    /// Upstream marks are not editable objects owned by the receiving pin.
+    pub fn has_local_overlays(&self) -> bool {
+        self.has_local_source()
+            && self.editor.as_deref().is_some_and(|e| {
+                !e.elements().is_empty() || e.layers().is_some_and(|l| l.annotations.is_some())
+            })
+    }
+    /// Ordinary upstream vectors do not own the target's crop or appearance.
+    /// A redaction, a presentation effect or an opaque raster overlay cannot
+    /// be replaced with the unmarked natural source on a one-way send.
+    pub fn needs_protected_pixels(&self) -> bool {
+        use crate::editor::Tool;
+        self.has_local_source()
+            && self.editor.as_deref().is_some_and(|e| {
+                e.layers().is_some_and(|l| l.annotations.is_some())
+                    || e.elements().iter().any(|s| {
+                        s.blur.is_some()
+                            || matches!(s.tool, Tool::Blur | Tool::Mosaic | Tool::Magnifier)
+                            || s.tool.spotlight()
+                    })
+            })
+    }
+    pub fn bind_local(&mut self, state: &super::State) {
+        self.publisher = Some(Publisher {
+            owner: state.lifetime.publication(),
+            canvas: std::rc::Rc::downgrade(&state.canvas),
+            inline: std::rc::Rc::downgrade(&state.inline_text),
+            version: state.canvas.borrow().editor.document_stamp(),
+        });
+    }
+    pub fn current_producer(&self) -> bool {
+        self.publisher.as_ref().is_none_or(|p| {
+            p.owner.upgrade().is_some()
+                && p.inline
+                    .upgrade()
+                    .is_some_and(|c| c.try_borrow().is_ok_and(|edit| edit.is_none()))
+                && p.canvas.upgrade().is_some_and(|c| {
+                    c.try_borrow().is_ok_and(|canvas| {
+                        p.version.matches(&canvas.editor)
+                            && super::display_snapshot::locally_settled(&canvas)
+                    })
+                })
+        })
+    }
     /// Only uncomposited local sources can trace natural pixels; official outputs/target overlays cannot use this to replace sources.
     pub(in crate::desktop) fn has_local_source(&self) -> bool {
         !self.overlay && self.stamp.is_some()
@@ -94,6 +149,8 @@ impl Frame {
                 .map_err(|_| crate::editor::EditError::InvalidPoint)
         })?;
         Ok(Self {
+            publisher: None,
+            naming: None,
             overlay_owner: Some(owner),
             overlay: true,
             identity: std::sync::Arc::new(()),
@@ -105,6 +162,8 @@ impl Frame {
     }
     fn capture_with(source: UnitId, image: Image, editor: Option<&Editor>, overlay: bool) -> Self {
         Self {
+            publisher: None,
+            naming: None,
             overlay_owner: None,
             overlay,
             identity: std::sync::Arc::new(()),

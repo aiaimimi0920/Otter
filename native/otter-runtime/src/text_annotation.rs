@@ -1,7 +1,10 @@
 //! Bounded immutable text-annotation content; snapshots/copies share strings, and edits replace content rather than mutate it in place.
 use std::sync::Arc;
+#[path = "text_box_style.rs"]
+mod box_style;
 #[path = "text_content.rs"]
 pub mod content;
+pub use box_style::TextBox;
 
 pub const MAX_TEXT_UNITS: usize = 65_536;
 // The baseline font size for sequence radius 999 is round(999 * 1.15) = 1149.
@@ -10,6 +13,7 @@ const MAX_FONT_SIZE: f32 = 1149.0;
 pub struct TextAnnotation {
     content: Arc<content::Content>,
     font: TextFont,
+    geometry: Option<TextBox>,
 }
 #[derive(Clone, Debug, PartialEq)]
 pub struct TextFont {
@@ -72,6 +76,7 @@ impl TextAnnotation {
         Some(Self {
             content: Arc::new(content::Content::restored(content)?),
             font: TextFont::restored(family, size, bold)?,
+            geometry: None,
         })
     }
     pub fn new(content: &str, family: &str, font_size: f32, bold: bool) -> Option<Self> {
@@ -87,6 +92,7 @@ impl TextAnnotation {
             // Native EDIT uses CRLF while the model uses LF, preventing false edits when reopening and confirming unchanged content.
             content: Arc::new(content::Content::new(content)?),
             font: TextFont::new(family, font_size, bold)?,
+            geometry: None,
         })
     }
     pub fn content(&self) -> &str {
@@ -113,10 +119,28 @@ impl TextAnnotation {
     pub fn font(&self) -> &TextFont {
         &self.font
     }
+    pub fn geometry(&self) -> Option<TextBox> {
+        self.geometry
+    }
+    pub fn padding(&self) -> f32 {
+        self.geometry.map_or(4.0, TextBox::padding)
+    }
+    pub fn with_geometry(mut self, geometry: Option<TextBox>) -> Self {
+        self.geometry = geometry;
+        self
+    }
+    pub fn scaled(&self, scale: f32) -> Option<Self> {
+        let mut out = self.with_font_size(self.font_size() * scale)?;
+        if let Some(b) = self.geometry {
+            out.geometry = Some(b.scaled(scale)?);
+        }
+        Some(out)
+    }
     pub fn with_font(&self, font: TextFont) -> Self {
         Self {
             content: Arc::clone(&self.content),
             font,
+            geometry: self.geometry,
         }
     }
 }

@@ -1,4 +1,25 @@
 ## Local workspace menu and numeric input presentation.
+workspace-layout-selection = 排布选中的钉图
+pin-pass-enter = 让鼠标穿透这张钉图
+pin-pass-restore = 退出鼠标穿透 ({ $count })
+pin-pass-unavailable = 无法启用鼠标穿透：钉图必须可见、没有进行中的编辑，且可从托盘恢复。
+pin-pass-finish-edit = 请先完成或取消当前编辑，再打开钉图菜单。
+workspace-shake-restore = 恢复临时隐藏的钉图
+workspace-layout-group = 排布本组钉图
+workspace-layout-left = 左边缘对齐
+workspace-layout-top = 顶边缘对齐
+workspace-layout-center-x = 水平中心对齐
+workspace-layout-center-y = 垂直中心对齐
+workspace-layout-compact-x = 横向紧凑排列（间距 12 DIP）
+workspace-layout-compact-y = 纵向紧凑排列（间距 12 DIP）
+workspace-layout-distribute-x = 横向均分空隙
+workspace-layout-distribute-y = 纵向均分空隙
+workspace-layout-grid = 折行网格排列
+workspace-layout-undo = 撤销上次钉图排布
+workspace-layout-space = 当前显示器工作区放不下这些钉图，未移动任何钉图。
+workspace-layout-monitor-count = 每台显示器至少要有两张钉图才能排布，均分间距则需要三张。未移动任何钉图。
+workspace-layout-unavailable = 钉图状态已变化，无法执行这次排布。
+workspace-layout-rollback = 部分位置未能还原；已关闭或后来移动的钉图未被改动。
 workspace-menu-close = 关闭
 workspace-menu-recycle-bin = 回收站
 workspace-menu-clear-recycle = 清空回收站

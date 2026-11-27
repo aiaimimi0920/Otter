@@ -19,6 +19,7 @@ mod connections;
 mod fields;
 #[path = "pin_settings_position.rs"]
 mod position;
+pub(in crate::desktop) use connections::connection_popup_idle;
 #[cfg(test)]
 pub(in crate::desktop) use connections::target_list::tests::Confirmed as ConfirmedTargets;
 pub(in crate::desktop) use connections::translate_targets;

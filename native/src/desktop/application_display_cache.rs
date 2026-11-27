@@ -8,6 +8,7 @@ use crate::{
     workspace::{TopologyStamp, Workspace},
 };
 struct Document {
+    local_ready: bool,
     configuration: Stamp,
     editor: DocumentStamp,
     output: OutputStamp,
@@ -29,6 +30,7 @@ impl Cache {
                 .map(|doc| {
                     let results = doc.state.execution_results.borrow();
                     Document {
+                        local_ready: local_ready(doc),
                         configuration: Stamp::capture(&doc.state),
                         editor: doc.state.canvas.borrow().editor.document_stamp(),
                         output: results.output_stamp(),
@@ -48,6 +50,7 @@ impl Cache {
             && self.documents.iter().zip(documents).all(|(stored, doc)| {
                 let results = doc.state.execution_results.borrow();
                 stored.configuration.matches(&doc.state)
+                    && stored.local_ready == local_ready(doc)
                     && stored.editor.matches(&doc.state.canvas.borrow().editor)
                     && stored.output.matches(&results)
                     && match (&stored.display, results.display()) {
@@ -61,4 +64,9 @@ impl Cache {
                     }
             })
     }
+}
+
+pub(super) fn local_ready(doc: &DocumentWindow) -> bool {
+    doc.state.inline_text.borrow().is_none()
+        && crate::desktop::display_snapshot::locally_settled(&doc.state.canvas.borrow())
 }

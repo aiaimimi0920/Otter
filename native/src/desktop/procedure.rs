@@ -55,6 +55,12 @@ unsafe fn dispatch(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
         return DefWindowProcW(hwnd, msg, wp, lp);
     }
     let state = &*pointer;
+    if let Some(result) = super::pin_click_through::input_result(state, msg, wp) {
+        return result;
+    }
+    if super::capture_countdown::dispatch(hwnd, state, msg, wp) {
+        return LRESULT(0);
+    }
     if msg == WM_PAINT && state.render_active.get() {
         // Native presentation can synchronously reenter while Canvas is mutably borrowed.
         // Consume nested paint before even the input observers inspect document state.
@@ -87,7 +93,7 @@ unsafe fn dispatch(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
     {
         return result;
     }
-    if let Some(result) = super::screen_color::dispatch(hwnd, state, msg, wp) {
+    if let Some(result) = super::screen_color::dispatch(hwnd, state, msg, wp, lp) {
         return result;
     }
     if let Some(result) = super::global_capture::dispatch(hwnd, state, msg, wp, lp) {
@@ -143,8 +149,19 @@ unsafe fn dispatch(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
             }
             LRESULT(0)
         }
-        WM_NCLBUTTONDOWN => {
-            let _ = super::priority_input::refresh(hwnd, state, true);
+        WM_NCLBUTTONDOWN | WM_NCRBUTTONDOWN => {
+            if !focus_host(hwnd, state) {
+                return LRESULT(0);
+            }
+            if msg == WM_NCLBUTTONDOWN {
+                let _ = super::priority_input::refresh(hwnd, state, true);
+            }
+            DefWindowProcW(hwnd, msg, wp, lp)
+        }
+        WM_RBUTTONDOWN => {
+            if !focus_host(hwnd, state) {
+                return LRESULT(0);
+            }
             DefWindowProcW(hwnd, msg, wp, lp)
         }
         WM_NCHITTEST if state.canvas.borrow().pinned => {
@@ -184,7 +201,7 @@ unsafe fn dispatch(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
                 super::text_input::insert(hwnd, state, logical_point(hwnd, lp));
                 return LRESULT(0);
             }
-            if !super::display_edit::prepare(state) {
+            if !focus_host(hwnd, state) || !super::display_edit::prepare(state) {
                 return LRESULT(0);
             }
             if state.canvas.borrow().tool == Tool::Select
@@ -313,8 +330,7 @@ unsafe fn dispatch(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
                 }
                 return LRESULT(0);
             }
-            if !control && key == 0x47 {
-                super::blur_input::start(hwnd, state);
+            if super::procedure_shortcut::tool(hwnd, state, wp.0) {
                 return LRESULT(0);
             }
             if control && key == 0x4F {
@@ -378,31 +394,7 @@ unsafe fn dispatch(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
                 || if control {
                     matches!(key, 0x5A | 0x59 | 0x0D | 0x44)
                 } else {
-                    matches!(
-                        key,
-                        0x48 | 0xBC
-                            | 0xBE
-                            | 0xBB
-                            | 0xBD
-                            | 0x2E
-                            | 0x41
-                            | 0x42
-                            | 0x4C
-                            | 0x50
-                            | 0x51
-                            | 0x52
-                            | 0x53
-                            | 0x54
-                            | 0x4B
-                            | 0x55
-                            | 0x4A
-                            | 0x58
-                            | 0x4E
-                            | 0x4D
-                            | 0x45
-                            | 0x56
-                            | 0x57
-                    )
+                    matches!(key, 0xBC | 0xBE | 0x2E)
                 };
             if !handled {
                 return DefWindowProcW(hwnd, msg, wp, lp);
@@ -436,8 +428,6 @@ unsafe fn dispatch(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
                     (false, 0x2E) => canvas.delete_target(),
                     (false, 0xBC) => canvas.rotate_selected(-15.0),
                     (false, 0xBE) => canvas.rotate_selected(15.0),
-                    (false, key) => super::tool_commands::tool_for_command(key as usize)
-                        .is_some_and(|tool| canvas.select_tool(tool)),
                     _ => false,
                 };
                 canvas.sync_raster_source();
@@ -495,6 +485,16 @@ unsafe fn dispatch(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
         WM_TIMER if tasks::complete(hwnd, state, wp.0) => LRESULT(0),
         _ => DefWindowProcW(hwnd, msg, wp, lp),
     }
+}
+
+pub(super) unsafe fn focus_host(hwnd: HWND, state: &State) -> bool {
+    if state.inline_text.borrow().is_none() {
+        let focus = GetFocus();
+        if focus != hwnd && (!focus.is_invalid() || GetActiveWindow() == hwnd) {
+            let _ = SetFocus(Some(hwnd));
+        }
+    }
+    state.lifetime.owns(hwnd)
 }
 
 unsafe fn logical_point(hwnd: HWND, lp: LPARAM) -> Point {

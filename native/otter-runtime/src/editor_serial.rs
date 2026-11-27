@@ -20,6 +20,19 @@ impl Editor {
         family: &str,
         fill: Option<Color>,
     ) -> Result<Option<usize>, EditError> {
+        if !self.begin_serial(center, radius, family, fill)? {
+            return Ok(None);
+        }
+        let index = self.elements.len();
+        Ok(self.commit().then_some(index))
+    }
+    pub fn begin_serial(
+        &mut self,
+        center: Point,
+        radius: f32,
+        family: &str,
+        fill: Option<Color>,
+    ) -> Result<bool, EditError> {
         validate(center)?;
         if !radius.is_finite() {
             return Err(EditError::InvalidPoint);
@@ -36,7 +49,7 @@ impl Editor {
         validate(start)?;
         validate(end)?;
         if self.draft.is_some() {
-            return Ok(None);
+            return Ok(false);
         }
         if self.elements.len() >= MAX_ELEMENTS || self.retained_points + 2 > MAX_TOTAL_POINTS {
             return Err(EditError::BudgetExceeded);
@@ -72,16 +85,12 @@ impl Editor {
             text: Some(text),
             blur: None,
             mosaic_cell: style.mosaic_cell(),
+            effect_rect: false,
+            serial_arrow_tip: None,
+            lens: None,
         };
-        let index = self.elements.len();
-        self.elements.push(stroke);
-        self.retained_points += 2;
-        self.retained_points -= self
-            .history
-            .record(Entry::serial_added(index, self.serial_count));
-        self.serial_count = number;
-        self.revision = self.revision.wrapping_add(1);
-        Ok(Some(index))
+        self.draft = Some(stroke);
+        Ok(true)
     }
 }
 #[cfg(test)]

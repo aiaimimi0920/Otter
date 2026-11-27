@@ -2,6 +2,28 @@
 use super::*;
 
 impl Canvas {
+    pub(super) unsafe fn draw_waiting_display(&mut self, size: D2D_SIZE_U) -> Result<()> {
+        let surface = &mut self
+            .target
+            .as_mut()
+            .expect("paint owns target creation")
+            .surface;
+        surface.resize(size)?;
+        // A retained or missing resolved frame must not expose either the
+        // previous producer's pixels or the unrelated local fallback image.
+        surface.draw(|target| {
+            target.Clear(Some(&D2D1_COLOR_F {
+                r: 0.08,
+                g: 0.08,
+                b: 0.08,
+                a: 1.0,
+            }));
+            Ok(())
+        })?;
+        self.paints = self.paints.saturating_add(1);
+        Ok(())
+    }
+
     pub(super) unsafe fn draw_display(
         &mut self,
         frame: &crate::desktop::display_frame::Frame,
@@ -20,56 +42,70 @@ impl Canvas {
             projection,
         } = raster::Geometry::new(image, editor, self.viewport);
         target.SetDpi(dpi as f32, dpi as f32);
+        use crate::desktop::annotations;
+        let mut lens = None;
         resources.surface.draw(|target| {
-            let background = if self.pinned {
-                D2D1_COLOR_F::default()
-            } else {
-                D2D1_COLOR_F {
-                    r: 0.07,
-                    g: 0.08,
-                    b: 0.08,
-                    a: 1.0,
-                }
-            };
-            target.Clear(Some(&background));
-            let frame_style =
-                crate::desktop::frame_style_draw::Frame::new(self.frame_style, size, dpi);
-            let _rounded = frame_style.clip(target, &self.factory)?;
-            let clipped = super::super::render_frame::Clip::push(target, &clip);
-            // Use the shared non-erasing path and retire the old eraser-geometry cache too.
-            resources.raster.draw_interleaved(
+            annotations::magnifier::scene(
+                &mut lens,
                 target,
-                &base,
-                &clip,
-                None,
-                (self.viewport, projection),
-                || frame_style.border_over_clip(target, &clip),
-            )?;
-            if let Some(editor) = editor {
-                crate::desktop::annotations::draw_preview(
-                    target,
-                    &resources.brush,
-                    editor,
-                    self.viewport,
-                    None,
-                    None,
-                    &mut resources.effects,
-                )?;
-            } else {
-                resources.effects.retain_tools(false, false);
-                resources.effects.annotations = Default::default();
-            }
-            drop(clipped);
-            if let Some(views) = &self.extension_views {
-                views.draw(
-                    &self.editor,
-                    Some(frame),
-                    target,
-                    &resources.brush,
-                    (size, dpi),
-                )?;
-            }
-            Ok(())
+                editor.is_some_and(Editor::has_lens),
+                true,
+                crate::pixels::reserve,
+                |target, pass| {
+                    let background = if self.pinned || pass.lower() {
+                        D2D1_COLOR_F::default()
+                    } else {
+                        D2D1_COLOR_F {
+                            r: 0.07,
+                            g: 0.08,
+                            b: 0.08,
+                            a: 1.0,
+                        }
+                    };
+                    target.Clear(Some(&background));
+                    let frame_style =
+                        crate::desktop::frame_style_draw::Frame::new(self.frame_style, size, dpi);
+                    let _rounded = frame_style.clip(target, &self.factory)?;
+                    let clipped = super::super::render_frame::Clip::push(target, &clip);
+                    // Use the shared non-erasing path and retire the old eraser-geometry cache too.
+                    resources.raster.draw_interleaved(
+                        target,
+                        &base,
+                        &clip,
+                        None,
+                        (self.viewport, projection),
+                        || frame_style.border_over_clip(target, &clip),
+                    )?;
+                    if let Some(editor) = editor {
+                        annotations::draw_layers(
+                            target,
+                            &resources.brush,
+                            editor,
+                            self.viewport,
+                            Default::default(),
+                            &mut resources.effects,
+                            pass,
+                        )?;
+                    } else {
+                        resources.effects.retain_tools(false, false);
+                        resources.effects.annotations = Default::default();
+                    }
+                    drop(clipped);
+                    if pass.lower() {
+                        return Ok(());
+                    }
+                    if let Some(views) = &self.extension_views {
+                        views.draw(
+                            &self.editor,
+                            Some(frame),
+                            target,
+                            &resources.brush,
+                            (size, dpi),
+                        )?;
+                    }
+                    Ok(())
+                },
+            )
         })?;
         self.paints = self.paints.saturating_add(1);
         Ok(())

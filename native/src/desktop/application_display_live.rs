@@ -111,6 +111,7 @@ pub(super) fn publish(
     source: &UnitId,
     image: &Image,
     art: bool,
+    hint: Option<&crate::desktop::capture_window_meta::Meta>,
 ) {
     let canvas = doc.state.canvas.borrow();
     // Live owns no editor; static relays show snapshots only, while Art retains the target's own display overlay.
@@ -120,9 +121,11 @@ pub(super) fn publish(
         .as_ref()
         .is_some_and(|frame| frame.matches(source, image, editor, art))
     {
+        drop(canvas);
+        super::waiting(doc, false);
         return;
     }
-    let next = if art {
+    let mut next = if art {
         match Frame::capture_overlay(
             source.clone(),
             doc.state.unit_id.clone(),
@@ -132,14 +135,18 @@ pub(super) fn publish(
             Ok(frame) => frame,
             Err(error) => {
                 eprintln!("Live Art overlay mapping failed: {error:?}");
+                drop(canvas);
+                super::waiting(doc, true);
                 return;
             }
         }
     } else {
         Frame::capture(source.clone(), image.clone(), None)
     };
+    next.naming = hint.cloned();
     *frame = Some(next);
     drop(frame);
     drop(canvas);
+    super::waiting(doc, false);
     super::invalidate(doc);
 }

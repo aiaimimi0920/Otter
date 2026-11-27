@@ -209,14 +209,23 @@ pub(super) unsafe fn sync(app: &mut Application) -> Result<()> {
     let selected = ui.selected.borrow().clone();
     let previous = ui.drawers.borrow().clone();
     let mut next = Vec::new();
+    let mut restored_nodes = Vec::new();
     for doc in &app.documents {
         let Some(node) = nodes.iter().find(|n| {
             n.hwnd == doc.window.0 .0 as isize && n.marker == (&*doc.state as *const State) as isize
         }) else {
             continue;
         };
+        let restored = doc
+            .state
+            .click
+            .chrome
+            .borrow()
+            .as_ref()
+            .and_then(|s| s.drawer);
         if node.minified
-            || !(node.expanded
+            || !(restored.is_some()
+                || node.expanded
                 || selected.contains(&(node.hwnd, node.marker))
                 || previous
                     .iter()
@@ -231,11 +240,7 @@ pub(super) unsafe fn sync(app: &mut Application) -> Result<()> {
             .find(|o| o.matches(&node) && o.data.model.borrow().art == model.art)
         {
             Some(o) => o.clone(),
-            None => {
-                let open = Open::new(&ui, &node, model.clone())?;
-                ui.drawers.borrow_mut().push(open.clone());
-                open
-            }
+            None => Open::new(&ui, &node, model.clone())?,
         };
         if let Some((context, id)) = open
             .data
@@ -263,12 +268,29 @@ pub(super) unsafe fn sync(app: &mut Application) -> Result<()> {
                 }
             }
         }
+        if let Some((expanded, tab)) = restored {
+            open.data.tab_expanded.set(tab);
+            open.data.set_open(expanded)?;
+            restored_nodes.push(&doc.state);
+        }
         open.update(&node, model)?;
         next.push(open);
     }
     *ui.drawers.borrow_mut() = next;
     window::order_drawing(&ui)?;
+    for s in restored_nodes {
+        if !s.click.active() {
+            s.click.chrome.take();
+        }
+    }
     Ok(())
+}
+pub(super) fn snapshot(ui: &Ui, n: &Node) -> Option<(bool, bool)> {
+    ui.drawers
+        .borrow()
+        .iter()
+        .find(|o| o.matches(n))
+        .map(|o| (o.data.open.get(), o.data.tab_expanded.get()))
 }
 /// Only the actual master Tab toggle synchronizes bottom drawers; collapsing endpoints via left properties is not a Tab action.
 pub(in crate::desktop::application) unsafe fn tab(binding: &Binding, host: HWND, expanded: bool) {

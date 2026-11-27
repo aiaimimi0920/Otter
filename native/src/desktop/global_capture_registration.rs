@@ -33,6 +33,7 @@ fn combined(errors: Vec<Error>) -> Error {
             .join("; "),
     )
 }
+#[cfg(test)]
 pub(super) fn cleanup_with(
     flags: [&Cell<bool>; 3],
     mut remove: impl FnMut(Key) -> Result<()>,

@@ -7,6 +7,33 @@ mod startup_settings;
 #[cfg(windows)]
 fn main() -> windows::core::Result<()> {
     let args: Vec<_> = std::env::args_os().skip(1).collect();
+    // Windows chooses the desktop token. Private compute entries enforce their
+    // own ordinary-token and job limits before reading inherited input.
+    if args
+        .first()
+        .is_some_and(|a| a == "--check-restart-checkpoint")
+    {
+        let (Some(revision), Some(digest), None) = (
+            args.get(1).and_then(|v| v.to_str()),
+            args.get(2).and_then(|v| v.to_str()),
+            args.get(3),
+        ) else {
+            return Err(windows::core::Error::new(
+                windows::Win32::Foundation::E_INVALIDARG,
+                "Expected --check-restart-checkpoint REVISION SHA256",
+            ));
+        };
+        otter_native::desktop::Startup::default().check_restart_checkpoint(revision, digest)?;
+        println!("native-restart-checkpoint: revision={revision} restored=true read-only=true");
+        return Ok(());
+    }
+    if args.len() == 1 && args[0] == "--check-login-startup" {
+        let normal = otter_native::autostart::query().map_err(|e| {
+            windows::core::Error::new(windows::Win32::Foundation::E_FAIL, e.to_string())
+        })?;
+        println!("native-login-startup: ordinary={normal:?} read-only=true");
+        return Ok(());
+    }
     // Retired ANGLE children must not enter private workers or read settings/inherited handles.
     if args.iter().any(|arg| arg == "--native-shader-worker") {
         return Err(windows::core::Error::new(
@@ -95,6 +122,12 @@ fn main() -> windows::core::Result<()> {
     if let Some(command) = otter_native::tile_cli::parse(&args).map_err(|message| {
         windows::core::Error::new(windows::Win32::Foundation::E_INVALIDARG, message)
     })? {
+        if !otter_native::elevation_status::allows_desktop_integrations() {
+            return Err(windows::core::Error::new(
+                windows::Win32::Foundation::E_ACCESSDENIED,
+                "Run Tile in a standard Otter session",
+            ));
+        }
         // Output enumeration prints JSON and exits; resident Tile still requires a watchdog.
         let _emergency = (command != otter_native::tile_cli::Command::Outputs)
             .then(otter_native::emergency_watchdog::install);

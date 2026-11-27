@@ -25,14 +25,17 @@ impl Editor {
         };
         let factor = (factors.x + factors.y) / 2.0;
         for (original, changed) in self.elements.iter().zip(&mut snapshot.elements) {
-            if matches!(original.tool, Tool::Blur | Tool::Mosaic | Tool::Eraser) {
+            if matches!(
+                original.tool,
+                Tool::Blur | Tool::Mosaic | Tool::Eraser | Tool::Magnifier
+            ) {
                 return Err(EditError::InvalidPoint);
             }
             let measured = if original.tool == Tool::Text {
                 let text = original
                     .text
                     .as_ref()
-                    .and_then(|text| text.with_font_size(text.font_size() * factor))
+                    .and_then(|text| text.scaled(factor))
                     .ok_or(EditError::BudgetExceeded)?;
                 let measured = measure(&text)?;
                 if !measured.x.is_finite()

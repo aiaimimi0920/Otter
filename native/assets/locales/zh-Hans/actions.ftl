@@ -5,8 +5,13 @@ action-new-pin-failed = 无法创建新钉图，原文档保留。
     { $error }
 action-hotkey-failed = 无法切换 Ctrl+1 全局截图快捷键。可能已被其他程序占用。
     { $error }
-action-hotkey-degraded = 全局截图快捷键（{ $shortcuts } 不可用）{ "\u0009" }Ctrl+1 / Ctrl+2 / Ctrl+3
-action-hotkey-menu = 全局截图 / Live / 长截图录制{ "\u0009" }Ctrl+1 / Ctrl+2 / Ctrl+3
+action-hotkey-degraded = 全局截图快捷键（{ $shortcuts } 不可用）
+action-hotkey-menu = 全局截图 / Live / 长截图录制
+action-hotkey-suspended = 截图快捷键已在全屏期间暂挂
+capture-loupe-keys = Tab 换格式 · Z 显隐
+action-shortcut-settings = 在 Loom 中配置快捷键…
+action-shortcut-settings-guide = 请将本机 Otter 连接到 Loom，在 Loom 的「设置 → Otter → 快捷键」中选择本设备并应用配置。断开连接后仍可使用上次保存的键位。
+action-shortcut-import-conflict = 导入文件的快捷键与本配置不同。请通过 Loom 修改快捷键，不要通过命名文件导入。
 action-open-failed = 无法打开图片，原文档未被替换。
     { $error }
 action-replace-one-image = 替换图片必须恰好包含一张图片，原文档保留。
@@ -32,6 +37,8 @@ action-rasterize-failed = 栅格化未提交，原标注保留。
 action-blur-failed = 模糊准备失败，原图和标注未修改。
     { $error }
 action-text-failed = 无法开始文字输入。
+action-text-draft-rejected = 文字未保存。草稿超出文本限制或可用内存预算。
+action-text-draft-unavailable = 无法显示当前草稿。文字仍保留在编辑框中。
     { $error }
 action-font-failed = 无法应用字体。
     { $error }
@@ -88,3 +95,45 @@ action-live-retain-failed = Live 画面未保留。
     { $error }
 action-live-start-failed = 无法开始 Live。
     { $error }
+capture-loupe-hex = HEX · 8 位 sRGB
+capture-loupe-rgb = RGB · 8 位 sRGB
+capture-loupe-hsl = HSL · sRGB
+tray-delay = 延时截图
+tray-delay-three = 3 秒后截图
+tray-delay-five = 5 秒后截图
+tray-delay-cancel = 取消延时截图
+capture-countdown-badge = { $seconds } 秒后截图
+archive-menu = 图像自动归档
+archive-copy = 归档已复制的图像
+archive-pin = 归档新建的截图钉图
+archive-directory = 选择归档目录…
+archive-select-directory = 请先选择一个已存在的本机归档目录。
+archive-config-failed = 归档设置未更改：{ $error }
+archive-consent = 本次运行期间，Otter 将在 { $directory } 中保存 PNG 图像，不覆盖已有文件。这些是永久文件，不是剪贴板缓存。是否开启？
+archive-queue-full = 图像归档队列已满。
+archive-failed = 图像归档失败：{ $error }。原操作不受影响。
+paste-card-invalid = 剪贴板文本须有效，最多 65,536 个 UTF-16 单元、400 行。
+paste-card-budget = 此文本卡超出了排版尺寸或图像内存上限。
+edit-rect-mask = 矩形打码
+edit-text-wrap = 文本框折行
+edit-box-width = 文本框宽度
+edit-box-padding = 文本框内边距
+export-webp-lossless = WebP（无损）
+tray-token-elevated = 当前会话：已使用管理员权限
+tray-token-standard = 当前会话：未提权
+tray-token-unknown = 当前会话：无法读取提权状态
+loom-needs-standard-session = 如需使用 Loom 或设备投射，请退出 Otter，再双击以普通权限打开。
+export-webp-lossy = WebP（有损）
+export-quality-webp = WebP 画质：{ $quality } · 透明度无损保留。
+export-quality-lossless = 无损编码 · 保留原有透明度。
+export-quality-white = JPEG 画质：{ $quality } · 透明区域使用白色背景。
+export-size-pending = 正在编码预览…
+export-size-exact = 编码体积：{ $bytes } 字节
+export-size-failed = 预览不可用：{ $error }
+export-extension-mismatch = 文件扩展名与选择的图像格式不一致。
+tool-spot-rect = 矩形聚光灯
+tool-spot-round = 圆角聚光灯
+tool-spot-ellipse = 椭圆聚光灯
+tool-spot-density = 聚光灯遮罩浓度
+tool-magnifier = 局部放大镜
+tool-lens-zoom = 放大倍率

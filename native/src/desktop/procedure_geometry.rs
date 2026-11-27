@@ -49,6 +49,7 @@ pub(super) unsafe fn before_dispatch(
     wp: WPARAM,
     lp: LPARAM,
 ) -> Option<LRESULT> {
+    crate::desktop::pin_shake_input::observe(hwnd, state, msg, wp);
     crate::desktop::pin_window::preview::click_dispatch(hwnd, state, msg, wp, lp)
         .or_else(|| crate::desktop::pin_window::animation::dispatch(hwnd, state, msg, wp))
         .or_else(|| crate::desktop::session_end::dispatch(hwnd, state, msg, wp, lp))

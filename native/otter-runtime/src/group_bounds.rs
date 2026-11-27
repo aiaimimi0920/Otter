@@ -51,6 +51,10 @@ pub fn bounds(stroke: &Stroke) -> Option<Bounds> {
     let rect = matches!(
         stroke.tool,
         Tool::Rectangle
+            | Tool::SpotRect
+            | Tool::Magnifier
+            | Tool::SpotRounded
+            | Tool::SpotEllipse
             | Tool::RoundedRectangle
             | Tool::Ellipse
             | Tool::Triangle
@@ -63,6 +67,14 @@ pub fn bounds(stroke: &Stroke) -> Option<Bounds> {
         let b = *stroke.points.last()?;
         for p in [a, b, Point { x: a.x, y: b.y }, Point { x: b.x, y: a.y }] {
             out.include(rotated(p));
+        }
+        if let Some(line) = stroke.serial_line() {
+            out.include(rotated(line[1]));
+            if let Some(arrow) = crate::arrow_geometry::build_path(&line, stroke.width.max(1.0)) {
+                for p in arrow.arrow.head {
+                    out.include(rotated(p));
+                }
+            }
         }
     } else if stroke.tool == Tool::Bezier && stroke.points.len() >= 4 {
         for segment in stroke.points.windows(4).step_by(3) {

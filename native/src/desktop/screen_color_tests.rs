@@ -39,7 +39,7 @@ fn stroke_fill_and_cancel_restore_modal_and_destroy_preview() {
         let state = State::new(None, false).unwrap();
         let initial = state.canvas.borrow().editor.style();
         begin(fixture.0, &state, false);
-        let popup = state.screen_color.borrow().as_ref().unwrap().preview.0;
+        let popup = state.screen_color.borrow().as_ref().unwrap().preview.hwnd();
         assert!(state.file_dialog.get());
         assert!(prepare(fixture.0, &state, Some(true)).is_err());
         finish(fixture.0, &state, Some(Color(1, 2, 3)));
@@ -55,7 +55,13 @@ fn stroke_fill_and_cancel_restore_modal_and_destroy_preview() {
         );
         let before = state.canvas.borrow().editor.style();
         begin(fixture.0, &state, false);
-        dispatch(fixture.0, &state, WM_KEYDOWN, WPARAM(VK_ESCAPE.0 as usize));
+        dispatch(
+            fixture.0,
+            &state,
+            WM_KEYDOWN,
+            WPARAM(VK_ESCAPE.0 as usize),
+            LPARAM(0),
+        );
         assert_eq!(state.canvas.borrow().editor.style(), before);
         assert!(state.screen_color.borrow().is_none());
         let history = state.capture_history.borrow();
@@ -71,7 +77,7 @@ fn stale_style_tool_or_closed_owner_cannot_apply_and_commands_do_not_reenter() {
             let fixture = Fixture::new();
             let state = State::new(None, false).unwrap();
             begin(fixture.0, &state, false);
-            assert!(dispatch(fixture.0, &state, WM_COMMAND, WPARAM(STROKE)).is_some());
+            assert!(dispatch(fixture.0, &state, WM_COMMAND, WPARAM(STROKE), LPARAM(0)).is_some());
             match mode {
                 0 => {
                     let style = state.canvas.borrow().editor.style();
@@ -102,7 +108,7 @@ fn toolbar_sampling_updates_active_color_and_history_not_creation_or_selected_st
         state.canvas.borrow_mut().select_tool(Tool::Rectangle);
         let before = state.canvas.borrow().editor.style();
         *state.screen_color.borrow_mut() = Some(prepare(fixture.0, &state, None).unwrap());
-        let preview = state.screen_color.borrow().as_ref().unwrap().preview.0;
+        let preview = state.screen_color.borrow().as_ref().unwrap().preview.hwnd();
         finish(fixture.0, &state, Some(Color(16, 32, 48)));
         assert_eq!(state.canvas.borrow().tool, Tool::Rectangle);
         assert_eq!(state.canvas.borrow().editor.style(), before);

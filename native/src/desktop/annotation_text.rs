@@ -17,7 +17,7 @@ thread_local! {
     static FACTORY: OnceCell<IDWriteFactory> = const { OnceCell::new() };
 }
 
-unsafe fn shared_factory() -> Result<IDWriteFactory> {
+pub(super) unsafe fn shared_factory() -> Result<IDWriteFactory> {
     FACTORY.with(|slot| {
         if let Some(factory) = slot.get() {
             return Ok(factory.clone());
@@ -60,42 +60,75 @@ pub(super) unsafe fn draw_cached(
             right: viewport.origin.x + start.x.max(end.x) * viewport.scale,
             bottom: viewport.origin.y + start.y.max(end.y) * viewport.scale,
         };
-        target.FillRectangle(&rect, brush);
+        if text.geometry().is_some() && stroke.corner_radius > 0.0 {
+            let radius = (stroke.corner_radius * viewport.scale)
+                .min((rect.right - rect.left).min(rect.bottom - rect.top) * 0.5);
+            target.FillRoundedRectangle(
+                &D2D1_ROUNDED_RECT {
+                    rect,
+                    radiusX: radius,
+                    radiusY: radius,
+                },
+                brush,
+            );
+        } else {
+            target.FillRectangle(&rect, brush);
+        }
         brush.SetColor(&foreground);
     }
     if stroke.paint_alpha.stroke() == 0.0 {
         return Ok(());
     }
-    let width = (end.x - start.x).abs() * viewport.scale;
-    let height = (end.y - start.y).abs() * viewport.scale;
+    // Shape boxed text in document units, then scale glyphs as a whole. DPI
+    // rounding or a different export zoom must not move a soft line break.
+    let boxed = text.geometry().is_some();
+    let scale = if boxed { 1.0 } else { viewport.scale };
+    let width = (end.x - start.x).abs() * scale;
+    let height = (end.y - start.y).abs() * scale;
     let layout = cache.text_layout(
         cacheable,
         stroke.annotation_id(),
         text,
-        viewport.scale,
+        scale,
         width,
         height,
-        || layout(text, viewport.scale, width, height),
+        || layout(text, scale, width, height),
     )?;
-    target.DrawTextLayout(
-        D2D_POINT_2F {
-            x: viewport.origin.x + (start.x + 4.0) * viewport.scale,
-            y: viewport.origin.y + (start.y + 4.0) * viewport.scale,
-        },
-        &layout,
-        brush,
-        D2D1_DRAW_TEXT_OPTIONS_CLIP,
-    );
+    let mut origin = D2D_POINT_2F {
+        x: viewport.origin.x + (start.x + text.padding()) * viewport.scale,
+        y: viewport.origin.y + (start.y + text.padding()) * viewport.scale,
+    };
+    let _restore = boxed.then(|| super::render_frame::save_transform(target));
+    if boxed {
+        let mut m = Default::default();
+        target.GetTransform(&mut m);
+        m.M31 += origin.x * m.M11 + origin.y * m.M21;
+        m.M32 += origin.x * m.M12 + origin.y * m.M22;
+        m.M11 *= viewport.scale;
+        m.M12 *= viewport.scale;
+        m.M21 *= viewport.scale;
+        m.M22 *= viewport.scale;
+        target.SetTransform(&m);
+        origin = D2D_POINT_2F::default();
+    }
+    target.DrawTextLayout(origin, &layout, brush, D2D1_DRAW_TEXT_OPTIONS_CLIP);
     Ok(())
 }
 
 pub(super) unsafe fn measure(text: &TextAnnotation) -> Result<Point> {
     let layout = layout(text, 1.0, 1_000_000.0, 1_000_000.0)?;
+    measured(text, &layout)
+}
+pub(super) unsafe fn measured(text: &TextAnnotation, layout: &IDWriteTextLayout) -> Result<Point> {
     let mut metrics = DWRITE_TEXT_METRICS::default();
     layout.GetMetrics(&mut metrics)?;
     Ok(Point {
-        x: metrics.widthIncludingTrailingWhitespace.ceil() + 8.0,
-        y: metrics.height.ceil() + 8.0,
+        x: text
+            .geometry()
+            .map_or(metrics.widthIncludingTrailingWhitespace.ceil() + 8.0, |b| {
+                b.width()
+            }),
+        y: metrics.height.ceil() + 2.0 * text.padding(),
     })
 }
 
@@ -120,7 +153,7 @@ pub fn measure_flip_metrics(text: &TextAnnotation) -> Result<crate::editor::Text
         }
         let mut lines = vec![DWRITE_LINE_METRICS::default(); count as usize];
         layout.GetLineMetrics(Some(&mut lines), &mut count)?;
-        let baseline = lines[0].baseline + 4.0;
+        let baseline = lines[0].baseline + text.padding();
         if !metrics.widthIncludingTrailingWhitespace.is_finite()
             || metrics.widthIncludingTrailingWhitespace < 0.0
             || !baseline.is_finite()
@@ -132,8 +165,12 @@ pub fn measure_flip_metrics(text: &TextAnnotation) -> Result<crate::editor::Text
             ));
         }
         Ok(crate::editor::TextFlipMetrics {
-            advance_width: metrics.widthIncludingTrailingWhitespace,
-            left_inset: 4.0,
+            advance_width: text
+                .geometry()
+                .map_or(metrics.widthIncludingTrailingWhitespace, |b| {
+                    b.width() - 2.0 * b.padding()
+                }),
+            left_inset: text.padding(),
             baseline_from_top: baseline,
         })
     }
@@ -143,6 +180,21 @@ pub(super) unsafe fn layout(
     scale: f32,
     width: f32,
     height: f32,
+) -> Result<IDWriteTextLayout> {
+    layout_units(
+        text,
+        scale,
+        width,
+        height,
+        &text.content().encode_utf16().collect::<Vec<_>>(),
+    )
+}
+pub(super) unsafe fn layout_units(
+    text: &TextAnnotation,
+    scale: f32,
+    width: f32,
+    height: f32,
+    content: &[u16],
 ) -> Result<IDWriteTextLayout> {
     let factory = shared_factory()?;
     let format = factory.CreateTextFormat(
@@ -165,13 +217,17 @@ pub(super) unsafe fn layout(
         text.font_size() * scale,
         w!("zh-CN"),
     )?;
-    format.SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP)?;
-    let content: Vec<u16> = text.content().encode_utf16().collect();
+    format.SetWordWrapping(if text.geometry().is_some() {
+        DWRITE_WORD_WRAPPING_WRAP
+    } else {
+        DWRITE_WORD_WRAPPING_NO_WRAP
+    })?;
+    let inset = 2.0 * text.padding() * scale;
     factory.CreateTextLayout(
-        &content,
+        content,
         &format,
-        (width - 8.0 * scale).max(1.0),
-        (height - 8.0 * scale).max(1.0),
+        (text.geometry().map_or(width, |b| b.width() * scale) - inset).max(1.0),
+        (height - inset).max(1.0),
     )
 }
 

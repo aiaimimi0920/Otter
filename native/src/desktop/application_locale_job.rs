@@ -13,7 +13,7 @@ use std::{
     time::Instant,
 };
 
-pub(super) struct Completed {
+pub(in crate::desktop::application) struct Completed {
     pub source: Arc<Source>,
     pub warning: Option<String>,
 }
@@ -112,7 +112,7 @@ fn authorize(cancel: &AtomicBool, deadline: Option<Instant>) -> std::io::Result<
         )
     })
 }
-fn publish(
+pub(in crate::desktop::application) fn publish(
     source: Option<Arc<Source>>,
     document: Document,
     target: Option<PathBuf>,

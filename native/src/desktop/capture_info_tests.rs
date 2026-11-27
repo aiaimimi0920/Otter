@@ -26,6 +26,7 @@ fn restored_metadata_keeps_extensions_but_does_not_grant_file_lease_or_claim_ori
 }
 fn source() -> CaptureSource {
     CaptureSource {
+        naming: None,
         session_meta: None,
         original_lease: None,
         original: None,

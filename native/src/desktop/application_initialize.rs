@@ -3,8 +3,11 @@ use super::*;
 use crate::desktop::{loom_execution_tasks, loom_input_tasks};
 
 impl Application {
-    pub fn new(instance: HINSTANCE, initial: DocumentWindow) -> Self {
+    pub fn new(instance: HINSTANCE, mut initial: DocumentWindow) -> Self {
         let hotkey_enabled = initial.state.hotkey_enabled.clone();
+        let shortcut_policy = initial.state.shortcut_policy.clone();
+        let shortcut_display = initial.state.shortcut_display.clone();
+        let tray_recovery = initial.state.tray.recovery.clone();
         let long_hotkey_enabled = initial.state.long_hotkey_enabled.clone();
         let live_hotkey_enabled = initial.state.live_hotkey_enabled.clone();
         let exit_requested = initial.state.exit_requested.clone();
@@ -22,12 +25,17 @@ impl Application {
             execution_wake.callback(),
         );
         let session = save_context::fresh(initial.state.unit_id.clone());
+        let retired_edits =
+            edit_retirement::Retired::with_archive(initial.state.image_archive.clone());
         let extension_commands = super::super::extension_commands::Owner::new(
             initial.state.extension_commands.clone(),
             execution_wake.callback(),
         );
         let chrome = super::chrome::Owner::default();
         *initial.state.chrome.borrow_mut() = chrome.bind();
+        let pin_layout = pin_arrange::Owner::default();
+        initial.state.shake.signals = pin_layout.signals.clone();
+        initial.state.click.signals = pin_layout.click.clone();
         {
             let mut frozen = initial.state.frozen_library.borrow_mut();
             frozen.source = Some(session.original.clone());
@@ -35,6 +43,7 @@ impl Application {
         }
         Self {
             chrome,
+            pin_layout,
             edit_palette: initial.state.edit_palette.clone(),
             capture_history: history::worker::Owner::new(
                 initial.state.capture_history.clone(),
@@ -56,6 +65,7 @@ impl Application {
             naming_save_job: None,
             locale: locale::Owner::with_local(initial.state.display_language_request.clone()),
             locale_remote: Default::default(),
+            shortcut_remote: Default::default(),
             naming_document: Default::default(),
             art_issuers: Default::default(),
             naming_source: None,
@@ -85,7 +95,7 @@ impl Application {
             documents: vec![initial],
             restored_session: Some(session),
             retired_workflow: None,
-            retired_edits: Default::default(),
+            retired_edits,
             restore_job: None,
             save_job: None,
             save_origin: None,
@@ -107,6 +117,9 @@ impl Application {
             instance,
             error: None,
             hotkey_enabled,
+            shortcut_policy,
+            shortcut_display,
+            tray_recovery,
             long_hotkey_enabled,
             live_hotkey_enabled,
             capture_active,

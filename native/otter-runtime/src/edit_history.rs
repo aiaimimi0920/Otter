@@ -14,6 +14,7 @@ pub struct Document {
     pub crop: Option<crate::editor::CropView>,
     pub logical_size: Option<crate::crop_geometry::Size>,
     pub mirror: crate::editor::MirrorState,
+    pub spotlight: Option<u8>,
 }
 
 /// Mutable target borrow for the same document, owning no additional history/pixels.
@@ -25,6 +26,7 @@ pub struct Target<'a> {
     pub logical_size: &'a mut Option<crate::crop_geometry::Size>,
     pub mirror: &'a mut crate::editor::MirrorState,
     pub pending_pin: &'a mut Option<crate::editor::PinValue>,
+    pub spotlight: &'a mut Option<u8>,
 }
 
 pub struct Annotations {
@@ -48,9 +50,16 @@ pub struct Entry {
     styles: Option<Vec<(usize, StrokeStyle)>>,
     crop: Option<Option<crate::editor::CropView>>,
     mirror: Option<crate::editor::MirrorState>,
+    spotlight: Option<u8>,
 }
 
 impl Entry {
+    pub fn spotlight(percent: u8) -> Self {
+        Self {
+            spotlight: Some(percent),
+            ..Self::added(0)
+        }
+    }
     pub fn pin(change: crate::editor::PinChange) -> Self {
         Self {
             pin: Some(Box::new(change)),
@@ -100,6 +109,7 @@ impl Entry {
             document: None,
             annotations: None,
             mirror: None,
+            spotlight: None,
         }
     }
     pub fn removed(index: usize, stroke: Stroke) -> Self {
@@ -229,7 +239,12 @@ impl Entry {
             logical_size,
             mirror,
             pending_pin,
+            spotlight,
         } = target;
+        if let Some(previous) = &mut self.spotlight {
+            *previous = spotlight.replace(*previous).unwrap_or(60);
+            return;
+        }
         if let Some(change) = &mut self.pin {
             *pending_pin = Some(change.toggle());
             return;
@@ -246,6 +261,7 @@ impl Entry {
             std::mem::swap(&mut document.crop, crop);
             std::mem::swap(&mut document.logical_size, logical_size);
             std::mem::swap(&mut document.mirror, mirror);
+            std::mem::swap(&mut document.spotlight, spotlight);
             return;
         }
         if let Some(previous) = &mut self.mirror {

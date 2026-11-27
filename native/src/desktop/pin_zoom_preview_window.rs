@@ -63,7 +63,13 @@ impl Window {
             )
             .ok()?;
             let style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
-            SetWindowLongPtrW(hwnd, GWL_EXSTYLE, style & !(WS_EX_TRANSPARENT.0 as isize));
+            // Allow kernel click-activation (SFW_CLICK) when the user clicks a parked pin
+            // after typing/copying text in another app holding ForegroundLockTimeout.
+            SetWindowLongPtrW(
+                hwnd,
+                GWL_EXSTYLE,
+                style & !((WS_EX_TRANSPARENT | WS_EX_NOACTIVATE).0 as isize),
+            );
             if SetWindowRgn(hwnd, None, false) == 0 {
                 return Err(windows::core::Error::from_win32());
             }
@@ -88,7 +94,7 @@ impl Window {
             })
             .map_err(windows::core::Error::from)?;
         let hwnd = CreateWindowExW(
-            WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
+            WS_EX_LAYERED | WS_EX_TOOLWINDOW,
             CLASS,
             &windows::core::HSTRING::from(crate::ui_text::text("action-zoom-preview")),
             WS_POPUP,
@@ -124,7 +130,11 @@ impl Drop for Window {
                         558,
                     );
                     let style = GetWindowLongPtrW(self.hwnd, GWL_EXSTYLE);
-                    SetWindowLongPtrW(self.hwnd, GWL_EXSTYLE, style | WS_EX_TRANSPARENT.0 as isize);
+                    SetWindowLongPtrW(
+                        self.hwnd,
+                        GWL_EXSTYLE,
+                        style | (WS_EX_TRANSPARENT | WS_EX_NOACTIVATE).0 as isize,
+                    );
                 }
                 crate::desktop::application::chrome::release_frame(binding, self.hwnd);
                 return;
@@ -205,7 +215,7 @@ unsafe fn route_dispatch(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM, route: Ro
     let state = &*(route.marker as *const State);
     match msg {
         WM_NCHITTEST => LRESULT(HTCLIENT as isize),
-        WM_MOUSEACTIVATE => LRESULT(MA_NOACTIVATE as isize),
+        WM_MOUSEACTIVATE => LRESULT(MA_ACTIVATE as isize),
         WM_ERASEBKGND => LRESULT(1),
         WM_MOUSEWHEEL | WM_MOUSEHWHEEL | WM_KEYDOWN | WM_KEYUP | WM_SYSKEYDOWN | WM_SYSKEYUP => {
             SendMessageW(route.owner, msg, Some(wp), Some(lp))
@@ -230,6 +240,18 @@ unsafe fn route_dispatch(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM, route: Ro
             let screen_lp = LPARAM((screen.x as u16 as isize) | ((screen.y as u16 as isize) << 16));
             let hit = SendMessageW(route.owner, WM_NCHITTEST, None, Some(screen_lp));
             let _ = SetForegroundWindow(route.owner);
+            if state.lifetime.owns(route.owner) {
+                let _ = windows::Win32::UI::Input::KeyboardAndMouse::SetActiveWindow(route.owner);
+                if state.inline_text.borrow().is_none()
+                    && windows::Win32::UI::Input::KeyboardAndMouse::GetFocus() != route.owner
+                {
+                    let _ =
+                        windows::Win32::UI::Input::KeyboardAndMouse::SetFocus(Some(route.owner));
+                }
+            }
+            if !state.lifetime.owns(route.owner) {
+                return LRESULT(0);
+            }
             let at = std::time::Instant::now();
             let nonclient = hit.0 == HTCAPTION as isize && msg == WM_LBUTTONDOWN;
             let result = if nonclient {
@@ -254,6 +276,12 @@ unsafe fn route_dispatch(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM, route: Ro
                 )
             };
             if state.lifetime.owns(route.owner) {
+                if state.inline_text.borrow().is_none()
+                    && windows::Win32::UI::Input::KeyboardAndMouse::GetFocus() == hwnd
+                {
+                    let _ =
+                        windows::Win32::UI::Input::KeyboardAndMouse::SetFocus(Some(route.owner));
+                }
                 state.pin_animation.click.set(Some(Click {
                     msg: if nonclient { WM_NCLBUTTONDOWN } else { msg },
                     point: screen,

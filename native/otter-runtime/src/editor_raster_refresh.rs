@@ -164,12 +164,7 @@ impl Editor {
         &self,
         indices: &[usize],
     ) -> Result<Option<RasterRefreshPlan>, EditError> {
-        if indices.is_empty()
-            || indices.iter().any(|i| *i >= self.elements.len())
-            || !indices.windows(2).all(|p| p[0] < p[1])
-        {
-            return Err(EditError::InvalidPoint);
-        }
+        self.validate_rasterize_indices(indices)?;
         let source = self.raster.as_ref().ok_or(EditError::InvalidPoint)?.clone();
         self.prepare_raster_refresh_inner(source, true, indices)
     }

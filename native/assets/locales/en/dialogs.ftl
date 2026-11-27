@@ -5,7 +5,7 @@ naming-save-template = PNG save template
 naming-drag-template = Drag-out template
 naming-clipboard-template = Clipboard file template
 naming-title-length = Maximum title length
-naming-placeholders = Placeholders: { "{app} {kind} {label} {title} {process} {unitId} {shortId} {width} {height} {date} {time} {timestamp}" }
+naming-placeholders = Placeholders: { "{app} {kind} {label} {title} {process} {unitId} {shortId} {width} {height} {date} {time} {timestamp}" }. Opt in with { "{sourceApp}" } or { "{windowTitle}" } to include the source program or window caption in filenames. Captions may reveal document or page names.
 naming-validation = Templates must use valid placeholders and fit within 4096 bytes. Title length must be an integer from 1 to 240.
 naming-unchanged = Naming settings were not changed.
     { $error }
@@ -146,6 +146,7 @@ export-original-changed = The capture source changed while selecting a path. No 
 export-original-failed = Could not save the HDR original. Existing files will not be overwritten.
     { $error }
 export-document-changed = The document changed while selecting a save path. No file was written. Export again.
+display-output-edit-pending = Finish or cancel the current edit before exporting. No file was written.
 long-capture-title = Scrolling capture
 long-capture-first-frame = 1 frame captured
 long-capture-preview = Preview

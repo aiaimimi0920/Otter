@@ -150,16 +150,34 @@ pub fn restore_with_resources(
     ordered.sort_by(|a, b| a.0.total_cmp(&b.0));
     let layers = ordered.iter().map(|v| v.0).collect::<Vec<_>>();
     let mut editor = Editor::default();
+    if let Some(v) = value.get("spotlightPercent") {
+        let value = v
+            .as_u64()
+            .and_then(|n| u8::try_from(n).ok())
+            .ok_or(Error::Style)?;
+        editor
+            .restore_spotlight_percent(value)
+            .map_err(|_| Error::Style)?;
+    }
     let mut ids = Vec::with_capacity(ordered.len());
     for (_, id, element) in ordered {
         let kind = element["type"].as_str().ok_or(Error::Shape)?;
-        if matches!(kind, "text" | "serial") {
-            text::append(&mut editor, element, kind == "serial", &mut measure)?;
+        if matches!(kind, "text" | "text-box" | "serial" | "serial-arrow") {
+            text::append(
+                &mut editor,
+                element,
+                matches!(kind, "serial" | "serial-arrow"),
+                &mut measure,
+            )?;
             ids.push(id.to_owned());
             continue;
         }
         let (tool, shape) = match kind {
             "rect" => (Tool::Rectangle, true),
+            "spotlight-rect" => (Tool::SpotRect, true),
+            "magnifier" => (Tool::Magnifier, true),
+            "spotlight-round" => (Tool::SpotRounded, true),
+            "spotlight-ellipse" => (Tool::SpotEllipse, true),
             "round-rect" => (Tool::RoundedRectangle, true),
             "ellipse" => (Tool::Ellipse, true),
             "triangle" => (Tool::Triangle, true),
@@ -168,8 +186,8 @@ pub fn restore_with_resources(
             "arrow" => (Tool::Arrow, false),
             "polyline" => (Tool::Polyline, false),
             "bezier" => (Tool::Bezier, false),
-            "mosaic" => (Tool::Mosaic, false),
-            "blur" => (Tool::Blur, false),
+            "mosaic" | "mosaic-rect" => (Tool::Mosaic, false),
+            "blur" | "blur-rect" => (Tool::Blur, false),
             "brush" => (
                 match element["style"].get("brushTip").and_then(Value::as_str) {
                     Some("tapered") => Tool::Paintbrush,
@@ -205,7 +223,10 @@ pub fn restore_with_resources(
             let a = point(element)?;
             let w = number(&element["w"])?;
             let h = number(&element["h"])?;
-            if w < 0.0 || h < 0.0 {
+            if w < 0.0
+                || h < 0.0
+                || (tool.spotlight() || tool == Tool::Magnifier) && (w == 0. || h == 0.)
+            {
                 return Err(Error::Geometry);
             }
             vec![
@@ -222,6 +243,10 @@ pub fn restore_with_resources(
             }
             points.iter().map(point).collect::<Result<Vec<_>, _>>()?
         };
+        let rectangular = matches!(kind, "mosaic-rect" | "blur-rect");
+        if rectangular && !crate::editor::effect_rect::valid(&points) {
+            return Err(Error::Geometry);
+        }
         let mut restored_style = style(
             &element["style"],
             element["sides"].as_u64(),
@@ -239,10 +264,18 @@ pub fn restore_with_resources(
                 .map(number)
                 .transpose()?
                 .filter(|value| *value != 0.0)
-                .unwrap_or(12.0)
-                .round()
-                .max(2.0);
-            restored_style = restored_style.with_width(width).ok_or(Error::Style)?;
+                .unwrap_or(12.0);
+            let strength = if rectangular {
+                number(&element["strength"])?
+            } else {
+                strength.round().max(2.0)
+            };
+            restored_style = if rectangular {
+                restored_style.with_width_value(number(&element["brushWidth"])?)
+            } else {
+                restored_style.with_width(width)
+            }
+            .ok_or(Error::Style)?;
             if tool == Tool::Mosaic {
                 restored_style = restored_style
                     .with_mosaic_cell_value(strength)
@@ -262,6 +295,11 @@ pub fn restore_with_resources(
                 .transpose()?
                 .filter(|value| *value != 0.0)
                 .unwrap_or(8.0);
+            let strength = if rectangular {
+                number(&element["strength"])?
+            } else {
+                strength
+            };
             if !(1.0..=64.0).contains(&strength) {
                 return Err(Error::Style);
             }
@@ -277,6 +315,21 @@ pub fn restore_with_resources(
             crate::editor::EditError::BudgetExceeded => Error::Budget,
             _ => Error::Geometry,
         })?;
+        if rectangular {
+            editor.restored_effect_rect().map_err(|_| Error::Geometry)?;
+        }
+        if tool == Tool::Magnifier {
+            let zoom = match (element.get("zoomPercent"), element.get("zoomTenths")) {
+                (Some(v), None) => v.as_u64(),
+                (None, Some(v)) => v.as_u64().and_then(|n| n.checked_mul(10)),
+                _ => None,
+            }
+            .and_then(|n| u16::try_from(n).ok())
+            .ok_or(Error::Style)?;
+            editor
+                .restore_lens(point(&element["sourceOffset"])?, zoom)
+                .map_err(|_| Error::Geometry)?;
+        }
         ids.push(id.to_owned());
     }
     Ok(Restored {

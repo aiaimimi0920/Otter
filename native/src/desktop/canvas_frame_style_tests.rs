@@ -13,6 +13,26 @@ fn read(c: &mut Canvas) -> Pixels {
     c.target.as_ref().unwrap().surface.readback_for_test()
 }
 #[test]
+fn unresolved_frame_does_not_paint_retained_or_fallback_pixels() {
+    software_tests::fixture_mode(true, |state, hwnd| {
+        let mut c = state.canvas.borrow_mut();
+        let external = crate::desktop::display_frame::Frame::capture(
+            state.unit_id.clone(),
+            c.image.clone().unwrap(),
+            None,
+        );
+        c.display_waiting = true;
+        for frame in [Some(&external), None] {
+            c.paint_display(hwnd, 40, 40, 96, frame).unwrap();
+            let p = read(&mut c);
+            let first = &p.bytes[..4];
+            assert_eq!(first[3], 255);
+            assert_eq!(first[0], first[2]);
+            assert!(p.bytes.chunks_exact(4).all(|px| px == first));
+        }
+    });
+}
+#[test]
 fn normal_external_and_zoom_snapshot_keep_same_style_and_fixed_dip_width() {
     software_tests::fixture_mode(true, |state, hwnd| {
         let mut c = state.canvas.borrow_mut();
@@ -94,5 +114,51 @@ fn content_border_is_visible_in_contain_letterbox_and_not_cut_to_base_bitmap() {
         assert_eq!(at(&p, 20, 1), &[0, 0, 255, 255]);
         assert_eq!(at(&p, 20, 5)[3], 0);
         assert_eq!(at(&p, 20, 20), &[30, 60, 90, 255]);
+    });
+}
+
+#[test]
+fn external_magnifier_does_not_sample_unpinned_workspace_background() {
+    software_tests::fixture_mode(false, |state, hwnd| {
+        let image = Image {
+            width: 40,
+            height: 40,
+            pixels: (0..1600)
+                .flat_map(|i| if i % 40 < 20 { [0; 4] } else { [255; 4] })
+                .collect::<Vec<_>>()
+                .into(),
+        };
+        let mut editor = Editor::default();
+        editor
+            .begin(Tool::Magnifier, Point { x: 20., y: 10. })
+            .unwrap();
+        editor.extend(Point { x: 40., y: 30. }).unwrap();
+        assert!(editor.commit());
+        editor
+            .move_lens_handle(0, 0, Point { x: 5., y: 20. })
+            .unwrap();
+        let frame = crate::desktop::display_frame::Frame::capture(
+            state.unit_id.clone(),
+            image.clone(),
+            Some(&editor),
+        );
+        let output = crate::desktop::export::decode_png(
+            crate::desktop::export::style::Snapshot::default()
+                .encoded_png(&image, &editor, 1.)
+                .unwrap()
+                .to_vec(),
+        );
+        let mut c = state.canvas.borrow_mut();
+        c.viewport = Viewport {
+            origin: Point::default(),
+            scale: 1.,
+        };
+        c.paint_display(hwnd, 40, 40, 96, Some(&frame)).unwrap();
+        let pixels = read(&mut c);
+        assert_eq!(at(&pixels, 30, 20), &[255; 4]);
+        assert_eq!(
+            at(&pixels, 30, 20),
+            &output.pixels[(20 * 40 + 30) * 4..(20 * 40 + 31) * 4]
+        );
     });
 }

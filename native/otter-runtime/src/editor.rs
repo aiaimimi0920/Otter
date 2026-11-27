@@ -29,6 +29,12 @@ pub mod crop;
 pub mod crop_refresh;
 #[path = "editor_document_stamp.rs"]
 pub mod document_stamp;
+#[path = "editor_effect_rect.rs"]
+pub mod effect_rect;
+#[path = "editor_serial_arrow.rs"]
+pub mod serial_arrow;
+#[path = "editor_text_box_resize.rs"]
+mod text_box_resize;
 pub use document_stamp::DocumentStamp;
 #[path = "editor_flip_geometry.rs"]
 pub mod flip_geometry;
@@ -59,12 +65,17 @@ pub use pin_history::{PinChange, PinValue};
 pub mod commit;
 #[path = "editor_line_property.rs"]
 pub mod line_property;
+#[path = "editor_magnifier.rs"]
+mod magnifier;
 #[path = "editor_rasterize.rs"]
 pub mod rasterize;
 #[path = "editor_resize_preview.rs"]
 pub mod resize_preview;
 #[path = "editor_rotation_preview.rs"]
 pub mod rotation_preview;
+#[path = "editor_spotlight.rs"]
+mod spotlight;
+pub use magnifier::Lens;
 #[path = "editor_stroke_style.rs"]
 pub mod stroke_style;
 #[path = "editor_visibility.rs"]
@@ -96,6 +107,10 @@ pub enum Tool {
     Ellipse,
     Triangle,
     Polygon,
+    SpotRect,
+    SpotRounded,
+    SpotEllipse,
+    Magnifier,
 }
 
 impl Tool {
@@ -106,7 +121,9 @@ impl Tool {
             Self::Highlighter => 0,
             Self::Blur => 1,
             Self::Mosaic => 2,
-            _ => 3,
+            Self::SpotRect | Self::SpotRounded | Self::SpotEllipse => 3,
+            Self::Magnifier => 4,
+            _ => 5,
         }
     }
 }
@@ -129,6 +146,10 @@ pub struct Stroke {
     pub brush_weights: Vec<f32>,
     pub text: Option<crate::text_annotation::TextAnnotation>,
     pub mosaic_cell: f32,
+    pub effect_rect: bool,
+    /// Local offset from the circle center in radii. Box geometry stays exactly two points.
+    pub serial_arrow_tip: Option<Point>,
+    pub lens: Option<Lens>,
     pub blur: Option<crate::blur_image::BlurImage>,
 }
 
@@ -146,6 +167,7 @@ pub struct Editor {
     revision: u64,
     presentation_revision: u64,
     serial_count: u32,
+    spotlight_percent: Option<u8>,
     elements: Vec<Stroke>,
     history: History,
     retained_points: usize,
@@ -205,13 +227,20 @@ impl Editor {
             opacity: self.style.opacity(),
             fill: self.style.fill(),
             paint_alpha: self.style.paint_alpha(),
-            corner_radius: self.style.corner_radius(),
+            corner_radius: if tool == Tool::SpotRounded && self.style.corner_radius() == 0.0 {
+                12.0
+            } else {
+                self.style.corner_radius()
+            },
             dash: self.style.dash(),
             sides: self.style.sides(),
             rotation: 0.0,
             text: None,
             blur: None,
             mosaic_cell: self.style.mosaic_cell(),
+            effect_rect: false,
+            serial_arrow_tip: None,
+            lens: (tool == Tool::Magnifier).then(Lens::default),
             arrow: self.style.arrow(),
             brush_weights: if tool == Tool::Paintbrush {
                 vec![0.85]
@@ -232,6 +261,12 @@ impl Editor {
         let Some(stroke) = &mut self.draft else {
             return Ok(false);
         };
+        if stroke.effect_rect {
+            return Ok(effect_rect::extend(stroke, point));
+        }
+        if stroke.tool == Tool::Serial {
+            return stroke.extend_serial(point, straight);
+        }
         if stroke.tool == Tool::Bezier {
             let points = crate::bezier_geometry::create(stroke.points[0], point);
             for &control in &points {
@@ -331,6 +366,7 @@ impl Editor {
             logical_size: &mut self.logical_size,
             mirror: &mut self.mirror,
             pending_pin: &mut self.pending_pin,
+            spotlight: &mut self.spotlight_percent,
         }) {
             return false;
         }
@@ -349,6 +385,7 @@ impl Editor {
                 logical_size: &mut self.logical_size,
                 mirror: &mut self.mirror,
                 pending_pin: &mut self.pending_pin,
+                spotlight: &mut self.spotlight_percent,
             })
         {
             return false;

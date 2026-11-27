@@ -7,6 +7,7 @@ pub(super) enum Mode {
     Normal,
     Smoke,
     WorkspaceCheck,
+    RestartCheck(super::workspace_profile::restart::Expected),
 }
 pub(super) struct Runtime {
     pub(super) settings: settings_startup::Loaded,
@@ -51,6 +52,12 @@ pub(super) unsafe fn run_window(
     #[cfg(not(any(debug_assertions, feature = "smoke-test")))]
     let _ = image_path;
     let mut app = application::Application::new(instance, document);
+    app.bind_archive_profile(
+        workspace
+            .as_ref()
+            .and_then(|p| p.path.parent())
+            .or_else(|| settings.default_target.as_deref().and_then(Path::parent)),
+    );
     if !hidden_check {
         app.install_capture_history()?;
     }
@@ -59,7 +66,11 @@ pub(super) unsafe fn run_window(
     if let Some(settings) = settings.source {
         app.install_startup_settings(settings)?;
     }
+    let restart_check = workspace.as_ref().is_some_and(|p| p.claimed.is_some());
     app.install_workspace_checkpoint(workspace, workspace_check)?;
+    if restart_check {
+        return app.verify_hidden_restore();
+    }
     if workspace_check {
         return app.check_restored_startup();
     }
@@ -122,15 +133,6 @@ pub fn run_session(
     .run_session(path, assets, space, check)
 }
 impl Startup<'_> {
-    pub(super) fn resolve(
-        &self,
-        smoke: bool,
-        check: bool,
-    ) -> Result<(settings_startup::Loaded, shader::Loaded)> {
-        let shader = shader::resolve(self, smoke)?;
-        let settings = settings_startup::resolve(self.settings, smoke || check)?;
-        Ok((settings, shader))
-    }
     pub fn run(self, image: Option<&Path>, smoke: bool, pinned: bool) -> Result<()> {
         run_source(
             image,
@@ -145,6 +147,21 @@ impl Startup<'_> {
     /// Hidden read-only startup verification; an isolated profile is mandatory and explicit, with no actual-user-data discovery.
     pub fn check_workspace(self) -> Result<()> {
         run_source(None, Mode::WorkspaceCheck, false, false, false, None, self)
+    }
+    /// Verify a particular published checkpoint with a hidden restore. A
+    /// caller-supplied digest is a consistency check, not authorization.
+    pub fn check_restart_checkpoint(self, revision: &str, sha256: &str) -> Result<()> {
+        let expected = workspace_profile::restart::Expected::parse(revision, sha256)
+            .map_err(|e| Error::new(E_INVALIDARG, e.to_string()))?;
+        run_source(
+            None,
+            Mode::RestartCheck(expected),
+            false,
+            false,
+            false,
+            None,
+            self,
+        )
     }
     pub fn run_capture(self, pinned: bool, region: bool) -> Result<()> {
         run_source(None, Mode::Normal, pinned, true, region, None, self)
@@ -194,18 +211,31 @@ fn run_source(
             "--smoke-test is disabled in release builds",
         ));
     }
-    let workspace_check = mode == Mode::WorkspaceCheck;
-    // Read explicit configuration before screenshots, window creation, or hotkey registration; failure does not fall back to defaults.
-    let (settings, shader) = startup.resolve(
-        smoke,
-        workspace_check || session.as_ref().is_some_and(|session| session.check),
+    let workspace_check = matches!(mode, Mode::WorkspaceCheck | Mode::RestartCheck(_));
+    let shader = shader::resolve(&startup, smoke)?;
+    // A competing startup must not read policy from the outgoing writer before
+    // acquiring its lease. Keep using the pinned root even if discovery changes.
+    let workspace = if let Mode::RestartCheck(expected) = mode {
+        let root = std::env::var_os("OTTER_NATIVE_PROFILE_DIR").ok_or_else(|| {
+            Error::new(
+                E_INVALIDARG,
+                "--check-restart-checkpoint requires OTTER_NATIVE_PROFILE_DIR",
+            )
+        })?;
+        workspace_profile::Profile::claim(Path::new(&root), expected).map(Some)
+    } else {
+        workspace_profile::resolve(
+            !smoke && image_path.is_none() && !capture && session.is_none(),
+            workspace_check,
+        )
+    }
+    .map_err(|error| Error::new(E_FAIL, format!("Cannot open workspace profile: {error}")))?;
+    let settings = settings_startup::resolve_in_profile(
+        startup.settings,
+        smoke || workspace_check || session.as_ref().is_some_and(|session| session.check),
+        workspace.as_ref().and_then(|profile| profile.path.parent()),
     )?;
     settings.install_language()?;
-    let workspace = workspace_profile::resolve(
-        !smoke && image_path.is_none() && !capture && session.is_none(),
-        workspace_check,
-    )
-    .map_err(|error| Error::new(E_FAIL, format!("Cannot open workspace profile: {error}")))?;
     #[cfg(any(debug_assertions, feature = "smoke-test"))]
     if smoke {
         crate::surface_webp_smoke::run()?;

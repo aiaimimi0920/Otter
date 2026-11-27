@@ -20,6 +20,11 @@ pub(super) unsafe fn choose_workflow(owner: HWND) -> Result<Option<Root>> {
     choose_with_title(owner, crate::ui_text::text("session-archive-title"))
 }
 unsafe fn choose_with_title(owner: HWND, title: &str) -> Result<Option<Root>> {
+    choose_path(owner, title)?
+        .map(|p| Root::open(&p))
+        .transpose()
+}
+pub(super) unsafe fn choose_path(owner: HWND, title: &str) -> Result<Option<PathBuf>> {
     let dialog: IFileOpenDialog = CoCreateInstance(&FileOpenDialog, None, CLSCTX_INPROC_SERVER)?;
     dialog.SetOptions(
         dialog.GetOptions()?
@@ -53,5 +58,5 @@ unsafe fn choose_with_title(owner: HWND, title: &str) -> Result<Option<Root>> {
     }
     let path = PathBuf::from(std::ffi::OsString::from_wide(wide));
     // Explicit selection creates permission; never derive it from JSON or the session file's parent directory.
-    Root::open(&path).map(Some)
+    Ok(Some(path))
 }

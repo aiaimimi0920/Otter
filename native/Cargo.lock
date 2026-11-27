@@ -780,6 +780,7 @@ dependencies = [
  "sha2",
  "skrifa",
  "svgtypes",
+ "tiny-webp",
  "tungstenite",
  "ureq",
  "url",
@@ -1395,6 +1396,12 @@ dependencies = [
  "bytemuck",
  "strict-num",
 ]
+
+[[package]]
+name = "tiny-webp"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a4dcf039b4a31d26a33a93f237630c5b0b1fd2667fa439e0363600a7dca81884"
 
 [[package]]
 name = "tinystr"

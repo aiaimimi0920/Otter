@@ -62,6 +62,17 @@ pub(super) struct Pending {
 }
 
 pub(super) unsafe fn show(hwnd: HWND, state: &State, position: LPARAM) -> Result<()> {
+    if !super::display_snapshot::ready(state)
+        || (state.canvas.borrow().pinned && super::pin_click_through::drafting(state))
+    {
+        return super::extension_notices::show(
+            hwnd,
+            state,
+            None,
+            crate::ui_text::text("common-save"),
+            crate::ui_text::text("display-output-edit-pending"),
+        );
+    }
     super::menu_transition::prepare(hwnd, state)?;
     let _ = InvalidateRect(Some(hwnd), None, false);
     let target = MenuTarget::capture(&state.canvas.borrow());
@@ -115,7 +126,11 @@ pub(super) unsafe fn execute(hwnd: HWND, state: &State, command: usize) -> Resul
     if state.group_locked.get() && !super::group_lock::allows(command) {
         return Ok(());
     }
-    super::menu_transition::prepare(hwnd, state)?;
+    // Snapshot consumers must inspect the actual draft. Preparing the menu
+    // first would silently cancel a redaction before Copy/Export checks it.
+    if !matches!(command, EXPORT | super::copy_job::COMMAND) {
+        super::menu_transition::prepare(hwnd, state)?;
+    }
     match command {
         command if super::group_menu::handles(command) => {
             super::group_menu::execute(hwnd, state, command)?

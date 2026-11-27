@@ -53,6 +53,12 @@ pub(super) fn with_context<T>(
         })
         .unwrap_or("");
     let kind = if state.is_art() { "art" } else { "image" };
+    let canvas = state.canvas.borrow();
+    let resolved = state.resolved_display.borrow();
+    let source = match resolved.as_ref() {
+        Some(frame) => frame.naming.as_ref(),
+        None => canvas.source_naming(),
+    };
     Some(render(&Context {
         app: "Otter",
         kind,
@@ -63,6 +69,8 @@ pub(super) fn with_context<T>(
         },
         title: label.trim(),
         process,
+        source_app: source.map_or("", |s| s.app.as_str()),
+        window_title: source.map_or("", |s| s.title.as_str()),
         unit_id: state.unit_id.as_str(),
         width: Some(dimensions.0),
         height: Some(dimensions.1),

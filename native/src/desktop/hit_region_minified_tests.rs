@@ -103,3 +103,44 @@ fn minified_native_regions_follow_each_layer_and_clip_to_client() {
         assert!(!PtInRegion(region.0, 0, 2).as_bool());
     }
 }
+
+#[test]
+fn minified_overlay_spotlight_includes_dimmed_image_bounds() {
+    let image = crate::desktop::image::Image {
+        width: 32,
+        height: 32,
+        pixels: vec![0; 32 * 32 * 4].into(),
+    };
+    let mut editor = crate::editor::Editor::default();
+    editor
+        .begin(Tool::SpotRect, Point { x: 8., y: 8. })
+        .unwrap();
+    editor.extend(Point { x: 16., y: 16. }).unwrap();
+    assert!(editor.commit());
+    let view = View {
+        size: Size {
+            width: 32.,
+            height: 32.,
+        },
+        offset: (0., 0.),
+    };
+    let cache = HitRegion::prepare(&image).unwrap();
+    unsafe {
+        let region = build(
+            &cache,
+            &image,
+            &editor,
+            (
+                Views {
+                    image: view,
+                    annotations: view,
+                },
+                view.size,
+            ),
+            (16, 16),
+        )
+        .unwrap();
+        assert!(PtInRegion(region.0, 14, 14).as_bool());
+        assert!(!PtInRegion(region.0, 16, 14).as_bool());
+    }
+}

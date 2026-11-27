@@ -31,6 +31,26 @@ fn available(state: &State, command: usize) -> bool {
         }
 }
 pub(in crate::desktop) unsafe fn append(menu: HMENU, state: &State) -> Result<()> {
+    let count = state.click.signals.count.get();
+    if count != 0 {
+        AppendMenuW(
+            menu,
+            MF_STRING,
+            crate::desktop::pin_click_through::RESTORE,
+            &windows::core::HSTRING::from(crate::ui_text::format(
+                "pin-pass-restore",
+                &[("count", count.to_string().into())],
+            )),
+        )?;
+    }
+    if state.shake.signals.count.get() != 0 {
+        AppendMenuW(
+            menu,
+            MF_STRING,
+            RESTORE_SHAKE,
+            &windows::core::HSTRING::from(crate::ui_text::text("workspace-shake-restore")),
+        )?;
+    }
     for &(command, label) in ENTRIES {
         AppendMenuW(
             menu,
@@ -52,14 +72,27 @@ pub(in crate::desktop) unsafe fn append(menu: HMENU, state: &State) -> Result<()
     )
 }
 pub(super) const RECEIVE: usize = 0x10b8;
-fn tray_label(state: &State, command: usize, label: &str) -> String {
+const RESTORE_SHAKE: usize = 0x21c1;
+pub(super) const SHORTCUT_SETTINGS: usize = 0x1ef0;
+pub(super) fn tray_label(state: &State, command: usize, label: &str) -> String {
+    let slots = state
+        .shortcut_display
+        .get()
+        .map(|(_, slots)| slots)
+        .unwrap_or_else(|| crate::desktop::shortcut_registry::registered(state));
     let shortcut = match command {
-        capture_input::NEW_PIN if state.global_capture.get() => Some("Ctrl+1"),
-        capture_input::live::COMMAND if state.global_live_capture.get() => Some("Ctrl+2"),
-        capture_input::LONG_RECORDING if state.global_long_capture.get() => Some("Ctrl+3"),
+        capture_input::NEW_PIN if slots[0] => Some("capture.region"),
+        capture_input::live::COMMAND if slots[1] => Some("capture.live"),
+        capture_input::LONG_RECORDING if slots[2] => Some("capture.scroll"),
+        crate::desktop::capture_countdown::THREE if slots[3] => Some("capture.delay"),
         _ => None,
     };
-    shortcut.map_or_else(|| label.into(), |shortcut| format!("{label}\t{shortcut}"))
+    shortcut
+        .and_then(|id| state.shortcut_policy.borrow().chord(id))
+        .map_or_else(
+            || label.into(),
+            |chord| format!("{label}\t{}", chord.label()),
+        )
 }
 pub(in crate::desktop) fn execute_with(
     command: usize,
@@ -78,6 +111,30 @@ pub(in crate::desktop) fn execute_with(
     true
 }
 pub(super) unsafe fn execute(hwnd: HWND, state: &State, command: usize) -> bool {
+    if command == crate::desktop::pin_click_through::RESTORE {
+        state.click.signals.all.set(true);
+        return true;
+    }
+    if command == SHORTCUT_SETTINGS {
+        if IsWindow(Some(hwnd)).as_bool() && !state.modals.blocked() && !state.exit_requested.get()
+        {
+            if let Some(_guard) = crate::desktop::file_dialog::Guard::begin(&state.file_dialog) {
+                MessageBoxW(
+                    Some(hwnd),
+                    &windows::core::HSTRING::from(crate::ui_text::text(
+                        "action-shortcut-settings-guide",
+                    )),
+                    w!("Otter"),
+                    MB_OK | MB_ICONINFORMATION,
+                );
+            }
+        }
+        return true;
+    }
+    if command == RESTORE_SHAKE {
+        state.shake.signals.restore.set(true);
+        return true;
+    }
     if command == RECEIVE {
         if IsWindow(Some(hwnd)).as_bool() && !state.modals.blocked() {
             let result = super::super::device_authorization_ui::settings::choose_with(

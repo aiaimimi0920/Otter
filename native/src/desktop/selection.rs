@@ -144,9 +144,7 @@ impl Canvas {
             let Some(text) = self.editor.elements()[index]
                 .text
                 .as_ref()
-                .and_then(|text| {
-                    text.with_font_size(text.font_size() * ((factors.x + factors.y) / 2.0))
-                })
+                .and_then(|text| text.scaled((factors.x + factors.y) / 2.0))
             else {
                 return false;
             };
@@ -237,7 +235,13 @@ pub(super) unsafe fn draw_outline(
         right: f32::NEG_INFINITY,
         bottom: f32::NEG_INFINITY,
     };
-    for point in &stroke.points {
+    let serial_line = stroke.serial_line();
+    for point in stroke
+        .points
+        .iter()
+        .copied()
+        .chain(serial_line.into_iter().flatten())
+    {
         rect.left = rect.left.min(point.x);
         rect.right = rect.right.max(point.x);
         rect.top = rect.top.min(point.y);
@@ -245,7 +249,7 @@ pub(super) unsafe fn draw_outline(
     }
     let padding = if stroke.tool == Tool::Bezier && stroke.arrow {
         (stroke.width * 6.0).max(24.0) + (stroke.width * 5.0).max(16.0) / 2.0
-    } else if stroke.has_straight_arrow() {
+    } else if stroke.has_straight_arrow() || serial_line.is_some() {
         (stroke.width * 5.0).max(16.0) / 2.0
     } else {
         stroke.width / 2.0

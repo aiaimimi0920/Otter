@@ -138,6 +138,11 @@ fn encode_impl(
     }
     root.insert("elements".into(), elements.into());
     root.insert("serialCounter".into(), json!(editor.serial_count()));
+    if editor.elements().iter().any(|s| s.tool.spotlight()) || editor.spotlight_percent() != 60 {
+        root.insert("spotlightPercent".into(), json!(editor.spotlight_percent()));
+    } else {
+        root.remove("spotlightPercent");
+    }
     let mut output = Bounded(Vec::new());
     let mut sink = Cancellable {
         output: &mut output,
@@ -166,6 +171,10 @@ fn element(
     };
     let kind = match stroke.tool {
         Tool::Rectangle => "rect",
+        Tool::SpotRect => "spotlight-rect",
+        Tool::Magnifier => "magnifier",
+        Tool::SpotRounded => "spotlight-round",
+        Tool::SpotEllipse => "spotlight-ellipse",
         Tool::RoundedRectangle => "round-rect",
         Tool::Ellipse => "ellipse",
         Tool::Triangle => "triangle",
@@ -176,8 +185,12 @@ fn element(
         Tool::Polyline => "polyline",
         Tool::Brush | Tool::Paintbrush => "brush",
         Tool::Highlighter => "highlighter",
+        Tool::Text if stroke.text.as_ref().and_then(|t| t.geometry()).is_some() => "text-box",
         Tool::Text => "text",
+        Tool::Serial if stroke.serial_arrow_tip.is_some() => "serial-arrow",
         Tool::Serial => "serial",
+        Tool::Mosaic if stroke.effect_rect => "mosaic-rect",
+        Tool::Blur if stroke.effect_rect => "blur-rect",
         Tool::Mosaic => "mosaic",
         Tool::Blur => "blur",
         _ => return Err(Error::Unsupported),
@@ -197,11 +210,20 @@ fn element(
         "fontFamily",
         "strength",
         "brushWidth",
+        "serialArrowTip",
+        "sourceOffset",
+        "zoomTenths",
+        "zoomPercent",
     ] {
         object.remove(key);
     }
     object.insert("id".into(), stroke.annotation_id().into());
     object.insert("type".into(), kind.into());
+    if kind == "text-box" || object.contains_key("boxWidth") {
+        for key in ["boxWidth", "boxPadding", "bold"] {
+            object.remove(key);
+        }
+    }
     object.insert("zIndex".into(), json!(index));
     let mut style = match object.remove("style") {
         Some(Value::Object(style)) => style,
@@ -250,7 +272,21 @@ fn element(
     let (a, b) = bounds_checked(&stroke.points, cancelled)?;
     if matches!(stroke.tool, Tool::Text | Tool::Serial) {
         let text = stroke.text.as_ref().ok_or(Error::Shape)?;
-        if stroke.tool == Tool::Text && text.bold() {
+        if let Some(tip) = stroke.serial_arrow_tip {
+            object.insert(
+                "serialArrowTip".into(),
+                json!({"x":finite(tip.x)?,"y":finite(tip.y)?}),
+            );
+            object.insert("bold".into(), text.bold().into());
+        }
+        if let Some(b) = text.geometry() {
+            if stroke.tool != Tool::Text {
+                return Err(Error::Unsupported);
+            }
+            object.insert("boxWidth".into(), finite(b.width())?);
+            object.insert("boxPadding".into(), finite(b.padding())?);
+            object.insert("bold".into(), text.bold().into());
+        } else if stroke.tool == Tool::Text && text.bold() {
             return Err(Error::Unsupported);
         }
         let (x, y) = if stroke.tool == Tool::Serial {
@@ -268,7 +304,7 @@ fn element(
             if !base.is_finite() || base < 0.0 {
                 return Err(Error::Geometry);
             }
-            (a.x + 4.0, a.y + base)
+            (a.x + text.padding(), a.y + base)
         };
         object.insert("x".into(), finite(x)?);
         object.insert("y".into(), finite(y)?);
@@ -276,11 +312,30 @@ fn element(
         object.insert("fontSize".into(), finite(text.font_size())?);
         object.insert("fontFamily".into(), text.family().into());
         object.insert("rotation".into(), finite(stroke.rotation)?);
-    } else if matches!(
-        stroke.tool,
-        Tool::Rectangle | Tool::RoundedRectangle | Tool::Ellipse | Tool::Triangle | Tool::Polygon
-    ) {
+    } else if stroke.tool.spotlight()
+        || stroke.tool == Tool::Magnifier
+        || matches!(
+            stroke.tool,
+            Tool::Rectangle
+                | Tool::RoundedRectangle
+                | Tool::Ellipse
+                | Tool::Triangle
+                | Tool::Polygon
+        )
+    {
         rect(&mut object, a, b)?;
+        if stroke.tool == Tool::Magnifier {
+            let lens = stroke.lens.ok_or(Error::Shape)?;
+            object.insert(
+                "sourceOffset".into(),
+                json!({"x":finite(lens.offset.x)?,"y":finite(lens.offset.y)?}),
+            );
+            if lens.percent % 10 == 0 {
+                object.insert("zoomTenths".into(), json!(lens.percent / 10));
+            } else {
+                object.insert("zoomPercent".into(), json!(lens.percent));
+            }
+        }
         object.insert("rotation".into(), finite(stroke.rotation)?);
         if stroke.tool == Tool::Polygon {
             object.insert("sides".into(), json!(stroke.sides));
@@ -303,7 +358,11 @@ fn element(
             .collect::<Result<Vec<_>, Error>>()?;
         object.insert("points".into(), points.into());
         if effect {
-            let pad = stroke.width / 2.0;
+            let pad = if stroke.effect_rect {
+                0.0
+            } else {
+                stroke.width / 2.0
+            };
             rect(
                 &mut object,
                 Point {
@@ -321,7 +380,9 @@ fn element(
                 stroke.blur.as_ref().ok_or(Error::Shape)?.strength()
             } else {
                 // Mainline reads round strength to an integer; reject rather than silently change fractional native-transformed values.
-                if stroke.mosaic_cell < 2.0 || stroke.mosaic_cell.fract() != 0.0 {
+                if !stroke.effect_rect
+                    && (stroke.mosaic_cell < 2.0 || stroke.mosaic_cell.fract() != 0.0)
+                {
                     return Err(Error::Unsupported);
                 }
                 stroke.mosaic_cell

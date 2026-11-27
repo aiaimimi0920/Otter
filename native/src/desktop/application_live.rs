@@ -167,9 +167,17 @@ impl Application {
                 use crate::desktop::capture_input::live::Request;
                 let session = match request {
                     Request::Region(screen) => Session::start_region(screen),
-                    Request::Window(target) => self.start_live_window(target, None),
-                    Request::WindowRegion(target, crop) => {
-                        self.start_live_window(target, Some(crop))
+                    Request::Window(target, meta) => {
+                        self.start_live_window(target, None).map(|mut s| {
+                            s.naming = meta;
+                            s
+                        })
+                    }
+                    Request::WindowRegion(target, crop, meta) => {
+                        self.start_live_window(target, Some(crop)).map(|mut s| {
+                            s.naming = meta;
+                            s
+                        })
                     }
                 }
                 .map_err(|error| Error::new(E_FAIL, error.to_string()))?;
@@ -286,6 +294,7 @@ impl Application {
             .chain(self.naming_save_reap_deadline())
             .chain(self.locale_reap_deadline())
             .chain(self.locale_remote.deadline())
+            .chain(self.shortcut_remote.deadline())
             .chain(self.workflow_reap_deadline())
             .chain(self.input_jobs.deadline())
             .chain(self.live_freeze_reap_deadline())

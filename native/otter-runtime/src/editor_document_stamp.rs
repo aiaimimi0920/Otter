@@ -20,6 +20,9 @@ impl Editor {
 }
 
 impl DocumentStamp {
+    pub fn same_version(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.identity, &other.identity) && self.revision == other.revision
+    }
     /// Presentation history still invalidates ordinary asynchronous evidence, but movement, opacity, and outer frames are not OCR-source edits.
     pub fn matches_content(&self, editor: &Editor) -> bool {
         self.same_document(editor)

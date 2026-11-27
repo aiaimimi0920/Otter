@@ -136,7 +136,7 @@ enum Intent {
 }
 
 fn prepare_for(state: &State, intent: Intent) -> bool {
-    if state.canvas.borrow().minified.is_some() {
+    if state.canvas.borrow().minified.is_some() || state.canvas.borrow().display_waiting {
         return false;
     }
     let art = state.is_art();
@@ -173,6 +173,9 @@ fn prepare_for(state: &State, intent: Intent) -> bool {
     let Some(frame) = display.as_ref() else {
         return true;
     };
+    if !frame.current_producer() {
+        return false;
+    }
     let mut canvas = state.canvas.borrow_mut();
     if art && !frame.is_from(&state.unit_id) && !frame.has_overlay_owner(&state.unit_id) {
         return false;

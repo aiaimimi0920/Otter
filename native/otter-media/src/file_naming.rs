@@ -12,6 +12,8 @@ const KEYS: &[&str] = &[
     "label",
     "title",
     "process",
+    "sourceApp",
+    "windowTitle",
     "unitId",
     "shortId",
     "width",
@@ -33,6 +35,8 @@ pub struct Context<'a> {
     pub label: &'a str,
     pub title: &'a str,
     pub process: &'a str,
+    pub source_app: &'a str,
+    pub window_title: &'a str,
     pub unit_id: &'a str,
     pub short_id: &'a str,
     pub width: Option<u32>,
@@ -46,6 +50,28 @@ pub struct Moment<'a> {
 
 pub fn validate(pattern: &str) -> Result<(), Error> {
     visit(pattern, |_, _| Ok(()))
+}
+#[derive(Clone, Copy, Default, Debug, PartialEq, Eq)]
+pub struct SourceFields {
+    pub app: bool,
+    pub title: bool,
+}
+impl SourceFields {
+    pub fn for_settings(settings: &crate::file_naming_settings::Settings) -> Result<Self, Error> {
+        let mut fields = Self::default();
+        for pattern in [
+            &settings.sticker_save_pattern,
+            &settings.drag_export_pattern,
+            &settings.clipboard_file_pattern,
+        ] {
+            visit(pattern, |s, placeholder| {
+                fields.app |= placeholder && s == "sourceApp";
+                fields.title |= placeholder && s == "windowTitle";
+                Ok(())
+            })?;
+        }
+        Ok(fields)
+    }
 }
 fn visit(
     pattern: &str,
@@ -87,6 +113,8 @@ pub fn render(
         context.label,
         context.title,
         context.process,
+        context.source_app,
+        context.window_title,
         context.unit_id,
         context.short_id,
         moment.date,
@@ -117,6 +145,7 @@ pub fn render(
         context.label
     };
     let title: String = context.title.chars().take(title_limit).collect();
+    let window_title: String = context.window_title.chars().take(title_limit).collect();
     let short: String = if context.short_id.trim().is_empty() && !context.unit_id.trim().is_empty()
     {
         context
@@ -150,6 +179,20 @@ pub fn render(
                 "label" => label,
                 "title" => &title,
                 "process" => context.process,
+                "sourceApp" => {
+                    if context.source_app.trim().is_empty() {
+                        "Screen"
+                    } else {
+                        context.source_app
+                    }
+                }
+                "windowTitle" => {
+                    if window_title.trim().is_empty() {
+                        "Untitled"
+                    } else {
+                        &window_title
+                    }
+                }
                 "unitId" => context.unit_id,
                 "shortId" => {
                     if context.short_id.trim().is_empty() {

@@ -15,6 +15,7 @@ mod remote_input;
 mod source;
 
 pub struct Session {
+    pub(in crate::desktop) naming: Option<crate::desktop::capture_window_meta::Meta>,
     popups: popup_family::Family,
     popup_scope: Option<crate::live_window_target::popup::Scope>,
     pin_document: Option<crate::desktop::document_window::DocumentWindow>,
@@ -88,6 +89,7 @@ impl Session {
     pub(in crate::desktop) fn new(job: LiveJob<Texture>, window: LiveWindow) -> Self {
         Self {
             popups: Default::default(),
+            naming: None,
             popup_scope: None,
             pin_document: None,
             pin_attached: false,

@@ -5,8 +5,13 @@ action-new-pin-failed = Cannot create a pin. The original document is unchanged.
     { $error }
 action-hotkey-failed = Cannot change the Ctrl+1 capture shortcut. Another application may be using it.
     { $error }
-action-hotkey-degraded = Global capture ({ $shortcuts } unavailable){ "\u0009" }Ctrl+1 / Ctrl+2 / Ctrl+3
-action-hotkey-menu = Global capture / Live / scrolling capture{ "\u0009" }Ctrl+1 / Ctrl+2 / Ctrl+3
+action-hotkey-degraded = Global capture ({ $shortcuts } unavailable)
+action-hotkey-menu = Global capture / Live / scrolling capture
+action-hotkey-suspended = Capture shortcuts suspended in full screen
+capture-loupe-keys = Tab: format · Z: hide
+action-shortcut-settings = Configure shortcuts in Loom…
+action-shortcut-settings-guide = Connect this Otter device to Loom. In Loom, open Settings → Otter → Shortcuts, choose this device, and apply the bindings. Otter keeps its last saved bindings when disconnected.
+action-shortcut-import-conflict = Shortcut settings differ from this profile. Change shortcuts through Loom, not by importing a naming file.
 action-open-failed = Cannot open the image. The original document is unchanged.
     { $error }
 action-replace-one-image = Replacing an image requires exactly one image. The original document is unchanged.
@@ -32,6 +37,8 @@ action-rasterize-failed = Rasterization was not applied. The original annotation
 action-blur-failed = Blur preparation failed. The original image and annotations are unchanged.
     { $error }
 action-text-failed = Cannot start text input.
+action-text-draft-rejected = Text was not saved. The draft exceeds the text limits or the available memory budget.
+action-text-draft-unavailable = Cannot display this draft. Text is still in the editor.
     { $error }
 action-font-failed = Cannot apply the font.
     { $error }
@@ -88,3 +95,45 @@ action-live-retain-failed = The Live frame was not retained.
     { $error }
 action-live-start-failed = Cannot start Live.
     { $error }
+capture-loupe-hex = HEX · 8-bit sRGB
+capture-loupe-rgb = RGB · 8-bit sRGB
+capture-loupe-hsl = HSL · sRGB
+tray-delay = Delayed capture
+tray-delay-three = Capture in 3 seconds
+tray-delay-five = Capture in 5 seconds
+tray-delay-cancel = Cancel delayed capture
+capture-countdown-badge = Capture in { $seconds } s
+archive-menu = Automatic image archive
+archive-copy = Archive copied images
+archive-pin = Archive new screenshot pins
+archive-directory = Choose archive folder…
+archive-select-directory = Choose an existing local archive folder first.
+archive-config-failed = Archive settings were not changed: { $error }
+archive-consent = During this run, Otter will save PNG images in { $directory } without overwriting files. These are permanent files, not clipboard cache. Enable?
+archive-queue-full = The image archive queue is full.
+archive-failed = Image archive failed: { $error }. The original operation is unaffected.
+paste-card-invalid = Clipboard text must contain valid text, at most 65,536 UTF-16 units and 400 lines.
+paste-card-budget = This text card exceeds the available layout or image budget.
+edit-rect-mask = Rectangular mask
+edit-text-wrap = Wrap text in a box
+edit-box-width = Box width
+edit-box-padding = Box padding
+export-webp-lossless = WebP (lossless)
+tray-token-elevated = Current session: running as administrator
+tray-token-standard = Current session: not elevated
+tray-token-unknown = Current session: unable to read elevation status
+loom-needs-standard-session = Exit Otter and open it normally to use Loom or device projection.
+export-webp-lossy = WebP (lossy)
+export-quality-webp = WebP quality: { $quality } · Alpha is preserved losslessly.
+export-quality-lossless = Lossless · Original transparency is preserved.
+export-quality-white = JPEG quality: { $quality } · Transparency is composited onto white.
+export-size-pending = Encoding preview…
+export-size-exact = Encoded size: { $bytes } bytes
+export-size-failed = Preview unavailable: { $error }
+export-extension-mismatch = The filename extension does not match the selected image format.
+tool-spot-rect = Rectangular spotlight
+tool-spot-round = Rounded spotlight
+tool-spot-ellipse = Elliptical spotlight
+tool-spot-density = Spotlight dimming
+tool-magnifier = Detail magnifier
+tool-lens-zoom = Magnification

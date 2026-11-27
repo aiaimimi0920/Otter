@@ -2,6 +2,42 @@
 use super::*;
 
 #[test]
+fn fixed_width_draft_keeps_model_width_and_rounds_both_fill_layers() {
+    use crate::stroke_style::{Color, PaintAlpha};
+    unsafe {
+        let f = Fixture::new();
+        {
+            let mut canvas = f.state.canvas.borrow_mut();
+            canvas.tool_profiles.text_box = crate::text_annotation::TextBox::new(50.0, 4.0);
+            let style = canvas
+                .editor
+                .style()
+                .with_fill(Some(Color(21, 61, 101)))
+                .with_corner_radius_value(8.0)
+                .unwrap()
+                .with_paint_alpha(PaintAlpha::new(1.0, 0.5).unwrap());
+            canvas.editor.set_style(style);
+        }
+        let (popup, edit) = f.start();
+        let mut r = RECT::default();
+        GetClientRect(edit, &mut r).unwrap();
+        let scale =
+            f.state.canvas.borrow().viewport.scale * GetDpiForWindow(f.hwnd).max(96) as f32 / 96.0;
+        assert_eq!(r.right, (50.0 * scale).round() as i32);
+        let backing = GetWindow(popup, GW_HWNDNEXT).unwrap();
+        assert_eq!(GetWindow(backing, GW_OWNER).unwrap(), f.hwnd);
+        for hwnd in [popup, backing] {
+            let rgn = CreateRectRgn(0, 0, 0, 0);
+            assert_ne!(GetWindowRgn(hwnd, rgn), RGN_ERROR);
+            assert!(!PtInRegion(rgn, 0, 0).as_bool());
+            assert!(PtInRegion(rgn, r.right / 2, 4).as_bool());
+            DeleteObject(rgn.into()).ok().unwrap();
+        }
+        finish(f.hwnd, &f.state, false).unwrap();
+    }
+}
+
+#[test]
 fn draft_and_commit_use_selected_fill_ink_size_and_family() {
     use crate::stroke_style::Color;
     unsafe {

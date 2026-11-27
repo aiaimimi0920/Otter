@@ -6,7 +6,9 @@ use crate::{
     viewport::Point,
 };
 
-pub(super) unsafe fn install(app: &mut Application, beautify: bool) -> Image {
+pub(super) unsafe fn install(app: &mut Application, case: source::Case) -> Image {
+    let protected = matches!(case, source::Case::RedactedTargetBeautified);
+    let beautify = !matches!(case, source::Case::TargetResolved);
     let unit = app.documents[0].state.unit_id.clone();
     let base = Image {
         width: 64,
@@ -25,16 +27,29 @@ pub(super) unsafe fn install(app: &mut Application, beautify: bool) -> Image {
             crate::stroke_style::StrokeStyle::new(64.0, crate::stroke_style::Color(0, 255, 0))
                 .unwrap(),
         );
-        editor
-            .begin(Tool::Brush, Point { x: 32.0, y: 16.0 })
+        if protected {
+            let blur = crate::blur_image::BlurImage::new(
+                64,
+                32,
+                [0, 255, 0, 255].repeat(64 * 32).into(),
+                2,
+            )
             .unwrap();
+            editor.begin_blur(Point { x: 1., y: 1. }, blur).unwrap();
+            editor.mark_effect_rect().unwrap();
+            editor.extend(Point { x: 63., y: 31. }).unwrap();
+        } else {
+            editor
+                .begin(Tool::Brush, Point { x: 32.0, y: 16.0 })
+                .unwrap();
+        }
         assert!(editor.commit());
         editor
             .crop_to(crate::crop_geometry::Rect {
-                x: 0.0,
-                y: 0.0,
-                width: 8.0,
-                height: 8.0,
+                x: if protected { 24.0 } else { 0.0 },
+                y: if protected { 12.0 } else { 0.0 },
+                width: if protected { 24.0 } else { 8.0 },
+                height: if protected { 12.0 } else { 8.0 },
             })
             .unwrap();
         editor
@@ -139,6 +154,14 @@ pub(super) unsafe fn install(app: &mut Application, beautify: bool) -> Image {
                 [0, 255, 255, 255]
             } else if beautify && (!(4..28).contains(&x) || !(4..12).contains(&y)) {
                 [0, 0, 255, 255]
+            } else if protected {
+                // The target shows source [16,48) x [8,24). Only the intersection
+                // with the upstream crop is safe; the rest shows the white backing.
+                if x >= 8 && y >= 4 {
+                    [20, 255, 20, 255]
+                } else {
+                    [255; 4]
+                }
             } else {
                 [255, 0, 0, 255]
             };
@@ -159,4 +182,9 @@ fn native_sender_resolved_uses_target_crop_and_raster_not_upstream_editor() {
 #[test]
 fn native_sender_resolved_target_border_and_beautify_are_signed_and_checkpointed() {
     tls::run_source(0, source::Case::TargetBeautified);
+}
+
+#[test]
+fn redacted_offset_crop_with_target_crop_raster_and_border_reaches_tls_as_display_pixels() {
+    tls::run_source(0, source::Case::RedactedTargetBeautified);
 }

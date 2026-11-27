@@ -56,7 +56,11 @@ impl Scene {
                 .iter()
                 .find(|doc| doc.state.unit_id == entry.unit)
             {
-                if !doc.is_alive() || doc.state.group_hidden.get() {
+                if !doc.is_alive()
+                    || doc.state.group_hidden.get()
+                    || doc.state.shake.hidden.get()
+                    || doc.state.click.active()
+                {
                     continue;
                 }
                 (

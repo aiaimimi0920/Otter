@@ -84,6 +84,14 @@ pub struct Lease {
     bytes: usize,
 }
 impl Lease {
+    /// Transfer a subset to a longer-lived allocation without briefly charging the same bytes twice.
+    pub fn split(&mut self, bytes: usize) -> Option<Self> {
+        self.bytes = self.bytes.checked_sub(bytes)?;
+        Some(Self {
+            budget: self.budget.clone(),
+            bytes,
+        })
+    }
     pub fn grow_to(&mut self, bytes: usize) -> bool {
         if bytes <= self.bytes {
             return true;
@@ -130,6 +138,18 @@ mod tests {
         assert_eq!(budget.used(), 20);
         drop(b);
         assert_eq!(budget.used(), 0);
+    }
+    #[test]
+    fn split_preserves_total_and_releases_each_part_once() {
+        let b = Budget::new(100);
+        let mut working = b.reserve(100).unwrap();
+        assert!(working.split(101).is_none());
+        let output = working.split(17).unwrap();
+        assert_eq!(b.used(), 100);
+        drop(working);
+        assert_eq!(b.used(), 17);
+        drop(output);
+        assert_eq!(b.used(), 0);
     }
     #[test]
     fn concurrent_admission_cannot_exceed_limit() {

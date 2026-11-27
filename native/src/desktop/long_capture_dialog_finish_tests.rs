@@ -236,6 +236,7 @@ fn exact_global_hotkey_reaches_current_dialog_despite_disabled_busy_owner() {
         state.capture_active.set(true);
         state.file_dialog.set(true);
         state.global_capture.set(true);
+        crate::desktop::shortcut_registry::fixture_bindings(&state);
         state.global_long_capture.set(true);
         state.modals.register(&state.file_dialog);
         let _ = EnableWindow(owner.0, false);

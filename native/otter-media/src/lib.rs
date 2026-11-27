@@ -29,9 +29,13 @@ pub mod device_request_cancel;
 pub mod device_session_attempt;
 #[cfg(windows)]
 pub mod device_session_proof;
+#[cfg(windows)]
+pub mod elevation_status;
 pub mod extension_visual;
 pub mod file_naming;
 pub mod file_naming_settings;
+#[cfg(windows)]
+pub mod install_file_leases;
 pub mod live_button_gesture;
 pub mod live_frames;
 pub mod live_h264;

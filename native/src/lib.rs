@@ -92,6 +92,7 @@ pub mod loom_output_leases;
 #[cfg(windows)]
 mod loom_remote_connection;
 mod loom_selected_connection;
+pub mod loom_shortcut_protocol;
 #[cfg(windows)]
 mod media_websocket;
 pub mod minified_transition;

@@ -1,10 +1,15 @@
 //! Final capture after release selection; ordinary selections do not pre-capture pixels, preserving original dynamic range and delivery transactions.
 use super::*;
 pub(super) enum Delivery {
+    Delayed(Image, POINT),
     Recording(super::long_capture_dialog::Output),
     Image(Image, Option<POINT>),
     Long(Image, POINT, crate::long_capture::Axis, (u32, u32)),
-    Prepared(Box<crate::capture_job::PreparedCapture>, POINT),
+    Prepared(
+        Box<crate::capture_job::PreparedCapture>,
+        POINT,
+        Option<crate::desktop::capture_window_meta::Meta>,
+    ),
 }
 pub(super) fn recording_context(
     output: &super::long_capture_dialog::Output,
@@ -64,6 +69,12 @@ pub(super) unsafe fn prepare(hwnd: HWND, state: &State, screen: RECT) -> Result<
         x: screen.left,
         y: screen.top,
     };
+    let meta = crate::desktop::capture_window_meta::region(
+        state,
+        origin,
+        screen.right.abs_diff(screen.left),
+        screen.bottom.abs_diff(screen.top),
+    );
     let mode = std::env::var("OTTER_CAPTURE_DYNAMIC_RANGE").ok();
     let root = std::env::var_os("OTTER_NATIVE_PROFILE_DIR");
     let local = std::env::var_os("LOCALAPPDATA");
@@ -87,7 +98,7 @@ pub(super) unsafe fn prepare(hwnd: HWND, state: &State, screen: RECT) -> Result<
             },
         )
     })
-    .map(|result| result.map(|prepared| Delivery::Prepared(Box::new(prepared), origin)))
+    .map(|result| result.map(|prepared| Delivery::Prepared(Box::new(prepared), origin, meta)))
     .map_err(|error| Error::new(E_FAIL, error))
 }
 #[cfg(test)]
@@ -164,6 +175,7 @@ mod tests {
                 Ok(Some(Delivery::Prepared(
                     Box::new(prepared()),
                     POINT::default(),
+                    None,
                 )))
             })
             .unwrap();
@@ -207,6 +219,7 @@ mod tests {
                 Ok(Some(Delivery::Prepared(
                     Box::new(prepared()),
                     POINT { x: -30, y: 10 },
+                    None,
                 )))
             })
             .unwrap();
@@ -310,6 +323,7 @@ mod tests {
                 Ok(Some(Delivery::Prepared(
                     Box::new(prepared()),
                     POINT::default(),
+                    None,
                 )))
             });
             assert!(result.is_err());

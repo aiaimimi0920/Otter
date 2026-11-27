@@ -46,7 +46,7 @@ impl DocumentWindow {
             let canvas = self.state.canvas.borrow();
             (canvas.pinned, !canvas.pinned && canvas.image.is_none())
         };
-        if empty || self.state.group_hidden.get() {
+        if empty || self.state.group_hidden.get() || self.state.shake.hidden.get() {
             return;
         }
         let _ = ShowWindow(self.window.0, command);

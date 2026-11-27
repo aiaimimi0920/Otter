@@ -10,6 +10,10 @@ mod events;
 
 impl Application {
     pub(super) fn process_authorization(&mut self) {
+        if !crate::elevation_status::allows_desktop_integrations() {
+            self.authorization.borrow_mut().request = None;
+            return;
+        }
         let stop_preference_failed = self.process_local_loom();
         self.process_authorization_with_projection_status(Config::from_env, stop_preference_failed);
     }

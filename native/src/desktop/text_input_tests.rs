@@ -28,6 +28,27 @@ fn canvas() -> Canvas {
     canvas
 }
 #[test]
+fn rejected_nonempty_text_commit_preserves_existing_annotation_and_empty_creation_is_a_noop() {
+    let state = State::new(None, true).unwrap();
+    *state.canvas.borrow_mut() = canvas();
+    let mut pending = Pending::selected(&state.canvas.borrow()).unwrap();
+    let revision = state.canvas.borrow().editor.revision();
+    let previous = pending.text.clone();
+    let oversized = "x".repeat(crate::text_annotation::MAX_TEXT_UNITS + 1);
+    for new in [false, true] {
+        if new {
+            pending.index = None;
+            pending.text = None;
+            unsafe { commit_content(&state, &pending, " \t\r\n").unwrap() };
+        }
+        assert!(unsafe { commit_content(&state, &pending, &oversized) }.is_err());
+        let c = state.canvas.borrow();
+        assert_eq!(c.editor.revision(), revision);
+        assert_eq!(c.editor.elements().len(), 1);
+        assert_eq!(c.editor.elements()[0].text, previous);
+    }
+}
+#[test]
 fn selected_text_resize_remeasures_layout_and_keeps_center_in_one_transaction() {
     let mut canvas = canvas();
     let before = canvas.editor.elements()[0].clone();
@@ -281,6 +302,7 @@ fn quiet_text_creation_remains_editable_but_existing_text_cannot_be_picked() {
     let center = rotation::center(&c.editor.elements()[0].points);
     assert!(Pending::at_point(&mut c, center).unwrap().is_none());
     let pending = Pending {
+        geometry: None,
         index: None,
         point: Point { x: 130.0, y: 130.0 },
         pixels: c.image.as_ref().unwrap().pixels.clone(),

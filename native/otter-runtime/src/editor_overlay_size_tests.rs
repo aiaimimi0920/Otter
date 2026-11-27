@@ -69,4 +69,22 @@ fn text_uses_scaled_font_metrics_and_failed_measurement_leaves_source_unchanged(
         .export_overlay_for_size((0, 16), |_| unreachable!())
         .is_err());
     assert!(stamp.matches(&editor));
+    let mut boxed_editor = source();
+    let boxed = crate::text_annotation::TextAnnotation::new("测试", "微软雅黑", 16.0, false)
+        .unwrap()
+        .with_geometry(Some(
+            crate::text_annotation::TextBox::new(40.0, 4.0).unwrap(),
+        ));
+    boxed_editor
+        .insert_text(Point { x: 1.0, y: 1.0 }, Point { x: 40.0, y: 20.0 }, boxed)
+        .unwrap();
+    let rescaled = boxed_editor
+        .export_overlay_for_size((16, 16), |text| {
+            let geom = text.geometry().unwrap();
+            assert_eq!((geom.width(), geom.padding()), (80.0, 8.0));
+            Ok(Point { x: 80.0, y: 40.0 })
+        })
+        .unwrap();
+    let pts = &rescaled.elements()[0].points;
+    assert_eq!((pts[1].x - pts[0].x, pts[1].y - pts[0].y), (80.0, 40.0));
 }

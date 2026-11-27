@@ -11,6 +11,9 @@ pub(super) struct Window {
     epoch: usize,
     backing: Option<desktop::Window>,
     keyed: bool,
+    inset: Option<i32>,
+    radius_px: i32,
+    view: Option<Rc<boxed::View>>,
 }
 impl Window {
     pub(super) unsafe fn new(
@@ -19,6 +22,7 @@ impl Window {
         font: &crate::text_annotation::TextFont,
         style: crate::stroke_style::StrokeStyle,
         scale: f32,
+        geometry: Option<crate::text_annotation::TextBox>,
     ) -> Result<Self> {
         let limit = crate::text_annotation::MAX_TEXT_UNITS;
         if initial.contains('\0') || initial.encode_utf16().count() > limit {
@@ -74,6 +78,13 @@ impl Window {
             epoch,
             backing: None,
             keyed: paint.keyed(),
+            view: None,
+            inset: geometry.map(|b| (b.padding() * scale).round() as i32),
+            radius_px: if geometry.is_some() && paint.has_fill() {
+                (style.corner_radius() * scale).round() as i32
+            } else {
+                0
+            },
         };
         if let Err(error) = SetPropW(
             hwnd,
@@ -100,8 +111,20 @@ impl Window {
             w!(""),
             WS_CHILD
                 | WS_TABSTOP
+                | if geometry.is_some() {
+                    WS_CLIPCHILDREN
+                } else {
+                    WINDOW_STYLE(0)
+                }
                 | WINDOW_STYLE(
-                    (ES_MULTILINE | ES_AUTOVSCROLL | ES_AUTOHSCROLL | ES_WANTRETURN) as u32,
+                    (ES_MULTILINE
+                        | ES_AUTOVSCROLL
+                        | ES_WANTRETURN
+                        | if geometry.is_none() {
+                            ES_AUTOHSCROLL
+                        } else {
+                            0
+                        }) as u32,
                 ),
             1,
             1,
@@ -141,7 +164,13 @@ impl Window {
             return Err(Error::from_win32());
         }
         SendMessageW(ui.edit, WM_SETFONT, Some(WPARAM(ui.font.0 as usize)), None);
-        SendMessageW(ui.edit, EM_SETLIMITTEXT, Some(WPARAM(limit)), None);
+        // EDIT stores CRLF pairs; the model counts one unit for a normalized newline.
+        SendMessageW(
+            ui.edit,
+            EM_SETLIMITTEXT,
+            Some(WPARAM(if geometry.is_some() { limit * 2 } else { limit })),
+            None,
+        );
         let status = SendMessageW(
             ui.edit,
             EM_GETIMESTATUS,
@@ -154,9 +183,35 @@ impl Window {
             Some(WPARAM(EMSIS_COMPOSITIONSTRING as usize)),
             Some(LPARAM(status.0 | EIMES_COMPLETECOMPSTRKILLFOCUS as isize)),
         );
+        let initial = if geometry.is_some() {
+            initial
+                .replace("\r\n", "\n")
+                .replace('\r', "\n")
+                .replace('\n', "\r\n")
+        } else {
+            initial.into()
+        };
         SetWindowTextW(ui.edit, &HSTRING::from(initial))?;
         messages::install(ui.edit)?;
+        if let Some(b) = geometry {
+            ui.view = Some(boxed::View::install(ui.edit, scale, b.padding(), ui.keyed)?);
+        }
         Ok(ui)
+    }
+    pub(super) unsafe fn measure(
+        &self,
+        text: &TextAnnotation,
+        crlf: Vec<(u32, u32)>,
+    ) -> Result<Point> {
+        match &self.view {
+            Some(view) => view.update(text, crlf),
+            None => desktop::annotation_text::measure(text),
+        }
+    }
+    pub(super) fn clear_layout(&self) {
+        if let Some(view) = &self.view {
+            view.clear();
+        }
     }
     #[cfg(test)]
     pub(super) fn hwnd(&self) -> HWND {
@@ -229,6 +284,13 @@ impl Window {
                 SWP_NOACTIVATE,
             )?;
         }
+        if self.radius_px > 0 {
+            let (w, h) = (size.x as i32, size.y as i32);
+            paint::rounded(self.hwnd, w, h, self.radius_px)?;
+            if let Some(backing) = &self.backing {
+                paint::rounded(backing.0, w, h, self.radius_px)?;
+            }
+        }
         SetWindowPos(
             self.edit,
             None,
@@ -238,11 +300,20 @@ impl Window {
             size.y as i32 - 2,
             SWP_NOACTIVATE | SWP_NOZORDER,
         )?;
-        let rect = RECT {
-            left: 3,
-            top: 3,
-            right: size.x as i32 - 5,
-            bottom: size.y as i32 - 5,
+        let rect = if let Some(inset) = self.inset {
+            RECT {
+                left: inset,
+                top: inset,
+                right: (size.x as i32 - 2 - inset).max(inset + 1),
+                bottom: (size.y as i32 - 2 - inset).max(inset + 1),
+            }
+        } else {
+            RECT {
+                left: 3,
+                top: 3,
+                right: size.x as i32 - 5,
+                bottom: size.y as i32 - 5,
+            }
         };
         SendMessageW(
             self.edit,
@@ -250,6 +321,9 @@ impl Window {
             None,
             Some(LPARAM((&rect as *const RECT) as isize)),
         );
+        if let Some(view) = &self.view {
+            view.place(size.x as i32 - 2, size.y as i32 - 2)?;
+        }
         Ok(())
     }
     pub(super) unsafe fn show(&self) -> Result<()> {
@@ -287,18 +361,54 @@ impl Window {
         }
     }
     pub(super) unsafe fn text(&self) -> Result<String> {
+        self.draft(false).map(|(value, _)| value)
+    }
+    pub(super) unsafe fn draft(&self, map_offsets: bool) -> Result<(String, Vec<(u32, u32)>)> {
         if !self.alive() {
             return Err(Error::new(E_HANDLE, "Inline text window retired"));
         }
         let len = GetWindowTextLengthW(self.edit);
-        if len < 0 || len as usize > crate::text_annotation::MAX_TEXT_UNITS {
+        let limit = crate::text_annotation::MAX_TEXT_UNITS;
+        if len < 0
+            || len as usize
+                > if self.inset.is_some() {
+                    2 * limit
+                } else {
+                    limit
+                }
+        {
             return Err(Error::new(E_INVALIDARG, "Inline text exceeds unit limit"));
         }
         let mut buffer = vec![0_u16; len as usize + 1];
         if GetWindowTextW(self.edit, &mut buffer) != len {
             return Err(Error::new(E_FAIL, "Inline text changed during read"));
         }
-        String::from_utf16(&buffer[..len as usize])
+        buffer.truncate(len as usize);
+        let mut crlf = Vec::new();
+        if self.inset.is_some() {
+            let (mut read, mut write) = (0, 0);
+            while read < buffer.len() {
+                let mut unit = buffer[read];
+                if unit == 13 {
+                    unit = 10;
+                    if buffer.get(read + 1) == Some(&10) {
+                        if map_offsets {
+                            crlf.push((write as u32, read as u32));
+                        }
+                        read += 1;
+                    }
+                }
+                buffer[write] = unit;
+                write += 1;
+                read += 1;
+            }
+            buffer.truncate(write);
+        }
+        if buffer.len() > limit {
+            return Err(Error::new(E_INVALIDARG, "Inline text exceeds unit limit"));
+        }
+        String::from_utf16(&buffer)
+            .map(|s| (s, crlf))
             .map_err(|_| Error::new(E_INVALIDARG, "Invalid inline UTF-16"))
     }
 }

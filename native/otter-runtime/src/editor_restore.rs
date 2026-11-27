@@ -141,6 +141,10 @@ impl Editor {
         let count = points.len();
         let valid_count = match tool {
             Tool::Rectangle
+            | Tool::SpotRect
+            | Tool::Magnifier
+            | Tool::SpotRounded
+            | Tool::SpotEllipse
             | Tool::RoundedRectangle
             | Tool::Ellipse
             | Tool::Triangle
@@ -185,6 +189,9 @@ impl Editor {
             brush_weights,
             text: None,
             mosaic_cell: self.style.mosaic_cell(),
+            effect_rect: false,
+            serial_arrow_tip: None,
+            lens: (tool == Tool::Magnifier).then(Lens::default),
             blur: None,
         });
         self.retained_points += count;

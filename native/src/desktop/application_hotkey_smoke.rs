@@ -77,7 +77,13 @@ pub(in crate::desktop) unsafe fn run(documents: &[DocumentWindow]) -> Result<()>
         ));
     }
     // Destruction cleanup for an unregistered window is an idempotent no-op and must not switch shared menu state off.
-    super::super::global_capture::set(second.window.0, &second.state, false)?;
+    super::super::global_capture::dispatch(
+        second.window.0,
+        &second.state,
+        WM_DESTROY,
+        WPARAM(0),
+        LPARAM(0),
+    );
     if !checked(&second.state)? {
         return Err(Error::new(
             E_FAIL,

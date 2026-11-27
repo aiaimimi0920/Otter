@@ -70,8 +70,9 @@ fn application_consumes_invalid_request_and_reaps_real_worker_without_capturing_
         );
         let target = crate::live_window_target::Target::bind(target_window.0).unwrap();
         drop(target_window);
-        *app.documents[0].state.live_request.borrow_mut() =
-            Some(crate::desktop::capture_input::live::Request::Window(target));
+        *app.documents[0].state.live_request.borrow_mut() = Some(
+            crate::desktop::capture_input::live::Request::Window(target, None),
+        );
         assert!(app.process_live(false).is_err());
         assert!(app.documents[0].state.live_request.borrow().is_none());
         assert!(app.live_sessions.is_empty());

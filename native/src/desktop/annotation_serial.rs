@@ -42,6 +42,20 @@ pub(super) unsafe fn draw(
         return Ok(());
     }
     super::annotation_shapes::set_color(brush, stroke.color, alpha);
+    if let Some(points) = stroke.serial_line() {
+        if let Some(arrow) = crate::arrow_geometry::build_path(&points, stroke.width.max(1.0)) {
+            let f = target.GetFactory()?;
+            let shaft = super::annotation_linear::geometry(&f, arrow.shaft(), false, viewport)?;
+            let head = super::annotation_linear::geometry(
+                &f,
+                arrow.arrow.head.into_iter(),
+                true,
+                viewport,
+            )?;
+            target.DrawGeometry(&shaft, brush, stroke.width.max(1.0) * viewport.scale, None);
+            target.FillGeometry(&head, brush, None);
+        }
+    }
     if stroke.visible_outline() {
         target.DrawEllipse(&ellipse, brush, stroke.width * viewport.scale, None);
     }

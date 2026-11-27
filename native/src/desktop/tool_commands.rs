@@ -6,12 +6,44 @@ pub(super) struct ToolCommand {
     pub tool: Tool,
 }
 impl ToolCommand {
+    pub(super) fn shortcut(&self, state: &super::State) -> Option<String> {
+        crate::shortcut_policy::CANVAS
+            .iter()
+            .find(|(id, _)| crate::shortcut_policy::canvas_command(id) == Some(self.id))
+            .and_then(|(id, _)| state.shortcut_policy.borrow().chord(id))
+            .map(|chord| chord.label())
+    }
+    pub(super) fn caption(&self, state: &super::State) -> String {
+        let name = self.label().split('\t').next().unwrap_or(self.label());
+        self.shortcut(state)
+            .map_or_else(|| name.to_owned(), |chord| format!("{name} {chord}"))
+    }
     pub(super) fn label(&self) -> &'static str {
         crate::ui_text::text(self.label_id)
     }
 }
 // Menus and subsequent native toolbars share order, names, and shortcuts; blur must use background preparation.
 pub(super) const TOOLS: &[ToolCommand] = &[
+    ToolCommand {
+        id: 0x21f4,
+        label_id: "tool-magnifier",
+        tool: Tool::Magnifier,
+    },
+    ToolCommand {
+        id: 0x21f1,
+        label_id: "tool-spot-rect",
+        tool: Tool::SpotRect,
+    },
+    ToolCommand {
+        id: 0x21f2,
+        label_id: "tool-spot-round",
+        tool: Tool::SpotRounded,
+    },
+    ToolCommand {
+        id: 0x21f3,
+        label_id: "tool-spot-ellipse",
+        tool: Tool::SpotEllipse,
+    },
     ToolCommand {
         id: 0x56,
         label_id: "tool-pan",
@@ -101,6 +133,10 @@ mod tests {
     #[test]
     fn tool_catalog_is_unique_complete_and_preserves_async_blur_boundary() {
         let expected = [
+            Tool::Magnifier,
+            Tool::SpotRect,
+            Tool::SpotRounded,
+            Tool::SpotEllipse,
             Tool::Pan,
             Tool::Select,
             Tool::Brush,
@@ -127,6 +163,10 @@ mod tests {
                 .any(|previous| previous.id == entry.id));
             for language in crate::ui_text::DisplayLanguage::ALL {
                 let label = crate::ui_text::text_for(language, entry.label_id);
+                if entry.tool.spotlight() || entry.tool == Tool::Magnifier {
+                    assert!(!label.is_empty() && !label.contains('\t'));
+                    continue;
+                }
                 let (name, shortcut) = label.split_once('\t').unwrap();
                 assert!(!name.is_empty());
                 assert_eq!(shortcut.as_bytes(), &[entry.id as u8]);

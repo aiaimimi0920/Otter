@@ -46,6 +46,42 @@ fn png_suggestion_uses_capability_label_title_limit_and_art_id() {
         "节点🙂名称_节点_test-art_art_2x3.png"
     );
 }
+#[test]
+fn linked_display_never_borrows_the_local_targets_title_and_live_hints_do_not_create_archive_metadata(
+) {
+    let state = image_state();
+    let hint = |title: &str| crate::desktop::capture_window_meta::Meta {
+        app: "editor.exe".into(),
+        title: title.into(),
+    };
+    state.naming.borrow_mut().sticker_save_pattern = "{sourceApp}_{windowTitle}".into();
+    let mut c = state.canvas.borrow_mut();
+    c.bind_live_naming(Some(hint("local")));
+    assert!(c.capture_source().is_none());
+    let im = c.image.clone().unwrap();
+    drop(c);
+    assert_eq!(
+        crate::desktop::export_naming::suggested(&state).unwrap(),
+        "editor.exe_local.png"
+    );
+    let mut frame = crate::desktop::display_frame::Frame::capture(
+        crate::desktop::document_state::new_unit_id().unwrap(),
+        im,
+        None,
+    );
+    *state.resolved_display.borrow_mut() = Some(frame);
+    assert_eq!(
+        crate::desktop::export_naming::suggested(&state).unwrap(),
+        "Screen_Untitled.png"
+    );
+    frame = state.resolved_display.borrow_mut().take().unwrap();
+    frame.naming = Some(hint("upstream"));
+    *state.resolved_display.borrow_mut() = Some(frame);
+    assert_eq!(
+        crate::desktop::export_naming::suggested(&state).unwrap(),
+        "editor.exe_upstream.png"
+    );
+}
 
 #[test]
 fn image_and_offline_art_have_distinct_fallbacks_without_os_queries() {

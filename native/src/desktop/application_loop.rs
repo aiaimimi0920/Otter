@@ -3,16 +3,39 @@ use super::*;
 use crate::desktop;
 
 impl Application {
+    pub(in crate::desktop) unsafe fn run(
+        mut self,
+        startup: Option<desktop::SessionStartup>,
+    ) -> Result<()> {
+        let control = std::rc::Rc::clone(&self.session_end);
+        desktop::session_end::with_owner(&control, || {
+            // All main-loop errors go through shared cleanup first; neither ? nor a nonzero WM_QUIT may bypass the Live message pump.
+            let result = self.run_loop(startup);
+            self.collect_closed();
+            self.shutdown();
+            result?;
+            self.error.take().map_or(Ok(()), Err)
+        })
+    }
     pub(super) unsafe fn run_loop(
         &mut self,
         startup: Option<desktop::SessionStartup>,
     ) -> Result<()> {
-        self.enable_local_loom();
-        self.locale_remote.enable();
         let initial = &self.documents[0];
+        if crate::elevation_status::allows_desktop_integrations() {
+            desktop::extension_catalog::request(initial.window.0, &initial.state)?;
+            self.enable_local_loom();
+            self.locale_remote.enable();
+            self.shortcut_remote.enabled = true;
+        } else {
+            let mut view = self.authorization.borrow_mut();
+            view.closed = true;
+            view.status = crate::ui_text::text("loom-needs-standard-session").into();
+        }
+        let initial = &self.documents[0];
+        self.hotkey_enabled.set(true);
         desktop::global_capture::install(initial.window.0, &initial.state);
         self.ensure_tray();
-        desktop::extension_catalog::request(initial.window.0, &initial.state)?;
         for doc in &self.documents {
             doc.observe_priority()?;
             doc.show_content(SW_SHOWNOACTIVATE);
@@ -67,7 +90,7 @@ impl Application {
             let hotkey_owner = self
                 .documents
                 .iter()
-                .find(|document| document.state.global_capture.get())
+                .find(|document| desktop::shortcut_registry::owns(&document.state))
                 .map(|document| document.window.0);
             if self.session_end.paused() {
                 // Business hosts have a separate synchronous gate; do not forward posted input to standard child controls here either.
@@ -152,6 +175,16 @@ impl Application {
                 },
             );
             self.pending_windows(true)?;
+            let archive_error = self.retired_edits.archive().borrow_mut().error.take();
+            if let Some(e) = archive_error {
+                if let Some(d) = self.documents.iter().find(|d| d.is_alive()) {
+                    self.save_message(
+                        &d.state.unit_id,
+                        &crate::ui_text::format("archive-failed", &[("error", e.into())]),
+                        true,
+                    );
+                }
+            }
             self.pending_save_ui();
             self.pending_open_session();
             self.pending_naming_import();
@@ -162,7 +195,7 @@ impl Application {
                 && !self
                     .documents
                     .iter()
-                    .any(|document| document.state.global_capture.get())
+                    .any(|document| desktop::shortcut_registry::owns(&document.state))
             {
                 if let Some(document) = self.documents.first() {
                     desktop::global_capture::install(document.window.0, &document.state);

@@ -17,6 +17,16 @@ fn raw() -> Vec<u8> {
         "certificateSha256":"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad","authToken":"a1".repeat(32)}})).unwrap()
 }
 #[test]
+fn local_only_session_never_opens_bridge_or_media_manifests() {
+    let config = Config::local_only();
+    let never = |_: &Path| -> io::Result<File> { panic!("unexpected manifest access") };
+    assert!(matches!(config.load_with(never), Err(Error::Disabled)));
+    assert!(matches!(
+        config.load_media_with(never),
+        Err(Error::NotFound)
+    ));
+}
+#[test]
 fn canonical_disable_and_empty_override_never_revive_legacy() {
     for value in ["0", "false", ""] {
         let cfg = config(&[

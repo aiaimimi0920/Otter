@@ -1,6 +1,34 @@
 //! Node selection is explicit pointer intent, not inferred from foreground focus or the last extension-shortcut target.
 use super::*;
 use windows::Win32::UI::Input::KeyboardAndMouse::{GetKeyState, VK_CONTROL};
+impl Owner {
+    pub(in crate::desktop::application) unsafe fn selected_units(
+        &self,
+    ) -> Option<Vec<crate::workspace_id::UnitId>> {
+        let scene = self.ui.scene.borrow();
+        let nodes = self.ui.nodes.borrow();
+        let scene = scene.as_ref()?;
+        self.ui
+            .selected
+            .borrow()
+            .iter()
+            .map(|&(hwnd, marker)| {
+                let node = nodes
+                    .iter()
+                    .find(|n| n.hwnd == hwnd && n.marker == marker && n.interactive)?;
+                (GetWindowLongPtrW(HWND(hwnd as *mut _), GWLP_USERDATA) == marker)
+                    .then(|| {
+                        scene
+                            .catalog
+                            .endpoints
+                            .get(node.endpoint)
+                            .map(|e| e.unit.clone())
+                    })
+                    .flatten()
+            })
+            .collect()
+    }
+}
 pub(in crate::desktop) unsafe fn observe(binding: &Binding, hwnd: HWND, msg: u32) {
     if !matches!(
         msg,
@@ -27,6 +55,8 @@ pub(in crate::desktop) unsafe fn observe(binding: &Binding, hwnd: HWND, msg: u32
     let key = (node.hwnd, node.marker);
     let mut selected = ui.selected.borrow_mut();
     if GetKeyState(VK_CONTROL.0 as i32) >= 0 && !selected.contains(&key) {
+        ui.selection_epoch
+            .set(ui.selection_epoch.get().wrapping_add(1));
         selected.clear();
     }
     if !selected.contains(&key) {

@@ -246,3 +246,70 @@ fn partial_rasterization_refreshes_remaining_blurs_and_restores_interleaved_indi
     assert!(!canvas.editor.redo());
     assert_eq!(canvas.editor.elements().len(), 6);
 }
+
+#[test]
+fn rasterize_lower_layers_preserves_dynamic_composition_pixels_and_history() {
+    let _apartment = crate::desktop::Apartment::new().unwrap();
+    let mut canvas = canvas();
+    canvas
+        .editor
+        .begin(Tool::Highlighter, Point { x: 6., y: 6. })
+        .unwrap();
+    canvas.editor.extend(Point { x: 24., y: 6. }).unwrap();
+    assert!(canvas.editor.commit());
+    canvas.editor.set_spotlight_percent(75).unwrap();
+    canvas
+        .editor
+        .begin(Tool::SpotRect, Point { x: 2.0, y: 2.0 })
+        .unwrap();
+    canvas.editor.extend(Point { x: 12.0, y: 12.0 }).unwrap();
+    assert!(canvas.editor.commit());
+    canvas
+        .editor
+        .begin(Tool::Magnifier, Point { x: 14.0, y: 14.0 })
+        .unwrap();
+    canvas.editor.extend(Point { x: 26.0, y: 26.0 }).unwrap();
+    assert!(canvas.editor.commit());
+    let render = |canvas: &Canvas| {
+        crate::desktop::export::decode_png(
+            crate::desktop::export::style::Snapshot::default()
+                .encoded_png(canvas.image.as_ref().unwrap(), &canvas.editor, 1.)
+                .unwrap()
+                .to_vec(),
+        )
+        .pixels
+    };
+    let before = render(&canvas);
+    let (request, snapshot) = prepare(&canvas, false).unwrap();
+    assert_eq!(request.indices, vec![2]);
+    assert_eq!(snapshot.spotlight_percent(), 75);
+    let mut job = spawn(request, snapshot).unwrap();
+    let result = finish(&mut job);
+    assert!(accept(&mut canvas, &job.request, result).unwrap());
+    assert_eq!(canvas.editor.elements().len(), 4);
+    assert_eq!(canvas.editor.spotlight_percent(), 75);
+    assert!(prepare(&canvas, false).is_none());
+    assert_eq!(&*render(&canvas), &*before);
+    assert!(canvas.editor.undo());
+    canvas.sync_raster_source();
+    assert_eq!(&*render(&canvas), &*before);
+    assert!(canvas.editor.redo());
+    canvas.sync_raster_source();
+    assert_eq!(&*render(&canvas), &*before);
+}
+
+#[test]
+fn dynamic_layers_keep_ordinary_annotations_above_the_mask_and_out_of_lens_samples() {
+    for tool in [Tool::SpotRect, Tool::Magnifier] {
+        let mut canvas = canvas();
+        canvas.editor.begin(tool, Point { x: 2., y: 2. }).unwrap();
+        canvas.editor.extend(Point { x: 12., y: 12. }).unwrap();
+        assert!(canvas.editor.commit());
+        let stamp = canvas.editor.document_stamp();
+        assert!(
+            prepare(&canvas, false).is_none(),
+            "{tool:?} must retain upper vectors"
+        );
+        assert!(stamp.matches(&canvas.editor));
+    }
+}

@@ -51,6 +51,7 @@ fn defaults_dimensions_and_all_main_placeholders_are_preserved() {
         short_id: "s",
         width: None,
         height: None,
+        ..Default::default()
     };
     assert_eq!(
         render(
@@ -61,6 +62,51 @@ fn defaults_dimensions_and_all_main_placeholders_are_preserved() {
         )
         .unwrap(),
         "X_art_标签_abc_p_u_s__"
+    );
+}
+#[test]
+fn private_source_fields_are_opt_in_and_do_not_change_original_keys() {
+    let mut settings = crate::file_naming_settings::Settings::default();
+    assert_eq!(
+        SourceFields::for_settings(&settings).unwrap(),
+        SourceFields::default()
+    );
+    settings.drag_export_pattern = "{sourceApp}_{title}".into();
+    assert_eq!(
+        SourceFields::for_settings(&settings).unwrap(),
+        SourceFields {
+            app: true,
+            title: false
+        }
+    );
+    settings.sticker_save_pattern = "{windowTitle}".into();
+    assert!(SourceFields::for_settings(&settings).unwrap().title);
+    assert_eq!(
+        render(
+            "{sourceApp}_{windowTitle}",
+            &Default::default(),
+            &moment(),
+            80
+        )
+        .unwrap(),
+        "Screen_Untitled"
+    );
+    let ctx = Context {
+        source_app: "editor.exe",
+        window_title: "日🙂本",
+        title: "Art",
+        process: "id",
+        ..Default::default()
+    };
+    assert_eq!(
+        render(
+            "{app}_{title}_{process}_{sourceApp}_{windowTitle}",
+            &ctx,
+            &moment(),
+            2
+        )
+        .unwrap(),
+        "Otter_Ar_id_editor.exe_日🙂"
     );
 }
 #[test]

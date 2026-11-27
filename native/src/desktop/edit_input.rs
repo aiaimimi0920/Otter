@@ -126,7 +126,8 @@ impl Canvas {
             {
                 return false;
             }
-            return match self.editor.begin_blur(image_point, ready.clone()) {
+            let started = self.editor.begin_blur(image_point, ready.clone());
+            return match self.effect_shape(started) {
                 Ok(started) => {
                     if started {
                         self.draft_pointer = Some(point);
@@ -142,17 +143,17 @@ impl Canvas {
         if self.tool == Tool::Serial {
             let radius = self.tool_profiles.serial_radius() as f32;
             let fill = self.editor.style().fill();
-            return match self.editor.insert_serial_with_fill(
+            return match self.editor.begin_serial(
                 image_point,
                 radius,
                 self.tool_profiles.serial_font_family(),
                 fill,
             ) {
-                Ok(Some(index)) => {
-                    self.select_created_annotation(index);
+                Ok(true) => {
+                    self.draft_pointer = Some(point);
                     true
                 }
-                Ok(None) => false,
+                Ok(false) => false,
                 Err(error) => {
                     eprintln!("native-serial: {error:?}");
                     false
@@ -164,7 +165,7 @@ impl Canvas {
         } else {
             self.editor.begin_timed(self.tool, image_point, time)
         };
-        match result {
+        match self.effect_shape(result) {
             Ok(started) => {
                 if started {
                     self.draft_pointer = Some(point);
@@ -176,6 +177,19 @@ impl Canvas {
                 false
             }
         }
+    }
+
+    fn effect_shape(
+        &mut self,
+        started: Result<bool, crate::editor::EditError>,
+    ) -> Result<bool, crate::editor::EditError> {
+        if started?
+            && self.tool_profiles.effect_rect
+            && matches!(self.tool, Tool::Blur | Tool::Mosaic)
+        {
+            self.editor.mark_effect_rect()?;
+        }
+        started
     }
 
     #[cfg(test)]
@@ -423,6 +437,9 @@ impl Canvas {
     }
 
     pub fn select_tool(&mut self, tool: Tool) -> bool {
+        if tool == Tool::Magnifier && (self.live_pin || self.image.is_none()) {
+            return false;
+        }
         let changed = self.cancel_gesture()
             || self.tool != tool
             || self.crop_mode

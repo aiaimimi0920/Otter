@@ -129,6 +129,8 @@ impl Content {
             cancelled,
         )?;
         Ok(PreparedDocument {
+            ordinary_region: None,
+            ordinary_capture: false,
             record_history: false,
             image,
             region,

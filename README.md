@@ -31,6 +31,8 @@ explore more possibilities for the images you capture.
 
 [**Features and shortcuts →**](./docs/FEATURES.md)
 
+[Internal build: capture, annotation and export controls](./docs/features/DESKTOP_CAPTURE_EDIT_EXPORT.md)
+
 ## Get started
 
 | Start here | What you need to do |
@@ -40,6 +42,8 @@ explore more possibilities for the images you capture.
 
 1. Press **`Ctrl+1`** for a region screenshot, **`Ctrl+2`** for live capture, or **`Ctrl+3`** for a scrolling screenshot.
 2. Select the pinned image and press **`Ctrl+E`** to edit it, or **`Tab`** to expand its parameter panel.
+
+Normally, double-click `otter-native.exe`. To capture an administrator window, exit Otter from the tray, right-click the same EXE and choose **Run as administrator**. This affects only that run and does not change sign-in startup. [Session details](docs/features/DESKTOP_CAPTURE_EDIT_EXPORT.md#administrator-capture).
 
 [**Complete usage guide →**](./docs/guide/getting-started.md)
 

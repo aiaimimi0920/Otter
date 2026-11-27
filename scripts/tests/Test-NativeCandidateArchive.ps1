@@ -71,7 +71,7 @@ catch {
 if (-not $rejected -or $invalidUtf8['entry.txt'].Stream.CanRead) { throw 'Invalid UTF-8 was not rejected and closed' }
 $passed++
 
-foreach ($case in @('tamper', 'missing', 'hook-missing', 'hook-tamper', 'extra', 'traversal', 'duplicate', 'false-string', 'angle-egl', 'angle-gles')) {
+foreach ($case in @('tamper', 'missing', 'hook-missing', 'hook-tamper', 'extra', 'traversal', 'duplicate', 'false-string', 'second-exe', 'angle-egl', 'angle-gles')) {
     $copy = Join-Path $OutputDirectory ($case + '.zip')
     Copy-Item -LiteralPath $ZipPath -Destination $copy
     $archive = [IO.Compression.ZipFile]::Open($copy, [IO.Compression.ZipArchiveMode]::Update)
@@ -82,6 +82,7 @@ foreach ($case in @('tamper', 'missing', 'hook-missing', 'hook-tamper', 'extra',
             'hook-tamper' { $name = 'otter_live_hover_hook.dll'; $archive.GetEntry($name).Delete(); $text = 'wrong hook'; break }
             'tamper' { $name = 'otter-native.exe'; $archive.GetEntry($name).Delete(); $text = 'wrong executable'; break }
             'extra' { $name = 'extra.txt'; $text = 'extra'; break }
+            'second-exe' { $name = 'nested/Capture-Helper.EXE'; $text = 'unexpected'; break }
             'traversal' { $name = '../escape.txt'; $text = 'escape'; break }
             'duplicate' { $name = 'README.TXT'; $text = 'duplicate'; break }
             'angle-egl' { $name = 'libEGL.dll'; $text = 'retired'; break }
@@ -105,6 +106,7 @@ foreach ($case in @('tamper', 'missing', 'hook-missing', 'hook-tamper', 'extra',
     } finally { $archive.Dispose() }
     $rejected = $false
     try { [void](Test-NativeCandidateArchive -ZipPath $copy) } catch {
+        if ($case -eq 'second-exe' -and $_.ToString() -notmatch 'Unexpected executable') { throw }
         if ($case.StartsWith('angle-') -and $_.ToString() -notmatch 'Retired ANGLE DLL') { throw }
         $rejected = $true
         [IO.File]::WriteAllText((Join-Path $OutputDirectory ($case + '.log')), $_.ToString(), [Text.UTF8Encoding]::new($false))

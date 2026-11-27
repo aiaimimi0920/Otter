@@ -176,6 +176,13 @@ fn encoded(
     measure: &mut impl FnMut(&TextAnnotation) -> Result<TextMetrics, session_vectors::Error>,
     mapping: Option<crate::session_vector_write::Mapping>,
 ) -> Result<Objects, Error> {
+    if editor
+        .elements()
+        .iter()
+        .any(|s| s.text.as_ref().is_some_and(|t| t.geometry().is_some()))
+    {
+        return Err(Error::Unsupported);
+    }
     if editor.elements().len() > 256
         || editor.elements().iter().any(|s| {
             s.points.len() > 2048

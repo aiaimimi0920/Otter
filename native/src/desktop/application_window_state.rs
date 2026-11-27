@@ -51,7 +51,10 @@ impl Application {
     }
     pub(super) fn bind_window_state(&self, mut state: State) -> State {
         *state.chrome.borrow_mut() = self.chrome.bind();
+        state.shake.signals = self.pin_layout.signals.clone();
+        state.click.signals = self.pin_layout.click.clone();
         state.capture_history = self.capture_history.view.clone();
+        state.image_archive = self.retired_edits.archive().clone();
         state.edit_palette = self.edit_palette.clone();
         state.naming = self.naming.clone();
         state.cache_policy = self.cache_policy.clone();
@@ -68,6 +71,9 @@ impl Application {
         state.authorization = self.authorization.clone();
         state.group_catalog = self.group_catalog.clone();
         state.hotkey_enabled = self.hotkey_enabled.clone();
+        state.shortcut_policy = self.shortcut_policy.clone();
+        state.shortcut_display = self.shortcut_display.clone();
+        state.tray.recovery = self.tray_recovery.clone();
         state.long_hotkey_enabled = self.long_hotkey_enabled.clone();
         state.live_hotkey_enabled = self.live_hotkey_enabled.clone();
         state.exit_requested = self.exit_requested.clone();

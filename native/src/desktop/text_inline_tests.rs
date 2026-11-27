@@ -162,6 +162,8 @@ fn escape_and_empty_draft_leave_document_untouched() {
         assert!(!f.state.canvas.borrow_mut().editor.undo());
     }
 }
+#[path = "text_box_draft_tests.rs"]
+mod boxed_layout;
 #[path = "text_inline_style_tests.rs"]
 mod style;
 

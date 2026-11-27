@@ -1,5 +1,8 @@
 //! Prepare all batch windows before adding them to the application together; capacity/window-creation failures release staged owners without showing a partial batch.
 use super::*;
+#[cfg(test)]
+#[path = "application_external_text_paste_tests.rs"]
+mod external_text;
 #[path = "application_paste_target.rs"]
 mod paste_target;
 
@@ -54,10 +57,15 @@ impl Application {
                 (
                     pin.record_history,
                     !pin.record_history && pin.paste_origin.is_none(),
+                    pin.ordinary_capture,
                 )
             })
             .collect();
+        let mut recent_region = None;
         for mut pin in pins {
+            if let Some(region) = pin.ordinary_region.take() {
+                recent_region = Some(region);
+            }
             let request = pin
                 .placement
                 .take()
@@ -93,7 +101,18 @@ impl Application {
                 )
             })?;
         self.documents.extend(staged);
-        for (document, (captured, _)) in self.documents[start..].iter().zip(&presentation) {
+        if let Some(region) = recent_region {
+            self.documents[start]
+                .state
+                .capture_history
+                .borrow_mut()
+                .last_region = Some(region);
+        }
+        for (document, (captured, _, ordinary)) in self.documents[start..].iter().zip(&presentation)
+        {
+            if *ordinary {
+                crate::desktop::export_image_autosave::pinned(&document.state);
+            }
             if *captured {
                 crate::desktop::capture_history_ui::record(&document.state);
             }
@@ -110,7 +129,7 @@ impl Application {
         }
         self.sync_capture_windows();
         if visible {
-            for (document, (_, show_panel)) in self.documents[start..].iter().zip(presentation) {
+            for (document, (_, show_panel, _)) in self.documents[start..].iter().zip(presentation) {
                 let _ = ShowWindow(document.window.0, SW_SHOWNORMAL);
                 // Screenshots and pasted images default to free dragging; ordinary file imports retain the original display rules.
                 if show_panel {

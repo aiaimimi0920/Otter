@@ -56,7 +56,10 @@ fn shader_candidate_rejects_nonlocal_ambiguous_and_device_paths_before_open() {
         "C:/tail.",
         "C:/a\0",
     ] {
-        assert!(files::directories(Path::new(path)).is_err(), "{path:?}");
+        assert!(
+            files::directories(Path::new(path), |_, _| Ok(())).is_err(),
+            "{path:?}"
+        );
     }
 }
 #[test]

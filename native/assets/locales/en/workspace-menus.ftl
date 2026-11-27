@@ -1,4 +1,25 @@
 ## Local workspace menu and numeric input presentation.
+workspace-layout-selection = Arrange selected pins
+pin-pass-enter = Let the mouse pass through this pin
+pin-pass-restore = Turn off mouse pass-through ({ $count })
+pin-pass-unavailable = Cannot enable pass-through: the pin must stay visible, idle, and recoverable from the tray.
+pin-pass-finish-edit = Finish or cancel the current edit before opening the pin menu.
+workspace-shake-restore = Restore temporarily hidden pins
+workspace-layout-group = Arrange pins in this group
+workspace-layout-left = Align left edges
+workspace-layout-top = Align top edges
+workspace-layout-center-x = Align horizontal centers
+workspace-layout-center-y = Align vertical centers
+workspace-layout-compact-x = Pack horizontally (12 DIP)
+workspace-layout-compact-y = Pack vertically (12 DIP)
+workspace-layout-distribute-x = Distribute horizontal gaps
+workspace-layout-distribute-y = Distribute vertical gaps
+workspace-layout-grid = Arrange in a grid
+workspace-layout-undo = Undo last pin arrangement
+workspace-layout-space = These pins do not fit in the monitor work area. No pins were moved.
+workspace-layout-monitor-count = Each monitor needs two pins for alignment or packing, or three for distribution. No pins were moved.
+workspace-layout-unavailable = The pins are no longer available for this arrangement.
+workspace-layout-rollback = Some positions could not be restored. Closed or independently moved pins were not changed.
 workspace-menu-close = Close
 workspace-menu-recycle-bin = Recycle bin
 workspace-menu-clear-recycle = Empty recycle bin

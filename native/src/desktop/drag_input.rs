@@ -142,13 +142,13 @@ pub(super) unsafe fn dispatch(
             if state.modals.blocked()
                 || state.file_dialog.get()
                 || super::group_lock::editing_busy(state)
+                || !super::display_snapshot::ready(state)
             {
                 return Some(LRESULT(0));
             }
             if engaged || state.drag.pending.borrow().is_some() {
                 return Some(LRESULT(0));
             }
-            state.canvas.borrow_mut().cancel_gesture();
             state.drag.origin.set(Some(point(lp)));
             SetCapture(hwnd);
         }
@@ -186,6 +186,9 @@ unsafe fn start(hwnd: HWND, state: &State, root: Result<PathBuf, String>) -> Res
     // Cancelled tasks still encoding occupy the sole slot; prohibit owner replacement or accumulating background tasks.
     if state.drag.pending.borrow().is_some() {
         return Err("Native drag preparation is still active".into());
+    }
+    if !super::display_snapshot::ready(state) {
+        return Err(crate::ui_text::text("display-output-edit-pending").into());
     }
     let root = root?;
     let name = super::export_naming::suggested_drag(state).ok_or("Cannot render drag filename")?;

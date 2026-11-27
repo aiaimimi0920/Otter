@@ -17,7 +17,7 @@ impl Application {
         close: impl FnOnce(HWND) -> Result<()>,
     ) -> Result<()> {
         self.poll_recycle_using(visible, close, |doc, enabled| {
-            crate::desktop::global_capture::set(doc.window.0, &doc.state, enabled)
+            crate::desktop::shortcut_registry::transfer(doc.window.0, &doc.state, enabled)
         })
     }
     unsafe fn poll_recycle_using(
@@ -95,7 +95,7 @@ impl Application {
             .as_ref()
             .or_else(|| self.documents.iter().find(|doc| doc.state.unit_id != unit))
             .ok_or_else(|| Error::new(E_ABORT, "Missing recycle successor"))?;
-        let transferred = target.state.global_capture.get();
+        let transferred = crate::desktop::shortcut_registry::owns(&target.state);
         restore_batch::transfer_hotkey(
             std::slice::from_ref(target),
             std::slice::from_ref(next),

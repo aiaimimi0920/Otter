@@ -33,6 +33,7 @@ impl Drop for Route {
             if self.alive() {
                 let _ = RemovePropW(self.hwnd, OWNER);
             }
+            crate::desktop::shortcut_registry::finish_changed();
         }
     }
 }
@@ -61,6 +62,7 @@ impl Registration {
             queued: Cell::new(false),
         });
         ACTIVE.with(|active| *active.borrow_mut() = Rc::downgrade(&route));
+        crate::desktop::shortcut_registry::finish_changed();
         Ok(Self(route))
     }
     pub unsafe fn accept(&self, hwnd: HWND, wp: WPARAM, lp: LPARAM) -> bool {
@@ -75,6 +77,15 @@ impl Registration {
         self.0.queued.set(false);
         true
     }
+}
+pub(in crate::desktop) unsafe fn active(capture: &Rc<Cell<bool>>) -> bool {
+    capture.get()
+        && ACTIVE.with(|active| {
+            active
+                .borrow()
+                .upgrade()
+                .is_some_and(|route| Rc::ptr_eq(capture, &route.capture) && route.alive())
+        })
 }
 /// Do not reenter dialogs synchronously; enqueue at most one notice, collectible only by in-flight capture in the same Application.
 pub(in crate::desktop) unsafe fn request(capture: &Rc<Cell<bool>>) -> bool {

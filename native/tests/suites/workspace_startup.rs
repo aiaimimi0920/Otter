@@ -3,6 +3,8 @@
 use std::{path::PathBuf, process::Command, time::Duration};
 #[path = "../support/process.rs"]
 mod process;
+#[path = "workspace_restart_checkpoint.rs"]
+mod restart_checkpoint;
 fn root_dir() -> PathBuf {
     crate::test_temp_root().join("otter-workspace-startup-tests")
 }
@@ -65,6 +67,85 @@ fn check_never_discovers_real_profile_or_combines_with_other_inputs() {
     }
 }
 
+#[test]
+fn login_startup_readback_does_not_acquire_profile_or_read_settings() {
+    let fixture = Fixture::new();
+    let missing = fixture.0.join("not-a-profile");
+    let result = process::run(
+        Command::new(env!("CARGO_BIN_EXE_otter-native"))
+            .arg("--check-login-startup")
+            .env("OTTER_NATIVE_PROFILE_DIR", &missing),
+        Duration::from_secs(15),
+    )
+    .unwrap();
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    let stdout = String::from_utf8(result.stdout).unwrap();
+    assert!(stdout.starts_with("native-login-startup: ordinary="));
+    assert_eq!(stdout.split_whitespace().count(), 3);
+    assert!(stdout.trim_end().ends_with(" read-only=true"));
+    assert!(!missing.exists());
+}
+#[test]
+#[ignore = "Run from a manually elevated Windows shell; this test never requests UAC"]
+fn manually_elevated_desktop_restores_workspace_without_changing_login() {
+    assert!(otter_media::elevation_status::elevated().unwrap());
+    assert!(!otter_media::elevation_status::allows_desktop_integrations());
+    let fixture = Fixture::new();
+    let read_login = || {
+        let result = process::run(
+            Command::new(env!("CARGO_BIN_EXE_otter-native"))
+                .arg("--check-login-startup")
+                .env("OTTER_NATIVE_PROFILE_DIR", &fixture.0),
+            Duration::from_secs(15),
+        )
+        .unwrap();
+        assert!(result.status.success());
+        result.stdout
+    };
+    let before = read_login();
+    std::fs::write(fixture.path(), SESSION).unwrap();
+    let result = fixture.run();
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    assert!(
+        String::from_utf8_lossy(&result.stdout).contains("native-workspace-startup: loaded=true")
+    );
+    assert_eq!(std::fs::read(fixture.path()).unwrap(), SESSION);
+    assert_eq!(read_login(), before);
+}
+#[test]
+fn occupied_workspace_is_rejected_before_reading_stale_or_corrupt_policy() {
+    use std::os::windows::fs::OpenOptionsExt;
+    let fixture = Fixture::new();
+    let settings = fixture.0.join("app-settings.json");
+    std::fs::write(&settings, b"unfinished policy").unwrap();
+    let lease = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create_new(true)
+        .share_mode(0)
+        .open(fixture.0.join("workspace.lock"))
+        .unwrap();
+    let denied = fixture.run();
+    let stderr = String::from_utf8_lossy(&denied.stderr);
+    assert!(!denied.status.success());
+    assert!(stderr.contains("Cannot open workspace profile"), "{stderr}");
+    assert!(!String::from_utf8_lossy(&denied.stdout).contains("native-settings-profile"));
+    drop(lease);
+    let invalid = fixture.run();
+    assert!(!invalid.status.success());
+    let stderr = String::from_utf8_lossy(&invalid.stderr);
+    assert!(stderr.contains("Invalid settings"), "{stderr}");
+    assert_eq!(std::fs::read(&settings).unwrap(), b"unfinished policy");
+    assert!(!fixture.path().exists());
+}
 #[test]
 fn session_named_like_workspace_check_uses_the_session_mode() {
     let fixture = Fixture::new();

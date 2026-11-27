@@ -36,7 +36,7 @@ impl Input {
             pixels: image.pixels,
             editor,
             opacity: canvas.normal_opacity,
-            style: super::export::style::Snapshot::capture(canvas),
+            style: super::export::style::Snapshot::capture_with_frame(canvas, frame),
             root,
             stem,
             policy,

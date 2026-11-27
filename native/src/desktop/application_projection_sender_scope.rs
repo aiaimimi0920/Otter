@@ -48,6 +48,7 @@ impl Scope {
             .ok_or_else(stale)?;
         if !crate::desktop::application::restore_batch::guard::is_idle(app)
             || doc.state.execution_results.borrow().active().is_some()
+            || doc.state.inline_text.borrow().is_some()
         {
             return Err(stale());
         }
@@ -164,6 +165,7 @@ unsafe fn display_matches(
         .find(|doc| doc.state.unit_id == *unit && app.workspace.contains(unit))
         .is_some_and(|doc| {
             doc.is_alive()
+                && doc.state.inline_text.borrow().is_none()
                 && geometry.is_none_or(|guard| {
                     guard.matches(doc, app.restored_session.as_ref().and_then(|r| r.space))
                 })

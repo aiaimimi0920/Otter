@@ -14,7 +14,7 @@ pub(super) unsafe fn pick(
     point: Point,
     tolerance: f32,
 ) -> Result<Option<usize>> {
-    for rank in (0..=3).rev() {
+    for rank in (0..=5).rev() {
         for (index, stroke) in editor.elements().iter().enumerate().rev() {
             if stroke.tool.render_rank() != rank {
                 continue;
@@ -75,6 +75,31 @@ unsafe fn contains(
         crate::rotation::center(&stroke.points),
         -stroke.rotation,
     ));
+    if stroke.paint_alpha.stroke() > 0.0 {
+        if let Some(line) = stroke.serial_line() {
+            if let Some(arrow) = crate::arrow_geometry::build_path(&line, stroke.width.max(1.0)) {
+                let head = path(factory, &arrow.arrow.head, true)?;
+                let vp = Viewport {
+                    origin: Point::default(),
+                    scale: 1.0,
+                };
+                let shaft = super::annotation_linear::geometry(factory, arrow.shaft(), false, vp)?;
+                if head.FillContainsPoint(point, None, flatten)?.as_bool()
+                    || shaft
+                        .StrokeContainsPoint(
+                            point,
+                            stroke.width.max(1.0) + 2.0 * tolerance,
+                            None,
+                            None,
+                            flatten,
+                        )?
+                        .as_bool()
+                {
+                    return Ok(true);
+                }
+            }
+        }
+    }
     // Performance audit optimization (Tier 2.2):
     // `edit_mode::hit_test` calls `pick` on `WM_NCHITTEST` at 240–480Hz while hovering with the edit strip open.
     // Rejecting points outside the unrotated stroke AABB (+ generous stroke/arrow/pressure pad) in 4 float comparisons
@@ -101,6 +126,13 @@ unsafe fn contains(
         }
     }
     let mut filled = stroke.visible_fill();
+    if stroke.effect_rect {
+        let rect = path(factory, &stroke.points, true)?;
+        return Ok(rect.FillContainsPoint(point, None, flatten)?.as_bool()
+            || rect
+                .StrokeContainsPoint(point, tolerance * 2.0, None, None, flatten)?
+                .as_bool());
+    }
     if stroke.tool == Tool::Paintbrush {
         let path = super::annotation_paintbrush::geometry(
             factory,
@@ -117,7 +149,11 @@ unsafe fn contains(
                 .as_bool());
     }
     let geometry: ID2D1Geometry = match stroke.tool {
-        Tool::Text => {
+        tool @ (Tool::SpotRect | Tool::SpotRounded | Tool::SpotEllipse) => {
+            filled = true;
+            super::annotations::spotlight::hole(factory, tool, rect, stroke.corner_radius)?
+        }
+        Tool::Text | Tool::Magnifier => {
             filled = true;
             factory.CreateRectangleGeometry(&rect)?.cast()?
         }

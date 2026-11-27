@@ -21,10 +21,17 @@ pub(super) fn view(c: &Canvas) -> Option<View> {
     };
     let (tool, style) = if let Some(index) = selected {
         let s = &c.editor.elements()[index];
-        if !matches!(
-            s.tool,
-            Tool::Text | Tool::Serial | Tool::Line | Tool::Arrow | Tool::Bezier
-        ) {
+        if !s.tool.spotlight()
+            && !matches!(
+                s.tool,
+                Tool::Text
+                    | Tool::Serial
+                    | Tool::Line
+                    | Tool::Arrow
+                    | Tool::Bezier
+                    | Tool::Magnifier
+            )
+        {
             return None;
         }
         (s.tool, s.style())
@@ -62,6 +69,7 @@ fn icon(id: u16) -> Option<neuro_mini_ui::Icon> {
     match id {
         WIDTH => svg!("PropertyLineWidth"),
         RADIUS => svg!("PropertyRadius"),
+        EFFECT_RECT | TEXT_BOX => svg!("PropertyConstrain"),
         SERIAL_RADIUS => svg!("PropertySerialRadius"),
         STEP => svg!("PropertyStep"),
         OPACITY => svg!("PropertyOpacity"),
@@ -88,7 +96,11 @@ fn number(id: u16, label: &'static str, value: f32, min: i32, max: i32) -> Field
             value: (value.round() as i32).clamp(min, max),
             min,
             max,
-            suffix: if id == OPACITY { "%" } else { "" },
+            suffix: if matches!(id, OPACITY | SPOT_DENSITY | LENS_ZOOM) {
+                "%"
+            } else {
+                ""
+            },
         },
     )
 }
@@ -162,6 +174,27 @@ pub(super) fn fields(c: &Canvas) -> Vec<Field> {
         )
     };
     let mut result = match tool {
+        Tool::Magnifier => v
+            .selected
+            .and_then(|i| c.editor.elements()[i].lens)
+            .map(|lens| {
+                number(
+                    LENS_ZOOM,
+                    "tool-lens-zoom",
+                    f32::from(lens.percent),
+                    150,
+                    800,
+                )
+            })
+            .into_iter()
+            .collect(),
+        t if t.spotlight() => vec![number(
+            SPOT_DENSITY,
+            "tool-spot-density",
+            f32::from(c.editor.spotlight_percent()),
+            20,
+            90,
+        )],
         Tool::Rectangle
         | Tool::RoundedRectangle
         | Tool::Ellipse
@@ -322,9 +355,22 @@ pub(super) fn fields(c: &Canvas) -> Vec<Field> {
                 999,
             ));
             f.push(action(FONT, "edit-font", font, false));
+            if tool == Tool::Text {
+                let b = match text {
+                    Some(t) => t.geometry(),
+                    None => profiles.text_box,
+                };
+                f.push(action(TEXT_BOX, "edit-text-wrap", "", b.is_some()));
+                if let Some(b) = b {
+                    f.push(number(BOX_WIDTH, "edit-box-width", b.width(), 8, 16384));
+                    f.push(number(BOX_PAD, "edit-box-padding", b.padding(), 0, 256));
+                    f.push(number(RADIUS, "edit-radius", style.corner_radius(), 0, 999));
+                }
+            }
             f
         }
         Tool::Mosaic | Tool::Blur => vec![
+            action(EFFECT_RECT, "edit-rect-mask", "", profiles.effect_rect),
             number(WIDTH, "edit-brush-size", style.width(), 4, 200),
             if tool == Tool::Mosaic {
                 number(CELL, "edit-mosaic-cell", style.mosaic_cell(), 2, 64)

@@ -13,6 +13,8 @@ use windows::{
 };
 
 pub(super) struct PreparedDocument {
+    pub(super) ordinary_region: Option<crate::capture_last_region::Last>,
+    pub(super) ordinary_capture: bool,
     pub(super) record_history: bool,
     pub(super) image: Image,
     pub(super) region: HitRegion,
@@ -60,6 +62,7 @@ impl PreparedDocument {
         prepared.record_history = true;
         prepared.capture_origin = origin;
         prepared.capture_source = Some(super::canvas::CaptureSource {
+            naming: None,
             session_meta: Some(metadata),
             original_lease: captured.original_lease,
             original: captured.original,
@@ -102,6 +105,8 @@ impl PreparedDocument {
         }
         let region = region?;
         Ok(Self {
+            ordinary_region: None,
+            ordinary_capture: false,
             record_history: false,
             image,
             region,

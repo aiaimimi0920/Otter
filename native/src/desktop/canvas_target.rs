@@ -29,3 +29,43 @@ impl Target {
         })
     }
 }
+
+impl super::Canvas {
+    pub(super) unsafe fn ensure_target(
+        &mut self,
+        hwnd: windows::Win32::Foundation::HWND,
+        size: Common::D2D_SIZE_U,
+        dpi: u32,
+    ) -> Result<()> {
+        if self.target.is_some() {
+            return Ok(());
+        }
+        let prepared = self.creation_admission.attempt(|| {
+            let surface = if self.software_renderer {
+                RenderSurface::software_mode(&self.factory, size, self.pinned).map_err(Into::into)
+            } else if self.compatibility_renderer {
+                RenderSurface::legacy(&self.factory, hwnd, size, dpi, self.pinned)
+            } else {
+                RenderSurface::new(&self.factory, hwnd, size, dpi, self.pinned, self.primary)
+            }?;
+            Target::prepare(surface, |t| {
+                t.CreateSolidColorBrush(
+                    &Common::D2D1_COLOR_F {
+                        r: 0.96,
+                        g: 0.88,
+                        b: 0.24,
+                        a: 1.,
+                    },
+                    None,
+                )
+            })
+        })?;
+        if !matches!(prepared.surface, RenderSurface::D3d12(_)) {
+            self.primary = crate::desktop::render_surface::Primary::SharedD3d11;
+        }
+        self.compatibility_renderer |= prepared.surface.is_compatibility();
+        self.software_renderer |= prepared.surface.is_software();
+        self.target = Some(prepared);
+        Ok(())
+    }
+}

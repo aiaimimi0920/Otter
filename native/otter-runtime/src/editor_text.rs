@@ -40,6 +40,9 @@ fn prepare(
         text: Some(text),
         blur: None,
         mosaic_cell: style.mosaic_cell(),
+        effect_rect: false,
+        serial_arrow_tip: None,
+        lens: None,
     })
 }
 impl Editor {

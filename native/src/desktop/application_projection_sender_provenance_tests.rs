@@ -305,6 +305,8 @@ fn cross_unit_mapping_keeps_original_density_and_target_crop_space_separate() {
     assert!(target.editor.full_logical_frame().is_none());
     let selected = select_local(&frame, &baseline.unit, &upstream).unwrap();
     let snapshot = Snapshot {
+        protected_pixels: None,
+        upstream_overlays: false,
         image: selected.image,
         editor: target.editor.export_snapshot(),
         opacity: 1.0,

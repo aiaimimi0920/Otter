@@ -77,11 +77,11 @@ impl Drop for Job {
     }
 }
 fn prepare(canvas: &Canvas, selected: bool) -> Option<(Request, Editor)> {
-    let indices = if selected {
-        canvas.selected_indices()
-    } else {
-        (0..canvas.editor.elements().len()).collect()
-    };
+    let indices: Vec<_> = canvas
+        .editor
+        .rasterizable_indices()
+        .filter(|i| !selected || canvas.selected_indices_ref().binary_search(i).is_ok())
+        .collect();
     let snapshot = canvas.editor.rasterize_snapshot(&indices).ok()?;
     let refresh = canvas.editor.prepare_rasterize_edit(&indices).ok()??;
     Some((
@@ -280,15 +280,20 @@ pub(super) unsafe fn append_menu(menu: HMENU, state: &State) -> windows::core::R
         let display = state.resolved_display.borrow();
         let supported = !state.is_art();
         (
-            supported && display.is_none() && !canvas.selected_indices().is_empty(),
+            supported
+                && display.is_none()
+                && canvas
+                    .editor
+                    .rasterizable_indices()
+                    .any(|i| canvas.selected_indices_ref().binary_search(&i).is_ok()),
             supported
                 && display.as_ref().map_or_else(
-                    || !canvas.editor.elements().is_empty(),
+                    || canvas.editor.rasterizable_indices().next().is_some(),
                     |frame| {
                         frame
                             .editor
                             .as_deref()
-                            .is_some_and(|editor| !editor.elements().is_empty())
+                            .is_some_and(|editor| editor.rasterizable_indices().next().is_some())
                     },
                 ),
         )

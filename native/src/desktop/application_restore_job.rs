@@ -55,6 +55,12 @@ impl Application {
             let _ = TranslateMessage(&message);
             DispatchMessageW(&message);
         }
+        self.verify_hidden_restore()
+    }
+
+    /// A claimed restart checkpoint has already settled restoration. Inspect
+    /// its hidden windows without starting recycle maintenance or any save job.
+    pub(in crate::desktop) unsafe fn verify_hidden_restore(&self) -> Result<()> {
         let record = self
             .restored_session
             .as_ref()

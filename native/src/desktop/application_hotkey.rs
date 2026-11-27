@@ -31,11 +31,15 @@ pub(super) unsafe fn process_with(
             continue;
         }
         // Read the actual registration flag, not the menu cache; another window can also disable the sole current registrant.
-        let owner = documents
-            .iter()
-            .find(|document| document.is_alive() && document.state.global_capture.get());
+        let owner = documents.iter().find(|document| {
+            document.is_alive() && super::shortcut_registry::owns(&document.state)
+        });
         let target = owner.unwrap_or(source);
-        if let Err(error) = change(target.window.0, &target.state, owner.is_none()) {
+        if let Err(error) = change(
+            target.window.0,
+            &target.state,
+            !target.state.hotkey_enabled.get(),
+        ) {
             failed(source.window.0, error);
         }
     }

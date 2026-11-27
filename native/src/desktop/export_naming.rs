@@ -5,6 +5,9 @@ use windows::Win32::{Foundation::SYSTEMTIME, System::SystemInformation::GetLocal
 pub(super) fn suggested(state: &State) -> Option<String> {
     suggested_for(state, Pattern::Save)
 }
+pub(super) fn suggested_as(state: &State, ext: &str) -> Option<String> {
+    suggested_stem(state, Pattern::Save).map(|stem| format!("{stem}.{ext}"))
+}
 pub(super) fn suggested_clipboard(state: &State) -> Option<String> {
     suggested_for(state, Pattern::Clipboard)
 }
@@ -18,6 +21,9 @@ enum Pattern {
     Drag,
 }
 fn suggested_for(state: &State, pattern: Pattern) -> Option<String> {
+    suggested_stem(state, pattern).map(|s| format!("{s}.png"))
+}
+fn suggested_stem(state: &State, pattern: Pattern) -> Option<String> {
     let dimensions = display_snapshot::dimensions(
         &state.canvas.borrow(),
         state.resolved_display.borrow().as_ref(),
@@ -28,7 +34,7 @@ fn suggested_for(state: &State, pattern: Pattern) -> Option<String> {
         .unwrap_or(0)
         .to_string();
     super::naming_context::with_context(state, dimensions, |context| {
-        render_pattern(
+        render_stem(
             unsafe { GetLocalTime() },
             &state.naming.borrow(),
             context,
@@ -60,7 +66,17 @@ fn render_name(
 ) -> Option<String> {
     render_pattern(time, settings, context, timestamp, Pattern::Save)
 }
+#[cfg(test)]
 fn render_pattern(
+    time: SYSTEMTIME,
+    settings: &crate::file_naming_settings::Settings,
+    context: &crate::file_naming::Context<'_>,
+    timestamp: &str,
+    pattern: Pattern,
+) -> Option<String> {
+    render_stem(time, settings, context, timestamp, pattern).map(|s| format!("{s}.png"))
+}
+fn render_stem(
     time: SYSTEMTIME,
     settings: &crate::file_naming_settings::Settings,
     context: &crate::file_naming::Context<'_>,
@@ -91,7 +107,7 @@ fn render_pattern(
         settings.title_max_length,
     )
     .ok()?;
-    Some(format!("{stem}.png"))
+    Some(stem)
 }
 
 #[cfg(test)]

@@ -9,6 +9,7 @@ pub(super) struct Pending {
     // Workspace restoration with the same UnitId may recreate windows; retain lightweight owner identity, not windows or pixels.
     origin_dialog: std::rc::Rc<std::cell::Cell<bool>>,
     before: Settings,
+    before_cache: crate::cache_policy::Policy,
     before_recycle: crate::session_library::recycle::policy::Policy,
     job: crate::desktop::naming_import_job::Job,
 }
@@ -137,14 +138,20 @@ impl Application {
         {
             let pending = self.naming_import_job.take().expect("polled job exists");
             let next = result.map_err(|message| Error::new(E_FAIL, message))?;
+            let cache = next
+                .document()
+                .cache_policy()
+                .map_err(|error| Error::new(E_INVALIDARG, error))?;
             let recycle = next
                 .document()
                 .recycle_policy()
                 .map_err(|error| Error::new(E_INVALIDARG, error))?;
-            if self.recycle_policy != pending.before_recycle {
+            if self.cache_policy.get() != pending.before_cache
+                || self.recycle_policy != pending.before_recycle
+            {
                 return Err(Error::new(
                     E_ABORT,
-                    "Recycle settings changed during import",
+                    "Cache or recycle settings changed during import",
                 ));
             }
             if !self.documents.iter().any(|doc| {
@@ -155,6 +162,19 @@ impl Application {
                 return Err(Error::new(E_ABORT, "Naming import requester closed"));
             }
             let before_document = self.naming_document.clone();
+            if before_document
+                .shortcut_settings()
+                .map_err(|e| Error::new(E_INVALIDARG, e))?
+                != next
+                    .document()
+                    .shortcut_settings()
+                    .map_err(|e| Error::new(E_INVALIDARG, e))?
+            {
+                return Err(Error::new(
+                    E_ABORT,
+                    crate::ui_text::text("action-shortcut-import-conflict"),
+                ));
+            }
             let before_trust = before_document
                 .art_issuer_trust()
                 .map_err(|e| Error::new(E_INVALIDARG, e))?;
@@ -179,6 +199,7 @@ impl Application {
                 }
                 if !std::sync::Arc::ptr_eq(&before_document, &self.naming_document)
                     || self.source_window(&pending.origin) != Some(hwnd)
+                    || self.cache_policy.get() != pending.before_cache
                     || self.recycle_policy != pending.before_recycle
                     || !self.documents.iter().any(|doc| {
                         doc.state.unit_id == pending.origin
@@ -200,10 +221,12 @@ impl Application {
             self.art_issuers
                 .replace(next_trust)
                 .map_err(|e| Error::new(E_INVALIDARG, e))?;
+            self.cache_policy.set(cache);
             self.recycle_policy = recycle;
             self.naming_document = next.document().clone();
             self.naming_source = Some(next);
             self.locale_remote.reset_profile();
+            self.shortcut_remote.reset();
             self.refresh_display_language();
             self.schedule_recycle_maintenance();
         }
@@ -214,6 +237,7 @@ impl Application {
             return Ok(());
         }
         let before = self.naming.borrow().clone();
+        let before_cache = self.cache_policy.get();
         let before_recycle = self.recycle_policy;
         let doc = self
             .documents
@@ -226,6 +250,7 @@ impl Application {
         let origin_dialog = doc.state.file_dialog.clone();
         if self.source_window(&origin) != Some(hwnd)
             || *self.naming.borrow() != before
+            || self.cache_policy.get() != before_cache
             || self.recycle_policy != before_recycle
         {
             return Err(Error::new(
@@ -240,6 +265,7 @@ impl Application {
             origin,
             origin_dialog,
             before,
+            before_cache,
             before_recycle,
             job,
         });

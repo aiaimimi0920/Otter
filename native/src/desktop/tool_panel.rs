@@ -60,6 +60,9 @@ fn entries() -> impl Iterator<Item = (usize, &'static str)> {
 }
 
 pub(super) unsafe fn translate(state: &State, message: &MSG) -> bool {
+    if state.click.active() {
+        return false;
+    }
     if super::pin_settings::translate(state, message) {
         return true;
     }
@@ -182,6 +185,7 @@ pub(super) unsafe fn create(owner: HWND, state: &State, visible: bool) -> Result
         layout(panel.0);
         Ok::<_, windows::core::Error>(())
     })?;
+    crate::desktop::pin_click_through::panels::bind(panel.0, owner, state, false)?;
     state.tool_panel.set(panel.0);
     // Ordinary workspaces retain advance preparation; hidden pins create BUTTON only on first use.
     if visible || !state.canvas.borrow().pinned {
@@ -209,10 +213,7 @@ pub(super) unsafe fn refresh_language(state: &State) {
     if !neuro_mini_ui::is_toolbar(panel) && content::ready(panel) {
         for entry in super::tool_commands::TOOLS {
             if let Ok(button) = GetDlgItem(Some(panel), entry.id as i32) {
-                let _ = SetWindowTextW(
-                    button,
-                    &windows::core::HSTRING::from(entry.label().replace('\t', " ")),
-                );
+                let _ = SetWindowTextW(button, &windows::core::HSTRING::from(entry.caption(state)));
             }
         }
         layout(panel);

@@ -8,10 +8,14 @@ mod picker;
 mod selection;
 pub(in crate::desktop) enum Request {
     Region(RECT),
-    Window(crate::live_window_target::Target),
+    Window(
+        crate::live_window_target::Target,
+        Option<crate::desktop::capture_window_meta::Meta>,
+    ),
     WindowRegion(
         crate::live_window_target::Target,
         crate::live_window_target::region::Crop,
+        Option<crate::desktop::capture_window_meta::Meta>,
     ),
 }
 pub(in crate::desktop) fn available(state: &State) -> bool {
@@ -39,6 +43,7 @@ unsafe fn start_with(hwnd: HWND, state: &State, window: bool) {
     let Some(_dialog) = super::super::file_dialog::Guard::begin(&state.file_dialog) else {
         return;
     };
+    crate::desktop::capture_countdown::cancel();
     let result = (|| -> Result<()> {
         state.canvas.borrow_mut().cancel_gesture();
         if GetCapture() == hwnd {
@@ -47,7 +52,8 @@ unsafe fn start_with(hwnd: HWND, state: &State, window: bool) {
         if window {
             if let Some(target) = picker::select(hwnd)? {
                 if IsWindow(Some(hwnd)).as_bool() && !state.exit_requested.get() {
-                    *state.live_request.borrow_mut() = Some(Request::Window(target));
+                    let naming = crate::desktop::capture_window_meta::window(state, &target);
+                    *state.live_request.borrow_mut() = Some(Request::Window(target, naming));
                 }
             }
             return Ok(());
@@ -55,12 +61,17 @@ unsafe fn start_with(hwnd: HWND, state: &State, window: bool) {
         let selected = {
             let _hidden = Hidden::for_state(hwnd, state);
             DwmFlush()?;
+            let _archive =
+                crate::desktop::export_image_autosave::Selector::enter(&state.image_archive);
             selection::select()?
         };
-        let Some(request) = selected else {
+        let Some(mut request) = selected else {
             return Ok(());
         };
         if IsWindow(Some(hwnd)).as_bool() && !state.exit_requested.get() {
+            if let Request::Window(t, hint) | Request::WindowRegion(t, _, hint) = &mut request {
+                *hint = crate::desktop::capture_window_meta::window(state, t);
+            }
             *state.live_request.borrow_mut() = Some(request);
         }
         Ok(())

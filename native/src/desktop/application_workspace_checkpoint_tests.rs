@@ -34,6 +34,8 @@ mod scope;
 mod sender;
 #[path = "application_session_end_tests.rs"]
 mod session_end;
+#[path = "application_workspace_text_card_tests.rs"]
+mod text_card;
 use std::{
     path::PathBuf,
     time::{Duration, Instant},

@@ -83,6 +83,7 @@ impl Editor {
             revision: self.revision,
             presentation_revision: self.presentation_revision,
             serial_count: self.serial_count,
+            spotlight_percent: self.spotlight_percent,
             history: History::default(),
             elements,
             retained_points,

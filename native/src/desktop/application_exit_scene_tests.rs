@@ -45,6 +45,19 @@ fn default_exit_saves_last_layout_and_reopens_without_manual_file_confirmation()
                 app.pending_workspace_save_with(|_, _, message, warning| {
                     assert!(!warning, "{message}")
                 });
+                // Compute the receiving test's receipt from the actual published
+                // candidate, not by hashing the file we later ask it to verify.
+                use sha2::{Digest, Sha256};
+                let owner = app.workspace_checkpoint.as_ref().unwrap();
+                let expected = crate::desktop::workspace_profile::restart::Expected::parse(
+                    &owner.revision.to_string(),
+                    &format!(
+                        "{:x}",
+                        Sha256::digest(owner.original.as_ref().unwrap().as_slice())
+                    ),
+                )
+                .unwrap();
+                assert!(Profile::claim(&directory.0, expected).is_err());
                 assert!(app.close_requested());
                 assert!(app.documents.is_empty());
                 assert!(drain_messages());
@@ -65,7 +78,10 @@ fn default_exit_saves_last_layout_and_reopens_without_manual_file_confirmation()
                 drop(app);
                 let mut restored = new_app(instance);
                 restored
-                    .install_workspace_checkpoint(Some(Profile::open(&directory.0).unwrap()), true)
+                    .install_workspace_checkpoint(
+                        Some(Profile::claim(&directory.0, expected).unwrap()),
+                        true,
+                    )
                     .unwrap();
                 assert_eq!(restored.documents.len(), 1);
                 assert_eq!(

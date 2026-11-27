@@ -263,7 +263,8 @@ impl Ui {
     }
 }
 pub(in crate::desktop) fn available(state: &State) -> bool {
-    !state.session_end.paused()
+    !state.click.active()
+        && !state.session_end.paused()
         && !state.group_hidden.get()
         && !state.group_locked.get()
         && desktop::capture_input::exclusive_available(state)

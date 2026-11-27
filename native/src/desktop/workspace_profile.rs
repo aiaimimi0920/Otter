@@ -2,17 +2,22 @@
 use std::{
     fs::{File, OpenOptions},
     io,
-    os::windows::fs::{MetadataExt, OpenOptionsExt},
+    os::windows::{
+        fs::{MetadataExt, OpenOptionsExt},
+        io::AsRawHandle,
+    },
     path::{Path, PathBuf},
     sync::atomic::AtomicBool,
 };
 use windows::Win32::Storage::FileSystem::{
-    FILE_ATTRIBUTE_REPARSE_POINT, FILE_FLAG_OPEN_REPARSE_POINT,
+    GetFileInformationByHandle, BY_HANDLE_FILE_INFORMATION, FILE_ATTRIBUTE_REPARSE_POINT,
+    FILE_FLAG_OPEN_REPARSE_POINT,
 };
 
 pub(super) struct Profile {
     pub(super) path: PathBuf,
     pub(super) restore: bool,
+    pub(super) claimed: Option<restart::Checkpoint>,
     // Destroy files before directories; while held, neither replace lease files nor rename any path ancestor.
     _lease: File,
     _directories: Vec<File>,
@@ -38,21 +43,8 @@ impl Profile {
     pub(super) fn open(root: &Path) -> io::Result<Self> {
         let directories = crate::profile_directory::pin(root)?;
         let path = root.join("workspace.json");
-        let lease = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .truncate(false)
-            .share_mode(0)
-            .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT.0)
-            .open(root.join("workspace.lock"))?;
-        let metadata = lease.metadata()?;
-        if !metadata.is_file() || metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT.0 != 0 {
-            return Err(invalid(
-                "Workspace lease must be a regular non-reparse file",
-            ));
-        }
-        // Read no content or infer image permissions; session_job still owns actual bounded reads/format validation.
+        let lease = Self::lock(root, true)?;
+        // Ordinary startup alone may discover a recovery copy.
         let restore = match std::fs::symlink_metadata(&path) {
             Ok(_) => true,
             Err(error) if error.kind() == io::ErrorKind::NotFound => {
@@ -63,11 +55,44 @@ impl Profile {
         Ok(Self {
             path,
             restore,
+            claimed: None,
             _lease: lease,
             _directories: directories,
         })
     }
+    fn lock(root: &Path, create: bool) -> io::Result<File> {
+        let lease = OpenOptions::new()
+            .read(true)
+            .write(create)
+            .create(create)
+            .truncate(false)
+            .share_mode(0)
+            .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT.0)
+            .open(root.join("workspace.lock"))?;
+        let metadata = lease.metadata()?;
+        if !metadata.is_file() || metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT.0 != 0 {
+            return Err(invalid(
+                "Workspace lease must be a regular non-reparse file",
+            ));
+        }
+        // The exclusive lock must name only this profile, not some other
+        // file on the same volume. Inspect the lease itself, never its path.
+        let mut info = BY_HANDLE_FILE_INFORMATION::default();
+        unsafe {
+            GetFileInformationByHandle(
+                windows::Win32::Foundation::HANDLE(lease.as_raw_handle()),
+                &mut info,
+            )
+        }
+        .map_err(io::Error::other)?;
+        if info.nNumberOfLinks != 1 {
+            return Err(invalid("Workspace lease must have a single link"));
+        }
+        Ok(lease)
+    }
 }
+#[path = "workspace_restart_checkpoint.rs"]
+pub(super) mod restart;
 fn invalid(message: &str) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidInput, message)
 }

@@ -70,6 +70,7 @@ struct Target {
 }
 
 pub struct Canvas {
+    pub(super) display_waiting: bool,
     pub(super) live_pin: bool,
     target: Option<Target>,
     creation_admission: creation_admission::Admission,
@@ -82,6 +83,10 @@ pub struct Canvas {
     _shared_factory: std::rc::Rc<ID2D1Factory>,
     pub image: Option<Image>,
     capture_source: Option<(crate::editor::DocumentStamp, CaptureSource)>,
+    live_naming: Option<(
+        crate::editor::DocumentStamp,
+        super::capture_window_meta::Meta,
+    )>,
     pub(super) blur_ready: Option<(
         crate::erase_layers::Layers,
         crate::blur_image::BlurImage,
@@ -173,6 +178,7 @@ impl Canvas {
             _shared_factory: shared_factory,
             image,
             capture_source: None,
+            live_naming: None,
             blur_ready: None,
             viewport: Viewport::default(),
             client_size: None,
@@ -218,6 +224,7 @@ impl Canvas {
             marquee: None,
             selection_effect_preview: None,
             inline_text_hidden: None,
+            display_waiting: false,
             group_preview: Vec::new(),
             group_translation: None,
             tool_profiles: crate::tool_profiles::ToolProfiles::default(),
@@ -264,9 +271,6 @@ impl Canvas {
         frame: Option<&super::display_frame::Frame>,
     ) -> Result<()> {
         self.ensure_render_admitted()?;
-        self.client_size = Some(super::transform_handle_layout::logical_size(
-            width, height, dpi,
-        ));
         if frame.is_none() {
             self.validate_scale_display();
             self.discard_stale_group_translation();
@@ -275,6 +279,9 @@ impl Canvas {
         if width == 0 || height == 0 {
             return Ok(());
         }
+        self.client_size = Some(super::transform_handle_layout::logical_size(
+            width, height, dpi,
+        ));
         if self.minified.is_none() {
             if let Some(views) = &self.extension_views {
                 let size = self.client_size.unwrap();
@@ -284,47 +291,15 @@ impl Canvas {
         // COM objects stay on the message thread; the pixel Vec outlives the synchronous CreateBitmap call.
         unsafe {
             let size = D2D_SIZE_U { width, height };
-            if self.target.is_none() {
-                let prepared = self.creation_admission.attempt(|| {
-                    let surface = if self.software_renderer {
-                        RenderSurface::software_mode(&self.factory, size, self.pinned)
-                            .map_err(Into::into)
-                    } else if self.compatibility_renderer {
-                        RenderSurface::legacy(&self.factory, hwnd, size, dpi, self.pinned)
-                    } else {
-                        RenderSurface::new(
-                            &self.factory,
-                            hwnd,
-                            size,
-                            dpi,
-                            self.pinned,
-                            self.primary,
-                        )
-                    }?;
-                    Target::prepare(surface, |target| {
-                        target.CreateSolidColorBrush(
-                            &D2D1_COLOR_F {
-                                r: 0.96,
-                                g: 0.88,
-                                b: 0.24,
-                                a: 1.0,
-                            },
-                            None,
-                        )
-                    })
-                })?;
-                if !matches!(prepared.surface, RenderSurface::D3d12(_)) {
-                    self.primary = super::render_surface::Primary::SharedD3d11;
-                }
-                self.compatibility_renderer |= prepared.surface.is_compatibility();
-                self.software_renderer |= prepared.surface.is_software();
-                self.target = Some(prepared);
-            }
+            self.ensure_target(hwnd, size, dpi)?;
             self.target
                 .as_mut()
                 .unwrap()
                 .surface
                 .set_opacity(self.window_opacity)?;
+            if self.display_waiting || frame.is_some_and(|f| !f.current_producer()) {
+                return self.draw_waiting_display(size);
+            }
             if let Some(frame) = frame {
                 if self.minified.is_some() {
                     return self.draw_minified_display(frame, size, dpi);
@@ -356,138 +331,173 @@ impl Canvas {
                 .raster
                 .sync_frame(target, self.image.as_ref(), Some(&self.editor))?;
             target.SetDpi(dpi as f32, dpi as f32);
+            let mut lens = None;
             let confirmed = resources.surface.draw(|target| {
-                let background = if self.pinned {
-                    D2D1_COLOR_F::default()
-                } else {
-                    D2D1_COLOR_F {
-                        r: 0.07,
-                        g: 0.08,
-                        b: 0.08,
-                        a: 1.0,
-                    }
-                };
-                target.Clear(Some(&background));
-                let frame = super::frame_style_draw::Frame::new(self.frame_style, size, dpi);
-                let rounded = frame.clip(target, &self.factory)?;
-                if let Some(image) = &self.image {
-                    let raster::Geometry {
-                        base,
-                        clip,
-                        projection,
-                    } = raster::Geometry::new(image, Some(&self.editor), self.viewport);
-                    let erasing = self
-                        .erase_gesture
-                        .as_ref()
-                        .or(self.erase_display.as_ref())
-                        .filter(|request| {
-                            request.revision == self.editor.revision()
-                                && self
-                                    .editor
-                                    .layers()
-                                    .is_some_and(|layers| layers.same_storage(&request.source))
-                        });
-                    let clipped = super::render_frame::Clip::push(target, &clip);
-                    resources.raster.draw_interleaved(
-                        target,
-                        &base,
-                        &clip,
-                        erasing,
-                        (self.viewport, projection),
-                        || frame.border_over_clip(target, &clip),
-                    )?;
-                    let drawing = if !self.group_preview.is_empty() {
-                        super::annotations::draw_group_preview(
-                            target,
-                            &resources.brush,
-                            &self.editor,
-                            self.viewport,
-                            &self.group_preview,
-                            &mut resources.effects,
-                        )
-                    } else {
-                        super::annotations::draw_preview_excluding(
-                            target,
-                            &resources.brush,
-                            &self.editor,
-                            self.viewport,
-                            preview,
-                            self.path_drag
+                super::annotations::magnifier::scene(
+                    &mut lens,
+                    target,
+                    self.editor.has_lens(),
+                    true,
+                    crate::pixels::reserve,
+                    |target, pass| {
+                        let background = if self.pinned || pass.lower() {
+                            D2D1_COLOR_F::default()
+                        } else {
+                            D2D1_COLOR_F {
+                                r: 0.07,
+                                g: 0.08,
+                                b: 0.08,
+                                a: 1.0,
+                            }
+                        };
+                        target.Clear(Some(&background));
+                        let frame =
+                            super::frame_style_draw::Frame::new(self.frame_style, size, dpi);
+                        let rounded = frame.clip(target, &self.factory)?;
+                        if let Some(image) = &self.image {
+                            let raster::Geometry {
+                                base,
+                                clip,
+                                projection,
+                            } = raster::Geometry::new(image, Some(&self.editor), self.viewport);
+                            let erasing = self
+                                .erase_gesture
                                 .as_ref()
-                                .map(|drag| (drag.index, &drag.preview))
-                                .or_else(|| selected.zip(self.selection_effect_preview.as_ref())),
-                            self.inline_text_hidden,
-                            &mut resources.effects,
-                        )
-                    };
-                    drop(clipped);
-                    drawing?;
-                    if let Some(views) = &self.extension_views {
-                        views.draw(&self.editor, None, target, &resources.brush, (size, dpi))?;
-                    }
-                    drop(rounded);
-                    if let Some(index) = selected {
-                        let mut viewport = self.viewport;
-                        if let Some((_, offset)) = preview {
-                            viewport.origin.x += offset.x * viewport.scale;
-                            viewport.origin.y += offset.y * viewport.scale;
+                                .or(self.erase_display.as_ref())
+                                .filter(|request| {
+                                    request.revision == self.editor.revision()
+                                        && self.editor.layers().is_some_and(|layers| {
+                                            layers.same_storage(&request.source)
+                                        })
+                                });
+                            let clipped = super::render_frame::Clip::push(target, &clip);
+                            resources.raster.draw_interleaved(
+                                target,
+                                &base,
+                                &clip,
+                                erasing,
+                                (self.viewport, projection),
+                                || frame.border_over_clip(target, &clip),
+                            )?;
+                            let pending = if !self.group_preview.is_empty() {
+                                super::annotations::Preview {
+                                    draft: true,
+                                    group: &self.group_preview,
+                                    ..Default::default()
+                                }
+                            } else {
+                                super::annotations::Preview {
+                                    draft: true,
+                                    offset: preview,
+                                    replacement: self
+                                        .path_drag
+                                        .as_ref()
+                                        .map(|drag| (drag.index, &drag.preview))
+                                        .or_else(|| {
+                                            selected.zip(self.selection_effect_preview.as_ref())
+                                        }),
+                                    hidden: self.inline_text_hidden,
+                                    ..Default::default()
+                                }
+                            };
+                            let drawing = super::annotations::draw_layers(
+                                target,
+                                &resources.brush,
+                                &self.editor,
+                                self.viewport,
+                                pending,
+                                &mut resources.effects,
+                                pass,
+                            );
+                            drop(clipped);
+                            drawing?;
+                            if pass.lower() {
+                                return Ok(());
+                            }
+                            if let Some(views) = &self.extension_views {
+                                views.draw(
+                                    &self.editor,
+                                    None,
+                                    target,
+                                    &resources.brush,
+                                    (size, dpi),
+                                )?;
+                            }
+                            drop(rounded);
+                            if let Some(index) = selected {
+                                let mut viewport = self.viewport;
+                                if let Some((_, offset)) = preview {
+                                    viewport.origin.x += offset.x * viewport.scale;
+                                    viewport.origin.y += offset.y * viewport.scale;
+                                }
+                                let stroke = self
+                                    .path_drag
+                                    .as_ref()
+                                    .map(|drag| &drag.preview)
+                                    .or(self.selection_effect_preview.as_ref())
+                                    .or_else(|| {
+                                        self.group_preview
+                                            .iter()
+                                            .find(|(target, _)| *target == index)
+                                            .map(|(_, stroke)| stroke)
+                                    })
+                                    .unwrap_or(&self.editor.elements()[index]);
+                                super::selection::draw_outline(
+                                    target,
+                                    &resources.brush,
+                                    stroke,
+                                    viewport,
+                                );
+                                if self.rotation_drag.is_none() && self.scale_drag.is_none() {
+                                    super::path_handles::draw(
+                                        target,
+                                        &resources.brush,
+                                        stroke,
+                                        viewport,
+                                    );
+                                }
+                            }
                         }
-                        let stroke = self
-                            .path_drag
-                            .as_ref()
-                            .map(|drag| &drag.preview)
-                            .or(self.selection_effect_preview.as_ref())
-                            .or_else(|| {
-                                self.group_preview
-                                    .iter()
-                                    .find(|(target, _)| *target == index)
-                                    .map(|(_, stroke)| stroke)
-                            })
-                            .unwrap_or(&self.editor.elements()[index]);
-                        super::selection::draw_outline(target, &resources.brush, stroke, viewport);
-                        if self.rotation_drag.is_none() && self.scale_drag.is_none() {
-                            super::path_handles::draw(target, &resources.brush, stroke, viewport);
+                        if let Some(indices) = group {
+                            for &index in indices {
+                                super::selection::draw_outline(
+                                    target,
+                                    &resources.brush,
+                                    self.group_preview
+                                        .binary_search_by_key(&index, |(index, _)| *index)
+                                        .ok()
+                                        .map(|position| &self.group_preview[position].1)
+                                        .unwrap_or(&self.editor.elements()[index]),
+                                    self.viewport,
+                                );
+                            }
                         }
-                    }
-                }
-                if let Some(indices) = group {
-                    for &index in indices {
-                        super::selection::draw_outline(
+                        super::rotation_handle::draw(target, &resources.brush, rotation_handle);
+                        super::marquee::draw(
                             target,
                             &resources.brush,
-                            self.group_preview
-                                .binary_search_by_key(&index, |(index, _)| *index)
-                                .ok()
-                                .map(|position| &self.group_preview[position].1)
-                                .unwrap_or(&self.editor.elements()[index]),
+                            self.marquee.as_ref(),
                             self.viewport,
                         );
-                    }
-                }
-                super::rotation_handle::draw(target, &resources.brush, rotation_handle);
-                super::marquee::draw(
-                    target,
-                    &resources.brush,
-                    self.marquee.as_ref(),
-                    self.viewport,
-                );
-                super::crop_input::draw(
-                    target,
-                    &resources.brush,
-                    self.crop_drag.as_ref(),
-                    self.viewport,
-                );
-                super::scale_handle::draw(target, &resources.brush, scale_handle);
-                super::erase_gesture::draw_cursor(
-                    target,
-                    &resources.brush,
-                    self.erase_gesture.as_ref(),
-                    self.viewport,
-                );
-                if self.live_pin {
-                    super::live_pin_document::draw(target, &resources.brush, size, dpi);
-                }
-                Ok(())
+                        super::crop_input::draw(
+                            target,
+                            &resources.brush,
+                            self.crop_drag.as_ref(),
+                            self.viewport,
+                        );
+                        super::scale_handle::draw(target, &resources.brush, scale_handle);
+                        super::erase_gesture::draw_cursor(
+                            target,
+                            &resources.brush,
+                            self.erase_gesture.as_ref(),
+                            self.viewport,
+                        );
+                        if self.live_pin {
+                            super::live_pin_document::draw(target, &resources.brush, size, dpi);
+                        }
+                        Ok(())
+                    },
+                )
             })?;
             if confirmed {
                 self.confirmed_paints = self.confirmed_paints.saturating_add(1);

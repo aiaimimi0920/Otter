@@ -1,5 +1,5 @@
-//! Candidate path leases: fixed disks, non-reparse directories at every level, and no delete sharing; never modify ACLs.
-use super::invalid;
+//! Read-only local installation path leases; callers supply their own ACL
+//! policy before the next path component is resolved.
 use std::{
     fs::{File, OpenOptions},
     io,
@@ -15,7 +15,26 @@ use windows::{
     Win32::{Foundation::HANDLE, Storage::FileSystem::*},
 };
 
-pub(super) fn directories(path: &Path) -> io::Result<Vec<File>> {
+fn invalid() -> io::Error {
+    io::Error::new(
+        io::ErrorKind::PermissionDenied,
+        "Untrusted local installation path",
+    )
+}
+pub fn directories(
+    path: &Path,
+    check_acl: impl Fn(&File, &Path) -> io::Result<()>,
+) -> io::Result<Vec<File>> {
+    directories_with(path, false, check_acl)
+}
+pub fn shared_directories(path: &Path) -> io::Result<Vec<File>> {
+    directories_with(path, true, |_, _| Ok(()))
+}
+fn directories_with(
+    path: &Path,
+    share_leaf_writes: bool,
+    check_acl: impl Fn(&File, &Path) -> io::Result<()>,
+) -> io::Result<Vec<File>> {
     let components: Vec<_> = path.components().collect();
     let Some(Component::Prefix(prefix)) = components.first() else {
         return Err(invalid());
@@ -75,29 +94,39 @@ pub(super) fn directories(path: &Path) -> io::Result<Vec<File>> {
             return Err(invalid());
         }
     }
+    // Non-leaf ancestors omit FILE_SHARE_DELETE so they cannot be renamed, while
+    // sharing writes avoids spurious violations on C:\ or user profile folders.
     let mut held = Vec::new();
-    // The fixed-volume root is the OS trust anchor; each subsequent ACL separately denies untrusted principals metadata/ACL/owner changes.
-    // Sharing locks protect only rename/delete and cannot prevent reparse control through FILE_WRITE_ATTRIBUTES.
     let mut current = std::path::PathBuf::from(format!("{}:\\", drive as char));
-    held.push(directory(&current)?);
-    for component in &components[2..] {
+    let root = open_directory(&current, FILE_SHARE_READ.0 | FILE_SHARE_WRITE.0)?;
+    check_acl(&root, &current)?;
+    held.push(root);
+    let last = components.len() - 1;
+    for (index, component) in components.iter().enumerate().skip(2) {
         current.push(component.as_os_str());
-        let file = directory(&current)?;
-        super::acl::ancestor(&file)?;
+        let file = if index == last && !share_leaf_writes {
+            directory(&current)?
+        } else {
+            open_directory(&current, FILE_SHARE_READ.0 | FILE_SHARE_WRITE.0)?
+        };
+        check_acl(&file, &current)?;
         held.push(file);
     }
     Ok(held)
 }
-pub(super) fn directory(path: &Path) -> io::Result<File> {
+pub fn directory(path: &Path) -> io::Result<File> {
+    open_directory(path, FILE_SHARE_READ.0)
+}
+fn open_directory(path: &Path, share: u32) -> io::Result<File> {
     let file = OpenOptions::new()
         .read(true)
-        .share_mode(FILE_SHARE_READ.0)
+        .share_mode(share)
         .custom_flags(FILE_FLAG_BACKUP_SEMANTICS.0 | FILE_FLAG_OPEN_REPARSE_POINT.0)
         .open(path)?;
     check(&file, true)?;
     Ok(file)
 }
-pub(super) fn binary(path: &Path) -> io::Result<File> {
+pub fn binary(path: &Path) -> io::Result<File> {
     let file = OpenOptions::new()
         .read(true)
         .share_mode(FILE_SHARE_READ.0)

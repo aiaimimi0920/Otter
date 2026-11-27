@@ -182,6 +182,78 @@ fn current_checkpoint_cannot_discard_active_inline_text() {
     }
 }
 #[test]
+fn admitted_archive_blocks_system_and_ordinary_exit_until_the_real_png_is_retired() {
+    use crate::desktop::export_image_autosave as archive;
+    unsafe {
+        run(|instance| {
+            let directory = Directory::new();
+            let mut app = new_app(instance);
+            app.install_workspace_checkpoint(Some(Profile::open(&directory.0).unwrap()), true)
+                .unwrap();
+            settle(&mut app);
+            let before = std::fs::read(directory.path()).unwrap();
+            let doc = &app.documents[0].state;
+            {
+                let mut a = doc.image_archive.borrow_mut();
+                a.target = Some(archive::grant(&directory.0).unwrap());
+                a.pin = true;
+            }
+            archive::pinned(doc);
+            assert!(app.session_checkpoint_current());
+            assert!(!app.retired_edits.outputs_settled());
+            assert_eq!(query(&app, 0), 0);
+            cancel(&app);
+            app.exit_requested.set(true);
+            assert!(
+                !app.close_requested_with_notify(|_| panic!("early choice"), |_, m| panic!("{m}"))
+            );
+            assert!(app.exit_requested.get() && !app.checkpoint_exit_waiting());
+            assert!(app.documents[0].is_alive());
+            assert_eq!(std::fs::read(directory.path()).unwrap(), before);
+            assert!(!drain_messages());
+            app.execution_wake.acknowledge();
+            let deadline = Instant::now() + Duration::from_secs(10);
+            while !app.retired_edits.outputs_settled() {
+                app.reap_retired_edits();
+                assert!(Instant::now() < deadline);
+                std::thread::sleep(Duration::from_millis(1));
+            }
+            let mut wake = MSG::default();
+            assert!(
+                PeekMessageW(
+                    &mut wake,
+                    Some(HWND(-1isize as _)),
+                    WM_APP,
+                    0xBFFF,
+                    PM_REMOVE
+                )
+                .as_bool(),
+                "settling the final output must wake an already requested exit"
+            );
+            let files = std::fs::read_dir(&directory.0)
+                .unwrap()
+                .map(|e| e.unwrap().path())
+                .filter(|p| p.extension().is_some_and(|s| s == "png"))
+                .collect::<Vec<_>>();
+            assert_eq!(files.len(), 1);
+            let decoded = crate::desktop::export::decode_png(std::fs::read(&files[0]).unwrap());
+            let canvas = app.documents[0].state.canvas.borrow();
+            let original = canvas.image.as_ref().unwrap();
+            assert_eq!(
+                (decoded.width, decoded.height),
+                (original.width, original.height)
+            );
+            drop(canvas);
+            assert!(!app.close_requested());
+            assert!(app.checkpoint_exit_waiting());
+            ready(&app);
+            app.pending_workspace_save_with(|_, _, m, warning| assert!(!warning, "{m}"));
+            assert!(app.close_requested());
+            assert!(drain_messages());
+        });
+    }
+}
+#[test]
 fn changed_projection_scope_cannot_borrow_same_storage_checkpoint() {
     unsafe {
         run(|instance| {

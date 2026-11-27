@@ -64,7 +64,11 @@ pub(in crate::desktop) fn read_limited(
     read_file(file, length, cancel)
 }
 
-fn read_file(mut file: impl Read, length: usize, cancel: &AtomicBool) -> io::Result<Vec<u8>> {
+pub(in crate::desktop) fn read_file(
+    mut file: impl Read,
+    length: usize,
+    cancel: &AtomicBool,
+) -> io::Result<Vec<u8>> {
     check(cancel)?;
     let mut bytes = Vec::new();
     bytes.try_reserve_exact(length).map_err(|_| {

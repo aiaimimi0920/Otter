@@ -6,15 +6,22 @@ use crate::{
 };
 use std::collections::HashSet;
 use windows::Win32::Graphics::Direct2D::{Common::*, *};
+#[path = "annotation_magnifier.rs"]
+pub(super) mod magnifier;
+#[path = "annotation_spotlight.rs"]
+pub(super) mod spotlight;
+use magnifier::Pass;
 
-struct Preview<'a> {
-    offset: Option<(usize, Point)>,
-    draft: bool,
-    replacement: Option<(usize, &'a Stroke)>,
-    group: &'a [(usize, Stroke)],
-    hidden: Option<usize>,
+#[derive(Clone, Copy, Default)]
+pub(super) struct Preview<'a> {
+    pub offset: Option<(usize, Point)>,
+    pub draft: bool,
+    pub replacement: Option<(usize, &'a Stroke)>,
+    pub group: &'a [(usize, Stroke)],
+    pub hidden: Option<usize>,
 }
 
+#[cfg(test)]
 pub unsafe fn draw_preview(
     target: &ID2D1RenderTarget,
     brush: &ID2D1SolidColorBrush,
@@ -36,6 +43,7 @@ pub unsafe fn draw_preview(
     )
 }
 
+#[cfg(test)]
 pub(super) unsafe fn draw_preview_excluding(
     target: &ID2D1RenderTarget,
     brush: &ID2D1SolidColorBrush,
@@ -59,9 +67,11 @@ pub(super) unsafe fn draw_preview_excluding(
             hidden,
         },
         cache,
+        Pass::Plain,
     )
 }
 
+#[cfg(test)]
 pub unsafe fn draw_group_preview(
     target: &ID2D1RenderTarget,
     brush: &ID2D1SolidColorBrush,
@@ -83,6 +93,7 @@ pub unsafe fn draw_group_preview(
             hidden: None,
         },
         cache,
+        Pass::Plain,
     )
 }
 
@@ -106,16 +117,18 @@ pub unsafe fn draw_committed(
             hidden: None,
         },
         cache,
+        Pass::Plain,
     )
 }
 
-unsafe fn draw_layers(
+pub(super) unsafe fn draw_layers(
     target: &ID2D1RenderTarget,
     brush: &ID2D1SolidColorBrush,
     editor: &Editor,
     viewport: Viewport,
     preview_state: Preview<'_>,
     cache: &mut Cache,
+    pass: Pass<'_>,
 ) -> windows::core::Result<()> {
     let Preview {
         offset: preview,
@@ -166,8 +179,29 @@ unsafe fn draw_layers(
     }
     cache.annotations.retain_active(&active_ids);
     // Baseline highlighters all sit below other annotations; overpainting within the layer never exceeds the overall 35% cap.
-    for rank in 0..=3 {
+    for rank in 0..=5 {
+        if pass.lower() && rank > 2 {
+            break;
+        }
         if ranks & (1 << rank) == 0 {
+            continue;
+        }
+        if rank == 3 {
+            spotlight::draw(
+                target,
+                brush,
+                editor.spotlight_percent(),
+                strokes()
+                    .filter(|(_, s, _)| s.tool.spotlight())
+                    .map(|(index, stroke, _)| {
+                        let mut vp = viewport;
+                        if let Some((_, offset)) = preview.filter(|(i, _)| *i == index) {
+                            vp.origin.x += offset.x * vp.scale;
+                            vp.origin.y += offset.y * vp.scale;
+                        }
+                        (stroke, vp)
+                    }),
+            )?;
             continue;
         }
         let _wash = if rank == 0 {
@@ -202,7 +236,11 @@ unsafe fn draw_layers(
                     position.origin.y += offset.y * position.scale;
                 }
             }
-            draw_stroke(target, brush, stroke, position, cacheable, cache)?;
+            if rank == 4 {
+                magnifier::draw(target, pass, stroke, position)?;
+            } else {
+                draw_stroke(target, brush, stroke, position, cacheable, cache)?;
+            }
         }
     }
     Ok(())
@@ -280,6 +318,9 @@ unsafe fn draw_opaque_stroke(
         bottom: a.y.max(b.y),
     };
     match stroke.tool {
+        Tool::SpotRect | Tool::SpotRounded | Tool::SpotEllipse | Tool::Magnifier => {
+            unreachable!("document effects use staged composition")
+        }
         Tool::Mosaic | Tool::Blur => unreachable!("effects are drawn before ordinary opacity"),
         Tool::Serial => super::annotation_serial::draw(target, brush, stroke, viewport)?,
         Tool::Text => {

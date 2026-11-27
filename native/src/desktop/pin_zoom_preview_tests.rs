@@ -228,3 +228,56 @@ fn cancel_hide_and_destroy_release_preview_and_preserve_host_intent() {
         }
     }
 }
+
+#[test]
+fn clicking_preview_activates_and_focuses_pin_owner_so_ctrl_c_copies_pin_instead_of_edit_text() {
+    let _apartment = Apartment::new().unwrap();
+    unsafe {
+        let fixture = Fixture::new();
+        let edit = Window(
+            CreateWindowExW(
+                WINDOW_EX_STYLE::default(),
+                w!("EDIT"),
+                w!("copied text"),
+                WS_POPUP,
+                0,
+                0,
+                80,
+                24,
+                Some(fixture.window.0),
+                None,
+                Some(fixture.instance),
+                None,
+            )
+            .unwrap(),
+        );
+        let _ = ShowWindow(edit.0, SW_SHOWNOACTIVATE);
+        SetFocus(Some(edit.0)).unwrap();
+        input(fixture.window.0, 120);
+        let proxy = preview::handle(&fixture.state).unwrap();
+        let style = GetWindowLongPtrW(proxy, GWL_EXSTYLE) as u32;
+        assert_eq!(style & WS_EX_NOACTIVATE.0, 0);
+        assert_eq!(
+            SendMessageW(proxy, WM_MOUSEACTIVATE, None, None).0,
+            MA_ACTIVATE as isize
+        );
+        SendMessageW(
+            proxy,
+            WM_LBUTTONDOWN,
+            Some(WPARAM(1)),
+            Some(LPARAM(20 | (20 << 16))),
+        );
+        assert_eq!(
+            windows::Win32::UI::Input::KeyboardAndMouse::GetFocus(),
+            fixture.window.0
+        );
+        SendMessageW(
+            windows::Win32::UI::Input::KeyboardAndMouse::GetFocus(),
+            WM_KEYDOWN,
+            Some(WPARAM(0x43)),
+            Some(LPARAM(0)),
+        );
+        assert!(fixture.state.copy_job.borrow().is_some());
+        crate::desktop::copy_job::cancel(&fixture.state);
+    }
+}

@@ -22,6 +22,7 @@ fn adoption_preserves_old_history_and_source_snapshot_through_undo_redo() {
     let original = target.layers().unwrap().clone();
     let mut source = image(20);
     mark(&mut source, 1.0);
+    source.set_spotlight_percent(78).unwrap();
     source
         .crop_to(crate::crop_geometry::Rect {
             x: 0.0,
@@ -36,11 +37,13 @@ fn adoption_preserves_old_history_and_source_snapshot_through_undo_redo() {
     assert!(!stamp.matches(&target));
     assert!(target.layers().unwrap().same_storage(&incoming));
     assert_eq!(target.elements()[0].points[0].x, 1.0);
+    assert_eq!(target.spotlight_percent(), 78);
     assert!(target.crop_view().is_some());
     mark(&mut target, 0.5);
     assert!(target.undo());
     assert!(target.undo());
     assert!(target.layers().unwrap().same_storage(&original));
+    assert_eq!(target.spotlight_percent(), 60);
     assert!(target.crop_view().is_none());
     assert_eq!(target.elements()[0].points[0].x, 0.0);
     assert!(target.undo());
@@ -49,6 +52,7 @@ fn adoption_preserves_old_history_and_source_snapshot_through_undo_redo() {
         assert!(target.redo());
     }
     assert!(target.layers().unwrap().same_storage(&incoming));
+    assert_eq!(target.spotlight_percent(), 78);
     assert_eq!(target.elements().len(), 2);
     assert_eq!(source.elements().len(), 1);
     assert!(source.crop_view().is_some());

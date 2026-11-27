@@ -153,7 +153,7 @@ impl Editor {
                 let text = original
                     .text
                     .as_ref()
-                    .and_then(|text| text.with_font_size(text.font_size() * factor))
+                    .and_then(|text| text.scaled(factor))
                     .ok_or(EditError::BudgetExceeded)?;
                 let size = measure(&text)?;
                 if !size.x.is_finite() || !size.y.is_finite() || size.x <= 0.0 || size.y <= 0.0 {

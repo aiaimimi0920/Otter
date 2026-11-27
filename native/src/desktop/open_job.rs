@@ -19,8 +19,18 @@ mod batch;
 #[path = "open_capture_ready.rs"]
 mod capture_ready;
 use batch::load_inputs;
+#[path = "open_decode.rs"]
+mod decode;
+use decode::load_input;
 pub(super) const MAX_BATCH: usize = 32;
 pub(super) enum Input {
+    TextCard(Vec<u16>),
+    Ordinary(
+        crate::capture_job::Captured,
+        POINT,
+        Option<crate::capture_last_region::Last>,
+        Option<super::capture_window_meta::Meta>,
+    ),
     File(PathBuf),
     Files(Vec<PathBuf>),
     Encoded(crate::pixels::Pixels),
@@ -186,6 +196,21 @@ fn capture_input(image: super::image::Image, origin: Option<POINT>) -> Input {
         origin,
     )
 }
+pub(super) unsafe fn start_ordinary_sdr(
+    hwnd: HWND,
+    state: &State,
+    image: super::image::Image,
+    origin: POINT,
+    last: Option<crate::capture_last_region::Last>,
+) -> Result<()> {
+    let meta = super::capture_window_meta::region(state, origin, image.width, image.height);
+    let Input::Captured(captured, _) = capture_input(image, Some(origin)) else {
+        unreachable!()
+    };
+    start_capture_destination(hwnd, state, true, || {
+        Ok(Input::Ordinary(captured, origin, last, meta))
+    })
+}
 pub(super) unsafe fn start_destination(
     hwnd: HWND,
     state: &State,
@@ -241,7 +266,7 @@ pub(super) unsafe fn start_positioned(
     position: Option<(POINT, Option<super::clipboard_placement::Request>)>,
 ) -> Result<()> {
     check_replace(state, new_pin)?;
-    if !new_pin && matches!(&input, Input::Editable(..)) {
+    if !new_pin && matches!(&input, Input::Editable(..) | Input::TextCard(_)) {
         return Err(Error::new(
             E_INVALIDARG,
             "Editable paste requires a new pin",
@@ -381,54 +406,6 @@ fn load(
 ) -> std::result::Result<Option<PreparedDocument>, String> {
     load_input(Input::File(path), pinned, cancel)
 }
-fn load_input(
-    input: Input,
-    pinned: bool,
-    cancel: &AtomicBool,
-) -> std::result::Result<Option<PreparedDocument>, String> {
-    let stopped = || cancel.load(Ordering::Acquire);
-    if stopped() {
-        return Ok(None);
-    }
-    let _apartment = Apartment::new().map_err(|error| error.to_string())?;
-    use super::image::Image;
-    let prepare_image = |image| PreparedDocument::from_image_with_cancel(image, pinned, stopped);
-    let prepared = match input {
-        Input::WithContext(input) => {
-            let (captured, origin, context) = *input;
-            PreparedDocument::from_capture_with_cancel(
-                captured,
-                pinned,
-                origin,
-                Some(context),
-                stopped,
-            )
-        }
-        Input::Files(_) => return Err("Batch input requires batch preparation".into()),
-        Input::Image(image) => prepare_image(image),
-        Input::Editable(content, placement) => content
-            .prepare(|| cancel.load(Ordering::Acquire))
-            .map(|mut prepared| {
-                prepared.placement = placement;
-                prepared
-            }),
-        Input::Captured(captured, origin) => {
-            PreparedDocument::from_capture_with_cancel(captured, pinned, origin, None, stopped)
-        }
-        Input::File(path) => Image::open_with_cancel(&path, &stopped).and_then(prepare_image),
-        Input::Encoded(bytes) => {
-            Image::from_encoded_with_cancel(&bytes, &stopped).and_then(prepare_image)
-        }
-        Input::Dib(bytes) => {
-            super::clipboard_dib::decode_with_cancel(&bytes, stopped).and_then(prepare_image)
-        }
-    };
-    if stopped() {
-        Ok(None)
-    } else {
-        prepared.map(Some).map_err(|error| error.to_string())
-    }
-}
 
 pub(super) unsafe fn finish(hwnd: HWND, state: &State, force: bool) {
     let ready = state
@@ -509,6 +486,9 @@ pub(super) unsafe fn finish(hwnd: HWND, state: &State, force: bool) {
         return;
     }
     let _ = InvalidateRect(Some(hwnd), None, false);
+    if let Some(region) = prepared.ordinary_region {
+        state.capture_history.borrow_mut().last_region = Some(region);
+    }
 }
 
 unsafe fn report(hwnd: HWND, message: &str) {

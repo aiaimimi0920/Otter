@@ -68,6 +68,8 @@ mod locale;
 mod projection_delivery;
 #[path = "projection_edit_http.rs"]
 mod projection_edit;
+#[path = "loom_shortcut_http.rs"]
+mod shortcuts;
 #[path = "live_relay_source_http.rs"]
 pub mod source;
 #[path = "live_relay_viewer_trigger_http.rs"]

@@ -17,6 +17,7 @@ pub enum Action {
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Error {
+    RequiresStandardSession,
     Origin,
     Profile,
     Name,
@@ -40,6 +41,9 @@ impl Config {
     /// Connection selection must explicitly supply origin; TLS_ORIGIN scopes only the CA, never a default service address.
     /// No identity/CA file reads, directory creation, or DNS; suitable for request preparation outside menu callbacks.
     pub fn from_env(origin: &str) -> Result<Self, Error> {
+        if !crate::elevation_status::allows_desktop_integrations() {
+            return Err(Error::RequiresStandardSession);
+        }
         Self::from_lookup(origin, |key| std::env::var_os(key))
     }
     pub fn from_lookup(

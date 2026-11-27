@@ -21,6 +21,7 @@ pub(super) enum Case {
     Cropped,
     TargetResolved,
     TargetBeautified,
+    RedactedTargetBeautified,
     TargetLive,
     TargetMini,
     ArtLive,
@@ -46,6 +47,79 @@ fn image(width: u32, height: u32, color: [u8; 4]) -> Image {
         width,
         height,
         pixels: color.repeat(width as usize * height as usize).into(),
+    }
+}
+
+#[test]
+fn resolved_source_redaction_stays_with_its_pixels_and_invalidates_older_output_jobs() {
+    let _serial = serial();
+    let _com = Apartment::new().unwrap();
+    let (files, _, _) = Files::new();
+    unsafe {
+        let mut app = application(files.root());
+        let img = image(16, 16, [0, 0, 0, 255]);
+        let target_id = app.documents[0].state.unit_id.clone();
+        app.documents[0]
+            .state
+            .canvas
+            .borrow_mut()
+            .replace_image(img.clone())
+            .unwrap();
+        let i = app.documents.len();
+        app.add_state(State::new(Some(img.clone()), true).unwrap(), false)
+            .unwrap();
+        settle(&mut app);
+        let s = &app.documents[i].state;
+        let frame = || {
+            let mut f = crate::desktop::display_frame::Frame::capture(
+                s.unit_id.clone(),
+                img.clone(),
+                Some(&s.canvas.borrow().editor),
+            );
+            f.bind_local(s);
+            f
+        };
+        let f = frame();
+        let target = &app.documents[0].state;
+        let stamp =
+            crate::desktop::display_snapshot::Stamp::capture(&target.canvas.borrow(), Some(&f));
+        let ok = || stamp.matches(&target.canvas.borrow(), Some(&f));
+        assert!(ok());
+        {
+            let mut c = s.canvas.borrow_mut();
+            let blur = crate::blur_image::BlurImage::new(
+                16,
+                16,
+                [210, 180, 160, 255].repeat(16 * 16).into(),
+                2,
+            )
+            .unwrap();
+            c.editor.begin_blur(Point { x: 1., y: 1. }, blur).unwrap();
+            c.editor.mark_effect_rect().unwrap();
+            c.editor.extend(Point { x: 15., y: 15. }).unwrap();
+        }
+        assert!(!ok());
+        assert!(s.canvas.borrow_mut().editor.commit());
+        assert!(!ok(), "old frame after upstream commit");
+        *target.resolved_display.borrow_mut() = Some(frame());
+        let (_, snap) = scope::Scope::capture(&app, &target_id).unwrap();
+        assert!(snap.display_only());
+        let source = app
+            .workspace_checkpoint
+            .as_ref()
+            .unwrap()
+            .sender_source()
+            .unwrap();
+        let out = snap
+            .one_way(source, target_id.as_str(), &AtomicBool::new(false))
+            .unwrap();
+        let image = crate::desktop::export::decode_png(out.png.to_vec());
+        let i = (image.width as usize * (image.height as usize / 2) + image.width as usize / 2) * 4;
+        assert!(
+            image.pixels[i] > 150,
+            "upstream redaction must not be replaced by the black base image"
+        );
+        app.shutdown();
     }
 }
 impl Case {
@@ -94,8 +168,11 @@ impl Case {
         if matches!(self, Self::TargetLive | Self::TargetMini | Self::ArtLive) {
             return geometry::install(app, self);
         }
-        if matches!(self, Self::TargetResolved | Self::TargetBeautified) {
-            return target::install(app, matches!(self, Self::TargetBeautified));
+        if matches!(
+            self,
+            Self::TargetResolved | Self::TargetBeautified | Self::RedactedTargetBeautified
+        ) {
+            return target::install(app, self);
         }
         let mut canvas = app.documents[0].state.canvas.borrow_mut();
         if matches!(self, Self::Current) {

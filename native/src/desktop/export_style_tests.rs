@@ -123,4 +123,15 @@ fn editable_clipboard_preserves_style_without_double_baking_pixels() {
         &*pixels(restored, &base, &c.editor, 0.5).pixels,
         &*pixels(style, &base, &Editor::default(), 0.5).pixels
     );
+    c.client_size = Some(Point::default());
+    c.viewport.scale = 0.5;
+    c.editor
+        .crop_to(crate::crop_geometry::Rect {
+            x: 0.,
+            y: 0.,
+            width: 20.,
+            height: 10.,
+        })
+        .unwrap();
+    assert_eq!(Snapshot::capture(&c).logical, (10., 5.));
 }

@@ -12,6 +12,9 @@ impl Editor {
         let Some(mut stroke) = self.draft.take() else {
             return false;
         };
+        if stroke.effect_rect && !effect_rect::valid(&stroke.points) {
+            return false;
+        }
         // Single brush clicks retain one point; zero-length lines/zero-area shapes create no history.
         if stroke.tool == Tool::Polyline && stroke.points.len() < 2 {
             return false;
@@ -31,6 +34,10 @@ impl Editor {
         if matches!(
             stroke.tool,
             Tool::Rectangle
+                | Tool::SpotRect
+                | Tool::Magnifier
+                | Tool::SpotRounded
+                | Tool::SpotEllipse
                 | Tool::RoundedRectangle
                 | Tool::Ellipse
                 | Tool::Triangle
@@ -46,7 +53,16 @@ impl Editor {
         self.retained_points += stroke.points.len();
         let index = self.elements.len();
         self.elements.push(stroke);
-        self.retained_points -= self.history.record(Entry::added(index));
+        let entry = if self.elements[index].tool == Tool::Serial {
+            let old = self.serial_count;
+            self.serial_count = old
+                .checked_add(1)
+                .expect("serial counter admitted with draft");
+            Entry::serial_added(index, old)
+        } else {
+            Entry::added(index)
+        };
+        self.retained_points -= self.history.record(entry);
         self.revision = self.revision.wrapping_add(1);
         true
     }

@@ -65,6 +65,25 @@ impl Application {
         let geometry_changed = *self.chrome.ui.nodes.borrow() != nodes;
         *self.chrome.ui.nodes.borrow_mut() = nodes;
         selection::reconcile(&self.chrome.ui);
+        for doc in &self.documents {
+            if !doc.state.click.active() {
+                let mut snapshot = doc.state.click.chrome.borrow_mut();
+                if let Some(s) = snapshot.as_ref() {
+                    let nodes = self.chrome.ui.nodes.borrow();
+                    // A hidden/minimized node can reappear under the same
+                    // owner. Do not discard its disclosure while it is absent.
+                    let Some(n) = nodes.iter().find(|n| {
+                        n.hwnd == doc.window.0 .0 as isize
+                            && n.marker == (&*doc.state as *const State as isize)
+                    }) else {
+                        continue;
+                    };
+                    if !s.restore(&doc.state, &self.chrome.ui, &scene, n) || s.drawer.is_none() {
+                        snapshot.take();
+                    }
+                }
+            }
+        }
         *self.chrome.ui.scene.borrow_mut() = Some(scene);
         keyboard::reconcile(&self.chrome.ui);
         *self.chrome.ui.gates.borrow_mut() = Some(scene::Gates {

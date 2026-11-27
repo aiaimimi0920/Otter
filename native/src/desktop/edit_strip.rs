@@ -38,6 +38,7 @@ pub(super) unsafe fn create(owner: HWND, state: &State, visible: bool) -> Result
         super::EXECUTE,
         &catalog::items(),
     )?);
+    crate::desktop::pin_click_through::panels::bind(panel.0, owner, state, true)?;
     state.tool_panel.set(panel.0);
     place(owner, state, None)?;
     if visible {
@@ -120,8 +121,11 @@ fn allowed(state: &State, available: Availability, command: usize) -> bool {
         match command {
             0x1007 => canvas.editor.history_state().0,
             0x1008 => canvas.editor.history_state().1,
-            0x1022 => !canvas.selected_indices().is_empty(),
-            0x1023 => !canvas.editor.elements().is_empty(),
+            0x1022 => canvas
+                .editor
+                .rasterizable_indices()
+                .any(|i| canvas.selected_indices_ref().binary_search(&i).is_ok()),
+            0x1023 => canvas.editor.rasterizable_indices().next().is_some(),
             _ => true,
         }
     } else {

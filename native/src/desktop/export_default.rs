@@ -48,7 +48,9 @@ fn prepare(state: &State, root: PathBuf) -> Result<Option<Prepared>, String> {
     if state.modals.blocked() || state.export.borrow().is_some() {
         return Ok(None);
     }
-    state.canvas.borrow_mut().cancel_gesture();
+    if !crate::desktop::display_snapshot::ready(state) {
+        return Err(crate::ui_text::text("display-output-edit-pending").into());
+    }
     let snapshot = crate::desktop::display_snapshot::capture(
         &state.canvas.borrow(),
         state.resolved_display.borrow().as_ref(),
@@ -69,7 +71,10 @@ fn prepare(state: &State, root: PathBuf) -> Result<Option<Prepared>, String> {
         image,
         editor,
         opacity,
-        style: export::style::Snapshot::capture(&state.canvas.borrow()),
+        style: export::style::Snapshot::capture_with_frame(
+            &state.canvas.borrow(),
+            state.resolved_display.borrow().as_ref(),
+        ),
     }))
 }
 impl Prepared {

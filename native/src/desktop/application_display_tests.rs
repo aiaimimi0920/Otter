@@ -98,6 +98,19 @@ pub(super) fn verify_display_lifetime(app: &mut Application) {
     assert_eq!(old.editor.as_ref().unwrap().elements().len(), 1);
     assert!(app.documents[2].state.canvas.borrow().image.is_none());
 
+    // Draft/cancel need not change the committed editor revision. The graph
+    // must stop admitting the last committed frame and resume after cancel.
+    source
+        .canvas
+        .borrow_mut()
+        .editor
+        .begin(Tool::Brush, Point { x: 0.0, y: 0.0 })
+        .unwrap();
+    app.sync_display_frames();
+    assert!(app.documents[2].state.canvas.borrow().display_waiting);
+    source.canvas.borrow_mut().cancel_gesture();
+    app.sync_display_frames();
+    assert!(!app.documents[2].state.canvas.borrow().display_waiting);
     assert!(source.canvas.borrow_mut().editor.undo());
     app.sync_display_frames();
     let current = app.documents[2].state.resolved_display.borrow();

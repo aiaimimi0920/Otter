@@ -10,6 +10,8 @@ use windows::{
         UI::{HiDpi::*, Input::KeyboardAndMouse::*, WindowsAndMessaging::*},
     },
 };
+#[path = "text_box_draft.rs"]
+mod boxed;
 #[path = "text_inline_messages.rs"]
 mod messages;
 #[path = "text_inline_paint.rs"]
@@ -31,7 +33,14 @@ pub(in crate::desktop) unsafe fn begin(hwnd: HWND, state: &State, pending: Pendi
     finish(hwnd, state, true)?;
     let initial = pending.text.as_ref().map_or("", TextAnnotation::content);
     let scale = state.canvas.borrow().viewport.scale * GetDpiForWindow(hwnd).max(96) as f32 / 96.0;
-    let ui = window::Window::new(hwnd, initial, &pending.font, pending.style, scale)?;
+    let ui = window::Window::new(
+        hwnd,
+        initial,
+        &pending.font,
+        pending.style,
+        scale,
+        pending.geometry,
+    )?;
     let session = Rc::new(Session { pending, ui });
     *state.inline_text.borrow_mut() = Some(session.clone());
     state.canvas.borrow_mut().inline_text_hidden = session.pending.index;
@@ -45,16 +54,27 @@ pub(in crate::desktop) unsafe fn begin(hwnd: HWND, state: &State, pending: Pendi
     result
 }
 unsafe fn resize(hwnd: HWND, state: &State, session: &Session) -> Result<()> {
-    let content = session.ui.text()?;
+    let (content, crlf) = session
+        .ui
+        .draft(true)
+        .inspect_err(|_| session.ui.clear_layout())?;
     let font = &session.pending.font;
     let measure = TextAnnotation::restored(
-        if content.is_empty() { "M" } else { &content },
+        if content.is_empty() && session.pending.geometry.is_none() {
+            "M"
+        } else {
+            &content
+        },
         font.family(),
         font.font_size(),
         font.bold(),
     )
-    .ok_or_else(|| Error::new(E_INVALIDARG, "Invalid inline text"))?;
-    let measured = desktop::annotation_text::measure(&measure)?;
+    .ok_or_else(|| {
+        session.ui.clear_layout();
+        Error::new(E_INVALIDARG, "Invalid inline text")
+    })?
+    .with_geometry(session.pending.geometry);
+    let measured = session.ui.measure(&measure, crlf)?;
     let (viewport, anchor) = {
         let canvas = state.canvas.borrow();
         let anchor = session
@@ -80,13 +100,16 @@ unsafe fn resize(hwnd: HWND, state: &State, session: &Session) -> Result<()> {
         return Err(Error::from_win32());
     }
     // Initially leave eight characters of blank width; content alone expands it afterward, while system EDIT scrolls extreme sizes/long text.
-    let initial = if session.pending.index.is_none() {
+    let boxed = session.pending.geometry.is_some();
+    let initial = if !boxed && session.pending.index.is_none() {
         font.font_size() * 8.0 + 8.0
     } else {
         0.0
     };
     let size = Point {
-        x: (measured.x.max(initial) * scale + 2.0).clamp(24.0, 8192.0),
+        x: (measured.x.max(initial) * scale + 2.0)
+            .round()
+            .clamp(if boxed { 3.0 } else { 24.0 }, 8192.0),
         y: (measured.y * scale + 2.0).clamp(20.0, 4096.0),
     };
     session.ui.place(origin, size)

@@ -52,7 +52,7 @@ pub(super) fn choices(id: u16) -> &'static [usize] {
         LINE => &[0x4c, 0x4b],
         BRUSH => &[0x42, 0x4a],
         LABEL => &[0x58, 0x4e],
-        EFFECT => &[0x4d, 0x47],
+        EFFECT => &[0x4d, 0x47, 0x21f1, 0x21f2, 0x21f3, 0x21f4],
         RASTER => &[0x1022, 0x1023],
         _ => &[],
     }

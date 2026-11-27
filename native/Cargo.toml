@@ -31,6 +31,7 @@ fluent-bundle = "=0.16.0"
 fluent-syntax = "=0.12.0"
 png = "=0.18.1"
 image-webp = "=0.2.4"
+tiny-webp = { version = "=0.1.1", default-features = false }
 resvg = { version = "=0.48.1", default-features = false, features = ["text"] }
 svgtypes = "=0.16.1"
 skrifa = { version = "=0.44.0", default-features = false, features = ["std"] }
@@ -67,6 +68,7 @@ windows-core = "=0.60.1"
 windows = { version = "=0.60.0", features = [
     "ApplicationModel_DataTransfer",
     "Storage_Streams",
+    "Wdk_Foundation",
     "Wdk_Storage_FileSystem",
     "Foundation",
     "Graphics_Capture",
@@ -163,6 +165,8 @@ opt-level = 3
 [profile.release.package.simd-adler32]
 opt-level = 3
 [profile.release.package.image-webp]
+opt-level = 3
+[profile.release.package.tiny-webp]
 opt-level = 3
 [profile.release.package.moxcms]
 opt-level = 3

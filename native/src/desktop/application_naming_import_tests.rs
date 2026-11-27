@@ -6,6 +6,8 @@ mod art_issuer_tests;
 mod local_art_tests;
 #[path = "application_naming_save_tests.rs"]
 mod save_tests;
+#[path = "application_shortcut_transaction_tests.rs"]
+mod shortcut_transactions;
 use std::{
     fs,
     io::Write,
@@ -93,6 +95,7 @@ fn naming_import_reaps_via_application_wait_after_last_notification() {
             origin: state.unit_id.clone(),
             origin_dialog: state.file_dialog.clone(),
             before: app.naming.borrow().clone(),
+            before_cache: app.cache_policy.get(),
             before_recycle: app.recycle_policy,
             job: crate::desktop::naming_import_job::Job::start(
                 fixture.0.clone(),
@@ -156,6 +159,15 @@ fn invalid_recycle_or_newer_policy_does_not_partially_install_import() {
             assert!(app.naming_import_job.is_none());
             assert_eq!(fs::read(&fixture.0).unwrap(), bytes);
         }
+        let bad_cache = Fixture::new(
+            br#"{"fileNaming":{"stickerSavePattern":"must-not-install"},"cache":{"tempCacheMaxBytes":1}}"#,
+        );
+        let mut app = app();
+        queue(&app);
+        app.pending_naming_import_with(|_, _| Ok(Some(bad_cache.0.clone())))
+            .unwrap();
+        assert!(finish(&mut app).is_err());
+        assert_eq!(*app.naming.borrow(), Settings::default());
     }
 }
 

@@ -183,10 +183,10 @@ fn restored(window: &crate::session_window::Window<'_>, image: &Image) -> Editor
 fn identical_local_boxes_share_rounded_resources_without_quantizing_originals() {
     let _com = Apartment::new().unwrap();
     let image = source();
-    let json = document(serde_json::json!([
-        effect("a", 4.0, 4.1),
-        effect("b", 4.0, 4.4)
-    ]));
+    let mut rect = effect("b", 4.0, 4.4);
+    rect["type"] = serde_json::json!("blur-rect");
+    rect["points"] = serde_json::json!([{"x":2,"y":2},{"x":6,"y":2},{"x":6,"y":6},{"x":2,"y":6}]);
+    let json = document(serde_json::json!([effect("a", 4.0, 4.1), rect]));
     let window = serde_json::from_str(&json).unwrap();
     let editor = restored(&window, &image);
     let frame = Size {

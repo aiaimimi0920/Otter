@@ -6,14 +6,29 @@ impl Application {
         profile: Option<Profile>,
         check: bool,
     ) -> Result<()> {
-        let Some(profile) = profile else {
+        let Some(mut profile) = profile else {
             return Ok(());
         };
         let restore = profile.restore;
-        let path = profile.path.clone();
+        if profile.claimed.is_some() && !check {
+            return Err(Error::new(
+                E_ABORT,
+                "A checkpoint check does not authorize desktop startup",
+            ));
+        }
+        let (input, expected_revision) = match profile.claimed.as_mut() {
+            Some(c) => (
+                crate::desktop::session_job::Input::Bytes(std::mem::take(&mut c.bytes)),
+                Some(c.revision),
+            ),
+            None => (
+                crate::desktop::session_job::Input::File(profile.path.clone()),
+                None,
+            ),
+        };
         self.workspace_checkpoint = Some(Owner::new(profile));
         if restore {
-            self.request_restore_input(crate::desktop::session_job::Input::File(path), None, None)?;
+            self.request_restore_input(input, None, None)?;
             loop {
                 self.execution_wake.acknowledge();
                 // Errors abort default startup immediately; never treat a corrupt/unknown workspace as empty and overwrite it.
@@ -32,6 +47,14 @@ impl Application {
                 DispatchMessageW(&message);
             }
             let record = self.restored_session.as_mut().expect("restored checkpoint");
+            if expected_revision.is_some_and(|revision| {
+                record.recovery_path.is_some() || record.restored_revision != revision
+            }) {
+                return Err(Error::new(
+                    E_ABORT,
+                    "Restored checkpoint revision differs from the published revision",
+                ));
+            }
             let owner = self.workspace_checkpoint.as_mut().unwrap();
             owner.revision = record.restored_revision;
             owner.original = Some(record.original.clone());
@@ -117,7 +140,7 @@ impl Application {
                 MB_OK | MB_ICONWARNING,
             );
         }
-        if !check {
+        if !check && crate::elevation_status::allows_desktop_integrations() {
             self.projection_sender.start(
                 self.workspace_checkpoint
                     .as_ref()

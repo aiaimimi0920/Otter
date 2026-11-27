@@ -20,6 +20,8 @@ use windows::{
     },
 };
 
+#[path = "pin_click_composition_tests.rs"]
+mod input_transparency;
 #[path = "composition_workspace_transition_tests.rs"]
 mod workspace;
 

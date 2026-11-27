@@ -73,11 +73,15 @@ unsafe fn cancel(hwnd: HWND, state: &State, completed: bool) -> bool {
         .extension_views
         .as_ref()
         .map(|b| b.shared());
+    let had_selection = completed
+        && raw
+            .as_ref()
+            .is_some_and(|v| v.selected_text().ok().flatten().is_some());
     let captured = raw.is_some_and(|v| v.cancel(completed));
     if captured && GetCapture() == hwnd {
         let _ = ReleaseCapture();
     }
-    captured
+    captured || had_selection
 }
 unsafe fn modifiers() -> Modifiers {
     let held = |k: VIRTUAL_KEY| GetKeyState(k.0 as i32) < 0;
@@ -143,6 +147,9 @@ pub(super) unsafe fn dispatch(
         WM_LBUTTONDOWN
             | WM_LBUTTONDBLCLK
             | WM_LBUTTONUP
+            | WM_NCLBUTTONDOWN
+            | WM_RBUTTONDOWN
+            | WM_NCRBUTTONDOWN
             | WM_MOUSEMOVE
             | WM_SETCURSOR
             | WM_KEYDOWN
@@ -158,10 +165,23 @@ pub(super) unsafe fn dispatch(
     }
     if matches!(
         msg,
-        WM_CANCELMODE | WM_KILLFOCUS | WM_CAPTURECHANGED | WM_DESTROY
+        WM_NCLBUTTONDOWN
+            | WM_RBUTTONDOWN
+            | WM_NCRBUTTONDOWN
+            | WM_CANCELMODE
+            | WM_KILLFOCUS
+            | WM_CAPTURECHANGED
+            | WM_DESTROY
     ) || msg == WM_SHOWWINDOW && wp.0 == 0
     {
-        let changed = cancel(hwnd, state, msg == WM_DESTROY || msg == WM_SHOWWINDOW);
+        let changed = cancel(
+            hwnd,
+            state,
+            matches!(
+                msg,
+                WM_NCLBUTTONDOWN | WM_RBUTTONDOWN | WM_NCRBUTTONDOWN | WM_DESTROY | WM_SHOWWINDOW
+            ),
+        );
         if changed {
             if let Err(e) = refresh(hwnd, state) {
                 eprintln!("native-extension-selection: {e}");
@@ -218,8 +238,14 @@ unsafe fn message(
             }
         }
         WM_LBUTTONDOWN | WM_LBUTTONDBLCLK => {
+            // Focus changes can synchronously retire the host or replace the overlay.
+            // Acquire focus before beginning selection so reentrant cancellation cannot erase it.
+            if v.hit(point).is_some()
+                && (!super::procedure::focus_host(hwnd, state) || !same(state, v))
+            {
+                return Ok(true);
+            }
             if v.begin(point, msg == WM_LBUTTONDBLCLK)? {
-                // Do not reactivate/refocus text, which would disrupt an already-started native selection.
                 SetCapture(hwnd);
                 if GetCapture() != hwnd || !same(state, v) {
                     cancel(hwnd, state, true);

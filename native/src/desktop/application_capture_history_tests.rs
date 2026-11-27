@@ -119,13 +119,20 @@ fn failed_staging_ordinary_import_and_stale_origin_never_add_history_or_windows(
     unsafe {
         let environment = Environment::new();
         let mut app = environment.app();
+        let last =
+            crate::capture_last_region::Last::new([1, 2, 4, 5], vec![[0, 0, 100, 100]]).unwrap();
+        let mut capture = prepared(true);
+        capture.ordinary_region = Some(last.clone());
+        capture.ordinary_capture = true;
         assert!(app
-            .add_prepared_with(vec![prepared(true)], false, |_, _, _, _| Err(Error::new(
+            .add_prepared_with(vec![capture], false, |_, _, _, _| Err(Error::new(
                 E_FAIL, "injected"
             )))
             .is_err());
         assert!(app.capture_history.view.borrow().captures.is_empty());
+        assert!(app.capture_history.view.borrow().last_region.is_none());
         app.add_prepared(vec![prepared(false)], false).unwrap();
+        assert!(app.capture_history.view.borrow().last_region.is_none());
         assert!(app.capture_history.view.borrow().captures.is_empty());
         let mut origin = crate::desktop::capture_history_ui::origin(&app.documents[0].state);
         origin.lifetime = Default::default();

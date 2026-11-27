@@ -104,6 +104,7 @@ mod tests {
     #[test]
     #[ignore = "private bounded session boundary fixture"]
     fn boundary_child() {
+        super::super::require_limits(128 * 1024 * 1024).unwrap();
         let mut pipe =
             Pipe::adopt(std::io::stdin().as_handle().try_clone_to_owned().unwrap()).unwrap();
         let mut channel = pipe.io(Some(Instant::now() + Duration::from_secs(5)), None);

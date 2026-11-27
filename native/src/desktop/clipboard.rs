@@ -148,6 +148,22 @@ pub(super) unsafe fn copy_image(owner: HWND, image: &Image, rect: RECT) -> Resul
     let size = dib_size(image, rect)?;
     publish(owner, 8, size, |bytes| encode_dib(image, rect, bytes)) // CF_DIB
 }
+pub(super) unsafe fn copy_region(
+    owner: HWND,
+    image: &Image,
+    rect: RECT,
+    origin: POINT,
+) -> Result<()> {
+    copy_image(owner, image, rect)?;
+    if super::export_image_autosave::frozen_enabled() {
+        match publication_receipt(owner) {
+            Ok(Some(_)) => super::export_image_autosave::frozen(image, rect, origin),
+            Ok(None) => {}
+            Err(e) => eprintln!("native-archive-receipt: {e}"),
+        }
+    }
+    Ok(())
+}
 /// Callers must finish writing files and keep them valid; this layer transfers only clipboard memory and does not own disk-file lifetime.
 /// Publication after EmptyClipboard may be partial; even on failure, prepared files cannot therefore be deleted immediately.
 pub(super) unsafe fn copy_formats_checked(
@@ -250,8 +266,12 @@ unsafe fn prepare_formats(
         files,
     })
 }
-pub(super) unsafe fn copy_color(owner: HWND, rgb: [u8; 3]) -> Result<()> {
-    let text = format!("#{:02X}{:02X}{:02X}", rgb[0], rgb[1], rgb[2]);
+pub(super) unsafe fn copy_color(
+    owner: HWND,
+    rgb: [u8; 3],
+    format: crate::color_format::Format,
+) -> Result<()> {
+    let text = format.describe(rgb);
     let units: Vec<u16> = text.encode_utf16().chain(Some(0)).collect();
     publish(owner, 13, units.len() * 2, |bytes| {
         // CF_UNICODETEXT

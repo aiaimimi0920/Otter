@@ -47,8 +47,8 @@ fn frozen_identity_resolves_crop_or_whole_and_never_retargets_changed_window() {
             bottom: frame.top + 40,
         };
         match resolve(vec![candidate], screen, whole).unwrap() {
-            Request::Window(actual) if whole => assert!(actual.same_source(&target)),
-            Request::WindowRegion(actual, crop) if !whole => {
+            Request::Window(actual, None) if whole => assert!(actual.same_source(&target)),
+            Request::WindowRegion(actual, crop, None) if !whole => {
                 assert!(actual.same_source(&target));
                 assert_eq!(
                     crop.pixels(),

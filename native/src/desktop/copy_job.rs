@@ -24,7 +24,7 @@ struct Ready {
     editable: Option<Arc<super::clipboard_editable::Content>>,
 }
 pub(super) struct Job {
-    _permit: crate::edit_worker_budget::Permit<'static>,
+    permit: Option<crate::edit_worker_budget::Permit<'static>>,
     worker: Option<JoinHandle<Output>>,
     cancel: Arc<AtomicBool>,
     stamp: super::display_snapshot::Stamp,
@@ -55,7 +55,7 @@ pub(super) fn install_gated(
     let cancel = Arc::new(AtomicBool::new(false));
     let worker_cancel = cancel.clone();
     *state.copy_job.borrow_mut() = Some(Job {
-        _permit: crate::edit_worker_budget::Permit::acquire_output().unwrap(),
+        permit: Some(crate::edit_worker_budget::Permit::acquire_output().unwrap()),
         worker: Some(std::thread::spawn(move || {
             let _ = release.recv_timeout(std::time::Duration::from_secs(5));
             returned
@@ -108,7 +108,7 @@ fn prepare_with_plan(
         .ok_or("Native output worker limit reached")?;
     let stamp = super::display_snapshot::Stamp::capture(canvas, frame);
     let opacity = canvas.normal_opacity;
-    let style = super::export::style::Snapshot::capture(canvas);
+    let style = super::export::style::Snapshot::capture_with_frame(canvas, frame);
     let preserve_edits = canvas.minified.is_none();
     // Resolved pixels belong to their display source, not this canvas's old capture.
     let capture_source = (preserve_edits && frame.is_none())
@@ -172,7 +172,7 @@ fn prepare_with_plan(
         })
         .map_err(|error| error.to_string())?;
     Ok(Some(Job {
-        _permit: permit,
+        permit: Some(permit),
         worker: Some(worker),
         cancel,
         stamp,
@@ -183,14 +183,7 @@ fn prepare_with_plan(
     }))
 }
 fn eligible(canvas: &Canvas, frame: Option<&super::display_frame::Frame>, job: &Job) -> bool {
-    !job.cancel.load(Ordering::Acquire) && job.stamp.matches(canvas, frame) && gesture_idle(canvas)
-}
-fn gesture_idle(canvas: &Canvas) -> bool {
-    canvas.editor.draft().is_none()
-        && canvas.selection_drag.is_none()
-        && canvas.marquee.is_none()
-        && canvas.path_drag.is_none()
-        && canvas.erase_gesture.is_none()
+    !job.cancel.load(Ordering::Acquire) && job.stamp.matches(canvas, frame)
 }
 pub(super) unsafe fn start(hwnd: HWND, state: &State) {
     if state.modals.blocked()
@@ -227,7 +220,10 @@ pub(super) unsafe fn start_guarded_at(
     if state.file_dialog.get() {
         return;
     }
-    state.canvas.borrow_mut().cancel_gesture();
+    if !super::display_snapshot::ready(state) {
+        cancel(state);
+        return;
+    }
     if let Some(job) = state.copy_job.borrow_mut().as_mut() {
         if job.sequence == sequence
             && eligible(
@@ -356,6 +352,8 @@ unsafe fn poll_guarded(
         .unwrap()
         .join()
         .unwrap_or_else(|_| Err("Copy worker failed".into()));
+    // The worker has been collected. A successor or an archive may need this last slot.
+    drop(job.permit.take());
     if let Some(next) = job.next.take() {
         drop(result);
         // Continue only content still belonging to this keystroke; never overwrite later edits, other copies, or cancellation.
@@ -365,7 +363,7 @@ unsafe fn poll_guarded(
             && !next
                 .sequence
                 .is_some_and(|expected| current_sequence() != expected)
-            && gesture_idle(&state.canvas.borrow())
+            && state.inline_text.borrow().is_none()
             && next.stamp.matches(
                 &state.canvas.borrow(),
                 state.resolved_display.borrow().as_ref(),
@@ -376,6 +374,7 @@ unsafe fn poll_guarded(
         return;
     }
     if !IsWindow(Some(hwnd)).as_bool()
+        || state.inline_text.borrow().is_some()
         || job
             .sequence
             .is_some_and(|expected| current_sequence() != expected)
@@ -405,15 +404,22 @@ unsafe fn poll_guarded(
             };
             // After publication begins, failure may follow partial format transfer; retain backing files and never delete them here.
             match publish(hwnd, &ready.payload, &paths, job.sequence) {
-                Ok(Some(sequence)) => state.editable_clipboard.borrow_mut().published_at(
-                    sequence,
-                    if job.preserve_edits {
-                        ready.editable
-                    } else {
-                        None
-                    },
-                    job.origin.take(),
-                ),
+                Ok(Some(sequence)) => {
+                    super::export_image_autosave::copied(
+                        state,
+                        job.stamp.clone(),
+                        ready.payload.png.clone(),
+                    );
+                    state.editable_clipboard.borrow_mut().published_at(
+                        sequence,
+                        if job.preserve_edits {
+                            ready.editable
+                        } else {
+                            None
+                        },
+                        job.origin.take(),
+                    )
+                }
                 Ok(None) => {} // Final-lock sequence mismatch: nothing was published.
                 Err(error) => report(hwnd, &error.to_string()),
             }

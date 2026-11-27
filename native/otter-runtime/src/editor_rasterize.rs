@@ -3,14 +3,37 @@ use super::*;
 use crate::erase_layers::Layers;
 
 impl Editor {
-    /// Clone only vectors pending rasterization for independent background composition, without bases, drafts, or history.
-    pub fn rasterize_snapshot(&self, indices: &[usize]) -> Result<Self, EditError> {
+    /// The single raster annotation layer sits below all vector effects. Never move
+    /// upper vectors below a retained spotlight or into a magnifier's sampling surface.
+    pub fn rasterizable_indices(&self) -> impl Iterator<Item = usize> + '_ {
+        let dynamic = self
+            .elements
+            .iter()
+            .chain(self.draft.iter())
+            .any(|stroke| stroke.tool.spotlight() || stroke.tool == Tool::Magnifier);
+        self.elements
+            .iter()
+            .enumerate()
+            .filter_map(move |(index, stroke)| {
+                let rank = stroke.tool.render_rank();
+                (rank < 3 || (!dynamic && rank == 5)).then_some(index)
+            })
+    }
+    pub(super) fn validate_rasterize_indices(&self, indices: &[usize]) -> Result<(), EditError> {
+        let mut allowed = self.rasterizable_indices();
+        // Consume one ordered iterator: this also rejects duplicates and descending indices.
         if indices.is_empty()
-            || indices.iter().any(|i| *i >= self.elements.len())
-            || !indices.windows(2).all(|pair| pair[0] < pair[1])
+            || !indices
+                .iter()
+                .all(|index| allowed.by_ref().any(|candidate| candidate == *index))
         {
             return Err(EditError::InvalidPoint);
         }
+        Ok(())
+    }
+    /// Clone only vectors pending rasterization for independent background composition, without bases, drafts, or history.
+    pub fn rasterize_snapshot(&self, indices: &[usize]) -> Result<Self, EditError> {
+        self.validate_rasterize_indices(indices)?;
         let elements: Vec<_> = indices.iter().map(|i| self.elements[*i].clone()).collect();
         let retained_points = elements.iter().map(|stroke| stroke.points.len()).sum();
         Ok(Self {
@@ -18,6 +41,7 @@ impl Editor {
             retained_points,
             revision: self.revision,
             style: self.style,
+            spotlight_percent: self.spotlight_percent,
             crop: self.crop,
             logical_size: self.logical_size,
             ..Self::default()
@@ -31,15 +55,12 @@ impl Editor {
         candidate: Layers,
         indices: &[usize],
     ) -> Result<bool, EditError> {
-        let valid_indices = !indices.is_empty()
-            && indices.len() <= self.elements.len()
-            && indices.iter().all(|index| *index < self.elements.len())
-            && indices.windows(2).all(|pair| pair[0] < pair[1]);
+        self.validate_rasterize_indices(indices)?;
         let valid_pixels = candidate.size == source.size
             && candidate.base.same_storage(&source.base)
             && candidate.valid()
             && candidate.annotations.is_some();
-        if !valid_indices || !valid_pixels {
+        if !valid_pixels {
             return Err(EditError::InvalidPoint);
         }
         if self.draft.is_some()
@@ -167,5 +188,38 @@ mod tests {
         assert!(weak.upgrade().is_none());
         assert_eq!(editor.elements().len(), 5);
         assert_eq!(editor.retained_points, 5);
+    }
+
+    #[test]
+    fn dynamic_composition_policy_is_shared_by_every_rasterization_entry() {
+        for tool in [
+            Tool::SpotRect,
+            Tool::SpotRounded,
+            Tool::SpotEllipse,
+            Tool::Magnifier,
+        ] {
+            let mut editor = editor();
+            editor
+                .begin(Tool::Highlighter, Point { x: 1., y: 1. })
+                .unwrap();
+            assert!(editor.commit());
+            editor.begin(tool, Point { x: 2., y: 2. }).unwrap();
+            editor.extend(Point { x: 10., y: 10. }).unwrap();
+            assert!(editor.commit());
+            assert_eq!(editor.rasterizable_indices().collect::<Vec<_>>(), [4]);
+            let source = editor.layers().unwrap().clone();
+            let revision = editor.revision();
+            for indices in [&[0][..], &[5], &[4, 4], &[4, 0], &[6]] {
+                assert!(editor.rasterize_snapshot(indices).is_err());
+                assert!(editor.prepare_rasterize_edit(indices).is_err());
+                assert!(editor
+                    .commit_rasterized(revision, &source, candidate(&source), indices)
+                    .is_err());
+            }
+            assert!(editor.rasterize_snapshot(&[4]).is_ok());
+            assert!(editor.prepare_rasterize_edit(&[4]).unwrap().is_some());
+            assert_eq!(editor.revision(), revision);
+            assert!(editor.layers().unwrap().same_storage(&source));
+        }
     }
 }

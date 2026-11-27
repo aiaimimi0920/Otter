@@ -22,6 +22,9 @@ pub(super) struct Recovery {
 }
 
 impl Canvas {
+    pub(in crate::desktop) fn input_surface(&self) -> Option<std::rc::Rc<()>> {
+        self.target.as_ref().map(|t| t.identity.clone())
+    }
     pub(in crate::desktop) fn has_target(&self) -> bool {
         self.target.is_some()
     }

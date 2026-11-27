@@ -90,6 +90,58 @@ pub(super) unsafe fn value(c: &mut Canvas, id: u16, raw: Option<&str>) -> Result
     let style = v.style;
     let tool = v.tool;
     let next = match id {
+        LENS_ZOOM if tool == Tool::Magnifier => {
+            let i = v.selected.ok_or_else(invalid)?;
+            let percent = number(raw, 150, 800)? as u16;
+            c.editor.set_lens_zoom(i, percent).map_err(|_| invalid())?;
+            c.selected = Some((i, c.editor.revision()));
+            return Ok(());
+        }
+        SPOT_DENSITY if tool.spotlight() => {
+            c.editor
+                .set_spotlight_percent(number(raw, 20, 90)? as u8)
+                .map_err(|_| invalid())?;
+            if let Some(i) = v.selected {
+                c.selected = Some((i, c.editor.revision()));
+            }
+            return Ok(());
+        }
+        EFFECT_RECT if matches!(tool, Tool::Mosaic | Tool::Blur) && v.selected.is_none() => {
+            c.tool_profiles.effect_rect = !c.tool_profiles.effect_rect;
+            return Ok(());
+        }
+        TEXT_BOX | BOX_WIDTH | BOX_PAD if tool == Tool::Text => {
+            let old = match v.selected {
+                Some(i) => c.editor.elements()[i]
+                    .text
+                    .as_ref()
+                    .and_then(|t| t.geometry()),
+                None => c.tool_profiles.text_box,
+            };
+            let b = match (id, old) {
+                (TEXT_BOX, Some(_)) => None,
+                (TEXT_BOX, None) => crate::text_annotation::TextBox::new(320.0, 8.0),
+                (BOX_WIDTH, Some(b)) => Some(
+                    crate::text_annotation::TextBox::new(number(raw, 8, 16384)?, b.padding())
+                        .ok_or_else(invalid)?,
+                ),
+                (BOX_PAD, Some(b)) => Some(
+                    crate::text_annotation::TextBox::new(b.width(), number(raw, 0, 256)?)
+                        .ok_or_else(invalid)?,
+                ),
+                _ => return Err(invalid()),
+            };
+            if let Some(i) = v.selected {
+                let pending = super::super::text_input::Pending::selected(c).ok_or_else(invalid)?;
+                let text = pending.text().ok_or_else(invalid)?.clone().with_geometry(b);
+                let size = super::super::annotation_text::measure(&text)?;
+                pending.commit(c, text, size)?;
+                c.selected = Some((i, c.editor.revision()));
+            } else {
+                c.tool_profiles.text_box = b;
+            }
+            return Ok(());
+        }
         WIDTH => {
             let (min, max) = match tool {
                 Tool::Mosaic | Tool::Blur => (4, 200),

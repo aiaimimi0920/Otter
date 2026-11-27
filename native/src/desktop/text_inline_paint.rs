@@ -52,6 +52,9 @@ impl Style {
     pub(super) fn keyed(&self) -> bool {
         self.keyed
     }
+    pub(super) fn has_fill(&self) -> bool {
+        self.fill.is_some()
+    }
     pub(super) unsafe fn install(&self, hwnd: HWND) -> Result<()> {
         // Zero alpha ink is the key itself; keep selection/caret and border visible.
         set_color(
@@ -107,6 +110,21 @@ impl Style {
     }
 }
 
+pub(super) unsafe fn rounded(hwnd: HWND, w: i32, h: i32, radius: i32) -> Result<()> {
+    let diameter = radius.saturating_mul(2).min(w.min(h));
+    let region = CreateRoundRectRgn(0, 0, w + 1, h + 1, diameter, diameter);
+    if region.is_invalid() {
+        return Err(Error::from_win32());
+    }
+    if SetWindowRgn(hwnd, Some(region), true) == 0 {
+        let error = Error::from_win32();
+        let _ = DeleteObject(region.into());
+        return Err(error);
+    }
+    // On success the window manager owns the HRGN, including replacement.
+    Ok(())
+}
+
 unsafe fn set_color(hwnd: HWND, key: PCWSTR, value: COLORREF) -> Result<()> {
     SetPropW(hwnd, key, Some(HANDLE((value.0 as usize + 1) as *mut _)))
 }
@@ -119,6 +137,9 @@ pub(super) unsafe fn edit(hwnd: HWND, dc: HDC) -> LRESULT {
     SetBkColor(dc, background);
     SetDCBrushColor(dc, background);
     LRESULT(GetStockObject(DC_BRUSH).0 as isize)
+}
+pub(super) unsafe fn colors(hwnd: HWND) -> (COLORREF, COLORREF) {
+    (color(hwnd, INK), color(hwnd, BACKGROUND))
 }
 pub(super) unsafe fn popup(hwnd: HWND) -> LRESULT {
     let mut ps = PAINTSTRUCT::default();

@@ -43,6 +43,39 @@ fn world(stroke: &Stroke, index: usize) -> Point {
 }
 
 #[test]
+fn close_serial_tip_drag_keeps_circle_fixed() {
+    let mut c = Canvas::new(Some(Image {
+        width: 100,
+        height: 100,
+        pixels: vec![255; 40000].into(),
+    }))
+    .unwrap();
+    c.viewport.origin = Point::default();
+    c.viewport.scale = 1.;
+    c.editor
+        .begin_serial(p(40., 40.), 10., "Arial", None)
+        .unwrap();
+    c.editor.extend_constrained(p(42., 40.), true).unwrap();
+    assert!(c.editor.commit());
+    let circle = c.editor.elements()[0].points.clone();
+    c.select_tool(Tool::Select);
+    c.selected = Some((0, c.editor.revision()));
+    c.pointer_down(p(42., 40.));
+    c.pointer_move(p(60., 42.));
+    c.pointer_up(p(60., 42.));
+    assert_eq!(c.editor.elements()[0].points, circle);
+    assert_eq!(
+        c.editor.elements()[0].serial_handles().unwrap()[1],
+        p(60., 42.)
+    );
+    c.editor.undo();
+    assert_eq!(
+        c.editor.elements()[0].serial_handles().unwrap()[1],
+        p(42., 40.)
+    );
+}
+
+#[test]
 fn line_and_arrow_endpoints_preview_and_commit_without_moving_other_end() {
     for tool in [Tool::Line, Tool::Arrow] {
         for angle in [0.0, 45.0, 90.0] {

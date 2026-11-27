@@ -83,10 +83,10 @@ fn resolve(candidates: Vec<Candidate>, screen: RECT, whole: bool) -> Result<Requ
         return Err(Error::new(E_ABORT, "Live source moved during selection"));
     }
     if whole || candidate.bounds == screen {
-        return Ok(Request::Window(candidate.target));
+        return Ok(Request::Window(candidate.target, None));
     }
     let crop = Crop::from_screen(candidate.bounds, screen)?;
-    Ok(Request::WindowRegion(candidate.target, crop))
+    Ok(Request::WindowRegion(candidate.target, crop, None))
 }
 pub(super) fn select() -> Result<Option<Request>> {
     let candidates = snapshot()?;

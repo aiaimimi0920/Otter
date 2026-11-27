@@ -22,7 +22,10 @@ use windows::{
 pub mod environment;
 #[path = "bounded_worker_session.rs"]
 pub mod session;
+#[path = "bounded_worker_token.rs"]
+mod token;
 pub use environment::Environment;
+pub use token::require_ordinary as require_ordinary_token;
 pub struct Policy<'a> {
     pub suffix: &'a str,
     pub maximum: usize,
@@ -301,21 +304,39 @@ pub fn start_at_reclaiming(
         startup.StartupInfo.hStdError = handles[1];
         let mut process = PROCESS_INFORMATION::default();
         check_active(deadline, stopped)?;
-        CreateProcessW(
-            PCWSTR(executable.as_ptr()),
-            Some(PWSTR(args.as_mut_ptr())),
-            None,
-            None,
-            true,
-            CREATE_NO_WINDOW
-                | CREATE_SUSPENDED
-                | EXTENDED_STARTUPINFO_PRESENT
-                | CREATE_UNICODE_ENVIRONMENT,
-            Some(environment.as_ptr().cast()),
-            None,
-            &startup.StartupInfo,
-            &mut process,
-        )
+        let launch = token::Launch::select()?;
+        let flags = CREATE_NO_WINDOW
+            | CREATE_SUSPENDED
+            | EXTENDED_STARTUPINFO_PRESENT
+            | CREATE_UNICODE_ENVIRONMENT;
+        if let Some(filtered) = launch.filtered.as_ref() {
+            CreateProcessAsUserW(
+                Some(HANDLE(filtered.as_raw_handle())),
+                PCWSTR(executable.as_ptr()),
+                Some(PWSTR(args.as_mut_ptr())),
+                None,
+                None,
+                true,
+                flags,
+                Some(environment.as_ptr().cast()),
+                None,
+                &startup.StartupInfo,
+                &mut process,
+            )
+        } else {
+            CreateProcessW(
+                PCWSTR(executable.as_ptr()),
+                Some(PWSTR(args.as_mut_ptr())),
+                None,
+                None,
+                true,
+                flags,
+                Some(environment.as_ptr().cast()),
+                None,
+                &startup.StartupInfo,
+                &mut process,
+            )
+        }
         .map_err(io::Error::other)?;
         let thread = OwnedHandle::from_raw_handle(process.hThread.0);
         let process = OwnedHandle::from_raw_handle(process.hProcess.0);
@@ -331,6 +352,9 @@ pub fn start_at_reclaiming(
             job,
             _capacity: capacity,
         };
+        // The actual suspended child must agree before executing any code.
+        // From here Child owns job termination on every error path.
+        launch.verify_child(HANDLE(child.process.as_raw_handle()))?;
         check_active(deadline, stopped)?;
         if ResumeThread(HANDLE(thread.as_raw_handle())) == u32::MAX {
             return Err(io::Error::last_os_error());
@@ -343,6 +367,7 @@ pub fn start_at_reclaiming(
 mod tests;
 /// Children must verify parent Job restrictions before reading/executing domain payloads; direct private entry cannot bypass limits.
 pub fn require_limits(maximum: usize) -> io::Result<()> {
+    token::require_ordinary()?;
     unsafe {
         let mut limits = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
         QueryInformationJobObject(

@@ -18,88 +18,102 @@ impl Paint<'_> {
         reserve: impl Fn(usize) -> Option<crate::byte_budget::Lease>,
     ) -> Result<()> {
         let target = self.target;
+        let mut lens = None;
         super::super::render_frame::draw(target, || {
-            target.Clear(Some(&D2D1_COLOR_F::default()));
-            let crop = layout
-                .map(|layout| layout.visible)
-                .or_else(|| self.editor.annotation_frame());
-            let mut document = Default::default();
-            target.GetTransform(&mut document);
-            if let Some(crop) = crop {
-                document.M11 = output.0 as f32 / crop.width as f32;
-                document.M22 = output.1 as f32 / crop.height as f32;
-                document.M31 = -(crop.x as f32) * document.M11;
-                document.M32 = -(crop.y as f32) * document.M22;
-            }
-            let _restore = super::super::render_frame::save_transform(target);
-            // Push masks in unit coordinates before returning to document coordinates; preserve both source densities even for nonuniform output.
-            let rounded = if let Some(style) = decoration {
-                style.transform(target, output);
-                style.clip(target, self.factory, output, &reserve)?
-            } else {
-                target.SetTransform(&document);
-                source_resolution::frame_clip::push(target, self.factory, layout, &reserve)?
-            };
-            target.SetTransform(&document);
-            let sampling = if layout.is_none() {
-                self.editor
-                    .raster_base_projection()
-                    .map(|p| {
-                        let size = self.bitmap.GetPixelSize();
-                        crate::image_projection::Projection::clipped(
-                            p.source,
-                            p.target,
-                            (size.width, size.height),
-                        )
-                        .ok_or_else(|| Error::new(E_INVALIDARG, "Invalid export raster projection"))
-                    })
-                    .transpose()?
-                    .unwrap_or_default()
-            } else {
-                Default::default()
-            };
-            source_resolution::draw(target, self.bitmap, layout, sampling, opacity);
-            if let Some(style) = decoration {
-                style.transform(target, output);
-                style.border(target)?;
-                target.SetTransform(&document);
-            } else if let Some(border) = layout.and_then(|layout| layout.border.as_ref()) {
-                border.draw(target, layout.unwrap().visible)?;
-            }
-            if let Some(bitmap) = self.annotations {
-                let destination = crop
-                    .map(|r| D2D_RECT_F {
-                        left: r.x as f32,
-                        top: r.y as f32,
-                        right: (r.x + r.width) as f32,
-                        bottom: (r.y + r.height) as f32,
-                    })
-                    .unwrap_or(D2D_RECT_F {
-                        left: 0.0,
-                        top: 0.0,
-                        right: output.0 as f32,
-                        bottom: output.1 as f32,
-                    });
-                target.DrawBitmap(
-                    bitmap,
-                    Some(&destination),
-                    1.0,
-                    D2D1_BITMAP_INTERPOLATION_MODE_LINEAR,
-                    None,
-                );
-            }
-            annotations::draw_committed(
+            annotations::magnifier::scene(
+                &mut lens,
                 target,
-                self.brush,
-                self.editor,
-                Viewport {
-                    origin: Point::default(),
-                    scale: 1.0,
+                self.editor.has_lens(),
+                false,
+                &reserve,
+                |target, pass| {
+                    target.Clear(Some(&D2D1_COLOR_F::default()));
+                    let crop = layout
+                        .map(|layout| layout.visible)
+                        .or_else(|| self.editor.annotation_frame());
+                    let mut document = Default::default();
+                    target.GetTransform(&mut document);
+                    if let Some(crop) = crop {
+                        document.M11 = output.0 as f32 / crop.width as f32;
+                        document.M22 = output.1 as f32 / crop.height as f32;
+                        document.M31 = -(crop.x as f32) * document.M11;
+                        document.M32 = -(crop.y as f32) * document.M22;
+                    }
+                    let _restore = super::super::render_frame::save_transform(target);
+                    // Push masks in unit coordinates before returning to document coordinates; preserve both source densities even for nonuniform output.
+                    let rounded = if let Some(style) = decoration {
+                        style.transform(target, output);
+                        style.clip(target, self.factory, output, &reserve)?
+                    } else {
+                        target.SetTransform(&document);
+                        source_resolution::frame_clip::push(target, self.factory, layout, &reserve)?
+                    };
+                    target.SetTransform(&document);
+                    let sampling = if layout.is_none() {
+                        self.editor
+                            .raster_base_projection()
+                            .map(|p| {
+                                let size = self.bitmap.GetPixelSize();
+                                crate::image_projection::Projection::clipped(
+                                    p.source,
+                                    p.target,
+                                    (size.width, size.height),
+                                )
+                                .ok_or_else(|| {
+                                    Error::new(E_INVALIDARG, "Invalid export raster projection")
+                                })
+                            })
+                            .transpose()?
+                            .unwrap_or_default()
+                    } else {
+                        Default::default()
+                    };
+                    source_resolution::draw(target, self.bitmap, layout, sampling, opacity);
+                    if let Some(style) = decoration {
+                        style.transform(target, output);
+                        style.border(target)?;
+                        target.SetTransform(&document);
+                    } else if let Some(border) = layout.and_then(|layout| layout.border.as_ref()) {
+                        border.draw(target, layout.unwrap().visible)?;
+                    }
+                    if let Some(bitmap) = self.annotations {
+                        let destination = crop
+                            .map(|r| D2D_RECT_F {
+                                left: r.x as f32,
+                                top: r.y as f32,
+                                right: (r.x + r.width) as f32,
+                                bottom: (r.y + r.height) as f32,
+                            })
+                            .unwrap_or(D2D_RECT_F {
+                                left: 0.0,
+                                top: 0.0,
+                                right: output.0 as f32,
+                                bottom: output.1 as f32,
+                            });
+                        target.DrawBitmap(
+                            bitmap,
+                            Some(&destination),
+                            1.0,
+                            D2D1_BITMAP_INTERPOLATION_MODE_LINEAR,
+                            None,
+                        );
+                    }
+                    annotations::draw_layers(
+                        target,
+                        self.brush,
+                        self.editor,
+                        Viewport {
+                            origin: Point::default(),
+                            scale: 1.0,
+                        },
+                        Default::default(),
+                        &mut super::super::effect_cache::Cache::default(),
+                        pass,
+                    )?;
+                    drop(rounded);
+                    Ok(())
                 },
-                &mut super::super::effect_cache::Cache::default(),
-            )?;
-            drop(rounded);
-            Ok(())
+            )
         })
     }
 }

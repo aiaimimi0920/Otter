@@ -49,10 +49,11 @@ unsafe fn draw(hwnd: HWND, state: &State) -> Result<Option<super::super::canvas:
     })
 }
 unsafe fn frame(hwnd: HWND, state: &State) -> Result<bool> {
+    crate::desktop::pin_click_through::before_paint(hwnd, state)?;
     let owns = || state.lifetime.owns(hwnd);
     let allow_restore = || !state.group_hidden.get() && !super::super::tray::is_hidden(state);
     let mut removed_layered = false;
-    if state.canvas.borrow().needs_gpu_style() {
+    if !state.click.active() && state.canvas.borrow().needs_gpu_style() {
         // Protected by render_active with no Canvas borrow; style writes may reenter source replacement/destruction.
         // End the style transaction before a new GPU might attach; attached failure must never trigger layered rollback.
         let style =

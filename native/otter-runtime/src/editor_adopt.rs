@@ -37,6 +37,7 @@ impl Editor {
             crop: std::mem::replace(&mut self.crop, source.crop),
             logical_size: std::mem::replace(&mut self.logical_size, source.logical_size),
             mirror: std::mem::replace(&mut self.mirror, source.mirror),
+            spotlight: std::mem::replace(&mut self.spotlight_percent, source.spotlight_percent),
         };
         self.retained_points += points;
         self.retained_points -= self.history.record(Entry::document(previous));

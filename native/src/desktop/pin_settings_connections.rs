@@ -287,6 +287,12 @@ pub(super) fn close_targets(state: &State) {
     };
     drop(popup);
 }
+pub(in crate::desktop) fn connection_popup_idle(state: &State) -> bool {
+    state
+        .pin_settings
+        .try_borrow()
+        .is_ok_and(|s| s.connections.targets.is_none())
+}
 pub(in crate::desktop) unsafe fn translate_targets(state: &State, message: &MSG) -> bool {
     let popup = state.pin_settings.borrow_mut().connections.targets.take();
     let Some(popup) = popup else {

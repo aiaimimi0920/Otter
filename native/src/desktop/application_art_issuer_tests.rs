@@ -16,7 +16,7 @@ fn trust() -> Trust {
 fn bytes(trust: Trust) -> Vec<u8> {
     serde_json::to_vec(&serde_json::json!({"schemaVersion":2,"artIssuerTrust":trust})).unwrap()
 }
-fn lease() -> (
+pub(super) fn lease() -> (
     crate::device_authorization_lease::Grant,
     Arc<crate::device_authorization_lease::Lease>,
 ) {

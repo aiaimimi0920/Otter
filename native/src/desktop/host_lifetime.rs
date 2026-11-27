@@ -81,6 +81,7 @@ pub(super) unsafe fn dispatch(
             Some(LRESULT(0))
         }
         WM_NCDESTROY => {
+            state.click.retire();
             state.canvas.borrow_mut().close_render();
             SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
             state.lifetime.release(hwnd);
@@ -98,6 +99,7 @@ thread_local! {
 pub(super) struct Registration {
     registered: Cell<bool>,
     bound: Cell<HWND>,
+    publication: std::cell::RefCell<Option<std::rc::Rc<()>>>,
     // Register/destroy on the HWND-owning UI thread; forbid cross-thread state transfer.
     _thread: std::marker::PhantomData<std::rc::Rc<()>>,
 }
@@ -108,7 +110,16 @@ impl Registration {
             return false;
         }
         self.bound.set(hwnd);
+        self.publication.replace(Some(std::rc::Rc::new(())));
         true
+    }
+
+    pub(super) fn publication(&self) -> std::rc::Weak<()> {
+        self.publication
+            .borrow()
+            .as_ref()
+            .map(std::rc::Rc::downgrade)
+            .unwrap_or_default()
     }
 
     pub fn owns(&self, hwnd: HWND) -> bool {
@@ -122,6 +133,7 @@ impl Registration {
     fn release(&self, hwnd: HWND) {
         if self.owns(hwnd) {
             self.bound.set(HWND::default());
+            self.publication.take();
         }
     }
 
@@ -141,6 +153,7 @@ impl Registration {
 
     /// Report the last window finished only after an actually registered host closes.
     pub fn destroyed(&self) -> bool {
+        self.publication.take();
         if !self.registered.replace(false) {
             return false;
         }

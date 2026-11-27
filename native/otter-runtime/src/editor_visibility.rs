@@ -8,7 +8,8 @@ impl Stroke {
         self.fill.is_some() && self.paint_alpha.fill() > 0.0
     }
     pub fn visible_paint(&self) -> bool {
-        if matches!(self.tool, Tool::Mosaic | Tool::Blur) {
+        if self.tool.spotlight() || matches!(self.tool, Tool::Mosaic | Tool::Blur | Tool::Magnifier)
+        {
             return true;
         }
         if self.opacity <= 0.0 {

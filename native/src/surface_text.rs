@@ -228,6 +228,47 @@ impl Engine {
     }
 }
 impl Layout {
+    /// Reuse cluster hit testing on an annotation's actual layout. Do not
+    /// apply Surface whitespace, CSS line height or font-family resolution.
+    pub(crate) fn from_annotation(native: IDWriteTextLayout, text: Vec<u16>) -> Result<Self> {
+        let mut metrics = DWRITE_TEXT_METRICS::default();
+        unsafe { native.GetMetrics(&mut metrics)? };
+        if text.len() > 65536 || metrics.lineCount == 0 || metrics.lineCount > 65537 {
+            return Err(invalid());
+        }
+        let mut lines = vec![DWRITE_LINE_METRICS::default(); metrics.lineCount as usize];
+        let mut count = 0;
+        unsafe { native.GetLineMetrics(Some(&mut lines), &mut count)? };
+        if [
+            metrics.width,
+            metrics.widthIncludingTrailingWhitespace,
+            metrics.height,
+            lines[0].baseline,
+        ]
+        .iter()
+        .any(|v| !v.is_finite() || *v < 0.)
+        {
+            return Err(invalid());
+        }
+        Ok(Self {
+            native,
+            metrics,
+            baseline: lines[0].baseline,
+            text: text.into(),
+        })
+    }
+    pub(crate) fn insertion_geometry(&self, pos: u32) -> Result<[f32; 3]> {
+        self.validate_range(pos..pos)?;
+        let (mut x, mut y, mut h) = (0., 0., DWRITE_HIT_TEST_METRICS::default());
+        unsafe {
+            self.native
+                .HitTestTextPosition(pos, false, &mut x, &mut y, &mut h)?;
+        }
+        if [x, y, h.height].iter().any(|v| !v.is_finite()) || h.height < 0. {
+            return Err(invalid());
+        }
+        Ok([x, y, h.height])
+    }
     #[cfg(test)]
     pub(crate) fn text_for_test(&self) -> String {
         String::from_utf16(&self.text).unwrap()
