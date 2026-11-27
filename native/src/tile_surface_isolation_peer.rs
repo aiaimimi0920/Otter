@@ -96,7 +96,7 @@ pub(super) fn serve(
     signals: Arc<Signals>,
 ) -> std::thread::JoinHandle<()> {
     std::thread::spawn(move || {
-        let mut threads = Vec::new();
+        let mut threads: Vec<std::thread::JoinHandle<()>> = Vec::new();
         let end = Instant::now() + Duration::from_secs(18);
         let began = crate::tile_runtime::now_ms();
         while !signals.stop.load(Ordering::Acquire) {
@@ -109,7 +109,14 @@ pub(super) fn serve(
                 }
                 Err(e) => panic!("isolated peer: {e}"),
             };
-            assert!(threads.len() < 128, "fixture connection bound");
+            // Short-lived control requests and the held media/Art sockets share this peer.
+            // Bound simultaneous handlers, not completed requests over the 18-second run.
+            for i in (0..threads.len()).rev() {
+                if threads[i].is_finished() {
+                    threads.swap_remove(i).join().unwrap();
+                }
+            }
+            assert!(threads.len() < 128, "fixture concurrent connection bound");
             let (config, endpoint, flags) = (config.clone(), endpoint.clone(), signals.clone());
             threads.push(std::thread::spawn(move || {
                 let mut stream = StreamOwned::new(ServerConnection::new(config).unwrap(), BridgeStream::new(tcp, Instant::now()+Duration::from_secs(8)).unwrap());
