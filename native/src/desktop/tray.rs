@@ -416,14 +416,15 @@ mod tests {
             let tree = crate::native_menu::snapshot(menu.0).unwrap();
             assert_eq!(tree.len(), 12);
             for (index, key) in [
-                "tray-capture",
-                "tray-live-capture",
-                "tray-long-capture",
-                "tray-delay",
-            ]
-            .into_iter()
-            .enumerate()
-            {
+                (0, "tray-capture"),
+                (1, "tray-live-capture"),
+                (2, "tray-long-capture"),
+                (3, "tray-delay"),
+                (6, "tray-receive"),
+                (7, "tray-open-image"),
+                (9, "tray-language"),
+                (11, "tray-exit"),
+            ] {
                 assert_eq!(tree[index].label, crate::ui_text::text(key));
             }
             assert!(tree[5]
@@ -434,7 +435,6 @@ mod tests {
             let (checked_menu, _) = build_menu(&state).unwrap();
             let checked_tree = crate::native_menu::snapshot(checked_menu.0).unwrap();
             assert!(checked_tree[5].checked);
-            state.click.signals.enabled.set(false);
             assert!(tree[4].separator && tree[8].separator);
             let delay = tree[3].children.as_ref().unwrap();
             assert_eq!(
@@ -444,7 +444,6 @@ mod tests {
                     super::super::capture_countdown::FIVE
                 ]
             );
-            assert_eq!(tree[6].label, crate::ui_text::text("tray-receive"));
             let receive = tree[6].children.as_ref().unwrap();
             let keys = [
                 "integration-pause",
@@ -457,13 +456,10 @@ mod tests {
                 assert_eq!(item.label, crate::ui_text::text(key));
                 assert_eq!(item.radio && item.checked, key == "integration-receive");
             }
-            assert_eq!(tree[7].label, crate::ui_text::text("tray-open-image"));
             assert!(tree[10]
                 .label
                 .starts_with(crate::ui_text::text("tray-autostart")));
-            assert_eq!(tree[9].label, crate::ui_text::text("tray-language"));
             assert_eq!(tree[9].children.as_ref().unwrap().len(), 2);
-            assert_eq!(tree[11].label, crate::ui_text::text("tray-exit"));
         }
     }
     #[test]
