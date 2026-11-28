@@ -259,13 +259,29 @@ mod tests {
             )
             .as_bool());
             app.pending_windows(false).unwrap();
+            let dispatch_disabled = !crate::elevation_status::allows_desktop_integrations();
+            // Elevated runners correctly disable account dispatch; poll this injected owner
+            // directly so the fixture still tests revocation and post-notification reaping.
+            if dispatch_disabled {
+                app.poll_account_projection();
+            }
             assert!(app.account_projection.pending.is_some());
             assert!(app.account_projection.reap_deadline().is_some());
+            assert!(!app
+                .account_projection
+                .pending
+                .as_ref()
+                .unwrap()
+                .job
+                .valid(origin));
             while pump.step(&mut app) != WM_NULL {}
             assert!(app.account_projection.pending.is_some());
             gate.release.send(()).unwrap();
             while app.account_projection.pending.is_some() {
                 pump.step(&mut app);
+                if dispatch_disabled {
+                    app.poll_account_projection();
+                }
             }
             assert!(app.account_projection.reap_deadline().is_none());
             assert!(app.account_projection.saved.is_none());
