@@ -18,7 +18,7 @@ unsafe fn rank(hwnd: HWND) -> usize {
 
 #[test]
 fn drawer_caret_and_body_follow_own_pin_across_foreign_window_and_topmost_bands() {
-    unsafe {
+    crate::desktop::workspace_window_fixture::with_private_input_desktop(|| unsafe {
         let mut app = app();
         app.add_window(false).unwrap();
         let lower = app.documents.last().unwrap().window.0;
@@ -68,7 +68,7 @@ fn drawer_caret_and_body_follow_own_pin_across_foreign_window_and_topmost_bands(
         }
         DestroyWindow(foreign).unwrap();
         app.shutdown();
-    }
+    });
 }
 
 struct Positions {
