@@ -162,6 +162,12 @@ fn consent_pins_only_the_displayed_directory_and_admitted_jobs_keep_their_grant(
             "no ambient default without a profile"
         );
         a.bind_profile(Some(&profile.0));
+        assert!(!a.copy && !a.pin);
+        assert!(a.target.is_none());
+        assert!(
+            !saved.exists(),
+            "profile binding must not create an archive"
+        );
         assert_eq!(a.directory().unwrap(), saved);
         assert!(
             grant(&saved).is_err(),
@@ -189,6 +195,20 @@ fn consent_pins_only_the_displayed_directory_and_admitted_jobs_keep_their_grant(
     drop(state);
     fs::remove_file(&old[0]).unwrap();
     fs::remove_dir(saved).unwrap();
+}
+
+#[test]
+fn binding_a_profile_keeps_an_explicit_archive_grant_and_flags() {
+    let profile = Directory::new();
+    let selected = Directory::new();
+    let mut archive = Owner::default();
+    archive.target = Some(grant(&selected.0).unwrap());
+    archive.copy = true;
+    archive.bind_profile(Some(&profile.0));
+    assert!(archive.copy);
+    assert!(!archive.pin);
+    assert_eq!(archive.directory().unwrap(), selected.0);
+    assert!(!profile.0.join("saved").exists());
 }
 
 #[test]

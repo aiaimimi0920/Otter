@@ -86,7 +86,6 @@ impl Target {
 
 /// A shell picker only grants an *existing* fixed-local directory. Never
 /// create a missing selection, follow a junction, or contact a UNC target.
-#[cfg(test)]
 pub(in crate::desktop) fn grant(path: &Path) -> Result<Arc<Target>, String> {
     crate::install_file_leases::directories(path, |_, _| Ok(()))
         .and_then(|pins| finish(path, pins))

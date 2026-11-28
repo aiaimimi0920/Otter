@@ -12,6 +12,8 @@ use windows::{
 pub(super) const COMMAND: usize = 0x1047;
 #[path = "tray_actions.rs"]
 pub(super) mod actions;
+#[path = "tray_image_archive.rs"]
+mod archive;
 #[path = "tray_capture_delay.rs"]
 mod delay;
 #[path = "tray_language.rs"]
@@ -292,6 +294,7 @@ unsafe fn build_menu(state: &State) -> Result<(Menu, Option<crate::autostart::St
     let startup = startup::append(menu.0)?;
     language::append(menu.0)?;
     delay::append(menu.0, state)?;
+    archive::append(menu.0, state)?;
     AppendMenuW(
         menu.0,
         MF_STRING,
@@ -323,6 +326,7 @@ unsafe fn menu(hwnd: HWND, state: &State, position: WPARAM) -> Result<()> {
             _ => {
                 if !delay::execute(hwnd, state, command)?
                     && !language::execute(hwnd, state, command)?
+                    && !archive::execute(hwnd, state, command)?
                     && !actions::execute(hwnd, state, command)
                 {
                     let _ = Shell_NotifyIconW(NIM_SETFOCUS, &data(hwnd));
@@ -404,7 +408,7 @@ mod tests {
             let state = State::new(None, false).unwrap();
             let (menu, _) = build_menu(&state).unwrap();
             let tree = crate::native_menu::snapshot(menu.0).unwrap();
-            assert_eq!(tree.len(), 10);
+            assert_eq!(tree.len(), 11);
             for (index, key) in [
                 "tray-capture",
                 "tray-live-capture",
@@ -432,14 +436,18 @@ mod tests {
             assert_eq!(tree[7].label, crate::ui_text::text("tray-language"));
             assert_eq!(tree[8].label, crate::ui_text::text("tray-delay"));
             assert_eq!(tree[8].children.as_ref().unwrap().len(), 3);
-            assert_eq!(tree[9].label, crate::ui_text::text("tray-exit"));
+            assert_eq!(tree[9].label, crate::ui_text::text("archive-menu"));
+            let archive = tree[9].children.as_ref().unwrap();
+            assert_eq!(archive.len(), 3);
+            assert!(archive.iter().all(|item| !item.checked));
+            assert_eq!(tree[10].label, crate::ui_text::text("tray-exit"));
             assert_eq!(tree[7].children.as_ref().unwrap().len(), 2);
-            assert_eq!(tree.len(), 10);
+            assert_eq!(tree.len(), 11);
             assert!(tree
                 .iter()
                 .enumerate()
                 .all(
-                    |(index, item)| (matches!(index, 7 | 8) || item.children.is_none())
+                    |(index, item)| (matches!(index, 7 | 8 | 9) || item.children.is_none())
                         && !item.separator
                 ));
         }
