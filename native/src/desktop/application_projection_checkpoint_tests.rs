@@ -1,5 +1,6 @@
 //! Real candidates/disk commits/reopening with hidden HWNDs; staging, cancellation, conflicts, and new workspaces cannot borrow old inclusion proofs.
 use super::*;
+use crate::device_authorization_config::Config;
 #[path = "application_projection_cleanup_checkpoint_tests.rs"]
 mod cleanup;
 use crate::projection_delivery::{
@@ -168,7 +169,7 @@ fn projection_checkpoint_scope_and_later_removal_clear_saved_classification_with
                     entries: vec![entry.clone()],
                     policy: Default::default(),
                 };
-            app.process_authorization();
+            app.process_authorization_with_projection(Config::from_env);
             assert!(std::sync::Arc::ptr_eq(
                 &app.authorization.borrow().projection.recovery.saved[0],
                 &entry
@@ -179,7 +180,7 @@ fn projection_checkpoint_scope_and_later_removal_clear_saved_classification_with
                 .unwrap()
                 .edit_original(original.to_vec().into());
             assert!(app.projection_checkpoint_inclusion(&ticket).is_none());
-            app.process_authorization();
+            app.process_authorization_with_projection(Config::from_env);
             assert!(app
                 .authorization
                 .borrow()
@@ -196,12 +197,12 @@ fn projection_checkpoint_scope_and_later_removal_clear_saved_classification_with
             assert!(app.projection_checkpoint_inclusion(&ticket).is_none());
             let end = Instant::now() + Duration::from_secs(10);
             while app.projection_cleanup.pending_local() {
-                app.process_authorization();
+                app.process_authorization_with_projection(Config::from_env);
                 assert!(Instant::now() < end, "deletion intent persistence deadline");
                 std::thread::yield_now();
             }
             settle(&mut app);
-            app.process_authorization();
+            app.process_authorization_with_projection(Config::from_env);
             assert!(app
                 .authorization
                 .borrow()

@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 fn finish(app: &mut Application) {
     let end = Instant::now() + Duration::from_secs(10);
     loop {
-        app.process_authorization();
+        app.process_authorization_with_projection(Config::from_env);
         if matches!(
             app.projection_profile,
             projection::profile::Owner::Ready { .. }

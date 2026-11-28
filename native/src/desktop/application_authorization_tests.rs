@@ -28,6 +28,20 @@ fn missing_profile() -> PathBuf {
     assert!(!root.exists());
     root
 }
+fn elevated_runner_token() -> bool {
+    match crate::bounded_worker_process::require_ordinary_token() {
+        Ok(()) => false,
+        Err(error)
+            if error.kind() == std::io::ErrorKind::PermissionDenied
+                && error
+                    .to_string()
+                    .contains("(stage=WorkerPermissions, category=Elevated)") =>
+        {
+            true
+        }
+        Err(error) => panic!("unexpected token rejection: kind={:?}", error.kind()),
+    }
+}
 #[test]
 fn completed_worker_updates_shared_status_without_creating_identity_or_retaining_handle() {
     let _apartment = Apartment::new().unwrap();
@@ -49,7 +63,26 @@ fn completed_worker_updates_shared_status_without_creating_identity_or_retaining
                 WAIT_OBJECT_0
             );
         }
-        app.process_authorization();
+        if elevated_runner_token() {
+            // The production entry point must not publish a completed worker on
+            // an elevated token; exercise that boundary before
+            // polling the same owner through the existing test-only seam.
+            assert!(!crate::elevation_status::allows_desktop_integrations());
+            state.authorization.borrow_mut().request =
+                Some(Request::Select("https://blocked.example".into()));
+            app.process_authorization();
+            assert!(state.authorization.borrow().request.is_none());
+            assert_eq!(
+                state.authorization.borrow().origin.as_deref(),
+                Some("https://127.0.0.1:1")
+            );
+            assert!(state.authorization.borrow().busy);
+            assert_eq!(app.authorization_owner.wait_handles().count(), 1);
+            app.process_authorization_with_projection(Config::from_env);
+        } else {
+            assert!(crate::elevation_status::allows_desktop_integrations());
+            app.process_authorization();
+        }
         assert!(!state.authorization.borrow().busy);
         assert_eq!(
             state.authorization.borrow().status,
@@ -75,7 +108,7 @@ fn selection_discards_old_completion_and_shutdown_clears_queued_request_and_reap
         app.authorization_owner.start(task(&root)).unwrap();
         app.authorization.borrow_mut().request =
             Some(Request::Select("https://selected.example".into()));
-        app.process_authorization();
+        app.process_authorization_with_projection(Config::from_env);
         assert_eq!(
             app.authorization.borrow().status,
             crate::ui_text::text("app-service-selected-no-session")
@@ -98,7 +131,7 @@ fn discovery_requires_live_authorization_and_service_changes_clear_catalog() {
         let origin = "https://127.0.0.1:1";
         app.authorization.borrow_mut().origin = Some(origin.into());
         app.authorization.borrow_mut().request = Some(Request::Discover);
-        app.process_authorization();
+        app.process_authorization_with_projection(Config::from_env);
         assert!(!app.remote_sessions.discovering());
         assert!(!app.authorization.borrow().catalog_busy);
         assert_eq!(
@@ -121,7 +154,7 @@ fn discovery_requires_live_authorization_and_service_changes_clear_catalog() {
             view.catalog_busy = true;
             view.request = Some(request);
             drop(view);
-            app.process_authorization();
+            app.process_authorization_with_projection(Config::from_env);
             assert!(app.authorization.borrow().catalog.is_none());
             assert!(!app.authorization.borrow().catalog_busy);
         }

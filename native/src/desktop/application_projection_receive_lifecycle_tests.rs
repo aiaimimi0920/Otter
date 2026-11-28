@@ -124,7 +124,9 @@ unsafe fn unpublished(case: u8) {
                 .authorization_owner
                 .invalidate(&fixture.origin)
                 .unwrap();
-            fixture.app.process_authorization();
+            fixture
+                .app
+                .process_authorization_with_projection(Config::from_env);
         }
         _ => fixture.app.shutdown(),
     }

@@ -100,7 +100,7 @@ fn run_routed(mode: u8, offline: bool) {
                 WAIT_OBJECT_0
             );
         }
-        app.process_authorization();
+        app.process_authorization_with_projection(Config::from_env);
         assert!(!app.authorization.borrow().busy);
         let second = app.bind_window_state(State::new(None, false).unwrap());
         authorization_ui::execute(
@@ -159,7 +159,7 @@ fn run_routed(mode: u8, offline: bool) {
                 assert!(app.authorization.borrow().projection.entries.is_empty());
                 if mode == 2 {
                     app.authorization.borrow_mut().request = Some(Request::Select(origin.clone()));
-                    app.process_authorization();
+                    app.process_authorization_with_projection(Config::from_env);
                     assert!(app.authorization.borrow().projection.entries.is_empty());
                 }
             } else {

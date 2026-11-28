@@ -180,7 +180,7 @@ impl Fixture {
             WaitForSingleObject(HANDLE(handle.as_raw_handle()), 5000),
             WAIT_OBJECT_0
         );
-        app.process_authorization();
+        app.process_authorization_with_projection(Config::from_env);
         Self {
             app,
             store,
@@ -225,7 +225,8 @@ impl Fixture {
                 )
                 .unwrap();
             wait_remote(&self.app);
-            self.app.process_authorization();
+            self.app
+                .process_authorization_with_projection(Config::from_env);
             None
         } else {
             let mut job = Job::start(
@@ -332,7 +333,7 @@ fn projection_fixture_primary_panic_is_preserved_when_peer_also_panics() {
 pub(super) fn until(app: &mut Application, done: impl Fn(&Application) -> bool) {
     let end = Instant::now() + Duration::from_secs(10);
     loop {
-        app.process_authorization();
+        app.process_authorization_with_projection(Config::from_env);
         if done(app) {
             break;
         }

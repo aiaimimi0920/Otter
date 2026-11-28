@@ -1,6 +1,7 @@
 //! One-shot background journal owner after production-profile startup; check-mode isolation, failure-state retention, and lease release on exit.
 use super::*;
 use crate::desktop::application::projection::profile::Owner as ProjectionOwner;
+use crate::device_authorization_config::Config;
 use crate::projection_delivery::{accept::tests::invitation, journal::Store};
 use std::sync::Arc;
 const ORIGIN: &str = "https://loom.example";
@@ -12,7 +13,7 @@ fn seed(directory: &Directory) -> Vec<u8> {
 unsafe fn poll(app: &mut Application) {
     let end = Instant::now() + Duration::from_secs(5);
     loop {
-        app.process_authorization();
+        app.process_authorization_with_projection(Config::from_env);
         if !matches!(app.projection_profile, ProjectionOwner::Opening(_)) {
             break;
         }
@@ -42,7 +43,7 @@ fn ordinary_startup_opens_shared_store_once_and_switching_services_does_not_reop
                 app.authorization.borrow_mut().request = Some(
                     crate::desktop::device_authorization_ui::Request::Select(origin.into()),
                 );
-                app.process_authorization();
+                app.process_authorization_with_projection(Config::from_env);
                 assert!(Arc::ptr_eq(
                     &entry,
                     &app.authorization.borrow().projection.recovery.entries[0]
@@ -74,14 +75,14 @@ fn workspace_check_and_explicit_non_profile_startups_do_not_discover_a_projectio
             let mut app = new_app(instance);
             app.install_workspace_checkpoint(Some(Profile::open(&directory.0).unwrap()), true)
                 .unwrap();
-            app.process_authorization();
+            app.process_authorization_with_projection(Config::from_env);
             assert!(matches!(app.projection_profile, ProjectionOwner::Disabled));
             assert!(!directory.0.join("projection-receive.lock").exists());
             assert!(!directory.0.join("projection-receive.json").exists());
             app.shutdown();
             let mut app = new_app(instance);
             app.install_workspace_checkpoint(None, false).unwrap();
-            app.process_authorization();
+            app.process_authorization_with_projection(Config::from_env);
             assert!(matches!(app.projection_profile, ProjectionOwner::Disabled));
             app.shutdown();
         });

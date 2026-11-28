@@ -6,7 +6,7 @@ use std::sync::Arc;
 unsafe fn persist_delete(app: &mut Application) {
     let end = Instant::now() + Duration::from_secs(10);
     while app.projection_cleanup.pending_local() {
-        app.process_authorization();
+        app.process_authorization_with_projection(Config::from_env);
         assert!(Instant::now() < end, "delete marker completion deadline");
         std::thread::yield_now();
     }

@@ -184,7 +184,9 @@ fn projection_display_recovery_cleanup_marker_cannot_be_upgraded_back_to_display
         saved(&mut fixture);
         drop(fixture.ticket().retry().queue_cleanup().unwrap());
         fixture.app.projection_profile.refresh();
-        fixture.app.process_authorization();
+        fixture
+            .app
+            .process_authorization_with_projection(Config::from_env);
         let entry = fixture.app.projection_profile.entries().unwrap()[0].clone();
         assert!(entry.cleanup_pending());
         assert!(fixture

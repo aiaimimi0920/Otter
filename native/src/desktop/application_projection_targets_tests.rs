@@ -78,7 +78,7 @@ fn run(mode: u8) {
             WaitForSingleObject(HANDLE(handle.as_raw_handle()), 5000),
             WAIT_OBJECT_0
         );
-        app.process_authorization();
+        app.process_authorization_with_projection(Config::from_env);
         let second = app.bind_window_state(State::new(None, false).unwrap());
         app.authorization.borrow_mut().targets.directory = Some(
             Directory::parse(&serde_json::to_vec(&body()).unwrap(), &origin)
@@ -150,7 +150,7 @@ fn run(mode: u8) {
                 assert!(second.authorization.borrow().targets.directory.is_none());
                 if mode == 1 {
                     app.authorization.borrow_mut().request = Some(Request::Select(origin.clone()));
-                    app.process_authorization();
+                    app.process_authorization_with_projection(Config::from_env);
                     assert!(second.authorization.borrow().targets.directory.is_none());
                 }
                 if mode == 5 {

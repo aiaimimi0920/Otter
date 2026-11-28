@@ -25,7 +25,7 @@ fn receive_policy_reject_automatically_queries_and_rejects_over_original_tls_sin
             app.projection_profile,
             crate::desktop::application::projection::profile::Owner::Ready { .. }
         ) {
-            app.process_authorization();
+            app.process_authorization_with_projection(Config::from_env);
             assert!(Instant::now() < end);
             std::thread::yield_now();
         }

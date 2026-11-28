@@ -192,7 +192,9 @@ unsafe fn run_routed(case: u8, offline: bool) {
                 assert!(Instant::now() < end);
                 std::thread::yield_now();
             }
-            fixture.app.process_authorization();
+            fixture
+                .app
+                .process_authorization_with_projection(Config::from_env);
             assert_eq!(warnings, 1);
             assert!(!fixture.app.projection_receive.busy());
             assert!(fixture
@@ -240,7 +242,9 @@ unsafe fn run_routed(case: u8, offline: bool) {
                     .authorization_owner
                     .invalidate(&fixture.origin)
                     .unwrap();
-                fixture.app.process_authorization();
+                fixture
+                    .app
+                    .process_authorization_with_projection(Config::from_env);
             }
             assert!(!fixture.app.projection_receive.busy());
             retry.activate().unwrap();

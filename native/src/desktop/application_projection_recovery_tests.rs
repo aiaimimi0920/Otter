@@ -14,7 +14,7 @@ fn seed(root: &std::path::Path, origin: &str, device: &str) -> Vec<u8> {
 fn settle_profile(app: &mut Application) {
     let end = Instant::now() + Duration::from_secs(5);
     loop {
-        app.process_authorization();
+        app.process_authorization_with_projection(Config::from_env);
         if !matches!(app.projection_profile, ProfileOwner::Opening(_)) {
             break;
         }
@@ -141,7 +141,7 @@ fn run_recovery(mode: u8) {
                 WAIT_OBJECT_0
             );
         }
-        app.process_authorization();
+        app.process_authorization_with_projection(Config::from_env);
         assert_eq!(
             std::fs::read(files.root().join("projection-receive.json")).unwrap(),
             bytes
