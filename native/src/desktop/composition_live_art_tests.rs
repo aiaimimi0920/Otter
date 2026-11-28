@@ -15,21 +15,16 @@ fn add_art_stops_source_key_queue_and_lock_hidden_destroy_never_leak_intent() {
     unsafe {
         let source = crate::live_frames::Source::new();
         let window = LiveWindow::new(source.subscribe().unwrap(), 128, 128).unwrap();
-        super::super::tests::publish(&source);
-        SendMessageW(window.hwnd, WM_PAINT, None, None);
         window.allow_input().unwrap();
         window.input_status(true, false, None);
-        SendMessageW(
-            window.hwnd,
-            WM_KEYDOWN,
-            Some(WPARAM(VK_SHIFT.0 as usize)),
-            None,
-        );
+        // A hidden swap chain may be occluded. Seed the admitted FIFO directly:
+        // this test owns Add Art cancellation, not GPU presentation.
+        window.queue_test_key(VK_SHIFT.0);
         assert!(matches!(
             window.pop_input(),
             Some(crate::live_input::Event::Key { down: true, .. })
         ));
-        SendMessageW(window.hwnd, WM_KEYDOWN, Some(WPARAM(65)), None);
+        window.queue_test_key(65);
         let mut before = [0; 256];
         GetKeyboardState(&mut before).unwrap();
         let _keys = Keys(before);

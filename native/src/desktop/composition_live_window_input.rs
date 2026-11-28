@@ -112,6 +112,14 @@ impl LiveWindow {
     pub(crate) fn pop_input(&self) -> Option<Event> {
         self.state.input.borrow_mut().events.pop_front()
     }
+    #[cfg(test)]
+    pub(super) fn queue_test_key(&self, code: u16) {
+        assert!(self
+            .state
+            .input
+            .borrow_mut()
+            .push(Event::Key { code, down: true }));
+    }
     pub(in crate::desktop) fn pop_dispatch_input(
         &self,
         is_browser: impl FnOnce() -> bool,

@@ -235,6 +235,54 @@ fn local(app: &mut Application) {
     app.authorization.borrow_mut().origin = Some("https://loom.example".into());
     app.art_issuers = crate::art_local_requests::tests::authority();
 }
+unsafe fn add_local_child_for_test(
+    app: &mut Application,
+    source: &crate::workspace_id::UnitId,
+    pending: Request,
+) -> Result<()> {
+    if crate::elevation_status::allows_desktop_integrations() {
+        return app.add_connected_art(source, pending);
+    }
+    let Route::Local(origin) = &pending.route else {
+        panic!("expected local Art route");
+    };
+    let origin = origin.clone();
+    assert_eq!(
+        crate::device_authorization_config::Config::from_env(&origin).err(),
+        Some(crate::device_authorization_config::Error::RequiresStandardSession)
+    );
+    let before = app.workspace.topology_stamp();
+    let documents = app.documents.len();
+    let production_request = request(app);
+    let error = app
+        .add_connected_art(source, production_request)
+        .unwrap_err();
+    assert_eq!(error.code(), E_INVALIDARG);
+    assert_eq!(
+        error.message(),
+        crate::ui_text::text("app-art-service-invalid")
+    );
+    assert!(before.matches(&app.workspace));
+    assert_eq!(app.documents.len(), documents);
+    assert!(!app.local_arts.busy());
+    // The production route must fail closed. Exercise only the downstream
+    // child transaction with an explicit test configuration on this token.
+    let art = pending
+        .catalog
+        .handshake
+        .capability(pending.index)
+        .unwrap()
+        .id
+        .to_owned();
+    let config =
+        crate::device_authorization_config::Config::new(&origin, &crate::test_temp_root(), "Otter")
+            .unwrap();
+    app.open_local_art_child(&origin, art, source.as_str(), config, |app| {
+        app.documents
+            .iter()
+            .any(|doc| &doc.state.unit_id == source && pending.current(doc.window.0, &doc.state))
+    })
+}
 #[test]
 fn local_candidate_rechecks_catalog_explicit_origin_and_session_before_starting_worker() {
     unsafe {
@@ -265,7 +313,7 @@ fn local_candidate_rechecks_catalog_explicit_origin_and_session_before_starting_
                     );
                 }
             });
-            assert!(app.add_connected_art(&source, pending).is_err());
+            assert!(add_local_child_for_test(&mut app, &source, pending).is_err());
             assert!(before.matches(&app.workspace));
             assert_eq!(app.documents.len(), 1);
             assert_eq!(app.capture_windows.borrow().len(), 2);
@@ -302,7 +350,7 @@ fn adding_same_local_art_forces_an_independent_child_instead_of_restarting_sourc
         app.documents[0].state.local_art_id = Some(art.clone().into());
         let source = app.documents[0].state.unit_id.clone();
         let pending = request(&app);
-        app.add_connected_art(&source, pending).unwrap();
+        add_local_child_for_test(&mut app, &source, pending).unwrap();
         assert_eq!(app.documents.len(), 2);
         assert_eq!(app.documents[0].state.unit_id, source);
         assert_eq!(
