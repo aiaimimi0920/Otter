@@ -119,7 +119,7 @@ class BuildGateTests(unittest.TestCase):
         self.assertIn("cargo nextest list --locked --offline --workspace", launcher)
         self.assertIn("cargo nextest run --binaries-metadata", launcher)
         self.assertIn("--test-threads 1 --no-tests=fail --fail-fast", launcher)
-        self.assertIn("if ($admin) { throw", launcher)
+        self.assertIn("if ($admin -or $env:USERNAME -ne 'OtterTestUser') { throw", launcher)
         self.assertIn("$process.ExitCode -ne 0", launcher)
         for text in (tests, launcher):
             self.assertNotRegex(text, r"(?:^|\s)(?:-E|--skip|--filter-expr)(?:\s|$)")

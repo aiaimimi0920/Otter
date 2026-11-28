@@ -1,23 +1,28 @@
 param([switch]$Child)
 $ErrorActionPreference = 'Stop'
-if ($env:GITHUB_ACTIONS -ne 'true' -or $env:OTTER_CI_RUNNER_ENVIRONMENT -ne 'github-hosted' -or $env:RUNNER_OS -ne 'Windows') {
-    throw 'Only disposable GitHub-hosted Windows VMs may use this fixture'
-}
 $root = Split-Path -Parent $PSScriptRoot
 $tools = Join-Path $root '.tmp-ci-runner'
 $admin = ([Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if ($Child) {
-    if ($admin) { throw 'Native tests require a standard account' }
+    if ($admin -or $env:USERNAME -ne 'OtterTestUser') { throw 'Native tests require the provisioned standard account' }
+    # Secondary logon starts with the new user's environment. Import only
+    # verified non-secret CI markers and executable paths, not the runner environment.
+    $context = Get-Content -Raw -LiteralPath "$tools/context.json" | ConvertFrom-Json
+    $env:GITHUB_ACTIONS = $context.github
+    $env:OTTER_CI_RUNNER_ENVIRONMENT = $context.hosted
+    $env:RUNNER_OS = $context.os
     $env:USERPROFILE = [Environment]::GetFolderPath('UserProfile')
     $env:LOCALAPPDATA = [Environment]::GetFolderPath('LocalApplicationData')
     $env:APPDATA = [Environment]::GetFolderPath('ApplicationData')
     $env:TEMP = $env:TMP = Join-Path $env:LOCALAPPDATA 'Temp'
-    $env:PATH = "$tools;$env:PATH"
+    $env:PATH = "$tools;$($context.rustBin);$env:PATH"
     Set-Location -LiteralPath $root
-    python scripts/ci_hosted_foreground.py cargo nextest run --binaries-metadata "$tools/binaries.json" --cargo-metadata "$tools/cargo.json" --config-file native/.config/nextest.toml --profile default --test-threads 1 --no-tests=fail --fail-fast
+    & $context.python scripts/ci_hosted_foreground.py cargo nextest run --binaries-metadata "$tools/binaries.json" --cargo-metadata "$tools/cargo.json" --config-file native/.config/nextest.toml --profile default --test-threads 1 --no-tests=fail --fail-fast
     exit $LASTEXITCODE
 }
-if (!$admin) { throw 'Expected hosted provisioning identity' }
+if (!$admin -or $env:GITHUB_ACTIONS -ne 'true' -or $env:OTTER_CI_RUNNER_ENVIRONMENT -ne 'github-hosted' -or $env:RUNNER_OS -ne 'Windows') {
+    throw 'Only disposable GitHub-hosted Windows VMs may provision this fixture'
+}
 # Compile once with the pinned toolchain. Run the resulting binaries as a real
 # ordinary user; do not disable UAC, substitute a worker, or omit token tests.
 New-Item -ItemType Directory -Path $tools | Out-Null
@@ -31,6 +36,8 @@ if ($LASTEXITCODE) { exit $LASTEXITCODE }
 $cargo = rustup which cargo
 if ($LASTEXITCODE) { exit $LASTEXITCODE }
 Copy-Item -LiteralPath $cargo -Destination "$tools/cargo.exe"
+$context = @{github=$env:GITHUB_ACTIONS; hosted=$env:OTTER_CI_RUNNER_ENVIRONMENT; os=$env:RUNNER_OS; python=(Get-Command python.exe).Source; rustBin=(Split-Path -Parent $cargo)}
+[IO.File]::WriteAllText("$tools/context.json", ($context | ConvertTo-Json), $utf8)
 Copy-Item -LiteralPath (Get-Command cargo-nextest.exe).Source -Destination "$tools/cargo-nextest.exe"
 $user = 'OtterTestUser'
 $password = ConvertTo-SecureString ("T1!" + [guid]::NewGuid().ToString('N')) -AsPlainText -Force
@@ -54,7 +61,7 @@ try {
 } finally {
     Remove-LocalUser -SID $account.SID
     # Only remove the four files this launcher created, never recurse a fixture tree.
-    foreach ($name in 'cargo.json','binaries.json','cargo.exe','cargo-nextest.exe') {
+    foreach ($name in 'cargo.json','binaries.json','context.json','cargo.exe','cargo-nextest.exe') {
         Remove-Item -LiteralPath (Join-Path $tools $name) -Force
     }
     [IO.Directory]::Delete($tools)
