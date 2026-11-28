@@ -106,13 +106,13 @@ jobs:
           $hostedWindows = $env:GITHUB_ACTIONS -eq 'true' -and $env:OTTER_CI_RUNNER_ENVIRONMENT -eq 'github-hosted' -and $env:RUNNER_OS -eq 'Windows'
           $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
           $administrator = ([Security.Principal.WindowsPrincipal]::new($identity)).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-          $filter = @()
           if ($hostedWindows -and $administrator) {
-            $filter = @('-E', 'not (package(otter-media) & test(=bounded_worker_process::session::tests::terminal_boundary_requires_successful_exit_and_no_extra_output))')
-            Write-Host 'Hosted administrator token: excluding only the ordinary-token terminal-boundary worker test; ordinary-user end-to-end coverage remains local.'
+            & .\scripts\ci-windows-standard-tests.ps1
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          } else {
+            python scripts/ci_hosted_foreground.py cargo nextest run --locked --offline --workspace --manifest-path native/Cargo.toml --config-file native/.config/nextest.toml --profile default --test-threads 1 --no-tests=fail --fail-fast
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
-          python scripts/ci_hosted_foreground.py cargo nextest run --locked --offline --workspace --manifest-path native/Cargo.toml --config-file native/.config/nextest.toml --profile default --test-threads 1 --no-tests=fail --fail-fast @filter
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           cargo test --doc --locked --offline --workspace --manifest-path native/Cargo.toml -- --test-threads=1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 

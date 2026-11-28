@@ -97,7 +97,7 @@ class BuildGateTests(unittest.TestCase):
         self.assertIn("candidate/*-internal.zip", job("build-windows-exe"))
         self.assertNotIn("candidate/otter.exe", job("build-windows-exe"))
 
-    def test_isolated_runner_excludes_only_known_hosted_token_case_and_propagates_failure(self):
+    def test_isolated_runner_runs_worker_tests_as_standard_user_and_propagates_failure(self):
         candidate = job("build-windows-candidate")
         self.assertIn("tool: cargo-nextest@0.9.140", candidate)
         self.assertRegex(candidate, r"uses: taiki-e/install-action@[0-9a-f]{40}")
@@ -114,13 +114,15 @@ class BuildGateTests(unittest.TestCase):
         self.assertIn("$env:GITHUB_ACTIONS -eq 'true' -and $env:OTTER_CI_RUNNER_ENVIRONMENT -eq 'github-hosted' -and $env:RUNNER_OS -eq 'Windows'", tests)
         self.assertIn("IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)", tests)
         self.assertIn("if ($hostedWindows -and $administrator)", tests)
-        self.assertEqual(tests.count("not (package("), 1)
-        self.assertIn(
-            "$filter = @('-E', 'not (package(otter-media) & test(=bounded_worker_process::session::tests::terminal_boundary_requires_successful_exit_and_no_extra_output))')",
-            tests,
-        )
-        self.assertEqual(tests.count("'-E'"), 1)
-        self.assertIn("--fail-fast @filter", tests)
+        self.assertIn("ci-windows-standard-tests.ps1", tests)
+        launcher = (ROOT / "scripts/ci-windows-standard-tests.ps1").read_text(encoding="utf-8")
+        self.assertIn("cargo nextest list --locked --offline --workspace", launcher)
+        self.assertIn("cargo nextest run --binaries-metadata", launcher)
+        self.assertIn("--test-threads 1 --no-tests=fail --fail-fast", launcher)
+        self.assertIn("if ($admin) { throw", launcher)
+        self.assertIn("$process.ExitCode -ne 0", launcher)
+        for text in (tests, launcher):
+            self.assertNotRegex(text, r"(?:^|\s)(?:-E|--skip|--filter-expr)(?:\s|$)")
         self.assertLess(candidate.index("cargo test --doc"), candidate.index("build-native-candidate.ps1"))
 
     def test_foreground_priority_changes_order_not_selection_or_isolation(self):

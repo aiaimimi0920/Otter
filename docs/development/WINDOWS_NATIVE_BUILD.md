@@ -30,13 +30,10 @@ sets the **in-memory** foreground lock timeout to zero and restores the previous
 value before packaging. This allows isolated test processes to request focus
 without a human clicking through Windows Terminal. Tests must still obtain and
 verify the actual foreground HWND; no assertion, test or product policy is replaced.
-Only on a GitHub-hosted Windows administrator token, the native Nextest step
-excludes the single `bounded_worker_process::session::tests::terminal_boundary_requires_successful_exit_and_no_extra_output`
-case: that real restricted worker cannot start without an ordinary parent token
-or linked ordinary token. All other tests and doctests remain selected and may
-still fail for their own reasons. The worker test's complete three-mode
-success/nonzero-exit/trailing-output end-to-end coverage must run on a local
-ordinary-user Windows session:
+On an elevated GitHub-hosted Windows runner, the native Nextest step builds the
+full workspace inventory, then executes the same binaries under a temporary
+standard local account. This keeps the ordinary-token worker boundary enabled
+without filtering its tests. To run its three-mode end-to-end check locally:
 
 ```powershell
 cargo nextest run --locked --offline --manifest-path native/Cargo.toml -p otter-media --lib -E 'test(=bounded_worker_process::session::tests::terminal_boundary_requires_successful_exit_and_no_extra_output)'
