@@ -52,7 +52,10 @@ impl Stroke {
         for &point in &original.points {
             validate(translated(point, offset))?;
         }
-        self.apply_valid_translation_preview(original, offset);
+        let mut candidate = self.clone();
+        candidate.apply_valid_translation_preview(original, offset);
+        candidate.reanchor_translated_lens(original)?;
+        *self = candidate;
         Ok(())
     }
 

@@ -30,14 +30,13 @@ fn missing_translation_falls_back_to_english() {
         catalogs.text(DisplayLanguage::SimplifiedChinese, "label"),
         "Source"
     );
-    assert_eq!(
-        catalogs.format(
-            DisplayLanguage::SimplifiedChinese,
-            "message",
-            &[("name", FluentValue::from("Otter"))]
-        ),
-        "Hello \u{2068}Otter\u{2069}"
+    let formatted = catalogs.format(
+        DisplayLanguage::SimplifiedChinese,
+        "message",
+        &[("name", FluentValue::from("Otter"))],
     );
+    assert_eq!(formatted, "Hello Otter");
+    assert!(!formatted.contains('\u{2068}') && !formatted.contains('\u{2069}'));
 }
 
 #[test]

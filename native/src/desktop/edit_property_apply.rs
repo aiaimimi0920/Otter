@@ -91,10 +91,45 @@ pub(super) unsafe fn value(c: &mut Canvas, id: u16, raw: Option<&str>) -> Result
     let tool = v.tool;
     let next = match id {
         LENS_ZOOM if tool == Tool::Magnifier => {
-            let i = v.selected.ok_or_else(invalid)?;
             let percent = number(raw, 150, 800)? as u16;
-            c.editor.set_lens_zoom(i, percent).map_err(|_| invalid())?;
-            c.selected = Some((i, c.editor.revision()));
+            c.tool_profiles.lens.percent = percent;
+            if let Some(i) = v.selected {
+                c.editor.set_lens_zoom(i, percent).map_err(|_| invalid())?;
+                c.selected = Some((i, c.editor.revision()));
+            }
+            return Ok(());
+        }
+        SHAPE if tool == Tool::Magnifier => {
+            let shape = match raw.and_then(|s| s.parse::<usize>().ok()) {
+                Some(0) => crate::editor::LensShape::Rect,
+                Some(1) => crate::editor::LensShape::Rounded,
+                Some(2) => crate::editor::LensShape::Ellipse,
+                _ => return Err(invalid()),
+            };
+            c.tool_profiles.lens.shape = shape;
+            if let Some(i) = v.selected {
+                c.editor.set_lens_shape(i, shape).map_err(|_| invalid())?;
+                c.selected = Some((i, c.editor.revision()));
+            }
+            return Ok(());
+        }
+        SHAPE if tool.spotlight() => {
+            let next_tool = match raw.and_then(|s| s.parse::<usize>().ok()) {
+                Some(0) => Tool::SpotRect,
+                Some(1) => Tool::SpotRounded,
+                Some(2) => Tool::SpotEllipse,
+                _ => return Err(invalid()),
+            };
+            c.tool_profiles.spotlight_shape = next_tool;
+            if c.tool.spotlight() {
+                c.tool = next_tool;
+            }
+            if let Some(i) = v.selected {
+                c.editor
+                    .set_spotlight_shape(i, next_tool)
+                    .map_err(|_| invalid())?;
+                c.selected = Some((i, c.editor.revision()));
+            }
             return Ok(());
         }
         SPOT_DENSITY if tool.spotlight() => {

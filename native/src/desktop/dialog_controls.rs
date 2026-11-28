@@ -42,6 +42,30 @@ pub(super) unsafe fn draw_action_button(item: &DRAWITEMSTRUCT) {
     paint_button(item, false, false);
 }
 unsafe fn paint_button(item: &DRAWITEMSTRUCT, active: bool, outline: bool) {
+    let w = (item.rcItem.right - item.rcItem.left).max(1);
+    let h = (item.rcItem.bottom - item.rcItem.top).max(1);
+    let mem_dc = CreateCompatibleDC(Some(item.hDC));
+    let mem_bmp = if !mem_dc.is_invalid() {
+        CreateCompatibleBitmap(item.hDC, w, h)
+    } else {
+        HBITMAP::default()
+    };
+    let buffered = !mem_dc.is_invalid() && !mem_bmp.is_invalid();
+    let (dc, rc, old_bmp) = if buffered {
+        let old = SelectObject(mem_dc, HGDIOBJ(mem_bmp.0));
+        (
+            mem_dc,
+            RECT {
+                left: 0,
+                top: 0,
+                right: w,
+                bottom: h,
+            },
+            Some(old),
+        )
+    } else {
+        (item.hDC, item.rcItem, None)
+    };
     let p = neuro_mini_ui::Palette::default();
     let mut cursor = POINT::default();
     let mut screen = RECT::default();
@@ -54,7 +78,7 @@ unsafe fn paint_button(item: &DRAWITEMSTRUCT, active: bool, outline: bool) {
     let disabled = item.itemState.0 & ODS_DISABLED.0 != 0;
     let focus = item.itemState.0 & ODS_FOCUS.0 != 0;
     SetDCBrushColor(
-        item.hDC,
+        dc,
         color(
             if hot || active || (!outline && focus) || item.itemState.0 & ODS_SELECTED.0 != 0 {
                 p.control
@@ -63,7 +87,7 @@ unsafe fn paint_button(item: &DRAWITEMSTRUCT, active: bool, outline: bool) {
             },
         ),
     );
-    FillRect(item.hDC, &item.rcItem, HBRUSH(GetStockObject(DC_BRUSH).0));
+    FillRect(dc, &rc, HBRUSH(GetStockObject(DC_BRUSH).0));
     let ink = color(if disabled {
         p.muted
     } else if outline && (active || focus) {
@@ -71,21 +95,47 @@ unsafe fn paint_button(item: &DRAWITEMSTRUCT, active: bool, outline: bool) {
     } else {
         p.text
     });
-    let _ = SetTextColor(item.hDC, ink);
-    let _ = SetBkMode(item.hDC, TRANSPARENT);
+    let _ = SetTextColor(dc, ink);
+    let _ = SetBkMode(dc, TRANSPARENT);
     if outline && (focus || active) {
-        SetDCBrushColor(item.hDC, ink);
-        FrameRect(item.hDC, &item.rcItem, HBRUSH(GetStockObject(DC_BRUSH).0));
+        SetDCBrushColor(dc, ink);
+        FrameRect(dc, &rc, HBRUSH(GetStockObject(DC_BRUSH).0));
     }
+    let font_msg = SendMessageW(item.hwndItem, WM_GETFONT, None, None);
+    let font = if font_msg.0 != 0 {
+        HGDIOBJ(font_msg.0 as *mut _)
+    } else {
+        GetStockObject(DEFAULT_GUI_FONT)
+    };
+    let old_font = SelectObject(dc, font);
     let mut text = [0u16; 128];
     let len = GetWindowTextW(item.hwndItem, &mut text) as usize;
-    let mut bounds = item.rcItem;
+    let mut bounds = rc;
     DrawTextW(
-        item.hDC,
+        dc,
         &mut text[..len],
         &mut bounds,
         DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX,
     );
+    let _ = SelectObject(dc, old_font);
+    if let Some(old) = old_bmp {
+        let _ = BitBlt(
+            item.hDC,
+            item.rcItem.left,
+            item.rcItem.top,
+            w,
+            h,
+            Some(mem_dc),
+            0,
+            0,
+            SRCCOPY,
+        );
+        let _ = SelectObject(mem_dc, old);
+        let _ = DeleteObject(HGDIOBJ(mem_bmp.0));
+    }
+    if !mem_dc.is_invalid() {
+        let _ = DeleteDC(mem_dc);
+    }
 }
 unsafe fn frame(hwnd: HWND) {
     let dc = GetWindowDC(Some(hwnd));

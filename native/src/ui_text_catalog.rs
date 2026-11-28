@@ -46,6 +46,8 @@ impl Catalog {
             .code()
             .parse()
             .expect("supported display languages have valid identifiers")]);
+        // Win32 GDI DrawTextW renders U+2068/U+2069 bidi isolate marks as missing-glyph tofu boxes.
+        bundle.set_use_isolating(false);
         for resource in resources {
             bundle
                 .add_resource(resource)

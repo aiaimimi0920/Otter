@@ -112,6 +112,12 @@ unsafe fn contains(
             max_x = max_x.max(p.x);
             max_y = max_y.max(p.y);
         }
+        if let Some((s0, s1)) = stroke.lens_source_box() {
+            min_x = min_x.min(s0.x);
+            min_y = min_y.min(s0.y);
+            max_x = max_x.max(s1.x);
+            max_y = max_y.max(s1.y);
+        }
         let pad = if stroke.has_straight_arrow() {
             stroke.width * 5.0 + tolerance * 2.0 + 32.0
         } else {
@@ -153,9 +159,27 @@ unsafe fn contains(
             filled = true;
             super::annotations::spotlight::hole(factory, tool, rect, stroke.corner_radius)?
         }
-        Tool::Text | Tool::Magnifier => {
+        Tool::Text => {
             filled = true;
             factory.CreateRectangleGeometry(&rect)?.cast()?
+        }
+        Tool::Magnifier => {
+            if let Some((s0, s1)) = stroke.lens_source_box() {
+                if point.x >= s0.x - tolerance
+                    && point.x <= s1.x + tolerance
+                    && point.y >= s0.y - tolerance
+                    && point.y <= s1.y + tolerance
+                {
+                    return Ok(true);
+                }
+            }
+            filled = true;
+            let hole_tool = match stroke.lens.map(|l| l.shape).unwrap_or_default() {
+                crate::editor::LensShape::Rect => Tool::SpotRect,
+                crate::editor::LensShape::Rounded => Tool::SpotRounded,
+                crate::editor::LensShape::Ellipse => Tool::SpotEllipse,
+            };
+            super::annotations::spotlight::hole(factory, hole_tool, rect, stroke.corner_radius)?
         }
         Tool::Rectangle => factory.CreateRectangleGeometry(&rect)?.cast()?,
         Tool::RoundedRectangle => factory

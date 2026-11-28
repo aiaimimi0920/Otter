@@ -16,6 +16,13 @@ pub(super) fn view(c: &Canvas) -> Option<View> {
     }
     let selected = if c.tool == Tool::Select {
         Some(c.selected_index()?)
+    } else if c.tool == Tool::Magnifier {
+        c.selected_index().filter(|&i| {
+            c.editor
+                .elements()
+                .get(i)
+                .is_some_and(|s| s.tool == Tool::Magnifier)
+        })
     } else {
         None
     };
@@ -85,7 +92,52 @@ fn icon(id: u16) -> Option<neuro_mini_ui::Icon> {
         SMOOTH => svg!("PropertySmoothing"),
         CONSTRAIN => svg!("PropertyConstrain"),
         RATIO => svg!("PropertyAspectRatio"),
+        SHAPE => svg!("RectTool"),
         _ => None,
+    }
+}
+
+pub(super) fn shape_icon(index: usize) -> neuro_mini_ui::Icon {
+    use neuro_mini_ui::Icon;
+    match index {
+        1 => Icon::svg(
+            r#"<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2.5" y="4.5" width="19" height="15" rx="4.2" /></svg>"#,
+        ),
+        2 => Icon::svg(
+            r#"<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="12" rx="9.5" ry="7.5" /></svg>"#,
+        ),
+        _ => Icon::svg(
+            r#"<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2.5" y="4.5" width="19" height="15" /></svg>"#,
+        ),
+    }
+}
+
+pub(super) fn shape_button_icon(index: usize) -> neuro_mini_ui::Icon {
+    use neuro_mini_ui::Icon;
+    // Matches primary Shape tool button: 28x28 square button with centered shape + bottom-right corner dropdown caret.
+    match index {
+        1 => Icon::svg(
+            r#"<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><rect x="1.5" y="2.5" width="19" height="15" rx="4.5" /><path d="M20.5 22.5 25.5 27.5 30.5 22.5Z" fill="currentColor" stroke="none" /></svg>"#,
+        ),
+        2 => Icon::svg(
+            r#"<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><ellipse cx="11" cy="10" rx="9.5" ry="7.5" /><path d="M20.5 22.5 25.5 27.5 30.5 22.5Z" fill="currentColor" stroke="none" /></svg>"#,
+        ),
+        _ => Icon::svg(
+            r#"<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><rect x="1.5" y="2.5" width="19" height="15" /><path d="M20.5 22.5 25.5 27.5 30.5 22.5Z" fill="currentColor" stroke="none" /></svg>"#,
+        ),
+    }
+}
+
+fn shape_dropdown(index: usize) -> Field {
+    Field {
+        id: SHAPE,
+        label: crate::ui_text::text("tool-shape"),
+        icon: Some(shape_button_icon(index)),
+        kind: Kind::Action {
+            value: String::new(),
+            active: false,
+            width: 28,
+        },
     }
 }
 fn number(id: u16, label: &'static str, value: f32, min: i32, max: i32) -> Field {
@@ -105,13 +157,17 @@ fn number(id: u16, label: &'static str, value: f32, min: i32, max: i32) -> Field
     )
 }
 fn action(id: u16, label: &'static str, value: &str, active: bool) -> Field {
-    if matches!(id, FONT | DASH) {
+    if matches!(id, FONT | DASH | SHAPE) {
         return field(
             id,
             label,
             Kind::Dropdown {
                 value: value.into(),
-                width: if id == FONT { 110 } else { 46 },
+                width: match id {
+                    FONT => 110,
+                    SHAPE => 56,
+                    _ => 46,
+                },
             },
         );
     }
@@ -174,27 +230,61 @@ pub(super) fn fields(c: &Canvas) -> Vec<Field> {
         )
     };
     let mut result = match tool {
-        Tool::Magnifier => v
-            .selected
-            .and_then(|i| c.editor.elements()[i].lens)
-            .map(|lens| {
+        Tool::Magnifier => {
+            let lens = v
+                .selected
+                .and_then(|i| c.editor.elements()[i].lens)
+                .unwrap_or(c.tool_profiles.lens);
+            let shape_index = match lens.shape {
+                crate::editor::LensShape::Rect => 0,
+                crate::editor::LensShape::Rounded => 1,
+                crate::editor::LensShape::Ellipse => 2,
+            };
+            let mut f = vec![
+                shape_dropdown(shape_index),
+                stroke(),
                 number(
                     LENS_ZOOM,
                     "tool-lens-zoom",
                     f32::from(lens.percent),
                     150,
                     800,
-                )
-            })
-            .into_iter()
-            .collect(),
-        t if t.spotlight() => vec![number(
-            SPOT_DENSITY,
-            "tool-spot-density",
-            f32::from(c.editor.spotlight_percent()),
-            20,
-            90,
-        )],
+                ),
+            ];
+            if lens.shape == crate::editor::LensShape::Rounded {
+                let radius = v.selected.map_or_else(
+                    || style.corner_radius(),
+                    |i| c.editor.elements()[i].corner_radius,
+                );
+                f.push(number(RADIUS, "edit-corner-radius", radius, 0, 999));
+            }
+            f
+        }
+        t if t.spotlight() => {
+            let shape_index = match t {
+                Tool::SpotRect => 0,
+                Tool::SpotRounded => 1,
+                _ => 2,
+            };
+            let mut f = vec![
+                shape_dropdown(shape_index),
+                number(
+                    SPOT_DENSITY,
+                    "tool-spot-density",
+                    f32::from(c.editor.spotlight_percent()),
+                    20,
+                    90,
+                ),
+            ];
+            if t == Tool::SpotRounded {
+                let radius = v.selected.map_or_else(
+                    || style.corner_radius(),
+                    |i| c.editor.elements()[i].corner_radius,
+                );
+                f.push(number(RADIUS, "edit-corner-radius", radius, 0, 999));
+            }
+            f
+        }
         Tool::Rectangle
         | Tool::RoundedRectangle
         | Tool::Ellipse

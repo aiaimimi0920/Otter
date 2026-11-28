@@ -14,20 +14,21 @@ use windows::{
     Win32::{Foundation::*, System::Threading::GetCurrentThreadId, UI::WindowsAndMessaging::*},
 };
 
-pub(super) const ENTER: usize = 0x21e1;
 #[path = "pin_click_panels.rs"]
 pub(super) mod panels;
 pub(super) const RESTORE: usize = 0x21e2;
 #[derive(Default)]
 pub(super) struct Signals {
+    pub enabled: Cell<bool>,
     pub count: Cell<usize>,
     pub all: Cell<bool>,
+    pub toggle_all: Cell<bool>,
     pub pointer: Cell<Option<POINT>>,
     tray_attempts: Cell<u8>,
 }
 impl Signals {
     pub fn try_tray_recovery(&self, available: bool) -> bool {
-        if available || self.count.get() == 0 {
+        if available || (!self.enabled.get() && self.count.get() == 0) {
             self.tray_attempts.set(0);
         } else if self.tray_attempts.get() < 3 {
             self.tray_attempts.set(self.tray_attempts.get() + 1);
@@ -36,7 +37,7 @@ impl Signals {
         false
     }
     pub fn retry_pending(&self) -> bool {
-        self.count.get() > 0 && (1..3).contains(&self.tray_attempts.get())
+        (self.enabled.get() || self.count.get() > 0) && (1..3).contains(&self.tray_attempts.get())
     }
 }
 #[derive(Default)]
@@ -82,68 +83,16 @@ fn owns(hwnd: HWND, s: &State) -> bool {
         && unsafe { GetWindowLongPtrW(hwnd, GWLP_USERDATA) } == s as *const State as isize
 }
 
-// The actual pin must stay visible and cease being the hit target. Sample
-// locally at a bounded grid only on an explicit request. Never log colours or
-// retain screen data after this transaction. Occlusion or indeterminate DWM
-// state denies entry rather than silently selecting another renderer.
-unsafe fn samples(hwnd: HWND) -> Result<Vec<(POINT, COLORREF)>> {
-    let mut r = RECT::default();
-    GetWindowRect(hwnd, &mut r)?;
-    DwmFlush()?;
-    let dc = GetDC(None);
-    if dc.is_invalid() {
-        return Err(unavailable());
-    }
-    let mut probes = Vec::with_capacity(9);
-    for y in [1, 2, 3] {
-        for x in [1, 2, 3] {
-            let p = POINT {
-                x: r.left + (r.right - r.left) * x / 4,
-                y: r.top + (r.bottom - r.top) * y / 4,
-            };
-            if WindowFromPoint(p) == hwnd {
-                let color = GetPixel(dc, p.x, p.y);
-                if color.0 != u32::MAX {
-                    probes.push((p, color));
-                }
-            }
-        }
-    }
-    ReleaseDC(None, dc);
-    if probes.is_empty() {
-        Err(unavailable())
-    } else {
-        Ok(probes)
-    }
-}
-unsafe fn verify(hwnd: HWND, probes: &[(POINT, COLORREF)]) -> Result<()> {
-    DwmFlush()?;
-    let dc = GetDC(None);
-    if dc.is_invalid() {
-        return Err(unavailable());
-    }
-    let passed = probes.iter().all(|(p, color)| {
-        let hit = WindowFromPoint(*p);
-        !hit.is_invalid() && hit != hwnd && GetPixel(dc, p.x, p.y) == *color
-    });
-    ReleaseDC(None, dc);
-    if passed {
-        Ok(())
-    } else {
-        Err(unavailable())
-    }
-}
-pub(super) unsafe fn enter(hwnd: HWND, s: &State) -> Result<Vec<(POINT, COLORREF)>> {
+pub(super) unsafe fn enter(hwnd: HWND, s: &State) -> Result<()> {
     if !owns(hwnd, s)
         || !super::tray::recovery_installed(s)
         || s.click.active()
         || s.click.changing.get()
         || drafting(s)
-        || !panels::idle(s)
+        || !super::pin_settings::connection_popup_idle(s)
         || s.is_art()
         || s.live_pin.get()
-        || super::pin_window::preview::active(s)
-        || super::pin_window::animation::busy(s)
+        || super::pin_window::animation::moving(s)
         || super::group_lock::editing_busy(s)
         || s.group_hidden.get()
         || s.group_locked.get()
@@ -153,6 +102,27 @@ pub(super) unsafe fn enter(hwnd: HWND, s: &State) -> Result<Vec<(POINT, COLORREF
         || !IsWindowVisible(hwnd).as_bool()
         || IsIconic(hwnd).as_bool()
     {
+        return Err(unavailable());
+    }
+    if super::pin_window::preview::active(s) || super::pin_window::animation::zoom_busy(s) {
+        super::pin_window::animation::stop(hwnd, s);
+    }
+    if !owns(hwnd, s) {
+        return Err(unavailable());
+    }
+    let focus = windows::Win32::UI::Input::KeyboardAndMouse::GetFocus();
+    if [
+        panels::toolbar(s).map(|(h, _)| h),
+        panels::property(s),
+        super::pin_settings::window(s),
+    ]
+    .into_iter()
+    .flatten()
+    .any(|h| focus == h || IsChild(h, focus).as_bool())
+    {
+        let _ = windows::Win32::UI::Input::KeyboardAndMouse::SetFocus(None);
+    }
+    if !panels::idle(s) {
         return Err(unavailable());
     }
     let (stamp, surface) = {
@@ -174,7 +144,6 @@ pub(super) unsafe fn enter(hwnd: HWND, s: &State) -> Result<Vec<(POINT, COLORREF
     if !cap.is_invalid() && cap != hwnd {
         return Err(unavailable());
     }
-    let probes = samples(hwnd)?;
     let owner = || owns(hwnd, s);
     let style = Styles::snapshot(hwnd, &owner)?;
     let panel = panels::toolbar(s);
@@ -189,8 +158,8 @@ pub(super) unsafe fn enter(hwnd: HWND, s: &State) -> Result<Vec<(POINT, COLORREF
         style,
         toolbar: panel.filter(|(h, _)| IsWindowVisible(*h).as_bool()),
         settings: super::pin_settings::is_open(s),
-        stamp,
         surface,
+        stamp,
     }));
     s.click.signals.count.set(s.click.signals.count.get() + 1);
     s.click.changing.set(true);
@@ -230,13 +199,14 @@ pub(super) unsafe fn enter(hwnd: HWND, s: &State) -> Result<Vec<(POINT, COLORREF
         }
         return Err(error);
     }
-    Ok(probes)
+    Ok(())
 }
-pub(super) unsafe fn confirm(hwnd: HWND, s: &State, probes: &[(POINT, COLORREF)]) -> Result<()> {
+pub(super) unsafe fn confirm(hwnd: HWND, s: &State) -> Result<()> {
     if !owns(hwnd, s) || !s.click.active() || !super::tray::recovery_installed(s) {
         return Err(unavailable());
     }
-    verify(hwnd, probes)
+    let _ = DwmFlush();
+    Ok(())
 }
 pub(super) unsafe fn leave(hwnd: HWND, s: &State) -> Result<()> {
     if !owns(hwnd, s) || s.click.changing.get() {

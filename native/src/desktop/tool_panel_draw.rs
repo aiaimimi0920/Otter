@@ -31,7 +31,10 @@ pub(super) unsafe fn button(item: &DRAWITEMSTRUCT, state: &State) {
     if saved == 0 {
         return;
     }
-    let selected = entry.is_some_and(|entry| state.canvas.borrow().tool == entry.tool);
+    let selected = entry.is_some_and(|entry| {
+        let tool = state.canvas.borrow().tool;
+        tool == entry.tool || (entry.tool == crate::editor::Tool::SpotRect && tool.spotlight())
+    });
     let disabled = item.itemState.0 & ODS_DISABLED.0 != 0;
     let focus = item.itemState.0 & ODS_FOCUS.0 != 0;
     fill(

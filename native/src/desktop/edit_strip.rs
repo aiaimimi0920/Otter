@@ -22,6 +22,10 @@ pub(super) use position::place;
 #[path = "edit_strip_tests.rs"]
 mod tests;
 #[cfg(test)]
+pub(in crate::desktop) fn icons_for_test(command: usize) -> neuro_mini_ui::Icon {
+    icons::icon(command)
+}
+#[cfg(test)]
 pub(super) fn control_ids() -> Vec<i32> {
     catalog::items()
         .iter()
@@ -156,7 +160,8 @@ pub(super) unsafe fn refresh(state: &State) {
         let mut command = choice(panel, button.id);
         if let Some(entry) = super::super::tool_commands::TOOLS.iter().find(|entry| {
             button.id != catalog::MODE
-                && entry.tool == tool
+                && (entry.tool == tool
+                    || (entry.tool == crate::editor::Tool::SpotRect && tool.spotlight()))
                 && catalog::choices(button.id).contains(&entry.id)
         }) {
             command = entry.id;
@@ -182,9 +187,12 @@ pub(super) unsafe fn refresh(state: &State) {
                 && if button.id == catalog::MODE {
                     tool == crate::editor::Tool::Select && selection_enabled
                 } else {
-                    super::super::tool_commands::TOOLS
-                        .iter()
-                        .any(|entry| entry.id == command && entry.tool == tool)
+                    super::super::tool_commands::TOOLS.iter().any(|entry| {
+                        entry.id == command
+                            && (entry.tool == tool
+                                || (entry.tool == crate::editor::Tool::SpotRect
+                                    && tool.spotlight()))
+                    })
                 }
             || (command == 0x102e && crop);
         let enabled = if button.id == catalog::SETTINGS {

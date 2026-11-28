@@ -36,6 +36,8 @@ pub(super) mod popup;
 pub(super) mod position;
 #[path = "edit_strip.rs"]
 mod strip;
+#[cfg(test)]
+pub(super) use strip::icons_for_test;
 #[cfg(any(test, debug_assertions, feature = "smoke-test"))]
 pub(super) use strip::smoke as pinned_smoke;
 pub(super) use strip::{follow, moving_positions};

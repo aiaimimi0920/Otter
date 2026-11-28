@@ -140,7 +140,10 @@ fn signal_outline_stays_outside_measured_pixels_at_each_dpi() {
             right: 180,
             bottom: 190,
         };
-        assert_eq!(label_text(rect), "130 x 90");
+        assert_eq!(
+            label_text(rect),
+            format!("130 x 90  {}", crate::ui_text::text("capture-size-more"))
+        );
         for dpi in [96, 144, 192] {
             render(target.dc(), &image, Some(rect), dpi, false).unwrap();
             GdiFlush().ok().unwrap();

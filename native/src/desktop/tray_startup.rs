@@ -2,20 +2,6 @@
 use super::*;
 use crate::autostart::{self, Status};
 pub(super) const COMMAND: usize = 0x106a;
-pub(super) const TOKEN_STATUS: usize = 0x21da;
-pub(super) unsafe fn append_token(menu: HMENU) -> Result<()> {
-    let label = match crate::elevation_status::elevated() {
-        Ok(true) => "tray-token-elevated",
-        Ok(false) => "tray-token-standard",
-        Err(_) => "tray-token-unknown",
-    };
-    AppendMenuW(
-        menu,
-        MF_STRING | MF_GRAYED,
-        TOKEN_STATUS,
-        &windows::core::HSTRING::from(crate::ui_text::text(label)),
-    )
-}
 fn presentation(status: Option<Status>) -> (MENU_ITEM_FLAGS, &'static str) {
     match status {
         Some(Status::Enabled) => (

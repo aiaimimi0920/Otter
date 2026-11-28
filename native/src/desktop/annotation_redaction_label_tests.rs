@@ -297,3 +297,36 @@ fn edge_magnifier_clips_outside_document_instead_of_stretching_border_pixels() {
         &[0, 0, 255, 255]
     );
 }
+#[test]
+fn spotlight_and_magnifier_shapes_roundtrip_and_clip_ellipse_corners() {
+    use crate::editor::{LensShape, Tool};
+    let _apt = Apartment::new().unwrap();
+    let image = image::Image {
+        width: 48,
+        height: 48,
+        pixels: [255u8, 255, 255, 255].repeat(48 * 48).into(),
+    };
+    let mut e = Editor::default();
+    e.begin(Tool::SpotRect, p(4., 4.)).unwrap();
+    e.extend(p(44., 44.)).unwrap();
+    assert!(e.commit());
+    assert!(e.set_spotlight_shape(0, Tool::SpotEllipse).unwrap());
+    e.begin(Tool::Magnifier, p(8., 8.)).unwrap();
+    e.extend(p(40., 40.)).unwrap();
+    assert!(e.commit());
+    assert!(e.set_lens_shape(1, LensShape::Ellipse).unwrap());
+    let restored = reopen(&e);
+    assert_eq!(restored.elements()[0].tool, Tool::SpotEllipse);
+    assert_eq!(
+        restored.elements()[1].lens.unwrap().shape,
+        LensShape::Ellipse
+    );
+    let out = export::decode_png(
+        export::style::Snapshot::default()
+            .encoded_png(&image, &restored, 1.)
+            .unwrap()
+            .to_vec(),
+    );
+    assert_eq!(out.width, 48);
+    assert_eq!(out.height, 48);
+}

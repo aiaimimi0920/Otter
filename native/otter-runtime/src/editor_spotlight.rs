@@ -39,4 +39,21 @@ impl Editor {
         self.spotlight_percent = Some(value);
         Ok(())
     }
+    pub fn set_spotlight_shape(&mut self, index: usize, tool: Tool) -> Result<bool, EditError> {
+        if !tool.spotlight() {
+            return Err(EditError::InvalidPoint);
+        }
+        let Some(s) = self.elements.get(index) else {
+            return Ok(false);
+        };
+        if !s.tool.spotlight() || s.tool == tool {
+            return Ok(false);
+        }
+        let mut next = s.clone();
+        next.tool = tool;
+        if tool == Tool::SpotRounded && next.corner_radius == 0.0 {
+            next.corner_radius = 12.0;
+        }
+        self.commit_label_preview(index, next)
+    }
 }

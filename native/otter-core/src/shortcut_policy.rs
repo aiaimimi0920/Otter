@@ -87,7 +87,7 @@ pub const GLOBAL: &[(&str, u8)] = &[
     ("capture.live", b'2'),
     ("capture.scroll", b'3'),
     ("capture.delay", 0),
-    ("pin.restore-input", 0),
+    ("pin.restore-input", b'4'),
     ("shortcuts.toggle", 0),
 ];
 pub const CANVAS: &[(&str, u8)] = &[
@@ -106,16 +106,12 @@ pub const CANVAS: &[(&str, u8)] = &[
     ("tool.ellipse", b'E'),
     ("tool.triangle", b'T'),
     ("tool.polygon", b'P'),
-    ("tool.spot.rect", 0),
-    ("tool.spot.round", 0),
-    ("tool.spot.ellipse", 0),
+    ("tool.spotlight", 0),
     ("tool.magnifier", 0),
 ];
 pub fn canvas_command(id: &str) -> Option<usize> {
     Some(match id {
-        "tool.spot.rect" => 0x21f1,
-        "tool.spot.round" => 0x21f2,
-        "tool.spot.ellipse" => 0x21f3,
+        "tool.spotlight" | "tool.spot.rect" => 0x21f1,
         "tool.magnifier" => 0x21f4,
         _ => usize::from(
             CANVAS

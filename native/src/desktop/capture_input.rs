@@ -180,8 +180,27 @@ unsafe fn run_with(
 ) -> Result<()> {
     run_destination(hwnd, state, false, capture)
 }
-pub(super) unsafe fn delayed(hwnd: HWND, state: &State) -> Result<()> {
-    if !super::capture_countdown::ready(state) {
+pub(super) unsafe fn select_delay_region(hwnd: HWND, state: &State) -> Result<Option<RECT>> {
+    if !super::capture_countdown::ready(state) || !exclusive_available(state) {
+        return Ok(None);
+    }
+    let Some(_capture) = super::file_dialog::Guard::begin(&state.capture_active) else {
+        return Ok(None);
+    };
+    let Some(_dialog) = super::file_dialog::Guard::begin(&state.file_dialog) else {
+        return Ok(None);
+    };
+    state.canvas.borrow_mut().cancel_gesture();
+    if GetCapture() == hwnd {
+        ReleaseCapture()?;
+    }
+    DwmFlush()?;
+    let last = state.capture_history.borrow().last_region.clone();
+    super::capture_region::select_realtime(super::capture_windows::snapshot()?, last)
+}
+
+pub(super) unsafe fn delayed(hwnd: HWND, state: &State, region: RECT) -> Result<()> {
+    if !super::capture_countdown::ready(state) || !exclusive_available(state) {
         return Ok(());
     }
     let Some(_capture) = super::file_dialog::Guard::begin(&state.capture_active) else {
@@ -191,12 +210,16 @@ pub(super) unsafe fn delayed(hwnd: HWND, state: &State) -> Result<()> {
         return Ok(());
     };
     run_delivery(hwnd, state, true, || {
-        let windows = super::capture_windows::snapshot()?;
-        let frame = super::capture::virtual_desktop()?;
-        Ok(
-            super::capture_region::select_adjustable(frame.image, frame.origin, windows)?
-                .map(|(image, origin)| Delivery::Delayed(image, origin)),
-        )
+        let width = region.right.saturating_sub(region.left);
+        let height = region.bottom.saturating_sub(region.top);
+        let image = super::capture::region(region.left, region.top, width, height)?;
+        Ok(Some(Delivery::Delayed(
+            image,
+            POINT {
+                x: region.left,
+                y: region.top,
+            },
+        )))
     })
 }
 pub(super) unsafe fn run_destination(

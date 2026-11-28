@@ -70,6 +70,7 @@ impl Canvas {
             if was_group {
                 self.selected = None;
             }
+            let screen_pt = point;
             let Some(point) = self.image_point(point, false) else {
                 self.selected = None;
                 return true;
@@ -92,14 +93,25 @@ impl Canvas {
                     eprintln!("native-selection: {error}");
                 }
             }
+            if self.selected_index().is_some_and(|i| {
+                let s = &self.editor.elements()[i];
+                s.tool == Tool::Magnifier && s.lens.is_some_and(|l| l.offset != Point::default())
+            }) && self.begin_path_handle(screen_pt)
+            {
+                return true;
+            }
             self.selection_drag = self.selected.map(|_| (point, Point::default()));
             if self.selected.is_none() && !self.pinned && self.selection_enabled {
                 self.marquee = Some(super::marquee::Marquee::new(point, &self.editor));
             }
             self.selection_effect_preview = self.selected_index().and_then(|index| {
                 let stroke = &self.editor.elements()[index];
-                matches!(stroke.tool, Tool::Blur | Tool::Mosaic).then(|| stroke.clone())
+                matches!(stroke.tool, Tool::Blur | Tool::Mosaic | Tool::Magnifier)
+                    .then(|| stroke.clone())
             });
+            return true;
+        }
+        if self.tool == Tool::Magnifier && self.begin_magnifier_reselect(point) {
             return true;
         }
         if self.tool == Tool::Pan {
@@ -165,6 +177,14 @@ impl Canvas {
         } else {
             self.editor.begin_timed(self.tool, image_point, time)
         };
+        if self.tool == Tool::Magnifier {
+            if let Ok(true) = result {
+                self.editor.set_draft_lens(crate::editor::Lens {
+                    offset: Point::default(),
+                    ..self.tool_profiles.lens
+                });
+            }
+        }
         match self.effect_shape(result) {
             Ok(started) => {
                 if started {
@@ -437,6 +457,11 @@ impl Canvas {
     }
 
     pub fn select_tool(&mut self, tool: Tool) -> bool {
+        let tool = if tool == Tool::SpotRect {
+            self.tool_profiles.spotlight_shape
+        } else {
+            tool
+        };
         if tool == Tool::Magnifier && (self.live_pin || self.image.is_none()) {
             return false;
         }

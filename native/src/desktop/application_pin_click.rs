@@ -8,9 +8,8 @@ impl Application {
         let d = self.documents.iter().find(|d| &d.state.unit_id == id)?;
         (self.layout_idle()
             && self.tray_recovery.get()
-            && crate::desktop::pin_click_through::panels::idle(&d.state)
-            && d.state.resolved_display.borrow().is_none()
-            && !crate::desktop::pin_window::preview::active(&d.state))
+            && crate::desktop::pin_settings::connection_popup_idle(&d.state)
+            && d.state.resolved_display.borrow().is_none())
         .then_some(target)
     }
     pub(super) unsafe fn enter_click(&mut self, target: &Target) -> Result<()> {
@@ -25,7 +24,7 @@ impl Application {
         if d.parameters.as_ref().is_some_and(|p| !p.exit_idle()) {
             return Err(failure("pin-pass-unavailable"));
         }
-        let probes = pass::enter(target.hwnd, &d.state)?;
+        pass::enter(target.hwnd, &d.state)?;
         // Ordinary pins use an inline parameter rail. Retire only its idle
         // child/auxiliary grid; the node's expanded preference survives.
         if let Some(panel) = d.parameters.as_ref() {
@@ -45,7 +44,7 @@ impl Application {
                     && (&*d.state as *const State as isize) == target.marker
             })
             .ok_or_else(stale)?;
-        if let Err(err) = pass::confirm(target.hwnd, &doc.state, &probes) {
+        if let Err(err) = pass::confirm(target.hwnd, &doc.state) {
             pass::leave(target.hwnd, &doc.state)?;
             self.sync_workspace_chrome(true);
             return Err(err);
@@ -54,14 +53,47 @@ impl Application {
     }
 
     pub(in crate::desktop::application) unsafe fn settle_pin_click(&mut self, visible: bool) {
-        let signals = &self.pin_layout.click;
+        let signals = self.pin_layout.click.clone();
         let pointer = signals.pointer.take();
-        let all = signals.all.replace(false);
+        let toggle = signals.toggle_all.replace(false);
+        let force_off = signals.all.replace(false);
         let lost_tray = signals.try_tray_recovery(self.tray_recovery.get());
-        if signals.count.get() == 0 || (!all && pointer.is_none() && !lost_tray) {
+        if force_off || lost_tray {
+            signals.enabled.set(false);
+        } else if toggle
+            && self.tray_recovery.get()
+            && !self.modals.blocked()
+            && !self.capture_active.get()
+            && !self.exit_requested.get()
+            && !self.session_end.paused()
+        {
+            signals.enabled.set(!signals.enabled.get());
+        }
+        if signals.enabled.get() && pointer.is_none() {
+            if !self.layout_idle() || !self.tray_recovery.get() {
+                return;
+            }
+            let mut targets = self
+                .documents
+                .iter()
+                .filter(|d| !d.state.click.active())
+                .filter_map(|d| self.click_target(&d.state.unit_id))
+                .collect::<Vec<_>>();
+            if targets.is_empty() {
+                return;
+            }
+            sort_z_order(&mut targets);
+            for target in targets {
+                if let Err(e) = self.enter_click(&target) {
+                    eprintln!("native-pin-pass: {:?}: {e}", target.id);
+                }
+            }
             return;
         }
-        let top = if all || lost_tray {
+        if signals.count.get() == 0 && pointer.is_none() && !lost_tray {
+            return;
+        }
+        let top = if !signals.enabled.get() || force_off || lost_tray {
             None
         } else {
             pointer.and_then(|p| {
@@ -103,7 +135,7 @@ impl Application {
         if retry {
             self.execution_wake.callback()();
         }
-        if let Some((id, e)) = first.filter(|_| !retry || all || pointer.is_some()) {
+        if let Some((id, e)) = first.filter(|_| !retry || force_off || pointer.is_some()) {
             self.save_message(&id, &e.to_string(), visible);
         }
     }
@@ -130,4 +162,25 @@ unsafe fn topmost(hits: &[HWND]) -> Option<HWND> {
     let mut search = Search { hits, found: None };
     let _ = EnumWindows(Some(visit), LPARAM(&mut search as *mut _ as isize));
     search.found
+}
+unsafe fn sort_z_order(targets: &mut [Target]) {
+    if targets.len() < 2 {
+        return;
+    }
+    struct Order {
+        hwnds: Vec<HWND>,
+    }
+    unsafe extern "system" fn visit(hwnd: HWND, arg: LPARAM) -> windows::core::BOOL {
+        (&mut *(arg.0 as *mut Order)).hwnds.push(hwnd);
+        true.into()
+    }
+    let mut order = Order { hwnds: Vec::new() };
+    let _ = EnumWindows(Some(visit), LPARAM(&mut order as *mut _ as isize));
+    targets.sort_by_key(|t| {
+        order
+            .hwnds
+            .iter()
+            .position(|&h| h == t.hwnd)
+            .unwrap_or(usize::MAX)
+    });
 }

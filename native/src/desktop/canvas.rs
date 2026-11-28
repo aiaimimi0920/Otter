@@ -78,6 +78,9 @@ pub struct Canvas {
     // Stay on the compatibility path after creation/runtime fallback; ordinary redraw/minimize must not reprobe the failed primary backend.
     primary: super::render_surface::Primary,
     compatibility_renderer: bool,
+    #[cfg(test)]
+    pub(in crate::desktop) software_renderer: bool,
+    #[cfg(not(test))]
     software_renderer: bool,
     pub(super) factory: ID2D1Factory,
     _shared_factory: std::rc::Rc<ID2D1Factory>,

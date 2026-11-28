@@ -1,5 +1,5 @@
 //! One input-transparent popup per picker. Sampling uses physical coordinates and a bounded patch.
-use super::{capture, capture_pixel, image::Image, Window};
+use super::{capture_pixel, image::Image, Window};
 use crate::{
     capture_loupe_layout::{place, Bounds},
     color_format::Format,
@@ -7,6 +7,7 @@ use crate::{
 use std::{
     cell::{Cell, OnceCell},
     rc::Rc,
+    sync::Arc,
 };
 use windows::{
     core::{w, Error, Result},
@@ -18,13 +19,18 @@ use windows::{
 };
 #[path = "capture_loupe_paint.rs"]
 mod paint;
+#[path = "capture_loupe_sampler.rs"]
+mod sampler;
 pub(super) const UPDATE: u32 = WM_APP + 0x663;
 pub(super) type Grid = [Option<[u8; 3]>; 225];
 pub(super) struct Hud {
+    sampler: OnceCell<Option<sampler::Sampler>>,
+    samples: Arc<sampler::Shared>,
     picture: Rc<paint::Picture>,
     displays: Vec<Bounds>,
     hidden: Cell<bool>,
     queued: Cell<bool>,
+    placed: Cell<Option<(Bounds, bool)>>,
 }
 impl Hud {
     pub(super) unsafe fn new(owner: HWND) -> Result<Self> {
@@ -46,24 +52,36 @@ impl Hud {
         SetPropW(window.0, w!("NonRudeHWND"), Some(HANDLE(1usize as *mut _)))?;
         SetWindowDisplayAffinity(window.0, WDA_EXCLUDEFROMCAPTURE)?;
         SetLayeredWindowAttributes(window.0, COLORREF(0), 255, LWA_ALPHA)?;
-        let picture = Rc::new(paint::Picture::default());
+        let samples = sampler::Shared::new();
+        let picture = Rc::new(paint::Picture::new(samples.clone()));
         paint::attach(window.0, picture.clone())?;
         picture.window.set(window.0);
         // WM_NCDESTROY clears the shared identity even if Windows destroys an
         // owned popup first. No later drop may destroy a recycled HWND.
         std::mem::forget(window);
         Ok(Self {
+            sampler: OnceCell::new(),
+            samples,
             picture,
             displays,
-            hidden: Cell::new(false),
+            hidden: Cell::new(true),
             queued: Cell::new(false),
+            placed: Cell::new(None),
         })
     }
     pub(super) fn hwnd(&self) -> HWND {
         self.picture.window.get()
     }
+    #[cfg(test)]
+    pub(super) fn is_hidden(&self) -> bool {
+        self.hidden.get()
+    }
     pub(super) unsafe fn hide(&self) {
+        self.placed.set(None);
         let _ = ShowWindow(self.hwnd(), SW_HIDE);
+    }
+    pub(super) fn show(&self) {
+        self.hidden.set(false);
     }
     pub(super) unsafe fn toggle(&self) {
         self.hidden.set(!self.hidden.get());
@@ -76,6 +94,12 @@ impl Hud {
     }
     pub(super) fn cycle(&self) {
         self.picture.format.set(self.format().next());
+        let hwnd = self.hwnd();
+        if !hwnd.is_invalid() {
+            unsafe {
+                let _ = InvalidateRect(Some(hwnd), None, false);
+            }
+        }
     }
     pub(super) unsafe fn schedule(&self, owner: HWND) {
         if !self.hidden.get()
@@ -115,48 +139,65 @@ impl Hud {
             x: pointer.x.saturating_sub(7),
             y: pointer.y.saturating_sub(7),
         };
-        // Capture at most 900 pixel bytes. All three visible capture layers are
-        // excluded; the final C/commit independently confirms the current center.
-        let live;
-        let (image, origin) = if let Some(source) = frozen {
-            source
-        } else {
-            live = capture::region(start.x, start.y, 15, 15)?;
-            (&live, start)
-        };
-        let grid = std::array::from_fn(|i| {
-            let x = start.x.saturating_add((i % 15) as i32);
-            let y = start.y.saturating_add((i / 15) as i32);
-            self.monitor(x, y)?;
-            capture_pixel::valid_rgb(
-                image,
-                POINT {
-                    x: x.checked_sub(origin.x)?,
-                    y: y.checked_sub(origin.y)?,
-                },
-            )
-        });
-        self.picture.grid.set(grid);
         let hwnd = self.hwnd();
+        if let Some((image, origin)) = frozen {
+            let grid = std::array::from_fn(|i| {
+                let x = start.x.saturating_add((i % 15) as i32);
+                let y = start.y.saturating_add((i / 15) as i32);
+                self.monitor(x, y)?;
+                capture_pixel::valid_rgb(
+                    image,
+                    POINT {
+                        x: x.checked_sub(origin.x)?,
+                        y: y.checked_sub(origin.y)?,
+                    },
+                )
+            });
+            self.picture.grid.set(grid);
+            let _ = InvalidateRect(Some(hwnd), None, false);
+        } else {
+            let worker = self.sampler.get_or_init(|| {
+                sampler::Sampler::start(hwnd, self.displays.clone(), self.samples.clone())
+            });
+            if let Some(sampler) = worker {
+                sampler.request(start);
+            }
+            if let Some(grid) = self.samples.take_latest() {
+                self.picture.grid.set(grid);
+                let _ = InvalidateRect(Some(hwnd), None, false);
+            }
+        }
+        let visible = IsWindowVisible(hwnd).as_bool();
+        let flags = if visible {
+            SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOREDRAW
+        } else {
+            SWP_NOACTIVATE | SWP_SHOWWINDOW
+        };
         let mut dpi = GetDpiForWindow(hwnd);
         for _ in 0..2 {
-            let [l, t, r, b] = place(monitor, [pointer.x, pointer.y], selection, dpi);
+            let bounds @ [l, t, r, b] = place(monitor, [pointer.x, pointer.y], selection, dpi);
+            if self.placed.get() == Some((bounds, true)) && visible {
+                break;
+            }
             SetWindowPos(
                 hwnd,
-                Some(HWND_TOPMOST),
+                (!visible).then_some(HWND_TOPMOST),
                 l,
                 t,
                 r - l,
                 b - t,
-                SWP_NOACTIVATE | SWP_SHOWWINDOW,
+                flags,
             )?;
+            self.placed.set(Some((bounds, true)));
             let next = GetDpiForWindow(hwnd);
             if next == dpi {
                 break;
             }
             dpi = next;
         }
-        let _ = InvalidateRect(Some(hwnd), None, false);
+        if !visible {
+            let _ = InvalidateRect(Some(hwnd), None, false);
+        }
         Ok(())
     }
 }
@@ -249,5 +290,35 @@ impl Selector {
             }
             _ => false,
         }
+    }
+}
+#[cfg(test)]
+#[test]
+fn loupe_defaults_to_hidden_until_toggled() {
+    unsafe {
+        let owner = Window(
+            CreateWindowExW(
+                WINDOW_EX_STYLE::default(),
+                w!("STATIC"),
+                w!("loupe host"),
+                WS_POPUP,
+                0,
+                0,
+                8,
+                8,
+                None,
+                None,
+                None,
+                None,
+            )
+            .unwrap(),
+        );
+        let hud = Hud::new(owner.0).unwrap();
+        assert!(hud.hidden.get());
+        assert!(!IsWindowVisible(hud.hwnd()).as_bool());
+        hud.toggle();
+        assert!(!hud.hidden.get());
+        hud.toggle();
+        assert!(hud.hidden.get());
     }
 }

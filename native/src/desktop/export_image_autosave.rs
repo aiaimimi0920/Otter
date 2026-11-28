@@ -15,7 +15,9 @@ pub(super) type Shared = Rc<RefCell<Owner>>;
 mod archive_file;
 #[path = "export_archive_directory.rs"]
 mod directory;
-pub(super) use directory::{grant, Target};
+#[cfg(test)]
+pub(super) use directory::grant;
+pub(super) use directory::Target;
 enum Source {
     Document(UnitId, Stamp),
     Frozen([i32; 4]),
@@ -123,6 +125,18 @@ impl Owner {
     pub fn bind_profile(&mut self, profile: Option<&Path>) {
         self.profile = profile.map(Path::to_owned);
     }
+    pub fn enable_default(&mut self) {
+        if self.target.is_none() {
+            if let Some(profile) = self.profile.as_deref() {
+                if let Ok(target) = directory::grant_default(profile) {
+                    self.copy = true;
+                    self.pin = true;
+                    self.target = Some(target);
+                }
+            }
+        }
+    }
+    #[cfg(test)]
     pub fn directory(&self) -> Result<PathBuf, String> {
         self.target
             .as_ref()
@@ -130,6 +144,7 @@ impl Owner {
             .or_else(|| self.profile.as_ref().map(|p| p.join("saved")))
             .ok_or_else(|| crate::ui_text::text("archive-select-directory").into())
     }
+    #[cfg(test)]
     pub fn confirm(&mut self, shown: &Path) -> Result<(), String> {
         if self.directory()? != shown {
             return Err(crate::ui_text::text("archive-select-directory").into());

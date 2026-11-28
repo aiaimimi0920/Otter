@@ -81,16 +81,22 @@ pub(super) unsafe fn hit_test(hwnd: HWND, state: &State, lp: LPARAM) -> i32 {
         y: point.y as f32 * 96.0 / dpi,
     };
     if let Some(s) = c.selected_index().and_then(|i| c.editor.elements().get(i)) {
+        let p = crate::rotation::rotate(
+            c.viewport.image_point(point),
+            crate::rotation::center(&s.points),
+            -s.rotation,
+        );
+        if let Some((s0, s1)) = s.lens_source_box() {
+            let pad = 6.0 / c.viewport.scale;
+            if p.x >= s0.x - pad && p.x <= s1.x + pad && p.y >= s0.y - pad && p.y <= s1.y + pad {
+                return HTCLIENT as i32;
+            }
+        }
         if let Some(handles) = s
             .text_handles()
             .or_else(|| s.serial_handles())
             .or_else(|| s.lens_handles())
         {
-            let p = crate::rotation::rotate(
-                c.viewport.image_point(point),
-                crate::rotation::center(&s.points),
-                -s.rotation,
-            );
             if handles
                 .iter()
                 .any(|h| (h.x - p.x).hypot(h.y - p.y) <= 6.0 / c.viewport.scale)
@@ -160,12 +166,53 @@ impl Canvas {
     }
     /// Silent mode only forbids reselection; newly created annotations retain their current selection once and remain directly adjustable.
     pub(super) fn select_created_annotation(&mut self, index: usize) {
+        if self
+            .editor
+            .elements()
+            .get(index)
+            .is_some_and(|s| s.tool == Tool::Magnifier)
+        {
+            self.selected = Some((index, self.editor.revision()));
+            return;
+        }
         if self.pinned && (!self.selection_enabled || self.tool == Tool::Bezier) {
             let enabled = self.selection_enabled;
             self.select_tool(Tool::Select);
             self.selection_enabled = enabled;
             self.selected = Some((index, self.editor.revision()));
         }
+    }
+    pub(super) fn begin_magnifier_reselect(&mut self, point: Point) -> bool {
+        if self.selected_index().is_some() && self.begin_path_handle(point) {
+            return true;
+        }
+        if let Some(hit_point) = self.image_point(point, false) {
+            if let Ok(Some(index)) = unsafe {
+                super::selection_hit::pick(
+                    &self.factory,
+                    &self.editor,
+                    hit_point,
+                    5.0 / self.viewport.scale,
+                )
+            } {
+                if self.editor.elements()[index].tool == Tool::Magnifier {
+                    self.selected = Some((index, self.editor.revision()));
+                    self.multi_selection = None;
+                    let detached = self.editor.elements()[index]
+                        .lens
+                        .is_some_and(|l| l.offset != Point::default());
+                    if detached && self.begin_path_handle(point) {
+                        return true;
+                    }
+                    self.selection_effect_preview = Some(self.editor.elements()[index].clone());
+                    self.selection_drag = Some((hit_point, Point::default()));
+                    return true;
+                }
+            }
+        }
+        self.selected = None;
+        self.multi_selection = None;
+        false
     }
     /// Modifiers affect only this gesture, not toolbar modes; empty space retains original selection/window-dragging rules.
     pub(super) fn begin_quick_transform(
@@ -208,7 +255,8 @@ impl Canvas {
             [index] => {
                 let stroke = &self.editor.elements()[*index];
                 self.selection_effect_preview =
-                    matches!(stroke.tool, Tool::Blur | Tool::Mosaic).then(|| stroke.clone());
+                    matches!(stroke.tool, Tool::Blur | Tool::Mosaic | Tool::Magnifier)
+                        .then(|| stroke.clone());
                 self.selection_drag = Some((point, Point::default()));
                 true
             }

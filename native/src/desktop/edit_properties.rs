@@ -45,6 +45,7 @@ pub(super) const BOX_WIDTH: u16 = 23;
 pub(super) const BOX_PAD: u16 = 24;
 pub(super) const SPOT_DENSITY: u16 = 25;
 pub(super) const LENS_ZOOM: u16 = 26;
+pub(super) const SHAPE: u16 = 27;
 #[derive(Default)]
 pub(super) struct Session {
     target: Option<MenuTarget>,
@@ -132,7 +133,7 @@ pub(super) unsafe fn execute(owner: HWND, state: &State, id: u16) -> Result<()> 
         }
         MenuTarget::capture(&c)
     };
-    if matches!(id, STROKE | FILL | DASH | FONT) {
+    if matches!(id, STROKE | FILL | DASH | FONT | SHAPE) {
         super::tool_panel::popup::preserve(state, || menus::execute(owner, state, id, &target))?;
     } else {
         let mut canvas = state.canvas.borrow_mut();

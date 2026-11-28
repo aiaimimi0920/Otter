@@ -327,3 +327,50 @@ fn brush_glow_reaches_draft_commit_history_and_existing_session_format() {
         assert_eq!(c.editor.elements()[1].opacity, 0.5);
     }
 }
+
+#[test]
+fn spotlight_and_magnifier_expose_shape_caret_color_and_whole_source_box_drag() {
+    use crate::stroke_style::Color;
+    for cmd in [0x21f1usize, 0x21f2, 0x21f3, 0x21f4] {
+        super::super::tool_panel::icons_for_test(cmd)
+            .validate()
+            .unwrap();
+    }
+    for idx in 0..3 {
+        fields::shape_icon(idx).validate().unwrap();
+        fields::shape_button_icon(idx).validate().unwrap();
+    }
+    let mut c = fixture();
+    c.viewport.origin = Point::default();
+    for tool in [Tool::SpotRect, Tool::Magnifier] {
+        c.select_tool(tool);
+        let list = fields::fields(&c);
+        let shape = list.iter().find(|f| f.id == SHAPE).unwrap();
+        assert!(shape.icon.is_some());
+        assert!(matches!(
+            &shape.kind,
+            neuro_mini_ui::PropertyKind::Action { value, width: 28, .. } if value.is_empty()
+        ));
+    }
+    c.select_tool(Tool::Magnifier);
+    assert!(ids(&c).contains(&STROKE));
+    apply::color(&mut c, false, Some(Color(16, 185, 129)));
+    c.select_tool(Tool::Rectangle);
+    assert_ne!(c.editor.style().color(), Color(16, 185, 129));
+    c.select_tool(Tool::Magnifier);
+    assert_eq!(c.editor.style().color(), Color(16, 185, 129));
+    // Draw a 50x50 magnifier inside the 64x64 image at (10, 10)..(60, 60); center is (35, 35), 250% source box is (25, 25)..(45, 45).
+    assert!(c.pointer_down(Point { x: 10.0, y: 10.0 }));
+    assert!(c.pointer_move(Point { x: 60.0, y: 60.0 }));
+    assert!(c.pointer_up(Point { x: 60.0, y: 60.0 }));
+    assert_eq!(c.editor.elements()[0].color, Color(16, 185, 129));
+    // Grab near the bottom-right interior of the source box (43, 43) — 11.3px away from center (35, 35) — and drag by (+15, +10).
+    assert!(c.pointer_down(Point { x: 43.0, y: 43.0 }));
+    assert!(c.pointer_move(Point { x: 58.0, y: 53.0 }));
+    assert!(c.pointer_up(Point { x: 58.0, y: 53.0 }));
+    let [src, _] = c.editor.elements()[0].lens_handles().unwrap();
+    assert!(
+        (src.x - 50.0).abs() < 1e-3 && (src.y - 45.0).abs() < 1e-3,
+        "expected smooth source center (50, 45), got {src:?}"
+    );
+}

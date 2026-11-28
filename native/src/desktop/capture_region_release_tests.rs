@@ -242,3 +242,17 @@ fn outline_paints_only_decorations_and_keeps_selection_interior_transparent() {
     .unwrap();
     assert!(result.is_none());
 }
+
+#[test]
+fn capture_selector_detaches_ime_context_so_z_hotkey_never_opens_composition() {
+    let result = select_with(screen(), Vec::new(), false, |hwnd| unsafe {
+        assert!(windows::Win32::UI::Input::Ime::ImmGetContext(hwnd).is_invalid());
+        state(hwnd).hud.install(hwnd).unwrap();
+        assert!(state(hwnd).hud.get().unwrap().is_hidden());
+        SendMessageW(hwnd, WM_KEYDOWN, Some(WPARAM(0x5a)), None);
+        assert!(!state(hwnd).hud.get().unwrap().is_hidden());
+        cancel(hwnd);
+    })
+    .unwrap();
+    assert!(result.is_none());
+}

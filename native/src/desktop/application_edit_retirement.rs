@@ -25,6 +25,9 @@ impl Application {
     pub(in crate::desktop) fn bind_archive_profile(&self, root: Option<&std::path::Path>) {
         self.retired_edits.archive().borrow_mut().bind_profile(root);
     }
+    pub(in crate::desktop) fn enable_default_archive(&self) {
+        self.retired_edits.archive().borrow_mut().enable_default();
+    }
     pub(super) fn reap_retired_edits(&mut self) {
         let waiting = (self.exit_requested.get() || self.checkpoint_exit_waiting())
             && !self.retired_edits.outputs_settled();

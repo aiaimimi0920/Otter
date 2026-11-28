@@ -68,6 +68,16 @@ pub(super) fn select(image: Image, origin: POINT, windows: Vec<RECT>) -> Result<
         super::capture_windows::local_rectangles(windows, origin, image.width, image.height);
     select_with(image, origin, windows, true, |_| {})
 }
+#[allow(dead_code)]
+pub(super) fn select_positioned(
+    image: Image,
+    origin: POINT,
+    windows: Vec<RECT>,
+) -> Result<Option<(Image, POINT)>> {
+    let windows =
+        super::capture_windows::local_rectangles(windows, origin, image.width, image.height);
+    select_positioned_with(image, origin, windows, true, |_| {})
+}
 fn select_with(
     image: Image,
     origin: POINT,
@@ -188,6 +198,10 @@ fn select_bounds_with(
             Some(instance),
             Some((&state as *const Selection).cast()),
         )?);
+        let _ = windows::Win32::UI::Input::Ime::ImmAssociateContext(
+            window.0,
+            windows::Win32::UI::Input::Ime::HIMC::default(),
+        );
         if visible {
             state.hud.install(window.0)?;
             let _ = ShowWindow(window.0, SW_SHOW);
@@ -211,7 +225,10 @@ fn select_bounds_with(
                 PostQuitMessage(message.wParam.0 as i32);
                 break;
             }
-            let _ = TranslateMessage(&message);
+            if !(message.hwnd == window.0 && (WM_KEYFIRST..=WM_KEYLAST).contains(&message.message))
+            {
+                let _ = TranslateMessage(&message);
+            }
             DispatchMessageW(&message);
         }
         if GetCapture() == window.0 {

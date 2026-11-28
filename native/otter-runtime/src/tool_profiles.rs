@@ -21,6 +21,8 @@ pub struct ToolProfiles {
     pub effect_rect: bool,
     pub text_box: Option<crate::text_annotation::TextBox>,
     paintbrush_smoothing: u8,
+    pub spotlight_shape: Tool,
+    pub lens: crate::editor::Lens,
 }
 
 impl Default for ToolProfiles {
@@ -47,6 +49,8 @@ impl Default for ToolProfiles {
             effect_rect: false,
             text_box: None,
             paintbrush_smoothing: 50,
+            spotlight_shape: Tool::SpotRect,
+            lens: crate::editor::Lens::default(),
         }
     }
 }

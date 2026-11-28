@@ -335,6 +335,14 @@ fn element(
             } else {
                 object.insert("zoomPercent".into(), json!(lens.percent));
             }
+            let shape = match lens.shape {
+                crate::editor::LensShape::Rect => None,
+                crate::editor::LensShape::Rounded => Some("round"),
+                crate::editor::LensShape::Ellipse => Some("ellipse"),
+            };
+            if let Some(shape) = shape {
+                object.insert("shape".into(), json!(shape));
+            }
         }
         object.insert("rotation".into(), finite(stroke.rotation)?);
         if stroke.tool == Tool::Polygon {

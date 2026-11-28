@@ -1,6 +1,9 @@
 //! Allow one export task at a time; share pixels through Arc and enable completion checks only while tasks exist.
 use super::{export, State};
-use std::{path::PathBuf, thread::JoinHandle};
+use std::{
+    path::{Path, PathBuf},
+    thread::JoinHandle,
+};
 use windows::{
     core::{w, HSTRING, PCWSTR},
     Win32::{
@@ -105,7 +108,11 @@ pub(super) unsafe fn start(hwnd: HWND, state: &State) {
             state.resolved_display.borrow().as_ref(),
         ),
     };
-    let (format, bytes) = match options_panel::choose(hwnd, source) {
+    let stem = super::export_naming::suggested(state)
+        .and_then(|s| s.strip_suffix(".png").map(str::to_owned))
+        .unwrap_or_else(|| "Otter_export".to_owned());
+    let default_dir = default_export_directory();
+    let choice = match options_panel::choose(hwnd, source, stem, default_dir) {
         Ok(Some(choice)) => choice,
         Ok(None) => return,
         Err(e) => {
@@ -118,43 +125,7 @@ pub(super) unsafe fn start(hwnd: HWND, state: &State) {
     if !IsWindow(Some(hwnd)).as_bool() {
         return;
     }
-    let mut name = vec![0u16; 32768];
-    if let Some(suggested) = super::export_naming::suggested_as(state, format.ext()) {
-        for (destination, unit) in name.iter_mut().zip(suggested.encode_utf16()) {
-            *destination = unit;
-        }
-    }
-    let ext = format.ext();
-    let def: Vec<u16> = ext.encode_utf16().chain(Some(0)).collect();
-    let filter: Vec<u16> = format!("{} (*.{ext})\0*.{ext}\0\0", ext.to_ascii_uppercase())
-        .encode_utf16()
-        .collect();
-    let mut options = OPENFILENAMEW {
-        lStructSize: std::mem::size_of::<OPENFILENAMEW>() as u32,
-        hwndOwner: hwnd,
-        lpstrFile: windows::core::PWSTR(name.as_mut_ptr()),
-        nMaxFile: name.len() as u32,
-        lpstrFilter: PCWSTR(filter.as_ptr()),
-        lpstrDefExt: PCWSTR(def.as_ptr()),
-        Flags: OFN_EXPLORER | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR,
-        ..Default::default()
-    };
-    if !GetSaveFileNameW(&mut options).as_bool() {
-        if CommDlgExtendedError() != COMMON_DLG_ERRORS(0) {
-            report(hwnd, crate::ui_text::text("export-dialog-failed"));
-        }
-        return;
-    }
-    use std::os::windows::ffi::OsStringExt;
-    if !IsWindow(Some(hwnd)).as_bool() {
-        return;
-    }
-    let end = name
-        .iter()
-        .position(|unit| *unit == 0)
-        .unwrap_or(name.len());
-    let path = PathBuf::from(std::ffi::OsString::from_wide(&name[..end]));
-    if !format.accepts(&path) {
+    if !choice.format.accepts(&choice.path) {
         report(hwnd, crate::ui_text::text("export-extension-mismatch"));
         return;
     }
@@ -167,6 +138,8 @@ pub(super) unsafe fn start(hwnd: HWND, state: &State) {
         report(hwnd, crate::ui_text::text("export-document-changed"));
         return;
     };
+    let path = choice.path;
+    let bytes = choice.bytes;
     spawn(hwnd, state, move || {
         let stop = std::sync::atomic::AtomicBool::new(false);
         crate::session_file_write::Staged::prepare_bytes(&path, bytes, &stop)
@@ -174,6 +147,25 @@ pub(super) unsafe fn start(hwnd: HWND, state: &State) {
             .map(|_| ())
             .map_err(|e| e.to_string())
     });
+}
+
+fn default_export_directory() -> PathBuf {
+    if let Some(pictures) = std::env::var_os("USERPROFILE")
+        .map(|home| PathBuf::from(home).join("Pictures"))
+        .filter(|dir| dir.is_dir())
+    {
+        return pictures;
+    }
+    let override_root = std::env::var_os("OTTER_NATIVE_PROFILE_DIR");
+    let local = std::env::var_os("LOCALAPPDATA");
+    if let Ok(Some(selection)) =
+        crate::settings_profile::select(None, override_root.as_deref(), local.as_deref(), false)
+    {
+        if let Some(root) = selection.path.parent().map(Path::to_path_buf) {
+            return root.join("saved");
+        }
+    }
+    std::env::temp_dir()
 }
 
 unsafe fn spawn(

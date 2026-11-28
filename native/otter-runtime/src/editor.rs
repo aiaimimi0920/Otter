@@ -75,7 +75,7 @@ pub mod resize_preview;
 pub mod rotation_preview;
 #[path = "editor_spotlight.rs"]
 mod spotlight;
-pub use magnifier::Lens;
+pub use magnifier::{Lens, LensShape};
 #[path = "editor_stroke_style.rs"]
 pub mod stroke_style;
 #[path = "editor_visibility.rs"]
@@ -477,6 +477,7 @@ impl Editor {
             point.x += offset.x;
             point.y += offset.y;
         }
+        moved.reanchor_translated_lens(stroke)?;
         let original = std::mem::replace(&mut self.elements[index], moved);
         self.retained_points += original.points.len();
         self.retained_points -= self.history.record(Entry::replaced(index, original));

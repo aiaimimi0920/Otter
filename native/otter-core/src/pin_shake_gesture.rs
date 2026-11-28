@@ -31,7 +31,7 @@ impl Shake {
         let Some(d) = &mut self.drag else {
             return false;
         };
-        if self.fired.is_some_and(|t| ms.wrapping_sub(t) < 600) {
+        if self.fired.is_some_and(|t| ms.wrapping_sub(t) < 500) {
             d.origin = x;
             d.extreme = x;
             d.time = ms;
@@ -40,7 +40,7 @@ impl Shake {
             return false;
         }
         let delta = i64::from(x) - i64::from(d.extreme);
-        let meaningful = |px: i64| px.abs() * 96 >= 24 * i64::from(d.dpi);
+        let meaningful = |px: i64| px.abs() * 96 >= 12 * i64::from(d.dpi);
         if d.sign == 0 {
             if meaningful(delta) {
                 d.sign = delta.signum();
@@ -58,11 +58,11 @@ impl Shake {
             return false;
         }
         let span = i64::from(d.extreme) - i64::from(d.origin);
-        if meaningful(span) && span.abs() * 96 <= 360 * i64::from(d.dpi) {
-            while d.turns.front().is_some_and(|&t| ms.wrapping_sub(t) > 450) {
+        if meaningful(span) && span.abs() * 96 <= 420 * i64::from(d.dpi) {
+            while d.turns.front().is_some_and(|&t| ms.wrapping_sub(t) > 700) {
                 d.turns.pop_front();
             }
-            if ms.wrapping_sub(d.time) <= 450 {
+            if ms.wrapping_sub(d.time) <= 700 {
                 d.turns.push_back(d.time);
             }
         } else {
@@ -72,7 +72,7 @@ impl Shake {
         d.extreme = x;
         d.sign = delta.signum();
         d.time = ms;
-        if d.turns.len() >= 3 && delta.abs() * 96 <= 360 * i64::from(d.dpi) {
+        if d.turns.len() >= 2 && delta.abs() * 96 <= 420 * i64::from(d.dpi) {
             self.fired = Some(ms);
             d.turns.clear();
             d.sign = 0;
@@ -86,7 +86,7 @@ mod tests {
     use super::*;
     #[test]
     fn slow_oversized_and_subthreshold_motion_never_fire_and_clock_wrap_is_safe() {
-        for (amplitude, dt) in [(23, 10u32), (361, 10), (100, 500)] {
+        for (amplitude, dt) in [(11, 10u32), (425, 10), (100, 750)] {
             let mut g = Shake::default();
             g.begin(0, 0, 96);
             for i in 1..16 {

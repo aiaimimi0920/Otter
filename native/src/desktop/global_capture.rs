@@ -200,12 +200,8 @@ unsafe fn dispatch_with(
         return Some(LRESULT(0));
     };
     if command == super::pin_click_through::RESTORE {
-        let mut p = POINT::default();
-        if GetCursorPos(&mut p).is_ok() {
-            state.click.signals.pointer.set(Some(p));
-        } else {
-            state.click.signals.all.set(true);
-        }
+        state.click.signals.toggle_all.set(true);
+        let _ = PostMessageW(Some(hwnd), WM_NULL, WPARAM(0), LPARAM(0));
         return Some(LRESULT(0));
     }
     if command == COMMAND {

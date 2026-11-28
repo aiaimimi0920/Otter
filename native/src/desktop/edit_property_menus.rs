@@ -31,24 +31,60 @@ pub(super) unsafe fn execute(
         };
         v.style
     };
-    let (labels, current): (Vec<String>, usize) = (
-        ["edit-solid-line", "edit-dashed-line", "edit-dotted-line"]
-            .map(|id| crate::ui_text::text(id).to_owned())
-            .into(),
-        match initial.dash() {
-            DashPattern::Solid => 0,
-            DashPattern::Dash => 1,
-            _ => 2,
-        },
-    );
-    let entries = labels
-        .iter()
+    let (items, current, compact): (Vec<(String, Icon)>, usize, bool) = if id == SHAPE {
+        let current = {
+            let c = state.canvas.borrow();
+            let Some(v) = fields::view(&c) else {
+                return Ok(());
+            };
+            match v.tool {
+                crate::editor::Tool::Magnifier => {
+                    match v
+                        .selected
+                        .and_then(|i| c.editor.elements()[i].lens)
+                        .unwrap_or(c.tool_profiles.lens)
+                        .shape
+                    {
+                        crate::editor::LensShape::Rect => 0,
+                        crate::editor::LensShape::Rounded => 1,
+                        crate::editor::LensShape::Ellipse => 2,
+                    }
+                }
+                crate::editor::Tool::SpotRounded => 1,
+                crate::editor::Tool::SpotEllipse => 2,
+                _ => 0,
+            }
+        };
+        (
+            ["tool-shape-rect", "tool-shape-round", "tool-shape-ellipse"]
+                .into_iter()
+                .enumerate()
+                .map(|(i, key)| (crate::ui_text::text(key).to_owned(), fields::shape_icon(i)))
+                .collect(),
+            current,
+            false,
+        )
+    } else {
+        (
+            ["edit-solid-line", "edit-dashed-line", "edit-dotted-line"]
+                .map(|key| (crate::ui_text::text(key).to_owned(), Icon::stroke("")))
+                .into(),
+            match initial.dash() {
+                DashPattern::Solid => 0,
+                DashPattern::Dash => 1,
+                _ => 2,
+            },
+            true,
+        )
+    };
+    let entries = items
+        .into_iter()
         .enumerate()
-        .map(|(i, label)| MenuItem {
+        .map(|(i, (label, icon))| MenuItem {
             id: i as u16 + 1,
-            label: label.clone(),
+            label,
             shortcut: String::new(),
-            icon: Icon::stroke(""),
+            icon,
             selected: i == current,
             enabled: true,
         })
@@ -57,10 +93,10 @@ pub(super) unsafe fn execute(
         let Some(_guard) = super::super::file_dialog::Guard::begin(&state.file_dialog) else {
             return Ok(());
         };
-        neuro_mini_ui::set_property_expanded(panel, DASH, true)?;
-        let result = neuro_mini_ui::track_menu(panel, anchor, entries, true);
+        neuro_mini_ui::set_property_expanded(panel, id, true)?;
+        let result = neuro_mini_ui::track_menu(panel, anchor, entries, compact);
         if neuro_mini_ui::is_toolbar(panel) {
-            neuro_mini_ui::set_property_expanded(panel, DASH, false)?;
+            neuro_mini_ui::set_property_expanded(panel, id, false)?;
         }
         result?
     };
@@ -72,7 +108,7 @@ pub(super) unsafe fn execute(
     }
     apply::value(
         &mut state.canvas.borrow_mut(),
-        DASH,
+        id,
         Some(&selected.to_string()),
     )?;
     Ok(())

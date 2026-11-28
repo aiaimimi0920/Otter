@@ -31,18 +31,8 @@ pub(super) const TOOLS: &[ToolCommand] = &[
     },
     ToolCommand {
         id: 0x21f1,
-        label_id: "tool-spot-rect",
+        label_id: "tool-spotlight",
         tool: Tool::SpotRect,
-    },
-    ToolCommand {
-        id: 0x21f2,
-        label_id: "tool-spot-round",
-        tool: Tool::SpotRounded,
-    },
-    ToolCommand {
-        id: 0x21f3,
-        label_id: "tool-spot-ellipse",
-        tool: Tool::SpotEllipse,
     },
     ToolCommand {
         id: 0x56,
@@ -135,8 +125,6 @@ mod tests {
         let expected = [
             Tool::Magnifier,
             Tool::SpotRect,
-            Tool::SpotRounded,
-            Tool::SpotEllipse,
             Tool::Pan,
             Tool::Select,
             Tool::Brush,

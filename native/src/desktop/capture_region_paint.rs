@@ -18,7 +18,7 @@ pub(super) fn decoration_bounds(rect: RECT, dpi: u32) -> RECT {
         right: rect
             .right
             .saturating_add(pad)
-            .max(rect.left.saturating_add(scale(220))),
+            .max(rect.left.saturating_add(scale(320))),
         bottom: rect.bottom.saturating_add(pad),
     }
 }
@@ -234,12 +234,16 @@ pub(super) fn clear_cached_resources() {
 }
 
 fn label_text(rect: RECT) -> String {
-    format!("{} x {}", rect.right - rect.left, rect.bottom - rect.top)
+    format!(
+        "{} x {}  {}",
+        rect.right - rect.left,
+        rect.bottom - rect.top,
+        crate::ui_text::text("capture-size-more")
+    )
 }
 unsafe fn label(dc: HDC, rect: RECT, dpi: u32, opaque: bool) -> Result<()> {
     let scale = |value: i32| (value * dpi as i32 + 48) / 96;
-    // Performance audit optimization (Tier 2.5):
-    // Reuse the DPI-matched `Consolas` `HFONT` and `1x1` tint DIB across `WM_PAINT` frames during a capture session
+    // Reuse the DPI-matched UI HFONT and 1x1 tint DIB across WM_PAINT frames during a capture session
     // instead of creating and destroying GDI fonts/DIBs/DCs on every 240Hz mouse move; `clear_cached_resources()`
     // releases both handles deterministically when the capture modal exits.
     let font_handle = CACHED_FONT.with(|slot| -> Result<HFONT> {
@@ -262,8 +266,8 @@ unsafe fn label(dc: HDC, rect: RECT, dpi: u32, opaque: bool) -> Result<()> {
             OUT_DEFAULT_PRECIS,
             CLIP_DEFAULT_PRECIS,
             ANTIALIASED_QUALITY,
-            (FIXED_PITCH.0 | FF_MODERN.0) as u32,
-            w!("Consolas"),
+            (VARIABLE_PITCH.0 | FF_SWISS.0) as u32,
+            w!("Microsoft YaHei UI"),
         ));
         if created.0.is_invalid() {
             return Err(Error::from_win32());

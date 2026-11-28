@@ -13,8 +13,17 @@ pub(super) fn icon(command: usize) -> Icon {
     match command {
         0x56 => svg!("MoveMode"),
         0x53 | 0x6101 => svg!("SelectMode"),
-        0x52 | 0x51 | 0x21f1 | 0x21f2 => svg!("RectTool"),
-        0x45 | 0x21f3 | 0x21f4 => svg!("EllipseTool"),
+        0x52 => svg!("RectTool"),
+        0x21f1 | 0x21f2 | 0x21f3 => Icon::svg(
+            r#"<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="14" rx="2" stroke-dasharray="2.5 2.5" /><rect x="7.5" y="8" width="9" height="8" /></svg>"#,
+        ),
+        0x51 => Icon::svg(
+            r#"<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="6" width="14" height="12" rx="3.8" /></svg>"#,
+        ),
+        0x45 => svg!("EllipseTool"),
+        0x21f4 => Icon::svg(
+            r#"<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6" /><path d="M15 15L20 20M8 10.5H13M10.5 8V13" /></svg>"#,
+        ),
         0x54 => svg!("TriangleTool"),
         0x50 => svg!("PolygonTool"),
         0x4c | 0x41 | 0x55 => svg!("LineTool"),

@@ -5,6 +5,7 @@ use windows::Win32::{Foundation::SYSTEMTIME, System::SystemInformation::GetLocal
 pub(super) fn suggested(state: &State) -> Option<String> {
     suggested_for(state, Pattern::Save)
 }
+#[allow(dead_code)]
 pub(super) fn suggested_as(state: &State, ext: &str) -> Option<String> {
     suggested_stem(state, Pattern::Save).map(|stem| format!("{stem}.{ext}"))
 }

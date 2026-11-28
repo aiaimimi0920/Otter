@@ -83,6 +83,7 @@ unsafe fn prepare(hwnd: HWND, state: &State, fill: Option<bool>) -> Result<Sessi
     }
     let modal = Modal(state.file_dialog.clone());
     let window = Rc::new(Hud::new(hwnd)?);
+    window.show();
     let canvas = state.canvas.borrow();
     Ok(Session {
         hook: None,

@@ -326,8 +326,14 @@ pub fn restore_with_resources(
             }
             .and_then(|n| u16::try_from(n).ok())
             .ok_or(Error::Style)?;
+            let shape = match element.get("shape").and_then(Value::as_str) {
+                None | Some("rect") => crate::editor::LensShape::Rect,
+                Some("round") => crate::editor::LensShape::Rounded,
+                Some("ellipse") => crate::editor::LensShape::Ellipse,
+                _ => return Err(Error::Style),
+            };
             editor
-                .restore_lens(point(&element["sourceOffset"])?, zoom)
+                .restore_lens(point(&element["sourceOffset"])?, zoom, shape)
                 .map_err(|_| Error::Geometry)?;
         }
         ids.push(id.to_owned());

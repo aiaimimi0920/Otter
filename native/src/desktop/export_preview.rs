@@ -95,6 +95,13 @@ impl Preview {
         }
         self.job.is_some()
     }
+
+    pub fn settle(&mut self) {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        while self.poll() && std::time::Instant::now() < deadline {
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+    }
 }
 
 #[cfg(test)]

@@ -28,7 +28,7 @@ pub(super) struct Drag {
 }
 
 enum Handle {
-    Lens(usize),
+    Lens(usize, Point),
     Serial(usize),
     Text(usize),
     Point(usize),
@@ -62,21 +62,42 @@ impl Canvas {
         let center = rotation::center(&source.points);
         let local = rotation::rotate(point, center, -source.rotation);
         let shape_handles = source.shape_handles();
-        let label_handles = source
-            .serial_handles()
-            .or_else(|| source.text_handles())
-            .or_else(|| source.lens_handles());
-        let handle = if let Some(p) = label_handles {
+        let handle = if let Some(lens_pts) = source.lens_edit_handles() {
+            let corner_hit = lens_pts[1..]
+                .iter()
+                .enumerate()
+                .map(|(i, p)| (i, (p.x - local.x).hypot(p.y - local.y)))
+                .filter(|(_, d)| *d <= 6.5 / self.viewport.scale)
+                .min_by(|a, b| a.1.total_cmp(&b.1))
+                .map(|(i, _)| Handle::Lens(i + 2, Point::default()));
+            if corner_hit.is_some() {
+                corner_hit
+            } else {
+                let pad = 4.0 / self.viewport.scale;
+                let center_hit = (lens_pts[0].x - local.x).hypot(lens_pts[0].y - local.y)
+                    <= 8.0 / self.viewport.scale;
+                let box_hit = source.lens_source_box().is_some_and(|(s0, s1)| {
+                    local.x >= s0.x - pad
+                        && local.x <= s1.x + pad
+                        && local.y >= s0.y - pad
+                        && local.y <= s1.y + pad
+                });
+                (center_hit || box_hit).then_some(Handle::Lens(
+                    0,
+                    Point {
+                        x: lens_pts[0].x - local.x,
+                        y: lens_pts[0].y - local.y,
+                    },
+                ))
+            }
+        } else if let Some(p) = source.serial_handles().or_else(|| source.text_handles()) {
             p.iter()
                 .enumerate()
                 .map(|(i, p)| (i, (p.x - local.x).hypot(p.y - local.y)))
                 .filter(|(_, d)| *d <= 6.0 / self.viewport.scale)
                 .min_by(|a, b| a.1.total_cmp(&b.1))
-                .map(|(i, _)| i)
-                .map(|i| {
-                    if source.tool == Tool::Magnifier {
-                        Handle::Lens(i)
-                    } else if source.tool == Tool::Serial {
+                .map(|(i, _)| {
+                    if source.tool == Tool::Serial {
                         Handle::Serial(i)
                     } else {
                         Handle::Text(i)
@@ -149,7 +170,13 @@ impl Canvas {
             return false;
         }
         let preview = match drag.handle {
-            Handle::Lens(i) => source.preview_lens_handle(i, point),
+            Handle::Lens(i, off) => source.preview_lens_handle(
+                i,
+                Point {
+                    x: point.x + off.x,
+                    y: point.y + off.y,
+                },
+            ),
             Handle::Serial(i) => source.preview_serial_handle(i, point),
             Handle::Text(i) => source.preview_text_handle(i, point.x, measure),
             Handle::Shape(handle) => source.preview_shape_handle(handle, point),
@@ -181,7 +208,14 @@ impl Canvas {
             return true;
         }
         let result = match drag.handle {
-            Handle::Lens(i) => self.editor.move_lens_handle(drag.index, i, drag.point),
+            Handle::Lens(i, off) => self.editor.move_lens_handle(
+                drag.index,
+                i,
+                Point {
+                    x: drag.point.x + off.x,
+                    y: drag.point.y + off.y,
+                },
+            ),
             Handle::Serial(i) => self.editor.move_serial_handle(drag.index, i, drag.point),
             Handle::Text(i) => self
                 .editor
@@ -246,11 +280,101 @@ pub(super) unsafe fn draw(
         target.DrawLine(convert(segment[0]), convert(segment[1]), brush, 1.0, None);
         target.DrawLine(convert(segment[2]), convert(segment[3]), brush, 1.0, None);
     }
+    if let Some(lens_pts) = stroke.lens_edit_handles() {
+        if let Some((s0, s1)) = stroke.lens_source_box() {
+            let p0 = convert(s0);
+            let p1 = convert(Point { x: s1.x, y: s0.y });
+            let p2 = convert(s1);
+            let p3 = convert(Point { x: s0.x, y: s1.y });
+            brush.SetColor(&D2D1_COLOR_F {
+                r: 0.85,
+                g: 1.0,
+                b: 0.22,
+                a: 0.92,
+            });
+            for (a, b) in [(p0, p1), (p1, p2), (p2, p3), (p3, p0)] {
+                target.DrawLine(a, b, brush, 1.2, None);
+            }
+        }
+        let src = convert(lens_pts[0]);
+        brush.SetColor(&D2D1_COLOR_F {
+            r: 0.06,
+            g: 0.07,
+            b: 0.09,
+            a: 0.85,
+        });
+        target.FillEllipse(
+            &D2D1_ELLIPSE {
+                point: src,
+                radiusX: 6.5,
+                radiusY: 6.5,
+            },
+            brush,
+        );
+        brush.SetColor(&D2D1_COLOR_F {
+            r: 0.85,
+            g: 1.0,
+            b: 0.22,
+            a: 1.0,
+        });
+        target.DrawEllipse(
+            &D2D1_ELLIPSE {
+                point: src,
+                radiusX: 6.5,
+                radiusY: 6.5,
+            },
+            brush,
+            1.5,
+            None,
+        );
+        target.DrawLine(
+            D2D_POINT_2F {
+                x: src.x - 4.0,
+                y: src.y,
+            },
+            D2D_POINT_2F {
+                x: src.x + 4.0,
+                y: src.y,
+            },
+            brush,
+            1.4,
+            None,
+        );
+        target.DrawLine(
+            D2D_POINT_2F {
+                x: src.x,
+                y: src.y - 4.0,
+            },
+            D2D_POINT_2F {
+                x: src.x,
+                y: src.y + 4.0,
+            },
+            brush,
+            1.4,
+            None,
+        );
+        brush.SetColor(&D2D1_COLOR_F {
+            r: 0.1,
+            g: 0.8,
+            b: 1.0,
+            a: 1.0,
+        });
+        for &corner in &lens_pts[1..] {
+            let pt = convert(corner);
+            target.FillRectangle(
+                &D2D_RECT_F {
+                    left: pt.x - 3.5,
+                    top: pt.y - 3.5,
+                    right: pt.x + 3.5,
+                    bottom: pt.y + 3.5,
+                },
+                brush,
+            );
+        }
+        return;
+    }
     let shape_handles = stroke.shape_handles();
-    let label_handles = stroke
-        .serial_handles()
-        .or_else(|| stroke.text_handles())
-        .or_else(|| stroke.lens_handles());
+    let label_handles = stroke.serial_handles().or_else(|| stroke.text_handles());
     let handles = label_handles
         .as_ref()
         .map(|p| p.as_slice())

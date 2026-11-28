@@ -2,7 +2,7 @@
 //! geometry notifications move the toolbar, border and port windows.
 use super::*;
 use crate::{
-    pin_arrange_math::{plan, Layout},
+    pin_arrange_math::{plan_with_gap, Layout},
     pin_geometry::PinRect,
     workspace_id::UnitId,
 };
@@ -11,21 +11,54 @@ use windows::Win32::{Graphics::Gdi::*, UI::HiDpi::GetDpiForWindow};
 mod click;
 #[path = "application_pin_arrange_menu.rs"]
 pub(super) mod menu;
+#[path = "pin_arrange_palette.rs"]
+pub(super) mod palette;
 #[path = "application_pin_shake.rs"]
 mod shake;
 #[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-canvas")))]
 #[path = "application_pin_arrange_tests.rs"]
 mod tests;
 
-#[derive(Default)]
+pub(in crate::desktop::application) struct PaletteTransaction(std::rc::Rc<std::cell::Cell<bool>>);
+impl Drop for PaletteTransaction {
+    fn drop(&mut self) {
+        self.0.set(true);
+    }
+}
+
 pub(super) struct Owner {
     pub(super) click: std::rc::Rc<crate::desktop::pin_click_through::Signals>,
     undo: Vec<Move>,
     shake_origin: Option<Target>,
     pub(super) signals: std::rc::Rc<crate::desktop::pin_shake_input::Signals>,
+    pub(super) gap_dip: std::cell::Cell<u16>,
+    pub(super) palette_host: std::cell::Cell<Option<HWND>>,
+    pub(super) palette_gate: std::cell::RefCell<Option<std::rc::Rc<std::cell::Cell<bool>>>>,
+}
+impl Default for Owner {
+    fn default() -> Self {
+        Self {
+            click: Default::default(),
+            undo: Vec::new(),
+            shake_origin: None,
+            signals: Default::default(),
+            gap_dip: std::cell::Cell::new(12),
+            palette_host: std::cell::Cell::new(None),
+            palette_gate: std::cell::RefCell::new(None),
+        }
+    }
+}
+impl Owner {
+    /// Suspend only this palette's modal gate during synchronous non-pumping layout transactions.
+    pub(in crate::desktop::application) fn suspend_palette_gate(
+        &self,
+    ) -> Option<PaletteTransaction> {
+        let gate = self.palette_gate.borrow().clone()?;
+        gate.replace(false).then_some(PaletteTransaction(gate))
+    }
 }
 #[derive(Clone, PartialEq, Eq)]
-struct Target {
+pub(in crate::desktop::application) struct Target {
     id: UnitId,
     hwnd: HWND,
     marker: isize,
@@ -103,7 +136,8 @@ impl Application {
             && d.parameters.as_ref().is_none_or(|p| p.exit_idle())
             && IsWindowVisible(hwnd).as_bool()
             && !IsIconic(hwnd).as_bool()
-            && windows::Win32::UI::Input::KeyboardAndMouse::IsWindowEnabled(hwnd).as_bool()
+            && (windows::Win32::UI::Input::KeyboardAndMouse::IsWindowEnabled(hwnd).as_bool()
+                || self.pin_layout.palette_host.get() == Some(hwnd))
             && d.is_alive())
         .then(|| Target {
             id: id.clone(),
@@ -159,7 +193,8 @@ impl Application {
             }
             let frames = group.iter().map(|(_, r)| *r).collect::<Vec<_>>();
             let primary = group.iter().position(|(t, _)| &t.id == anchor).unwrap_or(0);
-            let positions = plan(layout, &frames, primary, work, dpi)
+            let gap_dip = self.pin_layout.gap_dip.get();
+            let positions = plan_with_gap(layout, &frames, primary, work, dpi, gap_dip)
                 .ok_or_else(|| failure("workspace-layout-space"))?;
             for ((target, before), after) in group.into_iter().zip(positions) {
                 if before != after {
@@ -203,7 +238,8 @@ impl Application {
             }
         }
         if !done.is_empty() {
-            self.pin_layout.undo = done
+            self.pin_layout.undo = done;
+            self.sync_workspace_chrome(true);
         }
         Ok(())
     }
@@ -234,6 +270,7 @@ impl Application {
         if !self.pin_layout.undo.is_empty() || skipped {
             return Err(failure("workspace-layout-rollback"));
         }
+        self.sync_workspace_chrome(true);
         Ok(())
     }
 }

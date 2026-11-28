@@ -2,6 +2,14 @@
 use super::*;
 use windows::Win32::UI::Input::KeyboardAndMouse::{GetKeyState, VK_CONTROL};
 impl Owner {
+    #[cfg(test)]
+    pub(in crate::desktop::application) unsafe fn select_for_test(&self, hwnd: HWND) {
+        let key = (hwnd.0 as isize, GetWindowLongPtrW(hwnd, GWLP_USERDATA));
+        let mut selected = self.ui.selected.borrow_mut();
+        if !selected.contains(&key) {
+            selected.push(key);
+        }
+    }
     pub(in crate::desktop::application) unsafe fn selected_units(
         &self,
     ) -> Option<Vec<crate::workspace_id::UnitId>> {

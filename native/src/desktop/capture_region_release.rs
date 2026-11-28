@@ -159,6 +159,10 @@ fn select_region(
             // either is shown so Explorer doesn't lower the taskbar and expose windows behind it.
             SetPropW(window, NON_RUDE, Some(HANDLE(1usize as *mut _)))?;
             SetWindowDisplayAffinity(window, WDA_EXCLUDEFROMCAPTURE)?;
+            let _ = windows::Win32::UI::Input::Ime::ImmAssociateContext(
+                window,
+                windows::Win32::UI::Input::Ime::HIMC::default(),
+            );
         }
         if visible {
             state.hud.install(input.0)?;
@@ -184,7 +188,9 @@ fn select_region(
                 PostQuitMessage(message.wParam.0 as i32);
                 break;
             }
-            let _ = TranslateMessage(&message);
+            if !(message.hwnd == input.0 && (WM_KEYFIRST..=WM_KEYLAST).contains(&message.message)) {
+                let _ = TranslateMessage(&message);
+            }
             DispatchMessageW(&message);
         }
         if GetCapture() == input.0 {

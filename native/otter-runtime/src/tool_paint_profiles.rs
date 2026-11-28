@@ -19,10 +19,10 @@ impl From<StrokeStyle> for Paint {
         }
     }
 }
-pub(super) struct Profiles([Paint; 7]);
+pub(super) struct Profiles([Paint; 8]);
 impl Default for Profiles {
     fn default() -> Self {
-        Self([StrokeStyle::default().into(); 7])
+        Self([StrokeStyle::default().into(); 8])
     }
 }
 fn slot(tool: Tool) -> Option<usize> {
@@ -34,6 +34,7 @@ fn slot(tool: Tool) -> Option<usize> {
         Tool::Line | Tool::Arrow | Tool::Bezier | Tool::Polyline => 4,
         Tool::Brush | Tool::Paintbrush | Tool::Highlighter => 5,
         Tool::Text => 6,
+        Tool::Magnifier => 7,
         // Sequence labels already have separate foreground/fill configuration; navigation and pixel effects do not own these color slots.
         _ => return None,
     })

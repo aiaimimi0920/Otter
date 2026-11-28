@@ -111,7 +111,9 @@ impl Editor {
     ) -> Result<bool, EditError> {
         let source = &self.elements[index];
         if self.draft.is_some()
-            || source.points == changed.points
+            || source.tool == changed.tool
+                && source.corner_radius == changed.corner_radius
+                && source.points == changed.points
                 && source.serial_arrow_tip == changed.serial_arrow_tip
                 && source.lens == changed.lens
                 && source.text == changed.text

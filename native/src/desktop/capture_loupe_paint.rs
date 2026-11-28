@@ -5,6 +5,18 @@ pub(super) struct Picture {
     pub window: Cell<HWND>,
     pub grid: Cell<Grid>,
     pub format: Cell<Format>,
+    samples: Arc<super::sampler::Shared>,
+}
+
+impl Picture {
+    pub(super) fn new(samples: Arc<super::sampler::Shared>) -> Self {
+        Self {
+            window: Cell::default(),
+            grid: Cell::new([None; 225]),
+            format: Cell::default(),
+            samples,
+        }
+    }
 }
 
 #[cfg(all(test, any(not(feature = "scoped-tests"), feature = "test-capture")))]
@@ -55,15 +67,6 @@ fn loupe_gdi_grid_preserves_center_color_and_draws_contrasting_edges() {
         assert!(hud.hwnd().is_invalid());
     }
 }
-impl Default for Picture {
-    fn default() -> Self {
-        Self {
-            window: Cell::default(),
-            grid: Cell::new([None; 225]),
-            format: Cell::default(),
-        }
-    }
-}
 const ID: usize = 0x434c50;
 pub(super) unsafe fn attach(hwnd: HWND, picture: Rc<Picture>) -> Result<()> {
     let ptr = Rc::into_raw(picture);
@@ -83,11 +86,27 @@ unsafe extern "system" fn procedure(
 ) -> LRESULT {
     match msg {
         WM_ERASEBKGND => LRESULT(1),
+        super::sampler::READY => {
+            let picture = &*(data as *const Picture);
+            if let Some(grid) = picture.samples.take_latest() {
+                picture.grid.set(grid);
+                let _ = InvalidateRect(Some(hwnd), None, false);
+            }
+            LRESULT(0)
+        }
         WM_PAINT => {
             let mut ps = PAINTSTRUCT::default();
             let dc = BeginPaint(hwnd, &mut ps);
             if !dc.is_invalid() {
-                render(dc, hwnd, &*(data as *const Picture));
+                let picture = &*(data as *const Picture);
+                let mut client = RECT::default();
+                let _ = GetClientRect(hwnd, &mut client);
+                if let Ok(Some(frame)) = crate::desktop::buffered_paint::Frame::begin(dc, &client) {
+                    render(frame.dc, hwnd, picture);
+                    let _ = frame.commit();
+                } else {
+                    render(dc, hwnd, picture);
+                }
             }
             let _ = EndPaint(hwnd, &ps);
             LRESULT(0)

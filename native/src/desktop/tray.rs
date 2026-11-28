@@ -12,8 +12,6 @@ use windows::{
 pub(super) const COMMAND: usize = 0x1047;
 #[path = "tray_actions.rs"]
 pub(super) mod actions;
-#[path = "tray_image_archive.rs"]
-mod archive;
 #[path = "tray_capture_delay.rs"]
 mod delay;
 #[path = "tray_language.rs"]
@@ -294,15 +292,6 @@ unsafe fn build_menu(state: &State) -> Result<(Menu, Option<crate::autostart::St
     let startup = startup::append(menu.0)?;
     language::append(menu.0)?;
     delay::append(menu.0, state)?;
-    archive::append(menu.0, state)?;
-    super::global_capture::append(menu.0, state)?;
-    AppendMenuW(
-        menu.0,
-        MF_STRING,
-        actions::SHORTCUT_SETTINGS,
-        &windows::core::HSTRING::from(crate::ui_text::text("action-shortcut-settings")),
-    )?;
-    startup::append_token(menu.0)?;
     AppendMenuW(
         menu.0,
         MF_STRING,
@@ -331,10 +320,8 @@ unsafe fn menu(hwnd: HWND, state: &State, position: WPARAM) -> Result<()> {
                 super::application::request_exit(hwnd, state)?;
             }
             startup::COMMAND => startup::execute(hwnd, state, startup),
-            super::global_capture::COMMAND => super::global_capture::toggle(hwnd, state),
             _ => {
-                if !archive::execute(hwnd, state, command)?
-                    && !delay::execute(hwnd, state, command)?
+                if !delay::execute(hwnd, state, command)?
                     && !language::execute(hwnd, state, command)?
                     && !actions::execute(hwnd, state, command)
                 {
@@ -417,7 +404,7 @@ mod tests {
             let state = State::new(None, false).unwrap();
             let (menu, _) = build_menu(&state).unwrap();
             let tree = crate::native_menu::snapshot(menu.0).unwrap();
-            assert_eq!(tree.len(), 13);
+            assert_eq!(tree.len(), 10);
             for (index, key) in [
                 "tray-capture",
                 "tray-live-capture",
@@ -432,32 +419,27 @@ mod tests {
             }
             assert!(tree[5]
                 .label
-                .starts_with(crate::ui_text::text("tray-autostart")));
-            assert_eq!(tree[6].label, crate::ui_text::text("tray-language"));
-            assert_eq!(tree[7].label, crate::ui_text::text("tray-delay"));
-            assert_eq!(tree[7].children.as_ref().unwrap().len(), 3);
-            assert_eq!(tree[8].label, crate::ui_text::text("archive-menu"));
-            assert!(tree[9]
+                .starts_with(crate::ui_text::text("pin-pass-menu")));
+            assert!(!tree[5].checked);
+            state.click.signals.enabled.set(true);
+            let (checked_menu, _) = build_menu(&state).unwrap();
+            let checked_tree = crate::native_menu::snapshot(checked_menu.0).unwrap();
+            assert!(checked_tree[5].checked);
+            state.click.signals.enabled.set(false);
+            assert!(tree[6]
                 .label
-                .starts_with(crate::ui_text::text("action-hotkey-menu")));
-            assert_eq!(
-                tree[10].label,
-                crate::ui_text::text("action-shortcut-settings")
-            );
-            let token_label = if crate::elevation_status::elevated().unwrap() {
-                "tray-token-elevated"
-            } else {
-                "tray-token-standard"
-            };
-            assert_eq!(tree[11].label, crate::ui_text::text(token_label));
-            assert!(!tree[11].enabled);
-            assert_eq!(tree[12].label, crate::ui_text::text("tray-exit"));
-            assert_eq!(tree[6].children.as_ref().unwrap().len(), 2);
+                .starts_with(crate::ui_text::text("tray-autostart")));
+            assert_eq!(tree[7].label, crate::ui_text::text("tray-language"));
+            assert_eq!(tree[8].label, crate::ui_text::text("tray-delay"));
+            assert_eq!(tree[8].children.as_ref().unwrap().len(), 3);
+            assert_eq!(tree[9].label, crate::ui_text::text("tray-exit"));
+            assert_eq!(tree[7].children.as_ref().unwrap().len(), 2);
+            assert_eq!(tree.len(), 10);
             assert!(tree
                 .iter()
                 .enumerate()
                 .all(
-                    |(index, item)| (matches!(index, 6..=8) || item.children.is_none())
+                    |(index, item)| (matches!(index, 7 | 8) || item.children.is_none())
                         && !item.separator
                 ));
         }

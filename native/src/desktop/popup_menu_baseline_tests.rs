@@ -85,6 +85,7 @@ fn tray_tree_has_no_clipboard_libraries_or_hidden_restore_entry() {
                 crate::ui_text::text("tray-long-capture"),
                 crate::ui_text::text("tray-open-image"),
                 crate::ui_text::text("tray-receive"),
+                crate::ui_text::text("pin-pass-menu"),
                 crate::ui_text::text("tray-autostart"),
                 crate::ui_text::text("tray-exit")
             ]

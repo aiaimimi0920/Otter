@@ -229,6 +229,10 @@ pub(super) unsafe fn draw_outline(
     stroke: &Stroke,
     viewport: Viewport,
 ) {
+    // Magnifier renders its own shaped rim and corner/source handles; an outer cyan box would cross its leader line.
+    if stroke.tool == Tool::Magnifier {
+        return;
+    }
     let mut rect = D2D_RECT_F {
         left: f32::INFINITY,
         top: f32::INFINITY,

@@ -58,6 +58,9 @@ pub(super) unsafe fn run_window(
             .and_then(|p| p.path.parent())
             .or_else(|| settings.default_target.as_deref().and_then(Path::parent)),
     );
+    if !hidden_check && !workspace.as_ref().is_some_and(|p| p.claimed.is_some()) {
+        app.enable_default_archive();
+    }
     if !hidden_check {
         app.install_capture_history()?;
     }
