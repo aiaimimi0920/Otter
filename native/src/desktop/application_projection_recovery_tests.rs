@@ -121,7 +121,7 @@ fn run_recovery(mode: u8) {
             false,
         )
         .unwrap();
-        app.install_workspace_checkpoint(Some(Profile::open(files.root()).unwrap()), false)
+        app.install_projection_fixture(Profile::open(files.root()).unwrap())
             .unwrap();
         settle_profile(&mut app);
         assert!(app.authorization.borrow().projection.recovery.entries.len() == 1);
@@ -297,7 +297,7 @@ fn recovery_request_cannot_substitute_a_same_record_arc_not_owned_by_the_profile
     seed(&directory.0, "https://loom.example", "device-old");
     unsafe {
         let mut app = application();
-        app.install_workspace_checkpoint(Some(Profile::open(&directory.0).unwrap()), false)
+        app.install_projection_fixture(Profile::open(&directory.0).unwrap())
             .unwrap();
         settle_profile(&mut app);
         app.authorization.borrow_mut().origin = Some("https://loom.example".into());

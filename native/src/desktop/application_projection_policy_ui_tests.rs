@@ -33,7 +33,7 @@ fn receive_policy_shared_native_menu_persists_and_survives_service_reset() {
     std::fs::create_dir(&root).unwrap();
     unsafe {
         let mut app = application();
-        app.install_workspace_checkpoint(Some(Profile::open(&root).unwrap()), false)
+        app.install_projection_fixture(Profile::open(&root).unwrap())
             .unwrap();
         finish(&mut app);
         let second = app.bind_window_state(State::new(None, false).unwrap());
@@ -105,7 +105,7 @@ fn receive_policy_pause_menu_is_shared_without_service_and_blocks_inbox_not_cons
     std::fs::create_dir(&root).unwrap();
     unsafe {
         let mut app = application();
-        app.install_workspace_checkpoint(Some(Profile::open(&root).unwrap()), false)
+        app.install_projection_fixture(Profile::open(&root).unwrap())
             .unwrap();
         finish(&mut app);
         let second = app.bind_window_state(State::new(None, false).unwrap());

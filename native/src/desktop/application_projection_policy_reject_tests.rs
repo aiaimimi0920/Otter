@@ -18,7 +18,7 @@ fn receive_policy_reject_automatically_queries_and_rejects_over_original_tls_sin
     let server = std::thread::spawn(move || peer::serve(listener, tls, server_origin, 0, tx));
     unsafe {
         let mut app = application();
-        app.install_workspace_checkpoint(Some(Profile::open(files.root()).unwrap()), false)
+        app.install_projection_fixture(Profile::open(files.root()).unwrap())
             .unwrap();
         let end = Instant::now() + Duration::from_secs(10);
         while !matches!(

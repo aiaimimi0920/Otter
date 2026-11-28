@@ -155,7 +155,7 @@ impl Fixture {
             listener
         });
         let mut app = application();
-        app.install_workspace_checkpoint(Some(Profile::open(files.root()).unwrap()), false)
+        app.install_projection_fixture(Profile::open(files.root()).unwrap())
             .unwrap();
         until(&mut app, |app| {
             !matches!(

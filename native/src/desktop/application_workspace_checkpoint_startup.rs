@@ -1,6 +1,26 @@
 //! Startup restore barrier: accept global capture or enter the normal message loop only after file preparation and hidden-window creation finish.
 use super::*;
 impl Application {
+    /// Exercise profile workers against the fixture directory, not the runner's desktop profile.
+    #[cfg(test)]
+    pub(in crate::desktop) unsafe fn install_projection_fixture(
+        &mut self,
+        profile: Profile,
+    ) -> Result<()> {
+        let root = profile.path.parent().unwrap().to_owned();
+        self.install_workspace_checkpoint(Some(profile), false)?;
+        if !crate::elevation_status::allows_desktop_integrations() {
+            assert!(matches!(
+                self.projection_profile,
+                crate::desktop::application::projection::profile::Owner::Disabled
+            ));
+            self.projection_sender
+                .start(root.clone(), self.execution_wake.callback());
+            self.projection_profile
+                .start(root, self.execution_wake.callback());
+        }
+        Ok(())
+    }
     pub(in crate::desktop) unsafe fn install_workspace_checkpoint(
         &mut self,
         profile: Option<Profile>,

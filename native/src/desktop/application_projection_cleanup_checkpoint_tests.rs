@@ -22,7 +22,7 @@ fn projection_cleanup_opening_profile_does_not_lose_deleted_restored_binding() {
             app.shutdown();
             drop((app, store, ticket));
             let mut app = new_app(instance);
-            app.install_workspace_checkpoint(Some(Profile::open(&directory.0).unwrap()), false)
+            app.install_projection_fixture(Profile::open(&directory.0).unwrap())
                 .unwrap();
             assert!(matches!(
                 app.projection_profile,
@@ -65,7 +65,7 @@ fn projection_cleanup_last_restored_unit_marks_before_empty_checkpoint_even_whil
             app.shutdown();
             drop((app, store, ticket));
             let mut app = new_app(instance);
-            app.install_workspace_checkpoint(Some(Profile::open(&directory.0).unwrap()), false)
+            app.install_projection_fixture(Profile::open(&directory.0).unwrap())
                 .unwrap();
             assert_eq!(app.documents.len(), 1);
             DestroyWindow(app.source_window(&unit).unwrap()).unwrap();

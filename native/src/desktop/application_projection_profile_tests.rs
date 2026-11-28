@@ -28,7 +28,7 @@ fn ordinary_startup_opens_shared_store_once_and_switching_services_does_not_reop
             let directory = Directory::new();
             let bytes = seed(&directory);
             let mut app = new_app(instance);
-            app.install_workspace_checkpoint(Some(Profile::open(&directory.0).unwrap()), false)
+            app.install_projection_fixture(Profile::open(&directory.0).unwrap())
                 .unwrap();
             poll(&mut app);
             let entry = app.authorization.borrow().projection.recovery.entries[0].clone();
@@ -98,7 +98,7 @@ fn invalid_or_busy_journal_disables_only_recovery_without_overwriting_or_retryin
                 let path = directory.0.join("projection-receive.json");
                 std::fs::write(&path, b"{unknown-document}").unwrap();
                 let mut app = new_app(instance);
-                app.install_workspace_checkpoint(Some(Profile::open(&directory.0).unwrap()), false)
+                app.install_projection_fixture(Profile::open(&directory.0).unwrap())
                     .unwrap();
                 poll(&mut app);
                 assert_eq!(
