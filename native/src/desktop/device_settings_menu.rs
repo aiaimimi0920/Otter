@@ -7,7 +7,6 @@ pub(in crate::desktop) use target::Snapshot;
 pub(in crate::desktop) enum Section {
     Loom,
     Receive,
-    TrayReceive,
     Flow,
     Policy,
     Devices,
@@ -31,7 +30,7 @@ pub(in crate::desktop) unsafe fn items(
         Section::Loom => append_connection(menu.0, &view)?,
         Section::Devices | Section::Groups => targets::append_menu(menu.0, &view, &state.unit_id)?,
         Section::Policy => policy::append_menu(menu.0, &view)?,
-        Section::Receive | Section::TrayReceive => {
+        Section::Receive => {
             policy::append_menu(menu.0, &view)?;
             projection::append_menu(menu.0, &view)?;
             AppendMenuW(menu.0, MF_SEPARATOR, 0, None)?;
@@ -152,19 +151,11 @@ pub(in crate::desktop) unsafe fn choose_with(
         return Ok(());
     };
     if state.lifetime.owns(owner)
-        && if matches!(section, Section::TrayReceive) {
-            !state.modals.blocked() && !state.exit_requested.get() && snapshot.same_inputs(state)
-        } else {
-            snapshot.matches(state)
-        }
+        && snapshot.matches(state)
         && permits(&items(section, state)?, command)
     {
         // Retain original single request slots, permissions, provenance, and persistence paths; no remote access inside menu callbacks.
-        if matches!(section, Section::TrayReceive) && command == live::WATCH_DIRECT {
-            live::choose_direct(owner, state, true)?;
-        } else {
-            execute(owner, state, command)?;
-        }
+        execute(owner, state, command)?;
     }
     Ok(())
 }

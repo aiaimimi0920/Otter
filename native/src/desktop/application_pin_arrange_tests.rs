@@ -129,7 +129,7 @@ fn pin_context_menu_exposes_all_visible_pins_layout_and_global_pass_through_togg
             crate::shortcut_policy::Policy::default().chord("pin.restore-input"),
             Some(crate::shortcut_policy::Chord {
                 key: b'4',
-                modifiers: crate::shortcut_policy::CTRL,
+                modifiers: crate::shortcut_policy::CTRL | crate::shortcut_policy::ALT,
             })
         );
         // Verify global pass-through toggle signal & tray label reflect workspace count without blocking.

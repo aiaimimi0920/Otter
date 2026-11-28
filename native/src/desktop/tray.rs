@@ -12,8 +12,6 @@ use windows::{
 pub(super) const COMMAND: usize = 0x1047;
 #[path = "tray_actions.rs"]
 pub(super) mod actions;
-#[path = "tray_image_archive.rs"]
-mod archive;
 #[path = "tray_capture_delay.rs"]
 mod delay;
 #[path = "tray_language.rs"]
@@ -291,10 +289,9 @@ impl Drop for Menu {
 unsafe fn build_menu(state: &State) -> Result<(Menu, Option<crate::autostart::Status>)> {
     let menu = Menu(CreatePopupMenu()?);
     actions::append(menu.0, state)?;
-    let startup = startup::append(menu.0)?;
+    AppendMenuW(menu.0, MF_SEPARATOR, 0, None)?;
     language::append(menu.0)?;
-    delay::append(menu.0, state)?;
-    archive::append(menu.0, state)?;
+    let startup = startup::append(menu.0)?;
     AppendMenuW(
         menu.0,
         MF_STRING,
@@ -313,6 +310,7 @@ unsafe fn menu(hwnd: HWND, state: &State, position: WPARAM) -> Result<()> {
         GetCursorPos(&mut point)?;
     }
     let target = super::popup_menu::target::MenuTarget::capture(&state.canvas.borrow());
+    let receive_target = super::device_authorization_ui::settings::Snapshot::capture(state);
     let command = super::popup_menu::track_tray(hwnd, state, menu.0, point, |entry| {
         history::deliver(hwnd, state, entry, &target)
     })?;
@@ -323,10 +321,18 @@ unsafe fn menu(hwnd: HWND, state: &State, position: WPARAM) -> Result<()> {
                 super::application::request_exit(hwnd, state)?;
             }
             startup::COMMAND => startup::execute(hwnd, state, startup),
+            id if super::device_authorization_ui::policy::handles(id) => {
+                if state.lifetime.owns(hwnd)
+                    && !state.modals.blocked()
+                    && !state.exit_requested.get()
+                    && receive_target.same_inputs(state)
+                {
+                    super::device_authorization_ui::execute(hwnd, state, id)?;
+                }
+            }
             _ => {
                 if !delay::execute(hwnd, state, command)?
                     && !language::execute(hwnd, state, command)?
-                    && !archive::execute(hwnd, state, command)?
                     && !actions::execute(hwnd, state, command)
                 {
                     let _ = Shell_NotifyIconW(NIM_SETFOCUS, &data(hwnd));
@@ -408,13 +414,12 @@ mod tests {
             let state = State::new(None, false).unwrap();
             let (menu, _) = build_menu(&state).unwrap();
             let tree = crate::native_menu::snapshot(menu.0).unwrap();
-            assert_eq!(tree.len(), 11);
+            assert_eq!(tree.len(), 12);
             for (index, key) in [
                 "tray-capture",
                 "tray-live-capture",
                 "tray-long-capture",
-                "tray-open-image",
-                "tray-receive",
+                "tray-delay",
             ]
             .into_iter()
             .enumerate()
@@ -430,26 +435,35 @@ mod tests {
             let checked_tree = crate::native_menu::snapshot(checked_menu.0).unwrap();
             assert!(checked_tree[5].checked);
             state.click.signals.enabled.set(false);
-            assert!(tree[6]
+            assert!(tree[4].separator && tree[8].separator);
+            let delay = tree[3].children.as_ref().unwrap();
+            assert_eq!(
+                delay.iter().map(|i| i.command).collect::<Vec<_>>(),
+                [
+                    super::super::capture_countdown::THREE,
+                    super::super::capture_countdown::FIVE
+                ]
+            );
+            assert_eq!(tree[6].label, crate::ui_text::text("tray-receive"));
+            let receive = tree[6].children.as_ref().unwrap();
+            let keys = [
+                "integration-pause",
+                "integration-receive",
+                "integration-reject",
+                "integration-automatic",
+            ];
+            assert_eq!(receive.len(), keys.len());
+            for (item, key) in receive.iter().zip(keys) {
+                assert_eq!(item.label, crate::ui_text::text(key));
+                assert_eq!(item.radio && item.checked, key == "integration-receive");
+            }
+            assert_eq!(tree[7].label, crate::ui_text::text("tray-open-image"));
+            assert!(tree[10]
                 .label
                 .starts_with(crate::ui_text::text("tray-autostart")));
-            assert_eq!(tree[7].label, crate::ui_text::text("tray-language"));
-            assert_eq!(tree[8].label, crate::ui_text::text("tray-delay"));
-            assert_eq!(tree[8].children.as_ref().unwrap().len(), 3);
-            assert_eq!(tree[9].label, crate::ui_text::text("archive-menu"));
-            let archive = tree[9].children.as_ref().unwrap();
-            assert_eq!(archive.len(), 3);
-            assert!(archive.iter().all(|item| !item.checked));
-            assert_eq!(tree[10].label, crate::ui_text::text("tray-exit"));
-            assert_eq!(tree[7].children.as_ref().unwrap().len(), 2);
-            assert_eq!(tree.len(), 11);
-            assert!(tree
-                .iter()
-                .enumerate()
-                .all(
-                    |(index, item)| (matches!(index, 7 | 8 | 9) || item.children.is_none())
-                        && !item.separator
-                ));
+            assert_eq!(tree[9].label, crate::ui_text::text("tray-language"));
+            assert_eq!(tree[9].children.as_ref().unwrap().len(), 2);
+            assert_eq!(tree[11].label, crate::ui_text::text("tray-exit"));
         }
     }
     #[test]

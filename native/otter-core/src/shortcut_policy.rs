@@ -145,7 +145,16 @@ impl Policy {
         }
         GLOBAL
             .iter()
-            .map(|pair| (pair, CTRL))
+            .map(|pair| {
+                (
+                    pair,
+                    if pair.0 == "pin.restore-input" {
+                        CTRL | ALT
+                    } else {
+                        CTRL
+                    },
+                )
+            })
             .chain(CANVAS.iter().map(|pair| (pair, 0)))
             .find(|((id, key), _)| *id == action && *key != 0)
             .map(|((_, key), modifiers)| Chord {
@@ -202,6 +211,13 @@ mod tests {
     fn defaults_unbound_swap_and_collision() {
         let mut p = Policy::default();
         assert!(p.validate().is_ok());
+        assert_eq!(
+            p.chord("pin.restore-input"),
+            Some(Chord {
+                key: b'4',
+                modifiers: CTRL | ALT
+            })
+        );
         assert_eq!(
             p.fullscreen,
             Fullscreen {

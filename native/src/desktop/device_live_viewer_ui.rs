@@ -13,7 +13,7 @@ pub(in crate::desktop) const WATCH: usize = 0x2000;
 const STOP_BASE: usize = WATCH + 1;
 #[path = "device_live_direct_ui.rs"]
 mod direct;
-pub(super) use direct::{append as append_direct, choose as choose_direct, WATCH_DIRECT};
+pub(super) use direct::{append as append_direct, WATCH_DIRECT};
 const MAX_VIEWERS: usize = 4;
 const MAX_HOSTS: usize = 8;
 const MAX_CATALOG: usize = 512;

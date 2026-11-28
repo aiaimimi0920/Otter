@@ -15,7 +15,6 @@ use windows::{
 
 pub(super) const THREE: usize = 0x1ef1;
 pub(super) const FIVE: usize = 0x1ef2;
-pub(super) const CANCEL: usize = 0x1ef3;
 const BADGE_SUBCLASS: usize = 0x434442;
 const BORDER_SUBCLASS: usize = 0x434446;
 const SIGNAL: COLORREF = COLORREF(0x38ffd9);

@@ -82,7 +82,7 @@ fn empty_host_stays_hidden_after_mouse_or_keyboard_tray_activation() {
             }
         }
         let (menu, _) = build_menu(&state).unwrap();
-        assert_eq!(GetMenuItemCount(Some(menu.0)), 10);
+        assert_eq!(GetMenuItemCount(Some(menu.0)), 12);
         let items = crate::native_menu::snapshot(menu.0).unwrap();
         let language = items
             .iter()

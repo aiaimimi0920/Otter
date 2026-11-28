@@ -15,6 +15,7 @@ pub(super) type Shared = Rc<RefCell<Owner>>;
 mod archive_file;
 #[path = "export_archive_directory.rs"]
 mod directory;
+#[cfg(test)]
 pub(super) use directory::grant;
 pub(super) use directory::Target;
 enum Source {

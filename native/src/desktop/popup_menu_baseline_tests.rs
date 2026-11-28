@@ -83,9 +83,11 @@ fn tray_tree_has_no_clipboard_libraries_or_hidden_restore_entry() {
                 crate::ui_text::text("tray-capture"),
                 crate::ui_text::text("tray-live-capture"),
                 crate::ui_text::text("tray-long-capture"),
-                crate::ui_text::text("tray-open-image"),
-                crate::ui_text::text("tray-receive"),
+                crate::ui_text::text("tray-delay"),
+                "",
                 crate::ui_text::text("pin-pass-menu"),
+                crate::ui_text::text("tray-receive"),
+                crate::ui_text::text("tray-open-image"),
                 crate::ui_text::text("tray-autostart"),
                 crate::ui_text::text("tray-exit")
             ]
@@ -94,6 +96,8 @@ fn tray_tree_has_no_clipboard_libraries_or_hidden_restore_entry() {
         assert!(snapshot
             .tree
             .iter()
-            .all(|item| item.children.is_none() && !item.separator));
+            .enumerate()
+            .all(|(i, item)| item.children.is_some() == matches!(i, 3 | 6)
+                && item.separator == (i == 4)));
     }
 }

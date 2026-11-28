@@ -74,7 +74,7 @@ impl Consent {
         self.status = crate::ui_text::text("integration-saving-receive-policy");
     }
 }
-pub(super) fn handles(command: usize) -> bool {
+pub(in crate::desktop) fn handles(command: usize) -> bool {
     matches!(command, AUTO | CONFIRM | REJECT | PAUSE)
 }
 pub(super) fn request(view: &View, command: usize) -> Result<Request> {
@@ -94,6 +94,9 @@ pub(super) fn request(view: &View, command: usize) -> Result<Request> {
 }
 pub(super) unsafe fn append_menu(menu: HMENU, view: &View) -> Result<()> {
     AppendMenuW(menu, MF_SEPARATOR, 0, None)?;
+    append_choices(menu, view)
+}
+pub(in crate::desktop) unsafe fn append_choices(menu: HMENU, view: &View) -> Result<()> {
     for (id, selected, label) in [
         (
             PAUSE,
@@ -125,6 +128,9 @@ pub(super) unsafe fn append_menu(menu: HMENU, view: &View) -> Result<()> {
             id,
             &HSTRING::from(label),
         )?;
+        if selected {
+            CheckMenuRadioItem(menu, id as u32, id as u32, id as u32, MF_BYCOMMAND.0)?;
+        }
     }
     Ok(())
 }

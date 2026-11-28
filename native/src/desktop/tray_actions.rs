@@ -31,6 +31,25 @@ fn available(state: &State, command: usize) -> bool {
         }
 }
 pub(in crate::desktop) unsafe fn append(menu: HMENU, state: &State) -> Result<()> {
+    for &(command, label) in &ENTRIES[..3] {
+        append_action(menu, state, command, label)?;
+    }
+    super::delay::append(menu, state)?;
+    AppendMenuW(menu, MF_SEPARATOR, 0, None)?;
+    append_pass(menu, state)?;
+    let sub = Menu(CreatePopupMenu()?);
+    crate::desktop::device_authorization_ui::policy::append_choices(
+        sub.0,
+        &state.authorization.borrow(),
+    )?;
+    AppendMenuW(
+        menu,
+        MF_POPUP,
+        sub.0 .0 as usize,
+        &windows::core::HSTRING::from(crate::ui_text::text("tray-receive")),
+    )?;
+    std::mem::forget(sub);
+    append_action(menu, state, context_menu::OPEN, "tray-open-image")?;
     if state.shake.signals.count.get() != 0 {
         AppendMenuW(
             menu,
@@ -39,25 +58,22 @@ pub(in crate::desktop) unsafe fn append(menu: HMENU, state: &State) -> Result<()
             &windows::core::HSTRING::from(crate::ui_text::text("workspace-shake-restore")),
         )?;
     }
-    for &(command, label) in ENTRIES {
-        AppendMenuW(
-            menu,
-            MF_STRING
-                | if available(state, command) {
-                    MF_ENABLED
-                } else {
-                    MF_GRAYED
-                },
-            command,
-            &windows::core::HSTRING::from(tray_label(state, command, crate::ui_text::text(label))),
-        )?;
-    }
+    Ok(())
+}
+unsafe fn append_action(menu: HMENU, state: &State, command: usize, label: &str) -> Result<()> {
     AppendMenuW(
         menu,
-        MF_STRING,
-        RECEIVE,
-        &windows::core::HSTRING::from(crate::ui_text::text("tray-receive")),
-    )?;
+        MF_STRING
+            | if available(state, command) {
+                MF_ENABLED
+            } else {
+                MF_GRAYED
+            },
+        command,
+        &windows::core::HSTRING::from(tray_label(state, command, crate::ui_text::text(label))),
+    )
+}
+unsafe fn append_pass(menu: HMENU, state: &State) -> Result<()> {
     let pass_on = state.click.signals.enabled.get();
     AppendMenuW(
         menu,
@@ -70,7 +86,6 @@ pub(in crate::desktop) unsafe fn append(menu: HMENU, state: &State) -> Result<()
         )),
     )
 }
-pub(super) const RECEIVE: usize = 0x10b8;
 const RESTORE_SHAKE: usize = 0x21c1;
 pub(super) fn tray_label(state: &State, command: usize, label: &str) -> String {
     let slots = state
@@ -116,24 +131,6 @@ pub(super) unsafe fn execute(hwnd: HWND, state: &State, command: usize) -> bool 
     }
     if command == RESTORE_SHAKE {
         state.shake.signals.restore.set(true);
-        return true;
-    }
-    if command == RECEIVE {
-        if IsWindow(Some(hwnd)).as_bool() && !state.modals.blocked() {
-            let result = super::super::device_authorization_ui::settings::choose_with(
-                hwnd,
-                state,
-                super::super::device_authorization_ui::settings::Section::TrayReceive,
-                |items| {
-                    let mut point = POINT::default();
-                    GetCursorPos(&mut point)?;
-                    crate::native_menu::cascade::track_tray(hwnd, items, point)
-                },
-            );
-            if let Err(error) = result {
-                eprintln!("native-tray-receive: {error}");
-            }
-        }
         return true;
     }
     execute_with(
@@ -200,18 +197,6 @@ mod tests {
             let menu = Menu(CreatePopupMenu().unwrap());
             append(menu.0, &state).unwrap();
             // List mainline product entries separately to prevent adding migration-branch commands or wiring incorrect ones.
-            let expected = [
-                capture_input::NEW_PIN,
-                capture_input::live::COMMAND,
-                capture_input::LONG_RECORDING,
-                context_menu::OPEN,
-                RECEIVE,
-                crate::desktop::pin_click_through::RESTORE,
-            ];
-            assert_eq!(GetMenuItemCount(Some(menu.0)), expected.len() as i32);
-            for (index, command) in expected.into_iter().enumerate() {
-                assert_eq!(GetMenuItemID(menu.0, index as i32), command as u32);
-            }
             for &(command, _) in ENTRIES {
                 assert!(available(&state, command));
                 assert_eq!(

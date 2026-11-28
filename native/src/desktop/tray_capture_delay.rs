@@ -1,4 +1,4 @@
-//! A resident tray always offers cancellation without registering Escape or activating a pin.
+//! Tray countdown presets use the shared capture scheduler.
 use super::*;
 use crate::desktop::capture_countdown as delay;
 use windows::core::HSTRING;
@@ -16,7 +16,6 @@ pub(super) unsafe fn append(menu: HMENU, state: &State) -> Result<()> {
             "tray-delay-five",
             !active && delay::ready(state),
         ),
-        (delay::CANCEL, "tray-delay-cancel", active),
     ] {
         AppendMenuW(
             sub.0,
@@ -40,7 +39,6 @@ pub(super) unsafe fn append(menu: HMENU, state: &State) -> Result<()> {
 }
 pub(super) unsafe fn execute(hwnd: HWND, state: &State, id: usize) -> Result<bool> {
     match id {
-        delay::CANCEL => delay::cancel(),
         delay::THREE | delay::FIVE => delay::start(hwnd, state, id)?,
         _ => return Ok(false),
     }
